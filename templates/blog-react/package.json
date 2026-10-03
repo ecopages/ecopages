@@ -8,7 +8,8 @@
 		"build": "ecopages build",
 		"preview": "ecopages preview",
 		"dev:watch": "ecopages dev:watch -r",
-		"dev:hot": "ecopages dev:hot -r"
+		"dev:hot": "ecopages dev:hot -r",
+		"typecheck": "ecopages types && tsc --noEmit"
 	},
 	"devDependencies": {
 		"@ecopages/content-processor": "workspace:*",

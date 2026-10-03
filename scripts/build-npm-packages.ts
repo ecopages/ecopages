@@ -698,8 +698,19 @@ function transpileJavaScriptSource(sourceFile: string, source: string, compilerO
  * through the changesets `fixed` group, so the consuming package version is the
  * dependency version.
  */
+/**
+ * Drops `./internal/*` subpaths, which only workspace packages and tests may import.
+ */
+function omitInternalExports(exportsField: unknown): unknown {
+	if (!isRecord(exportsField) || isConditionalExportObject(exportsField)) {
+		return exportsField;
+	}
+
+	return Object.fromEntries(Object.entries(exportsField).filter(([key]) => !key.startsWith('./internal/')));
+}
+
 export function createDistManifest(manifest: PackageManifest, version: string): PackageManifest {
-	const rewrittenExports = normalizeExportTarget(rewriteExportMap(manifest.exports));
+	const rewrittenExports = normalizeExportTarget(rewriteExportMap(omitInternalExports(manifest.exports)));
 	const distManifest: PackageManifest = {
 		...manifest,
 		version,

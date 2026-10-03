@@ -21,6 +21,8 @@ import {
 } from '../../../build/cache/server-entry-build-cache.ts';
 import {
 	clearProductionBuildCaches,
+	hashWatchedBuildInputs,
+	haveWatchedBuildInputsChanged,
 	shouldResetStaticExportDirectory,
 } from '../../../static-site-generator/static-build-invalidation.ts';
 import {
@@ -115,14 +117,18 @@ export class ServerStaticBuilder {
 		this.runtimeOrigin = input.runtimeOrigin;
 	}
 
-	private prepareExportDirectory(force: boolean): boolean {
-		if (force) {
+	/**
+	 * @returns Whether `dist/` was kept, and the watched-inputs hash computed once for this export.
+	 */
+	private prepareExportDirectory(force: boolean): { preserveExportDirectory: boolean; watchedInputsHash: string } {
+		const watchedInputsHash = hashWatchedBuildInputs(this.appConfig);
+		if (force || haveWatchedBuildInputsChanged(this.appConfig, watchedInputsHash)) {
 			clearProductionBuildCaches(this.appConfig);
 		}
 
 		const exportDir =
 			this.appConfig.absolutePaths?.distDir ?? path.join(this.appConfig.rootDir, this.appConfig.distDir);
-		const shouldCleanDist = shouldResetStaticExportDirectory(this.appConfig, force);
+		const shouldCleanDist = shouldResetStaticExportDirectory(this.appConfig, force, watchedInputsHash);
 		fileSystem.ensureDir(exportDir, shouldCleanDist);
 
 		if (shouldCleanDist) {
@@ -141,7 +147,7 @@ export class ServerStaticBuilder {
 			fileSystem.copyDir(srcPublicDir, exportDir);
 		}
 
-		return !shouldCleanDist;
+		return { preserveExportDirectory: !shouldCleanDist, watchedInputsHash };
 	}
 
 	private async refreshRuntimeAssets(): Promise<void> {
@@ -279,7 +285,7 @@ export class ServerStaticBuilder {
 			explicitBaseUrl ??
 			`http://${this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME}:${this.serveOptions.port || DEFAULT_ECOPAGES_PORT}`;
 
-		const preserveExportDirectory = this.prepareExportDirectory(force);
+		const { preserveExportDirectory, watchedInputsHash } = this.prepareExportDirectory(force);
 		await this.refreshRuntimeAssets();
 
 		if (this.needsServerBundle) {
@@ -294,6 +300,7 @@ export class ServerStaticBuilder {
 			errorPageLoaders: dependencies.errorPageLoaders,
 			force,
 			preserveExportDirectory,
+			watchedInputsHash,
 		});
 
 		if (process.env.ECOPAGES_BENCH === '1' && process.env.ECOPAGES_BENCH_VERBOSE !== '1') {

@@ -45,6 +45,7 @@ export function getAssetDependencyKey(dep: AssetDefinition): string {
 		parts.push(dep.filepath);
 	} else if ('content' in dep) {
 		parts.push(`content:${generateHash(dep.content)}`);
+		if ('processingOrigin' in dep && dep.processingOrigin) parts.push(`origin:${dep.processingOrigin}`);
 	} else if ('importPath' in dep) {
 		parts.push(dep.importPath);
 	}

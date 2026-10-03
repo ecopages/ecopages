@@ -24,4 +24,17 @@ describe('RouteRendererFactory runtime binding', () => {
 		expect(integration.setRuntimeOrigin).toHaveBeenCalledWith('http://localhost:3001');
 		expect(factory.getExplicitViewRenderer('test')).toBe(secondRenderer);
 	});
+
+	it('resolves a dotted file name to its owner, and names a file no Integration owns', () => {
+		const html = { name: 'html', extensions: ['.html'] };
+		const factory = new RouteRendererFactory({
+			appConfig: { integrations: [html] } as unknown as EcoPagesAppConfig,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		expect(factory.getIntegrationPlugin('/app/src/pages/v1.2.html')).toBe(html);
+		expect(() => factory.getIntegrationPlugin('/app/src/pages/about.md')).toThrow(
+			'No registered Integration owns /app/src/pages/about.md',
+		);
+	});
 });

@@ -53,4 +53,24 @@ describe('NodeStaticContentServer', () => {
 		expect(cssResponse.headers.get('content-type')).toContain('text/css');
 		expect(await cssResponse.text()).toContain('.api-lab { color: tomato; }');
 	});
+
+	it('serves a dotted route from its exported .html file or index.html', async () => {
+		const distDir = path.join(TMP_DIR, 'dist');
+		fs.writeFileSync(path.join(distDir, 'v1.2.html'), 'Release 1.2');
+		fs.mkdirSync(path.join(distDir, 'release.notes'));
+		fs.writeFileSync(path.join(distDir, 'release.notes', 'index.html'), 'Release notes');
+
+		await using server = new NodeStaticContentServer({
+			appConfig: createAppConfig(),
+			options: { hostname: '127.0.0.1', port: 0 },
+		});
+		const { port } = (await server.start()).address() as AddressInfo;
+
+		const version = await fetch(`http://127.0.0.1:${port}/v1.2`);
+		const notes = await fetch(`http://127.0.0.1:${port}/release.notes`);
+
+		expect([version.status, await version.text()]).toEqual([200, 'Release 1.2']);
+		expect([notes.status, await notes.text()]).toEqual([200, 'Release notes']);
+		expect((await fetch(`http://127.0.0.1:${port}/v9.9`)).status).toBe(404);
+	});
 });

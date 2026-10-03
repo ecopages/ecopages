@@ -22,7 +22,7 @@ export type GenerateRssOptions<TFrontmatter extends RssPostFrontmatter = RssPost
 	channel: GenerateRssChannel;
 	contentRoot: string;
 	schema: z.ZodType<TFrontmatter>;
-	orderBy: EntryComparator;
+	orderBy: EntryComparator<TFrontmatter>;
 	postPathPrefix?: string;
 	outputPath?: string;
 };

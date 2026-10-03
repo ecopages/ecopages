@@ -15,30 +15,20 @@ bun add @ecopages/lit lit @lit-labs/ssr @lit-labs/ssr-client
 Register `litPlugin()` in your `eco.config.ts`.
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { litPlugin } from '@ecopages/lit';
 
-const config = await new ConfigBuilder()
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-	.setIntegrations([litPlugin()])
-	.build();
-
-export default config;
+export default defineConfig({ integrations: [litPlugin()] });
 ```
 
 Lit also works well alongside an HTML-first renderer such as `@ecopages/kitajs` when you want Lit to own only the nested custom elements:
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { litPlugin } from '@ecopages/lit';
 
-const config = await new ConfigBuilder()
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-	.setIntegrations([kitajsPlugin(), litPlugin()])
-	.build();
-
-export default config;
+export default defineConfig({ integrations: [kitajsPlugin(), litPlugin()] });
 ```
 
 This setup lets Kita own the page shell while Lit owns the nested Lit component boundaries.

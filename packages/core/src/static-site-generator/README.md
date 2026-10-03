@@ -39,21 +39,24 @@ Semantic error pages are excluded from ordinary page enumeration and emitted onc
 | `static-build-invalidation.ts`              | `dist/` reset policy, production cache clearing, static-render cache context |
 | `production-page-browser-graph-prebuild.ts` | Warms and prebuilds browser asset graphs before static export rendering      |
 
-Build-input fingerprinting (`hashAppConfigFile`, `createBuildInputsFingerprint`) lives in `packages/core/src/build/cache/build-input-fingerprint.ts` and is shared with server-entry and unified-graph caches.
+Build-input fingerprinting (`hashAppConfigFile`, `createBuildInputsFingerprint`, `hashWatchedBuildInputs`) lives in `packages/core/src/build/cache/build-input-fingerprint.ts` and is shared with server-entry and unified-graph caches.
 
 ## Incremental static export
 
 `ServerStaticBuilder.prepareExportDirectory()` decides whether to wipe `dist/`:
 
-1. `force: true` → always reset
-2. Any processor/integration reports `didChange()` → reset
-3. Route-module manifest lacks matching `configHash` + `buildInputsFingerprint` → reset
+1. `force: true` → always reset, and clear the persisted production caches
+2. A watched rendering input changed (`haveWatchedBuildInputsChanged()`) → reset, and clear the persisted production caches
+3. Any processor/integration reports `didChange()` → reset
+4. Route-module manifest lacks matching `configHash`, `buildInputsFingerprint`, and `watchedInputsHash` → reset
+
+Watched rendering inputs are the files under each Processor's `watch.paths` (filtered by `watch.extensions`), hashed once per export by `hashWatchedBuildInputs()` and passed to `StaticSiteGenerator.run()`. They cover content a page reads without importing it statically, such as content collection entries loaded through dynamic `import()`. Compiled route modules and the unified pages graph track only static imports, so a change to these files also clears those caches; the next export recompiles every route module. `additionalWatchPaths` is not a build input: route-module hashing already covers sources pages import.
 
 When `dist/` is preserved (`preserveExportDirectory: true`), `StaticSiteGenerator.run()` prunes HTML files no longer in the active route set.
 
 Rendered HTML reuse is tracked in `.eco/.server-modules/.build-cache.json` under each route module's `renderedOutputs`. `canReuseStaticRender()` skips re-rendering when the source file, dependency hashes, and output path are unchanged. Rebuilding a route module (`recordBuild()`) drops `renderedOutputs` so a layout or component edit cannot keep the previous HTML.
 
-`clearProductionBuildCaches()` runs on `force` builds and removes all persisted `.eco` build manifests (route modules, server entry, unified pages graph).
+`clearProductionBuildCaches()` runs on `force` builds and after a watched rendering input changes, and removes all persisted `.eco` build manifests (route modules, server entry, unified pages graph).
 
 ## Integration hooks
 

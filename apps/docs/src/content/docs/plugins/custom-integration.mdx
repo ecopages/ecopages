@@ -13,7 +13,7 @@ Integrations in Ecopages add support for new templating engines or frameworks. A
 3. which build-time contributions must be registered before startup
 4. which runtime-only behavior is needed for HMR, browser bundles, or cross-integration boundaries
 
-Core still owns lifecycle ordering. Integration plugins declare contributions; `ConfigBuilder.build()` and app startup decide when those hooks run.
+Core still owns lifecycle ordering. Integration plugins declare contributions; config finalization and app startup decide when those hooks run.
 
 ## Minimal Integrations
 
@@ -92,7 +92,39 @@ Available tags:
 
 Use the smallest declaration that matches reality. For example, an integration that only needs standard Node-compatible APIs should not declare Bun-only requirements.
 
-`runtimeCapability` is validated during `ConfigBuilder.build()`, before `setup()` runs. Integrations that depend on Bun-native APIs should declare that requirement explicitly.
+`runtimeCapability` is validated during config finalization, before `setup()` runs. Integrations that depend on Bun-native APIs should declare that requirement explicitly.
+
+## Pages That Are Not JavaScript Modules
+
+Core bundles an Integration's Page files and imports the result. An Integration whose files are not JavaScript, such as core's own HTML Pages, can compile them itself instead:
+
+- **`compilePageModule(filePath, appConfig)`** returns the module for a Page or `html.*` template file, or a promise of it: a `default` component, plus optional `getMetadata` or `cache`. Core calls it for every file of the Integration that it loads and never bundles those files itself, so throw for a file the Integration cannot compile.
+  - Every Page of an Integration that implements it stays out of the production pages graph, so a static export compiles each one on its own.
+  - Core caches the result by the file's content hash, so editing another file it reads does not invalidate it.
+  - Vite-hosted development imports files whose last extension is a JavaScript one, such as `.tpl.ts`, itself and never calls it. Use a non-JavaScript extension.
+- **`acceptsParams = false`** as a class field says its Pages cannot receive Params. Route discovery then rejects `[param]` and `[...param]` filenames the Integration owns, instead of failing at render time. It is not a constructor option, because it describes the Integration rather than the app.
+
+`TemplateRenderer` and `compileTemplate` below are your own modules:
+
+```typescript
+import type { EcoPageFile, EcoPagesAppConfig } from '@ecopages/core';
+import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
+import { compileTemplate } from './compile-template.ts';
+import { TemplateRenderer } from './template-renderer.ts';
+
+export class TemplateIntegration extends IntegrationPlugin {
+	renderer = TemplateRenderer;
+	override readonly acceptsParams = false;
+
+	constructor() {
+		super({ name: 'templates', extensions: ['.tpl'] });
+	}
+
+	override async compilePageModule(filePath: string, appConfig: EcoPagesAppConfig): Promise<EcoPageFile> {
+		return { default: await compileTemplate(filePath, appConfig) };
+	}
+}
+```
 
 ## Creating a Custom Renderer
 
@@ -311,7 +343,7 @@ export default defineConfig({
 });
 ```
 
-`ConfigBuilder.build()` is the app-owned finalization boundary. This is where Ecopages validates runtime requirements, derives paths, collects build contributions, and prepares the shared runtime state used later by startup and rendering.
+Config finalization, when `createApp()` loads `eco.config.ts`, is the app-owned boundary. This is where Ecopages validates runtime requirements, derives paths, collects build contributions, and prepares the shared runtime state used later by startup and rendering.
 
 ## Best Practices
 

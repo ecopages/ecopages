@@ -72,7 +72,7 @@ ECOPAGES_LOGGER_DEBUG=true
 **Configuration Precedence:**
 
 - **Server Hostname/Port:** Constructor `serverOptions` > Environment Variables (`ECOPAGES_HOSTNAME`, `ECOPAGES_PORT`) > Defaults (`localhost:3000`).
-- **Canonical Base URL:** `eco.config.ts` (`setBaseUrl`) > Environment Variable (`ECOPAGES_BASE_URL`) > Default (`http://localhost:3000`).
+- **Canonical Base URL:** `eco.config.ts` (`baseUrl`) > Environment Variable (`ECOPAGES_BASE_URL`) > Default (`http://localhost:3000`).
 
 ## Project Structure
 
@@ -85,8 +85,8 @@ my-project/
 │ ├── pages/
 │ ├── layouts/
 │ ├── components/
-│ └── includes/
-├── public/
+│ ├── includes/
+│ └── public/
 ├── app.ts # Your application entry point
 ├── eco.config.ts # Ecopages configuration
 ├── package.json
@@ -98,7 +98,7 @@ my-project/
 - `src/layouts/`: Holds layout components
 - `src/components/`: Stores reusable components
 - `src/includes/`: Contains include templates (e.g., `head.tsx`, `html.tsx` or integration-specific suffixes)
-- `public/`: Static assets that will be copied to the build directory
+- `src/public/`: Static assets copied to the build directory as written
 - `app.ts`: The main script to run Ecopages commands.
 - `eco.config.ts`: Ecopages configuration file.
 

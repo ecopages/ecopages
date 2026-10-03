@@ -172,20 +172,10 @@ export class NodeStaticContentServer {
 			return;
 		}
 
-		const basePath = join(this.appConfig.absolutePaths.distDir, relativePath);
-
-		if (pathname.includes('.')) {
-			this.serveFile(req, res, basePath);
+		const filePath = ServerUtils.resolveStaticFilePath(join(this.appConfig.absolutePaths.distDir, relativePath));
+		if (filePath) {
+			this.serveFile(req, res, filePath);
 			return;
-		}
-
-		const htmlCandidates = [`${basePath}.html`, join(basePath, 'index.html')];
-
-		for (const candidate of htmlCandidates) {
-			if (fileSystem.exists(candidate)) {
-				this.serveFile(req, res, candidate);
-				return;
-			}
 		}
 
 		this.sendNotFoundPage(req, res);

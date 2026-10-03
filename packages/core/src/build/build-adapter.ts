@@ -162,28 +162,10 @@ export function getBuildAdapterOwnership(buildAdapter: BuildAdapter | undefined)
 }
 
 /**
- * Resolves the build ownership of an app config.
- *
- * @remarks
- * Resolution order: `appConfig.runtime.buildOwnership` (explicit), then
- * the ownership declared on `appConfig.runtime.buildAdapter`, then the
- * default `'rolldown'`.
+ * Returns the ownership declared by the app's build adapter, or `'rolldown'` when none is installed.
  */
 export function getAppBuildOwnership(appConfig: EcoPagesAppConfig): BuildOwnership {
-	return appConfig.runtime?.buildOwnership ?? getBuildAdapterOwnership(appConfig.runtime?.buildAdapter);
-}
-
-/**
- * Sets the explicit build ownership on an app config.
- *
- * @remarks
- * The `ConfigBuilder` uses this when the caller calls
- * `setBuildOwnership`. App code that needs a different ownership
- * should call this directly with a new value; passing the same
- * value is a no-op.
- */
-export function setAppBuildOwnership(appConfig: EcoPagesAppConfig, buildOwnership: BuildOwnership): void {
-	patchAppRuntime(appConfig, { buildOwnership });
+	return getBuildAdapterOwnership(appConfig.runtime?.buildAdapter);
 }
 
 /**
@@ -199,15 +181,10 @@ export function getAppBuildAdapter(appConfig: EcoPagesAppConfig): BuildAdapter {
 }
 
 /**
- * Installs the adapter that should serve future builds for one app
- * instance, and aligns the ownership field to the new adapter's
- * declared ownership.
+ * Installs the adapter that should serve future builds for one app instance.
  */
 export function setAppBuildAdapter(appConfig: EcoPagesAppConfig, buildAdapter: BuildAdapter): void {
-	patchAppRuntime(appConfig, {
-		buildOwnership: getBuildAdapterOwnership(buildAdapter),
-		buildAdapter,
-	});
+	patchAppRuntime(appConfig, { buildAdapter });
 }
 
 /**
@@ -232,7 +209,7 @@ export function getAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManif
  *
  * @remarks
  * Production apps are sealed via {@link updateAppBuildManifest} during
- * {@link ConfigBuilder.build}. Call `setAppBuildManifest` directly only in tests or
+ * config finalization. Call `setAppBuildManifest` directly only in tests or
  * when replacing the entire manifest object; partial updates should use
  * {@link updateAppBuildManifest}.
  */
@@ -267,7 +244,7 @@ export function createConfiguredAppBuildManifest(
  * caller-supplied contribution input.
  *
  * @remarks
- * Primary production entry: `ConfigBuilder.build()` passes the return value of
+ * Primary production entry: config finalization passes the return value of
  * {@link collectConfiguredAppBuildManifestContributions} here to seal
  * `appConfig.runtime.buildManifest` before startup.
  */

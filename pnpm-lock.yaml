@@ -110,6 +110,9 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4.3.0
         version: 4.3.3
+      '@types/hast':
+        specifier: ^3.0.5
+        version: 3.0.5
       '@types/mdast':
         specifier: ^4.0.4
         version: 4.0.4
@@ -233,6 +236,15 @@ importers:
       react-dom:
         specifier: ^19.2.6
         version: 19.2.8(react@19.2.8)
+
+  e2e/fixtures/html-pages:
+    devDependencies:
+      '@ecopages/browser-router':
+        specifier: workspace:*
+        version: link:../../../packages/browser-router
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
 
   e2e/fixtures/react-router:
     dependencies:
@@ -1425,6 +1437,9 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4.0.0
         version: 4.3.3
+      '@types/hast':
+        specifier: ^3.0.5
+        version: 3.0.5
       ecopages:
         specifier: workspace:*
         version: link:../../packages/ecopages
@@ -1455,6 +1470,27 @@ importers:
       zod:
         specifier: ^4.4.3
         version: 4.5.4
+
+  templates/html:
+    devDependencies:
+      '@ecopages/browser-router':
+        specifier: workspace:*
+        version: link:../../packages/browser-router
+      '@ecopages/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@ecopages/postcss-processor':
+        specifier: workspace:*
+        version: link:../../packages/processors/postcss-processor
+      '@tailwindcss/postcss':
+        specifier: ^4.0.0
+        version: 4.3.3
+      ecopages:
+        specifier: workspace:*
+        version: link:../../packages/ecopages
+      tailwindcss:
+        specifier: ^4.0.0
+        version: 4.3.3
 
   templates/jsx:
     devDependencies:

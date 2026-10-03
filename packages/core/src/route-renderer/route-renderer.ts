@@ -1,7 +1,7 @@
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { invariant } from '../utils/invariant.ts';
-import { PathUtils } from '../utils/path-utils.module.ts';
+import { findIntegrationForFile } from '../plugins/find-integration-for-file.ts';
 import type { IntegrationRenderer } from './orchestration/integration-renderer.ts';
 
 /**
@@ -121,14 +121,10 @@ export class RouteRendererFactory {
 	 * Resolves the integration plugin that owns a given route file.
 	 */
 	getIntegrationPlugin(filePath: string): AnyIntegrationPlugin {
-		const templateExtension = PathUtils.getEcoTemplateExtension(filePath);
-		const isIntegrationPlugin = (plugin: AnyIntegrationPlugin): boolean => {
-			return plugin.extensions.some((extension) => templateExtension === extension);
-		};
-		const integrationPlugin = this.appConfig.integrations.find(isIntegrationPlugin);
+		const integrationPlugin = findIntegrationForFile(this.appConfig.integrations, filePath);
 		invariant(
 			!!integrationPlugin,
-			`No integration plugin found for template extension: ${templateExtension}, file: ${filePath}`,
+			`No registered Integration owns ${filePath}. Register an Integration for its extension in eco.config.ts.`,
 		);
 		return integrationPlugin;
 	}

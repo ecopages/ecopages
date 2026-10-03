@@ -210,6 +210,55 @@ describe('FileScriptProcessor', () => {
 			expect(result.content).toBeDefined();
 		});
 
+		test('should copy a bundle: false script as written even when HMR is enabled', async () => {
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const HmrManager = {
+				isEnabled: () => true,
+				getResolvedScriptOutput: vi.fn(),
+				registerScriptEntrypoint: vi.fn(),
+			} as unknown as IHmrManager;
+			processor.setHmrManager(HmrManager);
+
+			const result = await processor.process({
+				kind: 'script',
+				source: 'file',
+				filepath: '/test/project/src/vendor/jquery.js',
+				bundle: false,
+				inline: false,
+			});
+
+			expect(HmrManager.getResolvedScriptOutput).not.toHaveBeenCalled();
+			expect(HmrManager.registerScriptEntrypoint).not.toHaveBeenCalled();
+			expect(copyFileMock).toHaveBeenCalled();
+			expect(result.inline).toBe(false);
+		});
+
+		test('should bundle a skipHmr script itself, outside the ES-module HMR pipeline', async () => {
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const HmrManager = {
+				isEnabled: () => true,
+				getResolvedScriptOutput: vi.fn(),
+				registerScriptEntrypoint: vi.fn(),
+			} as unknown as IHmrManager;
+			processor.setHmrManager(HmrManager);
+			const bundle = vi
+				.spyOn(processor as unknown as { bundleScript: () => Promise<string> }, 'bundleScript')
+				.mockResolvedValue('/test/project/.eco/public/assets/classic-abc.js');
+
+			await processor.process({
+				kind: 'script',
+				source: 'file',
+				filepath: '/test/project/src/pages/classic.ts',
+				inline: false,
+				skipHmr: true,
+				bundleOptions: { splitting: false },
+			});
+
+			expect(HmrManager.getResolvedScriptOutput).not.toHaveBeenCalled();
+			expect(HmrManager.registerScriptEntrypoint).not.toHaveBeenCalled();
+			expect(bundle).toHaveBeenCalledWith(expect.objectContaining({ splitting: false }));
+		});
+
 		test('should copy file without bundling when bundle is false', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 

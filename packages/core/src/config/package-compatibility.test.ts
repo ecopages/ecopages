@@ -65,7 +65,7 @@ function collectTypeScriptFiles(dirPath: string): string[] {
 	return results;
 }
 
-describe('ConfigBuilder published package compatibility', () => {
+describe('published package compatibility', () => {
 	test('public integrations and processors peer @ecopages/core', () => {
 		const packages = collectCorePeerPackagePaths();
 		expect(packages.length).toBeGreaterThan(0);

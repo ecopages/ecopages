@@ -10,9 +10,10 @@ Public docs: [Dev toolbar](/docs/core/dev-toolbar) (built-in apps, manifest fiel
 Configure in `eco.config.ts`:
 
 ```ts
+import { defineConfig } from '@ecopages/core/config';
 import { devToolbar } from '@ecopages/dev-toolbar/config';
 
-.setDevToolbar(devToolbar())
+export default defineConfig({ devToolbar: devToolbar() });
 ```
 
 For a custom client package, use `defineDevTool` from `@ecopages/core/dev-toolbar/define-dev-tool`.

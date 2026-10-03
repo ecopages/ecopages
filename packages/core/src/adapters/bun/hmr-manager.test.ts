@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, test, vi } from 'vitest';
 import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
-import { ConfigBuilder } from '../../config/config-builder.ts';
+import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 import { HmrManager } from './hmr-manager.ts';
 
@@ -33,7 +33,7 @@ test('HmrManager shares one in-flight entrypoint registration across concurrent 
 	const entrypointPath = path.join(pagesDir, 'react-lab.tsx');
 	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
-	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const config = await finalizeEcoPagesConfig({ rootDir });
 	using manager = new HmrManager({
 		appConfig: config,
 		bridge: {
@@ -62,7 +62,7 @@ test('HmrManager registers unowned page entrypoints with dev transform URLs', as
 	const entrypointPath = path.join(pagesDir, 'react-content.mdx');
 	fs.writeFileSync(entrypointPath, '# Hello', 'utf8');
 
-	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const config = await finalizeEcoPagesConfig({ rootDir });
 	using manager = new HmrManager({
 		appConfig: config,
 		bridge: {
@@ -87,7 +87,7 @@ test('HmrManager registers script entrypoints with dev transform URLs without bl
 	const entrypointPath = path.join(srcDir, 'script.ts');
 	fs.writeFileSync(entrypointPath, 'console.log("hello");', 'utf8');
 
-	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const config = await finalizeEcoPagesConfig({ rootDir });
 	using manager = new HmrManager({
 		appConfig: config,
 		bridge: {
@@ -127,7 +127,7 @@ test('HmrManager stop clears retained registration state', async () => {
 	const entrypointPath = path.join(pagesDir, 'react-content.tsx');
 	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
 
-	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const config = await finalizeEcoPagesConfig({ rootDir });
 	using manager = new HmrManager({
 		appConfig: config,
 		bridge: {
@@ -147,7 +147,7 @@ test('HmrManager stop clears retained registration state', async () => {
 
 test('HmrManager keeps internal browser and server-module outputs out of distDir', async () => {
 	const rootDir = createTempRoot('ecopages-bun-hmr-internal-paths');
-	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const config = await finalizeEcoPagesConfig({ rootDir });
 	using manager = new HmrManager({
 		appConfig: config,
 		bridge: {

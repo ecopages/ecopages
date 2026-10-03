@@ -11,6 +11,7 @@ Call site (route scan, renderer, SSG, API)
        ├─ resolves route-module BuildExecutor
        └─ PageModuleImportService.importModule()
             ├─ dev + host loader → host runtime (Node only, when configured)
+            ├─ owning Integration's compilePageModule() → compiled in-process, no bundler (HTML Pages)
             ├─ production disk cache → route-module build cache
             ├─ unified pages graph → prebuilt chunk import (production only)
             └─ Rolldown per-page build → dynamic import of transpiled output

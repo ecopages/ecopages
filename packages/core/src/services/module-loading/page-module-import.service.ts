@@ -9,6 +9,7 @@ import {
 	isPagesUnifiedGraphPage,
 	shouldBuildPagesUnifiedGraph,
 } from '../../build/cache/pages-unified-graph-build.ts';
+import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import { recordPageModuleBuildInvocation } from '../../build/rolldown/rolldown-build-invocation-metrics.ts';
 import { recordPageModuleLoad } from '../../diagnostics/request-pipeline-metrics.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
@@ -343,6 +344,10 @@ export class PageModuleImportService {
 
 	private async loadModule<T = unknown>(options: LoadModuleOptions): Promise<T> {
 		const { filePath, fileHash, importCacheKey } = options;
+		const owner = this.appConfig && findIntegrationForFile(this.appConfig.integrations, filePath);
+		if (this.appConfig && owner?.compilePageModule) {
+			return (await owner.compilePageModule(filePath, this.appConfig)) as T;
+		}
 		const {
 			outdir,
 			transpileErrorMessage = (details) => `Error transpiling page module: ${details}`,

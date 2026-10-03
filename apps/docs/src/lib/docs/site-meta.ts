@@ -25,7 +25,7 @@ function envSiteOrigin(): string | undefined {
 }
 
 /**
- * Canonical origin for `eco.config.ts` `setBaseUrl()`, LLM index links, and SEO helpers.
+ * Canonical origin for the `eco.config.ts` `baseUrl`, LLM index links, and SEO helpers.
  */
 export function configuredSiteOrigin(): string {
 	return envSiteOrigin() ?? DEFAULT_SITE_ORIGIN;

@@ -1,5 +1,5 @@
 import type { StandardSchema } from '@ecopages/core';
-import type { EntryComparator } from './sort.ts';
+import type { ContentEntry } from './types.ts';
 
 /**
  * Declares one content collection scanned at build time.
@@ -10,7 +10,16 @@ export type ContentCollectionDefinition<TFrontmatter extends Record<string, unkn
 	contentDir: string;
 	/** Standard Schema validator for frontmatter (Zod, Valibot, ArkType, etc.). */
 	schema: StandardSchema<unknown, TFrontmatter>;
-	orderBy?: EntryComparator<TFrontmatter>;
+	/**
+	 * Sorts the collection manifest. Defaults to slug order.
+	 *
+	 * @remarks
+	 * Declared as a method so a comparator typed for this collection's frontmatter, such as
+	 * `(a: ContentEntry<DocsFrontmatter>, b: ContentEntry<DocsFrontmatter>) => number`, is
+	 * accepted in the `collections` record, whose entries are not typed per collection. That
+	 * is sound because `schema` validates every entry before it reaches the comparator.
+	 */
+	orderBy?(a: ContentEntry<TFrontmatter>, b: ContentEntry<TFrontmatter>): number;
 	/** File extensions treated as content. Defaults to `['.mdx']`. */
 	extensions?: string[];
 	/**

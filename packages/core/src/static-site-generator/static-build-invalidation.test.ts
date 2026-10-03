@@ -4,10 +4,16 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import { Processor } from '../plugins/processor.ts';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { ROUTE_MODULE_BUILD_CACHE_FILENAME } from '../services/module-loading/route-module-build-manifest.ts';
+import {
+	getServerModuleBuildCacheOutdir,
+	getSharedRouteModuleBuildCache,
+} from '../services/module-loading/route-module-build-cache-registry.ts';
 import {
 	clearProductionBuildCaches,
 	createRouteModuleStaticRenderCacheContext,
+	haveWatchedBuildInputsChanged,
 	shouldResetStaticExportDirectory,
 } from './static-build-invalidation.ts';
 
@@ -22,6 +28,7 @@ describe('static-build-invalidation', () => {
 
 			assert.equal(context.configHash, 'missing');
 			assert.equal(context.buildInputsFingerprint, 'stable');
+			assert.equal(context.watchedInputsHash, 'none');
 		});
 	});
 
@@ -56,6 +63,47 @@ describe('static-build-invalidation', () => {
 				),
 				true,
 			);
+		});
+	});
+
+	describe('haveWatchedBuildInputsChanged', () => {
+		let tempDir: string;
+
+		beforeEach(() => {
+			tempDir = mkdtempSync(join(tmpdir(), 'ecopages-watched-inputs-'));
+			mkdirSync(join(tempDir, 'src', 'content'), { recursive: true });
+			writeFileSync(join(tempDir, 'src', 'content', 'intro.mdx'), '# Intro');
+			process.env.NODE_ENV = 'production';
+		});
+
+		afterEach(() => {
+			rmSync(tempDir, { recursive: true, force: true });
+			delete process.env.NODE_ENV;
+		});
+
+		function createConfig(): EcoPagesAppConfig {
+			const contentProcessor = { getWatchConfig: () => ({ paths: [join(tempDir, 'src', 'content')] }) };
+			return {
+				rootDir: tempDir,
+				workDir: '.eco',
+				processors: new Map([['content', contentProcessor]]),
+				integrations: [],
+				absolutePaths: { workDir: join(tempDir, '.eco'), srcDir: join(tempDir, 'src') },
+			} as unknown as EcoPagesAppConfig;
+		}
+
+		it('reports a change until an export records the current inputs, and again after an edit', () => {
+			const appConfig = createConfig();
+			assert.equal(haveWatchedBuildInputsChanged(appConfig), true);
+
+			getSharedRouteModuleBuildCache(
+				getServerModuleBuildCacheOutdir(appConfig),
+				appConfig,
+			).ensureIncrementalStaticGenerationContext(createRouteModuleStaticRenderCacheContext(appConfig));
+			assert.equal(haveWatchedBuildInputsChanged(appConfig), false);
+
+			writeFileSync(join(tempDir, 'src', 'content', 'intro.mdx'), '# Intro, edited');
+			assert.equal(haveWatchedBuildInputsChanged(appConfig), true);
 		});
 	});
 

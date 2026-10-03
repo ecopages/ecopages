@@ -99,3 +99,24 @@ test('createDistManifest rewrites workspace ranges but preserves publish metadat
 		},
 	});
 });
+
+test('createDistManifest drops internal subpaths from the published exports', () => {
+	const distManifest = createDistManifest(
+		{
+			name: '@ecopages/example',
+			exports: {
+				'.': './src/index.ts',
+				'./config': './src/config/index.ts',
+				'./internal/finalize-config': './src/config/finalize-config.ts',
+			},
+		},
+		'1.2.3',
+	);
+
+	const exportKeys = Object.keys(distManifest.exports as Record<string, unknown>);
+	assert.equal(exportKeys.includes('./config'), true);
+	assert.equal(
+		exportKeys.some((key) => key.startsWith('./internal/')),
+		false,
+	);
+});

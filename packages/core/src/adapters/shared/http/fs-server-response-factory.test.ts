@@ -6,11 +6,11 @@ import {
 } from '../../../../__fixtures__/constants.js';
 import { createFixtureAppConfig } from '../../../../__fixtures__/app/test-app-config.ts';
 import { appLogger } from '../../../global/app-logger.ts';
-import { ConfigBuilder } from '../../../config/config-builder.ts';
 import { STATUS_MESSAGE } from '../../../config/constants.ts';
+import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 
-let appConfig: Awaited<ReturnType<ConfigBuilder['build']>>;
+let appConfig: EcoPagesAppConfig;
 let responseFactory: FileSystemServerResponseFactory;
 
 describe('FileSystemServerResponseFactory', () => {

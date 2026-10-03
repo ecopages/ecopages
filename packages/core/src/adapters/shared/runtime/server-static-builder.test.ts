@@ -10,6 +10,7 @@ import {
 	SERVER_BUNDLE_FILENAME,
 } from '../../../utils/resolve-entry-file';
 import {
+	createBuildAdapter,
 	setAppBuildAdapter,
 	type BuildAdapter,
 	type BuildOptions,
@@ -364,6 +365,37 @@ describe('ServerStaticBuilder', () => {
 			}
 		});
 
+		it('clears the production caches when watched build inputs changed, and only then', async () => {
+			const changedSpy = vi.spyOn(staticBuildInvalidation, 'haveWatchedBuildInputsChanged');
+			const clearSpy = vi
+				.spyOn(staticBuildInvalidation, 'clearProductionBuildCaches')
+				.mockImplementation(() => {});
+
+			try {
+				const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger } =
+					createMockDependencies();
+				const builder = new ServerStaticBuilder({
+					appConfig: AppConfig,
+					staticSiteGenerator: StaticSiteGenerator,
+					serveOptions: ServeOptions,
+					runtimeOrigin: 'http://127.0.0.1:3000',
+					logger,
+				});
+
+				changedSpy.mockReturnValue(false);
+				await builder.build(undefined, { router: Router, routeRendererFactory: RouteRendererFactory });
+				expect(clearSpy).not.toHaveBeenCalled();
+
+				changedSpy.mockReturnValue(true);
+				await builder.build(undefined, { router: Router, routeRendererFactory: RouteRendererFactory });
+				expect(clearSpy).toHaveBeenCalledTimes(1);
+				expect(changedSpy).toHaveBeenLastCalledWith(AppConfig, 'none');
+			} finally {
+				changedSpy.mockRestore();
+				clearSpy.mockRestore();
+			}
+		});
+
 		it('should run static site generator with correct options', async () => {
 			const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger, calls } =
 				createMockDependencies();
@@ -390,6 +422,7 @@ describe('ServerStaticBuilder', () => {
 					errorPageLoaders: undefined,
 					force: false,
 					preserveExportDirectory: false,
+					watchedInputsHash: 'none',
 				},
 			]);
 		});
@@ -587,7 +620,7 @@ describe('ServerStaticBuilder', () => {
 				fs.writeFileSync(path.join(distDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
 				const appConfig = {
 					...AppConfig,
-					runtime: { buildOwnership: 'vite-host' as const },
+					runtime: { buildAdapter: createBuildAdapter({ ownership: 'vite-host' }) },
 					absolutePaths: { ...AppConfig.absolutePaths, distDir },
 				} as EcoPagesAppConfig;
 

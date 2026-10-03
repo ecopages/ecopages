@@ -7,6 +7,7 @@ import crossIntegrationDevFixture from '../fixtures/cross-integration-dev/fixtur
 import crossIntegrationFixture from '../fixtures/cross-integration/fixture.e2e.ts';
 import crossIntegrationPreviewFixture from '../fixtures/cross-integration-preview/fixture.e2e.ts';
 import docsFixture from '../fixtures/docs/fixture.e2e.ts';
+import htmlPagesFixture from '../fixtures/html-pages/fixture.e2e.ts';
 import reactFixture from '../fixtures/react/fixture.e2e.ts';
 import reactRouterFixture from '../fixtures/react-router/fixture.e2e.ts';
 
@@ -18,6 +19,7 @@ export const capabilityFixtures: FixtureModule[] = [
 	crossIntegrationDevFixture,
 	crossIntegrationPreviewFixture,
 	docsFixture,
+	htmlPagesFixture,
 	reactFixture,
 	reactRouterFixture,
 ];

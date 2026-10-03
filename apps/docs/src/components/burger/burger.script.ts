@@ -3,6 +3,7 @@ import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { debounce } from '@ecopages/radiant/decorators/debounce';
 import { onEvent } from '@ecopages/radiant/decorators/on-event';
 import { query } from '@ecopages/radiant/decorators/query';
+import type { JsxCustomElementAttributes } from '@ecopages/jsx';
 import { BurgerEvents } from '@/components/burger/burger.events';
 
 @customElement('radiant-burger')
@@ -35,10 +36,8 @@ export class RadiantBurger extends RadiantElement {
 	}
 }
 
-declare global {
-	namespace JSX {
-		interface IntrinsicElements {
-			'radiant-burger': HtmlTag;
-		}
+declare module '@ecopages/jsx' {
+	interface JsxCustomIntrinsicElements {
+		'radiant-burger': JsxCustomElementAttributes<RadiantBurger>;
 	}
 }

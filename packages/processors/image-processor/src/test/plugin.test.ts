@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
 import { ImageProcessor } from '../image-processor';
 import { imageProcessorPlugin } from '../plugin';
@@ -61,11 +61,7 @@ describe('ImageProcessorPlugin', () => {
 		const processDirectorySpy = vi.spyOn(ImageProcessor.prototype, 'processDirectory');
 		const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-		await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
+		await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [plugin] });
 
 		const typesDir = path.join(rootDir, GENERATED_BASE_PATHS.types, plugin.name);
 		const typesFile = path.join(typesDir, 'virtual-module.d.ts');
@@ -95,11 +91,7 @@ describe('ImageProcessorPlugin', () => {
 		const processDirectorySpy = vi.spyOn(ImageProcessor.prototype, 'processDirectory');
 		const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-		await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
+		await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [plugin] });
 
 		expect(processDirectorySpy).not.toHaveBeenCalled();
 
@@ -122,11 +114,7 @@ describe('ImageProcessorPlugin', () => {
 		const processDirectorySpy = vi.spyOn(ImageProcessor.prototype, 'processDirectory');
 		const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-		await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
+		await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [plugin] });
 
 		expect(processDirectorySpy).not.toHaveBeenCalled();
 		expect(
@@ -167,11 +155,7 @@ describe('ImageProcessorPlugin', () => {
 
 		const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-		await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
+		await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [plugin] });
 
 		await plugin.setup();
 
@@ -196,11 +180,7 @@ describe('ImageProcessorPlugin', () => {
 		const processDirectorySpy = vi.spyOn(ImageProcessor.prototype, 'processDirectory');
 		const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-		await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
+		await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [plugin] });
 
 		await plugin.setup();
 		expect(processDirectorySpy).toHaveBeenCalledTimes(1);
@@ -232,11 +212,7 @@ describe('ImageProcessorPlugin', () => {
 		try {
 			const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-			await new ConfigBuilder()
-				.setRootDir(rootDir)
-				.setBaseUrl('http://localhost:3000')
-				.setProcessors([plugin])
-				.build();
+			await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [plugin] });
 
 			expect(fs.existsSync(outputDir)).toBe(false);
 			await plugin.setup();

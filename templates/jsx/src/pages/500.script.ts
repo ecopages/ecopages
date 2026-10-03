@@ -33,7 +33,7 @@ export class RadiantErrorDetails extends HTMLElement {
 	private resetTimer: number | undefined;
 	private handleClick: (() => void) | undefined;
 
-	override disconnectedCallback(): void {
+	disconnectedCallback(): void {
 		window.clearTimeout(this.resetTimer);
 		this.resetTimer = undefined;
 		const button = this.querySelector('button');
@@ -43,7 +43,7 @@ export class RadiantErrorDetails extends HTMLElement {
 		this.handleClick = undefined;
 	}
 
-	override connectedCallback(): void {
+	connectedCallback(): void {
 		if (this.handleClick) return;
 
 		const button = this.querySelector('button');

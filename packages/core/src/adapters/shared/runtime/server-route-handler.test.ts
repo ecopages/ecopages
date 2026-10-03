@@ -47,6 +47,21 @@ describe('ServerRouteHandler', () => {
 			expect(response.status).toBe(200);
 		});
 
+		it('matches a route whose last segment has a dot, and serves known static extensions from disk', async () => {
+			const { Router, FileSystemResponseMatcher } = createMockDependencies();
+			const handler = new ServerRouteHandler({
+				router: Router,
+				fileSystemResponseMatcher: FileSystemResponseMatcher,
+			});
+			Router.matchRequest = vi.fn(() => ({}) as any);
+
+			await handler.handleResponse(new Request('http://localhost/v1.2'));
+			await handler.handleResponse(new Request('http://localhost/assets/app.js'));
+
+			expect(Router.matchRequest).toHaveBeenCalledExactlyOnceWith('http://localhost/v1.2');
+			expect(FileSystemResponseMatcher.handleNoMatch).toHaveBeenCalledWith('/assets/app.js');
+		});
+
 		it('should delegate to handleNoMatch when route does not match', async () => {
 			const { Router, FileSystemResponseMatcher } = createMockDependencies();
 			const handler = new ServerRouteHandler({

@@ -19,7 +19,7 @@ The current core package is organized around app-owned runtime state and explici
 
 The important ownership rules are:
 
-- `ConfigBuilder.build()` finalizes app-owned build and runtime services.
+- Config finalization, when `createApp()` loads `eco.config.ts`, installs the app-owned build adapter, build manifest, and runtime state; server startup adds the build executors.
 - Component identity attribution is one shared source transform for server, browser, and HMR compilation paths: after a lexical `eco.` gate, it uses Oxc to wrap supported factory options with `bindComponentIdentity()`, which factories retain as `config.identity`.
 - Direct local Eco Component imports (including named `export { X } from` barrels) and relative side-effect CSS imports supply Dependencies by default through the shared transform and existing collector; explicit asset declarations override inference, and inferred styles stay keyed by identity until collection. See [eco](src/eco/README.md) and [Plugin Contracts](src/plugins/README.md).
 - Browser bundling and server module loading are separate paths. SSR-enabled lazy scripts execute on the server before rendering and in the browser only on their configured trigger.
@@ -31,12 +31,12 @@ The important ownership rules are:
 ```mermaid
 flowchart TD
 	A[eco.config.ts] --> B[defineConfig / loadEcoPagesConfig]
-	B --> C[ConfigBuilder.build]
+	B --> C[Config finalization]
 	C --> D[App build adapter]
 	C --> E[App build manifest]
-	C --> F[Build executor]
-	C --> G[Dev graph service]
+	C --> G[Dev graph slot]
 	C --> H[Host module loader boundary]
+	D --> F[Build executor, installed at server startup]
 	H --> I[PageModuleImportService]
 	F --> I
 	F --> J[BrowserBundleService]
@@ -75,7 +75,7 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 
 ### Practical Summary
 
-- `ConfigBuilder` seeds one app-owned build ownership path, adapter, manifest, executor, dev graph, and runtime registry.
+- Config finalization seeds one app-owned build ownership path, build adapter, build manifest, and a no-op dev graph that development replaces; server startup installs the build executors.
 - `BrowserBundleService` is the shared browser build seam used by HMR and asset-oriented browser output paths.
 - `ServerModuleTranspiler` is the shared server-side source loading seam used by runtime bootstrap and HMR metadata loading.
 - `RouteRegistry` gives exact and dynamic Pages priority over catch-alls, then selects the most specific matching catch-all prefix.
@@ -98,6 +98,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/route-renderer/README.md`: rendering orchestration and dependency resolution
 - `src/static-site-generator/README.md`: static build execution path
 - `src/eco/README.md`: `eco` authoring APIs for pages, layouts, and components
+- `src/html-pages/README.md`: built-in `.html` Filesystem Routes, Html shell, and head reconciliation
 
 The intended reading order is:
 
@@ -170,6 +171,8 @@ export default eco.page({
 	),
 });
 ```
+
+Plain `.html` files in `src/pages/` are HTML Pages and need no Integration: `src/pages/about.html` becomes `/about`, rendered inside `src/includes/html.*` or a built-in HTML template. See [HTML Pages](https://ecopages.app/docs/core/pages#html-pages).
 
 ### 4. Reusable Components
 
@@ -288,7 +291,7 @@ Use these entrypoints when building an Ecopages app:
 
 - `@ecopages/core`
 - `@ecopages/core/create-app`
-- `@ecopages/core/config-builder`
+- `@ecopages/core/config`
 - `@ecopages/core/errors`
 - `@ecopages/core/hash`
 - `@ecopages/core/declarations`

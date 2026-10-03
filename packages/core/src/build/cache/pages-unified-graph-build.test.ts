@@ -58,6 +58,23 @@ describe('pages-unified-graph-build', () => {
 		);
 	});
 
+	it('leaves out Pages of any Integration that compiles its own modules', async () => {
+		const appConfig = await createFixtureAppConfig();
+		const pagesDir = appConfig.absolutePaths.pagesDir;
+		const withTemplates = {
+			...appConfig,
+			integrations: [
+				...appConfig.integrations,
+				{ name: 'templates', extensions: ['.tpl'], compilePageModule: () => ({ default: () => '' }) },
+			],
+		} as unknown as typeof appConfig;
+
+		assert.equal(appConfig.templatesExt.includes('.html'), true);
+		assert.equal(isPagesUnifiedGraphPage(path.join(pagesDir, 'about.html'), appConfig), false);
+		assert.equal(isPagesUnifiedGraphPage(path.join(pagesDir, 'about.tpl'), withTemplates), false);
+		assert.equal(isPagesUnifiedGraphPage(path.join(pagesDir, 'index.ts'), withTemplates), true);
+	});
+
 	it('defaults unified graph on in production unless explicitly disabled', () => {
 		process.env.NODE_ENV = 'production';
 		delete process.env.ECOPAGES_UNIFIED_PAGES_GRAPH;

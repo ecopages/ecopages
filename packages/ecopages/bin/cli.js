@@ -2,6 +2,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { Logger } from '@ecopages/logger';
 import { createLaunchPlan } from './launch-plan.js';
@@ -65,6 +66,7 @@ function getMainHelpText() {
 		'  build                   Build the project for production',
 		'  start                   Start the production server',
 		'  preview                 Preview the production build',
+		'  types                   Write virtual-module types for tsc, then exit',
 		'',
 		'Global options:',
 		'  -e, --entry-file <file> Entry file (default: app.ts)',
@@ -237,13 +239,62 @@ async function runServerCommand(rawArgs, definition) {
 		return;
 	}
 
+	const entry = definition.resolveEntry?.() ?? parsed.entry;
 	await runEntryCommand(
 		definition.entryArgs,
-		{ ...parsed.options, ...definition.optionOverrides, entryFile: parsed.entry },
-		parsed.entry,
+		{ ...parsed.options, ...definition.optionOverrides, entryFile: entry },
+		entry,
 		definition.launchMode ?? definition.name,
 	);
 }
+
+/**
+ * Commands that run an entry file, keyed by name. `launchMode` defaults to the name, and
+ * `resolveEntry` replaces the app entry (`app.ts`) with another script.
+ */
+const SERVER_COMMANDS = {
+	dev: {
+		description: 'Start the development server.',
+		entryArgs: ['--dev'],
+		launchMode: 'dev',
+		optionOverrides: { nodeEnv: 'development' },
+	},
+	'dev:watch': {
+		description: 'Start the development server with watch mode.',
+		entryArgs: ['--dev'],
+		launchMode: 'dev',
+		optionOverrides: { watch: true, nodeEnv: 'development' },
+	},
+	'dev:hot': {
+		description: 'Start the development server with hot reload.',
+		entryArgs: ['--dev'],
+		launchMode: 'dev',
+		optionOverrides: { hot: true, nodeEnv: 'development' },
+	},
+	build: {
+		description: 'Build the project for production.',
+		entryArgs: ['--build'],
+		optionOverrides: { nodeEnv: 'production' },
+		mode: 'build',
+	},
+	start: {
+		description: 'Start the production server.',
+		entryArgs: [],
+		optionOverrides: { nodeEnv: 'production' },
+	},
+	types: {
+		description:
+			'Load eco.config.ts so processors write the types for virtual modules such as ecopages:images, then exit. The app entry does not run. Run it before tsc.',
+		entryArgs: [],
+		resolveEntry: () => fileURLToPath(import.meta.resolve('@ecopages/core/config/write-types')),
+		optionOverrides: { nodeEnv: 'production' },
+	},
+	preview: {
+		description: 'Preview the production build.',
+		entryArgs: ['--preview'],
+		optionOverrides: { nodeEnv: 'production' },
+	},
+};
 
 export async function runCli(rawArgs = process.argv.slice(2)) {
 	const [commandName, ...commandArgs] = rawArgs;
@@ -259,67 +310,18 @@ export async function runCli(rawArgs = process.argv.slice(2)) {
 	}
 
 	try {
+		const serverCommand = Object.hasOwn(SERVER_COMMANDS, commandName) ? SERVER_COMMANDS[commandName] : undefined;
+		if (serverCommand) {
+			await runServerCommand(commandArgs, { name: commandName, ...serverCommand });
+			return;
+		}
+
 		switch (commandName) {
 			case 'init': {
 				const { runInitCommand } = await import('./init.js');
 				await runInitCommand(commandArgs, logger);
 				return;
 			}
-			case 'dev':
-				await runServerCommand(commandArgs, {
-					name: 'dev',
-					description: 'Start the development server.',
-					entryArgs: ['--dev'],
-					launchMode: 'dev',
-					optionOverrides: { nodeEnv: 'development' },
-				});
-				return;
-			case 'dev:watch':
-				await runServerCommand(commandArgs, {
-					name: 'dev:watch',
-					description: 'Start the development server with watch mode.',
-					entryArgs: ['--dev'],
-					launchMode: 'dev',
-					optionOverrides: { watch: true, nodeEnv: 'development' },
-				});
-				return;
-			case 'dev:hot':
-				await runServerCommand(commandArgs, {
-					name: 'dev:hot',
-					description: 'Start the development server with hot reload.',
-					entryArgs: ['--dev'],
-					launchMode: 'dev',
-					optionOverrides: { hot: true, nodeEnv: 'development' },
-				});
-				return;
-			case 'build':
-				await runServerCommand(commandArgs, {
-					name: 'build',
-					description: 'Build the project for production.',
-					entryArgs: ['--build'],
-					launchMode: 'build',
-					optionOverrides: { nodeEnv: 'production' },
-					mode: 'build',
-				});
-				return;
-			case 'start':
-				await runServerCommand(commandArgs, {
-					name: 'start',
-					description: 'Start the production server.',
-					entryArgs: [],
-					launchMode: 'start',
-					optionOverrides: { nodeEnv: 'production' },
-				});
-				return;
-			case 'preview':
-				await runServerCommand(commandArgs, {
-					name: 'preview',
-					description: 'Preview the production build.',
-					entryArgs: ['--preview'],
-					launchMode: 'preview',
-					optionOverrides: { nodeEnv: 'production' },
-				});
-				return;
 			default:
 				throw new Error(`Unknown command \`${commandName}\`.`);
 		}

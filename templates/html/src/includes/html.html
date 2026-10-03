@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Ecopages HTML</title>
+		<meta name="description" content="Build an HTML-first application with plain HTML Pages." />
+		<meta property="og:type" content="website" />
+		<meta property="og:title" content="Ecopages HTML" />
+		<meta property="og:description" content="Build an HTML-first application with plain HTML Pages." />
+		<meta name="twitter:card" content="summary" />
+		<meta name="twitter:title" content="Ecopages HTML" />
+		<meta name="twitter:description" content="Build an HTML-first application with plain HTML Pages." />
+		<link rel="icon" type="image/svg+xml" href="/favicon/favicon-dark.svg" media="(prefers-color-scheme: light)" />
+		<link rel="icon" type="image/svg+xml" href="/favicon/favicon-light.svg" media="(prefers-color-scheme: dark)" />
+		<link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
+		<link rel="manifest" href="/favicon/site.webmanifest" />
+		<script>
+			(function () {
+				const stored = localStorage.getItem('theme');
+				const preference = stored === 'light' || stored === 'dark' ? stored : 'system';
+				const dark =
+					preference === 'dark' ||
+					(preference === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+				document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+				document.documentElement.classList.toggle('dark', dark);
+			})();
+		</script>
+		<link rel="stylesheet" href="../styles/tailwind.css" />
+		<link rel="stylesheet" href="./html.css" />
+		<link rel="stylesheet" href="../components/theme-toggle.css" />
+		<script type="module" src="./router.ts"></script>
+		<script type="module" src="../components/theme-toggle.ts"></script>
+	</head>
+	<body>
+		<header class="site-header">
+			<a href="/" title="Ecopages" class="site-logo">
+				<svg height="28" viewBox="0 0 35 42" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+					<path
+						d="M8.95038 19.0355C8.73635 19.7972 10.4934 24.8245 18.2298 23.3884C25.3299 22.0704 24.7298 10.8884 18.2298 13.8884C14.2596 15.7208 12.2883 33.409 22.2298 31.8884C29.9216 30.7119 28.75 6.88572 31.434 1.38842C28.4393 4.49823 5.89504 5.06009 2.22981 17.8884C1.27183 21.2414 3.22979 26.8884 8.95036 28.3884L2.22981 38.3884"
+						stroke="currentColor"
+						stroke-width="4"
+						stroke-linecap="round"
+					/>
+				</svg>
+				Ecopages
+			</a>
+			<theme-toggle data-value="system">
+				<button type="button" class="theme-toggle-button" aria-label="Cycle theme">
+					<span class="theme-toggle-button__icon" aria-hidden="true">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						>
+							<rect width="20" height="14" x="2" y="3" rx="2" />
+							<line x1="8" x2="16" y1="21" y2="21" />
+							<line x1="12" x2="12" y1="17" y2="21" />
+						</svg>
+					</span>
+					<span class="theme-toggle-button__label">System</span>
+				</button>
+			</theme-toggle>
+		</header>
+		<main class="layout-main">
+			<!-- eco:children -->
+		</main>
+	</body>
+</html>

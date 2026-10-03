@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { ConfigBuilder } from '../../config/config-builder.js';
+import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { Processor } from '../../plugins/processor.js';
 import { DevelopmentInvalidationService } from './development-invalidation.service.ts';
 import {
@@ -60,7 +60,7 @@ class ContentCollectionProcessor extends Processor {
 
 describe('DevelopmentInvalidationService', () => {
 	it('classifies route, include, processor-owned, and additional-watch changes explicitly', async () => {
-		const appConfig = await new ConfigBuilder().setRootDir('/test/project').build();
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		appConfig.additionalWatchPaths = ['**/*.config.ts'];
 		appConfig.processors.set('css', new StylesheetProcessor());
 
@@ -97,7 +97,7 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('matches directory and root-relative additionalWatchPaths', async () => {
-		const appConfig = await new ConfigBuilder().setRootDir('/test/project').build();
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		appConfig.additionalWatchPaths = ['src/registry'];
 		const service = new DevelopmentInvalidationService(appConfig);
 
@@ -107,7 +107,7 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('matches universal additionalWatchPaths globs', async () => {
-		const appConfig = await new ConfigBuilder().setRootDir('/test/project').build();
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		appConfig.additionalWatchPaths = ['**/*'];
 		const service = new DevelopmentInvalidationService(appConfig);
 
@@ -115,7 +115,7 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('delegates server invalidation versioning to the app-owned invalidation state', async () => {
-		const appConfig = await new ConfigBuilder().setRootDir('/test/project').build();
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		const invalidationState = new CounterServerInvalidationState();
 		setAppServerInvalidationState(appConfig, invalidationState);
 		const invalidateDevelopmentGraph = vi.fn(() => {});
@@ -141,7 +141,7 @@ describe('DevelopmentInvalidationService', () => {
 		const manifestPath = path.join(cacheDir, ROUTE_MODULE_BUILD_CACHE_FILENAME);
 
 		try {
-			const appConfig = await new ConfigBuilder().setRootDir(rootDir).build();
+			const appConfig = await finalizeEcoPagesConfig({ rootDir });
 			const service = new DevelopmentInvalidationService(appConfig);
 			const staleManifest = JSON.stringify({
 				corePackageVersion: 'stale',
@@ -158,7 +158,7 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('does not treat watch-only processors as asset owners', async () => {
-		const appConfig = await new ConfigBuilder().setRootDir('/test/project').build();
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		appConfig.processors.set('content', new ContentCollectionProcessor());
 
 		const service = new DevelopmentInvalidationService(appConfig);
@@ -179,7 +179,7 @@ describe('DevelopmentInvalidationService', () => {
 		try {
 			writeFileSync(configPath, 'export default {}');
 			writeFileSync(envPath, 'ECOPAGES_PORT=3000\n');
-			const appConfig = await new ConfigBuilder().setRootDir(rootDir).setConfigModulePath(configPath).build();
+			const appConfig = await finalizeEcoPagesConfig({ rootDir }, { configFilePath: configPath });
 			const service = new DevelopmentInvalidationService(appConfig);
 
 			expect(service.planFileChange(configPath)).toMatchObject({ category: 'runtime-restart' });

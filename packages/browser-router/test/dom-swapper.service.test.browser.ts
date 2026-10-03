@@ -105,7 +105,7 @@ describe('DomSwapper service behavior', () => {
 
 		swapper.morphHead(newDocument);
 		swapper.replaceBody(newDocument);
-		swapper.flushRerunScripts();
+		swapper.flushScripts();
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(document.head.querySelector('script[src="/old-script.js"]')).toBeNull();
@@ -113,6 +113,171 @@ describe('DomSwapper service behavior', () => {
 		expect(document.head.querySelector('script[src="/persisted.js"][data-eco-persist="true"]')).not.toBeNull();
 		expect(document.head.querySelectorAll('script[data-eco-script-id="stable-script"]')).toHaveLength(1);
 		expect((window as typeof window & { __stable_script_runs__?: number }).__stable_script_runs__).toBe(1);
+	});
+
+	it('runs the head scripts a swap adds and every body script, in document order, after earlier libraries load', async () => {
+		resetDocument();
+		const swapper = new DomSwapper('data-eco-persist');
+		const runs: string[] = [];
+		(window as typeof window & { __body_script_runs__?: string[] }).__body_script_runs__ = runs;
+		const record = (label: string) => `window.__body_script_runs__.push('${label}')`;
+		document.body.innerHTML = `<script>${record('kept')}</script>`;
+
+		const newDocument = parseDocument(
+			[
+				`<html><head><script src="data:text/javascript,${encodeURIComponent(record('library'))}"></script>`,
+				`<script>${record('head-inline')}</script></head><body>`,
+				`<script>${record('kept')}</script>`,
+				'<main>Next</main>',
+				`<script>${record('inline')}</script>`,
+				'<script type="application/json">{"data":true}</script>',
+				'</body></html>',
+			].join(''),
+		);
+
+		swapper.morphHead(newDocument);
+		swapper.morphBody(newDocument);
+		const dataScript = document.body.querySelector('script[type="application/json"]');
+		swapper.flushScripts();
+
+		await vi.waitFor(() => expect(runs).toEqual(['library', 'head-inline', 'kept', 'inline']));
+		expect(document.body.querySelector('script[type="application/json"]')).toBe(dataScript);
+	});
+
+	it.each(['morphBody', 'replaceBody'] as const)(
+		'keeps a script inside a persisted element without running it again (%s)',
+		async (swap) => {
+			resetDocument();
+			const swapper = new DomSwapper('data-eco-persist');
+			const runs: string[] = [];
+			(window as typeof window & { __body_script_runs__?: string[] }).__body_script_runs__ = runs;
+			const record = (label: string) => `window.__body_script_runs__.push('${label}')`;
+			const persisted = `<div data-eco-persist="widget"><script>${record('persisted')}</script></div>`;
+			document.body.innerHTML = persisted;
+			const liveScript = document.body.querySelector('script');
+
+			const newDocument = parseDocument(
+				`<html><head></head><body>${persisted}<script>${record('footer')}</script></body></html>`,
+			);
+
+			swapper.morphHead(newDocument);
+			swapper[swap](newDocument);
+			swapper.flushScripts();
+
+			await vi.waitFor(() => expect(runs).toEqual(['footer']));
+			expect(document.body.querySelector('[data-eco-persist] script')).toBe(liveScript);
+		},
+	);
+
+	it('makes body scripts wait for a library the head of the same swap is still loading', async () => {
+		resetDocument();
+		const swapper = new DomSwapper('data-eco-persist');
+		const runs: string[] = [];
+		(window as typeof window & { __body_script_runs__?: string[] }).__body_script_runs__ = runs;
+		const record = (label: string) => `window.__body_script_runs__.push('${label}')`;
+
+		const newDocument = parseDocument(
+			[
+				`<html><head><script src="data:text/javascript,${encodeURIComponent(record('library'))}"></script></head>`,
+				`<body><script>${record('inline')}</script></body></html>`,
+			].join(''),
+		);
+
+		swapper.morphHead(newDocument);
+		swapper.morphBody(newDocument);
+		swapper.flushScripts();
+
+		await vi.waitFor(() => expect(runs).toEqual(['library', 'inline']));
+	});
+
+	it('runs rerun scripts after the head scripts of the same swap, and body scripts after both', async () => {
+		resetDocument();
+		const swapper = new DomSwapper('data-eco-persist');
+		const runs: string[] = [];
+		(window as typeof window & { __body_script_runs__?: string[] }).__body_script_runs__ = runs;
+		const record = (label: string) => `window.__body_script_runs__.push('${label}')`;
+
+		const newDocument = parseDocument(
+			[
+				`<html><head><script src="data:text/javascript,${encodeURIComponent(record('library'))}"></script>`,
+				`<script data-eco-rerun="true">${record('rerun')}</script></head>`,
+				`<body><script>${record('body')}</script></body></html>`,
+			].join(''),
+		);
+
+		swapper.morphHead(newDocument);
+		swapper.replaceBody(newDocument);
+		swapper.flushScripts();
+
+		await vi.waitFor(() => expect(runs).toEqual(['library', 'rerun', 'body']));
+	});
+
+	it('runs body scripts before returning when no earlier script is still loading', () => {
+		resetDocument();
+		const swapper = new DomSwapper('data-eco-persist');
+		const runs: string[] = [];
+		(window as typeof window & { __body_script_runs__?: string[] }).__body_script_runs__ = runs;
+
+		const newDocument = parseDocument(
+			"<html><head></head><body><script>window.__body_script_runs__.push('body')</script></body></html>",
+		);
+
+		swapper.morphHead(newDocument);
+		swapper.morphBody(newDocument);
+		swapper.flushScripts();
+
+		expect(runs).toEqual(['body']);
+	});
+
+	it("stops a page's script sequence when the next swap flushes its own", async () => {
+		resetDocument();
+		const swapper = new DomSwapper('data-eco-persist');
+		const runs: string[] = [];
+		(window as typeof window & { __body_script_runs__?: string[] }).__body_script_runs__ = runs;
+		const record = (label: string) => `window.__body_script_runs__.push('${label}')`;
+
+		const first = parseDocument(
+			[
+				`<html><head><script src="data:text/javascript,${encodeURIComponent(record('library'))}"></script>`,
+				`<script>${record('first')}</script></head><body></body></html>`,
+			].join(''),
+		);
+		swapper.morphHead(first);
+		swapper.replaceBody(first);
+		swapper.flushScripts();
+
+		const second = parseDocument(`<html><head></head><body><script>${record('second')}</script></body></html>`);
+		swapper.morphHead(second);
+		swapper.replaceBody(second);
+		swapper.flushScripts();
+
+		await vi.waitFor(() => expect(runs).toContain('library'));
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(runs).toEqual(['second', 'library']);
+	});
+
+	it('does not wait on nomodule or non-JavaScript scripts, which the browser never loads', async () => {
+		resetDocument();
+		const swapper = new DomSwapper('data-eco-persist');
+		const runs: string[] = [];
+		(window as typeof window & { __body_script_runs__?: string[] }).__body_script_runs__ = runs;
+		const record = (label: string) => `window.__body_script_runs__.push('${label}')`;
+
+		const newDocument = parseDocument(
+			[
+				'<html><head></head><body>',
+				`<script nomodule src="data:text/javascript,${encodeURIComponent(record('legacy'))}"></script>`,
+				`<script type="text/plain" src="data:text/javascript,${encodeURIComponent(record('consent'))}"></script>`,
+				`<script>${record('inline')}</script>`,
+				'</body></html>',
+			].join(''),
+		);
+
+		swapper.morphHead(newDocument);
+		swapper.morphBody(newDocument);
+		swapper.flushScripts();
+
+		await vi.waitFor(() => expect(runs).toEqual(['inline']));
 	});
 
 	it('replaces page data before rerun hydration scripts execute', async () => {
@@ -134,7 +299,7 @@ describe('DomSwapper service behavior', () => {
 
 		swapper.morphHead(newDocument);
 		swapper.replaceBody(newDocument);
-		swapper.flushRerunScripts();
+		swapper.flushScripts();
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(document.body.getAttribute('data-route-files')).toBe(
@@ -180,11 +345,11 @@ describe('DomSwapper service behavior', () => {
 
 			swapper.morphHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushRerunScripts();
+			swapper.flushScripts();
 
 			swapper.morphHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushRerunScripts();
+			swapper.flushScripts();
 		} finally {
 			document.head.appendChild = originalAppendChild;
 			delete runtimeWindow.__ECO_PAGES__;
@@ -219,11 +384,11 @@ describe('DomSwapper service behavior', () => {
 
 			swapper.morphHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushRerunScripts();
+			swapper.flushScripts();
 
 			swapper.morphHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushRerunScripts();
+			swapper.flushScripts();
 		} finally {
 			document.head.appendChild = originalAppendChild;
 		}
@@ -259,11 +424,11 @@ describe('DomSwapper service behavior', () => {
 
 			swapper.morphHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushRerunScripts();
+			swapper.flushScripts();
 
 			swapper.morphHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushRerunScripts();
+			swapper.flushScripts();
 		} finally {
 			document.head.appendChild = originalAppendChild;
 		}

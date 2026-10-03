@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { ConfigBuilder } from '../../config/config-builder.js';
+import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { HmrStrategyType } from '../hmr-strategy.ts';
 import { DevelopmentInvalidationService } from '../../services/invalidation/development-invalidation.service.ts';
 import { ServerRenderedTemplateHmrStrategy } from './server-rendered-template-hmr-strategy.ts';
 
 describe('ServerRenderedTemplateHmrStrategy', () => {
 	it('matches include and explicit server view files', async () => {
-		const appConfig = await new ConfigBuilder().setRootDir('/test/project').build();
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		const invalidationService = new DevelopmentInvalidationService(appConfig);
 		const strategy = new ServerRenderedTemplateHmrStrategy(invalidationService);
 
@@ -17,14 +17,14 @@ describe('ServerRenderedTemplateHmrStrategy', () => {
 
 	it('outranks integration-owned strategies that also match shared dependencies', async () => {
 		const strategy = new ServerRenderedTemplateHmrStrategy(
-			new DevelopmentInvalidationService(await new ConfigBuilder().setRootDir('/test/project').build()),
+			new DevelopmentInvalidationService(await finalizeEcoPagesConfig({ rootDir: '/test/project' })),
 		);
 
 		expect(strategy.priority).toBeGreaterThan(HmrStrategyType.INTEGRATION);
 	});
 
 	it('broadcasts a layout-update event for server-rendered template changes', async () => {
-		const appConfig = await new ConfigBuilder().setRootDir('/test/project').build();
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		const invalidationService = new DevelopmentInvalidationService(appConfig);
 		const strategy = new ServerRenderedTemplateHmrStrategy(invalidationService);
 		const filePath = '/test/project/src/includes/seo.kita.tsx';

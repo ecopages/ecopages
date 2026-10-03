@@ -102,7 +102,7 @@ Core bundles an Integration's Page files and imports the result. An Integration 
   - Every Page of an Integration that implements it stays out of the production pages graph, including the ones it returns `undefined` for, so a static export compiles or bundles each of those Pages on its own.
   - Core caches the result by the file's content hash, so editing another file it reads does not invalidate it.
   - Vite-hosted development imports files whose last extension is a JavaScript one, such as `.tpl.ts`, itself and never calls it. Use a non-JavaScript extension.
-- **`routeParams = false`** as a class field says its Pages cannot receive Params. Route discovery then rejects `[param]` and `[...param]` filenames the Integration owns, instead of failing at render time. It is not a constructor option, because it describes the Integration rather than the app.
+- **`acceptsParams = false`** as a class field says its Pages cannot receive Params. Route discovery then rejects `[param]` and `[...param]` filenames the Integration owns, instead of failing at render time. It is not a constructor option, because it describes the Integration rather than the app.
 
 `TemplateRenderer` and `compileTemplate` below are your own modules:
 
@@ -114,7 +114,7 @@ import { TemplateRenderer } from './template-renderer.ts';
 
 export class TemplateIntegration extends IntegrationPlugin {
 	renderer = TemplateRenderer;
-	override readonly routeParams = false;
+	override readonly acceptsParams = false;
 
 	constructor() {
 		super({ name: 'templates', extensions: ['.tpl'] });

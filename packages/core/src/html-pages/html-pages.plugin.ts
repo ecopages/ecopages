@@ -15,7 +15,7 @@ import { HtmlPageRenderer } from './html-page-renderer.ts';
  */
 export class HtmlPagesPlugin extends IntegrationPlugin {
 	renderer = HtmlPageRenderer;
-	override readonly routeParams = false;
+	override readonly acceptsParams = false;
 
 	constructor() {
 		super({ name: HTML_PAGES_INTEGRATION_NAME, extensions: ['.html'] });

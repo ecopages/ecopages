@@ -34,6 +34,7 @@ export type BrowserBundleOptions = {
 	minify?: boolean;
 	treeshaking?: boolean;
 	splitting?: boolean;
+	format?: 'esm' | 'iife';
 	root?: string;
 	externalPackages?: boolean;
 	external?: string[];

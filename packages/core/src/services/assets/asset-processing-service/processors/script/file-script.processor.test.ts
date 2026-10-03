@@ -233,6 +233,31 @@ describe('FileScriptProcessor', () => {
 			expect(result.inline).toBe(false);
 		});
 
+		test('should bundle a script with an explicit format itself, outside the ES-module HMR pipeline', async () => {
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const HmrManager = {
+				isEnabled: () => true,
+				getResolvedScriptOutput: vi.fn(),
+				registerScriptEntrypoint: vi.fn(),
+			} as unknown as IHmrManager;
+			processor.setHmrManager(HmrManager);
+			const bundle = vi
+				.spyOn(processor as unknown as { bundleScript: () => Promise<string> }, 'bundleScript')
+				.mockResolvedValue('/test/project/.eco/public/assets/classic-abc.js');
+
+			await processor.process({
+				kind: 'script',
+				source: 'file',
+				filepath: '/test/project/src/pages/classic.ts',
+				inline: false,
+				bundleOptions: { format: 'iife', splitting: false },
+			});
+
+			expect(HmrManager.getResolvedScriptOutput).not.toHaveBeenCalled();
+			expect(HmrManager.registerScriptEntrypoint).not.toHaveBeenCalled();
+			expect(bundle).toHaveBeenCalledWith(expect.objectContaining({ format: 'iife', splitting: false }));
+		});
+
 		test('should copy file without bundling when bundle is false', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 

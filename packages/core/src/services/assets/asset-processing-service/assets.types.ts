@@ -25,6 +25,12 @@ export interface ScriptAsset extends BaseAsset {
 	bundle?: boolean;
 	groupedBundle?: GroupedScriptBundle;
 	bundleOptions?: {
+		/**
+		 * Output format. `esm` by default; `iife` wraps the output in a function.
+		 */
+		format?: 'esm' | 'iife';
+		/** Drops unused code. `true` by default; turn it off for a script whose globals other scripts use. */
+		treeshaking?: boolean;
 		define?: Record<string, string>;
 		minify?: boolean;
 		external?: string[];

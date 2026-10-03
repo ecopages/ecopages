@@ -5,6 +5,7 @@
 		<title>Campagne</title>
 		<meta name="robots" content="noindex" />
 		<script src="./vendor/tiny-query.js"></script>
+		<script src="./classic/greeting.ts"></script>
 		<style>
 			.ready {
 				outline: 2px solid rgb(255, 0, 0);
@@ -15,6 +16,7 @@
 		<main data-testid="landing">Contenu</main>
 		<script>
 			$('main').addClass('ready');
+			document.querySelector('main').dataset.greeting = greet('Ecopages');
 		</script>
 	</body>
 </html>

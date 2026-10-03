@@ -16,6 +16,18 @@ export default defineFixture(
 				port: 43120,
 				mode: 'static',
 			},
+			{
+				name: 'html-pages-node-e2e',
+				port: 43121,
+				mode: 'static',
+				runtime: 'node',
+			},
+			{
+				name: 'html-pages-dev-e2e',
+				port: 43122,
+				mode: 'dev',
+				testMatch: `${fixtureDir}/dotted-routes.test.e2e.ts`,
+			},
 		],
 	},
 	devices['Desktop Chrome'],

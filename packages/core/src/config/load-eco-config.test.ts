@@ -197,7 +197,7 @@ describe('loadEcoPagesConfig', () => {
 		);
 
 		await expect(loadEcoPagesConfig({ cwd: tempDir, configFile: configPath })).rejects.toThrow(
-			/already finalized app config/,
+			`already finalized app config from ${configPath}`,
 		);
 	});
 });

@@ -8,11 +8,12 @@
  * Self-contained so Node can execute it with type stripping and no bundler.
  * Reads `OBSIDIAN_VAULT_PATH` from the environment or `.env`.
  */
-import { isEnoent } from '../wiki/is-enoent.ts';
-import { resolveChildDirectory, assertDirectoryTarget } from '../safe-directory.ts';
+import { cancel, confirm, intro, isCancel, log, note, outro } from '@clack/prompts';
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { assertDirectoryTarget, resolveChildDirectory } from '../safe-directory.ts';
+import { isEnoent } from '../wiki/is-enoent.ts';
 
 const KNOWLEDGE_DIRS = ['wiki', 'sources'];
 const KNOWLEDGE_FILES = ['SCHEMA.md', 'AGENTS.md', 'README.md', 'index.md', 'log.md'];
@@ -90,8 +91,55 @@ async function main(): Promise<void> {
 
 	const subdir = process.env.LLM_WIKI_OBSIDIAN_SUBDIR ?? 'llm-wiki';
 	const destDir = resolveChildDirectory(vaultPath, subdir);
+	const confirmed = await promptObsidianCopy(destDir);
+	if (!confirmed) {
+		return;
+	}
+
 	await mirrorKnowledgeLayers(repoRoot, destDir);
-	console.log(`sync:obsidian: synced knowledge layers to ${destDir}`);
+	outro(`Copied to ${destDir}`);
+}
+
+/**
+ * Text shown before the copy so the destination is visible.
+ *
+ * @remarks
+ * Lists the vault-relative paths that will be written. Other files in
+ * `destination` stay on disk.
+ */
+export function obsidianCopyMessage(destination: string): string {
+	const writes = [...KNOWLEDGE_DIRS.map((dir) => `${dir}/`), ...KNOWLEDGE_FILES];
+	return [
+		`Destination: ${destination}`,
+		'',
+		'Writes:',
+		...writes.map((entry) => `  ${entry}`),
+		'',
+		'A file that already exists is replaced. Other files in this directory are left in place.',
+	].join('\n');
+}
+
+/**
+ * Asks before copying. `--yes` skips the prompt. Without a terminal, the copy is refused.
+ */
+export async function promptObsidianCopy(destination: string): Promise<boolean> {
+	if (process.argv.includes('--yes')) {
+		return true;
+	}
+	if (!process.stdout.isTTY) {
+		log.error('No terminal. Re-run with --yes to copy without a prompt.');
+		process.exitCode = 1;
+		return false;
+	}
+
+	intro('Copy into Obsidian');
+	note(obsidianCopyMessage(destination), 'Confirm the directory');
+	const answer = await confirm({ message: 'Copy these files into that directory?' });
+	if (isCancel(answer) || !answer) {
+		cancel('Nothing was copied.');
+		return false;
+	}
+	return true;
 }
 
 /**

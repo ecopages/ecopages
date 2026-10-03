@@ -18,7 +18,7 @@ Framework skill packs live in the vault root at [`../.agents`](../.agents). See 
 
 | System          | Role                                                                                                        |
 | --------------- | ----------------------------------------------------------------------------------------------------------- |
-| **obsidian**    | Build-plugin watch/rebuild and optional `pnpm sync:obsidian` mirror                                         |
+| **obsidian**    | Build-plugin watch/rebuild, and `pnpm sync:obsidian` which asks before copying into the vault               |
 | **wiki**        | Vault load, ingest, catalog, graph lint, link rewrite, catch-all slugs ([README](./src/lib/wiki/README.md)) |
 | **md-response** | Markdown negotiation (`Accept`, `.md` suffix, `/api/wiki/[...slug]`)                                        |
 | **search**      | Token search engine, `/api/search` for agents, `search-index.json` for the browser                          |
@@ -36,6 +36,8 @@ pnpm lint:wiki
 pnpm test
 pnpm typecheck
 ```
+
+`pnpm sync:obsidian` shows the destination directory and waits for a yes before copying. `pnpm sync:obsidian -- --yes` copies without asking.
 
 ## Agent markdown
 

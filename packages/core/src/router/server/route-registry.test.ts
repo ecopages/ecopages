@@ -201,10 +201,10 @@ describe('RouteRegistry', () => {
 					'.html Pages cannot receive Params',
 				);
 				await expect(
-					withIntegration({ name: 'templates', extensions: ['.html'], routeParams: false }).init(),
+					withIntegration({ name: 'templates', extensions: ['.html'], acceptsParams: false }).init(),
 				).rejects.toThrow('.html Pages cannot receive Params');
 
-				const userOwned = withIntegration({ name: 'custom-html', extensions: ['.html'], routeParams: true });
+				const userOwned = withIntegration({ name: 'custom-html', extensions: ['.html'], acceptsParams: true });
 				await userOwned.init();
 				expect(userOwned.templateRoutes).toHaveLength(1);
 			} finally {

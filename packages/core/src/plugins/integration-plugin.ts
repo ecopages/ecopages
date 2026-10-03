@@ -135,7 +135,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * `false`, and route discovery then rejects those filenames instead of failing at render.
 	 * It describes the Integration, so it is a class member rather than a user option.
 	 */
-	readonly routeParams: boolean = true;
+	readonly acceptsParams: boolean = true;
 
 	protected integrationDependencies: AssetDefinition[];
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];

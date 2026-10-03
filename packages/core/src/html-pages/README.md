@@ -6,13 +6,13 @@ This directory owns `.html` Filesystem Routes: plain HTML files under `src/pages
 
 `finalizeEcoPagesConfig()` appends the internal `html-pages` Integration after user Integrations, unless a user Integration already declares `.html`. Appending last keeps the first-extension fallback for missing semantic templates unchanged for existing apps. There is no public plugin factory.
 
-| File                    | Role                                                                                                                |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `html-pages.plugin.ts`  | `HtmlPagesPlugin`: owns `.html` with `HtmlPageRenderer`, implements `compilePageModule`, sets `routeParams = false` |
-| `html-page-template.ts` | Compiles a Page or Html shell file into template parts, asset declarations, head nodes, and metadata                |
-| `html-page-module.ts`   | Builds the Page or shell module in-process and owns the built-in shell                                              |
-| `html-page-renderer.ts` | `StringMarkupRenderer` subclass: emits assets in place, renders the shell, wires head reconciliation                |
-| `html-page-document.ts` | Reconciles Page head tags and `<html>`/`<body>` attributes onto the finalized document                              |
+| File                    | Role                                                                                                                  |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `html-pages.plugin.ts`  | `HtmlPagesPlugin`: owns `.html` with `HtmlPageRenderer`, implements `compilePageModule`, sets `acceptsParams = false` |
+| `html-page-template.ts` | Compiles a Page or Html shell file into template parts, asset declarations, head nodes, and metadata                  |
+| `html-page-module.ts`   | Builds the Page or shell module in-process and owns the built-in shell                                                |
+| `html-page-renderer.ts` | `StringMarkupRenderer` subclass: emits assets in place, renders the shell, wires head reconciliation                  |
+| `html-page-document.ts` | Reconciles Page head tags and `<html>`/`<body>` attributes onto the finalized document                                |
 
 Parsing uses `services/html/html-source-parser.ts`, a positional parser built on the same tokenizer as `HtmlRewriter` (`services/html/html-tokenizer.ts`).
 
@@ -22,7 +22,7 @@ Core never checks for HTML Pages by name. It finds a file's owning Integration w
 
 - `PageModuleImportService.loadModule()` calls the owner's `compilePageModule()` before bundling. `HtmlPagesPlugin.compilePageModule()` compiles files under the pages directory and `src/includes/html.html` with `loadHtmlPageModule()`, and returns `undefined` for any other `.html` file. Bun, Node, and Vite-hosted apps load HTML Pages the same way, and the import cache still keys modules by file hash.
 - `isPagesUnifiedGraphPage()` leaves out Pages whose owner implements `compilePageModule`, so HTML Pages stay out of the production unified graph.
-- Route discovery rejects `[param]` filenames whose owner sets `routeParams` to `false`, because HTML Pages have no `staticPaths`.
+- Route discovery rejects `[param]` filenames whose owner sets `acceptsParams` to `false`, because HTML Pages have no `staticPaths`.
 
 Each component carries its compiled template on an interned symbol, read with `getCompiledHtmlTemplate()`. Calling the component directly throws, because rendering needs the owning renderer's asset pipeline. A Page component also exposes `metadata`, built from its head tags and merged over `defaultMetadata`, so static export and the Sitemap read it like an `eco.page()` Page.
 

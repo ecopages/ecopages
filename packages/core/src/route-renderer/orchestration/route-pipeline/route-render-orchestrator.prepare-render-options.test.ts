@@ -12,6 +12,7 @@ import type {
 	PageMetadataProps,
 	RouteRendererOptions,
 } from '../../../types/public-types.ts';
+import { registerDiscoveredDependencies } from '../../../eco/discovered-dependencies.ts';
 import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
 import type {
 	AssetDefinition,
@@ -234,6 +235,36 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					chunkAssets: [],
 				},
 			}),
+		);
+	});
+
+	it('adds the watch files a Page identity registers to the cached HTML dependencies', async () => {
+		const appConfig = { cache: { defaultStrategy: 'static' }, integrations: [] } as unknown as EcoPagesAppConfig;
+		const flow = new RouteRenderOrchestrator(appConfig, {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService);
+		const identity = { id: 'about-page', file: '/app/pages/about.html', integration: 'string' };
+		registerDiscoveredDependencies(identity, {
+			components: () => [],
+			stylesheets: [],
+			watchFiles: ['/app/pages/about.css', '/app/pages/counter.ts'],
+		});
+		const Page = (() => '<main>About</main>') as unknown as EcoPageComponent<any>;
+		Page.config = { identity };
+
+		const result = await flow.prepareRenderOptions(
+			{ file: '/app/pages/about.html', params: {}, query: {} } as unknown as RouteRendererOptions,
+			createFlowAdapter({
+				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
+				getHtmlTemplate: async () => (() => '<html></html>') as EcoComponent<HtmlTemplateProps>,
+				resolvePageData: async () => ({ props: {}, metadata: { title: 'About', description: 'About' } }),
+				resolveDependencies: async () => [],
+				collectPageBrowserGraphContribution: async () => undefined,
+			}),
+		);
+
+		expect(result.sourceDependencyPaths).toEqual(
+			expect.arrayContaining(['/app/pages/about.html', '/app/pages/about.css', '/app/pages/counter.ts']),
 		);
 	});
 

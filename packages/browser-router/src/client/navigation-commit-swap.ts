@@ -36,7 +36,7 @@ export function runBrowserRouterCommitSwap(input: BrowserRouterCommitSwapInput):
 	} else {
 		input.domSwapper.replaceBody(input.newDocument);
 	}
-	input.domSwapper.flushRerunScripts();
+	input.domSwapper.flushScripts();
 	manageWindowScroll(input.url, input.previousUrl, {
 		scrollBehavior: input.options.scrollBehavior,
 		smoothScroll: input.options.smoothScroll,

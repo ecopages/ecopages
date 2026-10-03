@@ -56,12 +56,28 @@ describe('activateScriptsInOrder', () => {
 		expect(inserted).toHaveLength(1);
 	});
 
-	it('hands parser-blocking loads that are still pending to the next queue', async () => {
+	it('stops the sequence when a newer navigation started while it waited', async () => {
+		const inserted: HTMLScriptElement[] = [];
+		let stale = false;
+
+		const pending = activateScriptsInOrder(
+			[activation({ src: libraryUrl }, inserted), activation({}, inserted)],
+			() => stale,
+		);
+		stale = true;
+		await pending;
+
+		expect(inserted).toHaveLength(1);
+	});
+
+	it('does not wait on a parser-blocking script its activation chose not to insert', async () => {
 		const inserted: HTMLScriptElement[] = [];
 
-		const pendingLoads = await activateScriptsInOrder([activation({ src: libraryUrl }, inserted)]);
+		await activateScriptsInOrder([
+			{ attributes: [['src', libraryUrl]], textContent: '', insert: () => {} },
+			activation({}, inserted),
+		]);
 
-		expect(pendingLoads).toHaveLength(1);
-		await Promise.all(pendingLoads);
+		expect(inserted).toHaveLength(1);
 	});
 });

@@ -7,5 +7,6 @@ export {
 	flushPendingRerunScripts,
 	isExternalModuleRerunScript,
 	resetRerunNonceForTests,
+	toRerunScriptActivation,
 	type PendingRerunScript,
 } from './rerun-queue.ts';

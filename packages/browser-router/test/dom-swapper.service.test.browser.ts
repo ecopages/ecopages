@@ -105,7 +105,7 @@ describe('DomSwapper service behavior', () => {
 
 		swapper.morphHead(newDocument);
 		swapper.replaceBody(newDocument);
-		swapper.flushRerunScripts();
+		swapper.flushScripts();
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(document.head.querySelector('script[src="/old-script.js"]')).toBeNull();
@@ -138,7 +138,7 @@ describe('DomSwapper service behavior', () => {
 		swapper.morphHead(newDocument);
 		swapper.morphBody(newDocument);
 		const dataScript = document.body.querySelector('script[type="application/json"]');
-		swapper.flushRerunScripts();
+		swapper.flushScripts();
 
 		await vi.waitFor(() => expect(runs).toEqual(['library', 'head-inline', 'kept', 'inline']));
 		expect(document.body.querySelector('script[type="application/json"]')).toBe(dataScript);
@@ -162,7 +162,7 @@ describe('DomSwapper service behavior', () => {
 
 			swapper.morphHead(newDocument);
 			swapper[swap](newDocument);
-			swapper.flushRerunScripts();
+			swapper.flushScripts();
 
 			await vi.waitFor(() => expect(runs).toEqual(['footer']));
 			expect(document.body.querySelector('[data-eco-persist] script')).toBe(liveScript);
@@ -185,9 +185,75 @@ describe('DomSwapper service behavior', () => {
 
 		swapper.morphHead(newDocument);
 		swapper.morphBody(newDocument);
-		swapper.flushRerunScripts();
+		swapper.flushScripts();
 
 		await vi.waitFor(() => expect(runs).toEqual(['library', 'inline']));
+	});
+
+	it('runs rerun scripts after the head scripts of the same swap, and body scripts after both', async () => {
+		resetDocument();
+		const swapper = new DomSwapper('data-eco-persist');
+		const runs: string[] = [];
+		(window as typeof window & { __body_script_runs__?: string[] }).__body_script_runs__ = runs;
+		const record = (label: string) => `window.__body_script_runs__.push('${label}')`;
+
+		const newDocument = parseDocument(
+			[
+				`<html><head><script src="data:text/javascript,${encodeURIComponent(record('library'))}"></script>`,
+				`<script data-eco-rerun="true">${record('rerun')}</script></head>`,
+				`<body><script>${record('body')}</script></body></html>`,
+			].join(''),
+		);
+
+		swapper.morphHead(newDocument);
+		swapper.replaceBody(newDocument);
+		swapper.flushScripts();
+
+		await vi.waitFor(() => expect(runs).toEqual(['library', 'rerun', 'body']));
+	});
+
+	it('runs body scripts before returning when no earlier script is still loading', () => {
+		resetDocument();
+		const swapper = new DomSwapper('data-eco-persist');
+		const runs: string[] = [];
+		(window as typeof window & { __body_script_runs__?: string[] }).__body_script_runs__ = runs;
+
+		const newDocument = parseDocument(
+			"<html><head></head><body><script>window.__body_script_runs__.push('body')</script></body></html>",
+		);
+
+		swapper.morphHead(newDocument);
+		swapper.morphBody(newDocument);
+		swapper.flushScripts();
+
+		expect(runs).toEqual(['body']);
+	});
+
+	it("stops a page's script sequence when the next swap flushes its own", async () => {
+		resetDocument();
+		const swapper = new DomSwapper('data-eco-persist');
+		const runs: string[] = [];
+		(window as typeof window & { __body_script_runs__?: string[] }).__body_script_runs__ = runs;
+		const record = (label: string) => `window.__body_script_runs__.push('${label}')`;
+
+		const first = parseDocument(
+			[
+				`<html><head><script src="data:text/javascript,${encodeURIComponent(record('library'))}"></script>`,
+				`<script>${record('first')}</script></head><body></body></html>`,
+			].join(''),
+		);
+		swapper.morphHead(first);
+		swapper.replaceBody(first);
+		swapper.flushScripts();
+
+		const second = parseDocument(`<html><head></head><body><script>${record('second')}</script></body></html>`);
+		swapper.morphHead(second);
+		swapper.replaceBody(second);
+		swapper.flushScripts();
+
+		await vi.waitFor(() => expect(runs).toContain('library'));
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(runs).toEqual(['second', 'library']);
 	});
 
 	it('does not wait on nomodule or non-JavaScript scripts, which the browser never loads', async () => {
@@ -209,7 +275,7 @@ describe('DomSwapper service behavior', () => {
 
 		swapper.morphHead(newDocument);
 		swapper.morphBody(newDocument);
-		swapper.flushRerunScripts();
+		swapper.flushScripts();
 
 		await vi.waitFor(() => expect(runs).toEqual(['inline']));
 	});
@@ -233,7 +299,7 @@ describe('DomSwapper service behavior', () => {
 
 		swapper.morphHead(newDocument);
 		swapper.replaceBody(newDocument);
-		swapper.flushRerunScripts();
+		swapper.flushScripts();
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(document.body.getAttribute('data-route-files')).toBe(
@@ -279,11 +345,11 @@ describe('DomSwapper service behavior', () => {
 
 			swapper.morphHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushRerunScripts();
+			swapper.flushScripts();
 
 			swapper.morphHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushRerunScripts();
+			swapper.flushScripts();
 		} finally {
 			document.head.appendChild = originalAppendChild;
 			delete runtimeWindow.__ECO_PAGES__;
@@ -318,11 +384,11 @@ describe('DomSwapper service behavior', () => {
 
 			swapper.morphHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushRerunScripts();
+			swapper.flushScripts();
 
 			swapper.morphHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushRerunScripts();
+			swapper.flushScripts();
 		} finally {
 			document.head.appendChild = originalAppendChild;
 		}
@@ -358,11 +424,11 @@ describe('DomSwapper service behavior', () => {
 
 			swapper.morphHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushRerunScripts();
+			swapper.flushScripts();
 
 			swapper.morphHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushRerunScripts();
+			swapper.flushScripts();
 		} finally {
 			document.head.appendChild = originalAppendChild;
 		}

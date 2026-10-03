@@ -23,6 +23,7 @@ These are not the skills shipped to Ecopages users. The user-facing skill lives 
 | [architecture-review](architecture-review/SKILL.md) | generic | Audit an area under `.audit/`, turn findings into issues, execute them | Ecopages maintainers |
 | [testing](testing/SKILL.md) | generic | Choosing a test layer and writing tests that can fail | Ecopages maintainers |
 | [commit-expert](commit-expert/SKILL.md) | generic | Commit messages, PR titles, changelog lines, changesets | Ecopages maintainers |
+| [adversarial-review](adversarial-review/SKILL.md) | generic | Another harness and model (`ADVERSARIAL_REVIEW_HARNESS`, `ADVERSARIAL_REVIEW_MODEL` in `.env`, or your own harness on another model) reviews the change after your own review, read-only, in at most two rounds; final-review's last step when configured | Ecopages maintainers |
 | [senior-technical-writer](senior-technical-writer/SKILL.md) | generic | Writing and reviewing docs against the code; a final-review reviewer | Ecopages maintainers |
 | [thermo-nuclear-code-quality-review](thermo-nuclear-code-quality-review/SKILL.md) | generic | Strict maintainability review; a final-review reviewer | [Cursor](https://github.com/cursor/plugins), MIT, kept as published |
 | [ecopages](ecopages/SKILL.md) | project | Where this repository keeps its checks, CI, test setup, releases and conventions | Ecopages maintainers |

@@ -31,7 +31,7 @@ describe('HtmlPagesPlugin', () => {
 		rmSync(rootDir, { recursive: true, force: true });
 	});
 
-	it('compiles Pages and the html.html shell, and leaves other .html files to core', async () => {
+	it('compiles Pages and the html.html template, and rejects other .html files', async () => {
 		const plugin = new HtmlPagesPlugin();
 		for (const file of ['src/pages/about.html', 'src/pages/blog/post.html', 'src/includes/other.html']) {
 			writeFileSync(at(file), '<main>x</main>');
@@ -43,8 +43,10 @@ describe('HtmlPagesPlugin', () => {
 		expect(await kindOf('src/pages/about.html')).toBe('page');
 		expect(await kindOf('src/pages/blog/post.html')).toBe('page');
 		expect(await kindOf('src/includes/html.html')).toBe('shell');
-		expect(plugin.compilePageModule(at('src/includes/other.html'), appConfig)).toBeUndefined();
-		expect(plugin.compilePageModule(at('src/public/index.html'), appConfig)).toBeUndefined();
-		expect(plugin.compilePageModule(at('src/pages-old/about.html'), appConfig)).toBeUndefined();
+		for (const file of ['src/includes/other.html', 'src/public/index.html', 'src/pages-old/about.html']) {
+			expect(() => plugin.compilePageModule(at(file), appConfig)).toThrow(
+				`${at(file)} is neither a Page under ${at('src/pages')} nor the HTML template`,
+			);
+		}
 	});
 });

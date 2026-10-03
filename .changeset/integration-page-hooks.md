@@ -2,7 +2,7 @@
 '@ecopages/core': minor
 ---
 
-Integrations can compile their own Page files and opt out of Params. `IntegrationPlugin.compilePageModule(filePath, appConfig)` returns a Page module, or a promise of one, without the bundler, and an Integration that overrides `acceptsParams` with `false` makes route discovery reject the `[param]` and `[...param]` filenames it owns. A user Integration that registers a longer extension than `.html`, such as `.page.html`, keeps its own files.
+Integrations can compile their own Page files and opt out of Params. `IntegrationPlugin.compilePageModule(filePath, appConfig)` returns a Page module, or a promise of one, for every file of the Integration that core loads, without the bundler, and an Integration that overrides `acceptsParams` with `false` makes route discovery reject the `[param]` and `[...param]` filenames it owns. A user Integration that registers a longer extension than `.html`, such as `.page.html`, keeps its own files.
 
 Core now matches a file to its Integration and its route path by the longest registered extension the file name ends with:
 

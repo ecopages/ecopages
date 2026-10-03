@@ -65,7 +65,7 @@ describe('pages-unified-graph-build', () => {
 			...appConfig,
 			integrations: [
 				...appConfig.integrations,
-				{ name: 'templates', extensions: ['.tpl'], compilePageModule: () => undefined },
+				{ name: 'templates', extensions: ['.tpl'], compilePageModule: () => ({ default: () => '' }) },
 			],
 		} as unknown as typeof appConfig;
 

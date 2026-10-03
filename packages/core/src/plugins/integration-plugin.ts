@@ -197,24 +197,22 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Compiles one of this Integration's Page files, or its `html.*` shell, in-process instead
+	 * Compiles one of this Integration's Page files, or its `html.*` template, in-process instead
 	 * of letting core bundle it.
 	 *
 	 * @remarks
-	 * For Integrations whose files are not JavaScript modules, such as core's HTML Pages.
-	 * Return `undefined` to let core bundle that file.
+	 * For Integrations whose files are not JavaScript modules, such as core's HTML Pages. Core
+	 * calls it for every file of the Integration that it loads as a module, and never bundles
+	 * those files itself.
 	 *
 	 * - Every Page of an Integration that implements this stays out of the production pages
-	 *   graph, including Pages it hands back with `undefined`, so each one builds on first load.
+	 *   graph, so each one builds on first load.
 	 * - The result is cached by the file's content hash, so editing another file it reads does
 	 *   not invalidate it.
 	 * - Vite-hosted development imports files whose last extension is a JavaScript one (such
 	 *   as `.tpl.ts`) itself and never calls this.
 	 */
-	compilePageModule?(
-		filePath: string,
-		appConfig: EcoPagesAppConfig,
-	): EcoPageFile | undefined | Promise<EcoPageFile | undefined>;
+	compilePageModule?(filePath: string, appConfig: EcoPagesAppConfig): EcoPageFile | Promise<EcoPageFile>;
 
 	/**
 	 * Attaches the finalized app config to the integration.

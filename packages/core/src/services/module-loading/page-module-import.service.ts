@@ -344,14 +344,9 @@ export class PageModuleImportService {
 
 	private async loadModule<T = unknown>(options: LoadModuleOptions): Promise<T> {
 		const { filePath, fileHash, importCacheKey } = options;
-		const ownModule =
-			this.appConfig &&
-			(await findIntegrationForFile(this.appConfig.integrations, filePath)?.compilePageModule?.(
-				filePath,
-				this.appConfig,
-			));
-		if (ownModule) {
-			return ownModule as T;
+		const owner = this.appConfig && findIntegrationForFile(this.appConfig.integrations, filePath);
+		if (this.appConfig && owner?.compilePageModule) {
+			return (await owner.compilePageModule(filePath, this.appConfig)) as T;
 		}
 		const {
 			outdir,

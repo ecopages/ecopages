@@ -1,0 +1,36 @@
+# Issue labels. `pnpm issue` creates missing ones from this list and rejects any label not listed.
+# Issue types (Bug, Task, Feature) replace the old `bug` and `enhancement` labels.
+
+- name: area:build
+  color: 1d76db
+  description: Build layer, bundler adapter, build caches, plugin contract
+- name: area:html-pages
+  color: 1d76db
+  description: HTML Pages and their asset references
+- name: area:dev
+  color: 1d76db
+  description: Dev server, HMR, watchers, Vite host, CLI dev mode
+- name: area:islands
+  color: 1d76db
+  description: Island Host, hydration, Foreign Subtrees, Integration renderers
+- name: area:processors
+  color: 1d76db
+  description: Processors (PostCSS, image, content)
+- name: area:browser-router
+  color: 1d76db
+  description: Browser router navigation and script execution
+- name: severity:high
+  color: b60205
+  description: Wrong output, a crash, or stale content in normal use
+- name: severity:medium
+  color: fbca04
+  description: Wrong behaviour in a common setup, with a workaround
+- name: severity:low
+  color: c2e0c6
+  description: Edge case, latent defect, or documentation drift
+- name: tracking
+  color: 5319e7
+  description: Parent issue of a program; each change is a sub-issue
+- name: needs-decision
+  color: d876e3
+  description: A maintainer must choose before work starts

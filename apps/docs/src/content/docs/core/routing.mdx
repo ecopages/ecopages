@@ -33,6 +33,9 @@ Each route must come from exactly one file. For example, `about.html` next to `a
 ### Nested Routes
 
 - `src/pages/about/team.tsx` → `/about/team`
+- `src/pages/v1.2.html` → `/v1.2`
+
+A dot in the last segment is part of the route. The server treats a path as a file only when it ends in a known static extension, such as `.js`, `.css`, `.png`, or `.html`.
 
 ---
 
@@ -47,7 +50,9 @@ Access params via `staticPaths` and `staticProps` on `eco.page` views, or at req
 
 ### Catch-all Routes
 
-- `src/pages/docs/[...slug].tsx` → `/docs/a`, `/docs/a/b`, etc.
+- `src/pages/docs/[...slug].tsx` → `/docs/a`, `/docs/a/b`, `/docs/v1.2`
+
+A catch-all also matches a path with a dot, such as `/docs/v1.2`, unless that path ends in a known static extension. A path that does end in one of those extensions is a file, so a catch-all does not render it.
 
 ---
 
@@ -71,9 +76,9 @@ Use `app.add(handler)` for handlers created with `defineApiHandler`. See [Define
 
 ### Route Priority
 
-1. **API / explicit routes** in `app.ts`
-2. **Static files** in `public`
-3. **File-based pages** in `src/pages`
+1. **API routes** in `app.ts`
+2. **File-based pages** in `src/pages`, unless the path ends in a known static extension
+3. **Static files** from `public` and the build output
 
 ---
 

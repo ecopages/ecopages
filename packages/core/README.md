@@ -172,7 +172,7 @@ export default eco.page({
 });
 ```
 
-Plain `.html` files in `src/pages/` are HTML Pages and need no Integration: `src/pages/about.html` becomes `/about`, rendered inside `src/includes/html.*` or a built-in shell. See [HTML Pages](https://ecopages.app/docs/core/pages#html-pages).
+Plain `.html` files in `src/pages/` are HTML Pages and need no Integration: `src/pages/about.html` becomes `/about`, rendered inside `src/includes/html.*` or a built-in HTML template. See [HTML Pages](https://ecopages.app/docs/core/pages#html-pages).
 
 ### 4. Reusable Components
 

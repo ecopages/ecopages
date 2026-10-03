@@ -96,6 +96,11 @@ function listFiles(root: string): string[] {
  * `watch.extensions`) is added, removed, or edited, the next export renders every
  * page again. `additionalWatchPaths` stays a development reload list; route
  * module hashing already covers sources pages import.
+ *
+ * Each file contributes its size and modification time rather than a content hash, as `make`
+ * does, so an image-heavy watch path is not read in full on every build. An edit that keeps
+ * the size and lands within the file system's timestamp resolution goes unnoticed; touching
+ * the file afterwards makes the next export notice it.
  */
 export function hashWatchedBuildInputs(appConfig: EcoPagesAppConfig): string {
 	const files = new Set<string>();
@@ -111,9 +116,10 @@ export function hashWatchedBuildInputs(appConfig: EcoPagesAppConfig): string {
 		}
 	}
 
-	const entries = [...files]
-		.sort()
-		.map((filePath) => `${path.relative(appConfig.rootDir, filePath)}:${fileSystem.hash(filePath)}`);
+	const entries = [...files].sort().map((filePath) => {
+		const { size, mtimeMs } = statSync(filePath);
+		return `${path.relative(appConfig.rootDir, filePath)}:${size}:${mtimeMs}`;
+	});
 	return entries.length > 0 ? rapidhash(entries.join('\n')).toString(36) : 'none';
 }
 

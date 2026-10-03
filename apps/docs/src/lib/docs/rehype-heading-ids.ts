@@ -1,7 +1,9 @@
 import type { Element, ElementContent, Root, RootContent } from 'hast';
 import type { Plugin } from 'unified';
 
-const SECTION_HEADINGS = new Set(['h2', 'h3', 'h4', 'h5', 'h6']);
+/** Headings the TOC lists; they get their ids first, so deeper headings cannot shift them. */
+const TOC_HEADINGS = new Set(['h2', 'h3']);
+const DEEPER_HEADINGS = new Set(['h4', 'h5', 'h6']);
 
 function textContent(node: Root | RootContent | ElementContent): string {
 	if (node.type === 'text') return node.value;
@@ -39,7 +41,9 @@ function visitElements(node: Root | Element, visit: (element: Element) => void):
  * Without server-rendered ids, a link such as `/docs/core/pages#html-pages`
  * lands at the top of the page: the TOC only assigns ids after its module runs,
  * after the browser has already looked for the fragment. Explicit ids are kept.
- * Repeated slugs get `-2`, `-3`, … suffixes, as the TOC does.
+ * Repeated slugs get `-2`, `-3`, … suffixes, as the TOC does. `h2` and `h3`, which the TOC
+ * lists, get their ids before `h4`–`h6`, so a deeper heading with the same text never takes
+ * the id the TOC would give.
  */
 export const rehypeHeadingIds: Plugin<[], Root> = () => (tree) => {
 	const usedIds = new Set<string>();
@@ -47,13 +51,15 @@ export const rehypeHeadingIds: Plugin<[], Root> = () => (tree) => {
 		if (typeof element.properties?.id === 'string') usedIds.add(element.properties.id);
 	});
 
-	visitElements(tree, (element) => {
-		if (!SECTION_HEADINGS.has(element.tagName) || element.properties?.id) return;
+	for (const headings of [TOC_HEADINGS, DEEPER_HEADINGS]) {
+		visitElements(tree, (element) => {
+			if (!headings.has(element.tagName) || element.properties?.id) return;
 
-		const base = slugifyHeadingText(textContent(element)) || 'section';
-		let id = base;
-		for (let suffix = 2; usedIds.has(id); suffix++) id = `${base}-${suffix}`;
-		usedIds.add(id);
-		element.properties = { ...element.properties, id };
-	});
+			const base = slugifyHeadingText(textContent(element)) || 'section';
+			let id = base;
+			for (let suffix = 2; usedIds.has(id); suffix++) id = `${base}-${suffix}`;
+			usedIds.add(id);
+			element.properties = { ...element.properties, id };
+		});
+	}
 };

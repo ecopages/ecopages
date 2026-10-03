@@ -14,7 +14,7 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Structure
 
 - `src/pages` — Filesystem Routes as `.html` files, including `404.html` and `500.html`
-- `src/includes/html.html` — HTML shell; Page content renders at `<!-- eco:children -->`
+- `src/includes/html.html` — HTML template; Page content renders at `<!-- eco:children -->`
 - `src/components` — custom elements and their stylesheets
 - `src/styles` — Tailwind theme
 - `src/public` — favicons and other files served as written

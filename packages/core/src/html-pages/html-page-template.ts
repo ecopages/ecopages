@@ -468,7 +468,7 @@ export function compileHtmlShell(file: string, source: string, options: CompileH
 	const hasHead = html && findElements(html.children, (element) => element.tagName === 'head').length > 0;
 	const hasBody = html && findElements(html.children, (element) => element.tagName === 'body').length > 0;
 	if (!html || !hasHead || !hasBody) {
-		throw htmlError(file, 'an Html shell must contain an <html> element with <head> and <body>.');
+		throw htmlError(file, 'the HTML template must contain an <html> element with <head> and <body>.');
 	}
 
 	const markers: HtmlNode[] = [];
@@ -485,7 +485,7 @@ export function compileHtmlShell(file: string, source: string, options: CompileH
 	if (markers.length !== 1) {
 		throw htmlError(
 			file,
-			`an Html shell must contain exactly one <!-- ${CHILDREN_MARKER} --> marker; found ${markers.length}.`,
+			`the HTML template must contain exactly one <!-- ${CHILDREN_MARKER} --> marker; found ${markers.length}.`,
 		);
 	}
 

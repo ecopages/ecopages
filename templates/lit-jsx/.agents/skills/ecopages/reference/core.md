@@ -51,7 +51,7 @@ export default eco.page({
 });
 ```
 
-**HTML Pages (`src/pages/**/*.html`)** — plain HTML routes that need no Integration or option in `eco.config.ts` (core registers its own). A file can be a body fragment, a `<head>` plus body markup, or a full document; the doctype and wrappers are dropped and the page renders inside `src/includes/html.*`, or a built-in shell when none exists. `src/includes/html.html` is an HTML shell in plain HTML: an `<html>` with `<head>` and `<body>` and exactly one `<!-- eco:children -->` marker.
+**HTML Pages (`src/pages/**/*.html`)** — plain HTML routes that need no Integration or option in `eco.config.ts` (core registers its own). A file can be a body fragment, a `<head>` plus body markup, or a full document; the doctype and wrappers are dropped and the page renders inside `src/includes/html.*`, or a built-in HTML template when none exists. `src/includes/html.html` is the HTML template in plain HTML: an `<html>` with `<head>` and `<body>` and exactly one `<!-- eco:children -->` marker.
 
 - Page `<title>`, `<base>`, canonical link, and `<meta>` with the same `name`/`property`/`http-equiv` replace the shell's in place; other head tags are added before `</head>`. `<html>`/`<body>` attributes merge (classes join).
 - Relative `<link rel="stylesheet">`, `<style>`, `<script type="module" src>` (bundled), and classic `<script src>` (`.js` copied, `.ts` types stripped; no `import`/`export`, which needs `type="module"`) resolve against the file and are emitted where written. External and root-relative URLs and inline scripts stay literal. Images and fonts go in `src/public/` with root-relative URLs.

@@ -38,7 +38,9 @@ describe('reconcileHtmlPageDocument', () => {
 				shell,
 				page({ nodes: [{ html: '<meta charset="latin1">', key: 'charset', charset: 'latin1' }] }),
 			),
-		).toThrow('/app/src/pages/about.html: <meta charset="latin1"> conflicts with the Html shell charset "utf-8"');
+		).toThrow(
+			'/app/src/pages/about.html: <meta charset="latin1"> conflicts with the HTML template charset "utf-8"',
+		);
 
 		expect(
 			reconcileHtmlPageDocument(

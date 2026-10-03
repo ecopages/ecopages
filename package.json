@@ -19,6 +19,8 @@
 		"check:portability": "node scripts/check-portability.ts",
 		"check:templates": "node --experimental-strip-types scripts/check-templates.ts",
 		"sync:template-skills": "node --experimental-strip-types scripts/sync-template-agent-skills.ts",
+		"init:dev": "node --experimental-strip-types scripts/link-agent-skills.ts",
+		"issue": "node --experimental-strip-types .agents/skills/github-cli/scripts/create-issues.mts",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"lint": "oxlint . --fix",

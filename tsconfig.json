@@ -17,5 +17,5 @@
 		"useDefineForClassFields": true,
 		"verbatimModuleSyntax": true
 	},
-	"include": ["scripts/**/*.ts"]
+	"include": ["scripts/**/*.ts", ".agents/skills/**/*.ts", ".agents/skills/**/*.mts"]
 }

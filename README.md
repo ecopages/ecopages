@@ -41,6 +41,7 @@ The workspace now has a more explicit documentation map so architecture notes li
 
 - [`AGENTS.md`](AGENTS.md) — coding standards for agents
 - [`CONTEXT.md`](CONTEXT.md) — domain vocabulary
+- [`.agents/skills`](.agents/skills/README.md) — contributor agent skills; link them with `pnpm init:dev`
 
 When a change affects subsystem behavior, update the local `README.md`, the parent documentation map if needed (`packages/core/README.md`, this section), and `CONTEXT.md` only when domain terms change. Other guides: [`e2e/README.md`](e2e/README.md), [`apps/docs/AGENTS.md`](apps/docs/AGENTS.md), package roots under `packages/*/`.
 

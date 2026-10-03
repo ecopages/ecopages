@@ -41,6 +41,7 @@ export interface RouteModuleBuildCacheManifest {
 	corePackageVersion: string;
 	configHash?: string;
 	buildInputsFingerprint?: string;
+	watchedInputsHash?: string;
 	entries: Record<string, RouteModuleBuildCacheEntry>;
 }
 
@@ -54,6 +55,8 @@ export interface RouteModuleBuildCacheLookup {
 export interface RouteModuleStaticRenderCacheContext {
 	configHash: string;
 	buildInputsFingerprint: string;
+	/** Hash of declared rendering inputs outside route module graphs; see `hashWatchedBuildInputs()`. */
+	watchedInputsHash: string;
 }
 
 export type RouteModuleBuildCacheManifestReader = (manifestPath: string) => RouteModuleBuildCacheManifest | undefined;
@@ -131,6 +134,7 @@ export function readRouteModuleBuildCacheManifest(manifestPath: string): RouteMo
 		corePackageVersion: parsed.corePackageVersion ?? '',
 		configHash: parsed.configHash,
 		buildInputsFingerprint: parsed.buildInputsFingerprint,
+		watchedInputsHash: parsed.watchedInputsHash,
 		entries: Object.fromEntries(
 			Object.entries(parsed.entries).filter(([, entry]) => Array.isArray(entry.outputImports)),
 		),

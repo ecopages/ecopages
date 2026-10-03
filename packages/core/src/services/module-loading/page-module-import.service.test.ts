@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import type { BuildResult } from '../../build/build-adapter.js';
 import { fileSystem } from '@ecopages/file-system';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { PageModuleImportService, type PageModuleImportDependencies } from './page-module-import.service.ts';
 import {
 	getRequestPipelineMetricsSnapshot,
@@ -77,6 +78,28 @@ describe('PageModuleImportService', () => {
 		service.clearImportCache();
 		delete process.env.NODE_ENV;
 		delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+	});
+
+	it('lets the owning Integration compile the file instead of bundling it', async () => {
+		const ownModule = { default: { compiled: true } };
+		const templates = {
+			name: 'templates',
+			extensions: ['.tpl'],
+			compilePageModule: async () => ownModule,
+		};
+		service = new PageModuleImportService(
+			{ integrations: [templates] } as unknown as EcoPagesAppConfig,
+			fakeDependencies.dependencies,
+		);
+
+		const own = await service.importModule({
+			filePath: '/app/pages/page.tpl',
+			rootDir: '/app',
+			outdir: '/app/.eco',
+		});
+
+		assert.equal(own, ownModule);
+		assert.deepEqual(fakeDependencies.calls.buildModule, []);
 	});
 
 	it('should import the transpiled output in node runtimes', async () => {

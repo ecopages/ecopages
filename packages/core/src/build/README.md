@@ -68,11 +68,11 @@ build/
 
 ## Default Flow
 
-`ConfigBuilder.build()` creates one app-owned adapter and manifest. When a server adapter initializes, it calls `installBuildRuntime(appConfig)`:
+`finalizeEcoPagesConfig()` creates one app-owned adapter and manifest. When a server adapter initializes, it calls `installBuildRuntime(appConfig)`:
 
 ## App build manifest
 
-`AppBuildManifest` is the sealed registry of build plugins and browser runtime assets on `appConfig.runtime.buildManifest`. Integrations and processors declare contributions through getters; core maps them into manifest buckets during `ConfigBuilder.build()`.
+`AppBuildManifest` is the sealed registry of build plugins and browser runtime assets on `appConfig.runtime.buildManifest`. Integrations and processors declare contributions through getters; core maps them into manifest buckets during `finalizeEcoPagesConfig()`.
 
 | Integration getter       | Processor getter | Manifest bucket          | Used in                                                          |
 | ------------------------ | ---------------- | ------------------------ | ---------------------------------------------------------------- |
@@ -182,7 +182,7 @@ The route-module registry (`route-module-build-cache-registry.ts`) shares one `R
 
 ## Unified pages graph
 
-Production static exports compile all template pages in one Rolldown invocation when `shouldBuildPagesUnifiedGraph()` is true (default in production; opt out with `ECOPAGES_UNIFIED_PAGES_GRAPH=0`).
+Production static exports compile all template pages in one Rolldown invocation when `shouldBuildPagesUnifiedGraph()` is true (default in production; opt out with `ECOPAGES_UNIFIED_PAGES_GRAPH=0`). Pages of an Integration that implements `compilePageModule()`, such as [HTML Pages](../html-pages/README.md), are compiled in-process and stay out of the graph.
 
 | Artifact       | Location                                              |
 | -------------- | ----------------------------------------------------- |

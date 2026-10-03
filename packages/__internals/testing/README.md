@@ -17,7 +17,7 @@ Current responsibilities:
 
 ## Migration Rules
 
-Use `createTestAppConfig()` when a test needs the normal Ecopages app-config baseline and only varies a small number of builder settings.
+Use `createTestAppConfig()` when a test needs the normal Ecopages app-config baseline and only varies a few config fields.
 
 Prefer the helper for:
 
@@ -26,13 +26,7 @@ Prefer the helper for:
 - shared fixture apps and playground routes
 - tests that would otherwise repeat the same `robotsTxt`, metadata, base URL, and integration initialization sequence
 
-Prefer raw `ConfigBuilder` when the test is validating config-builder behavior itself or intentionally exercises low-level config finalization details.
-
-Keep raw `ConfigBuilder` in:
-
-- `packages/core` tests that assert config semantics directly
-- tests where the order of builder calls is itself under test
-- cases where a helper would hide the behavior being verified
+Call `finalizeEcoPagesConfig()` from `@ecopages/core/internal/finalize-config` directly when the test validates finalization itself, or when the helper's defaults would hide the behavior under test. Most `packages/core` tests that assert config semantics do this.
 
 ## Helper Shape
 
@@ -51,7 +45,7 @@ Supported overrides:
 - `runtimeOrigin`: changes the runtime origin used to initialize integrations when it should differ from `baseUrl`
 - `distDir`: sets a custom dist dir for tests that need isolated outputs
 - `title` and `description`: override default metadata
-- `integrations`: replaces the default Integration list and initializes the supplied plugins; pass `[]` for an intentionally integration-free config
+- `integrations`: replaces the default Integration list and initializes the supplied plugins; pass `[]` to register none of your own (core still appends its HTML Pages Integration)
 - `rootDir` / `workDir`: project paths on the user config (same fields as `defineConfig`); omitted `rootDir` resolves from the current working directory
 - `configure(userConfig)`: narrow escape hatch to adjust the user config before finalization
 

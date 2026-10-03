@@ -1,5 +1,7 @@
 {
 	"compilerOptions": {
+		"allowImportingTsExtensions": true,
+		"noEmit": true,
 		"allowSyntheticDefaultImports": true,
 		"baseUrl": ".",
 		"esModuleInterop": true,

@@ -4,6 +4,7 @@ import type { ExplicitStaticRouteMatcher } from '../http/explicit-static-route-m
 import type { FileSystemResponseMatcher } from '../http/fs-server-response-matcher.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { HttpError } from '../../../errors/http-error.ts';
+import { ServerUtils } from '../../../utils/server-utils.module.ts';
 
 /**
  * Configuration parameters for ServerRouteHandler.
@@ -56,7 +57,8 @@ export class ServerRouteHandler {
 	 *
 	 * Priority-based routing flow:
 	 * 1. Check explicit static routes first (e.g., /sitemap.xml, /image.webp from plugins)
-	 * 2. Match file-based routes without extensions (application routes)
+	 * 2. Match file-based routes, unless the path ends in a known static file extension, so a
+	 *    dotted route such as `/v1.2` still matches its Page
 	 * 3. Fall back to static file serving from disk
 	 *
 	 * @param request - The incoming HTTP request
@@ -78,7 +80,7 @@ export class ServerRouteHandler {
 			}
 		}
 
-		const fsMatch = !pathname.includes('.') && this.router.matchRequest(request.url);
+		const fsMatch = !ServerUtils.hasKnownStaticExtension(pathname) && this.router.matchRequest(request.url);
 
 		return await (fsMatch
 			? this.fileSystemResponseMatcher.handleMatch(fsMatch, request)

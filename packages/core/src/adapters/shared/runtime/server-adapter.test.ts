@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, test, vi } from 'vitest';
 import { HMR_RUNTIME_SCRIPT_URL } from '../../../hmr/hmr-runtime-paths.ts';
-import { ConfigBuilder } from '../../../config/config-builder.ts';
+import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import type { ServerAdapterResult } from '../../abstract/server-adapter.ts';
 import type { ApiHandler, IHmrManager } from '../../../types/public-types.ts';
 import { SharedServerAdapter } from './server-adapter.ts';
@@ -174,7 +174,7 @@ test('SharedServerAdapter injects HMR script into HTML responses in watch mode',
 
 test('RouteRegistry page module adapter loads page modules through integration renderers', async () => {
 	const rootDir = createTempRoot('ecopages-route-registry-page-module-adapter');
-	const config = await new ConfigBuilder().setRootDir(rootDir).build();
+	const config = await finalizeEcoPagesConfig({ rootDir });
 	const adapter = new TestSharedServerAdapter('', rootDir);
 	(adapter as unknown as { appConfig: typeof config }).appConfig = config;
 

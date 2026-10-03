@@ -31,16 +31,11 @@ bun add @ecopages/react-router
 Pass the router adapter to the React plugin in your `eco.config.ts`:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
-const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dirname)
-	.setIntegrations([reactPlugin({ router: ecoRouter() })])
-	.build();
-
-export default config;
+export default defineConfig({ integrations: [reactPlugin({ router: ecoRouter() })] });
 ```
 
 SPA navigation is now enabled for all React pages in your project.

@@ -92,9 +92,10 @@ Core delivers `/_dev_toolbar.js` and injects `#__ECO_DEV_MANIFEST__` on each dev
 Integrations do not register dock apps. Fork [`@ecopages/dev-toolbar`](https://github.com/ecopages/ecopages/tree/main/packages/dev-toolbar) for a working reference layout.
 
 ```typescript
+import { defineConfig } from '@ecopages/core/config';
 import { defineDevTool } from '@ecopages/core/dev-toolbar/define-dev-tool';
 
-.setDevToolbar(defineDevTool('@acme/my-dev-toolbar'))
+export default defineConfig({ devToolbar: defineDevTool('@acme/my-dev-toolbar') });
 ```
 
 ## Related docs

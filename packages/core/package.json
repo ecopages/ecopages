@@ -157,13 +157,17 @@
 		"./env": {
 			"types": "./src/env.d.ts"
 		},
-		"./config-builder": {
-			"types": "./src/config/config-builder.ts",
-			"default": "./src/config/config-builder.ts"
-		},
 		"./config": {
 			"types": "./src/config/index.ts",
 			"default": "./src/config/index.ts"
+		},
+		"./internal/finalize-config": {
+			"types": "./src/config/finalize-config.ts",
+			"default": "./src/config/finalize-config.ts"
+		},
+		"./config/write-types": {
+			"types": "./src/config/write-types.ts",
+			"default": "./src/config/write-types.ts"
 		},
 		"./constants": {
 			"types": "./src/config/constants.ts",

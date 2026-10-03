@@ -10,17 +10,18 @@ Ecopages keeps lifecycle ordering in core. Integrations and processors declare c
 
 ## Phase 1: Config Finalization
 
-`loadEcoPagesConfig()` (via `ConfigBuilder.build()`) is the app-owned finalization boundary. Users author configuration using `defineConfig()`, which is finalized into the app-owned configuration at startup.
+Users author configuration with `defineConfig()`. When `createApp()` starts, Ecopages loads that object and finalizes it into the app-owned configuration.
 
 During this phase Ecopages:
 
-1. validates integration names and extensions
-2. validates processor names
-3. derives absolute paths and semantic template paths
-4. installs required default loaders
-5. initializes processor context
-6. validates runtime capability declarations
-7. creates the app-owned build adapter, build executor, dev graph service, runtime specifier registry, and Node runtime manifest
+1. appends the built-in HTML Pages Integration, unless an Integration already registers `.html`
+2. validates integration names and extensions
+3. validates processor names
+4. derives absolute paths and semantic template paths
+5. adds the component-meta source transform
+6. initializes processor context
+7. validates runtime capability declarations
+8. creates the app-owned build adapter and build manifest, the server invalidation counter, and a no-op entrypoint dependency graph that development replaces
 
 This is where app-owned build/runtime state becomes stable.
 

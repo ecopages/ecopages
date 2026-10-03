@@ -59,6 +59,10 @@ _Avoid_: Pre-rendering, static generation
 Rendering that happens when a request arrives at the server. The output depends on the request and is not pre-computed.
 _Avoid_: Server-side rendering (use "dynamic page" for the cached variant), runtime rendering
 
+**HTML Page**:
+A Page authored as a plain `.html` file under `src/pages/`, rendered inside the Html shell with the app's default Cache Strategy. It has no props, data hooks, Layout, or hydration contract.
+_Avoid_: Static HTML file, HTML template
+
 **Filesystem Route**:
 A route automatically discovered by scanning the pages directory. Files follow conventions (e.g., `pages/about.tsx` becomes `/about`, `pages/blog/[slug].tsx` becomes `/blog/[slug]`).
 _Avoid_: Automatic route, file-based route
@@ -126,7 +130,8 @@ _Avoid_: URL list, crawl map
 ## Relationships
 
 - A **Page** is composed from a **Component** tree, optionally wrapped by a **Layout**, all rendered within an **Html** shell
-- Each **Page** declares one optional **Layout**
+- Each **Page** declares one optional **Layout**; an **HTML Page** declares none
+- An **HTML Page** needs no **Integration** in app config: core appends a built-in **Integration** for `.html` unless a user **Integration** claims the extension. Its **Html** shell is the app's one `html` template (`src/includes/html.html` or another Integration's `html.*`), or a built-in shell when there is none
 - Pages are discovered as **Filesystem Routes** or registered as page-owned **Explicit Routes**
 - **Explicit Routes** may also register non-page handlers such as `app.get()` endpoints
 - **Filesystem Routes** are classified as exact, dynamic, or catch-all based on file naming conventions

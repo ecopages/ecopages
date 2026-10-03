@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import { ConfigBuilder } from '../../../config/config-builder.ts';
+import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import {
 	assertProductionConfigIdentity,
 	getServerBundleOutputPaths,
@@ -47,7 +47,7 @@ describe('build → start contract', () => {
 			'utf8',
 		);
 
-		const appConfig = await new ConfigBuilder().setRootDir(rootDir).setDistDir('dist').setWorkDir('.eco').build();
+		const appConfig = await finalizeEcoPagesConfig({ rootDir, distDir: 'dist', workDir: '.eco' });
 
 		const staticSiteGenerator = {
 			run: async () => {},
@@ -93,12 +93,10 @@ describe('build → start contract', () => {
 		const configPath = path.join(rootDir, 'eco.config.ts');
 		writeFileSync(configPath, 'export default {};\n', 'utf8');
 
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setConfigModulePath(configPath)
-			.setDistDir('dist')
-			.setWorkDir('.eco')
-			.build();
+		const appConfig = await finalizeEcoPagesConfig(
+			{ rootDir, distDir: 'dist', workDir: '.eco' },
+			{ configFilePath: configPath },
+		);
 
 		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
 		const builder = new ServerStaticBuilder({
@@ -129,7 +127,7 @@ describe('build → start contract', () => {
 
 		writeFileSync(path.join(rootDir, 'app.ts'), 'export const ready = true;\n', 'utf8');
 
-		const appConfig = await new ConfigBuilder().setRootDir(rootDir).setDistDir('dist').setWorkDir('.eco').build();
+		const appConfig = await finalizeEcoPagesConfig({ rootDir, distDir: 'dist', workDir: '.eco' });
 
 		const staticSiteGenerator = {
 			run: async () => {},
@@ -168,7 +166,7 @@ describe('build → start contract', () => {
 		writeFileSync(entryPath, 'export const ready = true;\n', 'utf8');
 		writeFileSync(configPath, `export default { rootDir: ${JSON.stringify(rootDir)} };\n`, 'utf8');
 
-		const appConfig = await new ConfigBuilder().setRootDir(rootDir).setDistDir('dist').setWorkDir('.eco').build();
+		const appConfig = await finalizeEcoPagesConfig({ rootDir, distDir: 'dist', workDir: '.eco' });
 
 		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
 		const builder = new ServerStaticBuilder({
@@ -213,12 +211,10 @@ describe('build → start contract', () => {
 			'utf8',
 		);
 
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setConfigModulePath(configPath)
-			.setDistDir('dist')
-			.setWorkDir('.eco')
-			.build();
+		const appConfig = await finalizeEcoPagesConfig(
+			{ rootDir, distDir: 'dist', workDir: '.eco' },
+			{ configFilePath: configPath },
+		);
 
 		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
 		const builder = new ServerStaticBuilder({
@@ -260,12 +256,10 @@ describe('build → start contract', () => {
 		writeFileSync(entryPath, 'export const ready = true;\n', 'utf8');
 		writeFileSync(configPath, configSource, 'utf8');
 
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setConfigModulePath(configPath)
-			.setDistDir('dist')
-			.setWorkDir('.eco')
-			.build();
+		const appConfig = await finalizeEcoPagesConfig(
+			{ rootDir, distDir: 'dist', workDir: '.eco' },
+			{ configFilePath: configPath },
+		);
 
 		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
 		const builder = new ServerStaticBuilder({
@@ -334,12 +328,10 @@ describe('build → start contract', () => {
 			'utf8',
 		);
 
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setConfigModulePath(configPath)
-			.setDistDir('dist')
-			.setWorkDir('.eco')
-			.build();
+		const appConfig = await finalizeEcoPagesConfig(
+			{ rootDir, distDir: 'dist', workDir: '.eco' },
+			{ configFilePath: configPath },
+		);
 
 		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
 		const builder = new ServerStaticBuilder({
@@ -377,12 +369,10 @@ describe('build → start contract', () => {
 		writeFileSync(entryPath, 'export const ready = true;\n', 'utf8');
 		writeFileSync(configPath, `export default { rootDir: ${JSON.stringify(rootDir)} };\n`, 'utf8');
 
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setConfigModulePath(configPath)
-			.setDistDir('dist')
-			.setWorkDir('.eco')
-			.build();
+		const appConfig = await finalizeEcoPagesConfig(
+			{ rootDir, distDir: 'dist', workDir: '.eco' },
+			{ configFilePath: configPath },
+		);
 
 		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
 		const builder = new ServerStaticBuilder({

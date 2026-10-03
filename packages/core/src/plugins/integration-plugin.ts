@@ -5,7 +5,7 @@ import {
 } from '../build/browser/browser-runtime-manifest.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
 import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
-import type { EcoPagesElement } from '../types/public-types.ts';
+import type { EcoPageFile, EcoPagesElement } from '../types/public-types.ts';
 import type { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
 import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
 import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
@@ -110,7 +110,7 @@ type RendererClass<C> = new (options: IntegrationRendererConstructorOptions) => 
  * - which build-time or runtime contributions must be registered for that framework
  *
  * Core owns lifecycle ordering. Integrations declare contributions through the
- * hooks on this class, while `ConfigBuilder.build()` and app startup decide when
+ * hooks on this class, while config finalization and app startup decide when
  * those hooks run. Build plugins map to {@link AppBuildManifest} buckets:
  * `plugins` → `runtimePlugins`, `browserBuildPlugins` → `browserBundlePlugins`,
  * `browserRuntimeManifest` → client import rewrite map. For page-browser and
@@ -125,6 +125,17 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	abstract renderer: RendererClass<C>;
 	readonly runtimeCapability?: RuntimeCapabilityDeclaration;
 	readonly jsxImportSource?: string;
+
+	/**
+	 * Whether this Integration's Pages can receive Params from `[param]` and `[...param]`
+	 * filenames.
+	 *
+	 * @remarks
+	 * An Integration whose Pages cannot export `staticPaths` or read params overrides it with
+	 * `false`, and route discovery then rejects those filenames instead of failing at render.
+	 * It describes the Integration, so it is a class member rather than a user option.
+	 */
+	readonly acceptsParams: boolean = true;
 
 	protected integrationDependencies: AssetDefinition[];
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
@@ -184,6 +195,24 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		this.runtimeCapability = config.runtimeCapability;
 		this.jsxImportSource = config.jsxImportSource;
 	}
+
+	/**
+	 * Compiles one of this Integration's Page files, or its `html.*` template, in-process instead
+	 * of letting core bundle it.
+	 *
+	 * @remarks
+	 * For Integrations whose files are not JavaScript modules, such as core's HTML Pages. Core
+	 * calls it for every file of the Integration that it loads as a module, and never bundles
+	 * those files itself.
+	 *
+	 * - Every Page of an Integration that implements this stays out of the production pages
+	 *   graph, so each one builds on first load.
+	 * - The result is cached by the file's content hash, so editing another file it reads does
+	 *   not invalidate it.
+	 * - Vite-hosted development imports files whose last extension is a JavaScript one (such
+	 *   as `.tpl.ts`) itself and never calls this.
+	 */
+	compilePageModule?(filePath: string, appConfig: EcoPagesAppConfig): EcoPageFile | Promise<EcoPageFile>;
 
 	/**
 	 * Attaches the finalized app config to the integration.

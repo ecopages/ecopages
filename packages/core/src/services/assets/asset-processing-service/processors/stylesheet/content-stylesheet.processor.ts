@@ -6,7 +6,8 @@ import { applyStylesheetProcessors } from './stylesheet-processor-pipeline.ts';
 
 export class ContentStylesheetProcessor extends BaseProcessor<ContentStylesheetAsset> {
 	async process(dep: ContentStylesheetAsset): Promise<ProcessedAsset> {
-		const virtualFilepath = path.join(this.appConfig.absolutePaths.distDir, 'styles', 'page-bundle.css');
+		const virtualFilepath =
+			dep.processingOrigin ?? path.join(this.appConfig.absolutePaths.distDir, 'styles', 'page-bundle.css');
 		const processedContent = await applyStylesheetProcessors(this.appConfig, dep.content, virtualFilepath);
 		const hash = this.generateHash(processedContent);
 		const filename = `style-${hash}.css`;

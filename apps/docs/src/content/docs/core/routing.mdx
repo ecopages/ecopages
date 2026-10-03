@@ -21,6 +21,9 @@ Extensions depend on your active integrations:
 - `.tsx` with [React](/docs/integrations/react) when React owns the route
 - `.lit.tsx` — [Lit](/docs/integrations/lit)
 - `.mdx` — [MDX](/docs/integrations/mdx)
+- `.html` — [HTML Pages](/docs/core/pages#html-pages), no integration needed
+
+Each route must come from exactly one file. For example, `about.html` next to `about.tsx`, or `about.tsx` next to `about/index.tsx`, is an error. HTML Pages cannot use dynamic segments such as `[slug].html`.
 
 ### Index Routes
 
@@ -30,6 +33,9 @@ Extensions depend on your active integrations:
 ### Nested Routes
 
 - `src/pages/about/team.tsx` → `/about/team`
+- `src/pages/v1.2.html` → `/v1.2`
+
+A dot in the last segment is part of the route. The server treats a path as a file only when it ends in a known static extension, such as `.js`, `.css`, `.png`, or `.html`.
 
 ---
 
@@ -44,7 +50,9 @@ Access params via `staticPaths` and `staticProps` on `eco.page` views, or at req
 
 ### Catch-all Routes
 
-- `src/pages/docs/[...slug].tsx` → `/docs/a`, `/docs/a/b`, etc.
+- `src/pages/docs/[...slug].tsx` → `/docs/a`, `/docs/a/b`, `/docs/v1.2`
+
+A catch-all also matches a path with a dot, such as `/docs/v1.2`, unless that path ends in a known static extension. A path that does end in one of those extensions is a file, so a catch-all does not render it.
 
 ---
 
@@ -68,9 +76,9 @@ Use `app.add(handler)` for handlers created with `defineApiHandler`. See [Define
 
 ### Route Priority
 
-1. **API / explicit routes** in `app.ts`
-2. **Static files** in `public`
-3. **File-based pages** in `src/pages`
+1. **API routes** in `app.ts`
+2. **File-based pages** in `src/pages`, unless the path ends in a known static extension
+3. **Static files** from `public` and the build output
 
 ---
 
@@ -91,11 +99,11 @@ export default defineConfig({
 
 ### 404 Page
 
-Create `404.tsx` (or your integration extension) under `src/pages`. Unmatched page requests render this template with status 404.
+Create `404.tsx` (or the extension of your integration, or `404.html`) under `src/pages`. Unmatched page requests render this template with status 404.
 
 ### 500 Page
 
-Create `500.tsx` (or your integration extension) under `src/pages`. When a **page** render fails in the file-route pipeline, Ecopages renders this template with status 500.
+Create `500.tsx` (or the extension of your integration, or `500.html`) under `src/pages`. When a **page** render fails in the file-route pipeline, Ecopages renders this template with status 500.
 
 ### Precedence
 

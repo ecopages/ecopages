@@ -11,27 +11,27 @@ How does one `eco.config.ts` become one stable, app-owned runtime/build configur
 It is responsible for:
 
 - validating integration, processor, and loader registration
-- resolving semantic paths such as `html` and `404` templates from registered Integration extensions; apps without Integrations leave those paths empty
-- selecting explicit build ownership and creating app-owned runtime state such as the build adapter, build executor, build manifest, dev graph service, and remaining compatibility-only runtime state
+- appending the core [HTML Pages](../html-pages/README.md) Integration after user Integrations unless one of them declares `.html`, so `.html` routes work in every app
+- resolving semantic paths such as `html` and `404` templates from registered Integration extensions; more than one match for a basename (for example `html.tsx` and `html.html`) is an error
+- selecting explicit build ownership and creating app-owned runtime state: the build adapter, the build manifest, the server invalidation counter, and a no-op entrypoint dependency graph that development replaces (build executors are installed later, at server startup)
 - enforcing runtime capability requirements before startup
 - carrying host-injected runtime dependencies only through abstract slots such as host module loaders, never through bundler-specific core defaults
 
 ## Main Files
 
 - `define-config.ts`: synchronous `defineConfig()` identity for `eco.config.ts` authoring
-- `load-eco-config.ts`: resolves the config module path, loads user config, and finalizes through `ConfigBuilder` (omitted `rootDir` defaults to `cwd`; `baseUrl` defaults during `ConfigBuilder.build()`)
+- `finalize-config.ts`: `finalizeEcoPagesConfig(userConfig, options)`, the only finalization path. Workspace packages and tests import it from `@ecopages/core/internal/finalize-config`; the npm build drops every `./internal/*` subpath from the published package. It applies defaults (omitted `rootDir` resolves from `cwd`; `baseUrl` falls back to `ECOPAGES_BASE_URL`, then `http://localhost:3000`; `absolutePaths.config` defaults to `<rootDir>/eco.config.ts`), runs every validation, and installs runtime state
+- `runtime-capability-validation.ts`: rejects Integrations and Processors whose `runtimeCapability` the current runtime cannot meet
+- `load-eco-config.ts`: resolves the config module path, imports the user config, and finalizes it
 - `resolve-eco-config-path.ts`: `eco.config.ts` discovery (`configFile`, `ECOPAGES_CONFIG_FILE`, cwd default, and production `.server/eco.config.mjs`) and `resolveUserConfigRootDir()`
-- `apply-user-config.ts`: maps declarative `EcoPagesUserConfig` fields onto `ConfigBuilder`
-- `is-finalized-app-config.ts`: detects leftover `ConfigBuilder.build()` exports so `loadEcoPagesConfig()` can reuse them
 - `user-config-types.ts`: TypeScript contracts for `EcoPagesUserConfig` and config loader options
-- `config-builder.ts`: finalization boundary used by the loader and tests
 - `server-config-bundle.ts`: emits `dist/.server/eco.config.mjs` for production server startup
-- `config-builder.test.ts` / `load-eco-config.test.ts`: validation and loader coverage
+- `finalize-config.test.ts` / `load-eco-config.test.ts`: validation and loader coverage
 
 ## Ownership Rules
 
 - Integrations and processors declare contributions.
-- `ConfigBuilder.build()` decides ordering, validates compatibility, and seals build ownership for the finalized app config.
+- `finalizeEcoPagesConfig()` decides ordering, validates compatibility, and seals build ownership for the finalized app config.
 - Runtime startup reuses finalized config/build state; it should not recompute manifest ownership.
 - Production startup loads the emitted config artifact recorded by the server build, even when the source config is still present.
 

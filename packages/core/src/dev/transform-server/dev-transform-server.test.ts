@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
-import { ConfigBuilder } from '../../config/config-builder.ts';
+import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from './dev-transform-url.ts';
 import { DevTransformBundler } from './dev-transform-bundler.ts';
 import { DevTransformServer } from './dev-transform-server.ts';
@@ -31,7 +31,7 @@ describe('DevTransformServer', () => {
 			const sourcePath = path.join(rootDir, 'src', 'index.ts');
 			fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
 			fs.writeFileSync(sourcePath, 'export const value = "before";');
-			const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 			const server = new DevTransformServer({ appConfig: config });
 			const outputUrl = server.registerModule(sourcePath);
 			const started = Promise.withResolvers<void>();
@@ -67,7 +67,7 @@ describe('DevTransformServer', () => {
 			const sourcePath = path.join(rootDir, 'src', 'index.ts');
 			fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
 			fs.writeFileSync(sourcePath, 'export const value = true;');
-			const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 			const server = new DevTransformServer({ appConfig: config });
 			const outputUrl = server.registerModule(sourcePath);
 			const started = Promise.withResolvers<void>();
@@ -116,7 +116,7 @@ describe('DevTransformServer', () => {
 
 	it('registerModule returns a stable dev-transform URL', async () => {
 		const rootDir = createTempRoot('dev-transform-server-register');
-		const config = await new ConfigBuilder().setRootDir(rootDir).build();
+		const config = await finalizeEcoPagesConfig({ rootDir });
 		const server = new DevTransformServer({ appConfig: config });
 		const sourcePath = path.join(config.absolutePaths.srcDir, 'pages', 'index.tsx');
 
@@ -130,7 +130,7 @@ describe('DevTransformServer', () => {
 
 	it('reset clears registered modules', async () => {
 		const rootDir = createTempRoot('dev-transform-server-reset');
-		const config = await new ConfigBuilder().setRootDir(rootDir).build();
+		const config = await finalizeEcoPagesConfig({ rootDir });
 		const server = new DevTransformServer({ appConfig: config });
 		const sourcePath = path.join(config.absolutePaths.srcDir, 'pages', 'about.tsx');
 		const outputUrl = server.registerModule(sourcePath);
@@ -143,7 +143,7 @@ describe('DevTransformServer', () => {
 
 	it('tryHandleRequest returns null for unknown module URLs', async () => {
 		const rootDir = createTempRoot('dev-transform-server-unknown');
-		const config = await new ConfigBuilder().setRootDir(rootDir).build();
+		const config = await finalizeEcoPagesConfig({ rootDir });
 		const server = new DevTransformServer({ appConfig: config });
 
 		const response = await server.tryHandleRequest(
@@ -160,7 +160,7 @@ describe('DevTransformServer', () => {
 		const entrypointPath = path.join(srcDir, 'index.tsx');
 		fs.writeFileSync(entrypointPath, 'export const page = true;\n', 'utf8');
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		installBuildRuntime(config);
 		const server = new DevTransformServer({ appConfig: config });
 
@@ -178,7 +178,7 @@ describe('DevTransformServer', () => {
 		const entrypointPath = path.join(srcDir, 'index.tsx');
 		fs.writeFileSync(entrypointPath, 'export const home = true;\n', 'utf8');
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		installBuildRuntime(config);
 		const server = new DevTransformServer({ appConfig: config });
 
@@ -205,7 +205,7 @@ describe('DevTransformServer', () => {
 			'utf8',
 		);
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		installBuildRuntime(config);
 		const server = new DevTransformServer({ appConfig: config });
 		const outputUrl = server.registerModule(entrypointPath);
@@ -230,7 +230,7 @@ describe('DevTransformServer', () => {
 		const cssPath = path.join(componentsDir, 'widget.css');
 		fs.writeFileSync(cssPath, ':host { color: tomato; }\n', 'utf8');
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const server = new DevTransformServer({ appConfig: config });
 
 		const response = await server.tryHandleRequest(

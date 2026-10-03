@@ -8,7 +8,7 @@
 
 import path from 'node:path';
 import type { EcoPagesUserConfig } from '@ecopages/core/config';
-import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { withContentMdxPlugins } from '@ecopages/content-processor/mdx';
 import { devToolbar } from '@ecopages/dev-toolbar/config';
@@ -113,13 +113,5 @@ export function createKitchenSinkUserConfig(options: KitchenSinkConfigOptions): 
  * Finalizes the kitchen-sink config for tests and benchmarks that need a built app config.
  */
 export async function createKitchenSinkConfig(options: KitchenSinkConfigOptions) {
-	const projectRoot = options.rootDir ?? process.cwd();
-	const configFilePath = path.join(projectRoot, 'eco.config.ts');
-	return finalizeEcoPagesConfig(
-		{
-			config: createKitchenSinkUserConfig(options),
-			configFilePath,
-		},
-		{ cwd: projectRoot },
-	);
+	return finalizeEcoPagesConfig(createKitchenSinkUserConfig(options));
 }

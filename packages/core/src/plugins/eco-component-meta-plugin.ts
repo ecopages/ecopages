@@ -6,19 +6,10 @@ import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { rapidhash } from '../utils/hash.ts';
 import { discoverComponentImports, type DiscoveredImports } from './component-import-discovery.ts';
-
-type IntegrationOwnership = { name: string; jsxImportSource?: string };
+import { findIntegrationForFile } from './find-integration-for-file.ts';
 
 export interface EcoComponentDirPluginOptions {
 	config: EcoPagesAppConfig;
-}
-
-function integrationForFile(filePath: string, config: EcoPagesAppConfig): IntegrationOwnership | undefined {
-	const candidates = config.integrations
-		.flatMap((integration) => integration.extensions.map((extension) => [extension, integration] as const))
-		.sort(([left], [right]) => right.length - left.length);
-	const match = candidates.find(([extension]) => filePath.endsWith(extension));
-	return match ? { name: match[1].name, jsxImportSource: match[1].jsxImportSource } : undefined;
 }
 
 type AstNode = {
@@ -294,7 +285,7 @@ export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOp
 		enforce: 'pre',
 		filter,
 		transform(code, id) {
-			const integration = integrationForFile(id, options.config);
+			const integration = findIntegrationForFile(options.config.integrations, id);
 			if (!integration) {
 				return { code };
 			}

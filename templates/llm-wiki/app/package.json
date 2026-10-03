@@ -12,7 +12,7 @@
 		"sync:obsidian": "node --experimental-strip-types src/lib/obsidian/mirror.ts",
 		"lint:wiki": "tsx src/lib/wiki/lint-cli.ts",
 		"test": "vitest run",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "ecopages types && tsc --noEmit"
 	},
 	"devDependencies": {
 		"@ecopages/browser-router": "workspace:*",

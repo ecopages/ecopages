@@ -15,15 +15,15 @@
 ```
 project/
 ├── src/
-│   ├── pages/          # Static routes (eco.page, MDX)
+│   ├── pages/          # Static routes (eco.page, MDX, .html)
 │   ├── views/          # Handler-rendered views
 │   ├── layouts/
 │   ├── components/
 │   ├── handlers/
-│   ├── includes/       # html.*, head.*, seo.*
+│   ├── includes/       # html.* (incl. html.html), head.*, seo.*
 │   ├── lib/
+│   ├── public/         # Copied to dist as written
 │   └── styles/
-├── public/
 ├── eco.config.ts
 └── package.json
 ```
@@ -50,6 +50,14 @@ export default eco.page({
 	render: () => <h1>Hello</h1>,
 });
 ```
+
+**HTML Pages (`src/pages/**/*.html`)** — plain HTML routes that need no Integration or option in `eco.config.ts` (core registers its own). A file can be a body fragment, a `<head>` plus body markup, or a full document; the doctype and wrappers are dropped and the page renders inside `src/includes/html.*`, or a built-in HTML template when none exists. `src/includes/html.html` is the HTML template in plain HTML: an `<html>` with `<head>` and `<body>` and exactly one `<!-- eco:children -->` marker.
+
+- Page `<title>`, `<base>`, canonical link, and `<meta>` with the same `name`/`property`/`http-equiv` replace the shell's in place; other head tags are added before `</head>`. `<html>`/`<body>` attributes merge (classes join).
+- Relative `<link rel="stylesheet">`, `<style>`, `<script type="module" src>` (bundled), and classic `<script src>` (`.js` copied, `.ts` types stripped; no `import`/`export`, which needs `type="module"`) resolve against the file and are emitted where written. External and root-relative URLs and inline scripts stay literal. Images and fonts go in `src/public/` with root-relative URLs.
+- No props, data hooks, Layout, `[param]` filenames, or SSR of custom elements; use `eco.page()` for those. `404.html` and `500.html` work as error pages. Two files for one route (`about.html` and `about.tsx`) is an error.
+- A Page that sets `<title>` or description gets matching `og:title`, `og:description`, `twitter:title`, and `twitter:description` tags unless it writes them. Other social tags (`og:image`, `twitter:card`) are written by hand, usually as defaults in `html.html`.
+- `html.html` cannot render `metadata`, so `eco.page()` Pages under it keep its static `<title>` and description. Mixed apps whose `eco.page()` Pages set metadata should keep a JSX or React `html.*`; HTML Pages work inside it too.
 
 ## Components and dependency discovery
 
@@ -87,7 +95,7 @@ export const MyComponent = eco.component({
 
 ## Metadata and SEO
 
-Defaults in `eco.config.ts` via `.setDefaultMetadata()`. Page metadata merges automatically and flows to `html.tsx` → `Head` → `Seo`.
+Defaults in `eco.config.ts` via `defaultMetadata`. Page metadata merges automatically and flows to `html.tsx` → `Head` → `Seo`.
 
 ```tsx
 export default eco.page({
@@ -104,11 +112,15 @@ export default eco.page({
 Disabled by default. Enable in `eco.config.ts`:
 
 ```typescript
-.setSitemap({
-	enabled: true,
-	extraUrls: ['/rss.xml'],
-	exclude: ['/admin/**'],
-})
+import { defineConfig } from '@ecopages/core/config';
+
+export default defineConfig({
+	sitemap: {
+		enabled: true,
+		extraUrls: ['/rss.xml'],
+		exclude: ['/admin/**'],
+	},
+});
 ```
 
 Included URLs: successfully exported static pages whose metadata resolves and `robots.index !== false`. Omitted when metadata throws (fail-closed) or `cache: 'dynamic'`. `exclude` filters eligible pathnames; `extraUrls` always append (not filtered by exclude or page robots). Written after `afterStaticExport` during `ecopages build` only — not served by `ecopages dev`. Requires correct `baseUrl` / `ECOPAGES_BASE_URL` at build time. Output is sitemap.org 0.9 `<loc>` only (no `lastmod`). Full rules: `/docs/core/sitemap`.
@@ -118,6 +130,8 @@ Included URLs: successfully exported static pages whose metadata resolves and `r
 **Dynamic routes:** `src/pages/blog/[slug].tsx` with `staticProps` reading `pathname.params`.
 
 **Data fetching:** Prefer direct function calls in `staticPaths` / `staticProps` over HTTP to your own API during static generation.
+
+**Type checking:** `ecopages:images` and `ecopages:content/*` get their types only when the app finalizes its config, so a fresh checkout has none. Run `ecopages types && tsc --noEmit` (the templates' `typecheck` script) instead of bare `tsc`.
 
 ## Best practices
 

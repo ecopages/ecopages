@@ -21,21 +21,18 @@ bun add @ecopages/mdx @mdx-js/mdx @kitajs/html
 ## Usage
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { mdxPlugin } from '@ecopages/mdx';
 
-const config = await new ConfigBuilder()
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-	.setIntegrations([
+export default defineConfig({
+	integrations: [
 		mdxPlugin({
 			compilerOptions: {
 				jsxImportSource: '@kitajs/html',
 			},
 		}),
-	])
-	.build();
-
-export default config;
+	],
+});
 ```
 
 `compilerOptions.jsxImportSource` is **required**. `react` and `@ecopages/jsx` are rejected — use `reactPlugin` or `ecopagesJsxPlugin` for those runtimes.

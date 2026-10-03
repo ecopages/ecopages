@@ -3,6 +3,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { ContentStylesheetProcessor } from './content-stylesheet.processor';
 import type { EcoPagesAppConfig } from '../../../../../types/internal-types';
 import type { ContentStylesheetAsset } from '../../assets.types';
+import { getAssetDependencyKey } from '../../asset-dependency-keys.ts';
 import { Processor } from '../../../../../plugins/processor.ts';
 
 function createMockConfig(processors = new Map<string, Processor>()): EcoPagesAppConfig {
@@ -111,6 +112,38 @@ describe('ContentStylesheetProcessor', () => {
 			const result = await processor.process(dep);
 
 			expect(result.filepath).toMatch(/style-\d+\.css$/);
+		});
+	});
+
+	describe('process - processingOrigin', () => {
+		test('hands processors processingOrigin as the file path and keys the dependency by it', async () => {
+			const filePaths: Array<string | undefined> = [];
+			const recorder = new (class extends TestStylesheetProcessor {
+				override async process(input: unknown, filePath?: string): Promise<unknown> {
+					filePaths.push(filePath);
+					return input;
+				}
+			})();
+			const processor = new ContentStylesheetProcessor({
+				appConfig: createMockConfig(new Map([[recorder.name, recorder]])),
+			});
+			const dep = (processingOrigin?: string): ContentStylesheetAsset => ({
+				kind: 'stylesheet',
+				source: 'content',
+				content: '@import "./tokens.css";',
+				inline: true,
+				...(processingOrigin ? { processingOrigin } : {}),
+			});
+
+			await processor.process(dep('/test/project/src/pages/about.html.css'));
+
+			expect(filePaths).toEqual(['/test/project/src/pages/about.html.css']);
+			expect(getAssetDependencyKey(dep('/test/project/src/pages/about.html.css'))).not.toBe(
+				getAssetDependencyKey(dep('/test/project/src/pages/contact.html.css')),
+			);
+			expect(getAssetDependencyKey(dep())).not.toBe(
+				getAssetDependencyKey(dep('/test/project/src/pages/a.html.css')),
+			);
 		});
 	});
 

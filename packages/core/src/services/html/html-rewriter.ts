@@ -1,3 +1,17 @@
+import {
+	findCommentEnd,
+	isAsciiAlpha,
+	isWhitespaceCode,
+	matchTag,
+	parseStartTag,
+	RAW_TEXT_ELEMENTS,
+	readTagName,
+	scanTag,
+	VOID_ELEMENTS,
+	type HtmlStartTagAttribute,
+	type Match,
+} from './html-tokenizer.ts';
+
 export type HtmlContentOptions = {
 	/** Insert `content` as raw markup. Otherwise it is inserted as escaped text. */
 	html?: boolean;
@@ -156,26 +170,6 @@ type MarkupToken = { end: number; replacement?: string };
 /** Extra characters consumed past the current script position, or a scan outcome. */
 type ScriptStep = number | 'more' | 'closed';
 
-type Match = 'yes' | 'no' | 'more';
-
-const VOID_ELEMENTS = new Set([
-	'area',
-	'base',
-	'br',
-	'col',
-	'embed',
-	'hr',
-	'img',
-	'input',
-	'keygen',
-	'link',
-	'meta',
-	'param',
-	'source',
-	'track',
-	'wbr',
-]);
-
 /** SVG and MathML elements whose children are parsed as HTML again. */
 const HTML_INTEGRATION_POINTS = new Set(['foreignobject', 'desc', 'title', 'mi', 'mo', 'mn', 'ms', 'mtext']);
 
@@ -225,19 +219,6 @@ const FOREIGN_BREAKOUT_TAGS = new Set([
 	'u',
 	'ul',
 	'var',
-]);
-
-const RAW_TEXT_ELEMENTS = new Set([
-	'script',
-	'style',
-	'textarea',
-	'title',
-	'noscript',
-	'iframe',
-	'xmp',
-	'noembed',
-	'noframes',
-	'plaintext',
 ]);
 
 /**
@@ -519,12 +500,7 @@ class RewriteSession {
 	}
 }
 
-type ParsedAttribute = {
-	name: string;
-	value: string;
-	/** Original text from the attribute name through its value. */
-	source: string;
-	rawName: string;
+type ParsedAttribute = Pick<HtmlStartTagAttribute, 'name' | 'value' | 'source' | 'rawName'> & {
 	state: 'original' | 'changed' | 'removed';
 };
 
@@ -652,69 +628,21 @@ class RewriterElement implements HtmlRewriterElement {
 	}
 
 	private tag(): ParsedStartTag {
-		this.parsed ??= parseStartTag(this.raw);
+		if (!this.parsed) {
+			const { rawName, attributes } = parseStartTag(this.raw);
+			this.parsed = {
+				rawName,
+				attributes: attributes.map(({ name, value, source, rawName: attributeRawName }) => ({
+					name,
+					value,
+					source,
+					rawName: attributeRawName,
+					state: 'original',
+				})),
+			};
+		}
 		return this.parsed;
 	}
-}
-
-function parseStartTag(raw: string): ParsedStartTag {
-	const rawName = readTagName(raw, 1);
-	const attributes: ParsedAttribute[] = [];
-	let index = 1 + rawName.length;
-
-	while (index < raw.length) {
-		index = skipWhile(raw, index, (char, at) => isWhitespace(char) || (char === '/' && raw[at + 1] !== '>'));
-		if (index >= raw.length || raw[index] === '>' || raw.startsWith('/>', index)) {
-			return { rawName, attributes };
-		}
-
-		const nameStart = index;
-		index = skipWhile(
-			raw,
-			index,
-			(char, at) => !isWhitespace(char) && char !== '=' && char !== '>' && !raw.startsWith('/>', at),
-		);
-		const attributeName = raw.slice(nameStart, index);
-		const value = readAttributeValue(raw, index);
-		index = value.end;
-
-		attributes.push({
-			name: attributeName.toLowerCase(),
-			value: value.text,
-			source: raw.slice(nameStart, index),
-			rawName: attributeName,
-			state: 'original',
-		});
-	}
-
-	return { rawName, attributes };
-}
-
-/**
- * Reads an optional `= value` after an attribute name.
- *
- * @remarks `end` stays at `index` when there is no `=`.
- */
-function readAttributeValue(raw: string, index: number): { text: string; end: number } {
-	let position = skipWhile(raw, index, isWhitespace);
-	if (raw[position] !== '=') return { text: '', end: index };
-
-	position = skipWhile(raw, position + 1, isWhitespace);
-	const quote = raw[position];
-	if (quote === '"' || quote === "'") {
-		const close = raw.indexOf(quote, position + 1);
-		const valueEnd = close === -1 ? raw.length - 1 : close;
-		return { text: raw.slice(position + 1, valueEnd), end: close === -1 ? valueEnd : close + 1 };
-	}
-
-	const valueEnd = skipWhile(raw, position, (char) => !isWhitespace(char) && char !== '>');
-	return { text: raw.slice(position, valueEnd), end: valueEnd };
-}
-
-function skipWhile(raw: string, index: number, predicate: (char: string, at: number) => boolean): number {
-	let position = index;
-	while (position < raw.length && predicate(raw[position], position)) position++;
-	return position;
 }
 
 /**
@@ -739,63 +667,6 @@ function readDeclaration(source: string, index: number, final: boolean, foreign:
 	return readUntilTagClose(source, index);
 }
 
-/**
- * Finds the end of a comment opened at `index`.
- *
- * @remarks Accepts `-->` and `--!>`, including the abrupt `<!-->` and `<!--->`.
- */
-function findCommentEnd(source: string, index: number): number {
-	for (let close = source.indexOf('>', index + 4); close !== -1; close = source.indexOf('>', close + 1)) {
-		if (source[close - 1] === '-' && source[close - 2] === '-') return close + 1;
-		if (
-			source[close - 1] === '!' &&
-			source[close - 2] === '-' &&
-			source[close - 3] === '-' &&
-			close - 3 >= index + 4
-		) {
-			return close + 1;
-		}
-	}
-	return -1;
-}
-
-/**
- * Scans a start or end tag from `index` to its closing `>`, skipping quoted
- * attribute values.
- *
- * @remarks `selfClosing` is true only when the `/` before `>` is not part of an
- * unquoted attribute value (`<div a=/>` is not self-closing).
- */
-function scanTag(source: string, index: number): { end: number; selfClosing: boolean } | null {
-	let position = index + 1;
-	while (position < source.length && !isTagNameEnd(source[position])) position++;
-
-	let afterEquals = false;
-	let inUnquotedValue = false;
-	for (; position < source.length; position++) {
-		const code = source.charCodeAt(position);
-		if (code === CHAR_GREATER_THAN) {
-			return { end: position, selfClosing: source.charCodeAt(position - 1) === CHAR_SLASH && !inUnquotedValue };
-		}
-		if (isWhitespaceCode(code)) {
-			inUnquotedValue = false;
-			continue;
-		}
-		if (afterEquals) {
-			afterEquals = false;
-			if (code === CHAR_DOUBLE_QUOTE || code === CHAR_SINGLE_QUOTE) {
-				position = source.indexOf(source[position], position + 1);
-				if (position === -1) return null;
-			} else {
-				inUnquotedValue = true;
-			}
-			continue;
-		}
-		if (code === CHAR_EQUALS && !inUnquotedValue) afterEquals = true;
-	}
-	return null;
-}
-
 /** Whether the start tag `source[index, end)` named `name` ends foreign content. */
 function isForeignBreakout(name: string, source: string, index: number, end: number): boolean {
 	if (FOREIGN_BREAKOUT_TAGS.has(name)) return true;
@@ -812,25 +683,6 @@ function readUntilTagClose(source: string, index: number): MarkupToken | null {
 	return close === -1 ? null : { end: close + 1 };
 }
 
-function readTagName(raw: string, from: number): string {
-	let end = from;
-	while (end < raw.length && !isTagNameEnd(raw[end])) end++;
-	return raw.slice(from, end);
-}
-
-/**
- * Matches `prefix` case-insensitively at `index`, followed by a tag-name
- * delimiter. Returns `'more'` when the input ends before the match is decided.
- */
-function matchTag(source: string, index: number, prefix: string, final: boolean): Match {
-	const available = source.slice(index, index + prefix.length).toLowerCase();
-	if (available.length < prefix.length) return !final && prefix.startsWith(available) ? 'more' : 'no';
-	if (available !== prefix) return 'no';
-	const delimiter = source[index + prefix.length];
-	if (delimiter === undefined) return final ? 'no' : 'more';
-	return isTagNameEnd(delimiter) ? 'yes' : 'no';
-}
-
 function matchLiteral(source: string, index: number, literal: string, final: boolean): Match {
 	const available = source.slice(index, index + literal.length);
 	if (available.length < literal.length) return !final && literal.startsWith(available) ? 'more' : 'no';
@@ -842,32 +694,9 @@ function toMarkup(content: string, options?: HtmlContentOptions): string {
 	return content.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
 
-function isAsciiAlpha(char: string): boolean {
-	return (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z');
-}
-
-function isWhitespace(char: string): boolean {
-	return char === ' ' || char === '\n' || char === '\t' || char === '\r' || char === '\f';
-}
-
-const CHAR_DOUBLE_QUOTE = 34;
-const CHAR_SINGLE_QUOTE = 39;
-const CHAR_SLASH = 47;
-const CHAR_EQUALS = 61;
-const CHAR_GREATER_THAN = 62;
-
 function hasNonWhitespace(source: string, start: number, end: number): boolean {
 	for (let position = start; position < end; position++) {
 		if (!isWhitespaceCode(source.charCodeAt(position))) return true;
 	}
 	return false;
-}
-
-/** {@link isWhitespace} for a UTF-16 code unit, for the hot tag scanner. */
-function isWhitespaceCode(code: number): boolean {
-	return code === 32 || code === 10 || code === 9 || code === 13 || code === 12;
-}
-
-function isTagNameEnd(char: string): boolean {
-	return isWhitespace(char) || char === '/' || char === '>';
 }

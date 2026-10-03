@@ -366,6 +366,7 @@ describe('RouteModuleBuildCache', () => {
 		const context = {
 			configHash: 'config-1',
 			buildInputsFingerprint: 'stable',
+			watchedInputsHash: 'none',
 		};
 		const filePath = '/app/pages/about.tsx';
 
@@ -408,12 +409,44 @@ describe('RouteModuleBuildCache', () => {
 		);
 	});
 
+	it('stops incremental static generation when watched rendering inputs change', () => {
+		process.env.NODE_ENV = 'production';
+		const cache = createCache();
+		const context = { configHash: 'config-1', buildInputsFingerprint: 'stable', watchedInputsHash: 'content-1' };
+
+		cache.ensureIncrementalStaticGenerationContext(context);
+
+		assert.equal(cache.isIncrementalStaticGenerationAvailable(context), true);
+		assert.equal(
+			cache.isIncrementalStaticGenerationAvailable({ ...context, watchedInputsHash: 'content-2' }),
+			false,
+		);
+	});
+
+	it('records the watched-inputs hash of the last static render, so the next export can compare it', () => {
+		process.env.NODE_ENV = 'production';
+		const cache = createCache();
+		const context = { configHash: 'config-1', buildInputsFingerprint: 'stable', watchedInputsHash: 'content-7' };
+
+		cache.recordStaticRender({
+			filePath: '/app/pages/about.tsx',
+			pathname: '/about',
+			sourceHash: 'abc123',
+			renderedOutputPath: join(tempDir, 'dist', 'about.html'),
+			context,
+		});
+
+		assert.equal(cache.getRecordedWatchedInputsHash(), 'content-7');
+		assert.equal(manifestWrites[manifestWrites.length - 1]?.watchedInputsHash, 'content-7');
+	});
+
 	it('drops rendered outputs when the route module is rebuilt', () => {
 		process.env.NODE_ENV = 'production';
 		const cache = createCache((filePath) => filePath.endsWith('.mjs') || filePath.endsWith('.html'));
 		const context = {
 			configHash: 'config-1',
 			buildInputsFingerprint: 'stable',
+			watchedInputsHash: 'none',
 		};
 		const filePath = '/app/pages/about.tsx';
 		const pathname = '/about';
@@ -495,6 +528,7 @@ describe('RouteModuleBuildCache', () => {
 		const context = {
 			configHash: 'config-1',
 			buildInputsFingerprint: 'stable',
+			watchedInputsHash: 'none',
 		};
 		const filePath = '/app/pages/about.tsx';
 		const pathname = '/about';

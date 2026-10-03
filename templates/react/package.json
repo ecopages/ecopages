@@ -7,7 +7,8 @@
 		"dev": "ecopages dev -r",
 		"build": "ecopages build",
 		"preview": "ecopages preview",
-		"dev:watch": "ecopages dev:watch -r"
+		"dev:watch": "ecopages dev:watch -r",
+		"typecheck": "ecopages types && tsc --noEmit"
 	},
 	"devDependencies": {
 		"ecopages": "workspace:*",

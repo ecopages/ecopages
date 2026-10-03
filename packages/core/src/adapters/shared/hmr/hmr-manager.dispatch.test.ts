@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test } from 'vitest';
-import { ConfigBuilder } from '../../../config/config-builder.ts';
+import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../../../hmr/hmr-strategy.ts';
 import type { ClientBridgeEvent } from '../../../types/public-types.ts';
@@ -72,14 +72,14 @@ const runtimes = [
 	{
 		name: 'node',
 		async create(rootDir: string, bridgeSpy: BridgeSpy) {
-			const config = await new ConfigBuilder().setRootDir(rootDir).build();
+			const config = await finalizeEcoPagesConfig({ rootDir });
 			return new NodeHmrManager({ appConfig: config, bridge: bridgeSpy.bridge as any });
 		},
 	},
 	{
 		name: 'bun',
 		async create(rootDir: string, bridgeSpy: BridgeSpy) {
-			const config = await new ConfigBuilder().setRootDir(rootDir).build();
+			const config = await finalizeEcoPagesConfig({ rootDir });
 			return new BunHmrManager({ appConfig: config, bridge: bridgeSpy.bridge as any });
 		},
 	},

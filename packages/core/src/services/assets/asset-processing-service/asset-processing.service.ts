@@ -139,12 +139,7 @@ export class AssetProcessingService {
 						appLogger.warn(`Skipping missing ${assetDep.kind} file: ${assetDep.filepath}`);
 					},
 					logProcessingError: (assetDep, error) => {
-						appLogger.error(
-							`Failed to process dependency: ${
-								error instanceof Error ? error.message : String(error)
-							} for ${assetDep.kind}/${assetDep.source}`,
-						);
-						appLogger.debug(error as Error);
+						appLogger.error(`Failed to process ${assetDep.kind}/${assetDep.source} dependency:`, error);
 					},
 				}),
 			);
@@ -160,12 +155,7 @@ export class AssetProcessingService {
 				resolveProcessedAssetSrcUrl: (processed) => this.resolveProcessedAssetSrcUrl(processed),
 				setCachedAsset: (dep, depKey, processed) => this.setCachedAsset(dep, depKey, processed),
 				logError: (error) => {
-					appLogger.error(
-						`Failed to process grouped dependency bundle: ${
-							error instanceof Error ? error.message : String(error)
-						}`,
-					);
-					appLogger.debug(error as Error);
+					appLogger.error('Failed to process grouped dependency bundle:', error);
 				},
 			});
 

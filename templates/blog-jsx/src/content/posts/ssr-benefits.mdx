@@ -9,7 +9,7 @@ image: urbanVintage78A265Wpio4UnsplashJpg
 Discoverability is split across two paths in this template:
 
 - **RSS** is app-owned. `app.ts` writes `/rss.xml` before the server starts.
-- **Sitemap** is framework-owned. `setSitemap()` in `eco.config.ts` emits `sitemap.xml` after static export.
+- **Sitemap** is framework-owned. `sitemap` in `eco.config.ts` emits `sitemap.xml` after static export.
 
 Both reuse the post collection you explored in the earlier articles.
 
@@ -48,17 +48,17 @@ The layout links to the feed in the header, and `<link rel="alternate">` in `Seo
 
 Unlike RSS, `sitemap.xml` is owned by Ecopages core. Enable it in config and it is written automatically after static export.
 
-### 1. Opt in with setSitemap
+### 1. Opt in with `sitemap`
 
 Sitemap generation is disabled by default. This template enables it and lists the RSS URL as an extra non-page location.
 
 ```ts
 // eco.config.ts
-.setSitemap({
+sitemap: {
   enabled: true,
   extraUrls: ['/rss.xml'],
   exclude: ['/404', '/500'],
-})
+},
 ```
 
 ### 2. Collect eligible routes

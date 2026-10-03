@@ -1,4 +1,3 @@
-import path from 'node:path';
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
@@ -7,12 +6,8 @@ import type {
 	EcoPagesElement,
 } from '@ecopages/core';
 import { createApp, type EcopagesAppOptions } from '@ecopages/core/create-app';
-import {
-	DEFAULT_ECO_CONFIG_FILENAME,
-	finalizeEcoPagesConfig,
-	resolveUserConfigRootDir,
-	type EcoPagesUserConfig,
-} from '@ecopages/core/config';
+import { type EcoPagesUserConfig } from '@ecopages/core/config';
+import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { defineIntegration } from '@ecopages/core/plugins/define-integration';
 import { IntegrationPlugin, type AnyIntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import {
@@ -85,8 +80,8 @@ export function createStringMarkupIntegration(
  *
  * @remarks
  * A test-only string Integration is installed by default so `.string.ts`
- * templates have an explicit owner. Pass `integrations: []` when a test
- * intentionally needs an app configuration without an Integration. Fixture
+ * templates have an explicit owner. Pass `integrations: []` when a test needs
+ * no Integration of its own; core still appends its HTML Pages Integration. Fixture
  * apps that author plain `.ts` templates must pass
  * `createStringMarkupIntegration({ extensions: ['.ts'] })`.
  */
@@ -125,11 +120,7 @@ export async function createTestAppConfig(options: CreateTestAppConfigOptions = 
 		userConfig = configured;
 	}
 
-	const resolvedRoot = resolveUserConfigRootDir(userConfig.rootDir);
-	const config = await finalizeEcoPagesConfig({
-		config: userConfig,
-		configFilePath: path.join(resolvedRoot, DEFAULT_ECO_CONFIG_FILENAME),
-	});
+	const config = await finalizeEcoPagesConfig(userConfig);
 
 	for (const integration of integrations) {
 		integration.setConfig(config);

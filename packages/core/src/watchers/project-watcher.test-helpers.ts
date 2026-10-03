@@ -61,7 +61,7 @@ export const createMockBridge = (): ClientBridge =>
  * provide in dev.
  *
  * @remarks
- * `ConfigBuilder.build()` already installs the invalidation counter and a
+ * `finalizeEcoPagesConfig()` already installs the invalidation counter and a
  * no-op graph; this swaps in a graph that records dependencies.
  */
 export function installDevRuntimeState(appConfig: EcoPagesAppConfig): void {

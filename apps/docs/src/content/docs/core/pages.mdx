@@ -1,6 +1,6 @@
 ---
 title: "Pages"
-description: "Define pages with eco.page — static paths, data fetching, metadata, and rendering."
+description: "Define pages with eco.page or plain HTML — static paths, data fetching, metadata, and rendering."
 order: 4
 ---
 
@@ -83,3 +83,175 @@ export const MyComponent = eco.component({
 ```
 
 See [Components](/docs/core/components) for more patterns.
+
+## HTML Pages
+
+A plain `.html` file under `src/pages` is an HTML Page. It needs no Integration, plugin, or config field: `src/pages/about.html` becomes `/about`, rendered inside your HTML template with the app's default Cache Strategy (`'static'` unless `cache.defaultStrategy` says otherwise).
+
+An HTML Page has no props, template expressions, Layout, data hooks, or hydration. Use an `eco.page()` Page when a route needs any of those.
+
+Three rules cover the contract:
+
+1. **Write normal HTML.** A Page can be a body fragment, a `<head>` followed by body markup, or a complete document with doctype, `<html>`, `<head>`, and `<body>`.
+2. **Page head tags win by identity.** A Page `<title>`, `<base>`, `<link rel="canonical">`, or `<meta>` with the same `name`, `property`, or `http-equiv` as a shell tag replaces that shell tag in place. Every other Page head tag is added before `</head>`.
+3. **Core rewrites only local assets.** Within your markup, core changes only the URLs of local stylesheets and scripts and the contents of `<style>` blocks, and emits them where you wrote them; a file `html.html` already loads is emitted once, by the shell. Everything else, including inline scripts, is kept as written.
+
+### Minimal app
+
+An HTML-only app needs `@ecopages/core` and the `ecopages` CLI installed, and four files.
+
+`package.json`:
+
+```json
+{
+	"type": "module",
+	"scripts": {
+		"dev": "ecopages dev",
+		"build": "ecopages build",
+		"typecheck": "ecopages types && tsc --noEmit"
+	}
+}
+```
+
+`app.ts`:
+
+```ts
+import { createApp } from '@ecopages/core/create-app';
+
+const app = await createApp();
+
+await app.start();
+```
+
+`eco.config.ts`:
+
+```ts
+import { defineConfig } from '@ecopages/core/config';
+
+export default defineConfig({});
+```
+
+`src/pages/index.html`:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>Hello World</title>
+	</head>
+	<body>
+		<h1>Hello from Ecopages</h1>
+	</body>
+</html>
+```
+
+`ecopages dev` serves `/`, and `ecopages build` exports it. The output has one doctype, one `<html>`, and one `<meta charset>`: core drops the Page doctype and wrappers, so the shell provides the only document structure.
+
+To start from a complete app instead, run `ecopages init my-app --template html`.
+
+### HTML template
+
+HTML Pages render inside your HTML template, `src/includes/html.*`, whichever Integration owns it, so an existing JSX or React template keeps working. You can also write the template in plain HTML as `src/includes/html.html` (see [Plain HTML template](/docs/core/includes#plain-html-template)); the app can have only one `html` template file. It needs an `<html>` element with `<head>` and `<body>`, and exactly one `<!-- eco:children -->` comment where Page content goes. The doctype is optional; core always emits one.
+
+`src/includes/html.html`:
+
+```html
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>My site</title>
+		<meta name="description" content="Small, fast websites.">
+		<link rel="stylesheet" href="./site.css">
+	</head>
+	<body>
+		<header><a href="/">My site</a></header>
+		<!-- eco:children -->
+	</body>
+</html>
+```
+
+Without any `src/includes/html.*`, HTML Pages use a built-in HTML template with `lang="en"`, a UTF-8 charset, and a responsive viewport. Pages owned by other Integrations still need an HTML template of their own.
+
+### Head and root attributes
+
+With the shell above, this Page replaces the shell title and description in place, and adds its canonical link and stylesheet before `</head>`.
+
+`src/pages/about.html`:
+
+```html
+<head>
+	<title>About us</title>
+	<meta name="description" content="Who we are.">
+	<link rel="canonical" href="https://example.com/about">
+	<link rel="stylesheet" href="./about.css">
+</head>
+<main>
+	<h1>About us</h1>
+	<img src="/images/team.jpg" alt="Our team">
+	<my-counter count="0"></my-counter>
+</main>
+<script type="module" src="./counter.ts"></script>
+```
+
+Two head tags are placed differently:
+
+- **`<meta charset>`** belongs to the shell, so it stays early in the document. A Page charset with the same encoding is dropped, and a different encoding is an error. If the shell has none, the Page charset goes at the start of `<head>`.
+- **`<base>`** without a shell copy also goes at the start of `<head>`, so it applies to every URL after it.
+
+Attributes on the Page `<html>` and `<body>` merge onto the shell's: `class` values are joined, and any other attribute replaces the shell value. If a JSX shell leaves `<body>` to its Layouts, core wraps the Page markup in a `<body>`.
+
+You can paste an existing document and keep its `lang`, classes, and scripts, as long as its images and icons use root-relative URLs and its local assets live inside `src` without `integrity` attributes (see below).
+
+Core also reads these Page head tags into the page metadata, merged over `defaultMetadata`. JSX and React shells render from that metadata, and static export uses it for the [Sitemap](/docs/core/sitemap):
+
+| Page head tag                | Metadata field                                         |
+| ---------------------------- | ------------------------------------------------------ |
+| `<title>`                    | `title`                                                |
+| `<meta name="description">`  | `description`                                          |
+| `<meta name="keywords">`     | `keywords`, split on commas                            |
+| `<meta property="og:image">` | `image`                                                |
+| `<link rel="canonical">`     | `url`                                                  |
+| `<meta name="robots">`       | `robots`; `noindex` removes the route from the Sitemap |
+
+Core also derives social tags from a Page's own head: when a Page sets a `<title>` or description, it gets matching `og:title`, `og:description`, `twitter:title`, and `twitter:description` tags, which replace the shell's tags with the same `property` or `name`, or are added before `</head>`. A tag the Page writes itself wins. Other social tags, such as `og:image`, `og:type`, or `twitter:card`, are written by hand, usually as site defaults in `html.html`. Core also adds a robots `<meta>` from `metadata.robots` (see [Plain HTML template](/docs/core/includes#plain-html-template)).
+
+### Stylesheets, scripts, and other assets
+
+A relative path, with or without `./`, resolves against the `.html` file that contains the tag, in a Page or in `html.html`:
+
+| Tag                                                       | Result                                                       |
+| --------------------------------------------------------- | ------------------------------------------------------------ |
+| `<link rel="stylesheet" href="./page.css">`               | Run through your stylesheet processors, linked to the output |
+| `<style>…</style>`                                        | Run through your stylesheet processors, kept inline          |
+| `<script type="module" src="./page.ts">`                  | Bundled as a browser module                                  |
+| `<script src="./legacy.js">`                              | Copied unchanged, loaded classically                         |
+| `<script src="./legacy.ts">`                              | Types stripped, loaded classically                           |
+| A tag with an external or root-relative URL               | Kept as written                                              |
+| An inline `<script>`, or one with a non-JavaScript `type` | Kept as written                                              |
+
+Processed tags keep their other attributes. A file declared by both `html.html` and the Page is emitted once, by the shell, and a file declared twice in one file is emitted at its first occurrence. A classic script keeps classic semantics: its top-level functions and variables are globals other scripts can use, and a TypeScript one has only its types stripped. A classic script cannot use `import`, `export`, or `import.meta`; that is an error asking for `type="module"`. A missing local file, a path outside `src`, or an `integrity` attribute on a processed tag is an error that names the HTML file.
+
+Images, fonts, media, and icons are not processed. Put them in `src/public/` and reference them with root-relative URLs such as `/images/team.jpg`. In development, core warns about a relative `src`, `srcset`, or `href` that it leaves as written, because the browser resolves it against the route URL rather than the file. Links (`<a>`, `<area>`, `<base>`) are not warned about.
+
+Custom elements, including Lit and Radiant components, work when the Page references the module that defines them. They are not server-rendered, so their content appears once the module runs. To enable client navigation, install [`@ecopages/browser-router`](/docs/ecosystem/browser-router) and reference a module from the shell that starts the router:
+
+```html
+<script type="module" src="./router.ts"></script>
+```
+
+```ts
+// src/includes/router.ts
+import { createRouter } from '@ecopages/browser-router/client';
+
+createRouter();
+```
+
+After each client navigation, a script that was not already in the same part of the previous page (head or body) runs, in document order; an external module script runs at most once per URL in a tab.
+
+### Error pages and route rules
+
+Core serves `src/pages/404.html` for unmatched routes and `src/pages/500.html` when a page fails to render, both inside the shell. Core passes error pages the status and message, but an HTML Page cannot read props, so these pages show fixed content.
+
+A dynamic filename such as `[slug].html` is an error, because an HTML Page has no `staticPaths` to expand it. Two Page files that produce the same route, such as `about.html` next to `about.tsx` or `about/index.html`, are also an error.

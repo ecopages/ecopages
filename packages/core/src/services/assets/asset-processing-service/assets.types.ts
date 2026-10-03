@@ -23,8 +23,19 @@ export interface ScriptAsset extends BaseAsset {
 	kind: 'script';
 	inline?: boolean;
 	bundle?: boolean;
+	/**
+	 * Bundles the script in the asset pipeline even while HMR is active, instead of handing it to
+	 * the HMR manager, which rebuilds entries as ES modules.
+	 *
+	 * @remarks
+	 * For scripts that must not become modules, such as HTML Page classic scripts compiled from
+	 * TypeScript. The script is rebuilt when its page renders again, not hot-replaced.
+	 */
+	skipHmr?: boolean;
 	groupedBundle?: GroupedScriptBundle;
 	bundleOptions?: {
+		/** Drops unused code. `true` by default; turn it off for a script whose globals other scripts use. */
+		treeshaking?: boolean;
 		define?: Record<string, string>;
 		minify?: boolean;
 		external?: string[];
@@ -58,6 +69,15 @@ export interface InlineContentScriptAsset extends ContentScriptAsset {
 export interface ContentStylesheetAsset extends StylesheetAsset {
 	source: 'content';
 	content: string;
+	/**
+	 * Path processors receive as the stylesheet's location, for example to resolve relative imports.
+	 *
+	 * @remarks
+	 * Use a `.css` path: processors select stylesheets by extension. It also joins the cache
+	 * identity, so identical CSS from two origins is processed separately. Defaults to a shared
+	 * virtual `styles/page-bundle.css` in the dist directory.
+	 */
+	processingOrigin?: string;
 }
 
 export interface InlineContentStylesheetAsset extends ContentStylesheetAsset {

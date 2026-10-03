@@ -168,6 +168,97 @@ describe('RouteRegistry', () => {
 		}
 	});
 
+	test('rejects two Page files that define the same route', async () => {
+		const pagesDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-pages-'));
+		try {
+			await fs.mkdir(path.join(pagesDir, 'about'));
+			await fs.writeFile(path.join(pagesDir, 'about.html'), '');
+			await fs.writeFile(path.join(pagesDir, 'about', 'index.html'), '');
+
+			await expect(createRegistry({ pagesDir, templatesExt: ['.html'] }).init()).rejects.toThrow(
+				'both define the route "/about"',
+			);
+		} finally {
+			await fs.rm(pagesDir, { recursive: true, force: true });
+		}
+	});
+
+	test.each(['[slug].html', '[...slug].html', 'blog/[slug]/index.html'])(
+		'rejects %p for an Integration without route params, and accepts it for one with them',
+		async (file) => {
+			const pagesDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-pages-'));
+			try {
+				await fs.mkdir(path.dirname(path.join(pagesDir, file)), { recursive: true });
+				await fs.writeFile(path.join(pagesDir, file), '');
+				const withIntegration = (integration: object) =>
+					createRegistry({
+						pagesDir,
+						templatesExt: ['.html'],
+						appConfig: { ...appConfig, integrations: [integration] } as EcoPagesAppConfig,
+					});
+
+				await expect(createRegistry({ pagesDir, templatesExt: ['.html'] }).init()).rejects.toThrow(
+					'.html Pages cannot receive Params',
+				);
+				await expect(
+					withIntegration({ name: 'templates', extensions: ['.html'], acceptsParams: false }).init(),
+				).rejects.toThrow('.html Pages cannot receive Params');
+
+				const userOwned = withIntegration({ name: 'custom-html', extensions: ['.html'], acceptsParams: true });
+				await userOwned.init();
+				expect(userOwned.templateRoutes).toHaveLength(1);
+			} finally {
+				await fs.rm(pagesDir, { recursive: true, force: true });
+			}
+		},
+	);
+
+	test('strips the longest template extension the file ends with, regardless of registration order', async () => {
+		const globSpy = vi
+			.spyOn(fileSystem, 'glob')
+			.mockResolvedValue(['about.kita.tsx', 'notes.mdx', 'my.html-tips.html', 'v1.2.html']);
+		try {
+			const registry = createRegistry({ templatesExt: ['.tsx', '.kita.tsx', '.md', '.mdx', '.html'] });
+			await registry.init();
+
+			expect(registry.templateRoutes.map((route) => route.pathname).sort()).toEqual([
+				'/about',
+				'/my.html-tips',
+				'/notes',
+				'/v1.2',
+			]);
+		} finally {
+			globSpy.mockRestore();
+		}
+	});
+
+	test('classifies routes by their path inside the pages directory', async () => {
+		const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-[client]-'));
+		const pagesDir = path.join(projectDir, 'pages');
+		try {
+			await fs.mkdir(pagesDir);
+			await fs.writeFile(path.join(pagesDir, 'about.html'), '');
+			const registry = createRegistry({ pagesDir, templatesExt: ['.html'] });
+			await registry.init();
+
+			expect(registry.templateRoutes.map((route) => route.kind)).toEqual(['exact']);
+		} finally {
+			await fs.rm(projectDir, { recursive: true, force: true });
+		}
+	});
+
+	test('keeps one route when overlapping extension globs return the same file twice', async () => {
+		const globSpy = vi.spyOn(fileSystem, 'glob').mockResolvedValue(['about.kita.tsx', 'about.kita.tsx']);
+		try {
+			const registry = createRegistry({ templatesExt: ['.kita.tsx', '.tsx'] });
+			await registry.init();
+
+			expect(registry.templateRoutes.map((route) => route.pathname)).toEqual(['/about']);
+		} finally {
+			globSpy.mockRestore();
+		}
+	});
+
 	test('fires reload listeners after reload', async () => {
 		const registry = createRegistry();
 		const listener = vi.fn();

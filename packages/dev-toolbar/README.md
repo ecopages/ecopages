@@ -9,13 +9,10 @@ User-facing docs: [Dev toolbar](https://ecopages.dev/docs/core/dev-toolbar) (ena
 Add the package to your app and opt in from config:
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { devToolbar } from '@ecopages/dev-toolbar/config';
 
-export default new ConfigBuilder()
-	.setRootDir(import.meta.dirname)
-	.setDevToolbar(devToolbar())
-	.build();
+export default defineConfig({ devToolbar: devToolbar() });
 ```
 
 ```bash

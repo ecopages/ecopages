@@ -13,7 +13,6 @@ import {
 	getDefaultBuildAdapter,
 	getAppServerBuildPlugins,
 	setAppBuildAdapter,
-	setAppBuildOwnership,
 	setAppBuildManifest,
 	setupAppRuntimePlugins,
 	ensureIntegrationRuntimeReady,
@@ -142,19 +141,7 @@ test('getAppBuildAdapter returns the app-owned adapter before the shared default
 	assert.notEqual(getAppBuildAdapter(appConfig), defaultBuildAdapter);
 });
 
-test('getAppBuildAdapter falls back to the explicit Vite-host adapter when ownership is host-owned', () => {
-	const appConfig = {
-		runtime: {},
-		loaders: new Map(),
-	} as any;
-
-	setAppBuildOwnership(appConfig, 'vite-host');
-
-	assert.equal(getAppBuildOwnership(appConfig), 'vite-host');
-	assert.ok(getAppBuildAdapter(appConfig) instanceof ViteHostBuildAdapter);
-});
-
-test('getAppBuildOwnership defaults to rolldown when no adapter and no ownership are set', () => {
+test('getAppBuildOwnership defaults to rolldown when no adapter is installed', () => {
 	const appConfig = { runtime: {}, loaders: new Map() } as never;
 	assert.equal(getAppBuildOwnership(appConfig), 'rolldown');
 	assert.ok(getAppBuildAdapter(appConfig) instanceof RolldownBuildAdapter);

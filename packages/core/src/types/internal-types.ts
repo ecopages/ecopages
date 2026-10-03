@@ -1,6 +1,6 @@
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { AppBuildManifest } from '../build/contracts/build-manifest.ts';
-import type { BuildAdapter, BuildOwnership } from '../build/build-adapter.ts';
+import type { BuildAdapter } from '../build/build-adapter.ts';
 import type { BuildRuntime } from '../build/runtime/build-runtime.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
@@ -167,7 +167,6 @@ export type EcoPagesAppConfig = {
 	 */
 	runtime?: {
 		appModuleLoader?: AppModuleLoader;
-		buildOwnership?: BuildOwnership;
 		buildAdapter?: BuildAdapter;
 		buildManifest?: AppBuildManifest;
 		entrypointDependencyGraph?: EntrypointDependencyGraph;

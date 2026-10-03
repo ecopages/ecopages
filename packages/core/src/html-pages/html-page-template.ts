@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { PageMetadataProps, PageRobotsMetadata } from '../types/public-types.ts';
+import { escapeHtmlAttribute } from '../utils/html-escaping.ts';
 import {
 	findElements,
 	getAttribute,
@@ -360,6 +361,30 @@ const METADATA_READERS: Record<string, MetadataReader> = {
 	}),
 };
 
+/**
+ * Open Graph and Twitter tags an HTML Page derives from its own `<title>` and description.
+ *
+ * @remarks
+ * A shell holds one set of these values, so without them every Page would repeat its title
+ * and description in four more tags. A tag the Page writes itself wins, and a derived tag
+ * replaces the shell's tag with the same `property` or `name` in place.
+ */
+const SOCIAL_TAGS = [
+	{ key: 'meta:property:og:title', attribute: 'property', name: 'og:title', field: 'title' },
+	{ key: 'meta:property:og:description', attribute: 'property', name: 'og:description', field: 'description' },
+	{ key: 'meta:name:twitter:title', attribute: 'name', name: 'twitter:title', field: 'title' },
+	{ key: 'meta:name:twitter:description', attribute: 'name', name: 'twitter:description', field: 'description' },
+] as const;
+
+function deriveSocialTags(head: readonly HtmlHeadNode[], metadata: Partial<PageMetadataProps>): HtmlHeadNode[] {
+	const written = new Set(head.map((node) => node.key));
+	return SOCIAL_TAGS.flatMap(({ key, attribute, name, field }) => {
+		const value = metadata[field];
+		if (!value || written.has(key)) return [];
+		return [{ parts: [`<meta ${attribute}="${name}" content="${escapeHtmlAttribute(value)}">`], key }];
+	});
+}
+
 function readHeadMetadata(source: string, headChildren: readonly HtmlElementNode[]): Partial<PageMetadataProps> {
 	const metadata: Partial<PageMetadataProps> = {};
 	for (const element of headChildren) {
@@ -405,26 +430,28 @@ export function compileHtmlPage(file: string, source: string, options: CompileHt
 		(node) => node.type !== 'text' || source.slice(node.start, node.end).trim() !== '',
 	);
 	const headElements = headChildren.filter((node): node is HtmlElementNode => node.type === 'element');
+	const metadata = readHeadMetadata(source, headElements);
+	const headNodes: HtmlHeadNode[] = headChildren.map((node) => {
+		const element = node.type === 'element' ? node : undefined;
+		const key = element ? getHeadTagKey(element) : undefined;
+		const charset =
+			element && key === 'charset' ? attributeValue(element, 'charset')?.trim().toLowerCase() : undefined;
+		return {
+			parts: sliceParts(source, node.start, node.end, ranges),
+			...(key ? { key } : {}),
+			...(charset ? { charset } : {}),
+		};
+	});
 
 	return {
 		kind: 'page',
 		file,
 		assets,
-		head: headChildren.map((node) => {
-			const element = node.type === 'element' ? node : undefined;
-			const key = element ? getHeadTagKey(element) : undefined;
-			const charset =
-				element && key === 'charset' ? attributeValue(element, 'charset')?.trim().toLowerCase() : undefined;
-			return {
-				parts: sliceParts(source, node.start, node.end, ranges),
-				...(key ? { key } : {}),
-				...(charset ? { charset } : {}),
-			};
-		}),
+		head: [...headNodes, ...deriveSocialTags(headNodes, metadata)],
 		body: trimParts(sliceParts(source, 0, source.length, bodyRanges)),
 		htmlAttributes: readRawAttributes(html),
 		bodyAttributes: readRawAttributes(body),
-		metadata: readHeadMetadata(source, headElements),
+		metadata,
 	};
 }
 

@@ -42,6 +42,10 @@ describe('compileHtmlPage', () => {
 			{ html: '<title>About us</title>', key: 'title' },
 			{ html: '<meta name="description" content="Who we are.">', key: 'meta:name:description' },
 			{ html: '<link rel="canonical" href="https://example.com/about">', key: 'link:canonical' },
+			{ html: '<meta property="og:title" content="About us">', key: 'meta:property:og:title' },
+			{ html: '<meta property="og:description" content="Who we are.">', key: 'meta:property:og:description' },
+			{ html: '<meta name="twitter:title" content="About us">', key: 'meta:name:twitter:title' },
+			{ html: '<meta name="twitter:description" content="Who we are.">', key: 'meta:name:twitter:description' },
 		]);
 		expect(show(template.body)).toBe('<main>About</main>');
 		expect(template.metadata).toEqual({
@@ -49,6 +53,21 @@ describe('compileHtmlPage', () => {
 			description: 'Who we are.',
 			url: 'https://example.com/about',
 		});
+	});
+
+	it('derives only the social tags a Page does not write, escaping their values', () => {
+		const template = compileHtmlPage(
+			pageFile,
+			'<head><title>Q&amp;A "live"</title><meta property="og:title" content="Custom"></head><main>x</main>',
+			options,
+		);
+
+		expect(showHead(template).filter((node) => node.key?.includes('title'))).toEqual([
+			{ html: '<title>Q&amp;A "live"</title>', key: 'title' },
+			{ html: '<meta property="og:title" content="Custom">', key: 'meta:property:og:title' },
+			{ html: '<meta name="twitter:title" content="Q&amp;A &quot;live&quot;">', key: 'meta:name:twitter:title' },
+		]);
+		expect(showHead(template).some((node) => node.key === 'meta:property:og:description')).toBe(false);
 	});
 
 	it('strips the doctype and wrappers of a full document and keeps root attributes', () => {

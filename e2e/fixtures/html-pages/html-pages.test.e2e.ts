@@ -27,9 +27,11 @@ test.describe('HTML Pages static export', () => {
 		expect(html).toContain('<title>About us</title>');
 		expect(html).toMatch(/<meta name="description" content="Who we are\." ?\/?>/);
 		expect(count(html, /<meta name="description"/g)).toBe(1);
+		expect(html).toMatch(/<meta property="og:title" content="About us" ?\/?>/);
+		expect(count(html, /<meta property="og:title"/g)).toBe(1);
 		expect(html).toMatch(/<link rel="canonical" href="https:\/\/example\.com\/about" ?\/?>/);
 		expect(count(html, /href="\/assets\/includes\/site\.css"/g)).toBe(1);
-		expect(html).toMatch(/<link rel="stylesheet" href="\/assets\/pages\/about\.css" ?\/?><\/head>/);
+		expect(html).toMatch(/<link rel="stylesheet" href="\/assets\/pages\/about\.css" ?\/?>(<meta [^>]*>)*<\/head>/);
 		expect(html).toMatch(/<img src="\/images\/team\.svg" alt="Our team" ?\/?>/);
 		expect(html).toMatch(/<\/main>\s*<script type="module" src="\/assets\/pages\/counter[^"]*\.js"><\/script>/);
 	});

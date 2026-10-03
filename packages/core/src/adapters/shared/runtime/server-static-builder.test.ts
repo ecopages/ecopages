@@ -10,6 +10,7 @@ import {
 	SERVER_BUNDLE_FILENAME,
 } from '../../../utils/resolve-entry-file';
 import {
+	createBuildAdapter,
 	setAppBuildAdapter,
 	type BuildAdapter,
 	type BuildOptions,
@@ -619,7 +620,7 @@ describe('ServerStaticBuilder', () => {
 				fs.writeFileSync(path.join(distDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
 				const appConfig = {
 					...AppConfig,
-					runtime: { buildOwnership: 'vite-host' as const },
+					runtime: { buildAdapter: createBuildAdapter({ ownership: 'vite-host' }) },
 					absolutePaths: { ...AppConfig.absolutePaths, distDir },
 				} as EcoPagesAppConfig;
 

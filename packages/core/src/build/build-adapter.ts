@@ -162,26 +162,10 @@ export function getBuildAdapterOwnership(buildAdapter: BuildAdapter | undefined)
 }
 
 /**
- * Resolves the build ownership of an app config.
- *
- * @remarks
- * Resolution order: `appConfig.runtime.buildOwnership` (explicit), then
- * the ownership declared on `appConfig.runtime.buildAdapter`, then the
- * default `'rolldown'`.
+ * Returns the ownership declared by the app's build adapter, or `'rolldown'` when none is installed.
  */
 export function getAppBuildOwnership(appConfig: EcoPagesAppConfig): BuildOwnership {
-	return appConfig.runtime?.buildOwnership ?? getBuildAdapterOwnership(appConfig.runtime?.buildAdapter);
-}
-
-/**
- * Sets the explicit build ownership on an app config.
- *
- * @remarks
- * Config finalization selects ownership through the build adapter it installs
- * and does not call this. Passing the current value is a no-op.
- */
-export function setAppBuildOwnership(appConfig: EcoPagesAppConfig, buildOwnership: BuildOwnership): void {
-	patchAppRuntime(appConfig, { buildOwnership });
+	return getBuildAdapterOwnership(appConfig.runtime?.buildAdapter);
 }
 
 /**
@@ -197,15 +181,10 @@ export function getAppBuildAdapter(appConfig: EcoPagesAppConfig): BuildAdapter {
 }
 
 /**
- * Installs the adapter that should serve future builds for one app
- * instance, and aligns the ownership field to the new adapter's
- * declared ownership.
+ * Installs the adapter that should serve future builds for one app instance.
  */
 export function setAppBuildAdapter(appConfig: EcoPagesAppConfig, buildAdapter: BuildAdapter): void {
-	patchAppRuntime(appConfig, {
-		buildOwnership: getBuildAdapterOwnership(buildAdapter),
-		buildAdapter,
-	});
+	patchAppRuntime(appConfig, { buildAdapter });
 }
 
 /**

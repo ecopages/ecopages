@@ -1,9 +1,7 @@
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { loadEcoPagesConfig } from '../config/load-eco-config.ts';
 import type { EcoPagesUserConfig } from '../config/user-config-types.ts';
-import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import { parseCliArgs } from '../utils/parse-cli-args.ts';
 import { AbstractApplicationAdapter } from './abstract/application-adapter.ts';
 import type { ApplicationAdapterOptions } from './abstract/application-adapter.ts';
 import { createApp as createBunApp } from './bun/create-app.ts';
@@ -99,11 +97,6 @@ async function createRuntimeApp<WebSocketData = undefined>(
  * `EcoPagesUserConfig` object authored via `defineConfig()`) or `appConfig` (a pre-finalized
  * `EcoPagesAppConfig`) to bypass file loading.
  *
- * Under `ecopages types` (the `--types` flag), it exits the process once the config is
- * finalized, so code after `createApp()` in `app.ts` never runs. Processors write their
- * generated types, such as those for `ecopages:content/*` and `ecopages:images`, during that
- * finalization; code before the call still runs.
- *
  * @example Default usage in `app.ts`
  * ```typescript
  * import { createApp } from '@ecopages/core/create-app';
@@ -132,9 +125,5 @@ export async function createApp<WebSocketData = undefined>(
 	options: EcopagesAppOptions = {},
 ): Promise<UniversalEcopagesApp> {
 	const appConfig = await resolveAppConfig(options);
-	if (parseCliArgs({ embeddedRuntime: options.runtime?.embedded }).types) {
-		appLogger.info('Config loaded; processors have written the types for their virtual modules.');
-		process.exit(0);
-	}
 	return createRuntimeApp<WebSocketData>(options, appConfig);
 }

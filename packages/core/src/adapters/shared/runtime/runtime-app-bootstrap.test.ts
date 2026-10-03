@@ -30,7 +30,6 @@ describe('runtime app bootstrap', () => {
 			cliArgs: {
 				preview: false,
 				build: false,
-				types: false,
 				start: false,
 				dev: true,
 				force: false,
@@ -63,7 +62,6 @@ describe('runtime app bootstrap', () => {
 			cliArgs: {
 				preview: true,
 				build: false,
-				types: false,
 				start: false,
 				dev: false,
 				force: false,
@@ -84,7 +82,6 @@ describe('runtime app bootstrap', () => {
 			cliArgs: {
 				preview: true,
 				build: false,
-				types: false,
 				start: false,
 				dev: false,
 				force: false,

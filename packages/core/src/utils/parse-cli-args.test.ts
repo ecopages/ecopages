@@ -36,7 +36,6 @@ describe('parseCliArgs', () => {
 		expect(parseCliArgs()).toEqual({
 			preview: false,
 			build: false,
-			types: false,
 			start: false,
 			dev: true,
 			force: false,
@@ -54,7 +53,6 @@ describe('parseCliArgs', () => {
 		expect(parseCliArgs()).toEqual({
 			preview: false,
 			build: false,
-			types: false,
 			start: true,
 			dev: false,
 			force: false,
@@ -72,7 +70,6 @@ describe('parseCliArgs', () => {
 		expect(parseCliArgs({ embeddedRuntime: true })).toEqual({
 			preview: false,
 			build: false,
-			types: false,
 			start: false,
 			dev: true,
 			force: false,
@@ -94,18 +91,6 @@ describe('parseCliArgs', () => {
 			serveOnly: true,
 		});
 	});
-
-	it.each([[['node', '/usr/local/bin/ecopages.js', 'types']], [['node', '/app/app.ts', '--types']]])(
-		'parses the types command from %j as a production run that does not start a server',
-		(argv) => {
-			delete process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME;
-			process.env.NODE_ENV = 'development';
-			process.argv = argv;
-
-			expect(parseCliArgs()).toMatchObject({ types: true, start: false, dev: false, build: false });
-			expect(process.env.NODE_ENV).toBe('production');
-		},
-	);
 
 	it('parses --force for production build commands', () => {
 		delete process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME;

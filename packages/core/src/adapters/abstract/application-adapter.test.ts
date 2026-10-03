@@ -156,7 +156,6 @@ describe('application adapter runtime bootstrap', () => {
 		assert.deepEqual(adapter.getCliArgsSnapshot(), {
 			preview: false,
 			build: false,
-			types: false,
 			start: false,
 			dev: true,
 			force: false,

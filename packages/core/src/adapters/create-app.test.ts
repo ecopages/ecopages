@@ -1,6 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Processor } from '../plugins/processor.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { createApp } from './create-app.ts';
 import { BunEcopagesApp } from './bun/create-app.ts';
 import { NodeEcopagesApp } from './node/create-app.ts';
@@ -12,33 +10,6 @@ describe('createApp', () => {
 		process.argv = [...originalArgv];
 		vi.restoreAllMocks();
 		vi.unstubAllEnvs();
-	});
-
-	it('exits after finalizing the config under ecopages types, before creating the runtime app', async () => {
-		process.argv = ['node', '/app/app.ts', '--types'];
-		vi.stubEnv('NODE_ENV', 'test');
-		const exit = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
-			throw new Error(`process.exit:${code}`);
-		}) as never);
-		const contexts: unknown[] = [];
-		const processor = new (class extends Processor {
-			buildPlugins = [];
-			plugins = [];
-			override setContext(config: EcoPagesAppConfig): void {
-				contexts.push(config);
-			}
-			override async setup(): Promise<void> {}
-			override async teardown(): Promise<void> {}
-			override async process(): Promise<unknown> {
-				return undefined;
-			}
-		})({ name: 'records-finalization' });
-
-		await expect(createApp({ userConfig: { rootDir: '/project', processors: [processor] } })).rejects.toThrow(
-			'process.exit:0',
-		);
-		expect(exit).toHaveBeenCalledWith(0);
-		expect(contexts).toHaveLength(1);
 	});
 
 	it('leaves NODE_ENV alone for an embedded runtime, as the adapter does', async () => {

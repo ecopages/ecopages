@@ -74,8 +74,8 @@ async function writeGeneratedPage(page: VaultPage, outputDir: string, publicWiki
  * directory vaults differ only in where their category comes from. Ingest also
  * rewrites the vault-root `index.md` catalog from page `summary` fields and
  * writes `/wiki/<category>/<page>.md` into `src/public/wiki` for static preview.
- * Existing generated files are overwritten. Directories are not deleted, so a
- * page removed from the vault stays on disk until that file is removed by hand.
+ * A generated file that already exists is replaced. Directories are not deleted,
+ * so a page removed from the vault stays on disk until that file is removed by hand.
  */
 export async function ingestVault(options: IngestVaultOptions = {}): Promise<void> {
 	const appRoot = options.appRoot ?? process.cwd();
@@ -119,8 +119,8 @@ export type CopySourcesOptions = {
  * Copies raw source markdown into public assets.
  *
  * @remarks
- * Overwrites files that are still in the sources directory. Does not delete the
- * output directory or files that are no longer in the source set.
+ * Replaces an output file when the same source file still exists. Does not delete
+ * the output directory or files that are no longer in the source set.
  */
 export async function copySources(options: CopySourcesOptions = {}): Promise<void> {
 	const appRoot = options.appRoot ?? process.cwd();

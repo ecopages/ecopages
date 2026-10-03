@@ -25,7 +25,7 @@ One-way copy of the knowledge layers from the llm-wiki repo. Edit in the repo, t
 pnpm sync:obsidian
 \`\`\`
 
-Do not edit mirrored files here — files copied by the next sync are overwritten.
+Do not edit mirrored files here — a file that already exists is replaced on the next sync.
 Files that are not part of this copy are left in place.
 `;
 
@@ -66,7 +66,7 @@ async function applyEnvFile(filePath: string): Promise<void> {
 
 async function copyIfExists(from: string, to: string): Promise<boolean> {
 	try {
-		await cp(from, to, { recursive: true });
+		await cp(from, to, { recursive: true, force: true });
 		return true;
 	} catch (error) {
 		if (isEnoent(error)) {
@@ -98,8 +98,8 @@ async function main(): Promise<void> {
  * Copies wiki knowledge files into `destDir`.
  *
  * @remarks
- * Overwrites files that this sync copies. Does not delete `destDir` or anything
- * already inside it. A destination of `.` is rejected by
+ * Replaces a destination file when the same path already exists. Does not delete
+ * `destDir` or files this sync does not copy. A destination of `.` is rejected by
  * {@link resolveChildDirectory} before this runs, because that path is the
  * vault itself.
  */

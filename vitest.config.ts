@@ -37,6 +37,7 @@ export default defineConfig({
 						'packages/dev-toolbar/**/*.test.ts',
 						'e2e/scripts/**/*.test.ts',
 						'scripts/**/*.test.ts',
+						'.agents/skills/**/*.test.ts',
 						'playground/kitchen-sink/bench/lib/**/*.test.ts',
 						...getOptionalVitestIncludes(),
 					],

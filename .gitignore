@@ -44,3 +44,7 @@ playwright-report/
 # local improvement tracking (details in ~/.gemini artifacts)
 **/.improvements/
 .audit/
+
+# agent skill links created by `pnpm init:dev`; .agents/skills is the source of truth
+.claude/skills/
+.cursor/skills/

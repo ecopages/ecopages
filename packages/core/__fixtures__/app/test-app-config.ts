@@ -7,6 +7,8 @@ import { createFixtureUserConfig, fixtureRootDir } from './fixture-user-config.t
 export type CreateFixtureAppConfigOptions = {
 	/** Loads and finalizes a config module from the fixture directory (for example `eco.config.postcss.ts`). */
 	configFile?: string;
+	/** Root of a copy of the fixture app, for tests that edit sources or write build output. */
+	rootDir?: string;
 };
 
 /**
@@ -21,7 +23,7 @@ export async function createFixtureAppConfig(options: CreateFixtureAppConfigOpti
 		return await loadEcoPagesConfig({ cwd: fixtureRootDir, configFile: options.configFile });
 	}
 
-	return await finalizeEcoPagesConfig(createFixtureUserConfig());
+	return await finalizeEcoPagesConfig(createFixtureUserConfig(options.rootDir ? { rootDir: options.rootDir } : {}));
 }
 
 export type CreateFixtureAppOptions = CreateFixtureAppConfigOptions &

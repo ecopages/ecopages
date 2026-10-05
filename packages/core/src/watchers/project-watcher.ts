@@ -2,6 +2,7 @@ import path from 'node:path';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
+import { isPathInside } from '../utils/path-containment.ts';
 import type { EcoPagesAppConfig, IHmrManager, IClientBridge } from '../types/internal-types.ts';
 import type { ProcessorWatchConfig, ProcessorWatchContext } from '../plugins/processor.ts';
 import {
@@ -463,7 +464,7 @@ export class ProjectWatcher {
 	async triggerRouterRefresh(changedPath: string): Promise<void> {
 		const resolvedPath = path.resolve(changedPath);
 		const isPageDir =
-			resolvedPath.startsWith(this.appConfig.absolutePaths.pagesDir) && path.extname(resolvedPath) === '';
+			isPathInside(resolvedPath, this.appConfig.absolutePaths.pagesDir) && path.extname(resolvedPath) === '';
 
 		if (isPageDir || this.isRouteSourceFile(resolvedPath)) {
 			await this.refreshRouterRoutesCallback();

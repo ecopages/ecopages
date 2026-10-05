@@ -78,6 +78,12 @@ describe('AliasResolverCache', () => {
 		});
 	});
 
+	it('invalidateUnder drops entries in a child directory whose name starts with two dots', () => {
+		const cache = new AliasResolverCache();
+		cache.set('/app/src/..generated', '@/a', '/app/src/..generated/a.ts');
+		expect(cache.invalidateUnder('/app/src')).toBe(1);
+	});
+
 	it('invalidateUnder handles deep nested descendants', () => {
 		// Validates path.relative walks arbitrarily deep hierarchies.
 		const cache = new AliasResolverCache();

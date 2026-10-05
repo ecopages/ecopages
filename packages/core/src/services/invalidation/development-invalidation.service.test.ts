@@ -96,6 +96,17 @@ describe('DevelopmentInvalidationService', () => {
 		});
 	});
 
+	it('does not treat siblings that share a directory prefix as inside it', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const service = new DevelopmentInvalidationService(appConfig);
+
+		expect(service.planFileChange('/test/project/src/public/logo.svg')).toMatchObject({ category: 'public-asset' });
+		for (const sibling of ['src/public-api/client.ts', 'src/pages-old/a.ts', 'src/includes-old/a.ts']) {
+			expect(service.planFileChange(`/test/project/${sibling}`)).toMatchObject({ category: 'server-source' });
+		}
+		expect(service.planFileChange('/test/project/src-old/a.ts')).toMatchObject({ category: 'other' });
+	});
+
 	it('matches directory and root-relative additionalWatchPaths', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		appConfig.additionalWatchPaths = ['src/registry'];

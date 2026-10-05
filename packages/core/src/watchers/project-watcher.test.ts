@@ -82,6 +82,12 @@ describe('ProjectWatcher', () => {
 			expect(RefreshCallback).not.toHaveBeenCalled();
 		});
 
+		test('should not call refresh callback for a sibling directory that shares the pages prefix', async () => {
+			await watcher.triggerRouterRefresh(`${Config.absolutePaths.pagesDir}-old`);
+
+			expect(RefreshCallback).not.toHaveBeenCalled();
+		});
+
 		test('should not call refresh callback for non-page directory changes', async () => {
 			const nonPagePath = '/test/project/src/components/Button.tsx';
 			await watcher.triggerRouterRefresh(nonPagePath);

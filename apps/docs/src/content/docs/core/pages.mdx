@@ -92,7 +92,7 @@ An HTML Page has no props, template expressions, Layout, data hooks, or hydratio
 
 Three rules cover the contract:
 
-1. **Write normal HTML.** A Page can be a body fragment, a `<head>` followed by body markup, or a complete document with doctype, `<html>`, `<head>`, and `<body>`.
+1. **Write normal HTML.** A Page can be a body fragment, a `<head>` followed by body markup, or a complete document with doctype, `<html>`, `<head>`, and `<body>`. As in a browser, `<head>` is optional: the `<title>`, `<meta>`, `<link>`, `<style>`, `<script>`, `<base>` and `<template>` tags that start the Page form its head, up to the first other element or text. A `<script>` or `<style>` placed before the first body element therefore goes to the head; put it after that element to keep it in the body.
 2. **Page head tags win by identity.** A Page `<title>`, `<base>`, `<link rel="canonical">`, or `<meta>` with the same `name`, `property`, or `http-equiv` as a shell tag replaces that shell tag in place. Every other Page head tag is added before `</head>`.
 3. **Core rewrites only local assets.** Within your markup, core changes only the URLs of local stylesheets and scripts and the contents of `<style>` blocks, and emits them where you wrote them; a file `html.html` already loads is emitted once, by the shell. Everything else, including inline scripts, is kept as written.
 

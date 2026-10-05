@@ -6,6 +6,7 @@ import {
 	getAttribute,
 	getElementText,
 	decodeHtmlEntities,
+	HEAD_CONTENT_ELEMENTS,
 	parseHtml,
 	walkElements,
 	type HtmlElementNode,
@@ -397,11 +398,32 @@ function readHeadMetadata(source: string, headChildren: readonly HtmlElementNode
 }
 
 /**
+ * Returns the leading head-content elements of a Page that has no `<head>` element.
+ *
+ * @remarks
+ * Follows the HTML parsing rules for an omitted `<head>`: the doctype, whitespace and comments are skipped,
+ * and the first other element or text ends the head. `<noscript>` also ends it: with scripting off, a
+ * browser keeps only link, style and meta in a head `<noscript>`, and a leading one usually holds body
+ * content.
+ */
+function implicitHeadElements(source: string, nodes: readonly HtmlNode[]): HtmlElementNode[] {
+	const elements: HtmlElementNode[] = [];
+	for (const node of nodes) {
+		if (node.type === 'doctype' || node.type === 'comment') continue;
+		if (node.type === 'text' && source.slice(node.start, node.end).trim() === '') continue;
+		if (node.type !== 'element' || node.tagName === 'noscript' || !HEAD_CONTENT_ELEMENTS.has(node.tagName)) break;
+		elements.push(node);
+	}
+	return elements;
+}
+
+/**
  * Compiles one HTML Page file.
  *
  * @remarks
  * A Page may be a body fragment, a `<head>` followed by body markup, or a full
- * document. The doctype and the `<html>`, `<head>`, and `<body>` wrappers are
+ * document. Without a `<head>`, the leading head-content elements (`<title>`, `<meta>`,
+ * `<link>` and the like) form the head. The doctype and the `<html>`, `<head>`, and `<body>` wrappers are
  * never emitted: head children and wrapper attributes are reconciled onto the
  * Html shell after rendering, and everything else becomes the body markup.
  *
@@ -418,17 +440,19 @@ export function compileHtmlPage(file: string, source: string, options: CompileHt
 	const head = heads[0];
 	const html = topLevelElement(nodes, 'html');
 	const body = findElements(html?.children ?? nodes, (element) => element.tagName === 'body')[0];
+	const implicitHead = head ? [] : implicitHeadElements(source, html?.children ?? nodes);
 	const { assets, ranges } = collectAssets(source, nodes, file, options);
 
 	const bodyRanges: TemplateRange[] = [
-		...ranges,
+		...ranges.filter((range) => !implicitHead.some((element) => element.start === range.start)),
 		...nodes.filter((node) => node.type === 'doctype').map(({ start, end }) => ({ start, end })),
 		...(head ? [{ start: head.start, end: head.end }] : []),
+		...implicitHead.map(({ start, end }) => ({ start, end })),
 		...(html ? [startTagRange(html), endTagRange(html)] : []),
 		...(body ? [startTagRange(body), endTagRange(body)] : []),
 	];
 
-	const headChildren = (head?.children ?? []).filter(
+	const headChildren = (head?.children ?? implicitHead).filter(
 		(node) => node.type !== 'text' || source.slice(node.start, node.end).trim() !== '',
 	);
 	const headElements = headChildren.filter((node): node is HtmlElementNode => node.type === 'element');

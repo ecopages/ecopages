@@ -22,6 +22,18 @@ describe('island host attributes', () => {
 		expect(attributes['data-eco-props']).toBe(btoa(JSON.stringify({ count: 1 })));
 	});
 
+	it('encodes props with non-Latin-1 text as base64 of their UTF-8 JSON', () => {
+		const props = { label: '10 €', city: '東京', icon: '🙂' };
+
+		const attributes = buildIslandHostAttributes({
+			integrationName: 'react',
+			componentInstanceId: 'host_n_2',
+			props,
+		});
+
+		expect(attributes['data-eco-props']).toBe('eyJsYWJlbCI6IjEwIOKCrCIsImNpdHkiOiLmnbHkuqwiLCJpY29uIjoi8J+ZgiJ9');
+	});
+
 	it('finalizes component renders that ship client scripts', () => {
 		const result = finalizeIslandComponentRender(
 			{ integrationContext: { componentInstanceId: 'host_n_2' } },

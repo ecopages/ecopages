@@ -29,6 +29,21 @@ function mergeIslandHostAttributes(input: {
 	};
 }
 
+/**
+ * Encodes island props for `data-eco-props` as base64 of their UTF-8 JSON.
+ *
+ * @remarks
+ * `btoa` accepts Latin-1 only, so the JSON is encoded to UTF-8 bytes first. Text such as `€`, CJK or emoji
+ * would otherwise throw during SSR.
+ */
+export function encodeIslandProps(props: Record<string, unknown>): string {
+	let binary = '';
+	for (const byte of new TextEncoder().encode(JSON.stringify(props))) {
+		binary += String.fromCharCode(byte);
+	}
+	return btoa(binary);
+}
+
 export function buildIslandHostAttributes(input: IslandHostAttributesInput): Record<string, string> {
 	const attributes = mergeIslandHostAttributes(input);
 
@@ -37,7 +52,7 @@ export function buildIslandHostAttributes(input: IslandHostAttributesInput): Rec
 	}
 
 	if (input.props !== undefined) {
-		attributes[ECO_ISLAND_PROPS_ATTRIBUTE] = btoa(JSON.stringify(input.props));
+		attributes[ECO_ISLAND_PROPS_ATTRIBUTE] = encodeIslandProps(input.props);
 	}
 
 	return attributes;

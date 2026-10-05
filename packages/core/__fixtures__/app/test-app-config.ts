@@ -4,19 +4,25 @@ import { finalizeEcoPagesConfig } from '../../src/config/finalize-config.ts';
 import { loadEcoPagesConfig } from '../../src/config/load-eco-config.ts';
 import { createFixtureUserConfig, fixtureRootDir } from './fixture-user-config.ts';
 
-export type CreateFixtureAppConfigOptions = {
-	/** Loads and finalizes a config module from the fixture directory (for example `eco.config.postcss.ts`). */
-	configFile?: string;
-	/** Root of a copy of the fixture app, for tests that edit sources or write build output. */
-	rootDir?: string;
-};
+export type CreateFixtureAppConfigOptions =
+	| {
+			/** Loads and finalizes a config module from the fixture directory (for example `eco.config.postcss.ts`). */
+			configFile?: string;
+			rootDir?: never;
+	  }
+	| {
+			configFile?: never;
+			/** Root of a copy of the fixture app, for tests that edit sources or write build output. */
+			rootDir?: string;
+	  };
 
 /**
  * Finalizes the fixture app config for unit tests.
  *
  * @remarks
  * Defaults to in-memory {@link createFixtureUserConfig} so tests avoid disk I/O. Pass `configFile`
- * to exercise the same loader path as `createApp()`.
+ * to exercise the same loader path as `createApp()`, or `rootDir` to root the in-memory config at a
+ * copy of the fixture app.
  */
 export async function createFixtureAppConfig(options: CreateFixtureAppConfigOptions = {}) {
 	if (options.configFile) {
@@ -26,8 +32,10 @@ export async function createFixtureAppConfig(options: CreateFixtureAppConfigOpti
 	return await finalizeEcoPagesConfig(createFixtureUserConfig(options.rootDir ? { rootDir: options.rootDir } : {}));
 }
 
-export type CreateFixtureAppOptions = CreateFixtureAppConfigOptions &
-	Omit<EcopagesAppOptions, 'appConfig' | 'configFile' | 'userConfig'>;
+export type CreateFixtureAppOptions = { configFile?: string } & Omit<
+	EcopagesAppOptions,
+	'appConfig' | 'configFile' | 'userConfig'
+>;
 
 /** Creates a universal Ecopages app using the fixture config (in-memory or from `configFile`). */
 export async function createFixtureApp(options: CreateFixtureAppOptions = {}) {

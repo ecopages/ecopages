@@ -166,7 +166,7 @@ describe('server-entry-build-cache', () => {
 		assert.equal(lookupServerEntryBuildCache({ appConfig, entryPath }), undefined);
 	});
 
-	it('invalidates server-entry cache when eco.config.ts content changes', () => {
+	it.each(['eco.config.ts', 'options.ts'])('invalidates server-entry cache when %s changes', (editedFile) => {
 		process.env.NODE_ENV = 'production';
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-entry-config-change-'));
 		tempDirs.push(rootDir);
@@ -174,8 +174,14 @@ describe('server-entry-build-cache', () => {
 		const workDir = path.join(rootDir, '.eco');
 		const entryPath = path.join(rootDir, 'app.ts');
 		const configPath = path.join(rootDir, 'eco.config.ts');
+		const optionsPath = path.join(rootDir, 'options.ts');
 		writeFileSync(entryPath, 'export const ready = true;\n', 'utf8');
-		writeFileSync(configPath, 'export default { rootDir: "." };\n', 'utf8');
+		writeFileSync(
+			configPath,
+			"import { options } from './options';\nexport default { rootDir: '.', options };\n",
+			'utf8',
+		);
+		writeFileSync(optionsPath, 'export const options = { a: 1 };\n', 'utf8');
 
 		const appConfig = {
 			rootDir,
@@ -184,6 +190,7 @@ describe('server-entry-build-cache', () => {
 				distDir,
 				workDir,
 				config: configPath,
+				configModuleFiles: [configPath, optionsPath],
 			},
 			processors: new Map(),
 			integrations: [],
@@ -212,7 +219,8 @@ describe('server-entry-build-cache', () => {
 		const initial = lookupServerEntryBuildCache({ appConfig, entryPath });
 		assert.ok(initial);
 
-		writeFileSync(configPath, 'export default { rootDir: ".", modified: true };\n', 'utf8');
+		const editedPath = path.join(rootDir, editedFile);
+		writeFileSync(editedPath, `${fileSystem.readFileSync(editedPath)}\nexport const modified = true;\n`, 'utf8');
 
 		const afterConfigChange = lookupServerEntryBuildCache({ appConfig, entryPath });
 		assert.equal(afterConfigChange, undefined);

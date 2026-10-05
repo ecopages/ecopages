@@ -30,6 +30,14 @@ type RouteModuleBuildCacheDependencies = {
 	readFile: (filePath: string) => string;
 	getCorePackageVersion: () => string;
 	createDependencyHasher: () => RouteModuleDependencyHasher;
+	/**
+	 * Hash of the config module and the files it imports; `undefined` when the cache has no app config.
+	 *
+	 * @remarks
+	 * The shared app cache takes it once per process, so entries are keyed by the options the process
+	 * loaded, not by files edited since.
+	 */
+	getConfigHash: () => string | undefined;
 };
 
 /**
@@ -51,6 +59,7 @@ export class RouteModuleBuildCache {
 			readFile: dependencies?.readFile ?? ((filePath) => fileSystem.readFileSync(filePath)),
 			getCorePackageVersion: dependencies?.getCorePackageVersion ?? getCorePackageVersion,
 			createDependencyHasher: dependencies?.createDependencyHasher ?? (() => new RouteModuleDependencyHasher()),
+			getConfigHash: dependencies?.getConfigHash ?? (() => undefined),
 		};
 		this.dependencyHasher = this.dependencies.createDependencyHasher();
 	}
@@ -69,7 +78,11 @@ export class RouteModuleBuildCache {
 			return undefined;
 		}
 
-		const buildKey = createPersistedRouteModuleBuildKey(options, options.sourceTransforms);
+		const buildKey = createPersistedRouteModuleBuildKey(
+			options,
+			options.sourceTransforms,
+			this.dependencies.getConfigHash(),
+		);
 		const cacheFilePath = normalizeRouteModuleCachePath(options.filePath);
 		const entry = manifest.entries[cacheFilePath];
 		if (!entry || entry.sourceHash !== options.fileHash || entry.buildKey !== buildKey) {
@@ -124,7 +137,11 @@ export class RouteModuleBuildCache {
 			sourceHash: options.fileHash,
 			outputPath: options.outputPath,
 			builtAt: Date.now(),
-			buildKey: createPersistedRouteModuleBuildKey(options, options.sourceTransforms),
+			buildKey: createPersistedRouteModuleBuildKey(
+				options,
+				options.sourceTransforms,
+				this.dependencies.getConfigHash(),
+			),
 			dependencyHashes,
 			outputImports:
 				options.outputImports ??

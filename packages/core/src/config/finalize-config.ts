@@ -27,6 +27,7 @@ import {
 	DEFAULT_ECOPAGES_PORT,
 	DEFAULT_ECOPAGES_WORK_DIR,
 } from './constants.ts';
+import { collectConfigModuleFiles } from './config-module-files.ts';
 import { DEFAULT_ECO_CONFIG_FILENAME, resolveUserConfigRootDir } from './resolve-eco-config-path.ts';
 import { validateRuntimeCapabilities } from './runtime-capability-validation.ts';
 import type { EcoPagesUserConfig, FinalizeEcoPagesConfigOptions } from './user-config-types.ts';
@@ -162,9 +163,29 @@ function resolveSemanticTemplatePath(dirPath: string, basename: string, extensio
 	return matches[0] ?? path.join(dirPath, `${basename}${extensions[0]}`);
 }
 
+/**
+ * @remarks
+ * Scans only a config module loaded from source. The emitted production config under `distDir` is a bundle
+ * that no build cache reads, and an in-memory config has no file to scan.
+ */
+async function resolveConfigModuleFiles(
+	configFilePath: string,
+	loadedFromFile: boolean,
+	rootDir: string,
+	distDir: string,
+): Promise<string[]> {
+	const relativeToDist = path.relative(path.resolve(rootDir, distDir), path.resolve(configFilePath));
+	const isEmittedConfig = !relativeToDist.startsWith('..') && !path.isAbsolute(relativeToDist);
+	if (!loadedFromFile || isEmittedConfig || !fileSystem.exists(configFilePath)) {
+		return [configFilePath];
+	}
+	return await collectConfigModuleFiles(configFilePath, rootDir);
+}
+
 function createAbsolutePaths(
 	config: Omit<EcoPagesAppConfig, 'absolutePaths'>,
 	configFilePath: string,
+	configModuleFiles: string[],
 ): EcoPagesAppConfig['absolutePaths'] {
 	const srcDir = path.resolve(config.rootDir, config.srcDir);
 	const includesDir = path.join(srcDir, config.includesDir);
@@ -181,6 +202,7 @@ function createAbsolutePaths(
 
 	return {
 		config: configFilePath,
+		configModuleFiles,
 		projectDir: config.rootDir,
 		srcDir,
 		distDir: path.resolve(config.rootDir, config.distDir),
@@ -253,11 +275,18 @@ export async function finalizeEcoPagesConfig(
 		devToolbar: userConfig.devToolbar,
 		experimental: userConfig.experimental,
 	};
+	const configFilePath = options.configFilePath ?? path.join(rootDir, DEFAULT_ECO_CONFIG_FILENAME);
 	const config: EcoPagesAppConfig = {
 		...partialConfig,
 		absolutePaths: createAbsolutePaths(
 			partialConfig,
-			options.configFilePath ?? path.join(rootDir, DEFAULT_ECO_CONFIG_FILENAME),
+			configFilePath,
+			await resolveConfigModuleFiles(
+				configFilePath,
+				options.configFilePath !== undefined,
+				rootDir,
+				partialConfig.distDir,
+			),
 		),
 	};
 

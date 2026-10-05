@@ -69,13 +69,14 @@ Generates a static production build of your project.
 - Optimizes assets and images.
 - Outputs the build to the `dist` directory.
 - Strips development-only code.
+- Reuses cached build output for Pages whose sources did not change. Pass `--force` to empty `dist` and the build caches and rebuild everything.
 
 ### `preview`
 
 Builds your project and starts a local production server for testing.
 
 - Useful for verifying the production build before deployment.
-- Rebuilds `dist` first, then serves that output locally.
+- Rebuilds `dist` first, then serves that output locally. Accepts `--force` like `build`.
 
 ### `start`
 

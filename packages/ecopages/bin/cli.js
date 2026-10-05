@@ -76,7 +76,7 @@ function getMainHelpText() {
 	].join('\n');
 }
 
-function getServerCommandHelpText(commandName, description) {
+function getServerCommandHelpText(commandName, description, extraHelpLines = []) {
 	return [
 		`Usage: ecopages ${commandName} [options]`,
 		'',
@@ -91,25 +91,7 @@ function getServerCommandHelpText(commandName, description) {
 		'      --runtime <runtime>                 Force bun or node',
 		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
 		'  -c, --config <file>                     Ecopages config file (default: eco.config.ts)',
-		'  -h, --help                              Show help',
-	].join('\n');
-}
-
-function getBuildCommandHelpText() {
-	return [
-		'Usage: ecopages build [options]',
-		'',
-		'Build the project for production.',
-		'',
-		'Options:',
-		'  -p, --port <port>                       Override ECOPAGES_PORT',
-		'  -n, --hostname <hostname>               Override ECOPAGES_HOSTNAME',
-		'  -b, --base-url <baseUrl>                Override ECOPAGES_BASE_URL',
-		'  -d, --debug                             Enable debug logging',
-		'  -r, --react-fast-refresh                Enable React Fast Refresh for Bun HMR',
-		'      --runtime <runtime>                 Force bun or node',
-		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
-		'  -c, --config <file>                     Ecopages config file (default: eco.config.ts)',
+		...extraHelpLines,
 		'  -h, --help                              Show help',
 	].join('\n');
 }
@@ -123,11 +105,17 @@ function parseCommandArguments(rawArgs, options) {
 	});
 }
 
-function parseServerCommandArgs(rawArgs, commandName, description, mode = 'server') {
-	const { values, positionals } = parseCommandArguments(rawArgs, sharedServerOptionDefinitions);
+function parseServerCommandArgs(rawArgs, definition) {
+	const commandName = definition.name;
+	const flags = definition.flags ?? {};
+	const flagOptions = Object.fromEntries(Object.keys(flags).map((flag) => [flag, { type: 'boolean' }]));
+	const { values, positionals } = parseCommandArguments(rawArgs, {
+		...sharedServerOptionDefinitions,
+		...flagOptions,
+	});
 
 	if (values.help) {
-		console.log(mode === 'build' ? getBuildCommandHelpText() : getServerCommandHelpText(commandName, description));
+		console.log(getServerCommandHelpText(commandName, definition.description, Object.values(flags)));
 		return { help: true };
 	}
 
@@ -141,6 +129,9 @@ function parseServerCommandArgs(rawArgs, commandName, description, mode = 'serve
 
 	return {
 		entry,
+		flagArgs: Object.keys(flags)
+			.filter((flag) => values[flag] === true)
+			.map((flag) => `--${flag}`),
 		options: {
 			port: values.port,
 			hostname: values.hostname,
@@ -233,7 +224,7 @@ async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchM
 }
 
 async function runServerCommand(rawArgs, definition) {
-	const parsed = parseServerCommandArgs(rawArgs, definition.name, definition.description, definition.mode);
+	const parsed = parseServerCommandArgs(rawArgs, definition);
 
 	if (parsed.help) {
 		return;
@@ -241,7 +232,7 @@ async function runServerCommand(rawArgs, definition) {
 
 	const entry = definition.resolveEntry?.() ?? parsed.entry;
 	await runEntryCommand(
-		definition.entryArgs,
+		[...definition.entryArgs, ...parsed.flagArgs],
 		{ ...parsed.options, ...definition.optionOverrides, entryFile: entry },
 		entry,
 		definition.launchMode ?? definition.name,
@@ -249,8 +240,9 @@ async function runServerCommand(rawArgs, definition) {
 }
 
 /**
- * Commands that run an entry file, keyed by name. `launchMode` defaults to the name, and
- * `resolveEntry` replaces the app entry (`app.ts`) with another script.
+ * Commands that run an entry file, keyed by name. `launchMode` defaults to the name,
+ * `resolveEntry` replaces the app entry (`app.ts`) with another script, and `flags` declares
+ * boolean options that are forwarded to the entry as `--<flag>`, keyed by name with their help line.
  */
 const SERVER_COMMANDS = {
 	dev: {
@@ -275,7 +267,9 @@ const SERVER_COMMANDS = {
 		description: 'Build the project for production.',
 		entryArgs: ['--build'],
 		optionOverrides: { nodeEnv: 'production' },
-		mode: 'build',
+		flags: {
+			force: '      --force                             Empty dist and the build caches, then rebuild everything',
+		},
 	},
 	start: {
 		description: 'Start the production server.',
@@ -293,6 +287,9 @@ const SERVER_COMMANDS = {
 		description: 'Preview the production build.',
 		entryArgs: ['--preview'],
 		optionOverrides: { nodeEnv: 'production' },
+		flags: {
+			force: '      --force                             Empty dist and the build caches, then rebuild everything',
+		},
 	},
 };
 

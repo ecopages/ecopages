@@ -126,6 +126,15 @@ export type EcoPagesAppConfig = {
 	/** Derived Paths */
 	absolutePaths: {
 		config: string;
+		/**
+		 * The config module and the project files it imports. Only the config module when the config is
+		 * in memory, is the emitted production config, or could not be scanned.
+		 *
+		 * @remarks
+		 * Persisted build caches hash these files, so an edit to a plugin options module the config
+		 * imports invalidates them like an edit to the config itself.
+		 */
+		configModuleFiles: string[];
 		componentsDir: string;
 		distDir: string;
 		workDir: string;

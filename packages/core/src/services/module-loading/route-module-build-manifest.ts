@@ -104,12 +104,19 @@ export function resolvePageModuleOutputFileName(options: { filePath: string; fil
 	return `${fileBaseName}-${options.fileHash}.mjs`;
 }
 
-/** Builds the cache key for persisted production route-module builds. */
+/**
+ * Builds the cache key for persisted route-module builds.
+ *
+ * @param configHash - Hash of the config module and the files it imports; plugin identity alone cannot see
+ * plugin options defined there.
+ */
 export function createPersistedRouteModuleBuildKey(
 	options: PageModuleBuildImportOptions,
 	sourceTransforms?: BuildOptions['sourceTransforms'],
+	configHash?: string,
 ): string {
-	return createRouteModuleReuseIdentity(options, sourceTransforms);
+	const reuseIdentity = createRouteModuleReuseIdentity(options, sourceTransforms);
+	return configHash === undefined ? reuseIdentity : `${reuseIdentity}::config:${configHash}`;
 }
 
 export function createEmptyRouteModuleBuildCacheManifest(): RouteModuleBuildCacheManifest {

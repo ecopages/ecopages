@@ -37,6 +37,47 @@ const finalize = (userConfig: EcoPagesUserConfig = {}) =>
 		...userConfig,
 	});
 
+describe('finalizeEcoPagesConfig configModuleFiles', () => {
+	test.each([
+		{ source: 'a config loaded from source', configFile: 'eco.config.ts', scanned: true },
+		{ source: 'the emitted production config', configFile: 'dist/.server/eco.config.mjs', scanned: false },
+	])('lists the files that $source imports only when it is scanned', async ({ configFile, scanned }) => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-module-files-'));
+		try {
+			const optionsPath = path.join(rootDir, 'src/options.ts');
+			const configFilePath = path.join(rootDir, configFile);
+			fs.mkdirSync(path.dirname(optionsPath), { recursive: true });
+			fs.mkdirSync(path.dirname(configFilePath), { recursive: true });
+			fs.writeFileSync(optionsPath, 'export const options = { a: 1 };\n');
+			fs.writeFileSync(
+				configFilePath,
+				`import { options } from './${path.relative(path.dirname(configFilePath), optionsPath)}';\nexport default { options };\n`,
+			);
+
+			const appConfig = await finalizeEcoPagesConfig({ rootDir }, { configFilePath });
+
+			expect(appConfig.absolutePaths.configModuleFiles.sort()).toEqual(
+				(scanned ? [configFilePath, optionsPath] : [configFilePath]).sort(),
+			);
+		} finally {
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
+	test('lists only the default config path for an in-memory config', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-module-files-'));
+		try {
+			fs.writeFileSync(path.join(rootDir, 'eco.config.ts'), "import './never-scanned';\nexport default {};\n");
+
+			const appConfig = await finalizeEcoPagesConfig({ rootDir });
+
+			expect(appConfig.absolutePaths.configModuleFiles).toEqual([path.join(rootDir, 'eco.config.ts')]);
+		} finally {
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('finalizeEcoPagesConfig', () => {
 	beforeEach(() => {
 		vi.restoreAllMocks();

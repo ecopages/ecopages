@@ -39,7 +39,7 @@ Semantic error pages are excluded from ordinary page enumeration and emitted onc
 | `static-build-invalidation.ts`              | `dist/` reset policy, production cache clearing, static-render cache context |
 | `production-page-browser-graph-prebuild.ts` | Warms and prebuilds browser asset graphs before static export rendering      |
 
-Build-input fingerprinting (`hashAppConfigFile`, `createBuildInputsFingerprint`, `hashWatchedBuildInputs`) lives in `packages/core/src/build/cache/build-input-fingerprint.ts` and is shared with server-entry and unified-graph caches.
+Build-input fingerprinting (`hashAppConfigFile`, `createBuildInputsFingerprint`, `hashWatchedBuildInputs`) lives in `packages/core/src/build/cache/build-input-fingerprint.ts` and is shared with the server-entry, unified-graph and route-module caches. `hashAppConfigFile` hashes the config module and the project files it imports (`absolutePaths.configModuleFiles`).
 
 ## Incremental static export
 

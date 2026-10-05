@@ -29,14 +29,14 @@ import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 
 const FIXTURE_COPY_SKIPPED = new Set(['node_modules', '.eco', 'dist']);
 
-function snapshotFixtureSources(): Map<string, string> {
+function snapshotFixtureSources(): Map<string, Buffer> {
 	const sourceDir = path.join(FIXTURE_APP_PROJECT_DIR, 'src');
 	return new Map(
 		readdirSync(sourceDir, { recursive: true, withFileTypes: true })
 			.filter((entry) => entry.isFile())
 			.map((entry) => {
 				const filePath = path.join(entry.parentPath, entry.name);
-				return [filePath, readFileSync(filePath, 'utf8')];
+				return [filePath, readFileSync(filePath)];
 			}),
 	);
 }
@@ -48,17 +48,22 @@ function snapshotFixtureSources(): Map<string, string> {
  */
 function copyFixtureApp(): string {
 	const appDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-unified-graph-')));
-	cpSync(FIXTURE_APP_PROJECT_DIR, appDir, {
-		recursive: true,
-		filter: (source) => !FIXTURE_COPY_SKIPPED.has(path.relative(FIXTURE_APP_PROJECT_DIR, source)),
-	});
-	symlinkSync(path.join(FIXTURE_APP_PROJECT_DIR, 'node_modules'), path.join(appDir, 'node_modules'), 'dir');
+	try {
+		cpSync(FIXTURE_APP_PROJECT_DIR, appDir, {
+			recursive: true,
+			filter: (source) => !FIXTURE_COPY_SKIPPED.has(path.relative(FIXTURE_APP_PROJECT_DIR, source)),
+		});
+		symlinkSync(path.join(FIXTURE_APP_PROJECT_DIR, 'node_modules'), path.join(appDir, 'node_modules'), 'dir');
+	} catch (error) {
+		rmSync(appDir, { recursive: true, force: true });
+		throw error;
+	}
 	return appDir;
 }
 
 describe('pages-unified-graph-build', () => {
 	let appDir: string;
-	let fixtureSourcesBefore: Map<string, string>;
+	let fixtureSourcesBefore: Map<string, Buffer>;
 
 	beforeAll(() => {
 		fixtureSourcesBefore = snapshotFixtureSources();
@@ -93,8 +98,9 @@ describe('pages-unified-graph-build', () => {
 			process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = originalMetrics;
 		}
 		resetRolldownBuildInvocationCounts();
-		assert.ok(appDir.startsWith(realpathSync(tmpdir())), `refusing to remove ${appDir} outside the temp directory`);
-		rmSync(appDir, { recursive: true, force: true });
+		if (appDir) {
+			rmSync(appDir, { recursive: true, force: true });
+		}
 	});
 
 	it('identifies configured template extensions as unified-graph eligible', async () => {
@@ -169,7 +175,7 @@ describe('pages-unified-graph-build', () => {
 
 		const manifestPath = path.join(
 			resolveInternalExecutionDir(appConfig),
-			'.server-pages-graph',
+			PAGES_UNIFIED_GRAPH_CACHE_DIR,
 			PAGES_UNIFIED_GRAPH_CACHE_FILENAME,
 		);
 		assert.equal(fileSystem.exists(manifestPath), true);
@@ -298,10 +304,9 @@ describe('pages-unified-graph-build', () => {
 		const nestedImport = manifest.outputImports.find(
 			(importPath) => !Object.values(manifest.outputs).includes(importPath),
 		);
-		if (nestedImport) {
-			fileSystem.remove(nestedImport);
-			assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPaths[0]), undefined);
-		}
+		assert.ok(nestedImport, 'pages sharing a layout produce a shared chunk');
+		fileSystem.remove(nestedImport);
+		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPaths[0]), undefined);
 	});
 
 	it('rebuilds the graph when template extensions change', async () => {

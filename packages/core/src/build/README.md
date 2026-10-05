@@ -166,7 +166,7 @@ Set `ECOPAGES_ROLLDOWN_BUILD_METRICS=1` to log Rolldown invocation counts during
 
 ## Production build caches
 
-Three persisted cache layers accelerate production builds. All use `.build-cache.json` manifests keyed by build-input fingerprints and by hashes of every local module each entry loads, including modules in shared chunks and in chunks loaded through `import()`. Editing any of them misses the cache.
+Three persisted cache layers accelerate production builds. All use `.build-cache.json` manifests keyed by build-input fingerprints, by a hash of the config module and the project files it imports, and by hashes of every local module each entry loads, including modules in shared chunks and in chunks loaded through `import()`. Editing any of them misses the cache.
 
 | Cache                                  | On-disk location                                    | Module                                               |
 | -------------------------------------- | --------------------------------------------------- | ---------------------------------------------------- |

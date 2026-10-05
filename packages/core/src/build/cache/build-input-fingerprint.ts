@@ -26,14 +26,27 @@ export function didBuildInputContributorChange(contributor: BuildInputChangeCont
 	return contributor.didChange?.() === true;
 }
 
-/** Hashes the app's eco.config.ts file when present. */
+/**
+ * Hashes the config module and the project files it imports (`absolutePaths.configModuleFiles`).
+ *
+ * @remarks
+ * Falls back to the config module alone for hand-built configs that omit `configModuleFiles`.
+ *
+ * @returns `missing` when the config file does not exist.
+ */
 export function hashAppConfigFile(appConfig: EcoPagesAppConfig): string {
 	const configPath = appConfig.absolutePaths?.config;
 	if (!configPath || !fileSystem.exists(configPath)) {
 		return 'missing';
 	}
 
-	return fileSystem.hash(configPath);
+	const configModuleFiles = appConfig.absolutePaths.configModuleFiles ?? [configPath];
+	return rapidhash(
+		[...configModuleFiles]
+			.sort()
+			.map((filePath) => `${filePath}:${fileSystem.exists(filePath) ? fileSystem.hash(filePath) : 'missing'}`)
+			.join('\n'),
+	).toString(36);
 }
 
 /** Fingerprints processor/integration build-input state for cache invalidation. */

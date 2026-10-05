@@ -204,7 +204,7 @@ Attributes on the Page `<html>` and `<body>` merge onto the shell's: `class` val
 
 You can paste an existing document and keep its `lang`, classes, and scripts, as long as its images and icons use root-relative URLs and its local assets live inside `src` without `integrity` attributes (see below).
 
-Core also reads these Page head tags into the page metadata, merged over `defaultMetadata`. JSX and React shells render from that metadata, and static export uses it for the [Sitemap](/docs/core/sitemap):
+Core also reads these Page head tags into the page metadata, merged over `defaultMetadata`. JSX and React shells render from that metadata, and static export uses it for the [Sitemap](/docs/core/sitemap). A `<meta>` tag is matched by its value, so `name`, `property` and `http-equiv` are interchangeable: `<meta name="og:image">` fills `image` too.
 
 | Page head tag                | Metadata field                                         |
 | ---------------------------- | ------------------------------------------------------ |
@@ -215,7 +215,7 @@ Core also reads these Page head tags into the page metadata, merged over `defaul
 | `<link rel="canonical">`     | `url`                                                  |
 | `<meta name="robots">`       | `robots`; `noindex` removes the route from the Sitemap |
 
-Core also derives social tags from a Page's own head: when a Page sets a `<title>` or description, it gets matching `og:title`, `og:description`, `twitter:title`, and `twitter:description` tags, which replace the shell's tags with the same `property` or `name`, or are added before `</head>`. A tag the Page writes itself wins. Other social tags, such as `og:image`, `og:type`, or `twitter:card`, are written by hand, usually as site defaults in `html.html`. Core also adds a robots `<meta>` from `metadata.robots` (see [Plain HTML template](/docs/core/includes#plain-html-template)).
+Core also derives social tags from a Page's own head: when a Page sets a `<title>` or description, it gets matching `og:title`, `og:description`, `twitter:title`, and `twitter:description` tags, which replace the shell's tag with the same value, whichever attribute it uses, or are added before `</head>`. A tag the Page writes itself wins, whichever attribute it uses. Other social tags, such as `og:image`, `og:type`, or `twitter:card`, are written by hand, usually as site defaults in `html.html`. Core also adds a robots `<meta>` from `metadata.robots` (see [Plain HTML template](/docs/core/includes#plain-html-template)).
 
 ### Stylesheets, scripts, and other assets
 

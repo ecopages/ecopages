@@ -288,8 +288,9 @@ function endTagRange(element: HtmlElementNode): TemplateRange {
  * Returns the singleton identity of a head tag, if it has one.
  *
  * @remarks
- * Keys are `title`, `base`, `charset`, `meta:<name|property|http-equiv>:<value>`
- * (value lowercased, first attribute present wins), and `link:canonical`.
+ * Keys are `title`, `base`, `charset`, `meta:<value>` and `link:canonical`. A `<meta>` is keyed
+ * `meta:<value>` from the first of `name`, `property` and `http-equiv` it has, in that order, lowercased,
+ * so `<meta property="twitter:title">` and `<meta name="twitter:title">` are the same tag.
  */
 export function getHeadTagKey(element: HtmlElementNode): string | undefined {
 	switch (element.tagName) {
@@ -300,7 +301,7 @@ export function getHeadTagKey(element: HtmlElementNode): string | undefined {
 			if (getAttribute(element, 'charset')) return 'charset';
 			for (const name of ['name', 'property', 'http-equiv']) {
 				const value = attributeValue(element, name);
-				if (value) return `meta:${name}:${value.trim().toLowerCase()}`;
+				if (value) return `meta:${value.trim().toLowerCase()}`;
 			}
 			return undefined;
 		}
@@ -344,19 +345,19 @@ const METADATA_READERS: Record<string, MetadataReader> = {
 		const href = attributeValue(element, 'href')?.trim();
 		if (href) metadata.url = href;
 	},
-	'meta:name:description': withContent((content, metadata) => {
+	'meta:description': withContent((content, metadata) => {
 		metadata.description = content;
 	}),
-	'meta:name:keywords': withContent((content, metadata) => {
+	'meta:keywords': withContent((content, metadata) => {
 		metadata.keywords = content
 			.split(',')
 			.map((keyword) => keyword.trim())
 			.filter(Boolean);
 	}),
-	'meta:property:og:image': withContent((content, metadata) => {
+	'meta:og:image': withContent((content, metadata) => {
 		metadata.image = content;
 	}),
-	'meta:name:robots': withContent((content, metadata) => {
+	'meta:robots': withContent((content, metadata) => {
 		metadata.robots = parseRobots(content);
 	}),
 };
@@ -367,18 +368,19 @@ const METADATA_READERS: Record<string, MetadataReader> = {
  * @remarks
  * A shell holds one set of these values, so without them every Page would repeat its title
  * and description in four more tags. A tag the Page writes itself wins, and a derived tag
- * replaces the shell's tag with the same `property` or `name` in place.
+ * replaces the shell's tag with the same value in place, whichever attribute either one uses.
  */
 const SOCIAL_TAGS = [
-	{ key: 'meta:property:og:title', attribute: 'property', name: 'og:title', field: 'title' },
-	{ key: 'meta:property:og:description', attribute: 'property', name: 'og:description', field: 'description' },
-	{ key: 'meta:name:twitter:title', attribute: 'name', name: 'twitter:title', field: 'title' },
-	{ key: 'meta:name:twitter:description', attribute: 'name', name: 'twitter:description', field: 'description' },
+	{ attribute: 'property', name: 'og:title', field: 'title' },
+	{ attribute: 'property', name: 'og:description', field: 'description' },
+	{ attribute: 'name', name: 'twitter:title', field: 'title' },
+	{ attribute: 'name', name: 'twitter:description', field: 'description' },
 ] as const;
 
 function deriveSocialTags(head: readonly HtmlHeadNode[], metadata: Partial<PageMetadataProps>): HtmlHeadNode[] {
 	const written = new Set(head.map((node) => node.key));
-	return SOCIAL_TAGS.flatMap(({ key, attribute, name, field }) => {
+	return SOCIAL_TAGS.flatMap(({ attribute, name, field }) => {
+		const key = `meta:${name}`;
 		const value = metadata[field];
 		if (!value || written.has(key)) return [];
 		return [{ parts: [`<meta ${attribute}="${name}" content="${escapeHtmlAttribute(value)}">`], key }];

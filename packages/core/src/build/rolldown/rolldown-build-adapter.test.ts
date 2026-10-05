@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -407,6 +407,68 @@ describe('RolldownBuildAdapter', () => {
 			modulesForEntry.some((modulePath) => modulePath.endsWith('helper.ts')),
 			'graph includes the imported helper module',
 		);
+	});
+
+	test('dependency graph includes modules split into shared and dynamic chunks', async () => {
+		writeFixture('shared.ts', 'export const layout = (body: string): string => `<main>${body}</main>`;\n');
+		writeFixture('lazy-dep.ts', "export const lazyValue = 'lazy';\n");
+		writeFixture('lazy.ts', "import { lazyValue } from './lazy-dep.ts';\nexport const lazy = lazyValue;\n");
+		const first = writeFixture(
+			'first.ts',
+			"import { layout } from './shared.ts';\nexport const render = () => layout('first');\nexport const load = () => import('./lazy.ts');\n",
+		);
+		const second = writeFixture(
+			'second.ts',
+			"import { layout } from './shared.ts';\nimport { lazyValue } from './lazy-dep.ts';\nexport const render = () => layout(lazyValue);\n",
+		);
+		const adapter = new RolldownBuildAdapter();
+
+		const result = await adapter.build({
+			entrypoints: [first, second],
+			outdir: path.join(workDir, 'dist'),
+			target: 'node',
+			format: 'esm',
+			splitting: true,
+			root: workDir,
+		});
+
+		assert.equal(result.success, true);
+		const modulesOf = (entry: string) =>
+			(result.dependencyGraph?.entrypoints[realpathSync(entry)] ?? []).map((modulePath) =>
+				path.basename(modulePath),
+			);
+		expect(modulesOf(first)).toEqual(expect.arrayContaining(['first.ts', 'shared.ts', 'lazy.ts', 'lazy-dep.ts']));
+		expect(modulesOf(second)).toEqual(expect.arrayContaining(['second.ts', 'shared.ts']));
+		expect(modulesOf(second)).not.toContain('lazy.ts');
+	});
+
+	test('dependency graph walks chunks that import each other', async () => {
+		const first = writeFixture(
+			'first.ts',
+			"export const name = 'first';\nexport const load = () => import('./second.ts');\n",
+		);
+		const second = writeFixture(
+			'second.ts',
+			"import { name } from './first.ts';\nexport const label = `${name}-second`;\n",
+		);
+		const adapter = new RolldownBuildAdapter();
+
+		const result = await adapter.build({
+			entrypoints: [first, second],
+			outdir: path.join(workDir, 'dist'),
+			target: 'node',
+			format: 'esm',
+			splitting: true,
+			root: workDir,
+		});
+
+		assert.equal(result.success, true);
+		for (const entry of [first, second]) {
+			const modules = (result.dependencyGraph?.entrypoints[realpathSync(entry)] ?? []).map((modulePath) =>
+				path.basename(modulePath),
+			);
+			expect(modules).toEqual(expect.arrayContaining(['first.ts', 'second.ts']));
+		}
 	});
 
 	test('rejects with normalized logs on entrypoint that does not exist', async () => {

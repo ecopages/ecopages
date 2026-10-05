@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { RolldownBuildAdapter } from '../rolldown/rolldown-build-adapter.ts';
 import {
 	getServerBundleOutputPaths,
 	lookupServerEntryBuildCache,
@@ -111,6 +112,52 @@ describe('server-entry-build-cache', () => {
 				},
 			],
 		]);
+
+		assert.equal(lookupServerEntryBuildCache({ appConfig, entryPath }), undefined);
+	});
+
+	it('invalidates server-entry cache when a module the entry loads through import() changes', async () => {
+		process.env.NODE_ENV = 'production';
+		const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-server-entry-dynamic-import-')));
+		tempDirs.push(rootDir);
+		const distDir = path.join(rootDir, 'dist');
+		const entryPath = path.join(rootDir, 'app.ts');
+		const lazyPath = path.join(rootDir, 'lazy.ts');
+		writeFileSync(entryPath, "export const load = () => import('./lazy.ts');\n", 'utf8');
+		writeFileSync(lazyPath, "export const message = 'first';\n", 'utf8');
+
+		const appConfig = {
+			rootDir,
+			distDir: 'dist',
+			absolutePaths: {
+				distDir,
+				workDir: path.join(rootDir, '.eco'),
+				config: path.join(rootDir, 'eco.config.ts'),
+			},
+			processors: new Map(),
+			integrations: [],
+		} as unknown as EcoPagesAppConfig;
+
+		const outdir = path.join(distDir, SERVER_BUNDLE_DIR);
+		const buildResult = await new RolldownBuildAdapter().build({
+			entrypoints: [entryPath],
+			outdir,
+			target: 'node',
+			format: 'esm',
+			splitting: true,
+			root: rootDir,
+		});
+		assert.equal(buildResult.success, true);
+
+		recordServerEntryBuildCache({
+			appConfig,
+			entryPath,
+			buildResult,
+			outputPaths: buildResult.outputs.map((output) => output.path),
+		});
+		assert.ok(lookupServerEntryBuildCache({ appConfig, entryPath }));
+
+		writeFileSync(lazyPath, "export const message = 'second';\n", 'utf8');
 
 		assert.equal(lookupServerEntryBuildCache({ appConfig, entryPath }), undefined);
 	});

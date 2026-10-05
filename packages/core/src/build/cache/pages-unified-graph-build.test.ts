@@ -290,7 +290,10 @@ describe('pages-unified-graph-build', () => {
 		assert.equal(getTotalRolldownBuildInvocations(), 1);
 	});
 
-	it('rebuilds the graph when a reachable source file changes', async () => {
+	it.each([
+		{ layoutPlacement: 'in the entry chunk', pages: ['index.ts'] },
+		{ layoutPlacement: 'in a chunk shared by several pages', pages: ['index.ts', '404.ts'] },
+	])('rebuilds the graph when a layout $layoutPlacement changes', async ({ pages }) => {
 		process.env.NODE_ENV = 'production';
 		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
 		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
@@ -298,7 +301,7 @@ describe('pages-unified-graph-build', () => {
 		const appConfig = await createFixtureAppConfig();
 		installBuildRuntime(appConfig);
 
-		const entryPaths = [path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages/index.ts')];
+		const entryPaths = pages.map((page) => path.join(FIXTURE_APP_PROJECT_DIR, 'src/pages', page));
 		const outdir = getServerModuleBuildCacheOutdir(appConfig);
 		const layoutPath = path.join(FIXTURE_APP_PROJECT_DIR, 'src/layouts/base-layout/base-layout.ts');
 		const originalLayout = fileSystem.readFileSync(layoutPath);
@@ -313,7 +316,7 @@ describe('pages-unified-graph-build', () => {
 		assert.ok(manifest);
 		assert.ok(
 			Object.keys(manifest.dependencyHashes).some((filePath) => filePath.endsWith('base-layout.ts')),
-			'graph records the imported layout source hash',
+			'graph records the layout source hash',
 		);
 		assert.equal(getTotalRolldownBuildInvocations(), 1);
 

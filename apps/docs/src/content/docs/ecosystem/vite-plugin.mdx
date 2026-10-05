@@ -46,7 +46,7 @@ Register `ecopages()` **before** framework plugins such as `@vitejs/plugin-react
 - Vite config merging for Ecopages defaults (aliases, `optimizeDeps`, `ssr.noExternal`)
 - [Ecopages source transforms](/docs/plugins/source-transforms) as Vite plugins
 - Virtual modules for integration manifests
-- Dev-server bridging to `app.fetch()`, with HMR from the Ecopages app and a Vite restart when `app.ts` or a module it imports changes
+- Dev-server bridging to `app.fetch()`, with HMR from the Ecopages app and a Vite restart when `app.ts` or a module it imports, the Vite config or an env file changes; restart the dev server yourself after editing `eco.config.ts`, unless `app.ts` imports it
 
 ## CLI vs Vite host
 

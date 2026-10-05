@@ -15,7 +15,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 	}
 
 	protected shouldBundle(dep: T): boolean {
-		return dep.bundle !== false;
+		return dep.bundle !== false && dep.classic !== true;
 	}
 
 	protected getBundlerOptions(dep: T): Record<string, any> {

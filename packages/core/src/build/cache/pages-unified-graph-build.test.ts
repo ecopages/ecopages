@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.ts';
+import { copyFixtureApp } from '../../../__fixtures__/app/copy-fixture-app.ts';
 import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
 import { installBuildRuntime } from '../runtime/build-runtime.ts';
 import { createAppModuleLoader } from '../../services/module-loading/app-server-module-transpiler.service.ts';
@@ -27,8 +27,6 @@ import { collectReachableLocalImports } from './output-imports.ts';
 import { getServerModuleBuildCacheOutdir } from '../../services/module-loading/route-module-build-cache-registry.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 
-const FIXTURE_COPY_SKIPPED = new Set(['node_modules', '.eco', 'dist']);
-
 function snapshotFixtureSources(): Map<string, Buffer> {
 	const sourceDir = path.join(FIXTURE_APP_PROJECT_DIR, 'src');
 	return new Map(
@@ -39,26 +37,6 @@ function snapshotFixtureSources(): Map<string, Buffer> {
 				return [filePath, readFileSync(filePath)];
 			}),
 	);
-}
-
-/**
- * @remarks
- * Each test builds and edits a private copy, so parallel suites that build the fixture app never see a
- * half-edited source or a half-written cache. `node_modules` is linked, not copied.
- */
-function copyFixtureApp(): string {
-	const appDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-unified-graph-')));
-	try {
-		cpSync(FIXTURE_APP_PROJECT_DIR, appDir, {
-			recursive: true,
-			filter: (source) => !FIXTURE_COPY_SKIPPED.has(path.relative(FIXTURE_APP_PROJECT_DIR, source)),
-		});
-		symlinkSync(path.join(FIXTURE_APP_PROJECT_DIR, 'node_modules'), path.join(appDir, 'node_modules'), 'dir');
-	} catch (error) {
-		rmSync(appDir, { recursive: true, force: true });
-		throw error;
-	}
-	return appDir;
 }
 
 describe('pages-unified-graph-build', () => {

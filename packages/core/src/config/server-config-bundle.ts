@@ -9,6 +9,7 @@ import { requireBuildRuntime } from '../build/runtime/build-runtime.ts';
 import { createEcoBuildPluginFromSourceTransform, type EcoSourceTransform } from '../plugins/source-transform.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { getServerBundleOutputPaths } from '../build/cache/server-entry-build-cache.ts';
+import { formatBuildLog } from '../build/build-log.ts';
 
 export const EMITTED_ECO_CONFIG_FILENAME = 'eco.config.mjs';
 
@@ -169,7 +170,7 @@ export async function bundleEcoConfigModule(
 
 	const result = await build(buildOptions, requireBuildRuntime(appConfig).getProfile('server-entry'));
 	if (!result.success) {
-		const errorMessages = result.logs.map((log) => log.message).join('\n');
+		const errorMessages = result.logs.map(formatBuildLog).join('\n');
 		throw new Error(`Failed to bundle Ecopages config module:\n${errorMessages}`);
 	}
 

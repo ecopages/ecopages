@@ -23,6 +23,7 @@ Different file types require different update methods. Ecopages handles this aut
 - **CSS Updates**: When a `.css` file changes, Ecopages broadcasts a `css-update` event. The browser hot-swaps the dynamic `<link>` tag without a full page reload.
 - **React Fast Refresh**: The React integration uses a custom strategy to apply component updates in-place while keeping state.
 - **Full Reload**: If a core configuration or an include file (like `head.ts`) changes, Ecopages triggers a full page reload to ensure consistency.
+- **Build Errors**: When a client-side module that the dev server sends to the browser, such as a `*.script.ts` file or a hydrated component, fails to build, for example after a syntax error, the error appears at the bottom of the page and in the browser console. A page opened while the module still fails shows it too. The next update removes it; press Escape or Dismiss to close it sooner.
 
 ## Client-Side Scripting
 
@@ -55,7 +56,7 @@ class MyCustomStrategy extends HmrStrategy {
 ## Troubleshooting HMR
 
 - **WebSocket Connection**: Ensure no firewall or proxy is blocking the WebSocket connection (defaults to the same port as the server).
-- **Console Errors**: Check the browser console for HMR logs. Ecopages will report if a hot-update fails and a full reload is required.
+- **Console Errors**: Check the browser console for HMR logs. Ecopages will report if a hot-update fails and a full reload is required. Build errors are also shown in the page.
 - **Dependency Map**: If a change doesn't trigger an update, verify the file is correctly listed in the component dependencies.
 
 ## Related

@@ -21,6 +21,8 @@ export type DevTransformServerOptions = {
 	appConfig: EcoPagesAppConfig;
 	contributors?: readonly DevTransformBundleContributor[];
 	onModuleDependencies?: (modulePath: string, dependencies: string[]) => void;
+	/** Called with the error message when a module fails to transpile, before the 500 response is returned. */
+	onTransformError?: (message: string) => void;
 };
 
 /**
@@ -37,6 +39,8 @@ export class DevTransformServer {
 	private readonly contributors: DevTransformBundleContributor[] = [];
 	private readonly runtimeSpecifierMap = new Map<string, string>();
 	private readonly onModuleDependencies?: (modulePath: string, dependencies: string[]) => void;
+	private readonly onTransformError?: (message: string) => void;
+	private readonly failedSources = new Map<string, string>();
 	private readonly urlToSource = new Map<string, string>();
 	private readonly sourceToUrl = new Map<string, string>();
 	private readonly cache = new Map<string, CacheEntry>();
@@ -47,6 +51,7 @@ export class DevTransformServer {
 	constructor(options: DevTransformServerOptions) {
 		this.appConfig = options.appConfig;
 		this.onModuleDependencies = options.onModuleDependencies;
+		this.onTransformError = options.onTransformError;
 		this.contributors.push(...(options.contributors ?? []));
 		this.rebuildRuntimeSpecifierMap();
 		this.vendorRegistry = new DevTransformVendorRegistry({
@@ -105,6 +110,21 @@ export class DevTransformServer {
 		return plugins;
 	}
 
+	/** Error messages of modules whose last transpile failed, since the last {@link clearFailures}. */
+	getFailureMessages(): string[] {
+		return [...this.failedSources.values()];
+	}
+
+	/**
+	 * @remarks
+	 * A failure is recorded under the requested module, but its cause can be another file, or the module can
+	 * be removed. The HMR manager therefore clears every failure on each file change; a module that still
+	 * fails records its error again on its next request.
+	 */
+	clearFailures(): void {
+		this.failedSources.clear();
+	}
+
 	getWatchedModules(): ReadonlyMap<string, string> {
 		return this.urlToSource;
 	}
@@ -123,6 +143,7 @@ export class DevTransformServer {
 	invalidateAll(): void {
 		this.cacheGeneration += 1;
 		this.cache.clear();
+		this.failedSources.clear();
 		this.sourceGenerations.clear();
 		this.vendorRegistry.invalidateAll();
 	}
@@ -150,6 +171,7 @@ export class DevTransformServer {
 		const startedAt = performance.now();
 		try {
 			const entry = await this.materialize(sourcePath);
+			this.failedSources.delete(path.resolve(sourcePath));
 			if (process.env.ECOPAGES_STARTUP_TRACE === 'true') {
 				appLogger.debug(
 					`[dev-transform] materialize path=${url.pathname} bytes=${entry.code.length} durationMs=${Math.round(performance.now() - startedAt)}`,
@@ -158,6 +180,8 @@ export class DevTransformServer {
 			return this.createJavaScriptResponse(entry.code);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
+			this.failedSources.set(path.resolve(sourcePath), message);
+			this.onTransformError?.(message);
 			return new Response(message, {
 				status: 500,
 				headers: {
@@ -221,14 +245,15 @@ export class DevTransformServer {
 
 		const generation = this.cacheGeneration;
 		const sourceGeneration = this.sourceGenerations.get(normalized) ?? 0;
+		const isStale = () =>
+			generation !== this.cacheGeneration ||
+			sourceGeneration !== (this.sourceGenerations.get(normalized) ?? 0) ||
+			!fileSystem.exists(normalized) ||
+			fileSystem.hash(normalized) !== sourceHash;
 		const promise = this.bundler
 			.transpileModule(normalized)
 			.then((result) => {
-				if (
-					generation !== this.cacheGeneration ||
-					sourceGeneration !== (this.sourceGenerations.get(normalized) ?? 0) ||
-					fileSystem.hash(normalized) !== sourceHash
-				) {
+				if (isStale()) {
 					return undefined;
 				}
 
@@ -239,6 +264,12 @@ export class DevTransformServer {
 				const entry: CacheEntry = { code: result.code, sourceHash };
 				this.cache.set(normalized, entry);
 				return entry;
+			})
+			.catch((error: unknown) => {
+				if (isStale()) {
+					return undefined;
+				}
+				throw error;
 			})
 			.finally(() => {
 				this.inFlight.delete(normalized);

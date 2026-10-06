@@ -37,11 +37,16 @@ Hosts call `prepareHmrFileChange()` before HMR dispatch (`hmr/hmr-file-change-pr
 
 ## Client events
 
-| Event           | Client behavior                                                                                                                                                                                            |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `update`        | Cache-bust and re-import the changed module URL (or reload the active page module)                                                                                                                         |
-| `css-update`    | Refresh matching stylesheet `link` hrefs                                                                                                                                                                   |
-| `layout-update` | Soft current-page reload with layout cache cleared (`persistLayouts` remounts the updated layout without a full document reload). Falls back to `location.reload()` only if no navigation owner handles it |
-| `reload`        | Full `location.reload()`                                                                                                                                                                                   |
+| Event           | Client behavior                                                                                                                                                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `update`        | Cache-bust and re-import the changed module URL (or reload the active page module)                                                                                                                                             |
+| `css-update`    | Refresh matching stylesheet `link` hrefs                                                                                                                                                                                       |
+| `layout-update` | Soft current-page reload with layout cache cleared (`persistLayouts` remounts the updated layout without a full document reload). Falls back to `location.reload()` only if no navigation owner handles it                     |
+| `reload`        | Full `location.reload()`                                                                                                                                                                                                       |
+| `error`         | Logs to the console and lists the message, once, in a fixed element appended to `<html>` (`client/build-error-overlay.ts`). Any other event removes it, as do Escape, its Dismiss button, and a click outside a text selection |
+
+`error` events also report watcher and route errors. `SharedHmrManager` broadcasts one when the dev transform server fails to build a requested module, and sends pending ones to a socket that connects later; see [dev/README.md](../dev/README.md#build-errors-of-served-modules).
+
+Other HMR events are not queued: a strategy broadcast while no browser is connected is dropped.
 
 Dev-transform local imports are rewritten with a content-hash query (`?v=…`) so transitive layout/component modules get a new ESM module-map key after invalidation. Soft `layout-update` then picks up the new layout while shared outer layout persistence still applies across normal SPA navigations.

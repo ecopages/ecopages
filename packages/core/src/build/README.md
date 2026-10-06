@@ -10,6 +10,7 @@ The build layer is the bundler contract for Ecopages. One bundled adapter is the
 - [App build manifest](#app-build-manifest)
 - [Vite-Host Boundary](#vite-host-boundary)
 - [Plugin Authoring](#plugin-authoring)
+- [Build diagnostics](#build-diagnostics)
 - [BuildOptions Caveats](#buildoptions-caveats)
 - [Dev / watch path](#dev--watch-path)
 - [Metrics](#metrics)
@@ -138,6 +139,15 @@ Vite-based apps (or any future host runtime) should:
 - `module(specifier, callback)` — declares a virtual module by name, with bundler-side namespace encoding.
 
 App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins explicitly.
+
+## Build diagnostics
+
+`BuildResult.logs` holds the errors of a failed build, and `BuildResult.warnings` the warnings of a successful one. Both use Rolldown's `RolldownLog` shape: `message` plus, when Rolldown or the plugin provides them, `code`, `plugin`, `hook`, `id`, `loc`, `frame` and `stack`. Other fields of a thrown error, such as PostCSS's `source`, are not copied. Terminal colour codes are stripped from `message` and `frame`.
+
+- An unattributed Rolldown `BundleError` becomes one log per underlying error; any other error, including an `AggregateError`, becomes one log (`toBuildLogs` in `rolldown/rolldown-adapter-helpers.ts`).
+- `EcoBuildPlugin` callbacks run inside Rolldown plugins the bridge creates (the merged plugin, or an `ecopages-transform:` plugin per `transform`), and Rolldown overwrites `plugin` on a thrown error with that Rolldown plugin's name. The bridge therefore catches errors from `setup`, `onResolve`, `onLoad`, `module()` and `transform` callbacks and throws a new error that keeps the `EcoBuildPlugin` name, the thrown value as `cause`, its message, stack, `loc` and `frame`, and its `id` or else the module (the loaded or transformed file, or the importer for a resolve). The thrown value is never changed, so a plugin can share or freeze it. The log conversion restores `plugin` to the `EcoBuildPlugin` name.
+- Warnings are collected through Rolldown's `onLog` input option and still printed by Rolldown's default handler. Rolldown reports them only once a build completes, so a failed build has none.
+- `formatBuildLog()` (`build-log.ts`) is the one text form of a log, `[plugin] file:line:column: message` followed by the frame and stack frames. Every caller that turns failed build logs into an error message uses it.
 
 ## BuildOptions Caveats
 

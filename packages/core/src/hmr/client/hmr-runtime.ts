@@ -5,6 +5,7 @@
 
 import { getEcoNavigationRuntime } from '../../router/client/navigation-coordinator.ts';
 import { applyModuleUpdate, resolveActiveModuleUrl } from './module-update.ts';
+import { clearBuildError, showBuildError } from './build-error-overlay.ts';
 
 interface HMRPayload {
 	type: 'reload' | 'error' | 'update' | 'css-update' | 'layout-update';
@@ -45,8 +46,17 @@ interface HMRPayload {
 		});
 	}
 
+	/**
+	 * @remarks
+	 * Any update clears a shown build error first. An update that fails to build re-shows it, because the
+	 * server broadcasts the error while it serves the update's module request.
+	 */
 	async function handleMessage(payload: HMRPayload) {
 		const navigationRuntime = getEcoNavigationRuntime(window);
+
+		if (payload.type !== 'error') {
+			clearBuildError();
+		}
 
 		switch (payload.type) {
 			case 'reload':
@@ -74,6 +84,7 @@ interface HMRPayload {
 			}
 			case 'error':
 				console.error('[ecopages] HMR Error:', payload.message);
+				showBuildError(payload.message ?? 'Unknown error');
 				break;
 			case 'update':
 				if (payload.path) {

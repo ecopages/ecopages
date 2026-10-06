@@ -11,7 +11,7 @@
 
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { rolldown } from 'rolldown';
+import { rolldown, type RolldownLog } from 'rolldown';
 
 import type {
 	BuildAdapter,
@@ -25,6 +25,7 @@ import {
 	resolveRolldownOptions,
 	rewriteBrowserRuntimeImportsInOutputs,
 	rewriteNodeRuntimeImportsInOutputs,
+	toBuildLog,
 	toBuildLogs,
 	transpileProfileToOptions,
 } from './rolldown-adapter-helpers.ts';
@@ -40,6 +41,10 @@ export class RolldownBuildAdapter implements BuildAdapter {
 
 	/**
 	 * Issues one build. Creates a fresh `rolldown()` bundler per call.
+	 *
+	 * @remarks
+	 * Warnings are collected on the result and still printed by Rolldown's default handler. Rolldown
+	 * reports them only once a build completes, so a failed build has none.
 	 */
 	async buildOrThrow(options: BuildOptions): Promise<BuildResult> {
 		recordRolldownBuildInvocation('rolldown');
@@ -54,11 +59,20 @@ export class RolldownBuildAdapter implements BuildAdapter {
 			this.appRootRequireCache,
 		);
 
-		const bundle = await rolldown(inputOptions);
+		const warnings: RolldownLog[] = [];
+		const bundle = await rolldown({
+			...inputOptions,
+			onLog: (level, log, defaultHandler) => {
+				if (level === 'warn') {
+					warnings.push(toBuildLog(log));
+				}
+				defaultHandler(level, log);
+			},
+		});
 		const output = await bundle.write(outputOptions);
 		await bundle.close();
 
-		const baseResult = buildResultFromRolldownOutput(output, outdir, contextRoot);
+		const baseResult = { ...buildResultFromRolldownOutput(output, outdir, contextRoot), warnings };
 
 		return rewriteNodeRuntimeImportsInOutputs(
 			rewriteBrowserRuntimeImportsInOutputs(baseResult, contextRoot, plugins),

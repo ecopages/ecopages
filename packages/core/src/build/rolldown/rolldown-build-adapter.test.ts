@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { createRequire, SourceMap } from 'node:module';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
+import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import { createEcoComponentMetaTransform } from '../../plugins/eco-component-meta-plugin.ts';
 import { createEcoBuildPluginFromSourceTransform } from '../../plugins/source-transform.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -429,6 +430,275 @@ describe('RolldownBuildAdapter', () => {
 		assert.ok(result.outputs.length === 0, 'no outputs on failure');
 	});
 
+	test('keeps the code, file and location of a syntax error', async () => {
+		const entrypoint = realpathSync(writeFixture('broken.ts', 'export const value = ;\n'));
+		const adapter = new RolldownBuildAdapter();
+
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+		});
+
+		assert.equal(result.success, false);
+		expect(result.logs).toHaveLength(1);
+		expect(result.logs[0]).toMatchObject({
+			code: 'PARSE_ERROR',
+			id: entrypoint,
+			loc: { file: entrypoint, line: 1 },
+		});
+		expect(result.logs[0]!.message).not.toContain('\u001b[');
+	});
+
+	test('attributes an error thrown by a bridged plugin to that plugin, with its file, frame and stack', async () => {
+		const entrypoint = writeFixture('index.ts', "import './styles.eco';\n");
+		const stylesheet = realpathSync(writeFixture('styles.eco', 'body {}\n'));
+		const adapter = new RolldownBuildAdapter();
+
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			plugins: [
+				{ name: 'first-loader', setup: () => undefined },
+				{
+					name: 'eco-loader',
+					setup(build) {
+						build.onLoad({ filter: /\.eco$/ }, () => {
+							throw Object.assign(new Error('loader boom'), {
+								loc: { file: stylesheet, line: 1, column: 0 },
+								frame: '1: body {}',
+							});
+						});
+					},
+				},
+			],
+		});
+
+		assert.equal(result.success, false);
+		expect(result.logs).toHaveLength(1);
+		expect(result.logs[0]).toMatchObject({
+			code: 'PLUGIN_ERROR',
+			plugin: 'eco-loader',
+			hook: 'load',
+			id: stylesheet,
+			loc: { file: stylesheet, line: 1, column: 0 },
+			frame: '1: body {}',
+			message: 'loader boom',
+		});
+		expect(result.logs[0]!.stack).toContain('loader boom');
+	});
+
+	test('attributes an error thrown by a plugin transform to that plugin and file', async () => {
+		const entrypoint = realpathSync(writeFixture('index.ts', 'export const answer = 42;\n'));
+		const adapter = new RolldownBuildAdapter();
+
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			plugins: [
+				{
+					name: 'eco-transform',
+					setup: () => undefined,
+					transform: {
+						filter: /index\.ts$/,
+						handler() {
+							throw new Error('transform boom');
+						},
+					},
+				},
+			],
+		});
+
+		assert.equal(result.success, false);
+		expect(result.logs[0]).toMatchObject({ plugin: 'eco-transform', id: entrypoint, message: 'transform boom' });
+	});
+
+	test('attributes an error thrown by a bridged plugin setup to that plugin', async () => {
+		const entrypoint = writeFixture('index.ts', 'export const answer = 42;\n');
+		const adapter = new RolldownBuildAdapter();
+
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			plugins: [
+				{
+					name: 'broken-setup',
+					setup() {
+						throw new Error('setup boom');
+					},
+				},
+			],
+		});
+
+		assert.equal(result.success, false);
+		expect(result.logs[0]).toMatchObject({ plugin: 'broken-setup', message: 'setup boom' });
+	});
+
+	test('captures build warnings on the result', async () => {
+		const entrypoint = realpathSync(writeFixture('index.ts', 'eval("1");\nexport const answer = 42;\n'));
+		const adapter = new RolldownBuildAdapter();
+		const printWarning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+		try {
+			const result = await adapter.build({
+				entrypoints: [entrypoint],
+				outdir: path.join(workDir, 'dist'),
+				target: 'browser',
+				format: 'esm',
+				root: workDir,
+			});
+
+			assert.equal(result.success, true);
+			expect(result.warnings).toEqual([expect.objectContaining({ code: 'EVAL', id: entrypoint })]);
+			expect(printWarning).toHaveBeenCalledWith(expect.stringContaining('eval'));
+		} finally {
+			printWarning.mockRestore();
+		}
+	});
+
+	test('attributes the same thrown error to each file it fails, without changing it', async () => {
+		const entrypoint = writeFixture('index.ts', "import './a.eco';\nimport './b.eco';\n");
+		const files = ['a.eco', 'b.eco'].map((name) => realpathSync(writeFixture(name, 'body {}\n')));
+		const shared = new Error('shared boom');
+		const adapter = new RolldownBuildAdapter();
+
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			plugins: [
+				{
+					name: 'shared-loader',
+					setup(build) {
+						build.onLoad({ filter: /\.eco$/ }, () => {
+							throw shared;
+						});
+					},
+				},
+			],
+		});
+
+		assert.equal(result.success, false);
+		expect(result.logs.map((log) => log.id).sort()).toEqual(files);
+		expect(result.logs.every((log) => log.plugin === 'shared-loader')).toBe(true);
+		expect(Object.keys(shared)).toEqual([]);
+	});
+
+	test('attributes a frozen thrown error to its plugin', async () => {
+		const entrypoint = writeFixture('index.ts', "import './styles.eco';\n");
+		const stylesheet = realpathSync(writeFixture('styles.eco', 'body {}\n'));
+		const adapter = new RolldownBuildAdapter();
+
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			plugins: [
+				{
+					name: 'frozen-loader',
+					setup(build) {
+						build.onLoad({ filter: /\.eco$/ }, () => {
+							throw Object.freeze(new Error('frozen boom'));
+						});
+					},
+				},
+			],
+		});
+
+		expect(result.logs).toEqual([
+			expect.objectContaining({ plugin: 'frozen-loader', id: stylesheet, message: 'frozen boom' }),
+		]);
+	});
+
+	test('reports an AggregateError thrown by a plugin setup as one log for that plugin', async () => {
+		const entrypoint = writeFixture('index.ts', 'export const answer = 42;\n');
+		const adapter = new RolldownBuildAdapter();
+
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			plugins: [
+				{
+					name: 'aggregate-setup',
+					setup() {
+						throw new AggregateError([new Error('first'), new Error('second')], 'setup failed twice');
+					},
+				},
+			],
+		});
+
+		expect(result.logs).toEqual([
+			expect.objectContaining({ plugin: 'aggregate-setup', message: 'setup failed twice' }),
+		]);
+	});
+
+	test('attributes errors from onResolve and module() callbacks', async () => {
+		const entrypoint = realpathSync(
+			writeFixture('index.ts', "import 'virtual:broken';\nimport 'resolve:broken';\n"),
+		);
+		const adapter = new RolldownBuildAdapter();
+		const build = (plugins: EcoBuildPlugin[]) =>
+			adapter.build({
+				entrypoints: [entrypoint],
+				outdir: path.join(workDir, 'dist'),
+				target: 'browser',
+				format: 'esm',
+				root: workDir,
+				plugins,
+			});
+
+		const resolveResult = await build([
+			{
+				name: 'virtual-provider',
+				setup: (builder) => builder.module('virtual:broken', () => ({ contents: '' })),
+			},
+			{
+				name: 'broken-resolver',
+				setup(builder) {
+					builder.onResolve({ filter: /^resolve:/ }, () => {
+						throw new Error('resolve boom');
+					});
+				},
+			},
+		]);
+		expect(resolveResult.logs).toEqual([
+			expect.objectContaining({ plugin: 'broken-resolver', id: entrypoint, message: 'resolve boom' }),
+		]);
+
+		const moduleResult = await build([
+			{
+				name: 'broken-virtual',
+				setup(builder) {
+					builder.module('virtual:broken', () => {
+						throw new Error('module boom');
+					});
+					builder.onResolve({ filter: /^resolve:/ }, () => ({ path: 'resolve:ok', external: true }));
+				},
+			},
+		]);
+		expect(moduleResult.logs).toEqual([
+			expect.objectContaining({ plugin: 'broken-virtual', id: 'virtual:broken', message: 'module boom' }),
+		]);
+	});
+
 	test('getTranspileOptions returns the shared transpile defaults', () => {
 		const adapter = new RolldownBuildAdapter();
 		assert.deepEqual(adapter.getTranspileOptions('browser-script'), {
@@ -470,7 +740,7 @@ describe('RolldownBuildAdapter', () => {
 		});
 
 		assert.equal(result.success, false);
-		assert.deepEqual(result.logs, [{ message: 'forced failure' }]);
+		expect(result.logs).toEqual([expect.objectContaining({ message: 'forced failure' })]);
 		assert.equal(result.outputs.length, 0);
 		buildSpy.mockRestore();
 	});

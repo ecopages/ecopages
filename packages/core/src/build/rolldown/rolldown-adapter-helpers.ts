@@ -12,13 +12,14 @@
 import { builtinModules, createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import type { InputOptions, OutputOptions, RolldownPlugin } from 'rolldown';
+import { stripVTControlCharacters } from 'node:util';
+import type { BundleError, InputOptions, OutputOptions, RolldownLog, RolldownPlugin } from 'rolldown';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import { collectBrowserRuntimeManifests, rewriteBrowserRuntimeImports } from '../browser/browser-runtime-plugin.ts';
 import { mergeBrowserRuntimeManifests } from '../browser/browser-runtime-manifest.ts';
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
-import { createRolldownPluginBridge } from './rolldown-plugin-bridge.ts';
+import { createRolldownPluginBridge, getEcoBuildPluginName } from './rolldown-plugin-bridge.ts';
 import {
 	isDeclaredAppPackageImport,
 	isWorkspacePackageImport,
@@ -26,7 +27,6 @@ import {
 } from './runtime-build-output-normalizer.ts';
 import type {
 	BuildDependencyGraph,
-	BuildLog,
 	BuildOptions,
 	BuildOutput,
 	BuildResult,
@@ -353,11 +353,69 @@ export function extractDependencyGraph(
 	return { entrypoints };
 }
 
-export function toBuildLogs(error: unknown): BuildLog[] {
-	if (error instanceof Error) {
-		return [{ message: error.message }];
+const ROLLDOWN_LOG_KEYS = [
+	'binding',
+	'cause',
+	'code',
+	'exporter',
+	'hook',
+	'id',
+	'ids',
+	'loc',
+	'meta',
+	'names',
+	'plugin',
+	'pluginCode',
+	'pos',
+	'reexporter',
+	'url',
+] as const satisfies ReadonlyArray<keyof RolldownLog>;
+
+/**
+ * Copies the `RolldownLog` fields of a Rolldown error or warning into a plain log.
+ *
+ * @remarks
+ * Other own fields, such as a PostCSS error's `source` or `postcssNode`, are left out. `message` and
+ * `stack` are read explicitly because they are not enumerable on `Error` instances. Terminal colour codes
+ * are stripped from `message` and `frame` so the log can be shown outside a terminal.
+ */
+export function toBuildLog(entry: unknown): RolldownLog {
+	if (!entry || typeof entry !== 'object' || typeof (entry as RolldownLog).message !== 'string') {
+		return { message: 'Unknown build error' };
 	}
-	return [{ message: 'Unknown build error' }];
+	const source = entry as RolldownLog;
+	const log: RolldownLog = { message: stripVTControlCharacters(source.message) };
+	for (const key of ROLLDOWN_LOG_KEYS) {
+		if (source[key] !== undefined) {
+			Object.assign(log, { [key]: source[key] });
+		}
+	}
+	if (typeof source.frame === 'string') {
+		log.frame = stripVTControlCharacters(source.frame);
+	}
+	if (typeof source.stack === 'string') {
+		log.stack = source.stack;
+	}
+	const ecoBuildPluginName = getEcoBuildPluginName(entry);
+	if (ecoBuildPluginName) {
+		log.plugin = ecoBuildPluginName;
+	}
+	return log;
+}
+
+/**
+ * Converts a build failure into logs, one per underlying error of a Rolldown `BundleError`.
+ *
+ * @remarks
+ * Only an unattributed `BundleError` is expanded. An `AggregateError` or an error an `EcoBuildPlugin`
+ * threw is one failure and becomes one log.
+ */
+export function toBuildLogs(error: unknown): RolldownLog[] {
+	const errors =
+		error instanceof Error && !(error instanceof AggregateError) && !getEcoBuildPluginName(error)
+			? (error as BundleError).errors
+			: undefined;
+	return (Array.isArray(errors) && errors.length > 0 ? errors : [error]).map(toBuildLog);
 }
 
 /** Translated Rolldown options for one {@link BuildOptions} request. */

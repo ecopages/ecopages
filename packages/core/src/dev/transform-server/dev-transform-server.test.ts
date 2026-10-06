@@ -60,6 +60,45 @@ describe('DevTransformServer', () => {
 		},
 	);
 
+	it.each([true, false])(
+		'does not report a failure of a source fixed during compilation (watcher notified: %s)',
+		async (notifyWatcher) => {
+			const rootDir = createTempRoot('dev-transform-stale-failure');
+			const sourcePath = path.join(rootDir, 'src', 'index.ts');
+			fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+			fs.writeFileSync(sourcePath, 'export const value = ;');
+			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+			const onTransformError = vi.fn();
+			const server = new DevTransformServer({ appConfig: config, onTransformError });
+			const outputUrl = server.registerModule(sourcePath);
+			const started = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			vi.spyOn(DevTransformBundler.prototype, 'transpileModule').mockImplementation(async () => {
+				const code = fs.readFileSync(sourcePath, 'utf8');
+				if (code.includes('= ;')) {
+					started.resolve();
+					await release.promise;
+					throw new Error('broken build');
+				}
+				return { code };
+			});
+
+			const response = server.tryHandleRequest(new Request(`http://localhost${outputUrl}`));
+			await started.promise;
+			fs.writeFileSync(sourcePath, 'export const value = "fixed";');
+			if (notifyWatcher) {
+				server.invalidateSource(sourcePath);
+			}
+			release.resolve();
+
+			const settled = await response;
+			expect(settled?.status).toBe(200);
+			expect(await settled?.text()).toContain('"fixed"');
+			expect(onTransformError).not.toHaveBeenCalled();
+			expect(server.getFailureMessages()).toEqual([]);
+		},
+	);
+
 	it.each(['source', 'all'] as const)(
 		'serializes concurrent requests across %s invalidation with unchanged bytes',
 		async (scope) => {

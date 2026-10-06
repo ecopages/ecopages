@@ -46,6 +46,7 @@ import type {
 	PartialResolvedId,
 	Plugin,
 	ResolveIdResult,
+	RolldownLog,
 	SourceDescription,
 	SourceMapInput,
 	TransformResult,
@@ -245,18 +246,62 @@ interface Registration<Callback> {
 	/** Superset of `matches` that Rolldown tests natively before it calls into JavaScript. */
 	hookFilter: RegExp;
 	callback: Callback;
+	pluginName: string;
 }
 
 function createRegistration<Callback>(
 	filter: RegExp,
 	namespace: string | undefined,
 	callback: Callback,
+	pluginName: string,
 ): Registration<Callback> {
 	return {
 		matches: buildIdMatcher(filter, namespace),
 		hookFilter: namespace ? new RegExp(`^${escapeRegExp(`${namespace}${NAMESPACE_SEPARATOR}`)}`) : filter,
 		callback,
+		pluginName,
 	};
+}
+
+/**
+ * Error thrown by the bridge for an error an `EcoBuildPlugin` threw.
+ *
+ * @remarks
+ * Rolldown overwrites `plugin` on a thrown error with the name of the Rolldown plugin that hosts the hook,
+ * which is the bridge or an `ecopages-transform:` wrapper, so the `EcoBuildPlugin` name is kept in
+ * `ecoBuildPlugin` and read back by {@link getEcoBuildPluginName}. A new error is thrown for every
+ * attribution so the thrown value, which a plugin may share across files or freeze, is never changed;
+ * it stays available as `cause`.
+ */
+class EcoBuildPluginError extends Error {
+	readonly ecoBuildPlugin: string;
+	id?: string;
+	loc?: RolldownLog['loc'];
+	frame?: string;
+
+	constructor(thrown: unknown, pluginName: string, id: string | undefined) {
+		const source: Partial<RolldownLog> = typeof thrown === 'object' && thrown !== null ? thrown : {};
+		super(typeof source.message === 'string' ? source.message : String(thrown), { cause: thrown });
+		this.ecoBuildPlugin = pluginName;
+		if (typeof source.stack === 'string') {
+			this.stack = source.stack;
+		}
+		const thrownId = typeof source.id === 'string' ? source.id : undefined;
+		if (thrownId ?? id) {
+			this.id = thrownId ?? id;
+		}
+		if (source.loc) {
+			this.loc = source.loc;
+		}
+		if (typeof source.frame === 'string') {
+			this.frame = source.frame;
+		}
+	}
+}
+
+/** Returns the name of the `EcoBuildPlugin` that threw `error` inside the bridge, if any. */
+export function getEcoBuildPluginName(error: unknown): string | undefined {
+	return error instanceof EcoBuildPluginError ? error.ecoBuildPlugin : undefined;
 }
 
 /**
@@ -306,40 +351,53 @@ export async function createRolldownPluginBridge(plugins: EcoBuildPlugin[], cont
 	const resolveRegistrations: Registration<ResolveCallback>[] = [];
 	const loadRegistrations: Registration<LoadCallback>[] = [];
 
-	const builder: EcoBuildPluginBuilder = {
-		onResolve: (options, callback) => {
-			assertOpen('onResolve');
-			resolveRegistrations.push(createRegistration(options.filter, options.namespace, callback));
-		},
-		onLoad: (options, callback) => {
-			assertOpen('onLoad');
-			loadRegistrations.push(createRegistration(options.filter, options.namespace, callback));
-		},
-		module: (specifier, callback) => {
-			assertOpen('module');
-			const namespace = `ecopages-module-${moduleCount}`;
-			moduleCount += 1;
-			resolveRegistrations.push(
-				createRegistration(new RegExp(`^${escapeRegExp(specifier)}$`), undefined, async () => ({
-					path: joinNamespace(namespace, specifier),
-				})),
-			);
-			loadRegistrations.push(createRegistration(/.*/, namespace, async () => callback()));
-		},
-	};
-
 	for (const ecoPlugin of plugins) {
-		await ecoPlugin.setup(builder);
+		const pluginName = ecoPlugin.name;
+		const builder: EcoBuildPluginBuilder = {
+			onResolve: (options, callback) => {
+				assertOpen('onResolve');
+				resolveRegistrations.push(createRegistration(options.filter, options.namespace, callback, pluginName));
+			},
+			onLoad: (options, callback) => {
+				assertOpen('onLoad');
+				loadRegistrations.push(createRegistration(options.filter, options.namespace, callback, pluginName));
+			},
+			module: (specifier, callback) => {
+				assertOpen('module');
+				const namespace = `ecopages-module-${moduleCount}`;
+				moduleCount += 1;
+				resolveRegistrations.push(
+					createRegistration(
+						new RegExp(`^${escapeRegExp(specifier)}$`),
+						undefined,
+						async () => ({ path: joinNamespace(namespace, specifier) }),
+						pluginName,
+					),
+				);
+				loadRegistrations.push(createRegistration(/.*/, namespace, async () => callback(), pluginName));
+			},
+		};
+
+		try {
+			await ecoPlugin.setup(builder);
+		} catch (error) {
+			throw new EcoBuildPluginError(error, pluginName, undefined);
+		}
 	}
 	registrationClosed = true;
 
 	const resolveIdHandler = async (source: string, importer: string | undefined) => {
-		for (const { matches, callback } of resolveRegistrations) {
+		for (const { matches, callback, pluginName } of resolveRegistrations) {
 			if (!matches(source)) {
 				continue;
 			}
 			const { namespace, path: sourcePath } = splitNamespace(source);
-			const result = await callback({ path: sourcePath, importer, namespace });
+			let result: EcoBuildOnResolveResult | undefined;
+			try {
+				result = await callback({ path: sourcePath, importer, namespace });
+			} catch (error) {
+				throw new EcoBuildPluginError(error, pluginName, importer);
+			}
 			const converted = convertPluginOnResolveResult(result, importer, contextRoot);
 			if (converted !== undefined) {
 				return converted;
@@ -349,12 +407,17 @@ export async function createRolldownPluginBridge(plugins: EcoBuildPlugin[], cont
 	};
 
 	const loadHandler = async (id: string): Promise<LoadResult | undefined> => {
-		for (const { matches, callback } of loadRegistrations) {
+		for (const { matches, callback, pluginName } of loadRegistrations) {
 			if (!matches(id)) {
 				continue;
 			}
 			const { namespace, path: sourcePath } = splitNamespace(id);
-			const result = await callback({ path: sourcePath, namespace });
+			let result: EcoBuildOnLoadResult | undefined;
+			try {
+				result = await callback({ path: sourcePath, namespace });
+			} catch (error) {
+				throw new EcoBuildPluginError(error, pluginName, sourcePath);
+			}
 			const converted = convertPluginOnLoadResult({ id }, result);
 			if (converted !== undefined) {
 				return converted;
@@ -408,7 +471,13 @@ function createRolldownTransformPlugin(name: string, transform: EcoBuildTransfor
 				include(idFilter(transform.filter, { cleanUrl: true })),
 			],
 			handler(code, id): TransformResult {
-				const result = transform.handler(code, normalizeTransformId(id));
+				const transformId = normalizeTransformId(id);
+				let result: ReturnType<EcoBuildTransform['handler']>;
+				try {
+					result = transform.handler(code, transformId);
+				} catch (error) {
+					throw new EcoBuildPluginError(error, name, transformId);
+				}
 				if (result === undefined) {
 					return undefined;
 				}

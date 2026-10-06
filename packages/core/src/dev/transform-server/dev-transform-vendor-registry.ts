@@ -10,6 +10,7 @@ import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 import { resolveRuntimeSpecifierPublicPath } from '../../build/browser/browser-runtime-manifest.ts';
 import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { formatBuildLog } from '../../build/build-log.ts';
 
 const BROWSER_FIRST_VENDOR_CONDITIONS = ['browser', 'module', 'import', 'default'] as const;
 const MODULE_FIRST_VENDOR_CONDITIONS = ['module', 'import', 'default'] as const;
@@ -164,7 +165,7 @@ export class DevTransformVendorRegistry {
 		});
 
 		if (!result.success) {
-			const details = result.logs.map((log) => log.message).join('\n');
+			const details = result.logs.map(formatBuildLog).join('\n');
 			throw new Error(formatVendorPrebundleError(specifier, details));
 		}
 

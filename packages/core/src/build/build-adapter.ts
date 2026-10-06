@@ -30,7 +30,6 @@ export type {
 	BuildAdapter,
 	BuildDependencyGraph,
 	BuildExecutor,
-	BuildLog,
 	BuildOptions,
 	BuildOutput,
 	BuildOwnership,

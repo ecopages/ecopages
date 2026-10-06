@@ -23,6 +23,7 @@ import {
 } from './route-module-dependency-hasher.ts';
 import type { SourceModuleLoaderFactory } from './module-loading-types.ts';
 import { supportsSourceModuleLoading } from './source-module-support.ts';
+import { formatBuildLog } from '../../build/build-log.ts';
 
 interface PageModuleImportBaseOptions {
 	filePath: string;
@@ -381,7 +382,7 @@ export class PageModuleImportService {
 		recordPageModuleLoad('cold-build', buildResult.outputs.length);
 
 		if (!buildResult.success) {
-			const details = buildResult.logs.map((log) => log.message).join(' | ');
+			const details = buildResult.logs.map(formatBuildLog).join('\n');
 			throw new Error(transpileErrorMessage(details));
 		}
 

@@ -23,6 +23,8 @@ import {
 	mayContainAdditionalWatchMatches,
 	resolveAdditionalWatchPath,
 } from '../utils/additional-watch-paths.ts';
+import { RESOLVED_ASSETS_VENDORS_DIR } from '../config/constants.ts';
+import { resolveWorkspacePackageWatchRoots, isWorkspacePackageFile } from './workspace-package-watch-roots.ts';
 
 /**
  * Configuration options for the ProjectWatcher
@@ -39,7 +41,7 @@ export interface ProjectWatcherConfig {
 	bridge: IClientBridge;
 	/** Delay before a change event is processed; 0 disables debouncing. */
 	changeDebounceMs?: number;
-	/** Applies a config or dotenv change through the owning runtime lifecycle. */
+	/** Applies config, dotenv, or linked package changes through the owning runtime lifecycle. */
 	onRestartRequest?: (filePath: string) => Promise<void>;
 	/** Whether an entry watcher already owns changes to the config module. */
 	entryWatcherOwnsConfig?: boolean;
@@ -78,6 +80,8 @@ export class ProjectWatcher {
 	private readonly onRestartRequest?: (filePath: string) => Promise<void>;
 	private readonly entryWatcherOwnsConfig: boolean;
 	private restartRequestScheduled = false;
+	private restartNeedsVendorInvalidation = false;
+	private workspacePackageRoots: string[] = [];
 	private watcher: FSWatcher | null = null;
 	private closed = false;
 	private pendingChangeEvents = new Map<
@@ -290,30 +294,50 @@ export class ProjectWatcher {
 		}
 	}
 
+	/**
+	 * @remarks
+	 * Linked dependencies can be bundled inside an unchanged package whose vendor
+	 * fingerprint does not include them. Discard generated vendors before the
+	 * host restarts so the next process cannot reuse those stale bundles.
+	 */
 	private handleRuntimeRestart(filePath: string): void {
 		const onRestartRequest = this.onRestartRequest;
 		if (!onRestartRequest) {
 			appLogger.warn(
-				`Configuration or environment file changed (${filePath}). Restart the development server to apply it.`,
+				isWorkspacePackageFile(filePath, this.workspacePackageRoots)
+					? `Linked package changed (${filePath}). Clear ${path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_VENDORS_DIR)} and restart the development server to apply it.`
+					: `Development restart input changed (${filePath}). Restart the development server to apply it.`,
 			);
 			return;
 		}
 
+		this.restartNeedsVendorInvalidation ||= isWorkspacePackageFile(filePath, this.workspacePackageRoots);
 		if (this.restartRequestScheduled) {
 			return;
 		}
 
 		this.restartRequestScheduled = true;
 		void this.changeQueue
-			.then(() => onRestartRequest(filePath))
+			.then(() => {
+				if (this.restartNeedsVendorInvalidation) {
+					const vendorsDir = path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_VENDORS_DIR);
+					if (fileSystem.exists(vendorsDir)) fileSystem.remove(vendorsDir);
+				}
+				return onRestartRequest(filePath);
+			})
 			.catch((error) => this.handleError(error))
 			.finally(() => {
 				this.restartRequestScheduled = false;
+				this.restartNeedsVendorInvalidation = false;
 			});
 	}
 
 	private async processFileChange(filePath: string, event: 'change' | 'add' | 'unlink'): Promise<void> {
 		try {
+			if (isWorkspacePackageFile(filePath, this.workspacePackageRoots)) {
+				this.handleRuntimeRestart(filePath);
+				return;
+			}
 			const plan = this.invalidationService.planFileChange(filePath);
 
 			if (plan.category === 'runtime-restart') {
@@ -552,17 +576,28 @@ export class ProjectWatcher {
 			processorPaths.add(restartPath);
 		}
 
+		this.workspacePackageRoots = resolveWorkspacePackageWatchRoots(this.appConfig.rootDir);
 		const literalPaths = Array.from(processorPaths);
-		const ignoreProjectPath = createProjectWatcherIgnorePredicate(this.appConfig.absolutePaths);
+		const ignoreProjectPath = createProjectWatcherIgnorePredicate(
+			this.appConfig.absolutePaths,
+			this.workspacePackageRoots,
+		);
 		const ignored = (watchedPath: string, stats?: Stats): boolean => {
 			if (ignoreProjectPath(watchedPath)) return true;
-			if (!stats || literalPaths.some((literalPath) => isPathInside(watchedPath, literalPath))) return false;
+			if (
+				!stats ||
+				literalPaths.some((literalPath) => isPathInside(watchedPath, literalPath)) ||
+				this.workspacePackageRoots.some((root) => isPathInside(watchedPath, root))
+			)
+				return false;
 			return stats.isDirectory()
 				? !globWatchPaths.some((watchPath) => mayContainAdditionalWatchMatches(watchedPath, watchPath))
 				: !globWatchPaths.some((watchPath) => matchesAdditionalWatchPath(watchedPath, watchPath));
 		};
 
-		this.watcher = chokidar.watch([...literalPaths, ...new Set(globWatchPaths.map(({ base }) => base))], {
+		this.watcher = chokidar.watch(
+			[...literalPaths, ...this.workspacePackageRoots, ...new Set(globWatchPaths.map(({ base }) => base))],
+			{
 			ignoreInitial: true,
 			ignorePermissionErrors: true,
 			ignored,

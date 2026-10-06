@@ -35,7 +35,7 @@ It is responsible for:
 - Runtime startup reuses finalized config/build state; it should not recompute manifest ownership.
 - Production startup loads the emitted config artifact recorded by the server build, even when the source config is still present.
 
-App-owned is the default ownership path. Host-owned is explicit and should be selected during config construction when a host-driven compatibility flow must avoid silently falling back to app build execution.
+App-owned is the default ownership path. Host-owned is explicit and should be selected by the host through the loader's build-ownership option when a host-driven compatibility flow must avoid silently falling back to app build execution.
 
 ## Output
 

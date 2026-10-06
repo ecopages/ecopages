@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { getAppBuildOwnership } from '../build/build-adapter.ts';
 import { defineConfig } from './define-config.ts';
 import { finalizeEcoPagesConfig } from './finalize-config.ts';
 import { clearEcoPagesConfigCachesForTests, loadEcoPagesConfig, loadEcoPagesUserConfig } from './load-eco-config.ts';
@@ -133,6 +134,24 @@ describe('loadEcoPagesConfig', () => {
 		const appConfig = await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
 		expect(appConfig.absolutePaths.config).toBe(configPath);
 		expect(appConfig.rootDir).toBe(tempDir);
+	});
+
+	it('takes build ownership from the loader option, not from the config module', async () => {
+		const configPath = path.join(tempDir, 'eco.config.ts');
+		fs.writeFileSync(
+			configPath,
+			`export default { rootDir: ${JSON.stringify(tempDir)}, buildOwnership: 'vite-host' };`,
+		);
+
+		const appConfig = await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
+		const hostConfig = await loadEcoPagesConfig({
+			cwd: tempDir,
+			configFile: configPath,
+			buildOwnership: 'vite-host',
+		});
+
+		expect(getAppBuildOwnership(appConfig)).toBe('rolldown');
+		expect(getAppBuildOwnership(hostConfig)).toBe('vite-host');
 	});
 
 	it('defaults omitted rootDir to the loader cwd', async () => {

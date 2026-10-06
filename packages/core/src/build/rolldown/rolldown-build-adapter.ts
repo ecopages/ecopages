@@ -29,6 +29,8 @@ import {
 	transpileProfileToOptions,
 } from './rolldown-adapter-helpers.ts';
 import { recordRolldownBuildInvocation } from './rolldown-build-invocation-metrics.ts';
+import { createEntryModuleClosuresPlugin } from './entry-module-closures.ts';
+import type { BuildDependencyGraph } from '../build-adapter.ts';
 
 const moduleRequire = createRequire(import.meta.url);
 
@@ -54,11 +56,13 @@ export class RolldownBuildAdapter implements BuildAdapter {
 			this.appRootRequireCache,
 		);
 
+		const dependencyGraph: BuildDependencyGraph = { entrypoints: {} };
+		inputOptions.plugins = [inputOptions.plugins, createEntryModuleClosuresPlugin(dependencyGraph, contextRoot)];
 		const bundle = await rolldown(inputOptions);
 		const output = await bundle.write(outputOptions);
 		await bundle.close();
 
-		const baseResult = buildResultFromRolldownOutput(output, outdir, contextRoot);
+		const baseResult = buildResultFromRolldownOutput(output, outdir, contextRoot, dependencyGraph);
 
 		return rewriteNodeRuntimeImportsInOutputs(
 			rewriteBrowserRuntimeImportsInOutputs(baseResult, contextRoot, plugins),

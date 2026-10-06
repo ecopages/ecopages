@@ -23,10 +23,9 @@ import {
 	writeProductionCacheManifest,
 } from './production-build-cache.ts';
 import { getCorePackageVersion } from './cache-keys.ts';
-import { collectReachableLocalImports } from './output-imports.ts';
+import { collectBuildOutputImports, getBuildEntryOutput } from '../build-graph.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import type { BuildResult } from '../build-adapter.ts';
 import {
 	getServerModuleBuildCacheOutdir,
 	getSharedRouteModuleBuildCache,
@@ -148,33 +147,6 @@ function createSafeGraphEntryKey(entryPath: string, rootDir: string): string {
 }
 
 /**
- * @remarks
- * Uses {@link BuildResult.entryOutputs} when present so resolution follows the
- * bundler's `facadeModuleId` instead of guessing from sanitized entry keys.
- * Basename prefix matching remains only as a fallback for backends that omit
- * `entryOutputs`; it can mis-associate keys such as `pages-blog` and
- * `pages-blog-index`.
- */
-function resolveOutputForEntrypoint(entryPath: string, entryKey: string, buildResult: BuildResult): string | undefined {
-	const exactOutput = buildResult.entryOutputs?.[path.resolve(entryPath)];
-	if (exactOutput) {
-		return exactOutput;
-	}
-
-	for (const { path: outputPath } of buildResult.outputs) {
-		const outputBaseName = path.basename(outputPath);
-		if (outputBaseName.startsWith(`${entryKey}-`) && /\.(?:m?js)$/u.test(outputBaseName)) {
-			return outputPath;
-		}
-		if (outputBaseName === `${entryKey}.js` || outputBaseName === `${entryKey}.mjs`) {
-			return outputPath;
-		}
-	}
-
-	return undefined;
-}
-
-/**
  * Whether `manifest` was written by the current core version, build inputs and graph
  * setup, every file its outputs import still exists, and source hashes still match.
  */
@@ -270,12 +242,10 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 
 	const routeModuleBuildCache = getSharedRouteModuleBuildCache(outdir, options.appConfig);
 	const entryRecord: Record<string, string> = {};
-	const entryKeysByPath = new Map<string, string>();
 
 	for (const entryPath of eligibleEntryPaths) {
 		const entryKey = createSafeGraphEntryKey(entryPath, options.appConfig.rootDir);
 		entryRecord[entryKey] = entryPath;
-		entryKeysByPath.set(entryPath, entryKey);
 	}
 
 	appLogger.debugTime('pagesUnifiedGraphBuild');
@@ -297,20 +267,18 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 
 	const outputs: Record<string, string> = {};
 	const outputImports = new Set<string>();
-	const directImportsCache = new Map<string, string[]>();
 	const dependencyHasher = new RouteModuleDependencyHasher();
 	const dependencyHashes: RouteModuleDependencyHashes = {};
 
 	for (const entryPath of eligibleEntryPaths) {
 		const fileHash = fileSystem.hash(entryPath);
-		const entryKey = entryKeysByPath.get(entryPath);
-		const compiledOutput = entryKey ? resolveOutputForEntrypoint(entryPath, entryKey, buildResult) : undefined;
+		const compiledOutput = getBuildEntryOutput(buildResult, entryPath, options.appConfig.rootDir);
 		if (!compiledOutput) {
 			throw new Error(`Pages unified graph build produced no output for ${entryPath}`);
 		}
 
 		outputs[entryPath] = compiledOutput;
-		const compiledOutputImports = collectReachableLocalImports(compiledOutput, { directImportsCache });
+		const compiledOutputImports = collectBuildOutputImports(buildResult, compiledOutput);
 		for (const importPath of compiledOutputImports) outputImports.add(importPath);
 
 		const dependencyModulePaths = resolveRouteModuleDependencyPaths(

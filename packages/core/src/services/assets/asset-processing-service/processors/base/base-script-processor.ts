@@ -5,6 +5,7 @@ import path from 'node:path';
 import type { ScriptAsset } from '../../assets.types.ts';
 import { BaseProcessor } from './base-processor.ts';
 import { BrowserBundleService, type BrowserBundleGroupedEntry } from '../../../browser-bundle.service.ts';
+import { getBuildEntryOutput } from '../../../../../build/build-graph.ts';
 
 export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BaseProcessor<T> {
 	private readonly browserBundleService: BrowserBundleService;
@@ -120,27 +121,12 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 			}
 		}
 
-		const outputs = buildResult.outputs.map((output) => output.path);
 		const entryOutputs = new Map<string, string>();
 
 		for (const entry of entries) {
-			const exactOutput = outputs.find((outputPath) => path.basename(outputPath) === `${entry.entryName}.js`);
-			if (exactOutput) {
-				entryOutputs.set(entry.entryName, exactOutput);
-				continue;
-			}
-
-			const hashedOutput = outputs.find((outputPath) =>
-				path.basename(outputPath).startsWith(`${entry.entryName}-`),
-			);
-			if (hashedOutput) {
-				entryOutputs.set(entry.entryName, hashedOutput);
-				continue;
-			}
-
-			const fallbackOutput = path.join(outdir, `${entry.entryName}.js`);
-			if (fileSystem.exists(fallbackOutput)) {
-				entryOutputs.set(entry.entryName, fallbackOutput);
+			const output = getBuildEntryOutput(buildResult, entry.entrypoint, this.appConfig.rootDir);
+			if (output) {
+				entryOutputs.set(entry.entryName, output);
 				continue;
 			}
 

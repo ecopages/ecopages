@@ -28,6 +28,7 @@ import {
 } from './contracts/build-contracts.ts';
 export type {
 	BuildAdapter,
+	BuildChunk,
 	BuildDependencyGraph,
 	BuildExecutor,
 	BuildLog,

@@ -380,7 +380,27 @@ describe('RolldownBuildAdapter', () => {
 		expect(code).not.toMatch(/import\(['"]\.\/lazy-dep/);
 	});
 
-	test('populates dependency graph from entry chunk moduleIds', async () => {
+	test('retains inlined and unused imports in the source dependency closure', async () => {
+		const dependency = writeFixture('constant.js', "export const value = 'inlined';\n");
+		const unused = writeFixture('unused.js', "export const unused = 'unused';\n");
+		const entry = writeFixture(
+			'entry.js',
+			"import { value } from './constant.js';\nimport { unused } from './unused.js';\nexport const read = () => value;\n",
+		);
+		const result = await new RolldownBuildAdapter().build({
+			entrypoints: [entry],
+			root: workDir,
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+		});
+		expect(result.success).toBe(true);
+		expect(result.dependencyGraph?.entrypoints[realpathSync(entry)]).toEqual(
+			expect.arrayContaining([realpathSync(dependency), realpathSync(unused)]),
+		);
+	});
+
+	test('populates dependency graph from the source module graph', async () => {
 		writeFixture('helper.ts', "export function helper(): string { return 'h'; }\n");
 		const entrypoint = writeFixture(
 			'index.ts',

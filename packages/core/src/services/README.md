@@ -26,6 +26,8 @@ Typical responsibilities include:
 - `error-pages/`: shared semantic 404/500 source precedence, rendering, built-in documents, and static export artifacts
 
 The asset-processing service caches emitted file assets by source identity in development as well as production.
+
+Grouped script assets use exact entry facade output lookup, so Page names such as `blog` and `blog-post` cannot select one another's hydration output. Module-loading caches consume source closures and output reachability from the [build graph](../build/README.md), including inlined imports and generated module artifact checks.
 When a source file changes, its source hash or explicit invalidation removes the cached asset before the next render,
 so shared layout styles do not need to be rebuilt for every navigated page while HMR remains fresh.
 

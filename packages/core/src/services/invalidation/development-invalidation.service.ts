@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { isDevEnvFilePath } from '../../dev/development-restart-watch-paths.ts';
+import { matchesAdditionalWatchPath, resolveAdditionalWatchPath } from '../../utils/additional-watch-paths.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
 import { getAppServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
@@ -196,25 +197,9 @@ export class DevelopmentInvalidationService {
 	 * Returns whether the file matches `additionalWatchPaths`.
 	 */
 	matchesAdditionalWatchPaths(filePath: string): boolean {
-		const normalizedPath = path.resolve(filePath);
-		const patterns = this.appConfig.additionalWatchPaths;
-		if (!patterns.length) return false;
-
-		for (const pattern of patterns) {
-			if (pattern.includes('*')) {
-				const ext = pattern.replace(/\*\*?\/\*|\*+/g, '');
-				if (normalizedPath.endsWith(ext)) return true;
-				continue;
-			}
-
-			const resolvedPattern = path.isAbsolute(pattern) ? pattern : path.resolve(this.appConfig.rootDir, pattern);
-
-			if (isPathInside(normalizedPath, resolvedPattern)) {
-				return true;
-			}
-		}
-
-		return false;
+		return this.appConfig.additionalWatchPaths.some((pattern) =>
+			matchesAdditionalWatchPath(filePath, resolveAdditionalWatchPath(pattern, this.appConfig.rootDir)),
+		);
 	}
 
 	/**

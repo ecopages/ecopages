@@ -117,12 +117,74 @@ describe('DevelopmentInvalidationService', () => {
 		expect(service.matchesAdditionalWatchPaths('/test/project/src/pages/index.tsx')).toBe(false);
 	});
 
-	it('matches universal additionalWatchPaths globs', async () => {
+	it('matches universal additionalWatchPaths globs under the root directory', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		appConfig.additionalWatchPaths = ['**/*'];
 		const service = new DevelopmentInvalidationService(appConfig);
 
-		expect(service.matchesAdditionalWatchPaths('/elsewhere/widget.ts')).toBe(true);
+		expect(service.matchesAdditionalWatchPaths('/test/project/elsewhere/widget.ts')).toBe(true);
+		expect(service.matchesAdditionalWatchPaths('/elsewhere/widget.ts')).toBe(false);
+	});
+
+	it('matches additionalWatchPaths globs with intermediate directories', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		appConfig.additionalWatchPaths = ['content/**/*.md'];
+		const service = new DevelopmentInvalidationService(appConfig);
+
+		expect(service.matchesAdditionalWatchPaths('/test/project/content/blog/post.md')).toBe(true);
+		expect(service.matchesAdditionalWatchPaths('/test/project/src/post.md')).toBe(false);
+	});
+
+	it('matches a leading ** glob at any depth inside the root directory only', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		appConfig.additionalWatchPaths = ['**/*.config.ts'];
+		const service = new DevelopmentInvalidationService(appConfig);
+
+		expect(service.matchesAdditionalWatchPaths('/test/project/packages/ui/vite.config.ts')).toBe(true);
+		expect(service.matchesAdditionalWatchPaths('/test/project/src/not-a.config.ts.bak')).toBe(false);
+		expect(service.matchesAdditionalWatchPaths('/test/project/src/config.ts')).toBe(false);
+		expect(service.matchesAdditionalWatchPaths('/elsewhere/vite.config.ts')).toBe(false);
+	});
+
+	it('anchors additionalWatchPaths globs at the root directory', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		appConfig.additionalWatchPaths = ['*.css'];
+		const service = new DevelopmentInvalidationService(appConfig);
+
+		expect(service.matchesAdditionalWatchPaths('/test/project/global.css')).toBe(true);
+		expect(service.matchesAdditionalWatchPaths('/test/project/src/global.css')).toBe(false);
+	});
+
+	it('matches additionalWatchPaths globs under a root directory with glob characters', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/home/me/[client]/site' });
+		appConfig.additionalWatchPaths = ['content/**/*.md'];
+		const service = new DevelopmentInvalidationService(appConfig);
+
+		expect(service.matchesAdditionalWatchPaths('/home/me/[client]/site/content/blog/post.md')).toBe(true);
+		expect(service.matchesAdditionalWatchPaths('/home/me/[client]/site/src/post.md')).toBe(false);
+	});
+
+	it('matches additionalWatchPaths globs outside the root directory and with literal brackets', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		appConfig.additionalWatchPaths = ['../shared/**/*.ts', '/abs/data/*.json', 'src/pages/[[]slug]/*.md'];
+		const service = new DevelopmentInvalidationService(appConfig);
+
+		expect(service.matchesAdditionalWatchPaths('/test/shared/lib/format.ts')).toBe(true);
+		expect(service.matchesAdditionalWatchPaths('/test/project/lib/format.ts')).toBe(false);
+		expect(service.matchesAdditionalWatchPaths('/abs/data/site.json')).toBe(true);
+		expect(service.matchesAdditionalWatchPaths('/test/project/src/pages/[slug]/intro.md')).toBe(true);
+		expect(service.matchesAdditionalWatchPaths('/test/project/src/pages/s/intro.md')).toBe(false);
+	});
+
+	it('matches dot segments only through pattern segments that start with a dot', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		appConfig.additionalWatchPaths = ['**/*.md', '.github/**/*.yml'];
+		const service = new DevelopmentInvalidationService(appConfig);
+
+		expect(service.matchesAdditionalWatchPaths('/test/project/docs/intro.md')).toBe(true);
+		expect(service.matchesAdditionalWatchPaths('/test/project/.cache/intro.md')).toBe(false);
+		expect(service.matchesAdditionalWatchPaths('/test/project/docs/.draft.md')).toBe(false);
+		expect(service.matchesAdditionalWatchPaths('/test/project/.github/workflows/ci.yml')).toBe(true);
 	});
 
 	it('delegates server invalidation versioning to the app-owned invalidation state', async () => {

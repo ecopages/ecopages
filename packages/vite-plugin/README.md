@@ -50,7 +50,6 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full plugin bucket map.
 - Vite config merging for Ecopages defaults
 - Ecopages source transforms adapted to Vite plugins
 - Virtual modules for integration manifests and island registries
-- Island client wiring
 - Dev invalidation and HMR from the embedded Ecopages app, with a Vite restart when `app.ts` or a module it imports, the Vite config or an env file changes (an `eco.config.ts` edit needs a full restart unless `app.ts` imports it)
 - A dev-server bridge that forwards requests to `app.fetch()`
 

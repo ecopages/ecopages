@@ -3,7 +3,6 @@ import type { PluginOption } from 'vite';
 import { ecopagesClientJsxCompat } from './ecopages-client-jsx-compat.ts';
 import { ecopagesConfig } from './ecopages-config.ts';
 import { ecopagesDevServer } from './ecopages-dev-server.ts';
-import { ecopagesIslands } from './ecopages-islands.ts';
 import { ecopagesMetadata } from './ecopages-metadata.ts';
 import { createEcopagesPluginApi } from './plugin-api.ts';
 import type { ComposedEcopagesViteOptions, EcopagesViteOptions } from './plugin-api.ts';
@@ -32,7 +31,6 @@ function composeEcopagesPlugins(options: ComposedEcopagesViteOptions): PluginOpt
 		ecopagesMetadata(api),
 		...ecopagesSourceTransforms(api),
 		ecopagesVirtualModules(api.appConfig),
-		ecopagesIslands(api),
 		ecopagesDevServer(api),
 	];
 

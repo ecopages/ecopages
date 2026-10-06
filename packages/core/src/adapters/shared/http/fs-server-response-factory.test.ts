@@ -163,5 +163,49 @@ describe('FileSystemServerResponseFactory', () => {
 			expect(response.headers.get('Content-Type')).toBe('image/svg+xml');
 			expect(response.headers.get('Content-Encoding')).toBeNull();
 		});
+
+		it('sends immutable Cache-Control for a content-hashed production asset', async () => {
+			const readFileAsBufferSpy = vi
+				.spyOn(fileSystem, 'readFileAsBuffer')
+				.mockReturnValue(Buffer.from('body{color:red}'));
+			const response = await responseFactory.createFileResponse('/dist/assets/abcdef0123456789.css', 'text/css');
+			readFileAsBufferSpy.mockRestore();
+
+			if (!response) {
+				throw new Error('Expected hashed asset response');
+			}
+			expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
+		});
+
+		it('does not send immutable Cache-Control for an unhashed asset filename', async () => {
+			const readFileAsBufferSpy = vi
+				.spyOn(fileSystem, 'readFileAsBuffer')
+				.mockReturnValue(Buffer.from('body{color:red}'));
+			const response = await responseFactory.createFileResponse('/dist/assets/style.css', 'text/css');
+			readFileAsBufferSpy.mockRestore();
+
+			if (!response) {
+				throw new Error('Expected unhashed asset response');
+			}
+			expect(response.headers.get('Cache-Control')).toBeNull();
+		});
+
+		it('does not send immutable Cache-Control in watch mode', async () => {
+			const watchFactory = new FileSystemServerResponseFactory({
+				options: {
+					watchMode: true,
+				},
+			});
+			const readFileAsBufferSpy = vi
+				.spyOn(fileSystem, 'readFileAsBuffer')
+				.mockReturnValue(Buffer.from('body{color:red}'));
+			const response = await watchFactory.createFileResponse('/dist/assets/abcdef0123456789.css', 'text/css');
+			readFileAsBufferSpy.mockRestore();
+
+			if (!response) {
+				throw new Error('Expected watch-mode asset response');
+			}
+			expect(response.headers.get('Cache-Control')).toBeNull();
+		});
 	});
 });

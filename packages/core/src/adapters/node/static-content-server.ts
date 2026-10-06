@@ -1,9 +1,10 @@
 import { createServer, type IncomingMessage, type Server as NodeHttpServer, type ServerResponse } from 'node:http';
-import { extname, join, normalize, sep } from 'node:path';
+import { basename, extname, join, normalize, sep } from 'node:path';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT, STATUS_MESSAGE } from '../../config/constants.ts';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { ServerUtils } from '../../utils/server-utils.module.ts';
+import { isContentHashedAssetFilename, hashBrowserAssetBytes } from '../../services/assets/hashed-browser-asset.ts';
 
 type NodeStaticContentServerOptions = {
 	hostname?: string;
@@ -106,6 +107,7 @@ export class NodeStaticContentServer {
 			const gzipPath = `${filePath}.gz`;
 			if (fileSystem.exists(gzipPath)) {
 				const file = fileSystem.readFileAsBuffer(gzipPath);
+				const cacheHeaders = this.fileCacheHeaders(filePath, file, req.headers['if-none-match']);
 				this.sendResponse(
 					res,
 					status,
@@ -113,6 +115,7 @@ export class NodeStaticContentServer {
 						'Content-Type': contentType,
 						'Content-Encoding': 'gzip',
 						Vary: 'Accept-Encoding',
+						...cacheHeaders.headers,
 					},
 					isHead ? undefined : file,
 				);
@@ -126,7 +129,49 @@ export class NodeStaticContentServer {
 		}
 
 		const file = fileSystem.readFileAsBuffer(filePath);
-		this.sendResponse(res, status, { 'Content-Type': contentType }, isHead ? undefined : file);
+		const cacheHeaders = this.fileCacheHeaders(filePath, file, req.headers['if-none-match']);
+		if (cacheHeaders.notModified) {
+			this.sendResponse(res, 304, { 'Content-Type': contentType, ...cacheHeaders.headers });
+			return;
+		}
+		this.sendResponse(
+			res,
+			status,
+			{ 'Content-Type': contentType, ...cacheHeaders.headers },
+			isHead ? undefined : file,
+		);
+	}
+
+	/**
+	 * Returns Cache-Control (and ETag for HTML) for one served file.
+	 *
+	 * @remarks
+	 * Content-hashed production assets are `immutable`. Exported HTML lives at a
+	 * stable URL, so it is revalidated with ETag instead.
+	 */
+	private fileCacheHeaders(
+		filePath: string,
+		file: Buffer,
+		ifNoneMatch: string | string[] | undefined,
+	): { headers: Record<string, string>; notModified: boolean } {
+		if (isContentHashedAssetFilename(basename(filePath))) {
+			return { headers: { 'Cache-Control': 'public, max-age=31536000, immutable' }, notModified: false };
+		}
+
+		if (!ServerUtils.getContentType(extname(filePath)).startsWith('text/html')) {
+			return { headers: {}, notModified: false };
+		}
+
+		const etag = `"${hashBrowserAssetBytes(file)}"`;
+		const candidates = Array.isArray(ifNoneMatch) ? ifNoneMatch.join(',') : (ifNoneMatch ?? '');
+		const notModified = candidates.split(',').some((value) => {
+			const candidate = value.trim();
+			return candidate === etag || candidate === `W/${etag}`;
+		});
+		return {
+			headers: { 'Cache-Control': 'public, max-age=0, must-revalidate', ETag: etag },
+			notModified,
+		};
 	}
 
 	/**

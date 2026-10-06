@@ -6,6 +6,7 @@ import {
 	serializeRequestPipelineMetricsHeader,
 } from '../../diagnostics/request-pipeline-metrics.ts';
 import { isDevelopmentRuntime } from '../../utils/runtime.ts';
+import { hashBrowserAssetBytes } from '../assets/hashed-browser-asset.ts';
 
 type CacheStatus = 'hit' | 'miss' | 'stale' | 'expired' | 'disabled';
 
@@ -68,10 +69,11 @@ export class PageRequestCacheCoordinator {
 		cacheKey: string;
 		pageCacheStrategy: CacheStrategy;
 		renderFn: () => Promise<RenderResult>;
+		ifNoneMatch?: string | null;
 	}): Promise<Response> {
 		if (!this.cacheService || options.pageCacheStrategy === 'dynamic') {
 			const { html, strategy } = await options.renderFn();
-			return this.createCachedResponse(html, strategy, 'disabled');
+			return this.createCachedResponse(html, strategy, 'disabled', options.ifNoneMatch);
 		}
 
 		const result = await this.cacheService.getOrCreate(
@@ -80,7 +82,7 @@ export class PageRequestCacheCoordinator {
 			options.renderFn,
 		);
 
-		return this.createCachedResponse(result.html, result.strategy, result.status);
+		return this.createCachedResponse(result.html, result.strategy, result.status, options.ifNoneMatch);
 	}
 
 	/**
@@ -134,10 +136,16 @@ export class PageRequestCacheCoordinator {
 	 * @param html Rendered page HTML.
 	 * @param strategy Effective cache strategy for the response.
 	 * @param cacheStatus Status used for `X-Cache` and `Cache-Control` generation.
+	 * @param ifNoneMatch Incoming `If-None-Match` value for static HTML revalidation.
 	 * @returns HTTP response ready to send to the client.
 	 */
-	private createCachedResponse(html: string, strategy: CacheStrategy, cacheStatus: CacheStatus): Response {
-		const headers: HeadersInit = {
+	private createCachedResponse(
+		html: string,
+		strategy: CacheStrategy,
+		cacheStatus: CacheStatus,
+		ifNoneMatch?: string | null,
+	): Response {
+		const headers: Record<string, string> = {
 			'Content-Type': 'text/html',
 			'Cache-Control': getCacheControlHeader(cacheStatus === 'disabled' ? 'disabled' : strategy),
 			'X-Cache': cacheStatus.toUpperCase(),
@@ -147,6 +155,25 @@ export class PageRequestCacheCoordinator {
 			headers[getRequestPipelineMetricsHeaderName()] = serializeRequestPipelineMetricsHeader();
 		}
 
+		if (strategy === 'static' && cacheStatus !== 'disabled') {
+			const etag = `"${hashBrowserAssetBytes(html)}"`;
+			headers.ETag = etag;
+			if (ifNoneMatchSatisfied(ifNoneMatch, etag)) {
+				return new Response(null, { status: 304, headers });
+			}
+		}
+
 		return new Response(html, { headers });
 	}
+}
+
+function ifNoneMatchSatisfied(ifNoneMatch: string | null | undefined, etag: string): boolean {
+	if (!ifNoneMatch) {
+		return false;
+	}
+
+	return ifNoneMatch.split(',').some((value) => {
+		const candidate = value.trim();
+		return candidate === etag || candidate === `W/${etag}`;
+	});
 }

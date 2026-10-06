@@ -281,7 +281,8 @@ describe('FileSystemResponseMatcher', () => {
 			};
 			const response = await matcherWithCache.handleMatch(match);
 			expect(response.headers.get('X-Cache')).toBe('MISS');
-			expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
+			expect(response.headers.get('Cache-Control')).toBe('public, max-age=0, must-revalidate');
+			expect(response.headers.get('ETag')).toMatch(/^"[a-f0-9]{16}"$/);
 		});
 
 		it('should return X-Cache HIT on second request to same path', async () => {
@@ -302,6 +303,32 @@ describe('FileSystemResponseMatcher', () => {
 
 			expect(response1.headers.get('X-Cache')).toBe('MISS');
 			expect(response2.headers.get('X-Cache')).toBe('HIT');
+		});
+
+		it('returns 304 when If-None-Match matches the static HTML ETag', async () => {
+			const uniquePath = `/cache-test-etag-${Date.now()}`;
+			const match: MatchResult = {
+				requestedPathname: uniquePath,
+				templateRoute: {
+					kind: 'exact',
+					pathname: uniquePath,
+					filePath: INDEX_TEMPLATE_FILE,
+				},
+				params: {},
+				query: {},
+			};
+
+			const first = await matcherWithCache.handleMatch(match);
+			const etag = first.headers.get('ETag');
+			expect(etag).toMatch(/^"[a-f0-9]{16}"$/);
+
+			const notModified = await matcherWithCache.handleMatch(
+				match,
+				new Request(`http://localhost${uniquePath}`, { headers: { 'If-None-Match': etag ?? '' } }),
+			);
+
+			expect(notModified.status).toBe(304);
+			expect(await notModified.text()).toBe('');
 		});
 
 		it('should cache different paths separately', async () => {

@@ -2,7 +2,9 @@ import { STATUS_MESSAGE } from '../../../config/constants.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { FileSystemServerOptions } from '../../../types/internal-types.ts';
 import type { RouteRendererBody } from '../../../types/public-types.ts';
+import { isContentHashedAssetFilename } from '../../../services/assets/hashed-browser-asset.ts';
 import { fileSystem } from '@ecopages/file-system';
+import path from 'node:path';
 
 /**
  * Builds HTTP responses for static files and shared file-system fallbacks.
@@ -69,6 +71,7 @@ export class FileSystemServerResponseFactory {
 			return await this.createResponseWithBody(file as unknown as BodyInit, {
 				headers: {
 					'Content-Type': contentType,
+					...this.hashedAssetCacheHeaders(filePath),
 					...contentEncodingHeader,
 				},
 			});
@@ -82,5 +85,21 @@ export class FileSystemServerResponseFactory {
 			}
 			return null;
 		}
+	}
+
+	/**
+	 * Returns long-lived Cache-Control for content-hashed production assets.
+	 *
+	 * @remarks
+	 * Watch mode keeps source-relative names for HMR, so those URLs must not be
+	 * treated as immutable. Unhashed filenames such as vendor runtimes also stay
+	 * without `immutable`.
+	 */
+	private hashedAssetCacheHeaders(filePath: string): HeadersInit {
+		if (this.options.watchMode || !isContentHashedAssetFilename(path.basename(filePath))) {
+			return {};
+		}
+
+		return { 'Cache-Control': 'public, max-age=31536000, immutable' };
 	}
 }

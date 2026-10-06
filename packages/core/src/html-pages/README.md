@@ -33,7 +33,7 @@ The Page and `html.html` components register their local asset files as discover
 
 A Page is read into three parts:
 
-- **Head nodes**: children of the Page `<head>`, with a singleton key for `<title>`, `<base>`, `<meta charset>`, keyed `<meta>` (`name`, `property`, `http-equiv`), and `<link rel="canonical">`. A second `<head>` is an error. When the Page has a `<title>` or `<meta name="description">`, the compiler appends `og:title`, `og:description`, `twitter:title`, and `twitter:description` from them, unless the Page writes that tag itself. Other social tags, such as `og:image`, `og:type`, and `twitter:card`, are never derived.
+- **Head nodes**: children of the Page `<head>`, with a singleton key for `<title>`, `<base>`, `<meta charset>`, keyed `<meta>` (by the value of the first of `name`, `property` and `http-equiv` it has, so `property="twitter:title"` and `name="twitter:title"` are the same tag), and `<link rel="canonical">`. A second `<head>` is an error. When the Page has a `<title>` or a description `<meta>`, the compiler appends `og:title`, `og:description`, `twitter:title`, and `twitter:description` from them, unless the Page writes that tag itself. Other social tags, such as `og:image`, `og:type`, and `twitter:card`, are never derived.
 - **Body markup**: everything outside the `<head>`, with the doctype and the `<html>` and `<body>` start and end tags removed.
 - **Root attributes**: the attributes of the Page `<html>` and `<body>` elements.
 

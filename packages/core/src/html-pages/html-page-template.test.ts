@@ -40,12 +40,12 @@ describe('compileHtmlPage', () => {
 
 		expect(showHead(template)).toEqual([
 			{ html: '<title>About us</title>', key: 'title' },
-			{ html: '<meta name="description" content="Who we are.">', key: 'meta:name:description' },
+			{ html: '<meta name="description" content="Who we are.">', key: 'meta:description' },
 			{ html: '<link rel="canonical" href="https://example.com/about">', key: 'link:canonical' },
-			{ html: '<meta property="og:title" content="About us">', key: 'meta:property:og:title' },
-			{ html: '<meta property="og:description" content="Who we are.">', key: 'meta:property:og:description' },
-			{ html: '<meta name="twitter:title" content="About us">', key: 'meta:name:twitter:title' },
-			{ html: '<meta name="twitter:description" content="Who we are.">', key: 'meta:name:twitter:description' },
+			{ html: '<meta property="og:title" content="About us">', key: 'meta:og:title' },
+			{ html: '<meta property="og:description" content="Who we are.">', key: 'meta:og:description' },
+			{ html: '<meta name="twitter:title" content="About us">', key: 'meta:twitter:title' },
+			{ html: '<meta name="twitter:description" content="Who we are.">', key: 'meta:twitter:description' },
 		]);
 		expect(show(template.body)).toBe('<main>About</main>');
 		expect(template.metadata).toEqual({
@@ -64,10 +64,35 @@ describe('compileHtmlPage', () => {
 
 		expect(showHead(template).filter((node) => node.key?.includes('title'))).toEqual([
 			{ html: '<title>Q&amp;A "live"</title>', key: 'title' },
-			{ html: '<meta property="og:title" content="Custom">', key: 'meta:property:og:title' },
-			{ html: '<meta name="twitter:title" content="Q&amp;A &quot;live&quot;">', key: 'meta:name:twitter:title' },
+			{ html: '<meta property="og:title" content="Custom">', key: 'meta:og:title' },
+			{ html: '<meta name="twitter:title" content="Q&amp;A &quot;live&quot;">', key: 'meta:twitter:title' },
 		]);
-		expect(showHead(template).some((node) => node.key === 'meta:property:og:description')).toBe(false);
+		expect(showHead(template).some((node) => node.key === 'meta:og:description')).toBe(false);
+	});
+
+	it.each([
+		{ written: '<meta property="twitter:title" content="Custom">', tag: 'twitter:title' },
+		{ written: '<meta name="og:title" content="Custom">', tag: 'og:title' },
+	])('derives no second $tag when the Page writes one with the other attribute', ({ written, tag }) => {
+		const template = compileHtmlPage(
+			pageFile,
+			`<head><title>About</title>${written}</head><main>x</main>`,
+			options,
+		);
+
+		expect(showHead(template).filter((node) => node.html.includes(`"${tag}"`))).toEqual([
+			{ html: written, key: `meta:${tag}` },
+		]);
+	});
+
+	it('reads a metadata tag whichever attribute holds its name', () => {
+		const template = compileHtmlPage(
+			pageFile,
+			'<head><meta name="og:image" content="/cover.png"><meta property="description" content="Hi"></head><main>x</main>',
+			options,
+		);
+
+		expect(template.metadata).toMatchObject({ image: '/cover.png', description: 'Hi' });
 	});
 
 	it('strips the doctype and wrappers of a full document and keeps root attributes', () => {

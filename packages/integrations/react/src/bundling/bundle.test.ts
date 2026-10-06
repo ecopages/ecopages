@@ -183,6 +183,7 @@ describe('BundleService', () => {
 							}) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>,
 						): void;
 						module(): void;
+						transform(): void;
 					}): void;
 				}
 			).setup({
@@ -191,6 +192,7 @@ describe('BundleService', () => {
 					loadCallbacks.push(callback);
 				},
 				module() {},
+				transform() {},
 			});
 
 			const result = await loadCallbacks[0]?.({ path: filePath });
@@ -236,6 +238,7 @@ describe('BundleService', () => {
 							}) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>,
 						): void;
 						module(): void;
+						transform(): void;
 					}): void;
 				}
 			).setup({
@@ -244,6 +247,7 @@ describe('BundleService', () => {
 					loadCallbacks.push(callback);
 				},
 				module() {},
+				transform() {},
 			});
 
 			const result = await loadCallbacks[0]?.({ path: filePath });

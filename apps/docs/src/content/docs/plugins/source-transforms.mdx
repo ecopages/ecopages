@@ -6,9 +6,9 @@ order: 3
 
 # Source Transforms
 
-Source transforms rewrite module source during browser and HMR builds. Register them in your configuration when you need deterministic, filter-based code rewrites without competing with processor `onLoad` plugins.
+Source transforms rewrite module source during browser, HMR, and server builds. Register them in your configuration when you need deterministic, filter-based code rewrites without competing with processor `onLoad` plugins.
 
-Prefer source transforms over ad hoc `EcoBuildPlugin` `onLoad` handlers when the change is a pure source rewrite. The Rolldown bridge runs source transforms after first-wins `onLoad` plugins, so metadata injection and similar loader passes still run on rewritten output.
+Prefer source transforms over ad hoc `EcoBuildPlugin` `onLoad` handlers when the change is a pure source rewrite. They run as bundler `transform` hooks after first-wins `onLoad`, so metadata injection still sees rewritten modules and can return a source map.
 
 ## EcoSourceTransform Shape
 
@@ -27,7 +27,7 @@ const bannerTransform: EcoSourceTransform = {
 
 Fields:
 
-- `name` — stable identifier; also used to dedupe loader plugins in browser builds
+- `name` — stable identifier
 - `filter` — `RegExp` tested against normalized module ids
 - `enforce` — optional `'pre'` or `'post'` ordering (default runs between pre and post)
 - `transform(code, id)` — returns rewritten source, `{ code, map? }`, or `undefined` to skip
@@ -73,7 +73,8 @@ See [Vite Plugin](/docs/ecosystem/vite-plugin) for host integration.
 
 | Mechanism | Use when |
 | --- | --- |
-| `EcoSourceTransform` | Filter-based source rewrites during browser/HMR builds |
+| `EcoSourceTransform` | Filter-based source rewrites during browser, HMR, and server builds |
+| `EcoBuildPlugin` (`transform`) | The same rewrite as a plugin `transform` hook, with an optional source map |
 | `EcoBuildPlugin` (`onLoad` / `onResolve`) | Virtual modules, custom loaders, or resolve-time behavior |
 | Processor `plugins` | Runtime file processing owned by a processor |
 | Processor `buildPlugins` | Browser-only bundling behavior owned by a processor |

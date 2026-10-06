@@ -84,8 +84,9 @@ export class BrowserBundleService {
 	 *
 	 * @remarks
 	 * Browser defaults, app-owned browser plugins, and
-	 * {@link getAppSourceTransforms | app source transforms} are applied here
-	 * so HMR and asset generation do not recreate that policy at each call site.
+	 * {@link getAppSourceTransforms | app source transforms} as `transform` plugins
+	 * are applied here so HMR and asset generation do not recreate that policy at
+	 * each call site.
 	 */
 	async bundle(options: BrowserBundleOptions): Promise<BuildResult> {
 		const { profile, executor = 'hmr', ...requestInput } = options;

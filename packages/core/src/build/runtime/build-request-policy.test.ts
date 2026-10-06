@@ -68,30 +68,36 @@ test('createServerBuildRequest includes app server plugins and jsx ownership', (
 	assert.ok(request.plugins?.some((plugin) => plugin.name === 'caller-plugin'));
 	assert.equal(request.plugins?.[0]?.name, 'caller-plugin');
 	assert.equal(request.target, 'es2022');
-	assert.deepEqual(
-		request.sourceTransforms?.map((transform) => transform.name),
-		['preserve-import-meta-for-server-output'],
-	);
+	assert.ok(request.plugins?.some((plugin) => plugin.name === 'preserve-import-meta-for-server-output'));
 });
 
-test('createServerBuildRequest keeps import.meta at the source for the directory the output runs from', () => {
+test('createServerBuildRequest keeps import.meta at the source for the directory the output runs from', async () => {
 	const appConfig = createAppConfig();
-	const transformFor = (input: { profile?: 'server-entry' | 'route-module'; runtimeOutdir?: string }) => {
+	const transformFor = async (input: { profile?: 'server-entry' | 'route-module'; runtimeOutdir?: string }) => {
 		const request = createServerBuildRequest(appConfig, {
 			entrypoints: ['/app/src/pages/index.ts'],
 			outdir: '/app/.eco/.server-modules',
 			...input,
 		});
-		const transform = request.sourceTransforms?.find(
+		const plugin = request.plugins?.find(
 			(candidate) => candidate.name === 'preserve-import-meta-for-server-output',
 		);
-		const result = transform?.transform('export const url = import.meta.url;', '/app/src/pages/index.ts');
-		return typeof result === 'object' && result ? result.code : result;
+		let transform: ((code: string, id: string) => unknown) | undefined;
+		await plugin?.setup({
+			onResolve() {},
+			onLoad() {},
+			module() {},
+			transform(_options, callback) {
+				transform = callback;
+			},
+		});
+		const result = await transform?.('export const url = import.meta.url;', '/app/src/pages/index.ts');
+		return typeof result === 'object' && result && 'code' in result ? result.code : result;
 	};
 
-	assert.match(String(transformFor({})), /new URL\("\.\.\/\.\.\/src\/pages\/index\.ts", import\.meta\.url\)/u);
+	assert.match(String(await transformFor({})), /new URL\("\.\.\/\.\.\/src\/pages\/index\.ts", import\.meta\.url\)/u);
 	assert.match(
-		String(transformFor({ profile: 'server-entry', runtimeOutdir: '/app/.server' })),
+		String(await transformFor({ profile: 'server-entry', runtimeOutdir: '/app/.server' })),
 		/new URL\("\.\.\/src\/pages\/index\.ts", import\.meta\.url\)/u,
 	);
 });
@@ -113,12 +119,15 @@ test('resolveServerAppBuildPlugins matches createServerBuildRequest app plugin s
 	});
 
 	assert.deepEqual(
-		request.plugins?.map((plugin) => plugin.name),
+		request.plugins
+			?.map((plugin) => plugin.name)
+			.filter((name) => name !== 'preserve-import-meta-for-server-output'),
 		resolveServerAppBuildPlugins(appConfig).map((plugin) => plugin.name),
 	);
+	assert.ok(request.plugins?.some((plugin) => plugin.name === 'preserve-import-meta-for-server-output'));
 });
 
-test('createBrowserBuildRequest excludes app plugins by name and preserves source transforms', () => {
+test('createBrowserBuildRequest excludes app plugins by name and attaches source transforms as plugins', () => {
 	const appConfig = createAppConfig();
 
 	const request = createBrowserBuildRequest(appConfig, {
@@ -129,6 +138,5 @@ test('createBrowserBuildRequest excludes app plugins by name and preserves sourc
 	});
 
 	assert.ok(request.plugins?.every((plugin) => plugin.name !== 'browser-plugin'));
-	assert.ok(Array.isArray(request.sourceTransforms));
 	assert.equal(request.target, 'browser');
 });

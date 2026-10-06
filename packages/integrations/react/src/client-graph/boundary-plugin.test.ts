@@ -27,6 +27,7 @@ function createPluginTestHarness(pluginOptions?: Parameters<typeof createClientG
 			onLoadRegistrations.push({ options, callback });
 		},
 		module: (_specifier, _callback) => {},
+		transform: () => {},
 	};
 
 	const plugin = createClientGraphBoundaryPlugin(pluginOptions);

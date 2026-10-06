@@ -136,7 +136,7 @@ describe('BrowserBundleService', () => {
 
 		expect(build).toHaveBeenCalledWith(
 			expect.objectContaining({
-				sourceTransforms: [metaTransform],
+				plugins: expect.arrayContaining([expect.objectContaining({ name: metaTransform.name })]),
 			}),
 		);
 	});

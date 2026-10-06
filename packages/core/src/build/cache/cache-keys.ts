@@ -43,27 +43,6 @@ export function createPluginCacheKey(plugins?: EcoBuildPlugin[]): string {
 	return `plugins:${plugins.map((plugin) => `${plugin.name}:${hashFunctionIdentity(plugin.setup)}`).join(',')}`;
 }
 
-/** Stable fingerprint for ordered source transforms. */
-export function createSourceTransformCacheKey(sourceTransforms: BuildOptions['sourceTransforms']): string {
-	if (!sourceTransforms || sourceTransforms.length === 0) {
-		return 'sourceTransforms:default';
-	}
-
-	return `sourceTransforms:${sourceTransforms
-		.map((transform) => {
-			const filterSource = transform.filter.source;
-			const filterFlags = transform.filter.flags;
-			return [
-				transform.name,
-				transform.enforce ?? 'default',
-				filterSource,
-				filterFlags,
-				hashFunctionIdentity(transform.transform),
-			].join(':');
-		})
-		.join(',')}`;
-}
-
 /**
  * Stable fingerprint of a function body for cache and request identity keys.
  *

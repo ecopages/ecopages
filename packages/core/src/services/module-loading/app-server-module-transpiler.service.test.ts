@@ -283,7 +283,9 @@ describe('app server module transpiler runtime state', () => {
 				buildExecutor,
 			});
 
-			assert.deepEqual(observedPlugins, [['ecopages-alias-resolver', 'react-mdx-loader']]);
+			assert.deepEqual(observedPlugins, [
+				['ecopages-alias-resolver', 'react-mdx-loader', 'preserve-import-meta-for-server-output'],
+			]);
 		} finally {
 			fs.rmSync(rootDir, { recursive: true, force: true });
 		}

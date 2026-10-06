@@ -13,6 +13,7 @@ async function getMdxLoaderFilter(plugin: ReactPlugin): Promise<RegExp | undefin
 			filter = options.filter;
 		},
 		module() {},
+		transform() {},
 	});
 	return filter;
 }

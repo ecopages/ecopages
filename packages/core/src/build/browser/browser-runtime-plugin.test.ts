@@ -61,6 +61,7 @@ function setupPlugin(
 			callbacks.loadCallbacks.push(callback as LoadCallback);
 		},
 		module() {},
+		transform() {},
 	});
 }
 

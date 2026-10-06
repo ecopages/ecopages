@@ -20,7 +20,7 @@ These contracts are responsible for:
 - `find-integration-for-file.ts`: resolves the Integration that owns a file by its longest registered extension; route rendering, page-module loading, route discovery, the pages graph, and component attribution all use it
 - `processor.ts`: asset-transformation contract for processors, including generated `@types` package helpers for virtual modules
 - `runtime-capability.ts`: runtime compatibility declaration types
-- `source-transform.ts`: bundler-neutral source-transform primitive with Ecopages adapters plus app-level Vite plugin composition helpers
+- `source-transform.ts`: bundler-neutral source-transform primitive; Rolldown builds run them as `transform` plugins, Vite via `createVitePluginFromSourceTransform`
 - `component-import-discovery.ts`: resolves direct local factory exports, named `export { X } from` barrels (imported binding only), relative CSS imports, and aliased CSS imports; records successful named re-export hops as watch files; excludes `export *`, type imports, package imports, and ordinary helpers.
 - `eco-component-meta-plugin.ts`: component-identity attribution transform for `eco.*()` factories and `attributeMdxComponentIdentity` for compiled MDX modules
 

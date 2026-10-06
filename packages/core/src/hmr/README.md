@@ -51,6 +51,6 @@ The Project Watcher calls `prepareHmrFileChange()` before HMR dispatch (`hmr/hmr
 
 `error` events also report watcher and route errors. `SharedHmrManager` broadcasts one when the dev transform server fails to build a requested module, and sends pending ones to a socket that connects later; see [dev/README.md](../dev/README.md#build-errors-of-served-modules).
 
-Other HMR events are not queued: a strategy broadcast while no browser is connected is dropped.
+Other HMR events are not queued. While no browser is connected, `SharedHmrManager` drops a file change's events and logs that it did so at debug level. A tab opened later loads its page after the change, so its HTML and versioned module URLs are already current. A tab whose socket was reconnecting at the time keeps its old page until the next change; replaying a `reload` to cover it would also reload every freshly opened tab, because the server cannot tell the two apart.
 
 Dev-transform local imports are rewritten with a content-hash query (`?v=…`) so transitive layout/component modules get a new ESM module-map key after invalidation. Soft `layout-update` then picks up the new layout while shared outer layout persistence still applies across normal SPA navigations.

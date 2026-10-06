@@ -35,7 +35,7 @@ Three concentric shapes, plus profile executors and request policy:
 
 Plus one translation bridge:
 
-- `rolldown/rolldown-plugin-bridge.ts` — converts the runtime-agnostic `EcoBuildPlugin[]` array (the contract integrations and processors register) into the bundler's native `Plugin` array. Each `EcoBuildPlugin` becomes its own plugin entry to preserve plugin-priority order.
+- `rolldown/rolldown-plugin-bridge.ts` — converts the runtime-agnostic `EcoBuildPlugin[]` array (the contract integrations and processors register) into one Rolldown plugin. Its resolve and load registrations are checked in `EcoBuildPlugin[]` order and the first non-null result wins, so array position sets priority.
 
 ## Files
 

@@ -95,6 +95,64 @@ describe('compileHtmlPage', () => {
 		expect(template.metadata).toMatchObject({ image: '/cover.png', description: 'Hi' });
 	});
 
+	it('reads the leading head tags of a Page without a <head> element', () => {
+		const template = compileHtmlPage(
+			pageFile,
+			'<!DOCTYPE html>\n<!-- page -->\n<title>About</title>\n<meta name="description" content="D">\n<main>x</main>',
+			options,
+		);
+
+		expect(template.metadata).toEqual({ title: 'About', description: 'D' });
+		expect(showHead(template).map((node) => node.key)).toEqual([
+			'title',
+			'meta:description',
+			'meta:og:title',
+			'meta:og:description',
+			'meta:twitter:title',
+			'meta:twitter:description',
+		]);
+		expect(show(template.body)).toContain('<main>x</main>');
+		expect(show(template.body)).not.toMatch(/<title|<meta/);
+	});
+
+	it('emits a processed asset at the start of a Page without a <head> once, in the head', () => {
+		const template = compileHtmlPage(pageFile, '<style>h1 { color: red; }</style><main>x</main>', options);
+
+		expect(showHead(template).map((node) => node.html)).toEqual(['[asset 0]']);
+		expect(show(template.body)).toBe('<main>x</main>');
+	});
+
+	it('reads the head tags of an <html> element without a <head>', () => {
+		const template = compileHtmlPage(
+			pageFile,
+			'<html lang="en"><title>T</title><body class="b"><main>x</main></body></html>',
+			options,
+		);
+
+		expect(template.metadata).toEqual({ title: 'T' });
+		expect(template.htmlAttributes).toEqual({ lang: 'en' });
+		expect(template.bodyAttributes).toEqual({ class: 'b' });
+		expect(show(template.body)).toBe('<main>x</main>');
+	});
+
+	it('keeps a leading <noscript> in the body', () => {
+		const template = compileHtmlPage(pageFile, '<noscript><p>Enable JS</p></noscript><main>x</main>', options);
+
+		expect(template.head).toEqual([]);
+		expect(show(template.body)).toBe('<noscript><p>Enable JS</p></noscript><main>x</main>');
+	});
+
+	it('leaves head tags after the first body content in the body', () => {
+		const template = compileHtmlPage(
+			pageFile,
+			'<title>A</title><p>x</p><meta name="description" content="late">',
+			options,
+		);
+
+		expect(template.metadata).toEqual({ title: 'A' });
+		expect(show(template.body)).toBe('<p>x</p><meta name="description" content="late">');
+	});
+
 	it('strips the doctype and wrappers of a full document and keeps root attributes', () => {
 		const template = compileHtmlPage(
 			pageFile,

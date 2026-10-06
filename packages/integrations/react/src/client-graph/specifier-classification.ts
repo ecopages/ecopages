@@ -5,6 +5,7 @@
 import { loadTsconfigPathPrefixes, matchesTsconfigPathPrefix } from '@ecopages/core/plugins/tsconfig-import-resolver';
 import { toPackageRootSpecifier } from '@ecopages/core/plugins/package-specifier';
 import { isContentServerVirtualModule } from '@ecopages/core/build/contracts/content-virtual-modules';
+import { isServerOnlyModuleSpecifier } from '@ecopages/core/build/contracts/server-only-specifier';
 import { dirname, resolve } from 'node:path';
 import type { RequestedExportRules } from './boundary-cache.ts';
 
@@ -40,7 +41,7 @@ export function isProjectAliasSpecifier(specifier: string, projectRoot?: string)
 export function isServerOnlySpecifier(specifier: string): boolean {
 	if (specifier.startsWith('node:')) return true;
 	if (isContentServerVirtualModule(specifier)) return true;
-	return /(?:^|[/])[^/]+\.server(?:$|\.)/.test(specifier);
+	return isServerOnlyModuleSpecifier(specifier);
 }
 
 /**

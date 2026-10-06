@@ -90,7 +90,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 
 - `src/config/README.md`: config finalization and app-owned runtime/build state
 - `src/plugins/README.md`: integration and processor authoring contracts
-- `src/build/README.md`: build adapter, executor, development build coordination, standalone Node server packaging and its deploy layout
+- `src/build/README.md`: build adapter, executor, shared `.server` browser import guard, development build coordination, standalone Node server packaging and its deploy layout
 - `src/services/README.md`: cross-cutting runtime services and orchestration helpers
 - `src/adapters/README.md`: Bun, Node, and shared adapter boundaries
 - `src/dev/README.md`: dev transform server, on-demand client delivery, and invalidation during compilation
@@ -314,6 +314,7 @@ Use these entrypoints when implementing integrations, processors, or source tran
 - `@ecopages/core/plugins/integration-plugin`
 - `@ecopages/core/plugins/processor`
 - `@ecopages/core/plugins/source-transform`
+- `@ecopages/core/build/contracts/server-only-specifier` (dependency-free naming predicate, safe for browser imports)
 - `@ecopages/core/route-renderer/orchestration/integration-renderer`
 - `@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service`
 - `@ecopages/core/services/asset-processing-service`

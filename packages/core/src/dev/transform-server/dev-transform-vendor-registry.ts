@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { statSync } from 'node:fs';
+import { readdirSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 import { fileSystem } from '@ecopages/file-system';
@@ -230,16 +230,50 @@ function sanitizeSpecifierForFileName(specifier: string): string {
  * byte-identical across releases, and a bundle whose name already exists on disk
  * is reused, even after a restart. The manifest is the resolver's package root,
  * so aliased installs (`npm:react@x`) and renamed forks are versioned too.
+ *
+ * A workspace-linked package (its entry's real path is outside any `node_modules`,
+ * as with a pnpm `workspace:` or `link:` dependency) is edited in place without a
+ * version bump, so its whole source tree is hashed as well.
  */
 function hashVendorEntry(specifier: string, entry: ResolvedVendorEntry): string {
-	return createHash('sha256')
+	const hash = createHash('sha256')
 		.update(specifier)
 		.update('\0')
 		.update(readPackageVersion(entry.packageJsonPath))
 		.update('\0')
-		.update(fileSystem.readFileSync(entry.path))
-		.digest('hex')
-		.slice(0, 8);
+		.update(fileSystem.readFileSync(entry.path));
+
+	if (entry.packageJsonPath && !entry.path.split(path.sep).includes('node_modules')) {
+		hashPackageTree(hash, path.dirname(realpathSync(entry.packageJsonPath)));
+	}
+
+	return hash.digest('hex').slice(0, 8);
+}
+
+/**
+ * Feeds every file path and its bytes under `dir` into `hash`, in a stable order.
+ *
+ * @remarks
+ * Skips `node_modules` and dot entries (`.git`, build caches). Dependencies of the
+ * linked package are therefore not hashed; a change to them that leaves the
+ * package's own files, `package.json` included, untouched keeps the old bundle.
+ */
+function hashPackageTree(hash: ReturnType<typeof createHash>, dir: string): void {
+	const entries = readdirSync(dir, { withFileTypes: true }).sort((left, right) =>
+		left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+	);
+	for (const dirent of entries) {
+		if (dirent.name === 'node_modules' || dirent.name.startsWith('.')) {
+			continue;
+		}
+
+		const entryPath = path.join(dir, dirent.name);
+		if (dirent.isDirectory()) {
+			hashPackageTree(hash, entryPath);
+		} else if (dirent.isFile()) {
+			hash.update(entryPath).update('\0').update(fileSystem.readFileAsBuffer(entryPath)).update('\0');
+		}
+	}
 }
 
 function readPackageVersion(packageJsonPath: string | undefined): string {

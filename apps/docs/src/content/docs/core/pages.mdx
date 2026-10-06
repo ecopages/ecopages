@@ -225,7 +225,7 @@ A relative path, with or without `./`, resolves against the `.html` file that co
 | --------------------------------------------------------- | ------------------------------------------------------------ |
 | `<link rel="stylesheet" href="./page.css">`               | Run through your stylesheet processors, linked to the output |
 | `<style>…</style>`                                        | Run through your stylesheet processors, kept inline          |
-| `<script type="module" src="./page.ts">`                  | Bundled as a browser module; a module several scripts import loads once, across Pages too |
+| `<script type="module" src="./page.ts">`                  | Bundled as a browser module; a module several scripts import loads once, across Pages too. CSS comes from a `<link>`: `import './page.css'` or `import 'some-package/style.css'` in the script or a local module it imports is an error naming the HTML file and the stylesheet |
 | `<script src="./legacy.js">`                              | Compiled on its own as a classic script, minified in production |
 | `<script src="./legacy.ts">`                              | Compiled on its own as a classic script, minified in production |
 | A tag with an external or root-relative URL               | Kept as written                                              |

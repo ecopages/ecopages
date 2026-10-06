@@ -1,0 +1,43 @@
+name: Bug
+description: Something in Ecopages behaves incorrectly.
+type: Bug
+body:
+    - type: textarea
+      id: problem
+      attributes:
+          label: Problem
+          description: What is wrong, and who sees it.
+      validations:
+          required: true
+    - type: textarea
+      id: failure-scenario
+      attributes:
+          label: Failure scenario
+          description: Steps, input, or a minimal repository that produces the wrong result. Include commands and output.
+      validations:
+          required: true
+    - type: textarea
+      id: expected
+      attributes:
+          label: Expected
+          description: What should happen instead.
+    - type: textarea
+      id: evidence
+      attributes:
+          label: Evidence
+          description: Code links at a commit SHA, logs, or a reproduction.
+    - type: textarea
+      id: fix
+      attributes:
+          label: Fix
+          description: The durable fix, if known.
+    - type: textarea
+      id: acceptance
+      attributes:
+          label: Acceptance
+          description: The regression test and the observable result that show it is fixed.
+    - type: input
+      id: version
+      attributes:
+          label: Version
+          description: '`@ecopages/core` version and runtime (Bun or Node).'

@@ -26,6 +26,7 @@ import {
 	injectHmrRuntimeIntoHtmlResponse,
 	isHtmlResponse,
 	shouldInjectHmrHtmlResponse,
+	withUncachedDevHtml,
 } from '../hmr/hmr-html-response.ts';
 import type { EcoPageFile } from '../../../types/public-types.ts';
 import { getAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
@@ -348,7 +349,7 @@ export abstract class SharedServerAdapter<
 			return response;
 		}
 
-		let nextResponse = response;
+		let nextResponse = this.options?.watch ? withUncachedDevHtml(response) : response;
 
 		if (
 			shouldInjectHmrHtmlResponse(this.options?.watch ?? false, context.hmrManager, this.hostOwnsDevClient) &&
@@ -405,11 +406,12 @@ export abstract class SharedServerAdapter<
 		request: Request,
 		context: SharedRequestContext,
 	): Promise<Response> {
-		return await this.apiRequestPipeline.handleError(error, {
+		const response = await this.apiRequestPipeline.handleError(error, {
 			request,
 			serverInstance: context.serverInstance,
 			errorHandler: context.errorHandler,
 		});
+		return this.options?.watch && isHtmlResponse(response) ? withUncachedDevHtml(response) : response;
 	}
 
 	/**

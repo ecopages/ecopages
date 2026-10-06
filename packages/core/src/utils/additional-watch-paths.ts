@@ -10,6 +10,7 @@ import { isPathInside } from './path-containment.ts';
  * pattern's segments before the first one with a glob character, and `glob`
  * is the rest of the pattern, matched against paths relative to `base`. Glob
  * characters in the root directory itself therefore never reach the matcher.
+ * On Windows a pattern may use `\` as the separator; `glob` always uses `/`.
  */
 export type AdditionalWatchPath = {
 	base: string;
@@ -29,7 +30,7 @@ export function resolveAdditionalWatchPath(pattern: string, rootDir: string): Ad
 		return { base: path.resolve(rootDir, pattern) };
 	}
 
-	const segments = pattern.split('/');
+	const segments = pattern.replaceAll(path.sep, '/').split('/');
 	const firstGlobIndex = segments.findIndex((segment) => GLOB_SEGMENT.test(segment));
 	const staticPrefix = segments.slice(0, firstGlobIndex).join('/') || (firstGlobIndex > 0 ? '/' : '');
 	return { base: path.resolve(rootDir, staticPrefix), glob: segments.slice(firstGlobIndex).join('/') };

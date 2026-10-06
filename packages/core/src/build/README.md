@@ -134,6 +134,7 @@ Vite-based apps (or any future host runtime) should:
 
 - `onResolve({ filter, namespace? }, callback)` — the bundler's `resolveId` mapped to the shared plugin shape.
 - `onLoad({ filter, namespace? }, callback)` — the bundler's `load` mapped the same way.
+- With a `namespace`, a filter matches only ids that start with `<namespace>:`, and is tested against the path after it.
 - `module(specifier, callback)` — declares a virtual module by name, with bundler-side namespace encoding.
 
 App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins explicitly.

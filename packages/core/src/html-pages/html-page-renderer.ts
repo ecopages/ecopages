@@ -33,6 +33,15 @@ const BODY_START_MARKER = '<!--eco:html-page-body-->';
 const BODY_END_MARKER = '<!--/eco:html-page-body-->';
 
 /**
+ * @remarks
+ * Processed CSS can contain `</style`, as when a Processor inlines an `@import`d file, and the browser would
+ * close the element there. `<\/style` reads as the same characters in CSS.
+ */
+function escapeStyleContent(css: string): string {
+	return css.replace(/<(\/style)/gi, '<\\$1');
+}
+
+/**
  * Renders HTML Pages and the `html.html` Html shell.
  *
  * @remarks
@@ -194,7 +203,7 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 				processed?.content !== undefined,
 				`${file}: could not process an inline <style>; the asset pipeline logged the cause.`,
 			);
-			return `${asset.tag.slice(0, asset.contentStart)}${processed.content}${asset.tag.slice(asset.contentEnd)}`;
+			return `${asset.tag.slice(0, asset.contentStart)}${escapeStyleContent(processed.content)}${asset.tag.slice(asset.contentEnd)}`;
 		}
 
 		if (!fileSystem.exists(asset.filepath)) {

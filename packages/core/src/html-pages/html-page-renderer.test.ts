@@ -117,6 +117,23 @@ describe('HtmlPageRenderer', () => {
 		expect(result.html).toContain('<header>Site</header><main>From JSX</main>');
 	});
 
+	it('keeps processed inline CSS that contains </style> inside its element', async () => {
+		vi.mocked(assetService.processDependencies).mockResolvedValueOnce([
+			{ kind: 'stylesheet', content: '.quote::after { content: "</STYLE>"; } .after { color: red; }' },
+		] as never);
+		const file = write(
+			'src/pages/about.html',
+			"<head><style>@import './quote.css';</style></head><main>About</main>",
+		);
+
+		const html = String(
+			await renderPage(createRenderer(), file, getBuiltInHtmlShell() as EcoComponent<HtmlTemplateProps>),
+		);
+
+		expect(html.match(/<\/style>/gi)).toHaveLength(1);
+		expect(html).toMatch(/<style>[^<]*<\\\/STYLE>[^<]*\.after \{ color: red; \}<\/style>/);
+	});
+
 	it('emits a stylesheet both the shell and the Page declare once, from the shell', async () => {
 		write('src/styles/site.css', 'body { color: red; }');
 		write(

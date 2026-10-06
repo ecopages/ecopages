@@ -38,6 +38,12 @@ Without `ECOPAGES_PLAYWRIGHT_PROJECTS`, `playwright.config.ts` boots **every** w
 
 Or `pnpm test:e2e:ui` for the Playwright UI.
 
+## Busy fixture ports
+
+Before a fixture web server starts, `playwright.config.ts` runs `e2e/scripts/playwright/assert-ports-free.mjs` on the ports its projects test against (from each project's `baseURL`). If something already listens there, the run stops with `Port <port> is already in use by PID <pid>` (the PID comes from `lsof` when it is installed). Stop that process, usually a server left by an interrupted run, and run again.
+
+The check exists because the fixture servers signal readiness on stdout, so Playwright does not check the port itself, and a Bun server starts on a busy port instead of failing; the tests would then reach the old server. It is skipped when `ECOPAGES_REUSE_TEST_SERVERS=true`.
+
 ## Adding a fixture
 
 1. Add `e2e/fixtures/<block>/fixture.e2e.ts`
@@ -75,7 +81,7 @@ Browsers stay headless for `pnpm test:all` / `pnpm test:vitest` / `pnpm test:e2e
 
 | Variable                                   | Effect                                               |
 | ------------------------------------------ | ---------------------------------------------------- |
-| `ECOPAGES_REUSE_TEST_SERVERS=true`         | Reuse running web servers                            |
+| `ECOPAGES_REUSE_TEST_SERVERS=true`         | Reuse running web servers; skips the busy-port check |
 | `ECOPAGES_KEEP_E2E_TMP=true`               | Keep `.e2e-tmp/` after isolated runs                 |
 | `ECOPAGES_PLAYWRIGHT_PROJECTS`             | Comma-separated project filter for `playwright test` |
 | `ECOPAGES_MANAGE_ISOLATED_WORKSPACES=true` | Set by `run-each-project.mjs` for kitchen-sink cells |

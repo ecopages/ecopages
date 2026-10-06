@@ -57,6 +57,10 @@ export type EcoBuildOnLoadResult = {
 
 /**
  * Plugin builder contract consumed by build adapters.
+ *
+ * @remarks
+ * Register every handler before `setup` returns or its promise resolves. A later
+ * call throws, because the bundler reads hook filters before the build starts.
  */
 export interface EcoBuildPluginBuilder {
 	onResolve(

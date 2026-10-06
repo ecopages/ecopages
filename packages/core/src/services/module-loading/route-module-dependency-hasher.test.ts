@@ -11,6 +11,8 @@ import {
 describe('RouteModuleDependencyHasher', () => {
 	it('excludes node builtins and node_modules paths from tracking', () => {
 		assert.equal(isTrackableRouteModuleDependency('node:fs'), false);
+		assert.equal(isTrackableRouteModuleDependency('package/subpath.js'), false);
+		assert.equal(isTrackableRouteModuleDependency('\0virtual.js'), false);
 		assert.equal(isTrackableRouteModuleDependency('/app/node_modules/react/index.js'), false);
 		assert.equal(isTrackableRouteModuleDependency('/app/src/layouts/shared.tsx'), true);
 	});
@@ -72,6 +74,6 @@ describe('RouteModuleDependencyHasher', () => {
 			'/app',
 		);
 
-		assert.deepEqual(dependencyPaths, ['/app/pages/about.tsx', '/app/layouts/shared.tsx', '/app/node:fs']);
+		assert.deepEqual(dependencyPaths, ['/app/pages/about.tsx', '/app/layouts/shared.tsx', 'node:fs']);
 	});
 });

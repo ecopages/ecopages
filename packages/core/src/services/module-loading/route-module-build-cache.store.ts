@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { collectReachableLocalImports } from '../../build/cache/output-imports.ts';
 import type { PageModuleBuildImportOptions } from './page-module-import.service.ts';
 import { RouteModuleDependencyHasher, type RouteModuleDependencyHashes } from './route-module-dependency-hasher.ts';
 import {
@@ -27,7 +26,6 @@ type RouteModuleBuildCacheDependencies = {
 	readManifest: (manifestPath: string) => RouteModuleBuildCacheManifest | undefined;
 	writeManifest: (manifestPath: string, manifest: RouteModuleBuildCacheManifest) => void;
 	exists: (filePath: string) => boolean;
-	readFile: (filePath: string) => string;
 	getCorePackageVersion: () => string;
 	createDependencyHasher: () => RouteModuleDependencyHasher;
 	/**
@@ -56,7 +54,6 @@ export class RouteModuleBuildCache {
 			readManifest: dependencies?.readManifest ?? readRouteModuleBuildCacheManifest,
 			writeManifest: dependencies?.writeManifest ?? writeRouteModuleBuildCacheManifest,
 			exists: dependencies?.exists ?? ((filePath) => fileSystem.exists(filePath)),
-			readFile: dependencies?.readFile ?? ((filePath) => fileSystem.readFileSync(filePath)),
 			getCorePackageVersion: dependencies?.getCorePackageVersion ?? getCorePackageVersion,
 			createDependencyHasher: dependencies?.createDependencyHasher ?? (() => new RouteModuleDependencyHasher()),
 			getConfigHash: dependencies?.getConfigHash ?? (() => undefined),
@@ -130,7 +127,6 @@ export class RouteModuleBuildCache {
 		const dependencyHashes = this.dependencyHasher.createDependencyHashes(dependencyModulePaths);
 		dependencyHashes[cacheFilePath] = options.fileHash;
 
-		const outputPath = resolveOutputPath(options.outputPath, options.outdir);
 		const manifest = this.loadManifest();
 		manifest.corePackageVersion = this.dependencies.getCorePackageVersion();
 		manifest.entries[cacheFilePath] = {
@@ -143,14 +139,7 @@ export class RouteModuleBuildCache {
 				this.dependencies.getConfigHash(),
 			),
 			dependencyHashes,
-			outputImports:
-				options.outputImports ??
-				collectReachableLocalImports(outputPath, {
-					fileAccess: {
-						exists: (filePath) => this.dependencies.exists(filePath),
-						readFile: (filePath) => this.dependencies.readFile(filePath),
-					},
-				}),
+			outputImports: options.outputImports ?? [],
 		};
 
 		this.persistManifest(manifest);

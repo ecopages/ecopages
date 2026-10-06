@@ -24,8 +24,8 @@ export interface BuildOutput {
 /** Per-entrypoint dependency metadata surfaced alongside a build. */
 export interface BuildDependencyGraph {
 	/**
-	 * Each entry's resolved absolute path, mapped to every source module its output loads, statically or
-	 * through `import()`, including the entry itself.
+	 * Each entry's resolved absolute path, mapped to its static and dynamic source
+	 * module closure, including inlined and tree-shaken imports and the entry itself.
 	 *
 	 * @remarks
 	 * Production caches hash these files to decide reuse, so an omitted module leaves stale output after it
@@ -40,8 +40,18 @@ export interface BuildResult {
 	logs: BuildLog[];
 	outputs: BuildOutput[];
 	dependencyGraph?: BuildDependencyGraph;
-	/** Output path of each entry chunk, keyed by the absolute real path of its entry module. */
+	/** Entry facade module paths mapped to emitted absolute output paths. */
 	entryOutputs?: Record<string, string>;
+	/** All emitted chunks keyed by absolute output path; local external edges remain leaves. */
+	outputGraph?: Record<string, BuildChunk>;
+}
+
+export interface BuildChunk {
+	fileName: string;
+	imports: string[];
+	dynamicImports: string[];
+	isEntry: boolean;
+	facadeModuleId: string | null;
 }
 
 /**

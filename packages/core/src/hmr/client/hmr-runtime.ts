@@ -5,7 +5,7 @@
 
 import { getEcoNavigationRuntime } from '../../router/client/navigation-coordinator.ts';
 import { applyModuleUpdate, resolveActiveModuleUrl } from './module-update.ts';
-import { clearBuildError, showBuildError } from './build-error-overlay.ts';
+import { resetBuildErrors, reportBuildError } from './build-error-presentation.ts';
 
 interface HMRPayload {
 	type: 'reload' | 'error' | 'update' | 'css-update' | 'layout-update';
@@ -55,7 +55,7 @@ interface HMRPayload {
 		const navigationRuntime = getEcoNavigationRuntime(window);
 
 		if (payload.type !== 'error') {
-			clearBuildError();
+			resetBuildErrors();
 		}
 
 		switch (payload.type) {
@@ -78,7 +78,7 @@ interface HMRPayload {
 			}
 			case 'error':
 				console.error('[ecopages] HMR Error:', payload.message);
-				showBuildError(payload.message ?? 'Unknown error');
+				reportBuildError(payload.message ?? 'Unknown error');
 				break;
 			case 'update':
 				if (payload.path) {

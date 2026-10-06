@@ -61,6 +61,8 @@ The check exists because the fixture servers signal readiness on stdout, so Play
 
 ## Test filename suffixes
 
+The Vitest browser regression in `packages/dev-toolbar/src/shell/build-errors.test.browser.ts` drives HMR socket messages through the reference Dev Toolbar. It covers distinct errors, recovery, stealth reveal, late mounting, custom-client ownership, and the fallback without a mounted toolbar.
+
 | Pattern                     | Runs on                                |
 | --------------------------- | -------------------------------------- |
 | `*.dev.test.e2e.ts`         | dev only                               |

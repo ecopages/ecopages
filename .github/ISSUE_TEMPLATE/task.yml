@@ -1,0 +1,30 @@
+name: Task
+description: A change to make in the codebase, such as a refactor, cleanup, or tooling change.
+type: Task
+body:
+    - type: textarea
+      id: why
+      attributes:
+          label: Why
+          description: The problem in the codebase today. Link code at a commit SHA.
+      validations:
+          required: true
+    - type: textarea
+      id: change
+      attributes:
+          label: Change
+          description: What to do, and which layer it lands in.
+      validations:
+          required: true
+    - type: textarea
+      id: deletes
+      attributes:
+          label: Deletes
+          description: Files, types, branches or hooks that disappear. Say why if nothing does.
+    - type: textarea
+      id: acceptance
+      attributes:
+          label: Acceptance
+          description: Tests and observable results that show it is done.
+      validations:
+          required: true

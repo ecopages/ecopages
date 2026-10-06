@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
+import { rmSync } from 'node:fs';
 import path from 'node:path';
-import { APP_TEST_ROUTES, INDEX_TEMPLATE_FILE } from '../../../../__fixtures__/constants.ts';
+import { APP_TEST_ROUTES } from '../../../../__fixtures__/constants.ts';
+import { copyFixtureApp } from '../../../../__fixtures__/app/copy-fixture-app.ts';
 import { createFixtureAppConfig } from '../../../../__fixtures__/app/test-app-config.ts';
 import type { HttpErrorPageStatus } from '../../../errors/http-error-page-contract.ts';
 import type { EcoPagesAppConfig, MatchResult } from '../../../types/internal-types.ts';
@@ -14,7 +16,13 @@ import { appLogger } from '../../../global/app-logger.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from './fs-server-response-matcher.ts';
 
-const appConfig = await createFixtureAppConfig();
+const appDir = copyFixtureApp();
+afterAll(() => {
+	rmSync(appDir, { recursive: true, force: true });
+});
+
+const appConfig = await createFixtureAppConfig({ rootDir: appDir });
+const INDEX_TEMPLATE_FILE = path.join(appDir, 'src/pages/index.ts');
 
 for (const integration of appConfig.integrations) {
 	integration.setConfig(appConfig);

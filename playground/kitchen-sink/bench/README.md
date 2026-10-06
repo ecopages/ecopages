@@ -23,7 +23,7 @@ fixture. All benches read from the real `src/` tree and use
 - `BrowserBundleService.bundle()` cost for the four HMR scenarios that the
   watcher actually triggers
 - Production build cost (single page and all pages, minify + treeshake)
-- **Route-module disk cache** warm import cost (`build-speed-bench.ts`)
+- **Route-module in-process cache** warm import cost (`build-speed-bench.ts`)
 - **Static production build segments** (`static-build-bench.ts`):
   server-entry Rolldown cold/warm, route-module Rolldown cold vs warm,
   `StaticSiteGenerator.run`, and full `buildStatic` cold/warm
@@ -159,13 +159,12 @@ outputs are not rewritten after `bundle.write()`.
 ## Static production build baseline (kitchen-sink, 2026-06-24)
 
 Measured via `static-build-bench.ts` on Node after Build Performance Plan
-work (probe dedupe, server-entry cache, parallel SSG, setup dedupe).
+work (probe dedupe, parallel SSG, setup dedupe).
 
 ```
 Scenario                                          | median (ms) | p99 (ms) |   hz
 --------------------------------------------------|-------------|----------|------
 server entry bundle cold (app.ts)                  |       399   |    540   |     3
-server entry bundle warm (.eco cache hit)          |         8   |     18   |   129
 route-module rolldown cold (fresh loader)          |        24   |     62   |    42
 route-module warm import cache hit                 |      0.06   |   0.13   | 16801
 route-module warm import (3 pages)                 |      0.12   |   0.22   |  8697
@@ -178,9 +177,7 @@ buildStatic cold (force, scoped bench dist)        |      4453   |   5474   |  0
 
 - **Rolldown cold route-module** (~24 ms/page) vs **warm cache hit** (~0.06 ms)
   shows why removing the `static-page-probe` double-bundle mattered.
-- **Server-entry warm** (~8 ms lookup) vs **cold** (~400 ms Rolldown) validates
-  the `.eco/.server-entry` cache path.
-- **`buildStatic` warm** (~148 ms) runs in an isolated bench dist with warm
+- **`buildStatic` warm** (~148 ms) runs in an isolated bench dist with in-process
   caches; full kitchen-sink `dist/` clean build is ~12 s E2E (includes Lit fetch
   server, image processor, all pages).
 - **`StaticSiteGenerator.run`** (~141 ms warm) isolates SSG from server-entry
@@ -231,7 +228,7 @@ bench/
 - `heavy-bench.ts` — heavy-library scenario.
 - `integration-bench.ts` — one representative page per integration.
 - `memory-snap-bench.ts` — repeated rebuild stability.
-- `build-speed-bench.ts` — route-module disk cache warm hits.
+- `build-speed-bench.ts` — route-module in-process cache warm hits.
 - `static-build-bench.ts` — static production build segments (server entry,
   route-module Rolldown, SSG, full `buildStatic`, unified graph on/off). Uses isolated
   `dist/__bench-static-build__` / `.eco/__bench-static-build__` dirs.

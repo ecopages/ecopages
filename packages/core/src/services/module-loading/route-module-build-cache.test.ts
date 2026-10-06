@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -611,7 +611,7 @@ describe('RouteModuleBuildCache', () => {
 		);
 	});
 
-	it('writes the manifest to the route-module outdir', async () => {
+	it('does not write a route-module manifest to disk', () => {
 		process.env.NODE_ENV = 'production';
 		const manifestPath = join(tempDir, ROUTE_MODULE_BUILD_CACHE_FILENAME);
 		const cache = new RouteModuleBuildCache(tempDir, {
@@ -630,22 +630,30 @@ describe('RouteModuleBuildCache', () => {
 			dependencyModulePaths: ['/app/pages/about.tsx'],
 		});
 
-		const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as RouteModuleBuildCacheManifest;
-		assert.equal(manifest.corePackageVersion, '1.0.0-test');
-		assert.deepEqual(manifest.entries['/app/pages/about.tsx'], {
-			sourceHash: 'abc123',
-			outputPath,
-			builtAt: manifest.entries['/app/pages/about.tsx']?.builtAt,
-			buildKey: createPersistedRouteModuleBuildKey({
+		assert.equal(existsSync(manifestPath), false);
+		assert.equal(
+			cache.lookup({
 				filePath: '/app/pages/about.tsx',
 				rootDir: '/app',
 				outdir: tempDir,
-			}),
-			dependencyHashes: {
-				'/app/pages/about.tsx': 'abc123',
-			},
-			outputImports: [],
+				fileHash: 'abc123',
+			})?.outputPath,
+			outputPath,
+		);
+
+		const otherProcess = new RouteModuleBuildCache(tempDir, {
+			getCorePackageVersion: () => '1.0.0-test',
+			createDependencyHasher: () => createTestDependencyHasher(),
 		});
+		assert.equal(
+			otherProcess.lookup({
+				filePath: '/app/pages/about.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+				fileHash: 'abc123',
+			}),
+			undefined,
+		);
 	});
 });
 

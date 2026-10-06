@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { readProductionCacheManifest, writeProductionCacheManifest } from '../../build/cache/production-build-cache.ts';
+import { readProductionCacheManifest } from '../../build/cache/production-build-cache.ts';
 import {
 	createJsxCacheKey,
 	createPluginCacheKey,
@@ -12,7 +12,7 @@ import type { RouteModuleDependencyHashes } from './route-module-dependency-hash
 
 export { ROUTE_MODULE_BUILD_CACHE_FILENAME } from '../../build/cache/cache-constants.ts';
 
-/** One persisted route-module build entry in {@link ROUTE_MODULE_BUILD_CACHE_FILENAME}. */
+/** One in-process route-module build entry. */
 export interface RouteModuleBuildCacheEntry {
 	sourceHash: string;
 	outputPath: string;
@@ -35,7 +35,7 @@ export interface RouteModuleStaticRenderCacheEntry {
 	sourceHash: string;
 }
 
-/** On-disk manifest describing all cached route-module builds for one server outdir. */
+/** On-disk leftover from earlier releases; in-process caches use the same shape. */
 export interface RouteModuleBuildCacheManifest {
 	/** `getCorePackageVersion()` of the build that wrote the manifest. */
 	corePackageVersion: string;
@@ -72,7 +72,7 @@ export function normalizeRouteModuleCachePath(filePath: string): string {
 }
 
 /**
- * Returns whether route-module disk caching should run for the current import.
+ * Returns whether the in-process route-module cache should record this import.
  */
 export function shouldPersistRouteModuleBuildCache(options: PageModuleBuildImportOptions): boolean {
 	if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'development') {
@@ -82,7 +82,7 @@ export function shouldPersistRouteModuleBuildCache(options: PageModuleBuildImpor
 	return !options.bypassCache;
 }
 
-/** Canonical reuse identity for route-module memory and disk caches. */
+/** Canonical reuse identity for in-process route-module caches. */
 export function createRouteModuleReuseIdentity(
 	options: PageModuleBuildImportOptions,
 	sourceTransforms?: BuildOptions['sourceTransforms'],
@@ -105,7 +105,7 @@ export function resolvePageModuleOutputFileName(options: { filePath: string; fil
 }
 
 /**
- * Builds the cache key for persisted route-module builds.
+ * Builds the in-process cache key for a route-module compile.
  *
  * @param configHash - Hash of the config module and the files it imports; plugin identity alone cannot see
  * plugin options defined there.
@@ -146,11 +146,4 @@ export function readRouteModuleBuildCacheManifest(manifestPath: string): RouteMo
 			Object.entries(parsed.entries).filter(([, entry]) => Array.isArray(entry.outputImports)),
 		),
 	};
-}
-
-export function writeRouteModuleBuildCacheManifest(
-	manifestPath: string,
-	manifest: RouteModuleBuildCacheManifest,
-): void {
-	writeProductionCacheManifest(manifestPath, manifest);
 }

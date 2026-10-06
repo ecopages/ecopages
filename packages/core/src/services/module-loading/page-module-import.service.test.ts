@@ -659,7 +659,7 @@ describe('PageModuleImportService', () => {
 		assert.equal(fakeDependencies.calls.buildModule.length, 1);
 	});
 
-	it('should reuse a persisted route-module build when the source hash is unchanged in production', async () => {
+	it('should reuse an in-process route-module build when the source hash is unchanged in production', async () => {
 		process.env.NODE_ENV = 'production';
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-disk-cache-'));
 		const compiledOutput = join(tempDir, 'page-hash123.mjs');
@@ -667,7 +667,8 @@ describe('PageModuleImportService', () => {
 		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }));
 
 		try {
-			const productionService = new PageModuleImportService(undefined, fakeDependencies.dependencies);
+			const appConfig = { runtime: {}, integrations: [] } as unknown as EcoPagesAppConfig;
+			const productionService = new PageModuleImportService(appConfig, fakeDependencies.dependencies);
 			const first = await productionService.importModule<{ value: number }>({
 				filePath: '/app/pages/page.tsx',
 				rootDir: '/app',
@@ -752,7 +753,7 @@ describe('PageModuleImportService', () => {
 		}
 	});
 
-	it('should miss the disk cache when a tracked layout dependency changes', async () => {
+	it('should miss the in-process cache when a tracked layout dependency changes', async () => {
 		process.env.NODE_ENV = 'production';
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-graph-cache-'));
 		const rootDir = join(tempDir, 'app');
@@ -767,7 +768,8 @@ describe('PageModuleImportService', () => {
 		writeFileSync(layoutPath, 'export const v = 1;\n', 'utf8');
 
 		let buildCount = 0;
-		const productionService = new PageModuleImportService(undefined, {
+		const appConfig = { runtime: {}, integrations: [] } as unknown as EcoPagesAppConfig;
+		const productionService = new PageModuleImportService(appConfig, {
 			hashFile(filePath: string): string {
 				return fileSystem.hash(filePath);
 			},
@@ -805,7 +807,7 @@ describe('PageModuleImportService', () => {
 
 			writeFileSync(layoutPath, 'export const v = 2;\n', 'utf8');
 
-			const rebuiltService = new PageModuleImportService(undefined, {
+			const rebuiltService = new PageModuleImportService(appConfig, {
 				hashFile(filePath: string): string {
 					return fileSystem.hash(filePath);
 				},

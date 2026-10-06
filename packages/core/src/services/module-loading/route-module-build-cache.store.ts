@@ -7,9 +7,7 @@ import {
 	createEmptyRouteModuleBuildCacheManifest,
 	createPersistedRouteModuleBuildKey,
 	normalizeRouteModuleCachePath,
-	readRouteModuleBuildCacheManifest,
 	shouldPersistRouteModuleBuildCache,
-	writeRouteModuleBuildCacheManifest,
 	type RouteModuleBuildCacheLookup,
 	type RouteModuleBuildCacheManifest,
 	type RouteModuleStaticRenderCacheContext,
@@ -39,7 +37,7 @@ type RouteModuleBuildCacheDependencies = {
 };
 
 /**
- * Persists route-module transpile and static-render metadata under one server outdir.
+ * In-process route-module transpile and static-render metadata for one server outdir.
  */
 export class RouteModuleBuildCache {
 	private readonly manifestPath: string;
@@ -51,8 +49,8 @@ export class RouteModuleBuildCache {
 	constructor(outdir: string, dependencies?: Partial<RouteModuleBuildCacheDependencies>) {
 		this.manifestPath = path.join(outdir, ROUTE_MODULE_BUILD_CACHE_FILENAME);
 		this.dependencies = {
-			readManifest: dependencies?.readManifest ?? readRouteModuleBuildCacheManifest,
-			writeManifest: dependencies?.writeManifest ?? writeRouteModuleBuildCacheManifest,
+			readManifest: dependencies?.readManifest ?? (() => undefined),
+			writeManifest: dependencies?.writeManifest ?? (() => {}),
 			exists: dependencies?.exists ?? ((filePath) => fileSystem.exists(filePath)),
 			getCorePackageVersion: dependencies?.getCorePackageVersion ?? getCorePackageVersion,
 			createDependencyHasher: dependencies?.createDependencyHasher ?? (() => new RouteModuleDependencyHasher()),
@@ -286,7 +284,7 @@ export class RouteModuleBuildCache {
 	}
 
 	/**
-	 * Removes every persisted route-module entry after development invalidation.
+	 * Removes every in-process route-module entry after development invalidation.
 	 *
 	 * @remarks
 	 * Server bundles may externalize generated modules whose source dependencies

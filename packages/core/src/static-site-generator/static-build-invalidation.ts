@@ -6,6 +6,7 @@ import {
 	haveBuildInputsChanged,
 } from '../build/cache/build-input-fingerprint.ts';
 import { clearPersistedProductionBuildCacheManifests } from '../build/cache/production-build-cache.ts';
+import { clearPagesUnifiedGraphMemory } from '../build/cache/pages-unified-graph-build.ts';
 import { type RouteModuleStaticRenderCacheContext } from '../services/module-loading/route-module-build-manifest.ts';
 import {
 	getSharedRouteModuleBuildCache,
@@ -85,13 +86,14 @@ export function haveWatchedBuildInputsChanged(
 	return routeModuleCache.getRecordedWatchedInputsHash() !== watchedInputsHash;
 }
 
-/** Removes persisted production build caches so the next build recomputes everything. */
+/** Clears leftover on-disk manifests and in-process production caches so the next build compiles from source. */
 export function clearProductionBuildCaches(appConfig: EcoPagesAppConfig): void {
 	if (process.env.NODE_ENV !== 'production') {
 		return;
 	}
 
 	clearPersistedProductionBuildCacheManifests(appConfig);
+	clearPagesUnifiedGraphMemory(appConfig);
 
 	for (const cache of appConfig.runtime?.routeModuleBuildCaches?.values() ?? []) {
 		cache.resetMemory();

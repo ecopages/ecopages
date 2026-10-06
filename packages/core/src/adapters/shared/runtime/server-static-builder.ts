@@ -7,16 +7,12 @@ import {
 	createServerBundleStagingDirectory,
 	publishServerBundleDirectory,
 	removeServerBundleStagingDirectory,
-	resolvePublishedServerBundlePaths,
 } from '../../../build/server-bundle-publication.ts';
 import { createServerBuildRequest } from '../../../build/runtime/build-request-policy.ts';
 import { requireBuildRuntime } from '../../../build/runtime/build-runtime.ts';
 import { attachHmrToIntegrations } from './runtime-server-lifecycle.ts';
 import {
 	getServerBundleOutputPaths,
-	lookupServerEntryBuildCache,
-	recordServerEntryBuildCache,
-	SERVER_BUNDLE_MANIFEST_FILENAME,
 	writeServerBundleDeployManifest,
 } from '../../../build/cache/server-entry-build-cache.ts';
 import {
@@ -173,8 +169,7 @@ export class ServerStaticBuilder {
 	 * @remarks
 	 * Only invoked when the app requires a runtime server (API handlers,
 	 * websocket handlers, etc.). Static-only apps skip this step entirely.
-	 * Incremental builds may skip Rolldown when the `.eco/.server-entry`
-	 * cache is still valid.
+	 * Every process bundles the entry from source.
 	 *
 	 * Source code is bundled: the app entry graph, workspace packages and
 	 * TypeScript packages such as Core. Compiled packages from `node_modules`
@@ -189,7 +184,7 @@ export class ServerStaticBuilder {
 	 *
 	 * @throws If the build adapter is unavailable, is host-owned, or bundling fails.
 	 */
-	private async bundleServerEntry(options?: { force?: boolean }): Promise<void> {
+	private async bundleServerEntry(): Promise<void> {
 		assertCanBundleServerConfig(this.appConfig);
 
 		const entryPath = path.isAbsolute(this.entryFile)
@@ -203,16 +198,6 @@ export class ServerStaticBuilder {
 		}
 
 		const { serverOutdir } = getServerBundleOutputPaths(this.appConfig);
-		const cached = lookupServerEntryBuildCache({
-			appConfig: this.appConfig,
-			entryPath,
-			force: options?.force,
-		});
-
-		if (cached) {
-			this.logger.info('Reusing cached server entry bundle');
-			return;
-		}
 
 		this.logger.info('Bundling server entry file...');
 		const stagingDir = createServerBundleStagingDirectory(serverOutdir);
@@ -243,25 +228,7 @@ export class ServerStaticBuilder {
 				outputDir: stagingDir,
 			});
 
-			const stagedOutputPaths = [
-				...(result.outputs.length > 0
-					? result.outputs.map((output) => output.path)
-					: fileSystem.exists(stagedServerEntryPath)
-						? [stagedServerEntryPath]
-						: []),
-				...(configBundle ? [configBundle.emittedConfigPath] : []),
-				path.join(stagingDir, SERVER_BUNDLE_MANIFEST_FILENAME),
-			];
-			const outputPaths = resolvePublishedServerBundlePaths(stagedOutputPaths, stagingDir, serverOutdir);
-
 			publishServerBundleDirectory(stagingDir, serverOutdir);
-			recordServerEntryBuildCache({
-				appConfig: this.appConfig,
-				entryPath,
-				buildResult: result,
-				configBuildResult: configBundle?.buildResult,
-				outputPaths,
-			});
 		} finally {
 			removeServerBundleStagingDirectory(stagingDir);
 		}
@@ -294,7 +261,7 @@ export class ServerStaticBuilder {
 		await this.refreshRuntimeAssets();
 
 		if (this.needsServerBundle) {
-			await this.bundleServerEntry({ force });
+			await this.bundleServerEntry();
 		}
 
 		await this.staticSiteGenerator.run({

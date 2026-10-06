@@ -146,8 +146,8 @@ Ecopages now discovers the document shell and error pages semantically:
 </ApiField>
 
 <ApiField name="buildOwnership" type="'rolldown' | 'vite-host'" defaultValue="'rolldown'">
-	Who runs builds. Set `'vite-host'` when the app runs inside Vite through the [Vite plugin](/docs/ecosystem/vite-plugin),
-	where Vite owns client and server module transforms.
+	Who runs builds. Leave it at `'rolldown'`, also inside Vite: the [Vite plugin](/docs/ecosystem/vite-plugin) sets
+	`'vite-host'` on the config it loads for itself, while the app still builds its browser assets with Rolldown.
 </ApiField>
 
 <ApiField name="experimental" type="{ unsafe?: Record<string, unknown> }">

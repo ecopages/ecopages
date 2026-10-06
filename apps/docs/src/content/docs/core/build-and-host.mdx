@@ -13,7 +13,7 @@ Ecopages separates **core-owned build execution** from **host-managed dev/build*
 | Mode | Who owns the bundler | Typical use |
 |------|----------------------|-------------|
 | **Rolldown (default)** | `@ecopages/core` via the build adapter | CLI, Bun/Node runtime, production server bundles |
-| **Vite host** | Vite + `@ecopages/vite-plugin` | Vite dev server, host-managed module graph |
+| **Vite host** | Vite loads source modules through `@ecopages/vite-plugin`; Rolldown still builds browser assets | Vite dev server; Ecopages owns dev invalidation and HMR |
 
 Core uses [Rolldown](https://rolldown.rs) as the default bundled backend. Ecopages plugins are bridged to Rolldown through a single consolidated plugin to minimize FFI overhead.
 
@@ -35,7 +35,7 @@ Apps start through `createApp()` from `@ecopages/core/create-app`. It selects Bu
 | Mode | `createApp()` options | What `app.start()` does |
 |------|----------------------|-------------------------|
 | **Standalone** (CLI, Bun/Node) | default | Binds the port and serves traffic |
-| **Embedded** (Vite host) | `runtime: { embedded: true }` | Registers an optional readiness callback only; the host owns the port |
+| **Embedded** (Vite host) | `runtime: { embedded: true }` | Registers an optional readiness callback only; the host owns the port, and `app.stop()` leaves the host's HTTP server open |
 
 In embedded mode the host loads your app entry, wires `app.fetch()` into its middleware stack, and invokes the callback you pass to `app.start()` when the app can serve requests.
 

@@ -9,6 +9,7 @@ export type EcopagesEmbeddedApp = {
 		httpServer: NonNullable<ViteDevServer['httpServer']>,
 		options?: { passthroughUnmatched?: boolean },
 	) => Promise<void>;
+	stop?: () => Promise<void>;
 };
 
 export async function registerHostModuleLoader(server: ViteDevServer, api: EcopagesPluginApi): Promise<void> {

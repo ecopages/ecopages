@@ -169,8 +169,9 @@ export type EcoPagesUserConfig = {
 	 * @default 'rolldown'
 	 *
 	 * @remarks
-	 * Set to `'vite-host'` when running inside Vite (`@ecopages/vite-plugin`), where Vite
-	 * owns client and server module transforms.
+	 * `'vite-host'` is set by `@ecopages/vite-plugin` on the config it loads for itself. Leave
+	 * an app's own config at `'rolldown'`, also inside Vite: the embedded app still builds its
+	 * browser assets with Rolldown, and the Vite host adapter cannot build.
 	 */
 	buildOwnership?: BuildOwnership;
 };

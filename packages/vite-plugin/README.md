@@ -49,17 +49,17 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full plugin bucket map.
 - Ecopages source transforms adapted to Vite plugins
 - Virtual modules for integration manifests and island registries
 - Island client wiring
-- Ecopages-aware hot updates
+- Dev invalidation and HMR from the embedded Ecopages app, with a Vite restart when `app.ts` or a module it imports changes
 - A dev-server bridge that forwards requests to `app.fetch()`
 
 ## Runtime Notes
 
 The plugin is separate from the `ecopages` CLI. The CLI runs the app directly through Bun or through Node with `tsx` under Node. Use `@ecopages/vite-plugin` when you want Ecopages to run inside a Vite host setup.
 
-The dev-server bridge assumes a standard Vite dev server with Connect-style middleware support and Vite server environments for server invalidation.
+The dev-server bridge assumes a standard Vite dev server with Connect-style middleware support and an SSR environment.
 
 During dev, the plugin synchronizes `appConfig.baseUrl` to the active Vite server origin so middleware `Request` objects match the browser URL.
 
 ## Further reading
 
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — plugin composition, HMR boundaries, Astro-style extension evaluation
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — plugin composition, dev invalidation and HMR, Astro-style extension evaluation

@@ -46,10 +46,10 @@ Register `ecopages()` **before** framework plugins such as `@vitejs/plugin-react
 - Vite config merging for Ecopages defaults (aliases, `optimizeDeps`, `ssr.noExternal`)
 - [Ecopages source transforms](/docs/plugins/source-transforms) as Vite plugins
 - Virtual modules for integration manifests
-- Ecopages-aware HMR and dev-server bridging to `app.fetch()`
+- Dev-server bridging to `app.fetch()`, with HMR from the Ecopages app and a Vite restart when `app.ts` or a module it imports changes
 
 ## CLI vs Vite host
 
-The `ecopages` CLI runs apps through Bun or Node (`tsx`) directly. Use this plugin when you want Ecopages to run **inside** a Vite host for dev and build orchestration.
+The `ecopages` CLI runs apps through Bun or Node (`tsx`) directly. Use this plugin when you want Ecopages to run **inside** a Vite dev server. Production builds still go through the CLI and Rolldown.
 
 See [Build and Host](/docs/core/build-and-host) for how this fits the Rolldown and Vite-host build model.

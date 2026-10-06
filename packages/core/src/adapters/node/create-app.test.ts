@@ -8,6 +8,7 @@ import { NodeRuntimeHost } from './runtime-host.ts';
 class TestNodeEcopagesApp extends NodeEcopagesApp {
 	public capturedParams: NodeServerAdapterParams | undefined;
 	public completeInitializationCalls: unknown[][] = [];
+	public disposeCalls = 0;
 
 	constructor(options: ConstructorParameters<typeof NodeEcopagesApp>[0]) {
 		super(options, {
@@ -27,7 +28,9 @@ class TestNodeEcopagesApp extends NodeEcopagesApp {
 			servePreviewOnly: async () => undefined,
 			attachUserWebSocketUpgrades: () => {},
 			applyBoundPort: () => {},
-			dispose: async () => {},
+			dispose: async () => {
+				this.disposeCalls += 1;
+			},
 		};
 	}
 
@@ -55,6 +58,18 @@ describe('node embedded app bootstrap', () => {
 		await app.attachWebSocketUpgrades(httpServer, { passthroughUnmatched: true });
 
 		assert.deepEqual(app.completeInitializationCalls, [[httpServer, { passthroughUnmatched: true }]]);
+	});
+
+	it('releases dev resources on stop without closing the host HTTP server', async () => {
+		const app = new TestNodeEcopagesApp({ appConfig: { runtime: {} } as any, runtime: { embedded: true } });
+		const close = vi.fn((callback?: (error?: Error) => void) => callback?.());
+		const httpServer = { close, closeAllConnections: vi.fn() } as unknown as import('node:http').Server;
+
+		await app.attachWebSocketUpgrades(httpServer, { passthroughUnmatched: true });
+		await app.stop();
+
+		assert.equal(close.mock.calls.length, 0);
+		assert.equal(app.disposeCalls, 1);
 	});
 
 	it('keeps watch mode enabled for embedded development runtimes', async () => {

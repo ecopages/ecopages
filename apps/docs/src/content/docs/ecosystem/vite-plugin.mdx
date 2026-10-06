@@ -39,7 +39,7 @@ export default defineConfig({
 });
 ```
 
-`ecopages()` automatically loads and finalizes `eco.config.ts` asynchronously (using `buildOwnership: 'vite-host'`). You can also specify an alternate config path with `ecopages({ configFile: 'custom.config.ts' })` or supply a pre-finalized `appConfig` in tests.
+`ecopages()` loads and finalizes `eco.config.ts` for its own use; your app still builds its browser assets with Rolldown. You can also specify an alternate config path with `ecopages({ configFile: 'custom.config.ts' })` or supply a pre-finalized `appConfig` in tests.
 
 Register `ecopages()` **before** framework plugins such as `@vitejs/plugin-react` or Tailwind when those plugins also transform JSX or CSS.
 

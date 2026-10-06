@@ -248,7 +248,7 @@ import { createRouter } from '@ecopages/browser-router/client';
 createRouter();
 ```
 
-After each client navigation, a script that was not already in the same part of the previous page (head or body) runs, in document order; an external module script runs at most once per URL in a tab.
+After each client navigation, a head script runs only if the previous page's head did not have it, and every body script runs again, in document order; an external module script runs at most once per URL in a tab. An external classic body script therefore runs on every visit to its Page, and its top-level `const`, `let` or `class` declarations would be declared twice and throw. Write such a script without them (use `var` or functions, or wrap the code in a block or an IIFE), or use a module script, which runs once per URL, and listen for `eco:page-load` for code that must run on each visit.
 
 ### Error pages and route rules
 

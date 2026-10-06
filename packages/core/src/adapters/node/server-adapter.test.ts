@@ -1,11 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import os from 'node:os';
+import path from 'node:path';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import type { NodeServerAdapterParams } from './server-adapter.ts';
 import { NodeServerAdapter } from './server-adapter.ts';
 import { NodeClientAbortError } from './http-request-bridge.ts';
 import { NodeStaticPreviewHost } from './static-preview-host.ts';
 
 const upgrades = vi.hoisted(() => ({ attach: vi.fn() }));
+const devBridge = vi.hoisted(() => ({ reload: vi.fn() }));
 
 vi.mock('../shared/ws/node-http-websocket-upgrades.ts', () => ({
 	attachNodeHttpWebSocketUpgrades: upgrades.attach,
@@ -14,8 +19,8 @@ vi.mock('../shared/ws/node-http-websocket-upgrades.ts', () => ({
 vi.mock('./server-adapter-dependencies.ts', () => ({
 	createNodeServerDevRuntime: () => ({
 		websocketServer: {},
-		bridge: {},
-		hmrManager: { setEnabled: vi.fn(), ensureRuntimeReady: vi.fn(async () => {}) },
+		bridge: devBridge,
+		hmrManager: { setEnabled: vi.fn(), ensureRuntimeReady: vi.fn(async () => {}), isEnabled: () => true },
 	}),
 }));
 
@@ -24,6 +29,32 @@ class TestNodeServerAdapter extends NodeServerAdapter {
 
 	public setInitializedForTest(): void {
 		(this as unknown as { initialized: boolean }).initialized = true;
+	}
+
+	private skipDevRouteSetup = false;
+
+	/** Skips route handler setup and prewarm, which need real pages, when completing watch-mode initialization. */
+	public skipDevRouteSetupForTest(): void {
+		this.skipDevRouteSetup = true;
+	}
+
+	protected override configureSharedResponseHandlers(options: never): void {
+		if (!this.skipDevRouteSetup) {
+			super.configureSharedResponseHandlers(options);
+		}
+	}
+
+	protected override async startDevStaticRoutePrewarmWhenReady(): Promise<void> {
+		if (!this.skipDevRouteSetup) {
+			await super.startDevStaticRoutePrewarmWhenReady();
+		}
+	}
+
+	public async processFileChangeForTest(file: string): Promise<void> {
+		const watcher = (this as unknown as { projectWatcher: unknown }).projectWatcher as {
+			processFileChange: (file: string, event: 'change') => Promise<void>;
+		};
+		await watcher.processFileChange(file, 'change');
 	}
 
 	public setHmrManagerForTest(hmrManager: { isEnabled: () => boolean } | null): void {
@@ -186,5 +217,22 @@ describe('NodeServerAdapter', () => {
 				expect.objectContaining({ passthroughUnmatched: true, preflight: expect.any(Function) }),
 			);
 		});
+	});
+
+	it('reloads the browser for a public-directory edit when the host owns the dev client', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.join(os.tmpdir(), 'ecopages-host-reload') });
+		appConfig.integrations = [];
+		const adapter = createAdapter({ appConfig, hostOwnsDevClient: true });
+		adapter.skipDevRouteSetupForTest();
+		const subscription = vi
+			.spyOn(ProjectWatcher.prototype, 'createWatcherSubscription')
+			.mockResolvedValue(undefined as never);
+		onTestFinished(() => subscription.mockRestore());
+		devBridge.reload.mockClear();
+
+		await adapter.completeInitialization({} as import('node:http').Server);
+		await adapter.processFileChangeForTest(path.join(appConfig.absolutePaths.publicDir, 'robots.txt'));
+
+		expect(devBridge.reload).toHaveBeenCalledTimes(1);
 	});
 });

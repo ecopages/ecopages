@@ -421,22 +421,6 @@ describe('ProjectWatcher - File Change Handling', () => {
 			expect(Bridge.reload).toHaveBeenCalled();
 		});
 
-		test('should defer browser reload to the host when configured', async () => {
-			const delegatedWatcher = new ProjectWatcher({
-				config: Config,
-				refreshRouterRoutesCallback: vi.fn(),
-				hmrManager: HmrManager as any,
-				bridge: Bridge as any,
-				hostOwnsDevClient: true,
-				changeDebounceMs: 0,
-			});
-			Config.additionalWatchPaths = ['**/*.config.ts'];
-
-			await (delegatedWatcher as any).handleFileChange('/test/project/app.config.ts');
-
-			expect(Bridge.reload).not.toHaveBeenCalled();
-		});
-
 		test('should not reload for non-matching paths', async () => {
 			Config.additionalWatchPaths = ['**/*.config.ts'];
 			const nonMatchingPath = '/test/project/src/components/Button.tsx';

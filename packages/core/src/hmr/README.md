@@ -19,6 +19,8 @@ It is responsible for:
 3. The active HMR manager selects a strategy.
 4. The strategy coordinates browser rebuilds, metadata reloads, and client broadcasts.
 
+Public-directory and `additionalWatchPaths` changes skip the HMR manager: the Project Watcher sends `reload` through the client bridge itself. It does so whoever owns the dev client, since a host that owns it, such as the Vite host, still serves the Ecopages HMR runtime as the browser client.
+
 ## Design Rule
 
 Generic invalidation policy belongs in core services.

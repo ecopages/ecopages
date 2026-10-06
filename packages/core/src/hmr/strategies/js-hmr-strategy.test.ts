@@ -63,11 +63,22 @@ describe('JsHmrStrategy', () => {
 			expect(strategy.matches(path.join(SRC_DIR, 'app.ts'))).toBe(false);
 		});
 
-		it('returns true for unrelated .ts files when watched entrypoints exist', () => {
+		it('returns false for .ts files no browser module imports when the graph is selective', () => {
 			const dependencyGraph = new InMemoryEntrypointDependencyGraph();
+			dependencyGraph.setEntrypointDependencies(path.join(SRC_DIR, 'entry.ts'), []);
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(SRC_DIR, 'entry.ts'), devTransformUrl('entry.js')]]),
 				getEntrypointDependencyGraph: () => dependencyGraph,
+			});
+			const strategy = new JsHmrStrategy(context);
+
+			expect(strategy.matches(path.join(SRC_DIR, 'pages', 'classic', 'greeting.ts'))).toBe(false);
+		});
+
+		it('returns true for unrelated .ts files when the graph cannot invalidate selectively', () => {
+			const context = createMockContext({
+				getWatchedFiles: () => new Map([[path.join(SRC_DIR, 'entry.ts'), devTransformUrl('entry.js')]]),
+				getEntrypointDependencyGraph: () => new NoopEntrypointDependencyGraph(),
 			});
 			const strategy = new JsHmrStrategy(context);
 

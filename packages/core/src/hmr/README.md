@@ -33,6 +33,8 @@ Runtime-specific WebSocket or event-stream transport belongs in adapters.
 
 Dev client modules are served on demand through `DevTransformServer` (`src/dev/`). `DevTransformEntrypointRegistry` tracks registered entrypoints for HMR invalidation. Registration returns a stable dev-transform URL immediately; the first request (or cache miss) runs Rolldown on demand.
 
+Each module the dev transform serves records its local imports in the entrypoint dependency graph. `JsHmrStrategy` only claims a JavaScript or TypeScript change to a watched entrypoint, a served module, or a file a served module imports. Any other file, such as a server-only module, an HTML Page classic script, or a module that has not been served yet, is left to the other strategies; when none matches, `DefaultHmrStrategy` reloads the page. A claimed file whose importers are not watched entrypoints also ends in a reload.
+
 `BrowserBundleService` is the sole browser-plugin resolver for HMR builds. HMR managers route `hmr-runtime` and `hmr-entrypoint` rebuilds through the `browser-hmr` executor profile.
 
 The Project Watcher calls `prepareHmrFileChange()` before HMR dispatch (`hmr/hmr-file-change-prep.ts`) so page browser graph sessions invalidate consistently with file changes.

@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { isPathInside } from '../utils/path-containment.ts';
+import { isWorkspacePackageFile } from './workspace-package-watch-roots.ts';
 
 export type ProjectWatcherIgnorePaths = {
 	workDir: string;
@@ -16,6 +17,7 @@ export type ProjectWatcherIgnorePaths = {
  */
 export function createProjectWatcherIgnorePredicate(
 	absolutePaths: ProjectWatcherIgnorePaths,
+	workspacePackageRoots: readonly string[] = [],
 ): (watchedPath: string) => boolean {
 	const ignoredDirectories = [absolutePaths.workDir, absolutePaths.distDir];
 
@@ -24,6 +26,17 @@ export function createProjectWatcherIgnorePredicate(
 		if (segments.includes('node_modules') || segments.includes('.git')) {
 			return true;
 		}
+		if (
+			workspacePackageRoots.some(
+				(root) =>
+					isWorkspacePackageFile(watchedPath, [root]) &&
+					path
+						.relative(root, watchedPath)
+						.split(path.sep)
+						.some((segment) => segment.startsWith('.')),
+			)
+		)
+			return true;
 
 		return ignoredDirectories.some((directory) => isPathInside(watchedPath, directory));
 	};

@@ -45,6 +45,8 @@ Manual `/@vite/client` string injection in middleware is deprecated. Keep Ecopag
 
 Each Vite server instance loads its own app, and middleware awaits it before serving requests. The app is stopped when its Vite server closes (the plugin's `closeBundle` hook), including on a restart and in middleware mode.
 
+Before loading the app it turns on Node's source-mapped stack traces (`process.setSourceMapsEnabled(true)`), as Vite's own SSR module runner does. The runner behind `ssrLoadModule` leaves them off, and `ssrLoadModule`'s `fixStacktrace` option covers only errors thrown while a module loads, not those thrown later while the app renders. A tool that replaces `Error.prepareStackTrace` bypasses Node's mapping.
+
 ## Dev invalidation and HMR
 
 The embedded app's Project Watcher owns dev invalidation and HMR: `DevelopmentInvalidationService` in `@ecopages/core` plans each change, and the app's HMR manager updates the browser through the Ecopages HMR runtime. Vite invalidates its client and SSR module graphs on every file change by itself, so pages, layouts, includes and views, which core loads per request, pick up edits on the next request.

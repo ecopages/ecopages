@@ -1,11 +1,12 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
+import { RolldownMagicString } from 'rolldown';
 import { build, getAppBuildAdapter } from '../build/build-adapter.ts';
 import type { BuildResult } from '../build/contracts/build-contracts.ts';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { createServerBuildRequest } from '../build/runtime/build-request-policy.ts';
 import { requireBuildRuntime } from '../build/runtime/build-runtime.ts';
-import type { EcoSourceTransform } from '../plugins/source-transform.ts';
+import { createEcoBuildPluginFromSourceTransform, type EcoSourceTransform } from '../plugins/source-transform.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { getServerBundleOutputPaths } from '../build/cache/server-entry-build-cache.ts';
 
@@ -106,22 +107,19 @@ function collectImportMetaEdits(
 	return { edits, needsNodePath, pathBinding };
 }
 
-function applySourceEdits(code: string, edits: SourceEdit[]): string {
-	let transformed = code;
-	for (const edit of edits.sort((left, right) => right.start - left.start)) {
-		transformed = `${transformed.slice(0, edit.start)}${edit.replacement}${transformed.slice(edit.end)}`;
-	}
-	return transformed;
-}
-
 /**
  * Creates a source transform that preserves source module directory semantics
  * when `eco.config.ts` is relocated into `dist/.server/eco.config.mjs`.
+ *
+ * @remarks
+ * Runs `post`, after the app source transforms, so `import.meta` that they
+ * emit is rewritten too.
  */
 export function createPreserveImportMetaTransform(serverOutdir: string): EcoSourceTransform {
 	return {
 		name: 'preserve-import-meta-for-server-config',
 		filter: /\.[cm]?[jt]sx?$/,
+		enforce: 'post',
 		transform(code, id) {
 			if (!code.includes('import.meta')) {
 				return undefined;
@@ -130,10 +128,14 @@ export function createPreserveImportMetaTransform(serverOutdir: string): EcoSour
 			const { edits, needsNodePath, pathBinding } = collectImportMetaEdits(code, id, serverOutdir);
 			if (edits.length === 0) return undefined;
 
-			const transformed = applySourceEdits(code, edits);
-			return {
-				code: needsNodePath ? `import * as ${pathBinding} from 'node:path';\n${transformed}` : transformed,
-			};
+			const magic = new RolldownMagicString(code);
+			for (const { start, end, replacement } of edits) {
+				magic.overwrite(start, end, replacement);
+			}
+			if (needsNodePath) {
+				magic.prepend(`import * as ${pathBinding} from 'node:path';\n`);
+			}
+			return { code: magic.toString(), map: magic.generateMap({ source: id, hires: true }).toString() };
 		},
 	};
 }
@@ -162,7 +164,7 @@ export async function bundleEcoConfigModule(
 		outdir: outputDir,
 		naming: EMITTED_ECO_CONFIG_FILENAME,
 		sourcemap: 'hidden',
-		sourceTransforms: [createPreserveImportMetaTransform(runtimeDir)],
+		plugins: [createEcoBuildPluginFromSourceTransform(createPreserveImportMetaTransform(runtimeDir))],
 	});
 
 	const result = await build(buildOptions, requireBuildRuntime(appConfig).getProfile('server-entry'));

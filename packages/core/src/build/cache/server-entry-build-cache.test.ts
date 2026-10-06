@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoSourceTransform } from '../../plugins/source-transform.ts';
 import {
 	getServerBundleOutputPaths,
 	lookupServerEntryBuildCache,
@@ -165,5 +166,52 @@ describe('server-entry-build-cache', () => {
 
 		const afterConfigChange = lookupServerEntryBuildCache({ appConfig, entryPath });
 		assert.equal(afterConfigChange, undefined);
+	});
+
+	it('invalidates server-entry cache when an app source transform changes', () => {
+		process.env.NODE_ENV = 'production';
+		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-entry-transform-change-'));
+		tempDirs.push(rootDir);
+		const distDir = path.join(rootDir, 'dist');
+		const entryPath = path.join(rootDir, 'app.ts');
+		writeFileSync(entryPath, 'export const ready = true;\n', 'utf8');
+		const transform = (body: (code: string) => string): EcoSourceTransform => ({
+			name: 'banner',
+			filter: /\.ts$/,
+			transform: body,
+		});
+
+		const appConfig = {
+			rootDir,
+			distDir: 'dist',
+			absolutePaths: {
+				distDir,
+				workDir: path.join(rootDir, '.eco'),
+				config: path.join(rootDir, 'eco.config.ts'),
+			},
+			processors: new Map(),
+			integrations: [],
+			sourceTransforms: new Map([['banner', transform((code) => `/* a */${code}`)]]),
+		} as unknown as EcoPagesAppConfig;
+
+		const serverEntryPath = path.join(distDir, SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME);
+		fileSystem.ensureDir(path.dirname(serverEntryPath));
+		writeFileSync(serverEntryPath, 'export {};\n', 'utf8');
+		recordServerEntryBuildCache({
+			appConfig,
+			entryPath,
+			buildResult: {
+				success: true,
+				logs: [],
+				outputs: [{ path: serverEntryPath }],
+				dependencyGraph: { entrypoints: { [entryPath]: [entryPath] } },
+			},
+			outputPaths: [serverEntryPath],
+		});
+		assert.ok(lookupServerEntryBuildCache({ appConfig, entryPath }));
+
+		appConfig.sourceTransforms = new Map([['banner', transform((code) => `/* b */${code}`)]]);
+
+		assert.equal(lookupServerEntryBuildCache({ appConfig, entryPath }), undefined);
 	});
 });

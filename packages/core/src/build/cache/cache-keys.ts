@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import type { BuildOptions } from '../contracts/build-contracts.ts';
+import { resolveTransformHandlerIdentity } from '../../plugins/source-transform.ts';
 
 let cachedCorePackageVersion: string | undefined;
 
@@ -34,33 +35,27 @@ export function createJsxCacheKey(jsx: BuildOptions['jsx']): string {
 	});
 }
 
-/** Stable fingerprint for ordered build plugins. */
+/** Stable fingerprint for ordered build plugins, including each plugin's `transform`. */
 export function createPluginCacheKey(plugins?: EcoBuildPlugin[]): string {
 	if (!plugins || plugins.length === 0) {
 		return 'plugins:default';
 	}
 
-	return `plugins:${plugins.map((plugin) => `${plugin.name}:${hashFunctionIdentity(plugin.setup)}`).join(',')}`;
-}
-
-/** Stable fingerprint for ordered source transforms. */
-export function createSourceTransformCacheKey(sourceTransforms: BuildOptions['sourceTransforms']): string {
-	if (!sourceTransforms || sourceTransforms.length === 0) {
-		return 'sourceTransforms:default';
-	}
-
-	return `sourceTransforms:${sourceTransforms
-		.map((transform) => {
-			const filterSource = transform.filter.source;
-			const filterFlags = transform.filter.flags;
-			return [
-				transform.name,
-				transform.enforce ?? 'default',
-				filterSource,
-				filterFlags,
-				hashFunctionIdentity(transform.transform),
-			].join(':');
-		})
+	return `plugins:${plugins
+		.map(({ name, setup, transform }) =>
+			[
+				name,
+				hashFunctionIdentity(setup),
+				...(transform
+					? [
+							transform.order ?? 'default',
+							transform.filter.source,
+							transform.filter.flags,
+							hashFunctionIdentity(resolveTransformHandlerIdentity(transform.handler)),
+						]
+					: []),
+			].join(':'),
+		)
 		.join(',')}`;
 }
 

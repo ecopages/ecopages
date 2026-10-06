@@ -44,7 +44,6 @@ export interface PageModuleBuildImportOptions extends PageModuleImportBaseOption
 	buildExecutor?: BuildExecutor;
 	splitting?: boolean;
 	externalPackages?: boolean;
-	sourceTransforms?: BuildOptions['sourceTransforms'];
 	jsx?: {
 		development?: boolean;
 		factory?: string;
@@ -165,12 +164,7 @@ export class PageModuleImportService {
 
 		if (!options.bypassCache) {
 			const runtime = typeof Bun !== 'undefined' ? 'bun' : 'node-build';
-			const cacheKey = [
-				runtime,
-				filePath,
-				createRouteModuleReuseIdentity(options, options.sourceTransforms),
-				fileHash,
-			].join('::');
+			const cacheKey = [runtime, filePath, createRouteModuleReuseIdentity(options), fileHash].join('::');
 			const cachedModule = this.importCache.get(cacheKey);
 
 			if (cachedModule) {
@@ -263,7 +257,6 @@ export class PageModuleImportService {
 			externalPackages: buildOptions.externalPackages,
 			jsx: buildOptions.jsx,
 			plugins: buildOptions.plugins,
-			sourceTransforms: buildOptions.sourceTransforms,
 			fileHash,
 		};
 	}

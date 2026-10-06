@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
+import { createRequire, SourceMap } from 'node:module';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -7,6 +7,9 @@ import { pathToFileURL } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
+import { createEcoComponentMetaTransform } from '../../plugins/eco-component-meta-plugin.ts';
+import { createEcoBuildPluginFromSourceTransform } from '../../plugins/source-transform.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 
 let workDir: string;
 
@@ -470,5 +473,54 @@ describe('RolldownBuildAdapter', () => {
 		assert.deepEqual(result.logs, [{ message: 'forced failure' }]);
 		assert.equal(result.outputs.length, 0);
 		buildSpy.mockRestore();
+	});
+
+	test('a server build with the component metadata transform maps the server bundle back to the page source', async () => {
+		const pagePath = writeFixture(
+			'page.ts',
+			[
+				"import { eco } from '@ecopages/core';",
+				'',
+				'export default eco.page({',
+				'\trender: () => {',
+				"\t\tthrow new Error('page failed');",
+				'\t},',
+				'});',
+				'',
+			].join('\n'),
+		);
+		const config = {
+			rootDir: workDir,
+			integrations: [{ name: 'kitajs', extensions: ['.ts'], jsxImportSource: '@kitajs/html' }],
+		} as unknown as EcoPagesAppConfig;
+		const outdir = path.join(workDir, 'dist');
+
+		const result = await new RolldownBuildAdapter().build({
+			entrypoints: [pagePath],
+			outdir,
+			target: 'node',
+			format: 'esm',
+			sourcemap: 'hidden',
+			external: ['@ecopages/core'],
+			root: workDir,
+			plugins: [createEcoBuildPluginFromSourceTransform(createEcoComponentMetaTransform({ config }))],
+		});
+
+		assert.equal(result.success, true, JSON.stringify(result.logs));
+		const outputPath = result.outputs.find((output) => /\.m?js$/.test(output.path))?.path ?? '';
+		const lines = readFileSync(outputPath, 'utf-8').split('\n');
+		assert.ok(
+			lines.some((line) => line.includes('bindComponentIdentity(')),
+			'the page was attributed',
+		);
+		const line = lines.findIndex((text) => text.includes('page failed'));
+		const entry = new SourceMap(JSON.parse(readFileSync(`${outputPath}.map`, 'utf-8'))).findEntry(
+			line,
+			lines[line]!.indexOf('throw'),
+		);
+
+		assert.ok('originalLine' in entry, 'the thrown statement has a mapping');
+		assert.match(entry.originalSource, /page\.ts$/);
+		assert.equal(entry.originalLine, 4);
 	});
 });

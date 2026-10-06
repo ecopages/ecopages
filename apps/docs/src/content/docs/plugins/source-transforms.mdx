@@ -1,14 +1,14 @@
 ---
 title: "Source Transforms"
-description: "Register filter-based module source rewrites for browser and HMR builds."
+description: "Register filter-based module source rewrites for Ecopages builds."
 order: 3
 ---
 
 # Source Transforms
 
-Source transforms rewrite module source during browser and HMR builds. Register them in your configuration when you need deterministic, filter-based code rewrites without competing with processor `onLoad` plugins.
+Source transforms rewrite module source during server, browser, and HMR builds. Register them in your configuration when you need deterministic, filter-based code rewrites without competing with processor `onLoad` plugins.
 
-Prefer source transforms over ad hoc `EcoBuildPlugin` `onLoad` handlers when the change is a pure source rewrite. The Rolldown bridge runs source transforms after first-wins `onLoad` plugins, so metadata injection and similar loader passes still run on rewritten output.
+Prefer source transforms over ad hoc `EcoBuildPlugin` `onLoad` handlers when the change is a pure source rewrite. Builds run source transforms in the bundler's transform hook, after the module is loaded, so metadata injection and similar passes still run on output rewritten by `onLoad` plugins.
 
 ## EcoSourceTransform Shape
 
@@ -27,10 +27,12 @@ const bannerTransform: EcoSourceTransform = {
 
 Fields:
 
-- `name` — stable identifier; also used to dedupe loader plugins in browser builds
-- `filter` — `RegExp` tested against normalized module ids
+- `name` — stable identifier
+- `filter` — `RegExp` tested against module ids without query or hash, with `/` separators on every platform. It alone decides which modules the transform sees, so keep it narrow; virtual modules are never transformed
 - `enforce` — optional `'pre'` or `'post'` ordering (default runs between pre and post)
-- `transform(code, id)` — returns rewritten source, `{ code, map? }`, or `undefined` to skip
+- `transform(code, id)` — returns rewritten source, `{ code, map? }`, or `undefined` to skip. `id` has no query or hash.
+
+Return `map` whenever the rewrite moves code, for example when it inserts a line. The bundler chains it with the other source maps, so stack traces and the emitted source maps point at the source the author wrote. Without `map`, positions after the edit are off by its size.
 
 ## Registration
 
@@ -73,7 +75,7 @@ See [Vite Plugin](/docs/ecosystem/vite-plugin) for host integration.
 
 | Mechanism | Use when |
 | --- | --- |
-| `EcoSourceTransform` | Filter-based source rewrites during browser/HMR builds |
+| `EcoSourceTransform` | Filter-based source rewrites during builds |
 | `EcoBuildPlugin` (`onLoad` / `onResolve`) | Virtual modules, custom loaders, or resolve-time behavior |
 | Processor `plugins` | Runtime file processing owned by a processor |
 | Processor `buildPlugins` | Browser-only bundling behavior owned by a processor |

@@ -1,4 +1,3 @@
-import type { EcoSourceTransform } from '../../plugins/source-transform.ts';
 import type { EcoBuildPlugin } from './build-types.ts';
 
 /**
@@ -67,7 +66,6 @@ export interface BuildOptions {
 		sideEffects?: boolean;
 	};
 	plugins?: EcoBuildPlugin[];
-	sourceTransforms?: EcoSourceTransform[];
 }
 
 /** Stable profile identifiers for `BuildAdapter.getTranspileOptions`. */

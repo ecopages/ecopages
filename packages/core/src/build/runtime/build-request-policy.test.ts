@@ -10,6 +10,7 @@ import {
 import { setAppBuildManifest } from '../build-adapter.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
+import type { EcoSourceTransform } from '../../plugins/source-transform.ts';
 
 function createAppConfig(): EcoPagesAppConfig {
 	const appConfig = {
@@ -68,7 +69,6 @@ test('createServerBuildRequest includes app server plugins and jsx ownership', (
 	assert.ok(request.plugins?.some((plugin) => plugin.name === 'caller-plugin'));
 	assert.equal(request.plugins?.[0]?.name, 'caller-plugin');
 	assert.equal(request.target, 'es2022');
-	assert.deepEqual(request.sourceTransforms, []);
 });
 
 test('resolveServerAppBuildPlugins matches createServerBuildRequest app plugin set', () => {
@@ -84,8 +84,10 @@ test('resolveServerAppBuildPlugins matches createServerBuildRequest app plugin s
 	);
 });
 
-test('createBrowserBuildRequest excludes app plugins by name and preserves source transforms', () => {
+test('createBrowserBuildRequest excludes app plugins by name and appends source transforms as plugins', () => {
 	const appConfig = createAppConfig();
+	const sourceTransform: EcoSourceTransform = { name: 'banner', filter: /\.ts$/u, transform: (code) => code };
+	appConfig.sourceTransforms = new Map([[sourceTransform.name, sourceTransform]]);
 
 	const request = createBrowserBuildRequest(appConfig, {
 		profile: 'browser-script',
@@ -95,6 +97,8 @@ test('createBrowserBuildRequest excludes app plugins by name and preserves sourc
 	});
 
 	assert.ok(request.plugins?.every((plugin) => plugin.name !== 'browser-plugin'));
-	assert.ok(Array.isArray(request.sourceTransforms));
+	const lastPlugin = request.plugins?.[request.plugins.length - 1];
+	assert.equal(lastPlugin?.name, 'banner');
+	assert.equal(lastPlugin?.transform?.filter, sourceTransform.filter);
 	assert.equal(request.target, 'browser');
 });

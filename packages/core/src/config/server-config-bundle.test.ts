@@ -1,4 +1,10 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { rolldown } from 'rolldown';
 import { describe, expect, it } from 'vitest';
+import { createRolldownPluginBridge } from '../build/rolldown/rolldown-plugin-bridge.ts';
+import { createEcoBuildPluginFromSourceTransform } from '../plugins/source-transform.ts';
 import { createPreserveImportMetaTransform } from './server-config-bundle.ts';
 
 function transformConfigSource(code: string, id = '/project/eco.config.ts'): string {
@@ -40,5 +46,34 @@ describe('createPreserveImportMetaTransform', () => {
 
 		expect(transformed).toContain("import * as ___ecoConfigPath from 'node:path'");
 		expect(transformed).toContain('new URL("../../eco.config.ts", import.meta.url).href');
+	});
+
+	it('rewrites import.meta that an app source transform emits, because it runs after app transforms', async () => {
+		const root = mkdtempSync(path.join(os.tmpdir(), 'eco-config-import-meta-'));
+		try {
+			const configPath = path.join(root, 'eco.config.ts');
+			writeFileSync(configPath, 'export default {};\n');
+			const emitsImportMeta = createEcoBuildPluginFromSourceTransform({
+				name: 'emits-import-meta',
+				filter: /eco\.config\.ts$/,
+				transform: (code) => `${code}export const dir = import.meta.dirname;\n`,
+			});
+			const preserve = createEcoBuildPluginFromSourceTransform(
+				createPreserveImportMetaTransform(path.join(root, 'dist', '.server')),
+			);
+
+			const bundle = await rolldown({
+				input: configPath,
+				cwd: root,
+				platform: 'node',
+				plugins: await createRolldownPluginBridge([preserve, emitsImportMeta], root),
+			});
+			const { output } = await bundle.generate({ format: 'esm' });
+			await bundle.close();
+
+			expect(output[0].code).toContain('const dir = __ecoConfigPath.resolve(import.meta.dirname, ');
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
 	});
 });

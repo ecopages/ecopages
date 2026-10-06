@@ -3,7 +3,7 @@ import { test } from 'vitest';
 import type { BuildOptions } from '../contracts/build-contracts.ts';
 import { createBuildRequestIdentity } from './build-request-identity.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
-import type { EcoSourceTransform } from '../../plugins/source-transform.ts';
+import { createEcoBuildPluginFromSourceTransform, type EcoSourceTransform } from '../../plugins/source-transform.ts';
 
 const baseOptions: BuildOptions = {
 	entrypoints: ['/in/a.ts'],
@@ -85,7 +85,7 @@ test('createBuildRequestIdentity treats external membership as unordered', () =>
 	assert.equal(keyA, keyB);
 });
 
-test('createBuildRequestIdentity fingerprints plugin setup and source transforms', () => {
+test('createBuildRequestIdentity fingerprints plugin setup and transforms', () => {
 	const transformA: EcoSourceTransform = {
 		name: 'transform-a',
 		filter: /\.tsx$/u,
@@ -94,7 +94,7 @@ test('createBuildRequestIdentity fingerprints plugin setup and source transforms
 		},
 	};
 	const transformB: EcoSourceTransform = {
-		name: 'transform-b',
+		name: 'transform-a',
 		filter: /\.tsx$/u,
 		transform(code) {
 			return `${code}//changed`;
@@ -119,7 +119,7 @@ test('createBuildRequestIdentity fingerprints plugin setup and source transforms
 		}),
 	);
 	assert.notEqual(
-		createBuildRequestIdentity({ ...baseOptions, sourceTransforms: [transformA] }),
-		createBuildRequestIdentity({ ...baseOptions, sourceTransforms: [transformB] }),
+		createBuildRequestIdentity({ ...baseOptions, plugins: [createEcoBuildPluginFromSourceTransform(transformA)] }),
+		createBuildRequestIdentity({ ...baseOptions, plugins: [createEcoBuildPluginFromSourceTransform(transformB)] }),
 	);
 });

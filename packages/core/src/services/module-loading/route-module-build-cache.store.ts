@@ -69,7 +69,7 @@ export class RouteModuleBuildCache {
 			return undefined;
 		}
 
-		const buildKey = createPersistedRouteModuleBuildKey(options, options.sourceTransforms);
+		const buildKey = createPersistedRouteModuleBuildKey(options);
 		const cacheFilePath = normalizeRouteModuleCachePath(options.filePath);
 		const entry = manifest.entries[cacheFilePath];
 		if (!entry || entry.sourceHash !== options.fileHash || entry.buildKey !== buildKey) {
@@ -124,7 +124,7 @@ export class RouteModuleBuildCache {
 			sourceHash: options.fileHash,
 			outputPath: options.outputPath,
 			builtAt: Date.now(),
-			buildKey: createPersistedRouteModuleBuildKey(options, options.sourceTransforms),
+			buildKey: createPersistedRouteModuleBuildKey(options),
 			dependencyHashes,
 			outputImports:
 				options.outputImports ??

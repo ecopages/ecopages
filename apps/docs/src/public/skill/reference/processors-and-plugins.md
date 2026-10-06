@@ -117,7 +117,7 @@ Class-based integrations extend `IntegrationPlugin`, provide a renderer, and spl
 
 ## Source transforms
 
-For filter-based module rewrites during browser/HMR builds:
+For filter-based module rewrites during builds:
 
 ```typescript
 import { defineConfig } from '@ecopages/core/config';
@@ -136,7 +136,7 @@ export default defineConfig({
 });
 ```
 
-Prefer source transforms over competing `onLoad` plugins when the change is a pure source rewrite.
+Prefer source transforms over competing `onLoad` plugins when the change is a pure source rewrite. Return `{ code, map }` when the rewrite moves code, so source maps keep pointing at the original lines.
 
 ## Extension point comparison
 

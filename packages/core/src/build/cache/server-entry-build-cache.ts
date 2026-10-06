@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { BuildDependencyGraph, BuildResult } from '../build-adapter.ts';
-import { resolveServerAppBuildPlugins } from '../runtime/build-request-policy.ts';
+import { getAppSourceTransformPlugins, resolveServerAppBuildPlugins } from '../runtime/build-request-policy.ts';
 import { createBuildInputsFingerprint, hashAppConfigFile } from './build-input-fingerprint.ts';
 import {
 	isProductionCacheManifestCurrent,
@@ -82,7 +82,8 @@ function hashDependencyGraph(
  *
  * @remarks
  * Includes ordered server plugins and JSX ownership plugins via
- * {@link resolveServerAppBuildPlugins}. The versioned prefix intentionally
+ * {@link resolveServerAppBuildPlugins}, then the app source transforms that
+ * the server request appends. The versioned prefix intentionally
  * invalidates manifests written before server requests included JSX ownership.
  */
 function createServerEntryBuildKey(appConfig: EcoPagesAppConfig): string {
@@ -92,7 +93,10 @@ function createServerEntryBuildKey(appConfig: EcoPagesAppConfig): string {
 			'node',
 			'esm',
 			'external-packages',
-			createPluginCacheKey(resolveServerAppBuildPlugins(appConfig)),
+			createPluginCacheKey([
+				...resolveServerAppBuildPlugins(appConfig),
+				...getAppSourceTransformPlugins(appConfig),
+			]),
 		].join('::');
 	} catch {
 		return 'server-entry-request-v2::node::esm::external-packages';

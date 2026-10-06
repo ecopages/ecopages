@@ -28,7 +28,7 @@ Three concentric shapes, plus profile executors and request policy:
 | `BuildAdapter`              | `build-adapter.ts`                     | Low-level backend. Two implementations: the bundled adapter (the real bundler) and `ViteHostBuildAdapter` (a host-owned boundary marker that throws on direct use). |
 | `BuildRuntime`              | `runtime/build-runtime.ts`             | Profile-based executor registry. Scheduling, concurrency, and dedupe only.                                                                                          |
 | `BuildExecutor`             | `contracts/build-contracts.ts`         | Narrower runtime facade. Only `build` is exposed. Retrieved via `buildRuntime.getProfile(...)`.                                                                     |
-| `build-request-policy.ts`   | `runtime/build-request-policy.ts`      | Assembles complete `BuildOptions` before scheduling. Server: plugins + JSX ownership. Browser: plugins + source transforms + transpile overlay.                     |
+| `build-request-policy.ts`   | `runtime/build-request-policy.ts`      | Assembles complete `BuildOptions` before scheduling. Server: plugins + JSX ownership + source transforms. Browser: plugins + source transforms + transpile overlay. |
 | `build-request-identity.ts` | `runtime/build-request-identity.ts`    | Canonical request identity for in-flight and request-scope dedupe.                                                                                                  |
 | `SerializedBuildExecutor`   | `runtime/serialized-build-executor.ts` | FIFO queue around any `BuildExecutor`. Used for server-entry single-flight ordering.                                                                                |
 | `ParallelBuildExecutor`     | `runtime/parallel-build-executor.ts`   | Concurrency-limited wrapper for independent route-module and HMR browser builds.                                                                                    |
@@ -242,9 +242,14 @@ Every build creates a new bridge. The bridge runs each plugin's `setup` before i
 | `onResolve` / `onLoad`      | the registered `filter`                           |
 | the same with a `namespace` | `^<namespace>:`; the exact `filter` runs in JS    |
 | `module(specifier)`         | `^<specifier>$` on resolve, its namespace on load |
-| source transform            | its `filter`, tested on the id without query      |
 
-Within the handler, registrations run in `EcoBuildPlugin[]` order and the first non-null result wins. A hook with no registrations is not declared. In a kitchen-sink production build, the filters cut JS `resolveId` calls from 7344 to 323 and `load` calls from 4146 to 2826. Source transform filters, such as the component metadata transform's, still admit most source files to `load`.
+Within the handler, registrations run in `EcoBuildPlugin[]` order and the first non-null result wins. A hook with no registrations is not declared. In a kitchen-sink production build, the filters cut JS `resolveId` calls from 7344 to 323 and `load` calls from 4146 to 953.
+
+### Plugin transforms
+
+An `EcoBuildPlugin` may declare `transform: { filter, order?, handler }`. The bridge turns each one into a Rolldown plugin of its own, placed after the merged plugin in array order, with a `transform` hook filtered on `filter` against the id without query or hash. Ids that start with `\0` (Rolldown's runtime, plugin-owned virtual modules) and ids in a bridge namespace (`ecopages-content:…`) are excluded; a drive letter or `scheme://` is not a namespace. Rolldown runs every matching transform after `load`, `pre` before unset before `post`, and chains their source maps. A result without `map` is returned with `map: null`, so Rolldown keeps the incoming map instead of dropping it.
+
+The build request policy adapts each app source transform (`appConfig.sourceTransforms`) into such a plugin and appends it to the server and browser plugin lists. The server-entry build cache key includes those plugins, so changing an app transform invalidates it. The server config `import.meta` transform runs `post`, so it also rewrites `import.meta` that app transforms emit. The component metadata transform and the server config transform edit through a magic string and return its map, so a server bundle built with `sourcemap: 'hidden'` maps back to the page source.
 
 The Vite adapter for a source transform (`createVitePluginFromSourceTransform`) declares no Vite hook filter. Vite would test it against the id with its query, so `/\.tsx$/` would miss `page.tsx?v=1`; the handler tests the filter with the query and hash stripped instead.
 

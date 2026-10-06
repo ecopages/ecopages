@@ -79,9 +79,38 @@ export interface EcoBuildPluginBuilder {
 }
 
 /**
+ * Result of an {@link EcoBuildTransform} handler.
+ *
+ * @remarks
+ * Return `map` whenever the edit moves code. Without it, the bundler keeps
+ * the incoming source map, so positions after the edit are off by its size.
+ */
+export type EcoBuildTransformResult = {
+	code: string;
+	map?: unknown;
+};
+
+/**
+ * Rewrites module source after it is loaded.
+ *
+ * @remarks
+ * The bundler tests `filter` against the module id without its query and
+ * hash, and calls `handler` only for matching modules. Every matching
+ * transform runs: `pre` transforms first, then those without `order`, then
+ * `post`, each group in plugin array order. Source maps chain across them.
+ */
+export type EcoBuildTransform = {
+	filter: RegExp;
+	order?: 'pre' | 'post';
+	/** Receives the module id without its query and hash. Returns `undefined` to leave the code unchanged. */
+	handler: (code: string, id: string) => EcoBuildTransformResult | string | undefined;
+};
+
+/**
  * Runtime-agnostic build plugin contract consumed by Ecopages processors/loaders.
  */
 export type EcoBuildPlugin = {
 	name: string;
 	setup: (build: EcoBuildPluginBuilder) => void | Promise<void>;
+	transform?: EcoBuildTransform;
 };

@@ -3,10 +3,13 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { rolldown, type LoadResult, type Plugin, type ResolveIdResult } from 'rolldown';
+import { SourceMap } from 'node:module';
+
+import { rolldown, RolldownMagicString, type LoadResult, type Plugin, type ResolveIdResult } from 'rolldown';
 import { test } from 'vitest';
 import { createRolldownPluginBridge } from './rolldown-plugin-bridge.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
+import { createEcoBuildPluginFromSourceTransform, type EcoSourceTransform } from '../../plugins/source-transform.ts';
 
 type ResolveHook = (source: string, importer?: string, extraOptions?: unknown) => Promise<ResolveIdResult>;
 type LoadHook = (id: string) => Promise<LoadResult>;
@@ -23,14 +26,17 @@ function callLoad(plugin: Plugin, id: string): Promise<LoadResult> {
 	return (hookHandler(plugin.load) as LoadHook)(id);
 }
 
-test('createRolldownPluginBridge returns a single consolidated plugin', async () => {
+test('createRolldownPluginBridge returns the merged plugin plus one plugin per transform', async () => {
 	const plugins: EcoBuildPlugin[] = [
 		{ name: 'a', setup: () => {} },
-		{ name: 'b', setup: () => {} },
+		{ name: 'b', setup: () => {}, transform: { filter: /\.ts$/, handler: () => undefined } },
+		{ name: 'c', setup: () => {} },
 	];
 	const bridge = await createRolldownPluginBridge(plugins, '/app');
-	assert.equal(bridge.length, 1);
-	assert.equal(bridge[0]?.name, 'ecopages-plugin-bridge');
+	assert.deepEqual(
+		bridge.map((plugin) => plugin.name),
+		['ecopages-plugin-bridge', 'ecopages-transform:b'],
+	);
 });
 
 test('createRolldownPluginBridge runs each plugin.setup in array order before returning', async () => {
@@ -250,43 +256,6 @@ test('createRolldownPluginBridge loads virtual module content with the registere
 	assert.equal(load?.moduleType, 'js');
 });
 
-test('createRolldownPluginBridge applies source transforms after first-wins onLoad rewrites', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'rewrite',
-			setup(build) {
-				build.onLoad({ filter: /.*/ }, () => ({
-					contents: 'export default eco.component({ render: () => null });',
-					loader: 'tsx',
-				}));
-			},
-		},
-	];
-
-	const sourceTransforms = [
-		{
-			name: 'eco-component-meta-plugin',
-			filter: /layout\.tsx$/,
-			transform(code: string, id: string) {
-				return {
-					code: code.replace(
-						'eco.component({',
-						`eco.component({ identity: { id: "layout", file: "${id}", integration: "react" },`,
-					),
-				};
-			},
-		},
-	];
-
-	const bridge = await createRolldownPluginBridge(plugins, '/app', sourceTransforms);
-	const plugin = bridge[0]!;
-	const result = (await callLoad(plugin, '/app/src/layouts/minimal-layout.tsx')) as
-		{ code: string; moduleType: string } | undefined;
-
-	assert.match(result?.code ?? '', /file: "\/app\/src\/layouts\/minimal-layout\.tsx"/);
-	assert.equal(result?.moduleType, 'tsx');
-});
-
 test('createRolldownPluginBridge loads each of eleven virtual modules with its own contents', async () => {
 	const specifiers = Array.from({ length: 11 }, (_, index) => `virtual:m${index}`);
 	const plugins: EcoBuildPlugin[] = [
@@ -420,4 +389,159 @@ test('createRolldownPluginBridge rejects handlers registered after setup finishe
 	);
 	assert.throws(() => lateBuilder!.onResolve({ filter: /^x$/ }, () => undefined), /build\.onResolve\(\)/);
 	assert.throws(() => lateBuilder!.module('virtual:x', () => ({ contents: '' })), /build\.module\(\)/);
+});
+
+async function bundleWithBridge(root: string, plugins: EcoBuildPlugin[]) {
+	const bundle = await rolldown({
+		input: path.join(root, 'entry.ts'),
+		cwd: root,
+		plugins: await createRolldownPluginBridge(plugins, root),
+	});
+	const { output } = await bundle.generate({ format: 'esm', sourcemap: true });
+	await bundle.close();
+	return output[0];
+}
+
+function withFixture(files: Record<string, string>, run: (root: string) => Promise<void>): Promise<void> {
+	const root = mkdtempSync(path.join(os.tmpdir(), 'eco-bridge-transform-'));
+	for (const [name, contents] of Object.entries(files)) {
+		writeFileSync(path.join(root, name), contents);
+	}
+	return run(root).finally(() => rmSync(root, { recursive: true, force: true }));
+}
+
+test('createRolldownPluginBridge runs plugin transforms on onLoad output, in pre, default, post order', async () => {
+	const marker = (name: string, order?: 'pre' | 'post'): EcoBuildPlugin => ({
+		name,
+		setup() {},
+		transform: { filter: /entry\.ts$/, order, handler: (code) => `${code}console.log('${name}');\n` },
+	});
+	const rewrite: EcoBuildPlugin = {
+		name: 'rewrite',
+		setup(build) {
+			build.onLoad({ filter: /entry\.ts$/ }, () => ({ contents: "console.log('loaded');\n", loader: 'ts' }));
+		},
+	};
+
+	await withFixture({ 'entry.ts': "console.log('disk');\n" }, async (root) => {
+		const chunk = await bundleWithBridge(root, [
+			marker('post', 'post'),
+			rewrite,
+			marker('default'),
+			marker('pre', 'pre'),
+		]);
+		const logged = [...chunk.code.matchAll(/console\.log\("(\w+)"\)/g)].map((match) => match[1]);
+		assert.deepEqual(logged, ['loaded', 'pre', 'default', 'post']);
+	});
+});
+
+test('createRolldownPluginBridge keeps the source map of a transform that inserts a line', async () => {
+	const insertLine: EcoBuildPlugin = {
+		name: 'insert-line',
+		setup() {},
+		transform: {
+			filter: /entry\.ts$/,
+			handler(code, id) {
+				const magic = new RolldownMagicString(code).prepend("console.log('inserted');\n");
+				return { code: magic.toString(), map: magic.generateMap({ source: id, hires: true }).toString() };
+			},
+		},
+	};
+	const source = "export function fail() {\n\tthrow new Error('original line 2');\n}\n";
+
+	await withFixture({ 'entry.ts': source }, async (root) => {
+		const chunk = await bundleWithBridge(root, [insertLine]);
+		const lines = chunk.code.split('\n');
+		const line = lines.findIndex((text) => text.includes('original line 2'));
+		const column = lines[line]!.indexOf('throw');
+		const entry = new SourceMap(JSON.parse(chunk.map!.toString())).findEntry(line, column);
+
+		assert.ok('originalLine' in entry, 'the thrown statement has a mapping');
+		assert.match(entry.originalSource, /entry\.ts$/);
+		assert.equal(entry.originalLine, 1);
+	});
+});
+
+function createInsertLinePlugin(): EcoBuildPlugin {
+	return {
+		name: 'insert-line',
+		setup() {},
+		transform: {
+			filter: /entry\.ts$/,
+			order: 'pre',
+			handler(code, id) {
+				const magic = new RolldownMagicString(code).prepend("console.log('inserted');\n");
+				return { code: magic.toString(), map: magic.generateMap({ source: id, hires: true }).toString() };
+			},
+		},
+	};
+}
+
+test('createRolldownPluginBridge keeps the earlier source map when a later transform returns a string', async () => {
+	const appendString: EcoBuildPlugin = {
+		name: 'append-string',
+		setup() {},
+		transform: { filter: /entry\.ts$/, handler: (code) => `${code}console.log('appended');\n` },
+	};
+	const source = "export function fail() {\n\tthrow new Error('original line 2');\n}\n";
+
+	await withFixture({ 'entry.ts': source }, async (root) => {
+		const chunk = await bundleWithBridge(root, [createInsertLinePlugin(), appendString]);
+		assert.match(chunk.code, /appended/);
+		const lines = chunk.code.split('\n');
+		const line = lines.findIndex((text) => text.includes('original line 2'));
+		const entry = new SourceMap(JSON.parse(chunk.map!.toString())).findEntry(line, lines[line]!.indexOf('throw'));
+
+		assert.ok('originalLine' in entry, 'the thrown statement has a mapping');
+		assert.equal(entry.originalLine, 1);
+	});
+});
+
+test('createRolldownPluginBridge does not transform \\0 virtual ids or namespaced ids', async () => {
+	const transformedIds: string[] = [];
+	const virtualModules: EcoBuildPlugin = {
+		name: 'virtual-modules',
+		setup(build) {
+			build.onResolve({ filter: /^virtual:null$/ }, () => ({ path: '\0virtual-null.ts' }));
+			build.onLoad({ filter: /^\0virtual-null\.ts$/ }, () => ({
+				contents: "console.log('null');",
+				loader: 'ts',
+			}));
+			build.module('virtual:namespaced.ts', () => ({ contents: "console.log('namespaced');", loader: 'ts' }));
+		},
+		transform: {
+			filter: /.*/,
+			handler(code, id) {
+				transformedIds.push(id);
+				return undefined;
+			},
+		},
+	};
+
+	await withFixture({ 'entry.ts': "import 'virtual:null';\nimport 'virtual:namespaced.ts';\n" }, async (root) => {
+		const chunk = await bundleWithBridge(root, [virtualModules]);
+		assert.match(chunk.code, /namespaced/);
+		assert.match(chunk.code, /"null"/);
+		assert.deepEqual(
+			transformedIds.map((id) => path.basename(id)),
+			['entry.ts'],
+		);
+	});
+});
+
+class BannerTransform implements EcoSourceTransform {
+	readonly name = 'banner';
+	readonly filter = /entry\.ts$/;
+	readonly #statement = "console.log('banner');\n";
+
+	transform(code: string): string {
+		return `${this.#statement}${code}`;
+	}
+}
+
+test('createRolldownPluginBridge calls a class-based source transform with its own this', async () => {
+	await withFixture({ 'entry.ts': "console.log('entry');\n" }, async (root) => {
+		const chunk = await bundleWithBridge(root, [createEcoBuildPluginFromSourceTransform(new BannerTransform())]);
+		assert.match(chunk.code, /console\.log\("banner"\);\s*console\.log\("entry"\)/);
+	});
 });

@@ -16,6 +16,8 @@ export type {
 	EcoBuildOnResolveResult,
 	EcoBuildPlugin,
 	EcoBuildPluginBuilder,
+	EcoBuildTransform,
+	EcoBuildTransformResult,
 } from '../build/contracts/build-types.ts';
 
 export const PROCESSOR_ERRORS = {

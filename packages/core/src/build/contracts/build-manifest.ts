@@ -1,136 +1,68 @@
 import type { EcoBuildPlugin } from './build-types.ts';
+import type { BuildEnvironment } from './build-contracts.ts';
 import { createBrowserRuntimePlugin, DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME } from '../browser/browser-runtime-plugin.ts';
-import {
-	createBrowserRuntimeManifest,
-	mergeBrowserRuntimeManifests,
-	type BrowserRuntimeManifest,
-} from '../browser/browser-runtime-manifest.ts';
+import { mergeBrowserRuntimeManifests, type BrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
 
-/**
- * Sealed, app-owned registry of build plugins and browser runtime assets.
- *
- * @remarks
- * Core assembles one manifest during config finalization and stores it on
- * `appConfig.runtime.buildManifest`. Request policy reads from this manifest when
- * constructing server and browser {@link BuildOptions}; profiles do not inject
- * plugins themselves.
- *
- * Contributor naming differs by layer but maps to the same buckets:
- *
- * | Integration getter | Processor getter | Manifest bucket |
- * | --- | --- | --- |
- * | `plugins` | `plugins` | `runtimePlugins` |
- * | `browserBuildPlugins` | `buildPlugins` | `browserBundlePlugins` |
- * | `browserRuntimeManifest` | — | `browserRuntimeManifest` |
- * | — (file loaders on config) | — | `loaderPlugins` |
- *
- * Use {@link getServerBuildPlugins} and {@link getBrowserBuildPlugins} to turn
- * buckets into the plugin lists passed to Rolldown. App-aware call sites should
- * prefer {@link getAppServerBuildPlugins} and {@link getAppBrowserBuildPlugins},
- * which add alias resolution, JSX ownership, and browser source-transform
- * deduplication on top of the manifest lists.
- */
+/** App-owned build plugins, selected by environment, and separate browser runtime declarations. */
 export interface AppBuildManifest {
-	/** File-extension loaders registered on the app config (for example `.mdx`). */
-	loaderPlugins: EcoBuildPlugin[];
-	/**
-	 * Shared plugins for server-oriented and browser-oriented builds.
-	 *
-	 * @remarks
-	 * Sourced from integration `plugins` and processor `plugins`. Virtual-module
-	 * loaders and transforms that must run during route-module transpile belong
-	 * here.
-	 */
-	runtimePlugins: EcoBuildPlugin[];
-	/**
-	 * Browser-bundle-only plugins.
-	 *
-	 * @remarks
-	 * Sourced from integration `browserBuildPlugins` and processor `buildPlugins`.
-	 * Do not register server route or static-page transforms here.
-	 */
-	browserBundlePlugins: EcoBuildPlugin[];
-	/**
-	 * Specifier → public URL map for client bundles.
-	 *
-	 * @remarks
-	 * Not a plugin list. {@link getBrowserBuildPlugins} synthesizes
-	 * `browser-runtime-plugin` from this map to rewrite manifest-owned imports.
-	 */
+	plugins: EcoBuildPlugin[];
 	browserRuntimeManifest: BrowserRuntimeManifest;
 }
 
-/**
- * Merges plugin lists while preserving first-registration precedence by name.
- *
- * @remarks
- * Build manifests treat plugin names as stable identities. The first plugin
- * with a given name wins so config-time assembly stays deterministic across
- * loader, runtime, and browser buckets.
- */
-export function mergeEcoBuildPlugins(...pluginLists: Array<EcoBuildPlugin[] | undefined>): EcoBuildPlugin[] {
-	const byName = new Map<string, EcoBuildPlugin>();
-
-	for (const plugins of pluginLists) {
-		for (const plugin of plugins ?? []) {
-			if (!byName.has(plugin.name)) {
-				byName.set(plugin.name, plugin);
-			}
-		}
-	}
-
-	return Array.from(byName.values());
+export function appliesToBuildEnvironment(plugin: EcoBuildPlugin, environment: BuildEnvironment): boolean {
+	return plugin.environments?.includes(environment) ?? true;
 }
 
 /**
- * Creates one app-owned build manifest from the supplied plugin buckets.
+ * @remarks
+ * Names identify plugins within an environment. Reject overlapping registrations
+ * instead of silently dropping a contributor's hooks.
  */
+export function validateBuildPluginRegistrations(
+	registrations: Array<{ plugin: EcoBuildPlugin; source: string }>,
+): void {
+	const sources = new Map<string, string>();
+	for (const { plugin, source } of registrations) {
+		for (const environment of ['server', 'browser'] as const) {
+			if (!appliesToBuildEnvironment(plugin, environment)) continue;
+			const key = `${plugin.name}:${environment}`;
+			const previous = sources.get(key);
+			if (previous) {
+				throw new Error(
+					`Build plugin "${plugin.name}" for ${environment} is registered by both ${previous} and ${source}.`,
+				);
+			}
+			sources.set(key, source);
+		}
+	}
+}
+
 export function createAppBuildManifest(input?: Partial<AppBuildManifest>): AppBuildManifest {
+	const plugins = [...(input?.plugins ?? [])];
+	validateBuildPluginRegistrations(plugins.map((plugin) => ({ plugin, source: 'app build manifest' })));
 	return {
-		loaderPlugins: mergeEcoBuildPlugins(input?.loaderPlugins),
-		runtimePlugins: mergeEcoBuildPlugins(input?.runtimePlugins),
-		browserBundlePlugins: mergeEcoBuildPlugins(input?.browserBundlePlugins),
+		plugins,
 		browserRuntimeManifest: mergeBrowserRuntimeManifests(input?.browserRuntimeManifest),
 	};
 }
 
-/**
- * Returns the shared browser runtime asset manifest sealed into the app build manifest.
- */
 export function getBrowserRuntimeManifest(manifest: AppBuildManifest): BrowserRuntimeManifest {
-	return manifest.browserRuntimeManifest ?? createBrowserRuntimeManifest();
+	return manifest.browserRuntimeManifest;
 }
 
-/**
- * Returns the plugin list used for server-oriented builds.
- *
- * @remarks
- * Merges `loaderPlugins` then `runtimePlugins`. Browser-only buckets and the
- * synthesized browser-runtime rewrite plugin are excluded.
- */
 export function getServerBuildPlugins(manifest: AppBuildManifest): EcoBuildPlugin[] {
-	return mergeEcoBuildPlugins(manifest.loaderPlugins, manifest.runtimePlugins);
+	return manifest.plugins.filter((plugin) => appliesToBuildEnvironment(plugin, 'server'));
 }
 
-/**
- * Returns the plugin list used for browser-oriented builds.
- *
- * @remarks
- * Merges, in order: `loaderPlugins`, `runtimePlugins`, a synthesized
- * `browser-runtime-plugin` when `browserRuntimeManifest` has entries, then
- * `browserBundlePlugins`. Plugin names dedupe with first-registration wins via
- * {@link mergeEcoBuildPlugins}.
- */
 export function getBrowserBuildPlugins(manifest: AppBuildManifest): EcoBuildPlugin[] {
 	const runtimeRewritePlugin = createBrowserRuntimePlugin({
 		name: DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME,
-		manifest: getBrowserRuntimeManifest(manifest),
+		manifest: manifest.browserRuntimeManifest,
 	});
-
-	return mergeEcoBuildPlugins(
-		manifest.loaderPlugins,
-		manifest.runtimePlugins,
-		runtimeRewritePlugin ? [runtimeRewritePlugin] : [],
-		manifest.browserBundlePlugins,
-	);
+	const plugins = manifest.plugins.filter((plugin) => appliesToBuildEnvironment(plugin, 'browser'));
+	return [
+		...plugins.filter((plugin) => appliesToBuildEnvironment(plugin, 'server')),
+		...(runtimeRewritePlugin ? [runtimeRewritePlugin] : []),
+		...plugins.filter((plugin) => !appliesToBuildEnvironment(plugin, 'server')),
+	];
 }

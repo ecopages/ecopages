@@ -1,7 +1,9 @@
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
-import type { BuildOptions, BuildTranspileProfile } from '../contracts/build-contracts.ts';
+import type { BuildEnvironment, BuildOptions } from '../contracts/build-contracts.ts';
+import { appliesToBuildEnvironment } from '../contracts/build-manifest.ts';
 import { getAppBrowserBuildPlugins, getAppServerBuildPlugins, getAppTranspileOptions } from '../build-adapter.ts';
+import { resolveBuildEnvironmentOptions } from './build-environment-options.ts';
 import { resolveBuildProfileOptions } from './build-profile-options.ts';
 import type { BuildProfile } from './build-runtime.ts';
 import { getJsxOwnershipPlugins } from '../browser/jsx-ownership-plugins.ts';
@@ -32,13 +34,16 @@ export function resolveServerAppBuildPlugins(appConfig: EcoPagesAppConfig): EcoB
 export function mergeCallerBuildPlugins(
 	appPlugins: EcoBuildPlugin[],
 	callerPlugins?: EcoBuildPlugin[],
+	environment?: BuildEnvironment,
 ): EcoBuildPlugin[] {
 	if (!callerPlugins || callerPlugins.length === 0) {
 		return appPlugins;
 	}
 
 	const appByName = new Map(appPlugins.map((plugin) => [plugin.name, plugin]));
-	const uniqueCallerPlugins = callerPlugins.filter((plugin) => !appByName.has(plugin.name));
+	const uniqueCallerPlugins = callerPlugins.filter(
+		(plugin) => (!environment || appliesToBuildEnvironment(plugin, environment)) && !appByName.has(plugin.name),
+	);
 	return [...uniqueCallerPlugins, ...appPlugins];
 }
 
@@ -49,7 +54,6 @@ export type ServerBuildRequestInput = Partial<BuildOptions> & {
 
 export type BrowserBuildRequestInput = Partial<BuildOptions> & {
 	entrypoints: BuildOptions['entrypoints'];
-	profile: BuildTranspileProfile;
 	excludeAppBuildPlugins?: string[];
 };
 
@@ -69,7 +73,7 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
 	const profile = input.profile ?? 'route-module';
 	const importMetaDir = input.runtimeOutdir ?? input.outdir;
 	const plugins = mergeSourceTransformPlugins(
-		mergeCallerBuildPlugins(resolveServerAppBuildPlugins(appConfig), input.plugins),
+		mergeCallerBuildPlugins(resolveServerAppBuildPlugins(appConfig), input.plugins, 'server'),
 		[
 			...getAppSourceTransforms(appConfig),
 			...(importMetaDir ? [createPreserveImportMetaTransform(importMetaDir)] : []),
@@ -78,8 +82,10 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
 	const { plugins: _callerPlugins, profile: _profile, ...overrides } = input;
 
 	return {
+		...resolveBuildEnvironmentOptions('server', appConfig),
 		...resolveBuildProfileOptions(profile, appConfig, overrides),
 		...overrides,
+		environment: 'server',
 		entrypoints: input.entrypoints,
 		...(plugins.length > 0 ? { plugins } : {}),
 	};
@@ -89,11 +95,8 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
  * Assembles a complete browser-oriented {@link BuildOptions} before scheduling.
  *
  * @remarks
- * Applies {@link resolveBuildProfileOptions} for `'browser-hmr'` (browser target
- * defaults), then overlays {@link getAppTranspileOptions} for the given
- * {@link BuildTranspileProfile}. That profile selects transpile settings only;
- * the {@link BuildRuntime} executor slot is chosen later by the caller
- * (typically {@link BrowserBundleService}).
+ * Applies browser environment defaults independently of the executor slot
+ * chosen by {@link BrowserBundleService}.
  *
  * Always attaches app source transforms as `transform` plugins. App browser
  * plugins come from {@link getAppBrowserBuildPlugins} (includes JSX ownership);
@@ -101,21 +104,22 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
  * replace app-manifest names ({@link mergeCallerBuildPlugins}).
  */
 export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: BrowserBuildRequestInput): BuildOptions {
-	const { profile, excludeAppBuildPlugins, plugins: callerPlugins, ...overrides } = input;
+	const { excludeAppBuildPlugins, plugins: callerPlugins, ...overrides } = input;
 	const appBrowserPlugins = getAppBrowserBuildPlugins(appConfig);
 	const filteredAppBrowserPlugins =
 		excludeAppBuildPlugins && excludeAppBuildPlugins.length > 0
 			? appBrowserPlugins.filter((plugin) => !excludeAppBuildPlugins.includes(plugin.name))
 			: appBrowserPlugins;
 	const plugins = mergeSourceTransformPlugins(
-		mergeCallerBuildPlugins(filteredAppBrowserPlugins, callerPlugins),
+		mergeCallerBuildPlugins(filteredAppBrowserPlugins, callerPlugins, 'browser'),
 		getAppSourceTransforms(appConfig),
 	);
 
 	return {
-		...resolveBuildProfileOptions('browser-hmr', appConfig, overrides),
-		...getAppTranspileOptions(appConfig, profile),
+		...resolveBuildEnvironmentOptions('browser', appConfig),
+		...getAppTranspileOptions(appConfig, 'browser'),
 		...overrides,
+		environment: 'browser',
 		entrypoints: input.entrypoints,
 		plugins,
 	};

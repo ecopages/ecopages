@@ -39,7 +39,6 @@ describe('static-build-invalidation', () => {
 
 		it('resets when a build-input contributor reports changes', () => {
 			const processor = new (class extends Processor {
-				override readonly buildPlugins = undefined;
 				override readonly plugins = undefined;
 				override didChange(): boolean {
 					return true;

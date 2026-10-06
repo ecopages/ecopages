@@ -64,6 +64,7 @@ describe('RolldownBuildAdapter', () => {
 			`export { isServerOnlyModuleSpecifier } from ${JSON.stringify(predicatePath)};`,
 		);
 		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'browser',
@@ -86,6 +87,7 @@ describe('RolldownBuildAdapter', () => {
 		writeFixture('db.server.ts', 'export const secret = "server-secret";');
 		const entrypoint = writeFixture('lit-browser.ts', source);
 		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'browser',
@@ -112,6 +114,7 @@ describe('RolldownBuildAdapter', () => {
 		writeFixture('db.server.ts', 'export const secret = "server-secret";');
 		const entrypoint = writeFixture('entry.ts', "export { secret } from './db.server.ts';");
 		const result = await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'node',
@@ -129,6 +132,7 @@ describe('RolldownBuildAdapter', () => {
 		const outdir = path.join(workDir, 'dist');
 
 		const result = await adapter.build({
+			environment: 'browser' as const,
 			entrypoints: [entrypoint],
 			outdir,
 			target: 'browser',
@@ -154,6 +158,7 @@ describe('RolldownBuildAdapter', () => {
 		const outdir = path.join(workDir, 'dist');
 
 		const result = await adapter.build({
+			environment: 'server' as const,
 			entrypoints: [entrypoint],
 			outdir,
 			target: 'es2022',
@@ -188,6 +193,7 @@ describe('RolldownBuildAdapter', () => {
 		const outdir = path.join(workDir, 'dist');
 
 		const result = await adapter.build({
+			environment: 'server' as const,
 			entrypoints: [entrypoint],
 			outdir,
 			target: 'es2022',
@@ -233,6 +239,7 @@ describe('RolldownBuildAdapter', () => {
 		);
 
 		const result = await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'node',
@@ -268,6 +275,7 @@ describe('RolldownBuildAdapter', () => {
 		const outdir = path.join(workDir, 'dist');
 
 		const result = await adapter.build({
+			environment: 'server' as const,
 			entrypoints: [entrypoint],
 			outdir,
 			target: 'node',
@@ -289,6 +297,7 @@ describe('RolldownBuildAdapter', () => {
 		const localRequire = createRequire(import.meta.url);
 
 		const result = await adapter.build({
+			environment: 'server' as const,
 			entrypoints: [entrypoint],
 			outdir,
 			target: 'es2022',
@@ -313,6 +322,7 @@ describe('RolldownBuildAdapter', () => {
 		);
 
 		const result = await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'node',
@@ -332,6 +342,7 @@ describe('RolldownBuildAdapter', () => {
 		const entrypoint = writeFixture('entry.ts', "import { parseSync } from 'oxc-parser';\nexport { parseSync };\n");
 
 		const result = await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'node',
@@ -350,6 +361,7 @@ describe('RolldownBuildAdapter', () => {
 			imports.map((specifier, index) => `export * as dep${index} from '${specifier}';`).join('\n'),
 		);
 		return await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'node',
@@ -368,6 +380,7 @@ describe('RolldownBuildAdapter', () => {
 		);
 
 		const result = await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'node',
@@ -444,6 +457,7 @@ describe('RolldownBuildAdapter', () => {
 		const entrypoint = writeFixture('entry.ts', "import { parseSync } from 'oxc-parser';\nexport { parseSync };\n");
 
 		const result = await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
 			entrypoints: { 'nested/entry': entrypoint },
 			outdir: path.join(workDir, 'dist'),
 			target: 'node',
@@ -468,6 +482,7 @@ describe('RolldownBuildAdapter', () => {
 		mkdirSync(nodeModulesDir, { recursive: true });
 		symlinkSync(path.dirname(localRequire.resolve('ws')), path.join(nodeModulesDir, 'ws'), 'dir');
 		const result = await adapter.build({
+			environment: 'server' as const,
 			entrypoints: [entrypoint],
 			outdir,
 			target: 'node',
@@ -494,6 +509,7 @@ describe('RolldownBuildAdapter', () => {
 		const outdir = path.join(workDir, 'dist');
 
 		const result = await adapter.build({
+			environment: 'server' as const,
 			entrypoints: [entrypoint],
 			outdir,
 			target: 'es2022',
@@ -532,6 +548,7 @@ describe('RolldownBuildAdapter', () => {
 		const outdir = path.join(workDir, 'dist');
 
 		const result = await adapter.build({
+			environment: 'server' as const,
 			entrypoints: [entrypoint],
 			outdir,
 			target: 'es2022',
@@ -565,6 +582,7 @@ describe('RolldownBuildAdapter', () => {
 		const adapter = new RolldownBuildAdapter();
 		const outdir = path.join(workDir, 'dist');
 		const result = await adapter.build({
+			environment: 'browser' as const,
 			entrypoints: [entrypoint],
 			outdir,
 			target: 'browser',
@@ -589,6 +607,7 @@ describe('RolldownBuildAdapter', () => {
 		const outdir = path.join(workDir, 'dist');
 
 		const result = await adapter.build({
+			environment: 'browser' as const,
 			entrypoints: [entrypoint],
 			outdir,
 			target: 'browser',
@@ -616,6 +635,7 @@ describe('RolldownBuildAdapter', () => {
 		const outdir = path.join(workDir, 'dist');
 
 		const result = await adapter.build({
+			environment: 'browser' as const,
 			entrypoints: [entrypoint],
 			outdir,
 			target: 'browser',
@@ -643,6 +663,7 @@ describe('RolldownBuildAdapter', () => {
 		const outdir = path.join(workDir, 'dist');
 
 		const result = await adapter.build({
+			environment: 'browser' as const,
 			entrypoints: [entrypoint],
 			outdir,
 			target: 'browser',
@@ -669,6 +690,7 @@ describe('RolldownBuildAdapter', () => {
 			"import { value } from './constant.js';\nimport { unused } from './unused.js';\nexport const read = () => value;\n",
 		);
 		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
 			entrypoints: [entry],
 			root: workDir,
 			outdir: path.join(workDir, 'dist'),
@@ -691,6 +713,7 @@ describe('RolldownBuildAdapter', () => {
 		const outdir = path.join(workDir, 'dist');
 
 		const result = await adapter.build({
+			environment: 'browser' as const,
 			entrypoints: [entrypoint],
 			outdir,
 			target: 'browser',
@@ -725,6 +748,7 @@ describe('RolldownBuildAdapter', () => {
 		const adapter = new RolldownBuildAdapter();
 
 		const result = await adapter.build({
+			environment: 'server' as const,
 			entrypoints: [first, second],
 			outdir: path.join(workDir, 'dist'),
 			target: 'node',
@@ -755,6 +779,7 @@ describe('RolldownBuildAdapter', () => {
 		const adapter = new RolldownBuildAdapter();
 
 		const result = await adapter.build({
+			environment: 'server' as const,
 			entrypoints: [first, second],
 			outdir: path.join(workDir, 'dist'),
 			target: 'node',
@@ -777,6 +802,7 @@ describe('RolldownBuildAdapter', () => {
 		const outdir = path.join(workDir, 'dist');
 
 		const result = await adapter.build({
+			environment: 'browser' as const,
 			entrypoints: [path.join(workDir, 'does-not-exist.ts')],
 			outdir,
 			target: 'browser',
@@ -794,6 +820,7 @@ describe('RolldownBuildAdapter', () => {
 		const adapter = new RolldownBuildAdapter();
 
 		const result = await adapter.build({
+			environment: 'browser' as const,
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'browser',
@@ -817,6 +844,7 @@ describe('RolldownBuildAdapter', () => {
 		const adapter = new RolldownBuildAdapter();
 
 		const result = await adapter.build({
+			environment: 'browser' as const,
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'browser',
@@ -857,6 +885,7 @@ describe('RolldownBuildAdapter', () => {
 		const adapter = new RolldownBuildAdapter();
 
 		const result = await adapter.build({
+			environment: 'browser' as const,
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'browser',
@@ -883,6 +912,7 @@ describe('RolldownBuildAdapter', () => {
 		const adapter = new RolldownBuildAdapter();
 
 		const result = await adapter.build({
+			environment: 'browser' as const,
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'browser',
@@ -909,6 +939,7 @@ describe('RolldownBuildAdapter', () => {
 
 		try {
 			const result = await adapter.build({
+				environment: 'browser' as const,
 				entrypoints: [entrypoint],
 				outdir: path.join(workDir, 'dist'),
 				target: 'browser',
@@ -931,6 +962,7 @@ describe('RolldownBuildAdapter', () => {
 		const adapter = new RolldownBuildAdapter();
 
 		const result = await adapter.build({
+			environment: 'browser' as const,
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'browser',
@@ -960,6 +992,7 @@ describe('RolldownBuildAdapter', () => {
 		const adapter = new RolldownBuildAdapter();
 
 		const result = await adapter.build({
+			environment: 'browser' as const,
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'browser',
@@ -987,6 +1020,7 @@ describe('RolldownBuildAdapter', () => {
 		const adapter = new RolldownBuildAdapter();
 
 		const result = await adapter.build({
+			environment: 'browser' as const,
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'browser',
@@ -1014,6 +1048,7 @@ describe('RolldownBuildAdapter', () => {
 		const adapter = new RolldownBuildAdapter();
 		const build = (plugins: EcoBuildPlugin[]) =>
 			adapter.build({
+				environment: 'browser' as const,
 				entrypoints: [entrypoint],
 				outdir: path.join(workDir, 'dist'),
 				target: 'browser',
@@ -1056,19 +1091,14 @@ describe('RolldownBuildAdapter', () => {
 		]);
 	});
 
-	test('getTranspileOptions returns the shared transpile defaults', () => {
+	test('getTranspileOptions selects defaults by environment', () => {
 		const adapter = new RolldownBuildAdapter();
-		assert.deepEqual(adapter.getTranspileOptions('browser-script'), {
-			target: 'browser',
+		assert.deepEqual(adapter.getTranspileOptions('server'), {
+			target: 'node',
 			format: 'esm',
 			sourcemap: 'none',
 		});
-		assert.deepEqual(adapter.getTranspileOptions('hmr-runtime'), {
-			target: 'browser',
-			format: 'esm',
-			sourcemap: 'none',
-		});
-		assert.deepEqual(adapter.getTranspileOptions('hmr-entrypoint'), {
+		assert.deepEqual(adapter.getTranspileOptions('browser'), {
 			target: 'browser',
 			format: 'esm',
 			sourcemap: 'none',
@@ -1080,6 +1110,7 @@ describe('RolldownBuildAdapter', () => {
 		const adapter = new RolldownBuildAdapter();
 		const outdir = path.join(workDir, 'dist');
 		const result = await adapter.build({
+			environment: 'server' as const,
 			entrypoints: [entrypoint],
 			outdir,
 			target: 'es2022',
@@ -1131,6 +1162,7 @@ describe('RolldownBuildAdapter', () => {
 		buildSpy.mockRejectedValueOnce(new Error('forced failure'));
 
 		const result = await adapter.build({
+			environment: 'browser' as const,
 			entrypoints: [],
 			outdir,
 			target: 'browser',

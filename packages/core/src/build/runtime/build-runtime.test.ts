@@ -19,7 +19,7 @@ function createTestAppConfig(): EcoPagesAppConfig {
 	setAppBuildManifest(
 		appConfig,
 		createAppBuildManifest({
-			runtimePlugins: [],
+			plugins: [],
 		}),
 	);
 
@@ -61,6 +61,7 @@ test('installBuildRuntime rejects Vite-host adapter builds at execution time', a
 
 	await assert.rejects(
 		executor.build({
+			environment: 'browser' as const,
 			entrypoints: ['/tmp/entry.ts'],
 			root: '/tmp',
 			outdir: '/tmp/out',

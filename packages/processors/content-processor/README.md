@@ -4,6 +4,8 @@ Build-time content collections for Ecopages. Scans MDX (or other configured exte
 
 ## Mental model
 
+Build contributions use one `plugins` getter. The server resolver and browser resolver declare separate environments, so browser compilation cannot select the server implementation by registration order.
+
 1. **Declare collections** in `eco.config.ts` — content directory, frontmatter schema, and sort order.
 2. **Scan at build time** — the processor validates frontmatter and writes generated modules under `.eco/cache/`.
 3. **Import the virtual module** — pages and layouts use `ecopages:content/<collection>` for `entries`, metadata, and MDX components.

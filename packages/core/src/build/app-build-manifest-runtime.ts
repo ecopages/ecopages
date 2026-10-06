@@ -1,6 +1,8 @@
 import type { EcoBuildPlugin } from './contracts/build-types.ts';
 import { mergeBrowserRuntimeManifests } from './browser/browser-runtime-manifest.ts';
 import type { AppBuildManifest } from './contracts/build-manifest.ts';
+import { validateBuildPluginRegistrations } from './contracts/build-manifest.ts';
+import { appliesToBuildEnvironment } from './contracts/build-manifest.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { startupTrace } from '../diagnostics/startup-trace.ts';
@@ -21,20 +23,20 @@ function registerRuntimePlugins(
 	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void,
 ): void {
 	for (const loader of appConfig.loaders.values()) {
-		onRuntimePlugin?.(loader);
+		if (appliesToBuildEnvironment(loader, 'server')) onRuntimePlugin?.(loader);
 	}
 
 	for (const processor of appConfig.processors.values()) {
 		if (processor.plugins) {
 			for (const plugin of processor.plugins) {
-				onRuntimePlugin?.(plugin);
+				if (appliesToBuildEnvironment(plugin, 'server')) onRuntimePlugin?.(plugin);
 			}
 		}
 	}
 
 	for (const integration of appConfig.integrations) {
 		for (const plugin of integration.plugins) {
-			onRuntimePlugin?.(plugin);
+			if (appliesToBuildEnvironment(plugin, 'server')) onRuntimePlugin?.(plugin);
 		}
 	}
 }
@@ -48,44 +50,44 @@ function registerRuntimePlugins(
  * and {@link IntegrationPlugin.prepareBuildContributions} so dynamic plugin lists can be
  * materialized before sealing.
  *
- * Maps contributor getters to manifest buckets:
- * - `processor.plugins` / `integration.plugins` → `runtimePlugins`
- * - `processor.buildPlugins` / `integration.browserBuildPlugins` → `browserBundlePlugins`
- * - `integration.browserRuntimeManifest` → merged `browserRuntimeManifest`
+ * Both contributor kinds expose `plugins`, selected by each plugin's environments.
+ * Integration browser runtime manifests remain separate declarations.
  *
  * Loaders are not collected here; {@link createConfiguredAppBuildManifest} always takes
  * them from `appConfig.loaders`.
  */
 export async function collectConfiguredAppBuildManifestContributions(
 	appConfig: EcoPagesAppConfig,
-): Promise<Pick<AppBuildManifest, 'runtimePlugins' | 'browserBundlePlugins' | 'browserRuntimeManifest'>> {
-	const runtimePlugins: EcoBuildPlugin[] = [];
-	const browserBundlePlugins: EcoBuildPlugin[] = [];
+): Promise<AppBuildManifest> {
+	const registrations = [...appConfig.loaders.values()].map((plugin) => ({
+		plugin,
+		source: `Loader "${plugin.name}"`,
+	}));
+	const plugins: EcoBuildPlugin[] = [];
 	const browserRuntimeManifests = [];
 
 	for (const processor of appConfig.processors.values()) {
 		await processor.prepareBuildContributions();
 
-		if (processor.plugins) {
-			runtimePlugins.push(...processor.plugins);
-		}
-
-		if (processor.buildPlugins) {
-			browserBundlePlugins.push(...processor.buildPlugins);
+		for (const plugin of processor.plugins ?? []) {
+			plugins.push(plugin);
+			registrations.push({ plugin, source: `Processor "${processor.name}"` });
 		}
 	}
 
 	for (const integration of appConfig.integrations) {
 		integration.setConfig(appConfig);
 		await integration.prepareBuildContributions();
-		runtimePlugins.push(...(integration.plugins ?? []));
-		browserBundlePlugins.push(...(integration.browserBuildPlugins ?? []));
+		for (const plugin of integration.plugins) {
+			plugins.push(plugin);
+			registrations.push({ plugin, source: `Integration "${integration.name}"` });
+		}
 		browserRuntimeManifests.push(integration.browserRuntimeManifest);
 	}
 
+	validateBuildPluginRegistrations(registrations);
 	return {
-		runtimePlugins,
-		browserBundlePlugins,
+		plugins,
 		browserRuntimeManifest: mergeBrowserRuntimeManifests(...browserRuntimeManifests),
 	};
 }
@@ -116,7 +118,7 @@ export async function setupAppRuntimePlugins(options: {
 		}
 
 		for (const loader of options.appConfig.loaders.values()) {
-			options.onRuntimePlugin?.(loader);
+			if (appliesToBuildEnvironment(loader, 'server')) options.onRuntimePlugin?.(loader);
 		}
 
 		const skipProcessorSetup = isLitStaticRenderWorkerThread();
@@ -128,7 +130,7 @@ export async function setupAppRuntimePlugins(options: {
 
 			if (processor.plugins) {
 				for (const plugin of processor.plugins) {
-					options.onRuntimePlugin?.(plugin);
+					if (appliesToBuildEnvironment(plugin, 'server')) options.onRuntimePlugin?.(plugin);
 				}
 			}
 		}
@@ -175,7 +177,7 @@ export async function ensureIntegrationRuntimeReady(options: {
 
 		const onRuntimePlugin = options.onRuntimePlugin ?? options.appConfig.runtime?.onRuntimePlugin;
 		for (const plugin of integration.plugins ?? []) {
-			onRuntimePlugin?.(plugin);
+			if (appliesToBuildEnvironment(plugin, 'server')) onRuntimePlugin?.(plugin);
 		}
 	})();
 

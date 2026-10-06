@@ -110,9 +110,8 @@ type RendererClass<C> = new (options: IntegrationRendererConstructorOptions) => 
  *
  * Core owns lifecycle ordering. Integrations declare contributions through the
  * hooks on this class, while config finalization and app startup decide when
- * those hooks run. Build plugins map to {@link AppBuildManifest} buckets:
- * `plugins` → `runtimePlugins`, `browserBuildPlugins` → `browserBundlePlugins`,
- * `browserRuntimeManifest` → client import rewrite map. For page-browser and
+ * those hooks run. `plugins` declares environment-selected build hooks and
+ * `browserRuntimeManifest` declares client import rewrites. For page-browser and
  * document shaping, integrations should prefer the contribution contracts
  * re-exported from this module:
  * `PageBrowserGraphContribution` / `PageBrowserGraphContributionContext` and
@@ -145,25 +144,11 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	declare runtimeOrigin: string;
 
 	/**
-	 * Returns build plugins shared by server-oriented and browser-oriented builds.
-	 *
 	 * @remarks
-	 * Collected into {@link AppBuildManifest.runtimePlugins} during config finalization.
-	 * MDX loaders, virtual-module resolvers, and other transforms that must run during
-	 * route-module transpile belong here—not in {@link browserBuildPlugins}.
+	 * Plugins declare their environments. Omitted environments apply to both
+	 * server and browser builds; browser-only hooks use `['browser']`.
 	 */
 	get plugins(): EcoBuildPlugin[] {
-		return [];
-	}
-
-	/**
-	 * Returns build plugins that should only apply to browser-oriented bundles.
-	 *
-	 * @remarks
-	 * Browser-only transforms such as runtime import aliasing belong here so they
-	 * do not affect server bundles or static-page module generation.
-	 */
-	get browserBuildPlugins(): EcoBuildPlugin[] {
 		return [];
 	}
 

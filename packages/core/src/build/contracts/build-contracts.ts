@@ -68,6 +68,7 @@ export interface BuildChunk {
  * Rolldown code splitting for single-entrypoint builds.
  */
 export interface BuildOptions {
+	environment: BuildEnvironment;
 	entrypoints: string[] | Record<string, string>;
 	outdir?: string;
 	naming?: string;
@@ -106,10 +107,10 @@ export interface BuildOptions {
 	plugins?: EcoBuildPlugin[];
 }
 
-/** Stable profile identifiers for `BuildAdapter.getTranspileOptions`. */
-export type BuildTranspileProfile = 'browser-script' | 'hmr-runtime' | 'hmr-entrypoint';
+/** Compilation environment, independent of the executor's scheduling profile. */
+export type BuildEnvironment = 'server' | 'browser';
 
-/** Resolved transpile settings for a given profile. */
+/** Resolved transpile settings for a compilation environment. */
 export interface BuildTranspileOptions {
 	target: string;
 	format: string;
@@ -121,7 +122,7 @@ export interface BuildAdapter {
 	readonly ownership?: BuildOwnership;
 	build(options: BuildOptions): Promise<BuildResult>;
 	resolve(importPath: string, rootDir: string): string;
-	getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions;
+	getTranspileOptions(environment: BuildEnvironment): BuildTranspileOptions;
 }
 
 /** Runtime-facing facade for issuing builds. */

@@ -30,6 +30,7 @@ These contracts are responsible for:
 - An Integration whose files are not JavaScript modules can compile them itself with `compilePageModule()`, and one whose Pages cannot receive Params overrides `acceptsParams` with `false`. Core asks the owning Integration instead of checking Integration names.
 - Processors own asset semantics, cache ownership, and processor-specific watch behavior.
 - Core owns lifecycle ordering, startup orchestration, and manifest assembly.
+- Integrations and Processors expose one `plugins` getter. Build plugins declare their server/browser environments; omitted environments apply to both. Config finalization rejects a duplicate name within one environment and names both contributors.
 - The transform wraps native `eco.page()`, `eco.component()`, `eco.layout()`, and `eco.html()` factory options with `bindComponentIdentity()`. Factories retain the resulting `options.identity` on `config`, and runtime consumers read it through `getComponentIdentity()`. Browser, HMR, and server builds use the same source transform, so ownership and dependency diagnostics retain stable file attribution without a loader duplicate.
 - MDX modules compiled by `@ecopages/mdx/core` use `attributeMdxComponentIdentity()` to strip bare CSS imports, attach live component accessors to `config.dependencies`, keep inferred stylesheets on identity, and assign `MDXContent.config = config`. The loader requires `projectRoot` from app config. Markdown code blocks and dynamic imports within functions are distinguished and left unaffected.
 

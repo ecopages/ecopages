@@ -24,7 +24,14 @@ Disable per project with `devToolbar: { enabled: false }`, or per process with `
 
 Server wiring: [dev-toolbar/README.md](../dev-toolbar/README.md) (`DevToolbarHost`, manifest, runtime bundling, HTML injection). Bring-your-own toolbars export `src/bootstrap.ts` and use the same `devToolbar.package` config key.
 
-Dev transform requests retry when their source changes or is invalidated during compilation. Concurrent requests share one in-flight compile per source, including across source and global invalidation; stale attempts release their slot before retrying. Only results for the current source snapshot enter the module cache, so rapid edits cannot label stale browser code with a newer source hash.
+Dev transform requests retry when their source changes or is invalidated during compilation. Concurrent requests share one in-flight compile per source, including across source and global invalidation; stale attempts release their slot before retrying. Only results for the current source snapshot enter the module cache, so rapid edits cannot label stale browser code with a newer source hash. A failed compile of a snapshot that changed in the meantime is retried the same way, so it is neither returned nor reported.
+
+### Build errors of served modules
+
+When a module fails to compile, `DevTransformServer` answers 500 with the error text, records the message under the module, and calls `onTransformError` with it. `SharedHmrManager` broadcasts that message as an HMR `error` event, which the HMR client shows in the page ([hmr/README.md](../hmr/README.md#client-events)).
+
+- The failure is recorded under the requested module, but its cause can be another file and the module can be removed, so `SharedHmrManager.handleFileChange()` clears every recorded failure. A module that still fails records its error again on its next request. A successful request also removes its module's failure.
+- The module request of a fresh page load can arrive before the page's HMR socket connects, and the broadcast then reaches no one. The Bun and Node adapters therefore call `sendPendingBuildErrors()` right after subscribing a socket, which sends one `error` event per recorded failure.
 
 Bare browser imports are prebundled to `/assets/vendors/<name>.<hash>.js` under the dist directory. The hash covers the specifier, the installed package's version and entry file. For workspace-linked packages whose real path is outside `node_modules`, it also covers every file of the package except `node_modules` and dot entries. Existing bundles with the same name are reused across processes unless a watched workspace edit discards them before restarting. The fingerprint does not cover a linked package's dependencies, so changing only those dependencies and manually restarting can still reuse stale output. Every vendor file, including integration runtimes with unhashed names, is served with `Cache-Control: no-cache` and a content `ETag`; browsers revalidate on each load and receive `304` while the content is unchanged.
 

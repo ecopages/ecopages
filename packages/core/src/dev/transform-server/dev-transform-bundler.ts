@@ -8,6 +8,7 @@ import { createDevTransformExternalizeImportsPlugin } from './dev-transform-exte
 import { rewriteModuleImports } from './dev-transform-import-rewriter.ts';
 import type { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
 import type { DevTransformBundleContributor, DevTransformBundleResult } from './types.ts';
+import { formatBuildLog } from '../../build/build-log.ts';
 
 export type DevTransformBundlerOptions = {
 	appConfig: EcoPagesAppConfig;
@@ -70,7 +71,7 @@ export class DevTransformBundler {
 		});
 
 		if (!result.success) {
-			const details = result.logs.map((log) => log.message).join('\n');
+			const details = result.logs.map(formatBuildLog).join('\n');
 			throw new Error(
 				details
 					? `[dev-transform] Transpile failed for ${normalized}:\n${details}`

@@ -33,6 +33,7 @@ import type { ErrorPageLoaders, StaticRoute } from '../../../types/public-types.
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator.ts';
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
+import { formatBuildLog } from '../../../build/build-log.ts';
 
 export interface StaticBuildOptions {
 	baseUrl?: string;
@@ -218,7 +219,7 @@ export class ServerStaticBuilder {
 			const result = await build(buildOptions, requireBuildRuntime(this.appConfig).getProfile('server-entry'));
 
 			if (!result.success) {
-				const errorMessages = result.logs.map((log) => log.message).join('\n');
+				const errorMessages = result.logs.map(formatBuildLog).join('\n');
 				throw new Error(`Failed to bundle server entry file:\n${errorMessages}`);
 			}
 

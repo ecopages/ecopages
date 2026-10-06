@@ -9,6 +9,7 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { getAppServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
+import { formatBuildLog } from '../../build/build-log.ts';
 
 export type CollectionServerBuildArtifact = {
 	collectionName: string;
@@ -94,7 +95,7 @@ export async function buildCollectionServerModule(input: {
 	recordCollectionBuild();
 	const buildResult: BuildResult = await build(buildOptions);
 	if (!buildResult.success) {
-		const details = buildResult.logs.map((log) => log.message).join(' | ');
+		const details = buildResult.logs.map(formatBuildLog).join('\n');
 		throw new Error(`Error building collection server module ${collectionName}: ${details}`);
 	}
 

@@ -3,12 +3,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test } from 'vitest';
+import { installBuildRuntime } from '../../../build/runtime/build-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../../../hmr/hmr-strategy.ts';
 import type { ClientBridgeEvent } from '../../../types/public-types.ts';
 import { HmrManager as BunHmrManager } from '../../bun/hmr-manager.ts';
 import { NodeHmrManager } from '../../node/node-hmr-manager.ts';
+import type { SharedHmrManager } from './shared-hmr-manager.ts';
 
 class FakeHmrStrategy extends HmrStrategy {
 	readonly type: HmrStrategyType;
@@ -84,6 +86,12 @@ const runtimes = [
 		},
 	},
 ] as const;
+
+function collectPendingBuildErrors(manager: SharedHmrManager): ClientBridgeEvent[] {
+	const received: ClientBridgeEvent[] = [];
+	manager.sendPendingBuildErrors({ send: (payload) => received.push(JSON.parse(payload)) });
+	return received;
+}
 
 describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 	test('CSS file change routes to DefaultHmrStrategy and broadcasts reload', async () => {
@@ -316,5 +324,91 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 
 		assert.equal(spy.broadcasts.length, 2);
 		assert.deepEqual(spy.broadcasts, events);
+	});
+
+	test('broadcasts a dev-transform build error to the browser without terminal colour codes', async () => {
+		const rootDir = createTempRoot('ecopages-dispatch-build-error');
+		const srcDir = path.join(rootDir, 'src');
+		fs.mkdirSync(srcDir, { recursive: true });
+		const spy = createBridgeSpy();
+		using manager = await create(rootDir, spy);
+		installBuildRuntime(manager.appConfig);
+
+		const scriptPath = path.join(srcDir, 'broken.script.ts');
+		fs.writeFileSync(scriptPath, 'export const broken = ;\n', 'utf8');
+		const { outputUrl } = await manager.registerScriptEntrypoint(scriptPath);
+
+		const response = await manager.tryHandleDevClientRequest(new Request(`http://localhost${outputUrl}`));
+
+		assert.equal(response?.status, 500);
+		assert.equal(spy.broadcasts.length, 1);
+		assert.equal(spy.broadcasts[0].type, 'error');
+		assert.match(spy.broadcasts[0].message ?? '', /PARSE_ERROR/);
+		assert.match(spy.broadcasts[0].message ?? '', /broken\.script\.ts/);
+		assert.equal(spy.broadcasts[0].message?.includes('\u001b['), false);
+	});
+
+	test('sends a build error to a browser that connects after it was broadcast', async () => {
+		const rootDir = createTempRoot('ecopages-dispatch-late-build-error');
+		const srcDir = path.join(rootDir, 'src');
+		fs.mkdirSync(srcDir, { recursive: true });
+		const spy = createBridgeSpy();
+		spy.bridge.subscriberCount = 0;
+		using manager = await create(rootDir, spy);
+		installBuildRuntime(manager.appConfig);
+
+		const scriptPath = path.join(srcDir, 'late.script.ts');
+		fs.writeFileSync(scriptPath, 'export const late = ;\n', 'utf8');
+		const { outputUrl } = await manager.registerScriptEntrypoint(scriptPath);
+		await manager.tryHandleDevClientRequest(new Request(`http://localhost${outputUrl}`));
+
+		const received = collectPendingBuildErrors(manager);
+
+		assert.equal(received.length, 1);
+		assert.equal(received[0].type, 'error');
+		assert.match(received[0].message ?? '', /late\.script\.ts/);
+	});
+
+	test.each([
+		{
+			scenario: 'a dependency of another script is saved',
+			change: (scriptPath: string) => path.join(path.dirname(scriptPath), 'dependency.ts'),
+		},
+		{
+			scenario: 'the failing script is removed',
+			change: (scriptPath: string) => {
+				fs.rmSync(scriptPath);
+				return scriptPath;
+			},
+		},
+	])('stops sending a recorded build error once $scenario', async ({ change }) => {
+		const rootDir = createTempRoot('ecopages-dispatch-cleared-build-error');
+		const srcDir = path.join(rootDir, 'src');
+		fs.mkdirSync(srcDir, { recursive: true });
+		const spy = createBridgeSpy();
+		spy.bridge.subscriberCount = 0;
+		using manager = await create(rootDir, spy);
+		installBuildRuntime(manager.appConfig);
+
+		const dependencyPath = path.join(srcDir, 'dependency.ts');
+		fs.writeFileSync(dependencyPath, 'export const dependency = true;\n', 'utf8');
+		const otherPath = path.join(srcDir, 'other.script.ts');
+		fs.writeFileSync(
+			otherPath,
+			"import { dependency } from './dependency.ts';\nconsole.log(dependency);\n",
+			'utf8',
+		);
+		const other = await manager.registerScriptEntrypoint(otherPath);
+		await manager.tryHandleDevClientRequest(new Request(`http://localhost${other.outputUrl}`));
+
+		const scriptPath = path.join(srcDir, 'cleared.script.ts');
+		fs.writeFileSync(scriptPath, 'export const cleared = ;\n', 'utf8');
+		const { outputUrl } = await manager.registerScriptEntrypoint(scriptPath);
+		await manager.tryHandleDevClientRequest(new Request(`http://localhost${outputUrl}`));
+		assert.equal(collectPendingBuildErrors(manager).length, 1);
+
+		await manager.handleFileChange(change(scriptPath), { broadcast: false });
+
+		assert.deepEqual(collectPendingBuildErrors(manager), []);
 	});
 });

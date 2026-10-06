@@ -63,6 +63,43 @@ describe('DevTransformBundler', () => {
 		expect(result.code).toMatch(new RegExp(`${DEV_TRANSFORM_URL_PREFIX}/pages/lazy-devtools\\.js\\?v=[0-9a-f]+`));
 	});
 
+	it('names the build plugin and the file that failed to load', async () => {
+		const rootDir = createTempRoot('dev-transform-bundler-plugin-error');
+		const entrypointPath = path.join(rootDir, 'src', 'widget.ts');
+		fs.mkdirSync(path.dirname(entrypointPath), { recursive: true });
+		fs.writeFileSync(entrypointPath, 'export const widget = true;\n', 'utf8');
+
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		installBuildRuntime(config);
+		const bundler = new DevTransformBundler({
+			appConfig: config,
+			contributors: [
+				{
+					ownsModule: () => true,
+					getModulePlugins: async () => [
+						{
+							name: 'widget-loader',
+							setup(build) {
+								build.onLoad({ filter: /widget\.ts$/ }, () => {
+									throw new Error('loader boom');
+								});
+							},
+						},
+					],
+				},
+			],
+			getRuntimeSpecifierMap: () => new Map(),
+			vendorRegistry: new DevTransformVendorRegistry({
+				appConfig: config,
+				getRuntimeSpecifierMap: () => new Map(),
+			}),
+		});
+
+		await expect(bundler.transpileModule(entrypointPath)).rejects.toThrow(
+			`[widget-loader] ${fs.realpathSync(entrypointPath)}: loader boom`,
+		);
+	});
+
 	it('rewrites local imports with a new content-hash query when the dependency changes', async () => {
 		const rootDir = createTempRoot('dev-transform-bundler-import-version');
 		const layoutsDir = path.join(rootDir, 'src', 'layouts');

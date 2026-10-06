@@ -62,6 +62,7 @@ export class HmrManager extends SharedHmrManager {
 
 		const open = (ws: BunSocket) => {
 			bridge.subscribe(ws);
+			this.sendPendingBuildErrors(ws);
 			appLogger.debug(`[HmrManager] Connection opened. Subscribers: ${bridge.subscriberCount}`);
 		};
 

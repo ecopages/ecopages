@@ -31,7 +31,6 @@ export type {
 	BuildChunk,
 	BuildDependencyGraph,
 	BuildExecutor,
-	BuildLog,
 	BuildOptions,
 	BuildOutput,
 	BuildOwnership,

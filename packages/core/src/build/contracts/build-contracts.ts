@@ -1,3 +1,4 @@
+import type { RolldownLog } from 'rolldown';
 import type { EcoBuildPlugin } from './build-types.ts';
 
 /**
@@ -9,11 +10,6 @@ import type { EcoBuildPlugin } from './build-types.ts';
  *   is exposed as a boundary marker; any direct call into it throws.
  */
 export type BuildOwnership = 'vite-host' | 'rolldown';
-
-/** A single message emitted by the build backend. */
-export interface BuildLog {
-	message: string;
-}
 
 /** A single artifact emitted by the build backend. */
 export interface BuildOutput {
@@ -36,7 +32,15 @@ export interface BuildDependencyGraph {
 /** The full result of one `BuildAdapter.build` call. */
 export interface BuildResult {
 	success: boolean;
-	logs: BuildLog[];
+	/**
+	 * Errors of a failed build, in Rolldown's log shape (`code`, `plugin`, `hook`, `id`, `loc`, `frame`, `stack`).
+	 *
+	 * @remarks
+	 * `plugin` names the `EcoBuildPlugin` that threw, not the bridge plugin that hosts it.
+	 */
+	logs: RolldownLog[];
+	/** Warnings reported by the bundler during a successful build. */
+	warnings?: RolldownLog[];
 	outputs: BuildOutput[];
 	dependencyGraph?: BuildDependencyGraph;
 	/**

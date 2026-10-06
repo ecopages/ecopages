@@ -84,6 +84,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 			onModuleDependencies: (modulePath, dependencies) => {
 				this.entrypointDependencyGraph.setEntrypointDependencies(modulePath, dependencies);
 			},
+			onTransformError: (message) => this.broadcast({ type: 'error', message }),
 		});
 		this.ensureRuntimeWorkDir();
 		this.initializeStrategies();
@@ -284,6 +285,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	public async handleFileChange(filePath: string, options: HandleFileChangeOptions = {}): Promise<void> {
+		this.devTransformServer.clearFailures();
 		const resolvedFilePath = path.resolve(filePath);
 		const isRegisteredDevTransformEdit = isRegisteredDevTransformEntrypoint(
 			this.entrypointRegistry.getRegisteredEntrypoints(),
@@ -471,6 +473,19 @@ export abstract class SharedHmrManager implements IHmrManager {
 
 	public getRegisteredEntrypoints(): ReadonlyMap<string, ResolvedHmrEntrypoint> {
 		return this.entrypointRegistry.getRegisteredEntrypoints();
+	}
+
+	/**
+	 * Sends a browser that just connected the build errors of modules that still fail to transpile.
+	 *
+	 * @remarks
+	 * A build error is broadcast while the failing module is served, which can happen before the page's HMR
+	 * socket connects. Without this replay that browser would never show the error.
+	 */
+	public sendPendingBuildErrors(client: { send(payload: string): void }): void {
+		for (const message of this.devTransformServer.getFailureMessages()) {
+			client.send(JSON.stringify({ type: 'error', message } satisfies ClientBridgeEvent));
+		}
 	}
 
 	public async tryHandleDevClientRequest(request: Request): Promise<Response | null> {

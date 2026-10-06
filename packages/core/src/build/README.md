@@ -169,7 +169,7 @@ Set `ECOPAGES_ROLLDOWN_BUILD_METRICS=1` to log Rolldown invocation counts during
 
 Three persisted cache layers accelerate production builds. All use `.build-cache.json` manifests keyed by build-input fingerprints, by a hash of the config module and the project files it imports, and by hashes of every local module each entry loads, including modules in shared chunks and in chunks loaded through `import()`. Editing any of them misses the cache.
 
-The adapter records source closures from Rolldown's module graph and all emitted chunk edges separately. `BuildResult.entryOutputs` associates entry facade module paths with outputs; consumers use exact entry identity rather than filename prefixes. `outputGraph` supplies static and dynamic output reachability without parsing emitted JavaScript. Entry paths are absolute and normalized against the build root; symlink aliases and Windows casing reconciliation remain separate compatibility work (#465).
+The adapter records source closures from Rolldown's module graph and all emitted chunk edges separately. `BuildResult.entryOutputs` is keyed by the path or grouped name the caller passed, plus the bundler's facade path when that spelling differs, so a symlink root or Windows drive casing still finds the chunk. Consumers look entries up through `getBuildEntryOutput` rather than by filename prefix. `outputGraph` supplies static and dynamic output reachability without parsing emitted JavaScript.
 
 | Cache                                  | On-disk location                                    | Module                                               |
 | -------------------------------------- | --------------------------------------------------- | ---------------------------------------------------- |

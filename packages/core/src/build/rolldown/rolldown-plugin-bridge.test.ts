@@ -1,44 +1,39 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
+import { rolldown, type LoadResult, type Plugin, type ResolveIdResult } from 'rolldown';
 import { test } from 'vitest';
 import { createRolldownPluginBridge } from './rolldown-plugin-bridge.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
-import type { LoadResult, ResolveIdResult } from 'rolldown';
-
-const fakeContext = {} as never;
 
 type ResolveHook = (source: string, importer?: string, extraOptions?: unknown) => Promise<ResolveIdResult>;
 type LoadHook = (id: string) => Promise<LoadResult>;
-type BuildStartHook = (this: unknown) => Promise<unknown> | unknown;
 
-function callResolveId(
-	plugin: ReturnType<typeof createRolldownPluginBridge>[number],
-	source: string,
-	importer?: string,
-): Promise<ResolveIdResult> {
-	return (plugin.resolveId as unknown as ResolveHook)(source, importer);
+function hookHandler(hook: Plugin['resolveId'] | Plugin['load']): unknown {
+	return typeof hook === 'function' ? hook : hook?.handler;
 }
 
-function callLoad(plugin: ReturnType<typeof createRolldownPluginBridge>[number], id: string): Promise<LoadResult> {
-	return (plugin.load as unknown as LoadHook)(id);
+function callResolveId(plugin: Plugin, source: string, importer?: string): Promise<ResolveIdResult> {
+	return (hookHandler(plugin.resolveId) as ResolveHook)(source, importer);
 }
 
-async function callBuildStart(plugin: ReturnType<typeof createRolldownPluginBridge>[number]): Promise<void> {
-	await (plugin.buildStart as unknown as BuildStartHook).call(fakeContext);
+function callLoad(plugin: Plugin, id: string): Promise<LoadResult> {
+	return (hookHandler(plugin.load) as LoadHook)(id);
 }
 
-test('createRolldownPluginBridge returns a single consolidated plugin', () => {
+test('createRolldownPluginBridge returns a single consolidated plugin', async () => {
 	const plugins: EcoBuildPlugin[] = [
 		{ name: 'a', setup: () => {} },
 		{ name: 'b', setup: () => {} },
 	];
-	const bridge = createRolldownPluginBridge(plugins, '/app');
+	const bridge = await createRolldownPluginBridge(plugins, '/app');
 	assert.equal(bridge.length, 1);
 	assert.equal(bridge[0]?.name, 'ecopages-plugin-bridge');
 });
 
-test('createRolldownPluginBridge runs each plugin.setup during buildStart', async () => {
+test('createRolldownPluginBridge runs each plugin.setup in array order before returning', async () => {
 	const setupCalls: string[] = [];
 	const plugins: EcoBuildPlugin[] = [
 		{
@@ -55,10 +50,7 @@ test('createRolldownPluginBridge runs each plugin.setup during buildStart', asyn
 		},
 	];
 
-	const bridge = createRolldownPluginBridge(plugins, '/app');
-	for (const plugin of bridge) {
-		await callBuildStart(plugin);
-	}
+	await createRolldownPluginBridge(plugins, '/app');
 	assert.deepEqual(setupCalls, ['a', 'b']);
 });
 
@@ -72,9 +64,8 @@ test('createRolldownPluginBridge resolveId translates EcoBuildOnResolveResult to
 		},
 	];
 
-	const bridge = createRolldownPluginBridge(plugins, '/app');
+	const bridge = await createRolldownPluginBridge(plugins, '/app');
 	const plugin = bridge[0]!;
-	await callBuildStart(plugin);
 	const result = (await callResolveId(plugin, 'react', '/app/index.ts')) as
 		{ id: string; external: boolean } | undefined;
 	assert.deepEqual(result, { id: '/vendor/react.js', external: true });
@@ -90,9 +81,8 @@ test('createRolldownPluginBridge resolveId resolves relative paths against the i
 		},
 	];
 
-	const bridge = createRolldownPluginBridge(plugins, '/app');
+	const bridge = await createRolldownPluginBridge(plugins, '/app');
 	const plugin = bridge[0]!;
-	await callBuildStart(plugin);
 	const result = (await callResolveId(plugin, 'X', '/app/sub/index.ts')) as { id: string } | undefined;
 	assert.equal(result?.id, path.resolve('/app/sub', './sibling.ts'));
 });
@@ -107,9 +97,8 @@ test('createRolldownPluginBridge resolveId leaves absolute paths untouched', asy
 		},
 	];
 
-	const bridge = createRolldownPluginBridge(plugins, '/app');
+	const bridge = await createRolldownPluginBridge(plugins, '/app');
 	const plugin = bridge[0]!;
-	await callBuildStart(plugin);
 	const result = (await callResolveId(plugin, 'X', '/app/index.ts')) as { id: string } | undefined;
 	assert.equal(result?.id, '/abs/path.ts');
 });
@@ -124,9 +113,8 @@ test('createRolldownPluginBridge resolveId returns undefined for empty callbacks
 		},
 	];
 
-	const bridge = createRolldownPluginBridge(plugins, '/app');
+	const bridge = await createRolldownPluginBridge(plugins, '/app');
 	const plugin = bridge[0]!;
-	await callBuildStart(plugin);
 	const result = await callResolveId(plugin, 'X', '/app/index.ts');
 	assert.equal(result, undefined);
 });
@@ -141,9 +129,8 @@ test('createRolldownPluginBridge load returns moduleType for .tsx files with exp
 		},
 	];
 
-	const bridge = createRolldownPluginBridge(plugins, '/app');
+	const bridge = await createRolldownPluginBridge(plugins, '/app');
 	const plugin = bridge[0]!;
-	await callBuildStart(plugin);
 	const result = (await callLoad(plugin, '/app/index.tsx')) as { code: string; moduleType: string } | undefined;
 	assert.equal(result?.moduleType, 'tsx');
 	assert.equal(result?.code, 'export const x = 1;');
@@ -162,9 +149,8 @@ test('createRolldownPluginBridge load synthesizes source from exports', async ()
 		},
 	];
 
-	const bridge = createRolldownPluginBridge(plugins, '/app');
+	const bridge = await createRolldownPluginBridge(plugins, '/app');
 	const plugin = bridge[0]!;
-	await callBuildStart(plugin);
 	const result = (await callLoad(plugin, '/app/data.json')) as { code: string; moduleType: string } | undefined;
 	assert.equal(result?.moduleType, 'js');
 	assert.match(result?.code ?? '', /export default "hello";/);
@@ -181,9 +167,8 @@ test('createRolldownPluginBridge load returns undefined for empty callbacks', as
 		},
 	];
 
-	const bridge = createRolldownPluginBridge(plugins, '/app');
+	const bridge = await createRolldownPluginBridge(plugins, '/app');
 	const plugin = bridge[0]!;
-	await callBuildStart(plugin);
 	const result = await callLoad(plugin, '/app/index.ts');
 	assert.equal(result, undefined);
 });
@@ -198,9 +183,8 @@ test('createRolldownPluginBridge load ignores object prototype loader names', as
 		},
 	];
 
-	const bridge = createRolldownPluginBridge(plugins, '/app');
+	const bridge = await createRolldownPluginBridge(plugins, '/app');
 	const plugin = bridge[0]!;
-	await callBuildStart(plugin);
 	const result = (await callLoad(plugin, '/app/proto.ts')) as { code: string; moduleType: string } | undefined;
 	assert.equal(result?.moduleType, 'ts');
 });
@@ -215,9 +199,8 @@ test('createRolldownPluginBridge load normalizes local-css and global-css to css
 		},
 	];
 
-	const bridge = createRolldownPluginBridge(plugins, '/app');
+	const bridge = await createRolldownPluginBridge(plugins, '/app');
 	const plugin = bridge[0]!;
-	await callBuildStart(plugin);
 	const result = (await callLoad(plugin, '/app/styles.css')) as { code: string; moduleType: string } | undefined;
 	assert.equal(result?.moduleType, 'css');
 });
@@ -238,9 +221,8 @@ test('createRolldownPluginBridge module() registers unique namespaces per specif
 		},
 	];
 
-	const bridge = createRolldownPluginBridge(plugins, '/app');
+	const bridge = await createRolldownPluginBridge(plugins, '/app');
 	const plugin = bridge[0]!;
-	await callBuildStart(plugin);
 
 	const fooResolve = (await callResolveId(plugin, 'virtual:foo')) as { id: string } | undefined;
 	const barResolve = (await callResolveId(plugin, 'virtual:bar')) as { id: string } | undefined;
@@ -259,9 +241,8 @@ test('createRolldownPluginBridge loads virtual module content with the registere
 		},
 	];
 
-	const bridge = createRolldownPluginBridge(plugins, '/app');
+	const bridge = await createRolldownPluginBridge(plugins, '/app');
 	const plugin = bridge[0]!;
-	await callBuildStart(plugin);
 
 	const resolve = (await callResolveId(plugin, 'virtual:foo')) as { id: string } | undefined;
 	const load = (await callLoad(plugin, resolve?.id ?? '')) as { code: string; moduleType: string } | undefined;
@@ -297,39 +278,13 @@ test('createRolldownPluginBridge applies source transforms after first-wins onLo
 		},
 	];
 
-	const bridge = createRolldownPluginBridge(plugins, '/app', sourceTransforms);
+	const bridge = await createRolldownPluginBridge(plugins, '/app', sourceTransforms);
 	const plugin = bridge[0]!;
-	await callBuildStart(plugin);
 	const result = (await callLoad(plugin, '/app/src/layouts/minimal-layout.tsx')) as
 		{ code: string; moduleType: string } | undefined;
 
 	assert.match(result?.code ?? '', /file: "\/app\/src\/layouts\/minimal-layout\.tsx"/);
 	assert.equal(result?.moduleType, 'tsx');
-});
-
-test('createRolldownPluginBridge does not multiply onLoad handler registrations across rebuilds', async () => {
-	let loadCalls = 0;
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'counter',
-			setup(build) {
-				build.onLoad({ filter: /counter\.ts$/ }, () => {
-					loadCalls += 1;
-					return { contents: 'export const count = 1;', loader: 'ts' };
-				});
-			},
-		},
-	];
-
-	const bridge = createRolldownPluginBridge(plugins, '/app');
-	const plugin = bridge[0]!;
-
-	for (let rebuild = 0; rebuild < 3; rebuild += 1) {
-		await callBuildStart(plugin);
-		loadCalls = 0;
-		await callLoad(plugin, '/app/counter.ts');
-		assert.equal(loadCalls, 1, `rebuild ${rebuild + 1} should invoke the onLoad handler once`);
-	}
 });
 
 test('createRolldownPluginBridge loads each of eleven virtual modules with its own contents', async () => {
@@ -345,8 +300,7 @@ test('createRolldownPluginBridge loads each of eleven virtual modules with its o
 		},
 	];
 
-	const plugin = createRolldownPluginBridge(plugins, '/app')[0]!;
-	await callBuildStart(plugin);
+	const plugin = (await createRolldownPluginBridge(plugins, '/app'))[0]!;
 
 	for (const specifier of specifiers) {
 		const resolve = (await callResolveId(plugin, specifier)) as { id: string } | undefined;
@@ -368,8 +322,7 @@ test('createRolldownPluginBridge tests a namespaced filter against the path afte
 		},
 	];
 
-	const plugin = createRolldownPluginBridge(plugins, '/app')[0]!;
-	await callBuildStart(plugin);
+	const plugin = (await createRolldownPluginBridge(plugins, '/app'))[0]!;
 
 	const matched = (await callLoad(plugin, 'docs:intro.md')) as { code: string } | undefined;
 	const unmatched = (await callLoad(plugin, 'docs:introxmd')) as { code: string } | undefined;
@@ -387,10 +340,84 @@ test('createRolldownPluginBridge merges plugins into one, where the earlier plug
 		},
 	}));
 
-	const bridge = createRolldownPluginBridge(plugins, '/app');
-	await callBuildStart(bridge[0]!);
+	const bridge = await createRolldownPluginBridge(plugins, '/app');
 
 	assert.equal(bridge.length, 1);
 	const resolved = (await callResolveId(bridge[0]!, 'shared')) as { id: string } | undefined;
 	assert.equal(resolved?.id, '/first.ts');
+});
+
+function spyOnHook(plugin: Plugin, hookName: 'resolveId' | 'load', calls: string[]): void {
+	const hook = plugin[hookName];
+	const handler = hookHandler(hook) as (this: unknown, ...args: unknown[]) => unknown;
+	const spy = function (this: unknown, ...args: unknown[]) {
+		calls.push(args[0] as string);
+		return handler.apply(this, args);
+	};
+	Object.assign(plugin, { [hookName]: typeof hook === 'function' ? spy : { ...hook, handler: spy } });
+}
+
+test('createRolldownPluginBridge calls into JavaScript only for ids that a registration may match', async () => {
+	const root = mkdtempSync(path.join(os.tmpdir(), 'eco-bridge-filters-'));
+	try {
+		writeFileSync(
+			path.join(root, 'entry.ts'),
+			"import './plain.ts';\nimport './doc.md';\nimport 'virtual:greeting';\n",
+		);
+		writeFileSync(path.join(root, 'plain.ts'), "console.log('plain');\n");
+		writeFileSync(path.join(root, 'doc.md'), '# doc\n');
+		const plugins: EcoBuildPlugin[] = ['first', 'second'].map((name) => ({
+			name,
+			setup(build) {
+				build.onLoad({ filter: /\.md$/ }, () => ({ contents: `console.log('${name} doc');`, loader: 'js' }));
+				build.module('virtual:greeting', () => ({
+					contents: `console.log('${name} greeting');`,
+					loader: 'js',
+				}));
+			},
+		}));
+
+		const [plugin] = await createRolldownPluginBridge(plugins, root);
+		const resolveCalls: string[] = [];
+		const loadCalls: string[] = [];
+		spyOnHook(plugin!, 'resolveId', resolveCalls);
+		spyOnHook(plugin!, 'load', loadCalls);
+
+		const bundle = await rolldown({ input: path.join(root, 'entry.ts'), cwd: root, plugins: [plugin!] });
+		const { output } = await bundle.generate({ format: 'esm' });
+		await bundle.close();
+
+		assert.match(output[0].code, /first doc/);
+		assert.match(output[0].code, /first greeting/);
+		assert.doesNotMatch(output[0].code, /second/);
+		assert.deepEqual(resolveCalls, ['virtual:greeting']);
+		assert.deepEqual(loadCalls.map((id) => id.replace(/^.*[\\/]/, '')).sort(), [
+			'doc.md',
+			'ecopages-module-0:virtual:greeting',
+		]);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('createRolldownPluginBridge rejects handlers registered after setup finished', async () => {
+	let lateBuilder: Parameters<EcoBuildPlugin['setup']>[0] | undefined;
+	await createRolldownPluginBridge(
+		[
+			{
+				name: 'late',
+				setup(build) {
+					lateBuilder = build;
+				},
+			},
+		],
+		'/app',
+	);
+
+	assert.throws(
+		() => lateBuilder!.onLoad({ filter: /\.md$/ }, () => undefined),
+		/build\.onLoad\(\) was called after/,
+	);
+	assert.throws(() => lateBuilder!.onResolve({ filter: /^x$/ }, () => undefined), /build\.onResolve\(\)/);
+	assert.throws(() => lateBuilder!.module('virtual:x', () => ({ contents: '' })), /build\.module\(\)/);
 });

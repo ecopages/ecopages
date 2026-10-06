@@ -251,11 +251,24 @@ resolveId: {
 }
 ```
 
-If patterns are dynamic (populated during `buildStart`), Rolldown cannot use filters because they are read at registration time. Consolidate dynamic plugins into a **single** Rolldown plugin to minimize FFI calls. See [rolldown.rs/reference/plugin-hooks](https://rolldown.rs/reference/plugin-hooks).
+Rolldown reads hook filters when a plugin is registered, before `buildStart`, so filters cannot come from registrations made during the build. See [rolldown.rs/reference/plugin-hooks](https://rolldown.rs/reference/plugin-hooks).
 
-### Consolidate plugins
+### The bridge plugin
 
-Each Rolldown plugin adds FFI overhead per module per hook. Ecopages merges all `EcoBuildPlugin` instances into one Rolldown plugin in `rolldown-plugin-bridge.ts` with JavaScript-side routing.
+Each Rolldown plugin adds FFI overhead per module per hook. `rolldown-plugin-bridge.ts` merges all `EcoBuildPlugin` instances into one Rolldown plugin and routes in JavaScript.
+
+Every build creates a new bridge. The bridge runs each plugin's `setup` before it creates the Rolldown plugin, then declares the union of the registered filters as the `resolveId` and `load` hook filters. A handler registered after its plugin's `setup` has finished would miss the filters, so the builder throws. A module that no registration can match never calls into JavaScript. Rolldown tests the filters against ids with `/` separators.
+
+| Registration                | Hook filter                                       |
+| --------------------------- | ------------------------------------------------- |
+| `onResolve` / `onLoad`      | the registered `filter`                           |
+| the same with a `namespace` | `^<namespace>:`; the exact `filter` runs in JS    |
+| `module(specifier)`         | `^<specifier>$` on resolve, its namespace on load |
+| source transform            | its `filter`, tested on the id without query      |
+
+Within the handler, registrations run in `EcoBuildPlugin[]` order and the first non-null result wins. A hook with no registrations is not declared. In a kitchen-sink production build, the filters cut JS `resolveId` calls from 7344 to 323 and `load` calls from 4146 to 2826. Source transform filters, such as the component metadata transform's, still admit most source files to `load`.
+
+The Vite adapter for a source transform (`createVitePluginFromSourceTransform`) declares no Vite hook filter. Vite would test it against the id with its query, so `/\.tsx$/` would miss `page.tsx?v=1`; the handler tests the filter with the query and hash stripped instead.
 
 ### Benchmarks
 

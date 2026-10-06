@@ -117,6 +117,34 @@ function serializeDiscoveryArgument(discovered: DiscoveredImports | undefined): 
 	return `, { components: () => [${discovered.components.join(', ')}], stylesheets: ${JSON.stringify(discovered.stylesheets)}${watchFiles} }`;
 }
 
+function hasEcoFactoryCall(program: AstNode): boolean {
+	let found = false;
+	walkAst(program, (node) => {
+		if (isEcoFactoryCall(node)) found = true;
+	});
+	return found;
+}
+
+/**
+ * Whether the component meta transform moves the side-effect stylesheet imports of `filePath`
+ * into its Component Dependencies, removing them from the module.
+ */
+export function stripsSideEffectStylesheetImports(
+	config: EcoPagesAppConfig,
+	filePath: string,
+	contents: string,
+): boolean {
+	if (!contents.includes('eco.') || !createComponentMetaFilter(config).test(filePath)) return false;
+	if (!findIntegrationForFile(config.integrations, filePath)) return false;
+	try {
+		return hasEcoFactoryCall(
+			parseModuleSource(filePath, contents, { sourceType: 'module' }).program as unknown as AstNode,
+		);
+	} catch {
+		return false;
+	}
+}
+
 /** Attributes real `eco.*()` factory calls with canonical component identity. */
 export function attributeComponentIdentity(
 	contents: string,
@@ -135,10 +163,7 @@ export function attributeComponentIdentity(
 
 	const identityLiteral = `{ id: ${JSON.stringify(rapidhash(filePath).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
 	const edits: SourceEdit[] = [];
-	let hasFactory = false;
-	walkAst(program, (node) => {
-		if (isEcoFactoryCall(node)) hasFactory = true;
-	});
+	const hasFactory = hasEcoFactoryCall(program);
 	const discovered = hasFactory && projectRoot ? discoverComponentImports(program, filePath, projectRoot) : undefined;
 	const discoveryArgument = serializeDiscoveryArgument(discovered);
 	walkAst(program, (node) => {
@@ -274,16 +299,19 @@ export function attributeMdxComponentIdentity(
 	);
 }
 
-export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOptions): EcoSourceTransform {
-	const extensions = options.config.integrations
+function createComponentMetaFilter(config: EcoPagesAppConfig): RegExp {
+	const extensions = config.integrations
 		.flatMap((integration) => integration.extensions)
 		.filter((extension) => ['.ts', '.tsx', '.js', '.jsx'].some((suffix) => extension.endsWith(suffix)))
 		.map((extension) => extension.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-	const filter = new RegExp(`(${extensions.join('|')})(\\?.*)?$`);
+	return new RegExp(`(${extensions.join('|')})(\\?.*)?$`);
+}
+
+export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOptions): EcoSourceTransform {
 	return {
 		name: 'eco-component-identity-attribution',
 		enforce: 'pre',
-		filter,
+		filter: createComponentMetaFilter(options.config),
 		transform(code, id) {
 			const integration = findIntegrationForFile(options.config.integrations, id);
 			if (!integration) {

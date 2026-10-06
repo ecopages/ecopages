@@ -1,7 +1,9 @@
+import type { Stats } from 'node:fs';
 import path from 'node:path';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
+import { isPathInside } from '../utils/path-containment.ts';
 import type { EcoPagesAppConfig, IHmrManager, IClientBridge } from '../types/internal-types.ts';
 import type { ProcessorWatchConfig, ProcessorWatchContext } from '../plugins/processor.ts';
 import {
@@ -15,6 +17,14 @@ import { isRegisteredDevTransformEntrypoint } from '../hmr/hmr-entrypoint-output
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 import { createProjectWatcherIgnorePredicate } from './project-watcher-ignore.ts';
 import { resolveRuntimeRestartWatchPaths } from '../dev/development-restart-watch-paths.ts';
+import {
+	type AdditionalWatchPath,
+	matchesAdditionalWatchPath,
+	mayContainAdditionalWatchMatches,
+	resolveAdditionalWatchPath,
+} from '../utils/additional-watch-paths.ts';
+import { RESOLVED_ASSETS_VENDORS_DIR } from '../config/constants.ts';
+import { resolveWorkspacePackageWatchRoots, isWorkspacePackageFile } from './workspace-package-watch-roots.ts';
 
 /**
  * Configuration options for the ProjectWatcher
@@ -29,11 +39,9 @@ export interface ProjectWatcherConfig {
 	refreshRouterRoutesCallback: () => Promise<void>;
 	hmrManager: IHmrManager;
 	bridge: IClientBridge;
-	/** When true, the host dev server owns browser dev-client bootstrap. */
-	hostOwnsDevClient?: boolean;
 	/** Delay before a change event is processed; 0 disables debouncing. */
 	changeDebounceMs?: number;
-	/** Applies a config or dotenv change through the owning runtime lifecycle. */
+	/** Applies config, dotenv, or linked package changes through the owning runtime lifecycle. */
 	onRestartRequest?: (filePath: string) => Promise<void>;
 	/** Whether an entry watcher already owns changes to the config module. */
 	entryWatcherOwnsConfig?: boolean;
@@ -67,12 +75,13 @@ export class ProjectWatcher {
 	private refreshRouterRoutesCallback: () => Promise<void>;
 	private hmrManager: IHmrManager;
 	private bridge: IClientBridge;
-	private readonly hostOwnsDevClient: boolean;
 	private readonly invalidationService: DevelopmentInvalidationService;
 	private readonly changeDebounceMs: number;
 	private readonly onRestartRequest?: (filePath: string) => Promise<void>;
 	private readonly entryWatcherOwnsConfig: boolean;
 	private restartRequestScheduled = false;
+	private restartNeedsVendorInvalidation = false;
+	private workspacePackageRoots: string[] = [];
 	private watcher: FSWatcher | null = null;
 	private closed = false;
 	private pendingChangeEvents = new Map<
@@ -86,7 +95,6 @@ export class ProjectWatcher {
 		refreshRouterRoutesCallback,
 		hmrManager,
 		bridge,
-		hostOwnsDevClient,
 		changeDebounceMs,
 		onRestartRequest,
 		entryWatcherOwnsConfig,
@@ -95,7 +103,6 @@ export class ProjectWatcher {
 		this.refreshRouterRoutesCallback = refreshRouterRoutesCallback;
 		this.hmrManager = hmrManager;
 		this.bridge = bridge;
-		this.hostOwnsDevClient = hostOwnsDevClient === true;
 		const envDebounceMs = process.env.ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS;
 		this.changeDebounceMs =
 			changeDebounceMs ??
@@ -132,11 +139,12 @@ export class ProjectWatcher {
 		return this.invalidationService.isRouteSourceFile(filePath);
 	}
 
+	/**
+	 * @remarks
+	 * Sent whoever owns the dev client: the Vite host turns Vite HMR off and serves the Ecopages HMR runtime,
+	 * which subscribes to this bridge, so it is the browser client there too.
+	 */
 	private requestBrowserReload(): void {
-		if (this.hostOwnsDevClient) {
-			return;
-		}
-
 		this.bridge.reload();
 	}
 
@@ -286,30 +294,50 @@ export class ProjectWatcher {
 		}
 	}
 
+	/**
+	 * @remarks
+	 * Linked dependencies can be bundled inside an unchanged package whose vendor
+	 * fingerprint does not include them. Discard generated vendors before the
+	 * host restarts so the next process cannot reuse those stale bundles.
+	 */
 	private handleRuntimeRestart(filePath: string): void {
 		const onRestartRequest = this.onRestartRequest;
 		if (!onRestartRequest) {
 			appLogger.warn(
-				`Configuration or environment file changed (${filePath}). Restart the development server to apply it.`,
+				isWorkspacePackageFile(filePath, this.workspacePackageRoots)
+					? `Linked package changed (${filePath}). Clear ${path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_VENDORS_DIR)} and restart the development server to apply it.`
+					: `Development restart input changed (${filePath}). Restart the development server to apply it.`,
 			);
 			return;
 		}
 
+		this.restartNeedsVendorInvalidation ||= isWorkspacePackageFile(filePath, this.workspacePackageRoots);
 		if (this.restartRequestScheduled) {
 			return;
 		}
 
 		this.restartRequestScheduled = true;
 		void this.changeQueue
-			.then(() => onRestartRequest(filePath))
+			.then(() => {
+				if (this.restartNeedsVendorInvalidation) {
+					const vendorsDir = path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_VENDORS_DIR);
+					if (fileSystem.exists(vendorsDir)) fileSystem.remove(vendorsDir);
+				}
+				return onRestartRequest(filePath);
+			})
 			.catch((error) => this.handleError(error))
 			.finally(() => {
 				this.restartRequestScheduled = false;
+				this.restartNeedsVendorInvalidation = false;
 			});
 	}
 
 	private async processFileChange(filePath: string, event: 'change' | 'add' | 'unlink'): Promise<void> {
 		try {
+			if (isWorkspacePackageFile(filePath, this.workspacePackageRoots)) {
+				this.handleRuntimeRestart(filePath);
+				return;
+			}
 			const plan = this.invalidationService.planFileChange(filePath);
 
 			if (plan.category === 'runtime-restart') {
@@ -463,7 +491,7 @@ export class ProjectWatcher {
 	async triggerRouterRefresh(changedPath: string): Promise<void> {
 		const resolvedPath = path.resolve(changedPath);
 		const isPageDir =
-			resolvedPath.startsWith(this.appConfig.absolutePaths.pagesDir) && path.extname(resolvedPath) === '';
+			isPathInside(resolvedPath, this.appConfig.absolutePaths.pagesDir) && path.extname(resolvedPath) === '';
 
 		if (isPageDir || this.isRouteSourceFile(resolvedPath)) {
 			await this.refreshRouterRoutesCallback();
@@ -494,6 +522,13 @@ export class ProjectWatcher {
 	 *
 	 * Uses chokidar's built-in debouncing through `awaitWriteFinish` to handle
 	 * rapid file changes efficiently.
+	 *
+	 * @remarks
+	 * A glob in `additionalWatchPaths` is watched through its static base
+	 * directory, which can be the project root for `**` patterns. Files reached
+	 * only through such a base are ignored unless they match a pattern, and so
+	 * are dot-directories the pattern does not name, so a broad base does not
+	 * feed unrelated files into the change pipeline.
 	 */
 	public async createWatcherSubscription() {
 		if (this.watcher) {
@@ -521,29 +556,57 @@ export class ProjectWatcher {
 			processorPaths.add(this.appConfig.absolutePaths.publicDir);
 		}
 
-		for (const watchPath of this.appConfig.additionalWatchPaths) {
-			const resolvedWatchPath =
-				path.isAbsolute(watchPath) || watchPath.includes('*')
-					? watchPath
-					: path.resolve(this.appConfig.rootDir, watchPath);
-			processorPaths.add(resolvedWatchPath);
+		const globWatchPaths: AdditionalWatchPath[] = [];
+		for (const pattern of this.appConfig.additionalWatchPaths) {
+			const watchPath = resolveAdditionalWatchPath(pattern, this.appConfig.rootDir);
+			if (!watchPath.glob) {
+				processorPaths.add(watchPath.base);
+				continue;
+			}
+
+			if (path.dirname(watchPath.base) === watchPath.base) {
+				appLogger.warn(
+					`additionalWatchPaths entry "${pattern}" watches the filesystem root; start it with a directory.`,
+				);
+			}
+			globWatchPaths.push(watchPath);
 		}
 
 		for (const restartPath of resolveRuntimeRestartWatchPaths(this.appConfig)) {
 			processorPaths.add(restartPath);
 		}
 
-		const ignored = createProjectWatcherIgnorePredicate(this.appConfig.absolutePaths);
+		this.workspacePackageRoots = resolveWorkspacePackageWatchRoots(this.appConfig.rootDir);
+		const literalPaths = Array.from(processorPaths);
+		const ignoreProjectPath = createProjectWatcherIgnorePredicate(
+			this.appConfig.absolutePaths,
+			this.workspacePackageRoots,
+		);
+		const ignored = (watchedPath: string, stats?: Stats): boolean => {
+			if (ignoreProjectPath(watchedPath)) return true;
+			if (
+				!stats ||
+				literalPaths.some((literalPath) => isPathInside(watchedPath, literalPath)) ||
+				this.workspacePackageRoots.some((root) => isPathInside(watchedPath, root))
+			)
+				return false;
+			return stats.isDirectory()
+				? !globWatchPaths.some((watchPath) => mayContainAdditionalWatchMatches(watchedPath, watchPath))
+				: !globWatchPaths.some((watchPath) => matchesAdditionalWatchPath(watchedPath, watchPath));
+		};
 
-		this.watcher = chokidar.watch(Array.from(processorPaths), {
-			ignoreInitial: true,
-			ignorePermissionErrors: true,
-			ignored,
-			awaitWriteFinish: {
-				stabilityThreshold: 50,
-				pollInterval: 50,
+		this.watcher = chokidar.watch(
+			[...literalPaths, ...this.workspacePackageRoots, ...new Set(globWatchPaths.map(({ base }) => base))],
+			{
+				ignoreInitial: true,
+				ignorePermissionErrors: true,
+				ignored,
+				awaitWriteFinish: {
+					stabilityThreshold: 50,
+					pollInterval: 50,
+				},
 			},
-		});
+		);
 
 		this.watcher
 			.on('change', (p) => this.handleFileChange(p, 'change'))

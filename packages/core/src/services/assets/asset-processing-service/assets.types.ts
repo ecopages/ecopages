@@ -24,14 +24,15 @@ export interface ScriptAsset extends BaseAsset {
 	inline?: boolean;
 	bundle?: boolean;
 	/**
-	 * Bundles the script in the asset pipeline even while HMR is active, instead of handing it to
-	 * the HMR manager, which rebuilds entries as ES modules.
+	 * Compiles the file on its own as a classic script instead of bundling it: types are stripped
+	 * in script mode, and production output is minified without renaming top-level names, so its
+	 * globals survive. Implies no bundling.
 	 *
 	 * @remarks
-	 * For scripts that must not become modules, such as HTML Page classic scripts compiled from
-	 * TypeScript. The script is rebuilt when its page renders again, not hot-replaced.
+	 * For HTML Page classic scripts. The script is recompiled when its page renders again, not
+	 * hot-replaced.
 	 */
-	skipHmr?: boolean;
+	classic?: boolean;
 	groupedBundle?: GroupedScriptBundle;
 	bundleOptions?: {
 		/** Drops unused code. `true` by default; turn it off for a script whose globals other scripts use. */

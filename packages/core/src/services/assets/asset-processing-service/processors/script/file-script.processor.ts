@@ -4,6 +4,7 @@ import { fileSystem } from '@ecopages/file-system';
 import type { IHmrManager } from '../../../../../types/internal-types.ts';
 import type { FileScriptAsset, ProcessedAsset } from '../../assets.types.ts';
 import { BaseScriptProcessor } from '../base/base-script-processor.ts';
+import { classicScriptOutputName, compileClassicScript } from './classic-script-compiler.ts';
 
 export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	private hmrManager?: IHmrManager;
@@ -15,11 +16,11 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	/**
 	 * @remarks
 	 * With HMR active, bundled scripts are built and watched by the HMR manager, which emits ES
-	 * modules. `bundle: false` scripts are copied as written in every mode, and `skipHmr` scripts
-	 * are bundled here.
+	 * modules. `bundle: false` scripts are copied as written in every mode, and `classic` scripts are
+	 * compiled on their own as classic scripts.
 	 */
 	async process(dep: FileScriptAsset): Promise<ProcessedAsset> {
-		if (this.hmrManager?.isEnabled() && !dep.inline && this.shouldBundle(dep) && !dep.skipHmr) {
+		if (this.hmrManager?.isEnabled() && !dep.inline && this.shouldBundle(dep)) {
 			const resolvedOutput = this.hmrManager.getResolvedScriptOutput?.(dep.filepath);
 			if (resolvedOutput) {
 				return {
@@ -56,7 +57,8 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 		const configHash = this.generateHash(
 			JSON.stringify({
 				bundle: shouldBundle,
-				minify: shouldBundle && this.isProduction,
+				classic: dep.classic === true,
+				minify: (shouldBundle || dep.classic === true) && this.isProduction,
 				opts: dep.bundleOptions,
 			}),
 		);
@@ -65,9 +67,10 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 		return this.getOrProcess(cachekey, async () => {
 			if (!shouldBundle) {
 				const outFilepath = path.relative(this.appConfig.absolutePaths.srcDir, dep.filepath);
-				let filepath: string | undefined;
+				const output = dep.classic ? this.emitClassicScript(dep, outFilepath, content.toString()) : undefined;
+				let filepath = output?.filepath;
 
-				if (!dep.inline) {
+				if (!dep.classic && !dep.inline) {
 					filepath = path.join(this.getAssetsDir(), outFilepath);
 					fileSystem.copyFile(dep.filepath, filepath);
 				}
@@ -75,7 +78,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 				return {
 					filepath,
 					sourceFilepath: dep.filepath,
-					content,
+					content: output?.code ?? content,
 					kind: 'script',
 					position: dep.position,
 					attributes: dep.attributes,
@@ -112,5 +115,28 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 				bundledSourceFilepaths: dep.bundledSourceFilepaths,
 			};
 		});
+	}
+
+	/**
+	 * @remarks
+	 * The output keeps the source path and name, with a TypeScript extension turned into `.js`, as a
+	 * copied classic `.js` does.
+	 */
+	private emitClassicScript(
+		dep: FileScriptAsset,
+		outFilepath: string,
+		source: string,
+	): { code: string; filepath?: string } {
+		const compiled = compileClassicScript(dep.filepath, source, { minify: this.isProduction });
+		if ('problem' in compiled) {
+			throw new Error(`${dep.filepath} cannot be used as a classic script: it ${compiled.problem.reason}.`);
+		}
+		if (dep.inline) {
+			return { code: compiled.code };
+		}
+
+		const filepath = path.join(this.getAssetsDir(), classicScriptOutputName(outFilepath));
+		fileSystem.write(filepath, compiled.code);
+		return { code: compiled.code, filepath };
 	}
 }

@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../../config/constants.ts';
+import { isPathInside } from '../../../utils/path-containment.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -195,11 +196,9 @@ export class AssetProcessingService {
 	 */
 	private getSrcUrl(filepath: string): string | undefined {
 		const distDir = this.config.absolutePaths.distDir;
-		if (!filepath.startsWith(distDir)) return undefined;
+		if (!path.isAbsolute(filepath) || !isPathInside(filepath, distDir)) return undefined;
 
-		const relativePath = filepath.slice(distDir.length);
-		const urlPath = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
-		return urlPath.replace(/\\/g, '/');
+		return `/${path.relative(distDir, filepath).replace(/\\/g, '/')}`;
 	}
 
 	/**
@@ -231,12 +230,16 @@ export class AssetProcessingService {
 			return false;
 		}
 
-		if (value.startsWith(this.config.absolutePaths.distDir)) {
+		if (!path.isAbsolute(value)) {
+			return false;
+		}
+
+		if (isPathInside(value, this.config.absolutePaths.distDir)) {
 			return true;
 		}
 
 		const rootDir = this.config.rootDir;
-		if (rootDir && value.startsWith(rootDir)) {
+		if (rootDir && isPathInside(value, rootDir)) {
 			return true;
 		}
 
@@ -262,7 +265,7 @@ export class AssetProcessingService {
 				continue;
 			}
 
-			if (!asset.filepath.startsWith(this.config.absolutePaths.distDir)) {
+			if (!isPathInside(asset.filepath, this.config.absolutePaths.distDir)) {
 				continue;
 			}
 

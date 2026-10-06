@@ -162,17 +162,6 @@ export type EcoPagesUserConfig = {
 	 * Experimental runtime or compiler feature flags.
 	 */
 	experimental?: EcoPagesAppConfig['experimental'];
-
-	/**
-	 * Build pipeline ownership mode.
-	 *
-	 * @default 'rolldown'
-	 *
-	 * @remarks
-	 * Set to `'vite-host'` when running inside Vite (`@ecopages/vite-plugin`), where Vite
-	 * owns client and server module transforms.
-	 */
-	buildOwnership?: BuildOwnership;
 };
 
 export type LoadedEcoPagesUserConfig = {
@@ -187,7 +176,7 @@ export type FinalizeEcoPagesConfigOptions = {
 	 * @default `<rootDir>/eco.config.ts`
 	 */
 	configFilePath?: string;
-	/** Overrides `buildOwnership` from the user config. */
+	/** Same as {@link LoadEcoPagesConfigOptions.buildOwnership}. */
 	buildOwnership?: BuildOwnership;
 	/**
 	 * Working directory used when `rootDir` is omitted.
@@ -200,5 +189,18 @@ export type FinalizeEcoPagesConfigOptions = {
 export type LoadEcoPagesConfigOptions = {
 	configFile?: string;
 	cwd?: string;
+	/**
+	 * Build pipeline ownership mode.
+	 *
+	 * @default 'rolldown'
+	 *
+	 * @internal
+	 *
+	 * @remarks
+	 * For hosts only: `@ecopages/vite-plugin` passes `'vite-host'` for the config it loads for itself.
+	 * Do not pass `'vite-host'` when loading an app's own config, also inside Vite: the embedded app
+	 * still builds its browser assets with Rolldown, and the Vite host adapter throws on every build,
+	 * so the app's browser builds break.
+	 */
 	buildOwnership?: BuildOwnership;
 };

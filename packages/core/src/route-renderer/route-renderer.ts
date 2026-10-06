@@ -47,23 +47,13 @@ export type StaticGenerationRendererResolver = PageRendererResolver & ExplicitVi
 export class RouteRendererFactory {
 	private appConfig: EcoPagesAppConfig;
 	runtimeOrigin: string;
-	private rendererModules?: unknown;
 	private rendererCache = new Map<string, IntegrationRenderer<unknown>>();
 
 	/**
 	 * Creates the route-renderer factory for one app/runtime instance.
 	 */
-	constructor({
-		appConfig,
-		rendererModules,
-		runtimeOrigin,
-	}: {
-		appConfig: EcoPagesAppConfig;
-		rendererModules?: unknown;
-		runtimeOrigin: string;
-	}) {
+	constructor({ appConfig, runtimeOrigin }: { appConfig: EcoPagesAppConfig; runtimeOrigin: string }) {
 		this.appConfig = appConfig;
-		this.rendererModules = rendererModules;
 		this.runtimeOrigin = runtimeOrigin;
 	}
 
@@ -110,9 +100,7 @@ export class RouteRendererFactory {
 			return cached;
 		}
 
-		const renderer = integrationPlugin.initializeRenderer({
-			rendererModules: this.rendererModules,
-		});
+		const renderer = integrationPlugin.initializeRenderer();
 		this.rendererCache.set(integrationName, renderer);
 		return renderer;
 	}
@@ -140,9 +128,7 @@ export class RouteRendererFactory {
 			return cached;
 		}
 
-		const renderer = integrationPlugin.initializeRenderer({
-			rendererModules: this.rendererModules,
-		});
+		const renderer = integrationPlugin.initializeRenderer();
 		this.rendererCache.set(integrationPlugin.name, renderer);
 		return renderer;
 	}

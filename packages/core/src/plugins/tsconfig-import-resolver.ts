@@ -187,6 +187,10 @@ function getBrowserPackageResolver(
 /**
  * Resolves a bare npm package entry for browser vendor prebundles.
  *
+ * @returns The entry `path` and the installed package's root `package.json`
+ * (`packageJsonPath`), which stays the root manifest when the entry sits below a
+ * nested one such as `cjs/package.json`.
+ *
  * @remarks
  * Framework-owned dual packages such as `@ecopages/core` keep browser-first
  * `mainFields` and `conditionNames` so vendor prebundles pick the browser facade.
@@ -194,7 +198,10 @@ function getBrowserPackageResolver(
  * export condition so legacy UMD `exports.browser` entries cannot win during
  * Rolldown bundling.
  */
-export function resolveBarePackageBrowserEntry(projectRoot: string, specifier: string): string | undefined {
+export function resolveBarePackageBrowserEntry(
+	projectRoot: string,
+	specifier: string,
+): { path: string; packageJsonPath?: string } | undefined {
 	const browserFirst = usesBrowserFirstPackageResolution(specifier);
 	const mainFields = browserFirst ? BROWSER_FIRST_MAIN_FIELDS : MODULE_FIRST_MAIN_FIELDS;
 	const conditionNames = browserFirst ? BROWSER_FIRST_CONDITION_NAMES : MODULE_FIRST_CONDITION_NAMES;
@@ -204,9 +211,9 @@ export function resolveBarePackageBrowserEntry(projectRoot: string, specifier: s
 	}
 
 	try {
-		return realpathSync(result.path);
+		return { path: realpathSync(result.path), packageJsonPath: result.packageJsonPath };
 	} catch {
-		return result.path;
+		return { path: result.path, packageJsonPath: result.packageJsonPath };
 	}
 }
 

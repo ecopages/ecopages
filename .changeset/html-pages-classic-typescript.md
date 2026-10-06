@@ -2,6 +2,6 @@
 '@ecopages/core': minor
 ---
 
-An HTML Page `<script src="./app.ts">` without `type="module"` has its types stripped instead of shipping TypeScript; its top-level functions stay global, as in any classic script. A classic script that uses `import`, `export`, or `import.meta` is now an error asking for `type="module"`, instead of failing in the browser.
+An HTML Page `<script src>` without `type="module"` is compiled on its own as a classic script, whether it is JavaScript or TypeScript: types are stripped, `this` stays the global object, its top-level functions stay global, and in production it is minified without renaming them. Any `tsconfig.json` is ignored, so the output depends on the file alone. A classic script that is JSX (`.jsx` or `.tsx`), uses `import`, `export`, `import.meta` or `import x = require()`, imports a relative file with `import()`, has a top-level `await`, or needs a compile helper such as one for a decorator is an error asking for `type="module"`, instead of failing in the browser.
 
-Script assets accept `skipHmr: true`, which bundles the script in the asset pipeline while HMR is active instead of rebuilding it as an ES module in the HMR pipeline. HTML Pages set it for these classic scripts.
+Script assets accept `classic: true`, which compiles the file as a classic script instead of bundling it. HTML Pages set it for these classic scripts.

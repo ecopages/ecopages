@@ -12,6 +12,7 @@
 import { builtinModules, createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { resolveBuildEntryPath } from '../build-graph.ts';
 import type { InputOptions, OutputChunk, OutputOptions, RolldownOutput, RolldownPlugin } from 'rolldown';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
@@ -19,12 +20,14 @@ import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import { collectBrowserRuntimeManifests, rewriteBrowserRuntimeImports } from '../browser/browser-runtime-plugin.ts';
 import { mergeBrowserRuntimeManifests } from '../browser/browser-runtime-manifest.ts';
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
+import { appLogger } from '../../global/app-logger.ts';
+import { realpathOfDirectory } from '../preserve-import-meta-transform.ts';
 import { createRolldownPluginBridge } from './rolldown-plugin-bridge.ts';
 import {
+	getPackageNameFromSpecifier,
 	isDeclaredAppPackageImport,
 	isWorkspacePackageImport,
-	normalizeNodeRuntimeBuildOutputs,
-} from './runtime-build-output-normalizer.ts';
+} from './app-package-declarations.ts';
 import type {
 	BuildDependencyGraph,
 	BuildLog,
@@ -35,7 +38,7 @@ import type {
 	BuildTranspileProfile,
 } from '../build-adapter.ts';
 
-const corePackageRequire = createRequire(new URL('../../../package.json', import.meta.url));
+const coreSourceFile = fileURLToPath(import.meta.url);
 const nodeBuiltinSpecifiers = new Set(builtinModules);
 
 let corePackageNames: Set<string> | undefined;
@@ -76,13 +79,6 @@ function getCorePackageNames(): Set<string> {
 	return corePackageNames;
 }
 
-function isCoreDeclaredPackageImport(specifier: string): boolean {
-	const name = specifier.startsWith('@')
-		? specifier.split('/').slice(0, 2).join('/')
-		: (specifier.split('/')[0] ?? specifier);
-	return getCorePackageNames().has(name);
-}
-
 export function transpileProfileToOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
 	switch (profile) {
 		case 'browser-script':
@@ -119,66 +115,28 @@ function getAppRootRequire(cache: Map<string, NodeJS.Require>, contextRoot: stri
 }
 
 /**
- * Determines whether a package import should be bundled into the output
- * rather than left as an external bare specifier.
+ * Determines whether a package import stays an external bare specifier.
  *
  * @remarks
- * Resolution is evaluated in three tiers:
- *
- * 1. **Workspace packages** (`workspace:` protocol) — always bundled; they
- *    are source-only and cannot be resolved by Node.js at runtime.
- * 2. **App-declared packages** — bundled only when their resolved entry is a
- *    TypeScript or JSX file (source packages); pre-compiled packages are left
- *    external so the app's own resolver handles them at runtime.
- * 3. **Everything else** (undeclared transitives) — split into two sub-cases:
- *    - A **direct dependency of core** that resolves to a compiled JS file:
- *      externalized so the `runtime-build-output-normalizer` can rewrite the
- *      import to an absolute `file://` URL after the build. Runtime packages
- *      that require CommonJS named-export interop (currently `ws`) are
- *      bundled instead. "Direct" means declared in core's own `package.json`;
- *      transitives that merely *resolve through* core's `require` are excluded.
- *    - **Everything else** (true transitives like `lexical`, `@lexical/react`):
- *      bundled unconditionally. pnpm strict hoisting means these packages
- *      are unreachable as bare specifiers from output directories such as
- *      `.eco/`, `.server-route-modules/`, or `dist/.server/`.
- *
- * @param id - The package specifier (e.g., `@scope/pkg/subpath`).
- * @param contextRoot - The root directory of the app being built.
- * @param appRootRequireCache - Cache of `require` instances per context root.
- * @returns `true` if the import should be bundled, `false` to externalize.
+ * Only packages the app declares and ships compiled qualify: the app's own
+ * `node_modules` resolves them at runtime, so Integration renderers and
+ * server bundles share one instance (for example one React). Workspace
+ * packages and source (TypeScript or JSX) packages are bundled. Undeclared
+ * compiled packages are handled by {@link createInstalledPackageExternalPlugin},
+ * because isolated installs (pnpm, Bun's isolated linker) do not expose them
+ * as bare specifiers to output directories like `.eco/` or `dist/.server/`.
  */
-function shouldBundlePackageImport(
+function isAppPackageExternal(
 	id: string,
 	contextRoot: string,
 	appRootRequireCache: Map<string, NodeJS.Require>,
 ): boolean {
-	if (isWorkspacePackageImport(id, contextRoot)) {
-		return true;
+	if (isWorkspacePackageImport(id, contextRoot) || !isDeclaredAppPackageImport(id, contextRoot)) {
+		return false;
 	}
 
-	if (isDeclaredAppPackageImport(id, contextRoot)) {
-		const appRootRequire = getAppRootRequire(appRootRequireCache, contextRoot);
-		const appResolvedPath = tryResolveModule(id, appRootRequire);
-		return Boolean(appResolvedPath && /\.(?:[cm]?ts|tsx|jsx)$/u.test(appResolvedPath));
-	}
-
-	if (isCoreDeclaredPackageImport(id)) {
-		if (CORE_RUNTIME_BUNDLED_PACKAGES.has(getPackageName(id))) {
-			return true;
-		}
-		const coreResolvedPath = tryResolveModule(id, corePackageRequire);
-		if (coreResolvedPath && !/\.(?:[cm]?ts|tsx|jsx)$/u.test(coreResolvedPath)) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
-function getPackageName(specifier: string): string {
-	return specifier.startsWith('@')
-		? specifier.split('/').slice(0, 2).join('/')
-		: (specifier.split('/')[0] ?? specifier);
+	const appResolvedPath = tryResolveModule(id, getAppRootRequire(appRootRequireCache, contextRoot));
+	return !appResolvedPath || !/\.(?:[cm]?ts|tsx|jsx)$/u.test(appResolvedPath);
 }
 
 function createExternalMatcher(
@@ -196,7 +154,156 @@ function createExternalMatcher(
 		if (!externalPackages || !isPackageImport(id, contextRoot)) {
 			return false;
 		}
-		return !shouldBundlePackageImport(id, contextRoot, appRootRequireCache);
+		return isAppPackageExternal(id, contextRoot, appRootRequireCache);
+	};
+}
+
+const DEPLOY_LAYOUT_DOCS_URL = 'https://ecopages.app/docs/reference/deployment';
+const MAX_WARNED_PACKAGE_NAMES = 5;
+
+/**
+ * Logs one line for a deployed server output file whose imports resolve
+ * outside the app folder.
+ *
+ * @remarks
+ * Such a package (in a workspace root `node_modules`, a global package store,
+ * behind a symlinked root) is not copied with the app folder, so a moved
+ * server build cannot load it. Only builds with
+ * {@link BuildOptions.reportPackagesOutsideRoot} report it: the server entry
+ * and the emitted config that `ecopages build` writes, one complete line per
+ * output file. Module builds that the running server makes on the deploy
+ * target stay silent. The line names the first
+ * {@link MAX_WARNED_PACKAGE_NAMES} packages and counts the rest.
+ */
+function warnPackagesOutsideAppRoot(outputLabel: string, packageNames: Iterable<string>): void {
+	const sorted = [...packageNames].sort();
+	if (sorted.length === 0) return;
+	const hidden = sorted.length - MAX_WARNED_PACKAGE_NAMES;
+	const names = sorted.slice(0, MAX_WARNED_PACKAGE_NAMES).join(', ');
+	const count = sorted.length === 1 ? '1 package' : `${sorted.length} packages`;
+	appLogger.warn(
+		`${outputLabel} imports ${count} from outside the app folder (${hidden > 0 ? `${names} and ${hidden} more` : names}); copy them with the app or build from a standalone install: ${DEPLOY_LAYOUT_DOCS_URL}`,
+	);
+}
+
+function isUndeclaredPackageImport(id: string, contextRoot: string): boolean {
+	return (
+		!isNodeBuiltinSpecifier(id) &&
+		!CORE_RUNTIME_BUNDLED_PACKAGES.has(getPackageNameFromSpecifier(id)) &&
+		isPackageImport(id, contextRoot) &&
+		!isDeclaredAppPackageImport(id, contextRoot)
+	);
+}
+
+/**
+ * @remarks
+ * A store whose real path has no `node_modules` segment is not recognised, so
+ * its packages are bundled. Yarn Plug'n'Play archives (`.zip` paths) are
+ * bundled too: Node cannot import a path into an archive without the PnP
+ * loader, so PnP installs are not supported for relocated server output.
+ */
+function isInstalledCompiledModule(filePath: string): boolean {
+	return /\.[cm]?js$/u.test(filePath) && /[\\/]node_modules[\\/]/u.test(filePath) && !/\.zip[\\/]/u.test(filePath);
+}
+
+/**
+ * Keeps installed compiled packages external as paths relative to the output
+ * directory.
+ *
+ * @remarks
+ * A compiled package can depend on its location on disk: it loads a native
+ * binding (`sharp`, `oxc-parser`), a platform package, or a sibling file
+ * through `createRequire(import.meta.url)` or `__dirname`. Bundled into
+ * `dist/.server/`, that lookup starts from the wrong folder and fails at
+ * runtime, and the bundle cannot tell which packages do it. So server builds
+ * bundle source code only (the app, workspace packages, TypeScript or JSX
+ * packages) and keep every compiled package installed in `node_modules`
+ * external, including the dependencies of bundled workspace packages and of
+ * Core itself.
+ *
+ * Under isolated installs (pnpm, Bun's isolated linker) a package the app does
+ * not declare is not reachable as a bare specifier from `dist/.server`, so the
+ * hook resolves it through Rolldown, from the importer (or, for Core's own
+ * dependencies, from Core), so the `node` and `import` conditions apply and
+ * the result is a real path, and returns a `./` or `../` path that Rolldown
+ * writes unchanged. The output keeps working when `dist` and `node_modules`
+ * move together, for example into a container image.
+ *
+ * The path is computed here rather than with `external: 'relative'`, because
+ * Rolldown 1.2 computes that path from `cwd` instead of the output directory.
+ * It is relative to `outdir`, so `generateBundle` rejects a chunk written in a
+ * subdirectory that imports one of these paths. With `reportDir` (the
+ * directory the output runs from) it also reports the packages that resolve
+ * outside the app folder, naming the entry files by their path in that
+ * directory.
+ *
+ * Packages the app declares stay bare specifiers through the `external`
+ * option, which Rolldown checks before this hook. Packages in
+ * `CORE_RUNTIME_BUNDLED_PACKAGES`, workspace and source packages, anything
+ * that does not resolve and anything on another drive than `outdir` are
+ * bundled.
+ */
+export function createInstalledPackageExternalPlugin(
+	contextRoot: string,
+	outdir: string,
+	reportDir?: string,
+): RolldownPlugin {
+	const coreNames = getCorePackageNames();
+	const externalIds = new Set<string>();
+	const outsideRootPackages = new Set<string>();
+	let realOutdir: string | undefined;
+	let realContextRoot: string | undefined;
+	return {
+		name: 'ecopages-installed-package-external',
+		resolveId: {
+			filter: { id: /^[^./\\\0]/u },
+			async handler(id, importer, extraOptions) {
+				if (!isUndeclaredPackageImport(id, contextRoot)) {
+					return null;
+				}
+				const packageName = getPackageNameFromSpecifier(id);
+				const resolveOptions = { kind: extraOptions.kind, skipSelf: true };
+				const resolved =
+					(importer ? await this.resolve(id, importer, resolveOptions) : null) ??
+					(coreNames.has(packageName) ? await this.resolve(id, coreSourceFile, resolveOptions) : null);
+				if (!resolved || resolved.external || !isInstalledCompiledModule(resolved.id)) {
+					return null;
+				}
+				realOutdir ??= realpathOfDirectory(outdir);
+				const relativePath = path.relative(realOutdir, resolved.id).split(path.sep).join('/');
+				if (path.isAbsolute(relativePath)) {
+					return null;
+				}
+				realContextRoot ??= realpathOfDirectory(contextRoot);
+				if (reportDir && path.relative(realContextRoot, resolved.id).startsWith('..')) {
+					outsideRootPackages.add(packageName);
+				}
+				const externalId = relativePath.startsWith('../') ? relativePath : `./${relativePath}`;
+				externalIds.add(externalId);
+				return { id: externalId, external: true };
+			},
+		},
+		generateBundle(_outputOptions, bundle) {
+			const entryFileNames: string[] = [];
+			for (const output of Object.values(bundle)) {
+				if (output.type === 'chunk' && output.isEntry) entryFileNames.push(output.fileName);
+				if (output.type !== 'chunk' || !output.fileName.includes('/')) continue;
+				const nested = [...output.imports, ...output.dynamicImports].find((id) => externalIds.has(id));
+				if (nested) {
+					this.error(
+						`[installed-package-external] "${output.fileName}" is written below the output directory but imports "${nested}", a path relative to the output directory. Use flat entry and chunk file names for builds with externalPackages.`,
+					);
+				}
+			}
+			if (reportDir) {
+				const outputLabel = entryFileNames
+					.map((fileName) =>
+						path.relative(contextRoot, path.join(reportDir, fileName)).split(path.sep).join('/'),
+					)
+					.join(', ');
+				warnPackagesOutsideAppRoot(outputLabel, outsideRootPackages);
+			}
+		},
 	};
 }
 
@@ -356,15 +463,25 @@ function buildRolldownTransformOptions(options: BuildOptions): Record<string, un
 	return Object.keys(transformOptions).length > 0 ? transformOptions : undefined;
 }
 
-function buildRolldownInputPlugins(
+async function buildRolldownInputPlugins(
 	options: BuildOptions,
 	contextRoot: string,
+	outdir: string,
 	rolldownPlatform: ReturnType<typeof mapRolldownPlatform>,
-): RolldownPlugin[] {
+): Promise<RolldownPlugin[]> {
 	const bundlePlugins = options.plugins ?? [];
 	const sourceTransforms = options.sourceTransforms ?? [];
-	const appPlugins = createRolldownPluginBridge(bundlePlugins, contextRoot, sourceTransforms);
+	const appPlugins = await createRolldownPluginBridge(bundlePlugins, contextRoot, sourceTransforms);
 	return [
+		...(options.externalPackages === true
+			? [
+					createInstalledPackageExternalPlugin(
+						contextRoot,
+						outdir,
+						options.reportPackagesOutsideRoot === true ? (options.runtimeOutdir ?? outdir) : undefined,
+					),
+				]
+			: []),
 		...(rolldownPlatform === 'node' ? [createNodeBuiltinExternalPlugin()] : []),
 		...(rolldownPlatform === 'browser' ? [createBrowserNodeBuiltinGuardPlugin()] : []),
 		...(options.target !== 'browser' ? [createServerSideCssShimPlugin()] : []),
@@ -372,12 +489,13 @@ function buildRolldownInputPlugins(
 	];
 }
 
-function buildRolldownInputOptions(
+async function buildRolldownInputOptions(
 	options: BuildOptions,
 	contextRoot: string,
+	outdir: string,
 	external: (id: string) => boolean,
 	rolldownPlatform: ReturnType<typeof mapRolldownPlatform>,
-): InputOptions {
+): Promise<InputOptions> {
 	return {
 		input: options.entrypoints,
 		cwd: contextRoot,
@@ -396,7 +514,7 @@ function buildRolldownInputOptions(
 		experimental: {
 			nativeMagicString: true,
 		},
-		plugins: buildRolldownInputPlugins(options, contextRoot, rolldownPlatform),
+		plugins: await buildRolldownInputPlugins(options, contextRoot, outdir, rolldownPlatform),
 	};
 }
 
@@ -435,18 +553,19 @@ function buildRolldownOutputOptions(options: BuildOptions, outdir: string): Outp
 /**
  * Translates a {@link BuildOptions} into Rolldown's `InputOptions` and
  * `OutputOptions`. Always sets `experimental.nativeMagicString: true`
- * and always consolidates eco plugins via the bridge.
+ * and always consolidates eco plugins via the bridge, which runs every
+ * plugin `setup`.
  */
-export function resolveRolldownOptions(
+export async function resolveRolldownOptions(
 	options: BuildOptions,
 	contextRoot: string,
 	outdir: string,
 	appRootRequireCache: Map<string, NodeJS.Require>,
-): ResolvedRolldownOptions {
+): Promise<ResolvedRolldownOptions> {
 	const rolldownPlatform = mapRolldownPlatform(options.target);
 	const external = createExternalMatcher(options, appRootRequireCache);
 	return {
-		inputOptions: buildRolldownInputOptions(options, contextRoot, external, rolldownPlatform),
+		inputOptions: await buildRolldownInputOptions(options, contextRoot, outdir, external, rolldownPlatform),
 		outputOptions: buildRolldownOutputOptions(options, outdir),
 	};
 }
@@ -535,20 +654,6 @@ function djb2(input: string): string {
 /** Test-only: clears the rewriter content cache. */
 export function clearRewriteCacheForTests(): void {
 	rewriteCache.clear();
-}
-
-/** Normalizes node-runtime import paths in emitted outputs. */
-export function rewriteNodeRuntimeImportsInOutputs(result: BuildResult, contextRoot: string): BuildResult {
-	if (!result.success || result.outputs.length === 0) {
-		return result;
-	}
-
-	normalizeNodeRuntimeBuildOutputs(
-		result.outputs.map((output) => output.path),
-		contextRoot,
-	);
-
-	return result;
 }
 
 /** Maps a Rolldown `output` to a normalized {@link BuildResult}. */

@@ -111,6 +111,14 @@ test.describe('Kitchen Sink Preview Regressions @preview', () => {
 		await expect(page.locator('.api-lab__command').first()).toHaveCSS('text-align', 'left');
 	});
 
+	test('counts the React route files that server-only metadata scans next to its source', async ({ request }) => {
+		const response = await request.get('/react-server-metadata');
+		expect(response.ok()).toBe(true);
+		const title = /<title>React Server Metadata \((\d+) routes\)<\/title>/u.exec(await response.text())?.[1];
+
+		expect(Number(title)).toBeGreaterThan(0);
+	});
+
 	test('renders lit entry markup on the server in preview', async ({ request, page }) => {
 		const response = await request.get('/integration-matrix/lit-entry');
 		expect(response.ok()).toBe(true);

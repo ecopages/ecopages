@@ -20,6 +20,9 @@ import { afterEach, expect, test } from 'vitest';
 const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
 const cliPath = path.join(repoRoot, 'packages/ecopages/bin/cli.js');
 const HOME_MARKER = 'Relocated home';
+const corePackageJson = JSON.parse(readFileSync(path.join(repoRoot, 'packages/core/package.json'), 'utf8')) as {
+	version: string;
+};
 
 let workDir: string | undefined;
 let server: ChildProcess | undefined;
@@ -49,17 +52,17 @@ function linkDirectory(linkPath: string, targetPath: string): void {
 }
 
 /**
- * Installs `@ecopages/core` and its runtime dependencies into `appDir` with
- * pnpm's isolated layout.
+ * Installs `packages` (name to source folder) and their runtime dependencies
+ * into `appDir` with pnpm's isolated layout.
  *
  * @remarks
  * Each package is copied into `node_modules/.pnpm/<name>/node_modules/<name>`
  * and sees its dependencies only as sibling symlinks, so Core's dependencies
  * are not reachable as bare specifiers from the app. This is the layout the
- * server output has to survive. Workspace packages copy only their published
- * `files`.
+ * server output has to survive. Packages outside a `node_modules` folder copy
+ * only their published `files`, like the published `@ecopages/*` packages.
  */
-function installCoreIsolated(appDir: string): void {
+function installIsolated(appDir: string, packages: Record<string, string>): void {
 	const storeDir = (name: string) => path.join(appDir, 'node_modules/.pnpm', name.replace('/', '+'), 'node_modules');
 	const installed = new Set<string>();
 	const install = (name: string, sourceDir: string): void => {
@@ -86,11 +89,47 @@ function installCoreIsolated(appDir: string): void {
 			linkDirectory(path.join(storeDir(name), dependency), path.join(storeDir(dependency), dependency));
 		}
 	};
-	install('@ecopages/core', path.join(repoRoot, 'packages/core'));
-	linkDirectory(
-		path.join(appDir, 'node_modules/@ecopages/core'),
-		path.join(storeDir('@ecopages/core'), '@ecopages/core'),
+	for (const [name, sourceDir] of Object.entries(packages)) {
+		install(name, sourceDir);
+		linkDirectory(path.join(appDir, 'node_modules', name), path.join(storeDir(name), name));
+	}
+}
+
+/**
+ * Writes `source-lib`, a TypeScript source package published with
+ * `files: ['src']`, and `native-like`, a compiled package that loads a
+ * per-platform file next to itself through `createRequire(import.meta.url)`,
+ * as `sharp` loads its binding. Returns the source folder of `source-lib`.
+ */
+function writeLocationBoundPackages(fixturesDir: string): string {
+	const sourceLibDir = path.join(fixturesDir, 'source-lib');
+	const nativeLikeDir = path.join(fixturesDir, 'node_modules/native-like');
+	mkdirSync(path.join(sourceLibDir, 'src'), { recursive: true });
+	mkdirSync(nativeLikeDir, { recursive: true });
+	writeFileSync(
+		path.join(sourceLibDir, 'package.json'),
+		JSON.stringify({
+			name: 'source-lib',
+			type: 'module',
+			files: ['src'],
+			exports: './src/index.ts',
+			dependencies: { 'native-like': '1.0.0' },
+		}),
 	);
+	writeFileSync(
+		path.join(sourceLibDir, 'src/index.ts'),
+		"import { loadBinding } from 'native-like';\n\nexport const binding: { native: boolean } = loadBinding();\n",
+	);
+	writeFileSync(
+		path.join(nativeLikeDir, 'package.json'),
+		JSON.stringify({ name: 'native-like', version: '1.0.0', type: 'module', exports: './index.js' }),
+	);
+	writeFileSync(
+		path.join(nativeLikeDir, 'index.js'),
+		"import { createRequire } from 'node:module';\nconst require = createRequire(import.meta.url);\nexport const loadBinding = () => require(`./binding-${process.platform}.cjs`);\n",
+	);
+	writeFileSync(path.join(nativeLikeDir, `binding-${process.platform}.cjs`), 'module.exports = { native: true };\n');
+	return sourceLibDir;
 }
 
 function writeApp(appDir: string): void {
@@ -102,7 +141,7 @@ function writeApp(appDir: string): void {
 			name: 'relocated-app',
 			private: true,
 			type: 'module',
-			dependencies: { '@ecopages/core': '*' },
+			dependencies: { '@ecopages/core': '*', 'source-lib': '*' },
 		}),
 	);
 	writeFileSync(
@@ -112,10 +151,16 @@ function writeApp(appDir: string): void {
 	writeFileSync(
 		path.join(appDir, 'app.ts'),
 		[
+			"import { readFileSync } from 'node:fs';",
 			"import { createApp } from '@ecopages/core/create-app';",
+			"import { getCorePackageVersion } from './node_modules/@ecopages/core/src/build/cache/cache-keys.ts';",
+			"import { binding } from 'source-lib';",
 			'',
 			'const app = await createApp();',
 			"app.get('/api/ping', async ({ response }) => response.json({ ok: true }));",
+			"app.get('/api/core-version', async ({ response }) => response.json(getCorePackageVersion()));",
+			"app.get('/api/binding', async ({ response }) => response.json(binding));",
+			"app.get('/api/source-name', async ({ response }) => response.json(JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).name));",
 			'await app.start();',
 			'',
 		].join('\n'),
@@ -154,7 +199,11 @@ async function waitForServerUrl(child: ChildProcess, output: () => string): Prom
  * @remarks
  * Builds a real app with `node`, copies the deploy layout to a directory
  * with a different root, deletes the build tree, then serves it with `node`.
- * Any absolute path to the build machine in the server output fails here.
+ * Any absolute path to the build machine in the server output fails here, and
+ * so do a bundled location-bound package (a dependency of a source package
+ * that loads a file next to itself) and an `import.meta.url` read in the
+ * bundled entry, by the app or by Core reading its own `package.json`, that
+ * resolves from `dist/.server/` instead of the source file.
  * `VITEST` is cleared for the build because the `ecopages` CLI does not run
  * its command while it is set.
  */
@@ -166,7 +215,10 @@ test(
 		const buildDir = path.join(workDir, 'build/app');
 		const deployDir = path.join(workDir, 'srv/deploy/app');
 		writeApp(buildDir);
-		installCoreIsolated(buildDir);
+		installIsolated(buildDir, {
+			'@ecopages/core': path.join(repoRoot, 'packages/core'),
+			'source-lib': writeLocationBoundPackages(path.join(buildDir, '../fixtures')),
+		});
 
 		execFileSync(process.execPath, [cliPath, 'build', '--runtime', 'node'], {
 			cwd: buildDir,
@@ -205,5 +257,10 @@ test(
 		const response = await fetch(new URL('/', serverUrl), { signal: AbortSignal.timeout(15_000) });
 		expect(response.status).toBe(200);
 		expect(await response.text()).toContain(HOME_MARKER);
+		const getJson = async (route: string) =>
+			await (await fetch(new URL(route, serverUrl), { signal: AbortSignal.timeout(15_000) })).json();
+		expect(await getJson('/api/binding')).toEqual({ native: true });
+		expect(await getJson('/api/core-version')).toBe(corePackageJson.version);
+		expect(await getJson('/api/source-name')).toBe('relocated-app');
 	},
 );

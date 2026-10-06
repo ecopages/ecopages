@@ -73,7 +73,14 @@ Copy the `node_modules` the build used, installed on the same operating system a
 
 Start the server from that folder with `node dist/.server/app.mjs`, or `bun dist/.server/app.mjs` with the Bun adapter. Leave `eco.config.ts` out, or start with `ecopages start`: either way the server loads the config compiled into `dist/.server/`.
 
-In a monorepo, the packages live in the workspace root `node_modules`, outside your app folder. Build from a standalone copy of the app instead, for example the output of `pnpm deploy`. A production build warns in one line, listing the packages, when the server imports packages from outside the app folder.
+Server code in `.ts`, `.tsx`, `.js` and `.jsx` files keeps `import.meta.url`, `import.meta.dirname` and `import.meta.filename` pointing at your source files, so reading a file next to a module works as in development. In `.mjs`, `.cjs`, `.mts` and `.cts` files, `import.meta` points at the built file in `dist/.server/` in this release. Two more things differ from running the source:
+
+- `import.meta.resolve()` resolves from `dist/.server/`.
+- `import.meta.url === pathToFileURL(process.argv[1]).href`, the usual check for "this file is the entry point", is false, because `import.meta.url` names the source file while `process.argv[1]` names `dist/.server/app.mjs`.
+
+Yarn Plug'n'Play installs are not supported for a server you move after building: their packages live in `.zip` archives, so the build bundles them instead of importing them from `node_modules`.
+
+In a monorepo, the packages live in the workspace root `node_modules`, outside your app folder. Build from a standalone copy of the app instead, for example the output of `pnpm deploy`. `ecopages build` warns with one line per server output file, such as `dist/.server/app.mjs`, that imports packages from outside the app folder, naming the first five and counting the rest.
 
 ### 3. Docker Deployment
 

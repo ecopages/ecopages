@@ -47,16 +47,27 @@ export function componentRenderHasIslandBootstrap(assets: Array<{ kind: string }
 	return (assets ?? []).some((asset) => asset.kind === 'script');
 }
 
+/**
+ * Stamps the render result's root as an Island Host when the component ships its own client script.
+ *
+ * @param ownAssets - Assets of the component and its same-Integration nested components, excluding Foreign Children
+ * and the Foreign Subtrees rendered inside it.
+ * @remarks The decision ignores `result.assets`, which usually also carries Foreign Subtree assets: a component
+ * without scripts that wraps an island is not an island itself.
+ */
 export function finalizeIslandComponentRender<
 	T extends {
 		canAttachAttributes: boolean;
 		integrationName: string;
 		rootAttributes?: Record<string, string>;
-		assets?: Array<{ kind: string }>;
 	},
->(input: { integrationContext?: { componentInstanceId?: string } }, result: T): T {
+>(
+	input: { integrationContext?: { componentInstanceId?: string } },
+	result: T,
+	ownAssets: Array<{ kind: string }> | undefined,
+): T {
 	const componentInstanceId = input.integrationContext?.componentInstanceId;
-	if (!componentInstanceId || !result.canAttachAttributes || !componentRenderHasIslandBootstrap(result.assets)) {
+	if (!componentInstanceId || !result.canAttachAttributes || !componentRenderHasIslandBootstrap(ownAssets)) {
 		return result;
 	}
 

@@ -64,6 +64,12 @@ export type CollectedComponentDependencies = {
 type CollectComponentDependenciesOptions = {
 	components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>;
 	integrationName: string;
+	/**
+	 * Skips nested components owned by another Integration, and their descendants.
+	 *
+	 * @remarks Those are Foreign Children: their owning Integration renders them and emits their assets.
+	 */
+	excludeForeignChildren?: boolean;
 	resolveLazyScripts: (componentDir: string, scripts: string[]) => string;
 	createEcopagesJsxLazyEntryName: (integrationName: string, key: string) => string;
 	isEcopagesJsxIntegration: (integrationName: string) => boolean;
@@ -76,6 +82,7 @@ type CollectComponentDependenciesOptions = {
 
 type ComponentDependencyCollectionContext = {
 	integrationName: string;
+	excludeForeignChildren: boolean;
 	resolveLazyScripts: CollectComponentDependenciesOptions['resolveLazyScripts'];
 	createEcopagesJsxLazyEntryName: CollectComponentDependenciesOptions['createEcopagesJsxLazyEntryName'];
 	isEcopagesJsxIntegration: CollectComponentDependenciesOptions['isEcopagesJsxIntegration'];
@@ -130,6 +137,14 @@ function recordExplicitAndInferredStyles(
 }
 
 /**
+ * @remarks A nested component without an Integration inherits its parent's, so it is not a Foreign Child.
+ */
+function isForeignChild(component: EcoComponent, integrationName: string): boolean {
+	const componentIntegration = component.config?.integration ?? getComponentIdentity(component)?.integration;
+	return componentIntegration !== undefined && componentIntegration !== integrationName;
+}
+
+/**
  * Recursively visits one component config and its declared child dependencies.
  */
 function collectComponentConfigDependencies(
@@ -179,12 +194,23 @@ function collectComponentConfigDependencies(
 		isEcopagesJsxIntegration: context.isEcopagesJsxIntegration,
 	});
 
-	for (const nestedComponent of dependenciesConfig?.components ?? []) {
+	collectNestedComponentDependencies(dependenciesConfig?.components ?? [], file, context);
+}
+
+function collectNestedComponentDependencies(
+	nestedComponents: NonNullable<EcoComponentDependencies['components']>,
+	parentComponentFile: string,
+	context: ComponentDependencyCollectionContext,
+): void {
+	for (const nestedComponent of nestedComponents) {
 		if (!nestedComponent) {
 			continue;
 		}
 
-		assertEcoDeclaredComponent(nestedComponent, { parentComponentFile: file });
+		assertEcoDeclaredComponent(nestedComponent, { parentComponentFile });
+		if (context.excludeForeignChildren && isForeignChild(nestedComponent, context.integrationName)) {
+			continue;
+		}
 		collectComponentConfigDependencies(nestedComponent.config, context);
 	}
 }
@@ -206,6 +232,7 @@ export function collectComponentDependencies(
 	const {
 		components,
 		integrationName,
+		excludeForeignChildren = false,
 		resolveLazyScripts,
 		createEcopagesJsxLazyEntryName,
 		isEcopagesJsxIntegration,
@@ -226,6 +253,7 @@ export function collectComponentDependencies(
 
 		const collectionContext: ComponentDependencyCollectionContext = {
 			integrationName,
+			excludeForeignChildren,
 			resolveLazyScripts,
 			createEcopagesJsxLazyEntryName,
 			isEcopagesJsxIntegration,

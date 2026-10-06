@@ -31,9 +31,25 @@ describe('island host attributes', () => {
 				assets: [{ kind: 'script' }],
 				rootAttributes: {} as Record<string, string>,
 			},
+			[{ kind: 'script' }],
 		);
 
 		expect(result.rootAttributes?.[ECO_ISLAND_HOST_ATTRIBUTE]).toBe('');
 		expect(result.rootAttributes?.[ECO_ISLAND_INTEGRATION_ATTRIBUTE]).toBe('lit');
+	});
+
+	it('does not finalize component renders whose only scripts come from foreign subtrees', () => {
+		const result = finalizeIslandComponentRender(
+			{ integrationContext: { componentInstanceId: 'host_n_3' } },
+			{
+				canAttachAttributes: true,
+				integrationName: 'lit',
+				assets: [{ kind: 'stylesheet' }, { kind: 'script' }],
+				rootAttributes: {} as Record<string, string>,
+			},
+			[{ kind: 'stylesheet' }],
+		);
+
+		expect(result.rootAttributes).toEqual({});
 	});
 });

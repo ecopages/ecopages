@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+	buildIslandHostAttributes,
 	eco,
 	type ForeignSubtreeRenderPayload,
 	type ComponentRenderInput,
@@ -454,6 +455,90 @@ describe('LitRenderer', () => {
 				}),
 			]);
 			expect(deferredRenderComponent).toHaveBeenCalledTimes(1);
+		});
+
+		it('should not stamp a script-less lit component as an island host when it wraps a foreign island with its own script', async () => {
+			const deferredPlugin = createDeferredIntegrationPlugin({
+				extensions: ['.deferred.ts'],
+				renderComponent: async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
+					html: '<button data-testid="deferred-island">Deferred island</button>',
+					canAttachAttributes: true,
+					rootTag: 'button',
+					integrationName: 'deferred',
+					rootAttributes: buildIslandHostAttributes({
+						integrationName: 'deferred',
+						componentInstanceId:
+							(input.integrationContext as { componentInstanceId?: string } | undefined)
+								?.componentInstanceId ?? 'missing',
+					}),
+					assets: [
+						{
+							kind: 'script' as const,
+							inline: true,
+							content: 'console.log("deferred island")',
+							position: 'body' as const,
+						},
+					],
+				}),
+			});
+			const config = await createTestAppConfig({ integrations: [deferredPlugin] });
+			deferredPlugin.setConfig(config);
+			deferredPlugin.setRuntimeOrigin('http://localhost:3000');
+
+			const processDependencies = vi.fn(async (dependencies: Array<{ kind: string }>) => dependencies);
+			const testRenderer = new TestLitRenderer({
+				appConfig: config,
+				assetProcessingService: { processDependencies } as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+
+			const DeferredIsland = eco.component({
+				identity: {
+					id: 'deferred-island',
+					file: '/app/components/deferred-island.deferred.ts',
+					integration: 'deferred',
+				},
+				integration: 'deferred',
+				dependencies: {
+					scripts: ['./deferred-island.script.ts'],
+				},
+				render: () => '<button data-testid="deferred-island">Deferred island</button>',
+			});
+
+			const Wrapper = eco.component<object, string>({
+				identity: {
+					id: 'lit-wrapper',
+					file: '/app/components/lit-wrapper.lit.ts',
+					integration: 'lit',
+				},
+				integration: 'lit',
+				dependencies: {
+					components: [DeferredIsland],
+				},
+				render: () => litHtml`<main>${unsafeHTML(String(DeferredIsland({})))}</main>` as unknown as string,
+			});
+
+			const result = await testRenderer.renderComponentWithForeignChildren({
+				component: Wrapper,
+				props: {},
+				integrationContext: { componentInstanceId: 'wrapper' },
+			});
+
+			expect(processDependencies).toHaveBeenCalled();
+			expect(result.assets).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ kind: 'script', content: 'console.log("deferred island")' }),
+					expect.objectContaining({
+						kind: 'script',
+						filepath: expect.stringContaining('deferred-island.script.ts'),
+					}),
+				]),
+			);
+			expect(result.rootAttributes?.['data-eco-island']).toBeUndefined();
+			expect(result.rootAttributes?.['data-eco-island-integration']).toBeUndefined();
+			expect(result.html).toMatch(/<button[^>]*\sdata-eco-island-integration="deferred"/);
+			expect(result.html).not.toContain('data-eco-island-integration="lit"');
 		});
 	});
 

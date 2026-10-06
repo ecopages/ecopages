@@ -26,7 +26,9 @@ Core applies island host metadata through `finalizeIslandComponentRender()` when
 
 1. `integrationContext.componentInstanceId` is present
 2. The render result can attach attributes to a single root element (`canAttachAttributes`)
-3. The render emits at least one client `script` asset
+3. The component itself ships at least one client `script`
+
+Scripts of Foreign Children, components of another integration nested inside it, do not count. A Lit component without scripts that wraps a React island is not stamped as an island host.
 
 Integrations that extend the contract (for example React's component key and props snapshot) should build on `buildIslandHostAttributes()` from `@ecopages/core` rather than inventing per-demo selectors.
 
@@ -41,7 +43,7 @@ Integrations that extend the contract (for example React's component key and pro
 
 ## Using the helpers in custom integrations
 
-If you author a custom integration plugin, call `finalizeIslandComponentRender()` on component render results that ship client scripts:
+If you author a custom integration plugin, call `finalizeIslandComponentRender()` on component render results. Pass the component's own assets as the third argument, excluding those of Foreign Children, separately from the merged list in `assets`, so scripts from nested islands of other integrations do not mark the component as an island:
 
 ```typescript
 import { finalizeIslandComponentRender } from '@ecopages/core';
@@ -51,8 +53,8 @@ return finalizeIslandComponentRender(input, {
 	canAttachAttributes: true,
 	rootTag: 'section',
 	integrationName: 'my-integration',
-	assets,
-});
+	assets: [...ownAssets, ...foreignSubtreeAssets],
+}, ownAssets);
 ```
 
 For integrations that need extra hydration metadata, use `buildIslandHostAttributes()` and merge the result into `rootAttributes` before the foreign-subtree layer applies them to the first element.

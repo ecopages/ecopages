@@ -26,6 +26,8 @@ Server wiring: [dev-toolbar/README.md](../dev-toolbar/README.md) (`DevToolbarHos
 
 Dev transform requests retry when their source changes or is invalidated during compilation. Concurrent requests share one in-flight compile per source, including across source and global invalidation; stale attempts release their slot before retrying. Only results for the current source snapshot enter the module cache, so rapid edits cannot label stale browser code with a newer source hash.
 
+Bare browser imports are prebundled to `/assets/vendors/<name>.<hash>.js` under the dist directory. The hash covers the specifier, the `version` in the installed package's root `package.json` (also for aliased installs such as `npm:react@19`), and the entry file. An upgrade therefore gets a new file and URL, while an existing file with the same name is reused, including after a restart. Every file under `/assets/vendors`, including integration runtime files whose names carry no hash (such as React's `react.development.js`), is served with `Cache-Control: no-cache` and a content `ETag`, so browsers revalidate it on each load and get `304` while it is unchanged.
+
 ## Process restarts
 
 The Project Watcher classifies the resolved `eco.config` module and supported project dotenv paths separately from HMR. Under the CLI, those changes request a graceful runtime stop and a supervised child-process restart so config modules and environment values are loaded from scratch. Embedded hosts are warned without core terminating their process. Runtime entry watchers own config-module changes when `dev:watch` is active, while the Project Watcher continues to own dotenv changes.

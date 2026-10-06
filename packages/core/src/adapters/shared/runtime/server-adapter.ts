@@ -141,7 +141,6 @@ export abstract class SharedServerAdapter<
 
 		this.routeRendererFactory = new RouteRendererFactory({
 			appConfig: this.appConfig,
-			rendererModules: this.appConfig.runtime?.rendererModuleContext,
 			runtimeOrigin: this.runtimeOrigin,
 		});
 	}
@@ -320,7 +319,6 @@ export abstract class SharedServerAdapter<
 
 		return createRenderContext({
 			integrations: this.appConfig.integrations,
-			rendererModules: this.appConfig.runtime?.rendererModuleContext,
 			importServerModule: async <T = unknown>(filePath: string) =>
 				await serverModuleTranspiler.importModule<T>({
 					filePath,

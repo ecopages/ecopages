@@ -1,63 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { EcoPageComponent } from '../../../eco/eco.types.ts';
 import type { EcoComponent, HtmlTemplateProps } from '../../../types/public-types.ts';
 import { TestIntegrationRenderer, testAppConfig, testAssetService } from '../integration-renderer.test-fixtures.ts';
 
 describe('document shell finalization', () => {
-	it('should expose island bootstrap dependencies from renderer modules', () => {
-		const renderer = new TestIntegrationRenderer({
-			appConfig: {
-				...testAppConfig,
-				runtime: {
-					rendererModuleContext: {
-						islandClientModuleId: 'virtual:ecopages/island-client.ts',
-					},
-				},
-			} as EcoPagesAppConfig,
-			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
-		});
-
-		expect(renderer.testGetRendererBootstrapDependencies()).toEqual([
-			{
-				attributes: {
-					crossorigin: 'anonymous',
-					'data-ecopages-runtime': 'islands',
-					type: 'module',
-				},
-				content: 'import "virtual:ecopages/island-client.ts";',
-				inline: true,
-				kind: 'script',
-				packageRole: 'keep-separate',
-				position: 'body',
-			},
-		]);
-		expect(renderer.testGetRendererBootstrapDependencies(true)).toEqual([]);
-	});
-
-	it('should inject the island client bootstrap into finalized full-document HTML', async () => {
-		const renderer = new TestIntegrationRenderer({
-			appConfig: {
-				...testAppConfig,
-				runtime: {
-					rendererModuleContext: {
-						islandClientModuleId: 'virtual:ecopages/island-client.ts',
-					},
-				},
-			} as EcoPagesAppConfig,
-			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
-		});
-
-		const html = await renderer.testFinalizeDocumentShellHtml({
-			html: '<!DOCTYPE html><html><body><main>hello</main></body></html>',
-		});
-
-		expect(html).toContain('data-ecopages-runtime="islands"');
-		expect(html).toContain('import "virtual:ecopages/island-client.ts";');
-	});
-
 	it('should inject declarative html contributions during final html transformation', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,

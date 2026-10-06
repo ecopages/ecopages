@@ -541,7 +541,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			},
 		);
 
-		this.appendProcessedDependencies(this.getRendererBootstrapDependencies(false));
 		const html = await finalizeDocumentShellHtml(this.htmlTransformer, {
 			html: `${this.DOC_TYPE}${documentHtml}`,
 			partial: false,

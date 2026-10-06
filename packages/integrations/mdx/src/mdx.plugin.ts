@@ -122,9 +122,9 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 		appLogger.debug(`MDX plugin configured with jsxImportSource: ${jsxImportSource}`);
 	}
 
-	override initializeRenderer(options?: { rendererModules?: unknown }): MDXRenderer {
+	override initializeRenderer(): MDXRenderer {
 		const renderer = new this.renderer({
-			...this.createRendererOptions(options),
+			...this.createRendererOptions(),
 			mdxConfig: {
 				compilerOptions: this.compilerOptions,
 			},

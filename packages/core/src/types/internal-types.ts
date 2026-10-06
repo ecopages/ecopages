@@ -172,7 +172,6 @@ export type EcoPagesAppConfig = {
 		entrypointDependencyGraph?: EntrypointDependencyGraph;
 		pageBrowserGraphSession?: SessionPageBrowserGraphCache;
 		hostModuleLoader?: SourceModuleLoader;
-		rendererModuleContext?: unknown;
 		serverInvalidationState?: ServerInvalidationState;
 		serverModuleTranspiler?: ServerModuleTranspiler;
 		routeModuleBuildCaches?: Map<string, RouteModuleBuildCache>;

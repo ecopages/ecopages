@@ -55,8 +55,7 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 	name = HTML_PAGES_INTEGRATION_NAME;
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
-		const htmlTemplatePath =
-			this.getRendererModuleString('htmlTemplateModulePath') ?? this.appConfig.absolutePaths.htmlTemplatePath;
+		const htmlTemplatePath = this.appConfig.absolutePaths.htmlTemplatePath;
 		if (!htmlTemplatePath || !fileSystem.exists(htmlTemplatePath)) {
 			return getBuiltInHtmlShell() as EcoComponent<HtmlTemplateProps>;
 		}

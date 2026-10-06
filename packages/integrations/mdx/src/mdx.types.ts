@@ -29,7 +29,6 @@ export type MDXRendererOptions = {
 	appConfig: EcoPagesAppConfig;
 	assetProcessingService: AssetProcessingService;
 	resolvedIntegrationDependencies: ProcessedAsset[];
-	rendererModules?: unknown;
 	runtimeOrigin: string;
 	mdxConfig?: MDXRendererConfig;
 };

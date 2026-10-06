@@ -89,9 +89,9 @@ export class LitPlugin extends IntegrationPlugin {
 		});
 	}
 
-	override initializeRenderer(options?: { rendererModules?: unknown }): LitRenderer {
+	override initializeRenderer(): LitRenderer {
 		const renderer = new this.renderer({
-			...this.createRendererOptions(options),
+			...this.createRendererOptions(),
 			getRenderSession: () => this.renderSession ?? undefined,
 		});
 		return this.attachRendererRuntimeServices(renderer);

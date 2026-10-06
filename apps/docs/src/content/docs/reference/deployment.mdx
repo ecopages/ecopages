@@ -71,7 +71,7 @@ pnpm run start
 
 Copy the `node_modules` the build used, installed on the same operating system and CPU architecture as the server, because packages with native bindings install files for one platform. Some imports point into the package manager's own folders, such as `node_modules/.pnpm/<name>@<version>_<peers>/`, so a fresh install only works when it produces the same folder names: same lockfile, same package manager version and same layout settings (for pnpm `node-linker`, `virtual-store-dir` and `virtual-store-dir-max-length`; for Bun the linker).
 
-Start the server from that folder with `node dist/.server/app.mjs`, or `bun dist/.server/app.mjs` with the Bun adapter. Leave `eco.config.ts` out, or start with `ecopages start`: either way the server loads the config compiled into `dist/.server/`.
+Start the server from that folder with `node dist/.server/app.mjs`, or `bun dist/.server/app.mjs` with the Bun adapter. The server loads the config compiled into `dist/.server/`, even when `eco.config.ts` is in the folder, so you can copy the whole project.
 
 Server code in `.ts`, `.tsx`, `.js` and `.jsx` files keeps `import.meta.url`, `import.meta.dirname` and `import.meta.filename` pointing at your source files, so reading a file next to a module works as in development. In `.mjs`, `.cjs`, `.mts` and `.cts` files, `import.meta` points at the built file in `dist/.server/` in this release. Two more things differ from running the source:
 

@@ -60,6 +60,40 @@ describe('resolveEcoConfigPath', () => {
 
 		expect(resolveEcoConfigPath({ cwd: tempDir, preferEmitted: true })).toBe(emittedPath);
 	});
+
+	describe('when the running entry is a server bundle', () => {
+		const originalEntry = process.argv[1];
+		let sourcePath: string;
+		let emittedPath: string;
+
+		beforeEach(() => {
+			sourcePath = path.join(tempDir, 'eco.config.ts');
+			emittedPath = path.join(tempDir, 'dist', '.server', 'eco.config.mjs');
+			fs.mkdirSync(path.dirname(emittedPath), { recursive: true });
+			fs.writeFileSync(sourcePath, 'export default {}');
+			fs.writeFileSync(emittedPath, 'export default {}');
+		});
+
+		afterEach(() => {
+			process.argv[1] = originalEntry;
+		});
+
+		it('prefers the emitted config next to the entry over eco.config.ts', () => {
+			process.argv[1] = path.join(tempDir, 'dist', '.server', 'app.mjs');
+			expect(resolveEcoConfigPath({ cwd: tempDir })).toBe(emittedPath);
+		});
+
+		it('keeps eco.config.ts for a source entry', () => {
+			process.argv[1] = path.join(tempDir, 'app.ts');
+			expect(resolveEcoConfigPath({ cwd: tempDir })).toBe(sourcePath);
+		});
+
+		it('still honors ECOPAGES_CONFIG_FILE', () => {
+			process.argv[1] = path.join(tempDir, 'dist', '.server', 'app.mjs');
+			process.env[ECOPAGES_CONFIG_FILE_ENV] = sourcePath;
+			expect(resolveEcoConfigPath({ cwd: tempDir })).toBe(sourcePath);
+		});
+	});
 });
 
 describe('resolveUserConfigRootDir', () => {

@@ -50,7 +50,10 @@ Restart the dev server after toolbar client changes.
 | **Deps** | Page Browser Graph entry/chunk assets, vendor URLs, and dev-transform URLs from `#__ECO_DEV_MANIFEST__` |
 | **Islands** | Live island hosts stamped with `data-eco-island`; click a row to highlight the DOM node |
 | **A11y** | axe-core audit (with built-in fallback checks) and in-page highlights |
+| **Build errors** | Current development build errors, with a badge showing distinct messages |
 | **Settings** | Dock placement, stealth mode, and documentation link |
+
+A build error opens the Build errors app automatically and reveals the toolbar in stealth mode. The next non-error HMR update clears its messages and badge. When the toolbar is disabled or no client handles the error, core displays an in-page fallback.
 
 ## Dev manifest
 
@@ -96,6 +99,43 @@ import { defineConfig } from '@ecopages/core/config';
 import { defineDevTool } from '@ecopages/core/dev-toolbar/define-dev-tool';
 
 export default defineConfig({ devToolbar: defineDevTool('@acme/my-dev-toolbar') });
+```
+
+Custom clients can claim build errors with the browser-safe core event contract. Register the listeners before requesting pending errors; call `preventDefault()` synchronously only when your client presents a message, so unclaimed messages keep the fallback. Dismissing the fallback does not discard pending errors.
+
+```typescript
+import {
+  BUILD_ERROR_EVENT,
+  BUILD_ERROR_CLEAR_EVENT,
+  BUILD_ERROR_REQUEST_EVENT,
+  type BuildErrorDetail,
+} from '@ecopages/core/dev-toolbar/build-error-contract';
+
+export function mountBuildErrors(container: HTMLElement): () => void {
+  const messages = new Set<string>();
+  const onError = (event: Event) => {
+    const { message } = (event as CustomEvent<BuildErrorDetail>).detail;
+    if (!messages.has(message)) {
+      messages.add(message);
+      const entry = document.createElement('pre');
+      entry.textContent = message;
+      container.append(entry);
+    }
+    event.preventDefault();
+  };
+  const onClear = () => {
+    messages.clear();
+    container.replaceChildren();
+  };
+  window.addEventListener(BUILD_ERROR_EVENT, onError);
+  window.addEventListener(BUILD_ERROR_CLEAR_EVENT, onClear);
+  window.dispatchEvent(new Event(BUILD_ERROR_REQUEST_EVENT));
+  return () => {
+    window.removeEventListener(BUILD_ERROR_EVENT, onError);
+    window.removeEventListener(BUILD_ERROR_CLEAR_EVENT, onClear);
+    onClear();
+  };
+}
 ```
 
 ## Related docs

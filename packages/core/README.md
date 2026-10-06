@@ -95,7 +95,8 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/adapters/README.md`: Bun, Node, and shared adapter boundaries
 - `src/dev/README.md`: dev transform server, on-demand client delivery, and invalidation during compilation
 - `src/watchers/README.md`: project subscriptions, linked package watching, and restart invalidation
-- `src/hmr/README.md`: HMR strategy and update-layer ownership
+- `src/hmr/README.md`: HMR strategy, update-layer ownership, and build error presentation
+- `src/dev-toolbar/README.md`: toolbar enablement, custom clients, and build error event contract
 - `src/router/README.md`: route discovery, matching, and browser navigation coordination
 - `src/route-renderer/README.md`: rendering orchestration and dependency resolution
 - `src/static-site-generator/README.md`: static build execution path

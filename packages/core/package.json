@@ -294,6 +294,10 @@
 			"types": "./src/dev/transform-server/index.ts",
 			"default": "./src/dev/transform-server/index.ts"
 		},
+		"./dev-toolbar/build-error-contract": {
+			"types": "./src/dev-toolbar/build-error-contract.ts",
+			"default": "./src/dev-toolbar/build-error-contract.ts"
+		},
 		"./dev-toolbar/define-dev-tool": {
 			"types": "./src/dev-toolbar/define-dev-tool.ts",
 			"default": "./src/dev-toolbar/define-dev-tool.ts"

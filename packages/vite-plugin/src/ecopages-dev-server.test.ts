@@ -1,4 +1,9 @@
+import { execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { createEcopagesPluginApi } from './plugin-api.ts';
 import { ecopagesDevServer } from './ecopages-dev-server.ts';
@@ -619,5 +624,39 @@ describe('ecopagesDevServer', () => {
 		await harness.closeServer();
 
 		expect(stop).toHaveBeenCalledTimes(1);
+	});
+
+	it('reports an error thrown by a host-loaded TypeScript module at its source line', () => {
+		const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'ecopages-vite-stack-')));
+		const pageFile = path.join(rootDir, 'page.ts');
+		writeFileSync(
+			pageFile,
+			'type Props = { name: string };\n\ninterface Unused {\n\ta: number;\n}\n\nexport function render(props: Props): string {\n\tthrow new Error(props.name);\n}\n',
+		);
+		const script = `
+			import { createServer } from 'vite';
+			import { createEcopagesPluginApi } from ${JSON.stringify(pathToFileURL(path.join(import.meta.dirname, 'plugin-api.ts')).href)};
+			import { ecopagesDevServer } from ${JSON.stringify(pathToFileURL(path.join(import.meta.dirname, 'ecopages-dev-server.ts')).href)};
+			const api = createEcopagesPluginApi({ appConfig: { rootDir: ${JSON.stringify(rootDir)}, runtime: {}, integrations: [], sourceTransforms: new Map(), absolutePaths: {} } });
+			const server = await createServer({ root: ${JSON.stringify(rootDir)}, configFile: false, logLevel: 'silent', server: { middlewareMode: true, hmr: false, watch: null }, plugins: [ecopagesDevServer(api)] });
+			const page = await server.ssrLoadModule(${JSON.stringify(pageFile)});
+			try { page.render({ name: 'boom' }); } catch (error) { console.log(error.stack); }
+			await server.close();
+		`;
+
+		try {
+			/**
+			 * @remarks A child process, because Vitest replaces `Error.prepareStackTrace`, which bypasses
+			 * Node's source-mapped stack traces.
+			 */
+			const stack = execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+				cwd: import.meta.dirname,
+				encoding: 'utf8',
+			});
+
+			expect(stack).toMatch(/page\.ts:8:\d+\)/);
+		} finally {
+			rmSync(rootDir, { recursive: true, force: true });
+		}
 	});
 });

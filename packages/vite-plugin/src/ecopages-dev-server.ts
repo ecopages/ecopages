@@ -108,6 +108,9 @@ function logError(server: ViteDevServer, message: string, error: unknown): void 
  *
  * A load failure is logged once and then surfaces through every middleware request that awaits the promise,
  * never as an unhandled rejection.
+ *
+ * It turns on Node's source-mapped stack traces, as Vite's own SSR module runner does: `ssrLoadModule`'s runner
+ * leaves them off, so an error thrown while the app renders would point at the transformed module, not the source.
  */
 function startEmbeddedApp(
 	server: ViteDevServer,
@@ -115,6 +118,7 @@ function startEmbeddedApp(
 	api: EcopagesPluginApi,
 	appEntryPath: string,
 ): Promise<EcopagesEmbeddedApp> {
+	process.setSourceMapsEnabled?.(true);
 	const appReady = (async () => {
 		await registerHostModuleLoader(server, api);
 		const app = await loadApp(server, appEntryPath);

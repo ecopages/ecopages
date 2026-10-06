@@ -12,11 +12,6 @@ export const ECOPAGES_INTEGRATION_MANIFEST_MODULE_ID = 'virtual:ecopages/integra
 export const ECOPAGES_ISLAND_REGISTRY_MODULE_ID = 'virtual:ecopages/island-registry.ts';
 
 /**
- * Virtual module id that exposes the island client runtime entrypoint.
- */
-export const ECOPAGES_ISLAND_CLIENT_MODULE_ID = 'virtual:ecopages/island-client.ts';
-
-/**
  * Serializable integration manifest entry consumed by the runtime.
  */
 export interface EcopagesIntegrationManifestEntry {

@@ -13,7 +13,6 @@ This document captures implementation decisions, extension points, and follow-up
 | 3     | `ecopages:metadata`          | `eco-component-meta` transform                                           |
 | 4+    | dynamic source transforms    | Bundler-neutral transforms from `appConfig.sourceTransforms`             |
 | N     | `ecopages-virtual-modules`   | Integration manifest, island registry, image bridge                      |
-| N+1   | `ecopages:islands`           | Island client runtime virtual module                                     |
 | last  | `ecopages:dev-server`        | Connect middleware → `app.fetch()`                                       |
 
 All buckets use `apply: 'serve'` because this package is intentionally a dev-host adapter. Production builds stay in the Ecopages CLI / Rolldown path.

@@ -1,15 +1,17 @@
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
+import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import { ReactRenderer } from '../render/react-renderer.ts';
 import { reactPlugin } from '../plugin/react.plugin.ts';
+import { copyFixtureApp } from '../../../../core/__fixtures__/app/copy-fixture-app.ts';
 
 const MockPage = ({ children }: any) => <div>{children}</div>;
 MockPage.config = {};
 
-const fixtureAppRoot = path.resolve(__dirname, '../../../../core/__fixtures__/app');
+const fixtureAppRoot = copyFixtureApp();
 const testDir = path.join(__dirname, 'fixture/.eco-mdx');
 
 const Config = await finalizeEcoPagesConfig({
@@ -34,6 +36,7 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 		if (fileSystem.exists(testDir)) {
 			fileSystem.remove(testDir);
 		}
+		rmSync(fixtureAppRoot, { recursive: true, force: true });
 	});
 
 	it('should have default extensions when MDX is disabled', () => {

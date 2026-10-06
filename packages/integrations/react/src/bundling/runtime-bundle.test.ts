@@ -1,14 +1,19 @@
-import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { rmSync } from 'node:fs';
+import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { getBrowserRuntimeManifestFromPlugin } from '@ecopages/core/build/browser-runtime-plugin';
+import { copyFixtureApp } from '../../../../core/__fixtures__/app/copy-fixture-app.ts';
 import { RuntimeBundleService } from './runtime-bundle.ts';
 import { resolveReactPluginRuntimeModules, UnmappedReactRuntimeModuleExternalError } from './runtime-modules.ts';
 
 const originalNodeEnv = process.env.NODE_ENV;
-const fixtureAppRoot = path.resolve(import.meta.dirname, '../../../../core/__fixtures__/app');
+const fixtureAppRoot = copyFixtureApp();
 
 afterEach(() => {
 	process.env.NODE_ENV = originalNodeEnv;
+});
+
+afterAll(() => {
+	rmSync(fixtureAppRoot, { recursive: true, force: true });
 });
 
 describe('RuntimeBundleService', () => {

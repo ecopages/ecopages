@@ -11,7 +11,6 @@ import {
 } from './processor.ts';
 
 class TestProcessor extends Processor {
-	override buildPlugins?: EcoBuildPlugin[] = [];
 	override plugins?: EcoBuildPlugin[] = [];
 
 	override async setup(): Promise<void> {}

@@ -53,7 +53,7 @@ build/
   browser/                        client runtime rewrites, JSX ownership, Lit worker guard
 ```
 
-- `contracts/build-manifest.ts` + `app-build-manifest-runtime.ts`: sealed `AppBuildManifest` buckets and contributor collection.
+- `contracts/build-manifest.ts` + `app-build-manifest-runtime.ts`: environment-selected plugins in one `AppBuildManifest` and contributor validation.
 - `build-adapter.ts`: types, factories, and app-owned adapter/manifest helpers.
 - `runtime/build-runtime.ts`: profile-based executor installation (`server-entry`, `route-module`, `browser-hmr`).
 - `runtime/build-request-policy.ts`: server/browser request constructors and plugin collision rules.
@@ -76,25 +76,20 @@ build/
 
 ## App build manifest
 
-`AppBuildManifest` is the sealed registry of build plugins and browser runtime assets on `appConfig.runtime.buildManifest`. Integrations and processors declare contributions through getters; core maps them into manifest buckets during `finalizeEcoPagesConfig()`.
+`AppBuildManifest` stores one `plugins` list and a separate `browserRuntimeManifest` on `appConfig.runtime.buildManifest`. Integrations and Processors both expose `plugins`. Each build plugin declares `environments: ['server']`, `['browser']`, or both; omitted environments apply to both. Config loaders join the same list.
 
-| Integration getter       | Processor getter | Manifest bucket          | Used in                                                          |
-| ------------------------ | ---------------- | ------------------------ | ---------------------------------------------------------------- |
-| — (loaders on config)    | —                | `loaderPlugins`          | Server and browser                                               |
-| `plugins`                | `plugins`        | `runtimePlugins`         | Server and browser                                               |
-| `browserBuildPlugins`    | `buildPlugins`   | `browserBundlePlugins`   | Browser only                                                     |
-| `browserRuntimeManifest` | —                | `browserRuntimeManifest` | Browser (rewrite map; core synthesizes `browser-runtime-plugin`) |
+Config finalization rejects duplicate plugin names within an environment and identifies both contributors. The same name can be registered once for server and once for browser. Browser runtime declarations remain data from an Integration's `browserRuntimeManifest`, from which core synthesizes import rewrites.
 
 **Sealing flow**
 
 1. `collectConfiguredAppBuildManifestContributions(config)` walks processors and integrations (after `prepareBuildContributions()`).
-2. `updateAppBuildManifest(config, contributions)` merges loader plugins from `config.loaders` with the collected buckets.
+2. `updateAppBuildManifest(config, contributions)` adds config loaders to the collected plugins.
 3. `createServerBuildRequest` / `createBrowserBuildRequest` read the sealed manifest through `getAppServerBuildPlugins` / `getAppBrowserBuildPlugins`.
 
 **Rule of thumb**
 
-- Shared transforms (MDX loaders, virtual modules, route-module hooks) → `plugins` / `runtimePlugins`.
-- Client-bundle-only work (vendor aliasing, async production CSS) → `browserBuildPlugins` or `buildPlugins` / `browserBundlePlugins`.
+- Shared transforms (MDX loaders, virtual modules, route-module hooks) → `plugins`, with both environments.
+- Client-bundle-only work (vendor aliasing, async production CSS) → `plugins`, with `environments: ['browser']`.
 - Vendor specifier → public URL rewrites → `browserRuntimeManifest` (not a plugin list).
 
 Direct `setAppBuildManifest` is for tests and full manifest replacement. Production code should rely on `updateAppBuildManifest` during config build.
@@ -115,7 +110,9 @@ Runtime code should call `requireBuildRuntime(appConfig).getProfile('route-modul
 
 The exported `defaultBuildAdapter` and the top-level `build()` / `getTranspileOptions()` helpers are non-app-aware escape hatches. New runtime code should prefer `getAppBuildAdapter()`, `requireBuildRuntime()`, `createServerBuildRequest()`, `createBrowserBuildRequest()`, and `getAppTranspileOptions()`.
 
-`BuildTranspileProfile` (`browser-script` | `hmr-runtime` | `hmr-entrypoint`) selects transpile settings only. `BuildProfile` (`server-entry` | `route-module` | `browser-hmr`) selects the concurrency/dedupe wrapper. `BrowserBundleService` maps `hmr` + (`hmr-entrypoint` | `hmr-runtime`) to the `browser-hmr` profile; all other browser work (including `browser-script`) uses `route-module`.
+Every `BuildOptions` request requires `environment: 'server' | 'browser'`. Environment selects the platform, default target/format, and plugin participation. An explicit numeric `target` changes language transpilation without changing the environment. `getTranspileOptions()` takes that environment. `BuildProfile` (`server-entry` | `route-module` | `browser-hmr`) selects scheduling only. `BrowserBundleService` uses its purpose and executor to select the scheduling lane; every request retains browser defaults even on `route-module`.
+
+Migration: move Integration `browserBuildPlugins` and Processor `buildPlugins` into `plugins` with `environments: ['browser']`. Keep server-only hooks in `plugins` with `environments: ['server']`. Replace the old transpile profile arguments with `'browser'` or `'server'`.
 
 ## Vite-Host Boundary
 
@@ -132,6 +129,7 @@ Vite-based apps (or any future host runtime) should:
 `EcoBuildPlugin` is the runtime-agnostic contract integrations and processors register. The shape:
 
 - `name: string`
+- `environments?: ('server' | 'browser')[]` (omitted means both)
 - `setup(build: EcoBuildPluginBuilder): void | Promise<void>`
 
 `EcoBuildPluginBuilder` exposes four hooks:

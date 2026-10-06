@@ -22,6 +22,7 @@ import {
 import { RolldownBuildAdapter } from './rolldown/rolldown-build-adapter.ts';
 import { createBrowserRuntimeManifest } from './browser/browser-runtime-manifest.ts';
 import { createAppBuildManifest } from './contracts/build-manifest.ts';
+import type { EcoBuildPlugin } from './contracts/build-types.ts';
 
 test('defaultBuildAdapter is the RolldownBuildAdapter', () => {
 	assert.ok(defaultBuildAdapter instanceof RolldownBuildAdapter);
@@ -54,6 +55,7 @@ test('ViteHostBuildAdapter rejects core-owned execution attempts', async () => {
 
 	await assert.rejects(
 		adapter.build({
+			environment: 'browser' as const,
 			entrypoints: ['/tmp/entry.ts'],
 			root: '/tmp',
 			outdir: '/tmp/out',
@@ -66,10 +68,7 @@ test('ViteHostBuildAdapter rejects core-owned execution attempts', async () => {
 		/Vite-hosted builds are owned by the host runtime/,
 	);
 	assert.throws(() => adapter.resolve('react', '/tmp'), /Vite-hosted builds are owned by the host runtime/);
-	assert.throws(
-		() => adapter.getTranspileOptions('browser-script'),
-		/Vite-hosted builds are owned by the host runtime/,
-	);
+	assert.throws(() => adapter.getTranspileOptions('browser'), /Vite-hosted builds are owned by the host runtime/);
 });
 
 test('build helper accepts an explicit executor across package and relative build-adapter imports', async () => {
@@ -84,6 +83,7 @@ test('build helper accepts an explicit executor across package and relative buil
 
 	const result = await packageBuildAdapter.build(
 		{
+			environment: 'server' as const,
 			entrypoints: ['/tmp/shared.ts'],
 			root: '/tmp',
 			outdir: '/tmp/out',
@@ -112,6 +112,7 @@ test('build helper uses the shared adapter when no executor is provided', async 
 	const adapterSpy = vi.spyOn(defaultBuildAdapter, 'build').mockImplementation(executor.build);
 
 	const result = await build({
+		environment: 'server' as const,
 		entrypoints: ['/tmp/direct.ts'],
 		root: '/tmp',
 		outdir: '/tmp/out',
@@ -150,7 +151,7 @@ test('getAppBuildOwnership defaults to rolldown when no adapter is installed', (
 test('build manifest separates server and browser plugin sets', () => {
 	const loaderPlugin = { name: 'loader-plugin', setup() {} };
 	const runtimePlugin = { name: 'runtime-plugin', setup() {} };
-	const browserPlugin = { name: 'browser-plugin', setup() {} };
+	const browserPlugin: EcoBuildPlugin = { name: 'browser-plugin', environments: ['browser'], setup() {} };
 	const appConfig = {
 		loaders: new Map(),
 		runtime: {},
@@ -159,13 +160,11 @@ test('build manifest separates server and browser plugin sets', () => {
 	setAppBuildManifest(
 		appConfig,
 		createAppBuildManifest({
-			loaderPlugins: [loaderPlugin],
-			runtimePlugins: [runtimePlugin],
-			browserBundlePlugins: [browserPlugin],
+			plugins: [loaderPlugin, runtimePlugin, browserPlugin],
 		}),
 	);
 
-	assert.deepEqual(getAppBuildManifest(appConfig).loaderPlugins, [loaderPlugin]);
+	assert.deepEqual(getAppBuildManifest(appConfig).plugins, [loaderPlugin, runtimePlugin, browserPlugin]);
 	assert.deepEqual(getAppServerBuildPlugins(appConfig), [loaderPlugin, runtimePlugin]);
 	assert.deepEqual(getAppBrowserBuildPlugins(appConfig), [loaderPlugin, runtimePlugin, browserPlugin]);
 });
@@ -179,12 +178,10 @@ test('createConfiguredAppBuildManifest defaults loader plugins from app config',
 	} as any;
 
 	const manifest = createConfiguredAppBuildManifest(appConfig, {
-		runtimePlugins: [runtimePlugin],
+		plugins: [runtimePlugin],
 	});
 
-	assert.deepEqual(manifest.loaderPlugins, [loaderPlugin]);
-	assert.deepEqual(manifest.runtimePlugins, [runtimePlugin]);
-	assert.deepEqual(manifest.browserBundlePlugins, []);
+	assert.deepEqual(manifest.plugins, [loaderPlugin, runtimePlugin]);
 	assert.deepEqual(manifest.browserRuntimeManifest.assets, []);
 });
 
@@ -212,18 +209,17 @@ test('createConfiguredAppBuildManifest preserves explicit browser runtime manife
 test('updateAppBuildManifest rebuilds the app manifest from config-owned loaders and explicit runtime plugins', () => {
 	const loaderPlugin = { name: 'loader-plugin', setup() {} };
 	const runtimePlugin = { name: 'runtime-plugin', setup() {} };
-	const browserPlugin = { name: 'browser-plugin', setup() {} };
+	const browserPlugin: EcoBuildPlugin = { name: 'browser-plugin', environments: ['browser'], setup() {} };
 	const appConfig = {
 		loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
 		runtime: {},
 	} as any;
 
 	updateAppBuildManifest(appConfig, {
-		runtimePlugins: [runtimePlugin],
-		browserBundlePlugins: [browserPlugin],
+		plugins: [runtimePlugin, browserPlugin],
 	});
 
-	assert.deepEqual(getAppBuildManifest(appConfig).loaderPlugins, [loaderPlugin]);
+	assert.deepEqual(getAppBuildManifest(appConfig).plugins, [loaderPlugin, runtimePlugin, browserPlugin]);
 	assert.deepEqual(getAppServerBuildPlugins(appConfig), [loaderPlugin, runtimePlugin]);
 	assert.deepEqual(getAppBrowserBuildPlugins(appConfig), [loaderPlugin, runtimePlugin, browserPlugin]);
 });
@@ -231,11 +227,14 @@ test('updateAppBuildManifest rebuilds the app manifest from config-owned loaders
 test('collectConfiguredAppBuildManifestContributions gathers processor and integration contributions during config build', async () => {
 	const contributionOrder: string[] = [];
 	const processorRuntimePlugin = { name: 'processor-runtime-plugin', setup() {} };
-	const processorBrowserPlugin = { name: 'processor-browser-plugin', setup() {} };
+	const processorBrowserPlugin: EcoBuildPlugin = {
+		name: 'processor-browser-plugin',
+		environments: ['browser'],
+		setup() {},
+	};
 	const integrationRuntimePlugin = { name: 'integration-runtime-plugin', setup() {} };
 	const processor = {
-		plugins: [processorRuntimePlugin],
-		buildPlugins: [processorBrowserPlugin],
+		plugins: [processorRuntimePlugin, processorBrowserPlugin],
 		prepareBuildContributions: vi.fn(async () => {
 			contributionOrder.push('processor-prepare');
 		}),
@@ -249,13 +248,13 @@ test('collectConfiguredAppBuildManifestContributions gathers processor and integ
 	};
 
 	const contributions = await collectConfiguredAppBuildManifestContributions({
+		loaders: new Map(),
 		processors: new Map([['processor', processor]]),
 		integrations: [integration],
 	} as any);
 
 	assert.deepEqual(contributionOrder, ['processor-prepare', 'integration-config', 'integration-prepare']);
-	assert.deepEqual(contributions.runtimePlugins, [processorRuntimePlugin, integrationRuntimePlugin]);
-	assert.deepEqual(contributions.browserBundlePlugins, [processorBrowserPlugin]);
+	assert.deepEqual(contributions.plugins, [processorRuntimePlugin, processorBrowserPlugin, integrationRuntimePlugin]);
 	assert.equal(contributions.browserRuntimeManifest.assets.length, 0);
 });
 
@@ -278,15 +277,13 @@ test('collectConfiguredAppBuildManifestContributions merges integration browser 
 	]);
 
 	const contributions = await collectConfiguredAppBuildManifestContributions({
+		loaders: new Map(),
 		processors: new Map(),
 		integrations: [
 			{
 				setConfig() {},
 				prepareBuildContributions: vi.fn(async () => {}),
 				get plugins() {
-					return [];
-				},
-				get browserBuildPlugins() {
 					return [];
 				},
 				get browserRuntimeManifest() {
@@ -297,9 +294,6 @@ test('collectConfiguredAppBuildManifestContributions merges integration browser 
 				setConfig() {},
 				prepareBuildContributions: vi.fn(async () => {}),
 				get plugins() {
-					return [];
-				},
-				get browserBuildPlugins() {
 					return [];
 				},
 				get browserRuntimeManifest() {
@@ -355,8 +349,7 @@ test('getAppBrowserBuildPlugins keeps plugins that are also registered as source
 	setAppBuildManifest(
 		appConfig,
 		createAppBuildManifest({
-			loaderPlugins: [loaderPlugin],
-			browserBundlePlugins: [loaderPlugin, browserPlugin],
+			plugins: [loaderPlugin, browserPlugin],
 		}),
 	);
 

@@ -269,9 +269,7 @@ describe('app server module transpiler runtime state', () => {
 		} as any;
 
 		setAppBuildManifest(appConfig, {
-			loaderPlugins: [],
-			runtimePlugins: [{ name: 'react-mdx-loader', setup() {} }],
-			browserBundlePlugins: [],
+			plugins: [{ name: 'react-mdx-loader', setup() {} }],
 			browserRuntimeManifest: { assets: [], bySpecifier: new Map() },
 		});
 
@@ -316,9 +314,7 @@ describe('app server module transpiler runtime state', () => {
 
 		setAppBuildAdapter(appConfig, new RolldownBuildAdapter());
 		setAppBuildManifest(appConfig, {
-			loaderPlugins: [],
-			runtimePlugins: [],
-			browserBundlePlugins: [],
+			plugins: [],
 			browserRuntimeManifest: { assets: [], bySpecifier: new Map() },
 		});
 		installBuildRuntime(appConfig);

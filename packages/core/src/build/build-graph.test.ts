@@ -29,6 +29,7 @@ test('both persisted entries miss after their shared inlined source changes', as
 	});
 	const outdir = path.join(root, 'dist');
 	const result = await new RolldownBuildAdapter().build({
+		environment: 'server' as const,
 		entrypoints: entries,
 		root,
 		outdir,
@@ -67,6 +68,7 @@ test('a missing local external generated module invalidates a persisted build', 
 	);
 	const outdir = path.join(root, 'dist');
 	const result = await new RolldownBuildAdapter().build({
+		environment: 'server' as const,
 		entrypoints: [entry],
 		root,
 		outdir,
@@ -124,6 +126,7 @@ test('finds the entry output through a symlink root and by the name the caller p
 		const entry = path.join(linkRoot, 'entry.js');
 		const outdir = path.join(linkRoot, 'dist');
 		const result = await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
 			entrypoints: { pages__blog: entry },
 			root: linkRoot,
 			outdir,

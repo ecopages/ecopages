@@ -121,10 +121,11 @@ describe('PageModuleImportService', () => {
 			assert.deepEqual(fakeDependencies.calls.buildModule, [
 				{
 					options: {
+						environment: 'server',
 						entrypoints: ['/app/pages/page.tsx'],
 						root: '/app',
 						outdir: tempDir,
-						target: 'es2022',
+						target: 'node',
 						format: 'esm',
 						sourcemap: 'none',
 						splitting: true,
@@ -224,7 +225,8 @@ describe('PageModuleImportService', () => {
 				outdir: tempDir,
 			});
 
-			assert.equal(fakeDependencies.calls.buildModule[0]?.options.target, 'es2022');
+			assert.equal(fakeDependencies.calls.buildModule[0]?.options.environment, 'server');
+			assert.equal(fakeDependencies.calls.buildModule[0]?.options.target, 'node');
 			assert.equal(fakeDependencies.calls.buildModule[0]?.options.format, 'esm');
 			assert.equal(fakeDependencies.calls.buildModule[0]?.options.naming, 'page-hash123.[ext]');
 			assert.equal(fakeDependencies.calls.buildModule.length, 1);

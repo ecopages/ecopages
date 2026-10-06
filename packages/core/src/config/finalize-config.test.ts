@@ -18,10 +18,18 @@ import { Processor } from '../plugins/processor.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { finalizeEcoPagesConfig } from './finalize-config.ts';
 import type { EcoPagesUserConfig } from './user-config-types.ts';
+import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 
-const createMockIntegration = (name: string, extensions: string[]): IntegrationPlugin => {
+const createMockIntegration = (
+	name: string,
+	extensions: string[],
+	plugins: EcoBuildPlugin[] = [],
+): IntegrationPlugin => {
 	return new (class extends IntegrationPlugin {
 		renderer = vi.fn() as any;
+		override get plugins(): EcoBuildPlugin[] {
+			return plugins;
+		}
 		override extensions: string[];
 		constructor() {
 			super({ name, extensions });
@@ -79,6 +87,28 @@ describe('finalizeEcoPagesConfig configModuleFiles', () => {
 });
 
 describe('finalizeEcoPagesConfig', () => {
+	test('rejects overlapping build plugin names and identifies both Integrations', async () => {
+		const integrations = [
+			createMockIntegration('first', ['.first'], [{ name: 'shared', environments: ['browser'], setup() {} }]),
+			createMockIntegration('second', ['.second'], [{ name: 'shared', environments: ['browser'], setup() {} }]),
+		];
+		await expect(finalize({ integrations })).rejects.toThrow(
+			'Build plugin "shared" for browser is registered by both Integration "first" and Integration "second".',
+		);
+	});
+
+	test('allows a plugin name registered once per environment', async () => {
+		const serverPlugin: EcoBuildPlugin = { name: 'shared', environments: ['server'], setup() {} };
+		const browserPlugin: EcoBuildPlugin = { name: 'shared', environments: ['browser'], setup() {} };
+		const config = await finalize({
+			integrations: [
+				createMockIntegration('first', ['.first'], [serverPlugin]),
+				createMockIntegration('second', ['.second'], [browserPlugin]),
+			],
+		});
+		expect(getAppBuildManifest(config).plugins).toEqual([serverPlugin, browserPlugin]);
+	});
+
 	beforeEach(() => {
 		vi.restoreAllMocks();
 		vi.unstubAllGlobals();
@@ -144,7 +174,7 @@ describe('finalizeEcoPagesConfig', () => {
 
 		expect(getAppBuildOwnership(config)).toBe('rolldown');
 		expect(getAppBuildAdapter(config)).not.toBe(defaultBuildAdapter);
-		expect(getAppBuildManifest(config).loaderPlugins).toHaveLength(0);
+		expect(getAppBuildManifest(config).plugins).toHaveLength(0);
 		expect(config.sourceTransforms.size).toBeGreaterThan(0);
 		expect(createVitePluginsFromAppSourceTransforms(config).length).toBeGreaterThan(0);
 		expect(config.runtime?.serverInvalidationState).toBeDefined();
@@ -186,8 +216,7 @@ describe('finalizeEcoPagesConfig', () => {
 		const integrationBrowserPlugin = { name: 'integration-browser-plugin', setup() {} };
 
 		const processor = new (class extends Processor {
-			buildPlugins = [processorBrowserPlugin];
-			plugins = [processorRuntimePlugin];
+			plugins = [processorRuntimePlugin, processorBrowserPlugin];
 			override async prepareBuildContributions(): Promise<void> {}
 			override async setup(): Promise<void> {}
 			override async teardown(): Promise<void> {}
@@ -199,10 +228,7 @@ describe('finalizeEcoPagesConfig', () => {
 		const integration = new (class extends IntegrationPlugin {
 			renderer = vi.fn() as any;
 			override get plugins() {
-				return [integrationRuntimePlugin];
-			}
-			override get browserBuildPlugins() {
-				return [integrationBrowserPlugin];
+				return [integrationRuntimePlugin, integrationBrowserPlugin];
 			}
 			override get browserRuntimeManifest() {
 				return createBrowserRuntimeManifest([
@@ -225,12 +251,10 @@ describe('finalizeEcoPagesConfig', () => {
 				integrations: [integration],
 			});
 
-			expect(getAppBuildManifest(config).runtimePlugins).toEqual([
+			expect(getAppBuildManifest(config).plugins).toEqual([
 				processorRuntimePlugin,
-				integrationRuntimePlugin,
-			]);
-			expect(getAppBuildManifest(config).browserBundlePlugins).toEqual([
 				processorBrowserPlugin,
+				integrationRuntimePlugin,
 				integrationBrowserPlugin,
 			]);
 			expect(getAppBuildManifest(config).browserRuntimeManifest.bySpecifier.get('react')?.publicPath).toBe(

@@ -74,6 +74,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 
 		try {
 			const result = await new RolldownBuildAdapter().build({
+				environment: 'browser' as const,
 				entrypoints: [entrypoint],
 				outdir: join(tempDir, 'dist'),
 				root: tempDir,

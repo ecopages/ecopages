@@ -23,13 +23,12 @@ function createAppConfig(): EcoPagesAppConfig {
 	} as unknown as EcoPagesAppConfig;
 
 	const appPlugin: EcoBuildPlugin = { name: 'app-plugin', setup() {} };
-	const browserPlugin: EcoBuildPlugin = { name: 'browser-plugin', setup() {} };
+	const browserPlugin: EcoBuildPlugin = { name: 'browser-plugin', environments: ['browser'], setup() {} };
 
 	setAppBuildManifest(
 		appConfig,
 		createAppBuildManifest({
-			runtimePlugins: [appPlugin],
-			browserBundlePlugins: [browserPlugin],
+			plugins: [appPlugin, browserPlugin],
 		}),
 	);
 
@@ -59,6 +58,7 @@ test('createServerBuildRequest includes app server plugins and jsx ownership', (
 	const callerPlugin: EcoBuildPlugin = { name: 'caller-plugin', setup() {} };
 
 	const request = createServerBuildRequest(appConfig, {
+		environment: 'server' as const,
 		entrypoints: ['/app/pages/index.tsx'],
 		outdir: '/out',
 		plugins: [callerPlugin],
@@ -67,6 +67,7 @@ test('createServerBuildRequest includes app server plugins and jsx ownership', (
 	assert.ok(request.plugins?.some((plugin) => plugin.name === 'app-plugin'));
 	assert.ok(request.plugins?.some((plugin) => plugin.name === 'caller-plugin'));
 	assert.equal(request.plugins?.[0]?.name, 'caller-plugin');
+	assert.equal(request.environment, 'server');
 	assert.equal(request.target, 'es2022');
 	assert.ok(request.plugins?.some((plugin) => plugin.name === 'preserve-import-meta-for-server-output'));
 });
@@ -114,6 +115,7 @@ test('only the server-entry profile reports packages outside the app root', () =
 test('resolveServerAppBuildPlugins matches createServerBuildRequest app plugin set', () => {
 	const appConfig = createAppConfig();
 	const request = createServerBuildRequest(appConfig, {
+		environment: 'server' as const,
 		entrypoints: ['/app/pages/index.tsx'],
 		outdir: '/out',
 	});
@@ -131,7 +133,7 @@ test('createBrowserBuildRequest excludes app plugins by name and attaches source
 	const appConfig = createAppConfig();
 
 	const request = createBrowserBuildRequest(appConfig, {
-		profile: 'browser-script',
+		environment: 'server' as const,
 		entrypoints: ['/app/client.ts'],
 		outdir: '/out',
 		excludeAppBuildPlugins: ['browser-plugin'],
@@ -139,4 +141,35 @@ test('createBrowserBuildRequest excludes app plugins by name and attaches source
 
 	assert.ok(request.plugins?.every((plugin) => plugin.name !== 'browser-plugin'));
 	assert.equal(request.target, 'browser');
+});
+
+test('browser compilation on the route-module executor keeps browser defaults and filters caller plugins', async () => {
+	const appConfig = createAppConfig();
+	const request = createBrowserBuildRequest(appConfig, {
+		entrypoints: ['/app/client.ts'],
+		plugins: [{ name: 'server-only', environments: ['server'], setup() {} }],
+	});
+	assert.equal(request.environment, 'browser');
+	assert.equal(request.target, 'browser');
+	assert.equal(request.format, 'esm');
+	assert.ok(request.plugins?.every((plugin) => plugin.name !== 'server-only'));
+	const { installBuildRuntime, requireBuildRuntime } = await import('./build-runtime.ts');
+	const observed: import('../contracts/build-contracts.ts').BuildOptions[] = [];
+	appConfig.runtime ??= {};
+	appConfig.runtime.buildAdapter = {
+		async build(options) {
+			observed.push(options);
+			return { success: true, outputs: [], logs: [] };
+		},
+		resolve(specifier) {
+			return specifier;
+		},
+		getTranspileOptions() {
+			return { target: 'browser', format: 'esm', sourcemap: 'none' };
+		},
+	};
+	installBuildRuntime(appConfig);
+	await requireBuildRuntime(appConfig).getProfile('route-module').build(request);
+	assert.equal(observed[0]?.environment, 'browser');
+	assert.equal(observed[0]?.target, 'browser');
 });

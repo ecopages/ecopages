@@ -62,6 +62,7 @@ function normalizeDefine(define: Record<string, string> | undefined): string {
  */
 export function createBuildRequestIdentity(options: BuildOptions): string {
 	return [
+		options.environment,
 		normalizeEntrypoints(options.entrypoints),
 		options.root ? path.resolve(options.root) : 'root:default',
 		options.outdir ? path.resolve(options.outdir) : 'outdir:default',

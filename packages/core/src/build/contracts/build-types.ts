@@ -105,5 +105,7 @@ export interface EcoBuildPluginBuilder {
  */
 export type EcoBuildPlugin = {
 	name: string;
+	/** Omitted environments apply to both server and browser builds. */
+	environments?: Array<'server' | 'browser'>;
 	setup: (build: EcoBuildPluginBuilder) => void | Promise<void>;
 };

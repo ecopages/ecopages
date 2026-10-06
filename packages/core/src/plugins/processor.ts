@@ -135,14 +135,8 @@ export type AnyProcessor = Processor<unknown>;
  * Base class for content and asset processors that contribute build plugins.
  *
  * @remarks
- * Processors declare plugins through two getters that map to
- * {@link AppBuildManifest} buckets (names differ from integrations):
- *
- * - `plugins` → `runtimePlugins` (server **and** browser builds)
- * - `buildPlugins` → `browserBundlePlugins` (browser bundles only)
- *
- * Virtual modules that must resolve during route-module transpile belong in
- * `plugins`. Browser-only bundler hooks belong in `buildPlugins`.
+ * Processors and Integrations declare build plugins through `plugins`.
+ * Each plugin selects its environments; omitting them applies to both.
  */
 
 export abstract class Processor<TOptions = unknown> {
@@ -154,21 +148,9 @@ export abstract class Processor<TOptions = unknown> {
 	readonly runtimeCapability?: RuntimeCapabilityDeclaration;
 
 	/**
-	 * Browser-bundle-only plugins.
-	 *
 	 * @remarks
-	 * Maps to {@link AppBuildManifest.browserBundlePlugins}. Integrations name the
-	 * same bucket `browserBuildPlugins`.
-	 */
-	abstract buildPlugins?: EcoBuildPlugin[];
-
-	/**
-	 * Shared build plugins for server-oriented and browser-oriented work.
-	 *
-	 * @remarks
-	 * Maps to {@link AppBuildManifest.runtimePlugins}. Despite the name, these are
-	 * bundler plugins—not dev-server file processors. Runtime-only setup stays in
-	 * {@link setup}.
+	 * Browser-only plugins declare `environments: ['browser']`. Runtime-only
+	 * setup stays in {@link setup}.
 	 */
 	abstract plugins?: EcoBuildPlugin[];
 

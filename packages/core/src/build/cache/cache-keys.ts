@@ -40,7 +40,12 @@ export function createPluginCacheKey(plugins?: EcoBuildPlugin[]): string {
 		return 'plugins:default';
 	}
 
-	return `plugins:${plugins.map((plugin) => `${plugin.name}:${hashFunctionIdentity(plugin.setup)}`).join(',')}`;
+	return `plugins:${plugins
+		.map(
+			(plugin) =>
+				`${plugin.name}:${[...new Set(plugin.environments ?? ['server', 'browser'])].sort().join('+')}:${hashFunctionIdentity(plugin.setup)}`,
+		)
+		.join(',')}`;
 }
 
 /**

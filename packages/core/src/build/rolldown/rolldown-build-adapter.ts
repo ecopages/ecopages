@@ -18,18 +18,18 @@ import type {
 	BuildOptions,
 	BuildResult,
 	BuildTranspileOptions,
-	BuildTranspileProfile,
+	BuildEnvironment,
 } from '../build-adapter.ts';
 import {
 	buildResultFromRolldownOutput,
 	resolveRolldownOptions,
 	toBuildLog,
 	toBuildLogs,
-	transpileProfileToOptions,
 } from './rolldown-adapter-helpers.ts';
 import { recordRolldownBuildInvocation } from './rolldown-build-invocation-metrics.ts';
 import { createEntryModuleClosuresPlugin } from './entry-module-closures.ts';
 import type { BuildDependencyGraph } from '../build-adapter.ts';
+import { resolveTranspileOptions } from '../runtime/build-environment-options.ts';
 
 const moduleRequire = createRequire(import.meta.url);
 
@@ -47,6 +47,9 @@ export class RolldownBuildAdapter implements BuildAdapter {
 	 * reports them only once a build completes, so a failed build has none.
 	 */
 	async buildOrThrow(options: BuildOptions): Promise<BuildResult> {
+		if (options.environment !== 'server' && options.environment !== 'browser') {
+			throw new Error('Build requests require environment: "server" or "browser".');
+		}
 		recordRolldownBuildInvocation('rolldown');
 		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
 		const outdir = path.resolve(options.outdir ?? 'dist/assets');
@@ -95,8 +98,8 @@ export class RolldownBuildAdapter implements BuildAdapter {
 		return moduleRequire.resolve(importPath, { paths: [rootDir] });
 	}
 
-	getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
-		return transpileProfileToOptions(profile);
+	getTranspileOptions(environment: BuildEnvironment): BuildTranspileOptions {
+		return resolveTranspileOptions(environment);
 	}
 }
 

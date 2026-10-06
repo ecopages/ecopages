@@ -36,14 +36,7 @@ import {
 	isDeclaredAppPackageImport,
 	isWorkspacePackageImport,
 } from './app-package-declarations.ts';
-import type {
-	BuildDependencyGraph,
-	BuildOptions,
-	BuildOutput,
-	BuildResult,
-	BuildTranspileOptions,
-	BuildTranspileProfile,
-} from '../build-adapter.ts';
+import type { BuildDependencyGraph, BuildOptions, BuildOutput, BuildResult } from '../build-adapter.ts';
 
 const coreSourceFile = fileURLToPath(import.meta.url);
 const nodeBuiltinSpecifiers = new Set(builtinModules);
@@ -84,19 +77,6 @@ function getCorePackageNames(): Set<string> {
 	}
 
 	return corePackageNames;
-}
-
-export function transpileProfileToOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
-	switch (profile) {
-		case 'browser-script':
-		case 'hmr-runtime':
-		case 'hmr-entrypoint':
-			return {
-				target: 'browser',
-				format: 'esm',
-				sourcemap: 'none',
-			};
-	}
 }
 
 function isPackageImport(id: string, contextRoot: string): boolean {
@@ -383,15 +363,6 @@ function mapRolldownFormat(value: string | undefined): 'esm' | 'cjs' | 'iife' | 
 	}
 }
 
-function mapRolldownPlatform(value: string | undefined): 'browser' | 'node' | 'neutral' {
-	if (value === 'browser') return 'browser';
-	if (value === 'node') return 'node';
-	if (value && /^(?:es\d+|chrome\d+|edge\d+|firefox\d+|safari\d+|hermes|deno\d+|ios\d+)$/.test(value)) {
-		return 'node';
-	}
-	return 'neutral';
-}
-
 function mapRolldownSourcemap(value: string | undefined): boolean | 'inline' | 'hidden' {
 	switch (value) {
 		case 'none':
@@ -434,7 +405,7 @@ function getJavaScriptOutExtension(options: BuildOptions, literal: boolean): str
 	if (literal) {
 		return undefined;
 	}
-	if (options.target === 'browser') {
+	if (options.environment === 'browser') {
 		return '.js';
 	}
 	if (options.format === 'cjs') {
@@ -536,10 +507,12 @@ async function buildRolldownInputPlugins(
 	options: BuildOptions,
 	contextRoot: string,
 	outdir: string,
-	rolldownPlatform: ReturnType<typeof mapRolldownPlatform>,
+	rolldownPlatform: 'browser' | 'node',
 ): Promise<RolldownPlugin[]> {
-	const bundlePlugins = options.plugins ?? [];
-	const appPlugins = await createRolldownPluginBridge(bundlePlugins, contextRoot);
+	const appPlugins = await createRolldownPluginBridge(
+		(options.plugins ?? []).filter((plugin) => plugin.environments?.includes(options.environment) ?? true),
+		contextRoot,
+	);
 	return [
 		...(options.externalPackages === true
 			? [
@@ -552,7 +525,7 @@ async function buildRolldownInputPlugins(
 			: []),
 		...(rolldownPlatform === 'node' ? [createNodeBuiltinExternalPlugin()] : []),
 		...(rolldownPlatform === 'browser' ? [createBrowserServerOnlyGuardPlugin()] : []),
-		...(options.target !== 'browser' ? [createServerSideCssShimPlugin()] : []),
+		...(options.environment === 'server' ? [createServerSideCssShimPlugin()] : []),
 		...appPlugins,
 	];
 }
@@ -562,7 +535,7 @@ async function buildRolldownInputOptions(
 	contextRoot: string,
 	outdir: string,
 	external: (id: string) => boolean,
-	rolldownPlatform: ReturnType<typeof mapRolldownPlatform>,
+	rolldownPlatform: 'browser' | 'node',
 ): Promise<InputOptions> {
 	return {
 		input: options.entrypoints,
@@ -630,7 +603,7 @@ export async function resolveRolldownOptions(
 	outdir: string,
 	appRootRequireCache: Map<string, NodeJS.Require>,
 ): Promise<ResolvedRolldownOptions> {
-	const rolldownPlatform = mapRolldownPlatform(options.target);
+	const rolldownPlatform = options.environment === 'browser' ? 'browser' : 'node';
 	const external = createExternalMatcher(options, appRootRequireCache);
 	return {
 		inputOptions: await buildRolldownInputOptions(options, contextRoot, outdir, external, rolldownPlatform),

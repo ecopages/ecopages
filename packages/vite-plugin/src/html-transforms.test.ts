@@ -57,6 +57,13 @@ describe('normalizeHtmlResponse', () => {
 });
 
 describe('ecopagesConfig', () => {
+	it('turns Vite HMR off, also when the user config enables it', () => {
+		const plugin = createConfigPlugin();
+
+		expect((plugin.config as Function)({}).server.hmr).toBe(false);
+		expect((plugin.config as Function)({ server: { hmr: { overlay: true } } }).server.hmr).toBe(false);
+	});
+
 	it('preserves array-form resolve.alias entries', () => {
 		const plugin = createConfigPlugin();
 		const result = (plugin.config as Function)({

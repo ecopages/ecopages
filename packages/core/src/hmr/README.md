@@ -35,7 +35,7 @@ Dev client modules are served on demand through `DevTransformServer` (`src/dev/`
 
 `BrowserBundleService` is the sole browser-plugin resolver for HMR builds. HMR managers route `hmr-runtime` and `hmr-entrypoint` rebuilds through the `browser-hmr` executor profile.
 
-Hosts call `prepareHmrFileChange()` before HMR dispatch (`hmr/hmr-file-change-prep.ts`) so page browser graph sessions invalidate consistently with file changes.
+The Project Watcher calls `prepareHmrFileChange()` before HMR dispatch (`hmr/hmr-file-change-prep.ts`) so page browser graph sessions invalidate consistently with file changes.
 
 ## Client events
 

@@ -35,7 +35,7 @@ Apps start through `createApp()` from `@ecopages/core/create-app`. It selects Bu
 | Mode | `createApp()` options | What `app.start()` does |
 |------|----------------------|-------------------------|
 | **Standalone** (CLI, Bun/Node) | default | Binds the port and serves traffic |
-| **Embedded** (Vite host) | `runtime: { embedded: true }` | Registers an optional readiness callback only; the host owns the port, and `app.stop()` leaves the host's HTTP server open |
+| **Embedded** (Vite host) | `runtime: { embedded: true, devClientOwner: 'host' }` | Registers an optional readiness callback only; the host owns the port, and `app.stop()` leaves the host's HTTP server open |
 
 In embedded mode the host loads your app entry, wires `app.fetch()` into its middleware stack, and invokes the callback you pass to `app.start()` when the app can serve requests.
 

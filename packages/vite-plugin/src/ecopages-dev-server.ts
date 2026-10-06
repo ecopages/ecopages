@@ -120,7 +120,7 @@ function startEmbeddedApp(
 ): Promise<EcopagesEmbeddedApp> {
 	process.setSourceMapsEnabled?.(true);
 	const appReady = (async () => {
-		await registerHostModuleLoader(server, api);
+		await registerHostModuleLoader(server);
 		const app = await loadApp(server, appEntryPath);
 		const origin = api.getDevServerOrigin();
 		if (origin) {
@@ -263,10 +263,6 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 			const middlewareServer = assertMiddlewareServer(server);
 			const httpServer = server.httpServer;
 			const ssrEnvironment = server.environments.ssr;
-			api.appConfig.runtime = {
-				...(api.appConfig.runtime ?? {}),
-				devClientOwner: 'host',
-			};
 
 			return () => {
 				const appReady = startEmbeddedApp(server, httpServer, api, appEntryPath);

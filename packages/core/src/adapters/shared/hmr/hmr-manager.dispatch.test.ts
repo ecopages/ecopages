@@ -134,6 +134,54 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		assert.equal(spy.broadcasts[0].path, tsFile);
 	});
 
+	test('reloads for a classic script no entrypoint imports while a module entrypoint is watched', async () => {
+		const rootDir = createTempRoot('ecopages-dispatch-classic-script');
+		const pagesDir = path.join(rootDir, 'src', 'pages');
+		fs.mkdirSync(path.join(pagesDir, 'classic'), { recursive: true });
+		const spy = createBridgeSpy();
+		using manager = await create(rootDir, spy);
+
+		const moduleScript = path.join(pagesDir, 'counter.ts');
+		fs.writeFileSync(moduleScript, 'export const counter = true;\n', 'utf8');
+		await manager.registerScriptEntrypoint(moduleScript);
+		assert.equal(manager.getWatchedFiles().size, 1);
+
+		const classicScript = path.join(pagesDir, 'classic', 'greeting.ts');
+		fs.writeFileSync(classicScript, 'function greet(name: string) {\n\treturn name;\n}\n', 'utf8');
+		await manager.handleFileChange(classicScript);
+
+		assert.deepEqual(spy.broadcasts, [{ type: 'reload', path: classicScript, message: 'fallback-strategy' }]);
+	});
+
+	test('updates the entrypoint that imports a changed module once the dev transform has served it', async () => {
+		const rootDir = createTempRoot('ecopages-dispatch-served-dependency');
+		const pagesDir = path.join(rootDir, 'src', 'pages');
+		fs.mkdirSync(path.join(pagesDir, 'lib'), { recursive: true });
+		const spy = createBridgeSpy();
+		using manager = await create(rootDir, spy);
+
+		const moduleScript = path.join(pagesDir, 'counter.ts');
+		const direct = path.join(pagesDir, 'lib', 'direct.ts');
+		const deep = path.join(pagesDir, 'lib', 'deep.ts');
+		fs.writeFileSync(moduleScript, "import { direct } from './lib/direct.ts';\nconsole.log(direct);\n", 'utf8');
+		fs.writeFileSync(direct, "import { deep } from './deep.ts';\nexport const direct = deep;\n", 'utf8');
+		fs.writeFileSync(deep, 'export const deep = 1;\n', 'utf8');
+		const { outputUrl } = await manager.registerScriptEntrypoint(moduleScript);
+		const response = await manager.tryHandleDevClientRequest(new Request(`http://localhost${outputUrl}`));
+		assert.equal(response?.status, 200);
+
+		fs.writeFileSync(direct, "import { deep } from './deep.ts';\nexport const direct = deep + 1;\n", 'utf8');
+		await manager.handleFileChange(direct);
+		assert.deepEqual(spy.broadcasts, [
+			{ type: 'update', path: outputUrl, timestamp: spy.broadcasts[0]?.timestamp },
+		]);
+
+		spy.broadcasts.length = 0;
+		fs.writeFileSync(deep, 'export const deep = 2;\n', 'utf8');
+		await manager.handleFileChange(deep);
+		assert.deepEqual(spy.broadcasts, [{ type: 'reload', path: deep, message: 'fallback-strategy' }]);
+	});
+
 	test('broadcast:false suppresses events even when the strategy returns a broadcast action', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-no-broadcast');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });

@@ -58,6 +58,13 @@ export class JsHmrStrategy extends HmrStrategy {
 		this.context = context;
 	}
 
+	/**
+	 * @remarks
+	 * With a selective dependency graph, a file the dev transform has not served and no served module
+	 * imports is left to the fallback reload: hot-updating the watched entrypoints would not apply it.
+	 * That covers server-only modules and HTML Page classic scripts, which are compiled outside the dev
+	 * transform.
+	 */
 	matches(filePath: string): boolean {
 		const watchedFiles = this.context.getWatchedFiles();
 		const resolvedPath = path.resolve(filePath);
@@ -84,7 +91,11 @@ export class JsHmrStrategy extends HmrStrategy {
 			return false;
 		}
 
-		return true;
+		const dependencyGraph = this.context.getEntrypointDependencyGraph();
+		return (
+			!dependencyGraph.supportsSelectiveInvalidation() ||
+			dependencyGraph.getDependencyEntrypoints(resolvedPath).size > 0
+		);
 	}
 
 	private resolveImpactedEntrypoints(

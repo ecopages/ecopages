@@ -53,7 +53,9 @@ Start here for package-level architecture:
 - `packages/core/src/services/README.md`: shared runtime services, dev graph, invalidation, and browser/server seams
 - `packages/core/src/adapters/README.md`: Bun and Node adapter boundaries
 - `packages/core/src/dev/README.md`: dev transform server and on-demand client delivery
-- `packages/core/src/hmr/README.md`: HMR strategy layer
+- `packages/core/src/hmr/README.md`: HMR strategy layer and build error presentation
+- `packages/core/src/dev-toolbar/README.md`: custom toolbar clients and build error event contract
+- `packages/dev-toolbar/README.md`: reference Dev Toolbar apps, including build errors
 - `packages/core/src/router/README.md`: route matching and browser navigation coordination
 - `packages/core/src/route-renderer/README.md`: route rendering orchestration
 - `packages/core/src/static-site-generator/README.md`: static generation flow

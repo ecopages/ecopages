@@ -24,8 +24,17 @@ Server-side wiring for the development-only in-browser inspector. Public docs: [
 | `dev-toolbar-html-response.ts`     | Adapter helpers for injecting `import '/_dev_toolbar.js'`                                                                                                                   |
 | `dev-toolbar-runtime-paths.ts`     | `/_dev_toolbar.js` URL and work-dir paths                                                                                                                                   |
 | `define-dev-tool.ts`               | Config helper for bring-your-own client packages                                                                                                                            |
+| `build-error-contract.ts`          | Public error, clear, and replay event names and error payload type for custom clients                                                                                       |
 
-## Injection order
+## Build error presentation
+
+`@ecopages/core/dev-toolbar/build-error-contract` exports the window event names and `BuildErrorDetail` (`{ message: string }`). Custom clients listen for cancelable `ecopages:build-error` events and call `preventDefault()` synchronously only when they present the message. Unclaimed errors use the HMR runtime's in-page fallback, including when the toolbar is disabled or has not mounted.
+
+Listen for `ecopages:build-error-clear` to reset messages and badges on any non-error HMR event. Register both listeners before dispatching `ecopages:build-error-request`: it synchronously replays active messages and rebuilds the fallback only for unclaimed messages. Remove listeners when the client unmounts. Messages may repeat; clients should deduplicate by message. Error text includes watcher and route failures as well as module compilation failures.
+
+The reference toolbar opens its Build errors app automatically, reveals stealth mode, and displays a count badge. Closing the panel keeps errors available until the next HMR update. The HMR runtime retains active messages for replay independently of fallback dismissal.
+
+## Injection sequence
 
 1. Route HTML is finalized with `#__ECO_DEV_MANIFEST__` appended to `<body>` (`route-html-finalization.service.ts`).
 2. The server adapter injects `import '/_dev_toolbar.js'` before `</html>` when the toolbar is enabled (`server-adapter.ts` → `DevToolbarHost.injectHtmlResponse`).

@@ -4,6 +4,7 @@ Development-only browser tooling is opt-in per application.
 
 - `/_dev_toolbar.js` — browser bundle built by core from `devToolbar.package` (for example `@ecopages/dev-toolbar`)
 - `#__ECO_DEV_MANIFEST__` — per-page dependency graph payload for the Deps panel
+- Build errors — the reference toolbar claims HMR error presentation; custom clients use the [build error event contract](../dev-toolbar/README.md#build-error-presentation), with an in-page fallback for unclaimed errors
 
 Public docs: [Dev toolbar](/docs/core/dev-toolbar) (built-in apps, manifest fields).
 

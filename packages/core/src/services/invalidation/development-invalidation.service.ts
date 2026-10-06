@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { isDevEnvFilePath } from '../../dev/development-restart-watch-paths.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { isPathInside } from '../../utils/path-containment.ts';
 import { getAppServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
 import { clearAppDevelopmentRouteModuleBuildCaches } from '../module-loading/route-module-build-cache-registry.ts';
 import { clearCollectionServerBuildArtifacts } from '../module-loading/collection-server-module-build.service.ts';
@@ -188,7 +189,7 @@ export class DevelopmentInvalidationService {
 	 * Returns whether the file lives under the public directory.
 	 */
 	isPublicDirFile(filePath: string): boolean {
-		return path.resolve(filePath).startsWith(this.appConfig.absolutePaths.publicDir);
+		return isPathInside(filePath, this.appConfig.absolutePaths.publicDir);
 	}
 
 	/**
@@ -208,7 +209,7 @@ export class DevelopmentInvalidationService {
 
 			const resolvedPattern = path.isAbsolute(pattern) ? pattern : path.resolve(this.appConfig.rootDir, pattern);
 
-			if (normalizedPath === resolvedPattern || normalizedPath.startsWith(`${resolvedPattern}${path.sep}`)) {
+			if (isPathInside(normalizedPath, resolvedPattern)) {
 				return true;
 			}
 		}
@@ -222,7 +223,7 @@ export class DevelopmentInvalidationService {
 	isRouteSourceFile(filePath: string): boolean {
 		const resolvedPath = path.resolve(filePath);
 
-		if (!resolvedPath.startsWith(this.appConfig.absolutePaths.pagesDir)) {
+		if (!isPathInside(resolvedPath, this.appConfig.absolutePaths.pagesDir)) {
 			return false;
 		}
 
@@ -239,7 +240,7 @@ export class DevelopmentInvalidationService {
 	isIncludeSourceFile(filePath: string): boolean {
 		const resolvedPath = path.resolve(filePath);
 
-		if (!resolvedPath.startsWith(this.appConfig.absolutePaths.includesDir)) {
+		if (!isPathInside(resolvedPath, this.appConfig.absolutePaths.includesDir)) {
 			return false;
 		}
 
@@ -262,7 +263,7 @@ export class DevelopmentInvalidationService {
 		const resolvedPath = path.resolve(filePath);
 		const viewsDir = path.join(this.appConfig.absolutePaths.srcDir, 'views');
 
-		if (resolvedPath !== viewsDir && !resolvedPath.startsWith(`${viewsDir}${path.sep}`)) {
+		if (!isPathInside(resolvedPath, viewsDir)) {
 			return false;
 		}
 
@@ -279,7 +280,7 @@ export class DevelopmentInvalidationService {
 	 */
 	isServerModuleSourceFile(filePath: string): boolean {
 		const resolvedPath = path.resolve(filePath);
-		if (!resolvedPath.startsWith(this.appConfig.absolutePaths.srcDir)) {
+		if (!isPathInside(resolvedPath, this.appConfig.absolutePaths.srcDir)) {
 			return false;
 		}
 

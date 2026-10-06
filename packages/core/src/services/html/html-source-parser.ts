@@ -59,7 +59,16 @@ export type HtmlLeafNode = {
 export type HtmlNode = HtmlElementNode | HtmlLeafNode;
 
 /** Elements that can stay inside `<head>`; any other start tag there ends it, as `</head>` may be omitted. */
-const HEAD_CONTENT_ELEMENTS = new Set(['base', 'link', 'meta', 'noscript', 'script', 'style', 'template', 'title']);
+export const HEAD_CONTENT_ELEMENTS: ReadonlySet<string> = new Set([
+	'base',
+	'link',
+	'meta',
+	'noscript',
+	'script',
+	'style',
+	'template',
+	'title',
+]);
 
 const NAMED_CHARACTER_REFERENCES: Record<string, string> = {
 	amp: '&',

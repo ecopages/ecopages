@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readdirSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 import { fileSystem } from '@ecopages/file-system';
@@ -19,6 +20,8 @@ type VendorEntry = {
 	url: string;
 	filePath: string;
 };
+
+type ResolvedVendorEntry = { path: string; packageJsonPath?: string };
 
 function getVendorBundleConditions(specifier: string): readonly string[] {
 	return toPackageRootSpecifier(specifier) === '@ecopages/core'
@@ -43,6 +46,7 @@ export class DevTransformVendorRegistry {
 	private readonly vendorsDir: string;
 	private readonly cache = new Map<string, VendorEntry>();
 	private readonly inFlight = new Map<string, Promise<VendorEntry>>();
+	private readonly etags = new Map<string, { stamp: string; etag: string }>();
 
 	constructor(options: DevTransformVendorRegistryOptions) {
 		this.appConfig = options.appConfig;
@@ -80,7 +84,12 @@ export class DevTransformVendorRegistry {
 		return (await promise).url;
 	}
 
-	tryHandleVendorRequest(pathname: string): Response | null {
+	/**
+	 * @remarks
+	 * Responses carry `no-cache` and a content `ETag`, so browsers revalidate vendor
+	 * files each load and get `304` while `ifNoneMatch` still matches the file on disk.
+	 */
+	tryHandleVendorRequest(pathname: string, ifNoneMatch?: string | null): Response | null {
 		const prefix = `/${RESOLVED_ASSETS_VENDORS_DIR}/`;
 		if (!pathname.startsWith(prefix)) {
 			return null;
@@ -95,13 +104,13 @@ export class DevTransformVendorRegistry {
 		if (!fileSystem.exists(filePath)) {
 			for (const entry of this.cache.values()) {
 				if (entry.url === pathname && fileSystem.exists(entry.filePath)) {
-					return this.createVendorResponse(entry.filePath);
+					return this.createVendorResponse(entry.filePath, ifNoneMatch);
 				}
 			}
 			return null;
 		}
 
-		return this.createVendorResponse(filePath);
+		return this.createVendorResponse(filePath, ifNoneMatch);
 	}
 
 	invalidateAll(): void {
@@ -109,12 +118,25 @@ export class DevTransformVendorRegistry {
 		this.inFlight.clear();
 	}
 
-	private createVendorResponse(filePath: string): Response {
-		return new Response(fileSystem.readFileSync(filePath), {
-			headers: {
-				'Content-Type': 'application/javascript',
-				'Cache-Control': 'public, max-age=31536000, immutable',
-			},
+	private createVendorResponse(filePath: string, ifNoneMatch?: string | null): Response {
+		const { mtimeMs, size } = statSync(filePath);
+		const stamp = `${mtimeMs}:${size}`;
+		const cached = this.etags.get(filePath);
+		let body: string | undefined;
+		let etag = cached?.stamp === stamp ? cached.etag : undefined;
+		if (!etag) {
+			body = fileSystem.readFileSync(filePath);
+			etag = `"${createHash('sha256').update(body).digest('hex').slice(0, 16)}"`;
+			this.etags.set(filePath, { stamp, etag });
+		}
+
+		const headers = { 'Cache-Control': 'no-cache', ETag: etag };
+		if (matchesIfNoneMatch(ifNoneMatch, etag)) {
+			return new Response(null, { status: 304, headers });
+		}
+
+		return new Response(body ?? fileSystem.readFileSync(filePath), {
+			headers: { ...headers, 'Content-Type': 'application/javascript' },
 		});
 	}
 
@@ -151,7 +173,7 @@ export class DevTransformVendorRegistry {
 		const vendorPlugins = this.resolveVendorBundlePlugins ? await this.resolveVendorBundlePlugins() : [];
 		const result = await this.browserBundleService.bundle({
 			profile: 'browser-script',
-			entrypoints: [resolvedEntry],
+			entrypoints: [resolvedEntry.path],
 			outdir: this.vendorsDir,
 			naming: fileName,
 			minify: false,
@@ -174,7 +196,7 @@ export class DevTransformVendorRegistry {
 		return entry;
 	}
 
-	private resolvePackageEntry(specifier: string): string {
+	private resolvePackageEntry(specifier: string): ResolvedVendorEntry {
 		const resolved = resolveBarePackageBrowserEntry(this.appConfig.rootDir, specifier);
 		if (!resolved) {
 			throw new Error(`[dev-transform] Unable to resolve bare import "${specifier}" for vendor prebundle`);
@@ -202,11 +224,78 @@ function sanitizeSpecifierForFileName(specifier: string): string {
 	return specifier.replaceAll(/^@/gu, '').replaceAll(/[/:@]/gu, '-');
 }
 
-function hashVendorEntry(specifier: string, entryPath: string): string {
-	return createHash('sha256')
+/**
+ * @remarks
+ * Includes the installed package's `version` because an entry file can stay
+ * byte-identical across releases, and a bundle whose name already exists on disk
+ * is reused, even after a restart. The manifest is the resolver's package root,
+ * so aliased installs (`npm:react@x`) and renamed forks are versioned too.
+ *
+ * A workspace-linked package (its entry's real path is outside any `node_modules`,
+ * as with a pnpm `workspace:` or `link:` dependency) is edited in place without a
+ * version bump, so its whole source tree is hashed as well.
+ */
+function hashVendorEntry(specifier: string, entry: ResolvedVendorEntry): string {
+	const hash = createHash('sha256')
 		.update(specifier)
 		.update('\0')
-		.update(fileSystem.readFileSync(entryPath))
-		.digest('hex')
-		.slice(0, 8);
+		.update(readPackageVersion(entry.packageJsonPath))
+		.update('\0')
+		.update(fileSystem.readFileSync(entry.path));
+
+	if (entry.packageJsonPath && !entry.path.split(path.sep).includes('node_modules')) {
+		hashPackageTree(hash, path.dirname(realpathSync(entry.packageJsonPath)));
+	}
+
+	return hash.digest('hex').slice(0, 8);
+}
+
+/**
+ * Feeds every file path and its bytes under `dir` into `hash`, in a stable order.
+ *
+ * @remarks
+ * Skips `node_modules` and dot entries (`.git`, build caches). Dependencies of the
+ * linked package are therefore not hashed; a change to them that leaves the
+ * package's own files, `package.json` included, untouched keeps the old bundle.
+ */
+function hashPackageTree(hash: ReturnType<typeof createHash>, dir: string): void {
+	const entries = readdirSync(dir, { withFileTypes: true }).sort((left, right) =>
+		left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+	);
+	for (const dirent of entries) {
+		if (dirent.name === 'node_modules' || dirent.name.startsWith('.')) {
+			continue;
+		}
+
+		const entryPath = path.join(dir, dirent.name);
+		if (dirent.isDirectory()) {
+			hashPackageTree(hash, entryPath);
+		} else if (dirent.isFile()) {
+			hash.update(entryPath).update('\0').update(fileSystem.readFileAsBuffer(entryPath)).update('\0');
+		}
+	}
+}
+
+function readPackageVersion(packageJsonPath: string | undefined): string {
+	if (!packageJsonPath) {
+		return '';
+	}
+
+	const manifest: { version?: unknown } = JSON.parse(fileSystem.readFileSync(packageJsonPath));
+	return typeof manifest.version === 'string' ? manifest.version : '';
+}
+
+/**
+ * Whether an `If-None-Match` header matches `etag` under the weak comparison of
+ * RFC 9110: any listed tag equal to it once `W/` is stripped, or `*`.
+ */
+function matchesIfNoneMatch(ifNoneMatch: string | null | undefined, etag: string): boolean {
+	if (!ifNoneMatch) {
+		return false;
+	}
+
+	return ifNoneMatch.split(',').some((tag) => {
+		const trimmed = tag.trim();
+		return trimmed === '*' || trimmed.replace(/^W\//u, '') === etag;
+	});
 }

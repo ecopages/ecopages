@@ -21,6 +21,18 @@ import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator.ts';
 
+/**
+ * Imports `filePath` through its real path.
+ *
+ * @remarks
+ * Node gives a module the `import.meta` of its real path, while the Vitest
+ * module runner keeps a symlinked one (macOS temp folders), which would hide a
+ * path computed against the wrong one.
+ */
+async function importByRealPath<T>(filePath: string): Promise<T> {
+	return (await import(pathToFileURL(realpathSync(filePath)).href)) as T;
+}
+
 describe('build → start contract', () => {
 	const tempDirs: string[] = [];
 	const originalNodeEnv = process.env.NODE_ENV;
@@ -235,8 +247,8 @@ describe('build → start contract', () => {
 		const emittedConfigPath = path.join(serverOutdir, EMITTED_ECO_CONFIG_FILENAME);
 		assert.equal(fileSystem.exists(emittedConfigPath), true, 'emitted eco.config.mjs should exist');
 
-		const importedModule = await import(pathToFileURL(emittedConfigPath).href);
-		const configObj = importedModule.default ?? importedModule;
+		const importedModule = await importByRealPath<{ default: { rootDir: string } }>(emittedConfigPath);
+		const configObj = importedModule.default;
 		assert.equal(
 			configObj.rootDir,
 			realpathSync(rootDir),

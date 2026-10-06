@@ -94,7 +94,6 @@ type IntegrationRendererConstructorOptions = {
 	appConfig: EcoPagesAppConfig;
 	assetProcessingService: AssetProcessingService;
 	resolvedIntegrationDependencies: ProcessedAsset[];
-	rendererModules?: unknown;
 	runtimeOrigin: string;
 };
 
@@ -291,7 +290,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	/**
 	 * Creates the shared renderer options owned by core lifecycle setup.
 	 */
-	protected createRendererOptions(options?: { rendererModules?: unknown }): IntegrationRendererConstructorOptions {
+	protected createRendererOptions(): IntegrationRendererConstructorOptions {
 		if (!this.appConfig) {
 			throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_APP_CONFIG);
 		}
@@ -305,7 +304,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 			appConfig: this.appConfig,
 			assetProcessingService,
 			resolvedIntegrationDependencies: this.resolvedIntegrationDependencies,
-			rendererModules: options?.rendererModules,
 			runtimeOrigin: this.runtimeOrigin,
 		};
 	}
@@ -330,11 +328,10 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 *
 	 * @remarks
 	 * Renderers are cheap runtime objects. They receive the finalized app config,
-	 * a fresh asset-processing service, integration-global processed assets, and
-	 * any renderer module context supplied by the active runtime.
+	 * a fresh asset-processing service, and integration-global processed assets.
 	 */
-	initializeRenderer(options?: { rendererModules?: unknown }): IntegrationRenderer<C> {
-		const renderer = new this.renderer(this.createRendererOptions(options));
+	initializeRenderer(): IntegrationRenderer<C> {
+		const renderer = new this.renderer(this.createRendererOptions());
 		renderer.name ||= this.name;
 		return this.attachRendererRuntimeServices(renderer);
 	}

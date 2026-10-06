@@ -299,7 +299,7 @@ export async function finalizeEcoPagesConfig(
 	}
 	validateRuntimeCapabilities(config);
 
-	const buildOwnership = options.buildOwnership ?? userConfig.buildOwnership ?? 'rolldown';
+	const buildOwnership = options.buildOwnership ?? 'rolldown';
 	setAppBuildAdapter(config, createBuildAdapter({ ownership: buildOwnership }));
 	updateAppBuildManifest(config, await collectConfiguredAppBuildManifestContributions(config));
 	setAppServerInvalidationState(config, new CounterServerInvalidationState());

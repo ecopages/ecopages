@@ -14,6 +14,7 @@ The build layer is the bundler contract for Ecopages. One bundled adapter is the
 - [Dev / watch path](#dev--watch-path)
 - [Metrics](#metrics)
 - [Production build caches](#production-build-caches)
+- [Server bundle deploy layout](#server-bundle-deploy-layout)
 - [Unified pages graph](#unified-pages-graph)
 - [JSX Ownership Plugins](#jsx-ownership-plugins)
 - [Rolldown operator notes](#rolldown-operator-notes)
@@ -35,7 +36,7 @@ Three concentric shapes, plus profile executors and request policy:
 
 Plus one translation bridge:
 
-- `rolldown/rolldown-plugin-bridge.ts` — converts the runtime-agnostic `EcoBuildPlugin[]` array (the contract integrations and processors register) into the bundler's native `Plugin` array. Each `EcoBuildPlugin` becomes its own plugin entry to preserve plugin-priority order.
+- `rolldown/rolldown-plugin-bridge.ts` — converts the runtime-agnostic `EcoBuildPlugin[]` array (the contract integrations and processors register) into one Rolldown plugin. Its resolve and load registrations are checked in `EcoBuildPlugin[]` order and the first non-null result wins, so array position sets priority.
 
 ## Files
 
@@ -46,7 +47,7 @@ build/
   contracts/                    EcoBuildPlugin, BuildOptions, AppBuildManifest
   runtime/                        profiles, executors, request policy/identity
   server-bundle-publication.ts   staged server/config artifact publication
-  rolldown/                       bundler adapter, plugin bridge, output normalization
+  rolldown/                       bundler adapter, plugin bridge, package externalization
   cache/                          persisted caches, fingerprints, unified pages graph
   browser/                        client runtime rewrites, JSX ownership, Lit worker guard
 ```
@@ -57,7 +58,7 @@ build/
 - `runtime/build-request-policy.ts`: server/browser request constructors and plugin collision rules.
 - `runtime/build-request-identity.ts` / `cache/cache-keys.ts`: canonical request identity and shared cache fingerprints.
 - `contracts/build-types.ts`: the `EcoBuildPlugin` contract used by integrations and processors.
-- `rolldown/rolldown-build-adapter.ts`: the production `BuildAdapter`. Wraps the bundler, normalizes Node output imports, and exposes a normalized `BuildResult`. App dependencies remain bare imports; Core-owned runtime packages that need CommonJS named-export interop are bundled, while other Core dependencies resolve to `file:` URLs. Generated server bundles therefore do not require app-level framework dependencies.
+- `rolldown/rolldown-build-adapter.ts`: the production `BuildAdapter`. Wraps the bundler and exposes a normalized `BuildResult`. With `externalPackages`, compiled packages the app declares stay bare imports, so Integration renderers and server bundles share one instance (one React). Source code is bundled: the app, workspace packages and TypeScript or JSX packages, including Core when it resolves to its TypeScript source. Every other compiled package installed in `node_modules` stays external as a `./` or `../` path from the output directory to the installed file, whichever source package imports it, because a compiled package may find files relative to itself at runtime (a native binding such as `sharp`, a platform package, a sibling file loaded through `createRequire(import.meta.url)`), which fails once it is bundled into another folder. A Rolldown `resolveId` hook resolves these packages through Rolldown with the `node` and `import` conditions and writes the path; a build whose chunk lands in a subdirectory of the output directory and imports such a path fails. The exceptions are the runtime packages that need CommonJS named-export interop (`ws`), which are bundled. The isolated installs of pnpm and Bun do not expose undeclared packages as bare specifiers to the app, so a path is used instead. Server output therefore needs no app-level framework dependencies and its code holds no absolute paths of the build machine: `dist` keeps working after it moves together with `node_modules`.
 - `rolldown/rolldown-plugin-bridge.ts`: `EcoBuildPlugin[]` → bundler-plugin translation.
 - `runtime/serialized-build-executor.ts`: FIFO queue primitive.
 - `cache/server-entry-build-cache.ts`: production server-entry bundle cache (`.eco/.server-entry/.build-cache.json` + `dist/.server/manifest.json`).
@@ -102,7 +103,7 @@ Caller intent
       ├─ server-entry  → SerializedBuildExecutor → RolldownBuildAdapter
       ├─ route-module  → DedupingBuildExecutor → ParallelBuildExecutor → RolldownBuildAdapter
       └─ browser-hmr   → DedupingBuildExecutor → ParallelBuildExecutor → RolldownBuildAdapter
-  → RolldownBuildAdapter rewrites Node/browser runtime imports in emitted outputs
+  → RolldownBuildAdapter rewrites browser runtime imports in emitted outputs
 ```
 
 For `rolldown` ownership, profiles use one-shot Rolldown in both dev and production. Route-module and browser-HMR builds run in parallel; server-entry stays serialized single-flight. With `vite-host` ownership, the same scheduling wrappers delegate to a boundary marker that rejects framework-owned builds.
@@ -134,6 +135,7 @@ Vite-based apps (or any future host runtime) should:
 
 - `onResolve({ filter, namespace? }, callback)` — the bundler's `resolveId` mapped to the shared plugin shape.
 - `onLoad({ filter, namespace? }, callback)` — the bundler's `load` mapped the same way.
+- With a `namespace`, a filter matches only ids that start with `<namespace>:`, and is tested against the path after it.
 - `module(specifier, callback)` — declares a virtual module by name, with bundler-side namespace encoding.
 
 App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins explicitly.
@@ -176,9 +178,30 @@ Three persisted cache layers accelerate production builds. All use `.build-cache
 
 `requireBuildRuntime(appConfig).getProfile('server-entry')` serves server-entry bundling. `clearProductionBuildCaches()` wipes all three manifest trees, resets in-memory route-module state, and clears `buildRuntime`.
 
+The deploy manifest (`dist/.server/manifest.json`) records SHA-256 hashes of the source and emitted config whatever runtime ran the build, because `ecopages start` checks them from the Node CLI.
+
 Server-entry cache hits require every recorded runtime artifact. Cache misses build the server entry and emitted config in a sibling staging directory; the deploy manifest joins that generation before the directory is published. A failed build therefore leaves the previous server generation intact.
 
 The route-module registry (`route-module-build-cache-registry.ts`) shares one `RouteModuleBuildCache` per `(app, outdir)` pair. Legacy `.server-route-modules` outdirs are still read for migration but new writes go to `.server-modules`.
+
+## Server bundle deploy layout
+
+An app with API or WebSocket handlers builds a server bundle into `dist/.server/` (`app.mjs`, its chunks, `eco.config.mjs` and `manifest.json`). The bundle imports the compiled packages the app declares as bare specifiers and every other compiled package, such as the dependencies of bundled Core and of workspace processors and integrations, as paths relative to `dist/.server/`. Every server build (the server entry, the emitted config, route modules in `.eco/.server-modules/`, the unified pages graph and collections) rewrites `import.meta.url`, `import.meta.dirname` and `import.meta.filename` of bundled `.ts`, `.tsx`, `.js` and `.jsx` modules to paths relative to the output that point at their source files, so bundled Core reads its own `package.json` and a page that globs `import.meta.dirname` scans `src/pages`. Bundled `.mjs`, `.cjs`, `.mts` and `.cts` modules are not rewritten in this release, because the shared source-transform pass only runs on those four extensions, and `import.meta.resolve()` is not rewritten anywhere and resolves from the output folder. The bundle holds no absolute paths of the build machine, so it runs from any root as long as these entries of the app folder keep their relative positions:
+
+| Entry           | Why the server needs it                                                                   |
+| --------------- | ----------------------------------------------------------------------------------------- |
+| `dist/`         | Server bundle, emitted config and the static export.                                      |
+| `src/`          | The server reads routes from `src/pages` at startup.                                      |
+| `node_modules/` | The install the build ran against, on the server's operating system and CPU architecture. |
+| `package.json`  | Declares `"type": "module"` for the `.js` chunks.                                         |
+
+Start the server from that folder with `node dist/.server/app.mjs` (or `bun dist/.server/app.mjs`). A server started from a `.server` folder loads the `eco.config.mjs` beside its entry, even when `eco.config.ts` is present, so the deploy may include the source config. `ecopages start` passes the emitted config explicitly.
+
+Relative imports name the package manager's store folders (`node_modules/.pnpm/<name>@<version>_<peers>/...`), so a reinstall works only when it reproduces those names: the same lockfile, package manager version and layout settings (pnpm `node-linker`, `virtual-store-dir`, `virtual-store-dir-max-length`; Bun's linker). Copy the install the build used instead, built on the target platform, because native bindings are per platform.
+
+Only installs whose package paths contain a `node_modules` folder are kept external. A package manager store whose real path has no `node_modules` segment is bundled as before, and so is a Yarn Plug'n'Play install, whose packages live in `.zip` archives that Node cannot import without the PnP loader; relocated server output does not support Plug'n'Play.
+
+`node_modules` must hold the packages themselves. When externalized packages resolve outside the app root, the server entry and emitted config builds of `ecopages build` each log one line per server output file, named by its path (`dist/.server/app.mjs`, `dist/.server/eco.config.mjs`), with that file's complete count, the first five names and a link to the deployment docs. Route-module and other builds, including those the running server makes on the deploy target, stay silent. In a workspace, these packages live in the workspace root `node_modules`, outside the app folder, so build from a standalone install (for example the output of `pnpm deploy`) instead of copying the app folder alone. The same applies to a package manager store linked from outside the project, such as pnpm's global virtual store.
 
 ## Unified pages graph
 
@@ -250,6 +273,7 @@ Kitchen-sink benchmarks (`ECOPAGES_BENCH=1 pnpm vitest bench`) show Rolldown win
 - `build-adapter.test.ts` covers the app-owned helpers, the `BuildOwnership` routing, and the default-fallback behaviour.
 - `runtime/build-runtime.test.ts` covers profile executor installation and parallelism.
 - `runtime/build-request-policy.test.ts` and `runtime/build-request-identity.test.ts` cover request assembly and dedupe identity.
-- `rolldown/runtime-build-output-normalizer.test.ts` covers Node output finalization.
+- `rolldown/app-package-declarations.test.ts` covers the app `package.json` lookups that decide which packages stay external.
+- `server-bundle-relocation.test.ts` builds an app installed with an isolated (pnpm-style) layout, moves the deploy layout to another root, and serves the home page with `node`.
 
 If you change option mapping or plugin-bridge semantics, update the adapter and bridge tests first. If you change the app-owned helper contracts, update `build-adapter.test.ts` first.

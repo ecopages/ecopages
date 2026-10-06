@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
@@ -137,5 +137,27 @@ describe('collectReachableLocalImports', () => {
 		writeFileSync(bPath, `import './a.js';\nexport const b = 1;\n`);
 
 		assert.deepEqual(collectReachableLocalImports(aPath), [bPath]);
+	});
+
+	it('lists an installed package import without reading it', () => {
+		const tempDir = createTempDir();
+		const pagePath = path.join(tempDir, 'dist/page.js');
+		const packagePath = path.join(tempDir, 'node_modules/pkg/index.js');
+		mkdirSync(path.dirname(pagePath), { recursive: true });
+		mkdirSync(path.dirname(packagePath), { recursive: true });
+		writeFileSync(pagePath, `import '../node_modules/pkg/index.js';\n`);
+		writeFileSync(packagePath, `import './internal.js';\n`);
+
+		const reads: string[] = [];
+		const fileAccess = {
+			exists: existsSync,
+			readFile: (filePath: string) => {
+				reads.push(filePath);
+				return readFileSync(filePath, 'utf8');
+			},
+		};
+
+		assert.deepEqual(collectReachableLocalImports(pagePath, { fileAccess }), [packagePath]);
+		assert.deepEqual(reads, [pagePath]);
 	});
 });

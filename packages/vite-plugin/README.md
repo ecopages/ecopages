@@ -23,6 +23,8 @@ export default defineConfig({
 
 By default the plugin loads and finalizes `eco.config.ts` from the project root. Pass `configFile` for a custom path, or `appConfig` in tests to skip loading.
 
+Ecopages pages are served as under `ecopages dev`, so Vite's HTML hooks (`transformIndexHtml`, `%VITE_*%` replacement, `html.cspNonce`) do not run on them.
+
 ## Plugin ordering
 
 `ecopages()` returns multiple dev-only plugins. Register it **before** framework-specific Vite plugins such as `@vitejs/plugin-react` or Tailwind when those plugins also transform JSX or CSS.
@@ -48,18 +50,17 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full plugin bucket map.
 - Vite config merging for Ecopages defaults
 - Ecopages source transforms adapted to Vite plugins
 - Virtual modules for integration manifests and island registries
-- Island client wiring
-- Ecopages-aware hot updates
+- Dev invalidation and HMR from the embedded Ecopages app, with a Vite restart when `app.ts` or a module it imports, the Vite config or an env file changes (an `eco.config.ts` edit needs a full restart unless `app.ts` imports it)
 - A dev-server bridge that forwards requests to `app.fetch()`
 
 ## Runtime Notes
 
 The plugin is separate from the `ecopages` CLI. The CLI runs the app directly through Bun or through Node with `tsx` under Node. Use `@ecopages/vite-plugin` when you want Ecopages to run inside a Vite host setup.
 
-The dev-server bridge assumes a standard Vite dev server with Connect-style middleware support and Vite server environments for server invalidation.
+The dev-server bridge assumes a standard Vite dev server with Connect-style middleware support and an SSR environment.
 
 During dev, the plugin synchronizes `appConfig.baseUrl` to the active Vite server origin so middleware `Request` objects match the browser URL.
 
 ## Further reading
 
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — plugin composition, HMR boundaries, Astro-style extension evaluation
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — plugin composition, dev invalidation and HMR, Astro-style extension evaluation

@@ -6,10 +6,6 @@ import type { EcoFunctionComponent } from '../../../types/public-types.ts';
 
 describe('createRenderContext', () => {
 	const RenderToResponse = vi.fn(() => Promise.resolve(new Response('rendered')));
-	const rendererModules = {
-		integrationManifestModuleId: 'virtual:ecopages/integration-manifest.ts',
-	};
-
 	const Renderer = {
 		name: '-renderer',
 		renderToResponse: RenderToResponse,
@@ -48,7 +44,6 @@ describe('createRenderContext', () => {
 
 	const renderContext = createRenderContext({
 		integrations: [Plugin, ExplicitPlugin],
-		rendererModules,
 	});
 
 	it('should create a render context with methods', () => {
@@ -64,7 +59,6 @@ describe('createRenderContext', () => {
 		const ImportServerModule = vi.fn(async (filePath: string) => ({ filePath }));
 		const delegatedContext = createRenderContext({
 			integrations: [Plugin, ExplicitPlugin],
-			rendererModules,
 			importServerModule: ImportServerModule,
 		});
 
@@ -78,7 +72,6 @@ describe('createRenderContext', () => {
 		const ImportServerModule = vi.fn(async (filePath: string) => ({ filePath }));
 		const delegatedContext = createRenderContext({
 			integrations: [Plugin, ExplicitPlugin],
-			rendererModules,
 			importServerModule: ImportServerModule,
 		});
 
@@ -102,7 +95,6 @@ describe('createRenderContext', () => {
 		const ImportServerModule = vi.fn(async (_filePath: string) => ({ default: importedView }));
 		const delegatedContext = createRenderContext({
 			integrations: [Plugin, ExplicitPlugin],
-			rendererModules,
 			importServerModule: ImportServerModule,
 		});
 
@@ -134,7 +126,6 @@ describe('createRenderContext', () => {
 		const ImportServerModule = vi.fn(async (_filePath: string) => ({ default: importedView }));
 		const delegatedContext = createRenderContext({
 			integrations: [Plugin, ExplicitPlugin],
-			rendererModules,
 			importServerModule: ImportServerModule,
 		});
 
@@ -162,7 +153,7 @@ describe('createRenderContext', () => {
 
 			const response = await renderContext.render(ViewFn, props, options);
 
-			expect(InitializeRenderer).toHaveBeenCalledWith({ rendererModules });
+			expect(InitializeRenderer).toHaveBeenCalledWith();
 			expect(RenderToResponse).toHaveBeenCalledWith(ViewFn, props, {
 				partial: false,
 				status: 201,

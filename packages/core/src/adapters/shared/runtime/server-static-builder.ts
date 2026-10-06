@@ -176,9 +176,13 @@ export class ServerStaticBuilder {
 	 * Incremental builds may skip Rolldown when the `.eco/.server-entry`
 	 * cache is still valid.
 	 *
-	 * Package imports remain external so native addons and runtime-owned
-	 * dependencies continue to load through the app's installed
-	 * `node_modules` tree. Only the app entry graph is bundled.
+	 * Source code is bundled: the app entry graph, workspace packages and
+	 * TypeScript packages such as Core. Compiled packages from `node_modules`
+	 * stay external (bare when the app declares them, otherwise relative to
+	 * `dist/.server/`), so native bindings load from the installed tree. The
+	 * entry is written to a staging directory, so the request passes
+	 * `runtimeOutdir` and bundled `import.meta` reads resolve against the
+	 * sources from `dist/.server/`.
 	 *
 	 * Throws if the build adapter is unavailable, is owned by a host
 	 * runtime, or bundling fails.
@@ -224,6 +228,7 @@ export class ServerStaticBuilder {
 				outdir: stagingDir,
 				naming: SERVER_BUNDLE_FILENAME,
 				sourcemap: 'hidden',
+				runtimeOutdir: serverOutdir,
 			});
 			const result = await build(buildOptions, requireBuildRuntime(this.appConfig).getProfile('server-entry'));
 

@@ -1,3 +1,9 @@
+import { execFileSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { createEcopagesPluginApi } from './plugin-api.ts';
 import { ecopagesDevServer } from './ecopages-dev-server.ts';
@@ -7,8 +13,15 @@ type DevServerModule = {
 		fetch?: (request: Request) => Promise<Response>;
 		handleListening?: (origin: string) => void;
 		attachWebSocketUpgrades?: (...args: unknown[]) => Promise<void>;
+		stop?: () => Promise<void>;
 	};
 };
+
+type FakeModuleNode = { file: string; importedModules: Set<FakeModuleNode> };
+
+function moduleNode(file: string, ...importedModules: FakeModuleNode[]): FakeModuleNode {
+	return { file, importedModules: new Set(importedModules) };
+}
 
 function createApi() {
 	return createEcopagesPluginApi({
@@ -18,6 +31,7 @@ function createApi() {
 			integrations: [],
 			sourceTransforms: new Map(),
 			absolutePaths: {
+				config: '/app/eco.config.ts',
 				componentsDir: '/app/src/components',
 				distDir: '/app/dist',
 				htmlTemplatePath: '/app/src/app.html',
@@ -34,9 +48,12 @@ async function setupDevServerMiddleware(
 	options?: {
 		module?: DevServerModule;
 		includeMiddlewares?: boolean;
-		httpServer?: Record<string, unknown>;
+		appEntryModule?: FakeModuleNode;
+		middlewareMode?: boolean;
+		appLoadGate?: Promise<void>;
 		devServerOrigin?: string;
 		captureFetch?: (request: Request) => void;
+		envDir?: string | false;
 	},
 ) {
 	let middleware: ((req: unknown, res: unknown, next: (error?: unknown) => void) => Promise<void>) | undefined;
@@ -54,8 +71,26 @@ async function setupDevServerMiddleware(
 			return fetchResponse.clone();
 		});
 
+	const httpServer = options?.middlewareMode ? null : new EventEmitter();
+	const watcher = new EventEmitter();
+	const restart = vi.fn(async () => undefined);
+	const getModuleByUrl = vi.fn(async () => options?.appEntryModule);
+	const ssrEnvironment = { moduleGraph: { getModuleByUrl } };
+	const logger = { info: vi.fn(), error: vi.fn() };
+	let appLoads = 0;
+
 	const server = {
-		httpServer: options?.httpServer,
+		httpServer,
+		watcher,
+		restart,
+		config: {
+			root: '/app',
+			logger,
+			configFile: '/app/vite.config.ts',
+			configFileDependencies: ['/app/vite.shared.ts', '/app/eco.config.ts'],
+			envDir: options?.envDir ?? '/app/env',
+			mode: 'development',
+		},
 		hot: { send: vi.fn() },
 		environments: {
 			client: {
@@ -63,14 +98,11 @@ async function setupDevServerMiddleware(
 				async waitForRequestsIdle() {},
 				async warmupRequest() {},
 			},
+			ssr: ssrEnvironment,
 		},
-		async transformIndexHtml(_url: string, html: string) {
-			if (html.includes('/@vite/client')) {
-				return html;
-			}
-
-			return html.replace('</head>', '<script type="module" src="/@vite/client"></script></head>');
-		},
+		transformIndexHtml: vi.fn(async (_url: string, html: string) =>
+			html.replace('</head>', '<script type="module" src="/@vite/client"></script></head>'),
+		),
 		async ssrLoadModule(id: string) {
 			if (id === '@ecopages/core/dev/host-runtime') {
 				return {
@@ -86,6 +118,8 @@ async function setupDevServerMiddleware(
 				return { images: {} };
 			}
 
+			appLoads += 1;
+			await options?.appLoadGate;
 			return (
 				options?.module ?? {
 					app: {
@@ -106,7 +140,6 @@ async function setupDevServerMiddleware(
 	}
 
 	(plugin.configureServer as Function)(server as never)?.();
-	await api.getDevHostReady();
 
 	const headers = new Map<string, string>();
 	const chunks: Uint8Array[] = [];
@@ -126,7 +159,18 @@ async function setupDevServerMiddleware(
 	};
 
 	return {
-		api,
+		server,
+		httpServer,
+		logger,
+		closeServer() {
+			return (plugin.closeBundle as Function).call({ environment: ssrEnvironment });
+		},
+		watcher,
+		restart,
+		getModuleByUrl,
+		getAppLoads() {
+			return appLoads;
+		},
 		middleware,
 		headers,
 		chunks,
@@ -147,6 +191,7 @@ describe('ecopagesDevServer', () => {
 		let registeredLoader: ((id: string) => Promise<unknown>) | undefined;
 
 		const server = {
+			watcher: new EventEmitter(),
 			hot: { send: vi.fn() },
 			environments: {
 				client: {
@@ -154,6 +199,7 @@ describe('ecopagesDevServer', () => {
 					async waitForRequestsIdle() {},
 					async warmupRequest() {},
 				},
+				ssr: { moduleGraph: {} },
 			},
 			async ssrLoadModule(id: string) {
 				if (id === '@ecopages/core/dev/host-runtime') {
@@ -188,9 +234,8 @@ describe('ecopagesDevServer', () => {
 		};
 
 		(plugin.configureServer as Function)(server as never)?.();
-		await api.getDevHostReady();
 
-		expect(registeredLoader).toBeTypeOf('function');
+		await vi.waitFor(() => expect(registeredLoader).toBeTypeOf('function'));
 		await expect(registeredLoader?.('/virtual:tla-module')).resolves.toEqual({
 			default: { ok: true },
 			value: 42,
@@ -259,7 +304,37 @@ describe('ecopagesDevServer', () => {
 		expect(harness.isEnded()).toBe(true);
 	});
 
-	it('skips Vite index transforms for browser-router HTML fetches', async () => {
+	it('serves document HTML without running it through Vite index HTML transforms', async () => {
+		const appHtml =
+			'<!DOCTYPE html><html><head><script type="module" src="/assets/scripts/page.js"></script></head><body></body></html>';
+		const harness = await setupDevServerMiddleware(
+			new Response(appHtml, { headers: { 'content-type': 'text/html; charset=utf-8' } }),
+		);
+
+		await harness.middleware?.(
+			{
+				headers: {
+					'sec-fetch-dest': 'document',
+					'sec-fetch-mode': 'navigate',
+				},
+				method: 'GET',
+				originalUrl: '/',
+			},
+			harness.response,
+			(error?: unknown) => {
+				if (error) {
+					throw error;
+				}
+			},
+		);
+
+		expect(harness.server.transformIndexHtml).not.toHaveBeenCalled();
+		expect(harness.getBody()).toBe(
+			appHtml.replace('</html>', `<script type="module">import '/_hmr_runtime.js';</script></html>`),
+		);
+	});
+
+	it('leaves the HMR runtime out of browser-router HTML fetches', async () => {
 		const harness = await setupDevServerMiddleware(
 			new Response('<!DOCTYPE html><html><head></head><body></body></html>', {
 				headers: {
@@ -389,24 +464,19 @@ describe('ecopagesDevServer', () => {
 	});
 
 	it('attaches app websocket upgrades before serving HTTP', async () => {
-		const attachWebSocketUpgrades = vi.fn(async () => undefined);
 		let attachCompleted = false;
-		let fetchCount = 0;
+		let attachCompletedAtFetch: boolean | undefined;
 
 		const harness = await setupDevServerMiddleware(new Response('ok'), {
-			httpServer: {},
 			module: {
 				app: {
 					fetch: async () => {
-						fetchCount += 1;
-						if (fetchCount > 1) {
-							expect(attachCompleted).toBe(true);
-						}
+						attachCompletedAtFetch = attachCompleted;
 						return new Response('ok');
 					},
 					handleListening: () => {},
-					attachWebSocketUpgrades: async (...args: unknown[]) => {
-						await (attachWebSocketUpgrades as (...spreadArgs: unknown[]) => Promise<void>)(...args);
+					attachWebSocketUpgrades: async () => {
+						await new Promise((resolve) => setImmediate(resolve));
 						attachCompleted = true;
 					},
 				},
@@ -414,36 +484,48 @@ describe('ecopagesDevServer', () => {
 		});
 
 		await harness.middleware?.(
-			{
-				headers: {},
-				method: 'GET',
-				originalUrl: '/ws-chat',
-			},
+			{ headers: {}, method: 'GET', originalUrl: '/ws-chat' },
 			harness.response,
-			(error?: unknown) => {
+			(error) => {
 				if (error) throw error;
 			},
 		);
 
-		expect(attachWebSocketUpgrades).toHaveBeenCalledTimes(1);
-		expect(harness.isEnded()).toBe(true);
+		expect(attachCompletedAtFetch).toBe(true);
+	});
+
+	it('attaches websocket upgrades to the HTTP server it was configured with', async () => {
+		let releaseAppLoad = () => {};
+		const attachWebSocketUpgrades = vi.fn(async (_httpServer: unknown) => undefined);
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			appLoadGate: new Promise<void>((resolve) => {
+				releaseAppLoad = resolve;
+			}),
+			module: {
+				app: { fetch: async () => new Response('ok'), handleListening: () => {}, attachWebSocketUpgrades },
+			},
+		});
+
+		harness.server.httpServer = new EventEmitter();
+		releaseAppLoad();
+
+		await vi.waitFor(() => expect(attachWebSocketUpgrades).toHaveBeenCalled());
+		expect(attachWebSocketUpgrades.mock.calls[0]?.[0]).toBe(harness.httpServer);
 	});
 
 	it('surfaces a clear error when the app module does not export app.fetch()', async () => {
-		await expect(setupDevServerMiddleware(new Response('unused'), { module: {} })).rejects.toThrow(
-			'must export an app.fetch(request) handler',
+		const harness = await setupDevServerMiddleware(new Response('unused'), { module: {} });
+		const next = vi.fn();
+
+		await harness.middleware?.({ headers: {}, method: 'GET', originalUrl: '/' }, harness.response, next);
+
+		expect(next).toHaveBeenCalledWith(
+			expect.objectContaining({ message: expect.stringContaining('must export an app.fetch(request) handler') }),
 		);
 	});
 
-	it('serves repeated middleware requests from the warmed app cache', async () => {
-		const harness = await setupDevServerMiddleware(new Response('ok'), {
-			module: {
-				app: {
-					fetch: async () => new Response('ok'),
-					handleListening: () => {},
-				},
-			},
-		});
+	it('loads the app once for repeated middleware requests', async () => {
+		const harness = await setupDevServerMiddleware(new Response('ok'));
 
 		await harness.middleware?.({ headers: {}, method: 'GET', originalUrl: '/' }, harness.response, () => undefined);
 		await harness.middleware?.(
@@ -452,7 +534,155 @@ describe('ecopagesDevServer', () => {
 			() => undefined,
 		);
 
-		expect(harness.api.getCachedApp()).not.toBeNull();
-		expect(harness.isEnded()).toBe(true);
+		expect(harness.getAppLoads()).toBe(1);
+	});
+
+	it.each(['change', 'unlink'])('restarts Vite on a %s of a module the app entry imports', async (event) => {
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			appEntryModule: moduleNode(
+				'/app/app.ts',
+				moduleNode('/app/src/handlers/api.ts', moduleNode('/app/src/data.ts')),
+			),
+		});
+
+		harness.watcher.emit(event, '/app/src/data.ts');
+
+		await vi.waitFor(() => expect(harness.restart).toHaveBeenCalledTimes(1));
+	});
+
+	it('does not restart Vite for a module outside the app entry imports', async () => {
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			appEntryModule: moduleNode('/app/app.ts', moduleNode('/app/src/handlers/api.ts')),
+		});
+
+		harness.watcher.emit('change', '/app/src/pages/index.tsx');
+		await vi.waitFor(() => expect(harness.getModuleByUrl).toHaveBeenCalled());
+		await new Promise((resolve) => setImmediate(resolve));
+
+		expect(harness.restart).not.toHaveBeenCalled();
+	});
+
+	it.each(['/app/vite.config.ts', '/app/vite.shared.ts', '/app/env/.env', '/app/env/.env.development.local'])(
+		'restarts Vite when %s changes',
+		async (file) => {
+			const harness = await setupDevServerMiddleware(new Response('ok'), {
+				appEntryModule: moduleNode('/app/app.ts'),
+			});
+
+			harness.watcher.emit('change', file);
+
+			await vi.waitFor(() => expect(harness.restart).toHaveBeenCalledTimes(1));
+		},
+	);
+
+	it('restarts Vite for eco.config.ts when the app entry imports it', async () => {
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			appEntryModule: moduleNode('/app/app.ts', moduleNode('/app/eco.config.ts')),
+		});
+
+		harness.watcher.emit('change', '/app/eco.config.ts');
+
+		await vi.waitFor(() => expect(harness.restart).toHaveBeenCalledTimes(1));
+	});
+
+	it('restarts Vite when an env file is added', async () => {
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			appEntryModule: moduleNode('/app/app.ts'),
+		});
+
+		harness.watcher.emit('add', '/app/env/.env.local');
+
+		await vi.waitFor(() => expect(harness.restart).toHaveBeenCalledTimes(1));
+	});
+
+	it.each([
+		['an env file of another mode', '/app/env/.env.production', '/app/env'],
+		['an env file outside envDir', '/app/.env', '/app/env'],
+		['an env file when env loading is off', '/app/env/.env', false],
+		['eco.config.ts, even when the Vite config imports it', '/app/eco.config.ts', '/app/env'],
+	] as const)('does not restart Vite for %s', async (_label, file, envDir) => {
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			appEntryModule: moduleNode('/app/app.ts'),
+			envDir,
+		});
+
+		harness.watcher.emit('change', file);
+		await vi.waitFor(() => expect(harness.getModuleByUrl).toHaveBeenCalled());
+		await new Promise((resolve) => setImmediate(resolve));
+
+		expect(harness.restart).not.toHaveBeenCalled();
+	});
+
+	it('logs the restart cause', async () => {
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			appEntryModule: moduleNode('/app/app.ts'),
+		});
+
+		harness.watcher.emit('change', '/app/app.ts');
+
+		await vi.waitFor(() => expect(harness.restart).toHaveBeenCalledTimes(1));
+		expect(harness.logger.info).toHaveBeenCalledWith(expect.stringContaining('app.ts changed'), expect.anything());
+	});
+
+	it.each(['add', 'change'])('restarts Vite on any %s after the app failed to load', async (event) => {
+		const harness = await setupDevServerMiddleware(new Response('unused'), { module: {} });
+
+		harness.watcher.emit(event, '/app/src/handlers/missing.ts');
+
+		await vi.waitFor(() => expect(harness.restart).toHaveBeenCalledTimes(1));
+		expect(harness.logger.error).toHaveBeenCalledTimes(1);
+		expect(harness.logger.error).toHaveBeenCalledWith(
+			expect.stringContaining('must export an app.fetch(request) handler'),
+			expect.anything(),
+		);
+	});
+
+	it.each([
+		['with an HTTP server', false],
+		['in middleware mode', true],
+	])('stops the app when its Vite server closes %s', async (_mode, middlewareMode) => {
+		const stop = vi.fn(async () => undefined);
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			middlewareMode,
+			module: { app: { fetch: async () => new Response('ok'), handleListening: () => {}, stop } },
+		});
+
+		await harness.closeServer();
+
+		expect(stop).toHaveBeenCalledTimes(1);
+	});
+
+	it('reports an error thrown by a host-loaded TypeScript module at its source line', () => {
+		const rootDir = realpathSync(mkdtempSync(path.join(tmpdir(), 'ecopages-vite-stack-')));
+		const pageFile = path.join(rootDir, 'page.ts');
+		writeFileSync(
+			pageFile,
+			'type Props = { name: string };\n\ninterface Unused {\n\ta: number;\n}\n\nexport function render(props: Props): string {\n\tthrow new Error(props.name);\n}\n',
+		);
+		const script = `
+			import { createServer } from 'vite';
+			import { createEcopagesPluginApi } from ${JSON.stringify(pathToFileURL(path.join(import.meta.dirname, 'plugin-api.ts')).href)};
+			import { ecopagesDevServer } from ${JSON.stringify(pathToFileURL(path.join(import.meta.dirname, 'ecopages-dev-server.ts')).href)};
+			const api = createEcopagesPluginApi({ appConfig: { rootDir: ${JSON.stringify(rootDir)}, runtime: {}, integrations: [], sourceTransforms: new Map(), absolutePaths: {} } });
+			const server = await createServer({ root: ${JSON.stringify(rootDir)}, configFile: false, logLevel: 'silent', server: { middlewareMode: true, hmr: false, watch: null }, plugins: [ecopagesDevServer(api)] });
+			const page = await server.ssrLoadModule(${JSON.stringify(pageFile)});
+			try { page.render({ name: 'boom' }); } catch (error) { console.log(error.stack); }
+			await server.close();
+		`;
+
+		try {
+			/**
+			 * @remarks A child process, because Vitest replaces `Error.prepareStackTrace`, which bypasses
+			 * Node's source-mapped stack traces.
+			 */
+			const stack = execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+				cwd: import.meta.dirname,
+				encoding: 'utf8',
+			});
+
+			expect(stack).toMatch(/page\.ts:8:\d+\)/);
+		} finally {
+			rmSync(rootDir, { recursive: true, force: true });
+		}
 	});
 });

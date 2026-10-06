@@ -21,6 +21,7 @@ export function resolveBuildProfileOptions(
 				sourcemap: 'none',
 				minify: false,
 				externalPackages: true,
+				reportPackagesOutsideRoot: true,
 				...overrides,
 			};
 		case 'route-module':

@@ -196,6 +196,11 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			const Component = eco.component<{}, JsxRenderable>({
+				identity: {
+					id: 'jsx-island',
+					file: '/app/components/jsx-island.tsx',
+					integration: 'ecopages-jsx',
+				},
 				integration: 'ecopages-jsx',
 				dependencies: {
 					scripts: ['./island.script.ts'],
@@ -247,7 +252,7 @@ describe('EcopagesJsxRenderer', () => {
 			expect(result.html).toContain('>ready</section>');
 		});
 
-		it('resolves foreign boundaries inside the JSX renderer and bubbles nested assets', async () => {
+		it('resolves foreign boundaries inside the JSX renderer and bubbles nested assets without marking the script-less shell as an island host', async () => {
 			const deferredRenderComponent = vi.fn(
 				async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
 					html: '<button data-testid="deferred-widget">Deferred widget</button>',
@@ -329,6 +334,7 @@ describe('EcopagesJsxRenderer', () => {
 					position: 'body',
 				}),
 			]);
+			expect(result.rootAttributes?.['data-eco-island']).toBeUndefined();
 			expect(deferredRenderComponent).toHaveBeenCalledTimes(1);
 		});
 

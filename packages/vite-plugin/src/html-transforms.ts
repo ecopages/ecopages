@@ -1,7 +1,6 @@
 const ROOT_LIT_PART_PATTERN = /^<!--lit-part [^>]+-->([\s\S]*)<!--\/lit-part-->$/;
 const HTML_DOCUMENT_CLOSE = '</html>';
 const HTML_TEMPLATE_SLOT_MARKER = '<--content-->';
-const VITE_CLIENT_SCRIPT = '<script type="module" src="/@vite/client"></script>';
 
 function extractAppendedChildren(appendedHtml: string): string {
 	const rootLitPartMatch = appendedHtml.match(ROOT_LIT_PART_PATTERN);
@@ -10,14 +9,9 @@ function extractAppendedChildren(appendedHtml: string): string {
 
 /**
  * Normalizes an Ecopages HTML response by injecting appended route content
- * into the template slot marker, unwrapping Lit SSR part wrappers, and
- * optionally injecting the Vite client script in dev mode.
- *
- * @remarks
- * Prefer `server.transformIndexHtml()` for Vite client injection. The
- * `injectViteClient` option remains for legacy callers and tests.
+ * into the template slot marker and unwrapping Lit SSR part wrappers.
  */
-export function normalizeHtmlResponse(body: string, options?: { injectViteClient?: boolean }): string {
+export function normalizeHtmlResponse(body: string): string {
 	let html = body;
 	const documentCloseIndex = html.indexOf(HTML_DOCUMENT_CLOSE);
 
@@ -29,12 +23,6 @@ export function normalizeHtmlResponse(body: string, options?: { injectViteClient
 		if (appendedHtml.trim().length > 0) {
 			const renderedChildren = extractAppendedChildren(appendedHtml);
 			html = documentHtml.replace(HTML_TEMPLATE_SLOT_MARKER, renderedChildren);
-		}
-	}
-
-	if (options?.injectViteClient) {
-		if (!html.includes(VITE_CLIENT_SCRIPT)) {
-			html = html.replace('</head>', `${VITE_CLIENT_SCRIPT}</head>`);
 		}
 	}
 

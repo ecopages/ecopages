@@ -75,12 +75,12 @@ test('resolveBarePackageBrowserEntry prefers module over browser for third-party
 	const root = createLegacyDualEntryFixture();
 	const resolved = resolveBarePackageBrowserEntry(root, 'dual-entry-pkg');
 	assert.ok(resolved);
-	assert.match(resolved, /module\.mjs$/);
+	assert.match(resolved.path, /module\.mjs$/);
 });
 
 test('resolveBarePackageBrowserEntry prefers import over browser exports for third-party packages', () => {
 	const root = createExportsDualEntryFixture();
 	const resolved = resolveBarePackageBrowserEntry(root, 'exports-dual-pkg');
 	assert.ok(resolved);
-	assert.match(resolved, /module\.mjs$/);
+	assert.match(resolved.path, /module\.mjs$/);
 });

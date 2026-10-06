@@ -51,9 +51,6 @@ interface HMRPayload {
 		switch (payload.type) {
 			case 'reload':
 				await waitForNavigationToSettle(navigationRuntime);
-				if ((window as Window & { __ECOPAGES_HOST_OWNS_RELOAD__?: boolean }).__ECOPAGES_HOST_OWNS_RELOAD__) {
-					break;
-				}
 				location.reload();
 				break;
 			case 'layout-update': {
@@ -64,9 +61,6 @@ interface HMRPayload {
 						moduleUrl: getActiveHmrModuleUrl(),
 					})
 				) {
-					break;
-				}
-				if ((window as Window & { __ECOPAGES_HOST_OWNS_RELOAD__?: boolean }).__ECOPAGES_HOST_OWNS_RELOAD__) {
 					break;
 				}
 				location.reload();

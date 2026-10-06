@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { getAppBuildOwnership } from '../build/build-adapter.ts';
 import { defineConfig } from './define-config.ts';
 import { finalizeEcoPagesConfig } from './finalize-config.ts';
 import { clearEcoPagesConfigCachesForTests, loadEcoPagesConfig, loadEcoPagesUserConfig } from './load-eco-config.ts';
@@ -60,6 +61,40 @@ describe('resolveEcoConfigPath', () => {
 
 		expect(resolveEcoConfigPath({ cwd: tempDir, preferEmitted: true })).toBe(emittedPath);
 	});
+
+	describe('when the running entry is a server bundle', () => {
+		const originalEntry = process.argv[1];
+		let sourcePath: string;
+		let emittedPath: string;
+
+		beforeEach(() => {
+			sourcePath = path.join(tempDir, 'eco.config.ts');
+			emittedPath = path.join(tempDir, 'dist', '.server', 'eco.config.mjs');
+			fs.mkdirSync(path.dirname(emittedPath), { recursive: true });
+			fs.writeFileSync(sourcePath, 'export default {}');
+			fs.writeFileSync(emittedPath, 'export default {}');
+		});
+
+		afterEach(() => {
+			process.argv[1] = originalEntry;
+		});
+
+		it('prefers the emitted config next to the entry over eco.config.ts', () => {
+			process.argv[1] = path.join(tempDir, 'dist', '.server', 'app.mjs');
+			expect(resolveEcoConfigPath({ cwd: tempDir })).toBe(emittedPath);
+		});
+
+		it('keeps eco.config.ts for a source entry', () => {
+			process.argv[1] = path.join(tempDir, 'app.ts');
+			expect(resolveEcoConfigPath({ cwd: tempDir })).toBe(sourcePath);
+		});
+
+		it('still honors ECOPAGES_CONFIG_FILE', () => {
+			process.argv[1] = path.join(tempDir, 'dist', '.server', 'app.mjs');
+			process.env[ECOPAGES_CONFIG_FILE_ENV] = sourcePath;
+			expect(resolveEcoConfigPath({ cwd: tempDir })).toBe(sourcePath);
+		});
+	});
 });
 
 describe('resolveUserConfigRootDir', () => {
@@ -113,6 +148,24 @@ describe('loadEcoPagesConfig', () => {
 		const appConfig = await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
 
 		expect(appConfig.absolutePaths.configModuleFiles.sort()).toEqual([configPath, optionsPath].sort());
+	});
+
+	it('takes build ownership from the loader option, not from the config module', async () => {
+		const configPath = path.join(tempDir, 'eco.config.ts');
+		fs.writeFileSync(
+			configPath,
+			`export default { rootDir: ${JSON.stringify(tempDir)}, buildOwnership: 'vite-host' };`,
+		);
+
+		const appConfig = await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
+		const hostConfig = await loadEcoPagesConfig({
+			cwd: tempDir,
+			configFile: configPath,
+			buildOwnership: 'vite-host',
+		});
+
+		expect(getAppBuildOwnership(appConfig)).toBe('rolldown');
+		expect(getAppBuildOwnership(hostConfig)).toBe('vite-host');
 	});
 
 	it('defaults omitted rootDir to the loader cwd', async () => {

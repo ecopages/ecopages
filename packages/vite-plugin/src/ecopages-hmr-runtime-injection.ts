@@ -11,15 +11,3 @@ export function injectEcopagesHmrRuntimeIntoHtml(html: string): string {
 
 	return html.replace(/<\/html>/i, `${ECOPAGES_HMR_RUNTIME_SCRIPT}</html>`);
 }
-
-/** Applies the embedded-host dev bootstrap to a Vite-transformed HTML document. */
-export function injectEcopagesDocumentDevBootstrap(html: string): string {
-	return injectEcopagesHmrRuntimeIntoHtml(html);
-}
-
-/** Removes Vite browser HMR client scripts when the host disables Vite HMR. */
-export function stripViteBrowserHmrScripts(html: string): string {
-	return html
-		.replace(/<script type="module" src="\/@vite\/client"><\/script>\s*/gi, '')
-		.replace(/<script type="module" src="\/@react-refresh"><\/script>\s*/gi, '');
-}

@@ -152,19 +152,10 @@ describe('finalizeEcoPagesConfig', () => {
 	});
 
 	test('should allow explicit Vite-host build ownership during config build', async () => {
-		const config = await finalize({ buildOwnership: 'vite-host' });
+		const config = await finalizeEcoPagesConfig({ rootDir: '/project' }, { buildOwnership: 'vite-host' });
 
 		expect(getAppBuildOwnership(config)).toBe('vite-host');
 		expect(getAppBuildAdapter(config)).toBeInstanceOf(ViteHostBuildAdapter);
-	});
-
-	test('should let the buildOwnership option override the user config', async () => {
-		const config = await finalizeEcoPagesConfig(
-			{ rootDir: '/project', buildOwnership: 'vite-host' },
-			{ buildOwnership: 'rolldown' },
-		);
-
-		expect(getAppBuildOwnership(config)).toBe('rolldown');
 	});
 
 	test('should allow explicit app-owned source transforms for Vite-oriented bundlers', async () => {

@@ -169,9 +169,9 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	 * Keeping that state on the instance avoids cross-plugin static mutation while
 	 * preserving the same runtime services the base initializer wires up.
 	 */
-	override initializeRenderer(options?: { rendererModules?: unknown }): ReactRenderer {
+	override initializeRenderer(): ReactRenderer {
 		const renderer = new this.renderer({
-			...this.createRendererOptions(options),
+			...this.createRendererOptions(),
 			reactConfig: this.rendererConfig,
 		});
 		return this.attachRendererRuntimeServices(renderer);

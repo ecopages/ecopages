@@ -1,3 +1,5 @@
+import { realpathSync } from 'node:fs';
+import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type {
 	ComponentRenderInput,
@@ -16,6 +18,7 @@ import { findElements, parseHtml } from '../services/html/html-source-parser.ts'
 import { escapeHtmlAttribute } from '../utils/html-escaping.ts';
 import { invariant } from '../utils/invariant.ts';
 import { resolveClassicScriptOptions } from './html-page-classic-script.ts';
+import { getHtmlPageModuleScriptUrls, scanModuleScript } from './html-page-module-scripts.ts';
 import { reconcileHtmlPageDocument, type RenderedHtmlPageHead } from './html-page-document.ts';
 import { getBuiltInHtmlShell, getCompiledHtmlTemplate, HTML_PAGES_INTEGRATION_NAME } from './html-page-module.ts';
 import {
@@ -32,6 +35,19 @@ import {
 const BODY_START_MARKER = '<!--eco:html-page-body-->';
 const BODY_END_MARKER = '<!--/eco:html-page-body-->';
 
+function spliceUrl(asset: Exclude<HtmlAssetDeclaration, { kind: 'inline-style' }>, url: string): string {
+	return `${asset.tag.slice(0, asset.urlStart)}"${escapeHtmlAttribute(url)}"${asset.tag.slice(asset.urlEnd)}`;
+}
+
+/**
+ * @remarks
+ * Processed CSS can contain `</style`, as when a Processor inlines an `@import`d file, and the browser would
+ * close the element there. `<\/style` reads as the same characters in CSS.
+ */
+function escapeStyleContent(css: string): string {
+	return css.replace(/<(\/style)/gi, '<\\$1');
+}
+
 /**
  * Renders HTML Pages and the `html.html` Html shell.
  *
@@ -41,13 +57,16 @@ const BODY_END_MARKER = '<!--/eco:html-page-body-->';
  * and the Page is emitted once, by the shell; within one file, the first
  * declaration wins. Page head tags and root attributes are applied to the
  * finalized document by {@link reconcileHtmlPageDocument}.
+ *
+ * Without HMR, module scripts come from one build of every HTML Page's and the
+ * shell's module scripts ({@link getHtmlPageModuleScriptUrls}); with HMR they go
+ * to the HMR manager, which serves each source module at one URL.
  */
 export class HtmlPageRenderer extends StringMarkupRenderer {
 	name = HTML_PAGES_INTEGRATION_NAME;
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
-		const htmlTemplatePath =
-			this.getRendererModuleString('htmlTemplateModulePath') ?? this.appConfig.absolutePaths.htmlTemplatePath;
+		const htmlTemplatePath = this.appConfig.absolutePaths.htmlTemplatePath;
 		if (!htmlTemplatePath || !fileSystem.exists(htmlTemplatePath)) {
 			return getBuiltInHtmlShell() as EcoComponent<HtmlTemplateProps>;
 		}
@@ -121,7 +140,7 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 		const emitted = new Set(
 			shell?.kind === 'shell' ? shell.assets.flatMap((asset) => getHtmlAssetKey(asset) ?? []) : [],
 		);
-		const tags = await this.emitAssets(page);
+		const tags = await this.emitAssets(page, emitted);
 		const head = page.head.map(({ parts, key, charset }) => ({
 			html: this.joinParts(page, parts, tags, emitted),
 			key,
@@ -181,8 +200,15 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 		return html;
 	}
 
-	private emitAssets(template: HtmlTemplate): Promise<string[]> {
-		return Promise.all(template.assets.map((asset) => this.emitAsset(template.file, asset)));
+	/**
+	 * Emits the tag of each asset, except assets whose key is in `skip`, which get an empty string.
+	 */
+	private emitAssets(template: HtmlTemplate, skip?: ReadonlySet<string>): Promise<string[]> {
+		return Promise.all(
+			template.assets.map(async (asset) =>
+				skip?.has(getHtmlAssetKey(asset) ?? '') ? '' : this.emitAsset(template.file, asset),
+			),
+		);
 	}
 
 	private async emitAsset(file: string, asset: HtmlAssetDeclaration): Promise<string> {
@@ -194,11 +220,21 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 				processed?.content !== undefined,
 				`${file}: could not process an inline <style>; the asset pipeline logged the cause.`,
 			);
-			return `${asset.tag.slice(0, asset.contentStart)}${processed.content}${asset.tag.slice(asset.contentEnd)}`;
+			return `${asset.tag.slice(0, asset.contentStart)}${escapeStyleContent(processed.content)}${asset.tag.slice(asset.contentEnd)}`;
 		}
 
 		if (!fileSystem.exists(asset.filepath)) {
 			throw new Error(`[ecopages] ${file}: "${asset.reference}" does not exist (${asset.filepath}).`);
+		}
+
+		if (asset.kind === 'module-script') {
+			const hmr = this.assetProcessingService.getHmrManager()?.isEnabled() === true;
+			if (!hmr) {
+				const url = (await getHtmlPageModuleScriptUrls(this.appConfig)).get(realpathSync(asset.filepath));
+				if (url !== undefined) return spliceUrl(asset, url);
+			}
+			this.assertNoStylesheetImport(file, asset.reference, asset.filepath);
+			invariant(hmr, `${file}: "${asset.reference}" has no output in the HTML Page module script build.`);
 		}
 
 		const processed = await this.processAsset(
@@ -215,7 +251,35 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 			processed?.srcUrl !== undefined,
 			`${file}: could not process "${asset.reference}"; the asset pipeline logged the cause.`,
 		);
-		return `${asset.tag.slice(0, asset.urlStart)}"${escapeHtmlAttribute(processed.srcUrl)}"${asset.tag.slice(asset.urlEnd)}`;
+		return spliceUrl(asset, processed.srcUrl);
+	}
+
+	/**
+	 * @remarks
+	 * Without HMR, the shared build leaves such a script out, so this runs only for a script with
+	 * no output there. Paths in the error are relative to the app root. A `<link>` must point inside
+	 * the source directory, so a stylesheet outside it, as in a package, has to be copied there.
+	 */
+	private assertNoStylesheetImport(file: string, reference: string, script: string): void {
+		const found = scanModuleScript(this.appConfig, script).stylesheetImport;
+		if (!found) return;
+		const real = (target: string) => (fileSystem.exists(target) ? realpathSync(target) : target);
+		const rootDir = real(this.appConfig.rootDir);
+		const show = (target: string) =>
+			path.isAbsolute(target) ? path.relative(rootDir, real(target)).split(path.sep).join('/') : target;
+		const stylesheet = real(found.stylesheet);
+		const through = found.importer === path.resolve(script) ? '' : ` through ${show(found.importer)}`;
+		const srcDir = real(this.appConfig.absolutePaths.srcDir);
+		const href = path
+			.relative(path.dirname(real(file)), stylesheet)
+			.split(path.sep)
+			.join('/');
+		const fix = stylesheet.startsWith(`${srcDir}${path.sep}`)
+			? `Load it with <link rel="stylesheet" href="${href.startsWith('../') ? href : `./${href}`}"> in ${show(file)} instead.`
+			: `A <link> cannot point outside ${show(srcDir)}, so copy the stylesheet under ${show(srcDir)} and link it from ${show(file)} instead.`;
+		throw new Error(
+			`[ecopages] ${show(file)}: "${reference}" imports ${show(stylesheet)}${through}, which a module script cannot add to the Page. ${fix}`,
+		);
 	}
 
 	private async processAsset(definition: AssetDefinition) {

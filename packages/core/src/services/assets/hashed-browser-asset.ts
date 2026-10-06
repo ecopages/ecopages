@@ -3,12 +3,25 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 
 const HASH_LENGTH = 16;
+const HASHED_OUTPUT_FILENAME = /^[a-f0-9]{16}\.[^.]+$/;
+const ROLLDOWN_HASHED_FILENAME = /^.+-[A-Za-z0-9_]{8,}\.[^.]+$/;
 
 /**
  * Returns a filesystem-safe hash of the bytes that will be served.
  */
 export function hashBrowserAssetBytes(bytes: string | Buffer): string {
 	return createHash('sha256').update(bytes).digest('hex').slice(0, HASH_LENGTH);
+}
+
+/**
+ * Returns whether a filename is a content-hashed production browser asset.
+ *
+ * @remarks
+ * Matches Core's 16-hex names and Rolldown `[name]-[hash]` outputs. Vendor
+ * runtimes keep stable names such as `react.js` and must not match.
+ */
+export function isContentHashedAssetFilename(filename: string): boolean {
+	return HASHED_OUTPUT_FILENAME.test(filename) || ROLLDOWN_HASHED_FILENAME.test(filename);
 }
 
 function normalizeExtension(extension: string): string {

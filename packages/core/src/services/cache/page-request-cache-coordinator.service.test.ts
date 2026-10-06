@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import { MemoryCacheStore } from './memory-cache-store.js';
+import { PageCacheService } from './page-cache-service.js';
 import { PageRequestCacheCoordinator } from './page-request-cache-coordinator.service.ts';
-import type { PageCacheService } from './page-cache-service.js';
 
 describe('PageRequestCacheCoordinator', () => {
 	it('should include browser-runtime generation in development cache keys', () => {
@@ -78,5 +79,36 @@ describe('PageRequestCacheCoordinator', () => {
 				}),
 			),
 		).toBe('streamed');
+	});
+
+	it('sends must-revalidate and an ETag for static HTML and answers 304 when If-None-Match matches', async () => {
+		const cacheService = new PageCacheService({ store: new MemoryCacheStore() });
+		const html = '<html><body>static</body></html>';
+		const service = new PageRequestCacheCoordinator(cacheService, 'static');
+		const renderFn = async () => ({ html, strategy: 'static' as const });
+
+		const first = await service.render({
+			cacheKey: '/static',
+			pageCacheStrategy: 'static',
+			renderFn,
+		});
+
+		expect(first.status).toBe(200);
+		expect(first.headers.get('Cache-Control')).toBe('public, max-age=0, must-revalidate');
+		expect(first.headers.get('Cache-Control')).not.toContain('immutable');
+		const etag = first.headers.get('ETag');
+		expect(etag).toMatch(/^"[a-f0-9]{16}"$/);
+		expect(await first.text()).toBe(html);
+
+		const notModified = await service.render({
+			cacheKey: '/static',
+			pageCacheStrategy: 'static',
+			renderFn,
+			ifNoneMatch: etag,
+		});
+
+		expect(notModified.status).toBe(304);
+		expect(notModified.headers.get('ETag')).toBe(etag);
+		expect(await notModified.text()).toBe('');
 	});
 });

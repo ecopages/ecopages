@@ -166,6 +166,7 @@ export class FileSystemResponseMatcher {
 					cacheKey: executionPlan.cacheKey,
 					pageCacheStrategy: executionPlan.pageCacheStrategy,
 					renderFn,
+					ifNoneMatch: executionPlan.request.headers.get('If-None-Match'),
 				});
 			};
 

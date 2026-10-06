@@ -157,8 +157,8 @@ describe('PageCacheService', () => {
 });
 
 describe('getCacheControlHeader', () => {
-	test('should return immutable for static strategy', () => {
-		expect(getCacheControlHeader('static')).toBe('public, max-age=31536000, immutable');
+	test('should return must-revalidate for static strategy', () => {
+		expect(getCacheControlHeader('static')).toBe('public, max-age=0, must-revalidate');
 	});
 
 	test('should return no-store for dynamic strategy', () => {

@@ -14,12 +14,20 @@ async function clearCache(request: APIRequestContext) {
 }
 
 test.describe('Cache Headers', () => {
-	test('should return correct headers for static strategy', async ({ request }) => {
+	test('should return must-revalidate and an ETag for static strategy', async ({ request }) => {
 		const response = await request.get(`${BASE_URL}/static-page`);
 		expect(response.ok()).toBeTruthy();
 
 		const cacheControl = response.headers()['cache-control'];
-		expect(cacheControl).toBe('public, max-age=31536000, immutable');
+		expect(cacheControl).toBe('public, max-age=0, must-revalidate');
+		expect(cacheControl).not.toContain('immutable');
+		const etag = response.headers()['etag'];
+		expect(etag).toMatch(/^"[a-f0-9]{16}"$/);
+
+		const notModified = await request.get(`${BASE_URL}/static-page`, {
+			headers: { 'If-None-Match': etag },
+		});
+		expect(notModified.status()).toBe(304);
 	});
 
 	test('should return correct headers for dynamic strategy (no-cache)', async ({ request }) => {

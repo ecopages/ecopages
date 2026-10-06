@@ -3,8 +3,9 @@
  *
  * @remarks
  * The standard {@link RolldownBuildAdapter} uses these helpers for
- * BuildOptions → Rolldown mapping, dependency-graph extraction, and the
- * post-build rewriting pipeline.
+ * BuildOptions → Rolldown mapping and dependency-graph extraction. Node
+ * runtime specifiers are resolved as externals during the build, so named
+ * output hashes cover the bytes that are written.
  *
  * @module
  */
@@ -16,9 +17,6 @@ import { fileURLToPath } from 'node:url';
 import { recordBuildEntryOutput, resolveBuildEntryPath } from '../build-graph.ts';
 import type { InputOptions, OutputChunk, OutputOptions, RolldownOutput, RolldownPlugin } from 'rolldown';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
-import type { EcoBuildPlugin } from '../contracts/build-types.ts';
-import { collectBrowserRuntimeManifests, rewriteBrowserRuntimeImports } from '../browser/browser-runtime-plugin.ts';
-import { mergeBrowserRuntimeManifests } from '../browser/browser-runtime-manifest.ts';
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { realpathOfDirectory } from '../preserve-import-meta-transform.ts';
@@ -568,92 +566,6 @@ export async function resolveRolldownOptions(
 		inputOptions: await buildRolldownInputOptions(options, contextRoot, outdir, external, rolldownPlatform),
 		outputOptions: buildRolldownOutputOptions(options, outdir),
 	};
-}
-
-/**
- * Rewrites manifest-owned runtime specifiers in emitted JS output
- * files. Skips work when the specifier map is empty or when a
- * `(specifierMap, path, content)` tuple was already seen.
- *
- * The content cache is module-level and is keyed on a djb2 hash of
- * the input bytes plus a sorted fingerprint of the specifier map. A
- * manifest change correctly invalidates prior entries; different
- * content of the same length does not collide.
- */
-export function rewriteBrowserRuntimeImportsInOutputs(
-	result: BuildResult,
-	contextRoot: string,
-	plugins: EcoBuildPlugin[],
-): BuildResult {
-	if (!result.success || result.outputs.length === 0) {
-		return result;
-	}
-
-	const manifests = collectBrowserRuntimeManifests(plugins);
-	const manifest = mergeBrowserRuntimeManifests(...manifests);
-	if (manifest.assets.length === 0) {
-		return result;
-	}
-
-	const moduleRequireFromContext = createRequire(path.join(contextRoot, 'package.json'));
-	const fs = moduleRequireFromContext('node:fs') as typeof import('node:fs');
-	const cacheFingerprint = manifest.assets
-		.map((asset) => `${asset.specifier}->${asset.publicPath}`)
-		.sort()
-		.join('|');
-
-	for (const output of result.outputs) {
-		if (!/\.(?:[cm]?js)$/u.test(output.path)) {
-			continue;
-		}
-
-		const code = fs.readFileSync(output.path, 'utf-8') as string;
-		const contentKey = `${cacheFingerprint}::${output.path}::${djb2(code)}`;
-		if (rewriteCache.has(contentKey)) {
-			continue;
-		}
-
-		const rewritten = rewriteBrowserRuntimeImports(code, manifest, output.path);
-		if (rewritten !== code) {
-			fs.writeFileSync(output.path, rewritten);
-		}
-		rememberRewrite(contentKey);
-	}
-
-	return result;
-}
-
-const REWRITE_CACHE_MAX_ENTRIES = 2048;
-const rewriteCache = new Set<string>();
-
-/**
- * @remarks
- * Dev rebuilds hit the same output paths with stable specifier maps; memoizing
- * skips re-reading and re-writing unchanged files. The cache is capped because
- * a process-global set would otherwise grow for the lifetime of a watch session.
- * Eviction uses insertion order as an approximate LRU.
- */
-function rememberRewrite(contentKey: string): void {
-	rewriteCache.add(contentKey);
-	if (rewriteCache.size > REWRITE_CACHE_MAX_ENTRIES) {
-		const oldest = rewriteCache.values().next().value;
-		if (oldest !== undefined) {
-			rewriteCache.delete(oldest);
-		}
-	}
-}
-
-function djb2(input: string): string {
-	let hash = 5381;
-	for (let i = 0; i < input.length; i++) {
-		hash = ((hash << 5) + hash + input.charCodeAt(i)) | 0;
-	}
-	return hash.toString(36);
-}
-
-/** Test-only: clears the rewriter content cache. */
-export function clearRewriteCacheForTests(): void {
-	rewriteCache.clear();
 }
 
 /** Maps a Rolldown `output` to a normalized {@link BuildResult}. */

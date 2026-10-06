@@ -151,16 +151,10 @@ the strategy rebuilds a dep-graph's worth of files). A plugin-level
 micro-bench was removed as low-value during the Phase 0 cut;
 re-introduce it if the cache is suspected of regressing.
 
-**Note on PR-1.5 (drop post-build re-parse pass):** deferred. The
-post-build `rewriteBrowserRuntimeImportsInOutputs` is a safety net
-that re-reads each emitted `.js`, re-parses it, and rewrites any
-runtime specifiers esbuild missed (e.g., when esbuild hoists or
-inlines an import through a different path). Removing it risks
-bundles shipping with raw `react`/`react-dom` imports that the
-browser can't resolve. The win is also marginal: the no-op rebuild
-is 2.77 ms total; the post-build pass is sub-ms. Re-evaluate after
-Rolldown (Phase 3) since Rolldown's tree-shaking and import
-preservation are different from esbuild's.
+**Note on dropping the post-build re-parse pass:** browser runtime
+specifiers resolve to their public URL in `resolveId`, with an
+`onLoad` AST rewrite for sources the resolver does not see. Hashed
+outputs are not rewritten after `bundle.write()`.
 
 ## Static production build baseline (kitchen-sink, 2026-06-24)
 

@@ -12,8 +12,8 @@
  *   manifest specifier set, with a `code.includes(specifier)` fast path
  *
  * The plugin object carries the manifest under `BROWSER_RUNTIME_MANIFEST` so
- * post-build rewriters can resolve exact and subpath imports without rebuilding
- * the map by hand.
+ * callers can resolve exact and subpath imports without rebuilding the map by
+ * hand.
  */
 
 import path from 'node:path';
@@ -124,7 +124,7 @@ function queueReplacement(options: {
  * Rewrites static ESM import/export specifiers and string-literal dynamic imports
  * from manifest-owned runtime specifiers to concrete browser public URLs.
  *
- * Exposed for the post-build rewriter and for tests.
+ * Exposed for the `onLoad` rewrite and for tests.
  */
 export function rewriteBrowserRuntimeImports(
 	code: string,

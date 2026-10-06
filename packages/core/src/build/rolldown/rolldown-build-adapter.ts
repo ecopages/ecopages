@@ -61,7 +61,13 @@ export class RolldownBuildAdapter implements BuildAdapter {
 		const output = await bundle.write(outputOptions);
 		await bundle.close();
 
-		const baseResult = buildResultFromRolldownOutput(output, outdir, contextRoot, dependencyGraph);
+		const baseResult = buildResultFromRolldownOutput(
+			output,
+			outdir,
+			contextRoot,
+			dependencyGraph,
+			options.entrypoints,
+		);
 
 		return rewriteBrowserRuntimeImportsInOutputs(baseResult, contextRoot, plugins);
 	}

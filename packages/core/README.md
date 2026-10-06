@@ -25,7 +25,7 @@ The important ownership rules are:
 - Browser bundling and server module loading are separate paths. SSR-enabled lazy scripts execute on the server before rendering and in the browser only on their configured trigger.
 - runtime hosts stay thin and delegate framework work into core services.
 - HMR and invalidation use shared graph-aware services instead of runtime-specific ad hoc wiring.
-- The build adapter owns source module closures and emitted chunk graphs. Grouped browser scripts resolve by entry facade identity; persisted Page caches track inlined source imports and reachable generated artifacts. See [Build Layer](src/build/README.md).
+- The build adapter owns source module closures and emitted chunk graphs. Grouped browser scripts resolve by the path or name the caller passed (and the bundler's facade when that spelling differs); persisted Page caches track inlined source imports and reachable generated artifacts. See [Build Layer](src/build/README.md).
 
 ### Bootstrap And Runtime Ownership
 

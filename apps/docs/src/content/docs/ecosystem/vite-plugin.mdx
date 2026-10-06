@@ -10,6 +10,8 @@ import { CodeTabs } from '@/components/code-tabs';
 
 `@ecopages/vite-plugin` integrates Ecopages with [Vite](https://vite.dev/) so you can use Vite's dev server, transforms, and plugin ecosystem alongside Ecopages routing and rendering.
 
+Ecopages pages are served as under `ecopages dev`, so Vite's HTML hooks (`transformIndexHtml`, `%VITE_*%` replacement, `html.cspNonce`) do not run on them.
+
 The plugin is **private to the monorepo** today but documents the host-side integration pattern used with Vite and Nitro-style deployments.
 
 ## Installation

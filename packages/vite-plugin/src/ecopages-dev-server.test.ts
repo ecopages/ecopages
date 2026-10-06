@@ -100,13 +100,9 @@ async function setupDevServerMiddleware(
 			},
 			ssr: ssrEnvironment,
 		},
-		async transformIndexHtml(_url: string, html: string) {
-			if (html.includes('/@vite/client')) {
-				return html;
-			}
-
-			return html.replace('</head>', '<script type="module" src="/@vite/client"></script></head>');
-		},
+		transformIndexHtml: vi.fn(async (_url: string, html: string) =>
+			html.replace('</head>', '<script type="module" src="/@vite/client"></script></head>'),
+		),
 		async ssrLoadModule(id: string) {
 			if (id === '@ecopages/core/dev/host-runtime') {
 				return {
@@ -308,7 +304,37 @@ describe('ecopagesDevServer', () => {
 		expect(harness.isEnded()).toBe(true);
 	});
 
-	it('skips Vite index transforms for browser-router HTML fetches', async () => {
+	it('serves document HTML without running it through Vite index HTML transforms', async () => {
+		const appHtml =
+			'<!DOCTYPE html><html><head><script type="module" src="/assets/scripts/page.js"></script></head><body></body></html>';
+		const harness = await setupDevServerMiddleware(
+			new Response(appHtml, { headers: { 'content-type': 'text/html; charset=utf-8' } }),
+		);
+
+		await harness.middleware?.(
+			{
+				headers: {
+					'sec-fetch-dest': 'document',
+					'sec-fetch-mode': 'navigate',
+				},
+				method: 'GET',
+				originalUrl: '/',
+			},
+			harness.response,
+			(error?: unknown) => {
+				if (error) {
+					throw error;
+				}
+			},
+		);
+
+		expect(harness.server.transformIndexHtml).not.toHaveBeenCalled();
+		expect(harness.getBody()).toBe(
+			appHtml.replace('</html>', `<script type="module">import '/_hmr_runtime.js';</script></html>`),
+		);
+	});
+
+	it('leaves the HMR runtime out of browser-router HTML fetches', async () => {
 		const harness = await setupDevServerMiddleware(
 			new Response('<!DOCTYPE html><html><head></head><body></body></html>', {
 				headers: {

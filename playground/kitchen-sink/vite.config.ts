@@ -10,10 +10,7 @@ const isCrossIntegrationE2e = process.env.ECOPAGES_CROSS_INTEGRATION_E2E === 'tr
 function createCrossIntegrationE2eLogger(): Logger {
 	const logger = createLogger('warn');
 	const passthrough = (method: 'warn' | 'error') => (message: string, options?: { timestamp?: boolean }) => {
-		if (
-			message.includes('dynamic import cannot be analyzed') ||
-			message.includes('Pre-transform error: Failed to load url /assets/')
-		) {
+		if (message.includes('dynamic import cannot be analyzed')) {
 			return;
 		}
 

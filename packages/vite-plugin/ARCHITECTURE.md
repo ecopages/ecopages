@@ -30,11 +30,13 @@ This prevents stale `http://localhost:3000` defaults from leaking into Vite-host
 
 ## HTML pipeline
 
-SSR HTML from `app.fetch()` is normalized in middleware for Ecopages-specific concerns (Lit slot unwrapping, template slot injection), then passed through `server.transformIndexHtml()` so Vite owns `/@vite/client` injection and related dev HTML transforms.
+SSR HTML from `app.fetch()` is normalized in middleware for Ecopages-specific concerns (Lit slot unwrapping, template slot injection). Document navigations then get the Ecopages HMR runtime bootstrap; browser-router fetches do not.
+
+The HTML does not go through `server.transformIndexHtml()`. Core builds the page and its scripts and serves them under `/assets/`, the Ecopages HMR runtime is the browser client, and Vite HMR is off, so Vite's `/@vite/client` injection would only be stripped again, and its pre-transform of each script URL fails for core-built assets and logs a `Pre-transform error` per document request. Pages are served as under `ecopages dev`: other Vite plugins' `transformIndexHtml` hooks do not apply to them.
 
 The embedded app runs in watch mode, so its HTML responses carry `Cache-Control: no-store, must-revalidate` whatever cache strategy the page declares, as under `ecopages dev`. The middleware passes that header on, so the browser requests the document again on every navigation and sees the stylesheets and scripts an edit added or removed.
 
-Manual `/@vite/client` string injection in middleware is deprecated. Keep Ecopages-specific HTML rewrites in `html-transforms.ts`; keep Vite-owned injection on the Vite HTML transform path.
+Keep Ecopages-specific HTML rewrites in `html-transforms.ts`.
 
 ## Dev-host warmup
 

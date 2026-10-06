@@ -54,31 +54,6 @@ describe('normalizeHtmlResponse', () => {
 		expect(normalized).not.toContain('<!--lit-part abc123-->');
 		expect(normalized).not.toContain('<--content-->');
 	});
-
-	it('injects Vite client script when injectViteClient is true', () => {
-		const body = '<!DOCTYPE html><html><head></head><body></body></html>';
-		const normalized = normalizeHtmlResponse(body, { injectViteClient: true });
-
-		expect(normalized).toContain('<script type="module" src="/@vite/client"></script></head>');
-	});
-
-	it('does not inject a duplicate Vite client script when one is already present', () => {
-		const body = [
-			'<!DOCTYPE html><html><head>',
-			'<script type="module" src="/@vite/client"></script>',
-			'</head><body></body></html>',
-		].join('');
-		const normalized = normalizeHtmlResponse(body, { injectViteClient: true });
-
-		expect(normalized.match(/\/@vite\/client/g)).toHaveLength(1);
-	});
-
-	it('does not inject Vite client script by default', () => {
-		const body = '<!DOCTYPE html><html><head></head><body></body></html>';
-		const normalized = normalizeHtmlResponse(body);
-
-		expect(normalized).not.toContain('/@vite/client');
-	});
 });
 
 describe('ecopagesConfig', () => {

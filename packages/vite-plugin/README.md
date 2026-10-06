@@ -23,6 +23,8 @@ export default defineConfig({
 
 By default the plugin loads and finalizes `eco.config.ts` from the project root. Pass `configFile` for a custom path, or `appConfig` in tests to skip loading.
 
+Ecopages pages are served as under `ecopages dev`, so Vite's HTML hooks (`transformIndexHtml`, `%VITE_*%` replacement, `html.cspNonce`) do not run on them.
+
 ## Plugin ordering
 
 `ecopages()` returns multiple dev-only plugins. Register it **before** framework-specific Vite plugins such as `@vitejs/plugin-react` or Tailwind when those plugins also transform JSX or CSS.

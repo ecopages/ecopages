@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import { isDocumentHtmlNavigationFromHeaders } from './document-html-navigation.ts';
-import { injectEcopagesDocumentDevBootstrap, stripViteBrowserHmrScripts } from './ecopages-hmr-runtime-injection.ts';
+import { injectEcopagesHmrRuntimeIntoHtml } from './ecopages-hmr-runtime-injection.ts';
 import { normalizeHtmlResponse } from './html-transforms.ts';
 import type { ServerResponse } from 'node:http';
 import { normalizePath, type Connect, type EnvironmentModuleNode, type ViteDevServer } from 'vite';
@@ -173,13 +173,17 @@ function isConnectDocumentNavigation(req: Connect.IncomingMessage): boolean {
 	});
 }
 
-async function sendAppResponse(
-	res: ServerResponse,
-	response: Response,
-	server: ViteDevServer,
-	requestUrl: string,
-	req: Connect.IncomingMessage,
-): Promise<void> {
+/**
+ * Sends an app response, adding the Ecopages HMR runtime to HTML documents.
+ *
+ * @remarks
+ * Document HTML does not go through `server.transformIndexHtml`. Core builds the page and its scripts, the
+ * Ecopages HMR runtime is the browser client, and Vite HMR is off, so Vite's client injection would have to
+ * be stripped again, and its pre-transform of each script URL fails for core-built `/assets/...` files and
+ * logs a `Pre-transform error` per document request. Pages are served as under `ecopages dev`, so other
+ * Vite plugins' `transformIndexHtml` hooks do not apply to them.
+ */
+async function sendAppResponse(res: ServerResponse, response: Response, req: Connect.IncomingMessage): Promise<void> {
 	const contentType = response.headers.get('content-type') ?? '';
 
 	if (!contentType.includes('text/html')) {
@@ -189,15 +193,9 @@ async function sendAppResponse(
 
 	const originalBody = await response.text();
 	const normalizedBody = normalizeHtmlResponse(originalBody);
-	const isDocumentNavigation = isConnectDocumentNavigation(req);
-	let rewrittenBody = isDocumentNavigation
-		? await server.transformIndexHtml(requestUrl, normalizedBody)
+	const rewrittenBody = isConnectDocumentNavigation(req)
+		? injectEcopagesHmrRuntimeIntoHtml(normalizedBody)
 		: normalizedBody;
-
-	if (isDocumentNavigation) {
-		rewrittenBody = stripViteBrowserHmrScripts(rewrittenBody);
-		rewrittenBody = injectEcopagesDocumentDevBootstrap(rewrittenBody);
-	}
 
 	const headers = new Headers(response.headers);
 	headers.delete('content-length');
@@ -243,8 +241,8 @@ function isViteConfigFile(server: ViteDevServer, ecoConfigPath: string | undefin
  *
  * Intercepts all non-asset requests, converts them to standard `Request`
  * objects, and delegates to `app.fetch()`. HTML responses are post-processed
- * with {@link normalizeHtmlResponse} to handle Lit SSR slot placement and
- * Vite client injection.
+ * with {@link normalizeHtmlResponse} to handle Lit SSR slot placement, and
+ * documents get the Ecopages HMR runtime.
  *
  * @remarks
  * Each Vite server instance loads its own app. Nothing re-imports the app entry, so a change to it or to a
@@ -316,7 +314,7 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 						const baseUrl = resolveEcopagesDevServerOrigin(api.getDevServerOrigin(), api.appConfig.baseUrl);
 						const webRequest = toWebRequest(req, baseUrl);
 						const response = await app.fetch(webRequest);
-						await sendAppResponse(res, response, server, webRequest.url, req);
+						await sendAppResponse(res, response, req);
 					} catch (error) {
 						next(error);
 					}

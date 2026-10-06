@@ -91,8 +91,13 @@ Ecopages now discovers the document shell and error pages semantically:
 
 <ApiField name="additionalWatchPaths" type="string[]" defaultValue="[]">
 	Add additional files or directories to monitor during development. Paths are resolved from the project root, so
-	`src/registry` watches every file inside that folder. Glob patterns such as `**/*.config.ts` are also supported. A
-	matching change invalidates server modules, notifies processors, and reloads the browser.
+	`src/registry` watches every file inside that folder. An entry containing `*` is a glob pattern, such as
+	`content/**/*.md` or `**/*.config.ts`; any other entry is a plain path, even with brackets. Globs are anchored at
+	the project root: `*.css` matches only top-level files, and `**/*.css` matches at any depth. Ecopages watches the
+	folder before the first wildcard (`content`, or the project root for a pattern starting with `**`) and reacts only
+	to files that match. `*` and `**` do not match names starting with a dot unless the pattern spells the dot, as in
+	`.github/**/*.yml`. To match a literal bracket in a glob, write `[[]`, as in `src/pages/[[]slug]/*.md`. A matching
+	change invalidates server modules, notifies processors, and reloads the browser.
 </ApiField>
 
 <ApiField

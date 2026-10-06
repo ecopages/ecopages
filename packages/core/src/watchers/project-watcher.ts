@@ -1,3 +1,4 @@
+import type { Stats } from 'node:fs';
 import path from 'node:path';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { fileSystem } from '@ecopages/file-system';
@@ -16,6 +17,12 @@ import { isRegisteredDevTransformEntrypoint } from '../hmr/hmr-entrypoint-output
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 import { createProjectWatcherIgnorePredicate } from './project-watcher-ignore.ts';
 import { resolveRuntimeRestartWatchPaths } from '../dev/development-restart-watch-paths.ts';
+import {
+	type AdditionalWatchPath,
+	matchesAdditionalWatchPath,
+	mayContainAdditionalWatchMatches,
+	resolveAdditionalWatchPath,
+} from '../utils/additional-watch-paths.ts';
 
 /**
  * Configuration options for the ProjectWatcher
@@ -491,6 +498,13 @@ export class ProjectWatcher {
 	 *
 	 * Uses chokidar's built-in debouncing through `awaitWriteFinish` to handle
 	 * rapid file changes efficiently.
+	 *
+	 * @remarks
+	 * A glob in `additionalWatchPaths` is watched through its static base
+	 * directory, which can be the project root for `**` patterns. Files reached
+	 * only through such a base are ignored unless they match a pattern, and so
+	 * are dot-directories the pattern does not name, so a broad base does not
+	 * feed unrelated files into the change pipeline.
 	 */
 	public async createWatcherSubscription() {
 		if (this.watcher) {
@@ -518,21 +532,37 @@ export class ProjectWatcher {
 			processorPaths.add(this.appConfig.absolutePaths.publicDir);
 		}
 
-		for (const watchPath of this.appConfig.additionalWatchPaths) {
-			const resolvedWatchPath =
-				path.isAbsolute(watchPath) || watchPath.includes('*')
-					? watchPath
-					: path.resolve(this.appConfig.rootDir, watchPath);
-			processorPaths.add(resolvedWatchPath);
+		const globWatchPaths: AdditionalWatchPath[] = [];
+		for (const pattern of this.appConfig.additionalWatchPaths) {
+			const watchPath = resolveAdditionalWatchPath(pattern, this.appConfig.rootDir);
+			if (!watchPath.glob) {
+				processorPaths.add(watchPath.base);
+				continue;
+			}
+
+			if (path.dirname(watchPath.base) === watchPath.base) {
+				appLogger.warn(
+					`additionalWatchPaths entry "${pattern}" watches the filesystem root; start it with a directory.`,
+				);
+			}
+			globWatchPaths.push(watchPath);
 		}
 
 		for (const restartPath of resolveRuntimeRestartWatchPaths(this.appConfig)) {
 			processorPaths.add(restartPath);
 		}
 
-		const ignored = createProjectWatcherIgnorePredicate(this.appConfig.absolutePaths);
+		const literalPaths = Array.from(processorPaths);
+		const ignoreProjectPath = createProjectWatcherIgnorePredicate(this.appConfig.absolutePaths);
+		const ignored = (watchedPath: string, stats?: Stats): boolean => {
+			if (ignoreProjectPath(watchedPath)) return true;
+			if (!stats || literalPaths.some((literalPath) => isPathInside(watchedPath, literalPath))) return false;
+			return stats.isDirectory()
+				? !globWatchPaths.some((watchPath) => mayContainAdditionalWatchMatches(watchedPath, watchPath))
+				: !globWatchPaths.some((watchPath) => matchesAdditionalWatchPath(watchedPath, watchPath));
+		};
 
-		this.watcher = chokidar.watch(Array.from(processorPaths), {
+		this.watcher = chokidar.watch([...literalPaths, ...new Set(globWatchPaths.map(({ base }) => base))], {
 			ignoreInitial: true,
 			ignorePermissionErrors: true,
 			ignored,

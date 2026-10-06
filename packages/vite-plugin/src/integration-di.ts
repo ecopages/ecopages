@@ -39,19 +39,6 @@ export interface EcopagesIslandRegistryModule {
 }
 
 /**
- * Resolved module ids and directory paths forwarded into the Ecopages runtime.
- */
-export interface EcopagesRendererModuleContext {
-	appConfig: EcoPagesAppConfig;
-	integrationManifestModuleId: typeof ECOPAGES_INTEGRATION_MANIFEST_MODULE_ID;
-	islandClientModuleId: typeof ECOPAGES_ISLAND_CLIENT_MODULE_ID;
-	islandRegistryModuleId: typeof ECOPAGES_ISLAND_REGISTRY_MODULE_ID;
-	htmlTemplateModulePath: string;
-	pagesDirectoryPath: string;
-	layoutsDirectoryPath: string;
-}
-
-/**
  * Creates the source for the generated integration manifest virtual module.
  */
 export function createIntegrationManifestModuleSource(appConfig: EcoPagesAppConfig): string {
@@ -105,19 +92,4 @@ export function createIslandRegistryModuleSourceFromConfig(appConfig: EcoPagesAp
 		: '{}';
 
 	return `export const islands = ${globExpression};\nexport const islandPatterns = ${JSON.stringify(globPatterns, null, 2)};\n`;
-}
-
-/**
- * Creates the renderer module context injected into the Ecopages runtime.
- */
-export function createRendererModuleContext(appConfig: EcoPagesAppConfig): EcopagesRendererModuleContext {
-	return {
-		appConfig,
-		htmlTemplateModulePath: appConfig.absolutePaths.htmlTemplatePath,
-		integrationManifestModuleId: ECOPAGES_INTEGRATION_MANIFEST_MODULE_ID,
-		islandClientModuleId: ECOPAGES_ISLAND_CLIENT_MODULE_ID,
-		islandRegistryModuleId: ECOPAGES_ISLAND_REGISTRY_MODULE_ID,
-		layoutsDirectoryPath: appConfig.absolutePaths.layoutsDir,
-		pagesDirectoryPath: appConfig.absolutePaths.pagesDir,
-	};
 }

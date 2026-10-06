@@ -1,5 +1,3 @@
-import { hostOwnsDevClient } from '@ecopages/core/dev/dev-client-ownership';
-import { createRendererModuleContext } from './integration-di.ts';
 import { resolveViteDevServerOrigin } from './resolve-vite-dev-origin.ts';
 import type { Alias, AliasOptions, ResolvedConfig, SSROptions } from 'vite';
 import type { EcopagesPluginApi } from './plugin-api.ts';
@@ -69,7 +67,7 @@ function mergeNoExternal(existing: SSROptions['noExternal'], additions: string[]
 }
 
 /**
- * Applies Ecopages-owned defaults to the host Vite config and renderer module context.
+ * Applies Ecopages-owned defaults to the host Vite config and syncs the dev-server origin.
  */
 export function ecopagesConfig(api: EcopagesPluginApi): EcopagesVitePlugin {
 	return {
@@ -80,11 +78,6 @@ export function ecopagesConfig(api: EcopagesPluginApi): EcopagesVitePlugin {
 			api.setDevServerOrigin(devServerOrigin);
 			api.appConfig.baseUrl = devServerOrigin;
 
-			api.appConfig.runtime = {
-				...(api.appConfig.runtime ?? {}),
-				rendererModuleContext: createRendererModuleContext(api.appConfig),
-			};
-
 			if (!api.options.diagnostics.logResolvedPluginNames) {
 				return;
 			}
@@ -92,13 +85,6 @@ export function ecopagesConfig(api: EcopagesPluginApi): EcopagesVitePlugin {
 			console.info(`[ecopages] plugins: ${api.getResolvedPluginNames().join(', ')}`);
 		},
 		config(config): EcopagesViteUserConfig {
-			const existingHmr = config.server?.hmr;
-			api.appConfig.runtime = {
-				...(api.appConfig.runtime ?? {}),
-				devClientOwner: 'host',
-			};
-			const disableViteHmr = hostOwnsDevClient(api.appConfig.runtime);
-
 			return {
 				resolve: {
 					alias: mergeAliases(config.resolve?.alias, api.options.aliases),
@@ -110,16 +96,7 @@ export function ecopagesConfig(api: EcopagesPluginApi): EcopagesVitePlugin {
 					noExternal: mergeNoExternal(config.ssr?.noExternal, api.options.ssr.noExternal),
 				},
 				server: {
-					hmr:
-						existingHmr === false || disableViteHmr
-							? false
-							: {
-									...(typeof existingHmr === 'object' ? existingHmr : {}),
-									overlay:
-										typeof existingHmr === 'object' && existingHmr.overlay !== undefined
-											? existingHmr.overlay
-											: false,
-								},
+					hmr: false,
 				},
 			};
 		},

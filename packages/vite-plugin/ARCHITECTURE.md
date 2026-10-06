@@ -9,7 +9,7 @@ This document captures implementation decisions, extension points, and follow-up
 | Order | Plugin                       | Responsibility                                                           |
 | ----- | ---------------------------- | ------------------------------------------------------------------------ |
 | 1     | `ecopages:client-jsx-compat` | `enforce: 'pre'` host JSX pragma for non-host integrations on the client |
-| 2     | `ecopages:config`            | Vite config merge + renderer module context + dev-server origin sync     |
+| 2     | `ecopages:config`            | Vite config merge + dev-server origin sync                               |
 | 3     | `ecopages:metadata`          | `eco-component-meta` transform                                           |
 | 4+    | dynamic source transforms    | Bundler-neutral transforms from `appConfig.sourceTransforms`             |
 | N     | `ecopages-virtual-modules`   | Integration manifest, island registry, image bridge                      |

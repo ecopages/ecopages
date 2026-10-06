@@ -1,6 +1,5 @@
 import path from 'node:path';
 import type { ViteDevServer } from 'vite';
-import type { EcopagesPluginApi } from './plugin-api.ts';
 
 export type EcopagesEmbeddedApp = {
 	fetch: (request: Request) => Promise<Response>;
@@ -12,9 +11,9 @@ export type EcopagesEmbeddedApp = {
 	stop?: () => Promise<void>;
 };
 
-export async function registerHostModuleLoader(server: ViteDevServer, api: EcopagesPluginApi): Promise<void> {
+export async function registerHostModuleLoader(server: ViteDevServer): Promise<void> {
 	const runtimeModule = (await server.ssrLoadModule('@ecopages/core/dev/host-runtime')) as {
-		createDevelopmentHostRuntime?: (appConfig: EcopagesPluginApi['appConfig']) => {
+		createDevelopmentHostRuntime?: () => {
 			registerHostModuleLoader(loader: (id: string) => Promise<unknown>): void;
 		};
 	};
@@ -23,8 +22,7 @@ export async function registerHostModuleLoader(server: ViteDevServer, api: Ecopa
 		throw new Error('[ecopages] @ecopages/core/dev/host-runtime must export createDevelopmentHostRuntime()');
 	}
 
-	const hostRuntime = runtimeModule.createDevelopmentHostRuntime(api.appConfig);
-	hostRuntime.registerHostModuleLoader((id: string) => server.ssrLoadModule(id));
+	runtimeModule.createDevelopmentHostRuntime().registerHostModuleLoader((id: string) => server.ssrLoadModule(id));
 }
 
 export async function loadApp(server: ViteDevServer, appEntryPath: string): Promise<EcopagesEmbeddedApp> {

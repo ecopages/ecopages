@@ -16,7 +16,7 @@ Hydratable component instances stamp a small, integration-agnostic attribute set
 | `data-eco-island-integration` | Owning integration (`react`, `lit`, `kitajs`, `ecopages-jsx`, …) |
 | `data-eco-component-id` | Stable instance id from the render pipeline |
 | `data-eco-component-key` | Optional module key used by client hydration (React) |
-| `data-eco-props` | Optional base64 JSON props snapshot for hydration |
+| `data-eco-props` | Optional props snapshot for hydration: base64 of UTF-8 JSON |
 
 React may replace the SSR host with `<eco-island>` after hydration. The marker is applied at SSR time on the component root.
 

@@ -1,5 +1,6 @@
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import { prependJsxImportSourceIfMissing } from './jsx-import-source.utils.ts';
+import { RolldownMagicString } from 'rolldown';
+import { createJsxImportSourcePragma } from './jsx-import-source.utils.ts';
 import type { EcoSourceTransform, EcoViteCompatiblePlugin } from './source-transform.ts';
 import { createEcoBuildPluginFromSourceTransform, createVitePluginFromSourceTransform } from './source-transform.ts';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
@@ -58,11 +59,11 @@ function walkAst(node: unknown, visit: (node: AstNode) => void): void {
 }
 
 function addNamedImport(
-	contents: string,
+	magic: RolldownMagicString,
 	program: AstNode,
 	sourceModule: string,
 	importedName: string | readonly string[],
-): string {
+): void {
 	const importedNames = typeof importedName === 'string' ? [importedName] : [...importedName];
 	const imports = (program.body as unknown[]).filter(
 		(node): node is AstNode =>
@@ -72,7 +73,10 @@ function addNamedImport(
 			node.source.value === sourceModule,
 	);
 	const valueImport = imports.find((node) => node.importKind !== 'type');
-	if (!valueImport) return `import { ${importedNames.join(', ')} } from '${sourceModule}';\n${contents}`;
+	if (!valueImport) {
+		magic.prepend(`import { ${importedNames.join(', ')} } from '${sourceModule}';\n`);
+		return;
+	}
 
 	const specifiers = Array.isArray(valueImport.specifiers) ? valueImport.specifiers.filter(isAstNode) : [];
 	const existingNames = new Set(
@@ -84,29 +88,24 @@ function addNamedImport(
 	);
 	const missing = importedNames.filter((name) => !existingNames.has(name));
 	if (missing.length === 0) {
-		return contents;
+		return;
 	}
 
 	const namedSpecifiers = specifiers.filter((specifier) => specifier.type === 'ImportSpecifier');
-	if (namedSpecifiers.length > 0) {
-		const lastSpecifier = namedSpecifiers[namedSpecifiers.length - 1]!;
-		return `${contents.slice(0, lastSpecifier.end)}, ${missing.join(', ')}${contents.slice(lastSpecifier.end)}`;
-	}
-
-	if (specifiers.some((specifier) => specifier.type === 'ImportNamespaceSpecifier')) {
-		return `import { ${missing.join(', ')} } from '${sourceModule}';\n${contents}`;
+	const lastNamedSpecifier = namedSpecifiers[namedSpecifiers.length - 1];
+	if (typeof lastNamedSpecifier?.end === 'number') {
+		magic.appendLeft(lastNamedSpecifier.end, `, ${missing.join(', ')}`);
+		return;
 	}
 
 	const defaultSpecifier = specifiers.find((specifier) => specifier.type === 'ImportDefaultSpecifier');
-	if (defaultSpecifier) {
-		return `${contents.slice(0, defaultSpecifier.end)}, { ${missing.join(', ')} }${contents.slice(defaultSpecifier.end)}`;
+	const hasNamespaceSpecifier = specifiers.some((specifier) => specifier.type === 'ImportNamespaceSpecifier');
+	if (!hasNamespaceSpecifier && typeof defaultSpecifier?.end === 'number') {
+		magic.appendLeft(defaultSpecifier.end, `, { ${missing.join(', ')} }`);
+		return;
 	}
 
-	return `import { ${missing.join(', ')} } from '${sourceModule}';\n${contents}`;
-}
-
-function addIdentityBindingImport(contents: string, program: AstNode): string {
-	return addNamedImport(contents, program, '@ecopages/core', 'bindComponentIdentity');
+	magic.prepend(`import { ${missing.join(', ')} } from '${sourceModule}';\n`);
 }
 
 function serializeDiscoveryArgument(discovered: DiscoveredImports | undefined): string {
@@ -152,42 +151,65 @@ export function attributeComponentIdentity(
 	integration: string,
 	projectRoot?: string,
 ): string {
-	if (!contents.includes('eco.')) return contents;
+	const magic = new RolldownMagicString(contents);
+	applyComponentIdentity(magic, filePath, integration, projectRoot);
+	return magic.toString();
+}
+
+/**
+ * Wraps the first argument of each `eco.*()` factory call in `bindComponentIdentity(...)`.
+ *
+ * @remarks
+ * Edits go through `magic` so the caller can emit a source map. A factory call
+ * nested in the argument of another one is left as is; only the outer call is wrapped.
+ */
+function applyComponentIdentity(
+	magic: RolldownMagicString,
+	filePath: string,
+	integration: string,
+	projectRoot?: string,
+): void {
+	const contents = magic.original;
+	if (!contents.includes('eco.')) return;
 
 	let program: AstNode;
 	try {
 		program = parseModuleSource(filePath, contents, { sourceType: 'module' }).program as unknown as AstNode;
 	} catch {
-		return contents;
+		return;
 	}
 
 	const identityLiteral = `{ id: ${JSON.stringify(rapidhash(filePath).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
 	const edits: SourceEdit[] = [];
 	const hasFactory = hasEcoFactoryCall(program);
+
 	const discovered = hasFactory && projectRoot ? discoverComponentImports(program, filePath, projectRoot) : undefined;
 	const discoveryArgument = serializeDiscoveryArgument(discovered);
+	const wrapped: Array<{ start: number; end: number }> = [];
 	walkAst(program, (node) => {
 		if (!isEcoFactoryCall(node) || !Array.isArray(node.arguments)) return;
 		const firstArgument = node.arguments[0];
 		if (!isAstNode(firstArgument) || isIdentityBinding(firstArgument)) return;
-		if (typeof firstArgument.start !== 'number' || typeof firstArgument.end !== 'number') return;
-		edits.push({
-			start: firstArgument.start,
-			end: firstArgument.end,
-			replacement: `bindComponentIdentity(${identityLiteral}, ${contents.slice(firstArgument.start, firstArgument.end)}${discoveryArgument})`,
-		});
+		const { start, end } = firstArgument;
+		if (typeof start !== 'number' || typeof end !== 'number') return;
+		if (wrapped.some((range) => start >= range.start && end <= range.end)) return;
+		wrapped.push({ start, end });
+		magic.prependRight(start, `bindComponentIdentity(${identityLiteral}, `);
+		magic.appendLeft(end, `${discoveryArgument})`);
 	});
-	if (edits.length === 0) return contents;
-	edits.push(...(discovered?.removals ?? []));
+	if (wrapped.length === 0) return;
+	applySourceEdits(magic, discovered?.removals ?? []);
+	addNamedImport(magic, program, '@ecopages/core', 'bindComponentIdentity');
+}
 
-	let transformed = contents;
-	for (const edit of edits.sort((left, right) => right.start - left.start)) {
-		transformed = `${transformed.slice(0, edit.start)}${edit.replacement}${transformed.slice(edit.end)}`;
+function applySourceEdits(magic: RolldownMagicString, edits: readonly SourceEdit[]): void {
+	for (const { start, end, replacement } of edits) {
+		if (replacement) {
+			magic.overwrite(start, end, replacement);
+		} else {
+			magic.remove(start, end);
+		}
 	}
-	return addIdentityBindingImport(
-		transformed,
-		parseModuleSource(filePath, transformed, { sourceType: 'module' }).program as unknown as AstNode,
-	);
 }
 
 function findMdxConfigDeclarator(program: AstNode): AstNode | undefined {
@@ -285,18 +307,11 @@ export function attributeMdxComponentIdentity(
 	});
 	const appended = buildMdxIdentityAppend({ configDeclarator, identityLiteral, discoveryArgument });
 
-	let transformed = contents;
-	for (const edit of edits.sort((left, right) => right.start - left.start)) {
-		transformed = `${transformed.slice(0, edit.start)}${edit.replacement}${transformed.slice(edit.end)}`;
-	}
-	transformed = `${transformed}\n${appended}`;
-
-	return addNamedImport(
-		transformed,
-		parseModuleSource(filePath, transformed, { lang: 'jsx', sourceType: 'module' }).program as unknown as AstNode,
-		'@ecopages/core',
-		['bindComponentIdentity', 'attachDiscoveredDependencies'],
-	);
+	const magic = new RolldownMagicString(contents);
+	applySourceEdits(magic, edits);
+	magic.append(`\n${appended}`);
+	addNamedImport(magic, program, '@ecopages/core', ['bindComponentIdentity', 'attachDiscoveredDependencies']);
+	return magic.toString();
 }
 
 function createComponentMetaFilter(config: EcoPagesAppConfig): RegExp {
@@ -315,14 +330,17 @@ export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOp
 		transform(code, id) {
 			const integration = findIntegrationForFile(options.config.integrations, id);
 			if (!integration) {
-				return { code };
+				return undefined;
 			}
-			return {
-				code: prependJsxImportSourceIfMissing(
-					attributeComponentIdentity(code, id, integration.name, options.config.rootDir),
-					integration.jsxImportSource,
-				),
-			};
+			const magic = new RolldownMagicString(code);
+			applyComponentIdentity(magic, id, integration.name, options.config.rootDir);
+			if (integration.jsxImportSource && !code.includes('@jsxImportSource')) {
+				magic.prepend(createJsxImportSourcePragma(integration.jsxImportSource));
+			}
+			if (!magic.hasChanged()) {
+				return undefined;
+			}
+			return { code: magic.toString(), map: magic.generateMap({ source: id, hires: true }).toString() };
 		},
 	};
 }

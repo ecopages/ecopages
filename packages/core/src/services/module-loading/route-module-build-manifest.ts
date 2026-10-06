@@ -1,12 +1,6 @@
 import path from 'node:path';
 import { readProductionCacheManifest, writeProductionCacheManifest } from '../../build/cache/production-build-cache.ts';
-import {
-	createJsxCacheKey,
-	createPluginCacheKey,
-	createSourceTransformCacheKey,
-	getCorePackageVersion,
-} from '../../build/cache/cache-keys.ts';
-import type { BuildOptions } from '../../build/contracts/build-contracts.ts';
+import { createJsxCacheKey, createPluginCacheKey, getCorePackageVersion } from '../../build/cache/cache-keys.ts';
 import type { PageModuleBuildImportOptions } from './page-module-import.service.ts';
 import type { RouteModuleDependencyHashes } from './route-module-dependency-hasher.ts';
 
@@ -83,10 +77,7 @@ export function shouldPersistRouteModuleBuildCache(options: PageModuleBuildImpor
 }
 
 /** Canonical reuse identity for route-module memory and disk caches. */
-export function createRouteModuleReuseIdentity(
-	options: PageModuleBuildImportOptions,
-	sourceTransforms?: BuildOptions['sourceTransforms'],
-): string {
+export function createRouteModuleReuseIdentity(options: PageModuleBuildImportOptions): string {
 	return [
 		path.resolve(options.rootDir),
 		path.resolve(options.outdir),
@@ -94,7 +85,6 @@ export function createRouteModuleReuseIdentity(
 		options.externalPackages ?? 'default',
 		createJsxCacheKey(options.jsx),
 		createPluginCacheKey(options.plugins),
-		createSourceTransformCacheKey(sourceTransforms),
 	].join('::');
 }
 
@@ -112,11 +102,11 @@ export function resolvePageModuleOutputFileName(options: { filePath: string; fil
  */
 export function createPersistedRouteModuleBuildKey(
 	options: PageModuleBuildImportOptions,
-	sourceTransforms?: BuildOptions['sourceTransforms'],
 	configHash?: string,
 ): string {
-	const reuseIdentity = createRouteModuleReuseIdentity(options, sourceTransforms);
+	const reuseIdentity = createRouteModuleReuseIdentity(options);
 	return configHash === undefined ? reuseIdentity : `${reuseIdentity}::config:${configHash}`;
+
 }
 
 export function createEmptyRouteModuleBuildCacheManifest(): RouteModuleBuildCacheManifest {

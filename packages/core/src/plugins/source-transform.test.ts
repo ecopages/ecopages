@@ -1,8 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
-import { fileSystem } from '@ecopages/file-system';
+import { describe, expect, it } from 'vitest';
 import {
 	applySourceTransform,
-	applySourceTransforms,
 	createVitePluginsFromAppSourceTransforms,
 	createEcoBuildPluginFromSourceTransform,
 	getAppSourceTransforms,
@@ -36,42 +34,6 @@ describe('source-transform', () => {
 		});
 	});
 
-	it('applies transforms in pre, default, and post order', () => {
-		const calls: string[] = [];
-		const transforms = [
-			{
-				name: 'post',
-				enforce: 'post' as const,
-				filter: /main\.tsx$/,
-				transform(code: string) {
-					calls.push('post');
-					return code;
-				},
-			},
-			{
-				name: 'pre',
-				enforce: 'pre' as const,
-				filter: /main\.tsx$/,
-				transform(code: string) {
-					calls.push('pre');
-					return code;
-				},
-			},
-			{
-				name: 'default',
-				filter: /main\.tsx$/,
-				transform(code: string) {
-					calls.push('default');
-					return code;
-				},
-			},
-		];
-
-		applySourceTransforms(transforms, 'export const value = 1;', '/src/main.tsx');
-
-		expect(calls).toEqual(['pre', 'default', 'post']);
-	});
-
 	it('creates a Vite-compatible transform plugin', () => {
 		const vitePlugin = createVitePluginFromSourceTransform(transform);
 		const result = vitePlugin.transform('export const value = 1;', '/src/main.tsx?import');
@@ -82,29 +44,15 @@ describe('source-transform', () => {
 		});
 	});
 
-	it('creates an Ecopages build plugin wrapper', async () => {
-		const buildPlugin = createEcoBuildPluginFromSourceTransform(transform);
-		let onLoadCallback: ((args: { path: string }) => unknown) | undefined;
+	it('adapts a source transform to a build plugin with a transform hook', () => {
+		const buildPlugin = createEcoBuildPluginFromSourceTransform({ ...transform, enforce: 'pre' });
 
-		buildPlugin.setup({
-			onLoad(_options: unknown, callback: unknown) {
-				onLoadCallback = callback as typeof onLoadCallback;
-			},
-		} as never);
-
-		const readSpy = vi.spyOn(fileSystem, 'readFileSync').mockReturnValue('export const value = 1;');
-
-		try {
-			const result = await onLoadCallback?.({ path: '/src/main.tsx?import' });
-
-			expect(result).toEqual({
-				contents: '/* injected */\nexport const value = 1;',
-				loader: 'tsx',
-				resolveDir: '/src',
-			});
-		} finally {
-			readSpy.mockRestore();
-		}
+		expect(buildPlugin.name).toBe('test-transform');
+		expect(buildPlugin.transform?.filter).toBe(transform.filter);
+		expect(buildPlugin.transform?.order).toBe('pre');
+		expect(buildPlugin.transform?.handler('export const value = 1;', '/src/main.tsx')).toEqual({
+			code: '/* injected */\nexport const value = 1;',
+		});
 	});
 
 	it('collects app-owned source transforms and adapts them to Vite plugins', () => {
@@ -115,5 +63,25 @@ describe('source-transform', () => {
 		expect(getAppSourceTransforms(appConfig)).toEqual([transform]);
 		expect(createVitePluginsFromAppSourceTransforms(appConfig)).toHaveLength(1);
 		expect(createVitePluginsFromAppSourceTransforms(appConfig)[0].name).toBe('test-transform');
+	});
+
+	it('calls a class-based transform with its own this on the Vite and build plugin paths', () => {
+		class BannerTransform implements EcoSourceTransform {
+			readonly name = 'banner';
+			readonly filter = /main\.tsx$/;
+			readonly #banner = '/* banner */';
+
+			transform(code: string): string {
+				return `${this.#banner}${code}`;
+			}
+		}
+		const classTransform = new BannerTransform();
+
+		expect(createVitePluginFromSourceTransform(classTransform).transform('x', '/src/main.tsx')).toBe(
+			'/* banner */x',
+		);
+		expect(createEcoBuildPluginFromSourceTransform(classTransform).transform?.handler('x', '/src/main.tsx')).toBe(
+			'/* banner */x',
+		);
 	});
 });

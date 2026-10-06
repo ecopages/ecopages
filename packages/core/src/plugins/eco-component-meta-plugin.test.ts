@@ -1,11 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
 	createEcoComponentMetaPlugin,
 	createEcoComponentMetaTransform,
 	createEcoComponentMetaVitePlugin,
 } from './eco-component-meta-plugin';
+import { normalizeTransformId } from './source-transform';
 import type { EcoPagesAppConfig } from '../types/internal-types';
-import { fileSystem } from '@ecopages/file-system';
 
 /**
  * Creates a regex pattern to match identity attribution with any id hash.
@@ -41,34 +41,18 @@ describe('eco-component-meta-plugin', () => {
 	const plugin = createEcoComponentMetaPlugin({ config: Config });
 	const transform = createEcoComponentMetaTransform({ config: Config });
 
-	async function runPluginOnContent(content: string, filePath: string) {
-		let regexFilter: RegExp | undefined;
-		let onLoadCallback: any;
-
-		const buildMock = {
-			onLoad: (options: { filter: RegExp }, callback: any) => {
-				regexFilter = options.filter;
-				onLoadCallback = callback;
-			},
-		};
-
-		plugin.setup(buildMock as any);
-
-		if (!onLoadCallback || !regexFilter) {
-			throw new Error('Plugin did not register onLoad handler');
+	function runPluginOnContent(content: string, filePath: string): { contents: string } {
+		const pluginTransform = plugin.transform;
+		if (!pluginTransform) {
+			throw new Error('Plugin did not declare a transform');
 		}
 
-		if (!regexFilter.test(filePath)) {
-			throw new Error(`File path ${filePath} does not match plugin filter ${regexFilter}`);
+		if (!pluginTransform.filter.test(filePath)) {
+			throw new Error(`File path ${filePath} does not match plugin filter ${pluginTransform.filter}`);
 		}
 
-		const fileSpy = vi.spyOn(fileSystem, 'readFileSync').mockImplementation(() => content);
-
-		try {
-			return await onLoadCallback({ path: filePath });
-		} finally {
-			fileSpy.mockRestore();
-		}
+		const result = pluginTransform.handler(content, normalizeTransformId(filePath));
+		return { contents: typeof result === 'string' ? result : (result?.code ?? content) };
 	}
 
 	it('creates a bundler-neutral transform that strips query suffixes through the Vite adapter', () => {
@@ -80,6 +64,7 @@ describe('eco-component-meta-plugin', () => {
 
 		expect(typeof result).toBe('object');
 		expect((result as { code: string }).code).toMatch(ecoMetaPattern('/path/to/pages/index.tsx', 'react'));
+		expect(JSON.parse((result as { map: string }).map).sources).toEqual(['/path/to/pages/index.tsx']);
 	});
 
 	it('creates a shared transform primitive that can run without the loader wrapper', () => {
@@ -413,9 +398,7 @@ export default eco.page({
 			'/path/to/notes.md',
 		);
 
-		expect(typeof result).toBe('object');
-		expect((result as { code: string }).code).not.toContain('bindComponentIdentity');
-		expect((result as { code: string }).code).not.toContain('unknown');
+		expect(result).toBeUndefined();
 	});
 
 	describe('Regression: eco-blog views failure', () => {

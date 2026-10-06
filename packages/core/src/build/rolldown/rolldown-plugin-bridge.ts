@@ -7,7 +7,7 @@
  * the bundler's native `Plugin` array. The bridge exposes the same
  * three hooks (`onResolve`, `onLoad`, `module`) the `EcoBuildPlugin`
  * contract uses, but maps them to the bundler's `resolveId`/`load`
- * hooks.
+ * hooks, and maps a plugin's `transform` to a `transform` hook.
  *
  * The shared `EcoBuildPlugin` contract stays the boundary between
  * integrations and bundler backends.
@@ -41,11 +41,18 @@
  */
 
 import path from 'node:path';
-import type { LoadResult, PartialResolvedId, Plugin, ResolveIdResult, SourceDescription } from 'rolldown';
-import { id as idFilter, include } from 'rolldown/filter';
+import type {
+	LoadResult,
+	PartialResolvedId,
+	Plugin,
+	ResolveIdResult,
+	SourceDescription,
+	SourceMapInput,
+	TransformResult,
+} from 'rolldown';
+import { exclude, id as idFilter, include } from 'rolldown/filter';
 import { escapeRegExp } from '../browser/browser-runtime-plugin-helpers.ts';
-import { finalizeLoadResultWithSourceTransforms } from './rolldown-source-transform-pass.ts';
-import type { EcoSourceTransform } from '../../plugins/source-transform.ts';
+import { normalizeTransformId } from '../../plugins/source-transform.ts';
 import type {
 	EcoBuildOnLoadArgs,
 	EcoBuildOnLoadResult,
@@ -53,9 +60,13 @@ import type {
 	EcoBuildOnResolveResult,
 	EcoBuildPlugin,
 	EcoBuildPluginBuilder,
+	EcoBuildTransform,
 } from '../contracts/build-types.ts';
 
 const NAMESPACE_SEPARATOR = ':';
+
+/** Matches an id in a bridge namespace, but not a drive letter or a `scheme://` URL. */
+const NAMESPACED_ID = /^[\w-]{2,}:(?!\/\/)/;
 
 function joinNamespace(namespace: string | undefined, value: string): string {
 	return namespace ? `${namespace}${NAMESPACE_SEPARATOR}${value}` : value;
@@ -249,10 +260,12 @@ function createRegistration<Callback>(
 }
 
 /**
- * Creates the single Rolldown `Plugin` that drives the supplied
- * `EcoBuildPlugin` instances.
+ * Creates the Rolldown plugins that drive the supplied `EcoBuildPlugin`
+ * instances: one merged plugin for `onResolve`, `onLoad` and `module`,
+ * followed by one plugin per `EcoBuildPlugin` that declares `transform`.
  *
- * All eco plugins are merged into one Rolldown plugin. Its `resolveId`
+ * The `onResolve`, `onLoad` and `module` registrations of all eco plugins
+ * share one Rolldown plugin. Its `resolveId`
  * and `load` hooks check the registrations in `plugins` array order, so
  * registrations from earlier eco plugins win over later ones.
  *
@@ -266,23 +279,17 @@ function createRegistration<Callback>(
  * Rolldown tests filters against ids with `/` separators, so a filter
  * written for backslash separators does not match on Windows.
  *
+ * Each plugin `transform` becomes a Rolldown plugin of its own after the
+ * merged one, so Rolldown chains every matching transform and its source
+ * map. See {@link createRolldownTransformPlugin}.
+ *
  * Every build creates a new bridge, so registrations and the
  * virtual-module counter never carry over between builds.
  *
  * @param plugins - `EcoBuildPlugin` instances registered for this build.
  * @param contextRoot - Project root used to resolve relative load paths.
- * @param sourceTransforms - Optional app-owned transforms applied after a matching
- * `onLoad` handler returns module contents. Browser builds pass
- * {@link getAppSourceTransforms | app source transforms} here so metadata injection
- * still runs on output rewritten by boundary/runtime plugins. Virtual modules,
- * CSS, and asset loads are skipped. Their filters join the `load` hook filter,
- * tested with the query and hash stripped.
  */
-export async function createRolldownPluginBridge(
-	plugins: EcoBuildPlugin[],
-	contextRoot: string,
-	sourceTransforms: readonly EcoSourceTransform[] = [],
-): Promise<Plugin[]> {
+export async function createRolldownPluginBridge(plugins: EcoBuildPlugin[], contextRoot: string): Promise<Plugin[]> {
 	if (plugins.length === 0) {
 		return [];
 	}
@@ -341,9 +348,7 @@ export async function createRolldownPluginBridge(
 		return undefined;
 	};
 
-	const loadHandler = async (id: string) => {
-		let loadResult: LoadResult | undefined;
-
+	const loadHandler = async (id: string): Promise<LoadResult | undefined> => {
 		for (const { matches, callback } of loadRegistrations) {
 			if (!matches(id)) {
 				continue;
@@ -352,28 +357,11 @@ export async function createRolldownPluginBridge(
 			const result = await callback({ path: sourcePath, namespace });
 			const converted = convertPluginOnLoadResult({ id }, result);
 			if (converted !== undefined) {
-				loadResult = converted;
-				break;
+				return converted;
 			}
 		}
-
-		const { namespace, path: sourcePath } = splitNamespace(id);
-		return finalizeLoadResultWithSourceTransforms({
-			id,
-			namespace,
-			sourcePath,
-			loadResult,
-			sourceTransforms,
-			contextRoot,
-			inferModuleTypeFromPath: (filePath) =>
-				inferRolldownModuleTypeFromPath(filePath) as SourceDescription['moduleType'],
-		});
+		return undefined;
 	};
-
-	const loadFilter = [
-		...loadRegistrations.map(({ hookFilter }) => include(idFilter(hookFilter))),
-		...sourceTransforms.map(({ filter }) => include(idFilter(filter, { cleanUrl: true }))),
-	];
 
 	const plugin: Plugin = { name: 'ecopages-plugin-bridge' };
 	if (resolveRegistrations.length > 0) {
@@ -382,9 +370,53 @@ export async function createRolldownPluginBridge(
 			handler: resolveIdHandler,
 		};
 	}
-	if (loadFilter.length > 0) {
-		plugin.load = { filter: loadFilter, handler: loadHandler };
+	if (loadRegistrations.length > 0) {
+		plugin.load = {
+			filter: loadRegistrations.map(({ hookFilter }) => include(idFilter(hookFilter))),
+			handler: loadHandler,
+		};
 	}
 
-	return [plugin];
+	const transformPlugins = plugins.flatMap(({ name, transform }) =>
+		transform ? [createRolldownTransformPlugin(name, transform)] : [],
+	);
+
+	return [plugin, ...transformPlugins];
+}
+
+/**
+ * Maps one {@link EcoBuildTransform} to a Rolldown `transform` hook.
+ *
+ * @remarks
+ * A result without `map` returns `map: null`, which tells Rolldown the
+ * edit moved no code. Rolldown would otherwise drop the module's source
+ * map entirely.
+ *
+ * Virtual modules never reach a transform: ids that start with `\0`
+ * (Rolldown's runtime, plugin-owned virtual modules) and ids in a
+ * namespace such as `ecopages-content:`. A drive letter (`C:/`) or a
+ * URL scheme followed by `//` is not a namespace.
+ */
+function createRolldownTransformPlugin(name: string, transform: EcoBuildTransform): Plugin {
+	return {
+		name: `ecopages-transform:${name}`,
+		transform: {
+			order: transform.order,
+			filter: [
+				exclude(idFilter(/^\0/)),
+				exclude(idFilter(NAMESPACED_ID)),
+				include(idFilter(transform.filter, { cleanUrl: true })),
+			],
+			handler(code, id): TransformResult {
+				const result = transform.handler(code, normalizeTransformId(id));
+				if (result === undefined) {
+					return undefined;
+				}
+				if (typeof result === 'string') {
+					return { code: result, map: null };
+				}
+				return { code: result.code, map: (result.map ?? null) as SourceMapInput };
+			},
+		},
+	};
 }

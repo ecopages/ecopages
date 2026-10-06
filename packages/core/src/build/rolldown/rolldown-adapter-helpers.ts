@@ -467,9 +467,7 @@ async function buildRolldownInputPlugins(
 	outdir: string,
 	rolldownPlatform: ReturnType<typeof mapRolldownPlatform>,
 ): Promise<RolldownPlugin[]> {
-	const bundlePlugins = options.plugins ?? [];
-	const sourceTransforms = options.sourceTransforms ?? [];
-	const appPlugins = await createRolldownPluginBridge(bundlePlugins, contextRoot, sourceTransforms);
+	const appPlugins = await createRolldownPluginBridge(options.plugins ?? [], contextRoot);
 	return [
 		...(options.externalPackages === true
 			? [

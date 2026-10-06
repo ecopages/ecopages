@@ -1,6 +1,4 @@
-import path from 'node:path';
-import { fileSystem } from '@ecopages/file-system';
-import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
+import type { EcoBuildPlugin, EcoBuildTransform } from '../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 
 export interface EcoSourceTransformResult {
@@ -13,12 +11,14 @@ export interface EcoSourceTransformResult {
  *
  * @remarks
  * Prefer this shape over a competing {@link EcoBuildPlugin} `onLoad` handler when
- * the transform only rewrites module source. Browser/HMR builds run source
- * transforms after first-wins `onLoad` plugins, so metadata injection and similar
- * passes still run on rewritten output from boundary/runtime plugins.
+ * the transform only rewrites module source. Builds run source transforms in the
+ * bundler's transform hook, after the module is loaded, so metadata injection and
+ * similar passes still run on output rewritten by `onLoad` plugins. Return `map`
+ * when the edit moves code, so stack traces and source maps keep pointing at the
+ * source the author wrote.
  */
 export interface EcoSourceTransform {
-	/** Stable transform name. Also used to dedupe loader plugins in browser builds. */
+	/** Stable transform name. */
 	name: string;
 	/** File-path filter tested against {@link normalizeTransformId | normalized ids}. */
 	filter: RegExp;
@@ -62,88 +62,40 @@ export function applySourceTransform(
 	return transform.transform(code, normalizedId);
 }
 
-const SOURCE_TRANSFORM_ENFORCE_ORDER: Record<NonNullable<EcoSourceTransform['enforce']> | 'default', number> = {
-	pre: 0,
-	default: 1,
-	post: 2,
-};
-
-function getSourceTransformEnforceOrder(transform: EcoSourceTransform): number {
-	return SOURCE_TRANSFORM_ENFORCE_ORDER[transform.enforce ?? 'default'];
-}
+const sourceTransformFunctions = new WeakMap<EcoBuildTransform['handler'], EcoSourceTransform['transform']>();
 
 /**
- * Applies app-owned source transforms in deterministic `pre` → default → `post` order.
+ * Returns the function whose source identifies a build transform handler.
  *
  * @remarks
- * Used by the Rolldown plugin bridge after `onLoad` plugins produce final module
- * contents. Transforms that do not match `filter` are skipped; matching transforms
- * are chained left-to-right on the current source string.
+ * A handler made by {@link createEcoBuildPluginFromSourceTransform} only
+ * forwards to the source transform, so cache keys fingerprint the source
+ * transform's own `transform` instead.
  *
- * @param transforms - App-owned transforms, usually from {@link getAppSourceTransforms}.
- * @param code - Current module source.
- * @param id - Module id forwarded to each transform after query/hash normalization.
- * @returns The transformed source, or the original `code` when no transform matches.
+ * @internal
  */
-export function applySourceTransforms(transforms: readonly EcoSourceTransform[], code: string, id: string): string {
-	let current = code;
-
-	for (const transform of [...transforms].sort(
-		(left, right) => getSourceTransformEnforceOrder(left) - getSourceTransformEnforceOrder(right),
-	)) {
-		const result = applySourceTransform(transform, current, id);
-		if (!result) {
-			continue;
-		}
-
-		current = typeof result === 'string' ? result : result.code;
-	}
-
-	return current;
-}
-
-function inferLoaderFromPath(filePath: string): 'ts' | 'tsx' | 'js' | 'jsx' {
-	const extension = path.extname(filePath).toLowerCase();
-
-	switch (extension) {
-		case '.ts':
-			return 'ts';
-		case '.tsx':
-			return 'tsx';
-		case '.jsx':
-			return 'jsx';
-		default:
-			return 'js';
-	}
+export function resolveTransformHandlerIdentity(handler: EcoBuildTransform['handler']): (...args: never[]) => unknown {
+	return sourceTransformFunctions.get(handler) ?? handler;
 }
 
 /**
- * Adapts a source transform into the existing Ecopages build-plugin contract.
+ * Adapts a source transform into a build plugin that runs it in the bundler's
+ * transform hook.
  *
  * @remarks
- * Server-oriented builds and loader registration still use this adapter.
- * Browser/HMR builds should register the transform in `appConfig.sourceTransforms`
- * instead so the Rolldown bridge can run it after competing `onLoad` plugins.
+ * The handler calls `transform.transform` as a method, so a class-based
+ * transform keeps its `this`.
  */
 export function createEcoBuildPluginFromSourceTransform(transform: EcoSourceTransform): EcoBuildPlugin {
+	const handler: EcoBuildTransform['handler'] = (code, id) => transform.transform(code, id);
+	sourceTransformFunctions.set(handler, transform.transform);
 	return {
 		name: transform.name,
-		setup(build) {
-			build.onLoad({ filter: transform.filter }, (args) => {
-				const filePath = normalizeTransformId(args.path);
-				const code = fileSystem.readFileSync(filePath);
-				const result = applySourceTransform(transform, code, filePath);
-
-				if (!result) {
-					return undefined;
-				}
-
-				return {
-					contents: typeof result === 'string' ? result : result.code,
-					loader: inferLoaderFromPath(filePath),
-					resolveDir: path.dirname(filePath),
-				};
-			});
+		setup() {},
+		transform: {
+			filter: transform.filter,
+			order: transform.enforce,
+			handler,
 		},
 	};
 }

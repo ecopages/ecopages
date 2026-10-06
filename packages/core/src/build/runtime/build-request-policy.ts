@@ -5,8 +5,9 @@ import { getAppBrowserBuildPlugins, getAppServerBuildPlugins, getAppTranspileOpt
 import { resolveBuildProfileOptions } from './build-profile-options.ts';
 import type { BuildProfile } from './build-runtime.ts';
 import { getJsxOwnershipPlugins } from '../browser/jsx-ownership-plugins.ts';
-import { getAppSourceTransforms } from '../../plugins/source-transform.ts';
+import { createEcoBuildPluginFromSourceTransform, getAppSourceTransforms } from '../../plugins/source-transform.ts';
 import { createPreserveImportMetaTransform } from '../preserve-import-meta-transform.ts';
+
 
 /**
  * Resolves app-owned server plugins plus JSX ownership for one config.
@@ -18,6 +19,11 @@ import { createPreserveImportMetaTransform } from '../preserve-import-meta-trans
  */
 export function resolveServerAppBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
 	return [...getAppServerBuildPlugins(appConfig), ...getJsxOwnershipPlugins(appConfig)];
+}
+
+/** Adapts the app's {@link getAppSourceTransforms | source transforms} into build plugins. */
+export function getAppSourceTransformPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
+	return getAppSourceTransforms(appConfig).map(createEcoBuildPluginFromSourceTransform);
 }
 
 /**
@@ -59,29 +65,32 @@ export type BrowserBuildRequestInput = Partial<BuildOptions> & {
  * @remarks
  * Defaults `profile` to `'route-module'`. Plugins are
  * {@link resolveServerAppBuildPlugins} plus unique caller contributions via
- * {@link mergeCallerBuildPlugins}. Source transforms are applied on every
- * compilation target, so server module loading shares browser attribution.
- * Every server profile also gets {@link createPreserveImportMetaTransform}
- * for `runtimeOutdir` (or `outdir`), so bundled modules, Core included, keep
- * reading files relative to their sources from `dist/.server/` and
- * `.eco/.server-modules/`.
+ * {@link mergeCallerBuildPlugins}, then the app source transforms as plugins.
+ * Source transforms run on every compilation target, so server module loading
+ * shares browser attribution. Every server profile also gets
+ * {@link createPreserveImportMetaTransform} for `runtimeOutdir` (or `outdir`)
+ * as a transform plugin, so bundled modules keep reading files relative to
+ * their sources from `dist/.server/` and `.eco/.server-modules/`.
+
  */
 export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: ServerBuildRequestInput): BuildOptions {
 	const profile = input.profile ?? 'route-module';
-	const plugins = mergeCallerBuildPlugins(resolveServerAppBuildPlugins(appConfig), input.plugins);
 	const { plugins: _callerPlugins, profile: _profile, ...overrides } = input;
 	const importMetaDir = input.runtimeOutdir ?? input.outdir;
+	const plugins = [
+		...mergeCallerBuildPlugins(resolveServerAppBuildPlugins(appConfig), input.plugins),
+		...getAppSourceTransformPlugins(appConfig),
+		...(importMetaDir
+			? [createEcoBuildPluginFromSourceTransform(createPreserveImportMetaTransform(importMetaDir))]
+			: []),
+	];
 
 	return {
 		...resolveBuildProfileOptions(profile, appConfig, overrides),
 		...overrides,
 		entrypoints: input.entrypoints,
 		...(plugins.length > 0 ? { plugins } : {}),
-		sourceTransforms: [
-			...getAppSourceTransforms(appConfig),
-			...(importMetaDir ? [createPreserveImportMetaTransform(importMetaDir)] : []),
-			...(input.sourceTransforms ?? []),
-		],
+
 	};
 }
 
@@ -95,10 +104,11 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
  * the {@link BuildRuntime} executor slot is chosen later by the caller
  * (typically {@link BrowserBundleService}).
  *
- * Always attaches {@link getAppSourceTransforms}. App browser plugins come from
- * {@link getAppBrowserBuildPlugins} (includes JSX ownership); use
- * `excludeAppBuildPlugins` to omit app-owned names. Caller plugins cannot
- * replace app-manifest names ({@link mergeCallerBuildPlugins}).
+ * Always appends the app {@link getAppSourceTransforms | source transforms} as
+ * plugins. App browser plugins come from {@link getAppBrowserBuildPlugins}
+ * (includes JSX ownership); use `excludeAppBuildPlugins` to omit app-owned
+ * names. Caller plugins cannot replace app-manifest names
+ * ({@link mergeCallerBuildPlugins}).
  */
 export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: BrowserBuildRequestInput): BuildOptions {
 	const { profile, excludeAppBuildPlugins, plugins: callerPlugins, ...overrides } = input;
@@ -107,7 +117,10 @@ export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: B
 		excludeAppBuildPlugins && excludeAppBuildPlugins.length > 0
 			? appBrowserPlugins.filter((plugin) => !excludeAppBuildPlugins.includes(plugin.name))
 			: appBrowserPlugins;
-	const plugins = mergeCallerBuildPlugins(filteredAppBrowserPlugins, callerPlugins);
+	const plugins = [
+		...mergeCallerBuildPlugins(filteredAppBrowserPlugins, callerPlugins),
+		...getAppSourceTransformPlugins(appConfig),
+	];
 
 	return {
 		...resolveBuildProfileOptions('browser-hmr', appConfig, overrides),
@@ -115,6 +128,5 @@ export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: B
 		...overrides,
 		entrypoints: input.entrypoints,
 		plugins,
-		sourceTransforms: getAppSourceTransforms(appConfig),
 	};
 }

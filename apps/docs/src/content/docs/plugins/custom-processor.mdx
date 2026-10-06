@@ -204,6 +204,21 @@ class CustomProcessor extends Processor {
 
 `buildPlugins` apply to browser-oriented bundles. `plugins` are collected into runtime plugin contributions and exposed during startup.
 
+A build plugin can also declare `transform`, which rewrites module source after it is loaded:
+
+```typescript
+const bannerPlugin: EcoBuildPlugin = {
+	name: 'banner',
+	setup() {},
+	transform: {
+		filter: /\.custom\.ts$/,
+		handler: (code) => `/* banner */ ${code}`,
+	},
+};
+```
+
+Ecopages builds call `handler` for every module whose id, without its query or hash, matches `filter`, after `onLoad` returns. Virtual modules (ids that start with `\0` or sit in a namespace such as `ecopages-content:`) are skipped. Every matching transform runs, in `order` (`'pre'`, then unset, then `'post'`) and then array order. Return `{ code, map }` when the rewrite moves code. Bun runtime plugin registration ignores `transform`.
+
 ## File Watching
 
 Configure file watching for development mode:

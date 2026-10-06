@@ -6,7 +6,7 @@ It provides automatic image processing (e.g. converting and compressing to WebP)
 
 ## Features
 
-- **Automatic Image Optimization**: Converts and compresses images to modern formats at build time.
+- **Automatic Image Optimization**: Converts and compresses images to modern formats at build time. Each variant is named from a hash of its encoded bytes, so a quality or format change gets a new URL.
 - **Responsive Image Generation**: Creates multiple variants for different screen sizes.
 - **Virtual Module Integration**: Type-safe imports through `ecopages:images`.
 - **Ecopages Components**: Ready-to-use HTML, Ecopages JSX, and React (`EcoImage`) components.

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { FileStylesheetAsset, ProcessedAsset } from '../../assets.types.ts';
+import { writeHashedBrowserAsset } from '../../../hashed-browser-asset.ts';
 import { BaseProcessor } from '../base/base-processor.ts';
 import { applyStylesheetProcessors } from './stylesheet-processor-pipeline.ts';
 
@@ -17,19 +18,25 @@ export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> 
 		const cachekey = this.buildCacheKey(dep.filepath, hash, dep);
 
 		return this.getOrProcess(cachekey, () => {
-			const filepath = path.join(
-				this.getAssetsDir(),
-				path.relative(this.appConfig.absolutePaths.srcDir, dep.filepath),
-			);
-			const outputBuffer = Buffer.from(processedContent);
+			let filepath: string | undefined;
 
 			if (!dep.inline) {
-				fileSystem.ensureDir(path.dirname(filepath));
-				fileSystem.write(filepath, outputBuffer);
+				filepath = this.isProduction
+					? writeHashedBrowserAsset({
+							bytes: processedContent,
+							directory: this.getAssetsDir(),
+							extension: '.css',
+						})
+					: path.join(this.getAssetsDir(), path.relative(this.appConfig.absolutePaths.srcDir, dep.filepath));
+
+				if (!this.isProduction) {
+					fileSystem.ensureDir(path.dirname(filepath));
+					fileSystem.write(filepath, processedContent);
+				}
 			}
 
 			return {
-				filepath: filepath,
+				filepath,
 				sourceFilepath: dep.filepath,
 				content: dep.inline ? processedContent : undefined,
 				kind: 'stylesheet',

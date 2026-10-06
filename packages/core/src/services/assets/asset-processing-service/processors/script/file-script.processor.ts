@@ -3,6 +3,7 @@ import { RESOLVED_ASSETS_DIR } from '../../../../../config/constants.ts';
 import { fileSystem } from '@ecopages/file-system';
 import type { IHmrManager } from '../../../../../types/internal-types.ts';
 import type { FileScriptAsset, ProcessedAsset } from '../../assets.types.ts';
+import { writeHashedBrowserAsset } from '../../../hashed-browser-asset.ts';
 import { BaseScriptProcessor } from '../base/base-script-processor.ts';
 import { classicScriptOutputName, compileClassicScript } from './classic-script-compiler.ts';
 
@@ -16,8 +17,10 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	/**
 	 * @remarks
 	 * With HMR active, bundled scripts are built and watched by the HMR manager, which emits ES
-	 * modules. `bundle: false` scripts are copied as written in every mode, and `classic` scripts are
-	 * compiled on their own as classic scripts.
+	 * modules. In production, `bundle: false` scripts are written under a hash of their bytes.
+	 * In development they are copied to their source-relative path so HMR can refresh them.
+	 * `classic` scripts are compiled on their own as classic scripts. Vendor runtimes keep their
+	 * stable names.
 	 */
 	async process(dep: FileScriptAsset): Promise<ProcessedAsset> {
 		if (this.hmrManager?.isEnabled() && !dep.inline && this.shouldBundle(dep)) {
@@ -71,8 +74,16 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 				let filepath = output?.filepath;
 
 				if (!dep.classic && !dep.inline) {
-					filepath = path.join(this.getAssetsDir(), outFilepath);
-					fileSystem.copyFile(dep.filepath, filepath);
+					if (dep.packageRole === 'runtime' || !this.isProduction) {
+						filepath = path.join(this.getAssetsDir(), outFilepath);
+						fileSystem.copyFile(dep.filepath, filepath);
+					} else {
+						filepath = writeHashedBrowserAsset({
+							bytes: content,
+							directory: this.getAssetsDir(),
+							extension: path.extname(dep.filepath) || '.js',
+						});
+					}
 				}
 
 				return {

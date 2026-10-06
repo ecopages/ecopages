@@ -11,6 +11,18 @@ const TMP_DIR = path.join(__dirname, 'tmp_test_hmr');
 const SRC_DIR = path.join(TMP_DIR, 'src');
 const DIST_DIR = path.join(TMP_DIR, 'dist');
 
+function hashedCssContents(): string[] {
+	const assetsDir = path.join(DIST_DIR, 'assets');
+	if (!fs.existsSync(assetsDir)) {
+		return [];
+	}
+
+	return fs
+		.readdirSync(assetsDir)
+		.filter((filename) => /^[a-f0-9]{16}\.css$/.test(filename))
+		.map((filename) => fs.readFileSync(path.join(assetsDir, filename), 'utf-8'));
+}
+
 describe('PostCssProcessorPlugin HMR', () => {
 	beforeAll(() => {
 		if (fs.existsSync(TMP_DIR)) {
@@ -493,5 +505,32 @@ describe('PostCssProcessorPlugin HMR', () => {
 		expect(result).toContain('.api-lab__workspace-grid');
 		expect(result).not.toContain('__workspace-grid.api-lab');
 		expect(result).toContain('display: grid');
+	});
+
+	test('persists production CSS under a hash of the processed bytes', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		try {
+			const cssFile = path.join(SRC_DIR, 'hashed-production.css');
+			fs.writeFileSync(cssFile, '.hashed { color: orange; }');
+
+			const plugin = new PostCssProcessorPlugin({
+				options: {
+					filter: /\.css$/,
+				},
+			});
+			const config = await finalizeEcoPagesConfig({
+				rootDir: TMP_DIR,
+				srcDir: 'src',
+				distDir: 'dist',
+				baseUrl: 'http://localhost:3000',
+			});
+			plugin.setContext(config);
+			await plugin.setup();
+
+			expect(hashedCssContents().some((css) => css.includes('.hashed { color: orange; }'))).toBe(true);
+			expect(fs.existsSync(path.join(DIST_DIR, 'assets', 'hashed-production.css'))).toBe(false);
+		} finally {
+			vi.unstubAllEnvs();
+		}
 	});
 });

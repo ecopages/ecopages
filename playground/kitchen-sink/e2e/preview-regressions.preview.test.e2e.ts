@@ -92,21 +92,26 @@ test.describe('Kitchen Sink Preview Regressions @preview', () => {
 	});
 
 	test('serves preview CSS with the expected selectors', async ({ request, page }) => {
-		const tailwindResponse = await request.get('/assets/styles/tailwind.css');
-		expect(tailwindResponse.ok()).toBe(true);
-		expect(tailwindResponse.headers()['content-type']).toContain('text/css');
-		const tailwindCss = await tailwindResponse.text();
-		expect(tailwindCss).toContain('.button--primary');
-		expect(tailwindCss).not.toContain('--primary.button');
-
-		const apiLabCssResponse = await request.get('/assets/pages/api-lab.css');
-		expect(apiLabCssResponse.ok()).toBe(true);
-		expect(apiLabCssResponse.headers()['content-type']).toContain('text/css');
-		const apiLabCss = await apiLabCssResponse.text();
-		expect(apiLabCss).toContain('.api-lab__workspace-grid');
-		expect(apiLabCss).not.toContain('__workspace-grid.api-lab');
-
 		await gotoPath(page, '/api-lab');
+		const stylesheetHrefs = await page
+			.locator('link[rel="stylesheet"]')
+			.evaluateAll((nodes) => nodes.map((node) => new URL((node as HTMLLinkElement).href).pathname));
+		expect(stylesheetHrefs.length).toBeGreaterThan(0);
+
+		const cssContents = await Promise.all(
+			stylesheetHrefs.map(async (href) => {
+				const response = await request.get(href);
+				expect(response.ok()).toBe(true);
+				expect(response.headers()['content-type']).toContain('text/css');
+				return response.text();
+			}),
+		);
+		const combinedCss = cssContents.join('\n');
+		expect(combinedCss).toContain('.button--primary');
+		expect(combinedCss).not.toContain('--primary.button');
+		expect(combinedCss).toContain('.api-lab__workspace-grid');
+		expect(combinedCss).not.toContain('__workspace-grid.api-lab');
+
 		await expect(page.locator('.api-lab__workspace-grid')).toHaveCSS('display', 'grid');
 		await expect(page.locator('.api-lab__command').first()).toHaveCSS('text-align', 'left');
 	});

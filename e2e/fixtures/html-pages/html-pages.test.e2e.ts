@@ -30,8 +30,8 @@ test.describe('HTML Pages static export', () => {
 		expect(html).toMatch(/<meta property="og:title" content="About us" ?\/?>/);
 		expect(count(html, /<meta property="og:title"/g)).toBe(1);
 		expect(html).toMatch(/<link rel="canonical" href="https:\/\/example\.com\/about" ?\/?>/);
-		expect(count(html, /href="\/assets\/includes\/site\.css"/g)).toBe(1);
-		expect(html).toMatch(/<link rel="stylesheet" href="\/assets\/pages\/about\.css" ?\/?>(<meta [^>]*>)*<\/head>/);
+		expect(count(html, /href="\/assets\/[a-f0-9]{16}\.css"/g)).toBe(2);
+		expect(html).toMatch(/<link rel="stylesheet" href="\/assets\/[a-f0-9]{16}\.css" ?\/?>(<meta [^>]*>)*<\/head>/);
 		expect(html).toMatch(/<img src="\/images\/team\.svg" alt="Our team" ?\/?>/);
 		expect(html).toMatch(/<\/main>\s*<script type="module" src="\/assets\/pages\/counter[^"]*\.js"><\/script>/);
 	});
@@ -41,7 +41,7 @@ test.describe('HTML Pages static export', () => {
 
 		expect(html).toContain('<html lang="fr" class="marketing">');
 		expect(html).toContain('<body class="campaign">');
-		expect(html).toContain('<script src="/assets/pages/vendor/tiny-query.js"></script>');
+		expect(html).toMatch(/<script src="\/assets\/[a-f0-9]{16}\.js"><\/script>/);
 		expect(count(html, /<meta charset/gi)).toBe(1);
 		expect(count(html, /<meta name="robots"/g)).toBe(1);
 	});

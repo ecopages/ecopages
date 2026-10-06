@@ -17,7 +17,7 @@ Typical responsibilities include:
 ## Main Areas
 
 - `module-loading/`: framework-owned config/app bootstrap loading and server-side source loading
-- `assets/`: shared browser build coordination and processed asset pipelines
+- `assets/`: shared browser build coordination and processed asset pipelines. Production CSS, copied scripts, and image variants are named from a hash of the bytes that are written; development keeps source-relative names so CSS HMR can refresh the same href. Vendor runtimes keep stable names.
 - `cache/`: page HTML cache stores, selective source-path invalidation, and request coordination
 - `invalidation/`: file-change classification and invalidation policy
 - `runtime-state/`: app-owned invalidation state and dependency graphs

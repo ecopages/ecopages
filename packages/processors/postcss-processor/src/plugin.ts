@@ -5,6 +5,7 @@
 
 import path from 'node:path';
 import type { IClientBridge } from '@ecopages/core';
+import { writeHashedBrowserAsset } from '@ecopages/core/assets/hashed-browser-asset';
 import { fileSystem } from '@ecopages/file-system';
 import { Processor, type EcoBuildPlugin, type ProcessorConfig } from '@ecopages/core/plugins/processor';
 import { Logger } from '@ecopages/logger';
@@ -98,6 +99,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	private readonly trackedCssFiles = new Set<string>();
 	private watchQueue: Promise<void> = Promise.resolve();
 
+	private readonly hashedCssOutputBySource = new Map<string, string>();
 	/**
 	 * Maps an imported CSS file path → set of tracked CSS entry files that import it.
 	 * Used to resolve which parent entry files need re-processing when a dependency changes.
@@ -108,21 +110,22 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		return this.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter;
 	}
 
-	private resolveProcessedCssPath(filePath: string): string | null {
+	private isCssInsideSrc(filePath: string): boolean {
 		if (!this.context) {
-			return null;
+			return false;
 		}
 
 		const relativePath = path.relative(this.context.srcDir, filePath);
-		if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-			return null;
-		}
-
-		return path.join(this.context.distDir, 'assets', relativePath);
+		return !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
 	}
 
 	private readProcessedCssFromDist(filePath: string): string | null {
-		const outputPath = this.resolveProcessedCssPath(filePath);
+		const hashedOutputPath = this.hashedCssOutputBySource.get(filePath);
+		const outputPath =
+			hashedOutputPath ??
+			(this.context && this.isCssInsideSrc(filePath)
+				? path.join(this.context.distDir, 'assets', path.relative(this.context.srcDir, filePath))
+				: null);
 		if (!outputPath || !fileSystem.exists(outputPath)) {
 			return null;
 		}
@@ -131,11 +134,21 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	}
 
 	private async persistProcessedCss(filePath: string, css: string): Promise<void> {
-		const outputPath = this.resolveProcessedCssPath(filePath);
-		if (!outputPath) {
+		if (!this.context || !this.isCssInsideSrc(filePath)) {
 			return;
 		}
 
+		if (process.env.NODE_ENV === 'production') {
+			const outputPath = writeHashedBrowserAsset({
+				bytes: css,
+				directory: path.join(this.context.distDir, 'assets'),
+				extension: '.css',
+			});
+			this.hashedCssOutputBySource.set(filePath, outputPath);
+			return;
+		}
+
+		const outputPath = path.join(this.context.distDir, 'assets', path.relative(this.context.srcDir, filePath));
 		fileSystem.ensureDir(path.dirname(outputPath));
 		if (fileSystem.exists(outputPath) && fileSystem.readFileSync(outputPath) === css) {
 			return;
@@ -395,6 +408,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 							this.runtimeCssCache.delete(path);
 							this.trackedCssFiles.delete(path);
 							this.cssDependencyMap.delete(path);
+							this.hashedCssOutputBySource.delete(path);
 							this.buildCssDependencyMap();
 							return;
 						}

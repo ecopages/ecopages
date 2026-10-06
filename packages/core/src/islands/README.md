@@ -12,6 +12,9 @@ Hydratable component instances stamp a small, integration-agnostic attribute set
 | `data-eco-component-key`      | Optional module key used by client hydration (React) |
 | `data-eco-props`              | Optional base64 JSON props snapshot for hydration    |
 
+`data-eco-island` is a presence marker with an empty value, rendered as
+`data-eco-island=""`. Select hosts with `[data-eco-island]`.
+
 React integrations may emit `<eco-island>` as the SSR host. The host uses
 `display: contents` so it does not introduce a layout box, while the host and
 its children remain in place as the client calls `hydrateRoot()` on that host.

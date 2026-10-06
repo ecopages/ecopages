@@ -241,8 +241,9 @@ export function applyAttributesToFirstElement(html: string, attributes: Record<s
  * Sets `attributes` on the first element that `isTarget` accepts.
  *
  * @remarks
- * Entries with an empty name or value are skipped, and an attribute the element
- * already has is replaced rather than duplicated.
+ * Entries with an empty name are skipped. An empty value is kept and rendered as
+ * `name=""`, so presence markers such as `data-eco-island` survive. An attribute
+ * the element already has is replaced rather than duplicated.
  */
 function stampAttributes(
 	html: string,
@@ -250,7 +251,7 @@ function stampAttributes(
 	isTarget: (element: HtmlRewriterAttributeTarget) => boolean,
 	options?: { leadingOnly?: boolean },
 ): string {
-	const entries = Object.entries(attributes).filter(([name, value]) => name.length > 0 && value.length > 0);
+	const entries = Object.entries(attributes).filter(([name]) => name.length > 0);
 	if (entries.length === 0) return html;
 
 	return rewriteFirstElement(

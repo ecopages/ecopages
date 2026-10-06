@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ProcessedAsset } from '../assets/asset-processing-service/index.js';
+import { buildIslandHostAttributes } from '../../islands/island-host.ts';
 import { applyAttributesToFirstElement, HtmlTransformerService } from './html-transformer.service.ts';
 
 type InjectionScenario = {
@@ -210,11 +211,20 @@ describe('HtmlTransformerService', () => {
 		).toBe('<body data-a="x>y"><main role="main">M</main></body>');
 	});
 
-	it('escapes quotes in stamped values and skips empty names or values', () => {
+	it('escapes quotes in stamped values, keeps empty values and skips empty names', () => {
 		expect(applyAttributesToFirstElement('<div>x</div>', { title: 'a "b"', 'data-empty': '', '': 'v' })).toBe(
-			'<div title="a &quot;b&quot;">x</div>',
+			'<div title="a &quot;b&quot;" data-empty="">x</div>',
 		);
-		expect(applyAttributesToFirstElement('<div>x</div>', { 'data-empty': '' })).toBe('<div>x</div>');
+		expect(applyAttributesToFirstElement('<div>x</div>', { '': 'v' })).toBe('<div>x</div>');
+	});
+
+	it('stamps the data-eco-island presence marker on a Foreign Subtree Island Host', () => {
+		expect(
+			applyAttributesToFirstElement(
+				'<lit-x>a</lit-x>',
+				buildIslandHostAttributes({ integrationName: 'lit', componentInstanceId: 'c1' }),
+			),
+		).toBe('<lit-x data-eco-island="" data-eco-component-id="c1" data-eco-island-integration="lit">a</lit-x>');
 	});
 
 	it('should deduplicate processed assets while preserving order', () => {

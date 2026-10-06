@@ -1,7 +1,6 @@
 import type { BuildExecutor, BuildResult } from '../../build/build-adapter.ts';
 import { createBrowserBuildRequest } from '../../build/runtime/build-request-policy.ts';
 import { requireBuildRuntime } from '../../build/runtime/build-runtime.ts';
-import type { BuildTranspileProfile } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
@@ -12,13 +11,12 @@ import { createBuildRequestIdentity } from '../../build/runtime/build-request-id
  * Browser-oriented build request accepted by {@link BrowserBundleService}.
  *
  * @remarks
- * `profile` is a {@link BuildTranspileProfile} (transpile settings only).
- * `executor` selects the {@link BuildRuntime} concurrency slot:
+ * `profile` and `executor` select the {@link BuildRuntime} concurrency slot:
  * - `'hmr'` + (`hmr-entrypoint` | `hmr-runtime`) → `'browser-hmr'`
  * - everything else (including `browser-script`, and `'build'`) → `'route-module'`
  *
  * Defaults `executor` to `'hmr'`. Request options are always assembled with
- * browser-hmr *defaults* via {@link createBrowserBuildRequest}; only the
+ * browser environment defaults via {@link createBrowserBuildRequest}; only the
  * concurrency/dedupe wrapper differs.
  *
  * Uses request-scope {@link requestBuildDedupe} plus in-flight
@@ -39,7 +37,7 @@ export type BrowserBundleOptions = {
 	external?: string[];
 	plugins?: EcoBuildPlugin[];
 	executor?: 'build' | 'hmr';
-	profile: BuildTranspileProfile;
+	profile: 'browser-script' | 'hmr-runtime' | 'hmr-entrypoint';
 	excludeAppBuildPlugins?: string[];
 };
 
@@ -52,7 +50,7 @@ export type BrowserBundleGroupedEntry = {
 
 function resolveBrowserBundleExecutor(
 	appConfig: EcoPagesAppConfig,
-	profile: BuildTranspileProfile,
+	profile: BrowserBundleOptions['profile'],
 	executor: 'build' | 'hmr',
 ): BuildExecutor {
 	const buildRuntime = requireBuildRuntime(appConfig);
@@ -91,7 +89,6 @@ export class BrowserBundleService {
 		const { profile, executor = 'hmr', ...requestInput } = options;
 		const request = createBrowserBuildRequest(this.appConfig, {
 			...requestInput,
-			profile,
 		});
 
 		const buildExecutor = resolveBrowserBundleExecutor(this.appConfig, profile, executor);

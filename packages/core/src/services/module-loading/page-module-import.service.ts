@@ -3,7 +3,7 @@ import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { build, type BuildExecutor, type BuildOptions, type BuildResult } from '../../build/build-adapter.ts';
 import { createServerBuildRequest } from '../../build/runtime/build-request-policy.ts';
-import { resolveBuildProfileOptions } from '../../build/runtime/build-profile-options.ts';
+import { resolveBuildEnvironmentOptions } from '../../build/runtime/build-environment-options.ts';
 import {
 	importPagesUnifiedGraphModule,
 	isPagesUnifiedGraphPage,
@@ -224,15 +224,13 @@ export class PageModuleImportService {
 					...(externalPackages !== undefined ? { externalPackages } : {}),
 				})
 			: {
-					...resolveBuildProfileOptions('route-module', { rootDir } as EcoPagesAppConfig, {
-						entrypoints: [filePath],
-						outdir,
-						naming: outputNamingTemplate,
-						splitting: splitting ?? true,
-						jsx: options.jsx,
-						plugins: options.plugins,
-						...(externalPackages !== undefined ? { externalPackages } : {}),
-					}),
+					...resolveBuildEnvironmentOptions('server', { rootDir } as EcoPagesAppConfig),
+					outdir,
+					naming: outputNamingTemplate,
+					splitting: splitting ?? true,
+					jsx: options.jsx,
+					plugins: options.plugins,
+					...(externalPackages !== undefined ? { externalPackages } : {}),
 					root: rootDir,
 					entrypoints: [filePath],
 				};

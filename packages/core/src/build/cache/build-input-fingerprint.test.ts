@@ -16,7 +16,6 @@ import {
 describe('build-input-fingerprint', () => {
 	it('reports stable build inputs when contributors do not signal changes', () => {
 		const processor = new (class extends Processor {
-			override readonly buildPlugins = undefined;
 			override readonly plugins = undefined;
 			override async setup(): Promise<void> {}
 			override async teardown(): Promise<void> {}
@@ -44,7 +43,6 @@ describe('build-input-fingerprint', () => {
 
 	it('reports changed build inputs when a contributor opts in', () => {
 		const processor = new (class extends Processor {
-			override readonly buildPlugins = undefined;
 			override readonly plugins = undefined;
 			override didChange(): boolean {
 				return true;

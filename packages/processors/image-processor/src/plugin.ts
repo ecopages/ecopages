@@ -139,12 +139,11 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		});
 	}
 
-	get buildPlugins(): EcoBuildPlugin[] {
-		return [createImagePluginBundler(this.processedImages)];
-	}
-
 	get plugins(): EcoBuildPlugin[] {
-		return [createImagePlugin(this.processedImages)];
+		return [
+			{ ...createImagePlugin(this.processedImages), environments: ['server'] },
+			{ ...createImagePluginBundler(this.processedImages), environments: ['browser'] },
+		];
 	}
 
 	/**

@@ -6,6 +6,7 @@ import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import { createEcoBuildPluginFromSourceTransform, type EcoSourceTransform } from '../../plugins/source-transform.ts';
 
 const baseOptions: BuildOptions = {
+	environment: 'browser' as const,
 	entrypoints: ['/in/a.ts'],
 	root: '/in',
 	outdir: '/out',
@@ -29,6 +30,7 @@ test('createBuildRequestIdentity treats entrypoint order as equivalent', () => {
 
 test('createBuildRequestIdentity distinguishes output-affecting fields', () => {
 	const cases: Array<{ field: keyof BuildOptions; left: unknown; right: unknown }> = [
+		{ field: 'environment', left: 'server', right: 'browser' },
 		{ field: 'conditions', left: ['browser'], right: ['node'] },
 		{
 			field: 'define',

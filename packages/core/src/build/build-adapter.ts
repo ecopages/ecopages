@@ -24,7 +24,7 @@ import {
 	type BuildOwnership,
 	type BuildResult,
 	type BuildTranspileOptions,
-	type BuildTranspileProfile,
+	type BuildEnvironment,
 } from './contracts/build-contracts.ts';
 export type {
 	BuildAdapter,
@@ -35,7 +35,7 @@ export type {
 	BuildOwnership,
 	BuildResult,
 	BuildTranspileOptions,
-	BuildTranspileProfile,
+	BuildEnvironment,
 } from './contracts/build-contracts.ts';
 import {
 	createAppBuildManifest,
@@ -95,7 +95,7 @@ export class ViteHostBuildAdapter implements BuildAdapter {
 		throw createHostOwnedBuildError('resolve imports');
 	}
 
-	getTranspileOptions(_profile: BuildTranspileProfile): BuildTranspileOptions {
+	getTranspileOptions(_environment: BuildEnvironment): BuildTranspileOptions {
 		throw createHostOwnedBuildError('derive transpile options');
 	}
 }
@@ -198,7 +198,7 @@ export function getAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManif
 	return (
 		appConfig.runtime?.buildManifest ??
 		createAppBuildManifest({
-			loaderPlugins: Array.from(appConfig.loaders?.values() ?? []),
+			plugins: Array.from(appConfig.loaders?.values() ?? []),
 		})
 	);
 }
@@ -230,9 +230,7 @@ export function createConfiguredAppBuildManifest(
 	input?: Partial<AppBuildManifest>,
 ): AppBuildManifest {
 	return createAppBuildManifest({
-		loaderPlugins: input?.loaderPlugins ?? Array.from(appConfig.loaders.values()),
-		runtimePlugins: input?.runtimePlugins,
-		browserBundlePlugins: input?.browserBundlePlugins,
+		plugins: [...appConfig.loaders.values(), ...(input?.plugins ?? [])],
 		browserRuntimeManifest: input?.browserRuntimeManifest,
 	});
 }
@@ -307,8 +305,8 @@ export function build(
  * @remarks
  * New app-aware code should prefer {@link getAppTranspileOptions}.
  */
-export function getTranspileOptions(profile: BuildTranspileProfile): BuildTranspileOptions {
-	return defaultRolldownBuildAdapter.getTranspileOptions(profile);
+export function getTranspileOptions(environment: BuildEnvironment): BuildTranspileOptions {
+	return defaultRolldownBuildAdapter.getTranspileOptions(environment);
 }
 
 /**
@@ -317,7 +315,7 @@ export function getTranspileOptions(profile: BuildTranspileProfile): BuildTransp
  */
 export function getAppTranspileOptions(
 	appConfig: EcoPagesAppConfig,
-	profile: BuildTranspileProfile,
+	environment: BuildEnvironment,
 ): BuildTranspileOptions {
-	return getAppBuildAdapter(appConfig).getTranspileOptions(profile);
+	return getAppBuildAdapter(appConfig).getTranspileOptions(environment);
 }

@@ -60,6 +60,7 @@ test('RolldownBuildAdapter finalizes node outputs without caller post-processing
 	writeFileSync(entryPath, `export const value = 1;`, 'utf-8');
 
 	const result = await adapter.build({
+		environment: 'server' as const,
 		entrypoints: [entryPath],
 		root: outdir,
 		outdir,

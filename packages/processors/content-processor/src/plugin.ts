@@ -94,7 +94,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		});
 	}
 
-	get buildPlugins(): EcoBuildPlugin[] {
+	private get browserPlugins(): EcoBuildPlugin[] {
 		return [
 			createContentServerBoundaryPlugin(),
 			createContentPluginBundler(
@@ -103,18 +103,22 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 				this.collectionServerCompiledModules,
 				this.collectionBrowserModules,
 			),
-		];
+		].map((plugin) => ({ ...plugin, environments: ['browser'] as Array<'browser'> }));
 	}
 
 	get plugins(): EcoBuildPlugin[] {
 		return [
-			createContentPlugin(
-				this.collectionModules,
-				this.collectionServerModules,
-				this.collectionServerCompiledModules,
-				this.collectionBrowserModules,
-				(collectionName) => this.ensureCollectionServerArtifact(collectionName),
-			),
+			{
+				...createContentPlugin(
+					this.collectionModules,
+					this.collectionServerModules,
+					this.collectionServerCompiledModules,
+					this.collectionBrowserModules,
+					(collectionName) => this.ensureCollectionServerArtifact(collectionName),
+				),
+				environments: ['server'],
+			},
+			...this.browserPlugins,
 		];
 	}
 

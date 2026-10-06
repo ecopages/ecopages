@@ -4,6 +4,8 @@ PostCSS processing pipeline for Ecopages. It provides a processor plugin that se
 
 ## Features
 
+Build contributions use one `plugins` getter. Browser-specific CSS hooks declare `environments: ['browser']`; runtime CSS hooks remain available to both environments.
+
 - **Ecopages Processor Plugin**: Hook right into the build pipeline.
 - **Tailwind Presets**: Pre-configured pipelines for Tailwind CSS v3 and v4.
 - **Automatic Configuration**: Detects existing `postcss.config.{js,ts,etc}`.

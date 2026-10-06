@@ -470,16 +470,6 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		}
 	}
 
-	get buildPlugins(): EcoBuildPlugin[] {
-		return [
-			createCssLoaderPlugin({
-				name: 'postcss-processor-build-loader',
-				filter: this.getCssFilter(),
-				transform: this.transformCssAsync.bind(this),
-			}),
-		];
-	}
-
 	get plugins(): EcoBuildPlugin[] {
 		return [
 			createCssLoaderPlugin({
@@ -487,6 +477,14 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 				filter: this.getCssFilter(),
 				transform: this.transformCssSync.bind(this),
 			}),
+			{
+				...createCssLoaderPlugin({
+					name: 'postcss-processor-build-loader',
+					filter: this.getCssFilter(),
+					transform: this.transformCssAsync.bind(this),
+				}),
+				environments: ['browser'],
+			},
 		];
 	}
 

@@ -5,6 +5,7 @@ import { createBuildRequestIdentity } from './build-request-identity.ts';
 import { DedupingBuildExecutor } from './deduping-build-executor.ts';
 
 const buildOptions: BuildOptions = {
+	environment: 'browser' as const,
 	entrypoints: ['/in/a.ts'],
 	root: '/in',
 	outdir: '/out',

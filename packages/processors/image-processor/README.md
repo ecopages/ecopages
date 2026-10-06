@@ -6,6 +6,8 @@ It provides automatic image processing (e.g. converting and compressing to WebP)
 
 ## Features
 
+Build contributions use one `plugins` getter with server and browser environment declarations. The virtual image module resolves through the implementation for the requested environment.
+
 - **Automatic Image Optimization**: Converts and compresses images to modern formats at build time.
 - **Responsive Image Generation**: Creates multiple variants for different screen sizes.
 - **Virtual Module Integration**: Type-safe imports through `ecopages:images`.

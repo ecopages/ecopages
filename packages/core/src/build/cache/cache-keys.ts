@@ -42,9 +42,10 @@ export function createPluginCacheKey(plugins?: EcoBuildPlugin[]): string {
 	}
 
 	return `plugins:${plugins
-		.map(({ name, setup, transform }) =>
+		.map(({ name, setup, transform, environments }) =>
 			[
 				name,
+				[...new Set(environments ?? ['server', 'browser'])].sort().join('+'),
 				hashFunctionIdentity(setup),
 				...(transform
 					? [

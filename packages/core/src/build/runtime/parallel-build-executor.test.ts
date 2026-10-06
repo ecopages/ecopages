@@ -34,6 +34,7 @@ test('ParallelBuildExecutor runs builds concurrently up to the configured limit'
 	const inner = createDelayedExecutor(20);
 	const parallel = new ParallelBuildExecutor(inner, 2);
 	const buildOptions = {
+		environment: 'browser' as const,
 		entrypoints: ['/in/a.ts'],
 		root: '/in',
 		outdir: '/out',
@@ -68,6 +69,7 @@ test('ParallelBuildExecutor does not exceed the concurrency limit', async () => 
 	};
 	const parallel = new ParallelBuildExecutor(inner, 2);
 	const buildOptions = {
+		environment: 'browser' as const,
 		entrypoints: ['/in/a.ts'],
 		root: '/in',
 		outdir: '/out',
@@ -94,6 +96,7 @@ test('ParallelBuildExecutor releases capacity after a failed build', async () =>
 	};
 	const parallel = new ParallelBuildExecutor(inner, 2);
 	const buildOptions = {
+		environment: 'browser' as const,
 		entrypoints: ['/in/a.ts'],
 		root: '/in',
 		outdir: '/out',
@@ -123,6 +126,7 @@ test('ParallelBuildExecutor overlaps queued builds up to the concurrency limit',
 	};
 	const parallel = new ParallelBuildExecutor(inner, 2);
 	const buildOptions = {
+		environment: 'browser' as const,
 		entrypoints: ['/in/a.ts'],
 		root: '/in',
 		outdir: '/out',

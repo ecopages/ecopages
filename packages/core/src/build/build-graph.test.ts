@@ -1,4 +1,4 @@
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -111,4 +111,31 @@ test('walks static and dynamic chunk edges through cycles and retains missing le
 		},
 	};
 	expect(collectBuildOutputImports(graph, output).sort()).toEqual([shared, lazy, missing].sort());
+});
+
+test('finds the entry output through a symlink root and by the name the caller passed', async () => {
+	const parent = mkdtempSync(path.join(tmpdir(), 'ecopages-build-graph-link-'));
+	try {
+		const realRoot = path.join(parent, 'real');
+		const linkRoot = path.join(parent, 'link');
+		mkdirSync(realRoot);
+		writeFileSync(path.join(realRoot, 'entry.js'), 'export const value = 1;');
+		symlinkSync(realRoot, linkRoot);
+		const entry = path.join(linkRoot, 'entry.js');
+		const outdir = path.join(linkRoot, 'dist');
+		const result = await new RolldownBuildAdapter().build({
+			entrypoints: { pages__blog: entry },
+			root: linkRoot,
+			outdir,
+			target: 'node',
+		});
+		expect(result.success, JSON.stringify(result.logs)).toBe(true);
+		const byPath = getBuildEntryOutput(result, entry, linkRoot);
+		const byName = getBuildEntryOutput(result, 'pages__blog', linkRoot);
+		expect(byPath).toBeDefined();
+		expect(byName).toBe(byPath);
+		expect(byPath).toContain(path.sep);
+	} finally {
+		rmSync(parent, { recursive: true, force: true });
+	}
 });

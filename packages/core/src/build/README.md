@@ -64,7 +64,7 @@ build/
 - `server-bundle-publication.ts`: stages the server entry, emitted config, and deploy manifest together, then publishes the complete directory with rollback.
 - `cache/cache-constants.ts`: shared `.build-cache.json` filename for persisted production caches.
 - `rolldown/entry-module-closures.ts`: records each entry's static and dynamic source module closure in `generateBundle`, including inlined and tree-shaken imports.
-- `build-graph.ts`: shared entry path and output lookup, plus emitted chunk reachability for persisted cache artifact checks. Local external imports remain leaves, including missing generated server modules.
+- `build-graph.ts`: shared entry path and output lookup (caller path, real path, and named grouped keys), plus emitted chunk reachability for persisted cache artifact checks. Local external imports remain leaves, including missing generated server modules.
 - `*.test.ts`: regression coverage colocated with each module.
 
 ## Default Flow

@@ -12,7 +12,7 @@
 import { builtinModules, createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { resolveBuildEntryPath } from '../build-graph.ts';
+import { recordBuildEntryOutput, resolveBuildEntryPath } from '../build-graph.ts';
 import type { InputOptions, OutputChunk, OutputOptions, RolldownOutput, RolldownPlugin } from 'rolldown';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
@@ -557,6 +557,7 @@ export function buildResultFromRolldownOutput(
 	outdir: string,
 	contextRoot: string,
 	dependencyGraph: BuildDependencyGraph,
+	entrypoints: BuildOptions['entrypoints'],
 ): BuildResult {
 	const outputs: BuildOutput[] = output.output.map((entry) => ({
 		path: normalizeOutputPath(entry.fileName, outdir),
@@ -580,10 +581,16 @@ export function buildResultFromRolldownOutput(
 	);
 
 	const entryOutputs: Record<string, string> = {};
-	for (const chunk of Object.values(outputGraph)) {
-		if (chunk.isEntry && chunk.facadeModuleId) {
-			entryOutputs[chunk.facadeModuleId] = chunk.fileName;
+	for (const chunk of chunks) {
+		if (!chunk.isEntry || !chunk.facadeModuleId) {
+			continue;
 		}
+		recordBuildEntryOutput(entryOutputs, normalizeOutputPath(chunk.fileName, outdir), {
+			facadeModuleId: resolveBuildEntryPath(chunk.facadeModuleId, contextRoot),
+			chunkName: chunk.name,
+			entrypoints,
+			root: contextRoot,
+		});
 	}
 
 	return {

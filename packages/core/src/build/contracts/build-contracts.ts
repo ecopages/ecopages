@@ -40,7 +40,10 @@ export interface BuildResult {
 	logs: BuildLog[];
 	outputs: BuildOutput[];
 	dependencyGraph?: BuildDependencyGraph;
-	/** Entry facade module paths mapped to emitted absolute output paths. */
+	/**
+	 * Emitted absolute output paths keyed by the entry path or name the caller
+	 * passed, plus the bundler's facade path when that spelling differs.
+	 */
 	entryOutputs?: Record<string, string>;
 	/** All emitted chunks keyed by absolute output path; local external edges remain leaves. */
 	outputGraph?: Record<string, BuildChunk>;

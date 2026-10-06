@@ -18,13 +18,19 @@ export type IslandRecordView = Omit<IslandRecord, 'element'> & {
 	targetSelector: string;
 };
 
+/**
+ * @remarks
+ * Browser-local mirror of the decode for core's `encodeIslandProps` (base64 of UTF-8 JSON). The toolbar
+ * cannot import core, which already lists the toolbar as an optional peer.
+ */
 function parsePropsPreview(encoded: string | null): string {
 	if (!encoded) {
 		return '';
 	}
 
 	try {
-		return JSON.stringify(JSON.parse(atob(encoded)), null, 0).slice(0, 120);
+		const json = new TextDecoder().decode(Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0)));
+		return JSON.stringify(JSON.parse(json), null, 0).slice(0, 120);
 	} catch {
 		return '(invalid props)';
 	}

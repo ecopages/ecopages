@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { BuildDependencyGraph, BuildResult } from '../build-adapter.ts';
@@ -129,8 +130,20 @@ function writeServerEntryBuildCacheManifest(
 	);
 }
 
+/**
+ * Hashes a config file recorded in, or checked against, the deploy manifest.
+ *
+ * @remarks
+ * The build may run under Bun while `ecopages start` checks the manifest under Node, so this uses SHA-256 rather
+ * than `fileSystem.hash`, which is `Bun.hash` under Bun. The output matches the Node adapter's hash, so manifests
+ * written by a Node build stay valid.
+ */
+function hashDeployConfigFile(filePath: string): string {
+	return createHash('sha256').update(fileSystem.readFileAsBuffer(filePath)).digest('hex');
+}
+
 function hashExistingFile(filePath: string | undefined): string | undefined {
-	return filePath && fileSystem.exists(filePath) ? fileSystem.hash(filePath) : undefined;
+	return filePath && fileSystem.exists(filePath) ? hashDeployConfigFile(filePath) : undefined;
 }
 
 export function writeServerBundleDeployManifest(
@@ -188,7 +201,7 @@ function isEmittedConfigArtifact(
 	if (path.resolve(requestedPath) !== emittedArtifactPath) return false;
 	return (
 		!manifest.emittedConfigHash ||
-		(fileSystem.exists(requestedPath) && fileSystem.hash(requestedPath) === manifest.emittedConfigHash)
+		(fileSystem.exists(requestedPath) && hashDeployConfigFile(requestedPath) === manifest.emittedConfigHash)
 	);
 }
 
@@ -196,7 +209,7 @@ function matchesBuiltConfigHash(manifest: ServerBundleDeployManifest, requestedP
 	if (!manifest.configHash || !fileSystem.exists(requestedPath)) {
 		return false;
 	}
-	return fileSystem.hash(requestedPath) === manifest.configHash;
+	return hashDeployConfigFile(requestedPath) === manifest.configHash;
 }
 
 function matchesBuiltConfigPath(

@@ -331,3 +331,66 @@ test('createRolldownPluginBridge does not multiply onLoad handler registrations 
 		assert.equal(loadCalls, 1, `rebuild ${rebuild + 1} should invoke the onLoad handler once`);
 	}
 });
+
+test('createRolldownPluginBridge loads each of eleven virtual modules with its own contents', async () => {
+	const specifiers = Array.from({ length: 11 }, (_, index) => `virtual:m${index}`);
+	const plugins: EcoBuildPlugin[] = [
+		{
+			name: 'many-modules',
+			setup(build) {
+				for (const specifier of specifiers) {
+					build.module(specifier, () => ({ contents: `export default '${specifier}';`, loader: 'js' }));
+				}
+			},
+		},
+	];
+
+	const plugin = createRolldownPluginBridge(plugins, '/app')[0]!;
+	await callBuildStart(plugin);
+
+	for (const specifier of specifiers) {
+		const resolve = (await callResolveId(plugin, specifier)) as { id: string } | undefined;
+		const load = (await callLoad(plugin, resolve?.id ?? '')) as { code: string } | undefined;
+		assert.equal(load?.code, `export default '${specifier}';`);
+	}
+});
+
+test('createRolldownPluginBridge tests a namespaced filter against the path after the namespace', async () => {
+	const plugins: EcoBuildPlugin[] = [
+		{
+			name: 'docs',
+			setup(build) {
+				build.onLoad({ filter: /\.md$/, namespace: 'docs' }, () => ({
+					contents: 'export default 1;',
+					loader: 'js',
+				}));
+			},
+		},
+	];
+
+	const plugin = createRolldownPluginBridge(plugins, '/app')[0]!;
+	await callBuildStart(plugin);
+
+	const matched = (await callLoad(plugin, 'docs:intro.md')) as { code: string } | undefined;
+	const unmatched = (await callLoad(plugin, 'docs:introxmd')) as { code: string } | undefined;
+	const otherNamespace = (await callLoad(plugin, 'other:intro.md')) as { code: string } | undefined;
+	assert.equal(matched?.code, 'export default 1;');
+	assert.notEqual(unmatched?.code, 'export default 1;');
+	assert.notEqual(otherNamespace?.code, 'export default 1;');
+});
+
+test('createRolldownPluginBridge merges plugins into one, where the earlier plugin resolves first', async () => {
+	const plugins: EcoBuildPlugin[] = ['first', 'second'].map((name) => ({
+		name,
+		setup(build) {
+			build.onResolve({ filter: /^shared$/ }, () => ({ path: `/${name}.ts` }));
+		},
+	}));
+
+	const bridge = createRolldownPluginBridge(plugins, '/app');
+	await callBuildStart(bridge[0]!);
+
+	assert.equal(bridge.length, 1);
+	const resolved = (await callResolveId(bridge[0]!, 'shared')) as { id: string } | undefined;
+	assert.equal(resolved?.id, '/first.ts');
+});

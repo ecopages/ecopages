@@ -136,7 +136,10 @@ export class DevTransformServer {
 	async tryHandleRequest(request: Request): Promise<Response | null> {
 		const url = new URL(request.url);
 
-		const vendorResponse = this.vendorRegistry.tryHandleVendorRequest(url.pathname);
+		const vendorResponse = this.vendorRegistry.tryHandleVendorRequest(
+			url.pathname,
+			request.headers.get('If-None-Match'),
+		);
 		if (vendorResponse) {
 			return vendorResponse;
 		}

@@ -1,7 +1,9 @@
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import path from 'node:path';
+import type { Stats } from 'node:fs';
 import chokidar from 'chokidar';
 import { fileSystem } from '@ecopages/file-system';
+import { appLogger } from '../global/app-logger.ts';
 import { ProjectWatcher } from './project-watcher';
 import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
 import type { ClientBridge } from '../adapters/bun/client-bridge.ts';
@@ -78,6 +80,12 @@ describe('ProjectWatcher', () => {
 		test('should not call refresh callback for stylesheet assets inside the pages directory', async () => {
 			const stylesheetPath = path.join(Config.absolutePaths.pagesDir, 'index.css');
 			await watcher.triggerRouterRefresh(stylesheetPath);
+
+			expect(RefreshCallback).not.toHaveBeenCalled();
+		});
+
+		test('should not call refresh callback for a sibling directory that shares the pages prefix', async () => {
+			await watcher.triggerRouterRefresh(`${Config.absolutePaths.pagesDir}-old`);
 
 			expect(RefreshCallback).not.toHaveBeenCalled();
 		});
@@ -415,22 +423,6 @@ describe('ProjectWatcher - File Change Handling', () => {
 			expect(Bridge.reload).toHaveBeenCalled();
 		});
 
-		test('should defer browser reload to the host when configured', async () => {
-			const delegatedWatcher = new ProjectWatcher({
-				config: Config,
-				refreshRouterRoutesCallback: vi.fn(),
-				hmrManager: HmrManager as any,
-				bridge: Bridge as any,
-				hostOwnsDevClient: true,
-				changeDebounceMs: 0,
-			});
-			Config.additionalWatchPaths = ['**/*.config.ts'];
-
-			await (delegatedWatcher as any).handleFileChange('/test/project/app.config.ts');
-
-			expect(Bridge.reload).not.toHaveBeenCalled();
-		});
-
 		test('should not reload for non-matching paths', async () => {
 			Config.additionalWatchPaths = ['**/*.config.ts'];
 			const nonMatchingPath = '/test/project/src/components/Button.tsx';
@@ -759,6 +751,94 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 			]),
 			expect.any(Object),
 		);
+	});
+
+	test.each([
+		['/test/project', 'content/**/*.md', '/test/project/content'],
+		['/test/project', '**/*.config.ts', '/test/project'],
+		['/test/project', '../shared/**/*.ts', '/test/shared'],
+		['/home/me/[client]/site', 'content/**/*.md', '/home/me/[client]/site/content'],
+	])('watches the static base directory of the %s root %s glob before it exists', async (rootDir, pattern, base) => {
+		const Config = await createMockConfig(rootDir);
+		installDevRuntimeState(Config);
+		Config.additionalWatchPaths = [pattern];
+		vi.spyOn(fileSystem, 'exists').mockReturnValue(false);
+		const chokidarWatch = vi.fn((_paths: string[]) => ({
+			add: vi.fn(),
+			on: vi.fn().mockReturnThis(),
+			close: vi.fn(),
+		}));
+		vi.spyOn(chokidar, 'watch').mockImplementation(chokidarWatch as never);
+
+		const watcher = new ProjectWatcher({
+			config: Config,
+			refreshRouterRoutesCallback: vi.fn(async () => {}),
+			hmrManager: createMockHmrManager(),
+			bridge: createMockBridge(),
+			changeDebounceMs: 0,
+		});
+
+		await watcher.createWatcherSubscription();
+
+		const watchedPaths = chokidarWatch.mock.calls[0]?.[0] ?? [];
+		expect(watchedPaths).toContain(base);
+		expect(watchedPaths.filter((watchedPath) => watchedPath.includes('*'))).toEqual([]);
+	});
+
+	test('warns when an additionalWatchPaths glob watches the filesystem root', async () => {
+		const Config = await createMockConfig();
+		installDevRuntimeState(Config);
+		Config.additionalWatchPaths = ['/**/*.md'];
+		vi.spyOn(chokidar, 'watch').mockImplementation(
+			() => ({ add: vi.fn(), on: vi.fn().mockReturnThis(), close: vi.fn() }) as never,
+		);
+		const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
+
+		const watcher = new ProjectWatcher({
+			config: Config,
+			refreshRouterRoutesCallback: vi.fn(async () => {}),
+			hmrManager: createMockHmrManager(),
+			bridge: createMockBridge(),
+			changeDebounceMs: 0,
+		});
+
+		await watcher.createWatcherSubscription();
+
+		expect(warn).toHaveBeenCalledWith(expect.stringContaining('"/**/*.md" watches the filesystem root'));
+	});
+
+	test('ignores files reached only through a glob base unless they match the glob', async () => {
+		const Config = await createMockConfig();
+		installDevRuntimeState(Config);
+		Config.additionalWatchPaths = ['**/*.config.ts'];
+		vi.spyOn(fileSystem, 'exists').mockImplementation(
+			(targetPath) => String(targetPath) === Config.absolutePaths.srcDir,
+		);
+
+		let capturedIgnored: ((watchedPath: string, stats?: Stats) => boolean) | undefined;
+		vi.spyOn(chokidar, 'watch').mockImplementation((_paths, options) => {
+			capturedIgnored = options?.ignored as (watchedPath: string, stats?: Stats) => boolean;
+			return { add: vi.fn(), on: vi.fn().mockReturnThis(), close: vi.fn() } as never;
+		});
+
+		const watcher = new ProjectWatcher({
+			config: Config,
+			refreshRouterRoutesCallback: vi.fn(async () => {}),
+			hmrManager: createMockHmrManager(),
+			bridge: createMockBridge(),
+			changeDebounceMs: 0,
+		});
+
+		await watcher.createWatcherSubscription();
+
+		const file = { isFile: () => true, isDirectory: () => false } as Stats;
+		const directory = { isFile: () => false, isDirectory: () => true } as Stats;
+		expect(capturedIgnored?.('/test/project/README.md')).toBe(false);
+		expect(capturedIgnored?.('/test/project/README.md', file)).toBe(true);
+		expect(capturedIgnored?.('/test/project/docs', directory)).toBe(false);
+		expect(capturedIgnored?.('/test/project/.cache', directory)).toBe(true);
+		expect(capturedIgnored?.('/test/project/vite.config.ts', file)).toBe(false);
+		expect(capturedIgnored?.(path.join(Config.absolutePaths.srcDir, 'components', 'Button.tsx'), file)).toBe(false);
 	});
 
 	test('ignores node_modules, .git, workDir, and distDir via a path predicate (chokidar v4+ has no glob support)', async () => {

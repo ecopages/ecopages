@@ -159,16 +159,11 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		return super.getHtmlTemplate();
 	}
 
-	public testGetRendererBootstrapDependencies(partial = false) {
-		return this.getRendererBootstrapDependencies(partial);
-	}
-
 	public async testFinalizeDocumentShellHtml(options: {
 		html: string;
 		partial?: boolean;
 		htmlContributions?: HtmlDocumentContribution[];
 	}) {
-		this.appendProcessedDependencies(this.getRendererBootstrapDependencies(options.partial));
 		return finalizeDocumentShellHtml(this.htmlTransformer, {
 			html: options.html,
 			partial: options.partial,

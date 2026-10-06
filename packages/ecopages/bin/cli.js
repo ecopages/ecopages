@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, watch } from 'node:fs';
 import { spawn } from 'node:child_process';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { Logger } from '@ecopages/logger';
-import { createLaunchPlan } from './launch-plan.js';
+import { createLaunchPlan, resolveEcoConfigFilePath } from './launch-plan.js';
 import {
 	ECOPAGES_DEV_RESTART_EXIT_CODE,
 	ECOPAGES_DEV_RESTART_REASON_ENV,
+	getDevEnvFileNames,
 } from '@ecopages/core/dev/development-restart';
 import { withBrandBanner } from './brand.js';
 
@@ -76,7 +78,7 @@ function getMainHelpText() {
 	].join('\n');
 }
 
-function getServerCommandHelpText(commandName, description) {
+function getServerCommandHelpText(commandName, description, extraHelpLines = []) {
 	return [
 		`Usage: ecopages ${commandName} [options]`,
 		'',
@@ -91,25 +93,7 @@ function getServerCommandHelpText(commandName, description) {
 		'      --runtime <runtime>                 Force bun or node',
 		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
 		'  -c, --config <file>                     Ecopages config file (default: eco.config.ts)',
-		'  -h, --help                              Show help',
-	].join('\n');
-}
-
-function getBuildCommandHelpText() {
-	return [
-		'Usage: ecopages build [options]',
-		'',
-		'Build the project for production.',
-		'',
-		'Options:',
-		'  -p, --port <port>                       Override ECOPAGES_PORT',
-		'  -n, --hostname <hostname>               Override ECOPAGES_HOSTNAME',
-		'  -b, --base-url <baseUrl>                Override ECOPAGES_BASE_URL',
-		'  -d, --debug                             Enable debug logging',
-		'  -r, --react-fast-refresh                Enable React Fast Refresh for Bun HMR',
-		'      --runtime <runtime>                 Force bun or node',
-		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
-		'  -c, --config <file>                     Ecopages config file (default: eco.config.ts)',
+		...extraHelpLines,
 		'  -h, --help                              Show help',
 	].join('\n');
 }
@@ -123,11 +107,17 @@ function parseCommandArguments(rawArgs, options) {
 	});
 }
 
-function parseServerCommandArgs(rawArgs, commandName, description, mode = 'server') {
-	const { values, positionals } = parseCommandArguments(rawArgs, sharedServerOptionDefinitions);
+function parseServerCommandArgs(rawArgs, definition) {
+	const commandName = definition.name;
+	const flags = definition.flags ?? {};
+	const flagOptions = Object.fromEntries(Object.keys(flags).map((flag) => [flag, { type: 'boolean' }]));
+	const { values, positionals } = parseCommandArguments(rawArgs, {
+		...sharedServerOptionDefinitions,
+		...flagOptions,
+	});
 
 	if (values.help) {
-		console.log(mode === 'build' ? getBuildCommandHelpText() : getServerCommandHelpText(commandName, description));
+		console.log(getServerCommandHelpText(commandName, definition.description, Object.values(flags)));
 		return { help: true };
 	}
 
@@ -141,6 +131,9 @@ function parseServerCommandArgs(rawArgs, commandName, description, mode = 'serve
 
 	return {
 		entry,
+		flagArgs: Object.keys(flags)
+			.filter((flag) => values[flag] === true)
+			.map((flag) => `--${flag}`),
 		options: {
 			port: values.port,
 			hostname: values.hostname,
@@ -186,7 +179,84 @@ function runLaunchPlan(launchPlan, options = {}) {
 			return;
 		}
 
+		if (code && options.onRestartFailure) {
+			logger.error(`The restarted development server exited with code ${code}.`);
+			options.onRestartFailure();
+			return;
+		}
+
 		process.exit(code || 0);
+	});
+}
+
+/**
+ * The files whose change restarts a dev child after a failed restart.
+ *
+ * @remarks
+ * These are the files the CLI loads: the resolved config (or the default `eco.config.ts` when none
+ * exists) and the supported dotenv files in the working directory. A custom `rootDir` is not followed,
+ * because the supervisor cannot read a broken config to find it.
+ */
+function resolveRestartWatchPaths(options) {
+	return [
+		resolveEcoConfigFilePath(options) ?? path.resolve('eco.config.ts'),
+		...getDevEnvFileNames(options.nodeEnv).map((envFile) => path.resolve(envFile)),
+	];
+}
+
+/**
+ * Calls `onChange` once, on the first change to any of `filePaths`, and closes the watchers before it.
+ *
+ * @remarks
+ * Watches the parent directories so that dotenv files created later, and editors that save by
+ * replacing the file, are both seen.
+ */
+function watchForNextChange(filePaths, onChange) {
+	const watchers = [];
+	let settled = false;
+
+	const settle = (callback) => {
+		if (settled) return;
+		settled = true;
+		for (const watcher of watchers) watcher.close();
+		callback();
+	};
+
+	const fail = (error) => {
+		settle(() => {
+			const message = error instanceof Error ? error.message : String(error);
+			logger.error(`Cannot watch the config and dotenv files for the next restart: ${message}`);
+			process.exit(1);
+		});
+	};
+
+	try {
+		for (const dir of new Set(filePaths.map((filePath) => path.dirname(filePath)))) {
+			const watcher = watch(dir, (_event, fileName) => {
+				if (fileName && filePaths.includes(path.join(dir, fileName))) settle(onChange);
+			});
+			watchers.push(watcher);
+			watcher.on('error', fail);
+		}
+	} catch (error) {
+		fail(error);
+	}
+}
+
+/**
+ * Modification times of `filePaths`, with `undefined` for a file that is missing or cannot be read.
+ *
+ * @remarks
+ * The times only catch a change saved while a restarted child was loading. An unreadable file must
+ * not crash the supervisor, and the directory watchers still see its next change.
+ */
+function readModifiedTimes(filePaths) {
+	return filePaths.map((filePath) => {
+		try {
+			return statSync(filePath).mtimeMs;
+		} catch {
+			return undefined;
+		}
 	});
 }
 
@@ -206,13 +276,42 @@ async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchM
 		process.exit(1);
 	}
 
+	const restartWatchPaths = superviseDevRestarts ? resolveRestartWatchPaths(options) : [];
+	const devRestartReason = 'configuration or environment change';
+
+	/**
+	 * @remarks
+	 * A restarted child that exits with an error keeps the supervisor alive until the next config or
+	 * dotenv change, so a typo in `eco.config.ts` does not end the dev session. A change saved since
+	 * that child was launched relaunches at once, because the watchers start only after it exits.
+	 * Signals still end the supervisor.
+	 */
+	const handleRestartFailure = (modifiedTimesAtLaunch) => {
+		const modifiedTimes = readModifiedTimes(restartWatchPaths);
+		if (modifiedTimes.some((time, index) => time !== modifiedTimesAtLaunch[index])) {
+			logger.info('The config or a dotenv file changed since the restart. Restarting...');
+			void launchChild(devRestartReason);
+			return;
+		}
+
+		logger.info('Waiting for a change to the config or a dotenv file to restart.');
+		watchForNextChange(restartWatchPaths, () => {
+			void launchChild(devRestartReason);
+		});
+	};
+
 	const launchChild = async (restartReason) => {
+		const modifiedTimesAtLaunch = restartReason ? readModifiedTimes(restartWatchPaths) : undefined;
 		let launchPlan;
 		try {
 			launchPlan = await createLaunchPlan(args, options, entryFile, launchMode);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			logger.error(message);
+			if (modifiedTimesAtLaunch) {
+				handleRestartFailure(modifiedTimesAtLaunch);
+				return;
+			}
 			process.exit(1);
 		}
 
@@ -224,8 +323,9 @@ async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchM
 		runLaunchPlan(launchPlan, {
 			superviseDevRestarts,
 			onDevRestart: () => {
-				void launchChild('configuration or environment change');
+				void launchChild(devRestartReason);
 			},
+			onRestartFailure: modifiedTimesAtLaunch ? () => handleRestartFailure(modifiedTimesAtLaunch) : undefined,
 		});
 	};
 
@@ -233,7 +333,7 @@ async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchM
 }
 
 async function runServerCommand(rawArgs, definition) {
-	const parsed = parseServerCommandArgs(rawArgs, definition.name, definition.description, definition.mode);
+	const parsed = parseServerCommandArgs(rawArgs, definition);
 
 	if (parsed.help) {
 		return;
@@ -241,7 +341,7 @@ async function runServerCommand(rawArgs, definition) {
 
 	const entry = definition.resolveEntry?.() ?? parsed.entry;
 	await runEntryCommand(
-		definition.entryArgs,
+		[...definition.entryArgs, ...parsed.flagArgs],
 		{ ...parsed.options, ...definition.optionOverrides, entryFile: entry },
 		entry,
 		definition.launchMode ?? definition.name,
@@ -249,8 +349,9 @@ async function runServerCommand(rawArgs, definition) {
 }
 
 /**
- * Commands that run an entry file, keyed by name. `launchMode` defaults to the name, and
- * `resolveEntry` replaces the app entry (`app.ts`) with another script.
+ * Commands that run an entry file, keyed by name. `launchMode` defaults to the name,
+ * `resolveEntry` replaces the app entry (`app.ts`) with another script, and `flags` declares
+ * boolean options that are forwarded to the entry as `--<flag>`, keyed by name with their help line.
  */
 const SERVER_COMMANDS = {
 	dev: {
@@ -275,7 +376,9 @@ const SERVER_COMMANDS = {
 		description: 'Build the project for production.',
 		entryArgs: ['--build'],
 		optionOverrides: { nodeEnv: 'production' },
-		mode: 'build',
+		flags: {
+			force: '      --force                             Empty dist and the build caches, then rebuild everything',
+		},
 	},
 	start: {
 		description: 'Start the production server.',
@@ -293,6 +396,9 @@ const SERVER_COMMANDS = {
 		description: 'Preview the production build.',
 		entryArgs: ['--preview'],
 		optionOverrides: { nodeEnv: 'production' },
+		flags: {
+			force: '      --force                             Empty dist and the build caches, then rebuild everything',
+		},
 	},
 };
 

@@ -9,12 +9,10 @@ This document captures implementation decisions, extension points, and follow-up
 | Order | Plugin                       | Responsibility                                                           |
 | ----- | ---------------------------- | ------------------------------------------------------------------------ |
 | 1     | `ecopages:client-jsx-compat` | `enforce: 'pre'` host JSX pragma for non-host integrations on the client |
-| 2     | `ecopages:config`            | Vite config merge + renderer module context + dev-server origin sync     |
+| 2     | `ecopages:config`            | Vite config merge + dev-server origin sync                               |
 | 3     | `ecopages:metadata`          | `eco-component-meta` transform                                           |
 | 4+    | dynamic source transforms    | Bundler-neutral transforms from `appConfig.sourceTransforms`             |
 | N     | `ecopages-virtual-modules`   | Integration manifest, island registry, image bridge                      |
-| N+1   | `ecopages:islands`           | Island client runtime virtual module                                     |
-| N+2   | `ecopages:hot-update`        | Watcher + invalidation bridge                                            |
 | last  | `ecopages:dev-server`        | Connect middleware → `app.fetch()`                                       |
 
 All buckets use `apply: 'serve'` because this package is intentionally a dev-host adapter. Production builds stay in the Ecopages CLI / Rolldown path.
@@ -31,41 +29,34 @@ This prevents stale `http://localhost:3000` defaults from leaking into Vite-host
 
 ## HTML pipeline
 
-SSR HTML from `app.fetch()` is normalized in middleware for Ecopages-specific concerns (Lit slot unwrapping, template slot injection), then passed through `server.transformIndexHtml()` so Vite owns `/@vite/client` injection and related dev HTML transforms.
+SSR HTML from `app.fetch()` is normalized in middleware for Ecopages-specific concerns (Lit slot unwrapping, template slot injection). Document navigations then get the Ecopages HMR runtime bootstrap; browser-router fetches do not.
 
-Manual `/@vite/client` string injection in middleware is deprecated. Keep Ecopages-specific HTML rewrites in `html-transforms.ts`; keep Vite-owned injection on the Vite HTML transform path.
+The HTML does not go through `server.transformIndexHtml()`. Core builds the page and its scripts and serves them under `/assets/`, the Ecopages HMR runtime is the browser client, and Vite HMR is off, so Vite's `/@vite/client` injection would only be stripped again, and its pre-transform of each script URL fails for core-built assets and logs a `Pre-transform error` per document request. Pages are served as under `ecopages dev`: other Vite plugins' `transformIndexHtml` hooks do not apply to them.
+
+The embedded app runs in watch mode, so its HTML responses carry `Cache-Control: no-store, must-revalidate` whatever cache strategy the page declares, as under `ecopages dev`. The middleware passes that header on, so the browser requests the document again on every navigation and sees the stylesheets and scripts an edit added or removed.
+
+Keep Ecopages-specific HTML rewrites in `html-transforms.ts`.
 
 ## Dev-host warmup
 
-`ecopages:dev-server` warms the SSR graph before meaningful browser traffic:
+`ecopages:dev-server` starts the embedded app for each Vite server instance:
 
 1. Register the host module loader
-2. Load and cache the `app` module export
-3. Preload `virtual:ecopages/images.ts` when available
-4. Run an internal `app.fetch('/')` smoke request
+2. Load the `app` module export through `ssrLoadModule`
+3. Call `app.handleListening()` with the dev-server origin
+4. Attach the app's WebSocket upgrades to Vite's HTTP server
 
-Middleware awaits `api.getDevHostReady()` before serving requests. The cached app is cleared when `ecopages:hot-update` invalidates server modules so the next request reloads `app` via `ssrLoadModule`.
+Each Vite server instance loads its own app, and middleware awaits it before serving requests. The app is stopped when its Vite server closes (the plugin's `closeBundle` hook), including on a restart and in middleware mode.
 
-## HMR boundaries (Solid comparison)
+Before loading the app it turns on Node's source-mapped stack traces (`process.setSourceMapsEnabled(true)`), as Vite's own SSR module runner does. The runner behind `ssrLoadModule` leaves them off, and `ssrLoadModule`'s `fixStacktrace` option covers only errors thrown while a module loads, not those thrown later while the app renders. A tool that replaces `Error.prepareStackTrace` bypasses Node's mapping.
 
-Solid's `vite-plugin-solid` keeps HMR concerns in a dedicated `solid-refresh.ts` bucket and aims for component-level fast refresh. Ecopages takes a different path:
+## Dev invalidation and HMR
 
-| Layer               | Ecopages                                             | Solid                                 |
-| ------------------- | ---------------------------------------------------- | ------------------------------------- |
-| Invalidation policy | `DevelopmentInvalidationService` in `@ecopages/core` | Plugin-local refresh runtime          |
-| Vite bridge         | `ecopages:hot-update`                                | `handleHotUpdate` / refresh runtime   |
-| Granularity         | Often full reload for route/layout changes           | Component-level updates when possible |
+The embedded app's Project Watcher owns dev invalidation and HMR: `DevelopmentInvalidationService` in `@ecopages/core` plans each change, and the app's HMR manager updates the browser through the Ecopages HMR runtime. Vite invalidates its client and SSR module graphs on every file change by itself, so pages, layouts, includes and views, which core loads per request, pick up edits on the next request.
 
-**Current mapping**
+Vite's own restart for its config and env files runs only inside its HMR update, which is off, so `ecopages:dev-server` restarts Vite when the Vite config or a file it imports, or an env file for the current mode, changes. It does not restart for `eco.config.ts` on that rule: an app that loads its config through `createApp()` keeps it for the life of the process, so the embedded app keeps asking for a full restart. When `app.ts` imports `eco.config.ts` itself, the app-entry rule restarts Vite and the restarted app re-evaluates it. Nothing re-imports the app entry either, so it also restarts Vite when `app.ts` or a module it imports changes (API, route and WebSocket handlers, data they read), and logs the file. The restart loads a fresh app and stops the old one. While the app has failed to load, any added, changed or deleted file restarts Vite, so fixing the error recovers without a manual restart. A request in flight during a restart can fail once; the next one is served by the new app.
 
-- Page/layout/component/include edits → planned by `DevelopmentInvalidationService`
-- Server module invalidation → non-client Vite environments in `ecopages:hot-update`
-- Browser reload → debounced `server.hot.send({ type: 'full-reload' })` (~200ms coalescing window) when the plan requires it, deferred until dev-host warmup completes
-- Delegated module invalidation → invalidate client modules and return them to Vite HMR without a full reload
-
-**Follow-up opportunity**
-
-Expose per-integration `HmrStrategy` boundaries from `IntegrationPlugin` so integrations with true fast-refresh runtimes (React, future Solid host pages) can opt into finer-grained updates without teaching file-category rules to the Vite plugin.
+Edits under `publicDir` and files matched by `additionalWatchPaths` reload the page: the Project Watcher sends the reload through the client bridge, as under `ecopages dev`, although the host owns the dev client.
 
 ## Astro-style Vite injection evaluation
 

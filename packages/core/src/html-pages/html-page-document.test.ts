@@ -15,8 +15,8 @@ describe('reconcileHtmlPageDocument', () => {
 			page({
 				nodes: [
 					{ html: '<title>About</title>', key: 'title' },
-					{ html: '<meta name="description" content="Page">', key: 'meta:name:description' },
-					{ html: '<meta name="robots" content="index">', key: 'meta:name:robots' },
+					{ html: '<meta name="description" content="Page">', key: 'meta:description' },
+					{ html: '<meta name="robots" content="index">', key: 'meta:robots' },
 					{ html: '<link rel="canonical" href="https://example.com/about">', key: 'link:canonical' },
 					{ html: '<link rel="stylesheet" href="/about.css">' },
 					{ html: '' },
@@ -26,6 +26,17 @@ describe('reconcileHtmlPageDocument', () => {
 
 		expect(html).toBe(
 			'<!DOCTYPE html><html lang="en" class="site"><head><meta charset="utf-8"><title>About</title><meta name="description" content="Page"><link rel="stylesheet" href="/site.css"><meta name="robots" content="index"><link rel="canonical" href="https://example.com/about"><link rel="stylesheet" href="/about.css"></head><body class="base"><main></main></body></html>',
+		);
+	});
+
+	it('replaces a shell social tag written with the other attribute in place', () => {
+		const html = reconcileHtmlPageDocument(
+			'<html><head><meta property="twitter:title" content="Shell"><link rel="stylesheet" href="/site.css"></head><body></body></html>',
+			page({ nodes: [{ html: '<meta name="twitter:title" content="About">', key: 'meta:twitter:title' }] }),
+		);
+
+		expect(html).toBe(
+			'<html><head><meta name="twitter:title" content="About"><link rel="stylesheet" href="/site.css"></head><body></body></html>',
 		);
 	});
 

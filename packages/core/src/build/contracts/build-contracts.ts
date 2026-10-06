@@ -40,6 +40,7 @@ export interface BuildResult {
 	logs: BuildLog[];
 	outputs: BuildOutput[];
 	dependencyGraph?: BuildDependencyGraph;
+	/** Output path of each entry chunk, keyed by the absolute real path of its entry module. */
 	entryOutputs?: Record<string, string>;
 }
 
@@ -65,6 +66,18 @@ export interface BuildOptions {
 	splitting?: boolean;
 	root?: string;
 	externalPackages?: boolean;
+	/**
+	 * Logs the externalized packages that resolve outside `root`, one line per
+	 * build, named by its entry files in `runtimeOutdir` (or `outdir`).
+	 *
+	 * @remarks
+	 * Set by the `server-entry` profile only: the server entry and the emitted
+	 * config are what gets deployed, while module builds that the running
+	 * server makes on the deploy target stay silent.
+	 */
+	reportPackagesOutsideRoot?: boolean;
+	/** Directory the output runs from when it is written to a staging `outdir` first. Defaults to `outdir`. */
+	runtimeOutdir?: string;
 	external?: string[];
 	jsx?: {
 		development?: boolean;

@@ -19,6 +19,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 	private server: NodeServerInstance | null = null;
 	private runtimeOrigin = '';
 	private stopped = false;
+	private hostServerInitialized = false;
 	private readonly runtimeHost: RuntimeHost<NodeServerInstance, NodeRuntimeServeOptions>;
 
 	constructor(
@@ -159,6 +160,10 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 		return this.serverAdapter.handleRequest(request);
 	}
 
+	/**
+	 * @remarks
+	 * The host owns `httpServer`, so it is not kept as the app's server and `stop()` leaves it open.
+	 */
 	public async attachWebSocketUpgrades(
 		httpServer: import('node:http').Server,
 		options?: WebSocketUpgradeOptions,
@@ -167,8 +172,8 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 			this.serverAdapter = await this.initializeServerAdapter();
 		}
 
-		if (!this.server) {
-			this.server = httpServer;
+		if (!this.server && !this.hostServerInitialized) {
+			this.hostServerInitialized = true;
 			await this.serverAdapter.completeInitialization(httpServer, options);
 			return;
 		}

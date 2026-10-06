@@ -12,6 +12,7 @@
  */
 
 import path from 'node:path';
+import { isPathInside } from '../utils/path-containment.ts';
 
 const DEFAULT_MAX_ENTRIES = 2_000;
 
@@ -93,7 +94,7 @@ export class AliasResolverCache {
 		const normalizedRoot = path.resolve(rootDir);
 		let removed = 0;
 		for (const [key, entry] of this.entries) {
-			if (isUnderDirectory(path.resolve(entry.srcDir), normalizedRoot)) {
+			if (isPathInside(entry.srcDir, normalizedRoot)) {
 				this.entries.delete(key);
 				removed += 1;
 			}
@@ -127,16 +128,4 @@ export class AliasResolverCache {
 
 function makeKey(srcDir: string, specifier: string): string {
 	return `${srcDir} ${specifier}`;
-}
-
-/**
- * Returns true if `candidate` is the same as `parent` or a descendant
- * of it. Uses `path.relative` so the comparison is path-aware and
- * works across POSIX and Windows separators.
- */
-function isUnderDirectory(candidate: string, parent: string): boolean {
-	if (candidate === parent) return true;
-	const rel = path.relative(parent, candidate);
-	if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return false;
-	return true;
 }

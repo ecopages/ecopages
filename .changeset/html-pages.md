@@ -2,7 +2,7 @@
 '@ecopages/core': minor
 ---
 
-Add HTML Pages: a plain `.html` file under `src/pages/` is a Filesystem Route that needs no Integration or option in your config. A Page can be a body fragment, a `<head>` plus body markup, or a complete document. It renders inside the app's `src/includes/html.*`, which can now also be plain HTML (`html.html` with one `<!-- eco:children -->` marker), or a built-in shell when there is none. Page `<title>`, `<base>`, canonical, and keyed `<meta>` tags replace the shell's in place, `<html>` and `<body>` attributes merge, and local stylesheets, `<style>` blocks, and scripts are processed and emitted where they were written. `404.html` and `500.html` work as error pages, and Page head tags feed page metadata and the Sitemap.
+Add HTML Pages: a plain `.html` file under `src/pages/` is a Filesystem Route that needs no Integration or option in your config. A Page can be a body fragment, a `<head>` plus body markup, or a complete document; without a `<head>`, its leading `<title>`, `<meta>`, `<link>` and similar tags form the head, as in a browser. It renders inside the app's `src/includes/html.*`, which can now also be plain HTML (`html.html` with one `<!-- eco:children -->` marker), or a built-in shell when there is none. Page `<title>`, `<base>`, canonical, and keyed `<meta>` tags replace the shell's in place, `<html>` and `<body>` attributes merge, and local stylesheets, `<style>` blocks, and scripts are processed and emitted where they were written; the module scripts of all Pages and the shell are built together, so a module they share runs once, also across browser-router navigations. `404.html` and `500.html` work as error pages, and Page head tags feed page metadata and the Sitemap.
 
 **Breaking:**
 

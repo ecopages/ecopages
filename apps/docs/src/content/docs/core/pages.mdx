@@ -92,7 +92,7 @@ An HTML Page has no props, template expressions, Layout, data hooks, or hydratio
 
 Three rules cover the contract:
 
-1. **Write normal HTML.** A Page can be a body fragment, a `<head>` followed by body markup, or a complete document with doctype, `<html>`, `<head>`, and `<body>`.
+1. **Write normal HTML.** A Page can be a body fragment, a `<head>` followed by body markup, or a complete document with doctype, `<html>`, `<head>`, and `<body>`. As in a browser, `<head>` is optional: the `<title>`, `<meta>`, `<link>`, `<style>`, `<script>`, `<base>` and `<template>` tags that start the Page form its head, up to the first other element or text. A `<script>` or `<style>` placed before the first body element therefore goes to the head; put it after that element to keep it in the body.
 2. **Page head tags win by identity.** A Page `<title>`, `<base>`, `<link rel="canonical">`, or `<meta>` with the same `name`, `property`, or `http-equiv` as a shell tag replaces that shell tag in place. Every other Page head tag is added before `</head>`.
 3. **Core rewrites only local assets.** Within your markup, core changes only the URLs of local stylesheets and scripts and the contents of `<style>` blocks, and emits them where you wrote them; a file `html.html` already loads is emitted once, by the shell. Everything else, including inline scripts, is kept as written.
 
@@ -204,7 +204,7 @@ Attributes on the Page `<html>` and `<body>` merge onto the shell's: `class` val
 
 You can paste an existing document and keep its `lang`, classes, and scripts, as long as its images and icons use root-relative URLs and its local assets live inside `src` without `integrity` attributes (see below).
 
-Core also reads these Page head tags into the page metadata, merged over `defaultMetadata`. JSX and React shells render from that metadata, and static export uses it for the [Sitemap](/docs/core/sitemap):
+Core also reads these Page head tags into the page metadata, merged over `defaultMetadata`. JSX and React shells render from that metadata, and static export uses it for the [Sitemap](/docs/core/sitemap). A `<meta>` tag is matched by its value, so `name`, `property` and `http-equiv` are interchangeable: `<meta name="og:image">` fills `image` too.
 
 | Page head tag                | Metadata field                                         |
 | ---------------------------- | ------------------------------------------------------ |
@@ -215,7 +215,7 @@ Core also reads these Page head tags into the page metadata, merged over `defaul
 | `<link rel="canonical">`     | `url`                                                  |
 | `<meta name="robots">`       | `robots`; `noindex` removes the route from the Sitemap |
 
-Core also derives social tags from a Page's own head: when a Page sets a `<title>` or description, it gets matching `og:title`, `og:description`, `twitter:title`, and `twitter:description` tags, which replace the shell's tags with the same `property` or `name`, or are added before `</head>`. A tag the Page writes itself wins. Other social tags, such as `og:image`, `og:type`, or `twitter:card`, are written by hand, usually as site defaults in `html.html`. Core also adds a robots `<meta>` from `metadata.robots` (see [Plain HTML template](/docs/core/includes#plain-html-template)).
+Core also derives social tags from a Page's own head: when a Page sets a `<title>` or description, it gets matching `og:title`, `og:description`, `twitter:title`, and `twitter:description` tags, which replace the shell's tag with the same value, whichever attribute it uses, or are added before `</head>`. A tag the Page writes itself wins, whichever attribute it uses. Other social tags, such as `og:image`, `og:type`, or `twitter:card`, are written by hand, usually as site defaults in `html.html`. Core also adds a robots `<meta>` from `metadata.robots` (see [Plain HTML template](/docs/core/includes#plain-html-template)).
 
 ### Stylesheets, scripts, and other assets
 
@@ -225,13 +225,13 @@ A relative path, with or without `./`, resolves against the `.html` file that co
 | --------------------------------------------------------- | ------------------------------------------------------------ |
 | `<link rel="stylesheet" href="./page.css">`               | Run through your stylesheet processors, linked to the output |
 | `<style>…</style>`                                        | Run through your stylesheet processors, kept inline          |
-| `<script type="module" src="./page.ts">`                  | Bundled as a browser module                                  |
-| `<script src="./legacy.js">`                              | Copied unchanged, loaded classically                         |
-| `<script src="./legacy.ts">`                              | Types stripped, loaded classically                           |
+| `<script type="module" src="./page.ts">`                  | Bundled as a browser module; a module several scripts import loads once, across Pages too |
+| `<script src="./legacy.js">`                              | Compiled on its own as a classic script, minified in production |
+| `<script src="./legacy.ts">`                              | Compiled on its own as a classic script, minified in production |
 | A tag with an external or root-relative URL               | Kept as written                                              |
 | An inline `<script>`, or one with a non-JavaScript `type` | Kept as written                                              |
 
-Processed tags keep their other attributes. A file declared by both `html.html` and the Page is emitted once, by the shell, and a file declared twice in one file is emitted at its first occurrence. A classic script keeps classic semantics: its top-level functions and variables are globals other scripts can use, and a TypeScript one has only its types stripped. A classic script cannot use `import`, `export`, or `import.meta`; that is an error asking for `type="module"`. A missing local file, a path outside `src`, or an `integrity` attribute on a processed tag is an error that names the HTML file.
+Processed tags keep their other attributes. A file declared by both `html.html` and the Page is emitted once, by the shell, and a file declared twice in one file is emitted at its first occurrence. A classic script keeps classic semantics: its top-level functions and variables are globals other scripts can use, and `this` at the top level is the global object. Each one, JavaScript or TypeScript, is compiled on its own, never bundled, and minified in production without renaming its top-level names; any `tsconfig.json` is ignored. A classic script cannot use `import`, `export`, `import.meta`, a relative `import()`, a top-level `await` or a decorator, and cannot be a `.jsx` or `.tsx` file; each is an error asking for `type="module"`. A missing local file, a path outside `src`, or an `integrity` attribute on a processed tag is an error that names the HTML file.
 
 Images, fonts, media, and icons are not processed. Put them in `src/public/` and reference them with root-relative URLs such as `/images/team.jpg`. In development, core warns about a relative `src`, `srcset`, or `href` that it leaves as written, because the browser resolves it against the route URL rather than the file. Links (`<a>`, `<area>`, `<base>`) are not warned about.
 
@@ -248,7 +248,7 @@ import { createRouter } from '@ecopages/browser-router/client';
 createRouter();
 ```
 
-After each client navigation, a script that was not already in the same part of the previous page (head or body) runs, in document order; an external module script runs at most once per URL in a tab.
+After each client navigation, a head script runs only if the previous page's head did not have it, and every body script runs again, in document order; an external module script runs at most once per URL in a tab. An external classic body script therefore runs on every visit to its Page, and its top-level `const`, `let` or `class` declarations would be declared twice and throw. Write such a script without them (use `var` or functions, or wrap the code in a block or an IIFE), or use a module script, which runs once per URL, and listen for `eco:page-load` for code that must run on each visit.
 
 ### Error pages and route rules
 

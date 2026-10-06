@@ -420,6 +420,40 @@ describe('React Island Host lifecycle', () => {
 		runtime.observer?.disconnect();
 	});
 
+	it('hydrates with props that contain non-Latin-1 text', () => {
+		const host = document.createElement('eco-island');
+		host.setAttribute('data-eco-island', '');
+		host.setAttribute('data-eco-component-key', 'component-unicode');
+		/** Props `{ label: '10 €', city: '東京', icon: '🙂' }` as core's `encodeIslandProps` writes them. */
+		host.setAttribute('data-eco-props', 'eyJsYWJlbCI6IjEwIOKCrCIsImNpdHkiOiLmnbHkuqwiLCJpY29uIjoi8J+ZgiJ9');
+		document.body.appendChild(host);
+		const Component = () => null;
+		const renderedProps: unknown[] = [];
+		const runtime: IslandHydrationRuntime = { islandRoots: {}, islandComponents: {} };
+
+		mountIslands({
+			targetSelector: '[data-eco-component-key="component-unicode"]',
+			componentModule: { default: Component },
+			scriptId: 'island-script-unicode',
+			runtimeState: runtime,
+			runtime: {
+				hydrateRoot: (_target: HTMLElement, tree: unknown) => {
+					const element = tree as { type: (props: unknown) => unknown; props: unknown };
+					element.type(element.props);
+					return { render: () => {}, unmount: () => {} };
+				},
+				createElement: (type: unknown, elementProps: Record<string, unknown>) => {
+					if (type === Component) renderedProps.push(elementProps);
+					return { type, props: elementProps };
+				},
+				useEffect: () => {},
+			},
+		});
+
+		expect(renderedProps).toEqual([{ label: '10 €', city: '東京', icon: '🙂' }]);
+		runtime.observer?.disconnect();
+	});
+
 	it('preserves a focused uncontrolled input with the real React hydrator', async () => {
 		const host = document.createElement('eco-island');
 		host.setAttribute('data-eco-island', '');

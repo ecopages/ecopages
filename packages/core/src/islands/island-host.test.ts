@@ -22,6 +22,18 @@ describe('island host attributes', () => {
 		expect(attributes['data-eco-props']).toBe(btoa(JSON.stringify({ count: 1 })));
 	});
 
+	it('encodes props with non-Latin-1 text as base64 of their UTF-8 JSON', () => {
+		const props = { label: '10 €', city: '東京', icon: '🙂' };
+
+		const attributes = buildIslandHostAttributes({
+			integrationName: 'react',
+			componentInstanceId: 'host_n_2',
+			props,
+		});
+
+		expect(attributes['data-eco-props']).toBe('eyJsYWJlbCI6IjEwIOKCrCIsImNpdHkiOiLmnbHkuqwiLCJpY29uIjoi8J+ZgiJ9');
+	});
+
 	it('finalizes component renders that ship client scripts', () => {
 		const result = finalizeIslandComponentRender(
 			{ integrationContext: { componentInstanceId: 'host_n_2' } },
@@ -31,9 +43,25 @@ describe('island host attributes', () => {
 				assets: [{ kind: 'script' }],
 				rootAttributes: {} as Record<string, string>,
 			},
+			[{ kind: 'script' }],
 		);
 
 		expect(result.rootAttributes?.[ECO_ISLAND_HOST_ATTRIBUTE]).toBe('');
 		expect(result.rootAttributes?.[ECO_ISLAND_INTEGRATION_ATTRIBUTE]).toBe('lit');
+	});
+
+	it('does not finalize component renders whose only scripts come from foreign subtrees', () => {
+		const result = finalizeIslandComponentRender(
+			{ integrationContext: { componentInstanceId: 'host_n_3' } },
+			{
+				canAttachAttributes: true,
+				integrationName: 'lit',
+				assets: [{ kind: 'stylesheet' }, { kind: 'script' }],
+				rootAttributes: {} as Record<string, string>,
+			},
+			[{ kind: 'stylesheet' }],
+		);
+
+		expect(result.rootAttributes).toEqual({});
 	});
 });

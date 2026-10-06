@@ -1,9 +1,10 @@
+import path from 'node:path';
 import { Readable } from 'node:stream';
 import { isDocumentHtmlNavigationFromHeaders } from './document-html-navigation.ts';
-import { injectEcopagesDocumentDevBootstrap, stripViteBrowserHmrScripts } from './ecopages-hmr-runtime-injection.ts';
+import { injectEcopagesHmrRuntimeIntoHtml } from './ecopages-hmr-runtime-injection.ts';
 import { normalizeHtmlResponse } from './html-transforms.ts';
 import type { ServerResponse } from 'node:http';
-import type { Connect, ViteDevServer } from 'vite';
+import { normalizePath, type Connect, type EnvironmentModuleNode, type ViteDevServer } from 'vite';
 import { getAppEntryPath, loadApp, registerHostModuleLoader, type EcopagesEmbeddedApp } from './embedded-dev-server.ts';
 import type { EcopagesPluginApi } from './plugin-api.ts';
 import { resolveEcopagesDevServerOrigin } from './resolve-vite-dev-origin.ts';
@@ -92,36 +93,73 @@ async function sendWebResponse(res: ServerResponse, webResponse: Response): Prom
 	}
 }
 
-async function getOrLoadApp(
+function logError(server: ViteDevServer, message: string, error: unknown): void {
+	server.config.logger.error(`[ecopages] ${message}: ${error instanceof Error ? error.stack : String(error)}`, {
+		timestamp: true,
+	});
+}
+
+/**
+ * Loads the app entry inside Vite's SSR module runner and attaches its WebSocket upgrades.
+ *
+ * @remarks
+ * `httpServer` is read by the caller when the server is configured: on restart Vite copies the new server's
+ * properties onto the same object, so reading it after the awaits could attach a stale app to the new server.
+ *
+ * A load failure is logged once and then surfaces through every middleware request that awaits the promise,
+ * never as an unhandled rejection.
+ *
+ * It turns on Node's source-mapped stack traces, as Vite's own SSR module runner does: `ssrLoadModule`'s runner
+ * leaves them off, so an error thrown while the app renders would point at the transformed module, not the source.
+ */
+function startEmbeddedApp(
 	server: ViteDevServer,
+	httpServer: ViteDevServer['httpServer'],
 	api: EcopagesPluginApi,
 	appEntryPath: string,
 ): Promise<EcopagesEmbeddedApp> {
-	const cachedApp = api.getCachedApp();
-	if (cachedApp) {
-		return cachedApp;
-	}
-
-	const app = await loadApp(server, appEntryPath);
-	api.setCachedApp(app);
-	return app;
+	process.setSourceMapsEnabled?.(true);
+	const appReady = (async () => {
+		await registerHostModuleLoader(server);
+		const app = await loadApp(server, appEntryPath);
+		const origin = api.getDevServerOrigin();
+		if (origin) {
+			app.handleListening(origin);
+		}
+		if (httpServer && typeof app.attachWebSocketUpgrades === 'function') {
+			await app.attachWebSocketUpgrades(httpServer, { passthroughUnmatched: true });
+		}
+		return app;
+	})();
+	appReady.catch((error: unknown) => logError(server, 'Failed to load the app entry', error));
+	return appReady;
 }
 
-async function attachEmbeddedWebSocketUpgrades(
-	server: ViteDevServer,
-	api: EcopagesPluginApi,
-	appEntryPath: string,
-): Promise<void> {
-	if (!server.httpServer) {
-		return;
+/**
+ * Whether `file` is the module `entry` or one of the modules it imports, directly or transitively.
+ *
+ * @remarks
+ * Follows `importedModules`, which also holds dynamic imports with a literal specifier. Page, layout
+ * and view modules that core loads per request through the host module loader are separate entries,
+ * not imports of the app entry, so they are never reached.
+ */
+function importsFile(entry: EnvironmentModuleNode, file: string): boolean {
+	const seen = new Set<EnvironmentModuleNode>();
+	const pending = [entry];
+
+	while (pending.length > 0) {
+		const node = pending.pop()!;
+		if (node.file === file) {
+			return true;
+		}
+		if (seen.has(node)) {
+			continue;
+		}
+		seen.add(node);
+		pending.push(...node.importedModules);
 	}
 
-	const app = await getOrLoadApp(server, api, appEntryPath);
-	if (typeof app.attachWebSocketUpgrades !== 'function') {
-		return;
-	}
-
-	await app.attachWebSocketUpgrades(server.httpServer, { passthroughUnmatched: true });
+	return false;
 }
 
 function isConnectDocumentNavigation(req: Connect.IncomingMessage): boolean {
@@ -135,13 +173,17 @@ function isConnectDocumentNavigation(req: Connect.IncomingMessage): boolean {
 	});
 }
 
-async function sendAppResponse(
-	res: ServerResponse,
-	response: Response,
-	server: ViteDevServer,
-	requestUrl: string,
-	req: Connect.IncomingMessage,
-): Promise<void> {
+/**
+ * Sends an app response, adding the Ecopages HMR runtime to HTML documents.
+ *
+ * @remarks
+ * Document HTML does not go through `server.transformIndexHtml`. Core builds the page and its scripts, the
+ * Ecopages HMR runtime is the browser client, and Vite HMR is off, so Vite's client injection would have to
+ * be stripped again, and its pre-transform of each script URL fails for core-built `/assets/...` files and
+ * logs a `Pre-transform error` per document request. Pages are served as under `ecopages dev`, so other
+ * Vite plugins' `transformIndexHtml` hooks do not apply to them.
+ */
+async function sendAppResponse(res: ServerResponse, response: Response, req: Connect.IncomingMessage): Promise<void> {
 	const contentType = response.headers.get('content-type') ?? '';
 
 	if (!contentType.includes('text/html')) {
@@ -151,15 +193,9 @@ async function sendAppResponse(
 
 	const originalBody = await response.text();
 	const normalizedBody = normalizeHtmlResponse(originalBody);
-	const isDocumentNavigation = isConnectDocumentNavigation(req);
-	let rewrittenBody = isDocumentNavigation
-		? await server.transformIndexHtml(requestUrl, normalizedBody)
+	const rewrittenBody = isConnectDocumentNavigation(req)
+		? injectEcopagesHmrRuntimeIntoHtml(normalizedBody)
 		: normalizedBody;
-
-	if (isDocumentNavigation) {
-		rewrittenBody = stripViteBrowserHmrScripts(rewrittenBody);
-		rewrittenBody = injectEcopagesDocumentDevBootstrap(rewrittenBody);
-	}
 
 	const headers = new Headers(response.headers);
 	headers.delete('content-length');
@@ -176,84 +212,124 @@ async function sendAppResponse(
 }
 
 /**
+ * Whether a change to `file` needs a fresh Vite server: the Vite config or a file it imports, or an env file
+ * Vite loads for the current mode.
+ *
+ * @remarks
+ * Vite restarts for these itself only inside its HMR update, which the Ecopages host turns off
+ * (`server.hmr: false`). `eco.config.ts` is never one of them, even when the Vite config imports it: the
+ * app loads it through the config loader, which keeps it for the life of the process, so a restart would
+ * not apply the edit. When `app.ts` imports it, the app-entry rule restarts Vite instead, and the restarted
+ * app re-evaluates it.
+ */
+function isViteConfigFile(server: ViteDevServer, ecoConfigPath: string | undefined, file: string): boolean {
+	const { config } = server;
+	if (file === ecoConfigPath) {
+		return false;
+	}
+	if (file === config.configFile || config.configFileDependencies.includes(file)) {
+		return true;
+	}
+	if (config.envDir === false || path.dirname(file) !== normalizePath(config.envDir)) {
+		return false;
+	}
+	return ['.env', '.env.local', `.env.${config.mode}`, `.env.${config.mode}.local`].includes(path.basename(file));
+}
+
+/**
  * Vite plugin that bridges the Ecopages app into Vite's dev server.
  *
  * Intercepts all non-asset requests, converts them to standard `Request`
  * objects, and delegates to `app.fetch()`. HTML responses are post-processed
- * with {@link normalizeHtmlResponse} to handle Lit SSR slot placement and
- * Vite client injection.
+ * with {@link normalizeHtmlResponse} to handle Lit SSR slot placement, and
+ * documents get the Ecopages HMR runtime.
+ *
+ * @remarks
+ * Each Vite server instance loads its own app. Nothing re-imports the app entry, so a change to it or to a
+ * module it imports restarts Vite, which loads a fresh app, as does a change to the Vite config or an env
+ * file; the app is stopped when its Vite server closes,
+ * in middleware mode too. Other modules, such as pages, are re-evaluated per request after Vite invalidates
+ * its module graph. While the app failed to load, any added, changed or deleted file restarts Vite, since
+ * the failed load may not have recorded the import that broke it.
  */
 export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 	const appEntryPath = getAppEntryPath(api.appConfig.rootDir);
+	const stopAppByEnvironment = new WeakMap<object, () => Promise<void>>();
 
 	return {
 		name: 'ecopages:dev-server',
 		apply: 'serve',
 		configureServer(server: ViteDevServer) {
 			const middlewareServer = assertMiddlewareServer(server);
-			api.appConfig.runtime = {
-				...(api.appConfig.runtime ?? {}),
-				devClientOwner: 'host',
-			};
+			const httpServer = server.httpServer;
+			const ssrEnvironment = server.environments.ssr;
 
 			return () => {
-				void (async () => {
+				const appReady = startEmbeddedApp(server, httpServer, api, appEntryPath);
+				stopAppByEnvironment.set(ssrEnvironment, async () => {
+					const app = await appReady.catch(() => undefined);
+					await app?.stop?.();
+				});
+
+				const ecoConfigPath = api.appConfig.absolutePaths?.config
+					? normalizePath(api.appConfig.absolutePaths.config)
+					: undefined;
+				const restartOnServerChange = async (file: string) => {
 					try {
-						await registerHostModuleLoader(server, api);
-						const appModule = await server.ssrLoadModule(appEntryPath);
-						const app = appModule.app as EcopagesEmbeddedApp;
-						if (!app?.fetch) {
-							throw new Error(
-								`[ecopages] App entry at '${appEntryPath}' must export an app.fetch(request) handler`,
-							);
+						const appLoaded = await appReady.then(
+							() => true,
+							() => false,
+						);
+						if (appLoaded && !isViteConfigFile(server, ecoConfigPath, normalizePath(file))) {
+							const entry = await ssrEnvironment.moduleGraph.getModuleByUrl(appEntryPath);
+							if (!entry || !importsFile(entry, normalizePath(file))) {
+								return;
+							}
 						}
-						api.setCachedApp(app);
-						const origin = api.getDevServerOrigin();
-						if (origin) {
-							app.handleListening(origin);
-						}
-						api.markDevHostReady();
+						server.config.logger.info(
+							`[ecopages] ${path.relative(server.config.root, file)} changed, restarting server...`,
+							{ timestamp: true },
+						);
+						await server.restart();
 					} catch (error) {
-						api.markDevHostFailed(error);
+						logError(server, 'Failed to restart Vite after an app entry change', error);
 					}
-				})();
-
-				let websocketUpgradesReady: Promise<void> = Promise.resolve();
-
-				if (server.httpServer) {
-					websocketUpgradesReady = api
-						.getDevHostReady()
-						.then(() => attachEmbeddedWebSocketUpgrades(server, api, appEntryPath));
+				};
+				for (const event of ['add', 'change', 'unlink'] as const) {
+					server.watcher.on(event, restartOnServerChange);
 				}
 
 				middlewareServer.middlewares.use(async (req, res, next) => {
-					if (req.headers.upgrade?.toLowerCase() === 'websocket') {
-						try {
-							await api.getDevHostReady();
-							await websocketUpgradesReady;
-						} catch (error) {
-							next(error);
+					try {
+						const app = await appReady;
+						if (req.headers.upgrade?.toLowerCase() === 'websocket') {
+							next();
 							return;
 						}
 
-						next();
-						return;
-					}
-
-					try {
-						await api.getDevHostReady();
-						await websocketUpgradesReady;
-						const app = await getOrLoadApp(server, api, appEntryPath);
 						const baseUrl = resolveEcopagesDevServerOrigin(api.getDevServerOrigin(), api.appConfig.baseUrl);
 						const webRequest = toWebRequest(req, baseUrl);
 						const response = await app.fetch(webRequest);
-						const requestUrl = webRequest.url;
-						await sendAppResponse(res, response, server, requestUrl, req);
+						await sendAppResponse(res, response, req);
 					} catch (error) {
 						next(error);
 					}
 				});
 			};
+		},
+		async closeBundle() {
+			const stopApp = stopAppByEnvironment.get(this.environment);
+			if (!stopApp) {
+				return;
+			}
+			stopAppByEnvironment.delete(this.environment);
+			try {
+				await stopApp();
+			} catch (error) {
+				this.environment.logger.error(
+					`[ecopages] Failed to stop the embedded app: ${error instanceof Error ? error.stack : String(error)}`,
+				);
+			}
 		},
 	};
 }

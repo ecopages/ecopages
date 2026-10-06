@@ -6,6 +6,7 @@ import {
 	getAttribute,
 	getElementText,
 	decodeHtmlEntities,
+	HEAD_CONTENT_ELEMENTS,
 	parseHtml,
 	walkElements,
 	type HtmlElementNode,
@@ -288,8 +289,9 @@ function endTagRange(element: HtmlElementNode): TemplateRange {
  * Returns the singleton identity of a head tag, if it has one.
  *
  * @remarks
- * Keys are `title`, `base`, `charset`, `meta:<name|property|http-equiv>:<value>`
- * (value lowercased, first attribute present wins), and `link:canonical`.
+ * Keys are `title`, `base`, `charset`, `meta:<value>` and `link:canonical`. A `<meta>` is keyed
+ * `meta:<value>` from the first of `name`, `property` and `http-equiv` it has, in that order, lowercased,
+ * so `<meta property="twitter:title">` and `<meta name="twitter:title">` are the same tag.
  */
 export function getHeadTagKey(element: HtmlElementNode): string | undefined {
 	switch (element.tagName) {
@@ -300,7 +302,7 @@ export function getHeadTagKey(element: HtmlElementNode): string | undefined {
 			if (getAttribute(element, 'charset')) return 'charset';
 			for (const name of ['name', 'property', 'http-equiv']) {
 				const value = attributeValue(element, name);
-				if (value) return `meta:${name}:${value.trim().toLowerCase()}`;
+				if (value) return `meta:${value.trim().toLowerCase()}`;
 			}
 			return undefined;
 		}
@@ -344,19 +346,19 @@ const METADATA_READERS: Record<string, MetadataReader> = {
 		const href = attributeValue(element, 'href')?.trim();
 		if (href) metadata.url = href;
 	},
-	'meta:name:description': withContent((content, metadata) => {
+	'meta:description': withContent((content, metadata) => {
 		metadata.description = content;
 	}),
-	'meta:name:keywords': withContent((content, metadata) => {
+	'meta:keywords': withContent((content, metadata) => {
 		metadata.keywords = content
 			.split(',')
 			.map((keyword) => keyword.trim())
 			.filter(Boolean);
 	}),
-	'meta:property:og:image': withContent((content, metadata) => {
+	'meta:og:image': withContent((content, metadata) => {
 		metadata.image = content;
 	}),
-	'meta:name:robots': withContent((content, metadata) => {
+	'meta:robots': withContent((content, metadata) => {
 		metadata.robots = parseRobots(content);
 	}),
 };
@@ -367,18 +369,19 @@ const METADATA_READERS: Record<string, MetadataReader> = {
  * @remarks
  * A shell holds one set of these values, so without them every Page would repeat its title
  * and description in four more tags. A tag the Page writes itself wins, and a derived tag
- * replaces the shell's tag with the same `property` or `name` in place.
+ * replaces the shell's tag with the same value in place, whichever attribute either one uses.
  */
 const SOCIAL_TAGS = [
-	{ key: 'meta:property:og:title', attribute: 'property', name: 'og:title', field: 'title' },
-	{ key: 'meta:property:og:description', attribute: 'property', name: 'og:description', field: 'description' },
-	{ key: 'meta:name:twitter:title', attribute: 'name', name: 'twitter:title', field: 'title' },
-	{ key: 'meta:name:twitter:description', attribute: 'name', name: 'twitter:description', field: 'description' },
+	{ attribute: 'property', name: 'og:title', field: 'title' },
+	{ attribute: 'property', name: 'og:description', field: 'description' },
+	{ attribute: 'name', name: 'twitter:title', field: 'title' },
+	{ attribute: 'name', name: 'twitter:description', field: 'description' },
 ] as const;
 
 function deriveSocialTags(head: readonly HtmlHeadNode[], metadata: Partial<PageMetadataProps>): HtmlHeadNode[] {
 	const written = new Set(head.map((node) => node.key));
-	return SOCIAL_TAGS.flatMap(({ key, attribute, name, field }) => {
+	return SOCIAL_TAGS.flatMap(({ attribute, name, field }) => {
+		const key = `meta:${name}`;
 		const value = metadata[field];
 		if (!value || written.has(key)) return [];
 		return [{ parts: [`<meta ${attribute}="${name}" content="${escapeHtmlAttribute(value)}">`], key }];
@@ -395,11 +398,32 @@ function readHeadMetadata(source: string, headChildren: readonly HtmlElementNode
 }
 
 /**
+ * Returns the leading head-content elements of a Page that has no `<head>` element.
+ *
+ * @remarks
+ * Follows the HTML parsing rules for an omitted `<head>`: the doctype, whitespace and comments are skipped,
+ * and the first other element or text ends the head. `<noscript>` also ends it: with scripting off, a
+ * browser keeps only link, style and meta in a head `<noscript>`, and a leading one usually holds body
+ * content.
+ */
+function implicitHeadElements(source: string, nodes: readonly HtmlNode[]): HtmlElementNode[] {
+	const elements: HtmlElementNode[] = [];
+	for (const node of nodes) {
+		if (node.type === 'doctype' || node.type === 'comment') continue;
+		if (node.type === 'text' && source.slice(node.start, node.end).trim() === '') continue;
+		if (node.type !== 'element' || node.tagName === 'noscript' || !HEAD_CONTENT_ELEMENTS.has(node.tagName)) break;
+		elements.push(node);
+	}
+	return elements;
+}
+
+/**
  * Compiles one HTML Page file.
  *
  * @remarks
  * A Page may be a body fragment, a `<head>` followed by body markup, or a full
- * document. The doctype and the `<html>`, `<head>`, and `<body>` wrappers are
+ * document. Without a `<head>`, the leading head-content elements (`<title>`, `<meta>`,
+ * `<link>` and the like) form the head. The doctype and the `<html>`, `<head>`, and `<body>` wrappers are
  * never emitted: head children and wrapper attributes are reconciled onto the
  * Html shell after rendering, and everything else becomes the body markup.
  *
@@ -416,17 +440,19 @@ export function compileHtmlPage(file: string, source: string, options: CompileHt
 	const head = heads[0];
 	const html = topLevelElement(nodes, 'html');
 	const body = findElements(html?.children ?? nodes, (element) => element.tagName === 'body')[0];
+	const implicitHead = head ? [] : implicitHeadElements(source, html?.children ?? nodes);
 	const { assets, ranges } = collectAssets(source, nodes, file, options);
 
 	const bodyRanges: TemplateRange[] = [
-		...ranges,
+		...ranges.filter((range) => !implicitHead.some((element) => element.start === range.start)),
 		...nodes.filter((node) => node.type === 'doctype').map(({ start, end }) => ({ start, end })),
 		...(head ? [{ start: head.start, end: head.end }] : []),
+		...implicitHead.map(({ start, end }) => ({ start, end })),
 		...(html ? [startTagRange(html), endTagRange(html)] : []),
 		...(body ? [startTagRange(body), endTagRange(body)] : []),
 	];
 
-	const headChildren = (head?.children ?? []).filter(
+	const headChildren = (head?.children ?? implicitHead).filter(
 		(node) => node.type !== 'text' || source.slice(node.start, node.end).trim() !== '',
 	);
 	const headElements = headChildren.filter((node): node is HtmlElementNode => node.type === 'element');

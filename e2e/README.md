@@ -22,7 +22,7 @@ Playwright projects (22 total) are defined in `playwright.config.ts`.
 | `pnpm build:e2e:kitchen-sink` | Build kitchen-sink `dist/` (~10s). Required before preview tests.                        |
 | `pnpm test:e2e:static`        | One `playwright test` — fixture static/preview projects (parallel).                      |
 | `pnpm test:e2e:dev`           | One `playwright test` — fixture dev servers (core-hmr, react, react-router, html-pages). |
-| `pnpm test:e2e:kitchen-sink`  | One Playwright run per cell (in-repo dev/parity), then isolated HMR                      |
+| `pnpm test:e2e:kitchen-sink`  | One Playwright run per cell (in-repo dev/parity), then isolated HMR (ecopages, Vite)     |
 | `pnpm test:e2e`               | Build + all three runs above.                                                            |
 
 `test:e2e:pr` is a smaller local subset (drops the kitchen-sink node preview + HMR; greps canonical dev); CI does not run it. A fixture project with `runtime: 'node'` serves its static build on Node through the `ecopages` CLI, as `html-pages-node-e2e` does.
@@ -37,6 +37,12 @@ ECOPAGES_PLAYWRIGHT_PROJECTS=cross-integration-dev-e2e playwright test --project
 Without `ECOPAGES_PLAYWRIGHT_PROJECTS`, `playwright.config.ts` boots **every** webServer in the matrix. Batch scripts set it automatically.
 
 Or `pnpm test:e2e:ui` for the Playwright UI.
+
+## Busy fixture ports
+
+Before a fixture web server starts, `playwright.config.ts` runs `e2e/scripts/playwright/assert-ports-free.mjs` on the ports its projects test against (from each project's `baseURL`). If something already listens there, the run stops with `Port <port> is already in use by PID <pid>` (the PID comes from `lsof` when it is installed). Stop that process, usually a server left by an interrupted run, and run again.
+
+The check exists because the fixture servers signal readiness on stdout, so Playwright does not check the port itself, and a Bun server starts on a busy port instead of failing; the tests would then reach the old server. It is skipped when `ECOPAGES_REUSE_TEST_SERVERS=true`.
 
 ## Adding a fixture
 
@@ -67,7 +73,7 @@ Or `pnpm test:e2e:ui` for the Playwright UI.
 - **Preview** — in-repo `dist/`, built before e2e; `webServer` only serves (`start-kitchen-sink-preview-server.mjs`).
 - **Canonical dev** — `cross-integration-dev-e2e` (ecopages + node), full suite.
 - **Parity** — bun, vite+node, vite+bun run only `parity.test.e2e.ts` (`@parity`), isolated `.e2e-tmp` workspace each.
-- **HMR** — `includes-hmr.test.e2e.ts`, own workspace.
+- **HMR** — `*-hmr.test.e2e.ts`, isolated `.e2e-tmp` workspace each. `test:e2e:kitchen-sink` runs it under the ecopages host on Bun (`cross-integration-hmr-e2e`) and under the Vite host on Node (`cross-integration-hmr-vite-e2e`); `cross-integration-hmr-node-e2e` is in no script.
 
 Browsers stay headless for `pnpm test:all` / `pnpm test:vitest` / `pnpm test:e2e` (`playwright.config.ts` `use.headless`, Vitest `browser.headless`, `--browser.headless`). Inherited `PWDEBUG` is stripped before Playwright launches so the inspector cannot force headed Chromium (one visible tab per parallel worker). Use `pnpm test:e2e:ui` or `playwright test --headed` when you want a visible window. `--debug` still enables the inspector.
 
@@ -75,7 +81,7 @@ Browsers stay headless for `pnpm test:all` / `pnpm test:vitest` / `pnpm test:e2e
 
 | Variable                                   | Effect                                               |
 | ------------------------------------------ | ---------------------------------------------------- |
-| `ECOPAGES_REUSE_TEST_SERVERS=true`         | Reuse running web servers                            |
+| `ECOPAGES_REUSE_TEST_SERVERS=true`         | Reuse running web servers; skips the busy-port check |
 | `ECOPAGES_KEEP_E2E_TMP=true`               | Keep `.e2e-tmp/` after isolated runs                 |
 | `ECOPAGES_PLAYWRIGHT_PROJECTS`             | Comma-separated project filter for `playwright test` |
 | `ECOPAGES_MANAGE_ISOLATED_WORKSPACES=true` | Set by `run-each-project.mjs` for kitchen-sink cells |

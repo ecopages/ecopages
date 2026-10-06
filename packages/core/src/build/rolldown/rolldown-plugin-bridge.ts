@@ -18,18 +18,18 @@
  * handlers with a `namespace` string. The bundler encodes namespaces
  * into the module id (no separate field). The bridge prepends
  * `<namespace>:` to the resolved id when the result includes a
- * namespace, and matches `onLoad`/`onResolve` filters against that
- * prefix. The bridge strips the prefix before forwarding the id back
+ * namespace. A namespaced `onLoad`/`onResolve` filter matches only ids
+ * with that prefix, and is tested against the path after it. The bridge
+ * strips the prefix before forwarding the id back
  * to the callback so plugin code keeps seeing the same `path` shape
  * it did on the historical contract.
  *
  * **Plugin ordering is semantically significant.**
  *
- * The bundler's `resolveId` and `load` are "first" hooks: the first
- * plugin that returns a non-null value wins. Because the bridge
- * translates each `EcoBuildPlugin` into its own bundler plugin and
- * preserves the array order, the position of each plugin in the
- * `plugins` array determines its priority:
+ * All `EcoBuildPlugin` instances are merged into one Rolldown plugin.
+ * Its `resolveId` and `load` check the registrations in `plugins` array
+ * order, and the first non-null result wins, so the position of each
+ * plugin in the array determines its priority:
  *
  * - **Index 0** has the highest priority.
  * - **Last index** has the lowest priority.
@@ -44,7 +44,6 @@ import path from 'node:path';
 import type { LoadResult, PartialResolvedId, Plugin, ResolveIdResult, SourceDescription } from 'rolldown';
 import { finalizeLoadResultWithSourceTransforms } from './rolldown-source-transform-pass.ts';
 import type { EcoSourceTransform } from '../../plugins/source-transform.ts';
-import { escapeRegExp } from '../browser/browser-runtime-plugin-helpers.ts';
 import type {
 	EcoBuildOnLoadArgs,
 	EcoBuildOnLoadResult,
@@ -135,11 +134,12 @@ function convertLoadResultToModuleSource(result: EcoBuildOnLoadResult): string |
 	return undefined;
 }
 
-function buildIdFilter(filter: RegExp, namespace: string | undefined): RegExp {
+function buildIdMatcher(filter: RegExp, namespace: string | undefined): (id: string) => boolean {
 	if (!namespace) {
-		return filter;
+		return (id) => filter.test(id);
 	}
-	return new RegExp(`^${escapeRegExp(namespace)}${NAMESPACE_SEPARATOR}${filter.source.slice(1)}`);
+	const prefix = `${namespace}${NAMESPACE_SEPARATOR}`;
+	return (id) => id.startsWith(prefix) && filter.test(id.slice(prefix.length));
 }
 
 function resolvePluginPath(value: string, importer: string | undefined, contextRoot: string): string {
@@ -228,12 +228,12 @@ type LoadCallback = (
 ) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>;
 
 interface ResolveRegistration {
-	filter: RegExp;
+	matches: (id: string) => boolean;
 	callback: ResolveCallback;
 }
 
 interface LoadRegistration {
-	filter: RegExp;
+	matches: (id: string) => boolean;
 	callback: LoadCallback;
 }
 
@@ -278,17 +278,17 @@ export function createRolldownPluginBridge(
 	const resolveRegistrations: ResolveRegistration[] = [];
 	const loadRegistrations: LoadRegistration[] = [];
 
-	const registerResolve = (filter: RegExp, callback: ResolveCallback): void => {
-		resolveRegistrations.push({ filter, callback });
+	const registerResolve = (matches: (id: string) => boolean, callback: ResolveCallback): void => {
+		resolveRegistrations.push({ matches, callback });
 	};
 
-	const registerLoad = (filter: RegExp, callback: LoadCallback): void => {
-		loadRegistrations.push({ filter, callback });
+	const registerLoad = (matches: (id: string) => boolean, callback: LoadCallback): void => {
+		loadRegistrations.push({ matches, callback });
 	};
 
 	const resolveIdHandler = async (source: string, importer: string | undefined, _extraOptions: unknown) => {
-		for (const { filter, callback } of resolveRegistrations) {
-			if (!filter.test(source)) {
+		for (const { matches, callback } of resolveRegistrations) {
+			if (!matches(source)) {
 				continue;
 			}
 			const { namespace, path: sourcePath } = splitNamespace(source);
@@ -304,8 +304,8 @@ export function createRolldownPluginBridge(
 	const loadHandler = async (id: string) => {
 		let loadResult: LoadResult | undefined;
 
-		for (const { filter, callback } of loadRegistrations) {
-			if (!filter.test(id)) {
+		for (const { matches, callback } of loadRegistrations) {
+			if (!matches(id)) {
 				continue;
 			}
 			const { namespace, path: sourcePath } = splitNamespace(id);
@@ -340,21 +340,22 @@ export function createRolldownPluginBridge(
 			for (const ecoPlugin of plugins) {
 				const bridge: EcoBuildPluginBuilder = {
 					onResolve: (options, callback) => {
-						registerResolve(buildIdFilter(options.filter, options.namespace), callback);
+						registerResolve(buildIdMatcher(options.filter, options.namespace), callback);
 					},
 					onLoad: (options, callback) => {
-						registerLoad(buildIdFilter(options.filter, options.namespace), callback);
+						registerLoad(buildIdMatcher(options.filter, options.namespace), callback);
 					},
 					module: (specifier, callback) => {
 						const namespace = `ecopages-module-${moduleCounter.value}`;
 						moduleCounter.value += 1;
-						const filter = new RegExp(`^${escapeRegExp(specifier)}$`);
+						registerResolve(
+							(id) => id === specifier,
+							async () => ({
+								path: joinNamespace(namespace, specifier),
+							}),
+						);
 
-						registerResolve(filter, async () => ({
-							path: joinNamespace(namespace, specifier),
-						}));
-
-						registerLoad(buildIdFilter(/.*/, namespace), async () => callback());
+						registerLoad(buildIdMatcher(/.*/, namespace), async () => callback());
 					},
 				};
 

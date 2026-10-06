@@ -246,6 +246,24 @@ test('AssetProcessingService - processDependencies - normalizes absolute srcUrl 
 	expect(results[0].srcUrl).toBe('/assets/scripts/module--tanstack-react-table.js');
 });
 
+test('AssetProcessingService - processDependencies - does not map a path beside the dist directory to a public URL', async () => {
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => true);
+
+	const service = new AssetProcessingService(Config);
+	service.registerProcessor('script', 'file', {
+		process: vi.fn(async () => ({ srcUrl: '/test/dist-old/x.js', kind: 'script', inline: false })),
+	});
+
+	const results = await service.processDependencies(
+		[{ kind: 'script', source: 'file', filepath: 'path/to/x.js' }],
+		'sibling-of-dist-key',
+	);
+
+	expect(results[0].srcUrl).not.toBe('/-old/x.js');
+});
+
 test('AssetProcessingService - caching returns cached asset without reprocessing', async () => {
 	fileSystem.ensureDir = vi.fn(() => {});
 	fileSystem.gzipDir = vi.fn(() => {});

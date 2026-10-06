@@ -74,7 +74,7 @@ Domain folders:
 
 **Page Browser Graph session behavior:**
 
-- In development, each Page Browser Graph is built on first request, cached in `page-browser-graph-session` with generation-safe commits, and invalidated when a tracked dependency changes. The per-route fast path is disabled while HMR is enabled so prop-dependent `dependencies(props)` cannot reuse the wrong graph. Hosts call `prepareHmrFileChange()` before HMR dispatch and defer client broadcasts when no browser subscribers are connected.
+- In development, each Page Browser Graph is built on first request, cached in `page-browser-graph-session` with generation-safe commits, and invalidated when a tracked dependency changes. The per-route fast path is disabled while HMR is enabled so prop-dependent `dependencies(props)` cannot reuse the wrong graph. The Project Watcher calls `prepareHmrFileChange()` before HMR dispatch, and HMR managers defer client broadcasts when no browser subscribers are connected.
 - Dev SSR prewarm schedules processor-declared pathnames for background rendering. Static pages cache in watch mode when their Cache Strategy allows it; dynamic pages are never retained. The watcher invalidates HTML through `invalidateAppPageCacheBySourcePaths` when a registered source dependency changes, and falls back to global cache clear for categories whose route impact cannot be narrowed.
 - **Measuring dev page load:** set `ECOPAGES_REQUEST_PIPELINE_METRICS=1` and run `pnpm run test:bench:docs`. Compare cold vs warm navigations and phase totals from the benchmark output.
 - Production static export prebuilds browser graphs from the finalized route list into the in-memory `page-browser-graph-session` via `production-page-browser-graph-prebuild.ts`. Failed exports clear staged production session records so retries cannot reuse partial graph output.
@@ -136,7 +136,7 @@ Not every integration needs queue-based handoff.
 
 - React islands are emitted without synthetic wrapper elements.
 - The React integration attaches island host attributes (`data-eco-island`, `data-eco-component-id`, `data-eco-component-key`, `data-eco-props`) to the SSR root when a single root exists.
-- Other integrations call `finalizeIslandComponentRender()` from core when a component instance ships client scripts. See `packages/core/src/islands/README.md`.
+- Other integrations call `finalizeIslandComponentRender()` from core when a component instance ships its own client scripts, excluding those of Foreign Children. See `packages/core/src/islands/README.md`.
 - The island bootstrap mounts with `createRoot()` into that SSR root.
 - Hydration bootstraps listen for `eco:after-swap` so islands hydrate after client-side navigation.
 

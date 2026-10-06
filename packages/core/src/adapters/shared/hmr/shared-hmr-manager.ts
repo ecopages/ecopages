@@ -327,6 +327,13 @@ export abstract class SharedHmrManager implements IHmrManager {
 		);
 	}
 
+	/**
+	 * @remarks
+	 * With no browser connected the events are dropped, not queued. A tab opened later loads its page after the
+	 * change, so its HTML and versioned module URLs are already current. A tab that was reconnecting keeps its old
+	 * page until the next change; replaying a `reload` for it would also reload every freshly opened tab, because
+	 * the server cannot tell the two apart.
+	 */
 	private broadcastStrategyAction(
 		filePath: string,
 		action: HmrAction,
@@ -334,27 +341,20 @@ export abstract class SharedHmrManager implements IHmrManager {
 		fallbackReload: boolean,
 	): void {
 		const shouldBroadcast = options.broadcast ?? true;
-		if (!shouldBroadcast) {
+		const events: ClientBridgeEvent[] =
+			action.type === 'broadcast' && action.events ? action.events : fallbackReload ? [{ type: 'reload' }] : [];
+		if (!shouldBroadcast || events.length === 0) {
 			return;
 		}
 
-		if (action.type === 'broadcast' && action.events) {
-			if (this.bridge.subscriberCount === 0) {
-				appLogger.debug(
-					`[${this.constructor.name}] Deferring HMR client broadcast for ${filePath} until a subscriber connects`,
-				);
-				return;
-			}
-
-			for (const event of action.events) {
-				const graphIdentities = event.graphIdentities ?? options.graphIdentities;
-				this.broadcast(graphIdentities === undefined ? event : { ...event, graphIdentities });
-			}
+		if (this.bridge.subscriberCount === 0) {
+			appLogger.debug(`[${this.constructor.name}] No browser connected; dropping HMR events for ${filePath}`);
 			return;
 		}
 
-		if (fallbackReload && this.bridge.subscriberCount > 0) {
-			this.broadcast({ type: 'reload' });
+		for (const event of events) {
+			const graphIdentities = event.graphIdentities ?? options.graphIdentities;
+			this.broadcast(graphIdentities === undefined ? event : { ...event, graphIdentities });
 		}
 	}
 

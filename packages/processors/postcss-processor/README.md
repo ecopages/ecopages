@@ -4,7 +4,7 @@ PostCSS processing pipeline for Ecopages. It provides a processor plugin that se
 
 ## Features
 
-- **Ecopages Processor Plugin**: Hook right into the build pipeline.
+- **Ecopages Processor Plugin**: Hook right into the build pipeline. In production, processed CSS is persisted under a name derived from a hash of the output bytes.
 - **Tailwind Presets**: Pre-configured pipelines for Tailwind CSS v3 and v4.
 - **Automatic Configuration**: Detects existing `postcss.config.{js,ts,etc}`.
 - **Bun Loader**: Registers a Bun loader for importing CSS in TS/JS files.

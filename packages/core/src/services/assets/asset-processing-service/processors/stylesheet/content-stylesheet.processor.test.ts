@@ -68,13 +68,20 @@ class TestStylesheetProcessor extends Processor {
 
 describe('ContentStylesheetProcessor', () => {
 	let writeMock: ReturnType<typeof vi.spyOn>;
+	const written = new Set<string>();
 
 	beforeEach(() => {
-		writeMock = vi.spyOn(fileSystem, 'write').mockImplementation(() => {});
-		vi.spyOn(fileSystem, 'exists').mockImplementation(() => true);
+		written.clear();
+		writeMock = vi.spyOn(fileSystem, 'write').mockImplementation((filepath: string) => {
+			written.add(filepath);
+		});
+		vi.spyOn(fileSystem, 'ensureDir').mockImplementation(() => {});
+		vi.spyOn(fileSystem, 'exists').mockImplementation((filepath: string) => written.has(filepath));
+		vi.stubEnv('NODE_ENV', 'production');
 	});
 
 	afterEach(() => {
+		vi.unstubAllEnvs();
 		vi.restoreAllMocks();
 	});
 
@@ -92,9 +99,7 @@ describe('ContentStylesheetProcessor', () => {
 			const result = await processor.process(dep);
 
 			expect(writeMock).toHaveBeenCalled();
-			expect(result.filepath).toBeDefined();
-			expect(result.filepath).toContain('style-');
-			expect(result.filepath).toContain('.css');
+			expect(result.filepath).toMatch(/[a-f0-9]{16}\.css$/);
 			expect(result.kind).toBe('stylesheet');
 			expect(result.inline).toBe(false);
 			expect(result.content).toBeUndefined();
@@ -112,7 +117,32 @@ describe('ContentStylesheetProcessor', () => {
 
 			const result = await processor.process(dep);
 
-			expect(result.filepath).toMatch(/style-\d+\.css$/);
+			expect(result.filepath).toMatch(/[a-f0-9]{16}\.css$/);
+		});
+
+		test('keeps the URL when the processed bytes are unchanged and changes it when they are not', async () => {
+			const processor = new ContentStylesheetProcessor({ appConfig: createMockConfig() });
+			const first = await processor.process({
+				kind: 'stylesheet',
+				source: 'content',
+				content: 'body { color: navy; }',
+				inline: false,
+			});
+			const same = await new ContentStylesheetProcessor({ appConfig: createMockConfig() }).process({
+				kind: 'stylesheet',
+				source: 'content',
+				content: 'body { color: navy; }',
+				inline: false,
+			});
+			const edited = await new ContentStylesheetProcessor({ appConfig: createMockConfig() }).process({
+				kind: 'stylesheet',
+				source: 'content',
+				content: 'body { color: teal; }',
+				inline: false,
+			});
+
+			expect(same.filepath).toBe(first.filepath);
+			expect(edited.filepath).not.toBe(first.filepath);
 		});
 	});
 

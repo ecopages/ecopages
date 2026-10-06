@@ -124,18 +124,22 @@ test.describe('Browser Router Prefetch', () => {
 	});
 
 	test('should prefetch stylesheets along with HTML', async ({ page }) => {
-		let cssPrefetched = false;
+		const destinationHtml = await (await page.request.get('/prefetch/destination?test=eager')).text();
+		const destinationStylesheets = [...destinationHtml.matchAll(/href="(\/assets\/[a-f0-9]{16}\.css)"/g)].map(
+			(match) => match[1],
+		);
+		expect(destinationStylesheets.length).toBeGreaterThan(0);
 
+		const prefetchedStylesheets = new Set<string>();
 		page.on('request', (request) => {
-			const url = request.url();
-			if (url.includes('destination.css')) {
-				cssPrefetched = true;
+			const pathname = new URL(request.url()).pathname;
+			if (destinationStylesheets.includes(pathname)) {
+				prefetchedStylesheets.add(pathname);
 			}
 		});
 
 		await gotoAndWait(page, '/prefetch');
-		await expect.poll(() => cssPrefetched).toBe(true);
-		expect(cssPrefetched).toBe(true);
+		await expect.poll(() => prefetchedStylesheets.size).toBe(destinationStylesheets.length);
 	});
 
 	test('should not emit unused preload warnings while prefetching future page stylesheets', async ({ page }) => {

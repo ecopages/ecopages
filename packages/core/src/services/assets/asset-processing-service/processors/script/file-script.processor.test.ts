@@ -1,5 +1,6 @@
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
+import { hashBrowserAssetBytes } from '../../../hashed-browser-asset.ts';
 import { FileScriptProcessor } from './file-script.processor';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../../../types/internal-types';
 import type { FileScriptAsset } from '../../assets.types';
@@ -7,6 +8,8 @@ import type { FileScriptAsset } from '../../assets.types';
 const originalReadFileSync = fileSystem.readFileSync;
 const originalCopyFile = fileSystem.copyFile;
 const originalExists = fileSystem.exists;
+const originalWrite = fileSystem.write;
+const originalEnsureDir = fileSystem.ensureDir;
 
 const createMockConfig = (): EcoPagesAppConfig =>
 	({
@@ -25,20 +28,30 @@ describe('FileScriptProcessor', () => {
 	let readFileSyncMock: any;
 	let copyFileMock: any;
 	let existsMock: any;
+	let writeMock: any;
+	let ensureDirMock: any;
 
 	beforeEach(() => {
 		readFileSyncMock = vi.fn(() => 'console.log("test");');
 		copyFileMock = vi.fn(() => {});
 		existsMock = vi.fn(() => false);
+		writeMock = vi.fn(() => {});
+		ensureDirMock = vi.fn(() => {});
 		fileSystem.readFileSync = readFileSyncMock;
 		fileSystem.copyFile = copyFileMock;
 		fileSystem.exists = existsMock;
+		fileSystem.write = writeMock;
+		fileSystem.ensureDir = ensureDirMock;
+		vi.stubEnv('NODE_ENV', 'production');
 	});
 
 	afterEach(() => {
 		fileSystem.readFileSync = originalReadFileSync;
 		fileSystem.copyFile = originalCopyFile;
 		fileSystem.exists = originalExists;
+		fileSystem.write = originalWrite;
+		fileSystem.ensureDir = originalEnsureDir;
+		vi.unstubAllEnvs();
 		vi.restoreAllMocks();
 	});
 
@@ -210,7 +223,7 @@ describe('FileScriptProcessor', () => {
 			expect(result.content).toBeDefined();
 		});
 
-		test('should copy a bundle: false script as written even when HMR is enabled', async () => {
+		test('should write a bundle: false script under a hash of its bytes even when HMR is enabled', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 			const HmrManager = {
 				isEnabled: () => true,
@@ -229,7 +242,10 @@ describe('FileScriptProcessor', () => {
 
 			expect(HmrManager.getResolvedScriptOutput).not.toHaveBeenCalled();
 			expect(HmrManager.registerScriptEntrypoint).not.toHaveBeenCalled();
-			expect(copyFileMock).toHaveBeenCalled();
+			expect(copyFileMock).not.toHaveBeenCalled();
+			expect(result.filepath).toBe(
+				`/test/project/.eco/public/assets/${hashBrowserAssetBytes('console.log("test");')}.js`,
+			);
 			expect(result.inline).toBe(false);
 		});
 
@@ -254,7 +270,7 @@ describe('FileScriptProcessor', () => {
 
 			expect(HmrManager.registerScriptEntrypoint).not.toHaveBeenCalled();
 			expect(result.filepath).toMatch(/pages\/classic\.js$/);
-			expect(write).toHaveBeenCalledWith(result.filepath, expect.stringContaining('function greet(name)'));
+			expect(write).toHaveBeenCalledWith(result.filepath, expect.stringContaining('function greet('));
 		});
 
 		test('should reject a classic script that cannot be one, whoever sets classic', async () => {
@@ -271,7 +287,7 @@ describe('FileScriptProcessor', () => {
 			).rejects.toThrow('/test/project/src/w.tsx cannot be used as a classic script: it is JSX.');
 		});
 
-		test('should copy file without bundling when bundle is false', async () => {
+		test('should write a bundle: false script under a hash of its bytes', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 
 			const dep: FileScriptAsset = {
@@ -284,7 +300,10 @@ describe('FileScriptProcessor', () => {
 
 			const result = await processor.process(dep);
 
-			expect(copyFileMock).toHaveBeenCalled();
+			expect(copyFileMock).not.toHaveBeenCalled();
+			expect(result.filepath).toBe(
+				`/test/project/.eco/public/assets/${hashBrowserAssetBytes('console.log("test");')}.js`,
+			);
 			expect(result.kind).toBe('script');
 			expect(result.inline).toBe(false);
 		});

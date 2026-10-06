@@ -205,6 +205,10 @@
 			"types": "./src/services/assets/asset-processing-service/index.ts",
 			"default": "./src/services/assets/asset-processing-service/index.ts"
 		},
+		"./assets/hashed-browser-asset": {
+			"types": "./src/services/assets/hashed-browser-asset.ts",
+			"default": "./src/services/assets/hashed-browser-asset.ts"
+		},
 		"./plugins/processor": {
 			"types": "./src/plugins/processor.ts",
 			"default": "./src/plugins/processor.ts"

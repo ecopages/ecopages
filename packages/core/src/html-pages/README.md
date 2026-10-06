@@ -44,7 +44,7 @@ Processed asset tags become slots:
 | Tag                                              | Processing                                                                                                                                                                 |
 | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `<link rel="stylesheet">` with a relative `href` | `FileStylesheetProcessor`                                                                                                                                                  |
-| `<style>` with no `type`, or `type="text/css"`   | `ContentStylesheetProcessor` inline; `processingOrigin` is `<file>.css`                                                                                                    |
+| `<style>` with no `type`, or `type="text/css"`   | `ContentStylesheetProcessor` inline; `processingOrigin` is `<file>.css`; a `</style` in the output is escaped as `<\/style`                                                |
 | `<script type="module">` with a relative `src`   | `FileScriptProcessor`, bundled as a browser module                                                                                                                         |
 | classic `<script>` with a relative `src`         | `FileScriptProcessor`: `.js` copied as written (`bundle: false`); TypeScript has only its types stripped and skips the HMR pipeline (`skipHmr`); module syntax is an error |
 

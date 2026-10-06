@@ -44,6 +44,74 @@ function writeAppPackageJson(fields: Record<string, unknown> = {}): void {
 }
 
 describe('RolldownBuildAdapter', () => {
+	test('bundles the exported server-only predicate for the browser without Node dependencies', async () => {
+		const predicatePath = createRequire(import.meta.url).resolve(
+			'@ecopages/core/build/contracts/server-only-specifier',
+		);
+		const entrypoint = writeFixture(
+			'entry.ts',
+			`export { isServerOnlyModuleSpecifier } from ${JSON.stringify(predicatePath)};`,
+		);
+		const result = await new RolldownBuildAdapter().build({
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+		});
+
+		expect(result.success, JSON.stringify(result.logs)).toBe(true);
+		expect(readFileSync(result.outputs[0]!.path, 'utf8')).toContain('isServerOnlyModuleSpecifier');
+	});
+
+	test.each([
+		"import { secret } from './db.server.ts'; export { secret };",
+		"export { secret } from './db.server';",
+		"export const load = () => import('./db.server.ts');",
+		"import './db.server.ts'; export const ready = true;",
+		"export { secret } from './db.server?raw';",
+		"export { secret } from './db.server#module';",
+	])('rejects server-only browser imports and names the importer: %s', async (source) => {
+		writeFixture('db.server.ts', 'export const secret = "server-secret";');
+		const entrypoint = writeFixture('lit-browser.ts', source);
+		const result = await new RolldownBuildAdapter().build({
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+			plugins: [
+				{
+					name: 'query-module-resolver',
+					setup(build) {
+						build.onResolve({ filter: /\.server[?#]/ }, () => ({
+							path: path.join(workDir, 'db.server.ts'),
+						}));
+					},
+				},
+			],
+		});
+
+		expect(result.success).toBe(false);
+		expect(result.logs.map((log) => log.message).join('\n')).toContain('server-only');
+		expect(result.logs.map((log) => log.message).join('\n')).toContain(entrypoint);
+	});
+
+	test('allows server-only imports in server builds', async () => {
+		writeFixture('db.server.ts', 'export const secret = "server-secret";');
+		const entrypoint = writeFixture('entry.ts', "export { secret } from './db.server.ts';");
+		const result = await new RolldownBuildAdapter().build({
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'node',
+			format: 'esm',
+			root: workDir,
+		});
+
+		expect(result.success).toBe(true);
+		expect(readFileSync(result.outputs[0]!.path, 'utf8')).toContain('server-secret');
+	});
+
 	test('builds a single entrypoint and reports outputs', async () => {
 		const entrypoint = writeFixture('index.ts', 'export const answer = 42;\n');
 		const adapter = new RolldownBuildAdapter();

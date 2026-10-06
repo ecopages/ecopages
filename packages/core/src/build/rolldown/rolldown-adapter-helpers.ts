@@ -16,6 +16,7 @@ import { stripVTControlCharacters } from 'node:util';
 import type { BundleError, InputOptions, OutputOptions, RolldownLog, RolldownPlugin } from 'rolldown';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
+import { isServerOnlyModuleSpecifier } from '../contracts/server-only-specifier.ts';
 import { collectBrowserRuntimeManifests, rewriteBrowserRuntimeImports } from '../browser/browser-runtime-plugin.ts';
 import { mergeBrowserRuntimeManifests } from '../browser/browser-runtime-manifest.ts';
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
@@ -229,25 +230,29 @@ export function createNodeBuiltinExternalPlugin(): RolldownPlugin {
 }
 
 /**
- * Rejects Node builtins in browser-target builds before Rolldown externalizes them.
+ * Rejects Node builtins and `.server` imports in browser-target builds.
  *
  * @remarks
  * With `platform: 'browser'`, Rolldown leaves `node:*` imports in the output as
  * bare specifiers. This plugin fails the build instead so server-only graphs
  * cannot reach the browser as silent CORS errors.
  */
-export function createBrowserNodeBuiltinGuardPlugin(): RolldownPlugin {
+export function createBrowserServerOnlyGuardPlugin(): RolldownPlugin {
 	return {
-		name: 'ecopages-browser-node-builtin-guard',
+		name: 'ecopages-browser-server-only-guard',
 		resolveId(id, importer) {
+			const from = importer ? ` (imported from ${importer})` : '';
+			if (isServerOnlyModuleSpecifier(id)) {
+				throw new Error(
+					`[browser-build] server-only module "${id}" cannot be bundled for the browser${from}. Check the browser graph boundary for the importer.`,
+				);
+			}
 			if (!isNodeBuiltinSpecifier(id)) {
 				return null;
 			}
 
-			const from = importer ? ` (imported from ${importer})` : '';
 			throw new Error(
-				`[browser-build] Node builtin "${id}" cannot be bundled for the browser${from}. ` +
-					`Check package "browser" exports and the client-graph boundary for the importer.`,
+				`[browser-build] Node builtin "${id}" cannot be bundled for the browser${from}. Check package "browser" exports and the client-graph boundary for the importer.`,
 			);
 		},
 	};
@@ -446,7 +451,7 @@ async function buildRolldownInputPlugins(
 	const appPlugins = await createRolldownPluginBridge(options.plugins ?? [], contextRoot);
 	return [
 		...(rolldownPlatform === 'node' ? [createNodeBuiltinExternalPlugin()] : []),
-		...(rolldownPlatform === 'browser' ? [createBrowserNodeBuiltinGuardPlugin()] : []),
+		...(rolldownPlatform === 'browser' ? [createBrowserServerOnlyGuardPlugin()] : []),
 		...(options.target !== 'browser' ? [createServerSideCssShimPlugin()] : []),
 		...appPlugins,
 	];

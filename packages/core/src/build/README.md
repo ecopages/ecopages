@@ -58,6 +58,7 @@ build/
 - `runtime/build-request-policy.ts`: server/browser request constructors and plugin collision rules.
 - `runtime/build-request-identity.ts` / `cache/cache-keys.ts`: canonical request identity and shared cache fingerprints.
 - `contracts/build-types.ts`: the `EcoBuildPlugin` contract used by integrations and processors.
+- `contracts/server-only-specifier.ts`: the dependency-free `.server` naming predicate, exported at `@ecopages/core/build/contracts/server-only-specifier` for Integrations and browser code.
 - `rolldown/rolldown-build-adapter.ts`: the production `BuildAdapter`. Wraps the bundler, normalizes Node output imports, and exposes a normalized `BuildResult`. App dependencies remain bare imports; Core-owned runtime packages that need CommonJS named-export interop are bundled, while other Core dependencies resolve to `file:` URLs. Generated server bundles therefore do not require app-level framework dependencies.
 - `rolldown/rolldown-plugin-bridge.ts`: `EcoBuildPlugin[]` → bundler-plugin translation.
 - `runtime/serialized-build-executor.ts`: FIFO queue primitive.
@@ -150,6 +151,10 @@ App-manifest plugins keep canonical registration order and cannot be silently re
 - `formatBuildLog()` (`build-log.ts`) is the one text form of a log, `[plugin] file:line:column: message` followed by the frame and stack frames. Every caller that turns failed build logs into an error message uses it.
 
 ## BuildOptions Caveats
+
+Core-owned browser builds reject imports matching the `.server` naming convention (including extensionless `./db.server`) and Node builtins during resolution. Query and fragment suffixes do not change the naming classification. The error names the specifier and its importer. This applies to browser scripts from every Integration, including Lit and ecopages-jsx, and to static imports, re-exports, side-effect imports, and dynamic imports that reach resolution. Server builds allow `.server` imports.
+
+An Integration can prune server-only imports before resolution. React uses the shared naming predicate while removing server-only Page options, so a middleware-only `.server` import does not fail the browser build. No `server-only` package marker is interpreted by this guard. Host-owned Vite builds remain owned by the host.
 
 `BuildOptions` is modeled on the bundler's options shape. Most fields map cleanly. The exception:
 

@@ -12,6 +12,7 @@ import path from 'node:path';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
 import { isRegisteredScriptEntrypoint } from '@ecopages/core/hmr/hmr-entrypoint-output';
 import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/dev/transform-server';
+import { isPathInside } from '@ecopages/core/utils/path-containment';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
 import type { BrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
@@ -155,7 +156,9 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 * claimed by React HMR strategy.
 	 */
 	private isRouteTemplate(filePath: string): boolean {
-		return filePath.startsWith(this.context.getPagesDir()) || filePath.startsWith(this.context.getLayoutsDir());
+		return (
+			isPathInside(filePath, this.context.getPagesDir()) || isPathInside(filePath, this.context.getLayoutsDir())
+		);
 	}
 
 	private resolveTemplateExtension(filePath: string): string | undefined {
@@ -259,9 +262,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 			return false;
 		}
 
-		const normalized = path.resolve(sourcePath);
-		const srcDir = path.resolve(this.context.getSrcDir());
-		return normalized === srcDir || normalized.startsWith(`${srcDir}${path.sep}`);
+		return isPathInside(sourcePath, this.context.getSrcDir());
 	}
 
 	getRuntimeManifest(): BrowserRuntimeManifest {
@@ -286,11 +287,11 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	private isLayoutFile(filePath: string): boolean {
-		return filePath.startsWith(this.context.getLayoutsDir());
+		return isPathInside(filePath, this.context.getLayoutsDir());
 	}
 
 	private isPageEntrypoint(filePath: string): boolean {
-		return filePath.startsWith(this.context.getPagesDir()) && this.isReactEntrypoint(filePath);
+		return isPathInside(filePath, this.context.getPagesDir()) && this.isReactEntrypoint(filePath);
 	}
 
 	private resolveEntrypointOutputUrl(entrypointPath: string): string | undefined {

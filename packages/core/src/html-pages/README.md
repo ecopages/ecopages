@@ -48,6 +48,8 @@ Processed asset tags become slots:
 | `<script type="module">` with a relative `src`   | `FileScriptProcessor`, bundled as a browser module                                                                                                                         |
 | classic `<script>` with a relative `src`         | `FileScriptProcessor`: `.js` copied as written (`bundle: false`); TypeScript has only its types stripped and skips the HMR pipeline (`skipHmr`); module syntax is an error |
 
+With [`@ecopages/browser-router`](../../../browser-router/README.md#scripts-on-navigation), a classic script in the Page body runs again on every navigation that renders it, so its top-level `const`, `let` and `class` declarations would be declared twice and throw. Such scripts should use `var` or functions, or wrap the code in a block or an IIFE; a module script runs once per URL.
+
 `processingOrigin` sits beside the HTML file and ends in `.css` because processors resolve relative imports against it and filter by extension.
 
 Relative paths, with or without `./`, resolve against the containing file and must stay inside the source directory; query strings and fragments are ignored for the lookup. A processed tag with `integrity` is an error. Tags with external or root-relative URLs, inline scripts, and scripts with a non-JavaScript `type` stay literal. In development, a relative `src`, `srcset`, or `href` left literal logs a warning once per file revision, except an `href` on `<a>`, `<area>`, or `<base>`.

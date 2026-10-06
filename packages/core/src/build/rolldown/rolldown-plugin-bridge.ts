@@ -26,11 +26,10 @@
  *
  * **Plugin ordering is semantically significant.**
  *
- * The bundler's `resolveId` and `load` are "first" hooks: the first
- * plugin that returns a non-null value wins. Because the bridge
- * translates each `EcoBuildPlugin` into its own bundler plugin and
- * preserves the array order, the position of each plugin in the
- * `plugins` array determines its priority:
+ * All `EcoBuildPlugin` instances are merged into one Rolldown plugin.
+ * Its `resolveId` and `load` check the registrations in `plugins` array
+ * order, and the first non-null result wins, so the position of each
+ * plugin in the array determines its priority:
  *
  * - **Index 0** has the highest priority.
  * - **Last index** has the lowest priority.

@@ -378,3 +378,19 @@ test('createRolldownPluginBridge tests a namespaced filter against the path afte
 	assert.notEqual(unmatched?.code, 'export default 1;');
 	assert.notEqual(otherNamespace?.code, 'export default 1;');
 });
+
+test('createRolldownPluginBridge merges plugins into one, where the earlier plugin resolves first', async () => {
+	const plugins: EcoBuildPlugin[] = ['first', 'second'].map((name) => ({
+		name,
+		setup(build) {
+			build.onResolve({ filter: /^shared$/ }, () => ({ path: `/${name}.ts` }));
+		},
+	}));
+
+	const bridge = createRolldownPluginBridge(plugins, '/app');
+	await callBuildStart(bridge[0]!);
+
+	assert.equal(bridge.length, 1);
+	const resolved = (await callResolveId(bridge[0]!, 'shared')) as { id: string } | undefined;
+	assert.equal(resolved?.id, '/first.ts');
+});

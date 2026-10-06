@@ -217,7 +217,7 @@ export interface PageOptionsBase<T, E = EcoPagesElement> {
 interface PageOptionsWithoutMiddleware<T, E = EcoPagesElement> extends PageOptionsBase<T, E> {
 	/**
 	 * Cache configuration for ISR (Incremental Static Regeneration).
-	 * - `'static'`: Cache indefinitely (default)
+	 * - `'static'`: Reuse until the next deploy (default); HTML is revalidated with ETag
 	 * - `'dynamic'`: No caching, render on every request
 	 * - `{ revalidate: number, tags?: string[] }`: Cache with time-based revalidation
 	 */

@@ -73,4 +73,33 @@ describe('NodeStaticContentServer', () => {
 		expect([notes.status, await notes.text()]).toEqual([200, 'Release notes']);
 		expect((await fetch(`http://127.0.0.1:${port}/v9.9`)).status).toBe(404);
 	});
+
+	it('revalidates exported HTML and keeps immutable for hashed assets', async () => {
+		const distDir = path.join(TMP_DIR, 'dist');
+		fs.writeFileSync(path.join(distDir, 'index.html'), '<html>preview</html>');
+		fs.writeFileSync(path.join(distDir, 'assets', 'pages', 'abcdef0123456789.css'), 'body{}');
+		fs.writeFileSync(path.join(distDir, 'assets', 'pages', 'api-lab.css'), '.api-lab { color: tomato; }');
+
+		await using server = new NodeStaticContentServer({
+			appConfig: createAppConfig(),
+			options: { hostname: '127.0.0.1', port: 0 },
+		});
+		const { port } = (await server.start()).address() as AddressInfo;
+
+		const htmlResponse = await fetch(`http://127.0.0.1:${port}/`);
+		expect(htmlResponse.status).toBe(200);
+		expect(htmlResponse.headers.get('cache-control')).toBe('public, max-age=0, must-revalidate');
+		expect(htmlResponse.headers.get('etag')).toMatch(/^"[a-f0-9]{16}"$/);
+
+		const notModified = await fetch(`http://127.0.0.1:${port}/`, {
+			headers: { 'If-None-Match': htmlResponse.headers.get('etag') ?? '' },
+		});
+		expect(notModified.status).toBe(304);
+
+		const hashed = await fetch(`http://127.0.0.1:${port}/assets/pages/abcdef0123456789.css`);
+		expect(hashed.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
+
+		const unhashed = await fetch(`http://127.0.0.1:${port}/assets/pages/api-lab.css`);
+		expect(unhashed.headers.get('cache-control')).toBeNull();
+	});
 });

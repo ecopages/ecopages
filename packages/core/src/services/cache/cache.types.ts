@@ -15,7 +15,7 @@ export interface RenderResult {
 
 /**
  * Render strategy configuration for pages.
- * - `'static'`: Render once, cache indefinitely
+ * - `'static'`: Render once, reuse until the next deploy; HTML is revalidated with ETag
  * - `'dynamic'`: No caching, render on every request
  * - `{ revalidate, tags }`: Cache with time-based revalidation and optional tags
  */

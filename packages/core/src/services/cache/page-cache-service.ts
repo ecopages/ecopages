@@ -248,13 +248,17 @@ export class PageCacheService {
 
 /**
  * Generate Cache-Control header value from cache strategy.
+ *
+ * @remarks
+ * `'static'` HTML is revalidated with ETag (`max-age=0, must-revalidate`).
+ * `immutable` belongs on content-hashed asset URLs, not on HTML.
  */
 export function getCacheControlHeader(strategy: CacheStrategy | 'disabled'): string {
 	if (strategy === 'disabled') {
 		return 'no-store, must-revalidate';
 	}
 	if (strategy === 'static') {
-		return 'public, max-age=31536000, immutable';
+		return 'public, max-age=0, must-revalidate';
 	}
 
 	if (strategy === 'dynamic') {

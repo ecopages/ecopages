@@ -2,7 +2,11 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, test } from 'vitest';
-import { hashBrowserAssetBytes, writeHashedBrowserAsset } from './hashed-browser-asset.ts';
+import {
+	hashBrowserAssetBytes,
+	isContentHashedAssetFilename,
+	writeHashedBrowserAsset,
+} from './hashed-browser-asset.ts';
 
 let directory: string;
 
@@ -44,4 +48,11 @@ test('changes the URL when the bytes change', () => {
 	});
 	expect(second).not.toBe(first);
 	expect(path.basename(second)).toBe(`${hashBrowserAssetBytes('.root { color: blue; }')}.css`);
+});
+
+test('recognizes content-hashed production filenames and leaves stable vendor names alone', () => {
+	expect(isContentHashedAssetFilename(`${hashBrowserAssetBytes('body{}')}.css`)).toBe(true);
+	expect(isContentHashedAssetFilename('counter-BnV4AN8o.js')).toBe(true);
+	expect(isContentHashedAssetFilename('react.js')).toBe(false);
+	expect(isContentHashedAssetFilename('tiny-query.js')).toBe(false);
 });

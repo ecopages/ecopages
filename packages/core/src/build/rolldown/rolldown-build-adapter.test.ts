@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { appLogger } from '../../global/app-logger.ts';
+import { clearOutsideRootWarningsForTests } from './rolldown-adapter-helpers.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 
 let workDir: string;
@@ -15,6 +16,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	vi.restoreAllMocks();
+	vi.unstubAllEnvs();
 	rmSync(workDir, { recursive: true, force: true });
 });
 
@@ -22,6 +25,13 @@ function writeFixture(filename: string, source: string): string {
 	const fullPath = path.join(workDir, filename);
 	writeFileSync(fullPath, source);
 	return fullPath;
+}
+
+function relativeImportPath(outputPath: string, targetPath: string): string {
+	return path
+		.relative(path.dirname(realpathSync(outputPath)), targetPath)
+		.split(path.sep)
+		.join('/');
 }
 
 function writeAppPackageJson(fields: Record<string, unknown> = {}): void {
@@ -186,12 +196,11 @@ describe('RolldownBuildAdapter', () => {
 		expect(code).toMatch(/from ['"]node:fs['"]/);
 	});
 
-	test('externalPackages rewrites undeclared core-owned runtime packages to file URLs', async () => {
+	test('externalPackages points undeclared core-owned runtime packages at paths relative to the output', async () => {
 		const entrypoint = writeFixture('entry.ts', "import { parseSync } from 'oxc-parser';\nexport { parseSync };\n");
 		const adapter = new RolldownBuildAdapter();
 		const outdir = path.join(workDir, 'dist');
 		const localRequire = createRequire(import.meta.url);
-		const expectedRuntimeUrl = pathToFileURL(localRequire.resolve('oxc-parser')).href;
 
 		const result = await adapter.build({
 			entrypoints: [entrypoint],
@@ -207,7 +216,106 @@ describe('RolldownBuildAdapter', () => {
 		const firstOutput = result.outputs[0]!;
 		const code = readFileSync(firstOutput.path, 'utf-8');
 		expect(code).not.toMatch(/from ['"]oxc-parser['"]/);
-		expect(code).toContain(expectedRuntimeUrl);
+		expect(code).not.toContain('file:');
+		expect(code).toContain(`from "${relativeImportPath(firstOutput.path, localRequire.resolve('oxc-parser'))}"`);
+	});
+
+	test('externalPackages resolves undeclared core-owned packages with ESM conditions', async () => {
+		const entrypoint = writeFixture(
+			'entry.ts',
+			"import { SchemaError } from '@standard-schema/utils';\nexport { SchemaError };\n",
+		);
+
+		const result = await new RolldownBuildAdapter().build({
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'node',
+			format: 'esm',
+			externalPackages: true,
+			root: workDir,
+		});
+
+		assert.equal(result.success, true);
+		const code = readFileSync(result.outputs[0]!.path, 'utf-8');
+		expect(code).toMatch(/from "\.\.?\/[^"]*@standard-schema\/utils\/dist\/index\.js"/);
+		expect(code).not.toContain('index.cjs');
+	});
+
+	test('externalPackages keeps an app-declared core dependency a bare import', async () => {
+		writeAppPackageJson({ dependencies: { 'oxc-parser': '*' } });
+		const entrypoint = writeFixture('entry.ts', "import { parseSync } from 'oxc-parser';\nexport { parseSync };\n");
+
+		const result = await new RolldownBuildAdapter().build({
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'node',
+			format: 'esm',
+			externalPackages: true,
+			root: workDir,
+		});
+
+		assert.equal(result.success, true);
+		expect(readFileSync(result.outputs[0]!.path, 'utf-8')).toMatch(/from ['"]oxc-parser['"]/);
+	});
+
+	test('a production build reports core-owned packages outside the app root in one line', async () => {
+		clearOutsideRootWarningsForTests();
+		vi.stubEnv('NODE_ENV', 'production');
+		const warn = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
+		const entrypoint = writeFixture(
+			'entry.ts',
+			"import { parseSync } from 'oxc-parser';\nimport { Logger } from '@ecopages/logger';\nexport const lazy = () => import('oxc-parser');\nexport { parseSync, Logger };\n",
+		);
+
+		const result = await new RolldownBuildAdapter().build({
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'node',
+			format: 'esm',
+			externalPackages: true,
+			root: workDir,
+		});
+
+		assert.equal(result.success, true);
+		expect(warn).toHaveBeenCalledTimes(1);
+		const message = String(warn.mock.calls[0]?.[0]);
+		expect(message).toContain('2 packages from outside the app folder (@ecopages/logger, oxc-parser)');
+		expect(message).toContain('docs/reference/deployment');
+	});
+
+	test('a development build does not report packages outside the app root', async () => {
+		clearOutsideRootWarningsForTests();
+		vi.stubEnv('NODE_ENV', 'development');
+		const warn = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
+		const entrypoint = writeFixture('entry.ts', "import { parseSync } from 'oxc-parser';\nexport { parseSync };\n");
+
+		const result = await new RolldownBuildAdapter().build({
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'node',
+			format: 'esm',
+			externalPackages: true,
+			root: workDir,
+		});
+
+		assert.equal(result.success, true);
+		expect(warn).not.toHaveBeenCalled();
+	});
+
+	test('externalPackages rejects a nested chunk that imports a core-owned package path', async () => {
+		const entrypoint = writeFixture('entry.ts', "import { parseSync } from 'oxc-parser';\nexport { parseSync };\n");
+
+		const result = await new RolldownBuildAdapter().build({
+			entrypoints: { 'nested/entry': entrypoint },
+			outdir: path.join(workDir, 'dist'),
+			target: 'node',
+			format: 'esm',
+			externalPackages: true,
+			root: workDir,
+		});
+
+		assert.equal(result.success, false);
+		expect(result.logs.map((log) => log.message).join('\n')).toContain('nested/entry');
 	});
 
 	test('externalPackages bundles Core runtime dependencies with CommonJS named exports', async () => {
@@ -235,7 +343,7 @@ describe('RolldownBuildAdapter', () => {
 		const firstOutput = result.outputs[0]!;
 		const code = readFileSync(firstOutput.path, 'utf-8');
 		expect(code).not.toMatch(/from ['"]ws['"]/);
-		expect(code).not.toMatch(/from ['"]file:.*\/ws\/index\.js['"]/);
+		expect(code).not.toMatch(/from ['"][^'"]*\/ws\/index\.js['"]/);
 		expect(code).toContain('WebSocketServer');
 	});
 
@@ -277,7 +385,7 @@ describe('RolldownBuildAdapter', () => {
 		expect(code).toContain('/images/example.png');
 	});
 
-	test('rewrites OXC runtime helper imports to resolved file URLs', async () => {
+	test('inlines OXC runtime helper imports', async () => {
 		const entrypoint = writeFixture(
 			'oxc-runtime-entry.ts',
 			"import decorate from '@oxc-project/runtime/helpers/decorate';\nexport { decorate };\n",
@@ -300,6 +408,7 @@ describe('RolldownBuildAdapter', () => {
 		const code = readFileSync(firstOutput.path, 'utf-8');
 		expect(code).toContain('decorate');
 		expect(code).not.toMatch(/@oxc-project\/runtime\/helpers\/decorate/);
+		expect(code).not.toContain('file:');
 	});
 
 	test('preserves the .js extension when a naming template is supplied', async () => {

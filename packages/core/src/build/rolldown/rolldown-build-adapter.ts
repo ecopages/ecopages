@@ -24,7 +24,6 @@ import {
 	buildResultFromRolldownOutput,
 	resolveRolldownOptions,
 	rewriteBrowserRuntimeImportsInOutputs,
-	rewriteNodeRuntimeImportsInOutputs,
 	toBuildLogs,
 	transpileProfileToOptions,
 } from './rolldown-adapter-helpers.ts';
@@ -60,10 +59,7 @@ export class RolldownBuildAdapter implements BuildAdapter {
 
 		const baseResult = buildResultFromRolldownOutput(output, outdir, contextRoot);
 
-		return rewriteNodeRuntimeImportsInOutputs(
-			rewriteBrowserRuntimeImportsInOutputs(baseResult, contextRoot, plugins),
-			contextRoot,
-		);
+		return rewriteBrowserRuntimeImportsInOutputs(baseResult, contextRoot, plugins);
 	}
 
 	async build(options: BuildOptions): Promise<BuildResult> {

@@ -3,6 +3,7 @@
  * Full suite: package.json scripts test:e2e:static, test:e2e:dev, test:e2e:kitchen-sink.
  */
 import './e2e/playwright/strip-inherited-pwdebug.mjs';
+import path from 'node:path';
 import { defineConfig } from '@playwright/test';
 import { getSelectedPlaywrightProjects, includeWebServerForProjects } from './e2e/playwright/config-env';
 import { loadCapabilityFixtures, loadIsolatedFixtures } from './e2e/playwright/discover-fixtures';
@@ -21,6 +22,37 @@ const webServers = [
 	...capabilityFixtures.flatMap((fixture) => fixture.webServers),
 	...isolatedFixtures.flatMap((fixture) => fixture.webServers),
 ];
+
+const projects = [
+	...capabilityFixtures.flatMap((fixture) => fixture.projects),
+	...isolatedFixtures.flatMap((fixture) => fixture.projects),
+];
+
+const assertPortsFreeScript = path.join(process.cwd(), 'e2e/scripts/playwright/assert-ports-free.mjs');
+
+/**
+ * Prefixes a web server command with a check that the ports its projects test against are free.
+ *
+ * @remarks
+ * Ports come from each project's `baseURL`, the address the tests request. Skipped when
+ * `reuseExistingServer` is set, since a running server is then expected. See
+ * `e2e/scripts/playwright/assert-ports-free.mjs`.
+ */
+function withPortCheck(server: { command: string; projects: string[]; reuseExistingServer: boolean }): string {
+	if (server.reuseExistingServer) {
+		return server.command;
+	}
+
+	const ports = new Set(
+		projects
+			.filter((project) => project.name && server.projects.includes(project.name) && project.use?.baseURL)
+			.map((project) => new URL(String(project.use?.baseURL)).port),
+	);
+
+	return ports.size === 0
+		? server.command
+		: `node ${JSON.stringify(assertPortsFreeScript)} ${[...ports].join(' ')} && ${server.command}`;
+}
 
 export default defineConfig({
 	testDir: '.',
@@ -43,14 +75,12 @@ export default defineConfig({
 		headless: true,
 		trace: 'on-first-retry',
 	},
-	projects: [
-		...capabilityFixtures.flatMap((fixture) => fixture.projects),
-		...isolatedFixtures.flatMap((fixture) => fixture.projects),
-	],
+	projects,
 	webServer: webServers
 		.filter((server) => includeWebServerForProjects(selectedProjects, server.projects))
 		.map((server) => ({
 			...server,
+			command: withPortCheck(server),
 			timeout: getWebServerTimeout(server),
 		})),
 });

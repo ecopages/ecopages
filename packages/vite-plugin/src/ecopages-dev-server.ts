@@ -210,6 +210,31 @@ async function sendAppResponse(
 }
 
 /**
+ * Whether a change to `file` needs a fresh Vite server: the Vite config or a file it imports, or an env file
+ * Vite loads for the current mode.
+ *
+ * @remarks
+ * Vite restarts for these itself only inside its HMR update, which the Ecopages host turns off
+ * (`server.hmr: false`). `eco.config.ts` is never one of them, even when the Vite config imports it: the
+ * app loads it through the config loader, which keeps it for the life of the process, so a restart would
+ * not apply the edit. When `app.ts` imports it, the app-entry rule restarts Vite instead, and the restarted
+ * app re-evaluates it.
+ */
+function isViteConfigFile(server: ViteDevServer, ecoConfigPath: string | undefined, file: string): boolean {
+	const { config } = server;
+	if (file === ecoConfigPath) {
+		return false;
+	}
+	if (file === config.configFile || config.configFileDependencies.includes(file)) {
+		return true;
+	}
+	if (config.envDir === false || path.dirname(file) !== normalizePath(config.envDir)) {
+		return false;
+	}
+	return ['.env', '.env.local', `.env.${config.mode}`, `.env.${config.mode}.local`].includes(path.basename(file));
+}
+
+/**
  * Vite plugin that bridges the Ecopages app into Vite's dev server.
  *
  * Intercepts all non-asset requests, converts them to standard `Request`
@@ -219,7 +244,8 @@ async function sendAppResponse(
  *
  * @remarks
  * Each Vite server instance loads its own app. Nothing re-imports the app entry, so a change to it or to a
- * module it imports restarts Vite, which loads a fresh app; the app is stopped when its Vite server closes,
+ * module it imports restarts Vite, which loads a fresh app, as does a change to the Vite config or an env
+ * file; the app is stopped when its Vite server closes,
  * in middleware mode too. Other modules, such as pages, are re-evaluated per request after Vite invalidates
  * its module graph. While the app failed to load, any added, changed or deleted file restarts Vite, since
  * the failed load may not have recorded the import that broke it.
@@ -247,13 +273,16 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 					await app?.stop?.();
 				});
 
-				const restartOnAppGraphChange = async (file: string) => {
+				const ecoConfigPath = api.appConfig.absolutePaths?.config
+					? normalizePath(api.appConfig.absolutePaths.config)
+					: undefined;
+				const restartOnServerChange = async (file: string) => {
 					try {
 						const appLoaded = await appReady.then(
 							() => true,
 							() => false,
 						);
-						if (appLoaded) {
+						if (appLoaded && !isViteConfigFile(server, ecoConfigPath, normalizePath(file))) {
 							const entry = await ssrEnvironment.moduleGraph.getModuleByUrl(appEntryPath);
 							if (!entry || !importsFile(entry, normalizePath(file))) {
 								return;
@@ -269,7 +298,7 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 					}
 				};
 				for (const event of ['add', 'change', 'unlink'] as const) {
-					server.watcher.on(event, restartOnAppGraphChange);
+					server.watcher.on(event, restartOnServerChange);
 				}
 
 				middlewareServer.middlewares.use(async (req, res, next) => {

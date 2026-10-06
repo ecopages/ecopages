@@ -26,6 +26,7 @@ function createApi() {
 			integrations: [],
 			sourceTransforms: new Map(),
 			absolutePaths: {
+				config: '/app/eco.config.ts',
 				componentsDir: '/app/src/components',
 				distDir: '/app/dist',
 				htmlTemplatePath: '/app/src/app.html',
@@ -47,6 +48,7 @@ async function setupDevServerMiddleware(
 		appLoadGate?: Promise<void>;
 		devServerOrigin?: string;
 		captureFetch?: (request: Request) => void;
+		envDir?: string | false;
 	},
 ) {
 	let middleware: ((req: unknown, res: unknown, next: (error?: unknown) => void) => Promise<void>) | undefined;
@@ -76,7 +78,14 @@ async function setupDevServerMiddleware(
 		httpServer,
 		watcher,
 		restart,
-		config: { root: '/app', logger },
+		config: {
+			root: '/app',
+			logger,
+			configFile: '/app/vite.config.ts',
+			configFileDependencies: ['/app/vite.shared.ts', '/app/eco.config.ts'],
+			envDir: options?.envDir ?? '/app/env',
+			mode: 'development',
+		},
 		hot: { send: vi.fn() },
 		environments: {
 			client: {
@@ -516,6 +525,57 @@ describe('ecopagesDevServer', () => {
 		});
 
 		harness.watcher.emit('change', '/app/src/pages/index.tsx');
+		await vi.waitFor(() => expect(harness.getModuleByUrl).toHaveBeenCalled());
+		await new Promise((resolve) => setImmediate(resolve));
+
+		expect(harness.restart).not.toHaveBeenCalled();
+	});
+
+	it.each(['/app/vite.config.ts', '/app/vite.shared.ts', '/app/env/.env', '/app/env/.env.development.local'])(
+		'restarts Vite when %s changes',
+		async (file) => {
+			const harness = await setupDevServerMiddleware(new Response('ok'), {
+				appEntryModule: moduleNode('/app/app.ts'),
+			});
+
+			harness.watcher.emit('change', file);
+
+			await vi.waitFor(() => expect(harness.restart).toHaveBeenCalledTimes(1));
+		},
+	);
+
+	it('restarts Vite for eco.config.ts when the app entry imports it', async () => {
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			appEntryModule: moduleNode('/app/app.ts', moduleNode('/app/eco.config.ts')),
+		});
+
+		harness.watcher.emit('change', '/app/eco.config.ts');
+
+		await vi.waitFor(() => expect(harness.restart).toHaveBeenCalledTimes(1));
+	});
+
+	it('restarts Vite when an env file is added', async () => {
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			appEntryModule: moduleNode('/app/app.ts'),
+		});
+
+		harness.watcher.emit('add', '/app/env/.env.local');
+
+		await vi.waitFor(() => expect(harness.restart).toHaveBeenCalledTimes(1));
+	});
+
+	it.each([
+		['an env file of another mode', '/app/env/.env.production', '/app/env'],
+		['an env file outside envDir', '/app/.env', '/app/env'],
+		['an env file when env loading is off', '/app/env/.env', false],
+		['eco.config.ts, even when the Vite config imports it', '/app/eco.config.ts', '/app/env'],
+	] as const)('does not restart Vite for %s', async (_label, file, envDir) => {
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			appEntryModule: moduleNode('/app/app.ts'),
+			envDir,
+		});
+
+		harness.watcher.emit('change', file);
 		await vi.waitFor(() => expect(harness.getModuleByUrl).toHaveBeenCalled());
 		await new Promise((resolve) => setImmediate(resolve));
 

@@ -53,6 +53,7 @@ describe('RolldownBuildAdapter', () => {
 			`export { isServerOnlyModuleSpecifier } from ${JSON.stringify(predicatePath)};`,
 		);
 		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser',
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'browser',
@@ -75,6 +76,7 @@ describe('RolldownBuildAdapter', () => {
 		writeFixture('db.server.ts', 'export const secret = "server-secret";');
 		const entrypoint = writeFixture('lit-browser.ts', source);
 		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser',
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'browser',
@@ -101,6 +103,7 @@ describe('RolldownBuildAdapter', () => {
 		writeFixture('db.server.ts', 'export const secret = "server-secret";');
 		const entrypoint = writeFixture('entry.ts', "export { secret } from './db.server.ts';");
 		const result = await new RolldownBuildAdapter().build({
+			environment: 'server',
 			entrypoints: [entrypoint],
 			outdir: path.join(workDir, 'dist'),
 			target: 'node',

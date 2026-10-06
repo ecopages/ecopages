@@ -309,6 +309,33 @@ describe('pages-unified-graph-build', () => {
 		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPaths[0]), undefined);
 	});
 
+	it('rebuilds the graph when a file the config imports changes', async () => {
+		process.env.NODE_ENV = 'production';
+		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
+		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
+
+		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
+		installBuildRuntime(appConfig);
+		const configPath = path.join(appDir, 'eco.config.ts');
+		const optionsPath = path.join(appDir, 'src/lib/mdx-plugin-options.ts');
+		fileSystem.write(optionsPath, 'export const mdxPluginOptions = { remarkPlugins: [] };\n');
+		appConfig.absolutePaths.config = configPath;
+		appConfig.absolutePaths.configModuleFiles = [configPath, optionsPath];
+
+		const entryPaths = [path.join(appDir, 'src/pages/index.ts')];
+		const outdir = getServerModuleBuildCacheOutdir(appConfig);
+		await ensurePagesUnifiedGraphBuilt({ appConfig, entryPaths, outdir, force: true });
+
+		resetRolldownBuildInvocationCounts();
+		await ensurePagesUnifiedGraphBuilt({ appConfig, entryPaths, outdir });
+		assert.equal(getTotalRolldownBuildInvocations(), 0, 'unchanged config files reuse the graph');
+
+		fileSystem.write(optionsPath, 'export const mdxPluginOptions = { remarkPlugins: ["changed"] };\n');
+		resetRolldownBuildInvocationCounts();
+		await ensurePagesUnifiedGraphBuilt({ appConfig, entryPaths, outdir });
+		assert.equal(getTotalRolldownBuildInvocations(), 1);
+	});
+
 	it('rebuilds the graph when template extensions change', async () => {
 		process.env.NODE_ENV = 'production';
 		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';

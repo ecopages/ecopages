@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { hashAppConfigFile } from '../../build/cache/build-input-fingerprint.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { RouteModuleBuildCache } from './route-module-build-cache.store.ts';
@@ -48,7 +49,10 @@ export function getSharedRouteModuleBuildCache(outdir: string, appConfig?: EcoPa
 		return existingCache;
 	}
 
-	const routeModuleBuildCache = new RouteModuleBuildCache(outdir);
+	let configHash: string | undefined;
+	const routeModuleBuildCache = new RouteModuleBuildCache(outdir, {
+		getConfigHash: () => (configHash ??= hashAppConfigFile(appConfig)),
+	});
 	caches.set(outdir, routeModuleBuildCache);
 	return routeModuleBuildCache;
 }

@@ -25,6 +25,7 @@ function createMockConfig(): EcoPagesAppConfig {
 		integrations: [],
 		absolutePaths: {
 			config: '/test/project/eco.config.ts',
+			configModuleFiles: ['/test/project/eco.config.ts'],
 			componentsDir: '/test/project/src/components',
 			distDir: '/test/project/.eco/public',
 			workDir: '/test/project/.eco',

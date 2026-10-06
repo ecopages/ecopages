@@ -12,6 +12,8 @@ import {
 	shouldPersistRouteModuleBuildCache,
 } from './route-module-build-manifest.ts';
 import { RouteModuleBuildCache } from './route-module-build-cache.store.ts';
+import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { createPluginCacheKey, hashFunctionIdentity } from '../../build/cache/cache-keys.ts';
 import {
 	clearProductionBuildCaches,
@@ -263,6 +265,56 @@ describe('RouteModuleBuildCache', () => {
 		hasher.clearMemo();
 
 		assert.equal(cache.lookup(options), undefined);
+	});
+
+	it('misses after the config module or a file it imports changes', () => {
+		process.env.NODE_ENV = 'production';
+		let configHash = 'config-a';
+		const cache = new RouteModuleBuildCache(tempDir, {
+			getCorePackageVersion: () => '1.0.0-test',
+			readManifest: () => undefined,
+			writeManifest: () => {},
+			exists: (filePath) => filePath.endsWith('.mjs'),
+			readFile: () => '',
+			createDependencyHasher: () => createTestDependencyHasher(),
+			getConfigHash: () => configHash,
+		});
+		const options = { filePath: '/app/pages/post.mdx', rootDir: '/app', outdir: tempDir, fileHash: 'abc123' };
+		cache.recordBuild({
+			...options,
+			outputPath: join(tempDir, 'post-abc123.mjs'),
+			dependencyModulePaths: ['/app/pages/post.mdx'],
+		});
+		assert.ok(cache.lookup(options));
+
+		configHash = 'config-b';
+
+		assert.equal(cache.lookup(options), undefined);
+	});
+
+	it('keys the shared app cache on the config module and the files it imports', () => {
+		process.env.NODE_ENV = 'production';
+		const configPath = join(tempDir, 'eco.config.ts');
+		const optionsPath = join(tempDir, 'options.ts');
+		writeFileSync(configPath, "import { options } from './options';\nexport default { options };\n");
+		writeFileSync(optionsPath, 'export const options = { a: 1 };\n');
+		const pagePath = join(tempDir, 'post.mdx');
+		writeFileSync(pagePath, '# Post\n');
+		const outputPath = join(tempDir, 'post-abc123.mjs');
+		writeFileSync(outputPath, 'export default {};\n');
+		const appConfig = {
+			absolutePaths: { config: configPath, configModuleFiles: [configPath, optionsPath] },
+		} as unknown as EcoPagesAppConfig;
+		const cache = getSharedRouteModuleBuildCache(tempDir, appConfig);
+		const options = { filePath: pagePath, rootDir: tempDir, outdir: tempDir, fileHash: 'abc123' };
+		cache.recordBuild({ ...options, outputPath, dependencyModulePaths: [pagePath] });
+		assert.ok(cache.lookup(options));
+
+		writeFileSync(optionsPath, 'export const options = { a: 2 };\n');
+		assert.ok(cache.lookup(options), 'a running process keeps the options it loaded');
+
+		const nextProcessConfig = { absolutePaths: appConfig.absolutePaths } as unknown as EcoPagesAppConfig;
+		assert.equal(getSharedRouteModuleBuildCache(tempDir, nextProcessConfig).lookup(options), undefined);
 	});
 
 	it('misses when the core package version changes', () => {

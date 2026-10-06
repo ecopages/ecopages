@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
-import type { APIRequestContext } from 'playwright-core';
+import type { APIRequestContext, Page } from 'playwright-core';
 import { HMR_MUTATION_ASSERT_TIMEOUT_MS } from './test-support';
 
 const VITE_HOST_PROJECT = 'cross-integration-hmr-vite-e2e';
@@ -67,19 +67,53 @@ function openChatSocket(
 }
 
 /**
+ * Reads the first message a new chat connection receives, or an empty string if none arrives.
+ *
+ * @remarks
+ * Connects from the browser, not with Node's WebSocket: polled while Vite restarts, a handshake can meet the
+ * closing server, and Node's client then throws an uncaught `setTypeOfService EINVAL` that fails the test.
+ */
+async function readChatWelcome(page: Page, baseURL: string): Promise<string> {
+	return await page.evaluate(
+		(url) =>
+			new Promise<string>((resolve) => {
+				const socket = new WebSocket(url);
+				const finish = (message: string) => {
+					clearTimeout(timer);
+					socket.close();
+					resolve(message);
+				};
+				const timer = setTimeout(() => finish(''), 5_000);
+				socket.addEventListener('message', (event) => finish(String(event.data)), { once: true });
+				socket.addEventListener('error', () => finish(''), { once: true });
+				socket.addEventListener('close', () => finish(''), { once: true });
+			}),
+		toWebSocketUrl(baseURL, '/ws/chat/lobby?username=e2e'),
+	);
+}
+
+/**
  * Reads what the app serves for each edited source: the page, the route that renders the data module, and
  * the history a new chat connection receives.
  */
-async function readServedContent(request: APIRequestContext, baseURL: string): Promise<string> {
+async function readServedContent(request: APIRequestContext, page: Page, baseURL: string): Promise<string> {
 	const pages = await Promise.all([fetchText(request, '/postcss'), fetchText(request, '/latest')]);
-	try {
-		const { socket, firstMessage } = await openChatSocket(baseURL, 'lobby');
-		const history = await firstMessage;
-		socket.close();
-		return [...pages, history].join('\n');
-	} catch {
-		return pages.join('\n');
-	}
+	return [...pages, await readChatWelcome(page, baseURL)].join('\n');
+}
+
+/**
+ * Lists what keeps the served content from being the unedited page, release and chat welcome: each missing
+ * text, and the edit marker if present. Empty when the original content is back.
+ *
+ * @remarks
+ * Requires all three texts, not just the absence of the edit marker: while a restore restarts Vite, nothing
+ * answers and the content is empty, so the next test would start against a server that is still down.
+ */
+function findContentMismatches(content: string): string[] {
+	const missing = [PAGE_TEXT, LATEST_RELEASE_TITLE, CHAT_WELCOME_TEXT]
+		.filter((text) => !content.includes(text))
+		.map((text) => `missing: ${text}`);
+	return content.includes(SUFFIX) ? [...missing, `unexpected: ${SUFFIX}`] : missing;
 }
 
 /**
@@ -113,14 +147,16 @@ test.describe('Vite host app entry restart @hmr', () => {
 		}
 	});
 
-	test.afterEach(async ({ request, baseURL }) => {
+	test.afterEach(async ({ request, page, baseURL }) => {
 		if (originals.size === 0) {
 			return;
 		}
 		restoreMutatedSources();
 		await expect
-			.poll(() => readServedContent(request, baseURL!), { timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS })
-			.not.toContain(SUFFIX);
+			.poll(() => readServedContent(request, page, baseURL!).then(findContentMismatches), {
+				timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
+			})
+			.toEqual([]);
 	});
 
 	test.afterAll(() => {
@@ -167,7 +203,7 @@ test.describe('Vite host app entry restart @hmr', () => {
 		await expect.poll(() => socket.readyState).toBe(WebSocket.CLOSED);
 	});
 
-	test('a WebSocket handler edit reaches a new connection', async ({ request, baseURL }, testInfo) => {
+	test('a WebSocket handler edit reaches a new connection', async ({ request, page, baseURL }, testInfo) => {
 		const handlerFile = resolveSourceFile(testInfo.project.metadata, WEBSOCKET_HANDLER_SOURCE);
 
 		fs.writeFileSync(
@@ -177,7 +213,7 @@ test.describe('Vite host app entry restart @hmr', () => {
 		);
 
 		await expect
-			.poll(() => readServedContent(request, baseURL!), { timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS })
+			.poll(() => readServedContent(request, page, baseURL!), { timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS })
 			.toContain(`${CHAT_WELCOME_TEXT} ${SUFFIX}`);
 	});
 });

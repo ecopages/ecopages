@@ -16,11 +16,25 @@ vi.mock('../shared/ws/node-http-websocket-upgrades.ts', () => ({
 	attachNodeHttpWebSocketUpgrades: upgrades.attach,
 }));
 
+const devRuntime = vi.hoisted(() => ({
+	websocketServer: {
+		handleUpgrade: (_req: unknown, _socket: unknown, _head: unknown, connected: (ws: unknown) => void) =>
+			connected(devRuntime.socket),
+	},
+	socket: { on: () => undefined, send: () => undefined },
+	bridge: { subscribe: (_ws: unknown) => undefined, unsubscribe: (_ws: unknown) => undefined },
+	hmrManager: {
+		setEnabled: () => undefined,
+		ensureRuntimeReady: async () => undefined,
+		sendPendingBuildErrors: (_ws: unknown) => undefined,
+		isEnabled: () => true,
+	},
+}));
+
 vi.mock('./server-adapter-dependencies.ts', () => ({
 	createNodeServerDevRuntime: () => ({
-		websocketServer: {},
-		bridge: devBridge,
-		hmrManager: { setEnabled: vi.fn(), ensureRuntimeReady: vi.fn(async () => {}), isEnabled: () => true },
+		...devRuntime,
+		bridge: { ...devRuntime.bridge, reload: devBridge.reload },
 	}),
 }));
 
@@ -216,6 +230,32 @@ describe('NodeServerAdapter', () => {
 				server,
 				expect.objectContaining({ passthroughUnmatched: true, preflight: expect.any(Function) }),
 			);
+		});
+
+		it('sends pending build errors to an HMR socket right after subscribing it', async () => {
+			const wiringDone = new Error('stop after upgrade wiring');
+			upgrades.attach.mockImplementationOnce(() => {
+				throw wiringDone;
+			});
+			const calls: string[] = [];
+			vi.spyOn(devRuntime.bridge, 'subscribe').mockImplementation(() => {
+				calls.push('subscribe');
+			});
+			const sendPendingBuildErrors = vi
+				.spyOn(devRuntime.hmrManager, 'sendPendingBuildErrors')
+				.mockImplementation(() => {
+					calls.push('sendPendingBuildErrors');
+				});
+			const adapter = createAdapter({ options: { watch: true } });
+			await expect(adapter.completeInitialization(server)).rejects.toBe(wiringDone);
+			const { preflight } = upgrades.attach.mock.calls[0][1] as {
+				preflight: (req: { url: string }, socket: unknown, head: unknown) => boolean;
+			};
+
+			expect(preflight({ url: '/_hmr' }, {}, Buffer.alloc(0))).toBe(true);
+
+			expect(calls).toEqual(['subscribe', 'sendPendingBuildErrors']);
+			expect(sendPendingBuildErrors).toHaveBeenCalledWith(devRuntime.socket);
 		});
 	});
 

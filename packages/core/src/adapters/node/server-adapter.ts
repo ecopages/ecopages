@@ -382,6 +382,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				if (url.pathname !== '/_hmr') return false;
 				wss.handleUpgrade(req, socket, head, (ws) => {
 					this.bridge!.subscribe(ws);
+					this.hmrManager?.sendPendingBuildErrors(ws);
 					ws.on('close', () => this.bridge!.unsubscribe(ws));
 					ws.on('error', (err) => appLogger.error('[HMR] WebSocket error:', err));
 				});

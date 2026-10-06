@@ -6,6 +6,7 @@ import type { ScriptAsset } from '../../assets.types.ts';
 import { BaseProcessor } from './base-processor.ts';
 import { BrowserBundleService, type BrowserBundleGroupedEntry } from '../../../browser-bundle.service.ts';
 import { getBuildEntryOutput } from '../../../../../build/build-graph.ts';
+import { formatBuildLog } from '../../../../../build/build-log.ts';
 
 export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BaseProcessor<T> {
 	private readonly browserBundleService: BrowserBundleService;
@@ -90,7 +91,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 			return fallbackOutput;
 		}
 
-		const logMessage = buildResult.logs.map((log) => log.message).join(' | ');
+		const logMessage = buildResult.logs.map(formatBuildLog).join('\n');
 		throw new Error(`No build output generated for ${entrypoint}${logMessage ? `: ${logMessage}` : ''}`);
 	}
 
@@ -130,7 +131,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 				continue;
 			}
 
-			const logMessage = buildResult.logs.map((log) => log.message).join(' | ');
+			const logMessage = buildResult.logs.map(formatBuildLog).join('\n');
 			throw new Error(
 				`No build output generated for grouped entry ${entry.entryName}${logMessage ? `: ${logMessage}` : ''}`,
 			);

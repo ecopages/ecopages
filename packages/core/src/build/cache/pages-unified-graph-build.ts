@@ -32,6 +32,7 @@ import {
 	resolveRouteModuleDependencyPaths,
 	type RouteModuleDependencyHashes,
 } from '../../services/module-loading/route-module-dependency-hasher.ts';
+import { formatBuildLog } from '../build-log.ts';
 
 export const PAGES_UNIFIED_GRAPH_CACHE_DIR = '.server-pages-graph';
 export const PAGES_UNIFIED_GRAPH_CACHE_FILENAME = '.build-cache.json';
@@ -242,7 +243,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 	appLogger.debugTimeEnd('pagesUnifiedGraphBuild');
 
 	if (!buildResult.success) {
-		const details = buildResult.logs.map((log) => log.message).join(' | ');
+		const details = buildResult.logs.map(formatBuildLog).join('\n');
 		throw new Error(`Pages unified graph build failed: ${details}`);
 	}
 

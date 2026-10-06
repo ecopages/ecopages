@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, test } from 'vitest';
+import { afterEach, describe, test, vi } from 'vitest';
 import { installBuildRuntime } from '../../../build/runtime/build-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
+import { appLogger } from '../../../global/app-logger.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../../../hmr/hmr-strategy.ts';
 import type { ClientBridgeEvent } from '../../../types/public-types.ts';
@@ -65,6 +66,7 @@ function createTempRoot(prefix: string): string {
 }
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	for (const root of tempRoots.splice(0)) {
 		fs.rmSync(root, { recursive: true, force: true });
 	}
@@ -155,25 +157,55 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		assert.equal(spy.broadcasts.length, 0);
 	});
 
-	test('defers client rebuilds when no subscribers are connected', async () => {
+	test.each<{ scenario: string; action: HmrAction }>([
+		{
+			scenario: 'strategy events',
+			action: {
+				type: 'broadcast',
+				events: [{ type: 'update', path: `${DEV_TRANSFORM_URL_PREFIX}/dropped.js`, timestamp: 1 }],
+			},
+		},
+		{ scenario: 'the fallback reload', action: { type: 'none' } },
+	])('drops $scenario and says so when no browser is connected', async ({ action }) => {
 		const rootDir = createTempRoot('ecopages-dispatch-no-subscribers');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 		const spy = createBridgeSpy();
 		spy.bridge.subscriberCount = 0;
 		using manager = await create(rootDir, spy);
+		const debugSpy = vi.spyOn(appLogger, 'debug').mockReturnValue(appLogger);
 
-		const customFile = path.join(rootDir, 'src', 'deferred.ts');
-		fs.writeFileSync(customFile, 'export const deferred = true;\n', 'utf8');
+		const changedFile = path.join(rootDir, 'src', 'dropped.ts');
+		fs.writeFileSync(changedFile, 'export const dropped = true;\n', 'utf8');
 		manager.registerStrategy(
-			new FakeHmrStrategy(HmrStrategyType.INTEGRATION, (filePath) => filePath === customFile, {
-				type: 'broadcast',
-				events: [{ type: 'update', path: `${DEV_TRANSFORM_URL_PREFIX}/deferred.js`, timestamp: 1 }],
-			}),
+			new FakeHmrStrategy(HmrStrategyType.INTEGRATION, (filePath) => filePath === changedFile, action),
 		);
 
-		await manager.handleFileChange(customFile);
+		await manager.handleFileChange(changedFile);
 
-		assert.equal(spy.broadcasts.length, 0);
+		assert.deepEqual(spy.broadcasts, []);
+		assert.deepEqual(collectPendingBuildErrors(manager), []);
+		assert.ok(
+			debugSpy.mock.calls.some(([message]) =>
+				String(message).endsWith(`No browser connected; dropping HMR events for ${changedFile}`),
+			),
+		);
+	});
+
+	test('reloads a connected browser when a strategy returns no events for an unregistered file', async () => {
+		const rootDir = createTempRoot('ecopages-dispatch-fallback-reload');
+		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
+		const spy = createBridgeSpy();
+		using manager = await create(rootDir, spy);
+
+		const changedFile = path.join(rootDir, 'src', 'fallback.ts');
+		fs.writeFileSync(changedFile, 'export const fallback = true;\n', 'utf8');
+		manager.registerStrategy(
+			new FakeHmrStrategy(HmrStrategyType.INTEGRATION, (filePath) => filePath === changedFile, { type: 'none' }),
+		);
+
+		await manager.handleFileChange(changedFile);
+
+		assert.deepEqual(spy.broadcasts, [{ type: 'reload' }]);
 	});
 
 	test('registered script entrypoints still route through integration strategies', async () => {

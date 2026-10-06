@@ -217,6 +217,63 @@ describe('DevTransformVendorRegistry', () => {
 		expect(await response.text()).toContain('release-1.0.1');
 	});
 
+	it('rebundles a workspace-linked package when a non-entry file changes', async () => {
+		const workspaceRoot = createTempRoot('dev-transform-vendor-workspace');
+		const rootDir = path.join(workspaceRoot, 'app');
+		const packageDir = path.join(workspaceRoot, 'packages', 'ui');
+		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
+		fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ name: 'app', type: 'module' }));
+		fs.mkdirSync(path.join(packageDir, 'src'), { recursive: true });
+		fs.writeFileSync(
+			path.join(packageDir, 'package.json'),
+			JSON.stringify({ name: '@acme/ui', version: '1.0.0', type: 'module', module: 'src/index.ts' }),
+		);
+		fs.writeFileSync(
+			path.join(packageDir, 'src', 'index.ts'),
+			"export { label } from './button.ts';\nexport { dep } from 'ui-dep';\n",
+		);
+		const depDir = path.join(packageDir, 'node_modules', 'ui-dep');
+		fs.mkdirSync(depDir, { recursive: true });
+		fs.writeFileSync(
+			path.join(depDir, 'package.json'),
+			JSON.stringify({ name: 'ui-dep', version: '1.0.0', type: 'module', module: 'index.js' }),
+		);
+		fs.writeFileSync(path.join(depDir, 'index.js'), "export const dep = 'ui-dep-code';\n");
+		fs.mkdirSync(path.join(rootDir, 'node_modules', '@acme'), { recursive: true });
+		fs.symlinkSync(packageDir, path.join(rootDir, 'node_modules', '@acme', 'ui'), 'dir');
+		const writeButton = (label: string) =>
+			fs.writeFileSync(path.join(packageDir, 'src', 'button.ts'), `export const label: string = '${label}';\n`);
+
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		installBuildRuntime(config);
+		const createRegistry = () =>
+			new DevTransformVendorRegistry({ appConfig: config, getRuntimeSpecifierMap: () => new Map() });
+		const readServed = async (registry: DevTransformVendorRegistry, url: string) => {
+			const response = registry.tryHandleVendorRequest(url);
+			assert.ok(response);
+			return response.text();
+		};
+
+		writeButton('button-v1');
+		const running = createRegistry();
+		const oldUrl = await running.resolveVendorUrl('@acme/ui');
+		expect(await readServed(running, oldUrl)).toContain('button-v1');
+
+		writeButton('button-v2');
+		running.invalidateAll();
+		const rebuiltUrl = await running.resolveVendorUrl('@acme/ui');
+		expect(rebuiltUrl).not.toBe(oldUrl);
+		expect(await readServed(running, rebuiltUrl)).toContain('button-v2');
+
+		writeButton('button-v3');
+		const restarted = createRegistry();
+		const restartedUrl = await restarted.resolveVendorUrl('@acme/ui');
+		expect(restartedUrl).toMatch(/^\/assets\/vendors\/acme-ui\.[a-f0-9]+\.js$/);
+		const restartedCode = await readServed(restarted, restartedUrl);
+		expect(restartedCode).toContain('button-v3');
+		expect(restartedCode).toContain('ui-dep-code');
+	});
+
 	it('serves vendor bundles for revalidation instead of as immutable', async () => {
 		const rootDir = createTempRoot('dev-transform-vendor-revalidate');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });

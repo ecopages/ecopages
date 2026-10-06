@@ -195,7 +195,7 @@ An app with API or WebSocket handlers builds a server bundle into `dist/.server/
 | `node_modules/` | The install the build ran against, on the server's operating system and CPU architecture. |
 | `package.json`  | Declares `"type": "module"` for the `.js` chunks.                                         |
 
-Start the server from that folder with `node dist/.server/app.mjs` (or `bun dist/.server/app.mjs`). Without `eco.config.ts` in the folder, the server loads `dist/.server/eco.config.mjs`. `ecopages start` prefers the emitted config even when the source config is present.
+Start the server from that folder with `node dist/.server/app.mjs` (or `bun dist/.server/app.mjs`). A server started from a `.server` folder loads the `eco.config.mjs` beside its entry, even when `eco.config.ts` is present, so the deploy may include the source config. `ecopages start` passes the emitted config explicitly.
 
 Relative imports name the package manager's store folders (`node_modules/.pnpm/<name>@<version>_<peers>/...`), so a reinstall works only when it reproduces those names: the same lockfile, package manager version and layout settings (pnpm `node-linker`, `virtual-store-dir`, `virtual-store-dir-max-length`; Bun's linker). Copy the install the build used instead, built on the target platform, because native bindings are per platform.
 

@@ -203,7 +203,9 @@ async function waitForServerUrl(child: ChildProcess, output: () => string): Prom
  * so do a bundled location-bound package (a dependency of a source package
  * that loads a file next to itself) and an `import.meta.url` read in the
  * bundled entry, by the app or by Core reading its own `package.json`, that
- * resolves from `dist/.server/` instead of the source file.
+ * resolves from `dist/.server/` instead of the source file. The deploy keeps
+ * `eco.config.ts`, which `node` cannot load because it imports TypeScript
+ * from `node_modules`, so the server must pick the emitted config itself.
  * `VITEST` is cleared for the build because the `ecopages` CLI does not run
  * its command while it is set.
  */
@@ -231,7 +233,7 @@ test(
 		expect(serverOutput).not.toContain('file://');
 		expect(serverOutput).not.toContain(buildDir);
 
-		for (const entry of ['dist', 'src', 'node_modules', 'package.json']) {
+		for (const entry of ['dist', 'src', 'node_modules', 'package.json', 'eco.config.ts']) {
 			cpSync(path.join(buildDir, entry), path.join(deployDir, entry), {
 				recursive: true,
 				verbatimSymlinks: true,

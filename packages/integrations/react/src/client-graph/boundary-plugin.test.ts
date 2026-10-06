@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
@@ -11,6 +11,7 @@ import type {
 } from '@ecopages/core/plugins/integration-plugin';
 import { createClientGraphBoundaryPlugin } from './boundary-plugin.ts';
 import { ClientGraphBoundaryCache } from './boundary-cache.ts';
+import { RolldownBuildAdapter } from '../../../../core/src/build/rolldown/rolldown-build-adapter.ts';
 
 type OnLoadRegistration = {
 	options: { filter: RegExp; namespace?: string };
@@ -50,6 +51,48 @@ function createPluginTestHarness(pluginOptions?: Parameters<typeof createClientG
 }
 
 describe('createClientGraphBoundaryPlugin', () => {
+	it('builds a browser Page after pruning server-only middleware before resolution', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const pagesDir = join(tempDir, 'pages');
+		mkdirSync(pagesDir);
+		const entrypoint = join(pagesDir, 'entry.ts');
+		writeFileSync(join(pagesDir, 'auth.server.ts'), 'export const authMiddleware = "server-secret";');
+		writeFileSync(join(pagesDir, 'eco.ts'), 'export const eco = { page: (options) => options };');
+		writeFileSync(
+			entrypoint,
+			[
+				"import { eco } from './eco';",
+				"import { authMiddleware } from './auth.server.ts';",
+				'export default eco.page({',
+				'middleware: [authMiddleware],',
+				"cache: 'dynamic',",
+				"requires: ['session'],",
+				'render: () => "Dashboard",',
+				'});',
+			].join('\n'),
+		);
+
+		try {
+			const result = await new RolldownBuildAdapter().build({
+				entrypoints: [entrypoint],
+				outdir: join(tempDir, 'dist'),
+				root: tempDir,
+				target: 'browser',
+				format: 'esm',
+				plugins: [createClientGraphBoundaryPlugin()],
+			});
+			expect(result.success, JSON.stringify(result.logs)).toBe(true);
+			const output = readFileSync(result.outputs[0]!.path, 'utf8');
+			expect(output).toContain('Dashboard');
+			expect(output).not.toContain('server-secret');
+			expect(output).not.toContain('authMiddleware');
+			expect(output).not.toContain('middleware');
+			expect(output).not.toContain('requires');
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it('strips undeclared node and bare imports while keeping declared modules', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
 		const filePath = join(tempDir, 'component.tsx');

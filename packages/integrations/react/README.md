@@ -81,6 +81,8 @@ The React integration supports Node.js modules and server-only code **only on th
 
 Keep server helpers close, but separate them physically or logically so they do not leak into the client bundle.
 
+The `.server` naming rule comes from the browser-safe `@ecopages/core/build/contracts/server-only-specifier` entry. React applies it during import pruning before core's browser resolution guard runs. A Page that uses `.server.ts` imports only in server options such as `middleware` still builds: the imports and server options are removed before resolution.
+
 For a hydratable Page that renders collection MDX, use `createCollectionComponentCache()` with the collection's `/browser` loader. Export `preload` from the Page so hydration, router navigation, and HMR load the current entry before synchronous render. The server may prime the same cache with `/server`'s `getComponent()` inside `staticProps`; `dependencies` remains server-only and is removed from the Page Browser Graph.
 
 ## Client Graph Boundary Architecture

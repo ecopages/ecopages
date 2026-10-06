@@ -237,6 +237,10 @@
 			"types": "./src/build/contracts/content-virtual-modules.ts",
 			"default": "./src/build/contracts/content-virtual-modules.ts"
 		},
+		"./build/contracts/server-only-specifier": {
+			"types": "./src/build/contracts/server-only-specifier.ts",
+			"default": "./src/build/contracts/server-only-specifier.ts"
+		},
 		"./services/module-loading/collection-server-module-build.service": {
 			"types": "./src/services/module-loading/collection-server-module-build.service.ts",
 			"default": "./src/services/module-loading/collection-server-module-build.service.ts"

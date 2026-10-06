@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { appLogger } from '../../global/app-logger.ts';
-import { clearOutsideRootWarningsForTests } from './rolldown-adapter-helpers.ts';
+import type { BuildOptions } from '../contracts/build-contracts.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 
 let workDir: string;
@@ -131,46 +133,59 @@ describe('RolldownBuildAdapter', () => {
 		expect(code).toContain('bundled-source-package');
 	});
 
-	test('externalPackages bundles undeclared transitive dependencies (tier 3 — pnpm strict hoisting)', async () => {
-		// Simulate a transitive dep that the app has NOT declared in its package.json.
-		// Under pnpm strict hoisting, such packages are unreachable as bare specifiers
-		// from build output dirs (.eco/, .server-route-modules/, dist/.server/), so
-		// shouldBundlePackageImport must bundle them unconditionally (tier 3).
-		const packageDir = path.join(workDir, 'node_modules', 'transitive-pkg');
-		mkdirSync(packageDir, { recursive: true });
-		writeFileSync(
-			path.join(packageDir, 'package.json'),
-			JSON.stringify({
-				name: 'transitive-pkg',
-				type: 'module',
-				exports: './index.js',
-			}),
+	test('externalPackages keeps compiled packages that a bundled workspace package imports external as relative paths', async () => {
+		writeAppPackageJson({ type: 'module', dependencies: { 'source-lib': 'workspace:*' } });
+		const writePackage = (dir: string, files: Record<string, string>): void => {
+			mkdirSync(dir, { recursive: true });
+			for (const [name, source] of Object.entries(files)) writeFileSync(path.join(dir, name), source);
+		};
+		writePackage(path.join(workDir, 'packages/source-lib'), {
+			'package.json': JSON.stringify({ name: 'source-lib', type: 'module', exports: './index.ts' }),
+			'index.ts':
+				"import { loadBinding } from 'native-like';\nimport { shared } from 'shared-lib';\nexport const binding: { native: boolean } = loadBinding();\nexport { shared };\n",
+		});
+		writePackage(path.join(workDir, 'packages/shared-lib'), {
+			'package.json': JSON.stringify({ name: 'shared-lib', type: 'module', exports: './index.js' }),
+			'index.js': "export const shared = 'bundled-workspace-package';\n",
+		});
+		writePackage(path.join(workDir, 'node_modules/native-like'), {
+			'package.json': JSON.stringify({ name: 'native-like', type: 'module', exports: './index.js' }),
+			'index.js':
+				"import { createRequire } from 'node:module';\nconst require = createRequire(import.meta.url);\nexport const loadBinding = () => require(`./binding-${process.platform}.cjs`);\n",
+			[`binding-${process.platform}.cjs`]: 'module.exports = { native: true };\n',
+		});
+		symlinkSync(path.join(workDir, 'packages/source-lib'), path.join(workDir, 'node_modules/source-lib'), 'dir');
+		symlinkSync(path.join(workDir, 'packages/shared-lib'), path.join(workDir, 'node_modules/shared-lib'), 'dir');
+		const entrypoint = writeFixture(
+			'entry.ts',
+			"import { binding, shared } from 'source-lib';\nexport { binding, shared };\n",
 		);
-		writeFileSync(path.join(packageDir, 'index.js'), "export const value = 'from-transitive-dep';\n");
 
-		// App package.json deliberately does NOT declare 'transitive-pkg'.
-		writeAppPackageJson({});
-
-		const entrypoint = writeFixture('entry.ts', "import { value } from 'transitive-pkg';\nexport { value };\n");
-		const adapter = new RolldownBuildAdapter();
-		const outdir = path.join(workDir, 'dist');
-
-		const result = await adapter.build({
+		const result = await new RolldownBuildAdapter().build({
 			entrypoints: [entrypoint],
-			outdir,
-			target: 'es2022',
+			outdir: path.join(workDir, 'dist'),
+			target: 'node',
 			format: 'esm',
 			externalPackages: true,
 			root: workDir,
 		});
 
 		assert.equal(result.success, true);
-		assert.ok(result.outputs.length > 0, 'at least one output file');
-		const firstOutput = result.outputs[0]!;
-		const code = readFileSync(firstOutput.path, 'utf-8');
-		// The transitive dep must be inlined — NOT left as a bare specifier.
-		expect(code).not.toMatch(/from ['"]transitive-pkg['"]/);
-		expect(code).toContain('from-transitive-dep');
+		const outputPath = result.outputs[0]!.path;
+		const code = readFileSync(outputPath, 'utf-8');
+		const nativeEntry = path.join(realpathSync(workDir), 'node_modules/native-like/index.js');
+		expect(code).toContain(`from "${relativeImportPath(outputPath, nativeEntry)}"`);
+		expect(code).toContain('bundled-workspace-package');
+		const loaded = execFileSync(
+			process.execPath,
+			[
+				'--input-type=module',
+				'-e',
+				`const m = await import(${JSON.stringify(pathToFileURL(outputPath).href)}); console.log(JSON.stringify(m.binding));`,
+			],
+			{ encoding: 'utf8' },
+		);
+		expect(JSON.parse(loaded)).toEqual({ native: true });
 	});
 
 	test('externalPackages keeps node builtins external for node-target builds', async () => {
@@ -258,9 +273,23 @@ describe('RolldownBuildAdapter', () => {
 		expect(readFileSync(result.outputs[0]!.path, 'utf-8')).toMatch(/from ['"]oxc-parser['"]/);
 	});
 
-	test('a production build reports core-owned packages outside the app root in one line', async () => {
-		clearOutsideRootWarningsForTests();
-		vi.stubEnv('NODE_ENV', 'production');
+	async function buildWithCoreImports(imports: string[], options: Partial<BuildOptions> = {}) {
+		const entrypoint = writeFixture(
+			'entry.ts',
+			imports.map((specifier, index) => `export * as dep${index} from '${specifier}';`).join('\n'),
+		);
+		return await new RolldownBuildAdapter().build({
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'node',
+			format: 'esm',
+			externalPackages: true,
+			root: workDir,
+			...options,
+		});
+	}
+
+	test('a server entry build reports packages outside the app root in one line', async () => {
 		const warn = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
 		const entrypoint = writeFixture(
 			'entry.ts',
@@ -273,30 +302,68 @@ describe('RolldownBuildAdapter', () => {
 			target: 'node',
 			format: 'esm',
 			externalPackages: true,
+			reportPackagesOutsideRoot: true,
 			root: workDir,
 		});
 
 		assert.equal(result.success, true);
 		expect(warn).toHaveBeenCalledTimes(1);
 		const message = String(warn.mock.calls[0]?.[0]);
-		expect(message).toContain('2 packages from outside the app folder (@ecopages/logger, oxc-parser)');
+		expect(message).toContain(
+			'dist/entry.mjs imports 2 packages from outside the app folder (@ecopages/logger, oxc-parser)',
+		);
 		expect(message).toContain('docs/reference/deployment');
 	});
 
-	test('a development build does not report packages outside the app root', async () => {
-		clearOutsideRootWarningsForTests();
-		vi.stubEnv('NODE_ENV', 'development');
+	test('a server entry build names one outside package in the singular', async () => {
 		const warn = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
-		const entrypoint = writeFixture('entry.ts', "import { parseSync } from 'oxc-parser';\nexport { parseSync };\n");
 
-		const result = await new RolldownBuildAdapter().build({
-			entrypoints: [entrypoint],
-			outdir: path.join(workDir, 'dist'),
-			target: 'node',
-			format: 'esm',
-			externalPackages: true,
-			root: workDir,
+		const result = await buildWithCoreImports(['oxc-parser'], { reportPackagesOutsideRoot: true });
+
+		assert.equal(result.success, true);
+		expect(String(warn.mock.calls[0]?.[0])).toContain('imports 1 package from outside the app folder (oxc-parser)');
+	});
+
+	test('a server entry build names the first five outside packages and counts the rest', async () => {
+		const warn = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
+
+		const result = await buildWithCoreImports(
+			['@clack/prompts', '@ecopages/logger', '@standard-schema/utils', 'chokidar', 'oxc-parser', 'oxc-resolver'],
+			{ reportPackagesOutsideRoot: true },
+		);
+
+		assert.equal(result.success, true);
+		expect(String(warn.mock.calls[0]?.[0])).toContain(
+			'6 packages from outside the app folder (@clack/prompts, @ecopages/logger, @standard-schema/utils, chokidar, oxc-parser and 1 more)',
+		);
+	});
+
+	test('each server output reports its own complete list, named by the directory it runs from', async () => {
+		const warn = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
+		const staged = { outdir: path.join(workDir, 'staging'), runtimeOutdir: path.join(workDir, 'dist/.server') };
+
+		await buildWithCoreImports(['oxc-parser'], {
+			...staged,
+			naming: 'eco.config.mjs',
+			reportPackagesOutsideRoot: true,
 		});
+		await buildWithCoreImports(['@ecopages/logger', 'oxc-parser'], {
+			...staged,
+			naming: 'app.mjs',
+			reportPackagesOutsideRoot: true,
+		});
+
+		expect(warn.mock.calls.map((call) => String(call[0]).split(';')[0])).toEqual([
+			'dist/.server/eco.config.mjs imports 1 package from outside the app folder (oxc-parser)',
+			'dist/.server/app.mjs imports 2 packages from outside the app folder (@ecopages/logger, oxc-parser)',
+		]);
+	});
+
+	test('a production module build does not report packages outside the app root', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const warn = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
+
+		const result = await buildWithCoreImports(['oxc-parser']);
 
 		assert.equal(result.success, true);
 		expect(warn).not.toHaveBeenCalled();

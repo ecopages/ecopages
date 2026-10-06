@@ -55,7 +55,9 @@ const defaultLocalImportFileAccess: LocalImportFileAccess = {
  * because callers already check that the compiled output exists.
  *
  * A missing file is listed but not followed, so a cache recorded against it
- * never validates.
+ * never validates. A file inside `node_modules` (an externalized package that
+ * server output imports by relative path) is listed but not followed either,
+ * so the walk does not read and parse installed packages.
  *
  * Pass one `directImportsCache` to every walk of a single build so shared chunks
  * are read and parsed once instead of once per output.
@@ -80,7 +82,7 @@ export function collectReachableLocalImports(
 			reachable.add(current);
 		}
 
-		if (current !== modulePath && !fileAccess.exists(current)) {
+		if (current !== modulePath && (/[\\/]node_modules[\\/]/u.test(current) || !fileAccess.exists(current))) {
 			continue;
 		}
 

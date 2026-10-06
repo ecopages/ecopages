@@ -25,7 +25,7 @@ It is responsible for:
 - `load-eco-config.ts`: resolves the config module path, imports the user config, and finalizes it
 - `resolve-eco-config-path.ts`: `eco.config.ts` discovery (`configFile`, `ECOPAGES_CONFIG_FILE`, cwd default, and production `.server/eco.config.mjs`) and `resolveUserConfigRootDir()`
 - `user-config-types.ts`: TypeScript contracts for `EcoPagesUserConfig` and config loader options
-- `server-config-bundle.ts`: emits `dist/.server/eco.config.mjs` for production server startup
+- `server-config-bundle.ts`: emits `dist/.server/eco.config.mjs` for production server startup; like every server build request, it keeps `import.meta` of bundled modules pointing at their sources (`build/preserve-import-meta-transform.ts`)
 - `finalize-config.test.ts` / `load-eco-config.test.ts`: validation and loader coverage
 
 ## Ownership Rules

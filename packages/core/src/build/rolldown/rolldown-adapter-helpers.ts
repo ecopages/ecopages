@@ -10,7 +10,7 @@
  */
 
 import { builtinModules, createRequire } from 'node:module';
-import { readFileSync, realpathSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InputOptions, OutputOptions, RolldownPlugin } from 'rolldown';
@@ -19,8 +19,8 @@ import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import { collectBrowserRuntimeManifests, rewriteBrowserRuntimeImports } from '../browser/browser-runtime-plugin.ts';
 import { mergeBrowserRuntimeManifests } from '../browser/browser-runtime-manifest.ts';
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
-import { escapeRegExp } from '../browser/browser-runtime-plugin-helpers.ts';
 import { appLogger } from '../../global/app-logger.ts';
+import { realpathOfDirectory } from '../preserve-import-meta-transform.ts';
 import { createRolldownPluginBridge } from './rolldown-plugin-bridge.ts';
 import {
 	getPackageNameFromSpecifier,
@@ -120,11 +120,10 @@ function getAppRootRequire(cache: Map<string, NodeJS.Require>, contextRoot: stri
  * Only packages the app declares and ships compiled qualify: the app's own
  * `node_modules` resolves them at runtime, so Integration renderers and
  * server bundles share one instance (for example one React). Workspace
- * packages and source (TypeScript or JSX) packages are bundled. Core's own
- * dependencies are handled by {@link createCoreDependencyExternalPlugin};
- * every other package is bundled, because isolated installs (pnpm, Bun's
- * isolated linker) do not expose undeclared transitives such as `lexical` to
- * output directories like `.eco/` or `dist/.server/`.
+ * packages and source (TypeScript or JSX) packages are bundled. Undeclared
+ * compiled packages are handled by {@link createInstalledPackageExternalPlugin},
+ * because isolated installs (pnpm, Bun's isolated linker) do not expose them
+ * as bare specifiers to output directories like `.eco/` or `dist/.server/`.
  */
 function isAppPackageExternal(
 	id: string,
@@ -158,102 +157,115 @@ function createExternalMatcher(
 	};
 }
 
-/**
- * Resolves `dir` through symlinks, including for a directory that does not
- * exist yet.
- *
- * @remarks
- * Node resolves a relative import against the real path of the importing
- * file, so a path computed from a symlinked output directory (macOS `/tmp`, a
- * linked project root) would point at the wrong place.
- */
-function realpathOfDirectory(dir: string): string {
-	try {
-		return realpathSync(dir);
-	} catch {
-		const parent = path.dirname(dir);
-		return parent === dir ? dir : path.join(realpathOfDirectory(parent), path.basename(dir));
-	}
-}
-
 const DEPLOY_LAYOUT_DOCS_URL = 'https://ecopages.app/docs/reference/deployment';
-const warnedOutsideRootPackages = new Set<string>();
+const MAX_WARNED_PACKAGE_NAMES = 5;
 
 /**
- * Logs one line for the packages of a production server build that resolve
+ * Logs one line for a deployed server output file whose imports resolve
  * outside the app folder.
  *
  * @remarks
  * Such a package (in a workspace root `node_modules`, a global package store,
  * behind a symlinked root) is not copied with the app folder, so a moved
- * server build cannot load it. Only production builds report it, because
- * only they are deployed. Each package is reported once per process.
+ * server build cannot load it. Only builds with
+ * {@link BuildOptions.reportPackagesOutsideRoot} report it: the server entry
+ * and the emitted config that `ecopages build` writes, one complete line per
+ * output file. Module builds that the running server makes on the deploy
+ * target stay silent. The line names the first
+ * {@link MAX_WARNED_PACKAGE_NAMES} packages and counts the rest.
  */
-function warnPackagesOutsideAppRoot(packageNames: Iterable<string>): void {
-	const unreported = [...packageNames].filter((name) => !warnedOutsideRootPackages.has(name)).sort();
-	if (unreported.length === 0) return;
-	for (const name of unreported) warnedOutsideRootPackages.add(name);
+function warnPackagesOutsideAppRoot(outputLabel: string, packageNames: Iterable<string>): void {
+	const sorted = [...packageNames].sort();
+	if (sorted.length === 0) return;
+	const hidden = sorted.length - MAX_WARNED_PACKAGE_NAMES;
+	const names = sorted.slice(0, MAX_WARNED_PACKAGE_NAMES).join(', ');
+	const count = sorted.length === 1 ? '1 package' : `${sorted.length} packages`;
 	appLogger.warn(
-		`Server output imports ${unreported.length} packages from outside the app folder (${unreported.join(', ')}); copy them with the app or build from a standalone install: ${DEPLOY_LAYOUT_DOCS_URL}`,
+		`${outputLabel} imports ${count} from outside the app folder (${hidden > 0 ? `${names} and ${hidden} more` : names}); copy them with the app or build from a standalone install: ${DEPLOY_LAYOUT_DOCS_URL}`,
 	);
 }
 
-/** Test-only: forgets which packages were already warned about. */
-export function clearOutsideRootWarningsForTests(): void {
-	warnedOutsideRootPackages.clear();
+function isUndeclaredPackageImport(id: string, contextRoot: string): boolean {
+	return (
+		!isNodeBuiltinSpecifier(id) &&
+		!CORE_RUNTIME_BUNDLED_PACKAGES.has(getPackageNameFromSpecifier(id)) &&
+		isPackageImport(id, contextRoot) &&
+		!isDeclaredAppPackageImport(id, contextRoot)
+	);
 }
 
 /**
- * Keeps Core's own compiled dependencies external as paths relative to the
- * output directory.
+ * @remarks
+ * A store whose real path has no `node_modules` segment is not recognised, so
+ * its packages are bundled. Yarn Plug'n'Play archives (`.zip` paths) are
+ * bundled too: Node cannot import a path into an archive without the PnP
+ * loader, so PnP installs are not supported for relocated server output.
+ */
+function isInstalledCompiledModule(filePath: string): boolean {
+	return /\.[cm]?js$/u.test(filePath) && /[\\/]node_modules[\\/]/u.test(filePath) && !/\.zip[\\/]/u.test(filePath);
+}
+
+/**
+ * Keeps installed compiled packages external as paths relative to the output
+ * directory.
  *
  * @remarks
- * When Core is bundled from its TypeScript source (a workspace link), its
- * compiled dependencies (`rolldown`, `oxc-parser`, `@ecopages/logger`,
- * `chokidar` and others) stay external. The published package is compiled
- * and stays a bare import, so this hook only sees code that imports those
- * dependencies directly. Under isolated installs (pnpm, Bun's isolated
- * linker) they are not reachable as bare specifiers from `dist/.server`,
- * because the app does not declare them. The hook resolves them through
- * Rolldown, from the importer or else from Core, so the `node` and `import`
- * conditions apply and the result is a real path, and returns a `./` or `../`
- * path that Rolldown writes unchanged. The output keeps working when `dist`
- * and `node_modules` move together, for example into a container image.
+ * A compiled package can depend on its location on disk: it loads a native
+ * binding (`sharp`, `oxc-parser`), a platform package, or a sibling file
+ * through `createRequire(import.meta.url)` or `__dirname`. Bundled into
+ * `dist/.server/`, that lookup starts from the wrong folder and fails at
+ * runtime, and the bundle cannot tell which packages do it. So server builds
+ * bundle source code only (the app, workspace packages, TypeScript or JSX
+ * packages) and keep every compiled package installed in `node_modules`
+ * external, including the dependencies of bundled workspace packages and of
+ * Core itself.
+ *
+ * Under isolated installs (pnpm, Bun's isolated linker) a package the app does
+ * not declare is not reachable as a bare specifier from `dist/.server`, so the
+ * hook resolves it through Rolldown, from the importer (or, for Core's own
+ * dependencies, from Core), so the `node` and `import` conditions apply and
+ * the result is a real path, and returns a `./` or `../` path that Rolldown
+ * writes unchanged. The output keeps working when `dist` and `node_modules`
+ * move together, for example into a container image.
  *
  * The path is computed here rather than with `external: 'relative'`, because
  * Rolldown 1.2 computes that path from `cwd` instead of the output directory.
  * It is relative to `outdir`, so `generateBundle` rejects a chunk written in a
- * subdirectory that imports one of these paths. In production builds it also
- * reports the packages that resolve outside the app folder.
+ * subdirectory that imports one of these paths. With `reportDir` (the
+ * directory the output runs from) it also reports the packages that resolve
+ * outside the app folder, naming the entry files by their path in that
+ * directory.
  *
  * Packages the app declares stay bare specifiers through the `external`
  * option, which Rolldown checks before this hook. Packages in
- * `CORE_RUNTIME_BUNDLED_PACKAGES`, source packages, anything that does not
- * resolve and anything on another drive than `outdir` are bundled. The hook
- * filter limits the JavaScript call to Core's dependency names.
+ * `CORE_RUNTIME_BUNDLED_PACKAGES`, workspace and source packages, anything
+ * that does not resolve and anything on another drive than `outdir` are
+ * bundled.
  */
-export function createCoreDependencyExternalPlugin(contextRoot: string, outdir: string): RolldownPlugin {
-	const names = [...getCorePackageNames()].filter((name) => !CORE_RUNTIME_BUNDLED_PACKAGES.has(name));
+export function createInstalledPackageExternalPlugin(
+	contextRoot: string,
+	outdir: string,
+	reportDir?: string,
+): RolldownPlugin {
+	const coreNames = getCorePackageNames();
 	const externalIds = new Set<string>();
 	const outsideRootPackages = new Set<string>();
 	let realOutdir: string | undefined;
 	let realContextRoot: string | undefined;
-	if (names.length === 0) {
-		return { name: 'ecopages-core-dependency-external' };
-	}
 	return {
-		name: 'ecopages-core-dependency-external',
+		name: 'ecopages-installed-package-external',
 		resolveId: {
-			filter: { id: new RegExp(`^(?:${names.map(escapeRegExp).join('|')})(?:/|$)`, 'u') },
+			filter: { id: /^[^./\\\0]/u },
 			async handler(id, importer, extraOptions) {
-				if (!isPackageImport(id, contextRoot) || isDeclaredAppPackageImport(id, contextRoot)) {
+				if (!isUndeclaredPackageImport(id, contextRoot)) {
 					return null;
 				}
+				const packageName = getPackageNameFromSpecifier(id);
 				const resolveOptions = { kind: extraOptions.kind, skipSelf: true };
 				const resolved =
 					(importer ? await this.resolve(id, importer, resolveOptions) : null) ??
-					(await this.resolve(id, coreSourceFile, resolveOptions));
-				if (!resolved || resolved.external || !/\.[cm]?js$/u.test(resolved.id)) {
+					(coreNames.has(packageName) ? await this.resolve(id, coreSourceFile, resolveOptions) : null);
+				if (!resolved || resolved.external || !isInstalledCompiledModule(resolved.id)) {
 					return null;
 				}
 				realOutdir ??= realpathOfDirectory(outdir);
@@ -262,8 +274,8 @@ export function createCoreDependencyExternalPlugin(contextRoot: string, outdir: 
 					return null;
 				}
 				realContextRoot ??= realpathOfDirectory(contextRoot);
-				if (path.relative(realContextRoot, resolved.id).startsWith('..')) {
-					outsideRootPackages.add(getPackageNameFromSpecifier(id));
+				if (reportDir && path.relative(realContextRoot, resolved.id).startsWith('..')) {
+					outsideRootPackages.add(packageName);
 				}
 				const externalId = relativePath.startsWith('../') ? relativePath : `./${relativePath}`;
 				externalIds.add(externalId);
@@ -271,17 +283,24 @@ export function createCoreDependencyExternalPlugin(contextRoot: string, outdir: 
 			},
 		},
 		generateBundle(_outputOptions, bundle) {
+			const entryFileNames: string[] = [];
 			for (const output of Object.values(bundle)) {
+				if (output.type === 'chunk' && output.isEntry) entryFileNames.push(output.fileName);
 				if (output.type !== 'chunk' || !output.fileName.includes('/')) continue;
 				const nested = [...output.imports, ...output.dynamicImports].find((id) => externalIds.has(id));
 				if (nested) {
 					this.error(
-						`[core-dependency-external] "${output.fileName}" is written below the output directory but imports "${nested}", a path relative to the output directory. Use flat entry and chunk file names for builds with externalPackages.`,
+						`[installed-package-external] "${output.fileName}" is written below the output directory but imports "${nested}", a path relative to the output directory. Use flat entry and chunk file names for builds with externalPackages.`,
 					);
 				}
 			}
-			if (process.env.NODE_ENV === 'production') {
-				warnPackagesOutsideAppRoot(outsideRootPackages);
+			if (reportDir) {
+				const outputLabel = entryFileNames
+					.map((fileName) =>
+						path.relative(contextRoot, path.join(reportDir, fileName)).split(path.sep).join('/'),
+					)
+					.join(', ');
+				warnPackagesOutsideAppRoot(outputLabel, outsideRootPackages);
 			}
 		},
 	};
@@ -478,7 +497,15 @@ function buildRolldownInputPlugins(
 	const sourceTransforms = options.sourceTransforms ?? [];
 	const appPlugins = createRolldownPluginBridge(bundlePlugins, contextRoot, sourceTransforms);
 	return [
-		...(options.externalPackages === true ? [createCoreDependencyExternalPlugin(contextRoot, outdir)] : []),
+		...(options.externalPackages === true
+			? [
+					createInstalledPackageExternalPlugin(
+						contextRoot,
+						outdir,
+						options.reportPackagesOutsideRoot === true ? (options.runtimeOutdir ?? outdir) : undefined,
+					),
+				]
+			: []),
 		...(rolldownPlatform === 'node' ? [createNodeBuiltinExternalPlugin()] : []),
 		...(rolldownPlatform === 'browser' ? [createBrowserNodeBuiltinGuardPlugin()] : []),
 		...(options.target !== 'browser' ? [createServerSideCssShimPlugin()] : []),

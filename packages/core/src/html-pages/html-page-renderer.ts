@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs';
 import { fileSystem } from '@ecopages/file-system';
 import type {
 	ComponentRenderInput,
@@ -16,6 +17,7 @@ import { findElements, parseHtml } from '../services/html/html-source-parser.ts'
 import { escapeHtmlAttribute } from '../utils/html-escaping.ts';
 import { invariant } from '../utils/invariant.ts';
 import { resolveClassicScriptOptions } from './html-page-classic-script.ts';
+import { getHtmlPageModuleScriptUrls } from './html-page-module-scripts.ts';
 import { reconcileHtmlPageDocument, type RenderedHtmlPageHead } from './html-page-document.ts';
 import { getBuiltInHtmlShell, getCompiledHtmlTemplate, HTML_PAGES_INTEGRATION_NAME } from './html-page-module.ts';
 import {
@@ -31,6 +33,10 @@ import {
  */
 const BODY_START_MARKER = '<!--eco:html-page-body-->';
 const BODY_END_MARKER = '<!--/eco:html-page-body-->';
+
+function spliceUrl(asset: Exclude<HtmlAssetDeclaration, { kind: 'inline-style' }>, url: string): string {
+	return `${asset.tag.slice(0, asset.urlStart)}"${escapeHtmlAttribute(url)}"${asset.tag.slice(asset.urlEnd)}`;
+}
 
 /**
  * @remarks
@@ -50,6 +56,10 @@ function escapeStyleContent(css: string): string {
  * and the Page is emitted once, by the shell; within one file, the first
  * declaration wins. Page head tags and root attributes are applied to the
  * finalized document by {@link reconcileHtmlPageDocument}.
+ *
+ * Without HMR, module scripts come from one build of every HTML Page's and the
+ * shell's module scripts ({@link getHtmlPageModuleScriptUrls}); with HMR they go
+ * to the HMR manager, which serves each source module at one URL.
  */
 export class HtmlPageRenderer extends StringMarkupRenderer {
 	name = HTML_PAGES_INTEGRATION_NAME;
@@ -129,7 +139,7 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 		const emitted = new Set(
 			shell?.kind === 'shell' ? shell.assets.flatMap((asset) => getHtmlAssetKey(asset) ?? []) : [],
 		);
-		const tags = await this.emitAssets(page);
+		const tags = await this.emitAssets(page, emitted);
 		const head = page.head.map(({ parts, key, charset }) => ({
 			html: this.joinParts(page, parts, tags, emitted),
 			key,
@@ -189,8 +199,15 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 		return html;
 	}
 
-	private emitAssets(template: HtmlTemplate): Promise<string[]> {
-		return Promise.all(template.assets.map((asset) => this.emitAsset(template.file, asset)));
+	/**
+	 * Emits the tag of each asset, except assets whose key is in `skip`, which get an empty string.
+	 */
+	private emitAssets(template: HtmlTemplate, skip?: ReadonlySet<string>): Promise<string[]> {
+		return Promise.all(
+			template.assets.map(async (asset) =>
+				skip?.has(getHtmlAssetKey(asset) ?? '') ? '' : this.emitAsset(template.file, asset),
+			),
+		);
 	}
 
 	private async emitAsset(file: string, asset: HtmlAssetDeclaration): Promise<string> {
@@ -209,6 +226,15 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 			throw new Error(`[ecopages] ${file}: "${asset.reference}" does not exist (${asset.filepath}).`);
 		}
 
+		if (asset.kind === 'module-script' && !this.assetProcessingService.getHmrManager()?.isEnabled()) {
+			const url = (await getHtmlPageModuleScriptUrls(this.appConfig)).get(realpathSync(asset.filepath));
+			invariant(
+				url !== undefined,
+				`${file}: "${asset.reference}" has no output in the HTML Page module script build.`,
+			);
+			return spliceUrl(asset, url);
+		}
+
 		const processed = await this.processAsset(
 			asset.kind === 'stylesheet'
 				? AssetFactory.createFileStylesheet({ filepath: asset.filepath })
@@ -223,7 +249,7 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 			processed?.srcUrl !== undefined,
 			`${file}: could not process "${asset.reference}"; the asset pipeline logged the cause.`,
 		);
-		return `${asset.tag.slice(0, asset.urlStart)}"${escapeHtmlAttribute(processed.srcUrl)}"${asset.tag.slice(asset.urlEnd)}`;
+		return spliceUrl(asset, processed.srcUrl);
 	}
 
 	private async processAsset(definition: AssetDefinition) {

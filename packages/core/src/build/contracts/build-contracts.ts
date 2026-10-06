@@ -32,6 +32,7 @@ export interface BuildResult {
 	logs: BuildLog[];
 	outputs: BuildOutput[];
 	dependencyGraph?: BuildDependencyGraph;
+	/** Output path of each entry chunk, keyed by the absolute real path of its entry module. */
 	entryOutputs?: Record<string, string>;
 }
 

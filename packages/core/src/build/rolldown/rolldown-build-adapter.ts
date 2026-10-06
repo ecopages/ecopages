@@ -23,7 +23,6 @@ import type {
 import {
 	buildResultFromRolldownOutput,
 	resolveRolldownOptions,
-	rewriteBrowserRuntimeImportsInOutputs,
 	toBuildLogs,
 	transpileProfileToOptions,
 } from './rolldown-adapter-helpers.ts';
@@ -46,7 +45,6 @@ export class RolldownBuildAdapter implements BuildAdapter {
 		recordRolldownBuildInvocation('rolldown');
 		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
 		const outdir = path.resolve(options.outdir ?? 'dist/assets');
-		const plugins = options.plugins ?? [];
 
 		const { inputOptions, outputOptions } = await resolveRolldownOptions(
 			options,
@@ -61,15 +59,7 @@ export class RolldownBuildAdapter implements BuildAdapter {
 		const output = await bundle.write(outputOptions);
 		await bundle.close();
 
-		const baseResult = buildResultFromRolldownOutput(
-			output,
-			outdir,
-			contextRoot,
-			dependencyGraph,
-			options.entrypoints,
-		);
-
-		return rewriteBrowserRuntimeImportsInOutputs(baseResult, contextRoot, plugins);
+		return buildResultFromRolldownOutput(output, outdir, contextRoot, dependencyGraph, options.entrypoints);
 	}
 
 	async build(options: BuildOptions): Promise<BuildResult> {

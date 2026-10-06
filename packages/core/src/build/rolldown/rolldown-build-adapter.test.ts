@@ -10,6 +10,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { appLogger } from '../../global/app-logger.ts';
 import type { BuildOptions } from '../contracts/build-contracts.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
+import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
+import { createBrowserRuntimePlugin } from '../browser/browser-runtime-plugin.ts';
 
 let workDir: string;
 
@@ -476,6 +478,40 @@ describe('RolldownBuildAdapter', () => {
 		expect(code).toContain('decorate');
 		expect(code).not.toMatch(/@oxc-project\/runtime\/helpers\/decorate/);
 		expect(code).not.toContain('file:');
+	});
+
+	test('does not rewrite hashed browser outputs after the bundler writes them', async () => {
+		const runtimePlugin = createBrowserRuntimePlugin({
+			manifest: createBrowserRuntimeManifest([
+				{
+					specifier: 'react',
+					owner: '@ecopages/react',
+					importPath: 'react',
+					publicPath: '/assets/vendors/react.js',
+				},
+			]),
+		});
+		assert.ok(runtimePlugin);
+		const entrypoint = writeFixture('entry.ts', "import React from 'react';\nexport { React };\n");
+		const adapter = new RolldownBuildAdapter();
+		const outdir = path.join(workDir, 'dist');
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir,
+			target: 'browser',
+			format: 'esm',
+			naming: '[name]-[hash].[ext]',
+			root: workDir,
+			plugins: [runtimePlugin],
+		});
+
+		assert.equal(result.success, true, JSON.stringify(result.logs));
+		const hashedOutputs = result.outputs.filter((output) =>
+			/-[A-Za-z0-9_-]+\.js$/u.test(path.basename(output.path)),
+		);
+		expect(hashedOutputs.length).toBeGreaterThan(0);
+		const hashedCode = readFileSync(hashedOutputs[0]!.path, 'utf-8');
+		expect(hashedCode).toMatch(/from ['"]\/assets\/vendors\/react\.js['"]/);
 	});
 
 	test('preserves the .js extension when a naming template is supplied', async () => {

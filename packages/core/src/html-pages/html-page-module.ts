@@ -45,6 +45,30 @@ let builtInShell: EcoComponent | undefined;
  */
 const warnedSourceHashes = new Map<string, string>();
 
+/** Warnings the renderer logged for each file, with the file revision they belong to. */
+const renderWarnings = new Map<string, { revision: string | undefined; keys: Set<string> }>();
+
+/**
+ * Logs a development warning found while rendering `file`, once per `key` and file revision.
+ *
+ * @remarks
+ * Some warnings depend on rendering, such as processed `<style>` output or a preload that names
+ * a file of the shell, so they cannot be logged when the file compiles. `message` runs only when
+ * the warning is logged, so a costly message is built at most once per revision.
+ */
+export function warnHtmlTemplateRender(file: string, key: string, message: () => string): void {
+	if (!isDevelopmentRuntime()) return;
+	const revision = warnedSourceHashes.get(file);
+	let warned = renderWarnings.get(file);
+	if (!warned || warned.revision !== revision) {
+		warned = { revision, keys: new Set() };
+		renderWarnings.set(file, warned);
+	}
+	if (warned.keys.has(key)) return;
+	warned.keys.add(key);
+	appLogger.warn(message());
+}
+
 /**
  * Returns the compiled template behind an HTML Page or Html shell component.
  */

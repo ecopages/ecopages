@@ -18,12 +18,19 @@ import { findElements, parseHtml } from '../services/html/html-source-parser.ts'
 import { escapeHtmlAttribute } from '../utils/html-escaping.ts';
 import { invariant } from '../utils/invariant.ts';
 import { resolveClassicScriptOptions } from './html-page-classic-script.ts';
-import { getHtmlPageModuleScriptUrls, scanModuleScript } from './html-page-module-scripts.ts';
+import { findHtmlFilesLoading, getHtmlPageModuleScriptUrls, scanModuleScript } from './html-page-module-scripts.ts';
 import { reconcileHtmlPageDocument, type RenderedHtmlPageHead } from './html-page-document.ts';
-import { getBuiltInHtmlShell, getCompiledHtmlTemplate, HTML_PAGES_INTEGRATION_NAME } from './html-page-module.ts';
 import {
+	getBuiltInHtmlShell,
+	getCompiledHtmlTemplate,
+	HTML_PAGES_INTEGRATION_NAME,
+	warnHtmlTemplateRender,
+} from './html-page-module.ts';
+import {
+	findRelativeCssUrls,
 	getHtmlAssetKey,
 	type HtmlAssetDeclaration,
+	type HtmlFileAssetKind,
 	type HtmlTemplate,
 	type HtmlTemplatePart,
 } from './html-page-template.ts';
@@ -35,7 +42,30 @@ import {
 const BODY_START_MARKER = '<!--eco:html-page-body-->';
 const BODY_END_MARKER = '<!--/eco:html-page-body-->';
 
-function spliceUrl(asset: Exclude<HtmlAssetDeclaration, { kind: 'inline-style' }>, url: string): string {
+type HtmlFileAssetDeclaration = Extract<HtmlAssetDeclaration, { kind: HtmlFileAssetKind }>;
+type HtmlPreloadDeclaration = Extract<HtmlAssetDeclaration, { kind: 'preload' }>;
+
+/** A processed stylesheet or script, with the HTML file that declares it. */
+type DeclaredFileAsset = { file: string; asset: HtmlFileAssetDeclaration };
+
+/** Emitted URLs of one {@link HtmlPageRenderer.emitAssets} call, keyed by kind and file. */
+type EmittedUrls = Map<string, Promise<string>>;
+
+const FILE_ASSET_LABELS: Record<HtmlFileAssetKind, { name: string; preload: string }> = {
+	stylesheet: { name: 'a stylesheet', preload: '<link rel="preload" as="style">' },
+	'module-script': { name: 'a module script', preload: '<link rel="modulepreload">' },
+	'classic-script': { name: 'a classic script', preload: '<link rel="preload" as="script">' },
+};
+
+function declaredFileAssets(template: HtmlTemplate | undefined): DeclaredFileAsset[] {
+	if (!template) return [];
+	const { file } = template;
+	return template.assets.flatMap((asset) =>
+		asset.kind === 'inline-style' || asset.kind === 'preload' ? [] : [{ file, asset }],
+	);
+}
+
+function spliceUrl(asset: HtmlFileAssetDeclaration | HtmlPreloadDeclaration, url: string): string {
 	return `${asset.tag.slice(0, asset.urlStart)}"${escapeHtmlAttribute(url)}"${asset.tag.slice(asset.urlEnd)}`;
 }
 
@@ -87,7 +117,7 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 			this.joinParts(
 				template,
 				template.parts,
-				await this.emitAssets(template),
+				await this.emitAssets(template, declaredFileAssets(template)),
 				new Set(),
 				String(props.children ?? ''),
 			),
@@ -136,11 +166,10 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 		const page = getCompiledHtmlTemplate(options.Page);
 		invariant(page?.kind === 'page', `${this.name} renderer expected an HTML Page for ${options.file}.`);
 
-		const shell = getCompiledHtmlTemplate(options.HtmlTemplate);
-		const emitted = new Set(
-			shell?.kind === 'shell' ? shell.assets.flatMap((asset) => getHtmlAssetKey(asset) ?? []) : [],
-		);
-		const tags = await this.emitAssets(page, emitted);
+		const template = getCompiledHtmlTemplate(options.HtmlTemplate);
+		const shell = template?.kind === 'shell' ? template : undefined;
+		const emitted = new Set(shell?.assets.flatMap((asset) => getHtmlAssetKey(asset) ?? []) ?? []);
+		const tags = await this.emitAssets(page, [...declaredFileAssets(shell), ...declaredFileAssets(page)], emitted);
 		const head = page.head.map(({ parts, key, charset }) => ({
 			html: this.joinParts(page, parts, tags, emitted),
 			key,
@@ -202,16 +231,28 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 
 	/**
 	 * Emits the tag of each asset, except assets whose key is in `skip`, which get an empty string.
+	 * A preload hint takes the URL of the first of `targets` with its file and the kind it preloads.
 	 */
-	private emitAssets(template: HtmlTemplate, skip?: ReadonlySet<string>): Promise<string[]> {
+	private emitAssets(
+		template: HtmlTemplate,
+		targets: readonly DeclaredFileAsset[],
+		skip?: ReadonlySet<string>,
+	): Promise<string[]> {
+		const urls: EmittedUrls = new Map();
 		return Promise.all(
 			template.assets.map(async (asset) =>
-				skip?.has(getHtmlAssetKey(asset) ?? '') ? '' : this.emitAsset(template.file, asset),
+				skip?.has(getHtmlAssetKey(asset) ?? '') ? '' : this.emitAsset(template, asset, targets, urls),
 			),
 		);
 	}
 
-	private async emitAsset(file: string, asset: HtmlAssetDeclaration): Promise<string> {
+	private async emitAsset(
+		template: HtmlTemplate,
+		asset: HtmlAssetDeclaration,
+		targets: readonly DeclaredFileAsset[],
+		urls: EmittedUrls,
+	): Promise<string> {
+		const { file } = template;
 		if (asset.kind === 'inline-style') {
 			const processed = await this.processAsset(
 				AssetFactory.createInlineContentStylesheet({ content: asset.content, processingOrigin: `${file}.css` }),
@@ -220,9 +261,86 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 				processed?.content !== undefined,
 				`${file}: could not process an inline <style>; the asset pipeline logged the cause.`,
 			);
+			for (const url of findRelativeCssUrls(processed.content)) {
+				warnHtmlTemplateRender(
+					file,
+					`style-url:${url}`,
+					() =>
+						`${file}: url(${url}) in a processed <style> is left as written, so the browser resolves it against the route URL. Move the file to the public directory and use a root-relative URL.`,
+				);
+			}
 			return `${asset.tag.slice(0, asset.contentStart)}${escapeStyleContent(processed.content)}${asset.tag.slice(asset.contentEnd)}`;
 		}
 
+		if (asset.kind === 'preload') {
+			return this.emitPreload(template, asset, targets, urls);
+		}
+
+		return spliceUrl(asset, await this.fileUrl({ file, asset }, urls));
+	}
+
+	private async emitPreload(
+		template: HtmlTemplate,
+		asset: HtmlPreloadDeclaration,
+		targets: readonly DeclaredFileAsset[],
+		urls: EmittedUrls,
+	): Promise<string> {
+		const target = targets.find(
+			(candidate) => candidate.asset.filepath === asset.filepath && candidate.asset.kind === asset.preloads,
+		);
+		if (target) {
+			if (asset.integrity) {
+				throw new Error(
+					`[ecopages] ${template.file}: the preload for "${asset.reference}" has an integrity attribute, but core points it at the processed file, so the digest would no longer match. Remove the attribute.`,
+				);
+			}
+			return spliceUrl(asset, await this.fileUrl(target, urls));
+		}
+		warnHtmlTemplateRender(template.file, `preload:${asset.reference}`, () =>
+			this.describeUnmatchedPreload(template, asset, targets),
+		);
+		return asset.tag;
+	}
+
+	/**
+	 * @remarks
+	 * Looks for other HTML files that load the file only for a preload of a stylesheet or script,
+	 * because that compiles every HTML file; {@link warnHtmlTemplateRender} calls this at most once
+	 * per revision of the file.
+	 */
+	private describeUnmatchedPreload(
+		template: HtmlTemplate,
+		asset: HtmlPreloadDeclaration,
+		targets: readonly DeclaredFileAsset[],
+	): string {
+		const subject = `${template.file}: the preload for "${asset.reference}"`;
+		const sameFile = targets.find((candidate) => candidate.asset.filepath === asset.filepath);
+		if (sameFile) {
+			const { name, preload } = FILE_ASSET_LABELS[sameFile.asset.kind];
+			return `${subject} names ${name}, so it is left as written. Use ${preload} to preload ${name}.`;
+		}
+		const loaders = asset.preloads ? findHtmlFilesLoading(this.appConfig, asset.filepath, template.file) : [];
+		if (loaders.length > 0) {
+			const names = loaders.map((loader) => path.relative(this.appConfig.rootDir, loader)).join(', ');
+			return template.kind === 'shell'
+				? `${subject} names a file only ${names} loads, so it is left as written. A preload in the shell can name only a file the shell loads; move it to the Pages that load the file.`
+				: `${subject} names a file only ${names} loads, so it is left as written. Load the file on this Page too, or remove the preload.`;
+		}
+		const owner = template.kind === 'shell' ? 'the shell' : 'this Page or its shell';
+		return `${subject} names no stylesheet or script ${owner} processes, so it is left as written and the browser resolves it against the route URL. Preload a processed file, or move the file to the public directory and use a root-relative URL.`;
+	}
+
+	private fileUrl({ file, asset }: DeclaredFileAsset, urls: EmittedUrls): Promise<string> {
+		const key = `${asset.kind}:${asset.filepath}`;
+		let url = urls.get(key);
+		if (!url) {
+			url = this.emitFileUrl(file, asset);
+			urls.set(key, url);
+		}
+		return url;
+	}
+
+	private async emitFileUrl(file: string, asset: HtmlFileAssetDeclaration): Promise<string> {
 		if (!fileSystem.exists(asset.filepath)) {
 			throw new Error(`[ecopages] ${file}: "${asset.reference}" does not exist (${asset.filepath}).`);
 		}
@@ -231,7 +349,7 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 			const hmr = this.assetProcessingService.getHmrManager()?.isEnabled() === true;
 			if (!hmr) {
 				const url = (await getHtmlPageModuleScriptUrls(this.appConfig)).get(realpathSync(asset.filepath));
-				if (url !== undefined) return spliceUrl(asset, url);
+				if (url !== undefined) return url;
 			}
 			this.assertNoStylesheetImport(file, asset.reference, asset.filepath);
 			invariant(hmr, `${file}: "${asset.reference}" has no output in the HTML Page module script build.`);
@@ -251,7 +369,7 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 			processed?.srcUrl !== undefined,
 			`${file}: could not process "${asset.reference}"; the asset pipeline logged the cause.`,
 		);
-		return spliceUrl(asset, processed.srcUrl);
+		return processed.srcUrl;
 	}
 
 	/**

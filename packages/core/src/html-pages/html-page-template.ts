@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import type { PageMetadataProps, PageRobotsMetadata } from '../types/public-types.ts';
 import { escapeHtmlAttribute } from '../utils/html-escaping.ts';
 import {
@@ -13,25 +14,39 @@ import {
 	type HtmlNode,
 } from '../services/html/html-source-parser.ts';
 
+export type HtmlFileAssetKind = 'stylesheet' | 'module-script' | 'classic-script';
+
+type HtmlFileReference = {
+	filepath: string;
+	/** URL as written, for error messages. */
+	reference: string;
+	tag: string;
+	urlStart: number;
+	urlEnd: number;
+};
+
 /**
- * A local stylesheet or script tag, or a `<style>` block, that core processes
+ * A local stylesheet or script tag, a `<style>` block, or a preload hint, that core processes
  * and re-emits where the author wrote it.
  *
  * @remarks
  * `tag` is the original markup. File assets splice their emitted URL over
  * `tag.slice(urlStart, urlEnd)`; inline styles splice processed CSS over
  * `tag.slice(contentStart, contentEnd)`. Every other attribute stays as written.
+ * A `preload` (a `rel="preload"` or `rel="modulepreload"` link) is not processed itself: it takes
+ * the URL of the file asset with the same file and the kind in `preloads`, or stays as written.
  */
 export type HtmlAssetDeclaration =
-	| {
-			kind: 'stylesheet' | 'module-script' | 'classic-script';
-			filepath: string;
-			/** URL as written, for error messages. */
-			reference: string;
-			tag: string;
-			urlStart: number;
-			urlEnd: number;
-	  }
+	| ({ kind: HtmlFileAssetKind } & HtmlFileReference)
+	| ({
+			kind: 'preload';
+			/**
+			 * `module-script` for `rel="modulepreload"`, `stylesheet` for `as="style"`,
+			 * `classic-script` for `as="script"`; unset for anything else, such as a font.
+			 */
+			preloads?: HtmlFileAssetKind;
+			integrity: boolean;
+	  } & HtmlFileReference)
 	| {
 			kind: 'inline-style';
 			content: string;
@@ -96,9 +111,25 @@ function htmlError(file: string, message: string): Error {
 	return new Error(`[ecopages] ${file}: ${message}`);
 }
 
+const URL_SCHEME = /^[a-z][a-z\d+.-]*:/i;
+
 function isRelativeUrl(value: string): boolean {
 	const url = value.trim();
-	return url.length > 0 && !/^(?:[a-z][a-z\d+.-]*:|[/#?])/i.test(url);
+	return url.length > 0 && !URL_SCHEME.test(url) && !/^[/#?]/.test(url);
+}
+
+/**
+ * @remarks
+ * Reads `url()` and the string URLs of `image-set()`, and skips comments.
+ */
+export function findRelativeCssUrls(css: string): string[] {
+	const code = css.replace(/\/\*[\s\S]*?\*\//g, '');
+	const urls = [...code.matchAll(/url\(\s*(['"]?)(.*?)\1\s*\)/gi)].map((match) => match[2]!);
+	for (const [, args] of code.matchAll(/image-set\(((?:[^()]|\([^()]*\))*)\)/gi)) {
+		const strings = args!.replace(/url\([^)]*\)/gi, '').matchAll(/(['"])(.*?)\1/g);
+		urls.push(...[...strings].map((match) => match[2]!));
+	}
+	return [...new Set(urls)].filter(isRelativeUrl);
 }
 
 function attributeValue(element: HtmlElementNode, name: string): string | undefined {
@@ -114,19 +145,60 @@ function typeAttribute(element: HtmlElementNode): string {
 }
 
 /**
- * Returns the kind and URL attribute of a stylesheet link or a JavaScript script.
+ * Returns the kind and URL attribute of a stylesheet link, a preload link, or a JavaScript script.
  */
 function classifyFileAsset(
 	element: HtmlElementNode,
-): { kind: 'stylesheet' | 'module-script' | 'classic-script'; urlAttributeName: string } | undefined {
+): { kind: HtmlFileAssetKind | 'preload'; urlAttributeName: string } | undefined {
 	if (element.tagName === 'link') {
-		return relTokens(element).includes('stylesheet') ? { kind: 'stylesheet', urlAttributeName: 'href' } : undefined;
+		const rel = relTokens(element);
+		if (rel.includes('stylesheet')) return { kind: 'stylesheet', urlAttributeName: 'href' };
+		return rel.includes('preload') || rel.includes('modulepreload')
+			? { kind: 'preload', urlAttributeName: 'href' }
+			: undefined;
 	}
 	if (element.tagName !== 'script') return undefined;
 
 	const type = typeAttribute(element);
 	if (type === 'module') return { kind: 'module-script', urlAttributeName: 'src' };
 	return CLASSIC_SCRIPT_TYPES.has(type) ? { kind: 'classic-script', urlAttributeName: 'src' } : undefined;
+}
+
+function preloadedKind(element: HtmlElementNode): HtmlFileAssetKind | undefined {
+	if (relTokens(element).includes('modulepreload')) return 'module-script';
+	const as = attributeValue(element, 'as')?.trim().toLowerCase();
+	return as === 'style' ? 'stylesheet' : as === 'script' ? 'classic-script' : undefined;
+}
+
+/**
+ * Throws when an inline module script imports a relative specifier, statically, by re-export, or
+ * by a dynamic `import()` of a string literal.
+ *
+ * @remarks
+ * The error replaces bundling the script: the inline content-script path builds each script
+ * alone, from a file outside the source directory, so a relative import would resolve against
+ * the wrong directory, and a module it shares with the Page's module scripts would be a second
+ * copy that runs again.
+ */
+function assertNoRelativeImport(file: string, content: string): void {
+	const { module } = parseModuleSource(`${file}.inline-module.js`, content);
+	const specifiers = [
+		...module.staticImports.map((entry) => entry.moduleRequest.value),
+		...module.staticExports.flatMap((entry) =>
+			entry.entries.map((exported) => exported.moduleRequest?.value ?? ''),
+		),
+		...module.dynamicImports.map(
+			({ moduleRequest }) =>
+				/^(['"`])([^'"`$]*)\1$/.exec(content.slice(moduleRequest.start, moduleRequest.end))?.[2] ?? '',
+		),
+	];
+	const specifier = specifiers.find((candidate) => /^\.{1,2}\//.test(candidate));
+	if (specifier) {
+		throw htmlError(
+			file,
+			`an inline <script type="module"> imports "${specifier}", which the browser would resolve against the route URL. Move the code to a file and load it with <script type="module" src="...">, so it is built with the Page's other module scripts.`,
+		);
+	}
 }
 
 /**
@@ -158,7 +230,28 @@ function readAssetDeclaration(
 
 	const fileAsset = classifyFileAsset(element);
 	const urlAttribute = fileAsset && getAttribute(element, fileAsset.urlAttributeName);
+	if (fileAsset?.kind === 'module-script' && !urlAttribute) {
+		assertNoRelativeImport(file, getElementText(source, element));
+	}
 	if (!fileAsset || !urlAttribute || !isRelativeUrl(urlAttribute.value)) return undefined;
+
+	const reference = urlAttribute.value.trim();
+	const filepath = path.resolve(path.dirname(file), reference.replace(/[?#].*$/, ''));
+	const fileReference: HtmlFileReference = {
+		filepath,
+		reference,
+		tag,
+		urlStart: urlAttribute.valueStart - element.start,
+		urlEnd: urlAttribute.valueEnd - element.start,
+	};
+	if (fileAsset.kind === 'preload') {
+		return {
+			kind: 'preload',
+			preloads: preloadedKind(element),
+			integrity: getAttribute(element, 'integrity') !== undefined,
+			...fileReference,
+		};
+	}
 
 	if (getAttribute(element, 'integrity')) {
 		throw htmlError(
@@ -167,35 +260,63 @@ function readAssetDeclaration(
 		);
 	}
 
-	const reference = urlAttribute.value.trim();
-	const filepath = path.resolve(path.dirname(file), reference.replace(/[?#].*$/, ''));
 	const relativeToSrc = path.relative(options.srcDir, filepath);
 	if (relativeToSrc.startsWith('..') || path.isAbsolute(relativeToSrc)) {
 		throw htmlError(file, `"${reference}" resolves outside the source directory (${options.srcDir}).`);
 	}
 
-	return {
-		kind: fileAsset.kind,
-		filepath,
-		reference,
-		tag,
-		urlStart: urlAttribute.valueStart - element.start,
-		urlEnd: urlAttribute.valueEnd - element.start,
-	};
+	return { kind: fileAsset.kind, ...fileReference };
+}
+
+type FetchedUrls = (element: HtmlElementNode, value: string) => string[];
+
+const srcsetUrls: FetchedUrls = (_element, value) =>
+	value.split(',').map((candidate) => candidate.trim().split(/\s+/)[0] ?? '');
+const urlValue: FetchedUrls = (_element, value) => [value];
+
+/**
+ * @remarks
+ * `href` is skipped on preload links, which the renderer checks against the files the Page
+ * processes.
+ */
+const hrefUrls: FetchedUrls = (element, value) =>
+	NAVIGATION_HREF_TAGS.has(element.tagName) || classifyFileAsset(element)?.kind === 'preload' ? [] : [value];
+
+/** The URLs each attribute makes the browser fetch, by attribute name. */
+const FETCHED_URLS = new Map<string, FetchedUrls>([
+	['src', urlValue],
+	['poster', urlValue],
+	['srcset', srcsetUrls],
+	['imagesrcset', srcsetUrls],
+	['href', hrefUrls],
+	['xlink:href', hrefUrls],
+	['data', (element, value) => (element.tagName === 'object' ? [value] : [])],
+	['style', (_element, value) => findRelativeCssUrls(value)],
+]);
+
+const SOCIAL_IMAGE_KEY = /^meta:(og:image(?::url|:secure_url)?|twitter:image(?::src)?)$/;
+
+/**
+ * @remarks
+ * Link preview crawlers need an absolute URL, so a root-relative value is warned about too.
+ */
+function warnSocialImage(element: HtmlElementNode, file: string, warn: (message: string) => void): void {
+	const key = SOCIAL_IMAGE_KEY.exec(getHeadTagKey(element) ?? '');
+	const content = attributeValue(element, 'content')?.trim();
+	if (key && content && !URL_SCHEME.test(content)) {
+		const attribute = getAttribute(element, 'property') ? 'property' : 'name';
+		warn(
+			`${file}: content="${content}" on <meta ${attribute}="${key[1]}"> is not an absolute URL, so link previews cannot load the image. Use an absolute URL, such as https://example.com/og.png.`,
+		);
+	}
 }
 
 function warnRelativeUrls(element: HtmlElementNode, file: string, options: CompileHtmlTemplateOptions): void {
 	if (!options.warn) return;
+	if (element.tagName === 'meta') warnSocialImage(element, file, options.warn);
 
 	for (const attribute of element.attributes) {
-		const candidates =
-			attribute.name === 'srcset'
-				? attribute.value.split(',').map((candidate) => candidate.trim().split(/\s+/)[0] ?? '')
-				: attribute.name === 'src' || (attribute.name === 'href' && !NAVIGATION_HREF_TAGS.has(element.tagName))
-					? [attribute.value]
-					: [];
-
-		if (candidates.some(isRelativeUrl)) {
+		if (FETCHED_URLS.get(attribute.name)?.(element, attribute.value).some(isRelativeUrl)) {
 			options.warn(
 				`${file}: relative ${attribute.name}="${attribute.value}" on <${element.tagName}> is left as written, so the browser resolves it against the route URL. Move the file to the public directory and use a root-relative URL.`,
 			);
@@ -222,7 +343,7 @@ function collectAssets(
 		if (asset) {
 			ranges.push({ start: element.start, end: element.end, part: { asset: assets.length } });
 			assets.push(asset);
-			return;
+			if (asset.kind !== 'preload') return;
 		}
 		warnRelativeUrls(element, file, options);
 	});
@@ -534,12 +655,18 @@ export function compileHtmlShell(file: string, source: string, options: CompileH
  * Returns the local files a template's processed tags read.
  */
 export function getHtmlTemplateWatchFiles(template: HtmlTemplate): string[] {
-	return [...new Set(template.assets.flatMap((asset) => (asset.kind === 'inline-style' ? [] : [asset.filepath])))];
+	return [
+		...new Set(
+			template.assets.flatMap((asset) =>
+				asset.kind === 'inline-style' || asset.kind === 'preload' ? [] : [asset.filepath],
+			),
+		),
+	];
 }
 
 /**
- * Returns the dedupe key of a processed file asset; inline styles never dedupe.
+ * Returns the dedupe key of a processed file asset; inline styles and preload hints never dedupe.
  */
 export function getHtmlAssetKey(asset: HtmlAssetDeclaration): string | undefined {
-	return asset.kind === 'inline-style' ? undefined : `${asset.kind}:${asset.filepath}`;
+	return asset.kind === 'inline-style' || asset.kind === 'preload' ? undefined : `${asset.kind}:${asset.filepath}`;
 }

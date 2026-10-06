@@ -10,7 +10,7 @@ import { isBarePackageImportSpecifier, resolveProjectModulePath } from '../plugi
 import { BrowserBundleService } from '../services/assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { isProductionRuntime } from '../utils/runtime.ts';
-import { compileHtmlPage, compileHtmlShell } from './html-page-template.ts';
+import { compileHtmlPage, compileHtmlShell, type HtmlAssetDeclaration } from './html-page-template.ts';
 
 type ModuleScriptBuild = {
 	fingerprint: string;
@@ -51,7 +51,10 @@ export function getHtmlPageModuleScriptUrls(appConfig: EcoPagesAppConfig): Promi
 		return previous.urls;
 	}
 
-	const scans = [...new Set(htmlFiles.flatMap((file) => collectModuleScripts(appConfig, file)))].map((script) => ({
+	const moduleScripts = htmlFiles.flatMap((file) =>
+		collectFileAssets(appConfig, file).flatMap((asset) => (asset.kind === 'module-script' ? [asset.filepath] : [])),
+	);
+	const scans = [...new Set(moduleScripts)].map((script) => ({
 		script,
 		...scanModuleScript(appConfig, script),
 	}));
@@ -234,7 +237,7 @@ function fingerprint(files: string[]): string {
 		.join('\n');
 }
 
-function collectModuleScripts(appConfig: EcoPagesAppConfig, file: string): string[] {
+function collectFileAssets(appConfig: EcoPagesAppConfig, file: string): HtmlAssetDeclaration[] {
 	const options = { srcDir: appConfig.absolutePaths.srcDir };
 	const source = fileSystem.readFileSync(file);
 	try {
@@ -242,10 +245,27 @@ function collectModuleScripts(appConfig: EcoPagesAppConfig, file: string): strin
 			file === appConfig.absolutePaths.htmlTemplatePath
 				? compileHtmlShell(file, source, options)
 				: compileHtmlPage(file, source, options);
-		return template.assets.flatMap((asset) => (asset.kind === 'module-script' ? [asset.filepath] : []));
+		return template.assets;
 	} catch {
 		return [];
 	}
+}
+
+/**
+ * Returns the HTML files, Pages and the `html.html` shell, whose stylesheet or script tags load
+ * `filepath`, other than `exclude`.
+ *
+ * @remarks
+ * Compiles every HTML file, so the renderer calls it only to word a development warning.
+ */
+export function findHtmlFilesLoading(appConfig: EcoPagesAppConfig, filepath: string, exclude: string): string[] {
+	return listHtmlFiles(appConfig).filter(
+		(file) =>
+			file !== exclude &&
+			collectFileAssets(appConfig, file).some(
+				(asset) => asset.kind !== 'inline-style' && asset.kind !== 'preload' && asset.filepath === filepath,
+			),
+	);
 }
 
 /**

@@ -6,6 +6,7 @@ import { resolveBuildProfileOptions } from './build-profile-options.ts';
 import type { BuildProfile } from './build-runtime.ts';
 import { getJsxOwnershipPlugins } from '../browser/jsx-ownership-plugins.ts';
 import { getAppSourceTransforms } from '../../plugins/source-transform.ts';
+import { createPreserveImportMetaTransform } from '../preserve-import-meta-transform.ts';
 
 /**
  * Resolves app-owned server plugins plus JSX ownership for one config.
@@ -60,18 +61,27 @@ export type BrowserBuildRequestInput = Partial<BuildOptions> & {
  * {@link resolveServerAppBuildPlugins} plus unique caller contributions via
  * {@link mergeCallerBuildPlugins}. Source transforms are applied on every
  * compilation target, so server module loading shares browser attribution.
+ * Every server profile also gets {@link createPreserveImportMetaTransform}
+ * for `runtimeOutdir` (or `outdir`), so bundled modules, Core included, keep
+ * reading files relative to their sources from `dist/.server/` and
+ * `.eco/.server-modules/`.
  */
 export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: ServerBuildRequestInput): BuildOptions {
 	const profile = input.profile ?? 'route-module';
 	const plugins = mergeCallerBuildPlugins(resolveServerAppBuildPlugins(appConfig), input.plugins);
 	const { plugins: _callerPlugins, profile: _profile, ...overrides } = input;
+	const importMetaDir = input.runtimeOutdir ?? input.outdir;
 
 	return {
 		...resolveBuildProfileOptions(profile, appConfig, overrides),
 		...overrides,
 		entrypoints: input.entrypoints,
 		...(plugins.length > 0 ? { plugins } : {}),
-		sourceTransforms: [...getAppSourceTransforms(appConfig), ...(input.sourceTransforms ?? [])],
+		sourceTransforms: [
+			...getAppSourceTransforms(appConfig),
+			...(importMetaDir ? [createPreserveImportMetaTransform(importMetaDir)] : []),
+			...(input.sourceTransforms ?? []),
+		],
 	};
 }
 

@@ -68,7 +68,6 @@ export type EcopagesJsxRendererOptions = {
 	appConfig: EcoPagesAppConfig;
 	assetProcessingService: AssetProcessingService;
 	resolvedIntegrationDependencies: ProcessedAsset[];
-	rendererModules?: unknown;
 	runtimeOrigin: string;
 	jsxConfig?: EcopagesJsxRendererConfig;
 };

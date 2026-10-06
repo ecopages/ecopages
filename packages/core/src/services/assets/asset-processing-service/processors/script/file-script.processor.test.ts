@@ -233,7 +233,7 @@ describe('FileScriptProcessor', () => {
 			expect(result.inline).toBe(false);
 		});
 
-		test('should bundle a skipHmr script itself, outside the ES-module HMR pipeline', async () => {
+		test('should compile a classic script itself, outside the ES-module HMR pipeline', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 			const HmrManager = {
 				isEnabled: () => true,
@@ -241,22 +241,34 @@ describe('FileScriptProcessor', () => {
 				registerScriptEntrypoint: vi.fn(),
 			} as unknown as IHmrManager;
 			processor.setHmrManager(HmrManager);
-			const bundle = vi
-				.spyOn(processor as unknown as { bundleScript: () => Promise<string> }, 'bundleScript')
-				.mockResolvedValue('/test/project/.eco/public/assets/classic-abc.js');
+			readFileSyncMock.mockReturnValue('function greet(name: string): string { return name; }');
+			const write = vi.spyOn(fileSystem, 'write').mockImplementation(() => {});
 
-			await processor.process({
+			const result = await processor.process({
 				kind: 'script',
 				source: 'file',
 				filepath: '/test/project/src/pages/classic.ts',
 				inline: false,
-				skipHmr: true,
-				bundleOptions: { splitting: false },
+				classic: true,
 			});
 
-			expect(HmrManager.getResolvedScriptOutput).not.toHaveBeenCalled();
 			expect(HmrManager.registerScriptEntrypoint).not.toHaveBeenCalled();
-			expect(bundle).toHaveBeenCalledWith(expect.objectContaining({ splitting: false }));
+			expect(result.filepath).toMatch(/pages\/classic\.js$/);
+			expect(write).toHaveBeenCalledWith(result.filepath, expect.stringContaining('function greet(name)'));
+		});
+
+		test('should reject a classic script that cannot be one, whoever sets classic', async () => {
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			readFileSyncMock.mockReturnValue('const node = <div />;');
+
+			await expect(
+				processor.process({
+					kind: 'script',
+					source: 'file',
+					filepath: '/test/project/src/w.tsx',
+					classic: true,
+				}),
+			).rejects.toThrow('/test/project/src/w.tsx cannot be used as a classic script: it is JSX.');
 		});
 
 		test('should copy file without bundling when bundle is false', async () => {

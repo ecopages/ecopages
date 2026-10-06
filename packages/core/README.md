@@ -55,7 +55,7 @@ flowchart TD
 	C --> D{Change kind}
 	D -->|Route or server source| E[Invalidate server modules]
 	D -->|Additional watch| E
-	D -->|Config or dotenv| R[Restart dev process]
+	D -->|Config, dotenv or linked package| R[Restart dev process]
 	E --> N[Notify processors]
 	N --> F[Reload browser]
 	D -->|Public asset| F
@@ -90,10 +90,11 @@ Use this package README as the top-level map, then drill into the focused subsys
 
 - `src/config/README.md`: config finalization and app-owned runtime/build state
 - `src/plugins/README.md`: integration and processor authoring contracts
-- `src/build/README.md`: build adapter, executor, development build coordination, and standalone Node server packaging
+- `src/build/README.md`: build adapter, executor, development build coordination, standalone Node server packaging and its deploy layout
 - `src/services/README.md`: cross-cutting runtime services and orchestration helpers
 - `src/adapters/README.md`: Bun, Node, and shared adapter boundaries
 - `src/dev/README.md`: dev transform server, on-demand client delivery, and invalidation during compilation
+- `src/watchers/README.md`: project subscriptions, linked package watching, and restart invalidation
 - `src/hmr/README.md`: HMR strategy and update-layer ownership
 - `src/router/README.md`: route discovery, matching, and browser navigation coordination
 - `src/route-renderer/README.md`: rendering orchestration and dependency resolution

@@ -116,7 +116,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected htmlTransformer: HtmlTransformerService;
 	protected hmrManager?: IHmrManager;
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
-	protected rendererModules?: unknown;
 	declare protected options: Required<IntegrationRendererRenderOptions>;
 	protected runtimeOrigin: string;
 	protected dependencyResolverService: DependencyResolverService;
@@ -219,45 +218,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 */
 	public async loadPageModule(file: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
 		return this.importPageFile(file, options);
-	}
-
-	protected getRendererModuleValue(key: string): unknown {
-		if (!this.rendererModules || typeof this.rendererModules !== 'object') {
-			return undefined;
-		}
-
-		return (this.rendererModules as Record<string, unknown>)[key];
-	}
-
-	protected getRendererModuleString(key: string): string | undefined {
-		const value = this.getRendererModuleValue(key);
-		return typeof value === 'string' && value.length > 0 ? value : undefined;
-	}
-
-	protected getRendererBootstrapDependencies(partial = false): ProcessedAsset[] {
-		if (partial) {
-			return [];
-		}
-
-		const islandClientModuleId = this.getRendererModuleString('islandClientModuleId');
-		if (!islandClientModuleId) {
-			return [];
-		}
-
-		return [
-			{
-				attributes: {
-					crossorigin: 'anonymous',
-					'data-ecopages-runtime': 'islands',
-					type: 'module',
-				},
-				content: `import ${JSON.stringify(islandClientModuleId)};`,
-				inline: true,
-				kind: 'script',
-				packageRole: 'keep-separate',
-				position: 'body',
-			},
-		];
 	}
 
 	public setHmrManager(hmrManager: IHmrManager) {
@@ -510,7 +470,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const transformedDocumentHtml = input.transformDocumentHtml
 			? input.transformDocumentHtml(documentHtml)
 			: documentHtml;
-		this.appendProcessedDependencies(this.getRendererBootstrapDependencies(false));
 		const html = await finalizeDocumentShellHtml(this.htmlTransformer, {
 			html: `${this.DOC_TYPE}${transformedDocumentHtml}`,
 			partial: false,
@@ -661,20 +620,17 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		appConfig,
 		assetProcessingService,
 		resolvedIntegrationDependencies,
-		rendererModules,
 		runtimeOrigin,
 	}: {
 		appConfig: EcoPagesAppConfig;
 		assetProcessingService: AssetProcessingService;
 		resolvedIntegrationDependencies?: ProcessedAsset[];
-		rendererModules?: unknown;
 		runtimeOrigin: string;
 	}) {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
 		this.htmlTransformer = new HtmlTransformerService();
 		this.resolvedIntegrationDependencies = resolvedIntegrationDependencies || [];
-		this.rendererModules = rendererModules ?? appConfig.runtime?.rendererModuleContext;
 		this.runtimeOrigin = runtimeOrigin;
 		this.dependencyResolverService = new DependencyResolverService(appConfig, assetProcessingService);
 		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig, runtimeOrigin);
@@ -690,8 +646,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns The HTML template component.
 	 */
 	protected async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
-		const htmlTemplatePath =
-			this.getRendererModuleString('htmlTemplateModulePath') ?? this.appConfig.absolutePaths.htmlTemplatePath;
+		const htmlTemplatePath = this.appConfig.absolutePaths.htmlTemplatePath;
 		try {
 			const { default: HtmlTemplate } = await this.importPageFile(htmlTemplatePath);
 			return HtmlTemplate as EcoComponent<HtmlTemplateProps>;
@@ -1054,11 +1009,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		});
 	}
 
+	/**
+	 * Stamps `result` as an Island Host when the component itself declares a client script.
+	 *
+	 * @remarks Reads the component's own declarations, excluding Foreign Children, instead of `result.assets`,
+	 * which also carries the assets of Foreign Subtrees and of declared Foreign Children. Components without
+	 * `dependencies` emit no assets of their own, so they are never stamped.
+	 */
 	protected finalizeIslandComponentRender(
 		input: ComponentRenderInput,
 		result: ComponentRenderResult,
 	): ComponentRenderResult {
-		return finalizeIslandComponentRender(input, result);
+		const ownAssets = input.component.config?.dependencies
+			? this.dependencyResolverService.collectOwnComponentDependencies([input.component], this.name)
+			: undefined;
+		return finalizeIslandComponentRender(input, result, ownAssets);
 	}
 
 	private normalizeComponentRenderOutput(result: ComponentRenderResult): ComponentRenderResult {

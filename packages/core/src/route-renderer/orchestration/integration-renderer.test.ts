@@ -405,29 +405,6 @@ describe('IntegrationRenderer', () => {
 		expect(result.metadata?.title).toBe('Dynamic Title');
 	});
 
-	it('should prefer renderer module html template path when provided', async () => {
-		const renderer = new TestIntegrationRenderer({
-			appConfig: {
-				...testAppConfig,
-				runtime: {
-					rendererModuleContext: {
-						htmlTemplateModulePath: '/virtual/includes/html.kita.tsx',
-					},
-				},
-			} as EcoPagesAppConfig,
-			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
-		});
-
-		renderer.PageModule = {
-			default: (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>,
-		};
-
-		await renderer.testBaseGetHtmlTemplate();
-
-		expect(renderer.ImportedFiles).toContain('/virtual/includes/html.kita.tsx');
-	});
-
 	it('should keep layout locals safe and page locals guarded on static pages', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,

@@ -33,6 +33,25 @@ export function shouldInjectHmrHtmlResponse(
 }
 
 /**
+ * Stops the browser from caching a development HTML response.
+ *
+ * @remarks
+ * The page cache answers with its strategy's `Cache-Control`, a year and `immutable` for `static`. In
+ * development that lets the browser keep a document after an edit changes it, such as a new stylesheet link
+ * from a discovered dependency. It applies whoever owns the dev client: a host that injects its own client,
+ * such as the Vite host, passes the headers on unchanged.
+ */
+export function withUncachedDevHtml(response: Response): Response {
+	const headers = new Headers(response.headers);
+	headers.set('Cache-Control', 'no-store, must-revalidate');
+	return new Response(response.body, {
+		status: response.status,
+		statusText: response.statusText,
+		headers,
+	});
+}
+
+/**
  * Injects the development HMR runtime script into an HTML response if it is not
  * already present.
  *
@@ -42,7 +61,6 @@ export function shouldInjectHmrHtmlResponse(
 export async function injectHmrRuntimeIntoHtmlResponse(response: Response): Promise<Response> {
 	const html = await response.text();
 	const headers = new Headers(response.headers);
-	headers.set('Cache-Control', 'no-store, must-revalidate');
 	headers.delete('Content-Length');
 
 	if (html.includes(HMR_RUNTIME_IMPORT)) {

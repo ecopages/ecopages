@@ -68,7 +68,41 @@ test('createServerBuildRequest includes app server plugins and jsx ownership', (
 	assert.ok(request.plugins?.some((plugin) => plugin.name === 'caller-plugin'));
 	assert.equal(request.plugins?.[0]?.name, 'caller-plugin');
 	assert.equal(request.target, 'es2022');
-	assert.deepEqual(request.sourceTransforms, []);
+	assert.deepEqual(
+		request.sourceTransforms?.map((transform) => transform.name),
+		['preserve-import-meta-for-server-output'],
+	);
+});
+
+test('createServerBuildRequest keeps import.meta at the source for the directory the output runs from', () => {
+	const appConfig = createAppConfig();
+	const transformFor = (input: { profile?: 'server-entry' | 'route-module'; runtimeOutdir?: string }) => {
+		const request = createServerBuildRequest(appConfig, {
+			entrypoints: ['/app/src/pages/index.ts'],
+			outdir: '/app/.eco/.server-modules',
+			...input,
+		});
+		const transform = request.sourceTransforms?.find(
+			(candidate) => candidate.name === 'preserve-import-meta-for-server-output',
+		);
+		const result = transform?.transform('export const url = import.meta.url;', '/app/src/pages/index.ts');
+		return typeof result === 'object' && result ? result.code : result;
+	};
+
+	assert.match(String(transformFor({})), /new URL\("\.\.\/\.\.\/src\/pages\/index\.ts", import\.meta\.url\)/u);
+	assert.match(
+		String(transformFor({ profile: 'server-entry', runtimeOutdir: '/app/.server' })),
+		/new URL\("\.\.\/src\/pages\/index\.ts", import\.meta\.url\)/u,
+	);
+});
+
+test('only the server-entry profile reports packages outside the app root', () => {
+	const appConfig = createAppConfig();
+	const request = (profile: 'server-entry' | 'route-module') =>
+		createServerBuildRequest(appConfig, { profile, entrypoints: ['/app/app.ts'], outdir: '/out' });
+
+	assert.equal(request('server-entry').reportPackagesOutsideRoot, true);
+	assert.equal(request('route-module').reportPackagesOutsideRoot, undefined);
 });
 
 test('resolveServerAppBuildPlugins matches createServerBuildRequest app plugin set', () => {

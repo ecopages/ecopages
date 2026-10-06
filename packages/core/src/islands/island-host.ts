@@ -29,6 +29,21 @@ function mergeIslandHostAttributes(input: {
 	};
 }
 
+/**
+ * Encodes island props for `data-eco-props` as base64 of their UTF-8 JSON.
+ *
+ * @remarks
+ * `btoa` accepts Latin-1 only, so the JSON is encoded to UTF-8 bytes first. Text such as `€`, CJK or emoji
+ * would otherwise throw during SSR.
+ */
+export function encodeIslandProps(props: Record<string, unknown>): string {
+	let binary = '';
+	for (const byte of new TextEncoder().encode(JSON.stringify(props))) {
+		binary += String.fromCharCode(byte);
+	}
+	return btoa(binary);
+}
+
 export function buildIslandHostAttributes(input: IslandHostAttributesInput): Record<string, string> {
 	const attributes = mergeIslandHostAttributes(input);
 
@@ -37,7 +52,7 @@ export function buildIslandHostAttributes(input: IslandHostAttributesInput): Rec
 	}
 
 	if (input.props !== undefined) {
-		attributes[ECO_ISLAND_PROPS_ATTRIBUTE] = btoa(JSON.stringify(input.props));
+		attributes[ECO_ISLAND_PROPS_ATTRIBUTE] = encodeIslandProps(input.props);
 	}
 
 	return attributes;
@@ -47,16 +62,27 @@ export function componentRenderHasIslandBootstrap(assets: Array<{ kind: string }
 	return (assets ?? []).some((asset) => asset.kind === 'script');
 }
 
+/**
+ * Stamps the render result's root as an Island Host when the component ships its own client script.
+ *
+ * @param ownAssets - Assets of the component and its same-Integration nested components, excluding Foreign Children
+ * and the Foreign Subtrees rendered inside it.
+ * @remarks The decision ignores `result.assets`, which usually also carries Foreign Subtree assets: a component
+ * without scripts that wraps an island is not an island itself.
+ */
 export function finalizeIslandComponentRender<
 	T extends {
 		canAttachAttributes: boolean;
 		integrationName: string;
 		rootAttributes?: Record<string, string>;
-		assets?: Array<{ kind: string }>;
 	},
->(input: { integrationContext?: { componentInstanceId?: string } }, result: T): T {
+>(
+	input: { integrationContext?: { componentInstanceId?: string } },
+	result: T,
+	ownAssets: Array<{ kind: string }> | undefined,
+): T {
 	const componentInstanceId = input.integrationContext?.componentInstanceId;
-	if (!componentInstanceId || !result.canAttachAttributes || !componentRenderHasIslandBootstrap(result.assets)) {
+	if (!componentInstanceId || !result.canAttachAttributes || !componentRenderHasIslandBootstrap(ownAssets)) {
 		return result;
 	}
 

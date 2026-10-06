@@ -81,10 +81,10 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	}
 
 	/** Creates the renderer instance with the resolved JSX integration runtime options. */
-	override initializeRenderer(options?: { rendererModules?: unknown }): EcopagesJsxRenderer {
+	override initializeRenderer(): EcopagesJsxRenderer {
 		return this.attachRendererRuntimeServices(
 			new this.renderer({
-				...this.createRendererOptions(options),
+				...this.createRendererOptions(),
 				jsxConfig: {
 					mdxExtensions: this.mdxExtensions,
 					radiantSsrEnabled: this.includeRadiant,

@@ -1,0 +1,26 @@
+name: Tracking
+description: A program of related changes. Each change becomes a sub-issue.
+type: Task
+labels: [tracking]
+body:
+    - type: textarea
+      id: goal
+      attributes:
+          label: Goal
+          description: The principle, and why it matters.
+      validations:
+          required: true
+    - type: textarea
+      id: scope
+      attributes:
+          label: Scope
+          description: What belongs in this program and what does not. Do not list the sub-issues; GitHub shows them.
+      validations:
+          required: true
+    - type: textarea
+      id: done-when
+      attributes:
+          label: Done when
+          description: The state of the codebase once every sub-issue is closed.
+      validations:
+          required: true

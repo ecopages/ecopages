@@ -16,7 +16,6 @@ import { createBodyResponse } from '../http/create-body-response.ts';
 
 export interface CreateRenderContextOptions {
 	integrations: AnyIntegrationPlugin[];
-	rendererModules?: unknown;
 	importServerModule?: (filePath: string) => Promise<unknown>;
 }
 
@@ -65,9 +64,7 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 		const integration = integrations.find((i) => i.name === integrationName);
 		invariant(!!integration, `No integration found for: ${integrationName}`);
 
-		return integration.initializeRenderer({
-			rendererModules: options.rendererModules,
-		}) as IntegrationRenderer;
+		return integration.initializeRenderer() as IntegrationRenderer;
 	};
 
 	const renderContext: RenderContext = {

@@ -13,6 +13,7 @@ function getScriptDependencyBuildSignature(dep: AssetDefinition): string | undef
 	const pluginNames = dep.bundleOptions?.plugins?.map((plugin) => plugin.name) ?? [];
 	const signature = {
 		bundle: dep.bundle,
+		classic: dep.classic,
 		inline: dep.inline,
 		excludeFromHtml: dep.excludeFromHtml,
 		groupedBundle: dep.groupedBundle,

@@ -24,9 +24,9 @@ It is responsible for:
 - `runtime-capability-validation.ts`: rejects Integrations and Processors whose `runtimeCapability` the current runtime cannot meet
 - `load-eco-config.ts`: resolves the config module path, imports the user config, and finalizes it
 - `config-module-files.ts`: when the config is loaded from source, lists it and the project files it imports as `absolutePaths.configModuleFiles`. Packages, files outside `rootDir` and imports that do not resolve stay out. The persisted build caches hash these files, so an edit to a plugin options module the config imports invalidates them like an edit to the config itself
-- `resolve-eco-config-path.ts`: `eco.config.ts` discovery (`configFile`, `ECOPAGES_CONFIG_FILE`, cwd default, and production `.server/eco.config.mjs`) and `resolveUserConfigRootDir()`
+- `resolve-eco-config-path.ts`: `eco.config.ts` discovery (`configFile`, `ECOPAGES_CONFIG_FILE`, the `eco.config.mjs` beside a running `.server` entry, cwd default, and production `.server/eco.config.mjs`) and `resolveUserConfigRootDir()`
 - `user-config-types.ts`: TypeScript contracts for `EcoPagesUserConfig` and config loader options
-- `server-config-bundle.ts`: emits `dist/.server/eco.config.mjs` for production server startup
+- `server-config-bundle.ts`: emits `dist/.server/eco.config.mjs` for production server startup; like every server build request, it keeps `import.meta` of bundled modules pointing at their sources (`build/preserve-import-meta-transform.ts`)
 - `finalize-config.test.ts` / `load-eco-config.test.ts`: validation and loader coverage
 
 ## Ownership Rules
@@ -36,7 +36,7 @@ It is responsible for:
 - Runtime startup reuses finalized config/build state; it should not recompute manifest ownership.
 - Production startup loads the emitted config artifact recorded by the server build, even when the source config is still present.
 
-App-owned is the default ownership path. Host-owned is explicit and should be selected during config construction when a host-driven compatibility flow must avoid silently falling back to app build execution.
+App-owned is the default ownership path. Host-owned is explicit and should be selected by the host through the loader's build-ownership option when a host-driven compatibility flow must avoid silently falling back to app build execution.
 
 ## Output
 

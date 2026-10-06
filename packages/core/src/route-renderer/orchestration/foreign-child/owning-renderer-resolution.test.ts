@@ -48,7 +48,6 @@ describe('resolveOwningIntegrationRenderer', () => {
 		const result = await resolveOwningIntegrationRenderer({
 			appConfig: {
 				integrations: [{ name: 'react', initializeRenderer }],
-				runtime: { rendererModuleContext: { marker: true } },
 			} as unknown as EcoPagesAppConfig,
 			runtimeOrigin: 'test-origin',
 			currentIntegrationName: 'kitajs',
@@ -64,9 +63,7 @@ describe('resolveOwningIntegrationRenderer', () => {
 			integrationName: 'react',
 			runtimeOrigin: 'test-origin',
 		});
-		expect(initializeRenderer).toHaveBeenCalledWith({
-			rendererModules: { marker: true },
-		});
+		expect(initializeRenderer).toHaveBeenCalledWith();
 		expect(result).toBe(foreignRenderer);
 		expect(cache.get('react')).toBe(foreignRenderer);
 

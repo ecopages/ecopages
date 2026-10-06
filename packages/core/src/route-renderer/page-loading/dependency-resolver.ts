@@ -1,7 +1,11 @@
 import path from 'node:path';
 import type { EcoComponent } from '../../types/public-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
+import type {
+	AssetDefinition,
+	AssetProcessingService,
+	ProcessedAsset,
+} from '../../services/assets/asset-processing-service/index.ts';
 import { rapidhash } from '../../utils/hash.ts';
 import { AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
 import { buildResolvedLazyTriggers, type ResolvedLazyGroup } from './lazy-trigger-planning.ts';
@@ -85,18 +89,7 @@ export class DependencyResolverService {
 		integrationName: string,
 	): Promise<ProcessedAsset[]> {
 		if (!this.assetProcessingService?.processDependencies) return [];
-		const { dependencies, lazyScriptsByConfig } = collectComponentDependencies({
-			components,
-			integrationName,
-			resolveLazyScripts: (componentDir, scripts) => this.resolveLazyScripts(componentDir, scripts),
-			createEcopagesJsxLazyEntryName,
-			isEcopagesJsxIntegration,
-			errors: {
-				invalidStylesheetEntry: DEPENDENCY_ERRORS.INVALID_STYLESHEET_ENTRY,
-				invalidScriptEntry: DEPENDENCY_ERRORS.INVALID_SCRIPT_ENTRY,
-				lazyScriptMissingSrc: DEPENDENCY_ERRORS.LAZY_SCRIPT_MISSING_SRC,
-			},
-		});
+		const { dependencies, lazyScriptsByConfig } = this.collectDependencies(components, integrationName, false);
 
 		const packagedDependencies = packagePageDependencies(dependencies, integrationName);
 		const hasLazyDependencies = packagedDependencies.some(
@@ -140,5 +133,38 @@ export class DependencyResolverService {
 		}
 
 		return processedDependencies;
+	}
+
+	/**
+	 * Collects the unprocessed asset declarations of `components`, excluding Foreign Children and their descendants.
+	 *
+	 * @remarks Returns nothing when assets cannot be processed, matching `processComponentDependencies()`.
+	 */
+	collectOwnComponentDependencies(
+		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
+		integrationName: string,
+	): AssetDefinition[] {
+		if (!this.assetProcessingService?.processDependencies) return [];
+		return this.collectDependencies(components, integrationName, true).dependencies;
+	}
+
+	private collectDependencies(
+		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
+		integrationName: string,
+		excludeForeignChildren: boolean,
+	) {
+		return collectComponentDependencies({
+			components,
+			integrationName,
+			excludeForeignChildren,
+			resolveLazyScripts: (componentDir, scripts) => this.resolveLazyScripts(componentDir, scripts),
+			createEcopagesJsxLazyEntryName,
+			isEcopagesJsxIntegration,
+			errors: {
+				invalidStylesheetEntry: DEPENDENCY_ERRORS.INVALID_STYLESHEET_ENTRY,
+				invalidScriptEntry: DEPENDENCY_ERRORS.INVALID_SCRIPT_ENTRY,
+				lazyScriptMissingSrc: DEPENDENCY_ERRORS.LAZY_SCRIPT_MISSING_SRC,
+			},
+		});
 	}
 }

@@ -19,6 +19,8 @@ It is responsible for:
 3. The active HMR manager selects a strategy.
 4. The strategy coordinates browser rebuilds, metadata reloads, and client broadcasts.
 
+Public-directory and `additionalWatchPaths` changes skip the HMR manager: the Project Watcher sends `reload` through the client bridge itself. It does so whoever owns the dev client, since a host that owns it, such as the Vite host, still serves the Ecopages HMR runtime as the browser client.
+
 ## Design Rule
 
 Generic invalidation policy belongs in core services.
@@ -33,7 +35,7 @@ Dev client modules are served on demand through `DevTransformServer` (`src/dev/`
 
 `BrowserBundleService` is the sole browser-plugin resolver for HMR builds. HMR managers route `hmr-runtime` and `hmr-entrypoint` rebuilds through the `browser-hmr` executor profile.
 
-Hosts call `prepareHmrFileChange()` before HMR dispatch (`hmr/hmr-file-change-prep.ts`) so page browser graph sessions invalidate consistently with file changes.
+The Project Watcher calls `prepareHmrFileChange()` before HMR dispatch (`hmr/hmr-file-change-prep.ts`) so page browser graph sessions invalidate consistently with file changes.
 
 ## Client events
 

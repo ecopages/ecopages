@@ -205,9 +205,7 @@ export abstract class SharedApplicationAdapter<
 		}
 
 		return async (changedFile: string) => {
-			appLogger.info(
-				`Configuration or environment file changed (${changedFile}). Restarting development server...`,
-			);
+			appLogger.info(`Restarting the development server (${changedFile} changed)...`);
 			await this.stop();
 			process.exit(ECOPAGES_DEV_RESTART_EXIT_CODE);
 		};

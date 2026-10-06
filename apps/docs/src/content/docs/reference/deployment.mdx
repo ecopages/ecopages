@@ -60,7 +60,29 @@ After building, you can start the production server:
 pnpm run start
 ```
 
-### 2. Docker Deployment
+### 2. What to deploy
+
+`ecopages build` writes the server into `dist/.server/`. The server code holds no absolute paths of the machine that built it: it loads packages from `node_modules` through bare imports or paths relative to `dist/.server/`. You can build in one place and run in another, such as a CI runner and a container image with a different root. Copy these entries of your project and keep their relative positions:
+
+- `dist/`: the server bundle, its config and the static export.
+- `src/`: the server reads your routes from `src/pages` at startup.
+- `node_modules/`: the install the build ran against.
+- `package.json`.
+
+Copy the `node_modules` the build used, installed on the same operating system and CPU architecture as the server, because packages with native bindings install files for one platform. Some imports point into the package manager's own folders, such as `node_modules/.pnpm/<name>@<version>_<peers>/`, so a fresh install only works when it produces the same folder names: same lockfile, same package manager version and same layout settings (for pnpm `node-linker`, `virtual-store-dir` and `virtual-store-dir-max-length`; for Bun the linker).
+
+Start the server from that folder with `node dist/.server/app.mjs`, or `bun dist/.server/app.mjs` with the Bun adapter. The server loads the config compiled into `dist/.server/`, even when `eco.config.ts` is in the folder, so you can copy the whole project.
+
+Server code in `.ts`, `.tsx`, `.js` and `.jsx` files keeps `import.meta.url`, `import.meta.dirname` and `import.meta.filename` pointing at your source files, so reading a file next to a module works as in development. In `.mjs`, `.cjs`, `.mts` and `.cts` files, `import.meta` points at the built file in `dist/.server/` in this release. Two more things differ from running the source:
+
+- `import.meta.resolve()` resolves from `dist/.server/`.
+- `import.meta.url === pathToFileURL(process.argv[1]).href`, the usual check for "this file is the entry point", is false, because `import.meta.url` names the source file while `process.argv[1]` names `dist/.server/app.mjs`.
+
+Yarn Plug'n'Play installs are not supported for a server you move after building: their packages live in `.zip` archives, so the build bundles them instead of importing them from `node_modules`.
+
+In a monorepo, the packages live in the workspace root `node_modules`, outside your app folder. Build from a standalone copy of the app instead, for example the output of `pnpm deploy`. `ecopages build` warns with one line per server output file, such as `dist/.server/app.mjs`, that imports packages from outside the app folder, naming the first five and counting the rest.
+
+### 3. Docker Deployment
 
 You can easily containerize your Ecopages app using the official Bun image when using the Bun adapter.
 
@@ -79,7 +101,30 @@ EXPOSE 3000
 CMD ["bun", "run", "start"]
 ```
 
-### 3. VPS / PaaS (Railway, Fly.io)
+To build in one stage and run in another, copy the entries listed above. Both stages use the same base image, so native bindings match. Add `node_modules` and `dist` to `.dockerignore`, or `COPY . .` overwrites the image's install with the one from your machine:
+
+```dockerfile
+FROM node:24-slim AS build
+WORKDIR /build
+RUN corepack enable
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY . .
+RUN pnpm run build
+
+FROM node:24-slim
+WORKDIR /srv/app
+ENV NODE_ENV=production ECOPAGES_HOSTNAME=0.0.0.0
+COPY --from=build /build/package.json ./
+COPY --from=build /build/node_modules ./node_modules
+COPY --from=build /build/dist ./dist
+COPY --from=build /build/src ./src
+
+EXPOSE 3000
+CMD ["node", "dist/.server/app.mjs"]
+```
+
+### 4. VPS / PaaS (Railway, Fly.io)
 
 Deploy the server by pointing the platform to your `app.ts` as the entry point and ensuring it runs with the `start` command in production.
 

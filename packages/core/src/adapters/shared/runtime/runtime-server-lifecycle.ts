@@ -7,8 +7,6 @@ import { ensureIntegrationRuntimeReady } from '../../../build/app-build-manifest
 import { appLogger } from '../../../global/app-logger.ts';
 import type { ProjectWatcher } from '../../../watchers/project-watcher.ts';
 import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
-import { clearAppDevClientBridge } from '../../../dev/client-bridge-registry.ts';
-import { clearAppHmrManager } from '../../../dev/hmr-manager-registry.ts';
 
 /**
  * Copies source `public/` into dist and ensures the resolved assets directory exists.
@@ -89,7 +87,5 @@ export async function disposeDevResources(options: {
 	await disposeAppBuildRuntime(options.appConfig);
 	options.hmrManager?.stop();
 	options.bridge?.destroy();
-	clearAppDevClientBridge(options.appConfig);
-	clearAppHmrManager(options.appConfig);
 	await options.previewHost.stop();
 }

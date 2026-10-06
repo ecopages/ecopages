@@ -114,6 +114,25 @@ describe('DevTransformServer', () => {
 		},
 	);
 
+	it('answers a vendor request with 304 when If-None-Match carries its ETag', async () => {
+		const rootDir = createTempRoot('dev-transform-vendor-etag');
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const server = new DevTransformServer({ appConfig: config });
+		const vendorsDir = path.join(config.absolutePaths.distDir, 'assets', 'vendors');
+		fs.mkdirSync(vendorsDir, { recursive: true });
+		fs.writeFileSync(path.join(vendorsDir, 'fixture-lib.js'), 'export const release = 1;');
+		const url = 'http://localhost/assets/vendors/fixture-lib.js';
+
+		const first = await server.tryHandleRequest(new Request(url));
+		const etag = first?.headers.get('ETag');
+		expect(etag).toBeTruthy();
+
+		const revalidated = await server.tryHandleRequest(
+			new Request(url, { headers: { 'If-None-Match': `${etag}` } }),
+		);
+		expect(revalidated?.status).toBe(304);
+	});
+
 	it('registerModule returns a stable dev-transform URL', async () => {
 		const rootDir = createTempRoot('dev-transform-server-register');
 		const config = await finalizeEcoPagesConfig({ rootDir });

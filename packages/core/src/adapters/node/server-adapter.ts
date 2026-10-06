@@ -418,7 +418,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				}),
 				hmrManager: this.hmrManager ?? undefined,
 				bridge: this.bridge,
-				hostOwnsDevClient: this.hostOwnsDevClient,
 				onRestartRequest: this.onDevelopmentRestart,
 				entryWatcherOwnsConfig: entryWatcherOwnsConfig(),
 			});

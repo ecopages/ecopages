@@ -48,9 +48,7 @@ export async function resolveOwningIntegrationRenderer(
 
 	const integrationPlugin = input.appConfig.integrations.find((integration) => integration.name === integrationName);
 	invariant(!!integrationPlugin, `[ecopages] Integration not found for foreign owner: ${integrationName}`);
-	const renderer = integrationPlugin.initializeRenderer({
-		rendererModules: input.appConfig.runtime?.rendererModuleContext,
-	});
+	const renderer = integrationPlugin.initializeRenderer();
 	cache.set(integrationName, renderer);
 	return renderer;
 }

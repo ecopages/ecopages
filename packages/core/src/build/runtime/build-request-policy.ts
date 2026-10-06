@@ -5,7 +5,7 @@ import { getAppBrowserBuildPlugins, getAppServerBuildPlugins, getAppTranspileOpt
 import { resolveBuildProfileOptions } from './build-profile-options.ts';
 import type { BuildProfile } from './build-runtime.ts';
 import { getJsxOwnershipPlugins } from '../browser/jsx-ownership-plugins.ts';
-import { getAppSourceTransforms } from '../../plugins/source-transform.ts';
+import { getAppSourceTransforms, mergeSourceTransformPlugins } from '../../plugins/source-transform.ts';
 import { createPreserveImportMetaTransform } from '../preserve-import-meta-transform.ts';
 
 /**
@@ -59,29 +59,29 @@ export type BrowserBuildRequestInput = Partial<BuildOptions> & {
  * @remarks
  * Defaults `profile` to `'route-module'`. Plugins are
  * {@link resolveServerAppBuildPlugins} plus unique caller contributions via
- * {@link mergeCallerBuildPlugins}. Source transforms are applied on every
- * compilation target, so server module loading shares browser attribution.
- * Every server profile also gets {@link createPreserveImportMetaTransform}
- * for `runtimeOutdir` (or `outdir`), so bundled modules, Core included, keep
- * reading files relative to their sources from `dist/.server/` and
- * `.eco/.server-modules/`.
+ * {@link mergeCallerBuildPlugins}. Source transforms become `transform` plugins
+ * so server module loading shares browser attribution. Every server profile
+ * also gets {@link createPreserveImportMetaTransform} for `runtimeOutdir` (or
+ * `outdir`), so bundled modules, Core included, keep reading files relative to
+ * their sources from `dist/.server/` and `.eco/.server-modules/`.
  */
 export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: ServerBuildRequestInput): BuildOptions {
 	const profile = input.profile ?? 'route-module';
-	const plugins = mergeCallerBuildPlugins(resolveServerAppBuildPlugins(appConfig), input.plugins);
-	const { plugins: _callerPlugins, profile: _profile, ...overrides } = input;
 	const importMetaDir = input.runtimeOutdir ?? input.outdir;
+	const plugins = mergeSourceTransformPlugins(
+		mergeCallerBuildPlugins(resolveServerAppBuildPlugins(appConfig), input.plugins),
+		[
+			...getAppSourceTransforms(appConfig),
+			...(importMetaDir ? [createPreserveImportMetaTransform(importMetaDir)] : []),
+		],
+	);
+	const { plugins: _callerPlugins, profile: _profile, ...overrides } = input;
 
 	return {
 		...resolveBuildProfileOptions(profile, appConfig, overrides),
 		...overrides,
 		entrypoints: input.entrypoints,
 		...(plugins.length > 0 ? { plugins } : {}),
-		sourceTransforms: [
-			...getAppSourceTransforms(appConfig),
-			...(importMetaDir ? [createPreserveImportMetaTransform(importMetaDir)] : []),
-			...(input.sourceTransforms ?? []),
-		],
 	};
 }
 
@@ -95,9 +95,9 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
  * the {@link BuildRuntime} executor slot is chosen later by the caller
  * (typically {@link BrowserBundleService}).
  *
- * Always attaches {@link getAppSourceTransforms}. App browser plugins come from
- * {@link getAppBrowserBuildPlugins} (includes JSX ownership); use
- * `excludeAppBuildPlugins` to omit app-owned names. Caller plugins cannot
+ * Always attaches app source transforms as `transform` plugins. App browser
+ * plugins come from {@link getAppBrowserBuildPlugins} (includes JSX ownership);
+ * use `excludeAppBuildPlugins` to omit app-owned names. Caller plugins cannot
  * replace app-manifest names ({@link mergeCallerBuildPlugins}).
  */
 export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: BrowserBuildRequestInput): BuildOptions {
@@ -107,7 +107,10 @@ export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: B
 		excludeAppBuildPlugins && excludeAppBuildPlugins.length > 0
 			? appBrowserPlugins.filter((plugin) => !excludeAppBuildPlugins.includes(plugin.name))
 			: appBrowserPlugins;
-	const plugins = mergeCallerBuildPlugins(filteredAppBrowserPlugins, callerPlugins);
+	const plugins = mergeSourceTransformPlugins(
+		mergeCallerBuildPlugins(filteredAppBrowserPlugins, callerPlugins),
+		getAppSourceTransforms(appConfig),
+	);
 
 	return {
 		...resolveBuildProfileOptions('browser-hmr', appConfig, overrides),
@@ -115,6 +118,5 @@ export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: B
 		...overrides,
 		entrypoints: input.entrypoints,
 		plugins,
-		sourceTransforms: getAppSourceTransforms(appConfig),
 	};
 }

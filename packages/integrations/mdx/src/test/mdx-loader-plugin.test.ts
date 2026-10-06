@@ -29,6 +29,7 @@ function createBuilderHarness() {
 			onLoadCallback = callback;
 		},
 		module() {},
+		transform() {},
 	};
 
 	return {

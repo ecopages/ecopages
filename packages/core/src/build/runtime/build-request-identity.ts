@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { BuildOptions } from '../contracts/build-contracts.ts';
-import { createJsxCacheKey, createPluginCacheKey, createSourceTransformCacheKey } from '../cache/cache-keys.ts';
+import { createJsxCacheKey, createPluginCacheKey } from '../cache/cache-keys.ts';
 
 function normalizeEntrypoints(entrypoints: BuildOptions['entrypoints']): string {
 	if (Array.isArray(entrypoints)) {
@@ -54,8 +54,8 @@ function normalizeDefine(define: Record<string, string> | undefined): string {
  *
  * @remarks
  * Semantically unordered collections (`external`, `define` keys, array entrypoints)
- * are sorted. Plugin, `conditions`, and source-transform order is preserved because
- * Rolldown hook and `conditionNames` precedence depend on it.
+ * are sorted. Plugin and `conditions` order is preserved because Rolldown hook
+ * and `conditionNames` precedence depend on it.
  *
  * Empty `conditions` / `define` / `external` normalize to the same sentinel as
  * `undefined`.
@@ -78,6 +78,5 @@ export function createBuildRequestIdentity(options: BuildOptions): string {
 		normalizeUnorderedStringList(options.external, 'external'),
 		createJsxCacheKey(options.jsx),
 		createPluginCacheKey(options.plugins),
-		createSourceTransformCacheKey(options.sourceTransforms),
 	].join('::');
 }

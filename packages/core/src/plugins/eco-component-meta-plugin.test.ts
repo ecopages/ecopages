@@ -1,11 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
 	createEcoComponentMetaPlugin,
 	createEcoComponentMetaTransform,
 	createEcoComponentMetaVitePlugin,
 } from './eco-component-meta-plugin';
 import type { EcoPagesAppConfig } from '../types/internal-types';
-import { fileSystem } from '@ecopages/file-system';
 
 /**
  * Creates a regex pattern to match identity attribution with any id hash.
@@ -43,32 +42,33 @@ describe('eco-component-meta-plugin', () => {
 
 	async function runPluginOnContent(content: string, filePath: string) {
 		let regexFilter: RegExp | undefined;
-		let onLoadCallback: any;
+		let transformCallback: ((code: string, id: string) => unknown) | undefined;
 
 		const buildMock = {
-			onLoad: (options: { filter: RegExp }, callback: any) => {
+			transform: (options: { filter: RegExp }, callback: (code: string, id: string) => unknown) => {
 				regexFilter = options.filter;
-				onLoadCallback = callback;
+				transformCallback = callback;
 			},
 		};
 
-		plugin.setup(buildMock as any);
+		plugin.setup(buildMock as never);
 
-		if (!onLoadCallback || !regexFilter) {
-			throw new Error('Plugin did not register onLoad handler');
+		if (!transformCallback || !regexFilter) {
+			throw new Error('Plugin did not register transform handler');
 		}
 
 		if (!regexFilter.test(filePath)) {
 			throw new Error(`File path ${filePath} does not match plugin filter ${regexFilter}`);
 		}
 
-		const fileSpy = vi.spyOn(fileSystem, 'readFileSync').mockImplementation(() => content);
-
-		try {
-			return await onLoadCallback({ path: filePath });
-		} finally {
-			fileSpy.mockRestore();
-		}
+		const transformed = await transformCallback(content, filePath);
+		const code =
+			typeof transformed === 'string'
+				? transformed
+				: transformed && typeof transformed === 'object' && 'code' in transformed
+					? String(transformed.code)
+					: content;
+		return { contents: code };
 	}
 
 	it('creates a bundler-neutral transform that strips query suffixes through the Vite adapter', () => {

@@ -739,6 +739,48 @@ describe('RolldownBuildAdapter', () => {
 		});
 	});
 
+	test('a transform that inserts a line returns a map that points at the original source', async () => {
+		const entrypoint = writeFixture('page.ts', 'export const value = 1;\n');
+		const adapter = new RolldownBuildAdapter();
+		const outdir = path.join(workDir, 'dist');
+		const result = await adapter.build({
+			entrypoints: [entrypoint],
+			outdir,
+			target: 'es2022',
+			format: 'esm',
+			root: workDir,
+			sourcemap: 'linked',
+			plugins: [
+				{
+					name: 'insert-line',
+					setup(build) {
+						build.transform({ filter: /page\.ts$/ }, (code, id) => ({
+							code: `void 0;\n${code}`,
+							map: {
+								version: 3,
+								file: 'page.ts',
+								sources: [id],
+								sourcesContent: [code],
+								names: [],
+								mappings: ';AAAA',
+							},
+						}));
+					},
+				},
+			],
+		});
+
+		assert.equal(result.success, true);
+		const mapPath = result.outputs.find((output) => output.path.endsWith('.map'))?.path;
+		assert.ok(mapPath, 'expected a source map artifact');
+		const map = JSON.parse(readFileSync(mapPath, 'utf-8')) as { sources: string[]; mappings: string };
+		assert.ok(
+			map.sources.some((source) => source.includes('page.ts')),
+			`expected original page.ts in map sources, got: ${map.sources.join(', ')}`,
+		);
+		assert.notEqual(map.mappings, '');
+	});
+
 	test('resolve delegates to node module resolution from the supplied root', () => {
 		const adapter = new RolldownBuildAdapter();
 		const resolved = adapter.resolve('node:path', workDir);

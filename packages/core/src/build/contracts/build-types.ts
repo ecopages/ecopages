@@ -56,6 +56,14 @@ export type EcoBuildOnLoadResult = {
 };
 
 /**
+ * Result returned by a build plugin `transform` callback.
+ */
+export type EcoBuildOnTransformResult = {
+	code: string;
+	map?: unknown;
+};
+
+/**
  * Plugin builder contract consumed by build adapters.
  *
  * @remarks
@@ -76,6 +84,20 @@ export interface EcoBuildPluginBuilder {
 		) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>,
 	): void;
 	module(specifier: string, callback: () => EcoBuildOnLoadResult | Promise<EcoBuildOnLoadResult>): void;
+	/**
+	 * Registers a source rewrite that runs after `load`.
+	 *
+	 * @remarks
+	 * Prefer this over `onLoad` when the plugin only rewrites module source, so
+	 * it still runs on first-wins load results and can return a source map.
+	 */
+	transform(
+		options: { filter: RegExp },
+		callback: (
+			code: string,
+			id: string,
+		) => EcoBuildOnTransformResult | string | undefined | Promise<EcoBuildOnTransformResult | string | undefined>,
+	): void;
 }
 
 /**

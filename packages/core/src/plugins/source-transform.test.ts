@@ -1,5 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
-import { fileSystem } from '@ecopages/file-system';
+import { describe, expect, it } from 'vitest';
 import {
 	applySourceTransform,
 	applySourceTransforms,
@@ -84,27 +83,19 @@ describe('source-transform', () => {
 
 	it('creates an Ecopages build plugin wrapper', async () => {
 		const buildPlugin = createEcoBuildPluginFromSourceTransform(transform);
-		let onLoadCallback: ((args: { path: string }) => unknown) | undefined;
+		let transformCallback: ((code: string, id: string) => unknown) | undefined;
 
 		buildPlugin.setup({
-			onLoad(_options: unknown, callback: unknown) {
-				onLoadCallback = callback as typeof onLoadCallback;
+			transform(_options: unknown, callback: unknown) {
+				transformCallback = callback as typeof transformCallback;
 			},
 		} as never);
 
-		const readSpy = vi.spyOn(fileSystem, 'readFileSync').mockReturnValue('export const value = 1;');
+		const result = await transformCallback?.('export const value = 1;', '/src/main.tsx?import');
 
-		try {
-			const result = await onLoadCallback?.({ path: '/src/main.tsx?import' });
-
-			expect(result).toEqual({
-				contents: '/* injected */\nexport const value = 1;',
-				loader: 'tsx',
-				resolveDir: '/src',
-			});
-		} finally {
-			readSpy.mockRestore();
-		}
+		expect(result).toEqual({
+			code: '/* injected */\nexport const value = 1;',
+		});
 	});
 
 	it('collects app-owned source transforms and adapts them to Vite plugins', () => {

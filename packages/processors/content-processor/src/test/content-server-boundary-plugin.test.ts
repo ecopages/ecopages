@@ -11,6 +11,7 @@ describe('createContentServerBoundaryPlugin', () => {
 			},
 			onLoad() {},
 			module() {},
+			transform() {},
 		};
 
 		createContentServerBoundaryPlugin().setup(build);

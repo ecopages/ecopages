@@ -29,7 +29,7 @@ Three concentric shapes, plus profile executors and request policy:
 | `BuildAdapter`              | `build-adapter.ts`                     | Low-level backend. Two implementations: the bundled adapter (the real bundler) and `ViteHostBuildAdapter` (a host-owned boundary marker that throws on direct use). |
 | `BuildRuntime`              | `runtime/build-runtime.ts`             | Profile-based executor registry. Scheduling, concurrency, and dedupe only.                                                                                          |
 | `BuildExecutor`             | `contracts/build-contracts.ts`         | Narrower runtime facade. Only `build` is exposed. Retrieved via `buildRuntime.getProfile(...)`.                                                                     |
-| `build-request-policy.ts`   | `runtime/build-request-policy.ts`      | Assembles complete `BuildOptions` before scheduling. Server: plugins + JSX ownership. Browser: plugins + source transforms + transpile overlay.                     |
+| `build-request-policy.ts`   | `runtime/build-request-policy.ts`      | Assembles complete `BuildOptions` before scheduling. Server and browser: plugins, including source transforms as `transform` hooks, plus JSX ownership.             |
 | `build-request-identity.ts` | `runtime/build-request-identity.ts`    | Canonical request identity for in-flight and request-scope dedupe.                                                                                                  |
 | `SerializedBuildExecutor`   | `runtime/serialized-build-executor.ts` | FIFO queue around any `BuildExecutor`. Used for server-entry single-flight ordering.                                                                                |
 | `ParallelBuildExecutor`     | `runtime/parallel-build-executor.ts`   | Concurrency-limited wrapper for independent route-module and HMR browser builds.                                                                                    |
@@ -99,7 +99,7 @@ Direct `setAppBuildManifest` is for tests and full manifest replacement. Product
 
 ```
 Caller intent
-  → createServerBuildRequest / createBrowserBuildRequest (plugins + transforms assembled once)
+  → createServerBuildRequest / createBrowserBuildRequest (plugins assembled once, including source transforms)
   → BuildRuntime.getProfile(...)
       ├─ server-entry  → SerializedBuildExecutor → RolldownBuildAdapter
       ├─ route-module  → DedupingBuildExecutor → ParallelBuildExecutor → RolldownBuildAdapter
@@ -132,11 +132,12 @@ Vite-based apps (or any future host runtime) should:
 - `name: string`
 - `setup(build: EcoBuildPluginBuilder): void | Promise<void>`
 
-`EcoBuildPluginBuilder` exposes three hooks:
+`EcoBuildPluginBuilder` exposes four hooks:
 
 - `onResolve({ filter, namespace? }, callback)` — the bundler's `resolveId` mapped to the shared plugin shape.
 - `onLoad({ filter, namespace? }, callback)` — the bundler's `load` mapped the same way.
 - With a `namespace`, a filter matches only ids that start with `<namespace>:`, and is tested against the path after it.
+- `transform({ filter }, callback)` — the bundler's `transform` hook, for source rewrites that must run after `load` and can return a source map.
 - `module(specifier, callback)` — declares a virtual module by name, with bundler-side namespace encoding.
 
 App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins explicitly.
@@ -253,16 +254,16 @@ Rolldown reads hook filters when a plugin is registered, before `buildStart`, so
 
 Each Rolldown plugin adds FFI overhead per module per hook. `rolldown-plugin-bridge.ts` merges all `EcoBuildPlugin` instances into one Rolldown plugin and routes in JavaScript.
 
-Every build creates a new bridge. The bridge runs each plugin's `setup` before it creates the Rolldown plugin, then declares the union of the registered filters as the `resolveId` and `load` hook filters. A handler registered after its plugin's `setup` has finished would miss the filters, so the builder throws. A module that no registration can match never calls into JavaScript. Rolldown tests the filters against ids with `/` separators.
+Every build creates a new bridge. The bridge runs each plugin's `setup` before it creates the Rolldown plugin, then declares the union of the registered filters as the `resolveId`, `load`, and `transform` hook filters. A handler registered after its plugin's `setup` has finished would miss the filters, so the builder throws. A module that no registration can match never calls into JavaScript. Rolldown tests the filters against ids with `/` separators.
 
-| Registration                | Hook filter                                       |
-| --------------------------- | ------------------------------------------------- |
-| `onResolve` / `onLoad`      | the registered `filter`                           |
-| the same with a `namespace` | `^<namespace>:`; the exact `filter` runs in JS    |
-| `module(specifier)`         | `^<specifier>$` on resolve, its namespace on load |
-| source transform            | its `filter`, tested on the id without query      |
+| Registration                | Hook filter                                             |
+| --------------------------- | ------------------------------------------------------- |
+| `onResolve` / `onLoad`      | the registered `filter`                                 |
+| the same with a `namespace` | `^<namespace>:`; the exact `filter` runs in JS          |
+| `module(specifier)`         | `^<specifier>$` on resolve, its namespace on load       |
+| `transform`                 | the registered `filter`, tested on the id without query |
 
-Within the handler, registrations run in `EcoBuildPlugin[]` order and the first non-null result wins. A hook with no registrations is not declared. In a kitchen-sink production build, the filters cut JS `resolveId` calls from 7344 to 323 and `load` calls from 4146 to 2826. Source transform filters, such as the component metadata transform's, still admit most source files to `load`.
+Within the handler, `onResolve` and `onLoad` registrations run in `EcoBuildPlugin[]` order and the first non-null result wins. `transform` runs every matching registration in that same order. A hook with no registrations is not declared. In a kitchen-sink production build, the filters cut JS `resolveId` calls from 7344 to 323 and `load` calls from 4146 to 2826. Source-transform plugins use the `transform` hook, so they no longer admit most source files to `load`.
 
 The Vite adapter for a source transform (`createVitePluginFromSourceTransform`) declares no Vite hook filter. Vite would test it against the id with its query, so `/\.tsx$/` would miss `page.tsx?v=1`; the handler tests the filter with the query and hash stripped instead.
 

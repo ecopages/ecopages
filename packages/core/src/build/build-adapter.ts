@@ -45,7 +45,6 @@ import {
 	getServerBuildPlugins,
 	type AppBuildManifest,
 } from './contracts/build-manifest.ts';
-import { getAppSourceTransforms } from '../plugins/source-transform.ts';
 import { createAliasResolverPlugin } from '../plugins/alias-resolver-plugin.ts';
 import { getJsxOwnershipPlugins } from './browser/jsx-ownership-plugins.ts';
 import { createRolldownBuildAdapter } from './rolldown/rolldown-build-adapter.ts';
@@ -279,16 +278,12 @@ export function getAppServerBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuild
  * @remarks
  * Reads from the app's sealed build manifest. The browser-bundle
  * manifest is the source of truth for which plugins participate in the
- * browser bundle.
- *
- * Plugins whose `name` matches a registered {@link EcoSourceTransform} are
- * excluded here because browser builds run those transforms via the Rolldown
- * bridge post-load pass instead of as competing `onLoad` handlers.
+ * browser bundle. Source transforms register as `transform` plugins and
+ * stay in this list so they run after first-wins `onLoad`.
  */
 export function getAppBrowserBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
 	const manifest = getAppBuildManifest(appConfig);
-	const sourceTransformNames = new Set(getAppSourceTransforms(appConfig).map((transform) => transform.name));
-	const browserPlugins = getBrowserBuildPlugins(manifest).filter((plugin) => !sourceTransformNames.has(plugin.name));
+	const browserPlugins = getBrowserBuildPlugins(manifest);
 	const projectDir = appConfig.absolutePaths?.projectDir;
 	const aliasPlugin = projectDir ? [createAliasResolverPlugin(projectDir)] : [];
 	return [...aliasPlugin, ...browserPlugins, ...getJsxOwnershipPlugins(appConfig)];

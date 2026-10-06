@@ -10,6 +10,7 @@ import { installBuildRuntime } from '../runtime/build-runtime.ts';
 import { createAppModuleLoader } from '../../services/module-loading/app-server-module-transpiler.service.ts';
 import { PageModuleImportService } from '../../services/module-loading/page-module-import.service.ts';
 import {
+	clearPagesUnifiedGraphMemory,
 	ensurePagesUnifiedGraphBuilt,
 	importPagesUnifiedGraphModule,
 	isPagesUnifiedGraphEnabled,
@@ -123,7 +124,7 @@ describe('pages-unified-graph-build', () => {
 		assert.equal(shouldBuildPagesUnifiedGraph(), false);
 	});
 
-	it('builds all string pages in one Rolldown invocation and reuses the graph manifest', async () => {
+	it('builds all string pages in one Rolldown invocation and reuses the graph in process', async () => {
 		process.env.NODE_ENV = 'production';
 		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
 		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
@@ -149,13 +150,6 @@ describe('pages-unified-graph-build', () => {
 		assert.ok(manifest);
 		assert.equal(Object.keys(manifest.outputs).length, entryPaths.length);
 		assert.equal(getTotalRolldownBuildInvocations(), 1);
-
-		const manifestPath = path.join(
-			resolveInternalExecutionDir(appConfig),
-			PAGES_UNIFIED_GRAPH_CACHE_DIR,
-			PAGES_UNIFIED_GRAPH_CACHE_FILENAME,
-		);
-		assert.equal(fileSystem.exists(manifestPath), true);
 
 		resetRolldownBuildInvocationCounts();
 		const reused = await ensurePagesUnifiedGraphBuilt({
@@ -218,7 +212,7 @@ describe('pages-unified-graph-build', () => {
 		assert.equal(getPageModuleRolldownBuildInvocations(), 0);
 	});
 
-	it('does not import graph modules from a stale or incomplete manifest', async () => {
+	it('does not persist a graph manifest that another process can import', async () => {
 		process.env.NODE_ENV = 'production';
 		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
 
@@ -234,21 +228,14 @@ describe('pages-unified-graph-build', () => {
 			PAGES_UNIFIED_GRAPH_CACHE_DIR,
 			PAGES_UNIFIED_GRAPH_CACHE_FILENAME,
 		);
-		const manifest = JSON.parse(fileSystem.readFileSync(manifestPath));
-		const rewrite = (overrides: Record<string, unknown>) =>
-			fileSystem.write(manifestPath, JSON.stringify({ ...manifest, ...overrides }));
+		assert.equal(fileSystem.exists(manifestPath), false);
 
-		rewrite({ builtAt: manifest.builtAt + 1, outputImports: [path.join(outdir, 'missing-chunk.js')] });
+		clearPagesUnifiedGraphMemory(appConfig);
 		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPath), undefined);
 
-		rewrite({ builtAt: manifest.builtAt + 2, corePackageVersion: 'stale' });
-		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPath), undefined);
-
-		rewrite({ builtAt: manifest.builtAt + 3, outputImports: undefined });
-		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPath), undefined);
-
-		rewrite({ builtAt: manifest.builtAt + 4, dependencyHashes: undefined });
-		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPath), undefined);
+		const otherProcess = await createFixtureAppConfig({ rootDir: appDir });
+		installBuildRuntime(otherProcess);
+		assert.equal(await importPagesUnifiedGraphModule(otherProcess, entryPath), undefined);
 	});
 
 	it('records nested local imports so a deleted shared chunk invalidates the graph', async () => {

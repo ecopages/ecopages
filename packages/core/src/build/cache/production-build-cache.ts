@@ -5,7 +5,7 @@ import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 
 /**
- * Shared manifest fields for persisted production build caches.
+ * Shared manifest fields for in-process production build reuse.
  */
 export interface ProductionCacheManifestBase {
 	/** `getCorePackageVersion()` of the build that wrote the manifest. */
@@ -20,7 +20,7 @@ export type ProductionBuildCacheKind = 'server-entry' | 'route-module' | 'pages-
 const ROUTE_MODULE_CACHE_OUTDIRS = ['.server-modules', '.server-route-modules'] as const;
 const PAGES_GRAPH_CACHE_DIR = '.server-pages-graph';
 
-/** Returns every persisted production cache manifest path for one app. */
+/** Returns leftover on-disk production cache manifest paths from earlier releases. */
 export function getProductionBuildCacheManifestPaths(appConfig: EcoPagesAppConfig): string[] {
 	const executionDir = resolveInternalExecutionDir(appConfig);
 	const paths: string[] = [];
@@ -35,7 +35,7 @@ export function getProductionBuildCacheManifestPaths(appConfig: EcoPagesAppConfi
 	return paths;
 }
 
-/** Removes all persisted production cache manifests for one app. */
+/** Removes leftover on-disk production cache manifests from earlier releases. */
 export function clearPersistedProductionBuildCacheManifests(appConfig: EcoPagesAppConfig): void {
 	if (process.env.NODE_ENV !== 'production') {
 		return;
@@ -64,11 +64,6 @@ export function readProductionCacheManifest<T extends ProductionCacheManifestBas
 	} catch {
 		return undefined;
 	}
-}
-
-export function writeProductionCacheManifest(manifestPath: string, manifest: unknown): void {
-	fileSystem.ensureDir(path.dirname(manifestPath));
-	fileSystem.write(manifestPath, `${JSON.stringify(manifest, null, '\t')}\n`);
 }
 
 export function isProductionCacheManifestCurrent(

@@ -29,11 +29,11 @@ export async function registerBuildSpeedBench(): Promise<void> {
 	await warmPagesPromise;
 
 	group('build-speed-bench', () => {
-		bench('kitchen-sink warm route-module disk cache hit (index.kita.tsx)', async () => {
+		bench('kitchen-sink warm route-module import (index.kita.tsx)', async () => {
 			await importPageDiskWarm(KITCHEN_SINK_REPRESENTATIVE_PAGES.index);
 		});
 
-		bench('kitchen-sink warm route-module disk cache hit (all integrations sample)', async () => {
+		bench('kitchen-sink warm route-module import (all integrations sample)', async () => {
 			await Promise.all(WARM_PAGES.map((page) => importPageDiskWarm(page)));
 		});
 	});

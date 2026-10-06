@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -9,7 +9,10 @@ import {
 	CounterServerInvalidationState,
 	setAppServerInvalidationState,
 } from '../runtime-state/server-invalidation-state.service.ts';
-import { ROUTE_MODULE_BUILD_CACHE_FILENAME } from '../module-loading/route-module-build-manifest.ts';
+import {
+	getServerModuleBuildCacheOutdir,
+	getSharedRouteModuleBuildCache,
+} from '../module-loading/route-module-build-cache-registry.ts';
 
 class StylesheetProcessor extends Processor {
 	buildPlugins = [];
@@ -208,24 +211,51 @@ describe('DevelopmentInvalidationService', () => {
 		expect(invalidateDevelopmentGraph).toHaveBeenCalledTimes(1);
 	});
 
-	it('clears persisted route-module entries before a route imports them', async () => {
+	it('clears in-process route-module entries before a route imports them', async () => {
+		const originalNodeEnv = process.env.NODE_ENV;
+		process.env.NODE_ENV = 'development';
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-development-invalidation-'));
-		const cacheDir = path.join(rootDir, '.eco/.server-modules');
-		const manifestPath = path.join(cacheDir, ROUTE_MODULE_BUILD_CACHE_FILENAME);
 
 		try {
 			const appConfig = await finalizeEcoPagesConfig({ rootDir });
 			const service = new DevelopmentInvalidationService(appConfig);
-			const staleManifest = JSON.stringify({
-				corePackageVersion: 'stale',
-				entries: { '/test/project/src/pages/index.tsx': {} },
+			const outdir = getServerModuleBuildCacheOutdir(appConfig);
+			const cache = getSharedRouteModuleBuildCache(outdir, appConfig);
+			const filePath = path.join(rootDir, 'src/pages/index.tsx');
+			const outputPath = path.join(outdir, 'index.mjs');
+			mkdirSync(path.dirname(filePath), { recursive: true });
+			mkdirSync(outdir, { recursive: true });
+			writeFileSync(filePath, 'export default {};\n');
+			writeFileSync(outputPath, 'export default {};\n');
+
+			cache.recordBuild({
+				filePath,
+				rootDir,
+				outdir,
+				fileHash: 'abc123',
+				outputPath,
+				dependencyModulePaths: [filePath],
 			});
-			mkdirSync(cacheDir, { recursive: true });
-			writeFileSync(manifestPath, staleManifest);
+			expect(
+				cache.lookup({
+					filePath,
+					rootDir,
+					outdir,
+					fileHash: 'abc123',
+				}),
+			).toMatchObject({ outputPath });
 
 			service.invalidateServerModules([path.join(rootDir, 'src/content/docs/intro.mdx')]);
-			expect(JSON.parse(readFileSync(manifestPath, 'utf8'))).toMatchObject({ entries: {} });
+			expect(
+				cache.lookup({
+					filePath,
+					rootDir,
+					outdir,
+					fileHash: 'abc123',
+				}),
+			).toBeUndefined();
 		} finally {
+			process.env.NODE_ENV = originalNodeEnv;
 			rmSync(rootDir, { recursive: true, force: true });
 		}
 	});

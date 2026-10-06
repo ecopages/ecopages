@@ -13,7 +13,7 @@ The build layer is the bundler contract for Ecopages. One bundled adapter is the
 - [BuildOptions Caveats](#buildoptions-caveats)
 - [Dev / watch path](#dev--watch-path)
 - [Metrics](#metrics)
-- [Production build caches](#production-build-caches)
+- [Production builds](#production-builds)
 - [Server bundle deploy layout](#server-bundle-deploy-layout)
 - [Unified pages graph](#unified-pages-graph)
 - [JSX Ownership Plugins](#jsx-ownership-plugins)
@@ -48,7 +48,7 @@ build/
   runtime/                        profiles, executors, request policy/identity
   server-bundle-publication.ts   staged server/config artifact publication
   rolldown/                       bundler adapter, plugin bridge, package externalization
-  cache/                          persisted caches, fingerprints, unified pages graph
+  cache/                          fingerprints, leftover-manifest cleanup, unified pages graph
   browser/                        client runtime rewrites, JSX ownership, Lit worker guard
 ```
 
@@ -61,11 +61,11 @@ build/
 - `rolldown/rolldown-build-adapter.ts`: the production `BuildAdapter`. Wraps the bundler and exposes a normalized `BuildResult`. With `externalPackages`, compiled packages the app declares stay bare imports, so Integration renderers and server bundles share one instance (one React). Source code is bundled: the app, workspace packages and TypeScript or JSX packages, including Core when it resolves to its TypeScript source. Every other compiled package installed in `node_modules` stays external as a `./` or `../` path from the output directory to the installed file, whichever source package imports it, because a compiled package may find files relative to itself at runtime (a native binding such as `sharp`, a platform package, a sibling file loaded through `createRequire(import.meta.url)`), which fails once it is bundled into another folder. A Rolldown `resolveId` hook resolves these packages through Rolldown with the `node` and `import` conditions and writes the path; a build whose chunk lands in a subdirectory of the output directory and imports such a path fails. The exceptions are the runtime packages that need CommonJS named-export interop (`ws`), which are bundled. The isolated installs of pnpm and Bun do not expose undeclared packages as bare specifiers to the app, so a path is used instead. Server output therefore needs no app-level framework dependencies and its code holds no absolute paths of the build machine: `dist` keeps working after it moves together with `node_modules`. Named output hashes cover the bytes that are written; the adapter does not rewrite emitted files after `bundle.write()`.
 - `rolldown/rolldown-plugin-bridge.ts`: `EcoBuildPlugin[]` → bundler-plugin translation.
 - `runtime/serialized-build-executor.ts`: FIFO queue primitive.
-- `cache/server-entry-build-cache.ts`: production server-entry bundle cache (`.eco/.server-entry/.build-cache.json` + `dist/.server/manifest.json`).
+- `cache/server-entry-build-cache.ts`: production server-entry deploy layout (`dist/.server/manifest.json`).
 - `server-bundle-publication.ts`: stages the server entry, emitted config, and deploy manifest together, then publishes the complete directory with rollback.
-- `cache/cache-constants.ts`: shared `.build-cache.json` filename for persisted production caches.
+- `cache/cache-constants.ts`: leftover `.build-cache.json` filename from earlier releases that persisted production metadata.
 - `rolldown/entry-module-closures.ts`: records each entry's static and dynamic source module closure in `generateBundle`, including inlined and tree-shaken imports.
-- `build-graph.ts`: shared entry path and output lookup (caller path, real path, and named grouped keys), plus emitted chunk reachability for persisted cache artifact checks. Local external imports remain leaves, including missing generated server modules.
+- `build-graph.ts`: shared entry path and output lookup (caller path, real path, and named grouped keys), plus emitted chunk reachability for in-process cache artifact checks. Local external imports remain leaves, including missing generated server modules.
 - `*.test.ts`: regression coverage colocated with each module.
 
 ## Default Flow
@@ -167,25 +167,19 @@ The table describes `rolldown` ownership. With `vite-host` ownership, profiles w
 
 Set `ECOPAGES_ROLLDOWN_BUILD_METRICS=1` to log Rolldown invocation counts during dev and production builds. Compare kitchen-sink dev navigation and `static-build-bench` before/after runtime changes.
 
-## Production build caches
+## Production builds
 
-Three persisted cache layers accelerate production builds. All use `.build-cache.json` manifests keyed by build-input fingerprints, by a hash of the config module and the project files it imports, and by hashes of every local module each entry loads, including modules in shared chunks and in chunks loaded through `import()`. Editing any of them misses the cache.
+Every new process compiles from source. Route-module transpile, the unified pages graph, and static HTML reuse stay in memory for the current process. They are keyed by build-input fingerprints, by a hash of the config module and the project files it imports, and by hashes of every local module each entry loads, including modules in shared chunks and in chunks loaded through `import()`. Editing any of them rebuilds in this process. A later `ecopages build` does not read `.build-cache.json` files from an earlier run.
 
 The adapter records source closures from Rolldown's module graph and all emitted chunk edges separately. `BuildResult.entryOutputs` is keyed by the path or grouped name the caller passed, plus the bundler's facade path when that spelling differs, so a symlink root or Windows drive casing still finds the chunk. Consumers look entries up through `getBuildEntryOutput` rather than by filename prefix. `outputGraph` supplies static and dynamic output reachability without parsing emitted JavaScript.
 
-| Cache                                  | On-disk location                                    | Module                                               |
-| -------------------------------------- | --------------------------------------------------- | ---------------------------------------------------- |
-| Server-entry bundle                    | `.eco/.server-entry/.build-cache.json`              | `cache/server-entry-build-cache.ts`                  |
-| Route-module transpile + static render | `<server-outdir>/.server-modules/.build-cache.json` | `route-module-build-cache.store.ts` (module-loading) |
-| Unified pages graph                    | `.eco/.server-pages-graph/.build-cache.json`        | `cache/pages-unified-graph-build.ts`                 |
-
-`requireBuildRuntime(appConfig).getProfile('server-entry')` serves server-entry bundling. `clearProductionBuildCaches()` wipes all three manifest trees, resets in-memory route-module state, and clears `buildRuntime`.
+`requireBuildRuntime(appConfig).getProfile('server-entry')` serves server-entry bundling. Every process bundles the server entry from source. `clearProductionBuildCaches()` deletes leftover `.build-cache.json` files from earlier releases, resets in-memory route-module and unified-graph state, and clears `buildRuntime`.
 
 The deploy manifest (`dist/.server/manifest.json`) records SHA-256 hashes of the source and emitted config whatever runtime ran the build, because `ecopages start` checks them from the Node CLI.
 
-Server-entry cache hits require every recorded runtime artifact. Cache misses build the server entry and emitted config in a sibling staging directory; the deploy manifest joins that generation before the directory is published. A failed build therefore leaves the previous server generation intact.
+The server entry and emitted config are built in a sibling staging directory; the deploy manifest joins that generation before the directory is published. A failed build therefore leaves the previous server generation intact.
 
-The route-module registry (`route-module-build-cache-registry.ts`) shares one `RouteModuleBuildCache` per `(app, outdir)` pair. Legacy `.server-route-modules` outdirs are still read for migration but new writes go to `.server-modules`.
+The route-module registry (`route-module-build-cache-registry.ts`) shares one `RouteModuleBuildCache` per `(app, outdir)` pair. Compiled chunks go to `.eco/.server-modules`.
 
 ## Server bundle deploy layout
 
@@ -210,18 +204,17 @@ Only installs whose package paths contain a `node_modules` folder are kept exter
 
 Production static exports compile all template pages in one Rolldown invocation when `shouldBuildPagesUnifiedGraph()` is true (default in production; opt out with `ECOPAGES_UNIFIED_PAGES_GRAPH=0`). Pages of an Integration that implements `compilePageModule()`, such as [HTML Pages](../html-pages/README.md), are compiled in-process and stay out of the graph.
 
-| Artifact       | Location                                              |
-| -------------- | ----------------------------------------------------- |
-| Graph manifest | `.eco/.server-pages-graph/.build-cache.json`          |
-| Chunk outputs  | `.eco/.server-modules/` (shared with per-route cache) |
+| Artifact      | Location                                              |
+| ------------- | ----------------------------------------------------- |
+| Chunk outputs | `.eco/.server-modules/` (shared with per-route cache) |
 
 `StaticSiteGenerator` calls `ensurePagesUnifiedGraphBuilt()` before the export loop. `PageModuleImportService` imports prebuilt chunks via `importPagesUnifiedGraphModule()` and falls back to per-page Rolldown on miss.
 
-A persisted graph is reused only when it matches the core package version, the build inputs and the build key, every local file reachable from its outputs still exists, every recorded source-file hash still matches, and the exact active template route set matches recorded outputs. Manifests without `dependencyHashes` are treated as absent, so a deleted layout or component cannot keep serving its compiled chunk. `importPagesUnifiedGraphModule()` applies the same check, because pages can be imported before the export loop runs. This is separate from production Page Browser Graph prebuild (`production-page-browser-graph-prebuild.ts`), which warms browser assets in `page-browser-graph-session`.
+The graph is reused only in this process, and only when it matches the core package version, the build inputs and the build key, every local file reachable from its outputs still exists, every recorded source-file hash still matches, and the exact active template route set matches recorded outputs. `importPagesUnifiedGraphModule()` applies the same check, because pages can be imported before the export loop runs. This is separate from production Page Browser Graph prebuild (`production-page-browser-graph-prebuild.ts`), which warms browser assets in `page-browser-graph-session`.
 
 `ECOPAGES_ROLLDOWN_BUILD_METRICS=1` enables `rolldown/rolldown-build-invocation-metrics.ts` counters used by bench and parity tests.
 
-Build-input fingerprinting lives in `cache/build-input-fingerprint.ts` and is shared with server-entry cache, unified pages graph, and static-render invalidation.
+Build-input fingerprinting lives in `cache/build-input-fingerprint.ts` and is shared with the unified pages graph and static-render invalidation.
 
 ## JSX Ownership Plugins
 

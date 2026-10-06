@@ -2,11 +2,7 @@ import path from 'node:path';
 import { bench, group } from 'mitata';
 import { build } from '../../../packages/core/src/build/build-adapter';
 import { requireBuildRuntime, installBuildRuntime } from '../../../packages/core/src/build/runtime/build-runtime';
-import {
-	getServerBundleOutputPaths,
-	lookupServerEntryBuildCache,
-	recordServerEntryBuildCache,
-} from '../../../packages/core/src/build/cache/server-entry-build-cache';
+import { getServerBundleOutputPaths } from '../../../packages/core/src/build/cache/server-entry-build-cache';
 import { getAppModuleLoader } from '../../../packages/core/src/services/module-loading/app-server-module-transpiler.service';
 import { resolveInternalExecutionDir } from '../../../packages/core/src/utils/resolve-work-dir';
 import { SERVER_BUNDLE_FILENAME } from '../../../packages/core/src/utils/resolve-entry-file';
@@ -32,11 +28,9 @@ const SERVER_ENTRY = path.join(KITCHEN_SINK_PATHS.root, 'app.ts');
 const REPRESENTATIVE_PAGES = Object.values(KITCHEN_SINK_REPRESENTATIVE_PAGES);
 
 let benchConfigPromise: Promise<Awaited<ReturnType<typeof loadStaticBuildBenchConfig>>> | undefined;
-let serverEntrySeeded = false;
 
 function resetBenchSessionState(): void {
 	benchConfigPromise = undefined;
-	serverEntrySeeded = false;
 }
 
 async function getBenchConfig(): Promise<Awaited<ReturnType<typeof loadStaticBuildBenchConfig>>> {
@@ -70,40 +64,6 @@ async function bundleServerEntryCold(appConfig: Awaited<ReturnType<typeof loadSt
 	);
 }
 
-async function ensureServerEntryCacheSeeded(): Promise<void> {
-	if (serverEntrySeeded) {
-		return;
-	}
-
-	const config = await loadStaticBuildBenchConfig();
-	const entryPath = SERVER_ENTRY;
-	const { serverOutdir, serverEntryPath } = getServerBundleOutputPaths(config);
-	installBuildRuntime(config);
-
-	const result = await build(
-		{
-			entrypoints: [entryPath],
-			outdir: serverOutdir,
-			naming: SERVER_BUNDLE_FILENAME,
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'hidden',
-			externalPackages: true,
-			root: config.rootDir,
-		},
-		requireBuildRuntime(config).getProfile('server-entry'),
-	);
-
-	recordServerEntryBuildCache({
-		appConfig: config,
-		entryPath,
-		buildResult: result,
-		outputPaths: result.outputs.length > 0 ? result.outputs.map((output) => output.path) : [serverEntryPath],
-	});
-
-	serverEntrySeeded = true;
-}
-
 async function importStaticPageWarm(
 	appConfig: Awaited<ReturnType<typeof loadStaticBuildBenchConfig>>,
 	filePath: string,
@@ -123,15 +83,6 @@ export function registerStaticBuildBench(): void {
 	group('static-build-bench', () => {
 		bench('kitchen-sink server entry bundle cold (app.ts)', async () => {
 			await bundleServerEntryCold(await getBenchConfig());
-		});
-
-		bench('kitchen-sink server entry bundle warm (.eco cache hit)', async () => {
-			await ensureServerEntryCacheSeeded();
-			const config = await getBenchConfig();
-			const cached = lookupServerEntryBuildCache({ appConfig: config, entryPath: SERVER_ENTRY });
-			if (!cached) {
-				throw new Error('Expected warm server-entry cache to be seeded');
-			}
 		});
 
 		bench('kitchen-sink route-module rolldown cold (index.kita.tsx)', async () => {

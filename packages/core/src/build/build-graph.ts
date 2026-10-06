@@ -115,7 +115,7 @@ export function getBuildEntryOutput(
 /**
  * @remarks
  * Traverses emitted chunk edges without reading output code. Local external
- * imports remain in the result even when missing, so persisted caches fail
+ * imports remain in the result even when missing, so in-process caches fail
  * validation when a generated server module has been removed.
  */
 export function collectBuildOutputImports(result: Pick<BuildResult, 'outputGraph'>, outputPath: string): string[] {

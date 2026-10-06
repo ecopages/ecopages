@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
 	compileHtmlPage,
 	compileHtmlShell,
+	findRelativeCssUrls,
 	getHtmlTemplateWatchFiles,
 	type HtmlPageTemplate,
 	type HtmlTemplatePart,
@@ -248,6 +249,99 @@ describe('compileHtmlPage', () => {
 			['srcset', '/a.jpg 1x, b.jpg 2x'],
 			['href', 'favicon.ico'],
 		]);
+	});
+
+	it('warns about relative URLs in media, object, SVG, and style attributes', () => {
+		const warn = vi.fn();
+		compileHtmlPage(
+			pageFile,
+			[
+				'<head><meta name="description" content="x.png">',
+				'<link rel="preload" as="image" href="/hero.jpg" imagesrcset="hero-1x.jpg 1x, /hero-2x.jpg 2x"></head>',
+				'<video poster="frame.jpg"></video><object data="doc.pdf"></object>',
+				'<svg><use xlink:href="sprite.svg#a"></use><use href="#local"></use><a xlink:href="next">n</a></svg>',
+				'<div style="background: url(\'bg.png\')"></div><div style="background: url(data:image/png;base64,AA)"></div>',
+			].join(''),
+			{ ...options, warn },
+		);
+
+		expect(warn.mock.calls.map(([message]) => message.match(/relative ([\w:]+)="/)?.[1])).toEqual([
+			'imagesrcset',
+			'poster',
+			'data',
+			'xlink:href',
+			'style',
+		]);
+	});
+
+	it('asks for an absolute URL on social image tags, also when the URL is root-relative', () => {
+		const warn = vi.fn();
+		compileHtmlPage(
+			pageFile,
+			[
+				'<head><meta property="og:image" content="og.png"><meta property="og:image:secure_url" content="/og.png">',
+				'<meta property="og:image:url" content="https://example.com/og.png"><meta name="twitter:image" content="/tw.png">',
+				'<meta name="twitter:image:src" content="tw.png"><meta property="og:image:alt" content="x.png"></head>',
+			].join(''),
+			{ ...options, warn },
+		);
+
+		expect(warn.mock.calls.map(([message]) => message.match(/content="[^"]*" on <meta [^>]+>/)?.[0])).toEqual([
+			'content="og.png" on <meta property="og:image">',
+			'content="/og.png" on <meta property="og:image:secure_url">',
+			'content="/tw.png" on <meta name="twitter:image">',
+			'content="tw.png" on <meta name="twitter:image:src">',
+		]);
+		expect(warn.mock.calls[0]![0]).toContain('Use an absolute URL');
+	});
+
+	it('finds relative CSS URLs in url() and image-set() strings, skipping comments', () => {
+		expect(
+			findRelativeCssUrls(
+				'/* url(old.png) */ a { background: image-set(\'a.png\' 1x, url(b.png) 2x, "/c.png" 3x); mask: url("data:x") url(d.svg#m); }',
+			),
+		).toEqual(['b.png', 'd.svg#m', 'a.png']);
+	});
+
+	it('records a relative preload link as a preload hint, not a processed file', () => {
+		const warn = vi.fn();
+		const template = compileHtmlPage(
+			pageFile,
+			'<link rel="modulepreload" href="./counter.ts"><link rel="preload" as="font" href="../../fonts/a.woff2" integrity="sha384-x"><link rel="preload" as="style" href="a.css"><link rel="preload" as="script" href="b.js"><script type="module" src="./counter.ts"></script>',
+			{ ...options, warn },
+		);
+
+		expect(template.assets.map((asset) => asset.kind === 'preload' && asset.preloads)).toEqual([
+			'module-script',
+			undefined,
+			'stylesheet',
+			'classic-script',
+			false,
+		]);
+		expect(template.assets[0]).toMatchObject({ filepath: '/app/src/pages/counter.ts', integrity: false });
+		expect(template.assets[1]).toMatchObject({ integrity: true });
+		expect(getHtmlTemplateWatchFiles(template)).toEqual(['/app/src/pages/counter.ts']);
+		expect(warn).not.toHaveBeenCalled();
+	});
+
+	it('rejects an inline module script with a relative import, and leaves other inline scripts literal', () => {
+		for (const script of [
+			"import { a } from './a.ts';",
+			"export * from '../shared.js';",
+			"const { b } = await import('./b.ts');",
+			'const { c } = await import(`./c.ts`);',
+		]) {
+			expect(() => compileHtmlPage(pageFile, `<script type="module">${script}</script>`, options)).toThrow(
+				`${pageFile}: an inline <script type="module"> imports "`,
+			);
+		}
+
+		const template = compileHtmlPage(
+			pageFile,
+			"<script type=\"module\">import 'lit'; import '/x.js'; import(`./${name}.js`);</script><script>import('./c.js');</script>",
+			options,
+		);
+		expect(template.assets).toEqual([]);
 	});
 
 	it('rejects a second <head>, an integrity attribute, and paths outside the source directory', () => {

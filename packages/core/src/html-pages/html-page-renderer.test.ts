@@ -6,10 +6,17 @@ import { installBuildRuntime } from '../build/runtime/build-runtime.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
 import type { AssetDefinition } from '../services/assets/asset-processing-service/assets.types.ts';
+import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { EcoComponent, HtmlTemplateProps, IntegrationRendererRenderOptions } from '../types/public-types.ts';
 import { getBuiltInHtmlShell, getCompiledHtmlTemplate, loadHtmlPageModule } from './html-page-module.ts';
 import { HtmlPageRenderer } from './html-page-renderer.ts';
+import { findHtmlFilesLoading } from './html-page-module-scripts.ts';
+
+vi.mock('./html-page-module-scripts.ts', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('./html-page-module-scripts.ts')>();
+	return { ...actual, findHtmlFilesLoading: vi.fn(actual.findHtmlFilesLoading) };
+});
 
 describe('HtmlPageRenderer', () => {
 	let rootDir: string;
@@ -151,6 +158,179 @@ describe('HtmlPageRenderer', () => {
 		const html = String(await renderPage(createRenderer(), file, shell as EcoComponent<HtmlTemplateProps>));
 
 		expect(html.match(/href="\/assets\/site\.css"/g)).toHaveLength(1);
+	});
+
+	/** Runs `run` in development and returns the messages it logged with `appLogger.warn()`. */
+	const devWarnings = async (run: () => Promise<unknown>) => {
+		vi.stubEnv('NODE_ENV', 'development');
+		const warn = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
+		try {
+			await run();
+			return warn.mock.calls.map(([message]) => String(message));
+		} finally {
+			warn.mockRestore();
+			vi.unstubAllEnvs();
+		}
+	};
+	const builtInShell = () => getBuiltInHtmlShell() as EcoComponent<HtmlTemplateProps>;
+	const loadShell = async (source: string) => {
+		write('src/includes/html.html', source);
+		appConfig = await finalizeEcoPagesConfig({ rootDir });
+		return loadHtmlPageModule(appConfig, appConfig.absolutePaths.htmlTemplatePath)
+			.default as EcoComponent<HtmlTemplateProps>;
+	};
+
+	describe('preload hints', () => {
+		it('points a preload at the processed file of the shell, and warns once about one that names no processed file', async () => {
+			write('src/styles/site.css', 'body { color: red; }');
+			const shell = await loadShell(
+				'<html><head><link rel="stylesheet" href="../styles/site.css"></head><body><!-- eco:children --></body></html>',
+			);
+			const file = write(
+				'src/pages/about.html',
+				'<head><link rel="preload" as="style" href="../styles/site.css"><link rel="preload" as="font" href="./font.woff2" crossorigin></head><main>About</main>',
+			);
+			const renderer = createRenderer();
+			let html = '';
+
+			const warnings = await devWarnings(async () => {
+				html = String(await renderPage(renderer, file, shell));
+				await renderPage(renderer, file, shell);
+			});
+
+			expect(html).toContain('<link rel="preload" as="style" href="/assets/site.css">');
+			expect(html).toContain('<link rel="preload" as="font" href="./font.woff2" crossorigin>');
+			expect(warnings).toHaveLength(1);
+			expect(warnings[0]).toContain(
+				'the preload for "./font.woff2" names no stylesheet or script this Page or its shell processes',
+			);
+		});
+
+		it('points a preload at a stylesheet of the Page, processing the file once', async () => {
+			write('src/pages/about.css', 'main { color: red; }');
+			const file = write(
+				'src/pages/about.html',
+				'<head><link rel="preload" as="style" href="./about.css"><link rel="stylesheet" href="./about.css"></head><main>About</main>',
+			);
+
+			const html = String(await renderPage(createRenderer(), file, builtInShell()));
+
+			expect(html).toContain('<link rel="preload" as="style" href="/assets/about.css">');
+			expect(html).toContain('<link rel="stylesheet" href="/assets/about.css">');
+			expect(processed.filter((definition) => 'filepath' in definition)).toHaveLength(1);
+		});
+
+		it('leaves a preload whose kind does not match the file as written, naming the right preload', async () => {
+			write('src/pages/counter.ts', "console.log('counter');");
+			write('src/pages/about.css', 'main { color: red; }');
+			const file = write(
+				'src/pages/about.html',
+				'<head><link rel="preload" as="script" href="./counter.ts"><link rel="modulepreload" href="./about.css"><link rel="stylesheet" href="./about.css"></head><script type="module" src="./counter.ts"></script>',
+			);
+			const renderer = new HtmlPageRenderer({
+				appConfig,
+				assetProcessingService: {
+					processDependencies: assetService.processDependencies,
+					getHmrManager: () => ({ isEnabled: () => true }),
+				} as unknown as AssetProcessingService,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+			let html = '';
+
+			const warnings = await devWarnings(async () => {
+				html = String(await renderPage(renderer, file, builtInShell()));
+			});
+
+			expect(html).toContain('<link rel="preload" as="script" href="./counter.ts">');
+			expect(html).toContain('<link rel="modulepreload" href="./about.css">');
+			expect(warnings).toEqual([
+				expect.stringContaining(
+					'"./counter.ts" names a module script, so it is left as written. Use <link rel="modulepreload">',
+				),
+				expect.stringContaining(
+					'"./about.css" names a stylesheet, so it is left as written. Use <link rel="preload" as="style">',
+				),
+			]);
+		});
+
+		it('rejects an integrity attribute on a preload it rewrites, and keeps one it leaves as written', async () => {
+			write('src/pages/about.css', 'main { color: red; }');
+			const rewritten = write(
+				'src/pages/about.html',
+				'<head><link rel="preload" as="style" href="./about.css" integrity="sha384-x"><link rel="stylesheet" href="./about.css"></head>',
+			);
+			const literal = write(
+				'src/pages/font.html',
+				'<head><link rel="preload" as="font" href="./font.woff2" integrity="sha384-x"></head>',
+			);
+			let html = '';
+
+			await expect(renderPage(createRenderer(), rewritten, builtInShell())).rejects.toThrow(
+				`${rewritten}: the preload for "./about.css" has an integrity attribute`,
+			);
+			const warnings = await devWarnings(async () => {
+				html = String(await renderPage(createRenderer(), literal, builtInShell()));
+			});
+
+			expect(html).toContain('<link rel="preload" as="font" href="./font.woff2" integrity="sha384-x">');
+			expect(warnings).toEqual([expect.stringContaining('the preload for "./font.woff2" names no stylesheet')]);
+		});
+
+		it('warns that a shell preload names a file only a Page loads', async () => {
+			write('src/pages/about.css', 'main { color: red; }');
+			write('src/pages/about.html', '<head><link rel="stylesheet" href="./about.css"></head><main>About</main>');
+			const shell = await loadShell(
+				'<html><head><link rel="preload" as="style" href="../pages/about.css"></head><body><!-- eco:children --></body></html>',
+			);
+			const file = write('src/pages/index.html', '<main>Home</main>');
+
+			const warnings = await devWarnings(() => renderPage(createRenderer(), file, shell));
+
+			expect(warnings).toEqual([
+				expect.stringContaining(
+					'the preload for "../pages/about.css" names a file only src/pages/about.html loads, so it is left as written. A preload in the shell can name only a file the shell loads',
+				),
+			]);
+		});
+
+		it('warns that a Page preloads a module script only another Page loads', async () => {
+			write('src/pages/counter.ts', "console.log('counter');");
+			write('src/pages/other.html', '<script type="module" src="./counter.ts"></script>');
+			const file = write('src/pages/index.html', '<head><link rel="modulepreload" href="./counter.ts"></head>');
+
+			vi.mocked(findHtmlFilesLoading).mockClear();
+			const renderer = createRenderer();
+
+			const warnings = await devWarnings(async () => {
+				await renderPage(renderer, file, builtInShell());
+				await renderPage(renderer, file, builtInShell());
+			});
+
+			expect(warnings).toEqual([
+				expect.stringContaining(
+					'the preload for "./counter.ts" names a file only src/pages/other.html loads, so it is left as written. Load the file on this Page too',
+				),
+			]);
+			expect(findHtmlFilesLoading).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	it('warns once per file revision about a relative url() left in processed <style> output', async () => {
+		const source = "<style>main { background: url('bg.png'); } h1 { background: url(/root.png); }</style>";
+		const file = write('src/pages/about.html', `${source}<main>About</main>`);
+		const renderer = createRenderer();
+
+		const warnings = await devWarnings(async () => {
+			await renderPage(renderer, file, builtInShell());
+			await renderPage(renderer, file, builtInShell());
+			writeFileSync(file, `${source}<main>About us</main>`);
+			await renderPage(renderer, file, builtInShell());
+		});
+
+		expect(warnings).toHaveLength(2);
+		expect(warnings[0]).toContain('url(bg.png) in a processed <style>');
+		expect(warnings[1]).toBe(warnings[0]);
 	});
 
 	describe('module scripts, built for real', () => {
@@ -455,6 +635,22 @@ describe('HtmlPageRenderer', () => {
 			expect(readOutput(scriptUrls(await render(file))[0]!)).toContain('COUNTER_CODE');
 		});
 
+		it('points a modulepreload for a module script at the emitted file', async () => {
+			write('src/pages/counter.ts', "import '../components/x-btn.ts';\nconsole.log('counter');");
+			const file = write(
+				'src/pages/index.html',
+				'<head><link rel="modulepreload" href="./counter.ts"></head><main>Home</main><script type="module" src="./counter.ts"></script>',
+			);
+			await setup();
+
+			const html = await render(file);
+
+			const [scriptUrl] = scriptUrls(html);
+			expect(scriptUrl).toMatch(/^\/assets\/pages\/counter-[^/]+\.js$/);
+			expect(html).toContain(`<link rel="modulepreload" href="${scriptUrl}">`);
+			expect(readOutput(scriptUrl!)).toContain('console.log("counter")');
+		});
+
 		it('emits a separate entry for module scripts whose paths differ only by extension', async () => {
 			write('src/pages/a.ts', "console.log('from ts');");
 			write('src/pages/a.js', "console.log('from js');");
@@ -500,6 +696,16 @@ describe('HtmlPageRenderer', () => {
 			writeFileSync(main, "console.log('main without the stylesheet');");
 
 			expect(await renderWithHmr(file)).toContain('<script type="module" src="/assets/main.ts">');
+		});
+
+		it('points a modulepreload for a module script at its HMR URL', async () => {
+			write('src/pages/main.ts', "console.log('main');");
+			const file = write(
+				'src/pages/index.html',
+				'<head><link rel="modulepreload" href="./main.ts"></head><script type="module" src="./main.ts"></script>',
+			);
+
+			expect(await renderWithHmr(file)).toContain('<link rel="modulepreload" href="/assets/main.ts">');
 		});
 
 		it('renders a script that imports a stylesheet as a string', async () => {

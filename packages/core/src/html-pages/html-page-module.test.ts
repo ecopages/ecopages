@@ -51,6 +51,36 @@ describe('html-page-module', () => {
 		}
 	});
 
+	it('warns once per file revision about a relative poster and a relative og:image', () => {
+		vi.stubEnv('NODE_ENV', 'development');
+		const warn = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
+		const file = path.join(rootDir, 'src/pages/video.html');
+		try {
+			writeFileSync(
+				file,
+				'<head><meta property="og:image" content="cover.png"></head><main><video poster="./frame.jpg"></video></main>',
+			);
+			loadHtmlPageModule(appConfig, file);
+			loadHtmlPageModule(appConfig, file);
+
+			expect(warn.mock.calls.map(([message]) => String(message).match(/(?:relative )?\w+="[^"]*"/)?.[0])).toEqual(
+				['content="cover.png"', 'relative poster="./frame.jpg"'],
+			);
+		} finally {
+			warn.mockRestore();
+			vi.unstubAllEnvs();
+		}
+	});
+
+	it('fails to load a Page whose inline module script imports a relative file, naming the file', () => {
+		const file = path.join(rootDir, 'src/pages/inline.html');
+		writeFileSync(file, `<main>Inline</main><script type="module">import './x.ts';</script>`);
+
+		expect(() => loadHtmlPageModule(appConfig, file)).toThrow(
+			`${file}: an inline <script type="module"> imports "./x.ts"`,
+		);
+	});
+
 	it('merges Page head metadata over defaultMetadata', async () => {
 		const file = path.join(rootDir, 'src/pages/about.html');
 		writeFileSync(file, '<head><title>About</title></head><main>About</main>');

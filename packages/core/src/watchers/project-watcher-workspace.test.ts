@@ -156,7 +156,7 @@ test('ignores installed and hidden linked-package files while app source retains
 	);
 	await new Promise((resolve) => setTimeout(resolve, 150));
 	restart.mockClear();
-	hmrManager.handleFileChange.mockClear();
+	vi.mocked(hmrManager.handleFileChange).mockClear();
 	for (const file of ignoredPaths) writeFileSync(file, 'export const value = 2;');
 	writeFileSync(appSource, 'export const value = 2;');
 	await vi.waitFor(() => expect(hmrManager.handleFileChange).toHaveBeenCalledWith(appSource, expect.anything()), {

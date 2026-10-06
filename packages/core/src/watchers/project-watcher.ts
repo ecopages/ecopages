@@ -598,14 +598,15 @@ export class ProjectWatcher {
 		this.watcher = chokidar.watch(
 			[...literalPaths, ...this.workspacePackageRoots, ...new Set(globWatchPaths.map(({ base }) => base))],
 			{
-			ignoreInitial: true,
-			ignorePermissionErrors: true,
-			ignored,
-			awaitWriteFinish: {
-				stabilityThreshold: 50,
-				pollInterval: 50,
+				ignoreInitial: true,
+				ignorePermissionErrors: true,
+				ignored,
+				awaitWriteFinish: {
+					stabilityThreshold: 50,
+					pollInterval: 50,
+				},
 			},
-		});
+		);
 
 		this.watcher
 			.on('change', (p) => this.handleFileChange(p, 'change'))

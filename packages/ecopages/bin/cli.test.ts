@@ -271,6 +271,28 @@ describe('CLI Commands', () => {
 		);
 	});
 
+	it.each([
+		['build', '--build'],
+		['preview', '--preview'],
+	])('forwards --force to %s', async (command, entryArg) => {
+		await runCli([command, '--force']);
+		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
+			[entryArg, '--force'],
+			expect.objectContaining({ nodeEnv: 'production' }),
+			'app.ts',
+			command,
+		);
+	});
+
+	it('rejects --force for commands that do not build', async () => {
+		const exitSpy = mockProcessExit();
+
+		await expect(runCli(['start', '--force'])).rejects.toThrow('process.exit:1');
+		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
+
+		exitSpy.mockRestore();
+	});
+
 	it('passes shared build options like base url and hostname correctly', async () => {
 		await runCli(['build', '--base-url', '/docs/', '--hostname', '127.0.0.1']);
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(

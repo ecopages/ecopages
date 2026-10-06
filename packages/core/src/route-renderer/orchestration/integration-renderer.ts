@@ -1054,11 +1054,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		});
 	}
 
+	/**
+	 * Stamps `result` as an Island Host when the component itself declares a client script.
+	 *
+	 * @remarks Reads the component's own declarations, excluding Foreign Children, instead of `result.assets`,
+	 * which also carries the assets of Foreign Subtrees and of declared Foreign Children. Components without
+	 * `dependencies` emit no assets of their own, so they are never stamped.
+	 */
 	protected finalizeIslandComponentRender(
 		input: ComponentRenderInput,
 		result: ComponentRenderResult,
 	): ComponentRenderResult {
-		return finalizeIslandComponentRender(input, result);
+		const ownAssets = input.component.config?.dependencies
+			? this.dependencyResolverService.collectOwnComponentDependencies([input.component], this.name)
+			: undefined;
+		return finalizeIslandComponentRender(input, result, ownAssets);
 	}
 
 	private normalizeComponentRenderOutput(result: ComponentRenderResult): ComponentRenderResult {

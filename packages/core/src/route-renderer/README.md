@@ -136,7 +136,7 @@ Not every integration needs queue-based handoff.
 
 - React islands are emitted without synthetic wrapper elements.
 - The React integration attaches island host attributes (`data-eco-island`, `data-eco-component-id`, `data-eco-component-key`, `data-eco-props`) to the SSR root when a single root exists.
-- Other integrations call `finalizeIslandComponentRender()` from core when a component instance ships client scripts. See `packages/core/src/islands/README.md`.
+- Other integrations call `finalizeIslandComponentRender()` from core when a component instance ships its own client scripts, excluding those of Foreign Children. See `packages/core/src/islands/README.md`.
 - The island bootstrap mounts with `createRoot()` into that SSR root.
 - Hydration bootstraps listen for `eco:after-swap` so islands hydrate after client-side navigation.
 

@@ -24,7 +24,9 @@ commit for development diagnostics.
 
 1. `integrationContext.componentInstanceId` is present
 2. The render result can attach attributes to a single root element
-3. The render emits at least one client `script` asset
+3. The component's own assets include at least one client `script`
+
+Own assets are the scripts and stylesheets the component declares, plus those of nested components of the same Integration, excluding Foreign Children (declared in `dependencies.components` or rendered as Foreign Subtrees) and their descendants. They are passed separately from the render result: `result.assets` keeps the merged list for the Page. `IntegrationRenderer` collects them from the component's dependency declarations, so a component without scripts that wraps another Integration's island is not stamped.
 
 Integrations write `data-eco-props` through `buildIslandHostAttributes()`, which encodes the JSON as UTF-8 before base64; plain `btoa` handles Latin-1 only and throws on text such as `€`, CJK or emoji. Browser code that cannot import core (the React hydration lifecycle and the dev toolbar) keeps its own decoder; their tests and core's test use the same encoded fixture, so a format change fails them.
 

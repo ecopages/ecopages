@@ -202,7 +202,7 @@ describe('KitaRenderer', () => {
 		});
 	});
 
-	it('should resolve foreign boundaries inside the Kita renderer and bubble nested assets', async () => {
+	it('should resolve foreign boundaries inside the Kita renderer and bubble nested assets without marking the script-less shell as an island host', async () => {
 		const deferredRenderComponent = vi.fn(async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
 			html: '<button data-testid="deferred-widget">Deferred widget</button>',
 			canAttachAttributes: true,
@@ -281,6 +281,7 @@ describe('KitaRenderer', () => {
 				position: 'body',
 			}),
 		]);
+		expect(result.rootAttributes?.['data-eco-island']).toBeUndefined();
 		expect(deferredRenderComponent).toHaveBeenCalledTimes(1);
 	});
 

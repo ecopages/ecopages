@@ -1,7 +1,7 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { BuildResult } from '../../build/build-adapter.ts';
+import { resolveBuildEntryPath } from '../../build/build-graph.ts';
 
 /**
  * Content hashes for every trackable source file in one route module's import graph.
@@ -134,7 +134,7 @@ export class RouteModuleDependencyHasher {
  */
 export function isTrackableRouteModuleDependency(modulePath: string): boolean {
 	const normalizedPath = path.normalize(modulePath);
-	if (normalizedPath.startsWith('node:')) {
+	if (!path.isAbsolute(normalizedPath)) {
 		return false;
 	}
 
@@ -174,36 +174,15 @@ export function resolveRouteModuleDependencyPaths(
 	entrypointPath: string,
 	rootDir: string,
 ): string[] {
-	const normalizedEntrypoint = path.isAbsolute(entrypointPath)
-		? path.normalize(entrypointPath)
-		: path.normalize(path.resolve(rootDir, entrypointPath));
+	const normalizedEntrypoint = resolveBuildEntryPath(entrypointPath, rootDir);
 
-	let realEntrypoint: string | undefined;
-	try {
-		realEntrypoint = fileSystem.exists(normalizedEntrypoint) ? fs.realpathSync(normalizedEntrypoint) : undefined;
-	} catch {
-		// fall back
-	}
-
-	const graphEntrypoints = buildResult.dependencyGraph?.entrypoints ?? {};
-	const dependencyPaths =
-		graphEntrypoints[normalizedEntrypoint] ??
-		(realEntrypoint ? graphEntrypoints[realEntrypoint] : undefined) ??
-		graphEntrypoints[entrypointPath] ??
-		Object.entries(graphEntrypoints).find(([candidate]) => {
-			const norm = path.normalize(candidate);
-			return norm === normalizedEntrypoint || (realEntrypoint !== undefined && norm === realEntrypoint);
-		})?.[1];
+	const dependencyPaths = buildResult.dependencyGraph?.entrypoints[normalizedEntrypoint];
 
 	if (!dependencyPaths || dependencyPaths.length === 0) {
 		return [normalizedEntrypoint];
 	}
 
-	return dependencyPaths.map((dependencyPath) =>
-		path.isAbsolute(dependencyPath)
-			? path.normalize(dependencyPath)
-			: path.normalize(path.resolve(rootDir, dependencyPath)),
-	);
+	return dependencyPaths;
 }
 
 /**

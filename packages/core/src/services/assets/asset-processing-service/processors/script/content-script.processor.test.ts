@@ -4,6 +4,7 @@ import { ContentScriptProcessor } from './content-script.processor';
 import type { EcoPagesAppConfig } from '../../../../../types/internal-types.ts';
 import type { ContentScriptAsset } from '../../assets.types.ts';
 import type { BrowserBundleGroupedEntry } from '../../../browser-bundle.service.ts';
+import { BrowserBundleService } from '../../../browser-bundle.service.ts';
 
 function createMockConfig(): EcoPagesAppConfig {
 	return {
@@ -87,6 +88,47 @@ describe('ContentScriptProcessor', () => {
 	afterEach(() => {
 		process.env.NODE_ENV = originalNodeEnv;
 		vi.restoreAllMocks();
+	});
+
+	test.each([false, true])('maps blog and blog-post to their own outputs with reversed order %s', async (reverse) => {
+		const outputs = ['/test/project/assets/pages__blog-post-hash.js', '/test/project/assets/pages__blog-hash.js'];
+		vi.spyOn(BrowserBundleService.prototype, 'bundleGroupedEntries').mockImplementation(async (entries) => ({
+			success: true,
+			logs: [],
+			outputs: (reverse ? [...outputs].reverse() : outputs).map((path) => ({ path })),
+			entryOutputs: Object.fromEntries(
+				entries.map((entry) => [entry.entrypoint, entry.entryName === 'pages__blog' ? outputs[1] : outputs[0]]),
+			),
+		}));
+		const processor = new ContentScriptProcessor({ appConfig: createMockConfig() });
+		const result = await processor.processGrouped(
+			['blog', 'blog-post'].map((name) => ({
+				kind: 'script',
+				source: 'content',
+				content: `console.log('${name}');`,
+				groupedBundle: { id: 'pages', entryName: `pages__${name}` },
+			})),
+		);
+		expect(result.map((asset) => asset.filepath)).toEqual([outputs[1], outputs[0]]);
+	});
+
+	test('rejects a grouped build without an entry output record instead of guessing from its filename', async () => {
+		vi.spyOn(BrowserBundleService.prototype, 'bundleGroupedEntries').mockResolvedValue({
+			success: true,
+			logs: [],
+			outputs: [{ path: '/test/project/assets/pages__blog-hash.js' }],
+		});
+		const processor = new ContentScriptProcessor({ appConfig: createMockConfig() });
+		await expect(
+			processor.processGrouped([
+				{
+					kind: 'script',
+					source: 'content',
+					content: 'console.log("blog");',
+					groupedBundle: { id: 'pages', entryName: 'pages__blog' },
+				},
+			]),
+		).rejects.toThrow('No build output generated for grouped entry pages__blog');
 	});
 
 	test('processGrouped should bundle grouped entries together and preserve logical entry mapping', async () => {

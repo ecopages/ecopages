@@ -13,6 +13,7 @@ import { builtinModules, createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveBuildEntryPath } from '../build-graph.ts';
 import type { InputOptions, OutputChunk, OutputOptions, RolldownOutput, RolldownPlugin } from 'rolldown';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
@@ -435,55 +436,6 @@ function normalizeOutputPath(outputPath: string, outdir: string): string {
 	return path.isAbsolute(outputPath) ? path.normalize(outputPath) : path.normalize(path.join(outdir, outputPath));
 }
 
-function normalizeModulePath(modulePath: string, contextRoot: string): string {
-	return path.isAbsolute(modulePath)
-		? path.normalize(modulePath)
-		: path.normalize(path.resolve(contextRoot, modulePath));
-}
-
-type ChunkGraphFacts = Pick<
-	OutputChunk,
-	'fileName' | 'isEntry' | 'facadeModuleId' | 'moduleIds' | 'imports' | 'dynamicImports'
->;
-
-/**
- * Maps each entry chunk's facade module to every module in its static and dynamic chunk closure.
- *
- * @remarks
- * With code splitting, a module shared by several entries, or reached through `import()`, lives in a
- * separate chunk, so the entry chunk's `moduleIds` alone miss it.
- */
-export function extractDependencyGraph(chunks: ChunkGraphFacts[], contextRoot: string): BuildDependencyGraph {
-	const chunksByFileName = new Map(chunks.map((chunk) => [chunk.fileName, chunk]));
-	const chunkModules = new Map(
-		chunks.map((chunk) => [chunk, chunk.moduleIds.map((id) => normalizeModulePath(id, contextRoot))]),
-	);
-	const entrypoints: Record<string, string[]> = {};
-
-	for (const entryChunk of chunks) {
-		if (!entryChunk.isEntry || !entryChunk.facadeModuleId) {
-			continue;
-		}
-		const entrypointPath = normalizeModulePath(entryChunk.facadeModuleId, contextRoot);
-		const modules = new Set([entrypointPath]);
-		const closure = new Set([entryChunk]);
-		for (const chunk of closure) {
-			for (const modulePath of chunkModules.get(chunk) ?? []) {
-				modules.add(modulePath);
-			}
-			for (const fileName of [...chunk.imports, ...chunk.dynamicImports]) {
-				const imported = chunksByFileName.get(fileName);
-				if (imported) {
-					closure.add(imported);
-				}
-			}
-		}
-		entrypoints[entrypointPath] = Array.from(modules);
-	}
-
-	return { entrypoints };
-}
-
 export function toBuildLogs(error: unknown): BuildLog[] {
 	if (error instanceof Error) {
 		return [{ message: error.message }];
@@ -709,23 +661,33 @@ export function buildResultFromRolldownOutput(
 	output: RolldownOutput,
 	outdir: string,
 	contextRoot: string,
+	dependencyGraph: BuildDependencyGraph,
 ): BuildResult {
 	const outputs: BuildOutput[] = output.output.map((entry) => ({
 		path: normalizeOutputPath(entry.fileName, outdir),
 	}));
 
 	const chunks = output.output.filter((entry): entry is OutputChunk => entry.type === 'chunk');
-	const entryChunks = chunks.filter((chunk) => chunk.isEntry);
 
-	const dependencyGraph = entryChunks.length > 0 ? extractDependencyGraph(chunks, contextRoot) : undefined;
+	const chunkNames = new Set(chunks.map((chunk) => chunk.fileName));
+	const outputImport = (id: string) => (chunkNames.has(id) ? normalizeOutputPath(id, outdir) : id);
+	const outputGraph = Object.fromEntries(
+		chunks.map((chunk) => [
+			normalizeOutputPath(chunk.fileName, outdir),
+			{
+				fileName: normalizeOutputPath(chunk.fileName, outdir),
+				imports: chunk.imports.map(outputImport),
+				dynamicImports: chunk.dynamicImports.map(outputImport),
+				isEntry: chunk.isEntry,
+				facadeModuleId: chunk.facadeModuleId ? resolveBuildEntryPath(chunk.facadeModuleId, contextRoot) : null,
+			},
+		]),
+	);
 
 	const entryOutputs: Record<string, string> = {};
-	for (const chunk of entryChunks) {
-		if (chunk.facadeModuleId) {
-			entryOutputs[normalizeModulePath(chunk.facadeModuleId, contextRoot)] = normalizeOutputPath(
-				chunk.fileName,
-				outdir,
-			);
+	for (const chunk of Object.values(outputGraph)) {
+		if (chunk.isEntry && chunk.facadeModuleId) {
+			entryOutputs[chunk.facadeModuleId] = chunk.fileName;
 		}
 	}
 
@@ -734,6 +696,7 @@ export function buildResultFromRolldownOutput(
 		logs: [],
 		outputs,
 		dependencyGraph,
-		entryOutputs: entryChunks.length > 0 ? entryOutputs : undefined,
+		outputGraph,
+		entryOutputs,
 	};
 }

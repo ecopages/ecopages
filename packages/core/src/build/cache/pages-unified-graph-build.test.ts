@@ -23,7 +23,6 @@ import {
 	getTotalRolldownBuildInvocations,
 	resetRolldownBuildInvocationCounts,
 } from '../rolldown/rolldown-build-invocation-metrics.ts';
-import { collectReachableLocalImports } from './output-imports.ts';
 import { getServerModuleBuildCacheOutdir } from '../../services/module-loading/route-module-build-cache-registry.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 
@@ -271,13 +270,6 @@ describe('pages-unified-graph-build', () => {
 			force: true,
 		});
 		assert.ok(manifest);
-
-		const recorded = new Set(manifest.outputImports);
-		for (const outputPath of Object.values(manifest.outputs)) {
-			for (const reachable of collectReachableLocalImports(outputPath)) {
-				assert.equal(recorded.has(reachable), true, `missing reachable import ${reachable}`);
-			}
-		}
 
 		const nestedImport = manifest.outputImports.find(
 			(importPath) => !Object.values(manifest.outputs).includes(importPath),

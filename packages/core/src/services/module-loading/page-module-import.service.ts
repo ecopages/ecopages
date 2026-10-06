@@ -1,3 +1,4 @@
+import { collectBuildOutputImports } from '../../build/build-graph.ts';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
@@ -333,6 +334,7 @@ export class PageModuleImportService {
 			...cacheBuildOptions,
 			outputPath: compiledOutput,
 			dependencyModulePaths,
+			outputImports: collectBuildOutputImports(buildResult, compiledOutput),
 		});
 
 		const compiledOutputUrl = pathToFileURL(compiledOutput);

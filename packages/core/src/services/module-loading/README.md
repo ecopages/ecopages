@@ -30,6 +30,8 @@ Call site (route scan, renderer, SSG, API)
 
 ## Caching layers
 
+Source dependency hashes use the adapter's entry module closure, including inlined and tree-shaken imports. Compiled artifact checks use its emitted chunk graph, including static and dynamic chunks and local external generated modules as leaves. The cache store receives this reachable artifact list from its build caller and never reparses emitted JavaScript.
+
 1. **In-memory promise cache** (`PageModuleImportService.importCache`) — keyed by runtime, file path, content-derived reuse identity (`createRouteModuleReuseIdentity`), and source hash. Cleared by `invalidateDevelopmentGraph()`.
 2. **Disk transpile cache** (`.eco/.server-modules/.build-cache.json`) — production and stable development graphs when dependency hashes match. The build key includes a hash of the config module and the project files it imports, so plugin options defined there invalidate entries even though plugin identity cannot see them. Manifest field `corePackageVersion` invalidates entries when the framework package changes. An entry is also reused only while every local file its compiled output imports still exists. Rebuilding a route module (`recordBuild()`) drops `renderedOutputs` so incremental static generation re-renders HTML instead of serving stale output after dependency or template edits.
 3. **Unified graph manifest** — production static export fast path only; see build layer docs. Reuse also requires matching source-file hashes and an exact match against the active template route set, so a deleted or edited layout or component cannot keep serving its compiled chunk.

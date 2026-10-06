@@ -55,10 +55,11 @@ export interface ApplicationRuntimeOptions {
 	 */
 	embedded?: boolean;
 	/**
-	 * Selects which layer injects browser dev-client bootstrap (HMR runtime, reload).
+	 * Selects which layer injects the browser dev client.
 	 *
-	 * `host` disables core injection and reload signaling so embedded hosts like
-	 * Vite own the full dev-client surface.
+	 * `host` turns off core's HMR runtime injection into HTML. Core still sends reloads and HMR events
+	 * through the client bridge on `/_hmr`, so the host's browser client must listen there; under the
+	 * Vite plugin that client is the Ecopages HMR runtime.
 	 */
 	devClientOwner?: 'core' | 'host';
 	/**

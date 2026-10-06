@@ -30,8 +30,6 @@ export interface ProjectWatcherConfig {
 	refreshRouterRoutesCallback: () => Promise<void>;
 	hmrManager: IHmrManager;
 	bridge: IClientBridge;
-	/** When true, the host dev server owns browser dev-client bootstrap. */
-	hostOwnsDevClient?: boolean;
 	/** Delay before a change event is processed; 0 disables debouncing. */
 	changeDebounceMs?: number;
 	/** Applies a config or dotenv change through the owning runtime lifecycle. */
@@ -68,7 +66,6 @@ export class ProjectWatcher {
 	private refreshRouterRoutesCallback: () => Promise<void>;
 	private hmrManager: IHmrManager;
 	private bridge: IClientBridge;
-	private readonly hostOwnsDevClient: boolean;
 	private readonly invalidationService: DevelopmentInvalidationService;
 	private readonly changeDebounceMs: number;
 	private readonly onRestartRequest?: (filePath: string) => Promise<void>;
@@ -87,7 +84,6 @@ export class ProjectWatcher {
 		refreshRouterRoutesCallback,
 		hmrManager,
 		bridge,
-		hostOwnsDevClient,
 		changeDebounceMs,
 		onRestartRequest,
 		entryWatcherOwnsConfig,
@@ -96,7 +92,6 @@ export class ProjectWatcher {
 		this.refreshRouterRoutesCallback = refreshRouterRoutesCallback;
 		this.hmrManager = hmrManager;
 		this.bridge = bridge;
-		this.hostOwnsDevClient = hostOwnsDevClient === true;
 		const envDebounceMs = process.env.ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS;
 		this.changeDebounceMs =
 			changeDebounceMs ??
@@ -133,11 +128,12 @@ export class ProjectWatcher {
 		return this.invalidationService.isRouteSourceFile(filePath);
 	}
 
+	/**
+	 * @remarks
+	 * Sent whoever owns the dev client: the Vite host turns Vite HMR off and serves the Ecopages HMR runtime,
+	 * which subscribes to this bridge, so it is the browser client there too.
+	 */
 	private requestBrowserReload(): void {
-		if (this.hostOwnsDevClient) {
-			return;
-		}
-
 		this.bridge.reload();
 	}
 

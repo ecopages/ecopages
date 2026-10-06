@@ -57,7 +57,7 @@ The embedded app's Project Watcher owns dev invalidation and HMR: `DevelopmentIn
 
 Vite's own restart for its config and env files runs only inside its HMR update, which is off, so `ecopages:dev-server` restarts Vite when the Vite config or a file it imports, or an env file for the current mode, changes. It does not restart for `eco.config.ts` on that rule: an app that loads its config through `createApp()` keeps it for the life of the process, so the embedded app keeps asking for a full restart. When `app.ts` imports `eco.config.ts` itself, the app-entry rule restarts Vite and the restarted app re-evaluates it. Nothing re-imports the app entry either, so it also restarts Vite when `app.ts` or a module it imports changes (API, route and WebSocket handlers, data they read), and logs the file. The restart loads a fresh app and stops the old one. While the app has failed to load, any added, changed or deleted file restarts Vite, so fixing the error recovers without a manual restart. A request in flight during a restart can fail once; the next one is served by the new app.
 
-Known gaps: with the host owning the dev client, the Project Watcher does not send browser reloads, so edits under `publicDir` and `additionalWatchPaths` need a manual reload (#458).
+Edits under `publicDir` and files matched by `additionalWatchPaths` reload the page: the Project Watcher sends the reload through the client bridge, as under `ecopages dev`, although the host owns the dev client.
 
 ## Astro-style Vite injection evaluation
 

@@ -351,7 +351,6 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			refreshRouterRoutesCallback: this.refreshRouterRoutes.bind(this),
 			hmrManager: this.hmrManager,
 			bridge: this.bridge,
-			hostOwnsDevClient: this.hostOwnsDevClient,
 			onRestartRequest: this.onDevelopmentRestart,
 			entryWatcherOwnsConfig: entryWatcherOwnsConfig(),
 		});

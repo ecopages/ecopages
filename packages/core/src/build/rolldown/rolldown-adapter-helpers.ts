@@ -511,15 +511,15 @@ function buildRolldownTransformOptions(options: BuildOptions): Record<string, un
 	return Object.keys(transformOptions).length > 0 ? transformOptions : undefined;
 }
 
-function buildRolldownInputPlugins(
+async function buildRolldownInputPlugins(
 	options: BuildOptions,
 	contextRoot: string,
 	outdir: string,
 	rolldownPlatform: ReturnType<typeof mapRolldownPlatform>,
-): RolldownPlugin[] {
+): Promise<RolldownPlugin[]> {
 	const bundlePlugins = options.plugins ?? [];
 	const sourceTransforms = options.sourceTransforms ?? [];
-	const appPlugins = createRolldownPluginBridge(bundlePlugins, contextRoot, sourceTransforms);
+	const appPlugins = await createRolldownPluginBridge(bundlePlugins, contextRoot, sourceTransforms);
 	return [
 		...(options.externalPackages === true
 			? [
@@ -537,13 +537,13 @@ function buildRolldownInputPlugins(
 	];
 }
 
-function buildRolldownInputOptions(
+async function buildRolldownInputOptions(
 	options: BuildOptions,
 	contextRoot: string,
 	outdir: string,
 	external: (id: string) => boolean,
 	rolldownPlatform: ReturnType<typeof mapRolldownPlatform>,
-): InputOptions {
+): Promise<InputOptions> {
 	return {
 		input: options.entrypoints,
 		cwd: contextRoot,
@@ -562,7 +562,7 @@ function buildRolldownInputOptions(
 		experimental: {
 			nativeMagicString: true,
 		},
-		plugins: buildRolldownInputPlugins(options, contextRoot, outdir, rolldownPlatform),
+		plugins: await buildRolldownInputPlugins(options, contextRoot, outdir, rolldownPlatform),
 	};
 }
 
@@ -601,18 +601,19 @@ function buildRolldownOutputOptions(options: BuildOptions, outdir: string): Outp
 /**
  * Translates a {@link BuildOptions} into Rolldown's `InputOptions` and
  * `OutputOptions`. Always sets `experimental.nativeMagicString: true`
- * and always consolidates eco plugins via the bridge.
+ * and always consolidates eco plugins via the bridge, which runs every
+ * plugin `setup`.
  */
-export function resolveRolldownOptions(
+export async function resolveRolldownOptions(
 	options: BuildOptions,
 	contextRoot: string,
 	outdir: string,
 	appRootRequireCache: Map<string, NodeJS.Require>,
-): ResolvedRolldownOptions {
+): Promise<ResolvedRolldownOptions> {
 	const rolldownPlatform = mapRolldownPlatform(options.target);
 	const external = createExternalMatcher(options, appRootRequireCache);
 	return {
-		inputOptions: buildRolldownInputOptions(options, contextRoot, outdir, external, rolldownPlatform),
+		inputOptions: await buildRolldownInputOptions(options, contextRoot, outdir, external, rolldownPlatform),
 		outputOptions: buildRolldownOutputOptions(options, outdir),
 	};
 }

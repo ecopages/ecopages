@@ -46,7 +46,7 @@ export class RolldownBuildAdapter implements BuildAdapter {
 		const outdir = path.resolve(options.outdir ?? 'dist/assets');
 		const plugins = options.plugins ?? [];
 
-		const { inputOptions, outputOptions } = resolveRolldownOptions(
+		const { inputOptions, outputOptions } = await resolveRolldownOptions(
 			options,
 			contextRoot,
 			outdir,

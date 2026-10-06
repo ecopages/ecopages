@@ -33,17 +33,21 @@ vi.mock('node:fs', async (importOriginal) => {
 		...actual,
 		existsSync: vi.fn((path) => actual.existsSync(path)),
 		writeFileSync: actual.writeFileSync,
+		statSync: vi.fn(actual.statSync),
+		watch: vi.fn(() => {
+			const watcher = { close: vi.fn(), on: vi.fn(() => watcher) };
+			return watcher;
+		}),
 	};
 });
 
 vi.mock('./launch-plan.js', () => ({
 	createLaunchPlan: vi.fn(),
+	resolveEcoConfigFilePath: vi.fn(() => undefined),
 }));
 
 vi.mock('node:child_process', () => ({
-	spawn: vi.fn().mockImplementation(() => ({
-		on: vi.fn(),
-	})),
+	spawn: vi.fn(() => ({ on: vi.fn() })),
 }));
 
 vi.mock('@ecopages/logger', () => ({
@@ -88,6 +92,9 @@ describe('CLI Commands', () => {
 	});
 
 	afterEach(() => {
+		vi.mocked(childProcess.spawn).mockReset();
+		vi.mocked(fs.statSync).mockReset();
+		vi.mocked(fs.watch).mockReset();
 		for (const targetDir of ['my-new-project', 'my-dir', 'interactive-app', 'remote-app', 'failed-app']) {
 			fs.rmSync(targetDir, { recursive: true, force: true });
 		}
@@ -228,6 +235,170 @@ describe('CLI Commands', () => {
 		await vi.waitFor(() => expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(2));
 		const restartedPlan = await vi.mocked(launchPlan.createLaunchPlan).mock.results[1]?.value;
 		expect(restartedPlan.env[ECOPAGES_DEV_RESTART_REASON_ENV]).toBe('configuration or environment change');
+	});
+
+	function mockSpawnedChildren() {
+		const exitHandlers: Array<(code: number | null) => void> = [];
+		vi.mocked(childProcess.spawn).mockImplementation(
+			() =>
+				({
+					on: vi.fn((event: string, handler: (code: number | null) => void) => {
+						if (event === 'exit') exitHandlers.push(handler);
+					}),
+				}) as never,
+		);
+		return exitHandlers;
+	}
+
+	function getWatchListener() {
+		return vi.mocked(fs.watch).mock.calls[0]?.[1] as unknown as (event: string, file: string) => void;
+	}
+
+	it('keeps a dev session alive when a restarted child fails, and relaunches on the next config change', async () => {
+		const exitSpy = mockProcessExit();
+		const exitHandlers = mockSpawnedChildren();
+
+		await runCli(['dev']);
+		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+
+		exitHandlers[1]?.(1);
+		expect(exitSpy).not.toHaveBeenCalled();
+		expect(fs.watch).toHaveBeenCalledWith(process.cwd(), expect.any(Function));
+
+		const onWatchEvent = getWatchListener();
+		const watcher = vi.mocked(fs.watch).mock.results[0]?.value as { close: () => void };
+		onWatchEvent('change', 'app.ts');
+		expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(2);
+
+		onWatchEvent('change', 'eco.config.ts');
+		expect(watcher.close).toHaveBeenCalled();
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
+
+		exitSpy.mockRestore();
+	});
+
+	it('waits for a config change when the launch plan fails during a restart', async () => {
+		const exitSpy = mockProcessExit();
+		const exitHandlers = mockSpawnedChildren();
+		vi.mocked(launchPlan.createLaunchPlan)
+			.mockResolvedValueOnce({
+				runtime: 'node',
+				command: 'node',
+				commandArgs: [],
+				envOverrides: {},
+				env: {},
+			} as never)
+			.mockRejectedValueOnce(new Error('invalid config'));
+
+		await runCli(['dev']);
+		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
+		await vi.waitFor(() => expect(fs.watch).toHaveBeenCalled());
+		expect(exitSpy).not.toHaveBeenCalled();
+
+		const onWatchEvent = getWatchListener();
+		onWatchEvent('rename', '.env.local');
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+
+		exitSpy.mockRestore();
+	});
+
+	it('relaunches once when the same config change is reported twice', async () => {
+		const exitSpy = mockProcessExit();
+		const exitHandlers = mockSpawnedChildren();
+
+		await runCli(['dev']);
+		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+		exitHandlers[1]?.(1);
+
+		getWatchListener()('change', 'eco.config.ts');
+		getWatchListener()('rename', 'eco.config.ts');
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(3);
+
+		exitSpy.mockRestore();
+	});
+
+	it('relaunches at once when the config changed while the restarted child was loading', async () => {
+		const exitSpy = mockProcessExit();
+		const exitHandlers = mockSpawnedChildren();
+		let configModifiedTime = 1;
+		vi.mocked(fs.statSync).mockImplementation(((filePath: string) =>
+			filePath.endsWith('eco.config.ts') ? { mtimeMs: configModifiedTime } : undefined) as never);
+
+		await runCli(['dev']);
+		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+
+		configModifiedTime = 2;
+		exitHandlers[1]?.(1);
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
+		expect(fs.watch).not.toHaveBeenCalled();
+
+		exitSpy.mockRestore();
+	});
+
+	it('exits with a clear error when the restart files cannot be watched', async () => {
+		const exitSpy = mockProcessExit();
+		const exitHandlers = mockSpawnedChildren();
+		vi.mocked(fs.watch).mockImplementationOnce(() => {
+			throw Object.assign(new Error('ENOSPC: System limit for number of file watchers reached'), {
+				code: 'ENOSPC',
+			});
+		});
+
+		await runCli(['dev']);
+		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+
+		expect(() => exitHandlers[1]?.(1)).toThrow('process.exit:1');
+
+		exitSpy.mockRestore();
+	});
+
+	it('keeps waiting when a restart file cannot be read', async () => {
+		const exitSpy = mockProcessExit();
+		const exitHandlers = mockSpawnedChildren();
+		vi.mocked(fs.statSync).mockImplementation(() => {
+			throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+		});
+
+		await runCli(['dev']);
+		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+
+		exitHandlers[1]?.(1);
+		expect(exitSpy).not.toHaveBeenCalled();
+		expect(fs.watch).toHaveBeenCalled();
+
+		exitSpy.mockRestore();
+	});
+
+	it.each([0, null])('exits when a restarted child exits with %s', async (code) => {
+		const exitSpy = mockProcessExit();
+		const exitHandlers = mockSpawnedChildren();
+
+		await runCli(['dev']);
+		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+
+		expect(() => exitHandlers[1]?.(code)).toThrow('process.exit:0');
+		expect(fs.watch).not.toHaveBeenCalled();
+
+		exitSpy.mockRestore();
+	});
+
+	it('exits when the first dev child fails', async () => {
+		const exitSpy = mockProcessExit();
+		const exitHandlers = mockSpawnedChildren();
+
+		await runCli(['dev']);
+		expect(() => exitHandlers[0]?.(1)).toThrow('process.exit:1');
+		expect(fs.watch).not.toHaveBeenCalled();
+
+		exitSpy.mockRestore();
 	});
 
 	it('runs dev:hot command', async () => {

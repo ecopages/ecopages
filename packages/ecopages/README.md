@@ -82,7 +82,7 @@ ecopages dev --port 8080 --debug
 ecopages dev -r
 ```
 
-During `ecopages dev`, adding, changing, or removing `eco.config.ts` (or `--config`) and supported project `.env` files restarts the dev server automatically. The CLI supervises that restart and reloads dotenv files. When the preferred port is busy, development startup uses the same fallback flow as preview: TTY sessions show a Clack confirmation, while non-interactive sessions scan automatically only when the port was not pinned with `--port` or `ECOPAGES_PORT`.
+During `ecopages dev`, adding, changing, or removing `eco.config.ts` (or `--config`) and supported project `.env` files restarts the dev server automatically. The CLI supervises that restart and reloads dotenv files. If the restarted dev server exits with an error, for example because of an invalid config, `ecopages dev` logs the exit code and waits for the next change to the config or a dotenv file, then starts again. When the preferred port is busy, development startup uses the same fallback flow as preview: TTY sessions show a Clack confirmation, while non-interactive sessions scan automatically only when the port was not pinned with `--port` or `ECOPAGES_PORT`.
 
 ### Debug logging and startup trace
 

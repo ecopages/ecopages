@@ -70,7 +70,13 @@ test.describe('Shared browser vendors @content', () => {
 
 		const zodVendorResponse = await request.get(zodVendorUrl);
 		expect(zodVendorResponse.ok()).toBe(true);
-		expect(zodVendorResponse.headers()['cache-control']).toMatch(/immutable/i);
+		expect(zodVendorResponse.headers()['cache-control']).toBe('no-cache');
+		const zodVendorEtag = zodVendorResponse.headers()['etag'];
+		expect(zodVendorEtag).toBeTruthy();
+		const revalidatedZodVendor = await request.get(zodVendorUrl, {
+			headers: { 'If-None-Match': zodVendorEtag ?? '' },
+		});
+		expect(revalidatedZodVendor.status()).toBe(304);
 
 		await gotoPath(page, '/vendor-share/b');
 		await expect(page.getByTestId('page-vendor-share-b')).toBeVisible({ timeout: 15_000 });

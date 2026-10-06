@@ -278,6 +278,10 @@
 			"types": "./src/utils/resolve-entry-file.ts",
 			"default": "./src/utils/resolve-entry-file.ts"
 		},
+		"./utils/path-containment": {
+			"types": "./src/utils/path-containment.ts",
+			"default": "./src/utils/path-containment.ts"
+		},
 		"./errors": {
 			"types": "./src/errors/index.ts",
 			"default": "./src/errors/index.ts"

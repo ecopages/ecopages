@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ReactHmrStrategy } from './hmr-strategy.ts';
+import { HmrPageMetadataCache } from './page-metadata-cache.ts';
 import type { DefaultHmrContext } from '@ecopages/core';
 import { createBrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
 import { HmrStrategyType } from '@ecopages/core/hmr/hmr-strategy';
@@ -233,6 +234,53 @@ describe('ReactHmrStrategy', () => {
 		expect(strategy.matches('/tmp/src/components/widget.tsx')).toBe(true);
 		expect(strategy.matches('/tmp/src/components/widget.kita.tsx')).toBe(false);
 		expect(strategy.matches('/tmp/src/views/explicit-team-view.kita.tsx')).toBe(false);
+	});
+
+	describe('folders that share the pages or layouts folder name prefix', () => {
+		it('does not treat a pages sibling folder as route templates', () => {
+			const strategy = new ReactHmrStrategy({
+				context: createMockContext(),
+				pageMetadataCache: new HmrPageMetadataCache(),
+				runtimeManifest: defaultRuntimeManifest,
+				ownedTemplateExtensions: ['.react.tsx'],
+				allTemplateExtensions: ['.tsx', '.react.tsx'],
+			});
+
+			expect(strategy.matches('/tmp/src/pages/a.tsx')).toBe(false);
+			expect(strategy.matches('/tmp/src/pages-old/a.tsx')).toBe(true);
+		});
+
+		it('does not treat a pages sibling folder file as a Page entrypoint', async () => {
+			const importServerModule = createImportServerModuleMock({ config: {} });
+			const strategy = new ReactHmrStrategy({
+				context: createMockContext({ importServerModule }),
+				pageMetadataCache: new HmrPageMetadataCache(),
+				runtimeManifest: defaultRuntimeManifest,
+			});
+
+			await strategy.createDevTransformPlugins('/tmp/src/pages-old/a.tsx');
+
+			expect(importServerModule).not.toHaveBeenCalled();
+		});
+
+		it('does not treat a layouts sibling folder file as a layout', async () => {
+			const pageEntrypoint = '/tmp/src/pages/index.tsx';
+			const createStrategy = () => {
+				const pageMetadataCache = new HmrPageMetadataCache();
+				pageMetadataCache.markOwnedEntrypoint(pageEntrypoint);
+				return new ReactHmrStrategy({
+					context: createMockContext({
+						getWatchedFiles: () => new Map([[pageEntrypoint, devTransformPageUrl('index.js')]]),
+					}),
+					pageMetadataCache,
+					runtimeManifest: defaultRuntimeManifest,
+				});
+			};
+			const layoutUpdate = { type: 'broadcast', events: [{ type: 'layout-update' }] };
+
+			await expect(createStrategy().process('/tmp/src/layouts/a.tsx')).resolves.toEqual(layoutUpdate);
+			await expect(createStrategy().process('/tmp/src/layouts-v2/a.tsx')).resolves.not.toEqual(layoutUpdate);
+		});
 	});
 
 	it.each([

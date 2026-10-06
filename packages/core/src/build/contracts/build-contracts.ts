@@ -23,6 +23,14 @@ export interface BuildOutput {
 
 /** Per-entrypoint dependency metadata surfaced alongside a build. */
 export interface BuildDependencyGraph {
+	/**
+	 * Each entry's resolved absolute path, mapped to every source module its output loads, statically or
+	 * through `import()`, including the entry itself.
+	 *
+	 * @remarks
+	 * Production caches hash these files to decide reuse, so an omitted module leaves stale output after it
+	 * changes.
+	 */
 	entrypoints: Record<string, string[]>;
 }
 

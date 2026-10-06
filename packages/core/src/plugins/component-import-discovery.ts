@@ -194,7 +194,7 @@ export type DiscoveredImports = {
 	removals: Array<{ start: number; end: number; replacement: string }>;
 };
 
-function isCssImport(source: string): boolean {
+export function isCssImport(source: string): boolean {
 	return source.endsWith('.css') && !source.endsWith('.module.css');
 }
 

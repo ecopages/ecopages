@@ -362,6 +362,99 @@ describe('HtmlPageRenderer', () => {
 			expect(readOutput(url!)).toContain('counter');
 		});
 
+		it('rejects a module script that imports a stylesheet, naming the HTML file and the stylesheet', async () => {
+			write('src/pages/styles.css', 'main { color: red; }');
+			write('src/pages/main.ts', "import './styles.css';\nconsole.log('main');");
+			const file = write(
+				'src/pages/index.html',
+				'<main>Home</main><script type="module" src="./main.ts"></script>',
+			);
+			await setup();
+
+			await expect(render(file)).rejects.toThrow(
+				'src/pages/index.html: "./main.ts" imports src/pages/styles.css, which a module script cannot add to the Page. Load it with <link rel="stylesheet" href="./styles.css"> in src/pages/index.html instead.',
+			);
+		});
+
+		it('renders another Page while one Page loads a script that imports a stylesheet', async () => {
+			write('src/components/theme.css', 'main { color: red; }');
+			write('src/components/theme.ts', "import './theme.css';\nexport const theme = 'dark';");
+			write('src/pages/main.ts', "import { theme } from '../components/theme.ts';\nconsole.log(theme);");
+			write('src/pages/counter.ts', "console.log('COUNTER_CODE');");
+			const styled = write(
+				'src/pages/styled.html',
+				'<main>Styled</main><script type="module" src="./main.ts"></script>',
+			);
+			const file = write(
+				'src/pages/index.html',
+				'<main>Home</main><script type="module" src="./counter.ts"></script>',
+			);
+			await setup();
+
+			await expect(render(styled)).rejects.toThrow(
+				'imports src/components/theme.css through src/components/theme.ts',
+			);
+			const [url] = scriptUrls(await render(file));
+
+			expect(readOutput(url!)).toContain('COUNTER_CODE');
+		});
+
+		it('rejects every Page that loads a script importing a stylesheet', async () => {
+			write('src/pages/styles.css', 'main { color: red; }');
+			write('src/pages/main.ts', "import './styles.css';");
+			const first = write(
+				'src/pages/first.html',
+				'<main>1</main><script type="module" src="./main.ts"></script>',
+			);
+			const second = write(
+				'src/pages/second.html',
+				'<main>2</main><script type="module" src="./main.ts"></script>',
+			);
+			await setup();
+
+			await expect(render(first)).rejects.toThrow(
+				'src/pages/first.html: "./main.ts" imports src/pages/styles.css',
+			);
+			await expect(render(second)).rejects.toThrow(
+				'src/pages/second.html: "./main.ts" imports src/pages/styles.css',
+			);
+		});
+
+		it('builds a script once the stylesheet import of a module it imports is removed', async () => {
+			write('src/components/theme.css', 'main { color: red; }');
+			const theme = write('src/components/theme.ts', "import './theme.css';\nexport const theme = 'dark';");
+			write('src/pages/main.ts', "import { theme } from '../components/theme.ts';\nconsole.log(theme);");
+			const file = write(
+				'src/pages/index.html',
+				'<main>Home</main><script type="module" src="./main.ts"></script>',
+			);
+			await setup();
+			await expect(render(file)).rejects.toThrow('imports src/components/theme.css');
+
+			writeFileSync(theme, "export const theme = 'THEME_FIXED';");
+			const [url] = scriptUrls(await render(file));
+
+			expect(loadedUrls([url!]).map(readOutput).join('\n')).toContain('THEME_FIXED');
+		});
+
+		it('rejects a script that re-exports a stylesheet, and renders another Page', async () => {
+			write('src/pages/styles.css', 'main { color: red; }');
+			write('src/pages/main.ts', "export * from './styles.css';");
+			write('src/pages/counter.ts', "console.log('COUNTER_CODE');");
+			const styled = write(
+				'src/pages/styled.html',
+				'<main>S</main><script type="module" src="./main.ts"></script>',
+			);
+			const file = write(
+				'src/pages/index.html',
+				'<main>Home</main><script type="module" src="./counter.ts"></script>',
+			);
+			await setup();
+
+			await expect(render(styled)).rejects.toThrow('"./main.ts" imports src/pages/styles.css');
+			expect(readOutput(scriptUrls(await render(file))[0]!)).toContain('COUNTER_CODE');
+		});
+
 		it('emits a separate entry for module scripts whose paths differ only by extension', async () => {
 			write('src/pages/a.ts', "console.log('from ts');");
 			write('src/pages/a.js', "console.log('from js');");
@@ -375,6 +468,109 @@ describe('HtmlPageRenderer', () => {
 
 			expect(readOutput(tsUrl!)).toContain('from ts');
 			expect(readOutput(jsUrl!)).toContain('from js');
+		});
+	});
+
+	describe('module scripts with HMR', () => {
+		const renderWithHmr = (file: string) =>
+			renderPage(
+				new HtmlPageRenderer({
+					appConfig,
+					assetProcessingService: {
+						processDependencies: assetService.processDependencies,
+						getHmrManager: () => ({ isEnabled: () => true }),
+					} as unknown as AssetProcessingService,
+					runtimeOrigin: 'http://localhost:3000',
+					resolvedIntegrationDependencies: [],
+				}),
+				file,
+				getBuiltInHtmlShell() as EcoComponent<HtmlTemplateProps>,
+			).then(String);
+		const page = (script: string) =>
+			write('src/pages/index.html', `<main>Home</main><script type="module" src="./${script}"></script>`);
+
+		it('rejects a module script that imports a stylesheet until the import is removed', async () => {
+			write('src/pages/styles.css', 'main { color: red; }');
+			const main = write('src/pages/main.ts', "import './styles.css';\nconsole.log('main');");
+			const file = page('main.ts');
+
+			await expect(renderWithHmr(file)).rejects.toThrow(
+				'src/pages/index.html: "./main.ts" imports src/pages/styles.css',
+			);
+			writeFileSync(main, "console.log('main without the stylesheet');");
+
+			expect(await renderWithHmr(file)).toContain('<script type="module" src="/assets/main.ts">');
+		});
+
+		it('renders a script that imports a stylesheet as a string', async () => {
+			write('src/pages/styles.css', 'main { color: red; }');
+			write(
+				'src/pages/element.ts',
+				"import styles from './styles.css';\nexport { default } from './styles.css';",
+			);
+
+			expect(await renderWithHmr(page('element.ts'))).toContain(
+				'<script type="module" src="/assets/element.ts">',
+			);
+		});
+
+		it('does not follow type-only imports', async () => {
+			write('src/pages/styles.css', 'main { color: red; }');
+			write('src/pages/types.ts', "import './styles.css';\nexport type Theme = 'dark';");
+			write(
+				'src/pages/main.ts',
+				"import type { Theme } from './types.ts';\nimport { type Theme as T } from './types.ts';\nexport type { Theme as U } from './types.ts';\nconsole.log('main');",
+			);
+
+			expect(await renderWithHmr(page('main.ts'))).toContain('<script type="module" src="/assets/main.ts">');
+		});
+
+		it('allows a stylesheet import the component meta transform moves into Component Dependencies', async () => {
+			appConfig.integrations.push({ name: 'test-string', extensions: ['.eco.ts'] } as never);
+			write('src/components/card.css', '.card { color: red; }');
+			write(
+				'src/components/card.eco.ts',
+				"import { eco } from '@ecopages/core';\nimport './card.css';\nexport const Card = eco.component({ render: () => '<div></div>' });",
+			);
+			write('src/pages/main.ts', "import { Card } from '../components/card.eco.ts';\nconsole.log(Card);");
+
+			expect(await renderWithHmr(page('main.ts'))).toContain('<script type="module" src="/assets/main.ts">');
+		});
+
+		it('rejects a stylesheet re-export from a component file, which the component meta transform keeps', async () => {
+			appConfig.integrations.push({ name: 'test-string', extensions: ['.eco.ts'] } as never);
+			write('src/components/card.css', '.card { color: red; }');
+			write(
+				'src/components/card.eco.ts',
+				"import { eco } from '@ecopages/core';\nexport * from './card.css';\nexport const Card = eco.component({ render: () => '<div></div>' });",
+			);
+			write('src/pages/main.ts', "import { Card } from '../components/card.eco.ts';\nconsole.log(Card);");
+
+			await expect(renderWithHmr(page('main.ts'))).rejects.toThrow('imports src/components/card.css');
+		});
+
+		it('rejects an empty named re-export of a stylesheet', async () => {
+			write('src/pages/styles.css', 'main { color: red; }');
+			write('src/pages/main.ts', "export {} from './styles.css';");
+
+			await expect(renderWithHmr(page('main.ts'))).rejects.toThrow('"./main.ts" imports src/pages/styles.css');
+		});
+
+		it('rejects a package stylesheet, asking to copy it under the source directory', async () => {
+			write(
+				'node_modules/slider/package.json',
+				'{ "name": "slider", "exports": { "./css": "./slider.css", "./raw.css": "./raw.css" } }',
+			);
+			write('node_modules/slider/slider.css', '.slider {}');
+			write('src/pages/main.ts', "import 'slider/css';");
+			write('src/pages/other.ts', "import 'unresolved-ui/style.css';");
+
+			await expect(renderWithHmr(page('main.ts'))).rejects.toThrow(
+				'"./main.ts" imports node_modules/slider/slider.css, which a module script cannot add to the Page. A <link> cannot point outside src, so copy the stylesheet under src and link it from src/pages/index.html instead.',
+			);
+			await expect(renderWithHmr(page('other.ts'))).rejects.toThrow(
+				'"./other.ts" imports unresolved-ui/style.css, which a module script cannot add to the Page. A <link> cannot point outside src',
+			);
 		});
 	});
 

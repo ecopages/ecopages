@@ -1,4 +1,5 @@
 import { realpathSync } from 'node:fs';
+import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type {
 	ComponentRenderInput,
@@ -17,7 +18,7 @@ import { findElements, parseHtml } from '../services/html/html-source-parser.ts'
 import { escapeHtmlAttribute } from '../utils/html-escaping.ts';
 import { invariant } from '../utils/invariant.ts';
 import { resolveClassicScriptOptions } from './html-page-classic-script.ts';
-import { getHtmlPageModuleScriptUrls } from './html-page-module-scripts.ts';
+import { getHtmlPageModuleScriptUrls, scanModuleScript } from './html-page-module-scripts.ts';
 import { reconcileHtmlPageDocument, type RenderedHtmlPageHead } from './html-page-document.ts';
 import { getBuiltInHtmlShell, getCompiledHtmlTemplate, HTML_PAGES_INTEGRATION_NAME } from './html-page-module.ts';
 import {
@@ -226,13 +227,14 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 			throw new Error(`[ecopages] ${file}: "${asset.reference}" does not exist (${asset.filepath}).`);
 		}
 
-		if (asset.kind === 'module-script' && !this.assetProcessingService.getHmrManager()?.isEnabled()) {
-			const url = (await getHtmlPageModuleScriptUrls(this.appConfig)).get(realpathSync(asset.filepath));
-			invariant(
-				url !== undefined,
-				`${file}: "${asset.reference}" has no output in the HTML Page module script build.`,
-			);
-			return spliceUrl(asset, url);
+		if (asset.kind === 'module-script') {
+			const hmr = this.assetProcessingService.getHmrManager()?.isEnabled() === true;
+			if (!hmr) {
+				const url = (await getHtmlPageModuleScriptUrls(this.appConfig)).get(realpathSync(asset.filepath));
+				if (url !== undefined) return spliceUrl(asset, url);
+			}
+			this.assertNoStylesheetImport(file, asset.reference, asset.filepath);
+			invariant(hmr, `${file}: "${asset.reference}" has no output in the HTML Page module script build.`);
 		}
 
 		const processed = await this.processAsset(
@@ -250,6 +252,34 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 			`${file}: could not process "${asset.reference}"; the asset pipeline logged the cause.`,
 		);
 		return spliceUrl(asset, processed.srcUrl);
+	}
+
+	/**
+	 * @remarks
+	 * Without HMR, the shared build leaves such a script out, so this runs only for a script with
+	 * no output there. Paths in the error are relative to the app root. A `<link>` must point inside
+	 * the source directory, so a stylesheet outside it, as in a package, has to be copied there.
+	 */
+	private assertNoStylesheetImport(file: string, reference: string, script: string): void {
+		const found = scanModuleScript(this.appConfig, script).stylesheetImport;
+		if (!found) return;
+		const real = (target: string) => (fileSystem.exists(target) ? realpathSync(target) : target);
+		const rootDir = real(this.appConfig.rootDir);
+		const show = (target: string) =>
+			path.isAbsolute(target) ? path.relative(rootDir, real(target)).split(path.sep).join('/') : target;
+		const stylesheet = real(found.stylesheet);
+		const through = found.importer === path.resolve(script) ? '' : ` through ${show(found.importer)}`;
+		const srcDir = real(this.appConfig.absolutePaths.srcDir);
+		const href = path
+			.relative(path.dirname(real(file)), stylesheet)
+			.split(path.sep)
+			.join('/');
+		const fix = stylesheet.startsWith(`${srcDir}${path.sep}`)
+			? `Load it with <link rel="stylesheet" href="${href.startsWith('../') ? href : `./${href}`}"> in ${show(file)} instead.`
+			: `A <link> cannot point outside ${show(srcDir)}, so copy the stylesheet under ${show(srcDir)} and link it from ${show(file)} instead.`;
+		throw new Error(
+			`[ecopages] ${show(file)}: "${reference}" imports ${show(stylesheet)}${through}, which a module script cannot add to the Page. ${fix}`,
+		);
 	}
 
 	private async processAsset(definition: AssetDefinition) {

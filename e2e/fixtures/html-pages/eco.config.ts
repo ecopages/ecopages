@@ -8,4 +8,5 @@ export default defineConfig({
 	distDir: artifactScope ? `dist-${artifactScope}` : 'dist',
 	workDir: artifactScope ? `.eco-${artifactScope}` : '.eco',
 	sitemap: { enabled: true },
+	devPrewarmBeforeReadyPaths: ['/about', '/buttons'],
 });

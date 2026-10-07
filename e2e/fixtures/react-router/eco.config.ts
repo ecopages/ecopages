@@ -12,6 +12,7 @@ export default defineConfig({
 	baseUrl: import.meta.env.ECOPAGES_BASE_URL,
 	distDir,
 	workDir,
+	devPrewarmBeforeReadyPaths: ['/eco-layout-missing', '/', '/docs'],
 	integrations: [
 		reactPlugin({
 			router: ecoRouter({ persistLayouts }),

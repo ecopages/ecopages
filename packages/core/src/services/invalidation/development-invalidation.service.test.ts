@@ -297,6 +297,28 @@ describe('DevelopmentInvalidationService', () => {
 		}
 	});
 
+	it('classifies a project file the config imports as runtime-restart', async () => {
+		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-config-import-restart-'));
+		const configPath = path.join(rootDir, 'eco.config.ts');
+		const optionsPath = path.join(rootDir, 'mdx-plugin-options.ts');
+
+		try {
+			writeFileSync(optionsPath, 'export const options = { a: 1 };\n');
+			writeFileSync(configPath, 'export default {}');
+			const appConfig = await finalizeEcoPagesConfig({ rootDir }, { configFilePath: configPath });
+			appConfig.absolutePaths.configModuleFiles = [configPath, optionsPath];
+			const service = new DevelopmentInvalidationService(appConfig);
+
+			expect(service.planFileChange(optionsPath)).toMatchObject({ category: 'runtime-restart' });
+			expect(service.isConfigModuleFile(optionsPath)).toBe(false);
+			expect(service.planFileChange(path.join(rootDir, 'src/pages/index.tsx'))).not.toMatchObject({
+				category: 'runtime-restart',
+			});
+		} finally {
+			rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
 	it('marks a 50-file batch dirty with one server invalidation and one manifest write', async () => {
 		const originalNodeEnv = process.env.NODE_ENV;
 		process.env.NODE_ENV = 'development';

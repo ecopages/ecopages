@@ -12,7 +12,7 @@ Framework skill packs live in the vault root at [`../.agents`](../.agents). See 
 - Generated: `src/content/wiki` and `src/public/wiki` are written from the vault on every `pnpm dev` / `pnpm build`. Ingest replaces a file that already exists and does not delete directories. A page you remove from the vault stays in the generated folders until you delete that file.
 - Ingest: `src/lib/wiki/ingest.ts` validates frontmatter, normalizes both layouts to
   category/page slugs, and regenerates `../index.md`. Link rewrite lives in `src/lib/wiki/links.ts`.
-- Nav / sort: the root `../wiki/sortspec.md` orders categories; each category's `sortspec.md` orders pages. Ingest writes the result to `src/content/wiki-sort-order.json`.
+- Nav / sort: the root `../wiki/sortspec.md` orders categories; each category's `sortspec.md` orders pages. Ingest writes the result to `src/content/wiki-sort-order.json` only when the order changed, so an unchanged vault does not restart `ecopages dev`.
 
 ## Systems (`src/lib`)
 

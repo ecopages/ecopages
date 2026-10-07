@@ -131,8 +131,9 @@ export type EcoPagesAppConfig = {
 		 * in memory, is the emitted production config, or could not be scanned.
 		 *
 		 * @remarks
-		 * Persisted build caches hash these files, so an edit to a plugin options module the config
-		 * imports invalidates them like an edit to the config itself.
+		 * Build-input fingerprints hash these files, so an edit to a plugin options module the
+		 * config imports invalidates caches like an edit to the config itself. Development
+		 * restarts on the same set.
 		 */
 		configModuleFiles: string[];
 		componentsDir: string;

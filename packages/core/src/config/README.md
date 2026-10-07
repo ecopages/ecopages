@@ -24,7 +24,7 @@ It is responsible for:
 - `finalize-config.ts`: `finalizeEcoPagesConfig(userConfig, options)`, the only finalization path. Workspace packages and tests import it from `@ecopages/core/internal/finalize-config`; the npm build drops every `./internal/*` subpath from the published package. It applies defaults (omitted `rootDir` resolves from `cwd`; `baseUrl` falls back to `ECOPAGES_BASE_URL`, then `http://localhost:3000`; `absolutePaths.config` defaults to `<rootDir>/eco.config.ts`), runs every validation, and installs runtime state
 - `runtime-capability-validation.ts`: rejects Integrations and Processors whose `runtimeCapability` the current runtime cannot meet
 - `load-eco-config.ts`: resolves the config module path, imports the user config, and finalizes it
-- `config-module-files.ts`: when the config is loaded from source, lists it and the project files it imports as `absolutePaths.configModuleFiles`. Packages, files outside `rootDir` and imports that do not resolve stay out. In-process build caches hash these files, so an edit to a plugin options module the config imports invalidates them like an edit to the config itself
+- `config-module-files.ts`: when the config is loaded from source, lists it and the project files it imports as `absolutePaths.configModuleFiles`. Packages, files outside `rootDir` and imports that do not resolve stay out. Build-input fingerprints hash these files, and `ecopages dev` restarts when any of them change, so an edit to a plugin options module the config imports takes effect like an edit to the config itself. Components imported by the config lose hot reload.
 - `resolve-eco-config-path.ts`: `eco.config.ts` discovery (`configFile`, `ECOPAGES_CONFIG_FILE`, the `eco.config.mjs` beside a running `.server` entry, cwd default, and production `.server/eco.config.mjs`) and `resolveUserConfigRootDir()`
 - `user-config-types.ts`: TypeScript contracts for `EcoPagesUserConfig` and config loader options
 - `server-config-bundle.ts`: emits `dist/.server/eco.config.mjs` for production server startup; like every server build request, it keeps `import.meta` of bundled modules pointing at their sources (`build/preserve-import-meta-transform.ts`)
@@ -48,6 +48,6 @@ That built config is then consumed by server adapters, static generation, route 
 ## Tests and fixtures
 
 - Production apps call `createApp()` (loads `eco.config.ts`) or pass `appConfig`, `userConfig`, or `configFile` explicitly.
-- In development (`--dev`), adding, changing, or removing the resolved `eco.config` module or a supported project `.env` file triggers a supervised process restart (not in-process reload). The CLI re-merges dotenv files on respawn.
+- In development (`--dev`), adding, changing, or removing the resolved `eco.config` module, a project file it imports, or a supported project `.env` file triggers a supervised process restart (not in-process reload). The CLI re-merges dotenv files on respawn.
 - `@ecopages/testing` `createTestAppConfig()` finalizes each in-memory user config independently through `finalizeEcoPagesConfig`; only module-backed `loadEcoPagesConfig()` calls are cached (by config path, build ownership, and cwd).
 - Core fixture helpers live in `packages/core/__fixtures__/app/test-app-config.ts` (`createFixtureAppConfig`, `createFixtureApp`).

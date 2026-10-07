@@ -16,6 +16,9 @@ test.describe('HMR E2E PostCSS', () => {
 		try {
 			await gotoAndWait(page, '/postcss-hmr');
 			await expect(title).toBeVisible();
+			await page.waitForFunction(
+				() => (window as Window & { __ECO_HMR_CONNECTED__?: boolean }).__ECO_HMR_CONNECTED__ === true,
+			);
 
 			const initialColor = await title.evaluate((el) => getComputedStyle(el).color);
 			expect(initialColor).toBeTruthy();

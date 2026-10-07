@@ -51,10 +51,7 @@ export function attachHmrToIntegrations(appConfig: EcoPagesAppConfig, hmrManager
  * the server. Concurrent first-page renders still join the same coalesced
  * {@link ensureIntegrationRuntimeReady} promise.
  */
-export async function startDevWarmup(options: {
-	appConfig: EcoPagesAppConfig;
-	runtimeOrigin: string;
-}): Promise<void> {
+export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig; runtimeOrigin: string }): Promise<void> {
 	const { appConfig, runtimeOrigin } = options;
 
 	try {

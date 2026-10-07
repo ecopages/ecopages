@@ -7,6 +7,7 @@ export function createCoreHmrUserConfig(options: { withPostcss?: boolean } = {})
 	const config: EcoPagesUserConfig = {
 		rootDir: import.meta.dirname,
 		integrations: [createStringMarkupIntegration({ extensions: ['.ts'] })],
+		devPrewarmBeforeReadyPaths: options.withPostcss ? ['/postcss-hmr'] : ['/'],
 	};
 
 	if (options.withPostcss) {

@@ -6,8 +6,10 @@
  * `Node server running at http://localhost:PORT` through `appLogger` when
  * `app.start()` runs without an `onAppStart` callback.
  *
- * Do not probe `GET /`; the port can be open earlier and an early `/` hit
- * triggers cold SSR during boot.
+ * Do not probe `GET /` from Playwright. The port can be open earlier, and an
+ * early `/` hit would start cold SSR during bind. Apps that set
+ * `devPrewarmBeforeReadyPaths` render those routes inside
+ * `completeInitialization()`, before this listen log.
  */
 export const ECOPAGES_SERVER_READY_STDOUT_REGEX = /(?:Bun|Node) server running at/;
 

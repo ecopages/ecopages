@@ -54,7 +54,7 @@ flowchart TD
 	A[File changes] --> B[ProjectWatcher debounce window]
 	B --> C[applyDevFileChanges]
 	C --> D{Change kinds}
-	D -->|Route or server source| E[Mark server modules dirty]
+	D -->|Route, recorded input, or server source| E[Mark server modules dirty]
 	D -->|Additional watch| E
 	D -->|Config, dotenv or linked package| R[Restart dev process]
 	E --> N[Notify processors]

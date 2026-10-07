@@ -124,6 +124,32 @@ test('createRolldownPluginBridge resolveId returns undefined for empty callbacks
 	assert.equal(result, undefined);
 });
 
+test('createRolldownPluginBridge load records the module and addDependency paths', async () => {
+	const recorded: string[] = [];
+	const watchFiles: string[] = [];
+	const plugins: EcoBuildPlugin[] = [
+		{
+			name: 'docs',
+			setup(build) {
+				build.onLoad({ filter: /.*/ }, (args) => {
+					args.addDependency?.('/app/content/intro.mdx');
+					return { contents: 'export default 1', loader: 'js' };
+				});
+			},
+		},
+	];
+
+	const [plugin] = await createRolldownPluginBridge(plugins, '/app', (filePath) => recorded.push(filePath));
+	const load = hookHandler(plugin!.load) as (
+		this: { addWatchFile?: (id: string) => void },
+		id: string,
+	) => Promise<unknown>;
+	await load.call({ addWatchFile: (id) => watchFiles.push(id) }, '/app/pages/about.tsx');
+
+	assert.deepEqual(recorded, ['/app/pages/about.tsx', '/app/content/intro.mdx']);
+	assert.deepEqual(watchFiles, ['/app/pages/about.tsx', '/app/content/intro.mdx']);
+});
+
 test('createRolldownPluginBridge load returns moduleType for .tsx files with explicit loader', async () => {
 	const plugins: EcoBuildPlugin[] = [
 		{

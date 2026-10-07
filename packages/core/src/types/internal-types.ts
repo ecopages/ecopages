@@ -1,6 +1,7 @@
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { AppBuildManifest } from '../build/contracts/build-manifest.ts';
 import type { BuildAdapter } from '../build/build-adapter.ts';
+import type { BuildInputDependencyIndex } from '../build/cache/build-input-dependency-index.ts';
 import type { BuildRuntime } from '../build/runtime/build-runtime.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
@@ -180,6 +181,7 @@ export type EcoPagesAppConfig = {
 		buildAdapter?: BuildAdapter;
 		buildManifest?: AppBuildManifest;
 		entrypointDependencyGraph?: EntrypointDependencyGraph;
+		buildInputIndex?: BuildInputDependencyIndex;
 		pageBrowserGraphSession?: SessionPageBrowserGraphCache;
 		hostModuleLoader?: SourceModuleLoader;
 		serverInvalidationState?: ServerInvalidationState;

@@ -348,8 +348,14 @@ export function getEcoBuildPluginName(error: unknown): string | undefined {
  *
  * @param plugins - `EcoBuildPlugin` instances registered for this build.
  * @param contextRoot - Project root used to resolve relative load paths.
+ * @param recordBuildInput - Records filesystem paths this load read so watch
+ *   and invalidation include them.
  */
-export async function createRolldownPluginBridge(plugins: EcoBuildPlugin[], contextRoot: string): Promise<Plugin[]> {
+export async function createRolldownPluginBridge(
+	plugins: EcoBuildPlugin[],
+	contextRoot: string,
+	recordBuildInput?: (filePath: string) => void,
+): Promise<Plugin[]> {
 	if (plugins.length === 0) {
 		return [];
 	}
@@ -426,15 +432,25 @@ export async function createRolldownPluginBridge(plugins: EcoBuildPlugin[], cont
 		return undefined;
 	};
 
-	const loadHandler = async (id: string): Promise<LoadResult | undefined> => {
+	const loadHandler = async function (
+		this: { addWatchFile?: (id: string) => void },
+		id: string,
+	): Promise<LoadResult | undefined> {
 		for (const { matches, callback, pluginName } of loadRegistrations) {
 			if (!matches(id)) {
 				continue;
 			}
 			const { namespace, path: sourcePath } = splitNamespace(id);
+			const addWatchFile = typeof this?.addWatchFile === 'function' ? this.addWatchFile.bind(this) : undefined;
+			const addDependency = (filePath: string): void => {
+				const resolved = path.isAbsolute(filePath) ? filePath : path.resolve(contextRoot, filePath);
+				recordBuildInput?.(resolved);
+				addWatchFile?.(resolved);
+			};
+			addDependency(sourcePath);
 			let result: EcoBuildOnLoadResult | undefined;
 			try {
-				result = await callback({ path: sourcePath, namespace });
+				result = await callback({ path: sourcePath, namespace, addDependency });
 			} catch (error) {
 				throw new EcoBuildPluginError(error, pluginName, sourcePath);
 			}

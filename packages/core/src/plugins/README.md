@@ -11,7 +11,7 @@ These contracts are responsible for:
 - integration registration and lifecycle hooks
 - processor registration and asset capability declaration
 - runtime capability declaration and validation input
-- shared build-plugin bridge types used by integrations and processors
+- shared build-plugin bridge types used by integrations and processors, including `addDependency` on the `onLoad` context so a plugin can record files it reads besides the loaded module
 
 ## Main Files
 

@@ -25,6 +25,7 @@ import {
 } from '../utils/additional-watch-paths.ts';
 import { RESOLVED_ASSETS_VENDORS_DIR } from '../config/constants.ts';
 import { resolveWorkspacePackageWatchRoots, isWorkspacePackageFile } from './workspace-package-watch-roots.ts';
+import { getAppBuildInputIndex } from '../build/cache/build-input-dependency-index.ts';
 
 /**
  * Configuration options for the ProjectWatcher
@@ -69,6 +70,7 @@ export class ProjectWatcher {
 	private restartNeedsVendorInvalidation = false;
 	private workspacePackageRoots: string[] = [];
 	private watcher: FSWatcher | null = null;
+	private unsubscribeFromRecordedWatchPaths?: () => void;
 	private closed = false;
 	private pendingDevFileKinds = new Map<string, DevFileChangeKind>();
 	private pendingFlushTimer: ReturnType<typeof setTimeout> | undefined;
@@ -457,20 +459,13 @@ export class ProjectWatcher {
 		}
 
 		const processorPaths = new Set<string>();
-		for (const processor of this.appConfig.processors.values()) {
-			const watchConfig = processor.getWatchConfig();
-			if (!watchConfig) continue;
-			for (const watchPath of watchConfig.paths) {
-				processorPaths.add(watchPath);
-			}
+		const buildInputIndex = getAppBuildInputIndex(this.appConfig);
+		for (const recordedPath of buildInputIndex.recordedWatchPaths()) {
+			processorPaths.add(recordedPath);
 		}
 
-		if (fileSystem.exists(this.appConfig.absolutePaths.includesDir)) {
-			processorPaths.add(this.appConfig.absolutePaths.includesDir);
-		}
-
-		if (fileSystem.exists(this.appConfig.absolutePaths.srcDir)) {
-			processorPaths.add(this.appConfig.absolutePaths.srcDir);
+		if (fileSystem.exists(this.appConfig.absolutePaths.pagesDir)) {
+			processorPaths.add(this.appConfig.absolutePaths.pagesDir);
 		}
 
 		if (fileSystem.exists(this.appConfig.absolutePaths.publicDir)) {
@@ -498,7 +493,7 @@ export class ProjectWatcher {
 		}
 
 		this.workspacePackageRoots = resolveWorkspacePackageWatchRoots(this.appConfig.rootDir);
-		const literalPaths = Array.from(processorPaths);
+		const literalPaths = processorPaths;
 		const ignoreProjectPath = createProjectWatcherIgnorePredicate(
 			this.appConfig.absolutePaths,
 			this.workspacePackageRoots,
@@ -507,7 +502,7 @@ export class ProjectWatcher {
 			if (ignoreProjectPath(watchedPath)) return true;
 			if (
 				!stats ||
-				literalPaths.some((literalPath) => isPathInside(watchedPath, literalPath)) ||
+				[...literalPaths].some((literalPath) => isPathInside(watchedPath, literalPath)) ||
 				this.workspacePackageRoots.some((root) => isPathInside(watchedPath, root))
 			)
 				return false;
@@ -528,6 +523,17 @@ export class ProjectWatcher {
 				},
 			},
 		);
+
+		this.unsubscribeFromRecordedWatchPaths = buildInputIndex.subscribeToWatchPaths((filePath) => {
+			if (this.closed || !this.watcher) {
+				return;
+			}
+			if (ignoreProjectPath(filePath)) {
+				return;
+			}
+			literalPaths.add(filePath);
+			this.watcher.add(filePath);
+		});
 
 		this.watcher
 			.on('change', (p) => this.handleFileChange(p, 'change'))
@@ -556,6 +562,8 @@ export class ProjectWatcher {
 	 */
 	public async close(): Promise<void> {
 		this.closed = true;
+		this.unsubscribeFromRecordedWatchPaths?.();
+		this.unsubscribeFromRecordedWatchPaths = undefined;
 
 		if (this.pendingFlushTimer) {
 			clearTimeout(this.pendingFlushTimer);

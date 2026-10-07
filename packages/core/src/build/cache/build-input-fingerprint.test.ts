@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -10,8 +10,9 @@ import {
 	didBuildInputContributorChange,
 	haveBuildInputsChanged,
 	hashAppConfigFile,
-	hashWatchedBuildInputs,
+	hashRecordedBuildInputs,
 } from './build-input-fingerprint.ts';
+import { getAppBuildInputIndex } from './build-input-dependency-index.ts';
 
 describe('build-input-fingerprint', () => {
 	it('reports stable build inputs when contributors do not signal changes', () => {
@@ -53,18 +54,18 @@ describe('build-input-fingerprint', () => {
 			override async process(): Promise<unknown> {
 				return null;
 			}
-		})({ name: 'changed-processor' });
+		})({ name: 'test-processor' });
 
 		assert.equal(
 			createBuildInputsFingerprint({
-				processors: new Map([['changed-processor', processor]]),
+				processors: new Map([['test-processor', processor]]),
 				integrations: [],
 			} as any),
-			'processor:changed-processor',
+			'processor:test-processor',
 		);
 		assert.equal(
 			haveBuildInputsChanged({
-				processors: new Map([['changed-processor', processor]]),
+				processors: new Map([['test-processor', processor]]),
 				integrations: [],
 			} as any),
 			true,
@@ -72,10 +73,10 @@ describe('build-input-fingerprint', () => {
 	});
 
 	it('changes the config hash when a file eco.config.ts imports changes', () => {
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-config-hash-'));
+		const configRoot = mkdtempSync(path.join(tmpdir(), 'eco-config-hash-'));
 		try {
-			const configPath = path.join(rootDir, 'eco.config.ts');
-			const optionsPath = path.join(rootDir, 'options.ts');
+			const configPath = path.join(configRoot, 'eco.config.ts');
+			const optionsPath = path.join(configRoot, 'options.ts');
 			writeFileSync(configPath, "import { options } from './options';\nexport default { options };\n");
 			writeFileSync(optionsPath, 'export const options = { a: 1 };\n');
 			const appConfig = {
@@ -87,8 +88,21 @@ describe('build-input-fingerprint', () => {
 
 			expect(hashAppConfigFile(appConfig)).not.toBe(before);
 		} finally {
-			rmSync(rootDir, { recursive: true, force: true });
+			rmSync(configRoot, { recursive: true, force: true });
 		}
+	});
+});
+
+describe('hashAppConfigFile', () => {
+	let rootDir: string;
+
+	beforeEach(() => {
+		rootDir = mkdtempSync(path.join(tmpdir(), 'eco-config-hash-'));
+		writeFileSync(path.join(rootDir, 'eco.config.ts'), 'export default {}');
+	});
+
+	afterEach(() => {
+		rmSync(rootDir, { recursive: true, force: true });
 	});
 
 	it('returns missing when eco.config.ts is unavailable', () => {
@@ -101,71 +115,41 @@ describe('build-input-fingerprint', () => {
 	});
 });
 
-describe('hashWatchedBuildInputs', () => {
+describe('hashRecordedBuildInputs', () => {
 	let rootDir: string;
 
 	beforeEach(() => {
-		rootDir = mkdtempSync(path.join(tmpdir(), 'eco-watched-inputs-'));
-		mkdirSync(path.join(rootDir, 'src/content/docs/node_modules/pkg'), { recursive: true });
+		rootDir = mkdtempSync(path.join(tmpdir(), 'eco-recorded-inputs-'));
+		mkdirSync(path.join(rootDir, 'src/content/docs'), { recursive: true });
 		writeFileSync(path.join(rootDir, 'src/content/docs/intro.mdx'), '# Intro');
-		writeFileSync(path.join(rootDir, 'src/content/docs/notes.txt'), 'ignored');
-		writeFileSync(path.join(rootDir, 'src/content/docs/node_modules/pkg/readme.mdx'), 'ignored');
 	});
 
 	afterEach(() => {
 		rmSync(rootDir, { recursive: true, force: true });
 	});
 
-	function createConfig(extensions: string[] = ['.mdx']): EcoPagesAppConfig {
+	function createConfig(): EcoPagesAppConfig {
 		const contentProcessor = {
-			getWatchConfig: () => ({ paths: [path.join(rootDir, 'src/content/docs')], extensions }),
+			getWatchConfig: () => ({ paths: [path.join(rootDir, 'src/content/docs')] }),
 		};
 		return {
 			rootDir,
-			additionalWatchPaths: ['src/content'],
 			processors: new Map([['content', contentProcessor]]),
 		} as unknown as EcoPagesAppConfig;
 	}
 
-	it('changes when a Processor-watched file changes, is added, or is removed', () => {
-		const initial = hashWatchedBuildInputs(createConfig());
-
-		writeFileSync(path.join(rootDir, 'src/content/docs/intro.mdx'), '# Intro, edited');
-		const edited = hashWatchedBuildInputs(createConfig());
-		writeFileSync(path.join(rootDir, 'src/content/docs/more.mdx'), '# More');
-		const added = hashWatchedBuildInputs(createConfig());
-		rmSync(path.join(rootDir, 'src/content/docs/more.mdx'));
-
-		expect(edited).not.toBe(initial);
-		expect(added).not.toBe(edited);
-		expect(hashWatchedBuildInputs(createConfig())).toBe(edited);
-	});
-
-	it('notices a same-size edit through its modification time, without reading file contents', () => {
+	it('changes when a recorded file or Processor watch directory changes', () => {
+		const appConfig = createConfig();
 		const intro = path.join(rootDir, 'src/content/docs/intro.mdx');
-		utimesSync(intro, new Date('2026-01-01T00:00:00Z'), new Date('2026-01-01T00:00:00Z'));
-		const initial = hashWatchedBuildInputs(createConfig());
+		getAppBuildInputIndex(appConfig).recordWatchPath(intro);
+		const initial = hashRecordedBuildInputs(appConfig);
 
-		writeFileSync(intro, '# Outro');
+		writeFileSync(intro, '# Intro, edited');
 		utimesSync(intro, new Date('2026-01-02T00:00:00Z'), new Date('2026-01-02T00:00:00Z'));
-
-		expect(hashWatchedBuildInputs(createConfig())).not.toBe(initial);
+		expect(hashRecordedBuildInputs(appConfig)).not.toBe(initial);
 	});
 
-	it('ignores other extensions, node_modules, broken symlinks, and additionalWatchPaths', () => {
-		symlinkSync(path.join(rootDir, 'missing.mdx'), path.join(rootDir, 'src/content/docs/broken.mdx'));
-		const initial = hashWatchedBuildInputs(createConfig());
-
-		writeFileSync(path.join(rootDir, 'src/content/docs/notes.txt'), 'still ignored');
-		writeFileSync(path.join(rootDir, 'src/content/docs/node_modules/pkg/readme.mdx'), 'still ignored');
-		expect(hashWatchedBuildInputs(createConfig())).toBe(initial);
-
-		const allFiles = hashWatchedBuildInputs(createConfig([]));
-		writeFileSync(path.join(rootDir, 'src/content/docs/notes.txt'), 'now watched');
-		expect(hashWatchedBuildInputs(createConfig([]))).not.toBe(allFiles);
-	});
-
-	it('reports none when no Processor declares watch paths', () => {
-		expect(hashWatchedBuildInputs({ ...createConfig(), processors: new Map() } as EcoPagesAppConfig)).toBe('none');
+	it('reports none when nothing has been recorded and no Processor declares watch paths', () => {
+		expect(hashRecordedBuildInputs({ rootDir, processors: new Map() } as EcoPagesAppConfig)).toBe('none');
 	});
 });

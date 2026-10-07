@@ -6,6 +6,7 @@ import {
 	InMemoryEntrypointDependencyGraph,
 	type EntrypointDependencyGraph,
 } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
+import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
 import { SharedHmrManager } from '../shared/hmr/shared-hmr-manager.ts';
 
 type BunSocket = ServerWebSocket<unknown>;
@@ -44,7 +45,7 @@ export class HmrManager extends SharedHmrManager {
 	protected createEntrypointDependencyGraph(existingEntrypointDependencyGraph: EntrypointDependencyGraph) {
 		return existingEntrypointDependencyGraph instanceof InMemoryEntrypointDependencyGraph
 			? existingEntrypointDependencyGraph
-			: new InMemoryEntrypointDependencyGraph();
+			: new InMemoryEntrypointDependencyGraph(getAppBuildInputIndex(this.appConfig));
 	}
 
 	/**

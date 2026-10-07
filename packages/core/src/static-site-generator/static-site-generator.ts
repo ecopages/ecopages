@@ -640,7 +640,7 @@ export class StaticSiteGenerator {
 		errorPageLoaders?: ErrorPageLoaders;
 		force?: boolean;
 		preserveExportDirectory?: boolean;
-		/** A `hashWatchedBuildInputs()` result the caller already computed for this export. */
+		/** A `hashRecordedBuildInputs()` result the caller already computed for this export. */
 		watchedInputsHash?: string;
 	}) {
 		const skippedDynamicPages: string[] = [];

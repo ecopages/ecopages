@@ -9,6 +9,16 @@ import type {
 	ProcessedAsset,
 } from '../../../services/assets/asset-processing-service/assets.types.ts';
 import { appLogger } from '../../../global/app-logger.ts';
+import {
+	BuildInputDependencyIndex,
+	collectedLoadedBuildInputs,
+	getAppBuildInputIndex,
+	type BuildInputBinding,
+} from '../../../build/cache/build-input-dependency-index.ts';
+
+function graphBinding(key: string): BuildInputBinding {
+	return { consumer: 'page-browser-graph', key };
+}
 
 export type GraphPolicy = 'development' | 'production';
 
@@ -117,77 +127,6 @@ function parseSerializedGraphKey(serializedKey: string): AffectedGraphIdentity |
 }
 
 /**
- * Reverse index from dependency paths to graph cache keys.
- */
-export class GraphDependencyIndex {
-	private readonly dependencyToGraphKeys = new Map<string, Set<string>>();
-
-	bindRecord(record: GraphRecord): void {
-		const serializedKey = serializeGraphKey(record.key);
-		for (const dependencyPath of record.dependencyPaths) {
-			this.addDependencyBinding(normalizeDependencyPath(dependencyPath), serializedKey);
-		}
-	}
-
-	unbindRecord(record: GraphRecord): void {
-		const serializedKey = serializeGraphKey(record.key);
-		for (const dependencyPath of record.dependencyPaths) {
-			this.removeDependencyBinding(normalizeDependencyPath(dependencyPath), serializedKey);
-		}
-	}
-
-	bindGroupedRecord(cacheKey: string, record: GroupedGraphRecord): void {
-		for (const dependencyPath of record.dependencyPaths) {
-			this.addDependencyBinding(normalizeDependencyPath(dependencyPath), cacheKey);
-		}
-	}
-
-	unbindGroupedRecord(cacheKey: string, record: GroupedGraphRecord): void {
-		for (const dependencyPath of record.dependencyPaths) {
-			this.removeDependencyBinding(normalizeDependencyPath(dependencyPath), cacheKey);
-		}
-	}
-
-	bindPaths(serializedKey: string, dependencyPaths: ReadonlySet<string>): void {
-		for (const dependencyPath of dependencyPaths) {
-			this.addDependencyBinding(normalizeDependencyPath(dependencyPath), serializedKey);
-		}
-	}
-
-	unbindPaths(serializedKey: string, dependencyPaths: ReadonlySet<string>): void {
-		for (const dependencyPath of dependencyPaths) {
-			this.removeDependencyBinding(normalizeDependencyPath(dependencyPath), serializedKey);
-		}
-	}
-
-	getAffectedKeys(filePath: string): Set<string> {
-		return new Set(this.dependencyToGraphKeys.get(normalizeDependencyPath(filePath)) ?? []);
-	}
-
-	resetForTests(): void {
-		this.dependencyToGraphKeys.clear();
-	}
-
-	private addDependencyBinding(dependencyPath: string, serializedKey: string): void {
-		const graphKeys = this.dependencyToGraphKeys.get(dependencyPath) ?? new Set<string>();
-		graphKeys.add(serializedKey);
-		this.dependencyToGraphKeys.set(dependencyPath, graphKeys);
-	}
-
-	private removeDependencyBinding(dependencyPath: string, serializedKey: string): void {
-		const graphKeys = this.dependencyToGraphKeys.get(dependencyPath);
-		if (!graphKeys) {
-			return;
-		}
-
-		graphKeys.delete(serializedKey);
-		if (graphKeys.size === 0) {
-			this.dependencyToGraphKeys.delete(dependencyPath);
-		}
-	}
-}
-
-/**
  * Session-local Page Browser Graph cache with precise dependency invalidation.
  */
 export class SessionPageBrowserGraphCache {
@@ -197,10 +136,26 @@ export class SessionPageBrowserGraphCache {
 	private readonly inFlightGenerations = new Map<string, number>();
 	private readonly groupedRecords = new Map<string, GroupedGraphRecord>();
 	private readonly groupedInFlight = new Map<string, Promise<Map<string, ProcessedAsset[]>>>();
-	private readonly dependencyIndex = new GraphDependencyIndex();
+	private readonly inputIndex: BuildInputDependencyIndex;
 	private readonly graphGenerations = new Map<string, number>();
 	private readonly groupedGenerations = new Map<string, number>();
 	private buildCount = 0;
+
+	constructor(inputIndex: BuildInputDependencyIndex = new BuildInputDependencyIndex()) {
+		this.inputIndex = inputIndex;
+	}
+
+	private graphKeysFor(filePath: string): Set<string> {
+		return new Set(this.inputIndex.resolveKeys('page-browser-graph', filePath));
+	}
+
+	private bindGraphPaths(key: string, paths: Iterable<string>): void {
+		this.inputIndex.add(graphBinding(key), [...paths]);
+	}
+
+	private unbindGraphPaths(key: string, paths: Iterable<string>): void {
+		this.inputIndex.remove(graphBinding(key), [...paths]);
+	}
 
 	/**
 	 * Page Browser Graph compilations in this dev-server session.
@@ -253,7 +208,7 @@ export class SessionPageBrowserGraphCache {
 
 	getAffectedGraphIdentities(filePath: string): AffectedGraphIdentity[] {
 		const identities: AffectedGraphIdentity[] = [];
-		for (const serializedKey of this.dependencyIndex.getAffectedKeys(filePath)) {
+		for (const serializedKey of this.graphKeysFor(filePath)) {
 			const identity = parseSerializedGraphKey(serializedKey);
 			if (identity) {
 				identities.push(identity);
@@ -315,7 +270,7 @@ export class SessionPageBrowserGraphCache {
 
 	invalidateByFilePath(filePath: string): number {
 		const normalizedFilePath = normalizeDependencyPath(filePath);
-		const affectedKeys = this.dependencyIndex.getAffectedKeys(normalizedFilePath);
+		const affectedKeys = this.graphKeysFor(normalizedFilePath);
 		let invalidated = 0;
 
 		for (const serializedKey of affectedKeys) {
@@ -388,7 +343,7 @@ export class SessionPageBrowserGraphCache {
 		this.groupedInFlight.clear();
 		this.graphGenerations.clear();
 		this.groupedGenerations.clear();
-		this.dependencyIndex.resetForTests();
+		this.inputIndex.clearConsumer('page-browser-graph');
 		this.buildCount = 0;
 	}
 
@@ -402,7 +357,7 @@ export class SessionPageBrowserGraphCache {
 				continue;
 			}
 
-			this.dependencyIndex.unbindRecord(record);
+			this.unbindGraphPaths(serializeGraphKey(record.key), record.dependencyPaths);
 			this.records.delete(serializedKey);
 			this.inFlight.delete(serializedKey);
 			const inFlightDependencyPaths = this.inFlightDependencyPaths.get(serializedKey);
@@ -418,7 +373,7 @@ export class SessionPageBrowserGraphCache {
 			for (const cacheKey of [...this.groupedRecords.keys()]) {
 				const groupedRecord = this.groupedRecords.get(cacheKey);
 				if (groupedRecord) {
-					this.dependencyIndex.unbindGroupedRecord(cacheKey, groupedRecord);
+					this.unbindGraphPaths(cacheKey, groupedRecord.dependencyPaths);
 				}
 				this.groupedRecords.delete(cacheKey);
 				this.groupedInFlight.delete(cacheKey);
@@ -465,7 +420,7 @@ export class SessionPageBrowserGraphCache {
 	private invalidateSerializedGraphKey(serializedKey: string): number {
 		const record = this.records.get(serializedKey);
 		if (record) {
-			this.dependencyIndex.unbindRecord(record);
+			this.unbindGraphPaths(serializeGraphKey(record.key), record.dependencyPaths);
 			this.records.delete(serializedKey);
 		}
 
@@ -484,7 +439,7 @@ export class SessionPageBrowserGraphCache {
 	private invalidateGroupedRecord(cacheKey: string): number {
 		const groupedRecord = this.groupedRecords.get(cacheKey);
 		if (groupedRecord) {
-			this.dependencyIndex.unbindGroupedRecord(cacheKey, groupedRecord);
+			this.unbindGraphPaths(cacheKey, groupedRecord.dependencyPaths);
 			this.groupedRecords.delete(cacheKey);
 		}
 
@@ -521,7 +476,7 @@ export class SessionPageBrowserGraphCache {
 
 			const previous = this.records.get(serializedKey);
 			if (previous) {
-				this.dependencyIndex.unbindRecord(previous);
+				this.unbindGraphPaths(serializeGraphKey(previous.key), previous.dependencyPaths);
 			}
 
 			const record: GraphRecord = {
@@ -532,7 +487,7 @@ export class SessionPageBrowserGraphCache {
 				generation: buildGeneration,
 			};
 			this.records.set(serializedKey, record);
-			this.dependencyIndex.bindRecord(record);
+			this.bindGraphPaths(serializeGraphKey(record.key), record.dependencyPaths);
 			return record.result;
 		} catch (error) {
 			return Promise.reject(error);
@@ -564,7 +519,7 @@ export class SessionPageBrowserGraphCache {
 
 			const previous = this.groupedRecords.get(cacheKey);
 			if (previous) {
-				this.dependencyIndex.unbindGroupedRecord(cacheKey, previous);
+				this.unbindGraphPaths(cacheKey, previous.dependencyPaths);
 			}
 
 			const record: GroupedGraphRecord = {
@@ -573,7 +528,7 @@ export class SessionPageBrowserGraphCache {
 				generation: buildGeneration,
 			};
 			this.groupedRecords.set(cacheKey, record);
-			this.dependencyIndex.bindGroupedRecord(cacheKey, record);
+			this.bindGraphPaths(cacheKey, record.dependencyPaths);
 			return record.assetsByRoute;
 		} catch (error) {
 			return Promise.reject(error);
@@ -591,11 +546,11 @@ export class SessionPageBrowserGraphCache {
 	}
 
 	private bindDependencyPaths(serializedKey: string, dependencyPaths: ReadonlySet<string>): void {
-		this.dependencyIndex.bindPaths(serializedKey, dependencyPaths);
+		this.bindGraphPaths(serializedKey, dependencyPaths);
 	}
 
 	private unbindDependencyPaths(serializedKey: string, dependencyPaths: ReadonlySet<string>): void {
-		this.dependencyIndex.unbindPaths(serializedKey, dependencyPaths);
+		this.unbindGraphPaths(serializedKey, dependencyPaths);
 	}
 
 	private clearInFlightBuild(serializedKey: string, buildGeneration: number): void {
@@ -639,7 +594,7 @@ export function getAppPageBrowserGraphSession(appConfig: EcoPagesAppConfig): Ses
 		return cached;
 	}
 
-	const session = new SessionPageBrowserGraphCache();
+	const session = new SessionPageBrowserGraphCache(getAppBuildInputIndex(appConfig));
 	sessionByAppConfig.set(appConfig, session);
 	appConfig.runtime = {
 		...(appConfig.runtime ?? {}),
@@ -705,6 +660,10 @@ export function collectPageBrowserGraphDependencyPaths(
 
 	for (const watchPath of contribution.watchPaths ?? []) {
 		dependencyPaths.add(normalizeDependencyPath(watchPath));
+	}
+
+	for (const loadedPath of collectedLoadedBuildInputs()) {
+		dependencyPaths.add(normalizeDependencyPath(loadedPath));
 	}
 
 	return dependencyPaths;

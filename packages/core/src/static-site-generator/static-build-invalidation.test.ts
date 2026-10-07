@@ -10,6 +10,7 @@ import {
 	getServerModuleBuildCacheOutdir,
 	getSharedRouteModuleBuildCache,
 } from '../services/module-loading/route-module-build-cache-registry.ts';
+import { getAppBuildInputIndex } from '../build/cache/build-input-dependency-index.ts';
 import {
 	clearProductionBuildCaches,
 	createRouteModuleStaticRenderCacheContext,
@@ -93,6 +94,8 @@ describe('static-build-invalidation', () => {
 
 		it('reports a change until an export records the current inputs, and again after an edit', () => {
 			const appConfig = createConfig();
+			const intro = join(tempDir, 'src', 'content', 'intro.mdx');
+			getAppBuildInputIndex(appConfig).recordWatchPath(intro);
 			assert.equal(haveWatchedBuildInputsChanged(appConfig), true);
 
 			getSharedRouteModuleBuildCache(
@@ -101,7 +104,7 @@ describe('static-build-invalidation', () => {
 			).ensureIncrementalStaticGenerationContext(createRouteModuleStaticRenderCacheContext(appConfig));
 			assert.equal(haveWatchedBuildInputsChanged(appConfig), false);
 
-			writeFileSync(join(tempDir, 'src', 'content', 'intro.mdx'), '# Intro, edited');
+			writeFileSync(intro, '# Intro, edited');
 			assert.equal(haveWatchedBuildInputsChanged(appConfig), true);
 		});
 	});

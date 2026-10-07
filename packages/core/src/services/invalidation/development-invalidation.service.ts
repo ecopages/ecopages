@@ -8,6 +8,7 @@ import { clearAppDevelopmentRouteModuleBuildCaches } from '../module-loading/rou
 import { clearCollectionServerBuildArtifacts } from '../module-loading/collection-server-module-build.service.ts';
 import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../cache/page-cache-service.ts';
 import { getAppPageBrowserGraphSession } from '../../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
+import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
 
 export type DevelopmentInvalidationCategory =
 	| 'public-asset'
@@ -16,6 +17,7 @@ export type DevelopmentInvalidationCategory =
 	| 'explicit-server-view'
 	| 'route-source'
 	| 'processor-owned-asset'
+	| 'recorded-input'
 	| 'server-source'
 	| 'runtime-restart'
 	| 'other';
@@ -225,6 +227,39 @@ export class DevelopmentInvalidationService {
 			};
 		}
 
+		if (this.isProcessorOwnedAsset(filePath)) {
+			return {
+				category: 'processor-owned-asset',
+				invalidateServerModules: false,
+				refreshRoutes: false,
+				reloadBrowser: false,
+				delegateToHmr: false,
+				processorHandledAsset: true,
+			};
+		}
+
+		if (this.isRouteSourceFile(filePath)) {
+			return {
+				category: 'route-source',
+				invalidateServerModules: true,
+				refreshRoutes: true,
+				reloadBrowser: false,
+				delegateToHmr: true,
+				processorHandledAsset: false,
+			};
+		}
+
+		if (getAppBuildInputIndex(this.appConfig).hasSourcePath(filePath)) {
+			return {
+				category: 'recorded-input',
+				invalidateServerModules: true,
+				refreshRoutes: false,
+				reloadBrowser: false,
+				delegateToHmr: true,
+				processorHandledAsset: false,
+			};
+		}
+
 		if (this.isIncludeSourceFile(filePath)) {
 			return {
 				category: 'include-source',
@@ -244,28 +279,6 @@ export class DevelopmentInvalidationService {
 				reloadBrowser: false,
 				delegateToHmr: true,
 				processorHandledAsset: false,
-			};
-		}
-
-		if (this.isRouteSourceFile(filePath)) {
-			return {
-				category: 'route-source',
-				invalidateServerModules: true,
-				refreshRoutes: true,
-				reloadBrowser: false,
-				delegateToHmr: true,
-				processorHandledAsset: false,
-			};
-		}
-
-		if (this.isProcessorOwnedAsset(filePath)) {
-			return {
-				category: 'processor-owned-asset',
-				invalidateServerModules: false,
-				refreshRoutes: false,
-				reloadBrowser: false,
-				delegateToHmr: false,
-				processorHandledAsset: true,
 			};
 		}
 
@@ -445,11 +458,5 @@ export class DevelopmentInvalidationService {
 }
 
 function shouldClearAllPageHtmlCache(category: DevelopmentInvalidationPlan['category']): boolean {
-	return (
-		category === 'other' ||
-		category === 'server-source' ||
-		category === 'additional-watch' ||
-		category === 'include-source' ||
-		category === 'explicit-server-view'
-	);
+	return category === 'additional-watch';
 }

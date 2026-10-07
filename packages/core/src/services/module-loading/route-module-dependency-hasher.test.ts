@@ -15,6 +15,7 @@ describe('RouteModuleDependencyHasher', () => {
 		assert.equal(isTrackableRouteModuleDependency('\0virtual.js'), false);
 		assert.equal(isTrackableRouteModuleDependency('/app/node_modules/react/index.js'), false);
 		assert.equal(isTrackableRouteModuleDependency('/app/src/layouts/shared.tsx'), true);
+		assert.equal(isTrackableRouteModuleDependency('/app/src/styles/theme.css'), true);
 	});
 
 	it('memoizes dependency hashes within one build run', () => {

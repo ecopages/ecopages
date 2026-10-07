@@ -800,11 +800,11 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		vi.restoreAllMocks();
 	});
 
-	test('should watch includes and src directories alongside processor paths', async () => {
+	test('should watch recorded Processor paths, pages, and public assets', async () => {
 		const Config = await createMockConfig();
 		installDevRuntimeState(Config);
 		vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath) =>
-			[Config.absolutePaths.includesDir, Config.absolutePaths.srcDir].includes(String(targetPath)),
+			[Config.absolutePaths.pagesDir, Config.absolutePaths.publicDir].includes(String(targetPath)),
 		);
 		const watcherHandle = {
 			add: vi.fn(),
@@ -835,9 +835,13 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		expect(chokidarWatch).toHaveBeenCalledWith(
 			expect.arrayContaining([
 				'/test/project/custom-watch',
-				Config.absolutePaths.includesDir,
-				Config.absolutePaths.srcDir,
+				Config.absolutePaths.pagesDir,
+				Config.absolutePaths.publicDir,
 			]),
+			expect.any(Object),
+		);
+		expect(chokidarWatch).not.toHaveBeenCalledWith(
+			expect.arrayContaining([Config.absolutePaths.includesDir, Config.absolutePaths.srcDir]),
 			expect.any(Object),
 		);
 		expect(watcherHandle.add).not.toHaveBeenCalled();
@@ -959,7 +963,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		expect(capturedIgnored?.('/test/project/docs', directory)).toBe(false);
 		expect(capturedIgnored?.('/test/project/.cache', directory)).toBe(true);
 		expect(capturedIgnored?.('/test/project/vite.config.ts', file)).toBe(false);
-		expect(capturedIgnored?.(path.join(Config.absolutePaths.srcDir, 'components', 'Button.tsx'), file)).toBe(false);
+		expect(capturedIgnored?.(path.join(Config.absolutePaths.srcDir, 'components', 'Button.tsx'), file)).toBe(true);
 	});
 
 	test('ignores node_modules, .git, workDir, and distDir via a path predicate (chokidar v4+ has no glob support)', async () => {

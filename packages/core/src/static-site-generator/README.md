@@ -39,7 +39,7 @@ Semantic error pages are excluded from ordinary page enumeration and emitted onc
 | `static-build-invalidation.ts`              | `dist/` reset policy, production cache clearing, static-render cache context |
 | `production-page-browser-graph-prebuild.ts` | Warms and prebuilds browser asset graphs before static export rendering      |
 
-Build-input fingerprinting (`hashAppConfigFile`, `createBuildInputsFingerprint`, `hashWatchedBuildInputs`) lives in `packages/core/src/build/cache/build-input-fingerprint.ts` and is shared with the unified-graph and route-module in-process caches. `hashAppConfigFile` hashes the config module and the project files it imports (`absolutePaths.configModuleFiles`).
+Build-input fingerprinting (`hashAppConfigFile`, `createBuildInputsFingerprint`, `hashRecordedBuildInputs`) lives in `packages/core/src/build/cache/build-input-fingerprint.ts` and is shared with the unified-graph and route-module in-process caches. `hashAppConfigFile` hashes the config module and the project files it imports (`absolutePaths.configModuleFiles`).
 
 ## Incremental static export
 
@@ -50,7 +50,7 @@ Build-input fingerprinting (`hashAppConfigFile`, `createBuildInputsFingerprint`,
 3. Any processor/integration reports `didChange()` → reset
 4. This process has not yet recorded matching `configHash`, `buildInputsFingerprint`, and `watchedInputsHash` → reset. A new process always takes this branch.
 
-Watched rendering inputs are the files under each Processor's `watch.paths` (filtered by `watch.extensions`), hashed once per export by `hashWatchedBuildInputs()` and passed to `StaticSiteGenerator.run()`. They cover content a page reads without importing it statically, such as content collection entries loaded through dynamic `import()`. Compiled route modules and the unified pages graph track only static imports, so a change to these files also clears those in-process caches; the next export recompiles every route module. `additionalWatchPaths` is not a build input: route-module hashing already covers sources pages import.
+Recorded rendering inputs are the paths the build read: plugin `addDependency` files, module closures, and Processor watch directories seeded into the reverse index. `hashRecordedBuildInputs()` fingerprints those paths by size and mtime and passes the hash to `StaticSiteGenerator.run()`. Content a page reads without importing it statically, such as content collection entries loaded through dynamic `import()`, is included when the Processor declares that directory or the loader records the file. `additionalWatchPaths` is not a build input: route-module hashing already covers sources pages import.
 
 When `dist/` is preserved (`preserveExportDirectory: true`), `StaticSiteGenerator.run()` prunes HTML files no longer in the active route set.
 

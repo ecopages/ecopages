@@ -5,6 +5,7 @@ import { RouteRendererFactory } from '../../../route-renderer/route-renderer.ts'
 import { RouteRegistry } from '../../../router/server/route-registry.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
 import { requestBuildDedupe } from '../../../diagnostics/request-build-dedupe.ts';
+import { getAppBuildInputIndex, runWithBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
 import { MemoryCacheStore } from '../../../services/cache/memory-cache-store.ts';
 import { PageCacheService, registerAppPageCacheService } from '../../../services/cache/page-cache-service.ts';
 import { SchemaValidationService } from '../../../services/validation/schema-validation-service.ts';
@@ -296,7 +297,7 @@ export abstract class SharedServerAdapter<
 				? new MemoryCacheStore({ maxEntries: cacheConfig?.maxEntries })
 				: cacheConfig.store;
 
-		return new PageCacheService({ store, enabled: true });
+		return new PageCacheService({ store, enabled: true, dependencyIndex: getAppBuildInputIndex(this.appConfig) });
 	}
 
 	private getOrCreateSharedPageCacheService(): PageCacheService | null {
@@ -425,25 +426,27 @@ export abstract class SharedServerAdapter<
 	 */
 	public async handleSharedRequest(request: Request, context: SharedRequestContext): Promise<Response> {
 		return requestBuildDedupe.run(() =>
-			startupTrace.traceFirstRequest(request, async () => {
-				const devClientResponse = await this.tryHandleSharedDevClientRequest(request, context);
-				if (devClientResponse) {
-					return devClientResponse;
-				}
+			runWithBuildInputIndex(getAppBuildInputIndex(this.appConfig), () =>
+				startupTrace.traceFirstRequest(request, async () => {
+					const devClientResponse = await this.tryHandleSharedDevClientRequest(request, context);
+					if (devClientResponse) {
+						return devClientResponse;
+					}
 
-				const hmrResponse = this.tryHandleSharedHmrRequest(request, context);
-				if (hmrResponse) {
-					return hmrResponse;
-				}
+					const hmrResponse = this.tryHandleSharedHmrRequest(request, context);
+					if (hmrResponse) {
+						return hmrResponse;
+					}
 
-				const apiResponse = await this.tryHandleSharedApiRequest(request, context);
-				if (apiResponse) {
-					return await this.injectSharedHmrHtmlResponse(apiResponse, context);
-				}
+					const apiResponse = await this.tryHandleSharedApiRequest(request, context);
+					if (apiResponse) {
+						return await this.injectSharedHmrHtmlResponse(apiResponse, context);
+					}
 
-				const routeResponse = await this.routeHandler.handleResponse(request);
-				return await this.injectSharedHmrHtmlResponse(routeResponse, context);
-			}),
+					const routeResponse = await this.routeHandler.handleResponse(request);
+					return await this.injectSharedHmrHtmlResponse(routeResponse, context);
+				}),
+			),
 		);
 	}
 }

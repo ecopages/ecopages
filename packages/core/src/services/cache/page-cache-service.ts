@@ -8,12 +8,16 @@ import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { CacheEntry, CacheResult, CacheStore, CacheStrategy, RenderResult } from './cache.types.ts';
 import { MemoryCacheStore } from './memory-cache-store.ts';
-import { HtmlPageCacheDependencyIndex } from './html-page-cache-dependency-index.ts';
+import { BuildInputDependencyIndex, type BuildInputBinding } from '../../build/cache/build-input-dependency-index.ts';
+
+function htmlCacheBinding(cacheKey: string): BuildInputBinding {
+	return { consumer: 'html-cache', key: cacheKey };
+}
 
 export interface PageCacheServiceOptions {
 	store?: CacheStore;
 	enabled?: boolean;
-	dependencyIndex?: HtmlPageCacheDependencyIndex;
+	dependencyIndex?: BuildInputDependencyIndex;
 }
 
 /**
@@ -22,14 +26,14 @@ export interface PageCacheServiceOptions {
 export class PageCacheService {
 	private store: CacheStore;
 	private enabled: boolean;
-	private readonly dependencyIndex: HtmlPageCacheDependencyIndex;
+	private readonly dependencyIndex: BuildInputDependencyIndex;
 	private regenerationPromises = new Map<string, Promise<string>>();
 	private missPromises = new Map<string, Promise<CacheResult>>();
 
 	constructor(options: PageCacheServiceOptions = {}) {
 		this.store = options.store ?? new MemoryCacheStore();
 		this.enabled = options.enabled ?? true;
-		this.dependencyIndex = options.dependencyIndex ?? new HtmlPageCacheDependencyIndex();
+		this.dependencyIndex = options.dependencyIndex ?? new BuildInputDependencyIndex();
 	}
 
 	/**
@@ -149,7 +153,7 @@ export class PageCacheService {
 		}
 
 		if (mergedPaths.size > 0) {
-			this.dependencyIndex.register(key, [...mergedPaths]);
+			this.dependencyIndex.register(htmlCacheBinding(key), [...mergedPaths]);
 		}
 	}
 
@@ -206,20 +210,25 @@ export class PageCacheService {
 	 * Invalidates cached HTML entries that registered the given source paths.
 	 */
 	async invalidateBySourceDependencyPaths(sourcePaths: readonly string[]): Promise<number> {
-		const cacheKeys = this.dependencyIndex.resolveCacheKeysForSourcePaths(sourcePaths);
+		const cacheKeys = new Set<string>();
+		for (const sourcePath of sourcePaths) {
+			for (const cacheKey of this.dependencyIndex.resolveKeys('html-cache', sourcePath)) {
+				cacheKeys.add(cacheKey);
+			}
+		}
 		let count = 0;
 
 		for (const cacheKey of cacheKeys) {
 			if (await this.store.delete(cacheKey)) {
 				count += 1;
 			}
-			this.dependencyIndex.unregister(cacheKey);
+			this.dependencyIndex.unregister(htmlCacheBinding(cacheKey));
 		}
 
 		return count;
 	}
 
-	getDependencyIndex(): HtmlPageCacheDependencyIndex {
+	getDependencyIndex(): BuildInputDependencyIndex {
 		return this.dependencyIndex;
 	}
 
@@ -227,7 +236,7 @@ export class PageCacheService {
 	 * Clear all cached entries.
 	 */
 	async clear(): Promise<void> {
-		this.dependencyIndex.clear();
+		this.dependencyIndex.clearConsumer('html-cache');
 		return this.store.clear();
 	}
 

@@ -6,6 +6,7 @@ import {
 	InMemoryEntrypointDependencyGraph,
 	setAppEntrypointDependencyGraph,
 } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
+import { getAppBuildInputIndex } from '../build/cache/build-input-dependency-index.ts';
 import type { ClientBridge } from '../adapters/bun/client-bridge.ts';
 
 export const createMockHmrManager = (): IHmrManager =>
@@ -88,5 +89,5 @@ export const createMockBridge = (): ClientBridge =>
  * no-op graph; this swaps in a graph that records dependencies.
  */
 export function installDevRuntimeState(appConfig: EcoPagesAppConfig): void {
-	setAppEntrypointDependencyGraph(appConfig, new InMemoryEntrypointDependencyGraph());
+	setAppEntrypointDependencyGraph(appConfig, new InMemoryEntrypointDependencyGraph(getAppBuildInputIndex(appConfig)));
 }

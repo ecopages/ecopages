@@ -49,7 +49,7 @@ build/
   runtime/                        profiles, executors, request policy/identity
   server-bundle-publication.ts   staged server/config artifact publication
   rolldown/                       bundler adapter, plugin bridge, package externalization
-  cache/                          fingerprints, leftover-manifest cleanup, unified pages graph
+  cache/                          fingerprints, recorded-input reverse index, leftover-manifest cleanup, unified pages graph
   browser/                        client runtime rewrites, JSX ownership, Lit worker guard
 ```
 
@@ -58,7 +58,8 @@ build/
 - `runtime/build-runtime.ts`: profile-based executor installation (`server-entry`, `route-module`, `browser-hmr`).
 - `runtime/build-request-policy.ts`: server/browser request constructors and plugin collision rules.
 - `runtime/build-request-identity.ts` / `cache/cache-keys.ts`: canonical request identity and shared cache fingerprints.
-- `contracts/build-types.ts`: the `EcoBuildPlugin` contract used by integrations and processors.
+- `contracts/build-types.ts`: the `EcoBuildPlugin` contract used by integrations and processors. `onLoad` receives `addDependency(path)` so a plugin can record files it reads besides the loaded module.
+- `cache/build-input-dependency-index.ts`: one reverse index from recorded filesystem inputs to Page Browser Graphs, HTML cache entries, and browser entrypoints. Plugin loads, module closures, and Processor watch roots feed it. The Project Watcher subscribes to that set plus `additionalWatchPaths`.
 - `contracts/server-only-specifier.ts`: the dependency-free `.server` naming predicate, exported at `@ecopages/core/build/contracts/server-only-specifier` for Integrations and browser code.
 - `rolldown/rolldown-build-adapter.ts`: the production `BuildAdapter`. Wraps the bundler and exposes a normalized `BuildResult`. With `externalPackages`, compiled packages the app declares stay bare imports, so Integration renderers and server bundles share one instance (one React). Source code is bundled: the app, workspace packages and TypeScript or JSX packages, including Core when it resolves to its TypeScript source. Every other compiled package installed in `node_modules` stays external as a `./` or `../` path from the output directory to the installed file, whichever source package imports it, because a compiled package may find files relative to itself at runtime (a native binding such as `sharp`, a platform package, a sibling file loaded through `createRequire(import.meta.url)`), which fails once it is bundled into another folder. A Rolldown `resolveId` hook resolves these packages through Rolldown with the `node` and `import` conditions and writes the path; a build whose chunk lands in a subdirectory of the output directory and imports such a path fails. The exceptions are the runtime packages that need CommonJS named-export interop (`ws`), which are bundled. The isolated installs of pnpm and Bun do not expose undeclared packages as bare specifiers to the app, so a path is used instead. Server output therefore needs no app-level framework dependencies and its code holds no absolute paths of the build machine: `dist` keeps working after it moves together with `node_modules`. Named output hashes cover the bytes that are written; the adapter does not rewrite emitted files after `bundle.write()`.
 - `rolldown/rolldown-plugin-bridge.ts`: `EcoBuildPlugin[]` → bundler-plugin translation.
@@ -135,7 +136,7 @@ Vite-based apps (or any future host runtime) should:
 `EcoBuildPluginBuilder` exposes four hooks:
 
 - `onResolve({ filter, namespace? }, callback)` — the bundler's `resolveId` mapped to the shared plugin shape.
-- `onLoad({ filter, namespace? }, callback)` — the bundler's `load` mapped the same way.
+- `onLoad({ filter, namespace? }, callback)` — the bundler's `load` mapped the same way. The callback receives `addDependency(path)` for extra files the load read; the loaded `path` is recorded automatically.
 - With a `namespace`, a filter matches only ids that start with `<namespace>:`, and is tested against the path after it.
 - `transform({ filter }, callback)` — the bundler's `transform` hook, for source rewrites that must run after `load` and can return a source map. When a rewrite omits a map, the bridge returns `{ mappings: '' }` so Rolldown does not warn that the sourcemap is likely incorrect.
 - `module(specifier, callback)` — declares a virtual module by name, with bundler-side namespace encoding.
@@ -228,7 +229,7 @@ The graph is reused only in this process, and only when it matches the core pack
 
 `ECOPAGES_ROLLDOWN_BUILD_METRICS=1` enables `rolldown/rolldown-build-invocation-metrics.ts` counters used by bench and parity tests.
 
-Build-input fingerprinting lives in `cache/build-input-fingerprint.ts` and is shared with the unified pages graph and static-render invalidation.
+Build-input fingerprinting lives in `cache/build-input-fingerprint.ts` and is shared with the unified pages graph and static-render invalidation. `hashRecordedBuildInputs()` hashes the reverse index's recorded watch set (plugin `addDependency` paths, module closures, Processor watch roots) by size and mtime.
 
 ## JSX Ownership Plugins
 

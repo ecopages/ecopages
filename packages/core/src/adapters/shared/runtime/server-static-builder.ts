@@ -17,7 +17,7 @@ import {
 } from '../../../build/cache/server-entry-build-cache.ts';
 import {
 	clearProductionBuildCaches,
-	hashWatchedBuildInputs,
+	hashRecordedBuildInputs,
 	haveWatchedBuildInputsChanged,
 	shouldResetStaticExportDirectory,
 } from '../../../static-site-generator/static-build-invalidation.ts';
@@ -118,7 +118,7 @@ export class ServerStaticBuilder {
 	 * @returns Whether `dist/` was kept, and the watched-inputs hash computed once for this export.
 	 */
 	private prepareExportDirectory(force: boolean): { preserveExportDirectory: boolean; watchedInputsHash: string } {
-		const watchedInputsHash = hashWatchedBuildInputs(this.appConfig);
+		const watchedInputsHash = hashRecordedBuildInputs(this.appConfig);
 		if (force || haveWatchedBuildInputsChanged(this.appConfig, watchedInputsHash)) {
 			clearProductionBuildCaches(this.appConfig);
 		}

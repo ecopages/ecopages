@@ -2,6 +2,7 @@ import type { Readable } from 'node:stream';
 import type { ComponentIdentity } from '../eco/component-identity.ts';
 import type { ApiResponseBuilder } from '../adapters/shared/http/api-response.ts';
 import type { ForeignChildRuntime } from '../route-renderer/orchestration/foreign-child/component-render-context.ts';
+import type { PageClientPlan } from '../route-renderer/orchestration/ownership-graph/page-client-plan.ts';
 import type { EcoPageComponent } from '../eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
@@ -919,6 +920,8 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	pageLocals?: RequestLocals;
 	/** @internal Source paths from render preparation for HTML cache dependency registration. */
 	sourceDependencyPaths?: readonly string[];
+	/** @internal Client entries collected from one walk of the declared component graph. */
+	pageClientPlan?: PageClientPlan;
 };
 
 /**

@@ -36,6 +36,7 @@ import { DependencyResolverService } from '../page-loading/dependency-resolver.t
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
 import { hasForeignChildDescendantsInGraph } from './ownership-graph/component-graph-collectors.ts';
+import { planHasForeignChildDescendants, type PageClientPlan } from './ownership-graph/page-client-plan.ts';
 import {
 	RouteRenderOrchestrator,
 	type RouteRenderOrchestratorAdapter,
@@ -115,6 +116,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected assetProcessingService: AssetProcessingService;
 	protected htmlTransformer: HtmlTransformerService;
 	protected hmrManager?: IHmrManager;
+	protected pageClientPlan?: PageClientPlan;
+	protected islandRenderAssetsByFile = new Map<string, ProcessedAsset[]>();
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
 	declare protected options: Required<IntegrationRendererRenderOptions>;
 	protected runtimeOrigin: string;
@@ -858,6 +861,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const renderOptions = await this.routeRenderOrchestrator.prepareRenderOptions(options, adapter);
 		invariant(renderOptions.pagePackage !== undefined, 'Expected render preparation to produce a page package');
 		this.htmlTransformer.setPagePackage(renderOptions.pagePackage);
+		this.pageClientPlan = renderOptions.pageClientPlan;
+		this.islandRenderAssetsByFile = renderOptions.pageClientPlan
+			? await this.collectIslandRenderAssets(renderOptions.pageClientPlan)
+			: new Map();
 		return renderOptions;
 	}
 
@@ -1052,7 +1059,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		component: EcoComponent,
 		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
 	): boolean {
+		if (this.pageClientPlan) {
+			return planHasForeignChildDescendants(this.pageClientPlan, component, this.name, foreignChildRoots);
+		}
 		return hasForeignChildDescendantsInGraph(component, this.name, foreignChildRoots);
+	}
+
+	/**
+	 * Builds island client assets from the page client plan before SSR.
+	 *
+	 * @remarks
+	 * Default is none. Integrations that hydrate islands override this so
+	 * {@link IntegrationRenderer.execute} never starts a browser build during SSR.
+	 */
+	protected async collectIslandRenderAssets(_plan: PageClientPlan): Promise<Map<string, ProcessedAsset[]>> {
+		return new Map();
 	}
 
 	/**

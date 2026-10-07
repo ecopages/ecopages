@@ -3,6 +3,7 @@ import type { EcoComponent, ResolvedLazyTrigger } from '../../../types/public-ty
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
 import { walkComponentGraph, type ComponentGraphRoot } from './component-graph.ts';
 import { getComponentIdentity } from '../../../eco/component-identity.ts';
+import { collectPageClientPlan } from './page-client-plan.ts';
 
 function toGraphRoots(components: (EcoComponent | Partial<EcoComponent>)[]): ComponentGraphRoot[] {
 	return components.filter(Boolean).map((component) => ({ component }));
@@ -12,40 +13,14 @@ export function collectIntegrationNamesFromGraph(
 	components: (EcoComponent | Partial<EcoComponent>)[],
 	currentIntegrationName: string,
 ): Set<string> {
-	const integrationNames = new Set<string>();
-
-	walkComponentGraph({
-		roots: toGraphRoots(components),
-		currentIntegrationName,
-		onComponent: ({ component }) => {
-			const integrationName = getComponentIdentity(component)?.integration ?? component.config?.integration;
-			if (integrationName) {
-				integrationNames.add(integrationName);
-			}
-		},
-	});
-
-	return integrationNames;
+	return collectPageClientPlan(components, currentIntegrationName).integrationNames;
 }
 
 export function collectResolvedLazyTriggersFromGraph(
 	components: (EcoComponent | Partial<EcoComponent>)[],
 	currentIntegrationName: string,
 ): ResolvedLazyTrigger[] {
-	const triggers: ResolvedLazyTrigger[] = [];
-
-	walkComponentGraph({
-		roots: toGraphRoots(components),
-		currentIntegrationName,
-		onComponent: ({ component }) => {
-			const ownTriggers = component.config?._resolvedLazyTriggers;
-			if (ownTriggers?.length) {
-				triggers.push(...ownTriggers);
-			}
-		},
-	});
-
-	return triggers;
+	return collectPageClientPlan(components, currentIntegrationName).lazyTriggers;
 }
 
 export function hasForeignChildDescendantsInGraph(
@@ -75,12 +50,11 @@ export function hasForeignChildDescendantsInGraph(
 	return foundForeign;
 }
 
-export function collectUsedIntegrationDependenciesFromGraph(
+export function collectUsedIntegrationDependenciesFromNames(
 	appConfig: EcoPagesAppConfig,
-	components: (EcoComponent | Partial<EcoComponent>)[],
+	integrationNames: Iterable<string>,
 	currentIntegrationName: string,
 ): ProcessedAsset[] {
-	const integrationNames = collectIntegrationNamesFromGraph(components, currentIntegrationName);
 	const dependencies: ProcessedAsset[] = [];
 
 	for (const integrationName of integrationNames) {
@@ -97,4 +71,16 @@ export function collectUsedIntegrationDependenciesFromGraph(
 	}
 
 	return dependencies;
+}
+
+export function collectUsedIntegrationDependenciesFromGraph(
+	appConfig: EcoPagesAppConfig,
+	components: (EcoComponent | Partial<EcoComponent>)[],
+	currentIntegrationName: string,
+): ProcessedAsset[] {
+	return collectUsedIntegrationDependenciesFromNames(
+		appConfig,
+		collectIntegrationNamesFromGraph(components, currentIntegrationName),
+		currentIntegrationName,
+	);
 }

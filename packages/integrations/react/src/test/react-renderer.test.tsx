@@ -252,6 +252,17 @@ describe('ReactRenderer', () => {
 				},
 			};
 
+			const renderer = testRenderer as unknown as {
+				collectIslandRenderAssets: (plan: {
+					islandEntries: Array<{ file: string; integrationName: string; component: EcoComponent }>;
+				}) => Promise<Map<string, unknown[]>>;
+				islandRenderAssetsByFile: Map<string, unknown[]>;
+			};
+			renderer.islandRenderAssetsByFile = await renderer.collectIslandRenderAssets({
+				islandEntries: [{ file: pageFilePath, integrationName: 'react', component: Component }],
+			});
+			expect(assetProcessingService.processDependencies).toHaveBeenCalled();
+
 			const result = await testRenderer.renderComponent({
 				component: Component,
 				props: { title: 'Island' },
@@ -268,7 +279,6 @@ describe('ReactRenderer', () => {
 				getIslandComponentKey(pageFilePath, Component.config),
 			);
 			expect(result.rootAttributes?.['data-eco-props']).toBe(btoa(JSON.stringify({ title: 'Island' })));
-			expect(assetProcessingService.processDependencies).toHaveBeenCalled();
 		});
 
 		it('should not emit island assets when no componentInstanceId is provided', async () => {

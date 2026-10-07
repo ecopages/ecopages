@@ -27,10 +27,8 @@ import {
 	OwnershipValidationService,
 	throwIfOwnershipInvalid,
 } from '../ownership-graph/ownership-validation.service.ts';
-import {
-	collectResolvedLazyTriggersFromGraph,
-	collectUsedIntegrationDependenciesFromGraph,
-} from '../ownership-graph/component-graph-collectors.ts';
+import { collectUsedIntegrationDependenciesFromNames } from '../ownership-graph/component-graph-collectors.ts';
+import { collectPageClientPlan } from '../ownership-graph/page-client-plan.ts';
 import { buildGlobalInjectorAssets } from '../page-browser-graph/global-injector-assets.service.ts';
 import { mergePageBrowserGraphContributions } from '../page-browser-graph/page-browser-graph-contribution.merge.ts';
 import { PageBrowserGraphService } from '../page-browser-graph/page-browser-graph.service.ts';
@@ -232,13 +230,14 @@ export class RouteRenderOrchestrator {
 		});
 		const resolvedPageDependencyComponents = resolvedPageDependencies?.components ?? [];
 		const dependencyRoots = [...componentsToResolve, ...resolvedPageDependencyComponents];
+		const clientPlan = collectPageClientPlan(dependencyRoots, adapter.name);
 
 		const allDependencies = [
 			...resolvedDependencies,
-			...collectUsedIntegrationDependenciesFromGraph(this.appConfig, dependencyRoots, adapter.name),
+			...collectUsedIntegrationDependenciesFromNames(this.appConfig, clientPlan.integrationNames, adapter.name),
 		];
 
-		const triggers = collectResolvedLazyTriggersFromGraph(dependencyRoots, adapter.name);
+		const triggers = clientPlan.lazyTriggers;
 		const globalAssets =
 			triggers.length > 0
 				? await buildGlobalInjectorAssets(this.appConfig, this.assetProcessingService, triggers, adapter.name)
@@ -263,6 +262,7 @@ export class RouteRenderOrchestrator {
 				appConfig: this.appConfig,
 			}),
 			sourceDependencyPaths,
+			pageClientPlan: clientPlan,
 		};
 	}
 

@@ -1,5 +1,7 @@
+import path from 'node:path';
 import { vi } from 'vitest';
 import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
+import type { ResolvedHmrEntrypoint } from '../hmr/hmr-entrypoint-output.ts';
 import {
 	InMemoryEntrypointDependencyGraph,
 	setAppEntrypointDependencyGraph,
@@ -43,6 +45,27 @@ export const createMockHmrManager = (): IHmrManager =>
 			importServerModule: vi.fn(async () => ({})),
 		})),
 	}) as unknown as IHmrManager;
+
+export function registerMockEntrypoint(
+	hmrManager: IHmrManager,
+	filePath: string,
+	role: ResolvedHmrEntrypoint['role'] = 'page',
+): void {
+	const sourcePath = path.resolve(filePath);
+	vi.mocked(hmrManager.getRegisteredEntrypoints).mockReturnValue(
+		new Map([
+			[
+				sourcePath,
+				{
+					sourcePath,
+					outputPath: sourcePath,
+					outputUrl: `/@eco/dev/${path.basename(sourcePath)}`,
+					role,
+				},
+			],
+		]),
+	);
+}
 
 export const createMockBridge = (): ClientBridge =>
 	({

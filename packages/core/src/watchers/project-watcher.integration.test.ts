@@ -263,7 +263,8 @@ describe('ProjectWatcher - Integration Tests', () => {
 			await (watcher as any).handleFileChange(sourceFile);
 
 			expect(existsSync(wouldBeDestFile)).toBe(false);
-			expect(hmrManager.handleFileChange).toHaveBeenCalled();
+			expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(bridge.reload).toHaveBeenCalledTimes(1);
 		});
 	});
 
@@ -368,10 +369,8 @@ describe('ProjectWatcher - Integration Tests', () => {
 			await (watcher as any).processFileChange(mdxPath, 'change');
 
 			expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ path: path.resolve(mdxPath), bridge }));
-			expect(hmrManager.handleFileChange).toHaveBeenCalledWith(
-				path.resolve(mdxPath),
-				expect.objectContaining({ graphIdentities: expect.anything() }),
-			);
+			expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(bridge.reload).toHaveBeenCalledTimes(1);
 		});
 	});
 });

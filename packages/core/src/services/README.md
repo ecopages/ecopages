@@ -19,7 +19,7 @@ Typical responsibilities include:
 - `module-loading/`: framework-owned config/app bootstrap loading and server-side source loading
 - `assets/`: shared browser build coordination and processed asset pipelines. Production CSS, copied scripts, and image variants are named from a hash of the bytes that are written; development keeps source-relative names so CSS HMR can refresh the same href. Vendor runtimes keep stable names.
 - `cache/`: page HTML cache stores, selective source-path invalidation, and request coordination. The `static` strategy reuses HTML until the next deploy and sends `must-revalidate` with an ETag; `immutable` is reserved for content-hashed asset URLs.
-- `invalidation/`: file-change classification and invalidation policy
+- `invalidation/`: file-change classification and `applyDevFileChanges`, which marks a debounce window of development results dirty without rebuilding them. See [invalidation](invalidation/README.md).
 - `runtime-state/`: app-owned invalidation state and dependency graphs
 - `runtime-manifest/`: node runtime manifest derivation and persistence
 - `html/`: final HTML dependency injection and attribute stamping through `HtmlRewriter`, an in-house streaming rewriter with a subset of Bun's `HTMLRewriter` API that matches lol-html output (tag-name selectors; `before`/`prepend`/`append`/`after`; attributes). It runs the same way on Bun and Node, and `html-rewriter.parity.test.bun.ts` checks it against the native rewriter. `html-tokenizer.ts` holds the lexing rules it shares with `html-source-parser.ts`, a positional parser for callers that splice the original markup, such as HTML Pages.

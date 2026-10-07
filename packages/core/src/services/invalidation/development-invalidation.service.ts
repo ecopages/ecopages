@@ -6,6 +6,8 @@ import { isPathInside } from '../../utils/path-containment.ts';
 import { getAppServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
 import { clearAppDevelopmentRouteModuleBuildCaches } from '../module-loading/route-module-build-cache-registry.ts';
 import { clearCollectionServerBuildArtifacts } from '../module-loading/collection-server-module-build.service.ts';
+import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../cache/page-cache-service.ts';
+import { getAppPageBrowserGraphSession } from '../../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 
 export type DevelopmentInvalidationCategory =
 	| 'public-asset'
@@ -33,6 +35,43 @@ export interface DevelopmentInvalidationPlan {
 	reloadBrowser: boolean;
 	delegateToHmr: boolean;
 	processorHandledAsset: boolean;
+}
+
+/**
+ * One debounce window of filesystem events, grouped by kind.
+ *
+ * @remarks
+ * `created` stays separate from `changed` because new Page files refresh the
+ * Route Registry. Later events for the same path win when a batch contains
+ * more than one kind.
+ */
+export interface DevFileChanges {
+	changed: readonly string[];
+	created: readonly string[];
+	deleted: readonly string[];
+}
+
+export type DevFileChangeKind = 'changed' | 'created' | 'deleted';
+
+export interface AppliedDevFileChange {
+	filePath: string;
+	kind: DevFileChangeKind;
+	plan: DevelopmentInvalidationPlan;
+}
+
+/**
+ * Result of applying one batch of development file changes.
+ *
+ * @remarks
+ * Caches are marked dirty here. Rebuild happens on the next request that
+ * needs a result, not when the filesystem event arrives.
+ */
+export interface AppliedDevFileChanges {
+	files: AppliedDevFileChange[];
+	invalidateServerModules: boolean;
+	refreshRoutes: boolean;
+	reloadBrowser: boolean;
+	delegateToHmr: boolean;
 }
 
 /**
@@ -64,6 +103,88 @@ export class DevelopmentInvalidationService {
 
 		for (const processor of this.appConfig.processors.values()) {
 			processor.invalidateServerArtifacts?.();
+		}
+	}
+
+	/**
+	 * Plans one filesystem batch and marks affected results dirty without rebuilding them.
+	 */
+	async applyDevFileChanges(changes: DevFileChanges): Promise<AppliedDevFileChanges> {
+		const files = this.collectAppliedFiles(changes);
+		const applied = this.summarizeAppliedFiles(files);
+		await this.markAppliedFilesDirty(files, applied);
+		return applied;
+	}
+
+	private collectAppliedFiles(changes: DevFileChanges): AppliedDevFileChange[] {
+		const byPath = new Map<string, DevFileChangeKind>();
+		for (const filePath of changes.changed) {
+			byPath.set(path.resolve(filePath), 'changed');
+		}
+		for (const filePath of changes.created) {
+			byPath.set(path.resolve(filePath), 'created');
+		}
+		for (const filePath of changes.deleted) {
+			byPath.set(path.resolve(filePath), 'deleted');
+		}
+
+		const files: AppliedDevFileChange[] = [];
+		for (const [filePath, kind] of byPath) {
+			files.push({ filePath, kind, plan: this.planFileChange(filePath) });
+		}
+		return files;
+	}
+
+	private summarizeAppliedFiles(files: AppliedDevFileChange[]): AppliedDevFileChanges {
+		let invalidateServerModules = false;
+		let refreshRoutes = false;
+		let reloadBrowser = false;
+		let delegateToHmr = false;
+
+		for (const file of files) {
+			invalidateServerModules ||= file.plan.invalidateServerModules;
+			refreshRoutes ||= file.plan.refreshRoutes;
+			reloadBrowser ||= file.plan.reloadBrowser;
+			delegateToHmr ||= file.plan.delegateToHmr;
+		}
+
+		return { files, invalidateServerModules, refreshRoutes, reloadBrowser, delegateToHmr };
+	}
+
+	private async markAppliedFilesDirty(files: AppliedDevFileChange[], applied: AppliedDevFileChanges): Promise<void> {
+		if (applied.invalidateServerModules) {
+			this.invalidateServerModules(
+				files.filter((file) => file.plan.invalidateServerModules).map((file) => file.filePath),
+			);
+		}
+
+		await this.invalidatePageHtmlCache(files);
+		this.invalidatePageBrowserGraphs(files);
+	}
+
+	private async invalidatePageHtmlCache(files: AppliedDevFileChange[]): Promise<void> {
+		if (files.some((file) => shouldClearAllPageHtmlCache(file.plan.category))) {
+			await clearAppPageCache(this.appConfig);
+			return;
+		}
+
+		const sourcePaths = files
+			.filter((file) => file.plan.category !== 'public-asset' && file.plan.category !== 'runtime-restart')
+			.map((file) => file.filePath);
+		if (sourcePaths.length === 0) {
+			return;
+		}
+
+		await invalidateAppPageCacheBySourcePaths(this.appConfig, sourcePaths);
+	}
+
+	private invalidatePageBrowserGraphs(files: AppliedDevFileChange[]): void {
+		const session = getAppPageBrowserGraphSession(this.appConfig);
+		for (const file of files) {
+			session.invalidateByFilePath(file.filePath);
+			if (file.plan.category === 'route-source' && file.kind !== 'changed') {
+				session.invalidateByRouteFile(file.filePath);
+			}
 		}
 	}
 
@@ -304,4 +425,14 @@ export class DevelopmentInvalidationService {
 
 		return false;
 	}
+}
+
+function shouldClearAllPageHtmlCache(category: DevelopmentInvalidationPlan['category']): boolean {
+	return (
+		category === 'other' ||
+		category === 'server-source' ||
+		category === 'additional-watch' ||
+		category === 'include-source' ||
+		category === 'explicit-server-view'
+	);
 }

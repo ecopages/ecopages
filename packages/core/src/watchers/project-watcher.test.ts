@@ -10,7 +10,12 @@ import type { ClientBridge } from '../adapters/bun/client-bridge.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../dev/transform-server/dev-transform-url.ts';
 import { getAppServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
-import { createMockHmrManager, createMockBridge, installDevRuntimeState } from './project-watcher.test-helpers.ts';
+import {
+	createMockHmrManager,
+	createMockBridge,
+	installDevRuntimeState,
+	registerMockEntrypoint,
+} from './project-watcher.test-helpers.ts';
 
 function expectHmrDelegated(hmrManager: IHmrManager, filePath: string): void {
 	expect(hmrManager.handleFileChange).toHaveBeenCalledWith(
@@ -264,15 +269,38 @@ describe('ProjectWatcher - File Change Handling', () => {
 			expect(RefreshCallback).toHaveBeenCalled();
 		});
 
-		test('should call HMR manager for page file changes', async () => {
+		test('marks an unopened page dirty without rebuilding it', async () => {
 			const pageFilePath = path.join(Config.absolutePaths.pagesDir, 'contact.tsx');
+			let imported = false;
+			Config.runtime = {
+				...(Config.runtime ?? {}),
+				appModuleLoader: {
+					importModule: async <T = unknown>() => {
+						imported = true;
+						return {} as T;
+					},
+					invalidateDevelopmentGraph: vi.fn(() => {}),
+				},
+			};
+
+			await (watcher as any).handleFileChange(pageFilePath);
+
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(imported).toBe(false);
+			expect(Bridge.reload).toHaveBeenCalledTimes(1);
+		});
+
+		test('delegates an open page to HMR after marking it dirty', async () => {
+			const pageFilePath = path.join(Config.absolutePaths.pagesDir, 'contact.tsx');
+			registerMockEntrypoint(HmrManager, pageFilePath);
 
 			await (watcher as any).handleFileChange(pageFilePath);
 
 			expectHmrDelegated(HmrManager, pageFilePath);
+			expect(Bridge.reload).not.toHaveBeenCalled();
 		});
 
-		test('should await route refresh before delegating page file changes to HMR', async () => {
+		test('should await route refresh before broadcasting a browser update', async () => {
 			const pageFilePath = path.join(Config.absolutePaths.pagesDir, 'contact.tsx');
 			let releaseRefresh!: () => void;
 			const refreshGate = new Promise<void>((resolve) => {
@@ -294,12 +322,13 @@ describe('ProjectWatcher - File Change Handling', () => {
 			await vi.waitFor(() => {
 				expect(asyncRefreshCallback).toHaveBeenCalledTimes(1);
 			});
+			expect(Bridge.reload).not.toHaveBeenCalled();
 			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 
 			releaseRefresh();
 			await pendingChange;
 
-			expectHmrDelegated(HmrManager, pageFilePath);
+			expect(Bridge.reload).toHaveBeenCalledTimes(1);
 		});
 
 		test('should not refresh router for stylesheet changes inside the pages directory', async () => {
@@ -325,20 +354,71 @@ describe('ProjectWatcher - File Change Handling', () => {
 			void (debouncedWatcher as any).handleFileChange(pageFilePath);
 			await vi.runAllTimersAsync();
 
-			expect(HmrManager.handleFileChange).toHaveBeenCalledTimes(1);
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(Bridge.reload).toHaveBeenCalledTimes(1);
 			expect(RefreshCallback).toHaveBeenCalledTimes(1);
+			vi.useRealTimers();
+		});
+
+		test('applies fifty page edits in one debounce window with one invalidation and one browser update', async () => {
+			vi.useFakeTimers();
+			const debouncedWatcher = new ProjectWatcher({
+				config: Config,
+				refreshRouterRoutesCallback: RefreshCallback,
+				hmrManager: HmrManager,
+				bridge: Bridge,
+				changeDebounceMs: 150,
+			});
+			const serverInvalidationState = getAppServerInvalidationState(Config);
+
+			for (let index = 0; index < 50; index += 1) {
+				void (debouncedWatcher as any).handleFileChange(
+					path.join(Config.absolutePaths.pagesDir, `page-${index}.tsx`),
+				);
+			}
+			await vi.runAllTimersAsync();
+
+			expect(serverInvalidationState.getServerInvalidationVersion()).toBe(1);
+			expect(Bridge.reload).toHaveBeenCalledTimes(1);
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(RefreshCallback).toHaveBeenCalledTimes(1);
+			vi.useRealTimers();
+		});
+
+		test('refreshes routes once when a page is created and another is deleted in the same batch', async () => {
+			vi.useFakeTimers();
+			const debouncedWatcher = new ProjectWatcher({
+				config: Config,
+				refreshRouterRoutesCallback: RefreshCallback,
+				hmrManager: HmrManager,
+				bridge: Bridge,
+				changeDebounceMs: 150,
+			});
+
+			void (debouncedWatcher as any).handleFileChange(
+				path.join(Config.absolutePaths.pagesDir, 'created.tsx'),
+				'add',
+			);
+			void (debouncedWatcher as any).handleFileChange(
+				path.join(Config.absolutePaths.pagesDir, 'deleted.tsx'),
+				'unlink',
+			);
+			await vi.runAllTimersAsync();
+
+			expect(RefreshCallback).toHaveBeenCalledTimes(1);
+			expect(Bridge.reload).toHaveBeenCalledTimes(1);
 			vi.useRealTimers();
 		});
 	});
 
 	describe('include files', () => {
-		test('should delegate include template changes to HMR before reloading the browser', async () => {
+		test('marks include template changes dirty and reloads the browser once', async () => {
 			const includeFilePath = path.join(Config.absolutePaths.includesDir, 'seo.kita.tsx');
 
 			await (watcher as any).handleFileChange(includeFilePath);
 
-			expectHmrDelegated(HmrManager, includeFilePath);
-			expect(Bridge.reload).not.toHaveBeenCalled();
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(Bridge.reload).toHaveBeenCalledTimes(1);
 			expect(RefreshCallback).not.toHaveBeenCalled();
 		});
 
@@ -362,8 +442,8 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(includeFilePath);
 
-			expectHmrDelegated(HmrManager, includeFilePath);
-			expect(Bridge.reload).not.toHaveBeenCalled();
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(Bridge.reload).toHaveBeenCalledTimes(1);
 			await new Promise<void>((resolve) => {
 				setImmediate(resolve);
 			});
@@ -391,6 +471,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 			HmrManager.getWatchedFiles = vi.fn(
 				() => new Map([[path.resolve(scriptPath), `${DEV_TRANSFORM_URL_PREFIX}/components/theme-toggle.js`]]),
 			);
+			registerMockEntrypoint(HmrManager, scriptPath, 'script');
 
 			await (watcher as any).handleFileChange(scriptPath);
 
@@ -429,7 +510,8 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(nonMatchingPath);
 
-			expect(HmrManager.handleFileChange).toHaveBeenCalled();
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(Bridge.reload).toHaveBeenCalledTimes(1);
 		});
 	});
 
@@ -470,7 +552,8 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(jsFilePath);
 
-			expectHmrDelegated(HmrManager, jsFilePath);
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(Bridge.reload).toHaveBeenCalledTimes(1);
 		});
 
 		test('should keep TSX changes in HMR when a processor only handles stylesheet assets', async () => {
@@ -494,7 +577,8 @@ describe('ProjectWatcher - File Change Handling', () => {
 			await (watcher as any).handleFileChange(tsxFilePath);
 
 			expect(onChange).toHaveBeenCalledWith({ path: path.resolve(tsxFilePath), bridge: Bridge });
-			expectHmrDelegated(HmrManager, tsxFilePath);
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(Bridge.reload).toHaveBeenCalledTimes(1);
 		});
 
 		test('should route TSX through HMR even when no specific strategy matches', async () => {
@@ -518,7 +602,8 @@ describe('ProjectWatcher - File Change Handling', () => {
 			await (watcher as any).handleFileChange(tsxFilePath);
 
 			expect(onChange).toHaveBeenCalled();
-			expectHmrDelegated(HmrManager, tsxFilePath);
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(Bridge.reload).toHaveBeenCalledTimes(1);
 			expect(HmrManager.broadcast).not.toHaveBeenCalledWith({ type: 'layout-update' });
 		});
 
@@ -532,17 +617,24 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(filePath);
 
-			expect(HmrManager.handleFileChange).toHaveBeenCalled();
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(Bridge.reload).toHaveBeenCalledTimes(1);
 		});
 	});
 
 	describe('error handling', () => {
 		test('should handle errors during file change processing', async () => {
-			HmrManager.handleFileChange = vi.fn(async () => {
+			RefreshCallback = vi.fn(async () => {
 				throw new Error('HMR error');
 			});
-
-			const filePath = '/test/project/src/app.js';
+			watcher = new ProjectWatcher({
+				config: Config,
+				refreshRouterRoutesCallback: RefreshCallback,
+				hmrManager: HmrManager,
+				bridge: Bridge,
+				changeDebounceMs: 0,
+			});
+			const filePath = path.join(Config.absolutePaths.pagesDir, 'about.tsx');
 
 			await (watcher as any).handleFileChange(filePath);
 
@@ -552,11 +644,17 @@ describe('ProjectWatcher - File Change Handling', () => {
 		});
 
 		test('should continue processing after error', async () => {
-			HmrManager.handleFileChange = vi.fn(async () => {
+			RefreshCallback = vi.fn(async () => {
 				throw new Error('Processing failed');
 			});
-
-			const filePath = '/test/project/src/app.js';
+			watcher = new ProjectWatcher({
+				config: Config,
+				refreshRouterRoutesCallback: RefreshCallback,
+				hmrManager: HmrManager,
+				bridge: Bridge,
+				changeDebounceMs: 0,
+			});
+			const filePath = path.join(Config.absolutePaths.pagesDir, 'about.tsx');
 
 			await (watcher as any).handleFileChange(filePath);
 
@@ -646,7 +744,8 @@ describe('ProjectWatcher - Priority Rules', () => {
 
 		await (watcher as any).handleFileChange(regularFilePath);
 
-		expect(HmrManager.handleFileChange).toHaveBeenCalled();
+		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+		expect(Bridge.reload).toHaveBeenCalledTimes(1);
 	});
 
 	test('should notify processor for dependency file before proceeding to HMR', async () => {
@@ -670,7 +769,8 @@ describe('ProjectWatcher - Priority Rules', () => {
 		await (watcher as any).handleFileChange(tsxFilePath);
 
 		expect(onChange).toHaveBeenCalledWith({ path: path.resolve(tsxFilePath), bridge: Bridge });
-		expectHmrDelegated(HmrManager, tsxFilePath);
+		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+		expect(Bridge.reload).toHaveBeenCalledTimes(1);
 	});
 });
 

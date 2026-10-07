@@ -13,6 +13,8 @@ import {
 	getServerModuleBuildCacheOutdir,
 	getSharedRouteModuleBuildCache,
 } from '../module-loading/route-module-build-cache-registry.ts';
+import { RouteModuleBuildCache } from '../module-loading/route-module-build-cache.store.ts';
+import { PageCacheService, registerAppPageCacheService } from '../cache/page-cache-service.ts';
 
 class StylesheetProcessor extends Processor {
 	buildPlugins = [];
@@ -293,5 +295,91 @@ describe('DevelopmentInvalidationService', () => {
 		} finally {
 			rmSync(rootDir, { recursive: true, force: true });
 		}
+	});
+
+	it('marks a 50-file batch dirty with one server invalidation and one manifest write', async () => {
+		const originalNodeEnv = process.env.NODE_ENV;
+		process.env.NODE_ENV = 'development';
+		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-dev-file-batch-'));
+		let appConfig: Awaited<ReturnType<typeof finalizeEcoPagesConfig>> | undefined;
+
+		try {
+			appConfig = await finalizeEcoPagesConfig({ rootDir });
+			const invalidationState = new CounterServerInvalidationState();
+			setAppServerInvalidationState(appConfig, invalidationState);
+			const writeManifest = vi.fn(() => {});
+			const outdir = getServerModuleBuildCacheOutdir(appConfig);
+			mkdirSync(outdir, { recursive: true });
+			const cache = new RouteModuleBuildCache(outdir, { writeManifest });
+			const filePath = path.join(rootDir, 'src/pages/index.tsx');
+			const outputPath = path.join(outdir, 'index.mjs');
+			mkdirSync(path.dirname(filePath), { recursive: true });
+			writeFileSync(filePath, 'export default {};\n');
+			writeFileSync(outputPath, 'export default {};\n');
+			cache.recordBuild({
+				filePath,
+				rootDir,
+				outdir,
+				fileHash: 'abc123',
+				outputPath,
+				dependencyModulePaths: [filePath],
+			});
+			writeManifest.mockClear();
+			appConfig.runtime = {
+				...(appConfig.runtime ?? {}),
+				routeModuleBuildCaches: new Map([[outdir, cache]]),
+			};
+			const pageCache = new PageCacheService();
+			registerAppPageCacheService(appConfig, pageCache);
+			const invalidateHtml = vi.spyOn(pageCache, 'invalidateBySourceDependencyPaths');
+			const service = new DevelopmentInvalidationService(appConfig);
+			const changed = Array.from({ length: 50 }, (_, index) =>
+				path.join(rootDir, 'src/pages', `page-${index}.tsx`),
+			);
+
+			await service.applyDevFileChanges({ changed, created: [], deleted: [] });
+
+			expect(invalidationState.getServerInvalidationVersion()).toBe(1);
+			expect(writeManifest).toHaveBeenCalledTimes(1);
+			expect(invalidateHtml).toHaveBeenCalledTimes(1);
+			expect(invalidateHtml.mock.calls[0]?.[0]).toHaveLength(50);
+		} finally {
+			process.env.NODE_ENV = originalNodeEnv;
+			if (appConfig) {
+				registerAppPageCacheService(appConfig, null);
+			}
+			rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
+	it('plans created and deleted pages in one batch without rebuilding them', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const invalidationState = new CounterServerInvalidationState();
+		setAppServerInvalidationState(appConfig, invalidationState);
+		let imported = false;
+		appConfig.runtime = {
+			...(appConfig.runtime ?? {}),
+			appModuleLoader: {
+				importModule: async <T = unknown>() => {
+					imported = true;
+					return {} as T;
+				},
+				invalidateDevelopmentGraph: vi.fn(() => {}),
+			},
+		};
+		const service = new DevelopmentInvalidationService(appConfig);
+		const created = '/test/project/src/pages/new-page.tsx';
+		const deleted = '/test/project/src/pages/old-page.tsx';
+
+		const applied = await service.applyDevFileChanges({
+			changed: [],
+			created: [created],
+			deleted: [deleted],
+		});
+
+		expect(applied.refreshRoutes).toBe(true);
+		expect(applied.files).toHaveLength(2);
+		expect(invalidationState.getServerInvalidationVersion()).toBe(1);
+		expect(imported).toBe(false);
 	});
 });

@@ -51,17 +51,17 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-	A[File change] --> B[ProjectWatcher]
-	B --> C[DevelopmentInvalidationService]
-	C --> D{Change kind}
-	D -->|Route or server source| E[Invalidate server modules]
+	A[File changes] --> B[ProjectWatcher debounce window]
+	B --> C[applyDevFileChanges]
+	C --> D{Change kinds}
+	D -->|Route or server source| E[Mark server modules dirty]
 	D -->|Additional watch| E
 	D -->|Config, dotenv or linked package| R[Restart dev process]
 	E --> N[Notify processors]
-	N --> F[Reload browser]
+	N --> F[One browser update]
 	D -->|Public asset| F
 	D -->|Processor-owned asset| G[Notify processor only]
-	D -->|HMR-eligible source| H[Core HMR manager]
+	D -->|Open HMR entrypoint| H[Core HMR manager]
 	H --> I[Strategy selection]
 	I --> J[Core JsHmrStrategy]
 	I --> K[Integration strategy e.g. ReactHmrStrategy]
@@ -95,7 +95,8 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/services/README.md`: cross-cutting runtime services and orchestration helpers
 - `src/adapters/README.md`: Bun, Node, and shared adapter boundaries
 - `src/dev/README.md`: dev transform server, on-demand client delivery, and invalidation during compilation
-- `src/watchers/README.md`: project subscriptions, linked package watching, and restart invalidation
+- `src/watchers/README.md`: project subscriptions, linked package watching, batched `applyDevFileChanges`, and restart invalidation
+- `src/services/invalidation/README.md`: file-change classification and dirty-marking for one debounce window
 - `src/hmr/README.md`: HMR strategy, update-layer ownership, and build error presentation
 - `src/dev-toolbar/README.md`: toolbar enablement, custom clients, and build error event contract
 - `src/router/README.md`: route discovery, matching, and browser navigation coordination

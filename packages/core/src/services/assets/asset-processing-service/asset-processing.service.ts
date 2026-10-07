@@ -149,10 +149,12 @@ export class AssetProcessingService {
 				bundles: Array.from(groupedBundleDeps.values()),
 				getCachedAsset: (dep, depKey) => this.getCachedAsset(dep, depKey),
 				getDependencyKey: getAssetDependencyKey,
-				getGroupedProcessor: () =>
-					this.registry.getProcessor('script', 'content') as {
+				getGroupedProcessor: (bundleDeps) => {
+					const source = bundleDeps[0]?.source === 'file' ? 'file' : 'content';
+					return this.registry.getProcessor('script', source) as {
 						processGrouped?: (deps: AssetDefinition[]) => Promise<ProcessedAsset[]>;
-					},
+					};
+				},
 				resolveProcessedAssetSrcUrl: (processed) => this.resolveProcessedAssetSrcUrl(processed),
 				setCachedAsset: (dep, depKey, processed) => this.setCachedAsset(dep, depKey, processed),
 				logError: (error) => {

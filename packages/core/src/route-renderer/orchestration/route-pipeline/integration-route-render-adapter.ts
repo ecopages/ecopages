@@ -13,6 +13,7 @@ import type {
 } from '../../../types/public-types.ts';
 import type { ResolvedPageDependencies } from '../../page-loading/resolved-page-dependencies.ts';
 import { buildRouteHtmlFinalization } from './route-html-finalization.service.ts';
+import type { PageClientBrowserAssets, PageClientPlan } from '../ownership-graph/page-client-plan.ts';
 import type {
 	RouteHtmlFinalization,
 	RouteRenderOrchestratorAdapter,
@@ -43,6 +44,7 @@ export type IntegrationRouteRenderAdapterHost<C> = {
 		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query'>,
 	): Promise<PageBrowserGraphContributionContext>;
 	renderRouteBody(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
+	buildPageClientBrowserAssets(plan: PageClientPlan): Promise<PageClientBrowserAssets>;
 	getDocumentAttributes(renderOptions: IntegrationRendererRenderOptions<C>): Record<string, string> | undefined;
 	getHtmlDocumentContributions(options: {
 		renderOptions: IntegrationRendererRenderOptions<C>;
@@ -71,6 +73,7 @@ export function createIntegrationRouteRenderAdapter<C>(
 		buildPageBrowserGraphContributionContext: (routeFile, routeOptions) =>
 			host.buildPageBrowserGraphContributionContext(routeFile, routeOptions),
 		renderRouteBody: (renderOptions) => host.renderRouteBody(renderOptions),
+		buildPageClientBrowserAssets: (plan) => host.buildPageClientBrowserAssets(plan),
 		getRouteHtmlFinalization: (renderOptions) =>
 			buildRouteHtmlFinalization({
 				appConfig: host.appConfig,

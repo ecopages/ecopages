@@ -1,21 +1,17 @@
-import type { AssetDefinition, ContentScriptAsset } from '@ecopages/core/services/asset-processing-service';
+import {
+	APP_BROWSER_CLIENT_BUNDLE_ID,
+	type AssetDefinition,
+	type ContentScriptAsset,
+} from '@ecopages/core/services/asset-processing-service';
 import { rapidhash } from '@ecopages/core/hash';
-import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
 
-/** Shared grouped-build id prefix for page-owned content scripts. */
-const PAGE_OWNED_CONTENT_SCRIPT_BUNDLE_PREFIX = 'ecopages';
-
-/** Returns the stable grouped-build id for one integration's page-owned content scripts. */
-export function createPageOwnedContentScriptBundleId(integrationName: string): string {
-	return `${PAGE_OWNED_CONTENT_SCRIPT_BUNDLE_PREFIX}-${integrationName}-page-content-scripts`;
+/** Returns the app-wide grouped-build id used for page-owned content scripts. */
+export function createPageOwnedContentScriptBundleId(_integrationName?: string): string {
+	return APP_BROWSER_CLIENT_BUNDLE_ID;
 }
 
 function isPageOwnedGroupableContentScript(dep: AssetDefinition): dep is ContentScriptAsset {
 	if (dep.kind !== 'script' || dep.source !== 'content' || dep.inline) {
-		return false;
-	}
-
-	if (dep.excludeFromHtml) {
 		return false;
 	}
 
@@ -49,15 +45,14 @@ function createPageOwnedGroupedEntryName(dep: ContentScriptAsset, usedEntryNames
 }
 
 /**
- * Tags page-owned content scripts in one dependency batch with a shared grouped-build id.
+ * Tags page-owned content scripts in one dependency batch with the app-wide client bundle id.
  *
  * @remarks
- * Lazy hydration entries (`excludeFromHtml`), component file scripts, and integration runtime
- * assets stay ungrouped. Integrations that already assign a grouped id (for example React
- * Router pages) are left unchanged.
+ * Component file scripts and integration runtime assets stay ungrouped. Entries that
+ * already assign a grouped id are left unchanged.
  */
 export function assignPageOwnedContentScriptGroupedBundles(dependencies: AssetDefinition[]): AssetDefinition[] {
-	const bundleId = createPageOwnedContentScriptBundleId(ECOPAGES_JSX_PLUGIN_NAME);
+	const bundleId = APP_BROWSER_CLIENT_BUNDLE_ID;
 	const usedEntryNames = new Set<string>();
 
 	for (const dependency of dependencies) {

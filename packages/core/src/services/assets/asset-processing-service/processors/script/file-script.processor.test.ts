@@ -465,4 +465,59 @@ describe('FileScriptProcessor', () => {
 			expect(result2.position).toBe('body');
 		});
 	});
+
+	describe('processGrouped', () => {
+		test('bundles grouped file entries together and maps outputs by entry name', async () => {
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const bundleScriptsSpy = vi
+				.spyOn(processor as never as { bundleScripts: (typeof processor)['bundleScripts'] }, 'bundleScripts')
+				.mockResolvedValue(
+					new Map([
+						['island-a', '/test/project/.eco/public/assets/island-a-hash.js'],
+						['island-b', '/test/project/.eco/public/assets/island-b-hash.js'],
+					]),
+				);
+
+			const results = await processor.processGrouped([
+				{
+					kind: 'script',
+					source: 'file',
+					filepath: '/test/project/src/islands/a.tsx',
+					groupedBundle: { id: 'ecopages-app-browser-client', entryName: 'island-a' },
+				},
+				{
+					kind: 'script',
+					source: 'file',
+					filepath: '/test/project/src/islands/b.tsx',
+					groupedBundle: { id: 'ecopages-app-browser-client', entryName: 'island-b' },
+				},
+			]);
+
+			expect(bundleScriptsSpy).toHaveBeenCalledTimes(1);
+			expect(results.map((asset) => asset.filepath)).toEqual([
+				'/test/project/.eco/public/assets/island-a-hash.js',
+				'/test/project/.eco/public/assets/island-b-hash.js',
+			]);
+			expect(results[0]?.groupedBundle).toEqual({ id: 'ecopages-app-browser-client', entryName: 'island-a' });
+		});
+
+		test('rejects a grouped build without an entry output record', async () => {
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			vi.spyOn(
+				processor as never as { bundleScripts: (typeof processor)['bundleScripts'] },
+				'bundleScripts',
+			).mockResolvedValue(new Map());
+
+			await expect(
+				processor.processGrouped([
+					{
+						kind: 'script',
+						source: 'file',
+						filepath: '/test/project/src/islands/a.tsx',
+						groupedBundle: { id: 'ecopages-app-browser-client', entryName: 'island-a' },
+					},
+				]),
+			).rejects.toThrow('Missing grouped bundle output for island-a');
+		});
+	});
 });

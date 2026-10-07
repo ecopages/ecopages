@@ -25,6 +25,8 @@ import {
 	type HtmlDocumentContribution,
 	type HtmlDocumentContributionContext,
 	type PageBrowserGraphContributionContext,
+	type PageClientBrowserAssets,
+	type PageClientPlan,
 	type RenderToResponseContext,
 } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { resolveDocumentShellLayouts } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';
@@ -145,25 +147,30 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	/**
 	 * Builds island client assets for this page before SSR.
 	 */
-	protected override async collectIslandRenderAssets(plan: {
-		islandEntries: Array<{ file: string; integrationName: string; component: EcoComponent }>;
-	}): Promise<Map<string, ProcessedAsset[]>> {
-		const assetsByFile = new Map<string, ProcessedAsset[]>();
-		if (!this.assetProcessingService) {
-			return assetsByFile;
-		}
+	protected override async collectIslandRenderAssets(plan: PageClientPlan): Promise<Map<string, ProcessedAsset[]>> {
+		const { islandRenderAssetsByFile } = await this.buildPageClientBrowserAssets(plan);
+		return islandRenderAssetsByFile;
+	}
 
-		for (const entry of plan.islandEntries) {
-			if (entry.integrationName !== this.name || assetsByFile.has(entry.file)) {
-				continue;
-			}
-			assetsByFile.set(
-				entry.file,
-				await this.hydrationAssetService.buildComponentRenderAssets(entry.file, entry.component.config),
-			);
-		}
-
-		return assetsByFile;
+	/**
+	 * Builds React island and lazy-entry modules in one grouped browser build.
+	 */
+	protected override async buildPageClientBrowserAssets(plan: PageClientPlan): Promise<PageClientBrowserAssets> {
+		const result = await this.hydrationAssetService.buildPageClientRenderAssets({
+			islands: plan.islandEntries
+				.filter((entry) => entry.integrationName === this.name)
+				.map((entry) => ({ file: entry.file, config: entry.component.config })),
+			lazyEntries: plan.lazyClientEntries,
+		});
+		const lazyTriggers = this.dependencyResolverService.applyPendingLazyTriggers(
+			result.processedAssets,
+			plan.lazyConfigs ?? [],
+		);
+		return {
+			processedAssets: result.processedAssets,
+			islandRenderAssetsByFile: result.assetsByFile,
+			lazyTriggers,
+		};
 	}
 
 	private getRouterDocumentAttributes(): Record<string, string> | undefined {

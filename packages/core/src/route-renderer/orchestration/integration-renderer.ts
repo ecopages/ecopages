@@ -36,7 +36,11 @@ import { DependencyResolverService } from '../page-loading/dependency-resolver.t
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
 import { hasForeignChildDescendantsInGraph } from './ownership-graph/component-graph-collectors.ts';
-import { planHasForeignChildDescendants, type PageClientPlan } from './ownership-graph/page-client-plan.ts';
+import {
+	planHasForeignChildDescendants,
+	type PageClientBrowserAssets,
+	type PageClientPlan,
+} from './ownership-graph/page-client-plan.ts';
 import {
 	RouteRenderOrchestrator,
 	type RouteRenderOrchestratorAdapter,
@@ -103,6 +107,7 @@ export type HtmlDocumentContributionContext<C = EcoPagesElement> = {
 };
 
 export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext } from '../../types/public-types.ts';
+export type { PageClientBrowserAssets, PageClientPlan } from './ownership-graph/page-client-plan.ts';
 export type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
 
 /**
@@ -738,6 +743,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			buildPageBrowserGraphContributionContext: (routeFile, routeOptions) =>
 				this.buildPageBrowserGraphContributionContext(routeFile, routeOptions),
 			renderRouteBody: (renderOptions) => this.renderRouteBody(renderOptions),
+			buildPageClientBrowserAssets: (plan) => this.buildPageClientBrowserAssets(plan),
 			getDocumentAttributes: (renderOptions) => this.getDocumentAttributes(renderOptions),
 			getHtmlDocumentContributions: (options) => this.getHtmlDocumentContributions(options),
 			applyAttributesToHtmlElement: (html, attributes) => this.applyAttributesToHtmlElement(html, attributes),
@@ -862,9 +868,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		invariant(renderOptions.pagePackage !== undefined, 'Expected render preparation to produce a page package');
 		this.htmlTransformer.setPagePackage(renderOptions.pagePackage);
 		this.pageClientPlan = renderOptions.pageClientPlan;
-		this.islandRenderAssetsByFile = renderOptions.pageClientPlan
-			? await this.collectIslandRenderAssets(renderOptions.pageClientPlan)
-			: new Map();
+		this.islandRenderAssetsByFile = renderOptions.islandRenderAssetsByFile ?? new Map();
 		return renderOptions;
 	}
 
@@ -1074,6 +1078,31 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 */
 	protected async collectIslandRenderAssets(_plan: PageClientPlan): Promise<Map<string, ProcessedAsset[]>> {
 		return new Map();
+	}
+
+	/**
+	 * Builds island and lazy-entry browser assets from the page client plan.
+	 *
+	 * @remarks
+	 * Lazy entries join the same grouped client build as islands when an
+	 * Integration includes them in {@link collectIslandRenderAssets}. Otherwise
+	 * they are processed here as one grouped batch.
+	 */
+	protected async buildPageClientBrowserAssets(plan: PageClientPlan): Promise<PageClientBrowserAssets> {
+		const islandRenderAssetsByFile = await this.collectIslandRenderAssets(plan);
+		const islandAssets = [...islandRenderAssetsByFile.values()].flat();
+		const lazyAlreadyProcessed = islandAssets.some((asset) => Boolean(asset.attributes?.['data-eco-lazy-key']));
+		const processedLazy =
+			!lazyAlreadyProcessed && plan.lazyClientEntries.length > 0
+				? await this.assetProcessingService.processDependencies(plan.lazyClientEntries, this.name)
+				: [];
+		const processedAssets = [...islandAssets, ...processedLazy];
+		const lazyTriggers = this.dependencyResolverService.applyPendingLazyTriggers(processedAssets, plan.lazyConfigs);
+		return {
+			processedAssets,
+			islandRenderAssetsByFile,
+			lazyTriggers,
+		};
 	}
 
 	/**

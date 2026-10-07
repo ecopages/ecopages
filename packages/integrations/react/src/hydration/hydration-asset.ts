@@ -13,7 +13,9 @@ import { rapidhash } from '@ecopages/core/hash';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import { isReactProductionRuntime } from '../bundling/runtime-mode.ts';
 import {
+	APP_BROWSER_CLIENT_BUNDLE_ID,
 	AssetFactory,
+	createAppBrowserClientEntry,
 	type AssetDefinition,
 	type ProcessedAsset,
 } from '@ecopages/core/services/asset-processing-service';
@@ -73,7 +75,7 @@ export class HydrationAssetService {
 	private readonly config: HydrationAssetServiceConfig;
 	private readonly islandScriptCompiler = new IslandHydrationScriptCompiler();
 	private readonly pageScriptCompiler = new PageHydrationScriptCompiler();
-	private static readonly ROUTER_PAGE_GROUPED_BUNDLE_ID = 'ecopages-react-router-pages';
+	private static readonly ROUTER_PAGE_GROUPED_BUNDLE_ID = APP_BROWSER_CLIENT_BUNDLE_ID;
 
 	constructor(config: HydrationAssetServiceConfig) {
 		this.config = config;
@@ -193,26 +195,217 @@ export class HydrationAssetService {
 	}
 
 	/**
-	 * Builds client-side assets for a React component island.
-	 *
-	 * Includes the bundled component entry and a shared hydration bootstrap script.
-	 *
-	 * @param componentFile - Absolute path to the component source file
-	 * @param config - Optional component config with identity attribution
-	 * @returns Processed assets ready for injection
+	 * Builds client-side assets for one React component island.
 	 */
 	async buildComponentRenderAssets(componentFile: string, config?: EcoComponentConfig): Promise<ProcessedAsset[]> {
+		const { assetsByFile } = await this.buildPageClientRenderAssets({
+			islands: [{ file: componentFile, config }],
+		});
+		return assetsByFile.get(componentFile) ?? [];
+	}
+
+	/**
+	 * Builds island and lazy-entry browser assets in one grouped multi-entry build.
+	 *
+	 * @remarks
+	 * Production reads island module URLs from processed grouped-build outputs.
+	 * HMR keeps per-file transform URLs and does not start a disk bundle.
+	 */
+	async buildPageClientRenderAssets(input: {
+		islands: Array<{ file: string; config?: EcoComponentConfig }>;
+		lazyEntries?: AssetDefinition[];
+	}): Promise<{ assetsByFile: Map<string, ProcessedAsset[]>; processedAssets: ProcessedAsset[] }> {
+		if (!this.config.assetProcessingService) {
+			return { assetsByFile: new Map(), processedAssets: [] };
+		}
+
+		const uniqueIslands = this.uniqueIslands(input.islands);
+		const hmrEnabled = this.config.assetProcessingService.getHmrManager()?.isEnabled() ?? false;
+		if (hmrEnabled) {
+			return this.buildHmrPageClientRenderAssets(uniqueIslands, input.lazyEntries);
+		}
+
+		return this.buildGroupedPageClientRenderAssets(uniqueIslands, input.lazyEntries);
+	}
+
+	private uniqueIslands(
+		islands: Array<{ file: string; config?: EcoComponentConfig }>,
+	): Array<{ file: string; config?: EcoComponentConfig }> {
+		const uniqueIslands: Array<{ file: string; config?: EcoComponentConfig }> = [];
+		const seenFiles = new Set<string>();
+		for (const island of islands) {
+			if (seenFiles.has(island.file)) {
+				continue;
+			}
+			seenFiles.add(island.file);
+			uniqueIslands.push(island);
+		}
+		return uniqueIslands;
+	}
+
+	private async buildHmrPageClientRenderAssets(
+		uniqueIslands: Array<{ file: string; config?: EcoComponentConfig }>,
+		lazyEntries?: AssetDefinition[],
+	): Promise<{ assetsByFile: Map<string, ProcessedAsset[]>; processedAssets: ProcessedAsset[] }> {
+		const assetsByFile = new Map<string, ProcessedAsset[]>();
+		const processedAssets: ProcessedAsset[] = [];
+		for (const island of uniqueIslands) {
+			this.config.hmrPageMetadataCache?.markOwnedEntrypoint(island.file);
+			const assets = await this.buildHmrIslandRenderAssets(island.file, island.config);
+			assetsByFile.set(island.file, assets);
+			processedAssets.push(...assets);
+		}
+		if (lazyEntries?.length) {
+			processedAssets.push(
+				...(await this.config.assetProcessingService.processDependencies(
+					lazyEntries,
+					APP_BROWSER_CLIENT_BUNDLE_ID,
+				)),
+			);
+		}
+		return { assetsByFile, processedAssets };
+	}
+
+	private async buildGroupedPageClientRenderAssets(
+		uniqueIslands: Array<{ file: string; config?: EcoComponentConfig }>,
+		lazyEntries?: AssetDefinition[],
+	): Promise<{ assetsByFile: Map<string, ProcessedAsset[]>; processedAssets: ProcessedAsset[] }> {
+		const islandEntries = await this.createGroupedIslandEntries(uniqueIslands);
+		const clientEntries = [...islandEntries, ...(lazyEntries ?? [])];
+		const processedClientEntries =
+			clientEntries.length > 0
+				? await this.config.assetProcessingService.processDependencies(
+						clientEntries,
+						APP_BROWSER_CLIENT_BUNDLE_ID,
+					)
+				: [];
+		const srcUrlByEntryName = this.indexSrcUrlsByEntryName(processedClientEntries);
+		const hydrationScripts = await this.createGroupedHydrationScripts(uniqueIslands, srcUrlByEntryName);
+		const processedHydration =
+			hydrationScripts.length > 0
+				? await this.config.assetProcessingService.processDependencies(
+						hydrationScripts,
+						APP_BROWSER_CLIENT_BUNDLE_ID,
+					)
+				: [];
+
+		return {
+			assetsByFile: this.collectIslandAssetsByFile(uniqueIslands, processedClientEntries, processedHydration),
+			processedAssets: [...processedClientEntries, ...processedHydration],
+		};
+	}
+
+	private async createGroupedIslandEntries(
+		uniqueIslands: Array<{ file: string; config?: EcoComponentConfig }>,
+	): Promise<AssetDefinition[]> {
+		const islandEntries: AssetDefinition[] = [];
+		for (const island of uniqueIslands) {
+			const componentName = this.getIslandBundleName(island.file);
+			const bundleOptions = await this.config.bundleService.createBundleOptions(
+				componentName,
+				false,
+				collectDeclaredModulesInConfig(island.config),
+			);
+			islandEntries.push(
+				createAppBrowserClientEntry({
+					entryName: componentName,
+					importPath: island.file,
+					packageRole: 'dynamic-chunk',
+					bundleOptions,
+					attributes: {
+						'data-eco-persist': 'true',
+					},
+				}),
+			);
+		}
+		return islandEntries;
+	}
+
+	private indexSrcUrlsByEntryName(processedClientEntries: ProcessedAsset[]): Map<string, string> {
+		const srcUrlByEntryName = new Map<string, string>();
+		for (const processed of processedClientEntries) {
+			const entryName = processed.groupedBundle?.entryName;
+			if (entryName && processed.srcUrl) {
+				srcUrlByEntryName.set(entryName, processed.srcUrl);
+			}
+		}
+		return srcUrlByEntryName;
+	}
+
+	private async createGroupedHydrationScripts(
+		uniqueIslands: Array<{ file: string; config?: EcoComponentConfig }>,
+		srcUrlByEntryName: Map<string, string>,
+	): Promise<AssetDefinition[]> {
+		const hydrationScripts: AssetDefinition[] = [];
+		for (const island of uniqueIslands) {
+			const importPath = srcUrlByEntryName.get(this.getIslandBundleName(island.file));
+			if (!importPath) {
+				throw new Error(`Missing grouped browser output for island ${island.file}`);
+			}
+			hydrationScripts.push(
+				await this.createIslandHydrationScript(island.file, island.config, importPath, false),
+			);
+		}
+		return hydrationScripts;
+	}
+
+	private collectIslandAssetsByFile(
+		uniqueIslands: Array<{ file: string; config?: EcoComponentConfig }>,
+		processedClientEntries: ProcessedAsset[],
+		processedHydration: ProcessedAsset[],
+	): Map<string, ProcessedAsset[]> {
+		const assetsByFile = new Map<string, ProcessedAsset[]>();
+		const hydrationByName = new Map<string, ProcessedAsset[]>();
+		for (const processed of processedHydration) {
+			const name = processed.attributes?.['data-eco-script-id'];
+			if (!name) {
+				continue;
+			}
+			const existing = hydrationByName.get(name) ?? [];
+			existing.push(processed);
+			hydrationByName.set(name, existing);
+		}
+
+		for (const island of uniqueIslands) {
+			const componentName = this.getIslandBundleName(island.file);
+			const hydrationName = this.getIslandHydrationName(
+				componentName,
+				getIslandComponentKey(island.file, island.config),
+			);
+			const islandAsset = processedClientEntries.find(
+				(processed) => processed.groupedBundle?.entryName === componentName,
+			);
+			assetsByFile.set(island.file, [
+				...(islandAsset ? [islandAsset] : []),
+				...(hydrationByName.get(hydrationName) ?? []),
+			]);
+		}
+		return assetsByFile;
+	}
+
+	private async buildHmrIslandRenderAssets(
+		componentFile: string,
+		config?: EcoComponentConfig,
+	): Promise<ProcessedAsset[]> {
+		const importPath = await this.resolveAssetImportPath(componentFile, this.getIslandBundleName(componentFile));
+		const hydrationScript = await this.createIslandHydrationScript(componentFile, config, importPath, true);
+		return this.config.assetProcessingService.processDependencies(
+			[hydrationScript],
+			this.getIslandBundleName(componentFile),
+		);
+	}
+
+	private async createIslandHydrationScript(
+		componentFile: string,
+		config: EcoComponentConfig | undefined,
+		importPath: string,
+		hmrEnabled: boolean,
+	): Promise<AssetDefinition> {
 		const componentName = this.getIslandBundleName(componentFile);
 		const componentKey = getIslandComponentKey(componentFile, config);
 		const hydrationName = this.getIslandHydrationName(componentName, componentKey);
-		const hmrManager = this.config.assetProcessingService?.getHmrManager();
-		const hmrEnabled = hmrManager?.isEnabled() ?? false;
-		if (hmrEnabled) {
-			this.config.hmrPageMetadataCache?.markOwnedEntrypoint(componentFile);
-		}
-		const importPath = await this.resolveAssetImportPath(componentFile, componentName);
 		const runtimeImports = this.config.bundleService.getRuntimeImports();
-		const islandHydrationOptions = {
+		const islandHydrationScript = await this.islandScriptCompiler.compile({
 			importPath,
 			scriptId: hydrationName,
 			reactImportPath: runtimeImports.react,
@@ -222,10 +415,9 @@ export class HydrationAssetService {
 			componentFile,
 			minify: !hmrEnabled,
 			hmrEnabled,
-		};
-		const islandHydrationScript = await this.islandScriptCompiler.compile(islandHydrationOptions);
+		});
 
-		const hydrationScript = AssetFactory.createContentScript({
+		return AssetFactory.createContentScript({
 			position: 'head',
 			content: islandHydrationScript,
 			name: hydrationName,
@@ -239,39 +431,6 @@ export class HydrationAssetService {
 				'data-eco-persist': 'true',
 			},
 		});
-
-		const dependencies: AssetDefinition[] = [hydrationScript];
-
-		if (!hmrEnabled) {
-			const declaredModules = collectDeclaredModulesInConfig(config);
-			const bundleOptions = await this.config.bundleService.createBundleOptions(
-				componentName,
-				false,
-				declaredModules,
-			);
-			dependencies.unshift(
-				AssetFactory.createFileScript({
-					position: 'head',
-					filepath: componentFile,
-					name: componentName,
-					packageRole: 'dynamic-chunk',
-					excludeFromHtml: true,
-					bundle: true,
-					bundleOptions,
-					attributes: {
-						type: 'module',
-						defer: '',
-						'data-eco-persist': 'true',
-					},
-				}),
-			);
-		}
-
-		if (!this.config.assetProcessingService) {
-			return [];
-		}
-
-		return this.config.assetProcessingService.processDependencies(dependencies, componentName);
 	}
 
 	/**

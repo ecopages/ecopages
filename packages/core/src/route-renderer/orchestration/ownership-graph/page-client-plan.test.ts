@@ -46,6 +46,8 @@ test('collectPageClientPlan walks the declared graph once and returns every clie
 	walk.mockRestore();
 	assert.deepEqual([...plan.integrationNames].sort(), ['lit', 'react']);
 	assert.deepEqual(plan.lazyTriggers, [trigger]);
+	assert.deepEqual(plan.lazyClientEntries, []);
+	assert.deepEqual(plan.lazyConfigs, []);
 	assert.deepEqual(plan.islandEntries.map((entry) => entry.file).sort(), [
 		'/app/island.tsx',
 		'/app/page.tsx',
@@ -53,4 +55,25 @@ test('collectPageClientPlan walks the declared graph once and returns every clie
 	]);
 	assert.equal(planHasForeignChildDescendants(plan, root, 'react'), true);
 	assert.equal(planHasForeignChildDescendants(plan, island, 'react'), false);
+});
+
+test('collectPageClientPlan collects pending lazy client entries from the declared graph', () => {
+	const lazyAsset = {
+		kind: 'script' as const,
+		source: 'content' as const,
+		content: 'import "/app/lazy.ts";',
+		attributes: { 'data-eco-lazy-key': 'lazy:1' },
+	};
+	const island = createComponent({ integration: 'react', file: '/app/island.tsx' });
+	island.config!._pendingLazyClientAssets = [lazyAsset];
+	const root = createComponent({
+		integration: 'react',
+		file: '/app/page.tsx',
+		children: [island],
+	});
+
+	const plan = collectPageClientPlan([root], 'react');
+
+	assert.deepEqual(plan.lazyClientEntries, [lazyAsset]);
+	assert.equal(plan.lazyConfigs.length, 1);
 });

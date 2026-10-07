@@ -489,6 +489,11 @@ export type EcoComponentConfig = {
 	 * @internal
 	 */
 	_resolvedLazyTriggers?: ResolvedLazyTrigger[];
+	/**
+	 * Internal: Unprocessed lazy client entries held for the page's grouped browser build.
+	 * @internal
+	 */
+	_pendingLazyClientAssets?: AssetDefinition[];
 };
 
 /**
@@ -922,6 +927,8 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	sourceDependencyPaths?: readonly string[];
 	/** @internal Client entries collected from one walk of the declared component graph. */
 	pageClientPlan?: PageClientPlan;
+	/** @internal Island browser assets keyed by source file, built from the page client plan. */
+	islandRenderAssetsByFile?: Map<string, ProcessedAsset[]>;
 };
 
 /**

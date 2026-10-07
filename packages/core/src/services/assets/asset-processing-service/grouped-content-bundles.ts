@@ -6,14 +6,21 @@ function getGroupedBundleAssetKey(groupedBundle: { id: string; entryName: string
 	return `${groupedBundle.id}:${groupedBundle.entryName}`;
 }
 
-/** Forces grouped content scripts to run through the bundler in production builds. */
+function isGroupedScriptDependency(dep: AssetDefinition): dep is AssetDefinition & {
+	kind: 'script';
+	groupedBundle: { id: string; entryName: string };
+} {
+	return dep.kind === 'script' && Boolean(dep.groupedBundle?.id);
+}
+
+/** Forces grouped scripts to run through the bundler in production builds. */
 export function ensureGroupedContentScriptsBundle(dependencies: AssetDefinition[]): void {
 	if (isDevelopmentRuntime()) {
 		return;
 	}
 
 	for (const dependency of dependencies) {
-		if (dependency.kind !== 'script' || dependency.source !== 'content' || !dependency.groupedBundle?.id) {
+		if (!isGroupedScriptDependency(dependency)) {
 			continue;
 		}
 
@@ -24,7 +31,7 @@ export function ensureGroupedContentScriptsBundle(dependencies: AssetDefinition[
 }
 
 /**
- * Splits grouped content-script dependencies from ordinary dependencies so callers can
+ * Splits grouped script dependencies from ordinary dependencies so callers can
  * route them through `processGrouped` without changing ordering for the remaining assets.
  */
 export function partitionGroupedContentScriptDependencies(typeDeps: AssetDefinition[]): {
@@ -35,7 +42,7 @@ export function partitionGroupedContentScriptDependencies(typeDeps: AssetDefinit
 	const ungroupedDeps: AssetDefinition[] = [];
 
 	for (const dep of typeDeps) {
-		if (dep.kind === 'script' && dep.source === 'content' && dep.groupedBundle?.id) {
+		if (isGroupedScriptDependency(dep)) {
 			const existing = groupedBundleDeps.get(dep.groupedBundle.id) ?? [];
 			existing.push(dep);
 			groupedBundleDeps.set(dep.groupedBundle.id, existing);
@@ -59,7 +66,7 @@ type ProcessGroupedDependencyBundlesOptions = {
 	bundles: AssetDefinition[][];
 	getCachedAsset: (dep: AssetDefinition, depKey: string) => ProcessedAsset | null;
 	getDependencyKey: (dep: AssetDefinition) => string;
-	getGroupedProcessor: () => GroupedBundleProcessor | undefined;
+	getGroupedProcessor: (deps: AssetDefinition[]) => GroupedBundleProcessor | undefined;
 	resolveProcessedAssetSrcUrl: (processed: ProcessedAsset) => string | undefined;
 	setCachedAsset: (dep: AssetDefinition, depKey: string, processed: ProcessedAsset) => void;
 	logError: (error: unknown) => void;
@@ -94,7 +101,7 @@ export async function processGroupedDependencyBundles(
 			return cachedResults.filter((result): result is ProcessedAsset => result !== null);
 		}
 
-		const processor = getGroupedProcessor();
+		const processor = getGroupedProcessor(bundleDeps);
 		if (!processor?.processGrouped) {
 			return [];
 		}
@@ -112,7 +119,7 @@ export async function processGroupedDependencyBundles(
 			}
 
 			return bundleDeps.flatMap((dep) => {
-				if (dep.kind !== 'script' || dep.source !== 'content' || !dep.groupedBundle) {
+				if (!isGroupedScriptDependency(dep)) {
 					return [];
 				}
 

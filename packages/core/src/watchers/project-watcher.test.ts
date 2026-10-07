@@ -233,6 +233,27 @@ describe('ProjectWatcher - File Change Handling', () => {
 		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 	});
 
+	test('restarts when a file the config imports changes, even if the entry watcher owns the config', async () => {
+		const optionsPath = path.join(Config.rootDir, 'mdx-plugin-options.ts');
+		Config.absolutePaths.configModuleFiles = [Config.absolutePaths.config, optionsPath];
+		const onRestartRequest = vi.fn(async () => {});
+		const restartWatcher = new ProjectWatcher({
+			config: Config,
+			refreshRouterRoutesCallback: RefreshCallback,
+			hmrManager: HmrManager,
+			bridge: Bridge,
+			changeDebounceMs: 0,
+			onRestartRequest,
+			entryWatcherOwnsConfig: true,
+		});
+
+		await handleWatcherFileChange(restartWatcher, optionsPath);
+
+		await vi.waitFor(() => expect(onRestartRequest).toHaveBeenCalledOnce());
+		expect(onRestartRequest).toHaveBeenCalledWith(optionsPath);
+		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+	});
+
 	describe('public directory files', () => {
 		test('should handle public file changes with single-file copy', async () => {
 			const publicFilePath = path.join(Config.absolutePaths.publicDir, 'favicon.ico');

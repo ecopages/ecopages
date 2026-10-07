@@ -66,24 +66,35 @@ export function renderCatalogMarkdown(input: CatalogRenderInput): string {
 }
 
 /**
+ * Writes `contents` only when the file is missing or different.
+ *
  * @remarks
- * Skips the write when the existing file already matches, so ingest does not
- * churn mtime on an unchanged catalog.
+ * Ingest must not churn mtime on unchanged generated files. `eco.config.ts`
+ * imports `wiki-sort-order.json`, so a no-op rewrite would restart `ecopages dev`.
  */
-export async function writeCatalogIndex(indexPath: string, markdown: string): Promise<boolean> {
+export async function writeFileIfChanged(filePath: string, contents: string): Promise<boolean> {
 	let existing = '';
 	try {
-		existing = await readFile(indexPath, 'utf8');
+		existing = await readFile(filePath, 'utf8');
 	} catch (error) {
 		if (!isEnoent(error)) {
 			throw error;
 		}
 	}
 
-	if (existing === markdown) {
+	if (existing === contents) {
 		return false;
 	}
 
-	await writeFile(indexPath, markdown, 'utf8');
+	await writeFile(filePath, contents, 'utf8');
 	return true;
+}
+
+/**
+ * @remarks
+ * Skips the write when the existing file already matches, so ingest does not
+ * churn mtime on an unchanged catalog.
+ */
+export async function writeCatalogIndex(indexPath: string, markdown: string): Promise<boolean> {
+	return writeFileIfChanged(indexPath, markdown);
 }

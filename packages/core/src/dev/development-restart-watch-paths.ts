@@ -33,15 +33,20 @@ export function resolveDevEnvFilePaths(rootDir?: string, nodeEnv = process.env.N
 
 /** Absolute paths that should restart the development server when changed. */
 export function resolveRuntimeRestartWatchPaths(appConfig: EcoPagesAppConfig): string[] {
-	const paths: string[] = [];
+	const paths = new Set<string>();
+	const configModuleFiles = appConfig.absolutePaths?.configModuleFiles;
 
-	if (appConfig.absolutePaths?.config) {
-		paths.push(appConfig.absolutePaths.config);
+	if (configModuleFiles?.length) {
+		for (const file of configModuleFiles) {
+			paths.add(path.resolve(file));
+		}
+	} else if (appConfig.absolutePaths?.config) {
+		paths.add(path.resolve(appConfig.absolutePaths.config));
 	}
 
 	for (const envPath of resolveDevEnvFilePaths(appConfig.rootDir)) {
-		paths.push(envPath);
+		paths.add(envPath);
 	}
 
-	return paths;
+	return [...paths];
 }

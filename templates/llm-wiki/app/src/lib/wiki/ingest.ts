@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
 import { assertDirectoryTarget } from '../safe-directory.ts';
-import { renderCatalogMarkdown, writeCatalogIndex } from './catalog';
+import { renderCatalogMarkdown, writeCatalogIndex, writeFileIfChanged } from './catalog';
 import { isEnoent } from './is-enoent';
 import { rewriteWikiMarkdownLinks } from './links';
 import { loadVaultPages, resolveVaultSortOrder, resolveWikiIndexPath, type VaultPage } from './vault';
@@ -74,7 +74,8 @@ async function writeGeneratedPage(page: VaultPage, outputDir: string, publicWiki
  * directory vaults differ only in where their category comes from. Ingest also
  * rewrites the vault-root `index.md` catalog from page `summary` fields and
  * writes `/wiki/<category>/<page>.md` into `src/public/wiki` for static preview.
- * A generated file that already exists is replaced. Directories are not deleted,
+ * A generated page that already exists is replaced. `wiki-sort-order.json` and the
+ * catalog are rewritten only when their contents change. Directories are not deleted,
  * so a page removed from the vault stays on disk until that file is removed by hand.
  */
 export async function ingestVault(options: IngestVaultOptions = {}): Promise<void> {
@@ -89,10 +90,9 @@ export async function ingestVault(options: IngestVaultOptions = {}): Promise<voi
 	await Promise.all(pages.map((page) => writeGeneratedPage(page, outputDir, publicWikiDir)));
 
 	const sortOrder = await resolveVaultSortOrder({ layout, sourceDir, pages });
-	await writeFile(
+	await writeFileIfChanged(
 		join(outputDir, '..', 'wiki-sort-order.json'),
 		`${JSON.stringify(sortOrder, null, '\t')}\n`,
-		'utf8',
 	);
 
 	const catalogMarkdown = renderCatalogMarkdown({

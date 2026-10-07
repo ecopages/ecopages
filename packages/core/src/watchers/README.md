@@ -1,6 +1,6 @@
 # Project Watcher
 
-The Project Watcher subscribes to source, includes, public assets, Processor watch paths, additional watch paths, configuration, dotenv files, and workspace-linked packages.
+The Project Watcher subscribes to source, includes, public assets, Processor watch paths, additional watch paths, the config module and the project files it imports, dotenv files, and workspace-linked packages.
 
 Filesystem events share one debounce window. After it closes, the watcher calls `applyDevFileChanges({ changed, created, deleted })` once. That marks server modules, Page Browser Graph records, HTML cache entries, and route-module records dirty without rebuilding them. An unopened Page is rebuilt on the next request. The browser is notified once per batch; creating and deleting Pages in the same window refreshes the Route Registry once.
 

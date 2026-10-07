@@ -291,10 +291,10 @@ export class DevelopmentInvalidationService {
 	}
 
 	/**
-	 * Returns whether a config or dotenv edit should restart the development process.
+	 * Returns whether a config, config-imported, or dotenv edit should restart the development process.
 	 */
 	isRuntimeRestartFile(filePath: string): boolean {
-		return this.isConfigModuleFile(filePath) || isDevEnvFilePath(filePath, this.appConfig.rootDir);
+		return this.isConfigImportedFile(filePath) || isDevEnvFilePath(filePath, this.appConfig.rootDir);
 	}
 
 	/** Returns whether `filePath` is the resolved application config module. */
@@ -305,6 +305,23 @@ export class DevelopmentInvalidationService {
 			: undefined;
 
 		return configPath !== undefined && resolvedPath === configPath;
+	}
+
+	/**
+	 * Returns whether `filePath` is the config module or a project file it imports.
+	 *
+	 * @remarks
+	 * Entry watchers own only `eco.config.ts`. Imported files still restart through
+	 * the Project Watcher so plugin options cannot stay stale under `dev:watch`.
+	 */
+	private isConfigImportedFile(filePath: string): boolean {
+		const resolvedPath = path.resolve(filePath);
+		const files = this.appConfig.absolutePaths?.configModuleFiles;
+		if (files?.length) {
+			return files.some((file) => path.resolve(file) === resolvedPath);
+		}
+
+		return this.isConfigModuleFile(filePath);
 	}
 
 	/**

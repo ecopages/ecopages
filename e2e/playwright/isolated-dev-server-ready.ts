@@ -9,7 +9,8 @@
  * Do not probe `GET /` from Playwright. The port can be open earlier, and an
  * early `/` hit would start cold SSR during bind. Apps that set
  * `devPrewarmBeforeReadyPaths` render those routes inside
- * `completeInitialization()`, before this listen log.
+ * `completeInitialization()`, before this listen log. The Vite host prints the
+ * same log only after that step; Vite's own "ready" line is not this signal.
  */
 export const ECOPAGES_SERVER_READY_STDOUT_REGEX = /(?:Bun|Node) server running at/;
 

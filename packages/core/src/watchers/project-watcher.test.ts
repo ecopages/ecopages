@@ -1,6 +1,7 @@
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import path from 'node:path';
-import type { Stats } from 'node:fs';
+import os from 'node:os';
+import { mkdirSync, mkdtempSync, writeFileSync, utimesSync, rmSync, realpathSync, type Stats } from 'node:fs';
 import chokidar from 'chokidar';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
@@ -31,6 +32,10 @@ async function handleWatcherFileChange(watcher: ProjectWatcher, filePath: string
 			handleFileChange(filePath: string): Promise<void>;
 		}
 	).handleFileChange(filePath);
+}
+
+function emitInitialWatcherReady(event: string, callback: () => void): void {
+	if (event === 'ready') queueMicrotask(callback);
 }
 
 const createMockConfig = async (rootDir = '/test/project'): Promise<EcoPagesAppConfig> => {
@@ -809,6 +814,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		);
 		const watcherHandle = {
 			add: vi.fn(),
+			once: vi.fn(emitInitialWatcherReady),
 			on: vi.fn().mockReturnThis(),
 			close: vi.fn(),
 		};
@@ -848,6 +854,81 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		expect(watcherHandle.add).not.toHaveBeenCalled();
 	});
 
+	test('should watch components, includes, layouts, and views when they exist', async () => {
+		const Config = await createMockConfig();
+		installDevRuntimeState(Config);
+		const viewsDir = path.join(Config.absolutePaths.srcDir, 'views');
+		vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath) =>
+			[
+				Config.absolutePaths.pagesDir,
+				Config.absolutePaths.publicDir,
+				Config.absolutePaths.componentsDir,
+				Config.absolutePaths.includesDir,
+				Config.absolutePaths.layoutsDir,
+				viewsDir,
+			].includes(String(targetPath)),
+		);
+		const chokidarWatch = vi.fn(() => ({
+			add: vi.fn(),
+			once: vi.fn(emitInitialWatcherReady),
+			on: vi.fn().mockReturnThis(),
+			close: vi.fn(),
+		}));
+		vi.spyOn(chokidar, 'watch').mockImplementation(chokidarWatch as never);
+
+		const watcher = new ProjectWatcher({
+			config: Config,
+			refreshRouterRoutesCallback: vi.fn(async () => {}),
+			hmrManager: createMockHmrManager(),
+			bridge: createMockBridge(),
+			changeDebounceMs: 0,
+		});
+
+		await watcher.createWatcherSubscription();
+
+		expect(chokidarWatch).toHaveBeenCalledWith(
+			expect.arrayContaining([
+				Config.absolutePaths.componentsDir,
+				Config.absolutePaths.includesDir,
+				Config.absolutePaths.layoutsDir,
+				viewsDir,
+			]),
+			expect.any(Object),
+		);
+	});
+
+	test('waits for filesystem subscriptions to be ready before startup completes', async () => {
+		const Config = await createMockConfig();
+		installDevRuntimeState(Config);
+		let ready: (() => void) | undefined;
+		const handle = {
+			add: vi.fn(),
+			on: vi.fn().mockReturnThis(),
+			once: vi.fn((event: string, callback: () => void) => {
+				if (event === 'ready') ready = callback;
+			}),
+			close: vi.fn(),
+		};
+		vi.spyOn(chokidar, 'watch').mockImplementation(() => handle as never);
+		const watcher = new ProjectWatcher({
+			config: Config,
+			refreshRouterRoutesCallback: vi.fn(async () => {}),
+			hmrManager: createMockHmrManager(),
+			bridge: createMockBridge(),
+		});
+		let completed = false;
+		const subscription = watcher.createWatcherSubscription().then((result) => {
+			completed = true;
+			return result;
+		});
+		await Promise.resolve();
+		expect(completed).toBe(false);
+		expect(ready).toBeTypeOf('function');
+		ready!();
+		expect(await subscription).toBe(handle);
+		await watcher.close();
+	});
+
 	test('does not treat chokidar add for a newly recorded existing file as a create', async () => {
 		const Config = await createMockConfig();
 		installDevRuntimeState(Config);
@@ -857,6 +938,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		const eventHandlers = new Map<string, (filePath: string) => void>();
 		const watcherHandle = {
 			add: vi.fn(),
+			once: vi.fn(emitInitialWatcherReady),
 			on: vi.fn((event: string, handler: (filePath: string) => void) => {
 				eventHandlers.set(event, handler);
 				return watcherHandle;
@@ -880,11 +962,96 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		getAppBuildInputIndex(Config).recordWatchPath(recordedFile);
 		expect(watcherHandle.add).toHaveBeenCalledWith(path.resolve(recordedFile));
 
-		eventHandlers.get('add')?.(recordedFile);
-		await (watcher as unknown as { changeQueue: Promise<void> }).changeQueue;
+		await eventHandlers.get('add')?.(recordedFile);
 
 		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 		expect(Bridge.reload).not.toHaveBeenCalled();
+	});
+
+	test.each(['fresh', 'preserved'])(
+		'processes a new source file with %s timestamps immediately after subscription',
+		async (timestamps) => {
+			const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-watch-create-')));
+			try {
+				mkdirSync(path.join(root, 'src/components'), { recursive: true });
+				const Config = await finalizeEcoPagesConfig({ rootDir: root, integrations: [] });
+				installDevRuntimeState(Config);
+				const Bridge = createMockBridge();
+				const eventHandlers = new Map<string, (filePath: string) => Promise<void>>();
+				const watcherHandle = {
+					add: vi.fn(),
+					once: vi.fn(emitInitialWatcherReady),
+					on: vi.fn((event: string, handler: (filePath: string) => Promise<void>) => {
+						eventHandlers.set(event, handler);
+						return watcherHandle;
+					}),
+					close: vi.fn(),
+				};
+				vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherHandle as never);
+				const watcher = new ProjectWatcher({
+					config: Config,
+					refreshRouterRoutesCallback: vi.fn(async () => {}),
+					hmrManager: createMockHmrManager(),
+					bridge: Bridge,
+					changeDebounceMs: 0,
+				});
+				await watcher.createWatcherSubscription();
+				const componentFile = path.join(root, 'src/components/new-widget.tsx');
+				writeFileSync(componentFile, 'export default function Widget() { return null; }\n');
+				if (timestamps === 'preserved') {
+					const past = new Date(Date.now() - 60_000);
+					utimesSync(componentFile, past, past);
+				}
+				await eventHandlers.get('add')?.(componentFile);
+				expect(getAppServerInvalidationState(Config).getServerInvalidationVersion()).toBe(1);
+				expect(Bridge.reload).toHaveBeenCalledOnce();
+				await watcher.close();
+			} finally {
+				rmSync(root, { recursive: true, force: true });
+			}
+		},
+	);
+
+	test('ignores add events for files already in a watched source directory at subscribe', async () => {
+		const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-watch-snapshot-')));
+		try {
+			mkdirSync(path.join(root, 'src/pages'), { recursive: true });
+			mkdirSync(path.join(root, 'src/components'), { recursive: true });
+			writeFileSync(path.join(root, 'src/pages/index.tsx'), 'export default function Page() { return null; }\n');
+			const cssFile = path.join(root, 'src/components/widget.css');
+			writeFileSync(cssFile, ':host { display: block; }\n');
+			const Config = await finalizeEcoPagesConfig({ rootDir: root, integrations: [] });
+			installDevRuntimeState(Config);
+			const HmrManager = createMockHmrManager();
+			const Bridge = createMockBridge();
+			const eventHandlers = new Map<string, (filePath: string) => void>();
+			const watcherHandle = {
+				add: vi.fn(),
+				once: vi.fn(emitInitialWatcherReady),
+				on: vi.fn((event: string, handler: (filePath: string) => void) => {
+					eventHandlers.set(event, handler);
+					return watcherHandle;
+				}),
+				close: vi.fn(),
+			};
+			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherHandle as never);
+
+			const watcher = new ProjectWatcher({
+				config: Config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager: HmrManager,
+				bridge: Bridge,
+				changeDebounceMs: 0,
+			});
+
+			await watcher.createWatcherSubscription();
+			await eventHandlers.get('add')?.(cssFile);
+
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(Bridge.reload).not.toHaveBeenCalled();
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
 	});
 
 	test('watches every supported dotenv path before the files exist', async () => {
@@ -892,6 +1059,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		installDevRuntimeState(Config);
 		const watcherHandle = {
 			add: vi.fn(),
+			once: vi.fn(emitInitialWatcherReady),
 			on: vi.fn().mockReturnThis(),
 			close: vi.fn(),
 		};
@@ -930,6 +1098,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		vi.spyOn(fileSystem, 'exists').mockReturnValue(false);
 		const chokidarWatch = vi.fn((_paths: string[]) => ({
 			add: vi.fn(),
+			once: vi.fn(emitInitialWatcherReady),
 			on: vi.fn().mockReturnThis(),
 			close: vi.fn(),
 		}));
@@ -955,7 +1124,13 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		installDevRuntimeState(Config);
 		Config.additionalWatchPaths = ['/**/*.md'];
 		vi.spyOn(chokidar, 'watch').mockImplementation(
-			() => ({ add: vi.fn(), on: vi.fn().mockReturnThis(), close: vi.fn() }) as never,
+			() =>
+				({
+					add: vi.fn(),
+					once: vi.fn(emitInitialWatcherReady),
+					on: vi.fn().mockReturnThis(),
+					close: vi.fn(),
+				}) as never,
 		);
 		const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
 
@@ -983,7 +1158,12 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		let capturedIgnored: ((watchedPath: string, stats?: Stats) => boolean) | undefined;
 		vi.spyOn(chokidar, 'watch').mockImplementation((_paths, options) => {
 			capturedIgnored = options?.ignored as (watchedPath: string, stats?: Stats) => boolean;
-			return { add: vi.fn(), on: vi.fn().mockReturnThis(), close: vi.fn() } as never;
+			return {
+				add: vi.fn(),
+				once: vi.fn(emitInitialWatcherReady),
+				on: vi.fn().mockReturnThis(),
+				close: vi.fn(),
+			} as never;
 		});
 
 		const watcher = new ProjectWatcher({
@@ -1016,6 +1196,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		let capturedIgnored: ((watchedPath: string) => boolean) | undefined;
 		const watcherHandle = {
 			add: vi.fn(),
+			once: vi.fn(emitInitialWatcherReady),
 			on: vi.fn().mockReturnThis(),
 			close: vi.fn(),
 		};
@@ -1047,6 +1228,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		const Bridge = createMockBridge();
 		const watcherHandle = {
 			add: vi.fn(),
+			once: vi.fn(emitInitialWatcherReady),
 			on: vi.fn().mockReturnThis(),
 			close: vi.fn(),
 		};
@@ -1077,6 +1259,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		const refreshRouterRoutesCallback = vi.fn(async () => {});
 		const watcherHandle = {
 			add: vi.fn(),
+			once: vi.fn(emitInitialWatcherReady),
 			on: vi.fn((event: string, handler: (path: string) => void) => {
 				eventHandlers.set(event, handler);
 				return watcherHandle;

@@ -13,6 +13,7 @@ import type {
 	RouteRendererOptions,
 } from '../../../types/public-types.ts';
 import { registerDiscoveredDependencies } from '../../../eco/discovered-dependencies.ts';
+import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
 import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
 import type {
 	AssetDefinition,
@@ -270,6 +271,87 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		expect(result.sourceDependencyPaths).toEqual(
 			expect.arrayContaining(['/app/pages/about.html', '/app/pages/about.css', '/app/pages/counter.ts']),
+		);
+	});
+
+	it('adds nested Component identity files to the cached HTML dependencies', async () => {
+		const appConfig = { cache: { defaultStrategy: 'static' }, integrations: [] } as unknown as EcoPagesAppConfig;
+		const flow = new RouteRenderOrchestrator(appConfig, {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService);
+		const Child = (() => '<div></div>') as EcoComponent;
+		Child.config = {
+			identity: { id: 'counter', file: '/app/src/components/counter.lit.tsx', integration: 'string' },
+		};
+		const Page = (() => '<main></main>') as unknown as EcoPageComponent<any>;
+		Page.config = {
+			identity: { id: 'discovery', file: '/app/src/pages/discovery.lit.tsx', integration: 'string' },
+			dependencies: { components: [Child] },
+		};
+
+		const result = await flow.prepareRenderOptions(
+			{ file: '/app/src/pages/discovery.lit.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			createFlowAdapter({
+				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
+				getHtmlTemplate: async () => (() => '<html></html>') as EcoComponent<HtmlTemplateProps>,
+				resolvePageData: async () => ({
+					props: {},
+					metadata: { title: 'Discovery', description: 'Discovery' },
+				}),
+				resolveDependencies: async () => [],
+				collectPageBrowserGraphContribution: async () => undefined,
+			}),
+		);
+
+		expect(result.sourceDependencyPaths).toEqual(
+			expect.arrayContaining(['/app/src/pages/discovery.lit.tsx', '/app/src/components/counter.lit.tsx']),
+		);
+	});
+
+	it('adds interned discovery watch files to the cached HTML dependencies', async () => {
+		const appConfig = { cache: { defaultStrategy: 'static' }, integrations: [] } as unknown as EcoPagesAppConfig;
+		const flow = new RouteRenderOrchestrator(appConfig, {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService);
+		const identity = { id: 'discovery', file: '/app/src/pages/discovery.lit.tsx', integration: 'string' };
+		registerDiscoveredDependencies(identity, {
+			components: () => [],
+			stylesheets: [],
+			watchFiles: [
+				'/app/src/components/dependency-discovery/counter.lit.tsx',
+				'/app/src/components/dependency-discovery/barrel/index.ts',
+			],
+		});
+		const Page = (() => '<main></main>') as unknown as EcoPageComponent<any>;
+		Page.config = { identity };
+
+		const result = await flow.prepareRenderOptions(
+			{ file: '/app/src/pages/discovery.lit.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			createFlowAdapter({
+				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
+				getHtmlTemplate: async () => (() => '<html></html>') as EcoComponent<HtmlTemplateProps>,
+				resolvePageData: async () => ({
+					props: {},
+					metadata: { title: 'Discovery', description: 'Discovery' },
+				}),
+				resolveDependencies: async () => [],
+				collectPageBrowserGraphContribution: async () => undefined,
+			}),
+		);
+
+		expect(result.sourceDependencyPaths).toEqual(
+			expect.arrayContaining([
+				'/app/src/pages/discovery.lit.tsx',
+				'/app/src/components/dependency-discovery/counter.lit.tsx',
+				'/app/src/components/dependency-discovery/barrel/index.ts',
+			]),
+		);
+		expect(getAppBuildInputIndex(appConfig).recordedWatchPaths()).toEqual(
+			expect.arrayContaining([
+				'/app/src/pages/discovery.lit.tsx',
+				'/app/src/components/dependency-discovery/counter.lit.tsx',
+				'/app/src/components/dependency-discovery/barrel/index.ts',
+			]),
 		);
 	});
 

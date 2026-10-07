@@ -106,6 +106,10 @@ function logError(server: ViteDevServer, message: string, error: unknown): void 
  * `httpServer` is read by the caller when the server is configured: on restart Vite copies the new server's
  * properties onto the same object, so reading it after the awaits could attach a stale app to the new server.
  *
+ * `attachWebSocketUpgrades` is `completeInitialization()`: integration warmup, `devPrewarmBeforeReadyPaths`,
+ * and the Project Watcher. `handleListening` must run after that, or Playwright's listen-log ready signal
+ * starts tests while `/postcss` and other prewarm routes are still a cold compile.
+ *
  * A load failure is logged once and then surfaces through every middleware request that awaits the promise,
  * never as an unhandled rejection.
  *
@@ -122,12 +126,12 @@ function startEmbeddedApp(
 	const appReady = (async () => {
 		await registerHostModuleLoader(server);
 		const app = await loadApp(server, appEntryPath);
-		const origin = api.getDevServerOrigin();
-		if (origin) {
-			app.handleListening(origin);
-		}
 		if (httpServer && typeof app.attachWebSocketUpgrades === 'function') {
 			await app.attachWebSocketUpgrades(httpServer, { passthroughUnmatched: true });
+		}
+		const origin = api.getDevServerOrigin();
+		if (origin) {
+			await app.handleListening(origin);
 		}
 		return app;
 	})();

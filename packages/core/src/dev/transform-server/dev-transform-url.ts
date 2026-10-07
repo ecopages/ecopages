@@ -13,7 +13,7 @@ const FS_URL_SEGMENT = '@fs';
 
 function toDevTransformUrlPath(relativeOrAbsolutePath: string): string {
 	const relativePathJs = relativeOrAbsolutePath.replace(/\.(tsx?|jsx?|mdx?)$/, '.js');
-	return encodeHmrDynamicSegments(relativePathJs).split(path.sep).join('/');
+	return encodeHmrDynamicSegments(relativePathJs).split(path.sep).map(encodeURIComponent).join('/');
 }
 
 function isInsideAllowedRoot(filePath: string, allowedRoots: readonly string[]): boolean {
@@ -91,7 +91,12 @@ export function resolveDevTransformModuleSourcePath(
 
 	const resolvedSrcDir = path.resolve(srcDir);
 	const allowedRoots = [resolvedSrcDir, ...extraRoots.map((root) => path.resolve(root))];
-	const relativeUrlPath = pathname.slice(prefix.length);
+	let relativeUrlPath: string;
+	try {
+		relativeUrlPath = decodeURIComponent(pathname.slice(prefix.length));
+	} catch {
+		return undefined;
+	}
 	const fsPrefix = `${FS_URL_SEGMENT}/`;
 
 	if (relativeUrlPath.startsWith(fsPrefix)) {

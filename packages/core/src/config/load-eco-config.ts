@@ -18,7 +18,7 @@ function createCacheKey(configFilePath: string, buildOwnership: string, cwd: str
 
 async function importEcoConfigModule(configFilePath: string): Promise<unknown> {
 	const moduleUrl = pathToFileURL(configFilePath).href;
-	const configModule = await import(moduleUrl);
+	const configModule = await import(/* @vite-ignore */ moduleUrl);
 	return configModule.default ?? configModule;
 }
 

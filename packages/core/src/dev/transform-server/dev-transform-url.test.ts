@@ -74,4 +74,24 @@ describe('dev transform urls', () => {
 
 		fs.rmSync(tempRoot, { recursive: true, force: true });
 	});
+	it.each(['app', 'workspace'])('round-trips URL-reserved characters in %s module paths', (location) => {
+		const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-url-encoded-'));
+		try {
+			const srcDir = path.join(tempRoot, 'app', 'src');
+			const packageRoot = path.join(tempRoot, 'packages', 'my kit');
+			const moduleDir = location === 'app' ? path.join(srcDir, 'components') : packageRoot;
+			fs.mkdirSync(moduleDir, { recursive: true });
+			const sourcePath = path.join(moduleDir, 'island #1?100%.tsx');
+			fs.writeFileSync(sourcePath, 'export const island = 1;\n');
+			const moduleUrl = resolveDevTransformModuleUrl(srcDir, sourcePath, [packageRoot]);
+			const requestPath = new URL(moduleUrl, 'http://localhost').pathname;
+			expect(resolveDevTransformModuleSourcePath(srcDir, requestPath, [packageRoot])).toBe(sourcePath);
+		} finally {
+			fs.rmSync(tempRoot, { recursive: true, force: true });
+		}
+	});
+
+	it('rejects malformed URL encoding', () => {
+		expect(resolveDevTransformModuleSourcePath(srcDir, `${DEV_TRANSFORM_URL_PREFIX}/bad%zz.js`)).toBeUndefined();
+	});
 });

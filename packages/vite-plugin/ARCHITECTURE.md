@@ -43,8 +43,8 @@ Keep Ecopages-specific HTML rewrites in `html-transforms.ts`.
 
 1. Register the host module loader
 2. Load the `app` module export through `ssrLoadModule`
-3. Call `app.handleListening()` with the dev-server origin
-4. Attach the app's WebSocket upgrades to Vite's HTTP server
+3. Attach the app's WebSocket upgrades to Vite's HTTP server (`completeInitialization`: warmup, before-ready prewarm, watcher)
+4. Call `app.handleListening()` with the dev-server origin so the listen log is the ready signal, as under `ecopages dev`
 
 Each Vite server instance loads its own app, and middleware awaits it before serving requests. The app is stopped when its Vite server closes (the plugin's `closeBundle` hook), including on a restart and in middleware mode.
 

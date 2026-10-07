@@ -53,4 +53,14 @@ describe('BuildInputDependencyIndex', () => {
 
 		assert.deepEqual(recorded, [path.resolve('/app/content/intro.mdx')]);
 	});
+
+	it('replays already-recorded paths to a late subscriber', () => {
+		const index = new BuildInputDependencyIndex();
+		index.recordWatchPath('/app/content/intro.mdx');
+		const recorded: string[] = [];
+		index.subscribeToWatchPaths((filePath) => recorded.push(filePath));
+		index.recordWatchPath('/app/content/guide.mdx');
+
+		assert.deepEqual(recorded, [path.resolve('/app/content/intro.mdx'), path.resolve('/app/content/guide.mdx')]);
+	});
 });

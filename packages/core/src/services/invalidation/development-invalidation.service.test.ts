@@ -404,4 +404,59 @@ describe('DevelopmentInvalidationService', () => {
 		expect(invalidationState.getServerInvalidationVersion()).toBe(1);
 		expect(imported).toBe(false);
 	});
+
+	it('does not drop cached HTML when a processor-owned stylesheet is created', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		appConfig.processors.set('css', new StylesheetProcessor());
+		const pageCache = new PageCacheService();
+		registerAppPageCacheService(appConfig, pageCache);
+		const clearHtml = vi.spyOn(pageCache, 'clear');
+		const service = new DevelopmentInvalidationService(appConfig);
+
+		await service.applyDevFileChanges({
+			changed: [],
+			created: ['/test/project/src/styles/main.css'],
+			deleted: [],
+		});
+
+		expect(clearHtml).not.toHaveBeenCalled();
+		registerAppPageCacheService(appConfig, null);
+	});
+
+	it('drops every cached HTML document when a processor-owned stylesheet changes', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		appConfig.processors.set('css', new StylesheetProcessor());
+		const pageCache = new PageCacheService();
+		registerAppPageCacheService(appConfig, pageCache);
+		const clearHtml = vi.spyOn(pageCache, 'clear');
+		const service = new DevelopmentInvalidationService(appConfig);
+
+		await service.applyDevFileChanges({
+			changed: ['/test/project/src/styles/main.css'],
+			created: [],
+			deleted: [],
+		});
+
+		expect(clearHtml).toHaveBeenCalledTimes(1);
+		registerAppPageCacheService(appConfig, null);
+	});
+
+	it('drops every cached HTML document when a server-source Component changes', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const pageCache = new PageCacheService();
+		registerAppPageCacheService(appConfig, pageCache);
+		const clearHtml = vi.spyOn(pageCache, 'clear');
+		const invalidateHtml = vi.spyOn(pageCache, 'invalidateBySourceDependencyPaths');
+		const service = new DevelopmentInvalidationService(appConfig);
+
+		await service.applyDevFileChanges({
+			changed: ['/test/project/src/components/dependency-discovery/counter.lit.tsx'],
+			created: [],
+			deleted: [],
+		});
+
+		expect(clearHtml).toHaveBeenCalledTimes(1);
+		expect(invalidateHtml).not.toHaveBeenCalled();
+		registerAppPageCacheService(appConfig, null);
+	});
 });

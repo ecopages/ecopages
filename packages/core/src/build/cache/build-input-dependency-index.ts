@@ -177,10 +177,17 @@ export class BuildInputDependencyIndex {
 	}
 
 	/**
-	 * Notifies `listener` the first time each later path is recorded.
+	 * Notifies `listener` of every path already recorded, then of each new path.
+	 *
+	 * @remarks
+	 * Before-ready prewarm records inputs before the Project Watcher subscribes.
+	 * Replaying the current set is what makes those files watched.
 	 */
 	subscribeToWatchPaths(listener: (filePath: string) => void): () => void {
 		this.watchListeners.add(listener);
+		for (const filePath of this.watchPaths) {
+			listener(filePath);
+		}
 		return () => {
 			this.watchListeners.delete(listener);
 		};

@@ -28,6 +28,14 @@ export type PageClientPlan = {
 	lazyTriggers: ResolvedLazyTrigger[];
 	lazyClientEntries: AssetDefinition[];
 	lazyConfigs: EcoComponentConfig[];
+	/**
+	 * Every identity-bearing file on the declared graph.
+	 *
+	 * @remarks
+	 * Includes the page owner's Page, Layout, Html, and nested includes, which
+	 * are not hydratable islands. Integrations that emit island hydration
+	 * scripts must pass this list through {@link selectHydrationIslandEntries}.
+	 */
 	islandEntries: PageClientPlanIslandEntry[];
 	componentsWithForeignDescendants: WeakSet<object>;
 	walks: number;
@@ -167,6 +175,29 @@ export function uniqueIslandIntegrationNames(plan: PageClientPlan): string[] {
 		names.add(entry.integrationName);
 	}
 	return [...names];
+}
+
+/**
+ * Island files that `integrationName` should hydrate as Foreign Children.
+ *
+ * @remarks
+ * `islandEntries` lists every identity-bearing file on the page. The page
+ * owner's own Page, Layout, Html, and nested includes live in that owner's
+ * page bootstrap tree. Emitting per-component island hydration for them
+ * downloads extra client graphs that never find a host. This returns only
+ * files owned by `integrationName` when that integration is not the page
+ * owner — the Foreign Children that actually need `hydrateRoot` on an
+ * Island Host.
+ */
+export function selectHydrationIslandEntries(
+	plan: Pick<PageClientPlan, 'currentIntegrationName' | 'islandEntries'>,
+	integrationName: string,
+): PageClientPlanIslandEntry[] {
+	if (plan.currentIntegrationName === integrationName) {
+		return [];
+	}
+
+	return plan.islandEntries.filter((entry) => entry.integrationName === integrationName);
 }
 
 /**

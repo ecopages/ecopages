@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gotoAndWait } from '../../utils/test-helpers';
 
 const FIXTURE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const TEST_CSS_FILE = path.join(FIXTURE_DIR, 'src/pages/index.css');
@@ -20,7 +21,7 @@ async function readMainTitleColor(page: Page) {
 
 test.describe('HMR E2E', () => {
 	test('should load page with .main-title element', async ({ page }) => {
-		await page.goto('/', { waitUntil: 'networkidle' });
+		await gotoAndWait(page, '/');
 		const title = page.locator('.main-title').first();
 		await expect(title).toBeVisible();
 	});
@@ -31,7 +32,7 @@ test.describe('HMR E2E', () => {
 			timeout: 10000,
 		});
 
-		await page.goto('/', { waitUntil: 'networkidle' });
+		await gotoAndWait(page, '/');
 		const socket = await socketPromise;
 
 		expect(socket.url()).toMatch(/\/_hmr$/);

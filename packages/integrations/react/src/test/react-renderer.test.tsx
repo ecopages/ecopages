@@ -270,11 +270,13 @@ describe('ReactRenderer', () => {
 
 			const renderer = testRenderer as unknown as {
 				collectIslandRenderAssets: (plan: {
+					currentIntegrationName: string;
 					islandEntries: Array<{ file: string; integrationName: string; component: EcoComponent }>;
 				}) => Promise<Map<string, unknown[]>>;
 				islandRenderAssetsByFile: Map<string, unknown[]>;
 			};
 			renderer.islandRenderAssetsByFile = await renderer.collectIslandRenderAssets({
+				currentIntegrationName: 'kitajs',
 				islandEntries: [{ file: pageFilePath, integrationName: 'react', component: Component }],
 			});
 			expect(assetProcessingService.processDependencies).toHaveBeenCalled();
@@ -295,6 +297,34 @@ describe('ReactRenderer', () => {
 				getIslandComponentKey(pageFilePath, Component.config),
 			);
 			expect(result.rootAttributes?.['data-eco-props']).toBe(btoa(JSON.stringify({ title: 'Island' })));
+		});
+
+		it('does not emit island hydration for the page owner React tree', async () => {
+			const { testRenderer, assetProcessingService } = createRendererWithAssets();
+			const Component = ((props: { title: string }) => <h3>{props.title}</h3>) as unknown as EcoComponent<{
+				title: string;
+			}>;
+			Component.config = {
+				identity: {
+					id: 'page',
+					file: pageFilePath,
+					integration: 'react',
+				},
+			};
+
+			const renderer = testRenderer as unknown as {
+				collectIslandRenderAssets: (plan: {
+					currentIntegrationName: string;
+					islandEntries: Array<{ file: string; integrationName: string; component: EcoComponent }>;
+				}) => Promise<Map<string, unknown[]>>;
+			};
+
+			await renderer.collectIslandRenderAssets({
+				currentIntegrationName: 'react',
+				islandEntries: [{ file: pageFilePath, integrationName: 'react', component: Component }],
+			});
+
+			expect(assetProcessingService.processDependencies).not.toHaveBeenCalled();
 		});
 
 		it('should not emit island assets when no componentInstanceId is provided', async () => {

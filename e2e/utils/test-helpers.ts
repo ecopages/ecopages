@@ -85,7 +85,7 @@ export async function waitForPageReady(page: Page, href?: string) {
 export async function gotoAndWait(page: Page, href: string) {
 	for (let attempt = 0; attempt < 3; attempt += 1) {
 		try {
-			await page.goto(href, { waitUntil: 'domcontentloaded' });
+			await page.goto(href, { waitUntil: 'commit' });
 			break;
 		} catch (error) {
 			const isTransientNavigationError =

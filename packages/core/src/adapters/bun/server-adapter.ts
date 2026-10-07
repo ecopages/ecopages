@@ -616,7 +616,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 
 		if (this.options?.watch) {
 			await this.hmrManager.ensureRuntimeReady();
-			startDevWarmup({
+			await startDevWarmup({
 				appConfig: this.appConfig,
 				runtimeOrigin: this.runtimeOrigin,
 			});

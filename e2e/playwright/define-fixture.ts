@@ -3,6 +3,12 @@ import type { PlaywrightTestProject } from '@playwright/test';
 import { getDefaultWorkerCount } from './workers.ts';
 import { getEcopagesServerReadySignal } from './isolated-dev-server-ready.ts';
 
+/**
+ * First cold Page render under parallel fixture servers exceeds Playwright's 30s default.
+ * Kitchen-sink preview uses the same budget.
+ */
+const DEV_FIXTURE_TEST_TIMEOUT_MS = 60_000;
+
 type DesktopChromeUse = NonNullable<PlaywrightTestProject['use']>;
 
 export type FixtureServerMode = 'dev' | 'static' | 'production';
@@ -249,7 +255,7 @@ function buildProjectsFromSpecs(
 		testMatch: spec.testMatch,
 		testIgnore: spec.testIgnore,
 		workers: spec.workers ?? (spec.mode === 'dev' ? 1 : defaultWorkerCount),
-		timeout: spec.timeout,
+		timeout: spec.timeout ?? (spec.mode === 'dev' ? DEV_FIXTURE_TEST_TIMEOUT_MS : undefined),
 		use: {
 			...desktopChrome,
 			baseURL: `http://localhost:${spec.port}`,

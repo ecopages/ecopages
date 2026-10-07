@@ -307,11 +307,12 @@ const raw = await scanner.getRawContent('getting-started/intro');
 
 ## Generated artifacts
 
-| Path                                                                 | Purpose                                                |
-| :------------------------------------------------------------------- | :----------------------------------------------------- |
-| `.eco/cache/ecopages-content-processor/<collection>.ts`              | Generated collection module (manifest + MDX imports).  |
-| `.eco/.server-collections/<collection>/<collection>-<identity>.mjs`  | Lazy-built server artifact for one collection.         |
-| `node_modules/@types/ecopages-content-processor/virtual-module.d.ts` | Generated TypeScript declarations for virtual modules. |
+| Path                                                                 | Purpose                                                                    |
+| :------------------------------------------------------------------- | :------------------------------------------------------------------------- |
+| `.eco/cache/ecopages-content-processor/<collection>.ts`              | Generated collection module (manifest + MDX imports).                      |
+| `.eco/cache/ecopages-content-processor/<collection>.browser.ts`      | Browser-safe MDX loaders. Relative imports resolve from this file on disk. |
+| `.eco/.server-collections/<collection>/<collection>-<identity>.mjs`  | Lazy-built server artifact for one collection.                             |
+| `node_modules/@types/ecopages-content-processor/virtual-module.d.ts` | Generated TypeScript declarations for virtual modules.                     |
 
 Do not edit generated files manually.
 

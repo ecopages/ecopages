@@ -87,6 +87,8 @@ export class DependencyResolverService {
 	 * @remarks
 	 * Lazy client entries are held on the component config so the page client
 	 * build can emit them in the same grouped Rolldown graph as islands.
+	 * Route preparation may already have resolved trigger ids; those stay on
+	 * the config so later SSR can stamp `data-eco-trigger` onto serialized HTML.
 	 */
 	async processComponentDependencies(
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
@@ -108,7 +110,6 @@ export class DependencyResolverService {
 				const lazyKey = dep.kind === 'script' ? dep.attributes?.['data-eco-lazy-key'] : undefined;
 				return Boolean(lazyKey && lazyKeys.has(lazyKey));
 			});
-			config._resolvedLazyTriggers = undefined;
 			config._resolvedLazyScripts = undefined;
 		}
 

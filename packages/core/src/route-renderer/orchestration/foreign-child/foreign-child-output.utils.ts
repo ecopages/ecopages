@@ -199,6 +199,13 @@ export function assertForeignChildrenNotOpaque(children: unknown, context: strin
 	);
 }
 
+function openingTagHasTriggerAttribute(str: string, insertAt: number): boolean {
+	const rest = str.slice(insertAt);
+	const end = rest.search(/\/?>/);
+	const opening = end === -1 ? rest : rest.slice(0, end);
+	return /(?:^|\s)data-eco-trigger=/.test(opening);
+}
+
 function injectTriggerAttributeIntoString(content: string, triggerId: string): string {
 	const str = content;
 	let i = 0;
@@ -228,6 +235,9 @@ function injectTriggerAttributeIntoString(content: string, triggerId: string): s
 				nameEnd = tagSlice.length;
 			}
 			const insertAt = i + 1 + nameEnd;
+			if (openingTagHasTriggerAttribute(str, insertAt)) {
+				return str;
+			}
 			return `${str.slice(0, insertAt)} data-eco-trigger="${triggerId}"${str.slice(insertAt)}`;
 		}
 

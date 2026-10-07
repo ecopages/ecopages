@@ -67,6 +67,21 @@ describe('addTriggerAttribute', () => {
 			expect(result).toBe(`<!-- wrapper --><div data-eco-trigger="${TRIGGER_ID}">content</div>`);
 		});
 
+		test('skips a Lit SSR part comment and injects into the host element', () => {
+			const result = addTriggerAttribute(
+				'<!--lit-part SJL2YkzXbQY=--><div class="discovery-counter-host">x</div>',
+				TRIGGER_ID,
+			);
+			expect(result).toBe(
+				`<!--lit-part SJL2YkzXbQY=--><div data-eco-trigger="${TRIGGER_ID}" class="discovery-counter-host">x</div>`,
+			);
+		});
+
+		test('does not inject a second trigger when the host already has one', () => {
+			const html = `<div data-eco-trigger="${TRIGGER_ID}" class="host">x</div>`;
+			expect(addTriggerAttribute(html, 'eco-trigger-other')).toBe(html);
+		});
+
 		test('skips multiple leading HTML comments', () => {
 			const result = addTriggerAttribute('<!-- a --><!-- b --><span>text</span>', TRIGGER_ID);
 			expect(result).toBe(`<!-- a --><!-- b --><span data-eco-trigger="${TRIGGER_ID}">text</span>`);

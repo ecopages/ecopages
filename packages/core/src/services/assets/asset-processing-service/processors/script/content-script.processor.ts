@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { ContentScriptAsset, ProcessedAsset } from '../../assets.types.ts';
@@ -11,8 +12,8 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 		return dir;
 	}
 
-	private getContentScriptEntryPath(contentHash: string): string {
-		return path.join(this.getContentScriptEntryDir(), `${contentHash}.js`);
+	private getContentScriptEntryPath(): string {
+		return path.join(this.getContentScriptEntryDir(), `${randomUUID()}.js`);
 	}
 
 	private toProcessedAsset(dep: ContentScriptAsset, filepath: string): ProcessedAsset {
@@ -30,10 +31,15 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 		};
 	}
 
-	private removeContentScriptEntry(contentHash: string): void {
-		fileSystem.remove(this.getContentScriptEntryPath(contentHash));
-	}
-
+	/**
+	 * Bundles grouped content scripts from unique temp entry files.
+	 *
+	 * @remarks
+	 * Each call writes its own UUID-named entry under `content-script-entries`.
+	 * Concurrent same-content builds (theme-toggle islands on every kitchen-sink
+	 * page) would otherwise share a hash-named file and delete it from under
+	 * another in-flight Rolldown graph.
+	 */
 	async processGrouped(deps: ContentScriptAsset[]): Promise<ProcessedAsset[]> {
 		if (deps.length === 0) {
 			return [];
@@ -49,7 +55,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 		try {
 			tempEntries = deps.map((dep) => {
 				const contentHash = this.generateHash(dep.content);
-				const tempFilepath = this.getContentScriptEntryPath(contentHash);
+				const tempFilepath = this.getContentScriptEntryPath();
 
 				fileSystem.write(tempFilepath, dep.content);
 
@@ -81,8 +87,8 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 				return this.toProcessedAsset(dep, bundledFilePath);
 			});
 		} finally {
-			for (const { contentHash } of tempEntries) {
-				this.removeContentScriptEntry(contentHash);
+			for (const { tempFilepath } of tempEntries) {
+				fileSystem.remove(tempFilepath);
 			}
 		}
 	}
@@ -122,7 +128,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 			throw new Error('No content found for script asset');
 		}
 
-		const entryPath = this.getContentScriptEntryPath(hash);
+		const entryPath = this.getContentScriptEntryPath();
 		fileSystem.write(entryPath, dep.content);
 
 		try {
@@ -136,7 +142,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 
 			return this.toProcessedAsset(dep, bundledFilePath);
 		} finally {
-			this.removeContentScriptEntry(hash);
+			fileSystem.remove(entryPath);
 		}
 	}
 }

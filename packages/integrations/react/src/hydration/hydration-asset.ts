@@ -310,6 +310,7 @@ export class HydrationAssetService {
 				createAppBrowserClientEntry({
 					entryName: componentName,
 					importPath: island.file,
+					reexport: true,
 					packageRole: 'dynamic-chunk',
 					bundleOptions,
 					attributes: {

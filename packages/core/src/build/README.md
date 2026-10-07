@@ -137,7 +137,7 @@ Vite-based apps (or any future host runtime) should:
 - `onResolve({ filter, namespace? }, callback)` — the bundler's `resolveId` mapped to the shared plugin shape.
 - `onLoad({ filter, namespace? }, callback)` — the bundler's `load` mapped the same way.
 - With a `namespace`, a filter matches only ids that start with `<namespace>:`, and is tested against the path after it.
-- `transform({ filter }, callback)` — the bundler's `transform` hook, for source rewrites that must run after `load` and can return a source map.
+- `transform({ filter }, callback)` — the bundler's `transform` hook, for source rewrites that must run after `load` and can return a source map. When a rewrite omits a map, the bridge returns `{ mappings: '' }` so Rolldown does not warn that the sourcemap is likely incorrect.
 - `module(specifier, callback)` — declares a virtual module by name, with bundler-side namespace encoding.
 
 App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins explicitly.

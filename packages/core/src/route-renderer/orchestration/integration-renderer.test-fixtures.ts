@@ -147,6 +147,14 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		return this.foreignSubtreeExecutionService.shouldDelegateForeignChild(input);
 	}
 
+	public testBuildPageClientBrowserAssets(plan: import('./ownership-graph/page-client-plan.ts').PageClientPlan) {
+		return this.buildPageClientBrowserAssets(plan);
+	}
+
+	public testFinalizeIslandComponentRender(input: ComponentRenderInput, result: ComponentRenderResult) {
+		return this.finalizeIslandComponentRender(input, result);
+	}
+
 	public testHasForeignChildDescendants(component: EcoComponent) {
 		return this.hasForeignChildDescendants(component);
 	}

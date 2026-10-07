@@ -41,7 +41,8 @@ test.describe('HTML Pages static export', () => {
 
 		expect(html).toContain('<html lang="fr" class="marketing">');
 		expect(html).toContain('<body class="campaign">');
-		expect(html).toMatch(/<script src="\/assets\/[a-f0-9]{16}\.js"><\/script>/);
+		expect(html).toContain('<script src="/assets/pages/vendor/tiny-query.js"></script>');
+		expect(html).toContain('<script src="/assets/pages/classic/greeting.js"></script>');
 		expect(count(html, /<meta charset/gi)).toBe(1);
 		expect(count(html, /<meta name="robots"/g)).toBe(1);
 	});

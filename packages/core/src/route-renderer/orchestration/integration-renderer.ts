@@ -38,9 +38,11 @@ import { OwnershipValidationService } from './ownership-graph/ownership-validati
 import { hasForeignChildDescendantsInGraph } from './ownership-graph/component-graph-collectors.ts';
 import {
 	planHasForeignChildDescendants,
+	uniqueIslandIntegrationNames,
 	type PageClientBrowserAssets,
 	type PageClientPlan,
 } from './ownership-graph/page-client-plan.ts';
+import { finalizeComponentRender } from './foreign-child/component-render-context.ts';
 import {
 	RouteRenderOrchestrator,
 	type RouteRenderOrchestratorAdapter,
@@ -1034,7 +1036,14 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const ownAssets = input.component.config?.dependencies
 			? this.dependencyResolverService.collectOwnComponentDependencies([input.component], this.name)
 			: undefined;
-		return finalizeIslandComponentRender(input, result, ownAssets);
+		return finalizeIslandComponentRender(
+			input,
+			{
+				...result,
+				html: finalizeComponentRender(input.component, result.html),
+			},
+			ownAssets,
+		);
 	}
 
 	private normalizeComponentRenderOutput(result: ComponentRenderResult): ComponentRenderResult {
@@ -1075,34 +1084,74 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @remarks
 	 * Default is none. Integrations that hydrate islands override this so
 	 * {@link IntegrationRenderer.execute} never starts a browser build during SSR.
+	 * Page owners also call this on other hydrating integrations listed in the plan.
 	 */
 	protected async collectIslandRenderAssets(_plan: PageClientPlan): Promise<Map<string, ProcessedAsset[]>> {
 		return new Map();
 	}
 
 	/**
+	 * Returns whether this renderer builds island and lazy-entry scripts in the
+	 * app-wide grouped browser build that other page owners should run for the plan.
+	 */
+	protected contributesAppBrowserClientBuild(): boolean {
+		return false;
+	}
+
+	/**
 	 * Builds island and lazy-entry browser assets from the page client plan.
 	 *
 	 * @remarks
-	 * Lazy entries join the same grouped client build as islands when an
-	 * Integration includes them in {@link collectIslandRenderAssets}. Otherwise
-	 * they are processed here as one grouped batch.
+	 * The page owner collects its own island assets, then asks every other
+	 * island-hydrating integration on the plan to contribute its grouped client
+	 * build. Lazy entries join that same grouped build when an Integration
+	 * includes them; otherwise they are processed here as one grouped batch.
 	 */
 	protected async buildPageClientBrowserAssets(plan: PageClientPlan): Promise<PageClientBrowserAssets> {
-		const islandRenderAssetsByFile = await this.collectIslandRenderAssets(plan);
-		const islandAssets = [...islandRenderAssetsByFile.values()].flat();
-		const lazyAlreadyProcessed = islandAssets.some((asset) => Boolean(asset.attributes?.['data-eco-lazy-key']));
+		const { islandRenderAssetsByFile, processedAssets: combined } =
+			await this.collectContributorPageClientAssets(plan);
+		const lazyAlreadyProcessed = combined.some((asset) => Boolean(asset.attributes?.['data-eco-lazy-key']));
 		const processedLazy =
 			!lazyAlreadyProcessed && plan.lazyClientEntries.length > 0
 				? await this.assetProcessingService.processDependencies(plan.lazyClientEntries, this.name)
 				: [];
-		const processedAssets = [...islandAssets, ...processedLazy];
+		const processedAssets = [...combined, ...processedLazy];
 		const lazyTriggers = this.dependencyResolverService.applyPendingLazyTriggers(processedAssets, plan.lazyConfigs);
 		return {
 			processedAssets,
 			islandRenderAssetsByFile,
 			lazyTriggers,
 		};
+	}
+
+	/**
+	 * Merges this renderer's island assets with grouped client builds from other
+	 * island-hydrating integrations on the plan.
+	 */
+	private async collectContributorPageClientAssets(plan: PageClientPlan): Promise<{
+		islandRenderAssetsByFile: Map<string, ProcessedAsset[]>;
+		processedAssets: ProcessedAsset[];
+	}> {
+		const ownIslands = await this.collectIslandRenderAssets(plan);
+		const islandRenderAssetsByFile = new Map<string, ProcessedAsset[]>();
+		mergeIslandRenderAssetMaps(islandRenderAssetsByFile, ownIslands);
+		const processedAssets = [...ownIslands.values()].flat();
+		const rendererCache = new Map<string, ForeignSubtreeExecutionOwningRenderer>();
+
+		for (const integrationName of uniqueIslandIntegrationNames(plan)) {
+			if (integrationName === this.name) {
+				continue;
+			}
+			const owning = await this.resolveOwningRenderer(integrationName, rendererCache);
+			if (!(owning instanceof IntegrationRenderer) || !owning.contributesAppBrowserClientBuild()) {
+				continue;
+			}
+			const contributed = await owning.buildPageClientBrowserAssets(plan);
+			mergeIslandRenderAssetMaps(islandRenderAssetsByFile, contributed.islandRenderAssetsByFile);
+			processedAssets.push(...contributed.processedAssets);
+		}
+
+		return { islandRenderAssetsByFile, processedAssets };
 	}
 
 	/**
@@ -1199,5 +1248,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			runtimeContextKey: getForeignSubtreeResolutionContextKey(this.name),
 			tokenPrefix: getForeignSubtreeTokenPrefix(this.name),
 		});
+	}
+}
+
+function mergeIslandRenderAssetMaps(
+	target: Map<string, ProcessedAsset[]>,
+	source: Map<string, ProcessedAsset[]>,
+): void {
+	for (const [file, assets] of source) {
+		const existing = target.get(file);
+		target.set(file, existing ? [...existing, ...assets] : assets);
 	}
 }

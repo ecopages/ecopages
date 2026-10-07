@@ -152,6 +152,10 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		return islandRenderAssetsByFile;
 	}
 
+	protected override contributesAppBrowserClientBuild(): boolean {
+		return true;
+	}
+
 	/**
 	 * Builds React island and lazy-entry modules in one grouped browser build.
 	 */

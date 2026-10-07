@@ -17,8 +17,10 @@ Hydratable component instances stamp a small, integration-agnostic attribute set
 
 React integrations may emit `<eco-island>` as the SSR host. Island and lazy-entry
 client modules are built together from the page client plan, in one grouped
-browser build, during route preparation. Hydration scripts import the recorded
-output URLs. SSR stamps those assets onto the host. The host uses
+browser build, during route preparation. The page owner collects that build from
+every island-hydrating integration on the plan, so a React island on a Kita or
+Lit route still gets a hydration script. Island grouped entries re-export the
+component module; hydration scripts import those recorded output URLs. SSR stamps those assets onto the host. The host uses
 `display: contents` so it does not introduce a layout box, while the host and
 its children remain in place as the client calls `hydrateRoot()` on that host.
 React island integrations may add `data-eco-hydrated` after the initial client

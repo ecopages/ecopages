@@ -19,8 +19,8 @@ import type {
 	ProcessedAsset,
 } from '../../../services/assets/asset-processing-service/index.ts';
 import { collectHtmlCacheSourceDependencyPaths } from '../../../services/cache/html-page-cache-dependency-index.ts';
-import { getComponentIdentity } from '../../../eco/component-identity.ts';
-import { getDiscoveredWatchFiles } from '../../../eco/discovered-dependencies.ts';
+import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
+import { collectComponentConfigFilePaths } from '../../page-loading/file-scoped-dependency-components.ts';
 import type { HtmlDocumentContribution } from '../../../services/html/html-transformer.service.ts';
 import { inspectUnresolvedMarkerArtifactHtml } from './marker-artifact.utils.ts';
 import {
@@ -257,12 +257,21 @@ export class RouteRenderOrchestrator {
 				: [];
 		allDependencies.push(...globalAssets);
 
+		const additionalSourcePaths = collectRenderShellSourcePaths(this.appConfig, [
+			...componentsToResolve,
+			...resolvedPageDependencyComponents,
+			...clientPlan.islandEntries.map((entry) => entry.component),
+		]);
 		const sourceDependencyPaths = collectHtmlCacheSourceDependencyPaths({
 			routeFile: routeOptions.file,
 			processedAssets: allDependencies,
 			graphDependencyPaths,
-			additionalSourcePaths: collectRenderShellSourcePaths(this.appConfig, componentsToResolve),
+			additionalSourcePaths,
 		});
+		const buildInputIndex = getAppBuildInputIndex(this.appConfig);
+		for (const sourcePath of sourceDependencyPaths) {
+			buildInputIndex.recordWatchPath(sourcePath);
+		}
 
 		return {
 			...buildPreparedRenderOptions<C>({
@@ -408,28 +417,19 @@ export class RouteRenderOrchestrator {
 
 /**
  * @remarks
- * Identity watch files cover sources a root component reads without being one,
- * such as named barrel hops and the local assets of HTML Pages and shells.
+ * Nested Component identity files and named barrel hops must be HTML cache
+ * inputs and recorded watch paths. Editing a child that contributes inferred
+ * CSS, or retargeting a barrel the Page imports, has to miss the cached
+ * document even when HTML cache registration is skipped.
  */
 function collectRenderShellSourcePaths(
 	appConfig: EcoPagesAppConfig,
 	components: Array<EcoComponent | Partial<EcoComponent>>,
 ): string[] {
-	const sourcePaths = new Set<string>();
+	const sourcePaths = collectComponentConfigFilePaths(components, { includeStylesheets: true });
 
 	if (appConfig.absolutePaths?.htmlTemplatePath) {
 		sourcePaths.add(appConfig.absolutePaths.htmlTemplatePath);
-	}
-
-	for (const component of components) {
-		const componentFile = getComponentIdentity(component)?.file;
-		if (componentFile) {
-			sourcePaths.add(componentFile);
-		}
-
-		for (const watchFile of getDiscoveredWatchFiles(component.config)) {
-			sourcePaths.add(watchFile);
-		}
 	}
 
 	return [...sourcePaths];

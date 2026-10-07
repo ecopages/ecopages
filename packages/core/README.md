@@ -94,13 +94,13 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/build/README.md`: build adapter, executor, shared `.server` browser import guard, development build coordination, standalone Node server packaging and its deploy layout
 - `src/services/README.md`: cross-cutting runtime services and orchestration helpers
 - `src/adapters/README.md`: Bun, Node, and shared adapter boundaries
-- `src/dev/README.md`: dev transform server, on-demand client delivery, and invalidation during compilation
-- `src/watchers/README.md`: project subscriptions, linked package watching, batched `applyDevFileChanges`, and restart invalidation
+- `src/dev/README.md`: dev transform server, on-demand client delivery (including workspace-package `@fs` URLs), and invalidation during compilation
+- `src/watchers/README.md`: project subscriptions awaited before readiness, linked package watching, batched `applyDevFileChanges`, and restart invalidation
 - `src/services/invalidation/README.md`: file-change classification and dirty-marking for one debounce window
 - `src/hmr/README.md`: HMR strategy, update-layer ownership, and build error presentation
 - `src/dev-toolbar/README.md`: toolbar enablement, custom clients, and build error event contract
 - `src/router/README.md`: route discovery, matching, and browser navigation coordination
-- `src/route-renderer/README.md`: rendering orchestration and dependency resolution
+- `src/route-renderer/README.md`: rendering orchestration, dependency resolution, and HTML cache source paths
 - `src/static-site-generator/README.md`: static build execution path
 - `src/eco/README.md`: `eco` authoring APIs for pages, layouts, and components
 - `src/html-pages/README.md`: built-in `.html` Filesystem Routes, Html shell, and head reconciliation

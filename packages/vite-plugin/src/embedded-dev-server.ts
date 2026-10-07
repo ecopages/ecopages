@@ -3,7 +3,7 @@ import type { ViteDevServer } from 'vite';
 
 export type EcopagesEmbeddedApp = {
 	fetch: (request: Request) => Promise<Response>;
-	handleListening: (origin: string) => void;
+	handleListening: (origin: string) => void | Promise<void>;
 	attachWebSocketUpgrades?: (
 		httpServer: NonNullable<ViteDevServer['httpServer']>,
 		options?: { passthroughUnmatched?: boolean },

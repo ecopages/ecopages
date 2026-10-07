@@ -25,6 +25,7 @@ import {
 	type HtmlDocumentContribution,
 	type HtmlDocumentContributionContext,
 	type PageBrowserGraphContributionContext,
+	selectHydrationIslandEntries,
 	type PageClientBrowserAssets,
 	type PageClientPlan,
 	type RenderToResponseContext,
@@ -145,7 +146,11 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	}
 
 	/**
-	 * Builds island client assets for this page before SSR.
+	 * Builds island client assets for Foreign Children of this integration.
+	 *
+	 * @remarks
+	 * Same-integration Page, Layout, Html, and includes are hydrated by the
+	 * page bootstrap, not by per-component island scripts.
 	 */
 	protected override async collectIslandRenderAssets(plan: PageClientPlan): Promise<Map<string, ProcessedAsset[]>> {
 		const { islandRenderAssetsByFile } = await this.buildPageClientBrowserAssets(plan);
@@ -161,9 +166,10 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 */
 	protected override async buildPageClientBrowserAssets(plan: PageClientPlan): Promise<PageClientBrowserAssets> {
 		const result = await this.hydrationAssetService.buildPageClientRenderAssets({
-			islands: plan.islandEntries
-				.filter((entry) => entry.integrationName === this.name)
-				.map((entry) => ({ file: entry.file, config: entry.component.config })),
+			islands: selectHydrationIslandEntries(plan, this.name).map((entry) => ({
+				file: entry.file,
+				config: entry.component.config,
+			})),
 			lazyEntries: plan.lazyClientEntries,
 		});
 		const lazyTriggers = this.dependencyResolverService.applyPendingLazyTriggers(

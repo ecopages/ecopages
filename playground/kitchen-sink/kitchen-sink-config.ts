@@ -31,6 +31,18 @@ export interface KitchenSinkConfigOptions {
 }
 
 /**
+ * Isolated HMR copies start with an empty work directory. Rendering these
+ * routes before listen keeps the first Playwright CSS poll off a cold compile.
+ */
+function kitchenSinkHmrPrewarmPaths(): string[] | undefined {
+	if (process.env.ECOPAGES_E2E_ARTIFACT_SCOPE?.startsWith('cross-integration-hmr') !== true) {
+		return undefined;
+	}
+
+	return ['/discovery', '/discovery-barrel', '/postcss', '/latest'];
+}
+
+/**
  * User-owned kitchen-sink configuration shared by `eco.config.ts` and tests.
  */
 export function createKitchenSinkUserConfig(options: KitchenSinkConfigOptions): EcoPagesUserConfig {
@@ -104,6 +116,11 @@ export function createKitchenSinkUserConfig(options: KitchenSinkConfigOptions): 
 	}
 	if (options.baseUrl !== undefined) {
 		userConfig.baseUrl = options.baseUrl;
+	}
+
+	const hmrPrewarmPaths = kitchenSinkHmrPrewarmPaths();
+	if (hmrPrewarmPaths) {
+		userConfig.devPrewarmBeforeReadyPaths = hmrPrewarmPaths;
 	}
 
 	return userConfig;

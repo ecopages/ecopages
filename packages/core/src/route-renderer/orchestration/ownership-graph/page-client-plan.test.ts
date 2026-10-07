@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { test, vi } from 'vitest';
 import type { EcoComponent, ResolvedLazyTrigger } from '../../../types/public-types.ts';
 import * as componentGraph from './component-graph.ts';
-import { collectPageClientPlan, planHasForeignChildDescendants } from './page-client-plan.ts';
+import {
+	collectPageClientPlan,
+	planHasForeignChildDescendants,
+	selectHydrationIslandEntries,
+} from './page-client-plan.ts';
 
 function createComponent(input: {
 	integration?: string;
@@ -55,6 +59,27 @@ test('collectPageClientPlan walks the declared graph once and returns every clie
 	]);
 	assert.equal(planHasForeignChildDescendants(plan, root, 'react'), true);
 	assert.equal(planHasForeignChildDescendants(plan, island, 'react'), false);
+	assert.deepEqual(selectHydrationIslandEntries(plan, 'react'), []);
+	assert.deepEqual(
+		selectHydrationIslandEntries(plan, 'lit').map((entry) => entry.file),
+		['/app/widget.ts'],
+	);
+});
+
+test('selectHydrationIslandEntries hydrates only Foreign Children of a contributing integration', () => {
+	const reactIsland = createComponent({ integration: 'react', file: '/app/island.tsx' });
+	const page = createComponent({
+		integration: 'kitajs',
+		file: '/app/page.kita.tsx',
+		children: [reactIsland],
+	});
+	const plan = collectPageClientPlan([page], 'kitajs');
+
+	assert.deepEqual(
+		selectHydrationIslandEntries(plan, 'react').map((entry) => entry.file),
+		['/app/island.tsx'],
+	);
+	assert.deepEqual(selectHydrationIslandEntries(plan, 'kitajs'), []);
 });
 
 test('collectPageClientPlan collects pending lazy client entries from the declared graph', () => {

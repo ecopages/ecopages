@@ -27,7 +27,7 @@ They are not responsible for:
 - `shared/`: runtime-neutral adapter helpers used by both hosts, clustered by concern:
     - `shared/http/` — API response builders, request pipeline, middleware runner, define-api helpers, explicit-static and filesystem matchers
     - `shared/hmr/` — HMR HTML inject helpers, shared HMR manager, entrypoint registrar. In watch mode every HTML response is marked `no-store`, also when the host owns the dev client and core injects nothing
-    - `shared/runtime/` — shared server adapter, route handler, application adapter, static builder, port/bootstrap utilities (`PortManager` on dev and preview bind, Clack confirm on TTY port collisions)
+    - `shared/runtime/` — shared server adapter, route handler, application adapter, static builder, port/bootstrap utilities (`PortManager` on dev and preview bind, Clack confirm on TTY port collisions). Watch-mode `startDevWarmup()` finishes integration `setup()` before the server logs that it is listening. `devPrewarmBeforeReadyPaths` then render those routes (and their client graphs) before the listen log, so the first browser `goto` is not a cold compile. The Project Watcher also finishes its initial filesystem subscription before readiness is advertised. The Vite host calls `handleListening()` after `attachWebSocketUpgrades()` (`completeInitialization`), matching Node `bootServer()`, so Playwright's listen-log ready signal does not start tests during that warmup.
     - `shared/ws/` — WinterCG WebSocket lifecycle helpers and Node HTTP upgrade bridge (Bun-specific user WS lifecycle lives under `bun/`)
 
 ## Ownership Boundary

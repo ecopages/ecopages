@@ -73,12 +73,20 @@ describe('component import discovery', () => {
 		writeFileSync(path.join(root, 'index.ts'), `export * from './child';`);
 		expect(transform(`import { Child } from './index';`)).not.toContain('components: ()');
 	});
+	it('records the imported factory module as a watch file', () => {
+		const { root, transform } = fixture();
+		const childPath = realpathSync(path.join(root, 'child.ts'));
+		expect(transform(`import { Child } from './child';`)).toContain(`watchFiles: ${JSON.stringify([childPath])}`);
+	});
 	it('discovers named barrel re-exports of the imported binding only', () => {
 		const { root, transform } = fixture();
 		writeFileSync(path.join(root, 'index.ts'), `export { Child, Renamed as Alias } from './child';`);
 		expect(transform(`import { Child, Alias } from './index';`)).toContain('components: () => [Child, Alias]');
 		expect(transform(`import { Child } from './index';`)).toContain('components: () => [Child]');
 		expect(transform(`import { Child } from './index';`)).not.toContain('Alias');
+		const barrel = transform(`import { Child } from './index';`);
+		expect(barrel).toContain(realpathSync(path.join(root, 'index.ts')));
+		expect(barrel).toContain(realpathSync(path.join(root, 'child.ts')));
 	});
 	it('follows nested named barrel re-exports', () => {
 		const { root, transform } = fixture();

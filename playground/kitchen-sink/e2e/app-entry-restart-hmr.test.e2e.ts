@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
-import type { APIRequestContext, Page } from 'playwright-core';
-import { HMR_MUTATION_ASSERT_TIMEOUT_MS } from './test-support';
+import type { Page } from 'playwright-core';
+import { HMR_MUTATION_ASSERT_TIMEOUT_MS, isRetriableRequestError } from './test-support';
 
 const VITE_HOST_PROJECT = 'cross-integration-hmr-vite-e2e';
 const KITCHEN_SINK_DIR = fileURLToPath(new URL('..', import.meta.url));
@@ -20,11 +20,27 @@ function resolveSourceFile(projectMetadata: Record<string, unknown> | undefined,
 	return path.join(isolatedAppDir ?? KITCHEN_SINK_DIR, relativePath);
 }
 
-async function fetchText(request: APIRequestContext, pathname: string): Promise<string> {
+/**
+ * Reads a route body using global fetch rather than Playwright's request context.
+ *
+ * @remarks
+ * Each response closes its HTTP connection so polling cannot reuse a socket from the previous Vite server.
+ * Requests can fail while Vite replaces its listener. Only connection failures
+ * expected during restart return an empty body for the caller's polling assertion.
+ */
+async function fetchText(baseURL: string, pathname: string): Promise<string> {
 	try {
-		return await (await request.get(pathname)).text();
-	} catch {
-		return '';
+		const response = await fetch(new URL(pathname, baseURL), {
+			redirect: 'manual',
+			headers: { Connection: 'close' },
+		});
+		return await response.text();
+	} catch (error) {
+		if (isRetriableRequestError(error)) {
+			return '';
+		}
+
+		throw error;
 	}
 }
 
@@ -96,8 +112,8 @@ async function readChatWelcome(page: Page, baseURL: string): Promise<string> {
  * Reads what the app serves for each edited source: the page, the route that renders the data module, and
  * the history a new chat connection receives.
  */
-async function readServedContent(request: APIRequestContext, page: Page, baseURL: string): Promise<string> {
-	const pages = await Promise.all([fetchText(request, '/postcss'), fetchText(request, '/latest')]);
+async function readServedContent(page: Page, baseURL: string): Promise<string> {
+	const pages = await Promise.all([fetchText(baseURL, '/postcss'), fetchText(baseURL, '/latest')]);
 	return [...pages, await readChatWelcome(page, baseURL)].join('\n');
 }
 
@@ -147,13 +163,13 @@ test.describe('Vite host app entry restart @hmr', () => {
 		}
 	});
 
-	test.afterEach(async ({ request, page, baseURL }) => {
+	test.afterEach(async ({ page, baseURL }) => {
 		if (originals.size === 0) {
 			return;
 		}
 		restoreMutatedSources();
 		await expect
-			.poll(() => readServedContent(request, page, baseURL!).then(findContentMismatches), {
+			.poll(() => readServedContent(page, baseURL!).then(findContentMismatches), {
 				timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
 			})
 			.toEqual([]);
@@ -163,29 +179,28 @@ test.describe('Vite host app entry restart @hmr', () => {
 		restoreMutatedSources();
 	});
 
-	test('a page edit reaches the next request without restarting Vite', async ({ request, baseURL }, testInfo) => {
+	test('a page edit reaches the next request without restarting Vite', async ({ baseURL }, testInfo) => {
 		const pageFile = resolveSourceFile(testInfo.project.metadata, PAGE_SOURCE);
 		await expect
-			.poll(() => fetchText(request, '/postcss'), { timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS })
+			.poll(() => fetchText(baseURL!, '/postcss'), { timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS })
 			.toContain(PAGE_TEXT);
 		const { socket } = await openChatSocket(baseURL!, 'app-entry-restart-page');
 
 		fs.writeFileSync(pageFile, originals.get(pageFile)!.replace(PAGE_TEXT, `${PAGE_TEXT} ${SUFFIX}`), 'utf-8');
 
 		await expect
-			.poll(() => fetchText(request, '/postcss'), { timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS })
+			.poll(() => fetchText(baseURL!, '/postcss'), { timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS })
 			.toContain(`${PAGE_TEXT} ${SUFFIX}`);
 		expect(socket.readyState).toBe(WebSocket.OPEN);
 		socket.close();
 	});
 
 	test('an edit to a module app.ts imports reaches the next request after a restart', async ({
-		request,
 		baseURL,
 	}, testInfo) => {
 		const dataFile = resolveSourceFile(testInfo.project.metadata, APP_IMPORTED_SOURCE);
 		await expect
-			.poll(() => fetchText(request, '/latest'), { timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS })
+			.poll(() => fetchText(baseURL!, '/latest'), { timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS })
 			.toContain(LATEST_RELEASE_TITLE);
 		const { socket } = await openChatSocket(baseURL!, 'app-entry-restart-data');
 
@@ -198,12 +213,12 @@ test.describe('Vite host app entry restart @hmr', () => {
 		);
 
 		await expect
-			.poll(() => fetchText(request, '/latest'), { timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS })
+			.poll(() => fetchText(baseURL!, '/latest'), { timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS })
 			.toContain(`${LATEST_RELEASE_TITLE} ${SUFFIX}`);
 		await expect.poll(() => socket.readyState).toBe(WebSocket.CLOSED);
 	});
 
-	test('a WebSocket handler edit reaches a new connection', async ({ request, page, baseURL }, testInfo) => {
+	test('a WebSocket handler edit reaches a new connection', async ({ page, baseURL }, testInfo) => {
 		const handlerFile = resolveSourceFile(testInfo.project.metadata, WEBSOCKET_HANDLER_SOURCE);
 
 		fs.writeFileSync(
@@ -213,7 +228,7 @@ test.describe('Vite host app entry restart @hmr', () => {
 		);
 
 		await expect
-			.poll(() => readServedContent(request, page, baseURL!), { timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS })
+			.poll(() => readServedContent(page, baseURL!), { timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS })
 			.toContain(`${CHAT_WELCOME_TEXT} ${SUFFIX}`);
 	});
 });

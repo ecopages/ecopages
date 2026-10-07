@@ -15,6 +15,7 @@ export type DevTransformBundlerOptions = {
 	contributors?: readonly DevTransformBundleContributor[];
 	getRuntimeSpecifierMap: () => ReadonlyMap<string, string>;
 	vendorRegistry: DevTransformVendorRegistry;
+	extraModuleRoots?: readonly string[];
 };
 
 /**
@@ -26,12 +27,14 @@ export class DevTransformBundler {
 	private readonly getRuntimeSpecifierMap: () => ReadonlyMap<string, string>;
 	private readonly vendorRegistry: DevTransformVendorRegistry;
 	private readonly contributors: DevTransformBundleContributor[] = [];
+	private readonly extraModuleRoots: readonly string[];
 
 	constructor(options: DevTransformBundlerOptions) {
 		this.appConfig = options.appConfig;
 		this.browserBundleService = new BrowserBundleService(options.appConfig);
 		this.getRuntimeSpecifierMap = options.getRuntimeSpecifierMap;
 		this.vendorRegistry = options.vendorRegistry;
+		this.extraModuleRoots = options.extraModuleRoots ?? [];
 		this.contributors.push(...(options.contributors ?? []));
 	}
 
@@ -93,6 +96,7 @@ export class DevTransformBundler {
 			sourcePath: normalized,
 			srcDir: this.appConfig.absolutePaths.srcDir,
 			projectRoot: this.appConfig.rootDir,
+			extraModuleRoots: this.extraModuleRoots,
 			runtimeSpecifierMap: this.getRuntimeSpecifierMap(),
 			resolveVendorUrl: (specifier) => this.vendorRegistry.resolveVendorUrl(specifier),
 		});

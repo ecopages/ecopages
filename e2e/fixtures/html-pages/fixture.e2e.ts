@@ -28,11 +28,13 @@ export default defineFixture(
 				name: 'html-pages-dev-e2e',
 				port: 43122,
 				mode: 'dev',
-				testMatch: [
-					`${fixtureDir}/dotted-routes.test.e2e.ts`,
-					`${fixtureDir}/shared-module.test.e2e.ts`,
-					`${fixtureDir}/**/*.dev.test.e2e.ts`,
-				],
+				testMatch: [`${fixtureDir}/dotted-routes.test.e2e.ts`, `${fixtureDir}/shared-module.test.e2e.ts`],
+			},
+			{
+				name: 'html-pages-classic-script-dev-e2e',
+				port: 43123,
+				mode: 'dev',
+				testMatch: [`${fixtureDir}/**/*.dev.test.e2e.ts`],
 			},
 		],
 	},

@@ -48,6 +48,14 @@ export function buildIsolatedAppCommand(options: {
 	return `${isolatedAppLauncher} --sourceDir ${options.sourceDir} --workspace ${options.workspace} --artifactScope ${options.artifactScope} --host ${options.host} --runtime ${options.runtime} --mode ${options.mode} --port ${options.port}`;
 }
 
+/**
+ * Isolated kitchen-sink HMR Playwright projects (Bun, Node, Vite).
+ *
+ * @remarks
+ * Each project uses `workers: 1` because the specs mutate one `.e2e-tmp` copy.
+ * Extra workers race those writes. App-entry restart specs are Vite-host only
+ * (`testIgnore` on Bun/Node) so they are not collected as skipped rows.
+ */
 export function defineCrossIntegrationFixture(
 	repoRootDir: string,
 	desktopChrome: DesktopChromeUse,
@@ -85,6 +93,7 @@ export function defineCrossIntegrationFixture(
 		projects: hmrProjects.map((project) => ({
 			name: project.name,
 			testMatch: crossIntegrationHmrMatch,
+			...(project.host === 'vite' ? {} : { testIgnore: '**/app-entry-restart-hmr.test.e2e.ts' }),
 			workers: 1,
 			fullyParallel: false,
 			timeout: CROSS_INTEGRATION_DEV_TEST_TIMEOUT_MS,

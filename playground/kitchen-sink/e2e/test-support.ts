@@ -7,7 +7,7 @@ const HMR_CLIENT_CONNECT_TIMEOUT_MS = 60_000;
 export const HMR_MUTATION_ASSERT_TIMEOUT_MS = 25_000;
 const RETRIABLE_REQUEST_ERROR_FRAGMENTS = ['ECONNRESET', 'ECONNREFUSED', 'socket hang up', 'fetch failed'];
 
-function isRetriableRequestError(error: unknown): error is Error {
+export function isRetriableRequestError(error: unknown): error is Error {
 	return (
 		error instanceof Error && RETRIABLE_REQUEST_ERROR_FRAGMENTS.some((fragment) => error.message.includes(fragment))
 	);

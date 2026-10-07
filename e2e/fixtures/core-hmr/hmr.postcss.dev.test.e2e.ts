@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gotoAndWait } from '../../utils/test-helpers';
 
 const FIXTURE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const TEST_CSS_FILE = path.join(FIXTURE_DIR, 'src/pages/postcss-hmr.css');
@@ -13,8 +14,11 @@ test.describe('HMR E2E PostCSS', () => {
 		const title = page.locator('.postcss-title').first();
 
 		try {
-			await page.goto('/postcss-hmr', { waitUntil: 'networkidle' });
+			await gotoAndWait(page, '/postcss-hmr');
 			await expect(title).toBeVisible();
+			await page.waitForFunction(
+				() => (window as Window & { __ECO_HMR_CONNECTED__?: boolean }).__ECO_HMR_CONNECTED__ === true,
+			);
 
 			const initialColor = await title.evaluate((el) => getComputedStyle(el).color);
 			expect(initialColor).toBeTruthy();

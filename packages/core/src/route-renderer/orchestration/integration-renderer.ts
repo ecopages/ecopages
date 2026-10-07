@@ -109,7 +109,11 @@ export type HtmlDocumentContributionContext<C = EcoPagesElement> = {
 };
 
 export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext } from '../../types/public-types.ts';
-export type { PageClientBrowserAssets, PageClientPlan } from './ownership-graph/page-client-plan.ts';
+export {
+	selectHydrationIslandEntries,
+	type PageClientBrowserAssets,
+	type PageClientPlan,
+} from './ownership-graph/page-client-plan.ts';
 export type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
 
 /**

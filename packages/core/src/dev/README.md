@@ -25,6 +25,10 @@ Disable per project with `devToolbar: { enabled: false }`, or per process with `
 
 Server wiring: [dev-toolbar/README.md](../dev-toolbar/README.md) (`DevToolbarHost`, manifest, runtime bundling, HTML injection). Bring-your-own toolbars export `src/bootstrap.ts` and use the same `devToolbar.package` config key.
 
+### Dev transform
+
+Entrypoints may be files under `srcDir` or files in workspace-linked packages. Workspace files are served at `/assets/__eco_dev__/@fs/...` so a React island from a linked package can hydrate on another Integration's page. Module URLs encode filesystem characters such as spaces, percent signs, and query or fragment delimiters and decode them before resolving the source path.
+
 Dev transform requests retry when their source changes or is invalidated during compilation. Concurrent requests share one in-flight compile per source, including across source and global invalidation; stale attempts release their slot before retrying. Only results for the current source snapshot enter the module cache, so rapid edits cannot label stale browser code with a newer source hash. A failed compile of a snapshot that changed in the meantime is retried the same way, so it is neither returned nor reported.
 
 ### Build errors of served modules

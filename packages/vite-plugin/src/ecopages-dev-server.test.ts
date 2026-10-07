@@ -11,7 +11,7 @@ import { ecopagesDevServer } from './ecopages-dev-server.ts';
 type DevServerModule = {
 	app?: {
 		fetch?: (request: Request) => Promise<Response>;
-		handleListening?: (origin: string) => void;
+		handleListening?: (origin: string) => void | Promise<void>;
 		attachWebSocketUpgrades?: (...args: unknown[]) => Promise<void>;
 		stop?: () => Promise<void>;
 	};
@@ -461,6 +461,38 @@ describe('ecopagesDevServer', () => {
 
 		expect(forwarded).toBe(true);
 		expect(harness.isEnded()).toBe(false);
+	});
+
+	it('finishes warmup attach and listening before serving HTTP', async () => {
+		const order: string[] = [];
+		let listeningCompletedAtFetch: boolean | undefined;
+
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			devServerOrigin: 'http://localhost:4018',
+			module: {
+				app: {
+					fetch: async () => {
+						listeningCompletedAtFetch = order.includes('listen');
+						return new Response('ok');
+					},
+					handleListening: async () => {
+						await new Promise((resolve) => setImmediate(resolve));
+						order.push('listen');
+					},
+					attachWebSocketUpgrades: async () => {
+						await new Promise((resolve) => setImmediate(resolve));
+						order.push('attach');
+					},
+				},
+			},
+		});
+
+		await harness.middleware?.({ headers: {}, method: 'GET', originalUrl: '/' }, harness.response, (error) => {
+			if (error) throw error;
+		});
+
+		expect(order).toEqual(['attach', 'listen']);
+		expect(listeningCompletedAtFetch).toBe(true);
 	});
 
 	it('attaches app websocket upgrades before serving HTTP', async () => {

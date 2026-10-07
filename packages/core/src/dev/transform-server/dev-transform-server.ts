@@ -8,6 +8,7 @@ import { DevTransformBundler } from './dev-transform-bundler.ts';
 import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
 import { materializeDevTransformStylesheet, resolveDevTransformModuleKind } from './dev-transform-module-kind.ts';
 import { mergeContributorRuntimeSpecifierMaps } from './dev-transform-runtime-specifiers.ts';
+import { resolveWorkspacePackageWatchRoots } from '../../watchers/workspace-package-watch-roots.ts';
 import { resolveDevTransformModuleSourcePath, resolveDevTransformModuleUrl } from './dev-transform-url.ts';
 import type { DevTransformBundleContributor } from './types.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
@@ -47,12 +48,14 @@ export class DevTransformServer {
 	private readonly inFlight = new Map<string, Promise<CacheEntry>>();
 	private cacheGeneration = 0;
 	private readonly sourceGenerations = new Map<string, number>();
+	private readonly extraModuleRoots: readonly string[];
 
 	constructor(options: DevTransformServerOptions) {
 		this.appConfig = options.appConfig;
 		this.onModuleDependencies = options.onModuleDependencies;
 		this.onTransformError = options.onTransformError;
 		this.contributors.push(...(options.contributors ?? []));
+		this.extraModuleRoots = resolveWorkspacePackageWatchRoots(this.appConfig.rootDir);
 		this.rebuildRuntimeSpecifierMap();
 		this.vendorRegistry = new DevTransformVendorRegistry({
 			appConfig: options.appConfig,
@@ -64,6 +67,7 @@ export class DevTransformServer {
 			contributors: this.contributors,
 			getRuntimeSpecifierMap: () => this.runtimeSpecifierMap,
 			vendorRegistry: this.vendorRegistry,
+			extraModuleRoots: this.extraModuleRoots,
 		});
 	}
 
@@ -74,7 +78,11 @@ export class DevTransformServer {
 			return existing;
 		}
 
-		const url = resolveDevTransformModuleUrl(this.appConfig.absolutePaths.srcDir, normalized);
+		const url = resolveDevTransformModuleUrl(
+			this.appConfig.absolutePaths.srcDir,
+			normalized,
+			this.extraModuleRoots,
+		);
 		this.sourceToUrl.set(normalized, url);
 		this.urlToSource.set(url, normalized);
 		return url;
@@ -201,6 +209,7 @@ export class DevTransformServer {
 		const discoveredSourcePath = resolveDevTransformModuleSourcePath(
 			this.appConfig.absolutePaths.srcDir,
 			moduleUrl,
+			this.extraModuleRoots,
 		);
 		if (!discoveredSourcePath) {
 			return undefined;

@@ -11,14 +11,12 @@ test('startDevWarmup activates every configured integration', async () => {
 		integrations: [{ name: 'react' }, { name: 'lit' }],
 	} as any;
 
-	startDevWarmup({
+	await startDevWarmup({
 		appConfig,
 		runtimeOrigin: 'http://localhost:3000',
 	});
 
-	await vi.waitFor(() => {
-		assert.equal(ensureSpy.mock.calls.length, 2);
-	});
+	assert.equal(ensureSpy.mock.calls.length, 2);
 
 	assert.deepEqual(
 		ensureSpy.mock.calls.map(([options]) => options.integrationName),
@@ -38,14 +36,12 @@ test('startDevWarmup logs failures without throwing', async () => {
 		integrations: [{ name: 'react' }],
 	} as any;
 
-	startDevWarmup({
+	await startDevWarmup({
 		appConfig,
 		runtimeOrigin: 'http://localhost:3000',
 	});
 
-	await vi.waitFor(() => {
-		assert.equal(errorSpy.mock.calls.length, 1);
-	});
+	assert.equal(errorSpy.mock.calls.length, 1);
 
 	assert.match(String(errorSpy.mock.calls[0]?.[0]), /Failed to prewarm integration runtimes/);
 

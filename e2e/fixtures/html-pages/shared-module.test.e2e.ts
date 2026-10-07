@@ -9,8 +9,15 @@ function collectErrors(page: Page): string[] {
 	return errors;
 }
 
-function loadedBy(page: Page): Promise<string | undefined> {
-	return page.evaluate(() => (window as Window & { loadedBy?: string[] }).loadedBy?.join(' + '));
+async function loadedBy(page: Page): Promise<string | undefined> {
+	try {
+		return await page.evaluate(() => (window as Window & { loadedBy?: string[] }).loadedBy?.join(' + '));
+	} catch (error) {
+		if (error instanceof Error && /Execution context was destroyed|frame was detached/i.test(error.message)) {
+			return undefined;
+		}
+		throw error;
+	}
 }
 
 test('loads two module scripts of a Page that share a module once', async ({ page }) => {

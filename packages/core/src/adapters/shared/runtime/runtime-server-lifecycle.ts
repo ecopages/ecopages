@@ -43,29 +43,32 @@ export function attachHmrToIntegrations(appConfig: EcoPagesAppConfig, hmrManager
 }
 
 /**
- * Starts background activation of every configured integration after watch-mode HMR is ready.
+ * Activates every configured integration after watch-mode HMR is ready.
  *
  * @remarks
- * Fire-and-forget: overlaps with watcher setup so first-page render can join the same
- * coalesced {@link ensureIntegrationRuntimeReady} promise instead of paying a cold vendor build.
- * Failures are logged and do not crash the server.
+ * Awaited before the server advertises listen so the first Page request does not
+ * compete with cold integration `setup()`. Failures are logged and do not crash
+ * the server. Concurrent first-page renders still join the same coalesced
+ * {@link ensureIntegrationRuntimeReady} promise.
  */
-export function startDevWarmup(options: { appConfig: EcoPagesAppConfig; runtimeOrigin: string }): void {
+export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig; runtimeOrigin: string }): Promise<void> {
 	const { appConfig, runtimeOrigin } = options;
 
-	void Promise.all(
-		appConfig.integrations.map((integration) =>
-			ensureIntegrationRuntimeReady({
-				appConfig,
-				integrationName: integration.name,
-				runtimeOrigin,
-			}),
-		),
-	).catch((error) => {
+	try {
+		await Promise.all(
+			appConfig.integrations.map((integration) =>
+				ensureIntegrationRuntimeReady({
+					appConfig,
+					integrationName: integration.name,
+					runtimeOrigin,
+				}),
+			),
+		);
+	} catch (error) {
 		appLogger.error(
 			`Failed to prewarm integration runtimes: ${error instanceof Error ? error.message : String(error)}`,
 		);
-	});
+	}
 }
 
 /**

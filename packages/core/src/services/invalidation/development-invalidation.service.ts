@@ -165,7 +165,7 @@ export class DevelopmentInvalidationService {
 	}
 
 	private async invalidatePageHtmlCache(files: AppliedDevFileChange[]): Promise<void> {
-		if (files.some((file) => shouldClearAllPageHtmlCache(file.plan.category))) {
+		if (files.some((file) => shouldClearAllPageHtmlCache(file))) {
 			await clearAppPageCache(this.appConfig);
 			return;
 		}
@@ -457,6 +457,15 @@ export class DevelopmentInvalidationService {
 	}
 }
 
-function shouldClearAllPageHtmlCache(category: DevelopmentInvalidationPlan['category']): boolean {
-	return category === 'additional-watch';
+function shouldClearAllPageHtmlCache(file: AppliedDevFileChange): boolean {
+	if (file.plan.category === 'processor-owned-asset') {
+		return file.kind !== 'created';
+	}
+	return (
+		file.plan.category === 'additional-watch' ||
+		file.plan.category === 'server-source' ||
+		file.plan.category === 'recorded-input' ||
+		file.plan.category === 'include-source' ||
+		file.plan.category === 'explicit-server-view'
+	);
 }

@@ -397,7 +397,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			});
 
 			attachHmrToIntegrations(this.appConfig, this.hmrManager);
-			startDevWarmup({
+			await startDevWarmup({
 				appConfig: this.appConfig,
 				runtimeOrigin: this.runtimeOrigin,
 			});

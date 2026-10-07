@@ -110,10 +110,12 @@ export class EcopagesJsxRadiantSsrPolicy {
 				.resolve('@ecopages/radiant/server/radiant-element-ssr');
 
 			this.runtimeModulesPromise = (async () => {
-				const lightDomShimModule = await import(radiantLightDomShimEntry);
+				const lightDomShimModule = await import(/* @vite-ignore */ radiantLightDomShimEntry);
 				ensureRadiantLightDomGlobals(lightDomShimModule.ensureLightDomShim);
 
-				const radiantElementSsrRuntimeModule = (await import(radiantElementSsrRuntimeModuleUrl)) as {
+				const radiantElementSsrRuntimeModule = (await import(
+					/* @vite-ignore */ radiantElementSsrRuntimeModuleUrl
+				)) as {
 					resolveRadiantElementRenderBridge: (instance: unknown) =>
 						| {
 								renderHost: () => { nodeType: 1; outerHTML: string };

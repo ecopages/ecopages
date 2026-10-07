@@ -21,9 +21,17 @@ describe('dev transform urls', () => {
 		expect(resolveDevTransformModuleUrl(srcDir, pagePath)).toContain('_id_');
 	});
 
-	it('rejects entrypoints outside srcDir', () => {
+	it('rejects entrypoints outside srcDir and extra roots', () => {
 		expect(() => resolveDevTransformModuleUrl(srcDir, '/etc/passwd.tsx')).toThrow(
-			'[dev-transform] Entrypoint must be under srcDir',
+			'[dev-transform] Entrypoint must be under srcDir or a workspace package',
+		);
+	});
+
+	it('maps workspace-package files to @fs URLs', () => {
+		const packageRoot = path.resolve('/repo/packages/testing');
+		const islandPath = path.join(packageRoot, 'src/kitchen-sink/react-shell.react.tsx');
+		expect(resolveDevTransformModuleUrl(srcDir, islandPath, [packageRoot])).toBe(
+			`${DEV_TRANSFORM_URL_PREFIX}/@fs${islandPath.replace(/\.tsx$/, '.js')}`,
 		);
 	});
 
@@ -50,7 +58,40 @@ describe('dev transform urls', () => {
 		const srcDir = path.join(tempRoot, 'src');
 		const moduleUrl = `${DEV_TRANSFORM_URL_PREFIX}/components/widget.css`;
 		expect(resolveDevTransformModuleSourcePath(srcDir, moduleUrl)).toBe(cssPath);
+	});
+
+	it('resolves @fs URLs back to workspace-package source files', () => {
+		const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-transform-url-ws-'));
+		const packageRoot = path.join(tempRoot, 'packages', 'testing');
+		const islandDir = path.join(packageRoot, 'src', 'kitchen-sink');
+		fs.mkdirSync(islandDir, { recursive: true });
+		const islandPath = path.join(islandDir, 'react-shell.react.tsx');
+		fs.writeFileSync(islandPath, 'export const shell = 1;\n', 'utf8');
+
+		const srcDir = path.join(tempRoot, 'app', 'src');
+		const moduleUrl = resolveDevTransformModuleUrl(srcDir, islandPath, [packageRoot]);
+		expect(resolveDevTransformModuleSourcePath(srcDir, moduleUrl, [packageRoot])).toBe(islandPath);
 
 		fs.rmSync(tempRoot, { recursive: true, force: true });
+	});
+	it.each(['app', 'workspace'])('round-trips URL-reserved characters in %s module paths', (location) => {
+		const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-url-encoded-'));
+		try {
+			const srcDir = path.join(tempRoot, 'app', 'src');
+			const packageRoot = path.join(tempRoot, 'packages', 'my kit');
+			const moduleDir = location === 'app' ? path.join(srcDir, 'components') : packageRoot;
+			fs.mkdirSync(moduleDir, { recursive: true });
+			const sourcePath = path.join(moduleDir, 'island #1?100%.tsx');
+			fs.writeFileSync(sourcePath, 'export const island = 1;\n');
+			const moduleUrl = resolveDevTransformModuleUrl(srcDir, sourcePath, [packageRoot]);
+			const requestPath = new URL(moduleUrl, 'http://localhost').pathname;
+			expect(resolveDevTransformModuleSourcePath(srcDir, requestPath, [packageRoot])).toBe(sourcePath);
+		} finally {
+			fs.rmSync(tempRoot, { recursive: true, force: true });
+		}
+	});
+
+	it('rejects malformed URL encoding', () => {
+		expect(resolveDevTransformModuleSourcePath(srcDir, `${DEV_TRANSFORM_URL_PREFIX}/bad%zz.js`)).toBeUndefined();
 	});
 });

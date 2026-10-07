@@ -5,6 +5,7 @@
  * Usage:
  *   node e2e/scripts/playwright/run-playwright-batch.mjs proj-a proj-b
  *   node e2e/scripts/playwright/run-playwright-batch.mjs --grep '@stress' proj-a
+ *   node e2e/scripts/playwright/run-playwright-batch.mjs --workers 2 proj-a proj-b
  */
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -23,6 +24,12 @@ for (let index = 0; index < args.length; index += 1) {
 	const arg = args[index];
 	if (arg === '--grep') {
 		playwrightArgs.push('--grep', args[index + 1] ?? '');
+		index += 1;
+		continue;
+	}
+
+	if (arg === '--workers') {
+		playwrightArgs.push('--workers', args[index + 1] ?? '');
 		index += 1;
 		continue;
 	}

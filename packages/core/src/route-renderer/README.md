@@ -27,7 +27,7 @@ These concepts intentionally live in different places:
 - `foreign-subtree-execution.service.ts` owns mixed-integration execution policy and queued token resolution
 - `document-shell-render.service.ts` composes page, layout, and html template shells with one execution-scoped renderer cache
 - `integration-renderer.ts` owns renderer-to-renderer delegation and integration-specific render hooks
-- `route-render-orchestrator.ts` owns route preparation, final response capture, and unresolved artifact enforcement
+- `route-render-orchestrator.ts` owns route preparation, final response capture, and unresolved artifact enforcement. Preparation walks the declared component graph once into a `pageClientPlan` (entries, foreign runtimes, lazy triggers, island files). Renderers and the lazy-trigger path read that plan; Integrations receive island files from it instead of starting browser builds during SSR.
 
 ## Build-Time JSX vs Runtime Foreign Children
 
@@ -65,7 +65,7 @@ Root renderer classes:
 
 Domain folders:
 
-- `ownership-graph/`: component graph walk/collect and up-front ownership validation
+- `ownership-graph/`: component graph walk/collect, one page client plan per prepare, and up-front ownership validation
 - `foreign-child/`: active render context, foreign-subtree execution, deferred template serialization
 - `document-shell/`: shared page/layout/html shell composition, layout prop resolution, and attribute stamping helpers
 - `route-pipeline/`: route preparation, final HTML capture, marker-artifact enforcement

@@ -9,7 +9,7 @@ import type { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestr
 import type { ReactNode } from 'react';
 import { isValidElement } from 'react';
 import { hasSingleRootElement } from './html-boundary.ts';
-import { getIslandComponentKey, type HydrationAssetService } from '../hydration/hydration-asset.ts';
+import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
 import { asNonReactShellComponent, asReactComponent, type SerializableProps } from './component-ownership.ts';
 import { ReactRenderError } from './errors.ts';
 import type { ReactRuntimeModules } from './react-runtime.ts';
@@ -255,8 +255,7 @@ export async function renderReactManagedComponent(options: {
 	) => Promise<{ assets: ProcessedAsset[]; html: string }>;
 	getRootTagName: (html: string) => string | undefined;
 	dedupeProcessedAssets: (assets: ProcessedAsset[]) => ProcessedAsset[];
-	hydrationAssetService: HydrationAssetService;
-	canBuildIslandAssets: boolean;
+	islandRenderAssetsByFile?: ReadonlyMap<string, ProcessedAsset[]>;
 }): Promise<ComponentRenderResult> {
 	const {
 		input,
@@ -267,8 +266,7 @@ export async function renderReactManagedComponent(options: {
 		resolveQueuedForeignSubtreeHtml,
 		getRootTagName,
 		dedupeProcessedAssets,
-		hydrationAssetService,
-		canBuildIslandAssets,
+		islandRenderAssetsByFile,
 	} = options;
 
 	const componentConfig = input.component.config;
@@ -292,15 +290,9 @@ export async function renderReactManagedComponent(options: {
 	let rootAttributes: Record<string, string> | undefined;
 	let assets: ProcessedAsset[] | undefined;
 
-	if (
-		canAttachAttributes &&
-		componentFile &&
-		context.componentInstanceId &&
-		canBuildIslandAssets &&
-		!hasResolvedChildHtml
-	) {
+	if (canAttachAttributes && componentFile && context.componentInstanceId && !hasResolvedChildHtml) {
 		const componentInstanceId = context.componentInstanceId;
-		assets = await hydrationAssetService.buildComponentRenderAssets(componentFile, componentConfig);
+		assets = islandRenderAssetsByFile?.get(componentFile);
 		rootAttributes = buildIslandHostAttributes({
 			integrationName,
 			componentInstanceId,

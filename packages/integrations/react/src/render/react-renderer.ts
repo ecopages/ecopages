@@ -142,6 +142,30 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		});
 	}
 
+	/**
+	 * Builds island client assets for this page before SSR.
+	 */
+	protected override async collectIslandRenderAssets(plan: {
+		islandEntries: Array<{ file: string; integrationName: string; component: EcoComponent }>;
+	}): Promise<Map<string, ProcessedAsset[]>> {
+		const assetsByFile = new Map<string, ProcessedAsset[]>();
+		if (!this.assetProcessingService) {
+			return assetsByFile;
+		}
+
+		for (const entry of plan.islandEntries) {
+			if (entry.integrationName !== this.name || assetsByFile.has(entry.file)) {
+				continue;
+			}
+			assetsByFile.set(
+				entry.file,
+				await this.hydrationAssetService.buildComponentRenderAssets(entry.file, entry.component.config),
+			);
+		}
+
+		return assetsByFile;
+	}
+
 	private getRouterDocumentAttributes(): Record<string, string> | undefined {
 		if (!this.routerAdapter) {
 			return undefined;
@@ -247,8 +271,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				this.resolveReactQueuedForeignSubtreeHtml(html, context),
 			getRootTagName: (html) => this.getRootTagName(html),
 			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-			hydrationAssetService: this.hydrationAssetService,
-			canBuildIslandAssets: Boolean(this.assetProcessingService),
+			islandRenderAssetsByFile: this.islandRenderAssetsByFile,
 		});
 	}
 

@@ -14,8 +14,12 @@ import { resolveDevTransformModuleUrl } from './dev-transform-url.ts';
  * imports keep stable pathnames. A content hash query makes the browser ESM module map
  * treat the updated dependency as a new module without a full page reload.
  */
-function resolveVersionedDevTransformModuleUrl(srcDir: string, resolvedPath: string): string {
-	const baseUrl = resolveDevTransformModuleUrl(srcDir, resolvedPath);
+function resolveVersionedDevTransformModuleUrl(
+	srcDir: string,
+	resolvedPath: string,
+	extraRoots: readonly string[] = [],
+): string {
+	const baseUrl = resolveDevTransformModuleUrl(srcDir, resolvedPath, extraRoots);
 	if (!fileSystem.exists(resolvedPath)) {
 		return baseUrl;
 	}
@@ -40,6 +44,7 @@ type RewriteModuleImportsOptions = {
 	sourcePath: string;
 	srcDir: string;
 	projectRoot: string;
+	extraModuleRoots?: readonly string[];
 	runtimeSpecifierMap: ReadonlyMap<string, string>;
 	resolveVendorUrl: (specifier: string) => Promise<string>;
 };
@@ -123,6 +128,7 @@ export async function rewriteModuleImports(options: RewriteModuleImportsOptions)
 			sourcePath: normalizedSource,
 			srcDir: options.srcDir,
 			projectRoot: options.projectRoot,
+			extraModuleRoots: options.extraModuleRoots,
 			runtimeSpecifierMap: options.runtimeSpecifierMap,
 			resolveVendorUrl: options.resolveVendorUrl,
 			dependencies,
@@ -157,6 +163,7 @@ async function resolveImportSpecifier(options: {
 	sourcePath: string;
 	srcDir: string;
 	projectRoot: string;
+	extraModuleRoots?: readonly string[];
 	runtimeSpecifierMap: ReadonlyMap<string, string>;
 	resolveVendorUrl: (specifier: string) => Promise<string>;
 	dependencies: Set<string>;
@@ -180,7 +187,7 @@ async function resolveImportSpecifier(options: {
 		}
 
 		options.dependencies.add(resolvedPath);
-		return resolveVersionedDevTransformModuleUrl(options.srcDir, resolvedPath);
+		return resolveVersionedDevTransformModuleUrl(options.srcDir, resolvedPath, options.extraModuleRoots);
 	}
 
 	return options.resolveVendorUrl(options.specifier);

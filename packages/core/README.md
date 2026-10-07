@@ -94,7 +94,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/build/README.md`: build adapter, executor, shared `.server` browser import guard, development build coordination, standalone Node server packaging and its deploy layout
 - `src/services/README.md`: cross-cutting runtime services and orchestration helpers
 - `src/adapters/README.md`: Bun, Node, and shared adapter boundaries
-- `src/dev/README.md`: dev transform server, on-demand client delivery, and invalidation during compilation
+- `src/dev/README.md`: dev transform server, on-demand client delivery (including workspace-package `@fs` URLs), and invalidation during compilation
 - `src/watchers/README.md`: project subscriptions, linked package watching, batched `applyDevFileChanges`, and restart invalidation
 - `src/services/invalidation/README.md`: file-change classification and dirty-marking for one debounce window
 - `src/hmr/README.md`: HMR strategy, update-layer ownership, and build error presentation

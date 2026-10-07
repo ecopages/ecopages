@@ -21,9 +21,17 @@ describe('dev transform urls', () => {
 		expect(resolveDevTransformModuleUrl(srcDir, pagePath)).toContain('_id_');
 	});
 
-	it('rejects entrypoints outside srcDir', () => {
+	it('rejects entrypoints outside srcDir and extra roots', () => {
 		expect(() => resolveDevTransformModuleUrl(srcDir, '/etc/passwd.tsx')).toThrow(
-			'[dev-transform] Entrypoint must be under srcDir',
+			'[dev-transform] Entrypoint must be under srcDir or a workspace package',
+		);
+	});
+
+	it('maps workspace-package files to @fs URLs', () => {
+		const packageRoot = path.resolve('/repo/packages/testing');
+		const islandPath = path.join(packageRoot, 'src/kitchen-sink/react-shell.react.tsx');
+		expect(resolveDevTransformModuleUrl(srcDir, islandPath, [packageRoot])).toBe(
+			`${DEV_TRANSFORM_URL_PREFIX}/@fs${islandPath.replace(/\.tsx$/, '.js')}`,
 		);
 	});
 
@@ -50,6 +58,19 @@ describe('dev transform urls', () => {
 		const srcDir = path.join(tempRoot, 'src');
 		const moduleUrl = `${DEV_TRANSFORM_URL_PREFIX}/components/widget.css`;
 		expect(resolveDevTransformModuleSourcePath(srcDir, moduleUrl)).toBe(cssPath);
+	});
+
+	it('resolves @fs URLs back to workspace-package source files', () => {
+		const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-transform-url-ws-'));
+		const packageRoot = path.join(tempRoot, 'packages', 'testing');
+		const islandDir = path.join(packageRoot, 'src', 'kitchen-sink');
+		fs.mkdirSync(islandDir, { recursive: true });
+		const islandPath = path.join(islandDir, 'react-shell.react.tsx');
+		fs.writeFileSync(islandPath, 'export const shell = 1;\n', 'utf8');
+
+		const srcDir = path.join(tempRoot, 'app', 'src');
+		const moduleUrl = resolveDevTransformModuleUrl(srcDir, islandPath, [packageRoot]);
+		expect(resolveDevTransformModuleSourcePath(srcDir, moduleUrl, [packageRoot])).toBe(islandPath);
 
 		fs.rmSync(tempRoot, { recursive: true, force: true });
 	});

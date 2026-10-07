@@ -1,6 +1,6 @@
 # Project Watcher
 
-The Project Watcher subscribes to recorded build inputs (plugin `addDependency` paths, module closures, and Processor watch roots), pages, public assets, additional watch paths, the config module and the project files it imports, dotenv files, and workspace-linked packages. Paths recorded after listen are added to the existing subscription.
+The Project Watcher subscribes to recorded build inputs (plugin `addDependency` paths, module closures, and Processor watch roots), pages, public assets, additional watch paths, the config module and the project files it imports, dotenv files, and workspace-linked packages. Paths recorded after listen are added to the existing subscription. An `add` event that chokidar emits for a file that already existed when it was subscribed is ignored, so the first request that records a path does not reload the browser.
 
 Filesystem events share one debounce window. After it closes, the watcher calls `applyDevFileChanges({ changed, created, deleted })` once. That marks server modules, Page Browser Graph records, HTML cache entries, and route-module records dirty without rebuilding them. An unopened Page is rebuilt on the next request. The browser is notified once per batch; creating and deleting Pages in the same window refreshes the Route Registry once.
 

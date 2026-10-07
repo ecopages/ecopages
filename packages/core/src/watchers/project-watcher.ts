@@ -71,6 +71,15 @@ export class ProjectWatcher {
 	private workspacePackageRoots: string[] = [];
 	private watcher: FSWatcher | null = null;
 	private unsubscribeFromRecordedWatchPaths?: () => void;
+	/**
+	 * Paths just passed to `watcher.add` that already existed on disk.
+	 *
+	 * @remarks
+	 * Chokidar emits `add` for those files even though nothing was created.
+	 * Treating that as a create reloads the browser after the first request that
+	 * recorded the path (for example a client navigation to an unvisited Page).
+	 */
+	private readonly ignoreSubscriptionAdds = new Set<string>();
 	private closed = false;
 	private pendingDevFileKinds = new Map<string, DevFileChangeKind>();
 	private pendingFlushTimer: ReturnType<typeof setTimeout> | undefined;
@@ -176,7 +185,14 @@ export class ProjectWatcher {
 			return Promise.resolve();
 		}
 
-		this.pendingDevFileKinds.set(path.resolve(rawPath), watcherEventToDevFileChangeKind(event));
+		const resolvedPath = path.resolve(rawPath);
+		if (event === 'unlink') {
+			this.ignoreSubscriptionAdds.delete(resolvedPath);
+		} else if (event === 'add' && this.ignoreSubscriptionAdds.delete(resolvedPath)) {
+			return Promise.resolve();
+		}
+
+		this.pendingDevFileKinds.set(resolvedPath, watcherEventToDevFileChangeKind(event));
 
 		if (this.changeDebounceMs === 0) {
 			return this.enqueueChange(() => this.flushPendingDevFileChanges());
@@ -531,8 +547,12 @@ export class ProjectWatcher {
 			if (ignoreProjectPath(filePath)) {
 				return;
 			}
-			literalPaths.add(filePath);
-			this.watcher.add(filePath);
+			const resolvedPath = path.resolve(filePath);
+			literalPaths.add(resolvedPath);
+			if (fileSystem.exists(resolvedPath)) {
+				this.ignoreSubscriptionAdds.add(resolvedPath);
+			}
+			this.watcher.add(resolvedPath);
 		});
 
 		this.watcher
@@ -564,6 +584,7 @@ export class ProjectWatcher {
 		this.closed = true;
 		this.unsubscribeFromRecordedWatchPaths?.();
 		this.unsubscribeFromRecordedWatchPaths = undefined;
+		this.ignoreSubscriptionAdds.clear();
 
 		if (this.pendingFlushTimer) {
 			clearTimeout(this.pendingFlushTimer);

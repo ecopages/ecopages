@@ -13,7 +13,7 @@ Playwright config: root `playwright.config.ts`. Fixtures self-describe in `e2e/f
 
 Pre-commit: `pnpm test:pre-commit`. PR CI (`.github/workflows/ci.yml`): `pnpm test:ci:fast`. `develop` e2e (`.github/workflows/ci.yml`): `pnpm test:ci:e2e`.
 
-Playwright projects (22 total) are defined in `playwright.config.ts`.
+Playwright projects (23 total) are defined in `playwright.config.ts`.
 
 ## Three runs (full suite)
 
@@ -21,7 +21,7 @@ Playwright projects (22 total) are defined in `playwright.config.ts`.
 | ----------------------------- | ---------------------------------------------------------------------------------------- |
 | `pnpm build:e2e:kitchen-sink` | Build kitchen-sink `dist/` (~10s). Required before preview tests.                        |
 | `pnpm test:e2e:static`        | One `playwright test` — fixture static/preview projects (parallel).                      |
-| `pnpm test:e2e:dev`           | One `playwright test` — fixture dev servers (core-hmr, react, react-router, html-pages). |
+| `pnpm test:e2e:dev`           | One Playwright run per fixture dev server (core-hmr, react, react-router, html-pages).   |
 | `pnpm test:e2e:kitchen-sink`  | One Playwright run per cell (in-repo dev/parity), then isolated HMR (ecopages, Vite)     |
 | `pnpm test:e2e`               | Build + all three runs above.                                                            |
 

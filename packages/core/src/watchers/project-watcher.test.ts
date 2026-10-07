@@ -10,6 +10,7 @@ import type { ClientBridge } from '../adapters/bun/client-bridge.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../dev/transform-server/dev-transform-url.ts';
 import { getAppServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
+import { getAppBuildInputIndex } from '../build/cache/build-input-dependency-index.ts';
 import {
 	createMockHmrManager,
 	createMockBridge,
@@ -845,6 +846,45 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 			expect.any(Object),
 		);
 		expect(watcherHandle.add).not.toHaveBeenCalled();
+	});
+
+	test('does not treat chokidar add for a newly recorded existing file as a create', async () => {
+		const Config = await createMockConfig();
+		installDevRuntimeState(Config);
+		const recordedFile = path.join(Config.absolutePaths.srcDir, 'components/badge-buttons.ts');
+		const HmrManager = createMockHmrManager();
+		const Bridge = createMockBridge();
+		const eventHandlers = new Map<string, (filePath: string) => void>();
+		const watcherHandle = {
+			add: vi.fn(),
+			on: vi.fn((event: string, handler: (filePath: string) => void) => {
+				eventHandlers.set(event, handler);
+				return watcherHandle;
+			}),
+			close: vi.fn(),
+		};
+		vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath) =>
+			[Config.absolutePaths.pagesDir, Config.absolutePaths.publicDir, recordedFile].includes(String(targetPath)),
+		);
+		vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherHandle as never);
+
+		const watcher = new ProjectWatcher({
+			config: Config,
+			refreshRouterRoutesCallback: vi.fn(async () => {}),
+			hmrManager: HmrManager,
+			bridge: Bridge,
+			changeDebounceMs: 0,
+		});
+
+		await watcher.createWatcherSubscription();
+		getAppBuildInputIndex(Config).recordWatchPath(recordedFile);
+		expect(watcherHandle.add).toHaveBeenCalledWith(path.resolve(recordedFile));
+
+		eventHandlers.get('add')?.(recordedFile);
+		await (watcher as unknown as { changeQueue: Promise<void> }).changeQueue;
+
+		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+		expect(Bridge.reload).not.toHaveBeenCalled();
 	});
 
 	test('watches every supported dotenv path before the files exist', async () => {

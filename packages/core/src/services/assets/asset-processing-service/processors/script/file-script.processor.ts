@@ -14,6 +14,75 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 		this.hmrManager = hmrManager;
 	}
 
+	private toProcessedAsset(dep: FileScriptAsset, filepath: string): ProcessedAsset {
+		return {
+			filepath,
+			sourceFilepath: dep.filepath,
+			kind: 'script',
+			position: dep.position,
+			attributes: dep.attributes,
+			inline: dep.inline,
+			excludeFromHtml: dep.excludeFromHtml,
+			packageRole: dep.packageRole,
+			groupedBundle: dep.groupedBundle,
+			bundledSourceFilepaths: dep.bundledSourceFilepaths,
+		};
+	}
+
+	/**
+	 * Bundles grouped file-script entries in one multi-entry Rolldown build.
+	 *
+	 * @remarks
+	 * Output paths come from the recorded build graph, not from predicted names.
+	 * HMR, inline, and unbundled entries fall back to per-file processing.
+	 */
+	async processGrouped(deps: FileScriptAsset[]): Promise<ProcessedAsset[]> {
+		if (deps.length === 0) {
+			return [];
+		}
+
+		const hmrEnabled = this.hmrManager?.isEnabled() === true;
+		const shouldBundle = deps.every((dep) => this.shouldBundle(dep));
+		if (!shouldBundle || deps.some((dep) => dep.inline) || hmrEnabled) {
+			return Promise.all(deps.map((dep) => this.process(dep)));
+		}
+
+		const outputPaths = await this.bundleScripts({
+			...this.getGroupedBundlerOptions(deps),
+			entries: deps.map((dep) => ({
+				entryName: dep.groupedBundle?.entryName ?? dep.name ?? path.parse(dep.filepath).name,
+				entrypoint: dep.filepath,
+			})),
+			outdir: this.getAssetsDir(),
+			minify: this.isProduction,
+			naming: '[name]-[hash].[ext]',
+		});
+
+		return deps.map((dep) => {
+			const entryName = dep.groupedBundle?.entryName ?? dep.name ?? path.parse(dep.filepath).name;
+			const bundledFilePath = outputPaths.get(entryName);
+			if (!bundledFilePath) {
+				throw new Error(`Missing grouped bundle output for ${entryName}`);
+			}
+
+			return this.toProcessedAsset(dep, bundledFilePath);
+		});
+	}
+
+	private getGroupedBundlerOptions(deps: FileScriptAsset[]): Record<string, unknown> {
+		const primaryDep = deps[0]!;
+		const options = this.getBundlerOptions(primaryDep);
+
+		if (deps.some((dep) => dep.bundleOptions?.splitting === false)) {
+			return {
+				...options,
+				splitting: false,
+			};
+		}
+
+		return options;
+	}
+
 	/**
 	 * @remarks
 	 * With HMR active, bundled scripts are built and watched by the HMR manager, which emits ES

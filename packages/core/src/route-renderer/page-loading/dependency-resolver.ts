@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { EcoComponent } from '../../types/public-types.ts';
+import type { EcoComponent, EcoComponentConfig, ResolvedLazyTrigger } from '../../types/public-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
 	AssetDefinition,
@@ -11,6 +11,7 @@ import { AssetFactory } from '../../services/assets/asset-processing-service/ind
 import { buildResolvedLazyTriggers, type ResolvedLazyGroup } from './lazy-trigger-planning.ts';
 import { collectComponentDependencies } from './component-dependency-collection.ts';
 import { packagePageDependencies } from './page-dependency-bundling.ts';
+import type { LazyGroup } from './lazy-entry-collection.ts';
 
 export const DEPENDENCY_ERRORS = {
 	INVALID_STYLESHEET_ENTRY: 'Invalid stylesheet dependency entry: expected src or content',
@@ -38,10 +39,10 @@ function resolveLazyScripts(appConfig: EcoPagesAppConfig, componentDir: string, 
 	return resolvedPaths.join(',');
 }
 
-const ECOPAGES_JSX_INTEGRATION_NAME = 'ecopages-jsx';
+const pendingLazyGroupsByConfig = new WeakMap<NonNullable<EcoComponent['config']>, Map<string, LazyGroup>>();
 
-function isEcopagesJsxIntegration(integrationName: string): boolean {
-	return integrationName === ECOPAGES_JSX_INTEGRATION_NAME;
+function isLazyClientScript(dep: AssetDefinition): boolean {
+	return dep.kind === 'script' && Boolean(dep.attributes?.['data-eco-lazy-key']);
 }
 
 function createEcopagesJsxLazyEntryName(integrationName: string, key: string): string {
@@ -81,8 +82,11 @@ export class DependencyResolverService {
 	}
 
 	/**
-	 * Collects and processes component dependencies (styles, scripts, modules, lazy scripts).
-	 * Lazy dependencies are always resolved into global-injector trigger maps.
+	 * Collects and processes component dependencies (styles, scripts, modules).
+	 *
+	 * @remarks
+	 * Lazy client entries are held on the component config so the page client
+	 * build can emit them in the same grouped Rolldown graph as islands.
 	 */
 	async processComponentDependencies(
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
@@ -92,28 +96,57 @@ export class DependencyResolverService {
 		const { dependencies, lazyScriptsByConfig } = this.collectDependencies(components, integrationName, false);
 
 		const packagedDependencies = packagePageDependencies(dependencies, integrationName);
-		const hasLazyDependencies = packagedDependencies.some(
-			(dep) => dep.kind === 'script' && dep.excludeFromHtml === true,
-		);
+		const lazyDeps = packagedDependencies.filter(isLazyClientScript);
+		const eagerDeps = packagedDependencies.filter((dep) => !isLazyClientScript(dep));
 
-		const processedDependencies = await this.assetProcessingService.processDependencies(
-			packagedDependencies,
-			integrationName,
-		);
+		for (const [config, lazyGroupsMap] of lazyScriptsByConfig.entries()) {
+			pendingLazyGroupsByConfig.set(config, lazyGroupsMap);
+			const lazyKeys = new Set(
+				[...lazyGroupsMap.values()].flatMap((group) => group.scripts.map((script) => script.lazyKey)),
+			);
+			config._pendingLazyClientAssets = lazyDeps.filter((dep) => {
+				const lazyKey = dep.kind === 'script' ? dep.attributes?.['data-eco-lazy-key'] : undefined;
+				return Boolean(lazyKey && lazyKeys.has(lazyKey));
+			});
+			config._resolvedLazyTriggers = undefined;
+			config._resolvedLazyScripts = undefined;
+		}
+
+		return this.assetProcessingService.processDependencies(eagerDeps, integrationName);
+	}
+
+	/**
+	 * Resolves pending lazy triggers from processed grouped-build URLs.
+	 */
+	applyPendingLazyTriggers(
+		processedAssets: ProcessedAsset[],
+		configs: Iterable<EcoComponentConfig | undefined>,
+	): ResolvedLazyTrigger[] {
 		const lazyKeyToOutputUrl = new Map<string, string>();
-
-		for (const dependency of processedDependencies) {
-			if (dependency.kind === 'script' && dependency.srcUrl) {
-				const lazyKey = dependency.attributes?.['data-eco-lazy-key'];
-				if (lazyKey) {
-					lazyKeyToOutputUrl.set(lazyKey, dependency.srcUrl);
-				}
+		for (const dependency of processedAssets) {
+			if (dependency.kind !== 'script' || !dependency.srcUrl) {
+				continue;
+			}
+			const lazyKey = dependency.attributes?.['data-eco-lazy-key'];
+			if (lazyKey) {
+				lazyKeyToOutputUrl.set(lazyKey, dependency.srcUrl);
 			}
 		}
 
-		for (const [config, lazyGroupsMap] of lazyScriptsByConfig.entries()) {
-			const rawGroups: ResolvedLazyGroup[] = [];
+		const triggers: ResolvedLazyTrigger[] = [];
+		for (const config of configs) {
+			if (!config) {
+				continue;
+			}
+			const lazyGroupsMap = pendingLazyGroupsByConfig.get(config);
+			if (!lazyGroupsMap) {
+				if (config._resolvedLazyTriggers?.length) {
+					triggers.push(...config._resolvedLazyTriggers);
+				}
+				continue;
+			}
 
+			const rawGroups: ResolvedLazyGroup[] = [];
 			for (const group of lazyGroupsMap.values()) {
 				const resolvedUrls = group.scripts
 					.map(({ lazyKey, fallbackUrl }) => lazyKeyToOutputUrl.get(lazyKey) ?? fallbackUrl)
@@ -126,13 +159,16 @@ export class DependencyResolverService {
 				rawGroups.push({ lazy: group.lazy, scripts: Array.from(new Set(resolvedUrls)) });
 			}
 
-			if (hasLazyDependencies) {
-				config._resolvedLazyTriggers = buildResolvedLazyTriggers(config, rawGroups);
-				config._resolvedLazyScripts = undefined;
+			config._resolvedLazyTriggers = buildResolvedLazyTriggers(config, rawGroups);
+			config._resolvedLazyScripts = undefined;
+			config._pendingLazyClientAssets = undefined;
+			pendingLazyGroupsByConfig.delete(config);
+			if (config._resolvedLazyTriggers?.length) {
+				triggers.push(...config._resolvedLazyTriggers);
 			}
 		}
 
-		return processedDependencies;
+		return triggers;
 	}
 
 	/**
@@ -159,7 +195,6 @@ export class DependencyResolverService {
 			excludeForeignChildren,
 			resolveLazyScripts: (componentDir, scripts) => this.resolveLazyScripts(componentDir, scripts),
 			createEcopagesJsxLazyEntryName,
-			isEcopagesJsxIntegration,
 			errors: {
 				invalidStylesheetEntry: DEPENDENCY_ERRORS.INVALID_STYLESHEET_ENTRY,
 				invalidScriptEntry: DEPENDENCY_ERRORS.INVALID_SCRIPT_ENTRY,

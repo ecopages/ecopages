@@ -1,6 +1,10 @@
 import type { DependencyLazyTrigger, EcoComponentScriptEntry } from '../../types/public-types.ts';
 import type { AssetDefinition } from '../../services/assets/asset-processing-service/index.ts';
-import { AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
+import {
+	APP_BROWSER_CLIENT_BUNDLE_ID,
+	AssetFactory,
+	createAppBrowserClientEntry,
+} from '../../services/assets/asset-processing-service/index.ts';
 import { rapidhash } from '../../utils/hash.ts';
 import { getLazyTriggerKey } from './lazy-trigger-planning.ts';
 
@@ -45,7 +49,6 @@ type CollectLazyEntriesOptions = {
 		dependency: AssetDefinition,
 	) => boolean;
 	getLazyScriptMissingSrcMessage: () => string;
-	isEcopagesJsxIntegration: (integrationName: string) => boolean;
 };
 
 function isDependencyEntryObject(entry: string | EcoComponentScriptEntry): entry is EcoComponentScriptEntry {
@@ -81,7 +84,6 @@ export function collectLazyScriptEntries(options: CollectLazyEntriesOptions): vo
 		createEcopagesJsxLazyEntryName,
 		pushUniqueDependency,
 		getLazyScriptMissingSrcMessage,
-		isEcopagesJsxIntegration,
 	} = options;
 
 	for (const [index, scriptEntry] of scriptEntries.entries()) {
@@ -97,14 +99,21 @@ export function collectLazyScriptEntries(options: CollectLazyEntriesOptions): vo
 		if (content) {
 			const lazyKey = `lazy:${rapidhash(`${componentFile}:entry:${index}:${content}`).toString(16)}`;
 			const depKey = `lazy:entry:content:${getLazyTriggerKey(lazy)}:${content}:${JSON.stringify(attributes ?? {})}`;
+			const lazyEntryName = createEcopagesJsxLazyEntryName(integrationName, depKey);
 			pushUniqueDependency(
 				lazyDependencyKeys,
 				depKey,
 				dependencies,
 				AssetFactory.createContentScript({
 					position: 'head',
+					name: lazyEntryName,
 					content,
 					excludeFromHtml: true,
+					bundle: true,
+					groupedBundle: {
+						id: APP_BROWSER_CLIENT_BUNDLE_ID,
+						entryName: lazyEntryName,
+					},
 					attributes: {
 						...createModuleScriptAttributes(attributes),
 						'data-eco-lazy-key': lazyKey,
@@ -133,29 +142,14 @@ export function collectLazyScriptEntries(options: CollectLazyEntriesOptions): vo
 			lazyDependencyKeys,
 			depKey,
 			dependencies,
-			isEcopagesJsxIntegration(integrationName)
-				? AssetFactory.createContentScript({
-						name: lazyEntryName,
-						position: 'head',
-						content: `import ${JSON.stringify(resolvedPath)};`,
-						excludeFromHtml: true,
-						bundleOptions: {
-							splitting: false,
-						},
-						attributes: {
-							...createModuleScriptAttributes(attributes),
-							'data-eco-lazy-key': lazyKey,
-						},
-					})
-				: AssetFactory.createFileScript({
-						filepath: resolvedPath,
-						position: 'head',
-						excludeFromHtml: true,
-						attributes: {
-							...createModuleScriptAttributes(attributes),
-							'data-eco-lazy-key': lazyKey,
-						},
-					}),
+			createAppBrowserClientEntry({
+				entryName: lazyEntryName,
+				importPath: resolvedPath,
+				attributes: {
+					...createModuleScriptAttributes(attributes),
+					'data-eco-lazy-key': lazyKey,
+				},
+			}),
 		);
 
 		registerLazyScript({

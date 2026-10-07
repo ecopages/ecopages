@@ -16,7 +16,6 @@ function collect(components: EcoComponent[]) {
 		integrationName: 'lit',
 		resolveLazyScripts: (_dir, scripts) => scripts.join(','),
 		createEcopagesJsxLazyEntryName: (_, key) => key,
-		isEcopagesJsxIntegration: () => false,
 		errors: { invalidStylesheetEntry: 'style', invalidScriptEntry: 'script', lazyScriptMissingSrc: 'lazy' },
 	});
 }

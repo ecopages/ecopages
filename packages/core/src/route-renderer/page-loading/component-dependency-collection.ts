@@ -72,7 +72,6 @@ type CollectComponentDependenciesOptions = {
 	excludeForeignChildren?: boolean;
 	resolveLazyScripts: (componentDir: string, scripts: string[]) => string;
 	createEcopagesJsxLazyEntryName: (integrationName: string, key: string) => string;
-	isEcopagesJsxIntegration: (integrationName: string) => boolean;
 	errors: {
 		invalidStylesheetEntry: string;
 		invalidScriptEntry: string;
@@ -85,7 +84,6 @@ type ComponentDependencyCollectionContext = {
 	excludeForeignChildren: boolean;
 	resolveLazyScripts: CollectComponentDependenciesOptions['resolveLazyScripts'];
 	createEcopagesJsxLazyEntryName: CollectComponentDependenciesOptions['createEcopagesJsxLazyEntryName'];
-	isEcopagesJsxIntegration: CollectComponentDependenciesOptions['isEcopagesJsxIntegration'];
 	errors: CollectComponentDependenciesOptions['errors'];
 	dependencies: AssetDefinition[];
 	lazyScriptsByConfig: Map<NonNullable<EcoComponent['config']>, Map<string, LazyGroup>>;
@@ -191,7 +189,6 @@ function collectComponentConfigDependencies(
 		createEcopagesJsxLazyEntryName: context.createEcopagesJsxLazyEntryName,
 		pushUniqueDependency,
 		getLazyScriptMissingSrcMessage: () => context.errors.lazyScriptMissingSrc,
-		isEcopagesJsxIntegration: context.isEcopagesJsxIntegration,
 	});
 
 	collectNestedComponentDependencies(dependenciesConfig?.components ?? [], file, context);
@@ -235,7 +232,6 @@ export function collectComponentDependencies(
 		excludeForeignChildren = false,
 		resolveLazyScripts,
 		createEcopagesJsxLazyEntryName,
-		isEcopagesJsxIntegration,
 		errors,
 	} = options;
 	const dependencies: AssetDefinition[] = [];
@@ -256,7 +252,6 @@ export function collectComponentDependencies(
 			excludeForeignChildren,
 			resolveLazyScripts,
 			createEcopagesJsxLazyEntryName,
-			isEcopagesJsxIntegration,
 			errors,
 			dependencies,
 			lazyScriptsByConfig,

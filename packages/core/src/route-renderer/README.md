@@ -27,7 +27,7 @@ These concepts intentionally live in different places:
 - `foreign-subtree-execution.service.ts` owns mixed-integration execution policy and queued token resolution
 - `document-shell-render.service.ts` composes page, layout, and html template shells with one execution-scoped renderer cache
 - `integration-renderer.ts` owns renderer-to-renderer delegation and integration-specific render hooks
-- `route-render-orchestrator.ts` owns route preparation, final response capture, and unresolved artifact enforcement. Preparation walks the declared component graph once into a `pageClientPlan` (entries, foreign runtimes, lazy triggers, island files). Renderers and the lazy-trigger path read that plan; Integrations receive island files from it instead of starting browser builds during SSR.
+- `route-render-orchestrator.ts` owns route preparation, final response capture, and unresolved artifact enforcement. Preparation walks the declared component graph once into a `pageClientPlan` (entries, foreign runtimes, lazy triggers, island files). That plan feeds one grouped multi-entry browser build (`ecopages-app-browser-client`) for islands and lazy entries; hydration scripts import URLs from the recorded build graph. Renderers stamp those assets during SSR instead of starting a per-island build.
 
 ## Build-Time JSX vs Runtime Foreign Children
 

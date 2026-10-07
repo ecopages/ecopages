@@ -26,7 +26,7 @@ For component-level islands, Ecopages React uses this contract:
 
 - SSR output preserves the authored DOM structure (no unnecessary wrapper elements).
 - A stable island host contract is stamped on the component SSR root via core (`data-eco-island`, `data-eco-island-integration`, `data-eco-component-id`, optional `data-eco-component-key` / `data-eco-props`).
-- Island client assets are built from the page client plan during route preparation. SSR stamps the host and attaches those assets; it does not start a browser build.
+- Island and lazy-entry client modules are built together from the page client plan, in one grouped browser build, during route preparation. Hydration scripts import the recorded output URLs. SSR stamps the host and attaches those assets; it does not start a per-island build.
 - The island runtime keeps the SSR host and its children in place and hydrates that host with `hydrateRoot()`. The host uses `display: contents` so it does not introduce an extra layout box. Full-page hydration paths also use `hydrateRoot()`.
 
 > [!TIP]

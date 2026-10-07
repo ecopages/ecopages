@@ -52,7 +52,10 @@ describe('page-owned-content-script-grouping', () => {
 			entryName: 'module-ecopages-images',
 		});
 		expect(moduleScript.bundle).toBe(true);
-		expect(lazyScript.groupedBundle).toBeUndefined();
+		expect(lazyScript.groupedBundle).toEqual({
+			id: createPageOwnedContentScriptBundleId(ECOPAGES_JSX_PLUGIN_NAME),
+			entryName: 'ecopages-ecopages-jsx-lazy-deadbeef',
+		});
 		expect(fileScript).not.toHaveProperty('groupedBundle');
 		expect(injectorScript.groupedBundle).toBeUndefined();
 	});

@@ -68,7 +68,23 @@ type TestReactRuntimeModules = {
 
 const createAssetProcessingServiceMock = () => ({
 	getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
-	processDependencies: vi.fn(async () => []),
+	processDependencies: vi.fn(
+		async (
+			deps: Array<{
+				groupedBundle?: { entryName: string };
+				attributes?: Record<string, string>;
+				name?: string;
+				kind?: string;
+			}>,
+		) =>
+			deps.map((dep) => ({
+				kind: dep.kind ?? 'script',
+				srcUrl: dep.groupedBundle ? `/assets/${dep.groupedBundle.entryName}.js` : '/assets/mock.js',
+				groupedBundle: dep.groupedBundle,
+				attributes: dep.attributes,
+				filepath: `/dist/${dep.name ?? 'asset'}.js`,
+			})),
+	),
 });
 
 const renderer = new ReactRenderer({

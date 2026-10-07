@@ -52,7 +52,7 @@ describe('grouped-content-bundles', () => {
 	});
 
 	test('partitionGroupedContentScriptDependencies routes grouped scripts together', () => {
-		const bundleId = 'ecopages-ecopages-jsx-page-content-scripts';
+		const bundleId = 'ecopages-app-browser-client';
 		const dependencies: AssetDefinition[] = [
 			{
 				kind: 'script',
@@ -69,14 +69,20 @@ describe('grouped-content-bundles', () => {
 			{
 				kind: 'script',
 				source: 'file',
-				filepath: '/app/lazy.ts',
+				filepath: '/app/island.tsx',
+				groupedBundle: { id: bundleId, entryName: 'island-a' },
+			},
+			{
+				kind: 'script',
+				source: 'file',
+				filepath: '/app/eager.ts',
 			},
 		];
 
 		const { groupedBundleDeps, ungroupedDeps } = partitionGroupedContentScriptDependencies(dependencies);
 
-		expect(Array.from(groupedBundleDeps.values())).toEqual([dependencies.slice(0, 2)]);
-		expect(ungroupedDeps).toEqual([dependencies[2]]);
+		expect(Array.from(groupedBundleDeps.values())).toEqual([dependencies.slice(0, 3)]);
+		expect(ungroupedDeps).toEqual([dependencies[3]]);
 	});
 
 	test('processGroupedDependencyBundles matches processor output by groupedBundle entry, not array index', async () => {
@@ -101,7 +107,7 @@ describe('grouped-content-bundles', () => {
 			bundles: [bundleDeps],
 			getCachedAsset: () => null,
 			getDependencyKey: (dep) => (dep.kind === 'script' && dep.source === 'content' ? dep.content : dep.kind),
-			getGroupedProcessor: () => ({
+			getGroupedProcessor: (_deps) => ({
 				processGrouped: vi.fn(async (): Promise<ProcessedAsset[]> => [
 					{
 						filepath: '/test/dist/assets/lazy-entry.js',

@@ -1,4 +1,5 @@
-import type { EcoComponent, ResolvedLazyTrigger } from '../../../types/public-types.ts';
+import type { EcoComponent, EcoComponentConfig, ResolvedLazyTrigger } from '../../../types/public-types.ts';
+import type { AssetDefinition, ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
 import { getComponentIdentity } from '../../../eco/component-identity.ts';
 import { type ComponentGraphRoot } from './component-graph.ts';
 import * as componentGraph from './component-graph.ts';
@@ -25,9 +26,20 @@ export type PageClientPlan = {
 	currentIntegrationName: string;
 	integrationNames: Set<string>;
 	lazyTriggers: ResolvedLazyTrigger[];
+	lazyClientEntries: AssetDefinition[];
+	lazyConfigs: EcoComponentConfig[];
 	islandEntries: PageClientPlanIslandEntry[];
 	componentsWithForeignDescendants: WeakSet<object>;
 	walks: number;
+};
+
+/**
+ * Browser assets produced from one page client plan.
+ */
+export type PageClientBrowserAssets = {
+	processedAssets: ProcessedAsset[];
+	islandRenderAssetsByFile: Map<string, ProcessedAsset[]>;
+	lazyTriggers: ResolvedLazyTrigger[];
 };
 
 function toGraphRoots(components: (EcoComponent | Partial<EcoComponent>)[]): ComponentGraphRoot[] {
@@ -36,6 +48,29 @@ function toGraphRoots(components: (EcoComponent | Partial<EcoComponent>)[]): Com
 
 function getIntegrationName(component: EcoComponent | Partial<EcoComponent>, parentIntegrationName: string): string {
 	return getComponentIdentity(component)?.integration ?? component.config?.integration ?? parentIntegrationName;
+}
+
+function collectPendingLazyClientEntries(
+	config: EcoComponentConfig | undefined,
+	lazyClientEntries: AssetDefinition[],
+	lazyConfigs: EcoComponentConfig[],
+	seenLazyKeys: Set<string>,
+): void {
+	const pendingAssets = config?._pendingLazyClientAssets;
+	if (!pendingAssets?.length || !config) {
+		return;
+	}
+
+	lazyConfigs.push(config);
+	for (const pending of pendingAssets) {
+		const lazyKey = pending.kind === 'script' ? pending.attributes?.['data-eco-lazy-key'] : undefined;
+		const dedupeKey = lazyKey ?? JSON.stringify(pending);
+		if (seenLazyKeys.has(dedupeKey)) {
+			continue;
+		}
+		seenLazyKeys.add(dedupeKey);
+		lazyClientEntries.push(pending);
+	}
 }
 
 /**
@@ -47,6 +82,9 @@ export function collectPageClientPlan(
 ): PageClientPlan {
 	const integrationNames = new Set<string>();
 	const lazyTriggers: ResolvedLazyTrigger[] = [];
+	const lazyClientEntries: AssetDefinition[] = [];
+	const seenLazyKeys = new Set<string>();
+	const lazyConfigs: EcoComponentConfig[] = [];
 	const islandEntries: PageClientPlanIslandEntry[] = [];
 	const childrenByComponent = new Map<object, EcoComponent[]>();
 	const integrationByComponent = new Map<object, string>();
@@ -65,6 +103,8 @@ export function collectPageClientPlan(
 			if (ownTriggers?.length) {
 				lazyTriggers.push(...ownTriggers);
 			}
+
+			collectPendingLazyClientEntries(component.config, lazyClientEntries, lazyConfigs, seenLazyKeys);
 
 			const file = getComponentIdentity(component)?.file;
 			if (file) {
@@ -110,6 +150,8 @@ export function collectPageClientPlan(
 		currentIntegrationName,
 		integrationNames,
 		lazyTriggers,
+		lazyClientEntries,
+		lazyConfigs,
 		islandEntries,
 		componentsWithForeignDescendants,
 		walks: 1,

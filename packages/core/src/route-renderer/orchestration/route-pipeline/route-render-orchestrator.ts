@@ -28,7 +28,11 @@ import {
 	throwIfOwnershipInvalid,
 } from '../ownership-graph/ownership-validation.service.ts';
 import { collectUsedIntegrationDependenciesFromNames } from '../ownership-graph/component-graph-collectors.ts';
-import { collectPageClientPlan } from '../ownership-graph/page-client-plan.ts';
+import {
+	collectPageClientPlan,
+	type PageClientBrowserAssets,
+	type PageClientPlan,
+} from '../ownership-graph/page-client-plan.ts';
 import { buildGlobalInjectorAssets } from '../page-browser-graph/global-injector-assets.service.ts';
 import { mergePageBrowserGraphContributions } from '../page-browser-graph/page-browser-graph-contribution.merge.ts';
 import { PageBrowserGraphService } from '../page-browser-graph/page-browser-graph.service.ts';
@@ -96,6 +100,10 @@ export interface RouteRenderOrchestratorAdapter<C> {
 		routeFile: string,
 		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query'>,
 	): Promise<PageBrowserGraphContributionContext>;
+	/**
+	 * Builds island and lazy-entry browser assets from the page client plan.
+	 */
+	buildPageClientBrowserAssets(plan: PageClientPlan): Promise<PageClientBrowserAssets>;
 	/**
 	 * Executes the Integration-specific route render.
 	 */
@@ -231,9 +239,14 @@ export class RouteRenderOrchestrator {
 		const resolvedPageDependencyComponents = resolvedPageDependencies?.components ?? [];
 		const dependencyRoots = [...componentsToResolve, ...resolvedPageDependencyComponents];
 		const clientPlan = collectPageClientPlan(dependencyRoots, adapter.name);
+		const clientBrowserAssets = await adapter.buildPageClientBrowserAssets(clientPlan);
+		if (clientBrowserAssets.lazyTriggers.length > 0) {
+			clientPlan.lazyTriggers = clientBrowserAssets.lazyTriggers;
+		}
 
 		const allDependencies = [
 			...resolvedDependencies,
+			...clientBrowserAssets.processedAssets,
 			...collectUsedIntegrationDependenciesFromNames(this.appConfig, clientPlan.integrationNames, adapter.name),
 		];
 
@@ -263,6 +276,7 @@ export class RouteRenderOrchestrator {
 			}),
 			sourceDependencyPaths,
 			pageClientPlan: clientPlan,
+			islandRenderAssetsByFile: clientBrowserAssets.islandRenderAssetsByFile,
 		};
 	}
 

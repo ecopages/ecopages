@@ -2,6 +2,7 @@ import { rapidhash } from '@ecopages/core/hash';
 import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/dev/transform-server';
 import { describe, expect, it, vi } from 'vitest';
 import { assertNoBareEcopagesImports } from './assert-no-bare-ecopages-imports.ts';
+import { APP_BROWSER_CLIENT_BUNDLE_ID } from '@ecopages/core/services/asset-processing-service';
 import { getIslandComponentKey, HydrationAssetService } from './hydration-asset.ts';
 
 const devTransformPageUrl = (relativePath: string): string => `${DEV_TRANSFORM_URL_PREFIX}/${relativePath}`;
@@ -108,7 +109,7 @@ describe('HydrationAssetService', () => {
 		expect(dependencies[0]).toMatchObject({
 			bundle: true,
 			groupedBundle: {
-				id: 'ecopages-react-router-pages',
+				id: APP_BROWSER_CLIENT_BUNDLE_ID,
 				entryName: 'pages__dashboard___project_',
 			},
 			attributes: {
@@ -429,8 +430,69 @@ describe('HydrationAssetService', () => {
 		);
 	});
 
-	it('reuses the same bundled island asset for different component instances', async () => {
-		const processDependencies = vi.fn(async () => []);
+	it('builds two islands in one grouped client build and hydrates from recorded output URLs', async () => {
+		const islandA = '/app/src/components/counter.tsx';
+		const islandB = '/app/src/components/cart.tsx';
+		const processDependencies = vi.fn(
+			async (deps: Array<{ groupedBundle?: { entryName: string }; name?: string }>) =>
+				deps.map((dep) => ({
+					kind: 'script' as const,
+					srcUrl: dep.groupedBundle ? `/assets/${dep.groupedBundle.entryName}.js` : `/${dep.name}.js`,
+					groupedBundle: dep.groupedBundle,
+					attributes:
+						'attributes' in dep ? (dep as { attributes?: Record<string, string> }).attributes : undefined,
+				})),
+		);
+		const createBundleOptions = vi.fn(async () => ({}));
+		const service = new HydrationAssetService({
+			srcDir: '/app/src',
+			assetProcessingService: {
+				getHmrManager: () => undefined,
+				processDependencies,
+			} as unknown as ConstructorParameters<typeof HydrationAssetService>[0]['assetProcessingService'],
+			bundleService: {
+				createBundleOptions,
+				getRuntimeImports: () => ({ ...productionRuntimeImports, router: undefined }),
+			} as unknown as ConstructorParameters<typeof HydrationAssetService>[0]['bundleService'],
+		});
+
+		const { assetsByFile } = await service.buildPageClientRenderAssets({
+			islands: [
+				{ file: islandA, config: { identity: { id: 'Counter', file: islandA, integration: 'react' } } },
+				{ file: islandB, config: { identity: { id: 'Cart', file: islandB, integration: 'react' } } },
+			],
+		});
+
+		expect(processDependencies).toHaveBeenCalledTimes(2);
+		const [clientEntries, clientKey] = processDependencies.mock.calls[0] as unknown as [
+			Array<{ groupedBundle?: { id: string; entryName: string }; content?: string }>,
+			string,
+		];
+		expect(clientKey).toBe(APP_BROWSER_CLIENT_BUNDLE_ID);
+		expect(clientEntries).toHaveLength(2);
+		expect(clientEntries.map((entry) => entry.groupedBundle?.id)).toEqual([
+			APP_BROWSER_CLIENT_BUNDLE_ID,
+			APP_BROWSER_CLIENT_BUNDLE_ID,
+		]);
+
+		const hydrationCall = processDependencies.mock.calls[1]?.[0] as Array<{ content?: string }>;
+		expect(hydrationCall?.[0]?.content).toContain(`/assets/ecopages-react-island-${rapidhash(islandA)}.js`);
+		expect(hydrationCall?.[1]?.content).toContain(`/assets/ecopages-react-island-${rapidhash(islandB)}.js`);
+		expect(assetsByFile.get(islandA)?.length).toBeGreaterThan(0);
+		expect(assetsByFile.get(islandB)?.length).toBeGreaterThan(0);
+	});
+
+	it('reuses the same grouped island entry name for different component instances', async () => {
+		const processDependencies = vi.fn(
+			async (deps: Array<{ groupedBundle?: { entryName: string }; name?: string }>) =>
+				deps.map((dep) => ({
+					kind: 'script' as const,
+					srcUrl: dep.groupedBundle ? `/assets/${dep.groupedBundle.entryName}.js` : `/${dep.name}.js`,
+					groupedBundle: dep.groupedBundle,
+					attributes:
+						'attributes' in dep ? (dep as { attributes?: Record<string, string> }).attributes : undefined,
+				})),
+		);
 		const createBundleOptions = vi.fn(async () => ({}));
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
@@ -451,45 +513,29 @@ describe('HydrationAssetService', () => {
 			identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
 		});
 
-		expect(createBundleOptions).toHaveBeenNthCalledWith(
-			1,
-			`ecopages-react-island-${rapidhash('/app/src/components/counter.tsx')}`,
-			false,
-			[],
-		);
-		expect(createBundleOptions).toHaveBeenNthCalledWith(
-			2,
-			`ecopages-react-island-${rapidhash('/app/src/components/counter.tsx')}`,
-			false,
-			[],
-		);
+		const islandName = `ecopages-react-island-${rapidhash('/app/src/components/counter.tsx')}`;
+		expect(createBundleOptions).toHaveBeenNthCalledWith(1, islandName, false, []);
+		expect(createBundleOptions).toHaveBeenNthCalledWith(2, islandName, false, []);
 
-		const [firstDependencies, firstKey] = processDependencies.mock.calls[0] as unknown as [
-			Array<{ name: string; content?: string; attributes?: Record<string, string> }>,
-			string,
-		];
-		const [secondDependencies, secondKey] = processDependencies.mock.calls[1] as unknown as [
-			Array<{ name: string; content?: string; attributes?: Record<string, string> }>,
-			string,
-		];
+		const firstIslandEntries = processDependencies.mock.calls[0]?.[0] as Array<{
+			groupedBundle?: { entryName: string };
+		}>;
+		const secondIslandEntries = processDependencies.mock.calls[2]?.[0] as Array<{
+			groupedBundle?: { entryName: string };
+		}>;
+		expect(firstIslandEntries[0]?.groupedBundle?.entryName).toBe(islandName);
+		expect(secondIslandEntries[0]?.groupedBundle?.entryName).toBe(islandName);
 
-		const [firstBundle, firstHydration] = firstDependencies;
-		const [secondBundle, secondHydration] = secondDependencies;
+		const firstHydration = processDependencies.mock.calls[1]?.[0] as Array<{
+			content?: string;
+			name?: string;
+			attributes?: Record<string, string>;
+		}>;
 		const componentKey = getIslandComponentKey('/app/src/components/counter.tsx', {
 			identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
 		});
-
-		expect(firstKey).toBe(`ecopages-react-island-${rapidhash('/app/src/components/counter.tsx')}`);
-		expect(secondKey).toBe(`ecopages-react-island-${rapidhash('/app/src/components/counter.tsx')}`);
-		expect(secondBundle.name).toBe(firstBundle.name);
-		expect(secondHydration.name).toBe(firstHydration.name);
-		expect(firstHydration.attributes?.['data-eco-script-id']).toBe(firstHydration.name);
-		expect(secondHydration.attributes?.['data-eco-script-id']).toBe(secondHydration.name);
-		expect(firstHydration.content).toContain('ecopages-react-island-');
-		expect(firstHydration.content).toContain(componentKey);
-		expect(secondHydration.content).toContain(componentKey);
-		expect(firstHydration.content).toContain('querySelectorAll');
-		expect(firstHydration.content).toContain(firstBundle.name);
-		expect(secondHydration.content).toContain(secondBundle.name);
+		expect(firstHydration[0]?.content).toContain(`/assets/${islandName}.js`);
+		expect(firstHydration[0]?.content).toContain(componentKey);
+		expect(firstHydration[0]?.attributes?.['data-eco-script-id']).toBe(firstHydration[0]?.name);
 	});
 });

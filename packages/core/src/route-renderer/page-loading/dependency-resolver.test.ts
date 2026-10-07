@@ -11,6 +11,7 @@ import type {
 	ContentScriptAsset,
 	InlineContentScriptAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
+import { APP_BROWSER_CLIENT_BUNDLE_ID } from '../../services/assets/asset-processing-service/index.ts';
 import type { EcoComponent } from '../../types/public-types.ts';
 import { UndeclaredComponentDependencyError } from '../../errors/undeclared-component-dependency-error.ts';
 
@@ -85,6 +86,26 @@ describe('DependencyResolverService', () => {
 		expect(hasInjector).toBe(false);
 
 		expect(component.config._resolvedLazyScripts).toBeUndefined();
+		expect(component.config._resolvedLazyTriggers).toBeUndefined();
+		expect(component.config._pendingLazyClientAssets).toHaveLength(1);
+		const pendingLazy = component.config._pendingLazyClientAssets?.[0];
+		expect(pendingLazy).toEqual(
+			expect.objectContaining({
+				groupedBundle: expect.objectContaining({ id: APP_BROWSER_CLIENT_BUNDLE_ID }),
+			}),
+		);
+
+		service.applyPendingLazyTriggers(
+			[
+				{
+					kind: 'script',
+					srcUrl: '/assets/components/table/table.client.js',
+					attributes: pendingLazy?.kind === 'script' ? pendingLazy.attributes : undefined,
+				},
+			],
+			[component.config],
+		);
+
 		expect(component.config._resolvedLazyTriggers).toHaveLength(1);
 		expect(component.config._resolvedLazyTriggers?.[0]?.rules).toEqual([
 			{
@@ -175,7 +196,7 @@ describe('DependencyResolverService', () => {
 		}
 	});
 
-	it('should keep ecopages-jsx page and lazy dependency bundles separate', async () => {
+	it('holds lazy client entries for the page client build instead of processing them with eager scripts', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-jsx-script-dedupe-'));
 		const componentFile = join(tempDir, 'component.tsx');
 		const widgetScript = join(tempDir, 'widget.script.ts');
@@ -233,21 +254,17 @@ describe('DependencyResolverService', () => {
 				}),
 			]);
 
-			expect(contentScripts).toHaveLength(1);
+			expect(contentScripts).toHaveLength(0);
 
-			const lazyEntry = contentScripts.find((dep) => dep.excludeFromHtml === true);
+			const lazyEntry = component.config._pendingLazyClientAssets?.[0];
 
 			expect(lazyEntry).toEqual(
 				expect.objectContaining({
 					content: `import ${JSON.stringify(lazyScript)};`,
 					excludeFromHtml: true,
-					bundleOptions: {
-						splitting: false,
-					},
+					groupedBundle: expect.objectContaining({ id: APP_BROWSER_CLIENT_BUNDLE_ID }),
 				}),
 			);
-
-			expect(lazyEntry?.groupedBundle).toBeUndefined();
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -289,19 +306,16 @@ describe('DependencyResolverService', () => {
 		try {
 			await service.processComponentDependencies([component], 'ecopages-jsx');
 
-			const contentScripts = capturedDeps.filter(
-				(dep): dep is Extract<AssetDefinition, { kind: 'script'; source: 'content' }> =>
-					dep.kind === 'script' && dep.source === 'content',
-			);
-
-			expect(contentScripts).toHaveLength(1);
-			expect(contentScripts[0]).toEqual(
+			expect(assetProcessingService.processDependencies).toHaveBeenCalledWith([], 'ecopages-jsx');
+			expect(capturedDeps).toEqual([]);
+			expect(component.config._pendingLazyClientAssets).toHaveLength(1);
+			expect(component.config._pendingLazyClientAssets?.[0]).toEqual(
 				expect.objectContaining({
 					content: `import ${JSON.stringify(lazyScript)};`,
 					excludeFromHtml: true,
 				}),
 			);
-			expect(contentScripts[0]?.packageRole).toBeUndefined();
+			expect(component.config._pendingLazyClientAssets?.[0]?.packageRole).toBeUndefined();
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -652,6 +666,22 @@ describe('DependencyResolverService', () => {
 		await service.processComponentDependencies([component], 'lit');
 
 		expect(component.config._resolvedLazyScripts).toBeUndefined();
+		expect(component.config._pendingLazyClientAssets).toHaveLength(2);
+		service.applyPendingLazyTriggers(
+			(component.config._pendingLazyClientAssets ?? []).map((dep, index) => {
+				const hasContent =
+					dep.kind === 'script' && dep.source === 'content' && 'content' in dep && Boolean(dep.content);
+				return {
+					kind: 'script' as const,
+					attributes: dep.kind === 'script' ? dep.attributes : undefined,
+					srcUrl:
+						hasContent && typeof dep.content === 'string' && !dep.content.startsWith('import ')
+							? `/assets/lazy/content-${index}.js`
+							: `/assets/lazy/file-${index}.js`,
+				};
+			}),
+			[component.config],
+		);
 		expect(component.config._resolvedLazyTriggers).toHaveLength(1);
 
 		const rules = component.config._resolvedLazyTriggers?.[0]?.rules ?? [];

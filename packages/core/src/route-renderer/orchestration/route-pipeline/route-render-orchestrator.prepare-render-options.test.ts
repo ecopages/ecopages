@@ -85,6 +85,11 @@ function createFlowAdapter<C>(input: {
 		collectPageBrowserGraphContribution: async (context) =>
 			await input.collectPageBrowserGraphContribution(context),
 		resolvePageDependencies: input.resolvePageDependencies ?? (async () => undefined),
+		buildPageClientBrowserAssets: async () => ({
+			processedAssets: [],
+			islandRenderAssetsByFile: new Map(),
+			lazyTriggers: [],
+		}),
 		buildPageBrowserGraphContributionContext: async (routeFile, routeOptions) => {
 			const pageModule = await input.resolvePageModule(routeFile);
 			const { props } = await input.resolvePageData(pageModule, {

@@ -15,9 +15,10 @@ Hydratable component instances stamp a small, integration-agnostic attribute set
 `data-eco-island` is a presence marker with an empty value, rendered as
 `data-eco-island=""`. Select hosts with `[data-eco-island]`.
 
-React integrations may emit `<eco-island>` as the SSR host. Island client assets
-are built from the page client plan during route preparation, then stamped onto
-that host. The host uses
+React integrations may emit `<eco-island>` as the SSR host. Island and lazy-entry
+client modules are built together from the page client plan, in one grouped
+browser build, during route preparation. Hydration scripts import the recorded
+output URLs. SSR stamps those assets onto the host. The host uses
 `display: contents` so it does not introduce a layout box, while the host and
 its children remain in place as the client calls `hydrateRoot()` on that host.
 React island integrations may add `data-eco-hydrated` after the initial client

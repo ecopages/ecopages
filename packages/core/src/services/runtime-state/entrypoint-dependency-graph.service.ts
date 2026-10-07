@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 
 /**
@@ -35,62 +36,34 @@ export class NoopEntrypointDependencyGraph implements EntrypointDependencyGraph 
  * In-memory entrypoint-to-dependency graph with reverse dependency lookups.
  */
 export class InMemoryEntrypointDependencyGraph implements EntrypointDependencyGraph {
-	private readonly dependencyEntrypoints = new Map<string, Set<string>>();
-	private readonly entrypointDependencies = new Map<string, Set<string>>();
+	private readonly inputIndex: BuildInputDependencyIndex;
+
+	constructor(inputIndex: BuildInputDependencyIndex = new BuildInputDependencyIndex()) {
+		this.inputIndex = inputIndex;
+	}
 
 	supportsSelectiveInvalidation(): boolean {
 		return true;
 	}
 
 	getDependencyEntrypoints(filePath: string): Set<string> {
-		return new Set(this.dependencyEntrypoints.get(path.resolve(filePath)) ?? []);
+		return new Set(this.inputIndex.resolveKeys('entrypoint', filePath));
 	}
 
 	setEntrypointDependencies(entrypointPath: string, dependencies: string[]): void {
 		const normalizedEntrypoint = path.resolve(entrypointPath);
-
-		this.clearEntrypointDependencies(normalizedEntrypoint);
-
-		const normalizedDependencies = new Set<string>([
+		this.inputIndex.register({ consumer: 'entrypoint', key: normalizedEntrypoint }, [
 			normalizedEntrypoint,
-			...dependencies.map((dependencyPath) => path.resolve(dependencyPath)),
+			...dependencies,
 		]);
-
-		this.entrypointDependencies.set(normalizedEntrypoint, normalizedDependencies);
-
-		for (const dependencyPath of normalizedDependencies) {
-			const entrypoints = this.dependencyEntrypoints.get(dependencyPath) ?? new Set<string>();
-			entrypoints.add(normalizedEntrypoint);
-			this.dependencyEntrypoints.set(dependencyPath, entrypoints);
-		}
 	}
 
 	clearEntrypointDependencies(entrypointPath: string): void {
-		const normalizedEntrypoint = path.resolve(entrypointPath);
-		const previousDependencies = this.entrypointDependencies.get(normalizedEntrypoint);
-
-		if (!previousDependencies) {
-			return;
-		}
-
-		for (const dependencyPath of previousDependencies) {
-			const entrypoints = this.dependencyEntrypoints.get(dependencyPath);
-			if (!entrypoints) {
-				continue;
-			}
-
-			entrypoints.delete(normalizedEntrypoint);
-			if (entrypoints.size === 0) {
-				this.dependencyEntrypoints.delete(dependencyPath);
-			}
-		}
-
-		this.entrypointDependencies.delete(normalizedEntrypoint);
+		this.inputIndex.unregister({ consumer: 'entrypoint', key: path.resolve(entrypointPath) });
 	}
 
 	reset(): void {
-		this.dependencyEntrypoints.clear();
-		this.entrypointDependencies.clear();
+		this.inputIndex.clearConsumer('entrypoint');
 	}
 }
 

@@ -30,6 +30,7 @@ import { isServerOnlyModuleSpecifier } from '../contracts/server-only-specifier.
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { realpathOfDirectory } from '../preserve-import-meta-transform.ts';
+import { recordLoadedBuildInput } from '../cache/build-input-dependency-index.ts';
 import { createRolldownPluginBridge, getEcoBuildPluginName } from './rolldown-plugin-bridge.ts';
 import {
 	getPackageNameFromSpecifier,
@@ -512,6 +513,7 @@ async function buildRolldownInputPlugins(
 	const appPlugins = await createRolldownPluginBridge(
 		(options.plugins ?? []).filter((plugin) => plugin.environments?.includes(options.environment) ?? true),
 		contextRoot,
+		recordLoadedBuildInput,
 	);
 	return [
 		...(options.externalPackages === true

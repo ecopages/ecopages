@@ -142,7 +142,7 @@ export function isTrackableRouteModuleDependency(modulePath: string): boolean {
 		return false;
 	}
 
-	return /\.(?:[cm]?[jt]sx?|mdx)$/iu.test(normalizedPath) || normalizedPath.endsWith('.json');
+	return !normalizedPath.includes('\0');
 }
 
 /**

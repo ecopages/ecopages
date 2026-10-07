@@ -49,7 +49,7 @@ export interface RouteModuleBuildCacheLookup {
 export interface RouteModuleStaticRenderCacheContext {
 	configHash: string;
 	buildInputsFingerprint: string;
-	/** Hash of declared rendering inputs outside route module graphs; see `hashWatchedBuildInputs()`. */
+	/** Hash of recorded rendering inputs; see `hashRecordedBuildInputs()`. */
 	watchedInputsHash: string;
 }
 

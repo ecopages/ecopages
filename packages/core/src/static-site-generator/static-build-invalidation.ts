@@ -2,7 +2,7 @@ import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import {
 	createBuildInputsFingerprint,
 	hashAppConfigFile,
-	hashWatchedBuildInputs,
+	hashRecordedBuildInputs,
 	haveBuildInputsChanged,
 } from '../build/cache/build-input-fingerprint.ts';
 import { clearPersistedProductionBuildCacheManifests } from '../build/cache/production-build-cache.ts';
@@ -23,18 +23,18 @@ export {
 	createBuildInputsFingerprint,
 	didBuildInputContributorChange,
 	hashAppConfigFile,
-	hashWatchedBuildInputs,
+	hashRecordedBuildInputs,
 	haveBuildInputsChanged,
 } from '../build/cache/build-input-fingerprint.ts';
 
 /**
  * Builds the static-render invalidation context for one app config.
  *
- * @param watchedInputsHash - A `hashWatchedBuildInputs()` result already computed for this export.
+ * @param watchedInputsHash - A `hashRecordedBuildInputs()` result already computed for this export.
  */
 export function createRouteModuleStaticRenderCacheContext(
 	appConfig: EcoPagesAppConfig,
-	watchedInputsHash: string = hashWatchedBuildInputs(appConfig),
+	watchedInputsHash: string = hashRecordedBuildInputs(appConfig),
 ): RouteModuleStaticRenderCacheContext {
 	return {
 		configHash: hashAppConfigFile(appConfig),
@@ -46,7 +46,7 @@ export function createRouteModuleStaticRenderCacheContext(
 /**
  * Returns whether `dist/` should be wiped before the next static export.
  *
- * @param watchedInputsHash - A `hashWatchedBuildInputs()` result already computed for this export.
+ * @param watchedInputsHash - A `hashRecordedBuildInputs()` result already computed for this export.
  */
 export function shouldResetStaticExportDirectory(
 	appConfig: EcoPagesAppConfig,
@@ -80,7 +80,7 @@ export function shouldResetStaticExportDirectory(
  */
 export function haveWatchedBuildInputsChanged(
 	appConfig: EcoPagesAppConfig,
-	watchedInputsHash: string = hashWatchedBuildInputs(appConfig),
+	watchedInputsHash: string = hashRecordedBuildInputs(appConfig),
 ): boolean {
 	const routeModuleCache = getSharedRouteModuleBuildCache(getServerModuleBuildCacheOutdir(appConfig), appConfig);
 	return routeModuleCache.getRecordedWatchedInputsHash() !== watchedInputsHash;

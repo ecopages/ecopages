@@ -22,6 +22,13 @@ export type EcoBuildOnResolveResult = {
 export type EcoBuildOnLoadArgs = {
 	path: string;
 	namespace?: string;
+	/**
+	 * Records a filesystem path this load also read, so watch and invalidation
+	 * include it. The loaded `path` is recorded automatically. The plugin bridge
+	 * always provides this; unit tests that invoke `onLoad` callbacks by hand
+	 * may omit it.
+	 */
+	addDependency?(filePath: string): void;
 };
 
 /**

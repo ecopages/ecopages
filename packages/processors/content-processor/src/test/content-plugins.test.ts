@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'vitest';
-import { parseCollectionName, parseCollectionSpecifier, resolveCollectionPath } from '../content-plugins.ts';
+import type { EcoBuildPluginBuilder } from '@ecopages/core/plugins/processor';
+import {
+	createContentPluginBundler,
+	parseCollectionName,
+	parseCollectionSpecifier,
+	resolveCollectionPath,
+} from '../content-plugins.ts';
 
 describe('content-plugins', () => {
 	test('parseCollectionName handles full and rolldown-split specifiers', () => {
@@ -42,5 +48,34 @@ describe('content-plugins', () => {
 		).toBe(browserModules.docs);
 		expect(resolveCollectionPath('content/docs', modules, serverModules)).toBe(modules.docs);
 		expect(resolveCollectionPath('ecopages:content/missing', modules, serverModules)).toBeNull();
+	});
+
+	test('browser resolver returns generated files as filesystem paths so relative MDX imports resolve', async () => {
+		const browserModules = {
+			docs: '/tmp/.eco/cache/ecopages-content-processor/docs.browser.ts',
+		};
+		const plugin = createContentPluginBundler({}, {}, undefined, browserModules);
+		const resolved: Array<{ path?: string; namespace?: string }> = [];
+
+		await plugin.setup({
+			onResolve(options, callback) {
+				if (!options.filter.test('ecopages:content/docs/browser')) {
+					return;
+				}
+				const result = callback({ path: 'ecopages:content/docs/browser' });
+				if (result && typeof result === 'object' && 'then' in result) {
+					throw new Error('expected a synchronous resolve result');
+				}
+				if (result) {
+					resolved.push(result);
+				}
+			},
+			onLoad() {},
+			module() {},
+			transform() {},
+		} as EcoBuildPluginBuilder);
+
+		expect(resolved).toContainEqual({ path: browserModules.docs });
+		expect(resolved.some((result) => result.namespace === 'ecopages-content')).toBe(false);
 	});
 });

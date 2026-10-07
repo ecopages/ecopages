@@ -234,4 +234,26 @@ describe('ContentScriptProcessor', () => {
 
 		expect(fileSystem.remove).toHaveBeenCalledTimes(1);
 	});
+
+	test('processGrouped writes a unique temp entry per call so concurrent same-content builds cannot collide', async () => {
+		const processor = new TestContentScriptProcessor({ appConfig: createMockConfig() });
+		processor.bundleScriptsResult = new Map([
+			['page-entry', '/test/project/.eco/public/assets/page-entry-abc123.js'],
+		]);
+		const written = new Set<string>();
+		vi.spyOn(fileSystem, 'write').mockImplementation((filepath) => {
+			written.add(filepath);
+		});
+
+		const dep: ContentScriptAsset = {
+			kind: 'script',
+			source: 'content',
+			content: 'import "/test/project/src/island.ts";',
+			groupedBundle: { id: 'ecopages-app-browser-client', entryName: 'page-entry' },
+		};
+
+		await Promise.all([processor.processGrouped([dep]), processor.processGrouped([dep])]);
+
+		expect(written.size).toBe(2);
+	});
 });

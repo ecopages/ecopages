@@ -474,6 +474,8 @@ describe('HydrationAssetService', () => {
 			APP_BROWSER_CLIENT_BUNDLE_ID,
 			APP_BROWSER_CLIENT_BUNDLE_ID,
 		]);
+		expect(clientEntries[0]?.content).toContain(`export * from ${JSON.stringify(islandA)}`);
+		expect(clientEntries[1]?.content).toContain(`export * from ${JSON.stringify(islandB)}`);
 
 		const hydrationCall = processDependencies.mock.calls[1]?.[0] as Array<{ content?: string }>;
 		expect(hydrationCall?.[0]?.content).toContain(`/assets/ecopages-react-island-${rapidhash(islandA)}.js`);

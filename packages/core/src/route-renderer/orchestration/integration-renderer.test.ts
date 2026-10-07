@@ -773,4 +773,91 @@ describe('IntegrationRenderer', () => {
 			expect(renderer.testHasForeignChildDescendants(Root)).toBe(true);
 		});
 	});
+
+	it('stamps lazy trigger attributes onto serialized island HTML', () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: testAppConfig,
+			assetProcessingService: testAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		const component = (() => '') as EcoComponent;
+		component.config = {
+			_resolvedLazyTriggers: [
+				{ triggerId: 'eco-trigger-1', rules: [{ 'on:visible': { scripts: ['/assets/lazy.js'] } }] },
+			],
+		};
+
+		const result = renderer.testFinalizeIslandComponentRender(
+			{ component, props: {} },
+			{
+				html: '<!--lit-part SJL2YkzXbQY=--><div class="discovery-counter-host">x</div>',
+				canAttachAttributes: true,
+				integrationName: 'lit',
+			},
+		);
+
+		expect(result.html).toBe(
+			'<!--lit-part SJL2YkzXbQY=--><div data-eco-trigger="eco-trigger-1" class="discovery-counter-host">x</div>',
+		);
+	});
+
+	it('collects grouped island assets from other hydrating integrations on the plan', async () => {
+		const hydrationAsset = {
+			kind: 'script',
+			srcUrl: '/assets/react-island-hydration.js',
+			attributes: { 'data-eco-script-id': 'react-island' },
+		} as ProcessedAsset;
+		const contributor = new (class extends TestIntegrationRenderer {
+			override name = 'react';
+			protected override contributesAppBrowserClientBuild() {
+				return true;
+			}
+			protected override async buildPageClientBrowserAssets() {
+				return {
+					processedAssets: [hydrationAsset],
+					islandRenderAssetsByFile: new Map([['/app/react-counter.tsx', [hydrationAsset]]]),
+					lazyTriggers: [],
+				};
+			}
+		})({
+			appConfig: testAppConfig,
+			assetProcessingService: testAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		const host = new (class extends TestIntegrationRenderer {
+			override name = 'kitajs';
+		})({
+			appConfig: {
+				...testAppConfig,
+				integrations: [
+					createMockIntegrationPlugin({
+						name: 'react',
+						plugins: [],
+						initializeRenderer: () => contributor,
+					}),
+				],
+			},
+			assetProcessingService: testAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		const island = {
+			config: {
+				identity: { id: 'react-counter', file: '/app/react-counter.tsx', integration: 'react' },
+			},
+		} as EcoComponent;
+
+		const result = await host.testBuildPageClientBrowserAssets({
+			currentIntegrationName: 'kitajs',
+			integrationNames: new Set(['kitajs', 'react']),
+			lazyTriggers: [],
+			lazyClientEntries: [],
+			lazyConfigs: [],
+			islandEntries: [{ component: island, file: '/app/react-counter.tsx', integrationName: 'react' }],
+			componentsWithForeignDescendants: new WeakSet(),
+			walks: 1,
+		});
+
+		expect(result.processedAssets).toEqual([hydrationAsset]);
+		expect(result.islandRenderAssetsByFile.get('/app/react-counter.tsx')).toEqual([hydrationAsset]);
+	});
 });

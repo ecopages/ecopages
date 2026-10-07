@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { fileSystem } from '@ecopages/file-system';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/processor';
 import {
 	CONTENT_BROWSER_VIRTUAL_MODULE_PATTERN,
@@ -159,9 +158,12 @@ export function createContentPlugin(
  * Creates the Page Browser Graph resolver for collection virtual modules.
  *
  * @remarks
- * It resolves entries and `/browser` modules into browser source. `/server`
- * resolution is deliberately omitted so the content server-boundary plugin can
- * reject any server artifact that remains browser-reachable.
+ * It resolves entries and `/browser` modules to generated files on disk so
+ * relative MDX imports inside those files resolve as filesystem paths. A
+ * virtual namespace would keep those imports inside `ecopages-content:` and
+ * Rolldown would report them as missing. `/server` resolution is omitted so
+ * the content server-boundary plugin can reject any server artifact that
+ * remains browser-reachable.
  */
 export function createContentPluginBundler(
 	collectionModules: Record<string, string>,
@@ -169,29 +171,16 @@ export function createContentPluginBundler(
 	collectionServerCompiledModules?: Record<string, string>,
 	collectionBrowserModules: Record<string, string> = {},
 ): EcoBuildPlugin {
-	const plugin = createContentResolvePlugin(
+	return createContentResolvePlugin(
 		collectionModules,
 		collectionServerModules,
 		collectionServerCompiledModules,
 		collectionBrowserModules,
 		undefined,
 		{
-			namespace: 'ecopages-content',
 			includeServerModules: false,
 		},
 	);
-
-	return {
-		name: plugin.name,
-		setup(build) {
-			plugin.setup?.(build);
-
-			build.onLoad({ filter: /.*/, namespace: 'ecopages-content' }, async (args) => {
-				const contents = await fileSystem.readFile(args.path);
-				return { contents, loader: 'ts' };
-			});
-		},
-	};
 }
 
 export function getCollectionCachePath(cacheDir: string, collectionName: string): string {

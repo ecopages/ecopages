@@ -446,6 +446,10 @@ export async function createRolldownPluginBridge(plugins: EcoBuildPlugin[], cont
 		return undefined;
 	};
 
+	/**
+	 * Runs every matching transform. A rewrite without a map uses empty
+	 * `mappings` so Rolldown does not emit SOURCEMAP_BROKEN.
+	 */
 	const transformHandler = async (code: string, id: string): Promise<SourceDescription | undefined> => {
 		const { namespace, path: sourcePath } = splitNamespace(id);
 		if (namespace !== undefined) {
@@ -482,7 +486,10 @@ export async function createRolldownPluginBridge(plugins: EcoBuildPlugin[], cont
 			return undefined;
 		}
 
-		return sourceMap === undefined ? { code: current } : { code: current, map: sourceMap };
+		return {
+			code: current,
+			map: sourceMap ?? { mappings: '' },
+		};
 	};
 
 	const plugin: Plugin = { name: 'ecopages-plugin-bridge' };

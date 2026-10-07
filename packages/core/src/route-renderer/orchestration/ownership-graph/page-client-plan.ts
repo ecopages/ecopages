@@ -159,6 +159,17 @@ export function collectPageClientPlan(
 }
 
 /**
+ * Returns each integration that has at least one island file in the plan.
+ */
+export function uniqueIslandIntegrationNames(plan: PageClientPlan): string[] {
+	const names = new Set<string>();
+	for (const entry of plan.islandEntries) {
+		names.add(entry.integrationName);
+	}
+	return [...names];
+}
+
+/**
  * Returns whether a component's declared subtree (plus optional extra roots) crosses integrations.
  */
 export function planHasForeignChildDescendants(

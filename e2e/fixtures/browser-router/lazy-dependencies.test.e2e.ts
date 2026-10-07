@@ -89,7 +89,8 @@ test.describe('Lazy Dependencies', () => {
 			const interactionRule = findRule(injectorMap, 'on:interaction');
 
 			expect(interactionRule?.value).toBe('mouseenter,click');
-			expect(interactionRule?.scripts.some((script) => script.includes('/lazy-script'))).toBe(true);
+			expect(interactionRule?.scripts.length).toBeGreaterThan(0);
+			expect(interactionRule?.scripts.every((script) => /^\/assets\/.+\.js$/.test(script))).toBe(true);
 		});
 	});
 
@@ -122,7 +123,8 @@ test.describe('Lazy Dependencies', () => {
 			const visibleRule = findRule(injectorMap, 'on:visible');
 
 			expect(visibleRule).toBeDefined();
-			expect(visibleRule?.scripts.some((script) => script.includes('/lazy-visible.script'))).toBe(true);
+			expect(visibleRule?.scripts.length).toBeGreaterThan(0);
+			expect(visibleRule?.scripts.every((script) => /^\/assets\/.+\.js$/.test(script))).toBe(true);
 		});
 	});
 
@@ -142,7 +144,8 @@ test.describe('Lazy Dependencies', () => {
 			const idleRule = findRule(injectorMap, 'on:idle');
 
 			expect(idleRule).toBeDefined();
-			expect(idleRule?.scripts.some((script) => script.includes('/lazy-idle.script'))).toBe(true);
+			expect(idleRule?.scripts.length).toBeGreaterThan(0);
+			expect(idleRule?.scripts.every((script) => /^\/assets\/.+\.js$/.test(script))).toBe(true);
 		});
 	});
 

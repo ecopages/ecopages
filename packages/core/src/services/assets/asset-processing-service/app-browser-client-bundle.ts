@@ -17,21 +17,32 @@ type AppBrowserClientEntryOptions = {
 	packageRole?: ScriptAsset['packageRole'];
 	excludeFromHtml?: boolean;
 	bundleOptions?: ScriptAsset['bundleOptions'];
+	/**
+	 * When true, the grouped entry re-exports the module so another script can
+	 * `import * as ComponentModule from entryUrl`. Island hydration needs that.
+	 * Lazy entries keep the default side-effect `import "path"`.
+	 */
+	reexport?: boolean;
 };
 
 /**
- * Declares one file as a grouped content-script entry that imports the source module.
+ * Declares one file as a grouped content-script entry in the app-wide browser build.
  *
  * @remarks
- * Content-script grouping is the existing multi-entry seam. Wrapping a file in
- * `import "path"` puts islands and lazy entries into that same Rolldown build
- * instead of a per-file `createFileScript` bundle.
+ * Content-script grouping is the existing multi-entry seam. A side-effect
+ * `import "path"` is enough for lazy entries that only need to run. Island
+ * entries set `reexport` so `export * from "path"` keeps named exports for the
+ * hydration script. A synthetic `export default` is omitted: Rolldown warns
+ * `IMPORT_IS_UNDEFINED` when the source has no default export.
  */
 export function createAppBrowserClientEntry(options: AppBrowserClientEntryOptions): ContentScriptAsset {
+	const specifier = JSON.stringify(options.importPath);
+	const content = options.reexport ? `export * from ${specifier};` : `import ${specifier};`;
+
 	return AssetFactory.createContentScript({
 		position: 'head',
 		name: options.entryName,
-		content: `import ${JSON.stringify(options.importPath)};`,
+		content,
 		excludeFromHtml: options.excludeFromHtml ?? true,
 		packageRole: options.packageRole,
 		bundle: true,

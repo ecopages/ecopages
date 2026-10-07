@@ -317,7 +317,7 @@ test('createRolldownPluginBridge forwards a transform source map', async () => {
 	assert.equal(result?.map, map);
 });
 
-test('createRolldownPluginBridge omits transform maps that are not source maps', async () => {
+test('createRolldownPluginBridge emits an empty map when a transform does not provide one', async () => {
 	const plugins: EcoBuildPlugin[] = [
 		{
 			name: 'insert-line',
@@ -335,7 +335,7 @@ test('createRolldownPluginBridge omits transform maps that are not source maps',
 	const result = await callTransform(plugin, 'export const value = 1;', '/app/page.ts');
 
 	assert.equal(result?.code, '/* injected */\nexport const value = 1;');
-	assert.equal(result?.map, undefined);
+	assert.deepEqual(result?.map, { mappings: '' });
 });
 
 test('createRolldownPluginBridge loads each of eleven virtual modules with its own contents', async () => {

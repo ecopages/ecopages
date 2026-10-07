@@ -115,6 +115,17 @@ describe('DependencyResolverService', () => {
 				},
 			},
 		]);
+
+		await service.processComponentDependencies([component], 'kitajs');
+		expect(component.config._resolvedLazyTriggers).toHaveLength(1);
+		expect(component.config._resolvedLazyTriggers?.[0]?.rules).toEqual([
+			{
+				'on:interaction': {
+					value: 'click',
+					scripts: ['/assets/components/table/table.client.js'],
+				},
+			},
+		]);
 	});
 
 	it('should canonicalize generated module script content across different import orders', async () => {

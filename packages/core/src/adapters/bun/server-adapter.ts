@@ -126,7 +126,6 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 	private fullyInitialized = false;
 	declare serverInstance: BunServerInstance | null;
 	private projectWatcher: ProjectWatcher | null = null;
-	private adapterDisposed = false;
 	private readonly deferRuntimeAssetSetup: boolean;
 	private readonly allowPortFallback: boolean;
 	private readonly onDevelopmentRestart?: (changedFile: string) => Promise<void>;
@@ -654,20 +653,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		};
 	}
 
-	/**
-	 * Releases dev-time resources owned by the adapter.
-	 *
-	 * @remarks
-	 * Safe to call multiple times. Does not stop the bound Bun server — callers
-	 * should shut down transport through the runtime host before disposing.
-	 */
-	public async dispose(): Promise<void> {
-		if (this.adapterDisposed) {
-			return;
-		}
-
-		this.adapterDisposed = true;
-
+	protected override async disposeRuntimeResources(): Promise<void> {
 		await disposeDevResources({
 			projectWatcher: this.projectWatcher,
 			appConfig: this.appConfig,

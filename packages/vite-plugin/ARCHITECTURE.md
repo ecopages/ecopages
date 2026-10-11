@@ -22,6 +22,7 @@ All buckets use `apply: 'serve'` because this package is intentionally a dev-hos
 The Vite plugin mirrors the Ecopages CLI `resolveServeRuntimeOrigin` behavior:
 
 - `ecopages:config` resolves the active Vite origin in `configResolved`
+- `ecopages:dev-server` replaces its port with the one the HTTP server bound, since Vite moves to the next free port when the configured one is in use; a configured `server.origin` is kept
 - `ecopages:dev-server` builds middleware `Request` objects from that origin
 - `appConfig.baseUrl` is synchronized to the resolved origin for runtime consumers
 
@@ -43,10 +44,10 @@ Keep Ecopages-specific HTML rewrites in `html-transforms.ts`.
 
 1. Register the host module loader
 2. Load the `app` module export through `ssrLoadModule`
-3. Attach the app's WebSocket upgrades to Vite's HTTP server (`completeInitialization`: warmup, before-ready prewarm, watcher)
+3. Attach the app's WebSocket upgrades to Vite's HTTP server (`completeInitialization`: warmup, background prewarm, watcher)
 4. Call `app.handleListening()` with the dev-server origin so the listen log is the ready signal, as under `ecopages dev`
 
-Each Vite server instance loads its own app, and middleware awaits it before serving requests. The app is stopped when its Vite server closes (the plugin's `closeBundle` hook), including on a restart and in middleware mode.
+Each Vite server instance loads its own app. Middleware and restart callbacks wait for app initialization and the host HTTP listener to bind before proceeding; readiness is logged after both conditions hold. The app is stopped when its Vite server closes (the plugin's `closeBundle` hook), including on a restart and in middleware mode. Queued restart callbacks from a stopped server are ignored. Shutdown cancels a listen wait that has not settled, so a listener that never binds does not block disposal, then finishes an in-flight listen announcement before stopping the app.
 
 Before loading the app it turns on Node's source-mapped stack traces (`process.setSourceMapsEnabled(true)`), as Vite's own SSR module runner does. The runner behind `ssrLoadModule` leaves them off, and `ssrLoadModule`'s `fixStacktrace` option covers only errors thrown while a module loads, not those thrown later while the app renders. A tool that replaces `Error.prepareStackTrace` bypasses Node's mapping.
 

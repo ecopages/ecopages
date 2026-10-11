@@ -57,9 +57,11 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full plugin bucket map.
 
 The plugin is separate from the `ecopages` CLI. The CLI runs the app directly through Bun or through Node with `tsx` under Node. Use `@ecopages/vite-plugin` when you want Ecopages to run inside a Vite host setup.
 
+The plugin reports the app as running only once the app has initialized and the HTTP listener is bound, including after Vite moves to another port because the first one is in use. Editing `app.ts` during startup does not start overlapping restarts.
+
 The dev-server bridge assumes a standard Vite dev server with Connect-style middleware support and an SSR environment.
 
-During dev, the plugin synchronizes `appConfig.baseUrl` to the active Vite server origin so middleware `Request` objects match the browser URL. The embedded app finishes warmup and `devPrewarmBeforeReadyPaths` before it logs that the Node server is running. Vite's own "ready" line is earlier and is not that signal.
+During dev, the plugin synchronizes `appConfig.baseUrl` to the active Vite server origin so middleware `Request` objects match the browser URL. The embedded app finishes integration warmup and Project Watcher initialization before it logs that the Node server is running. Route prewarming runs in the background. Vite's own "ready" line is earlier and is not that signal.
 
 ## Further reading
 

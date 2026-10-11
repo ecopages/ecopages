@@ -15,8 +15,8 @@ import { ExplicitStaticRouteMatcher } from '../http/explicit-static-route-matche
 import { FileSystemServerResponseFactory } from '../http/fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from '../http/fs-server-response-matcher.ts';
 import { ServerRouteHandler } from './server-route-handler.ts';
-import { startDevStaticRoutePrewarm, runDevStaticRoutePrewarm } from './dev-static-route-prewarm.ts';
-import { collectAppDevPrewarmPlan } from './collect-dev-prewarm-plan.ts';
+import { startDevStaticRoutePrewarm } from './dev-static-route-prewarm.ts';
+import { collectAppDevPrewarmPaths } from './collect-dev-prewarm-paths.ts';
 import { createRenderContext } from './render-context.ts';
 import { ApiRequestPipeline } from '../http/api-request-pipeline.ts';
 import {
@@ -77,6 +77,9 @@ export abstract class SharedServerAdapter<
 	});
 	protected hostOwnsDevClient = false;
 	private devStaticRoutePrewarmStarted = false;
+	private readonly devStaticRoutePrewarmAbort = new AbortController();
+	private devStaticRoutePrewarm: Promise<void> | undefined;
+	private disposed = false;
 	private sharedPageCacheService: PageCacheService | null | undefined;
 
 	/** Propagates the actual listening port to every binding-dependent service. */
@@ -87,7 +90,8 @@ export abstract class SharedServerAdapter<
 	}
 
 	/**
-	 * Warms declared static paths after the final watch-mode response pipeline exists.
+	 * Warms declared static paths asynchronously in the background after the
+	 * response pipeline is ready, without delaying server readiness.
 	 */
 	protected async startDevStaticRoutePrewarmWhenReady(): Promise<void> {
 		if (!this.options?.watch || this.devStaticRoutePrewarmStarted) {
@@ -97,33 +101,41 @@ export abstract class SharedServerAdapter<
 		this.devStaticRoutePrewarmStarted = true;
 
 		const runtimeOrigin = this.runtimeOrigin;
-		const plan = await collectAppDevPrewarmPlan(this.appConfig);
-		const beforeReadyPathnames = new Set(plan.beforeReadyPathnames);
-		const allPathnames = plan.pathnames;
-		const options = {
-			pathnames: allPathnames,
-			readiness: 'background' as const,
+		this.devStaticRoutePrewarm = startDevStaticRoutePrewarm({
+			pathnames: await collectAppDevPrewarmPaths(this.appConfig),
+			signal: this.devStaticRoutePrewarmAbort.signal,
 			renderPath: async (pathname: string) => {
 				const response = await this.routeHandler.handleResponse(
 					new Request(new URL(pathname, runtimeOrigin).toString(), { method: 'GET' }),
 				);
 				await response.arrayBuffer();
 			},
-		};
-
-		if (beforeReadyPathnames.size > 0) {
-			await runDevStaticRoutePrewarm({
-				...options,
-				pathnames: [...beforeReadyPathnames],
-				readiness: 'beforeReady',
-			});
-		}
-
-		const backgroundPathnames = allPathnames.filter((pathname) => !beforeReadyPathnames.has(pathname));
-		if (backgroundPathnames.length > 0) {
-			startDevStaticRoutePrewarm({ ...options, pathnames: backgroundPathnames });
-		}
+		});
 	}
+
+	/**
+	 * Stops background prewarm, then releases runtime resources once.
+	 *
+	 * @remarks
+	 * Active prewarm renders must finish before Integration teardown; otherwise they can
+	 * recreate workers after disposal. Aborting skips paths that have not started rendering.
+	 * Does not stop the bound server; callers shut down transport through the runtime host first.
+	 */
+	public async dispose(): Promise<void> {
+		if (this.disposed) {
+			return;
+		}
+
+		this.disposed = true;
+		this.devStaticRoutePrewarmAbort.abort();
+		await this.devStaticRoutePrewarm;
+		await this.disposeRuntimeResources();
+	}
+
+	/**
+	 * Releases the watcher, HMR, bridge, preview host and Integration resources the runtime owns.
+	 */
+	protected abstract disposeRuntimeResources(): Promise<void>;
 
 	protected async initializeSharedRouteHandling(options: {
 		staticRoutes: StaticRoute[];

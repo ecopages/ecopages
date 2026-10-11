@@ -380,6 +380,9 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Releases runtime resources owned by the integration.
 	 *
 	 * @remarks
+	 * Core calls this when the app stops, after in-flight `setup()` calls and active
+	 * prewarm renders finish, then clears activation state so the next start runs
+	 * `setup()` again.
 	 * Most integrations do not need custom teardown. Override this only for
 	 * explicit cleanup such as watchers, compiler handles, or runtime registries
 	 * that outlive individual requests.

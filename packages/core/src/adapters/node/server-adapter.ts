@@ -102,7 +102,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	private bridge: NodeClientBridge | null = null;
 	private hmrManager: NodeHmrManager | null = null;
 	private projectWatcher: ProjectWatcher | null = null;
-	private adapterDisposed = false;
 	private readonly deferRuntimeAssetSetup: boolean;
 	private readonly allowPortFallback: boolean;
 	private readonly onDevelopmentRestart?: (changedFile: string) => Promise<void>;
@@ -279,20 +278,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		};
 	}
 
-	/**
-	 * Releases dev-time resources owned by the adapter.
-	 *
-	 * @remarks
-	 * Safe to call multiple times. Does not stop the bound HTTP server — callers
-	 * should shut down transport through the runtime host before disposing.
-	 */
-	public async dispose(): Promise<void> {
-		if (this.adapterDisposed) {
-			return;
-		}
-
-		this.adapterDisposed = true;
-
+	protected override async disposeRuntimeResources(): Promise<void> {
 		await disposeDevResources({
 			projectWatcher: this.projectWatcher,
 			appConfig: this.appConfig,

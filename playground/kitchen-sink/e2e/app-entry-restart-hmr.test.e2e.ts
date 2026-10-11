@@ -15,6 +15,13 @@ const LATEST_RELEASE_TITLE = 'Kitchen sink now covers real runtime paths';
 const CHAT_WELCOME_TEXT = 'Welcome to the WS Chat lab';
 const SUFFIX = '[app-entry-restart]';
 
+/**
+ * @remarks
+ * App-entry edits and restoration restart the whole host and require cold Page compilation.
+ * Use the development cold-start allowance rather than the incremental Page HMR allowance.
+ */
+const APP_RESTART_ASSERT_TIMEOUT_MS = 60_000;
+
 function resolveSourceFile(projectMetadata: Record<string, unknown> | undefined, relativePath: string): string {
 	const isolatedAppDir = typeof projectMetadata?.isolatedAppDir === 'string' ? projectMetadata.isolatedAppDir : null;
 	return path.join(isolatedAppDir ?? KITCHEN_SINK_DIR, relativePath);
@@ -25,8 +32,8 @@ function resolveSourceFile(projectMetadata: Record<string, unknown> | undefined,
  *
  * @remarks
  * Each response closes its HTTP connection so polling cannot reuse a socket from the previous Vite server.
- * Requests can fail while Vite replaces its listener. Only connection failures
- * expected during restart return an empty body for the caller's polling assertion.
+ * Requests can fail while Vite replaces its listener. HTTP errors and expected
+ * connection failures return diagnostic text for the caller's polling assertion.
  */
 async function fetchText(baseURL: string, pathname: string): Promise<string> {
 	try {
@@ -34,10 +41,13 @@ async function fetchText(baseURL: string, pathname: string): Promise<string> {
 			redirect: 'manual',
 			headers: { Connection: 'close' },
 		});
+		if (!response.ok) {
+			return `[HTTP ${response.status} for ${pathname}]`;
+		}
 		return await response.text();
 	} catch (error) {
 		if (isRetriableRequestError(error)) {
-			return '';
+			return `[connection failed for ${pathname}: ${error instanceof Error ? error.message : String(error)}]`;
 		}
 
 		throw error;
@@ -83,13 +93,17 @@ function openChatSocket(
 }
 
 /**
- * Reads the first message a new chat connection receives, or an empty string if none arrives.
+ * Reads the first chat message, returning diagnostics on timeout or an empty string on connection failure.
  *
  * @remarks
  * Connects from the browser, not with Node's WebSocket: polled while Vite restarts, a handshake can meet the
  * closing server, and Node's client then throws an uncaught `setTypeOfService EINVAL` that fails the test.
+ * Waits for the lightweight API route before opening a socket to avoid repeated failed browser handshakes
+ * during host replacement. The welcome message still verifies the handler on the new connection.
  */
 async function readChatWelcome(page: Page, baseURL: string): Promise<string> {
+	const readiness = await fetchText(baseURL, '/api/v1/ping');
+	if (!readiness.includes('"ok":true')) return readiness;
 	return await page.evaluate(
 		(url) =>
 			new Promise<string>((resolve) => {
@@ -99,7 +113,7 @@ async function readChatWelcome(page: Page, baseURL: string): Promise<string> {
 					socket.close();
 					resolve(message);
 				};
-				const timer = setTimeout(() => finish(''), 5_000);
+				const timer = setTimeout(() => finish('[WebSocket welcome timed out]'), 5_000);
 				socket.addEventListener('message', (event) => finish(String(event.data)), { once: true });
 				socket.addEventListener('error', () => finish(''), { once: true });
 				socket.addEventListener('close', () => finish(''), { once: true });
@@ -113,8 +127,12 @@ async function readChatWelcome(page: Page, baseURL: string): Promise<string> {
  * the history a new chat connection receives.
  */
 async function readServedContent(page: Page, baseURL: string): Promise<string> {
-	const pages = await Promise.all([fetchText(baseURL, '/postcss'), fetchText(baseURL, '/latest')]);
-	return [...pages, await readChatWelcome(page, baseURL)].join('\n');
+	const content = await Promise.all([
+		fetchText(baseURL, '/postcss'),
+		fetchText(baseURL, '/latest'),
+		readChatWelcome(page, baseURL),
+	]);
+	return content.join('\n');
 }
 
 /**
@@ -129,7 +147,11 @@ function findContentMismatches(content: string): string[] {
 	const missing = [PAGE_TEXT, LATEST_RELEASE_TITLE, CHAT_WELCOME_TEXT]
 		.filter((text) => !content.includes(text))
 		.map((text) => `missing: ${text}`);
-	return content.includes(SUFFIX) ? [...missing, `unexpected: ${SUFFIX}`] : missing;
+	const failures = content
+		.split('\n')
+		.filter((line) => line.startsWith('[HTTP ') || line.startsWith('[connection failed '));
+	const mismatches = [...missing, ...failures];
+	return content.includes(SUFFIX) ? [...mismatches, `unexpected: ${SUFFIX}`] : mismatches;
 }
 
 /**
@@ -170,7 +192,7 @@ test.describe('Vite host app entry restart @hmr', () => {
 		restoreMutatedSources();
 		await expect
 			.poll(() => readServedContent(page, baseURL!).then(findContentMismatches), {
-				timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
+				timeout: APP_RESTART_ASSERT_TIMEOUT_MS,
 			})
 			.toEqual([]);
 	});
@@ -213,7 +235,7 @@ test.describe('Vite host app entry restart @hmr', () => {
 		);
 
 		await expect
-			.poll(() => fetchText(baseURL!, '/latest'), { timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS })
+			.poll(() => fetchText(baseURL!, '/latest'), { timeout: APP_RESTART_ASSERT_TIMEOUT_MS })
 			.toContain(`${LATEST_RELEASE_TITLE} ${SUFFIX}`);
 		await expect.poll(() => socket.readyState).toBe(WebSocket.CLOSED);
 	});
@@ -228,7 +250,7 @@ test.describe('Vite host app entry restart @hmr', () => {
 		);
 
 		await expect
-			.poll(() => readServedContent(page, baseURL!), { timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS })
+			.poll(() => readChatWelcome(page, baseURL!), { timeout: APP_RESTART_ASSERT_TIMEOUT_MS })
 			.toContain(`${CHAT_WELCOME_TEXT} ${SUFFIX}`);
 	});
 });

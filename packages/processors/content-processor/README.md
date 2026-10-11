@@ -81,16 +81,15 @@ export default defineConfig({
 
 ### Collection options
 
-| Option                | Required | Description                                                                                                                                                                                    |
-| :-------------------- | :------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `contentDir`          |   yes    | Directory relative to app `srcDir`, e.g. `content/docs`.                                                                                                                                       |
-| `schema`              |   yes    | Standard Schema validator for frontmatter.                                                                                                                                                     |
-| `entryType`           |    no    | Frontmatter type for generated virtual-module types. Format: `./path/to/schema#TypeName`. The processor wraps it as `ContentEntry<YourFrontmatter>`.                                           |
-| `orderBy`             |    no    | Comparator function for manifest sort. Default: {@link compareEntriesBySlug}. Use {@link compareEntriesByField} for frontmatter fields.                                                        |
-| `extensions`          |    no    | File extensions to scan. Default: `['.mdx']`. Multi-dot extensions (`.radiant.mdx`, `.react.mdx`) are matched longest-first; declaration order does not matter.                                |
-| `routePrefix`         |    no    | Public URL prefix for entries, e.g. `/docs`. Used with `devPrewarm`.                                                                                                                           |
-| `devPrewarm`          |    no    | Dev prewarm: `'first'`, `'all'`, `{ slugs }`, or `{ limit }`. Core SSR-prewarms after the HMR-ready pipeline exists; prewarm schedules renders only and does not control HTML cache admission. |
-| `devPrewarmReadiness` |    no    | `'background'` (default) or `'beforeReady'` to block the framework ready signal until prewarm finishes (listen port may already be open).                                                      |
+| Option        | Required | Description                                                                                                                                                                                    |
+| :------------ | :------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contentDir`  |   yes    | Directory relative to app `srcDir`, e.g. `content/docs`.                                                                                                                                       |
+| `schema`      |   yes    | Standard Schema validator for frontmatter.                                                                                                                                                     |
+| `entryType`   |    no    | Frontmatter type for generated virtual-module types. Format: `./path/to/schema#TypeName`. The processor wraps it as `ContentEntry<YourFrontmatter>`.                                           |
+| `orderBy`     |    no    | Comparator function for manifest sort. Default: {@link compareEntriesBySlug}. Use {@link compareEntriesByField} for frontmatter fields.                                                        |
+| `extensions`  |    no    | File extensions to scan. Default: `['.mdx']`. Multi-dot extensions (`.radiant.mdx`, `.react.mdx`) are matched longest-first; declaration order does not matter.                                |
+| `routePrefix` |    no    | Public URL prefix for entries, e.g. `/docs`. Used with `devPrewarm`.                                                                                                                           |
+| `devPrewarm`  |    no    | Dev prewarm: `'first'`, `'all'`, `{ slugs }`, or `{ limit }`. Core SSR-prewarms after the HMR-ready pipeline exists; prewarm schedules renders only and does not control HTML cache admission. |
 
 Collection keys must be kebab-case (`docs`, `api-reference`). Each key becomes `ecopages:content/<key>`.
 

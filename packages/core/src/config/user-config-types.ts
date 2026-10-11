@@ -119,11 +119,6 @@ export type EcoPagesUserConfig = {
 	devPrewarmPaths?: string[];
 
 	/**
-	 * URL route paths that must complete prewarming before the dev server reports ready.
-	 */
-	devPrewarmBeforeReadyPaths?: string[];
-
-	/**
 	 * Default fallback HTML `<head>` metadata (title, description, OpenGraph tags) applied across all pages.
 	 */
 	defaultMetadata?: PageMetadataProps;

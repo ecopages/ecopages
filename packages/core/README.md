@@ -25,6 +25,8 @@ The important ownership rules are:
 - Direct local Eco Component imports (including named `export { X } from` barrels) and relative side-effect CSS imports supply Dependencies by default through the shared transform and existing collector; explicit asset declarations override inference, and inferred styles stay keyed by identity until collection. See [eco](src/eco/README.md) and [Plugin Contracts](src/plugins/README.md).
 - Browser bundling and server module loading are separate paths. SSR-enabled lazy scripts execute on the server before rendering and in the browser only on their configured trigger.
 - runtime hosts stay thin and delegate framework work into core services.
+- Development Page prewarming runs in the background. App configuration declares `devPrewarmPaths`; Processors declare pathnames through `collectDevPrewarmPaths()`. See [Runtime Adapters](src/adapters/README.md) and [Plugin Contracts](src/plugins/README.md).
+- App shutdown tears down Integration runtime resources, including Lit workers. See [Runtime Adapters](src/adapters/README.md).
 - HMR and invalidation use shared graph-aware services instead of runtime-specific ad hoc wiring.
 - The build adapter owns source module closures and emitted chunk graphs. Grouped browser scripts resolve by the path or name the caller passed (and the bundler's facade when that spelling differs); in-process Page caches track inlined source imports and reachable generated artifacts. See [Build Layer](src/build/README.md).
 

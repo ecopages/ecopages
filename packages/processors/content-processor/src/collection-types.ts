@@ -38,11 +38,6 @@ export type ContentCollectionDefinition<TFrontmatter extends Record<string, unkn
 	 * Rendering is performed by core; this only declares pathnames from the manifest.
 	 */
 	devPrewarm?: ContentDevPrewarmConfig;
-	/**
-	 * When `beforeReady`, core awaits SSR prewarm for declared paths before the dev server reports ready.
-	 * @default 'background'
-	 */
-	devPrewarmReadiness?: 'background' | 'beforeReady';
 };
 
 /** Dev prewarm selection for a content collection manifest. */

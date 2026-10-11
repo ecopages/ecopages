@@ -57,6 +57,7 @@ function createHmrAssetManager(runtimeWorkDir: string, runtimePath: string): IHm
 
 class TestSharedServerAdapter extends SharedServerAdapter<any, ServerAdapterResult> {
 	public async initialize(): Promise<void> {}
+	protected async disposeRuntimeResources(): Promise<void> {}
 	public getServerOptions(): Record<string, never> {
 		return {};
 	}

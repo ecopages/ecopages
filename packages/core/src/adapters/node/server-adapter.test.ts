@@ -282,7 +282,7 @@ describe('NodeServerAdapter', () => {
 		expect(devBridge.reload).toHaveBeenCalledTimes(1);
 	});
 
-	it('announces readiness during prewarm and waits for active renders before Integration teardown', async () => {
+	it('completes initialization while a prewarm render is pending and waits for it before Integration teardown', async () => {
 		const shutdownEvents: string[] = [];
 		class ResourceIntegration extends HtmlPagesPlugin {
 			override async setup(): Promise<void> {}
@@ -314,35 +314,16 @@ describe('NodeServerAdapter', () => {
 			markRenderStarted = resolve;
 		});
 
-		let markRenderFinished!: () => void;
-		const renderFinishedPromise = new Promise<void>((resolve) => {
-			markRenderFinished = resolve;
-		});
-
-		let renderStarted = false;
-		let renderFinished = false;
-
 		vi.spyOn(ServerRouteHandler.prototype, 'handleResponse').mockImplementation(async () => {
-			renderStarted = true;
 			markRenderStarted();
 			const response = await pageRenderPending;
 			shutdownEvents.push('render finished');
-			renderFinished = true;
-			markRenderFinished();
 			return response;
 		});
 
-		let initializationResolved = false;
-		const initPromise = adapter.completeInitialization({} as import('node:http').Server).then(() => {
-			initializationResolved = true;
-		});
-
-		await initPromise;
+		await adapter.completeInitialization({} as import('node:http').Server);
 		await renderStartedPromise;
 
-		expect(initializationResolved).toBe(true);
-		expect(renderStarted).toBe(true);
-		expect(renderFinished).toBe(false);
 		let disposed = false;
 		const disposal = adapter.dispose().then(() => {
 			disposed = true;
@@ -352,8 +333,6 @@ describe('NodeServerAdapter', () => {
 		expect(shutdownEvents).toEqual([]);
 
 		finishPageRender();
-		await renderFinishedPromise;
-		expect(renderFinished).toBe(true);
 		await disposal;
 		expect(shutdownEvents).toEqual(['render finished', 'teardown']);
 	});

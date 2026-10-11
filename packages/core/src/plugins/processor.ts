@@ -196,10 +196,11 @@ export abstract class Processor<TOptions = unknown> {
 	 * Declares watch-mode SSR prewarm pathnames for core.
 	 *
 	 * @remarks
-	 * Processors return paths; core owns parallel background rendering and page cache population.
+	 * Processors return paths; core renders them in the background through the normal response
+	 * pipeline. Prewarming does not change which responses the page cache stores.
 	 */
-	collectDevPrewarmPlan(): Promise<{ pathnames: readonly string[] }> {
-		return Promise.resolve({ pathnames: [] });
+	collectDevPrewarmPaths(): Promise<readonly string[]> {
+		return Promise.resolve([]);
 	}
 
 	/**

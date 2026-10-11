@@ -60,7 +60,6 @@ test('stopping prewarm skips queued paths and waits for active renders', async (
 		},
 	});
 	await started;
-	assert.deepEqual(finished, []);
 	const stillWaiting = await Promise.race([
 		prewarm.then(
 			() => 'settled' as const,

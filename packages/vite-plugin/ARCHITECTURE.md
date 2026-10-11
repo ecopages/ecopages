@@ -22,6 +22,7 @@ All buckets use `apply: 'serve'` because this package is intentionally a dev-hos
 The Vite plugin mirrors the Ecopages CLI `resolveServeRuntimeOrigin` behavior:
 
 - `ecopages:config` resolves the active Vite origin in `configResolved`
+- `ecopages:dev-server` replaces its port with the one the HTTP server bound, since Vite moves to the next free port when the configured one is in use; a configured `server.origin` is kept
 - `ecopages:dev-server` builds middleware `Request` objects from that origin
 - `appConfig.baseUrl` is synchronized to the resolved origin for runtime consumers
 

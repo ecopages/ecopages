@@ -93,8 +93,26 @@ async function sendWebResponse(res: ServerResponse, webResponse: Response): Prom
 	}
 }
 
-function isAbortError(error: unknown): boolean {
-	return error instanceof Error && error.name === 'AbortError';
+/**
+ * Points the dev-server origin at the port the HTTP server actually bound.
+ *
+ * @remarks
+ * Vite binds the next free port when the configured one is in use and `strictPort` is off, so the
+ * origin resolved from config can name a port another process holds. A configured `server.origin`
+ * is the public origin and is kept.
+ */
+function syncBoundDevServerOrigin(
+	api: EcopagesPluginApi,
+	server: ViteDevServer,
+	httpServer: NonNullable<ViteDevServer['httpServer']>,
+): void {
+	const origin = api.getDevServerOrigin();
+	const address = httpServer.address();
+	if (!origin || server.config.server?.origin || !address || typeof address === 'string') return;
+	const url = new URL(origin);
+	url.port = String(address.port);
+	api.setDevServerOrigin(url.origin);
+	api.appConfig.baseUrl = url.origin;
 }
 
 /**
@@ -298,12 +316,13 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 			return () => {
 				const appInitialization = startEmbeddedApp(server, httpServer, appEntryPath);
 				const appReady = Promise.all([appInitialization, listening]).then(async ([app]) => {
+					if (httpServer) syncBoundDevServerOrigin(api, server, httpServer);
 					const origin = api.getDevServerOrigin();
 					if (!closed && origin) await app.handleListening(origin);
 					return app;
 				});
 				appReady.catch((error: unknown) => {
-					if (closed || isAbortError(error)) return;
+					if (closed) return;
 					logError(server, 'Failed to load the app entry', error);
 				});
 				stopAppByEnvironment.set(ssrEnvironment, async () => {
@@ -318,15 +337,12 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 					? normalizePath(api.appConfig.absolutePaths.config)
 					: undefined;
 				const restartOnServerChange = async (file: string) => {
-					if (closed) return;
 					try {
 						await listening;
-						if (closed) return;
 						const appLoaded = await appReady.then(
 							() => true,
 							() => false,
 						);
-						if (closed) return;
 						if (appLoaded && !isViteConfigFile(server, ecoConfigPath, normalizePath(file))) {
 							const entry = await ssrEnvironment.moduleGraph.getModuleByUrl(appEntryPath);
 							if (!entry || !importsFile(entry, normalizePath(file))) {
@@ -340,7 +356,7 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 						);
 						await server.restart();
 					} catch (error) {
-						if (closed || isAbortError(error)) return;
+						if (closed) return;
 						logError(server, 'Failed to restart Vite after an app entry change', error);
 					}
 				};

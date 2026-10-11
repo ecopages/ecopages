@@ -313,18 +313,18 @@ class CustomIntegration extends IntegrationPlugin {
 	}
 
 	async teardown(): Promise<void> {
-		// Clean up resources when the process stops
+		// Release resources before the app stops or restarts
 	}
 }
 ```
 
-Core does not call `teardown()` by default. Override it only when the integration owns watchers, compiler handles, or other resources that outlive individual requests.
+Core calls `teardown()` when the app stops or the development server restarts, after any in-progress `setup()` call and route prewarm render finish, and calls `setup()` again on the next start. Keep `setup()` safe to run more than once. Override `teardown()` only when the integration owns watchers, compiler handles, workers, or other resources that outlive individual requests.
 
 `prepareBuildContributions()` runs before `setup()`. Use that split consistently:
 
 1. `prepareBuildContributions()` for loaders, manifest-facing plugins, and other build declarations
 2. `setup()` for runtime-only side effects
-3. `teardown()` for explicit cleanup when the process stops
+3. `teardown()` for explicit cleanup when the app stops or restarts
 
 ## Using the Integration
 

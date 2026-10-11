@@ -77,8 +77,9 @@ export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig; ru
  * @remarks
  * Bun calls `ensureRuntimeReady()` during `initialize()` when watch is enabled; Node defers
  * runtime creation to `completeInitialization()`. Transport-specific setup stays in
- * each adapter — only shared teardown lives here. A failed integration `teardown()` still
- * clears activation state, so the next startup runs `setup()` again.
+ * each adapter — only shared teardown lives here. Integration `setup()` calls still in flight
+ * settle before any `teardown()`, so a late setup cannot recreate released resources. A failed
+ * integration `teardown()` still clears activation state, so the next startup runs `setup()` again.
  */
 export async function disposeDevResources(options: {
 	projectWatcher: ProjectWatcher | null | undefined;
@@ -93,6 +94,7 @@ export async function disposeDevResources(options: {
 		() => options.hmrManager?.stop(),
 		() => options.bridge?.destroy(),
 		() => options.previewHost.stop(),
+		() => Promise.allSettled(options.appConfig.runtime?.integrationActivations?.values() ?? []),
 		...options.appConfig.integrations.map((integration) => () => integration.teardown()),
 	];
 	const errors: unknown[] = [];

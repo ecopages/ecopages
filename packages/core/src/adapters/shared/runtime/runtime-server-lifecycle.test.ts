@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { createServer } from 'node:net';
 import { test, vi } from 'vitest';
 import { appLogger } from '../../../global/app-logger.ts';
 import * as appBuildManifestRuntime from '../../../build/app-build-manifest-runtime.ts';
-import { disposeDevResources, startDevWarmup } from './runtime-server-lifecycle.ts';
+import { attachHmrToIntegrations, disposeDevResources, startDevWarmup } from './runtime-server-lifecycle.ts';
+import type { IHmrManager } from '../../../types/internal-types.ts';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import { HtmlPagesPlugin } from '../../../html-pages/html-pages.plugin.ts';
 
@@ -37,33 +37,89 @@ test('a failed preview shutdown still tears down Integrations and allows setup a
 	assert.deepEqual(events, ['setup', 'teardown', 'setup']);
 });
 
-test('stopping an app releases Integration resources and allows them to start again', async () => {
-	const server = createServer();
-	class ResourceIntegration extends HtmlPagesPlugin {
-		override async setup(): Promise<void> {
-			await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-		}
+test('several failed cleanup steps reject with every error', async () => {
+	class FailingTeardown extends HtmlPagesPlugin {
 		override async teardown(): Promise<void> {
-			await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+			throw new Error('teardown failed');
 		}
 	}
-	const appConfig = await finalizeEcoPagesConfig({ rootDir: '/project', integrations: [new ResourceIntegration()] });
-	try {
-		await startDevWarmup({ appConfig, runtimeOrigin: 'http://localhost:3000' });
-		assert.equal(server.listening, true);
-		await disposeDevResources({
+	const appConfig = await finalizeEcoPagesConfig({ rootDir: '/project', integrations: [new FailingTeardown()] });
+	await assert.rejects(
+		disposeDevResources({
 			appConfig,
 			projectWatcher: undefined,
 			hmrManager: undefined,
 			bridge: undefined,
-			previewHost: { async stop() {} },
-		});
-		assert.equal(server.listening, false);
-		await startDevWarmup({ appConfig, runtimeOrigin: 'http://localhost:3000' });
-		assert.equal(server.listening, true);
-	} finally {
-		if (server.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
+			previewHost: {
+				async stop() {
+					throw new Error('preview shutdown failed');
+				},
+			},
+		}),
+		(error: unknown) => {
+			assert.ok(error instanceof AggregateError);
+			assert.deepEqual(
+				error.errors.map((cause: Error) => cause.message),
+				['preview shutdown failed', 'teardown failed'],
+			);
+			return true;
+		},
+	);
+});
+
+test('the next start attaches the new HMR manager after shutdown', async () => {
+	const attached: unknown[] = [];
+	class HmrIntegration extends HtmlPagesPlugin {
+		override setHmrManager(hmrManager: IHmrManager): void {
+			attached.push(hmrManager);
+		}
 	}
+	const appConfig = await finalizeEcoPagesConfig({ rootDir: '/project', integrations: [new HmrIntegration()] });
+	const firstManager = {} as IHmrManager;
+	const secondManager = {} as IHmrManager;
+	attachHmrToIntegrations(appConfig, firstManager);
+	attachHmrToIntegrations(appConfig, firstManager);
+	await disposeDevResources({
+		appConfig,
+		projectWatcher: undefined,
+		hmrManager: undefined,
+		bridge: undefined,
+		previewHost: { async stop() {} },
+	});
+	attachHmrToIntegrations(appConfig, secondManager);
+	assert.equal(attached.length, 2);
+	assert.equal(attached[0], firstManager);
+	assert.equal(attached[1], secondManager);
+});
+
+test('an Integration setup still in flight finishes before teardown', async () => {
+	const events: string[] = [];
+	let finishSetup!: () => void;
+	const setupGate = new Promise<void>((resolve) => {
+		finishSetup = resolve;
+	});
+	class SlowSetup extends HtmlPagesPlugin {
+		override async setup(): Promise<void> {
+			await setupGate;
+			events.push('setup');
+		}
+		override async teardown(): Promise<void> {
+			events.push('teardown');
+		}
+	}
+	const appConfig = await finalizeEcoPagesConfig({ rootDir: '/project', integrations: [new SlowSetup()] });
+	const warmup = startDevWarmup({ appConfig, runtimeOrigin: 'http://localhost:3000' });
+	const disposal = disposeDevResources({
+		appConfig,
+		projectWatcher: undefined,
+		hmrManager: undefined,
+		bridge: undefined,
+		previewHost: { async stop() {} },
+	});
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	finishSetup();
+	await Promise.all([warmup, disposal]);
+	assert.deepEqual(events, ['setup', 'teardown']);
 });
 
 test('a failed Integration teardown still lets the next startup run setup', async () => {

@@ -462,9 +462,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	 * @remarks
 	 * Core executes rendering in parallel in the background; this hook only maps `routePrefix` + entry slugs to URLs.
 	 */
-	override async collectDevPrewarmPlan(): Promise<{
-		pathnames: readonly string[];
-	}> {
+	override async collectDevPrewarmPaths(): Promise<readonly string[]> {
 		await this.ensureCollectionsGenerated();
 
 		const pathnames: string[] = [];
@@ -479,9 +477,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 			pathnames.push(...buildContentDevPrewarmPathnames(definition, entries));
 		}
 
-		return {
-			pathnames: [...new Set(pathnames)],
-		};
+		return [...new Set(pathnames)];
 	}
 }
 

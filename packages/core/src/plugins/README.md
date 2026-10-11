@@ -29,7 +29,7 @@ These contracts are responsible for:
 - Integrations own rendering semantics, hydration behavior, and integration-specific HMR strategy.
 - An Integration whose files are not JavaScript modules can compile them itself with `compilePageModule()`, and one whose Pages cannot receive Params overrides `acceptsParams` with `false`. Core asks the owning Integration instead of checking Integration names.
 - Processors own asset semantics, cache ownership, and processor-specific watch behavior.
-- `collectDevPrewarmPlan()` returns only `pathnames`; core renders them in the background after the development response pipeline is ready.
+- `collectDevPrewarmPaths()` returns the pathnames to prewarm; core renders them in the background once the development server is serving requests.
 - Core owns lifecycle ordering, startup orchestration, and manifest assembly.
 - App shutdown calls Integration `teardown()` to release resources created during runtime setup.
 - Integrations and Processors expose one `plugins` getter. Build plugins declare their server/browser environments; omitted environments apply to both. Config finalization rejects a duplicate name within one environment and names both contributors.

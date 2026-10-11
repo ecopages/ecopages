@@ -98,8 +98,8 @@ docs: {
 }
 ```
 
-`devPrewarm` accepts `'first'`, `'all'`, `{ limit }`, or `{ slugs }`. Route prewarming always runs asynchronously
-in the background after the response pipeline is ready. It schedules those renders and does not control which
+`devPrewarm` accepts `'first'`, `'all'`, `{ limit }`, or `{ slugs }`. Route prewarming always runs in the
+background once the development server is serving requests. It schedules those renders and does not control which
 responses the page cache stores. Keep the selection small during interactive
 development: `'all'` schedules every collection route and can compete with the Page you are navigating to.
 

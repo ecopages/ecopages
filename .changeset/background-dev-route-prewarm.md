@@ -3,8 +3,8 @@
 '@ecopages/content-processor': minor
 ---
 
-Development static route prewarm now runs asynchronously in the background after the response pipeline is ready, removing Page prewarming from the startup readiness gate.
+In development, routes listed in `devPrewarmPaths` and content collection `devPrewarm` render in the background. The server reports that it is listening without waiting for them, and Integration `setup()` now finishes before that message.
 
-Stop queued Page prewarming and finish active prewarm renders before releasing Integration runtime resources during app shutdown, so Lit workers do not survive development server restarts.
+When an app stops or a development server restarts, queued prewarm renders are skipped and any render in progress finishes first. Core then calls each Integration's `teardown()` and runs `setup()` again on the next start, so Lit workers no longer survive restarts. Integrations must keep `setup()` safe to run more than once.
 
-Remove `devPrewarmBeforeReadyPaths`; configure `devPrewarmPaths` instead. Remove content collection `devPrewarmReadiness` and Processor prewarm-plan `readiness`; all declared paths render in the background.
+`devPrewarmBeforeReadyPaths` is removed; use `devPrewarmPaths`. Content collection `devPrewarmReadiness` is removed; every declared path renders in the background. Processors declare prewarm paths with `collectDevPrewarmPaths()`, which returns the pathnames directly and replaces `collectDevPrewarmPlan()`.

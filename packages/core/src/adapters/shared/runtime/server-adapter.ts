@@ -16,7 +16,7 @@ import { FileSystemServerResponseFactory } from '../http/fs-server-response-fact
 import { FileSystemResponseMatcher } from '../http/fs-server-response-matcher.ts';
 import { ServerRouteHandler } from './server-route-handler.ts';
 import { startDevStaticRoutePrewarm } from './dev-static-route-prewarm.ts';
-import { collectAppDevPrewarmPlan } from './collect-dev-prewarm-plan.ts';
+import { collectAppDevPrewarmPaths } from './collect-dev-prewarm-paths.ts';
 import { createRenderContext } from './render-context.ts';
 import { ApiRequestPipeline } from '../http/api-request-pipeline.ts';
 import {
@@ -79,6 +79,7 @@ export abstract class SharedServerAdapter<
 	private devStaticRoutePrewarmStarted = false;
 	private readonly devStaticRoutePrewarmAbort = new AbortController();
 	private devStaticRoutePrewarm: Promise<void> | undefined;
+	private disposed = false;
 	private sharedPageCacheService: PageCacheService | null | undefined;
 
 	/** Propagates the actual listening port to every binding-dependent service. */
@@ -100,14 +101,8 @@ export abstract class SharedServerAdapter<
 		this.devStaticRoutePrewarmStarted = true;
 
 		const runtimeOrigin = this.runtimeOrigin;
-		const plan = await collectAppDevPrewarmPlan(this.appConfig);
-		const allPathnames = plan.pathnames;
-		if (allPathnames.length === 0) {
-			return;
-		}
-
 		this.devStaticRoutePrewarm = startDevStaticRoutePrewarm({
-			pathnames: allPathnames,
+			pathnames: await collectAppDevPrewarmPaths(this.appConfig),
 			signal: this.devStaticRoutePrewarmAbort.signal,
 			renderPath: async (pathname: string) => {
 				const response = await this.routeHandler.handleResponse(
@@ -119,14 +114,28 @@ export abstract class SharedServerAdapter<
 	}
 
 	/**
+	 * Stops background prewarm, then releases runtime resources once.
+	 *
 	 * @remarks
-	 * Active renders must finish before Integration teardown; otherwise they can recreate
-	 * workers after disposal. Aborting skips paths that have not started rendering.
+	 * Active prewarm renders must finish before Integration teardown; otherwise they can
+	 * recreate workers after disposal. Aborting skips paths that have not started rendering.
+	 * Does not stop the bound server; callers shut down transport through the runtime host first.
 	 */
-	protected async stopDevStaticRoutePrewarm(): Promise<void> {
+	public async dispose(): Promise<void> {
+		if (this.disposed) {
+			return;
+		}
+
+		this.disposed = true;
 		this.devStaticRoutePrewarmAbort.abort();
 		await this.devStaticRoutePrewarm;
+		await this.disposeRuntimeResources();
 	}
+
+	/**
+	 * Releases the watcher, HMR, bridge, preview host and Integration resources the runtime owns.
+	 */
+	protected abstract disposeRuntimeResources(): Promise<void>;
 
 	protected async initializeSharedRouteHandling(options: {
 		staticRoutes: StaticRoute[];

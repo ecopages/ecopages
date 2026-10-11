@@ -43,6 +43,17 @@ function createApi() {
 	});
 }
 
+function createFakeHttpServer(
+	options: { middlewareMode?: boolean; httpServerListening?: boolean; boundPort?: number } = {},
+) {
+	const { boundPort } = options;
+	if (options.middlewareMode) return null;
+	return Object.assign(new EventEmitter(), {
+		listening: options.httpServerListening !== false,
+		address: () => (boundPort === undefined ? null : { address: '127.0.0.1', family: 'IPv4', port: boundPort }),
+	});
+}
+
 async function setupDevServerMiddleware(
 	fetchResponse: Response,
 	options?: {
@@ -53,6 +64,8 @@ async function setupDevServerMiddleware(
 		httpServerListening?: boolean;
 		appLoadGate?: Promise<void>;
 		devServerOrigin?: string;
+		boundPort?: number;
+		serverOrigin?: string;
 		captureFetch?: (request: Request) => void;
 		envDir?: string | false;
 	},
@@ -72,9 +85,7 @@ async function setupDevServerMiddleware(
 			return fetchResponse.clone();
 		});
 
-	const httpServer = options?.middlewareMode
-		? null
-		: Object.assign(new EventEmitter(), { listening: options?.httpServerListening !== false });
+	const httpServer = createFakeHttpServer(options);
 	const watcher = new EventEmitter();
 	const restart = vi.fn(async () => undefined);
 	const getModuleByUrl = vi.fn(async () => options?.appEntryModule);
@@ -93,6 +104,7 @@ async function setupDevServerMiddleware(
 			configFileDependencies: ['/app/vite.shared.ts', '/app/eco.config.ts'],
 			envDir: options?.envDir ?? '/app/env',
 			mode: 'development',
+			server: { origin: options?.serverOrigin },
 		},
 		hot: { send: vi.fn() },
 		environments: {
@@ -525,12 +537,22 @@ describe('ecopagesDevServer', () => {
 		expect(announcedWhileBound).toBe(true);
 	});
 
-	it('keeps waiting for the listener when Vite retries a port that is in use', async () => {
+	it('announces and serves on the port Vite binds after retrying one that is in use', async () => {
 		const handleListening = vi.fn();
+		let requestUrl: string | undefined;
 		const harness = await setupDevServerMiddleware(new Response('ok'), {
 			httpServerListening: false,
 			devServerOrigin: 'http://localhost:4019',
-			module: { app: { fetch: async () => new Response('bound'), handleListening } },
+			boundPort: 4020,
+			module: {
+				app: {
+					fetch: async (request: Request) => {
+						requestUrl = request.url;
+						return new Response('bound');
+					},
+					handleListening,
+				},
+			},
 		});
 		setImmediate(() => {
 			harness.httpServer!.emit('error', Object.assign(new Error('listen EADDRINUSE'), { code: 'EADDRINUSE' }));
@@ -544,8 +566,30 @@ describe('ecopagesDevServer', () => {
 		});
 
 		expect(harness.getBody()).toBe('bound');
-		expect(handleListening).toHaveBeenCalledWith('http://localhost:4019');
+		expect(handleListening).toHaveBeenCalledWith('http://localhost:4020');
+		expect(requestUrl).toBe('http://localhost:4020/');
 		expect(harness.logger.error).not.toHaveBeenCalled();
+	});
+
+	it('keeps a configured server.origin when Vite binds another port', async () => {
+		const handleListening = vi.fn();
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			httpServerListening: false,
+			devServerOrigin: 'https://dev.example.test',
+			serverOrigin: 'https://dev.example.test',
+			boundPort: 4020,
+			module: { app: { fetch: async () => new Response('bound'), handleListening } },
+		});
+		setImmediate(() => {
+			harness.httpServer!.listening = true;
+			harness.httpServer!.emit('listening');
+		});
+
+		await harness.middleware?.({ headers: {}, method: 'GET', originalUrl: '/' }, harness.response, (error) => {
+			if (error) throw error;
+		});
+
+		expect(handleListening).toHaveBeenCalledWith('https://dev.example.test');
 	});
 
 	it('attaches app websocket upgrades before serving HTTP', async () => {

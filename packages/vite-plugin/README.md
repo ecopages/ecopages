@@ -51,6 +51,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full plugin bucket map.
 - Ecopages source transforms adapted to Vite plugins
 - Virtual modules for integration manifests and island registries
 - Dev invalidation and HMR from the embedded Ecopages app, with a Vite restart when `app.ts` or a module it imports, the Vite config or an env file changes (an `eco.config.ts` edit needs a full restart unless `app.ts` imports it)
+- Readiness and restart callbacks wait for both app initialization and the host HTTP listener to bind. Closing the server cancels a listen wait that has not settled, and an in-flight listen announcement finishes before the app stops. Stopped servers ignore queued restart callbacks.
 - A dev-server bridge that forwards requests to `app.fetch()`
 
 ## Runtime Notes
@@ -59,7 +60,7 @@ The plugin is separate from the `ecopages` CLI. The CLI runs the app directly th
 
 The dev-server bridge assumes a standard Vite dev server with Connect-style middleware support and an SSR environment.
 
-During dev, the plugin synchronizes `appConfig.baseUrl` to the active Vite server origin so middleware `Request` objects match the browser URL. The embedded app finishes warmup and `devPrewarmBeforeReadyPaths` before it logs that the Node server is running. Vite's own "ready" line is earlier and is not that signal.
+During dev, the plugin synchronizes `appConfig.baseUrl` to the active Vite server origin so middleware `Request` objects match the browser URL. The embedded app finishes integration warmup and Project Watcher initialization before it logs that the Node server is running. Route prewarming runs in the background. Vite's own "ready" line is earlier and is not that signal.
 
 ## Further reading
 

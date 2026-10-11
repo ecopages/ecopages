@@ -8,6 +8,8 @@ import type { NodeServerAdapterParams } from './server-adapter.ts';
 import { NodeServerAdapter } from './server-adapter.ts';
 import { NodeClientAbortError } from './http-request-bridge.ts';
 import { NodeStaticPreviewHost } from './static-preview-host.ts';
+import { HtmlPagesPlugin } from '../../html-pages/html-pages.plugin.ts';
+import { ServerRouteHandler } from '../shared/runtime/server-route-handler.ts';
 
 const upgrades = vi.hoisted(() => ({ attach: vi.fn() }));
 const devBridge = vi.hoisted(() => ({ reload: vi.fn() }));
@@ -22,12 +24,17 @@ const devRuntime = vi.hoisted(() => ({
 			connected(devRuntime.socket),
 	},
 	socket: { on: () => undefined, send: () => undefined },
-	bridge: { subscribe: (_ws: unknown) => undefined, unsubscribe: (_ws: unknown) => undefined },
+	bridge: {
+		subscribe: (_ws: unknown) => undefined,
+		unsubscribe: (_ws: unknown) => undefined,
+		destroy: () => undefined,
+	},
 	hmrManager: {
 		setEnabled: () => undefined,
 		ensureRuntimeReady: async () => undefined,
 		sendPendingBuildErrors: (_ws: unknown) => undefined,
 		isEnabled: () => true,
+		stop: () => undefined,
 	},
 }));
 
@@ -46,7 +53,6 @@ class TestNodeServerAdapter extends NodeServerAdapter {
 	}
 
 	private skipDevRouteSetup = false;
-
 	/** Skips route handler setup and prewarm, which need real pages, when completing watch-mode initialization. */
 	public skipDevRouteSetupForTest(): void {
 		this.skipDevRouteSetup = true;
@@ -274,5 +280,81 @@ describe('NodeServerAdapter', () => {
 		await adapter.processFileChangeForTest(path.join(appConfig.absolutePaths.publicDir, 'robots.txt'));
 
 		expect(devBridge.reload).toHaveBeenCalledTimes(1);
+	});
+
+	it('announces readiness during prewarm and waits for active renders before Integration teardown', async () => {
+		const shutdownEvents: string[] = [];
+		class ResourceIntegration extends HtmlPagesPlugin {
+			override async setup(): Promise<void> {}
+			override async teardown(): Promise<void> {
+				shutdownEvents.push('teardown');
+			}
+		}
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir: path.join(os.tmpdir(), 'ecopages-pending-prewarm'),
+			devPrewarmPaths: ['/slow-page'],
+			integrations: [new ResourceIntegration()],
+		});
+		const adapter = createAdapter({ appConfig, options: { watch: true } });
+		const subscription = vi
+			.spyOn(ProjectWatcher.prototype, 'createWatcherSubscription')
+			.mockResolvedValue(undefined as never);
+		onTestFinished(() => subscription.mockRestore());
+
+		let finishPageRender!: () => void;
+		const pageRenderPending = new Promise<Response>((resolve) => {
+			finishPageRender = () =>
+				resolve(
+					new Response('<html><body>Slow Page</body></html>', { headers: { 'Content-Type': 'text/html' } }),
+				);
+		});
+
+		let markRenderStarted!: () => void;
+		const renderStartedPromise = new Promise<void>((resolve) => {
+			markRenderStarted = resolve;
+		});
+
+		let markRenderFinished!: () => void;
+		const renderFinishedPromise = new Promise<void>((resolve) => {
+			markRenderFinished = resolve;
+		});
+
+		let renderStarted = false;
+		let renderFinished = false;
+
+		vi.spyOn(ServerRouteHandler.prototype, 'handleResponse').mockImplementation(async () => {
+			renderStarted = true;
+			markRenderStarted();
+			const response = await pageRenderPending;
+			shutdownEvents.push('render finished');
+			renderFinished = true;
+			markRenderFinished();
+			return response;
+		});
+
+		let initializationResolved = false;
+		const initPromise = adapter.completeInitialization({} as import('node:http').Server).then(() => {
+			initializationResolved = true;
+		});
+
+		await initPromise;
+		await renderStartedPromise;
+
+		expect(initializationResolved).toBe(true);
+		expect(renderStarted).toBe(true);
+		expect(renderFinished).toBe(false);
+		let disposed = false;
+		const disposal = adapter.dispose().then(() => {
+			disposed = true;
+		});
+		await new Promise<void>((resolve) => setImmediate(resolve));
+		expect(disposed).toBe(false);
+		expect(shutdownEvents).toEqual([]);
+
+		finishPageRender();
+		await renderFinishedPromise;
+		expect(renderFinished).toBe(true);
+		await disposal;
+		expect(shutdownEvents).toEqual(['render finished', 'teardown']);
 	});
 });

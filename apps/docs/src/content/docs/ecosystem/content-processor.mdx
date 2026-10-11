@@ -95,15 +95,13 @@ docs: {
 	schema: docsFrontmatterSchema,
 	routePrefix: '/docs',
 	devPrewarm: 'first',
-	devPrewarmReadiness: 'background',
 }
 ```
 
-`devPrewarm` accepts `'first'`, `'all'`, `{ limit }`, or `{ slugs }`. The default readiness is `'background'`;
-`'beforeReady'` waits until the selected paths are rendered before Ecopages reports the framework ready signal
-(not before the listen port opens). Prewarming stores HTML only for the selected paths on the watch page cache
-allowlist and does not enable caching for other development routes. Keep the selection small during interactive
-development: `'all'` renders every collection route concurrently and can compete with the page you are navigating to.
+`devPrewarm` accepts `'first'`, `'all'`, `{ limit }`, or `{ slugs }`. Route prewarming always runs asynchronously
+in the background after the response pipeline is ready. It schedules those renders and does not control which
+responses the page cache stores. Keep the selection small during interactive
+development: `'all'` schedules every collection route and can compete with the Page you are navigating to.
 
 ### Docs app wiring
 

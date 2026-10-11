@@ -50,6 +50,7 @@ async function setupDevServerMiddleware(
 		includeMiddlewares?: boolean;
 		appEntryModule?: FakeModuleNode;
 		middlewareMode?: boolean;
+		httpServerListening?: boolean;
 		appLoadGate?: Promise<void>;
 		devServerOrigin?: string;
 		captureFetch?: (request: Request) => void;
@@ -71,7 +72,9 @@ async function setupDevServerMiddleware(
 			return fetchResponse.clone();
 		});
 
-	const httpServer = options?.middlewareMode ? null : new EventEmitter();
+	const httpServer = options?.middlewareMode
+		? null
+		: Object.assign(new EventEmitter(), { listening: options?.httpServerListening !== false });
 	const watcher = new EventEmitter();
 	const restart = vi.fn(async () => undefined);
 	const getModuleByUrl = vi.fn(async () => options?.appEntryModule);
@@ -495,6 +498,33 @@ describe('ecopagesDevServer', () => {
 		expect(listeningCompletedAtFetch).toBe(true);
 	});
 
+	it('waits for the replacement HTTP listener before announcing readiness and serving requests', async () => {
+		let bound = false;
+		let announcedWhileBound = false;
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			httpServerListening: false,
+			devServerOrigin: 'http://localhost:4018',
+			module: {
+				app: {
+					fetch: async () => new Response(bound ? 'bound' : 'unbound'),
+					handleListening: () => {
+						announcedWhileBound = bound;
+					},
+				},
+			},
+		});
+		setImmediate(() => {
+			bound = true;
+			harness.httpServer!.listening = true;
+			harness.httpServer!.emit('listening');
+		});
+		await harness.middleware?.({ headers: {}, method: 'GET', originalUrl: '/' }, harness.response, (error) => {
+			if (error) throw error;
+		});
+		expect(harness.getBody()).toBe('bound');
+		expect(announcedWhileBound).toBe(true);
+	});
+
 	it('attaches app websocket upgrades before serving HTTP', async () => {
 		let attachCompleted = false;
 		let attachCompletedAtFetch: boolean | undefined;
@@ -582,6 +612,24 @@ describe('ecopagesDevServer', () => {
 		await vi.waitFor(() => expect(harness.restart).toHaveBeenCalledTimes(1));
 	});
 
+	it('does not restart a retired server after an in-flight module lookup', async () => {
+		const entry = moduleNode('/app/app.ts', moduleNode('/app/src/data.ts'));
+		const harness = await setupDevServerMiddleware(new Response('ok'), { appEntryModule: entry });
+		let releaseLookup = () => {};
+		harness.getModuleByUrl.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					releaseLookup = () => resolve(entry);
+				}),
+		);
+		harness.watcher.emit('change', '/app/src/data.ts');
+		await vi.waitFor(() => expect(harness.getModuleByUrl).toHaveBeenCalled());
+		await harness.closeServer();
+		releaseLookup();
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(harness.restart).not.toHaveBeenCalled();
+	});
+
 	it('does not restart Vite for a module outside the app entry imports', async () => {
 		const harness = await setupDevServerMiddleware(new Response('ok'), {
 			appEntryModule: moduleNode('/app/app.ts', moduleNode('/app/src/handlers/api.ts')),
@@ -654,6 +702,74 @@ describe('ecopagesDevServer', () => {
 
 		await vi.waitFor(() => expect(harness.restart).toHaveBeenCalledTimes(1));
 		expect(harness.logger.info).toHaveBeenCalledWith(expect.stringContaining('app.ts changed'), expect.anything());
+	});
+
+	it('drops a listen wait when the server closes before it binds', async () => {
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			httpServerListening: false,
+			appEntryModule: moduleNode('/app/app.ts'),
+		});
+
+		harness.watcher.emit('change', '/app/app.ts');
+		expect(harness.httpServer!.listenerCount('listening')).toBeGreaterThan(0);
+		await harness.closeServer();
+		await new Promise((resolve) => setImmediate(resolve));
+
+		expect(harness.httpServer!.listenerCount('listening')).toBe(0);
+		expect(harness.restart).not.toHaveBeenCalled();
+		expect(harness.logger.error).not.toHaveBeenCalled();
+	});
+
+	it('finishes an in-flight listen announcement before stopping the app', async () => {
+		let releaseListen: (() => void) | undefined;
+		const order: string[] = [];
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			devServerOrigin: 'http://localhost:4018',
+			module: {
+				app: {
+					fetch: async () => new Response('ok'),
+					handleListening: () =>
+						new Promise<void>((resolve) => {
+							order.push('announce');
+							releaseListen = () => {
+								order.push('announced');
+								resolve();
+							};
+						}),
+					stop: async () => {
+						order.push('stop');
+					},
+				},
+			},
+		});
+
+		await vi.waitFor(() => expect(order).toEqual(['announce']));
+		const closing = harness.closeServer();
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(order).toEqual(['announce']);
+		releaseListen!();
+		await closing;
+		expect(order).toEqual(['announce', 'announced', 'stop']);
+	});
+
+	it('ignores a queued app-entry change after its server closes', async () => {
+		let finishLoading!: () => void;
+		const appLoadGate = new Promise<void>((resolve) => {
+			finishLoading = resolve;
+		});
+		const stop = vi.fn(async () => undefined);
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			appLoadGate,
+			appEntryModule: moduleNode('/app/app.ts'),
+			module: { app: { fetch: async () => new Response('ok'), handleListening() {}, stop } },
+		});
+		harness.watcher.emit('change', '/app/app.ts');
+		const closing = harness.closeServer();
+		finishLoading();
+		await closing;
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(stop).toHaveBeenCalledOnce();
+		expect(harness.restart).not.toHaveBeenCalled();
 	});
 
 	it.each(['add', 'change'])('restarts Vite on any %s after the app failed to load', async (event) => {

@@ -193,13 +193,13 @@ export abstract class Processor<TOptions = unknown> {
 	async prepareBuildContributions(): Promise<void> {}
 
 	/**
-	 * Declares watch-mode SSR prewarm pathnames and readiness for core.
+	 * Declares watch-mode SSR prewarm pathnames for core.
 	 *
 	 * @remarks
-	 * Processors return paths and readiness only; core owns parallel rendering and page cache population.
+	 * Processors return paths; core owns parallel background rendering and page cache population.
 	 */
-	collectDevPrewarmPlan(): Promise<{ pathnames: readonly string[]; readiness: 'background' | 'beforeReady' }> {
-		return Promise.resolve({ pathnames: [], readiness: 'background' });
+	collectDevPrewarmPlan(): Promise<{ pathnames: readonly string[] }> {
+		return Promise.resolve({ pathnames: [] });
 	}
 
 	/**

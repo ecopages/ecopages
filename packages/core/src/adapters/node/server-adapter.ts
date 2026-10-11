@@ -292,6 +292,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		}
 
 		this.adapterDisposed = true;
+		await this.stopDevStaticRoutePrewarm();
 
 		await disposeDevResources({
 			projectWatcher: this.projectWatcher,

@@ -457,25 +457,19 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	}
 
 	/**
-	 * Declares watch-mode SSR prewarm pathnames and readiness derived from collection manifests.
+	 * Declares watch-mode SSR prewarm pathnames derived from collection manifests.
 	 *
 	 * @remarks
-	 * Core executes rendering in parallel; this hook only maps `routePrefix` + entry slugs to URLs.
+	 * Core executes rendering in parallel in the background; this hook only maps `routePrefix` + entry slugs to URLs.
 	 */
 	override async collectDevPrewarmPlan(): Promise<{
 		pathnames: readonly string[];
-		readiness: 'background' | 'beforeReady';
 	}> {
 		await this.ensureCollectionsGenerated();
 
 		const pathnames: string[] = [];
-		let readiness: 'background' | 'beforeReady' = 'background';
 
 		for (const [collectionName, definition] of Object.entries(this.getCollectionsConfig())) {
-			if (definition.devPrewarmReadiness === 'beforeReady') {
-				readiness = 'beforeReady';
-			}
-
 			if (!definition.devPrewarm || !definition.routePrefix) {
 				continue;
 			}
@@ -487,7 +481,6 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 
 		return {
 			pathnames: [...new Set(pathnames)],
-			readiness,
 		};
 	}
 }

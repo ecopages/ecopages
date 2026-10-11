@@ -270,7 +270,6 @@ export async function finalizeEcoPagesConfig(
 		sourceTransforms: indexByName('Source transform', userConfig.sourceTransforms),
 		additionalWatchPaths: userConfig.additionalWatchPaths ?? [],
 		devPrewarmPaths: userConfig.devPrewarmPaths ?? [],
-		devPrewarmBeforeReadyPaths: userConfig.devPrewarmBeforeReadyPaths ?? [],
 		cache: userConfig.cache,
 		devToolbar: userConfig.devToolbar,
 		experimental: userConfig.experimental,

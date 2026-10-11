@@ -163,12 +163,6 @@ describe('finalizeEcoPagesConfig', () => {
 		expect(config.devPrewarmPaths).toEqual(['/']);
 	});
 
-	test('should configure critical development prewarm paths', async () => {
-		const config = await finalize({ devPrewarmBeforeReadyPaths: ['/'] });
-
-		expect(config.devPrewarmBeforeReadyPaths).toEqual(['/']);
-	});
-
 	test('should create a dedicated build adapter per app config', async () => {
 		const config = await finalize();
 

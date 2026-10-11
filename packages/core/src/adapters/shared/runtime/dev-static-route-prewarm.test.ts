@@ -25,7 +25,6 @@ test('runDevStaticRoutePrewarm continues after a path failure', async () => {
 
 	await runDevStaticRoutePrewarm({
 		pathnames: ['/ok', '/fail', '/also-ok'],
-		readiness: 'beforeReady',
 		renderPath: async (pathname) => {
 			if (pathname === '/fail') {
 				throw new Error('boom');
@@ -35,4 +34,43 @@ test('runDevStaticRoutePrewarm continues after a path failure', async () => {
 	});
 
 	assert.deepEqual(rendered, ['/ok', '/also-ok']);
+});
+
+test('stopping prewarm skips queued paths and waits for active renders', async () => {
+	const controller = new AbortController();
+	const rendered: string[] = [];
+	const finished: string[] = [];
+	let releaseRenders!: () => void;
+	const pendingRender = new Promise<void>((resolve) => {
+		releaseRenders = resolve;
+	});
+	let signalStarted!: () => void;
+	const started = new Promise<void>((resolve) => {
+		signalStarted = resolve;
+	});
+	const prewarm = runDevStaticRoutePrewarm({
+		pathnames: ['/a', '/b', '/c', '/d', '/e'],
+		signal: controller.signal,
+		renderPath: async (pathname) => {
+			rendered.push(pathname);
+			controller.abort();
+			signalStarted();
+			await pendingRender;
+			finished.push(pathname);
+		},
+	});
+	await started;
+	assert.deepEqual(finished, []);
+	const stillWaiting = await Promise.race([
+		prewarm.then(
+			() => 'settled' as const,
+			() => 'settled' as const,
+		),
+		new Promise<'pending'>((resolve) => setImmediate(() => resolve('pending'))),
+	]);
+	assert.equal(stillWaiting, 'pending');
+	releaseRenders();
+	await prewarm;
+	assert.deepEqual(rendered, ['/a']);
+	assert.deepEqual(finished, rendered);
 });

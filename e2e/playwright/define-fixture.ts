@@ -239,6 +239,12 @@ function resolveProjectSpecs(definition: FixtureDefinition, fixtureDir: string):
 	return specs;
 }
 
+/**
+ * @remarks
+ * Allow cold Page rendering during initial navigation when development fixtures run under load.
+ */
+const DEV_FIXTURE_TEST_TIMEOUT_MS = 60_000;
+
 function buildProjectsFromSpecs(
 	specs: FixtureProjectSpec[],
 	desktopChrome: DesktopChromeUse,
@@ -249,7 +255,7 @@ function buildProjectsFromSpecs(
 		testMatch: spec.testMatch,
 		testIgnore: spec.testIgnore,
 		workers: spec.workers ?? (spec.mode === 'dev' ? 1 : defaultWorkerCount),
-		timeout: spec.timeout,
+		timeout: spec.timeout ?? (spec.mode === 'dev' ? DEV_FIXTURE_TEST_TIMEOUT_MS : undefined),
 		use: {
 			...desktopChrome,
 			baseURL: `http://localhost:${spec.port}`,

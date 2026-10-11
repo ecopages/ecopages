@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { once } from 'node:events';
 import { Readable } from 'node:stream';
 import { isDocumentHtmlNavigationFromHeaders } from './document-html-navigation.ts';
 import { injectEcopagesHmrRuntimeIntoHtml } from './ecopages-hmr-runtime-injection.ts';
@@ -93,6 +94,10 @@ async function sendWebResponse(res: ServerResponse, webResponse: Response): Prom
 	}
 }
 
+function isAbortError(error: unknown): boolean {
+	return error instanceof Error && error.name === 'AbortError';
+}
+
 function logError(server: ViteDevServer, message: string, error: unknown): void {
 	server.config.logger.error(`[ecopages] ${message}: ${error instanceof Error ? error.stack : String(error)}`, {
 		timestamp: true,
@@ -106,11 +111,11 @@ function logError(server: ViteDevServer, message: string, error: unknown): void 
  * `httpServer` is read by the caller when the server is configured: on restart Vite copies the new server's
  * properties onto the same object, so reading it after the awaits could attach a stale app to the new server.
  *
- * `attachWebSocketUpgrades` is `completeInitialization()`: integration warmup, `devPrewarmBeforeReadyPaths`,
- * and the Project Watcher. `handleListening` must run after that, or Playwright's listen-log ready signal
- * starts tests while `/postcss` and other prewarm routes are still a cold compile.
+ * `attachWebSocketUpgrades` is `completeInitialization()`: integration warmup and the Project Watcher (route
+ * prewarming runs asynchronously in the background). The caller runs `handleListening` only after
+ * initialization and the host HTTP listener's bind, including during Vite restarts.
  *
- * A load failure is logged once and then surfaces through every middleware request that awaits the promise,
+ * The caller logs a load failure once; it surfaces through every middleware request that awaits the promise,
  * never as an unhandled rejection.
  *
  * It turns on Node's source-mapped stack traces, as Vite's own SSR module runner does: `ssrLoadModule`'s runner
@@ -119,7 +124,6 @@ function logError(server: ViteDevServer, message: string, error: unknown): void 
 function startEmbeddedApp(
 	server: ViteDevServer,
 	httpServer: ViteDevServer['httpServer'],
-	api: EcopagesPluginApi,
 	appEntryPath: string,
 ): Promise<EcopagesEmbeddedApp> {
 	process.setSourceMapsEnabled?.(true);
@@ -129,13 +133,8 @@ function startEmbeddedApp(
 		if (httpServer && typeof app.attachWebSocketUpgrades === 'function') {
 			await app.attachWebSocketUpgrades(httpServer, { passthroughUnmatched: true });
 		}
-		const origin = api.getDevServerOrigin();
-		if (origin) {
-			await app.handleListening(origin);
-		}
 		return app;
 	})();
-	appReady.catch((error: unknown) => logError(server, 'Failed to load the app entry', error));
 	return appReady;
 }
 
@@ -254,7 +253,8 @@ function isViteConfigFile(server: ViteDevServer, ecoConfigPath: string | undefin
  * file; the app is stopped when its Vite server closes,
  * in middleware mode too. Other modules, such as pages, are re-evaluated per request after Vite invalidates
  * its module graph. While the app failed to load, any added, changed or deleted file restarts Vite, since
- * the failed load may not have recorded the import that broke it.
+ * the failed load may not have recorded the import that broke it. Closing the server cancels a listen
+ * wait that has not settled, and finishes an in-flight listen announcement before stopping the app.
  */
 export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 	const appEntryPath = getAppEntryPath(api.appConfig.rootDir);
@@ -267,11 +267,40 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 			const middlewareServer = assertMiddlewareServer(server);
 			const httpServer = server.httpServer;
 			const ssrEnvironment = server.environments.ssr;
+			const listenAbort = new AbortController();
+			const listenFailures = new WeakSet<object>();
+			const listening =
+				httpServer && !httpServer.listening
+					? once(httpServer, 'listening', { signal: listenAbort.signal }).catch((error: unknown) => {
+							if (typeof error === 'object' && error !== null) listenFailures.add(error);
+							throw error;
+						})
+					: Promise.resolve();
+			let closed = false;
 
 			return () => {
-				const appReady = startEmbeddedApp(server, httpServer, api, appEntryPath);
+				const appInitialization = startEmbeddedApp(server, httpServer, appEntryPath);
+				const appReady = Promise.all([appInitialization, listening]).then(async ([app]) => {
+					const origin = api.getDevServerOrigin();
+					if (!closed && origin) await app.handleListening(origin);
+					return app;
+				});
+				appReady.catch((error: unknown) => {
+					if (closed || isAbortError(error)) return;
+					const duringListen = typeof error === 'object' && error !== null && listenFailures.has(error);
+					logError(
+						server,
+						duringListen
+							? 'Failed while waiting for the dev server to listen'
+							: 'Failed to load the app entry',
+						error,
+					);
+				});
 				stopAppByEnvironment.set(ssrEnvironment, async () => {
-					const app = await appReady.catch(() => undefined);
+					closed = true;
+					listenAbort.abort();
+					await appReady.catch(() => undefined);
+					const app = await appInitialization.catch(() => undefined);
 					await app?.stop?.();
 				});
 
@@ -279,23 +308,29 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 					? normalizePath(api.appConfig.absolutePaths.config)
 					: undefined;
 				const restartOnServerChange = async (file: string) => {
+					if (closed) return;
 					try {
+						await listening;
+						if (closed) return;
 						const appLoaded = await appReady.then(
 							() => true,
 							() => false,
 						);
+						if (closed) return;
 						if (appLoaded && !isViteConfigFile(server, ecoConfigPath, normalizePath(file))) {
 							const entry = await ssrEnvironment.moduleGraph.getModuleByUrl(appEntryPath);
 							if (!entry || !importsFile(entry, normalizePath(file))) {
 								return;
 							}
 						}
+						if (closed) return;
 						server.config.logger.info(
 							`[ecopages] ${path.relative(server.config.root, file)} changed, restarting server...`,
 							{ timestamp: true },
 						);
 						await server.restart();
 					} catch (error) {
+						if (closed || isAbortError(error)) return;
 						logError(server, 'Failed to restart Vite after an app entry change', error);
 					}
 				};

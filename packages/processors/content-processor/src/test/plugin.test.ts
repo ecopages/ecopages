@@ -375,7 +375,7 @@ order: 2
 		expect(fileSystem.readFileSync(cacheFile)).not.toContain('"slug":"intro"');
 	});
 
-	test('collectDevPrewarmPlan honors collection pathnames and readiness', async () => {
+	test('collectDevPrewarmPlan honors collection pathnames', async () => {
 		const rootDir = createTempRoot('ecopages-content-prewarm-');
 		tempRoots.push(rootDir);
 
@@ -400,7 +400,6 @@ order: 1
 						schema: testContentSchema,
 						routePrefix: '/docs',
 						devPrewarm: 'first',
-						devPrewarmReadiness: 'beforeReady',
 					},
 				},
 			},
@@ -410,7 +409,6 @@ order: 1
 
 		expect(await plugin.collectDevPrewarmPlan()).toEqual({
 			pathnames: ['/docs/intro'],
-			readiness: 'beforeReady',
 		});
 	});
 

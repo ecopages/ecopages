@@ -667,6 +667,7 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		}
 
 		this.adapterDisposed = true;
+		await this.stopDevStaticRoutePrewarm();
 
 		await disposeDevResources({
 			projectWatcher: this.projectWatcher,

@@ -4,10 +4,13 @@ import { createStringMarkupIntegration } from '@ecopages/testing';
 import type { EcoPagesUserConfig } from '@ecopages/core/config';
 
 export function createCoreHmrUserConfig(options: { withPostcss?: boolean } = {}): EcoPagesUserConfig {
+	const artifactScope = process.env.ECOPAGES_E2E_ARTIFACT_SCOPE?.trim();
 	const config: EcoPagesUserConfig = {
 		rootDir: import.meta.dirname,
+		distDir: artifactScope ? `dist-${artifactScope}` : 'dist',
+		workDir: artifactScope ? `.eco-${artifactScope}` : '.eco',
 		integrations: [createStringMarkupIntegration({ extensions: ['.ts'] })],
-		devPrewarmBeforeReadyPaths: options.withPostcss ? ['/postcss-hmr'] : ['/'],
+		devPrewarmPaths: options.withPostcss ? ['/postcss-hmr'] : ['/'],
 	};
 
 	if (options.withPostcss) {

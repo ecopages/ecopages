@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { once } from 'node:events';
 import { Readable } from 'node:stream';
 import { isDocumentHtmlNavigationFromHeaders } from './document-html-navigation.ts';
 import { injectEcopagesHmrRuntimeIntoHtml } from './ecopages-hmr-runtime-injection.ts';
@@ -96,6 +95,28 @@ async function sendWebResponse(res: ServerResponse, webResponse: Response): Prom
 
 function isAbortError(error: unknown): boolean {
 	return error instanceof Error && error.name === 'AbortError';
+}
+
+/**
+ * Resolves on the server's next `listening` event, or rejects when `signal` aborts.
+ *
+ * @remarks
+ * Ignores `error` events on purpose: Vite catches `EADDRINUSE` and retries the next port, so an error
+ * does not mean the server will never bind. Errors Vite cannot recover from reject its own `listen()`.
+ */
+function waitForListening(httpServer: NonNullable<ViteDevServer['httpServer']>, signal: AbortSignal): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const onAbort = () => {
+			httpServer.off('listening', onListening);
+			reject(signal.reason);
+		};
+		const onListening = () => {
+			signal.removeEventListener('abort', onAbort);
+			resolve();
+		};
+		httpServer.once('listening', onListening);
+		signal.addEventListener('abort', onAbort, { once: true });
+	});
 }
 
 function logError(server: ViteDevServer, message: string, error: unknown): void {
@@ -268,13 +289,9 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 			const httpServer = server.httpServer;
 			const ssrEnvironment = server.environments.ssr;
 			const listenAbort = new AbortController();
-			const listenFailures = new WeakSet<object>();
 			const listening =
 				httpServer && !httpServer.listening
-					? once(httpServer, 'listening', { signal: listenAbort.signal }).catch((error: unknown) => {
-							if (typeof error === 'object' && error !== null) listenFailures.add(error);
-							throw error;
-						})
+					? waitForListening(httpServer, listenAbort.signal)
 					: Promise.resolve();
 			let closed = false;
 
@@ -287,14 +304,7 @@ export function ecopagesDevServer(api: EcopagesPluginApi): EcopagesVitePlugin {
 				});
 				appReady.catch((error: unknown) => {
 					if (closed || isAbortError(error)) return;
-					const duringListen = typeof error === 'object' && error !== null && listenFailures.has(error);
-					logError(
-						server,
-						duringListen
-							? 'Failed while waiting for the dev server to listen'
-							: 'Failed to load the app entry',
-						error,
-					);
+					logError(server, 'Failed to load the app entry', error);
 				});
 				stopAppByEnvironment.set(ssrEnvironment, async () => {
 					closed = true;

@@ -1,6 +1,6 @@
 ---
-'@ecopages/core': patch
-'@ecopages/content-processor': patch
+'@ecopages/core': minor
+'@ecopages/content-processor': minor
 ---
 
 Development static route prewarm now runs asynchronously in the background after the response pipeline is ready, removing Page prewarming from the startup readiness gate.

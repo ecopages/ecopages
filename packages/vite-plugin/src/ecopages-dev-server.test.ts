@@ -525,6 +525,29 @@ describe('ecopagesDevServer', () => {
 		expect(announcedWhileBound).toBe(true);
 	});
 
+	it('keeps waiting for the listener when Vite retries a port that is in use', async () => {
+		const handleListening = vi.fn();
+		const harness = await setupDevServerMiddleware(new Response('ok'), {
+			httpServerListening: false,
+			devServerOrigin: 'http://localhost:4019',
+			module: { app: { fetch: async () => new Response('bound'), handleListening } },
+		});
+		setImmediate(() => {
+			harness.httpServer!.emit('error', Object.assign(new Error('listen EADDRINUSE'), { code: 'EADDRINUSE' }));
+			harness.httpServer!.listening = true;
+			harness.httpServer!.emit('listening');
+		});
+		harness.httpServer!.on('error', () => {});
+
+		await harness.middleware?.({ headers: {}, method: 'GET', originalUrl: '/' }, harness.response, (error) => {
+			if (error) throw error;
+		});
+
+		expect(harness.getBody()).toBe('bound');
+		expect(handleListening).toHaveBeenCalledWith('http://localhost:4019');
+		expect(harness.logger.error).not.toHaveBeenCalled();
+	});
+
 	it('attaches app websocket upgrades before serving HTTP', async () => {
 		let attachCompleted = false;
 		let attachCompletedAtFetch: boolean | undefined;

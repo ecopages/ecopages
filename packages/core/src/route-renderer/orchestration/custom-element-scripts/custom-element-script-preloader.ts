@@ -1,14 +1,17 @@
 import { getComponentIdentity } from '../../../eco/component-identity.ts';
 import type { EcoComponent, EcoComponentConfig } from '../../../types/public-types.ts';
+import { copyFile, mkdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
 	getCustomElementScriptPreloadScopeState,
 	invalidateCustomElementScriptPreload,
+	resetCustomElementScriptPreloadScope,
 } from './custom-element-script-preload-invalidation.ts';
 
-export { invalidateCustomElementScriptPreload };
+export { invalidateCustomElementScriptPreload, resetCustomElementScriptPreloadScope };
 
 const registryKeys = new WeakMap<CustomElementRegistry, string>();
 
@@ -187,7 +190,7 @@ export class CustomElementScriptPreloader {
 		this.enabled = enabled;
 		this.requireLazyScriptEntry = requireLazyScriptEntry;
 		this.resolveDependencyPath = resolveDependencyPath;
-		this.preferSourceImports = preferSourceImports ?? typeof Bun !== 'undefined';
+		this.preferSourceImports = preferSourceImports ?? false;
 		this.resolvePreloadEntrypoint = resolvePreloadEntrypoint;
 		this.importServerModule = importServerModule;
 		this.collectForIntegration = collectForIntegration;
@@ -285,11 +288,12 @@ export class CustomElementScriptPreloader {
 
 		if (this.resolvePreloadEntrypoint) {
 			const preloadEntrypoint = await this.resolvePreloadEntrypoint(scriptPath);
-			const importUrl = pathToFileURL(preloadEntrypoint);
-			if (registry && typeof Bun === 'undefined') {
-				importUrl.searchParams.set('eco-ssr-registry', registryKey);
+			if (registry && path.resolve(preloadEntrypoint) !== path.resolve(scriptPath)) {
+				await importModuleForRegistry(preloadEntrypoint, registryKey);
+				return;
 			}
-			await import(/* @vite-ignore */ importUrl.href);
+
+			await importModuleInPlace(preloadEntrypoint, registry ? registryKey : undefined);
 			return;
 		}
 
@@ -300,14 +304,51 @@ export class CustomElementScriptPreloader {
 
 		if (!this.preferSourceImports) {
 			throw new Error(
-				`Cannot preload SSR script ${scriptPath}: configure appConfig.runtime.appModuleLoader or enable source imports (Bun)`,
+				`Cannot preload SSR script ${scriptPath}: configure appConfig.runtime.appModuleLoader or enable source imports`,
 			);
 		}
 
-		const importUrl = pathToFileURL(scriptPath);
-		if (registry && typeof Bun === 'undefined') {
-			importUrl.searchParams.set('eco-ssr-registry', registryKey);
-		}
-		await import(/* @vite-ignore */ importUrl.href);
+		await importModuleInPlace(scriptPath, registry ? registryKey : undefined);
 	}
+}
+
+/**
+ * Evaluates a source module where it lives.
+ *
+ * @remarks
+ * Moving the file would resolve its imports from the wrong directory. A query
+ * distinguishes registries on Node. Bun ignores that query after
+ * `customElements.define`, so a source import cannot isolate registries there;
+ * the asset-pipeline file is the path that can.
+ */
+async function importModuleInPlace(modulePath: string, registryKey: string | undefined): Promise<void> {
+	const importUrl = pathToFileURL(modulePath);
+	if (registryKey !== undefined) {
+		importUrl.searchParams.set('eco-ssr-registry', registryKey);
+	}
+	await import(/* @vite-ignore */ importUrl.href);
+}
+
+/**
+ * Evaluates an asset-pipeline module against one custom-element registry.
+ *
+ * @remarks
+ * After a module calls `CustomElementRegistry#define`, Bun keys that module by
+ * file path and ignores a later import that differs only by query. Node
+ * re-evaluates the query. A copy under a registry-specific temp directory
+ * evaluates again on both runtimes. The pipeline file is self-contained, so
+ * the copy does not need the original directory.
+ */
+async function importModuleForRegistry(modulePath: string, registryKey: string): Promise<void> {
+	const importPath = await copyModuleForRegistry(modulePath, registryKey);
+	await import(/* @vite-ignore */ pathToFileURL(importPath).href);
+}
+
+async function copyModuleForRegistry(modulePath: string, registryKey: string): Promise<string> {
+	const copyDir = path.join(tmpdir(), 'ecopages-ssr-registry', registryKey);
+	const pathStamp = createHash('sha256').update(modulePath).digest('hex').slice(0, 12);
+	const copyPath = path.join(copyDir, `${pathStamp}-${path.basename(modulePath)}`);
+	await mkdir(copyDir, { recursive: true });
+	await copyFile(modulePath, copyPath);
+	return copyPath;
 }

@@ -101,12 +101,11 @@ const runtime = getEcoNavigationRuntime();
 
 The coordinator is framework-agnostic. Browser runtimes (e.g. `browser-router`, `react-router`) register themselves and the coordinator arbitrates:
 
-- **Ownership** — which runtime currently drives SPA navigation (`claimOwnership`, `releaseOwnership`, `setOwner`).
+- **Ownership** — which runtime currently drives SPA navigation (`claimOwnership`, `releaseOwnership`).
 - **Document owner marker** — an HTML attribute (`data-eco-document-owner`) written into rendered markup so the coordinator can `adoptDocumentOwner` on the incoming page.
 - **Navigation transactions** — each navigation begins a transaction with an `AbortSignal`; superseded navigations are automatically cancelled.
 - **Cross-runtime handoff** — `requestHandoff` passes a pre-fetched `Document` to the target runtime without tearing down the current page prematurely.
 - **Reload** — `reloadCurrentPage` delegates to whichever runtime currently owns the document.
-- **Events** — `subscribe` lets runtimes react to `owner-change` and `registration-change` events.
 
 ### Navigation Lifecycle (`navigation-lifecycle.ts`)
 
@@ -127,8 +126,6 @@ The shared navigation pipeline emits these events around the router-specific swa
 - `eco:before-swap` — pre-commit hook with `newDocument` and `reload()`
 - `eco:after-swap` — post-commit signal after the runtime has applied the new page
 - `eco:page-load` — scheduled on the next animation frame after `eco:after-swap`
-
-This is separate from coordinator `subscribe()` events, which track runtime ownership rather than page lifecycle.
 
 Scripts listening to client navigation events (`eco:after-swap`, `eco:page-load`) should be registered as client scripts (e.g., using `scripts: ['./component.script.ts']`) or guarded by `isServer` from `@ecopages/radiant/is-server` when used in Radiant projects where `document` is defined during SSR.
 

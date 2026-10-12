@@ -7,7 +7,7 @@ import { afterEach, test, vi } from 'vitest';
 import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
-import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
+import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { NodeHmrManager } from './node-hmr-manager.ts';
 
 const tempRoots: string[] = [];
@@ -234,8 +234,6 @@ test('NodeHmrManager keeps internal browser and server-module outputs out of dis
 			broadcast: () => {},
 		} as any,
 	});
-
-	assert.equal(manager.getRuntimeWorkDir(), path.join(resolveInternalWorkDir(config), 'assets', 'hmr-runtime'));
 
 	const importModule = vi.fn(async (_options: { outdir: string }) => ({}));
 	(manager as unknown as { serverModuleTranspiler: { importModule: typeof importModule } }).serverModuleTranspiler = {

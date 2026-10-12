@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { resetRerunNonceForTests } from '../../core/src/client/navigation-scripts/rerun-queue.ts';
 import {
 	activatePreparedNavigationScripts,
 	prepareNavigationHead,
@@ -35,7 +34,6 @@ function resetDocument(): void {
 	document.head.innerHTML = '';
 	document.body.innerHTML = '';
 	document.title = '';
-	resetRerunNonceForTests();
 }
 
 afterEach(() => {
@@ -407,10 +405,12 @@ describe('DomSwapper service behavior', () => {
 			document.head.appendChild = originalAppendChild;
 		}
 
-		expect(observedSrcs[0]).toContain('__eco_rerun=1');
-		expect(
-			document.head.querySelector<HTMLScriptElement>('script[src*="/assets/counter.js"]')?.getAttribute('src'),
-		).toContain('__eco_rerun=2');
+		const finalSrc = document.head
+			.querySelector<HTMLScriptElement>('script[src*="/assets/counter.js"]')
+			?.getAttribute('src');
+		expect(observedSrcs[0]).toContain('__eco_rerun=');
+		expect(finalSrc).toContain('__eco_rerun=');
+		expect(finalSrc).not.toBe(observedSrcs[0]);
 		expect(document.head.querySelectorAll('script[src*="/assets/counter.js"]')).toHaveLength(1);
 	});
 
@@ -447,10 +447,12 @@ describe('DomSwapper service behavior', () => {
 			document.head.appendChild = originalAppendChild;
 		}
 
-		expect(observedSrcs[0]).toContain('__eco_rerun=1');
-		expect(
-			document.head.querySelector<HTMLScriptElement>('script[src*="/assets/counter.js"]')?.getAttribute('src'),
-		).toContain('__eco_rerun=2');
+		const finalSrc = document.head
+			.querySelector<HTMLScriptElement>('script[src*="/assets/counter.js"]')
+			?.getAttribute('src');
+		expect(observedSrcs[0]).toContain('__eco_rerun=');
+		expect(finalSrc).toContain('__eco_rerun=');
+		expect(finalSrc).not.toBe(observedSrcs[0]);
 		expect(document.head.querySelectorAll('script[src*="/assets/counter.js"]')).toHaveLength(1);
 	});
 

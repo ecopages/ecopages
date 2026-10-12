@@ -11,7 +11,6 @@ import {
 	removeStaleHmrEntrypointOutput,
 	isRegisteredDevTransformEntrypoint,
 	isRegisteredScriptEntrypoint,
-	type ResolvedHmrEntrypoint,
 } from '../../../hmr/hmr-entrypoint-output.ts';
 import type {
 	DefaultHmrContext,
@@ -26,7 +25,7 @@ import { JsHmrStrategy } from '../../../hmr/strategies/js-hmr-strategy.ts';
 import { ServerRenderedTemplateHmrStrategy } from '../../../hmr/strategies/server-rendered-template-hmr-strategy.ts';
 import { DevelopmentInvalidationService } from '../../../services/invalidation/development-invalidation.service.ts';
 import { appLogger } from '../../../global/app-logger.ts';
-import type { ClientBridgeEvent, HmrFileChangeOptions } from '../../../types/public-types.ts';
+import type { ClientBridgeEvent, HmrFileChangeOptions, ResolvedHmrEntrypoint } from '../../../types/public-types.ts';
 import { DevTransformEntrypointRegistry } from './dev-transform-entrypoint-registry.ts';
 import { BrowserBundleService } from '../../../services/assets/browser-bundle.service.ts';
 import { getAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
@@ -223,7 +222,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 		}
 	}
 
-	public getRuntimePath(): string {
+	private getRuntimePath(): string {
 		return path.join(this.runtimeWorkDir, path.basename(HMR_RUNTIME_SCRIPT_URL));
 	}
 
@@ -233,10 +232,6 @@ export abstract class SharedHmrManager implements IHmrManager {
 			workDir: this.devToolbarWorkDir,
 			onFailure: (error) => this.onRuntimeBundleFailure(error),
 		});
-	}
-
-	public getDevToolbarRuntimePath(): string {
-		return path.join(this.devToolbarWorkDir, path.basename(DEV_TOOLBAR_RUNTIME_SCRIPT_URL));
 	}
 
 	private async buildRuntimeInternal(): Promise<boolean> {
@@ -445,10 +440,6 @@ export abstract class SharedHmrManager implements IHmrManager {
 		});
 	}
 
-	public getOutputUrl(entrypointPath: string): string | undefined {
-		return this.entrypointRegistry.getRegisteredEntrypoints().get(path.resolve(entrypointPath))?.outputUrl;
-	}
-
 	/**
 	 * Returns the registered script output when the entrypoint is already tracked for HMR.
 	 *
@@ -515,10 +506,6 @@ export abstract class SharedHmrManager implements IHmrManager {
 		}
 
 		return null;
-	}
-
-	public getRuntimeWorkDir(): string {
-		return this.runtimeWorkDir;
 	}
 
 	public getDefaultContext(): DefaultHmrContext {

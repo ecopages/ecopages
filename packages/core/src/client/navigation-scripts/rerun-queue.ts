@@ -110,8 +110,3 @@ export function toRerunScriptActivation(script: PendingRerunScript): {
 		},
 	};
 }
-
-/** @remarks Test-only reset for nonce sequencing. */
-export function resetRerunNonceForTests(): void {
-	rerunNonce = 0;
-}

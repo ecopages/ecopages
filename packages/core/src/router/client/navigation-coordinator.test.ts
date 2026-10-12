@@ -223,29 +223,4 @@ describe('getEcoNavigationRuntime', () => {
 		expect(cleanupSpy).toHaveBeenCalledTimes(1);
 		expect(runtime.getOwnerState().owner).toBe('none');
 	});
-
-	it('emits events for registrations and ownership changes', () => {
-		const windowLike = createWindowLike();
-		const runtime = getEcoNavigationRuntime(windowLike);
-		const listener = vi.fn();
-		const unsubscribe = runtime.subscribe(listener);
-
-		const unregister = runtime.register({ owner: 'custom-router' });
-		runtime.claimOwnership('custom-router');
-		runtime.releaseOwnership('custom-router');
-		unregister();
-		unsubscribe();
-
-		expect(listener).toHaveBeenCalledWith({
-			type: 'registration-change',
-			owner: 'custom-router',
-			status: 'registered',
-		});
-		expect(listener).toHaveBeenCalledWith({
-			type: 'owner-change',
-			owner: 'custom-router',
-			previousOwner: 'none',
-			reason: 'claim',
-		});
-	});
 });

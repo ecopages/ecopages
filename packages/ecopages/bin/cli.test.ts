@@ -453,26 +453,26 @@ describe('CLI Commands', () => {
 		);
 	});
 
-	it.each([
-		['build', '--build'],
-		['preview', '--preview'],
-	])('forwards --force to %s', async (command, entryArg) => {
-		await runCli([command, '--force']);
-		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
-			[entryArg, '--force'],
-			expect.objectContaining({ nodeEnv: 'production' }),
-			'app.ts',
-			command,
-		);
-	});
-
-	it('rejects --force for commands that do not build', async () => {
+	it.each(['build', 'preview', 'start'])('rejects --force for %s as an unknown option', async (command) => {
 		const exitSpy = mockProcessExit();
 
-		await expect(runCli(['start', '--force'])).rejects.toThrow('process.exit:1');
+		await expect(runCli([command, '--force'])).rejects.toThrow('process.exit:1');
 		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
 
 		exitSpy.mockRestore();
+	});
+
+	it('describes what the build does in the build help', async () => {
+		const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+		await runCli(['build', '--help']);
+
+		const help = String(log.mock.calls.at(-1)?.[0]);
+		expect(help).toContain('pre-render the Pages in src/pages');
+		expect(help).toContain('write the result to dist');
+		expect(help).not.toContain('--force');
+		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
+		log.mockRestore();
 	});
 
 	it('passes shared build options like base url and hostname correctly', async () => {

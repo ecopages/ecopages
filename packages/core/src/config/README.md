@@ -15,13 +15,11 @@ It is responsible for:
 - appending the core [HTML Pages](../html-pages/README.md) Integration after user Integrations unless one of them declares `.html`, so `.html` routes work in every app
 - resolving semantic paths such as `html` and `404` templates from registered Integration extensions; more than one match for a basename (for example `html.tsx` and `html.html`) is an error
 - creating app-owned runtime state: the Rolldown build adapter, the build manifest, the server invalidation counter, and a no-op entrypoint dependency graph that development replaces (build executors are installed later, at server startup)
-- enforcing runtime capability requirements before startup
 
 ## Main Files
 
 - `define-config.ts`: synchronous `defineConfig()` identity for `eco.config.ts` authoring
 - `finalize-config.ts`: `finalizeEcoPagesConfig(userConfig, options)`, the only finalization path. Workspace packages and tests import it from `@ecopages/core/internal/finalize-config`; the npm build drops every `./internal/*` subpath from the published package. It applies defaults (omitted `rootDir` resolves from `cwd`; `baseUrl` falls back to `ECOPAGES_BASE_URL`, then `http://localhost:3000`; `absolutePaths.config` defaults to `<rootDir>/eco.config.ts`), runs every validation, and installs runtime state
-- `runtime-capability-validation.ts`: rejects Integrations and Processors whose `runtimeCapability` the current runtime cannot meet
 - `load-eco-config.ts`: resolves the config module path, imports the user config, and finalizes it
 - `config-module-files.ts`: when the config is loaded from source, lists it and the project files it imports as `absolutePaths.configModuleFiles`. Packages, files outside `rootDir` and imports that do not resolve stay out. Build-input fingerprints hash these files, and `ecopages dev` restarts when any of them change, so an edit to a plugin options module the config imports takes effect like an edit to the config itself. Components imported by the config lose hot reload.
 - `resolve-eco-config-path.ts`: `eco.config.ts` discovery (`configFile`, `ECOPAGES_CONFIG_FILE`, the `eco.config.mjs` beside a running `.server` entry, cwd default, and production `.server/eco.config.mjs`) and `resolveUserConfigRootDir()`

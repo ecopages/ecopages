@@ -1128,6 +1128,7 @@ describe('LitRenderer', () => {
 			const renderPageInWorker = vi.fn(async () => ({
 				html: '<html>lazy-worker</html>',
 				cacheStrategy: { revalidate: 15 },
+				sourceDependencyPaths: ['/app/pages/index.lit.tsx'],
 			}));
 
 			const renderer = new LitRenderer({
@@ -1165,6 +1166,7 @@ describe('LitRenderer', () => {
 				expect(result).toEqual({
 					body: '<html>lazy-worker</html>',
 					cacheStrategy: { revalidate: 15 },
+					sourceDependencyPaths: ['/app/pages/index.lit.tsx'],
 				});
 			} finally {
 				inProcessSpy.mockRestore();

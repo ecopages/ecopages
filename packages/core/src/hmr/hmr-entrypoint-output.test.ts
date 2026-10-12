@@ -3,8 +3,8 @@ import {
 	encodeHmrDynamicSegments,
 	isRegisteredDevTransformEntrypoint,
 	isRegisteredScriptEntrypoint,
-	type ResolvedHmrEntrypoint,
 } from './hmr-entrypoint-output.ts';
+import type { ResolvedHmrEntrypoint } from '../types/public-types.ts';
 
 function createRegisteredEntrypoint(
 	overrides: Partial<ResolvedHmrEntrypoint> & Pick<ResolvedHmrEntrypoint, 'sourcePath'>,

@@ -10,7 +10,7 @@ import {
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import { createCustomElementSsrPipelineImporter } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-ssr-preload-entrypoint';
 import { LitStaticRenderWorkerClient } from './lit-static-render-worker-client.ts';
-import type { LitStaticRenderCacheStrategy } from './lit-static-render-protocol.ts';
+import type { LitStaticRenderResult } from './lit-static-render-protocol.ts';
 import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 
 type LitStaticRenderWorkerClientContract = Pick<LitStaticRenderWorkerClient, 'start' | 'renderPage' | 'dispose'>;
@@ -121,7 +121,7 @@ export class LitStaticRenderSession {
 		filePath: string;
 		params: PageParams;
 		query?: PageQuery;
-	}): Promise<{ html: string; cacheStrategy?: LitStaticRenderCacheStrategy }> {
+	}): Promise<LitStaticRenderResult> {
 		if (!this.workerClient) {
 			throw new Error('Lit static render worker is not active');
 		}

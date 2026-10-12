@@ -59,7 +59,7 @@ describe('EcoRouter', () => {
 
 			it('should keep intercepting clicks while another document owner is pending but not yet registered', async () => {
 				fixtures.router = createRouter();
-				getEcoNavigationRuntime(window).setOwner('react-router');
+				getEcoNavigationRuntime(window).claimOwnership('react-router');
 				const link = createLink({ href: '/pending-react-route', id: 'pending-react-link' });
 				const pushStateSpy = spyPushState();
 

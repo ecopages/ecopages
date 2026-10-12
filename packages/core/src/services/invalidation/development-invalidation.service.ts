@@ -164,8 +164,13 @@ export class DevelopmentInvalidationService {
 		this.invalidatePageBrowserGraphs(files);
 	}
 
+	/**
+	 * @remarks
+	 * An `additionalWatchPaths` file can be read by any page without recording it, so a match clears
+	 * every cached document. Every other edit evicts only the entries that recorded the path.
+	 */
 	private async invalidatePageHtmlCache(files: AppliedDevFileChange[]): Promise<void> {
-		if (files.some(shouldClearAllPageHtmlCache)) {
+		if (files.some((file) => file.plan.category === 'additional-watch')) {
 			await clearAppPageCache(this.appConfig);
 			return;
 		}
@@ -393,21 +398,4 @@ export class DevelopmentInvalidationService {
 
 		return false;
 	}
-}
-
-/**
- * Returns whether a change must drop every cached HTML document.
- *
- * @remarks
- * Recorded HTML inputs do not cover every way a page reads a source file: content collections are
- * virtual modules, and inferred foreign children and barrel targets reach a page without entering its recorded closure. Evicting only entries that recorded the
- * path served stale pages in those cases, so source edits and processor-owned asset edits clear the
- * cache. A newly created processor-owned asset has no dependents yet, and a route file evicts only
- * its own entries.
- */
-function shouldClearAllPageHtmlCache(file: AppliedDevFileChange): boolean {
-	if (file.plan.category === 'processor-owned-asset') {
-		return file.kind !== 'created';
-	}
-	return file.plan.category === 'additional-watch' || file.plan.category === 'source';
 }

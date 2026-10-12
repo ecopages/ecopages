@@ -34,8 +34,6 @@ class StylesheetProcessor extends Processor {
 
 	override async setup(): Promise<void> {}
 
-	override async teardown(): Promise<void> {}
-
 	override async process<T>(input: T): Promise<T> {
 		return input;
 	}
@@ -56,8 +54,6 @@ class ContentCollectionProcessor extends Processor {
 	}
 
 	override async setup(): Promise<void> {}
-
-	override async teardown(): Promise<void> {}
 
 	override async process<T>(input: T): Promise<T> {
 		return input;
@@ -452,7 +448,7 @@ describe('DevelopmentInvalidationService', () => {
 		registerAppPageCacheService(appConfig, null);
 	});
 
-	it('drops every cached HTML document when a processor-owned stylesheet changes', async () => {
+	it('evicts only the cached HTML documents that recorded a changed processor-owned stylesheet', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		appConfig.processors.set('css', new StylesheetProcessor());
 		const pageCache = new PageCacheService({ dependencyIndex: getAppBuildInputIndex(appConfig) });
@@ -467,12 +463,12 @@ describe('DevelopmentInvalidationService', () => {
 			deleted: [],
 		});
 
-		expect(clearHtml).toHaveBeenCalledTimes(1);
-		expect(invalidateHtml).not.toHaveBeenCalled();
+		expect(clearHtml).not.toHaveBeenCalled();
+		expect(invalidateHtml).toHaveBeenCalledWith(['/test/project/src/styles/main.css']);
 		registerAppPageCacheService(appConfig, null);
 	});
 
-	it('drops every cached HTML document when a source file changes, including pages that did not record it', async () => {
+	it('evicts only the cached HTML documents that recorded a changed source file', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		const pageCache = new PageCacheService({ dependencyIndex: getAppBuildInputIndex(appConfig) });
 		registerAppPageCacheService(appConfig, pageCache);
@@ -510,9 +506,9 @@ describe('DevelopmentInvalidationService', () => {
 		await pageCache.getOrCreate('/affected', 'static', renderAffected);
 		await pageCache.getOrCreate('/unrelated', 'static', renderUnrelated);
 
-		expect(clearHtml).toHaveBeenCalledTimes(1);
+		expect(clearHtml).not.toHaveBeenCalled();
 		expect(affectedRenders).toBe(2);
-		expect(unrelatedRenders).toBe(2);
+		expect(unrelatedRenders).toBe(1);
 		registerAppPageCacheService(appConfig, null);
 	});
 

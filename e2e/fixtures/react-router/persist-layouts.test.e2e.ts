@@ -15,6 +15,18 @@ test.describe('React Router Persist Layouts', () => {
 		await expect(layout).toBeVisible();
 	});
 
+	test('shared runtime module state survives navigation between layout pages', async ({ page }) => {
+		await gotoAndWait(page, '/docs');
+		await expect(page.getByTestId('query-client-count')).toHaveText('0');
+
+		await page.getByTestId('increment-query-client-count').click();
+		await expect(page.getByTestId('query-client-count')).toHaveText('1');
+
+		await page.getByTestId('link-getting-started').click();
+		await page.waitForURL('**/docs/getting-started');
+		await expect(page.getByTestId('query-client-count')).toHaveText('1');
+	});
+
 	test('layout changes when navigating to page with different layout', async ({ page }) => {
 		await gotoAndWait(page, '/docs');
 

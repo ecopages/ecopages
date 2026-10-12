@@ -65,14 +65,14 @@ Generates a static production build of your project.
 - Optimizes assets and images.
 - Outputs the build to the `dist` directory.
 - Strips development-only code.
-- Empties `dist` and renders every page from source on every run.
+- Empties `dist` and renders every Page from source on each run; the command takes no option to reuse earlier output.
 
 ### `preview`
 
 Builds your project and starts a local production server for testing.
 
 - Useful for verifying the production build before deployment.
-- Rebuilds `dist` first, then serves that output locally. Accepts `--force` like `build`.
+- Runs the same build as `build` first, then serves the `dist` output locally.
 
 ### `start`
 

@@ -129,8 +129,14 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		await manager.registerScriptEntrypoint(secondEntrypoint);
 
 		assert.deepEqual(buildCalls, []);
-		assert.equal(manager.getOutputUrl(firstEntrypoint), `${DEV_TRANSFORM_URL_PREFIX}/first.script.js`);
-		assert.equal(manager.getOutputUrl(secondEntrypoint), `${DEV_TRANSFORM_URL_PREFIX}/second.script.js`);
+		assert.equal(
+			manager.getRegisteredEntrypoints().get(firstEntrypoint)?.outputUrl,
+			`${DEV_TRANSFORM_URL_PREFIX}/first.script.js`,
+		);
+		assert.equal(
+			manager.getRegisteredEntrypoints().get(secondEntrypoint)?.outputUrl,
+			`${DEV_TRANSFORM_URL_PREFIX}/second.script.js`,
+		);
 	});
 
 	test('stop clears retained registration state', async () => {

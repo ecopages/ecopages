@@ -1,6 +1,9 @@
 import type { PageParams, PageQuery, RouteRenderResult } from '@ecopages/core';
 
-export type LitStaticRenderCacheStrategy = RouteRenderResult['cacheStrategy'];
+/** A rendered page and the metadata the main thread needs to cache it. */
+export type LitStaticRenderResult = Pick<RouteRenderResult, 'cacheStrategy' | 'sourceDependencyPaths'> & {
+	html: string;
+};
 
 export type LitStaticRenderWorkerInitMessage = {
 	type: 'init';
@@ -32,9 +35,7 @@ export type LitStaticRenderWorkerReadyMessage = {
 export type LitStaticRenderWorkerResultMessage = {
 	type: 'result';
 	id: string;
-	html: string;
-	cacheStrategy?: LitStaticRenderCacheStrategy;
-};
+} & LitStaticRenderResult;
 
 export type LitStaticRenderWorkerErrorMessage = {
 	type: 'error';

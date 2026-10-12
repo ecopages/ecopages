@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { vi } from 'vitest';
 import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
-import type { ResolvedHmrEntrypoint } from '../hmr/hmr-entrypoint-output.ts';
+import type { ResolvedHmrEntrypoint } from '../types/public-types.ts';
 import {
 	InMemoryEntrypointDependencyGraph,
 	setAppEntrypointDependencyGraph,
@@ -24,11 +24,8 @@ export const createMockHmrManager = (): IHmrManager =>
 		})),
 		registerStrategy: vi.fn(() => {}),
 		isEnabled: vi.fn(() => true),
-		getOutputUrl: vi.fn(() => undefined),
 		getWatchedFiles: vi.fn(() => new Map()),
 		getRegisteredEntrypoints: vi.fn(() => new Map()),
-		getRuntimeWorkDir: vi.fn(() => ''),
-		getRuntimePath: vi.fn(() => ''),
 		tryHandleAssetRequest: vi.fn(() => null),
 		getDefaultContext: vi.fn(() => ({
 			getWatchedFiles: () => new Map(),

@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 async function readDevTransformModule(manager: NodeHmrManager, entrypointPath: string): Promise<string | undefined> {
-	const outputUrl = manager.getOutputUrl(entrypointPath);
+	const outputUrl = manager.getRegisteredEntrypoints().get(path.resolve(entrypointPath))?.outputUrl;
 	if (!outputUrl) {
 		return undefined;
 	}
@@ -75,7 +75,7 @@ describe('JsHmrStrategy integration', () => {
 		await manager.registerScriptEntrypoint(entrypointPath);
 
 		expect(manager.getWatchedFiles().has(path.resolve(entrypointPath))).toBe(true);
-		expect(manager.getOutputUrl(entrypointPath)).toBe(
+		expect(manager.getRegisteredEntrypoints().get(path.resolve(entrypointPath))?.outputUrl).toBe(
 			`${DEV_TRANSFORM_URL_PREFIX}/components/script-hmr/widget.script.eco.js`,
 		);
 
@@ -143,7 +143,7 @@ describe('JsHmrStrategy integration', () => {
 
 		await manager.registerScriptEntrypoint(entrypointPath);
 
-		expect(manager.getOutputUrl(entrypointPath)).toBe(
+		expect(manager.getRegisteredEntrypoints().get(path.resolve(entrypointPath))?.outputUrl).toBe(
 			`${DEV_TRANSFORM_URL_PREFIX}/layouts/base-layout/base-layout.script.js`,
 		);
 

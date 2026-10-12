@@ -10,8 +10,7 @@ These contracts are responsible for:
 
 - integration registration and lifecycle hooks
 - processor registration and asset capability declaration
-- runtime capability declaration and validation input
-- shared build-plugin bridge types used by integrations and processors, including `addDependency` on the `onLoad` context so a plugin can record files it reads besides the loaded module
+- shared build-plugin bridge types used by integrations and processors
 
 ## Main Files
 
@@ -19,7 +18,6 @@ These contracts are responsible for:
 - `define-integration.ts`: typed factory for integrations that only need declarative config and a renderer class
 - `find-integration-for-file.ts`: resolves the Integration that owns a file by its longest registered extension; route rendering, page-module loading, route discovery, the pages graph, and component attribution all use it
 - `processor.ts`: asset-transformation contract for processors, including generated `@types` package helpers for virtual modules
-- `runtime-capability.ts`: runtime compatibility declaration types
 - `source-transform.ts`: bundler-neutral source-transform primitive; Rolldown builds run them as `transform` plugins
 - `component-import-discovery.ts`: resolves direct local factory exports, named `export { X } from` barrels (imported binding only), relative CSS imports, and aliased CSS imports; records the imported module, factory file, and successful named re-export hops as watch files; excludes `export *`, type imports, package imports, and ordinary helpers.
 - `eco-component-meta-plugin.ts`: component-identity attribution transform for `eco.*()` factories and `attributeMdxComponentIdentity` for compiled MDX modules

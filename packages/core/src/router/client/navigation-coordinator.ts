@@ -84,21 +84,6 @@ export type EcoNavigationTransaction = {
 	complete: () => void;
 };
 
-export type EcoNavigationRuntimeEvent =
-	| {
-			type: 'owner-change';
-			owner: EcoNavigationOwner;
-			previousOwner: EcoNavigationOwner;
-			reason: 'set' | 'claim' | 'release' | 'document' | 'unregister';
-	  }
-	| {
-			type: 'registration-change';
-			owner: EcoNavigationOwner;
-			status: 'registered' | 'unregistered';
-	  };
-
-export type EcoNavigationRuntimeListener = (event: EcoNavigationRuntimeEvent) => void;
-
 export type EcoNavigationRuntimeRegistration = {
 	owner: EcoNavigationOwner;
 	navigate?: (request: EcoNavigationRequest) => Promise<boolean | void>;
@@ -131,8 +116,6 @@ export interface EcoNavigationRuntime {
 	hasPendingNavigationTransaction(): boolean;
 	/** Cancels the active navigation transaction, if one exists. */
 	cancelCurrentNavigationTransaction(): void;
-	/** Forces the current owner value without checking registrations. */
-	setOwner(owner: EcoNavigationOwner): void;
 	/** Claims ownership for a runtime that is ready to drive SPA navigation. */
 	claimOwnership(owner: EcoNavigationOwner): void;
 	/** Releases ownership when the given runtime no longer controls the document. */
@@ -141,10 +124,6 @@ export interface EcoNavigationRuntime {
 	resolveDocumentOwner(doc: Document, fallbackOwner?: EcoNavigationOwner): EcoNavigationOwner;
 	/** Reads and adopts the rendered document owner as the active runtime owner. */
 	adoptDocumentOwner(doc: Document, fallbackOwner?: EcoNavigationOwner): EcoNavigationOwner;
-	/** Returns whether the active owner is some runtime other than the given owner. */
-	isOwnedByAnotherRuntime(owner: EcoNavigationOwner): boolean;
-	/** Subscribes to ownership and registration change events. */
-	subscribe(listener: EcoNavigationRuntimeListener): () => void;
 	/** Registers a runtime implementation with the coordinator. */
 	register(runtime: EcoNavigationRuntimeRegistration): () => void;
 	/** Requests navigation through another eligible registered runtime. */
@@ -161,8 +140,6 @@ export interface EcoNavigationRuntime {
 	reloadCurrentPage(request?: EcoReloadRequest): Promise<boolean>;
 	/** Runs a target runtime's cleanup hook before handoff. */
 	cleanupOwner(owner: EcoNavigationOwner): Promise<void>;
-	/** Runs cleanup for whichever runtime currently owns the document. */
-	cleanupCurrentOwner(): Promise<void>;
 }
 
 /**
@@ -207,34 +184,9 @@ function getCandidateOwners(
 
 function createEcoNavigationRuntime(): EcoNavigationRuntime {
 	const registrations = new Map<EcoNavigationOwner, EcoNavigationRuntimeRegistration>();
-	const listeners = new Set<EcoNavigationRuntimeListener>();
 	let owner: EcoNavigationOwner = 'none';
 	let navigationSequence = 0;
 	let navigationAbortController: AbortController | null = null;
-
-	const emit = (event: EcoNavigationRuntimeEvent) => {
-		for (const listener of listeners) {
-			listener(event);
-		}
-	};
-
-	const updateOwner = (
-		nextOwner: EcoNavigationOwner,
-		reason: Extract<EcoNavigationRuntimeEvent, { type: 'owner-change' }>['reason'],
-	) => {
-		if (owner === nextOwner) {
-			return;
-		}
-
-		const previousOwner = owner;
-		owner = nextOwner;
-		emit({
-			type: 'owner-change',
-			owner: nextOwner,
-			previousOwner,
-			reason,
-		});
-	};
 
 	const cancelNavigationTransaction = (navigationId: number, abortController: AbortController): void => {
 		if (navigationSequence !== navigationId || navigationAbortController !== abortController) {
@@ -294,12 +246,8 @@ function createEcoNavigationRuntime(): EcoNavigationRuntime {
 			cancelNavigationTransaction(navigationSequence, navigationAbortController);
 		},
 
-		setOwner(nextOwner: EcoNavigationOwner): void {
-			updateOwner(nextOwner, 'set');
-		},
-
 		claimOwnership(nextOwner: EcoNavigationOwner): void {
-			updateOwner(nextOwner, 'claim');
+			owner = nextOwner;
 		},
 
 		releaseOwnership(currentOwner: EcoNavigationOwner): void {
@@ -307,7 +255,7 @@ function createEcoNavigationRuntime(): EcoNavigationRuntime {
 				return;
 			}
 
-			updateOwner('none', 'release');
+			owner = 'none';
 		},
 
 		resolveDocumentOwner(doc: Document, fallbackOwner: EcoNavigationOwner = 'none'): EcoNavigationOwner {
@@ -316,28 +264,12 @@ function createEcoNavigationRuntime(): EcoNavigationRuntime {
 
 		adoptDocumentOwner(doc: Document, fallbackOwner: EcoNavigationOwner = 'none'): EcoNavigationOwner {
 			const nextOwner = runtime.resolveDocumentOwner(doc, fallbackOwner);
-			updateOwner(nextOwner, 'document');
+			owner = nextOwner;
 			return nextOwner;
-		},
-
-		isOwnedByAnotherRuntime(candidateOwner: EcoNavigationOwner): boolean {
-			return owner !== 'none' && owner !== candidateOwner;
-		},
-
-		subscribe(listener: EcoNavigationRuntimeListener): () => void {
-			listeners.add(listener);
-			return () => {
-				listeners.delete(listener);
-			};
 		},
 
 		register(registration: EcoNavigationRuntimeRegistration): () => void {
 			registrations.set(registration.owner, registration);
-			emit({
-				type: 'registration-change',
-				owner: registration.owner,
-				status: 'registered',
-			});
 
 			return () => {
 				const currentRegistration = registrations.get(registration.owner);
@@ -346,13 +278,8 @@ function createEcoNavigationRuntime(): EcoNavigationRuntime {
 				}
 
 				registrations.delete(registration.owner);
-				emit({
-					type: 'registration-change',
-					owner: registration.owner,
-					status: 'unregistered',
-				});
 				if (owner === registration.owner) {
-					updateOwner('none', 'unregister');
+					owner = 'none';
 				}
 			};
 		},
@@ -421,12 +348,8 @@ function createEcoNavigationRuntime(): EcoNavigationRuntime {
 
 			await registration.cleanupBeforeHandoff();
 			if (owner === targetOwner) {
-				updateOwner('none', 'release');
+				owner = 'none';
 			}
-		},
-
-		async cleanupCurrentOwner(): Promise<void> {
-			await runtime.cleanupOwner(owner);
 		},
 	};
 

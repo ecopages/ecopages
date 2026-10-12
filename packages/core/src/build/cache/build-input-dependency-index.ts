@@ -286,7 +286,7 @@ export function createBuildInputRecorder(
 }
 
 /**
- * Runs `fn` with `index` receiving every `addDependency` and loaded path.
+ * Runs `fn` with `index` receiving every loaded path.
  */
 export function runWithBuildInputIndex<T>(index: BuildInputDependencyIndex, fn: () => T): T {
 	return activeIndex.run(index, fn);

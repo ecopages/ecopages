@@ -10,8 +10,7 @@ export type ProcessRuntime = {
  *
  * @remarks
  * Reads `process.versions.bun`, which Bun sets through its Node API support, so
- * no Bun global or Bun types are needed. Use it to report the runtime or to check
- * a declared runtime capability, never to branch: every runtime takes the same path.
+ * no Bun global or Bun types are needed. Use it to report the runtime, never to branch: every runtime takes the same path.
  */
 export function getProcessRuntime(): ProcessRuntime {
 	const bunVersion = process.versions.bun;

@@ -60,26 +60,9 @@ describe('IntegrationPlugin', () => {
 	it('should initialize with correct config values', () => {
 		expect(plugin.name).toBe(config.name);
 		expect(plugin.extensions).toEqual(config.extensions);
-		expect(plugin.runtimeCapability).toBeUndefined();
 		expect(plugin.getResolvedIntegrationDependencies()).toEqual(
 			config.integrationDependencies as AssetDefinition[],
 		);
-	});
-
-	it('should retain runtime capability declarations', () => {
-		const pluginWithRuntimeCapability = new TestIntegrationPlugin({
-			name: 'runtime-capable',
-			extensions: ['.test'],
-			runtimeCapability: {
-				tags: ['bun-only'],
-				minRuntimeVersion: '1.0.0',
-			},
-		});
-
-		expect(pluginWithRuntimeCapability.runtimeCapability).toEqual({
-			tags: ['bun-only'],
-			minRuntimeVersion: '1.0.0',
-		});
 	});
 
 	it('should initialize with empty dependencies if not provided', () => {
@@ -106,11 +89,8 @@ describe('IntegrationPlugin', () => {
 			stop: vi.fn(),
 			isEnabled: vi.fn(() => true),
 			broadcast: vi.fn(),
-			getOutputUrl: vi.fn(),
 			getWatchedFiles: vi.fn(() => new Map()),
 			getRegisteredEntrypoints: vi.fn(() => new Map()),
-			getRuntimeWorkDir: vi.fn(() => ''),
-			getRuntimePath: vi.fn(() => ''),
 			tryHandleAssetRequest: vi.fn(() => null),
 			getDefaultContext: vi.fn(),
 			handleFileChange: vi.fn(),

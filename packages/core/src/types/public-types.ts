@@ -282,6 +282,10 @@ export interface IClientBridge {
 
 export interface ResolvedHmrEntrypoint {
 	sourcePath: string;
+	/**
+	 * Emitted artifact path for disk-based HMR, or the resolved source path for
+	 * dev-transform entrypoints where modules are served on demand.
+	 */
 	outputPath: string;
 	outputUrl: string;
 	role: 'page' | 'script';
@@ -334,11 +338,6 @@ export interface IHmrManager {
 	broadcast(event: ClientBridgeEvent): void;
 
 	/**
-	 * Gets the output URL for a registered entrypoint.
-	 */
-	getOutputUrl(entrypointPath: string): string | undefined;
-
-	/**
 	 * Returns an existing emitted HMR script artifact without registering it.
 	 */
 	getResolvedScriptOutput?(entrypointPath: string): ResolvedHmrEntrypoint | undefined;
@@ -352,16 +351,6 @@ export interface IHmrManager {
 	 * Gets registered dev-transform entrypoints keyed by resolved source path.
 	 */
 	getRegisteredEntrypoints(): ReadonlyMap<string, ResolvedHmrEntrypoint>;
-
-	/**
-	 * Gets the on-disk work directory for the bundled HMR client runtime.
-	 */
-	getRuntimeWorkDir(): string;
-
-	/**
-	 * Returns the on-disk path to the bundled HMR runtime script.
-	 */
-	getRuntimePath(): string;
 
 	/**
 	 * Serves a development HMR asset request when the URL matches a known HMR path.
@@ -615,9 +604,8 @@ export interface PageMetadataProps {
  * Configuration for automatic `sitemap.xml` generation during static export.
  *
  * @remarks
- * Disabled by default. When enabled, the sitemap is written after
- * `afterStaticExport` so integration-generated URLs can be listed via
- * `extraUrls`. Use `exclude` for bulk pathname filters and `metadata.robots.index: false`
+ * Disabled by default. When enabled, the sitemap is written after every page,
+ * so files generated during export can be listed via `extraUrls`. Use `exclude` for bulk pathname filters and `metadata.robots.index: false`
  * for page-level noindex that also removes the URL from the sitemap when metadata
  * is available during export.
  */

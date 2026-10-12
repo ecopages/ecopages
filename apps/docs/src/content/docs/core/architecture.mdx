@@ -36,7 +36,7 @@ When a request hits your Ecopages application, it follows this simplified flow:
 
 The integration and processor lifecycle is split into stable framework-owned phases.
 
-1. **Config finalization**: `createApp()` loads the `defineConfig` object from `eco.config.ts` and finalizes it. This validates registrations, initializes processor context, validates runtime capability declarations, collects build contributions, and seals the app-owned build manifest.
+1. **Config finalization**: `createApp()` loads the `defineConfig` object from `eco.config.ts` and finalizes it. This validates registrations, initializes processor context, collects build contributions, and seals the app-owned build manifest.
 2. **Build contribution preparation**: processors run `prepareBuildContributions()` before integrations so asset-side contributions are collected before framework-specific additions.
 3. **App startup setup**: processors run `setup()` before integrations, and integrations receive runtime origin and HMR manager context before request handling begins.
 4. **Request-time rendering**: core selects the route and owning integration, then the integration renderer produces the response body.

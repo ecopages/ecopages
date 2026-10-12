@@ -124,15 +124,14 @@ test('createRolldownPluginBridge resolveId returns undefined for empty callbacks
 	assert.equal(result, undefined);
 });
 
-test('createRolldownPluginBridge load records the module and addDependency paths', async () => {
+test('createRolldownPluginBridge load records the loaded path alone', async () => {
 	const recorded: Array<{ moduleId: string; filePath: string }> = [];
 	const watchFiles: string[] = [];
 	const plugins: EcoBuildPlugin[] = [
 		{
 			name: 'docs',
 			setup(build) {
-				build.onLoad({ filter: /.*/ }, (args) => {
-					args.addDependency?.('/app/content/intro.mdx');
+				build.onLoad({ filter: /.*/ }, () => {
 					return { contents: 'export default 1', loader: 'js' };
 				});
 			},
@@ -148,11 +147,8 @@ test('createRolldownPluginBridge load records the module and addDependency paths
 	) => Promise<unknown>;
 	await load.call({ addWatchFile: (id) => watchFiles.push(id) }, '/app/pages/about.tsx');
 
-	assert.deepEqual(recorded, [
-		{ moduleId: '/app/pages/about.tsx', filePath: '/app/pages/about.tsx' },
-		{ moduleId: '/app/pages/about.tsx', filePath: '/app/content/intro.mdx' },
-	]);
-	assert.deepEqual(watchFiles, ['/app/pages/about.tsx', '/app/content/intro.mdx']);
+	assert.deepEqual(recorded, [{ moduleId: '/app/pages/about.tsx', filePath: '/app/pages/about.tsx' }]);
+	assert.deepEqual(watchFiles, ['/app/pages/about.tsx']);
 });
 
 test('createRolldownPluginBridge load returns moduleType for .tsx files with explicit loader', async () => {
@@ -223,22 +219,6 @@ test('createRolldownPluginBridge load ignores object prototype loader names', as
 	const plugin = bridge[0]!;
 	const result = (await callLoad(plugin, '/app/proto.ts')) as { code: string; moduleType: string } | undefined;
 	assert.equal(result?.moduleType, 'ts');
-});
-
-test('createRolldownPluginBridge load normalizes local-css and global-css to css', async () => {
-	const plugins: EcoBuildPlugin[] = [
-		{
-			name: 'css',
-			setup(build) {
-				build.onLoad({ filter: /.*/ }, () => ({ contents: 'body { color: red; }', loader: 'global-css' }));
-			},
-		},
-	];
-
-	const bridge = await createRolldownPluginBridge(plugins, '/app');
-	const plugin = bridge[0]!;
-	const result = (await callLoad(plugin, '/app/styles.css')) as { code: string; moduleType: string } | undefined;
-	assert.equal(result?.moduleType, 'css');
 });
 
 test('createRolldownPluginBridge module() registers unique namespaces per specifier', async () => {

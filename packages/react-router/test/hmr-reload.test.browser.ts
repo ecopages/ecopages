@@ -735,11 +735,7 @@ describe('EcoRouter HMR Integration', () => {
 
 		it('unregisters the react-router runtime during cleanup-before-handoff', async () => {
 			const Page = createMockPageComponent('PageA');
-			const events: Array<{ type: string; owner?: string; status?: string }> = [];
 			const runtime = getEcoNavigationRuntime(window);
-			const unsubscribe = runtime.subscribe((event) => {
-				events.push(event);
-			});
 
 			root = createRoot(container);
 			root.render(
@@ -758,14 +754,6 @@ describe('EcoRouter HMR Integration', () => {
 				owner: 'none',
 				canHandleSpaNavigation: false,
 			});
-			expect(
-				events.some(
-					(event) =>
-						event.type === 'registration-change' &&
-						event.owner === 'react-router' &&
-						event.status === 'unregistered',
-				),
-			).toBe(true);
 
 			const fetchSpy = vi
 				.spyOn(globalThis, 'fetch')
@@ -774,7 +762,6 @@ describe('EcoRouter HMR Integration', () => {
 
 			expect(handled).toBe(false);
 			expect(fetchSpy).not.toHaveBeenCalled();
-			unsubscribe();
 		});
 
 		it('stops intercepting document clicks after cleanup-before-handoff releases the runtime', async () => {

@@ -30,13 +30,13 @@ Semantic error pages are excluded from ordinary page enumeration and emitted onc
 
 ## Files
 
-| File                                        | Role                                                                       |
-| ------------------------------------------- | -------------------------------------------------------------------------- |
-| `static-site-generator.ts`                  | Route enumeration, HTML artifact writes, integration export hooks, sitemap |
-| `static-export-context.ts`                  | Hook context type for `beforeStaticExport` / `afterStaticExport`           |
-| `sitemap.ts`                                | Pure sitemap.xml renderer                                                  |
-| `sitemap-routes.ts`                         | Sitemap location assembly (`exclude`, `extraUrls`, dedupe)                 |
-| `production-page-browser-graph-prebuild.ts` | Warms and prebuilds browser asset graphs before static export rendering    |
+| File                                        | Role                                                                         |
+| ------------------------------------------- | ---------------------------------------------------------------------------- |
+| `static-site-generator.ts`                  | Route enumeration, HTML artifact writes, integration export hooks, sitemap   |
+| `static-export-context.ts`                  | Hook context type for `beforeStaticExport`                                   |
+| `sitemap.ts`                                | Pure sitemap.xml renderer                                                    |
+| `sitemap-routes.ts`                         | Sitemap location assembly (`exclude`, `extraUrls`, dedupe)                   |
+| `production-page-browser-graph-prebuild.ts` | Warms and prebuilds browser asset graphs before static export rendering      |
 
 ## Export directory
 
@@ -47,9 +47,10 @@ Semantic error pages are excluded from ordinary page enumeration and emitted onc
 Integrations may implement:
 
 - `beforeStaticExport(context)` — runs after unified-graph prebuild, before page rendering
-- `afterStaticExport(context)` — runs in a `finally` block after generation completes
 
-When `appConfig.sitemap.enabled` is true, `sitemap.xml` is written **after** `afterStaticExport` so integration-generated URLs can be listed via `extraUrls`. Development (`ecopages dev`) does not emit this file.
+Core calls no Integration hook after generation.
+
+When `appConfig.sitemap.enabled` is true, `sitemap.xml` is written **after** every page, so a file an Integration writes during export can be listed through `extraUrls`. Development (`ecopages dev`) does not emit this file.
 
 Sitemap eligibility is decided during successful page export (`activeStaticPathnames` plus `robots.index !== false`, fail-closed on metadata errors). `resolveSitemapLocations` then applies `exclude` and appends `extraUrls`.
 

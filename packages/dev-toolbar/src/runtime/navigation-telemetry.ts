@@ -78,26 +78,6 @@ let initialized = false;
 let telemetryDocument: Document | undefined;
 let disposeTelemetryListeners: (() => void) | undefined;
 
-/** @internal */
-export function resetNavigationTelemetryForTests(): void {
-	disposeTelemetryListeners?.();
-	disposeTelemetryListeners = undefined;
-
-	if (typeof window !== 'undefined') {
-		const telemetryWindow = window as EcoNavigationWindow;
-		telemetryWindow.__ECO_DEV_NAV_TELEMETRY_RUNTIME__?.dispose();
-		delete telemetryWindow.__ECO_DEV_NAV_TELEMETRY_RUNTIME__;
-		delete telemetryWindow.__ECO_DEV_NAV_TELEMETRY__;
-	}
-
-	initialized = false;
-	telemetryDocument = undefined;
-	nextEntryId = 0;
-	activeEntry = null;
-	history = [];
-	swapStartedAt = null;
-}
-
 function createEntryId(): string {
 	nextEntryId += 1;
 	return `nav-${nextEntryId}`;

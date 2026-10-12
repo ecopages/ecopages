@@ -11,9 +11,7 @@ import { AssetProcessingService } from '../services/assets/asset-processing-serv
 import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
 import { deepMerge } from '../utils/deep-merge.ts';
 import type { StaticExportContext } from '../static-site-generator/static-export-context.ts';
-import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';
 
-export type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from './runtime-capability.ts';
 export type {
 	EcoBuildLoader,
 	EcoBuildOnLoadArgs,
@@ -55,7 +53,7 @@ export function mergeIntegrationOptions<TDefaults, TOverrides>(
  * Base configuration shared by all integration plugins.
  *
  * @remarks
- * Integrations declare their file ownership, optional runtime requirements, and
+ * Integrations declare their file ownership and
  * any global assets or build-time contributions here. Runtime-only side effects
  * belong in `setup()` rather than the constructor.
  */
@@ -74,11 +72,6 @@ export interface IntegrationPluginConfig {
 	 * They are not specific to any particular page or component.
 	 */
 	integrationDependencies?: AssetDefinition[];
-	/**
-	 * Declares runtime-specific requirements that must be satisfied before the
-	 * app can start with this integration enabled.
-	 */
-	runtimeCapability?: RuntimeCapabilityDeclaration;
 	/**
 	 * JSX import source owned by this integration.
 	 *
@@ -121,7 +114,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	readonly name: string;
 	readonly extensions: string[];
 	abstract renderer: RendererClass<C>;
-	readonly runtimeCapability?: RuntimeCapabilityDeclaration;
 	readonly jsxImportSource?: string;
 
 	/**
@@ -137,7 +129,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 
 	protected integrationDependencies: AssetDefinition[];
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
-	protected options?: Record<string, unknown>;
 	protected appConfig?: EcoPagesAppConfig;
 	protected assetProcessingService?: AssetProcessingService;
 	protected hmrManager?: IHmrManager;
@@ -176,7 +167,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		this.name = config.name;
 		this.extensions = config.extensions;
 		this.integrationDependencies = config.integrationDependencies || [];
-		this.runtimeCapability = config.runtimeCapability;
 		this.jsxImportSource = config.jsxImportSource;
 	}
 
@@ -339,14 +329,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	async prepareBuildContributions(): Promise<void> {}
 
 	/**
-	 * Reports whether this integration's build inputs changed since the last
-	 * incremental static build.
-	 */
-	didChange(): boolean {
-		return false;
-	}
-
-	/**
 	 * Runs integration-specific setup before static page generation begins.
 	 *
 	 * @remarks
@@ -354,11 +336,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * start them here rather than per-page inside the renderer.
 	 */
 	async beforeStaticExport?(_context: StaticExportContext): Promise<void>;
-
-	/**
-	 * Releases resources started in {@link beforeStaticExport}.
-	 */
-	async afterStaticExport?(_context: StaticExportContext): Promise<void>;
 
 	/**
 	 * Performs runtime-only integration setup after config build has already

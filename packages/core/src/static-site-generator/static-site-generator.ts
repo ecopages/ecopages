@@ -217,7 +217,7 @@ export class StaticSiteGenerator {
 	 * @remarks
 	 * Fail-closed: metadata resolution errors omit the URL. `robots.index === false`
 	 * also omits it. Eligibility is decided during generation, not by reloading modules
-	 * after `afterStaticExport`.
+	 * after the pages are written.
 	 */
 	private async considerSitemapEligibility(input: {
 		pathname: string;
@@ -413,15 +413,9 @@ export class StaticSiteGenerator {
 		};
 	}
 
-	private async invokeStaticExportHook(
-		hook: 'beforeStaticExport' | 'afterStaticExport',
-		context: StaticExportContext,
-	): Promise<void> {
+	private async invokeBeforeStaticExport(context: StaticExportContext): Promise<void> {
 		for (const integration of this.appConfig.integrations) {
-			const handler = integration[hook];
-			if (typeof handler === 'function') {
-				await handler.call(integration, context);
-			}
+			await integration.beforeStaticExport?.(context);
 		}
 	}
 
@@ -560,7 +554,7 @@ export class StaticSiteGenerator {
 			routes: exportRoutes,
 		});
 
-		await this.invokeStaticExportHook('beforeStaticExport', staticExportContext);
+		await this.invokeBeforeStaticExport(staticExportContext);
 
 		try {
 			await this.executeStaticGenerationBody({
@@ -579,8 +573,6 @@ export class StaticSiteGenerator {
 				clearProductionPageBrowserGraphSession(this.appConfig);
 			}
 			throw error;
-		} finally {
-			await this.invokeStaticExportHook('afterStaticExport', staticExportContext);
 		}
 
 		this.finalizeStaticGenerationRun({

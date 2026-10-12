@@ -230,117 +230,38 @@ Layout prop factories receive `LayoutPropsContext` (`params`, `query`, `locals`)
 
 ### Shared runtime vendors (SPA + persisted layouts)
 
-#### Mental model
+With `ecoRouter()`, Ecopages keeps outer layout tiers mounted across client navigation (`persistLayouts` defaults to `true`). Each Page chunk still loads separately, while its Layout tiers can stay alive in the DOM.
 
-With `ecoRouter()`, Ecopages keeps outer layout tiers mounted across client navigation (`persistLayouts` defaults to `true`). Each page chunk still loads separately, but provider layouts stay alive in the DOM.
+A package imported by both a persisted Layout and multiple Page chunks must resolve to one browser module instance. Otherwise, a library with module-level state such as React context can be duplicated, and navigation can fail with errors such as `No QueryClient set`.
 
-That creates a module identity problem: if TanStack Query (or any shared provider library) is bundled into every page chunk separately, each chunk gets its own copy of the library and its own React context. Navigation then breaks with errors such as `No QueryClient set`, even though the provider component is still mounted.
-
-The fix is **shared browser runtime vendors**: selected npm packages are built once into `/assets/vendors/*.js` and every page chunk imports the same public URL. React, React DOM, the router bundle, and auto-discovered layout runtime packages all follow this path.
+Register shared packages explicitly with `reactPlugin({ runtimeModules })`. Each listed package is built once into `/assets/vendors/*.js`, and browser graphs import that vendor URL. React, React DOM, and the configured router are already shared. Layout files do not add packages to `runtimeModules` automatically.
 
 In `ecopages dev`, page modules are served from `/assets/__eco_dev__/` and should import `/assets/vendors/*` for shared packages instead of inlining `node_modules`. Kitchen-sink routes `/vendor-share/a` and `/vendor-share/b` (with `runtimeModules: ['zod']`) are the reference fixture; see `playground/kitchen-sink/e2e/shared-vendors.test.e2e.ts`.
 
-The Ecopages dev toolbar **Islands** app inspects `data-eco-island`, `data-eco-component-id`, `data-eco-props`, and `window.__ECO_PAGES__.islandRoots` during development. React component islands are emitted as `<eco-island style="display:contents">` hosts during SSR and hydrated in place; the client adds `data-eco-hydrated` after the initial commit. `display: contents` keeps the host from introducing a layout box while preserving it as the hydration and diagnostics boundary.
+#### Register shared packages
 
-The browser lifecycle is maintained as typed code in `src/hydration/browser/`.
-Production island bootstraps are generated from that source by the server-side
-Rolldown compiler in `src/hydration/hydration-script-compiler.ts`, which keeps
-React, ReactDOM, and the component entry as external browser imports. This keeps
-the generated script compact without requiring a second handwritten minified
-implementation.
-
-Page HMR registers before initial preload, but publishes a replacement component
-only after its preload succeeds. Each handler belongs to the page generation in
-which it was registered. Navigation cleanup invalidates both pending updates and
-later calls to retained handlers, preventing updates to a replacement page root.
-
-Hydration preserves the SSR DOM when the server and client trees match. A
-component that renders different markup in the browser can still produce a
-normal React hydration mismatch or layout shift.
-
-Auto-discovery removes the need to hand-maintain `runtimeModules` for the common case — a query-client layout that imports `@tanstack/react-query` is enough when discovery is configured correctly.
-
-#### When auto-discovery runs
-
-Auto-discovery runs at plugin setup when **both** are true:
-
-- `router` is passed to `reactPlugin()`
-- The app config exposes `absolutePaths.projectDir`, `layoutsDir`, and `componentsDir`
-
-Without `router`, only explicit `runtimeModules` entries are vendored.
-
-Semantic `404.*` / `500.*` templates render outside the page-request middleware pipeline. Do not use `cache: 'dynamic'`, `middleware`, or `requires` on those files; they receive safe empty `pageLocals` instead of request-scoped locals.
-
-#### Discovery modes
-
-| Mode                               | Trigger                                          | Layout roots scanned                                       | npm packages collected                                      |
-| ---------------------------------- | ------------------------------------------------ | ---------------------------------------------------------- | ----------------------------------------------------------- |
-| **Runtime-provider** (recommended) | At least one layout sets `runtimeProvider: true` | Only flagged layouts                                       | Every reachable npm package in that layout's `render` graph |
-| **Provider-scoped fallback**       | No layout sets `runtimeProvider: true`           | All `eco.layout(` files under `layouts/` and `components/` | npm packages imported from provider/context modules only    |
-
-The fallback exists for backward compatibility. Ecopages logs a debug message when fallback mode is active. Prefer explicit `runtimeProvider: true` on provider root layouts (for example a query-client tier) and omit it from shell-only layouts.
-
-#### What gets discovered
-
-1. Select layout entry files using the mode above.
-2. From each root layout's **`render` client graph** (reachability analysis), follow relative imports and tsconfig path aliases. Type-only imports, side-effect-only imports (for example `import "mobx"`), and `.server.ts` modules are skipped.
-3. Collect npm package roots (for example `@tanstack/react-query`, not `@tanstack/react-query/devtools`).
-4. Register each discovered package as a shared vendor.
-
-**Excluded automatically:** React, React DOM, jsx runtimes, the router bundle, `@ecopages/*`, workspace packages under `@techn.es/*`, `*-devtools` packages, and packages already vendored by the React plugin.
-
-Path aliases resolve from `tsconfig.json` `compilerOptions.paths` (oxc-resolver), same as the Ecopages alias resolver plugin.
-
-#### Recommended setup
-
-Plugin config — no manual vendor list when provider layouts are flagged:
+List the package specifier that Page or Layout code imports:
 
 ```ts
 import { defineConfig } from '@ecopages/core/config';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
-export default defineConfig({ integrations: [reactPlugin({ router: ecoRouter() })] });
-```
-
-Provider root layout — set `runtimeProvider: true` on the tier that mounts shared client state:
-
-```tsx
-import type { ReactNode } from 'react';
-import { eco } from '@ecopages/core';
-import { QueryProvider } from '@/shared/query/query-provider';
-
-export const QueryRootLayout = eco.layout<ReactNode>({
-	runtimeProvider: true,
-	render: ({ children }) => <QueryProvider>{children}</QueryProvider>,
+export default defineConfig({
+	integrations: [
+		reactPlugin({
+			router: ecoRouter(),
+			runtimeModules: ['@tanstack/react-query'],
+		}),
+	],
 });
 ```
 
-Shell layouts that do not mount shared runtime state omit the flag:
+Use the package root when all imports use that root. Import rewrites match exact specifiers, so add a separate entry for each package subpath used by app code.
 
-```tsx
-export const AppShellLayout = eco.layout({
-	render: ({ children }) => <AppShell>{children}</AppShell>,
-});
-```
+**Migration from layout discovery:** remove `runtimeProvider` from layout options. Add each shared package the scanner previously supplied to `runtimeModules` using the exact specifier imported by app code.
 
-Stack provider roots before shell tiers in page `layout` arrays so context wraps the shell on both SSR and persisted client navigation.
-
-Requires matching tsconfig paths when using aliases:
-
-```json
-{
-	"compilerOptions": {
-		"paths": {
-			"@/*": ["./src/*"]
-		}
-	}
-}
-```
-
-#### Overrides and escape hatches
-
-Use explicit `runtimeModules` when discovery misses a package, when `router` is not enabled, or when you need custom vendor output names or externals:
+`runtimeModules` also accepts objects with a custom vendor output name and `externals`:
 
 ```ts
 reactPlugin({
@@ -349,19 +270,15 @@ reactPlugin({
 });
 ```
 
-Manual entries **override** auto-discovered entries for the same specifier. Discovery normalizes package subpaths to package roots; import rewrite matches **exact** specifiers registered in `runtimeModules`.
-
-Each vendor entry is built from the package's browser ESM surface: Ecopages follows an `exports` import target when present and otherwise prefers a package's legacy `module` field over CJS `main`. ESM files are re-exported with `export *`. CJS files (including React's published `index.js` / `jsx-runtime`) emit explicit named exports from that same file so the vendor can provide `jsx`. Keep `runtimeModules` at package roots. A package subpath is a separate module contract and must either be registered explicitly or bundled with the consuming page/library.
+Each vendor entry is built from the package's browser ESM surface: Ecopages follows an `exports` import target when present and otherwise prefers a package's legacy `module` field over CJS `main`. ESM files are re-exported with `export *`. CJS files (including React's published `index.js` / `jsx-runtime`) emit explicit named exports from that same file so the vendor can provide `jsx`.
 
 `externals` on a library vendor must already be shared vendors (React, the router bundle, or another `runtimeModules` specifier). Unmapped externals throw at plugin setup instead of emitting a bare specifier the browser cannot resolve.
 
 #### Singleton packages (MobX, Redux, Query client, audio engines)
 
-Some npm packages must exist as **one browser module** across layout vendors, page chunks, and dev lazy prebundles. React context, MobX observables, Redux stores, TanStack Query clients, and audio runtimes (for example Tone.js) all break when two copies load.
+React context, MobX observables, Redux stores, TanStack Query clients, and audio runtimes (for example Tone.js) depend on one module instance. Register a singleton package in `runtimeModules` when Page and Layout code must share its state.
 
-Layout auto-discovery only walks `eco.layout()` render graphs. Page-level imports of a singleton that is not registered in `runtimeModules` may be lazily prebundled into a **second** vendor in dev, or inlined into page chunks in production. If a shared library vendor also bundles that singleton internally, you get duplicate instances even though both sides "import the same package name."
-
-**Library packaging:** ship singleton deps as `peerDependencies` and keep them external in the library build so `dist/` retains `import … from "mobx"` (or equivalent) instead of inlining a private copy.
+**Library packaging:** ship singleton dependencies as `peerDependencies` and keep them external in the library build so `dist/` retains `import … from "mobx"` (or equivalent) instead of inlining a private copy.
 
 **Ecopages app config:** register each singleton as its own `runtimeModules` entry and list it in `externals` on any library vendor that imports it:
 
@@ -380,28 +297,29 @@ reactPlugin({
 });
 ```
 
-Registering only the library vendor, or only the singleton, is not enough when the published library still inlines the singleton. Rebuild vendors (and clear `.eco` / `dist/assets/vendors` in dev) after changing package entry points or `runtimeModules`.
+Registering only the library vendor or only the singleton is not enough when the published library still inlines the singleton. Peer the dependency in the library, externalize it in the library build, register it in `runtimeModules`, and list it in `externals` on the library vendor. Rebuild vendors (and clear `.eco` / `dist/assets/vendors` in dev) after changing package entry points or `runtimeModules`.
 
 #### Troubleshooting
 
-| Symptom                                       | Likely cause                                                                                                 | Fix                                                                                                                                    |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `No QueryClient set` after SPA navigation     | Provider library bundled per page chunk                                                                      | Ensure `router` is enabled; add `runtimeProvider: true` on the provider layout; rebuild vendors                                        |
-| Duplicate React context / Tone init logs      | Provider package is bundled through multiple client entrypoints                                              | Import through the package root and register that root in `runtimeModules`                                                             |
-| Store updates / `reaction` / `observer` no-op | Duplicate singleton (for example MobX) — layout vendor inlines one copy, page or dev prebundle loads another | Peer the singleton in the library; add explicit `runtimeModules` for it; list it in `externals` on the library vendor; rebuild vendors |
-| Wrong packages vendored (slow dev startup)    | Shell layout scanned as discovery root                                                                       | Set `runtimeProvider: true` only on provider roots; keep shell layouts unflagged                                                       |
-| Package not discovered                        | Layout outside `layouts/` / `components/`, or import not reachable from `render`                             | Move layout file or add explicit `runtimeModules` entry                                                                                |
-| `@/` alias not followed                       | Missing or invalid tsconfig paths                                                                            | Add `compilerOptions.paths`; ensure `include` globs are valid JSON (not broken by comment stripping)                                   |
-| Stale bootstrap script hash in dev            | Rendered HTML cached before runtime vendors/bootstrap scripts changed                                        | Rebuild or touch a route file; development HTML cache keys include browser-runtime generation                                          |
-| `MISSING_EXPORT` for names like `BasePlugin`  | Vendor listed CJS enumerable keys that the ESM file does not export                                          | Register the package root only; rebuild vendors. Subpath plugins are a separate module and must be bundled or declared themselves      |
-| `does not provide an export named 'jsx'`      | Stale React vendor generated with `export *` from CJS `jsx-runtime`                                          | Clear `.eco` / `dist/assets/vendors` and rebuild so the CJS entry lists `jsx` / `jsxs` explicitly                                      |
-| `Calling require for "/assets/vendors/…"`     | A CJS vendor graph `require()`d another runtime module after URL rewrite                                     | Prefer packages with an ESM/`module` entry; keep sibling singletons as `runtimeModules` + `externals`                                  |
+| Symptom                                       | Likely cause                                                                                   | Fix                                                                                                                                       |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `No QueryClient set` after SPA navigation     | Query client package is not shared by the Page and Layout graphs                               | Add `@tanstack/react-query` to `runtimeModules` and rebuild vendors                                                                       |
+| Duplicate React context / Tone init logs      | Provider package is bundled through multiple client entrypoints                                | Import through the package root and register that root in `runtimeModules`                                                                |
+| Store updates / `reaction` / `observer` no-op | Duplicate singleton (for example MobX) — a library inlines one copy and app code loads another | Peer the singleton in the library; add explicit `runtimeModules`; list it in `externals` on the library vendor; rebuild vendors           |
+| `@/` alias not followed                       | Missing or invalid tsconfig paths                                                              | Add `compilerOptions.paths`; ensure `include` globs are valid JSON (not broken by comment stripping)                                      |
+| Stale bootstrap script hash in dev            | Rendered HTML cached before runtime vendors/bootstrap scripts changed                          | Rebuild or touch a route file; development HTML cache keys include browser-runtime generation                                             |
+| `MISSING_EXPORT` for names like `BasePlugin`  | Vendor listed CJS enumerable keys that the ESM file does not export                            | Register the package root only; rebuild vendors. Subpath plugins are separate module contracts and must be bundled or declared themselves |
+| `does not provide an export named 'jsx'`      | Stale React vendor generated with `export *` from CJS `jsx-runtime`                            | Clear `.eco` / `dist/assets/vendors` and rebuild so the CJS entry lists `jsx` / `jsxs` explicitly                                         |
+| `Calling require for "/assets/vendors/…"`     | A CJS vendor graph `require()`d another runtime module after URL rewrite                       | Prefer packages with an ESM/`module` entry; keep sibling singletons as `runtimeModules` + `externals`                                     |
+
+Use the dev toolbar **Deps** panel to inspect vendor URLs loaded by the active Page. See [Dev Toolbar](/docs/core/dev-toolbar).
 
 #### Tests
 
-- [src/bundling/discover-layout-runtime-modules.test.ts](src/bundling/discover-layout-runtime-modules.test.ts): discovery modes, provider scoping, tsconfig aliases, stacked layouts.
-- [src/bundling/runtime-bundle.test.ts](src/bundling/runtime-bundle.test.ts): vendor registration and manifest paths.
-- [../../core/src/services/assets/asset-processing-service/browser-runtime-entry-resolution.test.ts](../../core/src/services/assets/asset-processing-service/browser-runtime-entry-resolution.test.ts): ESM entry resolution and default-export policy for React vs TanStack Query.
+- `src/bundling/runtime-modules.test.ts`: explicit entries, exact package specifiers, and external validation.
+- `src/bundling/runtime-bundle.test.ts`: vendor registration and manifest paths.
+- `../../core/src/services/assets/asset-processing-service/browser-runtime-entry-resolution.test.ts`: ESM entry resolution and default-export policy for React vs TanStack Query.
+- `../../../e2e/fixtures/react-router/persist-layouts.test.e2e.ts`: one QueryClient shared across Page navigation with an explicit `runtimeModules` entry.
 
 ### Client-only code in SSR trees
 

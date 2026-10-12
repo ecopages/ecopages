@@ -262,20 +262,34 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 
 	/**
 	 * Creates the shared renderer options owned by core lifecycle setup.
+	 *
+	 * @remarks
+	 * Handler renders call `initializeRenderer()` per request, so this must hand
+	 * each renderer the Integration's one asset-processing service. The service
+	 * cache is keyed by dependency and source hash, which makes that sharing safe.
+	 * A missing service is created here so a plugin that received `appConfig`
+	 * without `setConfig()` still has one.
 	 */
 	protected createRendererOptions(): IntegrationRendererConstructorOptions {
 		if (!this.appConfig) {
 			throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_APP_CONFIG);
 		}
 
-		const assetProcessingService = AssetProcessingService.createWithDefaultProcessors(this.appConfig);
+		if (!this.assetProcessingService) {
+			this.initializeAssetDefinitionService();
+		}
+
+		if (!this.assetProcessingService) {
+			throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_ASSET_SERVICE);
+		}
+
 		if (this.hmrManager) {
-			assetProcessingService.setHmrManager(this.hmrManager);
+			this.assetProcessingService.setHmrManager(this.hmrManager);
 		}
 
 		return {
 			appConfig: this.appConfig,
-			assetProcessingService,
+			assetProcessingService: this.assetProcessingService,
 			resolvedIntegrationDependencies: this.resolvedIntegrationDependencies,
 			runtimeOrigin: this.runtimeOrigin,
 		};
@@ -300,8 +314,10 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Instantiates the integration renderer with app-owned services.
 	 *
 	 * @remarks
-	 * Renderers are cheap runtime objects. They receive the finalized app config,
-	 * a fresh asset-processing service, and integration-global processed assets.
+	 * Renderers are cheap runtime objects, and handler renders still create a new
+	 * one per request. They share the Integration's asset-processing service, so a
+	 * stylesheet or script is processed once per process. The cache is keyed by
+	 * dependency and source hash.
 	 */
 	initializeRenderer(): IntegrationRenderer<C> {
 		const renderer = new this.renderer(this.createRendererOptions());

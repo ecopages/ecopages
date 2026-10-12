@@ -9,7 +9,6 @@ import { appLogger } from '../../../global/app-logger.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../../../hmr/hmr-strategy.ts';
 import type { ClientBridgeEvent } from '../../../types/public-types.ts';
-import { HmrManager as BunHmrManager } from '../../bun/hmr-manager.ts';
 import { NodeHmrManager } from '../../node/node-hmr-manager.ts';
 import type { SharedHmrManager } from './shared-hmr-manager.ts';
 
@@ -78,13 +77,6 @@ const runtimes = [
 		async create(rootDir: string, bridgeSpy: BridgeSpy) {
 			const config = await finalizeEcoPagesConfig({ rootDir });
 			return new NodeHmrManager({ appConfig: config, bridge: bridgeSpy.bridge as any });
-		},
-	},
-	{
-		name: 'bun',
-		async create(rootDir: string, bridgeSpy: BridgeSpy) {
-			const config = await finalizeEcoPagesConfig({ rootDir });
-			return new BunHmrManager({ appConfig: config, bridge: bridgeSpy.bridge as any });
 		},
 	},
 ] as const;

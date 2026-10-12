@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { formatRuntimeServerStartedMessage } from './runtime-server-started-message.ts';
+import { formatRuntimeServerStartedMessage, resolveProcessRuntimeLabel } from './runtime-server-started-message.ts';
+
+describe('resolveProcessRuntimeLabel', () => {
+	it('names Node when the process is Node', () => {
+		expect(resolveProcessRuntimeLabel()).toBe('Node');
+	});
+});
 
 describe('formatRuntimeServerStartedMessage', () => {
 	it('formats Bun and Node with the same template', () => {

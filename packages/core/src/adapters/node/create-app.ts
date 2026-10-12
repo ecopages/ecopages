@@ -10,6 +10,7 @@ import { NodeHttpRequestBridge } from './http-request-bridge.ts';
 import type { NodeServerInstance } from './server-adapter.ts';
 import { NodeRuntimeHost, type NodeRuntimeServeOptions } from './runtime-host.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
+import { resolveProcessRuntimeLabel } from '../../dev/runtime-server-started-message.ts';
 import { resolveAppStartRoutes } from '../../utils/ecopages-route-info.ts';
 
 export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAppOptions, NodeServerInstance, Request> {
@@ -25,7 +26,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 			runtimeHost: RuntimeHost<NodeServerInstance, NodeRuntimeServeOptions>;
 		},
 	) {
-		super(options, 'Node');
+		super(options, resolveProcessRuntimeLabel());
 		this.runtimeHost = dependencies.runtimeHost;
 	}
 

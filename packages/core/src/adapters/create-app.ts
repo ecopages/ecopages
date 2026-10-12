@@ -4,12 +4,9 @@ import type { EcoPagesUserConfig } from '../config/user-config-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { AbstractApplicationAdapter } from './abstract/application-adapter.ts';
 import type { ApplicationAdapterOptions } from './abstract/application-adapter.ts';
-import { createApp as createBunApp } from './bun/create-app.ts';
 import { createNodeApp } from './node/create-app.ts';
 
 export type { OnAppStartCallback, AppStartInfo } from './abstract/application-adapter.ts';
-
-export type EcopagesRuntimeAdapter = 'auto' | 'node' | 'bun';
 
 type EcopagesAppConfigSource =
 	| {
@@ -31,19 +28,7 @@ type EcopagesAppConfigSource =
 export type EcopagesAppOptions = Omit<ApplicationAdapterOptions, 'appConfig'> &
 	EcopagesAppConfigSource & {
 		/**
-		 * Selects the runtime adapter used by the universal `createApp()` entrypoint.
-		 *
-		 * @default 'auto'
-		 *
-		 * @remarks
-		 * Use `'auto'` to select Bun when the current process exposes `globalThis.Bun`
-		 * and Node otherwise.
-		 */
-		adapter?: EcopagesRuntimeAdapter;
-
-		/**
-		 * Low-level server options passed to the underlying HTTP engine
-		 * (e.g. Node `http.createServer` or Bun `Bun.serve`).
+		 * Low-level server options passed to Node `http.createServer`.
 		 */
 		serverOptions?: Record<string, unknown>;
 	};
@@ -60,27 +45,19 @@ async function resolveAppConfig(options: EcopagesAppOptions): Promise<EcoPagesAp
 	return await loadEcoPagesConfig({ configFile: options.configFile });
 }
 
-export type ResolvedEcopagesAppOptions = ApplicationAdapterOptions & {
-	adapter?: EcopagesRuntimeAdapter;
-};
+export type ResolvedEcopagesAppOptions = ApplicationAdapterOptions;
 
 export type UniversalEcopagesApp = AbstractApplicationAdapter<ResolvedEcopagesAppOptions, unknown, Request>;
 
-async function createRuntimeApp<WebSocketData = undefined>(
+async function createRuntimeApp(
 	options: EcopagesAppOptions,
 	appConfig: EcoPagesAppConfig,
 ): Promise<UniversalEcopagesApp> {
-	const adapter = options.adapter ?? 'auto';
-	const bun = (globalThis as { Bun?: unknown }).Bun;
 	const { userConfig: _uc, configFile: _cf, ...baseOptions } = options;
 	const runtimeOptions: ResolvedEcopagesAppOptions = {
 		...baseOptions,
 		appConfig,
 	};
-
-	if (adapter === 'bun' || (adapter === 'auto' && bun)) {
-		return (await createBunApp<WebSocketData>(runtimeOptions)) as unknown as UniversalEcopagesApp;
-	}
 
 	return (await createNodeApp(runtimeOptions)) as unknown as UniversalEcopagesApp;
 }
@@ -121,9 +98,7 @@ async function createRuntimeApp<WebSocketData = undefined>(
  * });
  * ```
  */
-export async function createApp<WebSocketData = undefined>(
-	options: EcopagesAppOptions = {},
-): Promise<UniversalEcopagesApp> {
+export async function createApp(options: EcopagesAppOptions = {}): Promise<UniversalEcopagesApp> {
 	const appConfig = await resolveAppConfig(options);
-	return createRuntimeApp<WebSocketData>(options, appConfig);
+	return createRuntimeApp(options, appConfig);
 }

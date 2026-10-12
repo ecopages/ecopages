@@ -4,10 +4,10 @@ The foundational engine for the Ecopages framework. It provides the core build p
 
 ## Overview
 
-Ecopages is an extensible static site generator (SSG) built around a Bun-first core with Node fallback support. It embraces a strictly MPA (Multi-Page Application) architecture by default, rendering HTML at build-time or request-time, and hydrating interactive islands only where necessary.
+Ecopages is an extensible static site generator (SSG). It runs on Node or Bun through Node APIs. It embraces a strictly MPA (Multi-Page Application) architecture by default, rendering HTML at build-time or request-time, and hydrating interactive islands only where necessary.
 
-- **Runtime Boundary**: `createApp()` prefers Bun when available and falls back to Node otherwise.
-- **Build Ownership**: Rolldown builds the app for both Bun and Node.
+- **Runtime Boundary**: `createApp()` uses the Node HTTP host. The start log names Bun or Node from the process that launched it.
+- **Build Ownership**: Rolldown builds the app.
 - **Framework agnostic**: First-class support for KitaJS, Lit, React, and MDX via official integration plugins.
 - **Extensible**: Hook into the build process with custom processors or rendering integrations.
 
@@ -43,7 +43,7 @@ flowchart TD
 	F --> I[PageModuleImportService]
 	F --> J[BrowserBundleService]
 	I --> K[Runtime app adapter]
-	K --> L[Bun adapter or Node adapter]
+	K --> L[Node HTTP host]
 	E --> J
 ```
 

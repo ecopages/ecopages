@@ -84,7 +84,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	 */
 	public readonly collectionServerCompiledModules: Record<string, string> = {};
 
-	constructor(config: Omit<ProcessorConfig<ContentProcessorConfig>, 'name' | 'description'>) {
+	constructor(config: Omit<ProcessorConfig<ContentProcessorConfig>, 'name'>) {
 		const defaultWatchConfig: ProcessorWatchConfig = {
 			paths: [],
 			extensions: ['.mdx', '.md', '.ts', '.tsx', '.js', '.jsx', '.json'],
@@ -94,7 +94,6 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		super({
 			...config,
 			name: CONTENT_PROCESSOR_NAME,
-			description: 'Build-time content collections exposed as ecopages:content/* virtual modules.',
 			watch: config.watch ? mergeProcessorOptions(defaultWatchConfig, config.watch) : defaultWatchConfig,
 		});
 	}
@@ -541,7 +540,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 }
 
 export const contentProcessorPlugin = (
-	config: Omit<ProcessorConfig<ContentProcessorConfig>, 'name' | 'description'>,
+	config: Omit<ProcessorConfig<ContentProcessorConfig>, 'name'>,
 ): ContentProcessorPlugin => {
 	return new ContentProcessorPlugin(config);
 };

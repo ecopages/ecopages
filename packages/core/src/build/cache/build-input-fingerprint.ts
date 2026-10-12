@@ -2,30 +2,8 @@ import { statSync } from 'node:fs';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { rapidhash } from '../../utils/hash.ts';
-import type { IntegrationPlugin } from '../../plugins/integration-plugin.ts';
-import type { Processor } from '../../plugins/processor.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { getAppBuildInputIndex } from './build-input-dependency-index.ts';
-
-/**
- * Optional contributor surface for build-time cache invalidation.
- *
- * @remarks
- * Processors and integrations may override {@link didChange} to report that
- * their build inputs changed independently of route source files.
- */
-export interface BuildInputChangeContributor {
-	/**
-	 * Returns `true` when this contributor's build inputs changed since the last
-	 * persisted incremental build metadata was written.
-	 */
-	didChange?(): boolean;
-}
-
-/** Returns whether a processor or integration signals changed build inputs. */
-export function didBuildInputContributorChange(contributor: BuildInputChangeContributor): boolean {
-	return contributor.didChange?.() === true;
-}
 
 /**
  * Hashes the config module and the project files it imports (`absolutePaths.configModuleFiles`).
@@ -50,22 +28,18 @@ export function hashAppConfigFile(appConfig: EcoPagesAppConfig): string {
 	).toString(36);
 }
 
-/** Fingerprints processor/integration build-input state for cache invalidation. */
-export function createBuildInputsFingerprint(appConfig: EcoPagesAppConfig): string {
-	const changedContributors = [
-		...Array.from(appConfig.processors?.values() ?? [])
-			.filter((processor) => didBuildInputContributorChange(processor))
-			.map((processor) => `processor:${processor.getName()}`),
-		...(appConfig.integrations ?? [])
-			.filter((integration) => didBuildInputContributorChange(integration))
-			.map((integration) => `integration:${integration.name}`),
-	];
-
-	return changedContributors.length > 0 ? changedContributors.sort().join('|') : 'stable';
+/**
+ * Fingerprints processor and integration build-input state for cache invalidation.
+ *
+ * @remarks
+ * No Processor or Integration contributes to it, so it is the same value for every config.
+ */
+export function createBuildInputsFingerprint(_appConfig: EcoPagesAppConfig): string {
+	return 'stable';
 }
 
 /**
- * Hashes recorded build inputs (plugin `addDependency` paths, module closures,
+ * Hashes recorded build inputs (files loaded through build plugins, module closures,
  * and Processor watch directories seeded into the reverse index).
  *
  * @remarks
@@ -88,15 +62,3 @@ export function hashRecordedBuildInputs(appConfig: EcoPagesAppConfig): string {
 		});
 	return entries.length > 0 ? rapidhash(entries.join('\n')).toString(36) : 'none';
 }
-
-/** Returns true when any processor or integration reports changed build inputs. */
-export function haveBuildInputsChanged(appConfig: EcoPagesAppConfig): boolean {
-	return createBuildInputsFingerprint(appConfig) !== 'stable';
-}
-
-/** Collects every processor and integration that can invalidate incremental builds. */
-export function collectBuildInputContributors(appConfig: EcoPagesAppConfig): BuildInputChangeContributor[] {
-	return [...Array.from(appConfig.processors?.values() ?? []), ...(appConfig.integrations ?? [])];
-}
-
-export type { Processor, IntegrationPlugin };

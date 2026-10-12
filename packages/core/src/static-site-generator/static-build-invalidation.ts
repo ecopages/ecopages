@@ -3,7 +3,6 @@ import {
 	createBuildInputsFingerprint,
 	hashAppConfigFile,
 	hashRecordedBuildInputs,
-	haveBuildInputsChanged,
 } from '../build/cache/build-input-fingerprint.ts';
 import { clearPersistedProductionBuildCacheManifests } from '../build/cache/production-build-cache.ts';
 import { clearPagesUnifiedGraphMemory } from '../build/cache/pages-unified-graph-build.ts';
@@ -13,18 +12,10 @@ import {
 	getServerModuleBuildCacheOutdir,
 } from '../services/module-loading/route-module-build-cache-registry.ts';
 
-export type {
-	BuildInputChangeContributor,
-	IntegrationPlugin,
-	Processor,
-} from '../build/cache/build-input-fingerprint.ts';
 export {
-	collectBuildInputContributors,
 	createBuildInputsFingerprint,
-	didBuildInputContributorChange,
 	hashAppConfigFile,
 	hashRecordedBuildInputs,
-	haveBuildInputsChanged,
 } from '../build/cache/build-input-fingerprint.ts';
 
 /**
@@ -54,10 +45,6 @@ export function shouldResetStaticExportDirectory(
 	watchedInputsHash?: string,
 ): boolean {
 	if (force) {
-		return true;
-	}
-
-	if (haveBuildInputsChanged(appConfig)) {
 		return true;
 	}
 

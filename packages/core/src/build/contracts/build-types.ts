@@ -22,35 +22,15 @@ export type EcoBuildOnResolveResult = {
 export type EcoBuildOnLoadArgs = {
 	path: string;
 	namespace?: string;
-	/**
-	 * Records a filesystem path this load also read, so watch and invalidation
-	 * include it. The loaded `path` is recorded automatically. The plugin bridge
-	 * always provides this; unit tests that invoke `onLoad` callbacks by hand
-	 * may omit it.
-	 */
-	addDependency?(filePath: string): void;
 };
 
 /**
  * Loader kinds supported by the build plugin contract.
+ *
+ * @remarks
+ * `object` turns the result's `exports` into a module; the others compile `contents` as that language.
  */
-export type EcoBuildLoader =
-	| 'base64'
-	| 'binary'
-	| 'copy'
-	| 'css'
-	| 'dataurl'
-	| 'empty'
-	| 'file'
-	| 'global-css'
-	| 'js'
-	| 'json'
-	| 'jsx'
-	| 'local-css'
-	| 'object'
-	| 'text'
-	| 'ts'
-	| 'tsx';
+export type EcoBuildLoader = 'js' | 'jsx' | 'ts' | 'tsx' | 'object';
 
 /**
  * Result returned by a build plugin `onLoad` callback.

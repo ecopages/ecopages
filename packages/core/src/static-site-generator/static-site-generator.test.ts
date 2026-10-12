@@ -519,9 +519,8 @@ describe('StaticSiteGenerator', () => {
 			expect(graphBuildOrder).toEqual(['ensurePagesUnifiedGraphBuilt', 'beforeStaticExport']);
 		});
 
-		test('should invoke integration static export hooks around generation', async () => {
+		test('should invoke the integration beforeStaticExport hook with the export context', async () => {
 			const beforeStaticExport = vi.fn(async () => {});
-			const afterStaticExport = vi.fn(async () => {});
 			const ssg = new StaticSiteGenerator({
 				appConfig: createMockConfig({
 					integrations: [
@@ -529,7 +528,6 @@ describe('StaticSiteGenerator', () => {
 							name: 'lit',
 							extensions: ['.lit.tsx'],
 							beforeStaticExport,
-							afterStaticExport,
 						},
 					] as unknown as EcoPagesAppConfig['integrations'],
 				}),
@@ -550,15 +548,6 @@ describe('StaticSiteGenerator', () => {
 					preserveExportDirectory: false,
 					routes: [],
 				}),
-			);
-			expect(afterStaticExport).toHaveBeenCalledWith(
-				expect.objectContaining({
-					baseUrl: 'http://localhost:3000',
-					routes: [],
-				}),
-			);
-			expect(beforeStaticExport.mock.invocationCallOrder[0]).toBeLessThan(
-				afterStaticExport.mock.invocationCallOrder[0]!,
 			);
 		});
 
@@ -642,8 +631,7 @@ describe('StaticSiteGenerator', () => {
 			).rejects.toThrow('broken not-found view');
 		});
 
-		test('should write sitemap.xml after afterStaticExport when enabled', async () => {
-			const afterStaticExport = vi.fn(async () => {});
+		test('should write sitemap.xml after every page when enabled', async () => {
 			const ssg = new StaticSiteGenerator({
 				appConfig: createMockConfig({
 					baseUrl: 'https://example.com',
@@ -653,13 +641,6 @@ describe('StaticSiteGenerator', () => {
 						extraUrls: ['/rss.xml'],
 						exclude: ['/admin/**'],
 					},
-					integrations: [
-						{
-							name: 'test',
-							extensions: ['.tsx'],
-							afterStaticExport,
-						},
-					] as unknown as EcoPagesAppConfig['integrations'],
 				}),
 			});
 
@@ -706,7 +687,6 @@ describe('StaticSiteGenerator', () => {
 				} satisfies StaticGenerationRendererFactory,
 			});
 
-			expect(afterStaticExport).toHaveBeenCalled();
 			const sitemapWrite = writeMock.mock.calls.find((call: unknown[]) =>
 				String(call[0]).endsWith('sitemap.xml'),
 			);
@@ -718,9 +698,13 @@ describe('StaticSiteGenerator', () => {
 			const sitemapWriteIndex = writeMock.mock.calls.findIndex((call: unknown[]) =>
 				String(call[0]).endsWith('sitemap.xml'),
 			);
-			expect(afterStaticExport.mock.invocationCallOrder[0]).toBeLessThan(
-				writeMock.mock.invocationCallOrder[sitemapWriteIndex]!,
+			const pageWriteOrders = writeMock.mock.calls.flatMap((call: unknown[], index: number) =>
+				String(call[0]).endsWith('.html') ? [writeMock.mock.invocationCallOrder[index]!] : [],
 			);
+			expect(pageWriteOrders.length).toBeGreaterThan(0);
+			for (const pageWriteOrder of pageWriteOrders) {
+				expect(pageWriteOrder).toBeLessThan(writeMock.mock.invocationCallOrder[sitemapWriteIndex]!);
+			}
 		});
 
 		test('should omit noindex pages and metadata failures from sitemap', async () => {

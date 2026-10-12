@@ -3,75 +3,11 @@ import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { Processor } from '../../plugins/processor.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import {
-	createBuildInputsFingerprint,
-	didBuildInputContributorChange,
-	haveBuildInputsChanged,
-	hashAppConfigFile,
-	hashRecordedBuildInputs,
-} from './build-input-fingerprint.ts';
+import { hashAppConfigFile, hashRecordedBuildInputs } from './build-input-fingerprint.ts';
 import { getAppBuildInputIndex } from './build-input-dependency-index.ts';
 
 describe('build-input-fingerprint', () => {
-	it('reports stable build inputs when contributors do not signal changes', () => {
-		const processor = new (class extends Processor {
-			override readonly plugins = undefined;
-			override async setup(): Promise<void> {}
-			override async teardown(): Promise<void> {}
-			override async process(): Promise<unknown> {
-				return null;
-			}
-		})({ name: 'test-processor' });
-
-		assert.equal(didBuildInputContributorChange(processor), false);
-		assert.equal(
-			createBuildInputsFingerprint({
-				processors: new Map([['test-processor', processor]]),
-				integrations: [],
-			} as any),
-			'stable',
-		);
-		assert.equal(
-			haveBuildInputsChanged({
-				processors: new Map([['test-processor', processor]]),
-				integrations: [],
-			} as any),
-			false,
-		);
-	});
-
-	it('reports changed build inputs when a contributor opts in', () => {
-		const processor = new (class extends Processor {
-			override readonly plugins = undefined;
-			override didChange(): boolean {
-				return true;
-			}
-
-			override async setup(): Promise<void> {}
-			override async teardown(): Promise<void> {}
-			override async process(): Promise<unknown> {
-				return null;
-			}
-		})({ name: 'test-processor' });
-
-		assert.equal(
-			createBuildInputsFingerprint({
-				processors: new Map([['test-processor', processor]]),
-				integrations: [],
-			} as any),
-			'processor:test-processor',
-		);
-		assert.equal(
-			haveBuildInputsChanged({
-				processors: new Map([['test-processor', processor]]),
-				integrations: [],
-			} as any),
-			true,
-		);
-	});
-
 	it('changes the config hash when a file eco.config.ts imports changes', () => {
 		const configRoot = mkdtempSync(path.join(tmpdir(), 'eco-config-hash-'));
 		try {

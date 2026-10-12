@@ -604,9 +604,8 @@ export interface PageMetadataProps {
  * Configuration for automatic `sitemap.xml` generation during static export.
  *
  * @remarks
- * Disabled by default. When enabled, the sitemap is written after
- * `afterStaticExport` so integration-generated URLs can be listed via
- * `extraUrls`. Use `exclude` for bulk pathname filters and `metadata.robots.index: false`
+ * Disabled by default. When enabled, the sitemap is written after every page,
+ * so files generated during export can be listed via `extraUrls`. Use `exclude` for bulk pathname filters and `metadata.robots.index: false`
  * for page-level noindex that also removes the URL from the sitemap when metadata
  * is available during export.
  */

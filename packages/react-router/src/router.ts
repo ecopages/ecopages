@@ -172,7 +172,6 @@ function useNavigationCoordinator(
 		options?: {
 			isPopState?: boolean;
 			pushHistory?: boolean;
-			bypassCache?: boolean;
 			skipViewTransition?: boolean;
 			moduleUrlOverride?: string;
 		},
@@ -202,7 +201,6 @@ function useNavigationCoordinator(
 		}
 
 		await navigate(currentUrl, {
-			bypassCache: true,
 			moduleUrlOverride: request?.moduleUrl,
 			skipViewTransition: true,
 		});

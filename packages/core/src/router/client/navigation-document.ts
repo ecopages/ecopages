@@ -35,15 +35,21 @@ export function cacheNavigationHtml(href: string | URL, html: string, finalHref:
 	finalUrlByRequest.set(finalKey, finalKey);
 }
 
+/**
+ * Drops the cached document for a URL, its redirect target, and every other
+ * requested URL that redirected to the same target.
+ */
 export function invalidateNavigationHtml(href: string | URL): void {
 	const key = getCacheKey(href);
-	const finalKey = finalUrlByRequest.get(key);
-	navigationHtmlCache.delete(key);
-	finalUrlByRequest.delete(key);
-	if (finalKey) {
-		navigationHtmlCache.delete(finalKey);
-		finalUrlByRequest.delete(finalKey);
+	const finalKey = finalUrlByRequest.get(key) ?? key;
+	for (const [requestKey, mappedFinalKey] of finalUrlByRequest) {
+		if (mappedFinalKey === finalKey) {
+			navigationHtmlCache.delete(requestKey);
+			finalUrlByRequest.delete(requestKey);
+		}
 	}
+	navigationHtmlCache.delete(key);
+	navigationHtmlCache.delete(finalKey);
 }
 
 /**

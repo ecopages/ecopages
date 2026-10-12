@@ -47,7 +47,6 @@ export type ResolveReactNavigationInput = {
 	isStale: () => boolean;
 	isPopState: boolean;
 	pushHistory: boolean;
-	bypassCache?: boolean;
 	moduleUrlOverride?: string;
 };
 
@@ -113,7 +112,7 @@ export async function resolveReactNavigation(input: ResolveReactNavigationInput)
 	try {
 		sharedPage = await fetchNavigationPage(input.url, {
 			signal: input.signal,
-			bypassCache: input.bypassCache,
+			bypassCache: true,
 		});
 	} catch (error) {
 		if (!(error instanceof DOMException && error.name === 'AbortError')) {

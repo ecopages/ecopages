@@ -16,7 +16,6 @@ export type RouterNavigateOptions = {
 	isPopState?: boolean;
 	pushHistory?: boolean;
 	skipViewTransition?: boolean;
-	bypassCache?: boolean;
 	moduleUrlOverride?: string;
 };
 
@@ -204,7 +203,6 @@ export async function runRouterNavigate(
 		isPopState = false,
 		pushHistory = false,
 		skipViewTransition = false,
-		bypassCache = false,
 		moduleUrlOverride,
 	} = navigationOptions;
 	const navigationRuntime = getEcoNavigationRuntime(window);
@@ -223,7 +221,6 @@ export async function runRouterNavigate(
 			isStale,
 			isPopState,
 			pushHistory,
-			bypassCache,
 			moduleUrlOverride,
 		});
 

@@ -467,6 +467,24 @@ describe('resolveReactNavigation', () => {
 
 		expect(outcome).toEqual({ kind: 'hard-navigation', href: '/removed', mode: 'location' });
 	});
+
+	it('fetches the page on every visit instead of reusing the shared HTML cache', async () => {
+		const fetchMock = vi
+			.spyOn(globalThis, 'fetch')
+			.mockImplementation(async () => htmlPageResponse('<html><body>page</body></html>'));
+		const input = {
+			url: '/repeat',
+			signal: new AbortController().signal,
+			isStale: () => false,
+			isPopState: false,
+			pushHistory: true,
+		};
+
+		await resolveReactNavigation(input);
+		await resolveReactNavigation(input);
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
 });
 
 describe('getLinkNavigationDecision', () => {

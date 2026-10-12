@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clearNavigationHtmlCache, fetchNavigationPage, parseNavigationDocument } from './navigation-document.ts';
+import {
+	clearNavigationHtmlCache,
+	fetchNavigationPage,
+	invalidateNavigationHtml,
+	parseNavigationDocument,
+} from './navigation-document.ts';
 
 afterEach(() => {
 	clearNavigationHtmlCache();
@@ -39,6 +44,35 @@ describe('shared navigation document loading', () => {
 		expect(fetchMock).toHaveBeenCalledOnce();
 		expect(firstPage?.finalUrl.href).toBe('https://example.test/docs/#one');
 		expect(cachedPage?.finalUrl.href).toBe('https://example.test/docs/#two');
+	});
+
+	it('invalidates every requested URL that redirected to the same page', async () => {
+		const fetchMock = vi.fn(async () => {
+			const response = new Response('<html><head></head><body></body></html>', {
+				headers: { 'Content-Type': 'text/html' },
+			});
+			Object.defineProperty(response, 'url', { value: 'https://example.test/b' });
+			return response;
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		await fetchNavigationPage('https://example.test/a');
+		invalidateNavigationHtml('https://example.test/b');
+		await fetchNavigationPage('https://example.test/a');
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it('refetches when the cache is bypassed', async () => {
+		const fetchMock = vi.fn(
+			async () => new Response('<html></html>', { headers: { 'Content-Type': 'text/html' } }),
+		);
+		vi.stubGlobal('fetch', fetchMock);
+
+		await fetchNavigationPage('https://example.test/page');
+		await fetchNavigationPage('https://example.test/page', { bypassCache: true });
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
 	});
 
 	it('passes low fetch priority through for prefetch requests', async () => {

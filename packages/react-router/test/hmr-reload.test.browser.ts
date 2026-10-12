@@ -406,7 +406,8 @@ describe('EcoRouter HMR Integration', () => {
 			expect(replaceStateSpy.mock.calls.map(([, , href]) => href)).toEqual(['/docs#install']);
 			expect(pushStateSpy.mock.calls.map(([, , href]) => href)).toEqual(['/docs']);
 			expect(window.location.hash).toBe('');
-			expect(container.querySelector('[data-testid="page-label"]')?.textContent).toBe('reloaded');
+			expect(fetchSpy).toHaveBeenCalledTimes(2);
+			expect(container.querySelector('[data-testid="page-label"]')?.textContent).toBe('queued');
 		});
 
 		it('ignores coordinator reloads while a navigation is still in flight', async () => {

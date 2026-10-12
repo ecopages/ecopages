@@ -30,13 +30,13 @@ Semantic error pages are excluded from ordinary page enumeration and emitted onc
 
 ## Files
 
-| File                                        | Role                                                                         |
-| ------------------------------------------- | ---------------------------------------------------------------------------- |
-| `static-site-generator.ts`                  | Route enumeration, HTML artifact writes, integration export hooks, sitemap   |
-| `static-export-context.ts`                  | Hook context type for `beforeStaticExport`                                   |
-| `sitemap.ts`                                | Pure sitemap.xml renderer                                                    |
-| `sitemap-routes.ts`                         | Sitemap location assembly (`exclude`, `extraUrls`, dedupe)                   |
-| `production-page-browser-graph-prebuild.ts` | Warms and prebuilds browser asset graphs before static export rendering      |
+| File                                        | Role                                                                       |
+| ------------------------------------------- | -------------------------------------------------------------------------- |
+| `static-site-generator.ts`                  | Route enumeration, HTML artifact writes, integration export hooks, sitemap |
+| `static-export-context.ts`                  | Hook context type for `beforeStaticExport`                                 |
+| `sitemap.ts`                                | Pure sitemap.xml renderer                                                  |
+| `sitemap-routes.ts`                         | Sitemap location assembly (`exclude`, `extraUrls`, dedupe)                 |
+| `production-page-browser-graph-prebuild.ts` | Warms and prebuilds browser asset graphs before static export rendering    |
 
 ## Export directory
 

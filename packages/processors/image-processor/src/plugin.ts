@@ -113,7 +113,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 	private resolvedConfig?: ImageProcessorConfig;
 	public processedImages: Record<string, ImageSpecifications> = {};
 
-	constructor(config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name' | 'description'>) {
+	constructor(config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name'>) {
 		const acceptedFormats = config.options?.acceptedFormats ?? ['jpg', 'jpeg', 'png', 'webp'];
 		const extensionPatterns = acceptedFormats.map((format) => `*.${format.replace(/^\./, '')}`);
 
@@ -127,7 +127,6 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		super({
 			...config,
 			name: 'ecopages-image-processor',
-			description: 'A Processor for optimizing images.',
 			capabilities: [
 				{
 					kind: 'image',
@@ -486,13 +485,6 @@ declare module "ecopages:images" {
 	}
 
 	/**
-	 * Teardown the image processor.
-	 */
-	override async teardown(): Promise<void> {
-		logger.debug('Tearing down image processor');
-	}
-
-	/**
 	 * Get the image processor instance.
 	 * @returns The image processor instance.
 	 */
@@ -502,7 +494,7 @@ declare module "ecopages:images" {
 }
 
 export const imageProcessorPlugin = (
-	config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name' | 'description'>,
+	config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name'>,
 ): ImageProcessorPlugin => {
 	return new ImageProcessorPlugin(config);
 };

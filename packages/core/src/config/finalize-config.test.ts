@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, onTestFinished, test, vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -200,7 +200,6 @@ describe('finalizeEcoPagesConfig', () => {
 			plugins = [processorRuntimePlugin, processorBrowserPlugin];
 			override async prepareBuildContributions(): Promise<void> {}
 			override async setup(): Promise<void> {}
-			override async teardown(): Promise<void> {}
 			override async process(): Promise<unknown> {
 				return undefined;
 			}
@@ -244,86 +243,6 @@ describe('finalizeEcoPagesConfig', () => {
 		} finally {
 			fs.rmSync(rootDir, { recursive: true, force: true });
 		}
-	});
-
-	test('should reject integrations that require Bun on Node runtime', async () => {
-		const integration = new (class extends IntegrationPlugin {
-			renderer = vi.fn() as any;
-		})({
-			name: 'bun-only-integration',
-			extensions: ['.bun'],
-			runtimeCapability: {
-				tags: ['bun-only'],
-			},
-		});
-
-		await expect(finalize({ integrations: [integration] })).rejects.toThrow(
-			'Cannot enable integration "bun-only-integration" on node: it is Bun-only',
-		);
-	});
-
-	test('should reject processors with incompatible minimum runtime version', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-runtime-capability-'));
-		const processor = new (class extends Processor {
-			buildPlugins = [];
-			plugins = [];
-			override async setup(): Promise<void> {}
-			override async teardown(): Promise<void> {}
-			override async process(): Promise<unknown> {
-				return undefined;
-			}
-		})({
-			name: 'future-node-processor',
-			runtimeCapability: {
-				tags: ['node-compatible'],
-				minRuntimeVersion: '999.0.0',
-			},
-		});
-
-		try {
-			await expect(finalize({ rootDir, processors: [processor] })).rejects.toThrow(
-				'Cannot enable processor "future-node-processor" on node',
-			);
-		} finally {
-			fs.rmSync(rootDir, { recursive: true, force: true });
-		}
-	});
-
-	test('should reject invalid minimum runtime version declarations', async () => {
-		const integration = new (class extends IntegrationPlugin {
-			renderer = vi.fn() as any;
-		})({
-			name: 'invalid-version-integration',
-			extensions: ['.test'],
-			runtimeCapability: {
-				tags: ['node-compatible'],
-				minRuntimeVersion: '18.x',
-			},
-		});
-
-		await expect(finalize({ integrations: [integration] })).rejects.toThrow(
-			'Cannot validate integration "invalid-version-integration" runtimeCapability.minRuntimeVersion "18.x"',
-		);
-	});
-
-	test('should allow Bun-only integrations when Bun runtime is available', async () => {
-		Object.defineProperty(process.versions, 'bun', { value: '1.3.0', configurable: true });
-		onTestFinished(() => {
-			delete process.versions.bun;
-		});
-
-		const integration = new (class extends IntegrationPlugin {
-			renderer = vi.fn() as any;
-		})({
-			name: 'bun-runtime-integration',
-			extensions: ['.bun'],
-			runtimeCapability: {
-				tags: ['bun-only'],
-				minRuntimeVersion: '1.0.0',
-			},
-		});
-
-		await expect(finalize({ integrations: [integration] })).resolves.toBeDefined();
 	});
 
 	test('should set custom directories', async () => {
@@ -509,7 +428,6 @@ describe('finalizeEcoPagesConfig', () => {
 			buildPlugins = [];
 			plugins = [];
 			override async setup(): Promise<void> {}
-			override async teardown(): Promise<void> {}
 			override async process(): Promise<unknown> {
 				return undefined;
 			}

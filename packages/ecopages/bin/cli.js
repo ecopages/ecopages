@@ -74,7 +74,7 @@ function getMainHelpText() {
 	].join('\n');
 }
 
-function getServerCommandHelpText(commandName, description, extraHelpLines = []) {
+function getServerCommandHelpText(commandName, description) {
 	return [
 		`Usage: ecopages ${commandName} [options]`,
 		'',
@@ -88,7 +88,6 @@ function getServerCommandHelpText(commandName, description, extraHelpLines = [])
 		'      --runtime <runtime>                 Force bun or node',
 		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
 		'  -c, --config <file>                     Ecopages config file (default: eco.config.ts)',
-		...extraHelpLines,
 		'  -h, --help                              Show help',
 	].join('\n');
 }
@@ -104,15 +103,10 @@ function parseCommandArguments(rawArgs, options) {
 
 function parseServerCommandArgs(rawArgs, definition) {
 	const commandName = definition.name;
-	const flags = definition.flags ?? {};
-	const flagOptions = Object.fromEntries(Object.keys(flags).map((flag) => [flag, { type: 'boolean' }]));
-	const { values, positionals } = parseCommandArguments(rawArgs, {
-		...sharedServerOptionDefinitions,
-		...flagOptions,
-	});
+	const { values, positionals } = parseCommandArguments(rawArgs, sharedServerOptionDefinitions);
 
 	if (values.help) {
-		console.log(getServerCommandHelpText(commandName, definition.description, Object.values(flags)));
+		console.log(getServerCommandHelpText(commandName, definition.description));
 		return { help: true };
 	}
 
@@ -126,9 +120,6 @@ function parseServerCommandArgs(rawArgs, definition) {
 
 	return {
 		entry,
-		flagArgs: Object.keys(flags)
-			.filter((flag) => values[flag] === true)
-			.map((flag) => `--${flag}`),
 		options: {
 			port: values.port,
 			hostname: values.hostname,
@@ -292,7 +283,7 @@ async function runServerCommand(rawArgs, definition) {
 
 	const entry = definition.resolveEntry?.() ?? parsed.entry;
 	await runEntryCommand(
-		[...definition.entryArgs, ...parsed.flagArgs],
+		definition.entryArgs,
 		{ ...parsed.options, ...definition.optionOverrides, entryFile: entry },
 		entry,
 		definition.launchMode ?? definition.name,
@@ -301,8 +292,7 @@ async function runServerCommand(rawArgs, definition) {
 
 /**
  * Commands that run an entry file, keyed by name. `launchMode` defaults to the name,
- * `resolveEntry` replaces the app entry (`app.ts`) with another script, and `flags` declares
- * boolean options that are forwarded to the entry as `--<flag>`, keyed by name with their help line.
+ * and `resolveEntry` replaces the app entry (`app.ts`) with another script.
  */
 const SERVER_COMMANDS = {
 	dev: {
@@ -318,12 +308,10 @@ const SERVER_COMMANDS = {
 		optionOverrides: { watch: true, nodeEnv: 'development' },
 	},
 	build: {
-		description: 'Build the project for production.',
+		description:
+			'Build the project for production: pre-render the Pages in src/pages, optimize assets and images, and write the result to dist.',
 		entryArgs: ['--build'],
 		optionOverrides: { nodeEnv: 'production' },
-		flags: {
-			force: '      --force                             Empty dist and the build caches, then rebuild everything',
-		},
 	},
 	start: {
 		description: 'Start the production server.',
@@ -338,12 +326,9 @@ const SERVER_COMMANDS = {
 		optionOverrides: { nodeEnv: 'production' },
 	},
 	preview: {
-		description: 'Preview the production build.',
+		description: 'Build the project for production, then serve dist locally to preview it.',
 		entryArgs: ['--preview'],
 		optionOverrides: { nodeEnv: 'production' },
-		flags: {
-			force: '      --force                             Empty dist and the build caches, then rebuild everything',
-		},
 	},
 };
 

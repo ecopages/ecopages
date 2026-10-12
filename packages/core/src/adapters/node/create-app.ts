@@ -98,7 +98,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 			return this.server;
 		}
 
-		const { build, preview, force, serveOnly } = this.cliArgs;
+		const { build, preview, serveOnly } = this.cliArgs;
 
 		if (preview && serveOnly) {
 			const previewOrigin = await this.serverAdapter.servePreviewOnly();
@@ -110,7 +110,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 
 		if (build || preview) {
 			appLogger.debugTime('Building static pages');
-			const previewOrigin = await this.serverAdapter.buildStatic({ preview, force });
+			const previewOrigin = await this.serverAdapter.buildStatic({ preview });
 			appLogger.debugTimeEnd('Building static pages');
 
 			if (preview && previewOrigin) {

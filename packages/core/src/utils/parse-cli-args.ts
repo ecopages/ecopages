@@ -15,7 +15,6 @@ export type ReturnParseCliArgs = {
 	build: boolean;
 	start: boolean;
 	dev: boolean;
-	force: boolean;
 	serveOnly: boolean;
 	port?: number;
 	hostname?: string;
@@ -80,7 +79,6 @@ export function parseCliArgs(): ReturnParseCliArgs {
 			dev: { type: 'boolean' },
 			preview: { type: 'boolean' },
 			build: { type: 'boolean' },
-			force: { type: 'boolean' },
 			'serve-only': { type: 'boolean' },
 			port: { type: 'string' },
 			hostname: { type: 'string' },
@@ -96,7 +94,6 @@ export function parseCliArgs(): ReturnParseCliArgs {
 		build: isBuildCommand,
 		start: isStartCommand,
 		dev: isDevCommand,
-		force: !!values.force,
 		serveOnly: !!values['serve-only'] || process.env.ECOPAGES_PREVIEW_SERVE_ONLY === 'true',
 		port: values.port ? Number(values.port) : undefined,
 		hostname: values.hostname,

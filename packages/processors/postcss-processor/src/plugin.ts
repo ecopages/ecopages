@@ -356,13 +356,12 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	}
 
 	constructor(
-		config: Omit<ProcessorConfig<PostCssProcessorPluginConfig>, 'name' | 'description'> = {
+		config: Omit<ProcessorConfig<PostCssProcessorPluginConfig>, 'name'> = {
 			options: PostCssProcessorPlugin.DEFAULT_OPTIONS,
 		},
 	) {
 		super({
 			name: 'ecopages-postcss-processor',
-			description: 'A Processor for transforming CSS files using PostCSS.',
 			capabilities: [
 				{
 					kind: 'stylesheet',
@@ -614,13 +613,6 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			plugins: this.postcssPlugins,
 			transformOutput: this.options?.transformOutput,
 		});
-	}
-
-	/**
-	 * Teardown the PostCSS processor.
-	 */
-	override async teardown(): Promise<void> {
-		logger.debug('Tearing down PostCSS processor');
 	}
 }
 

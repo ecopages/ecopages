@@ -45,18 +45,6 @@ describe('parseCliArgs', () => {
 		expect(parseCliArgs()).toMatchObject({ start: true, dev: false, build: false, preview: false });
 	});
 
-	it('parses --force for production build commands', () => {
-		delete process.env.NODE_ENV;
-		process.argv = ['node', '/usr/local/bin/ecopages.js', 'build', '--force'];
-
-		expect(parseCliArgs()).toMatchObject({
-			build: true,
-			force: true,
-			dev: false,
-		});
-		expect(process.env.NODE_ENV).toBe('production');
-	});
-
 	it('forces production NODE_ENV for build when ambient env is development', () => {
 		process.env.NODE_ENV = 'development';
 		process.argv = ['node', '/usr/local/bin/ecopages.js', 'build'];

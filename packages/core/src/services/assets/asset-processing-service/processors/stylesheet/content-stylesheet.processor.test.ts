@@ -59,8 +59,6 @@ class TestStylesheetProcessor extends Processor {
 
 	override async setup(): Promise<void> {}
 
-	override async teardown(): Promise<void> {}
-
 	override async process(input: unknown): Promise<unknown> {
 		return typeof input === 'string' ? input.replace('red', 'green') : input;
 	}

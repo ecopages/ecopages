@@ -27,7 +27,6 @@ export class ObsidianIngestProcessor extends Processor {
 
 		super({
 			name: 'obsidian-ingest',
-			description: 'Mirrors wiki/*.md into the wiki content collection and sources/*.md into public/sources/.',
 			watch,
 		});
 

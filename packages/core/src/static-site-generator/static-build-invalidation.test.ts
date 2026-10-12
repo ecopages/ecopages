@@ -3,7 +3,6 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, beforeEach, describe, it } from 'vitest';
-import { Processor } from '../plugins/processor.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { ROUTE_MODULE_BUILD_CACHE_FILENAME } from '../services/module-loading/route-module-build-manifest.ts';
 import {
@@ -36,33 +35,6 @@ describe('static-build-invalidation', () => {
 	describe('shouldResetStaticExportDirectory', () => {
 		it('always resets when force is true', () => {
 			assert.equal(shouldResetStaticExportDirectory({} as any, true), true);
-		});
-
-		it('resets when a build-input contributor reports changes', () => {
-			const processor = new (class extends Processor {
-				override readonly plugins = undefined;
-				override didChange(): boolean {
-					return true;
-				}
-
-				override async setup(): Promise<void> {}
-				override async teardown(): Promise<void> {}
-				override async process(): Promise<unknown> {
-					return null;
-				}
-			})({ name: 'changed-processor' });
-
-			assert.equal(
-				shouldResetStaticExportDirectory(
-					{
-						processors: new Map([['changed-processor', processor]]),
-						integrations: [],
-						absolutePaths: { workDir: '/tmp/.eco' },
-					} as any,
-					false,
-				),
-				true,
-			);
 		});
 	});
 

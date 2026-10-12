@@ -66,7 +66,7 @@ Pipeline for each page URL:
 3. `metadata.robots.index: false` omits the URL.
 4. Matching `exclude` patterns omit the URL.
 5. Remaining pathnames become `<loc>` entries; `extraUrls` append afterward.
-6. `sitemap.xml` is written after `afterStaticExport`.
+6. `sitemap.xml` is written after every page.
 
 ### Eligible pages
 
@@ -123,7 +123,7 @@ This is not a full glob engine. Patterns outside these forms are treated as exac
 
 - RSS or Atom feeds (`/rss.xml`)
 - Web app manifests
-- Files an integration writes in `afterStaticExport`
+- Files an integration writes during static export
 
 Relative paths resolve against `baseUrl`. Absolute `http(s)` URLs pass through unchanged.
 
@@ -143,10 +143,9 @@ Static export runs in this order:
 1. `beforeStaticExport`
 2. `robots.txt` generation
 3. Static page rendering
-4. `afterStaticExport` (integration hooks)
-5. **Sitemap write** (when `enabled: true`)
+4. **Sitemap write** (when `enabled: true`)
 
-The sitemap is written **after** `afterStaticExport` so integrations can finish generating artifacts before you list them in `extraUrls`.
+The sitemap is written **after** every page, so files generated during export can be listed in `extraUrls`.
 
 `StaticExportContext.routes` exposes the full static-generation route list without sitemap filtering. Integrations that emit custom files should add those URLs to `extraUrls` (or maintain a separate sitemap) rather than assuming every route in `routes` appears in `sitemap.xml`.
 

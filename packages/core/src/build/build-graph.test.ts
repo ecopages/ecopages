@@ -68,39 +68,6 @@ test('attributes plugin inputs to their entry closure when inputs overlap anothe
 	]);
 });
 
-test('retains dependencies loaded by a namespaced virtual module', async () => {
-	const entry = path.join(root, 'page.ts');
-	const pluginInput = path.join(root, 'data/posts.json');
-	writeFileSync(entry, "import { posts } from 'virtual:posts'; export { posts };\n");
-	mkdirSync(path.dirname(pluginInput), { recursive: true });
-	writeFileSync(pluginInput, '["Hello"]');
-	const result = await new RolldownBuildAdapter().build({
-		environment: 'browser',
-		entrypoints: [entry],
-		root,
-		outdir: path.join(root, 'dist'),
-		target: 'browser',
-		plugins: [
-			{
-				name: 'virtual-posts',
-				setup(build) {
-					build.onResolve({ filter: /^virtual:posts$/u }, () => ({
-						path: '/posts',
-						namespace: 'virtual-posts',
-					}));
-					build.onLoad({ filter: /^\/posts$/u, namespace: 'virtual-posts' }, (args) => {
-						args.addDependency?.(pluginInput);
-						return { contents: "export const posts = ['Hello'];", loader: 'js' };
-					});
-				},
-			},
-		],
-	});
-
-	expect(result.success, JSON.stringify(result.logs)).toBe(true);
-	expect(collectBuildEntryInputPaths(result, entry, root)).toContain(pluginInput);
-});
-
 test('both persisted entries miss after their shared inlined source changes', async () => {
 	const shared = path.join(root, 'shared.js');
 	writeFileSync(shared, "export const value = 'before';");

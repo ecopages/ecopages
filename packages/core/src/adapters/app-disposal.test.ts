@@ -46,7 +46,6 @@ class TestNodeEcopagesApp extends NodeEcopagesApp {
 			build: false,
 			start: false,
 			dev: false,
-			force: false,
 			serveOnly: false,
 			port: undefined,
 			hostname: undefined,
@@ -136,7 +135,7 @@ describe('NodeEcopagesApp disposal', () => {
 
 		await app.start();
 
-		expect(app.buildStatic).toHaveBeenCalledWith({ preview: true, force: false });
+		expect(app.buildStatic).toHaveBeenCalledWith({ preview: true });
 		expect(app.dispose).not.toHaveBeenCalled();
 		expect(runtimeHost.stop).not.toHaveBeenCalled();
 	});

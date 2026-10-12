@@ -21,7 +21,7 @@ Core owns ordering. During config finalization (when `createApp()` loads `eco.co
 
 At startup: processors `setup()` first, then integrations `setup()`.
 
-`teardown()` exists on processors and integrations but core does not call it today.
+Core calls Integration `teardown()` when the app stops or the development server restarts. Processors have no `teardown()` hook.
 
 ## Shipped processors
 

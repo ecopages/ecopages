@@ -33,7 +33,7 @@ Semantic error pages are excluded from ordinary page enumeration and emitted onc
 | File                                        | Role                                                                         |
 | ------------------------------------------- | ---------------------------------------------------------------------------- |
 | `static-site-generator.ts`                  | Route enumeration, HTML artifact writes, integration export hooks, sitemap   |
-| `static-export-context.ts`                  | Hook context type for `beforeStaticExport` / `afterStaticExport`             |
+| `static-export-context.ts`                  | Hook context type for `beforeStaticExport`                                   |
 | `sitemap.ts`                                | Pure sitemap.xml renderer                                                    |
 | `sitemap-routes.ts`                         | Sitemap location assembly (`exclude`, `extraUrls`, dedupe)                   |
 | `static-build-invalidation.ts`              | `dist/` reset policy, production cache clearing, static-render cache context |
@@ -47,10 +47,9 @@ Build-input fingerprinting (`hashAppConfigFile`, `createBuildInputsFingerprint`,
 
 1. `force: true` → always reset, and clear leftover on-disk manifests plus in-process caches
 2. A watched rendering input changed (`haveWatchedBuildInputsChanged()`) → reset, and clear leftover on-disk manifests plus in-process caches
-3. Any processor/integration reports `didChange()` → reset
-4. This process has not yet recorded matching `configHash`, `buildInputsFingerprint`, and `watchedInputsHash` → reset. A new process always takes this branch.
+3. This process has not yet recorded matching `configHash`, `buildInputsFingerprint`, and `watchedInputsHash` → reset. A new process always takes this branch.
 
-Recorded rendering inputs are the paths the build read: plugin `addDependency` files, module closures, and Processor watch directories seeded into the reverse index. `hashRecordedBuildInputs()` fingerprints those paths by size and mtime and passes the hash to `StaticSiteGenerator.run()`. Content a page reads without importing it statically, such as content collection entries loaded through dynamic `import()`, is included when the Processor declares that directory or the loader records the file. `additionalWatchPaths` is not a build input: route-module hashing already covers sources pages import.
+Recorded rendering inputs are the paths the build read: files loaded through build plugins, module closures, and Processor watch directories seeded into the reverse index. `hashRecordedBuildInputs()` fingerprints those paths by size and mtime and passes the hash to `StaticSiteGenerator.run()`. Content a page reads without importing it statically, such as content collection entries loaded through dynamic `import()`, is included when the Processor declares that directory or the loader records the file. `additionalWatchPaths` is not a build input: route-module hashing already covers sources pages import.
 
 When `dist/` is preserved (`preserveExportDirectory: true`), `StaticSiteGenerator.run()` prunes HTML files no longer in the active route set.
 
@@ -63,9 +62,10 @@ Rendered HTML reuse is in-process only. `canReuseStaticRender()` skips re-render
 Integrations may implement:
 
 - `beforeStaticExport(context)` — runs after unified-graph prebuild, before page rendering
-- `afterStaticExport(context)` — runs in a `finally` block after generation completes
 
-When `appConfig.sitemap.enabled` is true, `sitemap.xml` is written **after** `afterStaticExport` so integration-generated URLs can be listed via `extraUrls`. Development (`ecopages dev`) does not emit this file.
+Core calls no Integration hook after generation.
+
+When `appConfig.sitemap.enabled` is true, `sitemap.xml` is written **after** every page, so a file an Integration writes during export can be listed through `extraUrls`. Development (`ecopages dev`) does not emit this file.
 
 Sitemap eligibility is decided during successful page export (`activeStaticPathnames` plus `robots.index !== false`, fail-closed on metadata errors). `resolveSitemapLocations` then applies `exclude` and appends `extraUrls`.
 

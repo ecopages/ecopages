@@ -254,10 +254,10 @@ function readModifiedTimes(filePaths) {
 }
 
 /**
- * Launch the entry file via the detected or forced runtime.
- * Node uses native Node semantics; Bun uses Bun runtime flags.
+ * Launch the entry file via the detected or forced runtime. Node and Bun get the same
+ * entry file and arguments.
  * @param {string[]} args - Arguments to pass to the entry file
- * @param {object} options - CLI options (watch, hot, port, hostname, etc.)
+ * @param {object} options - CLI options (watch, runtime, port, hostname, etc.)
  * @param {string} entryFile - Entry file to run
  */
 async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchMode = 'start') {

@@ -45,6 +45,21 @@ export abstract class BaseProcessor<T extends BaseAsset> {
 		return this.cache.has(key);
 	}
 
+	/**
+	 * Removes cached outputs that were built from the changed source path.
+	 */
+	invalidateCacheForFile(filepath: string): void {
+		const resolvedPath = path.resolve(filepath);
+		for (const [key, asset] of this.cache.entries()) {
+			if (
+				(asset.sourceFilepath && path.resolve(asset.sourceFilepath) === resolvedPath) ||
+				asset.bundledSourceFilepaths?.some((sourcePath) => path.resolve(sourcePath) === resolvedPath)
+			) {
+				this.cache.delete(key);
+			}
+		}
+	}
+
 	protected generateHash(content: string): string {
 		return rapidhash(content).toString();
 	}

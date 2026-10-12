@@ -12,10 +12,6 @@ declare global {
 		interface ProcessEnv extends EcopagesEnv {}
 	}
 
-	namespace Bun {
-		interface Env extends EcopagesEnv {}
-	}
-
 	interface ImportMetaEnv extends EcopagesEnv {}
 }
 

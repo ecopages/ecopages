@@ -4,10 +4,10 @@ The foundational engine for the Ecopages framework. It provides the core build p
 
 ## Overview
 
-Ecopages is an extensible static site generator (SSG) built around a Bun-first core with Node fallback support. It embraces a strictly MPA (Multi-Page Application) architecture by default, rendering HTML at build-time or request-time, and hydrating interactive islands only where necessary.
+Ecopages is an extensible static site generator (SSG). It runs on Node or Bun through Node APIs. It embraces a strictly MPA (Multi-Page Application) architecture by default, rendering HTML at build-time or request-time, and hydrating interactive islands only where necessary.
 
-- **Runtime Boundary**: `createApp()` prefers Bun when available and falls back to Node otherwise.
-- **Build Ownership**: Rolldown builds the app for both Bun and Node.
+- **Runtime Boundary**: `createApp()` uses the Node HTTP host. The start log names Bun or Node from the process that launched it.
+- **Build Ownership**: Rolldown builds the app.
 - **Framework agnostic**: First-class support for KitaJS, Lit, React, and MDX via official integration plugins.
 - **Extensible**: Hook into the build process with custom processors or rendering integrations.
 
@@ -24,12 +24,12 @@ The important ownership rules are:
 - Component identity attribution is one shared source transform for server, browser, and HMR compilation paths: after a lexical `eco.` gate, it uses Oxc to wrap supported factory options with `bindComponentIdentity()`, which factories retain as `config.identity`.
 - Direct local Eco Component imports (including named `export { X } from` barrels) and relative side-effect CSS imports supply Dependencies by default through the shared transform and existing collector; explicit asset declarations override inference, and inferred styles stay keyed by identity until collection. See [eco](src/eco/README.md) and [Plugin Contracts](src/plugins/README.md).
 - Browser bundling and server module loading are separate paths. SSR-enabled lazy scripts execute on the server before rendering and in the browser only on their configured trigger.
-- runtime hosts stay thin and delegate framework work into core services. A failed server stop during a development restart logs rejection details and exits the child with failure. See [Runtime Adapters](src/adapters/README.md).
+- The Project Watcher sends each Processor one batched `onChanges` notification per debounce window. See [Project Watcher](src/watchers/README.md).
 - Development Page prewarm path collection and rendering run in the background without delaying server readiness. App configuration declares `devPrewarmPaths`; Processors declare pathnames through `collectDevPrewarmPaths()`. Collection failures are logged with their stack. See [Runtime Adapters](src/adapters/README.md) and [Plugin Contracts](src/plugins/README.md).
 - App shutdown tears down Integration runtime resources, including Lit workers. See [Runtime Adapters](src/adapters/README.md).
 - HMR and invalidation use shared graph-aware services instead of runtime-specific ad hoc wiring.
 - Browser and React navigation use one core-owned document commit pipeline; each router supplies its page swap and scroll handling while core coordinates fetch/cache/parse, head reconciliation, script activation, view transitions, and lifecycle events. Superseded stylesheet waits settle when a later page removes their staged links. For rerun scripts matched by relative `src` (without an explicit script id or HTML `id`), core keeps identity stable across pages with different `<base>` URLs while loading external modules from the incoming page's resolved URL. See [Router Layer](src/router/README.md).
-- The build adapter owns source module closures and emitted chunk graphs, and passes an explicit recorder to Rolldown plugin hooks so their declared filesystem inputs reach the active build-input index. Grouped browser scripts resolve by the path or name the caller passed (and the bundler's facade when that spelling differs); in-process Page caches track inlined source imports and reachable generated artifacts. See [Build Layer](src/build/README.md).
+- The build adapter returns each build's plugin-recorded inputs by module alongside source-module closures, and passes an explicit recorder to Rolldown plugin hooks. Cache owners bind only the paths read by their entry closure, so development invalidates affected Page Browser Graphs, HTML entries, route modules, and browser entrypoints. Grouped browser scripts resolve by the path or name the caller passed (and the bundler's facade when that spelling differs); in-process Page caches also track reachable generated artifacts. See [Build Layer](src/build/README.md).
 
 ### Bootstrap And Runtime Ownership
 
@@ -44,7 +44,7 @@ flowchart TD
 	F --> I[PageModuleImportService]
 	F --> J[BrowserBundleService]
 	I --> K[Runtime app adapter]
-	K --> L[Bun adapter or Node adapter]
+	K --> L[Node HTTP host]
 	E --> J
 ```
 
@@ -83,7 +83,7 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 - `ServerModuleTranspiler` is the shared server-side source loading seam used by runtime bootstrap and HMR metadata loading.
 - `RouteRegistry` gives exact and dynamic Pages priority over catch-alls, then selects the most specific matching catch-all prefix.
 - Browser runtime package entries resolve from the application root with ESM import conditions, so framework-local packages cannot shadow app dependencies.
-- `createApp()` stays the universal runtime entrypoint and selects Bun or Node.
+- `createApp()` stays the universal runtime entrypoint and uses the Node HTTP host. The start log names the process that launched it.
 - One bundled adapter builds the app with Rolldown.
 
 ## Documentation Map
@@ -94,7 +94,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/plugins/README.md`: integration and processor authoring contracts
 - `src/build/README.md`: build adapter, executor, shared `.server` browser import guard, development build coordination, standalone Node server packaging and its deploy layout
 - `src/services/README.md`: cross-cutting runtime services and orchestration helpers
-- `src/adapters/README.md`: Bun, Node, and shared adapter boundaries
+- `src/adapters/README.md`: Node HTTP host and shared adapter boundaries
 - `src/dev/README.md`: dev transform server, on-demand client delivery (including workspace-package `@fs` URLs), and invalidation during compilation
 - `src/watchers/README.md`: recursive source subscriptions awaited before readiness, external build-input and linked-package watching, batched `applyDevFileChanges`, and restart invalidation
 - `src/services/invalidation/README.md`: file-change classification and dirty-marking for one debounce window
@@ -147,7 +147,7 @@ export default defineConfig({
 
 ### 2. Application Entry (`app.ts`)
 
-Start the application using `createApp`. It automatically resolves and loads `eco.config.ts` from the project root and selects the appropriate runtime adapter (Bun when available, Node otherwise):
+Start the application using `createApp`. It automatically resolves and loads `eco.config.ts` from the project root and serves through the Node HTTP host on Node and on Bun:
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';

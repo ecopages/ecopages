@@ -75,32 +75,11 @@ export function detectRuntime(options = {}) {
 
 	const userAgent = process.env.npm_config_user_agent || '';
 
-	if (userAgent.startsWith('bun/') || typeof Bun !== 'undefined') {
+	if (userAgent.startsWith('bun/') || process.versions.bun) {
 		return 'bun';
 	}
 
 	return 'node';
-}
-
-export function buildBunArgs(args, options, entryFile, configFilePath) {
-	const bunArgs = [];
-
-	if (options.watch) bunArgs.push('--watch');
-	if (options.hot) bunArgs.push('--hot');
-
-	bunArgs.push('run');
-
-	if (configFilePath) {
-		bunArgs.push('--preload', configFilePath);
-	}
-
-	bunArgs.push(entryFile, ...args);
-
-	if (options.reactFastRefresh) {
-		bunArgs.push('--react-fast-refresh');
-	}
-
-	return bunArgs;
 }
 
 function usesProductionBundle(launchMode) {
@@ -136,7 +115,8 @@ function inferLaunchMode(args, launchMode) {
  * caller to run `ecopages build` first.
  *
  * In `build`, `dev`, `preview`, and `types` modes, the source entry file is executed via tsx
- * (Node) or Bun's native runtime with the appropriate loader flags.
+ * on Node, or as `bun run` with the same forwarded arguments. `--watch` is added for both
+ * when watch mode is on.
  *
  * @param {string[]} args - Arguments forwarded to the entry file.
  * @param {object} options - CLI options (nodeEnv, runtime, port, etc.).
@@ -235,10 +215,16 @@ export function createLaunchPlan(args, options, entryFile, launchMode) {
 		};
 	}
 
+	const commandArgs = [];
+	if (resolvedOptions.watch) {
+		commandArgs.push('--watch');
+	}
+	commandArgs.push('run', resolvedEntryFile, ...args);
+
 	return {
 		runtime,
 		command: 'bun',
-		commandArgs: buildBunArgs(args, resolvedOptions, resolvedEntryFile, resolvedConfigFile),
+		commandArgs,
 		envOverrides,
 		env,
 	};

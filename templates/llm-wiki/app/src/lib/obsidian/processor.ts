@@ -1,5 +1,5 @@
 import { Processor } from '@ecopages/core/plugins/processor';
-import type { EcoBuildPlugin, ProcessorWatchConfig, ProcessorWatchContext } from '@ecopages/core/plugins/processor';
+import type { EcoBuildPlugin, ProcessorWatchChanges, ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
 import { join } from 'node:path';
 import { writeWikiSearchIndex } from '@/lib/search/wiki';
 import { ingestVault, resolveSourcesDir, resolveVaultDir } from '@/lib/wiki/ingest';
@@ -31,10 +31,7 @@ export class ObsidianIngestProcessor extends Processor {
 			watch,
 		});
 
-		const handle = (ctx: ProcessorWatchContext) => this.handleVaultEvent(ctx);
-		watch.onCreate = handle;
-		watch.onChange = handle;
-		watch.onDelete = handle;
+		watch.onChanges = (changes) => this.handleVaultEvent(changes);
 	}
 
 	private getAppRoot(): string {
@@ -82,10 +79,10 @@ export class ObsidianIngestProcessor extends Processor {
 		await writeWikiSearchIndex(directories, { contentRoot });
 	}
 
-	private async handleVaultEvent(ctx: ProcessorWatchContext): Promise<void> {
+	private async handleVaultEvent({ bridge }: ProcessorWatchChanges): Promise<void> {
 		await ingestVault({ appRoot: this.getAppRoot() });
 		await this.writeSearchIndex();
-		ctx.bridge.reload();
+		bridge.reload();
 	}
 }
 

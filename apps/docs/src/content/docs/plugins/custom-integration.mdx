@@ -308,7 +308,7 @@ class CustomIntegration extends IntegrationPlugin {
 	async setup(): Promise<void> {
 		await super.setup();
 		// Additional initialization logic
-		// e.g., Bun.plugin(customCompilerPlugin())
+		// e.g., start a compiler worker
 	}
 
 	async teardown(): Promise<void> {

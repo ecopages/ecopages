@@ -255,7 +255,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			stylesheets: [],
 			watchFiles: ['/app/pages/about.css', '/app/pages/counter.ts'],
 		});
-		const Page = (() => '<main>About</main>') as unknown as EcoPageComponent<any>;
+		const Page = (() => '<main>About</main>') as unknown as EcoPageComponent<unknown>;
 		Page.config = { identity };
 
 		const result = await flow.prepareRenderOptions(
@@ -272,6 +272,37 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		expect(result.sourceDependencyPaths).toEqual(
 			expect.arrayContaining(['/app/pages/about.html', '/app/pages/about.css', '/app/pages/counter.ts']),
 		);
+	});
+
+	it('adds registered route-module inputs to the cached HTML dependencies', async () => {
+		const appConfig = { cache: { defaultStrategy: 'static' }, integrations: [] } as unknown as EcoPagesAppConfig;
+		const routeFile = '/app/pages/about.html';
+		const routeHelper = '/app/components/shared-title.ts';
+		getAppBuildInputIndex(appConfig).register({ consumer: 'server-route-module', key: routeFile }, [
+			routeFile,
+			routeHelper,
+		]);
+		const flow = new RouteRenderOrchestrator(appConfig, {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService);
+		const Page = (() => '<main>About</main>') as unknown as EcoPageComponent<unknown>;
+		Page.config = {
+			identity: { id: 'about-page', file: routeFile, integration: 'string' },
+		};
+
+		const result = await flow.prepareRenderOptions(
+			{ file: routeFile, params: {}, query: {} } as unknown as RouteRendererOptions,
+			createFlowAdapter({
+				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
+				getHtmlTemplate: async () => (() => '<html></html>') as EcoComponent<HtmlTemplateProps>,
+				resolvePageData: async () => ({ props: {}, metadata: { title: 'About', description: 'About' } }),
+				resolveDependencies: async () => [],
+				collectPageBrowserGraphContribution: async () => undefined,
+			}),
+		);
+
+		expect(result.sourceDependencyPaths).toEqual(expect.arrayContaining([routeFile, routeHelper]));
+		expect(getAppBuildInputIndex(appConfig).recordedWatchPaths()).toContain(routeHelper);
 	});
 
 	it('adds nested Component identity files to the cached HTML dependencies', async () => {

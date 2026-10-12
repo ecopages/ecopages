@@ -7,6 +7,10 @@
 @import './components/button.css';
 @import './vendor/shiki.css';
 
+.rui-heading__title {
+	@apply font-heading font-extrabold;
+}
+
 html {
 	scrollbar-gutter: stable;
 }

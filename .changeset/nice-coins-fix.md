@@ -1,7 +1,7 @@
 ---
-'@ecopages/browser-router': major
-'@ecopages/core': major
-'@ecopages/react-router': major
+'@ecopages/browser-router': minor
+'@ecopages/core': minor
+'@ecopages/react-router': minor
 '@ecopages/dev-toolbar': patch
 ---
 

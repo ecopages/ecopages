@@ -8,7 +8,7 @@ description: >-
 
 # Building with Ecopages
 
-Ecopages is a TypeScript-first static site generator with Bun and Node adapters. It is explicit, integration-agnostic, and static by default.
+Ecopages is a TypeScript-first static site generator. It runs on Node or Bun through Node APIs. It is explicit, integration-agnostic, and static by default.
 
 ## When to use this skill
 

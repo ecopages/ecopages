@@ -206,13 +206,13 @@ export default eco.page({
 
 ## Runtime Support
 
-Ecopages supports multiple server adapters. In most guides you will see Bun examples, and Node runtime support is also available through the Node adapter.
+Ecopages runs on Node or Bun through Node APIs. The CLI picks the runtime that launched it.
 
 This means you'll need to:
 
-- Choose the adapter that matches your runtime and deployment target
+- Launch the app with Node or with Bun
 - Install dependencies with your preferred package manager (for this repo, `pnpm` is used)
-- Ensure your runtime can execute your chosen app entrypoint and scripts
+- Ensure that runtime can execute your app entrypoint and scripts
 
 ## Server and API Handlers
 

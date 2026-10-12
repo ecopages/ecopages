@@ -1,4 +1,5 @@
 import type { RolldownPlugin } from 'rolldown';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { BuildDependencyGraph } from '../build-adapter.ts';
 import { resolveBuildEntryPath } from '../build-graph.ts';
@@ -19,7 +20,7 @@ export function createEntryModuleClosuresPlugin(graph: BuildDependencyGraph, roo
 					id,
 					id.startsWith('file:')
 						? fileURLToPath(id)
-						: id.startsWith('\0') || !infoById.get(id)
+						: id.startsWith('\0') || !infoById.get(id) || !path.isAbsolute(id)
 							? id
 							: resolveBuildEntryPath(id, root),
 				]),

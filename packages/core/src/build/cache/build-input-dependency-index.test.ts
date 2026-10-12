@@ -12,16 +12,25 @@ describe('BuildInputDependencyIndex', () => {
 			'/app/pages/about.tsx',
 			'/app/layouts/base.tsx',
 		]);
+		index.register({ consumer: 'server-route-module', key: '/app/pages/about.tsx' }, [
+			'/app/pages/about.tsx',
+			'/app/src/lib/posts.ts',
+		]);
 
 		assert.deepEqual(index.resolveKeys('page-browser-graph', '/app/pages/about.tsx'), ['graph-a']);
 		assert.deepEqual(index.resolveKeys('html-cache', '/app/content/intro.mdx'), ['/about']);
 		assert.deepEqual(index.resolveKeys('entrypoint', '/app/layouts/base.tsx'), ['/app/pages/about.tsx']);
+		assert.deepEqual(index.resolveKeys('server-route-module', '/app/src/lib/posts.ts'), ['/app/pages/about.tsx']);
+		assert.deepEqual(index.sourcePaths({ consumer: 'server-route-module', key: '/app/pages/about.tsx' }), [
+			'/app/pages/about.tsx',
+			'/app/src/lib/posts.ts',
+		]);
 		assert.deepEqual(
 			index
 				.resolve('/app/pages/about.tsx')
 				.map((binding) => binding.consumer)
 				.sort(),
-			['entrypoint', 'html-cache', 'page-browser-graph'],
+			['entrypoint', 'html-cache', 'page-browser-graph', 'server-route-module'],
 		);
 	});
 

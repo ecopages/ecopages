@@ -14,7 +14,11 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 		this.hmrManager = hmrManager;
 	}
 
-	private toProcessedAsset(dep: FileScriptAsset, filepath: string): ProcessedAsset {
+	private toProcessedAsset(
+		dep: FileScriptAsset,
+		filepath: string,
+		inputPaths: readonly string[] = [],
+	): ProcessedAsset {
 		return {
 			filepath,
 			sourceFilepath: dep.filepath,
@@ -25,7 +29,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 			excludeFromHtml: dep.excludeFromHtml,
 			packageRole: dep.packageRole,
 			groupedBundle: dep.groupedBundle,
-			bundledSourceFilepaths: dep.bundledSourceFilepaths,
+			bundledSourceFilepaths: this.getBundledSourceFilepaths(dep, inputPaths),
 		};
 	}
 
@@ -60,12 +64,12 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 
 		return deps.map((dep) => {
 			const entryName = dep.groupedBundle?.entryName ?? dep.name ?? path.parse(dep.filepath).name;
-			const bundledFilePath = outputPaths.get(entryName);
-			if (!bundledFilePath) {
+			const bundledOutput = outputPaths.get(entryName);
+			if (!bundledOutput) {
 				throw new Error(`Missing grouped bundle output for ${entryName}`);
 			}
 
-			return this.toProcessedAsset(dep, bundledFilePath);
+			return this.toProcessedAsset(dep, bundledOutput.filepath, bundledOutput.inputPaths);
 		});
 	}
 
@@ -105,7 +109,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 					inline: false,
 					excludeFromHtml: dep.excludeFromHtml,
 					packageRole: dep.packageRole,
-					bundledSourceFilepaths: dep.bundledSourceFilepaths,
+					bundledSourceFilepaths: this.getBundledSourceFilepaths(dep),
 				};
 			}
 
@@ -120,7 +124,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 				inline: false,
 				excludeFromHtml: dep.excludeFromHtml,
 				packageRole: dep.packageRole,
-				bundledSourceFilepaths: dep.bundledSourceFilepaths,
+				bundledSourceFilepaths: this.getBundledSourceFilepaths(dep),
 			};
 		}
 
@@ -165,7 +169,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 					inline: dep.inline,
 					excludeFromHtml: dep.excludeFromHtml,
 					packageRole: dep.packageRole,
-					bundledSourceFilepaths: dep.bundledSourceFilepaths,
+					bundledSourceFilepaths: this.getBundledSourceFilepaths(dep),
 				};
 			}
 
@@ -174,7 +178,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 			const outdirDirname = path.dirname(outdirPath);
 			const bundlerOptions = this.getBundlerOptions(dep);
 
-			const bundledFilePath = await this.bundleScript({
+			const bundledOutput = await this.bundleScript({
 				entrypoint: dep.filepath,
 				outdir: outdirDirname,
 				minify: this.isProduction,
@@ -183,16 +187,16 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 			});
 
 			return {
-				filepath: bundledFilePath,
+				filepath: bundledOutput.filepath,
 				sourceFilepath: dep.filepath,
-				content: dep.inline ? fileSystem.readFileSync(bundledFilePath).toString() : undefined,
+				content: dep.inline ? fileSystem.readFileSync(bundledOutput.filepath).toString() : undefined,
 				kind: 'script',
 				position: dep.position,
 				attributes: dep.attributes,
 				inline: dep.inline,
 				excludeFromHtml: dep.excludeFromHtml,
 				packageRole: dep.packageRole,
-				bundledSourceFilepaths: dep.bundledSourceFilepaths,
+				bundledSourceFilepaths: this.getBundledSourceFilepaths(dep, bundledOutput.inputPaths),
 			};
 		});
 	}

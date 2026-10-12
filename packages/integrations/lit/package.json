@@ -41,8 +41,7 @@
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",
-		"@ecopages/testing": "workspace:*",
-		"@types/bun": "latest"
+		"@ecopages/testing": "workspace:*"
 	},
 	"peerDependencies": {
 		"@ecopages/core": "workspace:*",

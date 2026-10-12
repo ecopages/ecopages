@@ -323,7 +323,7 @@ export function getEcoBuildPluginName(error: unknown): string | undefined {
 	return error instanceof EcoBuildPluginError ? error.ecoBuildPlugin : undefined;
 }
 
-export type BuildInputRecorder = (filePath: string) => void;
+export type BuildInputRecorder = (moduleId: string, filePath: string) => void;
 
 /**
  * Creates the single Rolldown `Plugin` that drives the supplied
@@ -446,7 +446,7 @@ export async function createRolldownPluginBridge(
 			const addWatchFile = typeof this?.addWatchFile === 'function' ? this.addWatchFile.bind(this) : undefined;
 			const addDependency = (filePath: string): void => {
 				const resolved = path.isAbsolute(filePath) ? filePath : path.resolve(contextRoot, filePath);
-				recordBuildInput?.(resolved);
+				recordBuildInput?.(id, resolved);
 				addWatchFile?.(resolved);
 			};
 			addDependency(sourcePath);

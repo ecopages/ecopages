@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import { clearNavigationHtmlCache, fetchNavigationPage } from '@ecopages/core/router/navigation-pipeline';
 import { PrefetchManager, type PrefetchOptions } from '../src/client/services/prefetch-manager.ts';
@@ -19,7 +19,7 @@ const destination = (test: string) => `/prefetch/destination?test=${test}&run=${
 
 let container: HTMLDivElement;
 let manager: PrefetchManager | undefined;
-let fetchSpy: ReturnType<typeof vi.spyOn<typeof globalThis, 'fetch'>>;
+let fetchSpy: MockInstance<typeof fetch>;
 
 /**
  * Starts a manager over the given markup with the request tracker already attached.

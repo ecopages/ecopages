@@ -103,12 +103,15 @@ export abstract class SharedServerAdapter<
 		this.devStaticRoutePrewarm = startDevStaticRoutePrewarm({
 			collectPathnames: () => collectAppDevPrewarmPaths(this.appConfig),
 			signal: this.devStaticRoutePrewarmAbort.signal,
-			renderPath: async (pathname: string) => {
-				const response = await this.routeHandler.handleResponse(
-					new Request(new URL(pathname, runtimeOrigin).toString(), { method: 'GET' }),
-				);
-				await response.arrayBuffer();
-			},
+			renderPath: (pathname: string) =>
+				requestBuildDedupe.run(() =>
+					runWithBuildInputIndex(getAppBuildInputIndex(this.appConfig), async () => {
+						const response = await this.routeHandler.handleResponse(
+							new Request(new URL(pathname, runtimeOrigin).toString(), { method: 'GET' }),
+						);
+						await response.arrayBuffer();
+					}),
+				),
 		});
 	}
 

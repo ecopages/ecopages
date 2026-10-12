@@ -10,13 +10,9 @@ import { installBuildRuntime } from '../runtime/build-runtime.ts';
 import { createAppModuleLoader } from '../../services/module-loading/app-server-module-transpiler.service.ts';
 import { PageModuleImportService } from '../../services/module-loading/page-module-import.service.ts';
 import {
-	clearPagesUnifiedGraphMemory,
 	ensurePagesUnifiedGraphBuilt,
 	importPagesUnifiedGraphModule,
-	isPagesUnifiedGraphEnabled,
 	isPagesUnifiedGraphPage,
-	PAGES_UNIFIED_GRAPH_CACHE_DIR,
-	PAGES_UNIFIED_GRAPH_CACHE_FILENAME,
 	shouldBuildPagesUnifiedGraph,
 } from './pages-unified-graph-build.ts';
 import {
@@ -25,7 +21,6 @@ import {
 	resetRolldownBuildInvocationCounts,
 } from '../rolldown/rolldown-build-invocation-metrics.ts';
 import { getServerModuleBuildCacheOutdir } from '../../services/module-loading/route-module-build-cache-registry.ts';
-import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 
 function snapshotFixtureSources(): Map<string, Buffer> {
 	const sourceDir = path.join(FIXTURE_APP_PROJECT_DIR, 'src');
@@ -108,25 +103,18 @@ describe('pages-unified-graph-build', () => {
 	it('defaults unified graph on in production unless explicitly disabled', () => {
 		process.env.NODE_ENV = 'production';
 		delete process.env.ECOPAGES_UNIFIED_PAGES_GRAPH;
-		assert.equal(isPagesUnifiedGraphEnabled(), true);
 		assert.equal(shouldBuildPagesUnifiedGraph(), true);
 
 		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '0';
-		assert.equal(isPagesUnifiedGraphEnabled(), false);
 		assert.equal(shouldBuildPagesUnifiedGraph(), false);
 
 		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
-		assert.equal(isPagesUnifiedGraphEnabled(), true);
-		assert.equal(shouldBuildPagesUnifiedGraph(), true);
-
 		process.env.NODE_ENV = 'development';
-		assert.equal(isPagesUnifiedGraphEnabled(), true);
 		assert.equal(shouldBuildPagesUnifiedGraph(), false);
 	});
 
 	it('builds all string pages in one Rolldown invocation and reuses the graph in process', async () => {
 		process.env.NODE_ENV = 'production';
-		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
 		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
@@ -164,7 +152,6 @@ describe('pages-unified-graph-build', () => {
 
 	it('imports prebuilt graph modules without per-page Rolldown during static export', async () => {
 		process.env.NODE_ENV = 'production';
-		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
 		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
@@ -212,9 +199,8 @@ describe('pages-unified-graph-build', () => {
 		assert.equal(getPageModuleRolldownBuildInvocations(), 0);
 	});
 
-	it('does not persist a graph manifest that another process can import', async () => {
+	it('keeps the graph in memory, so another app config cannot import it', async () => {
 		process.env.NODE_ENV = 'production';
-		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
 		installBuildRuntime(appConfig);
@@ -223,16 +209,6 @@ describe('pages-unified-graph-build', () => {
 		await ensurePagesUnifiedGraphBuilt({ appConfig, entryPaths: [entryPath], outdir, force: true });
 		assert.ok(await importPagesUnifiedGraphModule(appConfig, entryPath));
 
-		const manifestPath = path.join(
-			resolveInternalExecutionDir(appConfig),
-			PAGES_UNIFIED_GRAPH_CACHE_DIR,
-			PAGES_UNIFIED_GRAPH_CACHE_FILENAME,
-		);
-		assert.equal(fileSystem.exists(manifestPath), false);
-
-		clearPagesUnifiedGraphMemory(appConfig);
-		assert.equal(await importPagesUnifiedGraphModule(appConfig, entryPath), undefined);
-
 		const otherProcess = await createFixtureAppConfig({ rootDir: appDir });
 		installBuildRuntime(otherProcess);
 		assert.equal(await importPagesUnifiedGraphModule(otherProcess, entryPath), undefined);
@@ -240,7 +216,6 @@ describe('pages-unified-graph-build', () => {
 
 	it('records nested local imports so a deleted shared chunk invalidates the graph', async () => {
 		process.env.NODE_ENV = 'production';
-		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
 		installBuildRuntime(appConfig);
@@ -268,7 +243,6 @@ describe('pages-unified-graph-build', () => {
 
 	it('rebuilds the graph when a file the config imports changes', async () => {
 		process.env.NODE_ENV = 'production';
-		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
 		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
@@ -295,7 +269,6 @@ describe('pages-unified-graph-build', () => {
 
 	it('rebuilds the graph when template extensions change', async () => {
 		process.env.NODE_ENV = 'production';
-		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
 		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
@@ -330,7 +303,6 @@ describe('pages-unified-graph-build', () => {
 		{ layoutPlacement: 'in a chunk shared by several pages', pages: ['index.ts', '404.ts'] },
 	])('rebuilds the graph when a layout $layoutPlacement changes', async ({ pages }) => {
 		process.env.NODE_ENV = 'production';
-		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
 		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
@@ -367,7 +339,6 @@ describe('pages-unified-graph-build', () => {
 
 	it('rebuilds the graph and rejects module import when a reachable source file is deleted', async () => {
 		process.env.NODE_ENV = 'production';
-		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
 		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
@@ -425,7 +396,6 @@ describe('pages-unified-graph-build', () => {
 
 	it('invalidates cache when route entries are added or removed (exact route set match)', async () => {
 		process.env.NODE_ENV = 'production';
-		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
 		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
@@ -477,7 +447,6 @@ describe('pages-unified-graph-build', () => {
 
 	it('deduplicates duplicate entry paths caused by dynamic routes', async () => {
 		process.env.NODE_ENV = 'production';
-		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '1';
 		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });

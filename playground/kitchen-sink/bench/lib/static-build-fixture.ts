@@ -8,7 +8,6 @@
  */
 
 import path from 'node:path';
-import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimePlugins } from '../../../../packages/core/src/build/build-adapter';
 import { installBuildRuntime } from '../../../../packages/core/src/build/runtime/build-runtime';
 import { createNodeServerAdapter } from '../../../../packages/core/src/adapters/node/server-adapter';
@@ -19,8 +18,6 @@ import {
 	createAppModuleLoader,
 	getAppServerModuleTranspiler,
 } from '../../../../packages/core/src/services/module-loading/app-server-module-transpiler.service';
-import { ROUTE_MODULE_BUILD_CACHE_FILENAME } from '../../../../packages/core/src/services/module-loading/route-module-build-manifest';
-import { PAGES_UNIFIED_GRAPH_CACHE_FILENAME } from '../../../../packages/core/src/build/cache/pages-unified-graph-build';
 import { resolveInternalExecutionDir } from '../../../../packages/core/src/utils/resolve-work-dir';
 import type { EcoPagesAppConfig } from '../../../../packages/core/src/types/internal-types';
 import type { EcoPageFile } from '../../../../packages/core/src/types/public-types';
@@ -67,25 +64,8 @@ export async function loadKitchenSinkProductionConfig(): Promise<EcoPagesAppConf
 	return loadKitchenSinkConfig();
 }
 
-export function clearBenchProductionCaches(appConfig: EcoPagesAppConfig): void {
-	const executionDir = resolveInternalExecutionDir(appConfig);
-	for (const subdir of ['.server-modules', '.server-route-modules'] as const) {
-		const manifestPath = path.join(executionDir, subdir, ROUTE_MODULE_BUILD_CACHE_FILENAME);
-		if (fileSystem.exists(manifestPath)) {
-			fileSystem.remove(manifestPath);
-		}
-	}
-
-	const serverEntryCachePath = path.join(executionDir, '.server-entry', ROUTE_MODULE_BUILD_CACHE_FILENAME);
-	if (fileSystem.exists(serverEntryCachePath)) {
-		fileSystem.remove(serverEntryCachePath);
-	}
-
-	const pagesGraphCachePath = path.join(executionDir, '.server-pages-graph', PAGES_UNIFIED_GRAPH_CACHE_FILENAME);
-	if (fileSystem.exists(pagesGraphCachePath)) {
-		fileSystem.remove(pagesGraphCachePath);
-	}
-
+/** Drops the in-process route-module caches and the cached bench stacks so the next run compiles from source. */
+export function resetBenchBuildState(appConfig: EcoPagesAppConfig): void {
 	appConfig.runtime?.routeModuleBuildCaches?.clear();
 	cachedBenchAdapter = undefined;
 	cachedGenerationStack = undefined;
@@ -177,7 +157,6 @@ export async function runStaticSiteGeneration(
 	appConfig: EcoPagesAppConfig,
 	options?: {
 		force?: boolean;
-		preserveExportDirectory?: boolean;
 	},
 ): Promise<void> {
 	const stack = await bootstrapStaticGenerationStack(appConfig);
@@ -187,7 +166,6 @@ export async function runStaticSiteGeneration(
 		baseUrl: 'http://127.0.0.1:3000',
 		routeRendererFactory: stack.routeRendererFactory,
 		force: options?.force ?? false,
-		preserveExportDirectory: options?.preserveExportDirectory ?? !options?.force,
 	});
 }
 

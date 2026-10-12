@@ -7,7 +7,7 @@ import { isPagesUnifiedGraphPage } from '../../../packages/core/src/build/cache/
 import { resetRolldownBuildInvocationCounts } from '../../../packages/core/src/build/rolldown/rolldown-build-invocation-metrics';
 import { KITCHEN_SINK_REPRESENTATIVE_PAGES, loadKitchenSinkConfig } from './lib/kitchen-sink-fixture';
 import {
-	clearBenchProductionCaches,
+	resetBenchBuildState,
 	loadStaticBuildBenchConfigWithScope,
 	runStaticSiteGeneration,
 } from './lib/static-build-fixture';
@@ -84,12 +84,12 @@ describe('static-build unified graph parity', () => {
 		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
 
 		const baselineConfig = await loadStaticBuildBenchConfigWithScope(PARITY_SCOPE_BASELINE);
-		clearBenchProductionCaches(baselineConfig);
+		resetBenchBuildState(baselineConfig);
 		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '0';
 		await runStaticSiteGeneration(baselineConfig, { force: true });
 
 		const graphConfig = await loadStaticBuildBenchConfigWithScope(PARITY_SCOPE_GRAPH);
-		clearBenchProductionCaches(graphConfig);
+		resetBenchBuildState(graphConfig);
 		delete process.env.ECOPAGES_UNIFIED_PAGES_GRAPH;
 		resetRolldownBuildInvocationCounts();
 		await runStaticSiteGeneration(graphConfig, { force: true });

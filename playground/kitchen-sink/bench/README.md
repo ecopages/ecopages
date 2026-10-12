@@ -25,8 +25,8 @@ fixture. All benches read from the real `src/` tree and use
 - Production build cost (single page and all pages, minify + treeshake)
 - **Route-module in-process cache** warm import cost (`build-speed-bench.ts`)
 - **Static production build segments** (`static-build-bench.ts`):
-  server-entry Rolldown cold/warm, route-module Rolldown cold vs warm,
-  `StaticSiteGenerator.run`, and full `buildStatic` cold/warm
+  server-entry Rolldown cold, route-module Rolldown cold vs warm import,
+  `StaticSiteGenerator.run`, and full `buildStatic` cold
 - Heavy-library scenario (page that pulls in `react-dom`, `lit`, `kitajs`,
   `mdx` and the ecopages core)
 - Cross-integration cost: a representative page per integration
@@ -165,8 +165,6 @@ server entry bundle cold (app.ts)                  |       399   |    540   |   
 route-module rolldown cold (fresh loader)          |        24   |     62   |    42
 route-module warm import cache hit                 |      0.06   |   0.13   | 16801
 route-module warm import (3 pages)                 |      0.12   |   0.22   |  8697
-StaticSiteGenerator.run warm (full SSG)            |       141   |    299   |     7
-buildStatic warm (unchanged sources)               |       148   |    261   |     7
 buildStatic cold (force, scoped bench dist)        |      4453   |   5474   |  0.22
 ```
 
@@ -174,11 +172,10 @@ buildStatic cold (force, scoped bench dist)        |      4453   |   5474   |  0
 
 - **Rolldown cold route-module** (~24 ms/page) vs **warm cache hit** (~0.06 ms)
   shows why removing the `static-page-probe` double-bundle mattered.
-- **`buildStatic` warm** (~148 ms) runs in an isolated bench dist with in-process
-  caches; full kitchen-sink `dist/` clean build is ~12 s E2E (includes Lit fetch
-  server, image processor, all pages).
-- **`StaticSiteGenerator.run`** (~141 ms warm) isolates SSG from server-entry
-  bundling and duplicate processor setup.
+- A full kitchen-sink `dist/` clean build is ~12 s E2E (includes Lit fetch
+  server, image processor, all pages). Every build renders from source; the
+  warm `buildStatic` and `StaticSiteGenerator.run` scenarios that measured
+  reuse of an unchanged `dist/` were removed with the incremental build cache.
 
 ### Unified pages graph baseline (kitchen-sink, 2026-06-25)
 

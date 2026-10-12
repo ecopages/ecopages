@@ -8,7 +8,6 @@ import { ErrorPageRenderer, type ErrorPageKind } from './error-page-renderer.ts'
 
 type StaticArtifactWriter = (input: {
 	pathname: string;
-	sourceFile?: string;
 	createContents: () => Promise<string | Buffer>;
 	activeStaticPathnames: Set<string>;
 }) => Promise<void>;
@@ -44,10 +43,8 @@ export class SemanticErrorPageExporter {
 			return;
 		}
 
-		const sourceFile = await this.errorPageRenderer.resolveSourceFile(kind);
 		await this.writeArtifact({
 			pathname,
-			sourceFile,
 			activeStaticPathnames,
 			createContents: async () => this.bodyToStaticContents((await this.errorPageRenderer.render({ kind })).body),
 		});

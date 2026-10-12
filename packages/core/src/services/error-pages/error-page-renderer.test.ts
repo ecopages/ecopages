@@ -46,7 +46,7 @@ describe('ErrorPageRenderer', () => {
 
 		const result = await renderer.render({ kind: 'notFound' });
 
-		expect(result).toEqual({ body: '<html>filesystem</html>', sourceFile: '/app/src/pages/404.kita.tsx' });
+		expect(result).toEqual({ body: '<html>filesystem</html>' });
 		expect(loader).not.toHaveBeenCalled();
 	});
 
@@ -67,7 +67,6 @@ describe('ErrorPageRenderer', () => {
 		const result = await renderer.render({ kind: 'notFound' });
 
 		expect(result.body).toBe('<html>registered</html>');
-		expect(result.sourceFile).toBe('/app/src/views/not-found.kita.tsx');
 		expect(renderToResponse).toHaveBeenCalledWith(expect.anything(), { status: 404 }, { status: 404 });
 	});
 
@@ -78,7 +77,6 @@ describe('ErrorPageRenderer', () => {
 		const result = await renderer.render({ kind: 'notFound' });
 
 		expect(result.body).toContain('eco-error-page__title">Not Found</h1>');
-		expect(result.sourceFile).toBeUndefined();
 	});
 
 	it('renders the built-in forbidden document for status 403', async () => {
@@ -120,18 +118,5 @@ describe('ErrorPageRenderer', () => {
 
 		expect(result.body).toContain('eco-error-page__title">Something went wrong</h1>');
 		expect(result.body).not.toContain('secret');
-	});
-
-	it('resolves source files without rendering for incremental export', async () => {
-		vi.spyOn(fileSystem, 'exists').mockImplementation((candidate) => candidate === '/app/src/pages/500.kita.tsx');
-		const renderer = new ErrorPageRenderer({
-			appConfig,
-			errorPageLoaders: {
-				notFound: async () => ({ default: createView('src/views/not-found.kita.tsx') }),
-			},
-		});
-
-		expect(await renderer.resolveSourceFile('serverError')).toBe('/app/src/pages/500.kita.tsx');
-		expect(await renderer.resolveSourceFile('notFound')).toBe('/app/src/views/not-found.kita.tsx');
 	});
 });

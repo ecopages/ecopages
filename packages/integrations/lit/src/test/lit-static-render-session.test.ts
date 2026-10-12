@@ -51,7 +51,6 @@ describe('LitStaticRenderSession', () => {
 			},
 			baseUrl: 'http://127.0.0.1:3000',
 			force: false,
-			preserveExportDirectory: false,
 			router: {
 				listStaticGenerationRoutes: vi.fn(async () => [
 					{
@@ -181,7 +180,6 @@ describe('LitStaticRenderSession', () => {
 			},
 			baseUrl: 'http://127.0.0.1:3000',
 			force: false,
-			preserveExportDirectory: false,
 			router: {
 				listStaticGenerationRoutes: vi.fn(async () => [
 					{

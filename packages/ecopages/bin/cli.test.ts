@@ -492,6 +492,19 @@ describe('CLI Commands', () => {
 		);
 	});
 
+	it('passes the production output directory to start without forwarding it to the app', async () => {
+		await runCli(['start', '--dist-dir', 'build']);
+		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
+			[],
+			expect.objectContaining({
+				nodeEnv: 'production',
+				distDir: 'build',
+			}),
+			'app.ts',
+			'start',
+		);
+	});
+
 	it('allows overriding base url and debug options', async () => {
 		await runCli(['preview', '--base-url', '/my-app/', '-d']);
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(

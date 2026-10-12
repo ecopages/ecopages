@@ -30,12 +30,14 @@ bun dev
 | `ecopages dev:watch`  | Dev server + hard restarts on file changes              | Bun: `bun --watch run [entry] --dev`; Node: `node --watch …` |
 | `ecopages dev:hot`    | Dev server + HMR (no hard restarts)                     | `bun --hot run [entry] --dev`                                |
 | `ecopages build`      | Creates a production build                              | `bun run [entry] --build`                                    |
-| `ecopages start`      | Starts the production server                            | `bun run [entry]`                                            |
+| `ecopages start`      | Starts the production server from the built output      | Runs the emitted server bundle                               |
 | `ecopages preview`    | Previews the production build locally                   | `bun run [entry] --preview`                                  |
 | `ecopages types`      | Writes virtual-module types for `tsc`, then exits       | Loads `eco.config.ts` only; the entry does not run           |
 
 > [!NOTE]
 > The entry file defaults to `app.ts`. Override it with `--entry-file`.
+
+`ecopages start` reads the output directory from the server bundle manifest. If exactly one `<dir>/.server/manifest.json` exists one level below the app root, it is selected automatically; pass `--dist-dir <dir>` to select a directory explicitly or resolve multiple builds.
 
 ### Templates
 

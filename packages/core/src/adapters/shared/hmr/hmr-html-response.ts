@@ -28,9 +28,9 @@ export function shouldInjectHmrHtmlResponse(watch: boolean, hmrManager?: Pick<IH
  * Stops the browser from caching a development HTML response.
  *
  * @remarks
- * The page cache answers with its strategy's `Cache-Control`, a year and `immutable` for `static`. In
- * development that lets the browser keep a document after an edit changes it, such as a new stylesheet link
- * from a discovered dependency. Development HTML is sent with `no-store` so the browser loads the new document.
+ * The page cache revalidates static HTML with an ETag. Development HTML is
+ * sent with `no-store` so the browser loads the new document after an edit,
+ * such as a changed stylesheet link from a discovered dependency.
  */
 export function withUncachedDevHtml(response: Response): Response {
 	const headers = new Headers(response.headers);

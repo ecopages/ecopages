@@ -9,7 +9,7 @@ import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import {
 	assertProductionConfigIdentity,
 	getServerBundleOutputPaths,
-	resolveProductionServerEntry,
+	resolveProductionServerBundle,
 } from '../../../build/cache/server-entry-build-cache.ts';
 import { resolveEcoConfigPath } from '../../../config/resolve-eco-config-path.ts';
 import { EMITTED_ECO_CONFIG_FILENAME } from '../../../config/server-config-bundle.ts';
@@ -90,8 +90,8 @@ describe('build → start contract', () => {
 		assert.equal(manifest.serverEntry, SERVER_BUNDLE_FILENAME);
 		assert.equal(path.resolve(manifest.distDir), path.resolve(appConfig.absolutePaths.distDir));
 
-		const resolvedEntry = resolveProductionServerEntry(rootDir);
-		assert.equal(resolvedEntry, serverEntryPath);
+		const resolvedBundle = resolveProductionServerBundle({ cwd: rootDir });
+		assert.equal(resolvedBundle.serverEntryPath, serverEntryPath);
 	});
 
 	it('defaults omitted rootDir to the project cwd after emitting the config', async () => {
@@ -162,8 +162,7 @@ describe('build → start contract', () => {
 		assert.equal(fileSystem.exists(serverEntryPath), false, 'should not produce dist/.server/app.mjs');
 		assert.equal(fileSystem.exists(manifestPath), false, 'should not produce dist/.server/manifest.json');
 
-		const resolvedEntry = resolveProductionServerEntry(rootDir);
-		assert.equal(resolvedEntry, undefined);
+		assert.throws(() => resolveProductionServerBundle({ cwd: rootDir }), /No production bundle found/);
 	});
 
 	it('preserves import.meta.dirname semantics in emitted dist/.server/eco.config.mjs', async () => {

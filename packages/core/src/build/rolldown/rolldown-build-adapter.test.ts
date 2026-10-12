@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -597,8 +606,30 @@ describe('RolldownBuildAdapter', () => {
 			/-[A-Za-z0-9_-]+\.js$/u.test(path.basename(output.path)),
 		);
 		expect(hashedOutputs.length).toBeGreaterThan(0);
+		expect(hashedOutputs.every((output) => output.contentHashed)).toBe(true);
 		const hashedCode = readFileSync(hashedOutputs[0]!.path, 'utf-8');
 		expect(hashedCode).toMatch(/from ['"]\/assets\/vendors\/react\.js['"]/);
+	});
+
+	test('returns generated browser output in memory without writing it to disk', async () => {
+		const entrypoint = writeFixture('memory-entry.ts', "export const value = 'memory';\n");
+		const adapter = new RolldownBuildAdapter();
+		const outdir = path.join(workDir, 'memory-output');
+		const result = await adapter.build({
+			environment: 'browser',
+			entrypoints: [entrypoint],
+			outdir,
+			naming: '[name].js',
+			root: workDir,
+			writeToDisk: false,
+		});
+
+		assert.equal(result.success, true, JSON.stringify(result.logs));
+		const output = result.outputs[0];
+		assert.ok(output);
+		expect(output.content).toContain('memory');
+		expect(output.contentHashed).toBe(false);
+		expect(existsSync(output.path)).toBe(false);
 	});
 
 	test('preserves the .js extension when a naming template is supplied', async () => {

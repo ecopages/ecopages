@@ -10,7 +10,8 @@ import { EMITTED_ECO_CONFIG_FILENAME } from '../../config/server-config-bundle.t
 import {
 	assertProductionConfigIdentity,
 	getServerBundleOutputPaths,
-	resolveProductionServerEntry,
+	resolveProductionServerBundle,
+	SERVER_BUNDLE_MANIFEST_FILENAME,
 	writeServerBundleDeployManifest,
 } from './server-entry-build-cache.ts';
 import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '../../utils/resolve-entry-file.ts';
@@ -55,8 +56,66 @@ describe('server-entry-build-cache', () => {
 		const { manifestPath } = getServerBundleOutputPaths(appConfig);
 		assert.equal(fileSystem.exists(manifestPath), true);
 
-		const resolved = resolveProductionServerEntry(rootDir);
-		assert.equal(resolved, serverEntryPath);
+		const resolved = resolveProductionServerBundle({ cwd: rootDir });
+		assert.equal(resolved.serverEntryPath, serverEntryPath);
+	});
+
+	it('discovers one custom distDir from its deploy manifest', () => {
+		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-bundle-discovery-'));
+		tempDirs.push(rootDir);
+		const distDir = path.join(rootDir, 'build');
+		const serverOutdir = path.join(distDir, SERVER_BUNDLE_DIR);
+		const serverEntryPath = path.join(serverOutdir, SERVER_BUNDLE_FILENAME);
+		fileSystem.ensureDir(serverOutdir);
+		writeFileSync(serverEntryPath, 'export {};\n', 'utf8');
+		writeFileSync(
+			path.join(serverOutdir, SERVER_BUNDLE_MANIFEST_FILENAME),
+			JSON.stringify({ serverEntry: SERVER_BUNDLE_FILENAME, distDir }),
+			'utf8',
+		);
+
+		assert.deepEqual(resolveProductionServerBundle({ cwd: rootDir }), {
+			distDir,
+			serverBundleDirectory: serverOutdir,
+			serverEntryPath,
+			manifest: { serverEntry: SERVER_BUNDLE_FILENAME, distDir },
+		});
+	});
+
+	it('requires --dist-dir when more than one deploy manifest exists', () => {
+		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-bundle-discovery-'));
+		tempDirs.push(rootDir);
+
+		for (const distName of ['dist', 'build']) {
+			const distDir = path.join(rootDir, distName);
+			const serverOutdir = path.join(distDir, SERVER_BUNDLE_DIR);
+			fileSystem.ensureDir(serverOutdir);
+			writeFileSync(path.join(serverOutdir, SERVER_BUNDLE_FILENAME), 'export {};\n', 'utf8');
+			writeFileSync(
+				path.join(serverOutdir, SERVER_BUNDLE_MANIFEST_FILENAME),
+				JSON.stringify({ serverEntry: SERVER_BUNDLE_FILENAME, distDir }),
+				'utf8',
+			);
+		}
+
+		assert.throws(
+			() => resolveProductionServerBundle({ cwd: rootDir }),
+			/Multiple production bundles found: build, dist\. Pass --dist-dir <dir> to select one\./,
+		);
+		assert.equal(
+			resolveProductionServerBundle({ cwd: rootDir, distDir: 'build' }).distDir,
+			path.join(rootDir, 'build'),
+		);
+	});
+
+	it('reports when there is no deploy manifest', () => {
+		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-server-bundle-discovery-'));
+		tempDirs.push(rootDir);
+
+		assert.throws(
+			() => resolveProductionServerBundle({ cwd: rootDir }),
+			/No production bundle found\. Run `ecopages build` before starting in production mode\./,
+		);
 	});
 
 	/**

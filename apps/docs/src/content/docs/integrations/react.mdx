@@ -329,8 +329,8 @@ reactPlugin({
 			in <code>runtimeModules</code>, and list it in <code>externals</code> on the library vendor.
 		</p>
 		<p>
-			Rebuild vendors (and clear <code>.eco</code> / <code>dist/assets/vendors</code> in dev) after changing
-			package entry points or <code>runtimeModules</code>.
+			Restart <code>ecopages dev</code> after changing package entry points or <code>runtimeModules</code>; dev
+			vendor bundles are rebuilt in memory by the new process.
 		</p>
 	</RuiAlertDescription>
 </RuiAlert>

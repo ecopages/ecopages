@@ -1,15 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseEnv } from 'node:util';
-import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '@ecopages/core/utils/resolve-entry-file';
 import {
 	resolveEcoConfigPath,
 	resolveEmittedEcoConfigPath,
 	assertProductionConfigIdentity,
+	resolveProductionServerBundle,
 } from '@ecopages/core/config';
 import { ECOPAGES_ENTRY_WATCH_ENV, getDevEnvFileNames } from '@ecopages/core/dev/development-restart';
-
-const SERVER_BUNDLE_MANIFEST_FILENAME = 'manifest.json';
 
 const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
 const tsxLoader = import.meta.resolve('tsx/esm');
@@ -43,6 +41,7 @@ export function resolveEcoConfigFilePath(options = {}, cwd = process.cwd(), reso
 		cwd,
 		required: false,
 		preferEmitted: resolverOptions.preferEmitted,
+		serverBundleDirectory: resolverOptions.serverBundleDirectory,
 	});
 }
 
@@ -130,10 +129,9 @@ function inferLaunchMode(args, launchMode) {
 /**
  * Builds the command and environment needed to launch the app.
  *
- * In `start` mode, the bundled server
- * entry at `dist/{SERVER_BUNDLE_DIR}/{SERVER_BUNDLE_FILENAME}` is used
- * directly. If the bundle is missing, an error is thrown directing the
- * caller to run `ecopages build` first.
+ * In `start` mode, the selected production server bundle is used directly.
+ * `distDir` selects one explicitly; otherwise exactly one bundle is discovered
+ * below the app root. Missing and ambiguous bundles produce actionable errors.
  *
  * In `build`, `dev`, `preview`, and `types` modes, the source entry file is executed via tsx
  * (Node) or Bun's native runtime with the appropriate loader flags.
@@ -146,99 +144,79 @@ function inferLaunchMode(args, launchMode) {
  * @throws {Error} When `launchMode` is `start` and the bundle does not exist.
  */
 
-function resolveProductionServerEntry(cwd = process.cwd()) {
-	const manifestPath = path.join(cwd, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_MANIFEST_FILENAME);
-	if (existsSync(manifestPath)) {
-		try {
-			const parsed = JSON.parse(readFileSync(manifestPath, 'utf8'));
-			if (parsed?.serverEntry) {
-				const fromManifest = path.isAbsolute(parsed.serverEntry)
-					? parsed.serverEntry
-					: path.join(path.dirname(manifestPath), parsed.serverEntry);
-				if (existsSync(fromManifest)) {
-					return fromManifest;
-				}
-			}
-			if (parsed?.distDir) {
-				const fromDistDir = path.join(parsed.distDir, SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME);
-				if (existsSync(fromDistDir)) {
-					return fromDistDir;
-				}
-			}
-		} catch {
-			// fall through to legacy path
-		}
-	}
-
-	const legacyPath = path.join(cwd, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME);
-	return existsSync(legacyPath) ? legacyPath : undefined;
-}
-
 export function createLaunchPlan(args, options, entryFile, launchMode) {
 	const resolvedOptions = options ?? {};
 	const resolvedEntryFile = entryFile ?? 'app.ts';
 	const { envOverrides, env } = buildLaunchEnv(resolvedOptions);
 	const runtime = detectRuntime(resolvedOptions);
 	const resolvedLaunchMode = inferLaunchMode(args, launchMode);
-	const isExplicitConfig = Boolean(resolvedOptions.configFile || process.env.ECOPAGES_CONFIG_FILE);
-	const resolvedConfigFile = resolveEcoConfigFilePath(resolvedOptions, process.cwd(), {
-		preferEmitted: usesProductionBundle(resolvedLaunchMode) && !isExplicitConfig,
-	});
-
-	const distServerApp = resolveProductionServerEntry(process.cwd());
 	const shouldUseBundle = usesProductionBundle(resolvedLaunchMode);
-	const useBundle = shouldUseBundle && Boolean(distServerApp);
-
-	if (shouldUseBundle && !useBundle) {
-		throw new Error('No production bundle found. Run `ecopages build` before starting in production mode.');
+	if (shouldUseBundle) {
+		return createProductionBundleLaunchPlan(args, resolvedOptions, runtime, envOverrides, env);
 	}
 
-	if (useBundle) {
-		assertProductionConfigIdentity(process.cwd(), resolvedConfigFile, { isExplicitOverride: isExplicitConfig });
-		const runtimeConfigFile = resolveEmittedEcoConfigPath(process.cwd()) ?? resolvedConfigFile;
-		if (runtimeConfigFile) {
-			envOverrides.ECOPAGES_CONFIG_FILE = runtimeConfigFile;
-			env.ECOPAGES_CONFIG_FILE = runtimeConfigFile;
-		}
-		if (runtime === 'node') {
-			return {
-				runtime,
-				command: process.execPath,
-				commandArgs: [distServerApp, ...args],
-				envOverrides,
-				env,
-			};
-		}
-
-		return {
-			runtime,
-			command: 'bun',
-			commandArgs: ['run', distServerApp, ...args],
-			envOverrides,
-			env,
-		};
-	}
+	const resolvedConfigFile = resolveEcoConfigFilePath(resolvedOptions, process.cwd());
 
 	if (runtime === 'node') {
-		const commandArgs = ['--import', nodeRequirePreload, '--import', tsxLoader];
-		if (resolvedOptions.watch) {
-			commandArgs.push('--watch');
-		}
-		commandArgs.push(resolvedEntryFile, ...args);
-
-		return {
-			runtime,
-			command: process.execPath,
-			commandArgs,
-			envOverrides,
-			env,
-		};
+		return createNodeSourceLaunchPlan(args, resolvedOptions, resolvedEntryFile, envOverrides, env);
 	}
 
 	return {
 		runtime,
 		command: 'bun',
 		commandArgs: buildBunArgs(args, resolvedOptions, resolvedEntryFile, resolvedConfigFile),
+		envOverrides,
+		env,
+	};
+}
+
+function createProductionBundleLaunchPlan(args, options, runtime, envOverrides, env) {
+	const cwd = process.cwd();
+	const productionBundle = resolveProductionServerBundle({ cwd, distDir: options.distDir });
+	const isExplicitConfig = Boolean(options.configFile || process.env.ECOPAGES_CONFIG_FILE);
+	const resolvedConfigFile = resolveEcoConfigFilePath(options, cwd, {
+		preferEmitted: !isExplicitConfig,
+		serverBundleDirectory: productionBundle.serverBundleDirectory,
+	});
+	assertProductionConfigIdentity(cwd, resolvedConfigFile, {
+		isExplicitOverride: isExplicitConfig,
+		serverBundleDirectory: productionBundle.serverBundleDirectory,
+	});
+	const runtimeConfigFile =
+		resolveEmittedEcoConfigPath(cwd, productionBundle.serverBundleDirectory) ?? resolvedConfigFile;
+	if (runtimeConfigFile) {
+		envOverrides.ECOPAGES_CONFIG_FILE = runtimeConfigFile;
+		env.ECOPAGES_CONFIG_FILE = runtimeConfigFile;
+	}
+
+	return runtime === 'node'
+		? {
+				runtime,
+				command: process.execPath,
+				commandArgs: [productionBundle.serverEntryPath, ...args],
+				envOverrides,
+				env,
+			}
+		: {
+				runtime,
+				command: 'bun',
+				commandArgs: ['run', productionBundle.serverEntryPath, ...args],
+				envOverrides,
+				env,
+			};
+}
+
+function createNodeSourceLaunchPlan(args, options, entryFile, envOverrides, env) {
+	const commandArgs = ['--import', nodeRequirePreload, '--import', tsxLoader];
+	if (options.watch) {
+		commandArgs.push('--watch');
+	}
+	commandArgs.push(entryFile, ...args);
+
+	return {
+		runtime: 'node',
+		command: process.execPath,
+		commandArgs,
 		envOverrides,
 		env,
 	};

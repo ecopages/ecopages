@@ -273,6 +273,11 @@ describe('launch-plan', () => {
 			return tempDir;
 		}
 
+		function writeBundleManifest(distDir: string, serverEntry = SERVER_BUNDLE_FILENAME) {
+			const serverDir = path.join(distDir, SERVER_BUNDLE_DIR);
+			fs.writeFileSync(path.join(serverDir, 'manifest.json'), JSON.stringify({ serverEntry, distDir }), 'utf8');
+		}
+
 		it('uses the bundled server entry in production for Node', async () => {
 			const tempDir = setupBundleFixture();
 			const realTempDir = fs.realpathSync(tempDir);
@@ -284,6 +289,7 @@ describe('launch-plan', () => {
 					'// bundled',
 					'utf8',
 				);
+				writeBundleManifest(path.join(tempDir, 'dist'));
 
 				const plan = await createLaunchPlan([], { runtime: 'node', nodeEnv: 'production' }, 'app.ts', 'start');
 
@@ -365,6 +371,7 @@ describe('launch-plan', () => {
 					'// bundled',
 					'utf8',
 				);
+				writeBundleManifest(path.join(tempDir, 'dist'));
 
 				const plan = await createLaunchPlan([], { runtime: 'bun', nodeEnv: 'production' }, 'app.ts', 'start');
 
@@ -389,6 +396,7 @@ describe('launch-plan', () => {
 					'// bundled',
 					'utf8',
 				);
+				writeBundleManifest(path.join(tempDir, 'dist'));
 				fs.writeFileSync(path.join(tempDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
 
 				const plan = await createLaunchPlan(
@@ -406,6 +414,104 @@ describe('launch-plan', () => {
 					'app.ts',
 					'--dev',
 				]);
+			} finally {
+				fs.rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it('auto-detects a custom output directory', async () => {
+			const tempDir = setupBundleFixture();
+			const realTempDir = fs.realpathSync(tempDir);
+			try {
+				process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
+				const customDistDir = path.join(tempDir, 'build');
+				fs.mkdirSync(path.join(customDistDir, SERVER_BUNDLE_DIR), { recursive: true });
+				fs.writeFileSync(
+					path.join(customDistDir, SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
+					'// bundled',
+					'utf8',
+				);
+				writeBundleManifest(customDistDir);
+
+				const plan = await createLaunchPlan([], { runtime: 'node', nodeEnv: 'production' }, 'app.ts', 'start');
+
+				expect(plan.commandArgs).toEqual([
+					path.join(realTempDir, 'build', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
+				]);
+			} finally {
+				fs.rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it('uses the selected output directory when multiple bundles exist', async () => {
+			const tempDir = setupBundleFixture();
+			const realTempDir = fs.realpathSync(tempDir);
+			try {
+				process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
+				for (const name of ['dist', 'build']) {
+					const distDir = path.join(tempDir, name);
+					fs.mkdirSync(path.join(distDir, SERVER_BUNDLE_DIR), { recursive: true });
+					fs.writeFileSync(
+						path.join(distDir, SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
+						'// bundled',
+						'utf8',
+					);
+					writeBundleManifest(distDir);
+				}
+
+				const plan = await createLaunchPlan(
+					[],
+					{ runtime: 'node', nodeEnv: 'production', distDir: 'build' },
+					'app.ts',
+					'start',
+				);
+
+				expect(plan.commandArgs).toEqual([
+					path.join(realTempDir, 'build', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
+				]);
+				expect(() =>
+					createLaunchPlan([], { runtime: 'node', nodeEnv: 'production' }, 'app.ts', 'start'),
+				).toThrow(/Multiple production bundles found: build, dist\. Pass --dist-dir <dir> to select one\./);
+			} finally {
+				fs.rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it('checks an explicit config against the selected custom output manifest', () => {
+			const tempDir = setupBundleFixture();
+			try {
+				const sourceConfigPath = path.join(tempDir, 'eco.config.ts');
+				const otherConfigPath = path.join(tempDir, 'other.config.ts');
+				fs.writeFileSync(sourceConfigPath, 'export default {};', 'utf8');
+				fs.writeFileSync(otherConfigPath, 'export default { other: true };', 'utf8');
+
+				for (const [distName, configPath, relativePath] of [
+					['dist', otherConfigPath, 'other.config.ts'],
+					['build', sourceConfigPath, 'eco.config.ts'],
+				] as const) {
+					const serverDir = path.join(tempDir, distName, SERVER_BUNDLE_DIR);
+					fs.mkdirSync(serverDir, { recursive: true });
+					fs.writeFileSync(path.join(serverDir, SERVER_BUNDLE_FILENAME), '// bundled', 'utf8');
+					fs.writeFileSync(
+						path.join(serverDir, 'manifest.json'),
+						JSON.stringify({
+							serverEntry: SERVER_BUNDLE_FILENAME,
+							distDir: path.join(tempDir, distName),
+							sourceConfigPath: configPath,
+							sourceConfigRelativePath: relativePath,
+						}),
+						'utf8',
+					);
+				}
+
+				expect(() =>
+					createLaunchPlan(
+						[],
+						{ runtime: 'node', nodeEnv: 'production', distDir: 'build', configFile: 'other.config.ts' },
+						'app.ts',
+						'start',
+					),
+				).toThrow(/Ecopages config mismatch/);
 			} finally {
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
@@ -468,6 +574,7 @@ describe('launch-plan', () => {
 					'// bundled',
 					'utf8',
 				);
+				writeBundleManifest(path.join(tempDir, 'dist'));
 
 				const plan = await createLaunchPlan(
 					['--port', '4000', '--hostname', '127.0.0.1'],

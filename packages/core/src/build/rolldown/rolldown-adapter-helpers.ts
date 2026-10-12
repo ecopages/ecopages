@@ -620,10 +620,18 @@ export function buildResultFromRolldownOutput(
 	contextRoot: string,
 	dependencyGraph: BuildDependencyGraph,
 	entrypoints: BuildOptions['entrypoints'],
+	naming?: BuildOptions['naming'],
+	includeContent = false,
 ): BuildResult {
-	const outputs: BuildOutput[] = output.output.map((entry) => ({
-		path: normalizeOutputPath(entry.fileName, outdir),
-	}));
+	const outputs: BuildOutput[] = output.output.map((entry) => {
+		const contentHashed = entry.type === 'asset' || !entry.isEntry || Boolean(naming?.includes('[hash]'));
+		const normalized: BuildOutput = {
+			path: normalizeOutputPath(entry.fileName, outdir),
+			contentHashed,
+		};
+		if (includeContent) normalized.content = entry.type === 'chunk' ? entry.code : entry.source;
+		return normalized;
+	});
 
 	const chunks = output.output.filter((entry): entry is OutputChunk => entry.type === 'chunk');
 

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, test, vi } from 'vitest';
 import { HMR_RUNTIME_SCRIPT_URL } from '../../../hmr/hmr-runtime-paths.ts';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
+import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { ServerAdapterResult } from '../../abstract/server-adapter.ts';
 import type { ApiHandler, ErrorHandler, IHmrManager } from '../../../types/public-types.ts';
 import { SharedServerAdapter } from './server-adapter.ts';
@@ -109,18 +110,41 @@ class TestSharedServerAdapter extends SharedServerAdapter<any, ServerAdapterResu
 		(this as unknown as { options: { watch?: boolean } }).options = { watch };
 	}
 
+	public createPageCacheServiceForTest() {
+		return this.createSharedPageCacheServiceFromConfig();
+	}
+
 	constructor(
 		private readonly hmrDir: string,
 		rootDir: string,
+		appConfig?: EcoPagesAppConfig,
+		options: { watch?: boolean } = {},
 	) {
 		super({
-			appConfig: { rootDir } as any,
+			appConfig: appConfig ?? ({ rootDir } as EcoPagesAppConfig),
 			runtimeOrigin: 'http://localhost:3000',
 			serveOptions: {},
-			options: {},
+			options,
 		});
 	}
 }
+
+test.each([
+	{ name: 'disabled by default in watch mode', watch: true, enabled: undefined, expected: false },
+	{ name: 'enabled in watch mode when opted in', watch: true, enabled: true, expected: true },
+	{ name: 'enabled by default outside watch mode', watch: false, enabled: undefined, expected: true },
+	{ name: 'disabled when explicitly disabled', watch: false, enabled: false, expected: false },
+])('SharedServerAdapter leaves page caching $name', async ({ watch, enabled, expected }) => {
+	const rootDir = createTempRoot('ecopages-shared-server-cache-config');
+	const appConfig = await finalizeEcoPagesConfig({
+		rootDir,
+		integrations: [],
+		cache: enabled === undefined ? undefined : { enabled },
+	});
+	const adapter = new TestSharedServerAdapter('', rootDir, appConfig, { watch });
+
+	assert.equal(adapter.createPageCacheServiceForTest() !== null, expected);
+});
 
 test('SharedServerAdapter dispatches matching API handlers before filesystem routes', async () => {
 	const rootDir = createTempRoot('ecopages-shared-server-api-dispatch');

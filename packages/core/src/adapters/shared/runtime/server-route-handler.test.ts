@@ -56,10 +56,13 @@ describe('ServerRouteHandler', () => {
 			Router.matchRequest = vi.fn(() => ({}) as any);
 
 			await handler.handleResponse(new Request('http://localhost/v1.2'));
-			await handler.handleResponse(new Request('http://localhost/assets/app.js'));
+			const assetRequest = new Request('http://localhost/assets/app.js', {
+				headers: { 'Accept-Encoding': 'gzip', 'If-None-Match': '"asset-etag"' },
+			});
+			await handler.handleResponse(assetRequest);
 
 			expect(Router.matchRequest).toHaveBeenCalledExactlyOnceWith('http://localhost/v1.2');
-			expect(FileSystemResponseMatcher.handleNoMatch).toHaveBeenCalledWith('/assets/app.js');
+			expect(FileSystemResponseMatcher.handleNoMatch).toHaveBeenCalledWith('/assets/app.js', assetRequest);
 		});
 
 		it('should delegate to handleNoMatch when route does not match', async () => {

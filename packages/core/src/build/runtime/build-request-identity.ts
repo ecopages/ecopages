@@ -74,6 +74,7 @@ export function createBuildRequestIdentity(options: BuildOptions): string {
 		options.minify ?? 'minify:default',
 		options.treeshaking ?? 'treeshaking:default',
 		options.naming ?? 'naming:default',
+		options.writeToDisk ?? 'writeToDisk:default',
 		normalizeOrderedStringList(options.conditions, 'conditions'),
 		normalizeDefine(options.define),
 		normalizeUnorderedStringList(options.external, 'external'),

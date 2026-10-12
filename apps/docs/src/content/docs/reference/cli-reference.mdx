@@ -80,7 +80,7 @@ Builds your project and starts a local production server for testing.
 
 ### `start`
 
-Starts the production server using the existing build in the `dist` directory.
+Starts the production server using the existing build. If one `<dir>/.server/manifest.json` exists one level below the app root, Ecopages selects it automatically. If multiple build outputs exist, pass `--dist-dir <dir>` to choose one.
 
 - Does not watch files for changes.
 - optimized for performance.
@@ -110,6 +110,7 @@ These flags are supported by server commands and map to environment variables.
 | `-r, --react-fast-refresh` | -                       | Enable React Fast Refresh                                 |
 | `-c, --config <file>`      | `ECOPAGES_CONFIG_FILE`  | Ecopages config file (default `eco.config.ts`)            |
 | `--runtime <runtime>`      | -                       | Force execution via `bun` or `node` |
+| `--dist-dir <dir>`         | -                       | `start` only: select the existing production output directory |
 
 ---
 

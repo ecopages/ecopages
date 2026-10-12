@@ -8,6 +8,7 @@ import { createFixtureAppConfig } from '../../../../__fixtures__/app/test-app-co
 import { appLogger } from '../../../global/app-logger.ts';
 import { STATUS_MESSAGE } from '../../../config/constants.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import { recordHashedBrowserAsset } from '../../../services/assets/hashed-browser-asset.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 
 let appConfig: EcoPagesAppConfig;
@@ -115,6 +116,14 @@ describe('FileSystemServerResponseFactory', () => {
 			expect(response).toBeNull();
 		});
 
+		it('does not expose the internal hashed-output index', async () => {
+			const response = await responseFactory.createFileResponse(
+				'/dist/assets/.ecopages-hashed-assets',
+				'application/octet-stream',
+			);
+			expect(response).toBeNull();
+		});
+
 		it('should log debug for ENOENT errors', async () => {
 			const debugSpy = vi.spyOn(appLogger, 'debug');
 			const errorSpy = vi.spyOn(appLogger, 'error');
@@ -136,7 +145,9 @@ describe('FileSystemServerResponseFactory', () => {
 			const readFileAsBufferSpy = vi
 				.spyOn(fileSystem, 'readFileAsBuffer')
 				.mockReturnValue(Buffer.from('body{color:red}'));
-			const response = await responseFactory.createFileResponse(cssFilePath, 'text/css');
+			const response = await responseFactory.createFileResponse(cssFilePath, 'text/css', {
+				acceptEncoding: 'gzip',
+			});
 			existsSpy.mockRestore();
 			readFileAsBufferSpy.mockRestore();
 
@@ -145,6 +156,26 @@ describe('FileSystemServerResponseFactory', () => {
 			}
 			expect(response.headers.get('Content-Type')).toBe('text/css');
 			expect(response.headers.get('Content-Encoding')).toBe('gzip');
+		});
+
+		it('respects an explicit gzip exclusion over the wildcard encoding', async () => {
+			const cssFilePath = `${appConfig.absolutePaths.distDir}/${FIXTURE_EXISTING_CSS_FILE_IN_DIST}`;
+			const existsSpy = vi
+				.spyOn(fileSystem, 'exists')
+				.mockImplementation((filePath) => filePath === `${cssFilePath}.gz`);
+			const readFileAsBufferSpy = vi
+				.spyOn(fileSystem, 'readFileAsBuffer')
+				.mockReturnValue(Buffer.from('body{color:red}'));
+			const response = await responseFactory.createFileResponse(cssFilePath, 'text/css', {
+				acceptEncoding: 'gzip;q=0, *;q=1',
+			});
+			existsSpy.mockRestore();
+			readFileAsBufferSpy.mockRestore();
+
+			if (!response) {
+				throw new Error('Expected CSS file response');
+			}
+			expect(response.headers.get('Content-Encoding')).toBeNull();
 		});
 
 		it('should not set Content-Encoding header for non-gzip content types', async () => {
@@ -164,11 +195,13 @@ describe('FileSystemServerResponseFactory', () => {
 			expect(response.headers.get('Content-Encoding')).toBeNull();
 		});
 
-		it('sends immutable Cache-Control for a content-hashed production asset', async () => {
+		it('sends immutable Cache-Control for a recorded Rolldown output with a dashed hash', async () => {
+			const filepath = '/dist/assets/pages__docs__index-DlXqs-Dv.js';
+			recordHashedBrowserAsset(filepath);
 			const readFileAsBufferSpy = vi
 				.spyOn(fileSystem, 'readFileAsBuffer')
 				.mockReturnValue(Buffer.from('body{color:red}'));
-			const response = await responseFactory.createFileResponse('/dist/assets/abcdef0123456789.css', 'text/css');
+			const response = await responseFactory.createFileResponse(filepath, 'text/javascript');
 			readFileAsBufferSpy.mockRestore();
 
 			if (!response) {
@@ -177,11 +210,14 @@ describe('FileSystemServerResponseFactory', () => {
 			expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
 		});
 
-		it('does not send immutable Cache-Control for an unhashed asset filename', async () => {
+		it('does not send immutable Cache-Control for an unrecorded public asset', async () => {
 			const readFileAsBufferSpy = vi
 				.spyOn(fileSystem, 'readFileAsBuffer')
 				.mockReturnValue(Buffer.from('body{color:red}'));
-			const response = await responseFactory.createFileResponse('/dist/assets/style.css', 'text/css');
+			const response = await responseFactory.createFileResponse(
+				'/dist/assets/site-navigation.js',
+				'text/javascript',
+			);
 			readFileAsBufferSpy.mockRestore();
 
 			if (!response) {
@@ -190,7 +226,25 @@ describe('FileSystemServerResponseFactory', () => {
 			expect(response.headers.get('Cache-Control')).toBeNull();
 		});
 
-		it('does not send immutable Cache-Control in watch mode', async () => {
+		it('revalidates exported HTML and never marks it immutable', async () => {
+			const filepath = '/dist/privacy-statement.html';
+			const readFileAsBufferSpy = vi
+				.spyOn(fileSystem, 'readFileAsBuffer')
+				.mockReturnValue(Buffer.from('<html>privacy</html>'));
+			const response = await responseFactory.createFileResponse(filepath, 'text/html');
+
+			if (!response) throw new Error('Expected exported HTML response');
+			const etag = response.headers.get('ETag');
+			expect(response.headers.get('Cache-Control')).toBe('public, max-age=0, must-revalidate');
+			expect(response.headers.get('Cache-Control')).not.toContain('immutable');
+			expect(etag).toMatch(/^"[a-f0-9]{16}"$/);
+
+			const notModified = await responseFactory.createFileResponse(filepath, 'text/html', { ifNoneMatch: etag });
+			expect(notModified?.status).toBe(304);
+			readFileAsBufferSpy.mockRestore();
+		});
+
+		it('revalidates stable file URLs in watch mode', async () => {
 			const watchFactory = new FileSystemServerResponseFactory({
 				options: {
 					watchMode: true,
@@ -205,7 +259,7 @@ describe('FileSystemServerResponseFactory', () => {
 			if (!response) {
 				throw new Error('Expected watch-mode asset response');
 			}
-			expect(response.headers.get('Cache-Control')).toBeNull();
+			expect(response.headers.get('Cache-Control')).toBe('no-cache');
 		});
 	});
 });

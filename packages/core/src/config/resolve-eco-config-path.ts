@@ -25,10 +25,17 @@ export type ResolveEcoConfigPathOptions = {
 	required?: boolean;
 	/** Prefer the emitted production config over the source config when both exist. */
 	preferEmitted?: boolean;
+	/** Use the emitted config beside the selected production server bundle. */
+	serverBundleDirectory?: string;
 };
 
 /** Resolves the emitted production config without consulting source overrides. */
-export function resolveEmittedEcoConfigPath(cwd = process.cwd()): string | undefined {
+export function resolveEmittedEcoConfigPath(cwd = process.cwd(), serverBundleDirectory?: string): string | undefined {
+	if (serverBundleDirectory) {
+		const selected = path.resolve(serverBundleDirectory, EMITTED_ECO_CONFIG_FILENAME);
+		return fileSystem.exists(selected) ? selected : undefined;
+	}
+
 	const candidates = [
 		path.resolve(cwd, 'dist', SERVER_BUNDLE_DIR, EMITTED_ECO_CONFIG_FILENAME),
 		path.resolve(cwd, SERVER_BUNDLE_DIR, EMITTED_ECO_CONFIG_FILENAME),
@@ -83,7 +90,7 @@ export function resolveEcoConfigPath(options: ResolveEcoConfigPathOptions = {}):
 	if (serverBundleConfigPath) return serverBundleConfigPath;
 
 	const defaultPath = path.resolve(cwd, DEFAULT_ECO_CONFIG_FILENAME);
-	const emittedConfigPath = resolveEmittedEcoConfigPath(cwd);
+	const emittedConfigPath = resolveEmittedEcoConfigPath(cwd, options.serverBundleDirectory);
 	if (options.preferEmitted && emittedConfigPath) return emittedConfigPath;
 	if (fileSystem.exists(defaultPath)) return defaultPath;
 	if (emittedConfigPath) return emittedConfigPath;

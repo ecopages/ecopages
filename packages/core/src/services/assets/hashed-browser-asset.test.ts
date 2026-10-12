@@ -1,10 +1,12 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import {
 	hashBrowserAssetBytes,
-	isContentHashedAssetFilename,
+	HASHED_BROWSER_ASSET_INDEX_FILENAME,
+	isHashedBrowserAsset,
+	recordHashedBrowserAsset,
 	writeHashedBrowserAsset,
 } from './hashed-browser-asset.ts';
 
@@ -33,6 +35,10 @@ test('names the file from a hash of the written bytes and keeps the name when by
 	expect(path.basename(first)).toBe(`${hash}.css`);
 	expect(second).toBe(first);
 	expect(readFileSync(first, 'utf-8')).toBe('.root { color: red; }');
+	expect(isHashedBrowserAsset(first)).toBe(true);
+	const outputIndex = path.join(directory, HASHED_BROWSER_ASSET_INDEX_FILENAME);
+	expect(existsSync(outputIndex)).toBe(true);
+	expect(JSON.parse(readFileSync(outputIndex, 'utf8'))).toContain(path.basename(first));
 });
 
 test('changes the URL when the bytes change', () => {
@@ -50,9 +56,25 @@ test('changes the URL when the bytes change', () => {
 	expect(path.basename(second)).toBe(`${hashBrowserAssetBytes('.root { color: blue; }')}.css`);
 });
 
-test('recognizes content-hashed production filenames and leaves stable vendor names alone', () => {
-	expect(isContentHashedAssetFilename(`${hashBrowserAssetBytes('body{}')}.css`)).toBe(true);
-	expect(isContentHashedAssetFilename('counter-BnV4AN8o.js')).toBe(true);
-	expect(isContentHashedAssetFilename('react.js')).toBe(false);
-	expect(isContentHashedAssetFilename('tiny-query.js')).toBe(false);
+test('uses recorded output paths instead of inferring content hashes from filenames', () => {
+	const hashedOutput = path.join(directory, 'pages__docs__index-DlXqs-Dv.js');
+	recordHashedBrowserAsset(hashedOutput);
+	expect(isHashedBrowserAsset(hashedOutput)).toBe(true);
+	expect(isHashedBrowserAsset(path.join(directory, 'site-navigation.js'))).toBe(false);
+});
+
+test('reloads the output index in a fresh server module before applying immutable caching', async () => {
+	const filepath = writeHashedBrowserAsset({
+		bytes: 'export const route = true;',
+		directory,
+		extension: '.js',
+	});
+
+	vi.resetModules();
+	const { FileSystemServerResponseFactory } =
+		await import('../../adapters/shared/http/fs-server-response-factory.ts');
+	const responseFactory = new FileSystemServerResponseFactory({ options: { watchMode: false } });
+	const response = await responseFactory.createFileResponse(filepath, 'text/javascript');
+
+	expect(response?.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
 });

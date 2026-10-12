@@ -28,6 +28,7 @@ The important ownership rules are:
 - Development Page prewarming runs in the background. App configuration declares `devPrewarmPaths`; Processors declare pathnames through `collectDevPrewarmPaths()`. See [Runtime Adapters](src/adapters/README.md) and [Plugin Contracts](src/plugins/README.md).
 - App shutdown tears down Integration runtime resources, including Lit workers. See [Runtime Adapters](src/adapters/README.md).
 - HMR and invalidation use shared graph-aware services instead of runtime-specific ad hoc wiring.
+- Static file responses share recorded content-hashed output paths, ETags, conditional 304s, gzip negotiation, and cache headers across the runtime file server and Node preview. HTML stays revalidated, and dev vendor bundles stay in process memory. See [Services](src/services/README.md) and [Runtime Adapters](src/adapters/README.md).
 - The build adapter owns source module closures and emitted chunk graphs. Grouped browser scripts resolve by the path or name the caller passed (and the bundler's facade when that spelling differs); in-process Page caches track inlined source imports and reachable generated artifacts. See [Build Layer](src/build/README.md).
 
 ### Bootstrap And Runtime Ownership
@@ -94,7 +95,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/build/README.md`: build adapter, executor, shared `.server` browser import guard, development build coordination, standalone Node server packaging and its deploy layout
 - `src/services/README.md`: cross-cutting runtime services and orchestration helpers
 - `src/adapters/README.md`: Bun, Node, and shared adapter boundaries
-- `src/dev/README.md`: dev transform server, on-demand client delivery (including workspace-package `@fs` URLs), and invalidation during compilation
+- `src/dev/README.md`: dev transform server, in-memory on-demand vendor bundles and client delivery (including workspace-package `@fs` URLs), and invalidation during compilation
 - `src/watchers/README.md`: project subscriptions awaited before readiness, linked package watching, batched `applyDevFileChanges`, and restart invalidation
 - `src/services/invalidation/README.md`: file-change classification and dirty-marking for one debounce window
 - `src/hmr/README.md`: HMR strategy, update-layer ownership, and build error presentation

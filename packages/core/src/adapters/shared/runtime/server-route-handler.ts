@@ -101,7 +101,7 @@ export class ServerRouteHandler {
 	async handleNoMatch(request: Request): Promise<Response> {
 		const pathname = new URL(request.url).pathname;
 		try {
-			return await this.fileSystemResponseMatcher.handleNoMatch(pathname);
+			return await this.fileSystemResponseMatcher.handleNoMatch(pathname, request);
 		} catch (error) {
 			if (error instanceof HttpError) {
 				return error.toResponse();

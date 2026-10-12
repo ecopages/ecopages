@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, realpathSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, realpathSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
@@ -8,7 +8,6 @@ import { DevTransformVendorRegistry } from '../dev/transform-server/dev-transfor
 import { ProjectWatcher } from './project-watcher.ts';
 import { resolveWorkspacePackageWatchRoots } from './workspace-package-watch-roots.ts';
 import { createMockBridge, createMockHmrManager } from './project-watcher.test-helpers.ts';
-import { RESOLVED_ASSETS_VENDORS_DIR } from '../config/constants.ts';
 
 const roots: string[] = [];
 const watchers: ProjectWatcher[] = [];
@@ -65,15 +64,7 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 		const oldResponse = running.tryHandleVendorRequest(oldUrl);
 		expect(await oldResponse?.text()).toContain('before-edit');
 		const oldEtag = oldResponse?.headers.get('ETag');
-		const vendorOutput = path.join(
-			config.absolutePaths.distDir,
-			RESOLVED_ASSETS_VENDORS_DIR,
-			path.basename(oldUrl),
-		);
-		expect(existsSync(vendorOutput)).toBe(true);
-		const restart = vi.fn(async () => {
-			expect(existsSync(vendorOutput)).toBe(false);
-		});
+		const restart = vi.fn(async () => {});
 		const hmrManager = createMockHmrManager();
 		const watcher = new ProjectWatcher({
 			config,
@@ -101,7 +92,7 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 		expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
 		const restarted = registry();
 		const newUrl = await restarted.resolveVendorUrl('@acme/ui');
-		if (edited === 'package') expect(newUrl).not.toBe(oldUrl);
+		expect(newUrl).toBe(oldUrl);
 		const newResponse = restarted.tryHandleVendorRequest(newUrl, edited === 'dependency' ? oldEtag : undefined);
 		expect(newResponse?.status).toBe(200);
 		expect(await newResponse?.text()).toContain(

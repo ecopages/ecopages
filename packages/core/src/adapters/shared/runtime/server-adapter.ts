@@ -294,10 +294,10 @@ export abstract class SharedServerAdapter<
 		};
 	}
 
-	private createSharedPageCacheServiceFromConfig(): PageCacheService | null {
+	protected createSharedPageCacheServiceFromConfig(): PageCacheService | null {
 		const cacheConfig = this.appConfig.cache;
 		const watch = Boolean(this.options?.watch);
-		const isCacheEnabled = watch ? cacheConfig?.enabled !== false : (cacheConfig?.enabled ?? true);
+		const isCacheEnabled = cacheConfig?.enabled ?? !watch;
 
 		if (!isCacheEnabled) {
 			return null;

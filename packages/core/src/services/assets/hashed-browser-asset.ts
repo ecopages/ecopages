@@ -3,8 +3,9 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 
 const HASH_LENGTH = 16;
-const HASHED_OUTPUT_FILENAME = /^[a-f0-9]{16}\.[^.]+$/;
-const ROLLDOWN_HASHED_FILENAME = /^.+-[A-Za-z0-9_]{8,}\.[^.]+$/;
+export const HASHED_BROWSER_ASSET_INDEX_FILENAME = '.ecopages-hashed-assets';
+const hashedBrowserAssetPaths = new Set<string>();
+const loadedHashedBrowserAssetDirectories = new Set<string>();
 
 /**
  * Returns a filesystem-safe hash of the bytes that will be served.
@@ -13,15 +14,70 @@ export function hashBrowserAssetBytes(bytes: string | Buffer): string {
 	return createHash('sha256').update(bytes).digest('hex').slice(0, HASH_LENGTH);
 }
 
-/**
- * Returns whether a filename is a content-hashed production browser asset.
- *
- * @remarks
- * Matches Core's 16-hex names and Rolldown `[name]-[hash]` outputs. Vendor
- * runtimes keep stable names such as `react.js` and must not match.
- */
-export function isContentHashedAssetFilename(filename: string): boolean {
-	return HASHED_OUTPUT_FILENAME.test(filename) || ROLLDOWN_HASHED_FILENAME.test(filename);
+/** Records a content-addressed output path in process memory and beside the emitted file. */
+export function recordHashedBrowserAsset(filePath: string): void {
+	const resolvedPath = path.resolve(filePath);
+	const directory = path.dirname(resolvedPath);
+	loadHashedBrowserAssetDirectory(directory);
+	hashedBrowserAssetPaths.add(resolvedPath);
+	if (!fileSystem.exists(resolvedPath)) return;
+
+	const indexPath = path.join(directory, HASHED_BROWSER_ASSET_INDEX_FILENAME);
+	const recordedNames = readHashedBrowserAssetIndex(indexPath);
+	const filename = path.basename(resolvedPath);
+	if (!recordedNames.includes(filename)) {
+		fileSystem.write(indexPath, `${JSON.stringify([...recordedNames, filename].sort())}\n`);
+	}
+}
+
+/** Returns whether the build pipeline recorded this path as content-addressed. */
+export function isHashedBrowserAsset(filePath: string): boolean {
+	const resolvedPath = path.resolve(filePath);
+	if (path.basename(resolvedPath) === HASHED_BROWSER_ASSET_INDEX_FILENAME) return false;
+
+	const directory = path.dirname(resolvedPath);
+	loadHashedBrowserAssetDirectory(directory);
+	return hashedBrowserAssetPaths.has(resolvedPath);
+}
+
+export function forgetHashedBrowserAsset(filePath: string): void {
+	const resolvedPath = path.resolve(filePath);
+	const directory = path.dirname(resolvedPath);
+	loadHashedBrowserAssetDirectory(directory);
+	hashedBrowserAssetPaths.delete(resolvedPath);
+	const indexPath = path.join(directory, HASHED_BROWSER_ASSET_INDEX_FILENAME);
+	if (!fileSystem.exists(indexPath)) return;
+
+	const filename = path.basename(resolvedPath);
+	const recordedNames = readHashedBrowserAssetIndex(indexPath).filter((name) => name !== filename);
+	if (recordedNames.length === 0) {
+		fileSystem.remove(indexPath);
+		return;
+	}
+	fileSystem.write(indexPath, `${JSON.stringify(recordedNames)}\n`);
+}
+
+function readHashedBrowserAssetIndex(indexPath: string): string[] {
+	if (!fileSystem.exists(indexPath)) return [];
+
+	try {
+		const parsed: unknown = JSON.parse(fileSystem.readFileSync(indexPath));
+		return Array.isArray(parsed) && parsed.every((value): value is string => typeof value === 'string')
+			? parsed
+			: [];
+	} catch {
+		return [];
+	}
+}
+
+function loadHashedBrowserAssetDirectory(directory: string): void {
+	if (loadedHashedBrowserAssetDirectories.has(directory)) return;
+
+	const indexPath = path.join(directory, HASHED_BROWSER_ASSET_INDEX_FILENAME);
+	for (const filename of readHashedBrowserAssetIndex(indexPath)) {
+		hashedBrowserAssetPaths.add(path.join(directory, filename));
+	}
+	loadedHashedBrowserAssetDirectories.add(directory);
 }
 
 function normalizeExtension(extension: string): string {
@@ -50,5 +106,6 @@ export function writeHashedBrowserAsset(options: {
 	if (!fileSystem.exists(filepath)) {
 		fileSystem.write(filepath, buffer);
 	}
+	recordHashedBrowserAsset(filepath);
 	return filepath;
 }

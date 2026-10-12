@@ -65,6 +65,7 @@ describe('DevTransformVendorRegistry', () => {
 
 		const url = await registry.resolveVendorUrl('@ecopages/core');
 		expect(url).toMatch(/^\/assets\/vendors\/ecopages-core\.[a-f0-9]+\.js$/);
+		expect(fs.existsSync(path.join(config.absolutePaths.distDir, url.slice('/'.length)))).toBe(false);
 
 		const response = registry.tryHandleVendorRequest(url);
 		assert.ok(response);
@@ -132,7 +133,7 @@ describe('DevTransformVendorRegistry', () => {
 		await expect(registry.resolveVendorUrl('@ecopages/react')).rejects.toThrow('resolved to a server-only entry');
 	});
 
-	it('does not read a stale cached vendor path after the output is removed', async () => {
+	it('serves a cached vendor bundle from memory without a disk output', async () => {
 		const rootDir = createTempRoot('dev-transform-vendor-stale-output');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 		fs.writeFileSync(
@@ -163,13 +164,11 @@ describe('DevTransformVendorRegistry', () => {
 		});
 
 		const url = await registry.resolveVendorUrl('@ecopages/core');
-		const outputPath = path.join(
-			config.absolutePaths.distDir,
-			url.replace(/^\/assets\/vendors\//u, 'assets/vendors/'),
-		);
-		fs.rmSync(outputPath);
-
-		expect(registry.tryHandleVendorRequest(url)).toBeNull();
+		const outputPath = path.join(config.absolutePaths.distDir, url.slice('/'.length));
+		expect(fs.existsSync(outputPath)).toBe(false);
+		const response = registry.tryHandleVendorRequest(url);
+		assert.ok(response);
+		expect(await response.text()).toContain('eco');
 	});
 
 	it.each([
@@ -179,7 +178,7 @@ describe('DevTransformVendorRegistry', () => {
 			importName: 'my-lib',
 			manifestName: 'fixture-lib',
 		},
-	])('gives an upgraded package a new vendor bundle when its entry file is unchanged ($install)', async (fixture) => {
+	])('builds an updated package version in the new process ($install)', async (fixture) => {
 		const rootDir = createTempRoot('dev-transform-vendor-upgrade');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
 		fs.writeFileSync(
@@ -211,10 +210,56 @@ describe('DevTransformVendorRegistry', () => {
 		const restarted = createRegistry();
 		const newUrl = await restarted.resolveVendorUrl(fixture.importName);
 
-		expect(newUrl).not.toBe(oldUrl);
+		expect(newUrl).toBe(oldUrl);
 		const response = restarted.tryHandleVendorRequest(newUrl);
 		assert.ok(response);
 		expect(await response.text()).toContain('release-1.0.1');
+	});
+
+	it('rebuilds when a transitive dependency changes between dev processes', async () => {
+		const rootDir = createTempRoot('dev-transform-vendor-transitive');
+		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
+		fs.writeFileSync(
+			path.join(rootDir, 'package.json'),
+			JSON.stringify({ name: 'dev-transform-vendor-transitive', type: 'module' }),
+			'utf8',
+		);
+		const packageDir = path.join(rootDir, 'node_modules', 'fixture-lib');
+		const dependencyDir = path.join(rootDir, 'node_modules', 'fixture-dep');
+		fs.mkdirSync(packageDir, { recursive: true });
+		fs.mkdirSync(dependencyDir, { recursive: true });
+		fs.writeFileSync(
+			path.join(packageDir, 'package.json'),
+			JSON.stringify({ name: 'fixture-lib', version: '1.0.0', type: 'module', module: 'index.js' }),
+		);
+		fs.writeFileSync(path.join(packageDir, 'index.js'), "export { release } from 'fixture-dep';\n");
+		fs.writeFileSync(
+			path.join(dependencyDir, 'package.json'),
+			JSON.stringify({ name: 'fixture-dep', version: '1.0.0', type: 'module', module: 'index.js' }),
+		);
+		const writeDependency = (release: number) =>
+			fs.writeFileSync(path.join(dependencyDir, 'index.js'), `export const release = ${release};\n`);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		installBuildRuntime(config);
+		const createRegistry = () =>
+			new DevTransformVendorRegistry({ appConfig: config, getRuntimeSpecifierMap: () => new Map() });
+		const readRelease = async (registry: DevTransformVendorRegistry, url: string) => {
+			const response = registry.tryHandleVendorRequest(url);
+			assert.ok(response);
+			return response.text();
+		};
+
+		writeDependency(1);
+		const firstProcess = createRegistry();
+		const url = await firstProcess.resolveVendorUrl('fixture-lib');
+		expect(await readRelease(firstProcess, url)).toContain('release = 1');
+
+		writeDependency(2);
+		const restarted = createRegistry();
+		const restartedUrl = await restarted.resolveVendorUrl('fixture-lib');
+		expect(restartedUrl).toBe(url);
+		expect(await readRelease(restarted, restartedUrl)).toContain('release = 2');
+		expect(fs.existsSync(path.join(config.absolutePaths.distDir, url.slice('/'.length)))).toBe(false);
 	});
 
 	it('rebundles a workspace-linked package when a non-entry file changes', async () => {
@@ -262,13 +307,14 @@ describe('DevTransformVendorRegistry', () => {
 		writeButton('button-v2');
 		running.invalidateAll();
 		const rebuiltUrl = await running.resolveVendorUrl('@acme/ui');
-		expect(rebuiltUrl).not.toBe(oldUrl);
+		expect(rebuiltUrl).toBe(oldUrl);
 		expect(await readServed(running, rebuiltUrl)).toContain('button-v2');
 
 		writeButton('button-v3');
 		const restarted = createRegistry();
 		const restartedUrl = await restarted.resolveVendorUrl('@acme/ui');
 		expect(restartedUrl).toMatch(/^\/assets\/vendors\/acme-ui\.[a-f0-9]+\.js$/);
+		expect(restartedUrl).toBe(oldUrl);
 		const restartedCode = await readServed(restarted, restartedUrl);
 		expect(restartedCode).toContain('button-v3');
 		expect(restartedCode).toContain('ui-dep-code');
@@ -283,27 +329,34 @@ describe('DevTransformVendorRegistry', () => {
 			'utf8',
 		);
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		fs.mkdirSync(path.join(rootDir, 'node_modules', 'fixture-lib'), { recursive: true });
+		fs.writeFileSync(
+			path.join(rootDir, 'node_modules', 'fixture-lib', 'package.json'),
+			JSON.stringify({ name: 'fixture-lib', version: '1.0.0', type: 'module', module: 'index.js' }),
+		);
+		fs.writeFileSync(path.join(rootDir, 'node_modules', 'fixture-lib', 'index.js'), 'export const release = 1;');
+		installBuildRuntime(config);
 		const registry = new DevTransformVendorRegistry({ appConfig: config, getRuntimeSpecifierMap: () => new Map() });
-		const vendorsDir = path.join(config.absolutePaths.distDir, 'assets', 'vendors');
-		fs.mkdirSync(vendorsDir, { recursive: true });
-		fs.writeFileSync(path.join(vendorsDir, 'fixture-lib.js'), 'export const release = 1;');
+		const url = await registry.resolveVendorUrl('fixture-lib');
 
-		const response = registry.tryHandleVendorRequest('/assets/vendors/fixture-lib.js');
+		const response = registry.tryHandleVendorRequest(url);
 		assert.ok(response);
 		expect(response.headers.get('Cache-Control')).toBe('no-cache');
 		const etag = response.headers.get('ETag');
 		assert.ok(etag);
 
-		const revalidated = registry.tryHandleVendorRequest('/assets/vendors/fixture-lib.js', etag);
+		const revalidated = registry.tryHandleVendorRequest(url, etag);
 		expect(revalidated?.status).toBe(304);
 		for (const ifNoneMatch of [`"other", W/${etag}`, ` ${etag} `, '*']) {
-			expect(registry.tryHandleVendorRequest('/assets/vendors/fixture-lib.js', ifNoneMatch)?.status).toBe(304);
+			expect(registry.tryHandleVendorRequest(url, ifNoneMatch)?.status).toBe(304);
 		}
-		expect(registry.tryHandleVendorRequest('/assets/vendors/fixture-lib.js', '"other"')?.status).toBe(200);
+		expect(registry.tryHandleVendorRequest(url, '"other"')?.status).toBe(200);
 
-		fs.writeFileSync(path.join(vendorsDir, 'fixture-lib.js'), 'export const release = 22;');
-		const changed = registry.tryHandleVendorRequest('/assets/vendors/fixture-lib.js', etag);
+		fs.writeFileSync(path.join(rootDir, 'node_modules', 'fixture-lib', 'index.js'), 'export const release = 22;');
+		registry.invalidateAll();
+		const changedUrl = await registry.resolveVendorUrl('fixture-lib');
+		const changed = registry.tryHandleVendorRequest(changedUrl, etag);
 		expect(changed?.status).toBe(200);
-		expect(await changed?.text()).toBe('export const release = 22;');
+		expect(await changed?.text()).toContain('release = 22');
 	});
 });

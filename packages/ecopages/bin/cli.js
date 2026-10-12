@@ -110,14 +110,24 @@ function parseCommandArguments(rawArgs, options) {
 function parseServerCommandArgs(rawArgs, definition) {
 	const commandName = definition.name;
 	const flags = definition.flags ?? {};
+	const valueOptions = definition.valueOptions ?? {};
 	const flagOptions = Object.fromEntries(Object.keys(flags).map((flag) => [flag, { type: 'boolean' }]));
+	const commandValueOptions = Object.fromEntries(
+		Object.keys(valueOptions).map((option) => [option, { type: 'string' }]),
+	);
 	const { values, positionals } = parseCommandArguments(rawArgs, {
 		...sharedServerOptionDefinitions,
 		...flagOptions,
+		...commandValueOptions,
 	});
 
 	if (values.help) {
-		console.log(getServerCommandHelpText(commandName, definition.description, Object.values(flags)));
+		console.log(
+			getServerCommandHelpText(commandName, definition.description, [
+				...Object.values(valueOptions),
+				...Object.values(flags),
+			]),
+		);
 		return { help: true };
 	}
 
@@ -142,6 +152,7 @@ function parseServerCommandArgs(rawArgs, definition) {
 			reactFastRefresh: values['react-fast-refresh'],
 			runtime: values.runtime,
 			configFile: values.config,
+			distDir: values['dist-dir'],
 		},
 	};
 }
@@ -384,6 +395,9 @@ const SERVER_COMMANDS = {
 		description: 'Start the production server.',
 		entryArgs: [],
 		optionOverrides: { nodeEnv: 'production' },
+		valueOptions: {
+			'dist-dir': '      --dist-dir <dir>                    Select the production output directory',
+		},
 	},
 	types: {
 		description:

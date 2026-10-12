@@ -89,10 +89,12 @@ export default defineConfig({
 
 | Option            | Type            | Default                         | Description                                                                                                                                                                                                                                                                                                              |
 | :---------------- | :-------------- | :------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`         | `boolean`       | `true`                          | Controls whether the cache service is active. It is enabled by default in production and in development (watch mode). Set to `false` to disable the cache service in any environment (useful for debugging or when using an external CDN exclusively). |
+| `enabled`         | `boolean`       | `true` in production; `false` in watch mode | Controls whether the cache service is active. Set to `true` to opt into page caching in development watch mode, or `false` to disable it in any environment. |
 | `defaultStrategy` | `CacheStrategy` | `'static'`                      | The default caching strategy for pages that do not specify one.                                                                                                                                                                                                                                                          |
 | `maxEntries`      | `number`        | `1000`                          | Maximum number of items to keep in the default memory store. Oldest items are removed when this limit is reached.                                                                                                                                                                                                        |
 | `store`           | `CacheStore`    | `'memory'`                      | The storage backend to use. You can pass a custom class implementing the `CacheStore` interface (e.g., for Redis).                                                                                                                                                                                                       |
+
+The page cache is disabled by default in `ecopages dev` and `ecopages dev:watch`, so each request renders fresh HTML unless `cache.enabled` is set to `true`. Production builds enable it by default.
 
 ## On-Demand Invalidation
 
@@ -121,8 +123,10 @@ EcoPages automatically sets appropriate headers based on the chosen strategy.
 
 | Strategy    | `Cache-Control`                                  | `X-Cache`                |
 | :---------- | :----------------------------------------------- | :----------------------- |
-| **Static**  | `public, max-age=31536000, immutable`            | `HIT` / `MISS`           |
+| **Static**  | `public, max-age=0, must-revalidate`              | `HIT` / `MISS`           |
 | **Dynamic** | `no-store, must-revalidate`                      | `MISS`                   |
 | **ISR**     | `public, max-age=60, stale-while-revalidate=120` | `HIT` / `MISS` / `STALE` |
 
 In development, HTML is always sent with `Cache-Control: no-store, must-revalidate`, whatever the strategy, so the browser never shows a page from before an edit.
+
+Static file responses use ETags for revalidation. In watch mode, stable non-HTML files use `Cache-Control: no-cache`. In production, only output paths recorded as content-addressed by the build receive `Cache-Control: public, max-age=31536000, immutable`; HTML files are always revalidated, regardless of their filename.

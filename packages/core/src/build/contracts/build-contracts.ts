@@ -7,6 +7,10 @@ export type BuildOwnership = 'rolldown';
 /** A single artifact emitted by the build backend. */
 export interface BuildOutput {
 	path: string;
+	/** Output bytes returned by a memory-only build request. */
+	content?: string | Uint8Array;
+	/** Whether the emitted filename is content-addressed according to the output naming policy. */
+	contentHashed?: boolean;
 }
 
 /** Per-entrypoint dependency metadata surfaced alongside a build. */
@@ -88,6 +92,8 @@ export interface BuildOptions {
 	reportPackagesOutsideRoot?: boolean;
 	/** Directory the output runs from when it is written to a staging `outdir` first. Defaults to `outdir`. */
 	runtimeOutdir?: string;
+	/** Keep generated outputs in the returned result instead of writing files to disk. */
+	writeToDisk?: boolean;
 	external?: string[];
 	jsx?: {
 		development?: boolean;

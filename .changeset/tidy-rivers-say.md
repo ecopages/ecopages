@@ -3,4 +3,4 @@
 '@ecopages/react': minor
 ---
 
-Remove layout runtime scanning and require explicit runtimeModules entries for shared packages.
+**Breaking:** Remove layout runtime scanning. `LayoutOptions.runtimeProvider` is removed, and layout files no longer add npm packages to the shared vendor bundles. Migrate by deleting `runtimeProvider` from layouts and listing each shared package in `reactPlugin({ runtimeModules })` using the exact specifier that app code imports.

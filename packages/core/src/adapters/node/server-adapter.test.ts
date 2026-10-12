@@ -10,9 +10,29 @@ import { NodeClientAbortError } from './http-request-bridge.ts';
 import { NodeStaticPreviewHost } from './static-preview-host.ts';
 import { HtmlPagesPlugin } from '../../html-pages/html-pages.plugin.ts';
 import { ServerRouteHandler } from '../shared/runtime/server-route-handler.ts';
+import { appLogger } from '../../global/app-logger.ts';
+import { Processor, type EcoBuildPlugin } from '../../plugins/processor.ts';
 
 const upgrades = vi.hoisted(() => ({ attach: vi.fn() }));
 const devBridge = vi.hoisted(() => ({ reload: vi.fn() }));
+
+class PrewarmPathProcessor extends Processor {
+	override plugins?: EcoBuildPlugin[] = [];
+
+	constructor(private readonly collectPaths: () => Promise<readonly string[]>) {
+		super({ name: 'prewarm-test-processor' });
+	}
+
+	override collectDevPrewarmPaths(): Promise<readonly string[]> {
+		return this.collectPaths();
+	}
+
+	override async setup(): Promise<void> {}
+
+	override async process(input: unknown): Promise<unknown> {
+		return input;
+	}
+}
 
 vi.mock('../shared/ws/node-http-websocket-upgrades.ts', () => ({
 	attachNodeHttpWebSocketUpgrades: upgrades.attach,
@@ -64,9 +84,9 @@ class TestNodeServerAdapter extends NodeServerAdapter {
 		}
 	}
 
-	protected override async startDevStaticRoutePrewarmWhenReady(): Promise<void> {
+	protected override startDevStaticRoutePrewarmWhenReady(): void {
 		if (!this.skipDevRouteSetup) {
-			await super.startDevStaticRoutePrewarmWhenReady();
+			super.startDevStaticRoutePrewarmWhenReady();
 		}
 	}
 
@@ -325,5 +345,60 @@ describe('NodeServerAdapter', () => {
 		finishPageRender();
 		await disposal;
 		expect(shutdownEvents).toEqual(['render finished', 'teardown']);
+	});
+
+	it('completes initialization while Processor prewarm paths are still being collected', async () => {
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir: path.join(os.tmpdir(), 'ecopages-pending-prewarm-paths'),
+		});
+		const pathCollection = new Promise<readonly string[]>(() => {});
+		const collectDevPrewarmPaths = vi.fn(() => pathCollection);
+		appConfig.processors.set('slow-prewarm', new PrewarmPathProcessor(collectDevPrewarmPaths));
+		const adapter = createAdapter({ appConfig, options: { watch: true } });
+		adapter.setInitializedForTest();
+		let finishWatcherSubscription!: () => void;
+		const watcherSubscription = new Promise<void>((resolve) => {
+			finishWatcherSubscription = resolve;
+		});
+		const subscription = vi
+			.spyOn(ProjectWatcher.prototype, 'createWatcherSubscription')
+			.mockImplementation(() => watcherSubscription.then(() => undefined as never));
+		onTestFinished(() => subscription.mockRestore());
+
+		const initialization = adapter.completeInitialization({} as import('node:http').Server);
+		await vi.waitFor(() => expect(subscription).toHaveBeenCalledOnce());
+
+		expect(collectDevPrewarmPaths).not.toHaveBeenCalled();
+		finishWatcherSubscription();
+		await initialization;
+		expect(collectDevPrewarmPaths).not.toHaveBeenCalled();
+
+		const response = await adapter.handleRequest(new Request('http://localhost:3000/'));
+		expect(response.status).toBe(200);
+
+		await vi.waitFor(() => expect(collectDevPrewarmPaths).toHaveBeenCalledOnce());
+		await adapter.dispose();
+	});
+
+	it('keeps serving and logs Processor prewarm collection failures with their stack', async () => {
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir: path.join(os.tmpdir(), 'ecopages-failed-prewarm-paths'),
+		});
+		const failure = new Error('manifest unreadable');
+		appConfig.processors.set('failing-prewarm', new PrewarmPathProcessor(async () => Promise.reject(failure)));
+		const adapter = createAdapter({ appConfig, options: { watch: true } });
+		adapter.setInitializedForTest();
+		const subscription = vi
+			.spyOn(ProjectWatcher.prototype, 'createWatcherSubscription')
+			.mockResolvedValue(undefined as never);
+		onTestFinished(() => subscription.mockRestore());
+		const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+
+		await adapter.completeInitialization({} as import('node:http').Server);
+		const response = await adapter.handleRequest(new Request('http://localhost:3000/'));
+		await vi.waitFor(() => expect(errorSpy).toHaveBeenCalledWith('[ecopages:dev-prewarm] failed', failure));
+		expect(response.status).toBe(200);
+
+		await adapter.dispose();
 	});
 });

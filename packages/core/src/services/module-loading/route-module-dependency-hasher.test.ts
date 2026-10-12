@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { describe, it } from 'vitest';
-import {
-	RouteModuleDependencyHasher,
-	resolveRouteModuleDependencyPaths,
-} from './route-module-dependency-hasher.ts';
+import { RouteModuleDependencyHasher, resolveRouteModuleDependencyPaths } from './route-module-dependency-hasher.ts';
 
 describe('RouteModuleDependencyHasher', () => {
 	it('excludes node builtins and node_modules paths from tracking', () => {

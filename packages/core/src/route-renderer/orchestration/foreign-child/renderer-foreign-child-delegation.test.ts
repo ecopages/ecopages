@@ -13,7 +13,6 @@ import { IntegrationRenderer } from '../integration-renderer.ts';
 import {
 	TestIntegrationRenderer,
 	createMockIntegrationPlugin,
-	createUnresolvedMarkerArtifact,
 	testAppConfig,
 	testAssetService,
 } from '../integration-renderer.test-fixtures.ts';

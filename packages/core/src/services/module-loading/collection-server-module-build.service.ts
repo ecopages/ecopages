@@ -94,7 +94,10 @@ export async function buildCollectionServerModule(input: {
 	const buildOptions = { ...buildRequest, naming: outputFileName.replace(/\.mjs$/u, '.[ext]') };
 
 	recordCollectionBuild();
-	const buildResult: BuildResult = await build(buildOptions, requireBuildRuntime(appConfig).getProfile('route-module'));
+	const buildResult: BuildResult = await build(
+		buildOptions,
+		requireBuildRuntime(appConfig).getProfile('route-module'),
+	);
 	if (!buildResult.success) {
 		const details = buildResult.logs.map(formatBuildLog).join('\n');
 		throw new Error(`Error building collection server module ${collectionName}: ${details}`);

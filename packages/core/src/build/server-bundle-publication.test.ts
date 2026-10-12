@@ -3,10 +3,7 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import {
-	createServerBundleStagingDirectory,
-	publishServerBundleDirectory,
-} from './server-bundle-publication.ts';
+import { createServerBundleStagingDirectory, publishServerBundleDirectory } from './server-bundle-publication.ts';
 
 describe('server bundle publication', () => {
 	const tempDirs: string[] = [];

@@ -509,6 +509,25 @@ describe('CLI Commands', () => {
 		);
 	});
 
+	it('rejects dev:hot', async () => {
+		const exitSpy = mockProcessExit();
+
+		await expect(runCli(['dev:hot'])).rejects.toThrow('process.exit:1');
+		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
+
+		exitSpy.mockRestore();
+	});
+
+	it('rejects the removed React fast refresh flags', async () => {
+		const exitSpy = mockProcessExit();
+
+		await expect(runCli(['dev', '-r'])).rejects.toThrow('process.exit:1');
+		await expect(runCli(['dev', '--react-fast-refresh'])).rejects.toThrow('process.exit:1');
+		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
+
+		exitSpy.mockRestore();
+	});
+
 	it('rejects positional entry file arguments loudly', async () => {
 		const exitSpy = mockProcessExit();
 

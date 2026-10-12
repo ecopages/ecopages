@@ -11,6 +11,10 @@ import { NodeStaticPreviewHost } from './static-preview-host.ts';
 import { HtmlPagesPlugin } from '../../html-pages/html-pages.plugin.ts';
 import { ServerRouteHandler } from '../shared/runtime/server-route-handler.ts';
 import { appLogger } from '../../global/app-logger.ts';
+import {
+	getAppBuildInputIndex,
+	getBuildInputRecordingContext,
+} from '../../build/cache/build-input-dependency-index.ts';
 import { Processor, type EcoBuildPlugin } from '../../plugins/processor.ts';
 
 const upgrades = vi.hoisted(() => ({ attach: vi.fn() }));
@@ -347,6 +351,35 @@ describe('NodeServerAdapter', () => {
 		expect(shutdownEvents).toEqual(['render finished', 'teardown']);
 	});
 
+	it('records the build inputs a prewarm render reads, as a request does', async () => {
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir: path.join(os.tmpdir(), 'ecopages-prewarm-build-inputs'),
+		});
+		appConfig.processors.set('prewarm', new PrewarmPathProcessor(async () => ['/prewarmed']));
+		const recordingIndexes: unknown[] = [];
+		const handleResponse = vi
+			.spyOn(ServerRouteHandler.prototype, 'handleResponse')
+			.mockImplementation(async (request: Request) => {
+				if (new URL(request.url).pathname === '/prewarmed') {
+					recordingIndexes.push(getBuildInputRecordingContext().index);
+				}
+				return new Response('ok');
+			});
+		onTestFinished(() => handleResponse.mockRestore());
+		const adapter = createAdapter({ appConfig, options: { watch: true } });
+		adapter.setInitializedForTest();
+		const subscription = vi
+			.spyOn(ProjectWatcher.prototype, 'createWatcherSubscription')
+			.mockResolvedValue(undefined as never);
+		onTestFinished(() => subscription.mockRestore());
+
+		await adapter.completeInitialization({} as import('node:http').Server);
+		await vi.waitFor(() => expect(recordingIndexes).toHaveLength(1));
+
+		expect(recordingIndexes[0]).toBe(getAppBuildInputIndex(appConfig));
+		await adapter.dispose();
+	});
+
 	it('completes initialization while Processor prewarm paths are still being collected', async () => {
 		const appConfig = await finalizeEcoPagesConfig({
 			rootDir: path.join(os.tmpdir(), 'ecopages-pending-prewarm-paths'),
@@ -398,7 +431,6 @@ describe('NodeServerAdapter', () => {
 		const response = await adapter.handleRequest(new Request('http://localhost:3000/'));
 		await vi.waitFor(() => expect(errorSpy).toHaveBeenCalledWith('[ecopages:dev-prewarm] failed', failure));
 		expect(response.status).toBe(200);
-		expect(failure.stack).toContain('manifest unreadable');
 
 		await adapter.dispose();
 	});

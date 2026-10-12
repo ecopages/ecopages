@@ -75,20 +75,6 @@ export class ProjectWatcher {
 	private watcher: FSWatcher | null = null;
 	private watcherReady?: Promise<void>;
 	private unsubscribeFromRecordedWatchPaths?: () => void;
-	/**
-	 * Paths just passed to `watcher.add` that already existed on disk.
-	 *
-	 * @remarks
-	 * Chokidar emits `add` for those files even though nothing was created.
-	 * Treating that as a create reloads the browser after the first request that
-	 * recorded the path (for example a client navigation to an unvisited Page).
-	 */
-	private readonly ignoreSubscriptionAdds = new Set<string>();
-	/**
-	 * Files and directories that already existed in watched trees at subscribe.
-	 * A later `add` for one of these is a startup scan, not a create.
-	 */
-	private readonly existedAtWatchStart = new Set<string>();
 	private closed = false;
 	private pendingDevFileKinds = new Map<string, DevFileChangeKind>();
 	private pendingFlushTimer: ReturnType<typeof setTimeout> | undefined;
@@ -121,46 +107,8 @@ export class ProjectWatcher {
 		this.handleFileChange = this.handleFileChange.bind(this);
 	}
 
-	/**
-	 * Uncaches modules in the source directory to ensure fresh imports.
-	 * This is necessary for hot module replacement to work correctly.
-	 * @private
-	 */
-	private uncacheModules(): void {
-		if (typeof require === 'undefined') return;
-
-		const { srcDir, rootDir } = this.appConfig;
-		const regex = new RegExp(`${rootDir}/${srcDir}/.*`);
-
-		for (const key in require.cache) {
-			if (regex.test(key)) {
-				delete require.cache[key];
-			}
-		}
-	}
-
 	private isRouteSourceFile(filePath: string): boolean {
 		return this.invalidationService.isRouteSourceFile(filePath);
-	}
-
-	/** An initial scan is synthetic only for paths present in the subscription snapshot. */
-	private isSyntheticStartupAdd(filePath: string): boolean {
-		const resolvedPath = path.resolve(filePath);
-		const existingPath = resolveExistingPath(resolvedPath);
-		const existed = this.existedAtWatchStart.has(existingPath) || this.existedAtWatchStart.has(resolvedPath);
-		this.existedAtWatchStart.delete(existingPath);
-		this.existedAtWatchStart.delete(resolvedPath);
-		return existed;
-	}
-
-	private snapshotExistingWatchedPaths(
-		roots: readonly string[],
-		ignoreProjectPath: (watchedPath: string) => boolean,
-	): void {
-		this.existedAtWatchStart.clear();
-		for (const root of roots) {
-			rememberExistingWatchPath(root, ignoreProjectPath, this.existedAtWatchStart);
-		}
 	}
 
 	private requestBrowserReload(): void {
@@ -210,20 +158,6 @@ export class ProjectWatcher {
 		}
 
 		const resolvedPath = path.resolve(rawPath);
-		if (event === 'unlink') {
-			this.ignoreSubscriptionAdds.delete(resolvedPath);
-			this.existedAtWatchStart.delete(resolvedPath);
-			this.existedAtWatchStart.delete(resolveExistingPath(resolvedPath));
-		} else if (
-			event === 'add' &&
-			(this.ignoreSubscriptionAdds.delete(resolvedPath) ||
-				this.ignoreSubscriptionAdds.delete(resolveExistingPath(resolvedPath)))
-		) {
-			return Promise.resolve();
-		} else if (event === 'add' && this.isSyntheticStartupAdd(resolvedPath)) {
-			return Promise.resolve();
-		}
-
 		this.pendingDevFileKinds.set(resolvedPath, watcherEventToDevFileChangeKind(event));
 
 		if (this.changeDebounceMs === 0) {
@@ -319,9 +253,6 @@ export class ProjectWatcher {
 				return;
 			}
 
-			if (applied.files.some((file) => file.plan.category !== 'public-asset')) {
-				this.uncacheModules();
-			}
 			await this.copyPublicAssets(applied.files);
 			if (applied.refreshRoutes) {
 				await this.refreshRouterRoutesCallback();
@@ -503,6 +434,12 @@ export class ProjectWatcher {
 		const buildInputIndex = getAppBuildInputIndex(this.appConfig);
 		const srcDir = this.appConfig.absolutePaths.srcDir;
 		const literalPaths = new Set<string>([srcDir]);
+		const { pagesDir, componentsDir, includesDir, layoutsDir, publicDir } = this.appConfig.absolutePaths;
+		for (const sourceDir of [pagesDir, componentsDir, includesDir, layoutsDir, publicDir]) {
+			if (!isPathInside(sourceDir, srcDir) && fileSystem.exists(sourceDir)) {
+				literalPaths.add(sourceDir);
+			}
+		}
 		for (const recordedPath of buildInputIndex.recordedWatchPaths()) {
 			if (!isPathInside(recordedPath, srcDir)) {
 				literalPaths.add(recordedPath);
@@ -555,7 +492,6 @@ export class ProjectWatcher {
 				: !globWatchPaths.some((watchPath) => matchesAdditionalWatchPath(watchedPath, watchPath));
 		};
 
-		this.snapshotExistingWatchedPaths([...literalPaths], ignoreProjectPath);
 		this.watcher = chokidar.watch(
 			[...literalPaths, ...this.workspacePackageRoots, ...new Set(globWatchPaths.map(({ base }) => base))],
 			{
@@ -589,22 +525,13 @@ export class ProjectWatcher {
 				return;
 			}
 			literalPaths.add(resolvedPath);
-			if (fileSystem.exists(resolvedPath)) {
-				this.ignoreSubscriptionAdds.add(resolvedPath);
-				this.ignoreSubscriptionAdds.add(resolveExistingPath(resolvedPath));
-			}
 			this.watcher.add(resolvedPath);
 		});
 
 		this.watcher
 			.on('change', (p) => this.handleFileChange(p, 'change'))
 			.on('add', (p) => this.handleFileChange(p, 'add'))
-			.on('addDir', (p) => {
-				if (this.isSyntheticStartupAdd(p)) {
-					return;
-				}
-				return this.enqueueChange(() => this.triggerRouterRefresh(p));
-			})
+			.on('addDir', (p) => this.enqueueChange(() => this.triggerRouterRefresh(p)))
 			.on('unlink', (p) => this.handleFileChange(p, 'unlink'))
 			.on('unlinkDir', (p) => this.enqueueChange(() => this.triggerRouterRefresh(p)))
 			.on('error', (error) => this.handleError(error));
@@ -631,8 +558,6 @@ export class ProjectWatcher {
 		this.closed = true;
 		this.unsubscribeFromRecordedWatchPaths?.();
 		this.unsubscribeFromRecordedWatchPaths = undefined;
-		this.ignoreSubscriptionAdds.clear();
-		this.existedAtWatchStart.clear();
 
 		if (this.pendingFlushTimer) {
 			clearTimeout(this.pendingFlushTimer);
@@ -649,55 +574,6 @@ export class ProjectWatcher {
 		}
 
 		await this.changeQueue.catch(() => undefined);
-	}
-}
-
-function resolveExistingPath(filePath: string): string {
-	const resolvedPath = path.resolve(filePath);
-	try {
-		return realpathSync(resolvedPath);
-	} catch {
-		return resolvedPath;
-	}
-}
-
-function rememberExistingWatchPath(
-	root: string,
-	ignoreProjectPath: (watchedPath: string) => boolean,
-	into: Set<string>,
-): void {
-	const resolvedRoot = resolveExistingPath(root);
-	if (ignoreProjectPath(resolvedRoot)) {
-		return;
-	}
-	let stats: Stats;
-	try {
-		stats = statSync(resolvedRoot);
-	} catch {
-		return;
-	}
-	into.add(resolvedRoot);
-	if (!stats.isDirectory()) {
-		return;
-	}
-	let entries;
-	try {
-		entries = readdirSync(resolvedRoot, { withFileTypes: true, encoding: 'utf8' });
-	} catch {
-		return;
-	}
-	for (const entry of entries) {
-		const entryPath = path.join(resolvedRoot, entry.name);
-		if (ignoreProjectPath(entryPath)) {
-			continue;
-		}
-		if (entry.isDirectory()) {
-			rememberExistingWatchPath(entryPath, ignoreProjectPath, into);
-			continue;
-		}
-		if (entry.isFile()) {
-			into.add(resolveExistingPath(entryPath));
-		}
 	}
 }
 

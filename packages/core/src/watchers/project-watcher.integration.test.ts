@@ -472,6 +472,69 @@ describe('ProjectWatcher - Integration Tests', () => {
 			}
 		});
 
+		test('drops a queued restart batch when the watcher closes before processing starts', async () => {
+			const testId = 'processor-watch-close-queued-restart';
+			const config = await createIntegrationConfig(testId);
+			vi.useFakeTimers();
+			const hmrManager = createMockHmrManager();
+			const bridge = createMockBridge();
+			let releaseFirstBatch: () => void = () => {};
+			const firstBatchGate = new Promise<void>((resolve) => {
+				releaseFirstBatch = resolve;
+			});
+			let notifyFirstBatchStarted: () => void = () => {};
+			const firstBatchStarted = new Promise<void>((resolve) => {
+				notifyFirstBatchStarted = resolve;
+			});
+			const onChanges = vi.fn(async () => {
+				notifyFirstBatchStarted();
+				await firstBatchGate;
+			});
+			config.processors.set('close-queued-restart-test', {
+				getWatchConfig: () => ({ paths: [], extensions: ['.tsx'], onChanges }),
+			} as never);
+			const watcherEvents = Object.assign(new EventEmitter(), {
+				add: vi.fn(),
+				close: vi.fn(async () => {}),
+				getWatched: vi.fn(() => ({})),
+			});
+			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
+			const onRestartRequest = vi.fn(async () => {});
+			const watcher = new ProjectWatcher({
+				config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager,
+				bridge,
+				changeDebounceMs: 150,
+				onRestartRequest,
+			});
+			const firstPath = path.join(config.absolutePaths.srcDir, 'first.tsx');
+
+			try {
+				const subscription = watcher.createWatcherSubscription();
+				watcherEvents.emit('ready');
+				await subscription;
+
+				watcherEvents.emit('change', firstPath);
+				await vi.advanceTimersByTimeAsync(150);
+				await firstBatchStarted;
+
+				watcherEvents.emit('change', config.absolutePaths.config);
+				await vi.advanceTimersByTimeAsync(150);
+
+				const closePromise = watcher.close();
+				releaseFirstBatch();
+				await closePromise;
+				await vi.advanceTimersByTimeAsync(0);
+
+				expect(onRestartRequest).not.toHaveBeenCalled();
+			} finally {
+				releaseFirstBatch();
+				await watcher.close();
+				vi.useRealTimers();
+			}
+		});
+
 		test('fails watcher startup when the filesystem subscription never becomes ready', async () => {
 			const testId = 'watcher-ready-timeout';
 			const config = await createIntegrationConfig(testId);

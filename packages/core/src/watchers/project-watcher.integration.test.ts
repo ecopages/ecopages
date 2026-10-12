@@ -333,6 +333,287 @@ describe('ProjectWatcher - Integration Tests', () => {
 			});
 		});
 
+		test('flushes a sustained stream at the maximum debounce wait', async () => {
+			const testId = 'processor-watch-max-wait';
+			const config = await createIntegrationConfig(testId);
+			vi.useFakeTimers();
+			const hmrManager = createMockHmrManager();
+			const bridge = createMockBridge();
+			const onChanges = vi.fn(async () => {});
+			config.processors.set('max-wait-test', {
+				getWatchConfig: () => ({ paths: [], extensions: ['.tsx'], onChanges }),
+			} as never);
+			const watcherEvents = Object.assign(new EventEmitter(), {
+				add: vi.fn(),
+				close: vi.fn(async () => {}),
+				getWatched: vi.fn(() => ({})),
+			});
+			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
+			const watcher = new ProjectWatcher({
+				config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager,
+				bridge,
+				changeDebounceMs: 150,
+			});
+			const changedPaths = Array.from({ length: 10 }, (_, index) =>
+				path.join(config.absolutePaths.srcDir, `page-${index}.tsx`),
+			);
+
+			try {
+				const subscription = watcher.createWatcherSubscription();
+				watcherEvents.emit('ready');
+				await subscription;
+
+				for (const changedPath of changedPaths) {
+					watcherEvents.emit('change', changedPath);
+					await vi.advanceTimersByTimeAsync(100);
+				}
+
+				expect(onChanges).toHaveBeenCalledTimes(1);
+				expect(onChanges).toHaveBeenCalledWith({
+					created: [],
+					changed: changedPaths.map((changedPath) => path.resolve(changedPath)),
+					deleted: [],
+					bridge,
+				});
+
+				const nextChangedPath = path.join(config.absolutePaths.srcDir, 'next.tsx');
+				watcherEvents.emit('change', nextChangedPath);
+				await vi.advanceTimersByTimeAsync(149);
+				expect(onChanges).toHaveBeenCalledTimes(1);
+				await vi.advanceTimersByTimeAsync(1);
+				expect(onChanges).toHaveBeenCalledTimes(2);
+			} finally {
+				await watcher.close();
+				vi.useRealTimers();
+			}
+		});
+
+		test('keeps events after a scheduled flush in the next batch while earlier work is queued', async () => {
+			const testId = 'processor-watch-queued-max-wait';
+			const config = await createIntegrationConfig(testId);
+			vi.useFakeTimers();
+			const hmrManager = createMockHmrManager();
+			const bridge = createMockBridge();
+			const batches: string[][] = [];
+			let releaseFirstBatch: () => void = () => {};
+			const firstBatchGate = new Promise<void>((resolve) => {
+				releaseFirstBatch = resolve;
+			});
+			let notifyFirstBatchStarted: () => void = () => {};
+			const firstBatchStarted = new Promise<void>((resolve) => {
+				notifyFirstBatchStarted = resolve;
+			});
+			let notifyLateBatchProcessed: () => void = () => {};
+			const lateBatchProcessed = new Promise<void>((resolve) => {
+				notifyLateBatchProcessed = resolve;
+			});
+			const latePath = path.join(config.absolutePaths.srcDir, 'late.tsx');
+			const onChanges = vi.fn(async ({ changed }: { changed: string[] }) => {
+				batches.push([...changed]);
+				if (batches.length === 1) {
+					notifyFirstBatchStarted();
+					await firstBatchGate;
+				}
+				if (changed.includes(path.resolve(latePath))) {
+					notifyLateBatchProcessed();
+				}
+			});
+			config.processors.set('queued-max-wait-test', {
+				getWatchConfig: () => ({ paths: [], extensions: ['.tsx'], onChanges }),
+			} as never);
+			const watcherEvents = Object.assign(new EventEmitter(), {
+				add: vi.fn(),
+				close: vi.fn(async () => {}),
+				getWatched: vi.fn(() => ({})),
+			});
+			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
+			const watcher = new ProjectWatcher({
+				config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager,
+				bridge,
+				changeDebounceMs: 150,
+			});
+			const firstPath = path.join(config.absolutePaths.srcDir, 'first.tsx');
+			const queuedPath = path.join(config.absolutePaths.srcDir, 'queued.tsx');
+
+			try {
+				const subscription = watcher.createWatcherSubscription();
+				watcherEvents.emit('ready');
+				await subscription;
+
+				watcherEvents.emit('change', firstPath);
+				await vi.advanceTimersByTimeAsync(150);
+				await firstBatchStarted;
+
+				watcherEvents.emit('change', queuedPath);
+				for (let index = 0; index < 9; index += 1) {
+					await vi.advanceTimersByTimeAsync(100);
+					watcherEvents.emit('change', queuedPath);
+				}
+				await vi.advanceTimersByTimeAsync(100);
+
+				watcherEvents.emit('change', latePath);
+				await vi.advanceTimersByTimeAsync(150);
+				releaseFirstBatch();
+				await lateBatchProcessed;
+
+				expect(batches).toEqual([
+					[path.resolve(firstPath)],
+					[path.resolve(queuedPath)],
+					[path.resolve(latePath)],
+				]);
+			} finally {
+				releaseFirstBatch();
+				await watcher.close();
+				vi.useRealTimers();
+			}
+		});
+
+		test('drops a queued restart batch when the watcher closes before processing starts', async () => {
+			const testId = 'processor-watch-close-queued-restart';
+			const config = await createIntegrationConfig(testId);
+			vi.useFakeTimers();
+			const hmrManager = createMockHmrManager();
+			const bridge = createMockBridge();
+			let releaseFirstBatch: () => void = () => {};
+			const firstBatchGate = new Promise<void>((resolve) => {
+				releaseFirstBatch = resolve;
+			});
+			let notifyFirstBatchStarted: () => void = () => {};
+			const firstBatchStarted = new Promise<void>((resolve) => {
+				notifyFirstBatchStarted = resolve;
+			});
+			const onChanges = vi.fn(async () => {
+				notifyFirstBatchStarted();
+				await firstBatchGate;
+			});
+			config.processors.set('close-queued-restart-test', {
+				getWatchConfig: () => ({ paths: [], extensions: ['.tsx'], onChanges }),
+			} as never);
+			const watcherEvents = Object.assign(new EventEmitter(), {
+				add: vi.fn(),
+				close: vi.fn(async () => {}),
+				getWatched: vi.fn(() => ({})),
+			});
+			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
+			const onRestartRequest = vi.fn(async () => {});
+			const watcher = new ProjectWatcher({
+				config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager,
+				bridge,
+				changeDebounceMs: 150,
+				onRestartRequest,
+			});
+			const firstPath = path.join(config.absolutePaths.srcDir, 'first.tsx');
+
+			try {
+				const subscription = watcher.createWatcherSubscription();
+				watcherEvents.emit('ready');
+				await subscription;
+
+				watcherEvents.emit('change', firstPath);
+				await vi.advanceTimersByTimeAsync(150);
+				await firstBatchStarted;
+
+				watcherEvents.emit('change', config.absolutePaths.config);
+				await vi.advanceTimersByTimeAsync(150);
+
+				const closePromise = watcher.close();
+				releaseFirstBatch();
+				await closePromise;
+				await vi.advanceTimersByTimeAsync(0);
+
+				expect(onRestartRequest).not.toHaveBeenCalled();
+			} finally {
+				releaseFirstBatch();
+				await watcher.close();
+				vi.useRealTimers();
+			}
+		});
+
+		test('fails watcher startup when the filesystem subscription never becomes ready', async () => {
+			const testId = 'watcher-ready-timeout';
+			const config = await createIntegrationConfig(testId);
+			vi.useFakeTimers();
+			const watcherEvents = Object.assign(new EventEmitter(), {
+				add: vi.fn(),
+				close: vi.fn(async () => {}),
+				getWatched: vi.fn(() => ({})),
+			});
+			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
+			const watcher = new ProjectWatcher({
+				config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager: createMockHmrManager(),
+				bridge: createMockBridge(),
+			});
+
+			try {
+				const subscription = watcher.createWatcherSubscription();
+				const rejection = expect(subscription).rejects.toThrow(
+					'Filesystem watcher did not become ready within 30000ms',
+				);
+				await vi.advanceTimersByTimeAsync(30_000);
+				await rejection;
+				expect(watcherEvents.close).toHaveBeenCalledOnce();
+			} finally {
+				await watcher.close();
+				vi.useRealTimers();
+			}
+		});
+
+		test('closes the watcher when subscription startup fails', async () => {
+			const testId = 'watcher-ready-error';
+			const config = await createIntegrationConfig(testId);
+			const watcherEvents = Object.assign(new EventEmitter(), {
+				add: vi.fn(),
+				close: vi.fn(async () => {}),
+				getWatched: vi.fn(() => ({})),
+			});
+			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
+			const watcher = new ProjectWatcher({
+				config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager: createMockHmrManager(),
+				bridge: createMockBridge(),
+			});
+
+			const subscription = watcher.createWatcherSubscription();
+			const rejection = expect(subscription).rejects.toThrow('watcher startup failed');
+			watcherEvents.emit('error', new Error('watcher startup failed'));
+			await rejection;
+
+			expect(watcherEvents.close).toHaveBeenCalledOnce();
+		});
+
+		test('rejects watcher startup when it is closed before ready', async () => {
+			const testId = 'watcher-close-before-ready';
+			const config = await createIntegrationConfig(testId);
+			const watcherEvents = Object.assign(new EventEmitter(), {
+				add: vi.fn(),
+				close: vi.fn(async () => {}),
+				getWatched: vi.fn(() => ({})),
+			});
+			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
+			const watcher = new ProjectWatcher({
+				config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager: createMockHmrManager(),
+				bridge: createMockBridge(),
+			});
+
+			const subscription = watcher.createWatcherSubscription();
+			const rejection = expect(subscription).rejects.toThrow('Filesystem watcher closed before it became ready');
+			await watcher.close();
+			await rejection;
+
+			expect(watcherEvents.close).toHaveBeenCalledOnce();
+		});
+
 		test('should handle public file through handleFileChange', async () => {
 			const testId = 'handle-public-change';
 			const config = await createIntegrationConfig(testId);

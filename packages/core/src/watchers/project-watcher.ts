@@ -58,6 +58,8 @@ export class ProjectWatcher {
 	 * Watcher events that arrive during this window are applied as one batch.
 	 */
 	private static readonly duplicateChangeWindowMs = 150;
+	private static readonly maximumChangeWaitMs = 1_000;
+	private static readonly watcherReadyTimeoutMs = 30_000;
 	private appConfig: EcoPagesAppConfig;
 	private refreshRouterRoutesCallback: () => Promise<void>;
 	private hmrManager: IHmrManager;
@@ -71,12 +73,16 @@ export class ProjectWatcher {
 	private workspacePackageRoots: string[] = [];
 	private watcher: FSWatcher | null = null;
 	private watcherReady?: Promise<void>;
+	private watcherReadyTimeout: ReturnType<typeof setTimeout> | undefined;
+	private rejectWatcherReady: ((error: Error) => void) | undefined;
 	private unsubscribeFromRecordedWatchPaths?: () => void;
 	private closed = false;
 	private pendingDevFileKinds = new Map<string, DevFileChangeKind>();
 	private pendingFlushTimer: ReturnType<typeof setTimeout> | undefined;
+	private pendingMaxFlushTimer: ReturnType<typeof setTimeout> | undefined;
 	private pendingFlushResolvers: Array<() => void> = [];
 	private changeQueue: Promise<void> = Promise.resolve();
+	private closePromise: Promise<void> | undefined;
 
 	constructor({
 		config,
@@ -132,7 +138,7 @@ export class ProjectWatcher {
 				await fileSystem.copyFileAsync(filePath, destPath);
 			}
 		} catch (error) {
-			appLogger.error(`Failed to copy public file: ${error instanceof Error ? error.message : String(error)}`);
+			appLogger.error(`Failed to copy public file: ${formatErrorWithStack(error)}`);
 		}
 	}
 
@@ -161,25 +167,76 @@ export class ProjectWatcher {
 			return this.enqueueChange(() => this.flushPendingDevFileChanges());
 		}
 
-		if (this.pendingFlushTimer) {
+		if (this.pendingFlushTimer !== undefined) {
 			clearTimeout(this.pendingFlushTimer);
+		}
+		if (this.pendingMaxFlushTimer === undefined) {
+			this.pendingMaxFlushTimer = setTimeout(
+				() => this.flushScheduledDevFileChanges(),
+				ProjectWatcher.maximumChangeWaitMs,
+			);
 		}
 
 		const flushPromise = new Promise<void>((resolve) => {
 			this.pendingFlushResolvers.push(resolve);
 		});
 
-		this.pendingFlushTimer = setTimeout(() => {
-			this.pendingFlushTimer = undefined;
-			const resolvers = this.pendingFlushResolvers.splice(0);
-			void this.enqueueChange(() => this.flushPendingDevFileChanges()).finally(() => {
-				for (const resolve of resolvers) {
-					resolve();
-				}
-			});
-		}, this.changeDebounceMs);
+		this.pendingFlushTimer = setTimeout(() => this.flushScheduledDevFileChanges(), this.changeDebounceMs);
 
 		return flushPromise;
+	}
+
+	private flushScheduledDevFileChanges(): void {
+		this.clearPendingFlushTimers();
+		const changes = takePendingDevFileChanges(this.pendingDevFileKinds);
+		const resolvers = this.pendingFlushResolvers.splice(0);
+		void this.enqueueChange(async () => {
+			if (this.closed) return;
+			await this.processDevFileChanges(changes);
+		}).finally(() => {
+			for (const resolve of resolvers) {
+				resolve();
+			}
+		});
+	}
+
+	private clearPendingFlushTimers(): void {
+		if (this.pendingFlushTimer !== undefined) {
+			clearTimeout(this.pendingFlushTimer);
+			this.pendingFlushTimer = undefined;
+		}
+
+		if (this.pendingMaxFlushTimer !== undefined) {
+			clearTimeout(this.pendingMaxFlushTimer);
+			this.pendingMaxFlushTimer = undefined;
+		}
+	}
+
+	private clearWatcherReadyTimeout(): void {
+		if (this.watcherReadyTimeout !== undefined) {
+			clearTimeout(this.watcherReadyTimeout);
+			this.watcherReadyTimeout = undefined;
+		}
+	}
+
+	private async waitForWatcherReady(): Promise<FSWatcher> {
+		try {
+			await this.watcherReady;
+		} catch (error) {
+			try {
+				await this.close();
+			} catch (closeError) {
+				appLogger.error(
+					`Failed to close filesystem watcher after startup failed: ${formatErrorWithStack(closeError)}`,
+				);
+			}
+			throw error;
+		}
+
+		if (!this.watcher) {
+			throw new Error('Filesystem watcher closed before becoming ready');
+		}
+		return this.watcher;
 	}
 
 	private async flushPendingDevFileChanges(): Promise<void> {
@@ -396,7 +453,7 @@ export class ProjectWatcher {
 		if (error instanceof Error && typeof this.hmrManager.broadcast === 'function') {
 			this.hmrManager.broadcast({ type: 'error', message: error.message });
 		}
-		appLogger.error(`Watcher error: ${error}`);
+		appLogger.error(`Watcher error: ${formatErrorWithStack(error)}`);
 	}
 
 	/**
@@ -414,8 +471,7 @@ export class ProjectWatcher {
 	 */
 	public async createWatcherSubscription() {
 		if (this.watcher) {
-			await this.watcherReady;
-			return this.watcher;
+			return this.waitForWatcherReady();
 		}
 
 		const buildInputIndex = getAppBuildInputIndex(this.appConfig);
@@ -485,8 +541,26 @@ export class ProjectWatcher {
 		);
 
 		this.watcherReady = new Promise<void>((resolve, reject) => {
-			this.watcher!.once('ready', resolve);
-			this.watcher!.once('error', reject);
+			this.rejectWatcherReady = reject;
+			this.watcherReadyTimeout = setTimeout(() => {
+				this.watcherReadyTimeout = undefined;
+				this.rejectWatcherReady = undefined;
+				reject(
+					new Error(
+						`Filesystem watcher did not become ready within ${ProjectWatcher.watcherReadyTimeoutMs}ms`,
+					),
+				);
+			}, ProjectWatcher.watcherReadyTimeoutMs);
+			this.watcher!.once('ready', () => {
+				this.clearWatcherReadyTimeout();
+				this.rejectWatcherReady = undefined;
+				resolve();
+			});
+			this.watcher!.once('error', (error) => {
+				this.clearWatcherReadyTimeout();
+				this.rejectWatcherReady = undefined;
+				reject(error);
+			});
 		});
 
 		this.unsubscribeFromRecordedWatchPaths = buildInputIndex.subscribeToWatchPaths((filePath) => {
@@ -522,8 +596,7 @@ export class ProjectWatcher {
 			}
 		}
 
-		await this.watcherReady;
-		return this.watcher;
+		return this.waitForWatcherReady();
 	}
 
 	/**
@@ -533,15 +606,24 @@ export class ProjectWatcher {
 	 * Safe to call multiple times. Used when tearing down dev servers in tests
 	 * and other short-lived Ecopages runtimes.
 	 */
-	public async close(): Promise<void> {
+	public close(): Promise<void> {
+		if (this.closePromise) {
+			return this.closePromise;
+		}
+
+		this.closePromise = this.closeWatcher();
+		return this.closePromise;
+	}
+
+	private async closeWatcher(): Promise<void> {
 		this.closed = true;
+		this.clearWatcherReadyTimeout();
+		this.rejectWatcherReady?.(new Error('Filesystem watcher closed before it became ready'));
+		this.rejectWatcherReady = undefined;
 		this.unsubscribeFromRecordedWatchPaths?.();
 		this.unsubscribeFromRecordedWatchPaths = undefined;
 
-		if (this.pendingFlushTimer) {
-			clearTimeout(this.pendingFlushTimer);
-			this.pendingFlushTimer = undefined;
-		}
+		this.clearPendingFlushTimers();
 		this.pendingDevFileKinds.clear();
 		for (const resolve of this.pendingFlushResolvers.splice(0)) {
 			resolve();
@@ -554,6 +636,10 @@ export class ProjectWatcher {
 
 		await this.changeQueue.catch(() => undefined);
 	}
+}
+
+function formatErrorWithStack(error: unknown): string {
+	return error instanceof Error ? (error.stack ?? error.message) : String(error);
 }
 
 function watcherEventToDevFileChangeKind(event: 'change' | 'add' | 'unlink'): DevFileChangeKind {

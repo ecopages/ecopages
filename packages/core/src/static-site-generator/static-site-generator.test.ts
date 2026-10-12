@@ -374,6 +374,39 @@ describe('StaticSiteGenerator', () => {
 			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/index.html', '<html>Home</html>');
 		});
 
+		test('logs static render cache failures with their stack', async () => {
+			const cacheError = new Error('static render cache failed');
+			const debugLog = vi.spyOn(appLogger, 'debug').mockReturnValue(appLogger);
+			const routeModuleBuildCache = createMockRouteModuleBuildCache({
+				recordStaticRender: vi.fn(() => {
+					throw cacheError;
+				}),
+			});
+			vi.spyOn(fileSystem, 'hash').mockReturnValue('source-hash');
+			const ssg = new StaticSiteGenerator({
+				appConfig: createMockConfig(),
+				routeModuleBuildCache,
+			});
+			const filePath = '/src/pages/index.tsx';
+			const pageRenderer = {
+				loadPageModule: vi.fn(async () => createStaticPageModule()),
+				execute: vi.fn(async () => ({ body: '<html>Home</html>' })),
+			};
+
+			await ssg.generateStaticPages({
+				router: createMockRouter({ '/': { filePath, pathname: '/' } }),
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: {
+					getPageRenderer: vi.fn(() => pageRenderer),
+				},
+			});
+
+			const cacheFailureLog = debugLog.mock.calls.find(([message]) =>
+				String(message).includes('Failed to record static render cache for /'),
+			);
+			expect(cacheFailureLog?.[1]).toContain(cacheError.stack ?? 'static render cache failed');
+		});
+
 		test('should reuse rendered HTML cache for unchanged static pages', async () => {
 			const routeModuleBuildCache = createMockRouteModuleBuildCache({
 				canReuseStaticRender: vi.fn(() => true),
@@ -691,6 +724,8 @@ describe('StaticSiteGenerator', () => {
 		});
 
 		test('should omit noindex pages and metadata failures from sitemap', async () => {
+			const metadataError = new Error('metadata boom');
+			const debugLog = vi.spyOn(appLogger, 'debug').mockReturnValue(appLogger);
 			const ssg = new StaticSiteGenerator({
 				appConfig: createMockConfig({
 					baseUrl: 'https://example.com',
@@ -723,7 +758,7 @@ describe('StaticSiteGenerator', () => {
 								default: Object.assign(() => null, {
 									cache: 'static',
 									metadata: async () => {
-										throw new Error('metadata boom');
+										throw metadataError;
 									},
 								}),
 							};
@@ -789,6 +824,10 @@ describe('StaticSiteGenerator', () => {
 			expect(sitemapContent).toContain('<loc>https://example.com/</loc>');
 			expect(sitemapContent).not.toContain('/draft');
 			expect(sitemapContent).not.toContain('/broken');
+			const metadataFailureLog = debugLog.mock.calls.find(([message]) =>
+				String(message).includes('Sitemap eligibility skipped for /broken'),
+			);
+			expect(metadataFailureLog?.[1]).toContain(metadataError.stack ?? 'metadata boom');
 		});
 
 		test('should honor robots.index on explicit static views in sitemap', async () => {

@@ -264,11 +264,14 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Creates the shared renderer options owned by core lifecycle setup.
 	 *
 	 * @remarks
-	 * Handler renders call `initializeRenderer()` per request, so this must hand
-	 * each renderer the Integration's one asset-processing service. The service
-	 * cache is keyed by dependency and source hash, which makes that sharing safe.
-	 * A missing service is created here so a plugin that received `appConfig`
-	 * without `setConfig()` still has one.
+	 * Handler renders call `initializeRenderer()` on every `render`, `renderPartial`,
+	 * and `renderServerModule`. Each call still builds a new renderer, and all of
+	 * them share this Integration's asset-processing service. An unchanged file
+	 * asset is reused until its source hash changes, its output is missing, or a
+	 * development change batch drops the entry. The cache key is the dependency
+	 * identity; the source hash is the freshness check. A missing service is
+	 * created here so a plugin that received `appConfig` without `setConfig()`
+	 * still has one.
 	 */
 	protected createRendererOptions(): IntegrationRendererConstructorOptions {
 		if (!this.appConfig) {
@@ -314,10 +317,11 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Instantiates the integration renderer with app-owned services.
 	 *
 	 * @remarks
-	 * Renderers are cheap runtime objects, and handler renders still create a new
-	 * one per request. They share the Integration's asset-processing service, so a
-	 * stylesheet or script is processed once per process. The cache is keyed by
-	 * dependency and source hash.
+	 * Renderers are cheap runtime objects. Handler renders still create a new one
+	 * on every `render`, `renderPartial`, and `renderServerModule` call. They share
+	 * the Integration's asset-processing service, so an unchanged stylesheet or
+	 * script is reused until its source changes, its output is missing, or
+	 * development invalidation drops the entry.
 	 */
 	initializeRenderer(): IntegrationRenderer<C> {
 		const renderer = new this.renderer(this.createRendererOptions());

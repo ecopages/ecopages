@@ -100,13 +100,13 @@ These paths bypass most filesystem routing, but they still converge on the same 
 flowchart TD
   A[ExplicitStaticRouteMatcher handleMatch] --> B[route loader returns view]
   B --> C[get renderer by integration]
-  C --> D[renderer renderToResponse]
+  C --> D[renderExplicitView then execute]
 
   E[render context render or renderPartial] --> F[get renderer from integrations list]
-  F --> G[renderer renderToResponse]
+  F --> G[renderExplicitView]
 
-  H[StaticSiteGenerator explicit routes] --> I[get renderer by integration]
-  I --> J[renderer renderToResponse]
+  H[StaticSiteGenerator explicit routes] --> I[resolve renderer without staticProps]
+  I --> J[renderExplicitView then execute]
   J --> K[write html to dist]
 ```
 

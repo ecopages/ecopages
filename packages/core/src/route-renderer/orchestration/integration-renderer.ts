@@ -34,15 +34,20 @@ import { invariant } from '../../utils/invariant.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
+import { getComponentIdentity } from '../../eco/component-identity.ts';
 import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
-import { hasForeignChildDescendantsInGraph } from './ownership-graph/component-graph-collectors.ts';
 import {
+	collectPageClientPlan,
 	planHasForeignChildDescendants,
 	uniqueIslandIntegrationNames,
 	type PageClientBrowserAssets,
 	type PageClientPlan,
 } from './ownership-graph/page-client-plan.ts';
-import { finalizeComponentRender } from './foreign-child/component-render-context.ts';
+import {
+	finalizeComponentRender,
+	getComponentRenderContext,
+	runWithComponentRenderContext,
+} from './foreign-child/component-render-context.ts';
 import {
 	RouteRenderOrchestrator,
 	type RouteRenderOrchestratorAdapter,
@@ -127,7 +132,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected assetProcessingService: AssetProcessingService;
 	protected htmlTransformer: HtmlTransformerService;
 	protected hmrManager?: IHmrManager;
-	protected pageClientPlan?: PageClientPlan;
 	protected islandRenderAssetsByFile = new Map<string, ProcessedAsset[]>();
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
 	declare protected options: Required<IntegrationRendererRenderOptions>;
@@ -354,17 +358,23 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			return nextDependencies;
 		}
 
+		const context = getComponentRenderContext();
+		const existingDependencies = context?.pagePackage?.assets ?? this.htmlTransformer.getProcessedDependencies();
 		const mergedDependencies = this.htmlTransformer.dedupeProcessedAssets([
-			...this.htmlTransformer.getProcessedDependencies(),
+			...existingDependencies,
 			...nextDependencies,
 		]);
-		const currentPageBrowserGraph = this.htmlTransformer.getPagePackage()?.pageBrowserGraph;
+		const currentPageBrowserGraph =
+			context?.pagePackage?.pageBrowserGraph ?? this.htmlTransformer.getPagePackage()?.pageBrowserGraph;
+		const pagePackage = createPagePackage(mergedDependencies, {
+			pageBrowserGraph: currentPageBrowserGraph,
+		});
 
-		this.htmlTransformer.setPagePackage(
-			createPagePackage(mergedDependencies, {
-				pageBrowserGraph: currentPageBrowserGraph,
-			}),
-		);
+		if (context) {
+			context.pagePackage = pagePackage;
+		} else {
+			this.htmlTransformer.setPagePackage(pagePackage);
+		}
 
 		return nextDependencies;
 	}
@@ -753,7 +763,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			getHtmlDocumentContributions: (options) => this.getHtmlDocumentContributions(options),
 			applyAttributesToHtmlElement: (html, attributes) => this.applyAttributesToHtmlElement(html, attributes),
 			transformRouteResponse: async (response, htmlContributions, pagePackage) => {
-				const resolvedPagePackage = this.htmlTransformer.getPagePackage() ?? pagePackage;
+				const resolvedPagePackage =
+					getComponentRenderContext()?.pagePackage ?? this.htmlTransformer.getPagePackage() ?? pagePackage;
 				const transformedResponse = this.htmlTransformer.transform(
 					response,
 					htmlContributions,
@@ -796,10 +807,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 	protected async buildPageBrowserGraphContributionContext(
 		routeFile: string,
-		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query'>,
+		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query' | 'pageModule'>,
 	): Promise<PageBrowserGraphContributionContext> {
 		const { module: pageModule, ...resolvedPageModule } = await this.pageModuleLoaderService.resolvePageModule({
 			file: routeFile,
+			pageModule: routeOptions?.pageModule,
 			importPageFileFn: (targetFile) => this.importPageFile(targetFile),
 		});
 		const { props } = await this.pageModuleLoaderService.resolvePageData({
@@ -871,9 +883,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	): Promise<IntegrationRendererRenderOptions<C>> {
 		const renderOptions = await this.routeRenderOrchestrator.prepareRenderOptions(options, adapter);
 		invariant(renderOptions.pagePackage !== undefined, 'Expected render preparation to produce a page package');
-		this.htmlTransformer.setPagePackage(renderOptions.pagePackage);
-		this.pageClientPlan = renderOptions.pageClientPlan;
-		this.islandRenderAssetsByFile = renderOptions.islandRenderAssetsByFile ?? new Map();
 		return renderOptions;
 	}
 
@@ -900,8 +909,58 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 			const adapter = this.createRouteRenderOrchestratorAdapter();
 			const renderOptions = await this.prepareRenderOptions(options, adapter);
-			return this.routeRenderOrchestrator.executePrepared(renderOptions, adapter);
+			const { value } = await runWithComponentRenderContext(
+				{
+					currentIntegration: this.name,
+					pageClientPlan: renderOptions.pageClientPlan,
+					islandRenderAssetsByFile: renderOptions.islandRenderAssetsByFile,
+					pagePackage: renderOptions.pagePackage,
+				},
+				() => this.routeRenderOrchestrator.executePrepared(renderOptions, adapter),
+			);
+			return value;
 		});
+	}
+
+	/**
+	 * Renders one explicit view through the route pipeline.
+	 *
+	 * @remarks
+	 * A partial render stays on `renderComponentWithForeignChildren`. A full render
+	 * calls `execute` with the view as the page module, so it receives the same
+	 * layouts, metadata, and client plan as a filesystem Page. `file` is the
+	 * view's identity file, or a stable synthetic key when the view has none.
+	 */
+	async renderExplicitView<P>(
+		view: EcoComponent<P>,
+		props: P,
+		ctx: RenderToResponseContext & Partial<Pick<RouteRendererOptions, 'params' | 'query' | 'locals' | 'file'>>,
+	): Promise<Response> {
+		if (ctx.partial) {
+			const plan = collectPageClientPlan([view], this.name);
+			const assets = await this.buildPageClientBrowserAssets(plan);
+			const { value } = await runWithComponentRenderContext(
+				{
+					currentIntegration: this.name,
+					pageClientPlan: plan,
+					islandRenderAssetsByFile: assets.islandRenderAssetsByFile,
+				},
+				() => this.renderPartialViewResponse({ view, props, ctx }),
+			);
+			return value;
+		}
+
+		const identity = getComponentIdentity(view);
+		const result = await this.execute({
+			file: ctx.file ?? identity?.file ?? `explicit:${this.name}:${identity?.id ?? 'view'}`,
+			pageModule: { default: view },
+			params: ctx.params,
+			query: ctx.query,
+			locals: ctx.locals,
+			props: (props ?? {}) as Record<string, unknown>,
+		});
+
+		return this.createHtmlResponse(result.body as BodyInit, ctx);
 	}
 
 	/**
@@ -1065,20 +1124,38 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Returns whether the component dependency tree crosses into another
-	 * integration.
+	 * Page package for the active render, when one is in progress.
 	 *
-	 * This keeps foreign-child runtime setup narrow: same-integration trees can render
-	 * directly without paying the queue orchestration cost.
+	 * @remarks
+	 * Falls back to the transformer only for callers outside a render context,
+	 * such as tests that set the package directly.
 	 */
+	protected getActivePagePackage() {
+		return getComponentRenderContext()?.pagePackage ?? this.htmlTransformer.getPagePackage();
+	}
+
+	/**
+	 * Island assets for the active render.
+	 *
+	 * @remarks
+	 * The render context owns the map. The renderer field remains for tests that
+	 * assign it without entering a render context.
+	 */
+	protected getActiveIslandRenderAssets(): ReadonlyMap<string, ProcessedAsset[]> {
+		return getComponentRenderContext()?.islandRenderAssetsByFile ?? this.islandRenderAssetsByFile;
+	}
+
 	protected hasForeignChildDescendants(
 		component: EcoComponent,
 		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
 	): boolean {
-		if (this.pageClientPlan) {
-			return planHasForeignChildDescendants(this.pageClientPlan, component, this.name, foreignChildRoots);
+		const activePlan = getComponentRenderContext()?.pageClientPlan;
+		if (activePlan) {
+			return planHasForeignChildDescendants(activePlan, component, this.name, foreignChildRoots);
 		}
-		return hasForeignChildDescendantsInGraph(component, this.name, foreignChildRoots);
+
+		const plan = collectPageClientPlan([component, ...(foreignChildRoots ?? [])], this.name);
+		return planHasForeignChildDescendants(plan, component, this.name, foreignChildRoots);
 	}
 
 	/**

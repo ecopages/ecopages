@@ -99,7 +99,7 @@ export interface RouteRenderOrchestratorAdapter<C> {
 	 */
 	buildPageBrowserGraphContributionContext(
 		routeFile: string,
-		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query'>,
+		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query' | 'pageModule'>,
 	): Promise<PageBrowserGraphContributionContext>;
 	/**
 	 * Builds island and lazy-entry browser assets from the page client plan.
@@ -236,7 +236,12 @@ export class RouteRenderOrchestrator {
 			dependencyInstanceKey,
 		});
 		const resolvedPageDependencyComponents = resolvedPageDependencies?.components ?? [];
-		const dependencyRoots = [...componentsToResolve, ...resolvedPageDependencyComponents];
+		const dependencyRoots = [
+			{ component: HtmlTemplate, source: 'html-template' as const },
+			...Layouts.map((component) => ({ component, source: 'layout' as const })),
+			{ component: Page, source: 'page' as const },
+			...resolvedPageDependencyComponents,
+		];
 		const clientPlan = collectPageClientPlan(dependencyRoots, adapter.name);
 		const clientBrowserAssets = await adapter.buildPageClientBrowserAssets(clientPlan);
 		if (clientBrowserAssets.lazyTriggers.length > 0) {
@@ -259,7 +264,7 @@ export class RouteRenderOrchestrator {
 		const additionalSourcePaths = collectRenderShellSourcePaths(this.appConfig, [
 			...componentsToResolve,
 			...resolvedPageDependencyComponents,
-			...clientPlan.islandEntries.map((entry) => entry.component),
+			...clientPlan.sourceComponents,
 		]);
 		const buildInputIndex = getAppBuildInputIndex(this.appConfig);
 		const sourceDependencyPaths = collectHtmlCacheSourceDependencyPaths({

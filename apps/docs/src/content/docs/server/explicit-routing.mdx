@@ -394,7 +394,7 @@ app.static('/posts', './src/views/post-list.kita');
 app.static('/posts/:slug', './src/views/post-view.kita');
 ```
 
-String and URL paths passed to `app.static()` load through the same transpiler as `renderServerModule`, including HMR in development. Views must be the default export and define `staticPaths` and `staticProps`:
+String and URL paths passed to `app.static()` load through the same transpiler as `renderServerModule`, including HMR in development. A full explicit view uses the same route pipeline as a filesystem Page: every layout, default metadata, robots meta, and that view's own page client plan. Planning a dynamic explicit route resolves the renderer without calling `staticProps`; `staticProps` runs later with the slug's params. Views must be the default export and define `staticPaths` and `staticProps`:
 
 ```typescript
 // src/views/post-view.tsx

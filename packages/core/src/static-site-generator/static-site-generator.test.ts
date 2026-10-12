@@ -567,7 +567,7 @@ describe('StaticSiteGenerator', () => {
 			const view = Object.assign(() => null, {
 				config: { identity: { integration: 'fixture', file: '/src/views/not-found.tsx' } },
 			});
-			const renderToResponse = vi.fn(async () => new Response('<html>Registered not found</html>'));
+			const renderExplicitView = vi.fn(async () => new Response('<html>Registered not found</html>'));
 
 			await ssg.run({
 				router: {
@@ -576,7 +576,7 @@ describe('StaticSiteGenerator', () => {
 				baseUrl: 'http://localhost:3000',
 				routeRendererFactory: {
 					getPageRenderer: vi.fn(),
-					getExplicitViewRenderer: vi.fn(() => ({ renderToResponse })),
+					getExplicitViewRenderer: vi.fn(() => ({ renderExplicitView })),
 				} satisfies StaticGenerationRendererFactory,
 				errorPageLoaders: {
 					notFound: async () => ({ default: view as never }),
@@ -584,7 +584,7 @@ describe('StaticSiteGenerator', () => {
 			});
 
 			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/404.html', '<html>Registered not found</html>');
-			expect(renderToResponse).toHaveBeenCalledWith(expect.anything(), { status: 404 }, { status: 404 });
+			expect(renderExplicitView).toHaveBeenCalledWith(expect.anything(), { status: 404 }, { status: 404 });
 		});
 
 		test('should fail the build when a registered semantic error view breaks', async () => {
@@ -804,7 +804,7 @@ describe('StaticSiteGenerator', () => {
 					},
 				}),
 			});
-			const renderToResponse = vi.fn(async () => new Response('<html>Private</html>'));
+			const renderExplicitView = vi.fn(async () => new Response('<html>Private</html>'));
 			const privateView = Object.assign(() => null, {
 				cache: 'static',
 				config: { identity: { ...testInjectedMeta, file: '/src/views/private.tsx' } },
@@ -823,7 +823,7 @@ describe('StaticSiteGenerator', () => {
 				routeRendererFactory: {
 					getPageRenderer: vi.fn(),
 					getExplicitViewRenderer: vi.fn(() => ({
-						renderToResponse,
+						renderExplicitView,
 					})),
 				} satisfies StaticGenerationRendererFactory,
 				staticRoutes: [
@@ -869,7 +869,7 @@ describe('StaticSiteGenerator', () => {
 			const ssg = new StaticSiteGenerator({
 				appConfig: createMockConfig({ baseUrl: 'http://localhost:3000' } as any),
 			});
-			const renderToResponse = vi.fn(async () => new Response('<html>Post</html>'));
+			const renderExplicitView = vi.fn(async () => new Response('<html>Post</html>'));
 			const staticProps = vi.fn(async ({ pathname }) => ({
 				props: pathname.params,
 			}));
@@ -882,7 +882,7 @@ describe('StaticSiteGenerator', () => {
 				routeRendererFactory: {
 					getPageRenderer: vi.fn(),
 					getExplicitViewRenderer: vi.fn(() => ({
-						renderToResponse,
+						renderExplicitView,
 					})),
 				} satisfies StaticGenerationRendererFactory,
 				staticRoutes: [
@@ -904,7 +904,13 @@ describe('StaticSiteGenerator', () => {
 				appConfig: expect.any(Object),
 				runtimeOrigin: 'http://localhost:3000',
 			});
-			expect(renderToResponse).toHaveBeenCalledWith(expect.any(Function), { slug: 'hello-world' }, {});
+			expect(renderExplicitView).toHaveBeenCalledWith(
+				expect.any(Function),
+				{ slug: 'hello-world' },
+				{
+					params: { slug: 'hello-world' },
+				},
+			);
 			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/blog/hello-world.html', '<html>Post</html>');
 		});
 
@@ -921,7 +927,7 @@ describe('StaticSiteGenerator', () => {
 				routeRendererFactory: {
 					getPageRenderer: vi.fn(),
 					getExplicitViewRenderer: vi.fn(() => ({
-						renderToResponse: vi.fn(),
+						renderExplicitView: vi.fn(),
 					})),
 				} satisfies StaticGenerationRendererFactory,
 				staticRoutes: [
@@ -946,7 +952,7 @@ describe('StaticSiteGenerator', () => {
 			});
 			vi.spyOn(fileSystem, 'exists').mockReturnValue(true);
 			vi.spyOn(fileSystem, 'hash').mockReturnValue('cached-hash');
-			const renderToResponse = vi.fn(async () => new Response('<html>Dashboard</html>'));
+			const renderExplicitView = vi.fn(async () => new Response('<html>Dashboard</html>'));
 			const ssg = new StaticSiteGenerator({
 				appConfig: createMockConfig({ baseUrl: 'http://localhost:3000' } as any),
 				routeModuleBuildCache,
@@ -960,7 +966,7 @@ describe('StaticSiteGenerator', () => {
 				routeRendererFactory: {
 					getPageRenderer: vi.fn(),
 					getExplicitViewRenderer: vi.fn(() => ({
-						renderToResponse,
+						renderExplicitView,
 					})),
 				} satisfies StaticGenerationRendererFactory,
 				staticRoutes: [
@@ -975,7 +981,7 @@ describe('StaticSiteGenerator', () => {
 				],
 			});
 
-			expect(renderToResponse).not.toHaveBeenCalled();
+			expect(renderExplicitView).not.toHaveBeenCalled();
 			expect(writeMock).not.toHaveBeenCalledWith('/test/project/dist/dashboard.html', expect.anything());
 		});
 
@@ -983,7 +989,7 @@ describe('StaticSiteGenerator', () => {
 			const routeModuleBuildCache = createMockRouteModuleBuildCache({
 				canReuseStaticRender: vi.fn((options: { force?: boolean }) => !options.force),
 			});
-			const renderToResponse = vi.fn(async () => new Response('<html>Dashboard</html>'));
+			const renderExplicitView = vi.fn(async () => new Response('<html>Dashboard</html>'));
 			const ssg = new StaticSiteGenerator({
 				appConfig: createMockConfig({ baseUrl: 'http://localhost:3000' } as any),
 				routeModuleBuildCache,
@@ -998,7 +1004,7 @@ describe('StaticSiteGenerator', () => {
 				routeRendererFactory: {
 					getPageRenderer: vi.fn(),
 					getExplicitViewRenderer: vi.fn(() => ({
-						renderToResponse,
+						renderExplicitView,
 					})),
 				} satisfies StaticGenerationRendererFactory,
 				staticRoutes: [
@@ -1013,7 +1019,7 @@ describe('StaticSiteGenerator', () => {
 				],
 			});
 
-			expect(renderToResponse).toHaveBeenCalled();
+			expect(renderExplicitView).toHaveBeenCalled();
 			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/dashboard.html', '<html>Dashboard</html>');
 		});
 	});

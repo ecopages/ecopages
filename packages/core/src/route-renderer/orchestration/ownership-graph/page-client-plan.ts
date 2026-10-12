@@ -1,7 +1,7 @@
 import type { EcoComponent, EcoComponentConfig, ResolvedLazyTrigger } from '../../../types/public-types.ts';
 import type { AssetDefinition, ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
 import { getComponentIdentity } from '../../../eco/component-identity.ts';
-import { type ComponentGraphRoot } from './component-graph.ts';
+import { type ComponentGraphRoot, type ComponentGraphWalkInput } from './component-graph.ts';
 import * as componentGraph from './component-graph.ts';
 
 /**
@@ -29,14 +29,23 @@ export type PageClientPlan = {
 	lazyClientEntries: AssetDefinition[];
 	lazyConfigs: EcoComponentConfig[];
 	/**
-	 * Every identity-bearing file on the declared graph.
+	 * Components whose Integration differs from their parent's, except the Html shell.
 	 *
 	 * @remarks
-	 * Includes the page owner's Page, Layout, Html, and nested includes, which
-	 * are not hydratable islands. Integrations that emit island hydration
-	 * scripts must pass this list through {@link selectHydrationIslandEntries}.
+	 * The page owner's Page, Layout, and nested includes stay out of this list.
+	 * Integrations that emit island hydration scripts still pass it through
+	 * {@link selectHydrationIslandEntries}; which of these candidates hydrate
+	 * does not change.
 	 */
 	islandEntries: PageClientPlanIslandEntry[];
+	/**
+	 * Every identity-bearing component on the declared graph.
+	 *
+	 * @remarks
+	 * Cache invalidation still watches these files. Island hydration uses
+	 * {@link PageClientPlan.islandEntries}, which is the foreign-to-parent subset.
+	 */
+	sourceComponents: EcoComponent[];
 	componentsWithForeignDescendants: WeakSet<object>;
 };
 
@@ -49,8 +58,16 @@ export type PageClientBrowserAssets = {
 	lazyTriggers: ResolvedLazyTrigger[];
 };
 
-function toGraphRoots(components: (EcoComponent | Partial<EcoComponent>)[]): ComponentGraphRoot[] {
-	return components.filter(Boolean).map((component) => ({ component }));
+function isComponentGraphRoot(
+	value: EcoComponent | Partial<EcoComponent> | ComponentGraphRoot,
+): value is ComponentGraphRoot {
+	return typeof value === 'object' && value !== null && 'component' in value && !('config' in value);
+}
+
+function toGraphRoots(
+	components: Array<EcoComponent | Partial<EcoComponent> | ComponentGraphRoot>,
+): ComponentGraphRoot[] {
+	return components.filter(Boolean).map((entry) => (isComponentGraphRoot(entry) ? entry : { component: entry }));
 }
 
 function getIntegrationName(component: EcoComponent | Partial<EcoComponent>, parentIntegrationName: string): string {
@@ -84,7 +101,7 @@ function collectPendingLazyClientEntries(
  * Walks the declared component graph once and returns every client entry for the page.
  */
 export function collectPageClientPlan(
-	components: (EcoComponent | Partial<EcoComponent>)[],
+	components: Array<EcoComponent | Partial<EcoComponent> | ComponentGraphRoot>,
 	currentIntegrationName: string,
 ): PageClientPlan {
 	const integrationNames = new Set<string>();
@@ -93,6 +110,7 @@ export function collectPageClientPlan(
 	const seenLazyKeys = new Set<string>();
 	const lazyConfigs: EcoComponentConfig[] = [];
 	const islandEntries: PageClientPlanIslandEntry[] = [];
+	const sourceComponents: EcoComponent[] = [];
 	const childrenByComponent = new Map<object, EcoComponent[]>();
 	const integrationByComponent = new Map<object, string>();
 	const visited: EcoComponent[] = [];
@@ -100,7 +118,7 @@ export function collectPageClientPlan(
 	componentGraph.walkComponentGraph({
 		roots: toGraphRoots(components),
 		currentIntegrationName,
-		onComponent: ({ component, parentIntegrationName }) => {
+		onComponent: ({ component, parentIntegrationName, source }: ComponentGraphWalkInput) => {
 			const integrationName = getIntegrationName(component, parentIntegrationName);
 			integrationNames.add(integrationName);
 			integrationByComponent.set(component, integrationName);
@@ -115,7 +133,10 @@ export function collectPageClientPlan(
 
 			const file = getComponentIdentity(component)?.file;
 			if (file) {
-				islandEntries.push({ component, file, integrationName });
+				sourceComponents.push(component);
+				if (integrationName !== parentIntegrationName && source !== 'html-template') {
+					islandEntries.push({ component, file, integrationName });
+				}
 			}
 
 			const children = (component.config?.dependencies?.components ?? []).filter(Boolean) as EcoComponent[];
@@ -160,6 +181,7 @@ export function collectPageClientPlan(
 		lazyClientEntries,
 		lazyConfigs,
 		islandEntries,
+		sourceComponents,
 		componentsWithForeignDescendants,
 	};
 }
@@ -179,13 +201,9 @@ export function uniqueIslandIntegrationNames(plan: PageClientPlan): string[] {
  * Island files that `integrationName` should hydrate as Foreign Children.
  *
  * @remarks
- * `islandEntries` lists every identity-bearing file on the page. The page
- * owner's own Page, Layout, Html, and nested includes live in that owner's
- * page bootstrap tree. Emitting per-component island hydration for them
- * downloads extra client graphs that never find a host. This returns only
- * files owned by `integrationName` when that integration is not the page
- * owner — the Foreign Children that actually need `hydrateRoot` on an
- * Island Host.
+ * `islandEntries` lists components whose Integration differs from their parent's,
+ * excluding the Html shell. This returns the ones owned by `integrationName`
+ * when that integration is not the page owner.
  */
 export function selectHydrationIslandEntries(
 	plan: Pick<PageClientPlan, 'currentIntegrationName' | 'islandEntries'>,

@@ -32,9 +32,9 @@ function getScriptDependencyBuildSignature(dep: AssetDefinition): string | undef
  * @remarks
  * Script dependencies include a build signature derived from bundle flags, grouped-bundle
  * metadata, and selected `bundleOptions` fields (`naming`, `external`, `minify`, plugin names).
- * HTML-affecting script `attributes` are hashed into the key so dedupe and cache reuse do not
- * collapse declarations that would emit different `<script>` tags. Full plugin objects and
- * `NODE_ENV` are excluded from the key.
+ * HTML-affecting script and stylesheet `attributes` are hashed into the key so dedupe and
+ * cache reuse do not collapse declarations that would emit different tags. Full plugin
+ * objects and `NODE_ENV` are excluded from the key.
  *
  * Runtime minify in {@link ContentScriptProcessor} still follows `NODE_ENV` via
  * `isProduction`, not `bundleOptions.minify`.
@@ -59,7 +59,7 @@ export function getAssetDependencyKey(dep: AssetDefinition): string {
 		parts.push(`package:${dep.packageRole}`);
 	}
 
-	if (dep.kind === 'script' && dep.attributes) {
+	if ((dep.kind === 'script' || dep.kind === 'stylesheet') && dep.attributes) {
 		parts.push(`attrs:${generateHash(JSON.stringify(dep.attributes))}`);
 	}
 

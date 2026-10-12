@@ -216,7 +216,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		}
 
 		const { pagePackage } = mergePageBrowserGraph(
-			this.htmlTransformer.getPagePackage(),
+			this.getActivePagePackage(),
 			this.htmlTransformer.getProcessedDependencies(),
 			pageBrowserGraph,
 		);
@@ -287,7 +287,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				this.resolveReactQueuedForeignSubtreeHtml(html, context),
 			getRootTagName: (html) => this.getRootTagName(html),
 			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-			islandRenderAssetsByFile: this.islandRenderAssetsByFile,
+			islandRenderAssetsByFile: this.getActiveIslandRenderAssets(),
 		});
 	}
 
@@ -536,7 +536,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 		const HtmlTemplate = await this.getHtmlTemplate();
 		const metadata = await this.resolveViewMetadata(input.view, input.props);
-		const pageModuleUrl = this.pagePayloadService.resolvePageModuleUrl(this.htmlTransformer.getPagePackage(), {
+		const pageModuleUrl = this.pagePayloadService.resolvePageModuleUrl(this.getActivePagePackage(), {
 			routerEnabled: Boolean(this.routerAdapter),
 		});
 		const serializedPageProps = this.pagePayloadService.buildSerializedPageProps({

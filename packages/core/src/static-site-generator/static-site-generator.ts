@@ -19,7 +19,10 @@ import type {
 } from '../route-renderer/route-renderer.ts';
 import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { prepareExplicitStaticRender } from '../route-renderer/explicit-view-render-preparation.ts';
+import {
+	prepareExplicitStaticRender,
+	resolveExplicitViewRenderer,
+} from '../route-renderer/explicit-view-render-preparation.ts';
 import { createRouteModuleStaticRenderCacheContext } from './static-build-invalidation.ts';
 import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 import {
@@ -780,12 +783,9 @@ export class StaticSiteGenerator {
 		view: EcoPageComponent<any>;
 		routeRendererFactory: ExplicitStaticRouteRendererFactory;
 	}): Promise<{ renderer: ExplicitViewRenderer; routeEntries: ExplicitStaticRouteEntry[] }> {
-		const { renderer } = await prepareExplicitStaticRender({
+		const { renderer } = resolveExplicitViewRenderer({
 			routePath: input.routePath,
 			view: input.view,
-			params: {},
-			appConfig: this.appConfig,
-			runtimeOrigin: this.appConfig.baseUrl,
 			routeRendererFactory: input.routeRendererFactory,
 			errors: STATIC_SITE_GENERATOR_ERRORS,
 		});
@@ -813,7 +813,7 @@ export class StaticSiteGenerator {
 			errors: STATIC_SITE_GENERATOR_ERRORS,
 		});
 
-		const response = await input.renderer.renderToResponse(renderableView, props, {});
+		const response = await input.renderer.renderExplicitView(renderableView, props, { params: input.params });
 		return response.text();
 	}
 

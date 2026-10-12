@@ -14,6 +14,8 @@ import type {
 	EcoFunctionComponent,
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
+	RouteRendererOptions,
+	RouteRenderResult,
 } from '../../../types/public-types.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import { createRenderContext } from './render-context.ts';
@@ -25,9 +27,16 @@ class HandlerViewRenderer extends IntegrationRenderer {
 		return '';
 	}
 
-	async renderToResponse<P>(view: EcoComponent<P>, _props: P, _ctx: RenderToResponseContext): Promise<Response> {
-		await this.processComponentDependencies([view]);
+	async renderToResponse<P>(_view: EcoComponent<P>, _props: P, _ctx: RenderToResponseContext): Promise<Response> {
 		return new Response('ok');
+	}
+
+	override async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
+		const view = options.pageModule?.default;
+		if (view) {
+			await this.processComponentDependencies([view]);
+		}
+		return { body: 'ok' };
 	}
 }
 

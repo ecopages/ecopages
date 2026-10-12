@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createPagePackage } from '../../services/assets/asset-processing-service/index.ts';
+import { getComponentRenderContext, runWithComponentRenderContext } from './foreign-child/component-render-context.ts';
 import { IntegrationRenderer } from './integration-renderer.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
@@ -51,6 +52,36 @@ describe('IntegrationRenderer', () => {
 		]);
 
 		expect(maxActive).toBe(1);
+	});
+
+	it('keeps each render plan when a nested foreign-child context opens', async () => {
+		const Page = (() => 'page') as EcoComponent;
+		Page.config = {
+			identity: { id: 'page', file: '/app/pages/a.tsx', integration: 'test-renderer' },
+		};
+		const HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
+		let nestedHasPage = false;
+
+		const renderer = new TestIntegrationRenderer({
+			appConfig: testAppConfig,
+			assetProcessingService: testAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = HtmlTemplate;
+		renderer.RenderBodyFactory = async () => {
+			await runWithComponentRenderContext({ currentIntegration: 'lit' }, async () => {
+				nestedHasPage =
+					getComponentRenderContext()?.pageClientPlan?.sourceComponents.some(
+						(component) => component === Page,
+					) ?? false;
+			});
+			return '<html><body>ok</body></html>';
+		};
+
+		await renderer.execute({ file: '/app/pages/a.tsx', params: {}, query: {} });
+
+		expect(nestedHasPage).toBe(true);
 	});
 
 	it('processes declarative page browser graph dependencies through shared route preparation', async () => {
@@ -853,6 +884,7 @@ describe('IntegrationRenderer', () => {
 			lazyClientEntries: [],
 			lazyConfigs: [],
 			islandEntries: [{ component: island, file: '/app/react-counter.tsx', integrationName: 'react' }],
+			sourceComponents: [island],
 			componentsWithForeignDescendants: new WeakSet(),
 		});
 

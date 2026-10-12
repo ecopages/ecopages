@@ -91,7 +91,7 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 				headers: renderOptions?.headers,
 			};
 
-			return await renderer.renderToResponse(view, mergedProps, ctx);
+			return await renderer.renderExplicitView(view, mergedProps, ctx);
 		},
 
 		async render<P>(
@@ -109,7 +109,7 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 				status: renderOptions?.status,
 				headers: renderOptions?.headers,
 			};
-			return renderer.renderToResponse(view, mergedProps, ctx);
+			return renderer.renderExplicitView(view, mergedProps, ctx);
 		},
 
 		async renderPartial<P>(
@@ -127,7 +127,7 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 				status: renderOptions?.status,
 				headers: renderOptions?.headers,
 			};
-			return renderer.renderToResponse(view, mergedProps, ctx);
+			return renderer.renderExplicitView(view, mergedProps, { ...ctx, partial: true });
 		},
 
 		json(data: unknown, responseOptions?: ResponseOptions): Response {

@@ -28,7 +28,7 @@ function createComponent(input: {
 	} as EcoComponent;
 }
 
-test('collectPageClientPlan walks the declared graph once and returns every client entry', () => {
+test('collectPageClientPlan walks the declared graph once and keeps only foreign-to-parent entries', () => {
 	const walk = vi.spyOn(componentGraph, 'walkComponentGraph');
 	const trigger: ResolvedLazyTrigger = {
 		triggerId: 'lazy-a',
@@ -51,17 +51,39 @@ test('collectPageClientPlan walks the declared graph once and returns every clie
 	assert.deepEqual(plan.lazyTriggers, [trigger]);
 	assert.deepEqual(plan.lazyClientEntries, []);
 	assert.deepEqual(plan.lazyConfigs, []);
-	assert.deepEqual(plan.islandEntries.map((entry) => entry.file).sort(), [
-		'/app/island.tsx',
-		'/app/page.tsx',
-		'/app/widget.ts',
-	]);
+	assert.deepEqual(
+		plan.islandEntries.map((entry) => entry.file),
+		['/app/widget.ts'],
+	);
 	assert.equal(planHasForeignChildDescendants(plan, root, 'react'), true);
 	assert.equal(planHasForeignChildDescendants(plan, island, 'react'), false);
 	assert.deepEqual(selectHydrationIslandEntries(plan, 'react'), []);
 	assert.deepEqual(
 		selectHydrationIslandEntries(plan, 'lit').map((entry) => entry.file),
 		['/app/widget.ts'],
+	);
+});
+
+test('collectPageClientPlan does not treat the Html shell as an island', () => {
+	const button = createComponent({ integration: 'react', file: '/app/button.tsx' });
+	const card = createComponent({ integration: 'react', file: '/app/card.tsx', children: [button] });
+	const html = createComponent({ integration: 'react', file: '/app/html.tsx' });
+	const page = createComponent({ integration: 'html', file: '/app/page.html', children: [card] });
+	const plan = collectPageClientPlan(
+		[
+			{ component: html, source: 'html-template' },
+			{ component: page, source: 'page' },
+		],
+		'html',
+	);
+
+	assert.deepEqual(
+		plan.islandEntries.map((entry) => entry.file),
+		['/app/card.tsx'],
+	);
+	assert.deepEqual(
+		selectHydrationIslandEntries(plan, 'react').map((entry) => entry.file),
+		['/app/card.tsx'],
 	);
 });
 

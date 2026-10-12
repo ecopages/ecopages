@@ -18,10 +18,10 @@ export type PageRouteRenderer = Pick<IntegrationRenderer<unknown>, 'execute' | '
  * Narrow explicit-view render contract exposed to static route handling.
  *
  * @remarks
- * Explicit static routes only need `renderToResponse()`, so the factory can
- * hide the broader integration renderer surface there as well.
+ * Explicit views render through `renderExplicitView()`, which calls `execute`
+ * for a full document and keeps a partial render on the component path.
  */
-export type ExplicitViewRenderer = Pick<IntegrationRenderer<unknown>, 'renderToResponse'>;
+export type ExplicitViewRenderer = Pick<IntegrationRenderer<unknown>, 'renderExplicitView'>;
 
 export interface PageRendererResolver {
 	getPageRenderer(filePath: string): PageRouteRenderer;

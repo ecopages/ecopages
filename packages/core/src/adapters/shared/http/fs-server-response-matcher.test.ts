@@ -1012,7 +1012,7 @@ describe('FileSystemResponseMatcher', () => {
 			});
 			const routeRendererFactory = {
 				getPageRenderer: vi.fn(),
-				getExplicitViewRenderer: vi.fn(() => ({ renderToResponse })),
+				getExplicitViewRenderer: vi.fn(() => ({ renderExplicitView: renderToResponse })),
 			};
 			const matcher = new FileSystemResponseMatcher({
 				appConfig: appConfigWithoutErrorPages,

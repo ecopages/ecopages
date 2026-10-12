@@ -7,5 +7,8 @@ export {
 	DEFAULT_ECO_CONFIG_FILENAME,
 	ECOPAGES_CONFIG_FILE_ENV,
 } from './resolve-eco-config-path.ts';
-export { assertProductionConfigIdentity } from '../build/cache/server-entry-build-cache.ts';
+export {
+	assertProductionConfigIdentity,
+	resolveProductionServerEntry,
+} from '../build/server-bundle-deploy-manifest.ts';
 export type { EcoPagesUserConfig, LoadedEcoPagesUserConfig, LoadEcoPagesConfigOptions } from './user-config-types.ts';

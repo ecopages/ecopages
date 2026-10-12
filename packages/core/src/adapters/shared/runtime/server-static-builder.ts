@@ -14,7 +14,7 @@ import { attachHmrToIntegrations } from './runtime-server-lifecycle.ts';
 import {
 	getServerBundleOutputPaths,
 	writeServerBundleDeployManifest,
-} from '../../../build/cache/server-entry-build-cache.ts';
+} from '../../../build/server-bundle-deploy-manifest.ts';
 import { bundleEcoConfigModule, EMITTED_ECO_CONFIG_FILENAME } from '../../../config/server-config-bundle.ts';
 import { resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../../utils/resolve-entry-file.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
@@ -198,7 +198,6 @@ export class ServerStaticBuilder {
 			}
 
 			writeServerBundleDeployManifest(this.appConfig, stagedServerEntryPath, {
-				sourceConfigPath: this.appConfig.absolutePaths.config,
 				emittedConfigModule: configBundle ? EMITTED_ECO_CONFIG_FILENAME : undefined,
 				outputDir: stagingDir,
 			});

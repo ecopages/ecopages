@@ -304,7 +304,7 @@ describe('launch-plan', () => {
 				fs.writeFileSync(bundlePath, '// bundled', 'utf8');
 				fs.writeFileSync(
 					path.join(serverDir, 'manifest.json'),
-					JSON.stringify({ serverEntry: SERVER_BUNDLE_FILENAME, distDir: path.join(tempDir, 'dist') }),
+					JSON.stringify({ serverEntry: SERVER_BUNDLE_FILENAME }),
 					'utf8',
 				);
 
@@ -334,8 +334,6 @@ describe('launch-plan', () => {
 					path.join(serverDir, 'manifest.json'),
 					JSON.stringify({
 						serverEntry: SERVER_BUNDLE_FILENAME,
-						distDir: path.join(tempDir, 'dist'),
-						sourceConfigPath,
 						sourceConfigRelativePath: 'eco.config.ts',
 						emittedConfigModule: 'eco.config.mjs',
 					}),

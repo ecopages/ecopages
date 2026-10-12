@@ -830,6 +830,41 @@ describe('ReactRenderer', () => {
 		expect(text).not.toContain('__ECO_PAGE_DATA_FALLBACK__');
 	});
 
+	it('does not rebuild the route payload for a React html template', async () => {
+		const testRenderer = createRenderer({ routerAdapter: mockRouterAdapter });
+		testRenderer.importedPageFileOverride = {
+			default: Page,
+			config: {},
+		} as EcoPageFile;
+		const buildSerializedPageProps = vi.spyOn(testRenderer.pagePayloadService, 'buildSerializedPageProps');
+
+		await testRenderer.execute({
+			file: pageFilePath,
+			params: {},
+			query: {},
+		});
+
+		expect(buildSerializedPageProps).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not build HTML contributions without a router', async () => {
+		const testRenderer = createRenderer();
+		testRenderer.htmlTemplate = NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
+		testRenderer.importedPageFileOverride = {
+			default: Page,
+			config: {},
+		} as EcoPageFile;
+		const buildSerializedPageProps = vi.spyOn(testRenderer.pagePayloadService, 'buildSerializedPageProps');
+
+		await testRenderer.execute({
+			file: pageFilePath,
+			params: {},
+			query: {},
+		});
+
+		expect(buildSerializedPageProps).toHaveBeenCalledTimes(1);
+	});
+
 	it('should preserve unresolved eco-marker artifact html through non-react html templates', async () => {
 		const testRenderer = createRenderer();
 		const MarkerPage = (() =>

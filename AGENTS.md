@@ -22,3 +22,9 @@ When behavior changes, update that folder's README and any parent index that lis
 - Avoid `any`; prefer `unknown`. If `any` is unavoidable, explain in `@remarks`.
 - Fix linter issues; do not ignore or suppress without cause.
 - Avoid TypeScript hacks and anti-patterns.
+
+## Design
+
+- Fix the cause, not the symptom.
+- Before 1.0, breaking changes ship as `minor`; prefer the clean change over an alias, fallback or compatibility path.
+- Filesystem access goes through `@ecopages/file-system`; extend it when a capability is missing.

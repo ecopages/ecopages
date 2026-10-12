@@ -1,5 +1,6 @@
 import { getComponentIdentity } from '../../../eco/component-identity.ts';
 import type { EcoComponent, EcoComponentConfig } from '../../../types/public-types.ts';
+import { copyFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -187,7 +188,7 @@ export class CustomElementScriptPreloader {
 		this.enabled = enabled;
 		this.requireLazyScriptEntry = requireLazyScriptEntry;
 		this.resolveDependencyPath = resolveDependencyPath;
-		this.preferSourceImports = preferSourceImports ?? typeof Bun !== 'undefined';
+		this.preferSourceImports = preferSourceImports ?? false;
 		this.resolvePreloadEntrypoint = resolvePreloadEntrypoint;
 		this.importServerModule = importServerModule;
 		this.collectForIntegration = collectForIntegration;
@@ -285,11 +286,12 @@ export class CustomElementScriptPreloader {
 
 		if (this.resolvePreloadEntrypoint) {
 			const preloadEntrypoint = await this.resolvePreloadEntrypoint(scriptPath);
-			const importUrl = pathToFileURL(preloadEntrypoint);
-			if (registry && typeof Bun === 'undefined') {
-				importUrl.searchParams.set('eco-ssr-registry', registryKey);
+			if (registry && path.resolve(preloadEntrypoint) !== path.resolve(scriptPath)) {
+				await importModuleForRegistry(preloadEntrypoint, registryKey);
+				return;
 			}
-			await import(/* @vite-ignore */ importUrl.href);
+
+			await importModuleInPlace(preloadEntrypoint, registry ? registryKey : undefined);
 			return;
 		}
 
@@ -300,14 +302,50 @@ export class CustomElementScriptPreloader {
 
 		if (!this.preferSourceImports) {
 			throw new Error(
-				`Cannot preload SSR script ${scriptPath}: configure appConfig.runtime.appModuleLoader or enable source imports (Bun)`,
+				`Cannot preload SSR script ${scriptPath}: configure appConfig.runtime.appModuleLoader or enable source imports`,
 			);
 		}
 
-		const importUrl = pathToFileURL(scriptPath);
-		if (registry && typeof Bun === 'undefined') {
-			importUrl.searchParams.set('eco-ssr-registry', registryKey);
-		}
-		await import(/* @vite-ignore */ importUrl.href);
+		await importModuleInPlace(scriptPath, registry ? registryKey : undefined);
+	}
+}
+
+/**
+ * Evaluates a source module where it lives.
+ *
+ * @remarks
+ * Moving the file would resolve its imports from the wrong directory, so this
+ * path still isolates registries with a URL query. Node re-evaluates a module
+ * whose URL differs only by query; Bun ignores the query for every module, so
+ * a source import (Bun dev with `preferSourceImports`) evaluates once per
+ * process and a later registry keeps no definition.
+ */
+async function importModuleInPlace(modulePath: string, registryKey: string | undefined): Promise<void> {
+	const importUrl = pathToFileURL(modulePath);
+	if (registryKey !== undefined) {
+		importUrl.searchParams.set('eco-ssr-registry', registryKey);
+	}
+	await import(/* @vite-ignore */ importUrl.href);
+}
+
+/**
+ * Evaluates an asset-pipeline module against one custom-element registry.
+ *
+ * @remarks
+ * Bun ignores a query-only URL change for every module, so a query cannot
+ * evaluate the module again for a new registry. A copy beside the pipeline
+ * file has its own path, so both runtimes evaluate it again, and it keeps the
+ * original's package scope and relative `import()`/`import.meta.url`
+ * resolution. The copy is removed once evaluated, so it never reaches the
+ * build output.
+ */
+async function importModuleForRegistry(modulePath: string, registryKey: string): Promise<void> {
+	const { dir, name, ext } = path.parse(modulePath);
+	const copyPath = path.join(dir, `${name}.eco-ssr-${registryKey}${ext}`);
+	await copyFile(modulePath, copyPath);
+	try {
+		await import(/* @vite-ignore */ pathToFileURL(copyPath).href);
+	} finally {
+		await rm(copyPath, { force: true });
 	}
 }

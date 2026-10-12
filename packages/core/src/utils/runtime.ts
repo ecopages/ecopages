@@ -32,13 +32,14 @@ export function isProductionRuntime(): boolean {
 	return process.env.NODE_ENV === 'production';
 }
 
-export function runtimeHash(content: string | Buffer<ArrayBufferLike>): number | bigint {
-	const bun = getBunRuntime();
-
-	if (bun) {
-		return bun.hash(content);
-	}
-
+/**
+ * Hashes content with the Node SHA-256 prefix.
+ *
+ * @remarks
+ * The first 16 hex characters of SHA-256 are one algorithm on every runtime.
+ * Bun used to call `Bun.hash`, which made component ids differ for the same path.
+ */
+export function runtimeHash(content: string | Buffer<ArrayBufferLike>): bigint {
 	const hex = createHash('sha256').update(content).digest('hex').slice(0, 16);
 	return BigInt(`0x${hex}`);
 }

@@ -12,7 +12,8 @@ import {
 	writeFile as writeFileAsync,
 } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { FileSystem, GlobOptions } from '../types.ts';
+import chokidar from 'chokidar';
+import type { FileSystem, FileWatcher, GlobOptions, WatchOptions } from '../types.ts';
 import { BaseFileSystem } from '../utils/common.ts';
 
 async function collectGlobMatches(pattern: string, options: GlobOptions): Promise<string[]> {
@@ -68,6 +69,24 @@ export class NodeFileSystem extends BaseFileSystem implements FileSystem {
 	async glob(patterns: string[], options: GlobOptions = {}): Promise<string[]> {
 		const files = await Promise.all(patterns.map((pattern) => collectGlobMatches(pattern, options)));
 		return Array.from(new Set(files.flat()));
+	}
+
+	watch(paths: readonly string[], options: WatchOptions): FileWatcher {
+		const watcher = chokidar.watch([...paths], {
+			ignoreInitial: true,
+			ignorePermissionErrors: true,
+			ignored: options.ignored,
+			awaitWriteFinish: { stabilityThreshold: 50, pollInterval: 50 },
+		});
+		for (const type of ['add', 'change', 'unlink'] as const) {
+			watcher.on(type, (path: string) => options.onChange({ type, path }));
+		}
+		watcher.on('error', options.onError);
+
+		return {
+			ready: new Promise((resolve) => watcher.once('ready', () => resolve())),
+			close: () => watcher.close(),
+		};
 	}
 
 	hash(path: string): string {

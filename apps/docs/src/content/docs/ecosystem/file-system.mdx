@@ -1,6 +1,6 @@
 ---
 title: 'File System'
-description: 'Runtime-agnostic file system utilities optimized for Bun and Node.'
+description: 'File system utilities implemented with Node APIs.'
 order: 7
 ---
 
@@ -8,14 +8,13 @@ import { CodeTabs } from '@/components/code-tabs';
 
 # File System
 
-The `@ecopages/file-system` package provides runtime-agnostic file system utilities with optimized implementations for both Bun and Node.js.
+The `@ecopages/file-system` package provides file system utilities. The implementation is Node's on every runtime, including Bun.
 
 ## Features
 
-- **Runtime Detection**: Automatically selects the optimal adapter
-- **Bun Optimized**: Uses `Bun.Glob`, `Bun.hash`, `Bun.file`, and `Bun.write` for maximum performance
-- **Node.js Fallback**: Uses native `node:fs/promises.glob()` and `crypto` for full compatibility
-- **Type Safe**: Consistent TypeScript interface across runtimes
+- **Node implementation**: `node:fs/promises.glob()`, `crypto`, and `node:fs`
+- **One interface**: Import `fileSystem` and call it from Node or Bun
+- **Type Safe**: One TypeScript interface
 
 ## Installation
 
@@ -40,13 +39,13 @@ const files = await fileSystem.glob(['**/*.ts'], { cwd: './src' });
 // Read files
 const content = await fileSystem.readFile('file.txt');
 
-// Hash files (Bun is 4.5x faster!)
+// Hash files (SHA-256, hex)
 const hash = fileSystem.hash('file.txt');
 
 // Write files (sync)
 fileSystem.write('output.txt', 'Hello World');
 
-// Write files (async, uses Bun.write for optimized syscalls)
+// Write files (async, creates missing parent directories)
 await fileSystem.writeAsync('output.txt', largeBuffer);
 
 // Check existence
@@ -72,7 +71,7 @@ fileSystem.copyDir('./src', './dist');
 | `readFileSync(path)`        | Read file as string (sync)                             |
 | `readFileAsBuffer(path)`    | Read file as Buffer                                    |
 | `write(path, content)`      | Write content to file (sync)                           |
-| `writeAsync(path, content)` | Write content to file (async, uses `Bun.write` on Bun) |
+| `writeAsync(path, content)` | Write content to file (async) |
 | `exists(path)`              | Check if path exists                                   |
 | `verifyFileExists(path)`    | Throw `FileNotFoundError` if missing                   |
 
@@ -93,7 +92,7 @@ fileSystem.copyDir('./src', './dist');
 | `copyFile(src, dest)`       | Copy single file                     |
 | `remove(path)`              | Remove file or directory (sync)      |
 | `removeAsync(path)`         | Remove file or directory (async)     |
-| `hash(path)`                | Get hash of file contents            |
+| `hash(path)`                | SHA-256 hex digest of file contents  |
 | `gzipFile(path)`            | Gzip a single file                   |
 | `gzipDir(path, extensions)` | Gzip all matching files in directory |
 
@@ -106,29 +105,9 @@ interface GlobOptions {
 }
 ```
 
-## Performance
-
-The Bun adapter uses optimized syscalls (`copy_file_range`, `sendfile`, `clonefile`) when available.
-
-Benchmark results on Apple M4:
-
-| Operation        | BunFileSystem    | NodeFileSystem | Winner              |
-| :--------------- | :--------------- | :------------- | :------------------ |
-| glob (100 files) | 64.85 µs         | 71.06 µs       | Bun ~10% faster     |
-| hash (1MB file)  | 87 µs            | 393 µs         | **Bun 4.5x faster** |
-| writeAsync (1MB) | Uses `Bun.write` | Uses `node:fs` | Bun optimized       |
-| exists check     | 477 ns           | 464 ns         | ~same               |
-
-## Direct Adapter Access
-
-For advanced use cases, you can import adapters directly:
+## Direct import
 
 ```typescript
-// Force Bun adapter
-import { BunFileSystem } from '@ecopages/file-system/bun';
-const bunFs = new BunFileSystem();
-
-// Force Node adapter
 import { NodeFileSystem } from '@ecopages/file-system/node';
 const nodeFs = new NodeFileSystem();
 ```

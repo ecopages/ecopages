@@ -428,6 +428,9 @@ importers:
       '@ecopages/core':
         specifier: workspace:*
         version: link:../core
+      '@ecopages/file-system':
+        specifier: workspace:*
+        version: link:../file-system
       '@ecopages/logger':
         specifier: ^0.2.3
         version: 0.2.3(typescript@5.9.3)
@@ -445,6 +448,10 @@ importers:
         version: 5.9.3
 
   packages/file-system:
+    dependencies:
+      chokidar:
+        specifier: ^5.0.0
+        version: 5.0.0
     devDependencies:
       '@types/bun':
         specifier: ^1.3.14

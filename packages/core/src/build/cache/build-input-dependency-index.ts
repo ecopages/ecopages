@@ -44,6 +44,27 @@ export class BuildInputDependencyIndex {
 	private readonly bindings = new Map<string, BuildInputBinding>();
 	private readonly watchPaths = new Set<string>();
 	private readonly watchListeners = new Set<(filePath: string) => void>();
+	private readonly changeListeners = new Set<(filePaths: readonly string[]) => void>();
+
+	/** Tells every change listener that `filePaths` changed. */
+	recordChanges(filePaths: readonly string[]): void {
+		const changed = filePaths.map(normalizeSourcePath);
+		for (const listener of this.changeListeners) {
+			listener(changed);
+		}
+	}
+
+	/**
+	 * Calls `listener` with each batch of changed files.
+	 *
+	 * @remarks
+	 * Caches that keep results across requests subscribe here and evict what a change made stale,
+	 * so a lookup never re-reads its inputs.
+	 */
+	subscribeToChanges(listener: (filePaths: readonly string[]) => void): () => void {
+		this.changeListeners.add(listener);
+		return () => this.changeListeners.delete(listener);
+	}
 
 	/**
 	 * Records a path the build read so the Project Watcher can subscribe to it.

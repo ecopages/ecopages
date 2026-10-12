@@ -74,6 +74,12 @@ export class LitPlugin extends IntegrationPlugin {
 		];
 	}
 
+	/**
+	 * @remarks
+	 * Leaves `preferSourceImports` unset so Node and Bun both preload through the
+	 * asset pipeline. The preloader then gives each custom-element registry its
+	 * own copy of that module.
+	 */
 	private createRenderSession(): LitStaticRenderSession {
 		if (!this.appConfig || !this.assetProcessingService) {
 			throw new Error('Lit plugin must be initialized before starting the render worker');
@@ -85,7 +91,6 @@ export class LitPlugin extends IntegrationPlugin {
 			getInvalidationVersion: () =>
 				this.appConfig?.runtime?.serverInvalidationState?.getServerInvalidationVersion() ?? 0,
 			importServerModule: createCustomElementServerModuleImporter(this.appConfig, '.lit-ssr'),
-			preferSourceImports: typeof Bun !== 'undefined',
 		});
 	}
 

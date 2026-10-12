@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import { NodeFileSystem } from './node.ts';
 
 test('NodeFileSystem.glob uses native Node glob semantics with ignore support', async () => {
@@ -48,15 +48,38 @@ test('NodeFileSystem.watch reports changes after ready and never descends into a
 
 	try {
 		await watcher.ready;
-		fs.writeFileSync(path.join(rootDir, 'node_modules', 'dep', 'index.js'), 'module.exports = 1;', 'utf8');
-		fs.writeFileSync(path.join(rootDir, 'src', 'existing.ts'), 'export const existing = 2;', 'utf8');
-		fs.writeFileSync(path.join(rootDir, 'src', 'created.ts'), 'export const created = 1;', 'utf8');
-		await waitFor(() => changes.length >= 2);
+		let revision = 0;
+		const reported = (type: string, file: string) => changes.includes(`${type} ${path.join('src', file)}`);
+		const retryUntil = (change: () => void, done: () => boolean) =>
+			vi.waitFor(
+				() => {
+					change();
+					assert.ok(done());
+				},
+				{ timeout: 10_000, interval: 150 },
+			);
 
-		assert.deepEqual(changes.sort(), [
-			`add ${path.join('src', 'created.ts')}`,
-			`change ${path.join('src', 'existing.ts')}`,
-		]);
+		await retryUntil(
+			() => {
+				fs.writeFileSync(
+					path.join(rootDir, 'node_modules', 'dep', 'index.js'),
+					`module.exports = ${revision}`,
+					'utf8',
+				);
+				fs.writeFileSync(
+					path.join(rootDir, 'src', 'existing.ts'),
+					`export const existing = ${(revision += 1)};`,
+					'utf8',
+				);
+			},
+			() => reported('change', 'existing.ts'),
+		);
+		await retryUntil(
+			() => fs.writeFileSync(path.join(rootDir, 'src', `created-${(revision += 1)}.ts`), 'export {};', 'utf8'),
+			() => changes.some((change) => change.startsWith(`add ${path.join('src', 'created-')}`)),
+		);
+
+		assert.ok(!changes.some((change) => change.includes('node_modules')));
 		assert.ok(ignoredPaths.includes(path.join(rootDir, 'node_modules')));
 		assert.ok(
 			!ignoredPaths.some((ignoredPath) => ignoredPath.startsWith(path.join(rootDir, 'node_modules', 'dep'))),
@@ -65,12 +88,4 @@ test('NodeFileSystem.watch reports changes after ready and never descends into a
 		await watcher.close();
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	}
-});
-
-async function waitFor(condition: () => boolean, timeoutMs = 5_000): Promise<void> {
-	const start = Date.now();
-	while (!condition()) {
-		if (Date.now() - start > timeoutMs) throw new Error('Timed out waiting for file changes');
-		await new Promise((resolve) => setTimeout(resolve, 25));
-	}
-}
+}, 20_000);

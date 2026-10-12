@@ -61,8 +61,8 @@ describe('server-entry-build-cache', () => {
 
 	/**
 	 * @remarks
-	 * `fileSystem.hash` is `Bun.hash` under Bun and SHA-256 under Node. Vitest runs on Node, so the Bun side
-	 * is simulated with a numeric hash in the same shape `Bun.hash(buffer).toString()` returns.
+	 * `fileSystem.hash` is SHA-256 on every runtime; earlier releases used `Bun.hash` under Bun. The `bun` side
+	 * swaps it for a numeric hash in that shape, so the test fails if the deploy manifest starts to depend on it.
 	 */
 	function useRuntimeHash(runtime: 'bun' | 'node'): void {
 		vi.restoreAllMocks();

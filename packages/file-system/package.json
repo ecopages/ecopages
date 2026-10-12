@@ -24,7 +24,7 @@
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit",
-		"test": "vitest run --config ../../vitest.config.ts --project shared-core packages/file-system",
+		"test": "vitest run --root ../.. --project shared-core packages/file-system",
 		"benchmark": "node --experimental-strip-types test/benchmark.ts"
 	},
 	"exports": {

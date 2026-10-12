@@ -94,7 +94,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/plugins/README.md`: integration and processor authoring contracts
 - `src/build/README.md`: build adapter, executor, shared `.server` browser import guard, development build coordination, standalone Node server packaging and its deploy layout
 - `src/services/README.md`: cross-cutting runtime services and orchestration helpers
-- `src/adapters/README.md`: Bun, Node, and shared adapter boundaries
+- `src/adapters/README.md`: Node HTTP host and shared adapter boundaries
 - `src/dev/README.md`: dev transform server, on-demand client delivery (including workspace-package `@fs` URLs), and invalidation during compilation
 - `src/watchers/README.md`: recursive source subscriptions awaited before readiness, external build-input and linked-package watching, batched `applyDevFileChanges`, and restart invalidation
 - `src/services/invalidation/README.md`: file-change classification and dirty-marking for one debounce window
@@ -147,7 +147,7 @@ export default defineConfig({
 
 ### 2. Application Entry (`app.ts`)
 
-Start the application using `createApp`. It automatically resolves and loads `eco.config.ts` from the project root and selects the appropriate runtime adapter (Bun when available, Node otherwise):
+Start the application using `createApp`. It automatically resolves and loads `eco.config.ts` from the project root and serves through the Node HTTP host on Node and on Bun:
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';

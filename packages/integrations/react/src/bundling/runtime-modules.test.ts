@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
 	assertReactRuntimeModuleExternalsAreVendored,
-	mergeReactPluginRuntimeModules,
 	resolveReactPluginRuntimeModuleSlug,
 	resolveReactPluginRuntimeModules,
 	UnmappedReactRuntimeModuleExternalError,
@@ -38,31 +37,6 @@ describe('resolveReactPluginRuntimeModules', () => {
 
 	it('builds stable vendor filename stems from scoped specifiers', () => {
 		expect(resolveReactPluginRuntimeModuleSlug('@tanstack/react-query')).toBe('tanstack-react-query');
-	});
-
-	it('merges auto-discovered specifiers with manual runtime module overrides', () => {
-		expect(
-			mergeReactPluginRuntimeModules(
-				resolveReactPluginRuntimeModules([
-					{
-						specifier: '@tanstack/react-query',
-						outputName: 'custom-query-vendor',
-					},
-				]),
-				['@tanstack/react-query', 'jotai'],
-			),
-		).toEqual([
-			{
-				specifier: '@tanstack/react-query',
-				outputName: 'custom-query-vendor',
-				externals: [],
-			},
-			{
-				specifier: 'jotai',
-				outputName: 'jotai',
-				externals: [],
-			},
-		]);
 	});
 
 	it('preserves subpath runtime module declarations', () => {

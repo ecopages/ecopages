@@ -16,12 +16,10 @@ import { ECOPAGES_DEV_RESTART_EXIT_CODE } from '../../../dev/development-restart
 import { appLogger } from '../../../global/app-logger.ts';
 
 function formatRestartStopFailure(error: unknown): string {
-	if (error instanceof AggregateError) {
-		return [error.stack ?? error.message, ...error.errors.map(formatRestartStopFailure)].join('\n');
-	}
-
 	if (error instanceof Error) {
-		return error.stack ?? error.message;
+		const nested = error instanceof AggregateError ? error.errors : [];
+		const causes = error.cause === undefined ? [] : [`Caused by: ${formatRestartStopFailure(error.cause)}`];
+		return [error.stack ?? error.message, ...nested.map(formatRestartStopFailure), ...causes].join('\n');
 	}
 
 	if (typeof error === 'string') {

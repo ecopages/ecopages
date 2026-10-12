@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type {
 	EcoComponent,
@@ -270,7 +271,7 @@ export class RouteRenderOrchestrator {
 			additionalSourcePaths,
 			routeModulePaths: buildInputIndex.sourcePaths({
 				consumer: 'server-route-module',
-				key: routeOptions.file,
+				key: path.resolve(routeOptions.file),
 			}),
 		});
 		for (const sourcePath of sourceDependencyPaths) {

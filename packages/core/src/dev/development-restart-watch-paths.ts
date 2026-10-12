@@ -4,8 +4,10 @@ import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { getDevEnvFileNames } from './development-restart.ts';
 
+/** @internal File the CLI supervisor reads after a restarted child fails. */
 export const DEVELOPMENT_RESTART_WATCH_SET_FILENAME = 'development-restart-watch-set.json';
 
+/** @internal Restart inputs persisted for the CLI supervisor. */
 export interface RuntimeRestartWatchSet {
 	version: 1;
 	cwd: string;
@@ -14,7 +16,7 @@ export interface RuntimeRestartWatchSet {
 	ignoredDirectories: string[];
 }
 
-/** Returns whether `filePath` is a supported project-level dotenv file. */
+/** @internal Returns whether `filePath` is a supported project-level dotenv file. */
 export function isDevEnvFilePath(filePath: string, rootDir?: string, nodeEnv = process.env.NODE_ENV): boolean {
 	if (!rootDir) {
 		return false;
@@ -31,6 +33,8 @@ export function isDevEnvFilePath(filePath: string, rootDir?: string, nodeEnv = p
 /**
  * Absolute paths to project-level dotenv files under `rootDir`.
  *
+ * @internal
+ *
  * @remarks
  * The paths need not exist yet. Watching every supported name allows creating
  * or removing a dotenv file to restart the development process too.
@@ -43,7 +47,7 @@ export function resolveDevEnvFilePaths(rootDir?: string, nodeEnv = process.env.N
 	return getDevEnvFileNames(nodeEnv).map((envFile) => path.resolve(rootDir, envFile));
 }
 
-/** Absolute paths that should restart the development server when changed. */
+/** @internal Absolute paths that should restart the development server when changed. */
 export function resolveRuntimeRestartWatchPaths(appConfig: EcoPagesAppConfig): string[] {
 	const paths = new Set<string>();
 	const configModuleFiles = appConfig.absolutePaths?.configModuleFiles;
@@ -66,6 +70,7 @@ export function resolveRuntimeRestartWatchPaths(appConfig: EcoPagesAppConfig): s
 /**
  * Persists the paths the CLI needs if a restarted child fails before its watcher starts.
  *
+ * @internal
  * @remarks
  * The runtime copy belongs to the configured work directory. A second copy beside the config gives
  * the CLI a stable lookup path when the configured work directory itself is unavailable to it.

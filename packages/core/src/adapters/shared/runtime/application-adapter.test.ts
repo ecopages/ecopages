@@ -62,4 +62,27 @@ describe('development server restart', () => {
 			processExit.mockRestore();
 		}
 	});
+
+	it('logs the cause chain of a wrapped shutdown error', async () => {
+		const rootCause = new Error('worker pool did not exit');
+		const adapter = new TestRestartFailureAdapter(new Error('integration teardown failed', { cause: rootCause }));
+		const logged: string[] = [];
+		const errorLog = vi.spyOn(appLogger, 'error').mockImplementation((...args) => {
+			logged.push(...args.filter((argument): argument is string => typeof argument === 'string'));
+			return appLogger;
+		});
+		const processExit = vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
+			throw new Error(`process.exit:${code}`);
+		});
+
+		try {
+			const restart = adapter.getDevelopmentRestartHandlerForTest();
+			assert.ok(restart);
+			await assert.rejects(restart('/src/lib/posts.ts'), /process\.exit:1/);
+			assert.ok(logged.some((message) => message.includes(`Caused by: ${rootCause.stack}`)));
+		} finally {
+			errorLog.mockRestore();
+			processExit.mockRestore();
+		}
+	});
 });

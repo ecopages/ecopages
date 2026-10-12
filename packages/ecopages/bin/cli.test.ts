@@ -390,6 +390,46 @@ describe('CLI Commands', () => {
 		exitSpy.mockRestore();
 	});
 
+	it('watches the nearest existing directory when a restart input directory was removed', async () => {
+		const project = createRestartWatchSetProject({ persistWatchSet: false });
+		const missingDirectory = path.join(project.rootDir, 'lib', 'removed');
+		const missingRoot = path.join(project.rootDir, 'packages', 'removed-ui');
+		const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs');
+		vi.mocked(fs.watch).mockImplementation(((watchPath: fs.PathLike) => {
+			if (!actualFs.existsSync(watchPath)) {
+				throw Object.assign(new Error(`ENOENT: no such file or directory, watch '${String(watchPath)}'`), {
+					code: 'ENOENT',
+				});
+			}
+			const watcher = { close: vi.fn(), on: vi.fn(() => watcher) };
+			return watcher;
+		}) as never);
+		const exitSpy = mockProcessExit();
+		const exitHandlers = mockSpawnedChildren();
+
+		try {
+			await runCli(['dev']);
+			project.writeWatchSet([path.join(missingDirectory, 'options.ts')], [missingRoot]);
+			exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
+			await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+			exitHandlers[1]?.(1);
+
+			await vi.waitFor(() => expect(fs.watch).toHaveBeenCalledWith(project.rootDir, expect.any(Function)));
+			expect(exitSpy).not.toHaveBeenCalledWith(1);
+			const listeners = vi
+				.mocked(fs.watch)
+				.mock.calls.filter(
+					([watchPath, options]) => watchPath === project.rootDir && typeof options === 'function',
+				)
+				.map(([, listener]) => listener as unknown as (event: string, fileName: string) => void);
+			for (const listener of listeners) listener('rename', 'lib');
+			await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
+		} finally {
+			exitSpy.mockRestore();
+			project.restore();
+		}
+	});
+
 	it('reloads persisted config imports written by a previous child before waiting after a failed restart', async () => {
 		const project = createRestartWatchSetProject({ persistWatchSet: false });
 		const importedConfigPath = path.join(project.rootDir, 'mdx-plugin-options.ts');

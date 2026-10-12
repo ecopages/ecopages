@@ -19,6 +19,7 @@ import {
 } from './route-render-orchestrator.ts';
 import { resolvePageLayoutComponents } from '../document-shell/layout-shell-props.service.ts';
 import { createPageDependencyInstanceKey } from '../page-browser-graph/route-instance-key.ts';
+import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
 
 function createFlowAdapter(input: {
 	resolvePageModule: (file: string) => Promise<{
@@ -168,6 +169,38 @@ describe('RouteRenderOrchestrator', () => {
 		expect(result.cacheStrategy).toEqual({ revalidate: 60 });
 		expect(result.body).toBeInstanceOf(ReadableStream);
 		expect(await new Response(result.body as BodyInit).text()).toContain('<main>Streamed</main>');
+	});
+
+	it('adds the HTML template module closure to the cached document inputs', async () => {
+		const shellConfig = { ...appConfig, absolutePaths: { htmlTemplatePath: '/app/includes/html.tsx' } } as any;
+		getAppBuildInputIndex(shellConfig).register(
+			{ consumer: 'server-route-module', key: '/app/includes/html.tsx' },
+			['/app/includes/html.tsx', '/app/includes/seo.tsx'],
+		);
+		const flow = new RouteRenderOrchestrator(shellConfig, assetProcessingService);
+		const adapter = createFlowAdapter({
+			resolvePageModule: async () => ({
+				Page: (() => '') as EcoComponent<Record<string, unknown>>,
+				integrationSpecificProps: {},
+			}),
+			getHtmlTemplate: async () => (() => '') as EcoComponent<HtmlTemplateProps>,
+			resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
+			resolveDependencies: async () => [],
+			collectPageBrowserGraphContribution: async () => undefined,
+			renderRouteBody: async () => '<html><body><main>Page</main></body></html>',
+			transformRouteResponse: async (response) => response.body as RouteRendererBody,
+		});
+
+		const result = await flow.executePrepared(
+			{ sourceDependencyPaths: ['/app/pages/index.tsx'] } as unknown as IntegrationRendererRenderOptions<unknown>,
+			adapter,
+		);
+
+		expect(result.sourceDependencyPaths).toEqual([
+			'/app/pages/index.tsx',
+			'/app/includes/html.tsx',
+			'/app/includes/seo.tsx',
+		]);
 	});
 
 	it('applies document attributes to fully resolved route HTML', async () => {

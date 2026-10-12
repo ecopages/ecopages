@@ -19,11 +19,7 @@ export default defineFixture(
 				port: 4003,
 				mode: 'static',
 				testMatch: defaultTestMatch,
-				testIgnore: [
-					'**/persist-layouts.test.e2e.ts',
-					'**/*hmr*.test.e2e.ts',
-					'**/eco-layout-switch.test.e2e.ts',
-				],
+				testIgnore: ['**/persist-layouts.test.e2e.ts', '**/*hmr*.test.e2e.ts'],
 			},
 			{
 				name: 'react-router-persist-layouts-e2e',
@@ -37,10 +33,7 @@ export default defineFixture(
 				port: 4006,
 				mode: 'dev',
 				env: persistLayoutsEnv,
-				testMatch: [
-					`${fixtureDirRelative}/persist-layouts-hmr.test.e2e.ts`,
-					`${fixtureDirRelative}/eco-layout-switch.test.e2e.ts`,
-				],
+				testMatch: `${fixtureDirRelative}/persist-layouts-hmr.test.e2e.ts`,
 				workers: 1,
 			},
 		],

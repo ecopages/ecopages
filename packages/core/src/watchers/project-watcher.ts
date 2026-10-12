@@ -326,7 +326,14 @@ export class ProjectWatcher {
 			}
 
 			if (changes.created.length || changes.changed.length || changes.deleted.length) {
-				await watchConfig.onChanges(changes);
+				try {
+					await watchConfig.onChanges(changes);
+				} catch (error) {
+					appLogger.error(
+						`Processor ${processor.name} failed to handle file changes`,
+						error instanceof Error ? error : new Error(String(error)),
+					);
+				}
 			}
 		}
 	}

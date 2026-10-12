@@ -449,6 +449,33 @@ describe('ProjectWatcher - File Change Handling', () => {
 			expect(RefreshCallback).not.toHaveBeenCalled();
 		});
 
+		test('notifies the remaining processors and the browser when one processor fails', async () => {
+			const failure = new Error('stylesheet rebuild failed');
+			const failingOnChanges = vi.fn(async () => {
+				throw failure;
+			});
+			const onChanges = vi.fn(async () => {});
+			const watchConfig = (handler: typeof onChanges) => ({
+				getWatchConfig: vi.fn(() => ({
+					paths: ['/test/project/src'],
+					extensions: ['.tsx'],
+					onChanges: handler,
+				})),
+				getAssetCapabilities: vi.fn(() => []),
+			});
+			Config.processors.set('failing', { name: 'failing', ...watchConfig(failingOnChanges) } as any);
+			Config.processors.set('working', { name: 'working', ...watchConfig(onChanges) } as any);
+			const errorLog = vi.spyOn(appLogger, 'error').mockImplementation(() => appLogger);
+
+			await (watcher as any).handleFileChange(path.join(Config.absolutePaths.includesDir, 'seo.kita.tsx'));
+
+			expect(failingOnChanges).toHaveBeenCalledOnce();
+			expect(onChanges).toHaveBeenCalledOnce();
+			expect(Bridge.reload).toHaveBeenCalledTimes(1);
+			expect(errorLog).toHaveBeenCalledWith(expect.stringContaining('failing'), failure);
+			errorLog.mockRestore();
+		});
+
 		test('should defer processor notifications until after include template HMR handling', async () => {
 			const onChanges = vi.fn(async () => {});
 			const Processor = {

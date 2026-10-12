@@ -70,6 +70,13 @@ export function writeGeneratedTypesPackage(options: {
 	options.writeFile(packageManifestPath, serializeGeneratedTypesPackage(options.packageName));
 }
 
+/**
+ * One debounce window of file changes, passed to {@link ProcessorWatchConfig.onChanges}.
+ *
+ * @remarks
+ * Paths are absolute and already filtered by the Processor's watch `extensions`. A path appears in one
+ * array only, by its last event in the window.
+ */
 export interface ProcessorWatchChanges {
 	created: string[];
 	changed: string[];
@@ -88,6 +95,13 @@ export interface ProcessorWatchConfig {
 	 * invalidation skips server modules and HMR for processor-handled assets.
 	 */
 	extensions?: string[];
+	/**
+	 * Called once per debounce window, after core has invalidated what the changes affect.
+	 *
+	 * @remarks
+	 * Never called when no path matches `extensions`. A rejection is logged with its stack; the other
+	 * Processors and the browser update for the window still run.
+	 */
 	onChanges?: (changes: ProcessorWatchChanges) => Promise<void>;
 	onError?: (error: Error) => void;
 }

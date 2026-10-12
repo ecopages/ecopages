@@ -8,7 +8,7 @@ The route renderer layer is responsible for:
 
 - selecting the correct integration renderer for a route
 - loading page modules and resolving static data or metadata
-- resolving component dependencies and page browser assets
+- resolving component dependencies and page browser assets through the required app-owned `AssetProcessingService`
 - coordinating mixed-integration rendering
 - emitting final HTML plus cache strategy
 

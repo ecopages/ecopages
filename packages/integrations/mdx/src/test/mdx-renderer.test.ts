@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type {
 	ForeignSubtreeRenderPayload,
 	EcoComponent,
@@ -8,12 +8,19 @@ import type {
 	ProcessedAsset,
 } from '@ecopages/core';
 import { eco } from '@ecopages/core';
+import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import type { PageBrowserGraphContributionContext } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { MDXRenderer } from '../mdx-renderer.ts';
 
 const Config = await createTestAppConfig();
+
+function createTestAssetProcessingService(appConfig: typeof Config): AssetProcessingService {
+	const service = new AssetProcessingService(appConfig);
+	vi.spyOn(service, 'processDependencies').mockResolvedValue([]);
+	return service;
+}
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
 	return `<html><body>${children}</body></html>`;
@@ -30,7 +37,7 @@ class TestMdxRenderer extends MDXRenderer {
 const createRenderer = () => {
 	return new TestMdxRenderer({
 		appConfig: Config,
-		assetProcessingService: {} as any,
+		assetProcessingService: createTestAssetProcessingService(Config),
 		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
 	});
@@ -38,7 +45,7 @@ const createRenderer = () => {
 
 const renderer = new MDXRenderer({
 	appConfig: Config,
-	assetProcessingService: {} as any,
+	assetProcessingService: createTestAssetProcessingService(Config),
 	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],
 });
@@ -69,7 +76,7 @@ describe('MDXRenderer', () => {
 		it('normalizes imported MDX modules without overriding the base import path', () => {
 			const testRenderer = new ImportTestMdxRenderer({
 				appConfig: Config,
-				assetProcessingService: {} as any,
+				assetProcessingService: createTestAssetProcessingService(Config),
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
@@ -98,7 +105,7 @@ describe('MDXRenderer', () => {
 		it('preserves page and imported MDX layout identities in dependency collection', async () => {
 			const renderer = new BrowserGraphTestMdxRenderer({
 				appConfig: Config,
-				assetProcessingService: {} as never,
+				assetProcessingService: createTestAssetProcessingService(Config),
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
@@ -182,7 +189,7 @@ describe('MDXRenderer', () => {
 			});
 			const renderer = new TestMdxRenderer({
 				appConfig: config,
-				assetProcessingService: {} as any,
+				assetProcessingService: createTestAssetProcessingService(config),
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});

@@ -11,6 +11,7 @@ import {
 	type HtmlTemplateProps,
 } from '@ecopages/core';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
+import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import {
 	IntegrationRenderer,
 	type RenderToResponseContext,
@@ -25,6 +26,12 @@ type MarkupNodeLike = {
 };
 
 const Config = await createTestAppConfig();
+
+function createTestAssetProcessingService(appConfig: typeof Config): AssetProcessingService {
+	const service = new AssetProcessingService(appConfig);
+	vi.spyOn(service, 'processDependencies').mockResolvedValue([]);
+	return service;
+}
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
 	return `<html><body>${children}</body></html>`;
@@ -91,7 +98,7 @@ function createTestComponent<P>(fn: (props: P) => Promise<string> | string): Eco
 
 const renderer = new TestKitaRenderer({
 	appConfig: Config,
-	assetProcessingService: {} as any,
+	assetProcessingService: createTestAssetProcessingService(Config),
 	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],
 });
@@ -357,7 +364,7 @@ describe('KitaRenderer', () => {
 
 		const testRenderer = new TestKitaRenderer({
 			appConfig: config,
-			assetProcessingService: {} as any,
+			assetProcessingService: createTestAssetProcessingService(config),
 			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 		});
@@ -423,7 +430,7 @@ describe('KitaRenderer', () => {
 
 		const testRenderer = new TestKitaRenderer({
 			appConfig: config,
-			assetProcessingService: {} as any,
+			assetProcessingService: createTestAssetProcessingService(config),
 			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 		});

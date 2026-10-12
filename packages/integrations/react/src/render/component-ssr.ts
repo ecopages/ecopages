@@ -182,7 +182,6 @@ export async function renderForeignComponentWithSerializedHtml(options: {
 	input: ComponentRenderInput;
 	runtimeContext: ReactForeignSubtreeResolutionContext | undefined;
 	integrationName: string;
-	canResolveAssets: boolean;
 	processComponentDependencies: (components: EcoComponent[]) => Promise<ProcessedAsset[]>;
 	dedupeProcessedAssets: (assets: ProcessedAsset[]) => ProcessedAsset[];
 	getRootTagName: (html: string) => string | undefined;
@@ -195,7 +194,6 @@ export async function renderForeignComponentWithSerializedHtml(options: {
 		input,
 		runtimeContext,
 		integrationName,
-		canResolveAssets,
 		processComponentDependencies,
 		dedupeProcessedAssets,
 		getRootTagName,
@@ -216,8 +214,7 @@ export async function renderForeignComponentWithSerializedHtml(options: {
 		'Component',
 	);
 	const hasDependencies = Boolean(input.component.config?.dependencies);
-	const assets =
-		hasDependencies && canResolveAssets ? await processComponentDependencies([input.component]) : undefined;
+	const assets = hasDependencies ? await processComponentDependencies([input.component]) : undefined;
 	const queuedForeignSubtreeResolution = await resolveQueuedForeignSubtreeHtml(html, runtimeContext);
 	const mergedAssets = dedupeProcessedAssets([...(assets ?? []), ...queuedForeignSubtreeResolution.assets]);
 

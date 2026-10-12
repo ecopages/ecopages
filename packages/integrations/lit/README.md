@@ -57,6 +57,7 @@ Important:
 - Ecopages validates ownership from declared dependencies during render preparation instead of relying on post-render HTML discovery.
 - Route-level dependency resolvers can supply Components at request time; Lit includes those resolved roots when deciding whether a Foreign Subtree needs handoff.
 - Lit keeps slot transport, shadow-root handling, and SSR preload behavior inside the Lit renderer.
+- Lit renderers use the required core `AssetProcessingService` to process declared component dependencies.
 
 ## Discovered assets and lazy custom elements
 

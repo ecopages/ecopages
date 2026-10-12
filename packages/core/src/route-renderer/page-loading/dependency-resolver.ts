@@ -94,7 +94,6 @@ export class DependencyResolverService {
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
 	): Promise<ProcessedAsset[]> {
-		if (!this.assetProcessingService?.processDependencies) return [];
 		const { dependencies, lazyScriptsByConfig } = this.collectDependencies(components, integrationName, false);
 
 		const packagedDependencies = packagePageDependencies(dependencies, integrationName);
@@ -172,14 +171,11 @@ export class DependencyResolverService {
 
 	/**
 	 * Collects the unprocessed asset declarations of `components`, excluding Foreign Children and their descendants.
-	 *
-	 * @remarks Returns nothing when assets cannot be processed, matching `processComponentDependencies()`.
 	 */
 	collectOwnComponentDependencies(
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
 	): AssetDefinition[] {
-		if (!this.assetProcessingService?.processDependencies) return [];
 		return this.collectDependencies(components, integrationName, true).dependencies;
 	}
 

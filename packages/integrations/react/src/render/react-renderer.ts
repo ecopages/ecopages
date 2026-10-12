@@ -289,7 +289,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				input,
 				runtimeContext,
 				integrationName: this.name,
-				canResolveAssets: typeof this.assetProcessingService?.processDependencies === 'function',
 				processComponentDependencies: (components) => this.processComponentDependencies(components),
 				dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
 				getRootTagName: (html) => this.getRootTagName(html),

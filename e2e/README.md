@@ -2,7 +2,7 @@
 
 Playwright config: root `playwright.config.ts`. Fixtures self-describe in `e2e/fixtures/*/fixture.e2e.ts`. Helper unit tests live in `e2e/playwright/*.test.ts` and `e2e/scripts/**/*.test.ts` (`pnpm test:vitest`).
 
-A check that needs no browser and no fixed-port fixture server is a Vitest suite beside the fixture it renders: `e2e/fixtures/<block>/*.test.ts` (`pnpm test:vitest`). `startStaticExport` in `e2e/utils/static-export.ts` builds a fixture's static export in-process and serves it on a free port. `cache/cache.test.ts` drives the cache fixture through `app.fetch()` with a faked `Date`, and `html-pages/html-pages.output.test.ts` and `browser-router/lazy-dependencies.output.test.ts` read exported HTML. Specs here keep only what needs a browser or a real server.
+A check that needs no browser and no fixed-port fixture server is a Vitest suite beside the fixture it renders: `e2e/fixtures/<block>/*.test.ts` (`pnpm test:vitest`). `startStaticExport` in `e2e/utils/static-export.ts` builds a fixture's static export in-process and serves it on a free port. `cache/cache.test.ts` drives the cache fixture through `app.fetch()` with a faked `Date`, and `html-pages/html-pages.output.test.ts` and `browser-router/lazy-dependencies.output.test.ts` read exported HTML. Client-only behaviour that real input can drive without a server runs in Vitest browser mode: the `PrefetchManager` strategies are in `packages/browser-router/test/prefetch-manager.test.browser.ts`, and `fixtures/browser-router/prefetch.test.e2e.ts` keeps only the stylesheet prefetch and the preload warning. Specs here keep only what needs a browser against a real server.
 
 ## Policy
 

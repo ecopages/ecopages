@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-	assertReactRuntimeModuleExternalsAreVendored,
-	resolveReactPluginRuntimeModuleSlug,
-	resolveReactPluginRuntimeModules,
-	UnmappedReactRuntimeModuleExternalError,
-} from './runtime-modules.ts';
+import { resolveReactPluginRuntimeModuleSlug, resolveReactPluginRuntimeModules } from './runtime-modules.ts';
 
 describe('resolveReactPluginRuntimeModules', () => {
 	it('normalizes string entries into vendor bundle config', () => {
@@ -12,25 +7,22 @@ describe('resolveReactPluginRuntimeModules', () => {
 			{
 				specifier: '@tanstack/react-query',
 				outputName: 'tanstack-react-query',
-				externals: [],
 			},
 		]);
 	});
 
-	it('preserves explicit output names and externals', () => {
+	it('preserves explicit output names', () => {
 		expect(
 			resolveReactPluginRuntimeModules([
 				{
 					specifier: '@tanstack/react-query',
 					outputName: 'query',
-					externals: ['react'],
 				},
 			]),
 		).toEqual([
 			{
 				specifier: '@tanstack/react-query',
 				outputName: 'query',
-				externals: ['react'],
 			},
 		]);
 	});
@@ -51,36 +43,7 @@ describe('resolveReactPluginRuntimeModules', () => {
 			{
 				specifier: '@acme/ui/button',
 				outputName: 'acme-ui',
-				externals: [],
 			},
 		]);
-	});
-});
-
-describe('assertReactRuntimeModuleExternalsAreVendored', () => {
-	it('accepts externals that are already shared vendors', () => {
-		expect(() =>
-			assertReactRuntimeModuleExternalsAreVendored(
-				{
-					specifier: '@acme/ui',
-					outputName: 'acme-ui',
-					externals: ['mobx', 'react'],
-				},
-				new Set(['mobx', 'react']),
-			),
-		).not.toThrow();
-	});
-
-	it('throws when an external is not a shared vendor', () => {
-		expect(() =>
-			assertReactRuntimeModuleExternalsAreVendored(
-				{
-					specifier: '@acme/ui',
-					outputName: 'acme-ui',
-					externals: ['webmidi'],
-				},
-				new Set(['react']),
-			),
-		).toThrow(UnmappedReactRuntimeModuleExternalError);
 	});
 });

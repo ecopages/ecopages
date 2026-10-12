@@ -3,7 +3,7 @@ import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { getBrowserRuntimeManifestFromPlugin } from '@ecopages/core/build/browser-runtime-plugin';
 import { copyFixtureApp } from '../../../../core/__fixtures__/app/copy-fixture-app.ts';
 import { RuntimeBundleService } from './runtime-bundle.ts';
-import { resolveReactPluginRuntimeModules, UnmappedReactRuntimeModuleExternalError } from './runtime-modules.ts';
+import { resolveReactPluginRuntimeModules } from './runtime-modules.ts';
 
 const originalNodeEnv = process.env.NODE_ENV;
 const fixtureAppRoot = copyFixtureApp();
@@ -185,7 +185,6 @@ describe('RuntimeBundleService', () => {
 				name: 'mdx-js-mdx',
 				bundleOptions: expect.objectContaining({
 					naming: 'mdx-js-mdx.development.js',
-					external: expect.any(Array),
 					plugins: expect.any(Array),
 				}),
 			}),
@@ -199,16 +198,16 @@ describe('RuntimeBundleService', () => {
 		const mdxManifest = getBrowserRuntimeManifestFromPlugin(mdxPlugin!);
 		expect(mdxManifest?.bySpecifier.has('@mdx-js/mdx')).toBe(false);
 		expect(mdxManifest?.bySpecifier.has('react')).toBe(true);
-		expect(mdxAsset.bundleOptions?.external).not.toContain('react');
+		expect(mdxAsset.bundleOptions?.external).toBeUndefined();
 	});
 
-	it('rewrites sibling runtime modules when a library vendor lists them as externals', () => {
+	it('rewrites sibling runtime modules to their shared vendor URLs', () => {
 		process.env.NODE_ENV = 'development';
 		const service = new RuntimeBundleService({
 			rootDir: fixtureAppRoot,
 			runtimeModules: resolveReactPluginRuntimeModules([
 				{ specifier: 'mobx', outputName: 'mobx' },
-				{ specifier: '@acme/ui', outputName: 'acme-ui', externals: ['mobx'] },
+				{ specifier: '@acme/ui', outputName: 'acme-ui' },
 			]),
 		});
 
@@ -225,18 +224,5 @@ describe('RuntimeBundleService', () => {
 		);
 		expect(mobxManifest?.bySpecifier.has('mobx')).toBe(false);
 		expect(mobxManifest?.bySpecifier.get('@acme/ui')?.publicPath).toBe('/assets/vendors/acme-ui.development.js');
-	});
-
-	it('throws when a runtime module external is not a shared vendor', () => {
-		process.env.NODE_ENV = 'development';
-		const service = new RuntimeBundleService({
-			rootDir: fixtureAppRoot,
-			runtimeModules: resolveReactPluginRuntimeModules([
-				{ specifier: '@acme/ui', outputName: 'acme-ui', externals: ['webmidi'] },
-			]),
-		});
-
-		expect(() => service.getDependencies()).toThrow(UnmappedReactRuntimeModuleExternalError);
-		expect(() => service.getDependencies()).toThrow(/webmidi/);
 	});
 });

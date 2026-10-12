@@ -261,18 +261,18 @@ Use the package root when all imports use that root. Import rewrites match exact
 
 **Migration from layout discovery:** remove `runtimeProvider` from layout options. Add each shared package the scanner previously supplied to `runtimeModules` using the exact specifier imported by app code.
 
-`runtimeModules` also accepts objects with a custom vendor output name and `externals`:
+`runtimeModules` also accepts objects with a custom vendor output name:
 
 ```ts
 reactPlugin({
 	router: ecoRouter(),
-	runtimeModules: ['@tanstack/react-query', { specifier: '@acme/ui', outputName: 'acme-ui', externals: ['react'] }],
+	runtimeModules: ['@tanstack/react-query', { specifier: '@acme/ui', outputName: 'acme-ui' }],
 });
 ```
 
 Each vendor entry is built from the package's browser ESM surface: Ecopages follows an `exports` import target when present and otherwise prefers a package's legacy `module` field over CJS `main`. ESM files are re-exported with `export *`. CJS files (including React's published `index.js` / `jsx-runtime`) emit explicit named exports from that same file so the vendor can provide `jsx`.
 
-`externals` on a library vendor must already be shared vendors (React, the router bundle, or another `runtimeModules` specifier). Unmapped externals throw at plugin setup instead of emitting a bare specifier the browser cannot resolve.
+Each vendor bundles its package dependencies. Imports whose exact specifiers are registered in `runtimeModules` are rewritten to the corresponding shared vendor URL; React and the configured router are shared automatically.
 
 #### Singleton packages (MobX, Redux, Query client, audio engines)
 
@@ -280,7 +280,7 @@ React context, MobX observables, Redux stores, TanStack Query clients, and audio
 
 **Library packaging:** ship singleton dependencies as `peerDependencies` and keep them external in the library build so `dist/` retains `import … from "mobx"` (or equivalent) instead of inlining a private copy.
 
-**Ecopages app config:** register each singleton as its own `runtimeModules` entry and list it in `externals` on any library vendor that imports it:
+**Ecopages app config:** register each singleton and library package as its own `runtimeModules` entry. Imports between those vendors are rewritten to the shared vendor URLs when their specifiers match:
 
 ```ts
 reactPlugin({
@@ -288,16 +288,12 @@ reactPlugin({
 	runtimeModules: [
 		{ specifier: 'mobx', outputName: 'mobx' },
 		{ specifier: 'mobx-react-lite', outputName: 'mobx-react-lite' },
-		{
-			specifier: '@acme/store-ui',
-			outputName: 'acme-store-ui',
-			externals: ['mobx', 'mobx-react-lite', 'react', 'react-dom'],
-		},
+		{ specifier: '@acme/store-ui', outputName: 'acme-store-ui' },
 	],
 });
 ```
 
-Registering only the library vendor or only the singleton is not enough when the published library still inlines the singleton. Peer the dependency in the library, externalize it in the library build, register it in `runtimeModules`, and list it in `externals` on the library vendor. Rebuild vendors (and clear `.eco` / `dist/assets/vendors` in dev) after changing package entry points or `runtimeModules`.
+Registering only the library vendor or only the singleton is not enough when the published library still inlines the singleton. Peer the dependency in the library, externalize it in the library build, and register both the library and singleton specifiers in `runtimeModules`. Existing `externals` fields on runtime module entries should be removed; register each non-framework shared dependency as its own entry. React, React DOM, and the configured router are shared automatically. Rebuild vendors (and clear `.eco` / `dist/assets/vendors` in dev) after changing package entry points or `runtimeModules`.
 
 #### Troubleshooting
 
@@ -305,18 +301,18 @@ Registering only the library vendor or only the singleton is not enough when the
 | --------------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `No QueryClient set` after SPA navigation     | Query client package is not shared by the Page and Layout graphs                               | Add `@tanstack/react-query` to `runtimeModules` and rebuild vendors                                                                       |
 | Duplicate React context / Tone init logs      | Provider package is bundled through multiple client entrypoints                                | Import through the package root and register that root in `runtimeModules`                                                                |
-| Store updates / `reaction` / `observer` no-op | Duplicate singleton (for example MobX) — a library inlines one copy and app code loads another | Peer the singleton in the library; add explicit `runtimeModules`; list it in `externals` on the library vendor; rebuild vendors           |
+| Store updates / `reaction` / `observer` no-op | Duplicate singleton (for example MobX) — a library inlines one copy and app code loads another | Peer the singleton in the library; register the library and singleton specifiers in `runtimeModules`; rebuild vendors                     |
 | `@/` alias not followed                       | Missing or invalid tsconfig paths                                                              | Add `compilerOptions.paths`; ensure `include` globs are valid JSON (not broken by comment stripping)                                      |
 | Stale bootstrap script hash in dev            | Rendered HTML cached before runtime vendors/bootstrap scripts changed                          | Rebuild or touch a route file; development HTML cache keys include browser-runtime generation                                             |
 | `MISSING_EXPORT` for names like `BasePlugin`  | Vendor listed CJS enumerable keys that the ESM file does not export                            | Register the package root only; rebuild vendors. Subpath plugins are separate module contracts and must be bundled or declared themselves |
 | `does not provide an export named 'jsx'`      | Stale React vendor generated with `export *` from CJS `jsx-runtime`                            | Clear `.eco` / `dist/assets/vendors` and rebuild so the CJS entry lists `jsx` / `jsxs` explicitly                                         |
-| `Calling require for "/assets/vendors/…"`     | A CJS vendor graph `require()`d another runtime module after URL rewrite                       | Prefer packages with an ESM/`module` entry; keep sibling singletons as `runtimeModules` + `externals`                                     |
+| `Calling require for "/assets/vendors/…"`     | A CJS vendor graph `require()`d another runtime module after URL rewrite                       | Prefer packages with an ESM/`module` entry; register sibling singletons as separate `runtimeModules` entries                              |
 
 Use the dev toolbar **Deps** panel to inspect vendor URLs loaded by the active Page. See [Dev Toolbar](/docs/core/dev-toolbar).
 
 #### Tests
 
-- `src/bundling/runtime-modules.test.ts`: explicit entries, exact package specifiers, and external validation.
+- `src/bundling/runtime-modules.test.ts`: explicit entries, exact package specifiers, and vendor filename normalization.
 - `src/bundling/runtime-bundle.test.ts`: vendor registration and manifest paths.
 - `../../core/src/services/assets/asset-processing-service/browser-runtime-entry-resolution.test.ts`: ESM entry resolution and default-export policy for React vs TanStack Query.
 - `../../../e2e/fixtures/react-router/persist-layouts.test.e2e.ts`: one QueryClient shared across Page navigation with an explicit `runtimeModules` entry.

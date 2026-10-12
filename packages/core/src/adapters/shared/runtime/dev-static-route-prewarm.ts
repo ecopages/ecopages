@@ -84,10 +84,67 @@ export async function runDevStaticRoutePrewarm(options: DevStaticRoutePrewarmOpt
 }
 
 /**
- * Starts background prewarm with logged failures and returns its completion for shutdown.
+ * Collects and renders prewarm paths in the background, logging failures for shutdown to await.
  */
-export function startDevStaticRoutePrewarm(options: DevStaticRoutePrewarmOptions): Promise<void> {
-	return runDevStaticRoutePrewarm(options).catch((error) => {
-		appLogger.error(`${LOG_PREFIX} failed: ${error instanceof Error ? error.message : String(error)}`);
+export function startDevStaticRoutePrewarm(
+	options: Omit<DevStaticRoutePrewarmOptions, 'pathnames'> & {
+		collectPathnames: () => Promise<readonly string[]> | readonly string[];
+	},
+): Promise<void> {
+	return collectDevStaticRoutePrewarmPaths(options)
+		.then((pathnames) => {
+			if (pathnames === undefined || options.signal?.aborted) {
+				return;
+			}
+
+			return runDevStaticRoutePrewarm({ ...options, pathnames });
+		})
+		.catch((error: unknown) => {
+			appLogger.error(`${LOG_PREFIX} failed`, error instanceof Error ? error : new Error(String(error)));
+		});
+}
+
+function collectDevStaticRoutePrewarmPaths(
+	options: Pick<DevStaticRoutePrewarmOptions, 'signal'> & {
+		collectPathnames: () => Promise<readonly string[]> | readonly string[];
+	},
+): Promise<readonly string[] | undefined> {
+	return new Promise((resolve, reject) => {
+		const { signal } = options;
+		if (signal?.aborted) {
+			resolve(undefined);
+			return;
+		}
+
+		let settled = false;
+		let startCollection: ReturnType<typeof setTimeout> | undefined;
+		const finish = (complete: () => void) => {
+			if (settled) {
+				return;
+			}
+
+			settled = true;
+			if (startCollection !== undefined) {
+				clearTimeout(startCollection);
+			}
+			signal?.removeEventListener('abort', onAbort);
+			complete();
+		};
+		const onAbort = () => finish(() => resolve(undefined));
+
+		signal?.addEventListener('abort', onAbort, { once: true });
+		if (signal?.aborted) {
+			onAbort();
+			return;
+		}
+
+		startCollection = setTimeout(() => {
+			void Promise.resolve()
+				.then(options.collectPathnames)
+				.then(
+					(pathnames) => finish(() => resolve(pathnames)),
+					(error: unknown) => finish(() => reject(error)),
+				);
+		}, 0);
 	});
 }

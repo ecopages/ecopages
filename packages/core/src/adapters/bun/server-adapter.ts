@@ -599,7 +599,6 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 				appConfig: this.appConfig,
 				runtimeOrigin: this.runtimeOrigin,
 			});
-			await this.startDevStaticRoutePrewarmWhenReady();
 		}
 
 		this.fullyInitialized = true;
@@ -611,6 +610,8 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			server.reload(updatedOptions as BunNativeServeOptions);
 			appLogger.debug('Server routes updated with dynamic routes');
 		}
+
+		this.startDevStaticRoutePrewarmWhenReady();
 	}
 
 	/**

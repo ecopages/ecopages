@@ -92,7 +92,7 @@ export abstract class SharedServerAdapter<
 	 * Warms declared static paths asynchronously in the background after the
 	 * response pipeline is ready, without delaying server readiness.
 	 */
-	protected async startDevStaticRoutePrewarmWhenReady(): Promise<void> {
+	protected startDevStaticRoutePrewarmWhenReady(): void {
 		if (!this.options?.watch || this.devStaticRoutePrewarmStarted) {
 			return;
 		}
@@ -101,7 +101,7 @@ export abstract class SharedServerAdapter<
 
 		const runtimeOrigin = this.runtimeOrigin;
 		this.devStaticRoutePrewarm = startDevStaticRoutePrewarm({
-			pathnames: await collectAppDevPrewarmPaths(this.appConfig),
+			collectPathnames: () => collectAppDevPrewarmPaths(this.appConfig),
 			signal: this.devStaticRoutePrewarmAbort.signal,
 			renderPath: async (pathname: string) => {
 				const response = await this.routeHandler.handleResponse(

@@ -55,6 +55,7 @@ export class EcoRouter {
 		if (this.options.prefetch !== false) {
 			this.prefetchManager = new PrefetchManager({
 				...this.options.prefetch,
+				reloadAttribute: this.options.reloadAttribute,
 				linkSelector: this.options.linkSelector,
 			});
 		}

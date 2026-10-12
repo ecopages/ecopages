@@ -12,6 +12,7 @@ export type PrefetchStrategy = 'viewport' | 'hover' | 'intent';
 export interface PrefetchOptions {
 	strategy: PrefetchStrategy;
 	delay: number;
+	reloadAttribute: string;
 	noPrefetchAttribute: string;
 	respectDataSaver: boolean;
 	linkSelector: string;
@@ -20,6 +21,7 @@ export interface PrefetchOptions {
 const DEFAULT_PREFETCH_OPTIONS: PrefetchOptions = {
 	strategy: 'intent',
 	delay: 65,
+	reloadAttribute: 'data-eco-reload',
 	noPrefetchAttribute: 'data-eco-no-prefetch',
 	respectDataSaver: true,
 	linkSelector: 'a[href]',
@@ -221,6 +223,7 @@ export class PrefetchManager {
 				for (const entry of entries) {
 					if (entry.isIntersecting) {
 						const link = entry.target as HTMLAnchorElement;
+						if (!this.isEligiblePrefetchLink(link)) continue;
 						const strategy = this.getLinkStrategy(link);
 						if (strategy === 'viewport' || strategy === 'eager') {
 							this.scheduleIdlePrefetch(link.href, strategy === 'eager');
@@ -290,11 +293,18 @@ export class PrefetchManager {
 		const link = target.closest(this.options.linkSelector) as HTMLAnchorElement | null;
 
 		if (!link) return null;
-		if (!shouldPrefetchLink(link, { noPrefetchAttribute: this.options.noPrefetchAttribute })) {
+		if (!this.isEligiblePrefetchLink(link)) {
 			return null;
 		}
 
 		return link;
+	}
+
+	private isEligiblePrefetchLink(link: HTMLAnchorElement): boolean {
+		return shouldPrefetchLink(link, {
+			reloadAttribute: this.options.reloadAttribute,
+			noPrefetchAttribute: this.options.noPrefetchAttribute,
+		});
 	}
 
 	/**
@@ -391,7 +401,7 @@ export class PrefetchManager {
 	observeLinks(root: Element | Document = document): void {
 		const links = root.querySelectorAll<HTMLAnchorElement>(this.options.linkSelector);
 		for (const link of links) {
-			if (link.hasAttribute(this.options.noPrefetchAttribute)) continue;
+			if (!this.isEligiblePrefetchLink(link)) continue;
 
 			const strategy = this.getLinkStrategy(link);
 

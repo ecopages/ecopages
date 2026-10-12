@@ -78,6 +78,30 @@ test.describe('Browser Router Prefetch', () => {
 		expect(requests.length).toBe(0);
 	});
 
+	test('should NOT prefetch a link marked for a full reload', async ({ page }) => {
+		await gotoAndWait(page, '/prefetch');
+
+		const requests = trackMatchingRequests(
+			page,
+			(url) => url.pathname === '/prefetch/destination' && url.searchParams.get('test') === 'reload',
+		);
+
+		await page.hover('#link-reload');
+		await expect.poll(() => requests.length, { timeout: 1000 }).toBe(0);
+	});
+
+	test('viewport prefetch skips static assets and download links', async ({ page }) => {
+		await gotoAndWait(page, '/prefetch');
+
+		const requests = trackMatchingRequests(
+			page,
+			(url) => url.pathname === '/files/report.pdf' || url.searchParams.get('test') === 'download',
+		);
+
+		await page.locator('#link-download').scrollIntoViewIfNeeded();
+		await expect.poll(() => requests.length, { timeout: 1000 }).toBe(0);
+	});
+
 	test('should respect custom delay on hover', async ({ page }) => {
 		await gotoAndWait(page, '/prefetch');
 

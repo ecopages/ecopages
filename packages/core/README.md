@@ -24,7 +24,7 @@ The important ownership rules are:
 - Component identity attribution is one shared source transform for server, browser, and HMR compilation paths: after a lexical `eco.` gate, it uses Oxc to wrap supported factory options with `bindComponentIdentity()`, which factories retain as `config.identity`.
 - Direct local Eco Component imports (including named `export { X } from` barrels) and relative side-effect CSS imports supply Dependencies by default through the shared transform and existing collector; explicit asset declarations override inference, and inferred styles stay keyed by identity until collection. See [eco](src/eco/README.md) and [Plugin Contracts](src/plugins/README.md).
 - Browser bundling and server module loading are separate paths. SSR-enabled lazy scripts execute on the server before rendering and in the browser only on their configured trigger.
-- The Project Watcher sends each Processor one batched `onChanges` notification per debounce window. See [Project Watcher](src/watchers/README.md).
+- The Project Watcher sends each Processor one batched `onChanges` notification per debounce window, schedules sustained edits no later than one second after the first, serializes their processing, and fails startup if the filesystem subscription is not ready within 30 seconds. See [Project Watcher](src/watchers/README.md).
 - Development Page prewarm path collection and rendering run in the background without delaying server readiness. App configuration declares `devPrewarmPaths`; Processors declare pathnames through `collectDevPrewarmPaths()`. Collection failures are logged with their stack. See [Runtime Adapters](src/adapters/README.md) and [Plugin Contracts](src/plugins/README.md).
 - App shutdown tears down Integration runtime resources, including Lit workers. See [Runtime Adapters](src/adapters/README.md).
 - HMR and invalidation use shared graph-aware services instead of runtime-specific ad hoc wiring.
@@ -95,8 +95,8 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/services/README.md`: cross-cutting runtime services and orchestration helpers
 - `src/adapters/README.md`: Node HTTP host and shared adapter boundaries
 - `src/dev/README.md`: dev transform server, on-demand client delivery (including workspace-package `@fs` URLs), and invalidation during compilation
-- `src/watchers/README.md`: recursive source subscriptions awaited before readiness, external build-input and linked-package watching, batched `applyDevFileChanges`, and restart invalidation
-- `src/services/invalidation/README.md`: file-change classification and dirty-marking for one debounce window
+- `src/watchers/README.md`: recursive source subscriptions with bounded readiness and scheduled debounce batches, external build-input and linked-package watching, batched `applyDevFileChanges`, and restart invalidation
+- `src/services/invalidation/README.md`: file-change classification and dirty-marking for bounded watcher batches
 - `src/hmr/README.md`: HMR strategy, update-layer ownership, and build error presentation
 - `src/dev-toolbar/README.md`: toolbar enablement, custom clients, and build error event contract
 - `src/router/README.md`: route discovery, matching, and browser navigation coordination

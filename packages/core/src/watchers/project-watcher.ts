@@ -40,7 +40,7 @@ export interface ProjectWatcherConfig {
 	refreshRouterRoutesCallback: () => Promise<void>;
 	hmrManager: IHmrManager;
 	bridge: IClientBridge;
-	/** Delay before a change event is processed; 0 disables debouncing. */
+	/** Trailing delay before a change batch is scheduled; defaults to 150 ms, and 0 disables debouncing. */
 	changeDebounceMs?: number;
 	/** Applies config, dotenv, or linked package changes through the owning runtime lifecycle. */
 	onRestartRequest?: (filePath: string) => Promise<void>;
@@ -49,9 +49,15 @@ export interface ProjectWatcherConfig {
 }
 
 /**
- * ProjectWatcher subscribes to project files and applies each debounce window
- * through one `applyDevFileChanges` call. Dirty results rebuild on the next
- * request; the browser is notified once per batch.
+ * ProjectWatcher subscribes to project files and applies each non-restart
+ * debounce batch through one `applyDevFileChanges` call. Dirty results rebuild
+ * on the next request. For those batches, it notifies matching Processors once
+ * and runs browser update handling once.
+ *
+ * @remarks
+ * The maximum-wait timer schedules a batch no later than one second after its
+ * first event. Processing remains serialized behind earlier work, and closing
+ * the watcher drops scheduled batches that have not started.
  */
 export class ProjectWatcher {
 	/**
@@ -467,7 +473,8 @@ export class ProjectWatcher {
 	 * directory, which can be the project root for `**` patterns. Files reached
 	 * only through such a base are ignored unless they match a pattern, and so
 	 * are dot-directories the pattern does not name, so a broad base does not
-	 * feed unrelated files into the change pipeline.
+	 * feed unrelated files into the change pipeline. Readiness rejects and closes
+	 * the subscription if Chokidar does not become ready within 30 seconds.
 	 */
 	public async createWatcherSubscription() {
 		if (this.watcher) {

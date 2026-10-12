@@ -846,7 +846,10 @@ describe('EcoRouter HMR Integration', () => {
 			await userEvent.click(slowLink as HTMLAnchorElement);
 			await userEvent.hover(fastLink as HTMLAnchorElement);
 			fastLink?.remove();
-			await userEvent.click(container);
+			const nonLink = document.createElement('div');
+			nonLink.textContent = 'Not a link';
+			container.appendChild(nonLink);
+			await userEvent.click(nonLink);
 			slowFetch.resolve();
 
 			await vi.waitFor(
@@ -951,10 +954,11 @@ describe('EcoRouter HMR Integration', () => {
 			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
 			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
 
+			const slowFetch = createDeferred();
 			vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
 				const url = getRequestPath(input);
 				if (url === '/slow') {
-					await new Promise((resolve) => setTimeout(resolve, 60));
+					await slowFetch.promise;
 					return htmlPageResponse(createHtml('slow'), { status: 200 });
 				}
 				if (url === '/fast') {
@@ -989,6 +993,8 @@ describe('EcoRouter HMR Integration', () => {
 				},
 				{ timeout: 2000 },
 			);
+			slowFetch.resolve();
+			await new Promise((resolve) => setTimeout(resolve, 0));
 			expect(container.textContent).toContain('fast');
 			expect(container.textContent).not.toContain('slow');
 		});
@@ -1014,10 +1020,11 @@ describe('EcoRouter HMR Integration', () => {
 			});
 			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
 
+			const outsideFetch = createDeferred();
 			vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
 				const url = getRequestPath(input);
 				if (url === '/outside-react') {
-					await new Promise((resolve) => setTimeout(resolve, 60));
+					await outsideFetch.promise;
 					return htmlPageResponse('<html><body><main>Outside React</main></body></html>', { status: 200 });
 				}
 				if (url === '/fast') {
@@ -1056,6 +1063,8 @@ describe('EcoRouter HMR Integration', () => {
 				},
 				{ timeout: 2000 },
 			);
+			outsideFetch.resolve();
+			await new Promise((resolve) => setTimeout(resolve, 0));
 			expect(cleanupSpy).not.toHaveBeenCalled();
 			expect(handoffSpy).not.toHaveBeenCalled();
 			expect(container.textContent).toContain('fast');

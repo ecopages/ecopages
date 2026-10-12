@@ -62,9 +62,17 @@ describe('EcoRouter', () => {
 			it('should ignore hover when a click lands on a non-link target during a slow navigation', async () => {
 				fixtures.router = createRouter();
 				const firstFetch = createDeferred();
-				fixtures.fetchSpy?.mockImplementationOnce(
+				fixtures.fetchSpy?.mockImplementation(
 					(url: string | URL | Request, init?: RequestInit) =>
 						new Promise<Response>((resolve, reject) => {
+							if (!String(url).includes('/first-route')) {
+								resolve(
+									htmlFetchResponse(
+										'<html><head></head><body><div id="content">Recovered Content</div></body></html>',
+									),
+								);
+								return;
+							}
 							const abortSignal = init?.signal;
 							const handleAbort = () => {
 								reject(new DOMException('Aborted', 'AbortError'));
@@ -81,11 +89,6 @@ describe('EcoRouter', () => {
 							});
 						}),
 				);
-				fixtures.fetchSpy?.mockResolvedValueOnce(
-					htmlFetchResponse(
-						'<html><head></head><body><div id="content">Recovered Content</div></body></html>',
-					),
-				);
 
 				const firstLink = createLink({ href: '/first-route', id: 'first-link' });
 				const hoveredLink = createLink({ href: '/hover-recovered-route', id: 'hovered-link' });
@@ -94,8 +97,11 @@ describe('EcoRouter', () => {
 				await userEvent.click(firstLink);
 				await userEvent.hover(hoveredLink);
 				hoveredLink.remove();
+				const nonLink = document.createElement('div');
+				nonLink.textContent = 'Not a link';
+				document.body.appendChild(nonLink);
 				const navigation = waitForNavigation();
-				await userEvent.click(document.body);
+				await userEvent.click(nonLink);
 				firstFetch.resolve();
 				await navigation;
 
@@ -170,7 +176,9 @@ describe('EcoRouter', () => {
 
 			it('should NOT intercept cross-origin links with different port', async () => {
 				fixtures.router = createRouter();
-				await clickWithoutNavigation(createLink({ href: 'http://localhost:9999/different-port', id: 'port-link' }));
+				await clickWithoutNavigation(
+					createLink({ href: 'http://localhost:9999/different-port', id: 'port-link' }),
+				);
 			});
 		});
 
@@ -303,7 +311,9 @@ describe('EcoRouter', () => {
 		describe('Custom Reload Attribute', () => {
 			it('should respect custom reload attribute', async () => {
 				fixtures.router = createRouter({ reloadAttribute: 'data-full-reload' });
-				await clickWithoutNavigation(createLink({ href: '/reload', 'data-full-reload': '', id: 'custom-reload' }));
+				await clickWithoutNavigation(
+					createLink({ href: '/reload', 'data-full-reload': '', id: 'custom-reload' }),
+				);
 			});
 
 			it('should intercept links with default reload attribute when custom is set', async () => {

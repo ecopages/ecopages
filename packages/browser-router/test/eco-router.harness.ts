@@ -112,10 +112,7 @@ export function spyPushState() {
  * after the router and then cancels the default action to keep the page in place.
  * A click the router stopped from propagating never reaches it and fails the assertion.
  */
-export async function clickWithoutNavigation(
-	link: HTMLElement,
-	options: Partial<MouseEventInit> = {},
-): Promise<void> {
+export async function clickWithoutNavigation(link: HTMLElement, options: Partial<MouseEventInit> = {}): Promise<void> {
 	const pushStateSpy = spyPushState();
 	let defaultPreventedByRouter: boolean | null = null;
 	const recordAndCancel = (event: MouseEvent) => {
@@ -137,11 +134,11 @@ export async function clickWithoutNavigation(
 }
 
 function getModifiers(options: Partial<MouseEventInit>): Array<'Alt' | 'Meta' | 'Shift'> {
-	return [
-		options.altKey && 'Alt',
-		options.metaKey && 'Meta',
-		options.shiftKey && 'Shift',
-	].filter((modifier) => typeof modifier === 'string');
+	const modifiers: Array<'Alt' | 'Meta' | 'Shift'> = [];
+	if (options.altKey) modifiers.push('Alt');
+	if (options.metaKey) modifiers.push('Meta');
+	if (options.shiftKey) modifiers.push('Shift');
+	return modifiers;
 }
 
 export async function clickWithNavigation(link: HTMLElement): Promise<void> {

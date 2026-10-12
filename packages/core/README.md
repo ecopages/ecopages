@@ -82,7 +82,7 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 - `ServerModuleTranspiler` is the shared server-side source loading seam used by runtime bootstrap and HMR metadata loading.
 - `RouteRegistry` gives exact and dynamic Pages priority over catch-alls, then selects the most specific matching catch-all prefix.
 - Browser runtime package entries resolve from the application root with ESM import conditions, so framework-local packages cannot shadow app dependencies.
-- `createApp()` stays the universal runtime entrypoint and selects Bun or Node.
+- `createApp()` stays the universal runtime entrypoint and uses the Node HTTP host. The start log names the process that launched it.
 - One bundled adapter builds the app with Rolldown.
 
 ## Documentation Map

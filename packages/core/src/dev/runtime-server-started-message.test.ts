@@ -1,9 +1,9 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { formatRuntimeServerStartedMessage, resolveProcessRuntimeLabel } from './runtime-server-started-message.ts';
 
 describe('resolveProcessRuntimeLabel', () => {
 	afterEach(() => {
-		vi.unstubAllGlobals();
+		delete process.versions.bun;
 	});
 
 	it('names Node when the process is Node', () => {
@@ -11,7 +11,7 @@ describe('resolveProcessRuntimeLabel', () => {
 	});
 
 	it('names Bun when the process is Bun', () => {
-		vi.stubGlobal('Bun', {});
+		Object.defineProperty(process.versions, 'bun', { value: '1.4.2', configurable: true });
 		expect(resolveProcessRuntimeLabel()).toBe('Bun');
 	});
 });

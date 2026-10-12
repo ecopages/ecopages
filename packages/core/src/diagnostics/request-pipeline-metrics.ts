@@ -7,6 +7,8 @@
  * {@link getRequestPipelineMetricsSnapshot}.
  */
 
+import { getProcessRuntime } from '../utils/runtime.ts';
+
 export type PageModuleLoadOutcome =
 	'import-cache-hit' | 'disk-cache-hit' | 'cold-build' | 'host-loader' | 'unified-graph';
 
@@ -59,10 +61,6 @@ export function isRequestPipelineMetricsEnabled(): boolean {
 
 export function getRequestPipelineMetricsHeaderName(): string {
 	return METRICS_HEADER;
-}
-
-export function resolveRequestPipelineRuntime(): 'node' | 'bun' {
-	return typeof Bun !== 'undefined' ? 'bun' : 'node';
 }
 
 export function recordPageModuleLoad(outcome: PageModuleLoadOutcome, artifactCount = 0): void {
@@ -142,7 +140,7 @@ export async function measureRouteRenderPhase<T>(phase: RouteRenderPhase, fn: ()
 
 export function getRequestPipelineMetricsSnapshot(): RequestPipelineMetricsSnapshot {
 	return {
-		runtime: resolveRequestPipelineRuntime(),
+		runtime: getProcessRuntime().name,
 		pageModuleLoads,
 		pageModuleBuilds,
 		pageModuleCacheHits,

@@ -2,6 +2,7 @@ import { mkdirSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { availableParallelism } from 'node:os';
 import { fileSystem } from '@ecopages/file-system';
+import { getProcessRuntime } from '../utils/runtime.ts';
 
 export type StartupTracePhase =
 	| 'config-ready'
@@ -315,9 +316,10 @@ class StartupTrace {
 			phases[phase] = record;
 		}
 
+		const runtime = getProcessRuntime();
 		return {
 			generatedAt: new Date().toISOString(),
-			runtime: typeof Bun !== 'undefined' ? `bun ${Bun.version}` : `node ${process.version}`,
+			runtime: `${runtime.name} ${runtime.version}`,
 			platform: process.platform,
 			phases,
 			firstRequest: this.firstRequestPath

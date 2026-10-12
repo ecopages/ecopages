@@ -159,7 +159,7 @@ function runLaunchPlan(launchPlan, options = {}) {
 			const hint =
 				launchPlan.runtime === 'bun'
 					? 'Install Bun from https://bun.sh to continue.'
-					: 'Reinstall Node.js or run with --runtime bun if this app requires Bun.';
+					: 'Reinstall Node.js or run with --runtime bun if this app needs the Bun runtime.';
 			logger.error(`Command not found: ${launchPlan.command}. ${hint}`);
 			process.exit(1);
 		}

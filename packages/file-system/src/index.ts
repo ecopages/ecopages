@@ -10,7 +10,6 @@
  * const content = await fileSystem.readFile('file.txt');
  */
 
-import type {} from './load-bun-types.ts';
 import type { FileSystem } from './types.ts';
 import { NodeFileSystem, nodeFs } from './adapters/node.ts';
 import { BaseFileSystem } from './utils/common.ts';
@@ -19,6 +18,6 @@ export * from './types.ts';
 export { BaseFileSystem, NodeFileSystem, nodeFs };
 
 /**
- * File system instance. It is the Node implementation on every runtime, including Bun.
+ * File system instance. It is the Node implementation on every runtime, Bun included.
  */
 export const fileSystem: FileSystem = nodeFs;

@@ -180,7 +180,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		this.mdxExtensions = jsxConfig?.mdxExtensions ?? ['.mdx'];
 		const radiantSsrEnabled = jsxConfig?.radiantSsrEnabled ?? false;
 		this.radiantSsrPolicy = jsxConfig?.radiantSsrPolicy ?? new EcopagesJsxRadiantSsrPolicy(radiantSsrEnabled);
-		const preferSourceImports = typeof Bun !== 'undefined';
+		const preferSourceImports = process.versions.bun !== undefined;
 		this.ssrScriptPreloader = new CustomElementScriptPreloader({
 			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx,
 			collectForIntegration: ECOPAGES_JSX_PLUGIN_NAME,

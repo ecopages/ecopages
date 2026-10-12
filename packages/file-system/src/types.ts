@@ -14,8 +14,7 @@ export interface GlobOptions {
 }
 
 /**
- * Runtime-agnostic file system interface.
- * Implementations exist for Bun (optimized) and Node.js (fallback).
+ * File system interface. `NodeFileSystem` implements it on every runtime.
  */
 export interface FileSystem {
 	/**

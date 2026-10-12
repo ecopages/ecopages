@@ -41,7 +41,7 @@ class TestEcopagesJsxRenderer extends EcopagesJsxRenderer {
 
 describe('Ecopages JSX SSR script preload integration', () => {
 	it('server-renders a RadiantElement registered from a tsx script on Node', async () => {
-		expect(typeof Bun).toBe('undefined');
+		expect(process.versions.bun).toBeUndefined();
 		installLightDomShim();
 		const tempDir = await mkdtemp(path.join(PACKAGE_ROOT, '.eco-ssr-preload-'));
 		const hostFile = path.join(path.dirname(RADIANT_HOST_SCRIPT), 'host.tsx');

@@ -75,7 +75,7 @@ export function detectRuntime(options = {}) {
 
 	const userAgent = process.env.npm_config_user_agent || '';
 
-	if (userAgent.startsWith('bun/') || typeof Bun !== 'undefined') {
+	if (userAgent.startsWith('bun/') || process.versions.bun) {
 		return 'bun';
 	}
 

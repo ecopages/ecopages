@@ -189,10 +189,6 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 
 	/**
 	 * Ensures the MDX loader exists, then completes the base integration setup.
-	 *
-	 * @remarks
-	 * Bun registers `integration.plugins` after `setup()` returns. Calling
-	 * `Bun.plugin` here would install the same MDX loader twice.
 	 */
 	override async setup(): Promise<void> {
 		this.ensureMdxLoaderPlugin();

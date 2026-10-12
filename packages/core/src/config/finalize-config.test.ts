@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, onTestFinished, test, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -307,7 +307,10 @@ describe('finalizeEcoPagesConfig', () => {
 	});
 
 	test('should allow Bun-only integrations when Bun runtime is available', async () => {
-		vi.stubGlobal('Bun', { version: '1.3.0' });
+		Object.defineProperty(process.versions, 'bun', { value: '1.3.0', configurable: true });
+		onTestFinished(() => {
+			delete process.versions.bun;
+		});
 
 		const integration = new (class extends IntegrationPlugin {
 			renderer = vi.fn() as any;

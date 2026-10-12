@@ -1,4 +1,4 @@
-import { resolveRequestPipelineRuntime } from '../diagnostics/request-pipeline-metrics.ts';
+import { getProcessRuntime } from '../utils/runtime.ts';
 
 export type EcopagesRuntimeLabel = 'Bun' | 'Node';
 
@@ -7,10 +7,10 @@ export type EcopagesRuntimeLabel = 'Bun' | 'Node';
  *
  * @remarks
  * The HTTP host is the Node implementation on every runtime. The start log still
- * names Bun when the process is Bun.
+ * names Bun when Bun runs the process.
  */
 export function resolveProcessRuntimeLabel(): EcopagesRuntimeLabel {
-	return resolveRequestPipelineRuntime() === 'bun' ? 'Bun' : 'Node';
+	return getProcessRuntime().name === 'bun' ? 'Bun' : 'Node';
 }
 
 export function formatRuntimeServerStartedMessage(runtime: EcopagesRuntimeLabel, origin: string): string {

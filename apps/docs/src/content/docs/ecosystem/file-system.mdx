@@ -1,6 +1,6 @@
 ---
 title: 'File System'
-description: 'Runtime-agnostic file system utilities optimized for Bun and Node.'
+description: 'File system utilities implemented with Node APIs.'
 order: 7
 ---
 
@@ -8,14 +8,13 @@ import { CodeTabs } from '@/components/code-tabs';
 
 # File System
 
-The `@ecopages/file-system` package provides runtime-agnostic file system utilities with optimized implementations for both Bun and Node.js.
+The `@ecopages/file-system` package provides file system utilities. The implementation is Node's on every runtime, including Bun.
 
 ## Features
 
-- **Runtime Detection**: Automatically selects the optimal adapter
-- **Bun Optimized**: Uses `Bun.Glob`, `Bun.hash`, `Bun.file`, and `Bun.write` for maximum performance
-- **Node.js Fallback**: Uses native `node:fs/promises.glob()` and `crypto` for full compatibility
-- **Type Safe**: Consistent TypeScript interface across runtimes
+- **Node implementation**: `node:fs/promises.glob()`, `crypto`, and `node:fs`
+- **One interface**: Import `fileSystem` and call it from Node or Bun
+- **Type Safe**: One TypeScript interface
 
 ## Installation
 
@@ -106,29 +105,9 @@ interface GlobOptions {
 }
 ```
 
-## Performance
-
-The Bun adapter uses optimized syscalls (`copy_file_range`, `sendfile`, `clonefile`) when available.
-
-Benchmark results on Apple M4:
-
-| Operation        | BunFileSystem    | NodeFileSystem | Winner              |
-| :--------------- | :--------------- | :------------- | :------------------ |
-| glob (100 files) | 64.85 µs         | 71.06 µs       | Bun ~10% faster     |
-| hash (1MB file)  | 87 µs            | 393 µs         | **Bun 4.5x faster** |
-| writeAsync (1MB) | Uses `Bun.write` | Uses `node:fs` | Bun optimized       |
-| exists check     | 477 ns           | 464 ns         | ~same               |
-
-## Direct Adapter Access
-
-For advanced use cases, you can import adapters directly:
+## Direct import
 
 ```typescript
-// Force Bun adapter
-import { BunFileSystem } from '@ecopages/file-system/bun';
-const bunFs = new BunFileSystem();
-
-// Force Node adapter
 import { NodeFileSystem } from '@ecopages/file-system/node';
 const nodeFs = new NodeFileSystem();
 ```

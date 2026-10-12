@@ -1,17 +1,13 @@
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
-	EcoComponent,
 	EcoFunctionComponent,
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
 } from '../../types/public-types.ts';
-import { IntegrationRenderer, type RenderToResponseContext } from './integration-renderer.ts';
-import {
-	resolveDocumentShellLayouts,
-	resolveInnermostPageLayout,
-} from './document-shell/layout-shell-props.service.ts';
+import { IntegrationRenderer } from './integration-renderer.ts';
+import { resolveDocumentShellLayouts } from './document-shell/layout-shell-props.service.ts';
 
 type StringMarkupViewFn<P = Record<string, unknown>> = EcoFunctionComponent<
 	P,
@@ -68,23 +64,6 @@ export abstract class StringMarkupRenderer extends IntegrationRenderer<EcoPagesE
 			});
 		} catch (error) {
 			throw this.createRenderError('Error rendering page', error);
-		}
-	}
-
-	async renderToResponse<P = Record<string, unknown>>(
-		view: EcoComponent<P>,
-		props: P,
-		ctx: RenderToResponseContext,
-	): Promise<Response> {
-		try {
-			return await this.renderViewWithDocumentShell({
-				view,
-				props,
-				ctx,
-				layout: resolveInnermostPageLayout(view.config?.layouts),
-			});
-		} catch (error) {
-			throw this.createRenderError('Error rendering view', error);
 		}
 	}
 }

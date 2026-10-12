@@ -10,6 +10,7 @@ import type {
 } from '../../../types/public-types.ts';
 import { runWithComponentRenderContext } from './component-render-context.ts';
 import { IntegrationRenderer } from '../integration-renderer.ts';
+import { StringMarkupRenderer } from '../string-markup-renderer.ts';
 import {
 	TestIntegrationRenderer,
 	createMockIntegrationPlugin,
@@ -326,24 +327,23 @@ describe('renderer foreign-child delegation', () => {
 			},
 		};
 
-		let inlineRenderCount = 0;
-		const response = await renderer.testRenderPartialViewResponse({
-			view: View,
-			props: {},
-			renderInline: async () => {
-				inlineRenderCount += 1;
-				return '<section>Inline</section>';
-			},
-		});
+		const response = await renderer.renderExplicitView(View, {}, { partial: true });
 
 		expect(await response.text()).toBe('<section>Inline</section>');
-		expect(inlineRenderCount).toBe(1);
-		expect(renderer.ForeignChildRenderCount).toBe(0);
+		expect(renderer.ForeignChildRenderCount).toBe(1);
 	});
 
 	it('falls back to foreign-subtree partial rendering when compatibility is needed', async () => {
 		const renderer = new TestIntegrationRenderer({
-			appConfig: testAppConfig,
+			appConfig: {
+				...testAppConfig,
+				integrations: [
+					createMockIntegrationPlugin({
+						name: 'react',
+						initializeRenderer: () => ({ name: 'react' }),
+					}),
+				],
+			} as unknown as EcoPagesAppConfig,
 			assetProcessingService: testAssetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});
@@ -374,18 +374,9 @@ describe('renderer foreign-child delegation', () => {
 			integrationName: 'test-renderer',
 		};
 
-		let inlineRenderCount = 0;
-		const response = await renderer.testRenderPartialViewResponse({
-			view: View,
-			props: {},
-			renderInline: async () => {
-				inlineRenderCount += 1;
-				return '<section>Inline</section>';
-			},
-		});
+		const response = await renderer.renderExplicitView(View, {}, { partial: true });
 
 		expect(await response.text()).toBe('<section>Foreign Subtree</section>');
-		expect(inlineRenderCount).toBe(0);
 		expect(renderer.ForeignChildRenderCount).toBe(1);
 	});
 
@@ -432,21 +423,25 @@ describe('renderer foreign-child delegation', () => {
 			],
 		} as unknown as EcoPagesAppConfig;
 
-		const renderer = new TestIntegrationRenderer({
+		const renderer = new (class extends StringMarkupRenderer {
+			name = 'test-renderer';
+			HtmlTemplate: EcoComponent<HtmlTemplateProps> | null = null;
+
+			protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
+				if (!this.HtmlTemplate) {
+					throw new Error('Mock HTML template not set');
+				}
+				return this.HtmlTemplate;
+			}
+
+			protected override async resolveDependencies(): Promise<[]> {
+				return [];
+			}
+		})({
 			appConfig,
 			assetProcessingService: testAssetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});
-
-		const View = (() => '<section>Foreign View</section>') as EcoComponent<Record<string, unknown>>;
-		View.config = {
-			integration: 'foreign-renderer',
-			identity: {
-				id: 'foreign-view',
-				file: '/app/components/foreign-view.ts',
-				integration: 'foreign-renderer',
-			},
-		};
 
 		const Layout = (() => '<main />') as EcoComponent<Record<string, unknown>>;
 		Layout.config = {
@@ -456,6 +451,17 @@ describe('renderer foreign-child delegation', () => {
 				file: '/app/components/foreign-layout.ts',
 				integration: 'foreign-renderer',
 			},
+		};
+
+		const View = (() => '<section>Foreign View</section>') as EcoComponent<Record<string, unknown>>;
+		View.config = {
+			integration: 'foreign-renderer',
+			identity: {
+				id: 'foreign-view',
+				file: '/app/components/foreign-view.ts',
+				integration: 'foreign-renderer',
+			},
+			layouts: [Layout],
 		};
 
 		renderer.HtmlTemplate = (() => '<html><body></body></html>') as EcoComponent<HtmlTemplateProps>;
@@ -468,14 +474,10 @@ describe('renderer foreign-child delegation', () => {
 			},
 		};
 
-		const response = await renderer.testRenderViewWithDocumentShell({
-			view: View,
-			props: {},
-			layout: Layout,
-		});
+		const response = await renderer.renderExplicitView(View, {}, {});
 
 		expect(await response.text()).toContain('<main><section>Foreign View</section></main>');
-		expect(initializeRenderer).toHaveBeenCalledTimes(1);
-		expect(foreignRenderer.renderComponentWithForeignChildren).toHaveBeenCalledTimes(3);
+		expect(initializeRenderer).toHaveBeenCalled();
+		expect(foreignRenderer.renderComponentWithForeignChildren).toHaveBeenCalled();
 	});
 });

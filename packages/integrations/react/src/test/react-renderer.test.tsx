@@ -975,7 +975,7 @@ describe('ReactRenderer', () => {
 				title: string;
 			}>;
 
-			const response = await testRenderer.renderToResponse(MockView, { title: 'Hello React' }, {});
+			const response = await testRenderer.renderExplicitView(MockView, { title: 'Hello React' }, {});
 
 			expect(response.status).toBe(200);
 			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
@@ -989,7 +989,7 @@ describe('ReactRenderer', () => {
 				title: string;
 			}>;
 
-			const response = await testRenderer.renderToResponse(MockView, { title: 'Marked' }, {});
+			const response = await testRenderer.renderExplicitView(MockView, { title: 'Marked' }, {});
 			const body = await response.text();
 
 			expect(body).toContain(`<html lang="en" ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`);
@@ -1002,7 +1002,7 @@ describe('ReactRenderer', () => {
 				title: string;
 			}>;
 
-			const response = await testRenderer.renderToResponse(MockView, { title: 'Hello React' }, {});
+			const response = await testRenderer.renderExplicitView(MockView, { title: 'Hello React' }, {});
 			const body = await response.text();
 
 			expect(body).toContain('<script id="__ECO_PAGE_DATA__" type="application/json">');
@@ -1048,13 +1048,13 @@ describe('ReactRenderer', () => {
 				] as ProcessedAsset[],
 			};
 
-			const response = await testRenderer.renderToResponse(MockView, { title: 'Hello React' }, {});
+			const response = await testRenderer.renderExplicitView(MockView, { title: 'Hello React' }, {});
 			const body = await response.text();
 			const pagePackage = testRenderer.getCurrentPagePackageForTest();
 
 			expect(body).toContain('/assets/react-hydration.js');
 			expect(body).not.toContain('/assets/react-hydration.chunk.js');
-			expect(pagePackage?.pageBrowserGraph).toEqual(testRenderer.pageBrowserGraphOverride);
+			expect(pagePackage).toBeUndefined();
 		});
 
 		it('should render a partial view without full HTML wrapper', async () => {
@@ -1063,7 +1063,7 @@ describe('ReactRenderer', () => {
 				content: string;
 			}>;
 
-			const response = await testRenderer.renderToResponse(MockView, { content: 'Partial' }, { partial: true });
+			const response = await testRenderer.renderExplicitView(MockView, { content: 'Partial' }, { partial: true });
 
 			const body = await response.text();
 			expect(body).toContain('<div>Partial</div>');
@@ -1106,7 +1106,7 @@ describe('ReactRenderer', () => {
 				),
 			});
 
-			const response = await testRenderer.renderToResponse(View, { content: 'Partial' }, { partial: true });
+			const response = await testRenderer.renderExplicitView(View, { content: 'Partial' }, { partial: true });
 			const body = await response.text();
 
 			expect(body).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
@@ -1118,7 +1118,7 @@ describe('ReactRenderer', () => {
 			const testRenderer = createRenderer();
 			const MockView = (() => <p>Not Found</p>) as unknown as EcoComponent<object>;
 
-			const response = await testRenderer.renderToResponse(MockView, {}, { status: 404 });
+			const response = await testRenderer.renderExplicitView(MockView, {}, { status: 404 });
 
 			expect(response.status).toBe(404);
 		});
@@ -1127,7 +1127,7 @@ describe('ReactRenderer', () => {
 			const testRenderer = createRenderer();
 			const MockView = (() => <p>Cached</p>) as unknown as EcoComponent<object>;
 
-			const response = await testRenderer.renderToResponse(
+			const response = await testRenderer.renderExplicitView(
 				MockView,
 				{},
 				{
@@ -1153,7 +1153,7 @@ describe('ReactRenderer', () => {
 			}>;
 			MockView.config = { layouts: [MockLayout] };
 
-			const response = await testRenderer.renderToResponse(MockView, { message: 'With Layout' }, {});
+			const response = await testRenderer.renderExplicitView(MockView, { message: 'With Layout' }, {});
 
 			const body = await response.text();
 			expect(body).toContain('layout');
@@ -1199,7 +1199,7 @@ describe('ReactRenderer', () => {
 			}>;
 			View.config = { layouts: [NonReactLayout] };
 
-			const response = await testRenderer.renderToResponse(View, { message: 'With Layout' }, {});
+			const response = await testRenderer.renderExplicitView(View, { message: 'With Layout' }, {});
 			const body = await response.text();
 
 			expect(body).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
@@ -1213,7 +1213,9 @@ describe('ReactRenderer', () => {
 				throw new Error('View failed to render');
 			}) as unknown as EcoComponent<object>;
 
-			await expect(testRenderer.renderToResponse(MockView, {}, {})).rejects.toThrow('Failed to render view');
+			await expect(testRenderer.renderExplicitView(MockView, {}, {})).rejects.toThrow(
+				'Failed to render component',
+			);
 		});
 	});
 

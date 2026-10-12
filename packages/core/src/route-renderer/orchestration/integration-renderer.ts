@@ -81,8 +81,6 @@ import {
 	type RenderQueuedForeignSubtreeChildren,
 } from './foreign-child/foreign-subtree-execution.service.ts';
 import {
-	composeDocumentShell,
-	finalizeDocumentShellHtml,
 	renderPageDocumentShell,
 	type DocumentShellLayoutInput,
 } from './document-shell/document-shell-render.service.ts';
@@ -100,7 +98,7 @@ export type RouteModuleLoadOptions = {
 };
 
 /**
- * Context for renderToResponse method.
+ * Response options for an explicit view render.
  */
 export interface RenderToResponseContext {
 	partial?: boolean;
@@ -289,23 +287,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return HttpError.InternalServerError(errorMessage);
 	}
 
-	/**
-	 * Prepares dependencies for renderToResponse by resolving component dependencies
-	 * and configuring the HTML transformer.
-	 * @param view - The view component being rendered
-	 * @param layout - Optional layout component
-	 * @returns Resolved processed assets
-	 */
-	protected async prepareViewDependencies(view: EcoComponent, layout?: EcoComponent): Promise<ProcessedAsset[]> {
-		const HtmlTemplate = await this.getHtmlTemplate();
-		const componentsToResolve = layout ? [HtmlTemplate, layout, view] : [HtmlTemplate, view];
-		const resolvedDependencies = this.htmlTransformer.dedupeProcessedAssets(
-			await this.resolveDependencies(componentsToResolve),
-		);
-		this.htmlTransformer.setPagePackage(createPagePackage(resolvedDependencies));
-		return resolvedDependencies;
-	}
-
 	protected async resolvePageBrowserGraphForFile(filePath: string): Promise<PageBrowserGraphResult | undefined> {
 		/**
 		 * @remarks
@@ -377,130 +358,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		}
 
 		return nextDependencies;
-	}
-
-	/**
-	 * Resolves metadata for explicit view rendering.
-	 *
-	 * When a view declares a `metadata()` function, that contract owns the final
-	 * metadata for the explicit render. Otherwise the app-level default metadata is
-	 * reused so explicit routes and page-module routes share the same fallback.
-	 *
-	 * @param view - View component being rendered.
-	 * @param props - Props passed to the view.
-	 * @returns Resolved metadata for the final document shell.
-	 */
-	protected async resolveViewMetadata<P>(view: EcoComponent<P>, props: P): Promise<PageMetadataProps> {
-		return view.metadata
-			? await view.metadata({
-					params: {},
-					query: {},
-					props,
-					appConfig: this.appConfig,
-				})
-			: this.appConfig.defaultMetadata;
-	}
-
-	/**
-	 * Renders one explicit view response in partial mode.
-	 *
-	 * Same-integration views can optionally stream or render inline via the caller's
-	 * `renderInline()` hook. Once a view may cross integration boundaries, this
-	 * helper routes the render through `renderComponentWithForeignChildren()` instead so mixed
-	 * shells can reuse the execution-scoped renderer cache and resolve nested
-	 * foreign ownership before the partial response is returned.
-	 *
-	 * @param input - View render options for the partial response.
-	 * @returns HTML response for the partial render.
-	 */
-	protected async renderPartialViewResponse<P>(input: {
-		view: EcoComponent<P>;
-		props: P;
-		ctx: RenderToResponseContext;
-		renderInline?: () => Promise<BodyInit>;
-		transformHtml?: (html: string) => string;
-	}): Promise<Response> {
-		if (input.renderInline && !this.hasForeignChildDescendants(input.view as EcoComponent)) {
-			return this.createHtmlResponse(await input.renderInline(), input.ctx);
-		}
-
-		const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
-		const viewRender = await this.renderComponentWithForeignChildren({
-			component: input.view as EcoComponent,
-			props: (input.props ?? {}) as Record<string, unknown>,
-			integrationContext: { rendererCache },
-		});
-		const html = input.transformHtml ? input.transformHtml(viewRender.html) : viewRender.html;
-
-		return this.createHtmlResponse(html, input.ctx);
-	}
-
-	/**
-	 * Renders an explicit view through optional layout and document shells.
-	 *
-	 * This helper is the shared explicit-route path for string-oriented and mixed
-	 * integrations. It prepares view dependencies, resolves metadata, and composes
-	 * view, layout, and html template boundaries with one execution-scoped renderer
-	 * cache so repeated foreign shell delegation can reuse initialized renderers
-	 * during the same render flow.
-	 *
-	 * @param input - View, props, and optional layout metadata for the render.
-	 * @returns HTML response for the explicit view render.
-	 */
-	protected async renderViewWithDocumentShell<P>(input: {
-		view: EcoComponent<P>;
-		props: P;
-		ctx: RenderToResponseContext;
-		layout?: EcoComponent;
-		transformDocumentHtml?: (html: string) => string;
-	}): Promise<Response> {
-		await this.ensureIntegrationRuntimeActivated();
-		const normalizedProps = (input.props ?? {}) as Record<string, unknown>;
-
-		if (input.ctx.partial) {
-			return this.renderPartialViewResponse({
-				...input,
-				transformHtml: input.transformDocumentHtml,
-			});
-		}
-
-		await this.prepareViewDependencies(input.view, input.layout);
-
-		const HtmlTemplate = await this.getHtmlTemplate();
-		const metadata = await this.resolveViewMetadata(input.view, input.props);
-		const { documentHtml } = await composeDocumentShell(
-			{
-				renderComponentWithForeignChildren: (renderInput) =>
-					this.renderComponentWithForeignChildren(renderInput),
-				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
-			},
-			{
-				primaryComponent: input.view as EcoComponent,
-				primaryProps: normalizedProps,
-				layout: input.layout
-					? {
-							component: input.layout,
-							props: {},
-						}
-					: undefined,
-				htmlTemplate: HtmlTemplate as EcoComponent,
-				documentProps: {
-					metadata,
-					pageProps: normalizedProps,
-				},
-			},
-		);
-
-		const transformedDocumentHtml = input.transformDocumentHtml
-			? input.transformDocumentHtml(documentHtml)
-			: documentHtml;
-		const html = await finalizeDocumentShellHtml(this.htmlTransformer, {
-			html: `${this.DOC_TYPE}${transformedDocumentHtml}`,
-			partial: false,
-			htmlContributions: this.getHtmlDocumentContributions({ partial: false }),
-		});
-
-		return this.createHtmlResponse(html, input.ctx);
 	}
 
 	/**
@@ -939,13 +796,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		if (ctx.partial) {
 			const plan = collectPageClientPlan([view], this.name);
 			const assets = await this.buildPageClientBrowserAssets(plan);
+			const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
 			const { value } = await runWithComponentRenderContext(
 				{
 					currentIntegration: this.name,
 					pageClientPlan: plan,
 					islandRenderAssetsByFile: assets.islandRenderAssetsByFile,
 				},
-				() => this.renderPartialViewResponse({ view, props, ctx }),
+				async () => {
+					const rendered = await this.renderComponentWithForeignChildren({
+						component: view as EcoComponent,
+						props: (props ?? {}) as Record<string, unknown>,
+						integrationContext: { rendererCache },
+					});
+					return this.createHtmlResponse(rendered.html, ctx);
+				},
 			);
 			return value;
 		}
@@ -1235,43 +1100,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Render a view directly to a Response object.
-	 * Used for explicit routing where views are rendered from route handlers.
-	 *
-	 * @param view - The eco.page component to render
-	 * @param props - Props to pass to the view
-	 * @param ctx - Render context with partial flag and response options
-	 * @returns A Response object with the rendered content
-	 */
-	abstract renderToResponse<P = Record<string, unknown>>(
-		view: EcoComponent<P>,
-		props: P,
-		ctx: RenderToResponseContext,
-	): Promise<Response>;
-
-	/**
 	 * Render a single component and return structured output for orchestration paths.
 	 *
-	 * Default behavior delegates to `renderToResponse` in partial mode and wraps
-	 * the resulting HTML into the `ComponentRenderResult` contract.
-	 *
-	 * In foreign-subtree resolution, this method is the integration-owned step that turns an
-	 * already-resolved deferred foreign subtree into concrete HTML, assets, and optional
-	 * root attributes.
-	 *
-	 * Integrations can override this for richer behavior (asset emission,
-	 * root attributes, integration-specific hydration metadata).
-	 *
-	 * @param input Component render request.
-	 * @returns Structured render result used by component/page orchestration.
+	 * @remarks
+	 * Integrations override this for asset emission, root attributes, and hydration
+	 * metadata. The default calls the component and stringifies a string result.
 	 */
 	async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		const response = await this.renderToResponse(
-			input.component as EcoFunctionComponent<Record<string, unknown>, EcoPagesElement>,
+		if (typeof input.component !== 'function') {
+			throw new TypeError(`${this.name} renderer expected a callable component.`);
+		}
+
+		const rendered = await (input.component as EcoFunctionComponent<Record<string, unknown>, EcoPagesElement>)(
 			input.props,
-			{ partial: true },
 		);
-		const html = await response.text();
+		const html = typeof rendered === 'string' ? rendered : '';
 
 		return {
 			html,

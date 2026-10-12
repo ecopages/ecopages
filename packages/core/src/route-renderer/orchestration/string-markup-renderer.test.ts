@@ -204,7 +204,7 @@ describe('StringMarkupRenderer', () => {
 				title: string;
 			}>;
 
-			const response = await renderer.renderToResponse(View, { title: 'Hello String' }, {});
+			const response = await renderer.renderExplicitView(View, { title: 'Hello String' }, {});
 
 			expect(response.status).toBe(200);
 			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
@@ -217,7 +217,7 @@ describe('StringMarkupRenderer', () => {
 				content: string;
 			}>;
 
-			const response = await renderer.renderToResponse(View, { content: 'Partial' }, { partial: true });
+			const response = await renderer.renderExplicitView(View, { content: 'Partial' }, { partial: true });
 			const body = await response.text();
 
 			expect(body).toBe('<div>Partial</div>');
@@ -233,11 +233,44 @@ describe('StringMarkupRenderer', () => {
 			}>;
 			View.config = { layouts: [Layout] };
 
-			const response = await renderer.renderToResponse(View, { message: 'With Layout' }, {});
+			const response = await renderer.renderExplicitView(View, { message: 'With Layout' }, {});
 			const body = await response.text();
 
 			expect(body).toContain('<main class="layout">');
 			expect(body).toContain('<p>With Layout</p>');
+		});
+
+		it('renders every layout, factory props, default metadata, and robots meta', async () => {
+			const renderer = createRenderer();
+			const Outer = (async ({ children }: { children: string }) =>
+				`<div class="outer">${children}</div>`) as EcoComponent<{ children: string }>;
+			const Inner = (async ({ children, label }: { children: string; label: string }) =>
+				`<div class="inner" data-label="${label}">${children}</div>`) as EcoComponent<{
+				children: string;
+				label: string;
+			}>;
+			const View = (async () => `<p>About</p>`) as EcoComponent<object>;
+			View.metadata = (async () => ({
+				title: 'About title',
+				robots: { index: false },
+			})) as unknown as EcoComponent['metadata'];
+			View.config = {
+				layouts: [Outer, Inner],
+				layoutEntries: [{ component: Outer }, { component: Inner, props: () => ({ label: 'from-factory' }) }],
+			};
+			renderer.htmlTemplate = (async ({ children, metadata }) =>
+				`<html><head><title>${metadata.title}</title><meta name="description" content="${metadata.description}" /></head><body>${children}</body></html>`) as EcoComponent<HtmlTemplateProps>;
+
+			const body = await (await renderer.renderExplicitView(View, {}, {})).text();
+
+			expect(body).toContain('class="outer"');
+			expect(body).toContain('data-label="from-factory"');
+			expect(body).toContain('<p>About</p>');
+			expect(body).toContain('About title');
+			expect(body).toContain(
+				'<meta name="description" content="This is a static site generated with Ecopages" />',
+			);
+			expect(body).toContain('<meta name="robots" content="noindex">');
 		});
 
 		it('should throw an error if the view fails to render', async () => {
@@ -246,8 +279,8 @@ describe('StringMarkupRenderer', () => {
 				throw new Error('View failed to render');
 			}) as EcoComponent<object>;
 
-			await expect(renderer.renderToResponse(View, {}, {})).rejects.toThrow(
-				'Error rendering view: View failed to render',
+			await expect(renderer.renderExplicitView(View, {}, {})).rejects.toThrow(
+				'Error rendering page: View failed to render',
 			);
 		});
 	});

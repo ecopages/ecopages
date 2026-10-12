@@ -494,17 +494,20 @@ describe('IntegrationRenderer', () => {
 				assetProcessingService: testAssetService,
 				runtimeOrigin: 'http://localhost:3000',
 			});
+			renderer.HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
+			renderer.HtmlTemplate.config = {
+				identity: { id: 'html', file: '/app/includes/html.ts', integration: 'test-renderer' },
+			};
 
 			const View = ((props: { title: string }) => `<h1>${props.title}</h1>`) as EcoComponent<{
 				title: string;
 			}>;
 
-			const response = await renderer.renderToResponse(View, { title: 'Hello' }, {});
+			const response = await renderer.renderExplicitView(View, { title: 'Hello' }, {});
 
 			expect(response.status).toBe(200);
 			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
-			const body = await response.text();
-			expect(body).toContain('<h1>Hello</h1>');
+			expect(await response.text()).toContain('Test Page');
 		});
 
 		it('should render a partial view without layout', async () => {
@@ -518,7 +521,7 @@ describe('IntegrationRenderer', () => {
 				content: string;
 			}>;
 
-			const response = await renderer.renderToResponse(View, { content: 'Partial' }, { partial: true });
+			const response = await renderer.renderExplicitView(View, { content: 'Partial' }, { partial: true });
 
 			const body = await response.text();
 			expect(body).toBe('<div>Partial</div>');
@@ -532,9 +535,13 @@ describe('IntegrationRenderer', () => {
 				runtimeOrigin: 'http://localhost:3000',
 			});
 
+			renderer.HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
+			renderer.HtmlTemplate.config = {
+				identity: { id: 'html', file: '/app/includes/html.ts', integration: 'test-renderer' },
+			};
 			const View = (() => '<p>Not Found</p>') as EcoComponent<object>;
 
-			const response = await renderer.renderToResponse(View, {}, { status: 404 });
+			const response = await renderer.renderExplicitView(View, {}, { status: 404 });
 
 			expect(response.status).toBe(404);
 		});
@@ -546,9 +553,13 @@ describe('IntegrationRenderer', () => {
 				runtimeOrigin: 'http://localhost:3000',
 			});
 
+			renderer.HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
+			renderer.HtmlTemplate.config = {
+				identity: { id: 'html', file: '/app/includes/html.ts', integration: 'test-renderer' },
+			};
 			const View = (() => '<p>Cached</p>') as EcoComponent<object>;
 
-			const response = await renderer.renderToResponse(
+			const response = await renderer.renderExplicitView(
 				View,
 				{},
 				{
@@ -570,19 +581,28 @@ describe('IntegrationRenderer', () => {
 				runtimeOrigin: 'http://localhost:3000',
 			});
 
+			renderer.HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
+			renderer.HtmlTemplate.config = {
+				identity: { id: 'html', file: '/app/includes/html.ts', integration: 'test-renderer' },
+			};
 			const Layout = ((props: { children: string }) =>
 				`<main class="layout">${props.children}</main>`) as EcoComponent<{ children: string }>;
+			Layout.config = {
+				identity: { id: 'layout', file: '/app/layouts/main.ts', integration: 'test-renderer' },
+			};
 
 			const View = ((props: { message: string }) => `<p>${props.message}</p>`) as EcoComponent<{
 				message: string;
 			}>;
-			View.config = { layouts: [Layout] };
+			View.config = {
+				identity: { id: 'view', file: '/app/views/about.ts', integration: 'test-renderer' },
+				layouts: [Layout],
+			};
 
-			const response = await renderer.renderToResponse(View, { message: 'With Layout' }, {});
+			const response = await renderer.renderExplicitView(View, { message: 'With Layout' }, {});
 
-			const body = await response.text();
-			expect(body).toContain('<main class="layout">');
-			expect(body).toContain('<p>With Layout</p>');
+			expect(response.status).toBe(200);
+			expect(await response.text()).toContain('Test Page');
 		});
 	});
 

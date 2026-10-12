@@ -11,10 +11,7 @@ import {
 	type HtmlTemplateProps,
 } from '@ecopages/core';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import {
-	IntegrationRenderer,
-	type RenderToResponseContext,
-} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { KitaRenderer } from '../kitajs-renderer.ts';
@@ -28,6 +25,10 @@ const Config = await createTestAppConfig();
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
 	return `<html><body>${children}</body></html>`;
+};
+HtmlTemplate.config = {
+	integration: 'kitajs',
+	identity: { id: 'html', file: '/app/includes/html.kita.tsx', integration: 'kitajs' },
 };
 
 class EcopagesJsxForeignRenderer extends IntegrationRenderer<MarkupNodeLike> {
@@ -47,14 +48,6 @@ class EcopagesJsxForeignRenderer extends IntegrationRenderer<MarkupNodeLike> {
 			rootTag: 'strong',
 			integrationName: this.name,
 		};
-	}
-
-	async renderToResponse<P = Record<string, unknown>>(
-		_view: EcoComponent<P>,
-		_props: P,
-		_ctx: RenderToResponseContext,
-	) {
-		return new Response('');
 	}
 }
 
@@ -402,6 +395,7 @@ describe('KitaRenderer', () => {
 		});
 
 		const Layout = eco.layout({
+			integration: 'kitajs',
 			dependencies: {
 				components: [DeferredWidget],
 			},
@@ -414,12 +408,22 @@ describe('KitaRenderer', () => {
 				);
 			},
 		});
+		Layout.config = {
+			...Layout.config,
+			integration: 'kitajs',
+			identity: { id: 'layout', file: '/app/layouts/main.kita.tsx', integration: 'kitajs' },
+		};
 
 		const View = eco.page({
 			integration: 'kitajs',
 			layout: Layout,
 			render: () => '<section>Explicit page</section>',
 		});
+		View.config = {
+			...View.config,
+			integration: 'kitajs',
+			identity: { id: 'view', file: '/app/views/explicit.kita.tsx', integration: 'kitajs' },
+		};
 
 		const testRenderer = new TestKitaRenderer({
 			appConfig: config,
@@ -428,7 +432,7 @@ describe('KitaRenderer', () => {
 			resolvedIntegrationDependencies: [],
 		});
 
-		const response = await testRenderer.renderToResponse(View, {}, {});
+		const response = await testRenderer.renderExplicitView(View, {}, {});
 		const body = await response.text();
 
 		expect(body).toContain('<section>Explicit page</section>');

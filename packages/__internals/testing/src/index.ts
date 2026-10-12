@@ -1,18 +1,9 @@
-import type {
-	ComponentRenderInput,
-	ComponentRenderResult,
-	EcoPagesAppConfig,
-	EcoComponent,
-	EcoPagesElement,
-} from '@ecopages/core';
+import type { ComponentRenderInput, ComponentRenderResult, EcoPagesAppConfig, EcoPagesElement } from '@ecopages/core';
 import { type EcoPagesUserConfig } from '@ecopages/core/config';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { defineIntegration } from '@ecopages/core/plugins/define-integration';
 import { IntegrationPlugin, type AnyIntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import {
-	IntegrationRenderer,
-	type RenderToResponseContext,
-} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { StringMarkupRenderer } from '@ecopages/core/route-renderer/orchestration/string-markup-renderer';
 
 export const TEST_RUNTIME_ORIGIN = 'http://localhost:3000';
@@ -158,14 +149,6 @@ export function createDeferredIntegrationPlugin(
 
 		override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
 			return await renderComponent(input);
-		}
-
-		async renderToResponse<P = Record<string, unknown>>(
-			_view: EcoComponent<P>,
-			_props: P,
-			_ctx: RenderToResponseContext,
-		) {
-			return new Response('');
 		}
 	}
 

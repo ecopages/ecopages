@@ -3,14 +3,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IntegrationPlugin } from '../../../plugins/integration-plugin.ts';
-import {
-	IntegrationRenderer,
-	type RenderToResponseContext,
-} from '../../../route-renderer/orchestration/integration-renderer.ts';
+import { IntegrationRenderer } from '../../../route-renderer/orchestration/integration-renderer.ts';
 import { FileScriptProcessor } from '../../../services/assets/asset-processing-service/processors/script/file-script.processor.ts';
 import { FileStylesheetProcessor } from '../../../services/assets/asset-processing-service/processors/stylesheet/file-stylesheet.processor.ts';
 import type {
-	EcoComponent,
 	EcoFunctionComponent,
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
@@ -25,10 +21,6 @@ class HandlerViewRenderer extends IntegrationRenderer {
 
 	async render(_options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		return '';
-	}
-
-	async renderToResponse<P>(_view: EcoComponent<P>, _props: P, _ctx: RenderToResponseContext): Promise<Response> {
-		return new Response('ok');
 	}
 
 	override async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {

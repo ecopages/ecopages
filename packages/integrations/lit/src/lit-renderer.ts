@@ -15,10 +15,7 @@ import type {
 	RouteRendererBody,
 	RouteRendererOptions,
 } from '@ecopages/core';
-import {
-	IntegrationRenderer,
-	type RenderToResponseContext,
-} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { resolveDocumentShellLayouts } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';
 import type {
 	QueuedForeignSubtreeChildRenderResult,
@@ -284,28 +281,6 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			});
 		} catch (error) {
 			throw this.createRenderError('Error rendering page', error);
-		}
-	}
-
-	async renderToResponse<P = Record<string, unknown>>(
-		view: EcoComponent<P>,
-		props: P,
-		ctx: RenderToResponseContext,
-	): Promise<Response> {
-		try {
-			const layouts = view.config?.layouts;
-			const Layout = layouts?.[layouts.length - 1];
-			await this.preloadSsrScripts([view, Layout]);
-
-			return await this.renderViewWithDocumentShell({
-				view,
-				props,
-				ctx,
-				layout: Layout,
-				transformDocumentHtml: normalizeLitHtml,
-			});
-		} catch (error) {
-			throw this.createRenderError('Error rendering view', error);
 		}
 	}
 }

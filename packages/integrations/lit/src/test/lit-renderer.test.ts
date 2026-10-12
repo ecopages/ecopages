@@ -961,7 +961,7 @@ describe('LitRenderer', () => {
 				title: string;
 			}>;
 
-			const response = await testRenderer.renderToResponse(View, { title: 'Hello' }, {});
+			const response = await testRenderer.renderExplicitView(View, { title: 'Hello' }, {});
 
 			expect(response.status).toBe(200);
 			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
@@ -974,7 +974,7 @@ describe('LitRenderer', () => {
 			const View = (async (props: { content: string }) =>
 				`<div>${props.content}</div>`) as unknown as EcoComponent<{ content: string }>;
 
-			const response = await testRenderer.renderToResponse(View, { content: 'Partial' }, { partial: true });
+			const response = await testRenderer.renderExplicitView(View, { content: 'Partial' }, { partial: true });
 
 			const body = await response.text();
 			expect(body).toContain('<div>Partial</div>');
@@ -985,7 +985,7 @@ describe('LitRenderer', () => {
 			const testRenderer = createRenderer();
 			const View = (async () => '<p>Not Found</p>') as unknown as EcoComponent<object>;
 
-			const response = await testRenderer.renderToResponse(View, {}, { status: 404 });
+			const response = await testRenderer.renderExplicitView(View, {}, { status: 404 });
 
 			expect(response.status).toBe(404);
 		});
@@ -994,7 +994,7 @@ describe('LitRenderer', () => {
 			const testRenderer = createRenderer();
 			const View = (async () => '<p>Cached</p>') as unknown as EcoComponent<object>;
 
-			const response = await testRenderer.renderToResponse(
+			const response = await testRenderer.renderExplicitView(
 				View,
 				{},
 				{
@@ -1019,7 +1019,7 @@ describe('LitRenderer', () => {
 			}>;
 			View.config = { layouts: [Layout] };
 
-			const response = await testRenderer.renderToResponse(View, { message: 'With Layout' }, {});
+			const response = await testRenderer.renderExplicitView(View, { message: 'With Layout' }, {});
 
 			const body = await response.text();
 			expect(body).toContain('<main class="layout">');
@@ -1030,7 +1030,7 @@ describe('LitRenderer', () => {
 			const testRenderer = createRenderer();
 			const View = (async () => '<p>Explicit</p>') as unknown as EcoComponent<object>;
 
-			const response = await testRenderer.renderToResponse(View, {}, {});
+			const response = await testRenderer.renderExplicitView(View, {}, {});
 			const body = await response.text();
 
 			expect(body).toContain('<p>Explicit</p>');
@@ -1045,7 +1045,7 @@ describe('LitRenderer', () => {
 
 			testRenderer.htmlTemplate = LitHtmlTemplate;
 
-			const response = await testRenderer.renderToResponse(View, {}, {});
+			const response = await testRenderer.renderExplicitView(View, {}, {});
 			const body = await response.text();
 
 			expect(body).toContain('<body class="shell">');
@@ -1062,7 +1062,7 @@ describe('LitRenderer', () => {
 				staticHtml`<section data-testid="lit-view">Lit view</section>`) as unknown as EcoComponent<object>;
 			View.config = { layouts: [Layout] };
 
-			const response = await testRenderer.renderToResponse(View, {}, {});
+			const response = await testRenderer.renderExplicitView(View, {}, {});
 			const body = await response.text();
 
 			expect(body).toContain('<main class="layout">');
@@ -1079,7 +1079,7 @@ describe('LitRenderer', () => {
 
 			testRenderer.htmlTemplate = NonLitHtmlTemplate;
 
-			const response = await testRenderer.renderToResponse(View, {}, {});
+			const response = await testRenderer.renderExplicitView(View, {}, {});
 			const body = await response.text();
 
 			expect(body).toContain('<main class="shell">');
@@ -1103,7 +1103,7 @@ describe('LitRenderer', () => {
 
 			testRenderer.htmlTemplate = NonLitHtmlTemplate;
 
-			const response = await testRenderer.renderToResponse(View, {}, {});
+			const response = await testRenderer.renderExplicitView(View, {}, {});
 			const body = await response.text();
 
 			expect(body).toContain('<p>Fallback</p>');
@@ -1116,8 +1116,8 @@ describe('LitRenderer', () => {
 				throw new Error('View failed to render');
 			}) as unknown as EcoComponent<object>;
 
-			await expect(testRenderer.renderToResponse(View, {}, {})).rejects.toThrow(
-				'Error rendering view: View failed to render',
+			await expect(testRenderer.renderExplicitView(View, {}, {})).rejects.toThrow(
+				'Error rendering page: View failed to render',
 			);
 		});
 	});

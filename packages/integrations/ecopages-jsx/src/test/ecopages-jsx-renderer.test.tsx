@@ -12,10 +12,7 @@ import {
 	type HtmlTemplateProps,
 } from '@ecopages/core';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import {
-	IntegrationRenderer,
-	type RenderToResponseContext,
-} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { createMarkupNodeLike, type JsxCustomElementAttributes, type JsxRenderable } from '@ecopages/jsx';
 import { getActiveSsrScopeValue, renderToString, withActiveSsrScopeValue } from '@ecopages/jsx/server';
@@ -60,6 +57,10 @@ const HtmlTemplate = ({ children }: { children: JsxRenderable }) => {
 			</body>
 		</html>
 	);
+};
+(HtmlTemplate as unknown as EcoComponent).config = {
+	integration: 'ecopages-jsx',
+	identity: { id: 'html', file: '/app/includes/html.tsx', integration: 'ecopages-jsx' },
 };
 const INTRINSIC_TEST_TAG = 'ecopages-jsx-intrinsic-contract';
 const RADIANT_ARRAY_TEST_TAG = 'ecopages-jsx-radiant-array-contract';
@@ -107,14 +108,6 @@ class StringChildContractRenderer extends IntegrationRenderer<EcoPagesElement> {
 			const component = input.component as (props: Record<string, unknown>) => string | Promise<string>;
 			return await component(props);
 		});
-	}
-
-	async renderToResponse<P = Record<string, unknown>>(
-		_view: EcoComponent<P>,
-		_props: P,
-		_ctx: RenderToResponseContext,
-	) {
-		return new Response('');
 	}
 }
 
@@ -1203,7 +1196,7 @@ describe('EcopagesJsxRenderer', () => {
 				render: ({ label }) => <section data-view-root>{label}</section>,
 			});
 
-			const response = await renderer.renderToResponse(View, { label: 'Ready' }, { partial: true });
+			const response = await renderer.renderExplicitView(View, { label: 'Ready' }, { partial: true });
 			const body = await response.text();
 
 			expect(body).toContain('data-view-root');
@@ -1225,14 +1218,24 @@ describe('EcopagesJsxRenderer', () => {
 				integration: 'ecopages-jsx',
 				render: ({ children }) => <div data-layout-root>{children}</div>,
 			});
+			Layout.config = {
+				...Layout.config,
+				integration: 'ecopages-jsx',
+				identity: { id: 'layout', file: '/app/layouts/main.tsx', integration: 'ecopages-jsx' },
+			};
 
 			const View = eco.page<{ label: string }, JsxRenderable>({
 				integration: 'ecopages-jsx',
 				layout: Layout,
 				render: ({ label }) => <section data-view-root>{label}</section>,
 			});
+			View.config = {
+				...View.config,
+				integration: 'ecopages-jsx',
+				identity: { id: 'view', file: '/app/views/ready.tsx', integration: 'ecopages-jsx' },
+			};
 
-			const response = await renderer.renderToResponse(View, { label: 'Ready' }, { partial: false });
+			const response = await renderer.renderExplicitView(View, { label: 'Ready' }, { partial: false });
 			const body = await response.text();
 
 			expect(body).toContain('<!DOCTYPE html>');

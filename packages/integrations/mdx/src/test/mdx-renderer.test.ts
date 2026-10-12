@@ -215,7 +215,7 @@ describe('MDXRenderer', () => {
 				title: string;
 			}>;
 
-			const response = await testRenderer.renderToResponse(View, { title: 'Hello MDX' }, {});
+			const response = await testRenderer.renderExplicitView(View, { title: 'Hello MDX' }, {});
 
 			expect(response.status).toBe(200);
 			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
@@ -228,7 +228,7 @@ describe('MDXRenderer', () => {
 			const View = (async (props: { content: string }) =>
 				`<div>${props.content}</div>`) as unknown as EcoComponent<{ content: string }>;
 
-			const response = await testRenderer.renderToResponse(View, { content: 'Partial MDX' }, { partial: true });
+			const response = await testRenderer.renderExplicitView(View, { content: 'Partial MDX' }, { partial: true });
 
 			const body = await response.text();
 			expect(body).toBe('<div>Partial MDX</div>');
@@ -239,7 +239,7 @@ describe('MDXRenderer', () => {
 			const testRenderer = createRenderer();
 			const View = (async () => '<p>Not Found</p>') as unknown as EcoComponent<object>;
 
-			const response = await testRenderer.renderToResponse(View, {}, { status: 404 });
+			const response = await testRenderer.renderExplicitView(View, {}, { status: 404 });
 
 			expect(response.status).toBe(404);
 		});
@@ -248,7 +248,7 @@ describe('MDXRenderer', () => {
 			const testRenderer = createRenderer();
 			const View = (async () => '<p>Cached</p>') as unknown as EcoComponent<object>;
 
-			const response = await testRenderer.renderToResponse(
+			const response = await testRenderer.renderExplicitView(
 				View,
 				{},
 				{
@@ -273,7 +273,7 @@ describe('MDXRenderer', () => {
 			}>;
 			View.config = { layouts: [Layout] };
 
-			const response = await testRenderer.renderToResponse(View, { message: 'With Layout' }, {});
+			const response = await testRenderer.renderExplicitView(View, { message: 'With Layout' }, {});
 
 			const body = await response.text();
 			expect(body).toContain('<main class="layout">');
@@ -286,8 +286,8 @@ describe('MDXRenderer', () => {
 				throw new Error('View failed to render');
 			}) as unknown as EcoComponent<object>;
 
-			await expect(testRenderer.renderToResponse(View, {}, {})).rejects.toThrow(
-				'Error rendering view: View failed to render',
+			await expect(testRenderer.renderExplicitView(View, {}, {})).rejects.toThrow(
+				'Error rendering page: View failed to render',
 			);
 		});
 	});

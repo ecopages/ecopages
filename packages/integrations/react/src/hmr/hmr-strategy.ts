@@ -19,7 +19,6 @@ import type { BrowserRuntimeManifest } from '@ecopages/core/build/browser-runtim
 import { Logger } from '@ecopages/logger';
 import type { DefaultHmrContext } from '@ecopages/core';
 import { createClientGraphBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
-import { ClientGraphBoundaryCache } from '../client-graph/boundary-cache.ts';
 import { someInConfigTree } from '../client-graph/component-config-traversal.ts';
 import { getReactClientGraphAllowSpecifiers } from '../bundling/runtime-alias-map.ts';
 import type { HmrPageMetadataCache } from './page-metadata-cache.ts';
@@ -48,13 +47,6 @@ export interface ReactHmrStrategyOptions {
 	getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	ownedTemplateExtensions?: string[];
 	allTemplateExtensions?: string[];
-	/**
-	 * Per-app cache for client-graph-boundary transform results. Owned by
-	 * the React plugin for the app's lifetime. When omitted, the strategy
-	 * uses a fresh in-memory cache that does not persist across HMR
-	 * rebuilds.
-	 */
-	clientGraphBoundaryCache?: ClientGraphBoundaryCache;
 }
 
 type ImportedReactPageModule = {
@@ -74,7 +66,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 	private readonly context: DefaultHmrContext;
 	private readonly pageMetadataCache: HmrPageMetadataCache;
 	private readonly runtimeManifest: BrowserRuntimeManifest;
-	private readonly clientGraphBoundaryCache: ClientGraphBoundaryCache;
 
 	private async importNodePageModule(entrypointPath: string): Promise<ImportedReactPageModule> {
 		return await this.context.importServerModule(entrypointPath);
@@ -95,7 +86,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 		this.projectRoot = options.projectRoot ?? path.dirname(this.context.getSrcDir());
 		this.pageMetadataCache = options.pageMetadataCache;
 		this.runtimeManifest = options.runtimeManifest;
-		this.clientGraphBoundaryCache = options.clientGraphBoundaryCache ?? new ClientGraphBoundaryCache();
 		this.getMdxLoaderPlugin = options.getMdxLoaderPlugin;
 		this.ownedTemplateExtensions = new Set(options.ownedTemplateExtensions ?? ['.tsx']);
 		this.allTemplateExtensions = [...(options.allTemplateExtensions ?? ['.tsx'])].sort(
@@ -118,7 +108,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 				absWorkingDir: this.projectRoot,
 				alwaysAllowSpecifiers: allowSpecifiers,
 				declaredModules,
-				cache: this.clientGraphBoundaryCache,
 			}),
 			...(runtimeRewritePlugin ? [runtimeRewritePlugin] : []),
 		];

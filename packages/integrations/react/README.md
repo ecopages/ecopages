@@ -108,7 +108,7 @@ Think about each React page as two related graphs:
 
 The React integration builds the client graph conservatively. If a server-only module becomes reachable from the hydrated render path, the build should fail rather than silently shipping unsafe code.
 
-The boundary cache is owned by the React plugin and shared by normal Page Browser Graph bundles and HMR. Cache entries include the module source, allow-list package names with their permitted exports, and inbound requested exports; each build still starts with a fresh requested-export registry. Modules that inline external file contents are never cached. Set `ECO_AST_PROFILE=1` to emit one structured timing record per client-graph cache lookup and analysis while investigating a docs build or development rebuild.
+The client-graph boundary analyzes project modules during each browser build and HMR rebuild; transform results and requested-export changes are not cached or replayed across builds. Set `ECO_AST_PROFILE=1` to emit one structured timing record per client-graph analysis while investigating a development rebuild.
 
 ### `explicitGraph` option
 

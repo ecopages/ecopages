@@ -156,7 +156,7 @@ For repository-local architecture notes and subsystem maps, start with the files
 Verify your site's functionality:
 `pnpm run test:all`
 
-CI runs the fast gate on pull requests and the e2e gate on pushes to `develop`.
+CI runs `test:ci:fast` and `test:e2e:pr` on pull requests, and `test:e2e` on pushes to `develop` and `main`.
 
 ### Releases
 

@@ -140,8 +140,7 @@ export class PageModuleImportService {
 		const fileHash = this.dependencies.hashFile(filePath);
 
 		if (!options.bypassCache) {
-			const runtime = typeof Bun !== 'undefined' ? 'bun' : 'node-build';
-			const cacheKey = [runtime, filePath, createRouteModuleReuseIdentity(options), fileHash].join('::');
+			const cacheKey = [filePath, createRouteModuleReuseIdentity(options), fileHash].join('::');
 			const cachedModule = this.importCache.get(cacheKey);
 
 			if (cachedModule) {
@@ -389,15 +388,15 @@ function shouldAddRuntimeUpdateQuery(): boolean {
 }
 
 /**
- * Gives Bun a distinct compiled module path after development invalidation.
+ * Gives every runtime a distinct compiled module path after development invalidation.
  *
  * @remarks
- * Bun does not reload an already-imported module when only its URL query changes.
- * A dependency edit can leave the entrypoint source hash unchanged, so the output
- * filename must include the import generation as well as the runtime query.
+ * A dependency edit can leave the entrypoint source hash unchanged. The filename
+ * includes the import generation so the next import is a new file. A URL query
+ * is not enough: Bun keeps the module it already imported for that path.
  */
 function createRuntimeBuildOutputFileName(outputFileName: string, developmentImportGeneration: number): string {
-	if (typeof Bun === 'undefined' || !shouldAddRuntimeUpdateQuery()) {
+	if (!shouldAddRuntimeUpdateQuery()) {
 		return outputFileName;
 	}
 

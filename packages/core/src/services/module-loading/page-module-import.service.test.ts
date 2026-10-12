@@ -198,7 +198,7 @@ describe('PageModuleImportService', () => {
 			});
 
 			assert.equal(fakeDependencies.calls.buildModule.length, 1);
-			assert.equal(fakeDependencies.calls.buildModule[0]?.options.naming, 'page-hash123.[ext]');
+			assert.equal(fakeDependencies.calls.buildModule[0]?.options.naming, 'page-hash123-0.[ext]');
 			assert.equal(fakeDependencies.calls.buildModule[0]?.options.splitting, true);
 			assert.equal(fakeDependencies.calls.buildModule[0]?.options.externalPackages, true);
 		} finally {
@@ -679,10 +679,9 @@ describe('PageModuleImportService', () => {
 		}
 	});
 
-	it('should rebuild Bun page modules after development graph invalidation', async () => {
+	it('should give every runtime a new compiled filename after development graph invalidation', async () => {
 		process.env.NODE_ENV = 'development';
-		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {};
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-bun-invalidate-'));
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-invalidate-filename-'));
 		let buildCount = 0;
 
 		service = new PageModuleImportService(undefined, {

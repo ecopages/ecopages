@@ -4,8 +4,22 @@ import type { JsxImportSource } from './jsx-import-source.ts';
 
 export type { JsxImportSource, KnownJsxImportSource } from './jsx-import-source.ts';
 
+type MdxCompilerOptions = Omit<
+	CompileOptions,
+	'jsxImportSource' | 'jsxRuntime' | 'remarkPlugins' | 'rehypePlugins' | 'recmaPlugins'
+> & {
+	remarkPlugins?: never;
+	rehypePlugins?: never;
+	recmaPlugins?: never;
+};
+
+/** Shared options for integrations that own an MDX compilation pipeline.
+ *
+ * @remarks Keep remark, rehype, and recma plugin lists at this level. They are
+ * excluded from `compilerOptions` so each plugin list has one accepted location.
+ */
 export interface MdxCompilerOptionsInput {
-	compilerOptions?: CompileOptions;
+	compilerOptions?: MdxCompilerOptions;
 	remarkPlugins?: CompileOptions['remarkPlugins'];
 	rehypePlugins?: CompileOptions['rehypePlugins'];
 	recmaPlugins?: CompileOptions['recmaPlugins'];
@@ -93,13 +107,13 @@ export function resolveMdxCompilerOptions(
 		development: process.env.NODE_ENV === 'development',
 	};
 
-	const mergedRemark = mergePluginLists(compilerOptions?.remarkPlugins, remarkPlugins);
-	const mergedRehype = mergePluginLists(compilerOptions?.rehypePlugins, rehypePlugins);
-	const mergedRecma = mergePluginLists(compilerOptions?.recmaPlugins, recmaPlugins);
+	const resolvedRemark = mergePluginLists(remarkPlugins);
+	const resolvedRehype = mergePluginLists(rehypePlugins);
+	const resolvedRecma = mergePluginLists(recmaPlugins);
 
-	if (mergedRemark) resolved.remarkPlugins = mergedRemark;
-	if (mergedRehype) resolved.rehypePlugins = mergedRehype;
-	if (mergedRecma) resolved.recmaPlugins = mergedRecma;
+	if (resolvedRemark) resolved.remarkPlugins = resolvedRemark;
+	if (resolvedRehype) resolved.rehypePlugins = resolvedRehype;
+	if (resolvedRecma) resolved.recmaPlugins = resolvedRecma;
 	if (mdxOptions.extensions) resolved.mdxExtensions = mdxOptions.extensions;
 
 	return resolved;

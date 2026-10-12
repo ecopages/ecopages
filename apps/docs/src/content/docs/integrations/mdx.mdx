@@ -13,8 +13,8 @@ Ecopages supports MDX through three paths. Pick the integration that owns the JS
 
 | Runtime                    | Plugin                                                                                         | When to use                                        |
 | -------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| React                      | [`reactPlugin({ mdx: { enabled: true } })`](/docs/integrations/react)                          | React apps with routing, hydration, and HMR        |
-| Ecopages JSX               | [`ecopagesJsxPlugin({ mdx: { enabled: true } })`](/docs/integrations/ecopages-jsx#mdx-support) | Ecopages-owned `.tsx` routes with optional Radiant |
+| React                      | [`reactPlugin({ mdx: {} })`](/docs/integrations/react)                                         | React apps with routing, hydration, and HMR        |
+| Ecopages JSX               | [`ecopagesJsxPlugin({ mdx: {} })`](/docs/integrations/ecopages-jsx#mdx-support)                | Ecopages-owned `.tsx` routes with optional Radiant |
 | Third-party (KitaJS, etc.) | Standalone [`mdxPlugin()`](#standalone-mdx-plugin)                                             | Server-rendered MDX on a non-owned JSX runtime     |
 
 This page documents the **standalone** `@ecopages/mdx` plugin. Use it when MDX should compile against a third-party JSX runtime you install yourself.
@@ -158,7 +158,7 @@ import { ecoRouter } from '@ecopages/react-router';
 
 reactPlugin({
 	router: ecoRouter(),
-	mdx: { enabled: true },
+	mdx: {},
 });
 ```
 
@@ -198,4 +198,4 @@ export default defineConfig({
 });
 ```
 
-Use `reactPlugin({ mdx: { enabled: true } })` when MDX routes should compile and hydrate as React.
+Use `reactPlugin({ mdx: {} })` when MDX routes should compile and hydrate as React.

@@ -54,7 +54,7 @@ const resolveReactMdxCompilerOptions = (mdxOptions: ReactMdxOptions): CompileOpt
  * Defaults:
  * - `extensions`: `['.tsx']`
  * - `explicitGraph`: `false`
- * - `mdx.enabled`: `false`
+ * - MDX is disabled when `mdx` is omitted
  * - `mdx.extensions`: `['.mdx']`
  */
 const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactPluginConfig => {
@@ -68,16 +68,12 @@ const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactP
 		...baseConfig
 	} = options ?? {};
 	const extensions = [...(userExtensions ?? ['.tsx'])];
-	const mdxEnabled = mdx?.enabled ?? false;
+	const mdxEnabled = mdx !== undefined;
 	const mdxExtensions = mdx?.extensions ?? ['.mdx'];
 	const resolvedRuntimeModules = resolveReactPluginRuntimeModules(runtimeModules);
 
 	if (mdxEnabled) {
 		appendMdxExtensions(extensions, mdxExtensions);
-	} else if (mdx?.extensions?.length) {
-		appLogger.warn(
-			'MDX extensions provided but MDX is disabled. MDX files will not be processed. Set mdx.enabled to true to enable MDX support.',
-		);
 	}
 
 	const rendererConfig: ReactRendererConfig = {

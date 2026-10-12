@@ -35,7 +35,7 @@ For component-level islands, Ecopages React uses this contract:
 
 ## MDX Support
 
-The React plugin includes built-in MDX support. When enabled, you can write `.mdx` pages alongside `.tsx` pages with unified client-side routing, hydration, and HMR.
+The React plugin includes built-in MDX support. Add an `mdx` object to enable it; omit the property to disable MDX. You can write `.mdx` pages alongside `.tsx` pages with unified client-side routing, hydration, and HMR. Put `remarkPlugins`, `rehypePlugins`, and `recmaPlugins` next to `compilerOptions`, not inside it.
 
 ```ts
 import { defineConfig } from '@ecopages/core/config';
@@ -45,10 +45,9 @@ export default defineConfig({
 	integrations: [
 		reactPlugin({
 			mdx: {
-				enabled: true,
-				compilerOptions: {
-					// Optional: remark/rehype plugins
-				},
+				remarkPlugins: [],
+				rehypePlugins: [],
+				recmaPlugins: [],
 			},
 		}),
 	],

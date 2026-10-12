@@ -1,45 +1,11 @@
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import type { CompileOptions } from '@mdx-js/mdx';
+import type { MdxCompilerOptionsInput } from '@ecopages/mdx/core';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import type { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';
 import type { ReactPluginRuntimeModule, ResolvedReactPluginRuntimeModule } from '../bundling/runtime-modules.ts';
 
-/**
- * MDX configuration options for the React plugin.
- */
-export type ReactMdxOptions = {
-	/**
-	 * Whether to enable MDX support.
-	 * @default false
-	 */
-	enabled: boolean;
-	/**
-	 * Compiler options for MDX.
-	 * @default undefined
-	 */
-	compilerOptions?: Omit<CompileOptions, 'jsxImportSource' | 'jsxRuntime'>;
-	/**
-	 * Remark plugins.
-	 * @default undefined
-	 */
-	remarkPlugins?: CompileOptions['remarkPlugins'];
-	/**
-	 * Rehype plugins.
-	 * @default undefined
-	 */
-	rehypePlugins?: CompileOptions['rehypePlugins'];
-	/**
-	 * Recma plugins.
-	 * @default undefined
-	 */
-	recmaPlugins?: CompileOptions['recmaPlugins'];
-	/**
-	 * Custom extensions to be treated as MDX files.
-	 * @default ['.mdx']
-	 */
-	extensions?: string[];
-};
+export type ReactMdxOptions = MdxCompilerOptionsInput;
 
 /**
  * Options for the React plugin.
@@ -102,13 +68,12 @@ export type ReactPluginOptions = {
 	runtimeModules?: ReactPluginRuntimeModule[];
 	/**
 	 * MDX configuration for handling .mdx files within the React plugin.
-	 * When enabled, MDX files are treated as React pages with full router support.
+	 * When configured, MDX files are treated as React pages with full router support.
 	 * @example
 	 * ```ts
 	 * reactPlugin({
 	 *   router: ecoRouter(),
 	 *   mdx: {
-	 *     enabled: true,
 	 *     extensions: ['.mdx', '.md'],
 	 *     remarkPlugins: [remarkGfm],
 	 *     rehypePlugins: [[rehypePrettyCode, { theme: '...' }]],

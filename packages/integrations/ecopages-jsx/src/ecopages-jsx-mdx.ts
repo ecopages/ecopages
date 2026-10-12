@@ -10,10 +10,9 @@ import {
 } from '@ecopages/mdx/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
-import type { EcopagesJsxMdxCompileOptions, EcopagesJsxMdxOptions } from './ecopages-jsx.types.ts';
+import type { EcopagesJsxMdxOptions } from './ecopages-jsx.types.ts';
 
-export type ResolvedMdxCompileOptions = EcopagesJsxMdxCompileOptions &
-	Pick<CompileOptions, 'jsxImportSource' | 'jsxRuntime'>;
+export type ResolvedMdxCompileOptions = CompileOptions & { jsxImportSource: '@ecopages/jsx' };
 
 export type AsyncEcoComponent<P = Record<string, unknown>, R = JsxRenderable> = EcoFunctionComponent<P, R | Promise<R>>;
 

@@ -29,7 +29,6 @@ describe('ReactPlugin', () => {
 		const plugin = new ReactPlugin({
 			extensions: ['.react.tsx'],
 			mdx: {
-				enabled: true,
 				extensions: ['.docs.mdx'],
 			},
 		});
@@ -42,7 +41,6 @@ describe('ReactPlugin', () => {
 		const plugin = new ReactPlugin({
 			extensions: ['.react.tsx'],
 			mdx: {
-				enabled: true,
 				extensions: ['.react.mdx'],
 			},
 		});
@@ -57,7 +55,6 @@ describe('ReactPlugin', () => {
 		const plugin = new ReactPlugin({
 			extensions: ['.react.tsx'],
 			mdx: {
-				enabled: true,
 				extensions: ['.react.mdx'],
 				compilerOptions: {
 					mdxExtensions: ['.mdx'],

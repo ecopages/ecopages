@@ -92,7 +92,7 @@ Keep `import type` when you only need props from the script module. Do not add `
 
 ## MDX Support
 
-Enable MDX to treat `.mdx` files as JSX routes compiled against the `@ecopages/jsx` runtime.
+Add an `mdx` object to treat `.mdx` files as JSX routes compiled against the `@ecopages/jsx` runtime. Omit the property to disable MDX. Put `remarkPlugins`, `rehypePlugins`, and `recmaPlugins` next to `compilerOptions`, not inside it.
 
 ```ts
 import { defineConfig } from '@ecopages/core/config';
@@ -102,7 +102,6 @@ export default defineConfig({
 	integrations: [
 		ecopagesJsxPlugin({
 			mdx: {
-				enabled: true,
 				extensions: ['.mdx', '.md'],
 			},
 		}),

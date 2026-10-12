@@ -142,7 +142,7 @@ import { ClientOnly } from '@ecopages/react/utils/client-only';
 
 - **React 19**: Server rendering and hydration for standard React 19 components and hooks.
 - **Fast Refresh**: Built-in Hot Module Replacement (HMR) for instant feedback.
-- **MDX**: Built-in React MDX support through `reactPlugin({ mdx: { enabled: true } })`.
+- **MDX**: Built-in React MDX support through `reactPlugin({ mdx: {} })`.
 - **Mixed Rendering**: React can own routes directly or resolve nested React boundaries inside non-React shells. Use [`EcoEmbed`](/docs/reference/eco-namespace#ecoembed) from `@ecopages/react/eco-embed` when a React page composes foreign-integration shells or passes children across integration boundaries.
 
 ## Mixed rendering and EcoEmbed
@@ -171,7 +171,7 @@ Plain opaque objects fail fast at core foreign-subtree queue boundaries; they ar
 
 ## MDX Support
 
-The React plugin includes optional MDX support. When enabled, you can author `.mdx` pages alongside `.tsx` pages with unified client-side routing, hydration, and HMR.
+The React plugin includes optional MDX support. When configured, you can author `.mdx` pages alongside `.tsx` pages with unified client-side routing, hydration, and HMR.
 
 ```typescript
 import { defineConfig } from '@ecopages/core/config';
@@ -185,10 +185,8 @@ export default defineConfig({
 		reactPlugin({
 			router: ecoRouter(),
 			mdx: {
-				enabled: true,
-				compilerOptions: {
-					// Optional: remark/rehype plugins
-				},
+				remarkPlugins: [],
+				rehypePlugins: [],
 			},
 		}),
 	],

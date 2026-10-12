@@ -54,7 +54,6 @@ export default defineConfig({
 	integrations: [
 		ecopagesJsxPlugin({
 			mdx: {
-				enabled: true,
 				...withContentMdxPlugins({
 					remarkPlugins: [remarkGfm],
 				}),
@@ -78,7 +77,7 @@ export default defineConfig({
 });
 ```
 
-React apps use the same helper on `reactPlugin({ mdx: { enabled: true, ...withContentMdxPlugins() } })`.
+React apps use the same helper on `reactPlugin({ mdx: { ...withContentMdxPlugins() } })`.
 
 Collection keys must be kebab-case. Each key becomes `ecopages:content/<key>`.
 

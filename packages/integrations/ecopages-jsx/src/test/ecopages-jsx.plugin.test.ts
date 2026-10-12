@@ -181,7 +181,7 @@ test('EcopagesJsxPlugin throws when preparing MDX without appConfig.rootDir', as
 	await assert.rejects(() => plugin.prepareBuildContributions(), /appConfig\.rootDir is required/);
 });
 
-test('EcopagesJsxPlugin setup exposes the MDX loader without calling Bun.plugin', async () => {
+test('EcopagesJsxPlugin setup exposes the MDX loader as a build plugin only', async () => {
 	const mockBunPlugin = vi.fn();
 	vi.stubGlobal('Bun', { plugin: mockBunPlugin });
 

@@ -7,7 +7,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
 import { ProjectWatcher } from './project-watcher';
 import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
-import type { ClientBridge } from '../adapters/bun/client-bridge.ts';
+import type { IClientBridge } from '../types/internal-types.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../dev/transform-server/dev-transform-url.ts';
 import { getAppServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
@@ -46,7 +46,7 @@ describe('ProjectWatcher', () => {
 	let watcher: ProjectWatcher;
 	let Config: EcoPagesAppConfig;
 	let HmrManager: IHmrManager;
-	let Bridge: ClientBridge;
+	let Bridge: IClientBridge;
 	let RefreshCallback: any;
 
 	beforeEach(async () => {
@@ -132,7 +132,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 	let watcher: ProjectWatcher;
 	let Config: EcoPagesAppConfig;
 	let HmrManager: IHmrManager;
-	let Bridge: ClientBridge;
+	let Bridge: IClientBridge;
 	let RefreshCallback: any;
 
 	beforeEach(async () => {
@@ -741,7 +741,7 @@ describe('ProjectWatcher - Priority Rules', () => {
 	let watcher: ProjectWatcher;
 	let Config: EcoPagesAppConfig;
 	let HmrManager: IHmrManager;
-	let Bridge: ClientBridge;
+	let Bridge: IClientBridge;
 
 	beforeEach(async () => {
 		Config = await createMockConfig();

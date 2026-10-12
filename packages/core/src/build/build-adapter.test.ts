@@ -340,7 +340,6 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 			contributionOrder.push('integration-setup');
 		}),
 	};
-	const observedRuntimePlugins: string[] = [];
 
 	await setupAppRuntimePlugins({
 		appConfig: {
@@ -349,11 +348,9 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 			integrations: [integration],
 		} as any,
 		runtimeOrigin: 'http://localhost:3000',
-		onRuntimePlugin: (plugin) => observedRuntimePlugins.push(plugin.name),
 	});
 
 	assert.deepEqual(contributionOrder, ['processor-setup']);
-	assert.deepEqual(observedRuntimePlugins, ['loader-plugin', 'processor-runtime-plugin']);
 });
 
 test('setupAppRuntimePlugins skips processor and integration setup when runtime assets are already prepared', async () => {
@@ -368,7 +365,6 @@ test('setupAppRuntimePlugins skips processor and integration setup when runtime 
 		setHmrManager: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
-	const observedRuntimePlugins: string[] = [];
 
 	await setupAppRuntimePlugins({
 		appConfig: {
@@ -378,13 +374,11 @@ test('setupAppRuntimePlugins skips processor and integration setup when runtime 
 			runtime: { runtimeAssetsPrepared: true },
 		} as any,
 		runtimeOrigin: 'http://localhost:3000',
-		onRuntimePlugin: (plugin) => observedRuntimePlugins.push(plugin.name),
 	});
 
 	assert.equal(processor.setup.mock.calls.length, 0);
 	assert.equal(integration.setup.mock.calls.length, 0);
 	assert.equal(integration.setConfig.mock.calls.length, 0);
-	assert.deepEqual(observedRuntimePlugins, ['processor-runtime-plugin', 'integration-runtime-plugin']);
 });
 
 test('ensureIntegrationRuntimeReady activates one integration exactly once', async () => {
@@ -503,7 +497,6 @@ test('setupAppRuntimePlugins skips processor setup in Lit static-render worker t
 		setHmrManager: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
-	const observedRuntimePlugins: string[] = [];
 
 	try {
 		await setupAppRuntimePlugins({
@@ -513,13 +506,11 @@ test('setupAppRuntimePlugins skips processor setup in Lit static-render worker t
 				integrations: [integration],
 			} as any,
 			runtimeOrigin: 'http://localhost:3000',
-			onRuntimePlugin: (plugin) => observedRuntimePlugins.push(plugin.name),
 		});
 
 		assert.equal(processor.setup.mock.calls.length, 0);
 		assert.equal(integration.setup.mock.calls.length, 0);
 		assert.equal(integration.setConfig.mock.calls.length, 0);
-		assert.deepEqual(observedRuntimePlugins, ['processor-runtime-plugin']);
 	} finally {
 		if (previousWorkerFlag === undefined) {
 			delete process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER;

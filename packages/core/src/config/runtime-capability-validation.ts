@@ -1,12 +1,11 @@
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from '../plugins/runtime-capability.ts';
-
-type RuntimeKind = 'node' | 'bun';
+import { getProcessRuntime, type ProcessRuntime } from '../utils/runtime.ts';
 
 type ContributorKind = 'integration' | 'processor';
 
 type RuntimeEnvironment = {
-	runtime: RuntimeKind;
+	runtime: ProcessRuntime['name'];
 	version: string;
 	supportedTags: Set<RuntimeCapabilityTag>;
 };
@@ -24,26 +23,14 @@ const UNSUPPORTED_TAG_REASONS: Record<RuntimeCapabilityTag, string> = {
 	'node-compatible': 'it requires a Node-compatible runtime',
 };
 
-function detectRuntimeEnvironment(): RuntimeEnvironment {
-	const bunVersion = (globalThis as typeof globalThis & { Bun?: { version?: string } }).Bun?.version;
-	if (typeof bunVersion === 'string') {
-		return {
-			runtime: 'bun',
-			version: bunVersion,
-			supportedTags: new Set<RuntimeCapabilityTag>([
-				'bun-only',
-				'node-compatible',
-				'requires-native-bun-api',
-				'requires-node-builtins',
-			]),
-		};
-	}
+const SUPPORTED_TAGS: Record<ProcessRuntime['name'], RuntimeCapabilityTag[]> = {
+	bun: ['bun-only', 'node-compatible', 'requires-native-bun-api', 'requires-node-builtins'],
+	node: ['node-compatible', 'requires-node-builtins'],
+};
 
-	return {
-		runtime: 'node',
-		version: process.versions.node,
-		supportedTags: new Set<RuntimeCapabilityTag>(['node-compatible', 'requires-node-builtins']),
-	};
+function detectRuntimeEnvironment(): RuntimeEnvironment {
+	const { name, version } = getProcessRuntime();
+	return { runtime: name, version, supportedTags: new Set(SUPPORTED_TAGS[name]) };
 }
 
 function parseVersion(version: string): number[] | undefined {

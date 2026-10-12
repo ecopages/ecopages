@@ -10,6 +10,8 @@ const workerRenderPage = vi.fn(async () => ({
 }));
 const workerDispose = vi.fn(async () => {});
 
+const processDependencies = vi.fn(async () => []);
+
 const createWorkerClient = () => ({
 	start: workerStart,
 	renderPage: workerRenderPage,
@@ -29,7 +31,7 @@ describe('LitStaticRenderSession', () => {
 
 		const session = new LitStaticRenderSession({
 			resolveDependencyPath: (_componentDir, sourcePath) => sourcePath,
-			preferSourceImports: true,
+			processDependencies,
 			createWorkerClient,
 		});
 
@@ -99,6 +101,7 @@ describe('LitStaticRenderSession', () => {
 		const createClient = vi.fn(() => createWorkerClient());
 		const session = new LitStaticRenderSession({
 			resolveDependencyPath: (_componentDir, sourcePath) => sourcePath,
+			processDependencies,
 			createWorkerClient: createClient,
 		});
 
@@ -135,6 +138,7 @@ describe('LitStaticRenderSession', () => {
 
 		const session = new LitStaticRenderSession({
 			resolveDependencyPath: (_componentDir, sourcePath) => sourcePath,
+			processDependencies,
 			createWorkerClient,
 		});
 
@@ -167,6 +171,7 @@ describe('LitStaticRenderSession', () => {
 
 		const session = new LitStaticRenderSession({
 			resolveDependencyPath: (_componentDir, sourcePath) => sourcePath,
+			processDependencies,
 		});
 		const preloadSpy = vi.spyOn(session, 'preloadSsrScripts').mockResolvedValue(undefined);
 
@@ -211,6 +216,7 @@ describe('LitStaticRenderSession', () => {
 		const createClient = vi.fn(() => ({ start: async () => {}, dispose, renderPage }));
 		const session = new LitStaticRenderSession({
 			resolveDependencyPath: (_dir, src) => src,
+			processDependencies,
 			createWorkerClient: createClient,
 			getInvalidationVersion: () => version,
 		});

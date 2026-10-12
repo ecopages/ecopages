@@ -1,4 +1,3 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -11,6 +10,8 @@ import {
 	isExpectedCustomElementSsrPreloadError,
 } from './custom-element-script-preloader.ts';
 import { resetCustomElementScriptPreloadScope } from './custom-element-script-preload-invalidation.ts';
+import { createCustomElementSsrPipelineImporter } from './custom-element-ssr-preload-entrypoint.ts';
+import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
 
 const CACHE_SCOPE = 'test-custom-element-preload';
 
@@ -50,17 +51,13 @@ function createPreloader(options?: {
 	enabled?: boolean;
 	resolveDependencyPath?: (componentDir: string, sourcePath: string) => string;
 	importServerModule?: (scriptPath: string, registryKey: string) => Promise<unknown>;
-	preferSourceImports?: boolean;
-	resolvePreloadEntrypoint?: (scriptPath: string) => Promise<string>;
 }) {
 	return new CustomElementScriptPreloader({
 		cacheScope: CACHE_SCOPE,
 		enabled: options?.enabled ?? true,
 		resolveDependencyPath:
 			options?.resolveDependencyPath ?? ((componentDir, sourcePath) => path.join(componentDir, sourcePath)),
-		importServerModule: options?.importServerModule,
-		preferSourceImports: options?.preferSourceImports ?? true,
-		resolvePreloadEntrypoint: options?.resolvePreloadEntrypoint,
+		importServerModule: options?.importServerModule ?? (async () => undefined),
 		logLabel: 'test',
 	});
 }
@@ -257,40 +254,6 @@ describe('CustomElementScriptPreloader', () => {
 		expect(importServerModule).toHaveBeenCalledTimes(1);
 	});
 
-	it('skips importServerModule when a preload entrypoint resolver is configured', async () => {
-		const importServerModule = vi.fn(async () => undefined);
-		const resolvePreloadEntrypoint = vi.fn(async (scriptPath: string) => scriptPath);
-		const directory = mkdtempSync(path.join(tmpdir(), 'core-resolver-'));
-		const script = path.join(directory, 'register.mjs');
-		writeFileSync(script, "customElements.define('resolver-counter', class extends HTMLElement {});");
-		const restoreRegistry = installTestCustomElementsRegistry();
-		const preloader = createPreloader({
-			importServerModule,
-			resolvePreloadEntrypoint,
-			preferSourceImports: true,
-			resolveDependencyPath: (_dir, src) => src,
-		});
-		const host = eco.component(
-			bindComponentIdentity(
-				{ id: 'host', file: path.join(directory, 'host.tsx'), integration: 'lit' },
-				{
-					render: () => '',
-					dependencies: { scripts: [{ src: script, ssr: true, lazy: { 'on:visible': true } }] },
-				},
-			),
-		);
-
-		try {
-			await preloader.preloadSsrScripts([host]);
-			expect(resolvePreloadEntrypoint).toHaveBeenCalledWith(script);
-			expect(importServerModule).not.toHaveBeenCalled();
-			expect(customElements.get('resolver-counter')).toBeDefined();
-		} finally {
-			restoreRegistry();
-			rmSync(directory, { recursive: true, force: true });
-		}
-	});
-
 	it('deduplicates concurrent preloads for the same script', async () => {
 		let resolveImport: (() => void) | undefined;
 		const importServerModule = vi.fn(
@@ -336,81 +299,31 @@ describe('CustomElementScriptPreloader', () => {
 		expect(importServerModule).toHaveBeenCalledTimes(2);
 	});
 
-	it('imports a real script file from disk when source imports are preferred', async () => {
+	it('imports a cached script again for a replacement registry', async () => {
 		const restoreRegistry = installTestCustomElementsRegistry();
-		const tempDir = await mkdtemp(path.join(tmpdir(), 'core-ssr-preload-'));
-		const scriptPath = path.join(tempDir, 'register.mjs');
-		await writeFile(
-			scriptPath,
-			"customElements.define('core-ssr-preload-registry', class extends HTMLElement {});\n",
-		);
-
-		try {
-			const preloader = createPreloader({
-				resolveDependencyPath: (_dir, src) => src,
-				importServerModule: undefined,
-			});
-			const host = eco.component(
-				bindComponentIdentity(
-					{ id: 'host', file: path.join(tempDir, 'host.tsx'), integration: 'ecopages-jsx' },
-					{
-						render: () => '',
-						dependencies: { scripts: [{ src: scriptPath, ssr: true }] },
-					},
-				),
-			);
-
-			await preloader.preloadSsrScripts([host]);
-			expect(customElements.get('core-ssr-preload-registry')).toBeDefined();
-		} finally {
-			restoreRegistry();
-			await rm(tempDir, { recursive: true, force: true });
-		}
-	});
-
-	it('registers a cached script again when another integration replaces the registry', async () => {
-		const restoreRegistry = installTestCustomElementsRegistry();
-		const createRegistry = () => {
-			const definitions = new Map<string, CustomElementConstructor>();
-			return {
-				define(name: string, ctor: CustomElementConstructor) {
-					definitions.set(name, ctor);
-				},
-				get(name: string) {
-					return definitions.get(name);
-				},
-				delete(name: string) {
-					return definitions.delete(name);
-				},
-				definitions,
-			};
-		};
-		const directory = mkdtempSync(path.join(tmpdir(), 'core-registry-'));
-		const script = path.join(directory, 'register.mjs');
-		writeFileSync(script, "customElements.define('registry-counter', class extends HTMLElement {});");
-		const preloader = createPreloader({
-			resolveDependencyPath: (_dir, src) => src,
-			preferSourceImports: true,
-		});
+		const importServerModule = vi.fn(async (_scriptPath: string, _registryKey: string) => undefined);
+		const preloader = createPreloader({ importServerModule });
 		const child = eco.component(
 			bindComponentIdentity(
-				{ id: 'registry', file: path.join(directory, 'component.ts'), integration: 'lit' },
+				{ id: 'registry', file: '/app/component.ts', integration: 'lit' },
 				{
 					render: () => '',
-					dependencies: { scripts: [{ src: script, ssr: true, lazy: { 'on:visible': true } }] },
+					dependencies: { scripts: [{ src: './counter.ts', ssr: true, lazy: { 'on:visible': true } }] },
 				},
 			),
 		);
 		try {
-			Object.assign(globalThis, { customElements: createRegistry() });
+			Object.assign(globalThis, { customElements: {} });
 			await preloader.preloadSsrScripts([child]);
-			expect(customElements.get('registry-counter')).toBeDefined();
-			Object.assign(globalThis, { customElements: createRegistry() });
 			await preloader.preloadSsrScripts([child]);
-			expect(customElements.get('registry-counter')).toBeDefined();
+			Object.assign(globalThis, { customElements: {} });
+			await preloader.preloadSsrScripts([child]);
+			expect(importServerModule).toHaveBeenCalledTimes(2);
+			const [first, second] = importServerModule.mock.calls;
+			expect(second[0]).toBe(first[0]);
+			expect(second[1]).not.toBe(first[1]);
 		} finally {
 			restoreRegistry();
-			rmSync(directory, { recursive: true, force: true });
 		}
 	});
 
@@ -453,8 +366,9 @@ describe('CustomElementScriptPreloader', () => {
 		);
 		const preloader = createPreloader({
 			resolveDependencyPath: (_dir, src) => src,
-			preferSourceImports: false,
-			resolvePreloadEntrypoint: async () => pipelineEntrypoint,
+			importServerModule: createCustomElementSsrPipelineImporter({
+				processDependencies: async () => [{ filepath: pipelineEntrypoint } as ProcessedAsset],
+			}),
 		});
 		const child = eco.component(
 			bindComponentIdentity(
@@ -487,6 +401,48 @@ describe('CustomElementScriptPreloader', () => {
 		}
 	});
 
+	it.each([
+		['no output', []],
+		['the source path', 'source'],
+	] as const)(
+		'reports an SSR script whose pipeline gives %s instead of importing its source',
+		async (_case, output) => {
+			const restoreRegistry = installTestCustomElementsRegistry();
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const directory = mkdtempSync(path.join(tmpdir(), 'core-pipeline-source-'));
+			const source = path.join(directory, 'register.mjs');
+			writeFileSync(source, "customElements.define('pipeline-source-counter', class extends HTMLElement {});");
+			const preloader = createPreloader({
+				resolveDependencyPath: (_dir, src) => src,
+				importServerModule: createCustomElementSsrPipelineImporter({
+					processDependencies: async () =>
+						output === 'source' ? [{ filepath: source } as ProcessedAsset] : [...output],
+				}),
+			});
+			const child = eco.component(
+				bindComponentIdentity(
+					{ id: 'pipeline-source', file: path.join(directory, 'component.ts'), integration: 'lit' },
+					{
+						render: () => '',
+						dependencies: { scripts: [{ src: source, ssr: true, lazy: { 'on:visible': true } }] },
+					},
+				),
+			);
+			try {
+				await preloader.preloadSsrScripts([child]);
+				expect(customElements.get('pipeline-source-counter')).toBeUndefined();
+				expect(warnSpy).toHaveBeenCalledWith(
+					`[ecopages][test] Failed to preload SSR script: ${source}`,
+					expect.objectContaining({ message: expect.stringContaining('no server module') }),
+				);
+			} finally {
+				warnSpy.mockRestore();
+				restoreRegistry();
+				rmSync(directory, { recursive: true, force: true });
+			}
+		},
+	);
+
 	it('does not treat ERR_UNKNOWN_FILE_EXTENSION as an expected browser-only failure', () => {
 		expect(
 			isExpectedCustomElementSsrPreloadError({
@@ -494,32 +450,6 @@ describe('CustomElementScriptPreloader', () => {
 				message: 'Unknown file extension',
 			}),
 		).toBe(false);
-	});
-
-	it('requires the app module loader when source imports are disabled', async () => {
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		const preloader = createPreloader({
-			preferSourceImports: false,
-			importServerModule: undefined,
-		});
-		const host = eco.component(
-			bindComponentIdentity(
-				{ id: 'host', file: '/app/host.tsx', integration: 'lit' },
-				{
-					render: () => '',
-					dependencies: { scripts: [{ src: './marker.script.ts', ssr: true }] },
-				},
-			),
-		);
-
-		await preloader.preloadSsrScripts([host]);
-		expect(warnSpy).toHaveBeenCalledWith(
-			'[ecopages][test] Failed to preload SSR script: /app/marker.script.ts',
-			expect.objectContaining({
-				message: expect.stringContaining('appModuleLoader'),
-			}),
-		);
-		warnSpy.mockRestore();
 	});
 
 	it('handles concurrent preload of browser-only scripts without throwing for second caller', async () => {

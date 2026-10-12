@@ -400,8 +400,7 @@ export class DevelopmentInvalidationService {
  *
  * @remarks
  * Recorded HTML inputs do not cover every way a page reads a source file: content collections are
- * virtual modules, Bun source imports bypass the build, and inferred foreign children and barrel
- * targets reach a page without entering its recorded closure. Evicting only entries that recorded the
+ * virtual modules, and inferred foreign children and barrel targets reach a page without entering its recorded closure. Evicting only entries that recorded the
  * path served stale pages in those cases, so source edits and processor-owned asset edits clear the
  * cache. A newly created processor-owned asset has no dependents yet, and a route file evicts only
  * its own entries.

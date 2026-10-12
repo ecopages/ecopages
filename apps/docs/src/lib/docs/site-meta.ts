@@ -14,21 +14,10 @@ export const DEFAULT_SITE_ORIGIN = 'https://ecopages.app';
 export const DOCS_SITEMAP_EXTRA_URLS = ['/llms.txt', '/skill.txt'] as const;
 
 /**
- * Reads the site origin from the environment.
- *
- * @remarks
- * Vite surfaces `ECOPAGES_BASE_URL` on `import.meta.env` in app code, while tsx-run
- * scripts only see `process.env`. Both are checked so one helper serves both contexts.
- */
-function envSiteOrigin(): string | undefined {
-	return import.meta.env?.ECOPAGES_BASE_URL ?? process.env.ECOPAGES_BASE_URL;
-}
-
-/**
  * Canonical origin for the `eco.config.ts` `baseUrl`, LLM index links, and SEO helpers.
  */
 export function configuredSiteOrigin(): string {
-	return envSiteOrigin() ?? DEFAULT_SITE_ORIGIN;
+	return process.env.ECOPAGES_BASE_URL ?? DEFAULT_SITE_ORIGIN;
 }
 
 /**

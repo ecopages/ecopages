@@ -1,4 +1,3 @@
-import { createCustomElementServerModuleImporter } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	invalidateCustomElementScriptPreload,
@@ -74,12 +73,6 @@ export class LitPlugin extends IntegrationPlugin {
 		];
 	}
 
-	/**
-	 * @remarks
-	 * Leaves `preferSourceImports` unset so Node and Bun both preload through the
-	 * asset pipeline. The preloader then gives each custom-element registry its
-	 * own copy of that module.
-	 */
 	private createRenderSession(): LitStaticRenderSession {
 		if (!this.appConfig || !this.assetProcessingService) {
 			throw new Error('Lit plugin must be initialized before starting the render worker');
@@ -90,7 +83,6 @@ export class LitPlugin extends IntegrationPlugin {
 			processDependencies: this.assetProcessingService.processDependencies.bind(this.assetProcessingService),
 			getInvalidationVersion: () =>
 				this.appConfig?.runtime?.serverInvalidationState?.getServerInvalidationVersion() ?? 0,
-			importServerModule: createCustomElementServerModuleImporter(this.appConfig, '.lit-ssr'),
 		});
 	}
 

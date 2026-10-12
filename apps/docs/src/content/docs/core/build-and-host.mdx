@@ -6,7 +6,7 @@ order: 3
 
 # Build and Host
 
-Ecopages owns build execution. Core uses [Rolldown](https://rolldown.rs) through the build adapter for CLI, Bun, and Node, including production server bundles. Ecopages plugins are bridged to Rolldown through a single consolidated plugin to minimize FFI overhead.
+Ecopages owns build execution. Core uses [Rolldown](https://rolldown.rs) through the build adapter, including production server bundles, whether the process is Node or Bun. Ecopages plugins are bridged to Rolldown through a single consolidated plugin to minimize FFI overhead.
 
 ## What gets built
 
@@ -19,7 +19,7 @@ Development uses one-shot Rolldown builds with shared HMR and invalidation servi
 
 ## Runtime entrypoint
 
-Apps start through `createApp()` from `@ecopages/core/create-app`. It selects Bun when available and falls back to Node. `app.start()` binds the port and serves traffic. Pass an optional callback to run once the server can accept requests.
+Apps start through `createApp()` from `@ecopages/core/create-app`. It uses the Node HTTP host on every runtime. The start log names Bun when the process is Bun. `app.start()` binds the port and serves traffic. Pass an optional callback to run once the server can accept requests.
 
 See [Starting the server](/docs/server/server-api#starting-the-server) for a full `app.ts` example and the callback signature.
 

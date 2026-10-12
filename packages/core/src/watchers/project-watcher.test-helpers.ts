@@ -7,7 +7,7 @@ import {
 	setAppEntrypointDependencyGraph,
 } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import { getAppBuildInputIndex } from '../build/cache/build-input-dependency-index.ts';
-import type { ClientBridge } from '../adapters/bun/client-bridge.ts';
+import type { IClientBridge } from '../types/internal-types.ts';
 
 export const createMockHmrManager = (): IHmrManager =>
 	({
@@ -68,7 +68,7 @@ export function registerMockEntrypoint(
 	);
 }
 
-export const createMockBridge = (): ClientBridge =>
+export const createMockBridge = (): IClientBridge =>
 	({
 		reload: vi.fn(() => {}),
 		error: vi.fn(() => {}),
@@ -78,7 +78,7 @@ export const createMockBridge = (): ClientBridge =>
 		unsubscribe: vi.fn(() => {}),
 		broadcast: vi.fn(() => {}),
 		subscriberCount: 0,
-	}) as unknown as ClientBridge;
+	}) as unknown as IClientBridge;
 
 /**
  * Installs the in-memory entrypoint dependency graph that the HMR managers

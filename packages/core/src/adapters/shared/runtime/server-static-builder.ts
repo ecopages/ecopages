@@ -24,7 +24,6 @@ import {
 import { bundleEcoConfigModule, EMITTED_ECO_CONFIG_FILENAME } from '../../../config/server-config-bundle.ts';
 import { resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../../utils/resolve-entry-file.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
-import type { EcoBuildPlugin } from '../../../build/contracts/build-types.ts';
 import type { ErrorPageLoaders, StaticRoute } from '../../../types/public-types.ts';
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator.ts';
@@ -55,7 +54,6 @@ export interface ServerStaticBuilderParams {
 	logger?: ServerStaticBuilderLogger;
 	entryFile?: string;
 	hmrManager?: IHmrManager;
-	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
 }
 
 /**
@@ -80,7 +78,6 @@ export class ServerStaticBuilder {
 	private readonly logger: ServerStaticBuilderLogger;
 	private readonly entryFile: string;
 	private readonly hmrManager?: IHmrManager;
-	private readonly onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
 
 	constructor({
 		appConfig,
@@ -91,7 +88,6 @@ export class ServerStaticBuilder {
 		logger,
 		entryFile,
 		hmrManager,
-		onRuntimePlugin,
 	}: ServerStaticBuilderParams) {
 		this.appConfig = appConfig;
 		this.staticSiteGenerator = staticSiteGenerator;
@@ -101,7 +97,6 @@ export class ServerStaticBuilder {
 		this.logger = logger ?? appLogger;
 		this.entryFile = resolveEntryFile({ entryFile });
 		this.hmrManager = hmrManager;
-		this.onRuntimePlugin = onRuntimePlugin;
 	}
 
 	/** Keeps build-time URLs aligned with the server's actual listening port. */
@@ -149,7 +144,6 @@ export class ServerStaticBuilder {
 			await setupAppRuntimePlugins({
 				appConfig: this.appConfig,
 				runtimeOrigin: this.runtimeOrigin,
-				onRuntimePlugin: this.onRuntimePlugin,
 			});
 
 			if (this.hmrManager?.isEnabled()) {

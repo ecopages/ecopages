@@ -42,7 +42,7 @@ export interface FileWatcher {
 }
 
 /**
- * File system interface. The implementation is Node's on every runtime, including Bun.
+ * File system interface. `NodeFileSystem` implements it on every runtime.
  */
 export interface FileSystem {
 	/**

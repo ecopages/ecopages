@@ -5,11 +5,10 @@ import { ensureLitDomShim } from './dom-shim.ts';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	CustomElementScriptPreloader,
-	type CustomElementScriptPreloaderOptions,
 	type CustomElementSsrPreloadComponent,
 } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
-import { createLitSsrPreloadEntrypointResolver } from './lit-ssr-preload-entrypoint.ts';
+import { createCustomElementSsrPipelineImporter } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-ssr-preload-entrypoint';
 import { LitStaticRenderWorkerClient } from './lit-static-render-worker-client.ts';
 import type { LitStaticRenderCacheStrategy } from './lit-static-render-protocol.ts';
 import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
@@ -23,9 +22,7 @@ type LitStaticRenderWorkerIdentity = {
 
 type LitStaticRenderSessionOptions = {
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
-	preferSourceImports?: boolean;
-	processDependencies?: (dependencies: AssetDefinition[], integrationName: string) => Promise<ProcessedAsset[]>;
-	importServerModule?: CustomElementScriptPreloaderOptions['importServerModule'];
+	processDependencies: (dependencies: AssetDefinition[], integrationName: string) => Promise<ProcessedAsset[]>;
 	getInvalidationVersion?: () => number;
 	createWorkerClient?: (input: {
 		configModulePath: string;
@@ -56,18 +53,14 @@ export class LitStaticRenderSession {
 
 	constructor(options: LitStaticRenderSessionOptions) {
 		this.getInvalidationVersion = options.getInvalidationVersion ?? (() => 0);
-		const preferSourceImports = options.preferSourceImports ?? false;
 		this.preloader = new CustomElementScriptPreloader({
 			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
 			logLabel: 'lit',
 			requireLazyScriptEntry: true,
 			resolveDependencyPath: options.resolveDependencyPath,
-			preferSourceImports,
-			resolvePreloadEntrypoint: createLitSsrPreloadEntrypointResolver({
-				preferSourceImports,
+			importServerModule: createCustomElementSsrPipelineImporter({
 				processDependencies: options.processDependencies,
 			}),
-			importServerModule: options.importServerModule,
 		});
 		this.createWorkerClient =
 			options.createWorkerClient ??

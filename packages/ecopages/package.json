@@ -50,7 +50,6 @@
 		"tsx": "^4.22.3"
 	},
 	"peerDependencies": {
-		"bun-types": "*",
 		"typescript": "^5"
 	}
 }

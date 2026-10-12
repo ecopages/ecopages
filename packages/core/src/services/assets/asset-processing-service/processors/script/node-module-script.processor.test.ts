@@ -268,7 +268,7 @@ describe('NodeModuleScriptProcessor', () => {
 			fileSystem.readFileAsBuffer = originalReadFileAsBuffer;
 		});
 
-		test('should resolve @ecopages/logger using Bun.resolveSync', async () => {
+		test('should resolve @ecopages/logger from node_modules', async () => {
 			const config = createMockConfig();
 			config.rootDir = process.cwd();
 			const processor = new NodeModuleScriptProcessor({ appConfig: config });

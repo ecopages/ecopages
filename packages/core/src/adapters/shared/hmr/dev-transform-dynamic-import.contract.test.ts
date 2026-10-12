@@ -6,7 +6,6 @@ import { afterEach, describe, test } from 'vitest';
 import { installBuildRuntime } from '../../../build/runtime/build-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
-import { HmrManager as BunHmrManager } from '../../bun/hmr-manager.ts';
 import { NodeHmrManager } from '../../node/node-hmr-manager.ts';
 import type { SharedHmrManager } from './shared-hmr-manager.ts';
 
@@ -62,22 +61,6 @@ const runtimes = [
 				bridge: {
 					subscriberCount: 0,
 					broadcast: () => {},
-				} as never,
-			});
-		},
-	},
-	{
-		name: 'bun',
-		async create(rootDir: string): Promise<SharedHmrManager> {
-			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-			installBuildRuntime(config);
-			return new BunHmrManager({
-				appConfig: config,
-				bridge: {
-					subscriberCount: 0,
-					broadcast: () => {},
-					subscribe: () => {},
-					unsubscribe: () => {},
 				} as never,
 			});
 		},

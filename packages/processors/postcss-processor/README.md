@@ -9,7 +9,7 @@ Build contributions use one `plugins` getter. Browser-specific CSS hooks declare
 - **Ecopages Processor Plugin**: Hook right into the build pipeline. In production, processed CSS is persisted under a name derived from a hash of the output bytes.
 - **Tailwind Presets**: Pre-configured pipelines for Tailwind CSS v3 and v4.
 - **Automatic Configuration**: Detects existing `postcss.config.{js,ts,etc}`.
-- **Bun Loader**: Registers a Bun loader for importing CSS in TS/JS files.
+- **CSS imports**: A server build plugin turns CSS imported from TS/JS files into the processed CSS string.
 
 ## Installation
 

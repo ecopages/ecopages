@@ -168,9 +168,11 @@ export abstract class HmrStrategy {
 	 *
 	 * @example
 	 * ```typescript
+	 * import { writeFile } from 'node:fs/promises';
+	 *
 	 * async process(filePath: string): Promise<HmrAction> {
 	 *   const processed = await this.transform(filePath);
-	 *   await Bun.write(outputPath, processed);
+	 *   await writeFile(outputPath, processed);
 	 *
 	 *   return {
 	 *     type: 'broadcast',

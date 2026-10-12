@@ -68,6 +68,35 @@ describe('commitNavigationPage', () => {
 		}
 	});
 
+	it('runs the body scripts that wait on a head script after the navigation completes', async () => {
+		document.head.innerHTML = '<title>Current</title>';
+		document.body.innerHTML = '<main>Current page</main>';
+		let completed = false;
+		const win = window as unknown as Record<string, unknown>;
+
+		try {
+			await commitNavigationPage({
+				url: new URL('https://example.test/next'),
+				direction: 'forward',
+				newDocument: parseDocument(
+					'<html><head><title>Next</title><script src="data:text/javascript,window.__head_first__=1"></script></head><body><main>Next page</main><script>window.__body_saw_head__=window.__head_first__</script></body></html>',
+				),
+				isStale: () => completed,
+				viewTransitionsEnabled: false,
+				swap: () => {
+					document.body.innerHTML =
+						'<main>Next page</main><script>window.__body_saw_head__=window.__head_first__</script>';
+				},
+			});
+			completed = true;
+
+			await vi.waitFor(() => expect(win.__body_saw_head__).toBe(1));
+		} finally {
+			delete win.__head_first__;
+			delete win.__body_saw_head__;
+		}
+	});
+
 	it('does not prepare or swap a page after a before-swap listener requests reload', async () => {
 		const reloadRequested = vi.fn();
 		const swap = vi.fn();

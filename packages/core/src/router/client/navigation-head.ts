@@ -276,12 +276,10 @@ export async function prepareNavigationHead(
 export function activatePreparedNavigationScripts(
 	update: NavigationHeadUpdate,
 	persistAttribute: string = ECO_PERSIST_ATTRIBUTE,
-	isStale: () => boolean = () => false,
 	includeBodyScripts = true,
 ): void {
 	startNavigationScriptQueue([...update.scriptActivations, ...update.rerunScriptActivations], {
 		persistAttribute,
-		isStale,
 		includeBodyScripts,
 	});
 }

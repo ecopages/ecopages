@@ -81,16 +81,24 @@ export async function activateScriptsInOrder(
 	}
 }
 
-/** Starts the shared head, rerun, and optional body script queue. */
+/**
+ * Starts the shared head, rerun, and optional body script queue.
+ *
+ * @remarks
+ * A later call supersedes a queue still waiting on a script load. The calling
+ * navigation's own transaction is not consulted because it completes while the
+ * queue is still waiting.
+ */
 export function activateNavigationScripts(
 	activations: readonly ScriptActivation[],
-	options: { persistAttribute?: string; includeBodyScripts?: boolean; isStale?: () => boolean } = {},
+	options: { persistAttribute?: string; includeBodyScripts?: boolean } = {},
 ): void {
 	const generation = ++navigationScriptGeneration;
 	const bodyActivations = options.includeBodyScripts ? collectBodyScripts(options.persistAttribute) : [];
-	void activateScriptsInOrder([...activations, ...bodyActivations], () => {
-		return generation !== navigationScriptGeneration || options.isStale?.() === true;
-	});
+	void activateScriptsInOrder(
+		[...activations, ...bodyActivations],
+		() => generation !== navigationScriptGeneration,
+	);
 }
 
 /**

@@ -138,7 +138,7 @@ describe('shared navigation head updates', () => {
 			return Boolean(scriptId?.startsWith('ecopages-react-') || src?.includes('ecopages-react-'));
 		});
 		update.commit();
-		activatePreparedNavigationScripts(update, undefined, undefined, false);
+		activatePreparedNavigationScripts(update, undefined, false);
 
 		expect(document.head.querySelector<HTMLScriptElement>('#page-data')?.textContent).toBe('{"route":"new"}');
 		expect(document.head.querySelectorAll('script#route-module')).toHaveLength(1);

@@ -69,7 +69,6 @@ export async function commitNavigationPage(
 				activatePreparedNavigationScripts(
 					preparedHeadUpdate,
 					input.persistAttribute ?? ECO_PERSIST_ATTRIBUTE,
-					input.isStale,
 					input.includeBodyScripts ?? true,
 				);
 				await input.afterSwap?.();

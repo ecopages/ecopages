@@ -8,10 +8,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
 	getCustomElementScriptPreloadScopeState,
 	invalidateCustomElementScriptPreload,
-	resetCustomElementScriptPreloadScope,
 } from './custom-element-script-preload-invalidation.ts';
 
-export { invalidateCustomElementScriptPreload, resetCustomElementScriptPreloadScope };
+export { invalidateCustomElementScriptPreload };
 
 const registryKeys = new WeakMap<CustomElementRegistry, string>();
 

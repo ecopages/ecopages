@@ -143,11 +143,6 @@ export type EcoComponentScriptEntry = {
 	ssr?: boolean;
 };
 
-export type ResolvedLazyScriptGroup = {
-	lazy: DependencyLazyTrigger;
-	scripts: string;
-};
-
 export type LazyTriggerRule =
 	| { 'on:idle': { scripts: string[] } }
 	| { 'on:interaction': { value: string; scripts: string[] } }
@@ -477,12 +472,6 @@ export type EcoComponentConfig = {
 	/** Layout entries retained for per-tier prop factories. */
 	layoutEntries?: EcoPageLayoutEntry[];
 	dependencies?: EcoComponentDependencies;
-	/**
-	 * Internal: Resolved lazy scripts grouped by trigger.
-	 * Set by the renderer, used by eco.component() for multi-trigger auto-wrapping.
-	 * @internal
-	 */
-	_resolvedLazyScripts?: ResolvedLazyScriptGroup[];
 	/**
 	 * Internal: Resolved lazy triggers for the global injector map.
 	 * Set by the renderer in the default full orchestration flow.

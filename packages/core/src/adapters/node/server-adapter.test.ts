@@ -1,5 +1,7 @@
+import { EventEmitter } from 'node:events';
 import os from 'node:os';
 import path from 'node:path';
+import chokidar from 'chokidar';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -92,13 +94,6 @@ class TestNodeServerAdapter extends NodeServerAdapter {
 		if (!this.skipDevRouteSetup) {
 			super.startDevStaticRoutePrewarmWhenReady();
 		}
-	}
-
-	public async processFileChangeForTest(file: string): Promise<void> {
-		const watcher = (this as unknown as { projectWatcher: unknown }).projectWatcher as {
-			processFileChange: (file: string, event: 'change') => Promise<void>;
-		};
-		await watcher.processFileChange(file, 'change');
 	}
 
 	public setHmrManagerForTest(hmrManager: { isEnabled: () => boolean } | null): void {
@@ -284,16 +279,22 @@ describe('NodeServerAdapter', () => {
 		appConfig.integrations = [];
 		const adapter = createAdapter({ appConfig });
 		adapter.skipDevRouteSetupForTest();
-		const subscription = vi
-			.spyOn(ProjectWatcher.prototype, 'createWatcherSubscription')
-			.mockResolvedValue(undefined as never);
-		onTestFinished(() => subscription.mockRestore());
+		const fileEvents = Object.assign(new EventEmitter(), {
+			add: vi.fn(),
+			close: vi.fn(async () => {}),
+			getWatched: vi.fn(() => ({})),
+		});
+		const watch = vi.spyOn(chokidar, 'watch').mockImplementation(() => {
+			setTimeout(() => fileEvents.emit('ready'), 0);
+			return fileEvents as never;
+		});
+		onTestFinished(() => watch.mockRestore());
 		devBridge.reload.mockClear();
 
 		await adapter.completeInitialization({} as import('node:http').Server);
-		await adapter.processFileChangeForTest(path.join(appConfig.absolutePaths.publicDir, 'robots.txt'));
+		fileEvents.emit('change', path.join(appConfig.absolutePaths.publicDir, 'robots.txt'));
 
-		expect(devBridge.reload).toHaveBeenCalledTimes(1);
+		await vi.waitFor(() => expect(devBridge.reload).toHaveBeenCalledTimes(1));
 	});
 
 	it('completes initialization while a prewarm render is pending and waits for it before Integration teardown', async () => {

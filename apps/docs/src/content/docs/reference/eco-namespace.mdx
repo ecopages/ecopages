@@ -602,20 +602,12 @@ export const Counter = eco.component({
 **HTML Output:**
 
 ```html
-<scripts-injector>
-	<script type="ecopages/injector-map">
-		{
-			"on:interaction": {
-				"value": "mouseenter,focusin",
-				"scripts": ["/_assets/components/counter/counter.script.js"]
-			}
-		}
-	</script>
-	<my-counter count="5">
-		<!-- SSR content -->
-	</my-counter>
-</scripts-injector>
+<my-counter count="5" data-eco-trigger="eco-trigger-1a2b3c">
+	<!-- SSR content -->
+</my-counter>
 ```
+
+The page also carries one `<script type="ecopages/global-injector-map">` that maps each `data-eco-trigger` id to its trigger and script URLs.
 
 ### Page with Lazy Component
 

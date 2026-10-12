@@ -4,7 +4,6 @@ import {
 	assertForeignChildrenNotOpaque,
 	isOpaqueForeignChildValue,
 	isThenable,
-	wrapWithScriptsInjector,
 } from './foreign-child-output.utils.ts';
 
 describe('opaque foreign children', () => {
@@ -242,51 +241,5 @@ describe('isThenable', () => {
 
 	test('returns false when then is not a function', () => {
 		expect(isThenable({ then: 'not-a-function' })).toBe(false);
-	});
-});
-
-describe('wrapWithScriptsInjector', () => {
-	const lazyGroups = [{ lazy: { 'on:idle': true }, scripts: '/_assets/script.js' }] as const;
-
-	test('preserves JSX template metadata while wrapping content', () => {
-		const strings = ['<theme-toggle class=', '></theme-toggle>'];
-		Object.defineProperty(strings, 'raw', {
-			value: ['<theme-toggle class=', '></theme-toggle>'],
-		});
-
-		const template = {
-			_$rType$: 1,
-			rootLocalName: 'theme-toggle',
-			strings,
-			values: ['radiant-switch'],
-		};
-
-		const result = wrapWithScriptsInjector(template, lazyGroups) as unknown as typeof template;
-
-		expect(result._$rType$).toBe(1);
-		expect(result.rootLocalName).toBe('theme-toggle');
-		expect(result.values).toEqual(['radiant-switch']);
-		expect(result.strings[0]).toContain('<scripts-injector><script type="ecopages/injector-map">');
-		expect(result.strings[0]).toContain('<theme-toggle class=');
-		expect(result.strings[1]).toBe('></theme-toggle></scripts-injector>');
-		expect(Object.getOwnPropertyDescriptor(result.strings, 'raw')?.value[1]).toBe(
-			'></theme-toggle></scripts-injector>',
-		);
-	});
-
-	test('preserves markup-node-like output while wrapping content', () => {
-		const markupNode = {
-			nodeType: 1,
-			get outerHTML() {
-				return '<theme-toggle class="radiant-switch"></theme-toggle>';
-			},
-		};
-
-		const result = wrapWithScriptsInjector(markupNode, lazyGroups) as typeof markupNode;
-
-		expect(result.nodeType).toBe(1);
-		expect(result.outerHTML).toContain('<scripts-injector><script type="ecopages/injector-map">');
-		expect(result.outerHTML).toContain('<theme-toggle class="radiant-switch"></theme-toggle>');
-		expect(result.outerHTML).toContain('</scripts-injector>');
 	});
 });

@@ -1,8 +1,3 @@
-import type { EcoComponent } from '../../../types/public-types.ts';
-import { buildInjectorMapScript } from '../../../eco/lazy-injector-map.ts';
-
-type ResolvedLazyScriptGroups = Readonly<NonNullable<EcoComponent['config']>['_resolvedLazyScripts']>;
-
 type TemplateContentShape = {
 	strings: readonly string[];
 	values?: readonly unknown[];
@@ -65,48 +60,6 @@ function cloneMarkupNodeLikeWithUpdatedOuterHtml<T extends MarkupNodeLikeShape>(
 			enumerable: outerHTMLDescriptor?.enumerable ?? true,
 			writable: true,
 			value: outerHTML,
-		},
-	});
-
-	return clonedContent;
-}
-
-function wrapWithScriptsInjectorMarkup(content: string, injectorMapScript: string): string {
-	return `<scripts-injector><script type="ecopages/injector-map">${injectorMapScript}</script>${content}</scripts-injector>`;
-}
-
-function cloneTemplateContentWithWrappedInjector<T extends TemplateContentShape>(
-	content: T,
-	injectorMapScript: string,
-): T | string {
-	if (content.strings.length === 0) {
-		return wrapWithScriptsInjectorMarkup(String(content), injectorMapScript);
-	}
-
-	const nextStrings = [...content.strings];
-	nextStrings[0] = wrapWithScriptsInjectorMarkup(nextStrings[0] ?? '', injectorMapScript);
-	nextStrings[nextStrings.length - 1] = `${nextStrings[nextStrings.length - 1] ?? ''}</scripts-injector>`;
-
-	const rawDescriptor = Object.getOwnPropertyDescriptor(content.strings, 'raw');
-	if (rawDescriptor && Array.isArray(rawDescriptor.value)) {
-		const rawStrings = [...rawDescriptor.value];
-		rawStrings[0] = wrapWithScriptsInjectorMarkup(rawStrings[0] ?? '', injectorMapScript);
-		rawStrings[rawStrings.length - 1] = `${rawStrings[rawStrings.length - 1] ?? ''}</scripts-injector>`;
-		Object.defineProperty(nextStrings, 'raw', {
-			...rawDescriptor,
-			value: rawStrings,
-		});
-	}
-
-	const descriptors = Object.getOwnPropertyDescriptors(content);
-	const clonedContent = Object.create(Object.getPrototypeOf(content)) as T;
-	const stringsDescriptor = descriptors.strings;
-
-	Object.defineProperties(clonedContent, {
-		...descriptors,
-		strings: {
-			...stringsDescriptor,
-			value: nextStrings,
 		},
 	});
 
@@ -303,44 +256,4 @@ export function addTriggerAttribute(
 	}
 
 	return injectTriggerAttributeIntoString(String(content), triggerId);
-}
-
-/**
- * Wraps rendered component output in a `<scripts-injector>` element that
- * carries an inline injector map for the component's lazy script groups.
- *
- * @param content Rendered component HTML.
- * @param lazyGroups Resolved lazy script groups attached to the component config.
- */
-export function wrapWithScriptsInjector(content: string, lazyGroups: ResolvedLazyScriptGroups): string;
-export function wrapWithScriptsInjector<T extends TemplateContentShape>(
-	content: T,
-	lazyGroups: ResolvedLazyScriptGroups,
-): T | string;
-export function wrapWithScriptsInjector<T extends MarkupNodeLikeShape>(
-	content: T,
-	lazyGroups: ResolvedLazyScriptGroups,
-): T;
-export function wrapWithScriptsInjector(
-	content: unknown,
-	lazyGroups: ResolvedLazyScriptGroups,
-): string | TemplateContentShape | MarkupNodeLikeShape;
-export function wrapWithScriptsInjector(
-	content: unknown,
-	lazyGroups: ResolvedLazyScriptGroups,
-): string | TemplateContentShape | MarkupNodeLikeShape {
-	const injectorMapScript = buildInjectorMapScript(lazyGroups ?? []);
-
-	if (isTemplateContentShape(content)) {
-		return cloneTemplateContentWithWrappedInjector(content, injectorMapScript);
-	}
-
-	if (isMarkupNodeLikeShape(content) && typeof content.outerHTML === 'string') {
-		return cloneMarkupNodeLikeWithUpdatedOuterHtml(
-			content,
-			wrapWithScriptsInjectorMarkup(content.outerHTML, injectorMapScript),
-		);
-	}
-
-	return wrapWithScriptsInjectorMarkup(String(content), injectorMapScript);
 }

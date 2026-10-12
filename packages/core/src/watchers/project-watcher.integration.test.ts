@@ -31,7 +31,41 @@ const createIntegrationConfig = async (testId: string): Promise<EcoPagesAppConfi
 	return await finalizeEcoPagesConfig({ rootDir });
 };
 
+type FakeFileEvents = EventEmitter & {
+	add: ReturnType<typeof vi.fn>;
+	close: ReturnType<typeof vi.fn>;
+	getWatched: ReturnType<typeof vi.fn>;
+};
+
 describe('ProjectWatcher - Integration Tests', () => {
+	const openWatchers: ProjectWatcher[] = [];
+
+	const startWatcherWithFakeFileEvents = async (
+		config: EcoPagesAppConfig,
+		bridge = createMockBridge(),
+		hmrManager = createMockHmrManager(),
+	) => {
+		const fileEvents: FakeFileEvents = Object.assign(new EventEmitter(), {
+			add: vi.fn(),
+			close: vi.fn(async () => {}),
+			getWatched: vi.fn(() => ({})),
+		});
+		vi.spyOn(chokidar, 'watch').mockImplementation(() => {
+			setTimeout(() => fileEvents.emit('ready'), 0);
+			return fileEvents as never;
+		});
+		const watcher = new ProjectWatcher({
+			config,
+			refreshRouterRoutesCallback: vi.fn(async () => {}),
+			hmrManager,
+			bridge,
+			changeDebounceMs: 0,
+		});
+		openWatchers.push(watcher);
+		await watcher.createWatcherSubscription();
+		return { fileEvents, bridge, hmrManager };
+	};
+
 	beforeEach(() => {
 		if (existsSync(TEST_ROOT)) {
 			rmSync(TEST_ROOT, { recursive: true, force: true });
@@ -39,7 +73,8 @@ describe('ProjectWatcher - Integration Tests', () => {
 		mkdirSync(TEST_ROOT, { recursive: true });
 	});
 
-	afterEach(() => {
+	afterEach(async () => {
+		await Promise.all(openWatchers.splice(0).map((watcher) => watcher.close()));
 		if (existsSync(TEST_ROOT)) {
 			rmSync(TEST_ROOT, { recursive: true, force: true });
 		}
@@ -97,167 +132,78 @@ describe('ProjectWatcher - Integration Tests', () => {
 	});
 
 	describe('Public Directory File Operations', () => {
-		test('should copy file when added to public directory', async () => {
-			const testId = 'public-file-add';
-			const config = await createIntegrationConfig(testId);
-			const hmrManager = createMockHmrManager();
-			const bridge = createMockBridge();
-
-			createTestDir(path.join(testId, 'src', 'public'));
-			createTestDir(path.join(testId, 'dist'));
-
-			const watcher = new ProjectWatcher({
-				config,
-				refreshRouterRoutesCallback: vi.fn(async () => {}),
-				hmrManager,
-				bridge,
-			});
-
+		test('copies a file added to the public directory', async () => {
+			const config = await createIntegrationConfig('public-file-add');
+			const { fileEvents } = await startWatcherWithFakeFileEvents(config);
 			const sourceFile = path.join(config.absolutePaths.publicDir, 'favicon.ico');
 			const destFile = path.join(config.absolutePaths.distDir, 'favicon.ico');
 
 			writeTestFile(sourceFile, 'fake-icon-data');
-			await (watcher as any).handlePublicDirFileChange(sourceFile);
+			fileEvents.emit('add', sourceFile);
 
-			expect(existsSync(destFile)).toBe(true);
-			const content = readFileSync(destFile, 'utf-8');
-			expect(content).toBe('fake-icon-data');
+			await vi.waitFor(() => expect(readFileSync(destFile, 'utf-8')).toBe('fake-icon-data'));
 		});
 
-		test('should copy file to subdirectory in dist', async () => {
-			const testId = 'public-subdir-add';
-			const config = await createIntegrationConfig(testId);
-			const hmrManager = createMockHmrManager();
-			const bridge = createMockBridge();
-
-			createTestDir(path.join(testId, 'src', 'public', 'images'));
-			createTestDir(path.join(testId, 'dist'));
-
-			const watcher = new ProjectWatcher({
-				config,
-				refreshRouterRoutesCallback: vi.fn(async () => {}),
-				hmrManager,
-				bridge,
-			});
-
+		test('copies a file into the matching subdirectory in dist', async () => {
+			const config = await createIntegrationConfig('public-subdir-add');
+			const { fileEvents } = await startWatcherWithFakeFileEvents(config);
 			const sourceFile = path.join(config.absolutePaths.publicDir, 'images', 'logo.png');
 			const destFile = path.join(config.absolutePaths.distDir, 'images', 'logo.png');
 
 			writeTestFile(sourceFile, 'fake-png-data');
+			fileEvents.emit('add', sourceFile);
 
-			await (watcher as any).handlePublicDirFileChange(sourceFile);
-
-			expect(existsSync(destFile)).toBe(true);
-			const content = readFileSync(destFile, 'utf-8');
-			expect(content).toBe('fake-png-data');
+			await vi.waitFor(() => expect(readFileSync(destFile, 'utf-8')).toBe('fake-png-data'));
 		});
 
-		test('should update file when changed in public directory', async () => {
-			const testId = 'public-file-update';
-			const config = await createIntegrationConfig(testId);
-			const hmrManager = createMockHmrManager();
-			const bridge = createMockBridge();
-
-			createTestDir(path.join(testId, 'src', 'public'));
-			createTestDir(path.join(testId, 'dist'));
-
-			const watcher = new ProjectWatcher({
-				config,
-				refreshRouterRoutesCallback: vi.fn(async () => {}),
-				hmrManager,
-				bridge,
-			});
-
+		test('updates the dist copy when a public file changes', async () => {
+			const config = await createIntegrationConfig('public-file-update');
+			const { fileEvents } = await startWatcherWithFakeFileEvents(config);
 			const sourceFile = path.join(config.absolutePaths.publicDir, 'robots.txt');
 			const destFile = path.join(config.absolutePaths.distDir, 'robots.txt');
 
 			writeTestFile(sourceFile, 'User-agent: *\nDisallow: /');
-			await (watcher as any).handlePublicDirFileChange(sourceFile);
-
-			expect(existsSync(destFile)).toBe(true);
-			let content = readFileSync(destFile, 'utf-8');
-			expect(content).toBe('User-agent: *\nDisallow: /');
+			fileEvents.emit('add', sourceFile);
+			await vi.waitFor(() => expect(readFileSync(destFile, 'utf-8')).toBe('User-agent: *\nDisallow: /'));
 
 			writeTestFile(sourceFile, 'User-agent: *\nAllow: /');
-			await (watcher as any).handlePublicDirFileChange(sourceFile);
-
-			content = readFileSync(destFile, 'utf-8');
-			expect(content).toBe('User-agent: *\nAllow: /');
+			fileEvents.emit('change', sourceFile);
+			await vi.waitFor(() => expect(readFileSync(destFile, 'utf-8')).toBe('User-agent: *\nAllow: /'));
 		});
 
-		test('should handle deeply nested directory structure', async () => {
-			const testId = 'public-deep-nesting';
-			const config = await createIntegrationConfig(testId);
-			const hmrManager = createMockHmrManager();
-			const bridge = createMockBridge();
-
-			createTestDir(path.join(testId, 'src', 'public', 'assets', 'fonts', 'woff2'));
-			createTestDir(path.join(testId, 'dist'));
-
-			const watcher = new ProjectWatcher({
-				config,
-				refreshRouterRoutesCallback: vi.fn(async () => {}),
-				hmrManager,
-				bridge,
-			});
-
+		test('copies a file from a deeply nested public directory', async () => {
+			const config = await createIntegrationConfig('public-deep-nesting');
+			const { fileEvents } = await startWatcherWithFakeFileEvents(config);
 			const sourceFile = path.join(config.absolutePaths.publicDir, 'assets', 'fonts', 'woff2', 'font.woff2');
 			const destFile = path.join(config.absolutePaths.distDir, 'assets', 'fonts', 'woff2', 'font.woff2');
 
 			writeTestFile(sourceFile, 'fake-font-binary-data');
+			fileEvents.emit('add', sourceFile);
 
-			await (watcher as any).handlePublicDirFileChange(sourceFile);
-
-			expect(existsSync(destFile)).toBe(true);
-			const content = readFileSync(destFile, 'utf-8');
-			expect(content).toBe('fake-font-binary-data');
+			await vi.waitFor(() => expect(readFileSync(destFile, 'utf-8')).toBe('fake-font-binary-data'));
 		});
 
-		test('should trigger reload after successful copy', async () => {
-			const testId = 'public-reload-trigger';
-			const config = await createIntegrationConfig(testId);
-			const hmrManager = createMockHmrManager();
-			const bridge = createMockBridge();
-
-			createTestDir(path.join(testId, 'src', 'public'));
-			createTestDir(path.join(testId, 'dist'));
-
-			const watcher = new ProjectWatcher({
-				config,
-				refreshRouterRoutesCallback: vi.fn(async () => {}),
-				hmrManager,
-				bridge,
-			});
-
+		test('reloads the browser after a public file is copied', async () => {
+			const config = await createIntegrationConfig('public-reload-trigger');
+			const { fileEvents, bridge } = await startWatcherWithFakeFileEvents(config);
 			const sourceFile = path.join(config.absolutePaths.publicDir, 'manifest.json');
+
 			writeTestFile(sourceFile, '{"name":"test"}');
+			fileEvents.emit('add', sourceFile);
 
-			await (watcher as any).handlePublicDirFileChange(sourceFile);
-
-			expect(bridge.reload).toHaveBeenCalled();
+			await vi.waitFor(() => expect(bridge.reload).toHaveBeenCalledOnce());
+			expect(existsSync(path.join(config.absolutePaths.distDir, 'manifest.json'))).toBe(true);
 		});
 
-		test('should handle file copy errors gracefully', async () => {
-			const testId = 'public-copy-error';
-			const config = await createIntegrationConfig(testId);
-			const hmrManager = createMockHmrManager();
-			const bridge = createMockBridge();
+		test('copies nothing for a public file that no longer exists', async () => {
+			const config = await createIntegrationConfig('public-copy-missing');
+			const { fileEvents, bridge } = await startWatcherWithFakeFileEvents(config);
+			const missingFile = path.join(config.absolutePaths.publicDir, 'does-not-exist.txt');
 
-			createTestDir(path.join(testId, 'src', 'public'));
-			createTestDir(path.join(testId, 'dist'));
+			fileEvents.emit('change', missingFile);
 
-			const watcher = new ProjectWatcher({
-				config,
-				refreshRouterRoutesCallback: vi.fn(async () => {}),
-				hmrManager,
-				bridge,
-			});
-
-			const nonExistentFile = path.join(config.absolutePaths.publicDir, 'does-not-exist.txt');
-
-			await (watcher as any).handlePublicDirFileChange(nonExistentFile);
-
-			expect(bridge.reload).toHaveBeenCalled();
+			await vi.waitFor(() => expect(bridge.reload).toHaveBeenCalledOnce());
+			expect(existsSync(path.join(config.absolutePaths.distDir, 'does-not-exist.txt'))).toBe(false);
 		});
 	});
 
@@ -674,54 +620,26 @@ describe('ProjectWatcher - Integration Tests', () => {
 	});
 
 	describe('Multiple File Operations', () => {
-		test('should handle multiple files added sequentially', async () => {
-			const testId = 'multiple-sequential';
-			const config = await createIntegrationConfig(testId);
-			const hmrManager = createMockHmrManager();
-			const bridge = createMockBridge();
-
-			createTestDir(path.join(testId, 'src', 'public'));
-			createTestDir(path.join(testId, 'dist'));
-
-			const watcher = new ProjectWatcher({
-				config,
-				refreshRouterRoutesCallback: vi.fn(async () => {}),
-				hmrManager,
-				bridge,
-			});
+		test('copies public files added one after another and reloads for each', async () => {
+			const config = await createIntegrationConfig('multiple-sequential');
+			const { fileEvents, bridge } = await startWatcherWithFakeFileEvents(config);
 
 			const files = ['file1.txt', 'file2.txt', 'file3.txt'];
-
-			for (const filename of files) {
+			for (const [index, filename] of files.entries()) {
 				const sourceFile = path.join(config.absolutePaths.publicDir, filename);
 				const destFile = path.join(config.absolutePaths.distDir, filename);
 
 				writeTestFile(sourceFile, `content-of-${filename}`);
-				await (watcher as any).handlePublicDirFileChange(sourceFile);
+				fileEvents.emit('add', sourceFile);
 
-				expect(existsSync(destFile)).toBe(true);
-				const content = readFileSync(destFile, 'utf-8');
-				expect(content).toBe(`content-of-${filename}`);
+				await vi.waitFor(() => expect(readFileSync(destFile, 'utf-8')).toBe(`content-of-${filename}`));
+				await vi.waitFor(() => expect(bridge.reload).toHaveBeenCalledTimes(index + 1));
 			}
-
-			expect(bridge.reload).toHaveBeenCalledTimes(3);
 		});
 
-		test('should handle mixed file types in public directory', async () => {
-			const testId = 'mixed-file-types';
-			const config = await createIntegrationConfig(testId);
-			const hmrManager = createMockHmrManager();
-			const bridge = createMockBridge();
-
-			createTestDir(path.join(testId, 'src', 'public'));
-			createTestDir(path.join(testId, 'dist'));
-
-			const watcher = new ProjectWatcher({
-				config,
-				refreshRouterRoutesCallback: vi.fn(async () => {}),
-				hmrManager,
-				bridge,
-			});
+		test('copies public files of mixed types', async () => {
+			const config = await createIntegrationConfig('mixed-file-types');
+			const { fileEvents } = await startWatcherWithFakeFileEvents(config);
 
 			const files = {
 				'robots.txt': 'User-agent: *',
@@ -735,20 +653,16 @@ describe('ProjectWatcher - Integration Tests', () => {
 				const destFile = path.join(config.absolutePaths.distDir, filename);
 
 				writeTestFile(sourceFile, content);
-				await (watcher as any).handlePublicDirFileChange(sourceFile);
+				fileEvents.emit('add', sourceFile);
 
-				expect(existsSync(destFile)).toBe(true);
-				expect(readFileSync(destFile, 'utf-8')).toBe(content);
+				await vi.waitFor(() => expect(readFileSync(destFile, 'utf-8')).toBe(content));
 			}
 		});
 	});
 
 	describe('Content collection MDX changes', () => {
 		test('should notify watch-only processors and still delegate MDX to HMR', async () => {
-			const testId = 'content-mdx-hmr';
-			const config = await createIntegrationConfig(testId);
-			const hmrManager = createMockHmrManager();
-			const bridge = createMockBridge();
+			const config = await createIntegrationConfig('content-mdx-hmr');
 			const onChanges = vi.fn(async () => {});
 
 			config.processors.set('content', {
@@ -759,20 +673,14 @@ describe('ProjectWatcher - Integration Tests', () => {
 					onChanges,
 				})),
 			} as never);
-
-			const watcher = new ProjectWatcher({
-				config,
-				refreshRouterRoutesCallback: vi.fn(async () => {}),
-				hmrManager,
-				bridge,
-				changeDebounceMs: 0,
-			});
+			const { fileEvents, bridge, hmrManager } = await startWatcherWithFakeFileEvents(config);
 
 			const mdxPath = path.join(config.absolutePaths.srcDir, 'content', 'docs', 'intro.mdx');
 			writeTestFile(mdxPath, '---\ntitle: Intro\n---\n# Intro\n');
 
-			await (watcher as any).processFileChange(mdxPath, 'change');
+			fileEvents.emit('change', mdxPath);
 
+			await vi.waitFor(() => expect(bridge.reload).toHaveBeenCalledTimes(1));
 			expect(onChanges).toHaveBeenCalledWith({
 				created: [],
 				changed: [path.resolve(mdxPath)],
@@ -780,7 +688,6 @@ describe('ProjectWatcher - Integration Tests', () => {
 				bridge,
 			});
 			expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
-			expect(bridge.reload).toHaveBeenCalledTimes(1);
 		});
 	});
 });

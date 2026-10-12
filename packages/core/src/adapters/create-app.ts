@@ -28,7 +28,7 @@ type EcopagesAppConfigSource =
 export type EcopagesAppOptions = Omit<ApplicationAdapterOptions, 'appConfig'> &
 	EcopagesAppConfigSource & {
 		/**
-		 * Low-level server options passed to Node `http.createServer`.
+		 * Listen options for the Node HTTP host. Only `port` and `hostname` are read.
 		 */
 		serverOptions?: Record<string, unknown>;
 	};

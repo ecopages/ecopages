@@ -1,3 +1,5 @@
+import { resolveRequestPipelineRuntime } from '../diagnostics/request-pipeline-metrics.ts';
+
 export type EcopagesRuntimeLabel = 'Bun' | 'Node';
 
 /**
@@ -8,7 +10,7 @@ export type EcopagesRuntimeLabel = 'Bun' | 'Node';
  * names Bun when the process is Bun.
  */
 export function resolveProcessRuntimeLabel(): EcopagesRuntimeLabel {
-	return typeof Bun !== 'undefined' ? 'Bun' : 'Node';
+	return resolveRequestPipelineRuntime() === 'bun' ? 'Bun' : 'Node';
 }
 
 export function formatRuntimeServerStartedMessage(runtime: EcopagesRuntimeLabel, origin: string): string {

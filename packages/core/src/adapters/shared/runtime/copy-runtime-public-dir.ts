@@ -1,6 +1,47 @@
-import { readdirSync } from 'node:fs';
+import { lstatSync, readdirSync, readlinkSync } from 'node:fs';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
+
+function tryLstat(filePath: string) {
+	try {
+		return lstatSync(filePath);
+	} catch (error) {
+		if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+			return undefined;
+		}
+		throw error;
+	}
+}
+
+export function copyRuntimePublicFileIfChanged(sourcePath: string, destinationPath: string): void {
+	if (!fileSystem.exists(sourcePath)) {
+		return;
+	}
+
+	fileSystem.ensureDir(path.dirname(destinationPath));
+	const destinationIsSymbolicLink = tryLstat(destinationPath)?.isSymbolicLink() ?? false;
+	if (destinationIsSymbolicLink) {
+		fileSystem.remove(destinationPath);
+	}
+	if (
+		!destinationIsSymbolicLink &&
+		fileSystem.exists(destinationPath) &&
+		Buffer.compare(fileSystem.readFileAsBuffer(sourcePath), fileSystem.readFileAsBuffer(destinationPath)) === 0
+	) {
+		return;
+	}
+
+	fileSystem.copyFile(sourcePath, destinationPath);
+}
+
+export async function copyRuntimePublicFile(sourcePath: string, destinationPath: string): Promise<void> {
+	if (!(await fileSystem.existsAsync(sourcePath))) {
+		return;
+	}
+
+	await fileSystem.ensureDirAsync(path.dirname(destinationPath));
+	await fileSystem.copyFileAsync(sourcePath, destinationPath);
+}
 
 /**
  * Copies a source public directory into the runtime dist dir, skipping unchanged files.
@@ -19,17 +60,25 @@ export function copyRuntimePublicDirIfChanged(sourceDir: string, destinationDir:
 			continue;
 		}
 
+		if (entry.isSymbolicLink()) {
+			const sourceTarget = readlinkSync(sourcePath);
+			const destinationStats = tryLstat(destinationPath);
+			const destinationExists = destinationStats !== undefined;
+			const destinationTarget = destinationStats?.isSymbolicLink() ? readlinkSync(destinationPath) : undefined;
+			if (sourceTarget === destinationTarget) {
+				continue;
+			}
+			if (destinationExists) {
+				fileSystem.remove(destinationPath);
+			}
+			fileSystem.copyFile(sourcePath, destinationPath);
+			continue;
+		}
+
 		if (!entry.isFile()) {
 			continue;
 		}
 
-		if (
-			fileSystem.exists(destinationPath) &&
-			Buffer.compare(fileSystem.readFileAsBuffer(sourcePath), fileSystem.readFileAsBuffer(destinationPath)) === 0
-		) {
-			continue;
-		}
-
-		fileSystem.copyFile(sourcePath, destinationPath);
+		copyRuntimePublicFileIfChanged(sourcePath, destinationPath);
 	}
 }

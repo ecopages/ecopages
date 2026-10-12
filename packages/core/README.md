@@ -25,7 +25,7 @@ The important ownership rules are:
 - Direct local Eco Component imports (including named `export { X } from` barrels) and relative side-effect CSS imports supply Dependencies by default through the shared transform and existing collector; explicit asset declarations override inference, and inferred styles stay keyed by identity until collection. See [eco](src/eco/README.md) and [Plugin Contracts](src/plugins/README.md).
 - Every renderer receives the app-owned `AssetProcessingService`; dependency collection uses it to turn declared assets into runtime-ready output instead of treating a missing service as an empty asset set. See [Route Renderer](src/route-renderer/README.md).
 - Browser bundling and server module loading are separate paths. SSR-enabled lazy scripts execute on the server before rendering and in the browser only on their configured trigger.
-- The Project Watcher sends each Processor one batched `onChanges` notification per debounce window, schedules sustained edits no later than one second after the first, serializes their processing, and fails startup if the filesystem subscription is not ready within 30 seconds. See [Project Watcher](src/watchers/README.md).
+- The Project Watcher batches file and directory events, sends matching Processors one `onChanges` notification for each non-restart file batch, and dispatches every HMR-eligible path once per debounce window. Directory-only Pages batches refresh routes without Processor or HMR notifications. Sustained edits are scheduled no later than one second after the first; processing is serialized and startup fails if the filesystem subscription is not ready within 30 seconds. See [Project Watcher](src/watchers/README.md).
 - Development Page prewarm path collection and rendering run in the background without delaying server readiness. App configuration declares `devPrewarmPaths`; Processors declare pathnames through `collectDevPrewarmPaths()`. Collection failures are logged with their stack. See [Runtime Adapters](src/adapters/README.md) and [Plugin Contracts](src/plugins/README.md).
 - App shutdown tears down Integration runtime resources, including Lit workers. See [Runtime Adapters](src/adapters/README.md).
 - HMR and invalidation use shared graph-aware services instead of runtime-specific ad hoc wiring.
@@ -63,7 +63,7 @@ flowchart TD
 	N --> F[One browser update]
 	D -->|Public asset| F
 	D -->|Processor-owned asset| G[Notify processor only]
-	D -->|Open HMR entrypoint| H[Core HMR manager]
+	D -->|HMR-eligible file batch| H[Core HMR manager]
 	H --> I[Strategy selection]
 	I --> J[Core JsHmrStrategy]
 	I --> K[Integration strategy e.g. ReactHmrStrategy]

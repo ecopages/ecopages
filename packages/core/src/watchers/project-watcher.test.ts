@@ -1,6 +1,7 @@
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import path from 'node:path';
 import os from 'node:os';
+import { EventEmitter } from 'node:events';
 import { mkdirSync, mkdtempSync, writeFileSync, utimesSync, rmSync, realpathSync, type Stats } from 'node:fs';
 import chokidar from 'chokidar';
 import { fileSystem } from '@ecopages/file-system';
@@ -20,18 +21,19 @@ import {
 } from './project-watcher.test-helpers.ts';
 
 function expectHmrDelegated(hmrManager: IHmrManager, filePath: string): void {
-	expect(hmrManager.handleFileChange).toHaveBeenCalledWith(
-		path.resolve(filePath),
-		expect.objectContaining({ graphIdentities: expect.any(Array) }),
-	);
+	expect(hmrManager.handleFileChanges).toHaveBeenCalledWith([path.resolve(filePath)], { broadcast: true });
 }
 
-async function handleWatcherFileChange(watcher: ProjectWatcher, filePath: string): Promise<void> {
+async function handleWatcherFileChange(
+	watcher: ProjectWatcher,
+	filePath: string,
+	event: 'change' | 'add' | 'unlink' = 'change',
+): Promise<void> {
 	await (
 		watcher as unknown as {
-			handleFileChange(filePath: string): Promise<void>;
+			handleFileChange(filePath: string, event: 'change' | 'add' | 'unlink'): Promise<void>;
 		}
-	).handleFileChange(filePath);
+	).handleFileChange(filePath, event);
 }
 
 function emitInitialWatcherReady(event: string, callback: () => void): void {
@@ -66,6 +68,7 @@ describe('ProjectWatcher', () => {
 	});
 
 	afterEach(() => {
+		vi.useRealTimers();
 		vi.restoreAllMocks();
 	});
 
@@ -73,39 +76,41 @@ describe('ProjectWatcher', () => {
 		test('should initialize with provided config', () => {
 			expect(watcher).toBeDefined();
 		});
-
-		test('should bind callback methods correctly', () => {
-			expect(typeof watcher.triggerRouterRefresh).toBe('function');
-			expect(typeof watcher.handleError).toBe('function');
-		});
 	});
 
-	describe('triggerRouterRefresh', () => {
-		test('should call refresh callback for page directory changes', async () => {
-			const pagePath = path.join(Config.absolutePaths.pagesDir, 'index.tsx');
-			await watcher.triggerRouterRefresh(pagePath);
+	describe('directory changes', () => {
+		test('batches Chokidar Pages directory events into one route refresh', async () => {
+			vi.useFakeTimers();
+			const debouncedWatcher = new ProjectWatcher({
+				config: Config,
+				refreshRouterRoutesCallback: RefreshCallback,
+				hmrManager: HmrManager,
+				bridge: Bridge,
+				changeDebounceMs: 50,
+			});
+			const watcherEvents = Object.assign(new EventEmitter(), {
+				add: vi.fn(),
+				close: vi.fn(async () => {}),
+				getWatched: vi.fn(() => ({})),
+			});
+			vi.spyOn(chokidar, 'watch').mockImplementation(() => {
+				queueMicrotask(() => watcherEvents.emit('ready'));
+				return watcherEvents as never;
+			});
+			const sourceDirectory = path.join(Config.absolutePaths.pagesDir, 'blog');
+			const destinationDirectory = path.join(Config.absolutePaths.pagesDir, 'posts');
+			try {
+				await debouncedWatcher.createWatcherSubscription();
+				watcherEvents.emit('addDir', sourceDirectory);
+				watcherEvents.emit('unlinkDir', destinationDirectory);
+				await vi.advanceTimersByTimeAsync(50);
 
-			expect(RefreshCallback).toHaveBeenCalled();
-		});
-
-		test('should not call refresh callback for stylesheet assets inside the pages directory', async () => {
-			const stylesheetPath = path.join(Config.absolutePaths.pagesDir, 'index.css');
-			await watcher.triggerRouterRefresh(stylesheetPath);
-
-			expect(RefreshCallback).not.toHaveBeenCalled();
-		});
-
-		test('should not call refresh callback for a sibling directory that shares the pages prefix', async () => {
-			await watcher.triggerRouterRefresh(`${Config.absolutePaths.pagesDir}-old`);
-
-			expect(RefreshCallback).not.toHaveBeenCalled();
-		});
-
-		test('should not call refresh callback for non-page directory changes', async () => {
-			const nonPagePath = '/test/project/src/components/Button.tsx';
-			await watcher.triggerRouterRefresh(nonPagePath);
-
-			expect(RefreshCallback).not.toHaveBeenCalled();
+				expect(RefreshCallback).toHaveBeenCalledOnce();
+				expect(HmrManager.handleFileChanges).not.toHaveBeenCalled();
+				expect(Bridge.reload).not.toHaveBeenCalled();
+			} finally {
+				await debouncedWatcher.close();
+			}
 		});
 	});
 
@@ -239,6 +244,9 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 		expect(onRestartRequest).not.toHaveBeenCalled();
 		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+		expect(HmrManager.handleFileChanges).not.toHaveBeenCalled();
+		expect(Bridge.reload).not.toHaveBeenCalled();
+		expect(getAppServerInvalidationState(Config).getServerInvalidationVersion()).toBe(0);
 	});
 
 	test('restarts when a file the config imports changes, even if the entry watcher owns the config', async () => {
@@ -314,9 +322,9 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(pageFilePath);
 
-			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expectHmrDelegated(HmrManager, pageFilePath);
 			expect(imported).toBe(false);
-			expect(Bridge.reload).toHaveBeenCalledTimes(1);
+			expect(Bridge.reload).not.toHaveBeenCalled();
 		});
 
 		test('delegates an open page to HMR after marking it dirty', async () => {
@@ -352,12 +360,13 @@ describe('ProjectWatcher - File Change Handling', () => {
 				expect(asyncRefreshCallback).toHaveBeenCalledTimes(1);
 			});
 			expect(Bridge.reload).not.toHaveBeenCalled();
-			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(HmrManager.handleFileChanges).not.toHaveBeenCalled();
 
 			releaseRefresh();
 			await pendingChange;
 
-			expect(Bridge.reload).toHaveBeenCalledTimes(1);
+			expectHmrDelegated(HmrManager, pageFilePath);
+			expect(Bridge.reload).not.toHaveBeenCalled();
 		});
 
 		test('should not refresh router for stylesheet changes inside the pages directory', async () => {
@@ -383,8 +392,11 @@ describe('ProjectWatcher - File Change Handling', () => {
 			void (debouncedWatcher as any).handleFileChange(pageFilePath);
 			await vi.runAllTimersAsync();
 
-			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
-			expect(Bridge.reload).toHaveBeenCalledTimes(1);
+			expect(HmrManager.handleFileChanges).toHaveBeenCalledOnce();
+			expect(HmrManager.handleFileChanges).toHaveBeenCalledWith([path.resolve(pageFilePath)], {
+				broadcast: true,
+			});
+			expect(Bridge.reload).not.toHaveBeenCalled();
 			expect(RefreshCallback).toHaveBeenCalledTimes(1);
 			vi.useRealTimers();
 		});
@@ -408,13 +420,19 @@ describe('ProjectWatcher - File Change Handling', () => {
 			await vi.runAllTimersAsync();
 
 			expect(serverInvalidationState.getServerInvalidationVersion()).toBe(1);
-			expect(Bridge.reload).toHaveBeenCalledTimes(1);
-			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(HmrManager.handleFileChanges).toHaveBeenCalledOnce();
+			expect(HmrManager.handleFileChanges).toHaveBeenCalledWith(
+				Array.from({ length: 50 }, (_, index) =>
+					path.resolve(Config.absolutePaths.pagesDir, `page-${index}.tsx`),
+				),
+				{ broadcast: true },
+			);
+			expect(Bridge.reload).not.toHaveBeenCalled();
 			expect(RefreshCallback).toHaveBeenCalledTimes(1);
 			vi.useRealTimers();
 		});
 
-		test('refreshes routes once when a page is created and another is deleted in the same batch', async () => {
+		test('refreshes routes and reloads once when a page is created and another is deleted in the same batch', async () => {
 			vi.useFakeTimers();
 			const debouncedWatcher = new ProjectWatcher({
 				config: Config,
@@ -435,19 +453,36 @@ describe('ProjectWatcher - File Change Handling', () => {
 			await vi.runAllTimersAsync();
 
 			expect(RefreshCallback).toHaveBeenCalledTimes(1);
-			expect(Bridge.reload).toHaveBeenCalledTimes(1);
+			expect(HmrManager.handleFileChanges).toHaveBeenCalledOnce();
+			expect(HmrManager.handleFileChanges).toHaveBeenCalledWith(
+				[
+					path.resolve(Config.absolutePaths.pagesDir, 'created.tsx'),
+					path.resolve(Config.absolutePaths.pagesDir, 'deleted.tsx'),
+				],
+				{ broadcast: false },
+			);
+			expect(Bridge.reload).toHaveBeenCalledOnce();
 			vi.useRealTimers();
 		});
 	});
 
+	test('reloads the browser when an HMR-eligible source file is deleted', async () => {
+		const filePath = path.join(Config.absolutePaths.srcDir, 'components/Button.tsx');
+
+		await handleWatcherFileChange(watcher, filePath, 'unlink');
+
+		expect(HmrManager.handleFileChanges).toHaveBeenCalledWith([path.resolve(filePath)], { broadcast: false });
+		expect(Bridge.reload).toHaveBeenCalledOnce();
+	});
+
 	describe('include files', () => {
-		test('marks include template changes dirty and reloads the browser once', async () => {
+		test('marks include template changes dirty and dispatches them through HMR', async () => {
 			const includeFilePath = path.join(Config.absolutePaths.includesDir, 'seo.kita.tsx');
 
 			await (watcher as any).handleFileChange(includeFilePath);
 
-			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
-			expect(Bridge.reload).toHaveBeenCalledTimes(1);
+			expectHmrDelegated(HmrManager, includeFilePath);
+			expect(Bridge.reload).not.toHaveBeenCalled();
 			expect(RefreshCallback).not.toHaveBeenCalled();
 		});
 
@@ -473,7 +508,8 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			expect(failingOnChanges).toHaveBeenCalledOnce();
 			expect(onChanges).toHaveBeenCalledOnce();
-			expect(Bridge.reload).toHaveBeenCalledTimes(1);
+			expectHmrDelegated(HmrManager, path.join(Config.absolutePaths.includesDir, 'seo.kita.tsx'));
+			expect(Bridge.reload).not.toHaveBeenCalled();
 			expect(errorLog).toHaveBeenCalledWith(expect.stringContaining('failing'), failure);
 			errorLog.mockRestore();
 		});
@@ -498,8 +534,8 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(includeFilePath);
 
-			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
-			expect(Bridge.reload).toHaveBeenCalledTimes(1);
+			expectHmrDelegated(HmrManager, includeFilePath);
+			expect(Bridge.reload).not.toHaveBeenCalled();
 			await new Promise<void>((resolve) => {
 				setImmediate(resolve);
 			});
@@ -558,7 +594,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 			await (watcher as any).handleFileChange(configFilePath);
 
 			expect(Bridge.reload).toHaveBeenCalled();
-			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(HmrManager.handleFileChanges).not.toHaveBeenCalled();
 		});
 
 		test('should reload for exact path matches', async () => {
@@ -576,8 +612,8 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(nonMatchingPath);
 
-			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
-			expect(Bridge.reload).toHaveBeenCalledTimes(1);
+			expectHmrDelegated(HmrManager, nonMatchingPath);
+			expect(Bridge.reload).not.toHaveBeenCalled();
 		});
 	});
 
@@ -623,8 +659,8 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(jsFilePath);
 
-			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
-			expect(Bridge.reload).toHaveBeenCalledTimes(1);
+			expectHmrDelegated(HmrManager, jsFilePath);
+			expect(Bridge.reload).not.toHaveBeenCalled();
 		});
 
 		test('should keep TSX changes in HMR when a processor only handles stylesheet assets', async () => {
@@ -653,11 +689,11 @@ describe('ProjectWatcher - File Change Handling', () => {
 				deleted: [],
 				bridge: Bridge,
 			});
-			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
-			expect(Bridge.reload).toHaveBeenCalledTimes(1);
+			expectHmrDelegated(HmrManager, tsxFilePath);
+			expect(Bridge.reload).not.toHaveBeenCalled();
 		});
 
-		test('should route TSX through HMR even when no specific strategy matches', async () => {
+		test('should send every HMR-eligible edit in one batch to HMR strategies', async () => {
 			const onChanges = vi.fn(async () => {});
 			const Processor = {
 				getWatchConfig: vi.fn(() => ({
@@ -673,14 +709,70 @@ describe('ProjectWatcher - File Change Handling', () => {
 			};
 			Config.processors.set('css', Processor as any);
 
-			const tsxFilePath = '/test/project/src/components/Button.tsx';
+			const firstFilePath = '/test/project/src/components/Button.tsx';
+			const secondFilePath = '/test/project/src/components/Card.tsx';
+			const batchWatcher = new ProjectWatcher({
+				config: Config,
+				refreshRouterRoutesCallback: RefreshCallback,
+				hmrManager: HmrManager,
+				bridge: Bridge,
+				changeDebounceMs: 20,
+			});
 
-			await (watcher as any).handleFileChange(tsxFilePath);
+			try {
+				await Promise.all([
+					handleWatcherFileChange(batchWatcher, firstFilePath),
+					handleWatcherFileChange(batchWatcher, secondFilePath),
+				]);
+			} finally {
+				await batchWatcher.close();
+			}
 
-			expect(onChanges).toHaveBeenCalled();
-			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
-			expect(Bridge.reload).toHaveBeenCalledTimes(1);
-			expect(HmrManager.broadcast).not.toHaveBeenCalledWith({ type: 'layout-update' });
+			expect(onChanges).toHaveBeenCalledWith({
+				created: [],
+				changed: [path.resolve(firstFilePath), path.resolve(secondFilePath)],
+				deleted: [],
+				bridge: Bridge,
+			});
+			expect(HmrManager.handleFileChanges).toHaveBeenCalledOnce();
+			expect(HmrManager.handleFileChanges).toHaveBeenCalledWith(
+				[path.resolve(firstFilePath), path.resolve(secondFilePath)],
+				{ broadcast: true },
+			);
+			expect(Bridge.reload).not.toHaveBeenCalled();
+		});
+
+		test('preserves the single-file manager contract for custom HMR managers', async () => {
+			const legacyHmrManager = createMockHmrManager();
+			delete legacyHmrManager.handleFileChanges;
+			const legacyBridge = createMockBridge();
+			const firstFilePath = '/test/project/src/components/Button.tsx';
+			const secondFilePath = '/test/project/src/components/Card.tsx';
+			const batchWatcher = new ProjectWatcher({
+				config: Config,
+				refreshRouterRoutesCallback: RefreshCallback,
+				hmrManager: legacyHmrManager,
+				bridge: legacyBridge,
+				changeDebounceMs: 20,
+			});
+
+			try {
+				await Promise.all([
+					handleWatcherFileChange(batchWatcher, firstFilePath),
+					handleWatcherFileChange(batchWatcher, secondFilePath),
+				]);
+			} finally {
+				await batchWatcher.close();
+			}
+
+			expect(legacyHmrManager.handleFileChange).toHaveBeenCalledTimes(2);
+			expect(legacyHmrManager.handleFileChange).toHaveBeenNthCalledWith(1, path.resolve(firstFilePath), {
+				broadcast: false,
+			});
+			expect(legacyHmrManager.handleFileChange).toHaveBeenNthCalledWith(2, path.resolve(secondFilePath), {
+				broadcast: false,
+			});
+			expect(legacyBridge.reload).toHaveBeenCalledOnce();
 		});
 
 		test('should handle processor without watchConfig', async () => {
@@ -693,8 +785,8 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(filePath);
 
-			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
-			expect(Bridge.reload).toHaveBeenCalledTimes(1);
+			expectHmrDelegated(HmrManager, filePath);
+			expect(Bridge.reload).not.toHaveBeenCalled();
 		});
 	});
 
@@ -820,13 +912,13 @@ describe('ProjectWatcher - Priority Rules', () => {
 		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 	});
 
-	test('should use HMR as final fallback', async () => {
+	test('should send unhandled source files through HMR as the final fallback', async () => {
 		const regularFilePath = '/test/project/src/components/Button.tsx';
 
 		await (watcher as any).handleFileChange(regularFilePath);
 
-		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
-		expect(Bridge.reload).toHaveBeenCalledTimes(1);
+		expectHmrDelegated(HmrManager, regularFilePath);
+		expect(Bridge.reload).not.toHaveBeenCalled();
 	});
 
 	test('should notify processor for dependency file before proceeding to HMR', async () => {
@@ -855,8 +947,8 @@ describe('ProjectWatcher - Priority Rules', () => {
 			deleted: [],
 			bridge: Bridge,
 		});
-		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
-		expect(Bridge.reload).toHaveBeenCalledTimes(1);
+		expectHmrDelegated(HmrManager, tsxFilePath);
+		expect(Bridge.reload).not.toHaveBeenCalled();
 	});
 });
 
@@ -1021,6 +1113,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 				const Config = await finalizeEcoPagesConfig({ rootDir: root, integrations: [] });
 				installDevRuntimeState(Config);
 				const Bridge = createMockBridge();
+				const HmrManager = createMockHmrManager();
 				const eventHandlers = new Map<string, (filePath: string) => Promise<void>>();
 				const watcherHandle = {
 					add: vi.fn(),
@@ -1035,7 +1128,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 				const watcher = new ProjectWatcher({
 					config: Config,
 					refreshRouterRoutesCallback: vi.fn(async () => {}),
-					hmrManager: createMockHmrManager(),
+					hmrManager: HmrManager,
 					bridge: Bridge,
 					changeDebounceMs: 0,
 				});
@@ -1048,7 +1141,10 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 				}
 				await eventHandlers.get('add')?.(componentFile);
 				expect(getAppServerInvalidationState(Config).getServerInvalidationVersion()).toBe(1);
-				expect(Bridge.reload).toHaveBeenCalledOnce();
+				expect(HmrManager.handleFileChanges).toHaveBeenCalledWith([path.resolve(componentFile)], {
+					broadcast: true,
+				});
+				expect(Bridge.reload).not.toHaveBeenCalled();
 				await watcher.close();
 			} finally {
 				rmSync(root, { recursive: true, force: true });

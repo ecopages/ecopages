@@ -15,9 +15,14 @@ import type { SharedHmrManager } from './shared-hmr-manager.ts';
 class FakeHmrStrategy extends HmrStrategy {
 	readonly type: HmrStrategyType;
 	private readonly _matches: (filePath: string) => boolean;
-	private readonly _action: HmrAction;
+	private readonly _action: HmrAction | ((filePath: string) => HmrAction);
+	readonly processedFiles: string[] = [];
 
-	constructor(type: HmrStrategyType, matchFn: (f: string) => boolean, action: HmrAction) {
+	constructor(
+		type: HmrStrategyType,
+		matchFn: (filePath: string) => boolean,
+		action: HmrAction | ((filePath: string) => HmrAction),
+	) {
 		super();
 		this.type = type;
 		this._matches = matchFn;
@@ -28,8 +33,9 @@ class FakeHmrStrategy extends HmrStrategy {
 		return this._matches(filePath);
 	}
 
-	async process(_filePath: string): Promise<HmrAction> {
-		return this._action;
+	async process(filePath: string): Promise<HmrAction> {
+		this.processedFiles.push(filePath);
+		return typeof this._action === 'function' ? this._action(filePath) : this._action;
 	}
 }
 
@@ -88,6 +94,59 @@ function collectPendingBuildErrors(manager: SharedHmrManager): ClientBridgeEvent
 }
 
 describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
+	test('dispatches every file in a batch and coalesces the browser update', async () => {
+		const rootDir = createTempRoot('ecopages-dispatch-batch');
+		const srcDir = path.join(rootDir, 'src');
+		fs.mkdirSync(srcDir, { recursive: true });
+		const spy = createBridgeSpy();
+		using manager = await create(rootDir, spy);
+
+		const firstFile = path.join(srcDir, 'first.tsx');
+		const secondFile = path.join(srcDir, 'second.tsx');
+		fs.writeFileSync(firstFile, 'export const first = true;\n', 'utf8');
+		fs.writeFileSync(secondFile, 'export const second = true;\n', 'utf8');
+		const strategy = new FakeHmrStrategy(
+			HmrStrategyType.INTEGRATION,
+			(filePath) => filePath === firstFile || filePath === secondFile,
+			(filePath) => ({
+				type: 'broadcast',
+				events: [{ type: 'update', path: `/@eco/dev/${path.basename(filePath)}`, timestamp: 1 }],
+			}),
+		);
+		manager.registerStrategy(strategy);
+
+		await manager.handleFileChanges([firstFile, secondFile]);
+
+		assert.deepEqual(strategy.processedFiles, [firstFile, secondFile]);
+		assert.deepEqual(spy.broadcasts, [{ type: 'reload' }]);
+	});
+
+	test('keeps the newest timestamp when a repeated client update is coalesced', async () => {
+		const rootDir = createTempRoot('ecopages-dispatch-newest-timestamp');
+		const srcDir = path.join(rootDir, 'src');
+		fs.mkdirSync(srcDir, { recursive: true });
+		const spy = createBridgeSpy();
+		using manager = await create(rootDir, spy);
+
+		const firstFile = path.join(srcDir, 'first.tsx');
+		const secondFile = path.join(srcDir, 'second.tsx');
+		fs.writeFileSync(firstFile, 'export const first = true;\\n', 'utf8');
+		fs.writeFileSync(secondFile, 'export const second = true;\\n', 'utf8');
+		const strategy = new FakeHmrStrategy(
+			HmrStrategyType.INTEGRATION,
+			(filePath) => filePath === firstFile || filePath === secondFile,
+			(filePath) => ({
+				type: 'broadcast',
+				events: [{ type: 'update', path: '/@eco/dev/shared.js', timestamp: filePath === firstFile ? 5 : 10 }],
+			}),
+		);
+		manager.registerStrategy(strategy);
+
+		await manager.handleFileChanges([firstFile, secondFile]);
+
+		assert.deepEqual(spy.broadcasts, [{ type: 'update', path: '/@eco/dev/shared.js', timestamp: 10 }]);
+	});
+
 	test('CSS file change routes to DefaultHmrStrategy and broadcasts reload', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-css');
 		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });

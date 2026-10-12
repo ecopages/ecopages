@@ -38,6 +38,7 @@ import type { ServerModuleTranspiler } from '../../../services/module-loading/se
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';
 import { DevTransformServer } from '../../../dev/transform-server/dev-transform-server.ts';
 import type { DevTransformBundleContributor } from '../../../dev/transform-server/types.ts';
+import { prepareHmrFileChange } from '../../../hmr/hmr-file-change-prep.ts';
 
 type HandleFileChangeOptions = HmrFileChangeOptions;
 
@@ -280,7 +281,41 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	public async handleFileChange(filePath: string, options: HandleFileChangeOptions = {}): Promise<void> {
+		await this.dispatchFileChanges([filePath], options, false);
+	}
+
+	public async handleFileChanges(filePaths: string[], options: HandleFileChangeOptions = {}): Promise<void> {
+		await this.dispatchFileChanges(filePaths, options, true);
+	}
+
+	private async dispatchFileChanges(
+		filePaths: string[],
+		options: HandleFileChangeOptions,
+		coalesce: boolean,
+	): Promise<void> {
+		if (filePaths.length === 0) {
+			return;
+		}
+
 		this.devTransformServer.clearFailures();
+		const events: ClientBridgeEvent[] = [];
+		const uniqueFilePaths = [...new Set(filePaths.map((candidate) => path.resolve(candidate)))];
+
+		for (const filePath of uniqueFilePaths) {
+			const affectedGraphIdentities =
+				options.graphIdentities ??
+				(this.isEnabled() ? prepareHmrFileChange(this.appConfig, filePath).affectedGraphIdentities : undefined);
+			const graphIdentities = affectedGraphIdentities?.length ? affectedGraphIdentities : undefined;
+			events.push(...(await this.processFileChange(filePath, graphIdentities)));
+		}
+
+		this.broadcastBatchEvents(events, options, uniqueFilePaths, coalesce);
+	}
+
+	private async processFileChange(
+		filePath: string,
+		graphIdentities: ClientBridgeEvent['graphIdentities'],
+	): Promise<ClientBridgeEvent[]> {
 		const resolvedFilePath = path.resolve(filePath);
 		const isRegisteredDevTransformEdit = isRegisteredDevTransformEntrypoint(
 			this.entrypointRegistry.getRegisteredEntrypoints(),
@@ -294,7 +329,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 		if (this.shouldSkipMissingFileChange(filePath) && !fileSystem.exists(filePath)) {
 			appLogger.debug(`[${this.constructor.name}] Skipping missing file change: ${filePath}`);
 			this.clearFailedEntrypointRegistration(filePath);
-			return;
+			return [];
 		}
 
 		if (isRegisteredDevTransformEdit) {
@@ -309,17 +344,11 @@ export abstract class SharedHmrManager implements IHmrManager {
 		const strategy = this.selectChangeStrategy(filePath);
 		if (!strategy) {
 			appLogger.warn(`[HMR] No strategy found for ${filePath}`);
-			this.broadcastStrategyAction(filePath, { type: 'none' }, options, !isRegisteredDevTransformEdit);
-			return;
+			return buildStrategyEvents({ type: 'none' }, !isRegisteredDevTransformEdit, graphIdentities);
 		}
 
 		appLogger.debug(`[${this.constructor.name}] Selected strategy: ${strategy.constructor.name}`);
-		this.broadcastStrategyAction(
-			filePath,
-			await strategy.process(filePath),
-			options,
-			!isRegisteredDevTransformEdit,
-		);
+		return buildStrategyEvents(await strategy.process(filePath), !isRegisteredDevTransformEdit, graphIdentities);
 	}
 
 	/**
@@ -329,27 +358,25 @@ export abstract class SharedHmrManager implements IHmrManager {
 	 * page until the next change; replaying a `reload` for it would also reload every freshly opened tab, because
 	 * the server cannot tell the two apart.
 	 */
-	private broadcastStrategyAction(
-		filePath: string,
-		action: HmrAction,
+	private broadcastBatchEvents(
+		events: ClientBridgeEvent[],
 		options: HandleFileChangeOptions,
-		fallbackReload: boolean,
+		filePaths: string[],
+		coalesce: boolean,
 	): void {
-		const shouldBroadcast = options.broadcast ?? true;
-		const events: ClientBridgeEvent[] =
-			action.type === 'broadcast' && action.events ? action.events : fallbackReload ? [{ type: 'reload' }] : [];
-		if (!shouldBroadcast || events.length === 0) {
+		const batchEvents = coalesce ? coalesceBatchEvents(events) : events;
+		if (options.broadcast === false || batchEvents.length === 0) {
 			return;
 		}
 
 		if (this.bridge.subscriberCount === 0) {
-			appLogger.debug(`[${this.constructor.name}] No browser connected; dropping HMR events for ${filePath}`);
+			const changeLabel = filePaths.length === 1 ? filePaths[0] : 'this file batch';
+			appLogger.debug(`[${this.constructor.name}] No browser connected; dropping HMR events for ${changeLabel}`);
 			return;
 		}
 
-		for (const event of events) {
-			const graphIdentities = event.graphIdentities ?? options.graphIdentities;
-			this.broadcast(graphIdentities === undefined ? event : { ...event, graphIdentities });
+		for (const event of batchEvents) {
+			this.broadcast(event);
 		}
 	}
 
@@ -568,4 +595,78 @@ export abstract class SharedHmrManager implements IHmrManager {
 	[Symbol.dispose]() {
 		this.stop();
 	}
+}
+
+function buildStrategyEvents(
+	action: HmrAction,
+	fallbackReload: boolean,
+	graphIdentities: ClientBridgeEvent['graphIdentities'],
+): ClientBridgeEvent[] {
+	const events: ClientBridgeEvent[] =
+		action.type === 'broadcast' && action.events ? action.events : fallbackReload ? [{ type: 'reload' }] : [];
+
+	return events.map((event) =>
+		event.graphIdentities === undefined && graphIdentities !== undefined ? { ...event, graphIdentities } : event,
+	);
+}
+
+function coalesceBatchEvents(events: ClientBridgeEvent[]): ClientBridgeEvent[] {
+	const errors = deduplicateEvents(events.filter((event) => event.type === 'error'));
+	const updates = deduplicateEvents(events.filter((event) => event.type !== 'error'));
+	if (updates.length === 0) {
+		return errors;
+	}
+
+	const graphIdentities = mergeGraphIdentities(updates);
+	if (updates.some((event) => event.type === 'reload')) {
+		return [...errors, { type: 'reload', ...(graphIdentities ? { graphIdentities } : {}) }];
+	}
+
+	if (updates.length === 1) {
+		return [...errors, updates[0]];
+	}
+
+	if (updates.every((event) => event.type === 'layout-update')) {
+		return [
+			...errors,
+			{
+				type: 'layout-update',
+				timestamp: Math.max(...updates.map((event) => event.timestamp ?? 0)),
+				...(graphIdentities ? { graphIdentities } : {}),
+			},
+		];
+	}
+
+	return [...errors, { type: 'reload', ...(graphIdentities ? { graphIdentities } : {}) }];
+}
+
+function deduplicateEvents(events: ClientBridgeEvent[]): ClientBridgeEvent[] {
+	const uniqueEvents = new Map<string, ClientBridgeEvent>();
+	for (const event of events) {
+		const key = JSON.stringify([event.type, event.path, event.message]);
+		const existing = uniqueEvents.get(key);
+		if (existing) {
+			const graphIdentities = mergeGraphIdentities([existing, event]);
+			uniqueEvents.set(key, {
+				...existing,
+				...(existing.timestamp !== undefined || event.timestamp !== undefined
+					? { timestamp: Math.max(existing.timestamp ?? 0, event.timestamp ?? 0) }
+					: {}),
+				...(graphIdentities ? { graphIdentities } : {}),
+			});
+			continue;
+		}
+		uniqueEvents.set(key, event);
+	}
+	return [...uniqueEvents.values()];
+}
+
+function mergeGraphIdentities(events: ClientBridgeEvent[]): ClientBridgeEvent['graphIdentities'] {
+	const identities = events.flatMap((event) => event.graphIdentities ?? []);
+	if (identities.length === 0) {
+		return undefined;
+	}
+
+	const unique = new Map(identities.map((identity) => [JSON.stringify(identity), identity]));
+	return [...unique.values()];
 }

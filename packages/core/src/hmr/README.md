@@ -29,7 +29,7 @@ Runtime-specific WebSocket or event-stream transport belongs in adapters.
 
 ## Registered entrypoints and dev transform
 
-`SharedHmrManager` in `adapters/shared/hmr/` centralizes file-change handling via `handleFileChange()`. Server invalidation, integration hooks, rebuild, and client broadcast run in one sequence.
+`SharedHmrManager` in `adapters/shared/hmr/` centralizes file-change handling via `handleFileChange()` and `handleFileChanges()`. A Project Watcher batch sends all HMR-eligible paths through `handleFileChanges()` once. The manager dispatches each path to its selected strategy and coalesces the results into one client update: a single strategy event is preserved, multiple layout updates become one soft reload, and incompatible updates become one full reload. Custom managers can omit the optional batch method; the watcher then calls their single-file method for each path and uses one full reload for a multi-file batch. Server invalidation, integration hooks, rebuild, and client broadcast run in one sequence.
 
 Dev client modules are served on demand through `DevTransformServer` (`src/dev/`). `DevTransformEntrypointRegistry` tracks registered entrypoints for HMR invalidation. Registration returns a stable dev-transform URL immediately; the first request (or cache miss) runs Rolldown on demand.
 
@@ -37,7 +37,7 @@ Each module the dev transform serves records its local imports in the entrypoint
 
 `BrowserBundleService` is the sole browser-plugin resolver for HMR builds. HMR managers route `hmr-runtime` and `hmr-entrypoint` rebuilds through the `browser-hmr` executor profile.
 
-The Project Watcher calls `prepareHmrFileChange()` before HMR dispatch (`hmr/hmr-file-change-prep.ts`) so page browser graph sessions invalidate consistently with file changes.
+`SharedHmrManager` calls `prepareHmrFileChange()` for each dispatched path (`hmr/hmr-file-change-prep.ts`) so page browser graph sessions invalidate consistently with file changes. The Project Watcher sends the file paths from the batch and does not prepare the graph itself.
 
 ## Client events
 

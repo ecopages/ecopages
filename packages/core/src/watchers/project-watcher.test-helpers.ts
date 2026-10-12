@@ -12,6 +12,7 @@ import type { IClientBridge } from '../types/internal-types.ts';
 export const createMockHmrManager = (): IHmrManager =>
 	({
 		handleFileChange: vi.fn(async () => {}),
+		handleFileChanges: vi.fn(async () => {}),
 		broadcast: vi.fn(() => {}),
 		setEnabled: vi.fn(() => {}),
 		registerEntrypoint: vi.fn(async () => ''),

@@ -74,6 +74,33 @@ describe('shared navigation head updates', () => {
 		expect(document.head.querySelector('link[href$="stale.css"]')).toBeNull();
 	});
 
+	it('settles a stylesheet wait when a newer navigation removes its staged link', async () => {
+		const staleNavigation = parseDocument(
+			'<html><head><link rel="stylesheet" href="https://example.invalid/stale-navigation.css"></head><body></body></html>',
+		);
+		const currentNavigation = parseDocument('<html><head></head><body></body></html>');
+		const staleUpdatePromise = prepareNavigationHead(staleNavigation);
+		const stagedStylesheet = document.head.querySelector<HTMLLinkElement>('link[href$="stale-navigation.css"]');
+		expect(stagedStylesheet).not.toBeNull();
+
+		let staleUpdateReady = false;
+		const staleUpdateSettled = staleUpdatePromise.then((update) => {
+			staleUpdateReady = true;
+			update.cancel();
+		});
+		const currentUpdate = await prepareNavigationHead(currentNavigation);
+		currentUpdate.commit();
+
+		try {
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(staleUpdateReady).toBe(true);
+			expect(stagedStylesheet?.isConnected).toBe(false);
+		} finally {
+			stagedStylesheet?.dispatchEvent(new Event('error'));
+			await staleUpdateSettled;
+		}
+	});
+
 	it('keeps a shared staged stylesheet until every overlapping navigation is settled', async () => {
 		const incoming = parseDocument(
 			'<html><head><link rel="stylesheet" href="/shared.css"></head><body></body></html>',

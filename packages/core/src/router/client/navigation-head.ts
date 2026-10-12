@@ -168,13 +168,18 @@ function createHeadScriptActivations(
 function waitForStylesheet(link: HTMLLinkElement): Promise<void> {
 	return new Promise((resolve) => {
 		let timeout: ReturnType<typeof setTimeout>;
+		const observer = new MutationObserver(() => {
+			if (!link.isConnected) done();
+		});
 		const done = () => {
 			clearTimeout(timeout);
+			observer.disconnect();
 			link.removeEventListener('load', done);
 			link.removeEventListener('error', done);
 			resolve();
 		};
 		timeout = setTimeout(done, 5000);
+		observer.observe(document.head, { childList: true, subtree: true });
 		link.addEventListener('load', done, { once: true });
 		link.addEventListener('error', done, { once: true });
 	});

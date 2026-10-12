@@ -43,7 +43,7 @@ describe('LitStaticRenderWorkerClient', () => {
 		expect(createdWorker.terminate).toHaveBeenCalledTimes(1);
 	});
 
-	it('round-trips query and cache strategy', async () => {
+	it('round-trips query, cache strategy and source dependency paths', async () => {
 		createdWorkers.length = 0;
 		const { LitStaticRenderWorkerClient } = await loadWorkerClient();
 		const client = new LitStaticRenderWorkerClient({
@@ -72,11 +72,13 @@ describe('LitStaticRenderWorkerClient', () => {
 			id: '1',
 			html: '<html>Lit worker</html>',
 			cacheStrategy: { revalidate: 60 },
+			sourceDependencyPaths: ['/app/src/pages/docs.lit.tsx'],
 		});
 
 		await expect(renderPromise).resolves.toEqual({
 			html: '<html>Lit worker</html>',
 			cacheStrategy: { revalidate: 60 },
+			sourceDependencyPaths: ['/app/src/pages/docs.lit.tsx'],
 		});
 		await client.dispose();
 	});

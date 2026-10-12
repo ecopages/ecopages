@@ -5,7 +5,7 @@ import { installBuildRuntime } from '@ecopages/core/build/build-runtime';
 import { RouteRendererFactory } from '@ecopages/core/route-renderer/route-renderer';
 import type { EcoPagesAppConfig, PageParams, PageQuery } from '@ecopages/core';
 import type {
-	LitStaticRenderCacheStrategy,
+	LitStaticRenderResult,
 	LitStaticRenderWorkerRequestMessage,
 	LitStaticRenderWorkerResponseMessage,
 } from './lit-static-render-protocol.ts';
@@ -37,11 +37,7 @@ async function initializeWorker(configModulePath: string, runtimeOrigin: string)
 	});
 }
 
-async function renderPage(
-	filePath: string,
-	params: PageParams,
-	query?: PageQuery,
-): Promise<{ html: string; cacheStrategy?: LitStaticRenderCacheStrategy }> {
+async function renderPage(filePath: string, params: PageParams, query?: PageQuery): Promise<LitStaticRenderResult> {
 	if (!routeRendererFactory) {
 		throw new Error('Lit static render worker is not initialized');
 	}
@@ -52,17 +48,18 @@ async function renderPage(
 		query,
 	});
 
-	const body = result.body;
+	const { body, cacheStrategy, sourceDependencyPaths } = result;
+	const metadata = { cacheStrategy, sourceDependencyPaths };
 	if (typeof body === 'string') {
-		return { html: body, cacheStrategy: result.cacheStrategy };
+		return { html: body, ...metadata };
 	}
 
 	if (Buffer.isBuffer(body)) {
-		return { html: body.toString('utf8'), cacheStrategy: result.cacheStrategy };
+		return { html: body.toString('utf8'), ...metadata };
 	}
 
 	if (body instanceof ReadableStream) {
-		return { html: await new Response(body).text(), cacheStrategy: result.cacheStrategy };
+		return { html: await new Response(body).text(), ...metadata };
 	}
 
 	throw new TypeError(`Unsupported Lit static render body type: ${typeof body}`);

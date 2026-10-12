@@ -338,6 +338,7 @@ export class RouteRenderOrchestrator {
 		const renderExecution = await measureRouteRenderPhase('render-body', () =>
 			this.captureHtmlRender(async () => adapter.renderRouteBody(renderOptions)),
 		);
+		const sourceDependencyPaths = this.withHtmlTemplateClosure(renderOptions.sourceDependencyPaths);
 		const unresolvedArtifactInspection = inspectUnresolvedMarkerArtifactHtml(renderExecution.html);
 		const htmlFinalization = adapter.getRouteHtmlFinalization(renderOptions);
 		const hasUnresolvedMarkerHtml = unresolvedArtifactInspection.hasUnresolvedMarkerArtifacts;
@@ -367,7 +368,7 @@ export class RouteRenderOrchestrator {
 			return {
 				body,
 				cacheStrategy: renderOptions.cacheStrategy,
-				sourceDependencyPaths: renderOptions.sourceDependencyPaths,
+				sourceDependencyPaths,
 			};
 		}
 
@@ -390,8 +391,26 @@ export class RouteRenderOrchestrator {
 		return {
 			body,
 			cacheStrategy: renderOptions.cacheStrategy,
-			sourceDependencyPaths: renderOptions.sourceDependencyPaths,
+			sourceDependencyPaths,
 		};
+	}
+
+	/**
+	 * @remarks
+	 * The HTML template imports its includes (head, SEO, scripts) when the body renders, so its module
+	 * closure is recorded only then. Editing any of them must miss the cached document.
+	 */
+	private withHtmlTemplateClosure(sourcePaths: readonly string[] | undefined): readonly string[] | undefined {
+		const htmlTemplatePath = this.appConfig.absolutePaths?.htmlTemplatePath;
+		if (!sourcePaths || !htmlTemplatePath) {
+			return sourcePaths;
+		}
+
+		const templateClosure = getAppBuildInputIndex(this.appConfig).sourcePaths({
+			consumer: 'server-route-module',
+			key: path.resolve(htmlTemplatePath),
+		});
+		return [...new Set([...sourcePaths, ...templateClosure])];
 	}
 
 	private async captureRenderedBody(body: RouteRendererBody): Promise<{ body: RouteRendererBody; html: string }> {

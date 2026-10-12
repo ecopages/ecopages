@@ -1008,6 +1008,47 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		},
 	);
 
+	test('ignores add events for files already in the source tree at subscribe', async () => {
+		const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-watch-snapshot-')));
+		try {
+			mkdirSync(path.join(root, 'src/components'), { recursive: true });
+			const cssFile = path.join(root, 'src/components/widget.css');
+			writeFileSync(cssFile, ':host { display: block; }\n');
+			const Config = await finalizeEcoPagesConfig({ rootDir: root, integrations: [] });
+			installDevRuntimeState(Config);
+			const HmrManager = createMockHmrManager();
+			const Bridge = createMockBridge();
+			const eventHandlers = new Map<string, (filePath: string) => Promise<void>>();
+			const watcherHandle = {
+				add: vi.fn(),
+				once: vi.fn(emitInitialWatcherReady),
+				on: vi.fn((event: string, handler: (filePath: string) => Promise<void>) => {
+					eventHandlers.set(event, handler);
+					return watcherHandle;
+				}),
+				close: vi.fn(),
+			};
+			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherHandle as never);
+
+			const watcher = new ProjectWatcher({
+				config: Config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager: HmrManager,
+				bridge: Bridge,
+				changeDebounceMs: 0,
+			});
+
+			await watcher.createWatcherSubscription();
+			await eventHandlers.get('add')?.(cssFile);
+
+			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(Bridge.reload).not.toHaveBeenCalled();
+			await watcher.close();
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
 	test('watches every supported dotenv path before the files exist', async () => {
 		const Config = await createMockConfig();
 		installDevRuntimeState(Config);

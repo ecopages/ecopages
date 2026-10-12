@@ -5,6 +5,11 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 const activeIndex = new AsyncLocalStorage<BuildInputDependencyIndex>();
 const collectedInputs = new AsyncLocalStorage<Set<string>>();
 
+export type BuildInputRecordingContext = {
+	index: BuildInputDependencyIndex | undefined;
+	collectedInputs: Set<string> | undefined;
+};
+
 /**
  * Cached result kinds that share one reverse index from recorded build inputs.
  */
@@ -226,16 +231,28 @@ export class BuildInputDependencyIndex {
 const indexByAppConfig = new WeakMap<EcoPagesAppConfig, BuildInputDependencyIndex>();
 
 /**
- * Records a filesystem path the current build read.
+ * Captures the current build-input targets before handing plugin hooks to a bundler.
+ */
+export function getBuildInputRecordingContext(): BuildInputRecordingContext {
+	return {
+		index: activeIndex.getStore(),
+		collectedInputs: collectedInputs.getStore(),
+	};
+}
+
+/**
+ * Creates a recorder whose writes stay attached to a captured build context.
  *
  * @remarks
- * No-op when no index is active. Plugin loads always also call Rolldown
- * `this.addWatchFile` when that method exists.
+ * Rolldown plugin hooks may run outside the caller's AsyncLocalStorage context,
+ * so the recorder closes over the targets captured before the build starts.
  */
-export function recordLoadedBuildInput(filePath: string): void {
-	const normalized = path.resolve(filePath);
-	collectedInputs.getStore()?.add(normalized);
-	activeIndex.getStore()?.recordWatchPath(normalized);
+export function createBuildInputRecorder(context: BuildInputRecordingContext): (filePath: string) => void {
+	return (filePath) => {
+		const normalized = path.resolve(filePath);
+		context.collectedInputs?.add(normalized);
+		context.index?.recordWatchPath(normalized);
+	};
 }
 
 /**

@@ -28,7 +28,7 @@ The important ownership rules are:
 - Development Page prewarm path collection and rendering run in the background without delaying server readiness. App configuration declares `devPrewarmPaths`; Processors declare pathnames through `collectDevPrewarmPaths()`. Collection failures are logged with their stack. See [Runtime Adapters](src/adapters/README.md) and [Plugin Contracts](src/plugins/README.md).
 - App shutdown tears down Integration runtime resources, including Lit workers. See [Runtime Adapters](src/adapters/README.md).
 - HMR and invalidation use shared graph-aware services instead of runtime-specific ad hoc wiring.
-- The build adapter owns source module closures and emitted chunk graphs, and passes an explicit recorder to Rolldown plugin hooks so their declared filesystem inputs reach the active build-input index. Grouped browser scripts resolve by the path or name the caller passed (and the bundler's facade when that spelling differs); in-process Page caches track inlined source imports and reachable generated artifacts. See [Build Layer](src/build/README.md).
+- The build adapter returns each build's plugin-recorded inputs by module alongside source-module closures, and passes an explicit recorder to Rolldown plugin hooks. Cache owners bind only the paths read by their entry closure, so development invalidates affected Page Browser Graphs, HTML entries, route modules, and browser entrypoints. Grouped browser scripts resolve by the path or name the caller passed (and the bundler's facade when that spelling differs); in-process Page caches also track reachable generated artifacts. See [Build Layer](src/build/README.md).
 
 ### Bootstrap And Runtime Ownership
 

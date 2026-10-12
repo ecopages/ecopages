@@ -4,6 +4,7 @@ import { isPathInside } from '../../../utils/path-containment.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
+import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
 import type { AssetDefinition, AssetKind, AssetSource, ContentScriptAsset, ProcessedAsset } from './assets.types.ts';
 import { deduplicateAssetDependencies, getAssetDependencyKey } from './asset-dependency-keys.ts';
 import {
@@ -48,9 +49,18 @@ export class AssetProcessingService {
 
 	/**
 	 * Creates the asset-processing service bound to one finalized app config.
+	 *
+	 * @remarks
+	 * In development each change batch evicts the cached assets whose source or bundled inputs it
+	 * touched, so a cached bundle is never served after one of its imports changed.
 	 */
 	constructor(config: EcoPagesAppConfig) {
 		this.config = config;
+		getAppBuildInputIndex(config).subscribeToChanges((filePaths) => {
+			for (const filePath of filePaths) {
+				this.invalidateCacheForFile(filePath);
+			}
+		});
 	}
 
 	/**
@@ -298,22 +308,22 @@ export class AssetProcessingService {
 			return null;
 		}
 
-		const cached = this.cache.get(depKey);
-		if (!cached) {
+		const currentCache = this.cache.get(depKey);
+		if (!currentCache) {
 			return null;
 		}
 
-		if (cached.sourceHash !== sourceHash) {
+		if (currentCache.sourceHash !== sourceHash) {
 			this.invalidateCachedAsset(depKey);
 			return null;
 		}
 
-		if (cached.asset.filepath && !fileSystem.exists(cached.asset.filepath)) {
+		if (currentCache.asset.filepath && !fileSystem.exists(currentCache.asset.filepath)) {
 			this.invalidateCachedAsset(depKey);
 			return null;
 		}
 
-		return cached.asset;
+		return currentCache.asset;
 	}
 
 	private getCachedContentScriptAsset(dep: ContentScriptAsset, depKey: string): ProcessedAsset | null {
@@ -323,8 +333,21 @@ export class AssetProcessingService {
 			return null;
 		}
 
+		const cached = this.cache.get(depKey);
 		const materialized = materializeContentScriptAsset(dep, filepath);
-		this.cache.set(depKey, { asset: materialized });
+		const bundledSourceFilepaths = [
+			...new Set([
+				...(cached?.asset.bundledSourceFilepaths ?? []),
+				...(materialized.bundledSourceFilepaths ?? []),
+			]),
+		];
+		if (bundledSourceFilepaths.length > 0) {
+			materialized.bundledSourceFilepaths = bundledSourceFilepaths;
+		}
+		this.cache.set(depKey, {
+			asset: materialized,
+			sourceHash: cached?.sourceHash,
+		});
 		return materialized;
 	}
 
@@ -397,16 +420,22 @@ export class AssetProcessingService {
 	 * Removes cached assets that were produced from the given file path.
 	 */
 	invalidateCacheForFile(filepath: string): void {
+		const resolvedPath = path.resolve(filepath);
 		let invalidatesBrowserRuntime = false;
 		for (const [key, value] of this.cache.entries()) {
 			if (
-				value.asset.filepath === filepath ||
-				value.asset.sourceFilepath === filepath ||
-				value.asset.bundledSourceFilepaths?.includes(filepath)
+				(value.asset.filepath && path.resolve(value.asset.filepath) === resolvedPath) ||
+				(value.asset.sourceFilepath && path.resolve(value.asset.sourceFilepath) === resolvedPath) ||
+				value.asset.bundledSourceFilepaths?.some((sourcePath) => path.resolve(sourcePath) === resolvedPath)
 			) {
 				invalidatesBrowserRuntime ||=
 					value.asset.packageRole === 'runtime' || value.asset.packageRole === 'page-script';
 				this.cache.delete(key);
+			}
+		}
+		for (const processor of this.registry.getAllProcessors().values()) {
+			if (typeof processor.invalidateCacheForFile === 'function') {
+				processor.invalidateCacheForFile(filepath);
 			}
 		}
 		if (invalidatesBrowserRuntime) {

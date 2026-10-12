@@ -13,14 +13,13 @@ import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-
 export type DevelopmentInvalidationCategory =
 	| 'public-asset'
 	| 'additional-watch'
-	| 'include-source'
-	| 'explicit-server-view'
 	| 'route-source'
 	| 'processor-owned-asset'
-	| 'recorded-input'
-	| 'server-source'
+	| 'source'
 	| 'runtime-restart'
 	| 'other';
+
+const sourceFileExtension = /\.(?:[cm]?ts|[jt]sx?|mdx)$/u;
 
 /**
  * Framework-owned invalidation plan for one changed file.
@@ -154,6 +153,7 @@ export class DevelopmentInvalidationService {
 	}
 
 	private async markAppliedFilesDirty(files: AppliedDevFileChange[], applied: AppliedDevFileChanges): Promise<void> {
+		getAppBuildInputIndex(this.appConfig).recordChanges(files.map((file) => file.filePath));
 		if (applied.invalidateServerModules) {
 			this.invalidateServerModules(
 				files.filter((file) => file.plan.invalidateServerModules).map((file) => file.filePath),
@@ -165,7 +165,7 @@ export class DevelopmentInvalidationService {
 	}
 
 	private async invalidatePageHtmlCache(files: AppliedDevFileChange[]): Promise<void> {
-		if (files.some((file) => shouldClearAllPageHtmlCache(file))) {
+		if (files.some(shouldClearAllPageHtmlCache)) {
 			await clearAppPageCache(this.appConfig);
 			return;
 		}
@@ -186,6 +186,10 @@ export class DevelopmentInvalidationService {
 			session.invalidateByFilePath(file.filePath);
 			if (file.plan.category === 'route-source' && file.kind !== 'changed') {
 				session.invalidateByRouteFile(file.filePath);
+				getAppBuildInputIndex(this.appConfig).unregister({
+					consumer: 'server-route-module',
+					key: path.resolve(file.filePath),
+				});
 			}
 		}
 	}
@@ -249,42 +253,9 @@ export class DevelopmentInvalidationService {
 			};
 		}
 
-		if (getAppBuildInputIndex(this.appConfig).hasSourcePath(filePath)) {
+		if (getAppBuildInputIndex(this.appConfig).hasSourcePath(filePath) || this.isServerModuleSourceFile(filePath)) {
 			return {
-				category: 'recorded-input',
-				invalidateServerModules: true,
-				refreshRoutes: false,
-				reloadBrowser: false,
-				delegateToHmr: true,
-				processorHandledAsset: false,
-			};
-		}
-
-		if (this.isIncludeSourceFile(filePath)) {
-			return {
-				category: 'include-source',
-				invalidateServerModules: true,
-				refreshRoutes: false,
-				reloadBrowser: false,
-				delegateToHmr: true,
-				processorHandledAsset: false,
-			};
-		}
-
-		if (this.isExplicitServerViewFile(filePath)) {
-			return {
-				category: 'explicit-server-view',
-				invalidateServerModules: true,
-				refreshRoutes: false,
-				reloadBrowser: false,
-				delegateToHmr: true,
-				processorHandledAsset: false,
-			};
-		}
-
-		if (this.isServerModuleSourceFile(filePath)) {
-			return {
-				category: 'server-source',
+				category: 'source',
 				invalidateServerModules: true,
 				refreshRoutes: false,
 				reloadBrowser: false,
@@ -353,78 +324,45 @@ export class DevelopmentInvalidationService {
 		);
 	}
 
+	/** Returns whether a file is an include or template source. */
+	isIncludeSourceFile(filePath: string): boolean {
+		const resolvedPath = path.resolve(filePath);
+		return isPathInside(resolvedPath, this.appConfig.absolutePaths.includesDir) && this.isSourceFile(resolvedPath);
+	}
+
+	/** Returns whether a file is an explicit server-rendered view module. */
+	isExplicitServerViewFile(filePath: string): boolean {
+		const resolvedPath = path.resolve(filePath);
+		const viewsDir = path.join(this.appConfig.absolutePaths.srcDir, 'views');
+		return isPathInside(resolvedPath, viewsDir) && this.isSourceFile(resolvedPath);
+	}
+
 	/**
 	 * Returns whether the file is a route source file.
 	 */
 	isRouteSourceFile(filePath: string): boolean {
 		const resolvedPath = path.resolve(filePath);
-
-		if (!isPathInside(resolvedPath, this.appConfig.absolutePaths.pagesDir)) {
-			return false;
-		}
-
-		if (this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))) {
-			return true;
-		}
-
-		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
+		return isPathInside(resolvedPath, this.appConfig.absolutePaths.pagesDir) && this.isSourceFile(resolvedPath);
 	}
 
 	/**
-	 * Returns whether the file is an include/template source file.
-	 */
-	isIncludeSourceFile(filePath: string): boolean {
-		const resolvedPath = path.resolve(filePath);
-
-		if (!isPathInside(resolvedPath, this.appConfig.absolutePaths.includesDir)) {
-			return false;
-		}
-
-		if (this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))) {
-			return true;
-		}
-
-		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
-	}
-
-	/**
-	 * Returns whether the file is an explicit server-rendered view module.
-	 *
-	 * @remarks
-	 * These modules are typically registered through `renderServerModule` in
-	 * `app.ts` rather than the filesystem router. They need a full browser reload
-	 * because their HTML is produced on the server, not through client HMR entrypoints.
-	 */
-	isExplicitServerViewFile(filePath: string): boolean {
-		const resolvedPath = path.resolve(filePath);
-		const viewsDir = path.join(this.appConfig.absolutePaths.srcDir, 'views');
-
-		if (!isPathInside(resolvedPath, viewsDir)) {
-			return false;
-		}
-
-		if (this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))) {
-			return true;
-		}
-
-		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
-	}
-
-	/**
-	 * Returns whether the file is a server-executed source module outside the
-	 * special route/include buckets.
+	 * Returns whether the file is source-like under a server-owned source root.
 	 */
 	isServerModuleSourceFile(filePath: string): boolean {
 		const resolvedPath = path.resolve(filePath);
-		if (!isPathInside(resolvedPath, this.appConfig.absolutePaths.srcDir)) {
-			return false;
-		}
+		const sourceRoots = [
+			this.appConfig.absolutePaths.srcDir,
+			this.appConfig.absolutePaths.includesDir,
+			path.join(this.appConfig.absolutePaths.srcDir, 'views'),
+		];
+		return sourceRoots.some((root) => isPathInside(resolvedPath, root)) && this.isSourceFile(resolvedPath);
+	}
 
-		if (this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))) {
-			return true;
-		}
-
-		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
+	private isSourceFile(filePath: string): boolean {
+		return (
+			this.appConfig.templatesExt.some((extension) => filePath.endsWith(extension)) ||
+			sourceFileExtension.test(filePath)
+		);
 	}
 
 	/**
@@ -457,15 +395,20 @@ export class DevelopmentInvalidationService {
 	}
 }
 
+/**
+ * Returns whether a change must drop every cached HTML document.
+ *
+ * @remarks
+ * Recorded HTML inputs do not cover every way a page reads a source file: content collections are
+ * virtual modules, Bun source imports bypass the build, and inferred foreign children and barrel
+ * targets reach a page without entering its recorded closure. Evicting only entries that recorded the
+ * path served stale pages in those cases, so source edits and processor-owned asset edits clear the
+ * cache. A newly created processor-owned asset has no dependents yet, and a route file evicts only
+ * its own entries.
+ */
 function shouldClearAllPageHtmlCache(file: AppliedDevFileChange): boolean {
 	if (file.plan.category === 'processor-owned-asset') {
 		return file.kind !== 'created';
 	}
-	return (
-		file.plan.category === 'additional-watch' ||
-		file.plan.category === 'server-source' ||
-		file.plan.category === 'recorded-input' ||
-		file.plan.category === 'include-source' ||
-		file.plan.category === 'explicit-server-view'
-	);
+	return file.plan.category === 'additional-watch' || file.plan.category === 'source';
 }

@@ -2,6 +2,7 @@ import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { hashBrowserAssetBytes } from '../../../hashed-browser-asset.ts';
 import { FileScriptProcessor } from './file-script.processor';
+import { BrowserBundleService } from '../../../browser-bundle.service.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../../../types/internal-types';
 import type { FileScriptAsset } from '../../assets.types';
 
@@ -377,7 +378,9 @@ describe('FileScriptProcessor', () => {
 
 		test('should pass bundle plugins through when bundling', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
-			const bundleScriptSpy = vi.spyOn(processor as any, 'bundleScript').mockResolvedValue('/tmp/out.js');
+			const bundleScriptSpy = vi
+				.spyOn(processor as never as { bundleScript: (typeof processor)['bundleScript'] }, 'bundleScript')
+				.mockResolvedValue({ filepath: '/tmp/out.js', inputPaths: [] });
 			const customPlugin = {
 				name: 'custom-plugin',
 				setup() {},
@@ -402,7 +405,9 @@ describe('FileScriptProcessor', () => {
 
 		test('should bundle nested source files into dist assets subdirectories', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
-			const bundleScriptSpy = vi.spyOn(processor as any, 'bundleScript').mockResolvedValue('/tmp/out.js');
+			const bundleScriptSpy = vi
+				.spyOn(processor as never as { bundleScript: (typeof processor)['bundleScript'] }, 'bundleScript')
+				.mockResolvedValue({ filepath: '/tmp/out.js', inputPaths: [] });
 
 			const dep: FileScriptAsset = {
 				kind: 'script',
@@ -417,9 +422,38 @@ describe('FileScriptProcessor', () => {
 			expect(buildArgs.outdir).toBe('/test/project/.eco/public/assets/pages');
 		});
 
+		test('carries build inputs and the entry module closure onto the processed asset', async () => {
+			const entrypoint = '/test/project/src/pages/index.tsx';
+			const helper = '/test/project/src/lib/posts.ts';
+			const pluginInput = '/test/project/data/posts.json';
+			vi.spyOn(BrowserBundleService.prototype, 'bundle').mockResolvedValue({
+				success: true,
+				logs: [],
+				outputs: [{ path: '/tmp/index.js' }],
+				loadedInputs: [pluginInput],
+				dependencyGraph: {
+					entrypoints: {
+						[entrypoint]: [entrypoint, helper],
+					},
+				},
+			});
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+
+			const result = await processor.process({
+				kind: 'script',
+				source: 'file',
+				filepath: entrypoint,
+				bundle: true,
+			});
+
+			expect(result.bundledSourceFilepaths).toEqual([entrypoint, helper, pluginInput]);
+		});
+
 		test('should disable splitting for page-owned script bundles by default', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
-			const bundleScriptSpy = vi.spyOn(processor as any, 'bundleScript').mockResolvedValue('/tmp/out.js');
+			const bundleScriptSpy = vi
+				.spyOn(processor as never as { bundleScript: (typeof processor)['bundleScript'] }, 'bundleScript')
+				.mockResolvedValue({ filepath: '/tmp/out.js', inputPaths: [] });
 
 			const dep: FileScriptAsset = {
 				kind: 'script',
@@ -473,8 +507,8 @@ describe('FileScriptProcessor', () => {
 				.spyOn(processor as never as { bundleScripts: (typeof processor)['bundleScripts'] }, 'bundleScripts')
 				.mockResolvedValue(
 					new Map([
-						['island-a', '/test/project/.eco/public/assets/island-a-hash.js'],
-						['island-b', '/test/project/.eco/public/assets/island-b-hash.js'],
+						['island-a', { filepath: '/test/project/.eco/public/assets/island-a-hash.js', inputPaths: [] }],
+						['island-b', { filepath: '/test/project/.eco/public/assets/island-b-hash.js', inputPaths: [] }],
 					]),
 				);
 

@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type {
 	EcoComponent,
@@ -262,13 +263,17 @@ export class RouteRenderOrchestrator {
 			...resolvedPageDependencyComponents,
 			...clientPlan.islandEntries.map((entry) => entry.component),
 		]);
+		const buildInputIndex = getAppBuildInputIndex(this.appConfig);
 		const sourceDependencyPaths = collectHtmlCacheSourceDependencyPaths({
 			routeFile: routeOptions.file,
 			processedAssets: allDependencies,
 			graphDependencyPaths,
 			additionalSourcePaths,
+			routeModulePaths: buildInputIndex.sourcePaths({
+				consumer: 'server-route-module',
+				key: path.resolve(routeOptions.file),
+			}),
 		});
-		const buildInputIndex = getAppBuildInputIndex(this.appConfig);
 		for (const sourcePath of sourceDependencyPaths) {
 			buildInputIndex.recordWatchPath(sourcePath);
 		}

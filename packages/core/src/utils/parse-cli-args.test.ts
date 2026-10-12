@@ -113,24 +113,14 @@ describe('parseCliArgs', () => {
 		expect(process.env.NODE_ENV).toBe('production');
 	});
 
-	it('parses port, hostname, and react-fast-refresh flags', () => {
+	it('parses port and hostname flags', () => {
 		delete process.env.NODE_ENV;
-		process.argv = [
-			'node',
-			'/usr/local/bin/ecopages.js',
-			'dev',
-			'--port',
-			'4321',
-			'--hostname',
-			'127.0.0.1',
-			'--react-fast-refresh',
-		];
+		process.argv = ['node', '/usr/local/bin/ecopages.js', 'dev', '--port', '4321', '--hostname', '127.0.0.1'];
 
 		expect(parseCliArgs()).toMatchObject({
 			dev: true,
 			port: 4321,
 			hostname: '127.0.0.1',
-			reactFastRefresh: true,
 		});
 	});
 });

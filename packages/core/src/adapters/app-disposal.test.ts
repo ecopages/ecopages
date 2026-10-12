@@ -52,7 +52,6 @@ class TestNodeEcopagesApp extends NodeEcopagesApp {
 			serveOnly: false,
 			port: undefined,
 			hostname: undefined,
-			reactFastRefresh: undefined,
 			...cliArgs,
 		};
 	}
@@ -97,7 +96,6 @@ class TestBunEcopagesApp extends BunEcopagesApp {
 			serveOnly: false,
 			port: undefined,
 			hostname: undefined,
-			reactFastRefresh: undefined,
 			...cliArgs,
 		};
 	}

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { buildEnvOverrides, buildBunArgs, buildLaunchEnv, createLaunchPlan, detectRuntime } from './launch-plan.js';
+import { buildEnvOverrides, buildLaunchEnv, createLaunchPlan, detectRuntime } from './launch-plan.js';
 import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '@ecopages/core/utils/resolve-entry-file';
 
 const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
@@ -77,16 +77,25 @@ describe('launch-plan', () => {
 		expect(detectRuntime({ runtime: 'node' })).toBe('node');
 	});
 
-	it('buildBunArgs preloads the resolved config path when present', () => {
-		const configPath = '/tmp/project/eco.config.staging.ts';
-		expect(buildBunArgs(['--dev'], { hot: true }, 'app.ts', configPath)).toEqual([
-			'--hot',
-			'run',
-			'--preload',
-			configPath,
-			'app.ts',
-			'--dev',
-		]);
+	it('createLaunchPlan adds bun --watch for dev:watch', async () => {
+		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
+		try {
+			process.chdir(tempDir);
+			fs.writeFileSync(path.join(tempDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
+
+			const plan = await createLaunchPlan(
+				['--dev'],
+				{ runtime: 'bun', nodeEnv: 'development', watch: true },
+				'app.ts',
+				'dev',
+			);
+
+			expect(plan.command).toBe('bun');
+			expect(plan.commandArgs).toEqual(['--watch', 'run', 'app.ts', '--dev']);
+			expect(plan.env.ECOPAGES_ENTRY_WATCH).toBe('1');
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
 	});
 
 	it('buildLaunchEnv loads env files and lets process env and CLI overrides win', () => {
@@ -188,34 +197,23 @@ describe('launch-plan', () => {
 		}
 	});
 
-	it('createLaunchPlan keeps react fast refresh Bun-only', async () => {
+	it('createLaunchPlan runs Bun entries with the same forwarded arguments as Node', async () => {
 		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
 		try {
 			process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
 			process.chdir(tempDir);
 			fs.writeFileSync(path.join(tempDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
 
-			const plan = await createLaunchPlan(
-				['--dev'],
-				{ runtime: 'node', nodeEnv: 'development', reactFastRefresh: true },
-				'app.ts',
-				'dev',
-			);
+			const plan = await createLaunchPlan(['--dev'], { runtime: 'bun', nodeEnv: 'development' }, 'app.ts', 'dev');
 
-			expect(plan.commandArgs).toEqual([
-				'--import',
-				nodeRequirePreload,
-				'--import',
-				tsxLoader,
-				'app.ts',
-				'--dev',
-			]);
+			expect(plan.command).toBe('bun');
+			expect(plan.commandArgs).toEqual(['run', 'app.ts', '--dev']);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
 
-	it('createLaunchPlan uses bun direct runtime and preloads eco.config.ts for preview', async () => {
+	it('createLaunchPlan runs a Bun preview with the entry file and the same arguments', async () => {
 		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
 		try {
 			process.chdir(tempDir);
@@ -233,8 +231,7 @@ describe('launch-plan', () => {
 				runtime: 'bun',
 				command: 'bun',
 			});
-			const configPreload = path.join(fs.realpathSync(tempDir), 'eco.config.ts');
-			expect(plan.commandArgs).toEqual(['run', '--preload', configPreload, 'app.ts', '--preview']);
+			expect(plan.commandArgs).toEqual(['run', 'app.ts', '--preview']);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}

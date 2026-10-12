@@ -401,16 +401,6 @@ describe('CLI Commands', () => {
 		exitSpy.mockRestore();
 	});
 
-	it('runs dev:hot command', async () => {
-		await runCli(['dev:hot']);
-		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
-			['--dev'],
-			expect.objectContaining({ hot: true, nodeEnv: 'development' }),
-			'app.ts',
-			'dev',
-		);
-	});
-
 	it('runs dev:watch command', async () => {
 		await runCli(['dev:watch']);
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
@@ -506,13 +496,12 @@ describe('CLI Commands', () => {
 		);
 	});
 
-	it('normalizes react fast refresh to the launch-plan option shape', async () => {
-		await runCli(['dev', '--react-fast-refresh', '--runtime', 'bun']);
+	it('passes the runtime flag through to the launch plan', async () => {
+		await runCli(['dev', '--runtime', 'bun']);
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
 			['--dev'],
 			expect.objectContaining({
 				nodeEnv: 'development',
-				reactFastRefresh: true,
 				runtime: 'bun',
 			}),
 			'app.ts',

@@ -7,8 +7,7 @@
 		"dev": "ecopages dev",
 		"build": "ecopages build",
 		"preview": "ecopages preview",
-		"watch:dev": "ecopages dev:watch",
-		"hot:dev": "ecopages dev:hot"
+		"watch:dev": "ecopages dev:watch"
 	},
 	"devDependencies": {
 		"@ecopages/browser-router": "workspace:*",

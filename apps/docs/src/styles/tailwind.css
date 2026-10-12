@@ -8,7 +8,7 @@
 @import './vendor/shiki.css';
 
 .rui-heading__title {
-	@apply font-heading;
+	@apply font-heading font-extrabold;
 }
 
 html {

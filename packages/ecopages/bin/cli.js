@@ -339,6 +339,31 @@ function restartWatchSnapshotChanged(current, previous) {
  * Watches file parents so dotenv files created later and atomic file replacements are seen. Workspace
  * roots are watched recursively, matching the Project Watcher's linked-package subscription.
  */
+/**
+ * Watches `directory`, or its closest existing ancestor when `fs.watch` reports it missing.
+ *
+ * @remarks
+ * A branch switch can remove a directory the last restart set listed, and `fs.watch` throws ENOENT for
+ * it. The listener receives the watched directory and, for an ancestor, the name of its child on the
+ * way to the missing path, so the supervisor relaunches once that child appears.
+ * @param {string} directory
+ * @param {(watchedDirectory: string, missingChild: string | undefined) => import('node:fs').WatchListener<string>} createListener
+ */
+function watchDirectoryOrAncestor(directory, createListener) {
+	let current = path.resolve(directory);
+	let missingChild;
+	for (;;) {
+		try {
+			return watch(current, createListener(current, missingChild));
+		} catch (error) {
+			const parent = path.dirname(current);
+			if (error?.code !== 'ENOENT' || parent === current) throw error;
+			missingChild = path.basename(current);
+			current = parent;
+		}
+	}
+}
+
 function watchForNextChange(watchSet, onChange) {
 	const watchers = [];
 	let settled = false;
@@ -368,8 +393,15 @@ function watchForNextChange(watchSet, onChange) {
 
 	try {
 		for (const [dir, filePaths] of filesByDirectory) {
-			const watcher = watch(dir, (_event, fileName) => {
-				if (!fileName || filePaths.has(path.resolve(dir, String(fileName)))) settle(onChange);
+			const watcher = watchDirectoryOrAncestor(dir, (watchedDirectory, missingChild) => (_event, fileName) => {
+				if (!fileName) {
+					settle(onChange);
+					return;
+				}
+				const changed = missingChild
+					? String(fileName) === missingChild
+					: filePaths.has(path.resolve(watchedDirectory, String(fileName)));
+				if (changed) settle(onChange);
 			});
 			watchers.push(watcher);
 			watcher.on('error', fail);
@@ -377,10 +409,11 @@ function watchForNextChange(watchSet, onChange) {
 
 		for (const root of watchSet.roots) {
 			if (!existsSync(root)) {
-				const parent = path.dirname(root);
-				const rootName = path.basename(root);
-				const watcher = watch(parent, (_event, fileName) => {
-					if (!fileName || String(fileName) === rootName) settle(onChange);
+				const watcher = watchDirectoryOrAncestor(path.dirname(root), (_watchedDirectory, missingChild) => {
+					const awaitedName = missingChild ?? path.basename(root);
+					return (_event, fileName) => {
+						if (!fileName || String(fileName) === awaitedName) settle(onChange);
+					};
 				});
 				watchers.push(watcher);
 				watcher.on('error', fail);

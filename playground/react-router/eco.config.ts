@@ -10,9 +10,7 @@ export default defineConfig({
 	integrations: [
 		reactPlugin({
 			router: ecoRouter(),
-			mdx: {
-				enabled: true,
-			},
+			mdx: {},
 		}),
 	],
 	processors: [

@@ -9,7 +9,7 @@ import type {
 	EcoBuildPluginBuilder,
 } from '@ecopages/core/plugins/integration-plugin';
 import { createMdxLoaderPlugin } from '../mdx-loader-plugin.ts';
-import { resolveMdxCompilerOptions } from '../core/mdx-utils.ts';
+import { resolveMdxCompilerOptions, type MdxCompilerOptionsInput } from '../core/mdx-utils.ts';
 
 vi.mock('@mdx-js/mdx', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('@mdx-js/mdx')>();
@@ -248,6 +248,34 @@ describe('createMdxLoaderPlugin', () => {
 			},
 		]);
 
+		expect(compile).toHaveBeenCalledTimes(2);
+	});
+
+	it('applies one shared top-level remark plugin once in both React and JSX pipelines', async () => {
+		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-plugin-options-'));
+		tempDirs.push(tempDir);
+
+		const filePath = path.join(tempDir, 'page.mdx');
+		writeFileSync(filePath, '# Hello\n');
+
+		let pluginRuns = 0;
+		const mdxOptions = {
+			remarkPlugins: [
+				function countRemarkRuns() {
+					return () => {
+						pluginRuns += 1;
+					};
+				},
+			],
+		} satisfies MdxCompilerOptionsInput;
+		for (const jsxImportSource of ['react', '@ecopages/jsx'] as const) {
+			const compilerOptions = resolveMdxCompilerOptions(mdxOptions, { jsxImportSource });
+			const { builder, getOnLoadCallback } = createBuilderHarness();
+			createMdxLoaderPlugin({ projectRoot: tempDir, compilerOptions }).setup(builder);
+			await getOnLoadCallback()({ path: filePath });
+		}
+
+		expect(pluginRuns).toBe(2);
 		expect(compile).toHaveBeenCalledTimes(2);
 	});
 

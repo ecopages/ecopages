@@ -471,7 +471,8 @@ export class ProjectWatcher {
 			writeRuntimeRestartWatchSet(this.appConfig, this.workspacePackageRoots);
 		} catch (error) {
 			appLogger.warn(
-				`Could not persist development restart watch paths: ${error instanceof Error ? error.message : String(error)}`,
+				'Could not persist development restart watch paths',
+				error instanceof Error ? error : new Error(String(error)),
 			);
 		}
 		const ignoreProjectPath = createProjectWatcherIgnorePredicate(

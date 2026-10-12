@@ -91,15 +91,10 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 */
 	private readonly forceBrowserGraph: boolean;
 
-	/** @internal */
 	readonly bundleService: BundleService;
-	/** @internal */
 	readonly pageModuleService: PageModuleService;
-	/** @internal */
 	readonly hydrationAssetService: HydrationAssetService;
-	/** @internal */
 	readonly pagePayloadService: PagePayloadService;
-	/** @internal */
 	readonly mdxConfigDependencyService: MdxConfigDependencyService;
 
 	constructor(options: ReactRendererOptions) {

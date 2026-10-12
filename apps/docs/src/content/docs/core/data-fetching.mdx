@@ -84,4 +84,4 @@ Standard browser `fetch` works as expected inside your `*.script.ts` files or hy
 
 1. **Direct Calls**: Inside `staticProps`, prefer direct function calls (e.g., `db.query()`) rather than calling your own API routes via HTTP to improve build performance.
 2. **Type Safety**: The `eco.page` factory provides automatic type inference for your component props based on the return type of `staticProps`.
-3. **Environment Variables**: Use `import.meta.env` to access API keys and configuration secrets safely.
+3. **Environment Variables**: Read API keys and configuration secrets from `process.env` on the server.

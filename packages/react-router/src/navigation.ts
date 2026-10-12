@@ -114,7 +114,7 @@ function isReactRouteDocument(doc: Document): boolean {
  * Disabled in production where filenames have content hashes.
  */
 function addCacheBuster(url: string): string {
-	if (import.meta.env?.MODE === 'production' || import.meta.env?.PROD) {
+	if (process.env.NODE_ENV === 'production') {
 		return url;
 	}
 	const separator = url.includes('?') ? '&' : '?';

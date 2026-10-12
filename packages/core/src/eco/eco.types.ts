@@ -156,18 +156,7 @@ export interface ComponentOptions<P, E = EcoPagesElement> {
 
 export type HtmlOptions<E = EcoPagesElement> = ComponentOptions<HtmlTemplateProps, E>;
 
-export type LayoutOptions<E = EcoPagesElement> = ComponentOptions<LayoutProps<E>, E> & {
-	/**
-	 * Marks this layout as mounting shared client runtime state such as React context
-	 * providers or query clients.
-	 *
-	 * @remarks
-	 * When any layout in the app sets this flag, only flagged layouts participate in
-	 * React auto-vendoring discovery. This keeps shell-only layouts out of provider
-	 * scans while persisted SPA navigation stays on one shared vendor instance.
-	 */
-	runtimeProvider?: boolean;
-};
+export type LayoutOptions<E = EcoPagesElement> = ComponentOptions<LayoutProps<E>, E>;
 
 /**
  * Base options shared by all page variants

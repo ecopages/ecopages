@@ -76,48 +76,21 @@ export type ReactPluginOptions = {
 	/**
 	 * Optional shared browser runtime vendors.
 	 *
-	 * With `router`, npm packages reachable from `eco.layout()` **render graphs**
-	 * under the app's configured `layouts/` and `components/` directories are
-	 * discovered automatically and registered as shared vendors (alongside React
-	 * and React DOM). This prevents duplicate module instances when persisted
-	 * layouts stay mounted across SPA navigation.
-	 *
-	 * Without `router`, only explicit entries here are vendored.
-	 *
 	 * @remarks
-	 * Discovery follows client reachability from each layout's `render` path,
-	 * resolves relative and tsconfig path aliases, and collects npm package roots
-	 * imported from provider/context modules in that graph (for example files named
-	 * `query-provider.tsx` or modules using `QueryClientProvider` / `createContext`).
-	 * It does not vendor every npm dependency reachable from shell or page UI.
-	 *
-	 * Singleton libraries (MobX, Redux, TanStack Query, audio engines) must be
-	 * peer dependencies in shared state/UI packages and registered here explicitly
-	 * when page code imports them outside the layout graph. List each singleton in
-	 * `externals` on library vendors that import it so one shared vendor URL is used.
-	 *
-	 * Layouts that mount shared runtime state should set `runtimeProvider: true` in
-	 * `eco.layout({ ... })`. Flagged layouts become the only discovery roots and
-	 * vendor every reachable npm package in that layout graph. When no layout opts
-	 * in, discovery falls back to scanning all layouts with provider-scoped npm
-	 * collection.
+	 * Packages listed here use one vendor URL across page browser graphs. Add
+	 * singleton packages such as TanStack Query or MobX when pages and layouts
+	 * need to share the same module instance; layouts do not infer these entries.
 	 *
 	 * @example
 	 * ```ts
-	 * export const QueryRootLayout = eco.layout({
-	 *   runtimeProvider: true,
-	 *   render: ({ children }) => <QueryProvider>{children}</QueryProvider>,
-	 * });
-	 *
 	 * reactPlugin({
 	 *   router: ecoRouter(),
+	 *   runtimeModules: ['@tanstack/react-query'],
 	 * });
 	 * ```
 	 *
-	 * Manual entries override auto-discovered entries for the same specifier.
-	 * Discovery normalizes package subpaths to package roots when collecting
-	 * vendors. Import rewrite matches exact specifiers only — register subpaths
-	 * separately in `runtimeModules` when page code imports them directly.
+	 * Register the exact specifier imported by the page or layout. Package
+	 * subpaths are separate module contracts and need separate entries.
 	 *
 	 * `externals` on a library vendor must already be shared vendors (React, the
 	 * router, or another `runtimeModules` specifier). Unmapped externals throw.

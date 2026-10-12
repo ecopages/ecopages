@@ -659,7 +659,7 @@ interface ComponentOptions<P, E = EcoPagesElement> {
 // html() and layout() accept the same options as component() but return
 // narrower types to signal intent (EcoHtmlComponent / EcoLayoutComponent).
 type HtmlOptions<E = EcoPagesElement> = ComponentOptions<Record<string, unknown>, E>;
-type LayoutOptions<E = EcoPagesElement> = ComponentOptions<{ children: E }, E>;
+type LayoutOptions<E = EcoPagesElement> = ComponentOptions<LayoutProps<E>, E>;
 
 interface PageOptions<T, E = EcoPagesElement> {
 	componentDir?: string;

@@ -103,7 +103,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/router/README.md`: route discovery, matching, browser navigation coordination, and the shared client navigation pipeline
 - `src/route-renderer/README.md`: rendering orchestration, dependency resolution, and HTML cache source paths
 - `src/static-site-generator/README.md`: static build execution path
-- `src/eco/README.md`: `eco` authoring APIs for pages, layouts, and components
+- `src/eco/README.md`: `eco` authoring APIs for pages, layouts, and components, including the `LayoutOptions` type contract
 - `src/html-pages/README.md`: built-in `.html` Filesystem Routes, Html shell, and head reconciliation
 
 The intended reading order is:

@@ -57,32 +57,6 @@ export function resolveReactPluginRuntimeModules(
 }
 
 /**
- * Merges auto-discovered layout npm imports with explicit `runtimeModules` entries.
- *
- * @remarks Manual entries win when both sources declare the same specifier.
- */
-export function mergeReactPluginRuntimeModules(
-	manualModules: ResolvedReactPluginRuntimeModule[],
-	autoSpecifiers: string[],
-): ResolvedReactPluginRuntimeModule[] {
-	const merged = new Map<string, ResolvedReactPluginRuntimeModule>();
-
-	for (const specifier of autoSpecifiers) {
-		merged.set(specifier, {
-			specifier,
-			outputName: resolveReactPluginRuntimeModuleSlug(specifier),
-			externals: [],
-		});
-	}
-
-	for (const entry of manualModules) {
-		merged.set(entry.specifier, entry);
-	}
-
-	return [...merged.values()];
-}
-
-/**
  * Thrown when a `runtimeModules` entry lists an `externals` specifier that is
  * not a shared browser vendor.
  */

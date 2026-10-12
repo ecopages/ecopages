@@ -449,13 +449,40 @@ describe('ProjectWatcher - File Change Handling', () => {
 			expect(RefreshCallback).not.toHaveBeenCalled();
 		});
 
+		test('notifies the remaining processors and the browser when one processor fails', async () => {
+			const failure = new Error('stylesheet rebuild failed');
+			const failingOnChanges = vi.fn(async () => {
+				throw failure;
+			});
+			const onChanges = vi.fn(async () => {});
+			const watchConfig = (handler: typeof onChanges) => ({
+				getWatchConfig: vi.fn(() => ({
+					paths: ['/test/project/src'],
+					extensions: ['.tsx'],
+					onChanges: handler,
+				})),
+				getAssetCapabilities: vi.fn(() => []),
+			});
+			Config.processors.set('failing', { name: 'failing', ...watchConfig(failingOnChanges) } as any);
+			Config.processors.set('working', { name: 'working', ...watchConfig(onChanges) } as any);
+			const errorLog = vi.spyOn(appLogger, 'error').mockImplementation(() => appLogger);
+
+			await (watcher as any).handleFileChange(path.join(Config.absolutePaths.includesDir, 'seo.kita.tsx'));
+
+			expect(failingOnChanges).toHaveBeenCalledOnce();
+			expect(onChanges).toHaveBeenCalledOnce();
+			expect(Bridge.reload).toHaveBeenCalledTimes(1);
+			expect(errorLog).toHaveBeenCalledWith(expect.stringContaining('failing'), failure);
+			errorLog.mockRestore();
+		});
+
 		test('should defer processor notifications until after include template HMR handling', async () => {
-			const onChange = vi.fn(async () => {});
+			const onChanges = vi.fn(async () => {});
 			const Processor = {
 				getWatchConfig: vi.fn(() => ({
 					paths: ['/test/project/src'],
 					extensions: ['.css', '.tsx'],
-					onChange,
+					onChanges,
 				})),
 				getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
 				canProcessAsset: vi.fn((kind: string, filepath?: string) => {
@@ -474,19 +501,24 @@ describe('ProjectWatcher - File Change Handling', () => {
 			await new Promise<void>((resolve) => {
 				setImmediate(resolve);
 			});
-			expect(onChange).toHaveBeenCalledWith({ path: path.resolve(includeFilePath), bridge: Bridge });
+			expect(onChanges).toHaveBeenCalledWith({
+				created: [],
+				changed: [path.resolve(includeFilePath)],
+				deleted: [],
+				bridge: Bridge,
+			});
 		});
 	});
 
 	describe('registered script entrypoints', () => {
 		test('should defer processor notifications for registered script edits until after HMR handling', async () => {
-			const onChange = vi.fn(async () => {});
+			const onChanges = vi.fn(async () => {});
 			const scriptPath = path.join(Config.absolutePaths.srcDir, 'components/theme-toggle.tsx');
 			const Processor = {
 				getWatchConfig: vi.fn(() => ({
 					paths: ['/test/project/src'],
 					extensions: ['.css', '.tsx'],
-					onChange,
+					onChanges,
 				})),
 				getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
 				canProcessAsset: vi.fn((kind: string, filepath?: string) => {
@@ -507,7 +539,12 @@ describe('ProjectWatcher - File Change Handling', () => {
 			await new Promise<void>((resolve) => {
 				setImmediate(resolve);
 			});
-			expect(onChange).toHaveBeenCalledWith({ path: path.resolve(scriptPath), bridge: Bridge });
+			expect(onChanges).toHaveBeenCalledWith({
+				created: [],
+				changed: [path.resolve(scriptPath)],
+				deleted: [],
+				bridge: Bridge,
+			});
 		});
 	});
 
@@ -544,12 +581,12 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 	describe('processor-handled files', () => {
 		test('should skip HMR for processor-owned asset capabilities', async () => {
-			const onChange = vi.fn(async () => {});
+			const onChanges = vi.fn(async () => {});
 			const Processor = {
 				getWatchConfig: vi.fn(() => ({
 					paths: ['/test/project/src'],
 					extensions: ['.css', '.scss'],
-					onChange,
+					onChanges,
 				})),
 				getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css', '*.scss'] }]),
 				canProcessAsset: vi.fn((kind: string, filepath?: string) => {
@@ -562,7 +599,12 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(cssFilePath);
 
-			expect(onChange).toHaveBeenCalledWith({ path: path.resolve(cssFilePath), bridge: Bridge });
+			expect(onChanges).toHaveBeenCalledWith({
+				created: [],
+				changed: [path.resolve(cssFilePath)],
+				deleted: [],
+				bridge: Bridge,
+			});
 			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 		});
 
@@ -584,12 +626,12 @@ describe('ProjectWatcher - File Change Handling', () => {
 		});
 
 		test('should keep TSX changes in HMR when a processor only handles stylesheet assets', async () => {
-			const onChange = vi.fn(async () => {});
+			const onChanges = vi.fn(async () => {});
 			const Processor = {
 				getWatchConfig: vi.fn(() => ({
 					paths: ['/test/project/src'],
 					extensions: ['.css', '.tsx'],
-					onChange,
+					onChanges,
 				})),
 				getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
 				canProcessAsset: vi.fn((kind: string, filepath?: string) => {
@@ -603,18 +645,23 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(tsxFilePath);
 
-			expect(onChange).toHaveBeenCalledWith({ path: path.resolve(tsxFilePath), bridge: Bridge });
+			expect(onChanges).toHaveBeenCalledWith({
+				created: [],
+				changed: [path.resolve(tsxFilePath)],
+				deleted: [],
+				bridge: Bridge,
+			});
 			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 			expect(Bridge.reload).toHaveBeenCalledTimes(1);
 		});
 
 		test('should route TSX through HMR even when no specific strategy matches', async () => {
-			const onChange = vi.fn(async () => {});
+			const onChanges = vi.fn(async () => {});
 			const Processor = {
 				getWatchConfig: vi.fn(() => ({
 					paths: ['/test/project/src'],
 					extensions: ['.css', '.tsx'],
-					onChange,
+					onChanges,
 				})),
 				getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
 				canProcessAsset: vi.fn((kind: string, filepath?: string) => {
@@ -628,7 +675,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 
 			await (watcher as any).handleFileChange(tsxFilePath);
 
-			expect(onChange).toHaveBeenCalled();
+			expect(onChanges).toHaveBeenCalled();
 			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 			expect(Bridge.reload).toHaveBeenCalledTimes(1);
 			expect(HmrManager.broadcast).not.toHaveBeenCalledWith({ type: 'layout-update' });
@@ -726,13 +773,13 @@ describe('ProjectWatcher - Priority Rules', () => {
 	});
 
 	test('should prioritize additionalWatchPaths over processors', async () => {
-		const onChange = vi.fn(async () => {});
+		const onChanges = vi.fn(async () => {});
 		Config.additionalWatchPaths = ['**/*.config.ts'];
 		const Processor = {
 			getWatchConfig: vi.fn(() => ({
 				paths: ['/test/project'],
 				extensions: ['.ts'],
-				onChange,
+				onChanges,
 			})),
 		};
 		Config.processors.set('ts', Processor as any);
@@ -741,7 +788,12 @@ describe('ProjectWatcher - Priority Rules', () => {
 
 		await (watcher as any).handleFileChange(configFilePath);
 
-		expect(onChange).toHaveBeenCalledWith({ path: path.resolve(configFilePath), bridge: Bridge });
+		expect(onChanges).toHaveBeenCalledWith({
+			created: [],
+			changed: [path.resolve(configFilePath)],
+			deleted: [],
+			bridge: Bridge,
+		});
 		expect(Bridge.reload).toHaveBeenCalled();
 		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 	});
@@ -776,12 +828,12 @@ describe('ProjectWatcher - Priority Rules', () => {
 	});
 
 	test('should notify processor for dependency file before proceeding to HMR', async () => {
-		const onChange = vi.fn(async () => {});
+		const onChanges = vi.fn(async () => {});
 		const Processor = {
 			getWatchConfig: vi.fn(() => ({
 				paths: ['/test/project/src'],
 				extensions: ['.css', '.tsx'],
-				onChange,
+				onChanges,
 			})),
 			getAssetCapabilities: vi.fn(() => [{ kind: 'stylesheet', extensions: ['*.css'] }]),
 			canProcessAsset: vi.fn((kind: string, filepath?: string) => {
@@ -795,7 +847,12 @@ describe('ProjectWatcher - Priority Rules', () => {
 
 		await (watcher as any).handleFileChange(tsxFilePath);
 
-		expect(onChange).toHaveBeenCalledWith({ path: path.resolve(tsxFilePath), bridge: Bridge });
+		expect(onChanges).toHaveBeenCalledWith({
+			created: [],
+			changed: [path.resolve(tsxFilePath)],
+			deleted: [],
+			bridge: Bridge,
+		});
 		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 		expect(Bridge.reload).toHaveBeenCalledTimes(1);
 	});

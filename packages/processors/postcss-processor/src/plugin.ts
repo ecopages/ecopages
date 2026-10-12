@@ -7,7 +7,12 @@ import path from 'node:path';
 import type { IClientBridge } from '@ecopages/core';
 import { writeHashedBrowserAsset } from '@ecopages/core/assets/hashed-browser-asset';
 import { fileSystem } from '@ecopages/file-system';
-import { Processor, type EcoBuildPlugin, type ProcessorConfig } from '@ecopages/core/plugins/processor';
+import {
+	Processor,
+	type EcoBuildPlugin,
+	type ProcessorConfig,
+	type ProcessorWatchChanges,
+} from '@ecopages/core/plugins/processor';
 import { Logger } from '@ecopages/logger';
 import type postcss from 'postcss';
 import {
@@ -333,12 +338,12 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		);
 	}
 
-	private async handleDependencyChange(bridge: IClientBridge): Promise<void> {
+	private async rebuildCssEntryFiles(filePaths: Iterable<string>, bridge: IClientBridge): Promise<void> {
 		if (!this.context) {
 			return;
 		}
 
-		const cssFiles = this.getDependencyEntryFiles();
+		const cssFiles = [...new Set(filePaths)].filter((filePath) => this.matchesFileFilter(filePath));
 		if (cssFiles.length === 0) {
 			return;
 		}
@@ -346,7 +351,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		this.refreshConfiguredPlugins();
 
 		for (const cssFilePath of cssFiles) {
-			await this.handleCssChange(cssFilePath, bridge, false);
+			await this.processAndBroadcast(cssFilePath, bridge, false);
 		}
 	}
 
@@ -380,71 +385,61 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 					'.svelte',
 					'.vue',
 				],
-				onChange: async ({ path, bridge }) => {
-					await this.enqueueWatchTask(async () => {
-						if (this.matchesFileFilter(path)) {
-							await this.handleCssChange(path, bridge);
-							return;
-						}
-
-						await this.handleDependencyChange(bridge);
-					});
-				},
-				onCreate: async ({ path, bridge }) => {
-					await this.enqueueWatchTask(async () => {
-						if (this.matchesFileFilter(path)) {
-							this.trackedCssFiles.add(path);
-							this.buildCssDependencyMap();
-							await this.handleCssChange(path, bridge);
-							return;
-						}
-
-						await this.handleDependencyChange(bridge);
-					});
-				},
-				onDelete: async ({ path, bridge }) => {
-					await this.enqueueWatchTask(async () => {
-						if (this.matchesFileFilter(path)) {
-							this.runtimeCssCache.delete(path);
-							this.trackedCssFiles.delete(path);
-							this.cssDependencyMap.delete(path);
-							this.hashedCssOutputBySource.delete(path);
-							this.buildCssDependencyMap();
-							return;
-						}
-
-						await this.handleDependencyChange(bridge);
-					});
-				},
+				onChanges: async (changes) => this.handleWatchChanges(changes),
 			},
 			...config,
 		});
 	}
 
-	/**
-	 * Handles CSS file changes during development.
-	 * If the file is an @import dependency, re-processes the parent entry file(s) instead.
-	 * Broadcasts a css-update event for hot reloading.
-	 */
-	private async handleCssChange(filePath: string, bridge: IClientBridge, refreshPlugins = true): Promise<void> {
-		if (!this.context) return;
-		if (!fileSystem.exists(filePath)) return;
+	private async handleWatchChanges({ created, changed, deleted, bridge }: ProcessorWatchChanges): Promise<void> {
+		await this.enqueueWatchTask(async () => {
+			const createdCss = created.filter((filePath) => this.matchesFileFilter(filePath));
+			const changedCss = changed.filter((filePath) => this.matchesFileFilter(filePath));
+			const deletedCss = deleted.filter((filePath) => this.matchesFileFilter(filePath));
 
-		// Check if this file is imported by parent entry files
-		const entryFiles = this.resolveEntryFiles(filePath);
-		if (entryFiles.length > 0) {
-			logger.debug(`CSS dependency changed: ${filePath}, re-processing ${entryFiles.length} parent(s)`);
-			for (const entryFile of entryFiles) {
-				// Invalidate the parent's cache so the broadcast is not skipped.
-				// Even when postcss-import inlines different content for the parent,
-				// defensive invalidation guarantees the css-update event fires.
-				this.runtimeCssCache.delete(entryFile);
-				await this.processAndBroadcast(entryFile, bridge, refreshPlugins);
+			for (const filePath of createdCss) {
+				this.trackedCssFiles.add(filePath);
 			}
-			return;
-		}
 
-		await this.processAndBroadcast(filePath, bridge, refreshPlugins);
+			for (const filePath of deletedCss) {
+				this.runtimeCssCache.delete(filePath);
+				this.trackedCssFiles.delete(filePath);
+				this.cssDependencyMap.delete(filePath);
+				this.hashedCssOutputBySource.delete(filePath);
+			}
+
+			if (createdCss.length > 0 || changedCss.length > 0 || deletedCss.length > 0) {
+				this.buildCssDependencyMap();
+			}
+
+			const dependencyChanged = [...created, ...changed, ...deleted].some(
+				(filePath) => !this.matchesFileFilter(filePath),
+			);
+			const affectedCssEntryFiles = new Set<string>();
+			for (const filePath of [...createdCss, ...changedCss]) {
+				const parentEntryFiles = this.resolveEntryFiles(filePath);
+				if (parentEntryFiles.length > 0) {
+					for (const entryFile of parentEntryFiles) {
+						affectedCssEntryFiles.add(entryFile);
+						this.runtimeCssCache.delete(entryFile);
+					}
+				} else if (fileSystem.exists(filePath)) {
+					affectedCssEntryFiles.add(filePath);
+				}
+			}
+
+			const cssEntryFiles = new Set(affectedCssEntryFiles);
+			if (dependencyChanged || deletedCss.length > 0) {
+				for (const filePath of this.getDependencyEntryFiles()) {
+					cssEntryFiles.add(filePath);
+					if (deletedCss.length > 0) {
+						this.runtimeCssCache.delete(filePath);
+					}
+				}
+			}
+
+			await this.rebuildCssEntryFiles(cssEntryFiles, bridge);
+		});
 	}
 
 	/**

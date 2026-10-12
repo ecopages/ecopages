@@ -36,10 +36,6 @@ const sharedServerOptionDefinitions = {
 		type: 'boolean',
 		short: 'd',
 	},
-	'react-fast-refresh': {
-		type: 'boolean',
-		short: 'r',
-	},
 	runtime: {
 		type: 'string',
 	},
@@ -65,7 +61,6 @@ function getMainHelpText() {
 		'  init [dir]              Initialize a new project from a template',
 		'  dev                     Start the development server',
 		'  dev:watch               Start the development server with watch mode',
-		'  dev:hot                 Start the development server with hot reload',
 		'  build                   Build the project for production',
 		'  start                   Start the production server',
 		'  preview                 Preview the production build',
@@ -90,7 +85,6 @@ function getServerCommandHelpText(commandName, description, extraHelpLines = [])
 		'  -n, --hostname <hostname>               Override ECOPAGES_HOSTNAME',
 		'  -b, --base-url <baseUrl>                Override ECOPAGES_BASE_URL',
 		'  -d, --debug                             Enable debug logging',
-		'  -r, --react-fast-refresh                Enable React Fast Refresh for Bun HMR',
 		'      --runtime <runtime>                 Force bun or node',
 		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
 		'  -c, --config <file>                     Ecopages config file (default: eco.config.ts)',
@@ -140,7 +134,6 @@ function parseServerCommandArgs(rawArgs, definition) {
 			hostname: values.hostname,
 			baseUrl: values['base-url'],
 			debug: values.debug,
-			reactFastRefresh: values['react-fast-refresh'],
 			runtime: values.runtime,
 			configFile: values.config,
 		},
@@ -238,10 +231,10 @@ async function watchProjectForRestart(rootDir) {
 }
 
 /**
- * Launch the entry file via the detected or forced runtime.
- * Node uses native Node semantics; Bun uses Bun runtime flags.
+ * Launch the entry file via the detected or forced runtime. Node and Bun get the same
+ * entry file and arguments.
  * @param {string[]} args - Arguments to pass to the entry file
- * @param {object} options - CLI options (watch, hot, port, hostname, etc.)
+ * @param {object} options - CLI options (watch, runtime, port, hostname, etc.)
  * @param {string} entryFile - Entry file to run
  */
 async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchMode = 'start') {
@@ -323,12 +316,6 @@ const SERVER_COMMANDS = {
 		entryArgs: ['--dev'],
 		launchMode: 'dev',
 		optionOverrides: { watch: true, nodeEnv: 'development' },
-	},
-	'dev:hot': {
-		description: 'Start the development server with hot reload.',
-		entryArgs: ['--dev'],
-		launchMode: 'dev',
-		optionOverrides: { hot: true, nodeEnv: 'development' },
 	},
 	build: {
 		description: 'Build the project for production.',

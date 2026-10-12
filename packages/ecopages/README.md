@@ -28,7 +28,6 @@ bun dev
 | `ecopages init [dir]` | Scaffolds a new project (interactive without `dir`)     | N/A                                                          |
 | `ecopages dev`        | Starts the dev server (supervises config/.env restarts) | `bun run [entry] --dev`                                      |
 | `ecopages dev:watch`  | Dev server + hard restarts on file changes              | Bun: `bun --watch run [entry] --dev`; Node: `node --watch …` |
-| `ecopages dev:hot`    | Dev server + HMR (no hard restarts)                     | `bun --hot run [entry] --dev`                                |
 | `ecopages build`      | Creates a production build                              | `bun run [entry] --build`                                    |
 | `ecopages start`      | Starts the production server                            | `bun run [entry]`                                            |
 | `ecopages preview`    | Previews the production build locally                   | `bun run [entry] --preview`                                  |
@@ -52,15 +51,14 @@ The official template IDs are `jsx`, `html`, `react`, `react-shadcn`, `lit-jsx`,
 
 Server and build commands accept the following options. They automatically map to the equivalent environment variables for the underlying process:
 
-| Option                     | Env Var                 | Description                                                                            |
-| :------------------------- | :---------------------- | :------------------------------------------------------------------------------------- |
-| `-p, --port <port>`        | `ECOPAGES_PORT`         | Server port (default 3000)                                                             |
-| `-n, --hostname <host>`    | `ECOPAGES_HOSTNAME`     | Server hostname                                                                        |
-| `-b, --base-url <url>`     | `ECOPAGES_BASE_URL`     | Base URL string                                                                        |
-| `-d, --debug`              | `ECOPAGES_LOGGER_DEBUG` | Enables debug logging and startup phase trace (see below)                              |
-| `-r, --react-fast-refresh` |                         | Enables React Fast Refresh                                                             |
-| `--runtime <runtime>`      |                         | Force execution via `bun` or `node`                                                    |
-| `--force`                  |                         | `build` and `preview` only: empty `dist` and the build caches, then rebuild everything |
+| Option                  | Env Var                 | Description                                                                            |
+| :---------------------- | :---------------------- | :------------------------------------------------------------------------------------- |
+| `-p, --port <port>`     | `ECOPAGES_PORT`         | Server port (default 3000)                                                             |
+| `-n, --hostname <host>` | `ECOPAGES_HOSTNAME`     | Server hostname                                                                        |
+| `-b, --base-url <url>`  | `ECOPAGES_BASE_URL`     | Base URL string                                                                        |
+| `-d, --debug`           | `ECOPAGES_LOGGER_DEBUG` | Enables debug logging and startup phase trace (see below)                              |
+| `--runtime <runtime>`   |                         | Force execution via `bun` or `node`                                                    |
+| `--force`               |                         | `build` and `preview` only: empty `dist` and the build caches, then rebuild everything |
 
 ### Runtime Detection
 
@@ -77,9 +75,6 @@ ecopages build --runtime bun
 ```bash
 # Debug dev server on custom port
 ecopages dev --port 8080 --debug
-
-# Dev server with React Fast Refresh enabled
-ecopages dev -r
 ```
 
 During `ecopages dev`, adding, changing, or removing `eco.config.ts` (or `--config`) and supported project `.env` files restarts the dev server automatically. The CLI supervises that restart and reloads dotenv files. If the restarted dev server exits with an error, for example because of an invalid config, `ecopages dev` logs the exit code and waits for the next change in the project or a linked workspace package, then starts again. When the preferred port is busy, development startup uses the same fallback flow as preview: TTY sessions show a Clack confirmation, while non-interactive sessions scan automatically only when the port was not pinned with `--port` or `ECOPAGES_PORT`.

@@ -99,7 +99,7 @@ Core owns the ordering. Processors participate in these phases:
 2. **Manifest collection** — processor `plugins` become runtime plugin contributions; `buildPlugins` become browser bundle contributions.
 3. **`setup()`** — runs at app startup after the manifest is sealed. Use for runtime-only work such as cache warming or watcher registration.
 4. **`process()`** — transforms assets when the asset pipeline or watch callbacks invoke the processor.
-5. **Watch callbacks** — in development, `onChange` / `onCreate` / `onDelete` on the `watch` config handle owned file paths.
+5. **Watch batches** — in development, `watch.onChanges({ created, changed, deleted, bridge })` receives matching absolute paths grouped once per debounce window. `extensions` select notifications; `capabilities` define asset ownership.
 6. **`collectDevPrewarmPaths()`** — optional; returns pathnames core renders in the background once the development server handles requests. Defaults to `[]`.
 7. **`teardown()`** — optional override for explicit cleanup. Core does not call this hook today.
 
@@ -207,7 +207,7 @@ class CustomProcessor extends Processor {
 
 ## File Watching
 
-Configure file watching for development mode:
+Configure file watching for development mode. Core calls `onChanges` once per debounce batch. Its `created`, `changed`, and `deleted` arrays contain the matching absolute paths for each event kind.
 
 ```typescript
 class CustomProcessor extends Processor {
@@ -217,11 +217,8 @@ class CustomProcessor extends Processor {
 			watch: {
 				paths: ['src/custom'],
 				extensions: ['.custom'],
-				onChange: async ({ path, bridge }) => {
-					// bridge.reload() or bridge.cssUpdate(path)
-				},
-				onDelete: async ({ path, bridge }) => {
-					// Handle file deletions
+				onChanges: async ({ bridge }) => {
+					bridge.reload();
 				},
 			},
 		});
@@ -261,8 +258,13 @@ class StyleProcessor extends Processor {
 			watch: {
 				paths: ['src/styles'],
 				extensions: ['.css'],
-				onChange: async ({ path, bridge }) => {
-					await this.processFile(path, bridge);
+				onChanges: async ({ created, changed, deleted, bridge }) => {
+					for (const filePath of [...created, ...changed]) {
+						await this.processFile(filePath, bridge);
+					}
+					if (deleted.length > 0) {
+						bridge.reload();
+					}
 				},
 			},
 		});

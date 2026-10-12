@@ -422,16 +422,6 @@ describe('CLI Commands', () => {
 		exitSpy.mockRestore();
 	});
 
-	it('runs dev:hot command', async () => {
-		await runCli(['dev:hot']);
-		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
-			['--dev'],
-			expect.objectContaining({ hot: true, nodeEnv: 'development' }),
-			'app.ts',
-			'dev',
-		);
-	});
-
 	it('runs dev:watch command', async () => {
 		await runCli(['dev:watch']);
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
@@ -527,18 +517,36 @@ describe('CLI Commands', () => {
 		);
 	});
 
-	it('normalizes react fast refresh to the launch-plan option shape', async () => {
-		await runCli(['dev', '--react-fast-refresh', '--runtime', 'bun']);
+	it('passes the runtime flag through to the launch plan', async () => {
+		await runCli(['dev', '--runtime', 'bun']);
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
 			['--dev'],
 			expect.objectContaining({
 				nodeEnv: 'development',
-				reactFastRefresh: true,
 				runtime: 'bun',
 			}),
 			'app.ts',
 			'dev',
 		);
+	});
+
+	it('rejects dev:hot', async () => {
+		const exitSpy = mockProcessExit();
+
+		await expect(runCli(['dev:hot'])).rejects.toThrow('process.exit:1');
+		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
+
+		exitSpy.mockRestore();
+	});
+
+	it('rejects the removed React fast refresh flags', async () => {
+		const exitSpy = mockProcessExit();
+
+		await expect(runCli(['dev', '-r'])).rejects.toThrow('process.exit:1');
+		await expect(runCli(['dev', '--react-fast-refresh'])).rejects.toThrow('process.exit:1');
+		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
+
+		exitSpy.mockRestore();
 	});
 
 	it('rejects positional entry file arguments loudly', async () => {

@@ -36,7 +36,6 @@ describe('runtime app bootstrap', () => {
 				serveOnly: false,
 				port: 4321,
 				hostname: '127.0.0.1',
-				reactFastRefresh: undefined,
 			},
 			serverOptions: {
 				custom: true,
@@ -68,7 +67,6 @@ describe('runtime app bootstrap', () => {
 				serveOnly: false,
 				port: undefined,
 				hostname: undefined,
-				reactFastRefresh: undefined,
 			},
 			env: {} as NodeJS.ProcessEnv,
 		});
@@ -88,7 +86,6 @@ describe('runtime app bootstrap', () => {
 				serveOnly: false,
 				port: undefined,
 				hostname: undefined,
-				reactFastRefresh: undefined,
 			},
 			env: {
 				ECOPAGES_PORT: '3000',

@@ -1,4 +1,4 @@
-import { readdirSync, realpathSync, statSync, type Stats } from 'node:fs';
+import type { Stats } from 'node:fs';
 import path from 'node:path';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { fileSystem } from '@ecopages/file-system';

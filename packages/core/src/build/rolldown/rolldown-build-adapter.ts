@@ -55,7 +55,9 @@ export class RolldownBuildAdapter implements BuildAdapter {
 		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
 		const outdir = path.resolve(options.outdir ?? 'dist/assets');
 		const recordingContext = getBuildInputRecordingContext();
-		const recordBuildInput = createBuildInputRecorder(recordingContext);
+		const loadedInputs = new Set<string>();
+		const loadedInputsByModule = new Map<string, Set<string>>();
+		const recordBuildInput = createBuildInputRecorder(recordingContext, loadedInputs, loadedInputsByModule);
 
 		const { inputOptions, outputOptions } = await resolveRolldownOptions(
 			options,
@@ -82,6 +84,10 @@ export class RolldownBuildAdapter implements BuildAdapter {
 
 		return {
 			...buildResultFromRolldownOutput(output, outdir, contextRoot, dependencyGraph, options.entrypoints),
+			loadedInputs: [...loadedInputs],
+			loadedInputsByModule: Object.fromEntries(
+				[...loadedInputsByModule].map(([moduleId, paths]) => [moduleId, [...paths]]),
+			),
 			warnings,
 		};
 	}

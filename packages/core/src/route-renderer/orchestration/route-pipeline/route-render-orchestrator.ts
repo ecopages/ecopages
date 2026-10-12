@@ -262,13 +262,17 @@ export class RouteRenderOrchestrator {
 			...resolvedPageDependencyComponents,
 			...clientPlan.islandEntries.map((entry) => entry.component),
 		]);
+		const buildInputIndex = getAppBuildInputIndex(this.appConfig);
 		const sourceDependencyPaths = collectHtmlCacheSourceDependencyPaths({
 			routeFile: routeOptions.file,
 			processedAssets: allDependencies,
 			graphDependencyPaths,
 			additionalSourcePaths,
+			routeModulePaths: buildInputIndex.sourcePaths({
+				consumer: 'server-route-module',
+				key: routeOptions.file,
+			}),
 		});
-		const buildInputIndex = getAppBuildInputIndex(this.appConfig);
 		for (const sourcePath of sourceDependencyPaths) {
 			buildInputIndex.recordWatchPath(sourcePath);
 		}

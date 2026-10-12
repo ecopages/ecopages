@@ -11,7 +11,6 @@ import type {
 import { appLogger } from '../../../global/app-logger.ts';
 import {
 	BuildInputDependencyIndex,
-	collectedLoadedBuildInputs,
 	getAppBuildInputIndex,
 	type BuildInputBinding,
 } from '../../../build/cache/build-input-dependency-index.ts';
@@ -660,10 +659,6 @@ export function collectPageBrowserGraphDependencyPaths(
 
 	for (const watchPath of contribution.watchPaths ?? []) {
 		dependencyPaths.add(normalizeDependencyPath(watchPath));
-	}
-
-	for (const loadedPath of collectedLoadedBuildInputs()) {
-		dependencyPaths.add(normalizeDependencyPath(loadedPath));
 	}
 
 	return dependencyPaths;

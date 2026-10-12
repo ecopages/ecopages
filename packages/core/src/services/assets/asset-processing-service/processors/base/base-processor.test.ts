@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import type { BaseAsset, ProcessedAsset } from '../../assets.types.ts';
+import type { EcoPagesAppConfig } from '../../../../../types/internal-types.ts';
 import { BaseProcessor } from './base-processor.ts';
 
 type TestAsset = BaseAsset & {
@@ -17,6 +18,7 @@ class TestProcessor extends BaseProcessor<TestAsset> {
 				filepath: `/test/dist/assets/${dep.name}.js`,
 				kind: dep.kind,
 				inline: false,
+				bundledSourceFilepaths: ['/test/src/helper.ts'],
 			};
 		});
 	}
@@ -43,7 +45,7 @@ test('BaseProcessor - rebuilds cached outputs when emitted file was deleted', as
 	const processor = new TestProcessor({
 		appConfig: {
 			absolutePaths: { distDir: '/test/dist' },
-		} as any,
+		} as unknown as EcoPagesAppConfig,
 	});
 
 	const asset: TestAsset = {
@@ -53,6 +55,25 @@ test('BaseProcessor - rebuilds cached outputs when emitted file was deleted', as
 	};
 
 	await processor.process(asset);
+	await processor.process(asset);
+
+	expect(processor.processCalls).toBe(2);
+});
+
+test('BaseProcessor - invalidates cached outputs that used a changed source file', async () => {
+	const processor = new TestProcessor({
+		appConfig: {
+			absolutePaths: { distDir: '/test/dist' },
+		} as unknown as EcoPagesAppConfig,
+	});
+	const asset: TestAsset = {
+		kind: 'script',
+		source: 'file',
+		name: 'page-script',
+	};
+
+	await processor.process(asset);
+	processor.invalidateCacheForFile('/test/src/helper.ts');
 	await processor.process(asset);
 
 	expect(processor.processCalls).toBe(2);

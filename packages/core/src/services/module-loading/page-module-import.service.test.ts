@@ -71,7 +71,6 @@ describe('PageModuleImportService', () => {
 	afterEach(() => {
 		service.clearImportCache();
 		delete process.env.NODE_ENV;
-		delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
 	});
 
 	it('lets the owning Integration compile the file instead of bundling it', async () => {
@@ -198,7 +197,7 @@ describe('PageModuleImportService', () => {
 			});
 
 			assert.equal(fakeDependencies.calls.buildModule.length, 1);
-			assert.equal(fakeDependencies.calls.buildModule[0]?.options.naming, 'page-hash123.[ext]');
+			assert.equal(fakeDependencies.calls.buildModule[0]?.options.naming, 'page-hash123-0.[ext]');
 			assert.equal(fakeDependencies.calls.buildModule[0]?.options.splitting, true);
 			assert.equal(fakeDependencies.calls.buildModule[0]?.options.externalPackages, true);
 		} finally {
@@ -488,23 +487,6 @@ describe('PageModuleImportService', () => {
 		}
 	});
 
-	it('should keep Bun page imports on the build path when a transpile target is configured', async () => {
-		process.env.NODE_ENV = 'development';
-		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {};
-
-		try {
-			await service.importModule<unknown>({
-				filePath: '/app/pages/page.tsx',
-				rootDir: '/app',
-				outdir: '/tmp/out',
-			});
-		} catch {
-			// import will fail for the fake path, but we only care about the code path
-		}
-
-		assert.equal(fakeDependencies.calls.buildModule.length, 1);
-	});
-
 	it('should reuse an in-process route-module build when the source hash is unchanged in production', async () => {
 		process.env.NODE_ENV = 'production';
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-disk-cache-'));
@@ -679,10 +661,9 @@ describe('PageModuleImportService', () => {
 		}
 	});
 
-	it('should rebuild Bun page modules after development graph invalidation', async () => {
+	it('should give every runtime a new compiled filename after development graph invalidation', async () => {
 		process.env.NODE_ENV = 'development';
-		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {};
-		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-bun-invalidate-'));
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-invalidate-filename-'));
 		let buildCount = 0;
 
 		service = new PageModuleImportService(undefined, {

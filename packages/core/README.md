@@ -95,7 +95,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/services/README.md`: cross-cutting runtime services and orchestration helpers
 - `src/adapters/README.md`: Bun, Node, and shared adapter boundaries
 - `src/dev/README.md`: dev transform server, on-demand client delivery (including workspace-package `@fs` URLs), and invalidation during compilation
-- `src/watchers/README.md`: project subscriptions awaited before readiness, linked package watching, batched `applyDevFileChanges`, and restart invalidation
+- `src/watchers/README.md`: recursive source subscriptions awaited before readiness, external build-input and linked-package watching, batched `applyDevFileChanges`, and restart invalidation
 - `src/services/invalidation/README.md`: file-change classification and dirty-marking for one debounce window
 - `src/hmr/README.md`: HMR strategy, update-layer ownership, and build error presentation
 - `src/dev-toolbar/README.md`: toolbar enablement, custom clients, and build error event contract

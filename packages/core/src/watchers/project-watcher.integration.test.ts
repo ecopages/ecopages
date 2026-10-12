@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { ProjectWatcher } from './project-watcher';
 import type { EcoPagesAppConfig } from '../types/internal-types';
+import type { ProcessorWatchConfig } from '../plugins/processor.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers';
 
@@ -41,6 +42,54 @@ describe('ProjectWatcher - Integration Tests', () => {
 			rmSync(TEST_ROOT, { recursive: true, force: true });
 		}
 		vi.restoreAllMocks();
+	});
+
+	describe('Recursive source subscription', () => {
+		test('watches files added under nested srcDir directories', async () => {
+			const testId = 'nested-source-files';
+			const config = await createIntegrationConfig(testId);
+			const sourceDirectory = path.join(config.absolutePaths.srcDir, 'lib');
+			mkdirSync(sourceDirectory, { recursive: true });
+			const watchEvents: Array<{ kind: 'created' | 'changed'; path: string }> = [];
+			const watchConfig: ProcessorWatchConfig = {
+				paths: [],
+				extensions: ['.ts'],
+				onCreate: async ({ path: changedPath }) => {
+					watchEvents.push({ kind: 'created', path: changedPath });
+				},
+				onChange: async ({ path: changedPath }) => {
+					watchEvents.push({ kind: 'changed', path: changedPath });
+				},
+			};
+			config.processors.set('startup-watch-test', { getWatchConfig: () => watchConfig } as never);
+			const hmrManager = createMockHmrManager();
+			const bridge = createMockBridge();
+			const watcher = new ProjectWatcher({
+				config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager,
+				bridge,
+				changeDebounceMs: 0,
+			});
+
+			try {
+				const fileWatcher = await watcher.createWatcherSubscription();
+				await vi.waitFor(() => expect(fileWatcher.getWatched()).toHaveProperty(sourceDirectory));
+				expect(watchEvents).toEqual([]);
+				const newFile = path.join(sourceDirectory, 'new-post.ts');
+				writeTestFile(newFile, 'export const newPost = {};\n');
+				await vi.waitFor(
+					() => expect(watchEvents).toContainEqual({ kind: 'created', path: path.resolve(newFile) }),
+					{ timeout: 3000 },
+				);
+				expect(watchEvents).toEqual([{ kind: 'created', path: path.resolve(newFile) }]);
+			} finally {
+				await watcher.close();
+			}
+
+			expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(bridge.reload).toHaveBeenCalledOnce();
+		});
 	});
 
 	describe('Public Directory File Operations', () => {

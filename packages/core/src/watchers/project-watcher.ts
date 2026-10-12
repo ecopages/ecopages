@@ -111,6 +111,17 @@ export class ProjectWatcher {
 		return this.invalidationService.isRouteSourceFile(filePath);
 	}
 
+	private persistRestartWatchSet(): void {
+		try {
+			writeRuntimeRestartWatchSet(this.appConfig, this.workspacePackageRoots);
+		} catch (error) {
+			appLogger.warn(
+				'Could not persist development restart watch paths',
+				error instanceof Error ? error : new Error(String(error)),
+			);
+		}
+	}
+
 	private requestBrowserReload(): void {
 		this.bridge.reload();
 	}
@@ -467,14 +478,7 @@ export class ProjectWatcher {
 		}
 
 		this.workspacePackageRoots = resolveWorkspacePackageWatchRoots(this.appConfig.rootDir);
-		try {
-			writeRuntimeRestartWatchSet(this.appConfig, this.workspacePackageRoots);
-		} catch (error) {
-			appLogger.warn(
-				'Could not persist development restart watch paths',
-				error instanceof Error ? error : new Error(String(error)),
-			);
-		}
+		this.persistRestartWatchSet();
 		const ignoreProjectPath = createProjectWatcherIgnorePredicate(
 			this.appConfig.absolutePaths,
 			this.workspacePackageRoots,

@@ -67,6 +67,24 @@ test.describe('React Router', () => {
 			await expect(page.locator('h1')).toHaveText('About');
 		});
 
+		test('uses a full document navigation for a 404 page', async ({ page }) => {
+			await page.locator('body').evaluate((body) => {
+				const link = document.createElement('a');
+				link.href = '/removed';
+				link.textContent = 'Removed page';
+				body.append(link);
+			});
+
+			const navigationResponse = page.waitForResponse((response) => {
+				return response.request().isNavigationRequest() && new URL(response.url()).pathname === '/removed';
+			});
+			await page.getByRole('link', { name: 'Removed page' }).click();
+
+			const response = await navigationResponse;
+			expect(response.status()).toBe(404);
+			await expect(page.locator('.error404 h1')).toHaveText('404 - Page Not Found');
+		});
+
 		test('reuses the same shared chunk across navigation without double initialization', async ({ page }) => {
 			const observedPage = await page.context().newPage();
 			const initLogs: string[] = [];

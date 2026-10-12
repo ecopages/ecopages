@@ -121,20 +121,20 @@ Ecopages relies on a modular architecture. Core logic and framework integrations
 
 ### Official Packages
 
-| Package                       | Description                                |
-| :---------------------------- | :----------------------------------------- |
-| `@ecopages/browser-router`    | Client-side navigation & view transitions. |
-| `@ecopages/codemod`           | AST migrations for codebase upgrades.      |
-| `@ecopages/core`              | The foundational SSG engine.               |
-| `@ecopages/ecopages-jsx`      | Ecopages-owned JSX routes and hydration.   |
-| `@ecopages/file-system`       | Runtime-agnostic file system utilities.    |
-| `@ecopages/image-processor`   | Asset pipeline for responsive images.      |
-| `@ecopages/kitajs`            | Integration for KitaJS.                    |
-| `@ecopages/lit`               | Integration for Lit SSR/Islands.           |
-| `@ecopages/mdx`               | Integration for standalone MDX routes.     |
-| `@ecopages/postcss-processor` | CSS processing pipeline using PostCSS.     |
-| `@ecopages/react`             | Integration for React 19 SSR/Islands.      |
-| `@ecopages/react-router`      | SPA routing for React.                     |
+| Package                       | Description                                  |
+| :---------------------------- | :------------------------------------------- |
+| `@ecopages/browser-router`    | Client-side navigation & view transitions.   |
+| `@ecopages/codemod`           | AST migrations for codebase upgrades.        |
+| `@ecopages/core`              | The foundational SSG engine.                 |
+| `@ecopages/ecopages-jsx`      | Ecopages-owned JSX routes and hydration.     |
+| `@ecopages/file-system`       | Runtime-agnostic file system utilities.      |
+| `@ecopages/image-processor`   | Asset pipeline for responsive images.        |
+| `@ecopages/kitajs`            | Integration for KitaJS.                      |
+| `@ecopages/lit`               | Integration for Lit SSR/Islands.             |
+| `@ecopages/mdx`               | Integration for standalone MDX routes.       |
+| `@ecopages/postcss-processor` | CSS processing pipeline using PostCSS.       |
+| `@ecopages/react`             | Integration for React 19 SSR/Islands.        |
+| `@ecopages/react-router`      | React SPA routing falls back on HTTP errors. |
 
 Explore all packages at [npmjs.com/org/ecopages](https://www.npmjs.com/org/ecopages).
 

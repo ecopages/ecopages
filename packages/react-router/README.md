@@ -104,6 +104,8 @@ export default eco.page({
 
 Standard relative links are intercepted natively. To bypass the router and force a hard reload, use the `data-eco-reload` attribute.
 
+If the router's HTML request gets a non-2xx response, it falls back to a full document navigation so the browser receives the server's error status. Redirects that finish with a 2xx response remain eligible for client-side navigation.
+
 ```tsx
 // SPA navigation (intercepted)
 <a href="/about">About</a>

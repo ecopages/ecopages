@@ -4,6 +4,7 @@
  */
 
 import { RERUN_SRC_ATTR, getRegisteredRerunScript } from './registry.ts';
+import { getNavigationScriptIdentity } from './identity.ts';
 
 export type PendingRerunScript = {
 	parent: 'head' | 'body';
@@ -28,15 +29,15 @@ export function collectRerunScripts(
 			parent: script.closest('body') ? 'body' : 'head',
 			attributes: Array.from(script.attributes).map((attribute) => [attribute.name, attribute.value]),
 			textContent: script.textContent ?? '',
-			src: script.getAttribute('src'),
-			scriptId: script.getAttribute('data-eco-script-id'),
+			src: script.getAttribute('src') ? script.src : null,
+			scriptId: getNavigationScriptIdentity(script).scriptId,
 		}));
 }
 
 /**
  * Returns whether a rerun script is an external ES module that needs cache busting.
  */
-export function isExternalModuleRerunScript(script: PendingRerunScript): boolean {
+function isExternalModuleRerunScript(script: PendingRerunScript): boolean {
 	if (!script.src) {
 		return false;
 	}
@@ -47,18 +48,11 @@ export function isExternalModuleRerunScript(script: PendingRerunScript): boolean
 /**
  * Finds an existing rerun script in `root` by id or by src and inline content.
  */
-export function findExistingRerunScript(root: ParentNode, script: PendingRerunScript): HTMLScriptElement | null {
-	const scripts = Array.from(root.querySelectorAll<HTMLScriptElement>('script'));
-
-	if (script.scriptId) {
-		return scripts.find((candidate) => candidate.getAttribute('data-eco-script-id') === script.scriptId) ?? null;
-	}
-
+function findExistingRerunScript(root: ParentNode, script: PendingRerunScript): HTMLScriptElement | null {
+	const identity = getNavigationScriptIdentity(script);
 	return (
-		scripts.find(
-			(candidate) =>
-				(candidate.getAttribute(RERUN_SRC_ATTR) ?? candidate.getAttribute('src')) === script.src &&
-				(candidate.textContent ?? '') === script.textContent,
+		Array.from(root.querySelectorAll<HTMLScriptElement>('script')).find(
+			(candidate) => getNavigationScriptIdentity(candidate).key === identity.key,
 		) ?? null
 	);
 }
@@ -66,7 +60,7 @@ export function findExistingRerunScript(root: ParentNode, script: PendingRerunSc
 /**
  * Appends a nonce query parameter so module scripts re-execute after navigation.
  */
-export function createRerunScriptUrl(src: string): string {
+function createRerunScriptUrl(src: string): string {
 	const url = new URL(src, document.baseURI);
 	url.searchParams.set('__eco_rerun', String(++rerunNonce));
 	return url.toString();
@@ -113,21 +107,6 @@ export function toRerunScriptActivation(script: PendingRerunScript): {
 			}
 		},
 	};
-}
-
-/**
- * Replays queued rerun scripts after the incoming page body is in place.
- */
-export function flushPendingRerunScripts(scripts: readonly PendingRerunScript[]): void {
-	for (const script of scripts) {
-		const { attributes, textContent, insert } = toRerunScriptActivation(script);
-		const replacement = document.createElement('script');
-		for (const [name, value] of attributes) {
-			replacement.setAttribute(name, value);
-		}
-		replacement.textContent = textContent;
-		insert(replacement);
-	}
 }
 
 /** @remarks Test-only reset for nonce sequencing. */

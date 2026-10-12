@@ -122,6 +122,10 @@
 			"types": "./src/router/client/navigation-coordinator.ts",
 			"default": "./src/router/client/navigation-coordinator.ts"
 		},
+		"./router/navigation-pipeline": {
+			"types": "./src/router/client/navigation-pipeline.ts",
+			"default": "./src/router/client/navigation-pipeline.ts"
+		},
 		"./router/navigation-lifecycle": {
 			"types": "./src/router/client/navigation-lifecycle.ts",
 			"default": "./src/router/client/navigation-lifecycle.ts"

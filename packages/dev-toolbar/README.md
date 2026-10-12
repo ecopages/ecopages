@@ -28,7 +28,7 @@ Disable per project with `devToolbar: { enabled: false }`, or per process with `
 ## Built-in apps
 
 - **Build errors** — opens automatically on HMR errors, reveals stealth mode, lists distinct messages as text, and shows an error count badge; any non-error HMR event clears messages and the badge
-- **Navigation** — route timing archive, initial load, client navigation latency, HMR status, page Integration (route owner); writes `#__ECO_DEV_NAV_TELEMETRY__` in `document.head` (with `data-eco-persist`) and exposes `window.__ECO_DEV_NAV_TELEMETRY__` for machine/AI debug
+- **Navigation** — route timing archive, initial load, client navigation latency, HMR status, and page Integration (the current owner reported by core's navigation coordinator); writes `#__ECO_DEV_NAV_TELEMETRY__` in `document.head` (with `data-eco-persist`) and exposes `window.__ECO_DEV_NAV_TELEMETRY__` for machine/AI debug
 - **Deps** — Page Browser Graph entry/chunk assets, vendor URLs, lazy-load hints
 - **Islands** — inspect island hosts stamped with `data-eco-island`, including SSR-emitted React `<eco-island>` hosts; repeated component instances are shown independently and hydration status reports `hydrated` (via `data-eco-hydrated` or verified component update completion), `registered` (for defined custom elements awaiting update completion), or `ssr-only`
 - **A11y** — axe-core audit (with built-in fallback checks) and in-page highlights
@@ -56,6 +56,7 @@ Custom clients can claim the HMR runtime's cancelable `ecopages:build-error` win
 
 - `src/bootstrap.ts` — injects toolbar CSS into `document.head`, boots navigation telemetry, and mounts `eco-dev-toolbar`; reload-safe telemetry ownership prevents HMR bundle re-evaluation from adding duplicate document listeners
 - `src/runtime/navigation-events.ts` — shares core's navigation lifecycle event names and one DOM listener across toolbar apps, removing it when the final subscriber unmounts
+- `src/runtime/navigation-telemetry.ts` — reads the current owner from `getOwnerState()` so browser and React router ownership is reported consistently
 - `src/shell/eco-dev-toolbar.tsx` — Radiant light-DOM host (JSX `render()`, no shadow root); panel positioning is pure CSS
 - `src/shell/motion.ts` — WAAPI motion for stealth dock reveal only; panel show/hide is CSS
 - `src/apps/*-panel.tsx` — Radiant JSX panels (navigation, deps, islands, a11y, settings)

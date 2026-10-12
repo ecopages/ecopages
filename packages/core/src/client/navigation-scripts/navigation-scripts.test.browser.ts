@@ -1,11 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { isNonExecutableHeadScript } from './classification.ts';
-import {
-	collectRerunScripts,
-	createRerunScriptUrl,
-	flushPendingRerunScripts,
-	resetRerunNonceForTests,
-} from './rerun-queue.ts';
+import { activateScriptsInOrder } from './activation.ts';
+import { collectRerunScripts, resetRerunNonceForTests, toRerunScriptActivation } from './rerun-queue.ts';
 import { RERUN_SRC_ATTR } from './registry.ts';
 
 describe('isNonExecutableHeadScript', () => {
@@ -21,32 +17,25 @@ describe('isNonExecutableHeadScript', () => {
 	});
 });
 
-describe('collectRerunScripts and flushPendingRerunScripts', () => {
+describe('collectRerunScripts and script activations', () => {
 	afterEach(() => {
 		document.head.replaceChildren();
 		document.body.replaceChildren();
 		resetRerunNonceForTests();
 	});
 
-	it('replays registered rerun callbacks without duplicating script tags', () => {
+	it('replays registered rerun callbacks without duplicating script tags', async () => {
 		const callback = vi.fn();
 		(window as Window & { __ECO_PAGES__?: { rerunScripts?: Record<string, () => void> } }).__ECO_PAGES__ = {
 			rerunScripts: { 'eco-test': callback },
 		};
 
 		try {
-			flushPendingRerunScripts([
-				{
-					parent: 'head',
-					attributes: [
-						['data-eco-rerun', ''],
-						['data-eco-script-id', 'eco-test'],
-					],
-					textContent: '',
-					src: null,
-					scriptId: 'eco-test',
-				},
-			]);
+			const incoming = new DOMParser().parseFromString(
+				'<html><head><script data-eco-rerun data-eco-script-id="eco-test"></script></head><body></body></html>',
+				'text/html',
+			);
+			await activateScriptsInOrder(collectRerunScripts(incoming).map(toRerunScriptActivation));
 
 			expect(callback).toHaveBeenCalledOnce();
 			expect(document.head.querySelector('script[data-eco-script-id="eco-test"]')).toBeNull();
@@ -55,12 +44,12 @@ describe('collectRerunScripts and flushPendingRerunScripts', () => {
 		}
 	});
 
-	it('cache-busts external module rerun scripts', () => {
+	it('cache-busts external module rerun scripts', async () => {
 		const html = '<html><head><script data-eco-rerun src="/app.js" type="module"></script></head></html>';
 		const parsed = new DOMParser().parseFromString(html, 'text/html');
 		const scripts = collectRerunScripts(parsed);
 
-		flushPendingRerunScripts(scripts);
+		await activateScriptsInOrder(scripts.map(toRerunScriptActivation));
 
 		const inserted = document.head.querySelector(`script[${RERUN_SRC_ATTR}]`);
 		expect(inserted?.getAttribute('src')).toMatch(/__eco_rerun=1/);
@@ -68,8 +57,15 @@ describe('collectRerunScripts and flushPendingRerunScripts', () => {
 	});
 
 	it('appends a unique nonce on each module rerun url', () => {
-		const first = createRerunScriptUrl('/app.js');
-		const second = createRerunScriptUrl('/app.js');
-		expect(first).not.toBe(second);
+		const incoming = new DOMParser().parseFromString(
+			'<html><head><script data-eco-rerun src="/app.js" type="module"></script></head></html>',
+			'text/html',
+		);
+		const [script] = collectRerunScripts(incoming);
+		const first = toRerunScriptActivation(script!).attributes;
+		const second = toRerunScriptActivation(script!).attributes;
+		expect(Array.from(first).find(([name]) => name === 'src')?.[1]).not.toBe(
+			Array.from(second).find(([name]) => name === 'src')?.[1],
+		);
 	});
 });

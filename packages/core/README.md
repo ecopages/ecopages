@@ -28,6 +28,7 @@ The important ownership rules are:
 - Development Page prewarm path collection and rendering run in the background without delaying server readiness. App configuration declares `devPrewarmPaths`; Processors declare pathnames through `collectDevPrewarmPaths()`. Collection failures are logged with their stack. See [Runtime Adapters](src/adapters/README.md) and [Plugin Contracts](src/plugins/README.md).
 - App shutdown tears down Integration runtime resources, including Lit workers. See [Runtime Adapters](src/adapters/README.md).
 - HMR and invalidation use shared graph-aware services instead of runtime-specific ad hoc wiring.
+- Browser and React navigation use one core-owned document commit pipeline; each router supplies its page swap and scroll handling while core coordinates fetch/cache/parse, head reconciliation, script activation, view transitions, and lifecycle events. See [Router Layer](src/router/README.md).
 - The build adapter owns source module closures and emitted chunk graphs, and passes an explicit recorder to Rolldown plugin hooks so their declared filesystem inputs reach the active build-input index. Grouped browser scripts resolve by the path or name the caller passed (and the bundler's facade when that spelling differs); in-process Page caches track inlined source imports and reachable generated artifacts. See [Build Layer](src/build/README.md).
 
 ### Bootstrap And Runtime Ownership
@@ -99,7 +100,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/services/invalidation/README.md`: file-change classification and dirty-marking for one debounce window
 - `src/hmr/README.md`: HMR strategy, update-layer ownership, and build error presentation
 - `src/dev-toolbar/README.md`: toolbar enablement, custom clients, and build error event contract
-- `src/router/README.md`: route discovery, matching, and browser navigation coordination
+- `src/router/README.md`: route discovery, matching, browser navigation coordination, and the shared client navigation pipeline
 - `src/route-renderer/README.md`: rendering orchestration, dependency resolution, and HTML cache source paths
 - `src/static-site-generator/README.md`: static build execution path
 - `src/eco/README.md`: `eco` authoring APIs for pages, layouts, and components
@@ -307,6 +308,8 @@ Use these entrypoints when building an Ecopages app:
 Use these entrypoints when a browser runtime needs to coordinate document ownership and link intent:
 
 - `@ecopages/core/router/navigation-coordinator`
+- `@ecopages/core/router/navigation-pipeline`
+- `@ecopages/core/router/navigation-lifecycle`
 - `@ecopages/core/router/link-intent`
 
 ### Extension Authoring

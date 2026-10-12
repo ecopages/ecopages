@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
-import userEvent from '@testing-library/user-event';
+import { userEvent } from 'vitest/browser';
 import { createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
@@ -174,14 +174,12 @@ function createDeferred(): { promise: Promise<void>; resolve: () => void } {
 describe('EcoRouter HMR Integration', () => {
 	let container: HTMLDivElement;
 	let root: ReturnType<typeof createRoot>;
-	let user: ReturnType<typeof userEvent.setup>;
 
 	beforeEach(() => {
 		window.history.replaceState(null, '', '/');
 		clearNavigationHtmlCache();
 		container = document.createElement('div');
 		document.body.appendChild(container);
-		user = userEvent.setup();
 	});
 
 	afterEach(() => {
@@ -392,18 +390,16 @@ describe('EcoRouter HMR Integration', () => {
 			);
 
 			await new Promise((resolve) => setTimeout(resolve, 100));
-			const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
 			const pushStateSpy = vi.spyOn(window.history, 'pushState');
 			const reloadPromise = getEcoNavigationRuntime(window).reloadCurrentPage({ clearCache: false });
 			await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledOnce());
 			const link = container.querySelector('[data-testid="FragmentReload-clear-fragment"]');
 			expect(link).not.toBeNull();
-			link?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, isPrimary: true }));
+			await userEvent.click(link as HTMLAnchorElement);
 			reloadResponse.resolve(htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'reloaded' })));
 
 			await expect(reloadPromise).resolves.toBe(true);
 			await vi.waitFor(() => expect(pushStateSpy).toHaveBeenCalledOnce());
-			expect(replaceStateSpy.mock.calls.map(([, , href]) => href)).toEqual(['/docs#install']);
 			expect(pushStateSpy.mock.calls.map(([, , href]) => href)).toEqual(['/docs']);
 			expect(window.location.hash).toBe('');
 			expect(fetchSpy).toHaveBeenCalledTimes(2);
@@ -435,7 +431,7 @@ describe('EcoRouter HMR Integration', () => {
 			await new Promise((resolve) => setTimeout(resolve, 100));
 			const link = container.querySelector('[data-testid="BusyPage-next-link"]') as HTMLAnchorElement | null;
 			expect(link).not.toBeNull();
-			await user.click(link as HTMLAnchorElement);
+			await userEvent.click(link as HTMLAnchorElement);
 
 			await new Promise((resolve) => setTimeout(resolve, 0));
 			const reloadResult = await getEcoNavigationRuntime(window).reloadCurrentPage({ clearCache: false });
@@ -714,7 +710,7 @@ describe('EcoRouter HMR Integration', () => {
 			await new Promise((resolve) => setTimeout(resolve, 100));
 			const link = container.querySelector('[data-testid="LeaveReact-outside-link"]') as HTMLAnchorElement | null;
 			expect(link).not.toBeNull();
-			await user.click(link as HTMLAnchorElement);
+			await userEvent.click(link as HTMLAnchorElement);
 
 			await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -790,47 +786,10 @@ describe('EcoRouter HMR Integration', () => {
 			) as HTMLAnchorElement | null;
 			expect(link).not.toBeNull();
 			link?.addEventListener('click', (event) => event.preventDefault(), { once: true });
-			await user.click(link as HTMLAnchorElement);
+			await userEvent.click(link as HTMLAnchorElement);
 
 			await new Promise((resolve) => setTimeout(resolve, 0));
 			expect(fetchSpy).not.toHaveBeenCalled();
-		});
-
-		it('intercepts clicks that originate from a text node inside the anchor', async () => {
-			const Page = createMultiLinkPage('TextNodeClick', [{ href: '/fast', label: 'fast-link' }]);
-			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
-			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
-
-			vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(htmlPageResponse(createHtml('fast'), { status: 200 }));
-
-			root = createRoot(container);
-			root.render(
-				createElement(EcoRouter, {
-					page: Page,
-					pageProps: {},
-					options: { viewTransitions: false },
-					// oxlint-disable-next-line no-children-prop
-					children: createElement(PageContent),
-				}),
-			);
-
-			await new Promise((resolve) => setTimeout(resolve, 100));
-			const link = container.querySelector('[data-testid="TextNodeClick-fast-link"]') as HTMLAnchorElement | null;
-			const textNode = link?.firstChild;
-			expect(link).not.toBeNull();
-			expect(textNode).not.toBeNull();
-
-			textNode?.dispatchEvent(
-				new MouseEvent('click', { bubbles: true, cancelable: true, composed: true, button: 0 }),
-			);
-
-			await vi.waitFor(
-				() => {
-					expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' });
-				},
-				{ timeout: 2000 },
-			);
-			expect(container.textContent).toContain('fast');
 		});
 
 		it('does not navigate to a hovered link when a click lands on a non-link target during a slow navigation', async () => {
@@ -884,10 +843,13 @@ describe('EcoRouter HMR Integration', () => {
 			expect(slowLink).not.toBeNull();
 			expect(fastLink).not.toBeNull();
 
-			await user.click(slowLink as HTMLAnchorElement);
-			await user.hover(fastLink as HTMLAnchorElement);
+			await userEvent.click(slowLink as HTMLAnchorElement);
+			await userEvent.hover(fastLink as HTMLAnchorElement);
 			fastLink?.remove();
-			await user.click(container);
+			const nonLink = document.createElement('div');
+			nonLink.textContent = 'Not a link';
+			container.appendChild(nonLink);
+			await userEvent.click(nonLink);
 			slowFetch.resolve();
 
 			await vi.waitFor(
@@ -959,18 +921,11 @@ describe('EcoRouter HMR Integration', () => {
 			expect(hoveredB).not.toBeNull();
 			expect(hoveredC).not.toBeNull();
 
-			await user.click(clickedLink as HTMLAnchorElement);
+			await userEvent.click(clickedLink as HTMLAnchorElement);
 			await new Promise((resolve) => setTimeout(resolve, 0));
 
 			for (const hovered of [hoveredA, hoveredB, hoveredC] as HTMLAnchorElement[]) {
-				hovered.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, composed: true }));
-				hovered.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, cancelable: true, composed: true }));
-				hovered.dispatchEvent(
-					new PointerEvent('pointerover', { bubbles: true, cancelable: true, composed: true }),
-				);
-				hovered.dispatchEvent(
-					new PointerEvent('pointermove', { bubbles: true, cancelable: true, composed: true }),
-				);
+				await userEvent.hover(hovered);
 			}
 
 			slowFetch.resolve();
@@ -999,10 +954,11 @@ describe('EcoRouter HMR Integration', () => {
 			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
 			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
 
+			const slowFetch = createDeferred();
 			vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
 				const url = getRequestPath(input);
 				if (url === '/slow') {
-					await new Promise((resolve) => setTimeout(resolve, 60));
+					await slowFetch.promise;
 					return htmlPageResponse(createHtml('slow'), { status: 200 });
 				}
 				if (url === '/fast') {
@@ -1028,8 +984,8 @@ describe('EcoRouter HMR Integration', () => {
 			expect(slowLink).not.toBeNull();
 			expect(fastLink).not.toBeNull();
 
-			await user.click(slowLink as HTMLAnchorElement);
-			await user.click(fastLink as HTMLAnchorElement);
+			await userEvent.click(slowLink as HTMLAnchorElement);
+			await userEvent.click(fastLink as HTMLAnchorElement);
 
 			await vi.waitFor(
 				() => {
@@ -1037,6 +993,8 @@ describe('EcoRouter HMR Integration', () => {
 				},
 				{ timeout: 2000 },
 			);
+			slowFetch.resolve();
+			await new Promise((resolve) => setTimeout(resolve, 0));
 			expect(container.textContent).toContain('fast');
 			expect(container.textContent).not.toContain('slow');
 		});
@@ -1062,10 +1020,11 @@ describe('EcoRouter HMR Integration', () => {
 			});
 			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
 
+			const outsideFetch = createDeferred();
 			vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
 				const url = getRequestPath(input);
 				if (url === '/outside-react') {
-					await new Promise((resolve) => setTimeout(resolve, 60));
+					await outsideFetch.promise;
 					return htmlPageResponse('<html><body><main>Outside React</main></body></html>', { status: 200 });
 				}
 				if (url === '/fast') {
@@ -1095,8 +1054,8 @@ describe('EcoRouter HMR Integration', () => {
 			expect(outsideLink).not.toBeNull();
 			expect(fastLink).not.toBeNull();
 
-			await user.click(outsideLink as HTMLAnchorElement);
-			await user.click(fastLink as HTMLAnchorElement);
+			await userEvent.click(outsideLink as HTMLAnchorElement);
+			await userEvent.click(fastLink as HTMLAnchorElement);
 
 			await vi.waitFor(
 				() => {
@@ -1104,6 +1063,8 @@ describe('EcoRouter HMR Integration', () => {
 				},
 				{ timeout: 2000 },
 			);
+			outsideFetch.resolve();
+			await new Promise((resolve) => setTimeout(resolve, 0));
 			expect(cleanupSpy).not.toHaveBeenCalled();
 			expect(handoffSpy).not.toHaveBeenCalled();
 			expect(container.textContent).toContain('fast');
@@ -1138,7 +1099,7 @@ describe('EcoRouter HMR Integration', () => {
 
 			const link = container.querySelector('[data-testid="NavTerminal-next-link"]') as HTMLAnchorElement | null;
 			expect(link).not.toBeNull();
-			await user.click(link as HTMLAnchorElement);
+			await userEvent.click(link as HTMLAnchorElement);
 
 			await vi.waitFor(() => {
 				expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'next' });

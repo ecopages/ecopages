@@ -59,8 +59,6 @@
 		"@changesets/cli": "^3.0.2",
 		"@ecopages/logger": "^0.2.3",
 		"@playwright/test": "^1.60.0",
-		"@testing-library/react": "^16.3.2",
-		"@testing-library/user-event": "^14.6.1",
 		"@types/node": "^24.12.4",
 		"@vitest/browser": "^4.1.6",
 		"@vitest/browser-playwright": "^4.1.6",

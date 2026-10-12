@@ -1,6 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
-import userEvent from '@testing-library/user-event';
-import { fireEvent } from '@testing-library/react';
+import { userEvent } from 'vitest/browser';
 import { createElement, useEffect, useState, type FC, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
@@ -109,7 +108,6 @@ function createNestedLayoutPage(name: string, layouts: NestedLayoutComponent[]) 
 describe('nested layout persistence', () => {
 	let container: HTMLDivElement;
 	let root: Root;
-	const user = userEvent.setup();
 
 	beforeEach(() => {
 		container = document.createElement('div');
@@ -169,10 +167,10 @@ describe('nested layout persistence', () => {
 		expect(container.querySelector('[data-testid="docs-inner"]')).not.toBeNull();
 		expect(shellDocsImport.testState.mountCount).toBe(1);
 
-		fireEvent.click(shell);
+		await userEvent.click(shell, { position: { x: 2, y: 2 } });
 		expect(shell.getAttribute('data-tick')).toBe('1');
 
-		await user.click(container.querySelector('[data-testid="go-settings"]') as HTMLAnchorElement);
+		await userEvent.click(container.querySelector('[data-testid="go-settings"]') as HTMLAnchorElement);
 
 		await vi.waitFor(() => {
 			expect(loadPageModuleFromDocumentMock).toHaveBeenCalled();

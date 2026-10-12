@@ -8,6 +8,7 @@ import {
 	loadPageModule,
 	loadPageModuleFromDocument,
 } from '../src/navigation';
+import { resolveReactNavigation } from '../src/navigation-orchestrator.ts';
 import { DEFAULT_OPTIONS } from '../src/types';
 
 /** Mirrors `DEV_TRANSFORM_URL_PREFIX` from `@ecopages/core/dev/transform-server`. */
@@ -477,6 +478,26 @@ describe('loadPageModule', () => {
 		expect(state.completed).toBe(true);
 		expect(typeof result?.preload).toBe('function');
 		expect(typeof result?.Component).toBe('function');
+	});
+});
+
+describe('resolveReactNavigation', () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it.each([404, 500])('uses a full navigation for an HTML %s response', async (status) => {
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(htmlPageResponse('<h1>Request failed</h1>', { status }));
+
+		const outcome = await resolveReactNavigation({
+			url: '/removed',
+			signal: new AbortController().signal,
+			isStale: () => false,
+			isPopState: false,
+			pushHistory: true,
+		});
+
+		expect(outcome).toEqual({ kind: 'hard-navigation', href: '/removed', mode: 'location' });
 	});
 });
 

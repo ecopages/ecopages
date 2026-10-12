@@ -179,7 +179,7 @@ export async function fetchPageDocument(
 				Accept: 'text/html',
 			},
 		});
-		if (!isHtmlPageResponse(res)) {
+		if (!res.ok || !isHtmlPageResponse(res)) {
 			return null;
 		}
 		const html = await res.text();

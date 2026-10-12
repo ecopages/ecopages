@@ -1,9 +1,64 @@
-import { describe, expect, test } from 'vitest';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { PostCssProcessor } from '../postcss-processor';
 import { tailwindV3Preset } from '../presets/tailwind-v3';
 import { tailwindV4Preset } from '../presets/tailwind-v4';
+
+const tailwindV4PackageDir = path.dirname(
+	createRequire(import.meta.resolve('@tailwindcss/postcss')).resolve('tailwindcss/package.json'),
+);
+
+let tailwindAppDir: string;
+let tailwindReferencePath: string;
+let bemApplyPath: string;
+let outputDir: string;
+
+/**
+ * @remarks
+ * The Tailwind v4 preset resolves `@import 'tailwindcss'` from the nearest
+ * `package.json` above the reference file. This package only has Tailwind v3
+ * installed, so the tests run in a temporary app whose `node_modules` links
+ * to the v4 package the preset itself uses. `outputDir` has no `node_modules`
+ * above it, so a stylesheet processed from there finds Tailwind only through
+ * the app root.
+ */
+beforeAll(() => {
+	tailwindAppDir = mkdtempSync(path.join(tmpdir(), 'eco-tailwind-app-'));
+	tailwindReferencePath = path.join(tailwindAppDir, 'src/styles/tailwind.css');
+	bemApplyPath = path.join(tailwindAppDir, 'src/styles/bem-apply.css');
+	outputDir = mkdtempSync(path.join(tmpdir(), 'eco-tailwind-out-'));
+	mkdirSync(path.join(tailwindAppDir, 'node_modules'), { recursive: true });
+	mkdirSync(path.dirname(tailwindReferencePath), { recursive: true });
+	symlinkSync(tailwindV4PackageDir, path.join(tailwindAppDir, 'node_modules/tailwindcss'), 'dir');
+	writeFileSync(path.join(tailwindAppDir, 'package.json'), JSON.stringify({ name: 'tailwind-app', private: true }));
+	writeFileSync(tailwindReferencePath, `@import 'tailwindcss' source(none);\n`);
+	writeFileSync(
+		bemApplyPath,
+		[
+			`@import 'tailwindcss' source(none);`,
+			'',
+			'@layer components {',
+			'	.button {',
+			'		@apply border px-3 py-1.5;',
+			'',
+			'		&--primary {',
+			'			@apply bg-sky-600 font-semibold text-white hover:bg-sky-500;',
+			'		}',
+			'	}',
+			'}',
+			'',
+		].join('\n'),
+	);
+});
+
+afterAll(() => {
+	rmSync(tailwindAppDir, { recursive: true, force: true });
+	rmSync(outputDir, { recursive: true, force: true });
+});
 
 describe('Presets Verification', () => {
 	const cssToPrefix = `
@@ -118,17 +173,16 @@ describe('Presets Verification', () => {
 	});
 
 	test('Tailwind v4 preset should resolve bare module @import from the app package root', async () => {
-		const referencePath = path.resolve(__dirname, '../../../../../playground/kitchen-sink/src/styles/tailwind.css');
-		const preset = tailwindV4Preset({ referencePath });
-		const css = `@import 'tailwindcss';`;
+		const preset = tailwindV4Preset({ referencePath: tailwindReferencePath });
+		const css = `@import 'tailwindcss' source(none);`;
 
 		const result = await PostCssProcessor.processStringOrBuffer(css, {
 			plugins: preset.plugins ? Object.values(preset.plugins) : [],
-			filePath: referencePath,
+			filePath: path.join(outputDir, 'page.css'),
 		});
 
-		expect(result.length).toBeGreaterThan(0);
-		expect(result).toContain('--tw-');
+		expect(result).toContain('--default-font-family');
+		expect(result).toContain('box-sizing:border-box');
 	}, 30_000);
 });
 
@@ -191,18 +245,14 @@ test('Tailwind v4 preset should preserve nested BEM selectors with @apply in pro
 	process.env.NODE_ENV = 'production';
 
 	try {
-		const kitchenSinkTailwindPath = path.resolve(
-			__dirname,
-			'../../../../../playground/kitchen-sink/src/styles/tailwind.css',
-		);
 		const preset = tailwindV4Preset({
-			referencePath: kitchenSinkTailwindPath,
+			referencePath: bemApplyPath,
 		});
-		const css = await readFile(kitchenSinkTailwindPath, 'utf-8');
+		const css = await readFile(bemApplyPath, 'utf-8');
 
 		const result = await PostCssProcessor.processStringOrBuffer(css, {
 			plugins: preset.plugins ? Object.values(preset.plugins) : [],
-			filePath: kitchenSinkTailwindPath,
+			filePath: bemApplyPath,
 		});
 
 		expect(result).toContain('.button--primary');
@@ -287,10 +337,8 @@ describe('Tailwind v4 transformInput', () => {
 });
 
 describe('Tailwind v4 preset @apply resolution (regression)', () => {
-	const referencePath = path.resolve(__dirname, '../../../../../playground/kitchen-sink/src/styles/tailwind.css');
-
 	test('resolves @apply when the reference is injected at the src location but processed from a different (dist) location', async () => {
-		const preset = tailwindV4Preset({ referencePath });
+		const preset = tailwindV4Preset({ referencePath: tailwindReferencePath });
 		const raw = `.main-title { @apply text-2xl font-bold; }`;
 
 		const srcPath = path.resolve(__dirname, 'pages/index.css');

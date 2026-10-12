@@ -59,6 +59,10 @@ function linkDirectory(linkPath: string, targetPath: string): void {
  * are not reachable as bare specifiers from the app. This is the layout the
  * server output has to survive. Packages outside a `node_modules` folder copy
  * only their published `files`, like the published `@ecopages/*` packages.
+ * Native `.node` bindings are symlinked to the installed file instead of copied.
+ * The build only loads them and never bundles them, and the OS vets every
+ * newly written binary on its first load, which costs about half a second
+ * per binding on macOS.
  */
 function installIsolated(appDir: string, packages: Record<string, string>): void {
 	const storeDir = (name: string) => path.join(appDir, 'node_modules/.pnpm', name.replace('/', '+'), 'node_modules');
@@ -73,12 +77,24 @@ function installIsolated(appDir: string, packages: Record<string, string>): void
 		};
 		const isWorkspacePackage = !sourceDir.split(path.sep).includes('node_modules');
 		const entries = isWorkspacePackage && packageJson.files ? ['package.json', ...packageJson.files] : ['.'];
+		const nativeBindings: string[] = [];
 		for (const entry of entries) {
 			cpSync(path.join(sourceDir, entry), path.join(storeDir(name), name, entry), {
 				recursive: true,
 				dereference: true,
-				filter: (source) => !path.relative(sourceDir, source).split(path.sep).includes('node_modules'),
+				filter: (source) => {
+					const relative = path.relative(sourceDir, source);
+					if (relative.split(path.sep).includes('node_modules')) return false;
+					if (!source.endsWith('.node')) return true;
+					nativeBindings.push(relative);
+					return false;
+				},
 			});
+		}
+		for (const binding of nativeBindings) {
+			const bindingPath = path.join(storeDir(name), name, binding);
+			mkdirSync(path.dirname(bindingPath), { recursive: true });
+			symlinkSync(path.join(sourceDir, binding), bindingPath);
 		}
 		for (const dependency of Object.keys({ ...packageJson.dependencies, ...packageJson.optionalDependencies })) {
 			const dependencyDir = findPackageDir(sourceDir, dependency);
@@ -186,17 +202,19 @@ function readServerOutput(serverDir: string): string {
 /**
  * @remarks
  * The server listens on port 0, so the OS picks a free port and the startup
- * log reports it; no port is reserved ahead of time.
+ * log reports it; no port is reserved ahead of time. A server that never
+ * logs it ends with the test timeout.
  */
-async function waitForServerUrl(child: ChildProcess, output: () => string): Promise<string> {
-	const deadline = Date.now() + 30_000;
-	while (Date.now() < deadline) {
-		const url = /running at (http:\/\/\S+)/u.exec(output())?.[1];
-		if (url) return url;
-		if (child.exitCode !== null) throw new Error(`Server exited with ${child.exitCode}:\n${output()}`);
-		await new Promise((resolve) => setTimeout(resolve, 10));
-	}
-	throw new Error(`Server did not start:\n${output()}`);
+function waitForServerUrl(child: ChildProcess, output: () => string): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const check = () => {
+			const url = /running at (http:\/\/\S+)/u.exec(output())?.[1];
+			if (url) resolve(url);
+		};
+		child.stdout?.on('data', check);
+		child.stderr?.on('data', check);
+		child.once('exit', (code) => reject(new Error(`Server exited with ${code}:\n${output()}`)));
+	});
 }
 
 /**

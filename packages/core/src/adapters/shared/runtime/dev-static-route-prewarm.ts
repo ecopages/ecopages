@@ -4,8 +4,6 @@ export type DevStaticRoutePrewarmOptions = {
 	pathnames: readonly string[];
 	renderPath: (pathname: string) => Promise<void>;
 	signal?: AbortSignal;
-	/** Invoked with the pathname list before rendering begins. */
-	onPathnamesResolved?: (pathnames: readonly string[]) => void;
 };
 
 const LOG_PREFIX = '[ecopages:dev-prewarm]';
@@ -55,12 +53,10 @@ async function runWithConcurrency<T>(
  * Prewarm does not keep a separate HTML cache.
  */
 export async function runDevStaticRoutePrewarm(options: DevStaticRoutePrewarmOptions): Promise<void> {
-	const pathnames = [...new Set(options.pathnames)];
+	const { pathnames } = options;
 	if (pathnames.length === 0) {
 		return;
 	}
-
-	options.onPathnamesResolved?.(pathnames);
 
 	const concurrency = resolvePrewarmConcurrency();
 	appLogger.debug(`${LOG_PREFIX} started (${pathnames.length} path(s), concurrency ${concurrency})`);
@@ -104,6 +100,14 @@ export function startDevStaticRoutePrewarm(
 		});
 }
 
+/**
+ * Runs `collectPathnames` after the current task, resolving `undefined` once `signal` aborts.
+ *
+ * @remarks
+ * The timer defers the Processor hooks until the adapter has reported that it is listening, so a hook
+ * that blocks synchronously cannot delay readiness. Resolving `undefined` on abort lets `dispose()`
+ * finish while a hook is still pending; a later rejection from that hook is ignored.
+ */
 function collectDevStaticRoutePrewarmPaths(
 	options: Pick<DevStaticRoutePrewarmOptions, 'signal'> & {
 		collectPathnames: () => Promise<readonly string[]> | readonly string[];

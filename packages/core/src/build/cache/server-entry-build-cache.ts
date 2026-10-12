@@ -40,9 +40,9 @@ export function getServerBundleOutputPaths(appConfig: EcoPagesAppConfig): {
  * Hashes a config file recorded in, or checked against, the deploy manifest.
  *
  * @remarks
- * The build may run under Bun while `ecopages start` checks the manifest under Node, so this uses SHA-256 rather
- * than `fileSystem.hash`, which is `Bun.hash` under Bun. The output matches the Node adapter's hash, so manifests
- * written by a Node build stay valid.
+ * The build may run under Bun while `ecopages start` checks the manifest under Node, so the hash must not depend
+ * on the runtime or on the file-system implementation. SHA-256 is computed here rather than through
+ * `fileSystem.hash`; it equals that hash today, so manifests written by earlier builds stay valid.
  */
 function hashDeployConfigFile(filePath: string): string {
 	return createHash('sha256').update(fileSystem.readFileAsBuffer(filePath)).digest('hex');

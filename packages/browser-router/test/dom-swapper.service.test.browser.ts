@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { resetRerunNonceForTests } from '@ecopages/core/client/navigation-scripts';
+import { resetRerunNonceForTests } from '../../core/src/client/navigation-scripts/rerun-queue.ts';
+import {
+	activatePreparedNavigationScripts,
+	prepareNavigationHead,
+	runNavigationViewTransition,
+	type NavigationHeadUpdate,
+} from '@ecopages/core/router/navigation-pipeline';
 import { DomSwapper } from '../src/client/dom/dom-swapper.ts';
-import { ViewTransitionManager } from '../src/client/services/view-transition-manager.ts';
 
 type DocumentWithViewTransition = Document & {
 	startViewTransition?: (callback: () => void | Promise<void>) => {
@@ -14,6 +19,16 @@ type DocumentWithViewTransition = Document & {
 
 function parseDocument(html: string): Document {
 	return new DOMParser().parseFromString(html, 'text/html');
+}
+
+async function prepareHead(newDocument: Document): Promise<NavigationHeadUpdate> {
+	const update = await prepareNavigationHead(newDocument);
+	update.commit();
+	return update;
+}
+
+function flushScripts(update: NavigationHeadUpdate): void {
+	activatePreparedNavigationScripts(update, 'data-eco-persist');
 }
 
 function resetDocument(): void {
@@ -47,7 +62,6 @@ describe('DomSwapper service behavior', () => {
 
 	it('preloads only missing stylesheets from the incoming document', async () => {
 		resetDocument();
-		const swapper = new DomSwapper('data-eco-persist');
 		const existingHref = new URL('/assets/existing.css', window.location.origin).href;
 		const nextHref = new URL('/assets/next.css', window.location.origin).href;
 		document.head.innerHTML = `<link rel="stylesheet" href="${existingHref}">`;
@@ -68,14 +82,14 @@ describe('DomSwapper service behavior', () => {
 			if (node instanceof HTMLLinkElement && node.rel === 'stylesheet') {
 				appendedHrefs.push(node.href);
 				queueMicrotask(() => {
-					node.onload?.(new Event('load'));
+					node.dispatchEvent(new Event('load'));
 				});
 			}
 			return result;
 		}) as typeof document.head.appendChild;
 
 		try {
-			await swapper.preloadStylesheets(newDocument);
+			await prepareNavigationHead(newDocument);
 		} finally {
 			document.head.appendChild = originalAppendChild;
 		}
@@ -103,14 +117,14 @@ describe('DomSwapper service behavior', () => {
 			].join(''),
 		);
 
-		swapper.morphHead(newDocument);
+		const headUpdate = await prepareHead(newDocument);
 		swapper.replaceBody(newDocument);
-		swapper.flushScripts();
+		flushScripts(headUpdate);
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
-		expect(document.head.querySelector('script[src="/old-script.js"]')).toBeNull();
-		expect(document.head.querySelector('script[src="/next-script.js"]')).not.toBeNull();
-		expect(document.head.querySelector('script[src="/persisted.js"][data-eco-persist="true"]')).not.toBeNull();
+		expect(document.head.querySelector('script[src$="/old-script.js"]')).toBeNull();
+		expect(document.head.querySelector('script[src$="/next-script.js"]')).not.toBeNull();
+		expect(document.head.querySelector('script[src$="/persisted.js"][data-eco-persist="true"]')).not.toBeNull();
 		expect(document.head.querySelectorAll('script[data-eco-script-id="stable-script"]')).toHaveLength(1);
 		expect((window as typeof window & { __stable_script_runs__?: number }).__stable_script_runs__).toBe(1);
 	});
@@ -135,10 +149,10 @@ describe('DomSwapper service behavior', () => {
 			].join(''),
 		);
 
-		swapper.morphHead(newDocument);
+		const headUpdate = await prepareHead(newDocument);
 		swapper.morphBody(newDocument);
 		const dataScript = document.body.querySelector('script[type="application/json"]');
-		swapper.flushScripts();
+		flushScripts(headUpdate);
 
 		await vi.waitFor(() => expect(runs).toEqual(['library', 'head-inline', 'kept', 'inline']));
 		expect(document.body.querySelector('script[type="application/json"]')).toBe(dataScript);
@@ -160,9 +174,9 @@ describe('DomSwapper service behavior', () => {
 				`<html><head></head><body>${persisted}<script>${record('footer')}</script></body></html>`,
 			);
 
-			swapper.morphHead(newDocument);
+			const headUpdate = await prepareHead(newDocument);
 			swapper[swap](newDocument);
-			swapper.flushScripts();
+			flushScripts(headUpdate);
 
 			await vi.waitFor(() => expect(runs).toEqual(['footer']));
 			expect(document.body.querySelector('[data-eco-persist] script')).toBe(liveScript);
@@ -183,9 +197,9 @@ describe('DomSwapper service behavior', () => {
 			].join(''),
 		);
 
-		swapper.morphHead(newDocument);
+		const headUpdate = await prepareHead(newDocument);
 		swapper.morphBody(newDocument);
-		swapper.flushScripts();
+		flushScripts(headUpdate);
 
 		await vi.waitFor(() => expect(runs).toEqual(['library', 'inline']));
 	});
@@ -205,14 +219,14 @@ describe('DomSwapper service behavior', () => {
 			].join(''),
 		);
 
-		swapper.morphHead(newDocument);
+		const headUpdate = await prepareHead(newDocument);
 		swapper.replaceBody(newDocument);
-		swapper.flushScripts();
+		flushScripts(headUpdate);
 
 		await vi.waitFor(() => expect(runs).toEqual(['library', 'rerun', 'body']));
 	});
 
-	it('runs body scripts before returning when no earlier script is still loading', () => {
+	it('runs body scripts before returning when no earlier script is still loading', async () => {
 		resetDocument();
 		const swapper = new DomSwapper('data-eco-persist');
 		const runs: string[] = [];
@@ -222,9 +236,9 @@ describe('DomSwapper service behavior', () => {
 			"<html><head></head><body><script>window.__body_script_runs__.push('body')</script></body></html>",
 		);
 
-		swapper.morphHead(newDocument);
+		const headUpdate = await prepareHead(newDocument);
 		swapper.morphBody(newDocument);
-		swapper.flushScripts();
+		flushScripts(headUpdate);
 
 		expect(runs).toEqual(['body']);
 	});
@@ -242,14 +256,14 @@ describe('DomSwapper service behavior', () => {
 				`<script>${record('first')}</script></head><body></body></html>`,
 			].join(''),
 		);
-		swapper.morphHead(first);
+		const firstHeadUpdate = await prepareHead(first);
 		swapper.replaceBody(first);
-		swapper.flushScripts();
+		flushScripts(firstHeadUpdate);
 
 		const second = parseDocument(`<html><head></head><body><script>${record('second')}</script></body></html>`);
-		swapper.morphHead(second);
+		const secondHeadUpdate = await prepareHead(second);
 		swapper.replaceBody(second);
-		swapper.flushScripts();
+		flushScripts(secondHeadUpdate);
 
 		await vi.waitFor(() => expect(runs).toContain('library'));
 		await new Promise((resolve) => setTimeout(resolve, 50));
@@ -273,9 +287,9 @@ describe('DomSwapper service behavior', () => {
 			].join(''),
 		);
 
-		swapper.morphHead(newDocument);
+		const headUpdate = await prepareHead(newDocument);
 		swapper.morphBody(newDocument);
-		swapper.flushScripts();
+		flushScripts(headUpdate);
 
 		await vi.waitFor(() => expect(runs).toEqual(['inline']));
 	});
@@ -297,9 +311,9 @@ describe('DomSwapper service behavior', () => {
 			].join(''),
 		);
 
-		swapper.morphHead(newDocument);
+		const headUpdate = await prepareHead(newDocument);
 		swapper.replaceBody(newDocument);
-		swapper.flushScripts();
+		flushScripts(headUpdate);
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(document.body.getAttribute('data-route-files')).toBe(
@@ -308,7 +322,7 @@ describe('DomSwapper service behavior', () => {
 		expect(document.head.querySelectorAll('script#__ECO_PAGE_DATA__')).toHaveLength(1);
 	});
 
-	it('reuses registered rerun callbacks for external module scripts with stable ids', () => {
+	it('reuses registered rerun callbacks for external module scripts with stable ids', async () => {
 		resetDocument();
 		const swapper = new DomSwapper('data-eco-persist');
 		const rerun = vi.fn();
@@ -343,13 +357,13 @@ describe('DomSwapper service behavior', () => {
 				].join(''),
 			);
 
-			swapper.morphHead(nextHtml);
+			const headUpdate1 = await prepareHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushScripts();
+			flushScripts(headUpdate1);
 
-			swapper.morphHead(nextHtml);
+			const headUpdate2 = await prepareHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushScripts();
+			flushScripts(headUpdate2);
 		} finally {
 			document.head.appendChild = originalAppendChild;
 			delete runtimeWindow.__ECO_PAGES__;
@@ -360,7 +374,7 @@ describe('DomSwapper service behavior', () => {
 		expect(document.head.querySelectorAll('script[src*="/assets/counter.js"]')).toHaveLength(1);
 	});
 
-	it('falls back to a fresh URL for external module rerun scripts without stable ids', () => {
+	it('falls back to a fresh URL for external module rerun scripts without stable ids', async () => {
 		resetDocument();
 		const swapper = new DomSwapper('data-eco-persist');
 		const observedSrcs: string[] = [];
@@ -382,13 +396,13 @@ describe('DomSwapper service behavior', () => {
 				].join(''),
 			);
 
-			swapper.morphHead(nextHtml);
+			const headUpdate3 = await prepareHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushScripts();
+			flushScripts(headUpdate3);
 
-			swapper.morphHead(nextHtml);
+			const headUpdate4 = await prepareHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushScripts();
+			flushScripts(headUpdate4);
 		} finally {
 			document.head.appendChild = originalAppendChild;
 		}
@@ -400,7 +414,7 @@ describe('DomSwapper service behavior', () => {
 		expect(document.head.querySelectorAll('script[src*="/assets/counter.js"]')).toHaveLength(1);
 	});
 
-	it('falls back to a fresh URL when a stable-id external module rerun script has no registered callback', () => {
+	it('falls back to a fresh URL when a stable-id external module rerun script has no registered callback', async () => {
 		resetDocument();
 		const swapper = new DomSwapper('data-eco-persist');
 		const observedSrcs: string[] = [];
@@ -422,13 +436,13 @@ describe('DomSwapper service behavior', () => {
 				].join(''),
 			);
 
-			swapper.morphHead(nextHtml);
+			const headUpdate5 = await prepareHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushScripts();
+			flushScripts(headUpdate5);
 
-			swapper.morphHead(nextHtml);
+			const headUpdate6 = await prepareHead(nextHtml);
 			swapper.replaceBody(nextHtml);
-			swapper.flushScripts();
+			flushScripts(headUpdate6);
 		} finally {
 			document.head.appendChild = originalAppendChild;
 		}
@@ -442,7 +456,6 @@ describe('DomSwapper service behavior', () => {
 
 	it('skips startViewTransition when no named transition elements are present', async () => {
 		resetDocument();
-		const manager = new ViewTransitionManager(true);
 		const startViewTransition = vi.fn((callback: () => void | Promise<void>) => {
 			const updateCallbackDone = Promise.resolve().then(async () => {
 				await callback();
@@ -458,9 +471,12 @@ describe('DomSwapper service behavior', () => {
 
 		Reflect.set(document as DocumentWithViewTransition, 'startViewTransition', startViewTransition);
 
-		await manager.transition(() => {
-			document.body.innerHTML = '<div>Updated</div>';
-		});
+		await runNavigationViewTransition(
+			() => {
+				document.body.innerHTML = '<div>Updated</div>';
+			},
+			{ enabled: true },
+		);
 
 		expect(startViewTransition).not.toHaveBeenCalled();
 		expect(document.body.innerHTML).toContain('Updated');
@@ -469,7 +485,6 @@ describe('DomSwapper service behavior', () => {
 	it('ignores skipped view transition finish rejections after the DOM update commits', async () => {
 		resetDocument();
 		document.body.innerHTML = '<div data-view-transition="hero">Old</div>';
-		const manager = new ViewTransitionManager(true);
 		const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 		const startViewTransition = vi.fn((callback: () => void | Promise<void>) => {
 			const updateCallbackDone = Promise.resolve().then(async () => {
@@ -486,9 +501,12 @@ describe('DomSwapper service behavior', () => {
 
 		Reflect.set(document as DocumentWithViewTransition, 'startViewTransition', startViewTransition);
 
-		await manager.transition(() => {
-			document.body.innerHTML = '<div>Updated</div>';
-		});
+		await runNavigationViewTransition(
+			() => {
+				document.body.innerHTML = '<div>Updated</div>';
+			},
+			{ enabled: true },
+		);
 		await Promise.resolve();
 
 		expect(startViewTransition).toHaveBeenCalledTimes(1);
@@ -496,9 +514,9 @@ describe('DomSwapper service behavior', () => {
 		expect(consoleSpy).not.toHaveBeenCalled();
 	});
 
-	it('injects persisted root styles when view transitions are enabled', () => {
+	it('injects persisted root styles when view transitions are enabled', async () => {
 		resetDocument();
-		new ViewTransitionManager(true);
+		await runNavigationViewTransition(() => {}, { enabled: true });
 
 		const style = document.getElementById('eco-vt-root-styles');
 		expect(style?.hasAttribute('data-eco-persist')).toBe(true);
@@ -506,9 +524,9 @@ describe('DomSwapper service behavior', () => {
 		expect(style?.textContent).not.toContain('!important');
 	});
 
-	it('does not inject root styles when view transitions are disabled', () => {
+	it('does not inject root styles when view transitions are disabled', async () => {
 		resetDocument();
-		new ViewTransitionManager(false);
+		await runNavigationViewTransition(() => {}, { enabled: false });
 
 		expect(document.getElementById('eco-vt-root-styles')).toBeNull();
 	});

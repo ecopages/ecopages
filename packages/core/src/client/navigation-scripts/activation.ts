@@ -1,9 +1,8 @@
-import { isNonExecutableHeadScript, isRerunScript } from '@ecopages/core/client/navigation-scripts';
-import { DEFAULT_PERSIST_ATTR } from './body-morpher.ts';
+import { ECO_PERSIST_ATTRIBUTE } from '../navigation-attributes.ts';
+import { isNonExecutableHeadScript, isRerunScript } from './classification.ts';
 
-/**
- * One script to insert as a fresh, executable element.
- */
+let navigationScriptGeneration = 0;
+
 export type ScriptActivation = {
 	attributes: Iterable<readonly [string, string]>;
 	textContent: string;
@@ -24,9 +23,8 @@ function isModuleScript(script: HTMLScriptElement): boolean {
  * Returns whether page parsing would stop at `script` until it loads and runs.
  *
  * @remarks
- * `async` and `defer` scripts never block parsing. A browser never fetches a
- * script with a non-JavaScript `type`, nor a `nomodule` script once it supports
- * modules, so neither fires `load` or `error` and waiting on one would never end.
+ * Async, deferred, non-JavaScript, and `nomodule` scripts cannot block parsing
+ * in the current browser and must not hold later activations.
  */
 function isParserBlocking(script: HTMLScriptElement): boolean {
 	return (
@@ -47,18 +45,12 @@ function whenLoaded(script: HTMLScriptElement): Promise<void> {
 }
 
 /**
- * Inserts fresh copies of `activations` in order, so the browser executes them.
+ * Inserts fresh copies of `activations` in document order.
  *
  * @remarks
- * Scripts that come from a parsed document never execute on their own. Each
- * script is inserted only after earlier parser-blocking scripts (external
- * classic scripts without `async`, `defer`, or `nomodule`) have loaded, as page
- * parsing would. External scripts without an author `async` attribute are
- * inserted with `async = false`, so the browser also runs `defer` and module
- * scripts in insertion order. Everything before the first wait runs
- * synchronously, so a queue without parser-blocking scripts is fully inserted
- * when the call returns. After each wait, the sequence stops when `isStale`
- * returns `true`.
+ * Parser-blocking classic scripts wait for load before the sequence advances.
+ * Other external scripts keep insertion order, and a newer navigation stops a
+ * sequence that is waiting on an earlier script.
  */
 export async function activateScriptsInOrder(
 	activations: readonly ScriptActivation[],
@@ -90,17 +82,31 @@ export async function activateScriptsInOrder(
 }
 
 /**
- * Returns activations for every executable script in the new body, in document order.
+ * Starts the shared head, rerun, and optional body script queue.
  *
  * @remarks
- * As in Turbo, a body script runs on every navigation that renders it: the body is new
- * content, even when the previous page had an identical script. The exceptions are scripts
- * inside an element marked with the persist attribute, which the swap keeps as they were;
- * `data-eco-rerun` scripts, replayed separately; and non-executable types such as JSON. The
- * browser runs an external module script once per URL in any case.
+ * A later call supersedes a queue still waiting on a script load. The calling
+ * navigation's own transaction is not consulted because it completes while the
+ * queue is still waiting.
  */
-export function collectBodyScripts(persistAttribute: string): ScriptActivation[] {
-	const persistedSelector = `[${persistAttribute}], [${DEFAULT_PERSIST_ATTR}]`;
+export function activateNavigationScripts(
+	activations: readonly ScriptActivation[],
+	options: { persistAttribute?: string; includeBodyScripts?: boolean } = {},
+): void {
+	const generation = ++navigationScriptGeneration;
+	const bodyActivations = options.includeBodyScripts ? collectBodyScripts(options.persistAttribute) : [];
+	void activateScriptsInOrder([...activations, ...bodyActivations], () => generation !== navigationScriptGeneration);
+}
+
+/**
+ * Returns activations for executable scripts in the live body.
+ *
+ * @remarks
+ * Persisted subtrees stay untouched, while ordinary body scripts run again
+ * because each committed body represents a new page visit.
+ */
+export function collectBodyScripts(persistAttribute: string = ECO_PERSIST_ATTRIBUTE): ScriptActivation[] {
+	const persistedSelector = `[${persistAttribute}], [${ECO_PERSIST_ATTRIBUTE}]`;
 	return Array.from(document.body.querySelectorAll<HTMLScriptElement>('script'))
 		.filter((script) => isActivatableScript(script) && !script.closest(persistedSelector))
 		.map((script) => ({

@@ -12,16 +12,12 @@ import {
 	type EcoPendingNavigationIntent,
 } from '@ecopages/core/router/link-intent';
 import { getNavigableHrefFromClick } from '@ecopages/core/router/link-navigation-policy';
+import { decideQueuedNavigationReplay } from '@ecopages/core/router/navigation-pipeline';
 import { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC, DEFAULT_OPTIONS, type EcoRouterOptions } from './types.ts';
 import { DomSwapper } from './dom/dom-swapper.ts';
 import { PrefetchManager } from './services/prefetch-manager.ts';
-import { ViewTransitionManager } from './services/view-transition-manager.ts';
 import { NavigationCommit } from './navigation-commit.ts';
-import {
-	replayQueuedBrowserRouterNavigation,
-	runPerformNavigationAttempt,
-	shouldIgnorePerformNavigationError,
-} from './eco-router-perform-navigation.ts';
+import { runPerformNavigationAttempt, shouldIgnorePerformNavigationError } from './eco-router-perform-navigation.ts';
 
 /**
  * Intercepts same-origin link clicks and performs client-side navigation
@@ -36,7 +32,6 @@ export class EcoRouter {
 	private queuedNavigationHref: string | null = null;
 
 	private domSwapper: DomSwapper;
-	private viewTransitionManager: ViewTransitionManager;
 	private prefetchManager: PrefetchManager | null = null;
 	private readonly navigationCommit: NavigationCommit;
 
@@ -50,11 +45,11 @@ export class EcoRouter {
 		};
 
 		this.domSwapper = new DomSwapper(this.options.persistAttribute);
-		this.viewTransitionManager = new ViewTransitionManager(this.options.viewTransitions);
 
 		if (this.options.prefetch !== false) {
 			this.prefetchManager = new PrefetchManager({
 				...this.options.prefetch,
+				reloadAttribute: this.options.reloadAttribute,
 				linkSelector: this.options.linkSelector,
 			});
 		}
@@ -63,12 +58,7 @@ export class EcoRouter {
 		this.handlePointerDown = this.handlePointerDown.bind(this);
 		this.handlePopState = this.handlePopState.bind(this);
 
-		this.navigationCommit = new NavigationCommit(
-			this.domSwapper,
-			this.viewTransitionManager,
-			this.prefetchManager,
-			this.options,
-		);
+		this.navigationCommit = new NavigationCommit(this.domSwapper, this.prefetchManager, this.options);
 	}
 
 	private getRecoveredPointerHref(): string | null {
@@ -143,7 +133,7 @@ export class EcoRouter {
 					return false;
 				}
 
-				const currentUrl = window.location.pathname + window.location.search;
+				const currentUrl = window.location.href;
 
 				if (request?.clearCache) {
 					this.prefetchManager?.invalidate(currentUrl);
@@ -351,9 +341,7 @@ export class EcoRouter {
 				direction,
 				bypassPrefetchCache: options.bypassPrefetchCache,
 				allowFullDocumentFallback,
-				domSwapper: this.domSwapper,
 				navigationCommit: this.navigationCommit,
-				prefetchManager: this.prefetchManager,
 				isStaleNavigation,
 				signal,
 			});
@@ -378,9 +366,25 @@ export class EcoRouter {
 				this.queuedNavigationHref = null;
 			}
 
-			replayQueuedBrowserRouterNavigation(queuedNavigationHref, (replayUrl, replayDirection) =>
-				this.performNavigation(replayUrl, replayDirection),
-			);
+			const ownerState = navigationRuntime.getOwnerState();
+			const replay = decideQueuedNavigationReplay({
+				queuedHref: queuedNavigationHref,
+				committedHref: window.location.href,
+				routeToCoordinator:
+					ownerState.owner !== 'none' &&
+					ownerState.owner !== 'browser-router' &&
+					ownerState.canHandleSpaNavigation,
+			});
+
+			if (replay.kind === 'coordinator-navigate') {
+				void navigationRuntime.requestNavigation({
+					href: replay.href,
+					direction: 'forward',
+					source: 'browser-router',
+				});
+			} else if (replay.kind === 'local-navigate') {
+				void this.performNavigation(new URL(replay.href, window.location.origin), 'forward');
+			}
 		}
 	}
 }

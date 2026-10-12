@@ -3,6 +3,11 @@ import userEvent from '@testing-library/user-event';
 import { createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import {
+	cacheNavigationHtml,
+	clearNavigationHtmlCache,
+	getCachedNavigationHtml,
+} from '../../core/src/router/client/navigation-document.ts';
 import { useRouter } from '../src/context.ts';
 import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
 
@@ -15,6 +20,11 @@ function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
 			...(init.headers ?? {}),
 		},
 	});
+}
+
+function getRequestPath(input: RequestInfo | URL): string {
+	const href = input instanceof Request ? input.url : input.toString();
+	return new URL(href, window.location.href).pathname;
 }
 
 function createMockPageComponent(name: string) {
@@ -167,6 +177,8 @@ describe('EcoRouter HMR Integration', () => {
 	let user: ReturnType<typeof userEvent.setup>;
 
 	beforeEach(() => {
+		window.history.replaceState(null, '', '/');
+		clearNavigationHtmlCache();
 		container = document.createElement('div');
 		document.body.appendChild(container);
 		user = userEvent.setup();
@@ -180,6 +192,7 @@ describe('EcoRouter HMR Integration', () => {
 			container.parentNode.removeChild(container);
 		}
 		vi.restoreAllMocks();
+		clearNavigationHtmlCache();
 		clearLayoutCache();
 		delete window.__ECO_PAGES__;
 		delete (window as typeof window & { __ecoLayoutCache?: unknown }).__ecoLayoutCache;
@@ -290,6 +303,111 @@ describe('EcoRouter HMR Integration', () => {
 			await vi.waitFor(() => {
 				expect(container.textContent).toContain('Reloaded page');
 			});
+		});
+
+		it('reloads fresh HTML instead of reusing the navigation cache', async () => {
+			const PageA = createMockPageComponent('PageA');
+			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+			const currentUrl = new URL('/notes', window.location.origin);
+			window.history.replaceState(null, '', currentUrl);
+			cacheNavigationHtml(currentUrl, createNavigablePageHtml(moduleUrl, { label: 'cached' }));
+			const fetchSpy = vi
+				.spyOn(globalThis, 'fetch')
+				.mockResolvedValue(htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'fresh' })));
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: PageA,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			await expect(getEcoNavigationRuntime(window).reloadCurrentPage({ clearCache: false })).resolves.toBe(true);
+
+			await vi.waitFor(() => {
+				expect(container.querySelector('[data-testid="page-label"]')?.textContent).toBe('fresh');
+			});
+			expect(fetchSpy).toHaveBeenCalledOnce();
+		});
+
+		it('clears a cached redirect target when a reload requests cache clearing', async () => {
+			const PageA = createMockPageComponent('PageA');
+			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+			const currentUrl = new URL('/notes', window.location.origin);
+			const cachedFinalUrl = new URL('/previous-notes', currentUrl);
+			window.history.replaceState(null, '', currentUrl);
+			cacheNavigationHtml(currentUrl, createNavigablePageHtml(moduleUrl, { label: 'cached' }), cachedFinalUrl);
+			const fetchSpy = vi
+				.spyOn(globalThis, 'fetch')
+				.mockResolvedValue(htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'fresh' })));
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: PageA,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			await expect(getEcoNavigationRuntime(window).reloadCurrentPage({ clearCache: true })).resolves.toBe(true);
+
+			await vi.waitFor(() => {
+				expect(container.querySelector('[data-testid="page-label"]')?.textContent).toBe('fresh');
+			});
+			expect(fetchSpy).toHaveBeenCalledOnce();
+			expect(getCachedNavigationHtml(cachedFinalUrl)).toBeNull();
+		});
+
+		it('replays a queued fragment-clearing link after reloading a fragment URL', async () => {
+			const Page = createMultiLinkPage('FragmentReload', [{ href: '/docs', label: 'clear-fragment' }]);
+			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+			window.history.replaceState(null, '', '/docs#install');
+			const reloadResponse = createDeferred<Response>();
+			const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((_, init) => {
+				if (init?.signal?.aborted) {
+					return Promise.reject(new DOMException('Aborted', 'AbortError'));
+				}
+				if (fetchSpy.mock.calls.length === 1) return reloadResponse.promise;
+				return Promise.resolve(htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'queued' })));
+			});
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
+			const pushStateSpy = vi.spyOn(window.history, 'pushState');
+			const reloadPromise = getEcoNavigationRuntime(window).reloadCurrentPage({ clearCache: false });
+			await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledOnce());
+			const link = container.querySelector('[data-testid="FragmentReload-clear-fragment"]');
+			expect(link).not.toBeNull();
+			link?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, isPrimary: true }));
+			reloadResponse.resolve(htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'reloaded' })));
+
+			await expect(reloadPromise).resolves.toBe(true);
+			await vi.waitFor(() => expect(pushStateSpy).toHaveBeenCalledOnce());
+			expect(replaceStateSpy.mock.calls.map(([, , href]) => href)).toEqual(['/docs#install']);
+			expect(pushStateSpy.mock.calls.map(([, , href]) => href)).toEqual(['/docs']);
+			expect(window.location.hash).toBe('');
+			expect(fetchSpy).toHaveBeenCalledTimes(2);
+			expect(container.querySelector('[data-testid="page-label"]')?.textContent).toBe('queued');
 		});
 
 		it('ignores coordinator reloads while a navigation is still in flight', async () => {
@@ -737,7 +855,7 @@ describe('EcoRouter HMR Integration', () => {
 			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
 			const slowFetch = createDeferred();
 			const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
-				const url = input.toString();
+				const url = getRequestPath(input);
 				if (url === '/slow') {
 					return new Promise<Response>((resolve, reject) => {
 						const abortSignal = init?.signal;
@@ -791,7 +909,7 @@ describe('EcoRouter HMR Integration', () => {
 				},
 				{ timeout: 2000 },
 			);
-			const fetchUrls = fetchSpy.mock.calls.map((call) => call[0].toString());
+			const fetchUrls = fetchSpy.mock.calls.map((call) => getRequestPath(call[0]));
 			expect(fetchUrls).not.toContain('/fast');
 			expect(container.textContent).toContain('slow');
 			expect(container.textContent).not.toContain('fast');
@@ -808,7 +926,7 @@ describe('EcoRouter HMR Integration', () => {
 			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
 			const slowFetch = createDeferred();
 			const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
-				const url = input.toString();
+				const url = getRequestPath(input);
 				if (url === '/clicked') {
 					return new Promise<Response>((resolve, reject) => {
 						const abortSignal = init?.signal;
@@ -875,7 +993,7 @@ describe('EcoRouter HMR Integration', () => {
 				},
 				{ timeout: 2000 },
 			);
-			const fetchUrls = fetchSpy.mock.calls.map((call) => call[0].toString());
+			const fetchUrls = fetchSpy.mock.calls.map((call) => getRequestPath(call[0]));
 			expect(fetchUrls).toContain('/clicked');
 			expect(fetchUrls).not.toContain('/hovered-a');
 			expect(fetchUrls).not.toContain('/hovered-b');
@@ -895,7 +1013,7 @@ describe('EcoRouter HMR Integration', () => {
 			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
 
 			vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-				const url = input.toString();
+				const url = getRequestPath(input);
 				if (url === '/slow') {
 					await new Promise((resolve) => setTimeout(resolve, 60));
 					return htmlPageResponse(createHtml('slow'), { status: 200 });
@@ -958,7 +1076,7 @@ describe('EcoRouter HMR Integration', () => {
 			const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
 
 			vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-				const url = input.toString();
+				const url = getRequestPath(input);
 				if (url === '/outside-react') {
 					await new Promise((resolve) => setTimeout(resolve, 60));
 					return htmlPageResponse('<html><body><main>Outside React</main></body></html>', { status: 200 });

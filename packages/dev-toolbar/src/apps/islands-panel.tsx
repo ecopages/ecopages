@@ -3,6 +3,7 @@ import { RadiantElement } from '@ecopages/radiant';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { state } from '@ecopages/radiant/decorators/state';
 import type { JsxCustomElementAttributes } from '@ecopages/jsx';
+import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/router/navigation-lifecycle';
 import {
 	readIslandRecords,
 	resolveIslandElement,
@@ -34,7 +35,7 @@ export class EcoDevToolbarIslands extends RadiantElement {
 		this.wireMutationObserver();
 		this.unsubscribeNavigationEvents = subscribeToNavigationEvents(
 			this.ownerDocument,
-			['eco:page-load', 'eco:after-swap'],
+			[ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD, ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP],
 			this.scheduleRefresh,
 		);
 	}

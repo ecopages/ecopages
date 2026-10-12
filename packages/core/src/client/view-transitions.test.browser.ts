@@ -2,26 +2,20 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
 	applyViewTransitionNames,
 	clearViewTransitionNames,
-	documentHasNamedViewTransitions,
 	ensureRootViewTransitionStyles,
 	navigationHasNamedViewTransitions,
 } from './view-transitions.ts';
 
-describe('documentHasNamedViewTransitions', () => {
+describe('navigationHasNamedViewTransitions', () => {
 	afterEach(() => {
 		document.body.replaceChildren();
 	});
 
-	it('returns false when no markup is present', () => {
-		expect(documentHasNamedViewTransitions(document)).toBe(false);
-	});
-
-	it('returns true when data-view-transition is present', () => {
+	it('checks current or incoming document for named transition markup', () => {
+		expect(navigationHasNamedViewTransitions(document, document)).toBe(false);
 		document.body.innerHTML = '<div data-view-transition="x"></div>';
-		expect(documentHasNamedViewTransitions(document)).toBe(true);
-	});
-
-	it('navigation checks current or incoming document', () => {
+		expect(navigationHasNamedViewTransitions(document, document)).toBe(true);
+		document.body.replaceChildren();
 		const incoming = new DOMParser().parseFromString(
 			'<html><body><div data-view-transition="hero"></div></body></html>',
 			'text/html',

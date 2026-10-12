@@ -11,14 +11,13 @@
 
 import { isStaticAssetHref } from '@ecopages/core/router/link-intent';
 import type { EcoNavigationDirection } from '@ecopages/core/router/navigation-coordinator';
-import { completeNavigationLifecycle, dispatchBeforeSwap } from '@ecopages/core/router/navigation-lifecycle';
-import { navigationHasNamedViewTransitions } from '@ecopages/core/client/view-transitions';
 import {
-	type FetchedPageDocument,
-	type LoadedPageModule,
-	fetchPageDocument,
-	loadPageModuleFromDocument,
-} from './navigation.ts';
+	commitNavigationPage,
+	ECO_PERSIST_ATTRIBUTE,
+	fetchNavigationPage,
+} from '@ecopages/core/router/navigation-pipeline';
+import { type FetchedPageDocument, type LoadedPageModule, loadPageModuleFromDocument } from './navigation.ts';
+import { isReactRouterPageBootstrapAssetSrc } from './hydration-assets.ts';
 
 export type NavigationDirection = EcoNavigationDirection;
 
@@ -54,8 +53,7 @@ export type ResolveReactNavigationInput = {
 export type SpaCommitEffects = {
 	isStale: () => boolean;
 	hardAssign: (href: string) => void;
-	morphHead: (doc: Document) => Promise<{ cleanup: () => void; flushRerunScripts: () => void }>;
-	applyViewTransitionNames: () => void;
+	viewTransitionsEnabled: boolean;
 	saveScrollPositions: () => void;
 	restoreScrollPositions: (finalPath: string, isPopState: boolean) => void;
 	updateHistory: (finalPath: string, requestedUrl: string, direction: NavigationDirection) => void;
@@ -71,7 +69,6 @@ export type SpaCommitEffects = {
 		refreshPersistedLayout: boolean;
 	}) => Promise<void>;
 	runInReactTransition: (update: () => void) => void;
-	startViewTransition?: (update: () => Promise<void>) => Promise<void>;
 	onCommittedPath: (finalPath: string) => void;
 };
 
@@ -92,9 +89,6 @@ export type HandoffEffects = {
 
 export type HandoffResult = 'handed-off' | 'hard-fallback' | 'stale';
 
-export type QueueReplayDecision =
-	{ kind: 'none' } | { kind: 'local-navigate'; href: string } | { kind: 'coordinator-navigate'; href: string };
-
 function resolveDirection(isPopState: boolean, pushHistory: boolean): NavigationDirection {
 	if (isPopState) {
 		return 'back';
@@ -114,16 +108,33 @@ export async function resolveReactNavigation(input: ResolveReactNavigationInput)
 		};
 	}
 
-	const fetchedPage = await fetchPageDocument(input.url, { signal: input.signal });
+	let sharedPage: Awaited<ReturnType<typeof fetchNavigationPage>>;
+	try {
+		sharedPage = await fetchNavigationPage(input.url, {
+			signal: input.signal,
+			bypassCache: true,
+		});
+	} catch (error) {
+		if (!(error instanceof DOMException && error.name === 'AbortError')) {
+			console.error('[EcoRouter] Navigation failed:', error);
+		}
+		return input.isStale() ? { kind: 'stale' } : { kind: 'hard-navigation', href: input.url, mode: 'location' };
+	}
 	if (input.isStale()) {
 		return { kind: 'stale' };
 	}
 
-	if (!fetchedPage) {
+	if (!sharedPage) {
 		return { kind: 'hard-navigation', href: input.url, mode: 'location' };
 	}
+	const finalPath = sharedPage.finalUrl.pathname + sharedPage.finalUrl.search + sharedPage.finalUrl.hash;
+	const fetchedPage: FetchedPageDocument = {
+		doc: sharedPage.document,
+		finalPath,
+		html: sharedPage.html,
+	};
 
-	const page = await loadPageModuleFromDocument(fetchedPage.doc, fetchedPage.finalPath, {
+	const page = await loadPageModuleFromDocument(sharedPage.document, finalPath, {
 		moduleUrlOverride: input.moduleUrlOverride,
 	});
 	if (input.isStale()) {
@@ -151,11 +162,11 @@ export async function resolveReactNavigation(input: ResolveReactNavigationInput)
 }
 
 /**
- * Applies SPA commit ordering: head morph → history → React commit → finalize.
+ * Applies the shared navigation pipeline with React's page render as its swap.
  *
  * @remarks
- * View transitions wrap the React commit when `startViewTransition` is provided.
- * Stale checks after async boundaries abort without leaving head morph half-applied.
+ * React bootstrap scripts are excluded because the router already loaded and
+ * adapted the page module before it reaches this commit.
  */
 export async function applySpaNavigation(
 	outcome: Extract<ReactNavigationOutcome, { kind: 'spa' }>,
@@ -170,81 +181,43 @@ export async function applySpaNavigation(
 		refreshPersistedLayout,
 	};
 
-	const { requestedReload } = dispatchBeforeSwap(document, {
+	return await commitNavigationPage({
 		url: navigationUrl,
 		direction: outcome.direction,
 		newDocument: page.doc,
-	});
-	if (effects.isStale()) {
-		return 'stale';
-	}
-	if (requestedReload) {
-		effects.hardAssign(navigationUrl.href);
-		return 'reload-requested';
-	}
-
-	const { cleanup: cleanupHead, flushRerunScripts } = await effects.morphHead(page.doc);
-
-	const finalizeCommittedNavigation = () => {
-		effects.onCommittedPath(page.finalPath);
-		flushRerunScripts();
-		cleanupHead();
-		effects.applyViewTransitionNames();
-		effects.restoreScrollPositions(page.finalPath, options.isPopState);
-		completeNavigationLifecycle(
-			document,
-			{ url: navigationUrl, direction: outcome.direction },
-			{ isStale: effects.isStale },
-		);
-	};
-
-	const commitNextPage = () => {
-		effects.commitPageData(page.moduleUrl, page.props);
-		effects.setCurrentPage(nextPage);
-	};
-
-	if (effects.isStale()) {
-		cleanupHead();
-		return 'stale';
-	}
-
-	effects.applyViewTransitionNames();
-	effects.saveScrollPositions();
-	effects.updateHistory(page.finalPath, requestedUrl, outcome.direction);
-
-	if (
-		!options.skipViewTransition &&
-		effects.startViewTransition &&
-		navigationHasNamedViewTransitions(document, page.doc)
-	) {
-		await effects.startViewTransition(async () => {
-			if (effects.isStale()) {
-				cleanupHead();
-				return;
-			}
+		isStale: effects.isStale,
+		viewTransitionsEnabled: !options.skipViewTransition && effects.viewTransitionsEnabled,
+		persistAttribute: ECO_PERSIST_ATTRIBUTE,
+		includeBodyScripts: false,
+		skipScriptActivation: isReactRouterHydrationScript,
+		onReloadRequested: () => effects.hardAssign(navigationUrl.href),
+		beforeCommit: () => {
+			effects.saveScrollPositions();
+			effects.updateHistory(page.finalPath, requestedUrl, outcome.direction);
+		},
+		swap: async () => {
 			const renderPromise = effects.waitForRender(nextPage);
 			effects.runInReactTransition(() => {
-				commitNextPage();
+				effects.commitPageData(page.moduleUrl, page.props);
+				effects.setCurrentPage(nextPage);
 			});
 			await renderPromise;
-			if (effects.isStale()) {
-				cleanupHead();
-				return;
-			}
-			finalizeCommittedNavigation();
-		});
-		return effects.isStale() ? 'stale' : 'committed';
-	}
+			return !effects.isStale();
+		},
+		afterSwap: () => {
+			effects.onCommittedPath(page.finalPath);
+			effects.restoreScrollPositions(page.finalPath, options.isPopState);
+		},
+	});
+}
 
-	const renderPromise = effects.waitForRender(nextPage);
-	commitNextPage();
-	await renderPromise;
-	if (effects.isStale()) {
-		cleanupHead();
-		return 'stale';
-	}
-	finalizeCommittedNavigation();
-	return 'committed';
+function isReactRouterHydrationScript(script: HTMLScriptElement): boolean {
+	const scriptId = script.getAttribute('data-eco-script-id');
+	const src = script.getAttribute('src');
+	return Boolean(
+		(scriptId?.startsWith('ecopages-react-') && !scriptId.startsWith('ecopages-react-island-')) ||
+		(src && isReactRouterPageBootstrapAssetSrc(src)),
+	);
 }
 
 /**
@@ -273,33 +246,4 @@ export async function applyHandoffNavigation(
 	}
 
 	return 'handed-off';
-}
-
-/**
- * Decides whether a queued click should replay after the active navigation ends.
- *
- * @remarks
- * When React still owns the runtime, replay through local `navigate`. After a
- * cleanup-before-handoff, replay through the shared coordinator so the newest
- * owner receives the intent.
- */
-export function decideQueuedNavigationReplay(input: {
-	queuedHref: string | null;
-	committedPath: string;
-	runtimeActive: boolean;
-}): QueueReplayDecision {
-	if (!input.queuedHref) {
-		return { kind: 'none' };
-	}
-
-	const queuedUrl = new URL(input.queuedHref, 'http://ecopages.local');
-	const queuedPath = queuedUrl.pathname + queuedUrl.search;
-
-	if (queuedPath === input.committedPath) {
-		return { kind: 'none' };
-	}
-
-	return input.runtimeActive
-		? { kind: 'local-navigate', href: input.queuedHref }
-		: { kind: 'coordinator-navigate', href: input.queuedHref };
 }

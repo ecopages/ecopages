@@ -50,7 +50,6 @@ class TestNodeEcopagesApp extends NodeEcopagesApp {
 			serveOnly: false,
 			port: undefined,
 			hostname: undefined,
-			reactFastRefresh: undefined,
 			...cliArgs,
 		};
 	}

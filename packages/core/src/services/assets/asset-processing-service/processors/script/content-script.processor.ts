@@ -16,7 +16,12 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 		return path.join(this.getContentScriptEntryDir(), `${randomUUID()}.js`);
 	}
 
-	private toProcessedAsset(dep: ContentScriptAsset, filepath: string): ProcessedAsset {
+	private toProcessedAsset(
+		dep: ContentScriptAsset,
+		filepath: string,
+		inputPaths: readonly string[] = [],
+		excludedEntrypoint?: string,
+	): ProcessedAsset {
 		return {
 			filepath,
 			content: resolveInlineContentScriptBody(dep, filepath),
@@ -27,7 +32,11 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 			excludeFromHtml: dep.excludeFromHtml,
 			packageRole: dep.packageRole,
 			groupedBundle: dep.groupedBundle,
-			bundledSourceFilepaths: dep.bundledSourceFilepaths,
+			bundledSourceFilepaths: this.getBundledSourceFilepaths(
+				dep,
+				inputPaths,
+				excludedEntrypoint ? [excludedEntrypoint] : [],
+			),
 		};
 	}
 
@@ -77,14 +86,14 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 				naming: '[name]-[hash].[ext]',
 			});
 
-			return tempEntries.map(({ dep, contentHash }) => {
+			return tempEntries.map(({ dep, contentHash, tempFilepath }) => {
 				const entryName = dep.groupedBundle?.entryName ?? dep.name ?? contentHash;
-				const bundledFilePath = outputPaths.get(entryName);
-				if (!bundledFilePath) {
+				const bundledOutput = outputPaths.get(entryName);
+				if (!bundledOutput) {
 					throw new Error(`Missing grouped bundle output for ${entryName}`);
 				}
 
-				return this.toProcessedAsset(dep, bundledFilePath);
+				return this.toProcessedAsset(dep, bundledOutput.filepath, bundledOutput.inputPaths, tempFilepath);
 			});
 		} finally {
 			for (const { tempFilepath } of tempEntries) {
@@ -132,7 +141,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 		fileSystem.write(entryPath, dep.content);
 
 		try {
-			const bundledFilePath = await this.bundleScript({
+			const bundledOutput = await this.bundleScript({
 				entrypoint: entryPath,
 				outdir: this.getAssetsDir(),
 				minify: this.isProduction,
@@ -140,7 +149,7 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 				...this.getBundlerOptions(dep),
 			});
 
-			return this.toProcessedAsset(dep, bundledFilePath);
+			return this.toProcessedAsset(dep, bundledOutput.filepath, bundledOutput.inputPaths, entryPath);
 		} finally {
 			fileSystem.remove(entryPath);
 		}

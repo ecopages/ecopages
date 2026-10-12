@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync, statSync, watch } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, watch } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +12,8 @@ import {
 	ECOPAGES_DEV_RESTART_REASON_ENV,
 	getDevEnvFileNames,
 } from '@ecopages/core/dev/development-restart';
+import { DEVELOPMENT_RESTART_WATCH_SET_FILENAME } from '@ecopages/core/dev/development-restart-watch-paths';
+import { DEFAULT_ECOPAGES_WORK_DIR } from '@ecopages/core/constants';
 import { withBrandBanner } from './brand.js';
 
 const logger = new Logger('[ecopages:cli]', { debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true' });
@@ -34,10 +36,6 @@ const sharedServerOptionDefinitions = {
 	debug: {
 		type: 'boolean',
 		short: 'd',
-	},
-	'react-fast-refresh': {
-		type: 'boolean',
-		short: 'r',
 	},
 	runtime: {
 		type: 'string',
@@ -64,7 +62,6 @@ function getMainHelpText() {
 		'  init [dir]              Initialize a new project from a template',
 		'  dev                     Start the development server',
 		'  dev:watch               Start the development server with watch mode',
-		'  dev:hot                 Start the development server with hot reload',
 		'  build                   Build the project for production',
 		'  start                   Start the production server',
 		'  preview                 Preview the production build',
@@ -89,7 +86,6 @@ function getServerCommandHelpText(commandName, description, extraHelpLines = [])
 		'  -n, --hostname <hostname>               Override ECOPAGES_HOSTNAME',
 		'  -b, --base-url <baseUrl>                Override ECOPAGES_BASE_URL',
 		'  -d, --debug                             Enable debug logging',
-		'  -r, --react-fast-refresh                Enable React Fast Refresh for Bun HMR',
 		'      --runtime <runtime>                 Force bun or node',
 		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
 		'  -c, --config <file>                     Ecopages config file (default: eco.config.ts)',
@@ -139,7 +135,6 @@ function parseServerCommandArgs(rawArgs, definition) {
 			hostname: values.hostname,
 			baseUrl: values['base-url'],
 			debug: values.debug,
-			reactFastRefresh: values['react-fast-refresh'],
 			runtime: values.runtime,
 			configFile: values.config,
 		},
@@ -204,16 +199,175 @@ function resolveRestartWatchPaths(options) {
 	];
 }
 
+function resolveRestartWatchSet(options) {
+	const fallbackFiles = resolveRestartWatchPaths(options);
+	const configPath = resolveEcoConfigFilePath(options) ?? path.resolve('eco.config.ts');
+	const watchSetPath = path.join(
+		path.dirname(configPath),
+		DEFAULT_ECOPAGES_WORK_DIR,
+		DEVELOPMENT_RESTART_WATCH_SET_FILENAME,
+	);
+
+	try {
+		const watchSet = JSON.parse(readFileSync(watchSetPath, 'utf8'));
+		if (
+			watchSet?.version !== 1 ||
+			watchSet.cwd !== path.resolve(process.cwd()) ||
+			!Array.isArray(watchSet.files) ||
+			!watchSet.files.every((filePath) => typeof filePath === 'string' && path.isAbsolute(filePath)) ||
+			!watchSet.files.includes(path.resolve(configPath)) ||
+			!Array.isArray(watchSet.roots) ||
+			!watchSet.roots.every((root) => typeof root === 'string' && path.isAbsolute(root)) ||
+			!Array.isArray(watchSet.ignoredDirectories) ||
+			!watchSet.ignoredDirectories.every(
+				(directory) => typeof directory === 'string' && path.isAbsolute(directory),
+			)
+		) {
+			return { files: fallbackFiles, roots: [], ignoredDirectories: [] };
+		}
+
+		return {
+			files: [...new Set([...fallbackFiles, ...watchSet.files])],
+			roots: [...new Set(watchSet.roots)],
+			ignoredDirectories: [...new Set(watchSet.ignoredDirectories)],
+		};
+	} catch {
+		return { files: fallbackFiles, roots: [], ignoredDirectories: [] };
+	}
+}
+
+function isPathInside(directory, filePath) {
+	const relativePath = path.relative(directory, filePath);
+	return (
+		relativePath === '' ||
+		(relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`) && !path.isAbsolute(relativePath))
+	);
+}
+
+function shouldIgnoreWorkspacePath(root, filePath, ignoredDirectories) {
+	const relativePath = path.relative(root, filePath);
+	if (
+		relativePath
+			.split(path.sep)
+			.some((segment) => segment === 'node_modules' || segment === '.git' || segment.startsWith('.'))
+	) {
+		return true;
+	}
+
+	return ignoredDirectories.some((directory) => isPathInside(directory, filePath));
+}
+
+function fileWatchSnapshot(filePath, isDirectory = false) {
+	try {
+		if (isDirectory) {
+			statSync(filePath);
+			return 'directory';
+		}
+
+		const stats = statSync(filePath);
+		return `${stats.mtimeMs}:${stats.ctimeMs}:${stats.size}`;
+	} catch {
+		return 'missing';
+	}
+}
+
+function readWorkspaceRootSnapshot(root, ignoredDirectories, snapshot) {
+	const pendingDirectories = [root];
+
+	while (pendingDirectories.length > 0) {
+		const directory = pendingDirectories.pop();
+		if (!directory) continue;
+		snapshot.set(directory, fileWatchSnapshot(directory, true));
+
+		let entries;
+		try {
+			entries = readdirSync(directory, { withFileTypes: true });
+		} catch {
+			continue;
+		}
+
+		for (const entry of entries) {
+			const entryPath = path.join(directory, entry.name);
+			if (shouldIgnoreWorkspacePath(root, entryPath, ignoredDirectories) || entry.isSymbolicLink()) continue;
+			if (entry.isDirectory()) {
+				snapshot.set(entryPath, fileWatchSnapshot(entryPath, true));
+				pendingDirectories.push(entryPath);
+			} else {
+				snapshot.set(entryPath, fileWatchSnapshot(entryPath));
+			}
+		}
+	}
+
+	return snapshot;
+}
+
+function readRestartWatchSnapshot(watchSet) {
+	const paths = new Map(watchSet.files.map((filePath) => [filePath, fileWatchSnapshot(filePath)]));
+	for (const root of watchSet.roots) readWorkspaceRootSnapshot(root, watchSet.ignoredDirectories, paths);
+	return {
+		paths,
+		files: watchSet.files,
+		roots: watchSet.roots,
+		ignoredDirectories: watchSet.ignoredDirectories,
+	};
+}
+
+function restartWatchSnapshotChanged(current, previous) {
+	for (const [filePath, previousState] of previous.paths) {
+		if (current.paths.get(filePath) !== previousState) return true;
+	}
+
+	for (const filePath of current.paths.keys()) {
+		if (previous.paths.has(filePath)) continue;
+		if (previous.roots.some((root) => isPathInside(root, filePath))) return true;
+	}
+
+	return false;
+}
+
 /**
- * Calls `onChange` once, on the first change to any of `filePaths`, and closes the watchers before it.
+ * Calls `onChange` once, on the first change to a restart file or workspace package, and closes the watchers before it.
  *
  * @remarks
- * Watches the parent directories so that dotenv files created later, and editors that save by
- * replacing the file, are both seen.
+ * Watches file parents so dotenv files created later and atomic file replacements are seen. Workspace
+ * roots are watched recursively, matching the Project Watcher's linked-package subscription.
  */
-function watchForNextChange(filePaths, onChange) {
+/**
+ * Watches `directory`, or its closest existing ancestor when `fs.watch` reports it missing.
+ *
+ * @remarks
+ * A branch switch can remove a directory the last restart set listed, and `fs.watch` throws ENOENT for
+ * it. The listener receives the watched directory and, for an ancestor, the name of its child on the
+ * way to the missing path, so the supervisor relaunches once that child appears.
+ * @param {string} directory
+ * @param {(watchedDirectory: string, missingChild: string | undefined) => import('node:fs').WatchListener<string>} createListener
+ */
+function watchDirectoryOrAncestor(directory, createListener) {
+	let current = path.resolve(directory);
+	let missingChild;
+	for (;;) {
+		try {
+			return watch(current, createListener(current, missingChild));
+		} catch (error) {
+			const parent = path.dirname(current);
+			if (error?.code !== 'ENOENT' || parent === current) throw error;
+			missingChild = path.basename(current);
+			current = parent;
+		}
+	}
+}
+
+function watchForNextChange(watchSet, onChange) {
 	const watchers = [];
 	let settled = false;
+	const filesByDirectory = new Map();
+
+	for (const filePath of watchSet.files) {
+		const directory = path.dirname(filePath);
+		const directoryFiles = filesByDirectory.get(directory) ?? new Set();
+		directoryFiles.add(filePath);
+		filesByDirectory.set(directory, directoryFiles);
+	}
 
 	const settle = (callback) => {
 		if (settled) return;
@@ -225,15 +379,48 @@ function watchForNextChange(filePaths, onChange) {
 	const fail = (error) => {
 		settle(() => {
 			const message = error instanceof Error ? error.message : String(error);
-			logger.error(`Cannot watch the config and dotenv files for the next restart: ${message}`);
+			logger.error(`Cannot watch the development restart inputs: ${message}`);
 			process.exit(1);
 		});
 	};
 
 	try {
-		for (const dir of new Set(filePaths.map((filePath) => path.dirname(filePath)))) {
-			const watcher = watch(dir, (_event, fileName) => {
-				if (fileName && filePaths.includes(path.join(dir, fileName))) settle(onChange);
+		for (const [dir, filePaths] of filesByDirectory) {
+			const watcher = watchDirectoryOrAncestor(dir, (watchedDirectory, missingChild) => (_event, fileName) => {
+				if (!fileName) {
+					settle(onChange);
+					return;
+				}
+				const changed = missingChild
+					? String(fileName) === missingChild
+					: filePaths.has(path.resolve(watchedDirectory, String(fileName)));
+				if (changed) settle(onChange);
+			});
+			watchers.push(watcher);
+			watcher.on('error', fail);
+		}
+
+		for (const root of watchSet.roots) {
+			if (!existsSync(root)) {
+				const watcher = watchDirectoryOrAncestor(path.dirname(root), (_watchedDirectory, missingChild) => {
+					const awaitedName = missingChild ?? path.basename(root);
+					return (_event, fileName) => {
+						if (!fileName || String(fileName) === awaitedName) settle(onChange);
+					};
+				});
+				watchers.push(watcher);
+				watcher.on('error', fail);
+				continue;
+			}
+
+			const watcher = watch(root, { recursive: true }, (_event, fileName) => {
+				if (!fileName) {
+					settle(onChange);
+					return;
+				}
+
+				const changedPath = path.resolve(root, String(fileName));
+				if (!shouldIgnoreWorkspacePath(root, changedPath, watchSet.ignoredDirectories)) settle(onChange);
 			});
 			watchers.push(watcher);
 			watcher.on('error', fail);
@@ -244,27 +431,10 @@ function watchForNextChange(filePaths, onChange) {
 }
 
 /**
- * Modification times of `filePaths`, with `undefined` for a file that is missing or cannot be read.
- *
- * @remarks
- * The times only catch a change saved while a restarted child was loading. An unreadable file must
- * not crash the supervisor, and the directory watchers still see its next change.
- */
-function readModifiedTimes(filePaths) {
-	return filePaths.map((filePath) => {
-		try {
-			return statSync(filePath).mtimeMs;
-		} catch {
-			return undefined;
-		}
-	});
-}
-
-/**
- * Launch the entry file via the detected or forced runtime.
- * Node uses native Node semantics; Bun uses Bun runtime flags.
+ * Launch the entry file via the detected or forced runtime. Node and Bun get the same
+ * entry file and arguments.
  * @param {string[]} args - Arguments to pass to the entry file
- * @param {object} options - CLI options (watch, hot, port, hostname, etc.)
+ * @param {object} options - CLI options (watch, runtime, port, hostname, etc.)
  * @param {string} entryFile - Entry file to run
  */
 async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchMode = 'start') {
@@ -276,7 +446,9 @@ async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchM
 		process.exit(1);
 	}
 
-	const restartWatchPaths = superviseDevRestarts ? resolveRestartWatchPaths(options) : [];
+	let restartWatchSet = superviseDevRestarts
+		? resolveRestartWatchSet(options)
+		: { files: [], roots: [], ignoredDirectories: [] };
 	const devRestartReason = 'configuration or environment change';
 
 	/**
@@ -286,30 +458,36 @@ async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchM
 	 * that child was launched relaunches at once, because the watchers start only after it exits.
 	 * Signals still end the supervisor.
 	 */
-	const handleRestartFailure = (modifiedTimesAtLaunch) => {
-		const modifiedTimes = readModifiedTimes(restartWatchPaths);
-		if (modifiedTimes.some((time, index) => time !== modifiedTimesAtLaunch[index])) {
-			logger.info('The config or a dotenv file changed since the restart. Restarting...');
+	const handleRestartFailure = (restartSnapshotAtLaunch) => {
+		restartWatchSet = resolveRestartWatchSet(options);
+		const currentSnapshot = readRestartWatchSnapshot({
+			files: restartSnapshotAtLaunch.files,
+			roots: restartSnapshotAtLaunch.roots,
+			ignoredDirectories: restartSnapshotAtLaunch.ignoredDirectories,
+		});
+		if (restartWatchSnapshotChanged(currentSnapshot, restartSnapshotAtLaunch)) {
+			logger.info('A development restart input changed while the child was loading. Restarting...');
 			void launchChild(devRestartReason);
 			return;
 		}
 
-		logger.info('Waiting for a change to the config or a dotenv file to restart.');
-		watchForNextChange(restartWatchPaths, () => {
+		logger.info('Waiting for a config, dotenv, or linked package change to restart.');
+		watchForNextChange(restartWatchSet, () => {
 			void launchChild(devRestartReason);
 		});
 	};
 
 	const launchChild = async (restartReason) => {
-		const modifiedTimesAtLaunch = restartReason ? readModifiedTimes(restartWatchPaths) : undefined;
+		if (restartReason) restartWatchSet = resolveRestartWatchSet(options);
+		const restartSnapshotAtLaunch = restartReason ? readRestartWatchSnapshot(restartWatchSet) : undefined;
 		let launchPlan;
 		try {
 			launchPlan = await createLaunchPlan(args, options, entryFile, launchMode);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			logger.error(message);
-			if (modifiedTimesAtLaunch) {
-				handleRestartFailure(modifiedTimesAtLaunch);
+			if (restartSnapshotAtLaunch) {
+				handleRestartFailure(restartSnapshotAtLaunch);
 				return;
 			}
 			process.exit(1);
@@ -325,7 +503,7 @@ async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchM
 			onDevRestart: () => {
 				void launchChild(devRestartReason);
 			},
-			onRestartFailure: modifiedTimesAtLaunch ? () => handleRestartFailure(modifiedTimesAtLaunch) : undefined,
+			onRestartFailure: restartSnapshotAtLaunch ? () => handleRestartFailure(restartSnapshotAtLaunch) : undefined,
 		});
 	};
 
@@ -365,12 +543,6 @@ const SERVER_COMMANDS = {
 		entryArgs: ['--dev'],
 		launchMode: 'dev',
 		optionOverrides: { watch: true, nodeEnv: 'development' },
-	},
-	'dev:hot': {
-		description: 'Start the development server with hot reload.',
-		entryArgs: ['--dev'],
-		launchMode: 'dev',
-		optionOverrides: { hot: true, nodeEnv: 'development' },
 	},
 	build: {
 		description: 'Build the project for production.',

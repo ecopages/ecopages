@@ -13,6 +13,7 @@ import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
 import { createBrowserRuntimePlugin } from '../browser/browser-runtime-plugin.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
+import { BuildInputDependencyIndex, runWithBuildInputIndex } from '../cache/build-input-dependency-index.ts';
 
 let workDir: string;
 
@@ -149,6 +150,74 @@ describe('RolldownBuildAdapter', () => {
 			readFileSync(firstOutput.path, 'utf-8').includes('answer'),
 			'bundled output contains exported symbol',
 		);
+	});
+
+	test('records plugin dependencies during a real Rolldown build', async () => {
+		const entrypoint = writeFixture('entry.ts', 'export const title = "From plugin";');
+		mkdirSync(path.join(workDir, 'data'), { recursive: true });
+		const dependencyPath = writeFixture('data/posts.json', '[{"title":"Hello"}]');
+		const secondDependencyPath = writeFixture('data/authors.json', '[{"name":"Ada"}]');
+		const buildInputIndex = new BuildInputDependencyIndex();
+
+		const [result, secondResult] = await runWithBuildInputIndex(buildInputIndex, async () => {
+			const adapter = new RolldownBuildAdapter();
+			const firstResult = await adapter.build({
+				environment: 'browser',
+				entrypoints: [entrypoint],
+				outdir: path.join(workDir, 'dist'),
+				target: 'browser',
+				format: 'esm',
+				root: workDir,
+				plugins: [
+					{
+						name: 'posts-reader',
+						setup(build) {
+							build.onLoad({ filter: /entry\.ts$/ }, (args) => {
+								args.addDependency?.('data/posts.json');
+								return { contents: 'export const title = "Loaded by plugin";', loader: 'js' };
+							});
+						},
+					},
+				],
+			});
+			const nextResult = await adapter.build({
+				environment: 'browser',
+				entrypoints: [entrypoint],
+				outdir: path.join(workDir, 'dist-second'),
+				target: 'browser',
+				format: 'esm',
+				root: workDir,
+				plugins: [
+					{
+						name: 'authors-reader',
+						setup(build) {
+							build.onLoad({ filter: /entry\.ts$/ }, (args) => {
+								args.addDependency?.('data/authors.json');
+								return { contents: 'export const title = "Loaded by plugin";', loader: 'js' };
+							});
+						},
+					},
+				],
+			});
+			return [firstResult, nextResult];
+		});
+
+		expect(result.success, JSON.stringify(result.logs)).toBe(true);
+		expect(result.loadedInputs).toContain(dependencyPath);
+		expect(result.loadedInputs).not.toContain(secondDependencyPath);
+		const firstEntryInputs = Object.entries(result.loadedInputsByModule ?? {}).find(([moduleId]) =>
+			moduleId.includes('/entry.ts'),
+		)?.[1];
+		expect(firstEntryInputs).toContain(realpathSync(entrypoint));
+		expect(firstEntryInputs).toContain(dependencyPath);
+		expect(secondResult.loadedInputs).toContain(secondDependencyPath);
+		expect(secondResult.loadedInputs).not.toContain(dependencyPath);
+		const secondEntryInputs = Object.entries(secondResult.loadedInputsByModule ?? {}).find(([moduleId]) =>
+			moduleId.includes('/entry.ts'),
+		)?.[1];
+		expect(secondEntryInputs).toContain(secondDependencyPath);
+		expect(buildInputIndex.recordedWatchPaths()).toContain(dependencyPath);
+		expect(buildInputIndex.recordedWatchPaths()).toContain(secondDependencyPath);
 	});
 
 	test('externalPackages keeps bare package imports external', async () => {

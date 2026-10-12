@@ -112,6 +112,79 @@ export function getBuildEntryOutput(
 	return undefined;
 }
 
+/** Collects one entry's source-module closure and plugin-recorded inputs. */
+export function collectBuildEntryInputPaths(
+	result: Pick<BuildResult, 'dependencyGraph' | 'loadedInputs' | 'loadedInputsByModule'>,
+	entry: string,
+	root: string,
+): string[] {
+	const resolvedEntry = resolveBuildEntryPath(entry, root);
+	const entrypoints = result.dependencyGraph?.entrypoints ?? {};
+	const closureEntry = [resolvedEntry, tryRealpath(resolvedEntry)].find(
+		(candidate) => candidate && entrypoints[candidate],
+	);
+	const moduleClosure = closureEntry ? entrypoints[closureEntry] : undefined;
+	const entryModules = moduleClosure?.length ? moduleClosure : [resolvedEntry];
+	const pluginInputs = result.loadedInputsByModule
+		? collectInputsForModuleClosure(result.loadedInputsByModule, entryModules)
+		: collectUnattributedPluginInputs(result.loadedInputs ?? [], entrypoints);
+	return [...new Set([...entryModules, ...pluginInputs])].filter(
+		(filePath) =>
+			path.isAbsolute(filePath) &&
+			!filePath.includes(`${path.sep}node_modules${path.sep}`) &&
+			!filePath.includes('\0'),
+	);
+}
+
+function modulePathAliases(moduleId: string): Set<string> {
+	const aliases = new Set([moduleId]);
+	let filesystemPath: string | undefined;
+	if (moduleId.startsWith('file:')) {
+		try {
+			filesystemPath = fileURLToPath(moduleId);
+		} catch {
+			return aliases;
+		}
+	} else if (path.isAbsolute(moduleId)) {
+		filesystemPath = path.resolve(moduleId);
+	}
+	if (filesystemPath) {
+		aliases.add(filesystemPath);
+		const realPath = tryRealpath(filesystemPath);
+		if (realPath) aliases.add(realPath);
+	}
+	return aliases;
+}
+
+function collectInputsForModuleClosure(
+	loadedInputsByModule: Record<string, string[]>,
+	moduleClosure: readonly string[],
+): string[] {
+	const closureAliases = new Set(moduleClosure.flatMap((moduleId) => [...modulePathAliases(moduleId)]));
+	const inputs = new Set<string>();
+	for (const [moduleId, filePaths] of Object.entries(loadedInputsByModule)) {
+		if (![...modulePathAliases(moduleId)].some((alias) => closureAliases.has(alias))) continue;
+		for (const filePath of filePaths) inputs.add(filePath);
+	}
+	return [...inputs];
+}
+
+function collectUnattributedPluginInputs(
+	loadedInputs: readonly string[],
+	entrypoints: Record<string, string[]>,
+): string[] {
+	const allModulePaths = new Set<string>();
+	for (const paths of Object.values(entrypoints)) {
+		for (const filePath of paths) {
+			if (!path.isAbsolute(filePath)) continue;
+			for (const alias of modulePathAliases(filePath)) allModulePaths.add(alias);
+		}
+	}
+	return loadedInputs.filter(
+		(filePath) => ![...modulePathAliases(filePath)].some((alias) => allModulePaths.has(alias)),
+	);
+}
+
 /**
  * @remarks
  * Traverses emitted chunk edges without reading output code. Local external

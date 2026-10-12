@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { collectedLoadedBuildInputs } from '../../build/cache/build-input-dependency-index.ts';
 
 function normalizeSourcePath(sourcePath: string): string {
 	return path.resolve(sourcePath);
@@ -9,6 +8,7 @@ type CollectHtmlCacheSourceDependencyPathsInput = {
 	routeFile: string;
 	processedAssets: readonly { sourceFilepath?: string; bundledSourceFilepaths?: readonly string[] }[];
 	graphDependencyPaths?: ReadonlySet<string>;
+	routeModulePaths?: readonly string[];
 	additionalSourcePaths?: readonly string[];
 };
 
@@ -18,7 +18,7 @@ type CollectHtmlCacheSourceDependencyPathsInput = {
 export function collectHtmlCacheSourceDependencyPaths(input: CollectHtmlCacheSourceDependencyPathsInput): string[] {
 	const sourcePaths = new Set<string>([normalizeSourcePath(input.routeFile)]);
 
-	for (const additionalPath of [...(input.additionalSourcePaths ?? []), ...collectedLoadedBuildInputs()]) {
+	for (const additionalPath of [...(input.additionalSourcePaths ?? []), ...(input.routeModulePaths ?? [])]) {
 		sourcePaths.add(normalizeSourcePath(additionalPath));
 	}
 

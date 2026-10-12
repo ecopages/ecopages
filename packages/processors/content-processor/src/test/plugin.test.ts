@@ -3,13 +3,32 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
+import type { IClientBridge } from '@ecopages/core';
 import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
 import { installBuildRuntime } from '@ecopages/core/build/build-runtime';
+import type { ProcessorWatchChanges, ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
 import { fileSystem } from '@ecopages/file-system';
 import { contentProcessorPlugin, ContentProcessorPlugin } from '../plugin.ts';
 import { testContentSchema } from './test-schema.ts';
 
 const tempRoots: string[] = [];
+const watchBridge = {} as unknown as IClientBridge;
+
+async function applyWatchChanges(
+	watchConfig: ProcessorWatchConfig | undefined,
+	changes: Partial<Omit<ProcessorWatchChanges, 'bridge'>>,
+): Promise<void> {
+	if (!watchConfig?.onChanges) {
+		throw new Error('Expected content processor batched watch handler');
+	}
+
+	await watchConfig.onChanges({
+		created: changes.created ?? [],
+		changed: changes.changed ?? [],
+		deleted: changes.deleted ?? [],
+		bridge: watchBridge,
+	});
+}
 
 function createTempRoot(prefix: string): string {
 	const rootDir = path.join(os.tmpdir(), `${prefix}${randomUUID()}`);
@@ -142,10 +161,7 @@ order: 1
 		fileSystem.write(helperPath, 'export const surveyId = "updated";\n');
 
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
-			throw new Error('Expected content processor watch onChange handler');
-		}
-		await watchConfig.onChange({ path: helperPath } as never);
+		await applyWatchChanges(watchConfig, { changed: [helperPath] });
 
 		expect(fileSystem.readFileSync(cacheFile)).toBe(entriesBefore);
 		expect(fileSystem.readFileSync(serverCacheFile)).toBe(serverBefore);
@@ -211,10 +227,7 @@ order: 1
 		);
 
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
-			throw new Error('Expected content processor watch onChange handler');
-		}
-		await watchConfig.onChange({ path: introPath } as never);
+		await applyWatchChanges(watchConfig, { changed: [introPath] });
 
 		expect(fileSystem.readFileSync(cacheFile)).toBe(entriesBefore);
 		expect(fileSystem.readFileSync(serverCacheFile)).toBe(serverBefore);
@@ -300,10 +313,7 @@ order: 1
 		);
 
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
-			throw new Error('Expected content processor watch onChange handler');
-		}
-		await watchConfig.onChange({ path: introPath } as never);
+		await applyWatchChanges(watchConfig, { changed: [introPath] });
 
 		expect(fileSystem.readFileSync(cacheFile)).not.toBe(entriesBefore);
 		expect(fileSystem.readFileSync(cacheFile)).toContain('Intro Updated');
@@ -345,8 +355,8 @@ order: 1
 			'docs.ts',
 		);
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onCreate || !watchConfig.onDelete) {
-			throw new Error('Expected content processor create and delete watch handlers');
+		if (!watchConfig?.onChanges) {
+			throw new Error('Expected content processor batched watch handler');
 		}
 
 		fileSystem.write(
@@ -359,19 +369,18 @@ order: 2
 # Guide
 `,
 		);
-		await watchConfig.onCreate({ path: guidePath } as never);
+		await applyWatchChanges(watchConfig, { created: [guidePath] });
 		expect(fileSystem.readFileSync(cacheFile)).toContain('"slug":"guide"');
 
 		fileSystem.ensureDir(path.dirname(renamedGuidePath));
 		fileSystem.write(renamedGuidePath, fileSystem.readFileSync(guidePath));
 		fileSystem.remove(guidePath);
-		await watchConfig.onDelete({ path: guidePath } as never);
-		await watchConfig.onCreate({ path: renamedGuidePath } as never);
+		await applyWatchChanges(watchConfig, { created: [renamedGuidePath], deleted: [guidePath] });
 		expect(fileSystem.readFileSync(cacheFile)).toContain('"slug":"getting-started/guide"');
 		expect(fileSystem.readFileSync(cacheFile)).not.toContain('"slug":"guide"');
 
 		fileSystem.remove(introPath);
-		await watchConfig.onDelete({ path: introPath } as never);
+		await applyWatchChanges(watchConfig, { deleted: [introPath] });
 		expect(fileSystem.readFileSync(cacheFile)).not.toContain('"slug":"intro"');
 	});
 

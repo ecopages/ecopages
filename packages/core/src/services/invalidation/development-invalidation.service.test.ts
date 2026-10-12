@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
+import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
 import { Processor } from '../../plugins/processor.js';
 import { DevelopmentInvalidationService } from './development-invalidation.service.ts';
 import {
@@ -78,13 +79,13 @@ describe('DevelopmentInvalidationService', () => {
 			delegateToHmr: true,
 		});
 		expect(service.planFileChange('/test/project/src/includes/seo.kita.tsx')).toMatchObject({
-			category: 'include-source',
+			category: 'source',
 			invalidateServerModules: true,
 			reloadBrowser: false,
 			delegateToHmr: true,
 		});
 		expect(service.planFileChange('/test/project/src/views/explicit-team-view.kita.tsx')).toMatchObject({
-			category: 'explicit-server-view',
+			category: 'source',
 			invalidateServerModules: true,
 			reloadBrowser: false,
 			delegateToHmr: true,
@@ -101,13 +102,27 @@ describe('DevelopmentInvalidationService', () => {
 		});
 	});
 
+	it('unregisters route-module inputs when a route is removed', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const index = getAppBuildInputIndex(appConfig);
+		const routeFile = '/test/project/src/pages/about.tsx';
+		const helperFile = '/test/project/src/lib/page-title.ts';
+		index.register({ consumer: 'server-route-module', key: routeFile }, [routeFile, helperFile]);
+		const service = new DevelopmentInvalidationService(appConfig);
+
+		await service.applyDevFileChanges({ changed: [], created: [], deleted: [routeFile] });
+
+		expect(index.resolveKeys('server-route-module', routeFile)).toEqual([]);
+		expect(index.resolveKeys('server-route-module', helperFile)).toEqual([]);
+	});
+
 	it('does not treat siblings that share a directory prefix as inside it', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		const service = new DevelopmentInvalidationService(appConfig);
 
 		expect(service.planFileChange('/test/project/src/public/logo.svg')).toMatchObject({ category: 'public-asset' });
 		for (const sibling of ['src/public-api/client.ts', 'src/pages-old/a.ts', 'src/includes-old/a.ts']) {
-			expect(service.planFileChange(`/test/project/${sibling}`)).toMatchObject({ category: 'server-source' });
+			expect(service.planFileChange(`/test/project/${sibling}`)).toMatchObject({ category: 'source' });
 		}
 		expect(service.planFileChange('/test/project/src-old/a.ts')).toMatchObject({ category: 'other' });
 	});
@@ -269,7 +284,7 @@ describe('DevelopmentInvalidationService', () => {
 		const service = new DevelopmentInvalidationService(appConfig);
 
 		expect(service.planFileChange('/test/project/src/content/docs/getting-started.mdx')).toMatchObject({
-			category: 'server-source',
+			category: 'source',
 			invalidateServerModules: true,
 			delegateToHmr: true,
 			processorHandledAsset: false,
@@ -426,9 +441,10 @@ describe('DevelopmentInvalidationService', () => {
 	it('drops every cached HTML document when a processor-owned stylesheet changes', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		appConfig.processors.set('css', new StylesheetProcessor());
-		const pageCache = new PageCacheService();
+		const pageCache = new PageCacheService({ dependencyIndex: getAppBuildInputIndex(appConfig) });
 		registerAppPageCacheService(appConfig, pageCache);
 		const clearHtml = vi.spyOn(pageCache, 'clear');
+		const invalidateHtml = vi.spyOn(pageCache, 'invalidateBySourceDependencyPaths');
 		const service = new DevelopmentInvalidationService(appConfig);
 
 		await service.applyDevFileChanges({
@@ -438,25 +454,83 @@ describe('DevelopmentInvalidationService', () => {
 		});
 
 		expect(clearHtml).toHaveBeenCalledTimes(1);
+		expect(invalidateHtml).not.toHaveBeenCalled();
 		registerAppPageCacheService(appConfig, null);
 	});
 
-	it('drops every cached HTML document when a server-source Component changes', async () => {
+	it('drops every cached HTML document when a source file changes, including pages that did not record it', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
-		const pageCache = new PageCacheService();
+		const pageCache = new PageCacheService({ dependencyIndex: getAppBuildInputIndex(appConfig) });
 		registerAppPageCacheService(appConfig, pageCache);
 		const clearHtml = vi.spyOn(pageCache, 'clear');
-		const invalidateHtml = vi.spyOn(pageCache, 'invalidateBySourceDependencyPaths');
 		const service = new DevelopmentInvalidationService(appConfig);
+		const changedSource = '/test/project/src/components/dependency-discovery/counter.lit.tsx';
+		let affectedRenders = 0;
+		let unrelatedRenders = 0;
+		const renderAffected = async () => {
+			affectedRenders += 1;
+			return {
+				html: `<p>affected ${affectedRenders}</p>`,
+				strategy: 'static' as const,
+				sourceDependencyPaths: [changedSource],
+			};
+		};
+		const renderUnrelated = async () => {
+			unrelatedRenders += 1;
+			return {
+				html: `<p>unrelated ${unrelatedRenders}</p>`,
+				strategy: 'static' as const,
+				sourceDependencyPaths: ['/test/project/src/components/other.tsx'],
+			};
+		};
+
+		await pageCache.getOrCreate('/affected', 'static', renderAffected);
+		await pageCache.getOrCreate('/unrelated', 'static', renderUnrelated);
 
 		await service.applyDevFileChanges({
-			changed: ['/test/project/src/components/dependency-discovery/counter.lit.tsx'],
+			changed: [changedSource],
 			created: [],
 			deleted: [],
 		});
 
+		await pageCache.getOrCreate('/affected', 'static', renderAffected);
+		await pageCache.getOrCreate('/unrelated', 'static', renderUnrelated);
+
 		expect(clearHtml).toHaveBeenCalledTimes(1);
-		expect(invalidateHtml).not.toHaveBeenCalled();
+		expect(affectedRenders).toBe(2);
+		expect(unrelatedRenders).toBe(2);
+		registerAppPageCacheService(appConfig, null);
+	});
+
+	it('clears cached HTML when an additional watch path has no page-level dependency mapping', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		appConfig.additionalWatchPaths = ['data'];
+		const pageCache = new PageCacheService({ dependencyIndex: getAppBuildInputIndex(appConfig) });
+		registerAppPageCacheService(appConfig, pageCache);
+		const clearHtml = vi.spyOn(pageCache, 'clear');
+		const service = new DevelopmentInvalidationService(appConfig);
+		let renders = 0;
+
+		await pageCache.getOrCreate('/page', 'static', async () => ({
+			html: `<p>${++renders}</p>`,
+			strategy: 'static',
+			sourceDependencyPaths: ['/test/project/src/pages/page.tsx'],
+		}));
+
+		await service.applyDevFileChanges({
+			changed: ['/test/project/data/site.json'],
+			created: [],
+			deleted: [],
+		});
+
+		await pageCache.getOrCreate('/page', 'static', async () => ({
+			html: `<p>${++renders}</p>`,
+			strategy: 'static',
+			sourceDependencyPaths: ['/test/project/src/pages/page.tsx'],
+		}));
+
+		expect(clearHtml).toHaveBeenCalledTimes(1);
+		expect(renders).toBe(2);
 		registerAppPageCacheService(appConfig, null);
 	});
 });

@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import type { BuildResult } from '../../build/build-adapter.js';
+import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
+import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { PageModuleImportService, type PageModuleImportDependencies } from './page-module-import.service.ts';
@@ -203,6 +205,65 @@ describe('PageModuleImportService', () => {
 			assert.equal(fakeDependencies.calls.buildModule[0]?.options.externalPackages, true);
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('registers build inputs and module closure for the server route module', async () => {
+		process.env.NODE_ENV = 'development';
+		const rootDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-inputs-'));
+		const pagePath = join(rootDir, 'src/pages/page.tsx');
+		const helperPath = join(rootDir, 'src/lib/posts.ts');
+		const pluginInputPath = join(rootDir, 'data/posts.json');
+		const compiledOutput = join(rootDir, 'page-hash123.mjs');
+		mkdirSync(join(rootDir, 'src/pages'), { recursive: true });
+		mkdirSync(join(rootDir, 'src/lib'), { recursive: true });
+		mkdirSync(join(rootDir, 'data'), { recursive: true });
+		writeFileSync(pagePath, 'export default {};', 'utf8');
+		writeFileSync(helperPath, 'export const posts = [];', 'utf8');
+		writeFileSync(pluginInputPath, '[]', 'utf8');
+		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
+		const appConfig = await finalizeEcoPagesConfig({ rootDir });
+		let buildCalls = 0;
+		service = new PageModuleImportService(appConfig, {
+			...fakeDependencies.dependencies,
+			async buildModule(): Promise<BuildResult> {
+				buildCalls += 1;
+				return createBuildResult({
+					outputs: [{ path: compiledOutput }],
+					loadedInputs: [pluginInputPath],
+					dependencyGraph: {
+						entrypoints: {
+							[pagePath]: [pagePath, helperPath],
+						},
+					},
+				});
+			},
+		});
+
+		try {
+			await service.importModule({
+				filePath: pagePath,
+				rootDir,
+				outdir: rootDir,
+			});
+
+			const index = getAppBuildInputIndex(appConfig);
+			assert.deepEqual(index.resolveKeys('server-route-module', helperPath), [pagePath]);
+			assert.deepEqual(index.resolveKeys('server-route-module', pluginInputPath), [pagePath]);
+
+			index.unregister({ consumer: 'server-route-module', key: pagePath });
+			service.invalidateDevelopmentGraph();
+			await service.importModule({
+				filePath: pagePath,
+				rootDir,
+				outdir: rootDir,
+			});
+
+			assert.equal(buildCalls, 1);
+			assert.deepEqual(index.resolveKeys('server-route-module', helperPath), [pagePath]);
+			assert.deepEqual(index.resolveKeys('server-route-module', pluginInputPath), [pagePath]);
+		} finally {
+			rmSync(rootDir, { recursive: true, force: true });
 		}
 	});
 

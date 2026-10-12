@@ -18,8 +18,9 @@ export type ProjectWatcherIgnorePaths = {
 export function createProjectWatcherIgnorePredicate(
 	absolutePaths: ProjectWatcherIgnorePaths,
 	workspacePackageRoots: readonly string[] = [],
+	additionalIgnoredDirectories: readonly string[] = [],
 ): (watchedPath: string) => boolean {
-	const ignoredDirectories = [absolutePaths.workDir, absolutePaths.distDir];
+	const ignoredDirectories = [absolutePaths.workDir, absolutePaths.distDir, ...additionalIgnoredDirectories];
 
 	return (watchedPath: string): boolean => {
 		const segments = path.normalize(watchedPath).split(path.sep);

@@ -208,7 +208,7 @@ function startDevServer(options) {
 			clearAppCaches(appDir);
 		}
 
-		const child = spawn('pnpm', ['exec', 'ecopages', 'dev', '-r', '-p', String(port), '-n', hostname], {
+		const child = spawn('pnpm', ['exec', 'ecopages', 'dev', '-p', String(port), '-n', hostname], {
 			cwd: appDir,
 			env: {
 				...process.env,

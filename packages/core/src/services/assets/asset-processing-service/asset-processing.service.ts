@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../../config/constants.ts';
 import { isPathInside } from '../../../utils/path-containment.ts';
+import { isDevelopmentRuntime } from '../../../utils/runtime.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -28,6 +29,7 @@ import {
 type CachedAsset = {
 	asset: ProcessedAsset;
 	sourceHash?: string;
+	bundledSourceHashes: Map<string, string | undefined>;
 };
 
 /**
@@ -288,6 +290,12 @@ export class AssetProcessingService {
 	 * Returns the cached processed asset for a dependency key when available.
 	 */
 	private getCachedAsset(dep: AssetDefinition, depKey: string): ProcessedAsset | null {
+		const cached = this.cache.get(depKey);
+		const changedBuildInput = cached && this.findChangedBundledSource(cached);
+		if (changedBuildInput) {
+			this.invalidateCacheForFile(changedBuildInput);
+		}
+
 		if (dep.kind === 'script' && dep.source === 'content') {
 			return this.getCachedContentScriptAsset(dep, depKey);
 		}
@@ -298,22 +306,22 @@ export class AssetProcessingService {
 			return null;
 		}
 
-		const cached = this.cache.get(depKey);
-		if (!cached) {
+		const currentCache = this.cache.get(depKey);
+		if (!currentCache) {
 			return null;
 		}
 
-		if (cached.sourceHash !== sourceHash) {
+		if (currentCache.sourceHash !== sourceHash) {
 			this.invalidateCachedAsset(depKey);
 			return null;
 		}
 
-		if (cached.asset.filepath && !fileSystem.exists(cached.asset.filepath)) {
+		if (currentCache.asset.filepath && !fileSystem.exists(currentCache.asset.filepath)) {
 			this.invalidateCachedAsset(depKey);
 			return null;
 		}
 
-		return cached.asset;
+		return currentCache.asset;
 	}
 
 	private getCachedContentScriptAsset(dep: ContentScriptAsset, depKey: string): ProcessedAsset | null {
@@ -323,8 +331,22 @@ export class AssetProcessingService {
 			return null;
 		}
 
+		const cached = this.cache.get(depKey);
 		const materialized = materializeContentScriptAsset(dep, filepath);
-		this.cache.set(depKey, { asset: materialized });
+		const bundledSourceFilepaths = [
+			...new Set([
+				...(cached?.asset.bundledSourceFilepaths ?? []),
+				...(materialized.bundledSourceFilepaths ?? []),
+			]),
+		];
+		if (bundledSourceFilepaths.length > 0) {
+			materialized.bundledSourceFilepaths = bundledSourceFilepaths;
+		}
+		this.cache.set(depKey, {
+			asset: materialized,
+			sourceHash: cached?.sourceHash,
+			bundledSourceHashes: cached?.bundledSourceHashes ?? this.getBundledSourceHashes(materialized),
+		});
 		return materialized;
 	}
 
@@ -352,6 +374,7 @@ export class AssetProcessingService {
 		this.cache.set(depKey, {
 			asset,
 			sourceHash: this.getFileSourceHash(dep),
+			bundledSourceHashes: this.getBundledSourceHashes(asset),
 		});
 
 		if (tracksBrowserRuntimeGeneration && previous !== undefined && previous.filepath !== asset.filepath) {
@@ -380,6 +403,33 @@ export class AssetProcessingService {
 		return fileSystem.hash(dep.filepath);
 	}
 
+	private getBundledSourceHashes(asset: ProcessedAsset): Map<string, string | undefined> {
+		if (!isDevelopmentRuntime()) {
+			return new Map();
+		}
+
+		return new Map(
+			(asset.bundledSourceFilepaths ?? []).map((filepath) => [
+				filepath,
+				fileSystem.exists(filepath) ? fileSystem.hash(filepath) : undefined,
+			]),
+		);
+	}
+
+	private findChangedBundledSource(cached: CachedAsset): string | undefined {
+		if (!isDevelopmentRuntime()) {
+			return undefined;
+		}
+
+		for (const [filepath, sourceHash] of cached.bundledSourceHashes) {
+			const currentHash = fileSystem.exists(filepath) ? fileSystem.hash(filepath) : undefined;
+			if (currentHash !== sourceHash) {
+				return filepath;
+			}
+		}
+		return undefined;
+	}
+
 	/**
 	 * Clears all cached processed assets.
 	 */
@@ -397,16 +447,22 @@ export class AssetProcessingService {
 	 * Removes cached assets that were produced from the given file path.
 	 */
 	invalidateCacheForFile(filepath: string): void {
+		const resolvedPath = path.resolve(filepath);
 		let invalidatesBrowserRuntime = false;
 		for (const [key, value] of this.cache.entries()) {
 			if (
-				value.asset.filepath === filepath ||
-				value.asset.sourceFilepath === filepath ||
-				value.asset.bundledSourceFilepaths?.includes(filepath)
+				(value.asset.filepath && path.resolve(value.asset.filepath) === resolvedPath) ||
+				(value.asset.sourceFilepath && path.resolve(value.asset.sourceFilepath) === resolvedPath) ||
+				value.asset.bundledSourceFilepaths?.some((sourcePath) => path.resolve(sourcePath) === resolvedPath)
 			) {
 				invalidatesBrowserRuntime ||=
 					value.asset.packageRole === 'runtime' || value.asset.packageRole === 'page-script';
 				this.cache.delete(key);
+			}
+		}
+		for (const processor of this.registry.getAllProcessors().values()) {
+			if (typeof processor.invalidateCacheForFile === 'function') {
+				processor.invalidateCacheForFile(filepath);
 			}
 		}
 		if (invalidatesBrowserRuntime) {

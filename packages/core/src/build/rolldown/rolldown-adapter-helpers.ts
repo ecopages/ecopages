@@ -30,7 +30,7 @@ import { isServerOnlyModuleSpecifier } from '../contracts/server-only-specifier.
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { realpathOfDirectory } from '../preserve-import-meta-transform.ts';
-import { recordLoadedBuildInput } from '../cache/build-input-dependency-index.ts';
+import type { BuildInputRecorder } from './rolldown-plugin-bridge.ts';
 import { createRolldownPluginBridge, getEcoBuildPluginName } from './rolldown-plugin-bridge.ts';
 import {
 	getPackageNameFromSpecifier,
@@ -509,11 +509,12 @@ async function buildRolldownInputPlugins(
 	contextRoot: string,
 	outdir: string,
 	rolldownPlatform: 'browser' | 'node',
+	recordBuildInput: BuildInputRecorder,
 ): Promise<RolldownPlugin[]> {
 	const appPlugins = await createRolldownPluginBridge(
 		(options.plugins ?? []).filter((plugin) => plugin.environments?.includes(options.environment) ?? true),
 		contextRoot,
-		recordLoadedBuildInput,
+		recordBuildInput,
 	);
 	return [
 		...(options.externalPackages === true
@@ -538,6 +539,7 @@ async function buildRolldownInputOptions(
 	outdir: string,
 	external: (id: string) => boolean,
 	rolldownPlatform: 'browser' | 'node',
+	recordBuildInput: BuildInputRecorder,
 ): Promise<InputOptions> {
 	return {
 		input: options.entrypoints,
@@ -557,7 +559,7 @@ async function buildRolldownInputOptions(
 		experimental: {
 			nativeMagicString: true,
 		},
-		plugins: await buildRolldownInputPlugins(options, contextRoot, outdir, rolldownPlatform),
+		plugins: await buildRolldownInputPlugins(options, contextRoot, outdir, rolldownPlatform, recordBuildInput),
 	};
 }
 
@@ -604,11 +606,19 @@ export async function resolveRolldownOptions(
 	contextRoot: string,
 	outdir: string,
 	appRootRequireCache: Map<string, NodeJS.Require>,
+	recordBuildInput: BuildInputRecorder,
 ): Promise<ResolvedRolldownOptions> {
 	const rolldownPlatform = options.environment === 'browser' ? 'browser' : 'node';
 	const external = createExternalMatcher(options, appRootRequireCache);
 	return {
-		inputOptions: await buildRolldownInputOptions(options, contextRoot, outdir, external, rolldownPlatform),
+		inputOptions: await buildRolldownInputOptions(
+			options,
+			contextRoot,
+			outdir,
+			external,
+			rolldownPlatform,
+			recordBuildInput,
+		),
 		outputOptions: buildRolldownOutputOptions(options, outdir),
 	};
 }

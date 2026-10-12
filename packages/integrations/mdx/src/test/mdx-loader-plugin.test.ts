@@ -279,6 +279,16 @@ describe('createMdxLoaderPlugin', () => {
 		expect(compile).toHaveBeenCalledTimes(2);
 	});
 
+	it('rejects plugin lists inside a shared compilerOptions variable', () => {
+		const compilerOptionsWithPlugins = { remarkPlugins: [] };
+		const mdxOptions = {
+			// @ts-expect-error Shared options allow plugin lists only at the top level.
+			compilerOptions: compilerOptionsWithPlugins,
+		} satisfies MdxCompilerOptionsInput;
+
+		expect(mdxOptions.compilerOptions).toBe(compilerOptionsWithPlugins);
+	});
+
 	it('discovers component and CSS imports and strips bare CSS in compiled MDX', async () => {
 		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-deps-'));
 		tempDirs.push(tempDir);

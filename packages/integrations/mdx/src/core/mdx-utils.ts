@@ -7,7 +7,11 @@ export type { JsxImportSource, KnownJsxImportSource } from './jsx-import-source.
 type MdxCompilerOptions = Omit<
 	CompileOptions,
 	'jsxImportSource' | 'jsxRuntime' | 'remarkPlugins' | 'rehypePlugins' | 'recmaPlugins'
->;
+> & {
+	remarkPlugins?: never;
+	rehypePlugins?: never;
+	recmaPlugins?: never;
+};
 
 /** Shared options for integrations that own an MDX compilation pipeline.
  *

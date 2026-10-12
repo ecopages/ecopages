@@ -12,6 +12,7 @@ import {
 	writeGeneratedTypesPackage,
 	type EcoBuildPlugin,
 	type ProcessorConfig,
+	type ProcessorWatchChanges,
 	type ProcessorWatchConfig,
 } from '@ecopages/core/plugins/processor';
 import { isLitStaticRenderWorkerThread } from '@ecopages/core/build/lit-static-render-worker-context';
@@ -119,9 +120,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		const defaultWatchConfig: ProcessorWatchConfig = {
 			paths: [],
 			extensions: acceptedFormats,
-			onCreate: async (ctx) => this.process([ctx.path]),
-			onChange: async (ctx) => this.process([ctx.path]),
-			onDelete: async (ctx) => this.deleteProcessedImagesbyPath(ctx.path),
+			onChanges: async (changes) => this.handleImageChanges(changes),
 			onError: (error) => logger.error('Watcher error', { error }),
 		};
 
@@ -137,6 +136,17 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 			],
 			watch: config.watch ? mergeProcessorOptions(defaultWatchConfig, config.watch) : defaultWatchConfig,
 		});
+	}
+
+	private async handleImageChanges({ created, changed, deleted }: ProcessorWatchChanges): Promise<void> {
+		const changedImages = [...created, ...changed];
+		if (changedImages.length > 0) {
+			await this.process(changedImages);
+		}
+
+		for (const imagePath of deleted) {
+			await this.deleteProcessedImagesbyPath(imagePath);
+		}
 	}
 
 	get plugins(): EcoBuildPlugin[] {

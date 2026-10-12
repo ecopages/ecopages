@@ -5,7 +5,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
 import { isPathInside } from '../utils/path-containment.ts';
 import type { EcoPagesAppConfig, IHmrManager, IClientBridge } from '../types/internal-types.ts';
-import type { ProcessorWatchConfig, ProcessorWatchContext } from '../plugins/processor.ts';
+import type { ProcessorWatchChanges } from '../plugins/processor.ts';
 import {
 	DevelopmentInvalidationService,
 	type AppliedDevFileChange,
@@ -362,8 +362,30 @@ export class ProjectWatcher {
 	}
 
 	private async notifyProcessorsForBatch(files: AppliedDevFileChange[]): Promise<void> {
-		for (const file of files) {
-			await this.notifyProcessors(file.filePath, devFileChangeKindToWatcherEvent(file.kind));
+		for (const processor of this.appConfig.processors.values()) {
+			const watchConfig = processor.getWatchConfig();
+			if (!watchConfig?.onChanges) continue;
+
+			const changes: ProcessorWatchChanges = {
+				created: [],
+				changed: [],
+				deleted: [],
+				bridge: this.bridge,
+			};
+
+			for (const file of files) {
+				const { filePath } = file;
+				const { extensions = [] } = watchConfig;
+				if (extensions.length && !extensions.some((ext) => filePath.endsWith(ext))) {
+					continue;
+				}
+
+				changes[file.kind].push(filePath);
+			}
+
+			if (changes.created.length || changes.changed.length || changes.deleted.length) {
+				await watchConfig.onChanges(changes);
+			}
 		}
 	}
 
@@ -412,45 +434,6 @@ export class ProjectWatcher {
 			broadcast,
 			graphIdentities: graphPreparation?.affectedGraphIdentities,
 		});
-	}
-
-	/**
-	 * Notifies all processors whose watch config matches the given file extension.
-	 * This is called before checking processor ownership so that dependency-only
-	 * processors (e.g. PostCSS watching .tsx for class scanning) receive their
-	 * notifications regardless of whether they own the file.
-	 */
-	private async notifyProcessors(filePath: string, event: 'change' | 'add' | 'unlink'): Promise<void> {
-		const ctx: ProcessorWatchContext = { path: filePath, bridge: this.bridge };
-
-		for (const processor of this.appConfig.processors.values()) {
-			const watchConfig = processor.getWatchConfig();
-			if (!watchConfig) continue;
-
-			const { extensions = [] } = watchConfig;
-			if (extensions.length && !extensions.some((ext) => filePath.endsWith(ext))) {
-				continue;
-			}
-
-			const handler = this.getProcessorHandler(watchConfig, event);
-			if (handler) {
-				await handler(ctx);
-			}
-		}
-	}
-
-	private getProcessorHandler(
-		watchConfig: ProcessorWatchConfig,
-		event: 'change' | 'add' | 'unlink',
-	): ((ctx: ProcessorWatchContext) => Promise<void>) | undefined {
-		switch (event) {
-			case 'change':
-				return watchConfig.onChange;
-			case 'add':
-				return watchConfig.onCreate;
-			case 'unlink':
-				return watchConfig.onDelete;
-		}
 	}
 
 	/**
@@ -709,16 +692,6 @@ function watcherEventToDevFileChangeKind(event: 'change' | 'add' | 'unlink'): De
 		return 'deleted';
 	}
 	return 'changed';
-}
-
-function devFileChangeKindToWatcherEvent(kind: DevFileChangeKind): 'change' | 'add' | 'unlink' {
-	if (kind === 'created') {
-		return 'add';
-	}
-	if (kind === 'deleted') {
-		return 'unlink';
-	}
-	return 'change';
 }
 
 function takePendingDevFileChanges(pending: Map<string, DevFileChangeKind>): DevFileChanges {

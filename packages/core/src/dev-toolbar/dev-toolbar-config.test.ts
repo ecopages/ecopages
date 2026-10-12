@@ -13,10 +13,6 @@ describe('isDevToolbarEnabled', () => {
 		expect(isDevToolbarEnabled(configuredApp, { watch: false })).toBe(false);
 	});
 
-	it('returns false when the host owns the dev client', () => {
-		expect(isDevToolbarEnabled(configuredApp, { watch: true, hostOwnsDevClient: true })).toBe(false);
-	});
-
 	it('returns false when ECOPAGES_DEV_TOOLBAR=false', () => {
 		const previous = process.env.ECOPAGES_DEV_TOOLBAR;
 		process.env.ECOPAGES_DEV_TOOLBAR = 'false';

@@ -160,11 +160,6 @@ export class ProjectWatcher {
 		}
 	}
 
-	/**
-	 * @remarks
-	 * Sent whoever owns the dev client: the Vite host turns Vite HMR off and serves the Ecopages HMR runtime,
-	 * which subscribes to this bridge, so it is the browser client there too.
-	 */
 	private requestBrowserReload(): void {
 		this.bridge.reload();
 	}

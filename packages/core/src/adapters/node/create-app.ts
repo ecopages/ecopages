@@ -2,7 +2,6 @@ import { appLogger } from '../../global/app-logger.ts';
 import type { StaticRoute } from '../../types/public-types.ts';
 import { SharedApplicationAdapter } from '../shared/runtime/application-adapter.ts';
 import { resolveRuntimeBinding } from '../shared/runtime/runtime-app-bootstrap.ts';
-import type { WebSocketUpgradeOptions } from '../shared/ws/node-http-websocket-upgrades.ts';
 import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
 import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
 import type { ResolvedEcopagesAppOptions } from '../create-app.ts';
@@ -10,7 +9,6 @@ import { type NodeServerAdapterResult, createNodeServerAdapter } from './server-
 import { NodeHttpRequestBridge } from './http-request-bridge.ts';
 import type { NodeServerInstance } from './server-adapter.ts';
 import { NodeRuntimeHost, type NodeRuntimeServeOptions } from './runtime-host.ts';
-import { hostOwnsDevClient } from '../../dev/dev-client-ownership.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { resolveAppStartRoutes } from '../../utils/ecopages-route-info.ts';
 
@@ -19,7 +17,6 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 	private server: NodeServerInstance | null = null;
 	private runtimeOrigin = '';
 	private stopped = false;
-	private hostServerInitialized = false;
 	private readonly runtimeHost: RuntimeHost<NodeServerInstance, NodeRuntimeServeOptions>;
 
 	constructor(
@@ -80,7 +77,6 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 			websocketHandlers: this.websocketHandlers.size > 0 ? this.websocketHandlers : undefined,
 			options: { watch: binding.watch },
 			serveOptions: binding.serveOptions,
-			hostOwnsDevClient: hostOwnsDevClient(this.runtimeOptions),
 			deferRuntimeAssetSetup: this.cliArgs.build || this.cliArgs.preview,
 			allowPortFallback: binding.allowPortFallback,
 			onDevelopmentRestart: this.createDevelopmentRestartHandler(),
@@ -158,27 +154,6 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 		}
 
 		return this.serverAdapter.handleRequest(request);
-	}
-
-	/**
-	 * @remarks
-	 * The host owns `httpServer`, so it is not kept as the app's server and `stop()` leaves it open.
-	 */
-	public async attachWebSocketUpgrades(
-		httpServer: import('node:http').Server,
-		options?: WebSocketUpgradeOptions,
-	): Promise<void> {
-		if (!this.serverAdapter) {
-			this.serverAdapter = await this.initializeServerAdapter();
-		}
-
-		if (!this.server && !this.hostServerInitialized) {
-			this.hostServerInitialized = true;
-			await this.serverAdapter.completeInitialization(httpServer, options);
-			return;
-		}
-
-		this.serverAdapter.attachUserWebSocketUpgrades(httpServer, options);
 	}
 }
 

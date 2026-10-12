@@ -4,10 +4,10 @@ The foundational engine for the Ecopages framework. It provides the core build p
 
 ## Overview
 
-Ecopages is an extensible static site generator (SSG) built around a Bun-first core with Node fallback support and Vite-hosted compatibility for advanced dev and build orchestration. It embraces a strictly MPA (Multi-Page Application) architecture by default, rendering HTML at build-time or request-time, and hydrating interactive islands only where necessary.
+Ecopages is an extensible static site generator (SSG) built around a Bun-first core with Node fallback support. It embraces a strictly MPA (Multi-Page Application) architecture by default, rendering HTML at build-time or request-time, and hydrating interactive islands only where necessary.
 
-- **Runtime Boundary**: `createApp()` prefers Bun when available and falls back to Node otherwise. Vite and Nitro still own host-side dev and build orchestration.
-- **Build Ownership**: Bun-native execution keeps a core-owned build path. Vite and Nitro own host-side transforms, module graph behavior, and deployment-oriented builds.
+- **Runtime Boundary**: `createApp()` prefers Bun when available and falls back to Node otherwise.
+- **Build Ownership**: Rolldown builds the app for both Bun and Node.
 - **Framework agnostic**: First-class support for KitaJS, Lit, React, and MDX via official integration plugins.
 - **Extensible**: Hook into the build process with custom processors or rendering integrations.
 
@@ -39,10 +39,8 @@ flowchart TD
 	C --> D[App build adapter]
 	C --> E[App build manifest]
 	C --> G[Dev graph slot]
-	C --> H[Host module loader boundary]
 	D --> F[Build executor, installed at server startup]
-	H --> I[PageModuleImportService]
-	F --> I
+	F --> I[PageModuleImportService]
 	F --> J[BrowserBundleService]
 	I --> K[Runtime app adapter]
 	K --> L[Bun adapter or Node adapter]
@@ -84,8 +82,8 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 - `ServerModuleTranspiler` is the shared server-side source loading seam used by runtime bootstrap and HMR metadata loading.
 - `RouteRegistry` gives exact and dynamic Pages priority over catch-alls, then selects the most specific matching catch-all prefix.
 - Browser runtime package entries resolve from the application root with ESM import conditions, so framework-local packages cannot shadow app dependencies.
-- `createApp()` stays the universal runtime entrypoint, while Vite and Nitro hosts own their advanced dev and build workflows.
-- One bundled adapter is the default bundler. Vite-based apps route through the `ViteHostBuildAdapter` boundary marker instead.
+- `createApp()` stays the universal runtime entrypoint and selects Bun or Node.
+- One bundled adapter builds the app with Rolldown.
 
 ## Documentation Map
 
@@ -325,11 +323,10 @@ Use these entrypoints when implementing integrations, processors, or source tran
 - `@ecopages/core/assets/hashed-browser-asset`
 - `@ecopages/core/hmr/hmr-strategy`
 
-### Host And Runtime Composition
+### Build Adapter
 
-Use these entrypoints only when implementing host adapters or framework-owned bundling seams:
+Use this entrypoint when an app needs the framework build adapter:
 
-- `@ecopages/core/dev/host-runtime`
 - `@ecopages/core/build/build-adapter`
 
-These host-facing entrypoints are narrower compatibility seams. App code and most extensions should prefer the app-authoring or extension-authoring surfaces.
+App code and most extensions should prefer the app-authoring or extension-authoring surfaces.

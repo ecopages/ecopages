@@ -8,7 +8,6 @@ import { DevToolbarHost } from '../../../dev-toolbar/dev-toolbar-host.ts';
 export type RouteHtmlFinalizationContext<C> = {
 	appConfig: EcoPagesAppConfig;
 	watch: boolean;
-	hostOwnsDevClient?: boolean;
 	integrationName: string;
 	renderOptions: IntegrationRendererRenderOptions<C>;
 	getDocumentAttributes: (renderOptions: IntegrationRendererRenderOptions<C>) => Record<string, string> | undefined;
@@ -60,7 +59,6 @@ function buildDevToolbarManifestContribution<C>(
 ): HtmlDocumentContribution | undefined {
 	return DevToolbarHost.forApp(context.appConfig, {
 		watch: context.watch,
-		hostOwnsDevClient: context.hostOwnsDevClient,
 	}).buildRouteManifestContribution({
 		routeFile: context.renderOptions.file,
 		integrationName: context.integrationName,

@@ -105,10 +105,6 @@ class TestSharedServerAdapter extends SharedServerAdapter<any, ServerAdapterResu
 		return await this.handleUnexpectedRequestError(error, request, { apiHandlers: [], errorHandler });
 	}
 
-	public setHostOwnsDevClientForTest(value: boolean): void {
-		this.hostOwnsDevClient = value;
-	}
-
 	public setWatchModeForTest(watch: boolean): void {
 		(this as unknown as { options: { watch?: boolean } }).options = { watch };
 	}
@@ -182,28 +178,6 @@ test('SharedServerAdapter injects HMR script into HTML responses in watch mode',
 	const text = await response.text();
 
 	assert.ok(text.includes("import '/_hmr_runtime.js'"));
-	assert.equal(response.headers.get('Cache-Control'), 'no-store, must-revalidate');
-});
-
-test('SharedServerAdapter keeps watch-mode HTML out of the browser cache when the host owns the dev client', async () => {
-	const rootDir = createTempRoot('ecopages-shared-server-host-dev-client');
-	const adapter = new TestSharedServerAdapter('', rootDir);
-	adapter.setWatchModeForTest(true);
-	adapter.setHostOwnsDevClientForTest(true);
-	adapter.setRouteHandlerForTest(
-		async () =>
-			new Response('<html><body></body></html>', {
-				headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=31536000, immutable' },
-			}),
-	);
-
-	const response = await adapter.handleSharedRequestForTest(
-		new Request('http://localhost/test'),
-		[],
-		createHmrAssetManager('', ''),
-	);
-
-	assert.equal(await response.text(), '<html><body></body></html>');
 	assert.equal(response.headers.get('Cache-Control'), 'no-store, must-revalidate');
 });
 

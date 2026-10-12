@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-	createEcoComponentMetaPlugin,
-	createEcoComponentMetaTransform,
-	createEcoComponentMetaVitePlugin,
-} from './eco-component-meta-plugin';
+import { createEcoComponentMetaPlugin, createEcoComponentMetaTransform } from './eco-component-meta-plugin';
 import type { EcoPagesAppConfig } from '../types/internal-types';
 
 /**
@@ -70,17 +66,6 @@ describe('eco-component-meta-plugin', () => {
 					: content;
 		return { contents: code };
 	}
-
-	it('creates a bundler-neutral transform that strips query suffixes through the Vite adapter', () => {
-		const vitePlugin = createEcoComponentMetaVitePlugin({ config: Config });
-		const result = vitePlugin.transform(
-			"import { eco } from '@ecopages/core';\nexport default eco.page({ render: () => '<main />' });",
-			'/path/to/pages/index.tsx?import',
-		);
-
-		expect(typeof result).toBe('object');
-		expect((result as { code: string }).code).toMatch(ecoMetaPattern('/path/to/pages/index.tsx', 'react'));
-	});
 
 	it('creates a shared transform primitive that can run without the loader wrapper', () => {
 		const result = transform.transform(

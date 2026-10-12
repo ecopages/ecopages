@@ -1,6 +1,6 @@
 # Build Layer
 
-The build layer is the bundler contract for Ecopages. One bundled adapter is the default; one host-owned boundary marker covers the Vite-host path.
+The build layer is the bundler contract for Ecopages. Rolldown is the bundled adapter.
 
 ## Contents
 
@@ -8,7 +8,6 @@ The build layer is the bundler contract for Ecopages. One bundled adapter is the
 - [Files](#files)
 - [Default Flow](#default-flow)
 - [App build manifest](#app-build-manifest)
-- [Vite-Host Boundary](#vite-host-boundary)
 - [Plugin Authoring](#plugin-authoring)
 - [Build diagnostics](#build-diagnostics)
 - [BuildOptions Caveats](#buildoptions-caveats)
@@ -25,15 +24,15 @@ The build layer is the bundler contract for Ecopages. One bundled adapter is the
 
 Three concentric shapes, plus profile executors and request policy:
 
-| Shape                       | Lives in                               | Purpose                                                                                                                                                             |
-| --------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BuildAdapter`              | `build-adapter.ts`                     | Low-level backend. Two implementations: the bundled adapter (the real bundler) and `ViteHostBuildAdapter` (a host-owned boundary marker that throws on direct use). |
-| `BuildRuntime`              | `runtime/build-runtime.ts`             | Profile-based executor registry. Scheduling, concurrency, and dedupe only.                                                                                          |
-| `BuildExecutor`             | `contracts/build-contracts.ts`         | Narrower runtime facade. Only `build` is exposed. Retrieved via `buildRuntime.getProfile(...)`.                                                                     |
-| `build-request-policy.ts`   | `runtime/build-request-policy.ts`      | Assembles complete `BuildOptions` before scheduling. Server and browser: plugins, including source transforms as `transform` hooks, plus JSX ownership.             |
-| `build-request-identity.ts` | `runtime/build-request-identity.ts`    | Canonical request identity for in-flight and request-scope dedupe.                                                                                                  |
-| `SerializedBuildExecutor`   | `runtime/serialized-build-executor.ts` | FIFO queue around any `BuildExecutor`. Used for server-entry single-flight ordering.                                                                                |
-| `ParallelBuildExecutor`     | `runtime/parallel-build-executor.ts`   | Concurrency-limited wrapper for independent route-module and HMR browser builds.                                                                                    |
+| Shape                       | Lives in                               | Purpose                                                                                                                                                 |
+| --------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BuildAdapter`              | `build-adapter.ts`                     | Low-level backend. `RolldownBuildAdapter` is the bundled implementation.                                                                                |
+| `BuildRuntime`              | `runtime/build-runtime.ts`             | Profile-based executor registry. Scheduling, concurrency, and dedupe only.                                                                              |
+| `BuildExecutor`             | `contracts/build-contracts.ts`         | Narrower runtime facade. Only `build` is exposed. Retrieved via `buildRuntime.getProfile(...)`.                                                         |
+| `build-request-policy.ts`   | `runtime/build-request-policy.ts`      | Assembles complete `BuildOptions` before scheduling. Server and browser: plugins, including source transforms as `transform` hooks, plus JSX ownership. |
+| `build-request-identity.ts` | `runtime/build-request-identity.ts`    | Canonical request identity for in-flight and request-scope dedupe.                                                                                      |
+| `SerializedBuildExecutor`   | `runtime/serialized-build-executor.ts` | FIFO queue around any `BuildExecutor`. Used for server-entry single-flight ordering.                                                                    |
+| `ParallelBuildExecutor`     | `runtime/parallel-build-executor.ts`   | Concurrency-limited wrapper for independent route-module and HMR browser builds.                                                                        |
 
 Plus one translation bridge:
 
@@ -105,7 +104,7 @@ Caller intent
   → RolldownBuildAdapter resolves Node and browser runtime specifiers during the build
 ```
 
-For `rolldown` ownership, profiles use one-shot Rolldown in both dev and production. Route-module and browser-HMR builds run in parallel; server-entry stays serialized single-flight. With `vite-host` ownership, the same scheduling wrappers delegate to a boundary marker that rejects framework-owned builds.
+Profiles use one-shot Rolldown in both dev and production. Route-module and browser-HMR builds run in parallel; server-entry stays serialized single-flight.
 
 Runtime code should call `requireBuildRuntime(appConfig).getProfile('route-module' | 'browser-hmr' | 'server-entry')` with a complete `BuildOptions` object from the request-policy helpers. Profiles are scheduling-only: bare `getProfile(...).build()` does **not** inject app plugins.
 
@@ -114,16 +113,6 @@ The exported `defaultBuildAdapter` and the top-level `build()` / `getTranspileOp
 Every `BuildOptions` request requires `environment: 'server' | 'browser'`. Environment selects the platform, default target/format, and plugin participation. An explicit numeric `target` changes language transpilation without changing the environment. `getTranspileOptions()` takes that environment. `BuildProfile` (`server-entry` | `route-module` | `browser-hmr`) selects scheduling only. `BrowserBundleService` uses its purpose and executor to select the scheduling lane; every request retains browser defaults even on `route-module`.
 
 Migration: move Integration `browserBuildPlugins` and Processor `buildPlugins` into `plugins` with `environments: ['browser']`. Keep server-only hooks in `plugins` with `environments: ['server']`. Replace the old transpile profile arguments with `'browser'` or `'server'`.
-
-## Vite-Host Boundary
-
-`ViteHostBuildAdapter` is not a real backend. It exists so `appConfig.runtime.buildAdapter` can carry the `'vite-host'` ownership without falling back to a framework-owned bundler path. Every method throws a clear `Vite-hosted builds are owned by the host runtime. Core cannot …` error so misrouted calls fail loudly.
-
-Vite-based apps (or any future host runtime) should:
-
-1. Construct a `ViteHostBuildAdapter` via `createViteHostBuildAdapter()` and install it on the app config with `setAppBuildAdapter`.
-2. Run their own build pipeline outside the core.
-3. Reuse the core's `BuildExecutor`-shaped surface where possible so call-sites stay backend-neutral.
 
 ## Plugin Authoring
 
@@ -156,7 +145,7 @@ App-manifest plugins keep canonical registration order and cannot be silently re
 
 Core-owned browser builds reject imports matching the `.server` naming convention (including extensionless `./db.server`) and Node builtins during resolution. Query and fragment suffixes do not change the naming classification. The error names the specifier and its importer. This applies to browser scripts from every Integration, including Lit and ecopages-jsx, and to static imports, re-exports, side-effect imports, and dynamic imports that reach resolution. Server builds allow `.server` imports.
 
-An Integration can prune server-only imports before resolution. React uses the shared naming predicate while removing server-only Page options, so a middleware-only `.server` import does not fail the browser build. No `server-only` package marker is interpreted by this guard. Host-owned Vite builds remain owned by the host.
+An Integration can prune server-only imports before resolution. React uses the shared naming predicate while removing server-only Page options, so a middleware-only `.server` import does not fail the browser build. No `server-only` package marker is interpreted by this guard.
 
 `BuildOptions` is modeled on the bundler's options shape. Most fields map cleanly. The exception:
 
@@ -173,8 +162,6 @@ An Integration can prune server-only imports before resolution. React uses the s
 | `browser-hmr`  | Rolldown one-shot | Parallel (limit ≤ 3) |
 
 `hmr-entrypoint` and `hmr-runtime` rebuilds with `executor: 'hmr'` use the `browser-hmr` profile. Other browser builds (`browser-script`, and any build with `executor: 'build'`) use `route-module`.
-
-The table describes `rolldown` ownership. With `vite-host` ownership, profiles wrap `ViteHostBuildAdapter`, which rejects framework-owned builds so the host must run its own pipeline.
 
 `ProjectWatcher` deduplicates watch roots, ignores `.eco/` and `dist/`, and coalesces duplicate chokidar events within 150ms.
 
@@ -245,7 +232,7 @@ Mixed-integration apps need explicit `@jsxImportSource` handling in two differen
 
 ## Rolldown operator notes
 
-Ecopages bundles with Rolldown across Node, Bun, and browser targets. Vite-hosted apps use `ViteHostBuildAdapter` as a boundary marker; the host runs its own pipeline.
+Ecopages bundles with Rolldown across Node, Bun, and browser targets.
 
 ### Plugin hook filters
 
@@ -277,9 +264,7 @@ Every build creates a new bridge. The bridge runs each plugin's `setup` before i
 | `module(specifier)`         | `^<specifier>$` on resolve, its namespace on load       |
 | `transform`                 | the registered `filter`, tested on the id without query |
 
-Within the handler, `onResolve` and `onLoad` registrations run in `EcoBuildPlugin[]` order and the first non-null result wins. `transform` runs every matching registration in that same order. A hook with no registrations is not declared. In a kitchen-sink production build, the filters cut JS `resolveId` calls from 7344 to 323 and `load` calls from 4146 to 2826. Source-transform plugins use the `transform` hook, so they no longer admit most source files to `load`.
-
-The Vite adapter for a source transform (`createVitePluginFromSourceTransform`) declares no Vite hook filter. Vite would test it against the id with its query, so `/\.tsx$/` would miss `page.tsx?v=1`; the handler tests the filter with the query and hash stripped instead.
+Within the handler, `onResolve` and `onLoad` registrations run in `EcoBuildPlugin[]` order and the first non-null result wins. `transform` runs every matching registration in that same order. A hook with no registrations is not declared. In a kitchen-sink production build, the filters cut JS `resolveId` calls from 7344 to 323 and `load` calls from 4146 to 2826. Source-transform plugins use the `transform` hook, so they no longer admit most source files to `load`. The transform filter is tested with the query and hash stripped, so `/\.tsx$/` still matches `page.tsx?v=1`.
 
 ### Benchmarks
 

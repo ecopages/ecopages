@@ -93,7 +93,7 @@ function createTemplateComponent(template: HtmlTemplate, identity?: ComponentIde
  *
  * @remarks
  * HTML files are compiled in-process instead of through a bundler loader, so
- * Bun, Node, and Vite-hosted apps load them identically. Rendering needs the
+ * Bun and Node load them identically. Rendering needs the
  * owning renderer's asset pipeline, so calling a component directly throws.
  * The identity records the template's local assets as watch files, so editing
  * one invalidates the cached HTML of every route the template renders into.

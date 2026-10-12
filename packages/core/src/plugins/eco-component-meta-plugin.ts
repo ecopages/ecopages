@@ -1,7 +1,7 @@
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { prependJsxImportSourceIfMissing } from './jsx-import-source.utils.ts';
-import type { EcoSourceTransform, EcoViteCompatiblePlugin } from './source-transform.ts';
-import { createEcoBuildPluginFromSourceTransform, createVitePluginFromSourceTransform } from './source-transform.ts';
+import type { EcoSourceTransform } from './source-transform.ts';
+import { createEcoBuildPluginFromSourceTransform } from './source-transform.ts';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { rapidhash } from '../utils/hash.ts';
@@ -325,10 +325,6 @@ export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOp
 			};
 		},
 	};
-}
-
-export function createEcoComponentMetaVitePlugin(options: EcoComponentDirPluginOptions): EcoViteCompatiblePlugin {
-	return createVitePluginFromSourceTransform(createEcoComponentMetaTransform(options));
 }
 
 export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptions): EcoBuildPlugin {

@@ -63,7 +63,7 @@ Start here for package-level architecture:
 
 Domain vocabulary lives in `CONTEXT.md`, implementation details in localized READMEs, and agent rules in `AGENTS.md`. User-facing guides are on the [docs site](https://ecopages.app/docs/core/architecture).
 
-The current direction is explicit: Bun is the primary core-owned runtime path, `createApp()` still supports direct Node fallback execution, Vite and Nitro own host-side build and dev behavior, and esbuild is no longer a strategic core dependency.
+The current direction is explicit: Bun is the primary core-owned runtime path, `createApp()` still supports direct Node fallback execution, and esbuild is no longer a strategic core dependency.
 
 ### Static Site Generation
 

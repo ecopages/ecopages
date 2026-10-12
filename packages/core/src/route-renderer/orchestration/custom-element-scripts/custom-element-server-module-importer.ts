@@ -21,7 +21,6 @@ export function createCustomElementServerModuleImporter(appConfig: EcoPagesAppCo
 			filePath,
 			rootDir: appConfig.rootDir,
 			outdir: path.join(appConfig.absolutePaths.workDir, outdirSegment, registryKey),
-			forceBuild: true,
 		});
 	};
 }
@@ -29,7 +28,7 @@ export function createCustomElementServerModuleImporter(appConfig: EcoPagesAppCo
 /**
  * Imports an `ssr: true` script through the same server-module graph as pages.
  *
- * @remarks A per-registry outdir with `forceBuild` compiles a second copy of
+ * @remarks A separate outdir per registry compiles a second copy of
  * Radiant and breaks host SSR. This outdir matches page imports and keeps
  * package specifiers external.
  */

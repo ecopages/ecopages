@@ -6,8 +6,7 @@ import { gotoPathSimple, trackRuntimeErrors } from './test-support';
 
 /**
  * Cross-runtime/host parity: plain sequential document navigation must render
- * the same on every supported cell (ecopages+node, ecopages+bun, vite+node,
- * vite+bun). This single `@parity` spec is the only test each non-canonical
+ * the same on Node and Bun. This single `@parity` spec is the only test the Bun
  * cell runs; full behavioral depth stays on the canonical dev project.
  */
 test.describe('Cross-integration parity @parity', () => {

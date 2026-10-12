@@ -22,7 +22,7 @@ Parsing uses `services/html/html-source-parser.ts`, a positional parser built on
 
 Core never checks for HTML Pages by name. It finds a file's owning Integration with `findIntegrationForFile()` (the longest registered extension) and asks it:
 
-- `PageModuleImportService.loadModule()` calls the owner's `compilePageModule()` before bundling. `HtmlPagesPlugin.compilePageModule()` compiles files under the pages directory and `src/includes/html.html` with `loadHtmlPageModule()`, and throws for any other `.html` file; an Integration that implements the hook compiles every file core loads for it. Bun, Node, and Vite-hosted apps load HTML Pages the same way, and the import cache still keys modules by file hash.
+- `PageModuleImportService.loadModule()` calls the owner's `compilePageModule()` before bundling. `HtmlPagesPlugin.compilePageModule()` compiles files under the pages directory and `src/includes/html.html` with `loadHtmlPageModule()`, and throws for any other `.html` file; an Integration that implements the hook compiles every file core loads for it. Bun and Node load HTML Pages the same way, and the import cache still keys modules by file hash.
 - `isPagesUnifiedGraphPage()` leaves out Pages whose owner implements `compilePageModule`, so HTML Pages stay out of the production unified graph.
 - Route discovery rejects `[param]` filenames whose owner sets `acceptsParams` to `false`, because HTML Pages have no `staticPaths`.
 

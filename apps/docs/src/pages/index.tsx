@@ -108,7 +108,6 @@ const HOME_FOOTER_COLUMNS: HomeFooterColumnData[] = [
 		links: [
 			{ label: 'Browser Router', href: '/docs/ecosystem/browser-router' },
 			{ label: 'React Router', href: '/docs/ecosystem/react-router' },
-			{ label: 'Vite Plugin', href: '/docs/ecosystem/vite-plugin' },
 			{ label: 'File System', href: '/docs/ecosystem/file-system' },
 			{ label: 'CLI', href: '/docs/ecosystem/ecopages' },
 		],

@@ -15,7 +15,6 @@ import {
 
 export type DevToolbarHostOptions = {
 	watch: boolean;
-	hostOwnsDevClient?: boolean;
 };
 
 type DevToolbarBundleService = {

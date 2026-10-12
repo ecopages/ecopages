@@ -3,7 +3,6 @@
  *
  * Env:
  * - ECOPAGES_PORT
- * - ECOPAGES_DEV_HOST=ecopages|vite
  * - ECOPAGES_DEV_RUNTIME=bun|node
  * - ECOPAGES_E2E_ARTIFACT_SCOPE
  */
@@ -16,7 +15,6 @@ const repoRoot = path.resolve(scriptDir, '..', '..', '..');
 const kitchenSinkDir = path.join(repoRoot, 'playground', 'kitchen-sink');
 const ecopagesCli = path.join(repoRoot, 'packages', 'ecopages', 'bin', 'cli.js');
 
-const host = process.env.ECOPAGES_DEV_HOST === 'vite' ? 'vite' : 'ecopages';
 const runtime = process.env.ECOPAGES_DEV_RUNTIME === 'bun' ? 'bun' : 'node';
 const port = process.env.ECOPAGES_PORT || '4007';
 const artifactScope = process.env.ECOPAGES_E2E_ARTIFACT_SCOPE?.trim() || 'cross-integration-dev';
@@ -28,22 +26,11 @@ const sharedEnv = {
 	ECOPAGES_CROSS_INTEGRATION_E2E: 'true',
 };
 
-const command =
-	host === 'vite'
-		? `${runtime === 'bun' ? 'bunx vite' : 'pnpm exec vite'} dev --port ${port}`
-		: `node "${ecopagesCli}" dev --runtime ${runtime} --port ${port}`;
+const command = `node "${ecopagesCli}" dev --runtime ${runtime} --port ${port}`;
 
 const child = spawn(command, {
 	cwd: kitchenSinkDir,
-	env: {
-		...sharedEnv,
-		...(host === 'vite'
-			? {
-					ECOPAGES_CROSS_INTEGRATION_HOST: 'vite',
-					ECOPAGES_BASE_URL: `http://localhost:${port}`,
-				}
-			: {}),
-	},
+	env: sharedEnv,
 	stdio: 'inherit',
 	shell: true,
 });

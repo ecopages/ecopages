@@ -75,7 +75,6 @@ export abstract class SharedServerAdapter<
 		getCacheService: () => this.getCacheService(),
 		isClientAbort: (error) => this.isClientAbortError(error),
 	});
-	protected hostOwnsDevClient = false;
 	private devStaticRoutePrewarmStarted = false;
 	private readonly devStaticRoutePrewarmAbort = new AbortController();
 	private devStaticRoutePrewarm: Promise<void> | undefined;
@@ -363,7 +362,7 @@ export abstract class SharedServerAdapter<
 		let nextResponse = this.options?.watch ? withUncachedDevHtml(response) : response;
 
 		if (
-			shouldInjectHmrHtmlResponse(this.options?.watch ?? false, context.hmrManager, this.hostOwnsDevClient) &&
+			shouldInjectHmrHtmlResponse(this.options?.watch ?? false, context.hmrManager) &&
 			isHtmlResponse(nextResponse)
 		) {
 			nextResponse = await injectHmrRuntimeIntoHtmlResponse(nextResponse);
@@ -372,14 +371,12 @@ export abstract class SharedServerAdapter<
 		if (
 			shouldInjectDevToolbarHtmlResponse(this.appConfig, {
 				watch: this.options?.watch ?? false,
-				hostOwnsDevClient: this.hostOwnsDevClient,
 			})
 		) {
 			nextResponse = await injectDevToolbarIntoHtmlResponse(
 				this.appConfig,
 				{
 					watch: this.options?.watch ?? false,
-					hostOwnsDevClient: this.hostOwnsDevClient,
 				},
 				nextResponse,
 			);

@@ -36,9 +36,7 @@ await app.start(({ origin }) => {
 });
 ```
 
-The `OnAppStartCallback` type is exported from `@ecopages/core/create-app`.
-
-> **Note:** In embedded mode (for example the [Vite plugin](/docs/ecosystem/vite-plugin)), `app.start()` registers the callback but does not bind a port — the host owns the listen socket and runs your callback when the app is ready. Pass `runtime: { embedded: true, devClientOwner: 'host' }` to `createApp()`. See [Build and Host](/docs/core/build-and-host#boot-vs-embed).
+The `OnAppStartCallback` type is exported from `@ecopages/core/create-app`. `app.start()` binds the port, then runs the callback once the server can accept traffic.
 
 ## HTTP Methods
 
@@ -187,7 +185,7 @@ See [WebSockets](/docs/server/websockets) for the full guide.
 
 ## Testing API Endpoints
 
-Use `app.fetch()` to exercise handlers without a bound network server. This is the same request surface embedded hosts use.
+Use `app.fetch()` to exercise handlers without a bound network server.
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';

@@ -25,15 +25,9 @@ export interface EcoSourceTransform {
 	transform(code: string, id: string): EcoSourceTransformResult | string | undefined;
 }
 
-export interface EcoViteCompatiblePlugin {
-	name: string;
-	enforce?: 'pre' | 'post';
-	transform(code: string, id: string): EcoSourceTransformResult | string | undefined;
-}
-
 /**
- * Normalizes bundler module ids so one transform can serve Ecopages loaders,
- * Vite, and future bundler adapters.
+ * Normalizes bundler module ids so one transform can serve Ecopages loaders
+ * and future bundler adapters.
  */
 export function normalizeTransformId(id: string): string {
 	const queryIndex = id.indexOf('?');
@@ -74,8 +68,8 @@ function getSourceTransformEnforceOrder(transform: EcoSourceTransform): number {
  * Applies app-owned source transforms in deterministic `pre` → default → `post` order.
  *
  * @remarks
- * Used when chaining transforms in tests and Vite-facing helpers. The Rolldown
- * plugin bridge runs each transform as a `transform` hook instead.
+ * Used when chaining transforms in tests. The Rolldown plugin bridge runs each
+ * transform as a `transform` hook instead.
  *
  * @param transforms - App-owned transforms, usually from {@link getAppSourceTransforms}.
  * @param code - Current module source.
@@ -118,23 +112,6 @@ export function createEcoBuildPluginFromSourceTransform(transform: EcoSourceTran
 }
 
 /**
- * Adapts a source transform into a Vite-compatible plugin object.
- *
- * @remarks
- * This intentionally returns a plain object shape so core does not need a hard
- * dependency on `vite` just to author transform primitives.
- */
-export function createVitePluginFromSourceTransform(transform: EcoSourceTransform): EcoViteCompatiblePlugin {
-	return {
-		name: transform.name,
-		enforce: transform.enforce,
-		transform(code, id) {
-			return applySourceTransform(transform, code, id);
-		},
-	};
-}
-
-/**
  * Returns the app-owned source transforms in stable registration order.
  */
 export function getAppSourceTransforms(appConfig: EcoPagesAppConfig): EcoSourceTransform[] {
@@ -155,11 +132,4 @@ export function mergeSourceTransformPlugins(
 		.filter((transform) => !names.has(transform.name))
 		.map(createEcoBuildPluginFromSourceTransform);
 	return extra.length === 0 ? plugins : [...plugins, ...extra];
-}
-
-/**
- * Adapts the app-owned source transforms into Vite-compatible plugin objects.
- */
-export function createVitePluginsFromAppSourceTransforms(appConfig: EcoPagesAppConfig): EcoViteCompatiblePlugin[] {
-	return getAppSourceTransforms(appConfig).map((transform) => createVitePluginFromSourceTransform(transform));
 }

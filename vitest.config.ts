@@ -32,7 +32,6 @@ export default defineConfig({
 						'packages/integrations/**/*.test.tsx',
 						'packages/loaders/**/*.test.ts',
 						'packages/file-system/**/*.test.ts',
-						'packages/vite-plugin/**/*.test.ts',
 						'packages/react-router/**/*.test.ts',
 						'packages/dev-toolbar/**/*.test.ts',
 						'e2e/scripts/**/*.test.ts',

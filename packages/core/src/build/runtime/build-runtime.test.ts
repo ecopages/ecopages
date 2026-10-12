@@ -3,7 +3,7 @@ import { test } from 'vitest';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { createAppBuildManifest } from '../contracts/build-manifest.ts';
 import { RolldownBuildAdapter } from '../rolldown/rolldown-build-adapter.ts';
-import { ViteHostBuildAdapter, setAppBuildAdapter, setAppBuildManifest } from '../build-adapter.ts';
+import { setAppBuildAdapter, setAppBuildManifest } from '../build-adapter.ts';
 import { installBuildRuntime, requireBuildRuntime } from './build-runtime.ts';
 import { DedupingBuildExecutor } from './deduping-build-executor.ts';
 import { ParallelBuildExecutor } from './parallel-build-executor.ts';
@@ -51,28 +51,6 @@ test('requireBuildRuntime installs the runtime when missing', () => {
 
 	assert.equal(appConfig.runtime?.buildRuntime, buildRuntime);
 	assert.ok(buildRuntime.getProfile('route-module') instanceof DedupingBuildExecutor);
-});
-
-test('installBuildRuntime rejects Vite-host adapter builds at execution time', async () => {
-	const appConfig = createTestAppConfig();
-	setAppBuildAdapter(appConfig, new ViteHostBuildAdapter());
-
-	const executor = installBuildRuntime(appConfig).getProfile('route-module');
-
-	await assert.rejects(
-		executor.build({
-			environment: 'browser' as const,
-			entrypoints: ['/tmp/entry.ts'],
-			root: '/tmp',
-			outdir: '/tmp/out',
-			target: 'browser',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-		}),
-		/Vite-hosted builds are owned by the host runtime/,
-	);
 });
 
 test('requireBuildRuntime returns a stable server-entry executor', () => {

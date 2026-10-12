@@ -7,10 +7,8 @@ import {
 	getAppBuildAdapter,
 	getAppBuildOwnership,
 	getAppBuildManifest,
-	ViteHostBuildAdapter,
 } from '../build/build-adapter.ts';
 import { createBrowserRuntimeManifest } from '../build/browser/browser-runtime-manifest.ts';
-import { createVitePluginsFromAppSourceTransforms } from '../plugins/source-transform.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../config/constants.ts';
 import { appLogger } from '../global/app-logger.ts';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
@@ -170,19 +168,11 @@ describe('finalizeEcoPagesConfig', () => {
 		expect(getAppBuildAdapter(config)).not.toBe(defaultBuildAdapter);
 		expect(getAppBuildManifest(config).plugins).toHaveLength(0);
 		expect(config.sourceTransforms.size).toBeGreaterThan(0);
-		expect(createVitePluginsFromAppSourceTransforms(config).length).toBeGreaterThan(0);
 		expect(config.runtime?.serverInvalidationState).toBeDefined();
 		expect(config.runtime?.entrypointDependencyGraph).toBeDefined();
 	});
 
-	test('should allow explicit Vite-host build ownership during config build', async () => {
-		const config = await finalizeEcoPagesConfig({ rootDir: '/project' }, { buildOwnership: 'vite-host' });
-
-		expect(getAppBuildOwnership(config)).toBe('vite-host');
-		expect(getAppBuildAdapter(config)).toBeInstanceOf(ViteHostBuildAdapter);
-	});
-
-	test('should allow explicit app-owned source transforms for Vite-oriented bundlers', async () => {
+	test('should allow explicit app-owned source transforms', async () => {
 		const config = await finalize({
 			baseUrl: 'https://example.com',
 			sourceTransforms: [
@@ -197,9 +187,6 @@ describe('finalizeEcoPagesConfig', () => {
 		});
 
 		expect(config.sourceTransforms.has('test-source-transform')).toBe(true);
-		expect(
-			createVitePluginsFromAppSourceTransforms(config).some((plugin) => plugin.name === 'test-source-transform'),
-		).toBe(true);
 	});
 
 	test('should finalize processor and integration manifest contributions during config build', async () => {

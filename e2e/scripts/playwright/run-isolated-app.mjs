@@ -188,11 +188,6 @@ export function prepareWorkspace(sourceDir, workspaceDir) {
 }
 
 export function buildCommand(options) {
-	if (options.host === 'vite') {
-		const viteRunner = options.runtime === 'bun' ? 'bunx vite' : 'pnpm exec vite';
-		return `${viteRunner} dev --port ${options.port}`;
-	}
-
 	const ecopagesCli = `node "${ecopagesCliEntrypoint}"`;
 
 	if (options.mode === 'preview') {
@@ -203,13 +198,10 @@ export function buildCommand(options) {
 }
 
 export function buildEnv(options) {
-	const viteBaseUrl = options.host === 'vite' ? `http://localhost:${options.port}` : process.env.ECOPAGES_BASE_URL;
-
 	return createPlaywrightSubprocessEnv({
 		ECOPAGES_E2E_ARTIFACT_SCOPE: options.artifactScope,
-		...(viteBaseUrl ? { ECOPAGES_BASE_URL: viteBaseUrl } : {}),
-		...(options.host === 'vite' ? { ECOPAGES_CROSS_INTEGRATION_HOST: 'vite' } : {}),
-		...(options.host === 'ecopages' ? { ECOPAGES_CROSS_INTEGRATION_E2E: 'true' } : {}),
+		...(process.env.ECOPAGES_BASE_URL ? { ECOPAGES_BASE_URL: process.env.ECOPAGES_BASE_URL } : {}),
+		ECOPAGES_CROSS_INTEGRATION_E2E: 'true',
 		...(options.artifactScope?.startsWith('cross-integration-hmr')
 			? { ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS: '0' }
 			: {}),

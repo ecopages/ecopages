@@ -5,16 +5,9 @@ import { adminGroup } from './src/handlers/admin';
 import { releaseNotes } from './src/data/demo-data';
 import { chatRoomWebsocketHandler } from './src/handlers/ws-chat-room';
 
-const isViteHosted = process.env.ECOPAGES_CROSS_INTEGRATION_HOST === 'vite';
 const isE2ERun = process.env.ECOPAGES_CROSS_INTEGRATION_E2E === 'true';
 
 export const app = await createApp({
-	runtime: isViteHosted
-		? {
-				embedded: true,
-				devClientOwner: 'host',
-			}
-		: undefined,
 	serverOptions: isE2ERun ? { idleTimeout: 255 } : undefined,
 });
 

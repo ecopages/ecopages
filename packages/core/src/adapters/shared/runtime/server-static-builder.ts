@@ -21,11 +21,7 @@ import {
 	haveWatchedBuildInputsChanged,
 	shouldResetStaticExportDirectory,
 } from '../../../static-site-generator/static-build-invalidation.ts';
-import {
-	assertCanBundleServerConfig,
-	bundleEcoConfigModule,
-	EMITTED_ECO_CONFIG_FILENAME,
-} from '../../../config/server-config-bundle.ts';
+import { bundleEcoConfigModule, EMITTED_ECO_CONFIG_FILENAME } from '../../../config/server-config-bundle.ts';
 import { resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../../utils/resolve-entry-file.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../../../build/contracts/build-types.ts';
@@ -180,14 +176,11 @@ export class ServerStaticBuilder {
 	 * `runtimeOutdir` and bundled `import.meta` reads resolve against the
 	 * sources from `dist/.server/`.
 	 *
-	 * Throws if the build adapter is unavailable, is owned by a host
-	 * runtime, or bundling fails.
+	 * Throws if the build adapter is unavailable or bundling fails.
 	 *
-	 * @throws If the build adapter is unavailable, is host-owned, or bundling fails.
+	 * @throws If the build adapter is unavailable or bundling fails.
 	 */
 	private async bundleServerEntry(): Promise<void> {
-		assertCanBundleServerConfig(this.appConfig);
-
 		const entryPath = path.isAbsolute(this.entryFile)
 			? this.entryFile
 			: path.join(this.appConfig.rootDir, this.entryFile);

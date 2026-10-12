@@ -22,8 +22,6 @@ import {
 	resolveRouteModuleDependencyPaths,
 	type RouteModuleDependencyHashes,
 } from './route-module-dependency-hasher.ts';
-import type { SourceModuleLoaderFactory } from './module-loading-types.ts';
-import { supportsSourceModuleLoading } from './source-module-support.ts';
 import { formatBuildLog } from '../../build/build-log.ts';
 
 interface PageModuleImportBaseOptions {
@@ -41,8 +39,6 @@ interface PageModuleImportBaseOptions {
 export interface PageModuleBuildImportOptions extends PageModuleImportBaseOptions {
 	rootDir: string;
 	outdir: string;
-	/** Use the server build pipeline even when a development host can load source modules. */
-	forceBuild?: boolean;
 	buildExecutor?: BuildExecutor;
 	splitting?: boolean;
 	externalPackages?: boolean;
@@ -69,8 +65,6 @@ export interface PageModuleBuildImportOptions extends PageModuleImportBaseOption
 export interface PageModuleImportDependencies {
 	hashFile(filePath: string): string;
 	buildModule(options: Parameters<typeof build>[0], buildExecutor?: BuildExecutor): Promise<BuildResult>;
-	canLoadSourceModuleFromHost(filePath: string): boolean;
-	getHostModuleLoader: SourceModuleLoaderFactory;
 }
 
 interface ImportCacheEntry {
@@ -87,10 +81,7 @@ type LoadModuleOptions = PageModuleBuildImportOptions & {
  * Loads page-like modules through the Ecopages build pipeline.
  *
  * This service centralizes the shared build-first import strategy used by route
- * scanning, page data loading, and request-time page inspection. In Node
- * development it can still delegate compatible source imports to the active
- * host loader, but the public contract remains one transpile-targeted module
- * loading path.
+ * scanning, page data loading, and request-time page inspection.
  *
  * Keeping this logic in one place prevents subtle drift in cache-busting,
  * transpilation settings, and error semantics across the different callers.
@@ -107,8 +98,6 @@ export class PageModuleImportService {
 		this.dependencies = {
 			hashFile: dependencies?.hashFile ?? ((filePath) => fileSystem.hash(filePath)),
 			buildModule: dependencies?.buildModule ?? ((options, buildExecutor) => build(options, buildExecutor)),
-			canLoadSourceModuleFromHost: dependencies?.canLoadSourceModuleFromHost ?? supportsSourceModuleLoading,
-			getHostModuleLoader: dependencies?.getHostModuleLoader ?? (() => undefined),
 		};
 		this.dependencyHasher = new RouteModuleDependencyHasher({
 			hashFile: (filePath) => this.dependencies.hashFile(filePath),
@@ -149,20 +138,6 @@ export class PageModuleImportService {
 		const { filePath } = options;
 
 		const fileHash = this.dependencies.hashFile(filePath);
-		const hostModuleLoader =
-			!options.forceBuild &&
-			typeof Bun === 'undefined' &&
-			process.env.NODE_ENV === 'development' &&
-			this.dependencies.canLoadSourceModuleFromHost(filePath)
-				? this.dependencies.getHostModuleLoader()
-				: undefined;
-
-		if (hostModuleLoader) {
-			const sourceModuleUrl = createRuntimeModuleUrl(filePath, fileHash, this.developmentImportGeneration);
-			const loadedModule = (await hostModuleLoader(sourceModuleUrl.href)) as T;
-			recordPageModuleLoad('host-loader');
-			return loadedModule;
-		}
 
 		if (!options.bypassCache) {
 			const runtime = typeof Bun !== 'undefined' ? 'bun' : 'node-build';
@@ -407,16 +382,6 @@ export class PageModuleImportService {
 	private getRouteModuleBuildCache(outdir: string) {
 		return getSharedRouteModuleBuildCache(outdir, this.appConfig);
 	}
-}
-
-function createRuntimeModuleUrl(filePath: string, fileHash: string, developmentImportGeneration: number): URL {
-	const moduleUrl = pathToFileURL(filePath);
-
-	if (shouldAddRuntimeUpdateQuery()) {
-		moduleUrl.searchParams.set('update', `${fileHash}-${developmentImportGeneration}`);
-	}
-
-	return moduleUrl;
 }
 
 function shouldAddRuntimeUpdateQuery(): boolean {

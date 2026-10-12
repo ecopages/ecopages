@@ -1,6 +1,5 @@
-import type { Server as NodeHttpServer } from 'node:http';
-import path from 'node:path';
 import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
+import path from 'node:path';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { entryWatcherOwnsConfig } from '../../dev/development-restart.ts';
@@ -26,10 +25,6 @@ import type { ServerAdapterResult } from '../abstract/server-adapter.ts';
 import type { StaticPreviewHost } from '../shared/runtime/static-preview-host.ts';
 
 import { ServerStaticBuilder } from '../shared/runtime/server-static-builder.ts';
-import {
-	attachNodeHttpWebSocketUpgrades,
-	type WebSocketUpgradeOptions,
-} from '../shared/ws/node-http-websocket-upgrades.ts';
 import { createBunUserWebSocketLifecycle, type BunUserWebSocketData } from './bun-user-websocket-lifecycle.ts';
 import { createEcopagesSocket } from '../shared/ws/websocket-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
@@ -81,7 +76,6 @@ export interface BunServerAdapterParams {
 	options?: {
 		watch?: boolean;
 	};
-	hostOwnsDevClient?: boolean;
 	deferRuntimeAssetSetup?: boolean;
 	allowPortFallback?: boolean;
 	onDevelopmentRestart?: (changedFile: string) => Promise<void>;
@@ -96,7 +90,6 @@ export interface BunServerAdapterResult extends ServerAdapterResult {
 	servePreviewOnly: () => Promise<string | undefined>;
 	completeInitialization: (server?: BunServerInstance | null) => Promise<void>;
 	handleRequest: (request: Request) => Promise<Response>;
-	attachUserWebSocketUpgrades: (server: NodeHttpServer, options?: WebSocketUpgradeOptions) => void;
 	dispose: () => Promise<void>;
 }
 
@@ -214,7 +207,6 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		errorHandler,
 		websocketHandlers,
 		options,
-		hostOwnsDevClient,
 		deferRuntimeAssetSetup,
 		allowPortFallback,
 		onDevelopmentRestart,
@@ -237,21 +229,9 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 		this.bridge = bridge;
 		this.hmrManager = hmrManager;
 		this.previewHost = previewHost;
-		this.hostOwnsDevClient = hostOwnsDevClient === true;
 		if (websocketHandlers) {
 			this.websocketHandlers = websocketHandlers;
 		}
-	}
-
-	/**
-	 * Wires user WebSocket routes onto a Node HTTP server used by host integrations.
-	 */
-	public attachUserWebSocketUpgrades(server: NodeHttpServer, options?: WebSocketUpgradeOptions): void {
-		attachNodeHttpWebSocketUpgrades(server, {
-			runtimeOrigin: this.runtimeOrigin,
-			websocketHandlers: this.websocketHandlers,
-			passthroughUnmatched: options?.passthroughUnmatched,
-		});
 	}
 
 	/**
@@ -646,7 +626,6 @@ export class BunServerAdapter extends SharedServerAdapter<BunServerAdapterParams
 			servePreviewOnly: this.servePreviewOnly.bind(this),
 			completeInitialization: this.completeInitialization.bind(this),
 			handleRequest: this.handleRequest.bind(this),
-			attachUserWebSocketUpgrades: this.attachUserWebSocketUpgrades.bind(this),
 			applyBoundPort: this.applyBoundPort.bind(this),
 			listStaticGenerationRoutes: (input) => this.router.listStaticGenerationRoutes(input),
 			dispose: this.dispose.bind(this),

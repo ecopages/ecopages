@@ -137,17 +137,6 @@ describe('NodeServerAdapter', () => {
 		expect(html).not.toContain("import '/_hmr_runtime.js'");
 	});
 
-	it('does not inject the HMR runtime when the host owns dev-client bootstrap', async () => {
-		const adapter = createAdapter({ hostOwnsDevClient: true });
-		adapter.setInitializedForTest();
-		adapter.setHmrManagerForTest({ isEnabled: () => true });
-
-		const response = await adapter.handleRequest(new Request('http://localhost:3000/explicit/team'));
-		const html = await response.text();
-
-		expect(html).not.toContain("import '/_hmr_runtime.js'");
-	});
-
 	it('returns 499 for normalized client aborts', async () => {
 		const adapter = createAdapter({ options: { watch: false } });
 		adapter.setInitializedForTest();
@@ -209,32 +198,33 @@ describe('NodeServerAdapter', () => {
 			upgrades.attach.mockReset();
 		});
 
-		it('forwards passthroughUnmatched when serving without watch', async () => {
+		it('attaches user upgrades without a preflight when serving without watch', async () => {
 			const adapter = createAdapter({ options: { watch: false } });
 
-			await adapter.completeInitialization(server, { passthroughUnmatched: true });
+			await adapter.completeInitialization(server);
 
 			expect(upgrades.attach).toHaveBeenCalledWith(
 				server,
-				expect.objectContaining({ passthroughUnmatched: true }),
+				expect.objectContaining({
+					runtimeOrigin: expect.any(String),
+					websocketHandlers: expect.any(Map),
+				}),
 			);
-			expect(upgrades.attach.mock.calls[0][1]).not.toHaveProperty('preflight');
+			expect(upgrades.attach.mock.calls[0]?.[1]).not.toHaveProperty('preflight');
 		});
 
-		it('forwards passthroughUnmatched alongside the HMR preflight in watch mode', async () => {
+		it('attaches the HMR preflight in watch mode', async () => {
 			const wiringDone = new Error('stop after upgrade wiring');
 			upgrades.attach.mockImplementationOnce(() => {
 				throw wiringDone;
 			});
 			const adapter = createAdapter({ options: { watch: true } });
 
-			await expect(adapter.completeInitialization(server, { passthroughUnmatched: true })).rejects.toBe(
-				wiringDone,
-			);
+			await expect(adapter.completeInitialization(server)).rejects.toBe(wiringDone);
 
 			expect(upgrades.attach).toHaveBeenCalledWith(
 				server,
-				expect.objectContaining({ passthroughUnmatched: true, preflight: expect.any(Function) }),
+				expect.objectContaining({ preflight: expect.any(Function) }),
 			);
 		});
 
@@ -265,10 +255,10 @@ describe('NodeServerAdapter', () => {
 		});
 	});
 
-	it('reloads the browser for a public-directory edit when the host owns the dev client', async () => {
+	it('reloads the browser for a public-directory edit', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.join(os.tmpdir(), 'ecopages-host-reload') });
 		appConfig.integrations = [];
-		const adapter = createAdapter({ appConfig, hostOwnsDevClient: true });
+		const adapter = createAdapter({ appConfig });
 		adapter.skipDevRouteSetupForTest();
 		const subscription = vi
 			.spyOn(ProjectWatcher.prototype, 'createWatcherSubscription')

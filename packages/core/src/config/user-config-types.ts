@@ -1,4 +1,3 @@
-import type { BuildOwnership } from '../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { AnyProcessor } from '../plugins/processor.ts';
@@ -134,7 +133,7 @@ export type EcoPagesUserConfig = {
 	processors?: AnyProcessor[];
 
 	/**
-	 * Custom Rolldown/Vite build loaders and asset transforms.
+	 * Custom Rolldown build loaders and asset transforms.
 	 */
 	loaders?: EcoBuildPlugin[];
 
@@ -171,8 +170,6 @@ export type FinalizeEcoPagesConfigOptions = {
 	 * @default `<rootDir>/eco.config.ts`
 	 */
 	configFilePath?: string;
-	/** Same as {@link LoadEcoPagesConfigOptions.buildOwnership}. */
-	buildOwnership?: BuildOwnership;
 	/**
 	 * Working directory used when `rootDir` is omitted.
 	 *
@@ -184,18 +181,4 @@ export type FinalizeEcoPagesConfigOptions = {
 export type LoadEcoPagesConfigOptions = {
 	configFile?: string;
 	cwd?: string;
-	/**
-	 * Build pipeline ownership mode.
-	 *
-	 * @default 'rolldown'
-	 *
-	 * @internal
-	 *
-	 * @remarks
-	 * For hosts only: `@ecopages/vite-plugin` passes `'vite-host'` for the config it loads for itself.
-	 * Do not pass `'vite-host'` when loading an app's own config, also inside Vite: the embedded app
-	 * still builds its browser assets with Rolldown, and the Vite host adapter throws on every build,
-	 * so the app's browser builds break.
-	 */
-	buildOwnership?: BuildOwnership;
 };

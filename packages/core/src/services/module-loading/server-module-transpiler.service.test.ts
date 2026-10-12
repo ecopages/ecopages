@@ -98,21 +98,6 @@ describe('ServerModuleTranspiler', () => {
 		]);
 	});
 
-	it('forwards an abstract host module loader into the default page import service', () => {
-		const hostModuleLoader = async (_id: string) => ({ default: { ok: true } });
-		const service = new ServerModuleTranspiler({
-			rootDir: '/bootstrap-app',
-			getBuildExecutor: () => ({ build: async () => createBuildResult() }),
-			getHostModuleLoader: () => hostModuleLoader,
-		});
-
-		const internal = service as unknown as {
-			pageModuleImportService: { dependencies: { getHostModuleLoader: () => unknown } };
-		};
-
-		assert.equal(internal.pageModuleImportService.dependencies.getHostModuleLoader(), hostModuleLoader);
-	});
-
 	it('reuses one app-owned module loader per app config', () => {
 		const appConfig = {
 			rootDir: '/app',

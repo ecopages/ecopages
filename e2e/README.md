@@ -5,7 +5,7 @@ Playwright config: root `playwright.config.ts`. Fixtures self-describe in `e2e/f
 ## Policy
 
 1. **Three tiers.** Pre-commit runs `test:pre-commit` (vitest + lint + typecheck, no Playwright). PRs run `test:ci:fast` (lint, format check, typecheck, vitest; no Playwright). Pushes to `develop` run `test:ci:e2e` (vitest + full e2e). Playwright coverage is listed in root `package.json` (`test:e2e:static`, `test:e2e:dev`, `test:e2e:kitchen-sink`).
-2. **Cross-integration certifies host/runtime parity without a full matrix.** One canonical dev project (ecopages + **node**) runs the full behavioral suite. Each other cell (ecopages+bun, vite+node, vite+bun) runs only the `@parity` document-navigation spec at `workers: 1`. Preview runs on bun and node static builds.
+2. **Cross-integration certifies runtime parity without a full matrix.** One canonical dev project (ecopages + **node**) runs the full behavioral suite. The Bun cell runs only the `@parity` document-navigation spec at `workers: 1`. Preview runs on bun and node static builds.
 3. **Rapid-navigation stays stressful.** Use `fireRapidLinkClicks` (overlapping navigations). Pacing every hop with full document waits stops testing SSR under load.
 4. **Three Playwright runs for the full suite.** `test:e2e:static` (one subprocess, parallel static/preview), `test:e2e:dev` (fixture dev servers), `test:e2e:kitchen-sink` (one subprocess per kitchen-sink cell — dev servers must not boot together). Kitchen-sink `dist/` is built once in shell before Playwright (`build:e2e:kitchen-sink`).
 5. **Preview vs dev is capability-based.** Tests move to preview only when static output can serve them. API handlers, middleware locals, WebSockets, and HMR stay on dev/HMR projects.
@@ -13,7 +13,7 @@ Playwright config: root `playwright.config.ts`. Fixtures self-describe in `e2e/f
 
 Pre-commit: `pnpm test:pre-commit`. PR CI (`.github/workflows/ci.yml`): `pnpm test:ci:fast`. `develop` e2e (`.github/workflows/ci.yml`): `pnpm test:ci:e2e`.
 
-Playwright projects (23 total) are defined in `playwright.config.ts`.
+Playwright projects (20 total) are defined in `playwright.config.ts`.
 
 ## Three runs (full suite)
 
@@ -22,7 +22,7 @@ Playwright projects (23 total) are defined in `playwright.config.ts`.
 | `pnpm build:e2e:kitchen-sink` | Build kitchen-sink `dist/` (~10s). Required before preview tests.                      |
 | `pnpm test:e2e:static`        | One `playwright test` — fixture static/preview projects (parallel).                    |
 | `pnpm test:e2e:dev`           | One Playwright run per fixture dev server (core-hmr, react, react-router, html-pages). |
-| `pnpm test:e2e:kitchen-sink`  | One Playwright run per cell (in-repo dev/parity), then isolated HMR (ecopages, Vite)   |
+| `pnpm test:e2e:kitchen-sink`  | One Playwright run per cell (in-repo dev/parity), then isolated HMR on Bun             |
 | `pnpm test:e2e`               | Build + all three runs above.                                                          |
 
 `test:e2e:pr` is a smaller local subset (drops the kitchen-sink node preview + HMR; greps canonical dev); CI does not run it. A fixture project with `runtime: 'node'` serves its static build on Node through the `ecopages` CLI, as `html-pages-node-e2e` does.
@@ -74,10 +74,10 @@ The Vitest browser regression in `packages/dev-toolbar/src/shell/build-errors.te
 
 - **Preview** — in-repo `dist/`, built before e2e; `webServer` only serves (`start-kitchen-sink-preview-server.mjs`).
 - **Canonical dev** — `cross-integration-dev-e2e` (ecopages + node), full suite.
-- **Parity** — bun, vite+node, vite+bun run only `parity.test.e2e.ts` (`@parity`), isolated `.e2e-tmp` workspace each.
-- **HMR** — `*-hmr.test.e2e.ts`, isolated `.e2e-tmp` workspace each, `workers: 1`. Specs mutate that copy, so extra Playwright workers race the writes. `test:e2e:kitchen-sink` runs it under the ecopages host on Bun (`cross-integration-hmr-e2e`) and under the Vite host on Node (`cross-integration-hmr-vite-e2e`); `cross-integration-hmr-node-e2e` is in no script. `app-entry-restart-hmr.test.e2e.ts` is collected only on the Vite project. These fixtures compile Pages on demand instead of forcing unrelated Page prewarms on every host restart. Playwright waits for the Ecopages listen log, which the Vite host prints after integration warmup and watcher initialization, not for Vite's own "ready" line.
+- **Parity** — bun runs only `parity.test.e2e.ts` (`@parity`).
+- **HMR** — `*-hmr.test.e2e.ts`, isolated `.e2e-tmp` workspace each, `workers: 1`. Specs mutate that copy, so extra Playwright workers race the writes. `test:e2e:kitchen-sink` runs the Bun project (`cross-integration-hmr-e2e`); `cross-integration-hmr-node-e2e` is in no script. These fixtures compile Pages on demand instead of forcing unrelated Page prewarms on every restart. Playwright waits for the Ecopages listen log, which is printed after integration warmup and watcher initialization.
 
-Development fixture projects default to a 60-second test timeout (`DEV_FIXTURE_TEST_TIMEOUT_MS` in `e2e/playwright/define-fixture.ts`). App-entry restart scenarios poll for up to 60 seconds after a host restart (`APP_RESTART_ASSERT_TIMEOUT_MS`); ordinary Page HMR mutations retain their 25-second allowance. The WebSocket-handler scenario waits for the lightweight API route before reading a new connection's history, avoiding repeated failed browser handshakes during host replacement. Restoration checks both Pages and the original chat history. Vite readiness also waits for its HTTP listener to bind. CSS discovery scenarios wait for the HMR connection and observe the stylesheet update on the current Page, without polling manual reloads.
+Development fixture projects default to a 60-second test timeout (`DEV_FIXTURE_TEST_TIMEOUT_MS` in `e2e/playwright/define-fixture.ts`). Ordinary Page HMR mutations retain their 25-second allowance. The WebSocket-handler scenario waits for the lightweight API route before reading a new connection's history, avoiding repeated failed browser handshakes during replacement. Restoration checks both Pages and the original chat history. CSS discovery scenarios wait for the HMR connection and observe the stylesheet update on the current Page, without polling manual reloads.
 
 Browsers stay headless for `pnpm test:all` / `pnpm test:vitest` / `pnpm test:e2e` (`playwright.config.ts` `use.headless`, Vitest `browser.headless`, `--browser.headless`). Inherited `PWDEBUG` is stripped before Playwright launches so the inspector cannot force headed Chromium (one visible tab per parallel worker). Use `pnpm test:e2e:ui` or `playwright test --headed` when you want a visible window. `--debug` still enables the inspector.
 

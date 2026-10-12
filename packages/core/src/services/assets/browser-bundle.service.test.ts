@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ViteHostBuildAdapter } from '../../build/build-adapter.ts';
 import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { createEcoComponentMetaTransform } from '../../plugins/eco-component-meta-plugin.ts';
 import { BrowserBundleService } from './browser-bundle.service.ts';
@@ -187,28 +186,6 @@ describe('BrowserBundleService', () => {
 				},
 			}),
 		);
-	});
-
-	it('fails fast when a Vite-hosted app tries to use the Bun browser bundle seam', async () => {
-		const appConfig = {
-			runtime: {},
-			loaders: new Map(),
-		} as any;
-
-		setAppBuildAdapterForTest(appConfig, new ViteHostBuildAdapter());
-		installBuildRuntime(appConfig);
-
-		const service = new BrowserBundleService(appConfig);
-
-		await expect(
-			service.bundle({
-				profile: 'browser-script',
-				entrypoints: ['/tmp/entry.ts'],
-				outdir: '/tmp/out',
-				minify: false,
-				naming: '[name].js',
-			}),
-		).rejects.toThrow(/Vite-hosted builds are owned by the host runtime/);
 	});
 });
 

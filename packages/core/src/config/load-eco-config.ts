@@ -12,8 +12,8 @@ function resolveLoaderCwd(cwd?: string): string {
 	return path.resolve(cwd ?? process.cwd());
 }
 
-function createCacheKey(configFilePath: string, buildOwnership: string, cwd: string): string {
-	return `${configFilePath}::${buildOwnership}::${cwd}`;
+function createCacheKey(configFilePath: string, cwd: string): string {
+	return `${configFilePath}::${cwd}`;
 }
 
 async function importEcoConfigModule(configFilePath: string): Promise<unknown> {
@@ -75,13 +75,13 @@ export async function loadEcoPagesUserConfig(
  * Loads and finalizes the Ecopages config for the current project.
  *
  * @remarks
- * Coalesces concurrent loads and caches by `configFilePath`, `buildOwnership`, and `cwd`.
+ * Coalesces concurrent loads and caches by `configFilePath` and `cwd`, so one
+ * config file finalizes once per process.
  */
 export async function loadEcoPagesConfig(options: LoadEcoPagesConfigOptions = {}): Promise<EcoPagesAppConfig> {
 	const cwd = resolveLoaderCwd(options.cwd);
 	const configFilePath = resolveEcoConfigPath({ ...options, cwd });
-	const buildOwnership = options.buildOwnership ?? 'rolldown';
-	const cacheKey = createCacheKey(configFilePath, buildOwnership, cwd);
+	const cacheKey = createCacheKey(configFilePath, cwd);
 
 	const cached = appConfigCache.get(cacheKey);
 	if (cached) {
@@ -89,7 +89,7 @@ export async function loadEcoPagesConfig(options: LoadEcoPagesConfigOptions = {}
 	}
 
 	const loadPromise = loadConfigModule(configFilePath).then((userConfig) =>
-		finalizeEcoPagesConfig(userConfig, { configFilePath, buildOwnership: options.buildOwnership, cwd }),
+		finalizeEcoPagesConfig(userConfig, { configFilePath, cwd }),
 	);
 
 	appConfigCache.set(cacheKey, loadPromise);

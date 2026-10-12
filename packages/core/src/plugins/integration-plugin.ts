@@ -193,8 +193,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 *   graph, so each one builds on first load.
 	 * - The result is cached by the file's content hash, so editing another file it reads does
 	 *   not invalidate it.
-	 * - Vite-hosted development imports files whose last extension is a JavaScript one (such
-	 *   as `.tpl.ts`) itself and never calls this.
 	 */
 	compilePageModule?(filePath: string, appConfig: EcoPagesAppConfig): EcoPageFile | Promise<EcoPageFile>;
 

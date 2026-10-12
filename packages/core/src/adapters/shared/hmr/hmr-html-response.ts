@@ -20,15 +20,7 @@ export function isHtmlResponse(response: Response): boolean {
  * responses flow through different layers, but both need identical injection
  * behavior in watch mode.
  */
-export function shouldInjectHmrHtmlResponse(
-	watch: boolean,
-	hmrManager?: Pick<IHmrManager, 'isEnabled'>,
-	hostOwnsDevClient = false,
-): boolean {
-	if (hostOwnsDevClient) {
-		return false;
-	}
-
+export function shouldInjectHmrHtmlResponse(watch: boolean, hmrManager?: Pick<IHmrManager, 'isEnabled'>): boolean {
 	return watch && hmrManager?.isEnabled() === true;
 }
 
@@ -38,8 +30,7 @@ export function shouldInjectHmrHtmlResponse(
  * @remarks
  * The page cache answers with its strategy's `Cache-Control`, a year and `immutable` for `static`. In
  * development that lets the browser keep a document after an edit changes it, such as a new stylesheet link
- * from a discovered dependency. It applies whoever owns the dev client: a host that injects its own client,
- * such as the Vite host, passes the headers on unchanged.
+ * from a discovered dependency. Development HTML is sent with `no-store` so the browser loads the new document.
  */
 export function withUncachedDevHtml(response: Response): Response {
 	const headers = new Headers(response.headers);

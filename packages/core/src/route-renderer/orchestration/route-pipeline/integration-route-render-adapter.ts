@@ -27,7 +27,6 @@ export type IntegrationRouteRenderAdapterHost<C> = {
 	readonly name: string;
 	readonly appConfig: EcoPagesAppConfig;
 	readonly watch: boolean;
-	readonly hostOwnsDevClient?: boolean;
 	resolveRouteRenderInputs(routeOptions: RouteRendererOptions): Promise<RouteRenderOrchestratorResolvedInputs>;
 	resolveRouteDependencies(input: {
 		components: (EcoComponent | Partial<EcoComponent>)[];
@@ -78,7 +77,6 @@ export function createIntegrationRouteRenderAdapter<C>(
 			buildRouteHtmlFinalization({
 				appConfig: host.appConfig,
 				watch: host.watch,
-				hostOwnsDevClient: host.hostOwnsDevClient,
 				integrationName: host.name,
 				renderOptions,
 				getDocumentAttributes: (options) => host.getDocumentAttributes(options),

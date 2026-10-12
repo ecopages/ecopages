@@ -2,7 +2,6 @@ import type { BuildExecutor } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import type { AppModuleLoader } from './app-module-loader.service.ts';
 import { PageModuleImportService, type PageModuleBuildImportOptions } from './page-module-import.service.ts';
-import type { SourceModuleLoaderFactory } from './module-loading-types.ts';
 
 export type ServerModuleTranspilerOptions = Omit<PageModuleBuildImportOptions, 'rootDir' | 'buildExecutor'>;
 
@@ -19,8 +18,6 @@ export type ServerModuleImportDependency = Pick<AppModuleLoader, 'importModule'>
 export type ServerModuleTranspilerBootstrapArgs = {
 	rootDir: string;
 	getBuildExecutor?: () => BuildExecutor | undefined;
-	canLoadSourceModuleFromHost?: (filePath: string) => boolean;
-	getHostModuleLoader?: SourceModuleLoaderFactory;
 	pageModuleImportService?: ServerModuleImportDependency;
 	/** Factory evaluated on each importModule call to produce plugins applied to every load. */
 	getDefaultPlugins?: () => EcoBuildPlugin[];
@@ -44,12 +41,7 @@ export class ServerModuleTranspiler {
 	 * context.
 	 */
 	constructor(args: ServerModuleTranspilerBootstrapArgs) {
-		this.pageModuleImportService =
-			args.pageModuleImportService ??
-			new PageModuleImportService(undefined, {
-				canLoadSourceModuleFromHost: args.canLoadSourceModuleFromHost,
-				getHostModuleLoader: args.getHostModuleLoader,
-			});
+		this.pageModuleImportService = args.pageModuleImportService ?? new PageModuleImportService(undefined);
 		this.getRootDir = () => args.rootDir;
 		this.getBuildExecutor = args.getBuildExecutor ?? (() => undefined);
 		this.getDefaultPlugins = args.getDefaultPlugins ?? (() => []);

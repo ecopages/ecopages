@@ -10,14 +10,12 @@ import {
 	getAppBuildAdapter,
 	getAppBuildManifest,
 	getAppBrowserBuildPlugins,
-	getDefaultBuildAdapter,
 	getAppServerBuildPlugins,
 	setAppBuildAdapter,
 	setAppBuildManifest,
 	setupAppRuntimePlugins,
 	ensureIntegrationRuntimeReady,
 	updateAppBuildManifest,
-	ViteHostBuildAdapter,
 } from './build-adapter.ts';
 import { RolldownBuildAdapter } from './rolldown/rolldown-build-adapter.ts';
 import { createBrowserRuntimeManifest } from './browser/browser-runtime-manifest.ts';
@@ -29,46 +27,10 @@ test('defaultBuildAdapter is the RolldownBuildAdapter', () => {
 	assert.equal(defaultBuildAdapter.ownership, 'rolldown');
 });
 
-test('createBuildAdapter with ownership: "rolldown" returns the RolldownBuildAdapter', () => {
-	const rolldownAdapter = createBuildAdapter({ ownership: 'rolldown' });
+test('createBuildAdapter returns the RolldownBuildAdapter', () => {
+	const rolldownAdapter = createBuildAdapter();
 	assert.ok(rolldownAdapter instanceof RolldownBuildAdapter);
 	assert.equal(rolldownAdapter.ownership, 'rolldown');
-});
-
-test('createBuildAdapter with no ownership defaults to Rolldown', () => {
-	const defaultAdapter = createBuildAdapter();
-	assert.ok(defaultAdapter instanceof RolldownBuildAdapter);
-});
-
-test('createBuildAdapter with ownership: "vite-host" returns the ViteHostBuildAdapter', () => {
-	const viteAdapter = createBuildAdapter({ ownership: 'vite-host' });
-	const defaultViteAdapter = getDefaultBuildAdapter('vite-host');
-
-	assert.ok(viteAdapter instanceof ViteHostBuildAdapter);
-	assert.equal(viteAdapter.ownership, 'vite-host');
-	assert.ok(defaultViteAdapter instanceof ViteHostBuildAdapter);
-	assert.equal(defaultViteAdapter.ownership, 'vite-host');
-});
-
-test('ViteHostBuildAdapter rejects core-owned execution attempts', async () => {
-	const adapter = new ViteHostBuildAdapter();
-
-	await assert.rejects(
-		adapter.build({
-			environment: 'browser' as const,
-			entrypoints: ['/tmp/entry.ts'],
-			root: '/tmp',
-			outdir: '/tmp/out',
-			target: 'browser',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-		}),
-		/Vite-hosted builds are owned by the host runtime/,
-	);
-	assert.throws(() => adapter.resolve('react', '/tmp'), /Vite-hosted builds are owned by the host runtime/);
-	assert.throws(() => adapter.getTranspileOptions('browser'), /Vite-hosted builds are owned by the host runtime/);
 });
 
 test('build helper accepts an explicit executor across package and relative build-adapter imports', async () => {

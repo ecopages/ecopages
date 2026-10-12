@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { getAppBuildOwnership } from '../build/build-adapter.ts';
+import { pathToFileURL } from 'node:url';
 import { defineConfig } from './define-config.ts';
 import { finalizeEcoPagesConfig } from './finalize-config.ts';
 import { clearEcoPagesConfigCachesForTests, loadEcoPagesConfig, loadEcoPagesUserConfig } from './load-eco-config.ts';
@@ -120,6 +120,7 @@ describe('loadEcoPagesConfig', () => {
 	afterEach(() => {
 		fs.rmSync(tempDir, { recursive: true, force: true });
 		clearEcoPagesConfigCachesForTests();
+		delete (globalThis as { __ecoPrepareCalls?: () => number }).__ecoPrepareCalls;
 		if (originalEnv === undefined) {
 			delete process.env[ECOPAGES_CONFIG_FILE_ENV];
 		} else {
@@ -150,22 +151,28 @@ describe('loadEcoPagesConfig', () => {
 		expect(appConfig.absolutePaths.configModuleFiles.sort()).toEqual([configPath, optionsPath].sort());
 	});
 
-	it('takes build ownership from the loader option, not from the config module', async () => {
+	it('finalizes one config file once per process', async () => {
+		const processorModule = pathToFileURL(path.join(import.meta.dirname, '../plugins/processor.ts')).href;
 		const configPath = path.join(tempDir, 'eco.config.ts');
 		fs.writeFileSync(
 			configPath,
-			`export default { rootDir: ${JSON.stringify(tempDir)}, buildOwnership: 'vite-host' };`,
+			[
+				`import { Processor } from ${JSON.stringify(processorModule)};`,
+				'let preparations = 0;',
+				'globalThis.__ecoPrepareCalls = () => preparations;',
+				'class CountingProcessor extends Processor {',
+				"  constructor() { super({ name: 'counting' }); }",
+				'  override async prepareBuildContributions() { preparations += 1; }',
+				'}',
+				`export default { rootDir: ${JSON.stringify(tempDir)}, processors: [new CountingProcessor()] };`,
+			].join('\n'),
 		);
 
-		const appConfig = await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
-		const hostConfig = await loadEcoPagesConfig({
-			cwd: tempDir,
-			configFile: configPath,
-			buildOwnership: 'vite-host',
-		});
+		const first = await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
+		const second = await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
 
-		expect(getAppBuildOwnership(appConfig)).toBe('rolldown');
-		expect(getAppBuildOwnership(hostConfig)).toBe('vite-host');
+		expect(second).toBe(first);
+		expect((globalThis as { __ecoPrepareCalls?: () => number }).__ecoPrepareCalls?.()).toBe(1);
 	});
 
 	it('defaults omitted rootDir to the loader cwd', async () => {

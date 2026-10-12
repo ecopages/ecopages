@@ -1,9 +1,12 @@
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
 import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import chokidar from 'chokidar';
 import { ProjectWatcher } from './project-watcher';
 import type { EcoPagesAppConfig } from '../types/internal-types';
+import type { ProcessorWatchConfig } from '../plugins/processor.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers';
 
@@ -41,6 +44,56 @@ describe('ProjectWatcher - Integration Tests', () => {
 			rmSync(TEST_ROOT, { recursive: true, force: true });
 		}
 		vi.restoreAllMocks();
+	});
+
+	describe('Recursive source subscription', () => {
+		test('watches files added under nested srcDir directories', async () => {
+			const testId = 'nested-source-files';
+			const config = await createIntegrationConfig(testId);
+			const sourceDirectory = path.join(config.absolutePaths.srcDir, 'lib');
+			mkdirSync(sourceDirectory, { recursive: true });
+			const watchEvents: Array<{ kind: 'created' | 'changed'; path: string }> = [];
+			const watchConfig: ProcessorWatchConfig = {
+				paths: [],
+				extensions: ['.ts'],
+				onChanges: async ({ created, changed }) => {
+					for (const changedPath of created) {
+						watchEvents.push({ kind: 'created', path: changedPath });
+					}
+					for (const changedPath of changed) {
+						watchEvents.push({ kind: 'changed', path: changedPath });
+					}
+				},
+			};
+			config.processors.set('startup-watch-test', { getWatchConfig: () => watchConfig } as never);
+			const hmrManager = createMockHmrManager();
+			const bridge = createMockBridge();
+			const watcher = new ProjectWatcher({
+				config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager,
+				bridge,
+				changeDebounceMs: 0,
+			});
+
+			try {
+				const fileWatcher = await watcher.createWatcherSubscription();
+				await vi.waitFor(() => expect(fileWatcher.getWatched()).toHaveProperty(sourceDirectory));
+				expect(watchEvents).toEqual([]);
+				const newFile = path.join(sourceDirectory, 'new-post.ts');
+				writeTestFile(newFile, 'export const newPost = {};\n');
+				await vi.waitFor(
+					() => expect(watchEvents).toContainEqual({ kind: 'created', path: path.resolve(newFile) }),
+					{ timeout: 3000 },
+				);
+				expect(watchEvents).toEqual([{ kind: 'created', path: path.resolve(newFile) }]);
+			} finally {
+				await watcher.close();
+			}
+
+			expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(bridge.reload).toHaveBeenCalledOnce();
+		});
 	});
 
 	describe('Public Directory File Operations', () => {
@@ -209,6 +262,77 @@ describe('ProjectWatcher - Integration Tests', () => {
 	});
 
 	describe('File Change Detection Integration', () => {
+		test('notifies a processor once with created and changed paths in the debounce window', async () => {
+			const testId = 'processor-watch-batch';
+			const config = await createIntegrationConfig(testId);
+			const hmrManager = createMockHmrManager();
+			const bridge = createMockBridge();
+			const onChanges = vi.fn(async () => {});
+			config.processors.set('batch-test', {
+				getWatchConfig: () => ({
+					paths: [],
+					extensions: ['.css', '.tsx'],
+					onChanges,
+				}),
+			} as never);
+			const watcherEvents = Object.assign(new EventEmitter(), {
+				add: vi.fn(),
+				close: vi.fn(async () => {}),
+				getWatched: vi.fn(() => ({})),
+			});
+			vi.spyOn(chokidar, 'watch').mockImplementation(() => {
+				setTimeout(() => watcherEvents.emit('ready'), 0);
+				return watcherEvents as never;
+			});
+			const watcher = new ProjectWatcher({
+				config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager,
+				bridge,
+				changeDebounceMs: 40,
+			});
+
+			const createdPath = path.join(config.absolutePaths.srcDir, 'created.css');
+			const changedPath = path.join(config.absolutePaths.srcDir, 'changed.tsx');
+			const deletedPath = path.join(config.absolutePaths.srcDir, 'deleted.css');
+			const ignoredPath = path.join(config.absolutePaths.srcDir, 'ignored.mdx');
+			writeTestFile(changedPath, 'export const Changed = () => 0;');
+			writeTestFile(deletedPath, '.deleted { color: red; }');
+			writeTestFile(ignoredPath, '# Before');
+
+			try {
+				await watcher.createWatcherSubscription();
+				writeTestFile(createdPath, '.created { color: red; }');
+				writeTestFile(changedPath, 'export const Changed = () => 1;');
+				writeTestFile(ignoredPath, '# After');
+				rmSync(deletedPath);
+				watcherEvents.emit('add', createdPath);
+				watcherEvents.emit('change', changedPath);
+				watcherEvents.emit('change', ignoredPath);
+				watcherEvents.emit('unlink', deletedPath);
+				await vi.waitFor(
+					() =>
+						expect(onChanges).toHaveBeenCalledWith({
+							created: [path.resolve(createdPath)],
+							changed: [path.resolve(changedPath)],
+							deleted: [path.resolve(deletedPath)],
+							bridge,
+						}),
+					{ timeout: 2000 },
+				);
+			} finally {
+				await watcher.close();
+			}
+
+			expect(onChanges).toHaveBeenCalledTimes(1);
+			expect(onChanges).toHaveBeenCalledWith({
+				created: [path.resolve(createdPath)],
+				changed: [path.resolve(changedPath)],
+				deleted: [path.resolve(deletedPath)],
+				bridge,
+			});
+		});
+
 		test('should handle public file through handleFileChange', async () => {
 			const testId = 'handle-public-change';
 			const config = await createIntegrationConfig(testId);
@@ -344,14 +468,14 @@ describe('ProjectWatcher - Integration Tests', () => {
 			const config = await createIntegrationConfig(testId);
 			const hmrManager = createMockHmrManager();
 			const bridge = createMockBridge();
-			const onChange = vi.fn(async () => {});
+			const onChanges = vi.fn(async () => {});
 
 			config.processors.set('content', {
 				getAssetCapabilities: vi.fn(() => []),
 				getWatchConfig: vi.fn(() => ({
 					paths: [path.join(config.absolutePaths.srcDir, 'content', 'docs')],
 					extensions: ['mdx'],
-					onChange,
+					onChanges,
 				})),
 			} as never);
 
@@ -368,7 +492,12 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			await (watcher as any).processFileChange(mdxPath, 'change');
 
-			expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ path: path.resolve(mdxPath), bridge }));
+			expect(onChanges).toHaveBeenCalledWith({
+				created: [],
+				changed: [path.resolve(mdxPath)],
+				deleted: [],
+				bridge,
+			});
 			expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
 			expect(bridge.reload).toHaveBeenCalledTimes(1);
 		});

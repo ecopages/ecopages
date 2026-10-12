@@ -30,6 +30,7 @@ import { recordRolldownBuildInvocation } from './rolldown-build-invocation-metri
 import { createEntryModuleClosuresPlugin } from './entry-module-closures.ts';
 import type { BuildDependencyGraph } from '../build-adapter.ts';
 import { resolveTranspileOptions } from '../runtime/build-environment-options.ts';
+import { createBuildInputRecorder, getBuildInputRecordingContext } from '../cache/build-input-dependency-index.ts';
 
 const moduleRequire = createRequire(import.meta.url);
 
@@ -53,12 +54,17 @@ export class RolldownBuildAdapter implements BuildAdapter {
 		recordRolldownBuildInvocation('rolldown');
 		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
 		const outdir = path.resolve(options.outdir ?? 'dist/assets');
+		const recordingContext = getBuildInputRecordingContext();
+		const loadedInputs = new Set<string>();
+		const loadedInputsByModule = new Map<string, Set<string>>();
+		const recordBuildInput = createBuildInputRecorder(recordingContext, loadedInputs, loadedInputsByModule);
 
 		const { inputOptions, outputOptions } = await resolveRolldownOptions(
 			options,
 			contextRoot,
 			outdir,
 			this.appRootRequireCache,
+			recordBuildInput,
 		);
 
 		const dependencyGraph: BuildDependencyGraph = { entrypoints: {} };
@@ -78,6 +84,10 @@ export class RolldownBuildAdapter implements BuildAdapter {
 
 		return {
 			...buildResultFromRolldownOutput(output, outdir, contextRoot, dependencyGraph, options.entrypoints),
+			loadedInputs: [...loadedInputs],
+			loadedInputsByModule: Object.fromEntries(
+				[...loadedInputsByModule].map(([moduleId, paths]) => [moduleId, [...paths]]),
+			),
 			warnings,
 		};
 	}

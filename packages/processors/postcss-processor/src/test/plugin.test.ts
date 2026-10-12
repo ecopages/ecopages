@@ -69,8 +69,8 @@ describe('PostCssProcessorPlugin HMR', () => {
 		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
 
 		const watchConfig = plugin.getWatchConfig();
-		if (watchConfig && watchConfig.onChange) {
-			await watchConfig.onChange({ path: cssFile, bridge: Bridge });
+		if (watchConfig && watchConfig.onChanges) {
+			await watchConfig.onChanges({ created: [], changed: [cssFile], deleted: [], bridge: Bridge });
 		} else {
 			throw new Error('Plugin does not have watch handler');
 		}
@@ -133,12 +133,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 
 		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
+		if (!watchConfig?.onChanges) {
 			throw new Error('Plugin does not have watch handler');
 		}
 
 		activeColor = 'blue';
-		await watchConfig.onChange({ path: dependencyFile, bridge: Bridge });
+		await watchConfig.onChanges({ created: [], changed: [dependencyFile], deleted: [], bridge: Bridge });
 
 		const outputFile = path.join(DIST_DIR, 'assets', 'style.css');
 		const outputContent = fs.readFileSync(outputFile, 'utf-8');
@@ -154,7 +154,9 @@ describe('PostCssProcessorPlugin HMR', () => {
 		const entryFile = path.join(stylesDir, 'tailwind.css');
 		const themeFile = path.join(stylesDir, 'partials', 'theme.css');
 		const proseFile = path.join(stylesDir, 'partials', 'prose.css');
-		const dependencyFile = path.join(SRC_DIR, 'entry-trigger.mdx');
+		const dependencyFiles = Array.from({ length: 50 }, (_, index) =>
+			path.join(SRC_DIR, `entry-trigger-${index}.tsx`),
+		);
 
 		fs.writeFileSync(themeFile, '.theme { color: red; }');
 		fs.writeFileSync(proseFile, '.prose { color: blue; }');
@@ -162,9 +164,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 			entryFile,
 			`@import './partials/theme.css';\n@import './partials/prose.css';\n.root { display: flex; color: red; }`,
 		);
-		fs.writeFileSync(dependencyFile, '# trigger');
+		for (const dependencyFile of dependencyFiles) {
+			fs.writeFileSync(dependencyFile, 'export const Component = () => null;');
+		}
 
 		let activeColor = 'red';
+		let pluginFactoryCalls = 0;
 
 		const plugin = new PostCssProcessorPlugin({
 			options: {
@@ -172,6 +177,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 				dependencyEntryPaths: [entryFile],
 				pluginFactories: {
 					'test-color-plugin': () => {
+						pluginFactoryCalls += 1;
 						const colorAtCreation = activeColor;
 
 						return {
@@ -207,15 +213,77 @@ describe('PostCssProcessorPlugin HMR', () => {
 
 		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
+		if (!watchConfig?.onChanges) {
 			throw new Error('Plugin does not have watch handler');
 		}
 
 		activeColor = 'purple';
-		await watchConfig.onChange({ path: dependencyFile, bridge: Bridge });
+		const callsBeforeChange = pluginFactoryCalls;
+		const processSpy = vi.spyOn(plugin, 'process');
+		await watchConfig.onChanges({ created: [], changed: dependencyFiles, deleted: [], bridge: Bridge });
 
+		expect(pluginFactoryCalls).toBe(callsBeforeChange + 1);
+		expect(processSpy).toHaveBeenCalledTimes(1);
+		expect(processSpy).toHaveBeenCalledWith(expect.any(String), entryFile);
 		expect(bridgeSpy).toHaveBeenCalledTimes(1);
 		expect(bridgeSpy).toHaveBeenCalledWith(entryFile);
+	});
+
+	test('created and deleted CSS in one batch rebuilds the remaining CSS entry once', async () => {
+		const deletedCssFile = path.join(SRC_DIR, 'batch-lifecycle-deleted.css');
+		const createdCssFile = path.join(SRC_DIR, 'batch-lifecycle-created.css');
+		const remainingCssFile = path.join(SRC_DIR, 'batch-lifecycle-remaining.css');
+		fs.writeFileSync(deletedCssFile, '.deleted { color: red; }');
+		fs.writeFileSync(remainingCssFile, '.remaining { color: green; }');
+
+		const plugin = new PostCssProcessorPlugin({
+			options: {
+				filter: /batch-lifecycle.*\.css$/,
+			},
+		});
+		const config = await finalizeEcoPagesConfig({
+			rootDir: TMP_DIR,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
+		plugin.setContext(config);
+		await plugin.setup();
+
+		fs.rmSync(deletedCssFile);
+		fs.writeFileSync(createdCssFile, '.created { color: blue; }');
+
+		const Bridge = {
+			cssUpdate: () => {},
+			error: (msg: string) => {
+				throw new Error(msg);
+			},
+			reload: () => {},
+		} as unknown as IClientBridge;
+		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
+		const processSpy = vi.spyOn(plugin, 'process');
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onChanges) {
+			throw new Error('Plugin does not have watch handler');
+		}
+
+		await watchConfig.onChanges({
+			created: [createdCssFile],
+			changed: [],
+			deleted: [deletedCssFile],
+			bridge: Bridge,
+		});
+
+		expect(processSpy).toHaveBeenCalledTimes(2);
+		expect(processSpy.mock.calls.map(([, filePath]) => filePath).sort()).toEqual(
+			[createdCssFile, remainingCssFile].sort(),
+		);
+		expect(bridgeSpy).toHaveBeenCalledTimes(2);
+		expect(bridgeSpy).toHaveBeenCalledWith(createdCssFile);
+		expect(bridgeSpy).toHaveBeenCalledWith(remainingCssFile);
+		expect(fs.readFileSync(path.join(DIST_DIR, 'assets', 'batch-lifecycle-created.css'), 'utf-8')).toContain(
+			'.created',
+		);
 	});
 
 	test('setup should use configured plugins initially and pluginFactories for rebuilds', async () => {
@@ -279,12 +347,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 		} as unknown as IClientBridge;
 
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
+		if (!watchConfig?.onChanges) {
 			throw new Error('Plugin does not have watch handler');
 		}
 
 		refreshedColor = 'purple';
-		await watchConfig.onChange({ path: dependencyFile, bridge: Bridge });
+		await watchConfig.onChanges({ created: [], changed: [dependencyFile], deleted: [], bridge: Bridge });
 
 		const outputFile = path.join(DIST_DIR, 'assets', 'factory-precedence.css');
 		const outputContent = fs.readFileSync(outputFile, 'utf-8');
@@ -360,11 +428,11 @@ describe('PostCssProcessorPlugin HMR', () => {
 		fs.writeFileSync(importedFile, '.component { color: blue; }');
 
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
+		if (!watchConfig?.onChanges) {
 			throw new Error('Plugin does not have watch handler');
 		}
 
-		await watchConfig.onChange({ path: importedFile, bridge: Bridge });
+		await watchConfig.onChanges({ created: [], changed: [importedFile], deleted: [], bridge: Bridge });
 
 		// css-update should be broadcast for the ENTRY file, not the imported file
 		expect(bridgeSpy).toHaveBeenCalledWith(entryFile);
@@ -415,11 +483,11 @@ describe('PostCssProcessorPlugin HMR', () => {
 		fs.writeFileSync(deepFile, '.deep { color: purple; }');
 
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
+		if (!watchConfig?.onChanges) {
 			throw new Error('Plugin does not have watch handler');
 		}
 
-		await watchConfig.onChange({ path: deepFile, bridge: Bridge });
+		await watchConfig.onChanges({ created: [], changed: [deepFile], deleted: [], bridge: Bridge });
 
 		// css-update should be broadcast for the ancestor entry files, not the leaf dependency
 		expect(bridgeSpy).toHaveBeenCalledWith(entryFile);
@@ -464,11 +532,11 @@ describe('PostCssProcessorPlugin HMR', () => {
 		fs.writeFileSync(standaloneFile, '.standalone { color: blue; }');
 
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
+		if (!watchConfig?.onChanges) {
 			throw new Error('Plugin does not have watch handler');
 		}
 
-		await watchConfig.onChange({ path: standaloneFile, bridge: Bridge });
+		await watchConfig.onChanges({ created: [], changed: [standaloneFile], deleted: [], bridge: Bridge });
 
 		// css-update should be broadcast directly for the standalone file
 		expect(bridgeSpy).toHaveBeenCalledWith(standaloneFile);

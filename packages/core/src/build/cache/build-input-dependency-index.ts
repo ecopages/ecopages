@@ -3,12 +3,15 @@ import path from 'node:path';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 
 const activeIndex = new AsyncLocalStorage<BuildInputDependencyIndex>();
-const collectedInputs = new AsyncLocalStorage<Set<string>>();
+
+export type BuildInputRecordingContext = {
+	index: BuildInputDependencyIndex | undefined;
+};
 
 /**
  * Cached result kinds that share one reverse index from recorded build inputs.
  */
-export type BuildInputConsumer = 'page-browser-graph' | 'html-cache' | 'entrypoint';
+export type BuildInputConsumer = 'page-browser-graph' | 'html-cache' | 'entrypoint' | 'server-route-module';
 
 /**
  * One cached result bound to the files it read.
@@ -28,7 +31,7 @@ function normalizeSourcePath(filePath: string): string {
 
 /**
  * Reverse index from recorded filesystem inputs to Page Browser Graphs, HTML
- * cache entries, and browser entrypoints.
+ * cache entries, browser entrypoints, and server route modules.
  *
  * @remarks
  * `register` unbinds the previous set for that result before binding the next,
@@ -162,6 +165,11 @@ export class BuildInputDependencyIndex {
 			.map((binding) => binding.key);
 	}
 
+	/** Returns source paths bound to one cached result. */
+	sourcePaths(binding: BuildInputBinding): string[] {
+		return [...(this.bindingToSources.get(bindingId(binding)) ?? [])];
+	}
+
 	/**
 	 * Returns whether any cached result recorded `filePath`.
 	 */
@@ -226,30 +234,41 @@ export class BuildInputDependencyIndex {
 const indexByAppConfig = new WeakMap<EcoPagesAppConfig, BuildInputDependencyIndex>();
 
 /**
- * Records a filesystem path the current build read.
- *
- * @remarks
- * No-op when no index is active. Plugin loads always also call Rolldown
- * `this.addWatchFile` when that method exists.
+ * Captures the current build-input targets before handing plugin hooks to a bundler.
  */
-export function recordLoadedBuildInput(filePath: string): void {
-	const normalized = path.resolve(filePath);
-	collectedInputs.getStore()?.add(normalized);
-	activeIndex.getStore()?.recordWatchPath(normalized);
+export function getBuildInputRecordingContext(): BuildInputRecordingContext {
+	return {
+		index: activeIndex.getStore(),
+	};
 }
 
 /**
- * Extra filesystem paths `addDependency` recorded during the current build.
+ * Creates a recorder whose writes stay attached to a captured build context.
+ *
+ * @remarks
+ * Rolldown plugin hooks may run outside the caller's AsyncLocalStorage context,
+ * so the recorder closes over the targets captured before the build starts.
  */
-export function collectedLoadedBuildInputs(): readonly string[] {
-	return [...(collectedInputs.getStore() ?? [])];
+export function createBuildInputRecorder(
+	context: BuildInputRecordingContext,
+	loadedInputs: Set<string>,
+	loadedInputsByModule: Map<string, Set<string>>,
+): (moduleId: string, filePath: string) => void {
+	return (moduleId, filePath) => {
+		const normalized = path.resolve(filePath);
+		loadedInputs.add(normalized);
+		const moduleInputs = loadedInputsByModule.get(moduleId) ?? new Set<string>();
+		moduleInputs.add(normalized);
+		loadedInputsByModule.set(moduleId, moduleInputs);
+		context.index?.recordWatchPath(normalized);
+	};
 }
 
 /**
  * Runs `fn` with `index` receiving every `addDependency` and loaded path.
  */
 export function runWithBuildInputIndex<T>(index: BuildInputDependencyIndex, fn: () => T): T {
-	return activeIndex.run(index, () => collectedInputs.run(new Set(), fn));
+	return activeIndex.run(index, fn);
 }
 
 /**

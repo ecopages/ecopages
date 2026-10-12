@@ -65,9 +65,15 @@ describe('RouteModuleDependencyHasher', () => {
 	it('resolves dependency paths from build results', () => {
 		const dependencyPaths = resolveRouteModuleDependencyPaths(
 			{
+				loadedInputs: ['/app/data/posts.json'],
 				dependencyGraph: {
 					entrypoints: {
-						'/app/pages/about.tsx': ['/app/pages/about.tsx', '/app/layouts/shared.tsx', 'node:fs'],
+						'/app/pages/about.tsx': [
+							'/app/pages/about.tsx',
+							'/app/layouts/shared.tsx',
+							'node:fs',
+							'/app/node_modules/react/index.js',
+						],
 					},
 				},
 			},
@@ -75,6 +81,6 @@ describe('RouteModuleDependencyHasher', () => {
 			'/app',
 		);
 
-		assert.deepEqual(dependencyPaths, ['/app/pages/about.tsx', '/app/layouts/shared.tsx', 'node:fs']);
+		assert.deepEqual(dependencyPaths, ['/app/pages/about.tsx', '/app/layouts/shared.tsx', '/app/data/posts.json']);
 	});
 });

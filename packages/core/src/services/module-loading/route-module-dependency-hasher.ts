@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { BuildResult } from '../../build/build-adapter.ts';
-import { resolveBuildEntryPath } from '../../build/build-graph.ts';
+import { collectBuildEntryInputPaths } from '../../build/build-graph.ts';
 
 /**
  * Content hashes for every trackable source file in one route module's import graph.
@@ -170,19 +170,11 @@ export function filterTrackableRouteModuleDependencies(modulePaths: readonly str
  * @returns Normalized module paths, falling back to the entrypoint when no graph is available.
  */
 export function resolveRouteModuleDependencyPaths(
-	buildResult: Pick<BuildResult, 'dependencyGraph'>,
+	buildResult: Pick<BuildResult, 'dependencyGraph' | 'loadedInputs' | 'loadedInputsByModule'>,
 	entrypointPath: string,
 	rootDir: string,
 ): string[] {
-	const normalizedEntrypoint = resolveBuildEntryPath(entrypointPath, rootDir);
-
-	const dependencyPaths = buildResult.dependencyGraph?.entrypoints[normalizedEntrypoint];
-
-	if (!dependencyPaths || dependencyPaths.length === 0) {
-		return [normalizedEntrypoint];
-	}
-
-	return dependencyPaths;
+	return collectBuildEntryInputPaths(buildResult, entrypointPath, rootDir);
 }
 
 /**
@@ -190,7 +182,7 @@ export function resolveRouteModuleDependencyPaths(
  */
 export function createRouteModuleDependencyHashes(
 	hasher: RouteModuleDependencyHasher,
-	buildResult: Pick<BuildResult, 'dependencyGraph'>,
+	buildResult: Pick<BuildResult, 'dependencyGraph' | 'loadedInputs' | 'loadedInputsByModule'>,
 	entrypointPath: string,
 	rootDir: string,
 ): RouteModuleDependencyHashes {

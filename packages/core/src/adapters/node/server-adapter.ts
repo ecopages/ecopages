@@ -368,8 +368,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				errorPageLoaders: this.errorPageLoaders,
 			});
 
-			await this.startDevStaticRoutePrewarmWhenReady();
-
 			const watcher = new ProjectWatcher({
 				config: this.appConfig,
 				refreshRouterRoutesCallback: this.createSharedWatchRefreshCallback({
@@ -391,6 +389,8 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				websocketHandlers: this.websocketHandlers,
 			});
 		}
+
+		this.startDevStaticRoutePrewarmWhenReady();
 
 		appLogger.debug('Node server adapter initialization completed', {
 			apiHandlers: this.apiHandlers.length,

@@ -5,11 +5,13 @@ import * as fs from 'node:fs';
 import * as launchPlan from './launch-plan.js';
 import * as childProcess from 'node:child_process';
 import path from 'node:path';
+import os from 'node:os';
 import * as prompts from '@clack/prompts';
 import {
 	ECOPAGES_DEV_RESTART_EXIT_CODE,
 	ECOPAGES_DEV_RESTART_REASON_ENV,
 } from '@ecopages/core/dev/development-restart';
+import { DEVELOPMENT_RESTART_WATCH_SET_FILENAME } from '@ecopages/core/dev/development-restart-watch-paths';
 
 const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
 const cliVersionTag = `v${pkg.version}`;
@@ -254,6 +256,54 @@ describe('CLI Commands', () => {
 		return vi.mocked(fs.watch).mock.calls[0]?.[1] as unknown as (event: string, file: string) => void;
 	}
 
+	function createRestartWatchSetProject({ persistWatchSet = true } = {}) {
+		const originalCwd = process.cwd();
+		const rootDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eco-cli-restart-watch-set-')));
+		const workspaceRoot = path.join(rootDir, 'linked-ui');
+		const configPath = path.join(rootDir, 'eco.config.ts');
+		const envPath = path.join(rootDir, '.env');
+		const watchSetPath = path.join(rootDir, '.eco', DEVELOPMENT_RESTART_WATCH_SET_FILENAME);
+		fs.mkdirSync(path.join(rootDir, '.eco'), { recursive: true });
+		fs.mkdirSync(path.join(workspaceRoot, 'src'), { recursive: true });
+		fs.writeFileSync(path.join(rootDir, 'app.ts'), 'export {}', 'utf8');
+		fs.writeFileSync(configPath, 'export default {}', 'utf8');
+		fs.writeFileSync(path.join(workspaceRoot, 'src', 'button.ts'), 'export const button = 1', 'utf8');
+		const writeWatchSet = (additionalFiles: string[] = [], additionalRoots: string[] = []) => {
+			fs.writeFileSync(
+				watchSetPath,
+				JSON.stringify({
+					version: 1,
+					cwd: rootDir,
+					files: [configPath, envPath, ...additionalFiles],
+					roots: [workspaceRoot, ...additionalRoots],
+					ignoredDirectories: [path.join(rootDir, '.eco')],
+				}),
+			);
+		};
+		if (persistWatchSet) writeWatchSet();
+		process.chdir(rootDir);
+		vi.mocked(launchPlan.resolveEcoConfigFilePath).mockReturnValue(configPath);
+		vi.mocked(fs.existsSync).mockImplementation((filePath) => {
+			try {
+				fs.lstatSync(String(filePath));
+				return true;
+			} catch {
+				return false;
+			}
+		});
+
+		return {
+			rootDir,
+			workspaceRoot,
+			writeWatchSet,
+			restore() {
+				process.chdir(originalCwd);
+				fs.rmSync(rootDir, { recursive: true, force: true });
+				vi.mocked(launchPlan.resolveEcoConfigFilePath).mockReturnValue(undefined);
+			},
+		};
+	}
+
 	it('keeps a dev session alive when a restarted child fails, and relaunches on the next config change', async () => {
 		const exitSpy = mockProcessExit();
 		const exitHandlers = mockSpawnedChildren();
@@ -338,6 +388,159 @@ describe('CLI Commands', () => {
 		expect(fs.watch).not.toHaveBeenCalled();
 
 		exitSpy.mockRestore();
+	});
+
+	it('watches the nearest existing directory when a restart input directory was removed', async () => {
+		const project = createRestartWatchSetProject({ persistWatchSet: false });
+		const missingDirectory = path.join(project.rootDir, 'lib', 'removed');
+		const missingRoot = path.join(project.rootDir, 'packages', 'removed-ui');
+		const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs');
+		vi.mocked(fs.watch).mockImplementation(((watchPath: fs.PathLike) => {
+			if (!actualFs.existsSync(watchPath)) {
+				throw Object.assign(new Error(`ENOENT: no such file or directory, watch '${String(watchPath)}'`), {
+					code: 'ENOENT',
+				});
+			}
+			const watcher = { close: vi.fn(), on: vi.fn(() => watcher) };
+			return watcher;
+		}) as never);
+		const exitSpy = mockProcessExit();
+		const exitHandlers = mockSpawnedChildren();
+
+		try {
+			await runCli(['dev']);
+			project.writeWatchSet([path.join(missingDirectory, 'options.ts')], [missingRoot]);
+			exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
+			await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+			exitHandlers[1]?.(1);
+
+			await vi.waitFor(() => expect(fs.watch).toHaveBeenCalledWith(project.rootDir, expect.any(Function)));
+			expect(exitSpy).not.toHaveBeenCalledWith(1);
+			const listeners = vi
+				.mocked(fs.watch)
+				.mock.calls.filter(
+					([watchPath, options]) => watchPath === project.rootDir && typeof options === 'function',
+				)
+				.map(([, listener]) => listener as unknown as (event: string, fileName: string) => void);
+			for (const listener of listeners) listener('rename', 'lib');
+			await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
+		} finally {
+			exitSpy.mockRestore();
+			project.restore();
+		}
+	});
+
+	it('reloads persisted config imports written by a previous child before waiting after a failed restart', async () => {
+		const project = createRestartWatchSetProject({ persistWatchSet: false });
+		const importedConfigPath = path.join(project.rootDir, 'mdx-plugin-options.ts');
+		fs.writeFileSync(importedConfigPath, 'export default {}', 'utf8');
+		const exitSpy = mockProcessExit();
+		const exitHandlers = mockSpawnedChildren();
+
+		try {
+			await runCli(['dev']);
+			project.writeWatchSet([importedConfigPath]);
+			exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
+			await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+			exitHandlers[1]?.(1);
+
+			await vi.waitFor(() => expect(fs.watch).toHaveBeenCalledWith(project.rootDir, expect.any(Function)));
+			const configWatcher = vi
+				.mocked(fs.watch)
+				.mock.calls.find(
+					([watchPath, options]) => watchPath === project.rootDir && typeof options === 'function',
+				);
+			const onConfigChange = configWatcher?.[1] as (event: string, fileName: string) => void;
+			onConfigChange('change', path.basename(importedConfigPath));
+			await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
+		} finally {
+			exitSpy.mockRestore();
+			project.restore();
+		}
+	});
+
+	it('waits on newly persisted restart inputs without treating the new watch set as an edit', async () => {
+		const project = createRestartWatchSetProject();
+		const importedConfigPath = path.join(project.rootDir, 'mdx-plugin-options.ts');
+		const linkedPackageRoot = path.join(project.rootDir, 'new-linked-package');
+		fs.writeFileSync(importedConfigPath, 'export default {}', 'utf8');
+		fs.mkdirSync(path.join(linkedPackageRoot, 'src'), { recursive: true });
+		fs.writeFileSync(path.join(linkedPackageRoot, 'src', 'index.ts'), 'export {}', 'utf8');
+		const exitSpy = mockProcessExit();
+		const exitHandlers = mockSpawnedChildren();
+
+		try {
+			await runCli(['dev']);
+			exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
+			await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+
+			project.writeWatchSet([importedConfigPath], [linkedPackageRoot]);
+			exitHandlers[1]?.(1);
+			await vi.waitFor(() => expect(fs.watch).toHaveBeenCalledWith(project.rootDir, expect.any(Function)));
+			expect(fs.watch).toHaveBeenCalledWith(linkedPackageRoot, { recursive: true }, expect.any(Function));
+			expect(exitHandlers).toHaveLength(2);
+
+			const linkedPackageWatcher = vi
+				.mocked(fs.watch)
+				.mock.calls.find(
+					([watchPath, options]) => watchPath === linkedPackageRoot && typeof options === 'object',
+				);
+			const onLinkedPackageChange = linkedPackageWatcher?.[2] as (event: string, fileName: string) => void;
+			onLinkedPackageChange('change', path.join('src', 'index.ts'));
+			await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
+		} finally {
+			exitSpy.mockRestore();
+			project.restore();
+		}
+	});
+
+	it('watches linked workspace packages after a restarted child fails', async () => {
+		const project = createRestartWatchSetProject();
+		const exitSpy = mockProcessExit();
+		const exitHandlers = mockSpawnedChildren();
+
+		try {
+			await runCli(['dev']);
+			exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
+			await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+			exitHandlers[1]?.(1);
+
+			await vi.waitFor(() =>
+				expect(fs.watch).toHaveBeenCalledWith(project.workspaceRoot, { recursive: true }, expect.any(Function)),
+			);
+			const workspaceWatcher = vi
+				.mocked(fs.watch)
+				.mock.calls.find(
+					([watchPath, options]) => watchPath === project.workspaceRoot && typeof options === 'object',
+				);
+			const onWorkspaceChange = workspaceWatcher?.[2] as (event: string, fileName: string) => void;
+			onWorkspaceChange('change', path.join('src', 'button.ts'));
+			await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
+		} finally {
+			exitSpy.mockRestore();
+			project.restore();
+		}
+	});
+
+	it('relaunches when a workspace file changes while the restarted child is loading', async () => {
+		const project = createRestartWatchSetProject();
+		const exitSpy = mockProcessExit();
+		const exitHandlers = mockSpawnedChildren();
+		const workspaceFile = path.join(project.workspaceRoot, 'src', 'button.ts');
+
+		try {
+			await runCli(['dev']);
+			exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
+			await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+
+			fs.writeFileSync(workspaceFile, 'export const button = "changed"', 'utf8');
+			exitHandlers[1]?.(1);
+			await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
+			expect(fs.watch).not.toHaveBeenCalled();
+		} finally {
+			exitSpy.mockRestore();
+			project.restore();
+		}
 	});
 
 	it('exits with a clear error when the restart files cannot be watched', async () => {

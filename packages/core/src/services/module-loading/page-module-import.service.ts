@@ -2,6 +2,7 @@ import { collectBuildOutputImports } from '../../build/build-graph.ts';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
+import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
 import { build, type BuildExecutor, type BuildOptions, type BuildResult } from '../../build/build-adapter.ts';
 import { createServerBuildRequest } from '../../build/runtime/build-request-policy.ts';
 import { resolveBuildEnvironmentOptions } from '../../build/runtime/build-environment-options.ts';
@@ -244,6 +245,10 @@ export class PageModuleImportService {
 		if (!cachedBuild) {
 			return undefined;
 		}
+		this.registerRouteModuleDependencies(
+			cacheBuildOptions.filePath,
+			Object.keys(cachedBuild.entry.dependencyHashes ?? {}),
+		);
 		const loadedModule = (await import(/* @vite-ignore */ pathToFileURL(cachedBuild.outputPath).href)) as T;
 		recordPageModuleLoad('disk-cache-hit');
 		return loadedModule;
@@ -287,6 +292,7 @@ export class PageModuleImportService {
 		outdir: string,
 	): Promise<T> {
 		const dependencyModulePaths = resolveRouteModuleDependencyPaths(buildResult, filePath, rootDir);
+		this.registerRouteModuleDependencies(filePath, dependencyModulePaths);
 		const dependencyHashes = this.dependencyHasher.createDependencyHashes(dependencyModulePaths);
 		dependencyHashes[path.normalize(filePath)] = fileHash;
 
@@ -309,6 +315,17 @@ export class PageModuleImportService {
 			compiledOutputUrl.searchParams.set('update', `${fileHash}-${this.developmentImportGeneration}`);
 		}
 		return (await import(/* @vite-ignore */ compiledOutputUrl.href)) as T;
+	}
+
+	private registerRouteModuleDependencies(filePath: string, dependencyPaths: readonly string[]): void {
+		if (!this.appConfig) {
+			return;
+		}
+
+		getAppBuildInputIndex(this.appConfig).register(
+			{ consumer: 'server-route-module', key: path.resolve(filePath) },
+			dependencyPaths,
+		);
 	}
 
 	private async loadModule<T = unknown>(options: LoadModuleOptions): Promise<T> {

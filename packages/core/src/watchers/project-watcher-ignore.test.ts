@@ -16,6 +16,17 @@ describe('createProjectWatcherIgnorePredicate', () => {
 		expect(ignored(path.join(absolutePaths.distDir, 'index.html'))).toBe(true);
 		expect(ignored(path.join('/project/src/components/Button.tsx'))).toBe(false);
 	});
+
+	it('ignores an additional supervisor state directory when it differs from workDir', () => {
+		const ignoreSupervisorState = createProjectWatcherIgnorePredicate(
+			{ workDir: '/project/custom-work', distDir: '/project/dist' },
+			[],
+			['/project/.eco'],
+		);
+
+		expect(ignoreSupervisorState('/project/.eco/development-restart-watch-set.json')).toBe(true);
+		expect(ignoreSupervisorState('/project/custom-work/development-restart-watch-set.json')).toBe(true);
+	});
 });
 
 /**

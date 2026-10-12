@@ -15,6 +15,8 @@ They are responsible for:
 
 Shared shutdown cancels queued Page prewarming, waits for active prewarm renders and for Integration `setup()` calls still in flight, then calls each Integration's `teardown()` and clears its activation state. Cleanup attempts each resource even when an earlier step fails, then reports the errors. This releases runtime resources such as Lit workers after background renders finish using them.
 
+If shutdown rejects while a standalone development restart is stopping the server, the adapter logs the rejection details, including nested cleanup errors, and exits with failure so the watcher cannot leave a serverless child running.
+
 They are not responsible for:
 
 - deciding plugin lifecycle ordering
@@ -29,7 +31,7 @@ They are not responsible for:
 - `shared/`: runtime-neutral adapter helpers used by both hosts, clustered by concern:
     - `shared/http/` — API response builders, request pipeline, middleware runner, define-api helpers, explicit-static and filesystem matchers
     - `shared/hmr/` — HMR HTML inject helpers, shared HMR manager, entrypoint registrar. In watch mode every HTML response is marked `no-store`
-    - `shared/runtime/` — shared server adapter, route handler, application adapter, static builder, port/bootstrap utilities (`PortManager` on dev and preview bind, Clack confirm on TTY port collisions). Watch-mode `startDevWarmup()` finishes integration `setup()` before the server logs that it is listening. Declared prewarm paths render in the background once the server handles requests, without delaying server readiness. The Project Watcher also finishes its initial filesystem subscription before readiness is advertised. Node `bootServer()` calls `completeInitialization` before the listen log, so Playwright's listen-log ready signal does not start tests during that warmup.
+    - `shared/runtime/` — shared server adapter, route handler, application adapter, static builder, port/bootstrap utilities (`PortManager` on dev and preview bind, Clack confirm on TTY port collisions). Watch-mode `startDevWarmup()` finishes integration `setup()` before the server logs that it is listening. Declared prewarm paths are collected and rendered in the background, without delaying server readiness; failures include their stack in the log. The Project Watcher also finishes its initial filesystem subscription before readiness is advertised. Node `bootServer()` calls `completeInitialization` before the listen log, so Playwright's listen-log ready signal does not start tests during that warmup.
     - `shared/ws/` — WinterCG WebSocket lifecycle helpers and Node HTTP upgrade bridge (Bun-specific user WS lifecycle lives under `bun/`)
 
 ## Ownership Boundary

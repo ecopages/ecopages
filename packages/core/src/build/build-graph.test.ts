@@ -4,7 +4,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import { collectBuildOutputImports, getBuildEntryOutput } from './build-graph.ts';
+import { collectBuildEntryInputPaths, collectBuildOutputImports, getBuildEntryOutput } from './build-graph.ts';
 import { RolldownBuildAdapter } from './rolldown/rolldown-build-adapter.ts';
 import { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 import { resolveRouteModuleDependencyPaths } from '../services/module-loading/route-module-dependency-hasher.ts';
@@ -17,6 +17,88 @@ beforeEach(() => {
 afterEach(() => {
 	rmSync(root, { recursive: true, force: true });
 	vi.unstubAllEnvs();
+});
+
+test('collects only local source paths for one entry and its plugin inputs', () => {
+	const entry = path.join(root, 'pages/about.tsx');
+	const helper = path.join(root, 'src/lib/posts.ts');
+	const pluginInput = path.join(root, 'data/posts.json');
+	const paths = collectBuildEntryInputPaths(
+		{
+			dependencyGraph: {
+				entrypoints: {
+					[entry]: [entry, helper, 'node:fs', path.join(root, 'node_modules/react/index.js')],
+				},
+			},
+			loadedInputs: [pluginInput],
+		},
+		entry,
+		root,
+	);
+
+	expect(paths).toEqual([entry, helper, pluginInput]);
+});
+
+test('attributes plugin inputs to their entry closure when inputs overlap another entry module', () => {
+	const firstEntry = path.join(root, 'pages/first.tsx');
+	const firstHelper = path.join(root, 'src/lib/first-helper.tsx');
+	const secondEntry = path.join(root, 'pages/second.tsx');
+	const secondHelper = path.join(root, 'src/lib/second-helper.tsx');
+	const pluginOnlyInput = path.join(root, 'data/generated-routes.json');
+	const result = {
+		dependencyGraph: {
+			entrypoints: {
+				[firstEntry]: [firstEntry, firstHelper],
+				[secondEntry]: [secondEntry, secondHelper],
+			},
+		},
+		loadedInputs: [firstHelper, secondHelper, pluginOnlyInput],
+		loadedInputsByModule: {
+			[firstEntry]: [firstHelper],
+			[secondEntry]: [firstHelper, pluginOnlyInput],
+		},
+	};
+
+	expect(collectBuildEntryInputPaths(result, firstEntry, root)).toEqual([firstEntry, firstHelper]);
+	expect(collectBuildEntryInputPaths(result, secondEntry, root)).toEqual([
+		secondEntry,
+		secondHelper,
+		firstHelper,
+		pluginOnlyInput,
+	]);
+});
+
+test('retains dependencies loaded by a namespaced virtual module', async () => {
+	const entry = path.join(root, 'page.ts');
+	const pluginInput = path.join(root, 'data/posts.json');
+	writeFileSync(entry, "import { posts } from 'virtual:posts'; export { posts };\n");
+	mkdirSync(path.dirname(pluginInput), { recursive: true });
+	writeFileSync(pluginInput, '["Hello"]');
+	const result = await new RolldownBuildAdapter().build({
+		environment: 'browser',
+		entrypoints: [entry],
+		root,
+		outdir: path.join(root, 'dist'),
+		target: 'browser',
+		plugins: [
+			{
+				name: 'virtual-posts',
+				setup(build) {
+					build.onResolve({ filter: /^virtual:posts$/u }, () => ({
+						path: '/posts',
+						namespace: 'virtual-posts',
+					}));
+					build.onLoad({ filter: /^\/posts$/u, namespace: 'virtual-posts' }, (args) => {
+						args.addDependency?.(pluginInput);
+						return { contents: "export const posts = ['Hello'];", loader: 'js' };
+					});
+				},
+			},
+		],
+	});
+
+	expect(result.success, JSON.stringify(result.logs)).toBe(true);
+	expect(collectBuildEntryInputPaths(result, entry, root)).toContain(pluginInput);
 });
 
 test('both persisted entries miss after their shared inlined source changes', async () => {

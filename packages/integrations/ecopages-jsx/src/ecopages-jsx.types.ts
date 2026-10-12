@@ -6,7 +6,6 @@ import type {
 	ProcessedAsset,
 } from '@ecopages/core/services/asset-processing-service';
 import type { EcoPagesAppConfig } from '@ecopages/core';
-import type { EcopagesJsxRadiantSsrPolicy } from './ecopages-jsx-radiant-ssr-policy.ts';
 
 /**
  * MDX configuration for the JSX integration.
@@ -36,7 +35,6 @@ export type EcopagesJsxPluginOptions = Omit<IntegrationPluginConfig, 'name' | 'e
 
 export type EcopagesJsxRendererConfig = {
 	mdxExtensions?: string[];
-	radiantSsrPolicy?: EcopagesJsxRadiantSsrPolicy;
 	radiantSsrEnabled?: boolean;
 };
 

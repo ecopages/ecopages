@@ -2,15 +2,11 @@
  * React component SSR helpers: renderToString, foreign-subtree HTML, island attributes.
  */
 
-import type { ComponentRenderInput, ComponentRenderResult, EcoComponent, EcoPagesElement } from '@ecopages/core';
-import { buildIslandHostAttributes, getComponentIdentity } from '@ecopages/core';
-import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
+import type { ComponentRenderInput, EcoComponent, EcoPagesElement } from '@ecopages/core';
 import type { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import type { ReactNode } from 'react';
 import { isValidElement } from 'react';
-import { hasSingleRootElement } from './html-boundary.ts';
-import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
-import { asNonReactShellComponent, asReactComponent, type SerializableProps } from './component-ownership.ts';
+import { asReactComponent, type SerializableProps } from './component-ownership.ts';
 import { ReactRenderError } from './errors.ts';
 import type { ReactRuntimeModules } from './react-runtime.ts';
 
@@ -72,22 +68,17 @@ export function renderComponentHtml(options: {
 	context: ReactComponentRenderContext;
 	runtimeContext?: ReactForeignSubtreeResolutionContext;
 	runtime: ReactRuntimeModules;
-	normalizeUnresolvedMarkerArtifactHtml: (html: string) => string;
 }): string {
-	const { input, context, runtimeContext, runtime, normalizeUnresolvedMarkerArtifactHtml } = options;
+	const { input, context, runtimeContext, runtime } = options;
 	const { react, reactDomServer } = runtime;
 
 	if (input.children === undefined) {
-		return normalizeUnresolvedMarkerArtifactHtml(
-			reactDomServer.renderToString(react.createElement(asReactComponent(input.component), input.props)),
-		);
+		return reactDomServer.renderToString(react.createElement(asReactComponent(input.component), input.props));
 	}
 
 	if (isValidElement(input.children)) {
-		return normalizeUnresolvedMarkerArtifactHtml(
-			reactDomServer.renderToString(
-				react.createElement(asReactComponent(input.component), input.props, input.children),
-			),
+		return reactDomServer.renderToString(
+			react.createElement(asReactComponent(input.component), input.props, input.children),
 		);
 	}
 
@@ -100,7 +91,7 @@ export function renderComponentHtml(options: {
 	const html = reactDomServer.renderToString(
 		react.createElement(asReactComponent(input.component), input.props, rawChildrenToken),
 	);
-	return normalizeUnresolvedMarkerArtifactHtml(html.split(rawChildrenToken).join(resolvedChildHtml));
+	return html.split(rawChildrenToken).join(resolvedChildHtml);
 }
 
 export function toReactNode(children: unknown, integrationName: string): ReactNode {
@@ -135,178 +126,4 @@ export function restoreRuntimeChildHtml(
 	}
 
 	return html.split(runtimeContext.rawChildrenToken).join(runtimeContext.rawChildrenHtml);
-}
-
-export async function renderQueuedChildrenToHtml(options: {
-	children: unknown;
-	runtimeContext: ReactForeignSubtreeResolutionContext;
-	queuedResolutionsByToken: Map<string, ReactForeignSubtreeResolutionContext['queuedResolutions'][number]>;
-	resolveToken: (token: string) => Promise<string>;
-	runtime: ReactRuntimeModules;
-	integrationName: string;
-	normalizeUnresolvedMarkerArtifactHtml: (html: string) => string;
-	resolveQueuedTokens: (
-		html: string,
-		queuedResolutionsByToken: Map<string, ReactForeignSubtreeResolutionContext['queuedResolutions'][number]>,
-		resolveToken: (token: string) => Promise<string>,
-	) => Promise<string>;
-}): Promise<string | undefined> {
-	const {
-		children,
-		runtimeContext,
-		queuedResolutionsByToken,
-		resolveToken,
-		runtime,
-		integrationName,
-		normalizeUnresolvedMarkerArtifactHtml,
-		resolveQueuedTokens,
-	} = options;
-
-	if (children === undefined) {
-		return undefined;
-	}
-
-	const { react, reactDomServer } = runtime;
-
-	let html = normalizeUnresolvedMarkerArtifactHtml(
-		reactDomServer.renderToString(
-			react.createElement(react.Fragment, null, toReactNode(children, integrationName)),
-		),
-	);
-	html = restoreRuntimeChildHtml(html, runtimeContext);
-
-	return await resolveQueuedTokens(html, queuedResolutionsByToken, resolveToken);
-}
-
-export async function renderForeignComponentWithSerializedHtml(options: {
-	input: ComponentRenderInput;
-	runtimeContext: ReactForeignSubtreeResolutionContext | undefined;
-	integrationName: string;
-	processComponentDependencies: (components: EcoComponent[]) => Promise<ProcessedAsset[]>;
-	dedupeProcessedAssets: (assets: ProcessedAsset[]) => ProcessedAsset[];
-	getRootTagName: (html: string) => string | undefined;
-	resolveQueuedForeignSubtreeHtml: (
-		html: string,
-		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
-	) => Promise<{ assets: ProcessedAsset[]; html: string }>;
-}): Promise<ComponentRenderResult> {
-	const {
-		input,
-		runtimeContext,
-		integrationName,
-		processComponentDependencies,
-		dedupeProcessedAssets,
-		getRootTagName,
-		resolveQueuedForeignSubtreeHtml,
-	} = options;
-
-	let props = input.props;
-	if (input.children !== undefined) {
-		props = {
-			...input.props,
-			children: typeof input.children === 'string' ? input.children : String(input.children ?? ''),
-		};
-	}
-
-	const html = await renderNonReactShellComponent(
-		asNonReactShellComponent<Record<string, unknown>>(input.component),
-		props,
-		'Component',
-	);
-	const hasDependencies = Boolean(input.component.config?.dependencies);
-	const assets = hasDependencies ? await processComponentDependencies([input.component]) : undefined;
-	const queuedForeignSubtreeResolution = await resolveQueuedForeignSubtreeHtml(html, runtimeContext);
-	const mergedAssets = dedupeProcessedAssets([...(assets ?? []), ...queuedForeignSubtreeResolution.assets]);
-
-	return {
-		html: queuedForeignSubtreeResolution.html,
-		canAttachAttributes: true,
-		rootTag: getRootTagName(queuedForeignSubtreeResolution.html),
-		integrationName,
-		assets: mergedAssets.length > 0 ? mergedAssets : undefined,
-	};
-}
-
-/**
- * Renders a React Component and, when eligible, emits its server Island Host.
- *
- * @remarks
- * A host is emitted only for a single-root component with an instance identity,
- * resolved assets, and no already-resolved child HTML. The host carries the
- * framework attributes while its existing children remain available for
- * `hydrateRoot`; fragment, text-only, and empty output stay outside this
- * eligibility policy.
- *
- * @param options - Rendering inputs, foreign-subtree state, and hydration asset services.
- * @returns SSR HTML, root metadata, and deduplicated browser assets.
- */
-export async function renderReactManagedComponent(options: {
-	input: ComponentRenderInput;
-	runtimeContext: ReactForeignSubtreeResolutionContext | undefined;
-	runtime: ReactRuntimeModules;
-	integrationName: string;
-	normalizeUnresolvedMarkerArtifactHtml: (html: string) => string;
-	resolveQueuedForeignSubtreeHtml: (
-		html: string,
-		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
-	) => Promise<{ assets: ProcessedAsset[]; html: string }>;
-	getRootTagName: (html: string) => string | undefined;
-	dedupeProcessedAssets: (assets: ProcessedAsset[]) => ProcessedAsset[];
-	islandRenderAssetsByFile?: ReadonlyMap<string, ProcessedAsset[]>;
-}): Promise<ComponentRenderResult> {
-	const {
-		input,
-		runtimeContext,
-		runtime,
-		integrationName,
-		normalizeUnresolvedMarkerArtifactHtml,
-		resolveQueuedForeignSubtreeHtml,
-		getRootTagName,
-		dedupeProcessedAssets,
-		islandRenderAssetsByFile,
-	} = options;
-
-	const componentConfig = input.component.config;
-	const context: ReactComponentRenderContext = {
-		componentInstanceId: input.integrationContext?.componentInstanceId,
-	};
-	const hasResolvedChildHtml = input.children !== undefined;
-	let html = renderComponentHtml({
-		input,
-		context,
-		runtimeContext,
-		runtime,
-		normalizeUnresolvedMarkerArtifactHtml,
-	});
-	const queuedForeignSubtreeResolution = await resolveQueuedForeignSubtreeHtml(html, runtimeContext);
-	html = queuedForeignSubtreeResolution.html;
-	const canAttachAttributes = hasSingleRootElement(html);
-	const rootTag = getRootTagName(html);
-	const componentFile = getComponentIdentity(componentConfig)?.file;
-
-	let rootAttributes: Record<string, string> | undefined;
-	let assets: ProcessedAsset[] | undefined;
-
-	if (canAttachAttributes && componentFile && context.componentInstanceId && !hasResolvedChildHtml) {
-		const componentInstanceId = context.componentInstanceId;
-		assets = islandRenderAssetsByFile?.get(componentFile);
-		rootAttributes = buildIslandHostAttributes({
-			integrationName,
-			componentInstanceId,
-			componentKey: getIslandComponentKey(componentFile, componentConfig),
-			props: buildHydrationProps(input.props),
-		});
-		html = `<eco-island style="display:contents">${html}</eco-island>`;
-	}
-
-	const mergedAssets = dedupeProcessedAssets([...(assets ?? []), ...queuedForeignSubtreeResolution.assets]);
-
-	return {
-		html,
-		canAttachAttributes,
-		rootTag: rootAttributes ? 'eco-island' : rootTag,
-		integrationName,
-		rootAttributes,
-		assets: mergedAssets.length > 0 ? mergedAssets : undefined,
-	};
 }

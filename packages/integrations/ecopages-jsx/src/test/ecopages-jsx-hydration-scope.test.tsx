@@ -2,8 +2,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
-import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';
-import { renderToString } from '@ecopages/jsx/server';
+import { createMarkupNodeLike, type JsxCustomElementAttributes, type JsxRenderable } from '@ecopages/jsx';
+import {
+	createServerHydrationBindingState,
+	renderToString,
+	withServerHydrationBindingState,
+} from '@ecopages/jsx/server';
 import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 import { EcopagesJsxRadiantSsrPolicy } from '../ecopages-jsx-radiant-ssr-policy.ts';
 
@@ -97,7 +101,6 @@ describe('EcopagesJsxRenderer hydration scope', () => {
 					}
 				: HTMLElement;
 		const runtimeModules = {
-			ensureLightDomShim: () => undefined,
 			resolveRadiantElementRenderBridge: (instance: unknown) => {
 				if (
 					typeof instance === 'object' &&
@@ -123,22 +126,23 @@ describe('EcopagesJsxRenderer hydration scope', () => {
 
 				return undefined;
 			},
-			withServerRadiantElementSsrRuntime: <T,>(render: () => T) => render(),
 		};
 
 		const radiantSsrPolicy = new EcopagesJsxRadiantSsrPolicy(true);
-		(
-			radiantSsrPolicy as unknown as {
-				runtimeModules?: typeof runtimeModules;
-				runtimeModulesPromise?: Promise<typeof runtimeModules>;
+		vi.spyOn(radiantSsrPolicy, 'prepareRuntime').mockResolvedValue();
+		vi.spyOn(radiantSsrPolicy, 'withRuntime').mockImplementation(async <T,>(render: () => T) => render());
+		vi.spyOn(radiantSsrPolicy, 'renderIntrinsicElementMarkup').mockImplementation((instance) => {
+			const bridge = runtimeModules.resolveRadiantElementRenderBridge(instance);
+			if (!bridge) {
+				return undefined;
 			}
-		).runtimeModules = runtimeModules;
-		(
-			radiantSsrPolicy as unknown as {
-				runtimeModules?: typeof runtimeModules;
-				runtimeModulesPromise?: Promise<typeof runtimeModules>;
-			}
-		).runtimeModulesPromise = Promise.resolve(runtimeModules);
+
+			return createMarkupNodeLike(
+				withServerHydrationBindingState(createServerHydrationBindingState(), () =>
+					bridge.renderHostToString({ mode: 'hydrate' }),
+				),
+			);
+		});
 
 		if (!customElementRegistry.get(hydrationScopeTestTag)) {
 			class HydrationScopeProbeElement extends TestElementBase {
@@ -170,16 +174,19 @@ describe('EcopagesJsxRenderer hydration scope', () => {
 			);
 		}
 
-		const renderer = new TestEcopagesJsxRenderer({
+		class RadiantPolicyTestRenderer extends TestEcopagesJsxRenderer {
+			protected override createRadiantSsrPolicy(_enabled: boolean): EcopagesJsxRadiantSsrPolicy {
+				return radiantSsrPolicy;
+			}
+		}
+
+		const renderer = new RadiantPolicyTestRenderer({
 			appConfig: TestConfig,
 			assetProcessingService: {
 				processDependencies: vi.fn(async () => []),
 			} as never,
 			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
-			jsxConfig: {
-				radiantSsrPolicy,
-			},
 		});
 
 		const Layout = eco.layout<JsxRenderable>({

@@ -176,26 +176,6 @@ export class ForeignSubtreeExecutionService {
 		return !!input.targetIntegration && input.targetIntegration !== input.currentIntegration;
 	}
 
-	createFailFastRuntime(rendererName: string): ForeignChildRuntime {
-		const interceptForeignChild = (input: ForeignSubtreeExecutionDecisionInput) => {
-			if (!this.shouldDelegateForeignChild(input)) {
-				return {
-					kind: 'inline' as const,
-					props: 'props' in input && input.props ? { ...input.props } : undefined,
-				};
-			}
-
-			throw new Error(
-				`[ecopages] ${rendererName} renderer crossed into ${input.targetIntegration} without a renderer-owned foreign-child runtime. Override createForeignChildRuntime() to resolve foreign children inside the owning renderer.`,
-			);
-		};
-
-		return {
-			interceptForeignChild,
-			interceptForeignChildSync: interceptForeignChild,
-		};
-	}
-
 	getQueuedRuntimeContext<TContext extends QueuedForeignSubtreeResolutionContext>(
 		input: ComponentRenderInput,
 		runtimeContextKey: string,

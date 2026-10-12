@@ -113,7 +113,7 @@ export function isMarkupNodeLike(value: unknown): value is MarkupNodeLikeShape {
  * element markers (`$$typeof`) are not opaque. Cross-integration children that
  * are only plain objects must use EcoEmbed or already-serialized HTML.
  */
-export function isOpaqueForeignChildValue(children: unknown): boolean {
+function isOpaqueForeignChildValue(children: unknown): boolean {
 	if (children === null || typeof children !== 'object') {
 		return false;
 	}

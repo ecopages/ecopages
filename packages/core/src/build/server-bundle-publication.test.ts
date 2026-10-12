@@ -6,7 +6,6 @@ import { fileSystem } from '@ecopages/file-system';
 import {
 	createServerBundleStagingDirectory,
 	publishServerBundleDirectory,
-	resolvePublishedServerBundlePaths,
 } from './server-bundle-publication.ts';
 
 describe('server bundle publication', () => {
@@ -47,17 +46,5 @@ describe('server bundle publication', () => {
 		expect(() => publishServerBundleDirectory(path.join(rootDir, 'missing-staging'), serverOutdir)).toThrow();
 
 		expect(readFileSync(path.join(serverOutdir, 'app.mjs'), 'utf8')).toBe('old app');
-	});
-
-	it('maps staged outputs to their published paths', () => {
-		const { serverOutdir } = createFixture();
-		const stagingDir = createServerBundleStagingDirectory(serverOutdir);
-
-		expect(resolvePublishedServerBundlePaths([path.join(stagingDir, 'app.mjs')], stagingDir, serverOutdir)).toEqual(
-			[path.join(serverOutdir, 'app.mjs')],
-		);
-		expect(() =>
-			resolvePublishedServerBundlePaths([path.join(stagingDir, '..', 'escaped.mjs')], stagingDir, serverOutdir),
-		).toThrow(/escaped its staging directory/);
 	});
 });

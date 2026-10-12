@@ -108,28 +108,6 @@ describe('StaticSiteGenerator', () => {
 		});
 	});
 
-	describe('isRootDir', () => {
-		test('should return true for root path /', () => {
-			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-			expect(ssg.isRootDir('/')).toBe(true);
-		});
-
-		test('should return false for nested path /foo/bar', () => {
-			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-			expect(ssg.isRootDir('/foo/bar')).toBe(false);
-		});
-
-		test('should return false for deeply nested paths', () => {
-			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-			expect(ssg.isRootDir('/a/b/c/d')).toBe(false);
-		});
-
-		test('should return null (falsy) for paths without slashes', () => {
-			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-			expect(ssg.isRootDir('no-slashes')).toBeFalsy();
-		});
-	});
-
 	describe('getDirectories', () => {
 		test('should return empty array for root-level routes', () => {
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });

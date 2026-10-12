@@ -62,7 +62,6 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 	name = 'test-renderer';
 	ForeignChildRuntimeCreationCount = 0;
 	ForeignChildRenderCount = 0;
-	UseFailFastForeignChildRuntime = false;
 
 	PageModule: EcoPageFile | null = null;
 	HtmlTemplate: EcoComponent<HtmlTemplateProps> | null = null;
@@ -244,10 +243,6 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}): ForeignChildRuntime {
 		this.ForeignChildRuntimeCreationCount += 1;
-
-		if (this.UseFailFastForeignChildRuntime) {
-			return this.foreignSubtreeExecutionService.createFailFastRuntime(this.name);
-		}
 
 		return super.createForeignChildRuntime(options);
 	}

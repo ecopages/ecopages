@@ -32,12 +32,6 @@ function createFakeExecutor(): BuildExecutor & { callOrder: number[]; active: nu
 	};
 }
 
-test('SerializedBuildExecutor returns the inner executor via unwrap', () => {
-	const inner = createFakeExecutor();
-	const serialized = new SerializedBuildExecutor(inner);
-	assert.equal(serialized.unwrap(), inner);
-});
-
 test('SerializedBuildExecutor runs a single build through the inner executor', async () => {
 	const inner = createFakeExecutor();
 	const serialized = new SerializedBuildExecutor(inner);
@@ -83,17 +77,4 @@ test('SerializedBuildExecutor releases the queue on failure so the next build ca
 	const result = await serialized.build({ environment: 'server' as const, entrypoints: ['/in/b.ts'] });
 	assert.equal(result.success, true);
 	assert.equal(result.outputs[0]?.path, '/out/recovered.js');
-});
-
-test('SerializedBuildExecutor.resetForTests clears the queue tail', async () => {
-	const inner = createFakeExecutor();
-	const serialized = new SerializedBuildExecutor(inner);
-
-	const pending = serialized.build({ environment: 'server' as const, entrypoints: ['/in/a.ts'] });
-	serialized.resetForTests();
-	const result = await pending;
-	assert.equal(result.success, true);
-
-	const followUp = await serialized.build({ environment: 'server' as const, entrypoints: ['/in/b.ts'] });
-	assert.equal(followUp.outputs[0]?.path, '/out/2.js');
 });

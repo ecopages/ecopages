@@ -39,10 +39,6 @@ class RequestBuildDedupe {
 		store.set(key, buildPromise);
 		return buildPromise;
 	}
-
-	getCachedCountForTests(): number {
-		return this.storage.getStore()?.size ?? 0;
-	}
 }
 
 export const requestBuildDedupe = new RequestBuildDedupe();

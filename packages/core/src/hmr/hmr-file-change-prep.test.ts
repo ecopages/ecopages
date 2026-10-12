@@ -1,14 +1,14 @@
-import { describe, expect, test, afterEach } from 'vitest';
+import { beforeEach, describe, expect, test } from 'vitest';
 import { prepareHmrFileChange } from './hmr-file-change-prep.ts';
 import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 
-const appConfig = {
-	runtime: {},
-} as unknown as EcoPagesAppConfig;
+let appConfig: EcoPagesAppConfig;
 
-afterEach(() => {
-	getAppPageBrowserGraphSession(appConfig).resetForTests();
+beforeEach(() => {
+	appConfig = {
+		runtime: {},
+	} as unknown as EcoPagesAppConfig;
 });
 
 describe('prepareHmrFileChange', () => {

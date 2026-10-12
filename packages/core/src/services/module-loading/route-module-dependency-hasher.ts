@@ -132,7 +132,7 @@ export class RouteModuleDependencyHasher {
  * Builtins and installed packages are excluded. Their changes are expected to be
  * reflected through framework-level invalidation instead of per-route file hashing.
  */
-export function isTrackableRouteModuleDependency(modulePath: string): boolean {
+function isTrackableRouteModuleDependency(modulePath: string): boolean {
 	const normalizedPath = path.normalize(modulePath);
 	if (!path.isAbsolute(normalizedPath)) {
 		return false;
@@ -148,7 +148,7 @@ export function isTrackableRouteModuleDependency(modulePath: string): boolean {
 /**
  * Filters a bundler module list down to trackable app-owned source files.
  */
-export function filterTrackableRouteModuleDependencies(modulePaths: readonly string[]): string[] {
+function filterTrackableRouteModuleDependencies(modulePaths: readonly string[]): string[] {
 	const uniquePaths = new Set<string>();
 
 	for (const modulePath of modulePaths) {

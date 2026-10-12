@@ -11,9 +11,6 @@
  * project contents are assumed to be stable for the lifetime of the process.
  */
 
-import path from 'node:path';
-import { isPathInside } from '../utils/path-containment.ts';
-
 const DEFAULT_MAX_ENTRIES = 2_000;
 
 type CacheKey = string;
@@ -27,8 +24,6 @@ type CacheEntry = {
 export class AliasResolverCache {
 	private readonly entries = new Map<CacheKey, CacheEntry>();
 	private readonly maxEntries: number;
-	private hits = 0;
-	private misses = 0;
 
 	constructor(maxEntries: number = DEFAULT_MAX_ENTRIES) {
 		if (maxEntries <= 0) {
@@ -49,13 +44,11 @@ export class AliasResolverCache {
 		const key = makeKey(srcDir, specifier);
 		const existing = this.entries.get(key);
 		if (existing) {
-			this.hits += 1;
 			// Refresh LRU position.
 			this.entries.delete(key);
 			this.entries.set(key, existing);
 			return { hit: true, resolved: existing.resolved };
 		}
-		this.misses += 1;
 		return { hit: false };
 	}
 
@@ -76,53 +69,6 @@ export class AliasResolverCache {
 				this.entries.delete(oldestKey);
 			}
 		}
-	}
-
-	/**
-	 * Drop all entries whose `srcDir` is under `rootDir`. Use this from
-	 * the file watcher when files are added or removed under the app's
-	 * source tree.
-	 *
-	 * Path comparison is path-aware (handles both POSIX `/` and
-	 * Windows `\` separators) via `path.relative` so cached entries
-	 * normalized on one platform still match the watcher's `rootDir`
-	 * on another. Without this, a Windows build that sees
-	 * `entry.srcDir === 'C:\app\src'` would miss
-	 * `entry.srcDir.startsWith('C:/app/src/')` and leave stale entries.
-	 */
-	invalidateUnder(rootDir: string): number {
-		const normalizedRoot = path.resolve(rootDir);
-		let removed = 0;
-		for (const [key, entry] of this.entries) {
-			if (isPathInside(entry.srcDir, normalizedRoot)) {
-				this.entries.delete(key);
-				removed += 1;
-			}
-		}
-		return removed;
-	}
-
-	/** Clear all entries. */
-	clear(): void {
-		this.entries.clear();
-		this.hits = 0;
-		this.misses = 0;
-	}
-
-	/** Current cache size. */
-	get size(): number {
-		return this.entries.size;
-	}
-
-	/** Hit/miss counters for observability. */
-	stats(): { hits: number; misses: number; size: number; hitRate: number } {
-		const total = this.hits + this.misses;
-		return {
-			hits: this.hits,
-			misses: this.misses,
-			size: this.entries.size,
-			hitRate: total === 0 ? 0 : this.hits / total,
-		};
 	}
 }
 

@@ -13,6 +13,11 @@ import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
 import { createBrowserRuntimePlugin } from '../browser/browser-runtime-plugin.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
+import {
+	BuildInputDependencyIndex,
+	collectedLoadedBuildInputs,
+	runWithBuildInputIndex,
+} from '../cache/build-input-dependency-index.ts';
 
 let workDir: string;
 
@@ -149,6 +154,42 @@ describe('RolldownBuildAdapter', () => {
 			readFileSync(firstOutput.path, 'utf-8').includes('answer'),
 			'bundled output contains exported symbol',
 		);
+	});
+
+	test('records plugin dependencies during a real Rolldown build', async () => {
+		const entrypoint = writeFixture('entry.ts', 'export const title = "From plugin";');
+		mkdirSync(path.join(workDir, 'data'), { recursive: true });
+		const dependencyPath = writeFixture('data/posts.json', '[{"title":"Hello"}]');
+		const buildInputIndex = new BuildInputDependencyIndex();
+		let loadedInputs: readonly string[] = [];
+
+		const result = await runWithBuildInputIndex(buildInputIndex, async () => {
+			const buildResult = await new RolldownBuildAdapter().build({
+				environment: 'browser',
+				entrypoints: [entrypoint],
+				outdir: path.join(workDir, 'dist'),
+				target: 'browser',
+				format: 'esm',
+				root: workDir,
+				plugins: [
+					{
+						name: 'posts-reader',
+						setup(build) {
+							build.onLoad({ filter: /entry\.ts$/ }, (args) => {
+								args.addDependency?.('data/posts.json');
+								return { contents: 'export const title = "Loaded by plugin";', loader: 'js' };
+							});
+						},
+					},
+				],
+			});
+			loadedInputs = collectedLoadedBuildInputs();
+			return buildResult;
+		});
+
+		expect(result.success, JSON.stringify(result.logs)).toBe(true);
+		expect(loadedInputs).toContain(dependencyPath);
+		expect(buildInputIndex.recordedWatchPaths()).toContain(dependencyPath);
 	});
 
 	test('externalPackages keeps bare package imports external', async () => {

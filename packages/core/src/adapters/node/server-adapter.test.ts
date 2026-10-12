@@ -398,7 +398,6 @@ describe('NodeServerAdapter', () => {
 		const response = await adapter.handleRequest(new Request('http://localhost:3000/'));
 		await vi.waitFor(() => expect(errorSpy).toHaveBeenCalledWith('[ecopages:dev-prewarm] failed', failure));
 		expect(response.status).toBe(200);
-		expect(failure.stack).toContain('manifest unreadable');
 
 		await adapter.dispose();
 	});

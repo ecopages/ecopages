@@ -95,10 +95,7 @@ export function activateNavigationScripts(
 ): void {
 	const generation = ++navigationScriptGeneration;
 	const bodyActivations = options.includeBodyScripts ? collectBodyScripts(options.persistAttribute) : [];
-	void activateScriptsInOrder(
-		[...activations, ...bodyActivations],
-		() => generation !== navigationScriptGeneration,
-	);
+	void activateScriptsInOrder([...activations, ...bodyActivations], () => generation !== navigationScriptGeneration);
 }
 
 /**

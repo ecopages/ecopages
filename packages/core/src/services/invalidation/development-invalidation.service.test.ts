@@ -102,6 +102,21 @@ describe('DevelopmentInvalidationService', () => {
 		});
 	});
 
+	it('announces each applied change batch to the build-input index', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const announced: string[][] = [];
+		getAppBuildInputIndex(appConfig).subscribeToChanges((filePaths) => announced.push([...filePaths]));
+		const service = new DevelopmentInvalidationService(appConfig);
+
+		await service.applyDevFileChanges({
+			changed: ['/test/project/src/lib/helper.ts'],
+			created: [],
+			deleted: ['/test/project/src/styles/old.css'],
+		});
+
+		expect(announced).toEqual([['/test/project/src/lib/helper.ts', '/test/project/src/styles/old.css']]);
+	});
+
 	it('unregisters route-module inputs when a route is removed', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		const index = getAppBuildInputIndex(appConfig);

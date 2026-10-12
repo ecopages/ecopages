@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it, vi } from 'vitest';
+import { ECOPAGES_DEV_RESTART_EXIT_CODE } from '../../../dev/development-restart.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { ApplicationAdapterOptions } from '../../abstract/application-adapter.ts';
 import { SharedApplicationAdapter } from './application-adapter.ts';
@@ -27,7 +28,7 @@ class TestRestartFailureAdapter extends SharedApplicationAdapter<ApplicationAdap
 }
 
 describe('development server restart', () => {
-	it('exits with failure and logs the stop stack when shutdown rejects', async () => {
+	it('logs the stop stack and still exits for a restart when shutdown rejects', async () => {
 		const nestedError = new Error('nested cleanup failed');
 		const stopError = new AggregateError([nestedError, { code: 'E_RESOURCE_CLEANUP' }], 'stop failed');
 		const adapter = new TestRestartFailureAdapter(stopError);
@@ -43,7 +44,10 @@ describe('development server restart', () => {
 		try {
 			const restart = adapter.getDevelopmentRestartHandlerForTest();
 			assert.ok(restart);
-			await assert.rejects(restart('/src/lib/posts.ts'), /process\.exit:1/);
+			await assert.rejects(
+				restart('/src/lib/posts.ts'),
+				new RegExp(`process\\.exit:${ECOPAGES_DEV_RESTART_EXIT_CODE}`),
+			);
 			assert.ok(stopError.stack);
 			assert.ok(
 				errorArguments
@@ -56,7 +60,7 @@ describe('development server restart', () => {
 							argument.includes('{"code":"E_RESOURCE_CLEANUP"}'),
 					),
 			);
-			assert.equal(processExit.mock.calls[0]?.[0], 1);
+			assert.equal(processExit.mock.calls[0]?.[0], ECOPAGES_DEV_RESTART_EXIT_CODE);
 		} finally {
 			errorLog.mockRestore();
 			processExit.mockRestore();
@@ -78,7 +82,10 @@ describe('development server restart', () => {
 		try {
 			const restart = adapter.getDevelopmentRestartHandlerForTest();
 			assert.ok(restart);
-			await assert.rejects(restart('/src/lib/posts.ts'), /process\.exit:1/);
+			await assert.rejects(
+				restart('/src/lib/posts.ts'),
+				new RegExp(`process\\.exit:${ECOPAGES_DEV_RESTART_EXIT_CODE}`),
+			);
 			assert.ok(logged.some((message) => message.includes(`Caused by: ${rootCause.stack}`)));
 		} finally {
 			errorLog.mockRestore();

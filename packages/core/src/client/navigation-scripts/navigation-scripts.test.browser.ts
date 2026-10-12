@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { isNonExecutableHeadScript } from './classification.ts';
 import { activateScriptsInOrder } from './activation.ts';
-import { collectRerunScripts, resetRerunNonceForTests, toRerunScriptActivation } from './rerun-queue.ts';
+import { collectRerunScripts, toRerunScriptActivation } from './rerun-queue.ts';
 import { RERUN_SRC_ATTR } from './registry.ts';
 
 describe('isNonExecutableHeadScript', () => {
@@ -21,7 +21,6 @@ describe('collectRerunScripts and script activations', () => {
 	afterEach(() => {
 		document.head.replaceChildren();
 		document.body.replaceChildren();
-		resetRerunNonceForTests();
 	});
 
 	it('replays registered rerun callbacks without duplicating script tags', async () => {
@@ -52,7 +51,8 @@ describe('collectRerunScripts and script activations', () => {
 		await activateScriptsInOrder(scripts.map(toRerunScriptActivation));
 
 		const inserted = document.head.querySelector(`script[${RERUN_SRC_ATTR}]`);
-		expect(inserted?.getAttribute('src')).toMatch(/__eco_rerun=1/);
+		expect(inserted?.getAttribute('src')).not.toBe('/app.js');
+		expect(inserted?.getAttribute('src')).toMatch(/__eco_rerun=\d+/);
 		expect(inserted?.getAttribute(RERUN_SRC_ATTR)).toBe('/app.js');
 	});
 
@@ -95,7 +95,7 @@ describe('collectRerunScripts and script activations', () => {
 		expect(document.head.querySelectorAll('script[data-eco-rerun]')).toHaveLength(1);
 		expect(replacement.getAttribute(RERUN_SRC_ATTR)).toBe('app.js');
 		expect(replacement.getAttribute('src')).toMatch(
-			/^https:\/\/example\.test\/docs\/guide\/app\.js\?__eco_rerun=1$/,
+			/^https:\/\/example\.test\/docs\/guide\/app\.js\?__eco_rerun=\d+$/,
 		);
 	});
 });

@@ -1,11 +1,10 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
-import {
-	initNavigationTelemetry,
-	NAV_TELEMETRY_ELEMENT_ID,
-	NAV_TELEMETRY_STORAGE_KEY,
-	readNavigationTelemetrySnapshot,
-	resetNavigationTelemetryForTests,
-} from './navigation-telemetry.ts';
+import { NAV_TELEMETRY_ELEMENT_ID, NAV_TELEMETRY_STORAGE_KEY } from './navigation-telemetry.ts';
+
+type TelemetryModule = typeof import('./navigation-telemetry.ts');
+
+let initNavigationTelemetry: TelemetryModule['initNavigationTelemetry'];
+let readNavigationTelemetrySnapshot: TelemetryModule['readNavigationTelemetrySnapshot'];
 
 function createStorage(): Storage {
 	const store = new Map<string, string>();
@@ -80,8 +79,9 @@ function createDocumentHarness() {
 }
 
 describe('navigation telemetry', () => {
-	beforeEach(() => {
-		resetNavigationTelemetryForTests();
+	beforeEach(async () => {
+		vi.resetModules();
+		({ initNavigationTelemetry, readNavigationTelemetrySnapshot } = await import('./navigation-telemetry.ts'));
 		vi.stubGlobal('window', {
 			location: {
 				pathname: '/',
@@ -154,7 +154,6 @@ describe('navigation telemetry', () => {
 
 		expect(reloadedApi).toBe(api);
 		expect(addEventListener.mock.calls.filter(([event]) => event === 'eco:page-load')).toHaveLength(1);
-		reloadedModule.resetNavigationTelemetryForTests();
 	});
 
 	it('records client navigation durations across swap events', () => {

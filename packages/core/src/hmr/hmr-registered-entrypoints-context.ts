@@ -1,4 +1,4 @@
-import type { ResolvedHmrEntrypoint } from './hmr-entrypoint-output.ts';
+import type { ResolvedHmrEntrypoint } from '../types/public-types.ts';
 
 /**
  * Read-only access to dev-transform entrypoints registered for HMR.

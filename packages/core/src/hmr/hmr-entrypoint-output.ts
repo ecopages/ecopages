@@ -1,19 +1,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
-
-export type HmrEntrypointRole = 'page' | 'script';
-
-export interface ResolvedHmrEntrypoint {
-	sourcePath: string;
-	/**
-	 * Emitted artifact path for disk-based HMR, or the resolved source path for
-	 * dev-transform entrypoints where modules are served on demand.
-	 */
-	outputPath: string;
-	outputUrl: string;
-	role: HmrEntrypointRole;
-}
+import type { ResolvedHmrEntrypoint } from '../types/public-types.ts';
 
 function resolveRegisteredEntrypoint(
 	registered: ReadonlyMap<string, ResolvedHmrEntrypoint>,

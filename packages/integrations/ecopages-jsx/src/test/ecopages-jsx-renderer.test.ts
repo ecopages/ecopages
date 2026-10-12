@@ -12,7 +12,7 @@ import type {
 } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { test } from 'vitest';
-import { getEjsxHmrOwnership, resetEjsxHmrOwnership } from '../ecopages-jsx-hmr-ownership.ts';
+import { getEjsxHmrOwnership } from '../ecopages-jsx-hmr-ownership.ts';
 import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 
 const radiantEntryUrl = import.meta.resolve('@ecopages/radiant');
@@ -206,7 +206,6 @@ test('EcopagesJsxRenderer keeps MDX extension matching instance-owned', () => {
 });
 
 test('EcopagesJsxRenderer records declared content dependencies for HMR ownership', async () => {
-	resetEjsxHmrOwnership();
 	const renderer = new TestEcopagesJsxRenderer({
 		appConfig: createAppConfig(tmpdir()),
 		assetProcessingService: {} as never,

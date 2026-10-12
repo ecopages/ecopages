@@ -19,7 +19,6 @@ import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/
 import React, { type JSX } from 'react';
 import { ReactRenderer, type ReactRendererConfig } from '../render/react-renderer.ts';
 import type { ReactRuntime } from '../render/layout-compose.ts';
-import { resolveComposeChildren } from '../render/unified-layout-composition.ts';
 import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
 import { ErrorPage } from './fixture/error-page';
 import { Page } from './fixture/test-page';
@@ -162,6 +161,14 @@ class TestReactRenderer extends ReactRenderer {
 
 	public getCurrentPagePackageForTest() {
 		return this.htmlTransformer.getPagePackage();
+	}
+
+	public resolveComposeChildrenForTest(options: {
+		page: { component: EcoComponent; props: Record<string, unknown> };
+		shellLayouts: Array<{ component: EcoComponent; props?: Record<string, unknown> }>;
+		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
+	}) {
+		return this.resolveComposeChildren(options);
 	}
 }
 
@@ -668,14 +675,10 @@ describe('ReactRenderer', () => {
 			config: { integration: 'ecopages-jsx' },
 		}) as unknown as EcoComponent;
 
-		const composeChildren = resolveComposeChildren({
+		const composeChildren = testRenderer.resolveComposeChildrenForTest({
 			page: { component: ReactPage, props: {} },
 			shellLayouts: [{ component: ReactLayout }],
 			foreignChildRoots: [ForeignRoot],
-			reactIntegrationName: 'react',
-			hasForeignChildDescendants: (component, roots) =>
-				(testRenderer as any).hasForeignChildDescendants(component, roots),
-			composeChildren: async () => ({ children: null, layoutRenders: [] }),
 		});
 
 		expect(composeChildren).toBeUndefined();
@@ -686,13 +689,9 @@ describe('ReactRenderer', () => {
 				dependencies: { components: [ForeignRoot] },
 			},
 		}) as unknown as EcoComponent;
-		const nestedComposeChildren = resolveComposeChildren({
+		const nestedComposeChildren = testRenderer.resolveComposeChildrenForTest({
 			page: { component: NestedForeignPage, props: {} },
 			shellLayouts: [{ component: ReactLayout }],
-			reactIntegrationName: 'react',
-			hasForeignChildDescendants: (component, roots) =>
-				(testRenderer as any).hasForeignChildDescendants(component, roots),
-			composeChildren: async () => ({ children: null, layoutRenders: [] }),
 		});
 
 		expect(nestedComposeChildren).toBeUndefined();
@@ -703,13 +702,9 @@ describe('ReactRenderer', () => {
 				dependencies: { components: [ForeignRoot] },
 			},
 		}) as unknown as EcoComponent;
-		const layoutForeignComposeChildren = resolveComposeChildren({
+		const layoutForeignComposeChildren = testRenderer.resolveComposeChildrenForTest({
 			page: { component: ReactPage, props: {} },
 			shellLayouts: [{ component: NestedForeignLayout }],
-			reactIntegrationName: 'react',
-			hasForeignChildDescendants: (component, roots) =>
-				(testRenderer as any).hasForeignChildDescendants(component, roots),
-			composeChildren: async () => ({ children: null, layoutRenders: [] }),
 		});
 
 		expect(layoutForeignComposeChildren).toBeUndefined();

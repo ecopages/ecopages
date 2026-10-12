@@ -8,11 +8,11 @@ import {
 	type PageBrowserGraphContribution,
 	type PageBrowserGraphContributionContext,
 } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { attachEcoFileMetadataToConfig } from '@ecopages/core/route-renderer/page-loading/file-scoped-dependency-components';
 import { StringMarkupRenderer } from '@ecopages/core/route-renderer/orchestration/string-markup-renderer';
 import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { MDX_PLUGIN_NAME } from './mdx.constants.ts';
-import { rapidhash } from '@ecopages/core/hash';
 import type { MDXRendererOptions } from './mdx.types.ts';
 
 export type { MDXFile, MDXRendererConfig, MDXRendererOptions } from './mdx.types.ts';
@@ -45,14 +45,7 @@ export class MDXRenderer extends StringMarkupRenderer {
 
 		if (config?.dependencies) {
 			components.push({
-				config: {
-					...config,
-					identity: {
-						id: rapidhash(pagePath).toString(36),
-						file: pagePath,
-						integration: this.name,
-					},
-				},
+				config: attachEcoFileMetadataToConfig(config, pagePath, this.name),
 			});
 		}
 

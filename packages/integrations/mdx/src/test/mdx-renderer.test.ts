@@ -5,8 +5,10 @@ import type {
 	EcoPageFile,
 	EcoPagesElement,
 	HtmlTemplateProps,
+	ProcessedAsset,
 } from '@ecopages/core';
 import { eco } from '@ecopages/core';
+import type { PageBrowserGraphContributionContext } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { MDXRenderer } from '../mdx-renderer.ts';
@@ -47,6 +49,21 @@ class ImportTestMdxRenderer extends MDXRenderer {
 	}
 }
 
+class BrowserGraphTestMdxRenderer extends MDXRenderer {
+	public resolvedComponents: Array<EcoComponent | Partial<EcoComponent>> = [];
+
+	public collectForTest(context: PageBrowserGraphContributionContext) {
+		return this.collectPageBrowserGraphContribution(context);
+	}
+
+	protected override async resolveDependencies(
+		components: Array<EcoComponent | Partial<EcoComponent>>,
+	): Promise<ProcessedAsset[]> {
+		this.resolvedComponents = components;
+		return [];
+	}
+}
+
 describe('MDXRenderer', () => {
 	describe('page importing', () => {
 		it('normalizes imported MDX modules without overriding the base import path', () => {
@@ -74,6 +91,41 @@ describe('MDXRenderer', () => {
 			expect(result.default).toBe(Page);
 			expect(result.layout).toBe(Layout);
 			expect((result.default as typeof Page).config).toBe(config);
+		});
+	});
+
+	describe('page browser graph contribution', () => {
+		it('preserves page and imported MDX layout identities in dependency collection', async () => {
+			const renderer = new BrowserGraphTestMdxRenderer({
+				appConfig: Config,
+				assetProcessingService: {} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+			const Layout = (async ({ children }: { children: EcoPagesElement }) => children) as EcoComponent<{
+				children: EcoPagesElement;
+			}>;
+			Layout.config = {
+				identity: { id: 'imported-mdx-layout', file: '/app/layouts/site.mdx', integration: 'mdx' },
+				dependencies: { scripts: ['./site.client.js'] },
+			};
+			const Page = (async () => '<article>content</article>') as unknown as EcoComponent;
+			const pageConfig = {
+				identity: { id: 'existing-page-identity', file: '/app/pages/original.mdx', integration: 'mdx' },
+				dependencies: { scripts: ['./page.client.js'] },
+				layouts: [Layout],
+			};
+			Page.config = pageConfig;
+
+			await renderer.collectForTest({
+				file: '/app/pages/post.mdx',
+				pageModule: { default: Page, config: pageConfig } as EcoPageFile,
+			});
+
+			expect(renderer.resolvedComponents.map((component) => component.config?.identity)).toEqual([
+				{ id: 'imported-mdx-layout', file: '/app/layouts/site.mdx', integration: 'mdx' },
+				{ id: 'existing-page-identity', file: '/app/pages/post.mdx', integration: 'mdx' },
+			]);
 		});
 	});
 

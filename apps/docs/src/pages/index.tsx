@@ -155,7 +155,7 @@ export default eco.page<{}, JsxRenderable>({
 					<div class="home-hero__text">
 						<RuiHeading size="xl" class="home-header__heading">
 							<RuiHeadingEyebrow>A modern, composable web framework</RuiHeadingEyebrow>
-							<RuiHeadingTitle as="h1">
+							<RuiHeadingTitle as="h1" class="text-pretty">
 								Pick an Integration. Create Pages. Add a server if you need it.
 							</RuiHeadingTitle>
 							<RuiHeadingDescription>

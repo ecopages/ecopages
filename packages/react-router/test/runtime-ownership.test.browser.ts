@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
@@ -138,7 +139,7 @@ describe('EcoRouter navigation runtime ownership', () => {
 		) as HTMLAnchorElement | null;
 		expect(link).not.toBeNull();
 		link?.addEventListener('click', (event) => event.preventDefault(), { once: true });
-		await ctx.user.click(link as HTMLAnchorElement);
+		await userEvent.click(link as HTMLAnchorElement);
 
 		await flushTasks();
 		expect(fetchSpy).not.toHaveBeenCalled();
@@ -178,7 +179,7 @@ describe('EcoRouter navigation runtime ownership', () => {
 		await ctx.ready();
 		const link = ctx.container.querySelector('[data-testid="LeaveReact-outside-link"]') as HTMLAnchorElement | null;
 		expect(link).not.toBeNull();
-		await ctx.user.click(link as HTMLAnchorElement);
+		await userEvent.click(link as HTMLAnchorElement);
 
 		await waitUntil(() => expect(handoffSpy).toHaveBeenCalledOnce());
 

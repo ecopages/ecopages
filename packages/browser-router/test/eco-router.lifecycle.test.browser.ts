@@ -7,7 +7,6 @@ describe('EcoRouter', () => {
 	const fixtures: EcoRouterTestFixtures = {
 		router: null,
 		fetchSpy: null,
-		user: null!,
 	};
 
 	installEcoRouterTestHooks(fixtures);

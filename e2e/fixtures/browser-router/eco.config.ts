@@ -3,7 +3,7 @@ import { kitajsPlugin } from '@ecopages/kitajs';
 import { mdxPlugin } from '@ecopages/mdx';
 
 export default defineConfig({
-	rootDir: import.meta.dir,
+	rootDir: import.meta.dirname,
 	baseUrl: process.env.ECOPAGES_BASE_URL,
 	integrations: [
 		kitajsPlugin(),

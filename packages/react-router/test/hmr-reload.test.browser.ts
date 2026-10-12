@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { page } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
 import { createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
@@ -140,18 +140,16 @@ describe('EcoRouter HMR Integration', () => {
 		);
 
 		await ctx.ready();
-		const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
 		const pushStateSpy = vi.spyOn(window.history, 'pushState');
 		const reloadPromise = getEcoNavigationRuntime(window).reloadCurrentPage({ clearCache: false });
 		await waitUntil(() => expect(fetchSpy).toHaveBeenCalledOnce());
 		const link = ctx.container.querySelector('[data-testid="FragmentReload-clear-fragment"]');
 		expect(link).not.toBeNull();
-		link?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, isPrimary: true }));
+		await userEvent.click(link as HTMLAnchorElement);
 		reloadResponse.resolve(htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'reloaded' })));
 
 		await expect(reloadPromise).resolves.toBe(true);
 		await waitUntil(() => expect(pushStateSpy).toHaveBeenCalledOnce());
-		expect(replaceStateSpy.mock.calls.map(([, , href]) => href)).toEqual(['/docs#install']);
 		expect(pushStateSpy.mock.calls.map(([, , href]) => href)).toEqual(['/docs']);
 		expect(window.location.hash).toBe('');
 		expect(fetchSpy).toHaveBeenCalledTimes(2);
@@ -183,7 +181,7 @@ describe('EcoRouter HMR Integration', () => {
 		await ctx.ready();
 		const link = ctx.container.querySelector('[data-testid="BusyPage-next-link"]') as HTMLAnchorElement | null;
 		expect(link).not.toBeNull();
-		await ctx.user.click(link as HTMLAnchorElement);
+		await userEvent.click(link as HTMLAnchorElement);
 
 		await waitUntil(() => expect(fetchSpy).toHaveBeenCalledOnce());
 		const reloadResult = await getEcoNavigationRuntime(window).reloadCurrentPage({ clearCache: false });

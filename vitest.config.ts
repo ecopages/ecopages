@@ -31,6 +31,7 @@ export default defineConfig({
 						'packages/file-system/**/*.test.ts',
 						'packages/react-router/**/*.test.ts',
 						'packages/dev-toolbar/**/*.test.ts',
+						'e2e/fixtures/*/*.test.ts',
 						'e2e/scripts/**/*.test.ts',
 						'e2e/playwright/**/*.test.ts',
 						'scripts/**/*.test.ts',

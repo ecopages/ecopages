@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { page } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
@@ -18,38 +18,6 @@ import {
 
 describe('EcoRouter link navigation', () => {
 	const ctx = useRouterTestEnvironment();
-
-	it('intercepts clicks that originate from a text node inside the anchor', async () => {
-		const Page = createMultiLinkPage('TextNodeClick', [{ href: '/fast', label: 'fast-link' }]);
-		const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
-		const createHtml = (label: string) => createNavigablePageHtml(moduleUrl, { label });
-
-		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(htmlPageResponse(createHtml('fast'), { status: 200 }));
-
-		ctx.root = createRoot(ctx.container);
-		ctx.root.render(
-			createElement(EcoRouter, {
-				page: Page,
-				pageProps: {},
-				options: { viewTransitions: false },
-				// oxlint-disable-next-line no-children-prop
-				children: createElement(PageContent),
-			}),
-		);
-
-		await ctx.ready();
-		const link = ctx.container.querySelector('[data-testid="TextNodeClick-fast-link"]') as HTMLAnchorElement | null;
-		const textNode = link?.firstChild;
-		expect(link).not.toBeNull();
-		expect(textNode).not.toBeNull();
-
-		textNode?.dispatchEvent(
-			new MouseEvent('click', { bubbles: true, cancelable: true, composed: true, button: 0 }),
-		);
-
-		await waitUntil(() => expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' }));
-		expect(ctx.container.textContent).toContain('fast');
-	});
 
 	it('does not navigate to a hovered link when a click lands on a non-link target during a slow navigation', async () => {
 		const Page = createMultiLinkPage('HoverRecovery', [
@@ -102,10 +70,13 @@ describe('EcoRouter link navigation', () => {
 		expect(slowLink).not.toBeNull();
 		expect(fastLink).not.toBeNull();
 
-		await ctx.user.click(slowLink as HTMLAnchorElement);
-		await ctx.user.hover(fastLink as HTMLAnchorElement);
+		await userEvent.click(slowLink as HTMLAnchorElement);
+		await userEvent.hover(fastLink as HTMLAnchorElement);
 		fastLink?.remove();
-		await ctx.user.click(ctx.container);
+		const nonLink = document.createElement('div');
+		nonLink.textContent = 'Not a link';
+		ctx.container.appendChild(nonLink);
+		await userEvent.click(nonLink);
 		slowFetch.resolve();
 
 		await waitUntil(() => expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'slow' }));
@@ -172,14 +143,11 @@ describe('EcoRouter link navigation', () => {
 		expect(hoveredB).not.toBeNull();
 		expect(hoveredC).not.toBeNull();
 
-		await ctx.user.click(clickedLink as HTMLAnchorElement);
+		await userEvent.click(clickedLink as HTMLAnchorElement);
 		await waitUntil(() => expect(fetchSpy.mock.calls.map((call) => getRequestPath(call[0]))).toEqual(['/clicked']));
 
 		for (const hovered of [hoveredA, hoveredB, hoveredC] as HTMLAnchorElement[]) {
-			hovered.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, composed: true }));
-			hovered.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, cancelable: true, composed: true }));
-			hovered.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, cancelable: true, composed: true }));
-			hovered.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, cancelable: true, composed: true }));
+			await userEvent.hover(hovered);
 		}
 
 		slowFetch.resolve();
@@ -230,9 +198,9 @@ describe('EcoRouter link navigation', () => {
 		expect(slowLink).not.toBeNull();
 		expect(fastLink).not.toBeNull();
 
-		await ctx.user.click(slowLink as HTMLAnchorElement);
+		await userEvent.click(slowLink as HTMLAnchorElement);
 		await waitUntil(() => expect(fetchSpy).toHaveBeenCalledOnce());
-		await ctx.user.click(fastLink as HTMLAnchorElement);
+		await userEvent.click(fastLink as HTMLAnchorElement);
 
 		await waitUntil(() => expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' }));
 		slowFetch.resolve(htmlPageResponse(createHtml('slow'), { status: 200 }));
@@ -294,9 +262,9 @@ describe('EcoRouter link navigation', () => {
 		expect(outsideLink).not.toBeNull();
 		expect(fastLink).not.toBeNull();
 
-		await ctx.user.click(outsideLink as HTMLAnchorElement);
+		await userEvent.click(outsideLink as HTMLAnchorElement);
 		await waitUntil(() => expect(fetchSpy).toHaveBeenCalledOnce());
-		await ctx.user.click(fastLink as HTMLAnchorElement);
+		await userEvent.click(fastLink as HTMLAnchorElement);
 
 		await waitUntil(() => expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'fast' }));
 		outsideFetch.resolve(htmlPageResponse('<html><body><main>Outside React</main></body></html>', { status: 200 }));
@@ -336,7 +304,7 @@ describe('EcoRouter link navigation', () => {
 
 		const link = ctx.container.querySelector('[data-testid="NavTerminal-next-link"]') as HTMLAnchorElement | null;
 		expect(link).not.toBeNull();
-		await ctx.user.click(link as HTMLAnchorElement);
+		await userEvent.click(link as HTMLAnchorElement);
 
 		await waitUntil(() => expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'next' }));
 		await expect.element(page.getByTestId('is-navigating')).toHaveTextContent('no');

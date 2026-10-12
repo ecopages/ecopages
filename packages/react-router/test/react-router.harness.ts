@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, expect, vi } from 'vitest';
-import userEvent from '@testing-library/user-event';
 import { act, createElement, type ReactNode } from 'react';
 import type { Root } from 'react-dom/client';
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
@@ -218,7 +217,6 @@ export async function renderAndFlushEffects(render: () => void): Promise<void> {
 export type RouterTestEnvironment = {
 	container: HTMLDivElement;
 	root: Root;
-	user: ReturnType<typeof userEvent.setup>;
 	/** Resolves once the mounted router has registered itself as the navigation owner. */
 	ready: typeof waitForRouterOwner;
 };
@@ -235,7 +233,6 @@ export function useRouterTestEnvironment(): RouterTestEnvironment {
 		clearNavigationHtmlCache();
 		ctx.container = document.createElement('div');
 		document.body.appendChild(ctx.container);
-		ctx.user = userEvent.setup();
 	});
 
 	afterEach(() => {

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import { RadiantCopyForLlm } from './copy-for-llm.script';
 
 function resetDom(): void {
@@ -58,7 +59,7 @@ describe('RadiantCopyForLlm', () => {
 
 	it('copies markdown and shows the copied state', async () => {
 		const { button } = await createCopyForLlm();
-		button.click();
+		await userEvent.click(button);
 
 		await vi.waitFor(() => {
 			expect(button.dataset.copied).toBe('true');
@@ -74,7 +75,7 @@ describe('RadiantCopyForLlm', () => {
 		} as Response);
 
 		const { button } = await createCopyForLlm();
-		button.click();
+		await userEvent.click(button);
 
 		await vi.waitFor(() => {
 			expect(button.dataset.copyError).toBe('true');
@@ -85,7 +86,7 @@ describe('RadiantCopyForLlm', () => {
 
 	it('resets copied state after navigation swap', async () => {
 		const { button } = await createCopyForLlm();
-		button.click();
+		await userEvent.click(button);
 
 		await vi.waitFor(() => {
 			expect(button.dataset.copied).toBe('true');
@@ -101,7 +102,7 @@ describe('RadiantCopyForLlm', () => {
 
 	it('does nothing when llm-url is missing', async () => {
 		const { button } = await createCopyForLlm({ llmUrl: '' });
-		button.click();
+		await userEvent.click(button);
 
 		expect(fetch).not.toHaveBeenCalled();
 		expect(button.dataset.copied).not.toBe('true');

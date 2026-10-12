@@ -1,13 +1,11 @@
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 import type { EcoNavigationTransaction } from '@ecopages/core/router/navigation-coordinator';
-import { applyViewTransitionNames } from '@ecopages/core/client/view-transitions';
+import { decideQueuedNavigationReplay } from '@ecopages/core/router/navigation-pipeline';
 import type { Dispatch, MutableRefObject, SetStateAction, TransitionStartFunction } from 'react';
-import { morphHead } from './head-morpher.ts';
 import type { PageState } from './navigation.ts';
 import {
 	applyHandoffNavigation,
 	applySpaNavigation,
-	decideQueuedNavigationReplay,
 	resolveReactNavigation,
 	type ReactNavigationOutcome,
 } from './navigation-orchestrator.ts';
@@ -63,34 +61,6 @@ function createWaitForRender(
 	};
 }
 
-function createSpaViewTransition(
-	deps: RouterNavigateRunnerDeps,
-	input: {
-		skipViewTransition: boolean;
-		isStale: () => boolean;
-		navigationId: number;
-	},
-) {
-	if (input.skipViewTransition || !deps.options.viewTransitions || !document.startViewTransition) {
-		return undefined;
-	}
-
-	return (update: () => Promise<void>) =>
-		new Promise<void>((resolve) => {
-			document.startViewTransition(async () => {
-				try {
-					await update();
-				} finally {
-					if (input.isStale() && deps.pendingRenderRef.current?.navigationId === input.navigationId) {
-						deps.pendingRenderRef.current.resolve();
-						deps.pendingRenderRef.current = null;
-					}
-					resolve();
-				}
-			});
-		});
-}
-
 async function applyRouterNavigationOutcome(
 	outcome: ReactNavigationOutcome,
 	input: {
@@ -128,8 +98,7 @@ async function applyRouterNavigationOutcome(
 				hardAssign: (href) => {
 					window.location.assign(href);
 				},
-				morphHead,
-				applyViewTransitionNames,
+				viewTransitionsEnabled: Boolean(input.deps.options.viewTransitions),
 				saveScrollPositions,
 				restoreScrollPositions,
 				updateHistory: (finalPath, requestedUrl, direction) => {
@@ -151,11 +120,6 @@ async function applyRouterNavigationOutcome(
 				runInReactTransition: (update) => {
 					input.deps.startTransition(update);
 				},
-				startViewTransition: createSpaViewTransition(input.deps, {
-					skipViewTransition: input.skipViewTransition,
-					isStale: input.isStale,
-					navigationId: input.navigationId,
-				}),
 				onCommittedPath: (finalPath) => {
 					input.deps.committedPathRef.current = finalPath;
 				},
@@ -197,8 +161,8 @@ function finalizeRouterNavigate(input: {
 	const queuedNavigationHref = shouldReplayQueuedNavigation ? deps.queuedNavigationHrefRef.current : null;
 	const replay = decideQueuedNavigationReplay({
 		queuedHref: queuedNavigationHref,
-		committedPath: deps.committedPathRef.current,
-		runtimeActive: deps.runtimeActiveRef.current,
+		committedHref: deps.committedPathRef.current,
+		routeToCoordinator: !deps.runtimeActiveRef.current,
 	});
 
 	navigation.complete();

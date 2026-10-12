@@ -1,4 +1,5 @@
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/router/navigation-pipeline';
 
 /**
  * Shared types for the EcoPages transitions package
@@ -107,7 +108,7 @@ export const DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC = ['lang', 'dir', ECO_D
 export const DEFAULT_OPTIONS: Required<EcoRouterOptions> = {
 	linkSelector: 'a[href]',
 	documentElementAttributesToSync: DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC,
-	persistAttribute: 'data-eco-persist',
+	persistAttribute: ECO_PERSIST_ATTRIBUTE,
 	reloadAttribute: 'data-eco-reload',
 	updateHistory: true,
 	scrollBehavior: 'top',

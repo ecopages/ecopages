@@ -19,6 +19,9 @@ export default eco.page<{}, ReactNode>({
 			<article data-testid="docs-page">
 				<h1>Documentation</h1>
 				<p>Welcome to the documentation. Select a topic from the sidebar.</p>
+				<section id="install" style={{ marginTop: '1200px' }}>
+					<h2>Installation</h2>
+				</section>
 				<p data-testid="query-client-count">{count}</p>
 				<button
 					type="button"

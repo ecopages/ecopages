@@ -1,3 +1,6 @@
+import type { EcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/router/navigation-lifecycle';
+import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/router/navigation-pipeline';
 import { DEV_TOOLBAR_NAV_TELEMETRY_PERSIST_KEY } from './constants.ts';
 import { subscribeToNavigationEvents } from './navigation-events.ts';
 
@@ -48,9 +51,7 @@ export type NavigationTelemetrySnapshot = {
 
 type EcoNavigationWindow = Window & {
 	__ECO_PAGES__?: {
-		navigation?: {
-			getNavigationOwner?: () => string | undefined;
-		};
+		navigation?: EcoNavigationRuntime;
 	};
 	__ecopages_browser_router__?: unknown;
 	__ECO_DEV_HYDRATION_MS__?: number;
@@ -104,8 +105,8 @@ function createEntryId(): string {
 
 function getNavigationOwner(): string | undefined {
 	const runtime = (window as EcoNavigationWindow).__ECO_PAGES__?.navigation;
-	const owner = runtime?.getNavigationOwner?.();
-	if (owner) {
+	const owner = runtime?.getOwnerState().owner;
+	if (owner && owner !== 'none') {
 		return owner;
 	}
 	if ((window as EcoNavigationWindow).__ecopages_browser_router__) {
@@ -205,7 +206,7 @@ function syncTelemetryElement(doc: Document = getTelemetryDocument()): Navigatio
 		const script = doc.createElement('script');
 		script.id = NAV_TELEMETRY_ELEMENT_ID;
 		script.setAttribute('type', 'application/json');
-		script.setAttribute('data-eco-persist', DEV_TOOLBAR_NAV_TELEMETRY_PERSIST_KEY);
+		script.setAttribute(ECO_PERSIST_ATTRIBUTE, DEV_TOOLBAR_NAV_TELEMETRY_PERSIST_KEY);
 		element = script;
 		doc.head.append(element);
 	}
@@ -369,9 +370,21 @@ export function initNavigationTelemetry(doc: Document = document): NavigationTel
 
 	const handleDomContentLoaded = () => recordInitialLoad(doc);
 
-	const unsubscribeBeforeSwap = subscribeToNavigationEvents(doc, ['eco:before-swap'], handleBeforeSwap);
-	const unsubscribeAfterSwap = subscribeToNavigationEvents(doc, ['eco:after-swap'], handleAfterSwap);
-	const unsubscribePageLoad = subscribeToNavigationEvents(doc, ['eco:page-load'], handlePageLoad);
+	const unsubscribeBeforeSwap = subscribeToNavigationEvents(
+		doc,
+		[ECO_NAVIGATION_LIFECYCLE_EVENTS.BEFORE_SWAP],
+		handleBeforeSwap,
+	);
+	const unsubscribeAfterSwap = subscribeToNavigationEvents(
+		doc,
+		[ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP],
+		handleAfterSwap,
+	);
+	const unsubscribePageLoad = subscribeToNavigationEvents(
+		doc,
+		[ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD],
+		handlePageLoad,
+	);
 
 	if (doc.readyState === 'complete' || doc.readyState === 'interactive') {
 		recordInitialLoad(doc);

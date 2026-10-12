@@ -61,6 +61,16 @@ export default eco.page({
 							</a>
 						</li>
 						<li>
+							<a
+								href="/prefetch/destination?test=reload"
+								data-eco-reload
+								data-eco-prefetch="hover"
+								id="link-reload"
+							>
+								Reload (No Prefetch)
+							</a>
+						</li>
+						<li>
 							<a href="/prefetch" id="link-self">
 								Self Link (Current Page)
 							</a>
@@ -74,6 +84,17 @@ export default eco.page({
 					<h2>Below the Fold</h2>
 					<a href="/prefetch/destination?test=below" data-eco-prefetch="viewport" id="link-below-fold">
 						Below Fold Link
+					</a>
+					<a href="/files/report.pdf" data-eco-prefetch="viewport" id="link-static-asset">
+						Static Asset
+					</a>
+					<a
+						href="/prefetch/destination?test=download"
+						data-eco-prefetch="viewport"
+						download
+						id="link-download"
+					>
+						Download
 					</a>
 				</div>
 			</>

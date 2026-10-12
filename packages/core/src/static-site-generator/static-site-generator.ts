@@ -267,7 +267,7 @@ export class StaticSiteGenerator {
 			} catch (error) {
 				appLogger.debug(
 					`Failed to record static render cache for ${options.pathname}`,
-					error instanceof Error ? error.message : String(error),
+					error instanceof Error ? (error.stack ?? error.message) : String(error),
 				);
 			}
 		}
@@ -301,7 +301,7 @@ export class StaticSiteGenerator {
 		} catch (error) {
 			appLogger.debug(
 				`Sitemap eligibility skipped for ${input.pathname}; metadata resolution failed`,
-				error instanceof Error ? error.message : String(error),
+				error instanceof Error ? (error.stack ?? error.message) : String(error),
 			);
 		}
 	}

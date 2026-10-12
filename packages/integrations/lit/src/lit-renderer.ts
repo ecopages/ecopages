@@ -94,10 +94,8 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 				query: options.query,
 			});
 
-			return {
-				body: result.html,
-				cacheStrategy: result.cacheStrategy,
-			};
+			const { html, ...metadata } = result;
+			return { body: html, ...metadata };
 		}
 
 		return super.execute(options);

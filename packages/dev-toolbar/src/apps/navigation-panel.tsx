@@ -3,6 +3,7 @@ import { RadiantElement } from '@ecopages/radiant';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { state } from '@ecopages/radiant/decorators/state';
 import type { JsxCustomElementAttributes } from '@ecopages/jsx';
+import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/router/navigation-lifecycle';
 import type { EcoDevManifest } from '../api/manifest-contract.ts';
 import { readDevManifestFromDocument } from '../api/dev-manifest.ts';
 import { DEV_TOOLBAR_NAV_HISTORY_PAGE_SIZE } from '../runtime/constants.ts';
@@ -37,7 +38,7 @@ export class EcoDevToolbarNavigation extends RadiantElement {
 		super.connectedCallback();
 		this.unsubscribeNavigationEvents = subscribeToNavigationEvents(
 			this.ownerDocument,
-			['eco:page-load', 'eco:after-swap'],
+			[ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD, ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP],
 			this.refresh,
 		);
 	}

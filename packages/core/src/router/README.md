@@ -22,7 +22,13 @@ router/
 │   └── route-registry.ts        # Owns template routes, request matching, static expansion, and reload
 └── client/                      # Browser-side navigation coordination
     ├── navigation-coordinator.ts # Singleton runtime coordinator
+    ├── navigation-commit.ts      # Shared client navigation commit pipeline
+    ├── navigation-document.ts    # Shared page fetch, HTML cache, and base-aware parsing
+    ├── navigation-head.ts        # Shared page head reconciliation
     ├── navigation-lifecycle.ts   # Shared document lifecycle events
+    ├── navigation-pipeline.ts    # Public client navigation entry
+    ├── navigation-replay.ts      # Shared queued-navigation decision
+    ├── navigation-view-transition.ts # Shared named-transition wrapper
     └── link-intent.ts           # Shared anchor detection and intent recovery helpers
 ```
 
@@ -74,7 +80,13 @@ Shared helpers used by `@ecopages/browser-router` and `@ecopages/react-router`:
 
 - `applyViewTransitionNames` / `clearViewTransitionNames` — named `data-view-transition` morph / fade styles (`eco-vt-dynamic-styles`).
 - `ensureRootViewTransitionStyles` — persisted CSS (`eco-vt-root-styles`, `data-eco-persist`) with `html { view-transition-name: none }` when VT is enabled.
-- `documentHasNamedViewTransitions` / `navigationHasNamedViewTransitions` — gate `startViewTransition` to pages with `data-view-transition` markup.
+- `navigationHasNamedViewTransitions` — detects named `data-view-transition` markup on either page.
+
+### Client navigation pipeline (`@ecopages/core/router/navigation-pipeline`)
+
+`commitNavigationPage()` owns shared document work: it dispatches lifecycle hooks, waits for new stylesheets, reconciles the head, wraps the adapter's swap in a named view transition, activates scripts, and invokes the router's scroll callback after the swap. Browser-router supplies a body morph or replacement; React-router supplies a React render and its scroll callback. Both use the same fetch, parse, cache, script identity, persist attribute, and queued-click policy. Head reconciliation removes head elements the incoming page lacks unless they carry the persist attribute. Browser-router prefetches into the shared HTML cache and reads it on click; React-router always fetches fresh HTML and only writes to the cache. A later commit that removes a staged stylesheet also settles its load wait so the superseded navigation can finish promptly. Rerun scripts match by `data-eco-script-id`, HTML `id`, original `src`, or inline contents. When matching by relative `src`, identity stays stable across different page base URLs, while external modules execute from the incoming page's resolved URL.
+
+The named exports from this entry are supported APIs for browser runtime authors. They cover document loading and cache control (`fetchNavigationPage`, `parseNavigationDocument`, `cacheNavigationHtml`, `getCachedNavigationHtml`, `invalidateNavigationHtml`, and `clearNavigationHtmlCache`), prefetch and replay policy (`shouldPrefetchLink`, `isSamePageHref`, and `decideQueuedNavigationReplay`), staged document updates (`prepareNavigationHead`, `activatePreparedNavigationScripts`, and `commitNavigationPage`), script activation (`activateNavigationScripts`, `activateScriptsInOrder`, and `collectBodyScripts`), named view transitions (`runNavigationViewTransition`), and the shared persist attribute (`ECO_PERSIST_ATTRIBUTE`). Their associated option and result types are exported alongside them.
 
 ### Navigation Coordinator (`navigation-coordinator.ts`)
 
@@ -110,7 +122,7 @@ import {
 } from '@ecopages/core/router/navigation-lifecycle';
 ```
 
-`browser-router` and `react-router` call these helpers around their own commit implementations. Use `completeNavigationLifecycle` for the paired post-commit signals. Listeners use the DOM contract:
+The shared navigation pipeline emits these events around the router-specific swap. Use `completeNavigationLifecycle` when implementing a custom runtime. Listeners use the DOM contract:
 
 - `eco:before-swap` — pre-commit hook with `newDocument` and `reload()`
 - `eco:after-swap` — post-commit signal after the runtime has applied the new page

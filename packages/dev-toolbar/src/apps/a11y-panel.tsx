@@ -3,6 +3,7 @@ import { RadiantElement } from '@ecopages/radiant';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { state } from '@ecopages/radiant/decorators/state';
 import type { JsxCustomElementAttributes } from '@ecopages/jsx';
+import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/router/navigation-lifecycle';
 import type { DevToolbarBadge } from '../api/types.ts';
 import { toA11yBadge } from './a11y/a11y-badge.ts';
 import { resolveA11yIssueElement, runA11yChecks, toA11yIssueView, type A11yIssueView } from './a11y/run-a11y-checks.ts';
@@ -52,7 +53,7 @@ export class EcoDevToolbarA11y extends RadiantElement {
 		super.connectedCallback();
 		this.unsubscribeNavigationEvents = subscribeToNavigationEvents(
 			this.ownerDocument,
-			['eco:page-load', 'eco:after-swap'],
+			[ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD, ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP],
 			this.scheduleAudit,
 		);
 		void this.runAudit();

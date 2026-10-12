@@ -1,3 +1,4 @@
+import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/router/navigation-pipeline';
 import { DEV_TOOLBAR_PERSIST_KEY } from '../runtime/constants.ts';
 import { DEV_TOOLBAR_STYLES } from './styles.ts';
 
@@ -15,7 +16,7 @@ export function ensureDevToolbarStyles(styles: string = DEV_TOOLBAR_STYLES): voi
 
 	const style = document.createElement('style');
 	style.id = DEV_TOOLBAR_STYLES_ELEMENT_ID;
-	style.setAttribute('data-eco-persist', DEV_TOOLBAR_PERSIST_KEY);
+	style.setAttribute(ECO_PERSIST_ATTRIBUTE, DEV_TOOLBAR_PERSIST_KEY);
 	style.textContent = styles;
 	document.head.append(style);
 }

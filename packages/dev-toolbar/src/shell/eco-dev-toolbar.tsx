@@ -1,5 +1,7 @@
 /** @jsxImportSource @ecopages/jsx */
 import '@ecopages/radiant/client/install-hydrator';
+import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/router/navigation-lifecycle';
+import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/router/navigation-pipeline';
 import { RadiantElement } from '@ecopages/radiant';
 import {
 	BUILD_ERROR_EVENT,
@@ -104,7 +106,7 @@ export class EcoDevToolbar extends RadiantElement {
 		let host = document.querySelector<EcoDevToolbar>(DEV_TOOLBAR_ELEMENT_NAME);
 		if (!host) {
 			host = document.createElement(DEV_TOOLBAR_ELEMENT_NAME) as EcoDevToolbar;
-			host.setAttribute('data-eco-persist', DEV_TOOLBAR_PERSIST_KEY);
+			host.setAttribute(ECO_PERSIST_ATTRIBUTE, DEV_TOOLBAR_PERSIST_KEY);
 			document.documentElement.append(host);
 		}
 
@@ -249,17 +251,17 @@ export class EcoDevToolbar extends RadiantElement {
 		document.addEventListener('click', this.handleOutsideClick, true);
 		this.unsubscribeNavigationEvents = subscribeToNavigationEvents(
 			document,
-			['eco:before-swap'],
+			[ECO_NAVIGATION_LIFECYCLE_EVENTS.BEFORE_SWAP],
 			this.handleNavigationStart,
 		);
 		const unsubscribeNavigationEnd = subscribeToNavigationEvents(
 			document,
-			['eco:after-swap', 'eco:page-load'],
+			[ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP, ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD],
 			this.handleNavigationEnd,
 		);
 		const unsubscribeRouteChange = subscribeToNavigationEvents(
 			document,
-			['eco:after-swap', 'eco:page-load'],
+			[ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP, ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD],
 			this.handleRouteChange,
 		);
 		const unsubscribeExisting = this.unsubscribeNavigationEvents;

@@ -209,3 +209,5 @@ The router relies on **HTML-First** navigation to sync perfectly with SSR:
     - `hard-navigation`: static-asset URL or failed fetch → `location.assign` / `location.href`.
     - `stale`: a newer navigation superseded this attempt.
     - `isNavigating` clears on every non-stale terminal (including handoff and hard fallback); stale attempts leave it for the newer owner.
+
+Coordinator-driven reloads fetch the current HTML instead of reusing prefetched navigation content, and keep the active URL fragment. A reload with `clearCache` also removes the current document and redirect target from the shared navigation cache before refreshing persisted layouts.

@@ -28,6 +28,7 @@ import {
 import { type EcoRouterOptions, DEFAULT_OPTIONS } from './types.ts';
 import { RouterContext } from './context.ts';
 import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/router/link-navigation-policy';
+import { invalidateNavigationHtml } from '@ecopages/core/router/navigation-pipeline';
 import { type PageState } from './navigation.ts';
 import { runRouterNavigate, type RouterNavigateOptions } from './router-navigate-runner.ts';
 import { applyViewTransitionNames, ensureRootViewTransitionStyles } from '@ecopages/core/client/view-transitions';
@@ -171,6 +172,7 @@ function useNavigationCoordinator(
 		options?: {
 			isPopState?: boolean;
 			pushHistory?: boolean;
+			bypassCache?: boolean;
 			skipViewTransition?: boolean;
 			moduleUrlOverride?: string;
 		},
@@ -193,12 +195,14 @@ function useNavigationCoordinator(
 			return false;
 		}
 
+		const currentUrl = window.location.href;
 		if (request?.clearCache) {
 			clearLayoutCache();
+			invalidateNavigationHtml(currentUrl);
 		}
 
-		const currentUrl = window.location.pathname + window.location.search;
 		await navigate(currentUrl, {
+			bypassCache: true,
 			moduleUrlOverride: request?.moduleUrl,
 			skipViewTransition: true,
 		});

@@ -3,7 +3,11 @@ import userEvent from '@testing-library/user-event';
 import { createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
-import { clearNavigationHtmlCache } from '../../core/src/router/client/navigation-document.ts';
+import {
+	cacheNavigationHtml,
+	clearNavigationHtmlCache,
+	getCachedNavigationHtml,
+} from '../../core/src/router/client/navigation-document.ts';
 import { useRouter } from '../src/context.ts';
 import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
 
@@ -299,6 +303,110 @@ describe('EcoRouter HMR Integration', () => {
 			await vi.waitFor(() => {
 				expect(container.textContent).toContain('Reloaded page');
 			});
+		});
+
+		it('reloads fresh HTML instead of reusing the navigation cache', async () => {
+			const PageA = createMockPageComponent('PageA');
+			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+			const currentUrl = new URL('/notes', window.location.origin);
+			window.history.replaceState(null, '', currentUrl);
+			cacheNavigationHtml(currentUrl, createNavigablePageHtml(moduleUrl, { label: 'cached' }));
+			const fetchSpy = vi
+				.spyOn(globalThis, 'fetch')
+				.mockResolvedValue(htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'fresh' })));
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: PageA,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			await expect(getEcoNavigationRuntime(window).reloadCurrentPage({ clearCache: false })).resolves.toBe(true);
+
+			await vi.waitFor(() => {
+				expect(container.querySelector('[data-testid="page-label"]')?.textContent).toBe('fresh');
+			});
+			expect(fetchSpy).toHaveBeenCalledOnce();
+		});
+
+		it('clears a cached redirect target when a reload requests cache clearing', async () => {
+			const PageA = createMockPageComponent('PageA');
+			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+			const currentUrl = new URL('/notes', window.location.origin);
+			const cachedFinalUrl = new URL('/previous-notes', currentUrl);
+			window.history.replaceState(null, '', currentUrl);
+			cacheNavigationHtml(currentUrl, createNavigablePageHtml(moduleUrl, { label: 'cached' }), cachedFinalUrl);
+			const fetchSpy = vi
+				.spyOn(globalThis, 'fetch')
+				.mockResolvedValue(htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'fresh' })));
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: PageA,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			await expect(getEcoNavigationRuntime(window).reloadCurrentPage({ clearCache: true })).resolves.toBe(true);
+
+			await vi.waitFor(() => {
+				expect(container.querySelector('[data-testid="page-label"]')?.textContent).toBe('fresh');
+			});
+			expect(fetchSpy).toHaveBeenCalledOnce();
+			expect(getCachedNavigationHtml(cachedFinalUrl)).toBeNull();
+		});
+
+		it('replays a queued fragment-clearing link after reloading a fragment URL', async () => {
+			const Page = createMultiLinkPage('FragmentReload', [{ href: '/docs', label: 'clear-fragment' }]);
+			const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+			window.history.replaceState(null, '', '/docs#install');
+			const reloadResponse = createDeferred<Response>();
+			const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((_, init) => {
+				if (init?.signal?.aborted) {
+					return Promise.reject(new DOMException('Aborted', 'AbortError'));
+				}
+				if (fetchSpy.mock.calls.length === 1) return reloadResponse.promise;
+				return Promise.resolve(htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'queued' })));
+			});
+
+			root = createRoot(container);
+			root.render(
+				createElement(EcoRouter, {
+					page: Page,
+					pageProps: {},
+					options: { viewTransitions: false },
+					// oxlint-disable-next-line no-children-prop
+					children: createElement(PageContent),
+				}),
+			);
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
+			const pushStateSpy = vi.spyOn(window.history, 'pushState');
+			const reloadPromise = getEcoNavigationRuntime(window).reloadCurrentPage({ clearCache: false });
+			await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledOnce());
+			const link = container.querySelector('[data-testid="FragmentReload-clear-fragment"]');
+			expect(link).not.toBeNull();
+			link?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, isPrimary: true }));
+			reloadResponse.resolve(htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'reloaded' })));
+
+			await expect(reloadPromise).resolves.toBe(true);
+			await vi.waitFor(() => expect(pushStateSpy).toHaveBeenCalledOnce());
+			expect(replaceStateSpy.mock.calls.map(([, , href]) => href)).toEqual(['/docs#install']);
+			expect(pushStateSpy.mock.calls.map(([, , href]) => href)).toEqual(['/docs']);
+			expect(window.location.hash).toBe('');
+			expect(container.querySelector('[data-testid="page-label"]')?.textContent).toBe('reloaded');
 		});
 
 		it('ignores coordinator reloads while a navigation is still in flight', async () => {

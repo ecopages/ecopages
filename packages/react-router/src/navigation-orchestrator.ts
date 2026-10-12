@@ -47,6 +47,7 @@ export type ResolveReactNavigationInput = {
 	isStale: () => boolean;
 	isPopState: boolean;
 	pushHistory: boolean;
+	bypassCache?: boolean;
 	moduleUrlOverride?: string;
 };
 
@@ -110,7 +111,10 @@ export async function resolveReactNavigation(input: ResolveReactNavigationInput)
 
 	let sharedPage: Awaited<ReturnType<typeof fetchNavigationPage>>;
 	try {
-		sharedPage = await fetchNavigationPage(input.url, { signal: input.signal });
+		sharedPage = await fetchNavigationPage(input.url, {
+			signal: input.signal,
+			bypassCache: input.bypassCache,
+		});
 	} catch (error) {
 		if (!(error instanceof DOMException && error.name === 'AbortError')) {
 			console.error('[EcoRouter] Navigation failed:', error);

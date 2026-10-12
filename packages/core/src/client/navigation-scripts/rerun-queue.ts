@@ -11,6 +11,7 @@ export type PendingRerunScript = {
 	attributes: Array<[string, string]>;
 	textContent: string;
 	src: string | null;
+	resolvedSrc: string | null;
 	scriptId: string | null;
 };
 
@@ -29,7 +30,8 @@ export function collectRerunScripts(
 			parent: script.closest('body') ? 'body' : 'head',
 			attributes: Array.from(script.attributes).map((attribute) => [attribute.name, attribute.value]),
 			textContent: script.textContent ?? '',
-			src: script.getAttribute('src') ? script.src : null,
+			src: script.getAttribute('src'),
+			resolvedSrc: script.getAttribute('src') ? script.src : null,
 			scriptId: getNavigationScriptIdentity(script).scriptId,
 		}));
 }
@@ -38,7 +40,7 @@ export function collectRerunScripts(
  * Returns whether a rerun script is an external ES module that needs cache busting.
  */
 function isExternalModuleRerunScript(script: PendingRerunScript): boolean {
-	if (!script.src) {
+	if (!script.resolvedSrc) {
 		return false;
 	}
 
@@ -86,7 +88,7 @@ export function toRerunScriptActivation(script: PendingRerunScript): {
 		name === 'src' && needsScriptElement && !registeredRerun
 			? [
 					[RERUN_SRC_ATTR, value],
-					['src', createRerunScriptUrl(value)],
+					['src', createRerunScriptUrl(script.resolvedSrc ?? value)],
 				]
 			: [[name, value]],
 	);

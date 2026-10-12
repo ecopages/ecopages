@@ -68,4 +68,34 @@ describe('collectRerunScripts and script activations', () => {
 			Array.from(second).find(([name]) => name === 'src')?.[1],
 		);
 	});
+
+	it('replaces rerun scripts by their original relative src across different base urls', () => {
+		const liveBase = document.createElement('base');
+		liveBase.href = 'https://example.test/static/';
+		document.head.appendChild(liveBase);
+
+		const existing = document.createElement('script');
+		existing.setAttribute('data-eco-rerun', '');
+		existing.setAttribute(RERUN_SRC_ATTR, 'app.js');
+		existing.setAttribute('src', 'https://example.test/static/app.js?__eco_rerun=old');
+		existing.type = 'module';
+		document.head.appendChild(existing);
+
+		const incoming = new DOMParser().parseFromString(
+			'<html><head><base href="https://example.test/docs/guide/"><script data-eco-rerun src="app.js" type="module"></script></head></html>',
+			'text/html',
+		);
+		const [script] = collectRerunScripts(incoming);
+		const activation = toRerunScriptActivation(script!);
+		const replacement = document.createElement('script');
+		for (const [name, value] of activation.attributes) replacement.setAttribute(name, value);
+		activation.insert(replacement);
+
+		expect(existing.isConnected).toBe(false);
+		expect(document.head.querySelectorAll('script[data-eco-rerun]')).toHaveLength(1);
+		expect(replacement.getAttribute(RERUN_SRC_ATTR)).toBe('app.js');
+		expect(replacement.getAttribute('src')).toMatch(
+			/^https:\/\/example\.test\/docs\/guide\/app\.js\?__eco_rerun=1$/,
+		);
+	});
 });

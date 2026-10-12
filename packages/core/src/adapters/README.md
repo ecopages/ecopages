@@ -15,6 +15,8 @@ They are responsible for:
 
 Shared shutdown cancels queued Page prewarming, waits for active prewarm renders and for Integration `setup()` calls still in flight, then calls each Integration's `teardown()` and clears its activation state. Cleanup attempts each resource even when an earlier step fails, then reports the errors. This releases runtime resources such as Lit workers after background renders finish using them.
 
+If shutdown rejects while a standalone development restart is stopping the server, the adapter logs the rejection details, including nested cleanup errors, and exits with failure so the watcher cannot leave a serverless child running.
+
 They are not responsible for:
 
 - deciding plugin lifecycle ordering

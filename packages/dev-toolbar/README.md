@@ -55,7 +55,7 @@ Custom clients can claim the HMR runtime's cancelable `ecopages:build-error` win
 ## Package layout
 
 - `src/bootstrap.ts` — injects toolbar CSS into `document.head`, boots navigation telemetry, and mounts `eco-dev-toolbar`; reload-safe telemetry ownership prevents HMR bundle re-evaluation from adding duplicate document listeners
-- `src/runtime/navigation-events.ts` — shares the three navigation lifecycle listeners across toolbar apps and removes them when the final subscriber unmounts
+- `src/runtime/navigation-events.ts` — shares core's navigation lifecycle event names and one DOM listener across toolbar apps, removing it when the final subscriber unmounts
 - `src/shell/eco-dev-toolbar.tsx` — Radiant light-DOM host (JSX `render()`, no shadow root); panel positioning is pure CSS
 - `src/shell/motion.ts` — WAAPI motion for stealth dock reveal only; panel show/hide is CSS
 - `src/apps/*-panel.tsx` — Radiant JSX panels (navigation, deps, islands, a11y, settings)

@@ -1,5 +1,6 @@
 /** @jsxImportSource @ecopages/jsx */
 import '@ecopages/radiant/client/install-hydrator';
+import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/router/navigation-lifecycle';
 import { RadiantElement } from '@ecopages/radiant';
 import {
 	BUILD_ERROR_EVENT,
@@ -249,17 +250,17 @@ export class EcoDevToolbar extends RadiantElement {
 		document.addEventListener('click', this.handleOutsideClick, true);
 		this.unsubscribeNavigationEvents = subscribeToNavigationEvents(
 			document,
-			['eco:before-swap'],
+			[ECO_NAVIGATION_LIFECYCLE_EVENTS.BEFORE_SWAP],
 			this.handleNavigationStart,
 		);
 		const unsubscribeNavigationEnd = subscribeToNavigationEvents(
 			document,
-			['eco:after-swap', 'eco:page-load'],
+			[ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP, ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD],
 			this.handleNavigationEnd,
 		);
 		const unsubscribeRouteChange = subscribeToNavigationEvents(
 			document,
-			['eco:after-swap', 'eco:page-load'],
+			[ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP, ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD],
 			this.handleRouteChange,
 		);
 		const unsubscribeExisting = this.unsubscribeNavigationEvents;

@@ -124,6 +124,26 @@ describe('navigation telemetry', () => {
 		expect(elements.get(NAV_TELEMETRY_ELEMENT_ID)?.textContent).toContain('"kind":"initial"');
 	});
 
+	it('records the owner reported by the core navigation runtime', () => {
+		vi.stubGlobal('window', {
+			location: {
+				pathname: '/',
+				search: '',
+			},
+			__ECO_PAGES__: {
+				navigation: {
+					getOwnerState: () => ({ owner: 'react-router' }),
+				},
+			},
+		});
+		const { doc, listeners } = createDocumentHarness();
+		initNavigationTelemetry(doc);
+
+		recordInitialLoadViaPageLoad(listeners);
+
+		expect(readNavigationTelemetrySnapshot(doc)?.history[0]?.navigationOwner).toBe('react-router');
+	});
+
 	it('reuses the browser runtime when HMR re-evaluates the telemetry module', async () => {
 		const { addEventListener, doc } = createDocumentHarness();
 		const api = initNavigationTelemetry(doc);

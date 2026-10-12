@@ -1,0 +1,11 @@
+@import 'tailwindcss';
+
+@layer components {
+	.button {
+		@apply inline-flex;
+
+		&--primary {
+			@apply text-blue-500;
+		}
+	}
+}

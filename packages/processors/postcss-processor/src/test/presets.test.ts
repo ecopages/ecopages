@@ -1,9 +1,25 @@
 import { describe, expect, test } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { PostCssProcessor } from '../postcss-processor';
 import { tailwindV3Preset } from '../presets/tailwind-v3';
 import { tailwindV4Preset } from '../presets/tailwind-v4';
+
+function createTailwindAppFixture(): { root: string; referencePath: string } {
+	const root = mkdtempSync(path.join(tmpdir(), 'postcss-tailwind-app-'));
+	const referencePath = path.join(root, 'src/styles/tailwind.css');
+	mkdirSync(path.dirname(referencePath), { recursive: true });
+	mkdirSync(path.join(root, 'node_modules'), { recursive: true });
+	writeFileSync(path.join(root, 'package.json'), '{"type":"module"}', 'utf8');
+	symlinkSync(
+		path.resolve(__dirname, '../../../../../playground/tailwind-v4/node_modules/tailwindcss'),
+		path.join(root, 'node_modules/tailwindcss'),
+		'dir',
+	);
+	return { root, referencePath };
+}
 
 describe('Presets Verification', () => {
 	const cssToPrefix = `
@@ -118,17 +134,19 @@ describe('Presets Verification', () => {
 	});
 
 	test('Tailwind v4 preset should resolve bare module @import from the app package root', async () => {
-		const referencePath = path.resolve(__dirname, '../../../../../playground/kitchen-sink/src/styles/tailwind.css');
-		const preset = tailwindV4Preset({ referencePath });
-		const css = `@import 'tailwindcss';`;
+		const fixture = createTailwindAppFixture();
+		try {
+			const preset = tailwindV4Preset({ referencePath: fixture.referencePath });
+			const result = await PostCssProcessor.processStringOrBuffer(`@import 'tailwindcss';`, {
+				plugins: preset.plugins ? Object.values(preset.plugins) : [],
+				filePath: fixture.referencePath,
+			});
 
-		const result = await PostCssProcessor.processStringOrBuffer(css, {
-			plugins: preset.plugins ? Object.values(preset.plugins) : [],
-			filePath: referencePath,
-		});
-
-		expect(result.length).toBeGreaterThan(0);
-		expect(result).toContain('--tw-');
+			expect(result.length).toBeGreaterThan(0);
+			expect(result).toContain('--tw-');
+		} finally {
+			rmSync(fixture.root, { recursive: true, force: true });
+		}
 	}, 30_000);
 });
 
@@ -189,20 +207,19 @@ test('Tailwind v4 preset should expand BEM modifiers inside @layer blocks', asyn
 test('Tailwind v4 preset should preserve nested BEM selectors with @apply in production', async () => {
 	const originalNodeEnv = process.env.NODE_ENV;
 	process.env.NODE_ENV = 'production';
+	let fixtureRoot: string | undefined;
 
 	try {
-		const kitchenSinkTailwindPath = path.resolve(
-			__dirname,
-			'../../../../../playground/kitchen-sink/src/styles/tailwind.css',
-		);
-		const preset = tailwindV4Preset({
-			referencePath: kitchenSinkTailwindPath,
-		});
-		const css = await readFile(kitchenSinkTailwindPath, 'utf-8');
+		const fixture = createTailwindAppFixture();
+		fixtureRoot = fixture.root;
+		const fixturePath = path.resolve(__dirname, 'fixtures/tailwind-nested-bem.css');
+		const css = await readFile(fixturePath, 'utf-8');
+		writeFileSync(fixture.referencePath, css, 'utf8');
+		const preset = tailwindV4Preset({ referencePath: fixture.referencePath });
 
 		const result = await PostCssProcessor.processStringOrBuffer(css, {
 			plugins: preset.plugins ? Object.values(preset.plugins) : [],
-			filePath: kitchenSinkTailwindPath,
+			filePath: fixture.referencePath,
 		});
 
 		expect(result).toContain('.button--primary');
@@ -212,6 +229,9 @@ test('Tailwind v4 preset should preserve nested BEM selectors with @apply in pro
 			delete process.env.NODE_ENV;
 		} else {
 			process.env.NODE_ENV = originalNodeEnv;
+		}
+		if (fixtureRoot) {
+			rmSync(fixtureRoot, { recursive: true, force: true });
 		}
 	}
 }, 30_000);
@@ -287,23 +307,27 @@ describe('Tailwind v4 transformInput', () => {
 });
 
 describe('Tailwind v4 preset @apply resolution (regression)', () => {
-	const referencePath = path.resolve(__dirname, '../../../../../playground/kitchen-sink/src/styles/tailwind.css');
-
 	test('resolves @apply when the reference is injected at the src location but processed from a different (dist) location', async () => {
-		const preset = tailwindV4Preset({ referencePath });
-		const raw = `.main-title { @apply text-2xl font-bold; }`;
+		const fixture = createTailwindAppFixture();
+		try {
+			writeFileSync(fixture.referencePath, `@import 'tailwindcss';`, 'utf8');
+			const preset = tailwindV4Preset({ referencePath: fixture.referencePath });
+			const raw = `.main-title { @apply text-2xl font-bold; }`;
 
-		const srcPath = path.resolve(__dirname, 'pages/index.css');
-		const transformed = await preset.transformInput!(raw, srcPath);
+			const srcPath = path.resolve(__dirname, 'pages/index.css');
+			const transformed = await preset.transformInput!(raw, srcPath);
 
-		const distPath = path.resolve(__dirname, '../../dist/styles/page-bundle.css');
-		const result = await PostCssProcessor.processStringOrBuffer(transformed, {
-			plugins: preset.plugins ? Object.values(preset.plugins) : [],
-			filePath: distPath,
-		});
+			const distPath = path.resolve(__dirname, '../../dist/styles/page-bundle.css');
+			const result = await PostCssProcessor.processStringOrBuffer(transformed, {
+				plugins: preset.plugins ? Object.values(preset.plugins) : [],
+				filePath: distPath,
+			});
 
-		expect(result.length).toBeGreaterThan(0);
-		expect(result).toContain('font-size');
-		expect(result).toContain('.main-title');
+			expect(result.length).toBeGreaterThan(0);
+			expect(result).toContain('font-size');
+			expect(result).toContain('.main-title');
+		} finally {
+			rmSync(fixture.root, { recursive: true, force: true });
+		}
 	});
 });

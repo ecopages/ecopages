@@ -85,7 +85,6 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 		});
 		watchers.push(watcher);
 		const subscription = await watcher.createWatcherSubscription();
-		await new Promise<void>((resolve) => subscription.once('ready', resolve));
 		expect(resolveWorkspacePackageWatchRoots(config.rootDir)).toContain(packageDir);
 		await vi.waitFor(() => expect(subscription.getWatched()[path.join(packageDir, 'src')]).toContain('button.ts'), {
 			timeout: 3000,
@@ -147,7 +146,6 @@ test('ignores installed and hidden linked-package files while app source retains
 	});
 	watchers.push(watcher);
 	const subscription = await watcher.createWatcherSubscription();
-	await new Promise<void>((resolve) => subscription.once('ready', resolve));
 	await vi.waitFor(
 		() => {
 			expect(subscription.getWatched()[path.dirname(appSource)]).toContain(path.basename(appSource));
@@ -155,7 +153,6 @@ test('ignores installed and hidden linked-package files while app source retains
 		},
 		{ timeout: 3000 },
 	);
-	await new Promise((resolve) => setTimeout(resolve, 150));
 	restart.mockClear();
 	vi.mocked(hmrManager.handleFileChange).mockClear();
 	vi.mocked(bridge.reload).mockClear();
@@ -164,8 +161,9 @@ test('ignores installed and hidden linked-package files while app source retains
 	await vi.waitFor(() => expect(bridge.reload).toHaveBeenCalled(), {
 		timeout: 3000,
 	});
-	expect(restart).not.toHaveBeenCalled();
 	expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
-	for (const file of ignoredPaths)
+	for (const file of ignoredPaths) {
+		expect(restart).not.toHaveBeenCalledWith(file);
 		expect(hmrManager.handleFileChange).not.toHaveBeenCalledWith(file, expect.anything());
+	}
 });

@@ -806,19 +806,20 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		vi.restoreAllMocks();
 	});
 
-	test('should watch recorded Processor paths, pages, and public assets', async () => {
+	test('watches the source tree, Processor paths, and runtime restart files', async () => {
 		const Config = await createMockConfig();
 		installDevRuntimeState(Config);
-		vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath) =>
-			[Config.absolutePaths.pagesDir, Config.absolutePaths.publicDir].includes(String(targetPath)),
-		);
 		const watcherHandle = {
 			add: vi.fn(),
 			once: vi.fn(emitInitialWatcherReady),
 			on: vi.fn().mockReturnThis(),
 			close: vi.fn(),
 		};
-		const chokidarWatch = vi.fn(() => watcherHandle);
+		let watchOptions: unknown;
+		const chokidarWatch = vi.fn((_paths: string[], options?: unknown) => {
+			watchOptions = options;
+			return watcherHandle;
+		});
 
 		vi.spyOn(chokidar, 'watch').mockImplementation(chokidarWatch as never);
 
@@ -839,36 +840,36 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 
 		await watcher.createWatcherSubscription();
 
-		expect(chokidarWatch).toHaveBeenCalledWith(
+		const watchedPaths = chokidarWatch.mock.calls[0]?.[0] ?? [];
+		expect(watchOptions).toMatchObject({ ignoreInitial: true });
+		expect(watchedPaths).toEqual(
 			expect.arrayContaining([
+				Config.absolutePaths.srcDir,
 				'/test/project/custom-watch',
+				Config.absolutePaths.config,
+			]),
+		);
+		expect(watchedPaths).not.toEqual(
+			expect.arrayContaining([
 				Config.absolutePaths.pagesDir,
+				Config.absolutePaths.componentsDir,
+				Config.absolutePaths.includesDir,
+				Config.absolutePaths.layoutsDir,
 				Config.absolutePaths.publicDir,
 			]),
-			expect.any(Object),
-		);
-		expect(chokidarWatch).not.toHaveBeenCalledWith(
-			expect.arrayContaining([Config.absolutePaths.includesDir, Config.absolutePaths.srcDir]),
-			expect.any(Object),
 		);
 		expect(watcherHandle.add).not.toHaveBeenCalled();
 	});
 
-	test('should watch components, includes, layouts, and views when they exist', async () => {
+	test('watches recorded paths outside srcDir directly and leaves source inputs to the srcDir watch', async () => {
 		const Config = await createMockConfig();
 		installDevRuntimeState(Config);
-		const viewsDir = path.join(Config.absolutePaths.srcDir, 'views');
-		vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath) =>
-			[
-				Config.absolutePaths.pagesDir,
-				Config.absolutePaths.publicDir,
-				Config.absolutePaths.componentsDir,
-				Config.absolutePaths.includesDir,
-				Config.absolutePaths.layoutsDir,
-				viewsDir,
-			].includes(String(targetPath)),
-		);
-		const chokidarWatch = vi.fn(() => ({
+		const sourceInput = path.join(Config.absolutePaths.srcDir, 'lib/posts.ts');
+		const externalInput = path.join(Config.rootDir, '../shared/data/posts.json');
+		const buildInputIndex = getAppBuildInputIndex(Config);
+		buildInputIndex.recordWatchPath(sourceInput);
+		buildInputIndex.recordWatchPath(externalInput);
+		const chokidarWatch = vi.fn((_paths: string[]) => ({
 			add: vi.fn(),
 			once: vi.fn(emitInitialWatcherReady),
 			on: vi.fn().mockReturnThis(),
@@ -886,15 +887,10 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 
 		await watcher.createWatcherSubscription();
 
-		expect(chokidarWatch).toHaveBeenCalledWith(
-			expect.arrayContaining([
-				Config.absolutePaths.componentsDir,
-				Config.absolutePaths.includesDir,
-				Config.absolutePaths.layoutsDir,
-				viewsDir,
-			]),
-			expect.any(Object),
-		);
+		const watchedPaths = chokidarWatch.mock.calls[0]?.[0] ?? [];
+		expect(watchedPaths).toContain(Config.absolutePaths.srcDir);
+		expect(watchedPaths).toContain(externalInput);
+		expect(watchedPaths).not.toContain(sourceInput);
 	});
 
 	test('waits for filesystem subscriptions to be ready before startup completes', async () => {
@@ -932,7 +928,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 	test('does not treat chokidar add for a newly recorded existing file as a create', async () => {
 		const Config = await createMockConfig();
 		installDevRuntimeState(Config);
-		const recordedFile = path.join(Config.absolutePaths.srcDir, 'components/badge-buttons.ts');
+		const recordedFile = path.join(Config.rootDir, 'data/badge-buttons.ts');
 		const HmrManager = createMockHmrManager();
 		const Bridge = createMockBridge();
 		const eventHandlers = new Map<string, (filePath: string) => void>();
@@ -1011,48 +1007,6 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 			}
 		},
 	);
-
-	test('ignores add events for files already in a watched source directory at subscribe', async () => {
-		const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-watch-snapshot-')));
-		try {
-			mkdirSync(path.join(root, 'src/pages'), { recursive: true });
-			mkdirSync(path.join(root, 'src/components'), { recursive: true });
-			writeFileSync(path.join(root, 'src/pages/index.tsx'), 'export default function Page() { return null; }\n');
-			const cssFile = path.join(root, 'src/components/widget.css');
-			writeFileSync(cssFile, ':host { display: block; }\n');
-			const Config = await finalizeEcoPagesConfig({ rootDir: root, integrations: [] });
-			installDevRuntimeState(Config);
-			const HmrManager = createMockHmrManager();
-			const Bridge = createMockBridge();
-			const eventHandlers = new Map<string, (filePath: string) => void>();
-			const watcherHandle = {
-				add: vi.fn(),
-				once: vi.fn(emitInitialWatcherReady),
-				on: vi.fn((event: string, handler: (filePath: string) => void) => {
-					eventHandlers.set(event, handler);
-					return watcherHandle;
-				}),
-				close: vi.fn(),
-			};
-			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherHandle as never);
-
-			const watcher = new ProjectWatcher({
-				config: Config,
-				refreshRouterRoutesCallback: vi.fn(async () => {}),
-				hmrManager: HmrManager,
-				bridge: Bridge,
-				changeDebounceMs: 0,
-			});
-
-			await watcher.createWatcherSubscription();
-			await eventHandlers.get('add')?.(cssFile);
-
-			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
-			expect(Bridge.reload).not.toHaveBeenCalled();
-		} finally {
-			rmSync(root, { recursive: true, force: true });
-		}
-	});
 
 	test('watches every supported dotenv path before the files exist', async () => {
 		const Config = await createMockConfig();
@@ -1183,7 +1137,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		expect(capturedIgnored?.('/test/project/docs', directory)).toBe(false);
 		expect(capturedIgnored?.('/test/project/.cache', directory)).toBe(true);
 		expect(capturedIgnored?.('/test/project/vite.config.ts', file)).toBe(false);
-		expect(capturedIgnored?.(path.join(Config.absolutePaths.srcDir, 'components', 'Button.tsx'), file)).toBe(true);
+		expect(capturedIgnored?.(path.join(Config.absolutePaths.srcDir, 'components', 'Button.tsx'), file)).toBe(false);
 	});
 
 	test('ignores node_modules, .git, workDir, and distDir via a path predicate (chokidar v4+ has no glob support)', async () => {

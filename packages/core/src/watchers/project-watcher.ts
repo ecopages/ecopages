@@ -1,4 +1,4 @@
-import { readdirSync, realpathSync, statSync, type Stats } from 'node:fs';
+import { realpathSync, type Stats } from 'node:fs';
 import path from 'node:path';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { fileSystem } from '@ecopages/file-system';
@@ -81,11 +81,6 @@ export class ProjectWatcher {
 	 * recorded the path (for example a client navigation to an unvisited Page).
 	 */
 	private readonly ignoreSubscriptionAdds = new Set<string>();
-	/**
-	 * Files and directories that already existed in watched trees at subscribe.
-	 * A later `add` for one of these is a startup scan, not a create.
-	 */
-	private readonly existedAtWatchStart = new Set<string>();
 	private closed = false;
 	private pendingDevFileKinds = new Map<string, DevFileChangeKind>();
 	private pendingFlushTimer: ReturnType<typeof setTimeout> | undefined;
@@ -209,15 +204,11 @@ export class ProjectWatcher {
 		const resolvedPath = path.resolve(rawPath);
 		if (event === 'unlink') {
 			this.ignoreSubscriptionAdds.delete(resolvedPath);
-			this.existedAtWatchStart.delete(resolvedPath);
-			this.existedAtWatchStart.delete(resolveExistingPath(resolvedPath));
 		} else if (
 			event === 'add' &&
 			(this.ignoreSubscriptionAdds.delete(resolvedPath) ||
 				this.ignoreSubscriptionAdds.delete(resolveExistingPath(resolvedPath)))
 		) {
-			return Promise.resolve();
-		} else if (event === 'add' && this.isSyntheticStartupAdd(resolvedPath)) {
 			return Promise.resolve();
 		}
 
@@ -479,19 +470,12 @@ export class ProjectWatcher {
 	}
 
 	/**
-	 * Creates and configures the file system watcher.
-	 * This sets up:
-	 * 1. Page file watching
-	 * 2. Directory watching
-	 * 3. Error handling
-	 *
-	 * Processor notifications are dispatched inside handleFileChange, ensuring
-	 * a single unified event pipeline with no parallel chokidar bindings.
-	 *
-	 * Uses chokidar's built-in debouncing through `awaitWriteFinish` to handle
-	 * rapid file changes efficiently.
-	 *
 	 * @remarks
+	 * The subscription watches `srcDir` recursively alongside external recorded
+	 * inputs, restart files, workspace roots, and additional watch paths. Processor
+	 * notifications share the same file-change pipeline. `awaitWriteFinish` waits
+	 * for writes to stabilize before a file event is processed.
+	 *
 	 * A glob in `additionalWatchPaths` is watched through its static base
 	 * directory, which can be the project root for `**` patterns. Files reached
 	 * only through such a base are ignored unless they match a pattern, and so
@@ -504,36 +488,20 @@ export class ProjectWatcher {
 			return this.watcher;
 		}
 
-		const processorPaths = new Set<string>();
 		const buildInputIndex = getAppBuildInputIndex(this.appConfig);
+		const srcDir = this.appConfig.absolutePaths.srcDir;
+		const literalPaths = new Set<string>([srcDir]);
 		for (const recordedPath of buildInputIndex.recordedWatchPaths()) {
-			processorPaths.add(recordedPath);
-		}
-
-		if (fileSystem.exists(this.appConfig.absolutePaths.pagesDir)) {
-			processorPaths.add(this.appConfig.absolutePaths.pagesDir);
-		}
-
-		for (const sourceDir of [
-			this.appConfig.absolutePaths.componentsDir,
-			this.appConfig.absolutePaths.includesDir,
-			this.appConfig.absolutePaths.layoutsDir,
-			path.join(this.appConfig.absolutePaths.srcDir, 'views'),
-		]) {
-			if (fileSystem.exists(sourceDir)) {
-				processorPaths.add(sourceDir);
+			if (!isPathInside(recordedPath, srcDir)) {
+				literalPaths.add(recordedPath);
 			}
-		}
-
-		if (fileSystem.exists(this.appConfig.absolutePaths.publicDir)) {
-			processorPaths.add(this.appConfig.absolutePaths.publicDir);
 		}
 
 		const globWatchPaths: AdditionalWatchPath[] = [];
 		for (const pattern of this.appConfig.additionalWatchPaths) {
 			const watchPath = resolveAdditionalWatchPath(pattern, this.appConfig.rootDir);
 			if (!watchPath.glob) {
-				processorPaths.add(watchPath.base);
+				literalPaths.add(watchPath.base);
 				continue;
 			}
 
@@ -546,11 +514,10 @@ export class ProjectWatcher {
 		}
 
 		for (const restartPath of resolveRuntimeRestartWatchPaths(this.appConfig)) {
-			processorPaths.add(restartPath);
+			literalPaths.add(restartPath);
 		}
 
 		this.workspacePackageRoots = resolveWorkspacePackageWatchRoots(this.appConfig.rootDir);
-		const literalPaths = processorPaths;
 		const ignoreProjectPath = createProjectWatcherIgnorePredicate(
 			this.appConfig.absolutePaths,
 			this.workspacePackageRoots,
@@ -568,18 +535,6 @@ export class ProjectWatcher {
 				: !globWatchPaths.some((watchPath) => matchesAdditionalWatchPath(watchedPath, watchPath));
 		};
 
-		this.snapshotExistingWatchedPaths(
-			[
-				this.appConfig.absolutePaths.pagesDir,
-				this.appConfig.absolutePaths.componentsDir,
-				this.appConfig.absolutePaths.includesDir,
-				this.appConfig.absolutePaths.layoutsDir,
-				path.join(this.appConfig.absolutePaths.srcDir, 'views'),
-				this.appConfig.absolutePaths.publicDir,
-				...buildInputIndex.recordedWatchPaths(),
-			],
-			ignoreProjectPath,
-		);
 		this.watcher = chokidar.watch(
 			[...literalPaths, ...this.workspacePackageRoots, ...new Set(globWatchPaths.map(({ base }) => base))],
 			{
@@ -623,12 +578,7 @@ export class ProjectWatcher {
 		this.watcher
 			.on('change', (p) => this.handleFileChange(p, 'change'))
 			.on('add', (p) => this.handleFileChange(p, 'add'))
-			.on('addDir', (p) => {
-				if (this.isSyntheticStartupAdd(p)) {
-					return;
-				}
-				return this.enqueueChange(() => this.triggerRouterRefresh(p));
-			})
+			.on('addDir', (p) => this.enqueueChange(() => this.triggerRouterRefresh(p)))
 			.on('unlink', (p) => this.handleFileChange(p, 'unlink'))
 			.on('unlinkDir', (p) => this.enqueueChange(() => this.triggerRouterRefresh(p)))
 			.on('error', (error) => this.handleError(error));
@@ -656,7 +606,6 @@ export class ProjectWatcher {
 		this.unsubscribeFromRecordedWatchPaths?.();
 		this.unsubscribeFromRecordedWatchPaths = undefined;
 		this.ignoreSubscriptionAdds.clear();
-		this.existedAtWatchStart.clear();
 
 		if (this.pendingFlushTimer) {
 			clearTimeout(this.pendingFlushTimer);
@@ -682,46 +631,6 @@ function resolveExistingPath(filePath: string): string {
 		return realpathSync(resolvedPath);
 	} catch {
 		return resolvedPath;
-	}
-}
-
-function rememberExistingWatchPath(
-	root: string,
-	ignoreProjectPath: (watchedPath: string) => boolean,
-	into: Set<string>,
-): void {
-	const resolvedRoot = resolveExistingPath(root);
-	if (ignoreProjectPath(resolvedRoot)) {
-		return;
-	}
-	let stats: Stats;
-	try {
-		stats = statSync(resolvedRoot);
-	} catch {
-		return;
-	}
-	into.add(resolvedRoot);
-	if (!stats.isDirectory()) {
-		return;
-	}
-	let entries;
-	try {
-		entries = readdirSync(resolvedRoot, { withFileTypes: true, encoding: 'utf8' });
-	} catch {
-		return;
-	}
-	for (const entry of entries) {
-		const entryPath = path.join(resolvedRoot, entry.name);
-		if (ignoreProjectPath(entryPath)) {
-			continue;
-		}
-		if (entry.isDirectory()) {
-			rememberExistingWatchPath(entryPath, ignoreProjectPath, into);
-			continue;
-		}
-		if (entry.isFile()) {
-			into.add(resolveExistingPath(entryPath));
-		}
 	}
 }
 

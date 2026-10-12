@@ -147,7 +147,7 @@ export type LazyTrigger = DependencyLazyTrigger;
  * @template E - The element/return type (defaults to EcoPagesElement for Kita, use ReactNode for React)
  */
 export interface ComponentOptions<P, E = EcoPagesElement> {
-	/** @internal Bound by the component identity attribution transform. */
+	/** Bound by the component identity attribution transform. */
 	identity?: ComponentIdentity;
 	integration?: string;
 	dependencies?: EcoComponentDependencies;
@@ -162,7 +162,7 @@ export type LayoutOptions<E = EcoPagesElement> = ComponentOptions<LayoutProps<E>
  * Base options shared by all page variants
  */
 export interface PageOptionsBase<T, E = EcoPagesElement> {
-	/** @internal Bound by the component identity attribution transform. */
+	/** Bound by the component identity attribution transform. */
 	identity?: ComponentIdentity;
 	integration?: string;
 	/**

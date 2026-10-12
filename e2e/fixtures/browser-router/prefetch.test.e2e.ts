@@ -135,7 +135,12 @@ test.describe('Browser Router Prefetch', () => {
 	});
 
 	test('should navigate instantly after prefetch', async ({ page }) => {
+		const requests = trackMatchingRequests(
+			page,
+			(url) => url.pathname.includes('/prefetch/destination') && url.searchParams.get('test') === 'eager',
+		);
 		await gotoAndWait(page, '/prefetch');
+		await expect.poll(() => requests.length).toBe(1);
 
 		const navigationStart = Date.now();
 		await page.click('#link-eager');
@@ -143,6 +148,7 @@ test.describe('Browser Router Prefetch', () => {
 		await page.waitForURL('**/prefetch/destination?test=eager');
 		const navigationTime = Date.now() - navigationStart;
 
+		expect(requests).toHaveLength(1);
 		expect(navigationTime).toBeLessThan(1500);
 		await expect(page.locator('h1')).toContainText('Prefetch Destination');
 	});

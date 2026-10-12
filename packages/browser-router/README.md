@@ -10,6 +10,8 @@ Client-side navigation and view transitions for Ecopages. It intercepts same-ori
 - **View Transitions**: Optional integration with the View Transition API.
 - **Lifecycle events**: Hook into navigation with `eco:before-swap`, `eco:after-swap`, `eco:page-load`.
 
+The core navigation pipeline shares document fetching, parsing, prefetch cache, head reconciliation, stylesheet staging, script activation, named view transitions, and lifecycle events with `@ecopages/react-router`. Browser-router supplies the page swap with a DOM morph or replacement and handles scroll restoration through the shared post-swap hook.
+
 ## Compatibility
 
 This package is designed for MPA-style rendering where the server returns full HTML pages (e.g., KitaJS, Lit, vanilla JS, or component-level React islands).
@@ -121,7 +123,7 @@ To force a head script to re-execute on every navigation (e.g., analytics), add 
 ```
 
 > [!NOTE]
-> `data-eco-script-id` is optional. Use it when you want an explicit stable identity for a rerun script. Otherwise the router falls back to matching by original `src` and inline content.
+> `data-eco-script-id` is optional. Use it when you want an explicit stable identity for a rerun script. Without it, an HTML `id` takes precedence; otherwise the router matches by original `src` or inline content. When matching by a relative `src`, the identity stays the same across different `<base>` URLs, while an external module reruns from the incoming page's resolved URL.
 
 ## Force Full Reload
 

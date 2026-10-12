@@ -1,9 +1,8 @@
 import morphdom from 'morphdom';
-
-export const DEFAULT_PERSIST_ATTR = 'data-eco-persist';
+import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/router/navigation-pipeline';
 
 function isPersisted(element: Element, persistAttribute: string): boolean {
-	return element.hasAttribute(persistAttribute) || element.hasAttribute(DEFAULT_PERSIST_ATTR);
+	return element.hasAttribute(persistAttribute) || element.hasAttribute(ECO_PERSIST_ATTRIBUTE);
 }
 
 function isHydratedCustomElement(element: Element): boolean {
@@ -25,7 +24,7 @@ function getBodyMorphKey(element: Node, persistAttribute: string): string | unde
 		return undefined;
 	}
 
-	return element.getAttribute(persistAttribute) || element.getAttribute(DEFAULT_PERSIST_ATTR) || undefined;
+	return element.getAttribute(persistAttribute) || element.getAttribute(ECO_PERSIST_ATTRIBUTE) || undefined;
 }
 
 function isLightDomCustomElement(element: Element): boolean {
@@ -144,11 +143,11 @@ export function morphBody(newDocument: Document, persistAttribute: string): void
  * Use when View Transitions are disabled.
  */
 export function replaceBody(newDocument: Document, persistAttribute: string): void {
-	const persistedElements = document.body.querySelectorAll(`[${persistAttribute}], [${DEFAULT_PERSIST_ATTR}]`);
+	const persistedElements = document.body.querySelectorAll(`[${persistAttribute}], [${ECO_PERSIST_ATTRIBUTE}]`);
 	const persistedMap = new Map<string, Element>();
 
 	for (const el of persistedElements) {
-		const key = el.getAttribute(persistAttribute) || el.getAttribute(DEFAULT_PERSIST_ATTR);
+		const key = el.getAttribute(persistAttribute) || el.getAttribute(ECO_PERSIST_ATTRIBUTE);
 		if (key) {
 			persistedMap.set(key, el);
 		}
@@ -156,7 +155,7 @@ export function replaceBody(newDocument: Document, persistAttribute: string): vo
 
 	for (const [key, oldEl] of persistedMap) {
 		const placeholder = newDocument.body.querySelector(
-			`[${persistAttribute}="${key}"], [${DEFAULT_PERSIST_ATTR}="${key}"]`,
+			`[${persistAttribute}="${key}"], [${ECO_PERSIST_ATTRIBUTE}="${key}"]`,
 		);
 		if (placeholder) {
 			placeholder.replaceWith(oldEl);

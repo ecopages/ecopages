@@ -4,7 +4,13 @@
  * @module prefetch-manager
  */
 
-import { assertHtmlPageResponse, shouldPrefetchLink } from '@ecopages/core/router/link-navigation-policy';
+import {
+	cacheNavigationHtml,
+	fetchNavigationPage,
+	getCachedNavigationHtml,
+	invalidateNavigationHtml,
+} from '@ecopages/core/router/navigation-pipeline';
+import { isSamePageHref, shouldPrefetchLink } from '@ecopages/core/router/link-navigation-policy';
 import { discoverNewStylesheetLinks, getCurrentStylesheetHrefs } from '../dom/stylesheet-discovery.ts';
 
 export type PrefetchStrategy = 'viewport' | 'hover' | 'intent';
@@ -31,7 +37,6 @@ export class PrefetchManager {
 	private options: PrefetchOptions;
 	private prefetched: Set<string> = new Set();
 	private prefetchedStylesheets: Set<string> = new Set();
-	private htmlCache: Map<string, string> = new Map();
 	private observer: IntersectionObserver | null = null;
 	private hoverTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
@@ -90,28 +95,18 @@ export class PrefetchManager {
 		if (url.origin !== window.location.origin) return;
 		if (this.prefetched.has(url.href)) return;
 
-		const currentPath = window.location.pathname + window.location.search;
-		const targetPath = url.pathname + url.search;
-		if (currentPath === targetPath) return;
+		if (isSamePageHref(url.href)) return;
 
 		this.prefetched.add(url.href);
 
 		try {
-			const response = await fetch(url.href, {
-				headers: { Accept: 'text/html' },
-				priority: 'low',
-			} as RequestInit);
-
-			if (!response.ok) {
+			const page = await fetchNavigationPage(url, { priority: 'low' });
+			if (!page) {
 				this.prefetched.delete(url.href);
 				return;
 			}
-			await assertHtmlPageResponse(response);
 
-			const html = await response.text();
-
-			this.htmlCache.set(url.href, html);
-			await this.prefetchStylesheets(html, url);
+			await this.prefetchStylesheets(page.document);
 		} catch {
 			this.prefetched.delete(url.href);
 		}
@@ -128,13 +123,12 @@ export class PrefetchManager {
 	 * @returns The cached HTML string, or null if not cached
 	 */
 	getCachedHtml(href: string): string | null {
-		const url = new URL(href, window.location.origin);
-		return this.htmlCache.get(url.href) ?? null;
+		return getCachedNavigationHtml(href);
 	}
 
 	invalidate(href: string): void {
 		const url = new URL(href, window.location.origin);
-		this.htmlCache.delete(url.href);
+		invalidateNavigationHtml(url);
 		this.prefetched.delete(url.href);
 	}
 
@@ -152,36 +146,13 @@ export class PrefetchManager {
 		const url = new URL(href, window.location.origin);
 		if (url.origin !== window.location.origin) return;
 
-		this.htmlCache.set(url.href, html);
+		cacheNavigationHtml(url, html);
 		this.prefetched.add(url.href);
 
-		const currentPath = window.location.pathname + window.location.search;
-		const targetPath = url.pathname + url.search;
-		if (currentPath === targetPath) return;
+		if (isSamePageHref(url.href)) return;
 
 		setTimeout(() => {
-			fetch(url.href, {
-				headers: { Accept: 'text/html' },
-				priority: 'low',
-			} as RequestInit)
-				.then(async (response) => {
-					if (!response.ok) {
-						return null;
-					}
-					try {
-						await assertHtmlPageResponse(response);
-					} catch {
-						return null;
-					}
-
-					return response.text();
-				})
-				.then((freshHtml) => {
-					if (freshHtml) {
-						this.htmlCache.set(url.href, freshHtml);
-					}
-				})
-				.catch(() => {});
+			void fetchNavigationPage(url, { bypassCache: true, priority: 'low' }).catch(() => {});
 		}, 100);
 	}
 
@@ -424,10 +395,7 @@ export class PrefetchManager {
 	 * @param html - The raw HTML string to parse
 	 * @param url - The base URL for resolving relative stylesheet paths
 	 */
-	private async prefetchStylesheets(html: string, url: URL): Promise<void> {
-		const parser = new DOMParser();
-		const doc = parser.parseFromString(`<base href="${url.href}">${html}`, 'text/html');
-
+	private async prefetchStylesheets(doc: Document): Promise<void> {
 		const existingHrefs = new Set([...getCurrentStylesheetHrefs(), ...this.prefetchedStylesheets]);
 		const newStylesheetHrefs = discoverNewStylesheetLinks(doc, existingHrefs).map((link) => link.href);
 		const stylesheetFetches = newStylesheetHrefs.map((href) => {

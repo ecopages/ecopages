@@ -134,7 +134,7 @@ test('ignores installed and hidden linked-package files while app source retains
 	writeFileSync(path.join(rootDir, 'node_modules', 'installed', 'package.json'), '{}');
 	symlinkSync(linked, path.join(rootDir, 'node_modules', 'ui'), 'dir');
 	const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-	const restart = vi.fn(async () => {});
+	const restart = vi.fn(async (_filePath: string) => {});
 	const hmrManager = createMockHmrManager();
 	const bridge = createMockBridge();
 	const watcher = new ProjectWatcher({
@@ -155,7 +155,9 @@ test('ignores installed and hidden linked-package files while app source retains
 		},
 		{ timeout: 3000 },
 	);
-	await new Promise((resolve) => setTimeout(resolve, 150));
+	const drained = path.join(linked, 'src', 'drained.ts');
+	writeFileSync(drained, 'export const value = 1;');
+	await vi.waitFor(() => expect(restart).toHaveBeenCalledWith(drained), { timeout: 3000, interval: 1 });
 	restart.mockClear();
 	vi.mocked(hmrManager.handleFileChange).mockClear();
 	vi.mocked(bridge.reload).mockClear();
@@ -163,8 +165,9 @@ test('ignores installed and hidden linked-package files while app source retains
 	writeFileSync(appSource, 'export const value = 2;');
 	await vi.waitFor(() => expect(bridge.reload).toHaveBeenCalled(), {
 		timeout: 3000,
+		interval: 1,
 	});
-	expect(restart).not.toHaveBeenCalled();
+	expect(restart.mock.calls.map(([file]) => file).filter((file) => file !== drained)).toEqual([]);
 	expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
 	for (const file of ignoredPaths)
 		expect(hmrManager.handleFileChange).not.toHaveBeenCalledWith(file, expect.anything());

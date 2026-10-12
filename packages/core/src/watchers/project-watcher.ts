@@ -16,17 +16,14 @@ import {
 import { isRegisteredDevTransformEntrypoint } from '../hmr/hmr-entrypoint-output.ts';
 import { prepareHmrFileChange } from '../hmr/hmr-file-change-prep.ts';
 import { createProjectWatcherIgnorePredicate } from './project-watcher-ignore.ts';
-import {
-	resolveRuntimeRestartWatchPaths,
-	writeRuntimeRestartWatchSet,
-} from '../dev/development-restart-watch-paths.ts';
+import { resolveRuntimeRestartWatchPaths } from '../dev/development-restart-watch-paths.ts';
 import {
 	type AdditionalWatchPath,
 	matchesAdditionalWatchPath,
 	mayContainAdditionalWatchMatches,
 	resolveAdditionalWatchPath,
 } from '../utils/additional-watch-paths.ts';
-import { DEFAULT_ECOPAGES_WORK_DIR, RESOLVED_ASSETS_VENDORS_DIR } from '../config/constants.ts';
+import { RESOLVED_ASSETS_VENDORS_DIR } from '../config/constants.ts';
 import { resolveWorkspacePackageWatchRoots, isWorkspacePackageFile } from './workspace-package-watch-roots.ts';
 import { getAppBuildInputIndex } from '../build/cache/build-input-dependency-index.ts';
 
@@ -109,17 +106,6 @@ export class ProjectWatcher {
 
 	private isRouteSourceFile(filePath: string): boolean {
 		return this.invalidationService.isRouteSourceFile(filePath);
-	}
-
-	private persistRestartWatchSet(): void {
-		try {
-			writeRuntimeRestartWatchSet(this.appConfig, this.workspacePackageRoots);
-		} catch (error) {
-			appLogger.warn(
-				'Could not persist development restart watch paths',
-				error instanceof Error ? error : new Error(String(error)),
-			);
-		}
 	}
 
 	private requestBrowserReload(): void {
@@ -478,11 +464,9 @@ export class ProjectWatcher {
 		}
 
 		this.workspacePackageRoots = resolveWorkspacePackageWatchRoots(this.appConfig.rootDir);
-		this.persistRestartWatchSet();
 		const ignoreProjectPath = createProjectWatcherIgnorePredicate(
 			this.appConfig.absolutePaths,
 			this.workspacePackageRoots,
-			[path.join(path.dirname(this.appConfig.absolutePaths.config), DEFAULT_ECOPAGES_WORK_DIR)],
 		);
 		const ignored = (watchedPath: string, stats?: Stats): boolean => {
 			if (ignoreProjectPath(watchedPath)) return true;

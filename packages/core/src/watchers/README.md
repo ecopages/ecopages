@@ -8,8 +8,6 @@ At startup it resolves the application's declared dependencies, development depe
 
 Adding, changing, or removing a linked package file requests a runtime restart before HMR or Processor notifications. The existing lifecycle coalesces pending restart requests and delegates shutdown to the process that owns the watcher. Before a workspace restart, generated `dist/assets/vendors` output is discarded: an unchanged package may contain bundled code from another edited linked dependency. The next process reloads server imports and rebuilds browser vendors. A watcher with no restart callback warns and returns.
 
-On every watch-mode start, whether or not the CLI supervises the process, the watcher writes its resolved config-module files, dotenv files, linked package roots, and ignored artifact directories to the runtime work directory. It also keeps a copy beside the config so the supervisor can find the set if a later child fails before starting its watcher.
-
 Linked package `node_modules` and dot entries are ignored. Application work and dist directories remain ignored, while application dotenv files remain restart inputs. Discovery runs again on startup; changing the application's dependency declarations or links requires restarting the session. Dependencies declared only by another package are not discovered transitively.
 
 See [development](../dev/README.md) for vendor fingerprints and process supervision, and [core](../../README.md) for the architecture index.

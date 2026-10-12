@@ -13,14 +13,12 @@ import { appLogger } from '../../global/app-logger.ts';
 import type { ApiHandlerContext, EcopagesRouteInfo, RouteGroupBuilder } from '../../types/public-types.ts';
 import { SharedApplicationAdapter } from '../shared/runtime/application-adapter.ts';
 import { resolveRuntimeBinding } from '../shared/runtime/runtime-app-bootstrap.ts';
-import type { WebSocketUpgradeOptions } from '../shared/ws/node-http-websocket-upgrades.ts';
 import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
 import type { ResolvedEcopagesAppOptions } from '../create-app.ts';
 import { type BunServerAdapterResult, createBunServerAdapter } from './server-adapter.ts';
 import { BunRuntimeHost } from './runtime-host.ts';
-import { hostOwnsDevClient } from '../../dev/dev-client-ownership.ts';
 import { resolveAppStartRoutes } from '../../utils/ecopages-route-info.ts';
 
 /**
@@ -74,17 +72,6 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 		return this.serverAdapter.handleRequest(request);
 	}
 
-	public async attachWebSocketUpgrades(
-		httpServer: import('node:http').Server,
-		options?: WebSocketUpgradeOptions,
-	): Promise<void> {
-		if (!this.serverAdapter) {
-			this.serverAdapter = await this.initializeServerAdapter();
-		}
-
-		this.serverAdapter.attachUserWebSocketUpgrades(httpServer, options);
-	}
-
 	/**
 	 * Initialize the Bun server adapter
 	 */
@@ -103,7 +90,6 @@ export class BunEcopagesApp<WebSocketData = undefined> extends SharedApplication
 			websocketHandlers: this.websocketHandlers.size > 0 ? this.websocketHandlers : undefined,
 			options: { watch: binding.watch },
 			serveOptions: binding.serveOptions,
-			hostOwnsDevClient: hostOwnsDevClient(this.runtimeOptions),
 			deferRuntimeAssetSetup: this.cliArgs.build || this.cliArgs.preview,
 			allowPortFallback: binding.allowPortFallback,
 			onDevelopmentRestart: this.createDevelopmentRestartHandler(),

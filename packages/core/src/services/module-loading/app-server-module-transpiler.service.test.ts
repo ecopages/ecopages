@@ -7,86 +7,9 @@ import { type BuildExecutor, setAppBuildAdapter, setAppBuildManifest } from '../
 import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
 import type { EcoPagesElement } from '../../types/public-types.ts';
-import {
-	createAppServerModuleTranspiler,
-	getAppHostModuleLoader,
-	getAppModuleLoader,
-	setAppHostModuleLoader,
-	shouldAppUseHostModuleLoader,
-} from './app-server-module-transpiler.service.ts';
+import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
 
 describe('app server module transpiler runtime state', () => {
-	it('stores and exposes an abstract host module loader on app runtime state', () => {
-		const appConfig = {
-			runtime: {},
-		} as any;
-		const hostModuleLoader = async (id: string) => ({ id });
-
-		setAppHostModuleLoader(appConfig, hostModuleLoader);
-
-		assert.equal(getAppHostModuleLoader(appConfig), hostModuleLoader);
-	});
-
-	it('creates a server transpiler that uses the app module loader', () => {
-		const hostModuleLoader = async (id: string) => ({ id });
-		const appConfig = {
-			rootDir: '/app',
-			runtime: {
-				hostModuleLoader,
-			},
-		} as any;
-
-		const transpiler = createAppServerModuleTranspiler(appConfig);
-
-		assert.ok(transpiler);
-		assert.equal(getAppHostModuleLoader(appConfig), hostModuleLoader);
-	});
-
-	it('keeps Ecopages integration modules on the framework transpiler path', () => {
-		const appConfig = {
-			absolutePaths: {
-				srcDir: '/app/src',
-				componentsDir: '/app/src/components',
-				includesDir: '/app/src/includes',
-				layoutsDir: '/app/src/layouts',
-				pagesDir: '/app/src/pages',
-			},
-			templatesExt: ['.kita.tsx', '.lit.tsx'],
-		} as any;
-
-		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/runtime/helpers.ts'), true);
-		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/pages/index.tsx'), true);
-		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/includes/html.kita.tsx'), false);
-		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/layouts/base-layout.kita.tsx'), false);
-		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/views/explicit-team-view.kita.tsx'), false);
-		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/pages/counter.lit.tsx'), false);
-		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/components/counter.lit.tsx'), false);
-	});
-
-	it('prefers the host module loader for framework-owned modules when a host runtime provides one', () => {
-		const appConfig = {
-			absolutePaths: {
-				componentsDir: '/app/src/components',
-				includesDir: '/app/src/includes',
-				layoutsDir: '/app/src/layouts',
-				pagesDir: '/app/src/pages',
-			},
-			runtime: {
-				hostModuleLoader: async (id: string) => ({ id }),
-			},
-			templatesExt: ['.kita.tsx', '.lit.tsx'],
-		} as any;
-
-		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/runtime/helpers.ts'), true);
-		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/pages/index.tsx'), true);
-		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/includes/html.kita.tsx'), true);
-		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/layouts/base-layout.kita.tsx'), true);
-		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/pages/counter.lit.tsx'), true);
-		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/components/counter.lit.tsx'), true);
-		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/pages/docs.md'), false);
-		assert.equal(shouldAppUseHostModuleLoader(appConfig, '/app/src/pages/react-content.mdx'), false);
-	});
-
 	it('compiles Bun-owned Kita modules to string render functions during app module imports', async () => {
 		(
 			globalThis as typeof globalThis & {

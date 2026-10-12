@@ -4,10 +4,8 @@
  * @remarks
  * The build layer exposes three concentric shapes:
  *
- * - `BuildAdapter` — the low-level backend contract. Two implementations
- *   exist: a bundler-backed adapter (the real backend) and
- *   {@link ViteHostBuildAdapter} (a host-owned boundary marker that throws
- *   on direct use, for host runtimes that own their own build pipeline).
+ * - `BuildAdapter` — the low-level backend contract. The bundled adapter
+ *   is the backend.
  * - `BuildExecutor` — the runtime-facing facade stored on
  *   `appConfig.runtime.buildRuntime` via profile-based accessors.
  * - App-owned helpers (`getAppBuildAdapter` and the `set*` counterparts) —
@@ -64,72 +62,13 @@ function patchAppRuntime(
 	};
 }
 
-function createHostOwnedBuildError(methodName: string): Error {
-	return new Error(
-		`Vite-hosted builds are owned by the host runtime. Core cannot ${methodName} through the host-owned compatibility adapter.`,
-	);
-}
-
-/**
- * Boundary-marker adapter for Vite-host ownership.
- *
- * @remarks
- * This is not a real backend. It exists so `appConfig.runtime.buildAdapter`
- * can carry the `'vite-host'` ownership without falling back to a
- * framework-owned bundler path. Every method throws a
- * {@link createHostOwnedBuildError} so misrouted calls fail loudly
- * with a clear message instead of silently executing under a
- * different backend.
- *
- * The class stays in the public surface for host runtimes that own
- * their build pipeline (e.g. Nitro) and for app code that wants to
- * opt into host-owned ownership before its host wires up the build.
- */
-export class ViteHostBuildAdapter implements BuildAdapter {
-	readonly ownership = 'vite-host' as const;
-
-	async build(_options: BuildOptions): Promise<BuildResult> {
-		throw createHostOwnedBuildError('build');
-	}
-
-	resolve(_importPath: string, _rootDir: string): string {
-		throw createHostOwnedBuildError('resolve imports');
-	}
-
-	getTranspileOptions(_environment: BuildEnvironment): BuildTranspileOptions {
-		throw createHostOwnedBuildError('derive transpile options');
-	}
-}
-
-/**
- * Constructs a {@link ViteHostBuildAdapter}. Use only in code paths
- * that explicitly opt into the host-owned boundary.
- */
-export function createViteHostBuildAdapter(): BuildAdapter {
-	return new ViteHostBuildAdapter();
-}
-
-/**
- * Constructs a build adapter for the given ownership.
- *
- * @param options - When `options.ownership` is omitted, the default is
- * `'rolldown'`. The Vite-host path is opt-in.
- */
-export function createBuildAdapter(options?: { ownership?: BuildOwnership }): BuildAdapter {
-	switch (options?.ownership ?? 'rolldown') {
-		case 'vite-host':
-			return createViteHostBuildAdapter();
-		case 'rolldown':
-		default:
-			return createRolldownBuildAdapter();
-	}
+/** Constructs the Rolldown build adapter. */
+export function createBuildAdapter(): BuildAdapter {
+	return createRolldownBuildAdapter();
 }
 
 /** The shared default-bundler backend instance. Use {@link getAppBuildAdapter} in app-aware code. */
-export const defaultRolldownBuildAdapter: BuildAdapter = createBuildAdapter({ ownership: 'rolldown' });
-
-/** The shared Vite-host boundary instance. Use {@link getAppBuildAdapter} in app-aware code. */
-export const defaultViteHostBuildAdapter: BuildAdapter = createBuildAdapter({ ownership: 'vite-host' });
+export const defaultRolldownBuildAdapter: BuildAdapter = createBuildAdapter();
 
 /**
  * Global default build adapter.
@@ -140,15 +79,9 @@ export const defaultViteHostBuildAdapter: BuildAdapter = createBuildAdapter({ ow
  */
 export const defaultBuildAdapter: BuildAdapter = defaultRolldownBuildAdapter;
 
-/**
- * Resolves the default build adapter for an ownership value.
- *
- * @param ownership - Defaults to `'rolldown'`. Returns the
- * {@link ViteHostBuildAdapter} only when the caller explicitly asks
- * for `'vite-host'`.
- */
-export function getDefaultBuildAdapter(ownership: BuildOwnership = 'rolldown'): BuildAdapter {
-	return ownership === 'vite-host' ? defaultViteHostBuildAdapter : defaultRolldownBuildAdapter;
+/** Resolves the default build adapter. */
+export function getDefaultBuildAdapter(): BuildAdapter {
+	return defaultRolldownBuildAdapter;
 }
 
 /**
@@ -171,12 +104,10 @@ export function getAppBuildOwnership(appConfig: EcoPagesAppConfig): BuildOwnersh
  * Returns the adapter owned by an app/runtime instance.
  *
  * @remarks
- * Falls back through `appConfig.runtime.buildAdapter` →
- * {@link getDefaultBuildAdapter} on the resolved ownership. Throws
- * never; a missing adapter resolves to the global default.
+ * Falls back through `appConfig.runtime.buildAdapter` to the Rolldown default.
  */
 export function getAppBuildAdapter(appConfig: EcoPagesAppConfig): BuildAdapter {
-	return appConfig.runtime?.buildAdapter ?? getDefaultBuildAdapter(getAppBuildOwnership(appConfig));
+	return appConfig.runtime?.buildAdapter ?? getDefaultBuildAdapter();
 }
 
 /**

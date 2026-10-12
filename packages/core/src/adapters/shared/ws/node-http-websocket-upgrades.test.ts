@@ -12,28 +12,20 @@ function emitUpgrade(server: EventEmitter, url: string) {
 describe('attachNodeHttpWebSocketUpgrades', () => {
 	const hmrPreflight = (req: { url?: string }) => req.url === '/_hmr';
 
-	function attach(passthroughUnmatched: boolean) {
+	function attach() {
 		const server = new EventEmitter();
 		attachNodeHttpWebSocketUpgrades(server as unknown as NodeHttpServer, {
 			runtimeOrigin: 'http://localhost:3000',
 			websocketHandlers: new Map(),
 			preflight: hmrPreflight,
-			passthroughUnmatched,
 		});
 		return server;
 	}
 
-	it('leaves unmatched upgrades for other listeners when passthrough is set', () => {
-		const server = attach(true);
+	it('destroys unmatched upgrades and leaves the HMR path to the preflight', () => {
+		const server = attach();
 
-		expect(emitUpgrade(server, '/vite-hmr').destroy).not.toHaveBeenCalled();
-		expect(emitUpgrade(server, '/_hmr').destroy).not.toHaveBeenCalled();
-	});
-
-	it('destroys unmatched upgrades on a server it owns', () => {
-		const server = attach(false);
-
-		expect(emitUpgrade(server, '/vite-hmr').destroy).toHaveBeenCalledOnce();
+		expect(emitUpgrade(server, '/other').destroy).toHaveBeenCalledOnce();
 		expect(emitUpgrade(server, '/_hmr').destroy).not.toHaveBeenCalled();
 	});
 });

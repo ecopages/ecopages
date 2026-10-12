@@ -1,7 +1,7 @@
 /**
  * Kitchen-sink dev + parity e2e — in-repo, no .e2e-tmp copy.
  *
- * One Playwright process can run all four cells: each server uses a scoped
+ * One Playwright process can run both cells: each server uses a scoped
  * .eco-${scope} dir and its own port. HMR stays in the isolated fixture.
  */
 import type { PlaywrightTestProject } from '@playwright/test';
@@ -21,7 +21,6 @@ const DEV_TEST_TIMEOUT_MS = 90_000;
 type DevVariant = {
 	name: string;
 	port: number;
-	host: 'ecopages' | 'vite';
 	runtime: 'bun' | 'node';
 	artifactScope: string;
 	testMatch: string;
@@ -32,7 +31,6 @@ const devVariants: DevVariant[] = [
 	{
 		name: 'cross-integration-dev-e2e',
 		port: 4007,
-		host: 'ecopages',
 		runtime: 'node',
 		artifactScope: 'cross-integration-dev',
 		testMatch: crossIntegrationTestMatch,
@@ -41,25 +39,8 @@ const devVariants: DevVariant[] = [
 	{
 		name: 'cross-integration-bun-parity-e2e',
 		port: 4013,
-		host: 'ecopages',
 		runtime: 'bun',
 		artifactScope: 'cross-integration-bun-parity',
-		testMatch: crossIntegrationParityMatch,
-	},
-	{
-		name: 'cross-integration-vite-node-parity-e2e',
-		port: 4012,
-		host: 'vite',
-		runtime: 'node',
-		artifactScope: 'cross-integration-vite-node-parity',
-		testMatch: crossIntegrationParityMatch,
-	},
-	{
-		name: 'cross-integration-vite-bun-parity-e2e',
-		port: 4014,
-		host: 'vite',
-		runtime: 'bun',
-		artifactScope: 'cross-integration-vite-bun-parity',
 		testMatch: crossIntegrationParityMatch,
 	},
 ];
@@ -69,7 +50,6 @@ type DesktopChromeUse = NonNullable<PlaywrightTestProject['use']>;
 function buildDevServerCommand(variant: DevVariant): string {
 	return [
 		`ECOPAGES_PORT=${variant.port}`,
-		`ECOPAGES_DEV_HOST=${variant.host}`,
 		`ECOPAGES_DEV_RUNTIME=${variant.runtime}`,
 		`ECOPAGES_E2E_ARTIFACT_SCOPE=${variant.artifactScope}`,
 		devLauncher,

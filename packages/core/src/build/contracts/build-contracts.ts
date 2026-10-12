@@ -1,15 +1,8 @@
 import type { RolldownLog } from 'rolldown';
 import type { EcoBuildPlugin } from './build-types.ts';
 
-/**
- * Which backend owns the app's build pipeline.
- *
- * - `'rolldown'`: the default. Ecopages runs the build directly through
- *   its bundler-backed adapter.
- * - `'vite-host'`: a host runtime owns the build. {@link ViteHostBuildAdapter}
- *   is exposed as a boundary marker; any direct call into it throws.
- */
-export type BuildOwnership = 'vite-host' | 'rolldown';
+/** The bundler that owns the app's build pipeline. */
+export type BuildOwnership = 'rolldown';
 
 /** A single artifact emitted by the build backend. */
 export interface BuildOutput {

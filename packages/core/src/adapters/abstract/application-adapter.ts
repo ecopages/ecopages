@@ -8,13 +8,8 @@
  */
 
 import { appLogger } from '../../global/app-logger.ts';
-import {
-	getAppModuleLoader,
-	setAppHostModuleLoader,
-} from '../../services/module-loading/app-server-module-transpiler.service.ts';
+import { getAppModuleLoader } from '../../services/module-loading/app-server-module-transpiler.service.ts';
 import { createViewModuleLoader } from '../../services/module-loading/view-module-loader.ts';
-import { getHostModuleLoader } from '../../services/module-loading/host-module-loader-registry.ts';
-import type { SourceModuleLoader } from '../../services/module-loading/module-loading-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { invariant } from '../../utils/invariant.ts';
 import type {
@@ -39,38 +34,6 @@ import { parseCliArgs, type ReturnParseCliArgs } from '../../utils/parse-cli-arg
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { ECOPAGES_DEV_RESTART_REASON_ENV } from '../../dev/development-restart.ts';
 
-/**
- * Runtime bootstrap options layered on top of the app config.
- *
- * These options let a host runtime embed Ecopages without mutating process
- * globals or app runtime state before calling `createApp()`.
- */
-export interface ApplicationRuntimeOptions {
-	/**
-	 * Forces the app into the embedded-runtime CLI mode used by host
-	 * environments.
-	 *
-	 * When enabled and no explicit `hostModuleLoader` is provided, the
-	 * adapter auto-detects a host module loader from the global scope.
-	 */
-	embedded?: boolean;
-	/**
-	 * Selects which layer injects the browser dev client.
-	 *
-	 * `host` turns off core's HMR runtime injection into HTML. Core still sends reloads and HMR events
-	 * through the client bridge on `/_hmr`, so the host's browser client must listen there; under the
-	 * Vite plugin that client is the Ecopages HMR runtime.
-	 */
-	devClientOwner?: 'core' | 'host';
-	/**
-	 * Explicit source module loader for request-time imports.
-	 *
-	 * When omitted in embedded mode, the adapter attempts automatic
-	 * detection from globals set by the host environment.
-	 */
-	hostModuleLoader?: SourceModuleLoader;
-}
-
 export interface AppStartInfo {
 	origin: string;
 	/**
@@ -92,7 +55,6 @@ export type OnAppStartCallback = (info: AppStartInfo) => void;
 export interface ApplicationAdapterOptions {
 	appConfig: EcoPagesAppConfig;
 	serverOptions?: Record<string, any>;
-	runtime?: ApplicationRuntimeOptions;
 }
 
 /**
@@ -101,8 +63,6 @@ export interface ApplicationAdapterOptions {
 export interface ApplicationAdapter<T = any> extends AsyncDisposable {
 	/** Boot the server. Pass a callback to run when the runtime is ready (optional). */
 	start(onAppStart?: OnAppStartCallback): Promise<T | void>;
-	/** Invoked by embedded hosts once the app can take traffic. */
-	handleListening(origin: string): void | Promise<void>;
 	stop(force?: boolean): Promise<void>;
 }
 
@@ -132,7 +92,6 @@ export abstract class AbstractApplicationAdapter<
 	protected appConfig: EcoPagesAppConfig;
 	protected serverOptions: Record<string, any>;
 	protected cliArgs: ReturnParseCliArgs;
-	protected runtimeOptions: ApplicationRuntimeOptions;
 	protected apiHandlers: ApiHandler[] = [];
 	protected staticRoutes: StaticRoute[] = [];
 	protected errorPageLoaders: ErrorPageLoaders = {};
@@ -149,21 +108,7 @@ export abstract class AbstractApplicationAdapter<
 		this.runtimeLabel = runtimeLabel;
 		this.appConfig = options.appConfig;
 		this.serverOptions = options.serverOptions || {};
-		this.runtimeOptions = options.runtime ?? {};
-		if (options.runtime) {
-			this.appConfig.runtime = {
-				...(this.appConfig.runtime ?? {}),
-				...options.runtime,
-			};
-		}
-		this.cliArgs = parseCliArgs({ embeddedRuntime: this.runtimeOptions.embedded });
-
-		const hostModuleLoader =
-			this.runtimeOptions.hostModuleLoader ?? (this.runtimeOptions.embedded ? getHostModuleLoader() : undefined);
-
-		if (hostModuleLoader) {
-			setAppHostModuleLoader(this.appConfig, hostModuleLoader);
-		}
+		this.cliArgs = parseCliArgs();
 
 		getAppModuleLoader(this.appConfig);
 
@@ -502,15 +447,10 @@ export abstract class AbstractApplicationAdapter<
 
 	/**
 	 * Boot the server. When `onAppStart` is passed, it runs once the runtime can take traffic.
-	 * Embedded apps only register the callback — the host (for example Vite) boots the port.
 	 */
 	public async start(onAppStart?: OnAppStartCallback): Promise<TServer | void> {
 		if (onAppStart) {
 			this.onAppStartCallback = onAppStart;
-		}
-
-		if (this.runtimeOptions.embedded) {
-			return;
 		}
 
 		return this.bootServer();
@@ -521,13 +461,6 @@ export abstract class AbstractApplicationAdapter<
 
 	protected logServerStarted(origin: string): void {
 		appLogger.info(formatRuntimeServerStartedMessage(this.runtimeLabel, origin));
-	}
-
-	/**
-	 * Invoked by embedded hosts (for example Vite) once the app can take traffic.
-	 */
-	public async handleListening(origin: string): Promise<void> {
-		await this.notifyListening(origin);
 	}
 
 	protected async notifyListening(origin: string): Promise<void> {
@@ -579,8 +512,7 @@ export abstract class AbstractApplicationAdapter<
 	 *
 	 * @remarks
 	 * Subclasses override this to shut down bound servers, watchers, and other
-	 * dev-time resources. The default implementation is a no-op so embedded
-	 * adapters that never call `start()` can still be used with `await using`.
+	 * dev-time resources. The default implementation is a no-op.
 	 */
 	public async stop(_force = true): Promise<void> {}
 

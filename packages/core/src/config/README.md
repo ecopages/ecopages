@@ -14,9 +14,8 @@ It is responsible for:
 - rejecting overlapping build-plugin names per server/browser environment, with both contributor names in the error
 - appending the core [HTML Pages](../html-pages/README.md) Integration after user Integrations unless one of them declares `.html`, so `.html` routes work in every app
 - resolving semantic paths such as `html` and `404` templates from registered Integration extensions; more than one match for a basename (for example `html.tsx` and `html.html`) is an error
-- selecting explicit build ownership and creating app-owned runtime state: the build adapter, the build manifest, the server invalidation counter, and a no-op entrypoint dependency graph that development replaces (build executors are installed later, at server startup)
+- creating app-owned runtime state: the Rolldown build adapter, the build manifest, the server invalidation counter, and a no-op entrypoint dependency graph that development replaces (build executors are installed later, at server startup)
 - enforcing runtime capability requirements before startup
-- carrying host-injected runtime dependencies only through abstract slots such as host module loaders, never through bundler-specific core defaults
 
 ## Main Files
 
@@ -33,11 +32,11 @@ It is responsible for:
 ## Ownership Rules
 
 - Integrations and processors declare contributions.
-- `finalizeEcoPagesConfig()` decides ordering, validates compatibility, and seals build ownership for the finalized app config.
+- `finalizeEcoPagesConfig()` decides ordering, validates compatibility, and installs the Rolldown adapter on the finalized app config.
 - Runtime startup reuses finalized config/build state; it should not recompute manifest ownership.
 - Production startup loads the emitted config artifact recorded by the server build, even when the source config is still present.
 
-App-owned is the default ownership path. Host-owned is explicit and should be selected by the host through the loader's build-ownership option when a host-driven compatibility flow must avoid silently falling back to app build execution.
+App-owned Rolldown is the only build path. Finalization installs that adapter on every config.
 
 ## Output
 
@@ -49,5 +48,5 @@ That built config is then consumed by server adapters, static generation, route 
 
 - Production apps call `createApp()` (loads `eco.config.ts`) or pass `appConfig`, `userConfig`, or `configFile` explicitly.
 - In development (`--dev`), adding, changing, or removing the resolved `eco.config` module, a project file it imports, or a supported project `.env` file triggers a supervised process restart (not in-process reload). The CLI re-merges dotenv files on respawn.
-- `@ecopages/testing` `createTestAppConfig()` finalizes each in-memory user config independently through `finalizeEcoPagesConfig`; only module-backed `loadEcoPagesConfig()` calls are cached (by config path, build ownership, and cwd).
+- `@ecopages/testing` `createTestAppConfig()` finalizes each in-memory user config independently through `finalizeEcoPagesConfig`; only module-backed `loadEcoPagesConfig()` calls are cached (by config path and cwd).
 - Core fixture helpers live in `packages/core/__fixtures__/app/test-app-config.ts` (`createFixtureAppConfig`, `createFixtureApp`).

@@ -24,12 +24,8 @@ export type DevToolbarConfig = {
  */
 export function isDevToolbarEnabled(
 	appConfig: Pick<EcoPagesAppConfig, 'devToolbar'>,
-	options: { watch: boolean; hostOwnsDevClient?: boolean },
+	options: { watch: boolean },
 ): boolean {
-	if (options.hostOwnsDevClient) {
-		return false;
-	}
-
 	if (!options.watch) {
 		return false;
 	}

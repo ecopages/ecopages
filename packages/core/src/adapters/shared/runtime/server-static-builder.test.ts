@@ -10,7 +10,6 @@ import {
 	SERVER_BUNDLE_FILENAME,
 } from '../../../utils/resolve-entry-file';
 import {
-	createBuildAdapter,
 	setAppBuildAdapter,
 	type BuildAdapter,
 	type BuildOptions,
@@ -610,35 +609,6 @@ describe('ServerStaticBuilder', () => {
 						routeRendererFactory: RouteRendererFactory,
 					}),
 					/Cannot bundle server entry: file "nonexistent.ts" not found/,
-				);
-			});
-
-			it('throws when build ownership is vite-host', async () => {
-				const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger } =
-					createMockDependencies();
-				const distDir = setupBundleFixture('vite-host');
-				fs.writeFileSync(path.join(distDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
-				const appConfig = {
-					...AppConfig,
-					runtime: { buildAdapter: createBuildAdapter({ ownership: 'vite-host' }) },
-					absolutePaths: { ...AppConfig.absolutePaths, distDir },
-				} as EcoPagesAppConfig;
-
-				const builder = new ServerStaticBuilder({
-					appConfig,
-					staticSiteGenerator: StaticSiteGenerator,
-					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
-					logger,
-					needsServerBundle: true,
-				});
-
-				await assert.rejects(
-					builder.build(undefined, {
-						router: Router,
-						routeRendererFactory: RouteRendererFactory,
-					}),
-					/build ownership is "vite-host"/,
 				);
 			});
 

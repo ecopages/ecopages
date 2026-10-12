@@ -193,38 +193,6 @@ export async function requestGetAndWait(request: APIRequestContext, href: string
 	return lastResponse!;
 }
 
-function isViteConnectedMessage(text: string): boolean {
-	return text.includes('[vite] connected');
-}
-
-/** Wait until Vite's browser HMR client has finished its websocket handshake. */
-export async function waitForViteClientConnection(page: Page, timeout = HMR_CLIENT_CONNECT_TIMEOUT_MS) {
-	const viteConsoleMessages: string[] = [];
-	const recordViteConsole = (message: ConsoleMessage) => {
-		const text = message.text();
-		if (text.includes('[vite]')) {
-			viteConsoleMessages.push(text);
-		}
-	};
-
-	page.on('console', recordViteConsole);
-
-	try {
-		await page.waitForFunction(() => document.querySelector('script[src*="/@vite/client"]') !== null, null, {
-			timeout,
-		});
-
-		await expect
-			.poll(() => viteConsoleMessages.some(isViteConnectedMessage), {
-				timeout,
-				intervals: [50, 100, 200, 500],
-			})
-			.toBe(true);
-	} finally {
-		page.off('console', recordViteConsole);
-	}
-}
-
 /** Begin waiting for the ecopages HMR websocket before the page navigates. */
 export function startEcopagesHmrConnectionWatch(page: Page, timeout = HMR_CLIENT_CONNECT_TIMEOUT_MS) {
 	const socketReady = page

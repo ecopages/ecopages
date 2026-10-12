@@ -15,16 +15,8 @@ export type NodeHttpWebSocketUpgradePreflight = (req: IncomingMessage, socket: D
 export type AttachNodeHttpWebSocketUpgradesOptions = {
 	runtimeOrigin: string;
 	websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>>;
-	/**
-	 * When true, unmatched upgrade requests are left for other listeners (e.g.
-	 * Vite HMR). When false, unmatched upgrades are destroyed immediately.
-	 */
-	passthroughUnmatched?: boolean;
 	preflight?: NodeHttpWebSocketUpgradePreflight;
 };
-
-/** Upgrade options a host passes when it attaches Ecopages to a server it shares. */
-export type WebSocketUpgradeOptions = Pick<AttachNodeHttpWebSocketUpgradesOptions, 'passthroughUnmatched'>;
 
 const attachedUpgradeServers = new WeakSet<NodeHttpServer>();
 
@@ -128,14 +120,12 @@ async function setupNodeWebSocketConnection(
 /**
  * Wires Ecopages WebSocket upgrades onto a Node HTTP server's `upgrade` event.
  *
- * Used by the Node adapter in standalone mode and by host integrations such as
- * the Vite plugin that embed Ecopages behind a foreign HTTP server.
+ * Used by the Node adapter. Unmatched upgrades are destroyed.
  *
  * @remarks
  * This is the single owner of the unmatched-upgrade policy: an upgrade claimed
  * by `preflight` (for example `/_hmr`) or a user route is handled here, and
- * anything else is destroyed unless `passthroughUnmatched` leaves it for other
- * listeners on a shared server.
+ * anything else is destroyed.
  */
 export function attachNodeHttpWebSocketUpgrades(
 	server: NodeHttpServer,
@@ -163,9 +153,7 @@ export function attachNodeHttpWebSocketUpgrades(
 		const wsMatch = findWebSocketRoute(options.websocketHandlers, url.pathname);
 
 		if (!wsMatch) {
-			if (!options.passthroughUnmatched) {
-				socket.destroy();
-			}
+			socket.destroy();
 			return;
 		}
 

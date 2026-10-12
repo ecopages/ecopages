@@ -10,7 +10,6 @@ Call site (route scan, renderer, SSG, API)
        ├─ merges server build plugins + JSX ownership plugins
        ├─ resolves route-module BuildExecutor
        └─ PageModuleImportService.importModule()
-            ├─ dev + host loader → host runtime (Node only, when configured)
             ├─ owning Integration's compilePageModule() → compiled in-process, no bundler (HTML Pages)
             ├─ in-process transpile cache → route-module build cache
             ├─ unified pages graph → prebuilt chunk import (production only)
@@ -19,14 +18,7 @@ Call site (route scan, renderer, SSG, API)
 
 `ServerModuleTranspiler` is a thin wrapper that injects `rootDir` and optional default plugins into the same `PageModuleImportService` path. App code should prefer `getAppModuleLoader(appConfig)` or `getAppServerModuleTranspiler(appConfig)`.
 
-## Host vs app ownership
-
-| Path                    | When                                                                                            |
-| ----------------------- | ----------------------------------------------------------------------------------------------- |
-| Host loader             | `appConfig.runtime.hostModuleLoader` set (Vite host) and file supports direct source loading    |
-| Ecopages build pipeline | Framework-owned template files under `pages/`, `includes/`, `layouts/`, `components/`, `views/` |
-
-`shouldAppUseHostModuleLoader()` encodes the directory + extension rules. Bun always uses the build pipeline today.
+Every server import goes through the Ecopages build pipeline. HTML Pages can still compile in process. Bun and Node both use that pipeline.
 
 ## Caching layers
 
@@ -54,8 +46,6 @@ Compiled collection server modules also include the app-owned server invalidatio
 | `app-server-module-transpiler.service.ts`   | Factory for app-scoped loader + transpiler                       |
 | `server-module-transpiler.service.ts`       | Injectable transpiler boundary for tests and bootstrap           |
 | `view-module-loader.ts`                     | Normalizes string/URL view registrations into transpiler loaders |
-| `host-module-loader-registry.ts`            | Process-global host loader fallback for embedded runtimes        |
-| `source-module-support.ts`                  | Extension allowlist for host direct loading                      |
 
 ## Development invalidation
 

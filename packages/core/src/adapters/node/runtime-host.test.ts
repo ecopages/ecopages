@@ -45,6 +45,20 @@ describe('NodeRuntimeHost', () => {
 		expect(res.end).not.toHaveBeenCalled();
 	});
 
+	it('preserves the configured hostname in the reported runtime origin', () => {
+		const host = new NodeRuntimeHost({} as never);
+		const server = {
+			address: () => ({ address: '::1', port: 3000, family: 'IPv6' }),
+		};
+
+		expect(
+			host.getOrigin(server as never, {
+				hostname: 'localhost',
+				port: 3000,
+			}),
+		).toBe('http://localhost:3000');
+	});
+
 	it('rejects when listen fails with EADDRINUSE', async () => {
 		const requestBridge = {
 			createWebRequest: vi.fn(),

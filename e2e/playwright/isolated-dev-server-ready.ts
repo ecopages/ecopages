@@ -8,9 +8,7 @@
  *
  * Do not probe `GET /` from Playwright. The port can be open earlier, and an
  * early `/` hit would start cold SSR during bind. Dev servers finish integration
- * warmup and watcher subscription before this listen log. The Vite host prints
- * the same log only after that step and after its HTTP listener is bound.
- * Vite's own "ready" line is not this signal.
+ * warmup and watcher subscription before this listen log.
  */
 export const ECOPAGES_SERVER_READY_STDOUT_REGEX = /(?:Bun|Node) server running at/;
 

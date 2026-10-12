@@ -740,7 +740,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			name: this.name,
 			appConfig: this.appConfig,
 			watch: this.hmrManager?.isEnabled() === true,
-			hostOwnsDevClient: this.appConfig.runtime?.devClientOwner === 'host',
 			resolveRouteRenderInputs: (routeOptions) => this.resolveRouteRenderInputs(routeOptions),
 			resolveRouteDependencies: (input) => this.resolveRouteDependencies(input),
 			importPageFile: (file) => this.importPageFile(file),

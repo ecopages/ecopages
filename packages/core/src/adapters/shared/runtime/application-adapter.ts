@@ -199,11 +199,7 @@ export abstract class SharedApplicationAdapter<
 		return this;
 	}
 
-	protected createDevelopmentRestartHandler(): ((changedFile: string) => Promise<void>) | undefined {
-		if (this.runtimeOptions.embedded) {
-			return undefined;
-		}
-
+	protected createDevelopmentRestartHandler(): (changedFile: string) => Promise<void> {
 		return async (changedFile: string) => {
 			appLogger.info(`Restarting the development server (${changedFile} changed)...`);
 			await this.stop();

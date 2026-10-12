@@ -16,10 +16,7 @@ import type {
 	EcopagesWebSocketHandler,
 } from '../../types/public-types.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
-import {
-	attachNodeHttpWebSocketUpgrades,
-	type WebSocketUpgradeOptions,
-} from '../shared/ws/node-http-websocket-upgrades.ts';
+import { attachNodeHttpWebSocketUpgrades } from '../shared/ws/node-http-websocket-upgrades.ts';
 
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { SharedServerAdapter } from '../shared/runtime/server-adapter.ts';
@@ -54,7 +51,6 @@ export interface NodeServerAdapterParams {
 	errorPageLoaders?: ErrorPageLoaders;
 	errorHandler?: ErrorHandler;
 	websocketHandlers?: Map<string, EcopagesWebSocketHandler<any, any>>;
-	hostOwnsDevClient?: boolean;
 	options?: {
 		watch?: boolean;
 	};
@@ -65,9 +61,8 @@ export interface NodeServerAdapterParams {
 }
 
 export interface NodeServerAdapterResult extends ServerAdapterResult {
-	completeInitialization: (server: NodeServerInstance, options?: WebSocketUpgradeOptions) => Promise<void>;
+	completeInitialization: (server: NodeServerInstance) => Promise<void>;
 	handleRequest: (request: Request) => Promise<Response>;
-	attachUserWebSocketUpgrades: (server: NodeServerInstance, options?: WebSocketUpgradeOptions) => void;
 	dispose: () => Promise<void>;
 }
 
@@ -117,20 +112,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>> = new Map();
 
 	/**
-	 * Wires user WebSocket routes onto a foreign Node HTTP server.
-	 *
-	 * Host integrations such as the Vite plugin call this so `app.websocket()`
-	 * handlers work while HTTP is still served by the host dev server.
-	 */
-	public attachUserWebSocketUpgrades(server: NodeServerInstance, options?: WebSocketUpgradeOptions): void {
-		attachNodeHttpWebSocketUpgrades(server, {
-			runtimeOrigin: this.runtimeOrigin,
-			websocketHandlers: this.websocketHandlers,
-			passthroughUnmatched: options?.passthroughUnmatched,
-		});
-	}
-
-	/**
 	 * @remarks
 	 * `previewHost` is optional on the public {@link NodeServerAdapterParams} so
 	 * factory callers can omit it, but it is mandatory by the time the concrete
@@ -155,7 +136,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		if (options.websocketHandlers) {
 			this.websocketHandlers = options.websocketHandlers;
 		}
-		this.hostOwnsDevClient = options.hostOwnsDevClient === true;
 	}
 
 	/**
@@ -271,7 +251,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			servePreviewOnly: this.servePreviewOnly.bind(this),
 			completeInitialization: this.completeInitialization.bind(this),
 			handleRequest: this.handleRequest.bind(this),
-			attachUserWebSocketUpgrades: this.attachUserWebSocketUpgrades.bind(this),
 			applyBoundPort: this.applyBoundPort.bind(this),
 			listStaticGenerationRoutes: (input) => this.router.listStaticGenerationRoutes(input),
 			dispose: this.dispose.bind(this),
@@ -341,14 +320,10 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 *   refreshes the router and response handlers when pages are added or removed.
 	 *
 	 * WebSocket upgrade requests that do not match a known path are rejected with an
-	 * immediate socket destroy to prevent unhandled upgrade leaks, unless
-	 * `passthroughUnmatched` is set because a host (for example Vite) shares the
-	 * server and owns other upgrade paths.
+	 * immediate socket destroy to prevent unhandled upgrade leaks.
 	 */
-	public async completeInitialization(server: NodeServerInstance, options?: WebSocketUpgradeOptions): Promise<void> {
+	public async completeInitialization(server: NodeServerInstance): Promise<void> {
 		this.serverInstance = server;
-
-		const passthroughUnmatched = options?.passthroughUnmatched;
 
 		if (this.options?.watch) {
 			const devRuntime = createNodeServerDevRuntime(this.appConfig);
@@ -378,7 +353,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			attachNodeHttpWebSocketUpgrades(server, {
 				runtimeOrigin: this.runtimeOrigin,
 				websocketHandlers: this.websocketHandlers,
-				passthroughUnmatched,
 				preflight: hmrPreflight,
 			});
 
@@ -412,7 +386,10 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			this.projectWatcher = watcher;
 			await watcher.createWatcherSubscription();
 		} else {
-			this.attachUserWebSocketUpgrades(server, { passthroughUnmatched });
+			attachNodeHttpWebSocketUpgrades(server, {
+				runtimeOrigin: this.runtimeOrigin,
+				websocketHandlers: this.websocketHandlers,
+			});
 		}
 
 		appLogger.debug('Node server adapter initialization completed', {

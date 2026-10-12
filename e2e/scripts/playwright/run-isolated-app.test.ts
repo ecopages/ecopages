@@ -16,7 +16,6 @@ describe('run-isolated-app launcher', () => {
 			parseArgs(['--sourceDir', 'playground/kitchen-sink', '--workspace', 'kitchen-sink-bun', '--port', '4010']),
 		).toEqual({
 			artifactScope: 'kitchen-sink-bun',
-			host: 'ecopages',
 			mode: 'dev',
 			port: 4010,
 			runtime: 'bun',
@@ -29,23 +28,6 @@ describe('run-isolated-app launcher', () => {
 		expect(() => parseArgs(['--workspace', 'only-workspace'])).toThrow(
 			'Missing required isolated Playwright app launcher arguments.',
 		);
-	});
-
-	it('rejects vite preview combinations', () => {
-		expect(() =>
-			parseArgs([
-				'--sourceDir',
-				'playground/kitchen-sink',
-				'--workspace',
-				'vite-preview',
-				'--port',
-				'4011',
-				'--host',
-				'vite',
-				'--mode',
-				'preview',
-			]),
-		).toThrow('Vite isolated Playwright servers only support dev mode.');
 	});
 
 	it('rejects invalid ports', () => {
@@ -65,7 +47,6 @@ describe('run-isolated-app launcher', () => {
 
 	it('runs preview without a redundant build step', () => {
 		const command = buildCommand({
-			host: 'ecopages',
 			mode: 'preview',
 			port: 4008,
 			runtime: 'bun',
@@ -79,7 +60,6 @@ describe('run-isolated-app launcher', () => {
 	it('starts dev servers directly', () => {
 		expect(
 			buildCommand({
-				host: 'ecopages',
 				mode: 'dev',
 				port: 4007,
 				runtime: 'node',
@@ -87,15 +67,26 @@ describe('run-isolated-app launcher', () => {
 		).toContain('dev --runtime node --port 4007');
 	});
 
-	it('sets ECOPAGES_BASE_URL to the active Vite port for vite host runs', () => {
-		expect(
-			buildEnv({
-				host: 'vite',
+	it('keeps a parent base URL and marks the run as a kitchen-sink e2e', () => {
+		const previous = process.env.ECOPAGES_BASE_URL;
+		process.env.ECOPAGES_BASE_URL = 'http://example.test';
+
+		try {
+			const env = buildEnv({
 				mode: 'dev',
-				port: 4012,
-				artifactScope: 'cross-integration-vite-node-parity',
-			}).ECOPAGES_BASE_URL,
-		).toBe('http://localhost:4012');
+				port: 4007,
+				artifactScope: 'cross-integration-dev',
+			});
+
+			expect(env.ECOPAGES_BASE_URL).toBe('http://example.test');
+			expect(env.ECOPAGES_CROSS_INTEGRATION_E2E).toBe('true');
+		} finally {
+			if (previous === undefined) {
+				delete process.env.ECOPAGES_BASE_URL;
+			} else {
+				process.env.ECOPAGES_BASE_URL = previous;
+			}
+		}
 	});
 
 	it('reuses an already-prepared shared workspace', () => {

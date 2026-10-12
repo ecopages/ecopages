@@ -55,8 +55,7 @@ class AppBuildRuntime implements BuildRuntime {
 	 * No-op for profile teardown.
 	 *
 	 * @remarks
-	 * Rolldown-owned profiles use one-shot builds, and Vite-host profiles only
-	 * wrap a boundary marker. Neither owns a long-lived engine to close.
+	 * Rolldown profiles use one-shot builds and do not own a long-lived engine to close.
 	 */
 	async dispose(): Promise<void> {}
 }
@@ -76,10 +75,8 @@ export function requireBuildRuntime(appConfig: EcoPagesAppConfig): BuildRuntime 
  * Installs profile-based build executors for one app instance.
  *
  * @remarks
- * For Rolldown ownership, server-entry stays serialized single-flight while
- * route-module and browser-HMR run in parallel one-shot builds. Vite-host
- * profiles wrap a boundary marker and reject framework-owned build attempts.
- * Profiles do not inject app plugins — assemble complete
+ * Server-entry stays serialized single-flight while route-module and browser-HMR
+ * run in parallel one-shot builds. Profiles do not inject app plugins — assemble complete
  * {@link BuildOptions} with {@link createServerBuildRequest} /
  * {@link createBrowserBuildRequest} (or {@link BrowserBundleService}) first.
  */

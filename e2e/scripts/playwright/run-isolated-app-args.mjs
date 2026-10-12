@@ -2,7 +2,6 @@ const STRING_FLAGS = {
 	'--artifactScope': 'artifactScope',
 	'--workspace': 'workspace',
 	'--sourceDir': 'sourceDir',
-	'--host': 'host',
 	'--runtime': 'runtime',
 	'--mode': 'mode',
 	'--port': 'port',
@@ -11,7 +10,6 @@ const STRING_FLAGS = {
 function createDefaultOptions() {
 	return {
 		artifactScope: '',
-		host: 'ecopages',
 		mode: 'dev',
 		port: '',
 		runtime: 'bun',
@@ -39,12 +37,6 @@ function assertRequiredFields(options) {
 	}
 }
 
-function assertSupportedHost(options) {
-	if (!['ecopages', 'vite'].includes(options.host)) {
-		throw new Error(`Unsupported isolated app host: ${options.host}`);
-	}
-}
-
 function assertSupportedMode(options) {
 	if (!['dev', 'preview'].includes(options.mode)) {
 		throw new Error(`Unsupported isolated app mode: ${options.mode}`);
@@ -54,12 +46,6 @@ function assertSupportedMode(options) {
 function assertSupportedRuntime(options) {
 	if (!['bun', 'node'].includes(options.runtime)) {
 		throw new Error(`Unsupported isolated app runtime: ${options.runtime}`);
-	}
-}
-
-function assertHostModeCompatibility(options) {
-	if (options.host === 'vite' && options.mode !== 'dev') {
-		throw new Error('Vite isolated Playwright servers only support dev mode.');
 	}
 }
 
@@ -85,10 +71,8 @@ export function parseArgs(argv) {
 	}
 
 	assertRequiredFields(options);
-	assertSupportedHost(options);
 	assertSupportedMode(options);
 	assertSupportedRuntime(options);
-	assertHostModeCompatibility(options);
 
 	return {
 		...options,

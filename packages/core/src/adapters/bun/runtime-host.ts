@@ -52,8 +52,8 @@ export class BunRuntimeHost<WebSocketData = undefined> implements RuntimeHost<
 	 * @remarks
 	 * The shared runtime-host contract accepts optional stop options, but Bun's
 	 * server API already models the shutdown behavior directly. This host always
-	 * uses Bun's forceful stop path so preview and embedded runtime shutdowns do
-	 * not linger on open connections.
+	 * uses Bun's forceful stop path so preview shutdowns do not linger on open
+	 * connections.
 	 */
 	public async stop(server: Server<WebSocketData>): Promise<void> {
 		server.stop(true);

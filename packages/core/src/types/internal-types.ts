@@ -14,7 +14,6 @@ export type InternalComponentRenderInput = ComponentRenderInput & {
 };
 import type { CacheConfig } from '../services/cache/cache.types.ts';
 import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
-import type { SourceModuleLoader } from '../services/module-loading/module-loading-types.ts';
 import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { SessionPageBrowserGraphCache } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import type { ServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
@@ -158,8 +157,7 @@ export type EcoPagesAppConfig = {
 	 */
 	loaders: Map<string, EcoBuildPlugin>;
 	/**
-	 * App-owned source transforms that can be adapted into Vite or other
-	 * transform-first bundlers.
+	 * App-owned source transforms. Builds run them as `transform` hooks.
 	 */
 	sourceTransforms: Map<string, EcoSourceTransform>;
 	/**
@@ -181,7 +179,6 @@ export type EcoPagesAppConfig = {
 		entrypointDependencyGraph?: EntrypointDependencyGraph;
 		buildInputIndex?: BuildInputDependencyIndex;
 		pageBrowserGraphSession?: SessionPageBrowserGraphCache;
-		hostModuleLoader?: SourceModuleLoader;
 		serverInvalidationState?: ServerInvalidationState;
 		serverModuleTranspiler?: ServerModuleTranspiler;
 		routeModuleBuildCaches?: Map<string, RouteModuleBuildCache>;
@@ -199,8 +196,6 @@ export type EcoPagesAppConfig = {
 		 * Failed activations are removed so a later caller can retry.
 		 */
 		integrationActivations?: Map<string, Promise<void>>;
-		/** When `'host'`, the embedded dev server owns browser dev-client bootstrap. */
-		devClientOwner?: 'core' | 'host';
 		/** Integration hooks run when a registered `dependencies.scripts` entrypoint changes. */
 		registeredScriptEntrypointChangeHandlers?: RegisteredScriptEntrypointChangeHandler[];
 	};

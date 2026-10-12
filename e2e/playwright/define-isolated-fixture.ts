@@ -38,23 +38,21 @@ type DesktopChromeUse = NonNullable<PlaywrightTestProject['use']>;
 
 export function buildIsolatedAppCommand(options: {
 	sourceDir: string;
-	host: 'ecopages' | 'vite';
 	mode: 'dev';
 	port: number;
 	runtime: 'bun' | 'node';
 	workspace: string;
 	artifactScope: string;
 }): string {
-	return `${isolatedAppLauncher} --sourceDir ${options.sourceDir} --workspace ${options.workspace} --artifactScope ${options.artifactScope} --host ${options.host} --runtime ${options.runtime} --mode ${options.mode} --port ${options.port}`;
+	return `${isolatedAppLauncher} --sourceDir ${options.sourceDir} --workspace ${options.workspace} --artifactScope ${options.artifactScope} --runtime ${options.runtime} --mode ${options.mode} --port ${options.port}`;
 }
 
 /**
- * Isolated kitchen-sink HMR Playwright projects (Bun, Node, Vite).
+ * Isolated kitchen-sink HMR Playwright projects (Bun and Node).
  *
  * @remarks
  * Each project uses `workers: 1` because the specs mutate one `.e2e-tmp` copy.
- * Extra workers race those writes. App-entry restart specs are Vite-host only
- * (`testIgnore` on Bun/Node) so they are not collected as skipped rows.
+ * Extra workers race those writes.
  */
 export function defineCrossIntegrationFixture(
 	repoRootDir: string,
@@ -65,7 +63,6 @@ export function defineCrossIntegrationFixture(
 		{
 			name: 'cross-integration-hmr-e2e',
 			port: 4016,
-			host: 'ecopages' as const,
 			runtime: 'bun' as const,
 			workspace: 'cross-integration-hmr',
 			artifactScope: 'cross-integration-hmr',
@@ -73,18 +70,9 @@ export function defineCrossIntegrationFixture(
 		{
 			name: 'cross-integration-hmr-node-e2e',
 			port: 4017,
-			host: 'ecopages' as const,
 			runtime: 'node' as const,
 			workspace: 'cross-integration-hmr-node',
 			artifactScope: 'cross-integration-hmr-node',
-		},
-		{
-			name: 'cross-integration-hmr-vite-e2e',
-			port: 4018,
-			host: 'vite' as const,
-			runtime: 'node' as const,
-			workspace: 'cross-integration-hmr-vite',
-			artifactScope: 'cross-integration-hmr-vite',
 		},
 	];
 
@@ -93,7 +81,6 @@ export function defineCrossIntegrationFixture(
 		projects: hmrProjects.map((project) => ({
 			name: project.name,
 			testMatch: crossIntegrationHmrMatch,
-			...(project.host === 'vite' ? {} : { testIgnore: '**/app-entry-restart-hmr.test.e2e.ts' }),
 			workers: 1,
 			fullyParallel: false,
 			timeout: CROSS_INTEGRATION_DEV_TEST_TIMEOUT_MS,
@@ -111,7 +98,6 @@ export function defineCrossIntegrationFixture(
 				sourceDir: crossIntegrationSourceDir,
 				workspace: project.workspace,
 				artifactScope: project.artifactScope,
-				host: project.host,
 				runtime: project.runtime,
 				mode: 'dev',
 				port: project.port,

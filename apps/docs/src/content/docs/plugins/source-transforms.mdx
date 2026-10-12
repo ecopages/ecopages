@@ -56,19 +56,6 @@ export default defineConfig({
 });
 ```
 
-## Vite Host Bridge
-
-When Ecopages runs inside a Vite host, adapt app-owned transforms into Vite-compatible plugins:
-
-```typescript
-import { createVitePluginsFromAppSourceTransforms } from '@ecopages/core/plugins/source-transform';
-import appConfig from './eco.config';
-
-const viteTransforms = createVitePluginsFromAppSourceTransforms(appConfig);
-```
-
-See [Vite Plugin](/docs/ecosystem/vite-plugin) for host integration.
-
 ## Choosing the Right Extension Point
 
 | Mechanism | Use when |

@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { build, getAppBuildAdapter } from '../build/build-adapter.ts';
+import { build } from '../build/build-adapter.ts';
 import type { BuildResult } from '../build/contracts/build-contracts.ts';
 import { createServerBuildRequest } from '../build/runtime/build-request-policy.ts';
 import { requireBuildRuntime } from '../build/runtime/build-runtime.ts';
@@ -56,18 +56,4 @@ export async function bundleEcoConfigModule(
 		emittedConfigPath,
 		buildResult: result,
 	};
-}
-
-/**
- * @remarks
- * Ensures build ownership allows app-owned bundling before emitting config artifacts.
- */
-export function assertCanBundleServerConfig(appConfig: EcoPagesAppConfig): void {
-	const buildAdapter = getAppBuildAdapter(appConfig);
-	if (buildAdapter.ownership === 'vite-host') {
-		throw new Error(
-			'Cannot bundle the server config: build ownership is "vite-host". ' +
-				'The host runtime is expected to produce its own server bundle.',
-		);
-	}
 }

@@ -28,8 +28,8 @@ They are not responsible for:
 - `node/`: Node server adapter, app shell, HTTP request bridge, HMR transport, and static preview server
 - `shared/`: runtime-neutral adapter helpers used by both hosts, clustered by concern:
     - `shared/http/` — API response builders, request pipeline, middleware runner, define-api helpers, explicit-static and filesystem matchers
-    - `shared/hmr/` — HMR HTML inject helpers, shared HMR manager, entrypoint registrar. In watch mode every HTML response is marked `no-store`, also when the host owns the dev client and core injects nothing
-    - `shared/runtime/` — shared server adapter, route handler, application adapter, static builder, port/bootstrap utilities (`PortManager` on dev and preview bind, Clack confirm on TTY port collisions). Watch-mode `startDevWarmup()` finishes integration `setup()` before the server logs that it is listening. Declared prewarm paths render in the background once the server handles requests, without delaying server readiness. The Project Watcher also finishes its initial filesystem subscription before readiness is advertised. The Vite host calls `handleListening()` after `attachWebSocketUpgrades()` (`completeInitialization`), matching Node `bootServer()`, so Playwright's listen-log ready signal does not start tests during that warmup.
+    - `shared/hmr/` — HMR HTML inject helpers, shared HMR manager, entrypoint registrar. In watch mode every HTML response is marked `no-store`
+    - `shared/runtime/` — shared server adapter, route handler, application adapter, static builder, port/bootstrap utilities (`PortManager` on dev and preview bind, Clack confirm on TTY port collisions). Watch-mode `startDevWarmup()` finishes integration `setup()` before the server logs that it is listening. Declared prewarm paths render in the background once the server handles requests, without delaying server readiness. The Project Watcher also finishes its initial filesystem subscription before readiness is advertised. Node `bootServer()` calls `completeInitialization` before the listen log, so Playwright's listen-log ready signal does not start tests during that warmup.
     - `shared/ws/` — WinterCG WebSocket lifecycle helpers and Node HTTP upgrade bridge (Bun-specific user WS lifecycle lives under `bun/`)
 
 ## Ownership Boundary
@@ -49,5 +49,5 @@ Semantic 404/500 page selection and rendering belongs to `src/services/error-pag
 ## Shared Request Contracts
 
 - API handler errors and errors that escape `SharedServerAdapter.handleSharedRequest` resolve through `ApiRequestPipeline.handleError` on both runtimes: a thrown `Response`, then a client abort (499, Node only), then `app.onError`, then `HttpError`, then a 500 logged with its stack. `app.fetch()` therefore always resolves with a `Response`. Page render failures render the error page instead and do not reach `app.onError`.
-- On Node, `attachNodeHttpWebSocketUpgrades` owns the unmatched-upgrade policy. `/_hmr` (dev only) and user routes are handled; anything else is destroyed unless `passthroughUnmatched` leaves it for a host that shares the server, such as Vite.
+- On Node, `attachNodeHttpWebSocketUpgrades` owns the unmatched-upgrade policy. `/_hmr` (dev only) and user routes are handled; anything else is destroyed.
 - HMR endpoints and Bun's `development` serve mode follow the `dev` flag only.

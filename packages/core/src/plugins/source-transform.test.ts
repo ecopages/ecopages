@@ -2,14 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
 	applySourceTransform,
 	applySourceTransforms,
-	createVitePluginsFromAppSourceTransforms,
 	createEcoBuildPluginFromSourceTransform,
-	getAppSourceTransforms,
-	createVitePluginFromSourceTransform,
 	normalizeTransformId,
 	type EcoSourceTransform,
 } from './source-transform.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 
 describe('source-transform', () => {
 	const transform: EcoSourceTransform = {
@@ -71,16 +67,6 @@ describe('source-transform', () => {
 		expect(calls).toEqual(['pre', 'default', 'post']);
 	});
 
-	it('creates a Vite-compatible transform plugin', () => {
-		const vitePlugin = createVitePluginFromSourceTransform(transform);
-		const result = vitePlugin.transform('export const value = 1;', '/src/main.tsx?import');
-
-		expect(vitePlugin.name).toBe('test-transform');
-		expect(result).toEqual({
-			code: '/* injected */\nexport const value = 1;',
-		});
-	});
-
 	it('creates an Ecopages build plugin wrapper', async () => {
 		const buildPlugin = createEcoBuildPluginFromSourceTransform(transform);
 		let transformCallback: ((code: string, id: string) => unknown) | undefined;
@@ -96,15 +82,5 @@ describe('source-transform', () => {
 		expect(result).toEqual({
 			code: '/* injected */\nexport const value = 1;',
 		});
-	});
-
-	it('collects app-owned source transforms and adapts them to Vite plugins', () => {
-		const appConfig = {
-			sourceTransforms: new Map([[transform.name, transform]]),
-		} as EcoPagesAppConfig;
-
-		expect(getAppSourceTransforms(appConfig)).toEqual([transform]);
-		expect(createVitePluginsFromAppSourceTransforms(appConfig)).toHaveLength(1);
-		expect(createVitePluginsFromAppSourceTransforms(appConfig)[0].name).toBe('test-transform');
 	});
 });

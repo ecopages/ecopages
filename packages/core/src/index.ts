@@ -16,13 +16,7 @@ export {
 	redirect,
 	type GroupHandler,
 } from './adapters/shared/http/define-api-handler.ts';
-export {
-	createVitePluginsFromAppSourceTransforms,
-	createVitePluginFromSourceTransform,
-	type EcoSourceTransform,
-	type EcoSourceTransformResult,
-	type EcoViteCompatiblePlugin,
-} from './plugins/source-transform.ts';
+export { type EcoSourceTransform, type EcoSourceTransformResult } from './plugins/source-transform.ts';
 export { attributeMdxComponentIdentity, createEcoComponentMetaTransform } from './plugins/eco-component-meta-plugin.ts';
 export { bindComponentIdentity, getComponentIdentity, type ComponentIdentity } from './eco/component-identity.ts';
 export { attachDiscoveredDependencies } from './eco/discovered-dependencies.ts';

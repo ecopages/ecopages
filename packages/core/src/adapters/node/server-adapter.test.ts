@@ -11,7 +11,10 @@ import { NodeStaticPreviewHost } from './static-preview-host.ts';
 import { HtmlPagesPlugin } from '../../html-pages/html-pages.plugin.ts';
 import { ServerRouteHandler } from '../shared/runtime/server-route-handler.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import { getAppBuildInputIndex, getBuildInputRecordingContext } from '../../build/cache/build-input-dependency-index.ts';
+import {
+	getAppBuildInputIndex,
+	getBuildInputRecordingContext,
+} from '../../build/cache/build-input-dependency-index.ts';
 import { Processor, type EcoBuildPlugin } from '../../plugins/processor.ts';
 
 const upgrades = vi.hoisted(() => ({ attach: vi.fn() }));

@@ -29,7 +29,7 @@ export function buildConfiguredRuntimeModuleManifestEntries(
 		owner: '@ecopages/react',
 		importPath: module.specifier,
 		publicPath: getPublicPath(module.outputName),
-		externals: [...getReactRuntimeExternalSpecifiers(), ...module.externals],
+		externals: getReactRuntimeExternalSpecifiers(),
 	}));
 }
 

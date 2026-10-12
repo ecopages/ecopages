@@ -18,11 +18,8 @@ import {
 } from '@ecopages/core/services/asset-processing-service';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { createReactDomRuntimeInteropPlugin } from './runtime-interop-plugin.ts';
-import { buildReactRuntimeManifest, getReactRuntimeExternalSpecifiers } from './runtime-alias-map.ts';
-import {
-	assertReactRuntimeModuleExternalsAreVendored,
-	type ResolvedReactPluginRuntimeModule,
-} from './runtime-modules.ts';
+import { buildReactRuntimeManifest } from './runtime-alias-map.ts';
+import type { ResolvedReactPluginRuntimeModule } from './runtime-modules.ts';
 import {
 	createBrowserRuntimeManifest,
 	getBrowserRuntimeSpecifierMap,
@@ -87,26 +84,8 @@ export class RuntimeBundleService {
 		};
 	}
 
-	private getReactVendorFileName(mode: RuntimeMode): string {
-		return mode === 'development' ? 'react.development.js' : 'react.js';
-	}
-
-	private getReactDomVendorFileName(mode: RuntimeMode): string {
-		return mode === 'development' ? 'react-dom.development.js' : 'react-dom.js';
-	}
-
-	private getRouterVendorFileName(mode: RuntimeMode): string {
-		if (!this.config.routerAdapter) {
-			return '';
-		}
-
-		return mode === 'development'
-			? `${this.config.routerAdapter.bundle.outputName}.development.js`
-			: `${this.config.routerAdapter.bundle.outputName}.js`;
-	}
-
-	private getConfiguredRuntimeModuleFileName(outputName: string, mode: RuntimeMode): string {
-		return mode === 'development' ? `${outputName}.development.js` : `${outputName}.js`;
+	private getVendorFileName(name: string, mode: RuntimeMode): string {
+		return `${name}${mode === 'development' ? '.development' : ''}.js`;
 	}
 
 	private getConfiguredRuntimeModules(): ResolvedReactPluginRuntimeModule[] {
@@ -117,32 +96,6 @@ export class RuntimeBundleService {
 		return this.getConfiguredRuntimeModules().map((module) => module.specifier);
 	}
 
-	private getRuntimeModuleBundleExternals(
-		module: ResolvedReactPluginRuntimeModule,
-		mappedSpecifiers: Set<string>,
-	): string[] {
-		return [
-			...getReactRuntimeExternalSpecifiers(),
-			...(this.config.routerAdapter?.bundle.externals ?? []),
-			...(this.config.routerAdapter ? [this.config.routerAdapter.bundle.importPath] : []),
-			...module.externals,
-		].filter((external) => !mappedSpecifiers.has(external));
-	}
-
-	private getUseSyncExternalStoreWithSelectorVendorFileName(mode: RuntimeMode): string {
-		return mode === 'development'
-			? 'use-sync-external-store-with-selector.development.js'
-			: 'use-sync-external-store-with-selector.js';
-	}
-
-	private getPageLayoutNormalizationVendorFileName(mode: RuntimeMode): string {
-		return mode === 'development' ? 'page-layout-normalization.development.js' : 'page-layout-normalization.js';
-	}
-
-	private getLayoutComposeVendorFileName(mode: RuntimeMode): string {
-		return mode === 'development' ? 'layout-compose.development.js' : 'layout-compose.js';
-	}
-
 	private createReactVendorImportRewritePlugin(mode: RuntimeMode): EcoBuildPlugin {
 		return createBrowserRuntimePlugin({
 			name: `react-plugin-vendor-runtime-import-rewrite-${mode}`,
@@ -151,15 +104,15 @@ export class RuntimeBundleService {
 					specifier: 'react',
 					owner: '@ecopages/react',
 					importPath: 'react',
-					publicPath: buildBrowserRuntimeAssetUrl(this.getReactVendorFileName(mode)),
+					publicPath: buildBrowserRuntimeAssetUrl(this.getVendorFileName('react', mode)),
 				},
 			]),
 		})!;
 	}
 
 	getRuntimeImports(mode = this.getCurrentRuntimeMode()): ReactRuntimeImports {
-		const reactVendorFileName = this.getReactVendorFileName(mode);
-		const reactDomVendorFileName = this.getReactDomVendorFileName(mode);
+		const reactVendorFileName = this.getVendorFileName('react', mode);
+		const reactDomVendorFileName = this.getVendorFileName('react-dom', mode);
 		const runtimeImports: ReactRuntimeImports = {
 			react: buildBrowserRuntimeAssetUrl(reactVendorFileName),
 			reactDomClient: buildBrowserRuntimeAssetUrl(reactDomVendorFileName),
@@ -167,14 +120,18 @@ export class RuntimeBundleService {
 			reactJsxDevRuntime: buildBrowserRuntimeAssetUrl(reactVendorFileName),
 			reactDom: buildBrowserRuntimeAssetUrl(reactDomVendorFileName),
 			useSyncExternalStoreWithSelector: buildBrowserRuntimeAssetUrl(
-				this.getUseSyncExternalStoreWithSelectorVendorFileName(mode),
+				this.getVendorFileName('use-sync-external-store-with-selector', mode),
 			),
-			pageLayoutNormalization: buildBrowserRuntimeAssetUrl(this.getPageLayoutNormalizationVendorFileName(mode)),
-			layoutCompose: buildBrowserRuntimeAssetUrl(this.getLayoutComposeVendorFileName(mode)),
+			pageLayoutNormalization: buildBrowserRuntimeAssetUrl(
+				this.getVendorFileName('page-layout-normalization', mode),
+			),
+			layoutCompose: buildBrowserRuntimeAssetUrl(this.getVendorFileName('layout-compose', mode)),
 		};
 
 		if (this.config.routerAdapter) {
-			runtimeImports.router = buildBrowserRuntimeAssetUrl(this.getRouterVendorFileName(mode));
+			runtimeImports.router = buildBrowserRuntimeAssetUrl(
+				this.getVendorFileName(this.config.routerAdapter.bundle.outputName, mode),
+			);
 		}
 
 		return runtimeImports;
@@ -188,7 +145,7 @@ export class RuntimeBundleService {
 		return buildReactRuntimeManifest(
 			this.getRuntimeImports(mode),
 			this.getConfiguredRuntimeModules(),
-			(outputName) => buildBrowserRuntimeAssetUrl(this.getConfiguredRuntimeModuleFileName(outputName, mode)),
+			(outputName) => buildBrowserRuntimeAssetUrl(this.getVendorFileName(outputName, mode)),
 			{ routerImportPath: this.config.routerAdapter?.bundle.importPath },
 		);
 	}
@@ -200,7 +157,7 @@ export class RuntimeBundleService {
 		for (const mode of modes) {
 			const reactVendorImportRewritePlugin = this.createReactVendorImportRewritePlugin(mode);
 			const reactDomRuntimeInteropPlugin = createReactDomRuntimeInteropPlugin({
-				reactSpecifier: buildBrowserRuntimeAssetUrl(this.getReactVendorFileName(mode)),
+				reactSpecifier: buildBrowserRuntimeAssetUrl(this.getVendorFileName('react', mode)),
 			});
 			const reactRuntimeAliasPlugin = createBrowserRuntimePlugin({
 				name: `react-plugin-runtime-specifier-alias-${mode}`,
@@ -209,7 +166,7 @@ export class RuntimeBundleService {
 						specifier: 'react',
 						owner: '',
 						importPath: 'react',
-						publicPath: buildBrowserRuntimeAssetUrl(this.getReactVendorFileName(mode)),
+						publicPath: buildBrowserRuntimeAssetUrl(this.getVendorFileName('react', mode)),
 					},
 				]),
 			});
@@ -226,7 +183,7 @@ export class RuntimeBundleService {
 						{ specifier: 'react/jsx-dev-runtime' },
 					],
 					name: 'react',
-					fileName: this.getReactVendorFileName(mode),
+					fileName: this.getVendorFileName('react', mode),
 					cacheDirName: `ecopages-react-runtime-${mode}`,
 					rootDir: this.config.rootDir,
 					workDir: this.config.workDir,
@@ -238,7 +195,7 @@ export class RuntimeBundleService {
 				createBrowserRuntimeModuleAsset({
 					modules: [{ specifier: 'react-dom', defaultExport: true }, { specifier: 'react-dom/client' }],
 					name: 'react-dom',
-					fileName: this.getReactDomVendorFileName(mode),
+					fileName: this.getVendorFileName('react-dom', mode),
 					cacheDirName: `ecopages-react-runtime-${mode}`,
 					rootDir: this.config.rootDir,
 					workDir: this.config.workDir,
@@ -251,7 +208,7 @@ export class RuntimeBundleService {
 				createBrowserRuntimeScriptAsset({
 					importPath: '@ecopages/react/runtime/use-sync-external-store-with-selector',
 					name: 'use-sync-external-store-with-selector',
-					fileName: this.getUseSyncExternalStoreWithSelectorVendorFileName(mode),
+					fileName: this.getVendorFileName('use-sync-external-store-with-selector', mode),
 					bundleOptions: {
 						define: this.createRuntimeDefines(mode),
 						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],
@@ -261,7 +218,7 @@ export class RuntimeBundleService {
 				createBrowserRuntimeScriptAsset({
 					importPath: LAYOUT_COMPOSE_PACKAGE,
 					name: 'layout-compose',
-					fileName: this.getLayoutComposeVendorFileName(mode),
+					fileName: this.getVendorFileName('layout-compose', mode),
 					bundleOptions: {
 						define: this.createRuntimeDefines(mode),
 						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],
@@ -279,7 +236,7 @@ export class RuntimeBundleService {
 					createBrowserRuntimeScriptAsset({
 						importPath: this.config.routerAdapter.bundle.importPath,
 						name: this.config.routerAdapter.bundle.outputName,
-						fileName: this.getRouterVendorFileName(mode),
+						fileName: this.getVendorFileName(this.config.routerAdapter.bundle.outputName, mode),
 						bundleOptions: {
 							define: this.createRuntimeDefines(mode),
 							external: unresolvedExternals,
@@ -295,19 +252,16 @@ export class RuntimeBundleService {
 			}
 
 			for (const runtimeModule of this.getConfiguredRuntimeModules()) {
-				assertReactRuntimeModuleExternalsAreVendored(runtimeModule, mappedSpecifiers);
-
 				dependencies.push(
 					createBrowserRuntimeModuleAsset({
 						modules: [{ specifier: runtimeModule.specifier, defaultExport: true }],
 						name: runtimeModule.outputName,
-						fileName: this.getConfiguredRuntimeModuleFileName(runtimeModule.outputName, mode),
+						fileName: this.getVendorFileName(runtimeModule.outputName, mode),
 						cacheDirName: `ecopages-react-runtime-module-${runtimeModule.outputName}-${mode}`,
 						rootDir: this.config.rootDir,
 						workDir: this.config.workDir,
 						bundleOptions: {
 							define: this.createRuntimeDefines(mode),
-							external: this.getRuntimeModuleBundleExternals(runtimeModule, mappedSpecifiers),
 							excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],
 							plugins: [this.createRuntimeAliasPlugin(mode, [runtimeModule.specifier])],
 						},
@@ -335,7 +289,7 @@ export class RuntimeBundleService {
 				createBrowserRuntimeScriptAsset({
 					importPath: PAGE_LAYOUT_NORMALIZATION_PACKAGE,
 					name: 'page-layout-normalization',
-					fileName: this.getPageLayoutNormalizationVendorFileName(mode),
+					fileName: this.getVendorFileName('page-layout-normalization', mode),
 					bundleOptions: {
 						define: this.createRuntimeDefines(mode),
 						excludeAppBuildPlugins: [DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME],

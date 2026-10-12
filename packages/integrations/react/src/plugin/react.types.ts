@@ -92,13 +92,10 @@ export type ReactPluginOptions = {
 	 * Register the exact specifier imported by the page or layout. Package
 	 * subpaths are separate module contracts and need separate entries.
 	 *
-	 * `externals` on a library vendor must already be shared vendors (React, the
-	 * router, or another `runtimeModules` specifier). Unmapped externals throw.
-	 *
 	 * @example Advanced vendor config
 	 * ```ts
 	 * runtimeModules: [
-	 *   { specifier: '@acme/ui', outputName: 'acme-ui', externals: ['react'] },
+	 *   { specifier: '@acme/ui', outputName: 'acme-ui' },
 	 * ]
 	 * ```
 	 */

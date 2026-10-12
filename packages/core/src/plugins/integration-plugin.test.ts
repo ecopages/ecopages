@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IntegrationPlugin, type IntegrationPluginConfig } from './integration-plugin.ts';
+import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
 import type { IHmrManager } from '../types/public-types.ts';
 import type { AssetDefinition } from '../services/assets/asset-processing-service';
 import type { IntegrationRendererRenderOptions, RouteRendererBody } from '../types/public-types.ts';
@@ -34,9 +35,12 @@ class TestIntegrationPlugin extends IntegrationPlugin {
 
 class OverrideInitializeRendererPlugin extends TestIntegrationPlugin {
 	override initializeRenderer() {
+		const appConfig = this.appConfig as EcoPagesAppConfig;
+		const assetProcessingService = new AssetProcessingService(appConfig);
+		vi.spyOn(assetProcessingService, 'processDependencies').mockResolvedValue([]);
 		const renderer = new NamelessRenderer({
-			appConfig: this.appConfig as EcoPagesAppConfig,
-			assetProcessingService: {} as never,
+			appConfig,
+			assetProcessingService,
 			resolvedIntegrationDependencies: [],
 			runtimeOrigin: this.runtimeOrigin,
 		});

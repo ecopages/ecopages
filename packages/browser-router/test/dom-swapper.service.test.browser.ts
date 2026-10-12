@@ -30,6 +30,21 @@ function flushScripts(update: NavigationHeadUpdate): void {
 	activatePreparedNavigationScripts(update, 'data-eco-persist');
 }
 
+/**
+ * Resolves after the browser has run every task queued before the call.
+ *
+ * @remarks
+ * For asserting that something did not happen. A message-channel round trip runs after all pending
+ * promise reactions without a timer, so it cannot be mistaken for waiting out a delay.
+ */
+function flushTasks(): Promise<void> {
+	return new Promise((resolve) => {
+		const channel = new MessageChannel();
+		channel.port1.onmessage = () => resolve();
+		channel.port2.postMessage(null);
+	});
+}
+
 function resetDocument(): void {
 	document.head.innerHTML = '';
 	document.body.innerHTML = '';
@@ -118,7 +133,6 @@ describe('DomSwapper service behavior', () => {
 		const headUpdate = await prepareHead(newDocument);
 		swapper.replaceBody(newDocument);
 		flushScripts(headUpdate);
-		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(document.head.querySelector('script[src$="/old-script.js"]')).toBeNull();
 		expect(document.head.querySelector('script[src$="/next-script.js"]')).not.toBeNull();
@@ -263,8 +277,8 @@ describe('DomSwapper service behavior', () => {
 		swapper.replaceBody(second);
 		flushScripts(secondHeadUpdate);
 
-		await vi.waitFor(() => expect(runs).toContain('library'));
-		await new Promise((resolve) => setTimeout(resolve, 50));
+		await vi.waitFor(() => expect(runs).toContain('library'), { interval: 1 });
+		await flushTasks();
 		expect(runs).toEqual(['second', 'library']);
 	});
 
@@ -312,7 +326,6 @@ describe('DomSwapper service behavior', () => {
 		const headUpdate = await prepareHead(newDocument);
 		swapper.replaceBody(newDocument);
 		flushScripts(headUpdate);
-		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(document.body.getAttribute('data-route-files')).toBe(
 			'react-server-files/index.tsx,react-server-files/tree.server.ts',

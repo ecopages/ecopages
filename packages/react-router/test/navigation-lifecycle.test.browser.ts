@@ -4,6 +4,7 @@ import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/router/navigation-lifecycle';
 import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
+import { flushTasks } from './react-router.harness.ts';
 
 function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
 	return new Response(body, {
@@ -167,7 +168,7 @@ describe('react-router navigation lifecycle', () => {
 		expect(fetchSpy).toHaveBeenCalledTimes(2);
 
 		resolveSlowFetch(htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'slow' }), { status: 200 }));
-		await new Promise((resolve) => setTimeout(resolve, 50));
+		await flushTasks();
 
 		expect(afterSwapSpy).toHaveBeenCalledTimes(1);
 		expect(pageLoadSpy).toHaveBeenCalledTimes(1);

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { fireEvent } from '@testing-library/react';
 import { createElement, useEffect, useState, type FC, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { page } from 'vitest/browser';
 
 const loadPageModuleFromDocumentMock = vi.fn();
 
@@ -23,6 +24,7 @@ vi.mock('../src/navigation.ts', async (importOriginal) => {
 });
 
 import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
+import { waitForRouterOwner } from './react-router.harness.ts';
 
 type NestedLayoutComponent = FC<{ children?: ReactNode }> & {
 	config?: { identity?: { id: string; file: string; integration: string } };
@@ -163,7 +165,8 @@ describe('nested layout persistence', () => {
 			}),
 		);
 
-		await new Promise((resolve) => setTimeout(resolve, 100));
+		await expect.element(page.getByTestId('docs-inner')).toBeInTheDocument();
+		await waitForRouterOwner();
 		const shell = container.querySelector('[data-testid="shared-shell"]') as HTMLDivElement;
 		expect(shell).not.toBeNull();
 		expect(container.querySelector('[data-testid="docs-inner"]')).not.toBeNull();

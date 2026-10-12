@@ -390,6 +390,88 @@ describe('ProjectWatcher - Integration Tests', () => {
 			}
 		});
 
+		test('keeps events after a scheduled flush in the next batch while earlier work is queued', async () => {
+			const testId = 'processor-watch-queued-max-wait';
+			const config = await createIntegrationConfig(testId);
+			vi.useFakeTimers();
+			const hmrManager = createMockHmrManager();
+			const bridge = createMockBridge();
+			const batches: string[][] = [];
+			let releaseFirstBatch: () => void = () => {};
+			const firstBatchGate = new Promise<void>((resolve) => {
+				releaseFirstBatch = resolve;
+			});
+			let notifyFirstBatchStarted: () => void = () => {};
+			const firstBatchStarted = new Promise<void>((resolve) => {
+				notifyFirstBatchStarted = resolve;
+			});
+			let notifyLateBatchProcessed: () => void = () => {};
+			const lateBatchProcessed = new Promise<void>((resolve) => {
+				notifyLateBatchProcessed = resolve;
+			});
+			const latePath = path.join(config.absolutePaths.srcDir, 'late.tsx');
+			const onChanges = vi.fn(async ({ changed }: { changed: string[] }) => {
+				batches.push([...changed]);
+				if (batches.length === 1) {
+					notifyFirstBatchStarted();
+					await firstBatchGate;
+				}
+				if (changed.includes(path.resolve(latePath))) {
+					notifyLateBatchProcessed();
+				}
+			});
+			config.processors.set('queued-max-wait-test', {
+				getWatchConfig: () => ({ paths: [], extensions: ['.tsx'], onChanges }),
+			} as never);
+			const watcherEvents = Object.assign(new EventEmitter(), {
+				add: vi.fn(),
+				close: vi.fn(async () => {}),
+				getWatched: vi.fn(() => ({})),
+			});
+			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
+			const watcher = new ProjectWatcher({
+				config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager,
+				bridge,
+				changeDebounceMs: 150,
+			});
+			const firstPath = path.join(config.absolutePaths.srcDir, 'first.tsx');
+			const queuedPath = path.join(config.absolutePaths.srcDir, 'queued.tsx');
+
+			try {
+				const subscription = watcher.createWatcherSubscription();
+				watcherEvents.emit('ready');
+				await subscription;
+
+				watcherEvents.emit('change', firstPath);
+				await vi.advanceTimersByTimeAsync(150);
+				await firstBatchStarted;
+
+				watcherEvents.emit('change', queuedPath);
+				for (let index = 0; index < 9; index += 1) {
+					await vi.advanceTimersByTimeAsync(100);
+					watcherEvents.emit('change', queuedPath);
+				}
+				await vi.advanceTimersByTimeAsync(100);
+
+				watcherEvents.emit('change', latePath);
+				await vi.advanceTimersByTimeAsync(150);
+				releaseFirstBatch();
+				await lateBatchProcessed;
+
+				expect(batches).toEqual([
+					[path.resolve(firstPath)],
+					[path.resolve(queuedPath)],
+					[path.resolve(latePath)],
+				]);
+			} finally {
+				releaseFirstBatch();
+				await watcher.close();
+				vi.useRealTimers();
+			}
+		});
+
 		test('fails watcher startup when the filesystem subscription never becomes ready', async () => {
 			const testId = 'watcher-ready-timeout';
 			const config = await createIntegrationConfig(testId);

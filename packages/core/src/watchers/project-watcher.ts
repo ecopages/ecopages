@@ -188,8 +188,9 @@ export class ProjectWatcher {
 
 	private flushScheduledDevFileChanges(): void {
 		this.clearPendingFlushTimers();
+		const changes = takePendingDevFileChanges(this.pendingDevFileKinds);
 		const resolvers = this.pendingFlushResolvers.splice(0);
-		void this.enqueueChange(() => this.flushPendingDevFileChanges()).finally(() => {
+		void this.enqueueChange(() => this.processDevFileChanges(changes)).finally(() => {
 			for (const resolve of resolvers) {
 				resolve();
 			}

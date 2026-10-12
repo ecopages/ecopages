@@ -2,6 +2,8 @@
 
 Playwright config: root `playwright.config.ts`. Fixtures self-describe in `e2e/fixtures/*/fixture.e2e.ts`. Helper unit tests live in `e2e/playwright/*.test.ts` and `e2e/scripts/**/*.test.ts` (`pnpm test:vitest`).
 
+A check that needs no browser and no fixed-port fixture server is a Vitest suite beside the fixture it renders: `e2e/fixtures/<block>/*.test.ts` (`pnpm test:vitest`). `startStaticExport` in `e2e/utils/static-export.ts` builds a fixture's static export in-process and serves it on a free port. `cache/cache.test.ts` drives the cache fixture through `app.fetch()` with a faked `Date`, and `html-pages/html-pages.output.test.ts` and `browser-router/lazy-dependencies.output.test.ts` read exported HTML. Specs here keep only what needs a browser or a real server.
+
 ## Policy
 
 1. **Three tiers.** Pre-commit runs `test:pre-commit` (vitest + lint + typecheck, no Playwright). In CI (`.github/workflows/ci.yml`), every pull request runs `test:ci:fast` (job `fast`: lint, format check, typecheck, vitest) and `test:e2e:pr` (job `e2e`). Pushes to `develop` and `main` run `test:e2e` (job `e2e`, the full suite). Vitest runs only in `fast`. Playwright coverage is listed in root `package.json` (`test:e2e:static`, `test:e2e:dev`, `test:e2e:kitchen-sink`).

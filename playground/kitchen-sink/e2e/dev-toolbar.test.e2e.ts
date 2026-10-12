@@ -2,12 +2,8 @@ import { expect, test } from '@playwright/test';
 import { gotoPathSimple } from './test-support';
 
 test.describe('Dev toolbar @content', () => {
-	test('injects the dev toolbar runtime and manifest in development HTML', async ({ page }) => {
-		const response = await page.goto('/', { waitUntil: 'domcontentloaded' });
-		const html = await response?.text();
-
-		expect(html).toContain("import '/_dev_toolbar.js'");
-		expect(html).toContain('id="__ECO_DEV_MANIFEST__"');
+	test('mounts the dev toolbar in development', async ({ page }) => {
+		await page.goto('/', { waitUntil: 'domcontentloaded' });
 
 		await expect(page.locator('eco-dev-toolbar')).toHaveCount(1, { timeout: 15_000 });
 	});

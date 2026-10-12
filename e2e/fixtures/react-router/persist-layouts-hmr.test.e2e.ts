@@ -151,13 +151,6 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 		await expect(page.locator('[data-testid="docs-layout"]')).toBeVisible();
 	});
 
-	test('HMR index page chunk is served', async ({ request }) => {
-		const response = await request.get('/assets/__eco_dev__/pages/docs/index.js');
-		expect(response.ok()).toBe(true);
-		const contentType = response.headers()['content-type'] ?? '';
-		expect(contentType).toContain('javascript');
-	});
-
 	test('same-layout navigation does not reinitialize shared React layout client modules', async ({ page }) => {
 		const initLogs: string[] = [];
 

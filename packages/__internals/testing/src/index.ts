@@ -5,7 +5,6 @@ import type {
 	EcoComponent,
 	EcoPagesElement,
 } from '@ecopages/core';
-import { createApp, type EcopagesAppOptions } from '@ecopages/core/create-app';
 import { type EcoPagesUserConfig } from '@ecopages/core/config';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { defineIntegration } from '@ecopages/core/plugins/define-integration';
@@ -30,9 +29,6 @@ export type CreateTestAppConfigOptions = {
 	title?: string;
 	workDir?: string;
 };
-
-export type CreateTestAppOptions = CreateTestAppConfigOptions &
-	Omit<EcopagesAppOptions, 'appConfig' | 'configFile' | 'userConfig'>;
 
 export type CreateDeferredIntegrationPluginOptions = {
 	extensions?: string[];
@@ -128,36 +124,6 @@ export async function createTestAppConfig(options: CreateTestAppConfigOptions = 
 	}
 
 	return config;
-}
-
-/** Creates a universal Ecopages app using {@link createTestAppConfig}. */
-export async function createTestApp(options: CreateTestAppOptions = {}) {
-	const {
-		baseUrl,
-		configure,
-		description,
-		distDir,
-		integrations,
-		rootDir,
-		runtimeOrigin,
-		title,
-		workDir,
-		...appOptions
-	} = options;
-
-	const appConfig = await createTestAppConfig({
-		baseUrl,
-		configure,
-		description,
-		distDir,
-		integrations,
-		rootDir,
-		runtimeOrigin,
-		title,
-		workDir,
-	});
-
-	return createApp({ ...appOptions, appConfig });
 }
 
 export type { EcoPagesAppConfig, AnyIntegrationPlugin };

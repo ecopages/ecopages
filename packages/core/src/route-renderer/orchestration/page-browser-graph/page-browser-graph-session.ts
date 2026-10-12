@@ -333,19 +333,6 @@ export class SessionPageBrowserGraphCache {
 		}
 	}
 
-	resetForTests(): void {
-		this.records.clear();
-		this.inFlight.clear();
-		this.inFlightDependencyPaths.clear();
-		this.inFlightGenerations.clear();
-		this.groupedRecords.clear();
-		this.groupedInFlight.clear();
-		this.graphGenerations.clear();
-		this.groupedGenerations.clear();
-		this.inputIndex.clearConsumer('page-browser-graph');
-		this.buildCount = 0;
-	}
-
 	exportRecords(policy: GraphPolicy): GraphRecord[] {
 		return [...this.records.values()].filter((record) => record.key.policy === policy);
 	}

@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { build, type BuildResult } from '../../build/build-adapter.ts';
 import { createBuildRequestIdentity } from '../../build/runtime/build-request-identity.ts';
 import { createServerBuildRequest } from '../../build/runtime/build-request-policy.ts';
+import { requireBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { recordCollectionBuild } from '../../diagnostics/request-pipeline-metrics.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
@@ -93,7 +94,10 @@ export async function buildCollectionServerModule(input: {
 	const buildOptions = { ...buildRequest, naming: outputFileName.replace(/\.mjs$/u, '.[ext]') };
 
 	recordCollectionBuild();
-	const buildResult: BuildResult = await build(buildOptions);
+	const buildResult: BuildResult = await build(
+		buildOptions,
+		requireBuildRuntime(appConfig).getProfile('route-module'),
+	);
 	if (!buildResult.success) {
 		const details = buildResult.logs.map(formatBuildLog).join('\n');
 		throw new Error(`Error building collection server module ${collectionName}: ${details}`);

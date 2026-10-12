@@ -20,16 +20,6 @@ export function getCustomElementScriptPreloadScopeState(cacheScope: string): Sco
 	return state;
 }
 
-/**
- * Clears all preload state for one integration scope.
- *
- * @remarks
- * Intended for tests; production invalidation should use {@link invalidateCustomElementScriptPreload}.
- */
-export function resetCustomElementScriptPreloadScope(cacheScope: string): void {
-	scopeStates.delete(cacheScope);
-}
-
 export function invalidateCustomElementScriptPreload(scriptPath: string, cacheScope?: string): void {
 	const scopes = cacheScope ? [cacheScope] : [...scopeStates.keys()];
 	for (const scope of scopes) {

@@ -404,22 +404,9 @@ export class AssetProcessingService {
 	}
 
 	/**
-	 * Clears all cached processed assets.
-	 */
-	clearCache(): void {
-		const invalidatesBrowserRuntime = Array.from(this.cache.values()).some(
-			({ asset }) => asset.packageRole === 'runtime' || asset.packageRole === 'page-script',
-		);
-		this.cache.clear();
-		if (invalidatesBrowserRuntime) {
-			void bumpBrowserRuntimeAssetGeneration(this.config);
-		}
-	}
-
-	/**
 	 * Removes cached assets that were produced from the given file path.
 	 */
-	invalidateCacheForFile(filepath: string): void {
+	private invalidateCacheForFile(filepath: string): void {
 		const resolvedPath = path.resolve(filepath);
 		let invalidatesBrowserRuntime = false;
 		for (const [key, value] of this.cache.entries()) {
@@ -457,12 +444,5 @@ export class AssetProcessingService {
 		service.registerProcessor('stylesheet', 'file', new FileStylesheetProcessor({ appConfig }));
 
 		return service;
-	}
-
-	/**
-	 * Returns the processor registry owned by this service.
-	 */
-	getRegistry(): ProcessorRegistry {
-		return this.registry;
 	}
 }

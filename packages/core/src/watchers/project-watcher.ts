@@ -124,15 +124,6 @@ export class ProjectWatcher {
 		this.bridge.reload();
 	}
 
-	/**
-	 * Handles public directory file changes by copying only the changed file.
-	 * @param filePath - Absolute path of the changed file
-	 */
-	private async handlePublicDirFileChange(filePath: string): Promise<void> {
-		await this.copyPublicDirFile(filePath);
-		this.requestBrowserReload();
-	}
-
 	private async copyPublicDirFile(filePath: string): Promise<void> {
 		try {
 			const relativePath = path.relative(this.appConfig.absolutePaths.publicDir, filePath);
@@ -290,11 +281,6 @@ export class ProjectWatcher {
 				this.restartRequestScheduled = false;
 				this.restartNeedsVendorInvalidation = false;
 			});
-	}
-
-	private async processFileChange(filePath: string, event: 'change' | 'add' | 'unlink' = 'change'): Promise<void> {
-		this.pendingDevFileKinds.set(path.resolve(filePath), watcherEventToDevFileChangeKind(event));
-		await this.flushPendingDevFileChanges();
 	}
 
 	/**

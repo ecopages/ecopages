@@ -52,10 +52,19 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-test('AssetProcessingService - registerProcessor', () => {
+test('AssetProcessingService - registerProcessor', async () => {
+	fileSystem.exists = vi.fn(() => true);
 	const service = new AssetProcessingService(Config);
-	service.registerProcessor('script', 'file', Processor);
-	expect(service.getRegistry().getProcessor('script', 'file')).toBeDefined();
+	const process = vi.fn(Processor.process);
+	service.registerProcessor('script', 'file', { process });
+
+	const results = await service.processDependencies(
+		[{ kind: 'script', source: 'file', filepath: 'path/to/registered.js' }],
+		'register-key',
+	);
+
+	expect(results.map((asset) => asset.filepath)).toEqual(['/test/dist/assets/test.js']);
+	expect(process).toHaveBeenCalledTimes(1);
 });
 
 test('AssetProcessingService - processDependencies', async () => {
@@ -75,11 +84,6 @@ test('AssetProcessingService - processDependencies', async () => {
 	expect(results.length).toBe(1);
 	expect(results[0]?.kind).toBe('script');
 	expect(results[0]?.filepath).toBeDefined();
-});
-
-test('AssetProcessingService - createWithDefaultProcessors', () => {
-	const service = AssetProcessingService.createWithDefaultProcessors(Config);
-	expect([...service.getRegistry().getAllProcessors().values()].length).toBeGreaterThan(0);
 });
 
 test('AssetProcessingService - processDependencies - success', async () => {
@@ -660,36 +664,13 @@ test('AssetProcessingService - materializes inline bundled cache hits from bundl
 	expect(processMock).toHaveBeenCalledTimes(1);
 });
 
-test('AssetProcessingService - clearCache clears all cached assets', async () => {
+test('AssetProcessingService - a change to a produced file evicts its cached asset', async () => {
 	fileSystem.ensureDir = vi.fn(() => {});
 	fileSystem.gzipDir = vi.fn(() => {});
 	fileSystem.exists = vi.fn(() => true);
 
-	const service = new AssetProcessingService(Config);
-	const processMock = vi.fn(async () => ({
-		filepath: '/test/dist/assets/clear.js',
-		kind: 'script',
-		inline: false,
-	}));
-	service.registerProcessor('script', 'file', { process: processMock });
-
-	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: 'path/to/clear.js' };
-
-	await service.processDependencies([dependency], 'key1');
-	expect(processMock).toHaveBeenCalledTimes(1);
-
-	service.clearCache();
-
-	await service.processDependencies([dependency], 'key2');
-	expect(processMock).toHaveBeenCalledTimes(2);
-});
-
-test('AssetProcessingService - invalidateCacheForFile removes specific file from cache', async () => {
-	fileSystem.ensureDir = vi.fn(() => {});
-	fileSystem.gzipDir = vi.fn(() => {});
-	fileSystem.exists = vi.fn(() => true);
-
-	const service = new AssetProcessingService(Config);
+	const appConfig = { ...Config } as EcoPagesAppConfig;
+	const service = new AssetProcessingService(appConfig);
 	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/invalidate.js',
 		kind: 'script',
@@ -702,7 +683,7 @@ test('AssetProcessingService - invalidateCacheForFile removes specific file from
 	await service.processDependencies([dependency], 'key1');
 	expect(processMock).toHaveBeenCalledTimes(1);
 
-	service.invalidateCacheForFile('/test/dist/assets/invalidate.js');
+	getAppBuildInputIndex(appConfig).recordChanges(['/test/dist/assets/invalidate.js']);
 
 	await service.processDependencies([dependency], 'key2');
 	expect(processMock).toHaveBeenCalledTimes(2);

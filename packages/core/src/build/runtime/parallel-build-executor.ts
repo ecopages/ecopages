@@ -57,20 +57,4 @@ export class ParallelBuildExecutor implements BuildExecutor {
 				});
 		}
 	}
-
-	unwrap(): BuildExecutor {
-		return this.inner;
-	}
-
-	getConcurrencyLimitForTests(): number {
-		return this.limit;
-	}
-
-	getActiveCountForTests(): number {
-		return this.activeCount;
-	}
-
-	getQueuedCountForTests(): number {
-		return this.queue.length;
-	}
 }

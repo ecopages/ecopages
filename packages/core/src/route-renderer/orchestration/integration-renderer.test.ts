@@ -854,7 +854,6 @@ describe('IntegrationRenderer', () => {
 			lazyConfigs: [],
 			islandEntries: [{ component: island, file: '/app/react-counter.tsx', integrationName: 'react' }],
 			componentsWithForeignDescendants: new WeakSet(),
-			walks: 1,
 		});
 
 		expect(result.processedAssets).toEqual([hydrationAsset]);

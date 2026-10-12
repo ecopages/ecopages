@@ -342,38 +342,6 @@ class StartupTrace {
 					: undefined,
 		};
 	}
-
-	/** Resets mutable trace state for unit tests. */
-	resetForTests(): void {
-		this.phaseNesting.clear();
-		this.phases.clear();
-		this.firstRequestPending = true;
-		this.firstRequestPath = undefined;
-		this.firstRequestBundleCount = 0;
-		this.firstRequestClientBytes = 0;
-		this.firstRequestGraphBuildCount = 0;
-		this.firstRequestCompletedWallMs = undefined;
-		this.summaryEmitted = false;
-		this.firstPageBrowserGraphEmitted = false;
-		this.devClientTransformEmitted = false;
-		this.clientRequestCount = 0;
-		this.clientTransferredBytes = 0;
-		this.hmrConnected = false;
-		this.hydrationReadyMs = null;
-	}
-
-	/**
-	 * Resets only the first-request bundle counters.
-	 *
-	 * @remarks
-	 * Used by tests that need to re-measure first-request browser bundle work
-	 * without clearing earlier startup phase records.
-	 */
-	resetFirstRequestCounters(): void {
-		this.firstRequestBundleCount = 0;
-		this.firstRequestClientBytes = 0;
-		this.firstRequestGraphBuildCount = 0;
-	}
 }
 
 export const startupTrace = new StartupTrace();

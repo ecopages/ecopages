@@ -156,15 +156,3 @@ export function getRequestPipelineMetricsSnapshot(): RequestPipelineMetricsSnaps
 export function serializeRequestPipelineMetricsHeader(): string {
 	return JSON.stringify(getRequestPipelineMetricsSnapshot());
 }
-
-export function resetRequestPipelineMetrics(): void {
-	pageModuleLoads = 0;
-	pageModuleBuilds = 0;
-	pageModuleCacheHits = 0;
-	hostLoaderLoads = 0;
-	diskCacheHits = 0;
-	routeModuleArtifacts = 0;
-	mdxTransforms = 0;
-	collectionBuilds = 0;
-	routeRenderPhases.clear();
-}

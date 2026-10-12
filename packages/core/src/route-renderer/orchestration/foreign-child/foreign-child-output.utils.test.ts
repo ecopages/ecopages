@@ -1,21 +1,17 @@
 import { describe, expect, it, test } from 'vitest';
-import {
-	addTriggerAttribute,
-	assertForeignChildrenNotOpaque,
-	isOpaqueForeignChildValue,
-	isThenable,
-	wrapWithScriptsInjector,
-} from './foreign-child-output.utils.ts';
+import { addTriggerAttribute, assertForeignChildrenNotOpaque, isThenable } from './foreign-child-output.utils.ts';
 
 describe('opaque foreign children', () => {
-	it('treats plain objects as opaque and allows template and markup shapes', () => {
-		expect(isOpaqueForeignChildValue({ opaque: true })).toBe(true);
-		expect(isOpaqueForeignChildValue(Object.create(null))).toBe(true);
-		expect(isOpaqueForeignChildValue({ strings: ['<div>', '</div>'], values: [] })).toBe(false);
-		expect(isOpaqueForeignChildValue({ nodeType: 1, outerHTML: '<div></div>' })).toBe(false);
-		expect(isOpaqueForeignChildValue(['a', 'b'])).toBe(false);
-		expect(isOpaqueForeignChildValue({ $$typeof: Symbol.for('react.element') })).toBe(false);
-		expect(isOpaqueForeignChildValue('already-serialized')).toBe(false);
+	it('refuses plain objects and allows template, markup, array, element and string shapes', () => {
+		expect(() => assertForeignChildrenNotOpaque({ opaque: true }, 'test')).toThrow(TypeError);
+		expect(() => assertForeignChildrenNotOpaque(Object.create(null), 'test')).toThrow(TypeError);
+		expect(() =>
+			assertForeignChildrenNotOpaque({ strings: ['<div>', '</div>'], values: [] }, 'test'),
+		).not.toThrow();
+		expect(() => assertForeignChildrenNotOpaque({ nodeType: 1, outerHTML: '<div></div>' }, 'test')).not.toThrow();
+		expect(() => assertForeignChildrenNotOpaque(['a', 'b'], 'test')).not.toThrow();
+		expect(() => assertForeignChildrenNotOpaque({ $$typeof: Symbol.for('react.element') }, 'test')).not.toThrow();
+		expect(() => assertForeignChildrenNotOpaque('already-serialized', 'test')).not.toThrow();
 	});
 
 	it('throws a typed error for opaque foreign children', () => {
@@ -242,51 +238,5 @@ describe('isThenable', () => {
 
 	test('returns false when then is not a function', () => {
 		expect(isThenable({ then: 'not-a-function' })).toBe(false);
-	});
-});
-
-describe('wrapWithScriptsInjector', () => {
-	const lazyGroups = [{ lazy: { 'on:idle': true }, scripts: '/_assets/script.js' }] as const;
-
-	test('preserves JSX template metadata while wrapping content', () => {
-		const strings = ['<theme-toggle class=', '></theme-toggle>'];
-		Object.defineProperty(strings, 'raw', {
-			value: ['<theme-toggle class=', '></theme-toggle>'],
-		});
-
-		const template = {
-			_$rType$: 1,
-			rootLocalName: 'theme-toggle',
-			strings,
-			values: ['radiant-switch'],
-		};
-
-		const result = wrapWithScriptsInjector(template, lazyGroups) as unknown as typeof template;
-
-		expect(result._$rType$).toBe(1);
-		expect(result.rootLocalName).toBe('theme-toggle');
-		expect(result.values).toEqual(['radiant-switch']);
-		expect(result.strings[0]).toContain('<scripts-injector><script type="ecopages/injector-map">');
-		expect(result.strings[0]).toContain('<theme-toggle class=');
-		expect(result.strings[1]).toBe('></theme-toggle></scripts-injector>');
-		expect(Object.getOwnPropertyDescriptor(result.strings, 'raw')?.value[1]).toBe(
-			'></theme-toggle></scripts-injector>',
-		);
-	});
-
-	test('preserves markup-node-like output while wrapping content', () => {
-		const markupNode = {
-			nodeType: 1,
-			get outerHTML() {
-				return '<theme-toggle class="radiant-switch"></theme-toggle>';
-			},
-		};
-
-		const result = wrapWithScriptsInjector(markupNode, lazyGroups) as typeof markupNode;
-
-		expect(result.nodeType).toBe(1);
-		expect(result.outerHTML).toContain('<scripts-injector><script type="ecopages/injector-map">');
-		expect(result.outerHTML).toContain('<theme-toggle class="radiant-switch"></theme-toggle>');
-		expect(result.outerHTML).toContain('</scripts-injector>');
 	});
 });

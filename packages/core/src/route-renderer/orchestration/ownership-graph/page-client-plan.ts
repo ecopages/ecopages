@@ -38,7 +38,6 @@ export type PageClientPlan = {
 	 */
 	islandEntries: PageClientPlanIslandEntry[];
 	componentsWithForeignDescendants: WeakSet<object>;
-	walks: number;
 };
 
 /**
@@ -162,7 +161,6 @@ export function collectPageClientPlan(
 		lazyConfigs,
 		islandEntries,
 		componentsWithForeignDescendants,
-		walks: 1,
 	};
 }
 

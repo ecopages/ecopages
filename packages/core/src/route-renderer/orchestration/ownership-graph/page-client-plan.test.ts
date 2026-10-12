@@ -45,7 +45,6 @@ test('collectPageClientPlan walks the declared graph once and returns every clie
 
 	const plan = collectPageClientPlan([root], 'react');
 
-	assert.equal(plan.walks, 1);
 	assert.equal(walk.mock.calls.length, 1);
 	walk.mockRestore();
 	assert.deepEqual([...plan.integrationNames].sort(), ['lit', 'react']);

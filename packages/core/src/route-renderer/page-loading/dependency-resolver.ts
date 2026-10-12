@@ -110,7 +110,6 @@ export class DependencyResolverService {
 				const lazyKey = dep.kind === 'script' ? dep.attributes?.['data-eco-lazy-key'] : undefined;
 				return Boolean(lazyKey && lazyKeys.has(lazyKey));
 			});
-			config._resolvedLazyScripts = undefined;
 		}
 
 		return this.assetProcessingService.processDependencies(eagerDeps, integrationName);
@@ -161,7 +160,6 @@ export class DependencyResolverService {
 			}
 
 			config._resolvedLazyTriggers = buildResolvedLazyTriggers(config, rawGroups);
-			config._resolvedLazyScripts = undefined;
 			config._pendingLazyClientAssets = undefined;
 			pendingLazyGroupsByConfig.delete(config);
 			if (config._resolvedLazyTriggers?.length) {

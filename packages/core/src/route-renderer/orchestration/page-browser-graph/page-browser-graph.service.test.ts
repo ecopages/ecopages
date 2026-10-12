@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
@@ -17,12 +17,16 @@ import { PageBrowserGraphService } from './page-browser-graph.service.ts';
 import { createGroupedGraphBuildPlanKey } from './grouped-graph-build-plan.ts';
 import { createPageDependencyInstanceKey } from './route-instance-key.ts';
 
-const appConfig = {
-	integrations: [{ name: 'react', extensions: ['.tsx'] }],
-	absolutePaths: {
-		pagesDir: '/app/pages',
-	},
-} as unknown as EcoPagesAppConfig;
+let appConfig: EcoPagesAppConfig;
+
+beforeEach(() => {
+	appConfig = {
+		integrations: [{ name: 'react', extensions: ['.tsx'] }],
+		absolutePaths: {
+			pagesDir: '/app/pages',
+		},
+	} as unknown as EcoPagesAppConfig;
+});
 
 function createGroupedDependency(): AssetDefinition {
 	return {
@@ -45,7 +49,6 @@ function isGroupedContentScriptDependency(asset: AssetDefinition): asset is Extr
 
 afterEach(() => {
 	vi.restoreAllMocks();
-	getAppPageBrowserGraphSession(appConfig).resetForTests();
 });
 
 describe('SessionPageBrowserGraphCache', () => {

@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { startupTrace } from './startup-trace.ts';
+
+async function loadFreshStartupTrace() {
+	vi.resetModules();
+	return (await import('./startup-trace.ts')).startupTrace;
+}
 
 describe('startupTrace', () => {
 	const originalTraceEnv = process.env.ECOPAGES_STARTUP_TRACE;
 	const originalLoggerDebug = process.env.ECOPAGES_LOGGER_DEBUG;
 
 	afterEach(() => {
-		startupTrace.resetForTests();
 		if (originalTraceEnv === undefined) {
 			delete process.env.ECOPAGES_STARTUP_TRACE;
 		} else {
@@ -20,13 +23,15 @@ describe('startupTrace', () => {
 		vi.restoreAllMocks();
 	});
 
-	it('is disabled unless ECOPAGES_STARTUP_TRACE or ECOPAGES_LOGGER_DEBUG is true', () => {
+	it('is disabled unless ECOPAGES_STARTUP_TRACE or ECOPAGES_LOGGER_DEBUG is true', async () => {
+		const startupTrace = await loadFreshStartupTrace();
 		process.env.ECOPAGES_STARTUP_TRACE = 'false';
 		process.env.ECOPAGES_LOGGER_DEBUG = 'false';
 		expect(startupTrace.isEnabled()).toBe(false);
 	});
 
-	it('enables when ECOPAGES_LOGGER_DEBUG is true', () => {
+	it('enables when ECOPAGES_LOGGER_DEBUG is true', async () => {
+		const startupTrace = await loadFreshStartupTrace();
 		process.env.ECOPAGES_LOGGER_DEBUG = 'true';
 		expect(startupTrace.isEnabled()).toBe(true);
 	});
@@ -35,6 +40,7 @@ describe('startupTrace', () => {
 		process.env.ECOPAGES_STARTUP_TRACE = 'true';
 		process.env.ECOPAGES_LOGGER_DEBUG = 'false';
 
+		const startupTrace = await loadFreshStartupTrace();
 		const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 
 		startupTrace.markConfigReady();

@@ -160,14 +160,6 @@ export class StaticSiteGenerator {
 	}
 
 	/**
-	 * Returns whether the input path points at the root directory.
-	 */
-	isRootDir(path: string) {
-		const slashes = path.match(/\//g);
-		return slashes && slashes.length === 1;
-	}
-
-	/**
 	 * Collects parent directories that must exist for the generated route set.
 	 */
 	getDirectories(routes: string[]) {

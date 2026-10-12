@@ -7,7 +7,6 @@ import {
 	collectFileScopedDependencyComponents,
 	collectPageDependencyComponents,
 	createFileScopedDependencyComponent,
-	splitPageDependenciesResult,
 } from './file-scoped-dependency-components.ts';
 
 describe('createFileScopedDependencyComponent', () => {
@@ -139,19 +138,5 @@ describe('collectDependencyWatchPaths', () => {
 
 		expect(watchPaths).toEqual(expect.arrayContaining(['/app/content/demo.mdx', '/app/components/demo.tsx']));
 		expect(watchPaths).toHaveLength(2);
-	});
-});
-
-describe('splitPageDependenciesResult', () => {
-	test('separates ownerFile from dependency fields', () => {
-		expect(
-			splitPageDependenciesResult({
-				scripts: ['./demo.ts'],
-				ownerFile: '/app/content/demo.mdx',
-			}),
-		).toEqual({
-			dependencies: { scripts: ['./demo.ts'] },
-			ownerFile: '/app/content/demo.mdx',
-		});
 	});
 });

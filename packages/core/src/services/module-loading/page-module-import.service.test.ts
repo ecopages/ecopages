@@ -9,10 +9,6 @@ import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { PageModuleImportService, type PageModuleImportDependencies } from './page-module-import.service.ts';
-import {
-	getRequestPipelineMetricsSnapshot,
-	resetRequestPipelineMetrics,
-} from '../../diagnostics/request-pipeline-metrics.ts';
 
 function createBuildResult(overrides?: Partial<BuildResult>): BuildResult {
 	return {
@@ -769,67 +765,27 @@ describe('PageModuleImportService', () => {
 		}
 	});
 
-	describe('request pipeline metrics (structural invariants)', () => {
-		beforeEach(() => {
-			resetRequestPipelineMetrics();
-			process.env.ECOPAGES_REQUEST_PIPELINE_METRICS = '1';
-		});
+	it('builds once for repeated imports of the same page', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-repeat-'));
+		const compiledOutput = join(tempDir, 'page-hash123.mjs');
+		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
+		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }));
 
-		afterEach(() => {
-			delete process.env.ECOPAGES_REQUEST_PIPELINE_METRICS;
-			resetRequestPipelineMetrics();
-		});
+		try {
+			await service.importModule({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+			});
+			await service.importModule({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+			});
 
-		it('records one cold build and one cache hit for repeated imports of the same page', async () => {
-			const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-metrics-'));
-			const compiledOutput = join(tempDir, 'page-hash123.mjs');
-			writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
-			fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }));
-
-			try {
-				await service.importModule({
-					filePath: '/app/pages/page.tsx',
-					rootDir: '/app',
-					outdir: tempDir,
-				});
-				await service.importModule({
-					filePath: '/app/pages/page.tsx',
-					rootDir: '/app',
-					outdir: tempDir,
-				});
-
-				const snapshot = getRequestPipelineMetricsSnapshot();
-				assert.equal(snapshot.pageModuleLoads, 2);
-				assert.equal(snapshot.pageModuleBuilds, 1);
-				assert.equal(snapshot.pageModuleCacheHits, 1);
-				assert.equal(fakeDependencies.calls.buildModule.length, 1);
-			} finally {
-				rmSync(tempDir, { recursive: true, force: true });
-			}
-		});
-
-		it('records emitted artifact count for cold builds', async () => {
-			const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-artifacts-'));
-			const compiledOutput = join(tempDir, 'page-hash123.mjs');
-			writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
-			fakeDependencies.setNextBuildResult(
-				createBuildResult({
-					outputs: [{ path: compiledOutput }, { path: join(tempDir, 'chunk-abc.mjs') }],
-				}),
-			);
-
-			try {
-				await service.importModule({
-					filePath: '/app/pages/page.tsx',
-					rootDir: '/app',
-					outdir: tempDir,
-				});
-
-				const snapshot = getRequestPipelineMetricsSnapshot();
-				assert.equal(snapshot.routeModuleArtifacts, 2);
-			} finally {
-				rmSync(tempDir, { recursive: true, force: true });
-			}
-		});
+			assert.equal(fakeDependencies.calls.buildModule.length, 1);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
 	});
 });

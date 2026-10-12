@@ -24,7 +24,6 @@ import { RuntimeBundleService } from '../bundling/runtime-bundle.ts';
 import { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';
 import { createReactMdxLoaderPlugin } from '../mdx/mdx-loader-plugin.ts';
 import { appendMdxExtensions, resolveMdxCompilerOptions } from '@ecopages/mdx/core';
-import { ClientGraphBoundaryCache } from '../client-graph/boundary-cache.ts';
 import { discoverLayoutRuntimeModuleSpecifiers } from '../bundling/discover-layout-runtime-modules.ts';
 import { mergeReactPluginRuntimeModules, resolveReactPluginRuntimeModules } from '../bundling/runtime-modules.ts';
 
@@ -111,7 +110,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	private readonly getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	private readonly runtimeBundleService: RuntimeBundleService;
 	private readonly hmrPageMetadataCache: HmrPageMetadataCache;
-	private readonly clientGraphBoundaryCache: ClientGraphBoundaryCache;
 	private hmrStrategy?: ReactHmrStrategy;
 	private runtimeDependenciesInitialized = false;
 	/**
@@ -141,7 +139,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 			: undefined;
 		this.mdxExtensions = rendererConfig.mdxExtensions ?? ['.mdx'];
 		this.hmrPageMetadataCache = rendererConfig.hmrPageMetadataCache ?? new HmrPageMetadataCache();
-		this.clientGraphBoundaryCache = new ClientGraphBoundaryCache();
 		this.forceBrowserGraph = rendererConfig.forceBrowserGraph ?? false;
 		this.rendererConfig = {
 			...rendererConfig,
@@ -149,7 +146,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 			mdxExtensions: this.mdxExtensions,
 			hmrPageMetadataCache: this.hmrPageMetadataCache,
 			forceBrowserGraph: this.forceBrowserGraph,
-			clientGraphBoundaryCache: this.clientGraphBoundaryCache,
 		};
 
 		if (mdxCompilerOptions) {
@@ -305,7 +301,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 				getMdxLoaderPlugin: this.getMdxLoaderPlugin,
 				ownedTemplateExtensions: this.extensions,
 				allTemplateExtensions: this.appConfig.templatesExt,
-				clientGraphBoundaryCache: this.clientGraphBoundaryCache,
 			});
 		}
 

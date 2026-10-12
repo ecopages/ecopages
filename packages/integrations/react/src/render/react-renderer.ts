@@ -118,7 +118,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			routerAdapter: this.routerAdapter,
 			runtimeModules: reactConfig?.runtimeModules,
 			getMdxLoaderPlugin: reactConfig?.getMdxLoaderPlugin,
-			clientGraphBoundaryCache: reactConfig?.clientGraphBoundaryCache,
 		});
 
 		this.pageModuleService = new PageModuleService({

@@ -129,7 +129,7 @@ Lit (lit-entry)                                    |        9.52 |   15.59  |  1
 Ecopages-JSX (eco-entry)                           |       10.25 |   16.47  |   98
 ```
 
-**Phase 1 wins (PR-1.1 ModuleParseCache + PR-1.2 ClientGraphBoundaryCache):**
+**Historical Phase 1 results (2026-06-06; the codebase included the later-removed client-graph cache, but these scenarios did not measure it):**
 
 | Scenario                  | Phase 0   | Phase 1  | Speedup   |
 | ------------------------- | --------- | -------- | --------- |
@@ -142,14 +142,11 @@ Ecopages-JSX (eco-entry)                           |       10.25 |   16.47  |   
 | Concurrent rebuilds (5×)  | 16.46     | 6.26     | 2.6×      |
 | no-op rebuild             | 7.26      | 2.77     | 2.6×      |
 
-**Note on PR-1.2 (ClientGraphBoundaryCache):** the in-process bench
-bypasses the HMR strategy, so the cache is not exercised in
-`hmr-bench` or `integration-bench` (those paths go through
-`BrowserBundleService.bundle()` which doesn't include the plugin).
-The cache is real, unit-tested, and used in real HMR rebuilds (where
-the strategy rebuilds a dep-graph's worth of files). A plugin-level
-micro-bench was removed as low-value during the Phase 0 cut;
-re-introduce it if the cache is suspected of regressing.
+The in-process bench bypasses the HMR strategy, so these scenarios do not
+exercise the client-graph cache or the current uncached transform path.
+Those browser-bundle scenarios go through `BrowserBundleService.bundle()`
+without the client-graph boundary plugin. Treat this table as a historical
+measurement, not as current kitchen-sink dev-rebuild performance.
 
 **Note on dropping the post-build re-parse pass:** browser runtime
 specifiers resolve to their public URL in `resolveId`, with an

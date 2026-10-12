@@ -4,7 +4,6 @@ import type { CompileOptions } from '@mdx-js/mdx';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import type { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';
 import type { ReactPluginRuntimeModule, ResolvedReactPluginRuntimeModule } from '../bundling/runtime-modules.ts';
-import type { ClientGraphBoundaryCache } from '../client-graph/boundary-cache.ts';
 
 /**
  * MDX configuration options for the React plugin.
@@ -164,8 +163,6 @@ export type ReactRendererConfig = {
 	getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	mdxExtensions?: string[];
 	hmrPageMetadataCache?: HmrPageMetadataCache;
-	/** Persistent React-plugin-owned cache shared by bundles and HMR transforms. */
-	clientGraphBoundaryCache?: ClientGraphBoundaryCache;
 	/**
 	 * When true, always emit page browser graph / hydration assets for React pages.
 	 *

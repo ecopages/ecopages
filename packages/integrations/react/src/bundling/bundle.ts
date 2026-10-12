@@ -18,7 +18,6 @@ import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { RuntimeBundleService, type ReactRuntimeImports } from './runtime-bundle.ts';
 import type { ResolvedReactPluginRuntimeModule } from './runtime-modules.ts';
 import { isReactProductionRuntime } from './runtime-mode.ts';
-import type { ClientGraphBoundaryCache } from '../client-graph/boundary-cache.ts';
 
 /**
  * Configuration for the BundleService.
@@ -30,7 +29,6 @@ export interface BundleServiceConfig {
 	routerAdapter?: ReactRouterAdapter;
 	runtimeModules?: ResolvedReactPluginRuntimeModule[];
 	getMdxLoaderPlugin?: () => EcoBuildPlugin;
-	clientGraphBoundaryCache?: ClientGraphBoundaryCache;
 }
 
 /**
@@ -152,7 +150,6 @@ export class BundleService {
 				this.runtimeBundleService.getConfiguredRuntimeModuleSpecifiers(),
 				this.config.routerAdapter,
 			),
-			cache: this.config.clientGraphBoundaryCache,
 		});
 
 		const [foreignJsxOverridePlugin] = getHostScopedJsxOwnershipPlugins(

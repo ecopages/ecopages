@@ -24,12 +24,6 @@ function createDelayedExecutor(delayMs: number): BuildExecutor {
 	};
 }
 
-test('ParallelBuildExecutor returns the inner executor via unwrap', () => {
-	const inner = createDelayedExecutor(0);
-	const parallel = new ParallelBuildExecutor(inner, 2);
-	assert.equal(parallel.unwrap(), inner);
-});
-
 test('ParallelBuildExecutor runs builds concurrently up to the configured limit', async () => {
 	const inner = createDelayedExecutor(20);
 	const parallel = new ParallelBuildExecutor(inner, 2);

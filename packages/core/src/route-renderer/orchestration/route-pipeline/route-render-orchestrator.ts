@@ -136,7 +136,6 @@ export interface CapturedHtmlRenderResult {
  */
 export interface RouteRenderOrchestratorDependencies {
 	ownershipValidationService?: OwnershipValidationService;
-	pageBrowserGraphService?: PageBrowserGraphService;
 }
 
 /**
@@ -162,8 +161,7 @@ export class RouteRenderOrchestrator {
 		this.assetProcessingService = assetProcessingService;
 		this.ownershipValidationService =
 			dependencies.ownershipValidationService ?? new OwnershipValidationService(appConfig);
-		this.pageBrowserGraphService =
-			dependencies.pageBrowserGraphService ?? new PageBrowserGraphService(appConfig, assetProcessingService);
+		this.pageBrowserGraphService = new PageBrowserGraphService(appConfig, assetProcessingService);
 	}
 
 	/**

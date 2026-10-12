@@ -53,38 +53,4 @@ export class SerializedBuildExecutor implements BuildExecutor {
 		this.tail = next.catch(() => undefined);
 		return next;
 	}
-
-	/**
-	 * Returns the wrapped executor. Tests use this to assert the
-	 * delegation chain.
-	 */
-	unwrap(): BuildExecutor {
-		return this.inner;
-	}
-
-	/**
-	 * Reset the queue to an empty state. Tests use this to recover
-	 * from a poisoned tail.
-	 */
-	resetForTests(): void {
-		this.tail = Promise.resolve();
-	}
-
-	/**
-	 * Overrides the internal queue tail for fault-recovery tests. The
-	 * supplied promise is awaited before the next enqueued operation
-	 * starts.
-	 */
-	setBuildQueueForTests(queue: Promise<unknown>): void {
-		this.tail = queue;
-	}
-
-	/**
-	 * Returns the current internal queue tail for fault-recovery
-	 * tests. Tests await this to assert that recovery has cleared a
-	 * wedged queue.
-	 */
-	getBuildQueueForTests(): Promise<unknown> {
-		return this.tail;
-	}
 }

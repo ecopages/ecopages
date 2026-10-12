@@ -27,14 +27,3 @@ export function toPackageRootSpecifier(specifier: string): string {
 	const [name] = specifier.split('/');
 	return name ?? specifier;
 }
-
-/**
- * Returns true when `specifier` is a subpath import of `packageRoot`.
- */
-export function isSubpathOfPackageRoot(specifier: string, packageRoot: string): boolean {
-	if (specifier === packageRoot) {
-		return false;
-	}
-
-	return specifier.startsWith(`${packageRoot}/`);
-}

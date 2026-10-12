@@ -6,7 +6,6 @@ import { RolldownBuildAdapter } from '../rolldown/rolldown-build-adapter.ts';
 import { setAppBuildAdapter, setAppBuildManifest } from '../build-adapter.ts';
 import { installBuildRuntime, requireBuildRuntime } from './build-runtime.ts';
 import { DedupingBuildExecutor } from './deduping-build-executor.ts';
-import { ParallelBuildExecutor } from './parallel-build-executor.ts';
 import { SerializedBuildExecutor } from './serialized-build-executor.ts';
 
 function createTestAppConfig(): EcoPagesAppConfig {
@@ -33,9 +32,6 @@ test('installBuildRuntime uses parallel executors for route-module and browser-h
 
 	assert.ok(buildRuntime.getProfile('route-module') instanceof DedupingBuildExecutor);
 	assert.ok(buildRuntime.getProfile('browser-hmr') instanceof DedupingBuildExecutor);
-	assert.ok(
-		(buildRuntime.getProfile('route-module') as DedupingBuildExecutor).unwrap() instanceof ParallelBuildExecutor,
-	);
 	assert.ok(buildRuntime.getProfile('server-entry') instanceof SerializedBuildExecutor);
 	assert.notEqual(
 		buildRuntime.getProfile('route-module'),

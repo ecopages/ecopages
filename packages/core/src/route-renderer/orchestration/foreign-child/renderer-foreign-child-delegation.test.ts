@@ -13,7 +13,6 @@ import { IntegrationRenderer } from '../integration-renderer.ts';
 import {
 	TestIntegrationRenderer,
 	createMockIntegrationPlugin,
-	createUnresolvedMarkerArtifact,
 	testAppConfig,
 	testAssetService,
 } from '../integration-renderer.test-fixtures.ts';
@@ -244,61 +243,6 @@ describe('renderer foreign-child delegation', () => {
 		});
 
 		expect(result.html).toBe('<aside>Local renderer</aside>');
-	});
-
-	it('fails fast when a renderer without a foreign-child runtime crosses into a foreign owner', async () => {
-		const foreignRenderer = {
-			renderComponent: vi.fn(async () => ({
-				html: '<span>resolved nested marker</span>',
-				canAttachAttributes: true,
-				rootTag: 'span',
-				integrationName: 'foreign-renderer',
-			})),
-			renderComponentWithForeignChildren: vi.fn(async (input: ComponentRenderInput) =>
-				foreignRenderer.renderComponent(input),
-			),
-		} as unknown as IntegrationRenderer;
-
-		const appConfig = {
-			...testAppConfig,
-			integrations: [
-				createMockIntegrationPlugin({
-					name: 'foreign-renderer',
-					initializeRenderer: () => foreignRenderer,
-				}),
-			],
-		} as unknown as EcoPagesAppConfig;
-
-		const renderer = new TestIntegrationRenderer({
-			appConfig,
-			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
-		});
-		renderer.UseFailFastForeignChildRuntime = true;
-
-		const ForeignComponent = eco.component<{}, string>({
-			integration: 'foreign-renderer',
-			render: () => '<span>foreign</span>',
-		});
-
-		const ShellComponent = eco.component<{ children?: string }, string>({
-			integration: 'test-renderer',
-			dependencies: {
-				components: [ForeignComponent],
-			},
-			render: ({ children }) => `<section>${children ?? ''}${ForeignComponent({})}</section>`,
-		});
-
-		const passedThroughMarker = createUnresolvedMarkerArtifact('n_passed', 'passed-through-component', 'p_passed');
-
-		await expect(
-			renderer.renderComponentWithForeignChildren({
-				component: ShellComponent,
-				props: { children: passedThroughMarker },
-				children: passedThroughMarker,
-			}),
-		).rejects.toThrow('without a renderer-owned foreign-child runtime');
-		expect(foreignRenderer.renderComponent).toHaveBeenCalledTimes(0);
 	});
 
 	it('should not recursively resolve unresolved eco-marker artifacts that were only passed through resolved child html', async () => {

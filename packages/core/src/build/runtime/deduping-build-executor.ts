@@ -36,12 +36,4 @@ export class DedupingBuildExecutor implements BuildExecutor {
 		this.inFlight.set(key, buildPromise);
 		return buildPromise;
 	}
-
-	unwrap(): BuildExecutor {
-		return this.inner;
-	}
-
-	getInFlightCountForTests(): number {
-		return this.inFlight.size;
-	}
 }

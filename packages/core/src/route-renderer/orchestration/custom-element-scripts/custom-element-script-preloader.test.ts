@@ -9,11 +9,11 @@ import {
 	invalidateCustomElementScriptPreload,
 	isExpectedCustomElementSsrPreloadError,
 } from './custom-element-script-preloader.ts';
-import { resetCustomElementScriptPreloadScope } from './custom-element-script-preload-invalidation.ts';
 import { createCustomElementSsrPipelineImporter } from './custom-element-ssr-preload-entrypoint.ts';
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
 
-const CACHE_SCOPE = 'test-custom-element-preload';
+let cacheScope = '';
+let scopeCounter = 0;
 
 function installTestCustomElementsRegistry(): () => void {
 	const previousRegistry = globalThis.customElements;
@@ -44,7 +44,8 @@ function installTestCustomElementsRegistry(): () => void {
 }
 
 beforeEach(() => {
-	resetCustomElementScriptPreloadScope(CACHE_SCOPE);
+	scopeCounter += 1;
+	cacheScope = `test-custom-element-preload-${scopeCounter}`;
 });
 
 function createPreloader(options?: {
@@ -53,7 +54,7 @@ function createPreloader(options?: {
 	importServerModule?: (scriptPath: string, registryKey: string) => Promise<unknown>;
 }) {
 	return new CustomElementScriptPreloader({
-		cacheScope: CACHE_SCOPE,
+		cacheScope,
 		enabled: options?.enabled ?? true,
 		resolveDependencyPath:
 			options?.resolveDependencyPath ?? ((componentDir, sourcePath) => path.join(componentDir, sourcePath)),
@@ -294,7 +295,7 @@ describe('CustomElementScriptPreloader', () => {
 		);
 
 		await preloader.preloadSsrScripts([host]);
-		invalidateCustomElementScriptPreload('/app/marker.script.ts', CACHE_SCOPE);
+		invalidateCustomElementScriptPreload('/app/marker.script.ts', cacheScope);
 		await preloader.preloadSsrScripts([host]);
 		expect(importServerModule).toHaveBeenCalledTimes(2);
 	});

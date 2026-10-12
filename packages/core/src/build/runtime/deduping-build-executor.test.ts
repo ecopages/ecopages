@@ -41,7 +41,9 @@ test('DedupingBuildExecutor coalesces concurrent identical builds', async () => 
 	await Promise.all([deduping.build(buildOptions), deduping.build(buildOptions), deduping.build(buildOptions)]);
 
 	assert.equal(innerBuildCount, 1);
-	assert.equal(deduping.getInFlightCountForTests(), 0);
+
+	await deduping.build(buildOptions);
+	assert.equal(innerBuildCount, 2, 'a build after the shared one settled runs again');
 });
 
 test('DedupingBuildExecutor does not coalesce different build options', async () => {
@@ -77,14 +79,4 @@ test('DedupingBuildExecutor releases in-flight entry after failure', async () =>
 	const followUp = await deduping.build(buildOptions);
 	assert.equal(followUp.success, true);
 	assert.equal(innerBuildCount, 2);
-});
-
-test('DedupingBuildExecutor returns the inner executor via unwrap', () => {
-	const inner: BuildExecutor = {
-		async build(): Promise<BuildResult> {
-			return { success: true, logs: [], outputs: [] };
-		},
-	};
-
-	assert.equal(new DedupingBuildExecutor(inner).unwrap(), inner);
 });

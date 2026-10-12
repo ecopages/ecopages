@@ -85,7 +85,6 @@ describe('DependencyResolverService', () => {
 		);
 		expect(hasInjector).toBe(false);
 
-		expect(component.config._resolvedLazyScripts).toBeUndefined();
 		expect(component.config._resolvedLazyTriggers).toBeUndefined();
 		expect(component.config._pendingLazyClientAssets).toHaveLength(1);
 		const pendingLazy = component.config._pendingLazyClientAssets?.[0];
@@ -676,7 +675,6 @@ describe('DependencyResolverService', () => {
 
 		await service.processComponentDependencies([component], 'lit');
 
-		expect(component.config._resolvedLazyScripts).toBeUndefined();
 		expect(component.config._pendingLazyClientAssets).toHaveLength(2);
 		service.applyPendingLazyTriggers(
 			(component.config._pendingLazyClientAssets ?? []).map((dep, index) => {

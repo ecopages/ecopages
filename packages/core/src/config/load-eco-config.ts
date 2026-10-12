@@ -99,9 +99,3 @@ export async function loadEcoPagesConfig(options: LoadEcoPagesConfigOptions = {}
 		throw error;
 	});
 }
-
-/** @internal */
-export function clearEcoPagesConfigCachesForTests(): void {
-	moduleLoadCache.clear();
-	appConfigCache.clear();
-}

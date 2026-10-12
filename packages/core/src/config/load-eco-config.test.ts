@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { pathToFileURL } from 'node:url';
 import { defineConfig } from './define-config.ts';
 import { finalizeEcoPagesConfig } from './finalize-config.ts';
-import { clearEcoPagesConfigCachesForTests, loadEcoPagesConfig, loadEcoPagesUserConfig } from './load-eco-config.ts';
+import { loadEcoPagesConfig, loadEcoPagesUserConfig } from './load-eco-config.ts';
 import { resolveEcoConfigPath, ECOPAGES_CONFIG_FILE_ENV, resolveUserConfigRootDir } from './resolve-eco-config-path.ts';
 
 describe('defineConfig', () => {
@@ -113,13 +113,11 @@ describe('loadEcoPagesConfig', () => {
 
 	beforeEach(() => {
 		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-load-'));
-		clearEcoPagesConfigCachesForTests();
 		delete process.env[ECOPAGES_CONFIG_FILE_ENV];
 	});
 
 	afterEach(() => {
 		fs.rmSync(tempDir, { recursive: true, force: true });
-		clearEcoPagesConfigCachesForTests();
 		delete (globalThis as { __ecoPrepareCalls?: () => number }).__ecoPrepareCalls;
 		if (originalEnv === undefined) {
 			delete process.env[ECOPAGES_CONFIG_FILE_ENV];

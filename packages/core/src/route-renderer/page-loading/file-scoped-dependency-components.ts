@@ -198,19 +198,3 @@ export function collectDependencyWatchPaths(
 		collectComponentConfigFilePaths(components, { additionalPaths: [ownerFile], includeStylesheets: true }),
 	);
 }
-
-/**
- * Separates optional owner metadata from a resolved page dependency bag.
- */
-export function splitPageDependenciesResult(result: PageDependenciesResult): {
-	dependencies: EcoComponentDependencies;
-	ownerFile?: string;
-	contributions?: PageDependenciesResult['contributions'];
-} {
-	const { ownerFile, contributions, ...dependencies } = result;
-	return {
-		dependencies,
-		ownerFile,
-		...(contributions ? { contributions } : {}),
-	};
-}

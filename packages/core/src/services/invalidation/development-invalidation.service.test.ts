@@ -349,7 +349,7 @@ describe('DevelopmentInvalidationService', () => {
 		}
 	});
 
-	it('marks a 50-file batch dirty with one server invalidation and one manifest write', async () => {
+	it('marks a 50-file batch dirty with one server invalidation and one route-module cache clear', async () => {
 		const originalNodeEnv = process.env.NODE_ENV;
 		process.env.NODE_ENV = 'development';
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-dev-file-batch-'));
@@ -359,10 +359,10 @@ describe('DevelopmentInvalidationService', () => {
 			appConfig = await finalizeEcoPagesConfig({ rootDir });
 			const invalidationState = new CounterServerInvalidationState();
 			setAppServerInvalidationState(appConfig, invalidationState);
-			const writeManifest = vi.fn(() => {});
 			const outdir = getServerModuleBuildCacheOutdir(appConfig);
 			mkdirSync(outdir, { recursive: true });
-			const cache = new RouteModuleBuildCache(outdir, { writeManifest });
+			const cache = new RouteModuleBuildCache();
+			const clearEntries = vi.spyOn(cache, 'clearDevelopmentEntries');
 			const filePath = path.join(rootDir, 'src/pages/index.tsx');
 			const outputPath = path.join(outdir, 'index.mjs');
 			mkdirSync(path.dirname(filePath), { recursive: true });
@@ -376,7 +376,6 @@ describe('DevelopmentInvalidationService', () => {
 				outputPath,
 				dependencyModulePaths: [filePath],
 			});
-			writeManifest.mockClear();
 			appConfig.runtime = {
 				...(appConfig.runtime ?? {}),
 				routeModuleBuildCaches: new Map([[outdir, cache]]),
@@ -392,7 +391,7 @@ describe('DevelopmentInvalidationService', () => {
 			await service.applyDevFileChanges({ changed, created: [], deleted: [] });
 
 			expect(invalidationState.getServerInvalidationVersion()).toBe(1);
-			expect(writeManifest).toHaveBeenCalledTimes(1);
+			expect(clearEntries).toHaveBeenCalledTimes(1);
 			expect(invalidateHtml).toHaveBeenCalledTimes(1);
 			expect(invalidateHtml.mock.calls[0]?.[0]).toHaveLength(50);
 		} finally {

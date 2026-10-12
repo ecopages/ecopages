@@ -14,13 +14,7 @@ import { findIntegrationForFile } from '../../plugins/find-integration-for-file.
 import { build } from '../build-adapter.ts';
 import { requireBuildRuntime } from '../runtime/build-runtime.ts';
 import { createServerBuildRequest, resolveServerAppBuildPlugins } from '../runtime/build-request-policy.ts';
-import { createBuildInputsFingerprint, hashAppConfigFile } from './build-input-fingerprint.ts';
-import {
-	isProductionCacheManifestCurrent,
-	matchesProductionCacheBuildKey,
-	matchesProductionCacheFingerprint,
-} from './production-build-cache.ts';
-import { getCorePackageVersion } from './cache-keys.ts';
+import { hashAppConfigFile } from './app-config-hash.ts';
 import { collectBuildOutputImports, getBuildEntryOutput } from '../build-graph.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import {
@@ -34,17 +28,11 @@ import {
 } from '../../services/module-loading/route-module-dependency-hasher.ts';
 import { formatBuildLog } from '../build-log.ts';
 
-export const PAGES_UNIFIED_GRAPH_CACHE_DIR = '.server-pages-graph';
-export const PAGES_UNIFIED_GRAPH_CACHE_FILENAME = '.build-cache.json';
-
 const graphs = new WeakMap<EcoPagesAppConfig, PagesUnifiedGraphCacheManifest>();
-const importableGraphs = new WeakMap<EcoPagesAppConfig, { builtAt: number; current: boolean }>();
+const importableGraphs = new WeakMap<PagesUnifiedGraphCacheManifest, boolean>();
 
 export interface PagesUnifiedGraphCacheManifest {
-	corePackageVersion: string;
-	buildInputsFingerprint: string;
 	buildKey: string;
-	builtAt: number;
 	outputs: Record<string, string>;
 	/**
 	 * Local files reachable from the outputs through local imports, including
@@ -61,21 +49,15 @@ export interface PagesUnifiedGraphCacheManifest {
 	dependencyHashes: RouteModuleDependencyHashes;
 }
 
-export function isPagesUnifiedGraphEnabled(): boolean {
-	if (process.env.ECOPAGES_UNIFIED_PAGES_GRAPH === '0') {
-		return false;
-	}
-
-	if (process.env.ECOPAGES_UNIFIED_PAGES_GRAPH === '1') {
-		return true;
-	}
-
-	return process.env.NODE_ENV === 'production';
-}
-
-/** True when the unified graph should build or serve prebuilt page modules. */
+/**
+ * True when the unified graph should build or serve prebuilt page modules.
+ *
+ * @remarks
+ * Enabled by default in production builds. `ECOPAGES_UNIFIED_PAGES_GRAPH=0` opts out, which the
+ * bench parity suite uses as its per-page build oracle.
+ */
 export function shouldBuildPagesUnifiedGraph(): boolean {
-	return isPagesUnifiedGraphEnabled() && process.env.NODE_ENV === 'production';
+	return process.env.ECOPAGES_UNIFIED_PAGES_GRAPH !== '0' && process.env.NODE_ENV === 'production';
 }
 
 /**
@@ -117,12 +99,6 @@ function writePagesUnifiedGraphManifest(appConfig: EcoPagesAppConfig, manifest: 
 	graphs.set(appConfig, manifest);
 }
 
-/** Drops this process's unified pages graph so the next build compiles from source. */
-export function clearPagesUnifiedGraphMemory(appConfig: EcoPagesAppConfig): void {
-	graphs.delete(appConfig);
-	importableGraphs.delete(appConfig);
-}
-
 function createSafeGraphEntryKey(entryPath: string, rootDir: string): string {
 	const relativePath = path.relative(rootDir, entryPath).replace(/\.[^.]+$/u, '');
 	const safeKey = relativePath.replace(/[^a-zA-Z0-9]+/gu, '-').replace(/^-+|-+$/gu, '');
@@ -130,8 +106,8 @@ function createSafeGraphEntryKey(entryPath: string, rootDir: string): string {
 }
 
 /**
- * Whether `manifest` was written by the current core version, build inputs and graph
- * setup, every file its outputs import still exists, and source hashes still match.
+ * Whether `manifest` was built for this graph setup, every file its outputs import
+ * still exists, and source hashes still match.
  */
 function isGraphManifestCurrent(
 	manifest: PagesUnifiedGraphCacheManifest,
@@ -139,9 +115,7 @@ function isGraphManifestCurrent(
 	outdir: string,
 ): boolean {
 	return (
-		isProductionCacheManifestCurrent(manifest, getCorePackageVersion()) &&
-		matchesProductionCacheFingerprint(manifest, createBuildInputsFingerprint(appConfig)) &&
-		matchesProductionCacheBuildKey(manifest, createPagesUnifiedGraphBuildKey(appConfig, outdir)) &&
+		manifest.buildKey === createPagesUnifiedGraphBuildKey(appConfig, outdir) &&
 		manifest.outputImports.every((filePath) => fileSystem.exists(filePath)) &&
 		sourceDependenciesAreCurrent(manifest)
 	);
@@ -170,7 +144,7 @@ function isManifestValidForEntries(
 }
 
 /**
- * {@link isGraphManifestCurrent} for page imports, memoized per manifest write.
+ * {@link isGraphManifestCurrent} for page imports, memoized per manifest.
  *
  * @remarks
  * Page modules can be imported before the static site generator calls
@@ -179,11 +153,11 @@ function isManifestValidForEntries(
  * invalidated.
  */
 function isGraphImportable(manifest: PagesUnifiedGraphCacheManifest, appConfig: EcoPagesAppConfig): boolean {
-	const known = importableGraphs.get(appConfig);
-	if (known?.builtAt === manifest.builtAt) return known.current;
+	const known = importableGraphs.get(manifest);
+	if (known !== undefined) return known;
 
 	const current = isGraphManifestCurrent(manifest, appConfig, getServerModuleBuildCacheOutdir(appConfig));
-	importableGraphs.set(appConfig, { builtAt: manifest.builtAt, current });
+	importableGraphs.set(manifest, current);
 	return current;
 }
 
@@ -285,10 +259,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 	}
 
 	const manifest: PagesUnifiedGraphCacheManifest = {
-		corePackageVersion: getCorePackageVersion(),
-		buildInputsFingerprint: createBuildInputsFingerprint(options.appConfig),
 		buildKey: createPagesUnifiedGraphBuildKey(options.appConfig, outdir),
-		builtAt: Date.now(),
 		outputs,
 		outputImports: [...outputImports],
 		dependencyHashes,

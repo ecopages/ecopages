@@ -101,7 +101,7 @@ test('retains dependencies loaded by a namespaced virtual module', async () => {
 	expect(collectBuildEntryInputPaths(result, entry, root)).toContain(pluginInput);
 });
 
-test('both persisted entries miss after their shared inlined source changes', async () => {
+test('both cached entries miss after their shared inlined source changes', async () => {
 	const shared = path.join(root, 'shared.js');
 	writeFileSync(shared, "export const value = 'before';");
 	const entries = ['blog', 'blog-post'].map((name) => {
@@ -119,7 +119,7 @@ test('both persisted entries miss after their shared inlined source changes', as
 		splitting: true,
 	});
 	expect(result.success).toBe(true);
-	const cache = new RouteModuleBuildCache(outdir);
+	const cache = new RouteModuleBuildCache();
 	for (const entry of entries) {
 		const output = getBuildEntryOutput(result, entry, root);
 		if (!output) throw new Error(`Missing output for ${entry}`);
@@ -133,14 +133,13 @@ test('both persisted entries miss after their shared inlined source changes', as
 		expect(cache.lookup(options)?.outputPath).toBe(output);
 	}
 	writeFileSync(shared, "export const value = 'after';");
-	const restored = new RouteModuleBuildCache(outdir);
 	for (const entry of entries)
 		expect(
-			restored.lookup({ filePath: entry, rootDir: root, outdir, fileHash: fileSystem.hash(entry) }),
+			cache.lookup({ filePath: entry, rootDir: root, outdir, fileHash: fileSystem.hash(entry) }),
 		).toBeUndefined();
 });
 
-test('a missing local external generated module invalidates a persisted build', async () => {
+test('a missing local external generated module invalidates a cached build', async () => {
 	const generated = path.join(root, 'generated.mjs');
 	writeFileSync(generated, "export const value = 'generated';");
 	const entry = path.join(root, 'entry.js');
@@ -163,7 +162,7 @@ test('a missing local external generated module invalidates a persisted build', 
 	const imports = collectBuildOutputImports(result, output);
 	expect(imports).toContain(generated);
 	const options = { filePath: entry, rootDir: root, outdir, fileHash: fileSystem.hash(entry) };
-	const cache = new RouteModuleBuildCache(outdir);
+	const cache = new RouteModuleBuildCache();
 	cache.recordBuild({
 		...options,
 		outputPath: output,
@@ -172,7 +171,7 @@ test('a missing local external generated module invalidates a persisted build', 
 	});
 	expect(cache.lookup(options)?.outputPath).toBe(output);
 	rmSync(generated);
-	expect(new RouteModuleBuildCache(outdir).lookup(options)).toBeUndefined();
+	expect(cache.lookup(options)).toBeUndefined();
 });
 
 test('walks static and dynamic chunk edges through cycles and retains missing leaves', () => {

@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
-import { describe, expect, it, beforeAll, afterAll, vi } from 'vitest';
-import * as staticBuildInvalidation from '../../../static-site-generator/static-build-invalidation.ts';
+import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { ServerStaticBuilder, type ServeOptions, type ServerStaticBuilderLogger } from './server-static-builder';
 import {
 	resolveEntryFile,
@@ -299,7 +298,7 @@ describe('ServerStaticBuilder', () => {
 	});
 
 	describe('build', () => {
-		it('re-runs refreshRuntimeAssets when dist is reset even if adapter init already prepared runtime assets', async () => {
+		it('re-runs refreshRuntimeAssets even if adapter init already prepared runtime assets', async () => {
 			const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger, calls } =
 				createMockDependencies();
 			const appConfig = {
@@ -328,73 +327,6 @@ describe('ServerStaticBuilder', () => {
 			expect(appConfig.runtime?.runtimeAssetsPrepared).toBe(true);
 		});
 
-		it('skips refreshRuntimeAssets when runtime assets were already prepared and dist is preserved', async () => {
-			const shouldResetSpy = vi
-				.spyOn(staticBuildInvalidation, 'shouldResetStaticExportDirectory')
-				.mockReturnValue(false);
-
-			try {
-				const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger, calls } =
-					createMockDependencies();
-				const appConfig = {
-					...AppConfig,
-					runtime: {
-						...AppConfig.runtime,
-						runtimeAssetsPrepared: true,
-					},
-				} as EcoPagesAppConfig;
-
-				const builder = new ServerStaticBuilder({
-					appConfig,
-					staticSiteGenerator: StaticSiteGenerator,
-					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
-					logger,
-				});
-
-				await builder.build(undefined, {
-					router: Router,
-					routeRendererFactory: RouteRendererFactory,
-				});
-
-				expect(calls.processorSetup).toBe(0);
-				expect(calls.integrationSetup).toBe(0);
-			} finally {
-				shouldResetSpy.mockRestore();
-			}
-		});
-
-		it('clears the production caches when watched build inputs changed, and only then', async () => {
-			const changedSpy = vi.spyOn(staticBuildInvalidation, 'haveWatchedBuildInputsChanged');
-			const clearSpy = vi
-				.spyOn(staticBuildInvalidation, 'clearProductionBuildCaches')
-				.mockImplementation(() => {});
-
-			try {
-				const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger } =
-					createMockDependencies();
-				const builder = new ServerStaticBuilder({
-					appConfig: AppConfig,
-					staticSiteGenerator: StaticSiteGenerator,
-					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
-					logger,
-				});
-
-				changedSpy.mockReturnValue(false);
-				await builder.build(undefined, { router: Router, routeRendererFactory: RouteRendererFactory });
-				expect(clearSpy).not.toHaveBeenCalled();
-
-				changedSpy.mockReturnValue(true);
-				await builder.build(undefined, { router: Router, routeRendererFactory: RouteRendererFactory });
-				expect(clearSpy).toHaveBeenCalledTimes(1);
-				expect(changedSpy).toHaveBeenLastCalledWith(AppConfig, 'none');
-			} finally {
-				changedSpy.mockRestore();
-				clearSpy.mockRestore();
-			}
-		});
-
 		it('should run static site generator with correct options', async () => {
 			const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger, calls } =
 				createMockDependencies();
@@ -420,8 +352,6 @@ describe('ServerStaticBuilder', () => {
 					staticRoutes: undefined,
 					errorPageLoaders: undefined,
 					force: false,
-					preserveExportDirectory: false,
-					watchedInputsHash: 'none',
 				},
 			]);
 		});

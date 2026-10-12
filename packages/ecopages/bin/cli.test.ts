@@ -9,7 +9,9 @@ import * as prompts from '@clack/prompts';
 import {
 	ECOPAGES_DEV_RESTART_EXIT_CODE,
 	ECOPAGES_DEV_RESTART_REASON_ENV,
+	resolveDevelopmentRecoveryWatch,
 } from '@ecopages/core/dev/development-restart';
+import { fileSystem, type WatchOptions } from '@ecopages/file-system';
 
 const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
 const cliVersionTag = `v${pkg.version}`;
@@ -33,13 +35,17 @@ vi.mock('node:fs', async (importOriginal) => {
 		...actual,
 		existsSync: vi.fn((path) => actual.existsSync(path)),
 		writeFileSync: actual.writeFileSync,
-		statSync: vi.fn(actual.statSync),
-		watch: vi.fn(() => {
-			const watcher = { close: vi.fn(), on: vi.fn(() => watcher) };
-			return watcher;
-		}),
 	};
 });
+
+vi.mock('@ecopages/file-system', () => ({
+	fileSystem: { watch: vi.fn() },
+}));
+
+vi.mock('@ecopages/core/dev/development-restart', async (importOriginal) => ({
+	...(await importOriginal<typeof import('@ecopages/core/dev/development-restart')>()),
+	resolveDevelopmentRecoveryWatch: vi.fn(),
+}));
 
 vi.mock('./launch-plan.js', () => ({
 	createLaunchPlan: vi.fn(),
@@ -89,12 +95,12 @@ describe('CLI Commands', () => {
 			envOverrides: {},
 			env: {},
 		} as any);
+		mockProjectWatches();
 	});
 
 	afterEach(() => {
 		vi.mocked(childProcess.spawn).mockReset();
-		vi.mocked(fs.statSync).mockReset();
-		vi.mocked(fs.watch).mockReset();
+		vi.mocked(fileSystem.watch).mockReset();
 		for (const targetDir of ['my-new-project', 'my-dir', 'interactive-app', 'remote-app', 'failed-app']) {
 			fs.rmSync(targetDir, { recursive: true, force: true });
 		}
@@ -250,37 +256,50 @@ describe('CLI Commands', () => {
 		return exitHandlers;
 	}
 
-	function getWatchListener() {
-		return vi.mocked(fs.watch).mock.calls[0]?.[1] as unknown as (event: string, file: string) => void;
+	const recoveryWatch = { paths: ['/project', '/workspace/linked-ui'], ignored: () => false };
+
+	function mockProjectWatches() {
+		const watches: Array<{ paths: readonly string[]; options: WatchOptions; close: ReturnType<typeof vi.fn> }> = [];
+		vi.mocked(resolveDevelopmentRecoveryWatch).mockReturnValue(recoveryWatch);
+		vi.mocked(fileSystem.watch).mockImplementation((paths, options) => {
+			const close = vi.fn(async () => {});
+			watches.push({ paths, options, close });
+			return { ready: Promise.resolve(), close };
+		});
+		return watches;
 	}
 
-	it('keeps a dev session alive when a restarted child fails, and relaunches on the next config change', async () => {
+	function changeProjectFile(watch: { options: WatchOptions } | undefined) {
+		watch?.options.onChange({ type: 'change', path: '/project/src/lib/options.ts' });
+	}
+
+	it('keeps a dev session alive when a restarted child fails, and relaunches on the next project change', async () => {
 		const exitSpy = mockProcessExit();
 		const exitHandlers = mockSpawnedChildren();
+		const watches = mockProjectWatches();
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
 		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+		expect(watches).toHaveLength(1);
+		expect(watches[0]?.paths).toEqual(recoveryWatch.paths);
+		expect(watches[0]?.options.ignored).toBe(recoveryWatch.ignored);
 
 		exitHandlers[1]?.(1);
 		expect(exitSpy).not.toHaveBeenCalled();
-		expect(fs.watch).toHaveBeenCalledWith(process.cwd(), expect.any(Function));
-
-		const onWatchEvent = getWatchListener();
-		const watcher = vi.mocked(fs.watch).mock.results[0]?.value as { close: () => void };
-		onWatchEvent('change', 'app.ts');
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(2);
 
-		onWatchEvent('change', 'eco.config.ts');
-		expect(watcher.close).toHaveBeenCalled();
+		changeProjectFile(watches[0]);
+		expect(watches[0]?.close).toHaveBeenCalled();
 		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
 
 		exitSpy.mockRestore();
 	});
 
-	it('waits for a config change when the launch plan fails during a restart', async () => {
+	it('waits for a project change when the launch plan fails during a restart', async () => {
 		const exitSpy = mockProcessExit();
 		const exitHandlers = mockSpawnedChildren();
+		const watches = mockProjectWatches();
 		vi.mocked(launchPlan.createLaunchPlan)
 			.mockResolvedValueOnce({
 				runtime: 'node',
@@ -293,27 +312,27 @@ describe('CLI Commands', () => {
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
-		await vi.waitFor(() => expect(fs.watch).toHaveBeenCalled());
+		await vi.waitFor(() => expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(2));
 		expect(exitSpy).not.toHaveBeenCalled();
 
-		const onWatchEvent = getWatchListener();
-		onWatchEvent('rename', '.env.local');
+		changeProjectFile(watches[0]);
 		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
 
 		exitSpy.mockRestore();
 	});
 
-	it('relaunches once when the same config change is reported twice', async () => {
+	it('relaunches once when one save is reported twice', async () => {
 		const exitSpy = mockProcessExit();
 		const exitHandlers = mockSpawnedChildren();
+		const watches = mockProjectWatches();
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
 		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
 		exitHandlers[1]?.(1);
 
-		getWatchListener()('change', 'eco.config.ts');
-		getWatchListener()('rename', 'eco.config.ts');
+		changeProjectFile(watches[0]);
+		changeProjectFile(watches[0]);
 		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
 		await new Promise((resolve) => setTimeout(resolve, 20));
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(3);
@@ -321,57 +340,58 @@ describe('CLI Commands', () => {
 		exitSpy.mockRestore();
 	});
 
-	it('relaunches at once when the config changed while the restarted child was loading', async () => {
+	it('relaunches at once when the project changed while the restarted child was loading', async () => {
 		const exitSpy = mockProcessExit();
 		const exitHandlers = mockSpawnedChildren();
-		let configModifiedTime = 1;
-		vi.mocked(fs.statSync).mockImplementation(((filePath: string) =>
-			filePath.endsWith('eco.config.ts') ? { mtimeMs: configModifiedTime } : undefined) as never);
+		const watches = mockProjectWatches();
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
 		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
 
-		configModifiedTime = 2;
+		changeProjectFile(watches[0]);
+		expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(2);
 		exitHandlers[1]?.(1);
+
+		expect(watches[0]?.close).toHaveBeenCalled();
 		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
-		expect(fs.watch).not.toHaveBeenCalled();
 
 		exitSpy.mockRestore();
 	});
 
-	it('exits with a clear error when the restart files cannot be watched', async () => {
+	it('stops watching the project when a restarted child requests another restart', async () => {
 		const exitSpy = mockProcessExit();
 		const exitHandlers = mockSpawnedChildren();
-		vi.mocked(fs.watch).mockImplementationOnce(() => {
-			throw Object.assign(new Error('ENOSPC: System limit for number of file watchers reached'), {
-				code: 'ENOSPC',
-			});
-		});
+		const watches = mockProjectWatches();
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
 		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+		exitHandlers[1]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
 
-		expect(() => exitHandlers[1]?.(1)).toThrow('process.exit:1');
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
+		expect(watches[0]?.close).toHaveBeenCalled();
+		expect(watches).toHaveLength(2);
 
 		exitSpy.mockRestore();
 	});
 
-	it('keeps waiting when a restart file cannot be read', async () => {
+	it('exits with a clear error when the project cannot be watched', async () => {
 		const exitSpy = mockProcessExit();
 		const exitHandlers = mockSpawnedChildren();
-		vi.mocked(fs.statSync).mockImplementation(() => {
-			throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
-		});
+		const watches = mockProjectWatches();
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+		await vi.waitFor(() => expect(watches).toHaveLength(1));
 
-		exitHandlers[1]?.(1);
-		expect(exitSpy).not.toHaveBeenCalled();
-		expect(fs.watch).toHaveBeenCalled();
+		expect(() =>
+			watches[0]?.options.onError(
+				Object.assign(new Error('ENOSPC: System limit for number of file watchers reached'), {
+					code: 'ENOSPC',
+				}),
+			),
+		).toThrow('process.exit:1');
 
 		exitSpy.mockRestore();
 	});
@@ -379,24 +399,25 @@ describe('CLI Commands', () => {
 	it.each([0, null])('exits when a restarted child exits with %s', async (code) => {
 		const exitSpy = mockProcessExit();
 		const exitHandlers = mockSpawnedChildren();
+		mockProjectWatches();
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
 		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
 
 		expect(() => exitHandlers[1]?.(code)).toThrow('process.exit:0');
-		expect(fs.watch).not.toHaveBeenCalled();
 
 		exitSpy.mockRestore();
 	});
 
-	it('exits when the first dev child fails', async () => {
+	it('exits when the first dev child fails, without watching the project', async () => {
 		const exitSpy = mockProcessExit();
 		const exitHandlers = mockSpawnedChildren();
+		mockProjectWatches();
 
 		await runCli(['dev']);
 		expect(() => exitHandlers[0]?.(1)).toThrow('process.exit:1');
-		expect(fs.watch).not.toHaveBeenCalled();
+		expect(fileSystem.watch).not.toHaveBeenCalled();
 
 		exitSpy.mockRestore();
 	});

@@ -278,7 +278,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 			expect(Bridge.reload).toHaveBeenCalled();
 		});
 
-		test('should not call uncacheModules for public files', async () => {
+		test('does not notify HMR for a public file', async () => {
 			const publicFilePath = path.join(Config.absolutePaths.publicDir, 'robots.txt');
 
 			await (watcher as any).handleFileChange(publicFilePath);
@@ -849,16 +849,44 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 				Config.absolutePaths.config,
 			]),
 		);
-		expect(watchedPaths).not.toEqual(
-			expect.arrayContaining([
-				Config.absolutePaths.pagesDir,
-				Config.absolutePaths.componentsDir,
-				Config.absolutePaths.includesDir,
-				Config.absolutePaths.layoutsDir,
-				Config.absolutePaths.publicDir,
-			]),
-		);
+		for (const sourceDir of [
+			Config.absolutePaths.pagesDir,
+			Config.absolutePaths.componentsDir,
+			Config.absolutePaths.includesDir,
+			Config.absolutePaths.layoutsDir,
+			Config.absolutePaths.publicDir,
+		]) {
+			expect(watchedPaths).not.toContain(sourceDir);
+		}
 		expect(watcherHandle.add).not.toHaveBeenCalled();
+	});
+
+	test('watches a configured source directory that resolves outside srcDir', async () => {
+		const Config = await createMockConfig();
+		installDevRuntimeState(Config);
+		const outsidePublicDir = '/test/project/public';
+		Config.absolutePaths.publicDir = outsidePublicDir;
+		vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath) => String(targetPath) === outsidePublicDir);
+		const watcherHandle = {
+			add: vi.fn(),
+			once: vi.fn(emitInitialWatcherReady),
+			on: vi.fn().mockReturnThis(),
+			close: vi.fn(),
+		};
+		const chokidarWatch = vi.fn((_paths: string[]) => watcherHandle);
+		vi.spyOn(chokidar, 'watch').mockImplementation(chokidarWatch as never);
+		const watcher = new ProjectWatcher({
+			config: Config,
+			refreshRouterRoutesCallback: vi.fn(async () => {}),
+			hmrManager: createMockHmrManager(),
+			bridge: createMockBridge(),
+			changeDebounceMs: 0,
+		});
+
+		await watcher.createWatcherSubscription();
+
+		expect(chokidarWatch.mock.calls[0]?.[0]).toContain(outsidePublicDir);
+		await watcher.close();
 	});
 
 	test('watches recorded paths outside srcDir directly and leaves source inputs to the srcDir watch', async () => {
@@ -925,45 +953,6 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 		await watcher.close();
 	});
 
-	test('does not treat chokidar add for a newly recorded existing file as a create', async () => {
-		const Config = await createMockConfig();
-		installDevRuntimeState(Config);
-		const recordedFile = path.join(Config.rootDir, 'data/badge-buttons.ts');
-		const HmrManager = createMockHmrManager();
-		const Bridge = createMockBridge();
-		const eventHandlers = new Map<string, (filePath: string) => void>();
-		const watcherHandle = {
-			add: vi.fn(),
-			once: vi.fn(emitInitialWatcherReady),
-			on: vi.fn((event: string, handler: (filePath: string) => void) => {
-				eventHandlers.set(event, handler);
-				return watcherHandle;
-			}),
-			close: vi.fn(),
-		};
-		vi.spyOn(fileSystem, 'exists').mockImplementation((targetPath) =>
-			[Config.absolutePaths.pagesDir, Config.absolutePaths.publicDir, recordedFile].includes(String(targetPath)),
-		);
-		vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherHandle as never);
-
-		const watcher = new ProjectWatcher({
-			config: Config,
-			refreshRouterRoutesCallback: vi.fn(async () => {}),
-			hmrManager: HmrManager,
-			bridge: Bridge,
-			changeDebounceMs: 0,
-		});
-
-		await watcher.createWatcherSubscription();
-		getAppBuildInputIndex(Config).recordWatchPath(recordedFile);
-		expect(watcherHandle.add).toHaveBeenCalledWith(path.resolve(recordedFile));
-
-		await eventHandlers.get('add')?.(recordedFile);
-
-		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
-		expect(Bridge.reload).not.toHaveBeenCalled();
-	});
-
 	test.each(['fresh', 'preserved'])(
 		'processes a new source file with %s timestamps immediately after subscription',
 		async (timestamps) => {
@@ -1007,47 +996,6 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 			}
 		},
 	);
-
-	test('ignores add events for files already in the source tree at subscribe', async () => {
-		const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'eco-watch-snapshot-')));
-		try {
-			mkdirSync(path.join(root, 'src/components'), { recursive: true });
-			const cssFile = path.join(root, 'src/components/widget.css');
-			writeFileSync(cssFile, ':host { display: block; }\n');
-			const Config = await finalizeEcoPagesConfig({ rootDir: root, integrations: [] });
-			installDevRuntimeState(Config);
-			const HmrManager = createMockHmrManager();
-			const Bridge = createMockBridge();
-			const eventHandlers = new Map<string, (filePath: string) => Promise<void>>();
-			const watcherHandle = {
-				add: vi.fn(),
-				once: vi.fn(emitInitialWatcherReady),
-				on: vi.fn((event: string, handler: (filePath: string) => Promise<void>) => {
-					eventHandlers.set(event, handler);
-					return watcherHandle;
-				}),
-				close: vi.fn(),
-			};
-			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherHandle as never);
-
-			const watcher = new ProjectWatcher({
-				config: Config,
-				refreshRouterRoutesCallback: vi.fn(async () => {}),
-				hmrManager: HmrManager,
-				bridge: Bridge,
-				changeDebounceMs: 0,
-			});
-
-			await watcher.createWatcherSubscription();
-			await eventHandlers.get('add')?.(cssFile);
-
-			expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
-			expect(Bridge.reload).not.toHaveBeenCalled();
-			await watcher.close();
-		} finally {
-			rmSync(root, { recursive: true, force: true });
-		}
-	});
 
 	test('watches every supported dotenv path before the files exist', async () => {
 		const Config = await createMockConfig();

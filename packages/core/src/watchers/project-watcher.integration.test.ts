@@ -73,15 +73,16 @@ describe('ProjectWatcher - Integration Tests', () => {
 			});
 
 			try {
-				await watcher.createWatcherSubscription();
+				const fileWatcher = await watcher.createWatcherSubscription();
+				await vi.waitFor(() => expect(fileWatcher.getWatched()).toHaveProperty(sourceDirectory));
 				expect(watchEvents).toEqual([]);
 				const newFile = path.join(sourceDirectory, 'new-post.ts');
 				writeTestFile(newFile, 'export const newPost = {};\n');
 				await vi.waitFor(
-					() => expect(watchEvents).toContainEqual({ kind: 'changed', path: path.resolve(newFile) }),
+					() => expect(watchEvents).toContainEqual({ kind: 'created', path: path.resolve(newFile) }),
 					{ timeout: 3000 },
 				);
-				expect(watchEvents).toEqual([{ kind: 'changed', path: path.resolve(newFile) }]);
+				expect(watchEvents).toEqual([{ kind: 'created', path: path.resolve(newFile) }]);
 			} finally {
 				await watcher.close();
 			}

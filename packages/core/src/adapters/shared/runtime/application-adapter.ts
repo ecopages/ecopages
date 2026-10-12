@@ -226,6 +226,11 @@ export abstract class SharedApplicationAdapter<
 	 * Stopping can close the watcher before cleanup rejects. Exiting with failure prevents the child from
 	 * continuing without reliable subscriptions and prevents the CLI from treating incomplete cleanup as a clean restart.
 	 */
+	/**
+	 * @remarks
+	 * A failed `stop()` is logged and the process still exits with the restart code: it ends either
+	 * way, which frees its port and workers, and the CLI supervisor starts a fresh server.
+	 */
 	protected createDevelopmentRestartHandler(): (changedFile: string) => Promise<void> {
 		return async (changedFile: string) => {
 			appLogger.info(`Restarting the development server (${changedFile} changed)...`);
@@ -235,7 +240,6 @@ export abstract class SharedApplicationAdapter<
 				appLogger.error(
 					`Failed to stop the development server before restart: ${formatRestartStopFailure(error)}`,
 				);
-				process.exit(1);
 			}
 			process.exit(ECOPAGES_DEV_RESTART_EXIT_CODE);
 		};

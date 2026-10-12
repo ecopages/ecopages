@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync, readdirSync, statSync, watch } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,10 +10,9 @@ import { createLaunchPlan, resolveEcoConfigFilePath } from './launch-plan.js';
 import {
 	ECOPAGES_DEV_RESTART_EXIT_CODE,
 	ECOPAGES_DEV_RESTART_REASON_ENV,
-	getDevEnvFileNames,
+	resolveDevelopmentRecoveryWatch,
 } from '@ecopages/core/dev/development-restart';
-import { DEVELOPMENT_RESTART_WATCH_SET_FILENAME } from '@ecopages/core/dev/development-restart-watch-paths';
-import { DEFAULT_ECOPAGES_WORK_DIR } from '@ecopages/core/constants';
+import { fileSystem } from '@ecopages/file-system';
 import { withBrandBanner } from './brand.js';
 
 const logger = new Logger('[ecopages:cli]', { debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true' });
@@ -185,249 +184,50 @@ function runLaunchPlan(launchPlan, options = {}) {
 }
 
 /**
- * The files whose change restarts a dev child after a failed restart.
+ * Watches the project from before a restarted dev child launches until that child exits.
  *
  * @remarks
- * These are the files the CLI loads: the resolved config (or the default `eco.config.ts` when none
- * exists) and the supported dotenv files in the working directory. A custom `rootDir` is not followed,
- * because the supervisor cannot read a broken config to find it.
+ * A restarted child that exits with an error keeps the supervisor alive until the next change in the
+ * project or a linked workspace package, so an error in the config or a file it imports does not end
+ * the dev session. The watch starts before the child, so a fix saved while it was loading relaunches
+ * at once.
+ * @param {string} rootDir - Project root, the directory of the resolved config
  */
-function resolveRestartWatchPaths(options) {
-	return [
-		resolveEcoConfigFilePath(options) ?? path.resolve('eco.config.ts'),
-		...getDevEnvFileNames(options.nodeEnv).map((envFile) => path.resolve(envFile)),
-	];
-}
-
-function resolveRestartWatchSet(options) {
-	const fallbackFiles = resolveRestartWatchPaths(options);
-	const configPath = resolveEcoConfigFilePath(options) ?? path.resolve('eco.config.ts');
-	const watchSetPath = path.join(
-		path.dirname(configPath),
-		DEFAULT_ECOPAGES_WORK_DIR,
-		DEVELOPMENT_RESTART_WATCH_SET_FILENAME,
-	);
-
-	try {
-		const watchSet = JSON.parse(readFileSync(watchSetPath, 'utf8'));
-		if (
-			watchSet?.version !== 1 ||
-			watchSet.cwd !== path.resolve(process.cwd()) ||
-			!Array.isArray(watchSet.files) ||
-			!watchSet.files.every((filePath) => typeof filePath === 'string' && path.isAbsolute(filePath)) ||
-			!watchSet.files.includes(path.resolve(configPath)) ||
-			!Array.isArray(watchSet.roots) ||
-			!watchSet.roots.every((root) => typeof root === 'string' && path.isAbsolute(root)) ||
-			!Array.isArray(watchSet.ignoredDirectories) ||
-			!watchSet.ignoredDirectories.every(
-				(directory) => typeof directory === 'string' && path.isAbsolute(directory),
-			)
-		) {
-			return { files: fallbackFiles, roots: [], ignoredDirectories: [] };
-		}
-
-		return {
-			files: [...new Set([...fallbackFiles, ...watchSet.files])],
-			roots: [...new Set(watchSet.roots)],
-			ignoredDirectories: [...new Set(watchSet.ignoredDirectories)],
-		};
-	} catch {
-		return { files: fallbackFiles, roots: [], ignoredDirectories: [] };
-	}
-}
-
-function isPathInside(directory, filePath) {
-	const relativePath = path.relative(directory, filePath);
-	return (
-		relativePath === '' ||
-		(relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`) && !path.isAbsolute(relativePath))
-	);
-}
-
-function shouldIgnoreWorkspacePath(root, filePath, ignoredDirectories) {
-	const relativePath = path.relative(root, filePath);
-	if (
-		relativePath
-			.split(path.sep)
-			.some((segment) => segment === 'node_modules' || segment === '.git' || segment.startsWith('.'))
-	) {
-		return true;
-	}
-
-	return ignoredDirectories.some((directory) => isPathInside(directory, filePath));
-}
-
-function fileWatchSnapshot(filePath, isDirectory = false) {
-	try {
-		if (isDirectory) {
-			statSync(filePath);
-			return 'directory';
-		}
-
-		const stats = statSync(filePath);
-		return `${stats.mtimeMs}:${stats.ctimeMs}:${stats.size}`;
-	} catch {
-		return 'missing';
-	}
-}
-
-function readWorkspaceRootSnapshot(root, ignoredDirectories, snapshot) {
-	const pendingDirectories = [root];
-
-	while (pendingDirectories.length > 0) {
-		const directory = pendingDirectories.pop();
-		if (!directory) continue;
-		snapshot.set(directory, fileWatchSnapshot(directory, true));
-
-		let entries;
-		try {
-			entries = readdirSync(directory, { withFileTypes: true });
-		} catch {
-			continue;
-		}
-
-		for (const entry of entries) {
-			const entryPath = path.join(directory, entry.name);
-			if (shouldIgnoreWorkspacePath(root, entryPath, ignoredDirectories) || entry.isSymbolicLink()) continue;
-			if (entry.isDirectory()) {
-				snapshot.set(entryPath, fileWatchSnapshot(entryPath, true));
-				pendingDirectories.push(entryPath);
-			} else {
-				snapshot.set(entryPath, fileWatchSnapshot(entryPath));
-			}
-		}
-	}
-
-	return snapshot;
-}
-
-function readRestartWatchSnapshot(watchSet) {
-	const paths = new Map(watchSet.files.map((filePath) => [filePath, fileWatchSnapshot(filePath)]));
-	for (const root of watchSet.roots) readWorkspaceRootSnapshot(root, watchSet.ignoredDirectories, paths);
-	return {
-		paths,
-		files: watchSet.files,
-		roots: watchSet.roots,
-		ignoredDirectories: watchSet.ignoredDirectories,
-	};
-}
-
-function restartWatchSnapshotChanged(current, previous) {
-	for (const [filePath, previousState] of previous.paths) {
-		if (current.paths.get(filePath) !== previousState) return true;
-	}
-
-	for (const filePath of current.paths.keys()) {
-		if (previous.paths.has(filePath)) continue;
-		if (previous.roots.some((root) => isPathInside(root, filePath))) return true;
-	}
-
-	return false;
-}
-
-/**
- * Calls `onChange` once, on the first change to a restart file or workspace package, and closes the watchers before it.
- *
- * @remarks
- * Watches file parents so dotenv files created later and atomic file replacements are seen. Workspace
- * roots are watched recursively, matching the Project Watcher's linked-package subscription.
- */
-/**
- * Watches `directory`, or its closest existing ancestor when `fs.watch` reports it missing.
- *
- * @remarks
- * A branch switch can remove a directory the last restart set listed, and `fs.watch` throws ENOENT for
- * it. The listener receives the watched directory and, for an ancestor, the name of its child on the
- * way to the missing path, so the supervisor relaunches once that child appears.
- * @param {string} directory
- * @param {(watchedDirectory: string, missingChild: string | undefined) => import('node:fs').WatchListener<string>} createListener
- */
-function watchDirectoryOrAncestor(directory, createListener) {
-	let current = path.resolve(directory);
-	let missingChild;
-	for (;;) {
-		try {
-			return watch(current, createListener(current, missingChild));
-		} catch (error) {
-			const parent = path.dirname(current);
-			if (error?.code !== 'ENOENT' || parent === current) throw error;
-			missingChild = path.basename(current);
-			current = parent;
-		}
-	}
-}
-
-function watchForNextChange(watchSet, onChange) {
-	const watchers = [];
-	let settled = false;
-	const filesByDirectory = new Map();
-
-	for (const filePath of watchSet.files) {
-		const directory = path.dirname(filePath);
-		const directoryFiles = filesByDirectory.get(directory) ?? new Set();
-		directoryFiles.add(filePath);
-		filesByDirectory.set(directory, directoryFiles);
-	}
-
-	const settle = (callback) => {
-		if (settled) return;
-		settled = true;
-		for (const watcher of watchers) watcher.close();
-		callback();
-	};
-
-	const fail = (error) => {
-		settle(() => {
-			const message = error instanceof Error ? error.message : String(error);
-			logger.error(`Cannot watch the development restart inputs: ${message}`);
+async function watchProjectForRestart(rootDir) {
+	const { paths, ignored } = resolveDevelopmentRecoveryWatch(rootDir);
+	let changed = false;
+	let onNextChange;
+	const watcher = fileSystem.watch(paths, {
+		ignored,
+		onChange: () => {
+			changed = true;
+			onNextChange?.();
+		},
+		onError: (error) => {
+			logger.error('Cannot watch the project for the next restart', error);
 			process.exit(1);
-		});
-	};
+		},
+	});
+	await watcher.ready;
 
-	try {
-		for (const [dir, filePaths] of filesByDirectory) {
-			const watcher = watchDirectoryOrAncestor(dir, (watchedDirectory, missingChild) => (_event, fileName) => {
-				if (!fileName) {
-					settle(onChange);
-					return;
-				}
-				const changed = missingChild
-					? String(fileName) === missingChild
-					: filePaths.has(path.resolve(watchedDirectory, String(fileName)));
-				if (changed) settle(onChange);
-			});
-			watchers.push(watcher);
-			watcher.on('error', fail);
-		}
-
-		for (const root of watchSet.roots) {
-			if (!existsSync(root)) {
-				const watcher = watchDirectoryOrAncestor(path.dirname(root), (_watchedDirectory, missingChild) => {
-					const awaitedName = missingChild ?? path.basename(root);
-					return (_event, fileName) => {
-						if (!fileName || String(fileName) === awaitedName) settle(onChange);
-					};
-				});
-				watchers.push(watcher);
-				watcher.on('error', fail);
-				continue;
+	return {
+		close: () => watcher.close(),
+		/** Calls `relaunch` once: now if the project changed since the watch started, otherwise on the next change. */
+		relaunchOnChange(relaunch) {
+			const run = () => {
+				onNextChange = undefined;
+				void watcher.close();
+				relaunch();
+			};
+			if (changed) {
+				logger.info('The project changed since the restart. Restarting...');
+				run();
+				return;
 			}
-
-			const watcher = watch(root, { recursive: true }, (_event, fileName) => {
-				if (!fileName) {
-					settle(onChange);
-					return;
-				}
-
-				const changedPath = path.resolve(root, String(fileName));
-				if (!shouldIgnoreWorkspacePath(root, changedPath, watchSet.ignoredDirectories)) settle(onChange);
-			});
-			watchers.push(watcher);
-			watcher.on('error', fail);
-		}
-	} catch (error) {
-		fail(error);
-	}
+			logger.info('Waiting for a change in the project to restart.');
+			onNextChange = run;
+		},
+	};
 }
 
 /**
@@ -446,48 +246,20 @@ async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchM
 		process.exit(1);
 	}
 
-	let restartWatchSet = superviseDevRestarts
-		? resolveRestartWatchSet(options)
-		: { files: [], roots: [], ignoredDirectories: [] };
+	const projectRoot = path.dirname(resolveEcoConfigFilePath(options) ?? path.resolve('eco.config.ts'));
 	const devRestartReason = 'configuration or environment change';
 
-	/**
-	 * @remarks
-	 * A restarted child that exits with an error keeps the supervisor alive until the next config or
-	 * dotenv change, so a typo in `eco.config.ts` does not end the dev session. A change saved since
-	 * that child was launched relaunches at once, because the watchers start only after it exits.
-	 * Signals still end the supervisor.
-	 */
-	const handleRestartFailure = (restartSnapshotAtLaunch) => {
-		restartWatchSet = resolveRestartWatchSet(options);
-		const currentSnapshot = readRestartWatchSnapshot({
-			files: restartSnapshotAtLaunch.files,
-			roots: restartSnapshotAtLaunch.roots,
-			ignoredDirectories: restartSnapshotAtLaunch.ignoredDirectories,
-		});
-		if (restartWatchSnapshotChanged(currentSnapshot, restartSnapshotAtLaunch)) {
-			logger.info('A development restart input changed while the child was loading. Restarting...');
-			void launchChild(devRestartReason);
-			return;
-		}
-
-		logger.info('Waiting for a config, dotenv, or linked package change to restart.');
-		watchForNextChange(restartWatchSet, () => {
-			void launchChild(devRestartReason);
-		});
-	};
-
 	const launchChild = async (restartReason) => {
-		if (restartReason) restartWatchSet = resolveRestartWatchSet(options);
-		const restartSnapshotAtLaunch = restartReason ? readRestartWatchSnapshot(restartWatchSet) : undefined;
+		const restartWatch = restartReason ? await watchProjectForRestart(projectRoot) : undefined;
+		const relaunchOnChange = () => restartWatch.relaunchOnChange(() => void launchChild(devRestartReason));
 		let launchPlan;
 		try {
 			launchPlan = await createLaunchPlan(args, options, entryFile, launchMode);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			logger.error(message);
-			if (restartSnapshotAtLaunch) {
-				handleRestartFailure(restartSnapshotAtLaunch);
+			if (restartWatch) {
+				relaunchOnChange();
 				return;
 			}
 			process.exit(1);
@@ -501,9 +273,10 @@ async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchM
 		runLaunchPlan(launchPlan, {
 			superviseDevRestarts,
 			onDevRestart: () => {
+				void restartWatch?.close();
 				void launchChild(devRestartReason);
 			},
-			onRestartFailure: restartSnapshotAtLaunch ? () => handleRestartFailure(restartSnapshotAtLaunch) : undefined,
+			onRestartFailure: restartWatch ? relaunchOnChange : undefined,
 		});
 	};
 

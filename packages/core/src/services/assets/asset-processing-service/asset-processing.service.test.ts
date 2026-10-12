@@ -4,6 +4,7 @@ import { AssetProcessingService } from './asset-processing.service';
 import type { AssetDefinition } from './assets.types';
 import { getBrowserRuntimeAssetGeneration } from '../browser-runtime-asset-generation';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
 
 const Config = {
 	absolutePaths: {
@@ -293,16 +294,11 @@ test('AssetProcessingService - caching returns cached asset without reprocessing
 	expect(results2[0].srcUrl).toBe('/assets/cached.js');
 });
 
-test('AssetProcessingService - rebuilds a cached bundle when a recorded build input changes', async () => {
-	const previousNodeEnv = process.env.NODE_ENV;
-	process.env.NODE_ENV = 'development';
-	fileSystem.ensureDir = vi.fn(() => {});
-	fileSystem.gzipDir = vi.fn(() => {});
+test('AssetProcessingService - rebuilds a cached bundle when one of its bundled inputs changes', async () => {
 	fileSystem.exists = vi.fn(() => true);
-	let helperHash = 'helper-v1';
-	fileSystem.hash = vi.fn((filepath: string) => (filepath === '/test/src/helper.ts' ? helperHash : 'entry-v1'));
-
-	const service = new AssetProcessingService(Config);
+	fileSystem.hash = vi.fn(() => 'entry-v1');
+	const appConfig = { ...Config } as EcoPagesAppConfig;
+	const service = new AssetProcessingService(appConfig);
 	const invalidateProcessorCache = vi.fn();
 	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/entry.js',
@@ -314,55 +310,36 @@ test('AssetProcessingService - rebuilds a cached bundle when a recorded build in
 		process: processMock,
 		invalidateCacheForFile: invalidateProcessorCache,
 	});
-
 	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/entry.ts' };
-	try {
-		await service.processDependencies([dependency], 'bundle-cache-1');
-		helperHash = 'helper-v2';
-		await service.processDependencies([dependency], 'bundle-cache-2');
 
-		expect(processMock).toHaveBeenCalledTimes(2);
-		expect(invalidateProcessorCache).toHaveBeenCalledWith('/test/src/helper.ts');
-	} finally {
-		if (previousNodeEnv === undefined) {
-			delete process.env.NODE_ENV;
-		} else {
-			process.env.NODE_ENV = previousNodeEnv;
-		}
-	}
+	await service.processDependencies([dependency], 'bundle-cache-1');
+	getAppBuildInputIndex(appConfig).recordChanges(['/test/src/helper.ts']);
+	await service.processDependencies([dependency], 'bundle-cache-2');
+
+	expect(processMock).toHaveBeenCalledTimes(2);
+	expect(invalidateProcessorCache).toHaveBeenCalledWith('/test/src/helper.ts');
 });
 
-test('AssetProcessingService - skips bundled input hashing outside development', async () => {
-	const previousNodeEnv = process.env.NODE_ENV;
-	process.env.NODE_ENV = 'production';
-	fileSystem.ensureDir = vi.fn(() => {});
-	fileSystem.gzipDir = vi.fn(() => {});
+test('AssetProcessingService - keeps a cached bundle without re-reading its inputs when an unrelated file changes', async () => {
 	fileSystem.exists = vi.fn(() => true);
-	fileSystem.hash = vi.fn(() => 'source-hash');
+	fileSystem.hash = vi.fn(() => 'entry-v1');
+	const appConfig = { ...Config } as EcoPagesAppConfig;
+	const service = new AssetProcessingService(appConfig);
+	const processMock = vi.fn(async () => ({
+		filepath: '/test/dist/assets/entry.js',
+		kind: 'script' as const,
+		inline: false,
+		bundledSourceFilepaths: ['/test/src/helper.ts'],
+	}));
+	service.registerProcessor('script', 'file', { process: processMock });
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/entry.ts' };
 
-	try {
-		const service = new AssetProcessingService(Config);
-		const processMock = vi.fn(async () => ({
-			filepath: '/test/dist/assets/entry.js',
-			kind: 'script' as const,
-			inline: false,
-			bundledSourceFilepaths: ['/test/src/helper.ts'],
-		}));
-		service.registerProcessor('script', 'file', { process: processMock });
+	await service.processDependencies([dependency], 'bundle-cache-1');
+	getAppBuildInputIndex(appConfig).recordChanges(['/test/src/other.ts']);
+	await service.processDependencies([dependency], 'bundle-cache-2');
 
-		const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/entry.ts' };
-		await service.processDependencies([dependency], 'production-bundle-cache-1');
-		await service.processDependencies([dependency], 'production-bundle-cache-2');
-
-		expect(fileSystem.hash).not.toHaveBeenCalledWith('/test/src/helper.ts');
-		expect(processMock).toHaveBeenCalledTimes(1);
-	} finally {
-		if (previousNodeEnv === undefined) {
-			delete process.env.NODE_ENV;
-		} else {
-			process.env.NODE_ENV = previousNodeEnv;
-		}
-	}
+	expect(processMock).toHaveBeenCalledTimes(1);
+	expect(fileSystem.hash).not.toHaveBeenCalledWith('/test/src/helper.ts');
 });
 
 test('AssetProcessingService - reuses file stylesheets until their source changes', async () => {

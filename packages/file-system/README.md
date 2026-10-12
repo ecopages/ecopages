@@ -35,6 +35,15 @@ fileSystem.write('output.txt', 'Hello World');
 if (fileSystem.exists('file.txt')) {
 	// ...
 }
+
+// Watch a tree, skipping dependencies
+const watcher = fileSystem.watch(['./src'], {
+	ignored: (path) => path.includes('node_modules'),
+	onChange: ({ type, path }) => console.log(type, path),
+	onError: (error) => console.error(error),
+});
+await watcher.ready;
+await watcher.close();
 ```
 
 ## API
@@ -58,3 +67,4 @@ if (fileSystem.exists('file.txt')) {
 | `gzipDir(path, extensions)` | Gzip files in directory           |
 | `isDirectory(path)`         | Check if path is directory        |
 | `verifyFileExists(path)`    | Throw if file doesn't exist       |
+| `watch(paths, options)`     | Watch files and directories       |

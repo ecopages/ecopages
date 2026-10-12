@@ -196,11 +196,6 @@
 			"types": "./src/dev/development-restart.ts",
 			"default": "./src/dev/development-restart.ts"
 		},
-		"./dev/development-restart-watch-paths": {
-			"import": "./src/dev/development-restart-watch-paths.ts",
-			"types": "./src/dev/development-restart-watch-paths.ts",
-			"default": "./src/dev/development-restart-watch-paths.ts"
-		},
 		"./services/asset-processing-service": {
 			"types": "./src/services/assets/asset-processing-service/index.ts",
 			"default": "./src/services/assets/asset-processing-service/index.ts"

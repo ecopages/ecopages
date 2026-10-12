@@ -8,6 +8,7 @@ import {
 	readdirSync,
 	readFileSync,
 	realpathSync,
+	renameSync,
 	rmSync,
 	symlinkSync,
 	writeFileSync,
@@ -193,7 +194,7 @@ async function waitForServerUrl(child: ChildProcess, output: () => string): Prom
 		const url = /running at (http:\/\/\S+)/u.exec(output())?.[1];
 		if (url) return url;
 		if (child.exitCode !== null) throw new Error(`Server exited with ${child.exitCode}:\n${output()}`);
-		await new Promise((resolve) => setTimeout(resolve, 100));
+		await new Promise((resolve) => setTimeout(resolve, 10));
 	}
 	throw new Error(`Server did not start:\n${output()}`);
 }
@@ -235,8 +236,8 @@ async function expectDeployServes(cwd: string, command: string, args: string[]):
 
 /**
  * @remarks
- * Builds a real app with `node`, copies the deploy layout to a directory
- * with a different root, deletes the build tree, then serves it with `node`.
+ * Builds a real app with `node`, moves the deploy layout to a directory
+ * with a different root, which leaves nothing at the build path, then serves it with `node`.
  * Any absolute path to the build machine in the server output fails here, and
  * so do a bundled location-bound package (a dependency of a source package
  * that loads a file next to itself) and an `import.meta.url` read in the
@@ -278,11 +279,9 @@ test(
 		expect(Object.values(deployManifest).filter((value) => path.isAbsolute(value))).toEqual([]);
 		expect(JSON.stringify(deployManifest)).not.toContain(buildDir);
 
+		mkdirSync(deployDir, { recursive: true });
 		for (const entry of ['dist', 'src', 'node_modules', 'package.json', 'eco.config.ts']) {
-			cpSync(path.join(buildDir, entry), path.join(deployDir, entry), {
-				recursive: true,
-				verbatimSymlinks: true,
-			});
+			renameSync(path.join(buildDir, entry), path.join(deployDir, entry));
 		}
 		rmSync(path.join(workDir, 'build'), { recursive: true, force: true });
 

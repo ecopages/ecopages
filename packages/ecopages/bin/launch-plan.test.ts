@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { pathToFileURL } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { buildEnvOverrides, buildLaunchEnv, createLaunchPlan, detectRuntime } from './launch-plan.js';
 import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '@ecopages/core/utils/resolve-entry-file';
 
@@ -483,352 +483,132 @@ describe('launch-plan', () => {
 		});
 	});
 
-	it('loads env files for the real node CLI path and lets CLI args override them', async () => {
-		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
-		const cliPath = path.join(originalCwd, 'packages', 'ecopages', 'bin', 'cli.js');
-		const outputPath = path.join(tempDir, 'result.txt');
+	describe('real node CLI path', () => {
+		const cliPath = fileURLToPath(import.meta.resolve('./cli.js'));
+		let tempDir: string;
+		let run: { exitCode: number | null; stdout: string; stderr: string };
+		let output: Record<string, unknown> | undefined;
 
-		try {
-			fs.writeFileSync(path.join(tempDir, 'package.json'), '{"type":"module"}', 'utf8');
-			fs.writeFileSync(
-				path.join(tempDir, '.env'),
-				'TEST_ECOPAGES_ENV=loaded-from-dotenv\nECOPAGES_PORT=1111\n',
-				'utf8',
+		function writeFixtureFile(relativePath: string, content: string) {
+			const filePath = path.join(tempDir, relativePath);
+			fs.mkdirSync(path.dirname(filePath), { recursive: true });
+			fs.writeFileSync(filePath, content, 'utf8');
+		}
+
+		/**
+		 * @remarks
+		 * One fixture app and one `cli.js` spawn cover every Node loader case, because each spawn pays for
+		 * the Node start-up and the tsx loader. The entry records one field per case in `result.json`.
+		 */
+		beforeAll(async () => {
+			tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
+			writeFixtureFile('package.json', '{"type":"module"}');
+			writeFixtureFile('.env', 'TEST_ECOPAGES_ENV=loaded-from-dotenv\nECOPAGES_PORT=1111\n');
+			writeFixtureFile('node_modules/cjs-tool/package.json', '{"main":"index.cjs"}');
+			writeFixtureFile('node_modules/cjs-tool/index.cjs', 'module.exports = { value: "from-cjs" };');
+			writeFixtureFile('node_modules/cjs-builtin-tool/package.json', '{"main":"index.cjs"}');
+			writeFixtureFile(
+				'node_modules/cjs-builtin-tool/index.cjs',
+				"const os = require('os');\nmodule.exports = { platform: os.platform() };",
 			);
-			fs.writeFileSync(
-				path.join(tempDir, 'app.ts'),
+			writeFixtureFile('node_modules/required-tool/package.json', '{"main":"index.cjs"}');
+			writeFixtureFile('node_modules/required-tool/index.cjs', 'module.exports = { value: "from-require" };');
+			writeFixtureFile('node_modules/esm-deep-tool/package.json', '{"type":"module"}');
+			writeFixtureFile('node_modules/esm-deep-tool/feature.js', "export { value } from './lib/value.js';\n");
+			writeFixtureFile('node_modules/esm-deep-tool/lib/value.js', 'export const value = 42;\n');
+			writeFixtureFile(
+				'node_modules/react-like/package.json',
+				'{"type":"module","exports":{"./jsx-runtime":"./jsx-runtime.js"}}',
+			);
+			writeFixtureFile('node_modules/react-like/jsx-runtime.js', 'export const jsx = 123;\n');
+			const outputPath = path.join(tempDir, 'result.json');
+			writeFixtureFile(
+				'app.ts',
 				[
 					"import { writeFileSync } from 'node:fs';",
-					`writeFileSync(${JSON.stringify(outputPath)}, JSON.stringify({ env: process.env.TEST_ECOPAGES_ENV ?? 'missing', port: process.env.ECOPAGES_PORT ?? 'missing' }));`,
+					"import cjsTool from 'cjs-tool';",
+					"import builtinTool from 'cjs-builtin-tool';",
+					"import { value as deepValue } from 'esm-deep-tool/feature';",
+					"import { jsx } from 'react-like/jsx-runtime';",
+					"const { value: requiredValue } = require('required-tool');",
+					'await Promise.resolve();',
+					`writeFileSync(${JSON.stringify(outputPath)}, JSON.stringify({`,
+					"\tenv: process.env.TEST_ECOPAGES_ENV ?? 'missing',",
+					"\tport: process.env.ECOPAGES_PORT ?? 'missing',",
+					'\tcjs: cjsTool.value,',
+					'\tmetaEnv: import.meta.env ?? null,',
+					'\tdirname: import.meta.dirname,',
+					'\tfilename: import.meta.filename,',
+					"\tsibling: new URL('./sibling.txt', import.meta.url).href,",
+					'\tplatform: builtinTool.platform,',
+					'\trequiredValue,',
+					'\tdeepValue,',
+					'\tjsx,',
+					'}));',
 				].join('\n'),
-				'utf8',
 			);
 
-			const result = await new Promise<{ exitCode: number | null; stdout: string; stderr: string }>((resolve) => {
+			run = await new Promise((resolve) => {
 				const child = spawn(
 					process.execPath,
 					[cliPath, 'dev', '--entry-file', 'app.ts', '--runtime', 'node', '-p', '2222'],
 					{
 						cwd: tempDir,
-						env: {
-							...process.env,
-							VITEST: '',
-						},
+						env: { ...process.env, VITEST: '' },
 						stdio: ['ignore', 'pipe', 'pipe'],
 					},
 				);
 				let stdout = '';
 				let stderr = '';
-
 				child.stdout.on('data', (chunk) => {
 					stdout += chunk.toString();
 				});
 				child.stderr.on('data', (chunk) => {
 					stderr += chunk.toString();
 				});
-				child.on('close', (exitCode) => {
-					resolve({ exitCode, stdout, stderr });
-				});
+				child.on('close', (exitCode) => resolve({ exitCode, stdout, stderr }));
 			});
+			output = fs.existsSync(outputPath) ? JSON.parse(fs.readFileSync(outputPath, 'utf8')) : undefined;
+		});
 
-			expect(result.exitCode).toBe(0);
-			expect(JSON.parse(fs.readFileSync(outputPath, 'utf8'))).toEqual({
-				env: 'loaded-from-dotenv',
-				port: '2222',
-			});
-			expect(result.stderr).toBe('');
-		} finally {
+		afterAll(() => {
 			fs.rmSync(tempDir, { recursive: true, force: true });
-		}
-	});
+		});
 
-	it('runs top-level await, CJS dependencies, and native import.meta values through the real node CLI path', async () => {
-		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
-		const cliPath = path.join(originalCwd, 'packages', 'ecopages', 'bin', 'cli.js');
-		const outputPath = path.join(tempDir, 'result.json');
+		it('exits cleanly without writing to stderr', () => {
+			expect(run.exitCode).toBe(0);
+			expect(run.stderr).toBe('');
+		});
 
-		try {
-			fs.mkdirSync(path.join(tempDir, 'node_modules', 'cjs-tool'), { recursive: true });
-			fs.writeFileSync(path.join(tempDir, 'package.json'), '{"type":"module"}', 'utf8');
-			fs.writeFileSync(
-				path.join(tempDir, 'node_modules', 'cjs-tool', 'package.json'),
-				'{"main":"index.cjs"}',
-				'utf8',
-			);
-			fs.writeFileSync(
-				path.join(tempDir, 'node_modules', 'cjs-tool', 'index.cjs'),
-				'module.exports = { value: "from-cjs" };',
-				'utf8',
-			);
-			fs.writeFileSync(
-				path.join(tempDir, 'app.ts'),
-				[
-					"import { writeFileSync } from 'node:fs';",
-					"import cjsTool from 'cjs-tool';",
-					'await Promise.resolve();',
-					`writeFileSync(${JSON.stringify(outputPath)}, JSON.stringify({ cjs: cjsTool.value, env: import.meta.env, dirname: import.meta.dirname, filename: import.meta.filename, sibling: new URL('./sibling.txt', import.meta.url).href }));`,
-				].join('\n'),
-				'utf8',
-			);
+		it('loads env files and lets CLI args override them', () => {
+			expect(output).toMatchObject({ env: 'loaded-from-dotenv', port: '2222' });
+		});
 
-			const result = await new Promise<{ exitCode: number | null; stderr: string }>((resolve) => {
-				const child = spawn(process.execPath, [cliPath, 'dev', '--entry-file', 'app.ts', '--runtime', 'node'], {
-					cwd: tempDir,
-					env: {
-						...process.env,
-						VITEST: '',
-					},
-					stdio: ['ignore', 'ignore', 'pipe'],
-				});
-				let stderr = '';
-
-				child.stderr.on('data', (chunk) => {
-					stderr += chunk.toString();
-				});
-				child.on('close', (exitCode) => {
-					resolve({ exitCode, stderr });
-				});
-			});
-
-			expect(result.exitCode).toBe(0);
+		it('runs top-level await, CJS dependencies, and native import.meta values', () => {
 			const realTempDir = fs.realpathSync(tempDir);
-			expect(JSON.parse(fs.readFileSync(outputPath, 'utf8'))).toEqual({
+			expect(output).toMatchObject({
 				cjs: 'from-cjs',
-				env: undefined,
+				metaEnv: null,
 				dirname: realTempDir,
 				filename: path.join(realTempDir, 'app.ts'),
 				sibling: new URL('./sibling.txt', pathToFileURL(path.join(realTempDir, 'app.ts'))).href,
 			});
-			expect(result.stderr).toBe('');
-		} finally {
-			fs.rmSync(tempDir, { recursive: true, force: true });
-		}
-	});
+		});
 
-	it('runs CommonJS dependencies that require Node built-ins through the real node CLI path', async () => {
-		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
-		const cliPath = path.join(originalCwd, 'packages', 'ecopages', 'bin', 'cli.js');
-		const outputPath = path.join(tempDir, 'result.json');
+		it('runs CommonJS dependencies that require Node built-ins', () => {
+			expect(output).toMatchObject({ platform: process.platform });
+		});
 
-		try {
-			fs.mkdirSync(path.join(tempDir, 'node_modules', 'cjs-builtin-tool'), { recursive: true });
-			fs.writeFileSync(path.join(tempDir, 'package.json'), '{"type":"module"}', 'utf8');
-			fs.writeFileSync(
-				path.join(tempDir, 'node_modules', 'cjs-builtin-tool', 'package.json'),
-				'{"main":"index.cjs"}',
-				'utf8',
-			);
-			fs.writeFileSync(
-				path.join(tempDir, 'node_modules', 'cjs-builtin-tool', 'index.cjs'),
-				"const os = require('os');\nmodule.exports = { platform: os.platform() };",
-				'utf8',
-			);
-			fs.writeFileSync(
-				path.join(tempDir, 'app.ts'),
-				[
-					"import { writeFileSync } from 'node:fs';",
-					"import builtinTool from 'cjs-builtin-tool';",
-					`writeFileSync(${JSON.stringify(outputPath)}, JSON.stringify({ platform: builtinTool.platform }));`,
-				].join('\n'),
-				'utf8',
-			);
+		it('provides app-rooted require for Node CLI entries', () => {
+			expect(output).toMatchObject({ requiredValue: 'from-require' });
+		});
 
-			const result = await new Promise<{ exitCode: number | null; stderr: string }>((resolve) => {
-				const child = spawn(process.execPath, [cliPath, 'dev', '--entry-file', 'app.ts', '--runtime', 'node'], {
-					cwd: tempDir,
-					env: {
-						...process.env,
-						VITEST: '',
-					},
-					stdio: ['ignore', 'ignore', 'pipe'],
-				});
-				let stderr = '';
+		it('runs extensionless deep ESM package imports', () => {
+			expect(output).toMatchObject({ deepValue: 42 });
+		});
 
-				child.stderr.on('data', (chunk) => {
-					stderr += chunk.toString();
-				});
-				child.on('close', (exitCode) => {
-					resolve({ exitCode, stderr });
-				});
-			});
-
-			expect(result.exitCode).toBe(0);
-			expect(JSON.parse(fs.readFileSync(outputPath, 'utf8'))).toEqual({
-				platform: process.platform,
-			});
-			expect(result.stderr).toBe('');
-		} finally {
-			fs.rmSync(tempDir, { recursive: true, force: true });
-		}
-	});
-
-	it('provides app-rooted require for Node CLI entries', async () => {
-		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
-		const cliPath = path.join(originalCwd, 'packages', 'ecopages', 'bin', 'cli.js');
-		const outputPath = path.join(tempDir, 'result.json');
-
-		try {
-			fs.mkdirSync(path.join(tempDir, 'node_modules', 'required-tool'), { recursive: true });
-			fs.writeFileSync(path.join(tempDir, 'package.json'), '{"type":"module"}', 'utf8');
-			fs.writeFileSync(
-				path.join(tempDir, 'node_modules', 'required-tool', 'package.json'),
-				'{"main":"index.cjs"}',
-				'utf8',
-			);
-			fs.writeFileSync(
-				path.join(tempDir, 'node_modules', 'required-tool', 'index.cjs'),
-				'module.exports = { value: "from-require" };',
-				'utf8',
-			);
-			fs.writeFileSync(
-				path.join(tempDir, 'app.ts'),
-				[
-					"import { writeFileSync } from 'node:fs';",
-					"const { value } = require('required-tool');",
-					`writeFileSync(${JSON.stringify(outputPath)}, JSON.stringify({ value }));`,
-				].join('\n'),
-				'utf8',
-			);
-
-			const result = await new Promise<{ exitCode: number | null; stderr: string }>((resolve) => {
-				const child = spawn(process.execPath, [cliPath, 'dev', '--entry-file', 'app.ts', '--runtime', 'node'], {
-					cwd: tempDir,
-					env: {
-						...process.env,
-						VITEST: '',
-					},
-					stdio: ['ignore', 'ignore', 'pipe'],
-				});
-				let stderr = '';
-
-				child.stderr.on('data', (chunk) => {
-					stderr += chunk.toString();
-				});
-				child.on('close', (exitCode) => {
-					resolve({ exitCode, stderr });
-				});
-			});
-
-			expect(result.exitCode).toBe(0);
-			expect(JSON.parse(fs.readFileSync(outputPath, 'utf8'))).toEqual({ value: 'from-require' });
-			expect(result.stderr).toBe('');
-		} finally {
-			fs.rmSync(tempDir, { recursive: true, force: true });
-		}
-	});
-
-	it('runs extensionless deep ESM package imports through the real node CLI path', async () => {
-		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
-		const cliPath = path.join(originalCwd, 'packages', 'ecopages', 'bin', 'cli.js');
-		const outputPath = path.join(tempDir, 'result.json');
-
-		try {
-			fs.mkdirSync(path.join(tempDir, 'node_modules', 'esm-deep-tool', 'lib'), { recursive: true });
-			fs.writeFileSync(path.join(tempDir, 'package.json'), '{"type":"module"}', 'utf8');
-			fs.writeFileSync(
-				path.join(tempDir, 'node_modules', 'esm-deep-tool', 'package.json'),
-				'{"type":"module"}',
-				'utf8',
-			);
-			fs.writeFileSync(
-				path.join(tempDir, 'node_modules', 'esm-deep-tool', 'feature.js'),
-				"export { value } from './lib/value.js';\n",
-				'utf8',
-			);
-			fs.writeFileSync(
-				path.join(tempDir, 'node_modules', 'esm-deep-tool', 'lib', 'value.js'),
-				'export const value = 42;\n',
-				'utf8',
-			);
-			fs.writeFileSync(
-				path.join(tempDir, 'app.ts'),
-				[
-					"import { writeFileSync } from 'node:fs';",
-					"import { value } from 'esm-deep-tool/feature';",
-					`writeFileSync(${JSON.stringify(outputPath)}, JSON.stringify({ value }));`,
-				].join('\n'),
-				'utf8',
-			);
-
-			const result = await new Promise<{ exitCode: number | null; stderr: string }>((resolve) => {
-				const child = spawn(process.execPath, [cliPath, 'dev', '--entry-file', 'app.ts', '--runtime', 'node'], {
-					cwd: tempDir,
-					env: {
-						...process.env,
-						VITEST: '',
-					},
-					stdio: ['ignore', 'ignore', 'pipe'],
-				});
-				let stderr = '';
-
-				child.stderr.on('data', (chunk) => {
-					stderr += chunk.toString();
-				});
-				child.on('close', (exitCode) => {
-					resolve({ exitCode, stderr });
-				});
-			});
-
-			expect(result.exitCode).toBe(0);
-			expect(JSON.parse(fs.readFileSync(outputPath, 'utf8'))).toEqual({ value: 42 });
-			expect(result.stderr).toBe('');
-		} finally {
-			fs.rmSync(tempDir, { recursive: true, force: true });
-		}
-	});
-
-	it('preserves exported package subpaths through the real node CLI path', async () => {
-		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
-		const cliPath = path.join(originalCwd, 'packages', 'ecopages', 'bin', 'cli.js');
-		const outputPath = path.join(tempDir, 'result.json');
-
-		try {
-			fs.mkdirSync(path.join(tempDir, 'node_modules', 'react-like'), { recursive: true });
-			fs.writeFileSync(path.join(tempDir, 'package.json'), '{"type":"module"}', 'utf8');
-			fs.writeFileSync(
-				path.join(tempDir, 'node_modules', 'react-like', 'package.json'),
-				'{"type":"module","exports":{"./jsx-runtime":"./jsx-runtime.js"}}',
-				'utf8',
-			);
-			fs.writeFileSync(
-				path.join(tempDir, 'node_modules', 'react-like', 'jsx-runtime.js'),
-				'export const jsx = 123;\n',
-				'utf8',
-			);
-			fs.writeFileSync(
-				path.join(tempDir, 'app.ts'),
-				[
-					"import { writeFileSync } from 'node:fs';",
-					"import { jsx } from 'react-like/jsx-runtime';",
-					`writeFileSync(${JSON.stringify(outputPath)}, JSON.stringify({ jsx }));`,
-				].join('\n'),
-				'utf8',
-			);
-
-			const result = await new Promise<{ exitCode: number | null; stderr: string }>((resolve) => {
-				const child = spawn(process.execPath, [cliPath, 'dev', '--entry-file', 'app.ts', '--runtime', 'node'], {
-					cwd: tempDir,
-					env: {
-						...process.env,
-						VITEST: '',
-					},
-					stdio: ['ignore', 'ignore', 'pipe'],
-				});
-				let stderr = '';
-
-				child.stderr.on('data', (chunk) => {
-					stderr += chunk.toString();
-				});
-				child.on('close', (exitCode) => {
-					resolve({ exitCode, stderr });
-				});
-			});
-
-			expect(result.exitCode).toBe(0);
-			expect(JSON.parse(fs.readFileSync(outputPath, 'utf8'))).toEqual({ jsx: 123 });
-			expect(result.stderr).toBe('');
-		} finally {
-			fs.rmSync(tempDir, { recursive: true, force: true });
-		}
+		it('preserves exported package subpaths', () => {
+			expect(output).toMatchObject({ jsx: 123 });
+		});
 	});
 });

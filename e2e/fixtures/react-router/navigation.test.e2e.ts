@@ -67,6 +67,27 @@ test.describe('React Router', () => {
 			await expect(page.locator('h1')).toHaveText('About');
 		});
 
+		test('keeps the hash and scrolls to its target during SPA navigation', async ({ page }) => {
+			await page.locator('body').evaluate((body) => {
+				const link = document.createElement('a');
+				link.href = '/docs#install';
+				link.textContent = 'Install docs';
+				body.append(link);
+			});
+
+			await page.getByRole('link', { name: 'Install docs' }).click();
+			await page.waitForURL('**/docs#install');
+
+			const target = page.locator('#install');
+			await expect(target).toBeVisible();
+			await expect
+				.poll(() => target.evaluate((element) => element.getBoundingClientRect().top))
+				.toBeGreaterThanOrEqual(0);
+			await expect
+				.poll(() => target.evaluate((element) => element.getBoundingClientRect().top))
+				.toBeLessThan(await page.evaluate(() => window.innerHeight));
+		});
+
 		test('uses a full document navigation for a 404 page', async ({ page }) => {
 			await page.locator('body').evaluate((body) => {
 				const link = document.createElement('a');

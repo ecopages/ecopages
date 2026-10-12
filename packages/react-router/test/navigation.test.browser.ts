@@ -1,13 +1,8 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import { clearNavigationHtmlCache } from '../../core/src/router/client/navigation-document.ts';
 import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/router/link-navigation-policy';
-import {
-	extractProps,
-	extractComponentUrl,
-	fetchPageDocument,
-	loadPageModule,
-	loadPageModuleFromDocument,
-} from '../src/navigation';
+import { extractProps, extractComponentUrl, loadPageModule, loadPageModuleFromDocument } from '../src/navigation';
 import { resolveReactNavigation } from '../src/navigation-orchestrator.ts';
 import { DEFAULT_OPTIONS } from '../src/types';
 
@@ -319,6 +314,7 @@ describe('loadPageModule', () => {
 	let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
 	beforeEach(() => {
+		clearNavigationHtmlCache();
 		fetchSpy = vi.spyOn(globalThis, 'fetch');
 		consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 		if (typeof window !== 'undefined') {
@@ -367,34 +363,6 @@ describe('loadPageModule', () => {
 
 		expect(result).toBeNull();
 		expect(consoleErrorSpy).not.toHaveBeenCalled();
-	});
-
-	it('should fetch and parse a navigation document without loading a module', async () => {
-		const mockHtml = '<html><body><main>Outside React</main></body></html>';
-		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
-
-		const result = await fetchPageDocument('/docs');
-
-		expect(result).toEqual({
-			doc: expect.any(Document),
-			finalPath: '/docs',
-			html: mockHtml,
-		});
-		expect(result?.doc.body.innerHTML).toContain('Outside React');
-	});
-
-	it('should request navigation documents as HTML', async () => {
-		const mockHtml = '<html><body><main>Docs</main></body></html>';
-		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
-
-		await fetchPageDocument('/docs');
-
-		expect(fetchSpy).toHaveBeenCalledWith('/docs', {
-			signal: undefined,
-			headers: {
-				Accept: 'text/html',
-			},
-		});
 	});
 
 	it('should load a react page module from an already-fetched document', async () => {

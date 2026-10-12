@@ -8,7 +8,9 @@
  * @module scroll-persist
  */
 
-const PERSIST_SELECTOR = '[data-eco-persist="scroll"]';
+import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/router/navigation-pipeline';
+
+const PERSIST_SELECTOR = `[${ECO_PERSIST_ATTRIBUTE}="scroll"]`;
 
 type ScrollPosition = { top: number; left: number };
 type ScrollMap = Map<string, ScrollPosition>;
@@ -40,7 +42,7 @@ function captureScrollPositions(): ScrollMap {
  * - Current snapshot (for forward navigation preservation)
  */
 export function saveScrollPositions(): void {
-	const url = `${window.location.pathname}${window.location.search}`;
+	const url = `${window.location.pathname}${window.location.search}${window.location.hash}`;
 	const positions = captureScrollPositions();
 
 	if (positions.size > 0) {

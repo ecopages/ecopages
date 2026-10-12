@@ -282,7 +282,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	const pendingPointerNavigationRef = useRef<EcoPendingNavigationIntent | null>(null);
 	const queuedNavigationHrefRef = useRef<string | null>(null);
 	const committedPathRef = useRef<string>(
-		typeof window !== 'undefined' ? window.location.pathname + window.location.search : '',
+		typeof window !== 'undefined' ? window.location.pathname + window.location.search + window.location.hash : '',
 	);
 	const previousUrlRef = useRef<string>(typeof window !== 'undefined' ? window.location.href : '');
 
@@ -313,7 +313,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	}, [options.viewTransitions]);
 
 	useEffect(() => {
-		committedPathRef.current = window.location.pathname + window.location.search;
+		committedPathRef.current = window.location.pathname + window.location.search + window.location.hash;
 		applyViewTransitionNames();
 
 		const pendingRender = pendingRenderRef.current;
@@ -443,7 +443,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			event.preventDefault();
 			queuedNavigationHrefRef.current = null;
 			const recoveredUrl = new URL(recoveredHref, window.location.href);
-			navigate(recoveredUrl.pathname + recoveredUrl.search, { pushHistory: true });
+			navigate(recoveredUrl.pathname + recoveredUrl.search + recoveredUrl.hash, { pushHistory: true });
 			return;
 		}
 
@@ -468,7 +468,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			console.debug('[EcoRouter] Intercepting navigation:', url.pathname + url.search);
 		}
 
-		navigate(url.pathname + url.search, { pushHistory: true });
+		navigate(url.pathname + url.search + url.hash, { pushHistory: true });
 	});
 
 	const handlePopState = useEffectEvent(() => {
@@ -476,7 +476,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			return;
 		}
 
-		navigate(window.location.pathname + window.location.search, { isPopState: true });
+		navigate(window.location.pathname + window.location.search + window.location.hash, { isPopState: true });
 	});
 
 	useEffect(() => {

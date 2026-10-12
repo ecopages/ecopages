@@ -11,6 +11,8 @@ Client-side SPA router for Ecopages React applications. Features single-page app
 - **Head sync**: Automatically updates document metadata `<head>` during navigation.
 - **View Transitions**: Built-in support for the browser View Transitions API.
 
+The core navigation pipeline shares document fetching, parsing, caching, head reconciliation, script activation, named view transitions, and lifecycle events with `@ecopages/browser-router`. React-router supplies the page swap by rendering the next React page into the existing root and handles scroll restoration through the shared post-swap hook.
+
 ## Cross-Runtime Handoff
 
 `@ecopages/react-router` only performs SPA updates for React-managed documents. When a navigation resolves to a non-React document, it will:
@@ -202,7 +204,7 @@ The router relies on **HTML-First** navigation to sync perfectly with SSR:
 1. **SSR**: Initial page arrives completely rendered.
 2. **Hydration**: Client hydrates and the router attaches.
 3. **Navigation**: On click, `resolveReactNavigation` returns an explicit outcome:
-    - `spa`: fetch HTML → read `#__ECO_PAGE_DATA__` → dynamic-import `moduleUrl` → morph `<head>`, update history, commit React state (optional `startViewTransition`).
+    - `spa`: core fetches and parses HTML → read `#__ECO_PAGE_DATA__` → dynamic-import `moduleUrl` → the shared pipeline reconciles `<head>` and runs the React page swap inside a named view transition when enabled.
     - `handoff`: fetched document has no React page module → coordinator hands off to browser-router (hard `assign` if handoff fails).
     - `hard-navigation`: static-asset URL or failed fetch → `location.assign` / `location.href`.
     - `stale`: a newer navigation superseded this attempt.

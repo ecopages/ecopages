@@ -28,8 +28,7 @@ Typical responsibilities include:
 The asset-processing service caches emitted file assets by source identity in development as well as production.
 
 Grouped script assets use exact entry facade output lookup, so Page names such as `blog` and `blog-post` cannot select one another's hydration output. Module-loading caches consume source closures and output reachability from the [build graph](../build/README.md), including inlined imports and generated module artifact checks.
-When a source file changes, its source hash or explicit invalidation removes the cached asset before the next render,
-so shared layout styles do not need to be rebuilt for every navigated page while HMR remains fresh.
+In development, each applied change batch is announced on the shared build-input index, and every asset-processing service evicts the cached assets whose source or bundled inputs it touched. Shared layout styles are therefore not rebuilt for every navigated page, and a bundle is never served after one of its imports changed.
 
 Browser runtime module assets resolve bare package roots through their ESM import target. For legacy packages without an `exports` map, they prefer `package.json#module` over CJS `main`; CJS resolution is only a compatibility fallback. Generated entries use `export *` for ESM files and explicit named re-exports for CJS files (so bindings such as React `jsx` exist on the vendor). A default binding is added only when the selected entry exposes one. Runtime vendors are package-root contracts: subpath imports need their own vendor declaration or remain in the consuming bundle.
 

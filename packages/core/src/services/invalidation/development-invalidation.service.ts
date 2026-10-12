@@ -153,6 +153,7 @@ export class DevelopmentInvalidationService {
 	}
 
 	private async markAppliedFilesDirty(files: AppliedDevFileChange[], applied: AppliedDevFileChanges): Promise<void> {
+		getAppBuildInputIndex(this.appConfig).recordChanges(files.map((file) => file.filePath));
 		if (applied.invalidateServerModules) {
 			this.invalidateServerModules(
 				files.filter((file) => file.plan.invalidateServerModules).map((file) => file.filePath),

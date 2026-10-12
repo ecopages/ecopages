@@ -2,7 +2,6 @@ import type { EcoBuildPlugin } from './contracts/build-types.ts';
 import { mergeBrowserRuntimeManifests } from './browser/browser-runtime-manifest.ts';
 import type { AppBuildManifest } from './contracts/build-manifest.ts';
 import { validateBuildPluginRegistrations } from './contracts/build-manifest.ts';
-import { appliesToBuildEnvironment } from './contracts/build-manifest.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { startupTrace } from '../diagnostics/startup-trace.ts';

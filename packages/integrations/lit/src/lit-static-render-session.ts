@@ -56,7 +56,7 @@ export class LitStaticRenderSession {
 
 	constructor(options: LitStaticRenderSessionOptions) {
 		this.getInvalidationVersion = options.getInvalidationVersion ?? (() => 0);
-		const preferSourceImports = options.preferSourceImports ?? typeof Bun !== 'undefined';
+		const preferSourceImports = options.preferSourceImports ?? false;
 		this.preloader = new CustomElementScriptPreloader({
 			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
 			logLabel: 'lit',

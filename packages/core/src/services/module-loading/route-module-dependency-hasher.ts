@@ -176,15 +176,3 @@ export function resolveRouteModuleDependencyPaths(
 ): string[] {
 	return collectBuildEntryInputPaths(buildResult, entrypointPath, rootDir);
 }
-
-/**
- * Convenience helper that combines graph extraction and dependency hashing.
- */
-export function createRouteModuleDependencyHashes(
-	hasher: RouteModuleDependencyHasher,
-	buildResult: Pick<BuildResult, 'dependencyGraph' | 'loadedInputs' | 'loadedInputsByModule'>,
-	entrypointPath: string,
-	rootDir: string,
-): RouteModuleDependencyHashes {
-	return hasher.createDependencyHashes(resolveRouteModuleDependencyPaths(buildResult, entrypointPath, rootDir));
-}

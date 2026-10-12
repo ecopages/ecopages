@@ -112,12 +112,14 @@ describe('ProjectWatcher', () => {
 	describe('handleError', () => {
 		test('should broadcast error message and log', () => {
 			const error = new Error('Test error');
+			const errorLog = vi.spyOn(appLogger, 'error').mockImplementation(() => appLogger);
 			watcher.handleError(error);
 
 			expect(HmrManager.broadcast).toHaveBeenCalledWith({
 				type: 'error',
 				message: 'Test error',
 			});
+			expect(errorLog).toHaveBeenCalledWith(expect.stringContaining(error.stack ?? 'Test error'));
 		});
 
 		test('should handle non-Error objects', () => {

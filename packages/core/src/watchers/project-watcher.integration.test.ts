@@ -333,6 +333,142 @@ describe('ProjectWatcher - Integration Tests', () => {
 			});
 		});
 
+		test('flushes a sustained stream at the maximum debounce wait', async () => {
+			const testId = 'processor-watch-max-wait';
+			const config = await createIntegrationConfig(testId);
+			vi.useFakeTimers();
+			const hmrManager = createMockHmrManager();
+			const bridge = createMockBridge();
+			const onChanges = vi.fn(async () => {});
+			config.processors.set('max-wait-test', {
+				getWatchConfig: () => ({ paths: [], extensions: ['.tsx'], onChanges }),
+			} as never);
+			const watcherEvents = Object.assign(new EventEmitter(), {
+				add: vi.fn(),
+				close: vi.fn(async () => {}),
+				getWatched: vi.fn(() => ({})),
+			});
+			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
+			const watcher = new ProjectWatcher({
+				config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager,
+				bridge,
+				changeDebounceMs: 150,
+			});
+			const changedPaths = Array.from({ length: 10 }, (_, index) =>
+				path.join(config.absolutePaths.srcDir, `page-${index}.tsx`),
+			);
+
+			try {
+				const subscription = watcher.createWatcherSubscription();
+				watcherEvents.emit('ready');
+				await subscription;
+
+				for (const changedPath of changedPaths) {
+					watcherEvents.emit('change', changedPath);
+					await vi.advanceTimersByTimeAsync(100);
+				}
+
+				expect(onChanges).toHaveBeenCalledTimes(1);
+				expect(onChanges).toHaveBeenCalledWith({
+					created: [],
+					changed: changedPaths.map((changedPath) => path.resolve(changedPath)),
+					deleted: [],
+					bridge,
+				});
+
+				const nextChangedPath = path.join(config.absolutePaths.srcDir, 'next.tsx');
+				watcherEvents.emit('change', nextChangedPath);
+				await vi.advanceTimersByTimeAsync(149);
+				expect(onChanges).toHaveBeenCalledTimes(1);
+				await vi.advanceTimersByTimeAsync(1);
+				expect(onChanges).toHaveBeenCalledTimes(2);
+			} finally {
+				await watcher.close();
+				vi.useRealTimers();
+			}
+		});
+
+		test('fails watcher startup when the filesystem subscription never becomes ready', async () => {
+			const testId = 'watcher-ready-timeout';
+			const config = await createIntegrationConfig(testId);
+			vi.useFakeTimers();
+			const watcherEvents = Object.assign(new EventEmitter(), {
+				add: vi.fn(),
+				close: vi.fn(async () => {}),
+				getWatched: vi.fn(() => ({})),
+			});
+			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
+			const watcher = new ProjectWatcher({
+				config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager: createMockHmrManager(),
+				bridge: createMockBridge(),
+			});
+
+			try {
+				const subscription = watcher.createWatcherSubscription();
+				const rejection = expect(subscription).rejects.toThrow(
+					'Filesystem watcher did not become ready within 30000ms',
+				);
+				await vi.advanceTimersByTimeAsync(30_000);
+				await rejection;
+				expect(watcherEvents.close).toHaveBeenCalledOnce();
+			} finally {
+				await watcher.close();
+				vi.useRealTimers();
+			}
+		});
+
+		test('closes the watcher when subscription startup fails', async () => {
+			const testId = 'watcher-ready-error';
+			const config = await createIntegrationConfig(testId);
+			const watcherEvents = Object.assign(new EventEmitter(), {
+				add: vi.fn(),
+				close: vi.fn(async () => {}),
+				getWatched: vi.fn(() => ({})),
+			});
+			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
+			const watcher = new ProjectWatcher({
+				config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager: createMockHmrManager(),
+				bridge: createMockBridge(),
+			});
+
+			const subscription = watcher.createWatcherSubscription();
+			const rejection = expect(subscription).rejects.toThrow('watcher startup failed');
+			watcherEvents.emit('error', new Error('watcher startup failed'));
+			await rejection;
+
+			expect(watcherEvents.close).toHaveBeenCalledOnce();
+		});
+
+		test('rejects watcher startup when it is closed before ready', async () => {
+			const testId = 'watcher-close-before-ready';
+			const config = await createIntegrationConfig(testId);
+			const watcherEvents = Object.assign(new EventEmitter(), {
+				add: vi.fn(),
+				close: vi.fn(async () => {}),
+				getWatched: vi.fn(() => ({})),
+			});
+			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
+			const watcher = new ProjectWatcher({
+				config,
+				refreshRouterRoutesCallback: vi.fn(async () => {}),
+				hmrManager: createMockHmrManager(),
+				bridge: createMockBridge(),
+			});
+
+			const subscription = watcher.createWatcherSubscription();
+			const rejection = expect(subscription).rejects.toThrow('Filesystem watcher closed before it became ready');
+			await watcher.close();
+			await rejection;
+
+			expect(watcherEvents.close).toHaveBeenCalledOnce();
+		});
+
 		test('should handle public file through handleFileChange', async () => {
 			const testId = 'handle-public-change';
 			const config = await createIntegrationConfig(testId);

@@ -65,9 +65,8 @@ export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig; ru
 			),
 		);
 	} catch (error) {
-		appLogger.error(
-			`Failed to prewarm integration runtimes: ${error instanceof Error ? error.message : String(error)}`,
-		);
+		const errorDetails = error instanceof Error ? (error.stack ?? error.message) : String(error);
+		appLogger.error(`Failed to prewarm integration runtimes: ${errorDetails}`);
 	}
 }
 

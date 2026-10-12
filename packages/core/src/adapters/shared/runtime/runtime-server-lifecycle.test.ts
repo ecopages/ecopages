@@ -172,9 +172,10 @@ test('startDevWarmup activates every configured integration', async () => {
 });
 
 test('startDevWarmup logs failures without throwing', async () => {
+	const prewarmError = new Error('prewarm failed');
 	const ensureSpy = vi
 		.spyOn(appBuildManifestRuntime, 'ensureIntegrationRuntimeReady')
-		.mockRejectedValue(new Error('prewarm failed'));
+		.mockRejectedValue(prewarmError);
 	const errorSpy = vi.spyOn(appLogger, 'error').mockImplementation(() => appLogger);
 
 	const appConfig = {
@@ -189,6 +190,7 @@ test('startDevWarmup logs failures without throwing', async () => {
 	assert.equal(errorSpy.mock.calls.length, 1);
 
 	assert.match(String(errorSpy.mock.calls[0]?.[0]), /Failed to prewarm integration runtimes/);
+	assert.ok(String(errorSpy.mock.calls[0]?.[0]).includes(prewarmError.stack ?? 'prewarm failed'));
 
 	ensureSpy.mockRestore();
 	errorSpy.mockRestore();

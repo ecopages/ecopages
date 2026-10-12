@@ -268,6 +268,137 @@ describe('HtmlRewriter (lol-html parity)', () => {
 	});
 });
 
+/**
+ * Inputs from the former differential check against Bun's native `HTMLRewriter`.
+ *
+ * @remarks
+ * Each expected output was recorded once from Bun 1.4.2's `HTMLRewriter`
+ * (lol-html), which matched this implementation on all 39 cases.
+ */
+describe('HtmlRewriter (recorded Bun HTMLRewriter outputs)', () => {
+	const TAGS = ['html', 'head', 'body', 'main', 'div', 'meta', 'link', 'path', 'br', 'script'];
+
+	function recordedHandlers(tag: string): HtmlRewriterElementHandlers {
+		return {
+			element(element) {
+				element.before(`[B:${tag}]`, { html: true });
+				element.prepend(`[P:${tag}]`, { html: true });
+				element.append(`[A:${tag}]`, { html: true });
+				element.after(`<F:${tag}>`);
+				if (tag === 'html') element.setAttribute('data-eco', 'x"y');
+			},
+		};
+	}
+
+	const CORPUS: Array<[input: string, expected: string]> = [
+		[
+			'<html><head><title>T</title></head><body><main>M</main></body></html>',
+			'[B:html]<html data-eco="x&quot;y">[P:html][B:head]<head>[P:head]<title>T</title>[A:head]</head>&lt;F:head&gt;[B:body]<body>[P:body][B:main]<main>[P:main]M[A:main]</main>&lt;F:main&gt;[A:body]</body>&lt;F:body&gt;[A:html]</html>&lt;F:html&gt;',
+		],
+		[
+			'<html><head><title>T</title><body><main>M</main>',
+			'[B:html]<html data-eco="x&quot;y">[P:html][B:head]<head>[P:head]<title>T</title>[B:body]<body>[P:body][B:main]<main>[P:main]M[A:main]</main>&lt;F:main&gt;',
+		],
+		[
+			'<html><head><script>const s = "</head><body>";</script></head><body><!-- <body> --><textarea></body></textarea><main>M</main></body></html>',
+			'[B:html]<html data-eco="x&quot;y">[P:html][B:head]<head>[P:head][B:script]<script>[P:script]const s = "</head><body>";[A:script]</script>&lt;F:script&gt;[A:head]</head>&lt;F:head&gt;[B:body]<body>[P:body]<!-- <body> --><textarea></body></textarea>[B:main]<main>[P:main]M[A:main]</main>&lt;F:main&gt;[A:body]</body>&lt;F:body&gt;[A:html]</html>&lt;F:html&gt;',
+		],
+		[
+			'<head><title></head>fake</title><noscript></head></noscript></head>',
+			'[B:head]<head>[P:head]<title></head>fake</title><noscript></head></noscript>[A:head]</head>&lt;F:head&gt;',
+		],
+		[
+			'<body><style>a{content:"</body>"}</style><iframe></body></iframe><xmp></body></xmp></body>',
+			'[B:body]<body>[P:body]<style>a{content:"</body>"}</style><iframe></body></iframe><xmp></body></xmp>[A:body]</body>&lt;F:body&gt;',
+		],
+		[
+			'<body><script><!--<script>x</script>--></script></body>',
+			'[B:body]<body>[P:body][B:script]<script>[P:script]<!--<script>x</script>-->[A:script]</script>&lt;F:script&gt;[A:body]</body>&lt;F:body&gt;',
+		],
+		[
+			'<head><SCRIPT>x="</head>"</SCRIPT ></head >',
+			'[B:head]<head>[P:head][B:script]<SCRIPT>[P:script]x="</head>"[A:script]</SCRIPT >&lt;F:script&gt;[A:head]</head >&lt;F:head&gt;',
+		],
+		[
+			'<body><!--><head><!---></body>',
+			'[B:body]<body>[P:body]<!-->[B:head]<head>[P:head]<!--->[A:body]</body>&lt;F:body&gt;',
+		],
+		[
+			'<div id="a"><div id="b">x</div></div><body><body>inner</body></body>',
+			'[B:div]<div id="a">[P:div][B:div]<div id="b">[P:div]x[A:div]</div>&lt;F:div&gt;[A:div]</div>&lt;F:div&gt;[B:body]<body>[P:body][B:body]<body>[P:body]inner[A:body]</body>&lt;F:body&gt;[A:body]</body>&lt;F:body&gt;',
+		],
+		[
+			'<head><meta charset="x"><link rel="x"></head><svg><path d="m0"/></svg><br/><div/><p>x</p></div>',
+			'[B:head]<head>[P:head][B:meta]<meta charset="x">&lt;F:meta&gt;[B:link]<link rel="x">&lt;F:link&gt;[A:head]</head>&lt;F:head&gt;<svg>[B:path]<path d="m0"/>&lt;F:path&gt;</svg>[B:br]<br/>&lt;F:br&gt;[B:div]<div/>[P:div]<p>x</p>[A:div]</div>&lt;F:div&gt;',
+		],
+		[
+			'<html LANG=en data-x=\'1\' hidden><body class="a b" data-y="a>b"></body></html>',
+			'[B:html]<html LANG=en data-x=\'1\' hidden data-eco="x&quot;y">[P:html][B:body]<body class="a b" data-y="a>b">[P:body][A:body]</body>&lt;F:body&gt;[A:html]</html>&lt;F:html&gt;',
+		],
+		[
+			'<!DOCTYPE html><?xml x?><HTML><HEAD></HEAD><BODY></BODY></HTML>',
+			'<!DOCTYPE html><?xml x?>[B:html]<HTML data-eco="x&quot;y">[P:html][B:head]<HEAD>[P:head][A:head]</HEAD>&lt;F:head&gt;[B:body]<BODY>[P:body][A:body]</BODY>&lt;F:body&gt;[A:html]</HTML>&lt;F:html&gt;',
+		],
+		[
+			'<template><body></body></template>',
+			'<template>[B:body]<body>[P:body][A:body]</body>&lt;F:body&gt;</template>',
+		],
+		['<body\n class="x"\n>y</body\n>', '[B:body]<body\n class="x"\n>[P:body]y[A:body]</body\n>&lt;F:body&gt;'],
+		[
+			'<body><svg><![CDATA[ a > </body> ]]></svg><![CDATA[ b > </body> ]]></body>',
+			'[B:body]<body>[P:body]<svg><![CDATA[ a > </body> ]]></svg><![CDATA[ b > [A:body]</body>&lt;F:body&gt; ]]></body>',
+		],
+		[
+			'<body><svg><foreignObject><style>a</body>b</style></foreignObject><p><style>c</body>d</style></p></svg></body>',
+			'[B:body]<body>[P:body]<svg><foreignObject><style>a</body>b</style></foreignObject><p><style>c</body>d</style></p></svg>[A:body]</body>&lt;F:body&gt;',
+		],
+		[
+			'<body><svg><font color="r"><style>a</body>b</style></font></svg><math><mi><style>c</body></style></mi></math></body>',
+			'[B:body]<body>[P:body]<svg><font color="r"><style>a</body>b</style></font></svg><math><mi><style>c</body></style></mi></math>[A:body]</body>&lt;F:body&gt;',
+		],
+		[
+			'<body><!--a--!></body foo="</body>"><div a=/><div a="x"/ b="y"><br/></body>',
+			'[B:body]<body>[P:body]<!--a--!>[A:body]</body foo="</body>">&lt;F:body&gt;[B:div]<div a=/>[P:div][B:div]<div a="x"/ b="y">[P:div][B:br]<br/>&lt;F:br&gt;</body>',
+		],
+	];
+
+	it.each(CORPUS)('rewrites %j like the native rewriter', (input, expected) => {
+		const rewriter = new HtmlRewriter();
+		for (const tag of TAGS) rewriter.on(tag, recordedHandlers(tag));
+		expect(rewriter.transform(input)).toBe(expected);
+	});
+
+	const MUTATIONS: Array<(element: HtmlRewriterElement) => void> = [
+		(element) => element.setAttribute('z', 'v"w'),
+		(element) => element.setAttribute('a', '2').prepend('[P]', { html: true }),
+		(element) => element.removeAttribute('a'),
+	];
+
+	const SERIALISE: Array<[input: string, tag: string, expected: [string, string, string]]> = [
+		['<div a="1"/>', 'div', ['<div a="1" z="v&quot;w" />', '<div a="2">[P]', '<div/>']],
+		[
+			'<div\n  a="1"\n  b=\'2\'\n  c\n>',
+			'div',
+			['<div a="1" b=\'2\' c z="v&quot;w">', '<div a="2" b=\'2\' c>[P]', "<div b='2' c>"],
+		],
+		['<DIV A="1" b = 2/>', 'div', ['<DIV A="1" b = 2/ z="v&quot;w">', '<DIV A="2" b = 2/>[P]', '<DIV b = 2/>']],
+		['<div a=/>', 'div', ['<div a=/ z="v&quot;w">', '<div a="2">[P]', '<div>']],
+		['<div a="x"/ b="y">', 'div', ['<div a="x" b="y" z="v&quot;w">', '<div a="2" b="y">[P]', '<div b="y">']],
+		['<br a="1"/>', 'br', ['<br a="1" z="v&quot;w" />', '<br a="2" />', '<br/>']],
+		[
+			'<svg><path d="1" /></svg>',
+			'path',
+			['<svg><path d="1" z="v&quot;w" /></svg>', '<svg><path d="1" a="2" /></svg>', '<svg><path d="1" /></svg>'],
+		],
+	];
+
+	it.each(SERIALISE)('re-serialises %j like the native rewriter', (input, tag, expected) => {
+		expect(MUTATIONS.map((mutate) => new HtmlRewriter().on(tag, { element: mutate }).transform(input))).toEqual(
+			expected,
+		);
+	});
+});
+
 describe('rewriteFirstElement', () => {
 	it('rewrites only the first matching start tag and passes the rest through verbatim', () => {
 		const output = rewriteFirstElement(

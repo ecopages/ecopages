@@ -1,5 +1,5 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -409,6 +409,79 @@ describe('CustomElementScriptPreloader', () => {
 			await preloader.preloadSsrScripts([child]);
 			expect(customElements.get('registry-counter')).toBeDefined();
 		} finally {
+			restoreRegistry();
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	/**
+	 * @remarks
+	 * Bun ignores a query-only URL change, so a second registry only gets the
+	 * definition when it imports a different file path. Node re-evaluates on a
+	 * query, so the path assertion keeps this failing there too. The sibling
+	 * import pins that the copy still resolves relative imports from the
+	 * pipeline file's directory.
+	 */
+	it('registers a pipeline entrypoint again from a different path when another integration replaces the registry', async () => {
+		const restoreRegistry = installTestCustomElementsRegistry();
+		const createRegistry = () => {
+			const definitions = new Map<string, CustomElementConstructor>();
+			return {
+				define(name: string, ctor: CustomElementConstructor) {
+					definitions.set(name, ctor);
+				},
+				get(name: string) {
+					return definitions.get(name);
+				},
+				definitions,
+			};
+		};
+		const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'core-pipeline-registry-')));
+		const source = path.join(directory, 'counter.ts');
+		const pipelineDir = path.join(directory, 'assets');
+		const pipelineEntrypoint = path.join(pipelineDir, 'counter.mjs');
+		mkdirSync(pipelineDir);
+		writeFileSync(source, '');
+		writeFileSync(path.join(pipelineDir, 'tag.mjs'), "export const tag = 'pipeline-counter';");
+		writeFileSync(
+			pipelineEntrypoint,
+			[
+				"import { tag } from './tag.mjs';",
+				'(globalThis.__ecoPipelineImports ??= []).push(new URL(import.meta.url).pathname);',
+				'customElements.define(tag, class extends HTMLElement {});',
+			].join('\n'),
+		);
+		const preloader = createPreloader({
+			resolveDependencyPath: (_dir, src) => src,
+			preferSourceImports: false,
+			resolvePreloadEntrypoint: async () => pipelineEntrypoint,
+		});
+		const child = eco.component(
+			bindComponentIdentity(
+				{ id: 'pipeline-registry', file: path.join(directory, 'component.ts'), integration: 'lit' },
+				{
+					render: () => '',
+					dependencies: { scripts: [{ src: source, ssr: true, lazy: { 'on:visible': true } }] },
+				},
+			),
+		);
+		const imports = ((globalThis as { __ecoPipelineImports?: string[] }).__ecoPipelineImports = []);
+		try {
+			Object.assign(globalThis, { customElements: createRegistry() });
+			await preloader.preloadSsrScripts([child]);
+			expect(customElements.get('pipeline-counter')).toBeDefined();
+			Object.assign(globalThis, { customElements: createRegistry() });
+			await preloader.preloadSsrScripts([child]);
+			expect(customElements.get('pipeline-counter')).toBeDefined();
+			expect(imports).toHaveLength(2);
+			expect(imports[1]).not.toBe(imports[0]);
+			expect(imports.map((importPath) => path.dirname(decodeURIComponent(importPath)))).toEqual([
+				pipelineDir,
+				pipelineDir,
+			]);
+			expect(readdirSync(pipelineDir).sort()).toEqual(['counter.mjs', 'tag.mjs']);
+		} finally {
+			delete (globalThis as { __ecoPipelineImports?: string[] }).__ecoPipelineImports;
 			restoreRegistry();
 			rmSync(directory, { recursive: true, force: true });
 		}

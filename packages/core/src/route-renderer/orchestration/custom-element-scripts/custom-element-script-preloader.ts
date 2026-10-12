@@ -1,10 +1,9 @@
 import { getComponentIdentity } from '../../../eco/component-identity.ts';
 import type { EcoComponent, EcoComponentConfig } from '../../../types/public-types.ts';
-import { copyFile, mkdir } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { copyFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import {
 	getCustomElementScriptPreloadScopeState,
 	invalidateCustomElementScriptPreload,
@@ -315,10 +314,11 @@ export class CustomElementScriptPreloader {
  * Evaluates a source module where it lives.
  *
  * @remarks
- * Moving the file would resolve its imports from the wrong directory. A query
- * distinguishes registries on Node. Bun ignores that query after
- * `customElements.define`, so a source import cannot isolate registries there;
- * the asset-pipeline file is the path that can.
+ * Moving the file would resolve its imports from the wrong directory, so this
+ * path still isolates registries with a URL query. Node re-evaluates a module
+ * whose URL differs only by query; Bun ignores the query for every module, so
+ * a source import (Bun dev with `preferSourceImports`) evaluates once per
+ * process and a later registry keeps no definition.
  */
 async function importModuleInPlace(modulePath: string, registryKey: string | undefined): Promise<void> {
 	const importUrl = pathToFileURL(modulePath);
@@ -332,22 +332,20 @@ async function importModuleInPlace(modulePath: string, registryKey: string | und
  * Evaluates an asset-pipeline module against one custom-element registry.
  *
  * @remarks
- * After a module calls `CustomElementRegistry#define`, Bun keys that module by
- * file path and ignores a later import that differs only by query. Node
- * re-evaluates the query. A copy under a registry-specific temp directory
- * evaluates again on both runtimes. The pipeline file is self-contained, so
- * the copy does not need the original directory.
+ * Bun ignores a query-only URL change for every module, so a query cannot
+ * evaluate the module again for a new registry. A copy beside the pipeline
+ * file has its own path, so both runtimes evaluate it again, and it keeps the
+ * original's package scope and relative `import()`/`import.meta.url`
+ * resolution. The copy is removed once evaluated, so it never reaches the
+ * build output.
  */
 async function importModuleForRegistry(modulePath: string, registryKey: string): Promise<void> {
-	const importPath = await copyModuleForRegistry(modulePath, registryKey);
-	await import(/* @vite-ignore */ pathToFileURL(importPath).href);
-}
-
-async function copyModuleForRegistry(modulePath: string, registryKey: string): Promise<string> {
-	const copyDir = path.join(tmpdir(), 'ecopages-ssr-registry', registryKey);
-	const pathStamp = createHash('sha256').update(modulePath).digest('hex').slice(0, 12);
-	const copyPath = path.join(copyDir, `${pathStamp}-${path.basename(modulePath)}`);
-	await mkdir(copyDir, { recursive: true });
+	const { dir, name, ext } = path.parse(modulePath);
+	const copyPath = path.join(dir, `${name}.eco-ssr-${registryKey}${ext}`);
 	await copyFile(modulePath, copyPath);
-	return copyPath;
+	try {
+		await import(/* @vite-ignore */ pathToFileURL(copyPath).href);
+	} finally {
+		await rm(copyPath, { force: true });
+	}
 }

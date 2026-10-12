@@ -3,4 +3,4 @@
 '@ecopages/lit': patch
 ---
 
-Server-render Lit custom elements on Bun, in dev and in production. Lit preloads every SSR script the render session loads through the asset pipeline.
+A production build made on Bun now server-renders a Lit custom element that a page from another integration renders without declaring it.

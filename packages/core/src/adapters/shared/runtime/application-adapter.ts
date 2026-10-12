@@ -15,6 +15,30 @@ import {
 import { ECOPAGES_DEV_RESTART_EXIT_CODE } from '../../../dev/development-restart.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 
+function formatRestartStopFailure(error: unknown): string {
+	if (error instanceof AggregateError) {
+		return [error.stack ?? error.message, ...error.errors.map(formatRestartStopFailure)].join('\n');
+	}
+
+	if (error instanceof Error) {
+		return error.stack ?? error.message;
+	}
+
+	if (typeof error === 'string') {
+		return error;
+	}
+
+	if (typeof error === 'object' && error !== null) {
+		try {
+			return JSON.stringify(error) ?? String(error);
+		} catch {
+			return String(error);
+		}
+	}
+
+	return String(error);
+}
+
 export abstract class SharedApplicationAdapter<
 	TOptions extends ApplicationAdapterOptions = ApplicationAdapterOptions,
 	TServer = any,
@@ -199,10 +223,22 @@ export abstract class SharedApplicationAdapter<
 		return this;
 	}
 
+	/**
+	 * @remarks
+	 * Stopping can close the watcher before cleanup rejects. Exiting with failure prevents the child from
+	 * continuing without reliable subscriptions and prevents the CLI from treating incomplete cleanup as a clean restart.
+	 */
 	protected createDevelopmentRestartHandler(): (changedFile: string) => Promise<void> {
 		return async (changedFile: string) => {
 			appLogger.info(`Restarting the development server (${changedFile} changed)...`);
-			await this.stop();
+			try {
+				await this.stop();
+			} catch (error) {
+				appLogger.error(
+					`Failed to stop the development server before restart: ${formatRestartStopFailure(error)}`,
+				);
+				process.exit(1);
+			}
 			process.exit(ECOPAGES_DEV_RESTART_EXIT_CODE);
 		};
 	}

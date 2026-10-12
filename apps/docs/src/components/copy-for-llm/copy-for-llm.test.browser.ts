@@ -104,10 +104,6 @@ describe('RadiantCopyForLlm', () => {
 		const { button } = await createCopyForLlm({ llmUrl: '' });
 		await userEvent.click(button);
 
-		await new Promise((resolve) => {
-			setTimeout(resolve, 0);
-		});
-
 		expect(fetch).not.toHaveBeenCalled();
 		expect(button.dataset.copied).not.toBe('true');
 	});

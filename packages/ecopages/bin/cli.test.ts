@@ -238,7 +238,7 @@ describe('CLI Commands', () => {
 		await runCli(['dev']);
 		childHandlers.get('exit')?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
 
-		await vi.waitFor(() => expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(2));
+		await vi.waitFor(() => expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(2), { interval: 1 });
 		const restartedPlan = await vi.mocked(launchPlan.createLaunchPlan).mock.results[1]?.value;
 		expect(restartedPlan.env[ECOPAGES_DEV_RESTART_REASON_ENV]).toBe('configuration or environment change');
 	});
@@ -280,7 +280,7 @@ describe('CLI Commands', () => {
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2), { interval: 1 });
 		expect(watches).toHaveLength(1);
 		expect(watches[0]?.paths).toEqual(recoveryWatch.paths);
 		expect(watches[0]?.options.ignored).toBe(recoveryWatch.ignored);
@@ -291,7 +291,7 @@ describe('CLI Commands', () => {
 
 		changeProjectFile(watches[0]);
 		expect(watches[0]?.close).toHaveBeenCalled();
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3), { interval: 1 });
 
 		exitSpy.mockRestore();
 	});
@@ -312,11 +312,11 @@ describe('CLI Commands', () => {
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
-		await vi.waitFor(() => expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(2));
+		await vi.waitFor(() => expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(2), { interval: 1 });
 		expect(exitSpy).not.toHaveBeenCalled();
 
 		changeProjectFile(watches[0]);
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2), { interval: 1 });
 
 		exitSpy.mockRestore();
 	});
@@ -328,13 +328,13 @@ describe('CLI Commands', () => {
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2), { interval: 1 });
 		exitHandlers[1]?.(1);
 
 		changeProjectFile(watches[0]);
 		changeProjectFile(watches[0]);
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
-		await new Promise((resolve) => setTimeout(resolve, 20));
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3), { interval: 1 });
+		await new Promise((resolve) => setImmediate(resolve));
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(3);
 
 		exitSpy.mockRestore();
@@ -347,14 +347,14 @@ describe('CLI Commands', () => {
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2), { interval: 1 });
 
 		changeProjectFile(watches[0]);
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(2);
 		exitHandlers[1]?.(1);
 
 		expect(watches[0]?.close).toHaveBeenCalled();
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3), { interval: 1 });
 
 		exitSpy.mockRestore();
 	});
@@ -366,10 +366,10 @@ describe('CLI Commands', () => {
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2), { interval: 1 });
 		exitHandlers[1]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
 
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3), { interval: 1 });
 		expect(watches[0]?.close).toHaveBeenCalled();
 		expect(watches).toHaveLength(2);
 
@@ -383,7 +383,7 @@ describe('CLI Commands', () => {
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
-		await vi.waitFor(() => expect(watches).toHaveLength(1));
+		await vi.waitFor(() => expect(watches).toHaveLength(1), { interval: 1 });
 
 		expect(() =>
 			watches[0]?.options.onError(
@@ -403,7 +403,7 @@ describe('CLI Commands', () => {
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2), { interval: 1 });
 
 		expect(() => exitHandlers[1]?.(code)).toThrow('process.exit:0');
 

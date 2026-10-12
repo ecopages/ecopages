@@ -212,7 +212,7 @@ The main regression coverage lives in:
 - [src/client-graph/boundary-plugin.test.ts](src/client-graph/boundary-plugin.test.ts): verifies server-only `eco.page(...)` options are stripped from browser bundles.
 - [src/render/react-renderer.locals.test.ts](src/render/react-renderer.locals.test.ts): verifies only declared `requires` keys are serialized into hydration payloads.
 - [src/hydration/hydration-script-compiler.test.ts](src/hydration/hydration-script-compiler.test.ts): verifies editable browser sources compile to readable and minified entries.
-- [../../react-router/test/hmr-reload.test.browser.ts](../../react-router/test/hmr-reload.test.browser.ts): verifies router-backed layout hydration receives `locals` with `persistLayouts` both enabled and disabled.
+- [../../react-router/test/layout-persistence.test.browser.ts](../../react-router/test/layout-persistence.test.browser.ts): verifies router-backed layout hydration receives `locals` with `persistLayouts` both enabled and disabled.
 
 If you change the AST transform or hydration flow, update the corresponding tests in the same change.
 

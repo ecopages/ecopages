@@ -92,8 +92,7 @@ describe('shared navigation head updates', () => {
 		currentUpdate.commit();
 
 		try {
-			await new Promise((resolve) => setTimeout(resolve, 100));
-			expect(staleUpdateReady).toBe(true);
+			await vi.waitFor(() => expect(staleUpdateReady).toBe(true), { interval: 1 });
 			expect(stagedStylesheet?.isConnected).toBe(false);
 		} finally {
 			stagedStylesheet?.dispatchEvent(new Event('error'));

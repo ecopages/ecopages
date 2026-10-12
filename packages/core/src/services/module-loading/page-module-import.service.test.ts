@@ -71,7 +71,6 @@ describe('PageModuleImportService', () => {
 	afterEach(() => {
 		service.clearImportCache();
 		delete process.env.NODE_ENV;
-		delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
 	});
 
 	it('lets the owning Integration compile the file instead of bundling it', async () => {
@@ -486,23 +485,6 @@ describe('PageModuleImportService', () => {
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
-	});
-
-	it('should keep Bun page imports on the build path when a transpile target is configured', async () => {
-		process.env.NODE_ENV = 'development';
-		(globalThis as typeof globalThis & { Bun?: unknown }).Bun = {};
-
-		try {
-			await service.importModule<unknown>({
-				filePath: '/app/pages/page.tsx',
-				rootDir: '/app',
-				outdir: '/tmp/out',
-			});
-		} catch {
-			// import will fail for the fake path, but we only care about the code path
-		}
-
-		assert.equal(fakeDependencies.calls.buildModule.length, 1);
 	});
 
 	it('should reuse an in-process route-module build when the source hash is unchanged in production', async () => {

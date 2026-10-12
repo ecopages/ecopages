@@ -1,22 +1,17 @@
 /**
- * Test suite for @ecopages/fs adapters
- * Tests both BunFileSystem and NodeFileSystem implementations
+ * Contract tests for NodeFileSystem.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
-import { BunFileSystem } from '../src/adapters/bun';
 import { NodeFileSystem } from '../src/adapters/node';
 import type { FileSystem } from '../src/types';
 
 const TEST_DIR = path.join(__dirname, '.test-fixtures');
 const TEST_DIR_COPY = path.join(__dirname, '.test-fixtures-copy');
 
-const adapters: [string, FileSystem][] = [
-	['BunFileSystem', new BunFileSystem()],
-	['NodeFileSystem', new NodeFileSystem()],
-];
+const adapters: [string, FileSystem][] = [['NodeFileSystem', new NodeFileSystem()]];
 
 beforeAll(() => {
 	mkdirSync(TEST_DIR, { recursive: true });

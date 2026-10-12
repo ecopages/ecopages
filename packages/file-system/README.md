@@ -1,11 +1,11 @@
 # @ecopages/file-system
 
-Runtime-agnostic file system utilities for Ecopages that automatically select the optimal adapter (Bun or Node.js) based on the execution environment.
+Runtime file system utilities for Ecopages. The implementation is Node's `node:fs` and `crypto` on every runtime, including Bun.
 
 ## Features
 
-- **Runtime Detection**: Automatically uses `Bun.Glob`, `Bun.hash`, `Bun.file` for maximum performance on Bun, and falls back to native `node:fs/promises.glob()` and `crypto` on Node.js.
-- **Unified Interface**: Write file system code once; let the runtime handle the optimization.
+- **Node implementation**: `node:fs/promises.glob()`, `crypto`, and `node:fs` on every runtime.
+- **One interface**: Call sites import `fileSystem` and do not choose an adapter.
 - **Type Safe**: Full TypeScript support with a consistent API.
 
 ## Installation
@@ -35,6 +35,15 @@ fileSystem.write('output.txt', 'Hello World');
 if (fileSystem.exists('file.txt')) {
 	// ...
 }
+
+// Watch a tree, skipping dependencies
+const watcher = fileSystem.watch(['./src'], {
+	ignored: (path) => path.includes('node_modules'),
+	onChange: ({ type, path }) => console.log(type, path),
+	onError: (error) => console.error(error),
+});
+await watcher.ready;
+await watcher.close();
 ```
 
 ## API
@@ -58,3 +67,4 @@ if (fileSystem.exists('file.txt')) {
 | `gzipDir(path, extensions)` | Gzip files in directory           |
 | `isDirectory(path)`         | Check if path is directory        |
 | `verifyFileExists(path)`    | Throw if file doesn't exist       |
+| `watch(paths, options)`     | Watch files and directories       |

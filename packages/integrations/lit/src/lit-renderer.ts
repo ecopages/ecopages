@@ -230,11 +230,10 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	 * Preloads SSR-eligible scripts to register custom elements before render.
 	 *
 	 * @remarks
-	 * When a render session exists (main thread), preload uses the session so
-	 * Bun source imports and the Node asset pipeline stay on that isolate.
-	 * With no session (static-render worker), preload uses this renderer's
-	 * app-module importer. A native source import in the worker leaves custom
-	 * elements undefined for `@lit-labs/ssr`.
+	 * When a render session exists, preload uses the session so the asset-pipeline
+	 * module stays on that isolate. With no session, preload uses this renderer's
+	 * app-module importer, which writes a separate module per registry so
+	 * `@lit-labs/ssr` sees the element.
 	 */
 	protected async preloadSsrScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): Promise<void> {
 		ensureLitDomShim();

@@ -1,13 +1,10 @@
 /**
- * Root Vitest config: `shared-core` (node), `browser`, optional `bun-adapter`,
- * and optional `bun-adapter`.
+ * Root Vitest config: `shared-core` (node) and `browser`.
  *
  * Opt-in suites: `scripts/vitest-optional-includes.ts` + `e2e/README.md`.
  */
 import { defineConfig, configDefaults } from 'vitest/config';
 import { getOptionalVitestIncludes } from './scripts/vitest-optional-includes.ts';
-
-const isBunRuntime = typeof process.versions.bun === 'string';
 
 export default defineConfig({
 	test: {
@@ -43,17 +40,6 @@ export default defineConfig({
 					exclude: [...configDefaults.exclude, 'packages/**/*.test.node.ts', 'packages/**/*.test.bun.ts'],
 				},
 			},
-			...(isBunRuntime
-				? [
-						{
-							test: {
-								name: 'bun-adapter',
-								environment: 'node',
-								include: ['packages/**/*.test.bun.ts'],
-							},
-						},
-					]
-				: []),
 		],
 	},
 });

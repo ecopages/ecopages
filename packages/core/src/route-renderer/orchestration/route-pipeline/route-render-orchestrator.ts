@@ -19,6 +19,7 @@ import type {
 	AssetProcessingService,
 	ProcessedAsset,
 } from '../../../services/assets/asset-processing-service/index.ts';
+import { isProductionRuntime } from '../../../utils/runtime.ts';
 import { collectHtmlCacheSourceDependencyPaths } from '../../../services/cache/html-page-cache-dependency-index.ts';
 import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
 import { collectComponentConfigFilePaths } from '../../page-loading/file-scoped-dependency-components.ts';
@@ -261,25 +262,18 @@ export class RouteRenderOrchestrator {
 				: [];
 		allDependencies.push(...globalAssets);
 
-		const additionalSourcePaths = collectRenderShellSourcePaths(this.appConfig, [
-			...componentsToResolve,
-			...resolvedPageDependencyComponents,
-			...clientPlan.sourceComponents,
-		]);
-		const buildInputIndex = getAppBuildInputIndex(this.appConfig);
-		const sourceDependencyPaths = collectHtmlCacheSourceDependencyPaths({
-			routeFile: routeOptions.file,
-			processedAssets: allDependencies,
-			graphDependencyPaths,
-			additionalSourcePaths,
-			routeModulePaths: buildInputIndex.sourcePaths({
-				consumer: 'server-route-module',
-				key: path.resolve(routeOptions.file),
-			}),
-		});
-		for (const sourcePath of sourceDependencyPaths) {
-			buildInputIndex.recordWatchPath(sourcePath);
-		}
+		const sourceDependencyPaths = isProductionRuntime()
+			? undefined
+			: this.recordSourceDependencyPaths({
+					routeFile: routeOptions.file,
+					components: [
+						...componentsToResolve,
+						...resolvedPageDependencyComponents,
+						...clientPlan.sourceComponents,
+					],
+					processedAssets: allDependencies,
+					graphDependencyPaths,
+				});
 
 		return {
 			...buildPreparedRenderOptions<C>({
@@ -398,6 +392,36 @@ export class RouteRenderOrchestrator {
 			sourceDependencyPaths,
 			metadata: renderOptions.metadata,
 		};
+	}
+
+	/**
+	 * Collects the files a rendered page read and records them as watch paths.
+	 *
+	 * @remarks
+	 * These paths exist so development can evict the pages a changed file affects. A production
+	 * process has no watcher and no source edits, so it skips the collection on every request.
+	 */
+	private recordSourceDependencyPaths(input: {
+		routeFile: string;
+		components: Array<EcoComponent | Partial<EcoComponent>>;
+		processedAssets: Parameters<typeof collectHtmlCacheSourceDependencyPaths>[0]['processedAssets'];
+		graphDependencyPaths: ReadonlySet<string> | undefined;
+	}): string[] {
+		const buildInputIndex = getAppBuildInputIndex(this.appConfig);
+		const sourceDependencyPaths = collectHtmlCacheSourceDependencyPaths({
+			routeFile: input.routeFile,
+			processedAssets: input.processedAssets,
+			graphDependencyPaths: input.graphDependencyPaths,
+			additionalSourcePaths: collectRenderShellSourcePaths(this.appConfig, input.components),
+			routeModulePaths: buildInputIndex.sourcePaths({
+				consumer: 'server-route-module',
+				key: path.resolve(input.routeFile),
+			}),
+		});
+		for (const sourcePath of sourceDependencyPaths) {
+			buildInputIndex.recordWatchPath(sourcePath);
+		}
+		return sourceDependencyPaths;
 	}
 
 	/**

@@ -305,6 +305,36 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		expect(getAppBuildInputIndex(appConfig).recordedWatchPaths()).toContain(routeHelper);
 	});
 
+	it('collects no source dependency paths in production, where nothing watches them', async () => {
+		const originalNodeEnv = process.env.NODE_ENV;
+		process.env.NODE_ENV = 'production';
+		const appConfig = { cache: { defaultStrategy: 'static' }, integrations: [] } as unknown as EcoPagesAppConfig;
+		const routeFile = '/app/pages/about.html';
+		const flow = new RouteRenderOrchestrator(appConfig, {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService);
+		const Page = (() => '<main>About</main>') as unknown as EcoPageComponent<unknown>;
+		Page.config = { identity: { id: 'about-page', file: routeFile, integration: 'string' } };
+
+		try {
+			const result = await flow.prepareRenderOptions(
+				{ file: routeFile, params: {}, query: {} } as unknown as RouteRendererOptions,
+				createFlowAdapter({
+					resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
+					getHtmlTemplate: async () => (() => '<html></html>') as EcoComponent<HtmlTemplateProps>,
+					resolvePageData: async () => ({ props: {}, metadata: { title: 'About', description: 'About' } }),
+					resolveDependencies: async () => [],
+					collectPageBrowserGraphContribution: async () => undefined,
+				}),
+			);
+
+			expect(result.sourceDependencyPaths).toBeUndefined();
+			expect(getAppBuildInputIndex(appConfig).recordedWatchPaths()).toEqual([]);
+		} finally {
+			process.env.NODE_ENV = originalNodeEnv;
+		}
+	});
+
 	it('adds nested Component identity files to the cached HTML dependencies', async () => {
 		const appConfig = { cache: { defaultStrategy: 'static' }, integrations: [] } as unknown as EcoPagesAppConfig;
 		const flow = new RouteRenderOrchestrator(appConfig, {

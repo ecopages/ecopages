@@ -20,6 +20,7 @@ import {
 	htmlDocumentHead,
 	renderFilesystemPageAndExplicitView,
 } from '@ecopages/testing';
+import { createStringMarkupContractFactories, describeRendererContract } from '@ecopages/testing/renderer-contract';
 import { KitaRenderer } from '../kitajs-renderer.ts';
 
 type MarkupNodeLike = {
@@ -123,6 +124,29 @@ const createRendererWithAssets = () => {
 		assetProcessingService,
 	};
 };
+
+const headedTemplate = (async ({ children, metadata }) =>
+	`<html><head><title>${metadata.title}</title></head><body>${children}</body></html>`) as EcoComponent<HtmlTemplateProps>;
+headedTemplate.config = {
+	integration: 'kitajs',
+	identity: { id: 'html', file: '/app/includes/html.kita.tsx', integration: 'kitajs' },
+};
+
+describeRendererContract({
+	name: 'kitajs',
+	errorPrefix: 'Error rendering page',
+	...createStringMarkupContractFactories('kitajs'),
+	async createRenderer({ integrations, processDependencies }) {
+		const testRenderer = new TestKitaRenderer({
+			appConfig: await createTestAppConfig({ integrations }),
+			assetProcessingService: { processDependencies } as never,
+			runtimeOrigin: 'http://localhost:3000',
+			resolvedIntegrationDependencies: [],
+		});
+		testRenderer.htmlTemplate = headedTemplate;
+		return testRenderer;
+	},
+});
 
 describe('KitaRenderer', () => {
 	it('should render a single component with renderComponent', async () => {

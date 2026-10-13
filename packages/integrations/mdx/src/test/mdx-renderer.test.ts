@@ -14,6 +14,7 @@ import {
 	htmlDocumentHead,
 	renderFilesystemPageAndExplicitView,
 } from '@ecopages/testing';
+import { createStringMarkupContractFactories, describeRendererContract } from '@ecopages/testing/renderer-contract';
 import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import type { PageBrowserGraphContributionContext } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
@@ -53,6 +54,24 @@ const renderer = new MDXRenderer({
 	assetProcessingService: createTestAssetProcessingService(Config),
 	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],
+});
+
+describeRendererContract({
+	name: 'MDX',
+	errorPrefix: 'Error rendering page',
+	viewFile: '/app/pages/contract.mdx',
+	...createStringMarkupContractFactories('MDX'),
+	async createRenderer({ integrations, processDependencies }) {
+		const testRenderer = new TestMdxRenderer({
+			appConfig: await createTestAppConfig({ integrations }),
+			assetProcessingService: { processDependencies } as never,
+			runtimeOrigin: 'http://localhost:3000',
+			resolvedIntegrationDependencies: [],
+		});
+		testRenderer.htmlTemplate = (async ({ children, metadata }) =>
+			`<html><head><title>${metadata.title}</title></head><body>${children}</body></html>`) as EcoComponent<HtmlTemplateProps>;
+		return testRenderer;
+	},
 });
 
 class ImportTestMdxRenderer extends MDXRenderer {

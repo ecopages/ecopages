@@ -23,6 +23,7 @@ import {
 	htmlDocumentHead,
 	renderFilesystemPageAndExplicitView,
 } from '@ecopages/testing';
+import { describeRendererContract } from '@ecopages/testing/renderer-contract';
 import React, { type JSX } from 'react';
 import { ReactRenderer, type ReactRendererConfig } from '../render/react-renderer.ts';
 import type { ReactRuntime } from '../render/layout-compose.ts';
@@ -207,6 +208,93 @@ const createRendererWithAssets = (reactConfig?: ReactRendererConfig) => {
 	});
 	return { testRenderer, assetProcessingService };
 };
+
+const HeadedHtmlTemplate: EcoComponent<HtmlTemplateProps, JSX.Element> = ({ headContent, children, metadata }) => (
+	<html lang="en">
+		<head>
+			<title>{metadata.title}</title>
+			{headContent}
+		</head>
+		<body>{children}</body>
+	</html>
+);
+
+describeRendererContract({
+	name: 'react',
+	errorPrefix: 'Failed to render component',
+	async createRenderer({ integrations, processDependencies }) {
+		const testRenderer = new TestReactRenderer({
+			appConfig: await createTestAppConfig({ distDir: testDir, integrations }),
+			assetProcessingService: {
+				getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+				processDependencies: vi.fn(async (deps: Array<{ groupedBundle?: unknown }>, ...rest: unknown[]) =>
+					deps.some((dep) => dep.groupedBundle)
+						? createAssetProcessingServiceMock().processDependencies(deps as never)
+						: (processDependencies as (...args: unknown[]) => unknown)(deps, ...rest),
+				),
+			} as never,
+			runtimeOrigin: 'http://localhost:3000',
+			resolvedIntegrationDependencies: [],
+		});
+		testRenderer.htmlTemplate = HeadedHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
+		return testRenderer;
+	},
+	makeComponent({ tag, acceptsChildren, asLayout, config, embed }) {
+		const declare = asLayout ? eco.layout : eco.component;
+		const Tag = tag as 'section';
+		return declare<Record<string, unknown>, JSX.Element>({
+			integration: 'react',
+			identity:
+				config?.identity ??
+				(asLayout
+					? { id: 'contract-layout', file: '/app/layouts/contract.tsx', integration: 'react' }
+					: undefined),
+			dependencies: { ...config?.dependencies, ...(embed ? { components: embed } : {}) },
+			render: (props) => (
+				<Tag>
+					{props.text as string | undefined}
+					{acceptsChildren ? (props.children as React.ReactNode) : undefined}
+					{(embed ?? []).map((Widget, index) => (
+						<React.Fragment key={index}>
+							{(Widget as unknown as (props: object) => React.ReactNode)({})}
+						</React.Fragment>
+					))}
+				</Tag>
+			),
+		}) as unknown as EcoComponent;
+	},
+	makeView({ text, layout, title, fail }) {
+		return eco.page<Record<string, unknown>, JSX.Element>({
+			integration: 'react',
+			layout: layout as never,
+			metadata: () => ({ title: title ?? 'Contract', description: title ?? 'Contract' }),
+			render: () => {
+				if (fail) {
+					throw new Error(fail);
+				}
+				return <section>{text}</section>;
+			},
+		}) as unknown as EcoComponent;
+	},
+	async renderIsland(renderer, input) {
+		const islandRenderer = renderer as unknown as {
+			collectIslandRenderAssets: (plan: {
+				currentIntegrationName: string;
+				islandEntries: Array<{ file: string; integrationName: string; component: EcoComponent }>;
+			}) => Promise<Map<string, unknown[]>>;
+		};
+		const file = input.component.config?.identity?.file ?? '';
+		const islandRenderAssetsByFile = await islandRenderer.collectIslandRenderAssets({
+			currentIntegrationName: 'kitajs',
+			islandEntries: [{ file, integrationName: 'react', component: input.component }],
+		});
+		const { value } = await runWithComponentRenderContext(
+			{ currentIntegration: 'kitajs', islandRenderAssetsByFile: islandRenderAssetsByFile as never },
+			async () => renderer.renderComponent(input),
+		);
+		return value;
+	},
+});
 
 describe('ReactRenderer', () => {
 	describe('renderComponent', () => {

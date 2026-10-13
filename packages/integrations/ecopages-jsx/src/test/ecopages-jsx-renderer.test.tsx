@@ -25,6 +25,7 @@ import {
 	htmlDocumentHead,
 	renderFilesystemPageAndExplicitView,
 } from '@ecopages/testing';
+import { describeRendererContract } from '@ecopages/testing/renderer-contract';
 import type { ForeignChildInterceptionInput } from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
 import { ecopagesJsxPlugin } from '../ecopages-jsx.plugin';
 import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer';
@@ -132,6 +133,72 @@ class StringChildContractPlugin extends IntegrationPlugin<EcoPagesElement> {
 		this.renderer = NamedStringChildContractRenderer;
 	}
 }
+
+const headedTemplate = ({ children, metadata }: HtmlTemplateProps<JsxRenderable>) => (
+	<html>
+		<head>
+			<title>{metadata.title}</title>
+		</head>
+		<body>
+			<main data-document-root>{children}</main>
+		</body>
+	</html>
+);
+(headedTemplate as unknown as EcoComponent).config = {
+	integration: 'ecopages-jsx',
+	identity: { id: 'html', file: '/app/includes/html.tsx', integration: 'ecopages-jsx' },
+};
+
+describeRendererContract({
+	name: 'ecopages-jsx',
+	errorPrefix: 'Error rendering component',
+	async createRenderer({ integrations, processDependencies }) {
+		const testRenderer = new TestEcopagesJsxRenderer({
+			appConfig: await createTestAppConfig({ ...outputDirs, integrations }),
+			assetProcessingService: { processDependencies } as never,
+			runtimeOrigin: 'http://localhost:3000',
+			resolvedIntegrationDependencies: [],
+		});
+		testRenderer.htmlTemplate = headedTemplate as unknown as EcoComponent<HtmlTemplateProps>;
+		return testRenderer;
+	},
+	makeComponent({ tag, acceptsChildren, asLayout, config, embed }) {
+		const declare = asLayout ? eco.layout : eco.component;
+		const Tag = tag as 'section';
+		return declare<Record<string, unknown>, JsxRenderable>({
+			integration: 'ecopages-jsx',
+			identity:
+				config?.identity ??
+				(asLayout
+					? { id: 'contract-layout', file: '/app/layouts/contract.tsx', integration: 'ecopages-jsx' }
+					: undefined),
+			dependencies: { ...config?.dependencies, ...(embed ? { components: embed } : {}) },
+			render: (props) => (
+				<Tag>
+					{props.text as string | undefined}
+					{acceptsChildren ? (props.children as JsxRenderable) : undefined}
+					{(embed ?? []).map((Widget) => {
+						const Embedded = Widget as unknown as () => JsxRenderable;
+						return <Embedded />;
+					})}
+				</Tag>
+			),
+		}) as unknown as EcoComponent;
+	},
+	makeView({ text, layout, title, fail }) {
+		return eco.page<Record<string, unknown>, JsxRenderable>({
+			integration: 'ecopages-jsx',
+			layout: layout as never,
+			metadata: () => ({ title: title ?? 'Contract', description: title ?? 'Contract' }),
+			render: () => {
+				if (fail) {
+					throw new Error(fail);
+				}
+				return <section>{text}</section>;
+			},
+		}) as unknown as EcoComponent;
+	},
+});
 
 describe('EcopagesJsxRenderer', () => {
 	describe('renderComponent', () => {

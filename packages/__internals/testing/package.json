@@ -4,6 +4,7 @@
 	"private": true,
 	"exports": {
 		".": "./src/index.ts",
+		"./renderer-contract": "./src/renderer-contract.ts",
 		"./kitchen-sink/ecopages-jsx-shell": "./src/kitchen-sink/ecopages-jsx-shell.eco.tsx",
 		"./kitchen-sink/integration-shell-group": "./src/kitchen-sink/integration-shell-group.kita.tsx",
 		"./kitchen-sink/kita-shell": "./src/kitchen-sink/kita-shell.kita.tsx",

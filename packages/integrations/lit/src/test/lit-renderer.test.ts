@@ -15,6 +15,7 @@ import {
 	htmlDocumentHead,
 	renderFilesystemPageAndExplicitView,
 } from '@ecopages/testing';
+import { createStringMarkupContractFactories, describeRendererContract } from '@ecopages/testing/renderer-contract';
 import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
@@ -85,6 +86,24 @@ const renderer = new LitRenderer({
 	assetProcessingService: createTestAssetProcessingService(Config),
 	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],
+});
+
+describeRendererContract({
+	name: 'lit',
+	errorPrefix: 'Error rendering page',
+	viewFile: '/app/pages/contract.lit.ts',
+	...createStringMarkupContractFactories('lit'),
+	async createRenderer({ integrations, processDependencies }) {
+		const testRenderer = new TestLitRenderer({
+			appConfig: await createTestAppConfig({ integrations }),
+			assetProcessingService: { processDependencies } as never,
+			runtimeOrigin: 'http://localhost:3000',
+			resolvedIntegrationDependencies: [],
+		});
+		testRenderer.htmlTemplate = (async ({ children, metadata }) =>
+			`<html><head><title>${metadata.title}</title></head><body>${children}</body></html>`) as EcoComponent<HtmlTemplateProps>;
+		return testRenderer;
+	},
 });
 
 describe('LitRenderer', () => {

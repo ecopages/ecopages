@@ -13,7 +13,6 @@ import { getNavigationScriptIdentity } from '../../client/navigation-scripts/ide
 import { ECO_PERSIST_ATTRIBUTE } from '../../client/navigation-attributes.ts';
 
 export type NavigationHeadUpdate = {
-	bodyStrategy: 'morph' | 'replace';
 	scriptActivations: ScriptActivation[];
 	rerunScriptActivations: ScriptActivation[];
 	commit(): void;
@@ -230,7 +229,6 @@ export async function prepareNavigationHead(
 	let cancelled = false;
 
 	return {
-		bodyStrategy: pendingRerunScripts.length > 0 ? 'replace' : 'morph',
 		scriptActivations,
 		rerunScriptActivations,
 		commit() {

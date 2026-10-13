@@ -1,5 +1,5 @@
 import { parseNavigationDocument } from '@ecopages/core/router/navigation-pipeline';
-import { morphBody, replaceBody } from './body-morpher.ts';
+import { morphBody } from './body-morpher.ts';
 
 /** Applies browser-router's DOM body swap. Core owns document navigation work. */
 export class DomSwapper {
@@ -15,9 +15,5 @@ export class DomSwapper {
 
 	morphBody(newDocument: Document): void {
 		morphBody(newDocument, this.persistAttribute);
-	}
-
-	replaceBody(newDocument: Document): void {
-		replaceBody(newDocument, this.persistAttribute);
 	}
 }

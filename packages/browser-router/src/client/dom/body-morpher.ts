@@ -10,6 +10,31 @@ function isHydratedCustomElement(element: Element): boolean {
 }
 
 /**
+ * Finds the persisted path and custom-element descendants retained during rerun refreshes.
+ *
+ * @remarks
+ * Custom elements may bind listeners to their children in `connectedCallback`. Their descendants
+ * must remain the same nodes when a persisted element keeps the custom-element host connected.
+ */
+function findPersistedRerunContext(root: Element, persistAttribute: string): Set<Element> {
+	const retainedElements = new Set<Element>();
+	for (const element of root.querySelectorAll('*')) {
+		if (!isPersisted(element, persistAttribute)) continue;
+		let parent = element.parentElement;
+		while (parent && parent !== root) {
+			retainedElements.add(parent);
+			if (parent.localName.includes('-')) {
+				for (const descendant of parent.querySelectorAll('*')) {
+					retainedElements.add(descendant);
+				}
+			}
+			parent = parent.parentElement;
+		}
+	}
+	return retainedElements;
+}
+
+/**
  * Returns the only body-morph keys that browser-router should trust.
  *
  * @remarks
@@ -39,8 +64,16 @@ function isLightDomCustomElement(element: Element): boolean {
  * which can cause morphdom to skip siblings or process stale nodes.
  * Deferring the replacement until after morphdom finishes avoids this.
  */
-function replaceCustomElement(fromEl: Element, toEl: Element, deferred: Array<{ from: Element; to: Element }>): false {
-	deferred.push({ from: fromEl, to: toEl.cloneNode(true) as Element });
+function deferElementReplacement(
+	fromEl: Element,
+	toEl: Element,
+	deferred: Array<{ from: Element; to: Element; isCustomElement: boolean }>,
+): false {
+	deferred.push({
+		from: fromEl,
+		to: toEl.cloneNode(true) as Element,
+		isCustomElement: fromEl.localName.includes('-'),
+	});
 	return false;
 }
 
@@ -55,15 +88,13 @@ function materializeCustomElement(element: Element): Element {
 
 /**
  * @remarks
- * Each element is recreated via `document.createElement` so the browser fires
- * the full custom element lifecycle (`disconnectedCallback` on the old instance,
- * `connectedCallback` on the new one). Elements that were already removed during
- * the morph pass are skipped via the `isConnected` guard.
+ * Custom elements are recreated via `document.createElement` so the browser fires
+ * their full lifecycle. Elements already removed during the morph pass are skipped.
  */
-function flushDeferredCustomElementReplacements(deferred: Array<{ from: Element; to: Element }>): void {
-	for (const { from, to } of deferred) {
+function flushDeferredReplacements(deferred: Array<{ from: Element; to: Element; isCustomElement: boolean }>): void {
+	for (const { from, to, isCustomElement } of deferred) {
 		if (!from.isConnected) continue;
-		const newEl = materializeCustomElement(to);
+		const newEl = isCustomElement ? materializeCustomElement(to) : (to.cloneNode(true) as Element);
 		from.replaceWith(newEl);
 	}
 }
@@ -95,12 +126,27 @@ export function processDeclarativeShadowDOM(root: Element | Document | ShadowRoo
  * Morphs document body using morphdom.
  *
  * @remarks
- * Preserves persisted elements and hydrated custom elements.
- * Light-DOM custom elements are fully replaced to trigger proper
+ * Preserves persisted elements and hydrated custom elements when their ancestor
+ * structure remains compatible. Rerun scripts refresh matching non-persisted
+ * elements so freshly activated handlers do not accumulate on nodes retained by
+ * morphdom.
+ *
+ * @remarks
+ * Persisted nodes and their ancestors remain in place while other matching
+ * elements are refreshed, so rerun scripts that add handlers to retained nodes
+ * must register them idempotently. Descendants of custom elements on that path
+ * also remain the same nodes when their markup stays structurally compatible;
+ * changed child markup can replace nodes without reconnecting the host, so
+ * components must handle rebinding.
+ * Light-DOM custom elements are fully replaced to trigger their
  * disconnectedCallback → connectedCallback lifecycle.
  */
 export function morphBody(newDocument: Document, persistAttribute: string): void {
-	const deferredReplacements: Array<{ from: Element; to: Element }> = [];
+	const deferredReplacements: Array<{ from: Element; to: Element; isCustomElement: boolean }> = [];
+	const refreshUnpersistedElements = newDocument.querySelector('script[data-eco-rerun]') !== null;
+	const retainedRerunContext: Set<Element> = refreshUnpersistedElements
+		? findPersistedRerunContext(document.body, persistAttribute)
+		: new Set<Element>();
 
 	morphdom(document.body, newDocument.body, {
 		getNodeKey: (node) => getBodyMorphKey(node, persistAttribute),
@@ -115,12 +161,18 @@ export function morphBody(newDocument: Document, persistAttribute: string): void
 			if (isPersisted(fromEl, persistAttribute)) {
 				return false;
 			}
+			if (refreshUnpersistedElements) {
+				if (fromEl === document.body || retainedRerunContext.has(fromEl)) {
+					return true;
+				}
+				return deferElementReplacement(fromEl, toEl, deferredReplacements);
+			}
 			if (isHydratedCustomElement(fromEl)) {
-				return replaceCustomElement(fromEl, toEl, deferredReplacements);
+				return deferElementReplacement(fromEl, toEl, deferredReplacements);
 			}
 
 			if (isLightDomCustomElement(fromEl)) {
-				return replaceCustomElement(fromEl, toEl, deferredReplacements);
+				return deferElementReplacement(fromEl, toEl, deferredReplacements);
 			}
 
 			if (fromEl.isEqualNode(toEl)) {
@@ -131,37 +183,6 @@ export function morphBody(newDocument: Document, persistAttribute: string): void
 		},
 	});
 
-	flushDeferredCustomElementReplacements(deferredReplacements);
-	processDeclarativeShadowDOM(document.body);
-}
-
-/**
- * Replaces body content in a single operation.
- *
- * @remarks
- * Preserves persisted elements by moving them to the new body.
- * Use when View Transitions are disabled.
- */
-export function replaceBody(newDocument: Document, persistAttribute: string): void {
-	const persistedElements = document.body.querySelectorAll(`[${persistAttribute}], [${ECO_PERSIST_ATTRIBUTE}]`);
-	const persistedMap = new Map<string, Element>();
-
-	for (const el of persistedElements) {
-		const key = el.getAttribute(persistAttribute) || el.getAttribute(ECO_PERSIST_ATTRIBUTE);
-		if (key) {
-			persistedMap.set(key, el);
-		}
-	}
-
-	for (const [key, oldEl] of persistedMap) {
-		const placeholder = newDocument.body.querySelector(
-			`[${persistAttribute}="${key}"], [${ECO_PERSIST_ATTRIBUTE}="${key}"]`,
-		);
-		if (placeholder) {
-			placeholder.replaceWith(oldEl);
-		}
-	}
-
-	document.body.replaceChildren(...Array.from(newDocument.body.childNodes));
+	flushDeferredReplacements(deferredReplacements);
 	processDeclarativeShadowDOM(document.body);
 }

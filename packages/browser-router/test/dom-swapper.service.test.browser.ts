@@ -129,9 +129,8 @@ describe('DomSwapper service behavior', () => {
 				'</head><body><div>Next Content</div></body></html>',
 			].join(''),
 		);
-
 		const headUpdate = await prepareHead(newDocument);
-		swapper.replaceBody(newDocument);
+		swapper.morphBody(newDocument);
 		flushScripts(headUpdate);
 
 		expect(document.head.querySelector('script[src$="/old-script.js"]')).toBeNull();
@@ -160,7 +159,6 @@ describe('DomSwapper service behavior', () => {
 				'</body></html>',
 			].join(''),
 		);
-
 		const headUpdate = await prepareHead(newDocument);
 		swapper.morphBody(newDocument);
 		const dataScript = document.body.querySelector('script[type="application/json"]');
@@ -170,30 +168,27 @@ describe('DomSwapper service behavior', () => {
 		expect(document.body.querySelector('script[type="application/json"]')).toBe(dataScript);
 	});
 
-	it.each(['morphBody', 'replaceBody'] as const)(
-		'keeps a script inside a persisted element without running it again (%s)',
-		async (swap) => {
-			resetDocument();
-			const swapper = new DomSwapper('data-eco-persist');
-			const runs: string[] = [];
-			(window as typeof window & { __body_script_runs__?: string[] }).__body_script_runs__ = runs;
-			const record = (label: string) => `window.__body_script_runs__.push('${label}')`;
-			const persisted = `<div data-eco-persist="widget"><script>${record('persisted')}</script></div>`;
-			document.body.innerHTML = persisted;
-			const liveScript = document.body.querySelector('script');
+	it('keeps a script inside a persisted element without running it again during a body morph', async () => {
+		resetDocument();
+		const swapper = new DomSwapper('data-eco-persist');
+		const runs: string[] = [];
+		(window as typeof window & { __body_script_runs__?: string[] }).__body_script_runs__ = runs;
+		const record = (label: string) => `window.__body_script_runs__.push('${label}')`;
+		const persisted = `<div data-eco-persist="widget"><script>${record('persisted')}</script></div>`;
+		document.body.innerHTML = persisted;
+		const liveScript = document.body.querySelector('script');
 
-			const newDocument = parseDocument(
-				`<html><head></head><body>${persisted}<script>${record('footer')}</script></body></html>`,
-			);
+		const newDocument = parseDocument(
+			`<html><head></head><body>${persisted}<script>${record('footer')}</script></body></html>`,
+		);
 
-			const headUpdate = await prepareHead(newDocument);
-			swapper[swap](newDocument);
-			flushScripts(headUpdate);
+		const headUpdate = await prepareHead(newDocument);
+		swapper.morphBody(newDocument);
+		flushScripts(headUpdate);
 
-			await vi.waitFor(() => expect(runs).toEqual(['footer']));
-			expect(document.body.querySelector('[data-eco-persist] script')).toBe(liveScript);
-		},
-	);
+		await vi.waitFor(() => expect(runs).toEqual(['footer']));
+		expect(document.body.querySelector('[data-eco-persist] script')).toBe(liveScript);
+	});
 
 	it('makes body scripts wait for a library the head of the same swap is still loading', async () => {
 		resetDocument();
@@ -208,7 +203,6 @@ describe('DomSwapper service behavior', () => {
 				`<body><script>${record('inline')}</script></body></html>`,
 			].join(''),
 		);
-
 		const headUpdate = await prepareHead(newDocument);
 		swapper.morphBody(newDocument);
 		flushScripts(headUpdate);
@@ -232,10 +226,48 @@ describe('DomSwapper service behavior', () => {
 		);
 
 		const headUpdate = await prepareHead(newDocument);
-		swapper.replaceBody(newDocument);
+		swapper.morphBody(newDocument);
 		flushScripts(headUpdate);
 
 		await vi.waitFor(() => expect(runs).toEqual(['library', 'rerun', 'body']));
+	});
+
+	it('refreshes non-persisted nodes before rerun scripts attach their event handlers', async () => {
+		resetDocument();
+		const swapper = new DomSwapper('data-eco-persist');
+		const persistedMarkup = '<aside data-eco-persist="sidebar">Sidebar</aside>';
+		const shellMarkup = `<section id="sidebar-shell">${persistedMarkup}</section>`;
+		document.body.innerHTML = `${shellMarkup}<button id="save">Save</button>`;
+		const liveShell = document.querySelector('section');
+		const liveSidebar = document.querySelector('aside');
+		const previousSaveButton = document.querySelector<HTMLButtonElement>('#save')!;
+		const incrementSaveCount = (button: HTMLButtonElement) => {
+			const count = Number(button.getAttribute('data-save-count') ?? '0');
+			button.setAttribute('data-save-count', String(count + 1));
+		};
+		previousSaveButton.addEventListener('click', () => incrementSaveCount(previousSaveButton));
+
+		const newDocument = parseDocument(
+			[
+				'<html><head>',
+				'<script data-eco-rerun="true">document.querySelector("#save")?.addEventListener("click", event => { const button = event.currentTarget; button.setAttribute("data-save-count", String(Number(button.getAttribute("data-save-count") ?? "0") + 1)); });</script>',
+				'</head><body>',
+				shellMarkup,
+				'<button id="save">Save</button>',
+				'</body></html>',
+			].join(''),
+		);
+
+		const headUpdate = await prepareHead(newDocument);
+		swapper.morphBody(newDocument);
+		flushScripts(headUpdate);
+
+		const nextSaveButton = document.querySelector<HTMLButtonElement>('#save')!;
+		nextSaveButton.click();
+		expect(nextSaveButton).toHaveAttribute('data-save-count', '1');
+		expect(nextSaveButton).not.toBe(previousSaveButton);
+		expect(document.querySelector('section')).toBe(liveShell);
+		expect(document.querySelector('aside')).toBe(liveSidebar);
 	});
 
 	it('runs body scripts before returning when no earlier script is still loading', async () => {
@@ -269,12 +301,12 @@ describe('DomSwapper service behavior', () => {
 			].join(''),
 		);
 		const firstHeadUpdate = await prepareHead(first);
-		swapper.replaceBody(first);
+		swapper.morphBody(first);
 		flushScripts(firstHeadUpdate);
 
 		const second = parseDocument(`<html><head></head><body><script>${record('second')}</script></body></html>`);
 		const secondHeadUpdate = await prepareHead(second);
-		swapper.replaceBody(second);
+		swapper.morphBody(second);
 		flushScripts(secondHeadUpdate);
 
 		await vi.waitFor(() => expect(runs).toContain('library'), { interval: 1 });
@@ -324,7 +356,7 @@ describe('DomSwapper service behavior', () => {
 		);
 
 		const headUpdate = await prepareHead(newDocument);
-		swapper.replaceBody(newDocument);
+		swapper.morphBody(newDocument);
 		flushScripts(headUpdate);
 
 		expect(document.body.getAttribute('data-route-files')).toBe(
@@ -369,11 +401,11 @@ describe('DomSwapper service behavior', () => {
 			);
 
 			const headUpdate1 = await prepareHead(nextHtml);
-			swapper.replaceBody(nextHtml);
+			swapper.morphBody(nextHtml);
 			flushScripts(headUpdate1);
 
 			const headUpdate2 = await prepareHead(nextHtml);
-			swapper.replaceBody(nextHtml);
+			swapper.morphBody(nextHtml);
 			flushScripts(headUpdate2);
 		} finally {
 			document.head.appendChild = originalAppendChild;
@@ -408,11 +440,11 @@ describe('DomSwapper service behavior', () => {
 			);
 
 			const headUpdate3 = await prepareHead(nextHtml);
-			swapper.replaceBody(nextHtml);
+			swapper.morphBody(nextHtml);
 			flushScripts(headUpdate3);
 
 			const headUpdate4 = await prepareHead(nextHtml);
-			swapper.replaceBody(nextHtml);
+			swapper.morphBody(nextHtml);
 			flushScripts(headUpdate4);
 		} finally {
 			document.head.appendChild = originalAppendChild;
@@ -450,11 +482,11 @@ describe('DomSwapper service behavior', () => {
 			);
 
 			const headUpdate5 = await prepareHead(nextHtml);
-			swapper.replaceBody(nextHtml);
+			swapper.morphBody(nextHtml);
 			flushScripts(headUpdate5);
 
 			const headUpdate6 = await prepareHead(nextHtml);
-			swapper.replaceBody(nextHtml);
+			swapper.morphBody(nextHtml);
 			flushScripts(headUpdate6);
 		} finally {
 			document.head.appendChild = originalAppendChild;

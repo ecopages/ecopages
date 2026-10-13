@@ -91,13 +91,9 @@ export class NavigationCommit {
 					window.history.replaceState({}, '', url.href);
 				}
 			},
-			swap: (headUpdate) => {
+			swap: () => {
 				syncDocumentElementAttributes(document, newDocument, this.options.documentElementAttributesToSync);
-				if (this.options.viewTransitions && headUpdate.bodyStrategy === 'morph') {
-					this.domSwapper.morphBody(newDocument);
-				} else {
-					this.domSwapper.replaceBody(newDocument);
-				}
+				this.domSwapper.morphBody(newDocument);
 			},
 			onSwapped: () => {
 				navigationRuntime.adoptDocumentOwner(newDocument, 'browser-router');

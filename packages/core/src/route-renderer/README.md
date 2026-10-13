@@ -49,7 +49,7 @@ See [`../build/README.md`](../build/README.md) for the JSX ownership helper spli
 
 ### `route-renderer.ts`
 
-- `RouteRendererFactory` chooses integration renderers from route files
+- `RouteRendererFactory` chooses the Integration for a route file or explicit view; the Integration (`IntegrationPlugin.getRenderer()`) owns its one renderer, which route renders, handler renders and foreign handoffs from other integrations all use
 - `RouteRenderer` delegates execution to the selected renderer
 
 ### `explicit-view-render-preparation.ts`
@@ -119,7 +119,7 @@ The render context lives in `AsyncLocalStorage`, so overlapping renders each see
 
 `renderComponentWithForeignChildren()` is the renderer entrypoint for mixed-integration trees. It is responsible for:
 
-- reusing the execution-scoped owning-renderer cache
+- reusing the execution-scoped owning-renderer cache, which holds the shared renderer of each owning Integration
 - deciding whether the current component can stay local
 - creating a foreign-child runtime when nested foreign ownership must be resolved
 - normalizing unresolved artifact HTML before the render leaves the renderer

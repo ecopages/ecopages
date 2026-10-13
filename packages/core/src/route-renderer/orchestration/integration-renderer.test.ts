@@ -820,7 +820,7 @@ describe('IntegrationRenderer', () => {
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'explicit-renderer',
-						initializeRenderer: () => explicitRenderer,
+						getRenderer: () => explicitRenderer,
 					}),
 				],
 			} as unknown as EcoPagesAppConfig;
@@ -1027,7 +1027,7 @@ describe('IntegrationRenderer', () => {
 					createMockIntegrationPlugin({
 						name: 'react',
 						plugins: [],
-						initializeRenderer: () => contributor,
+						getRenderer: () => contributor,
 					}),
 				],
 			},

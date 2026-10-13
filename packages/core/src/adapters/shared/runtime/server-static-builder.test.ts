@@ -259,7 +259,6 @@ describe('resolve-entry-file constants', () => {
 describe('ServerStaticBuilder', () => {
 	beforeEach(() => {
 		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'server-static-builder-test-'));
-		fs.writeFileSync(path.join(tmpDir, 'app.ts'), 'await Promise.resolve();\n', 'utf8');
 	});
 
 	afterEach(() => {
@@ -542,18 +541,36 @@ describe('ServerStaticBuilder', () => {
 				);
 			});
 
+			function recordServerEntryBuilds(appConfig: EcoPagesAppConfig): BuildOptions[] {
+				const buildCalls: BuildOptions[] = [];
+				const buildAdapter: BuildAdapter = {
+					ownership: 'rolldown',
+					async build(options: BuildOptions): Promise<BuildResult> {
+						buildCalls.push(options);
+						return { success: true, logs: [], outputs: [] };
+					},
+					resolve(importPath: string): string {
+						return importPath;
+					},
+					getTranspileOptions() {
+						return { target: 'node', format: 'esm', sourcemap: 'hidden' };
+					},
+				};
+				setAppBuildAdapter(appConfig, buildAdapter);
+				return buildCalls;
+			}
+
 			it('falls back to ECOPAGES_ENTRY_FILE env var when entryFile arg is not provided', async () => {
 				const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger } =
 					createMockDependencies();
 				const distDir = setupBundleFixture('env-entry');
-				const rootDir = tmpDir;
-				fs.writeFileSync(path.join(rootDir, 'server.ts'), 'await Promise.resolve();', 'utf8');
+				fs.writeFileSync(path.join(tmpDir, 'server.ts'), 'await Promise.resolve();', 'utf8');
 				const appConfig = {
 					...AppConfig,
-					rootDir,
+					rootDir: tmpDir,
 					absolutePaths: { ...AppConfig.absolutePaths, distDir },
 				} as EcoPagesAppConfig;
-
+				const buildCalls = recordServerEntryBuilds(appConfig);
 				vi.stubEnv(ENTRY_FILE_ENV, 'server.ts');
 
 				const builder = new ServerStaticBuilder({
@@ -569,20 +586,25 @@ describe('ServerStaticBuilder', () => {
 					router: Router,
 					routeRendererFactory: RouteRendererFactory,
 				});
+
+				assert.deepEqual(
+					buildCalls.map((call) => call.entrypoints),
+					[[path.join(tmpDir, 'server.ts')]],
+				);
 			});
 
 			it('prefers constructor entryFile over ECOPAGES_ENTRY_FILE env var', async () => {
 				const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger } =
 					createMockDependencies();
 				const distDir = setupBundleFixture('precedence-entry');
-				const rootDir = tmpDir;
-				fs.writeFileSync(path.join(rootDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
+				fs.writeFileSync(path.join(tmpDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
+				fs.writeFileSync(path.join(tmpDir, 'env-wins.ts'), 'await Promise.resolve();', 'utf8');
 				const appConfig = {
 					...AppConfig,
-					rootDir,
+					rootDir: tmpDir,
 					absolutePaths: { ...AppConfig.absolutePaths, distDir },
 				} as EcoPagesAppConfig;
-
+				const buildCalls = recordServerEntryBuilds(appConfig);
 				vi.stubEnv(ENTRY_FILE_ENV, 'env-wins.ts');
 
 				const builder = new ServerStaticBuilder({
@@ -599,6 +621,11 @@ describe('ServerStaticBuilder', () => {
 					router: Router,
 					routeRendererFactory: RouteRendererFactory,
 				});
+
+				assert.deepEqual(
+					buildCalls.map((call) => call.entrypoints),
+					[[path.join(tmpDir, 'app.ts')]],
+				);
 			});
 
 			it('externalizes package imports when bundling the server entry', async () => {
@@ -613,21 +640,7 @@ describe('ServerStaticBuilder', () => {
 					absolutePaths: { ...AppConfig.absolutePaths, distDir },
 				} as EcoPagesAppConfig;
 
-				const buildCalls: BuildOptions[] = [];
-				const buildAdapter: BuildAdapter = {
-					ownership: 'rolldown',
-					async build(options: BuildOptions): Promise<BuildResult> {
-						buildCalls.push(options);
-						return { success: true, logs: [], outputs: [] };
-					},
-					resolve(importPath: string): string {
-						return importPath;
-					},
-					getTranspileOptions() {
-						return { target: 'node', format: 'esm', sourcemap: 'hidden' };
-					},
-				};
-				setAppBuildAdapter(appConfig, buildAdapter);
+				const buildCalls = recordServerEntryBuilds(appConfig);
 
 				const builder = new ServerStaticBuilder({
 					appConfig,

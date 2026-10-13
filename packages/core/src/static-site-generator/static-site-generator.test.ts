@@ -227,7 +227,8 @@ describe('StaticSiteGenerator', () => {
 			expect(ensureDirMock).toHaveBeenCalled();
 		});
 
-		test('should throw error when routeRendererFactory is missing for render strategy', async () => {
+		test('should log an error and write nothing when routeRendererFactory is missing for render strategy', async () => {
+			const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
 			const Router = createMockRouter({
 				'/page': { filePath: '/src/pages/page.ts', pathname: '/page' },
@@ -238,6 +239,12 @@ describe('StaticSiteGenerator', () => {
 				baseUrl: 'http://localhost:3000',
 				routeRendererFactory: undefined,
 			});
+
+			expect(errorSpy).toHaveBeenCalledWith(
+				'Error generating static page for http://localhost:3000/page:',
+				expect.objectContaining({ message: 'RouteRendererFactory is required for render strategy' }),
+			);
+			expect(writeMock).not.toHaveBeenCalled();
 		});
 
 		test('should write index.html for root path', async () => {
@@ -812,6 +819,7 @@ describe('StaticSiteGenerator', () => {
 		});
 
 		test('should log an error for dynamic explicit routes without staticPaths', async () => {
+			const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
 			const ssg = new StaticSiteGenerator({
 				appConfig: createMockConfig({ baseUrl: 'http://localhost:3000' } as any),
 			});
@@ -840,6 +848,12 @@ describe('StaticSiteGenerator', () => {
 				],
 			});
 
+			expect(errorSpy).toHaveBeenCalledWith(
+				'Error generating explicit static page for /blog/[slug]:',
+				expect.objectContaining({
+					message: 'Dynamic route /blog/[slug] requires staticPaths to be defined on the view.',
+				}),
+			);
 			expect(writeMock).not.toHaveBeenCalledWith('/test/project/dist/blog/hello-world.html', expect.anything());
 		});
 	});

@@ -70,7 +70,10 @@ describe('PageModuleLoaderService', () => {
 	});
 
 	it('should merge default and dynamic metadata', async () => {
-		const service = new PageModuleLoaderService(appConfig, 'http://localhost:3000');
+		const service = new PageModuleLoaderService(
+			{ ...appConfig, defaultMetadata: { ...appConfig.defaultMetadata, image: '/default.png' } },
+			'http://localhost:3000',
+		);
 		const metadata = await service.getMetadataPropsForPage({
 			getMetadata: async ({ props }) => ({
 				title: String(props.title),
@@ -87,6 +90,7 @@ describe('PageModuleLoaderService', () => {
 		expect(metadata).toEqual({
 			title: 'Dynamic title',
 			description: 'Dynamic description',
+			image: '/default.png',
 		});
 	});
 

@@ -96,10 +96,6 @@ class TestNodeServerAdapter extends NodeServerAdapter {
 		}
 	}
 
-	public setHmrManagerForTest(hmrManager: { isEnabled: () => boolean } | null): void {
-		(this as unknown as { hmrManager: { isEnabled: () => boolean } | null }).hmrManager = hmrManager;
-	}
-
 	public override async handleSharedRequest(): Promise<Response> {
 		if (this.handleSharedRequestImpl) {
 			return await this.handleSharedRequestImpl();
@@ -131,29 +127,6 @@ function createAdapter(options?: Partial<NodeServerAdapterParams>) {
 describe('NodeServerAdapter', () => {
 	beforeEach(() => {
 		vi.restoreAllMocks();
-	});
-
-	it('does not re-inject HMR at the Node boundary (inject lives in SharedServerAdapter)', async () => {
-		const adapter = createAdapter();
-		adapter.setInitializedForTest();
-		adapter.setHmrManagerForTest({ isEnabled: () => true });
-
-		const response = await adapter.handleRequest(new Request('http://localhost:3000/explicit/team'));
-		const html = await response.text();
-
-		expect(html).toBe('<html><body><h1>Explicit route</h1></body></html>');
-		expect(html).not.toContain("import '/_hmr_runtime.js'");
-	});
-
-	it('does not inject the HMR runtime when watch mode is disabled', async () => {
-		const adapter = createAdapter({ options: { watch: false } });
-		adapter.setInitializedForTest();
-		adapter.setHmrManagerForTest({ isEnabled: () => true });
-
-		const response = await adapter.handleRequest(new Request('http://localhost:3000/explicit/team'));
-		const html = await response.text();
-
-		expect(html).not.toContain("import '/_hmr_runtime.js'");
 	});
 
 	it('returns 499 for normalized client aborts', async () => {

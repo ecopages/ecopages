@@ -97,7 +97,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		filter: /\.css$/,
 	};
 
-	private buildContributionsPrepared = false;
+	private postcssPluginsLoading?: Promise<void>;
 	private postcssPlugins: postcss.AcceptedPlugin[] = [];
 	private pluginFactories?: PluginFactoryRecord;
 	private readonly runtimeCssCache = new Map<string, string>();
@@ -478,7 +478,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		}
 	}
 
-	get plugins(): EcoBuildPlugin[] {
+	override plugins(): EcoBuildPlugin[] {
 		return [
 			createCssLoaderPlugin({
 				name: 'postcss-processor-runtime-loader',
@@ -497,26 +497,9 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	}
 
 	/**
-	 * Resolves the configured PostCSS plugin list before config build seals the
-	 * app manifest.
-	 *
-	 * @remarks
-	 * Runtime setup reuses this prepared list and only performs cache prewarming.
-	 */
-	override async prepareBuildContributions(): Promise<void> {
-		if (this.buildContributionsPrepared) {
-			return;
-		}
-
-		await this.collectPostcssPlugins();
-		this.buildContributionsPrepared = true;
-	}
-
-	/**
-	 * Prepares build contributions if not already done and prewarms the runtime CSS cache.
+	 * Prewarms the runtime CSS cache, which loads the configured PostCSS plugins on the first stylesheet.
 	 */
 	async setup(): Promise<void> {
-		await this.prepareBuildContributions();
 		await this.prewarmRuntimeCssCache();
 	}
 
@@ -561,6 +544,21 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		this.postcssPlugins = [];
 	}
 
+	/**
+	 * Loads the PostCSS plugin list once, on the first stylesheet that needs it.
+	 *
+	 * @remarks
+	 * Config finalization does not load the plugins, so a build that starts before `setup()` and a `setup()` of an
+	 * app without stylesheets both work. A failed load is dropped so the next stylesheet retries.
+	 */
+	private ensurePostcssPlugins(): Promise<void> {
+		this.postcssPluginsLoading ??= this.collectPostcssPlugins().catch((error) => {
+			this.postcssPluginsLoading = undefined;
+			throw error;
+		});
+		return this.postcssPluginsLoading;
+	}
+
 	private async collectPostcssPlugins(): Promise<void> {
 		if (!this.context) {
 			throw new Error('Context must be set');
@@ -587,6 +585,8 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	 * @returns Processed CSS
 	 */
 	override async transformStylesheet(fileAsString: string, filePath: string): Promise<string> {
+		await this.ensurePostcssPlugins();
+
 		const input = this.options?.transformInput
 			? await this.options.transformInput(fileAsString, filePath)
 			: fileAsString;
@@ -598,6 +598,13 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		});
 	}
 
+	/**
+	 * Runs the PostCSS plugins over one stylesheet synchronously.
+	 *
+	 * @remarks
+	 * It cannot load the plugin list, so it runs the plugins that an earlier {@link transformStylesheet} call
+	 * loaded and applies none before then.
+	 */
 	processSync(fileAsString: string, filePath?: string): string {
 		const input =
 			this.options?.transformInput && filePath

@@ -2,6 +2,7 @@
  * This module contains the react plugin for Ecopages
  * @module
  */
+import type { EcoPagesAppConfig } from '@ecopages/core';
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import {
 	IntegrationPlugin,
@@ -101,6 +102,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	renderer = ReactRenderer;
 	private readonly routerAdapter: ReactRouterAdapter | undefined;
 	private readonly mdxExtensions: string[];
+	private readonly mdxCompilerOptions: CompileOptions | undefined;
 	private mdxLoaderPlugin: EcoBuildPlugin | undefined;
 	private readonly getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	private readonly runtimeBundleService: RuntimeBundleService;
@@ -129,8 +131,9 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		});
 
 		this.routerAdapter = rendererConfig.routerAdapter;
+		this.mdxCompilerOptions = mdxCompilerOptions;
 		this.getMdxLoaderPlugin = mdxCompilerOptions
-			? () => (this.mdxLoaderPlugin ??= this.createMdxLoaderPlugin(mdxCompilerOptions))
+			? () => this.resolveMdxLoaderPlugin(mdxCompilerOptions)
 			: undefined;
 		this.mdxExtensions = rendererConfig.mdxExtensions ?? ['.mdx'];
 		this.hmrPageMetadataCache = rendererConfig.hmrPageMetadataCache ?? new HmrPageMetadataCache();
@@ -186,45 +189,40 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		this.runtimeDependenciesInitialized = true;
 	}
 
-	override get plugins(): EcoBuildPlugin[] {
-		if (this.mdxLoaderPlugin) {
-			return [this.mdxLoaderPlugin];
-		}
-		return [];
+	/**
+	 * Returns the MDX loader when MDX is enabled.
+	 *
+	 * @remarks
+	 * The loader is created on the first read and kept, because the renderer and the HMR strategy reuse the
+	 * instance the build manifest holds.
+	 */
+	override plugins(app: EcoPagesAppConfig): EcoBuildPlugin[] {
+		const loader = this.mdxCompilerOptions
+			? this.resolveMdxLoaderPlugin(this.mdxCompilerOptions, app.rootDir)
+			: undefined;
+		return loader ? [loader] : [];
 	}
 
 	override get browserRuntimeManifest(): BrowserRuntimeManifest {
-		this.ensureRuntimeDependencies();
 		return this.runtimeBundleService.getRuntimeManifest();
 	}
 
-	private createMdxLoaderPlugin(compilerOptions: CompileOptions): EcoBuildPlugin {
-		if (!this.appConfig?.rootDir) {
+	private resolveMdxLoaderPlugin(
+		compilerOptions: CompileOptions,
+		projectRoot = this.appConfig?.rootDir,
+	): EcoBuildPlugin {
+		if (!projectRoot) {
 			throw new Error('[ReactPlugin] Cannot create MDX loader: appConfig.rootDir is required.');
 		}
 
-		return createReactMdxLoaderPlugin({
-			compilerOptions,
-			projectRoot: this.appConfig.rootDir,
-		});
+		return (this.mdxLoaderPlugin ??= createReactMdxLoaderPlugin({ compilerOptions, projectRoot }));
 	}
 
 	/**
-	 * Prepares React's build-facing loader contributions before config build seals
-	 * the app manifest.
-	 */
-	override async prepareBuildContributions(): Promise<void> {
-		this.ensureRuntimeDependencies();
-		this.getMdxLoaderPlugin?.();
-	}
-
-	/**
-	 * Performs runtime-only React setup after build contributions are already
-	 * materialized.
+	 * Adds the React runtime vendor assets to the global dependencies, then processes them.
 	 */
 	override async setup(): Promise<void> {
 		this.ensureRuntimeDependencies();
-		this.getMdxLoaderPlugin?.();
 		await super.setup();
 	}
 

@@ -135,8 +135,8 @@ test('setAppBuildManifest installs the manifest getAppBuildManifest returns', ()
 	assert.equal(getAppBuildManifest(appConfig), manifest);
 });
 
-test('sealAppBuildManifest gathers loaders, then processor and integration contributions, and seals once', async () => {
-	const contributionOrder: string[] = [];
+test('sealAppBuildManifest gathers loaders, then processor and integration plugins, and seals once', () => {
+	const calls: string[] = [];
 	const loaderPlugin = { name: 'loader-plugin', setup() {} };
 	const processorRuntimePlugin = { name: 'processor-runtime-plugin', setup() {} };
 	const processorBrowserPlugin: EcoBuildPlugin = {
@@ -147,18 +147,24 @@ test('sealAppBuildManifest gathers loaders, then processor and integration contr
 	const integrationRuntimePlugin = { name: 'integration-runtime-plugin', setup() {} };
 	const processor = {
 		name: 'processor',
-		plugins: [processorRuntimePlugin, processorBrowserPlugin],
-		prepareBuildContributions: vi.fn(async () => {
-			contributionOrder.push('processor-prepare');
+		plugins: vi.fn(() => {
+			calls.push('processor-plugins');
+			return [processorRuntimePlugin, processorBrowserPlugin];
+		}),
+		setup: vi.fn(async () => {
+			throw new Error('finalization must not set a processor up');
 		}),
 	};
 	const integration = {
 		name: 'integration',
-		plugins: [integrationRuntimePlugin],
+		plugins: vi.fn(() => {
+			calls.push('integration-plugins');
+			return [integrationRuntimePlugin];
+		}),
 		browserRuntimeManifest: createBrowserRuntimeManifest(),
-		setConfig: vi.fn(() => contributionOrder.push('integration-config')),
-		prepareBuildContributions: vi.fn(async () => {
-			contributionOrder.push('integration-prepare');
+		setConfig: vi.fn(() => calls.push('integration-config')),
+		setup: vi.fn(async () => {
+			throw new Error('finalization must not set an integration up');
 		}),
 	};
 	const appConfig = {
@@ -168,9 +174,13 @@ test('sealAppBuildManifest gathers loaders, then processor and integration contr
 		runtime: {},
 	} as any;
 
-	await sealAppBuildManifest(appConfig);
+	sealAppBuildManifest(appConfig);
 
-	assert.deepEqual(contributionOrder, ['processor-prepare', 'integration-config', 'integration-prepare']);
+	assert.deepEqual(calls, ['processor-plugins', 'integration-config', 'integration-plugins']);
+	assert.deepEqual(processor.plugins.mock.calls, [[appConfig]]);
+	assert.deepEqual(integration.plugins.mock.calls, [[appConfig]]);
+	assert.equal(processor.setup.mock.calls.length, 0);
+	assert.equal(integration.setup.mock.calls.length, 0);
 	const manifest = getAppBuildManifest(appConfig);
 	assert.deepEqual(manifest.server, [loaderPlugin, processorRuntimePlugin, integrationRuntimePlugin]);
 	assert.deepEqual(manifest.browser, [
@@ -181,28 +191,28 @@ test('sealAppBuildManifest gathers loaders, then processor and integration contr
 	]);
 });
 
-test('sealAppBuildManifest reports a plugin an integration registers under a loader name', async () => {
+test('sealAppBuildManifest reports a plugin an integration registers under a loader name', () => {
 	const loaderPlugin = { name: 'duplicate', setup() {} };
 	const integration = {
 		name: 'react',
-		plugins: [{ name: 'duplicate', setup() {} }],
+		plugins: () => [{ name: 'duplicate', setup() {} }],
 		browserRuntimeManifest: createBrowserRuntimeManifest(),
 		setConfig() {},
-		prepareBuildContributions: vi.fn(async () => {}),
 	};
 
-	await assert.rejects(
-		sealAppBuildManifest({
-			loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
-			processors: new Map(),
-			integrations: [integration],
-			runtime: {},
-		} as any),
+	assert.throws(
+		() =>
+			sealAppBuildManifest({
+				loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
+				processors: new Map(),
+				integrations: [integration],
+				runtime: {},
+			} as any),
 		/registered by both Loader "duplicate" and Integration "react"/,
 	);
 });
 
-test('sealAppBuildManifest merges integration browser runtime manifests', async () => {
+test('sealAppBuildManifest merges integration browser runtime manifests', () => {
 	const reactManifest = createBrowserRuntimeManifest([
 		{
 			specifier: 'react',
@@ -221,10 +231,9 @@ test('sealAppBuildManifest merges integration browser runtime manifests', async 
 	]);
 	const integrationFor = (name: string, browserRuntimeManifest: typeof reactManifest) => ({
 		name,
-		plugins: [],
+		plugins: () => [],
 		browserRuntimeManifest,
 		setConfig() {},
-		prepareBuildContributions: vi.fn(async () => {}),
 	});
 	const appConfig = {
 		loaders: new Map(),
@@ -233,7 +242,7 @@ test('sealAppBuildManifest merges integration browser runtime manifests', async 
 		runtime: {},
 	} as any;
 
-	await sealAppBuildManifest(appConfig);
+	sealAppBuildManifest(appConfig);
 
 	assert.deepEqual(Array.from(getAppBuildManifest(appConfig).browserRuntimeManifest.bySpecifier.keys()), [
 		'react',

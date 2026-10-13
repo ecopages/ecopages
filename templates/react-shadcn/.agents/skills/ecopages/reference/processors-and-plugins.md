@@ -13,13 +13,10 @@
 
 Core owns ordering. During config finalization (when `createApp()` loads `eco.config.ts`):
 
-1. Processors run `prepareBuildContributions()`
-2. Processor `plugins` → runtime contributions; `buildPlugins` → browser bundle contributions
-3. Integrations run `prepareBuildContributions()`
-4. Integration `plugins` and `browserBuildPlugins` are collected
-5. App build manifest is sealed
+1. Core reads each Processor's, then each Integration's, `plugins(app)` once. It is a pure read with no I/O, and plugins declare `environments` (`['browser']` for browser-only; omitted means both)
+2. App build manifest is sealed
 
-At startup: processors `setup()` first, then integrations `setup()`.
+Nothing else of a Processor runs during finalization. At startup: processors `setup()` first, then integrations `setup()`.
 
 Core calls Integration `teardown()` when the app stops or the development server restarts. Processors have no `teardown()` hook.
 
@@ -64,12 +61,10 @@ Name and image `capabilities` are fixed inside the factory. Pass options only un
 Extend `Processor` from `@ecopages/core/plugins/processor`:
 
 ```typescript
+import type { EcoPagesAppConfig } from '@ecopages/core';
 import { Processor, type EcoBuildPlugin, type ProcessorConfig } from '@ecopages/core/plugins/processor';
 
 class CustomProcessor extends Processor {
-	buildPlugins: EcoBuildPlugin[] = [];
-	plugins: EcoBuildPlugin[] = [];
-
 	constructor(config: Omit<ProcessorConfig, 'name'>) {
 		super({
 			name: 'custom-processor',
@@ -78,11 +73,13 @@ class CustomProcessor extends Processor {
 		});
 	}
 
-	override async prepareBuildContributions(): Promise<void> {
-		// Materialize plugins before manifest seal
+	override plugins(app: EcoPagesAppConfig): EcoBuildPlugin[] {
+		return [];
 	}
 
-	override async setup(): Promise<void> {}
+	override async setup(): Promise<void> {
+		// Generation, config loading and cache warming
+	}
 
 	override async transformStylesheet(css: string, file: string): Promise<string> {
 		return css;
@@ -113,7 +110,7 @@ export const customPlugin = defineIntegration({
 });
 ```
 
-Class-based integrations extend `IntegrationPlugin`, provide a renderer, and split build work (`prepareBuildContributions`) from runtime work (`setup`).
+Class-based integrations extend `IntegrationPlugin`, provide a renderer, and split build declarations (`plugins(app)`, no I/O) from runtime work (`setup`).
 
 ## Source transforms
 
@@ -140,10 +137,9 @@ Prefer source transforms over competing `onLoad` plugins when the change is a pu
 
 ## Extension point comparison
 
-| Mechanism                         | Use when                                          |
-| --------------------------------- | ------------------------------------------------- |
-| `EcoSourceTransform`              | Filter-based source rewrites                      |
-| `EcoBuildPlugin`                  | Virtual modules, custom loaders, resolve behavior |
-| Processor `plugins`               | Runtime file processing                           |
-| Processor `buildPlugins`          | Browser-only bundling                             |
-| Integration `browserBuildPlugins` | Framework browser transforms / import aliasing    |
+| Mechanism                                       | Use when                                                        |
+| ----------------------------------------------- | --------------------------------------------------------------- |
+| `EcoSourceTransform`                            | Filter-based source rewrites                                    |
+| `EcoBuildPlugin`                                | Virtual modules, custom loaders, resolve behavior               |
+| Processor `plugins(app)`                        | File processing in server and browser builds                    |
+| `plugins(app)` with `environments: ['browser']` | Browser-only bundling, framework transforms and import aliasing |

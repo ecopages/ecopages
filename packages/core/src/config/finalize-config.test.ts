@@ -26,7 +26,7 @@ const createMockIntegration = (
 ): IntegrationPlugin => {
 	return new (class extends IntegrationPlugin {
 		renderer = vi.fn() as any;
-		override get plugins(): EcoBuildPlugin[] {
+		override plugins(): EcoBuildPlugin[] {
 			return plugins;
 		}
 		override extensions: string[];
@@ -193,14 +193,15 @@ describe('finalizeEcoPagesConfig', () => {
 		const integrationBrowserPlugin = { name: 'integration-browser-plugin', setup() {} };
 
 		const processor = new (class extends Processor {
-			plugins = [processorRuntimePlugin, processorBrowserPlugin];
-			override async prepareBuildContributions(): Promise<void> {}
+			override plugins(): EcoBuildPlugin[] {
+				return [processorRuntimePlugin, processorBrowserPlugin];
+			}
 			override async setup(): Promise<void> {}
 		})({ name: 'test-processor' });
 
 		const integration = new (class extends IntegrationPlugin {
 			renderer = vi.fn() as any;
-			override get plugins() {
+			override plugins() {
 				return [integrationRuntimePlugin, integrationBrowserPlugin];
 			}
 			override get browserRuntimeManifest() {
@@ -213,7 +214,6 @@ describe('finalizeEcoPagesConfig', () => {
 					},
 				]);
 			}
-			override async prepareBuildContributions(): Promise<void> {}
 		})({ name: 'test-integration', extensions: ['.test'] });
 
 		try {
@@ -238,6 +238,33 @@ describe('finalizeEcoPagesConfig', () => {
 			expect(getAppBuildManifest(config).browserRuntimeManifest.bySpecifier.get('react')?.publicPath).toBe(
 				'/assets/vendors/react.js',
 			);
+		} finally {
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
+	test('finalizes a config whose processor and integration cannot set up', async () => {
+		const rejectSetup = async (): Promise<void> => {
+			throw new Error('setup must not run during finalization');
+		};
+		const processor = new (class extends Processor {
+			override async setup(): Promise<void> {
+				await rejectSetup();
+			}
+		})({ name: 'failing-processor' });
+		const integration = new (class extends IntegrationPlugin {
+			renderer = vi.fn() as any;
+			override async setup(): Promise<void> {
+				await rejectSetup();
+			}
+		})({ name: 'failing-integration', extensions: ['.failing'] });
+
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-finalize-config-'));
+
+		try {
+			const config = await finalize({ rootDir, processors: [processor], integrations: [integration] });
+
+			expect(config.processors.has('failing-processor')).toBe(true);
 		} finally {
 			fs.rmSync(rootDir, { recursive: true, force: true });
 		}
@@ -416,8 +443,6 @@ describe('finalizeEcoPagesConfig', () => {
 
 	test('should throw for duplicate processor, loader, and source transform names', async () => {
 		const processor = new (class extends Processor {
-			buildPlugins = [];
-			plugins = [];
 			override async setup(): Promise<void> {}
 		})({ name: 'twice' });
 		const loader = { name: 'twice', setup() {} };

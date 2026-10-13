@@ -145,10 +145,9 @@ export type AnyProcessor = Processor<unknown>;
  * Base class for content and asset processors that contribute build plugins.
  *
  * @remarks
- * Processors and Integrations declare build plugins through `plugins`.
+ * Processors and Integrations declare build plugins through `plugins(app)`.
  * Each plugin selects its environments; omitting them applies to both.
  */
-
 export abstract class Processor<TOptions = unknown> {
 	readonly name: string;
 	protected context?: ProcessorContext;
@@ -157,11 +156,19 @@ export abstract class Processor<TOptions = unknown> {
 	protected capabilities: ProcessorAssetCapability[] = [];
 
 	/**
+	 * Declares the build plugins this Processor contributes.
+	 *
 	 * @remarks
-	 * Browser-only plugins declare `environments: ['browser']`. Runtime-only
-	 * setup stays in {@link setup}.
+	 * Core reads it once, during config finalization, and it is the only plugin method finalization calls. It must
+	 * not do I/O or start work: generation, config loading and cache restoring belong in {@link setup}, or in the
+	 * plugin's own callbacks when a build can run before it. Browser-only plugins declare
+	 * `environments: ['browser']`.
+	 *
+	 * @param app - The app config being finalized.
 	 */
-	abstract plugins?: EcoBuildPlugin[];
+	plugins(_app: EcoPagesAppConfig): EcoBuildPlugin[] {
+		return [];
+	}
 
 	constructor(config: ProcessorConfig<TOptions>) {
 		this.name = config.name;
@@ -189,16 +196,6 @@ export abstract class Processor<TOptions = unknown> {
 			cache: cachePath,
 		};
 	}
-
-	/**
-	 * Prepares build-facing processor contributions before config finalization.
-	 *
-	 * @remarks
-	 * Override this when a processor must compute runtime/build plugins or other
-	 * manifest-owned state before startup. Runtime-only work such as cache
-	 * warming or watcher registration should stay in `setup()`.
-	 */
-	async prepareBuildContributions(): Promise<void> {}
 
 	abstract setup(): Promise<void>;
 

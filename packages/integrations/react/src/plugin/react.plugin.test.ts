@@ -3,11 +3,8 @@ import type { EcoPagesAppConfig } from '@ecopages/core';
 import { ReactPlugin, reactPlugin } from './react.plugin.ts';
 
 async function getMdxLoaderFilter(plugin: ReactPlugin): Promise<RegExp | undefined> {
-	plugin.setConfig({ rootDir: '/tmp/project' } as EcoPagesAppConfig);
-	await plugin.prepareBuildContributions();
-
 	let filter: RegExp | undefined;
-	await plugin.plugins[0]?.setup({
+	await plugin.plugins({ rootDir: '/tmp/project' } as EcoPagesAppConfig)[0]?.setup({
 		onResolve() {},
 		onLoad(options) {
 			filter = options.filter;

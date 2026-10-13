@@ -155,20 +155,34 @@ class CustomIntegration extends IntegrationPlugin {
 }
 ```
 
-Use `prepareBuildContributions()` for build-facing declarations that must exist before the app manifest is sealed, such as optional loaders or browser-only build plugins. Use `setup()` only for runtime-only work.
+Use `plugins(app)` for build-facing declarations, such as loaders or browser-only build plugins. Core reads it once while finalizing the config and seals the app manifest from it, so it must not do I/O. Use `setup()` for runtime work.
 
 ```typescript
-override async prepareBuildContributions(): Promise<void> {
-	// Register build-facing plugins here.
+override plugins(app: EcoPagesAppConfig): EcoBuildPlugin[] {
+	return [
+		{
+			name: 'custom-loader',
+			setup(build) {
+				// Server and browser builds
+			},
+		},
+		{
+			name: 'custom-browser-plugin',
+			environments: ['browser'],
+			setup(build) {
+				// Browser bundles only
+			},
+		},
+	];
 }
 
 override async setup(): Promise<void> {
 	await super.setup();
-	// Runtime-only side effects go here.
+	// Runtime side effects go here.
 }
 ```
 
-Use `browserBuildPlugins` for browser-only bundling behavior. `browserBuildPlugins` are intentionally excluded from server bundles and static page-module generation.
+A plugin that declares `environments: ['browser']` is excluded from server bundles and static page-module generation.
 
 ## Cross-Integration Ownership
 
@@ -263,7 +277,7 @@ class CustomIntegration extends IntegrationPlugin {
 }
 ```
 
-Use `browserBuildPlugins` when the integration needs browser-only transforms in client bundles (for example alias or rewrite plugins from `@ecopages/core/build/browser-runtime-plugin`). Override `setHmrManager()` only when behavior beyond the shared strategy registration path is required.
+Declare plugins with `environments: ['browser']` in `plugins(app)` when the integration needs browser-only transforms in client bundles (for example alias or rewrite plugins from `@ecopages/core/build/browser-runtime-plugin`). Override `setHmrManager()` only when behavior beyond the shared strategy registration path is required.
 
 ## Setup and Teardown
 
@@ -287,10 +301,10 @@ class CustomIntegration extends IntegrationPlugin {
 
 Core calls `teardown()` when the app stops or the development server restarts, after any in-progress `setup()` call and route prewarm render finish, and calls `setup()` again on the next start. Keep `setup()` safe to run more than once. Override `teardown()` only when the integration owns watchers, compiler handles, workers, or other resources that outlive individual requests.
 
-`prepareBuildContributions()` runs before `setup()`. Use that split consistently:
+`plugins(app)` runs during config finalization, before `setup()`. Use that split consistently:
 
-1. `prepareBuildContributions()` for loaders, manifest-facing plugins, and other build declarations
-2. `setup()` for runtime-only side effects
+1. `plugins(app)` for loaders, manifest-facing plugins, and other build declarations
+2. `setup()` for runtime side effects
 3. `teardown()` for explicit cleanup when the app stops or restarts
 
 ## Static Export
@@ -329,13 +343,13 @@ export default defineConfig({
 });
 ```
 
-Config finalization, when `createApp()` loads `eco.config.ts`, is the app-owned boundary. This is where Ecopages derives paths, collects build contributions, and prepares the shared runtime state used later by startup and rendering.
+Config finalization, when `createApp()` loads `eco.config.ts`, is the app-owned boundary. This is where Ecopages derives paths, reads each `plugins(app)`, and prepares the shared runtime state used later by startup and rendering.
 
 ## Best Practices
 
-1. Keep the constructor declarative. Build-facing work goes in `prepareBuildContributions()`. Runtime side effects go in `setup()`.
+1. Keep the constructor declarative. Build declarations go in `plugins(app)`, which must not do I/O. Runtime side effects go in `setup()`.
 2. Keep the renderer focused on framework semantics. Core already owns route orchestration, dependency assembly, and marker-graph resolution.
-3. Use `browserBuildPlugins` for browser-only transforms and runtime specifier aliasing in browser bundles.
+3. Declare plugins with `environments: ['browser']` for browser-only transforms and runtime specifier aliasing in browser bundles.
 4. Fall back to full reload when a hot update is not safe. Correctness matters more than partial HMR.
 5. Document any required foreign-child ownership rules. Cross-integration rendering is the first place future readers will get lost.
 

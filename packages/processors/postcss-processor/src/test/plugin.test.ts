@@ -361,6 +361,45 @@ describe('PostCssProcessorPlugin HMR', () => {
 		expect(outputContent).toContain('color: purple');
 	});
 
+	test('loads the configured plugins on the first transform instead of at finalization', async () => {
+		const cssFile = path.join(srcDir, 'lazy-plugins.css');
+		fs.writeFileSync(cssFile, '.foo { color: red; }');
+
+		const createPlugin = vi.fn(
+			() =>
+				({
+					postcssPlugin: 'lazy-color-plugin',
+					Declaration(decl) {
+						if (decl.prop === 'color') {
+							decl.value = 'green';
+						}
+					},
+				}) as postcss.AcceptedPlugin,
+		);
+		const plugin = new PostCssProcessorPlugin({
+			options: { filter: /\.css$/, pluginFactories: { 'lazy-color-plugin': createPlugin } },
+		});
+
+		await finalizeEcoPagesConfig({
+			rootDir: tmpDir,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+
+		expect(createPlugin).not.toHaveBeenCalled();
+
+		const [first, second] = await Promise.all([
+			plugin.transformStylesheet('.foo { color: red; }', cssFile),
+			plugin.transformStylesheet('.foo { color: red; }', cssFile),
+		]);
+
+		expect(first).toContain('color: green');
+		expect(second).toContain('color: green');
+		expect(createPlugin).toHaveBeenCalledTimes(1);
+	});
+
 	test('process should apply transformInput for direct asset-pipeline calls', async () => {
 		const cssFile = path.join(srcDir, 'direct-process.css');
 		fs.writeFileSync(cssFile, '.foo { color: red; }');

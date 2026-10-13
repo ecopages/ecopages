@@ -1,4 +1,4 @@
-import type { EcoPagesElement } from '@ecopages/core';
+import type { EcoPagesAppConfig, EcoPagesElement } from '@ecopages/core';
 import {
 	IntegrationPlugin,
 	mergeIntegrationOptions,
@@ -94,7 +94,6 @@ function splitMarkdownExtensions(extensions: string[]): Pick<CompileOptions, 'md
 export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 	renderer = MDXRenderer;
 	private readonly compilerOptions: CompileOptions;
-	private mdxLoaderPlugin: EcoBuildPlugin | undefined;
 
 	constructor({ compilerOptions, ...options }: MDXPluginConfig) {
 		super({
@@ -132,46 +131,8 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 		return this.attachRendererRuntimeServices(renderer);
 	}
 
-	override get plugins(): EcoBuildPlugin[] {
-		if (this.mdxLoaderPlugin) {
-			return [this.mdxLoaderPlugin];
-		}
-
-		return [];
-	}
-
-	/**
-	 * Materializes the MDX loader once so config-time sealing and runtime setup
-	 * can share the same loader instance.
-	 */
-	private ensureLoaderPlugin(): void {
-		if (this.mdxLoaderPlugin) {
-			return;
-		}
-
-		if (!this.appConfig?.rootDir) {
-			throw new Error('[MDXPlugin] Cannot create MDX loader: appConfig.rootDir is required.');
-		}
-
-		this.mdxLoaderPlugin = createMdxLoaderPlugin({
-			compilerOptions: this.compilerOptions,
-			projectRoot: this.appConfig.rootDir,
-		});
-	}
-
-	/**
-	 * Prepares the MDX loader contribution before config build seals the manifest.
-	 */
-	override async prepareBuildContributions(): Promise<void> {
-		this.ensureLoaderPlugin();
-	}
-
-	/**
-	 * Runs runtime-only MDX setup after build contributions are already prepared.
-	 */
-	override async setup(): Promise<void> {
-		this.ensureLoaderPlugin();
-		await super.setup();
+	override plugins(app: EcoPagesAppConfig): EcoBuildPlugin[] {
+		return [createMdxLoaderPlugin({ compilerOptions: this.compilerOptions, projectRoot: app.rootDir })];
 	}
 }
 

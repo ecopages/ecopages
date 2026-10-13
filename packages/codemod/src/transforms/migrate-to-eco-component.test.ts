@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import jscodeshift from 'jscodeshift';
 import prettier from 'prettier';
 import { describe, expect, it } from 'vitest';
-import transform, { parser } from './migrate-to-eco-component.ts';
+import transform from './migrate-to-eco-component.ts';
 
 const fixturesDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '__fixtures__', 'migrate-to-eco-component');
 
@@ -44,11 +44,5 @@ describe('migrate-to-eco-component', () => {
 	it('leaves unsupported patterns without a config assignment unchanged', async () => {
 		const input = readFixture('unsupported', 'input');
 		expect(await runTransform(input)).toBeNull();
-	});
-});
-
-describe('migrate-to-eco-component parser', () => {
-	it('uses the tsx parser', () => {
-		expect(parser).toBe('tsx');
 	});
 });

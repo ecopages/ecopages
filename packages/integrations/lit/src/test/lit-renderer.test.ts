@@ -7,6 +7,7 @@ import {
 	type ComponentRenderResult,
 	type EcoComponent,
 	type HtmlTemplateProps,
+	type RequestLocals,
 } from '@ecopages/core';
 import {
 	createDeferredIntegrationPlugin,
@@ -652,6 +653,70 @@ describe('LitRenderer', () => {
 			const text = await new Response(body as BodyInit).text();
 			expect(text).toContain('<!DOCTYPE html>');
 			expect(text).toContain('<div>Hello World</div>');
+		});
+
+		it('gives a static page the locals proxy instead of undefined locals', async () => {
+			const pageLocals = new Proxy(
+				{},
+				{
+					get() {
+						throw new Error('locals proxy');
+					},
+				},
+			) as RequestLocals;
+
+			await expect(
+				renderer.render({
+					params: {},
+					query: {},
+					props: {},
+					locals: undefined,
+					pageLocals,
+					pageProps: {},
+					file: '/app/pages/index.lit.tsx',
+					resolvedDependencies: [],
+					metadata: {
+						title: 'Hello World',
+						description: 'Hello World',
+					},
+					Page: async (props) => `<p>${(props.locals as { user: string }).user}</p>`,
+					HtmlTemplate,
+				}),
+			).rejects.toThrow('Error rendering page: locals proxy');
+		});
+
+		it('forwards resolved page props to the document shell', async () => {
+			const testRenderer = createRenderer();
+			const pageProps = { title: 'Resolved' };
+			const renderPageShell = vi
+				.spyOn(
+					testRenderer as unknown as {
+						renderPageWithDocumentShell(input: unknown): Promise<string>;
+					},
+					'renderPageWithDocumentShell',
+				)
+				.mockResolvedValue('<html><body></body></html>');
+
+			await testRenderer.render({
+				params: {},
+				query: {},
+				props: { title: 'Handler' },
+				pageProps,
+				file: 'file',
+				resolvedDependencies: [],
+				metadata: {
+					title: 'Hello World',
+					description: 'Hello World',
+				},
+				Page: async () => '<div>Hello World</div>',
+				HtmlTemplate,
+			});
+
+			expect(renderPageShell).toHaveBeenCalledWith(
+				expect.objectContaining({
+					pageProps,
+				}),
+			);
 		});
 
 		it('passes route-resolved dependency roots into the document shell', async () => {

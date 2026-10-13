@@ -41,8 +41,16 @@ export function resetBrowserRuntimeState(): void {
 	window.history.replaceState({}, '', initialUrl);
 }
 
+/**
+ * Stubs `fetch` to answer every request with a fresh HTML response.
+ *
+ * @remarks
+ * A `Response` body reads once. A prefetch and a click on the same link both fetch, so a shared
+ * response made the second read fail and the router fell back to a real document load that
+ * detached the test iframe.
+ */
 export function mockFetch(htmlContent: string) {
-	return vi.spyOn(globalThis, 'fetch').mockResolvedValue(htmlFetchResponse(htmlContent));
+	return vi.spyOn(globalThis, 'fetch').mockImplementation(async () => htmlFetchResponse(htmlContent));
 }
 
 export function htmlFetchResponse(body: string): Response {

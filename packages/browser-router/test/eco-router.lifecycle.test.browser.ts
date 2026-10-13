@@ -13,7 +13,8 @@ describe('EcoRouter', () => {
 
 	describe('Lifecycle Events', () => {
 		it('should swap directly into a React-owned document when document ownership changes', async () => {
-			fixtures.router = createRouter();
+			const reloadDocument = vi.fn();
+			fixtures.router = createRouter({ reloadDocument });
 			const reactHtml = [
 				`<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router">`,
 				'<head>',
@@ -23,12 +24,6 @@ describe('EcoRouter', () => {
 			].join('');
 			fixtures.fetchSpy?.mockResolvedValueOnce(htmlFetchResponse(reactHtml));
 
-			const reloadSpy = vi.spyOn(
-				(fixtures.router as unknown as { navigationCommit: { reloadDocument: (href: string) => void } })
-					.navigationCommit,
-				'reloadDocument',
-			);
-			reloadSpy.mockImplementation(() => undefined);
 			const pushStateSpy = vi.spyOn(window.history, 'pushState');
 			const afterSwapSpy = vi.fn();
 			document.addEventListener('eco:after-swap', afterSwapSpy);
@@ -36,7 +31,7 @@ describe('EcoRouter', () => {
 			try {
 				await fixtures.router.navigate('/react-content');
 
-				expect(reloadSpy).not.toHaveBeenCalled();
+				expect(reloadDocument).not.toHaveBeenCalled();
 				expect(pushStateSpy).toHaveBeenCalledWith({}, '', expect.stringContaining('/react-content'));
 				expect(afterSwapSpy).toHaveBeenCalled();
 				expect(document.documentElement.getAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE)).toBe('react-router');
@@ -44,13 +39,13 @@ describe('EcoRouter', () => {
 				expect(getEcoNavigationRuntime(window).getOwnerState().owner).toBe('react-router');
 			} finally {
 				document.removeEventListener('eco:after-swap', afterSwapSpy);
-				reloadSpy.mockRestore();
 				pushStateSpy.mockRestore();
 			}
 		});
 
 		it('should clean up the active React page root before accepting a delegated handoff to browser-router', async () => {
-			fixtures.router = createRouter();
+			const reloadDocument = vi.fn();
+			fixtures.router = createRouter({ reloadDocument });
 			const originalDocumentOwner = document.documentElement.getAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE);
 			document.documentElement.setAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE, 'react-router');
 			const cleanupSpy = vi.fn();
@@ -59,13 +54,6 @@ describe('EcoRouter', () => {
 				cleanupBeforeHandoff: cleanupSpy,
 			});
 			getEcoNavigationRuntime(window).claimOwnership('react-router');
-
-			const reloadSpy = vi.spyOn(
-				(fixtures.router as unknown as { navigationCommit: { reloadDocument: (href: string) => void } })
-					.navigationCommit,
-				'reloadDocument',
-			);
-			reloadSpy.mockImplementation(() => undefined);
 
 			try {
 				const handoffDocument = new DOMParser().parseFromString(
@@ -84,7 +72,7 @@ describe('EcoRouter', () => {
 				});
 
 				expect(cleanupSpy).toHaveBeenCalledTimes(1);
-				expect(reloadSpy).not.toHaveBeenCalled();
+				expect(reloadDocument).not.toHaveBeenCalled();
 				expect(document.body.innerHTML).toContain('Outside React');
 				expect(getEcoNavigationRuntime(window).getOwnerState().owner).toBe('browser-router');
 			} finally {
@@ -94,121 +82,44 @@ describe('EcoRouter', () => {
 					document.documentElement.removeAttribute(ECO_DOCUMENT_OWNER_ATTRIBUTE);
 				}
 				unregister();
-				reloadSpy.mockRestore();
 			}
 		});
 
-		it('should dispatch eco:before-swap event', async () => {
+		it('should dispatch before-swap, after-swap and page-load for a navigation', async () => {
 			fixtures.router = createRouter();
-			const beforeSwapSpy = vi.fn();
-			document.addEventListener('eco:before-swap', beforeSwapSpy);
-
-			try {
-				await fixtures.router.navigate('/event-test');
-				expect(beforeSwapSpy).toHaveBeenCalledTimes(1);
-			} finally {
-				document.removeEventListener('eco:before-swap', beforeSwapSpy);
-			}
-		});
-
-		it('should dispatch eco:after-swap event', async () => {
-			fixtures.router = createRouter();
-			const afterSwapSpy = vi.fn();
-			document.addEventListener('eco:after-swap', afterSwapSpy);
-
-			try {
-				await fixtures.router.navigate('/event-test');
-				expect(afterSwapSpy).toHaveBeenCalledTimes(1);
-			} finally {
-				document.removeEventListener('eco:after-swap', afterSwapSpy);
-			}
-		});
-
-		it('should dispatch eco:page-load event after animation frame', async () => {
-			fixtures.router = createRouter();
-			const pageLoadSpy = vi.fn();
-			const requestAnimationFrameSpy = vi
-				.spyOn(window, 'requestAnimationFrame')
-				.mockImplementation((callback: FrameRequestCallback): number => {
-					callback(performance.now());
-					return 1;
+			const seen: Array<{ type: string; detail: Record<string, unknown>; incomingText: string | null }> = [];
+			const names = ['eco:before-swap', 'eco:after-swap', 'eco:page-load'];
+			vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback): number => {
+				callback(performance.now());
+				return 1;
+			});
+			const record = (event: Event) => {
+				const detail = (event as CustomEvent).detail;
+				seen.push({
+					type: event.type,
+					detail,
+					incomingText: (detail.newDocument as Document | undefined)?.body.textContent ?? null,
 				});
-			document.addEventListener('eco:page-load', pageLoadSpy);
+			};
+			for (const name of names) document.addEventListener(name, record);
 
 			try {
 				await fixtures.router.navigate('/event-test');
-				expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1);
-				expect(pageLoadSpy).toHaveBeenCalledTimes(1);
+
+				expect(seen.map((entry) => entry.type)).toEqual(names);
+				const [beforeSwap, afterSwap] = seen;
+				expect(beforeSwap!.incomingText).toContain('New Content');
+				expect(typeof beforeSwap!.detail.reload).toBe('function');
+				expect((afterSwap!.detail.url as URL).pathname).toBe('/event-test');
+				expect(afterSwap!.detail.direction).toBe('forward');
 			} finally {
-				document.removeEventListener('eco:page-load', pageLoadSpy);
-				requestAnimationFrameSpy.mockRestore();
-			}
-		});
-
-		it('should provide event details with url and direction', async () => {
-			fixtures.router = createRouter();
-			let eventDetail: { url: URL; direction: string } | null = null;
-
-			const handler = (e: Event) => {
-				eventDetail = (e as CustomEvent).detail;
-			};
-			document.addEventListener('eco:after-swap', handler);
-
-			try {
-				await fixtures.router.navigate('/detail-test');
-
-				expect(eventDetail).not.toBeNull();
-				expect(eventDetail!.url).toBeInstanceOf(URL);
-				expect(eventDetail!.direction).toBe('forward');
-			} finally {
-				document.removeEventListener('eco:after-swap', handler);
-			}
-		});
-
-		it('should provide newDocument in before-swap event', async () => {
-			fixtures.router = createRouter();
-			let beforeSwapDetail: { newDocument: Document } | null = null;
-
-			const handler = (e: Event) => {
-				beforeSwapDetail = (e as CustomEvent).detail;
-			};
-			document.addEventListener('eco:before-swap', handler);
-
-			try {
-				await fixtures.router.navigate('/before-swap-test');
-
-				expect(beforeSwapDetail).not.toBeNull();
-				expect(beforeSwapDetail!.newDocument).toBeInstanceOf(Document);
-			} finally {
-				document.removeEventListener('eco:before-swap', handler);
-			}
-		});
-
-		it('should provide reload function in before-swap event', async () => {
-			fixtures.router = createRouter();
-			let reloadFn: Function | null = null;
-
-			const handler = (e: Event) => {
-				reloadFn = (e as CustomEvent).detail.reload;
-			};
-			document.addEventListener('eco:before-swap', handler);
-
-			try {
-				await fixtures.router.navigate('/reload-test');
-				expect(typeof reloadFn).toBe('function');
-			} finally {
-				document.removeEventListener('eco:before-swap', handler);
+				for (const name of names) document.removeEventListener(name, record);
 			}
 		});
 
 		it('should hard-navigate when before-swap requests reload', async () => {
-			fixtures.router = createRouter();
-			const reloadSpy = vi.spyOn(
-				(fixtures.router as unknown as { navigationCommit: { reloadDocument: (href: string) => void } })
-					.navigationCommit,
-				'reloadDocument',
-			);
-			reloadSpy.mockImplementation(() => undefined);
+			const reloadDocument = vi.fn();
+			fixtures.router = createRouter({ reloadDocument });
 			const afterSwapSpy = vi.fn();
 			const pageLoadSpy = vi.fn();
 			const handler = (e: Event) => {
@@ -222,14 +133,14 @@ describe('EcoRouter', () => {
 			try {
 				await fixtures.router.navigate('/reload-requested');
 
-				expect(reloadSpy).toHaveBeenCalledTimes(1);
+				expect(reloadDocument).toHaveBeenCalledTimes(1);
+				expect(reloadDocument).toHaveBeenCalledWith(expect.stringContaining('/reload-requested'));
 				expect(afterSwapSpy).not.toHaveBeenCalled();
 				expect(pageLoadSpy).not.toHaveBeenCalled();
 			} finally {
 				document.removeEventListener('eco:before-swap', handler);
 				document.removeEventListener('eco:after-swap', afterSwapSpy);
 				document.removeEventListener('eco:page-load', pageLoadSpy);
-				reloadSpy.mockRestore();
 			}
 		});
 	});

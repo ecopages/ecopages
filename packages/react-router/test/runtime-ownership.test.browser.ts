@@ -16,7 +16,7 @@ import {
 describe('EcoRouter navigation runtime ownership', () => {
 	const ctx = useRouterTestEnvironment();
 
-	it('sets and clears the router ownership flag', async () => {
+	it('registers the react-router runtime while mounted and releases it on unmount', async () => {
 		const PageA = createMockPageComponent('PageA');
 
 		ctx.root = createRoot(ctx.container);
@@ -30,48 +30,10 @@ describe('EcoRouter navigation runtime ownership', () => {
 		);
 
 		await ctx.ready();
-		expect(getEcoNavigationRuntime(window).getOwnerState().owner).toBe('react-router');
-
-		ctx.root.unmount();
-		await waitUntil(() => expect(getEcoNavigationRuntime(window).getOwnerState().owner).toBe('none'));
-	});
-
-	it('registers current-page reload through the navigation coordinator', async () => {
-		const PageA = createMockPageComponent('PageA');
-
-		ctx.root = createRoot(ctx.container);
-		ctx.root.render(
-			createElement(EcoRouter, {
-				page: PageA,
-				pageProps: {},
-				// oxlint-disable-next-line no-children-prop
-				children: createElement(PageContent),
-			}),
-		);
-
-		await ctx.ready();
-
 		expect(getEcoNavigationRuntime(window).getOwnerState()).toEqual({
 			owner: 'react-router',
 			canHandleSpaNavigation: true,
 		});
-	});
-
-	it('cleans up the registered current-page reload handler on unmount', async () => {
-		const PageA = createMockPageComponent('PageA');
-
-		ctx.root = createRoot(ctx.container);
-		ctx.root.render(
-			createElement(EcoRouter, {
-				page: PageA,
-				pageProps: {},
-				// oxlint-disable-next-line no-children-prop
-				children: createElement(PageContent),
-			}),
-		);
-
-		await ctx.ready();
-		expect(getEcoNavigationRuntime(window).getOwnerState().owner).toBe('react-router');
 
 		ctx.root.unmount();
 		await waitUntil(() =>

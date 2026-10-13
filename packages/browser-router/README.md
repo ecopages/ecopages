@@ -98,6 +98,7 @@ Call `router.stop()` before replacing the router script in long-lived sessions (
 | `scrollBehavior`                  | `'top' \| 'preserve' \| 'auto'` | `'top'`                                      | Scroll behavior after navigation                                                            |
 | `viewTransitions`                 | `boolean`                       | `true`                                       | View Transition API; disables UA root crossfade by default. `false` disables.               |
 | `smoothScroll`                    | `boolean`                       | `false`                                      | Use smooth scrolling during navigation                                                      |
+| `reloadDocument`                  | `(href: string) => void`        | `(href) => window.location.assign(href)`     | Loads a URL as a full document when the router hands a navigation back to the browser       |
 
 ## Persistence
 

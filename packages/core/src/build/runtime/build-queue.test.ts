@@ -1,7 +1,7 @@
 import { availableParallelism } from 'node:os';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { BuildAdapter, BuildOptions, BuildResult } from '../build-adapter.ts';
-import { BuildQueue, resolveBuildLaneLimits } from './build-queue.ts';
+import { BuildQueue, buildOrThrow, installBuildQueue, resolveBuildLaneLimits } from './build-queue.ts';
 
 const baseOptions: BuildOptions = {
 	environment: 'server',
@@ -27,7 +27,6 @@ function createControlledAdapter() {
 			});
 		},
 		resolve: (specifier) => specifier,
-		getTranspileOptions: () => ({ target: 'node', format: 'esm', sourcemap: 'none' }),
 	};
 	return {
 		adapter,
@@ -122,7 +121,6 @@ describe('BuildQueue', () => {
 				return { success: true, logs: [], outputs: [] };
 			},
 			resolve: (specifier) => specifier,
-			getTranspileOptions: () => ({ target: 'node', format: 'esm', sourcemap: 'none' }),
 		};
 		const queue = new BuildQueue(adapter, { build: 1, hmr: 1, nested: 1 });
 
@@ -160,7 +158,6 @@ describe('BuildQueue', () => {
 					return { success: true, logs: [], outputs: [] };
 				},
 				resolve: (specifier) => specifier,
-				getTranspileOptions: () => ({ target: 'node', format: 'esm', sourcemap: 'none' }),
 			};
 			queueRef.current = new BuildQueue(adapter, { build: 1, hmr: 1, nested: 1 });
 			return queueRef.current;
@@ -191,7 +188,6 @@ describe('BuildQueue', () => {
 					return { success: true, logs: [], outputs: [] };
 				},
 				resolve: (specifier) => specifier,
-				getTranspileOptions: () => ({ target: 'node', format: 'esm', sourcemap: 'none' }),
 			};
 			queueRef.current = new BuildQueue(adapter, { build: 2, hmr: 1, nested: 1 });
 
@@ -234,7 +230,6 @@ describe('BuildQueue', () => {
 					return { success: true, logs: [], outputs: [] };
 				},
 				resolve: (specifier) => specifier,
-				getTranspileOptions: () => ({ target: 'node', format: 'esm', sourcemap: 'none' }),
 			};
 			const queue = new BuildQueue(adapter, { build: 1, hmr: 1, nested: 1 });
 
@@ -268,5 +263,36 @@ describe('BuildQueue', () => {
 		expect(limits.build).toBe(Math.max(1, availableParallelism() - 1));
 		expect(limits.hmr).toBe(Math.min(3, limits.build));
 		expect(limits.nested).toBe(limits.build);
+	});
+});
+
+describe('buildOrThrow', () => {
+	const createAppConfig = (result: BuildResult) => {
+		const adapter: BuildAdapter = {
+			build: async () => result,
+			resolve: (specifier) => specifier,
+		};
+		return { runtime: { buildAdapter: adapter }, loaders: new Map() } as never;
+	};
+
+	it('returns the result of a build that succeeded', async () => {
+		const result: BuildResult = { success: true, logs: [], outputs: [{ path: '/out/a.js' }] };
+
+		await expect(buildOrThrow(createAppConfig(result), baseOptions, 'Build failed')).resolves.toEqual(result);
+	});
+
+	it('throws the formatted logs of a build that failed, on the app queue', async () => {
+		const appConfig = createAppConfig({
+			success: false,
+			logs: [{ message: 'no loader', plugin: 'eco-loader', id: '/in/a.ts' }],
+			outputs: [],
+		});
+		const queue = installBuildQueue(appConfig);
+		const queued = vi.spyOn(queue, 'build');
+
+		await expect(buildOrThrow(appConfig, baseOptions, 'Build failed', 'hmr')).rejects.toThrow(
+			'Build failed:\n[eco-loader] /in/a.ts: no loader',
+		);
+		expect(queued).toHaveBeenCalledWith(baseOptions, 'hmr');
 	});
 });

@@ -3,7 +3,12 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
-import { build, type BuildExecutor, type BuildOptions, type BuildResult } from '../../build/build-adapter.ts';
+import {
+	defaultBuildAdapter,
+	type BuildExecutor,
+	type BuildOptions,
+	type BuildResult,
+} from '../../build/build-adapter.ts';
 import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
 import { createServerBuildRequest } from '../../build/runtime/build-request-policy.ts';
 import { resolveBuildEnvironmentOptions } from '../../build/runtime/build-environment-options.ts';
@@ -20,7 +25,7 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { createRouteModuleReuseIdentity, resolvePageModuleOutputFileName } from './route-module-build-manifest.ts';
 import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
 import { resolveRouteModuleDependencyPaths } from './route-module-dependency-hasher.ts';
-import { formatBuildLog } from '../../build/build-log.ts';
+import { assertBuildSucceeded } from '../../build/build-log.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
 
 interface PageModuleImportBaseOptions {
@@ -63,7 +68,7 @@ export interface PageModuleBuildImportOptions extends PageModuleImportBaseOption
  */
 export interface PageModuleImportDependencies {
 	hashFile(filePath: string): string;
-	buildModule(options: Parameters<typeof build>[0], buildExecutor?: BuildExecutor): Promise<BuildResult>;
+	buildModule(options: BuildOptions, buildExecutor?: BuildExecutor): Promise<BuildResult>;
 }
 
 interface ImportCacheEntry {
@@ -96,7 +101,9 @@ export class PageModuleImportService {
 			buildModule:
 				dependencies?.buildModule ??
 				((options, buildExecutor) =>
-					build(options, buildExecutor ?? (this.appConfig ? requireBuildQueue(this.appConfig) : undefined))),
+					(buildExecutor ?? (this.appConfig ? requireBuildQueue(this.appConfig) : defaultBuildAdapter)).build(
+						options,
+					)),
 		};
 	}
 
@@ -383,10 +390,7 @@ export class PageModuleImportService {
 		const buildResult = await this.dependencies.buildModule(buildOptions, options.buildExecutor);
 		recordPageModuleLoad('cold-build', buildResult.outputs.length);
 
-		if (!buildResult.success) {
-			const details = buildResult.logs.map(formatBuildLog).join('\n');
-			throw new Error(transpileErrorMessage(details));
-		}
+		assertBuildSucceeded(buildResult, transpileErrorMessage);
 
 		const compiledOutput = this.resolveCompiledRouteModuleOutput(
 			buildResult,

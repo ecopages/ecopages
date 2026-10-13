@@ -102,9 +102,9 @@ The queue uses one-shot Rolldown in both dev and production. A lane runs at most
 
 Runtime code calls `requireBuildQueue(appConfig).build(options, lane)` with a complete `BuildOptions` object from the request-policy helpers. The queue is scheduling-only: it does **not** inject app plugins.
 
-The exported `defaultBuildAdapter` and the top-level `build()` / `getTranspileOptions()` helpers are non-app-aware escape hatches. New runtime code should prefer `getAppBuildAdapter()`, `requireBuildQueue()`, `createServerBuildRequest()`, `createBrowserBuildRequest()`, and `getAppTranspileOptions()`.
+The exported `defaultBuildAdapter` is a non-app-aware escape hatch. Runtime code uses `getAppBuildAdapter()`, `requireBuildQueue()`, `createServerBuildRequest()` and `createBrowserBuildRequest()`.
 
-Every `BuildOptions` request requires `environment: 'server' | 'browser'`. Environment selects the platform, default target/format, and plugin participation. An explicit numeric `target` changes language transpilation without changing the environment. `getTranspileOptions()` takes that environment. The lane (`build` | `hmr`) selects scheduling only. `BrowserBundleService` derives the lane from the bundle's purpose (`hmr-entrypoint` and `hmr-runtime` use `hmr`); every request retains browser defaults on either lane.
+Every `BuildOptions` request requires `environment: 'server' | 'browser'`. Environment selects the platform, default target/format, and plugin participation. An explicit numeric `target` changes language transpilation without changing the environment. `resolveBuildEnvironmentOptions()` holds those defaults. The lane (`build` | `hmr`) selects scheduling only. `BrowserBundleService` derives the lane from the bundle's purpose (`hmr-entrypoint` and `hmr-runtime` use `hmr`); every request retains browser defaults on either lane.
 
 Migration: move Integration `browserBuildPlugins` and Processor `buildPlugins` into `plugins` with `environments: ['browser']`. Keep server-only hooks in `plugins` with `environments: ['server']`. Replace the old transpile profile arguments with `'browser'` or `'server'`.
 
@@ -139,7 +139,7 @@ App-manifest plugins keep canonical registration order and cannot be silently re
 - An unattributed Rolldown `BundleError` becomes one log per underlying error; any other error, including an `AggregateError`, becomes one log (`toBuildLogs` in `rolldown/rolldown-adapter-helpers.ts`).
 - `EcoBuildPlugin` callbacks run inside the single Rolldown plugin the bridge creates, and Rolldown overwrites `plugin` on a thrown error with that Rolldown plugin's name. The bridge therefore catches errors from `setup`, `onResolve`, `onLoad`, `module()` and `transform` callbacks and throws a new error that keeps the `EcoBuildPlugin` name, the thrown value as `cause`, its message, stack, `loc` and `frame`, and its `id` or else the module (the loaded or transformed file, or the importer for a resolve). The thrown value is never changed, so a plugin can share or freeze it. The log conversion restores `plugin` to the `EcoBuildPlugin` name.
 - Warnings are collected through Rolldown's `onLog` input option and still printed by Rolldown's default handler. Rolldown reports them only once a build completes, so a failed build has none.
-- `formatBuildLog()` (`build-log.ts`) is the one text form of a log, `[plugin] file:line:column: message` followed by the frame and stack frames. Every caller that turns failed build logs into an error message uses it.
+- `formatBuildLog()` (`build-log.ts`) is the one text form of a log, `[plugin] file:line:column: message` followed by the frame and stack frames. `assertBuildSucceeded()` throws an error built from it, and `buildOrThrow(appConfig, options, failure, lane)` (`runtime/build-queue.ts`) queues a build and does the same, so no caller joins `log.message` or formats the logs itself.
 
 ## BuildOptions Caveats
 
@@ -269,7 +269,7 @@ Kitchen-sink benchmarks (`ECOPAGES_BENCH=1 pnpm vitest bench`) show Rolldown win
 
 ## Testing Strategy
 
-- `rolldown/rolldown-build-adapter.test.ts` covers the adapter's `build`, `resolve`, `getTranspileOptions`, and dependency-graph extraction end-to-end.
+- `rolldown/rolldown-build-adapter.test.ts` covers the adapter's `build`, `resolve`, and dependency-graph extraction end-to-end.
 - `rolldown/rolldown-plugin-bridge.test.ts` covers the `EcoBuildPlugin[]` → plugin translation in isolation.
 - `build-adapter.test.ts` covers the app-owned helpers, the `BuildOwnership` routing, and the default-fallback behaviour.
 - `runtime/build-queue.test.ts` covers lane limits, shared in-flight builds, builds that wait for a child build, and request-scope reuse.

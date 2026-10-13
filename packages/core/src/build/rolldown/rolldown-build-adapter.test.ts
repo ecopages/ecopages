@@ -1196,20 +1196,6 @@ describe('RolldownBuildAdapter', () => {
 		]);
 	});
 
-	test('getTranspileOptions selects defaults by environment', () => {
-		const adapter = new RolldownBuildAdapter();
-		assert.deepEqual(adapter.getTranspileOptions('server'), {
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-		});
-		assert.deepEqual(adapter.getTranspileOptions('browser'), {
-			target: 'browser',
-			format: 'esm',
-			sourcemap: 'none',
-		});
-	});
-
 	test.each([
 		{ mode: 'none', emitsMap: false, linksMap: false },
 		{ mode: 'inline', emitsMap: false, linksMap: true },

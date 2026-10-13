@@ -2,7 +2,7 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import type { BuildEnvironment, BuildOptions } from '../contracts/build-contracts.ts';
 import { appliesToBuildEnvironment } from '../contracts/build-manifest.ts';
-import { getAppBrowserBuildPlugins, getAppServerBuildPlugins, getAppTranspileOptions } from '../build-adapter.ts';
+import { getAppBrowserBuildPlugins, getAppServerBuildPlugins } from '../build-adapter.ts';
 import { resolveBuildEnvironmentOptions } from './build-environment-options.ts';
 import { resolveBuildProfileOptions, type ServerBuildProfile } from './build-profile-options.ts';
 import { getJsxOwnershipPlugins } from '../browser/jsx-ownership-plugins.ts';
@@ -116,7 +116,6 @@ export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: B
 
 	return {
 		...resolveBuildEnvironmentOptions('browser', appConfig),
-		...getAppTranspileOptions(appConfig, 'browser'),
 		...overrides,
 		environment: 'browser',
 		entrypoints: input.entrypoints,

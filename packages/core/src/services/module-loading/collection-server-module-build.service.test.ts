@@ -46,7 +46,6 @@ describe('buildCollectionServerModule', () => {
 				};
 			},
 			resolve: (specifier) => specifier,
-			getTranspileOptions: () => ({ target: 'node', format: 'esm', sourcemap: 'none' }),
 		};
 		const queue = new BuildQueue(adapter, { build: 1, hmr: 1, nested: 1 });
 		const queueBuild = queue.build.bind(queue);

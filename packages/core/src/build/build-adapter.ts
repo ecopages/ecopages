@@ -14,15 +14,7 @@
  */
 
 import type { EcoBuildPlugin } from './contracts/build-types.ts';
-import {
-	type BuildAdapter,
-	type BuildExecutor,
-	type BuildOptions,
-	type BuildOwnership,
-	type BuildResult,
-	type BuildTranspileOptions,
-	type BuildEnvironment,
-} from './contracts/build-contracts.ts';
+import { type BuildAdapter, type BuildOwnership } from './contracts/build-contracts.ts';
 export type {
 	BuildAdapter,
 	BuildFormat,
@@ -217,41 +209,4 @@ export function getAppBrowserBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuil
 	const projectDir = appConfig.absolutePaths?.projectDir;
 	const aliasPlugin = projectDir ? [createAliasResolverPlugin(projectDir)] : [];
 	return [...aliasPlugin, ...browserPlugins, ...getJsxOwnershipPlugins(appConfig)];
-}
-
-/**
- * Runs a build through the active pipeline.
- *
- * @remarks
- * `executor` defaults to the default-bundler adapter for non-app-aware
- * callsites. App-aware code should pass the app's queue from
- * {@link requireBuildQueue} to honor the per-app pipeline.
- */
-export function build(
-	options: BuildOptions,
-	executor: BuildExecutor = defaultRolldownBuildAdapter,
-): Promise<BuildResult> {
-	return executor.build(options);
-}
-
-/**
- * Default transpile-options helper for callsites without app runtime
- * context.
- *
- * @remarks
- * New app-aware code should prefer {@link getAppTranspileOptions}.
- */
-export function getTranspileOptions(environment: BuildEnvironment): BuildTranspileOptions {
-	return defaultRolldownBuildAdapter.getTranspileOptions(environment);
-}
-
-/**
- * Resolves transpile options for one app/runtime instance by asking
- * the app's adapter.
- */
-export function getAppTranspileOptions(
-	appConfig: EcoPagesAppConfig,
-	environment: BuildEnvironment,
-): BuildTranspileOptions {
-	return getAppBuildAdapter(appConfig).getTranspileOptions(environment);
 }

@@ -8,6 +8,7 @@ import {
 	type BuildOptions,
 	type BuildResult,
 } from '../build-adapter.ts';
+import { assertBuildSucceeded } from '../build-log.ts';
 import { createBuildRequestIdentity } from './build-request-identity.ts';
 
 /**
@@ -130,4 +131,21 @@ export function installBuildQueue(appConfig: EcoPagesAppConfig): BuildQueue {
 	const buildQueue = new BuildQueue(getAppBuildAdapter(appConfig));
 	appConfig.runtime = { ...(appConfig.runtime ?? {}), buildQueue };
 	return buildQueue;
+}
+
+/**
+ * Builds on the app's queue and throws, with the formatted build logs, when the build fails.
+ *
+ * @remarks
+ * Use it where a failed build is an error; read `BuildResult` from the queue directly where a failure is handled.
+ */
+export async function buildOrThrow(
+	appConfig: EcoPagesAppConfig,
+	options: BuildOptions,
+	failure: string | ((details: string) => string),
+	lane: BuildLane = 'build',
+): Promise<BuildResult> {
+	const result = await requireBuildQueue(appConfig).build(options, lane);
+	assertBuildSucceeded(result, failure);
+	return result;
 }

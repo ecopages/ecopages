@@ -154,7 +154,6 @@ export interface BuildAdapter {
 	readonly ownership?: BuildOwnership;
 	build(options: BuildOptions): Promise<BuildResult>;
 	resolve(importPath: string, rootDir: string): string;
-	getTranspileOptions(environment: BuildEnvironment): BuildTranspileOptions;
 }
 
 /** Runtime-facing facade for issuing builds. */

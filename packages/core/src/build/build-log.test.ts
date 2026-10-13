@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { formatBuildLog } from './build-log.ts';
+import type { BuildResult } from './build-adapter.ts';
+import { assertBuildSucceeded, formatBuildLog } from './build-log.ts';
 
 describe('formatBuildLog', () => {
 	it('prefixes the plugin and location, then adds the frame and stack frames', () => {
@@ -26,5 +27,34 @@ describe('formatBuildLog', () => {
 			'/app/src/index.ts: resolve failed',
 		);
 		expect(formatBuildLog({ message: 'Unknown build error' })).toBe('Unknown build error');
+	});
+});
+
+describe('assertBuildSucceeded', () => {
+	const failed = (logs: BuildResult['logs']): BuildResult => ({ success: false, logs, outputs: [] });
+
+	it('does nothing for a successful build', () => {
+		expect(() => assertBuildSucceeded({ success: true, logs: [], outputs: [] }, 'Build failed')).not.toThrow();
+	});
+
+	it('throws the failure line followed by every formatted log, keeping plugin and file', () => {
+		const result = failed([
+			{ message: 'loader boom', plugin: 'eco-loader', id: '/app/src/styles.eco' },
+			{ message: 'second' },
+		]);
+
+		expect(() => assertBuildSucceeded(result, 'Build failed')).toThrow(
+			'Build failed:\n[eco-loader] /app/src/styles.eco: loader boom\nsecond',
+		);
+	});
+
+	it('throws the bare failure line when the build left no log', () => {
+		expect(() => assertBuildSucceeded(failed([]), 'Build failed')).toThrow(/^Build failed$/);
+	});
+
+	it('lets the caller place the formatted logs in its own message', () => {
+		expect(() => assertBuildSucceeded(failed([{ message: 'boom' }]), (details) => `custom <${details}>`)).toThrow(
+			'custom <boom>',
+		);
 	});
 });

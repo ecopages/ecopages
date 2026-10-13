@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test, vi } from 'vitest';
 import {
-	build,
 	collectConfiguredAppBuildManifestContributions,
 	createConfiguredAppBuildManifest,
 	createBuildAdapter,
@@ -31,63 +30,6 @@ test('createBuildAdapter returns the RolldownBuildAdapter', () => {
 	const rolldownAdapter = createBuildAdapter();
 	assert.ok(rolldownAdapter instanceof RolldownBuildAdapter);
 	assert.equal(rolldownAdapter.ownership, 'rolldown');
-});
-
-test('build helper accepts an explicit executor across package and relative build-adapter imports', async () => {
-	const packageBuildAdapter = await import('@ecopages/core/build/build-adapter');
-	const executor = {
-		build: vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/shared.js' }],
-		})),
-	};
-
-	const result = await packageBuildAdapter.build(
-		{
-			environment: 'server' as const,
-			entrypoints: ['/tmp/shared.ts'],
-			root: '/tmp',
-			outdir: '/tmp/out',
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-		},
-		executor,
-	);
-
-	assert.equal(result.success, true);
-	assert.deepEqual(result.outputs, [{ path: '/tmp/shared.js' }]);
-	assert.equal(executor.build.mock.calls.length, 1);
-});
-
-test('build helper uses the shared adapter when no executor is provided', async () => {
-	const executor = {
-		build: vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/direct.js' }],
-		})),
-	};
-	const adapterSpy = vi.spyOn(defaultBuildAdapter, 'build').mockImplementation(executor.build);
-
-	const result = await build({
-		environment: 'server' as const,
-		entrypoints: ['/tmp/direct.ts'],
-		root: '/tmp',
-		outdir: '/tmp/out',
-		target: 'node',
-		format: 'esm',
-		sourcemap: 'none',
-		splitting: false,
-		minify: false,
-	});
-
-	assert.equal(result.success, true);
-	assert.deepEqual(result.outputs, [{ path: '/tmp/direct.js' }]);
-	assert.equal(adapterSpy.mock.calls.length, 1);
 });
 
 test('getAppBuildAdapter returns the app-owned adapter before the shared default adapter', async () => {

@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { bench, group } from 'mitata';
-import { build } from '../../../packages/core/src/build/build-adapter';
 import { requireBuildQueue, installBuildQueue } from '../../../packages/core/src/build/runtime/build-queue';
 import { getServerBundleOutputPaths } from '../../../packages/core/src/build/server-bundle-deploy-manifest';
 import { getAppModuleLoader } from '../../../packages/core/src/services/module-loading/app-server-module-transpiler.service';
@@ -49,19 +48,17 @@ async function bundleServerEntryCold(appConfig: Awaited<ReturnType<typeof loadSt
 	const { serverOutdir } = getServerBundleOutputPaths(appConfig);
 	installBuildQueue(appConfig);
 
-	await build(
-		{
-			entrypoints: [SERVER_ENTRY],
-			outdir: serverOutdir,
-			naming: SERVER_BUNDLE_FILENAME,
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'hidden',
-			externalPackages: true,
-			root: appConfig.rootDir,
-		},
-		requireBuildQueue(appConfig),
-	);
+	await requireBuildQueue(appConfig).build({
+		environment: 'server',
+		entrypoints: [SERVER_ENTRY],
+		outdir: serverOutdir,
+		naming: SERVER_BUNDLE_FILENAME,
+		target: 'node',
+		format: 'esm',
+		sourcemap: 'hidden',
+		externalPackages: true,
+		root: appConfig.rootDir,
+	});
 }
 
 async function importStaticPageWarm(

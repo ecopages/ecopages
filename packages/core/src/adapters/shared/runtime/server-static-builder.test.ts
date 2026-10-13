@@ -76,9 +76,6 @@ function createMockDependencies() {
 		resolve(importPath: string): string {
 			return importPath;
 		},
-		getTranspileOptions() {
-			return { target: 'node', format: 'esm', sourcemap: 'hidden' };
-		},
 	};
 	setAppBuildAdapter(AppConfig, defaultBuildAdapter);
 
@@ -491,9 +488,6 @@ describe('ServerStaticBuilder', () => {
 					},
 					resolve(importPath: string): string {
 						return importPath;
-					},
-					getTranspileOptions() {
-						return { target: 'node', format: 'esm', sourcemap: 'hidden' };
 					},
 				};
 				setAppBuildAdapter(appConfig, buildAdapter);

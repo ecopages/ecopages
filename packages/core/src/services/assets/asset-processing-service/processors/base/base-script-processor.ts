@@ -1,4 +1,3 @@
-import { appLogger } from '../../../../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../../../../types/internal-types.ts';
 import path from 'node:path';
 import type { ScriptAsset } from '../../assets.types.ts';
@@ -6,7 +5,7 @@ import { BaseProcessor } from './base-processor.ts';
 import { BrowserBundleService, type BrowserBundleGroupedEntry } from '../../../browser-bundle.service.ts';
 import { collectBuildEntryInputPaths, getBuildEntryOutput } from '../../../../../build/build-graph.ts';
 import type { BuildResult } from '../../../../../build/build-adapter.ts';
-import { formatBuildLog } from '../../../../../build/build-log.ts';
+import { assertBuildSucceeded } from '../../../../../build/build-log.ts';
 
 export type BundledScriptOutput = {
 	filepath: string;
@@ -58,19 +57,12 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 			...rest,
 		});
 
-		if (!buildResult.success) {
-			for (const log of buildResult.logs) {
-				appLogger.debug(log.message, log);
-			}
-		}
-
+		assertBuildSucceeded(buildResult, `Could not bundle ${entrypoint}`);
 		const entryOutput = getBuildEntryOutput(buildResult, entrypoint, this.appConfig.rootDir);
-		if (entryOutput) {
-			return this.toBundledScriptOutput(buildResult, entrypoint, entryOutput);
+		if (!entryOutput) {
+			throw new Error(`No build output generated for ${entrypoint}`);
 		}
-
-		const logMessage = buildResult.logs.map(formatBuildLog).join('\n');
-		throw new Error(`No build output generated for ${entrypoint}${logMessage ? `: ${logMessage}` : ''}`);
+		return this.toBundledScriptOutput(buildResult, entrypoint, entryOutput);
 	}
 
 	protected async bundleScripts({
@@ -94,11 +86,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 			plugins: additionalPlugins,
 		});
 
-		if (!buildResult.success) {
-			for (const log of buildResult.logs) {
-				appLogger.debug(log.message, log);
-			}
-		}
+		assertBuildSucceeded(buildResult, 'Could not bundle the grouped entries');
 
 		const entryOutputs = new Map<string, BundledScriptOutput>();
 
@@ -109,10 +97,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 				continue;
 			}
 
-			const logMessage = buildResult.logs.map(formatBuildLog).join('\n');
-			throw new Error(
-				`No build output generated for grouped entry ${entry.entryName}${logMessage ? `: ${logMessage}` : ''}`,
-			);
+			throw new Error(`No build output generated for grouped entry ${entry.entryName}`);
 		}
 
 		return entryOutputs;

@@ -164,9 +164,6 @@ test('browser compilation on the route-module executor keeps browser defaults an
 		resolve(specifier) {
 			return specifier;
 		},
-		getTranspileOptions() {
-			return { target: 'browser', format: 'esm', sourcemap: 'none' };
-		},
 	};
 	installBuildQueue(appConfig);
 	await requireBuildQueue(appConfig).build(request);

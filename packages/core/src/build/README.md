@@ -50,7 +50,7 @@ build/
   browser/                        client runtime rewrites, JSX ownership, Lit worker guard
 ```
 
-- `contracts/build-manifest.ts` + `app-build-manifest-runtime.ts`: environment-selected plugins in one `AppBuildManifest` and contributor validation.
+- `contracts/build-manifest.ts` + `app-build-manifest-runtime.ts`: the `AppBuildManifest` sealed once, with its plugins selected by environment, and contributor validation.
 - `build-adapter.ts`: types, factories, and app-owned adapter/manifest helpers.
 - `runtime/build-queue.ts`: the `BuildQueue` and its installation on `appConfig.runtime.buildQueue`.
 - `runtime/build-request-policy.ts`: server/browser request constructors and plugin collision rules.
@@ -72,15 +72,15 @@ build/
 
 ## App build manifest
 
-`AppBuildManifest` stores one `plugins` list and a separate `browserRuntimeManifest` on `appConfig.runtime.buildManifest`. Integrations and Processors both expose `plugins`. Each build plugin declares `environments: ['server']`, `['browser']`, or both; omitted environments apply to both. Config loaders join the same list.
+`AppBuildManifest` stores a `server` and a `browser` plugin list, already selected by environment, and a separate `browserRuntimeManifest` on `appConfig.runtime.buildManifest`. Integrations and Processors both expose `plugins`. Each build plugin declares `environments: ['server']`, `['browser']`, or both; omitted environments apply to both. Config loaders are registered with them. The browser list holds the plugins that also apply to the server first, then the browser runtime plugin, then the browser-only plugins; readers take a list as it is.
 
 Config finalization rejects duplicate plugin names within an environment and identifies both contributors. The same name can be registered once for server and once for browser. Browser runtime declarations remain data from an Integration's `browserRuntimeManifest`, from which core synthesizes import rewrites.
 
 **Sealing flow**
 
-1. `collectConfiguredAppBuildManifestContributions(config)` walks processors and integrations (after `prepareBuildContributions()`).
-2. `updateAppBuildManifest(config, contributions)` adds config loaders to the collected plugins.
-3. `createServerBuildRequest` / `createBrowserBuildRequest` read the sealed manifest through `getAppServerBuildPlugins` / `getAppBrowserBuildPlugins`.
+1. `sealAppBuildManifest(config)` registers the config loaders, then walks processors and integrations (after `prepareBuildContributions()`).
+2. `createAppBuildManifest(registrations, browserRuntimeManifest)` validates every registration once and stores `{ server, browser, browserRuntimeManifest }`.
+3. `createServerBuildRequest` / `createBrowserBuildRequest` order the request's plugins with `resolveBuildPluginOrder` (`runtime/build-request-policy.ts`): caller plugins that apply to the environment, then the app plugins (the alias resolver, the manifest list, JSX ownership), then source transforms. Rolldown asks plugins in that order and the first result of a resolve or load hook wins, so the position is the priority.
 
 **Rule of thumb**
 
@@ -88,7 +88,7 @@ Config finalization rejects duplicate plugin names within an environment and ide
 - Client-bundle-only work (vendor aliasing, async production CSS) → `plugins`, with `environments: ['browser']`.
 - Vendor specifier → public URL rewrites → `browserRuntimeManifest` (not a plugin list).
 
-Direct `setAppBuildManifest` is for tests and full manifest replacement. Production code should rely on `updateAppBuildManifest` during config build.
+Direct `setAppBuildManifest` is for tests. Production code relies on `sealAppBuildManifest` during config build.
 
 ```
 Caller intent
@@ -128,7 +128,7 @@ Core source transforms use MagicString to keep unchanged source locations throug
 
 - `module(specifier, callback)` — declares a virtual module by name, with bundler-side namespace encoding.
 
-App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins explicitly.
+App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins that the request replaces; the environment cannot express that.
 
 ## Build diagnostics
 

@@ -1,7 +1,5 @@
-import type { EcoBuildPlugin } from './contracts/build-types.ts';
 import { mergeBrowserRuntimeManifests } from './browser/browser-runtime-manifest.ts';
-import type { AppBuildManifest } from './contracts/build-manifest.ts';
-import { validateBuildPluginRegistrations } from './contracts/build-manifest.ts';
+import { createAppBuildManifest, type BuildPluginRegistration } from './contracts/build-manifest.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { startupTrace } from '../diagnostics/startup-trace.ts';
@@ -18,35 +16,25 @@ function patchAppRuntime(
 }
 
 /**
- * Collects integration and processor contributions before the app build manifest is sealed.
+ * Seals the app's build manifest from its loaders, processors and integrations.
  *
  * @remarks
- * Called during config finalization via {@link updateAppBuildManifest}. Walks
- * processors first, then integrations, invoking {@link Processor.prepareBuildContributions}
- * and {@link IntegrationPlugin.prepareBuildContributions} so dynamic plugin lists can be
- * materialized before sealing.
- *
- * Both contributor kinds expose `plugins`, selected by each plugin's environments.
- * Integration browser runtime manifests remain separate declarations.
- *
- * Loaders are not collected here; {@link createConfiguredAppBuildManifest} always takes
- * them from `appConfig.loaders`.
+ * Called during config finalization. Loaders come first, then processors, then integrations, whose
+ * {@link Processor.prepareBuildContributions} and {@link IntegrationPlugin.prepareBuildContributions} run first so
+ * dynamic plugin lists are materialized. Every registration is validated once, by
+ * {@link createAppBuildManifest}. Integration browser runtime manifests stay separate declarations.
  */
-export async function collectConfiguredAppBuildManifestContributions(
-	appConfig: EcoPagesAppConfig,
-): Promise<AppBuildManifest> {
-	const registrations = [...appConfig.loaders.values()].map((plugin) => ({
+export async function sealAppBuildManifest(appConfig: EcoPagesAppConfig): Promise<void> {
+	const registrations: BuildPluginRegistration[] = [...appConfig.loaders.values()].map((plugin) => ({
 		plugin,
 		source: `Loader "${plugin.name}"`,
 	}));
-	const plugins: EcoBuildPlugin[] = [];
 	const browserRuntimeManifests = [];
 
 	for (const processor of appConfig.processors.values()) {
 		await processor.prepareBuildContributions();
 
 		for (const plugin of processor.plugins ?? []) {
-			plugins.push(plugin);
 			registrations.push({ plugin, source: `Processor "${processor.name}"` });
 		}
 	}
@@ -55,17 +43,14 @@ export async function collectConfiguredAppBuildManifestContributions(
 		integration.setConfig(appConfig);
 		await integration.prepareBuildContributions();
 		for (const plugin of integration.plugins) {
-			plugins.push(plugin);
 			registrations.push({ plugin, source: `Integration "${integration.name}"` });
 		}
 		browserRuntimeManifests.push(integration.browserRuntimeManifest);
 	}
 
-	validateBuildPluginRegistrations(registrations);
-	return {
-		plugins,
-		browserRuntimeManifest: mergeBrowserRuntimeManifests(...browserRuntimeManifests),
-	};
+	patchAppRuntime(appConfig, {
+		buildManifest: createAppBuildManifest(registrations, mergeBrowserRuntimeManifests(...browserRuntimeManifests)),
+	});
 }
 
 export async function setupAppRuntimePlugins(options: {

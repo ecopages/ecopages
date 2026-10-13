@@ -88,7 +88,7 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 				edited === 'package' ? "export const label = 'after-edit';" : "export const dep = 'dependency-after';",
 			);
 		await vi.waitFor(() => expect(restart).toHaveBeenCalledWith(changedPath), { timeout: 3000 });
-		expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
+		expect(hmrManager.handleFileChanges).not.toHaveBeenCalled();
 		const restarted = registry();
 		const newUrl = await restarted.resolveVendorUrl('@acme/ui');
 		expect(newUrl).toBe(oldUrl);

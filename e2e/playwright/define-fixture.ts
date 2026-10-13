@@ -1,46 +1,49 @@
 import path from 'node:path';
 import type { PlaywrightTestProject } from '@playwright/test';
-import { getDefaultWorkerCount } from './workers.ts';
+import type { AppOptions } from '../app-fixture.ts';
 import { getEcopagesServerReadySignal } from './isolated-dev-server-ready.ts';
 
 type DesktopChromeUse = NonNullable<PlaywrightTestProject['use']>;
 
-export type FixtureServerMode = 'dev' | 'static';
+/** A Playwright project that may set `use.appOptions` for the `app` fixture of `e2e/app-fixture.ts`. */
+export type AppProject = PlaywrightTestProject<object, { appOptions: AppOptions | undefined }>;
 
-export type FixtureProjectSpec = {
+/**
+ * A project served by `ecopages preview`, which builds the static export and serves it on `port`.
+ */
+export type StaticProjectSpec = {
 	/** Playwright project name (e.g. `react-router-e2e`). */
 	name: string;
+	mode: 'static';
 	port: number;
-	mode: FixtureServerMode;
 	env?: Record<string, string>;
 	testMatch?: string | string[];
 	testIgnore?: string[];
-	workers?: number;
 	timeout?: number;
 };
 
+/**
+ * A project whose workers each run `ecopages dev` on their own copy of the fixture (see `e2e/app-fixture.ts`).
+ */
+export type DevProjectSpec = {
+	name: string;
+	mode: 'dev';
+	env?: Record<string, string>;
+	/** Config file of the copy, relative to the fixture folder. */
+	configFile?: string;
+	testMatch?: string | string[];
+	testIgnore?: string[];
+	timeout?: number;
+};
+
+export type FixtureProjectSpec = StaticProjectSpec | DevProjectSpec;
+
 export type FixtureDefinition = {
-	/** Stable block id; used in default Playwright project names when `projects` is omitted. */
+	/** Stable block id. */
 	block: string;
 	/** Absolute path to the fixture app directory. */
 	dir: string;
-	/** When set, fully replaces the default dev + static project pair. */
-	projects?: FixtureProjectSpec[];
-	devPort?: number;
-	staticPort?: number;
-	postcssDevPort?: number;
-	/** Only boot build + preview (no dev server). */
-	staticOnly?: boolean;
-	/** Only boot a dev server (no static project). */
-	devOnly?: boolean;
-	/** Extra env vars for the dev web server (e.g. feature flags). */
-	devEnv?: Record<string, string>;
-	/** Extra env vars for the static build + preview web server. */
-	staticEnv?: Record<string, string>;
-	devWorkers?: number;
-	staticWorkers?: number;
-	/** Extra env vars for the PostCSS dev server. */
-	postcssDevEnv?: Record<string, string>;
+	projects: FixtureProjectSpec[];
 };
 
 export type ExternalFixtureDefinition = {
@@ -51,7 +54,6 @@ export type ExternalFixtureDefinition = {
 	command: string;
 	cwd: string;
 	projectName?: string;
-	workers?: number;
 	/**
 	 * How Playwright waits for the web server.
 	 *
@@ -63,11 +65,10 @@ export type ExternalFixtureDefinition = {
 };
 
 export type FixtureModule = {
-	definition: FixtureDefinition | ExternalFixtureDefinition;
-	projects: PlaywrightTestProject[];
+	/** Stable block id, used to order fixtures. */
+	block: string;
+	projects: AppProject[];
 	webServers: FixtureWebServer[];
-	/** Flat list of Playwright project names declared by this fixture. */
-	batchProjects: string[];
 };
 
 export type FixtureWebServer = {
@@ -87,121 +88,23 @@ function toRepoRelativeDir(dir: string): string {
 	return path.relative(process.cwd(), dir).split(path.sep).join('/');
 }
 
-function buildEnvPrefix(options: { port: number; env?: Record<string, string>; nodeEnv: string }): string {
-	return [
-		options.nodeEnv,
-		`ECOPAGES_PORT=${options.port}`,
-		...Object.entries(options.env ?? {}).map(([key, value]) => `${key}=${value}`),
-	].join(' ');
-}
-
 const ecopagesCli = `node ${JSON.stringify(path.join(process.cwd(), 'packages/ecopages/bin/cli.js'))}`;
 
 /**
- * Starts a fixture through the `ecopages` CLI on Node, from the fixture directory.
+ * Starts a static fixture through the `ecopages` CLI on Node, from the fixture directory.
  *
  * @remarks
- * `dev` serves the source tree. `preview` builds the static export, then serves it.
+ * `preview` builds the static export, then serves it.
  */
-function buildServerCommand(spec: FixtureProjectSpec): string {
+function buildStaticServerCommand(spec: StaticProjectSpec): string {
 	const env = { ...spec.env, ECOPAGES_E2E_ARTIFACT_SCOPE: spec.name };
-	const envPrefix = buildEnvPrefix({
-		port: spec.port,
-		env,
-		nodeEnv: spec.mode === 'dev' ? 'NODE_ENV=development' : 'NODE_ENV=production',
-	});
-	const subcommand = spec.mode === 'dev' ? 'dev' : 'preview';
+	const envPrefix = [
+		'NODE_ENV=production',
+		`ECOPAGES_PORT=${spec.port}`,
+		...Object.entries(env).map(([key, value]) => `${key}=${value}`),
+	].join(' ');
 
-	return `${envPrefix} ${ecopagesCli} ${subcommand} --runtime node`;
-}
-
-function defaultTestMatch(fixtureDir: string): string {
-	return `${fixtureDir}/**/*.test.e2e.ts`;
-}
-
-function resolveProjectSpecs(definition: FixtureDefinition, fixtureDir: string): FixtureProjectSpec[] {
-	const defaultTest = defaultTestMatch(fixtureDir);
-
-	if (definition.projects) {
-		return definition.projects.map((spec) => ({
-			...spec,
-			testMatch: spec.testMatch ?? defaultTest,
-		}));
-	}
-
-	if (definition.staticOnly) {
-		if (!definition.staticPort) {
-			throw new Error(`Fixture ${definition.block}: staticOnly requires staticPort`);
-		}
-
-		return [
-			{
-				name: `${definition.block}-static-e2e`,
-				port: definition.staticPort,
-				mode: 'static',
-				env: definition.staticEnv,
-				testMatch: defaultTest,
-				testIgnore: [`${fixtureDir}/**/*.dev.test.e2e.ts`],
-				workers: definition.staticWorkers,
-			},
-		];
-	}
-
-	if (definition.devOnly) {
-		if (!definition.devPort) {
-			throw new Error(`Fixture ${definition.block}: devOnly requires devPort`);
-		}
-
-		return [
-			{
-				name: `${definition.block}-dev-e2e`,
-				port: definition.devPort,
-				mode: 'dev',
-				env: definition.devEnv,
-				testMatch: defaultTest,
-				testIgnore: [`${fixtureDir}/**/*.static.test.e2e.ts`],
-				workers: definition.devWorkers ?? 1,
-			},
-		];
-	}
-
-	if (!definition.devPort || !definition.staticPort) {
-		throw new Error(`Fixture ${definition.block}: default layout requires devPort and staticPort`);
-	}
-
-	const specs: FixtureProjectSpec[] = [
-		{
-			name: `${definition.block}-dev-e2e`,
-			port: definition.devPort,
-			mode: 'dev',
-			env: definition.devEnv,
-			testMatch: defaultTest,
-			testIgnore: [`${fixtureDir}/**/*.static.test.e2e.ts`, `${fixtureDir}/**/*.postcss.dev.test.e2e.ts`],
-			workers: definition.devWorkers ?? 1,
-		},
-		{
-			name: `${definition.block}-static-e2e`,
-			port: definition.staticPort,
-			mode: 'static',
-			env: definition.staticEnv,
-			testMatch: defaultTest,
-			testIgnore: [`${fixtureDir}/**/*.dev.test.e2e.ts`],
-			workers: definition.staticWorkers,
-		},
-	];
-
-	if (definition.postcssDevPort) {
-		specs.splice(1, 0, {
-			name: `${definition.block}-postcss-dev-e2e`,
-			port: definition.postcssDevPort,
-			mode: 'dev',
-			env: definition.postcssDevEnv,
-			testMatch: `${fixtureDir}/**/*.postcss.dev.test.e2e.ts`,
-			workers: definition.devWorkers ?? 1,
-		});
-	}
-
-	return specs;
+	return `${envPrefix} ${ecopagesCli} preview --runtime node`;
 }
 
 /**
@@ -210,38 +113,30 @@ function resolveProjectSpecs(definition: FixtureDefinition, fixtureDir: string):
  */
 const DEV_FIXTURE_TEST_TIMEOUT_MS = 60_000;
 
-function buildProjectsFromSpecs(
-	specs: FixtureProjectSpec[],
-	desktopChrome: DesktopChromeUse,
-	defaultWorkerCount: number,
-): PlaywrightTestProject[] {
-	return specs.map((spec) => ({
+function buildProject(spec: FixtureProjectSpec, fixtureDir: string, desktopChrome: DesktopChromeUse): AppProject {
+	const defaultTestMatch = `${fixtureDir}/**/*.test.e2e.ts`;
+	const common = {
 		name: spec.name,
-		testMatch: spec.testMatch,
+		testMatch: spec.testMatch ?? defaultTestMatch,
 		testIgnore: spec.testIgnore,
-		workers: spec.workers ?? (spec.mode === 'dev' ? 1 : defaultWorkerCount),
-		timeout: spec.timeout ?? (spec.mode === 'dev' ? DEV_FIXTURE_TEST_TIMEOUT_MS : undefined),
+	};
+
+	if (spec.mode === 'static') {
+		return {
+			...common,
+			timeout: spec.timeout,
+			use: { ...desktopChrome, baseURL: `http://localhost:${spec.port}` },
+		};
+	}
+
+	return {
+		...common,
+		timeout: spec.timeout ?? DEV_FIXTURE_TEST_TIMEOUT_MS,
 		use: {
 			...desktopChrome,
-			baseURL: `http://localhost:${spec.port}`,
+			appOptions: { source: fixtureDir, env: spec.env, configFile: spec.configFile },
 		},
-	}));
-}
-
-function buildWebServersFromSpecs(
-	specs: FixtureProjectSpec[],
-	fixtureDir: string,
-	options: { reuseExistingServer: boolean },
-): FixtureWebServer[] {
-	return specs.map((spec) => ({
-		command: buildServerCommand(spec),
-		cwd: fixtureDir,
-		projects: [spec.name],
-		reuseExistingServer: options.reuseExistingServer,
-		stdout: 'pipe',
-		stderr: 'pipe',
-		...getEcopagesServerReadySignal(),
-	}));
+	};
 }
 
 export function defineFixture(
@@ -249,15 +144,22 @@ export function defineFixture(
 	desktopChrome: DesktopChromeUse,
 	options: { reuseExistingServer: boolean },
 ): FixtureModule {
-	const defaultWorkerCount = getDefaultWorkerCount();
 	const fixtureDir = toRepoRelativeDir(definition.dir);
-	const specs = resolveProjectSpecs(definition, fixtureDir);
 
 	return {
-		definition,
-		projects: buildProjectsFromSpecs(specs, desktopChrome, defaultWorkerCount),
-		webServers: buildWebServersFromSpecs(specs, fixtureDir, options),
-		batchProjects: specs.map((spec) => spec.name),
+		block: definition.block,
+		projects: definition.projects.map((spec) => buildProject(spec, fixtureDir, desktopChrome)),
+		webServers: definition.projects
+			.filter((spec): spec is StaticProjectSpec => spec.mode === 'static')
+			.map((spec) => ({
+				command: buildStaticServerCommand(spec),
+				cwd: fixtureDir,
+				projects: [spec.name],
+				reuseExistingServer: options.reuseExistingServer,
+				stdout: 'pipe',
+				stderr: 'pipe',
+				...getEcopagesServerReadySignal(),
+			})),
 	};
 }
 
@@ -266,20 +168,15 @@ export function defineExternalFixture(
 	desktopChrome: DesktopChromeUse,
 	options: { reuseExistingServer: boolean },
 ): FixtureModule {
-	const defaultWorkerCount = getDefaultWorkerCount();
 	const projectName = definition.projectName ?? `${definition.block}-e2e`;
 
 	return {
-		definition,
+		block: definition.block,
 		projects: [
 			{
 				name: projectName,
 				testMatch: definition.testMatch,
-				workers: definition.workers ?? defaultWorkerCount,
-				use: {
-					...desktopChrome,
-					baseURL: `http://localhost:${definition.port}`,
-				},
+				use: { ...desktopChrome, baseURL: `http://localhost:${definition.port}` },
 			},
 		],
 		webServers: [
@@ -293,6 +190,5 @@ export function defineExternalFixture(
 				stderr: 'pipe',
 			},
 		],
-		batchProjects: [projectName],
 	};
 }

@@ -8,7 +8,6 @@
  */
 import type { PlaywrightTestProject } from '@playwright/test';
 import { getEcopagesServerReadySignal } from './isolated-dev-server-ready.ts';
-import { getDefaultWorkerCount } from './workers.ts';
 import type { FixtureModule, FixtureWebServer } from './define-fixture.ts';
 
 export const kitchenSinkPreviewTestMatch = 'playground/kitchen-sink/e2e/**/*.preview.test.e2e.ts';
@@ -33,12 +32,9 @@ export function defineKitchenSinkPreviewFixture(
 	desktopChrome: DesktopChromeUse,
 	options: { reuseExistingServer: boolean },
 ): FixtureModule {
-	const defaultWorkerCount = getDefaultWorkerCount();
-
 	const projects: PlaywrightTestProject[] = previewVariants.map((variant) => ({
 		name: variant.name,
 		testMatch: variant.testMatch,
-		workers: defaultWorkerCount,
 		timeout: 60_000,
 		use: {
 			...desktopChrome,
@@ -58,16 +54,5 @@ export function defineKitchenSinkPreviewFixture(
 		stderr: 'pipe',
 	}));
 
-	return {
-		definition: {
-			block: 'cross-integration-preview',
-			testMatch: kitchenSinkPreviewTestMatch,
-			port: previewVariants[0].port,
-			command: previewLauncher,
-			cwd: '.',
-		},
-		projects,
-		webServers,
-		batchProjects: previewVariants.map((variant) => variant.name),
-	};
+	return { block: 'cross-integration-preview', projects, webServers };
 }

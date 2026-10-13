@@ -1,17 +1,16 @@
 /**
- * Kitchen-sink dev + parity e2e — in-repo, no per-worker app copy.
+ * Kitchen-sink dev + parity e2e — in-repo, one shared server per project.
  *
  * One Playwright process can run both cells: each server uses a scoped
  * .eco-${scope} dir and its own port. HMR stays in the isolated fixture.
  */
 import type { PlaywrightTestProject } from '@playwright/test';
 import { getEcopagesServerReadySignal } from './isolated-dev-server-ready.ts';
-import type { FixtureModule, FixtureWebServer } from './define-fixture.ts';
+import type { AppProject, FixtureModule, FixtureWebServer } from './define-fixture.ts';
 import {
 	crossIntegrationHmrMatch,
 	crossIntegrationParityMatch,
 	crossIntegrationPreviewMatch,
-	crossIntegrationSourceDir,
 	crossIntegrationTestMatch,
 } from './define-isolated-fixture.ts';
 
@@ -73,7 +72,7 @@ export function defineKitchenSinkDevFixture(
 	desktopChrome: DesktopChromeUse,
 	options: { reuseExistingServer: boolean },
 ): FixtureModule {
-	const projects: PlaywrightTestProject[] = devVariants.map((variant) => ({
+	const projects: AppProject[] = devVariants.map((variant) => ({
 		name: variant.name,
 		testMatch: variant.testMatch,
 		testIgnore: variant.testIgnore,
@@ -95,16 +94,5 @@ export function defineKitchenSinkDevFixture(
 		stderr: 'pipe',
 	}));
 
-	return {
-		definition: {
-			block: 'cross-integration-dev',
-			testMatch: `${crossIntegrationSourceDir}/e2e/**/*.test.e2e.ts`,
-			port: devVariants[0].port,
-			command: devLauncher,
-			cwd: '.',
-		},
-		projects,
-		webServers,
-		batchProjects: devVariants.map((variant) => variant.name),
-	};
+	return { block: 'cross-integration-dev', projects, webServers };
 }

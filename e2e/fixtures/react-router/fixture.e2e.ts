@@ -30,11 +30,9 @@ export default defineFixture(
 			},
 			{
 				name: 'react-router-persist-layouts-dev-e2e',
-				port: 4006,
 				mode: 'dev',
 				env: persistLayoutsEnv,
 				testMatch: `${fixtureDirRelative}/persist-layouts-hmr.test.e2e.ts`,
-				workers: 1,
 			},
 		],
 	},

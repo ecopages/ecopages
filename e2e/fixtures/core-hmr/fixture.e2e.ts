@@ -6,19 +6,33 @@ import { shouldReuseExistingTestServers } from '../../playwright/config-env.ts';
 import { defineFixture } from '../../playwright/define-fixture.ts';
 
 const fixtureDir = path.dirname(fileURLToPath(import.meta.url));
-const postcssConfigPath = path.join(fixtureDir, 'eco.config.postcss.ts');
-const postcssEnv = { [ECOPAGES_CONFIG_FILE_ENV]: postcssConfigPath };
+const fixtureDirRelative = path.relative(process.cwd(), fixtureDir).split(path.sep).join('/');
+const postcssConfig = 'eco.config.postcss.ts';
 
 export default defineFixture(
 	{
 		block: 'core-hmr',
 		dir: fixtureDir,
-		devPort: 4610,
-		postcssDevPort: 4612,
-		staticPort: 4611,
-		postcssDevEnv: postcssEnv,
-		staticEnv: postcssEnv,
-		devWorkers: 1,
+		projects: [
+			{
+				name: 'core-hmr-dev-e2e',
+				mode: 'dev',
+				testMatch: [`${fixtureDirRelative}/hmr.dev.test.e2e.ts`],
+			},
+			{
+				name: 'core-hmr-postcss-dev-e2e',
+				mode: 'dev',
+				configFile: postcssConfig,
+				testMatch: [`${fixtureDirRelative}/hmr.postcss.dev.test.e2e.ts`],
+			},
+			{
+				name: 'core-hmr-static-e2e',
+				mode: 'static',
+				port: 4611,
+				env: { [ECOPAGES_CONFIG_FILE_ENV]: path.join(fixtureDir, postcssConfig) },
+				testIgnore: [`${fixtureDirRelative}/**/*.dev.test.e2e.ts`],
+			},
+		],
 	},
 	devices['Desktop Chrome'],
 	{ reuseExistingServer: shouldReuseExistingTestServers() },

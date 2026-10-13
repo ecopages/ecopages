@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from '../../app-fixture';
 
 function collectErrors(page: Page): string[] {
 	const errors: string[] = [];

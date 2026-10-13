@@ -1,45 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
-import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
+import { installBuildQueue } from '../../build/runtime/build-queue.ts';
 import { createEcoComponentMetaTransform } from '../../plugins/eco-component-meta-plugin.ts';
 import { isHashedBrowserAsset } from './hashed-browser-asset.ts';
 import { BrowserBundleService } from './browser-bundle.service.ts';
+import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 
 describe('BrowserBundleService', () => {
-	it('routes browser-script builds through the route-module profile when BuildRuntime is installed', async () => {
-		const routeModuleBuild = vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/out/entry.js', contentHashed: true }],
-		}));
-		const hmrBuild = vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/out/hmr.js' }],
-		}));
-		const appConfig = {
-			runtime: {},
-			loaders: new Map(),
-		} as any;
+	it('queues browser-script builds on the build lane', async () => {
+		const build = vi.fn(async () =>
+			createBuildSuccess({ outputs: [{ path: '/tmp/out/entry.js', contentHashed: true }] }),
+		);
+		const appConfig = createAppConfig(build);
+		const queue = installBuildQueue(appConfig);
+		const queueBuild = vi.spyOn(queue, 'build');
 
-		setAppBuildAdapterForTest(appConfig, {
-			ownership: 'rolldown',
-			build: routeModuleBuild,
-			resolve: () => '',
-			getTranspileOptions: () => ({
-				target: 'browser',
-				format: 'esm',
-				sourcemap: 'none',
-			}),
-		});
-		installBuildRuntime(appConfig);
-		const buildRuntime = appConfig.runtime.buildRuntime;
-		const originalHmrBuild = buildRuntime
-			.getProfile('browser-hmr')
-			.build.bind(buildRuntime.getProfile('browser-hmr'));
-		buildRuntime.getProfile('browser-hmr').build = hmrBuild;
-
-		const service = new BrowserBundleService(appConfig);
-		await service.bundle({
+		await new BrowserBundleService(appConfig).bundle({
 			profile: 'browser-script',
 			entrypoints: ['/tmp/entry.ts'],
 			outdir: '/tmp/out',
@@ -47,61 +22,33 @@ describe('BrowserBundleService', () => {
 			naming: '[name].js',
 		});
 
-		expect(routeModuleBuild).toHaveBeenCalledTimes(1);
-		expect(hmrBuild).not.toHaveBeenCalled();
+		expect(queueBuild).toHaveBeenCalledWith(expect.objectContaining({ entrypoints: ['/tmp/entry.ts'] }), 'build');
+		expect(build).toHaveBeenCalledTimes(1);
 		expect(isHashedBrowserAsset('/tmp/out/entry.js')).toBe(true);
-
-		buildRuntime.getProfile('browser-hmr').build = originalHmrBuild;
 	});
 
-	it('routes hmr-entrypoint rebuilds through the browser-hmr profile', async () => {
-		const hmrBuild = vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/out/entry.js' }],
-		}));
-		const appConfig = {
-			runtime: {},
-			loaders: new Map(),
-		} as any;
+	it.each(['hmr-entrypoint', 'hmr-runtime'] as const)('queues %s rebuilds on the hmr lane', async (profile) => {
+		const build = vi.fn(async () => createBuildSuccess({ outputs: [{ path: '/tmp/out/entry.js' }] }));
+		const appConfig = createAppConfig(build);
+		const queue = installBuildQueue(appConfig);
+		const queueBuild = vi.spyOn(queue, 'build');
 
-		setAppBuildAdapterForTest(appConfig, {
-			ownership: 'rolldown',
-			build: vi.fn(),
-			resolve: () => '',
-			getTranspileOptions: () => ({
-				target: 'browser',
-				format: 'esm',
-				sourcemap: 'none',
-			}),
-		});
-		installBuildRuntime(appConfig);
-		buildRuntimeProfileSpy(appConfig, 'browser-hmr', hmrBuild);
-
-		const service = new BrowserBundleService(appConfig);
-		await service.bundle({
-			profile: 'hmr-entrypoint',
+		await new BrowserBundleService(appConfig).bundle({
+			profile,
 			entrypoints: ['/tmp/layout.tsx'],
 			outdir: '/tmp/out',
 			minify: false,
 			naming: '[name].js',
 		});
 
-		expect(hmrBuild).toHaveBeenCalledWith(
-			expect.objectContaining({
-				entrypoints: ['/tmp/layout.tsx'],
-				target: 'browser',
-				format: 'esm',
-			}),
+		expect(queueBuild).toHaveBeenCalledWith(expect.objectContaining({ entrypoints: ['/tmp/layout.tsx'] }), 'hmr');
+		expect(build).toHaveBeenCalledWith(
+			expect.objectContaining({ entrypoints: ['/tmp/layout.tsx'], target: 'browser', format: 'esm' }),
 		);
 	});
 
 	it('forwards app-owned source transforms to browser bundle builds', async () => {
-		const build = vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/out/entry.js' }],
-		}));
+		const build = vi.fn(async () => createBuildSuccess({ outputs: [{ path: '/tmp/out/entry.js' }] }));
 		const metaTransform = createEcoComponentMetaTransform({
 			config: {
 				integrations: [{ name: 'react', extensions: ['.tsx'] }],
@@ -117,14 +64,8 @@ describe('BrowserBundleService', () => {
 			ownership: 'rolldown',
 			build,
 			resolve: () => '',
-			getTranspileOptions: () => ({
-				target: 'browser',
-				format: 'esm',
-				sourcemap: 'none',
-			}),
 		});
-		installBuildRuntime(appConfig);
-		buildRuntimeProfileSpy(appConfig, 'browser-hmr', build);
+		installBuildQueue(appConfig);
 
 		const service = new BrowserBundleService(appConfig);
 		await service.bundle({
@@ -143,11 +84,7 @@ describe('BrowserBundleService', () => {
 	});
 
 	it('passes grouped entry names to the build executor as named entrypoints', async () => {
-		const build = vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/out/page-entry.js' }],
-		}));
+		const build = vi.fn(async () => createBuildSuccess({ outputs: [{ path: '/tmp/out/page-entry.js' }] }));
 		const appConfig = {
 			runtime: {},
 			loaders: new Map(),
@@ -157,14 +94,8 @@ describe('BrowserBundleService', () => {
 			ownership: 'rolldown',
 			build,
 			resolve: () => '',
-			getTranspileOptions: () => ({
-				target: 'browser',
-				format: 'esm',
-				sourcemap: 'none',
-			}),
 		});
-		installBuildRuntime(appConfig);
-		buildRuntimeProfileSpy(appConfig, 'route-module', build);
+		installBuildQueue(appConfig);
 
 		const service = new BrowserBundleService(appConfig);
 		await service.bundleGroupedEntries(
@@ -198,11 +129,12 @@ function setAppBuildAdapterForTest(appConfig: any, adapter: any): void {
 	};
 }
 
-function buildRuntimeProfileSpy(
-	appConfig: any,
-	profile: 'browser-hmr' | 'route-module',
-	build: ReturnType<typeof vi.fn>,
-) {
-	const executor = appConfig.runtime.buildRuntime.getProfile(profile);
-	executor.build = build;
+function createAppConfig(build: ReturnType<typeof vi.fn>): any {
+	const appConfig = { runtime: {}, loaders: new Map() } as any;
+	setAppBuildAdapterForTest(appConfig, {
+		ownership: 'rolldown',
+		build,
+		resolve: () => '',
+	});
+	return appConfig;
 }

@@ -11,6 +11,7 @@ import type {
 } from '@ecopages/core/plugins/integration-plugin';
 import { createClientGraphBoundaryPlugin } from './boundary-plugin.ts';
 import { RolldownBuildAdapter } from '../../../../core/src/build/rolldown/rolldown-build-adapter.ts';
+import { assertBuildSucceeded } from '../../../../core/src/build/build-log.ts';
 
 type OnLoadRegistration = {
 	options: { filter: RegExp; namespace?: string };
@@ -81,7 +82,7 @@ describe('createClientGraphBoundaryPlugin', () => {
 				format: 'esm',
 				plugins: [createClientGraphBoundaryPlugin()],
 			});
-			expect(result.success, JSON.stringify(result.logs)).toBe(true);
+			assertBuildSucceeded(result, 'Build failed');
 			const output = readFileSync(result.outputs[0]!.path, 'utf8');
 			expect(output).toContain('Dashboard');
 			expect(output).not.toContain('server-secret');

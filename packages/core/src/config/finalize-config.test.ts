@@ -15,7 +15,6 @@ import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { Processor } from '../plugins/processor.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { NoopEntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
-import { CounterServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
 import { finalizeEcoPagesConfig } from './finalize-config.ts';
 import type { EcoPagesUserConfig } from './user-config-types.ts';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
@@ -106,7 +105,8 @@ describe('finalizeEcoPagesConfig', () => {
 				createMockIntegration('second', ['.second'], [browserPlugin]),
 			],
 		});
-		expect(getAppBuildManifest(config).plugins).toEqual([serverPlugin, browserPlugin]);
+		expect(getAppBuildManifest(config).server).toEqual([serverPlugin]);
+		expect(getAppBuildManifest(config).browser).toEqual([browserPlugin]);
 	});
 
 	beforeEach(() => {
@@ -162,9 +162,9 @@ describe('finalizeEcoPagesConfig', () => {
 
 		expect(getAppBuildOwnership(config)).toBe('rolldown');
 		expect(getAppBuildAdapter(config)).not.toBe(defaultBuildAdapter);
-		expect(getAppBuildManifest(config).plugins).toHaveLength(0);
+		expect(getAppBuildManifest(config).server).toHaveLength(0);
+		expect(getAppBuildManifest(config).browser).toHaveLength(0);
 		expect(config.sourceTransforms.size).toBeGreaterThan(0);
-		expect(config.runtime?.serverInvalidationState).toBeInstanceOf(CounterServerInvalidationState);
 		expect(config.runtime?.entrypointDependencyGraph).toBeInstanceOf(NoopEntrypointDependencyGraph);
 	});
 
@@ -227,11 +227,16 @@ describe('finalizeEcoPagesConfig', () => {
 				integrations: [integration],
 			});
 
-			expect(getAppBuildManifest(config).plugins).toEqual([
+			const contributed = [
 				processorRuntimePlugin,
 				processorBrowserPlugin,
 				integrationRuntimePlugin,
 				integrationBrowserPlugin,
+			].map((plugin) => plugin.name);
+			expect(getAppBuildManifest(config).server.map((plugin) => plugin.name)).toEqual(contributed);
+			expect(getAppBuildManifest(config).browser.map((plugin) => plugin.name)).toEqual([
+				...contributed,
+				'browser-runtime-plugin',
 			]);
 			expect(getAppBuildManifest(config).browserRuntimeManifest.bySpecifier.get('react')?.publicPath).toBe(
 				'/assets/vendors/react.js',

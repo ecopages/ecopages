@@ -11,7 +11,7 @@ import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts'
 import type { IClientBridge } from '../types/internal-types.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../dev/transform-server/dev-transform-url.ts';
-import { getAppServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
+import { getAppModuleLoader } from '../services/module-loading/app-server-module-transpiler.service.ts';
 import { getAppBuildInputIndex } from '../build/cache/build-input-dependency-index.ts';
 import {
 	createMockHmrManager,
@@ -165,7 +165,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 	test('should only invalidate server modules for route and server source changes', async () => {
 		const pageFilePath = path.join(Config.absolutePaths.pagesDir, 'about.tsx');
 		const cssFilePath = path.join(Config.absolutePaths.srcDir, 'styles', 'main.css');
-		const serverInvalidationState = getAppServerInvalidationState(Config);
+		const moduleLoader = getAppModuleLoader(Config);
 
 		Config.processors.set('css', {
 			getWatchConfig: vi.fn(() => ({
@@ -179,13 +179,13 @@ describe('ProjectWatcher - File Change Handling', () => {
 			matchesFileFilter: vi.fn((filepath: string) => filepath.endsWith('.css')),
 		} as never);
 
-		expect(serverInvalidationState.getServerInvalidationVersion()).toBe(0);
+		expect(moduleLoader.getDevelopmentGeneration()).toBe(0);
 
 		await (watcher as any).handleFileChange(pageFilePath);
-		expect(serverInvalidationState.getServerInvalidationVersion()).toBe(1);
+		expect(moduleLoader.getDevelopmentGeneration()).toBe(1);
 
 		await (watcher as any).handleFileChange(cssFilePath);
-		expect(serverInvalidationState.getServerInvalidationVersion()).toBe(1);
+		expect(moduleLoader.getDevelopmentGeneration()).toBe(1);
 	});
 
 	test('delegates dotenv changes to the runtime restart owner', async () => {
@@ -246,7 +246,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 		expect(HmrManager.handleFileChange).not.toHaveBeenCalled();
 		expect(HmrManager.handleFileChanges).not.toHaveBeenCalled();
 		expect(Bridge.reload).not.toHaveBeenCalled();
-		expect(getAppServerInvalidationState(Config).getServerInvalidationVersion()).toBe(0);
+		expect(getAppModuleLoader(Config).getDevelopmentGeneration()).toBe(0);
 	});
 
 	test('restarts when a file the config imports changes, even if the entry watcher owns the config', async () => {
@@ -317,6 +317,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 						return {} as T;
 					},
 					invalidateDevelopmentGraph: vi.fn(() => {}),
+					getDevelopmentGeneration: () => 0,
 				},
 			};
 
@@ -410,7 +411,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 				bridge: Bridge,
 				changeDebounceMs: 150,
 			});
-			const serverInvalidationState = getAppServerInvalidationState(Config);
+			const moduleLoader = getAppModuleLoader(Config);
 
 			for (let index = 0; index < 50; index += 1) {
 				void (debouncedWatcher as any).handleFileChange(
@@ -419,7 +420,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 			}
 			await vi.runAllTimersAsync();
 
-			expect(serverInvalidationState.getServerInvalidationVersion()).toBe(1);
+			expect(moduleLoader.getDevelopmentGeneration()).toBe(1);
 			expect(HmrManager.handleFileChanges).toHaveBeenCalledOnce();
 			expect(HmrManager.handleFileChanges).toHaveBeenCalledWith(
 				Array.from({ length: 50 }, (_, index) =>
@@ -1107,7 +1108,7 @@ describe('ProjectWatcher - Watch Subscriptions', () => {
 					utimesSync(componentFile, past, past);
 				}
 				await eventHandlers.get('add')?.(componentFile);
-				expect(getAppServerInvalidationState(Config).getServerInvalidationVersion()).toBe(1);
+				expect(getAppModuleLoader(Config).getDevelopmentGeneration()).toBe(1);
 				expect(HmrManager.handleFileChanges).toHaveBeenCalledWith([path.resolve(componentFile)], {
 					broadcast: true,
 				});

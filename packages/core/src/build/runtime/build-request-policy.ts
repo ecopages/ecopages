@@ -2,24 +2,34 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import type { BuildEnvironment, BuildOptions } from '../contracts/build-contracts.ts';
 import { appliesToBuildEnvironment } from '../contracts/build-manifest.ts';
-import { getAppBrowserBuildPlugins, getAppServerBuildPlugins, getAppTranspileOptions } from '../build-adapter.ts';
+import { getAppBuildManifest } from '../build-adapter.ts';
+import { createAliasResolverPlugin } from '../../plugins/alias-resolver-plugin.ts';
 import { resolveBuildEnvironmentOptions } from './build-environment-options.ts';
-import { resolveBuildProfileOptions } from './build-profile-options.ts';
-import type { BuildProfile } from './build-runtime.ts';
 import { getJsxOwnershipPlugins } from '../browser/jsx-ownership-plugins.ts';
-import { getAppSourceTransforms, mergeSourceTransformPlugins } from '../../plugins/source-transform.ts';
+import {
+	getAppSourceTransforms,
+	mergeSourceTransformPlugins,
+	type EcoSourceTransform,
+} from '../../plugins/source-transform.ts';
 import { createPreserveImportMetaTransform } from '../preserve-import-meta-transform.ts';
 
 /**
- * Resolves app-owned server plugins plus JSX ownership for one config.
+ * App-owned plugins of one environment, in the order their hooks run.
  *
  * @remarks
- * Always goes through {@link getAppServerBuildPlugins} so sealed-manifest and
- * source-transform apps share one plugin list with the alias resolver. Used by
- * both request assembly and unified-graph cache keys.
+ * Rolldown asks plugins in this order and the first one that returns a result for a resolve or load wins, so
+ * position is priority: the alias resolver, then the sealed manifest's plugins for the environment (for the browser,
+ * the plugins that also apply to the server, the browser runtime plugin, then the browser-only ones), then the JSX
+ * ownership plugins. {@link resolveBuildPluginOrder} puts caller plugins before them and source transforms after.
+ * The unified pages graph keys its cache by their names.
  */
-export function resolveServerAppBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
-	return [...getAppServerBuildPlugins(appConfig), ...getJsxOwnershipPlugins(appConfig)];
+export function resolveAppBuildPlugins(appConfig: EcoPagesAppConfig, environment: BuildEnvironment): EcoBuildPlugin[] {
+	const projectDir = appConfig.absolutePaths?.projectDir;
+	return [
+		...(projectDir ? [createAliasResolverPlugin(projectDir)] : []),
+		...getAppBuildManifest(appConfig)[environment],
+		...getJsxOwnershipPlugins(appConfig),
+	];
 }
 
 /**
@@ -47,9 +57,39 @@ export function mergeCallerBuildPlugins(
 	return [...uniqueCallerPlugins, ...appPlugins];
 }
 
+/**
+ * The complete plugin list of one build request, in the order its hooks run.
+ *
+ * @remarks
+ * Rolldown asks plugins in list order and the first result of a resolve or load hook wins, so this is the one place
+ * that decides priority:
+ *
+ * 1. Caller plugins that apply to the environment and do not share a name with an app plugin, so a caller's
+ *    vendor or alias rewrite runs before the general app loaders. A caller plugin cannot replace an app plugin of
+ *    the same name.
+ * 2. {@link resolveAppBuildPlugins}, less the names in `excludeAppBuildPlugins`. Use it to omit app plugins that a
+ *    request replaces; an environment cannot express that.
+ * 3. Source transforms as `transform` plugins, `pre` before default before `post`.
+ */
+export function resolveBuildPluginOrder(
+	appConfig: EcoPagesAppConfig,
+	environment: BuildEnvironment,
+	options: {
+		callerPlugins?: EcoBuildPlugin[];
+		excludeAppBuildPlugins?: readonly string[];
+		sourceTransforms: readonly EcoSourceTransform[];
+	},
+): EcoBuildPlugin[] {
+	const excluded = new Set(options.excludeAppBuildPlugins);
+	const appPlugins = resolveAppBuildPlugins(appConfig, environment).filter((plugin) => !excluded.has(plugin.name));
+	return mergeSourceTransformPlugins(
+		mergeCallerBuildPlugins(appPlugins, options.callerPlugins, environment),
+		options.sourceTransforms,
+	);
+}
+
 export type ServerBuildRequestInput = Partial<BuildOptions> & {
 	entrypoints: BuildOptions['entrypoints'];
-	profile?: Extract<BuildProfile, 'server-entry' | 'route-module'>;
 };
 
 export type BrowserBuildRequestInput = Partial<BuildOptions> & {
@@ -61,29 +101,27 @@ export type BrowserBuildRequestInput = Partial<BuildOptions> & {
  * Assembles a complete server-oriented {@link BuildOptions} before scheduling.
  *
  * @remarks
- * Defaults `profile` to `'route-module'`. Plugins are
- * {@link resolveServerAppBuildPlugins} plus unique caller contributions via
- * {@link mergeCallerBuildPlugins}. Source transforms become `transform` plugins
- * so server module loading shares browser attribution. Every server profile
+ * Environment defaults come from {@link resolveBuildEnvironmentOptions}; the
+ * server entry and the emitted config add `reportPackagesOutsideRoot`
+ * themselves. Plugins follow {@link resolveBuildPluginOrder}; source transforms become `transform` plugins
+ * so server module loading shares browser attribution. Every server request
  * also gets {@link createPreserveImportMetaTransform} for `runtimeOutdir` (or
  * `outdir`), so bundled modules, Core included, keep reading files relative to
  * their sources from `dist/.server/` and `.eco/.server-modules/`.
  */
 export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: ServerBuildRequestInput): BuildOptions {
-	const profile = input.profile ?? 'route-module';
 	const importMetaDir = input.runtimeOutdir ?? input.outdir;
-	const plugins = mergeSourceTransformPlugins(
-		mergeCallerBuildPlugins(resolveServerAppBuildPlugins(appConfig), input.plugins, 'server'),
-		[
+	const plugins = resolveBuildPluginOrder(appConfig, 'server', {
+		callerPlugins: input.plugins,
+		sourceTransforms: [
 			...getAppSourceTransforms(appConfig),
 			...(importMetaDir ? [createPreserveImportMetaTransform(importMetaDir)] : []),
 		],
-	);
-	const { plugins: _callerPlugins, profile: _profile, ...overrides } = input;
+	});
+	const { plugins: _callerPlugins, ...overrides } = input;
 
 	return {
 		...resolveBuildEnvironmentOptions('server', appConfig),
-		...resolveBuildProfileOptions(profile, appConfig, overrides),
 		...overrides,
 		environment: 'server',
 		entrypoints: input.entrypoints,
@@ -98,26 +136,18 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
  * Applies browser environment defaults independently of the executor slot
  * chosen by {@link BrowserBundleService}.
  *
- * Always attaches app source transforms as `transform` plugins. App browser
- * plugins come from {@link getAppBrowserBuildPlugins} (includes JSX ownership);
- * use `excludeAppBuildPlugins` to omit app-owned names. Caller plugins cannot
- * replace app-manifest names ({@link mergeCallerBuildPlugins}).
+ * Plugins follow {@link resolveBuildPluginOrder}; `excludeAppBuildPlugins` omits app-owned names.
  */
 export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: BrowserBuildRequestInput): BuildOptions {
 	const { excludeAppBuildPlugins, plugins: callerPlugins, ...overrides } = input;
-	const appBrowserPlugins = getAppBrowserBuildPlugins(appConfig);
-	const filteredAppBrowserPlugins =
-		excludeAppBuildPlugins && excludeAppBuildPlugins.length > 0
-			? appBrowserPlugins.filter((plugin) => !excludeAppBuildPlugins.includes(plugin.name))
-			: appBrowserPlugins;
-	const plugins = mergeSourceTransformPlugins(
-		mergeCallerBuildPlugins(filteredAppBrowserPlugins, callerPlugins, 'browser'),
-		getAppSourceTransforms(appConfig),
-	);
+	const plugins = resolveBuildPluginOrder(appConfig, 'browser', {
+		callerPlugins,
+		excludeAppBuildPlugins,
+		sourceTransforms: getAppSourceTransforms(appConfig),
+	});
 
 	return {
 		...resolveBuildEnvironmentOptions('browser', appConfig),
-		...getAppTranspileOptions(appConfig, 'browser'),
 		...overrides,
 		environment: 'browser',
 		entrypoints: input.entrypoints,

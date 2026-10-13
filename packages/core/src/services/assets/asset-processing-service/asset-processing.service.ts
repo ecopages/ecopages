@@ -18,7 +18,7 @@ import { isHmrAware } from './processor.interface.ts';
 import { ProcessorRegistry } from './processor.registry.ts';
 import { processUngroupedDependency } from './ungrouped-dependency-processing.ts';
 import { materializeContentScriptAsset } from './materialize-content-script-asset.ts';
-import { bumpBrowserRuntimeAssetGeneration } from '../browser-runtime-asset-generation.ts';
+import { clearPageCacheForBrowserRuntimeAssetChange } from '../browser-runtime-asset-page-cache.ts';
 import {
 	ContentScriptProcessor,
 	ContentStylesheetProcessor,
@@ -420,10 +420,15 @@ export class AssetProcessingService {
 
 	/**
 	 * Stores one processed asset in the dependency cache.
+	 *
+	 * @remarks
+	 * Clears the development HTML cache when a runtime or page-script asset is stored over an
+	 * existing entry under a new file path, because cached pages embed the previous URL. This
+	 * happens when a grouped bundle is rebuilt for a new member and re-emits its cached siblings.
 	 */
 	private setCachedAsset(dep: AssetDefinition, depKey: string, asset: ProcessedAsset): void {
 		const previous = this.cache.get(depKey)?.asset;
-		const tracksBrowserRuntimeGeneration = dep.packageRole === 'runtime' || dep.packageRole === 'page-script';
+		const isBrowserRuntimeAsset = dep.packageRole === 'runtime' || dep.packageRole === 'page-script';
 
 		this.cache.set(depKey, {
 			asset,
@@ -433,21 +438,21 @@ export class AssetProcessingService {
 			this.gzippedFiles.delete(asset.filepath);
 		}
 
-		if (tracksBrowserRuntimeGeneration && previous !== undefined && previous.filepath !== asset.filepath) {
-			void bumpBrowserRuntimeAssetGeneration(this.config);
+		if (isBrowserRuntimeAsset && previous !== undefined && previous.filepath !== asset.filepath) {
+			void clearPageCacheForBrowserRuntimeAssetChange(this.config);
 		}
 	}
 
 	/**
-	 * Removes a cached asset and advances the development HTML cache generation
-	 * when the removed asset can determine browser runtime URLs.
+	 * Removes a cached asset and clears the development HTML cache when the
+	 * removed asset can determine browser runtime URLs.
 	 */
 	private invalidateCachedAsset(depKey: string): void {
 		const cached = this.cache.get(depKey);
 		this.cache.delete(depKey);
 
 		if (cached?.asset.packageRole === 'runtime' || cached?.asset.packageRole === 'page-script') {
-			void bumpBrowserRuntimeAssetGeneration(this.config);
+			void clearPageCacheForBrowserRuntimeAssetChange(this.config);
 		}
 	}
 
@@ -483,7 +488,7 @@ export class AssetProcessingService {
 			}
 		}
 		if (invalidatesBrowserRuntime) {
-			void bumpBrowserRuntimeAssetGeneration(this.config);
+			void clearPageCacheForBrowserRuntimeAssetChange(this.config);
 		}
 	}
 

@@ -3,7 +3,14 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
-import { build, type BuildExecutor, type BuildOptions, type BuildResult } from '../../build/build-adapter.ts';
+import {
+	defaultBuildAdapter,
+	type BuildExecutor,
+	type BuildOptions,
+	type BuildResult,
+	type BuildSuccess,
+} from '../../build/build-adapter.ts';
+import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
 import { createServerBuildRequest } from '../../build/runtime/build-request-policy.ts';
 import { resolveBuildEnvironmentOptions } from '../../build/runtime/build-environment-options.ts';
 import {
@@ -23,7 +30,7 @@ import {
 	resolveRouteModuleDependencyPaths,
 	type RouteModuleDependencyHashes,
 } from './route-module-dependency-hasher.ts';
-import { formatBuildLog } from '../../build/build-log.ts';
+import { assertBuildSucceeded } from '../../build/build-log.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
 
 interface PageModuleImportBaseOptions {
@@ -66,7 +73,7 @@ export interface PageModuleBuildImportOptions extends PageModuleImportBaseOption
  */
 export interface PageModuleImportDependencies {
 	hashFile(filePath: string): string;
-	buildModule(options: Parameters<typeof build>[0], buildExecutor?: BuildExecutor): Promise<BuildResult>;
+	buildModule(options: BuildOptions, buildExecutor?: BuildExecutor): Promise<BuildResult>;
 }
 
 interface ImportCacheEntry {
@@ -99,7 +106,12 @@ export class PageModuleImportService {
 		this.appConfig = appConfig;
 		this.dependencies = {
 			hashFile: dependencies?.hashFile ?? ((filePath) => fileSystem.hash(filePath)),
-			buildModule: dependencies?.buildModule ?? ((options, buildExecutor) => build(options, buildExecutor)),
+			buildModule:
+				dependencies?.buildModule ??
+				((options, buildExecutor) =>
+					(buildExecutor ?? (this.appConfig ? requireBuildQueue(this.appConfig) : defaultBuildAdapter)).build(
+						options,
+					)),
 		};
 		this.dependencyHasher = new RouteModuleDependencyHasher({
 			hashFile: (filePath) => this.dependencies.hashFile(filePath),
@@ -112,6 +124,10 @@ export class PageModuleImportService {
 	 */
 	clearImportCache(): void {
 		this.importCache.clear();
+	}
+
+	getDevelopmentGeneration(): number {
+		return this.developmentImportGeneration;
 	}
 
 	/**
@@ -227,7 +243,6 @@ export class PageModuleImportService {
 		const { filePath, rootDir, outdir, splitting, externalPackages } = options;
 		const buildOptions: BuildOptions = this.appConfig
 			? createServerBuildRequest(this.appConfig, {
-					profile: 'route-module',
 					entrypoints: [filePath],
 					outdir,
 					naming: outputNamingTemplate,
@@ -304,7 +319,7 @@ export class PageModuleImportService {
 	}
 
 	private resolveCompiledRouteModuleOutput(
-		buildResult: BuildResult,
+		buildResult: BuildSuccess,
 		filePath: string,
 		rootDir: string,
 		noOutputMessage: (targetFilePath: string) => string,
@@ -321,7 +336,7 @@ export class PageModuleImportService {
 		filePath: string,
 		fileHash: string,
 		rootDir: string,
-		buildResult: BuildResult,
+		buildResult: BuildSuccess,
 		importCacheKey: string | undefined,
 		cacheBuildOptions: ReturnType<PageModuleImportService['createRouteModuleCacheBuildOptions']>,
 		outdir: string,
@@ -404,12 +419,8 @@ export class PageModuleImportService {
 
 		recordPageModuleBuildInvocation();
 		const buildResult = await this.dependencies.buildModule(buildOptions, options.buildExecutor);
+		assertBuildSucceeded(buildResult, transpileErrorMessage);
 		recordPageModuleLoad('cold-build', buildResult.outputs.length);
-
-		if (!buildResult.success) {
-			const details = buildResult.logs.map(formatBuildLog).join('\n');
-			throw new Error(transpileErrorMessage(details));
-		}
 
 		const compiledOutput = this.resolveCompiledRouteModuleOutput(
 			buildResult,

@@ -2,15 +2,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HMR_RUNTIME_SCRIPT_URL, resolveHmrRuntimeWorkDir } from '../../../hmr/hmr-runtime-paths.ts';
 import {
-	DEV_TOOLBAR_RUNTIME_SCRIPT_URL,
-	resolveDevToolbarRuntimeWorkDir,
-} from '../../../dev-toolbar/dev-toolbar-runtime-paths.ts';
-import { DevToolbarHost } from '../../../dev-toolbar/dev-toolbar-host.ts';
+	bundleDevClientRuntime,
+	injectDevClientRuntimes,
+	readDevClientRuntime,
+	type DevClientRuntime,
+} from '../../../hmr/dev-client-runtime.ts';
+import { isDevToolbarEnabled } from '../../../dev-toolbar/dev-toolbar-config.ts';
+import { createDevToolbarClientRuntime } from '../../../dev-toolbar/dev-toolbar-runtime.ts';
 import { isDevTransformModuleUrl } from '../../../hmr/hmr-asset-paths.ts';
-import {
-	removeStaleHmrEntrypointOutput,
-	isRegisteredDevTransformEntrypoint,
-} from '../../../hmr/hmr-entrypoint-output.ts';
+import { isRegisteredDevTransformEntrypoint } from '../../../hmr/hmr-entrypoint-output.ts';
 import type {
 	DefaultHmrContext,
 	EcoPagesAppConfig,
@@ -58,18 +58,24 @@ export abstract class SharedHmrManager implements IHmrManager {
 	protected readonly invalidationService: DevelopmentInvalidationService;
 	protected readonly entrypointDependencyGraph: EntrypointDependencyGraph;
 	protected readonly serverModuleTranspiler: ServerModuleTranspiler;
-	private runtimeBuildPromise: Promise<boolean> | null = null;
-	private runtimeReady = false;
-	private devToolbarWorkDir: string;
-	private devToolbarBuildPromise: Promise<boolean> | null = null;
-	private devToolbarReady = false;
+	private readonly hmrRuntime: DevClientRuntime;
+	private readonly devToolbarRuntime: DevClientRuntime;
+	private readonly runtimeBuilds = new Map<DevClientRuntime, Promise<boolean>>();
+	private readonly readyRuntimes = new Set<DevClientRuntime>();
 	protected readonly devTransformServer: DevTransformServer;
 
 	constructor({ appConfig, bridge }: SharedHmrManagerParams) {
 		this.appConfig = appConfig;
 		this.bridge = bridge;
 		this.runtimeWorkDir = resolveHmrRuntimeWorkDir(resolveInternalWorkDir(this.appConfig));
-		this.devToolbarWorkDir = resolveDevToolbarRuntimeWorkDir(resolveInternalWorkDir(this.appConfig));
+		this.hmrRuntime = {
+			name: 'HMR',
+			url: HMR_RUNTIME_SCRIPT_URL,
+			workDir: this.runtimeWorkDir,
+			resolveEntry: () => fileURLToPath(import.meta.resolve('@ecopages/core/hmr/client/hmr-runtime')),
+			onFailure: (error) => this.onRuntimeBundleFailure(error),
+		};
+		this.devToolbarRuntime = createDevToolbarClientRuntime(appConfig);
 		this.entrypointRegistry = new DevTransformEntrypointRegistry();
 		this.browserBundleService = new BrowserBundleService(appConfig);
 		this.invalidationService = new DevelopmentInvalidationService(appConfig);
@@ -97,23 +103,29 @@ export abstract class SharedHmrManager implements IHmrManager {
 		return false;
 	}
 
+	/**
+	 * Reacts to a failed HMR runtime bundle.
+	 *
+	 * @remarks
+	 * Only the HMR runtime reports here. A Dev Toolbar bundle failure is logged by the manager and
+	 * leaves HMR running, because the toolbar is an optional client the page does not need to update.
+	 */
 	protected onRuntimeBundleFailure(error: unknown): void {
 		appLogger.error('[HMR] Failed to build runtime script:', error);
 	}
 
 	protected ensureRuntimeWorkDir(): void {
 		fileSystem.ensureDir(this.runtimeWorkDir);
-		if (this.shouldBuildDevToolbar()) {
-			fileSystem.ensureDir(this.devToolbarWorkDir);
-		}
 	}
 
-	protected shouldBuildDevToolbar(): boolean {
-		return this.getDevToolbarHost().isEnabled();
-	}
-
-	private getDevToolbarHost(): DevToolbarHost {
-		return DevToolbarHost.forApp(this.appConfig, { watch: this.enabled });
+	/**
+	 * Returns the browser runtimes this session serves: the HMR client, plus the Dev Toolbar client when it is
+	 * configured and HMR is enabled.
+	 */
+	private getDevClientRuntimes(): DevClientRuntime[] {
+		return isDevToolbarEnabled(this.appConfig, { watch: this.enabled })
+			? [this.hmrRuntime, this.devToolbarRuntime]
+			: [this.hmrRuntime];
 	}
 
 	protected shouldJsStrategyProcessEntrypoint(entrypointPath: string): boolean {
@@ -170,106 +182,47 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	/**
-	 * Builds the browser HMR runtime once per manager session and reuses the in-flight build for concurrent callers.
+	 * Builds each browser runtime once per manager session and reuses an in-flight build for concurrent callers.
 	 */
 	public async ensureRuntimeReady(): Promise<boolean> {
-		const [hmrReady, devToolbarReady] = await Promise.all([
-			this.ensureHmrRuntimeReady(),
-			this.ensureDevToolbarRuntimeReady(),
-		]);
-		return hmrReady && devToolbarReady;
+		const ready = await Promise.all(this.getDevClientRuntimes().map((runtime) => this.ensureRuntimeBuilt(runtime)));
+		return ready.every(Boolean);
 	}
 
-	private async ensureHmrRuntimeReady(): Promise<boolean> {
-		if (this.runtimeReady) {
+	private async ensureRuntimeBuilt(runtime: DevClientRuntime): Promise<boolean> {
+		if (this.readyRuntimes.has(runtime)) {
 			return true;
 		}
 
-		if (this.runtimeBuildPromise) {
-			return this.runtimeBuildPromise;
+		let build = this.runtimeBuilds.get(runtime);
+		if (!build) {
+			build = bundleDevClientRuntime(runtime, this.browserBundleService);
+			this.runtimeBuilds.set(runtime, build);
 		}
 
-		this.runtimeBuildPromise = this.buildRuntimeInternal();
 		try {
-			const ready = await this.runtimeBuildPromise;
-			this.runtimeReady = ready;
+			const ready = await build;
+			if (ready) {
+				this.readyRuntimes.add(runtime);
+			}
 			return ready;
 		} finally {
-			this.runtimeBuildPromise = null;
+			this.runtimeBuilds.delete(runtime);
 		}
 	}
 
-	private async ensureDevToolbarRuntimeReady(): Promise<boolean> {
-		if (!this.shouldBuildDevToolbar()) {
-			return true;
+	/**
+	 * Loads the runtimes that built successfully from an HTML response, and leaves it alone while HMR is off.
+	 */
+	public async injectDevClientRuntimes(response: Response): Promise<Response> {
+		if (!this.enabled) {
+			return response;
 		}
 
-		if (this.devToolbarReady) {
-			return true;
-		}
-
-		if (this.devToolbarBuildPromise) {
-			return this.devToolbarBuildPromise;
-		}
-
-		this.devToolbarBuildPromise = this.buildDevToolbarRuntimeInternal();
-		try {
-			const ready = await this.devToolbarBuildPromise;
-			this.devToolbarReady = ready;
-			return ready;
-		} finally {
-			this.devToolbarBuildPromise = null;
-		}
-	}
-
-	private getRuntimePath(): string {
-		return path.join(this.runtimeWorkDir, path.basename(HMR_RUNTIME_SCRIPT_URL));
-	}
-
-	private async buildDevToolbarRuntimeInternal(): Promise<boolean> {
-		return this.getDevToolbarHost().bundleClientRuntime({
-			browserBundleService: this.browserBundleService,
-			workDir: this.devToolbarWorkDir,
-			onFailure: (error) => this.onRuntimeBundleFailure(error),
-		});
-	}
-
-	private async buildRuntimeInternal(): Promise<boolean> {
-		const runtimeSource = fileURLToPath(import.meta.resolve('@ecopages/core/hmr/client/hmr-runtime'));
-		const runtimePath = this.getRuntimePath();
-
-		removeStaleHmrEntrypointOutput(runtimePath, 'HMR');
-
-		try {
-			const result = await this.browserBundleService.bundle({
-				profile: 'hmr-runtime',
-				entrypoints: [runtimeSource],
-				outdir: this.runtimeWorkDir,
-				naming: path.basename(HMR_RUNTIME_SCRIPT_URL),
-				minify: false,
-			});
-
-			if (!result.success) {
-				this.onRuntimeBundleFailure(result.logs);
-				return false;
-			}
-
-			const emittedRuntime = result.outputs.find(
-				(output) => path.resolve(output.path) === path.resolve(runtimePath),
-			);
-
-			if (!emittedRuntime || !fileSystem.exists(runtimePath)) {
-				this.onRuntimeBundleFailure(
-					new Error(`[HMR] Runtime bundle missing expected output at ${runtimePath}`),
-				);
-				return false;
-			}
-
-			return true;
-		} catch (error) {
-			this.onRuntimeBundleFailure(error);
-			return false;
-		}
+		return injectDevClientRuntimes(
+			response,
+			this.getDevClientRuntimes().filter((runtime) => this.readyRuntimes.has(runtime)),
+		);
 	}
 
 	public broadcast(event: ClientBridgeEvent) {
@@ -486,28 +439,9 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	public tryHandleAssetRequest(request: Request): Response | null {
-		const url = new URL(request.url);
-
-		if (url.pathname === HMR_RUNTIME_SCRIPT_URL) {
-			const runtimePath = this.getRuntimePath();
-			if (fileSystem.exists(runtimePath)) {
-				return new Response(fileSystem.readFileAsBuffer(runtimePath) as BodyInit, {
-					headers: {
-						'Content-Type': 'application/javascript',
-						'Cache-Control': 'no-store, must-revalidate',
-					},
-				});
-			}
-		}
-
-		if (url.pathname === DEV_TOOLBAR_RUNTIME_SCRIPT_URL && this.shouldBuildDevToolbar()) {
-			const runtimeResponse = this.getDevToolbarHost().readBundledRuntime(this.devToolbarWorkDir);
-			if (runtimeResponse) {
-				return runtimeResponse;
-			}
-		}
-
-		return null;
+		const { pathname } = new URL(request.url);
+		const runtime = this.getDevClientRuntimes().find((candidate) => candidate.url === pathname);
+		return runtime ? readDevClientRuntime(runtime) : null;
 	}
 
 	public getDefaultContext(): DefaultHmrContext {
@@ -528,7 +462,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	public stop() {
-		this.runtimeReady = false;
+		this.readyRuntimes.clear();
 		this.entrypointRegistry.clearAll();
 		this.devTransformServer.reset();
 		this.entrypointDependencyGraph.reset();

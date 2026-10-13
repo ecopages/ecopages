@@ -145,6 +145,7 @@ export function createPreserveImportMetaTransform(runtimeDir: string): EcoSource
 	let realRuntimeDir: string | undefined;
 	return {
 		name: 'preserve-import-meta-for-server-output',
+		cacheKey: runtimeDir,
 		filter: /\.[jt]sx?$/,
 		transform(code, id) {
 			if (!code.includes('import.meta')) {

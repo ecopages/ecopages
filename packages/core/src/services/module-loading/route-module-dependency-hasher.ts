@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import type { BuildResult } from '../../build/build-adapter.ts';
+import type { BuildSuccess } from '../../build/build-adapter.ts';
 import { collectBuildEntryInputPaths } from '../../build/build-graph.ts';
 
 /**
@@ -170,7 +170,7 @@ function filterTrackableRouteModuleDependencies(modulePaths: readonly string[]):
  * @returns Normalized module paths, falling back to the entrypoint when no graph is available.
  */
 export function resolveRouteModuleDependencyPaths(
-	buildResult: Pick<BuildResult, 'dependencyGraph' | 'loadedInputs' | 'loadedInputsByModule'>,
+	buildResult: Pick<BuildSuccess, 'dependencyGraph' | 'loadedInputsByModule'>,
 	entrypointPath: string,
 	rootDir: string,
 ): string[] {

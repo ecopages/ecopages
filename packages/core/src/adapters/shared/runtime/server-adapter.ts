@@ -19,16 +19,7 @@ import { startDevStaticRoutePrewarm } from './dev-static-route-prewarm.ts';
 import { collectAppDevPrewarmPaths } from './collect-dev-prewarm-paths.ts';
 import { createRenderContext } from './render-context.ts';
 import { ApiRequestPipeline } from '../http/api-request-pipeline.ts';
-import {
-	injectDevToolbarIntoHtmlResponse,
-	shouldInjectDevToolbarHtmlResponse,
-} from '../../../dev-toolbar/dev-toolbar-html-response.ts';
-import {
-	injectHmrRuntimeIntoHtmlResponse,
-	isHtmlResponse,
-	shouldInjectHmrHtmlResponse,
-	withUncachedDevHtml,
-} from '../hmr/hmr-html-response.ts';
+import { isHtmlResponse, withUncachedDevHtml } from '../hmr/hmr-html-response.ts';
 import type { EcoPageFile } from '../../../types/public-types.ts';
 import { getAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir } from '../../../utils/resolve-work-dir.ts';
@@ -358,34 +349,12 @@ export abstract class SharedServerAdapter<
 	}
 
 	private async injectSharedHmrHtmlResponse(response: Response, context: SharedRequestContext): Promise<Response> {
-		if (!isHtmlResponse(response)) {
+		const hmrManager = context.hmrManager;
+		if (!isHtmlResponse(response) || !hmrManager?.isEnabled()) {
 			return response;
 		}
 
-		let nextResponse = this.options?.watch ? withUncachedDevHtml(response) : response;
-
-		if (
-			shouldInjectHmrHtmlResponse(this.options?.watch ?? false, context.hmrManager) &&
-			isHtmlResponse(nextResponse)
-		) {
-			nextResponse = await injectHmrRuntimeIntoHtmlResponse(nextResponse);
-		}
-
-		if (
-			shouldInjectDevToolbarHtmlResponse(this.appConfig, {
-				watch: this.options?.watch ?? false,
-			})
-		) {
-			nextResponse = await injectDevToolbarIntoHtmlResponse(
-				this.appConfig,
-				{
-					watch: this.options?.watch ?? false,
-				},
-				nextResponse,
-			);
-		}
-
-		return nextResponse;
+		return await hmrManager.injectDevClientRuntimes(withUncachedDevHtml(response));
 	}
 
 	private async tryHandleSharedApiRequest(request: Request, context: SharedRequestContext): Promise<Response | null> {

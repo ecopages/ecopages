@@ -2,14 +2,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
-import { createMarkupNodeLike, type JsxCustomElementAttributes, type JsxRenderable } from '@ecopages/jsx';
-import {
-	createServerHydrationBindingState,
-	renderToString,
-	withServerHydrationBindingState,
-} from '@ecopages/jsx/server';
+import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';
+import { installLightDomShim } from '@ecopages/radiant/server/light-dom-shim';
 import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
-import { EcopagesJsxRadiantSsrPolicy } from '../ecopages-jsx-radiant-ssr-policy.ts';
 
 type IntrinsicContractElement = HTMLElement & { count?: number };
 
@@ -62,131 +57,36 @@ const RouteHtmlTemplate = ({ children }: { children: JsxRenderable }) => {
 describe('EcopagesJsxRenderer hydration scope', () => {
 	it('renders the page shell in plain mode while intrinsic Radiant hosts keep local hydrate markers', async () => {
 		const hydrationScopeTestTag = 'ecopages-jsx-hydration-scope-probe';
-		const customElementRegistry =
-			(
-				globalThis as typeof globalThis & {
-					customElements?: {
-						define: (name: string, constructor: CustomElementConstructor) => void;
-						get: (name: string) => CustomElementConstructor | undefined;
-					};
-				}
-			).customElements ??
-			(() => {
-				const registry = new Map<string, CustomElementConstructor>();
+		installLightDomShim();
+		const [{ RadiantElement }, { customElement }] = await Promise.all([
+			import('@ecopages/radiant/core/radiant-element'),
+			import('@ecopages/radiant/decorators/custom-element'),
+		]);
 
-				const shim = {
-					define(name: string, constructor: CustomElementConstructor) {
-						registry.set(name, constructor);
-					},
-					get(name: string) {
-						return registry.get(name);
-					},
-				};
-
-				Object.defineProperty(globalThis, 'customElements', {
-					configurable: true,
-					value: shim,
-				});
-
-				return shim;
-			})();
-		const TestElementBase =
-			typeof HTMLElement === 'undefined'
-				? class {
-						private readonly attributes = new Map<string, string>();
-
-						setAttribute(name: string, value: string): void {
-							this.attributes.set(name, value);
-						}
-					}
-				: HTMLElement;
-		const runtimeModules = {
-			resolveRadiantElementRenderBridge: (instance: unknown) => {
-				if (
-					typeof instance === 'object' &&
-					instance !== null &&
-					'renderHostToString' in instance &&
-					typeof (instance as { renderHostToString?: unknown }).renderHostToString === 'function'
-				) {
-					return {
-						renderHost: () => ({
-							nodeType: 1 as const,
-							outerHTML: (
-								instance as { renderHostToString: (options?: unknown) => string }
-							).renderHostToString({
-								mode: 'hydrate',
-							}),
-						}),
-						renderHostToString: (options?: unknown) =>
-							(instance as { renderHostToString: (options?: unknown) => string }).renderHostToString(
-								options,
-							),
-					};
-				}
-
-				return undefined;
-			},
-		};
-
-		const radiantSsrPolicy = new EcopagesJsxRadiantSsrPolicy(true);
-		vi.spyOn(radiantSsrPolicy, 'prepareRuntime').mockResolvedValue();
-		vi.spyOn(radiantSsrPolicy, 'withRuntime').mockImplementation(async <T,>(render: () => T) => render());
-		vi.spyOn(radiantSsrPolicy, 'renderIntrinsicElementMarkup').mockImplementation((instance) => {
-			const bridge = runtimeModules.resolveRadiantElementRenderBridge(instance);
-			if (!bridge) {
-				return undefined;
-			}
-
-			return createMarkupNodeLike(
-				withServerHydrationBindingState(createServerHydrationBindingState(), () =>
-					bridge.renderHostToString({ mode: 'hydrate' }),
-				),
-			);
-		});
-
-		if (!customElementRegistry.get(hydrationScopeTestTag)) {
-			class HydrationScopeProbeElement extends TestElementBase {
-				declare count?: number;
-
-				setAttribute(name: string, value: string): void {
-					super.setAttribute(name, value);
-					if (name === 'count') {
-						this.count = Number(value);
-					}
-				}
-
-				renderHostToString(options: { hydrate?: boolean; mode?: 'hydrate' | 'plain' }) {
-					const mode = options.mode ?? (options.hydrate ? 'hydrate' : 'plain');
-					const hostView = renderToString(
-						<button on:click={() => undefined} data-host-count={String(this.count ?? 0)}>
+		if (!customElements.get(hydrationScopeTestTag)) {
+			@customElement(hydrationScopeTestTag)
+			class HydrationScopeProbeElement extends RadiantElement {
+				override render() {
+					return (
+						<button on:click={() => undefined} data-host-count="2">
 							Host
-						</button>,
-						{ mode },
+						</button>
 					);
-
-					return `<${hydrationScopeTestTag}>${hostView}</${hydrationScopeTestTag}>`;
 				}
 			}
-
-			customElementRegistry.define(
-				hydrationScopeTestTag,
-				HydrationScopeProbeElement as unknown as CustomElementConstructor,
-			);
+			void HydrationScopeProbeElement;
 		}
 
-		class RadiantPolicyTestRenderer extends TestEcopagesJsxRenderer {
-			protected override createRadiantSsrPolicy(_enabled: boolean): EcopagesJsxRadiantSsrPolicy {
-				return radiantSsrPolicy;
-			}
-		}
-
-		const renderer = new RadiantPolicyTestRenderer({
+		const renderer = new TestEcopagesJsxRenderer({
 			appConfig: TestConfig,
 			assetProcessingService: {
 				processDependencies: vi.fn(async () => []),
 			} as never,
 			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
+			jsxConfig: {
+				radiantSsrEnabled: true,
+			},
 		});
 
 		const Layout = eco.layout<JsxRenderable>({
@@ -231,7 +131,7 @@ describe('EcopagesJsxRenderer hydration scope', () => {
 			new RegExp(`<${hydrationScopeTestTag}[^>]*>([\\s\\S]*?)<\\/${hydrationScopeTestTag}>`),
 		);
 
-		expect(customElementMatch?.[1]).toBeDefined();
+		expect(customElementMatch).not.toBeNull();
 
 		const customElementIndexes = Array.from(
 			customElementMatch![1].matchAll(/data-radiant-jsx-bind-(\d+)/g),

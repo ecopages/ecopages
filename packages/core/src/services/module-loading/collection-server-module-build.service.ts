@@ -1,17 +1,16 @@
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { build, type BuildResult } from '../../build/build-adapter.ts';
+import type { BuildResult } from '../../build/build-adapter.ts';
 import { createBuildRequestIdentity } from '../../build/runtime/build-request-identity.ts';
 import { createServerBuildRequest } from '../../build/runtime/build-request-policy.ts';
-import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
+import { buildOrThrow } from '../../build/runtime/build-queue.ts';
 import { recordCollectionBuild } from '../../diagnostics/request-pipeline-metrics.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { getAppServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
 import { getBuildEntryOutput } from '../../build/build-graph.ts';
-import { formatBuildLog } from '../../build/build-log.ts';
 
 export type CollectionServerBuildArtifact = {
 	collectionName: string;
@@ -95,11 +94,11 @@ export async function buildCollectionServerModule(input: {
 	const buildOptions = { ...buildRequest, naming: outputFileName.replace(/\.mjs$/u, '.[ext]') };
 
 	recordCollectionBuild();
-	const buildResult: BuildResult = await build(buildOptions, requireBuildQueue(appConfig));
-	if (!buildResult.success) {
-		const details = buildResult.logs.map(formatBuildLog).join('\n');
-		throw new Error(`Error building collection server module ${collectionName}: ${details}`);
-	}
+	const buildResult: BuildResult = await buildOrThrow(
+		appConfig,
+		buildOptions,
+		`Error building collection server module ${collectionName}`,
+	);
 
 	const compiledOutput = getBuildEntryOutput(buildResult, sourceFilePath, appConfig.rootDir);
 

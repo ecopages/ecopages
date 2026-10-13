@@ -2,14 +2,14 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../../config/constants.ts';
 import { appLogger } from '../../../global/app-logger.ts';
-import { build, setupAppRuntimePlugins } from '../../../build/build-adapter.ts';
+import { setupAppRuntimePlugins } from '../../../build/build-adapter.ts';
 import {
 	createServerBundleStagingDirectory,
 	publishServerBundleDirectory,
 	removeServerBundleStagingDirectory,
 } from '../../../build/server-bundle-publication.ts';
 import { createServerBuildRequest } from '../../../build/runtime/build-request-policy.ts';
-import { requireBuildQueue } from '../../../build/runtime/build-queue.ts';
+import { buildOrThrow } from '../../../build/runtime/build-queue.ts';
 import { attachHmrToIntegrations } from './runtime-server-lifecycle.ts';
 import {
 	getServerBundleOutputPaths,
@@ -22,7 +22,6 @@ import type { ErrorPageLoaders, StaticRoute } from '../../../types/public-types.
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator.ts';
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
-import { formatBuildLog } from '../../../build/build-log.ts';
 import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
 
 export interface StaticBuildOptions {
@@ -191,12 +190,7 @@ export class ServerStaticBuilder {
 				sourcemap: 'linked',
 				runtimeOutdir: serverOutdir,
 			});
-			const result = await build(buildOptions, requireBuildQueue(this.appConfig));
-
-			if (!result.success) {
-				const errorMessages = result.logs.map(formatBuildLog).join('\n');
-				throw new Error(`Failed to bundle server entry file:\n${errorMessages}`);
-			}
+			await buildOrThrow(this.appConfig, buildOptions, 'Failed to bundle server entry file');
 
 			writeServerBundleDeployManifest(this.appConfig, stagedServerEntryPath, {
 				emittedConfigModule: configBundle ? EMITTED_ECO_CONFIG_FILENAME : undefined,

@@ -73,11 +73,6 @@ describe('BrowserBundleService', () => {
 			ownership: 'rolldown',
 			build,
 			resolve: () => '',
-			getTranspileOptions: () => ({
-				target: 'browser',
-				format: 'esm',
-				sourcemap: 'none',
-			}),
 		});
 		installBuildQueue(appConfig);
 
@@ -112,11 +107,6 @@ describe('BrowserBundleService', () => {
 			ownership: 'rolldown',
 			build,
 			resolve: () => '',
-			getTranspileOptions: () => ({
-				target: 'browser',
-				format: 'esm',
-				sourcemap: 'none',
-			}),
 		});
 		installBuildQueue(appConfig);
 
@@ -158,7 +148,6 @@ function createAppConfig(build: ReturnType<typeof vi.fn>): any {
 		ownership: 'rolldown',
 		build,
 		resolve: () => '',
-		getTranspileOptions: () => ({ target: 'browser', format: 'esm', sourcemap: 'none' }),
 	});
 	return appConfig;
 }

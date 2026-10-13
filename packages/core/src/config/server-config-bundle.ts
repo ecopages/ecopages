@@ -1,12 +1,10 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { build } from '../build/build-adapter.ts';
 import type { BuildResult } from '../build/contracts/build-contracts.ts';
 import { createServerBuildRequest } from '../build/runtime/build-request-policy.ts';
-import { requireBuildQueue } from '../build/runtime/build-queue.ts';
+import { buildOrThrow } from '../build/runtime/build-queue.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { getServerBundleOutputPaths } from '../build/server-bundle-deploy-manifest.ts';
-import { formatBuildLog } from '../build/build-log.ts';
 
 export const EMITTED_ECO_CONFIG_FILENAME = 'eco.config.mjs';
 
@@ -42,11 +40,7 @@ export async function bundleEcoConfigModule(
 		runtimeOutdir: runtimeDir,
 	});
 
-	const result = await build(buildOptions, requireBuildQueue(appConfig));
-	if (!result.success) {
-		const errorMessages = result.logs.map(formatBuildLog).join('\n');
-		throw new Error(`Failed to bundle Ecopages config module:\n${errorMessages}`);
-	}
+	const result = await buildOrThrow(appConfig, buildOptions, 'Failed to bundle Ecopages config module');
 
 	if (!fileSystem.exists(emittedConfigPath)) {
 		throw new Error(`Ecopages config bundle missing at ${emittedConfigPath}`);

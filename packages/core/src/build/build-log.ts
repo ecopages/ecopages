@@ -1,6 +1,22 @@
 import type { BuildResult } from './contracts/build-contracts.ts';
 
 /**
+ * Throws when a build failed, with the formatted logs after `failure`.
+ *
+ * @remarks
+ * `failure` is the first line of the error, or a function of the formatted logs when the message needs them
+ * somewhere else. Logs keep their plugin, file, code frame and stack, so callers should throw this error instead of
+ * joining `log.message`.
+ */
+export function assertBuildSucceeded(result: BuildResult, failure: string | ((details: string) => string)): void {
+	if (result.success) {
+		return;
+	}
+	const details = result.logs.map(formatBuildLog).join('\n');
+	throw new Error(typeof failure === 'function' ? failure(details) : details ? `${failure}:\n${details}` : failure);
+}
+
+/**
  * Formats one build log as text: `[plugin] file:line:column: message`, then the code frame and the
  * stack frames when the log has them.
  *

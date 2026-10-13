@@ -13,13 +13,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { rolldown, type RolldownLog } from 'rolldown';
 
-import type {
-	BuildAdapter,
-	BuildOptions,
-	BuildResult,
-	BuildTranspileOptions,
-	BuildEnvironment,
-} from '../build-adapter.ts';
+import type { BuildAdapter, BuildOptions, BuildResult } from '../build-adapter.ts';
 import {
 	buildResultFromRolldownOutput,
 	resolveRolldownOptions,
@@ -29,7 +23,6 @@ import {
 import { recordRolldownBuildInvocation } from './rolldown-build-invocation-metrics.ts';
 import { createEntryModuleClosuresPlugin } from './entry-module-closures.ts';
 import type { BuildDependencyGraph } from '../build-adapter.ts';
-import { resolveTranspileOptions } from '../runtime/build-environment-options.ts';
 import { createBuildInputRecorder, getBuildInputRecordingContext } from '../cache/build-input-dependency-index.ts';
 
 const moduleRequire = createRequire(import.meta.url);
@@ -115,10 +108,6 @@ export class RolldownBuildAdapter implements BuildAdapter {
 
 	resolve(importPath: string, rootDir: string): string {
 		return moduleRequire.resolve(importPath, { paths: [rootDir] });
-	}
-
-	getTranspileOptions(environment: BuildEnvironment): BuildTranspileOptions {
-		return resolveTranspileOptions(environment);
 	}
 }
 

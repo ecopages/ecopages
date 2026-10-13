@@ -8,7 +8,7 @@ import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-re
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { formatBuildLog } from '../../build/build-log.ts';
+import { assertBuildSucceeded } from '../../build/build-log.ts';
 
 const BROWSER_FIRST_VENDOR_CONDITIONS = ['browser', 'module', 'import', 'default'] as const;
 const MODULE_FIRST_VENDOR_CONDITIONS = ['module', 'import', 'default'] as const;
@@ -132,10 +132,7 @@ export class DevTransformVendorRegistry {
 			plugins: [...vendorPlugins],
 		});
 
-		if (!result.success) {
-			const details = result.logs.map(formatBuildLog).join('\n');
-			throw new Error(formatVendorPrebundleError(specifier, details));
-		}
+		assertBuildSucceeded(result, (details) => formatVendorPrebundleError(specifier, details));
 
 		const output = result.outputs.find((candidate) => typeof candidate.content === 'string');
 		if (!output || typeof output.content !== 'string') {

@@ -11,8 +11,7 @@ import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
-import { build } from '../build-adapter.ts';
-import { requireBuildQueue } from '../runtime/build-queue.ts';
+import { buildOrThrow } from '../runtime/build-queue.ts';
 import { createServerBuildRequest, resolveServerAppBuildPlugins } from '../runtime/build-request-policy.ts';
 import { hashAppConfigFile } from './app-config-hash.ts';
 import { collectBuildOutputImports, getBuildEntryOutput } from '../build-graph.ts';
@@ -26,7 +25,6 @@ import {
 	resolveRouteModuleDependencyPaths,
 	type RouteModuleDependencyHashes,
 } from '../../services/module-loading/route-module-dependency-hasher.ts';
-import { formatBuildLog } from '../build-log.ts';
 
 const graphs = new WeakMap<EcoPagesAppConfig, PagesUnifiedGraphCacheManifest>();
 const importableGraphs = new WeakMap<PagesUnifiedGraphCacheManifest, boolean>();
@@ -213,13 +211,9 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 		naming: '[name]-[hash].[ext]',
 	});
 	const plugins = buildOptions.plugins ?? [];
-	const buildResult = await build(buildOptions, requireBuildQueue(options.appConfig));
-	appLogger.debugTimeEnd('pagesUnifiedGraphBuild');
-
-	if (!buildResult.success) {
-		const details = buildResult.logs.map(formatBuildLog).join('\n');
-		throw new Error(`Pages unified graph build failed: ${details}`);
-	}
+	const buildResult = await buildOrThrow(options.appConfig, buildOptions, 'Pages unified graph build failed').finally(
+		() => appLogger.debugTimeEnd('pagesUnifiedGraphBuild'),
+	);
 
 	const outputs: Record<string, string> = {};
 	const outputImports = new Set<string>();

@@ -32,11 +32,9 @@ test.describe('React Router Persist Layouts', () => {
 
 		await page.click('[data-testid="link-getting-started"]');
 		await page.waitForURL('**/docs/getting-started');
+		await expect(page.getByTestId('docs-getting-started')).toBeVisible();
 
-		await page.waitForTimeout(200);
-
-		const scrollTop = await sidebar.evaluate((el) => el.scrollTop);
-		expect(scrollTop).toBe(50);
+		await expect.poll(() => sidebar.evaluate((el) => el.scrollTop)).toBe(50);
 	});
 });
 
@@ -116,9 +114,8 @@ test.describe('React Router Persist Layouts - MDX', () => {
 
 		await page.click('[data-testid="link-mdx-docs-2"]');
 		await page.waitForURL('**/docs/mdx-docs-2');
-		await page.waitForTimeout(200);
+		await expect(page.locator('[data-testid="mdx-docs-2"]')).toBeVisible();
 
-		const scrollTop = await sidebar.evaluate((el) => el.scrollTop);
-		expect(scrollTop).toBe(100);
+		await expect.poll(() => sidebar.evaluate((el) => el.scrollTop)).toBe(100);
 	});
 });

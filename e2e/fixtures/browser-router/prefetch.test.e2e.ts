@@ -35,10 +35,17 @@ test.describe('Browser Router Prefetch', () => {
 
 	test('should not emit unused preload warnings while prefetching future page stylesheets', async ({ page }) => {
 		const preloadWarnings = trackConsoleWarnings(page, /preloaded using link preload but not used/i);
+		const destinationHtml = await (await page.request.get('/prefetch/destination?test=eager')).text();
+		const destinationStylesheet = destinationHtml.match(/href="(\/assets\/[a-f0-9]{16}\.css)"/)?.[1];
+		expect(destinationStylesheet).toBeDefined();
 
+		const stylesheetRequest = page.waitForRequest(
+			(request) => new URL(request.url()).pathname === destinationStylesheet,
+		);
 		await gotoAndWait(page, '/prefetch');
-		await page.waitForTimeout(3500);
+		await stylesheetRequest;
 
+		await expect(page.locator('link[rel="preload"]')).toHaveCount(0);
 		expect(preloadWarnings).toEqual([]);
 	});
 });

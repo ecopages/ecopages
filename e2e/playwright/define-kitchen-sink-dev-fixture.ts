@@ -26,10 +26,20 @@ const DEV_TEST_TIMEOUT_MS = 90_000;
  */
 const BUN_DEV_INIT_CEILING_MS = 45_000;
 
+/**
+ * Most workers the Bun parity project may use.
+ *
+ * @remarks
+ * Every worker starts a Bun dev server whose initial watcher crawl takes about 30 s alone and longer when
+ * several crawl at once, so the project's five tests share two servers to stay inside the init ceiling.
+ */
+const BUN_PARITY_WORKERS = 2;
+
 type DevVariant = {
 	name: string;
 	runtime: 'bun' | 'node';
 	readyTimeoutMs?: number;
+	workers?: number;
 	testMatch: string;
 	testIgnore?: string[];
 };
@@ -45,6 +55,7 @@ const devVariants: DevVariant[] = [
 		name: 'cross-integration-bun-parity-e2e',
 		runtime: 'bun',
 		readyTimeoutMs: BUN_DEV_INIT_CEILING_MS,
+		workers: BUN_PARITY_WORKERS,
 		testMatch: crossIntegrationParityMatch,
 	},
 ];
@@ -56,6 +67,7 @@ export function defineKitchenSinkDevFixture(desktopChrome: DesktopChromeUse): Fi
 		name: variant.name,
 		testMatch: variant.testMatch,
 		testIgnore: variant.testIgnore,
+		workers: variant.workers,
 		timeout: DEV_TEST_TIMEOUT_MS,
 		use: {
 			...desktopChrome,

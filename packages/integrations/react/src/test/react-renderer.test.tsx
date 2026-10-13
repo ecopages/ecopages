@@ -5,7 +5,6 @@ import path from 'node:path';
 import {
 	eco,
 	getComponentIdentity,
-	type ForeignSubtreeRenderPayload,
 	type ComponentRenderInput,
 	type ComponentRenderResult,
 	type EcoComponent,
@@ -14,7 +13,6 @@ import {
 	type HtmlTemplateProps,
 	type PageBrowserGraphResult,
 } from '@ecopages/core';
-import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { type RouteModuleLoadOptions } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { runWithComponentRenderContext } from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
@@ -58,7 +56,12 @@ const NonReactHtmlTemplate = ({ headContent, children }: HtmlTemplateProps) =>
 	`<html lang="en"><head>${headContent ?? ''}</head><body>${children}</body></html>`;
 
 NonReactHtmlTemplate.config = {
-	integration: 'html',
+	integration: 'html-pages',
+	identity: {
+		id: 'non-react-html-template',
+		file: '/app/layouts/non-react.html',
+		integration: 'html-pages',
+	},
 };
 
 const pageFilePath = path.resolve(__dirname, 'fixture/test-page.tsx');
@@ -376,7 +379,6 @@ describe('ReactRenderer', () => {
 			});
 
 			expect(result.canAttachAttributes).toBe(false);
-			expect(result.rootTag).toBe('span');
 			expect(result.html).toContain('<span>One</span>');
 		});
 
@@ -551,7 +553,6 @@ describe('ReactRenderer', () => {
 				async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
 					html: `<aside data-slot="true">${input.children ?? ''}<button data-testid="deferred-widget">Deferred widget</button></aside>`,
 					canAttachAttributes: true,
-					rootTag: 'aside',
 					integrationName: 'deferred',
 					rootAttributes: {
 						'data-eco-component-id':
@@ -631,7 +632,7 @@ describe('ReactRenderer', () => {
 			expect(deferredRenderComponent).toHaveBeenCalledTimes(1);
 		});
 
-		it('should expose the compatibility foreign-subtree payload contract for attachable roots', async () => {
+		it('returns island host metadata with the component render result', async () => {
 			const { testRenderer } = createRendererWithAssets();
 			const Component = ((props: { title: string }) => <h3>{props.title}</h3>) as unknown as EcoComponent<{
 				title: string;
@@ -644,18 +645,14 @@ describe('ReactRenderer', () => {
 				},
 			};
 
-			const result = toForeignSubtreeRenderPayload(
-				await testRenderer.renderComponentWithForeignChildren({
-					component: Component,
-					props: { title: 'Island' },
-					integrationContext: { componentInstanceId: 'island-1' },
-				}),
-			);
+			const result = await testRenderer.renderComponentWithForeignChildren({
+				component: Component,
+				props: { title: 'Island' },
+				integrationContext: { componentInstanceId: 'island-1' },
+			});
 
-			expect(result).toEqual<ForeignSubtreeRenderPayload>({
+			expect(result).toMatchObject({
 				html: '<eco-island style="display:contents"><h3>Island</h3></eco-island>',
-				assets: [],
-				rootTag: 'eco-island',
 				rootAttributes: {
 					'data-eco-component-id': 'island-1',
 					'data-eco-component-key': getIslandComponentKey(pageFilePath, Component.config),
@@ -663,12 +660,12 @@ describe('ReactRenderer', () => {
 					'data-eco-island': '',
 					'data-eco-island-integration': 'react',
 				},
-				attachmentPolicy: { kind: 'first-element' },
+				canAttachAttributes: true,
 				integrationName: 'react',
 			});
 		});
 
-		it('should expose a none attachment policy for fragment boundaries', async () => {
+		it('does not attach host attributes to fragment boundaries', async () => {
 			const testRenderer = createRenderer();
 			const Component = (() => (
 				<>
@@ -677,14 +674,12 @@ describe('ReactRenderer', () => {
 				</>
 			)) as unknown as EcoComponent<object>;
 
-			const result = toForeignSubtreeRenderPayload(
-				await testRenderer.renderComponentWithForeignChildren({
-					component: Component,
-					props: {},
-				}),
-			);
+			const result = await testRenderer.renderComponentWithForeignChildren({
+				component: Component,
+				props: {},
+			});
 
-			expect(result.attachmentPolicy).toEqual({ kind: 'none' });
+			expect(result.canAttachAttributes).toBe(false);
 			expect(result.rootAttributes).toBeUndefined();
 			expect(result.integrationName).toBe('react');
 			expect(result.html).toContain('<span>One</span>');
@@ -1034,7 +1029,12 @@ describe('ReactRenderer', () => {
 		const NonReactLayout = (({ children }: { children: string }) =>
 			`<main class="layout">${children}${DeferredWidget({})}</main>`) as EcoComponent<{ children: string }>;
 		NonReactLayout.config = {
-			integration: 'html',
+			integration: 'html-pages',
+			identity: {
+				id: 'non-react-layout',
+				file: '/app/layouts/non-react-layout.tsx',
+				integration: 'html-pages',
+			},
 			dependencies: {
 				components: [DeferredWidget],
 			},
@@ -1211,7 +1211,12 @@ describe('ReactRenderer', () => {
 			const NonReactLayout = (({ children }: { children: string }) =>
 				`<main class="layout">${children}${DeferredWidget({})}</main>`) as EcoComponent<{ children: string }>;
 			NonReactLayout.config = {
-				integration: 'html',
+				integration: 'html-pages',
+				identity: {
+					id: 'non-react-layout',
+					file: '/app/layouts/non-react-layout.tsx',
+					integration: 'html-pages',
+				},
 				dependencies: {
 					components: [DeferredWidget],
 				},

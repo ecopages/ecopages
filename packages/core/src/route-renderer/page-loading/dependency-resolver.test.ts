@@ -508,7 +508,10 @@ describe('DependencyResolverService', () => {
 		const bundleAppConfig = {
 			...appConfig,
 			integrations: [
-				{ name: 'react', bundlesPageDependencies: true } as unknown as EcoPagesAppConfig['integrations'][number],
+				{
+					name: 'react',
+					bundlesPageDependencies: true,
+				} as unknown as EcoPagesAppConfig['integrations'][number],
 			],
 			rootDir: tempDir,
 			absolutePaths: {
@@ -581,7 +584,10 @@ describe('DependencyResolverService', () => {
 		const bundleAppConfig = {
 			...appConfig,
 			integrations: [
-				{ name: 'react', bundlesPageDependencies: true } as unknown as EcoPagesAppConfig['integrations'][number],
+				{
+					name: 'react',
+					bundlesPageDependencies: true,
+				} as unknown as EcoPagesAppConfig['integrations'][number],
 			],
 			rootDir: tempDir,
 			absolutePaths: {

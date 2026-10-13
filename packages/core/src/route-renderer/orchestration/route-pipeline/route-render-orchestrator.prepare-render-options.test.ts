@@ -20,7 +20,7 @@ import type {
 import type { GroupedScriptBundle } from '../../../services/assets/asset-processing-service/assets.types.ts';
 import type { OwnershipValidationService } from '../ownership-graph/ownership-validation.service.ts';
 import { RouteRenderOrchestrator } from './route-render-orchestrator.ts';
-import { createFlowAdapter, createRouteOptions } from './route-render-orchestrator.test-fixtures.ts';
+import { createFlowRenderer, createRouteOptions } from './route-render-orchestrator.test-fixtures.ts';
 
 declare module '../../../types/public-types.ts' {
 	interface RequestLocals {
@@ -165,7 +165,7 @@ function createGroupedHarness(options: {
 		prepare: (file: string) =>
 			flow.prepareRenderOptions(
 				createRouteOptions(file),
-				createFlowAdapter({ name: 'react', collectPageBrowserGraphContribution }),
+				createFlowRenderer({ name: 'react', collectPageBrowserGraphContribution }),
 			),
 	};
 }
@@ -200,7 +200,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				props: { title: 'Overridden title' },
 				locals: { user: 'andee' },
 			}),
-			createFlowAdapter({
+			createFlowRenderer({
 				Page,
 				integrationSpecificProps: { layoutMode: 'full' },
 				pageData: { props: { title: 'Hello' }, metadata: { title: 'Hello', description: 'Hello description' } },
@@ -243,7 +243,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 			const result = await flow.prepareRenderOptions(
 				createRouteOptions(routeFile),
-				createFlowAdapter({
+				createFlowRenderer({
 					Page: createPage({ identity: { id: 'about-page', file: routeFile, integration: 'string' } }),
 				}),
 			);
@@ -259,7 +259,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 			const result = await flow.prepareRenderOptions(
 				createRouteOptions(routeFile),
-				createFlowAdapter({
+				createFlowRenderer({
 					Page: createPage({ identity: { id: 'about-page', file: routeFile, integration: 'string' } }),
 				}),
 			);
@@ -276,7 +276,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 			const result = await flow.prepareRenderOptions(
 				createRouteOptions('/app/src/pages/discovery.lit.tsx'),
-				createFlowAdapter({
+				createFlowRenderer({
 					Page: createPage({
 						identity: { id: 'discovery', file: '/app/src/pages/discovery.lit.tsx', integration: 'string' },
 						dependencies: { components: [Child] },
@@ -300,7 +300,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 			const result = await flow.prepareRenderOptions(
 				createRouteOptions(identity.file),
-				createFlowAdapter({ Page: createPage({ identity }) }),
+				createFlowRenderer({ Page: createPage({ identity }) }),
 			);
 
 			const expected = expect.arrayContaining([identity.file, ...watchFiles]);
@@ -321,7 +321,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		const result = await flow.prepareRenderOptions(
 			createRouteOptions('/app/pages/docs/[...slug].tsx', { params: { slug: ['intro'] } }),
-			createFlowAdapter({
+			createFlowRenderer({
 				resolvePageDependencies: async () => ({
 					ownerFile: '/app/content/intro.mdx',
 					components: [resolvedContent],
@@ -359,7 +359,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			],
 		});
 
-		await flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), createFlowAdapter({ Page }));
+		await flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), createFlowRenderer({ Page }));
 
 		expect(processDependencies).toHaveBeenCalledOnce();
 		expect(processDependencies).toHaveBeenCalledWith(
@@ -396,11 +396,11 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					},
 				],
 			}));
-			const adapter = createFlowAdapter({ collectPageBrowserGraphContribution });
+			const renderer = createFlowRenderer({ collectPageBrowserGraphContribution });
 			const route = createRouteOptions('/app/pages/index.tsx');
 
-			await flow.prepareRenderOptions(route, adapter);
-			await flow.prepareRenderOptions(route, adapter);
+			await flow.prepareRenderOptions(route, renderer);
+			await flow.prepareRenderOptions(route, renderer);
 
 			expect(collectPageBrowserGraphContribution).toHaveBeenCalledTimes(expectedCollections);
 			expect(processDependencies).toHaveBeenCalledOnce();
@@ -417,7 +417,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		const result = await flow.prepareRenderOptions(
 			createRouteOptions('/app/pages/index.tsx'),
-			createFlowAdapter({
+			createFlowRenderer({
 				collectPageBrowserGraphContribution: async () => ({
 					dependencies: [
 						{
@@ -543,7 +543,10 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 	it('should guard page locals for static pages', async () => {
 		const { flow } = createOrchestrator();
 
-		const result = await flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), createFlowAdapter());
+		const result = await flow.prepareRenderOptions(
+			createRouteOptions('/app/pages/index.tsx'),
+			createFlowRenderer(),
+		);
 
 		expect(result.locals).toBeUndefined();
 		expect(() => Reflect.get(result.pageLocals as object, 'guarded')).toThrow(LocalsAccessError);
@@ -560,7 +563,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		const result = await flow.prepareRenderOptions(
 			createRouteOptions('/app/pages/404.tsx'),
-			createFlowAdapter({ Page }),
+			createFlowRenderer({ Page }),
 		);
 
 		expect(result.pagePackage).toEqual(expect.objectContaining({ assets: [integrationDependency] }));
@@ -581,7 +584,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		const result = await flow.prepareRenderOptions(
 			createRouteOptions('/app/pages/index.tsx'),
-			createFlowAdapter({
+			createFlowRenderer({
 				Page,
 				resolvePageDependencies: async () => ({
 					ownerFile: '/app/dependencies/root.tsx',
@@ -614,7 +617,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 			await flow.prepareRenderOptions(
 				createRouteOptions('/app/pages/index.tsx'),
-				createFlowAdapter({ Page, HtmlTemplate }),
+				createFlowRenderer({ Page, HtmlTemplate }),
 			);
 
 			expect(validateGraph).toHaveBeenCalledOnce();
@@ -638,7 +641,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			});
 
 			await expect(
-				flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), createFlowAdapter()),
+				flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), createFlowRenderer()),
 			).rejects.toThrow(message);
 		});
 
@@ -668,7 +671,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 			const result = await flow.prepareRenderOptions(
 				createRouteOptions('/app/pages/index.tsx'),
-				createFlowAdapter({ Page, HtmlTemplate }),
+				createFlowRenderer({ Page, HtmlTemplate }),
 			);
 
 			expect(result).toEqual(expect.objectContaining({ Page, Layout, HtmlTemplate }));
@@ -694,7 +697,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		await flow.prepareRenderOptions(
 			createRouteOptions('/app/pages/index.tsx'),
-			createFlowAdapter({
+			createFlowRenderer({
 				name: 'react',
 				Page,
 				HtmlTemplate,

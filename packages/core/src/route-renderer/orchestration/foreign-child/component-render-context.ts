@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { EcoComponent, PagePackageResult } from '../../../types/public-types.ts';
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/assets.types.ts';
 import type { PageClientPlan } from '../ownership-graph/page-client-plan.ts';
@@ -162,25 +163,13 @@ export type ComponentRenderContext = {
 };
 
 /**
- * Minimal adapter over async-local storage used by the render-context runtime.
- *
- * Keeping this interface tiny makes the fallback stack implementation and the
- * Node `AsyncLocalStorage` implementation share the same calling code.
- */
-type ContextStorage = {
-	getStore(): ComponentRenderContext | undefined;
-	run<T>(store: ComponentRenderContext, callback: () => Promise<T>): Promise<T>;
-};
-
-/**
- * Process-wide mutable state for component render contexts.
+ * Process-wide state for component render contexts.
  *
  * Duplicate module instances can exist in development or mixed-runtime flows, so
- * this state is attached to a shared global scope instead of module-local state.
+ * the storage is attached to a shared global scope instead of module-local state.
  */
 type ComponentRenderContextState = {
-	nodeContextStorage: ContextStorage | null;
-	nodeContextStorageLoader: Promise<ContextStorage | null> | null;
+	storage: AsyncLocalStorage<ComponentRenderContext>;
 };
 
 const GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY = '__ECOPAGES_COMPONENT_RENDER_CONTEXT_STATE__';
@@ -208,51 +197,9 @@ function getComponentRenderContextState(): ComponentRenderContextState {
 		__ECOPAGES_COMPONENT_RENDER_CONTEXT_STATE__?: ComponentRenderContextState;
 	};
 
-	sharedScope[GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY] ??= {
-		nodeContextStorage: null,
-		nodeContextStorageLoader: null,
-	};
+	sharedScope[GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY] ??= { storage: new AsyncLocalStorage() };
 
 	return sharedScope[GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY];
-}
-
-/**
- * Lazily initializes async context storage for Node runtimes.
- *
- * Returns `null` when async_hooks is unavailable; render contexts require async-local storage
- * so nested and concurrent renders cannot share process-wide state.
- *
- * @returns Async context storage when available; otherwise `null`.
- */
-async function getContextStorage(): Promise<ContextStorage | null> {
-	const state = getComponentRenderContextState();
-
-	if (state.nodeContextStorage) {
-		return state.nodeContextStorage;
-	}
-
-	if (state.nodeContextStorageLoader) {
-		return state.nodeContextStorageLoader;
-	}
-
-	state.nodeContextStorageLoader = import('node:async_hooks')
-		.then((module) => {
-			const storage = new module.AsyncLocalStorage<ComponentRenderContext>();
-			state.nodeContextStorage = {
-				getStore: () => storage.getStore(),
-				run: (store, callback) => storage.run(store, callback),
-			};
-			return state.nodeContextStorage;
-		})
-		.catch(() => {
-			state.nodeContextStorage = null;
-			return null;
-		})
-		.finally(() => {
-			state.nodeContextStorageLoader = null;
-		});
-
-	return state.nodeContextStorageLoader;
 }
 
 /**
@@ -261,8 +208,7 @@ async function getContextStorage(): Promise<ContextStorage | null> {
  * @returns Active render context or `undefined` outside render execution.
  */
 export function getComponentRenderContext(): ComponentRenderContext | undefined {
-	const state = getComponentRenderContextState();
-	return state.nodeContextStorage?.getStore();
+	return getComponentRenderContextState().storage.getStore();
 }
 
 const componentRenderOutputRuntime = new ComponentRenderOutputRuntime();
@@ -309,13 +255,7 @@ export async function runWithComponentRenderContext<T>(
 	},
 	render: () => Promise<T>,
 ): Promise<{ value: T }> {
-	const storage = await getContextStorage();
-	if (!storage) {
-		throw new Error(
-			'[ecopages] Component render contexts require node:async_hooks AsyncLocalStorage in the current runtime.',
-		);
-	}
-
+	const storage = getComponentRenderContextState().storage;
 	const parent = storage.getStore();
 	const context = {
 		currentIntegration: input.currentIntegration,

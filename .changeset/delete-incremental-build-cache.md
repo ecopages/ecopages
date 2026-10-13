@@ -6,4 +6,4 @@ Production builds no longer carry the incremental build cache. Every build runs 
 
 **Breaking:**
 
-- `StaticExportContext` no longer has `preserveExportDirectory`, which was always `false`. Integrations that read it in `beforeStaticExport` or `afterStaticExport` should drop the check.
+- `StaticExportContext` no longer has `preserveExportDirectory`, which was always `false`. Integrations that read it in `staticExport` or `afterStaticExport` should drop the check.

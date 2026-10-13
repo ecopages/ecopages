@@ -1015,17 +1015,6 @@ export interface OwnershipValidationError {
 
 export type OwnershipPlanNodeSource = 'route' | 'page' | 'layout' | 'html-template' | 'dependency';
 
-export type ForeignSubtreeAttachmentPolicy = { kind: 'none' } | { kind: 'first-element' };
-
-export interface ForeignSubtreeRenderPayload {
-	html: string;
-	assets: ProcessedAsset[];
-	rootTag?: string;
-	rootAttributes?: Record<string, string>;
-	attachmentPolicy: ForeignSubtreeAttachmentPolicy;
-	integrationName: string;
-}
-
 /**
  * Shared execution-scoped context threaded through foreign-child renders.
  *
@@ -1057,7 +1046,6 @@ export interface ComponentRenderInput<TIntegrationContext extends BaseIntegratio
 export interface ComponentRenderResult {
 	html: string;
 	canAttachAttributes: boolean;
-	rootTag?: string;
 	integrationName: string;
 	rootAttributes?: Record<string, string>;
 	assets?: ProcessedAsset[];

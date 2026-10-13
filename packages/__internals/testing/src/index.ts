@@ -143,14 +143,13 @@ export function createDeferredIntegrationPlugin(
 		(async () => ({
 			html: '<button data-testid="deferred-widget">Deferred widget</button>',
 			canAttachAttributes: true,
-			rootTag: 'button',
 			integrationName,
 		}));
 
 	class DeferredRenderer extends IntegrationRenderer<EcoPagesElement> {
 		name = integrationName;
 
-		async render(): Promise<string> {
+		override async render(): Promise<string> {
 			return '';
 		}
 

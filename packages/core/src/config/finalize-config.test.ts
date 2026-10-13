@@ -196,9 +196,6 @@ describe('finalizeEcoPagesConfig', () => {
 			plugins = [processorRuntimePlugin, processorBrowserPlugin];
 			override async prepareBuildContributions(): Promise<void> {}
 			override async setup(): Promise<void> {}
-			override async process(): Promise<unknown> {
-				return undefined;
-			}
 		})({ name: 'test-processor' });
 
 		const integration = new (class extends IntegrationPlugin {
@@ -422,9 +419,6 @@ describe('finalizeEcoPagesConfig', () => {
 			buildPlugins = [];
 			plugins = [];
 			override async setup(): Promise<void> {}
-			override async process(): Promise<unknown> {
-				return undefined;
-			}
 		})({ name: 'twice' });
 		const loader = { name: 'twice', setup() {} };
 		const sourceTransform = { name: 'twice', filter: /x/, transform: () => undefined };

@@ -101,11 +101,12 @@ _Avoid_: Requirements, imports
 
 **Foreign Child**:
 A child Component encountered during render whose owning Integration differs from the current Integration. A Foreign Child cannot be rendered inline by the current Integration and must be handed off for resolution by the owning Integration.
+Its owner is resolved from `config.integration`, then the Component's build-time identity, then the inherited owner.
 _Avoid_: Boundary, cross-integration child
 
 **Foreign Subtree**:
 The rendered result of a Foreign Child and any of its descendants that must be resolved by the owning Integration before control returns to the current Integration.
-_Avoid_: Boundary payload, deferred boundary
+_Avoid_: Cross-integration boundary
 
 **Page Browser Graph**:
 The browser-reachable module graph derived from one Page and its lazy browser entries. It determines which browser code, chunks, and shared runtime code are emitted for that Page.

@@ -9,18 +9,16 @@ import type {
 	EcoComponent,
 	EcoFunctionComponent,
 	EcoPagesElement,
-	IntegrationRendererRenderOptions,
 	PageParams,
 	RouteRenderResult,
-	RouteRendererBody,
 	RouteRendererOptions,
 } from '@ecopages/core';
 import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import { resolveDocumentShellLayouts } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';
 import type {
 	QueuedForeignSubtreeChildRenderResult,
 	QueuedForeignSubtreeResolutionContext,
 } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
+import { resolveQueuedTokens } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { ensureLitDomShim } from './dom-shim.ts';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
@@ -68,6 +66,17 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			resolveDependencyPath: this.resolveDependencyPath.bind(this),
 			importServerModule: createCustomElementServerModuleImporter(this.appConfig, '.lit-ssr'),
 		});
+		this.integrationHooks = {
+			...this.integrationHooks,
+			beforeRender: async (renderOptions) =>
+				this.preloadSsrScripts([
+					renderOptions.Page,
+					renderOptions.Layout,
+					...(renderOptions.resolvedPageDependencyComponents ?? []),
+				]),
+			transformDocumentHtml: normalizeLitHtml,
+			renderRemote: (routeOptions) => this.renderLitPageInWorker(routeOptions),
+		};
 	}
 
 	/**
@@ -80,23 +89,22 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	 * Request locals are not structured-cloned across the worker boundary, and the
 	 * worker re-imports `file` and drops the supplied view and props.
 	 */
-	public override async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
-		await this.ensureIntegrationRuntimeActivated();
+	private async renderLitPageInWorker(options: RouteRendererOptions): Promise<RouteRenderResult | undefined> {
 		const renderSession = this.getRenderSession?.();
 
-		if (renderSession && options.locals === undefined && options.props === undefined) {
-			const params: PageParams = options.params ?? {};
-			const result = await renderSession.renderPageInWorker({
-				filePath: options.file,
-				params,
-				query: options.query,
-			});
-
-			const { html, ...metadata } = result;
-			return { body: html, ...metadata };
+		if (!renderSession || options.locals !== undefined || options.props !== undefined) {
+			return undefined;
 		}
 
-		return super.execute(options);
+		const params: PageParams = options.params ?? {};
+		const result = await renderSession.renderPageInWorker({
+			filePath: options.file,
+			params,
+			query: options.query,
+		});
+
+		const { html, ...metadata } = result;
+		return { body: html, ...metadata };
 	}
 
 	private isFunctionComponent(
@@ -119,11 +127,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		}
 
 		let renderedChildren = children;
-		renderedChildren = await this.foreignSubtreeExecutionService.resolveQueuedTokens(
-			renderedChildren,
-			queuedResolutionsByToken,
-			resolveToken,
-		);
+		renderedChildren = await resolveQueuedTokens(renderedChildren, queuedResolutionsByToken, resolveToken);
 
 		return renderedChildren;
 	}
@@ -188,7 +192,6 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return this.finalizeIslandComponentRender(input, {
 			html: queuedForeignSubtreeResolution.html,
 			canAttachAttributes: true,
-			rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
 			integrationName: this.name,
 			assets: this.htmlTransformer.dedupeProcessedAssets([
 				...(assets ?? []),
@@ -236,50 +239,5 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		}
 
 		await this.ssrScriptPreloader.preloadSsrScripts(components);
-	}
-
-	async render({
-		params,
-		query,
-		props,
-		locals,
-		pageLocals,
-		metadata,
-		Page,
-		Layout,
-		layoutEntries,
-		HtmlTemplate,
-		pageProps,
-		resolvedPageDependencyComponents,
-	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
-		try {
-			await this.preloadSsrScripts([Page, Layout, ...(resolvedPageDependencyComponents ?? [])]);
-
-			return await this.renderPageWithDocumentShell({
-				page: {
-					component: Page,
-					props: {
-						params,
-						query,
-						...props,
-						locals: pageLocals,
-					},
-				},
-				layouts: resolveDocumentShellLayouts({
-					layout: Layout,
-					layoutEntries,
-					params,
-					query,
-					locals,
-				}),
-				htmlTemplate: HtmlTemplate,
-				metadata,
-				pageProps: pageProps ?? props ?? {},
-				foreignChildRoots: resolvedPageDependencyComponents,
-				transformDocumentHtml: normalizeLitHtml,
-			});
-		} catch (error) {
-			throw this.createRenderError('Error rendering page', error);
-		}
 	}
 }

@@ -5,7 +5,7 @@ import type { EcoComponent, IntegrationRendererRenderOptions, RouteRendererBody 
 import { createUnresolvedMarkerArtifact } from '../integration-renderer.test-fixtures.ts';
 import { buildRouteHtmlFinalization } from './route-html-finalization.service.ts';
 import { RouteRenderOrchestrator } from './route-render-orchestrator.ts';
-import { createFlowAdapter, createRouteOptions } from './route-render-orchestrator.test-fixtures.ts';
+import { createFlowRenderer, createRouteOptions } from './route-render-orchestrator.test-fixtures.ts';
 import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
 
 function createHtmlStream(html: string): BodyInit {
@@ -45,7 +45,7 @@ describe('RouteRenderOrchestrator', () => {
 	it('executes prepared route renders and preserves cache strategy', async () => {
 		const result = await createFlow().execute(
 			createRouteOptions('/app/pages/index.tsx'),
-			createFlowAdapter({
+			createFlowRenderer({
 				Page: cachedPage,
 				renderRouteBody: async () => createHtmlStream('<html><body><main>Streamed</main></body></html>'),
 				transformRouteResponse: async (response) => response.body as RouteRendererBody,
@@ -69,7 +69,7 @@ describe('RouteRenderOrchestrator', () => {
 
 		const result = await new RouteRenderOrchestrator(shellConfig, assetProcessingService).executePrepared(
 			{ sourceDependencyPaths: ['/app/pages/index.tsx'] } as unknown as IntegrationRendererRenderOptions<unknown>,
-			createFlowAdapter({ renderRouteBody: async () => '<html><body><main>Page</main></body></html>' }),
+			createFlowRenderer({ renderRouteBody: async () => '<html><body><main>Page</main></body></html>' }),
 		);
 
 		expect(result.sourceDependencyPaths).toEqual([
@@ -82,7 +82,7 @@ describe('RouteRenderOrchestrator', () => {
 	it('applies document attributes to fully resolved route HTML', async () => {
 		const result = await createFlow().execute(
 			createRouteOptions('/app/pages/index.tsx'),
-			createFlowAdapter({
+			createFlowRenderer({
 				Page: cachedPage,
 				renderRouteBody: async () => '<html><body><main>Resolved</main></body></html>',
 				getRouteHtmlFinalization: () =>
@@ -122,7 +122,7 @@ describe('RouteRenderOrchestrator', () => {
 		await expect(
 			createFlow().execute(
 				createRouteOptions('/app/pages/index.tsx'),
-				createFlowAdapter({ renderRouteBody: async () => html }),
+				createFlowRenderer({ renderRouteBody: async () => html }),
 			),
 		).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
 	});

@@ -2,7 +2,6 @@ import { vi } from 'vitest';
 import { finalizeDocumentShellHtml } from './document-shell/document-shell-render.service.ts';
 import { IntegrationRenderer, type HtmlDocumentContribution } from './integration-renderer.ts';
 import { getComponentRenderContext, type ForeignChildRuntime } from './foreign-child/component-render-context.ts';
-import { toForeignSubtreeRenderPayload } from './foreign-child/foreign-subtree-execution.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import type {
@@ -83,7 +82,7 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 	ImportedFiles: string[] = [];
 	HtmlContributions: HtmlDocumentContribution[] = [];
 
-	async render(_options: IntegrationRendererRenderOptions<EcoPagesElement>): Promise<RouteRendererBody> {
+	override async render(_options: IntegrationRendererRenderOptions<EcoPagesElement>): Promise<RouteRendererBody> {
 		if (this.RenderBodyFactory) {
 			return await this.RenderBodyFactory(getComponentRenderContext());
 		}
@@ -155,8 +154,12 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		htmlContributions?: HtmlDocumentContribution[],
 		pagePackage?: PagePackageResult,
 	) {
-		const adapter = this.createRouteRenderOrchestratorAdapter();
-		return adapter.transformRouteResponse(response, htmlContributions, pagePackage);
+		return this.transformRouteResponse(
+			response,
+			htmlContributions,
+			pagePackage,
+			{} as IntegrationRendererRenderOptions<EcoPagesElement>,
+		);
 	}
 
 	public appendTestProcessedDependencies(assets: ProcessedAsset[]) {
@@ -164,7 +167,7 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 	}
 
 	public async testRenderForeignSubtree(input: ComponentRenderInput) {
-		return toForeignSubtreeRenderPayload(await this.renderComponentWithForeignChildren(input));
+		return this.renderComponentWithForeignChildren(input);
 	}
 
 	protected override createForeignChildRuntime(options: {

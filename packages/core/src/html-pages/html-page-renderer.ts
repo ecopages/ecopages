@@ -5,7 +5,6 @@ import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
 	EcoComponent,
-	EcoPagesElement,
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
@@ -13,7 +12,6 @@ import type {
 import { AssetFactory } from '../services/assets/asset-processing-service/asset.factory.ts';
 import type { AssetDefinition } from '../services/assets/asset-processing-service/assets.types.ts';
 import { StringMarkupRenderer } from '../route-renderer/orchestration/string-markup-renderer.ts';
-import type { RouteRenderOrchestratorAdapter } from '../route-renderer/orchestration/route-pipeline/route-render-orchestrator.ts';
 import { findElements, parseHtml } from '../services/html/html-source-parser.ts';
 import { escapeHtmlAttribute } from '../utils/html-escaping.ts';
 import { invariant } from '../utils/invariant.ts';
@@ -94,6 +92,7 @@ function escapeStyleContent(css: string): string {
  */
 export class HtmlPageRenderer extends StringMarkupRenderer {
 	name = HTML_PAGES_INTEGRATION_NAME;
+	private readonly renderedHeads = new WeakMap<IntegrationRendererRenderOptions, RenderedHtmlPageHead>();
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		const htmlTemplatePath = this.appConfig.absolutePaths.htmlTemplatePath;
@@ -126,9 +125,8 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 
 	/**
 	 * @remarks
-	 * Route renders go through the orchestrator adapter, which reconciles the Page head after
-	 * core contributions are in the document. A direct call reconciles here, so the Page head
-	 * is never dropped.
+	 * Route renders reconcile the Page head after core contributions are in the document.
+	 * A direct call reconciles here, so the Page head is never dropped.
 	 */
 	override async render(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		const { html, head } = await this.renderHtmlPage(options);
@@ -136,28 +134,23 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 	}
 
 	/**
-	 * Reconciles the Page head after core and Integration head contributions are in the document.
-	 *
-	 * @remarks
-	 * The adapter is created per route render, so the rendered head it captures
-	 * cannot leak into another render.
+	 * Renders the Page body and retains its head until core document contributions have been applied.
 	 */
-	protected override createRouteRenderOrchestratorAdapter(): RouteRenderOrchestratorAdapter<EcoPagesElement> {
-		const adapter = super.createRouteRenderOrchestratorAdapter();
-		let head: RenderedHtmlPageHead | undefined;
+	override async renderRouteBody(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
+		const rendered = await this.renderHtmlPage(options);
+		this.renderedHeads.set(options, rendered.head);
+		return rendered.html;
+	}
 
-		return {
-			...adapter,
-			renderRouteBody: async (renderOptions) => {
-				const rendered = await this.renderHtmlPage(renderOptions);
-				head = rendered.head;
-				return rendered.html;
-			},
-			transformRouteResponse: async (response, htmlContributions, pagePackage) => {
-				const body = await adapter.transformRouteResponse(response, htmlContributions, pagePackage);
-				return head ? reconcileHtmlPageDocument(await new Response(body as BodyInit).text(), head) : body;
-			},
-		};
+	protected override async finalizeDocument(
+		body: RouteRendererBody,
+		options: IntegrationRendererRenderOptions,
+	): Promise<RouteRendererBody> {
+		const head = this.renderedHeads.get(options);
+		if (!head) return body;
+
+		const html = typeof body === 'string' ? body : await new Response(body as BodyInit).text();
+		return reconcileHtmlPageDocument(html, head);
 	}
 
 	private async renderHtmlPage(

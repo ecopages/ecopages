@@ -27,10 +27,11 @@ LitRenderer.execute() (main)
                                           LitRenderer.ssrScriptPreloader uses
                                           importServerModule (no entrypoint resolver)
 
-beforeStaticExport
+staticExport
   └─ ensureWorker() only when `renderSession` is still null
   └─ preloadStaticRoutes()
        └─ preload SSR lazy scripts for Lit pages
+  └─ returns a release that disposes the session once the export ends
 ```
 
 `ECOPAGES_LIT_STATIC_RENDER_WORKER=true` in the worker environment prevents nested worker creation during `LitPlugin.setup()` and skips processor `.setup()` inside `setupAppRuntimePlugins` (main thread already prepared artifacts).
@@ -45,7 +46,7 @@ beforeStaticExport
 
 Renderers created before plugin `setup()` still use the worker after setup assigns the session, because `execute` activates the integration runtime then reads the accessor.
 
-`beforeStaticExport` does not re-call `ensureWorker` when setup already created the session, so a different `context.baseUrl` at export time will not recreate an existing worker.
+`staticExport` does not re-call `ensureWorker` when setup already created the session, so a different `context.baseUrl` at export time will not recreate an existing worker. Its release disposes the session and clears `renderSession`, so an in-process export leaves no worker thread; renders after the export run in-process.
 
 ## Locals policy
 

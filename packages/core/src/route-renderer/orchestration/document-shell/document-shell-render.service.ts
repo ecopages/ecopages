@@ -170,7 +170,6 @@ export async function composeDocumentShell(
 			html: typeof composed.children === 'string' ? composed.children : '',
 			assets: [],
 			canAttachAttributes: true,
-			rootTag: 'main',
 			integrationName: resolveComponentIntegrationName(input.primaryComponent, input.inheritedOwner),
 		};
 	} else {

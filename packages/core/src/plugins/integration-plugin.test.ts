@@ -10,7 +10,7 @@ import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 class NamelessRenderer extends IntegrationRenderer {
 	declare name: string;
 
-	async render(_options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
+	override async render(_options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		return '<div>ok</div>';
 	}
 }

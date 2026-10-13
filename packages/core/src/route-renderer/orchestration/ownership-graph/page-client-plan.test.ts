@@ -67,13 +67,13 @@ test('collectPageClientPlan does not treat the Html shell as an island', () => {
 	const button = createComponent({ integration: 'react', file: '/app/button.tsx' });
 	const card = createComponent({ integration: 'react', file: '/app/card.tsx', children: [button] });
 	const html = createComponent({ integration: 'react', file: '/app/html.tsx' });
-	const page = createComponent({ integration: 'html', file: '/app/page.html', children: [card] });
+	const page = createComponent({ integration: 'html-pages', file: '/app/page.html', children: [card] });
 	const plan = collectPageClientPlan(
 		[
 			{ component: html, source: 'html-template' },
 			{ component: page, source: 'page' },
 		],
-		'html',
+		'html-pages',
 	);
 
 	assert.deepEqual(

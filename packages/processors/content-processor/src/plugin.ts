@@ -508,20 +508,21 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 
 	override async setup(): Promise<void> {
 		await this.ensureCollectionsGenerated();
-	}
-
-	override async process(_input: unknown): Promise<void> {
-		await this.regenerateAllCollections();
+		await this.addDevPrewarmPaths();
 	}
 
 	/**
-	 * Declares watch-mode SSR prewarm pathnames derived from collection manifests.
+	 * Adds the pathnames of collections with `devPrewarm` and a `routePrefix` to the app's `devPrewarmPaths`.
 	 *
 	 * @remarks
-	 * Core executes rendering in parallel in the background; this hook only maps `routePrefix` + entry slugs to URLs.
+	 * Core renders the list in the background after the server is listening. The entries are read from the
+	 * manifests at startup, so an entry created later is not prewarmed until the next start. Existing paths stay,
+	 * and a repeated `setup()` adds nothing twice.
 	 */
-	override async collectDevPrewarmPaths(): Promise<readonly string[]> {
-		await this.ensureCollectionsGenerated();
+	private async addDevPrewarmPaths(): Promise<void> {
+		if (!this.context) {
+			return;
+		}
 
 		const pathnames: string[] = [];
 
@@ -535,7 +536,8 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 			pathnames.push(...buildContentDevPrewarmPathnames(definition, entries));
 		}
 
-		return [...new Set(pathnames)];
+		const config = this.context.config;
+		config.devPrewarmPaths = [...new Set([...(config.devPrewarmPaths ?? []), ...pathnames])];
 	}
 }
 

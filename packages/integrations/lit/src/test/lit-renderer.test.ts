@@ -7,6 +7,7 @@ import {
 	type EcoComponent,
 	type HtmlTemplateProps,
 	type RequestLocals,
+	type RouteRendererOptions,
 } from '@ecopages/core';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { createStringMarkupContractFactories, describeRendererContract } from '@ecopages/testing/renderer-contract';
@@ -43,6 +44,10 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
  */
 class TestLitRenderer extends LitRenderer {
 	htmlTemplate: EcoComponent<HtmlTemplateProps> = HtmlTemplate;
+
+	public renderRemoteForTest(options: RouteRendererOptions) {
+		return this.renderRemote(options);
+	}
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		return this.htmlTemplate;
@@ -272,7 +277,6 @@ describe('LitRenderer', () => {
 				renderComponent: async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
 					html: '<button data-testid="deferred-island">Deferred island</button>',
 					canAttachAttributes: true,
-					rootTag: 'button',
 					integrationName: 'deferred',
 					rootAttributes: buildIslandHostAttributes({
 						integrationName: 'deferred',
@@ -699,7 +703,7 @@ describe('LitRenderer', () => {
 				sourceDependencyPaths: ['/app/pages/index.lit.tsx'],
 			}));
 
-			const renderer = new LitRenderer({
+			const renderer = new TestLitRenderer({
 				appConfig: Config,
 				assetProcessingService: createTestAssetProcessingService(Config),
 				runtimeOrigin: 'http://localhost:3000',
@@ -707,38 +711,26 @@ describe('LitRenderer', () => {
 				getRenderSession: () => sessionHolder.current as LitStaticRenderSession | undefined,
 			});
 
-			const inProcessSpy = vi.spyOn(IntegrationRenderer.prototype, 'execute').mockResolvedValue({
-				body: '<html>in-process</html>',
+			const options = {
+				file: '/app/pages/index.lit.tsx',
+				params: { slug: ['a', 'b'] },
+				query: { tag: ['x', 'y'] },
+			};
+
+			expect(await renderer.renderRemoteForTest(options)).toBeUndefined();
+			sessionHolder.current = { renderPageInWorker };
+			const result = await renderer.execute(options);
+
+			expect(renderPageInWorker).toHaveBeenCalledWith({
+				filePath: '/app/pages/index.lit.tsx',
+				params: { slug: ['a', 'b'] },
+				query: { tag: ['x', 'y'] },
 			});
-
-			try {
-				await renderer.execute({ file: '/app/pages/index.lit.tsx', params: {} });
-				expect(renderPageInWorker).not.toHaveBeenCalled();
-				expect(inProcessSpy).toHaveBeenCalledTimes(1);
-
-				sessionHolder.current = { renderPageInWorker };
-				inProcessSpy.mockClear();
-
-				const result = await renderer.execute({
-					file: '/app/pages/index.lit.tsx',
-					params: { slug: ['a', 'b'] },
-					query: { tag: ['x', 'y'] },
-				});
-
-				expect(inProcessSpy).not.toHaveBeenCalled();
-				expect(renderPageInWorker).toHaveBeenCalledWith({
-					filePath: '/app/pages/index.lit.tsx',
-					params: { slug: ['a', 'b'] },
-					query: { tag: ['x', 'y'] },
-				});
-				expect(result).toEqual({
-					body: '<html>lazy-worker</html>',
-					cacheStrategy: { revalidate: 15 },
-					sourceDependencyPaths: ['/app/pages/index.lit.tsx'],
-				});
-			} finally {
-				inProcessSpy.mockRestore();
-			}
+			expect(result).toEqual({
+				body: '<html>lazy-worker</html>',
+				cacheStrategy: { revalidate: 15 },
+				sourceDependencyPaths: ['/app/pages/index.lit.tsx'],
+			});
 		});
 
 		it('forces in-process execute when locals are present', async () => {

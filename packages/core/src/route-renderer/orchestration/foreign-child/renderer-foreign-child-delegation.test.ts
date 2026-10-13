@@ -5,11 +5,9 @@ import type {
 	BaseIntegrationContext,
 	ComponentRenderInput,
 	EcoComponent,
-	ForeignSubtreeRenderPayload,
 	HtmlTemplateProps,
 } from '../../../types/public-types.ts';
 import { runWithComponentRenderContext } from './component-render-context.ts';
-import { toForeignSubtreeRenderPayload } from './foreign-subtree-execution.service.ts';
 import { IntegrationRenderer } from '../integration-renderer.ts';
 import { StringMarkupRenderer } from '../string-markup-renderer.ts';
 import {
@@ -20,7 +18,7 @@ import {
 } from '../integration-renderer.test-fixtures.ts';
 
 describe('renderer foreign-child delegation', () => {
-	it('should expose a compatibility foreign-subtree payload contract', async () => {
+	it('returns the owning renderer component result directly', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
@@ -30,7 +28,6 @@ describe('renderer foreign-child delegation', () => {
 		renderer.MockComponentRenderResult = {
 			html: '<main data-root="true">Hello</main>',
 			canAttachAttributes: true,
-			rootTag: 'main',
 			integrationName: 'test-renderer',
 			rootAttributes: { 'data-eco-component-id': 'root-1' },
 			assets: [
@@ -43,14 +40,12 @@ describe('renderer foreign-child delegation', () => {
 			],
 		};
 
-		const payload = toForeignSubtreeRenderPayload(
-			await renderer.renderComponentWithForeignChildren({
-				component: (() => '<main>Hello</main>') as EcoComponent<Record<string, unknown>>,
-				props: {},
-			}),
-		);
+		const result = await renderer.renderComponentWithForeignChildren({
+			component: (() => '<main>Hello</main>') as EcoComponent<Record<string, unknown>>,
+			props: {},
+		});
 
-		expect(payload).toEqual<ForeignSubtreeRenderPayload>({
+		expect(result).toEqual({
 			html: '<main data-root="true">Hello</main>',
 			assets: [
 				{
@@ -60,9 +55,8 @@ describe('renderer foreign-child delegation', () => {
 					position: 'body',
 				},
 			],
-			rootTag: 'main',
 			rootAttributes: { 'data-eco-component-id': 'root-1' },
-			attachmentPolicy: { kind: 'first-element' },
+			canAttachAttributes: true,
 			integrationName: 'test-renderer',
 		});
 	});
@@ -73,7 +67,6 @@ describe('renderer foreign-child delegation', () => {
 			renderComponentWithForeignChildren: vi.fn(async () => ({
 				html: '<aside>Owned by foreign renderer</aside>',
 				canAttachAttributes: true,
-				rootTag: 'aside',
 				integrationName: 'foreign-renderer',
 			})),
 		} as unknown as IntegrationRenderer;
@@ -131,7 +124,6 @@ describe('renderer foreign-child delegation', () => {
 					(input.integrationContext as BaseIntegrationContext | undefined)?.componentInstanceId ?? 'missing',
 				)}</aside>`,
 				canAttachAttributes: true,
-				rootTag: 'aside',
 				integrationName: 'foreign-renderer',
 			})),
 		} as unknown as IntegrationRenderer;
@@ -198,7 +190,6 @@ describe('renderer foreign-child delegation', () => {
 		renderer.MockComponentRenderResult = {
 			html: '<aside>Local renderer</aside>',
 			canAttachAttributes: true,
-			rootTag: 'aside',
 			integrationName: 'test-renderer',
 		};
 
@@ -232,7 +223,6 @@ describe('renderer foreign-child delegation', () => {
 		renderer.MockComponentRenderResult = {
 			html: '<section><eco-marker data-eco-node-id="n_2" data-eco-component-ref="nested-component" data-eco-props-ref="p_2"></eco-marker></section>',
 			canAttachAttributes: true,
-			rootTag: 'section',
 			integrationName: 'test-renderer',
 		};
 
@@ -347,7 +337,6 @@ describe('renderer foreign-child delegation', () => {
 		renderer.MockComponentRenderResult = {
 			html: '<section data-rendered="view">Foreign Subtree</section>',
 			canAttachAttributes: true,
-			rootTag: 'section',
 			integrationName: 'test-renderer',
 		};
 
@@ -363,7 +352,6 @@ describe('renderer foreign-child delegation', () => {
 			renderComponentWithForeignChildren: vi.fn(async () => ({
 				html: '<button data-react-owner="react">1</button>',
 				canAttachAttributes: true,
-				rootTag: 'button',
 				integrationName: 'react',
 			})),
 		} as unknown as IntegrationRenderer;
@@ -419,7 +407,6 @@ describe('renderer foreign-child delegation', () => {
 				return {
 					html: `<html><body>${String(input.children ?? '')}</body></html>`,
 					canAttachAttributes: true,
-					rootTag: 'html',
 					integrationName: 'foreign-renderer',
 				};
 			}
@@ -428,7 +415,6 @@ describe('renderer foreign-child delegation', () => {
 				return {
 					html: `<main>${String(input.children ?? '')}</main>`,
 					canAttachAttributes: true,
-					rootTag: 'main',
 					integrationName: 'foreign-renderer',
 				};
 			}
@@ -436,7 +422,6 @@ describe('renderer foreign-child delegation', () => {
 			return {
 				html: '<section>Foreign View</section>',
 				canAttachAttributes: true,
-				rootTag: 'section',
 				integrationName: 'foreign-renderer',
 			};
 		});

@@ -11,7 +11,7 @@ This directory owns `.html` Filesystem Routes: plain HTML files under `src/pages
 | `html-pages.plugin.ts`        | `HtmlPagesPlugin`: owns `.html` with `HtmlPageRenderer`, implements `compilePageModule`, sets `acceptsParams = false` |
 | `html-page-template.ts`       | Compiles a Page or Html shell file into template parts, asset declarations, head nodes, metadata, and social tags     |
 | `html-page-module.ts`         | Builds the Page or shell module in-process and owns the built-in shell                                                |
-| `html-page-renderer.ts`       | `StringMarkupRenderer` subclass: emits assets in place, renders the shell, reconciles the head                        |
+| `html-page-renderer.ts`       | `StringMarkupRenderer` subclass: emits assets in place, uses the shared shell render, reconciles the head             |
 | `html-page-document.ts`       | Reconciles Page head tags and `<html>`/`<body>` attributes onto the finalized document                                |
 | `html-page-module-scripts.ts` | Builds every HTML Page's and the shell's module scripts together and maps each script to its URL                      |
 | `html-page-classic-script.ts` | Validates a classic `<script src>` and marks it `classic`: module-only code, JSX and compile helpers are rejected     |
@@ -74,7 +74,7 @@ When no `src/includes/html.*` exists, `HtmlPageRenderer.getHtmlTemplate()` retur
 
 ## Head reconciliation
 
-The renderer's route adapter captures the rendered Page head and wraps `transformRouteResponse()`, so `reconcileHtmlPageDocument()` runs after Integration and core head contributions are in the document. A direct `HtmlPageRenderer.render()` call, outside a route render, reconciles the HTML it returns the same way:
+The renderer retains the Page head for the active render and `finalizeDocument()` reconciles it after Integration and core head contributions are in the document. A direct `HtmlPageRenderer.render()` call, outside a route render, reconciles the HTML it returns the same way:
 
 - A Page singleton, including a derived social tag, replaces the first shell tag with the same key, in place. This includes the core robots tag built from `metadata.robots`.
 - A Page `<meta charset>` matching the shell is dropped; a different encoding is an error naming the Page. A Page charset or `<base>` without a shell copy is inserted at the start of `<head>`.

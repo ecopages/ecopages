@@ -13,19 +13,17 @@ Integrations in Ecopages add support for new templating engines or frameworks. A
 3. which build-time contributions must be registered before startup
 4. which runtime-only behavior is needed for HMR, browser bundles, or cross-integration boundaries
 
-Core still owns lifecycle ordering. Integration plugins declare contributions; config finalization and app startup decide when those hooks run.
+Core owns lifecycle ordering, route rendering, document-shell composition, and final HTML transformation. Integration plugins declare contributions; config finalization and app startup decide when those hooks run. A custom Integration can use `createIntegrationRenderer()` and supply only the optional behavior it needs. Keep a renderer subclass for framework state that cannot be expressed through those hooks.
 
 ## Minimal Integrations
 
-For string-markup integrations that only need declarative config and a renderer class, use `defineIntegration()` instead of writing a plugin class by hand:
+For string-markup integrations that only need declarative config, use `defineIntegration()` with the renderer class produced by `createIntegrationRenderer()`:
 
 ```typescript
 import { defineIntegration } from '@ecopages/core/plugins/define-integration';
-import { StringMarkupRenderer } from '@ecopages/core/route-renderer/orchestration/string-markup-renderer';
+import { createIntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 
-class CustomRenderer extends StringMarkupRenderer {
-	name = 'custom-integration';
-}
+const CustomRenderer = createIntegrationRenderer('custom-integration');
 
 export const customPlugin = defineIntegration({
 	name: 'custom-integration',
@@ -36,7 +34,7 @@ export const customPlugin = defineIntegration({
 
 `customPlugin()` returns a configured integration instance. `customPlugin.Plugin` exposes the generated class when you need an explicit constructor.
 
-For integrations with runtime services, HMR strategies, or build loaders, continue using the class-based pattern below.
+For integrations with runtime services, HMR strategies, or build loaders, keep the plugin class below and use the same renderer factory unless custom renderer state requires a subclass.
 
 ## Basic Structure
 
@@ -95,37 +93,19 @@ export class TemplateIntegration extends IntegrationPlugin {
 
 ## Creating a Custom Renderer
 
-The renderer handles framework-specific HTML generation. It extends `IntegrationRenderer` and implements `render()`.
+`createIntegrationRenderer(name, hooks)` returns an `IntegrationRenderer` class without requiring a renderer subclass. Core supplies the route `render()` implementation, shared document shell, per-render session, dependency handling, and final document transform.
 
 ```typescript
-import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import type { EcoComponent, IntegrationRendererRenderOptions, RouteRendererBody } from '@ecopages/core';
+import { createIntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 
-export class CustomRenderer extends IntegrationRenderer<string> {
-	name = 'custom-integration';
-
-	async render(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
-		const { Page, props, metadata, HtmlTemplate } = options;
-		const pageContent = await this.renderPage(Page, props);
-
-		return String(
-			await HtmlTemplate({
-				children: pageContent,
-				metadata,
-				pageProps: props ?? {},
-			}),
-		);
-	}
-
-	private async renderPage(Page: EcoComponent, props: Record<string, unknown> | undefined): Promise<string> {
-		return String(await Page(props ?? {}));
-	}
-}
+export const CustomRenderer = createIntegrationRenderer('custom-integration', {
+	documentAttributes: () => ({ 'data-renderer': 'custom-integration' }),
+});
 ```
 
-`IntegrationRenderer` already owns shared orchestration such as dependency collection, page-module loading, marker-graph resolution, and document finalization. Custom renderers should focus on framework semantics rather than rebuilding core’s route pipeline.
+The hook surface includes `renderComponent`, `renderQueuedChildren`, `composeChildren`, `normalizePageModule`, `collectPageBrowserGraphContribution`, `documentContributions`, `documentAttributes`, `buildIslandClientAssets`, `beforeRender`, `transformDocumentHtml`, and `renderRemote`. Omit hooks whose behavior core already supplies. `renderComponent` returns a `ComponentRenderResult`; `renderQueuedChildren` lets a renderer serialize or preserve structured children while core resolves the owning renderer and merges assets.
 
-`HtmlTemplate` receives `children`, `metadata`, and `pageProps`. Examples should include `pageProps` to match the current public contract.
+The shared string renderer serializes string and markup children itself. A framework with structured child values can provide `renderQueuedChildren`; a framework with its own component result can provide `renderComponent` while keeping core's route pipeline.
 
 ## Handling Dependencies
 
@@ -172,33 +152,17 @@ Use `browserBuildPlugins` for browser-only bundling behavior. `browserBuildPlugi
 
 ## Cross-Integration Ownership
 
-Cross-integration ownership belongs in the renderer. When a renderer must keep control of its subtree even after another integration encounters it, implement renderer-owned foreign-child handling in the `IntegrationRenderer` subclass.
-
-The runtime contract has two steps:
-
-1. **Queue**: while your renderer runs, the base `createForeignChildRuntime()` replaces each foreign child with a token. Override it only for custom interception.
-2. **Resolve**: after `renderComponent` produces its HTML, call `this.resolveQueuedForeignSubtrees(...)`. It hands each queued subtree to the renderer that owns it and replaces the token with the result.
-
-Prefer extending `StringMarkupRenderer` when the integration is string-first; both steps are already wired. Lit, React and Ecopages JSX call the resolve step themselves, because the owning renderer must re-enter during resolution to produce the correct SSR output.
+Core intercepts a Foreign Child, routes it to its owning Integration's shared renderer, and merges the returned HTML and assets. The default string path queues structured foreign children and resolves their nested tokens before the owning renderer renders the parent component. Supply `renderQueuedChildren` when your framework needs to preserve or render a queued child's children in its own representation:
 
 ```typescript
-const queued = await this.resolveQueuedForeignSubtrees(
-	html,
-	this.getQueuedForeignSubtreeContext(input),
-	(children, _context, byToken, resolveToken) =>
-		this.renderQueuedForeignSubtreeChildren(children, byToken, resolveToken),
-);
+import { createIntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+
+export const CustomRenderer = createIntegrationRenderer('custom-integration', {
+	renderQueuedChildren: async (children) => (children === undefined ? {} : { children }),
+});
 ```
 
-`getQueuedForeignSubtreeContext(input)` returns the queue state your renderer stored on `input`, or `undefined` when nothing was queued. `queued.html` is the resolved markup, and `queued.assets` holds the owning renderers' assets, deduplicated. Merge them with your component's own assets.
-
-`renderQueuedChildren` renders the children of one queued foreign subtree inside your renderer. The owning renderer then renders the foreign component around the result. Return a `QueuedForeignSubtreeChildRenderResult` (exported from `@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service`):
-
-- `{ html }` when your renderer serialized the children. Resolve nested queued tokens in that HTML first with `this.foreignSubtreeExecutionService.resolveQueuedTokens(html, byToken, resolveToken)`.
-- `{ children }` to pass the children to the owning renderer unserialized.
-- `{}` when there are no children.
-
-The result carries no assets. The owning renderer reports the foreign component's assets, and your own components' assets come from their declared `dependencies`.
+Return `{ html }` when the hook serialized the children, `{ children }` to pass structured children to the owning renderer, or `{}` when there are no children. The owning renderer reports the Foreign Child's assets; host components contribute their declared Dependencies.
 
 ## Hot Module Replacement (HMR)
 
@@ -293,6 +257,25 @@ Core calls `teardown()` when the app stops or the development server restarts, a
 2. `setup()` for runtime-only side effects
 3. `teardown()` for explicit cleanup when the app stops or restarts
 
+## Static Export
+
+Override `staticExport(context)` when `ecopages build` needs work that spans every page, such as starting a render worker or preloading modules. It runs before the first page renders and may return a function that undoes what it started:
+
+```typescript
+class CustomIntegration extends IntegrationPlugin {
+	renderer = CustomRenderer;
+
+	override async staticExport(context: StaticExportContext): Promise<StaticExportRelease> {
+		const worker = await startRenderWorker(context.baseUrl);
+		return async () => {
+			await worker.stop();
+		};
+	}
+}
+```
+
+Core awaits every returned release, last started first, once the export ends, whether it succeeded or failed. A release that throws is logged and does not fail the export.
+
 ## Using the Integration
 
 Register the integration in the Ecopages configuration:
@@ -327,24 +310,11 @@ Here's a complete example including the plugin, renderer, and HMR strategy:
 ```typescript
 import { defineConfig } from '@ecopages/core/config';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { createIntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
-import type {
-	DefaultHmrContext,
-	EcoComponent,
-	IntegrationRendererRenderOptions,
-	RouteRendererBody,
-} from '@ecopages/core';
+import type { DefaultHmrContext } from '@ecopages/core';
 
-class CustomRenderer extends IntegrationRenderer<string> {
-	name = 'custom-integration';
-
-	async render(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
-		const { Page, props, metadata, HtmlTemplate } = options;
-		const pageContent = String(await Page(props ?? {}));
-		return String(await HtmlTemplate({ children: pageContent, metadata, pageProps: props ?? {} }));
-	}
-}
+const CustomRenderer = createIntegrationRenderer('custom-integration');
 
 class CustomHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.INTEGRATION;

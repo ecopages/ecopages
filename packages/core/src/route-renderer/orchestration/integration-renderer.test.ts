@@ -1,10 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createPagePackage } from '../../services/assets/asset-processing-service/index.ts';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
+import { eco } from '../../eco/eco.ts';
 import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from './foreign-child/component-render-context.ts';
 import { createRenderSession } from './foreign-child/render-session.ts';
-import { IntegrationRenderer } from './integration-renderer.ts';
+import { createIntegrationRenderer, IntegrationRenderer } from './integration-renderer.ts';
 import { collectPageClientPlan } from './ownership-graph/page-client-plan.ts';
 import type { PreparedComponentGraphNode } from './ownership-graph/component-graph.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -29,6 +30,90 @@ import {
 } from './integration-renderer.test-fixtures.ts';
 
 describe('IntegrationRenderer', () => {
+	it('creates a renderer from hooks without a renderer subclass', async () => {
+		const renderComponent = vi.fn(async () => ({
+			html: '<main>hook-rendered</main>',
+			canAttachAttributes: false,
+			integrationName: 'hooked',
+		}));
+		const HookRenderer = createIntegrationRenderer('hooked', { renderComponent });
+		const renderer = new HookRenderer({
+			appConfig: testAppConfig,
+			assetProcessingService: testAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		const component = (() => '') as EcoComponent;
+
+		expect(
+			await renderer.renderComponent({
+				component,
+				props: {},
+			}),
+		).toEqual({
+			html: '<main>hook-rendered</main>',
+			canAttachAttributes: false,
+			integrationName: 'hooked',
+		});
+		expect(renderComponent).toHaveBeenCalledOnce();
+	});
+
+	it('resolves queued children through the optional Integration hook', async () => {
+		const foreignChildValue = { $$typeof: Symbol.for('react.element') };
+		const renderComponent = vi.fn(async (input: ComponentRenderInput) => ({
+			html: String(await (input.component as (props: Record<string, unknown>) => unknown)(input.props)),
+			canAttachAttributes: true,
+			integrationName: 'hooked',
+		}));
+		const renderQueuedChildren = vi.fn(async () => ({ html: '<strong>queued child</strong>' }));
+		const foreignRender = vi.fn(async (input: ComponentRenderInput) => ({
+			html: `<aside>${String(input.children ?? '')}</aside>`,
+			canAttachAttributes: true,
+			integrationName: 'foreign',
+		}));
+		const foreignRenderer = {
+			name: 'foreign',
+			renderComponentWithForeignChildren: foreignRender,
+		};
+		const HookRenderer = createIntegrationRenderer('hooked', { renderComponent, renderQueuedChildren });
+		const renderer = new HookRenderer({
+			appConfig: {
+				...testAppConfig,
+				runtime: {},
+				integrations: [
+					createMockIntegrationPlugin({
+						name: 'foreign',
+						initializeRenderer: () => foreignRenderer,
+					}),
+				],
+			} as unknown as EcoPagesAppConfig,
+			assetProcessingService: testAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		const Foreign = eco.component({
+			integration: 'foreign',
+			render: (_props: { children?: unknown }) => '<aside>foreign</aside>',
+		});
+		const Host = eco.component({
+			integration: 'hooked',
+			dependencies: { components: [Foreign] },
+			render: () => `<section>${String(Foreign({ children: foreignChildValue }))}</section>`,
+		});
+
+		const result = await renderer.renderComponentWithForeignChildren({ component: Host, props: {} });
+
+		expect(renderQueuedChildren).toHaveBeenCalledWith(
+			foreignChildValue,
+			expect.any(Object),
+			expect.any(Map),
+			expect.any(Function),
+		);
+		expect(renderComponent).toHaveBeenCalledOnce();
+		expect(foreignRender).toHaveBeenCalledWith(
+			expect.objectContaining({ children: '<strong>queued child</strong>' }),
+		);
+		expect(result.html).toBe('<section><aside><strong>queued child</strong></aside></section>');
+	});
+
 	it('reuses production prebuild page data and prepares render options on demand', async () => {
 		const validateGraph = vi.spyOn(OwnershipValidationService.prototype, 'validateGraph');
 		const staticProps = vi.fn(async ({ pathname }: { pathname: { params: Record<string, string> } }) => ({
@@ -347,7 +432,7 @@ describe('IntegrationRenderer', () => {
 			name = 'declarative-renderer';
 			PageModule: EcoPageFile = { default: (() => 'Page') as EcoComponent };
 
-			async render(): Promise<RouteRendererBody> {
+			override async render(): Promise<RouteRendererBody> {
 				return '<html><body>Page</body></html>';
 			}
 
@@ -363,7 +448,7 @@ describe('IntegrationRenderer', () => {
 				return (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
 			}
 
-			protected override async collectPageBrowserGraphContribution(): Promise<PageBrowserGraphContribution> {
+			override async collectPageBrowserGraphContribution(): Promise<PageBrowserGraphContribution> {
 				return {
 					dependencies: [
 						{
@@ -421,7 +506,7 @@ describe('IntegrationRenderer', () => {
 			name = 'declarative-renderer';
 			PageModule: EcoPageFile = { default: Page };
 
-			async render(): Promise<RouteRendererBody> {
+			override async render(): Promise<RouteRendererBody> {
 				return '<html><body>Page</body></html>';
 			}
 
@@ -474,7 +559,7 @@ describe('IntegrationRenderer', () => {
 			name = 'declarative-renderer';
 			PageModule: EcoPageFile = { default: Page };
 
-			async render(): Promise<RouteRendererBody> {
+			override async render(): Promise<RouteRendererBody> {
 				return '<html><body>Page</body></html>';
 			}
 
@@ -545,7 +630,7 @@ describe('IntegrationRenderer', () => {
 			name = 'declarative-renderer';
 			PageModule: EcoPageFile = { default: Page };
 
-			async render(): Promise<RouteRendererBody> {
+			override async render(): Promise<RouteRendererBody> {
 				return '<html><body>Page</body></html>';
 			}
 
@@ -853,7 +938,6 @@ describe('IntegrationRenderer', () => {
 
 			expect(result.integrationName).toBe('test-renderer');
 			expect(result.canAttachAttributes).toBe(true);
-			expect(result.rootTag).toBe('h1');
 			expect(result.html).toContain('<h1>Hello Component</h1>');
 		});
 	});
@@ -919,7 +1003,6 @@ describe('IntegrationRenderer', () => {
 				renderComponent: vi.fn(async (_input: ComponentRenderInput) => ({
 					html: '<aside>Nested</aside>',
 					canAttachAttributes: true,
-					rootTag: 'aside',
 					integrationName: 'explicit-renderer',
 				})),
 				renderComponentWithForeignChildren: vi.fn(async (input: ComponentRenderInput) =>
@@ -948,7 +1031,6 @@ describe('IntegrationRenderer', () => {
 			renderer.MockComponentRenderResult = {
 				html: '<main>Test Page</main>',
 				canAttachAttributes: true,
-				rootTag: 'main',
 				integrationName: 'test-renderer',
 				rootAttributes: { 'data-eco-component-id': 'eco-page-root' },
 			};
@@ -1118,7 +1200,7 @@ describe('IntegrationRenderer', () => {
 			protected override contributesAppBrowserClientBuild() {
 				return true;
 			}
-			protected override async buildPageClientBrowserAssets() {
+			override async buildPageClientBrowserAssets() {
 				return {
 					processedAssets: [hydrationAsset],
 					islandRenderAssetsByFile: new Map([['/app/react-counter.tsx', [hydrationAsset]]]),

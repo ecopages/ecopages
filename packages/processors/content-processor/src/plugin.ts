@@ -431,7 +431,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		serverOutputFile: string,
 		ownedSourcePaths: string[],
 	): Promise<void> {
-		if (!this.context?.config.runtime?.buildRuntime) {
+		if (!this.context?.config.runtime?.buildQueue) {
 			return;
 		}
 
@@ -453,7 +453,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	 * builds share the same promise.
 	 */
 	async ensureCollectionServerArtifact(collectionName: string): Promise<void> {
-		if (!this.context?.config.runtime?.buildRuntime) {
+		if (!this.context?.config.runtime?.buildQueue) {
 			return;
 		}
 

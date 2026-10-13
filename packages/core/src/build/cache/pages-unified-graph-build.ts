@@ -12,7 +12,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import { build } from '../build-adapter.ts';
-import { requireBuildRuntime } from '../runtime/build-runtime.ts';
+import { requireBuildQueue } from '../runtime/build-queue.ts';
 import { createServerBuildRequest, resolveServerAppBuildPlugins } from '../runtime/build-request-policy.ts';
 import { hashAppConfigFile } from './app-config-hash.ts';
 import { collectBuildOutputImports, getBuildEntryOutput } from '../build-graph.ts';
@@ -213,7 +213,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 		naming: '[name]-[hash].[ext]',
 	});
 	const plugins = buildOptions.plugins ?? [];
-	const buildResult = await build(buildOptions, requireBuildRuntime(options.appConfig).getProfile('route-module'));
+	const buildResult = await build(buildOptions, requireBuildQueue(options.appConfig));
 	appLogger.debugTimeEnd('pagesUnifiedGraphBuild');
 
 	if (!buildResult.success) {

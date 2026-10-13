@@ -1,28 +1,21 @@
-import type { BuildExecutor, BuildResult } from '../../build/build-adapter.ts';
+import type { BuildResult } from '../../build/build-adapter.ts';
 import { createBrowserBuildRequest } from '../../build/runtime/build-request-policy.ts';
-import { requireBuildRuntime } from '../../build/runtime/build-runtime.ts';
+import { requireBuildQueue, type BuildLane } from '../../build/runtime/build-queue.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
-import { requestBuildDedupe } from '../../diagnostics/request-build-dedupe.ts';
-import { createBuildRequestIdentity } from '../../build/runtime/build-request-identity.ts';
 import { forgetHashedBrowserAsset, recordHashedBrowserAsset } from './hashed-browser-asset.ts';
 
 /**
  * Browser-oriented build request accepted by {@link BrowserBundleService}.
  *
  * @remarks
- * `profile` and `executor` select the {@link BuildRuntime} concurrency slot:
- * - `'hmr'` + (`hmr-entrypoint` | `hmr-runtime`) → `'browser-hmr'`
- * - everything else (including `browser-script`, and `'build'`) → `'route-module'`
+ * `profile` names the purpose of the bundle and picks the {@link BuildLane}: `hmr-entrypoint` and `hmr-runtime`
+ * run on `hmr`, every other purpose on `build`. Request options are always assembled with browser environment
+ * defaults via {@link createBrowserBuildRequest}.
  *
- * Defaults `executor` to `'hmr'`. Request options are always assembled with
- * browser environment defaults via {@link createBrowserBuildRequest}; only the
- * concurrency/dedupe wrapper differs.
- *
- * Uses request-scope {@link requestBuildDedupe} plus in-flight
- * {@link DedupingBuildExecutor} coalescing; both key on
- * {@link createBuildRequestIdentity}.
+ * The app's build queue shares a request that is identical to a queued or running one, and, inside a
+ * request scope, to one that finished.
  */
 export type BrowserBundleOptions = {
 	entrypoints: string[] | Record<string, string>;
@@ -38,7 +31,6 @@ export type BrowserBundleOptions = {
 	external?: string[];
 	plugins?: EcoBuildPlugin[];
 	writeToDisk?: boolean;
-	executor?: 'build' | 'hmr';
 	profile: 'browser-script' | 'hmr-runtime' | 'hmr-entrypoint';
 	excludeAppBuildPlugins?: string[];
 };
@@ -50,18 +42,8 @@ export type BrowserBundleGroupedEntry = {
 	entryName: string;
 };
 
-function resolveBrowserBundleExecutor(
-	appConfig: EcoPagesAppConfig,
-	profile: BrowserBundleOptions['profile'],
-	executor: 'build' | 'hmr',
-): BuildExecutor {
-	const buildRuntime = requireBuildRuntime(appConfig);
-
-	if (executor === 'hmr' && (profile === 'hmr-entrypoint' || profile === 'hmr-runtime')) {
-		return buildRuntime.getProfile('browser-hmr');
-	}
-
-	return buildRuntime.getProfile('route-module');
+function resolveBrowserBundleLane(profile: BrowserBundleOptions['profile']): BuildLane {
+	return profile === 'hmr-entrypoint' || profile === 'hmr-runtime' ? 'hmr' : 'build';
 }
 
 /**
@@ -89,28 +71,21 @@ export class BrowserBundleService {
 	 * each call site.
 	 */
 	async bundle(options: BrowserBundleOptions): Promise<BuildResult> {
-		const { profile, executor = 'hmr', ...requestInput } = options;
-		const request = createBrowserBuildRequest(this.appConfig, {
-			...requestInput,
-		});
+		const { profile, ...requestInput } = options;
+		const request = createBrowserBuildRequest(this.appConfig, requestInput);
 
-		const buildExecutor = resolveBrowserBundleExecutor(this.appConfig, profile, executor);
-		const dedupeKey = createBuildRequestIdentity(request);
-
-		return requestBuildDedupe.dedupeBuild(dedupeKey, async () => {
-			const result = await buildExecutor.build(request);
-			if (result.success && options.writeToDisk !== false) {
-				for (const output of result.outputs) {
-					if (output.contentHashed === true) {
-						recordHashedBrowserAsset(output.path);
-					} else if (output.contentHashed === false) {
-						forgetHashedBrowserAsset(output.path);
-					}
+		const result = await requireBuildQueue(this.appConfig).build(request, resolveBrowserBundleLane(profile));
+		if (result.success && options.writeToDisk !== false) {
+			for (const output of result.outputs) {
+				if (output.contentHashed === true) {
+					recordHashedBrowserAsset(output.path);
+				} else if (output.contentHashed === false) {
+					forgetHashedBrowserAsset(output.path);
 				}
 			}
-			startupTrace.recordBrowserBundle(result.outputs);
-			return result;
-		});
+		}
+		startupTrace.recordBrowserBundle(result.outputs);
+		return result;
 	}
 
 	async bundleGroupedEntries(

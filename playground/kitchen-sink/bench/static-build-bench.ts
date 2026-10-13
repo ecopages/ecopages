@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { bench, group } from 'mitata';
 import { build } from '../../../packages/core/src/build/build-adapter';
-import { requireBuildRuntime, installBuildRuntime } from '../../../packages/core/src/build/runtime/build-runtime';
+import { requireBuildQueue, installBuildQueue } from '../../../packages/core/src/build/runtime/build-queue';
 import { getServerBundleOutputPaths } from '../../../packages/core/src/build/server-bundle-deploy-manifest';
 import { getAppModuleLoader } from '../../../packages/core/src/services/module-loading/app-server-module-transpiler.service';
 import { resolveInternalExecutionDir } from '../../../packages/core/src/utils/resolve-work-dir';
@@ -47,7 +47,7 @@ async function getBenchConfig(): Promise<Awaited<ReturnType<typeof loadStaticBui
 
 async function bundleServerEntryCold(appConfig: Awaited<ReturnType<typeof loadStaticBuildBenchConfig>>): Promise<void> {
 	const { serverOutdir } = getServerBundleOutputPaths(appConfig);
-	installBuildRuntime(appConfig);
+	installBuildQueue(appConfig);
 
 	await build(
 		{
@@ -60,7 +60,7 @@ async function bundleServerEntryCold(appConfig: Awaited<ReturnType<typeof loadSt
 			externalPackages: true,
 			root: appConfig.rootDir,
 		},
-		requireBuildRuntime(appConfig).getProfile('server-entry'),
+		requireBuildQueue(appConfig),
 	);
 }
 
@@ -68,7 +68,7 @@ async function importStaticPageWarm(
 	appConfig: Awaited<ReturnType<typeof loadStaticBuildBenchConfig>>,
 	filePath: string,
 ): Promise<void> {
-	installBuildRuntime(appConfig);
+	installBuildQueue(appConfig);
 	const loader = getAppModuleLoader(appConfig);
 	const outdir = path.join(resolveInternalExecutionDir(appConfig), '.server-modules');
 

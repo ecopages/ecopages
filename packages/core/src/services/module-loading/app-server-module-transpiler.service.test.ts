@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'vitest';
 import { type BuildExecutor, setAppBuildAdapter, setAppBuildManifest } from '../../build/build-adapter.ts';
-import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
+import { installBuildQueue } from '../../build/runtime/build-queue.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
 import type { EcoPagesElement } from '../../types/public-types.ts';
 import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
@@ -246,8 +246,8 @@ describe('app server module transpiler runtime state', () => {
 			plugins: [],
 			browserRuntimeManifest: { assets: [], bySpecifier: new Map() },
 		});
-		installBuildRuntime(appConfig);
-		const routeModuleExecutor = appConfig.runtime.buildRuntime.getProfile('route-module');
+		installBuildQueue(appConfig);
+		const routeModuleExecutor = appConfig.runtime.buildQueue;
 		const originalBuild = routeModuleExecutor.build.bind(routeModuleExecutor);
 		routeModuleExecutor.build = async (options: Parameters<BuildExecutor['build']>[0]) => {
 			observedExecutors.push(routeModuleExecutor);

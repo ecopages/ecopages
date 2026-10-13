@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { installBuildRuntime } from '../build/runtime/build-runtime.ts';
+import { installBuildQueue } from '../build/runtime/build-queue.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { bundleDevClientRuntime } from '../hmr/dev-client-runtime.ts';
 import { BrowserBundleService } from '../services/assets/browser-bundle.service.ts';
@@ -27,7 +27,7 @@ describe('dev toolbar runtime bundle', () => {
 			devToolbar: { package: '@ecopages/dev-toolbar' },
 		});
 
-		installBuildRuntime(appConfig);
+		installBuildQueue(appConfig);
 		const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-toolbar-runtime-'));
 		workDirs.push(workDir);
 
@@ -52,7 +52,7 @@ describe('dev toolbar runtime bundle', () => {
 			rootDir: kitchenSinkRoot,
 			devToolbar: { package: '@ecopages/missing-dev-toolbar' },
 		});
-		installBuildRuntime(appConfig);
+		installBuildQueue(appConfig);
 		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
 		const ready = await bundleDevClientRuntime(

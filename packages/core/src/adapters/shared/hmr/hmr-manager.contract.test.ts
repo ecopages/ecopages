@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { inspect } from 'node:util';
 import { describe, test, vi } from 'vitest';
-import { installBuildRuntime } from '../../../build/runtime/build-runtime.ts';
+import { installBuildQueue } from '../../../build/runtime/build-queue.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import { getAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
@@ -97,9 +97,9 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		const rootDir = createTempRoot('ecopages-hmr-contract-script-register');
 		const entrypointPath = writeSourceFile(rootDir, 'src/script.ts', 'console.log("hello");');
 		const { manager } = await createAt(rootDir);
-		installBuildRuntime(manager.appConfig);
+		const buildQueue = installBuildQueue(manager.appConfig);
 		const buildCalls: string[] = [];
-		manager.appConfig.runtime!.buildRuntime!.getProfile('browser-hmr').build = vi.fn(async (options) => {
+		buildQueue.build = vi.fn(async (options) => {
 			buildCalls.push(options.entrypoints[0] as string);
 			return {
 				success: true,
@@ -120,9 +120,9 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		const firstEntrypoint = writeSourceFile(rootDir, 'src/first.script.ts', 'console.log("first");');
 		const secondEntrypoint = writeSourceFile(rootDir, 'src/second.script.ts', 'console.log("second");');
 		const { manager } = await createAt(rootDir);
-		installBuildRuntime(manager.appConfig);
+		const buildQueue = installBuildQueue(manager.appConfig);
 		const buildCalls: string[][] = [];
-		manager.appConfig.runtime!.buildRuntime!.getProfile('browser-hmr').build = vi.fn(async (options) => {
+		buildQueue.build = vi.fn(async (options) => {
 			buildCalls.push((options.entrypoints as string[]).map(String));
 			return {
 				success: true,
@@ -218,7 +218,7 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 				rootDir,
 				devToolbar: { package: '@ecopages/missing-dev-toolbar' },
 			});
-			installBuildRuntime(config);
+			installBuildQueue(config);
 			const { manager } = await create(config);
 			manager.setEnabled(true);
 			const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -240,7 +240,7 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 			);
 			fs.writeFileSync(path.join(packageDir, 'src', 'bootstrap.js'), "import './does-not-exist.js';", 'utf8');
 			const config = await finalizeEcoPagesConfig({ rootDir, devToolbar: { package: 'broken-dev-toolbar' } });
-			installBuildRuntime(config);
+			installBuildQueue(config);
 			const { manager } = await create(config);
 			manager.setEnabled(true);
 			const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});

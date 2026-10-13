@@ -1,12 +1,14 @@
 import type { BuildOptions } from '../build-adapter.ts';
-import type { BuildProfile } from './build-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 
+/** Option preset of a server build request. */
+export type ServerBuildProfile = 'server-entry' | 'route-module';
+
 /**
- * Resolves shared Rolldown options for a build profile.
+ * Resolves shared Rolldown options for a server build preset.
  */
 export function resolveBuildProfileOptions(
-	profile: BuildProfile,
+	profile: ServerBuildProfile,
 	appConfig: EcoPagesAppConfig,
 	overrides: Partial<BuildOptions> = {},
 ): Partial<BuildOptions> {
@@ -32,15 +34,6 @@ export function resolveBuildProfileOptions(
 				sourcemap: 'none',
 				minify: false,
 				externalPackages: true,
-				...overrides,
-			};
-		case 'browser-hmr':
-			return {
-				root,
-				target: 'browser',
-				format: 'esm',
-				sourcemap: 'none',
-				minify: false,
 				...overrides,
 			};
 	}

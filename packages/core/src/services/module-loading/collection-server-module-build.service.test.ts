@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'vitest';
-import type { BuildExecutor } from '../../build/build-adapter.ts';
+import type { BuildAdapter, BuildExecutor } from '../../build/build-adapter.ts';
+import { BuildQueue } from '../../build/runtime/build-queue.ts';
 import type { BuildOptions } from '../../build/contracts/build-contracts.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -19,6 +20,54 @@ describe('buildCollectionServerModule', () => {
 
 	afterEach(() => {
 		fs.rmSync(rootDir, { recursive: true, force: true });
+	});
+
+	it('builds on the nested lane, so a build waiting for it cannot lock up the build lane', async () => {
+		const sourceFilePath = path.join(rootDir, 'posts.collection.ts');
+		const parentEntry = path.join(rootDir, 'page.tsx');
+		const compiled = path.join(rootDir, 'posts-compiled.mjs');
+		fs.writeFileSync(sourceFilePath, 'export const posts = [];\n', 'utf8');
+		const lanes: string[] = [];
+		const adapter: BuildAdapter = {
+			async build(options) {
+				if (Object.values(options.entrypoints).includes(parentEntry)) {
+					await buildCollectionServerModule({
+						appConfig,
+						collectionName: 'posts',
+						sourceFilePath,
+						ownedSourcePaths: [],
+					});
+				}
+				return {
+					success: true,
+					logs: [],
+					outputs: [{ path: compiled }],
+					entryOutputs: { [sourceFilePath]: compiled },
+				};
+			},
+			resolve: (specifier) => specifier,
+			getTranspileOptions: () => ({ target: 'node', format: 'esm', sourcemap: 'none' }),
+		};
+		const queue = new BuildQueue(adapter, { build: 1, hmr: 1, nested: 1 });
+		const queueBuild = queue.build.bind(queue);
+		queue.build = (options, lane) => {
+			lanes.push(`${lane ?? 'build'}:${String(Object.values(options.entrypoints)[0])}`);
+			return queueBuild(options, lane);
+		};
+		const appConfig = {
+			rootDir,
+			absolutePaths: { workDir: path.join(rootDir, '.eco') },
+			integrations: [],
+			runtime: { buildQueue: queue },
+		} as unknown as EcoPagesAppConfig;
+
+		const result = await Promise.race([
+			queue.build({ environment: 'server', entrypoints: [parentEntry] }),
+			new Promise<never>((_resolve, reject) => setTimeout(() => reject(new Error('timed out')), 2000)),
+		]);
+
+		assert.equal(result.success, true);
+		assert.deepEqual(lanes, [`build:${parentEntry}`, `nested:${sourceFilePath}`]);
 	});
 
 	it('builds through the app route-module executor', async () => {
@@ -38,13 +87,7 @@ describe('buildCollectionServerModule', () => {
 			absolutePaths: { workDir: path.join(rootDir, '.eco') },
 			integrations: [],
 			runtime: {
-				buildRuntime: {
-					getProfile: (profile: string) => {
-						assert.equal(profile, 'route-module');
-						return routeModuleExecutor;
-					},
-					dispose: async () => {},
-				},
+				buildQueue: routeModuleExecutor,
 			},
 		} as unknown as EcoPagesAppConfig;
 
@@ -73,14 +116,11 @@ describe('buildCollectionServerModule', () => {
 			absolutePaths: { workDir: path.join(rootDir, '.eco') },
 			integrations: [],
 			runtime: {
-				buildRuntime: {
-					getProfile: () => ({
-						build(options: BuildOptions) {
-							buildCount += 1;
-							return adapter.build(options);
-						},
-					}),
-					dispose: async () => {},
+				buildQueue: {
+					build(options: BuildOptions) {
+						buildCount += 1;
+						return adapter.build(options);
+					},
 				},
 			},
 		} as unknown as EcoPagesAppConfig;

@@ -2,7 +2,6 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
 import { RESOLVED_ASSETS_DIR } from '../../../config/constants.ts';
-import { disposeAppBuildRuntime } from '../../../build/runtime/build-runtime.ts';
 import { ensureIntegrationRuntimeReady } from '../../../build/app-build-manifest-runtime.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { ProjectWatcher } from '../../../watchers/project-watcher.ts';
@@ -89,7 +88,6 @@ export async function disposeDevResources(options: {
 }): Promise<void> {
 	const cleanup = [
 		() => options.projectWatcher?.close(),
-		() => disposeAppBuildRuntime(options.appConfig),
 		() => options.hmrManager?.stop(),
 		() => options.bridge?.destroy(),
 		() => options.previewHost.stop(),

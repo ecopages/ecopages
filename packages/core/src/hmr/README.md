@@ -37,7 +37,7 @@ Each module the dev transform serves records its local imports in the entrypoint
 
 The HMR client and the Dev Toolbar client are two `DevClientRuntime` entries (`dev-client-runtime.ts`: URL, entry, work directory, failure policy) that `SharedHmrManager` bundles once per session, serves at their URLs and loads from every HTML response through `injectDevClientRuntimes()`. Only runtimes whose bundle was built are served and injected. A failed HMR bundle disables HMR on the Node runtime, which also stops the Dev Toolbar from loading and from adding its page manifest, because both are gated on the manager being enabled; a failed Dev Toolbar bundle is logged and leaves HMR on. The server adapter injects only while `IHmrManager.isEnabled()` is true, so that flag is the one place the dev client features read watch mode from.
 
-`BrowserBundleService` is the sole browser-plugin resolver for HMR builds. HMR managers route `hmr-runtime` and `hmr-entrypoint` rebuilds through the `browser-hmr` executor profile.
+`BrowserBundleService` is the sole browser-plugin resolver for HMR builds. HMR managers route `hmr-runtime` and `hmr-entrypoint` rebuilds through the `hmr` lane of the app's build queue.
 
 `SharedHmrManager` calls `prepareHmrFileChange()` for each dispatched path (`hmr/hmr-file-change-prep.ts`) so page browser graph sessions invalidate consistently with file changes. The Project Watcher sends the file paths from the batch and does not prepare the graph itself.
 

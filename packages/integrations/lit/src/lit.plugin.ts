@@ -81,8 +81,7 @@ export class LitPlugin extends IntegrationPlugin {
 		return new LitStaticRenderSession({
 			resolveDependencyPath: (componentDir, sourcePath) => path.join(componentDir, sourcePath),
 			processDependencies: this.assetProcessingService.processDependencies.bind(this.assetProcessingService),
-			getInvalidationVersion: () =>
-				this.appConfig?.runtime?.serverInvalidationState?.getServerInvalidationVersion() ?? 0,
+			getInvalidationVersion: () => this.appConfig?.runtime?.appModuleLoader?.getDevelopmentGeneration() ?? 0,
 		});
 	}
 

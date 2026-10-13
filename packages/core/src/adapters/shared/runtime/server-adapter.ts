@@ -4,7 +4,7 @@ import type { ServerAdapterOptions, ServerAdapterResult } from '../../abstract/s
 import { RouteRendererFactory } from '../../../route-renderer/route-renderer.ts';
 import { RouteRegistry } from '../../../router/server/route-registry.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
-import { requestBuildDedupe } from '../../../diagnostics/request-build-dedupe.ts';
+import { requireBuildQueue } from '../../../build/runtime/build-queue.ts';
 import { getAppBuildInputIndex, runWithBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
 import { MemoryCacheStore } from '../../../services/cache/memory-cache-store.ts';
 import { PageCacheService, registerAppPageCacheService } from '../../../services/cache/page-cache-service.ts';
@@ -19,16 +19,7 @@ import { startDevStaticRoutePrewarm } from './dev-static-route-prewarm.ts';
 import { collectAppDevPrewarmPaths } from './collect-dev-prewarm-paths.ts';
 import { createRenderContext } from './render-context.ts';
 import { ApiRequestPipeline } from '../http/api-request-pipeline.ts';
-import {
-	injectDevToolbarIntoHtmlResponse,
-	shouldInjectDevToolbarHtmlResponse,
-} from '../../../dev-toolbar/dev-toolbar-html-response.ts';
-import {
-	injectHmrRuntimeIntoHtmlResponse,
-	isHtmlResponse,
-	shouldInjectHmrHtmlResponse,
-	withUncachedDevHtml,
-} from '../hmr/hmr-html-response.ts';
+import { isHtmlResponse, withUncachedDevHtml } from '../hmr/hmr-html-response.ts';
 import type { EcoPageFile } from '../../../types/public-types.ts';
 import { getAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir } from '../../../utils/resolve-work-dir.ts';
@@ -104,7 +95,7 @@ export abstract class SharedServerAdapter<
 			collectPathnames: () => collectAppDevPrewarmPaths(this.appConfig),
 			signal: this.devStaticRoutePrewarmAbort.signal,
 			renderPath: (pathname: string) =>
-				requestBuildDedupe.run(() =>
+				requireBuildQueue(this.appConfig).withRequestScope(() =>
 					runWithBuildInputIndex(getAppBuildInputIndex(this.appConfig), async () => {
 						const response = await this.routeHandler.handleResponse(
 							new Request(new URL(pathname, runtimeOrigin).toString(), { method: 'GET' }),
@@ -358,34 +349,12 @@ export abstract class SharedServerAdapter<
 	}
 
 	private async injectSharedHmrHtmlResponse(response: Response, context: SharedRequestContext): Promise<Response> {
-		if (!isHtmlResponse(response)) {
+		const hmrManager = context.hmrManager;
+		if (!isHtmlResponse(response) || !hmrManager?.isEnabled()) {
 			return response;
 		}
 
-		let nextResponse = this.options?.watch ? withUncachedDevHtml(response) : response;
-
-		if (
-			shouldInjectHmrHtmlResponse(this.options?.watch ?? false, context.hmrManager) &&
-			isHtmlResponse(nextResponse)
-		) {
-			nextResponse = await injectHmrRuntimeIntoHtmlResponse(nextResponse);
-		}
-
-		if (
-			shouldInjectDevToolbarHtmlResponse(this.appConfig, {
-				watch: this.options?.watch ?? false,
-			})
-		) {
-			nextResponse = await injectDevToolbarIntoHtmlResponse(
-				this.appConfig,
-				{
-					watch: this.options?.watch ?? false,
-				},
-				nextResponse,
-			);
-		}
-
-		return nextResponse;
+		return await hmrManager.injectDevClientRuntimes(withUncachedDevHtml(response));
 	}
 
 	private async tryHandleSharedApiRequest(request: Request, context: SharedRequestContext): Promise<Response | null> {
@@ -437,7 +406,7 @@ export abstract class SharedServerAdapter<
 	 * native HTTP objects into Web Standard Requests.
 	 */
 	public async handleSharedRequest(request: Request, context: SharedRequestContext): Promise<Response> {
-		return requestBuildDedupe.run(() =>
+		return requireBuildQueue(this.appConfig).withRequestScope(() =>
 			runWithBuildInputIndex(getAppBuildInputIndex(this.appConfig), () =>
 				startupTrace.traceFirstRequest(request, async () => {
 					const devClientResponse = await this.tryHandleSharedDevClientRequest(request, context);

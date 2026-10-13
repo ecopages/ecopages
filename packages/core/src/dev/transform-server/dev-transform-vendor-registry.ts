@@ -2,13 +2,13 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 import { RESOLVED_ASSETS_VENDORS_DIR } from '../../config/constants.ts';
-import { getAppBrowserBuildPlugins } from '../../build/build-adapter.ts';
+import { resolveAppBuildPlugins } from '../../build/runtime/build-request-policy.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-resolver.ts';
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { formatBuildLog } from '../../build/build-log.ts';
+import { assertBuildSucceeded } from '../../build/build-log.ts';
 
 const BROWSER_FIRST_VENDOR_CONDITIONS = ['browser', 'module', 'import', 'default'] as const;
 const MODULE_FIRST_VENDOR_CONDITIONS = ['module', 'import', 'default'] as const;
@@ -128,14 +128,11 @@ export class DevTransformVendorRegistry {
 			treeshaking: true,
 			splitting: false,
 			conditions: [...getVendorBundleConditions(specifier)],
-			excludeAppBuildPlugins: getAppBrowserBuildPlugins(this.appConfig).map((plugin) => plugin.name),
+			excludeAppBuildPlugins: resolveAppBuildPlugins(this.appConfig, 'browser').map((plugin) => plugin.name),
 			plugins: [...vendorPlugins],
 		});
 
-		if (!result.success) {
-			const details = result.logs.map(formatBuildLog).join('\n');
-			throw new Error(formatVendorPrebundleError(specifier, details));
-		}
+		assertBuildSucceeded(result, (details) => formatVendorPrebundleError(specifier, details));
 
 		const output = result.outputs.find((candidate) => typeof candidate.content === 'string');
 		if (!output || typeof output.content !== 'string') {

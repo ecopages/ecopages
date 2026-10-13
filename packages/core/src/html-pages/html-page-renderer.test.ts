@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { installBuildRuntime } from '../build/runtime/build-runtime.ts';
+import { installBuildQueue } from '../build/runtime/build-queue.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
 import type { AssetDefinition } from '../services/assets/asset-processing-service/assets.types.ts';
@@ -366,7 +366,7 @@ describe('HtmlPageRenderer', () => {
 		};
 		const setup = async () => {
 			appConfig = await finalizeEcoPagesConfig({ rootDir });
-			installBuildRuntime(appConfig);
+			installBuildQueue(appConfig);
 			renderer = new HtmlPageRenderer({
 				appConfig,
 				assetProcessingService: AssetProcessingService.createWithDefaultProcessors(appConfig),
@@ -502,6 +502,7 @@ describe('HtmlPageRenderer', () => {
 			);
 			await setup();
 			await expect(render(file)).rejects.toThrow('Could not build the HTML Page module scripts');
+			await expect(render(file)).rejects.toThrow(/broken\.ts:\d+:\d+: /);
 
 			write('src/components/broken.ts', "export const broken = 'FIXED';");
 			const [url] = scriptUrls(await render(file));

@@ -2,7 +2,7 @@ import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { AppBuildManifest } from '../build/contracts/build-manifest.ts';
 import type { BuildAdapter } from '../build/build-adapter.ts';
 import type { BuildInputDependencyIndex } from '../build/cache/build-input-dependency-index.ts';
-import type { BuildRuntime } from '../build/runtime/build-runtime.ts';
+import type { BuildQueue } from '../build/runtime/build-queue.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type { EcoSourceTransform } from '../plugins/source-transform.ts';
@@ -16,7 +16,6 @@ import type { CacheConfig } from '../services/cache/cache.types.ts';
 import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
 import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { SessionPageBrowserGraphCache } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
-import type { ServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
 import type { ServerModuleTranspiler } from '../services/module-loading/server-module-transpiler.service.ts';
 import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 
@@ -179,11 +178,10 @@ export type EcoPagesAppConfig = {
 		entrypointDependencyGraph?: EntrypointDependencyGraph;
 		buildInputIndex?: BuildInputDependencyIndex;
 		pageBrowserGraphSession?: SessionPageBrowserGraphCache;
-		serverInvalidationState?: ServerInvalidationState;
 		serverModuleTranspiler?: ServerModuleTranspiler;
 		routeModuleBuildCaches?: Map<string, RouteModuleBuildCache>;
-		/** Profile-based build runtime installed by {@link installBuildRuntime}. */
-		buildRuntime?: BuildRuntime;
+		/** The queue every build of the app goes through, installed by {@link installBuildQueue}. */
+		buildQueue?: BuildQueue;
 		/** Set after {@link setupAppRuntimePlugins} runs processor/integration setup once per process. */
 		runtimeAssetsPrepared?: boolean;
 		/**

@@ -3,11 +3,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test, vi } from 'vitest';
-import { installBuildRuntime } from '../../../build/runtime/build-runtime.ts';
+import { installBuildQueue } from '../../../build/runtime/build-queue.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import { NodeHmrManager } from '../../node/node-hmr-manager.ts';
 import type { SharedHmrManager } from './shared-hmr-manager.ts';
+import { createBuildSuccess } from '../../../__fixtures__/build/build-result.ts';
 
 const tempRoots: string[] = [];
 
@@ -85,15 +86,11 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		fs.writeFileSync(entrypointPath, 'console.log("hello");', 'utf8');
 
 		using manager = await create(rootDir);
-		installBuildRuntime(manager.appConfig);
+		const buildQueue = installBuildQueue(manager.appConfig);
 		const buildCalls: string[] = [];
-		manager.appConfig.runtime!.buildRuntime!.getProfile('browser-hmr').build = vi.fn(async (options) => {
+		buildQueue.build = vi.fn(async (options) => {
 			buildCalls.push(options.entrypoints[0] as string);
-			return {
-				success: true,
-				logs: [],
-				outputs: [{ path: '/tmp/unused.js' }],
-			};
+			return createBuildSuccess({ outputs: [{ path: '/tmp/unused.js' }] });
 		});
 
 		const resolved = await manager.registerScriptEntrypoint(entrypointPath);
@@ -114,15 +111,11 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		fs.writeFileSync(secondEntrypoint, 'console.log("second");', 'utf8');
 
 		using manager = await create(rootDir);
-		installBuildRuntime(manager.appConfig);
+		const buildQueue = installBuildQueue(manager.appConfig);
 		const buildCalls: string[][] = [];
-		manager.appConfig.runtime!.buildRuntime!.getProfile('browser-hmr').build = vi.fn(async (options) => {
+		buildQueue.build = vi.fn(async (options) => {
 			buildCalls.push((options.entrypoints as string[]).map(String));
-			return {
-				success: true,
-				logs: [],
-				outputs: [],
-			};
+			return createBuildSuccess();
 		});
 
 		await manager.registerScriptEntrypoint(firstEntrypoint);

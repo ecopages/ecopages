@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test, vi } from 'vitest';
-import { installBuildRuntime } from '../../../build/runtime/build-runtime.ts';
+import { installBuildQueue } from '../../../build/runtime/build-queue.ts';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
@@ -484,7 +484,7 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		fs.mkdirSync(srcDir, { recursive: true });
 		const spy = createBridgeSpy();
 		using manager = await create(rootDir, spy);
-		installBuildRuntime(manager.appConfig);
+		installBuildQueue(manager.appConfig);
 
 		const scriptPath = path.join(srcDir, 'broken.script.ts');
 		fs.writeFileSync(scriptPath, 'export const broken = ;\n', 'utf8');
@@ -507,7 +507,7 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		const spy = createBridgeSpy();
 		spy.bridge.subscriberCount = 0;
 		using manager = await create(rootDir, spy);
-		installBuildRuntime(manager.appConfig);
+		installBuildQueue(manager.appConfig);
 
 		const scriptPath = path.join(srcDir, 'late.script.ts');
 		fs.writeFileSync(scriptPath, 'export const late = ;\n', 'utf8');
@@ -540,7 +540,7 @@ describe.each(runtimes)('handleFileChange dispatch: $name', ({ create }) => {
 		const spy = createBridgeSpy();
 		spy.bridge.subscriberCount = 0;
 		using manager = await create(rootDir, spy);
-		installBuildRuntime(manager.appConfig);
+		installBuildQueue(manager.appConfig);
 
 		const dependencyPath = path.join(srcDir, 'dependency.ts');
 		fs.writeFileSync(dependencyPath, 'export const dependency = true;\n', 'utf8');

@@ -206,6 +206,7 @@ describe('PageModuleLoaderService', () => {
 						invalidateDevelopmentGraph(): void {
 							return;
 						},
+						getDevelopmentGeneration: () => 0,
 					} satisfies AppModuleLoader,
 				},
 			} as EcoPagesAppConfig,
@@ -244,6 +245,7 @@ describe('PageModuleLoaderService', () => {
 						invalidateDevelopmentGraph(): void {
 							return;
 						},
+						getDevelopmentGeneration: () => 0,
 					} satisfies AppModuleLoader,
 				},
 			} as EcoPagesAppConfig,

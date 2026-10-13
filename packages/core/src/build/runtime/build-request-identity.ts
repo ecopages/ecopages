@@ -1,84 +1,57 @@
 import path from 'node:path';
 import type { BuildOptions } from '../contracts/build-contracts.ts';
-import { createJsxCacheKey, createPluginCacheKey } from '../cache/cache-keys.ts';
+import { createPluginCacheKey } from '../cache/cache-keys.ts';
 
-function normalizeEntrypoints(entrypoints: BuildOptions['entrypoints']): string {
+function normalizeEntrypoints(entrypoints: BuildOptions['entrypoints']): unknown {
 	if (Array.isArray(entrypoints)) {
-		return entrypoints
-			.map((entrypoint) => path.resolve(entrypoint))
-			.sort()
-			.join('|');
+		return entrypoints.map((entrypoint) => path.resolve(entrypoint)).sort();
 	}
 
-	return Object.entries(entrypoints)
-		.sort(([left], [right]) => left.localeCompare(right))
-		.map(([key, value]) => `${key}:${path.resolve(value)}`)
-		.join('|');
+	return Object.fromEntries(Object.entries(entrypoints).map(([key, value]) => [key, path.resolve(value)]));
 }
 
 /**
- * Preserves list order for collections where Rolldown precedence depends on position.
+ * Orders object keys and drops `undefined` and empty collections, so equal requests
+ * serialize to equal strings however they were assembled.
  */
-function normalizeOrderedStringList(values: string[] | undefined, label: string): string {
-	if (!values || values.length === 0) {
-		return `${label}:default`;
+function canonicalize(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.length === 0 ? undefined : value.map(canonicalize);
 	}
-
-	return `${label}:${values.join(',')}`;
-}
-
-/**
- * Sorts unordered sets so equivalent membership produces one identity.
- */
-function normalizeUnorderedStringList(values: string[] | undefined, label: string): string {
-	if (!values || values.length === 0) {
-		return `${label}:default`;
+	if (typeof value !== 'object' || value === null) {
+		return value;
 	}
-
-	return `${label}:${[...values].sort().join(',')}`;
-}
-
-function normalizeDefine(define: Record<string, string> | undefined): string {
-	if (!define || Object.keys(define).length === 0) {
-		return 'define:default';
-	}
-
-	return `define:${Object.entries(define)
-		.sort(([left], [right]) => left.localeCompare(right))
-		.map(([key, value]) => `${key}=${value}`)
-		.join(',')}`;
+	const entries = Object.entries(value)
+		.sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+		.map(([key, entry]) => [key, canonicalize(entry)] as const)
+		.filter(([, entry]) => entry !== undefined);
+	return entries.length === 0 ? undefined : Object.fromEntries(entries);
 }
 
 /**
  * Canonical identity for one complete {@link BuildOptions} request.
  *
  * @remarks
- * Semantically unordered collections (`external`, `define` keys, array entrypoints)
- * are sorted. Plugin and `conditions` order is preserved because Rolldown hook
- * and `conditionNames` precedence depend on it.
+ * Every field except `plugins` is part of the identity, so a field added to
+ * {@link BuildOptions} changes it without being listed here. Paths are resolved.
+ * Entry lists and `external` are sorted because their order does not change the
+ * output; `conditions` keeps its order because Rolldown's `conditionNames`
+ * precedence depends on it. Empty collections count as unset.
  *
- * Empty `conditions` / `define` / `external` normalize to the same sentinel as
- * `undefined`.
+ * Plugins enter by name, environments and `cacheKey`, in order,
+ * since Rolldown hook precedence depends on position.
  */
 export function createBuildRequestIdentity(options: BuildOptions): string {
-	return [
-		options.environment,
-		normalizeEntrypoints(options.entrypoints),
-		options.root ? path.resolve(options.root) : 'root:default',
-		options.outdir ? path.resolve(options.outdir) : 'outdir:default',
-		options.splitting ?? 'splitting:default',
-		options.externalPackages ?? 'externalPackages:default',
-		options.target ?? 'target:default',
-		options.format ?? 'format:default',
-		options.sourcemap ?? 'sourcemap:default',
-		options.minify ?? 'minify:default',
-		options.treeshaking ?? 'treeshaking:default',
-		options.naming ?? 'naming:default',
-		options.writeToDisk ?? 'writeToDisk:default',
-		normalizeOrderedStringList(options.conditions, 'conditions'),
-		normalizeDefine(options.define),
-		normalizeUnorderedStringList(options.external, 'external'),
-		createJsxCacheKey(options.jsx),
-		createPluginCacheKey(options.plugins),
-	].join('::');
+	const { plugins, entrypoints, root, outdir, runtimeOutdir, external, ...rest } = options;
+	return JSON.stringify([
+		canonicalize({
+			...rest,
+			entrypoints: normalizeEntrypoints(entrypoints),
+			root: root ? path.resolve(root) : undefined,
+			outdir: outdir ? path.resolve(outdir) : undefined,
+			runtimeOutdir: runtimeOutdir ? path.resolve(runtimeOutdir) : undefined,
+			external: external ? [...external].sort() : undefined,
+		}),
+		createPluginCacheKey(plugins),
+	]);
 }

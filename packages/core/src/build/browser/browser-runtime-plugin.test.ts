@@ -13,6 +13,7 @@ import {
 } from './browser-runtime-plugin.ts';
 import type { EcoBuildOnLoadResult, EcoBuildOnResolveResult } from '../contracts/build-types.ts';
 import { RolldownBuildAdapter } from '../rolldown/rolldown-build-adapter.ts';
+import { assertBuildSucceeded } from '../build-log.ts';
 
 const manifest = createBrowserRuntimeManifest([
 	{
@@ -226,7 +227,7 @@ test.each([
 	async (_form, source, publicPath) => {
 		const { result, code } = await buildBrowserEntry(source);
 
-		assert.equal(result.success, true, JSON.stringify(result.logs));
+		assertBuildSucceeded(result, 'Build failed');
 		assert.match(
 			code,
 			new RegExp(
@@ -251,7 +252,7 @@ test('createBrowserRuntimePlugin does not map a package subpath the manifest doe
 		scopedManifest,
 	);
 
-	assert.equal(result.success, true, JSON.stringify(result.logs));
+	assertBuildSucceeded(result, 'Build failed');
 	assert.match(code, /@acme\/ui\/button/);
 	assert.doesNotMatch(code, /acme-ui\.js/);
 });

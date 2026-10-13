@@ -3,18 +3,14 @@ import { describe, it } from 'vitest';
 import type { BuildResult } from '../../build/build-adapter.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
 import { setAppBuildAdapter } from '../../build/build-adapter.ts';
-import { requireBuildRuntime } from '../../build/runtime/build-runtime.ts';
+import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { CounterServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
 import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
 import { ServerModuleTranspiler, type ServerModuleImportDependency } from './server-module-transpiler.service.ts';
+import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 
 function createBuildResult(): BuildResult {
-	return {
-		success: true,
-		logs: [],
-		outputs: [],
-	};
+	return createBuildSuccess();
 }
 
 function createFakeImportService(): {
@@ -129,13 +125,10 @@ describe('ServerModuleTranspiler', () => {
 			},
 			templatesExt: ['.tsx'],
 			loaders: new Map(),
-			runtime: {
-				serverInvalidationState: new CounterServerInvalidationState(),
-			},
 		} as unknown as EcoPagesAppConfig;
 
 		setAppBuildAdapter(appConfig, new RolldownBuildAdapter());
-		const routeModuleExecutor = requireBuildRuntime(appConfig).getProfile('route-module');
+		const routeModuleExecutor = requireBuildQueue(appConfig);
 
 		const moduleLoader = getAppModuleLoader(appConfig) as unknown as {
 			pageModuleImportService: {
@@ -151,7 +144,7 @@ describe('ServerModuleTranspiler', () => {
 			return { default: { ok: true } } as T;
 		};
 
-		appConfig.runtime!.serverInvalidationState!.invalidateServerModules(['/app/src/includes/seo.kita.tsx']);
+		getAppModuleLoader(appConfig).invalidateDevelopmentGraph();
 
 		await getAppModuleLoader(appConfig).importModule({
 			filePath: '/app/src/includes/html.kita.tsx',

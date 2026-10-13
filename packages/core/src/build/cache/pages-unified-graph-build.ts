@@ -11,9 +11,8 @@ import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
-import { build } from '../build-adapter.ts';
-import { requireBuildRuntime } from '../runtime/build-runtime.ts';
-import { createServerBuildRequest, resolveServerAppBuildPlugins } from '../runtime/build-request-policy.ts';
+import { buildOrThrow } from '../runtime/build-queue.ts';
+import { createServerBuildRequest, resolveAppBuildPlugins } from '../runtime/build-request-policy.ts';
 import { hashAppConfigFile } from './app-config-hash.ts';
 import { collectBuildOutputImports, getBuildEntryOutput } from '../build-graph.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -26,7 +25,6 @@ import {
 	resolveRouteModuleDependencyPaths,
 	type RouteModuleDependencyHashes,
 } from '../../services/module-loading/route-module-dependency-hasher.ts';
-import { formatBuildLog } from '../build-log.ts';
 
 const graphs = new WeakMap<EcoPagesAppConfig, PagesUnifiedGraphCacheManifest>();
 const importableGraphs = new WeakMap<PagesUnifiedGraphCacheManifest, boolean>();
@@ -71,7 +69,7 @@ export function isPagesUnifiedGraphPage(filePath: string, appConfig: EcoPagesApp
 }
 
 function createPagesUnifiedGraphBuildKey(appConfig: EcoPagesAppConfig, outdir: string): string {
-	const pluginNames = resolveServerAppBuildPlugins(appConfig)
+	const pluginNames = resolveAppBuildPlugins(appConfig, 'server')
 		.map((plugin) => plugin.name)
 		.sort()
 		.join('|');
@@ -81,7 +79,7 @@ function createPagesUnifiedGraphBuildKey(appConfig: EcoPagesAppConfig, outdir: s
 		hashAppConfigFile(appConfig),
 		templateExtensions,
 		pluginNames,
-		'es2022',
+		'node',
 		'esm',
 		'external-packages',
 	].join('::');
@@ -206,20 +204,15 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 
 	appLogger.debugTime('pagesUnifiedGraphBuild');
 	const buildOptions = createServerBuildRequest(options.appConfig, {
-		profile: 'route-module',
 		entrypoints: entryRecord,
 		outdir,
 		splitting: true,
 		naming: '[name]-[hash].[ext]',
 	});
 	const plugins = buildOptions.plugins ?? [];
-	const buildResult = await build(buildOptions, requireBuildRuntime(options.appConfig).getProfile('route-module'));
-	appLogger.debugTimeEnd('pagesUnifiedGraphBuild');
-
-	if (!buildResult.success) {
-		const details = buildResult.logs.map(formatBuildLog).join('\n');
-		throw new Error(`Pages unified graph build failed: ${details}`);
-	}
+	const buildResult = await buildOrThrow(options.appConfig, buildOptions, 'Pages unified graph build failed').finally(
+		() => appLogger.debugTimeEnd('pagesUnifiedGraphBuild'),
+	);
 
 	const outputs: Record<string, string> = {};
 	const outputImports = new Set<string>();

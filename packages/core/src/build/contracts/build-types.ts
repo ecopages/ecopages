@@ -96,4 +96,13 @@ export type EcoBuildPlugin = {
 	/** Omitted environments apply to both server and browser builds. */
 	environments?: Array<'server' | 'browser'>;
 	setup: (build: EcoBuildPluginBuilder) => void | Promise<void>;
+	/**
+	 * Distinguishes two plugins of one name that a factory built from different options.
+	 *
+	 * @remarks
+	 * A build request is identified by its plugins' names in order, so builds that differ only in the options
+	 * a factory captured would otherwise share an identity, and with it a deduplicated build or a reused
+	 * artifact. A factory that captures an option which changes its output sets this to a string of that option.
+	 */
+	cacheKey?: string;
 };

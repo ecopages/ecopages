@@ -6,47 +6,33 @@
  *
  * - `BuildAdapter` — the low-level backend contract. The bundled adapter
  *   is the backend.
- * - `BuildExecutor` — the runtime-facing facade stored on
- *   `appConfig.runtime.buildRuntime` via profile-based accessors.
+ * - `BuildExecutor` — the runtime-facing facade; the app's `BuildQueue`,
+ *   stored on `appConfig.runtime.buildQueue`, implements it.
  * - App-owned helpers (`getAppBuildAdapter` and the `set*` counterparts) —
  *   the supported way for runtime code to read and mutate the active adapter
- *   per `EcoPagesAppConfig`. Profile executors live on
- *   `appConfig.runtime.buildRuntime`.
+ *   per `EcoPagesAppConfig`.
  */
 
-import type { EcoBuildPlugin } from './contracts/build-types.ts';
-import {
-	type BuildAdapter,
-	type BuildExecutor,
-	type BuildOptions,
-	type BuildOwnership,
-	type BuildResult,
-	type BuildTranspileOptions,
-	type BuildEnvironment,
-} from './contracts/build-contracts.ts';
+import { type BuildAdapter, type BuildOwnership } from './contracts/build-contracts.ts';
 export type {
 	BuildAdapter,
 	BuildFormat,
 	BuildChunk,
 	BuildDependencyGraph,
 	BuildExecutor,
+	BuildFailure,
+	BuildLog,
 	BuildOptions,
 	BuildOutput,
 	BuildOwnership,
 	BuildResult,
 	BuildSourcemap,
+	BuildSuccess,
 	BuildTarget,
 	BuildTranspileOptions,
 	BuildEnvironment,
 } from './contracts/build-contracts.ts';
-import {
-	createAppBuildManifest,
-	getBrowserBuildPlugins,
-	getServerBuildPlugins,
-	type AppBuildManifest,
-} from './contracts/build-manifest.ts';
-import { createAliasResolverPlugin } from '../plugins/alias-resolver-plugin.ts';
-import { getJsxOwnershipPlugins } from './browser/jsx-ownership-plugins.ts';
+import { createAppBuildManifest, type AppBuildManifest } from './contracts/build-manifest.ts';
 import { createRolldownBuildAdapter } from './rolldown/rolldown-build-adapter.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 
@@ -124,135 +110,30 @@ export function setAppBuildAdapter(appConfig: EcoPagesAppConfig, buildAdapter: B
  * Returns the build manifest owned by an app/runtime instance.
  *
  * @remarks
- * Falls back to a fresh manifest seeded from the config's loaders when
- * the app config has no manifest yet. This is the supported way to
- * read the manifest across the source-loading and asset-processing
- * services.
+ * Falls back to a manifest sealed from the config's loaders alone when the app
+ * has not sealed one yet.
  */
 export function getAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManifest {
 	return (
 		appConfig.runtime?.buildManifest ??
-		createAppBuildManifest({
-			plugins: Array.from(appConfig.loaders?.values() ?? []),
-		})
+		createAppBuildManifest(
+			Array.from(appConfig.loaders?.values() ?? [], (plugin) => ({ plugin, source: `Loader "${plugin.name}"` })),
+		)
 	);
 }
 
-/** Installs the build manifest that should be visible to one app instance.
+/**
+ * Installs a sealed build manifest on one app instance.
  *
  * @remarks
- * Production apps are sealed via {@link updateAppBuildManifest} during
- * config finalization. Call `setAppBuildManifest` directly only in tests or
- * when replacing the entire manifest object; partial updates should use
- * {@link updateAppBuildManifest}.
+ * Config finalization seals the manifest with {@link sealAppBuildManifest}. Call this directly only in tests.
  */
 export function setAppBuildManifest(appConfig: EcoPagesAppConfig, buildManifest: AppBuildManifest): void {
 	patchAppRuntime(appConfig, { buildManifest });
 }
 
-/**
- * Builds a fresh app manifest from the config's loaders plus optional
- * caller-supplied runtime/browser contributions.
- *
- * @remarks
- * Loader plugins are always taken from the config; runtime and
- * browser-bundle plugins are passed through from the caller when
- * supplied, otherwise left empty for later population by
- * {@link collectConfiguredAppBuildManifestContributions}.
- */
-export function createConfiguredAppBuildManifest(
-	appConfig: EcoPagesAppConfig,
-	input?: Partial<AppBuildManifest>,
-): AppBuildManifest {
-	return createAppBuildManifest({
-		plugins: [...appConfig.loaders.values(), ...(input?.plugins ?? [])],
-		browserRuntimeManifest: input?.browserRuntimeManifest,
-	});
-}
-
-/**
- * Replaces the app-owned manifest using config-owned loaders and the
- * caller-supplied contribution input.
- *
- * @remarks
- * Primary production entry: config finalization passes the return value of
- * {@link collectConfiguredAppBuildManifestContributions} here to seal
- * `appConfig.runtime.buildManifest` before startup.
- */
-export function updateAppBuildManifest(appConfig: EcoPagesAppConfig, input?: Partial<AppBuildManifest>): void {
-	setAppBuildManifest(appConfig, createConfiguredAppBuildManifest(appConfig, input));
-}
-
 export {
-	collectConfiguredAppBuildManifestContributions,
 	ensureIntegrationRuntimeReady,
+	sealAppBuildManifest,
 	setupAppRuntimePlugins,
 } from './app-build-manifest-runtime.ts';
-
-/**
- * Returns the server-bundle plugin list for one app/runtime instance.
- *
- * @remarks
- * Reads from the app's sealed build manifest; the manifest itself is
- * the source of truth for which plugins participate in the server
- * bundle.
- */
-export function getAppServerBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
-	const projectDir = appConfig.absolutePaths?.projectDir;
-	const aliasPlugin = projectDir ? [createAliasResolverPlugin(projectDir)] : [];
-	return [...aliasPlugin, ...getServerBuildPlugins(getAppBuildManifest(appConfig))];
-}
-
-/**
- * Returns the browser-bundle plugin list for one app/runtime instance.
- *
- * @remarks
- * Reads from the app's sealed build manifest. The browser-bundle
- * manifest is the source of truth for which plugins participate in the
- * browser bundle. Source transforms register as `transform` plugins and
- * stay in this list so they run after first-wins `onLoad`.
- */
-export function getAppBrowserBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuildPlugin[] {
-	const manifest = getAppBuildManifest(appConfig);
-	const browserPlugins = getBrowserBuildPlugins(manifest);
-	const projectDir = appConfig.absolutePaths?.projectDir;
-	const aliasPlugin = projectDir ? [createAliasResolverPlugin(projectDir)] : [];
-	return [...aliasPlugin, ...browserPlugins, ...getJsxOwnershipPlugins(appConfig)];
-}
-
-/**
- * Runs a build through the active pipeline.
- *
- * @remarks
- * `executor` defaults to the default-bundler adapter for non-app-aware
- * callsites. App-aware code should pass a profile executor from
- * {@link requireBuildRuntime} to honor the per-app pipeline.
- */
-export function build(
-	options: BuildOptions,
-	executor: BuildExecutor = defaultRolldownBuildAdapter,
-): Promise<BuildResult> {
-	return executor.build(options);
-}
-
-/**
- * Default transpile-options helper for callsites without app runtime
- * context.
- *
- * @remarks
- * New app-aware code should prefer {@link getAppTranspileOptions}.
- */
-export function getTranspileOptions(environment: BuildEnvironment): BuildTranspileOptions {
-	return defaultRolldownBuildAdapter.getTranspileOptions(environment);
-}
-
-/**
- * Resolves transpile options for one app/runtime instance by asking
- * the app's adapter.
- */
-export function getAppTranspileOptions(
-	appConfig: EcoPagesAppConfig,
-	environment: BuildEnvironment,
-): BuildTranspileOptions {
-	return getAppBuildAdapter(appConfig).getTranspileOptions(environment);
-}

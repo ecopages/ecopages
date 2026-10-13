@@ -17,34 +17,21 @@ export function createJsxCacheKey(jsx: BuildOptions['jsx']): string {
 	});
 }
 
-/** Stable fingerprint for ordered build plugins. */
+/**
+ * Stable fingerprint for ordered build plugins: each name, its environments and its
+ * {@link EcoBuildPlugin.cacheKey}.
+ */
 export function createPluginCacheKey(plugins?: EcoBuildPlugin[]): string {
 	if (!plugins || plugins.length === 0) {
 		return 'plugins:default';
 	}
 
-	return `plugins:${plugins
-		.map(
-			(plugin) =>
-				`${plugin.name}:${[...new Set(plugin.environments ?? ['server', 'browser'])].sort().join('+')}:${hashFunctionIdentity(plugin.setup)}`,
-		)
-		.join(',')}`;
-}
-
-/**
- * Stable fingerprint of a function body for cache and request identity keys.
- *
- * @remarks
- * Hashes `fn.toString()`. Suitable for in-process keys that must
- * agree within one install; not stable across minifiers or renames.
- */
-export function hashFunctionIdentity(fn: (...args: never[]) => unknown): string {
-	let hash = 0;
-	const source = fn.toString();
-
-	for (let index = 0; index < source.length; index += 1) {
-		hash = (hash * 31 + source.charCodeAt(index)) | 0;
-	}
-
-	return (hash >>> 0).toString(36);
+	return JSON.stringify([
+		'plugins',
+		plugins.map((plugin) => [
+			plugin.name,
+			[...new Set(plugin.environments ?? ['server', 'browser'])].sort(),
+			plugin.cacheKey ?? null,
+		]),
+	]);
 }

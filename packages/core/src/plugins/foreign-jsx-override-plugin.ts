@@ -50,6 +50,7 @@ export function createForeignJsxOverridePlugin(options: ForeignJsxOverrideOption
 
 	return {
 		name: options.name ?? 'foreign-jsx-override',
+		cacheKey: JSON.stringify([options.hostJsxImportSource, extensions, excludedExtensions]),
 		setup(build) {
 			build.onLoad({ filter }, (args) => {
 				if (excludedExtensions.some((extension) => args.path.endsWith(extension))) {

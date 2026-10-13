@@ -22,6 +22,8 @@ export interface EcoSourceTransform {
 	filter: RegExp;
 	/** Runs before default transforms, or after them when set to `post`. */
 	enforce?: 'pre' | 'post';
+	/** Copied to {@link EcoBuildPlugin.cacheKey} by {@link createEcoBuildPluginFromSourceTransform}. */
+	cacheKey?: string;
 	transform(code: string, id: string): EcoSourceTransformResult | string | undefined;
 }
 
@@ -74,6 +76,7 @@ function getSourceTransformEnforceOrder(transform: EcoSourceTransform): number {
 export function createEcoBuildPluginFromSourceTransform(transform: EcoSourceTransform): EcoBuildPlugin {
 	return {
 		name: transform.name,
+		cacheKey: transform.cacheKey,
 		setup(build) {
 			build.transform({ filter: transform.filter }, (code, id) => {
 				return applySourceTransform(transform, code, id);

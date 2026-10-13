@@ -15,6 +15,7 @@ import type { StaticGenerationRendererResolver } from '../../../route-renderer/r
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { createBuildSuccess } from '../../../__fixtures__/build/build-result.ts';
 
 let tmpDir: string;
 
@@ -71,13 +72,10 @@ function createMockDependencies() {
 	const defaultBuildAdapter: BuildAdapter = {
 		ownership: 'rolldown',
 		async build(): Promise<BuildResult> {
-			return { success: true, logs: [], outputs: [] };
+			return createBuildSuccess();
 		},
 		resolve(importPath: string): string {
 			return importPath;
-		},
-		getTranspileOptions() {
-			return { target: 'node', format: 'esm', sourcemap: 'hidden' };
 		},
 	};
 	setAppBuildAdapter(AppConfig, defaultBuildAdapter);
@@ -487,13 +485,10 @@ describe('ServerStaticBuilder', () => {
 					ownership: 'rolldown',
 					async build(options: BuildOptions): Promise<BuildResult> {
 						buildCalls.push(options);
-						return { success: true, logs: [], outputs: [] };
+						return createBuildSuccess();
 					},
 					resolve(importPath: string): string {
 						return importPath;
-					},
-					getTranspileOptions() {
-						return { target: 'node', format: 'esm', sourcemap: 'hidden' };
 					},
 				};
 				setAppBuildAdapter(appConfig, buildAdapter);

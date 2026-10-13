@@ -3,9 +3,9 @@
  *
  * @remarks
  * The standard {@link RolldownBuildAdapter} uses these helpers for
- * BuildOptions → Rolldown mapping and dependency-graph extraction. Node
- * runtime specifiers are resolved as externals during the build, so named
- * output hashes cover the bytes that are written.
+ * BuildOptions → Rolldown mapping and dependency-graph extraction. Rolldown's
+ * node platform keeps Node builtins external, so named output hashes cover
+ * the bytes that are written.
  *
  * @module
  */
@@ -44,7 +44,8 @@ import type {
 	BuildFormat,
 	BuildOptions,
 	BuildOutput,
-	BuildResult,
+	BuildLog,
+	BuildSuccess,
 	BuildSourcemap,
 } from '../build-adapter.ts';
 
@@ -313,34 +314,6 @@ const nodeBuiltinFilter = new RegExp(
 );
 
 /**
- * Resolves Node builtins as external before Rolldown falls back to file resolution.
- *
- * @remarks
- * Rolldown documents two first-class externalization points: its `external`
- * option is checked before resolution, and a plugin `resolveId` hook can return
- * `{ id, external: true }`. Core uses the latter to keep Node-builtin ownership
- * explicit in the Node-target plugin pipeline.
- *
- * The hook runs before Rolldown's internal filesystem resolver, leaving imports
- * such as `node:fs` intact for the Node runtime. It is installed only for
- * Node-target builds, so browser bundles still surface accidental Node builtin
- * imports as resolver failures.
- *
- * See {@link https://rolldown.rs/in-depth/external-modules | Rolldown external modules}.
- */
-export function createNodeBuiltinExternalPlugin(): RolldownPlugin {
-	return {
-		name: 'ecopages-node-builtin-external',
-		resolveId: {
-			filter: [include(idFilter(nodeBuiltinFilter))],
-			handler(id) {
-				return isNodeBuiltinSpecifier(id) ? { id, external: true } : null;
-			},
-		},
-	};
-}
-
-/**
  * Rejects Node builtins and `.server` modules in browser-target builds.
  *
  * @remarks
@@ -455,39 +428,23 @@ function normalizeOutputPath(outputPath: string, outdir: string): string {
 	return path.isAbsolute(outputPath) ? path.normalize(outputPath) : path.normalize(path.join(outdir, outputPath));
 }
 
-const ROLLDOWN_LOG_KEYS = [
-	'binding',
-	'cause',
-	'code',
-	'exporter',
-	'hook',
-	'id',
-	'ids',
-	'loc',
-	'meta',
-	'names',
-	'plugin',
-	'pluginCode',
-	'pos',
-	'reexporter',
-	'url',
-] as const satisfies ReadonlyArray<keyof RolldownLog>;
+const BUILD_LOG_KEYS = ['code', 'hook', 'id', 'loc', 'plugin'] as const satisfies ReadonlyArray<keyof BuildLog>;
 
 /**
- * Copies the `RolldownLog` fields of a Rolldown error or warning into a plain log.
+ * Copies the {@link BuildLog} fields of a Rolldown error or warning into a plain log.
  *
  * @remarks
- * Other own fields, such as a PostCSS error's `source` or `postcssNode`, are left out. `message` and
+ * Other own fields, such as a PostCSS error's `source` or `postcssNode` or Rolldown's `binding` and `ids`, are left out. `message` and
  * `stack` are read explicitly because they are not enumerable on `Error` instances. Terminal colour codes
  * are stripped from `message` and `frame` so the log can be shown outside a terminal.
  */
-export function toBuildLog(entry: unknown): RolldownLog {
+export function toBuildLog(entry: unknown): BuildLog {
 	if (!entry || typeof entry !== 'object' || typeof (entry as RolldownLog).message !== 'string') {
 		return { message: 'Unknown build error' };
 	}
 	const source = entry as RolldownLog;
-	const log: RolldownLog = { message: stripVTControlCharacters(source.message) };
-	for (const key of ROLLDOWN_LOG_KEYS) {
+	const log: BuildLog = { message: stripVTControlCharacters(source.message) };
+	for (const key of BUILD_LOG_KEYS) {
 		if (source[key] !== undefined) {
 			Object.assign(log, { [key]: source[key] });
 		}
@@ -512,7 +469,7 @@ export function toBuildLog(entry: unknown): RolldownLog {
  * Only an unattributed `BundleError` is expanded. An `AggregateError` or an error an `EcoBuildPlugin`
  * threw is one failure and becomes one log.
  */
-export function toBuildLogs(error: unknown): RolldownLog[] {
+export function toBuildLogs(error: unknown): BuildLog[] {
 	const errors =
 		error instanceof Error && !(error instanceof AggregateError) && !getEcoBuildPluginName(error)
 			? (error as BundleError).errors
@@ -562,7 +519,6 @@ async function buildRolldownInputPlugins(
 					),
 				]
 			: []),
-		...(rolldownPlatform === 'node' ? [createNodeBuiltinExternalPlugin()] : []),
 		...(rolldownPlatform === 'browser' ? [createBrowserServerOnlyGuardPlugin()] : []),
 		...(options.environment === 'server' ? [createServerSideCssShimPlugin()] : []),
 		...appPlugins,
@@ -688,7 +644,7 @@ function isHashedSourceMap(fileName: string, hashedFileNames: ReadonlySet<string
 	return fileName.endsWith('.map') && hashedFileNames.has(fileName.slice(0, -'.map'.length));
 }
 
-/** Maps a Rolldown `output` to a normalized {@link BuildResult}. */
+/** Maps a Rolldown `output` to the output fields of a {@link BuildSuccess}. */
 export function buildResultFromRolldownOutput(
 	output: RolldownOutput,
 	outdir: string,
@@ -697,7 +653,7 @@ export function buildResultFromRolldownOutput(
 	entrypoints: BuildOptions['entrypoints'],
 	naming?: BuildOptions['naming'],
 	includeContent = false,
-): BuildResult {
+): Pick<BuildSuccess, 'success' | 'outputs' | 'dependencyGraph' | 'outputGraph' | 'entryOutputs'> {
 	const entryNamingHashed = Boolean(naming?.includes('[hash]'));
 	const hashedFileNames = new Set(
 		output.output.filter((entry) => isContentHashedOutput(entry, entryNamingHashed)).map((entry) => entry.fileName),
@@ -744,7 +700,6 @@ export function buildResultFromRolldownOutput(
 
 	return {
 		success: true,
-		logs: [],
 		outputs,
 		dependencyGraph,
 		outputGraph,

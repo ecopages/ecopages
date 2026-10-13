@@ -119,4 +119,67 @@ describe('explicit views rendered through real renderers', () => {
 		expect(staticProps).toHaveBeenCalledTimes(1);
 		expect(metadata).toHaveBeenCalledTimes(1);
 	});
+
+	it('keeps parallel renders on one integration separate', async () => {
+		const { plugin } = await createPlugin();
+		const handler = createRenderContext({ integrations: [plugin] });
+		const first = createView(() => '<p>first</p>');
+		const second = createView(() => '<p>second</p>');
+		const renderer = plugin.initializeRenderer() as unknown as ExplicitViewTestRenderer;
+
+		const [firstHtml, secondHtml, routeResult] = await Promise.all([
+			handler.render(first, {}).then((response) => response.text()),
+			handler.render(second, {}).then((response) => response.text()),
+			renderer.execute({
+				file: path.join(rootDir, 'src', 'pages', 'index.kita.tsx'),
+				pageModule: { default: createView(() => '<p>route</p>') },
+				params: {},
+				query: {},
+			}),
+		]);
+
+		expect(firstHtml).toContain('<p>first</p>');
+		expect(firstHtml).not.toContain('second');
+		expect(secondHtml).toContain('<p>second</p>');
+		expect(secondHtml).not.toContain('first');
+		expect(await new Response(routeResult.body as BodyInit).text()).toContain('<p>route</p>');
+	});
+
+	it('gives views without an identity file different route keys', async () => {
+		const { plugin } = await createPlugin();
+		const handler = createRenderContext({ integrations: [plugin] });
+		const execute = vi.spyOn(ExplicitViewTestRenderer.prototype, 'execute');
+		const anonymous = (label: string) => {
+			const view = (() => `<p>${label}</p>`) as unknown as EcoPageComponent<any> & EcoFunctionComponent<any, any>;
+			view.config = { integration: 'kitajs' };
+			return view;
+		};
+
+		const [one, two] = [anonymous('one'), anonymous('two')];
+		await handler.render(one, {});
+		await handler.render(two, {});
+		await handler.render(one, {});
+
+		const files = execute.mock.calls.map(([options]) => options.file);
+		expect(files[0]).not.toBe(files[1]);
+		expect(files[2]).toBe(files[0]);
+		execute.mockRestore();
+	});
+
+	it('builds no browser assets for a partial render', async () => {
+		const { plugin } = await createPlugin();
+		const handler = createRenderContext({ integrations: [plugin] });
+		const buildAssets = vi.spyOn(ExplicitViewTestRenderer.prototype as any, 'buildPageClientBrowserAssets');
+
+		const html = await (
+			await handler.renderPartial(
+				createView(() => '<p>fragment</p>'),
+				{},
+			)
+		).text();
+
+		expect(html).toContain('<p>fragment</p>');
+		expect(buildAssets).not.toHaveBeenCalled();
+		buildAssets.mockRestore();
+	});
 });

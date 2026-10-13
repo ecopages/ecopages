@@ -97,6 +97,25 @@ export type RouteModuleLoadOptions = {
 	bypassCache?: boolean;
 };
 
+const syntheticExplicitViewKeys = new WeakMap<object, string>();
+let nextSyntheticExplicitViewKey = 0;
+
+/**
+ * Stable route key for an explicit view that has no identity file.
+ *
+ * @remarks
+ * Caches keyed by route file, such as the page browser graph, must not treat two such views as one
+ * route, so each view object gets its own key.
+ */
+function getSyntheticExplicitViewKey(integrationName: string, view: object): string {
+	let key = syntheticExplicitViewKeys.get(view);
+	if (!key) {
+		key = `explicit:${integrationName}:${(nextSyntheticExplicitViewKey += 1)}`;
+		syntheticExplicitViewKeys.set(view, key);
+	}
+	return key;
+}
+
 /**
  * Response options for an explicit view render.
  */
@@ -786,20 +805,19 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Renders one explicit view through the route pipeline.
 	 *
 	 * @remarks
-	 * A partial render stays on `renderComponentWithForeignChildren`. A full render
+	 * A partial render stays on `renderComponentWithForeignChildren` and builds no browser
+	 * assets, because a fragment response carries none. A full render
 	 * goes through {@link IntegrationRenderer.executeExplicitView}, so it receives the
 	 * same layouts, metadata, and client plan as a filesystem Page.
 	 */
 	async renderExplicitView<P>(view: EcoComponent<P>, props: P, ctx: ExplicitViewRenderContext): Promise<Response> {
 		if (ctx.partial) {
 			const plan = collectPageClientPlan([{ component: view }], this.name);
-			const assets = await this.buildPageClientBrowserAssets(plan);
 			const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
 			const { value } = await runWithComponentRenderContext(
 				{
 					currentIntegration: this.name,
 					pageClientPlan: plan,
-					islandRenderAssetsByFile: assets.islandRenderAssetsByFile,
 				},
 				async () => {
 					const rendered = await this.renderComponentWithForeignChildren({
@@ -832,7 +850,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	): Promise<RouteRenderResult> {
 		const identity = getComponentIdentity(view);
 		return this.execute({
-			file: ctx.file ?? identity?.file ?? `explicit:${this.name}:${identity?.id ?? 'view'}`,
+			file: ctx.file ?? identity?.file ?? getSyntheticExplicitViewKey(this.name, view),
 			pageModule: { default: view },
 			params: ctx.params,
 			query: ctx.query,

@@ -52,11 +52,7 @@ import {
 	type DocumentShellComposeChildrenResult,
 	type DocumentShellLayoutInput,
 } from '@ecopages/core/route-renderer/orchestration/document-shell/document-shell-render.service';
-import {
-	asNonReactShellComponent,
-	getComponentRequires,
-	isReactManagedComponent,
-} from './component-ownership.ts';
+import { asNonReactShellComponent, getComponentRequires, isReactManagedComponent } from './component-ownership.ts';
 import {
 	buildHydrationProps,
 	renderComponentHtml,

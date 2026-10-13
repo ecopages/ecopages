@@ -2,6 +2,7 @@ import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import type { EcoSourceTransform } from '../plugins/source-transform.ts';
+import { createMappedSourceTransformResult } from './mapped-source-transform.ts';
 
 type AstNode = {
 	type?: string;
@@ -120,14 +121,6 @@ function collectImportMetaEdits(
 	return { edits, needsNodePath, pathBinding };
 }
 
-function applySourceEdits(code: string, edits: SourceEdit[]): string {
-	let transformed = code;
-	for (const edit of edits.sort((left, right) => right.start - left.start)) {
-		transformed = `${transformed.slice(0, edit.start)}${edit.replacement}${transformed.slice(edit.end)}`;
-	}
-	return transformed;
-}
-
 /**
  * Creates a source transform that keeps `import.meta.url`, `import.meta.dirname`
  * and `import.meta.filename` (and Bun's `dir`, `path` and `file`) of every bundled
@@ -162,10 +155,10 @@ export function createPreserveImportMetaTransform(runtimeDir: string): EcoSource
 			const { edits, needsNodePath, pathBinding } = collectImportMetaEdits(code, id, realRuntimeDir);
 			if (edits.length === 0) return undefined;
 
-			const transformed = applySourceEdits(code, edits);
-			return {
-				code: needsNodePath ? `import * as ${pathBinding} from 'node:path';\n${transformed}` : transformed,
-			};
+			return createMappedSourceTransformResult(code, id, (source) => {
+				for (const edit of edits) source.overwrite(edit.start, edit.end, edit.replacement);
+				if (needsNodePath) source.prepend(`import * as ${pathBinding} from 'node:path';\n`);
+			});
 		},
 	};
 }

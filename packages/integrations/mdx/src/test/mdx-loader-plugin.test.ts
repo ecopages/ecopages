@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { compile } from '@mdx-js/mdx';
+import sourceMap from 'source-map';
 import type {
 	EcoBuildOnLoadArgs,
 	EcoBuildOnLoadResult,
@@ -334,6 +335,34 @@ describe('createMdxLoaderPlugin', () => {
 		expect(result?.contents).toContain('post.css');
 		expect(result?.contents).not.toContain('ignored.css"]');
 		expect(result?.contents).toContain("import './ignored.css';");
+		expect(result?.contents).not.toContain('sourceMappingURL=');
+		const code = result?.contents as string;
+		const contentColumn = code.indexOf('Post Title');
+		const codeBeforePosition = code.slice(0, contentColumn);
+		const serializedMap = JSON.stringify(result?.map);
+		expect(serializedMap).toBeDefined();
+		const original = await sourceMap.SourceMapConsumer.with(serializedMap!, null, (consumer) =>
+			consumer.originalPositionFor({
+				line: codeBeforePosition.split('\n').length,
+				column: contentColumn - codeBeforePosition.lastIndexOf('\n') - 1,
+			}),
+		);
+		expect(original).toMatchObject({ line: 4, source: expect.stringContaining('post.mdx') });
+		expect(result?.map).toMatchObject({ sourcesContent: [expect.stringContaining('Post Title')] });
+	});
+
+	it('omits maps when includeSourceMap is disabled', async () => {
+		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-no-map-'));
+		tempDirs.push(tempDir);
+
+		const filePath = path.join(tempDir, 'page.mdx');
+		writeFileSync(filePath, '# Hello\n');
+		const { builder, getOnLoadCallback } = createBuilderHarness();
+		createMdxLoaderPlugin({ projectRoot: tempDir, includeSourceMap: false }).setup(builder);
+
+		const result = await getOnLoadCallback()({ path: filePath });
+
+		expect(result?.map).toBeUndefined();
 	});
 
 	it('re-runs discovery and reflects imported child changes even when MDX compile is cache-hit', async () => {

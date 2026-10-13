@@ -3,6 +3,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { originalPositionFor, TraceMap, type SourceMapInput } from '@jridgewell/trace-mapping';
+import MagicString from 'magic-string';
 import { rolldown, type LoadResult, type Plugin, type ResolveIdResult } from 'rolldown';
 import { test } from 'vitest';
 import { createRolldownPluginBridge } from './rolldown-plugin-bridge.ts';
@@ -328,6 +330,59 @@ test('createRolldownPluginBridge forwards a transform source map', async () => {
 	assert.equal(result?.map, map);
 });
 
+test('createRolldownPluginBridge forwards a source map from a load result', async () => {
+	const map = {
+		version: 3,
+		sources: ['/app/page.mdx'],
+		names: [],
+		mappings: 'AAAA',
+	};
+	const plugins: EcoBuildPlugin[] = [
+		{
+			name: 'mapped-loader',
+			setup(build) {
+				build.onLoad({ filter: /page\.mdx$/ }, () => ({ contents: 'export default 1;', loader: 'js', map }));
+			},
+		},
+	];
+
+	const [plugin] = await createRolldownPluginBridge(plugins, '/app');
+	const result = await callLoad(plugin!, '/app/page.mdx');
+
+	assert.equal(typeof result, 'object');
+	assert.equal(result && typeof result === 'object' && 'map' in result ? result.map : undefined, map);
+});
+
+test('createRolldownPluginBridge composes maps from chained transforms', async () => {
+	const filePath = '/app/page.ts';
+	const plugins: EcoBuildPlugin[] = ['first', 'second'].map((name) => ({
+		name,
+		setup(build) {
+			build.transform({ filter: /page\.ts$/ }, (code, id) => {
+				const source = new MagicString(code, { filename: id });
+				source.prepend(`${name};\n`);
+				return {
+					code: source.toString(),
+					map: source.generateMap({ source: id, includeContent: true, hires: 'boundary' }),
+				};
+			});
+		},
+	}));
+
+	const [plugin] = await createRolldownPluginBridge(plugins, '/app');
+	const result = await callTransform(plugin!, 'export const value = 1;', filePath);
+	assert.ok(result);
+	const mappedLine = result.code.split('\n').findIndex((line) => line.includes('export const value'));
+	assert.notEqual(mappedLine, -1);
+	const original = originalPositionFor(new TraceMap(result.map as SourceMapInput), {
+		line: mappedLine + 1,
+		column: result.code.split('\n')[mappedLine]!.indexOf('export const value'),
+	});
+
+	assert.equal(original.line, 1);
+	assert.match(original.source ?? '', /page\.ts$/);
+});
+
 test('createRolldownPluginBridge emits an empty map when a transform does not provide one', async () => {
 	const plugins: EcoBuildPlugin[] = [
 		{
@@ -346,6 +401,169 @@ test('createRolldownPluginBridge emits an empty map when a transform does not pr
 	const result = await callTransform(plugin, 'export const value = 1;', '/app/page.ts');
 
 	assert.equal(result?.code, '/* injected */\nexport const value = 1;');
+	assert.deepEqual(result?.map, { mappings: '' });
+});
+
+test('createRolldownPluginBridge does not reuse an earlier map after an unmapped rewrite', async () => {
+	const map = {
+		version: 3,
+		sources: ['/app/page.ts'],
+		names: [],
+		mappings: 'AAAA',
+	};
+	const plugins: EcoBuildPlugin[] = [
+		{
+			name: 'mapped-rewrite',
+			setup(build) {
+				build.transform({ filter: /page\.ts$/ }, (code) => ({ code, map }));
+			},
+		},
+		{
+			name: 'unmapped-rewrite',
+			setup(build) {
+				build.transform({ filter: /page\.ts$/ }, (code) => ({ code: `void 0;\n${code}` }));
+			},
+		},
+	];
+
+	const [plugin] = await createRolldownPluginBridge(plugins, '/app');
+	const result = await callTransform(plugin!, 'export const value = 1;', '/app/page.ts');
+
+	assert.deepEqual(result?.map, { mappings: '' });
+});
+
+for (const order of ['mapped-first', 'empty-first'] as const) {
+	test(`createRolldownPluginBridge treats an empty map as unmapped next to a mapped transform (${order})`, async () => {
+		const mapped: EcoBuildPlugin = {
+			name: 'mapped',
+			setup(build) {
+				build.transform({ filter: /page\.ts$/ }, (code, id) => {
+					const source = new MagicString(code, { filename: id });
+					source.prepend('mapped;\n');
+					return { code: source.toString(), map: source.generateMap({ source: id, hires: 'boundary' }) };
+				});
+			},
+		};
+		const empty: EcoBuildPlugin = {
+			name: 'empty',
+			setup(build) {
+				build.transform({ filter: /page\.ts$/ }, (code) => ({
+					code: `empty;\n${code}`,
+					map: { mappings: '' },
+				}));
+			},
+		};
+
+		const [plugin] = await createRolldownPluginBridge(
+			order === 'mapped-first' ? [mapped, empty] : [empty, mapped],
+			'/app',
+		);
+		const result = await callTransform(plugin!, 'export const value = 1;', '/app/page.ts');
+
+		assert.deepEqual(result?.map, { mappings: '' });
+	});
+}
+
+test('createRolldownPluginBridge forwards null maps to preserve an upstream map', async () => {
+	const plugins: EcoBuildPlugin[] = [
+		{
+			name: 'preserve-map',
+			setup(build) {
+				build.transform({ filter: /page\.ts$/ }, (code) => ({ code, map: null }));
+			},
+		},
+	];
+
+	const [plugin] = await createRolldownPluginBridge(plugins, '/app');
+	const result = await callTransform(plugin!, 'export const value = 1;', '/app/page.ts');
+
+	assert.equal(result?.map, null);
+});
+
+test('createRolldownPluginBridge composes a mapped rewrite after preserving the incoming map', async () => {
+	const plugins: EcoBuildPlugin[] = [
+		{
+			name: 'preserve-map',
+			setup(build) {
+				build.transform({ filter: /page\.ts$/ }, (code) => ({ code, map: null }));
+			},
+		},
+		{
+			name: 'mapped-rewrite',
+			setup(build) {
+				build.transform({ filter: /page\.ts$/ }, (code, id) => {
+					const source = new MagicString(code, { filename: id });
+					source.prepend('void 0;\n');
+					return {
+						code: source.toString(),
+						map: source.generateMap({ source: id, includeContent: true, hires: 'boundary' }),
+					};
+				});
+			},
+		},
+	];
+
+	const [plugin] = await createRolldownPluginBridge(plugins, '/app');
+	const result = await callTransform(plugin!, 'export const value = 1;', '/app/page.ts');
+	assert.ok(result);
+	const mappedLine = result.code.split('\n').findIndex((line) => line.includes('export const value'));
+	assert.notEqual(mappedLine, -1);
+	const original = originalPositionFor(new TraceMap(result.map as SourceMapInput), {
+		line: mappedLine + 1,
+		column: result.code.split('\n')[mappedLine]!.indexOf('export const value'),
+	});
+
+	assert.equal(original.line, 1);
+});
+
+test('createRolldownPluginBridge preserves mappings when a null-map transform keeps positions', async () => {
+	const plugins: EcoBuildPlugin[] = [
+		{
+			name: 'mapped-rewrite',
+			setup(build) {
+				build.transform({ filter: /page\.ts$/ }, (code) => ({
+					code,
+					map: { version: 3, sources: ['/app/page.ts'], names: [], mappings: 'AAAA' },
+				}));
+			},
+		},
+		{
+			name: 'unmapped-null-rewrite',
+			setup(build) {
+				build.transform({ filter: /page\.ts$/ }, (code) => ({
+					code: code.replace('value', 'other'),
+					map: null,
+				}));
+			},
+		},
+	];
+
+	const [plugin] = await createRolldownPluginBridge(plugins, '/app');
+	const result = await callTransform(plugin!, 'export const value = 1;', '/app/page.ts');
+
+	assert.equal(result?.code, 'export const other = 1;');
+	assert.deepEqual(result?.map, { version: 3, sources: ['/app/page.ts'], names: [], mappings: 'AAAA' });
+});
+
+test('createRolldownPluginBridge clears a preserved map after an unmapped rewrite', async () => {
+	const plugins: EcoBuildPlugin[] = [
+		{
+			name: 'preserve-map',
+			setup(build) {
+				build.transform({ filter: /page\.ts$/ }, (code) => ({ code, map: null }));
+			},
+		},
+		{
+			name: 'unmapped-rewrite',
+			setup(build) {
+				build.transform({ filter: /page\.ts$/ }, (code) => ({ code: `void 0;\n${code}` }));
+			},
+		},
+	];
+
+	const [plugin] = await createRolldownPluginBridge(plugins, '/app');
+	const result = await callTransform(plugin!, 'export const value = 1;', '/app/page.ts');
+
 	assert.deepEqual(result?.map, { mappings: '' });
 });
 

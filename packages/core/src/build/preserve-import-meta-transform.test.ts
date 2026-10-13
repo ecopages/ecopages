@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { originalPositionFor, TraceMap, type SourceMapInput } from '@jridgewell/trace-mapping';
 import { createPreserveImportMetaTransform } from './preserve-import-meta-transform.ts';
 
 function transformConfigSource(
@@ -47,6 +48,22 @@ describe('createPreserveImportMetaTransform', () => {
 
 		expect(transformed).toContain("import * as ___ecoServerPath from 'node:path'");
 		expect(transformed).toContain('new URL("../../eco.config.ts", import.meta.url).href');
+	});
+
+	it('maps rewritten import.meta expressions back to their source line', () => {
+		const filePath = '/project/eco.config.ts';
+		const source = '\nexport const root = import.meta.dirname;\n';
+		const result = createPreserveImportMetaTransform('/project/dist/.server').transform(source, filePath) as {
+			code: string;
+			map?: SourceMapInput;
+		};
+		const mappedLine = result.code.split('\n').findIndex((line) => line.includes('root ='));
+		const original = originalPositionFor(new TraceMap(result.map as SourceMapInput), {
+			line: mappedLine + 1,
+			column: result.code.split('\n')[mappedLine]!.indexOf('root ='),
+		});
+
+		expect(original).toMatchObject({ line: 2, source: expect.stringContaining('eco.config.ts') });
 	});
 
 	it('points import.meta.filename and Bun file properties at the source file', () => {

@@ -38,7 +38,7 @@ export async function bundleEcoConfigModule(
 		entrypoints: [configSourcePath],
 		outdir: outputDir,
 		naming: EMITTED_ECO_CONFIG_FILENAME,
-		sourcemap: 'hidden',
+		sourcemap: 'linked',
 		runtimeOutdir: runtimeDir,
 	});
 

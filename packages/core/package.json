@@ -30,17 +30,20 @@
 		"@ecopages/file-system": "workspace:*",
 		"@ecopages/logger": "^0.2.3",
 		"@ecopages/scripts-injector": "^0.1.5",
+		"@jridgewell/remapping": "^2.3.5",
+		"@standard-schema/spec": "^1.1.0",
+		"@standard-schema/utils": "^0.3.0",
 		"chokidar": "^5.0.0",
+		"magic-string": "^1.4.3",
 		"oxc-parser": "^0.141.0",
 		"oxc-resolver": "^11.24.2",
 		"rolldown": "^1.1.0",
-		"ws": "^8.20.1",
-		"@standard-schema/spec": "^1.1.0",
-		"@standard-schema/utils": "^0.3.0"
+		"ws": "^8.20.1"
 	},
 	"devDependencies": {
 		"@ecopages/dev-toolbar": "workspace:*",
 		"@ecopages/testing": "workspace:*",
+		"@jridgewell/trace-mapping": "^0.3.31",
 		"@tanstack/react-query": "^5.90.2",
 		"@types/ws": "^8.18.1",
 		"arktype": "^2.2.0",

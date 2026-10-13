@@ -124,9 +124,12 @@ Migration: move Integration `browserBuildPlugins` and Processor `buildPlugins` i
 `EcoBuildPluginBuilder` exposes four hooks:
 
 - `onResolve({ filter, namespace? }, callback)` — the bundler's `resolveId` mapped to the shared plugin shape.
-- `onLoad({ filter, namespace? }, callback)` — the bundler's `load` mapped the same way. The loaded `path` is recorded as a build input automatically. A `loader` of `js`, `jsx`, `ts` or `tsx` sets the module type, `object` builds a module from `exports`, and without a loader the type follows the file extension.
+- `onLoad({ filter, namespace? }, callback)` — the bundler's `load` mapped the same way. The loaded `path` is recorded as a build input automatically. A `loader` of `js`, `jsx`, `ts` or `tsx` sets the module type, `object` builds a module from `exports`, and without a loader the type follows the file extension. Rewritten contents can return `map` to preserve their original locations.
 - With a `namespace`, a filter matches only ids that start with `<namespace>:`, and is tested against the path after it.
-- `transform({ filter }, callback)` — the bundler's `transform` hook, for source rewrites that must run after `load` and can return a source map. When a rewrite omits a map, the bridge returns `{ mappings: '' }` so Rolldown does not warn that the sourcemap is likely incorrect.
+- `transform({ filter }, callback)` — the bundler's `transform` hook, for source rewrites that must run after `load` and can return a source map. The bridge composes maps from chained transforms in registration order. A rewrite that changes code without a map clears earlier mappings and returns `{ mappings: '' }`, so debug locations do not point at stale source positions; `map: null` declares that the transform does not move code and preserves an incoming Rolldown map.
+
+Core source transforms use MagicString to keep unchanged source locations through JSX pragma, component identity, and `import.meta` edits. `BuildOptions.sourcemap` accepts `none`, `inline`, `external`, `linked`, or `hidden`: `linked` writes a map and a `sourceMappingURL`, `external` and `hidden` write a map without a link, `inline` embeds it, and `none` disables it.
+
 - `module(specifier, callback)` — declares a virtual module by name, with bundler-side namespace encoding.
 
 App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins explicitly.

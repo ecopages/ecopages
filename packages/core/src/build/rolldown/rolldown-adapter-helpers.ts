@@ -37,7 +37,14 @@ import {
 	isDeclaredAppPackageImport,
 	isWorkspacePackageImport,
 } from './app-package-declarations.ts';
-import type { BuildDependencyGraph, BuildOptions, BuildOutput, BuildResult } from '../build-adapter.ts';
+import type {
+	BuildDependencyGraph,
+	BuildFormat,
+	BuildOptions,
+	BuildOutput,
+	BuildResult,
+	BuildSourcemap,
+} from '../build-adapter.ts';
 
 const coreSourceFile = fileURLToPath(import.meta.url);
 const nodeBuiltinSpecifiers = new Set(builtinModules);
@@ -353,7 +360,7 @@ export function createBrowserServerOnlyGuardPlugin(): RolldownPlugin {
 	};
 }
 
-function mapRolldownFormat(value: string | undefined): 'esm' | 'cjs' | 'iife' | undefined {
+function mapRolldownFormat(value: BuildFormat | undefined): 'esm' | 'cjs' | 'iife' | undefined {
 	switch (value) {
 		case 'cjs':
 			return 'cjs';
@@ -364,15 +371,17 @@ function mapRolldownFormat(value: string | undefined): 'esm' | 'cjs' | 'iife' | 
 	}
 }
 
-function mapRolldownSourcemap(value: string | undefined): boolean | 'inline' | 'hidden' {
+function mapRolldownSourcemap(value: BuildSourcemap | undefined): boolean | 'inline' | 'hidden' {
 	switch (value) {
 		case 'none':
 			return false;
 		case 'inline':
 			return 'inline';
 		case 'external':
-		case 'linked':
+		case 'hidden':
 			return 'hidden';
+		case 'linked':
+			return true;
 		default:
 			return true;
 	}

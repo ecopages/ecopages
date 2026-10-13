@@ -1,9 +1,10 @@
 /**
  * Kitchen-sink preview e2e — in-repo dist, no isolated workspace copy.
  *
- * Build once via `pnpm build:e2e:kitchen-sink` before Playwright. The Bun preview
- * serves `dist-preview-bun` from `ecopages build --runtime bun`. The Node preview
- * serves `dist/` from `ecopages build --runtime node`. Each webServer only serves.
+ * Build once via `pnpm build:e2e:kitchen-sink` before Playwright. The Node preview
+ * serves `dist/` from `ecopages build --runtime node` and runs every preview spec. The
+ * Bun build project serves `dist-bun-build` from `ecopages build --runtime bun` and runs
+ * only the dependency-discovery specs. Each webServer only serves.
  */
 import type { PlaywrightTestProject } from '@playwright/test';
 import { getEcopagesServerReadySignal } from './isolated-dev-server-ready.ts';
@@ -11,12 +12,19 @@ import { getDefaultWorkerCount } from './workers.ts';
 import type { FixtureModule, FixtureWebServer } from './define-fixture.ts';
 
 export const kitchenSinkPreviewTestMatch = 'playground/kitchen-sink/e2e/**/*.preview.test.e2e.ts';
+const bunBuildTestMatch = 'playground/kitchen-sink/e2e/dependency-discovery.preview.test.e2e.ts';
 
 const previewLauncher = 'node e2e/scripts/playwright/start-kitchen-sink-preview-server.mjs';
 
 const previewVariants = [
-	{ name: 'cross-integration-preview-e2e', port: 4008, runtime: 'bun', artifactScope: 'preview-bun' },
-	{ name: 'cross-integration-node-preview-e2e', port: 4011, runtime: 'node' },
+	{ name: 'cross-integration-preview-e2e', port: 4008, runtime: 'node', testMatch: kitchenSinkPreviewTestMatch },
+	{
+		name: 'cross-integration-bun-build-e2e',
+		port: 4011,
+		runtime: 'bun',
+		artifactScope: 'bun-build',
+		testMatch: bunBuildTestMatch,
+	},
 ] as const;
 
 type DesktopChromeUse = NonNullable<PlaywrightTestProject['use']>;
@@ -29,7 +37,7 @@ export function defineKitchenSinkPreviewFixture(
 
 	const projects: PlaywrightTestProject[] = previewVariants.map((variant) => ({
 		name: variant.name,
-		testMatch: kitchenSinkPreviewTestMatch,
+		testMatch: variant.testMatch,
 		workers: defaultWorkerCount,
 		timeout: 60_000,
 		use: {

@@ -77,7 +77,7 @@ Ecopages now discovers the document shell and error pages semantically:
 `eco.config.ts` has no field for these filenames. If no `pages/500.*` file or `app.serverError()` loader is configured, the page pipeline serves a built-in HTML 500 page. In development, custom and default 500 pages can show `message` and `stack` from the thrown error; the built-in page also includes a **Copy error** button.
 
 <ApiField name="distDir" type="string" defaultValue="dist">
-	The output directory for the built files. `ecopages start` discovers its `.server/manifest.json` when it is the only build output; use `ecopages start --dist-dir <dir>` to select it explicitly.
+	The output directory for the built files. `ecopages start` does not read it: it runs the only `<dir>/.server/manifest.json` one level below the app root. Use `ecopages start --dist-dir <dir>` when there are several outputs (such as `dist-<scope>` per build target) or the output is nested (`out/web`) or a symlink.
 </ApiField>
 
 <ApiField name="workDir" type="string" defaultValue=".eco">

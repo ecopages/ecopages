@@ -109,7 +109,7 @@ describe('NodeStaticContentServer', () => {
 		expect(hashed.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
 
 		const unhashed = await fetch(`http://127.0.0.1:${port}/assets/pages/api-lab.css`);
-		expect(unhashed.headers.get('cache-control')).toBeNull();
+		expect(unhashed.headers.get('cache-control')).toBe('public, max-age=0, must-revalidate');
 	});
 
 	it('uses the same cache, ETag, and gzip policy as the runtime file server', async () => {

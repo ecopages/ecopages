@@ -129,4 +129,4 @@ EcoPages automatically sets appropriate headers based on the chosen strategy.
 
 In development, HTML is always sent with `Cache-Control: no-store, must-revalidate`, whatever the strategy, so the browser never shows a page from before an edit.
 
-Static file responses use ETags for revalidation. In watch mode, stable non-HTML files use `Cache-Control: no-cache`. In production, only output paths recorded as content-addressed by the build receive `Cache-Control: public, max-age=31536000, immutable`; HTML files are always revalidated, regardless of their filename.
+Static file responses use ETags for revalidation. In watch mode, stable non-HTML files use `Cache-Control: no-cache`. In production, only output paths recorded as content-addressed by the build receive `Cache-Control: public, max-age=31536000, immutable`; every other file, such as `public` files, and HTML files regardless of their filename are revalidated with `Cache-Control: public, max-age=0, must-revalidate`. A pre-compressed `.gz` variant is sent only to clients that accept gzip, with `Vary: Accept-Encoding`.

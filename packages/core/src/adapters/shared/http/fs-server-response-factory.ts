@@ -67,16 +67,15 @@ export class FileSystemServerResponseFactory {
 
 		try {
 			const gzipPath = `${filePath}.gz`;
-			const useGzip =
-				this.shouldEnableGzip(contentType) &&
-				acceptsGzip(requestOptions.acceptEncoding) &&
-				fileSystem.exists(gzipPath);
+			const hasGzipVariant = this.shouldEnableGzip(contentType) && fileSystem.exists(gzipPath);
+			const useGzip = hasGzipVariant && acceptsGzip(requestOptions.acceptEncoding);
 			const file = fileSystem.readFileAsBuffer(useGzip ? gzipPath : filePath);
 			const cacheHeaders = this.fileCacheHeaders(filePath, file);
 			const headers: HeadersInit = {
 				'Content-Type': contentType,
 				...cacheHeaders,
-				...(useGzip ? { 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' } : {}),
+				...(useGzip ? { 'Content-Encoding': 'gzip' } : {}),
+				...(hasGzipVariant ? { Vary: 'Accept-Encoding' } : {}),
 			};
 			if (matchesIfNoneMatch(requestOptions.ifNoneMatch, cacheHeaders.ETag)) {
 				return new Response(null, { status: 304, headers });
@@ -101,8 +100,10 @@ export class FileSystemServerResponseFactory {
 	 * Returns shared cache headers for an emitted static file.
 	 *
 	 * @remarks
-	 * HTML keeps a stable URL and is always revalidated. Immutable caching is
-	 * based on the output registry populated by build writers, never the filename.
+	 * HTML keeps a stable URL and is always revalidated, and so does every file the
+	 * build did not record as content-hashed, such as public files and vendor
+	 * runtimes. Immutable caching is based on the output registry populated by
+	 * build writers, never the filename.
 	 */
 	private fileCacheHeaders(filePath: string, file: Buffer): HeadersInit & { ETag: string } {
 		const etag = `"${hashBrowserAssetBytes(file)}"`;
@@ -119,7 +120,7 @@ export class FileSystemServerResponseFactory {
 			return { 'Cache-Control': 'public, max-age=31536000, immutable', ETag: etag };
 		}
 
-		return { ETag: etag };
+		return { 'Cache-Control': 'public, max-age=0, must-revalidate', ETag: etag };
 	}
 }
 

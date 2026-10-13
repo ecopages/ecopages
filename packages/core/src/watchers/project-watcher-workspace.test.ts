@@ -57,8 +57,7 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 		symlinkSync(packageDir, path.join(rootDir, 'node_modules/@acme/ui'), 'dir');
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		installBuildRuntime(config);
-		const registry = () =>
-			new DevTransformVendorRegistry({ appConfig: config, getRuntimeSpecifierMap: () => new Map() });
+		const registry = () => new DevTransformVendorRegistry({ appConfig: config });
 		const running = registry();
 		const oldUrl = await running.resolveVendorUrl('@acme/ui');
 		const oldResponse = running.tryHandleVendorRequest(oldUrl);

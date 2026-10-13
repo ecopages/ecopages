@@ -6,7 +6,6 @@ import { getAppBrowserBuildPlugins } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-resolver.ts';
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
-import { resolveRuntimeSpecifierPublicPath } from '../../build/browser/browser-runtime-manifest.ts';
 import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { formatBuildLog } from '../../build/build-log.ts';
@@ -28,7 +27,6 @@ function getVendorBundleConditions(specifier: string): readonly string[] {
 
 export type DevTransformVendorRegistryOptions = {
 	appConfig: EcoPagesAppConfig;
-	getRuntimeSpecifierMap: () => ReadonlyMap<string, string>;
 	resolveVendorBundlePlugins?: () => Promise<readonly EcoBuildPlugin[]>;
 };
 
@@ -38,7 +36,6 @@ export type DevTransformVendorRegistryOptions = {
 export class DevTransformVendorRegistry {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly browserBundleService: BrowserBundleService;
-	private readonly getRuntimeSpecifierMap: () => ReadonlyMap<string, string>;
 	private readonly resolveVendorBundlePlugins?: () => Promise<readonly EcoBuildPlugin[]>;
 	private readonly cache = new Map<string, VendorEntry>();
 	private readonly inFlight = new Map<string, Promise<VendorEntry>>();
@@ -46,17 +43,10 @@ export class DevTransformVendorRegistry {
 	constructor(options: DevTransformVendorRegistryOptions) {
 		this.appConfig = options.appConfig;
 		this.browserBundleService = new BrowserBundleService(options.appConfig);
-		this.getRuntimeSpecifierMap = options.getRuntimeSpecifierMap;
 		this.resolveVendorBundlePlugins = options.resolveVendorBundlePlugins;
 	}
 
-	resolveKnownVendorUrl(specifier: string): string | undefined {
-		return resolveRuntimeSpecifierPublicPath(specifier, this.getRuntimeSpecifierMap());
-	}
-
 	async resolveVendorUrl(specifier: string): Promise<string> {
-		const known = this.resolveKnownVendorUrl(specifier);
-
 		const cached = this.cache.get(specifier);
 		if (cached) {
 			return cached.url;
@@ -67,9 +57,18 @@ export class DevTransformVendorRegistry {
 			return (await pending).url;
 		}
 
-		const promise = this.prebundleSpecifier(specifier, known).finally(() => {
-			this.inFlight.delete(specifier);
-		});
+		const promise: Promise<VendorEntry> = this.prebundleSpecifier(specifier)
+			.then((entry) => {
+				if (this.inFlight.get(specifier) === promise) {
+					this.cache.set(specifier, entry);
+				}
+				return entry;
+			})
+			.finally(() => {
+				if (this.inFlight.get(specifier) === promise) {
+					this.inFlight.delete(specifier);
+				}
+			});
 		this.inFlight.set(specifier, promise);
 		return (await promise).url;
 	}
@@ -112,18 +111,16 @@ export class DevTransformVendorRegistry {
 		});
 	}
 
-	private async prebundleSpecifier(specifier: string, knownUrl?: string): Promise<VendorEntry> {
+	private async prebundleSpecifier(specifier: string): Promise<VendorEntry> {
 		const resolvedEntry = this.resolvePackageEntry(specifier);
-		const fileName = knownUrl
-			? path.basename(new URL(knownUrl, 'http://ecopages.local').pathname)
-			: `${sanitizeSpecifierForFileName(specifier)}.${hashVendorSpecifier(specifier)}.js`;
-		const url = knownUrl ?? `/${RESOLVED_ASSETS_VENDORS_DIR}/${fileName}`;
+		const fileName = `${sanitizeSpecifierForFileName(specifier)}.${hashVendorSpecifier(specifier)}.js`;
+		const url = `/${RESOLVED_ASSETS_VENDORS_DIR}/${fileName}`;
 
 		const vendorPlugins = this.resolveVendorBundlePlugins ? await this.resolveVendorBundlePlugins() : [];
 		const result = await this.browserBundleService.bundle({
 			profile: 'browser-script',
 			entrypoints: [resolvedEntry.path],
-			outdir: path.join(this.appConfig.rootDir, '.eco', 'vendor-memory'),
+			outdir: path.join(this.appConfig.absolutePaths.workDir, 'vendor-memory'),
 			naming: fileName,
 			writeToDisk: false,
 			minify: false,
@@ -144,9 +141,7 @@ export class DevTransformVendorRegistry {
 		if (!output || typeof output.content !== 'string') {
 			throw new Error(`[dev-transform] Vendor prebundle produced no in-memory JavaScript for ${specifier}`);
 		}
-		const entry = { url, content: output.content };
-		this.cache.set(specifier, entry);
-		return entry;
+		return { url, content: output.content };
 	}
 
 	private resolvePackageEntry(specifier: string): { path: string } {

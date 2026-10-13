@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-resolver.ts';
+import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
 import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
 
 const tempRoots: string[] = [];
@@ -60,7 +61,6 @@ describe('DevTransformVendorRegistry', () => {
 		installBuildRuntime(config);
 		const registry = new DevTransformVendorRegistry({
 			appConfig: config,
-			getRuntimeSpecifierMap: () => new Map(),
 		});
 
 		const url = await registry.resolveVendorUrl('@ecopages/core');
@@ -72,30 +72,6 @@ describe('DevTransformVendorRegistry', () => {
 		const code = await response.text();
 		expect(code).not.toMatch(/node:(?:fs|path|async_hooks|crypto)/);
 		expect(code).toMatch(/eco/);
-	});
-
-	it('does not alias package subpaths to a root runtime vendor', async () => {
-		const rootDir = createTempRoot('dev-transform-vendor-subpath');
-		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
-		fs.writeFileSync(
-			path.join(rootDir, 'package.json'),
-			JSON.stringify({ name: 'dev-transform-vendor-subpath', type: 'module' }, null, 2),
-			'utf8',
-		);
-
-		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildRuntime(config);
-		const registry = new DevTransformVendorRegistry({
-			appConfig: config,
-			getRuntimeSpecifierMap: () => new Map([['@acme/ui', '/assets/vendors/acme-ui.development.js']]),
-		});
-
-		const vendorsDir = path.join(config.absolutePaths.distDir, 'assets', 'vendors');
-		fs.mkdirSync(vendorsDir, { recursive: true });
-		const vendorPath = path.join(vendorsDir, 'acme-ui.development.js');
-		fs.writeFileSync(vendorPath, 'export const shared = 1;');
-
-		expect(registry.resolveKnownVendorUrl('@acme/ui/button')).toBeUndefined();
 	});
 
 	it('reports an actionable error when a bare import resolves to a server-only entry', async () => {
@@ -127,7 +103,6 @@ describe('DevTransformVendorRegistry', () => {
 		installBuildRuntime(config);
 		const registry = new DevTransformVendorRegistry({
 			appConfig: config,
-			getRuntimeSpecifierMap: () => new Map(),
 		});
 
 		await expect(registry.resolveVendorUrl('@ecopages/react')).rejects.toThrow('resolved to a server-only entry');
@@ -160,7 +135,6 @@ describe('DevTransformVendorRegistry', () => {
 		installBuildRuntime(config);
 		const registry = new DevTransformVendorRegistry({
 			appConfig: config,
-			getRuntimeSpecifierMap: () => new Map(),
 		});
 
 		const url = await registry.resolveVendorUrl('@ecopages/core');
@@ -169,6 +143,57 @@ describe('DevTransformVendorRegistry', () => {
 		const response = registry.tryHandleVendorRequest(url);
 		assert.ok(response);
 		expect(await response.text()).toContain('eco');
+	});
+
+	async function createFixtureLibRegistry() {
+		const rootDir = createTempRoot('dev-transform-vendor-concurrency');
+		fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
+		fs.writeFileSync(
+			path.join(rootDir, 'package.json'),
+			JSON.stringify({ name: 'dev-transform-vendor-concurrency', type: 'module' }),
+			'utf8',
+		);
+		const packageDir = path.join(rootDir, 'node_modules', 'fixture-lib');
+		fs.mkdirSync(packageDir, { recursive: true });
+		fs.writeFileSync(
+			path.join(packageDir, 'package.json'),
+			JSON.stringify({ name: 'fixture-lib', version: '1.0.0', type: 'module', module: 'index.js' }),
+		);
+		fs.writeFileSync(path.join(packageDir, 'index.js'), "export const release = 'one';\n");
+
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		installBuildRuntime(config);
+		return new DevTransformVendorRegistry({ appConfig: config });
+	}
+
+	it('builds a vendor bundle once for concurrent requests', async () => {
+		const registry = await createFixtureLibRegistry();
+		const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+
+		const urls = await Promise.all([
+			registry.resolveVendorUrl('fixture-lib'),
+			registry.resolveVendorUrl('fixture-lib'),
+			registry.resolveVendorUrl('fixture-lib'),
+		]);
+
+		expect(new Set(urls).size).toBe(1);
+		expect(bundle).toHaveBeenCalledTimes(1);
+		await registry.resolveVendorUrl('fixture-lib');
+		expect(bundle).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not cache a build that finished after the registry was invalidated', async () => {
+		const registry = await createFixtureLibRegistry();
+		const bundle = vi.spyOn(BrowserBundleService.prototype, 'bundle');
+
+		const stale = registry.resolveVendorUrl('fixture-lib');
+		registry.invalidateAll();
+		const url = await stale;
+
+		expect(registry.tryHandleVendorRequest(url)).toBeNull();
+		await registry.resolveVendorUrl('fixture-lib');
+		expect(bundle).toHaveBeenCalledTimes(2);
+		expect(registry.tryHandleVendorRequest(url)).not.toBeNull();
 	});
 
 	it.each([
@@ -200,8 +225,7 @@ describe('DevTransformVendorRegistry', () => {
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		installBuildRuntime(config);
-		const createRegistry = () =>
-			new DevTransformVendorRegistry({ appConfig: config, getRuntimeSpecifierMap: () => new Map() });
+		const createRegistry = () => new DevTransformVendorRegistry({ appConfig: config });
 
 		installVersion('1.0.0');
 		const oldUrl = await createRegistry().resolveVendorUrl(fixture.importName);
@@ -241,8 +265,7 @@ describe('DevTransformVendorRegistry', () => {
 			fs.writeFileSync(path.join(dependencyDir, 'index.js'), `export const release = ${release};\n`);
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		installBuildRuntime(config);
-		const createRegistry = () =>
-			new DevTransformVendorRegistry({ appConfig: config, getRuntimeSpecifierMap: () => new Map() });
+		const createRegistry = () => new DevTransformVendorRegistry({ appConfig: config });
 		const readRelease = async (registry: DevTransformVendorRegistry, url: string) => {
 			const response = registry.tryHandleVendorRequest(url);
 			assert.ok(response);
@@ -291,8 +314,7 @@ describe('DevTransformVendorRegistry', () => {
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		installBuildRuntime(config);
-		const createRegistry = () =>
-			new DevTransformVendorRegistry({ appConfig: config, getRuntimeSpecifierMap: () => new Map() });
+		const createRegistry = () => new DevTransformVendorRegistry({ appConfig: config });
 		const readServed = async (registry: DevTransformVendorRegistry, url: string) => {
 			const response = registry.tryHandleVendorRequest(url);
 			assert.ok(response);
@@ -336,7 +358,7 @@ describe('DevTransformVendorRegistry', () => {
 		);
 		fs.writeFileSync(path.join(rootDir, 'node_modules', 'fixture-lib', 'index.js'), 'export const release = 1;');
 		installBuildRuntime(config);
-		const registry = new DevTransformVendorRegistry({ appConfig: config, getRuntimeSpecifierMap: () => new Map() });
+		const registry = new DevTransformVendorRegistry({ appConfig: config });
 		const url = await registry.resolveVendorUrl('fixture-lib');
 
 		const response = registry.tryHandleVendorRequest(url);

@@ -156,6 +156,32 @@ describe('FileSystemServerResponseFactory', () => {
 			}
 			expect(response.headers.get('Content-Type')).toBe('text/css');
 			expect(response.headers.get('Content-Encoding')).toBe('gzip');
+			expect(response.headers.get('Vary')).toBe('Accept-Encoding');
+		});
+
+		it.each([
+			{ name: 'a client that does not accept gzip', acceptEncoding: undefined, hasGzipVariant: true, vary: true },
+			{
+				name: 'a gzip-eligible file without a gzip variant',
+				acceptEncoding: 'gzip',
+				hasGzipVariant: false,
+				vary: false,
+			},
+		])('sets Vary only when a gzip variant exists: $name', async ({ acceptEncoding, hasGzipVariant, vary }) => {
+			const cssFilePath = `${appConfig.absolutePaths.distDir}/${FIXTURE_EXISTING_CSS_FILE_IN_DIST}`;
+			const existsSpy = vi
+				.spyOn(fileSystem, 'exists')
+				.mockImplementation((filePath) => hasGzipVariant && filePath === `${cssFilePath}.gz`);
+			const readFileAsBufferSpy = vi
+				.spyOn(fileSystem, 'readFileAsBuffer')
+				.mockReturnValue(Buffer.from('body{color:red}'));
+			const response = await responseFactory.createFileResponse(cssFilePath, 'text/css', { acceptEncoding });
+			existsSpy.mockRestore();
+			readFileAsBufferSpy.mockRestore();
+
+			if (!response) throw new Error('Expected CSS file response');
+			expect(response.headers.get('Content-Encoding')).toBeNull();
+			expect(response.headers.get('Vary')).toBe(vary ? 'Accept-Encoding' : null);
 		});
 
 		it('respects an explicit gzip exclusion over the wildcard encoding', async () => {
@@ -210,7 +236,7 @@ describe('FileSystemServerResponseFactory', () => {
 			expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
 		});
 
-		it('does not send immutable Cache-Control for an unrecorded public asset', async () => {
+		it('revalidates an unrecorded public asset instead of leaving it to heuristic caching', async () => {
 			const readFileAsBufferSpy = vi
 				.spyOn(fileSystem, 'readFileAsBuffer')
 				.mockReturnValue(Buffer.from('body{color:red}'));
@@ -223,7 +249,8 @@ describe('FileSystemServerResponseFactory', () => {
 			if (!response) {
 				throw new Error('Expected unhashed asset response');
 			}
-			expect(response.headers.get('Cache-Control')).toBeNull();
+			expect(response.headers.get('Cache-Control')).toBe('public, max-age=0, must-revalidate');
+			expect(response.headers.get('Cache-Control')).not.toContain('immutable');
 		});
 
 		it('revalidates exported HTML and never marks it immutable', async () => {

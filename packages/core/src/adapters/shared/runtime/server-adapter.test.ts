@@ -109,7 +109,7 @@ class TestSharedServerAdapter extends SharedServerAdapter<any, ServerAdapterResu
 	}
 
 	public createPageCacheServiceForTest() {
-		return this.createSharedPageCacheServiceFromConfig();
+		return this['createSharedPageCacheServiceFromConfig']();
 	}
 
 	constructor(rootDir: string, appConfig?: EcoPagesAppConfig, options: { watch?: boolean } = {}) {

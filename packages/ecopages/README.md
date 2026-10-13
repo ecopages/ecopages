@@ -36,7 +36,7 @@ bun dev
 > [!NOTE]
 > The entry file defaults to `app.ts`. Override it with `--entry-file`.
 
-`ecopages start` reads the output directory from the server bundle manifest. If exactly one `<dir>/.server/manifest.json` exists one level below the app root, it is selected automatically; pass `--dist-dir <dir>` to select a directory explicitly or resolve multiple builds.
+`ecopages start` does not load `eco.config.ts`, so it finds the build output by looking for `.server/manifest.json` one level below the app root (dot-prefixed directories included). It uses the only match, fails with the matches listed when there are several, and fails with "run `ecopages build`" when there is none. Pass `--dist-dir <dir>` to select a directory, which is required for nested (`out/web`) and symlinked outputs and whenever the app builds several outputs, such as `dist-<scope>` per build target.
 
 ### Templates
 

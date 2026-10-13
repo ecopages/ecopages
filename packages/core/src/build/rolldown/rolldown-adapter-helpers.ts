@@ -632,6 +632,35 @@ export async function resolveRolldownOptions(
 	};
 }
 
+/**
+ * Whether Rolldown put a content hash in the name of this output.
+ *
+ * @remarks
+ * Chunks that are not entries use `chunkFileNames` (`[name]-[hash].js`), and entries only hash when the request's
+ * naming template has `[hash]`. A named asset follows `assetFileNames` (`[name]-[hash][extname]`), so it counts
+ * when its file name is its own name plus a hash; an asset emitted with a fixed `fileName` does not. Source maps
+ * are decided with their chunk by {@link isHashedSourceMap}.
+ */
+function isContentHashedOutput(entry: RolldownOutput['output'][number], entryNamingHashed: boolean): boolean {
+	if (entry.type === 'chunk') return entry.isEntry ? entryNamingHashed : true;
+
+	const fileName = path.posix.basename(entry.fileName);
+	return entry.names.some((name) => {
+		const extension = path.posix.extname(name);
+		const stem = path.posix.basename(name, extension);
+		return (
+			fileName.startsWith(`${stem}-`) &&
+			fileName.endsWith(extension) &&
+			/^[A-Za-z0-9_-]+$/u.test(fileName.slice(stem.length + 1, fileName.length - extension.length))
+		);
+	});
+}
+
+/** A `.map` file is as content-hashed as the output it describes. */
+function isHashedSourceMap(fileName: string, hashedFileNames: ReadonlySet<string>): boolean {
+	return fileName.endsWith('.map') && hashedFileNames.has(fileName.slice(0, -'.map'.length));
+}
+
 /** Maps a Rolldown `output` to a normalized {@link BuildResult}. */
 export function buildResultFromRolldownOutput(
 	output: RolldownOutput,
@@ -642,8 +671,12 @@ export function buildResultFromRolldownOutput(
 	naming?: BuildOptions['naming'],
 	includeContent = false,
 ): BuildResult {
+	const entryNamingHashed = Boolean(naming?.includes('[hash]'));
+	const hashedFileNames = new Set(
+		output.output.filter((entry) => isContentHashedOutput(entry, entryNamingHashed)).map((entry) => entry.fileName),
+	);
 	const outputs: BuildOutput[] = output.output.map((entry) => {
-		const contentHashed = entry.type === 'asset' || !entry.isEntry || Boolean(naming?.includes('[hash]'));
+		const contentHashed = hashedFileNames.has(entry.fileName) || isHashedSourceMap(entry.fileName, hashedFileNames);
 		const normalized: BuildOutput = {
 			path: normalizeOutputPath(entry.fileName, outdir),
 			contentHashed,

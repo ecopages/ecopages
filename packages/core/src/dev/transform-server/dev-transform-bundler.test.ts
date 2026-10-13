@@ -49,7 +49,6 @@ describe('DevTransformBundler', () => {
 		installBuildRuntime(config);
 		const vendorRegistry = new DevTransformVendorRegistry({
 			appConfig: config,
-			getRuntimeSpecifierMap: () => new Map(),
 		});
 		const bundler = new DevTransformBundler({
 			appConfig: config,
@@ -91,7 +90,6 @@ describe('DevTransformBundler', () => {
 			getRuntimeSpecifierMap: () => new Map(),
 			vendorRegistry: new DevTransformVendorRegistry({
 				appConfig: config,
-				getRuntimeSpecifierMap: () => new Map(),
 			}),
 		});
 
@@ -128,7 +126,6 @@ describe('DevTransformBundler', () => {
 			getRuntimeSpecifierMap: () => new Map(),
 			vendorRegistry: new DevTransformVendorRegistry({
 				appConfig: config,
-				getRuntimeSpecifierMap: () => new Map(),
 			}),
 		});
 
@@ -163,7 +160,6 @@ describe('DevTransformBundler', () => {
 			getRuntimeSpecifierMap: () => new Map(),
 			vendorRegistry: new DevTransformVendorRegistry({
 				appConfig: config,
-				getRuntimeSpecifierMap: () => new Map(),
 			}),
 		});
 
@@ -215,7 +211,6 @@ describe('DevTransformBundler', () => {
 			getRuntimeSpecifierMap: () => new Map(),
 			vendorRegistry: new DevTransformVendorRegistry({
 				appConfig: config,
-				getRuntimeSpecifierMap: () => new Map(),
 			}),
 		});
 

@@ -37,6 +37,11 @@ import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
 import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
 import {
+	type PreparedComponentGraphNode,
+	type PreparedRouteComponentGraphs,
+} from './ownership-graph/component-graph.ts';
+import { collectComponentGraphWatchPaths } from './ownership-graph/component-graph-collectors.ts';
+import {
 	collectPageClientPlan,
 	planCoversComponents,
 	planHasForeignChildDescendants,
@@ -118,6 +123,10 @@ function getSyntheticExplicitViewKey(integrationName: string, view: object): str
 	return key;
 }
 
+function createPrebuiltRoutePreparationKey(input: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>): string {
+	return JSON.stringify([input.file, createPageDependencyInstanceKey({ params: input.params, query: input.query })]);
+}
+
 /**
  * Response options for an explicit view render.
  */
@@ -146,6 +155,13 @@ export {
 } from './ownership-graph/page-client-plan.ts';
 export type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
 
+type PrebuiltRoutePreparation = {
+	resolvedInputs: RouteRenderOrchestratorResolvedInputs;
+	graphContext: PageBrowserGraphContributionContext;
+	resolvedPageDependencies: ResolvedPageDependencies | undefined;
+	componentGraphs: PreparedRouteComponentGraphs;
+};
+
 /**
  * The IntegrationRenderer class is an abstract class that provides a base for rendering integration-specific components in the EcoPages framework.
  * It handles the import of page files, collection of dependencies, and preparation of render options.
@@ -165,6 +181,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected routeRenderOrchestrator: RouteRenderOrchestrator;
 	protected readonly foreignSubtreeExecutionService: ForeignSubtreeExecutionService =
 		new ForeignSubtreeExecutionService();
+	private readonly prebuiltRoutePreparations = new Map<string, PrebuiltRoutePreparation>();
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
 
@@ -206,13 +223,41 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			query?: RouteRendererOptions['query'];
 		}>,
 	): Promise<GroupedGraphBuildPlan> {
+		await this.ensureIntegrationRuntimeActivated();
+		this.prebuiltRoutePreparations.clear();
 		const builtInstances = await Promise.all(
 			instances.map(async (routeInstance) => {
-				const context = await this.buildPageBrowserGraphContributionContext(
-					routeInstance.routeFile,
-					routeInstance,
-				);
-				const resolvedPageDependencies = await this.resolvePageDependencies(context);
+				const routeOptions = {
+					file: routeInstance.routeFile,
+					params: routeInstance.params,
+					query: routeInstance.query,
+				};
+				const resolvedInputs = await this.resolveRouteRenderInputs(routeOptions);
+				const graphPreparation = await this.routeRenderOrchestrator.prepareRouteGraphContext({
+					routeOptions,
+					resolvedInputs,
+					props: resolvedInputs.props,
+					adapter: this.createRouteRenderOrchestratorAdapter(),
+				});
+				const {
+					graphContext: context,
+					resolvedPageDependencies,
+					shellGraph,
+					shellDependencyComponents,
+					graph,
+				} = graphPreparation;
+				const componentGraphs = {
+					shellGraph,
+					shellDependencyComponents,
+					graph,
+					ownershipValidated: true,
+				};
+				this.prebuiltRoutePreparations.set(createPrebuiltRoutePreparationKey(routeOptions), {
+					resolvedInputs,
+					graphContext: context,
+					resolvedPageDependencies,
+					componentGraphs,
+				});
 				return {
 					routeFile: routeInstance.routeFile,
 					dependencyInstanceKey: context.dependencyInstanceKey ?? '',
@@ -229,6 +274,27 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			planKey: createGroupedGraphBuildPlanKey(this.name, builtInstances),
 			instances: builtInstances,
 		};
+	}
+
+	private getPrebuiltRoutePreparation(routeOptions: RouteRendererOptions): PrebuiltRoutePreparation | undefined {
+		if (routeOptions.pageModule || routeOptions.props || routeOptions.skipStaticProps) {
+			return undefined;
+		}
+
+		return this.prebuiltRoutePreparations.get(createPrebuiltRoutePreparationKey(routeOptions));
+	}
+
+	private getPrebuiltRouteComponentGraphs(
+		routeOptions: RouteRendererOptions,
+	): PreparedRouteComponentGraphs | undefined {
+		return this.getPrebuiltRoutePreparation(routeOptions)?.componentGraphs;
+	}
+
+	/**
+	 * Drops a production prebuild result when static export skips that route.
+	 */
+	clearPrebuiltRoutePreparation(input: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>): void {
+		this.prebuiltRoutePreparations.delete(createPrebuiltRoutePreparationKey(input));
 	}
 
 	/**
@@ -310,7 +376,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		groupedBuildPlan?: GroupedGraphBuildPlan,
 	): Promise<PageBrowserGraphResult | undefined> {
 		const graphContext = await this.buildPageBrowserGraphContributionContext(filePath, routeOptions);
-		const resolvedPageDependencies = await this.resolvePageDependencies(graphContext);
+		const resolvedPageDependencies = await this.resolvePageDependenciesForContext(graphContext, {
+			file: filePath,
+			params: routeOptions?.params,
+			query: routeOptions?.query,
+		});
 
 		return await this.routeRenderOrchestrator.resolveDeclaredPageBrowserGraph({
 			routeFile: filePath,
@@ -584,12 +654,17 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 */
 	protected async resolveDependencies(
 		components: (EcoComponent | Partial<EcoComponent>)[],
+		options?: { preparedGraph?: true },
 	): Promise<ProcessedAsset[]> {
-		const componentDeps = await this.processComponentDependencies(components);
+		const componentDeps = await this.processComponentDependencies(components, options);
+		return this.prependResolvedIntegrationDependencies(componentDeps);
+	}
+
+	private prependResolvedIntegrationDependencies(componentDependencies: ProcessedAsset[]): ProcessedAsset[] {
 		const integrationDependencies =
 			getComponentRenderContext()?.session?.resolvedIntegrationDependencies ??
 			this.resolvedIntegrationDependencies;
-		return integrationDependencies.concat(componentDeps);
+		return integrationDependencies.concat(componentDependencies);
 	}
 
 	/**
@@ -600,7 +675,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 */
 	protected async processComponentDependencies(
 		components: (EcoComponent | Partial<EcoComponent>)[],
+		options?: { preparedGraph?: true },
 	): Promise<ProcessedAsset[]> {
+		if (options?.preparedGraph) {
+			return this.dependencyResolverService.processPreparedComponentDependencies(components, this.name);
+		}
+
 		return this.dependencyResolverService.processComponentDependencies(components, this.name);
 	}
 
@@ -621,7 +701,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			resolveRouteDependencies: (input) => this.resolveRouteDependencies(input),
 			importPageFile: (file) => this.importPageFile(file),
 			collectPageBrowserGraphContribution: (context) => this.collectPageBrowserGraphContribution(context),
-			resolvePageDependencies: (context) => this.resolvePageDependencies(context),
+			resolvePageDependencies: (context, routeOptions) =>
+				this.resolvePageDependenciesForRoute(context, routeOptions),
+			getPrebuiltRouteComponentGraphs: (routeOptions) => this.getPrebuiltRouteComponentGraphs(routeOptions),
+			resolvePageDependencyContribution: (input) => this.resolvePageDependencyContribution(input),
 			buildPageBrowserGraphContributionContext: (routeFile, routeOptions) =>
 				this.buildPageBrowserGraphContributionContext(routeFile, routeOptions),
 			renderRouteBody: (renderOptions) => this.renderRouteBody(renderOptions),
@@ -644,6 +727,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected async resolveRouteRenderInputs(
 		routeOptions: RouteRendererOptions,
 	): Promise<RouteRenderOrchestratorResolvedInputs> {
+		const prebuiltPreparation = this.getPrebuiltRoutePreparation(routeOptions);
+		if (prebuiltPreparation) {
+			return prebuiltPreparation.resolvedInputs;
+		}
+
 		const resolvedPageModule = await this.pageModuleLoaderService.resolvePageModule({
 			file: routeOptions.file,
 			pageModule: routeOptions.pageModule,
@@ -675,6 +763,19 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		routeFile: string,
 		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query' | 'pageModule'>,
 	): Promise<PageBrowserGraphContributionContext> {
+		if (!routeOptions?.pageModule) {
+			const prebuiltPreparation = this.prebuiltRoutePreparations.get(
+				createPrebuiltRoutePreparationKey({
+					file: routeFile,
+					params: routeOptions?.params,
+					query: routeOptions?.query,
+				}),
+			);
+			if (prebuiltPreparation) {
+				return prebuiltPreparation.graphContext;
+			}
+		}
+
 		const { module: pageModule, ...resolvedPageModule } = await this.pageModuleLoaderService.resolvePageModule({
 			file: routeFile,
 			pageModule: routeOptions?.pageModule,
@@ -710,12 +811,55 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		);
 	}
 
+	private async resolvePageDependencyContribution(input: {
+		nodes: ReadonlyArray<PreparedComponentGraphNode>;
+		ownerFile: string;
+	}): Promise<PageBrowserGraphContribution | undefined> {
+		return this.resolvePageBrowserGraphContributionFromComponents(
+			input.nodes.map((node) => node.component),
+			input.ownerFile,
+			input.nodes,
+		);
+	}
+
+	private async resolvePageDependenciesForRoute(
+		context: PageBrowserGraphContributionContext,
+		routeOptions: RouteRendererOptions,
+	): Promise<ResolvedPageDependencies | undefined> {
+		const preparation = this.getPrebuiltRoutePreparation(routeOptions);
+		if (preparation) {
+			return preparation.resolvedPageDependencies;
+		}
+
+		return resolvePageDependenciesFromContext(context, this.name);
+	}
+
+	private async resolvePageDependenciesForContext(
+		context: PageBrowserGraphContributionContext,
+		routeOptions: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>,
+	): Promise<ResolvedPageDependencies | undefined> {
+		const preparation = this.getPrebuiltRoutePreparation(routeOptions);
+		if (preparation) {
+			return preparation.resolvedPageDependencies;
+		}
+
+		return this.resolvePageDependencies(context);
+	}
+
 	protected async resolvePageBrowserGraphContributionFromComponents(
 		components: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
 		ownerFile: string,
+		preparedNodes?: ReadonlyArray<PreparedComponentGraphNode>,
 	): Promise<PageBrowserGraphContribution | undefined> {
 		if (components.length === 0) {
 			return undefined;
+		}
+
+		if (preparedNodes) {
+			return {
+				assets: await this.processComponentDependencies([...components], { preparedGraph: true }),
+				watchPaths: collectComponentGraphWatchPaths(preparedNodes, [ownerFile]),
+			};
 		}
 
 		return {
@@ -728,7 +872,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		components: (EcoComponent | Partial<EcoComponent>)[];
 	}): Promise<{ resolvedDependencies: ProcessedAsset[] }> {
 		return {
-			resolvedDependencies: await this.resolveDependencies(input.components),
+			resolvedDependencies: await this.resolveDependencies(input.components, { preparedGraph: true }),
 		};
 	}
 
@@ -770,28 +914,35 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns Rendered route body plus effective cache strategy.
 	 */
 	public async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
-		await this.ensureIntegrationRuntimeActivated();
-		const session = createRenderSession(this.resolvedIntegrationDependencies);
-		const { value } = await runWithComponentRenderContext(
-			{
-				currentIntegration: this.name,
-				session,
-			},
-			async () => {
-				const adapter = this.createRouteRenderOrchestratorAdapter();
-				const renderOptions = await this.prepareRenderOptions(options, adapter);
-				const context = getComponentRenderContext();
-				if (context) {
-					context.pageClientPlan = renderOptions.pageClientPlan;
-					context.islandRenderAssetsByFile = renderOptions.islandRenderAssetsByFile;
-					context.pagePackage = renderOptions.pagePackage;
-				}
-				session.pagePackage = renderOptions.pagePackage;
-				session.processedDependencies = [...(renderOptions.pagePackage?.assets ?? [])];
-				return this.routeRenderOrchestrator.executePrepared(renderOptions, adapter);
-			},
-		);
-		return value;
+		const preparation = this.getPrebuiltRoutePreparation(options);
+		try {
+			await this.ensureIntegrationRuntimeActivated();
+			const session = createRenderSession(this.resolvedIntegrationDependencies);
+			const { value } = await runWithComponentRenderContext(
+				{
+					currentIntegration: this.name,
+					session,
+				},
+				async () => {
+					const adapter = this.createRouteRenderOrchestratorAdapter();
+					const renderOptions = await this.prepareRenderOptions(options, adapter);
+					const context = getComponentRenderContext();
+					if (context) {
+						context.pageClientPlan = renderOptions.pageClientPlan;
+						context.islandRenderAssetsByFile = renderOptions.islandRenderAssetsByFile;
+						context.pagePackage = renderOptions.pagePackage;
+					}
+					session.pagePackage = renderOptions.pagePackage;
+					session.processedDependencies = [...(renderOptions.pagePackage?.assets ?? [])];
+					return this.routeRenderOrchestrator.executePrepared(renderOptions, adapter);
+				},
+			);
+			return value;
+		} finally {
+			if (preparation) {
+				this.clearPrebuiltRoutePreparation(options);
+			}
+		}
 	}
 
 	/**

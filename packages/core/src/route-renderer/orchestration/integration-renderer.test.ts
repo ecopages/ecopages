@@ -1,10 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createPagePackage } from '../../services/assets/asset-processing-service/index.ts';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
+import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from './foreign-child/component-render-context.ts';
 import { createRenderSession } from './foreign-child/render-session.ts';
 import { IntegrationRenderer } from './integration-renderer.ts';
 import { collectPageClientPlan } from './ownership-graph/page-client-plan.ts';
+import type { PreparedComponentGraphNode } from './ownership-graph/component-graph.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import type {
@@ -27,6 +29,147 @@ import {
 } from './integration-renderer.test-fixtures.ts';
 
 describe('IntegrationRenderer', () => {
+	it('reuses production prebuild page data and prepares render options on demand', async () => {
+		const validateGraph = vi.spyOn(OwnershipValidationService.prototype, 'validateGraph');
+		const staticProps = vi.fn(async ({ pathname }: { pathname: { params: Record<string, string> } }) => ({
+			props: { slug: pathname.params.slug },
+		}));
+		const metadata = vi.fn(async ({ props }: { props: Record<string, unknown> }) => ({
+			title: String(props.slug),
+			description: 'Page description',
+		}));
+		const Page = Object.assign((() => 'page') as EcoPageComponent<Record<string, unknown>>, {
+			staticProps,
+			metadata,
+		});
+		const pageDependency = (() => 'dependency') as EcoComponent;
+		pageDependency.config = {
+			identity: { id: 'dependency', file: '/app/components/dependency.tsx', integration: 'test-renderer' },
+			dependencies: {},
+		};
+		const resolveDependencies = vi.fn(async () => ({ components: [pageDependency] }));
+		Page.resolveDependencies = resolveDependencies;
+		let preparedContributionHookCalls = 0;
+		let preparedDependencyCalls = 0;
+		const renderer = new (class extends TestIntegrationRenderer {
+			protected override async resolvePageBrowserGraphContributionFromComponents(
+				components: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
+				ownerFile: string,
+				preparedNodes?: ReadonlyArray<PreparedComponentGraphNode>,
+			) {
+				preparedContributionHookCalls += 1;
+				return super.resolvePageBrowserGraphContributionFromComponents(components, ownerFile, preparedNodes);
+			}
+
+			protected override async processComponentDependencies(
+				components: (EcoComponent | Partial<EcoComponent>)[],
+				options?: { preparedGraph?: true },
+			) {
+				if (options?.preparedGraph) {
+					preparedDependencyCalls += 1;
+				}
+				return super.processComponentDependencies(components, options);
+			}
+		})({
+			appConfig: testAppConfig,
+			assetProcessingService: testAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		const routeFile = '/app/pages/[slug].tsx';
+		const params = { slug: 'captured' };
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+
+		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([{ routeFile, params }]);
+		await renderer.prebuildProductionPageBrowserGraph(routeFile, { params, groupedBuildPlan });
+		const result = await renderer.execute({ file: routeFile, params });
+
+		expect(staticProps).toHaveBeenCalledTimes(1);
+		expect(metadata).toHaveBeenCalledTimes(1);
+		expect(resolveDependencies).toHaveBeenCalledTimes(1);
+		expect(preparedContributionHookCalls).toBe(1);
+		expect(preparedDependencyCalls).toBe(1);
+		expect(validateGraph).toHaveBeenCalledTimes(2);
+		expect(result.metadata?.title).toBe('captured');
+		validateGraph.mockRestore();
+	});
+
+	it('does not reuse prebuilt page dependencies when render props override the route', async () => {
+		const defaultDependency = (() => 'default') as EcoComponent;
+		defaultDependency.config = {
+			identity: { id: 'default', file: '/app/components/default.tsx', integration: 'test-renderer' },
+			dependencies: {},
+		};
+		const overrideDependency = (() => 'override') as EcoComponent;
+		overrideDependency.config = {
+			identity: { id: 'override', file: '/app/components/override.tsx', integration: 'test-renderer' },
+			dependencies: {},
+		};
+		const resolveDependencies = vi.fn(async ({ props }: { props: Record<string, unknown> }) => ({
+			components: [props.variant === 'override' ? overrideDependency : defaultDependency],
+		}));
+		const defaultAsset = {
+			kind: 'script',
+			srcUrl: '/assets/default-dependency.js',
+			position: 'head',
+			packageRole: 'page-script',
+		} as ProcessedAsset;
+		const overrideAsset = {
+			kind: 'script',
+			srcUrl: '/assets/override-dependency.js',
+			position: 'head',
+			packageRole: 'page-script',
+		} as ProcessedAsset;
+		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
+		Page.resolveDependencies = resolveDependencies;
+		const pageDependencyContributions: string[][] = [];
+		const renderedPageEntryAssets: ProcessedAsset[][] = [];
+		const renderer = new (class extends TestIntegrationRenderer {
+			override async render(options: IntegrationRendererRenderOptions<EcoPagesElement>) {
+				renderedPageEntryAssets.push(options.pagePackage?.pageBrowserGraph?.entryAssets ?? []);
+				return await super.render(options);
+			}
+
+			protected override async resolvePageBrowserGraphContributionFromComponents(
+				components: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
+				_ownerFile: string,
+				_preparedNodes?: ReadonlyArray<PreparedComponentGraphNode>,
+			) {
+				pageDependencyContributions.push(
+					components.flatMap((component) => {
+						const id = getComponentIdentity(component)?.id;
+						return id ? [id] : [];
+					}),
+				);
+				const ids = components.flatMap((component) => {
+					const id = getComponentIdentity(component)?.id;
+					return id ? [id] : [];
+				});
+				return {
+					assets: ids.map((id) => (id === 'override' ? overrideAsset : defaultAsset)),
+				};
+			}
+		})({
+			appConfig: testAppConfig,
+			assetProcessingService: testAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		const routeFile = '/app/pages/override-dependencies.tsx';
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+
+		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([{ routeFile }]);
+		await renderer.prebuildProductionPageBrowserGraph(routeFile, { groupedBuildPlan });
+		await renderer.execute({ file: routeFile, params: {}, query: {} });
+		expect(renderedPageEntryAssets.at(-1)).toEqual([defaultAsset]);
+		await renderer.execute({ file: routeFile, params: {}, query: {}, props: { variant: 'override' } });
+
+		expect(resolveDependencies).toHaveBeenCalledTimes(2);
+		expect(resolveDependencies.mock.calls[1]?.[0].props).toEqual({ variant: 'override' });
+		expect(pageDependencyContributions.at(-1)).toEqual(['override']);
+		expect(renderedPageEntryAssets.at(-1)).toEqual([overrideAsset]);
+	});
+
 	it('renders two pages of one integration at the same time', async () => {
 		let active = 0;
 		let maxActive = 0;

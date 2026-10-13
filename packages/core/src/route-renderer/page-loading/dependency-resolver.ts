@@ -94,7 +94,30 @@ export class DependencyResolverService {
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
 	): Promise<ProcessedAsset[]> {
-		const { dependencies, lazyScriptsByConfig } = this.collectDependencies(components, integrationName, false);
+		return this.processPreparedDependencies(components, integrationName, false);
+	}
+
+	/**
+	 * Processes dependencies from a component list that already came from a prepared graph walk.
+	 */
+	async processPreparedComponentDependencies(
+		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
+		integrationName: string,
+	): Promise<ProcessedAsset[]> {
+		return this.processPreparedDependencies(components, integrationName, true);
+	}
+
+	private async processPreparedDependencies(
+		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
+		integrationName: string,
+		skipNestedComponents: boolean,
+	): Promise<ProcessedAsset[]> {
+		const { dependencies, lazyScriptsByConfig } = this.collectDependencies(
+			components,
+			integrationName,
+			false,
+			skipNestedComponents,
+		);
 
 		const packagedDependencies = packagePageDependencies(dependencies, integrationName);
 		const lazyDeps = packagedDependencies.filter(isLazyClientScript);
@@ -183,11 +206,13 @@ export class DependencyResolverService {
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
 		excludeForeignChildren: boolean,
+		skipNestedComponents = false,
 	) {
 		return collectComponentDependencies({
 			components,
 			integrationName,
 			excludeForeignChildren,
+			skipNestedComponents,
 			resolveLazyScripts: (componentDir, scripts) => this.resolveLazyScripts(componentDir, scripts),
 			createEcopagesJsxLazyEntryName,
 			errors: {

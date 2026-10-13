@@ -1,4 +1,4 @@
-import type { EcoComponent, OwnershipPlanNodeSource } from '../../../types/public-types.ts';
+import type { EcoComponent, EcoComponentDependencies, OwnershipPlanNodeSource } from '../../../types/public-types.ts';
 import { getComponentIdentity } from '../../../eco/component-identity.ts';
 
 export type DeclaredOwnershipRoot = {
@@ -6,203 +6,306 @@ export type DeclaredOwnershipRoot = {
 	source: Extract<OwnershipPlanNodeSource, 'page' | 'layout' | 'html-template'>;
 };
 
-export type DeclaredOwnershipNodeInput = {
-	component: EcoComponent;
-	source: Exclude<OwnershipPlanNodeSource, 'route'>;
-	parentIntegrationName: string;
-	integrationName: string;
-	componentId: string;
-	isForeignToParent: boolean;
-};
-
 export type ComponentGraphRoot = {
 	component: EcoComponent | Partial<EcoComponent>;
 	source?: Exclude<OwnershipPlanNodeSource, 'route'>;
 };
 
-export type ComponentGraphWalkInput = {
+export type PreparedComponentGraphNode = {
 	component: EcoComponent;
-	parentIntegrationName: string;
 	source?: Exclude<OwnershipPlanNodeSource, 'route'>;
+	parentIntegrationName: string;
+	integrationName: string;
+	componentId: string;
+	isForeignToParent: boolean;
+	componentFile?: string;
+	ownAssets: Pick<NonNullable<EcoComponentDependencies>, 'scripts' | 'stylesheets' | 'modules'>;
+	dependencyCollectionVisible: boolean;
+	children: PreparedComponentGraphNode[];
+	foreignDescendant: boolean;
 };
 
-type ComponentGraphWalkState = {
-	seenComponents: Set<object>;
-	seenConfigs: Set<object>;
-	visitLayout?: boolean;
-	onComponent?: (node: ComponentGraphWalkInput) => void | boolean;
-	onRepeatVisit?: (node: ComponentGraphWalkInput) => void;
-	onConfig?: (config: EcoComponent['config']) => void;
+export type PreparedComponentGraphEvent =
+	| { type: 'component'; node: PreparedComponentGraphNode }
+	| {
+			type: 'repeat';
+			component: EcoComponent;
+			parentIntegrationName: string;
+			integrationName: string;
+			source?: Exclude<OwnershipPlanNodeSource, 'route'>;
+	  };
+
+export type PreparedComponentGraph = {
+	currentIntegrationName: string;
+	nodes: PreparedComponentGraphNode[];
+	events: PreparedComponentGraphEvent[];
 };
 
-function visitComponentGraphConfig(
-	config: EcoComponent['config'],
-	parentIntegrationName: string,
-	state: ComponentGraphWalkState,
-	visitComponent: (
-		component: EcoComponent | Partial<EcoComponent>,
-		parentIntegrationName: string,
-		source?: Exclude<OwnershipPlanNodeSource, 'route'>,
-	) => void,
-): void {
-	if (!config || state.seenConfigs.has(config)) {
-		return;
-	}
+export type PreparedComponentGraphCollection = {
+	roots: PreparedComponentGraphNode[];
+	nodes: PreparedComponentGraphNode[];
+};
 
-	state.seenConfigs.add(config);
-	if (state.onConfig) {
-		state.onConfig(config);
-	}
-
-	if (state.visitLayout) {
-		for (const layout of config.layouts ?? []) {
-			if (layout?.config) {
-				visitComponentGraphConfig(layout.config, parentIntegrationName, state, visitComponent);
-			}
-		}
-	}
-
-	for (const child of config.dependencies?.components ?? []) {
-		visitComponent(child, parentIntegrationName, 'dependency');
-	}
-}
-
-function notifyComponentGraphConfig(config: EcoComponent['config'], state: ComponentGraphWalkState): void {
-	if (!state.onConfig || !config || state.seenConfigs.has(config)) {
-		return;
-	}
-
-	state.seenConfigs.add(config);
-	state.onConfig(config);
-}
-
-function visitComponentGraphChildren(
-	ecoComponent: EcoComponent,
+/**
+ * Marks nodes that belong to another Integration or contain such a descendant.
+ */
+export function computeForeignDescendantMap(
+	nodes: ReadonlyArray<PreparedComponentGraphNode>,
 	integrationName: string,
-	state: ComponentGraphWalkState,
-	visitComponent: (
-		component: EcoComponent | Partial<EcoComponent>,
-		parentIntegrationName: string,
-		source?: Exclude<OwnershipPlanNodeSource, 'route'>,
-	) => void,
-): void {
-	if (state.visitLayout) {
-		for (const layout of ecoComponent.config?.layouts ?? []) {
-			if (layout?.config) {
-				visitComponentGraphConfig(layout.config, integrationName, state, visitComponent);
+): Map<PreparedComponentGraphNode, boolean> {
+	const foreignByNode = new Map(nodes.map((node) => [node, node.integrationName !== integrationName]));
+	const parentsByChild = new Map<PreparedComponentGraphNode, PreparedComponentGraphNode[]>();
+	const queue = nodes.filter((node) => foreignByNode.get(node));
+	for (const node of nodes) {
+		for (const child of node.children) {
+			const parents = parentsByChild.get(child) ?? [];
+			parents.push(node);
+			parentsByChild.set(child, parents);
+		}
+	}
+
+	for (let index = 0; index < queue.length; index += 1) {
+		const child = queue[index];
+		if (!child) {
+			continue;
+		}
+		for (const parent of parentsByChild.get(child) ?? []) {
+			if (!foreignByNode.get(parent)) {
+				foreignByNode.set(parent, true);
+				queue.push(parent);
 			}
 		}
 	}
 
-	for (const child of ecoComponent.config?.dependencies?.components ?? []) {
-		visitComponent(child, integrationName, 'dependency');
-	}
+	return foreignByNode;
 }
 
-function createComponentGraphVisitor(state: ComponentGraphWalkState) {
-	const visitComponent = (
-		component: EcoComponent | Partial<EcoComponent>,
-		parentIntegrationName: string,
-		source?: Exclude<OwnershipPlanNodeSource, 'route'>,
-	): void => {
-		if (!component) {
+export type PreparedRouteComponentGraphs = {
+	shellGraph: PreparedComponentGraph;
+	shellDependencyComponents: EcoComponent[];
+	graph: PreparedComponentGraph;
+	ownershipValidated?: boolean;
+};
+
+function createComponentGraphNodeId(
+	identity: ReturnType<typeof getComponentIdentity>,
+	source: Exclude<OwnershipPlanNodeSource, 'route'> | undefined,
+	nextSyntheticId: () => number,
+): string {
+	const identityId = identity?.id ?? identity?.file;
+	if (identityId !== undefined) {
+		return identityId;
+	}
+
+	return `${source ?? 'dependency'}:${nextSyntheticId()}`;
+}
+
+function createOwnComponentAssets(
+	dependencies: EcoComponentDependencies | undefined,
+): Pick<NonNullable<EcoComponentDependencies>, 'scripts' | 'stylesheets' | 'modules'> {
+	return {
+		scripts: dependencies?.scripts,
+		stylesheets: dependencies?.stylesheets,
+		modules: dependencies?.modules,
+	};
+}
+
+/**
+ * Returns the unique prepared nodes reachable from a set of already collected graph roots.
+ */
+export function collectPreparedComponentGraphNodes(
+	roots: ReadonlyArray<PreparedComponentGraphNode>,
+	visited = new Set<PreparedComponentGraphNode>(),
+): PreparedComponentGraphNode[] {
+	const nodes: PreparedComponentGraphNode[] = [];
+	const visit = (node: PreparedComponentGraphNode): void => {
+		if (visited.has(node)) {
 			return;
 		}
 
-		const ecoComponent = component as EcoComponent;
-		if (state.seenComponents.has(ecoComponent)) {
-			state.onRepeatVisit?.({ component: ecoComponent, parentIntegrationName, source });
-			return;
+		visited.add(node);
+		nodes.push(node);
+		for (const child of node.children) {
+			visit(child);
 		}
-
-		state.seenComponents.add(ecoComponent);
-		const identity = getComponentIdentity(ecoComponent);
-		const integrationName = ecoComponent.config?.integration ?? identity?.integration ?? parentIntegrationName;
-
-		notifyComponentGraphConfig(ecoComponent.config, state);
-
-		if (state.onComponent) {
-			const shouldContinue = state.onComponent({
-				component: ecoComponent,
-				parentIntegrationName,
-				source,
-			});
-			if (shouldContinue === false) {
-				return;
-			}
-		}
-
-		visitComponentGraphChildren(ecoComponent, integrationName, state, visitComponent);
 	};
 
-	return visitComponent;
-}
-
-export function walkComponentGraph(input: {
-	roots: ComponentGraphRoot[];
-	currentIntegrationName: string;
-	visitLayout?: boolean;
-	onComponent?: (node: ComponentGraphWalkInput) => void | boolean;
-	onRepeatVisit?: (node: ComponentGraphWalkInput) => void;
-	onConfig?: (config: EcoComponent['config']) => void;
-}): void {
-	const state: ComponentGraphWalkState = {
-		seenComponents: new Set(),
-		seenConfigs: new Set(),
-		visitLayout: input.visitLayout,
-		onComponent: input.onComponent,
-		onRepeatVisit: input.onRepeatVisit,
-		onConfig: input.onConfig,
-	};
-	const visitComponent = createComponentGraphVisitor(state);
-
-	for (const root of input.roots) {
-		visitComponent(root.component, input.currentIntegrationName, root.source);
+	for (const root of roots) {
+		visit(root);
 	}
+
+	return nodes;
 }
 
-export function mapComponentGraph<T>(input: {
-	roots: DeclaredOwnershipRoot[];
-	currentIntegrationName: string;
-	mapNode: (node: DeclaredOwnershipNodeInput, children: T[]) => T;
-}): T[] {
+/**
+ * Creates an incremental component-graph collector shared by route preparation consumers.
+ */
+export function createPreparedComponentGraphBuilder(currentIntegrationName: string) {
+	const nodes: PreparedComponentGraphNode[] = [];
+	const events: PreparedComponentGraphEvent[] = [];
+	const nodesByComponent = new Map<object, Map<string, PreparedComponentGraphNode>>();
 	let nextSyntheticId = 0;
 
-	const mapComponent = (
-		component: EcoComponent,
-		source: Exclude<OwnershipPlanNodeSource, 'route'>,
-		parentIntegrationName: string,
-		lineage: Set<object>,
-	): T => {
-		const identity = getComponentIdentity(component);
-		const integrationName = component.config?.integration ?? identity?.integration ?? parentIntegrationName;
-		const isForeignToParent = integrationName !== parentIntegrationName;
-		const componentId = identity?.id ?? identity?.file ?? `${source}:${(nextSyntheticId += 1)}`;
+	const getIntegrationName = (component: EcoComponent, parentIntegrationName: string) =>
+		component.config?.integration ?? getComponentIdentity(component)?.integration ?? parentIntegrationName;
+	const markDependencyCollectionVisible = (node: PreparedComponentGraphNode, parentVisible: boolean): void => {
+		const visible = Boolean(node.componentFile) && parentVisible;
+		if (!visible) {
+			return;
+		}
+		if (node.dependencyCollectionVisible) {
+			return;
+		}
 
-		const nextLineage = new Set(lineage);
-		nextLineage.add(component);
-		const children = (component.config?.dependencies?.components ?? []).flatMap((child) => {
-			if (!child || nextLineage.has(child)) {
-				return [];
-			}
-
-			return [mapComponent(child, 'dependency', integrationName, nextLineage)];
-		});
-
-		return input.mapNode(
-			{
-				component,
-				source,
-				parentIntegrationName,
-				integrationName,
-				componentId,
-				isForeignToParent,
-			},
-			children,
-		);
+		node.dependencyCollectionVisible = true;
+		for (const child of node.children) {
+			markDependencyCollectionVisible(child, visible);
+		}
 	};
 
-	return input.roots.map(({ component, source }) =>
-		mapComponent(component, source, input.currentIntegrationName, new Set()),
-	);
+	function visit(
+		componentInput: EcoComponent | Partial<EcoComponent>,
+		parentIntegrationName: string,
+		source?: Exclude<OwnershipPlanNodeSource, 'route'>,
+		parentDependencyCollectionVisible = true,
+		isRoot = false,
+		collectedNodes?: Set<PreparedComponentGraphNode>,
+	): PreparedComponentGraphNode | undefined {
+		if (!componentInput) {
+			return undefined;
+		}
+
+		const component = componentInput as EcoComponent;
+		const integrationName = getIntegrationName(component, parentIntegrationName);
+		const existing = nodesByComponent.get(component)?.get(integrationName);
+		if (existing) {
+			if (collectedNodes && !collectedNodes.has(existing)) {
+				collectPreparedComponentGraphNodes([existing], collectedNodes);
+			}
+			return recordRepeatVisit(
+				existing,
+				component,
+				parentIntegrationName,
+				integrationName,
+				source,
+				parentDependencyCollectionVisible || isRoot,
+			);
+		}
+
+		const node = createNode(
+			component,
+			parentIntegrationName,
+			integrationName,
+			source,
+			parentDependencyCollectionVisible,
+			isRoot,
+		);
+		const nodesByOwner = nodesByComponent.get(component) ?? new Map<string, PreparedComponentGraphNode>();
+		nodesByOwner.set(integrationName, node);
+		nodesByComponent.set(component, nodesByOwner);
+		nodes.push(node);
+		collectedNodes?.add(node);
+		events.push({ type: 'component', node });
+		visitChildren(node, collectedNodes);
+		return node;
+	}
+
+	function visitChildren(node: PreparedComponentGraphNode, collectedNodes?: Set<PreparedComponentGraphNode>): void {
+		for (const child of node.component.config?.dependencies?.components ?? []) {
+			if (!child) {
+				continue;
+			}
+
+			const childNode = visit(
+				child,
+				node.integrationName,
+				'dependency',
+				node.dependencyCollectionVisible,
+				false,
+				collectedNodes,
+			);
+			if (childNode) {
+				node.children.push(childNode);
+			}
+		}
+	}
+
+	function collectRoots(
+		roots: ComponentGraphRoot[],
+		collectedNodes?: Set<PreparedComponentGraphNode>,
+	): PreparedComponentGraphNode[] {
+		const rootNodes: PreparedComponentGraphNode[] = [];
+		for (const root of roots) {
+			const node = visit(root.component, currentIntegrationName, root.source, true, true, collectedNodes);
+			if (node) {
+				rootNodes.push(node);
+			}
+		}
+		return rootNodes;
+	}
+
+	function recordRepeatVisit(
+		existing: PreparedComponentGraphNode,
+		component: EcoComponent,
+		parentIntegrationName: string,
+		integrationName: string,
+		source: Exclude<OwnershipPlanNodeSource, 'route'> | undefined,
+		parentDependencyCollectionVisible: boolean,
+	): PreparedComponentGraphNode {
+		events.push({ type: 'repeat', component, parentIntegrationName, integrationName, source });
+		markDependencyCollectionVisible(existing, parentDependencyCollectionVisible);
+		return existing;
+	}
+
+	function createNode(
+		component: EcoComponent,
+		parentIntegrationName: string,
+		integrationName: string,
+		source: Exclude<OwnershipPlanNodeSource, 'route'> | undefined,
+		parentDependencyCollectionVisible: boolean,
+		isRoot: boolean,
+	): PreparedComponentGraphNode {
+		const identity = getComponentIdentity(component);
+		const dependencies = component.config?.dependencies;
+		return {
+			component,
+			source,
+			parentIntegrationName,
+			integrationName,
+			componentId: createComponentGraphNodeId(identity, source, () => (nextSyntheticId += 1)),
+			isForeignToParent: integrationName !== parentIntegrationName,
+			componentFile: identity?.file,
+			ownAssets: createOwnComponentAssets(dependencies),
+			dependencyCollectionVisible: Boolean(identity?.file) && (isRoot || parentDependencyCollectionVisible),
+			children: [],
+			foreignDescendant: false,
+		};
+	}
+
+	const updateForeignDescendantFlags = () => {
+		for (const [node, hasForeignDescendant] of computeForeignDescendantMap(nodes, currentIntegrationName)) {
+			node.foreignDescendant = hasForeignDescendant;
+		}
+	};
+
+	return {
+		addRoots(roots: ComponentGraphRoot[]): PreparedComponentGraphNode[] {
+			return collectRoots(roots);
+		},
+		addRootsAndCollectNodes(roots: ComponentGraphRoot[]): PreparedComponentGraphCollection {
+			const nodes = new Set<PreparedComponentGraphNode>();
+			return { roots: collectRoots(roots, nodes), nodes: [...nodes] };
+		},
+		/**
+		 * Returns the nodes prepared so far.
+		 *
+		 * @remarks Foreign-descendant flags are derived for the completed graph unless explicitly deferred.
+		 */
+		getGraph(options: { updateForeignDescendantFlags?: boolean } = {}): PreparedComponentGraph {
+			if (options.updateForeignDescendantFlags !== false) {
+				updateForeignDescendantFlags();
+			}
+			return { currentIntegrationName, nodes: [...nodes], events: [...events] };
+		},
+	};
 }

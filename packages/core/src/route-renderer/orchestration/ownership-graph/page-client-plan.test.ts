@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
-import { test, vi } from 'vitest';
+import { test } from 'vitest';
 import type { EcoComponent, ResolvedLazyTrigger } from '../../../types/public-types.ts';
-import * as componentGraph from './component-graph.ts';
 import {
 	collectPageClientPlan,
 	planCoversComponents,
@@ -29,8 +28,7 @@ function createComponent(input: {
 	} as EcoComponent;
 }
 
-test('collectPageClientPlan walks the declared graph once and keeps only foreign-to-parent entries', () => {
-	const walk = vi.spyOn(componentGraph, 'walkComponentGraph');
+test('collectPageClientPlan keeps only foreign-to-parent entries', () => {
 	const trigger: ResolvedLazyTrigger = {
 		triggerId: 'lazy-a',
 		rules: [{ 'on:idle': { scripts: ['/lazy-a.js'] } }],
@@ -46,8 +44,6 @@ test('collectPageClientPlan walks the declared graph once and keeps only foreign
 
 	const plan = collectPageClientPlan([{ component: root }], 'react');
 
-	assert.equal(walk.mock.calls.length, 1);
-	walk.mockRestore();
 	assert.deepEqual([...plan.integrationNames].sort(), ['lit', 'react']);
 	assert.deepEqual(plan.lazyTriggers, [trigger]);
 	assert.deepEqual(plan.lazyClientEntries, []);
@@ -210,4 +206,27 @@ test('planHasForeignChildDescendants terminates on a cycle in the declared graph
 	const plan = collectPageClientPlan([{ component: first }], 'kitajs');
 
 	assert.equal(planHasForeignChildDescendants(plan, first, 'kitajs'), false);
+});
+
+test('planHasForeignChildDescendants follows the shared component owner context', () => {
+	const child = createComponent({ integration: 'lit', file: '/app/child.ts' });
+	const shared = createComponent({ children: [child] });
+	const litParent = createComponent({ integration: 'lit', file: '/app/lit-parent.ts', children: [shared] });
+	const reactParent = createComponent({ integration: 'react', file: '/app/react-parent.ts', children: [shared] });
+	const plan = collectPageClientPlan([{ component: litParent }, { component: reactParent }], 'react');
+
+	assert.equal(planHasForeignChildDescendants(plan, shared, 'lit'), false);
+	assert.equal(planHasForeignChildDescendants(plan, shared, 'react'), true);
+	assert.ok(plan.islandEntries.some((entry) => entry.file === '/app/child.ts' && entry.integrationName === 'lit'));
+});
+
+test('planHasForeignChildDescendants finds foreign leaves reachable through a cycle', () => {
+	const foreign = createComponent({ integration: 'lit', file: '/app/foreign.ts' });
+	const first = createComponent({ integration: 'react', file: '/app/first.ts' });
+	const second = createComponent({ integration: 'react', file: '/app/second.ts', children: [first] });
+	first.config!.dependencies = { components: [second, foreign] };
+	const plan = collectPageClientPlan([{ component: first }], 'react');
+
+	assert.equal(planHasForeignChildDescendants(plan, first, 'react'), true);
+	assert.equal(planHasForeignChildDescendants(plan, second, 'react'), true);
 });

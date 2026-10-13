@@ -12,6 +12,8 @@ import type {
 	RouteRendererOptions,
 } from '../../../types/public-types.ts';
 import type { ResolvedPageDependencies } from '../../page-loading/resolved-page-dependencies.ts';
+import type { PreparedComponentGraphNode } from '../ownership-graph/component-graph.ts';
+import type { PreparedRouteComponentGraphs } from '../ownership-graph/component-graph.ts';
 import { buildRouteHtmlFinalization } from './route-html-finalization.service.ts';
 import type { PageClientBrowserAssets, PageClientPlan } from '../ownership-graph/page-client-plan.ts';
 import type {
@@ -37,7 +39,13 @@ export type IntegrationRouteRenderAdapterHost<C> = {
 	): Promise<PageBrowserGraphContribution | undefined>;
 	resolvePageDependencies(
 		context: PageBrowserGraphContributionContext,
+		routeOptions: RouteRendererOptions,
 	): Promise<ResolvedPageDependencies | undefined>;
+	getPrebuiltRouteComponentGraphs?(routeOptions: RouteRendererOptions): PreparedRouteComponentGraphs | undefined;
+	resolvePageDependencyContribution(input: {
+		nodes: ReadonlyArray<PreparedComponentGraphNode>;
+		ownerFile: string;
+	}): Promise<PageBrowserGraphContribution | undefined>;
 	buildPageBrowserGraphContributionContext(
 		routeFile: string,
 		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query' | 'pageModule'>,
@@ -68,7 +76,9 @@ export function createIntegrationRouteRenderAdapter<C>(
 		resolveRouteRenderInputs: (routeOptions) => host.resolveRouteRenderInputs(routeOptions),
 		resolveRouteDependencies: (input) => host.resolveRouteDependencies(input),
 		collectPageBrowserGraphContribution: (context) => host.collectPageBrowserGraphContribution(context),
-		resolvePageDependencies: (context) => host.resolvePageDependencies(context),
+		resolvePageDependencies: (context, routeOptions) => host.resolvePageDependencies(context, routeOptions),
+		getPrebuiltRouteComponentGraphs: (routeOptions) => host.getPrebuiltRouteComponentGraphs?.(routeOptions),
+		resolvePageDependencyContribution: (input) => host.resolvePageDependencyContribution(input),
 		buildPageBrowserGraphContributionContext: (routeFile, routeOptions) =>
 			host.buildPageBrowserGraphContributionContext(routeFile, routeOptions),
 		renderRouteBody: (renderOptions) => host.renderRouteBody(renderOptions),

@@ -194,9 +194,15 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * integration can resolve asset paths and other app-owned services later.
 	 */
 	setConfig(appConfig: EcoPagesAppConfig): void {
-		this.rendererInstance = undefined;
-		this.appConfig = appConfig;
-		this.initializeAssetDefinitionService();
+		if (this.appConfig !== appConfig) {
+			this.rendererInstance = undefined;
+			this.appConfig = appConfig;
+			this.assetProcessingService = undefined;
+		}
+
+		if (!this.assetProcessingService) {
+			this.initializeAssetDefinitionService();
+		}
 	}
 
 	/**

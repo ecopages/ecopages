@@ -23,7 +23,7 @@ The important ownership rules are:
 - Build requests declare server or browser environment independently of scheduling. Integrations and Processors contribute one environment-selected plugin list; config rejects duplicate names within an environment. Core source transforms preserve source locations and the bridge composes chained maps. See [Build Layer](src/build/README.md) and [Plugin Contracts](src/plugins/README.md) for migration.
 - Component identity attribution is one shared source transform for server, browser, and HMR compilation paths: after a lexical `eco.` gate, it uses Oxc to wrap supported factory options with `bindComponentIdentity()`, which factories retain as `config.identity`.
 - Direct local Eco Component imports (including named `export { X } from` barrels) and relative side-effect CSS imports supply Dependencies by default through the shared transform and existing collector; explicit asset declarations override inference, and inferred styles stay keyed by identity until collection. See [eco](src/eco/README.md) and [Plugin Contracts](src/plugins/README.md).
-- Every Integration shares one renderer and the app-owned `AssetProcessingService` across route renders, explicit views, and foreign-child handoffs. Dependency collection uses the service to turn declared assets into runtime-ready output instead of treating a missing service as an empty asset set. Route renders keep assets and foreign-renderer caches in per-render sessions, with async context storage isolating concurrent renders. See [Route Renderer](src/route-renderer/README.md).
+- Every Integration shares one renderer and the app-owned `AssetProcessingService` across route renders, explicit views, and foreign-child handoffs. Route preparation records one component graph for ownership validation, dependencies, client assets, and dev cache paths. Dependency collection uses the service to turn declared assets into runtime-ready output instead of treating a missing service as an empty asset set. Route renders keep assets and foreign-renderer caches in per-render sessions, with async context storage isolating concurrent renders. See [Route Renderer](src/route-renderer/README.md).
 - Browser bundling and server module loading are separate paths. SSR-enabled lazy scripts execute on the server before rendering and in the browser only on their configured trigger.
 - The Project Watcher batches file and directory events, sends matching Processors one `onChanges` notification for each non-restart file batch, and dispatches every HMR-eligible path once per debounce window. Directory-only Pages batches refresh routes without Processor or HMR notifications. Sustained edits are scheduled no later than one second after the first; processing is serialized and startup fails if the filesystem subscription is not ready within 30 seconds. See [Project Watcher](src/watchers/README.md).
 - Development Page prewarm path collection and rendering run in the background without delaying server readiness. App configuration declares `devPrewarmPaths`; Processors declare pathnames through `collectDevPrewarmPaths()`. Collection failures are logged with their stack. See [Runtime Adapters](src/adapters/README.md) and [Plugin Contracts](src/plugins/README.md).
@@ -95,7 +95,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/config/README.md`: config finalization and app-owned runtime/build state
 - `src/plugins/README.md`: integration and processor authoring contracts
 - `src/build/README.md`: build adapter, executor, shared `.server` browser import guard, development build coordination, standalone Node server packaging and its deploy layout
-- `src/services/README.md`: cross-cutting runtime services and orchestration helpers
+- `src/services/README.md`: cross-cutting runtime services and orchestration helpers, including per-render HTML transformation inputs
 - `src/adapters/README.md`: Node HTTP host and shared adapter boundaries
 - `src/dev/README.md`: dev transform server, in-memory on-demand vendor bundles, client delivery (including workspace-package `@fs` URLs), and invalidation during compilation
 - `src/watchers/README.md`: recursive source subscriptions with bounded readiness and scheduled debounce batches, external build-input and linked-package watching, batched `applyDevFileChanges`, and restart invalidation
@@ -104,7 +104,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/dev-toolbar/README.md`: toolbar enablement, custom clients, and build error event contract
 - `src/router/README.md`: route discovery, matching, browser navigation coordination, persistence-aware body morphing, and the shared client navigation pipeline
 - `src/route-renderer/README.md`: rendering orchestration, dependency resolution, and HTML cache source paths
-- `src/static-site-generator/README.md`: static build execution path
+- `src/static-site-generator/README.md`: static build execution path and sitemap eligibility from successful route-render metadata
 - `src/eco/README.md`: `eco` authoring APIs for pages, layouts, and components, including the `LayoutOptions` type contract
 - `src/html-pages/README.md`: built-in `.html` Filesystem Routes, Html shell, and head reconciliation
 

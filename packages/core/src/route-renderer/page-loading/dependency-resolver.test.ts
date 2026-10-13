@@ -34,6 +34,31 @@ describe('DependencyResolverService', () => {
 		);
 	});
 
+	it('processes prepared graph nodes without recursively revisiting nested components', async () => {
+		let capturedDeps: AssetDefinition[] = [];
+		const assetProcessingService = {
+			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
+				capturedDeps = deps;
+				return [] as ProcessedAsset[];
+			}),
+		} as unknown as AssetProcessingService;
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const child = (() => '<child />') as EcoComponent;
+		child.config = {
+			identity: { id: 'child', file: '/app/child.tsx', integration: 'react' },
+			dependencies: { scripts: ['./child.js'] },
+		};
+		const parent = (() => '<parent />') as EcoComponent;
+		parent.config = {
+			identity: { id: 'parent', file: '/app/parent.tsx', integration: 'react' },
+			dependencies: { scripts: ['./parent.js'], components: [child] },
+		};
+
+		await service.processPreparedComponentDependencies([parent], 'react');
+
+		expect(capturedDeps).toEqual([expect.objectContaining({ filepath: '/app/parent.js' })]);
+	});
+
 	it('should emit module dependencies as content scripts and resolve lazy triggers by default', async () => {
 		let capturedDeps: AssetDefinition[] = [];
 		const assetProcessingService = {

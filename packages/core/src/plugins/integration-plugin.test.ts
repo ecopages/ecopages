@@ -125,8 +125,9 @@ describe('IntegrationPlugin', () => {
 			override renderer = NamelessRenderer as TestIntegrationPlugin['renderer'];
 		})(config);
 
+		const appConfig = {} as EcoPagesAppConfig;
 		(pluginWithRenderer as TestIntegrationPlugin & { appConfig?: object; runtimeOrigin: string }).appConfig =
-			{} as EcoPagesAppConfig;
+			appConfig;
 		pluginWithRenderer.setRuntimeOrigin('http://localhost:3000');
 		const initializeRenderer = vi.spyOn(pluginWithRenderer, 'initializeRenderer');
 
@@ -134,6 +135,9 @@ describe('IntegrationPlugin', () => {
 		const second = pluginWithRenderer.getRenderer();
 
 		expect(second).toBe(first);
+		expect(initializeRenderer).toHaveBeenCalledTimes(1);
+		pluginWithRenderer.setConfig(appConfig);
+		expect(pluginWithRenderer.getRenderer()).toBe(first);
 		expect(initializeRenderer).toHaveBeenCalledTimes(1);
 
 		pluginWithRenderer.setRuntimeOrigin('http://localhost:3001');

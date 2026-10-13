@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import { finalizeDocumentShellHtml } from './document-shell/document-shell-render.service.ts';
 import { IntegrationRenderer, type HtmlDocumentContribution } from './integration-renderer.ts';
 import { getComponentRenderContext, type ForeignChildRuntime } from './foreign-child/component-render-context.ts';
+import { toForeignSubtreeRenderPayload } from './foreign-child/foreign-subtree-execution.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import type {

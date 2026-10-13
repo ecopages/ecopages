@@ -566,12 +566,47 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		expect(result.pagePackage).toEqual(expect.objectContaining({ assets: [integrationDependency] }));
 	});
 
+	it('materializes page dependency assets from the prepared graph nodes', async () => {
+		const { flow } = createOrchestrator();
+		const Page = createPage();
+		const child = createComponent({
+			identity: { id: 'dependency-child', file: '/app/dependencies/child.tsx', integration: 'string' },
+		});
+		const dependency = createComponent({
+			identity: { id: 'dependency-root', file: '/app/dependencies/root.tsx', integration: 'string' },
+			dependencies: { components: [child] },
+		});
+		const pageDependency = createScriptAsset('/assets/page-dependency.js');
+		const resolvePageDependencyContribution = vi.fn(async () => ({ assets: [pageDependency] }));
+
+		const result = await flow.prepareRenderOptions(
+			createRouteOptions('/app/pages/index.tsx'),
+			createFlowAdapter({
+				Page,
+				resolvePageDependencies: async () => ({
+					ownerFile: '/app/dependencies/root.tsx',
+					components: [dependency],
+				}),
+				resolvePageDependencyContribution,
+			}),
+		);
+
+		expect(resolvePageDependencyContribution).toHaveBeenCalledWith({
+			nodes: expect.arrayContaining([
+				expect.objectContaining({ component: dependency }),
+				expect.objectContaining({ component: child }),
+			]),
+			ownerFile: '/app/dependencies/root.tsx',
+		});
+		expect(result.pagePackage?.assets).toContain(pageDependency);
+	});
+
 	describe('ownership validation', () => {
 		it('uses an injected ownership validation service when provided', async () => {
-			const validate = vi.fn(() => []);
+			const validateGraph = vi.fn(() => []);
 			const { flow } = createOrchestrator({
 				orchestratorOptions: {
-					ownershipValidationService: { validate } as unknown as OwnershipValidationService,
+					ownershipValidationService: { validateGraph } as unknown as OwnershipValidationService,
 				},
 			});
 			const Page = createPage();
@@ -582,19 +617,13 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				createFlowAdapter({ Page, HtmlTemplate }),
 			);
 
-			expect(validate).toHaveBeenCalledWith({
-				currentIntegrationName: 'string',
-				roots: [
-					{ component: HtmlTemplate, source: 'html-template' },
-					{ component: Page, source: 'page' },
-				],
-			});
+			expect(validateGraph).toHaveBeenCalledOnce();
 		});
 
 		it('throws when injected ownership validation reports errors', async () => {
 			const message =
 				'[ecopages] Foreign child "missing-foreign-component" references unknown integration owner "missing-renderer".';
-			const validate = vi.fn(() => [
+			const validateGraph = vi.fn(() => [
 				{
 					code: 'UNKNOWN_INTEGRATION_OWNER',
 					message,
@@ -604,7 +633,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			]);
 			const { flow } = createOrchestrator({
 				orchestratorOptions: {
-					ownershipValidationService: { validate } as unknown as OwnershipValidationService,
+					ownershipValidationService: { validateGraph } as unknown as OwnershipValidationService,
 				},
 			});
 
@@ -646,7 +675,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		});
 	});
 
-	it('resolves dependencies for every layout tier in the stack', async () => {
+	it('resolves dependencies from every file-backed layout tier in the stack', async () => {
 		const { flow } = createOrchestrator({ integrations: [createReactIntegration()] });
 		const OuterLayout = createComponent({
 			integration: 'react',
@@ -676,6 +705,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			}),
 		);
 
-		expect(resolvedComponents).toEqual([HtmlTemplate, OuterLayout, InnerLayout, Page]);
+		expect(resolvedComponents).toEqual([OuterLayout, InnerLayout]);
 	});
 });

@@ -13,6 +13,7 @@ import type {
 import { resolvePageLayoutComponents } from '../document-shell/layout-shell-props.service.ts';
 import { createPageDependencyInstanceKey } from '../page-browser-graph/route-instance-key.ts';
 import type { ResolvedPageDependencies } from '../../page-loading/resolved-page-dependencies.ts';
+import type { PreparedComponentGraphNode } from '../ownership-graph/component-graph.ts';
 import type { RouteHtmlFinalization, RouteRenderOrchestratorAdapter } from './route-render-orchestrator.ts';
 
 export interface FlowAdapterInput {
@@ -28,6 +29,10 @@ export interface FlowAdapterInput {
 	resolvePageDependencies?: (
 		context: PageBrowserGraphContributionContext,
 	) => Promise<ResolvedPageDependencies | undefined>;
+	resolvePageDependencyContribution?: (input: {
+		nodes: ReadonlyArray<PreparedComponentGraphNode>;
+		ownerFile: string;
+	}) => Promise<PageBrowserGraphContribution | undefined>;
 	renderRouteBody?: () => Promise<RouteRendererBody>;
 	getRouteHtmlFinalization?: () => RouteHtmlFinalization;
 	transformRouteResponse?: (response: Response) => Promise<RouteRendererBody>;
@@ -76,6 +81,7 @@ export function createFlowAdapter<C = unknown>(input: FlowAdapterInput = {}): Ro
 				? await input.collectPageBrowserGraphContribution(context)
 				: { assets: [] },
 		resolvePageDependencies: input.resolvePageDependencies ?? (async () => undefined),
+		resolvePageDependencyContribution: input.resolvePageDependencyContribution ?? (async () => undefined),
 		buildPageClientBrowserAssets: async () => ({
 			processedAssets: [],
 			islandRenderAssetsByFile: new Map(),

@@ -120,12 +120,18 @@ export class StaticSiteGenerator {
 
 	private async shouldSkipStaticPageFile(
 		filePath: string,
+		params: Record<string, string | string[]>,
 		routeRendererFactory: StaticPageRouteRendererFactory,
 	): Promise<boolean> {
-		const pageModule: EcoPageFile = await routeRendererFactory.getPageRenderer(filePath).loadPageModule(filePath);
+		const renderer = routeRendererFactory.getPageRenderer(filePath);
+		const pageModule: EcoPageFile = await renderer.loadPageModule(filePath);
 		const Page = pageModule.default as EcoPageComponent<any>;
+		if (Page.cache !== 'dynamic') {
+			return false;
+		}
 
-		return Page.cache === 'dynamic';
+		renderer.clearPrebuiltRoutePreparation?.({ file: filePath, params });
+		return true;
 	}
 
 	private shouldSkipStaticView(_routePath: string, view: EcoPageComponent<any>): boolean {
@@ -253,7 +259,7 @@ export class StaticSiteGenerator {
 			throw new Error(STATIC_SITE_GENERATOR_ERRORS.ROUTE_RENDERER_FACTORY_REQUIRED);
 		}
 
-		if (await this.shouldSkipStaticPageFile(filePath, routeRendererFactory)) {
+		if (await this.shouldSkipStaticPageFile(filePath, params, routeRendererFactory)) {
 			skipped?.push(filePath);
 			return null;
 		}

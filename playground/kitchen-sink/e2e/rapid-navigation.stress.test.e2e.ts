@@ -1,4 +1,4 @@
-import { test } from '../../../e2e/app-fixture';
+import { test } from '@playwright/test';
 import { broadTraversalSequence, crossTechnologySequences, fireRapidLinkClicks } from './rapid-navigation-sequences';
 import { gotoPath, trackRuntimeErrors } from './test-support';
 

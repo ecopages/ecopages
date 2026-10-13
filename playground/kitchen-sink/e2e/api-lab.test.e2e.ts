@@ -1,4 +1,4 @@
-import { expect, test } from '../../../e2e/app-fixture';
+import { expect, test } from '@playwright/test';
 import type { Page } from 'playwright-core';
 import { getPageTestId } from '../src/data/primary-links';
 import { gotoPathSimple, recoverToPath, trackRuntimeErrors } from './test-support';

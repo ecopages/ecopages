@@ -1,4 +1,4 @@
-import { expect, test } from '../../../e2e/app-fixture';
+import { expect, test } from '@playwright/test';
 import { kitchenSinkShellTestId } from '../src/data/primary-links';
 import { fireRapidLinkClicks, randomHopSequence, settleAfterRapidHops } from './rapid-navigation-sequences';
 import { gotoPath, trackRuntimeErrors } from './test-support';

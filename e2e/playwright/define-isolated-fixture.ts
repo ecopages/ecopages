@@ -13,6 +13,15 @@ export const crossIntegrationHmrMatch = `${crossIntegrationSourceDir}/e2e/*-hmr.
 
 const CROSS_INTEGRATION_DEV_TEST_TIMEOUT_MS = 90_000;
 
+/**
+ * Most workers the HMR project may use.
+ *
+ * @remarks
+ * Every worker starts its own kitchen-sink dev server, and the specs are dominated by that start and by
+ * HMR latency, so the count was chosen by CI wall time, not by core count.
+ */
+const HMR_WORKERS = 2;
+
 type DesktopChromeUse = NonNullable<PlaywrightTestProject['use']>;
 
 /**
@@ -32,6 +41,7 @@ export function defineCrossIntegrationFixture(desktopChrome: DesktopChromeUse): 
 				name,
 				testMatch: crossIntegrationHmrMatch,
 				fullyParallel: false,
+				workers: HMR_WORKERS,
 				timeout: CROSS_INTEGRATION_DEV_TEST_TIMEOUT_MS,
 				use: {
 					...desktopChrome,

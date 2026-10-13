@@ -1,23 +1,7 @@
-import {
-	expect,
-	type PlaywrightTestArgs,
-	type PlaywrightTestOptions,
-	type PlaywrightWorkerArgs,
-	type PlaywrightWorkerOptions,
-	type TestType,
-} from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { trackRuntimeErrors } from './test-support';
 
-/**
- * Registers the dependency-discovery specs on the `test` of the calling spec file.
- *
- * @remarks
- * The parity spec passes the app-per-worker `test` and the preview spec passes the plain Playwright `test`,
- * because the same checks run against a dev server and against a preview server.
- */
-export function registerDependencyDiscoveryTests(
-	test: TestType<PlaywrightTestArgs & PlaywrightTestOptions, PlaywrightWorkerArgs & PlaywrightWorkerOptions>,
-) {
+export function registerDependencyDiscoveryTests() {
 	test.describe('Dependency discovery @parity', () => {
 		for (const route of ['/discovery', '/discovery-explicit', '/discovery-foreign']) {
 			test(`preserves SSR and lazy registration on ${route}`, async ({ page, request }) => {

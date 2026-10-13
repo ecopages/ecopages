@@ -1,5 +1,5 @@
 import { registerDependencyDiscoveryTests } from './dependency-discovery-tests';
-import { expect, test } from '../../../e2e/app-fixture';
+import { expect, test } from '@playwright/test';
 import { parityRoutes } from '../src/data/parity-routes';
 import { getPageTestId } from '../src/data/primary-links';
 import { gotoPathSimple, trackRuntimeErrors } from './test-support';
@@ -22,4 +22,4 @@ test.describe('Cross-integration parity @parity', () => {
 	});
 });
 
-registerDependencyDiscoveryTests(test);
+registerDependencyDiscoveryTests();

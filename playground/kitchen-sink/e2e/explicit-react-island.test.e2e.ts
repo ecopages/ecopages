@@ -1,4 +1,4 @@
-import { expect, test } from '../../../e2e/app-fixture';
+import { expect, test } from '@playwright/test';
 import { incrementCounter } from './counters';
 import { gotoPath, trackRuntimeErrors } from './test-support';
 

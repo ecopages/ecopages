@@ -1,4 +1,4 @@
-import { expect, test } from '../../../e2e/app-fixture';
+import { expect, test } from '@playwright/test';
 import type { APIRequestContext } from 'playwright-core';
 import { gotoPath, trackRuntimeErrors } from './helpers';
 

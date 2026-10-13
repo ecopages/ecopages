@@ -1,4 +1,4 @@
-import { expect, test } from '../../../e2e/app-fixture';
+import { expect, test } from '@playwright/test';
 import { gotoPathSimple } from './test-support';
 
 test.describe('Dev toolbar @content', () => {

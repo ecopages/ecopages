@@ -11,6 +11,7 @@ import type {
 	IntegrationRenderer,
 } from '../../../route-renderer/orchestration/integration-renderer.ts';
 import type { AnyIntegrationPlugin } from '../../../plugins/integration-plugin.ts';
+import { getComponentOwner } from '../../../eco/component-identity.ts';
 import { invariant } from '../../../utils/invariant.ts';
 import { createBodyResponse } from '../http/create-body-response.ts';
 
@@ -83,7 +84,7 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 	 * Throws an error if the integration cannot be determined or is not found.
 	 */
 	const getRendererForView = <P>(view: EcoComponent<P>): IntegrationRenderer => {
-		const integrationName = view.config?.integration ?? view.config?.identity?.integration;
+		const integrationName = getComponentOwner(view);
 		invariant(
 			!!integrationName,
 			'Cannot determine integration for view. Set view.config.integration explicitly or ensure the view is defined with eco.page() in a file with a recognized extension.',
@@ -92,7 +93,7 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 		const integration = integrations.find((i) => i.name === integrationName);
 		invariant(!!integration, `No integration found for: ${integrationName}`);
 
-		return integration.initializeRenderer() as IntegrationRenderer;
+		return integration.getRenderer() as IntegrationRenderer;
 	};
 
 	const renderContext: RenderContext = {

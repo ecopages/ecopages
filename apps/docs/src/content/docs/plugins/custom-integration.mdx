@@ -125,6 +125,8 @@ export class CustomRenderer extends IntegrationRenderer<string> {
 
 `IntegrationRenderer` already owns shared orchestration such as dependency collection, page-module loading, marker-graph resolution, and document finalization. Custom renderers should focus on framework semantics rather than rebuilding core’s route pipeline.
 
+Core creates one instance of your renderer for the app and uses it for every render of that integration: routes, handler renders, and foreign children of other integrations. Renders overlap, so keep request state out of renderer fields. A renderer that adds assets during a render does so through `appendProcessedDependencies`, which attaches them to the render that is running.
+
 `HtmlTemplate` receives `children`, `metadata`, and `pageProps`. Examples should include `pageProps` to match the current public contract.
 
 ## Handling Dependencies

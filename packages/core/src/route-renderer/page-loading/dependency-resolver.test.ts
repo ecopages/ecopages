@@ -13,6 +13,7 @@ import type {
 } from '../../services/assets/asset-processing-service/index.ts';
 import { APP_BROWSER_CLIENT_BUNDLE_ID } from '../../services/assets/asset-processing-service/index.ts';
 import type { EcoComponent } from '../../types/public-types.ts';
+import { collectPageClientPlan } from '../orchestration/ownership-graph/page-client-plan.ts';
 import { UndeclaredComponentDependencyError } from '../../errors/undeclared-component-dependency-error.ts';
 
 describe('DependencyResolverService', () => {
@@ -32,6 +33,40 @@ describe('DependencyResolverService', () => {
 		expect(service.resolveLazyScripts('/app/components/card', ['./client.ts', './widget.tsx'])).toBe(
 			'/assets/components/card/client.js,/assets/components/card/widget.js',
 		);
+	});
+
+	it('lets overlapping renders that share a lazy component each plan its lazy entries', async () => {
+		const assetProcessingService = {
+			processDependencies: vi.fn(async () => [] as ProcessedAsset[]),
+		} as unknown as AssetProcessingService;
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const component = ((_) => '<table></table>') as EcoComponent<Record<string, unknown>>;
+		component.config = {
+			identity: { id: 'table', integration: 'react', file: '/app/components/table/table.tsx' },
+			dependencies: {
+				scripts: [{ src: './table.client.ts', lazy: { 'on:interaction': 'click' } }],
+			},
+		};
+		const finishRender = (plan: ReturnType<typeof collectPageClientPlan>) =>
+			service.applyPendingLazyTriggers(
+				plan.lazyClientEntries.map((entry) => ({
+					kind: 'script',
+					srcUrl: '/assets/components/table/table.client.js',
+					attributes: entry.kind === 'script' ? entry.attributes : undefined,
+				})) as ProcessedAsset[],
+				plan.lazyConfigs,
+			);
+
+		await service.processComponentDependencies([component], 'react');
+		await service.processComponentDependencies([component], 'react');
+		const firstPlan = collectPageClientPlan([{ component }], 'react');
+		finishRender(firstPlan);
+		const secondPlan = collectPageClientPlan([{ component }], 'react');
+
+		expect(firstPlan.lazyClientEntries).toHaveLength(1);
+		expect(secondPlan.lazyClientEntries).toHaveLength(1);
+		expect(secondPlan.lazyConfigs).toEqual([component.config]);
+		expect(finishRender(secondPlan)).toEqual(finishRender(firstPlan));
 	});
 
 	it('should emit module dependencies as content scripts and resolve lazy triggers by default', async () => {

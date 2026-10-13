@@ -14,7 +14,7 @@ LitPlugin.setup()
                                      installBuildQueue()
                                      RouteRendererFactory
 
-LitPlugin.initializeRenderer()
+LitPlugin.getRenderer()  (creates it through initializeRenderer() on first use)
   └─ LitRenderer({ getRenderSession })   lazy accessor (not constructor snapshot)
 
 LitRenderer.execute() (main)
@@ -63,10 +63,10 @@ When `RouteRendererOptions.locals` is present, `LitRenderer.execute` forces the 
 
 ## Protocol
 
-| Message            | Direction     | Purpose                                                                       |
-| ------------------ | ------------- | ----------------------------------------------------------------------------- |
-| `init`             | main → worker | Load `eco.config.ts`, bootstrap runtime (`configModulePath`, `runtimeOrigin`) |
-| `ready`            | worker → main | Worker initialized                                                            |
-| `render`           | main → worker | Render one Lit page route (`filePath`, `PageParams`, optional `PageQuery`)    |
-| `result` / `error` | worker → main | HTML body plus optional `cacheStrategy`, or an error message                  |
-| `shutdown`         | main → worker | Exit worker thread                                                            |
+| Message            | Direction     | Purpose                                                                                                       |
+| ------------------ | ------------- | ------------------------------------------------------------------------------------------------------------- |
+| `init`             | main → worker | Load `eco.config.ts`, bootstrap runtime (`configModulePath`, `runtimeOrigin`)                                 |
+| `ready`            | worker → main | Worker initialized                                                                                            |
+| `render`           | main → worker | Render one Lit page route (`filePath`, `PageParams`, optional `PageQuery`)                                    |
+| `result` / `error` | worker → main | HTML body plus optional `cacheStrategy`, `sourceDependencyPaths` and resolved `metadata`, or an error message |
+| `shutdown`         | main → worker | Exit worker thread                                                                                            |

@@ -20,14 +20,14 @@ describe('createRenderContext', () => {
 
 	const Plugin = {
 		name: '-integration',
-		initializeRenderer: InitializeRenderer,
+		getRenderer: InitializeRenderer,
 	} as unknown as IntegrationPlugin;
 
 	const ExplicitInitializeRenderer = vi.fn(() => ExplicitRenderer);
 
 	const ExplicitPlugin = {
 		name: 'explicit-renderer',
-		initializeRenderer: ExplicitInitializeRenderer,
+		getRenderer: ExplicitInitializeRenderer,
 	} as unknown as IntegrationPlugin;
 
 	const ViewFn = ((props: { foo: string }) => `<div>${props.foo}</div>`) as EcoFunctionComponent<

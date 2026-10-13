@@ -36,7 +36,7 @@ import {
 } from '../route-renderer/orchestration/foreign-child/component-render-context.ts';
 import { isThenable } from '../route-renderer/orchestration/foreign-child/foreign-child-output.utils.ts';
 import { applyPageLayoutConfig, mergeLayoutDependencies, normalizePageLayouts } from './page-layout-normalization.ts';
-import { getComponentIdentity } from './component-identity.ts';
+import { getComponentIdentity, getComponentOwner } from './component-identity.ts';
 import { attachDiscoveredDependencies } from './discovered-dependencies.ts';
 
 /**
@@ -54,7 +54,7 @@ import { attachDiscoveredDependencies } from './discovered-dependencies.ts';
  * @returns Configured eco component.
  */
 function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoDeclaredComponent<P, E> {
-	const integrationName = options.integration ?? options.identity?.integration;
+	const integrationName = getComponentOwner(options);
 	const comp: EcoDeclaredComponent<P, E> = ((props: P) => {
 		const componentProps = (props ?? {}) as Record<string, unknown>;
 		const renderInline = (nextProps: P = props) => finalizeComponentRender(comp, options.render(nextProps)) as E;
@@ -141,7 +141,7 @@ function embed<P extends Record<string, unknown>, R>(
 ): R {
 	const activeRenderContext = getComponentRenderContext();
 	const ecoComponent = component as unknown as EcoComponent<P, R>;
-	const targetIntegration = ecoComponent.config?.integration ?? getComponentIdentity(ecoComponent)?.integration;
+	const targetIntegration = getComponentOwner(ecoComponent);
 	const componentFile = getComponentIdentity(ecoComponent)?.file ?? 'unknown component';
 	const nextProps = (children === undefined ? props : { ...props, children }) as P;
 

@@ -26,7 +26,10 @@ describe('ErrorPageRenderer', () => {
 
 	it('prefers a filesystem template over a registered loader', async () => {
 		vi.spyOn(fileSystem, 'exists').mockImplementation((candidate) => candidate === '/app/src/pages/404.kita.tsx');
-		const execute = vi.fn(async () => ({ body: '<html>filesystem</html>' }));
+		const execute = vi.fn(async () => ({
+			body: '<html>filesystem</html>',
+			metadata: { title: 'Page', description: 'Page description' },
+		}));
 		const loader = vi.fn(async () => ({ default: createView() }));
 		const renderer = new ErrorPageRenderer({
 			appConfig,

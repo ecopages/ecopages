@@ -352,6 +352,62 @@ describe('RolldownBuildAdapter', () => {
 		expect(code).toMatch(/from ['"]node:fs['"]/);
 	});
 
+	test.each(['fs', 'fs/promises', 'path/posix', 'node:test', 'node:sea'])(
+		'a node-target build keeps the builtin %s external',
+		async (specifier) => {
+			const entrypoint = writeFixture(
+				'builtin-entry.ts',
+				`import * as builtin from '${specifier}';\nexport { builtin };\n`,
+			);
+
+			const result = await new RolldownBuildAdapter().build({
+				environment: 'server' as const,
+				entrypoints: [entrypoint],
+				outdir: path.join(workDir, 'dist'),
+				target: 'node',
+				format: 'esm',
+				root: workDir,
+			});
+
+			assertBuildSucceeded(result, 'Build failed');
+			expect(readFileSync(result.outputs[0]!.path, 'utf-8')).toContain(`from "${specifier}"`);
+		},
+	);
+
+	test.each(['fs', 'fs/promises', 'node:path'])('a browser build rejects the builtin %s', async (specifier) => {
+		const entrypoint = writeFixture('browser-builtin.ts', `export * from '${specifier}';\n`);
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+		});
+
+		assertBuildFailed(result);
+		expect(result.logs.map((log) => log.message).join('\n')).toContain(`Node builtin "${specifier}"`);
+	});
+
+	test('a server build turns a css import into an empty module and emits no stylesheet', async () => {
+		writeFixture('styles.css', 'body { color: red; }');
+		const entrypoint = writeFixture('css-entry.ts', "import './styles.css';\nexport const ready = true;\n");
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'node',
+			format: 'esm',
+			root: workDir,
+		});
+
+		assertBuildSucceeded(result, 'Build failed');
+		expect(result.outputs.some((output) => output.path.endsWith('.css'))).toBe(false);
+		expect(readFileSync(result.outputs[0]!.path, 'utf-8')).not.toContain('color');
+	});
+
 	test('externalPackages points undeclared core-owned runtime packages at paths relative to the output', async () => {
 		const entrypoint = writeFixture('entry.ts', "import { parseSync } from 'oxc-parser';\nexport { parseSync };\n");
 		const adapter = new RolldownBuildAdapter();

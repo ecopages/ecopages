@@ -3,9 +3,9 @@
  *
  * @remarks
  * The standard {@link RolldownBuildAdapter} uses these helpers for
- * BuildOptions → Rolldown mapping and dependency-graph extraction. Node
- * runtime specifiers are resolved as externals during the build, so named
- * output hashes cover the bytes that are written.
+ * BuildOptions → Rolldown mapping and dependency-graph extraction. Rolldown's
+ * node platform keeps Node builtins external, so named output hashes cover
+ * the bytes that are written.
  *
  * @module
  */
@@ -25,6 +25,8 @@ import type {
 	RolldownOutput,
 	RolldownPlugin,
 } from 'rolldown';
+import { id as idFilter, include } from 'rolldown/filter';
+import { escapeRegExp } from '../browser/browser-runtime-plugin-helpers.ts';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import { isServerOnlyModuleSpecifier } from '../contracts/server-only-specifier.ts';
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
@@ -307,30 +309,9 @@ function isNodeBuiltinSpecifier(id: string): boolean {
 	return id.startsWith('node:') || nodeBuiltinSpecifiers.has(id);
 }
 
-/**
- * Resolves Node builtins as external before Rolldown falls back to file resolution.
- *
- * @remarks
- * Rolldown documents two first-class externalization points: its `external`
- * option is checked before resolution, and a plugin `resolveId` hook can return
- * `{ id, external: true }`. Core uses the latter to keep Node-builtin ownership
- * explicit in the Node-target plugin pipeline.
- *
- * The hook runs before Rolldown's internal filesystem resolver, leaving imports
- * such as `node:fs` intact for the Node runtime. It is installed only for
- * Node-target builds, so browser bundles still surface accidental Node builtin
- * imports as resolver failures.
- *
- * See {@link https://rolldown.rs/in-depth/external-modules | Rolldown external modules}.
- */
-export function createNodeBuiltinExternalPlugin(): RolldownPlugin {
-	return {
-		name: 'ecopages-node-builtin-external',
-		resolveId(id) {
-			return isNodeBuiltinSpecifier(id) ? { id, external: true } : null;
-		},
-	};
-}
+const nodeBuiltinFilter = new RegExp(
+	`^(?:node:.*|${[...nodeBuiltinSpecifiers].map((specifier) => escapeRegExp(specifier)).join('|')})$`,
+);
 
 /**
  * Rejects Node builtins and `.server` modules in browser-target builds.
@@ -354,14 +335,17 @@ export function createBrowserServerOnlyGuardPlugin(): RolldownPlugin {
 	};
 	return {
 		name: 'ecopages-browser-server-only-guard',
-		resolveId(id, importer) {
-			if (!isNodeBuiltinSpecifier(id)) {
-				return null;
-			}
-			const from = importer ? ` (imported from ${importer})` : '';
-			throw new Error(
-				`[browser-build] Node builtin "${id}" cannot be bundled for the browser${from}. Check package "browser" exports and the client-graph boundary for the importer.`,
-			);
+		resolveId: {
+			filter: [include(idFilter(nodeBuiltinFilter))],
+			handler(id, importer) {
+				if (!isNodeBuiltinSpecifier(id)) {
+					return null;
+				}
+				const from = importer ? ` (imported from ${importer})` : '';
+				throw new Error(
+					`[browser-build] Node builtin "${id}" cannot be bundled for the browser${from}. Check package "browser" exports and the client-graph boundary for the importer.`,
+				);
+			},
 		},
 		moduleParsed(info) {
 			if (info.isEntry && isServerOnlyModuleSpecifier(info.id)) {
@@ -535,7 +519,6 @@ async function buildRolldownInputPlugins(
 					),
 				]
 			: []),
-		...(rolldownPlatform === 'node' ? [createNodeBuiltinExternalPlugin()] : []),
 		...(rolldownPlatform === 'browser' ? [createBrowserServerOnlyGuardPlugin()] : []),
 		...(options.environment === 'server' ? [createServerSideCssShimPlugin()] : []),
 		...appPlugins,

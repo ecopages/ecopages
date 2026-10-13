@@ -72,26 +72,31 @@ export class RolldownBuildAdapter implements BuildAdapter {
 				defaultHandler(level, log);
 			},
 		});
-		const output =
-			options.writeToDisk === false ? await bundle.generate(outputOptions) : await bundle.write(outputOptions);
-		await bundle.close();
+		try {
+			const output =
+				options.writeToDisk === false
+					? await bundle.generate(outputOptions)
+					: await bundle.write(outputOptions);
 
-		return {
-			...buildResultFromRolldownOutput(
-				output,
-				outdir,
-				contextRoot,
-				dependencyGraph,
-				options.entrypoints,
-				options.naming,
-				options.writeToDisk === false,
-			),
-			loadedInputs: [...loadedInputs],
-			loadedInputsByModule: Object.fromEntries(
-				[...loadedInputsByModule].map(([moduleId, paths]) => [moduleId, [...paths]]),
-			),
-			warnings,
-		};
+			return {
+				...buildResultFromRolldownOutput(
+					output,
+					outdir,
+					contextRoot,
+					dependencyGraph,
+					options.entrypoints,
+					options.naming,
+					options.writeToDisk === false,
+				),
+				loadedInputs: [...loadedInputs],
+				loadedInputsByModule: Object.fromEntries(
+					[...loadedInputsByModule].map(([moduleId, paths]) => [moduleId, [...paths]]),
+				),
+				warnings,
+			};
+		} finally {
+			await bundle.close();
+		}
 	}
 
 	async build(options: BuildOptions): Promise<BuildResult> {

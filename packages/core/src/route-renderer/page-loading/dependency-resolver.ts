@@ -119,7 +119,10 @@ export class DependencyResolverService {
 			skipNestedComponents,
 		);
 
-		const packagedDependencies = packagePageDependencies(dependencies, integrationName);
+		const bundlesPageDependencies =
+			this.appConfig.integrations?.find((integration) => integration.name === integrationName)
+				?.bundlesPageDependencies ?? false;
+		const packagedDependencies = packagePageDependencies(dependencies, integrationName, bundlesPageDependencies);
 		const lazyDeps = packagedDependencies.filter(isLazyClientScript);
 		const eagerDeps = packagedDependencies.filter((dep) => !isLazyClientScript(dep));
 

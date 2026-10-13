@@ -1,4 +1,4 @@
-import { getComponentIdentity } from '../../../eco/component-identity.ts';
+import { getComponentIdentity, getComponentOwner } from '../../../eco/component-identity.ts';
 import type { EcoComponent, EcoComponentConfig } from '../../../types/public-types.ts';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -87,7 +87,7 @@ export function collectCustomElementSsrPreloadScripts(
 		visitedConfigs.add(config);
 
 		const identity = getComponentIdentity(config);
-		const integration = config.integration ?? identity?.integration;
+		const integration = getComponentOwner(config);
 		const ownsScripts = !collectForIntegration || integration === collectForIntegration;
 		const componentFile = ownsScripts ? identity?.file : undefined;
 		if (ownsScripts) {
@@ -142,7 +142,7 @@ export interface CustomElementScriptPreloaderOptions {
 	 * @remarks
 	 * Dependency trees may include foreign integrations whose `ssr: true` scripts
 	 * are preloaded by their own renderer. Ownership uses
-	 * `config.integration ?? identity.integration`, matching render routing.
+	 * `getComponentOwner`, matching render routing.
 	 * Ecopages JSX still walks nested components so it can find owned Radiant
 	 * hosts deeper in the graph.
 	 */

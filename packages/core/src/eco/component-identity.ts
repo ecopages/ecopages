@@ -23,6 +23,24 @@ export function getComponentIdentity(
 	return config?.identity;
 }
 
+/**
+ * Resolves the Integration that owns a component.
+ *
+ * @remarks An explicit component override takes precedence over build-time identity, then the inherited owner.
+ */
+export function getComponentOwner(value: EcoComponent | EcoComponentConfig | undefined, inheritedOwner: string): string;
+export function getComponentOwner(
+	value: EcoComponent | EcoComponentConfig | undefined,
+	inheritedOwner?: string,
+): string | undefined;
+export function getComponentOwner(
+	value: EcoComponent | EcoComponentConfig | undefined,
+	inheritedOwner?: string,
+): string | undefined {
+	const config = asConfig(value);
+	return config?.integration ?? config?.identity?.integration ?? inheritedOwner;
+}
+
 /** Merges attribution into factory options. Optional discovered stylesheets stay keyed by identity. */
 export function bindComponentIdentity<T extends object>(
 	identity: ComponentIdentity,

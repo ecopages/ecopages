@@ -6,6 +6,7 @@ import type {
 } from '../../../types/public-types.ts';
 import type { InternalComponentRenderInput } from '../../../types/internal-types.ts';
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import { getComponentOwner } from '../../../eco/component-identity.ts';
 import {
 	HtmlTransformerService,
 	type HtmlDocumentContribution,
@@ -51,6 +52,7 @@ export type DocumentShellComposeChildrenHook = (
 ) => Promise<DocumentShellComposeChildrenResult>;
 
 export type DocumentShellComposeInput = {
+	inheritedOwner: string;
 	primaryComponent: EcoComponent;
 	primaryProps: Record<string, unknown>;
 	/** Components whose ownership graphs must join the foreign-child decision. */
@@ -63,6 +65,7 @@ export type DocumentShellComposeInput = {
 };
 
 export type DocumentShellPageRenderInput = {
+	inheritedOwner: string;
 	page: {
 		component: EcoComponent;
 		props: Record<string, unknown>;
@@ -99,8 +102,8 @@ function resolveDocumentShellLayouts(
 	return input.layout ? [input.layout] : [];
 }
 
-function resolveComponentIntegrationName(component: EcoComponent): string {
-	return component.config?.integration ?? component.config?.identity?.integration ?? 'ecopages';
+function resolveComponentIntegrationName(component: EcoComponent, inheritedOwner: string): string {
+	return getComponentOwner(component, inheritedOwner);
 }
 
 /**
@@ -168,7 +171,7 @@ export async function composeDocumentShell(
 			assets: [],
 			canAttachAttributes: true,
 			rootTag: 'main',
-			integrationName: resolveComponentIntegrationName(input.primaryComponent),
+			integrationName: resolveComponentIntegrationName(input.primaryComponent, input.inheritedOwner),
 		};
 	} else {
 		primaryRender = await dependencies.renderComponentWithForeignChildren({
@@ -240,6 +243,7 @@ export async function renderPageDocumentShell(
 	docType: string,
 ): Promise<string> {
 	const { documentHtml: composedDocumentHtml } = await composeDocumentShell(dependencies, {
+		inheritedOwner: input.inheritedOwner,
 		primaryComponent: input.page.component,
 		primaryProps: input.page.props,
 		foreignChildRoots: input.foreignChildRoots,

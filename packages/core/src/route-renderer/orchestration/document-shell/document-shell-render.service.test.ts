@@ -54,6 +54,7 @@ describe('document-shell-render.service', () => {
 				appendProcessedDependencies: () => [],
 			},
 			{
+				inheritedOwner: 'kitajs',
 				primaryComponent: Page,
 				primaryProps: { title: 'Hello' },
 				layout: { component: Layout, props: { section: 'docs' } },
@@ -91,6 +92,7 @@ describe('document-shell-render.service', () => {
 				appendProcessedDependencies: () => [],
 			},
 			{
+				inheritedOwner: 'test',
 				primaryComponent: Page,
 				primaryProps: {},
 				layouts: [{ component: Outer }, { component: Inner }],
@@ -132,6 +134,7 @@ describe('document-shell-render.service', () => {
 				appendProcessedDependencies: () => [],
 			},
 			{
+				inheritedOwner: 'test',
 				primaryComponent: Page,
 				primaryProps: {},
 				layout: { component: Layout },

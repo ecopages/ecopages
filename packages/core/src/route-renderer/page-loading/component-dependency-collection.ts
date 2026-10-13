@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { DependencyLazyTrigger, EcoComponent, EcoComponentDependencies } from '../../types/public-types.ts';
 import { assertEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
-import { getComponentIdentity } from '../../eco/component-identity.ts';
+import { getComponentIdentity, getComponentOwner } from '../../eco/component-identity.ts';
 import { getInferredStylesheets } from '../../eco/discovered-dependencies.ts';
 import type { AssetDefinition } from '../../services/assets/asset-processing-service/index.ts';
 import { AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
@@ -143,8 +143,7 @@ function recordExplicitAndInferredStyles(
  * @remarks A nested component without an Integration inherits its parent's, so it is not a Foreign Child.
  */
 function isForeignChild(component: EcoComponent, integrationName: string): boolean {
-	const componentIntegration = component.config?.integration ?? getComponentIdentity(component)?.integration;
-	return componentIntegration !== undefined && componentIntegration !== integrationName;
+	return getComponentOwner(component, integrationName) !== integrationName;
 }
 
 /**

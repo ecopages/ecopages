@@ -44,10 +44,6 @@ export class OwnershipValidationService {
 				continue;
 			}
 
-			if (integrationName === 'html') {
-				continue;
-			}
-
 			const componentMeta = getComponentIdentity(component);
 			if (!componentMeta) {
 				errors.push({

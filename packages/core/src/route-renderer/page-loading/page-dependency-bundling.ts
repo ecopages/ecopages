@@ -80,11 +80,10 @@ type PageDependencyPackagingPlan = {
 };
 
 /**
- * Returns whether the current integration should collapse eligible page assets into
- * page-owned bundle entries.
+ * Returns whether the integration has opted into page-owned asset bundles.
  */
-export function shouldBundlePageDependencies(integrationName: string): boolean {
-	return integrationName === 'react' || integrationName === 'ecopages-jsx';
+export function shouldBundlePageDependencies(bundlesPageDependencies: boolean): boolean {
+	return bundlesPageDependencies;
 }
 
 function createPageDependencyPackagingPlan(
@@ -238,8 +237,12 @@ function applyPageDependencyPackagingPlan(
  * Only assets with the default attribute shape and without explicit packaging roles are
  * collapsed so integration-specific or lazy behavior keeps its existing ownership model.
  */
-export function packagePageDependencies(dependencies: AssetDefinition[], integrationName: string): AssetDefinition[] {
-	if (!shouldBundlePageDependencies(integrationName)) {
+export function packagePageDependencies(
+	dependencies: AssetDefinition[],
+	integrationName: string,
+	bundlesPageDependencies: boolean,
+): AssetDefinition[] {
+	if (!shouldBundlePageDependencies(bundlesPageDependencies)) {
 		return dependencies;
 	}
 

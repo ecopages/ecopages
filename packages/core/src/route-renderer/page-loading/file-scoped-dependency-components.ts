@@ -2,7 +2,7 @@ import type { EcoComponent, EcoComponentConfig, EcoComponentDependencies } from 
 import type { PageDependenciesResult } from '../../eco/eco.types.ts';
 import path from 'node:path';
 import { rapidhash } from '../../utils/hash.ts';
-import { bindComponentIdentity, getComponentIdentity } from '../../eco/component-identity.ts';
+import { bindComponentIdentity, getComponentIdentity, getComponentOwner } from '../../eco/component-identity.ts';
 import { getDiscoveredWatchFiles, getInferredStylesheets } from '../../eco/discovered-dependencies.ts';
 import { listFileOwnedDependencyContributions } from '../../eco/page-dependency-contributions.ts';
 
@@ -18,7 +18,7 @@ export function attachEcoFileMetadataToConfig(
 		{
 			id: getComponentIdentity(config)?.id ?? rapidhash(ownerFile).toString(36),
 			file: ownerFile,
-			integration: getComponentIdentity(config)?.integration ?? integrationName,
+			integration: getComponentOwner(config, integrationName),
 		},
 		config,
 	);

@@ -126,6 +126,8 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * It describes the Integration, so it is a class member rather than a user option.
 	 */
 	readonly acceptsParams: boolean = true;
+	/** Whether core may collapse this Integration's eligible Page assets into page-owned bundles. */
+	readonly bundlesPageDependencies: boolean = false;
 
 	protected integrationDependencies: AssetDefinition[];
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];

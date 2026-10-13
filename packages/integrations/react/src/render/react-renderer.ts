@@ -543,6 +543,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			},
 			{
 				...input,
+				inheritedOwner: this.name,
 				composeChildren,
 			},
 			this.DOC_TYPE,

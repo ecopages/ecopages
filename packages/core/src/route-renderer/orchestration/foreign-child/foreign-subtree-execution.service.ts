@@ -8,6 +8,7 @@ import type {
 	ForeignSubtreeRenderPayload,
 } from '../../../types/public-types.ts';
 import type { InternalComponentRenderInput } from '../../../types/internal-types.ts';
+import { getComponentOwner } from '../../../eco/component-identity.ts';
 import {
 	getComponentRenderContext,
 	runWithComponentRenderContext,
@@ -503,8 +504,8 @@ export class ForeignSubtreeExecutionService {
 		component: EcoComponent,
 		currentIntegrationName: string,
 	): string | undefined {
-		const integrationName = component.config?.integration ?? component.config?.identity?.integration;
-		if (!integrationName || integrationName === 'html' || integrationName === currentIntegrationName) {
+		const integrationName = getComponentOwner(component, currentIntegrationName);
+		if (!integrationName || integrationName === currentIntegrationName) {
 			return undefined;
 		}
 

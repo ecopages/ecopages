@@ -1,5 +1,5 @@
 import type { EcoComponent, EcoComponentDependencies, OwnershipPlanNodeSource } from '../../../types/public-types.ts';
-import { getComponentIdentity } from '../../../eco/component-identity.ts';
+import { getComponentIdentity, getComponentOwner } from '../../../eco/component-identity.ts';
 
 export type DeclaredOwnershipRoot = {
 	component: EcoComponent;
@@ -147,7 +147,7 @@ export function createPreparedComponentGraphBuilder(currentIntegrationName: stri
 	let nextSyntheticId = 0;
 
 	const getIntegrationName = (component: EcoComponent, parentIntegrationName: string) =>
-		component.config?.integration ?? getComponentIdentity(component)?.integration ?? parentIntegrationName;
+		getComponentOwner(component, parentIntegrationName);
 	const markDependencyCollectionVisible = (node: PreparedComponentGraphNode, parentVisible: boolean): void => {
 		const visible = Boolean(node.componentFile) && parentVisible;
 		if (!visible) {

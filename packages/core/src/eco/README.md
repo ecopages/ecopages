@@ -73,6 +73,10 @@ Scripts listening to client navigation events (`eco:after-swap`, `eco:page-load`
 
 Named barrel re-exports (`export { Counter } from './counter'`) are followed for the imported binding only. The imported module, the factory file, and successful named re-export hops are watch paths, so editing a child Component or retargeting a barrel updates page assets without editing the importing Page. Discovery does not follow `export * from './components'`, dynamic imports, namespace imports (`import * as`), package Components/CSS, CSS Modules, or custom import attributes. `export *` would pull an entire kit into the page asset graph; keep that explicit with `dependencies.components`. Plain-function modules retain their existing behavior. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
 
+## Component ownership
+
+The effective Integration owner follows one precedence rule everywhere: `config.integration`, then the build-time `config.identity.integration`, then the containing component's owner. A component-level override therefore controls both server rendering and its Page Client Plan even when the file belongs to another Integration. Components without either declaration inherit their parent's owner.
+
 ## Component Patterns
 
 EcoPages supports two approaches for creating components, each suited for different use cases:

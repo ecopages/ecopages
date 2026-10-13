@@ -99,6 +99,7 @@ const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactP
  */
 export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	renderer = ReactRenderer;
+	override readonly bundlesPageDependencies = true;
 	private readonly routerAdapter: ReactRouterAdapter | undefined;
 	private readonly mdxExtensions: string[];
 	private mdxLoaderPlugin: EcoBuildPlugin | undefined;

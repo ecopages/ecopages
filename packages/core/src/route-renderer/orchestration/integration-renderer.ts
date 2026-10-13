@@ -474,7 +474,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					this.renderComponentWithForeignChildren(renderInput),
 				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
 			},
-			input,
+			{ ...input, inheritedOwner: this.name },
 			this.DOC_TYPE,
 		);
 	}

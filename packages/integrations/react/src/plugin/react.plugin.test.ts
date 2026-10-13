@@ -23,6 +23,7 @@ describe('ReactPlugin', () => {
 		const plugin = reactPlugin();
 
 		expect(plugin.extensions).toEqual(['.tsx']);
+		expect(plugin.bundlesPageDependencies).toBe(true);
 	});
 
 	it('supports direct construction with MDX public options', () => {

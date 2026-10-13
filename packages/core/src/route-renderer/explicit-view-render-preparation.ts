@@ -1,4 +1,5 @@
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import { getComponentOwner } from '../eco/component-identity.ts';
 import type { EcoFunctionComponent, EcoPageComponent } from '../types/public-types.ts';
 import type { ExplicitViewRenderer, ExplicitViewRendererResolver } from './route-renderer.ts';
 
@@ -7,12 +8,6 @@ type ExplicitStaticRenderPreparationResult = {
 	props: Record<string, unknown>;
 	view: EcoFunctionComponent<Record<string, unknown>, any>;
 };
-
-function getViewIntegrationName(view: {
-	config?: { integration?: string; identity?: { integration?: string } };
-}): string | undefined {
-	return view.config?.integration ?? view.config?.identity?.integration;
-}
 
 /**
  * Resolves the renderer for one explicit view without reading its static props.
@@ -30,7 +25,7 @@ export function resolveExplicitViewRenderer(input: {
 		noRendererForIntegration(integrationName: string): string;
 	};
 }): { renderer: ExplicitViewRenderer; view: EcoFunctionComponent<Record<string, unknown>, any> } {
-	const integrationName = getViewIntegrationName(input.view);
+	const integrationName = getComponentOwner(input.view);
 	if (!integrationName) {
 		throw new Error(input.errors.missingIntegration(input.routePath));
 	}

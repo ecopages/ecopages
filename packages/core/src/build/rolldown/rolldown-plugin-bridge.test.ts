@@ -702,3 +702,49 @@ test('createRolldownPluginBridge rejects handlers registered after setup finishe
 	assert.throws(() => lateBuilder!.module('virtual:x', () => ({ contents: '' })), /build\.module\(\)/);
 	assert.throws(() => lateBuilder!.transform({ filter: /\.ts$/ }, (code) => code), /build\.transform\(\)/);
 });
+
+test('createRolldownPluginBridge runs a transform filtered on the extension for an id with a query', async () => {
+	const [plugin] = await createRolldownPluginBridge(
+		[
+			{
+				name: 'tagger',
+				setup(build) {
+					build.transform({ filter: /\.ts$/ }, (code) => ({ code: `/* tagged */\n${code}` }));
+				},
+			},
+		],
+		'/app',
+	);
+
+	const result = await callTransform(plugin!, 'export {};', '/app/src/a.ts?v=1');
+
+	assert.match(result?.code ?? '', /tagged/);
+});
+
+test('createRolldownPluginBridge treats a Windows drive prefix as part of the path, not a namespace', async () => {
+	const seen: string[] = [];
+	const [plugin] = await createRolldownPluginBridge(
+		[
+			{
+				name: 'drive',
+				setup(build) {
+					build.transform({ filter: /\.ts$/ }, (code, id) => {
+						seen.push(id);
+						return { code: `/* tagged */\n${code}` };
+					});
+					build.onLoad({ filter: /\.txt$/ }, ({ path: loadPath, namespace }) => {
+						seen.push(`${namespace}|${loadPath}`);
+						return { contents: 'x', loader: 'js' };
+					});
+				},
+			},
+		],
+		'/app',
+	);
+
+	const transformed = await callTransform(plugin!, 'export {};', 'C:\\app\\src\\a.ts');
+	await callLoad(plugin!, 'D:/app/a.txt');
+
+	assert.match(transformed?.code ?? '', /tagged/);
+	assert.deepEqual(seen, ['C:\\app\\src\\a.ts', 'undefined|D:/app/a.txt']);
+});

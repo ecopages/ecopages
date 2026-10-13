@@ -90,7 +90,7 @@ function createContentResolvePlugin(
 				build.onResolve({ filter: CONTENT_SERVER_VIRTUAL_MODULE_PATTERN }, async (args) => {
 					await ensureCollectionsGenerated?.();
 					const parsed = parseCollectionSpecifier(args.path);
-					if (parsed?.variant === 'server' && !collectionServerCompiledModules?.[parsed.collectionName]) {
+					if (parsed?.variant === 'server') {
 						await ensureCollectionServerArtifact?.(parsed.collectionName);
 					}
 

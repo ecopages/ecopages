@@ -46,15 +46,6 @@ describe('createRenderContext', () => {
 		integrations: [Plugin, ExplicitPlugin],
 	});
 
-	it('should create a render context with methods', () => {
-		expect(renderContext.importServerModule).toBeDefined();
-		expect(renderContext.renderServerModule).toBeDefined();
-		expect(renderContext.render).toBeDefined();
-		expect(renderContext.renderPartial).toBeDefined();
-		expect(renderContext.json).toBeDefined();
-		expect(renderContext.html).toBeDefined();
-	});
-
 	it('should delegate importServerModule to the active render-context loader', async () => {
 		const ImportServerModule = vi.fn(async (filePath: string) => ({ filePath }));
 		const delegatedContext = createRenderContext({

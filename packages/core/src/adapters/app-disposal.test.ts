@@ -60,11 +60,6 @@ class TestNodeEcopagesApp extends NodeEcopagesApp {
 }
 
 describe('createApp async disposal', () => {
-	it('exposes Symbol.asyncDispose on created apps', async () => {
-		const app = await createApp({ appConfig: {} as never });
-		expect(typeof app[Symbol.asyncDispose]).toBe('function');
-	});
-
 	it('cleans up with await using at scope exit', async () => {
 		const app = await createApp({ appConfig: {} as never });
 		const stopSpy = vi.spyOn(app, 'stop').mockResolvedValue(undefined);

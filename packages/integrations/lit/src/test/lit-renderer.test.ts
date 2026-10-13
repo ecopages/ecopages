@@ -965,6 +965,16 @@ describe('LitRenderer', () => {
 	});
 
 	describe('ensureLitDomShim', () => {
+		it('keeps the existing global custom element registry', async () => {
+			const { ensureLitDomShim } = await import('../dom-shim.ts');
+			const registry = globalThis.customElements;
+
+			ensureLitDomShim();
+			ensureLitDomShim();
+
+			expect(globalThis.customElements).toBe(registry);
+		});
+
 		it('repairs Element and HTMLElement when foreign shim lacks attributes and attachShadow', async () => {
 			const { ensureLitDomShim } = await import('../dom-shim.ts');
 			const originalAttributes = Object.getOwnPropertyDescriptor(globalThis.Element.prototype, 'attributes');

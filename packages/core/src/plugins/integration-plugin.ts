@@ -192,8 +192,16 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 *
 	 * Core calls this during config finalization before runtime setup so the
 	 * integration can resolve asset paths and other app-owned services later.
+	 *
+	 * @remarks
+	 * Runtime activation hands the same config over again on first use. That is a no-op, so the asset
+	 * service and the renderer built before activation survive it. A different config replaces both.
 	 */
 	setConfig(appConfig: EcoPagesAppConfig): void {
+		if (this.appConfig === appConfig && this.assetProcessingService) {
+			return;
+		}
+
 		this.appConfig = appConfig;
 		this.initializeAssetDefinitionService();
 		this.sharedRenderer = undefined;

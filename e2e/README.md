@@ -7,25 +7,25 @@ A check that needs no browser and no fixed-port fixture server is a Vitest suite
 ## Policy
 
 1. **Three tiers.** Pre-commit runs `test:pre-commit` (vitest + lint + typecheck, no Playwright). In CI (`.github/workflows/ci.yml`), every pull request runs `test:ci:fast` (job `fast`: lint, format check, typecheck, vitest) and `test:e2e:pr` (job `e2e`). Pushes to `develop` and `main` run `test:e2e` (job `e2e`, the full suite). Vitest runs only in `fast`, through `test:vitest`: the `shared-core` and `browser` projects, one project each for `apps/docs`, `templates/docs-starter` and `templates/llm-wiki/app`, and the kitchen-sink static-build parity oracle (`playground/kitchen-sink/bench/static-build-unified-graph-parity.test.ts`). No Vitest suite is gated by an environment variable. Playwright coverage is listed in root `package.json` (`test:e2e:static`, `test:e2e:dev`, `test:e2e:kitchen-sink`).
-2. **Cross-integration certifies runtime parity without a full matrix.** One canonical dev project (ecopages + **node**) runs the full behavioral suite. The Bun cell runs only the `@parity` document-navigation spec at `workers: 1`. Preview runs the same specs against a Bun production build and a Node production build.
+2. **Cross-integration certifies runtime parity without a full matrix.** Everything runs on Node except one Bun cell. One canonical dev project (ecopages + **node**) runs the full behavioral suite, and the HMR specs run on Node too. The Bun cell runs only the `@parity` document-navigation spec at `workers: 1` under `ecopages dev --runtime bun`, and fails when dev init takes longer than 45 s. Preview runs every preview spec against a Node production build, and the dependency-discovery preview specs against a Bun production build.
 3. **Rapid-navigation stays stressful.** Use `fireRapidLinkClicks` (overlapping navigations). Pacing every hop with full document waits stops testing SSR under load.
-4. **Three Playwright runs for the full suite.** `test:e2e:static` (one subprocess, parallel static/preview), `test:e2e:dev` (fixture dev servers), `test:e2e:kitchen-sink` (one subprocess per kitchen-sink cell — dev servers must not boot together). Kitchen-sink preview output is built in shell before Playwright (`build:e2e:kitchen-sink`): Node into `dist/`, Bun into `dist-preview-bun`.
+4. **Three Playwright runs for the full suite.** `test:e2e:static` (one subprocess, parallel static/preview), `test:e2e:dev` (fixture dev servers), `test:e2e:kitchen-sink` (one subprocess per kitchen-sink cell — dev servers must not boot together). Kitchen-sink preview output is built in shell before Playwright (`build:e2e:kitchen-sink`): Node into `dist/`, Bun into `dist-bun-build`.
 5. **Preview vs dev is capability-based.** Tests move to preview only when static output can serve them. API handlers, middleware locals, WebSockets, and HMR stay on dev/HMR projects.
 6. **Native Playwright.** Use `playwright test --project`, `--grep`, and `package.json` scripts. No custom test runner wrapper.
 
-Playwright projects (20 total) are defined in `playwright.config.ts`.
+Playwright projects (17 total) are defined in `playwright.config.ts`.
 
 ## Three runs (full suite)
 
-| Script                        | What                                                                                             |
-| ----------------------------- | ------------------------------------------------------------------------------------------------ |
-| `pnpm build:e2e:kitchen-sink` | Build kitchen-sink `dist/` on Node and `dist-preview-bun` on Bun. Required before preview tests. |
-| `pnpm test:e2e:static`        | One `playwright test` — fixture static/preview projects (parallel).                              |
-| `pnpm test:e2e:dev`           | One Playwright run per fixture dev server (core-hmr, react, react-router, html-pages).           |
-| `pnpm test:e2e:kitchen-sink`  | One Playwright run per cell (in-repo dev/parity), then `test:e2e:hmr` (isolated HMR, Bun + Node) |
-| `pnpm test:e2e`               | Build + all three runs above.                                                                    |
+| Script                        | What                                                                                           |
+| ----------------------------- | ---------------------------------------------------------------------------------------------- |
+| `pnpm build:e2e:kitchen-sink` | Build kitchen-sink `dist/` on Node and `dist-bun-build` on Bun. Required before preview tests. |
+| `pnpm test:e2e:static`        | One `playwright test` — fixture static/preview projects (parallel).                            |
+| `pnpm test:e2e:dev`           | One Playwright run per fixture dev server (core-hmr, react, react-router, html-pages).         |
+| `pnpm test:e2e:kitchen-sink`  | One Playwright run per cell (in-repo dev/parity), then `test:e2e:hmr` (isolated HMR, Node)     |
+| `pnpm test:e2e`               | Build + all three runs above.                                                                  |
 
-`test:e2e:pr` is the pull-request subset: it drops the kitchen-sink Node preview (`cross-integration-node-preview-e2e`) and greps canonical dev and Bun parity to `@content|@stress|@parity`; it keeps `test:e2e:hmr`. A fixture project with `runtime: 'node'` serves its static build on Node through the `ecopages` CLI, as `html-pages-node-e2e` does.
+`test:e2e:pr` is the pull-request subset: it runs the same static and fixture dev projects and `test:e2e:hmr`, and greps canonical dev and Bun parity to `@content|@stress|@parity`. Fixture dev and static projects start through the `ecopages` CLI on Node: `ecopages dev`, and `ecopages preview`, which builds the static export and serves it.
 
 ## Single project
 
@@ -42,7 +42,7 @@ Or `pnpm test:e2e:ui` for the Playwright UI.
 
 Before a fixture web server starts, `playwright.config.ts` runs `e2e/scripts/playwright/assert-ports-free.mjs` on the ports its projects test against (from each project's `baseURL`). If something already listens there, the run stops with `Port <port> is already in use by PID <pid>` (the PID comes from `lsof` when it is installed). Stop that process, usually a server left by an interrupted run, and run again.
 
-The check exists because the fixture servers signal readiness on stdout, so Playwright does not check the port itself, and a Bun server starts on a busy port instead of failing; the tests would then reach the old server. It is skipped when `ECOPAGES_REUSE_TEST_SERVERS=true`.
+The check exists because the fixture servers signal readiness on stdout, so Playwright does not check the port itself, and a Bun server (the parity cell) starts on a busy port instead of failing; the tests would then reach the old server. It is skipped when `ECOPAGES_REUSE_TEST_SERVERS=true`.
 
 ## Adding a fixture
 
@@ -74,10 +74,10 @@ The Vitest browser regression in `packages/dev-toolbar/src/shell/build-errors.te
 
 ## Kitchen-sink cross-integration
 
-- **Preview** — in-repo output, built before e2e; `webServer` only serves (`start-kitchen-sink-preview-server.mjs`). Bun preview (`cross-integration-preview-e2e`) serves `dist-preview-bun` from `ecopages build --runtime bun`. Node preview serves `dist/` from `ecopages build --runtime node`.
+- **Preview** — in-repo output, built before e2e; `webServer` only serves (`start-kitchen-sink-preview-server.mjs`). Node preview (`cross-integration-preview-e2e`) serves `dist/` from `ecopages build --runtime node` and runs every preview spec. The Bun build project (`cross-integration-bun-build-e2e`) serves `dist-bun-build` from `ecopages build --runtime bun` and runs only `dependency-discovery.preview.test.e2e.ts`.
 - **Canonical dev** — `cross-integration-dev-e2e` (ecopages + node), full suite.
-- **Parity** — bun runs only `parity.test.e2e.ts` (`@parity`).
-- **HMR** — `*-hmr.test.e2e.ts`, isolated `.e2e-tmp` workspace each, `workers: 1`. Specs mutate that copy, so extra Playwright workers race the writes. `test:e2e:hmr` runs the Bun project (`cross-integration-hmr-e2e`) and the Node project (`cross-integration-hmr-node-e2e`), in both `test:e2e` and `test:e2e:pr`. These fixtures compile Pages on demand instead of forcing unrelated Page prewarms on every restart. Playwright waits for the Ecopages listen log, which is printed after integration warmup and watcher initialization.
+- **Parity** — bun runs only `parity.test.e2e.ts` (`@parity`), which also registers the dependency-discovery specs. `start-kitchen-sink-dev-server.mjs` logs its dev init time and fails the run above `ECOPAGES_E2E_DEV_INIT_CEILING_MS` (45 s for this project), because the watcher's initial crawl is much slower on Bun.
+- **HMR** — `*-hmr.test.e2e.ts`, isolated `.e2e-tmp` workspace each, `workers: 1`. Specs mutate that copy, so extra Playwright workers race the writes. `test:e2e:hmr` runs the Node project (`cross-integration-hmr-node-e2e`), in both `test:e2e` and `test:e2e:pr`. These fixtures compile Pages on demand instead of forcing unrelated Page prewarms on every restart. Playwright waits for the Ecopages listen log, which is printed after integration warmup and watcher initialization.
 
 Development fixture projects default to a 60-second test timeout (`DEV_FIXTURE_TEST_TIMEOUT_MS` in `e2e/playwright/define-fixture.ts`). Ordinary Page HMR mutations retain their 25-second allowance. The WebSocket-handler scenario waits for the lightweight API route before reading a new connection's history, avoiding repeated failed browser handshakes during replacement. Restoration checks both Pages and the original chat history. CSS discovery scenarios wait for the HMR connection and observe the stylesheet update on the current Page, without polling manual reloads.
 
@@ -85,9 +85,10 @@ Browsers stay headless for `pnpm test:all` / `pnpm test:vitest` / `pnpm test:e2e
 
 ## Environment variables
 
-| Variable                                   | Effect                                               |
-| ------------------------------------------ | ---------------------------------------------------- |
-| `ECOPAGES_REUSE_TEST_SERVERS=true`         | Reuse running web servers; skips the busy-port check |
-| `ECOPAGES_KEEP_E2E_TMP=true`               | Keep `.e2e-tmp/` after isolated runs                 |
-| `ECOPAGES_PLAYWRIGHT_PROJECTS`             | Comma-separated project filter for `playwright test` |
-| `ECOPAGES_MANAGE_ISOLATED_WORKSPACES=true` | Set by `run-each-project.mjs` for kitchen-sink cells |
+| Variable                                   | Effect                                                                      |
+| ------------------------------------------ | --------------------------------------------------------------------------- |
+| `ECOPAGES_REUSE_TEST_SERVERS=true`         | Reuse running web servers; skips the busy-port check                        |
+| `ECOPAGES_KEEP_E2E_TMP=true`               | Keep `.e2e-tmp/` after isolated runs                                        |
+| `ECOPAGES_PLAYWRIGHT_PROJECTS`             | Comma-separated project filter for `playwright test`                        |
+| `ECOPAGES_MANAGE_ISOLATED_WORKSPACES=true` | Set by `run-each-project.mjs` for kitchen-sink cells                        |
+| `ECOPAGES_E2E_DEV_INIT_CEILING_MS`         | Fail the kitchen-sink dev server when its ready line takes longer than this |

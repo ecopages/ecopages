@@ -25,7 +25,7 @@ afterEach(() => {
 	}
 });
 
-function createHmrAssetManager(runtimePath: string): IHmrManager {
+function createHmrAssetManager(runtimePath: string, enabled = true): IHmrManager {
 	return {
 		registerEntrypoint: vi.fn(),
 		registerScriptEntrypoint: vi.fn(),
@@ -33,7 +33,7 @@ function createHmrAssetManager(runtimePath: string): IHmrManager {
 		registerDevTransformContributor: vi.fn(),
 		setEnabled: vi.fn(),
 		stop: vi.fn(),
-		isEnabled: vi.fn(() => true),
+		isEnabled: vi.fn(() => enabled),
 		broadcast: vi.fn(),
 		getWatchedFiles: vi.fn(() => new Map()),
 		getRegisteredEntrypoints: vi.fn(() => new Map()),
@@ -209,11 +209,11 @@ test('SharedServerAdapter injects HMR script into HTML responses in watch mode',
 	assert.equal(response.headers.get('Cache-Control'), 'no-store, must-revalidate');
 });
 
-test('SharedServerAdapter leaves HTML responses untouched when watch mode is disabled', async () => {
+test('SharedServerAdapter leaves HTML responses untouched while the HMR manager is disabled', async () => {
 	const rootDir = createTempRoot('ecopages-shared-server-hmr-no-inject');
 	const adapter = new TestSharedServerAdapter(rootDir);
-	adapter.setWatchModeForTest(false);
-	const hmrManager = createHmrAssetManager('');
+	adapter.setWatchModeForTest(true);
+	const hmrManager = createHmrAssetManager('', false);
 	adapter.setRouteHandlerForTest(
 		async () =>
 			new Response('<html><body></body></html>', {

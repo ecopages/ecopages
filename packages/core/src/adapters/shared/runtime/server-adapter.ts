@@ -349,16 +349,12 @@ export abstract class SharedServerAdapter<
 	}
 
 	private async injectSharedHmrHtmlResponse(response: Response, context: SharedRequestContext): Promise<Response> {
-		if (!isHtmlResponse(response)) {
+		const hmrManager = context.hmrManager;
+		if (!isHtmlResponse(response) || !hmrManager?.isEnabled()) {
 			return response;
 		}
 
-		if (!this.options?.watch) {
-			return response;
-		}
-
-		const uncachedResponse = withUncachedDevHtml(response);
-		return (await context.hmrManager?.injectDevClientRuntimes(uncachedResponse)) ?? uncachedResponse;
+		return await hmrManager.injectDevClientRuntimes(withUncachedDevHtml(response));
 	}
 
 	private async tryHandleSharedApiRequest(request: Request, context: SharedRequestContext): Promise<Response | null> {

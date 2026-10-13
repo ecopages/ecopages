@@ -6,10 +6,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NodeHmrManager } from '../adapters/node/node-hmr-manager.ts';
 import { installBuildRuntime } from '../build/runtime/build-runtime.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
-import { DEV_TOOLBAR_RUNTIME_IMPORT } from './dev-toolbar-runtime-paths.ts';
 
 const toolbarPackageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../dev-toolbar');
 const HMR_RUNTIME_IMPORT = "import '/_hmr_runtime.js'";
+const DEV_TOOLBAR_RUNTIME_IMPORT = "import '/_dev_toolbar.js'";
 const tempRoots: string[] = [];
 const managers: NodeHmrManager[] = [];
 

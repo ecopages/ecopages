@@ -1020,7 +1020,6 @@ export type ForeignSubtreeAttachmentPolicy = { kind: 'none' } | { kind: 'first-e
 export interface ForeignSubtreeRenderPayload {
 	html: string;
 	assets: ProcessedAsset[];
-	rootTag?: string;
 	rootAttributes?: Record<string, string>;
 	attachmentPolicy: ForeignSubtreeAttachmentPolicy;
 	integrationName: string;
@@ -1057,7 +1056,6 @@ export interface ComponentRenderInput<TIntegrationContext extends BaseIntegratio
 export interface ComponentRenderResult {
 	html: string;
 	canAttachAttributes: boolean;
-	rootTag?: string;
 	integrationName: string;
 	rootAttributes?: Record<string, string>;
 	assets?: ProcessedAsset[];

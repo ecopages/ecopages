@@ -3,24 +3,19 @@ import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { BuildResult } from '../../build/build-adapter.js';
+import type { BuildResult, BuildSuccess } from '../../build/build-adapter.js';
 import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { PageModuleImportService, type PageModuleImportDependencies } from './page-module-import.service.ts';
+import { createBuildFailure, createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 
 const DEFAULT_PAGE = '/app/pages/page.tsx';
 
-function createBuildResult(overrides?: Partial<BuildResult>, entry = DEFAULT_PAGE): BuildResult {
+function createBuildResult(overrides?: Partial<BuildSuccess>, entry = DEFAULT_PAGE): BuildSuccess {
 	const output = overrides?.outputs?.[0]?.path;
-	return {
-		success: true,
-		logs: [],
-		outputs: [],
-		...(output ? { entryOutputs: { [entry]: output } } : {}),
-		...overrides,
-	};
+	return createBuildSuccess({ ...(output ? { entryOutputs: { [entry]: output } } : {}), ...overrides });
 }
 
 function createFakeDependencies(): {
@@ -41,7 +36,7 @@ function createFakeDependencies(): {
 			buildExecutor: Parameters<PageModuleImportDependencies['buildModule']>[1];
 		}>,
 	};
-	let nextBuildResult = createBuildResult();
+	let nextBuildResult: BuildResult = createBuildResult();
 
 	return {
 		dependencies: {
@@ -181,13 +176,7 @@ describe('PageModuleImportService', () => {
 	});
 
 	it('should throw the provided transpile error when the build fails', async () => {
-		fakeDependencies.setNextBuildResult(
-			createBuildResult({
-				success: false,
-				logs: [{ message: 'Unexpected token' }],
-				outputs: [],
-			}),
-		);
+		fakeDependencies.setNextBuildResult(createBuildFailure([{ message: 'Unexpected token' }]));
 
 		await assert.rejects(
 			service.importModule({
@@ -245,6 +234,7 @@ describe('PageModuleImportService', () => {
 					{
 						outputs: [{ path: compiledOutput }],
 						loadedInputs: [pluginInputPath],
+						loadedInputsByModule: { [pagePath]: [pluginInputPath] },
 						dependencyGraph: {
 							entrypoints: {
 								[pagePath]: [pagePath, helperPath],

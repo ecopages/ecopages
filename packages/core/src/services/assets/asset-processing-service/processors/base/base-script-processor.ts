@@ -4,7 +4,7 @@ import type { ScriptAsset } from '../../assets.types.ts';
 import { BaseProcessor } from './base-processor.ts';
 import { BrowserBundleService, type BrowserBundleGroupedEntry } from '../../../browser-bundle.service.ts';
 import { collectBuildEntryInputPaths, getBuildEntryOutput } from '../../../../../build/build-graph.ts';
-import type { BuildResult } from '../../../../../build/build-adapter.ts';
+import type { BuildSuccess } from '../../../../../build/build-adapter.ts';
 import { assertBuildSucceeded } from '../../../../../build/build-log.ts';
 
 export type BundledScriptOutput = {
@@ -117,7 +117,11 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 		return sourcePaths.size > 0 ? [...sourcePaths] : undefined;
 	}
 
-	private toBundledScriptOutput(buildResult: BuildResult, entrypoint: string, filepath: string): BundledScriptOutput {
+	private toBundledScriptOutput(
+		buildResult: BuildSuccess,
+		entrypoint: string,
+		filepath: string,
+	): BundledScriptOutput {
 		return {
 			filepath,
 			inputPaths: collectBuildEntryInputPaths(buildResult, entrypoint, this.appConfig.rootDir),

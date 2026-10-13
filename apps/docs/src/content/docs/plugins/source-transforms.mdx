@@ -27,7 +27,7 @@ const bannerTransform: EcoSourceTransform = {
 
 Fields:
 
-- `name` — stable identifier
+- `name` — stable identifier, unique among the build plugins of a request. A transform with the name of a plugin in the same build throws instead of being skipped.
 - `filter` — `RegExp` tested against normalized module ids
 - `enforce` — optional `'pre'` or `'post'` ordering (default runs between pre and post)
 - `transform(code, id)` — returns rewritten source, `{ code, map? }`, or `undefined` to skip

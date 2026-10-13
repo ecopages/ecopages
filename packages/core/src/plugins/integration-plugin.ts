@@ -10,7 +10,7 @@ import type { IntegrationRenderer } from '../route-renderer/orchestration/integr
 import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
 import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
 import { deepMerge } from '../utils/deep-merge.ts';
-import type { StaticExportContext } from '../static-site-generator/static-export-context.ts';
+import type { StaticExportContext, StaticExportRelease } from '../static-site-generator/static-export-context.ts';
 
 export type {
 	EcoBuildLoader,
@@ -22,7 +22,7 @@ export type {
 	EcoBuildPluginBuilder,
 } from '../build/contracts/build-types.ts';
 export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext } from '../types/public-types.ts';
-export type { StaticExportContext } from '../static-site-generator/static-export-context.ts';
+export type { StaticExportContext, StaticExportRelease } from '../static-site-generator/static-export-context.ts';
 
 export type {
 	HtmlDocumentContribution,
@@ -349,13 +349,15 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	async prepareBuildContributions(): Promise<void> {}
 
 	/**
-	 * Runs integration-specific setup before static page generation begins.
+	 * Runs integration-specific setup before static page generation begins and returns how to undo it.
 	 *
 	 * @remarks
-	 * Integrations that need build-scoped SSR preload or worker sessions should
-	 * start them here rather than per-page inside the renderer.
+	 * Integrations that need build-scoped SSR preload or worker sessions start them here rather than per-page
+	 * inside the renderer. The returned function releases whatever this call started. Core awaits every release
+	 * after the export, in reverse order, whether it succeeded or failed, so the process does not depend on
+	 * `process.exit()` to stop a worker. A release that throws is logged and does not fail the export.
 	 */
-	async beforeStaticExport?(_context: StaticExportContext): Promise<void>;
+	staticExport?(context: StaticExportContext): Promise<StaticExportRelease | void>;
 
 	/**
 	 * Performs runtime-only integration setup after config build has already

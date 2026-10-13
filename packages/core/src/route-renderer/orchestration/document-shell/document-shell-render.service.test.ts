@@ -28,7 +28,6 @@ describe('document-shell-render.service', () => {
 					html: input.children ? `<${id}>${String(input.children)}</${id}>` : `<${id} />`,
 					assets: [],
 					canAttachAttributes: true,
-					rootTag: id,
 					integrationName: 'test',
 				};
 			},
@@ -74,7 +73,6 @@ describe('document-shell-render.service', () => {
 					html: `<${id}>${input.children ?? ''}</${id}>`,
 					assets: [],
 					canAttachAttributes: true,
-					rootTag: 'div',
 					integrationName: 'test',
 				};
 			},
@@ -112,7 +110,6 @@ describe('document-shell-render.service', () => {
 					html: '<hooked />',
 					assets: [],
 					canAttachAttributes: true,
-					rootTag: 'main',
 					integrationName: 'test',
 				},
 			};
@@ -121,7 +118,6 @@ describe('document-shell-render.service', () => {
 			html: '<page />',
 			assets: [],
 			canAttachAttributes: true,
-			rootTag: 'main',
 			integrationName: 'test',
 		}));
 
@@ -161,14 +157,12 @@ describe('document-shell-render.service', () => {
 			html: '<page />',
 			assets: [],
 			canAttachAttributes: true,
-			rootTag: 'main',
 			integrationName: 'test',
 		};
 		const layoutRender = {
 			html: '<layout><page /></layout>',
 			assets: [],
 			canAttachAttributes: true,
-			rootTag: 'div',
 			integrationName: 'test',
 		};
 		const renderComponentWithForeignChildren = vi.fn(async () => layoutRender);

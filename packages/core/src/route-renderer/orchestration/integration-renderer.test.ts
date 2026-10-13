@@ -742,7 +742,6 @@ describe('IntegrationRenderer', () => {
 
 			expect(result.integrationName).toBe('test-renderer');
 			expect(result.canAttachAttributes).toBe(true);
-			expect(result.rootTag).toBe('h1');
 			expect(result.html).toContain('<h1>Hello Component</h1>');
 		});
 	});
@@ -808,7 +807,6 @@ describe('IntegrationRenderer', () => {
 				renderComponent: vi.fn(async (_input: ComponentRenderInput) => ({
 					html: '<aside>Nested</aside>',
 					canAttachAttributes: true,
-					rootTag: 'aside',
 					integrationName: 'explicit-renderer',
 				})),
 				renderComponentWithForeignChildren: vi.fn(async (input: ComponentRenderInput) =>
@@ -837,7 +835,6 @@ describe('IntegrationRenderer', () => {
 			renderer.MockComponentRenderResult = {
 				html: '<main>Test Page</main>',
 				canAttachAttributes: true,
-				rootTag: 'main',
 				integrationName: 'test-renderer',
 				rootAttributes: { 'data-eco-component-id': 'eco-page-root' },
 			};

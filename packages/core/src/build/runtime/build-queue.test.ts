@@ -2,6 +2,7 @@ import { availableParallelism } from 'node:os';
 import { describe, expect, it, vi } from 'vitest';
 import type { BuildAdapter, BuildOptions, BuildResult } from '../build-adapter.ts';
 import { BuildQueue, buildOrThrow, installBuildQueue, resolveBuildLaneLimits } from './build-queue.ts';
+import { createBuildFailure, createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 
 const baseOptions: BuildOptions = {
 	environment: 'server',
@@ -22,7 +23,7 @@ function createControlledAdapter() {
 			return new Promise<BuildResult>((resolve) => {
 				finish.push(() => {
 					running -= 1;
-					resolve({ success: true, logs: [], outputs: [{ path: `/out/${started.length}.js` }] });
+					resolve(createBuildSuccess({ outputs: [{ path: `/out/${started.length}.js` }] }));
 				});
 			});
 		},
@@ -118,7 +119,7 @@ describe('BuildQueue', () => {
 			async build() {
 				calls += 1;
 				if (calls === 1) throw new Error('boom');
-				return { success: true, logs: [], outputs: [] };
+				return createBuildSuccess();
 			},
 			resolve: (specifier) => specifier,
 		};
@@ -155,7 +156,7 @@ describe('BuildQueue', () => {
 					if (Object.values(options.entrypoints).includes('/in/parent.ts')) {
 						await queueRef.current!.build(entry('child'), lane);
 					}
-					return { success: true, logs: [], outputs: [] };
+					return createBuildSuccess();
 				},
 				resolve: (specifier) => specifier,
 			};
@@ -185,7 +186,7 @@ describe('BuildQueue', () => {
 					if (parent) {
 						await queueRef.current!.build(entry(`kid-${parent[1]}`), 'nested');
 					}
-					return { success: true, logs: [], outputs: [] };
+					return createBuildSuccess();
 				},
 				resolve: (specifier) => specifier,
 			};
@@ -227,7 +228,7 @@ describe('BuildQueue', () => {
 				async build() {
 					calls += 1;
 					if (calls === 1) throw new Error('boom');
-					return { success: true, logs: [], outputs: [] };
+					return createBuildSuccess();
 				},
 				resolve: (specifier) => specifier,
 			};
@@ -276,17 +277,15 @@ describe('buildOrThrow', () => {
 	};
 
 	it('returns the result of a build that succeeded', async () => {
-		const result: BuildResult = { success: true, logs: [], outputs: [{ path: '/out/a.js' }] };
+		const result: BuildResult = createBuildSuccess({ outputs: [{ path: '/out/a.js' }] });
 
 		await expect(buildOrThrow(createAppConfig(result), baseOptions, 'Build failed')).resolves.toEqual(result);
 	});
 
 	it('throws the formatted logs of a build that failed, on the app queue', async () => {
-		const appConfig = createAppConfig({
-			success: false,
-			logs: [{ message: 'no loader', plugin: 'eco-loader', id: '/in/a.ts' }],
-			outputs: [],
-		});
+		const appConfig = createAppConfig(
+			createBuildFailure([{ message: 'no loader', plugin: 'eco-loader', id: '/in/a.ts' }]),
+		);
 		const queue = installBuildQueue(appConfig);
 		const queued = vi.spyOn(queue, 'build');
 

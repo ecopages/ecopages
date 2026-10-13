@@ -15,10 +15,6 @@ class TestProcessor extends Processor {
 	override plugins?: EcoBuildPlugin[] = [];
 
 	override async setup(): Promise<void> {}
-
-	override async process(input: unknown, _filePath?: string): Promise<unknown> {
-		return input;
-	}
 }
 
 describe('Processor', () => {

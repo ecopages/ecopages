@@ -376,7 +376,6 @@ describe('ReactRenderer', () => {
 			});
 
 			expect(result.canAttachAttributes).toBe(false);
-			expect(result.rootTag).toBe('span');
 			expect(result.html).toContain('<span>One</span>');
 		});
 
@@ -551,7 +550,6 @@ describe('ReactRenderer', () => {
 				async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
 					html: `<aside data-slot="true">${input.children ?? ''}<button data-testid="deferred-widget">Deferred widget</button></aside>`,
 					canAttachAttributes: true,
-					rootTag: 'aside',
 					integrationName: 'deferred',
 					rootAttributes: {
 						'data-eco-component-id':
@@ -655,7 +653,6 @@ describe('ReactRenderer', () => {
 			expect(result).toEqual<ForeignSubtreeRenderPayload>({
 				html: '<eco-island style="display:contents"><h3>Island</h3></eco-island>',
 				assets: [],
-				rootTag: 'eco-island',
 				rootAttributes: {
 					'data-eco-component-id': 'island-1',
 					'data-eco-component-key': getIslandComponentKey(pageFilePath, Component.config),

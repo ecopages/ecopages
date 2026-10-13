@@ -15,6 +15,7 @@ See [Plugin Lifecycle](/docs/core/plugin-lifecycle) for the full ordering across
 A processor extends the `Processor` abstract class from `@ecopages/core`:
 
 ```typescript
+import type { EcoPagesAppConfig } from '@ecopages/core';
 import {
 	Processor,
 	type EcoBuildPlugin,
@@ -22,9 +23,6 @@ import {
 } from '@ecopages/core/plugins/processor';
 
 class CustomProcessor extends Processor {
-	buildPlugins: EcoBuildPlugin[] = [];
-	plugins: EcoBuildPlugin[] = [];
-
 	constructor(config: Omit<ProcessorConfig, 'name'>) {
 		super({
 			name: 'custom-processor',
@@ -42,12 +40,13 @@ class CustomProcessor extends Processor {
 		});
 	}
 
-	override async prepareBuildContributions(): Promise<void> {
-		// Materialize buildPlugins and plugins before config finalization seals the manifest
+	override plugins(app: EcoPagesAppConfig): EcoBuildPlugin[] {
+		// Declare build plugins; core reads this once during config finalization
+		return [];
 	}
 
 	override async setup(): Promise<void> {
-		// Runtime-only initialization
+		// Generation, cache warming and other runtime work
 	}
 
 	override async transformStylesheet(css: string, file: string): Promise<string> {
@@ -65,12 +64,11 @@ Shipped processors such as PostCSS and Image expose a factory function (`postcss
 
 Core owns the ordering. Processors participate in these phases:
 
-1. **`prepareBuildContributions()`** — runs during config finalization, before the app build manifest is sealed. Materialize `plugins` and `buildPlugins` here.
-2. **Manifest collection** — processor `plugins` become runtime plugin contributions; `buildPlugins` become browser bundle contributions.
-3. **`setup()`** — runs at app startup after the manifest is sealed. Use for runtime-only work such as cache warming or watcher registration.
-4. **`transformStylesheet(css, file)`** — optional; transforms every `.css`, `.scss`, `.sass` and `.less` asset the processor's `stylesheet` capability matches, in processor registration order. A processor without it takes no part in stylesheet processing.
-5. **Watch batches** — in development, `watch.onChanges({ created, changed, deleted, bridge })` receives matching absolute paths grouped once per debounce window. `extensions` select notifications; `capabilities` define asset ownership.
-6. **Prewarm** — a processor that owns pages to warm appends their pathnames to `this.context.config.devPrewarmPaths` from `setup()`. Core renders that list in the background once the development server handles requests.
+1. **`plugins(app)`** — read once during config finalization to seal the app build manifest. It is the only hook that runs then, so it must not do I/O.
+2. **`setup()`** — runs at app startup after the manifest is sealed. Generate files, load configuration and warm caches here.
+3. **`transformStylesheet(css, file)`** — optional; transforms every `.css`, `.scss`, `.sass` and `.less` asset the processor's `stylesheet` capability matches, in processor registration order. A processor without it takes no part in stylesheet processing.
+4. **Watch batches** — in development, `watch.onChanges({ created, changed, deleted, bridge })` receives matching absolute paths grouped once per debounce window. `extensions` select notifications; `capabilities` define asset ownership.
+5. **Prewarm** — a processor that owns pages to warm appends their pathnames to `this.context.config.devPrewarmPaths` from `setup()`. Core renders that list in the background once the development server handles requests.
 
 ## Asset Capabilities
 
@@ -90,13 +88,13 @@ super({
 
 Supported `kind` values: `script`, `stylesheet`, `image`. Extension patterns support `*`, `.css`, `*.css`, and grouped forms such as `*.{css,scss}`.
 
-## prepareBuildContributions
+## plugins(app)
 
-Use `prepareBuildContributions()` when `plugins` or `buildPlugins` depend on finalized paths or options resolved during config build:
+`plugins(app)` returns the processor's build plugins. Each plugin picks its environments with `environments: ['server']` or `['browser']`; omitting them applies to both. Core calls it once while finalizing the config, so it takes the finalized app config as its argument and does nothing else:
 
 ```typescript
-override async prepareBuildContributions(): Promise<void> {
-	this.plugins = [
+override plugins(app: EcoPagesAppConfig): EcoBuildPlugin[] {
+	return [
 		{
 			name: 'custom-runtime-loader',
 			setup(build) {
@@ -106,11 +104,9 @@ override async prepareBuildContributions(): Promise<void> {
 				}));
 			},
 		},
-	];
-
-	this.buildPlugins = [
 		{
 			name: 'custom-browser-plugin',
+			environments: ['browser'],
 			setup(build) {
 				// Browser-only bundling behavior
 			},
@@ -119,7 +115,7 @@ override async prepareBuildContributions(): Promise<void> {
 }
 ```
 
-Runtime-only side effects belong in `setup()`, not here.
+Work that needs the file system, such as generating modules or loading a config file, belongs in `setup()`. When a build can run before `setup()`, start that work lazily from the plugin's own callback and share one promise between callers, as the content processor does for its collection modules and PostCSS does for its plugin list.
 
 ## Working with Cache
 
@@ -143,36 +139,36 @@ class CustomProcessor extends Processor {
 
 ## Adding Build Plugins
 
-Processors contribute runtime-agnostic build plugins through `EcoBuildPlugin`:
+Processors contribute runtime-agnostic build plugins through `EcoBuildPlugin`, returned from `plugins(app)`:
 
 ```typescript
 class CustomProcessor extends Processor {
-	buildPlugins = [
-		{
-			name: 'custom-build-plugin',
-			setup(build) {
-				build.onResolve({ filter: /\.custom$/ }, (args) => ({
-					path: args.path,
-				}));
+	override plugins(): EcoBuildPlugin[] {
+		return [
+			{
+				name: 'custom-build-plugin',
+				environments: ['browser'],
+				setup(build) {
+					build.onResolve({ filter: /\.custom$/ }, (args) => ({
+						path: args.path,
+					}));
+				},
 			},
-		},
-	];
-
-	plugins = [
-		{
-			name: 'custom-runtime-plugin',
-			setup(build) {
-				build.onLoad({ filter: /\.custom$/ }, async (args) => ({
-					contents: 'export default ""',
-					loader: 'js',
-				}));
+			{
+				name: 'custom-runtime-plugin',
+				setup(build) {
+					build.onLoad({ filter: /\.custom$/ }, async () => ({
+						contents: 'export default ""',
+						loader: 'js',
+					}));
+				},
 			},
-		},
-	];
+		];
+	}
 }
 ```
 
-`buildPlugins` apply to browser-oriented bundles. `plugins` are collected into runtime plugin contributions and exposed during startup.
+Plugins that declare `environments: ['browser']` apply to browser bundles only. Plugins that omit `environments` apply to server and browser builds.
 
 ## File Watching
 
@@ -264,7 +260,7 @@ The `IClientBridge` contract provides:
 
 1. Use meaningful names for your processors
 2. Register `capabilities` when the processor owns asset kinds
-3. Put manifest-facing work in `prepareBuildContributions()`; runtime work in `setup()`
+3. Keep `plugins(app)` free of I/O; do generation and config loading in `setup()` or lazily in the plugin's callbacks
 4. Cache expensive operations
 6. Use `bridge` for live updates instead of full reloads when possible
 7. Export a factory function for `eco.config.ts` registration

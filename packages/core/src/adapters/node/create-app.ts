@@ -61,6 +61,18 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 		});
 	}
 
+	/**
+	 * `preview` with `serveOnly` serves an earlier export and sets nothing up; `build` and a `preview` that
+	 * builds empty `dist/` and set up before any Page is read.
+	 */
+	private resolveRuntimeAssetSetup(): 'start' | 'export' | 'none' {
+		const { build, preview, serveOnly } = this.cliArgs;
+		if (preview && serveOnly) {
+			return 'none';
+		}
+		return build || preview ? 'export' : 'start';
+	}
+
 	protected async initializeServerAdapter(): Promise<NodeServerAdapterResult> {
 		const binding = resolveRuntimeBinding({
 			cliArgs: this.cliArgs,
@@ -78,7 +90,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 			websocketHandlers: this.websocketHandlers.size > 0 ? this.websocketHandlers : undefined,
 			options: { watch: binding.watch },
 			serveOptions: binding.serveOptions,
-			deferRuntimeAssetSetup: this.cliArgs.build || this.cliArgs.preview,
+			runtimeAssetSetup: this.resolveRuntimeAssetSetup(),
 			allowPortFallback: binding.allowPortFallback,
 			onDevelopmentRestart: this.createDevelopmentRestartHandler(),
 		});

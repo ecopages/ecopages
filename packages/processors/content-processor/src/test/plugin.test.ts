@@ -6,7 +6,11 @@ import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config'
 import type { IClientBridge } from '@ecopages/core';
 import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
 import { installBuildQueue } from '@ecopages/core/build/build-queue';
-import type { ProcessorWatchChanges, ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
+import type {
+	EcoBuildPluginBuilder,
+	ProcessorWatchChanges,
+	ProcessorWatchConfig,
+} from '@ecopages/core/plugins/processor';
 import { fileSystem } from '@ecopages/file-system';
 import { contentProcessorPlugin, ContentProcessorPlugin } from '../plugin.ts';
 import { testContentSchema } from './test-schema.ts';
@@ -60,7 +64,7 @@ afterEach(() => {
 });
 
 describe('ContentProcessorPlugin', () => {
-	test('prepareBuildContributions generates virtual modules and types', async () => {
+	test('setup generates virtual modules and types, and finalization generates none', async () => {
 		const rootDir = createTempRoot('ecopages-content-processor-');
 		tempRoots.push(rootDir);
 
@@ -90,6 +94,11 @@ order: 1
 		const workDir = appConfig.absolutePaths.workDir;
 		const cacheFile = path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.ts');
 		const typesFile = path.join(rootDir, GENERATED_BASE_PATHS.types, plugin.name, 'virtual-module.d.ts');
+
+		expect(fileSystem.exists(cacheFile)).toBe(false);
+		expect(fileSystem.exists(typesFile)).toBe(false);
+
+		await plugin.setup();
 
 		expect(fileSystem.exists(cacheFile)).toBe(true);
 		expect(fileSystem.readFileSync(cacheFile)).toContain('export const entries = [');
@@ -139,6 +148,7 @@ order: 1
 			baseUrl: 'http://localhost:3000',
 			processors: [plugin],
 		});
+		await plugin.setup();
 
 		const cacheFile = path.join(
 			appConfig.absolutePaths.workDir,
@@ -196,6 +206,7 @@ order: 1
 			baseUrl: 'http://localhost:3000',
 			processors: [plugin],
 		});
+		await plugin.setup();
 
 		const cacheFile = path.join(
 			appConfig.absolutePaths.workDir,
@@ -285,6 +296,7 @@ order: 1
 			baseUrl: 'http://localhost:3000',
 			processors: [plugin],
 		});
+		await plugin.setup();
 
 		const cacheFile = path.join(
 			appConfig.absolutePaths.workDir,
@@ -348,6 +360,7 @@ order: 1
 			baseUrl: 'http://localhost:3000',
 			processors: [plugin],
 		});
+		await plugin.setup();
 		const cacheFile = path.join(
 			appConfig.absolutePaths.workDir,
 			GENERATED_BASE_PATHS.cache,
@@ -382,6 +395,47 @@ order: 2
 		fileSystem.remove(introPath);
 		await applyWatchChanges(watchConfig, { deleted: [introPath] });
 		expect(fileSystem.readFileSync(cacheFile)).not.toContain('"slug":"intro"');
+	});
+
+	test('resolving a collection before setup waits for the generated modules', async () => {
+		const rootDir = createTempRoot('ecopages-content-resolve-before-setup-');
+		tempRoots.push(rootDir);
+
+		const contentDir = path.join(rootDir, 'src', 'content', 'docs');
+		fileSystem.ensureDir(contentDir);
+		fileSystem.write(
+			path.join(contentDir, 'intro.mdx'),
+			'---\ntitle: Intro\ndescription: Test\norder: 1\n---\n# Intro\n',
+		);
+
+		const plugin = createContentProcessorPlugin({ docs: { contentDir: 'content/docs' } });
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		const resolvers: Array<{ filter: RegExp; callback: (args: { path: string }) => unknown }> = [];
+		await plugin
+			.plugins()
+			.find((candidate) => candidate.environments?.includes('server'))
+			?.setup({
+				onResolve(options, callback) {
+					resolvers.push({
+						filter: options.filter,
+						callback: callback as (args: { path: string }) => unknown,
+					});
+				},
+				onLoad() {},
+				module() {},
+				transform() {},
+			} as EcoBuildPluginBuilder);
+
+		const resolver = resolvers.find(({ filter }) => filter.test('ecopages:content/docs'));
+		const resolved = await resolver?.callback({ path: 'ecopages:content/docs' });
+
+		expect(resolved).toEqual({
+			path: path.join(appConfig.absolutePaths.workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.ts'),
+		});
 	});
 
 	test('setup adds collection pathnames to the app devPrewarmPaths', async () => {
@@ -464,6 +518,7 @@ order: ${index}
 			baseUrl: 'http://localhost:3000',
 			processors: [plugin],
 		});
+		await plugin.setup();
 
 		const workDir = appConfig.absolutePaths.workDir;
 		const clientCacheFile = path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.ts');

@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import chokidar from 'chokidar';
@@ -10,6 +11,7 @@ import type { NodeServerAdapterParams } from './server-adapter.ts';
 import { NodeServerAdapter } from './server-adapter.ts';
 import { NodeClientAbortError } from './http-request-bridge.ts';
 import { NodeStaticPreviewHost } from './static-preview-host.ts';
+import { Processor } from '../../plugins/processor.ts';
 import { HtmlPagesPlugin } from '../../html-pages/html-pages.plugin.ts';
 import { ServerRouteHandler } from '../shared/runtime/server-route-handler.ts';
 import {
@@ -161,6 +163,57 @@ describe('NodeServerAdapter', () => {
 			expect.objectContaining({ baseUrl: 'http://localhost:3000' }),
 			expect.any(Object),
 		);
+	});
+
+	describe('runtime asset setup', () => {
+		async function initializeWith(runtimeAssetSetup: 'start' | 'export' | 'none') {
+			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-runtime-asset-setup-'));
+			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
+			const events: string[] = [];
+			const processor = new (class extends Processor {
+				override async setup(): Promise<void> {
+					events.push('processor setup');
+					fs.writeFileSync(path.join(rootDir, 'dist', 'generated.txt'), 'generated');
+				}
+			})({ name: 'generating-processor' });
+			const appConfig = await finalizeEcoPagesConfig({ rootDir, processors: [processor] });
+			fs.mkdirSync(path.join(rootDir, 'dist'), { recursive: true });
+			fs.writeFileSync(path.join(rootDir, 'dist', 'stale.txt'), 'stale');
+			const adapter = createAdapter({ appConfig, options: { watch: false }, runtimeAssetSetup });
+			vi.spyOn(
+				adapter as unknown as { initializeSharedRouteHandling: () => Promise<void> },
+				'initializeSharedRouteHandling',
+			).mockImplementation(async () => {
+				events.push('routes read');
+			});
+
+			await adapter.initialize();
+
+			return { events, rootDir };
+		}
+
+		it.each(['start', 'export'] as const)(
+			'sets Processors up before the routes are read in %s mode',
+			async (mode) => {
+				const { events } = await initializeWith(mode);
+
+				expect(events).toEqual(['processor setup', 'routes read']);
+			},
+		);
+
+		it('empties dist before an export sets Processors up and keeps what they generate', async () => {
+			const { rootDir } = await initializeWith('export');
+
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'stale.txt'))).toBe(false);
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'generated.txt'))).toBe(true);
+		});
+
+		it('leaves Processors and dist alone when a preview only serves an earlier export', async () => {
+			const { events, rootDir } = await initializeWith('none');
+
+			expect(events).toEqual(['routes read']);
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'stale.txt'))).toBe(true);
+		});
 	});
 
 	describe('completeInitialization upgrade wiring', () => {

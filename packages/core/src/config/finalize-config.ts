@@ -285,7 +285,7 @@ export async function finalizeEcoPagesConfig(
 	}
 
 	setAppBuildAdapter(config, createBuildAdapter());
-	await sealAppBuildManifest(config);
+	sealAppBuildManifest(config);
 	setAppEntrypointDependencyGraph(config, new NoopEntrypointDependencyGraph());
 
 	return config;

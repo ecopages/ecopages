@@ -91,16 +91,22 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 		expect(renderer.isMdxFile('file.mdx')).toBe(false);
 	});
 
-	it('should seal runtime vendor dependencies for the active NODE_ENV during setup preparation', async () => {
+	it('should add runtime vendor dependencies for the active NODE_ENV during setup', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const plugin = reactPlugin({});
 		plugin.setConfig(Config);
+		const processDependencies = vi
+			.spyOn((plugin as any).assetProcessingService, 'processDependencies')
+			.mockResolvedValue([]);
 
 		expect((plugin as any).integrationDependencies).toEqual([]);
+		expect(plugin.browserRuntimeManifest.bySpecifier.has('react')).toBe(true);
+		expect((plugin as any).integrationDependencies).toEqual([]);
 
-		await plugin.prepareBuildContributions();
+		await plugin.setup();
 
-		expect((plugin as any).integrationDependencies).toEqual(
+		const dependencies = processDependencies.mock.calls[0]?.[0] as Array<{ bundleOptions?: { naming?: string } }>;
+		expect(dependencies).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
 					name: 'react',
@@ -113,9 +119,7 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 			]),
 		);
 		expect(
-			(plugin as any).integrationDependencies.some((dependency: { bundleOptions?: { naming?: string } }) =>
-				String(dependency.bundleOptions?.naming).includes('.development.'),
-			),
+			dependencies.some((dependency) => String(dependency.bundleOptions?.naming).includes('.development.')),
 		).toBe(false);
 	});
 });

@@ -85,8 +85,8 @@ Starts the production server using the existing build. `start` does not read `di
 
 Writes the types for virtual modules such as `ecopages:images` and `ecopages:content/*`, then exits.
 
-- Processors generate these types when the app finalizes its config, which otherwise happens only when the app starts (`dev`, `build`, `preview`, or `start`), so a fresh checkout or a CI job has none.
-- It loads only `eco.config.ts` (or the file given with `--config`), as `astro sync` does. Your entry file (`app.ts`) does not run.
+- Processors generate these types in `setup()`, which otherwise runs only when the app starts (`dev`, `build`, `preview`, or `start`), so a fresh checkout or a CI job has none.
+- It loads `eco.config.ts` (or the file given with `--config`), as `astro sync` does, and sets the processors up, so image optimization and the first PostCSS pass run too. Your entry file (`app.ts`) does not run.
 - Run it before the type checker: `"typecheck": "ecopages types && tsc --noEmit"`. The official templates ship that script.
 
 > **Note:** Commands that accept `[entry]` default to `app.ts` when omitted.

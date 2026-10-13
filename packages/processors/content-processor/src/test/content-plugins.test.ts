@@ -56,24 +56,26 @@ describe('content-plugins', () => {
 		};
 		const plugin = createContentPluginBundler({}, {}, undefined, browserModules);
 		const resolved: Array<{ path?: string; namespace?: string }> = [];
+		const pending: Array<Promise<void>> = [];
 
 		await plugin.setup({
 			onResolve(options, callback) {
 				if (!options.filter.test('ecopages:content/docs/browser')) {
 					return;
 				}
-				const result = callback({ path: 'ecopages:content/docs/browser' });
-				if (result && typeof result === 'object' && 'then' in result) {
-					throw new Error('expected a synchronous resolve result');
-				}
-				if (result) {
-					resolved.push(result);
-				}
+				pending.push(
+					Promise.resolve(callback({ path: 'ecopages:content/docs/browser' })).then((result) => {
+						if (result) {
+							resolved.push(result);
+						}
+					}),
+				);
 			},
 			onLoad() {},
 			module() {},
 			transform() {},
 		} as EcoBuildPluginBuilder);
+		await Promise.all(pending);
 
 		expect(resolved).toContainEqual({ path: browserModules.docs });
 		expect(resolved.some((result) => result.namespace === 'ecopages-content')).toBe(false);

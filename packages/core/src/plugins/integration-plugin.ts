@@ -136,11 +136,17 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	private sharedRenderer?: IntegrationRenderer<C>;
 
 	/**
+	 * Declares the build plugins this Integration contributes.
+	 *
 	 * @remarks
-	 * Plugins declare their environments. Omitted environments apply to both
-	 * server and browser builds; browser-only hooks use `['browser']`.
+	 * Core reads it once, during config finalization, and it is the only plugin method finalization calls. It must
+	 * not do I/O or start work: state a plugin needs belongs in {@link setup} or is created lazily by the plugin's
+	 * own callbacks. Plugins declare their environments; omitted environments apply to both server and browser
+	 * builds, and browser-only hooks use `['browser']`.
+	 *
+	 * @param app - The app config being finalized.
 	 */
-	get plugins(): EcoBuildPlugin[] {
+	plugins(_app: EcoPagesAppConfig): EcoBuildPlugin[] {
 		return [];
 	}
 
@@ -160,9 +166,8 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Creates the integration with static declaration-only configuration.
 	 *
 	 * @remarks
-	 * Constructors are expected to stay side-effect free. Build-manifest
-	 * contributions belong in `prepareBuildContributions()` and runtime-only setup
-	 * belongs in `setup()`.
+	 * Constructors are expected to stay side-effect free. Build plugins belong in
+	 * `plugins(app)` and runtime setup belongs in `setup()`.
 	 */
 	constructor(config: IntegrationPluginConfig) {
 		this.name = config.name;
@@ -362,16 +367,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	prepareAssetDependencies?(dependencies: AssetDefinition[]): AssetDefinition[];
 
 	/**
-	 * Prepares build-facing contributions before the app build manifest is sealed.
-	 *
-	 * @remarks
-	 * Integrations can override this when runtime or build plugin declarations must
-	 * be materialized ahead of runtime startup. Runtime-only side effects stay in
-	 * `setup()`.
-	 */
-	async prepareBuildContributions(): Promise<void> {}
-
-	/**
 	 * Runs integration-specific setup before static page generation begins and returns how to undo it.
 	 *
 	 * @remarks
@@ -383,8 +378,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	staticExport?(context: StaticExportContext): Promise<StaticExportRelease | void>;
 
 	/**
-	 * Performs runtime-only integration setup after config build has already
-	 * sealed manifest contributions.
+	 * Performs runtime integration setup, after config finalization has sealed the build manifest.
 	 */
 	async setup(): Promise<void> {
 		if (this.integrationDependencies.length === 0) return;

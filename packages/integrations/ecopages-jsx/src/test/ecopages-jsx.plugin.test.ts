@@ -73,10 +73,7 @@ test('EcopagesJsxPlugin matches custom multi-dot MDX extensions exactly', async 
 		},
 	});
 
-	plugin.setConfig({ rootDir: '/tmp/project' } as EcoPagesAppConfig);
-	await plugin.prepareBuildContributions();
-
-	const mdxLoaderPlugin = plugin.plugins[0];
+	const mdxLoaderPlugin = plugin.plugins({ rootDir: '/tmp/project' } as EcoPagesAppConfig)[0];
 	assert.ok(mdxLoaderPlugin, 'Expected Ecopages JSX plugin to expose the MDX loader plugin.');
 
 	const filter = getMdxLoaderFilter(mdxLoaderPlugin);
@@ -161,22 +158,28 @@ test('configured MDX compiler accepts remark-gfm on fenced code content', async 
 	assert.match(String(compiled.value), /@ecopages\/jsx\/jsx-runtime/);
 });
 
-test('EcopagesJsxPlugin throws when preparing MDX without appConfig.rootDir', async () => {
+test('EcopagesJsxPlugin declares the MDX loader as a build plugin', () => {
 	const plugin = ecopagesJsxPlugin({
 		radiant: false,
 		mdx: {},
 	});
+	const app = { rootDir: '/tmp/project' } as EcoPagesAppConfig;
 
-	await assert.rejects(() => plugin.prepareBuildContributions(), /appConfig\.rootDir is required/);
+	assert.equal(plugin.plugins(app)[0]?.name, 'ecopages-jsx-mdx-loader');
+	assert.equal(plugin.plugins(app)[0], plugin.plugins(app)[0]);
 });
 
-test('EcopagesJsxPlugin setup exposes the MDX loader as a build plugin', async () => {
-	const plugin = ecopagesJsxPlugin({
-		radiant: false,
-		mdx: {},
-	});
-	plugin.setConfig({ rootDir: '/tmp/project' } as EcoPagesAppConfig);
-	await plugin.setup();
+test('EcopagesJsxPlugin gives an app config for another root its own MDX loader', () => {
+	const plugin = ecopagesJsxPlugin({ radiant: false, mdx: {} });
 
-	assert.equal(plugin.plugins[0]?.name, 'ecopages-jsx-mdx-loader');
+	const first = plugin.plugins({ rootDir: '/tmp/first' } as EcoPagesAppConfig)[0];
+	const second = plugin.plugins({ rootDir: '/tmp/second' } as EcoPagesAppConfig)[0];
+
+	assert.notEqual(first, second);
+});
+
+test('EcopagesJsxPlugin declares no build plugin without MDX', () => {
+	const plugin = ecopagesJsxPlugin({ radiant: false });
+
+	assert.deepEqual(plugin.plugins({ rootDir: '/tmp/project' } as EcoPagesAppConfig), []);
 });

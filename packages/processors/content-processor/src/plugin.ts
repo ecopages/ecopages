@@ -60,7 +60,7 @@ function assertValidCollectionName(collectionName: string): void {
  * each one as `ecopages:content/<collection>` virtual modules.
  */
 export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
-	private collectionsGenerated = false;
+	private collectionsGeneration?: Promise<void>;
 	private readonly scanners = new Map<string, ContentScanner>();
 	private readonly collectionBuildPromises = new Map<string, Promise<void>>();
 	private readonly collectionGenerations = new Map<string, number>();
@@ -106,11 +106,12 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 				this.collectionServerModules,
 				this.collectionServerCompiledModules,
 				this.collectionBrowserModules,
+				() => this.ensureCollectionsGenerated(),
 			),
 		].map((plugin) => ({ ...plugin, environments: ['browser'] as Array<'browser'> }));
 	}
 
-	get plugins(): EcoBuildPlugin[] {
+	override plugins(): EcoBuildPlugin[] {
 		return [
 			{
 				...createContentPlugin(
@@ -119,6 +120,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 					this.collectionServerCompiledModules,
 					this.collectionBrowserModules,
 					(collectionName) => this.ensureCollectionServerArtifact(collectionName),
+					() => this.ensureCollectionsGenerated(),
 				),
 				environments: ['server'],
 			},
@@ -492,18 +494,22 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		}
 	}
 
-	private async ensureCollectionsGenerated(): Promise<void> {
-		if (this.collectionsGenerated) {
-			return;
-		}
-
-		this.initializeWatchPaths();
-		await this.regenerateAllCollections();
-		this.collectionsGenerated = true;
-	}
-
-	override async prepareBuildContributions(): Promise<void> {
-		await this.ensureCollectionsGenerated();
+	/**
+	 * Generates the collection modules and types once, and shares that work between callers.
+	 *
+	 * @remarks
+	 * {@link setup} and every collection resolve call it, so a build that starts before `setup()` waits for the
+	 * generated modules instead of finding none. A failed generation is dropped so the next caller retries.
+	 */
+	private ensureCollectionsGenerated(): Promise<void> {
+		this.collectionsGeneration ??= (async () => {
+			this.initializeWatchPaths();
+			await this.regenerateAllCollections();
+		})().catch((error) => {
+			this.collectionsGeneration = undefined;
+			throw error;
+		});
+		return this.collectionsGeneration;
 	}
 
 	override async setup(): Promise<void> {

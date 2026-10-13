@@ -19,9 +19,6 @@ import { RouteModuleBuildCache } from '../module-loading/route-module-build-cach
 import { PageCacheService, registerAppPageCacheService } from '../cache/page-cache-service.ts';
 
 class StylesheetProcessor extends Processor {
-	buildPlugins = [];
-	plugins = [];
-
 	constructor() {
 		super({
 			name: 'css',
@@ -37,9 +34,6 @@ class StylesheetProcessor extends Processor {
 }
 
 class ContentCollectionProcessor extends Processor {
-	buildPlugins = [];
-	plugins = [];
-
 	constructor() {
 		super({
 			name: 'ecopages-content-processor',

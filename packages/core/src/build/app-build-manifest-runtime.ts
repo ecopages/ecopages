@@ -19,12 +19,13 @@ function patchAppRuntime(
  * Seals the app's build manifest from its loaders, processors and integrations.
  *
  * @remarks
- * Called during config finalization. Loaders come first, then processors, then integrations, whose
- * {@link Processor.prepareBuildContributions} and {@link IntegrationPlugin.prepareBuildContributions} run first so
- * dynamic plugin lists are materialized. Every registration is validated once, by
- * {@link createAppBuildManifest}. Integration browser runtime manifests stay separate declarations.
+ * Called during config finalization. Loaders come first, then processors, then integrations. Each one's
+ * `plugins(app)` is read once, and a Processor has no other method called; every registration is validated once,
+ * by {@link createAppBuildManifest}. Integration browser runtime manifests stay separate declarations. An
+ * Integration still receives the app config through `setConfig()` here, because its renderer and HMR hooks
+ * read it before runtime activation.
  */
-export async function sealAppBuildManifest(appConfig: EcoPagesAppConfig): Promise<void> {
+export function sealAppBuildManifest(appConfig: EcoPagesAppConfig): void {
 	const registrations: BuildPluginRegistration[] = [...appConfig.loaders.values()].map((plugin) => ({
 		plugin,
 		source: `Loader "${plugin.name}"`,
@@ -32,17 +33,14 @@ export async function sealAppBuildManifest(appConfig: EcoPagesAppConfig): Promis
 	const browserRuntimeManifests = [];
 
 	for (const processor of appConfig.processors.values()) {
-		await processor.prepareBuildContributions();
-
-		for (const plugin of processor.plugins ?? []) {
+		for (const plugin of processor.plugins(appConfig)) {
 			registrations.push({ plugin, source: `Processor "${processor.name}"` });
 		}
 	}
 
 	for (const integration of appConfig.integrations) {
 		integration.setConfig(appConfig);
-		await integration.prepareBuildContributions();
-		for (const plugin of integration.plugins) {
+		for (const plugin of integration.plugins(appConfig)) {
 			registrations.push({ plugin, source: `Integration "${integration.name}"` });
 		}
 		browserRuntimeManifests.push(integration.browserRuntimeManifest);

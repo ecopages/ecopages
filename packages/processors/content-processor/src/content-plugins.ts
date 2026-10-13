@@ -13,6 +13,9 @@ export { parseCollectionSpecifier } from './constants.ts';
 
 export type EnsureCollectionServerArtifact = (collectionName: string) => Promise<void>;
 
+/** Resolves once the generated collection modules exist. */
+export type EnsureCollectionsGenerated = () => Promise<void>;
+
 export function parseCollectionName(specifier: string): string | null {
 	const parsed = parseCollectionSpecifier(specifier);
 	return parsed?.collectionName ?? null;
@@ -51,6 +54,7 @@ function createContentResolvePlugin(
 	collectionServerCompiledModules: Record<string, string> | undefined,
 	collectionBrowserModules: Record<string, string>,
 	ensureCollectionServerArtifact: EnsureCollectionServerArtifact | undefined,
+	ensureCollectionsGenerated: EnsureCollectionsGenerated | undefined,
 	options: { namespace?: string; includeServerModules?: boolean; externalizeCompiledServerModules?: boolean },
 ): EcoBuildPlugin {
 	return {
@@ -65,7 +69,8 @@ function createContentResolvePlugin(
 					collectionBrowserModules,
 				);
 
-			build.onResolve({ filter: CONTENT_VIRTUAL_MODULE_PATTERN }, (args) => {
+			build.onResolve({ filter: CONTENT_VIRTUAL_MODULE_PATTERN }, async (args) => {
+				await ensureCollectionsGenerated?.();
 				const modulePath = resolveCollection(args.path);
 				if (!modulePath) {
 					return undefined;
@@ -83,6 +88,7 @@ function createContentResolvePlugin(
 
 			if (options.includeServerModules !== false) {
 				build.onResolve({ filter: CONTENT_SERVER_VIRTUAL_MODULE_PATTERN }, async (args) => {
+					await ensureCollectionsGenerated?.();
 					const parsed = parseCollectionSpecifier(args.path);
 					if (parsed?.variant === 'server' && !collectionServerCompiledModules?.[parsed.collectionName]) {
 						await ensureCollectionServerArtifact?.(parsed.collectionName);
@@ -112,7 +118,8 @@ function createContentResolvePlugin(
 				});
 			}
 
-			build.onResolve({ filter: CONTENT_BROWSER_VIRTUAL_MODULE_PATTERN }, (args) => {
+			build.onResolve({ filter: CONTENT_BROWSER_VIRTUAL_MODULE_PATTERN }, async (args) => {
+				await ensureCollectionsGenerated?.();
 				const modulePath = resolveCollection(args.path);
 				if (!modulePath) {
 					return undefined;
@@ -133,7 +140,8 @@ function createContentResolvePlugin(
  *
  * @remarks
  * Compiled `/server` modules are externalized so Node can load the collection
- * artifact directly. The Page Browser Graph uses `createContentPluginBundler`,
+ * artifact directly. Every resolve waits for `ensureCollectionsGenerated`, so a build that runs before the
+ * Processor's `setup()` still finds the generated modules. The Page Browser Graph uses `createContentPluginBundler`,
  * where the content boundary rejects `/server` and resolves `/browser` to
  * browser-safe source.
  */
@@ -143,6 +151,7 @@ export function createContentPlugin(
 	collectionServerCompiledModules?: Record<string, string>,
 	collectionBrowserModules: Record<string, string> = {},
 	ensureCollectionServerArtifact?: EnsureCollectionServerArtifact,
+	ensureCollectionsGenerated?: EnsureCollectionsGenerated,
 ): EcoBuildPlugin {
 	return createContentResolvePlugin(
 		collectionModules,
@@ -150,6 +159,7 @@ export function createContentPlugin(
 		collectionServerCompiledModules,
 		collectionBrowserModules,
 		ensureCollectionServerArtifact,
+		ensureCollectionsGenerated,
 		{ includeServerModules: true, externalizeCompiledServerModules: true },
 	);
 }
@@ -170,6 +180,7 @@ export function createContentPluginBundler(
 	collectionServerModules: Record<string, string>,
 	collectionServerCompiledModules?: Record<string, string>,
 	collectionBrowserModules: Record<string, string> = {},
+	ensureCollectionsGenerated?: EnsureCollectionsGenerated,
 ): EcoBuildPlugin {
 	return createContentResolvePlugin(
 		collectionModules,
@@ -177,6 +188,7 @@ export function createContentPluginBundler(
 		collectionServerCompiledModules,
 		collectionBrowserModules,
 		undefined,
+		ensureCollectionsGenerated,
 		{
 			includeServerModules: false,
 		},

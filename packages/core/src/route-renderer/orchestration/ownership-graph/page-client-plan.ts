@@ -1,6 +1,6 @@
 import type { EcoComponent, EcoComponentConfig, ResolvedLazyTrigger } from '../../../types/public-types.ts';
 import type { AssetDefinition, ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
-import { getComponentIdentity } from '../../../eco/component-identity.ts';
+import { getComponentIdentity, getComponentOwner } from '../../../eco/component-identity.ts';
 import { type ComponentGraphRoot, type ComponentGraphWalkInput } from './component-graph.ts';
 import * as componentGraph from './component-graph.ts';
 
@@ -99,15 +99,6 @@ export type PageClientBrowserAssets = {
 	lazyTriggers: ResolvedLazyTrigger[];
 };
 
-/**
- * @remarks
- * An explicit `config.integration` wins over the identity's, as it does when the graph walk and
- * render routing pick an owner, so a component has one Integration everywhere.
- */
-function getIntegrationName(component: EcoComponent | Partial<EcoComponent>, parentIntegrationName: string): string {
-	return component.config?.integration ?? getComponentIdentity(component)?.integration ?? parentIntegrationName;
-}
-
 function collectPendingLazyClientEntries(
 	config: EcoComponentConfig | undefined,
 	lazyClientEntries: AssetDefinition[],
@@ -155,7 +146,7 @@ export function collectPageClientPlan(roots: ComponentGraphRoot[], currentIntegr
 	const recordIsland = ({ component, parentIntegrationName, source }: ComponentGraphWalkInput): void => {
 		const file = getComponentIdentity(component)?.file;
 		const integrationName =
-			integrationByComponent.get(component) ?? getIntegrationName(component, parentIntegrationName);
+			integrationByComponent.get(component) ?? getComponentOwner(component, parentIntegrationName);
 		if (
 			!file ||
 			integrationName === parentIntegrationName ||
@@ -174,7 +165,7 @@ export function collectPageClientPlan(roots: ComponentGraphRoot[], currentIntegr
 		currentIntegrationName,
 		onRepeatVisit: recordIsland,
 		onComponent: ({ component, parentIntegrationName, source }: ComponentGraphWalkInput) => {
-			const integrationName = getIntegrationName(component, parentIntegrationName);
+			const integrationName = getComponentOwner(component, parentIntegrationName);
 			integrationNames.add(integrationName);
 			integrationByComponent.set(component, integrationName);
 			visited.push(component);

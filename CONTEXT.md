@@ -101,6 +101,7 @@ _Avoid_: Requirements, imports
 
 **Foreign Child**:
 A child Component encountered during render whose owning Integration differs from the current Integration. A Foreign Child cannot be rendered inline by the current Integration and must be handed off for resolution by the owning Integration.
+The owning Integration of a Component is, in order: the `integration` set on its `eco.component` or `eco.page` config, then the Integration of the file that created it, then the owner of its parent (the Page's Integration at the root). `getComponentOwner` is the one place that applies this order.
 _Avoid_: Boundary, cross-integration child
 
 **Foreign Subtree**:

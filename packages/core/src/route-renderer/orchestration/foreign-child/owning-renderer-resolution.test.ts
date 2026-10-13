@@ -39,7 +39,7 @@ describe('resolveOwningIntegrationRenderer', () => {
 
 	it('activates runtime and initializes a foreign plugin renderer', async () => {
 		const foreignRenderer = { name: 'react' };
-		const initializeRenderer = vi.fn(() => foreignRenderer);
+		const getRenderer = vi.fn(() => foreignRenderer);
 		const cache = new Map<string, never>();
 		const ensureReady = vi
 			.spyOn(appBuildManifestRuntime, 'ensureIntegrationRuntimeReady')
@@ -47,7 +47,7 @@ describe('resolveOwningIntegrationRenderer', () => {
 
 		const result = await resolveOwningIntegrationRenderer({
 			appConfig: {
-				integrations: [{ name: 'react', initializeRenderer }],
+				integrations: [{ name: 'react', getRenderer }],
 			} as unknown as EcoPagesAppConfig,
 			runtimeOrigin: 'test-origin',
 			currentIntegrationName: 'kitajs',
@@ -63,9 +63,32 @@ describe('resolveOwningIntegrationRenderer', () => {
 			integrationName: 'react',
 			runtimeOrigin: 'test-origin',
 		});
-		expect(initializeRenderer).toHaveBeenCalledWith();
+		expect(getRenderer).toHaveBeenCalledWith();
 		expect(result).toBe(foreignRenderer);
 		expect(cache.get('react')).toBe(foreignRenderer);
+
+		ensureReady.mockRestore();
+	});
+
+	it('hands every render the one renderer its Integration owns', async () => {
+		const ensureReady = vi
+			.spyOn(appBuildManifestRuntime, 'ensureIntegrationRuntimeReady')
+			.mockResolvedValue(undefined);
+		const renderer = { name: 'react' };
+		const plugin = { name: 'react', getRenderer: vi.fn(() => renderer), initializeRenderer: vi.fn() };
+		const input = {
+			appConfig: { integrations: [plugin] } as unknown as EcoPagesAppConfig,
+			runtimeOrigin: 'test-origin',
+			currentIntegrationName: 'kitajs',
+			currentRenderer: { name: 'kitajs' } as never,
+			integrationName: 'react',
+		};
+
+		const first = await resolveOwningIntegrationRenderer({ ...input, cache: new Map() });
+		const second = await resolveOwningIntegrationRenderer({ ...input, cache: new Map() });
+
+		expect(first).toBe(second);
+		expect(plugin.initializeRenderer).not.toHaveBeenCalled();
 
 		ensureReady.mockRestore();
 	});

@@ -1,5 +1,5 @@
 import type { EcoComponent, OwnershipPlanNodeSource } from '../../../types/public-types.ts';
-import { getComponentIdentity } from '../../../eco/component-identity.ts';
+import { getComponentIdentity, getComponentOwner } from '../../../eco/component-identity.ts';
 
 export type DeclaredOwnershipRoot = {
 	component: EcoComponent;
@@ -116,8 +116,7 @@ function createComponentGraphVisitor(state: ComponentGraphWalkState) {
 		}
 
 		state.seenComponents.add(ecoComponent);
-		const identity = getComponentIdentity(ecoComponent);
-		const integrationName = ecoComponent.config?.integration ?? identity?.integration ?? parentIntegrationName;
+		const integrationName = getComponentOwner(ecoComponent, parentIntegrationName);
 
 		notifyComponentGraphConfig(ecoComponent.config, state);
 
@@ -175,7 +174,7 @@ export function mapComponentGraph<T>(input: {
 		lineage: Set<object>,
 	): T => {
 		const identity = getComponentIdentity(component);
-		const integrationName = component.config?.integration ?? identity?.integration ?? parentIntegrationName;
+		const integrationName = getComponentOwner(component, parentIntegrationName);
 		const isForeignToParent = integrationName !== parentIntegrationName;
 		const componentId = identity?.id ?? identity?.file ?? `${source}:${(nextSyntheticId += 1)}`;
 

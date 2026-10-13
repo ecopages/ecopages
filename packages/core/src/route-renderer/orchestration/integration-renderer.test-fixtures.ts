@@ -1,5 +1,4 @@
 import { vi } from 'vitest';
-import { finalizeDocumentShellHtml } from './document-shell/document-shell-render.service.ts';
 import { IntegrationRenderer, type HtmlDocumentContribution } from './integration-renderer.ts';
 import { getComponentRenderContext, type ForeignChildRuntime } from './foreign-child/component-render-context.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -121,19 +120,6 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		return this.hasForeignChildDescendants(component);
 	}
 
-	public async testFinalizeDocumentShellHtml(options: {
-		html: string;
-		partial?: boolean;
-		htmlContributions?: HtmlDocumentContribution[];
-	}) {
-		return finalizeDocumentShellHtml(this.htmlTransformer, {
-			html: options.html,
-			partial: options.partial,
-			htmlContributions:
-				options.htmlContributions ?? this.getHtmlDocumentContributions({ partial: options.partial ?? false }),
-		});
-	}
-
 	public async testTransformRouteResponse(
 		response: Response,
 		htmlContributions?: HtmlDocumentContribution[],
@@ -143,16 +129,12 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		return adapter.transformRouteResponse(response, htmlContributions, pagePackage);
 	}
 
+	public testResolveComponentRenderAssets(component: EcoComponent) {
+		return this.resolveComponentRenderAssets(component);
+	}
+
 	public appendTestProcessedDependencies(assets: ProcessedAsset[]) {
 		return this.appendProcessedDependencies(assets);
-	}
-
-	public setTestPagePackage(pagePackage: PagePackageResult) {
-		this.htmlTransformer.setPagePackage(pagePackage);
-	}
-
-	public getTestProcessedDependencies() {
-		return this.htmlTransformer.getProcessedDependencies();
 	}
 
 	protected override createForeignChildRuntime(options: {

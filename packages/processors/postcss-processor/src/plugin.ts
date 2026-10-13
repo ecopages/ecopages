@@ -181,7 +181,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 			const rawContents = await fileSystem.readFile(filePath);
 
-			const processed = await this.process(rawContents, filePath);
+			const processed = await this.transformStylesheet(rawContents, filePath);
 			this.runtimeCssCache.set(filePath, processed);
 			await this.persistProcessedCss(filePath, processed);
 		}
@@ -286,7 +286,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		const { contents, filePath } = input;
 		const transformed: string = typeof contents === 'string' ? contents : contents.toString('utf-8');
 
-		const processed = await this.process(transformed, filePath);
+		const processed = await this.transformStylesheet(transformed, filePath);
 		this.runtimeCssCache.set(filePath, processed);
 		await this.persistProcessedCss(filePath, processed);
 		return processed;
@@ -458,7 +458,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 			const content = await fileSystem.readFile(filePath);
 
-			const processed = await this.process(content, filePath);
+			const processed = await this.transformStylesheet(content, filePath);
 
 			const cached = this.runtimeCssCache.get(filePath);
 			if (cached === processed) {
@@ -580,16 +580,16 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	}
 
 	/**
-	 * Process CSS content
+	 * Runs the configured PostCSS plugins over one stylesheet.
+	 *
 	 * @param fileAsString CSS content as string
-	 * @param filePath Optional file path for resolving relative imports
+	 * @param filePath File path for resolving relative imports
 	 * @returns Processed CSS
 	 */
-	async process(fileAsString: string, filePath?: string): Promise<string> {
-		const input =
-			this.options?.transformInput && filePath
-				? await this.options.transformInput(fileAsString, filePath)
-				: fileAsString;
+	override async transformStylesheet(fileAsString: string, filePath: string): Promise<string> {
+		const input = this.options?.transformInput
+			? await this.options.transformInput(fileAsString, filePath)
+			: fileAsString;
 
 		return await PostCssProcessor.processStringOrBuffer(input, {
 			filePath,

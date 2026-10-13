@@ -50,8 +50,8 @@ class CustomProcessor extends Processor {
 		// Runtime-only initialization
 	}
 
-	override async process(input: unknown, filePath?: string): Promise<unknown> {
-		return input;
+	override async transformStylesheet(css: string, file: string): Promise<string> {
+		return css;
 	}
 }
 
@@ -68,13 +68,13 @@ Core owns the ordering. Processors participate in these phases:
 1. **`prepareBuildContributions()`** — runs during config finalization, before the app build manifest is sealed. Materialize `plugins` and `buildPlugins` here.
 2. **Manifest collection** — processor `plugins` become runtime plugin contributions; `buildPlugins` become browser bundle contributions.
 3. **`setup()`** — runs at app startup after the manifest is sealed. Use for runtime-only work such as cache warming or watcher registration.
-4. **`process()`** — transforms assets when the asset pipeline or watch callbacks invoke the processor.
+4. **`transformStylesheet(css, file)`** — optional; transforms every `.css`, `.scss`, `.sass` and `.less` asset the processor's `stylesheet` capability matches, in processor registration order. A processor without it takes no part in stylesheet processing.
 5. **Watch batches** — in development, `watch.onChanges({ created, changed, deleted, bridge })` receives matching absolute paths grouped once per debounce window. `extensions` select notifications; `capabilities` define asset ownership.
-6. **`collectDevPrewarmPaths()`** — optional; returns pathnames core renders in the background once the development server handles requests. Defaults to `[]`.
+6. **Prewarm** — a processor that owns pages to warm appends their pathnames to `this.context.config.devPrewarmPaths` from `setup()`. Core renders that list in the background once the development server handles requests.
 
 ## Asset Capabilities
 
-Declare which asset kinds a processor owns through `capabilities`. Without capabilities, `canProcessAsset()` returns false and the processor will not participate in the asset pipeline.
+Declare which asset kinds a processor owns through `capabilities`. Without capabilities, `canProcessAsset()` returns false and the processor will not participate in the asset pipeline. Stylesheet processing needs both a matching `stylesheet` capability and a `transformStylesheet()` method.
 
 ```typescript
 super({
@@ -127,13 +127,13 @@ Processors have built-in caching capabilities:
 
 ```typescript
 class CustomProcessor extends Processor {
-	override async process(input: string): Promise<string> {
+	override async transformStylesheet(css: string, file: string): Promise<string> {
 		const cacheKey = 'my-cache-key';
 
 		const cached = await this.readCache<string>(cacheKey);
 		if (cached) return cached;
 
-		const result = await someExpensiveOperation(input);
+		const result = await someExpensiveOperation(css);
 		await this.writeCache(cacheKey, result);
 
 		return result;
@@ -243,7 +243,7 @@ class StyleProcessor extends Processor {
 		if (!this.context) return;
 
 		const source = await fileSystem.readFile(filePath);
-		const processed = String(await this.process(source, filePath));
+		const processed = await this.transformStylesheet(source, filePath);
 		const outputPath = path.join(this.context.distDir, path.basename(filePath));
 		await fileSystem.write(outputPath, processed);
 

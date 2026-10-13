@@ -164,7 +164,6 @@ export async function composeDocumentShell(
 			html: typeof composed.children === 'string' ? composed.children : '',
 			assets: [],
 			canAttachAttributes: true,
-			rootTag: 'main',
 			integrationName: getComponentOwner(input.primaryComponent, dependencies.integrationName),
 		};
 	} else {

@@ -1,6 +1,12 @@
 import type { EcoComponent, PagePackageResult } from '../../../types/public-types.ts';
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/assets.types.ts';
 import type { PageClientPlan } from '../ownership-graph/page-client-plan.ts';
+import type { RenderSession } from './render-session.ts';
+import {
+	createSerializedFallbackQueue,
+	runWithSerializedFallback,
+	type SerializedFallbackQueue,
+} from './serialized-fallback-queue.ts';
 import { addTriggerAttribute, isThenable } from './foreign-child-output.utils.ts';
 
 /**
@@ -150,6 +156,10 @@ export type ComponentRenderContext = {
 	pageClientPlan?: PageClientPlan;
 	islandRenderAssetsByFile?: ReadonlyMap<string, ProcessedAsset[]>;
 	pagePackage?: PagePackageResult;
+	/**
+	 * Shared mutable state for this render, including nested foreign-child contexts.
+	 */
+	session?: RenderSession;
 	interceptForeignChild(
 		input: ForeignChildRenderInput,
 	): Promise<ForeignChildInterceptionResult> | ForeignChildInterceptionResult;
@@ -177,6 +187,7 @@ type ComponentRenderContextState = {
 	contextStack: ComponentRenderContext[];
 	nodeContextStorage: ContextStorage | null;
 	nodeContextStorageLoader: Promise<ContextStorage | null> | null;
+	fallbackExecutionQueue: SerializedFallbackQueue;
 };
 
 const GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY = '__ECOPAGES_COMPONENT_RENDER_CONTEXT_STATE__';
@@ -208,9 +219,12 @@ function getComponentRenderContextState(): ComponentRenderContextState {
 		contextStack: [],
 		nodeContextStorage: null,
 		nodeContextStorageLoader: null,
+		fallbackExecutionQueue: createSerializedFallbackQueue(),
 	};
 
-	return sharedScope[GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY];
+	const state = sharedScope[GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY];
+	state.fallbackExecutionQueue ??= createSerializedFallbackQueue();
+	return state;
 }
 
 /**
@@ -301,37 +315,45 @@ export async function runWithComponentRenderContext<T>(
 		pageClientPlan?: PageClientPlan;
 		islandRenderAssetsByFile?: ReadonlyMap<string, ProcessedAsset[]>;
 		pagePackage?: PagePackageResult;
+		session?: RenderSession;
+		serializeWhenContextStorageIsUnavailable?: boolean;
 	},
 	render: () => Promise<T>,
 ): Promise<{ value: T }> {
-	const parent = getComponentRenderContext();
-	const context = {
-		currentIntegration: input.currentIntegration,
-		foreignChildRuntime: input.foreignChildRuntime,
-		pageClientPlan: input.pageClientPlan ?? parent?.pageClientPlan,
-		islandRenderAssetsByFile: input.islandRenderAssetsByFile ?? parent?.islandRenderAssetsByFile,
-		pagePackage: input.pagePackage ?? parent?.pagePackage,
-	} as ComponentRenderContext;
-	const runtime = new ContextualComponentRenderRuntime(context);
-	context.interceptForeignChild = (deferredInput: ForeignChildRenderInput) =>
-		runtime.interceptForeignChild(deferredInput);
-	context.finalizeComponentRender = <TContent>(component: EcoComponent, content: TContent) =>
-		runtime.finalizeComponentRender(component, content);
-
 	const storage = await getContextStorage();
+	const execute = async () => {
+		const parent = getComponentRenderContext();
+		const context = {
+			currentIntegration: input.currentIntegration,
+			foreignChildRuntime: input.foreignChildRuntime,
+			pageClientPlan: input.pageClientPlan ?? parent?.pageClientPlan,
+			islandRenderAssetsByFile: input.islandRenderAssetsByFile ?? parent?.islandRenderAssetsByFile,
+			pagePackage: input.pagePackage ?? parent?.pagePackage,
+			session: input.session ?? parent?.session,
+		} as ComponentRenderContext;
+		const runtime = new ContextualComponentRenderRuntime(context);
+		context.interceptForeignChild = (deferredInput: ForeignChildRenderInput) =>
+			runtime.interceptForeignChild(deferredInput);
+		context.finalizeComponentRender = <TContent>(component: EcoComponent, content: TContent) =>
+			runtime.finalizeComponentRender(component, content);
 
-	let value: T;
-	if (storage) {
-		value = await storage.run(context, render);
-	} else {
+		if (storage) {
+			return await storage.run(context, render);
+		}
+
 		const state = getComponentRenderContextState();
 		state.contextStack.push(context);
 		try {
-			value = await render();
+			return await render();
 		} finally {
 			state.contextStack.pop();
 		}
-	}
+	};
+
+	const value =
+		!storage && input.serializeWhenContextStorageIsUnavailable
+			? await runWithSerializedFallback(getComponentRenderContextState().fallbackExecutionQueue, execute)
+			: await execute();
 
 	return {
 		value,

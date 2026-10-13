@@ -166,10 +166,6 @@ class TestReactRenderer extends ReactRenderer {
 		return await this.collectPageBrowserGraphContribution({ file: filePath, pageModule });
 	}
 
-	public getCurrentPagePackageForTest() {
-		return this.htmlTransformer.getPagePackage();
-	}
-
 	public resolveComposeChildrenForTest(options: {
 		page: { component: EcoComponent; props: Record<string, unknown> };
 		shellLayouts: Array<{ component: EcoComponent; props?: Record<string, unknown> }>;

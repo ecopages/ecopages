@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ProcessedAsset } from '../assets/asset-processing-service/index.js';
+import { createPagePackage, type ProcessedAsset } from '../assets/asset-processing-service/index.js';
 import { buildIslandHostAttributes } from '../../islands/island-host.ts';
 import { applyAttributesToFirstElement, HtmlTransformerService } from './html-transformer.service.ts';
 
@@ -83,23 +83,24 @@ const INJECTION_SCENARIOS: InjectionScenario[] = [
 describe('HtmlTransformerService', () => {
 	it.each(INJECTION_SCENARIOS)('$label', ({ html, dependencies, expected }) => {
 		const transformer = new HtmlTransformerService();
-		transformer.setProcessedDependencies(dependencies);
 
-		expect(transformer.transformHtml(html)).toBe(expected);
+		expect(transformer.injectPageAssets(html, { pagePackage: createPagePackage(dependencies) })).toBe(expected);
 	});
 
 	it('injects html contributions into explicit document slots in array order', () => {
 		const transformer = new HtmlTransformerService();
 
-		const html = transformer.transformHtml(
+		const html = transformer.injectPageAssets(
 			'<html><head><title>Base</title></head><body><main>Page</main></body></html>',
-			[
-				{ placement: 'head-prepend', html: '<meta name="first">' },
-				{ placement: 'head-prepend', html: '<meta name="second">' },
-				{ placement: 'head-append', html: '<script>window.headAppend = true;</script>' },
-				{ placement: 'body-prepend', html: '<div id="body-prepend"></div>' },
-				{ placement: 'body-append', html: '<div id="body-append"></div>' },
-			],
+			{
+				contributions: [
+					{ placement: 'head-prepend', html: '<meta name="first">' },
+					{ placement: 'head-prepend', html: '<meta name="second">' },
+					{ placement: 'head-append', html: '<script>window.headAppend = true;</script>' },
+					{ placement: 'body-prepend', html: '<div id="body-prepend"></div>' },
+					{ placement: 'body-append', html: '<div id="body-append"></div>' },
+				],
+			},
 		);
 
 		expect(html).toBe(
@@ -109,7 +110,7 @@ describe('HtmlTransformerService', () => {
 
 	it('streams response bodies through the rewriter', async () => {
 		const transformer = new HtmlTransformerService();
-		transformer.setProcessedDependencies([{ kind: 'script', inline: false, position: 'body', srcUrl: '/app.js' }]);
+		const pagePackage = createPagePackage([{ kind: 'script', inline: false, position: 'body', srcUrl: '/app.js' }]);
 		const encoder = new TextEncoder();
 		const response = new Response(
 			new ReadableStream<Uint8Array>({
@@ -123,7 +124,7 @@ describe('HtmlTransformerService', () => {
 			{ status: 203, headers: { 'Content-Type': 'text/html' } },
 		);
 
-		const result = transformer.transform(response);
+		const result = transformer.transform(response, { pagePackage });
 
 		expect(result.status).toBe(203);
 		expect(result.body).toBeInstanceOf(ReadableStream);
@@ -134,14 +135,15 @@ describe('HtmlTransformerService', () => {
 
 	it('skips head injection when the document has no head element', () => {
 		const transformer = new HtmlTransformerService();
-		transformer.setProcessedDependencies([
-			{ kind: 'stylesheet', inline: false, position: 'head', srcUrl: '/a.css' },
-			{ kind: 'script', inline: false, position: 'body', srcUrl: '/b.js' },
-		]);
 
-		expect(transformer.transformHtml('<body><main>M</main></body>')).toBe(
-			'<body><main>M</main><script src="/b.js"></script></body>',
-		);
+		expect(
+			transformer.injectPageAssets('<body><main>M</main></body>', {
+				pagePackage: createPagePackage([
+					{ kind: 'stylesheet', inline: false, position: 'head', srcUrl: '/a.css' },
+					{ kind: 'script', inline: false, position: 'body', srcUrl: '/b.js' },
+				]),
+			}),
+		).toBe('<body><main>M</main><script src="/b.js"></script></body>');
 	});
 
 	it('should apply attributes to the html element', () => {
@@ -254,36 +256,29 @@ describe('HtmlTransformerService', () => {
 		expect(transformer.dedupeProcessedAssets([pageScript, runtimeScript])).toEqual([pageScript, runtimeScript]);
 	});
 
-	it('should prefer page package html assets during transform', () => {
+	it('injects the page package html assets', () => {
 		const transformer = new HtmlTransformerService();
-		transformer.setProcessedDependencies([
-			{
-				kind: 'script',
-				srcUrl: '/ignored.js',
-				position: 'body',
+		const html = transformer.injectPageAssets('<html><head></head><body></body></html>', {
+			pagePackage: {
+				assets: [
+					{
+						kind: 'script',
+						srcUrl: '/ignored.js',
+						position: 'body',
+					},
+				],
+				htmlAssets: [
+					{
+						kind: 'script',
+						srcUrl: '/chosen.js',
+						position: 'body',
+					},
+				],
+				inlineAssets: [],
+				separateAssets: [],
+				dynamicChunks: [],
 			},
-		]);
-		transformer.setPagePackage({
-			assets: [
-				{
-					kind: 'script',
-					srcUrl: '/ignored.js',
-					position: 'body',
-				},
-			],
-			htmlAssets: [
-				{
-					kind: 'script',
-					srcUrl: '/chosen.js',
-					position: 'body',
-				},
-			],
-			inlineAssets: [],
-			separateAssets: [],
-			dynamicChunks: [],
 		});
-
-		const html = transformer.transformHtml('<html><head></head><body></body></html>');
 
 		expect(html).toContain('<script src="/chosen.js"></script>');
 		expect(html).not.toContain('/ignored.js');
@@ -309,22 +304,20 @@ describe('HtmlTransformerService', () => {
 			packageRole: 'dynamic-chunk',
 		} as ProcessedAsset;
 
-		transformer.setPagePackage({
-			assets: [routeStylesheet, entryScript, chunkScript],
-			pageBrowserGraph: {
-				entryAssets: [entryScript],
-				chunkAssets: [chunkScript],
+		const html = transformer.injectPageAssets('<html><head></head><body></body></html>', {
+			pagePackage: {
+				assets: [routeStylesheet, entryScript, chunkScript],
+				pageBrowserGraph: {
+					entryAssets: [entryScript],
+					chunkAssets: [chunkScript],
+				},
+				htmlAssets: [routeStylesheet, entryScript, chunkScript],
+				pageScript: entryScript,
+				inlineAssets: [],
+				separateAssets: [],
+				dynamicChunks: [chunkScript],
 			},
-			htmlAssets: [routeStylesheet, entryScript, chunkScript],
-			pageScript: entryScript,
-			inlineAssets: [],
-			separateAssets: [],
-			dynamicChunks: [chunkScript],
 		});
-
-		const html = transformer.transformHtml('<html><head></head><body></body></html>');
-
-		expect(transformer.getProcessedDependencies()).toEqual([routeStylesheet, entryScript]);
 		expect(html).toContain('<link rel="stylesheet" href="/route.css">');
 		expect(html).toContain('<script src="/page-entry.js"></script>');
 		expect(html).not.toContain('/page-chunk.js');

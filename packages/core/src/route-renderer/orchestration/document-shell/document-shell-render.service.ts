@@ -10,6 +10,7 @@ import {
 	HtmlTransformerService,
 	type HtmlDocumentContribution,
 } from '../../../services/html/html-transformer.service.ts';
+import { getComponentRenderContext } from '../foreign-child/component-render-context.ts';
 
 export type DocumentShellLayoutInput = {
 	component: EcoComponent;
@@ -142,7 +143,8 @@ export async function composeDocumentShell(
 	dependencies: DocumentShellRenderDependencies,
 	input: DocumentShellComposeInput,
 ): Promise<{ documentHtml: string }> {
-	const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
+	const rendererCache = (getComponentRenderContext()?.session?.rendererCache ??
+		new Map<string, unknown>()) as BaseIntegrationContext['rendererCache'];
 	const layouts = resolveDocumentShellLayouts(input);
 	const composeChildren = input.composeChildren ?? composeSequentialLayoutChildren;
 	const usesCustomComposeChildren = input.composeChildren !== undefined;
@@ -297,5 +299,9 @@ export async function finalizeDocumentShellHtml(
 		return html;
 	}
 
-	return htmlTransformer.transformHtml(html, options.htmlContributions);
+	const context = getComponentRenderContext();
+	return htmlTransformer.injectPageAssets(html, {
+		contributions: options.htmlContributions,
+		pagePackage: context?.session?.pagePackage ?? context?.pagePackage,
+	});
 }

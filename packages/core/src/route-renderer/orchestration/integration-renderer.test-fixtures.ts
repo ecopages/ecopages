@@ -160,18 +160,6 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		return this.appendProcessedDependencies(assets);
 	}
 
-	public setTestPagePackage(pagePackage: PagePackageResult) {
-		this.htmlTransformer.setPagePackage(pagePackage);
-	}
-
-	public getTestPagePackage() {
-		return this.htmlTransformer.getPagePackage();
-	}
-
-	public getTestProcessedDependencies() {
-		return this.htmlTransformer.getProcessedDependencies();
-	}
-
 	public async testRenderForeignSubtree(input: ComponentRenderInput) {
 		return toForeignSubtreeRenderPayload(await this.renderComponentWithForeignChildren(input));
 	}

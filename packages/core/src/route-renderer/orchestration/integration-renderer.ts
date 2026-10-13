@@ -49,6 +49,7 @@ import {
 	getComponentRenderContext,
 	runWithComponentRenderContext,
 } from './foreign-child/component-render-context.ts';
+import { createRenderSession } from './foreign-child/render-session.ts';
 import {
 	RouteRenderOrchestrator,
 	type RouteRenderOrchestratorAdapter,
@@ -164,27 +165,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected routeRenderOrchestrator: RouteRenderOrchestrator;
 	protected readonly foreignSubtreeExecutionService: ForeignSubtreeExecutionService =
 		new ForeignSubtreeExecutionService();
-	/**
-	 * Serializes route and view renders that mutate `htmlTransformer` state.
-	 *
-	 * Integration renderers are cached per integration, so concurrent static builds
-	 * and overlapping SSR requests must not share one transformer page package.
-	 */
-	private renderExclusiveChain: Promise<void> = Promise.resolve();
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
-
-	private runRenderExclusive<T>(operation: () => Promise<T>): Promise<T> {
-		const run = this.renderExclusiveChain.then(async () => {
-			await this.ensureIntegrationRuntimeActivated();
-			return operation();
-		});
-		this.renderExclusiveChain = run.then(
-			() => undefined,
-			() => undefined,
-		);
-		return run;
-	}
 
 	/**
 	 * Activates the owning integration runtime on first render or graph use.
@@ -344,11 +326,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Merges component-scoped assets into the active HTML transformer state.
+	 * Merges component-scoped assets into the active render's page package.
 	 *
 	 * Explicit page, layout, and document shell composition can produce assets at
-	 * each foreign subtree. This helper deduplicates those groups and folds them back into
-	 * the transformer so downstream HTML finalization sees one canonical asset set.
+	 * each foreign subtree. This helper deduplicates those groups and adds them to the
+	 * render session so downstream HTML finalization sees one canonical asset set.
 	 *
 	 * @param assetGroups - Optional groups of processed assets to merge.
 	 * @returns The deduplicated asset subset contributed by this merge operation.
@@ -365,21 +347,23 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		}
 
 		const context = getComponentRenderContext();
-		const existingDependencies = context?.pagePackage?.assets ?? this.htmlTransformer.getProcessedDependencies();
+		const session = context?.session;
+		const existingPackage = session?.pagePackage ?? context?.pagePackage;
+		const existingDependencies = existingPackage?.assets ?? session?.processedDependencies ?? [];
 		const mergedDependencies = this.htmlTransformer.dedupeProcessedAssets([
 			...existingDependencies,
 			...nextDependencies,
 		]);
-		const currentPageBrowserGraph =
-			context?.pagePackage?.pageBrowserGraph ?? this.htmlTransformer.getPagePackage()?.pageBrowserGraph;
 		const pagePackage = createPagePackage(mergedDependencies, {
-			pageBrowserGraph: currentPageBrowserGraph,
+			pageBrowserGraph: existingPackage?.pageBrowserGraph,
 		});
 
+		if (session) {
+			session.pagePackage = pagePackage;
+			session.processedDependencies = mergedDependencies;
+		}
 		if (context) {
 			context.pagePackage = pagePackage;
-		} else {
-			this.htmlTransformer.setPagePackage(pagePackage);
 		}
 
 		return nextDependencies;
@@ -602,7 +586,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		components: (EcoComponent | Partial<EcoComponent>)[],
 	): Promise<ProcessedAsset[]> {
 		const componentDeps = await this.processComponentDependencies(components);
-		return this.resolvedIntegrationDependencies.concat(componentDeps);
+		const integrationDependencies =
+			getComponentRenderContext()?.session?.resolvedIntegrationDependencies ??
+			this.resolvedIntegrationDependencies;
+		return integrationDependencies.concat(componentDeps);
 	}
 
 	/**
@@ -643,13 +630,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			getHtmlDocumentContributions: (options) => this.getHtmlDocumentContributions(options),
 			applyAttributesToHtmlElement: (html, attributes) => this.applyAttributesToHtmlElement(html, attributes),
 			transformRouteResponse: async (response, htmlContributions, pagePackage) => {
-				const resolvedPagePackage =
-					getComponentRenderContext()?.pagePackage ?? this.htmlTransformer.getPagePackage() ?? pagePackage;
-				const transformedResponse = this.htmlTransformer.transform(
-					response,
-					htmlContributions,
-					resolvedPagePackage,
-				);
+				const context = getComponentRenderContext();
+				const resolvedPagePackage = context?.session?.pagePackage ?? context?.pagePackage ?? pagePackage;
+				const transformedResponse = this.htmlTransformer.transform(response, {
+					contributions: htmlContributions,
+					pagePackage: resolvedPagePackage,
+				});
 				return (transformedResponse.body ?? (await transformedResponse.text())) as RouteRendererBody;
 			},
 		});
@@ -784,22 +770,29 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns Rendered route body plus effective cache strategy.
 	 */
 	public async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
-		return this.runRenderExclusive(async () => {
-			this.htmlTransformer.setProcessedDependencies([]);
-
-			const adapter = this.createRouteRenderOrchestratorAdapter();
-			const renderOptions = await this.prepareRenderOptions(options, adapter);
-			const { value } = await runWithComponentRenderContext(
-				{
-					currentIntegration: this.name,
-					pageClientPlan: renderOptions.pageClientPlan,
-					islandRenderAssetsByFile: renderOptions.islandRenderAssetsByFile,
-					pagePackage: renderOptions.pagePackage,
-				},
-				() => this.routeRenderOrchestrator.executePrepared(renderOptions, adapter),
-			);
-			return value;
-		});
+		await this.ensureIntegrationRuntimeActivated();
+		const session = createRenderSession(this.resolvedIntegrationDependencies);
+		const { value } = await runWithComponentRenderContext(
+			{
+				currentIntegration: this.name,
+				session,
+				serializeWhenContextStorageIsUnavailable: true,
+			},
+			async () => {
+				const adapter = this.createRouteRenderOrchestratorAdapter();
+				const renderOptions = await this.prepareRenderOptions(options, adapter);
+				const context = getComponentRenderContext();
+				if (context) {
+					context.pageClientPlan = renderOptions.pageClientPlan;
+					context.islandRenderAssetsByFile = renderOptions.islandRenderAssetsByFile;
+					context.pagePackage = renderOptions.pagePackage;
+				}
+				session.pagePackage = renderOptions.pagePackage;
+				session.processedDependencies = [...(renderOptions.pagePackage?.assets ?? [])];
+				return this.routeRenderOrchestrator.executePrepared(renderOptions, adapter);
+			},
+		);
+		return value;
 	}
 
 	/**
@@ -813,12 +806,16 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 */
 	async renderExplicitView<P>(view: EcoComponent<P>, props: P, ctx: ExplicitViewRenderContext): Promise<Response> {
 		if (ctx.partial) {
+			await this.ensureIntegrationRuntimeActivated();
+			const session = createRenderSession(this.resolvedIntegrationDependencies);
 			const plan = collectPageClientPlan([{ component: view }], this.name);
-			const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
+			const rendererCache = session.rendererCache as BaseIntegrationContext['rendererCache'];
 			const { value } = await runWithComponentRenderContext(
 				{
 					currentIntegration: this.name,
 					pageClientPlan: plan,
+					session,
+					serializeWhenContextStorageIsUnavailable: true,
 				},
 				async () => {
 					const rendered = await this.renderComponentWithForeignChildren({
@@ -1082,7 +1079,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Integrations, and its asset service.
 	 */
 	protected async buildPageClientBrowserAssets(plan: PageClientPlan): Promise<PageClientBrowserAssets> {
-		const rendererCache = new Map<string, ForeignSubtreeExecutionOwningRenderer>();
+		const rendererCache = (getComponentRenderContext()?.session?.rendererCache ??
+			new Map<string, ForeignSubtreeExecutionOwningRenderer>()) as Map<
+			string,
+			ForeignSubtreeExecutionOwningRenderer
+		>;
 		return buildPageClientBrowserAssets({
 			plan,
 			integrationName: this.name,

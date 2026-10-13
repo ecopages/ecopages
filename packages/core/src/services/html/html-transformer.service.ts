@@ -13,10 +13,12 @@ export type HtmlDocumentContribution = {
 	html: string;
 };
 
-export class HtmlTransformerService {
-	private processedDependencies: ProcessedAsset[] = [];
-	private pagePackage?: PagePackageResult;
+export type PageAssetInjection = {
+	pagePackage?: PagePackageResult;
+	contributions?: HtmlDocumentContribution[];
+};
 
+export class HtmlTransformerService {
 	private formatAttributes(attrs?: Record<string, string>): string {
 		if (!attrs) return '';
 		return ` ${Object.entries(attrs)
@@ -49,36 +51,6 @@ export class HtmlTransformerService {
 			.filter((item) => item.placement === placement)
 			.map((item) => item.html)
 			.join('');
-	}
-
-	/**
-	 * Replaces the current processed dependency set used during HTML finalization.
-	 */
-	setProcessedDependencies(processedDependencies: ProcessedAsset[]) {
-		this.pagePackage = undefined;
-		this.processedDependencies = processedDependencies;
-	}
-
-	/**
-	 * Replaces the current structured page package used during HTML finalization.
-	 */
-	setPagePackage(pagePackage: PagePackageResult) {
-		this.pagePackage = pagePackage;
-		this.processedDependencies = this.resolvePagePackageHtmlDependencies(pagePackage);
-	}
-
-	/**
-	 * Returns the processed dependencies queued for the next transform pass.
-	 */
-	getProcessedDependencies(): ProcessedAsset[] {
-		return this.processedDependencies;
-	}
-
-	/**
-	 * Returns the structured page package queued for the next transform pass.
-	 */
-	getPagePackage(): PagePackageResult | undefined {
-		return this.pagePackage;
 	}
 
 	/**
@@ -121,27 +93,17 @@ export class HtmlTransformerService {
 	}
 
 	/**
-	 * Injects the queued dependencies and document contributions into a streaming
-	 * HTML response.
+	 * Injects page assets and document contributions into a streaming HTML response.
 	 */
-	transform(
-		res: Response,
-		contributions: HtmlDocumentContribution[] = [],
-		pagePackage?: PagePackageResult,
-	): Response {
-		return this.createRewriter(contributions, pagePackage).transform(res);
+	transform(res: Response, input: PageAssetInjection = {}): Response {
+		return this.createRewriter(input.contributions ?? [], input.pagePackage).transform(res);
 	}
 
 	/**
-	 * Injects the queued dependencies and document contributions into a complete
-	 * HTML string.
+	 * Injects page assets and document contributions into a complete HTML string.
 	 */
-	transformHtml(
-		html: string,
-		contributions: HtmlDocumentContribution[] = [],
-		pagePackage?: PagePackageResult,
-	): string {
-		return this.createRewriter(contributions, pagePackage).transform(html);
+	injectPageAssets(html: string, input: PageAssetInjection = {}): string {
+		return this.createRewriter(input.contributions ?? [], input.pagePackage).transform(html);
 	}
 
 	/**
@@ -180,12 +142,8 @@ export class HtmlTransformerService {
 	/**
 	 * Splits processed assets into head and body injection groups.
 	 */
-	private groupDependenciesByPosition(pagePackageOverride?: PagePackageResult) {
-		const dependencies = pagePackageOverride
-			? this.resolvePagePackageHtmlDependencies(pagePackageOverride)
-			: this.pagePackage
-				? this.resolvePagePackageHtmlDependencies(this.pagePackage)
-				: this.processedDependencies;
+	private groupDependenciesByPosition(pagePackage?: PagePackageResult) {
+		const dependencies = pagePackage ? this.resolvePagePackageHtmlDependencies(pagePackage) : [];
 
 		return dependencies.reduce(
 			(acc, dep) => {

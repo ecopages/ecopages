@@ -416,6 +416,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}): Promise<string> {
 		return renderPageDocumentShell(
 			{
+				integrationName: this.name,
 				renderComponentWithForeignChildren: (renderInput) =>
 					this.renderComponentWithForeignChildren(renderInput),
 				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),

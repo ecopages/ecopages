@@ -783,10 +783,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Renders one explicit view through the route pipeline.
 	 *
 	 * @remarks
-	 * A partial render stays on `renderComponentWithForeignChildren`. A full render
-	 * calls `execute` with the view as the page module, so it receives the same
-	 * layouts, metadata, and client plan as a filesystem Page. `file` is the
-	 * view's identity file, or a stable synthetic key when the view has none.
+	 * A partial render stays on `renderComponentWithForeignChildren` and still
+	 * takes the same exclusive render as `execute`, so runtime activation and
+	 * the transformer lock apply. A full render calls `execute` with the view
+	 * as the page module, so it receives the same layouts, metadata, and client
+	 * plan as a filesystem Page. `file` is the view's identity file, or a
+	 * stable synthetic key when the view has none.
 	 */
 	async renderExplicitView<P>(
 		view: EcoComponent<P>,
@@ -794,25 +796,27 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		ctx: RenderToResponseContext & Partial<Pick<RouteRendererOptions, 'params' | 'query' | 'locals' | 'file'>>,
 	): Promise<Response> {
 		if (ctx.partial) {
-			const plan = collectPageClientPlan([view], this.name);
-			const assets = await this.buildPageClientBrowserAssets(plan);
-			const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
-			const { value } = await runWithComponentRenderContext(
-				{
-					currentIntegration: this.name,
-					pageClientPlan: plan,
-					islandRenderAssetsByFile: assets.islandRenderAssetsByFile,
-				},
-				async () => {
-					const rendered = await this.renderComponentWithForeignChildren({
-						component: view as EcoComponent,
-						props: (props ?? {}) as Record<string, unknown>,
-						integrationContext: { rendererCache },
-					});
-					return this.createHtmlResponse(rendered.html, ctx);
-				},
-			);
-			return value;
+			return this.runRenderExclusive(async () => {
+				const plan = collectPageClientPlan([{ component: view }], this.name);
+				const assets = await this.buildPageClientBrowserAssets(plan);
+				const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
+				const { value } = await runWithComponentRenderContext(
+					{
+						currentIntegration: this.name,
+						pageClientPlan: plan,
+						islandRenderAssetsByFile: assets.islandRenderAssetsByFile,
+					},
+					async () => {
+						const rendered = await this.renderComponentWithForeignChildren({
+							component: view as EcoComponent,
+							props: (props ?? {}) as Record<string, unknown>,
+							integrationContext: { rendererCache },
+						});
+						return this.createHtmlResponse(rendered.html, ctx);
+					},
+				);
+				return value;
+			});
 		}
 
 		const identity = getComponentIdentity(view);
@@ -989,17 +993,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Page package for the active render, when one is in progress.
-	 *
-	 * @remarks
-	 * Falls back to the transformer only for callers outside a render context,
-	 * such as tests that set the package directly.
-	 */
-	protected getActivePagePackage() {
-		return getComponentRenderContext()?.pagePackage ?? this.htmlTransformer.getPagePackage();
-	}
-
-	/**
 	 * Island assets for the active render.
 	 *
 	 * @remarks
@@ -1026,7 +1019,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			return planHasForeignChildDescendants(activePlan, component, this.name, foreignChildRoots);
 		}
 
-		const plan = collectPageClientPlan([component, ...(foreignChildRoots ?? [])], this.name);
+		const plan = collectPageClientPlan(
+			[{ component }, ...(foreignChildRoots ?? []).map((child) => ({ component: child }))],
+			this.name,
+		);
 		return planHasForeignChildDescendants(plan, component, this.name, foreignChildRoots);
 	}
 

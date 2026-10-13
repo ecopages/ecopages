@@ -24,6 +24,7 @@ import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependen
 import { collectComponentConfigFilePaths } from '../../page-loading/file-scoped-dependency-components.ts';
 import type { HtmlDocumentContribution } from '../../../services/html/html-transformer.service.ts';
 import { inspectUnresolvedMarkerArtifactHtml } from './marker-artifact.utils.ts';
+import type { DeclaredOwnershipRoot } from '../ownership-graph/component-graph.ts';
 import {
 	OwnershipValidationService,
 	throwIfOwnershipInvalid,
@@ -187,19 +188,20 @@ export class RouteRenderOrchestrator {
 			props: finalProps,
 		};
 		const { Page, HtmlTemplate, Layouts } = finalResolvedInputs;
+		const shellRoots: DeclaredOwnershipRoot[] = [
+			{ component: HtmlTemplate as EcoComponent, source: 'html-template' },
+			...Layouts.map((layout) => ({ component: layout as EcoComponent, source: 'layout' as const })),
+			{ component: Page as EcoComponent, source: 'page' },
+		];
 		await measureRouteRenderPhase('ownership-validation', async () => {
 			const validationErrors = this.ownershipValidationService.validate({
 				currentIntegrationName: adapter.name,
-				roots: [
-					{ component: HtmlTemplate as EcoComponent, source: 'html-template' },
-					...Layouts.map((layout) => ({ component: layout as EcoComponent, source: 'layout' as const })),
-					{ component: Page as EcoComponent, source: 'page' },
-				],
+				roots: shellRoots,
 			});
 			throwIfOwnershipInvalid(validationErrors);
 		});
 
-		const componentsToResolve = [HtmlTemplate, ...Layouts, Page];
+		const componentsToResolve = shellRoots.map((root) => root.component);
 		const dependencyInstanceKey = createPageDependencyInstanceKey({
 			params: routeOptions.params,
 			query: routeOptions.query,
@@ -237,10 +239,8 @@ export class RouteRenderOrchestrator {
 		});
 		const resolvedPageDependencyComponents = resolvedPageDependencies?.components ?? [];
 		const dependencyRoots = [
-			{ component: HtmlTemplate, source: 'html-template' as const },
-			...Layouts.map((component) => ({ component, source: 'layout' as const })),
-			{ component: Page, source: 'page' as const },
-			...resolvedPageDependencyComponents,
+			...shellRoots,
+			...resolvedPageDependencyComponents.map((component) => ({ component })),
 		];
 		const clientPlan = collectPageClientPlan(dependencyRoots, adapter.name);
 		const clientBrowserAssets = await adapter.buildPageClientBrowserAssets(clientPlan);

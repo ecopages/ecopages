@@ -256,7 +256,7 @@ app.notFound('./src/views/not-found.kita');
 app.serverError('./src/views/server-error.kita');
 ```
 
-String and URL view paths passed to `app.static()`, `app.notFound()`, and `app.serverError()` load through the server-module transpiler. Raw dynamic `import()` skips component-identity transforms. A full explicit view renders through the same route pipeline as a filesystem Page, including its layouts, default metadata, and page client plan.
+String and URL view paths passed to `app.static()`, `app.notFound()`, and `app.serverError()` load through the server-module transpiler. Raw dynamic `import()` skips component-identity transforms. A full explicit view renders through the same route pipeline as a filesystem Page, including its layouts, default metadata, robots meta, and page client plan. Props passed to the render are available to the view's `metadata`.
 
 When no custom page is configured, built-in HTML defaults are served instead.
 

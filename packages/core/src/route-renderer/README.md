@@ -54,7 +54,7 @@ See [`../build/README.md`](../build/README.md) for the JSX ownership helper spli
 
 ### `explicit-view-render-preparation.ts`
 
-`resolveExplicitViewRenderer` resolves the integration renderer for one `eco.page()` view without reading `staticProps`. Static export planning uses that so a dynamic route is not invoked before a slug exists. `prepareExplicitStaticRender` then reads `staticProps` with the route's params. A full explicit view calls `renderExplicitView`, which runs `execute` with the view as the page module, so it receives the same layouts, metadata, and page client plan as a filesystem Page. A partial render stays on the component path.
+`resolveExplicitViewRenderer` resolves the integration renderer for one `eco.page()` view without reading `staticProps`. Static export planning uses that so a dynamic route is not invoked before a slug exists. `prepareExplicitStaticRender` then reads `staticProps` with the route's params. A full explicit view calls `renderExplicitView`, which runs `execute` with the view as the page module, so it receives the same layouts, metadata, and page client plan as a filesystem Page. Handler props passed to that render are also visible to the view's `metadata`. A partial render stays on the component path and still takes the same exclusive render as a full view, so runtime activation and the transformer lock apply.
 
 ### `orchestration/`
 

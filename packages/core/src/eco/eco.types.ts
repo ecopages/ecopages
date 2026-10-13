@@ -186,7 +186,10 @@ export interface PageOptionsBase<T, E = EcoPagesElement> {
 
 	/**
 	 * Generate page metadata (title, description, etc.).
-	 * Receives props from staticProps if defined.
+	 *
+	 * @remarks
+	 * Props come from `staticProps`. Props passed into the render are overlaid
+	 * and win when both set the same key. `metadata` sees the merged props.
 	 */
 	metadata?: GetMetadata<T>;
 

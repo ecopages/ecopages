@@ -904,6 +904,10 @@ describe('StaticSiteGenerator', () => {
 				appConfig: expect.any(Object),
 				runtimeOrigin: 'http://localhost:3000',
 			});
+			expect(staticProps.mock.calls.length).toBeGreaterThan(0);
+			for (const [argument] of staticProps.mock.calls) {
+				expect(argument?.pathname?.params?.slug).toBe('hello-world');
+			}
 			expect(renderExplicitView).toHaveBeenCalledWith(
 				expect.any(Function),
 				{ slug: 'hello-world' },

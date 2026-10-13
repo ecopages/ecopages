@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createPagePackage } from '../../services/assets/asset-processing-service/index.ts';
+import { getComponentIdentity } from '../../eco/component-identity.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from './foreign-child/component-render-context.ts';
 import { IntegrationRenderer } from './integration-renderer.ts';
 import { collectPageClientPlan } from './ownership-graph/page-client-plan.ts';
@@ -55,6 +56,52 @@ describe('IntegrationRenderer', () => {
 		expect(maxActive).toBe(1);
 	});
 
+	it('holds a partial explicit view until the in-flight route render finishes', async () => {
+		let releaseRoute: (() => void) | undefined;
+		const routeGate = new Promise<void>((resolve) => {
+			releaseRoute = resolve;
+		});
+		let routeEntered = false;
+		const Page = (() => 'page') as EcoComponent;
+		Page.config = {};
+		const HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
+		const View = ((props: { content: string }) => `<div>${props.content}</div>`) as EcoComponent<{
+			content: string;
+		}>;
+
+		const renderer = new (class extends TestIntegrationRenderer {
+			override async render() {
+				routeEntered = true;
+				await routeGate;
+				return '<html><body>ok</body></html>';
+			}
+		})({
+			appConfig: testAppConfig,
+			assetProcessingService: testAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = HtmlTemplate;
+
+		const route = renderer.execute({ file: '/app/pages/a.tsx', params: {}, query: {} });
+		await vi.waitUntil(() => routeEntered);
+
+		let partialFinished = false;
+		const partial = renderer
+			.renderExplicitView(View, { content: 'Partial' }, { partial: true })
+			.then((response) => {
+				partialFinished = true;
+				return response;
+			});
+		await Promise.resolve();
+		expect(partialFinished).toBe(false);
+
+		releaseRoute?.();
+		await route;
+		const response = await partial;
+		expect(await response.text()).toBe('<div>Partial</div>');
+	});
+
 	it('keeps each render plan when a nested foreign-child context opens', async () => {
 		const Page = (() => 'page') as EcoComponent;
 		Page.config = {
@@ -83,6 +130,54 @@ describe('IntegrationRenderer', () => {
 		await renderer.execute({ file: '/app/pages/a.tsx', params: {}, query: {} });
 
 		expect(nestedHasPage).toBe(true);
+	});
+
+	it('keeps a separate client plan for each finished route render and an explicit view', async () => {
+		const seen = new Set<string>();
+		const declare = (file: string) => {
+			const component = (() => 'page') as EcoComponent<object>;
+			component.config = {
+				integration: 'test-renderer',
+				identity: { id: file, file, integration: 'test-renderer' },
+			};
+			return component;
+		};
+		const pageA = declare('/app/pages/a.tsx');
+		const pageB = declare('/app/pages/b.tsx');
+		const explicitView = declare('/app/views/explicit.tsx');
+		const HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
+		HtmlTemplate.config = {
+			integration: 'test-renderer',
+			identity: { id: 'html', file: '/app/includes/html.ts', integration: 'test-renderer' },
+		};
+
+		const renderer = new TestIntegrationRenderer({
+			appConfig: testAppConfig,
+			assetProcessingService: testAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		renderer.HtmlTemplate = HtmlTemplate;
+		renderer.RenderBodyFactory = async () => {
+			const files = (getComponentRenderContext()?.pageClientPlan?.sourceComponents ?? [])
+				.map((component) => getComponentIdentity(component)?.file)
+				.filter((file): file is string => Boolean(file))
+				.sort()
+				.join(',');
+			seen.add(files);
+			return '<html><body>ok</body></html>';
+		};
+
+		await renderer.execute({ file: '/app/pages/a.tsx', pageModule: { default: pageA }, params: {}, query: {} });
+		await renderer.execute({ file: '/app/pages/b.tsx', pageModule: { default: pageB }, params: {}, query: {} });
+		await renderer.renderExplicitView(explicitView, {}, { file: '/app/views/explicit.tsx' });
+
+		expect(seen).toEqual(
+			new Set([
+				'/app/includes/html.ts,/app/pages/a.tsx',
+				'/app/includes/html.ts,/app/pages/b.tsx',
+				'/app/includes/html.ts,/app/views/explicit.tsx',
+			]),
+		);
 	});
 
 	it('processes declarative page browser graph dependencies through shared route preparation', async () => {
@@ -488,7 +583,7 @@ describe('IntegrationRenderer', () => {
 		expect(result.pageLocals).toBe(incomingLocals);
 	});
 
-	describe('renderToResponse', () => {
+	describe('renderExplicitView', () => {
 		it('should render a view with default status 200', async () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: testAppConfig,
@@ -508,7 +603,6 @@ describe('IntegrationRenderer', () => {
 
 			expect(response.status).toBe(200);
 			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
-			expect(await response.text()).toContain('Test Page');
 		});
 
 		it('should render a partial view without layout', async () => {
@@ -573,37 +667,6 @@ describe('IntegrationRenderer', () => {
 
 			expect(response.headers.get('Cache-Control')).toBe('max-age=3600');
 			expect(response.headers.get('X-Custom-Header')).toBe('test-value');
-		});
-
-		it('should render with layout when not partial', async () => {
-			const renderer = new TestIntegrationRenderer({
-				appConfig: testAppConfig,
-				assetProcessingService: testAssetService,
-				runtimeOrigin: 'http://localhost:3000',
-			});
-
-			renderer.HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
-			renderer.HtmlTemplate.config = {
-				identity: { id: 'html', file: '/app/includes/html.ts', integration: 'test-renderer' },
-			};
-			const Layout = ((props: { children: string }) =>
-				`<main class="layout">${props.children}</main>`) as EcoComponent<{ children: string }>;
-			Layout.config = {
-				identity: { id: 'layout', file: '/app/layouts/main.ts', integration: 'test-renderer' },
-			};
-
-			const View = ((props: { message: string }) => `<p>${props.message}</p>`) as EcoComponent<{
-				message: string;
-			}>;
-			View.config = {
-				identity: { id: 'view', file: '/app/views/about.ts', integration: 'test-renderer' },
-				layouts: [Layout],
-			};
-
-			const response = await renderer.renderExplicitView(View, { message: 'With Layout' }, {});
-
-			expect(response.status).toBe(200);
-			expect(await response.text()).toContain('Test Page');
 		});
 	});
 
@@ -843,7 +906,7 @@ describe('IntegrationRenderer', () => {
 				identity: { id: 'page', file: '/app/pages/index.tsx', integration: 'page-owner' },
 				dependencies: { components: [Leaf] },
 			};
-			const ownerPlan = collectPageClientPlan([Page], 'page-owner');
+			const ownerPlan = collectPageClientPlan([{ component: Page }], 'page-owner');
 
 			const hasForeignDescendants = await runWithComponentRenderContext(
 				{ currentIntegration: 'test-renderer', pageClientPlan: ownerPlan },

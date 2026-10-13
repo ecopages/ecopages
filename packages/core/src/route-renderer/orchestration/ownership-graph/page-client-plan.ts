@@ -58,18 +58,6 @@ export type PageClientBrowserAssets = {
 	lazyTriggers: ResolvedLazyTrigger[];
 };
 
-function isComponentGraphRoot(
-	value: EcoComponent | Partial<EcoComponent> | ComponentGraphRoot,
-): value is ComponentGraphRoot {
-	return typeof value === 'object' && value !== null && 'component' in value && !('config' in value);
-}
-
-function toGraphRoots(
-	components: Array<EcoComponent | Partial<EcoComponent> | ComponentGraphRoot>,
-): ComponentGraphRoot[] {
-	return components.filter(Boolean).map((entry) => (isComponentGraphRoot(entry) ? entry : { component: entry }));
-}
-
 function getIntegrationName(component: EcoComponent | Partial<EcoComponent>, parentIntegrationName: string): string {
 	return getComponentIdentity(component)?.integration ?? component.config?.integration ?? parentIntegrationName;
 }
@@ -105,10 +93,7 @@ function collectPendingLazyClientEntries(
  * parent of another Integration still records the component, so the order in which parents reach
  * it does not change the plan. A component is listed at most once.
  */
-export function collectPageClientPlan(
-	components: Array<EcoComponent | Partial<EcoComponent> | ComponentGraphRoot>,
-	currentIntegrationName: string,
-): PageClientPlan {
+export function collectPageClientPlan(roots: ComponentGraphRoot[], currentIntegrationName: string): PageClientPlan {
 	const integrationNames = new Set<string>();
 	const lazyTriggers: ResolvedLazyTrigger[] = [];
 	const lazyClientEntries: AssetDefinition[] = [];
@@ -139,7 +124,7 @@ export function collectPageClientPlan(
 	};
 
 	componentGraph.walkComponentGraph({
-		roots: toGraphRoots(components),
+		roots,
 		currentIntegrationName,
 		onRepeatVisit: recordIsland,
 		onComponent: ({ component, parentIntegrationName, source }: ComponentGraphWalkInput) => {

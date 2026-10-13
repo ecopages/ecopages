@@ -43,7 +43,7 @@ test('collectPageClientPlan walks the declared graph once and keeps only foreign
 		children: [island, foreign],
 	});
 
-	const plan = collectPageClientPlan([root], 'react');
+	const plan = collectPageClientPlan([{ component: root }], 'react');
 
 	assert.equal(walk.mock.calls.length, 1);
 	walk.mockRestore();
@@ -57,6 +57,8 @@ test('collectPageClientPlan walks the declared graph once and keeps only foreign
 	);
 	assert.equal(planHasForeignChildDescendants(plan, root, 'react'), true);
 	assert.equal(planHasForeignChildDescendants(plan, island, 'react'), false);
+	assert.equal(planHasForeignChildDescendants(plan, island, 'react', [foreign]), true);
+	assert.equal(planHasForeignChildDescendants(plan, island, 'react', [root]), true);
 	assert.deepEqual(selectHydrationIslandEntries(plan, 'react'), []);
 	assert.deepEqual(
 		selectHydrationIslandEntries(plan, 'lit').map((entry) => entry.file),
@@ -94,7 +96,7 @@ test('selectHydrationIslandEntries hydrates only Foreign Children of a contribut
 		file: '/app/page.kita.tsx',
 		children: [reactIsland],
 	});
-	const plan = collectPageClientPlan([page], 'kitajs');
+	const plan = collectPageClientPlan([{ component: page }], 'kitajs');
 
 	assert.deepEqual(
 		selectHydrationIslandEntries(plan, 'react').map((entry) => entry.file),
@@ -118,7 +120,7 @@ test('collectPageClientPlan collects pending lazy client entries from the declar
 		children: [island],
 	});
 
-	const plan = collectPageClientPlan([root], 'react');
+	const plan = collectPageClientPlan([{ component: root }], 'react');
 
 	assert.deepEqual(plan.lazyClientEntries, [lazyAsset]);
 	assert.equal(plan.lazyConfigs.length, 1);
@@ -134,7 +136,7 @@ test('collectPageClientPlan lists a component as an island when only a later par
 		[kitaParent, reactParent],
 	]) {
 		const page = createComponent({ integration: 'kita', file: '/app/page.kita.tsx', children: parents });
-		const plan = collectPageClientPlan([page], 'kita');
+		const plan = collectPageClientPlan([{ component: page }], 'kita');
 
 		assert.deepEqual(plan.islandEntries.map((entry) => entry.file).sort(), [
 			'/app/button.tsx',
@@ -153,7 +155,7 @@ test('collectPageClientPlan lists a component once when several foreign parents 
 		children: [firstParent, secondParent],
 	});
 
-	const plan = collectPageClientPlan([page], 'lit');
+	const plan = collectPageClientPlan([{ component: page }], 'lit');
 
 	assert.deepEqual(
 		plan.islandEntries.map((entry) => entry.file).filter((file) => file === '/app/button.tsx'),

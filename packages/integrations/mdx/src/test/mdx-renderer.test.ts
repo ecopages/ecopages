@@ -7,7 +7,12 @@ import type {
 	HtmlTemplateProps,
 } from '@ecopages/core';
 import { eco } from '@ecopages/core';
-import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
+import {
+	createDeferredIntegrationPlugin,
+	createTestAppConfig,
+	htmlDocumentHead,
+	renderFilesystemPageAndExplicitView,
+} from '@ecopages/testing';
 import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { MDXRenderer } from '../mdx-renderer.ts';
 
@@ -208,7 +213,7 @@ describe('MDXRenderer', () => {
 		});
 	});
 
-	describe('renderToResponse', () => {
+	describe('renderExplicitView', () => {
 		it('should render a view with default status 200', async () => {
 			const testRenderer = createRenderer();
 			const View = (async (props: { title: string }) => `<h1>${props.title}</h1>`) as unknown as EcoComponent<{
@@ -278,6 +283,34 @@ describe('MDXRenderer', () => {
 			const body = await response.text();
 			expect(body).toContain('<main class="layout">');
 			expect(body).toContain('<p>With Layout</p>');
+		});
+
+		it('matches the filesystem page head and layouts', async () => {
+			const testRenderer = createRenderer();
+			testRenderer.htmlTemplate = (async ({ children, metadata }) =>
+				`<html><head><title>${metadata.title}</title></head><body>${children}</body></html>`) as EcoComponent<HtmlTemplateProps>;
+			const Layout = (async (props: { children: EcoPagesElement }) =>
+				`<main class="layout">${props.children}</main>`) as EcoComponent<{ children: EcoPagesElement }>;
+			const View = (async (props: { message: string }) => `<p>${props.message}</p>`) as unknown as EcoComponent<{
+				message: string;
+			}>;
+			View.metadata = (async () => ({
+				title: 'About title',
+				description: 'About',
+			})) as unknown as EcoComponent['metadata'];
+			View.config = { layouts: [Layout] };
+
+			const { pageHtml, explicitHtml } = await renderFilesystemPageAndExplicitView(
+				testRenderer,
+				View,
+				{ message: 'With Layout' },
+				'/app/pages/about.mdx',
+			);
+
+			expect(htmlDocumentHead(explicitHtml)).toContain('About title');
+			expect(htmlDocumentHead(explicitHtml)).toBe(htmlDocumentHead(pageHtml));
+			expect(explicitHtml).toContain('<main class="layout">');
+			expect(explicitHtml).toBe(pageHtml);
 		});
 
 		it('should throw an error if the view fails to render', async () => {

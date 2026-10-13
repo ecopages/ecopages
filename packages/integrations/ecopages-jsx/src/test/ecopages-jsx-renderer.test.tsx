@@ -17,7 +17,12 @@ import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orc
 import { createMarkupNodeLike, type JsxCustomElementAttributes, type JsxRenderable } from '@ecopages/jsx';
 import { getActiveSsrScopeValue, renderToString, withActiveSsrScopeValue } from '@ecopages/jsx/server';
 import { installLightDomShim } from '@ecopages/radiant/server/light-dom-shim';
-import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
+import {
+	createDeferredIntegrationPlugin,
+	createTestAppConfig,
+	htmlDocumentHead,
+	renderFilesystemPageAndExplicitView,
+} from '@ecopages/testing';
 import { EcopagesJsxShell as KitchenSinkEcopagesJsxShell } from '@ecopages/testing/kitchen-sink/ecopages-jsx-shell';
 import { KitaShell as KitchenSinkKitaShell } from '@ecopages/testing/kitchen-sink/kita-shell';
 import { LitShell as KitchenSinkLitShell } from '@ecopages/testing/kitchen-sink/lit-shell';
@@ -73,8 +78,10 @@ function serializeStringChild(children: JsxRenderable | undefined): string {
 }
 
 class TestEcopagesJsxRenderer extends EcopagesJsxRenderer {
+	htmlTemplate: EcoComponent<HtmlTemplateProps> = HtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
+
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
-		return HtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
+		return this.htmlTemplate;
 	}
 
 	protected override async resolveDependencies(): Promise<[]> {
@@ -1113,7 +1120,7 @@ describe('EcopagesJsxRenderer', () => {
 		});
 	});
 
-	describe('renderToResponse', () => {
+	describe('renderExplicitView', () => {
 		it('renders full route pages through renderer-owned explicit foreign-subtree renders', async () => {
 			const deferredPlugin = createDeferredIntegrationPlugin();
 			const config = await createTestAppConfig({
@@ -1227,6 +1234,7 @@ describe('EcopagesJsxRenderer', () => {
 			const View = eco.page<{ label: string }, JsxRenderable>({
 				integration: 'ecopages-jsx',
 				layout: Layout,
+				metadata: () => ({ title: 'Ready title', description: 'Ready' }),
 				render: ({ label }) => <section data-view-root>{label}</section>,
 			});
 			View.config = {
@@ -1235,14 +1243,37 @@ describe('EcopagesJsxRenderer', () => {
 				identity: { id: 'view', file: '/app/views/ready.tsx', integration: 'ecopages-jsx' },
 			};
 
-			const response = await renderer.renderExplicitView(View, { label: 'Ready' }, { partial: false });
-			const body = await response.text();
+			const headedTemplate = ({ children, metadata }: HtmlTemplateProps<JsxRenderable>) => (
+				<html>
+					<head>
+						<title>{metadata.title}</title>
+					</head>
+					<body>
+						<main data-document-root>{children}</main>
+					</body>
+				</html>
+			);
+			(headedTemplate as unknown as EcoComponent).config = {
+				integration: 'ecopages-jsx',
+				identity: { id: 'html', file: '/app/includes/html.tsx', integration: 'ecopages-jsx' },
+			};
+			renderer.htmlTemplate = headedTemplate as unknown as EcoComponent<HtmlTemplateProps>;
 
-			expect(body).toContain('<!DOCTYPE html>');
-			expect(body).toContain('data-document-root="true"');
-			expect(body).toContain('data-layout-root="true"');
-			expect(body).toContain('data-view-root="true">Ready</section>');
-			expect(body).not.toContain('&lt;section');
+			const { pageHtml, explicitHtml } = await renderFilesystemPageAndExplicitView(
+				renderer,
+				View,
+				{ label: 'Ready' },
+				'/app/views/ready.tsx',
+			);
+
+			expect(explicitHtml).toContain('<!DOCTYPE html>');
+			expect(explicitHtml).toContain('data-document-root="true"');
+			expect(explicitHtml).toContain('data-layout-root="true"');
+			expect(explicitHtml).toContain('data-view-root="true">Ready</section>');
+			expect(explicitHtml).not.toContain('&lt;section');
+			expect(htmlDocumentHead(explicitHtml)).toContain('Ready title');
+			expect(htmlDocumentHead(explicitHtml)).toBe(htmlDocumentHead(pageHtml));
+			expect(explicitHtml).toBe(pageHtml);
 		});
 	});
 });

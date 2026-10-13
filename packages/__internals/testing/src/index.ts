@@ -1,4 +1,11 @@
-import type { ComponentRenderInput, ComponentRenderResult, EcoPagesAppConfig, EcoPagesElement } from '@ecopages/core';
+import type {
+	ComponentRenderInput,
+	ComponentRenderResult,
+	EcoComponent,
+	EcoFunctionComponent,
+	EcoPagesAppConfig,
+	EcoPagesElement,
+} from '@ecopages/core';
 import { type EcoPagesUserConfig } from '@ecopages/core/config';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { defineIntegration } from '@ecopages/core/plugins/define-integration';
@@ -162,4 +169,56 @@ export function createDeferredIntegrationPlugin(
 			});
 		}
 	})();
+}
+
+/**
+ * The `<head>` of a rendered document, or an empty string when the shell has none.
+ */
+export function htmlDocumentHead(html: string): string {
+	return html.match(/<head\b[^>]*>[\s\S]*?<\/head>/i)?.[0] ?? '';
+}
+
+async function renderResultText(body: unknown): Promise<string> {
+	if (typeof body === 'string') {
+		return body;
+	}
+
+	if (body instanceof ReadableStream) {
+		return await new Response(body).text();
+	}
+
+	if (body instanceof Uint8Array) {
+		return new TextDecoder().decode(body);
+	}
+
+	return String(body);
+}
+
+/**
+ * Renders one view as a filesystem page and as an explicit view.
+ *
+ * @remarks
+ * The two documents are expected to match. A test fails when the explicit
+ * view drops a layout or a head field the filesystem page still has.
+ */
+export async function renderFilesystemPageAndExplicitView(
+	renderer: IntegrationRenderer<unknown>,
+	view: EcoComponent,
+	props: Record<string, unknown>,
+	file: string,
+): Promise<{ pageHtml: string; explicitHtml: string }> {
+	const pageView = view as EcoFunctionComponent<Record<string, unknown>, unknown>;
+	const page = await renderer.execute({
+		file,
+		pageModule: { default: pageView },
+		params: {},
+		query: {},
+		props,
+	});
+	const explicit = await renderer.renderExplicitView(pageView, props, { file });
+
+	return {
+		pageHtml: await renderResultText(page.body),
+		explicitHtml: await explicit.text(),
+	};
 }

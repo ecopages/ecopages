@@ -76,14 +76,15 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	 * @remarks
 	 * Activates the integration runtime before reading {@link getRenderSession}
 	 * so a renderer constructed before plugin setup still sees the session.
-	 * When `options.locals` is present, rendering stays in-process: request locals
-	 * are not structured-cloned across the worker boundary.
+	 * When `options.locals` or `options.props` is present, rendering stays in-process.
+	 * Request locals are not structured-cloned across the worker boundary, and the
+	 * worker re-imports `file` and drops the supplied view and props.
 	 */
 	public override async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
 		await this.ensureIntegrationRuntimeActivated();
 		const renderSession = this.getRenderSession?.();
 
-		if (renderSession && options.locals === undefined) {
+		if (renderSession && options.locals === undefined && options.props === undefined) {
 			const params: PageParams = options.params ?? {};
 			const result = await renderSession.renderPageInWorker({
 				filePath: options.file,

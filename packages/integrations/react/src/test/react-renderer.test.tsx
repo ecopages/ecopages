@@ -15,7 +15,12 @@ import { type RouteModuleLoadOptions } from '@ecopages/core/route-renderer/orche
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { fileSystem } from '@ecopages/file-system';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
-import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
+import {
+	createDeferredIntegrationPlugin,
+	createTestAppConfig,
+	htmlDocumentHead,
+	renderFilesystemPageAndExplicitView,
+} from '@ecopages/testing';
 import React, { type JSX } from 'react';
 import { ReactRenderer, type ReactRendererConfig } from '../render/react-renderer.ts';
 import type { ReactRuntime } from '../render/layout-compose.ts';
@@ -968,7 +973,7 @@ describe('ReactRenderer', () => {
 		expect(text).not.toContain('<eco-marker');
 	});
 
-	describe('renderToResponse', () => {
+	describe('renderExplicitView', () => {
 		it('should render a view with default status 200', async () => {
 			const testRenderer = createRenderer();
 			const MockView = ((props: { title: string }) => <h1>{props.title}</h1>) as unknown as EcoComponent<{
@@ -1050,11 +1055,9 @@ describe('ReactRenderer', () => {
 
 			const response = await testRenderer.renderExplicitView(MockView, { title: 'Hello React' }, {});
 			const body = await response.text();
-			const pagePackage = testRenderer.getCurrentPagePackageForTest();
 
 			expect(body).toContain('/assets/react-hydration.js');
 			expect(body).not.toContain('/assets/react-hydration.chunk.js');
-			expect(pagePackage).toBeUndefined();
 		});
 
 		it('should render a partial view without full HTML wrapper', async () => {
@@ -1158,6 +1161,29 @@ describe('ReactRenderer', () => {
 			const body = await response.text();
 			expect(body).toContain('layout');
 			expect(body).toContain('<p>With Layout</p>');
+		});
+
+		it('matches the filesystem page head and layouts', async () => {
+			const testRenderer = createRenderer();
+			const MockLayout = (({ children }: { children: JSX.Element }) => (
+				<main className="layout">{children}</main>
+			)) as unknown as EcoComponent<{ children: JSX.Element }>;
+			const MockView = ((props: { message: string }) => <p>{props.message}</p>) as unknown as EcoComponent<{
+				message: string;
+			}>;
+			MockView.config = { layouts: [MockLayout] };
+
+			const { pageHtml, explicitHtml } = await renderFilesystemPageAndExplicitView(
+				testRenderer,
+				MockView,
+				{ message: 'With Layout' },
+				'/app/pages/about.react.tsx',
+			);
+
+			expect(htmlDocumentHead(explicitHtml)).toBe(htmlDocumentHead(pageHtml));
+			expect(explicitHtml).toContain('layout');
+			expect(explicitHtml).toContain('<p>With Layout</p>');
+			expect(explicitHtml).toBe(pageHtml);
 		});
 
 		it('should render full views through explicit component boundaries for non-react layouts', async () => {

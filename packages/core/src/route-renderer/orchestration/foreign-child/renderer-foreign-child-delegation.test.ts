@@ -311,7 +311,7 @@ describe('renderer foreign-child delegation', () => {
 		expect(renderer.ForeignChildRuntimeCreationCount).toBe(0);
 	});
 
-	it('uses inline partial rendering when no foreign children are present', async () => {
+	it('renders a partial view that has no foreign children', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
@@ -333,7 +333,7 @@ describe('renderer foreign-child delegation', () => {
 		expect(renderer.ForeignChildRenderCount).toBe(1);
 	});
 
-	it('falls back to foreign-subtree partial rendering when compatibility is needed', async () => {
+	it('returns the view render result for a partial view that declares a foreign child', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: {
 				...testAppConfig,
@@ -368,7 +368,7 @@ describe('renderer foreign-child delegation', () => {
 			dependencies: { components: [ForeignChild] },
 		};
 		renderer.MockComponentRenderResult = {
-			html: '<section>Foreign Subtree</section>',
+			html: '<section data-rendered="view">Foreign Subtree</section>',
 			canAttachAttributes: true,
 			rootTag: 'section',
 			integrationName: 'test-renderer',
@@ -376,40 +376,94 @@ describe('renderer foreign-child delegation', () => {
 
 		const response = await renderer.renderExplicitView(View, {}, { partial: true });
 
-		expect(await response.text()).toBe('<section>Foreign Subtree</section>');
+		expect(await response.text()).toBe('<section data-rendered="view">Foreign Subtree</section>');
 		expect(renderer.ForeignChildRenderCount).toBe(1);
 	});
 
+	it('hands off a partial view foreign child after an unrelated route render', async () => {
+		const reactRenderer = {
+			name: 'react',
+			renderComponentWithForeignChildren: vi.fn(async () => ({
+				html: '<button data-react-owner="react">1</button>',
+				canAttachAttributes: true,
+				rootTag: 'button',
+				integrationName: 'react',
+			})),
+		} as unknown as IntegrationRenderer;
+		const initializeRenderer = vi.fn(() => reactRenderer);
+		const renderer = new TestIntegrationRenderer({
+			appConfig: {
+				...testAppConfig,
+				integrations: [
+					createMockIntegrationPlugin({
+						name: 'react',
+						initializeRenderer,
+					}),
+				],
+			} as unknown as EcoPagesAppConfig,
+			assetProcessingService: testAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		const Home = (() => '<p>Home</p>') as EcoComponent<Record<string, unknown>>;
+		Home.config = {
+			integration: 'test-renderer',
+			identity: { id: 'home', file: '/app/pages/home.ts', integration: 'test-renderer' },
+		};
+		const HtmlTemplate = (() => '<html><body></body></html>') as EcoComponent<HtmlTemplateProps>;
+		HtmlTemplate.config = {
+			integration: 'test-renderer',
+			identity: { id: 'html', file: '/app/includes/html.ts', integration: 'test-renderer' },
+		};
+		renderer.PageModule = { default: Home };
+		renderer.HtmlTemplate = HtmlTemplate;
+
+		await renderer.execute({ file: '/app/pages/home.ts', params: {}, query: {} });
+
+		const ForeignChild = (() => '<button>local</button>') as EcoComponent<Record<string, unknown>>;
+		ForeignChild.config = {
+			integration: 'react',
+			identity: { id: 'counter', file: '/app/components/counter.tsx', integration: 'react' },
+		};
+
+		const response = await renderer.renderExplicitView(ForeignChild, {}, { partial: true });
+
+		expect(await response.text()).toBe('<button data-react-owner="react">1</button>');
+		expect(reactRenderer.renderComponentWithForeignChildren).toHaveBeenCalledWith(
+			expect.objectContaining({ component: ForeignChild }),
+		);
+	});
+
 	it('reuses one foreign renderer instance across shared view shell composition', async () => {
-		const foreignRenderer = {
-			renderComponentWithForeignChildren: vi.fn(async (input: ComponentRenderInput) => {
-				const componentId = input.component.config?.identity?.id;
+		const renderForeignComponent = vi.fn(async (input: ComponentRenderInput) => {
+			const componentId = input.component.config?.identity?.id;
 
-				if (componentId === 'foreign-html-template') {
-					return {
-						html: `<html><body>${String(input.children ?? '')}</body></html>`,
-						canAttachAttributes: true,
-						rootTag: 'html',
-						integrationName: 'foreign-renderer',
-					};
-				}
-
-				if (componentId === 'foreign-layout') {
-					return {
-						html: `<main>${String(input.children ?? '')}</main>`,
-						canAttachAttributes: true,
-						rootTag: 'main',
-						integrationName: 'foreign-renderer',
-					};
-				}
-
+			if (componentId === 'foreign-html-template') {
 				return {
-					html: '<section>Foreign View</section>',
+					html: `<html><body>${String(input.children ?? '')}</body></html>`,
 					canAttachAttributes: true,
-					rootTag: 'section',
+					rootTag: 'html',
 					integrationName: 'foreign-renderer',
 				};
-			}),
+			}
+
+			if (componentId === 'foreign-layout') {
+				return {
+					html: `<main>${String(input.children ?? '')}</main>`,
+					canAttachAttributes: true,
+					rootTag: 'main',
+					integrationName: 'foreign-renderer',
+				};
+			}
+
+			return {
+				html: '<section>Foreign View</section>',
+				canAttachAttributes: true,
+				rootTag: 'section',
+				integrationName: 'foreign-renderer',
+			};
+		});
+		const foreignRenderer = {
+			renderComponentWithForeignChildren: renderForeignComponent,
 		} as unknown as IntegrationRenderer;
 
 		const initializeRenderer = vi.fn(() => foreignRenderer);
@@ -477,7 +531,9 @@ describe('renderer foreign-child delegation', () => {
 		const response = await renderer.renderExplicitView(View, {}, {});
 
 		expect(await response.text()).toContain('<main><section>Foreign View</section></main>');
-		expect(initializeRenderer).toHaveBeenCalled();
-		expect(foreignRenderer.renderComponentWithForeignChildren).toHaveBeenCalled();
+		const renderedIds = renderForeignComponent.mock.calls.map((call) => call[0].component.config?.identity?.id);
+		expect(renderedIds.filter((id) => id === 'foreign-html-template')).toHaveLength(1);
+		expect(renderedIds.filter((id) => id === 'foreign-layout')).toHaveLength(1);
+		expect(renderedIds.filter((id) => id === 'foreign-view')).toHaveLength(1);
 	});
 });

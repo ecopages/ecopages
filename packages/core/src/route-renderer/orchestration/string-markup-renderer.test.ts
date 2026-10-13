@@ -7,7 +7,13 @@ import { toForeignSubtreeRenderPayload } from '../../route-renderer/orchestratio
 import { HttpError } from '../../errors/http-error.ts';
 import { StringMarkupRenderer } from './string-markup-renderer.ts';
 import { testAssetService } from './integration-renderer.test-fixtures.ts';
-import { createDeferredIntegrationPlugin, createStringMarkupIntegration, createTestAppConfig } from '@ecopages/testing';
+import {
+	createDeferredIntegrationPlugin,
+	createStringMarkupIntegration,
+	createTestAppConfig,
+	htmlDocumentHead,
+	renderFilesystemPageAndExplicitView,
+} from '@ecopages/testing';
 
 const appConfig = await createFixtureAppConfig();
 
@@ -197,7 +203,7 @@ describe('StringMarkupRenderer', () => {
 		});
 	});
 
-	describe('renderToResponse', () => {
+	describe('renderExplicitView', () => {
 		it('should render a view with default status 200', async () => {
 			const renderer = createRenderer();
 			const View = (async (props: { title: string }) => `<h1>${props.title}</h1>`) as EcoComponent<{
@@ -271,6 +277,36 @@ describe('StringMarkupRenderer', () => {
 				'<meta name="description" content="This is a static site generated with Ecopages" />',
 			);
 			expect(body).toContain('<meta name="robots" content="noindex">');
+		});
+
+		it('matches the filesystem page head and layouts', async () => {
+			const renderer = createRenderer();
+			const Outer = (async ({ children }: { children: string }) =>
+				`<div class="outer">${children}</div>`) as EcoComponent<{ children: string }>;
+			const Inner = (async ({ children, label }: { children: string; label: string }) =>
+				`<div class="inner" data-label="${label}">${children}</div>`) as EcoComponent<{
+				children: string;
+				label: string;
+			}>;
+			const View = (async () => `<p>About</p>`) as EcoComponent<object>;
+			View.config = {
+				layouts: [Outer, Inner],
+				layoutEntries: [{ component: Outer }, { component: Inner, props: () => ({ label: 'from-factory' }) }],
+			};
+			renderer.htmlTemplate = (async ({ children, metadata }) =>
+				`<html><head><title>${metadata.title}</title><meta name="description" content="${metadata.description}" /></head><body>${children}</body></html>`) as EcoComponent<HtmlTemplateProps>;
+
+			const { pageHtml, explicitHtml } = await renderFilesystemPageAndExplicitView(
+				renderer,
+				View,
+				{},
+				'/app/pages/about.ts',
+			);
+
+			expect(htmlDocumentHead(explicitHtml)).toBe(htmlDocumentHead(pageHtml));
+			expect(explicitHtml).toContain('class="outer"');
+			expect(explicitHtml).toContain('data-label="from-factory"');
+			expect(explicitHtml).toBe(pageHtml);
 		});
 
 		it('should throw an error if the view fails to render', async () => {

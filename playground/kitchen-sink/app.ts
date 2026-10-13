@@ -28,6 +28,9 @@ app.websocket('/ws/chat/:roomId', chatRoomWebsocketHandler);
 app.get('/explicit/team', async (ctx) => {
 	return await ctx.renderServerModule(new URL('./src/views/explicit-team-view.kita.tsx', import.meta.url));
 })
+	.get('/explicit/react-island', async (ctx) => {
+		return await ctx.renderServerModule(new URL('./src/views/explicit-react-island.kita.tsx', import.meta.url));
+	})
 	.get('/latest', async (ctx) => {
 		const latestRelease = releaseNotes[releaseNotes.length - 1]!;
 		return await ctx.renderServerModule(new URL('./src/views/latest-release-view.kita.tsx', import.meta.url), {

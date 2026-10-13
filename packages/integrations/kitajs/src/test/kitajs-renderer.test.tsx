@@ -13,7 +13,12 @@ import {
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
-import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
+import {
+	createDeferredIntegrationPlugin,
+	createTestAppConfig,
+	htmlDocumentHead,
+	renderFilesystemPageAndExplicitView,
+} from '@ecopages/testing';
 import { KitaRenderer } from '../kitajs-renderer.ts';
 
 type MarkupNodeLike = {
@@ -64,9 +69,10 @@ class EcopagesJsxForeignPlugin extends IntegrationPlugin<MarkupNodeLike> {
 
 class TestKitaRenderer extends KitaRenderer {
 	PageModules = new Map<string, { default: EcoComponent<any> }>();
+	htmlTemplate: EcoComponent<HtmlTemplateProps> = HtmlTemplate;
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
-		return HtmlTemplate;
+		return this.htmlTemplate;
 	}
 
 	protected override async resolveDependencies(): Promise<[]> {
@@ -417,6 +423,7 @@ describe('KitaRenderer', () => {
 		const View = eco.page({
 			integration: 'kitajs',
 			layout: Layout,
+			metadata: () => ({ title: 'Explicit page', description: 'Explicit page' }),
 			render: () => '<section>Explicit page</section>',
 		});
 		View.config = {
@@ -431,13 +438,27 @@ describe('KitaRenderer', () => {
 			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 		});
+		const headedTemplate = (async ({ children, metadata }) =>
+			`<html><head><title>${metadata.title}</title></head><body>${children}</body></html>`) as EcoComponent<HtmlTemplateProps>;
+		headedTemplate.config = {
+			integration: 'kitajs',
+			identity: { id: 'html', file: '/app/includes/html.kita.tsx', integration: 'kitajs' },
+		};
+		testRenderer.htmlTemplate = headedTemplate;
 
-		const response = await testRenderer.renderExplicitView(View, {}, {});
-		const body = await response.text();
+		const { pageHtml, explicitHtml } = await renderFilesystemPageAndExplicitView(
+			testRenderer,
+			View,
+			{},
+			'/app/views/explicit.kita.tsx',
+		);
 
-		expect(body).toContain('<section>Explicit page</section>');
-		expect(body).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
-		expect(body).not.toContain('<eco-marker');
+		expect(explicitHtml).toContain('<section>Explicit page</section>');
+		expect(explicitHtml).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
+		expect(htmlDocumentHead(explicitHtml)).toContain('Explicit page');
+		expect(htmlDocumentHead(explicitHtml)).toBe(htmlDocumentHead(pageHtml));
+		expect(explicitHtml).toBe(pageHtml);
+		expect(explicitHtml).not.toContain('<eco-marker');
 	});
 
 	it('renders an Ecopages JSX child through the real Kita JSX runtime', async () => {

@@ -102,8 +102,10 @@ flowchart TD
   B --> C[get renderer by integration]
   C --> D[renderExplicitView then execute]
 
-  E[render context render or renderPartial] --> F[get renderer from integrations list]
-  F --> G[renderExplicitView]
+  E[render context render] --> F[get renderer from integrations list]
+  F --> G[renderExplicitView then execute]
+  P[render context renderPartial] --> F2[get renderer from integrations list]
+  F2 --> G2[renderExplicitView on the component path]
 
   H[StaticSiteGenerator explicit routes] --> I[resolve renderer without staticProps]
   I --> J[renderExplicitView then execute]

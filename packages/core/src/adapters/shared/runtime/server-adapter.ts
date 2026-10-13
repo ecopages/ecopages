@@ -91,7 +91,7 @@ export abstract class SharedServerAdapter<
 
 		const runtimeOrigin = this.runtimeOrigin;
 		this.devStaticRoutePrewarm = startDevStaticRoutePrewarm({
-			collectPathnames: () => this.appConfig.devPrewarmPaths ?? [],
+			pathnames: [...new Set(this.appConfig.devPrewarmPaths)],
 			signal: this.devStaticRoutePrewarmAbort.signal,
 			renderPath: (pathname: string) =>
 				requireBuildQueue(this.appConfig).withRequestScope(() =>

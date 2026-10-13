@@ -309,7 +309,7 @@ describe('NodeServerAdapter', () => {
 		const appConfig = await finalizeEcoPagesConfig({
 			rootDir: path.join(os.tmpdir(), 'ecopages-prewarm-build-inputs'),
 		});
-		appConfig.devPrewarmPaths = ['/prewarmed'];
+		appConfig.devPrewarmPaths = ['/prewarmed', '/prewarmed'];
 		const recordingIndexes: unknown[] = [];
 		const handleResponse = vi
 			.spyOn(ServerRouteHandler.prototype, 'handleResponse')
@@ -330,7 +330,8 @@ describe('NodeServerAdapter', () => {
 		await adapter.completeInitialization({} as import('node:http').Server);
 		await vi.waitFor(() => expect(recordingIndexes).toHaveLength(1));
 
-		expect(recordingIndexes[0]).toBe(getAppBuildInputIndex(appConfig));
 		await adapter.dispose();
+
+		expect(recordingIndexes).toEqual([getAppBuildInputIndex(appConfig)]);
 	});
 });

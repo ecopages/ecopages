@@ -9,6 +9,7 @@ import { createAppBuildManifest } from '../../build/contracts/build-manifest.ts'
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
 import type { EcoPagesElement } from '../../types/public-types.ts';
 import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
+import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 
 describe('app server module transpiler runtime state', () => {
 	it('compiles Bun-owned Kita modules to string render functions during app module imports', async () => {
@@ -173,12 +174,10 @@ describe('app server module transpiler runtime state', () => {
 				fs.mkdirSync(path.dirname(compiledOutputPath), { recursive: true });
 				fs.writeFileSync(compiledOutputPath, 'export default { ok: true };', 'utf8');
 
-				return {
-					success: true,
-					logs: [],
+				return createBuildSuccess({
 					outputs: [{ path: compiledOutputPath }],
 					entryOutputs: { [Object.values(options.entrypoints)[0]!]: compiledOutputPath },
-				};
+				});
 			},
 		};
 

@@ -689,7 +689,7 @@ test('AssetProcessingService - a change to a produced file evicts its cached ass
 	expect(processMock).toHaveBeenCalledTimes(2);
 });
 
-test('AssetProcessingService clears the page cache when a runtime asset changes its file path', async () => {
+test('AssetProcessingService clears the page cache when the source of a runtime asset changes', async () => {
 	vi.stubEnv('NODE_ENV', 'development');
 	fileSystem.exists = vi.fn(() => true);
 	fileSystem.hash = vi
@@ -732,6 +732,52 @@ test('AssetProcessingService clears the page cache when a runtime asset changes 
 	await service.processDependencies([dependency], 'runtime-generation');
 	expect(clearPageCache).toHaveBeenCalledTimes(1);
 	expect(processMock).toHaveBeenCalledTimes(2);
+});
+
+test('AssetProcessingService clears the page cache when a page script keeps its source but moves its file path', async () => {
+	vi.stubEnv('NODE_ENV', 'development');
+	fileSystem.exists = vi.fn(() => true);
+
+	const config = { ...Config } as unknown as EcoPagesAppConfig;
+	const pageCache = new PageCacheService();
+	registerAppPageCacheService(config, pageCache);
+	const clearPageCache = vi.spyOn(pageCache, 'clear');
+	const service = new AssetProcessingService(config);
+	let bundleVersion = 'v1';
+	const processGroupedMock = vi.fn(async (deps: { groupedBundle?: { id: string; entryName: string } }[]) =>
+		deps.map((dep) => ({
+			filepath: `/test/dist/assets/${dep.groupedBundle?.entryName}-${bundleVersion}.js`,
+			kind: 'script' as const,
+			inline: false,
+			groupedBundle: dep.groupedBundle,
+			packageRole: 'page-script' as const,
+		})),
+	);
+	service.registerProcessor('script', 'file', { process: vi.fn(), processGrouped: processGroupedMock });
+
+	const page: AssetDefinition = {
+		kind: 'script',
+		source: 'file',
+		filepath: '/test/src/page.ts',
+		packageRole: 'page-script',
+		groupedBundle: { id: 'bundle-1', entryName: 'page-entry' },
+	};
+	const sibling: AssetDefinition = {
+		kind: 'script',
+		source: 'file',
+		filepath: '/test/src/sibling.ts',
+		packageRole: 'page-script',
+		groupedBundle: { id: 'bundle-1', entryName: 'sibling-entry' },
+	};
+
+	await service.processDependencies([page], 'page-script-path');
+	expect(clearPageCache).not.toHaveBeenCalled();
+
+	bundleVersion = 'v2';
+	await service.processDependencies([page, sibling], 'page-script-path');
+
+	expect(processGroupedMock).toHaveBeenCalledTimes(2);
+	expect(clearPageCache).toHaveBeenCalledTimes(1);
 });
 
 test('AssetProcessingService - skips missing file dependencies', async () => {

@@ -420,10 +420,15 @@ export class AssetProcessingService {
 
 	/**
 	 * Stores one processed asset in the dependency cache.
+	 *
+	 * @remarks
+	 * Clears the development HTML cache when a runtime or page-script asset is stored over an
+	 * existing entry under a new file path, because cached pages embed the previous URL. This
+	 * happens when a grouped bundle is rebuilt for a new member and re-emits its cached siblings.
 	 */
 	private setCachedAsset(dep: AssetDefinition, depKey: string, asset: ProcessedAsset): void {
 		const previous = this.cache.get(depKey)?.asset;
-		const tracksBrowserRuntimeGeneration = dep.packageRole === 'runtime' || dep.packageRole === 'page-script';
+		const isBrowserRuntimeAsset = dep.packageRole === 'runtime' || dep.packageRole === 'page-script';
 
 		this.cache.set(depKey, {
 			asset,
@@ -433,7 +438,7 @@ export class AssetProcessingService {
 			this.gzippedFiles.delete(asset.filepath);
 		}
 
-		if (tracksBrowserRuntimeGeneration && previous !== undefined && previous.filepath !== asset.filepath) {
+		if (isBrowserRuntimeAsset && previous !== undefined && previous.filepath !== asset.filepath) {
 			void clearPageCacheForBrowserRuntimeAssetChange(this.config);
 		}
 	}

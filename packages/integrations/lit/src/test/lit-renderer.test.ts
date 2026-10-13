@@ -272,7 +272,6 @@ describe('LitRenderer', () => {
 				renderComponent: async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
 					html: '<button data-testid="deferred-island">Deferred island</button>',
 					canAttachAttributes: true,
-					rootTag: 'button',
 					integrationName: 'deferred',
 					rootAttributes: buildIslandHostAttributes({
 						integrationName: 'deferred',

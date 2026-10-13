@@ -51,7 +51,6 @@ class EcopagesJsxForeignRenderer extends IntegrationRenderer<MarkupNodeLike> {
 		return {
 			html: rendered.outerHTML,
 			canAttachAttributes: true,
-			rootTag: 'strong',
 			integrationName: this.name,
 		};
 	}

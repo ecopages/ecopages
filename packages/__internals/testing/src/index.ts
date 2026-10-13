@@ -143,7 +143,6 @@ export function createDeferredIntegrationPlugin(
 		(async () => ({
 			html: '<button data-testid="deferred-widget">Deferred widget</button>',
 			canAttachAttributes: true,
-			rootTag: 'button',
 			integrationName,
 		}));
 

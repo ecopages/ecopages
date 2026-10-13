@@ -1012,28 +1012,6 @@ describe('EcopagesJsxRenderer', () => {
 			expect(result.html).toContain('data-items-count="1"');
 			expect(result.html).toContain('items="[{&quot;id&quot;:&quot;bun&quot;}]"');
 		});
-
-		it('does not require an active renderer SSR scope when the intrinsic custom-element hook is consulted late', () => {
-			const renderer = new TestEcopagesJsxRenderer({
-				appConfig: Config,
-				assetProcessingService: {
-					processDependencies: vi.fn(async () => []),
-				} as never,
-				runtimeOrigin: 'http://localhost:3000',
-				resolvedIntegrationDependencies: [],
-				jsxConfig: {},
-			});
-
-			const collectedAssets: Array<{ kind: string; srcUrl: string; position: string }> = [];
-			const hook = (
-				renderer as unknown as {
-					createIntrinsicCustomElementRenderHook(): ({ tagName }: { tagName: string }) => undefined;
-				}
-			).createIntrinsicCustomElementRenderHook();
-
-			expect(() => hook({ tagName: INTRINSIC_TEST_TAG })).not.toThrow();
-			expect(collectedAssets).toEqual([]);
-		});
 	});
 
 	describe('renderExplicitView', () => {

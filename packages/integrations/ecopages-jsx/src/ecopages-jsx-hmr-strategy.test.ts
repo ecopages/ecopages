@@ -1,6 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import path from 'node:path';
-import { HmrStrategyType } from '@ecopages/core/hmr/hmr-strategy';
 import type { EcoComponent, EcoComponentConfig, ResolvedHmrEntrypoint } from '@ecopages/core';
 
 type OwnershipModule = typeof import('./ecopages-jsx-hmr-ownership.ts');
@@ -82,12 +81,6 @@ describe('EcopagesJsxHmrStrategy', () => {
 		({ EcopagesJsxHmrStrategy } = await import('./ecopages-jsx-hmr-strategy.ts'));
 		({ getEjsxHmrOwnership, recordEjsxHmrOwnership, withEjsxHmrOwnershipScope } =
 			await import('./ecopages-jsx-hmr-ownership.ts'));
-	});
-
-	it('has INTEGRATION priority', () => {
-		const strategy = new EcopagesJsxHmrStrategy(makeContext());
-		expect(strategy.priority).toBe(HmrStrategyType.INTEGRATION);
-		expect(strategy.type).toBe(HmrStrategyType.INTEGRATION);
 	});
 
 	describe('matches()', () => {

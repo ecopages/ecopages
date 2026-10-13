@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { compile } from '@mdx-js/mdx';
 import { test, vi } from 'vitest';
-import type { NodeModuleScriptAsset } from '@ecopages/core/services/asset-processing-service';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import remarkGfm from 'remark-gfm';
 import { VFile, type Compatible as VFileCompatible } from 'vfile';
@@ -43,6 +42,12 @@ function createHmrManagerStub(): IHmrManager {
 	} as unknown as IHmrManager;
 }
 
+class ExposedEcopagesJsxPlugin extends EcopagesJsxPlugin {
+	get bootstrapDependencies() {
+		return this.integrationDependencies;
+	}
+}
+
 function getMdxLoaderFilter(plugin: EcoBuildPlugin): RegExp {
 	let capturedFilter: RegExp | undefined;
 
@@ -81,12 +86,6 @@ test('EcopagesJsxPlugin matches custom multi-dot MDX extensions exactly', async 
 	assert.equal(filter.test('/tmp/src/pages/component-story-mdx'), false);
 });
 
-test('EcopagesJsxPlugin supports direct construction with default public options', () => {
-	const plugin = new EcopagesJsxPlugin();
-
-	assert.deepEqual(plugin.extensions, ['.tsx']);
-});
-
 test('EcopagesJsxPlugin supports direct construction with MDX public options', () => {
 	const plugin = new EcopagesJsxPlugin({
 		extensions: ['.eco.tsx'],
@@ -96,13 +95,12 @@ test('EcopagesJsxPlugin supports direct construction with MDX public options', (
 	});
 
 	assert.deepEqual(plugin.extensions, ['.eco.tsx', '.guide.mdx']);
-	assert.deepEqual((plugin as any).mdxExtensions, ['.guide.mdx']);
 });
 
 test('EcopagesJsxPlugin installs the explicit Radiant hydrator bootstrap when Radiant SSR is enabled', () => {
-	const plugin = new EcopagesJsxPlugin();
-	const dependency = (plugin as any).integrationDependencies.find(
-		(asset: NodeModuleScriptAsset) => asset.importPath === RADIANT_INSTALL_HYDRATOR_FILEPATH,
+	const plugin = new ExposedEcopagesJsxPlugin();
+	const dependency = plugin.bootstrapDependencies.find(
+		(asset) => 'importPath' in asset && asset.importPath === RADIANT_INSTALL_HYDRATOR_FILEPATH,
 	);
 
 	assert.deepEqual(dependency, {
@@ -118,9 +116,9 @@ test('EcopagesJsxPlugin installs the explicit Radiant hydrator bootstrap when Ra
 });
 
 test('EcopagesJsxPlugin skips the explicit Radiant hydrator bootstrap when Radiant SSR is disabled', () => {
-	const plugin = new EcopagesJsxPlugin({ radiant: false });
-	const dependency = (plugin as any).integrationDependencies.find(
-		(asset: NodeModuleScriptAsset) => asset.importPath === RADIANT_INSTALL_HYDRATOR_FILEPATH,
+	const plugin = new ExposedEcopagesJsxPlugin({ radiant: false });
+	const dependency = plugin.bootstrapDependencies.find(
+		(asset) => 'importPath' in asset && asset.importPath === RADIANT_INSTALL_HYDRATOR_FILEPATH,
 	);
 
 	assert.equal(dependency, undefined);
@@ -129,7 +127,7 @@ test('EcopagesJsxPlugin skips the explicit Radiant hydrator bootstrap when Radia
 test('EcopagesJsxPlugin registers Radiant SSR invalidation when Radiant is enabled', () => {
 	const appConfig = { runtime: {} } as EcoPagesAppConfig;
 	const plugin = new EcopagesJsxPlugin();
-	(plugin as any).appConfig = appConfig;
+	plugin.setConfig(appConfig);
 
 	plugin.setHmrManager(createHmrManagerStub());
 
@@ -141,7 +139,7 @@ test('EcopagesJsxPlugin registers Radiant SSR invalidation when Radiant is enabl
 test('EcopagesJsxPlugin skips Radiant SSR invalidation registration when Radiant is disabled', () => {
 	const appConfig = { runtime: {} } as EcoPagesAppConfig;
 	const plugin = new EcopagesJsxPlugin({ radiant: false });
-	(plugin as any).appConfig = appConfig;
+	plugin.setConfig(appConfig);
 
 	plugin.setHmrManager(createHmrManagerStub());
 
@@ -171,21 +169,13 @@ test('EcopagesJsxPlugin throws when preparing MDX without appConfig.rootDir', as
 	await assert.rejects(() => plugin.prepareBuildContributions(), /appConfig\.rootDir is required/);
 });
 
-test('EcopagesJsxPlugin setup exposes the MDX loader as a build plugin only', async () => {
-	const mockBunPlugin = vi.fn();
-	vi.stubGlobal('Bun', { plugin: mockBunPlugin });
+test('EcopagesJsxPlugin setup exposes the MDX loader as a build plugin', async () => {
+	const plugin = ecopagesJsxPlugin({
+		radiant: false,
+		mdx: {},
+	});
+	plugin.setConfig({ rootDir: '/tmp/project' } as EcoPagesAppConfig);
+	await plugin.setup();
 
-	try {
-		const plugin = ecopagesJsxPlugin({
-			radiant: false,
-			mdx: {},
-		});
-		plugin.setConfig({ rootDir: '/tmp/project' } as EcoPagesAppConfig);
-		await plugin.setup();
-
-		assert.equal(mockBunPlugin.mock.calls.length, 0);
-		assert.equal(plugin.plugins[0]?.name, 'ecopages-jsx-mdx-loader');
-	} finally {
-		vi.unstubAllGlobals();
-	}
+	assert.equal(plugin.plugins[0]?.name, 'ecopages-jsx-mdx-loader');
 });

@@ -6,10 +6,6 @@ import type {
 } from '../../../types/public-types.ts';
 import type { InternalComponentRenderInput } from '../../../types/internal-types.ts';
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
-import {
-	HtmlTransformerService,
-	type HtmlDocumentContribution,
-} from '../../../services/html/html-transformer.service.ts';
 
 export type DocumentShellLayoutInput = {
 	component: EcoComponent;
@@ -81,11 +77,6 @@ export type DocumentShellPageRenderInput = {
 export type DocumentShellRenderDependencies = {
 	renderComponentWithForeignChildren(input: InternalComponentRenderInput): Promise<ComponentRenderResult>;
 	appendProcessedDependencies(...assetGroups: Array<readonly ProcessedAsset[] | undefined>): ProcessedAsset[];
-};
-
-export type DocumentShellAttributeStamping = {
-	applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string;
-	applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string;
 };
 
 function resolveDocumentShellLayouts(
@@ -205,31 +196,6 @@ export async function composeDocumentShell(
 }
 
 /**
- * Applies optional component-root and document-root attribute stamping before HTML
- * transformation runs on explicit renderer-owned paths.
- */
-export function applyDocumentShellAttributeStamping(
-	html: string,
-	stamping: DocumentShellAttributeStamping,
-	options: {
-		componentRootAttributes?: Record<string, string>;
-		documentAttributes?: Record<string, string>;
-	},
-): string {
-	let nextHtml = html;
-
-	if (options.componentRootAttributes && Object.keys(options.componentRootAttributes).length > 0) {
-		nextHtml = stamping.applyAttributesToFirstBodyElement(nextHtml, options.componentRootAttributes);
-	}
-
-	if (options.documentAttributes && Object.keys(options.documentAttributes).length > 0) {
-		nextHtml = stamping.applyAttributesToHtmlElement(nextHtml, options.documentAttributes);
-	}
-
-	return nextHtml;
-}
-
-/**
  * Builds the final serialized document HTML for one route page render.
  */
 export async function renderPageDocumentShell(
@@ -257,45 +223,4 @@ export async function renderPageDocumentShell(
 		: composedDocumentHtml;
 
 	return `${docType}${documentHtml}`;
-}
-
-/**
- * Finalizes already-resolved HTML for explicit renderer-owned paths.
- *
- * @remarks
- * Callers append renderer bootstrap dependencies before invoking this helper.
- * Stamps document/root attributes and runs HTML transformation after nested
- * foreign-subtree resolution without routing back through shared route execution.
- */
-export async function finalizeDocumentShellHtml(
-	htmlTransformer: HtmlTransformerService,
-	options: {
-		html: string;
-		partial?: boolean;
-		componentRootAttributes?: Record<string, string>;
-		documentAttributes?: Record<string, string>;
-		transformHtml?: boolean;
-		htmlContributions?: HtmlDocumentContribution[];
-	},
-): Promise<string> {
-	const html = applyDocumentShellAttributeStamping(
-		options.html,
-		{
-			applyAttributesToFirstBodyElement: (nextHtml, attributes) =>
-				htmlTransformer.applyAttributesToFirstBodyElement(nextHtml, attributes),
-			applyAttributesToHtmlElement: (nextHtml, attributes) =>
-				htmlTransformer.applyAttributesToHtmlElement(nextHtml, attributes),
-		},
-		{
-			componentRootAttributes: options.componentRootAttributes,
-			documentAttributes: options.documentAttributes,
-		},
-	);
-
-	const shouldTransform = options.transformHtml ?? !options.partial;
-	if (!shouldTransform) {
-		return html;
-	}
-
-	return htmlTransformer.transformHtml(html, options.htmlContributions);
 }

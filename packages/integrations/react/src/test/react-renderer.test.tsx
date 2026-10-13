@@ -175,10 +175,6 @@ class TestReactRenderer extends ReactRenderer {
 		return await this.collectPageBrowserGraphContribution({ file: filePath, pageModule });
 	}
 
-	public getCurrentPagePackageForTest() {
-		return this.htmlTransformer.getPagePackage();
-	}
-
 	public resolveComposeChildrenForTest(options: ComposeChildrenRequest) {
 		return this.resolveComposeChildren(options);
 	}

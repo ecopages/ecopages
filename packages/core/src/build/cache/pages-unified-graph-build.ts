@@ -79,7 +79,7 @@ function createPagesUnifiedGraphBuildKey(appConfig: EcoPagesAppConfig, outdir: s
 		hashAppConfigFile(appConfig),
 		templateExtensions,
 		pluginNames,
-		'es2022',
+		'node',
 		'esm',
 		'external-packages',
 	].join('::');
@@ -204,7 +204,6 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 
 	appLogger.debugTime('pagesUnifiedGraphBuild');
 	const buildOptions = createServerBuildRequest(options.appConfig, {
-		profile: 'route-module',
 		entrypoints: entryRecord,
 		outdir,
 		splitting: true,

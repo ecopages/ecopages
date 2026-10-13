@@ -222,7 +222,6 @@ export class PageModuleImportService {
 		const { filePath, rootDir, outdir, splitting, externalPackages } = options;
 		const buildOptions: BuildOptions = this.appConfig
 			? createServerBuildRequest(this.appConfig, {
-					profile: 'route-module',
 					entrypoints: [filePath],
 					outdir,
 					naming: outputNamingTemplate,

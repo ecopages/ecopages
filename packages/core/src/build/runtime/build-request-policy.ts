@@ -4,7 +4,6 @@ import type { BuildEnvironment, BuildOptions } from '../contracts/build-contract
 import { appliesToBuildEnvironment } from '../contracts/build-manifest.ts';
 import { getAppBrowserBuildPlugins, getAppServerBuildPlugins } from '../build-adapter.ts';
 import { resolveBuildEnvironmentOptions } from './build-environment-options.ts';
-import { resolveBuildProfileOptions, type ServerBuildProfile } from './build-profile-options.ts';
 import { getJsxOwnershipPlugins } from '../browser/jsx-ownership-plugins.ts';
 import { getAppSourceTransforms, mergeSourceTransformPlugins } from '../../plugins/source-transform.ts';
 import { createPreserveImportMetaTransform } from '../preserve-import-meta-transform.ts';
@@ -48,7 +47,6 @@ export function mergeCallerBuildPlugins(
 
 export type ServerBuildRequestInput = Partial<BuildOptions> & {
 	entrypoints: BuildOptions['entrypoints'];
-	profile?: ServerBuildProfile;
 };
 
 export type BrowserBuildRequestInput = Partial<BuildOptions> & {
@@ -60,16 +58,16 @@ export type BrowserBuildRequestInput = Partial<BuildOptions> & {
  * Assembles a complete server-oriented {@link BuildOptions} before scheduling.
  *
  * @remarks
- * Defaults `profile` to `'route-module'`. Plugins are
- * {@link resolveServerAppBuildPlugins} plus unique caller contributions via
+ * Environment defaults come from {@link resolveBuildEnvironmentOptions}; the
+ * server entry and the emitted config add `reportPackagesOutsideRoot`
+ * themselves. Plugins are {@link resolveServerAppBuildPlugins} plus unique caller contributions via
  * {@link mergeCallerBuildPlugins}. Source transforms become `transform` plugins
- * so server module loading shares browser attribution. Every server profile
+ * so server module loading shares browser attribution. Every server request
  * also gets {@link createPreserveImportMetaTransform} for `runtimeOutdir` (or
  * `outdir`), so bundled modules, Core included, keep reading files relative to
  * their sources from `dist/.server/` and `.eco/.server-modules/`.
  */
 export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: ServerBuildRequestInput): BuildOptions {
-	const profile = input.profile ?? 'route-module';
 	const importMetaDir = input.runtimeOutdir ?? input.outdir;
 	const plugins = mergeSourceTransformPlugins(
 		mergeCallerBuildPlugins(resolveServerAppBuildPlugins(appConfig), input.plugins, 'server'),
@@ -78,11 +76,10 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
 			...(importMetaDir ? [createPreserveImportMetaTransform(importMetaDir)] : []),
 		],
 	);
-	const { plugins: _callerPlugins, profile: _profile, ...overrides } = input;
+	const { plugins: _callerPlugins, ...overrides } = input;
 
 	return {
 		...resolveBuildEnvironmentOptions('server', appConfig),
-		...resolveBuildProfileOptions(profile, appConfig, overrides),
 		...overrides,
 		environment: 'server',
 		entrypoints: input.entrypoints,

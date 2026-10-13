@@ -1,7 +1,6 @@
 import type { BuildResult } from '../../build/build-adapter.ts';
-import { createBrowserBuildRequest } from '../../build/runtime/build-request-policy.ts';
+import { createBrowserBuildRequest, type BrowserBuildRequestInput } from '../../build/runtime/build-request-policy.ts';
 import { requireBuildQueue, type BuildLane } from '../../build/runtime/build-queue.ts';
-import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { forgetHashedBrowserAsset, recordHashedBrowserAsset } from './hashed-browser-asset.ts';
@@ -17,22 +16,8 @@ import { forgetHashedBrowserAsset, recordHashedBrowserAsset } from './hashed-bro
  * The app's build queue shares a request that is identical to a queued or running one, and, inside a
  * request scope, to one that finished.
  */
-export type BrowserBundleOptions = {
-	entrypoints: string[] | Record<string, string>;
-	outdir?: string;
-	naming?: string;
-	conditions?: string[];
-	define?: Record<string, string>;
-	minify?: boolean;
-	treeshaking?: boolean;
-	splitting?: boolean;
-	root?: string;
-	externalPackages?: boolean;
-	external?: string[];
-	plugins?: EcoBuildPlugin[];
-	writeToDisk?: boolean;
+export type BrowserBundleOptions = BrowserBuildRequestInput & {
 	profile: 'browser-script' | 'hmr-runtime' | 'hmr-entrypoint';
-	excludeAppBuildPlugins?: string[];
 };
 
 type BrowserBundleGroupedOptions = Omit<BrowserBundleOptions, 'entrypoints'>;

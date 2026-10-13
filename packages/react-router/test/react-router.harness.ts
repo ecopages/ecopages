@@ -89,46 +89,6 @@ export function createPageWithCollidingDisplayNameLayout(name: string, layoutTes
 	return Page;
 }
 
-export function createEcoComponentStyleLayout(layoutTestId: string, options: { file: string; stylesheets?: string[] }) {
-	const Layout = (({ children }: { children: ReactNode }) =>
-		createElement('div', { 'data-testid': layoutTestId, className: 'eco-layout' }, children)) as ReturnType<
-		typeof createMockPageComponent
-	> & {
-		config?: {
-			identity?: { id: string; file: string; integration: string };
-			dependencies?: {
-				stylesheets?: string[];
-			};
-		};
-	};
-
-	Layout.config = {
-		identity: { id: layoutTestId, file: options.file, integration: 'react' },
-		dependencies: {
-			stylesheets: options.stylesheets,
-		},
-	};
-
-	return Layout;
-}
-
-export function createPageWithEcoComponentLayout(
-	name: string,
-	layoutTestId: string,
-	options: { file: string; stylesheets?: string[] },
-) {
-	const Layout = createEcoComponentStyleLayout(layoutTestId, options);
-	const Page = (() => createElement('div', { 'data-testid': `${name}-page` }, name)) as ReturnType<
-		typeof createMockPageComponent
-	> & {
-		config?: { layout?: typeof Layout };
-	};
-
-	Page.displayName = name;
-	Page.config = { layouts: [Layout] };
-	return Page;
-}
-
 export function createMultiLinkPage(name: string, links: Array<{ href: string; label: string }>) {
 	const Component = () =>
 		createElement(

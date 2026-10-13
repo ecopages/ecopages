@@ -50,10 +50,7 @@ describe('EcoRouter HMR Integration', () => {
 		);
 
 		await ctx.ready();
-		const result = getEcoNavigationRuntime(window).reloadCurrentPage({ clearCache: false });
-
-		expect(result).toBeInstanceOf(Promise);
-		await expect(result).resolves.toBe(true);
+		await expect(getEcoNavigationRuntime(window).reloadCurrentPage({ clearCache: false })).resolves.toBe(true);
 		await expect.element(ctx.container).toHaveTextContent('Reloaded page');
 	});
 

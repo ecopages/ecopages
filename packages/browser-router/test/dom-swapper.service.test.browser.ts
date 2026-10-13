@@ -5,6 +5,7 @@ import {
 	runNavigationViewTransition,
 	type NavigationHeadUpdate,
 } from '@ecopages/core/router/navigation-pipeline';
+import { stageStylesheets } from '../../core/src/router/client/staged-stylesheets.test-fixtures.ts';
 import { DomSwapper } from '../src/client/dom/dom-swapper.ts';
 
 type DocumentWithViewTransition = Document & {
@@ -87,27 +88,15 @@ describe('DomSwapper service behavior', () => {
 			].join(''),
 		);
 
-		const appendedHrefs: string[] = [];
-		const originalAppendChild = document.head.appendChild.bind(document.head);
-
-		document.head.appendChild = ((node: Node) => {
-			const result = originalAppendChild(node);
-			if (node instanceof HTMLLinkElement && node.rel === 'stylesheet') {
-				appendedHrefs.push(node.href);
-				queueMicrotask(() => {
-					node.dispatchEvent(new Event('load'));
-				});
-			}
-			return result;
-		}) as typeof document.head.appendChild;
+		const staged = stageStylesheets();
 
 		try {
 			await prepareNavigationHead(newDocument);
 		} finally {
-			document.head.appendChild = originalAppendChild;
+			staged.stop();
 		}
 
-		expect(appendedHrefs).toEqual([nextHref]);
+		expect(staged.links.map((link) => link.href)).toEqual([nextHref]);
 		expect(document.head.querySelectorAll(`link[href="${nextHref}"]`)).toHaveLength(1);
 	});
 

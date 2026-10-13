@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { getAppBuildManifest, setAppBuildManifest } from '../../build/build-adapter.ts';
-import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
+import { installBuildQueue } from '../../build/runtime/build-queue.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from './dev-transform-url.ts';
 import { DevTransformBundler } from './dev-transform-bundler.ts';
@@ -46,7 +46,7 @@ describe('DevTransformBundler', () => {
 		);
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildRuntime(config);
+		installBuildQueue(config);
 		const vendorRegistry = new DevTransformVendorRegistry({
 			appConfig: config,
 		});
@@ -69,7 +69,7 @@ describe('DevTransformBundler', () => {
 		fs.writeFileSync(entrypointPath, 'export const widget = true;\n', 'utf8');
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildRuntime(config);
+		installBuildQueue(config);
 		const bundler = new DevTransformBundler({
 			appConfig: config,
 			contributors: [
@@ -120,7 +120,7 @@ describe('DevTransformBundler', () => {
 		);
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildRuntime(config);
+		installBuildQueue(config);
 		const bundler = new DevTransformBundler({
 			appConfig: config,
 			getRuntimeSpecifierMap: () => new Map(),
@@ -154,7 +154,7 @@ describe('DevTransformBundler', () => {
 		fs.writeFileSync(secondPath, "export const source = 'component';\n", 'utf8');
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildRuntime(config);
+		installBuildQueue(config);
 		const bundler = new DevTransformBundler({
 			appConfig: config,
 			getRuntimeSpecifierMap: () => new Map(),
@@ -204,7 +204,7 @@ describe('DevTransformBundler', () => {
 				},
 			],
 		});
-		installBuildRuntime(config);
+		installBuildQueue(config);
 
 		const bundler = new DevTransformBundler({
 			appConfig: config,

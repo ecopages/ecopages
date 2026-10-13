@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
+import { installBuildQueue } from '../../build/runtime/build-queue.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
 import { HMR_RUNTIME_WORK_DIR_SEGMENT } from '../../hmr/hmr-runtime-paths.ts';
@@ -70,7 +70,7 @@ describe('JsHmrStrategy integration', () => {
 		});
 
 		manager.setEnabled(true);
-		installBuildRuntime(config);
+		installBuildQueue(config);
 
 		await manager.registerScriptEntrypoint(entrypointPath);
 
@@ -139,7 +139,7 @@ describe('JsHmrStrategy integration', () => {
 		});
 
 		manager.setEnabled(true);
-		installBuildRuntime(config);
+		installBuildQueue(config);
 
 		await manager.registerScriptEntrypoint(entrypointPath);
 
@@ -192,7 +192,7 @@ describe('JsHmrStrategy integration', () => {
 		});
 
 		manager.setEnabled(true);
-		installBuildRuntime(config);
+		installBuildQueue(config);
 
 		await manager.registerScriptEntrypoint(entrypointPath);
 		broadcasts.length = 0;

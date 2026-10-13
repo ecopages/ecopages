@@ -3,7 +3,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { build } from '../build/build-adapter.ts';
 import type { BuildResult } from '../build/contracts/build-contracts.ts';
 import { createServerBuildRequest } from '../build/runtime/build-request-policy.ts';
-import { requireBuildRuntime } from '../build/runtime/build-runtime.ts';
+import { requireBuildQueue } from '../build/runtime/build-queue.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { getServerBundleOutputPaths } from '../build/server-bundle-deploy-manifest.ts';
 import { formatBuildLog } from '../build/build-log.ts';
@@ -42,7 +42,7 @@ export async function bundleEcoConfigModule(
 		runtimeOutdir: runtimeDir,
 	});
 
-	const result = await build(buildOptions, requireBuildRuntime(appConfig).getProfile('server-entry'));
+	const result = await build(buildOptions, requireBuildQueue(appConfig));
 	if (!result.success) {
 		const errorMessages = result.logs.map(formatBuildLog).join('\n');
 		throw new Error(`Failed to bundle Ecopages config module:\n${errorMessages}`);

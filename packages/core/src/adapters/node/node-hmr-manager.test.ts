@@ -5,7 +5,7 @@ import path from 'node:path';
 import { inspect } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { afterEach, test, vi } from 'vitest';
-import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
+import { installBuildQueue } from '../../build/runtime/build-queue.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
@@ -119,9 +119,9 @@ test('NodeHmrManager registers script entrypoints with dev transform URLs withou
 		} as any,
 	});
 
-	installBuildRuntime(config);
+	const buildQueue = installBuildQueue(config);
 	const buildCalls: string[] = [];
-	config.runtime!.buildRuntime!.getProfile('browser-hmr').build = vi.fn(async (options) => {
+	buildQueue.build = vi.fn(async (options) => {
 		buildCalls.push(options.entrypoints[0] as string);
 		return {
 			success: true,
@@ -280,7 +280,7 @@ test('NodeHmrManager keeps internal browser and server-module outputs out of dis
 });
 
 function createEnabledManager(config: Awaited<ReturnType<typeof finalizeEcoPagesConfig>>) {
-	installBuildRuntime(config);
+	installBuildQueue(config);
 	const manager = new NodeHmrManager({
 		appConfig: config,
 		bridge: {

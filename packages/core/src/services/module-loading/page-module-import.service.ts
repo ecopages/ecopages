@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
 import { build, type BuildExecutor, type BuildOptions, type BuildResult } from '../../build/build-adapter.ts';
+import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
 import { createServerBuildRequest } from '../../build/runtime/build-request-policy.ts';
 import { resolveBuildEnvironmentOptions } from '../../build/runtime/build-environment-options.ts';
 import {
@@ -92,7 +93,10 @@ export class PageModuleImportService {
 		this.appConfig = appConfig;
 		this.dependencies = {
 			hashFile: dependencies?.hashFile ?? ((filePath) => fileSystem.hash(filePath)),
-			buildModule: dependencies?.buildModule ?? ((options, buildExecutor) => build(options, buildExecutor)),
+			buildModule:
+				dependencies?.buildModule ??
+				((options, buildExecutor) =>
+					build(options, buildExecutor ?? (this.appConfig ? requireBuildQueue(this.appConfig) : undefined))),
 		};
 	}
 

@@ -9,7 +9,7 @@
 
 import path from 'node:path';
 import { setupAppRuntimePlugins } from '../../../../packages/core/src/build/build-adapter';
-import { installBuildRuntime } from '../../../../packages/core/src/build/runtime/build-runtime';
+import { installBuildQueue } from '../../../../packages/core/src/build/runtime/build-queue';
 import { createNodeServerAdapter } from '../../../../packages/core/src/adapters/node/server-adapter';
 import { RouteRegistry } from '../../../../packages/core/src/router/server/route-registry';
 import { RouteRendererFactory } from '../../../../packages/core/src/route-renderer/route-renderer';
@@ -78,7 +78,7 @@ export function nextDiskColdOutdir(appConfig: EcoPagesAppConfig): string {
 }
 
 export async function importRouteModuleDiskCold(appConfig: EcoPagesAppConfig, filePath: string): Promise<void> {
-	installBuildRuntime(appConfig);
+	installBuildQueue(appConfig);
 	const loader = createAppModuleLoader(appConfig);
 
 	await loader.importModule({
@@ -102,7 +102,7 @@ export async function bootstrapStaticGenerationStack(appConfig: EcoPagesAppConfi
 
 	const runtimeOrigin = 'http://127.0.0.1:3000';
 
-	installBuildRuntime(appConfig);
+	installBuildQueue(appConfig);
 	await setupAppRuntimePlugins({
 		appConfig,
 		runtimeOrigin,

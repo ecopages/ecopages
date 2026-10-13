@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createContext, Script } from 'node:vm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { installBuildRuntime } from '../build/runtime/build-runtime.ts';
+import { installBuildQueue } from '../build/runtime/build-queue.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { FileScriptProcessor } from '../services/assets/asset-processing-service/processors/script/file-script.processor.ts';
 import type { IHmrManager } from '../types/internal-types.ts';
@@ -30,7 +30,7 @@ describe('resolveClassicScriptOptions', () => {
 	const compile = async (name: string, source: string) => {
 		const filepath = write(name, source);
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: dir, srcDir: '.' });
-		installBuildRuntime(appConfig);
+		installBuildQueue(appConfig);
 		const processor = new FileScriptProcessor({ appConfig });
 		const hmrManager = { isEnabled: () => true, registerScriptEntrypoint: vi.fn() };
 		processor.setHmrManager(hmrManager as unknown as IHmrManager);

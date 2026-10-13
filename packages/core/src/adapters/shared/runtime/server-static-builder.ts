@@ -9,7 +9,7 @@ import {
 	removeServerBundleStagingDirectory,
 } from '../../../build/server-bundle-publication.ts';
 import { createServerBuildRequest } from '../../../build/runtime/build-request-policy.ts';
-import { requireBuildRuntime } from '../../../build/runtime/build-runtime.ts';
+import { requireBuildQueue } from '../../../build/runtime/build-queue.ts';
 import { attachHmrToIntegrations } from './runtime-server-lifecycle.ts';
 import {
 	getServerBundleOutputPaths,
@@ -191,7 +191,7 @@ export class ServerStaticBuilder {
 				sourcemap: 'linked',
 				runtimeOutdir: serverOutdir,
 			});
-			const result = await build(buildOptions, requireBuildRuntime(this.appConfig).getProfile('server-entry'));
+			const result = await build(buildOptions, requireBuildQueue(this.appConfig));
 
 			if (!result.success) {
 				const errorMessages = result.logs.map(formatBuildLog).join('\n');

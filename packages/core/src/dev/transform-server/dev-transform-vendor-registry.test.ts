@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
+import { installBuildQueue } from '../../build/runtime/build-queue.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-resolver.ts';
 import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
@@ -58,7 +58,7 @@ describe('DevTransformVendorRegistry', () => {
 		);
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildRuntime(config);
+		installBuildQueue(config);
 		const registry = new DevTransformVendorRegistry({
 			appConfig: config,
 		});
@@ -100,7 +100,7 @@ describe('DevTransformVendorRegistry', () => {
 		);
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildRuntime(config);
+		installBuildQueue(config);
 		const registry = new DevTransformVendorRegistry({
 			appConfig: config,
 		});
@@ -132,7 +132,7 @@ describe('DevTransformVendorRegistry', () => {
 		);
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildRuntime(config);
+		installBuildQueue(config);
 		const registry = new DevTransformVendorRegistry({
 			appConfig: config,
 		});
@@ -162,7 +162,7 @@ describe('DevTransformVendorRegistry', () => {
 		fs.writeFileSync(path.join(packageDir, 'index.js'), "export const release = 'one';\n");
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildRuntime(config);
+		installBuildQueue(config);
 		return new DevTransformVendorRegistry({ appConfig: config });
 	}
 
@@ -224,7 +224,7 @@ describe('DevTransformVendorRegistry', () => {
 		};
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildRuntime(config);
+		installBuildQueue(config);
 		const createRegistry = () => new DevTransformVendorRegistry({ appConfig: config });
 
 		installVersion('1.0.0');
@@ -264,7 +264,7 @@ describe('DevTransformVendorRegistry', () => {
 		const writeDependency = (release: number) =>
 			fs.writeFileSync(path.join(dependencyDir, 'index.js'), `export const release = ${release};\n`);
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildRuntime(config);
+		installBuildQueue(config);
 		const createRegistry = () => new DevTransformVendorRegistry({ appConfig: config });
 		const readRelease = async (registry: DevTransformVendorRegistry, url: string) => {
 			const response = registry.tryHandleVendorRequest(url);
@@ -313,7 +313,7 @@ describe('DevTransformVendorRegistry', () => {
 			fs.writeFileSync(path.join(packageDir, 'src', 'button.ts'), `export const label: string = '${label}';\n`);
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildRuntime(config);
+		installBuildQueue(config);
 		const createRegistry = () => new DevTransformVendorRegistry({ appConfig: config });
 		const readServed = async (registry: DevTransformVendorRegistry, url: string) => {
 			const response = registry.tryHandleVendorRequest(url);
@@ -357,7 +357,7 @@ describe('DevTransformVendorRegistry', () => {
 			JSON.stringify({ name: 'fixture-lib', version: '1.0.0', type: 'module', module: 'index.js' }),
 		);
 		fs.writeFileSync(path.join(rootDir, 'node_modules', 'fixture-lib', 'index.js'), 'export const release = 1;');
-		installBuildRuntime(config);
+		installBuildQueue(config);
 		const registry = new DevTransformVendorRegistry({ appConfig: config });
 		const url = await registry.resolveVendorUrl('fixture-lib');
 

@@ -58,6 +58,7 @@ function createRouteRendererFactoryWithStub404(
 			})
 		: vi.fn(async () => ({
 				body: '<h1>404 - Page Not Found</h1>',
+				metadata: { title: 'Page', description: 'Page description' },
 			}));
 
 	const stub404Renderer = {
@@ -93,6 +94,7 @@ function createRouteRendererFactoryWithStub500(
 			})
 		: vi.fn(async () => ({
 				body: '<h1>500 - Internal Server Error</h1>',
+				metadata: { title: 'Page', description: 'Page description' },
 			}));
 
 	const stub500Renderer = {
@@ -1103,7 +1105,11 @@ describe('FileSystemResponseMatcher', () => {
 			const loadPageModule = vi.fn(async () => pageModule);
 			const execute = vi.fn(async (options: { pageModule?: unknown }) => {
 				expect(options.pageModule).toBe(pageModule);
-				return { body: '<html></html>', cacheStrategy: 'static' as const };
+				return {
+					body: '<html></html>',
+					metadata: { title: 'Page', description: 'Page description' },
+					cacheStrategy: 'static' as const,
+				};
 			});
 			(matcher as any).routeRendererFactory = {
 				getPageRenderer: vi.fn(() => ({

@@ -1,5 +1,4 @@
 import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { attributeMdxComponentIdentity } from '@ecopages/core';
 import { type CompileOptions, compile } from '@mdx-js/mdx';
@@ -92,7 +91,6 @@ export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): Ec
 					contents: transformed.code,
 					loader,
 					map: includeSourceMap ? transformed.map : undefined,
-					resolveDir: path.dirname(args.path),
 				};
 			});
 		},

@@ -69,7 +69,7 @@ export class BrowserBundleService {
 				}
 			}
 		}
-		startupTrace.recordBrowserBundle(result.outputs);
+		startupTrace.recordBrowserBundle(result.success ? result.outputs : []);
 		return result;
 	}
 

@@ -234,6 +234,17 @@ describe('ContentStylesheetProcessor', () => {
 			expect(result.content).toBe('a { color: red; }');
 		});
 
+		test('does not run a Processor without capabilities because its name contains postcss', async () => {
+			const capabilityless = new AppendingProcessor({ name: 'my-postcss-fork', capabilities: [] }, '/*x*/');
+			const processor = new ContentStylesheetProcessor({
+				appConfig: createMockConfig(new Map<string, Processor>([[capabilityless.name, capabilityless]])),
+			});
+
+			const result = await processor.process(inlineDep);
+
+			expect(result.content).toBe('a { color: red; }');
+		});
+
 		test('skips a Processor that does not declare a stylesheet capability', async () => {
 			const imagesOnly = new AppendingProcessor(
 				{ name: 'images-only', capabilities: [{ kind: 'image' }] },

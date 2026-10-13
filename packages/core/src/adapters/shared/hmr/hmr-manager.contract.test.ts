@@ -12,6 +12,7 @@ import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { ClientBridgeEvent } from '../../../types/public-types.ts';
 import { createTempRoot, startNodeHmrManager, writeSourceFile } from './hmr-manager.test-helpers.ts';
 import type { SharedHmrManager } from './shared-hmr-manager.ts';
+import { createBuildSuccess } from '../../../__fixtures__/build/build-result.ts';
 
 const PAGE_SOURCE = 'export default function Page() { return null; }';
 
@@ -101,11 +102,7 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		const buildCalls: string[] = [];
 		buildQueue.build = vi.fn(async (options) => {
 			buildCalls.push(options.entrypoints[0] as string);
-			return {
-				success: true,
-				logs: [],
-				outputs: [{ path: '/tmp/unused.js' }],
-			};
+			return createBuildSuccess({ outputs: [{ path: '/tmp/unused.js' }] });
 		});
 
 		const resolved = await manager.registerScriptEntrypoint(entrypointPath);
@@ -124,11 +121,7 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		const buildCalls: string[][] = [];
 		buildQueue.build = vi.fn(async (options) => {
 			buildCalls.push((options.entrypoints as string[]).map(String));
-			return {
-				success: true,
-				logs: [],
-				outputs: [],
-			};
+			return createBuildSuccess();
 		});
 
 		await manager.registerScriptEntrypoint(firstEntrypoint);

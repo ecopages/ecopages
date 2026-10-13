@@ -8,6 +8,7 @@ import { collectBuildEntryInputPaths, collectBuildOutputImports, getBuildEntryOu
 import { RolldownBuildAdapter } from './rolldown/rolldown-build-adapter.ts';
 import { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 import { resolveRouteModuleDependencyPaths } from '../services/module-loading/route-module-dependency-hasher.ts';
+import { assertBuildSucceeded } from './build-log.ts';
 
 let root: string;
 beforeEach(() => {
@@ -30,7 +31,7 @@ test('collects only local source paths for one entry and its plugin inputs', () 
 					[entry]: [entry, helper, 'node:fs', path.join(root, 'node_modules/react/index.js')],
 				},
 			},
-			loadedInputs: [pluginInput],
+			loadedInputsByModule: { [entry]: [pluginInput] },
 		},
 		entry,
 		root,
@@ -85,7 +86,7 @@ test('both cached entries miss after their shared inlined source changes', async
 		target: 'node',
 		splitting: true,
 	});
-	expect(result.success).toBe(true);
+	assertBuildSucceeded(result, 'Build failed');
 	const cache = new RouteModuleBuildCache();
 	for (const entry of entries) {
 		const output = getBuildEntryOutput(result, entry, root);
@@ -123,7 +124,7 @@ test('a missing local external generated module invalidates a cached build', asy
 		target: 'node',
 		external: [pathToFileURL(generated).href],
 	});
-	expect(result.success).toBe(true);
+	assertBuildSucceeded(result, 'Build failed');
 	const output = getBuildEntryOutput(result, entry, root);
 	if (!output) throw new Error('Missing entry output');
 	const imports = collectBuildOutputImports(result, output);
@@ -180,7 +181,7 @@ test('finds the entry output through a symlink root and by the name the caller p
 			outdir,
 			target: 'node',
 		});
-		expect(result.success, JSON.stringify(result.logs)).toBe(true);
+		assertBuildSucceeded(result, 'Build failed');
 		const byPath = getBuildEntryOutput(result, entry, linkRoot);
 		const byName = getBuildEntryOutput(result, 'pages__blog', linkRoot);
 		expect(byPath).toBeDefined();
@@ -211,7 +212,7 @@ test('collects the layouts of an entry reached through a symlink root', async ()
 			outdir: path.join(linkRoot, 'dist'),
 			target: 'node',
 		});
-		expect(result.success, JSON.stringify(result.logs)).toBe(true);
+		assertBuildSucceeded(result, 'Build failed');
 
 		const inputs = collectBuildEntryInputPaths(result, entry, linkRoot);
 

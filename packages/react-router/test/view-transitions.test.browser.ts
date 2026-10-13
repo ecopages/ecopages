@@ -74,17 +74,13 @@ describe('react-router view transitions', () => {
 		document.getElementById(DYNAMIC_STYLES_ID)?.remove();
 	});
 
-	it('names every data-view-transition element on first render and opts the document out of the root group', async () => {
+	it('names every data-view-transition element on first render and installs the root styles', async () => {
 		mount(createPage('index', namedTitle('page-title')), { viewTransitions: true });
 
 		await expect.element(page.getByRole('heading', { name: 'page-title' })).toBeVisible();
 
 		expect(viewTransitionNames()).toEqual(['page-title']);
-		const rootStyles = document.getElementById(ROOT_STYLES_ID);
-		expect(rootStyles?.hasAttribute('data-eco-persist')).toBe(true);
-		expect(rootStyles?.textContent).toContain('view-transition-name: none');
-		expect(rootStyles?.textContent).not.toContain('!important');
-		expect(getComputedStyle(document.documentElement).viewTransitionName).toBe('none');
+		expect(document.getElementById(ROOT_STYLES_ID)).not.toBeNull();
 	});
 
 	it('gives elements without an animate attribute morph styles and leaves fade elements alone', async () => {

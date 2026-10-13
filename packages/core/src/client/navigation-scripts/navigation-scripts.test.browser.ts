@@ -56,6 +56,47 @@ describe('collectRerunScripts and script activations', () => {
 		expect(inserted?.getAttribute(RERUN_SRC_ATTR)).toBe('/app.js');
 	});
 
+	describe('an external module rerun script visited twice', () => {
+		const html =
+			'<html><head><script type="module" src="/assets/counter.js" data-eco-rerun data-eco-script-id="counter"></script></head></html>';
+		const activateVisit = async () => {
+			const incoming = new DOMParser().parseFromString(html, 'text/html');
+			await activateScriptsInOrder(collectRerunScripts(incoming).map(toRerunScriptActivation));
+		};
+		const counterScripts = () => document.head.querySelectorAll('script[src*="/assets/counter.js"]');
+
+		it('runs the registered callback each visit and keeps the first script element as it was', async () => {
+			const callback = vi.fn();
+			(window as Window & { __ECO_PAGES__?: { rerunScripts?: Record<string, () => void> } }).__ECO_PAGES__ = {
+				rerunScripts: { counter: callback },
+			};
+
+			try {
+				await activateVisit();
+				const firstSrc = counterScripts()[0]?.getAttribute('src');
+				await activateVisit();
+
+				expect(callback).toHaveBeenCalledTimes(2);
+				expect(counterScripts()).toHaveLength(1);
+				expect(counterScripts()[0]?.getAttribute('src')).toBe(firstSrc);
+				expect(firstSrc).toBe('/assets/counter.js');
+			} finally {
+				delete (window as Window & { __ECO_PAGES__?: unknown }).__ECO_PAGES__;
+			}
+		});
+
+		it('replaces the script with a fresh URL each visit when no callback is registered for its id', async () => {
+			await activateVisit();
+			const firstSrc = counterScripts()[0]?.getAttribute('src');
+			await activateVisit();
+
+			expect(firstSrc).toMatch(/__eco_rerun=\d+/);
+			expect(counterScripts()).toHaveLength(1);
+			expect(counterScripts()[0]?.getAttribute('src')).toMatch(/__eco_rerun=\d+/);
+			expect(counterScripts()[0]?.getAttribute('src')).not.toBe(firstSrc);
+		});
+	});
+
 	it('appends a unique nonce on each module rerun url', () => {
 		const incoming = new DOMParser().parseFromString(
 			'<html><head><script data-eco-rerun src="/app.js" type="module"></script></head></html>',

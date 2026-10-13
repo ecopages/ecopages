@@ -1,7 +1,7 @@
 /**
  * Serves a pre-built kitchen-sink dist for preview e2e. Run
  * `pnpm build:e2e:kitchen-sink` before Playwright — do not build here.
- * `ECOPAGES_E2E_ARTIFACT_SCOPE` selects `dist-<scope>` (the Bun preview build).
+ * `ECOPAGES_E2E_ARTIFACT_SCOPE` selects `dist-<scope>` (the Bun build). `ECOPAGES_PREVIEW_RUNTIME=bun` serves it on Bun, otherwise Node.
  */
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -15,7 +15,7 @@ const artifactScope = process.env.ECOPAGES_E2E_ARTIFACT_SCOPE?.trim();
 const distDir = path.join(kitchenSinkDir, artifactScope ? `dist-${artifactScope}` : 'dist');
 const ecopagesCli = path.join(repoRoot, 'packages', 'ecopages', 'bin', 'cli.js');
 
-const runtime = process.env.ECOPAGES_PREVIEW_RUNTIME === 'node' ? 'node' : 'bun';
+const runtime = process.env.ECOPAGES_PREVIEW_RUNTIME === 'bun' ? 'bun' : 'node';
 const port = process.env.ECOPAGES_PORT || '4008';
 
 if (!existsSync(distDir)) {

@@ -1,6 +1,6 @@
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import chokidar from 'chokidar';
@@ -10,10 +10,10 @@ import type { ProcessorWatchConfig } from '../plugins/processor.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers';
 
-const TEST_ROOT = path.join(os.tmpdir(), 'ecopages-integration-test-temp');
+let testRoot: string;
 
 const createTestDir = (subpath: string): string => {
-	const fullPath = path.join(TEST_ROOT, subpath);
+	const fullPath = path.join(testRoot, subpath);
 	mkdirSync(fullPath, { recursive: true });
 	return fullPath;
 };
@@ -27,7 +27,7 @@ const writeTestFile = (filePath: string, content: string): void => {
 };
 
 const createIntegrationConfig = async (testId: string): Promise<EcoPagesAppConfig> => {
-	const rootDir = path.join(TEST_ROOT, testId);
+	const rootDir = path.join(testRoot, testId);
 	return await finalizeEcoPagesConfig({ rootDir });
 };
 
@@ -67,17 +67,12 @@ describe('ProjectWatcher - Integration Tests', () => {
 	};
 
 	beforeEach(() => {
-		if (existsSync(TEST_ROOT)) {
-			rmSync(TEST_ROOT, { recursive: true, force: true });
-		}
-		mkdirSync(TEST_ROOT, { recursive: true });
+		testRoot = mkdtempSync(path.join(os.tmpdir(), 'ecopages-integration-test-'));
 	});
 
 	afterEach(async () => {
 		await Promise.all(openWatchers.splice(0).map((watcher) => watcher.close()));
-		if (existsSync(TEST_ROOT)) {
-			rmSync(TEST_ROOT, { recursive: true, force: true });
-		}
+		rmSync(testRoot, { recursive: true, force: true });
 		vi.restoreAllMocks();
 	});
 
@@ -110,12 +105,12 @@ describe('ProjectWatcher - Integration Tests', () => {
 				bridge,
 				changeDebounceMs: 0,
 			});
+			const newFile = path.join(sourceDirectory, 'new-post.ts');
 
 			try {
 				const fileWatcher = await watcher.createWatcherSubscription();
 				await vi.waitFor(() => expect(fileWatcher.getWatched()).toHaveProperty(sourceDirectory));
 				expect(watchEvents).toEqual([]);
-				const newFile = path.join(sourceDirectory, 'new-post.ts');
 				writeTestFile(newFile, 'export const newPost = {};\n');
 				await vi.waitFor(
 					() => expect(watchEvents).toContainEqual({ kind: 'created', path: path.resolve(newFile) }),
@@ -126,8 +121,8 @@ describe('ProjectWatcher - Integration Tests', () => {
 				await watcher.close();
 			}
 
-			expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
-			expect(bridge.reload).toHaveBeenCalledOnce();
+			expect(hmrManager.handleFileChanges).toHaveBeenCalledWith([path.resolve(newFile)], { broadcast: true });
+			expect(bridge.reload).not.toHaveBeenCalled();
 		});
 	});
 
@@ -614,8 +609,8 @@ describe('ProjectWatcher - Integration Tests', () => {
 			await (watcher as any).handleFileChange(sourceFile);
 
 			expect(existsSync(wouldBeDestFile)).toBe(false);
-			expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
-			expect(bridge.reload).toHaveBeenCalledTimes(1);
+			expect(hmrManager.handleFileChanges).toHaveBeenCalledWith([path.resolve(sourceFile)], { broadcast: true });
+			expect(bridge.reload).not.toHaveBeenCalled();
 		});
 	});
 
@@ -680,14 +675,14 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			fileEvents.emit('change', mdxPath);
 
-			await vi.waitFor(() => expect(bridge.reload).toHaveBeenCalledTimes(1));
+			await vi.waitFor(() => expect(hmrManager.handleFileChanges).toHaveBeenCalledOnce());
 			expect(onChanges).toHaveBeenCalledWith({
 				created: [],
 				changed: [path.resolve(mdxPath)],
 				deleted: [],
 				bridge,
 			});
-			expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(hmrManager.handleFileChanges).toHaveBeenCalledWith([path.resolve(mdxPath)], { broadcast: true });
 		});
 	});
 });

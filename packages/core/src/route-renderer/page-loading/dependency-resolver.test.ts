@@ -458,8 +458,7 @@ describe('DependencyResolverService', () => {
 	});
 
 	it('should collapse bundleable page stylesheets and scripts into page-owned assets', async () => {
-		const previousNodeEnv = process.env.NODE_ENV;
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-bundle-'));
 		const componentFile = join(tempDir, 'component.tsx');
 		const stylesheetA = join(tempDir, 'first.css');
@@ -524,14 +523,12 @@ describe('DependencyResolverService', () => {
 				}),
 			]);
 		} finally {
-			process.env.NODE_ENV = previousNodeEnv;
 			rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
 
 	it('should keep bundleable page stylesheets and scripts as file assets during development', async () => {
-		const previousNodeEnv = process.env.NODE_ENV;
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-style-dev-'));
 		const componentFile = join(tempDir, 'component.tsx');
 		const stylesheetA = join(tempDir, 'first.css');
@@ -602,7 +599,6 @@ describe('DependencyResolverService', () => {
 				}),
 			]);
 		} finally {
-			process.env.NODE_ENV = previousNodeEnv;
 			rmSync(tempDir, { recursive: true, force: true });
 		}
 	});

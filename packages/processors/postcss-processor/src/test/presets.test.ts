@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -241,29 +241,20 @@ test('Tailwind v4 preset should expand BEM modifiers inside @layer blocks', asyn
 });
 
 test('Tailwind v4 preset should preserve nested BEM selectors with @apply in production', async () => {
-	const originalNodeEnv = process.env.NODE_ENV;
-	process.env.NODE_ENV = 'production';
+	vi.stubEnv('NODE_ENV', 'production');
 
-	try {
-		const preset = tailwindV4Preset({
-			referencePath: bemApplyPath,
-		});
-		const css = await readFile(bemApplyPath, 'utf-8');
+	const preset = tailwindV4Preset({
+		referencePath: bemApplyPath,
+	});
+	const css = await readFile(bemApplyPath, 'utf-8');
 
-		const result = await PostCssProcessor.processStringOrBuffer(css, {
-			plugins: preset.plugins ? Object.values(preset.plugins) : [],
-			filePath: bemApplyPath,
-		});
+	const result = await PostCssProcessor.processStringOrBuffer(css, {
+		plugins: preset.plugins ? Object.values(preset.plugins) : [],
+		filePath: bemApplyPath,
+	});
 
-		expect(result).toContain('.button--primary');
-		expect(result).not.toContain('--primary.button');
-	} finally {
-		if (originalNodeEnv === undefined) {
-			delete process.env.NODE_ENV;
-		} else {
-			process.env.NODE_ENV = originalNodeEnv;
-		}
-	}
+	expect(result).toContain('.button--primary');
+	expect(result).not.toContain('--primary.button');
 }, 30_000);
 
 describe('Tailwind v4 transformInput', () => {

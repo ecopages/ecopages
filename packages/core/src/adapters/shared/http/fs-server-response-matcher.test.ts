@@ -803,99 +803,89 @@ describe('FileSystemResponseMatcher', () => {
 		});
 
 		it('should pass message and stack to the custom 500 page in development', async () => {
-			const previousNodeEnv = process.env.NODE_ENV;
-			process.env.NODE_ENV = 'development';
+			vi.stubEnv('NODE_ENV', 'development');
 
-			try {
-				const renderError = new Error('page render failed');
-				const throwingFactory = createRouteRendererFactoryWithThrowingPage(
-					routeRendererFactory,
-					INDEX_TEMPLATE_FILE,
-					renderError,
-				);
-				const { factory: factoryWithStub500, execute } = createRouteRendererFactoryWithStub500(
-					throwingFactory,
-					appConfig.absolutePaths.error500TemplatePath,
-				);
-				const matcher = new FileSystemResponseMatcher({
-					appConfig,
-					assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
-					router,
-					routeRendererFactory: factoryWithStub500,
-					fileSystemResponseFactory,
-				});
-				const match: MatchResult = {
-					requestedPathname: APP_TEST_ROUTES.index,
-					templateRoute: {
-						kind: 'exact',
-						pathname: APP_TEST_ROUTES.index,
-						filePath: INDEX_TEMPLATE_FILE,
-					},
-					params: {},
-					query: {},
-				};
+			const renderError = new Error('page render failed');
+			const throwingFactory = createRouteRendererFactoryWithThrowingPage(
+				routeRendererFactory,
+				INDEX_TEMPLATE_FILE,
+				renderError,
+			);
+			const { factory: factoryWithStub500, execute } = createRouteRendererFactoryWithStub500(
+				throwingFactory,
+				appConfig.absolutePaths.error500TemplatePath,
+			);
+			const matcher = new FileSystemResponseMatcher({
+				appConfig,
+				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				router,
+				routeRendererFactory: factoryWithStub500,
+				fileSystemResponseFactory,
+			});
+			const match: MatchResult = {
+				requestedPathname: APP_TEST_ROUTES.index,
+				templateRoute: {
+					kind: 'exact',
+					pathname: APP_TEST_ROUTES.index,
+					filePath: INDEX_TEMPLATE_FILE,
+				},
+				params: {},
+				query: {},
+			};
 
-				await matcher.handleMatch(match);
+			await matcher.handleMatch(match);
 
-				expect(execute).toHaveBeenCalledWith({
-					file: appConfig.absolutePaths.error500TemplatePath,
-					props: {
-						status: 500,
-						message: 'page render failed',
-						stack: renderError.stack,
-					},
-					locals: {},
-				});
-			} finally {
-				process.env.NODE_ENV = previousNodeEnv;
-			}
+			expect(execute).toHaveBeenCalledWith({
+				file: appConfig.absolutePaths.error500TemplatePath,
+				props: {
+					status: 500,
+					message: 'page render failed',
+					stack: renderError.stack,
+				},
+				locals: {},
+			});
 		});
 
 		it('should omit error details from the custom 500 page in production', async () => {
-			const previousNodeEnv = process.env.NODE_ENV;
-			process.env.NODE_ENV = 'production';
+			vi.stubEnv('NODE_ENV', 'production');
 
-			try {
-				const renderError = new Error('page render failed');
-				const throwingFactory = createRouteRendererFactoryWithThrowingPage(
-					routeRendererFactory,
-					INDEX_TEMPLATE_FILE,
-					renderError,
-				);
-				const { factory: factoryWithStub500, execute } = createRouteRendererFactoryWithStub500(
-					throwingFactory,
-					appConfig.absolutePaths.error500TemplatePath,
-				);
-				const matcher = new FileSystemResponseMatcher({
-					appConfig,
-					assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
-					router,
-					routeRendererFactory: factoryWithStub500,
-					fileSystemResponseFactory,
-				});
-				const match: MatchResult = {
-					requestedPathname: APP_TEST_ROUTES.index,
-					templateRoute: {
-						kind: 'exact',
-						pathname: APP_TEST_ROUTES.index,
-						filePath: INDEX_TEMPLATE_FILE,
-					},
-					params: {},
-					query: {},
-				};
+			const renderError = new Error('page render failed');
+			const throwingFactory = createRouteRendererFactoryWithThrowingPage(
+				routeRendererFactory,
+				INDEX_TEMPLATE_FILE,
+				renderError,
+			);
+			const { factory: factoryWithStub500, execute } = createRouteRendererFactoryWithStub500(
+				throwingFactory,
+				appConfig.absolutePaths.error500TemplatePath,
+			);
+			const matcher = new FileSystemResponseMatcher({
+				appConfig,
+				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				router,
+				routeRendererFactory: factoryWithStub500,
+				fileSystemResponseFactory,
+			});
+			const match: MatchResult = {
+				requestedPathname: APP_TEST_ROUTES.index,
+				templateRoute: {
+					kind: 'exact',
+					pathname: APP_TEST_ROUTES.index,
+					filePath: INDEX_TEMPLATE_FILE,
+				},
+				params: {},
+				query: {},
+			};
 
-				await matcher.handleMatch(match);
+			await matcher.handleMatch(match);
 
-				expect(execute).toHaveBeenCalledWith({
-					file: appConfig.absolutePaths.error500TemplatePath,
-					props: {
-						status: 500,
-					},
-					locals: {},
-				});
-			} finally {
-				process.env.NODE_ENV = previousNodeEnv;
-			}
+			expect(execute).toHaveBeenCalledWith({
+				file: appConfig.absolutePaths.error500TemplatePath,
+				props: {
+					status: 500,
+				},
+				locals: {},
+			});
 		});
 
 		it('should return the built-in HTML 500 when a matched route throws and the custom 500 template is missing', async () => {

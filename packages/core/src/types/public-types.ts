@@ -361,6 +361,10 @@ export interface IHmrManager {
 	 * Handles a file change event.
 	 */
 	handleFileChange(path: string, options?: HmrFileChangeOptions): Promise<void>;
+	/**
+	 * Handles all file changes from one watcher batch and coalesces their client update.
+	 */
+	handleFileChanges(paths: string[], options?: HmrFileChangeOptions): Promise<void>;
 }
 
 /**

@@ -23,10 +23,6 @@ test.describe('React Router Scroll Position', () => {
 		await page.waitForURL('**/docs');
 		await expect(sidebar).toBeVisible();
 
-		await sidebar.evaluate((el) => {
-			el.scrollTop = 75;
-		});
-
 		await expect.poll(() => sidebar.evaluate((el) => el.scrollTop)).toBe(75);
 	});
 });

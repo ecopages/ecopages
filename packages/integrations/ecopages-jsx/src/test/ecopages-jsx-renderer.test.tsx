@@ -1,5 +1,8 @@
 /** @jsxImportSource @ecopages/jsx */
-import { describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import {
 	eco,
@@ -40,7 +43,14 @@ declare module '@ecopages/jsx' {
 	}
 }
 
-const Config = await createTestAppConfig();
+const outputRoot = mkdtempSync(path.join(tmpdir(), 'ecopages-jsx-renderer-test-'));
+const outputDirs = { distDir: path.join(outputRoot, 'dist'), workDir: path.join(outputRoot, '.eco') };
+
+afterAll(() => {
+	rmSync(outputRoot, { recursive: true, force: true });
+});
+
+const Config = await createTestAppConfig(outputDirs);
 
 const HtmlTemplate = ({ children }: { children: JsxRenderable }) => {
 	return (
@@ -267,6 +277,7 @@ describe('EcopagesJsxRenderer', () => {
 				renderComponent: deferredRenderComponent,
 			});
 			const config = await createTestAppConfig({
+				...outputDirs,
 				integrations: [deferredPlugin],
 			});
 
@@ -330,6 +341,7 @@ describe('EcopagesJsxRenderer', () => {
 			const kitajsPlugin = new StringChildContractPlugin('kitajs', '.kita.tsx');
 			const litPlugin = new StringChildContractPlugin('lit', '.lit.tsx');
 			const config = await finalizeEcoPagesConfig({
+				...outputDirs,
 				robotsTxt: {
 					preferences: {
 						'*': [],
@@ -401,6 +413,7 @@ describe('EcopagesJsxRenderer', () => {
 			const kitajsPlugin = new StringChildContractPlugin('kitajs', '.kita.tsx');
 			const litPlugin = new StringChildContractPlugin('lit', '.lit.tsx');
 			const config = await finalizeEcoPagesConfig({
+				...outputDirs,
 				robotsTxt: {
 					preferences: {
 						'*': [],
@@ -498,6 +511,7 @@ describe('EcopagesJsxRenderer', () => {
 		it('preserves normalized props when the delegated child stays inline', async () => {
 			const kitajsPlugin = new StringChildContractPlugin('kitajs', '.kita.tsx');
 			const config = await finalizeEcoPagesConfig({
+				...outputDirs,
 				robotsTxt: {
 					preferences: {
 						'*': [],
@@ -558,6 +572,7 @@ describe('EcopagesJsxRenderer', () => {
 			const kitajsPlugin = new StringChildContractPlugin('kitajs', '.kita.tsx');
 			const litPlugin = new StringChildContractPlugin('lit', '.lit.tsx');
 			const config = await finalizeEcoPagesConfig({
+				...outputDirs,
 				robotsTxt: {
 					preferences: {
 						'*': [],
@@ -639,6 +654,7 @@ describe('EcopagesJsxRenderer', () => {
 			const litPlugin = new StringChildContractPlugin('lit', '.lit.tsx');
 			const reactPlugin = new StringChildContractPlugin('react', '.react.tsx');
 			const config = await finalizeEcoPagesConfig({
+				...outputDirs,
 				robotsTxt: {
 					preferences: {
 						'*': [],
@@ -739,6 +755,7 @@ describe('EcopagesJsxRenderer', () => {
 			const jsxPlugin = ecopagesJsxPlugin();
 			const kitajsPlugin = new StringChildContractPlugin('kitajs', '.kita.tsx');
 			const config = await finalizeEcoPagesConfig({
+				...outputDirs,
 				robotsTxt: {
 					preferences: {
 						'*': [],
@@ -1023,6 +1040,7 @@ describe('EcopagesJsxRenderer', () => {
 		it('renders full route pages through renderer-owned explicit foreign-subtree renders', async () => {
 			const deferredPlugin = createDeferredIntegrationPlugin();
 			const config = await createTestAppConfig({
+				...outputDirs,
 				integrations: [deferredPlugin],
 			});
 

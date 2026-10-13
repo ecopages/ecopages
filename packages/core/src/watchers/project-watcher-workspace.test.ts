@@ -159,16 +159,19 @@ test('ignores installed and hidden linked-package files while app source retains
 	writeFileSync(drained, 'export const value = 1;');
 	await vi.waitFor(() => expect(restart).toHaveBeenCalledWith(drained), { timeout: 3000, interval: 1 });
 	restart.mockClear();
-	vi.mocked(hmrManager.handleFileChange).mockClear();
+	const batchHandler = hmrManager.handleFileChanges;
+	if (!batchHandler) throw new Error('Mock HMR manager is missing its batch handler');
+	vi.mocked(batchHandler).mockClear();
 	vi.mocked(bridge.reload).mockClear();
 	for (const file of ignoredPaths) writeFileSync(file, 'export const value = 2;');
 	writeFileSync(appSource, 'export const value = 2;');
-	await vi.waitFor(() => expect(bridge.reload).toHaveBeenCalled(), {
+	await vi.waitFor(() => expect(hmrManager.handleFileChanges).toHaveBeenCalledOnce(), {
 		timeout: 3000,
 		interval: 1,
 	});
 	expect(restart.mock.calls.map(([file]) => file).filter((file) => file !== drained)).toEqual([]);
-	expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
+	expect(hmrManager.handleFileChanges).toHaveBeenCalledWith([path.resolve(appSource)], { broadcast: true });
+	expect(bridge.reload).not.toHaveBeenCalled();
 	for (const file of ignoredPaths)
-		expect(hmrManager.handleFileChange).not.toHaveBeenCalledWith(file, expect.anything());
+		expect(hmrManager.handleFileChanges).not.toHaveBeenCalledWith([file], expect.anything());
 });

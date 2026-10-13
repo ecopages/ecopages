@@ -17,11 +17,9 @@ import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '../utils/resolve-entr
 
 describe('server-bundle-deploy-manifest', () => {
 	const tempDirs: string[] = [];
-	const originalNodeEnv = process.env.NODE_ENV;
 
 	afterEach(() => {
 		vi.restoreAllMocks();
-		process.env.NODE_ENV = originalNodeEnv;
 		for (const tempDir of tempDirs.splice(0)) {
 			fileSystem.remove(tempDir);
 		}

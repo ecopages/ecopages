@@ -1,4 +1,6 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {
 	eco,
@@ -14,7 +16,6 @@ import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orc
 import { type RouteModuleLoadOptions } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { runWithComponentRenderContext } from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
-import { fileSystem } from '@ecopages/file-system';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import {
 	createDeferredIntegrationPlugin,
@@ -43,7 +44,7 @@ const mockRouterAdapter = {
 	getRouterProps: (page: string, props: string) => `{ page: ${page}, pageProps: ${props} }`,
 };
 
-const testDir = path.join(__dirname, 'fixture/.eco');
+const testDir = mkdtempSync(path.join(os.tmpdir(), 'react-renderer-test-'));
 
 const Config = await createTestAppConfig({
 	distDir: testDir,
@@ -617,9 +618,7 @@ describe('ReactRenderer', () => {
 	});
 
 	afterAll(() => {
-		if (fileSystem.exists(testDir)) {
-			fileSystem.remove(testDir);
-		}
+		rmSync(testDir, { recursive: true, force: true });
 	});
 
 	it('should render the page', async () => {
@@ -721,7 +720,6 @@ describe('ReactRenderer', () => {
 
 	it('should keep emitting route hydration assets in development', async () => {
 		const testRenderer = createRenderer();
-		const originalNodeEnv = process.env.NODE_ENV;
 		const hydrationAssets = [
 			{
 				kind: 'script',
@@ -738,19 +736,15 @@ describe('ReactRenderer', () => {
 		testRenderer.declaredModulesOverride = [];
 		testRenderer.pageBrowserGraphOverride = { entryAssets: hydrationAssets, chunkAssets: [] };
 
-		try {
-			process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 
-			await expect(testRenderer.testPrepareRenderOptions(pageFilePath)).resolves.toEqual(
-				expect.objectContaining({
-					pagePackage: expect.objectContaining({
-						assets: expect.arrayContaining(hydrationAssets),
-					}),
+		await expect(testRenderer.testPrepareRenderOptions(pageFilePath)).resolves.toEqual(
+			expect.objectContaining({
+				pagePackage: expect.objectContaining({
+					assets: expect.arrayContaining(hydrationAssets),
 				}),
-			);
-		} finally {
-			process.env.NODE_ENV = originalNodeEnv;
-		}
+			}),
+		);
 	});
 
 	it('skips hydration assets for pages without declared modules unless forceBrowserGraph is set', async () => {

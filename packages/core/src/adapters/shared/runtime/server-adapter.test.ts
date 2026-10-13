@@ -49,6 +49,7 @@ function createHmrAssetManager(runtimePath: string): IHmrManager {
 		},
 		getDefaultContext: vi.fn(),
 		handleFileChange: vi.fn(),
+		handleFileChanges: vi.fn(),
 	};
 }
 
@@ -173,6 +174,24 @@ test('SharedServerAdapter injects HMR script into HTML responses in watch mode',
 
 	assert.ok(text.includes("import '/_hmr_runtime.js'"));
 	assert.equal(response.headers.get('Cache-Control'), 'no-store, must-revalidate');
+});
+
+test('SharedServerAdapter leaves HTML responses untouched when watch mode is disabled', async () => {
+	const rootDir = createTempRoot('ecopages-shared-server-hmr-no-inject');
+	const adapter = new TestSharedServerAdapter(rootDir);
+	adapter.setWatchModeForTest(false);
+	const hmrManager = createHmrAssetManager('');
+	adapter.setRouteHandlerForTest(
+		async () =>
+			new Response('<html><body></body></html>', {
+				headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=60' },
+			}),
+	);
+
+	const response = await adapter.handleSharedRequestForTest(new Request('http://localhost/test'), [], hmrManager);
+
+	assert.equal(await response.text(), '<html><body></body></html>');
+	assert.equal(response.headers.get('Cache-Control'), 'public, max-age=60');
 });
 
 test('SharedServerAdapter keeps an HTML error response out of the browser cache only in watch mode', async () => {

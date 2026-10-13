@@ -1,17 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildDefaultErrorHtml, DEFAULT_ERROR_PAGE_CLASS_NAMES } from './default-error-pages.ts';
 
 describe('default error pages', () => {
-	const originalNodeEnv = process.env.NODE_ENV;
-
-	afterEach(() => {
-		if (originalNodeEnv === undefined) {
-			delete process.env.NODE_ENV;
-		} else {
-			process.env.NODE_ENV = originalNodeEnv;
-		}
-	});
-
 	it('builds a basic forbidden page', () => {
 		const html = buildDefaultErrorHtml(403);
 		expect(html).toContain('eco-error-page__title">Forbidden</h1>');
@@ -37,7 +27,7 @@ describe('default error pages', () => {
 	});
 
 	it('omits error details and copy affordance in production', () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const html = buildDefaultErrorHtml(500, {
 			message: 'secret failure',
 			stack: 'Error: secret failure\n    at handler',
@@ -48,7 +38,7 @@ describe('default error pages', () => {
 	});
 
 	it('includes copy affordance and escaped details in development', () => {
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		const html = buildDefaultErrorHtml(500, {
 			message: 'render <failed>',
 			stack: 'Error: render <failed>',
@@ -65,7 +55,7 @@ describe('default error pages', () => {
 	});
 
 	it('does not place error-controlled text inside executable script source', () => {
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		const html = buildDefaultErrorHtml(500, { message: '</script><script>globalThis.injected = true</script>' });
 
 		expect(html).not.toContain('</script><script>globalThis.injected = true</script>');

@@ -1,8 +1,7 @@
-import { afterAll, afterEach, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
-import { fileSystem } from '@ecopages/file-system';
 import { ReactRenderer } from '../render/react-renderer.ts';
 import { reactPlugin } from '../plugin/react.plugin.ts';
 import { copyFixtureApp } from '../../../../core/__fixtures__/app/copy-fixture-app.ts';
@@ -11,7 +10,7 @@ const MockPage = ({ children }: any) => <div>{children}</div>;
 MockPage.config = {};
 
 const fixtureAppRoot = copyFixtureApp();
-const testDir = path.join(__dirname, 'fixture/.eco-mdx');
+const testDir = path.join(fixtureAppRoot, '.eco-mdx');
 
 const Config = await finalizeEcoPagesConfig({
 	rootDir: fixtureAppRoot,
@@ -25,16 +24,7 @@ const getExtensions = (plugin: ReturnType<typeof reactPlugin>) => (plugin as any
 const getMdxExtensions = (plugin: ReturnType<typeof reactPlugin>) => (plugin as any).mdxExtensions;
 
 describe('ReactPlugin & ReactRenderer Extensions', () => {
-	const originalNodeEnv = process.env.NODE_ENV;
-
-	afterEach(() => {
-		process.env.NODE_ENV = originalNodeEnv;
-	});
-
 	afterAll(() => {
-		if (fileSystem.exists(testDir)) {
-			fileSystem.remove(testDir);
-		}
 		rmSync(fixtureAppRoot, { recursive: true, force: true });
 	});
 
@@ -102,7 +92,7 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 	});
 
 	it('should seal runtime vendor dependencies for the active NODE_ENV during setup preparation', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const plugin = reactPlugin({});
 		plugin.setConfig(Config);
 

@@ -5,7 +5,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
 import { Processor } from '../../plugins/processor.js';
-import { DevelopmentInvalidationService } from './development-invalidation.service.ts';
+import {
+	DevelopmentInvalidationService,
+	type DevelopmentInvalidationPlan,
+	type DevelopmentInvalidationPlanningContext,
+} from './development-invalidation.service.ts';
 import {
 	CounterServerInvalidationState,
 	setAppServerInvalidationState,
@@ -61,6 +65,154 @@ class ContentCollectionProcessor extends Processor {
 }
 
 describe('DevelopmentInvalidationService', () => {
+	it('uses one plan row for each change category', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		appConfig.additionalWatchPaths = ['/test/project/tailwind.config.ts'];
+		appConfig.processors.set('css', new StylesheetProcessor());
+		const service = new DevelopmentInvalidationService(appConfig);
+		const categories: Array<{
+			filePath: string;
+			context?: DevelopmentInvalidationPlanningContext;
+			expected: DevelopmentInvalidationPlan;
+		}> = [
+			{
+				filePath: '/test/project/.env.local',
+				expected: {
+					category: 'runtime-restart',
+					invalidateServerModules: false,
+					refreshRoutes: false,
+					reloadBrowser: false,
+					delegateToHmr: false,
+					processorHandledAsset: false,
+				},
+			},
+			{
+				filePath: path.join(appConfig.absolutePaths.publicDir, 'logo.svg'),
+				expected: {
+					category: 'public-asset',
+					invalidateServerModules: false,
+					refreshRoutes: false,
+					reloadBrowser: true,
+					delegateToHmr: false,
+					processorHandledAsset: false,
+				},
+			},
+			{
+				filePath: '/test/project/tailwind.config.ts',
+				expected: {
+					category: 'additional-watch',
+					invalidateServerModules: true,
+					refreshRoutes: false,
+					reloadBrowser: true,
+					delegateToHmr: false,
+					processorHandledAsset: false,
+				},
+			},
+			{
+				filePath: path.join(appConfig.absolutePaths.srcDir, 'styles/main.css'),
+				expected: {
+					category: 'processor-owned-asset',
+					invalidateServerModules: false,
+					refreshRoutes: false,
+					reloadBrowser: false,
+					delegateToHmr: false,
+					processorHandledAsset: true,
+				},
+			},
+			{
+				filePath: path.join(appConfig.absolutePaths.pagesDir, 'index.tsx'),
+				expected: {
+					category: 'route-source',
+					invalidateServerModules: true,
+					refreshRoutes: true,
+					reloadBrowser: false,
+					delegateToHmr: true,
+					processorHandledAsset: false,
+				},
+			},
+			{
+				filePath: path.join(appConfig.absolutePaths.componentsDir, 'Button.tsx'),
+				expected: {
+					category: 'source',
+					invalidateServerModules: true,
+					refreshRoutes: false,
+					reloadBrowser: false,
+					delegateToHmr: true,
+					processorHandledAsset: false,
+				},
+			},
+			{
+				filePath: '/outside/readme.md',
+				expected: {
+					category: 'other',
+					invalidateServerModules: false,
+					refreshRoutes: false,
+					reloadBrowser: false,
+					delegateToHmr: true,
+					processorHandledAsset: false,
+				},
+			},
+			{
+				filePath: appConfig.absolutePaths.config,
+				context: { entryWatcherOwnsConfig: true },
+				expected: {
+					category: 'entry-watched-config',
+					invalidateServerModules: false,
+					refreshRoutes: false,
+					reloadBrowser: false,
+					delegateToHmr: false,
+					processorHandledAsset: false,
+				},
+			},
+		];
+
+		expect(categories.map(({ filePath, context }) => service.planFileChange(filePath, context))).toEqual(
+			categories.map(({ expected }) => expected),
+		);
+	});
+
+	it('returns restart batches without marking their files dirty', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const service = new DevelopmentInvalidationService(appConfig);
+		const invalidateServerModules = vi.spyOn(service, 'invalidateServerModules');
+		const restartPath = '/test/project/.env.local';
+
+		const applied = await service.applyDevFileChanges({
+			changed: [restartPath],
+			created: [],
+			deleted: [],
+		});
+
+		expect(applied.runtimeRestartPath).toBe(path.resolve(restartPath));
+		expect(invalidateServerModules).not.toHaveBeenCalled();
+	});
+
+	it('leaves an entry-watcher-owned config module out of invalidation batches', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const service = new DevelopmentInvalidationService(appConfig);
+		const configPath = appConfig.absolutePaths.config;
+		const context = { entryWatcherOwnsConfig: true };
+
+		expect(service.planFileChange(configPath, context)).toMatchObject({
+			category: 'entry-watched-config',
+			invalidateServerModules: false,
+			refreshRoutes: false,
+			reloadBrowser: false,
+			delegateToHmr: false,
+			processorHandledAsset: false,
+		});
+
+		await expect(
+			service.applyDevFileChanges({ changed: [configPath], created: [], deleted: [] }, context),
+		).resolves.toMatchObject({
+			files: [],
+			invalidateServerModules: false,
+			refreshRoutes: false,
+			reloadBrowser: false,
+			delegateToHmr: false,
+		});
+	});
+
 	it('classifies route, include, processor-owned, and additional-watch changes explicitly', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		appConfig.additionalWatchPaths = ['**/*.config.ts'];
@@ -240,8 +392,7 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('clears in-process route-module entries before a route imports them', async () => {
-		const originalNodeEnv = process.env.NODE_ENV;
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-development-invalidation-'));
 
 		try {
@@ -283,7 +434,6 @@ describe('DevelopmentInvalidationService', () => {
 				}),
 			).toBeUndefined();
 		} finally {
-			process.env.NODE_ENV = originalNodeEnv;
 			rmSync(rootDir, { recursive: true, force: true });
 		}
 	});
@@ -346,8 +496,7 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('marks a 50-file batch dirty with one server invalidation and one route-module cache clear', async () => {
-		const originalNodeEnv = process.env.NODE_ENV;
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-dev-file-batch-'));
 		let appConfig: Awaited<ReturnType<typeof finalizeEcoPagesConfig>> | undefined;
 
@@ -391,7 +540,6 @@ describe('DevelopmentInvalidationService', () => {
 			expect(invalidateHtml).toHaveBeenCalledTimes(1);
 			expect(invalidateHtml.mock.calls[0]?.[0]).toHaveLength(50);
 		} finally {
-			process.env.NODE_ENV = originalNodeEnv;
 			if (appConfig) {
 				registerAppPageCacheService(appConfig, null);
 			}

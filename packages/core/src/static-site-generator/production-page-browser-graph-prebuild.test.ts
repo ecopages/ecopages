@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { afterEach, beforeEach, test, vi } from 'vitest';
+import { beforeEach, test, vi } from 'vitest';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import {
@@ -8,21 +8,15 @@ import {
 	shouldPrebuildProductionPageBrowserGraphs,
 } from './production-page-browser-graph-prebuild.ts';
 
-const originalNodeEnv = process.env.NODE_ENV;
-
 beforeEach(() => {
-	process.env.NODE_ENV = 'production';
-});
-
-afterEach(() => {
-	process.env.NODE_ENV = originalNodeEnv;
+	vi.stubEnv('NODE_ENV', 'production');
 });
 
 test('shouldPrebuildProductionPageBrowserGraphs is production-only', () => {
-	process.env.NODE_ENV = 'production';
+	vi.stubEnv('NODE_ENV', 'production');
 	assert.equal(shouldPrebuildProductionPageBrowserGraphs(), true);
 
-	process.env.NODE_ENV = 'development';
+	vi.stubEnv('NODE_ENV', 'development');
 	assert.equal(shouldPrebuildProductionPageBrowserGraphs(), false);
 });
 

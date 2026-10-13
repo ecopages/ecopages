@@ -114,14 +114,14 @@ function renderLightDomCounterPage(counters: Array<{ id: string; count: number }
 }
 
 describe('DomSwapper DOM behavior', () => {
-	it('preserves multiple top-level body elements when replacing the body', () => {
+	it('preserves multiple top-level body elements during a swap', () => {
 		resetDocument();
 		const swapper = new DomSwapper('data-eco-persist');
 		const newDocument = parseDocument(
 			'<html><body><nav>Nav</nav><main>Main</main><footer>Footer</footer></body></html>',
 		);
 
-		swapper.replaceBody(newDocument);
+		swapper.morphBody(newDocument);
 
 		expect(document.body.innerHTML).toContain('<nav>Nav</nav>');
 		expect(document.body.innerHTML).toContain('<main>Main</main>');
@@ -208,7 +208,7 @@ describe('DomSwapper DOM behavior', () => {
 		expect(counters[0]?.querySelector('[data-ref="count"]')?.textContent).toBe('6');
 	});
 
-	it('preserves persisted light-DOM custom elements when replacing the body', () => {
+	it('preserves persisted light-DOM custom elements during a body morph', () => {
 		resetDocument();
 		registerLightDomCounter();
 		const swapper = new DomSwapper('data-eco-persist');
@@ -224,7 +224,7 @@ describe('DomSwapper DOM behavior', () => {
 			`<html><body>${renderLightDomCounter('data-eco-persist="docs-sidebar" count="0"')}</body></html>`,
 		);
 
-		swapper.replaceBody(newDocument);
+		swapper.morphBody(newDocument);
 
 		const nextCounter = document.querySelector('test-light-dom-counter') as
 			(HTMLElement & { marker?: string }) | null;
@@ -236,6 +236,35 @@ describe('DomSwapper DOM behavior', () => {
 		expect(incrementButton).not.toBeNull();
 		incrementButton?.click();
 		expect(nextCounter?.querySelector('[data-ref="count"]')?.textContent).toBe('6');
+	});
+
+	it('keeps light-DOM custom element children active when rerun scripts accompany a persisted descendant', () => {
+		resetDocument();
+		registerLightDomCounter();
+		const swapper = new DomSwapper('data-eco-persist');
+		const counterMarkup = renderLightDomCounter().replace(
+			'</test-light-dom-counter>',
+			'<aside data-eco-persist="sidebar">Sidebar</aside></test-light-dom-counter>',
+		);
+		document.body.innerHTML = counterMarkup;
+		const liveCounter = document.querySelector('test-light-dom-counter');
+		const liveIncrementButton = document.querySelector<HTMLButtonElement>('[data-ref="increment"]');
+		const liveSidebar = document.querySelector('aside');
+
+		const newDocument = parseDocument(
+			`<html><head><script data-eco-rerun="true"></script></head><body>${counterMarkup}</body></html>`,
+		);
+
+		swapper.morphBody(newDocument);
+
+		const nextCounter = document.querySelector('test-light-dom-counter');
+		const nextIncrementButton = document.querySelector<HTMLButtonElement>('[data-ref="increment"]');
+		expect(nextCounter).toBe(liveCounter);
+		expect(nextIncrementButton).toBe(liveIncrementButton);
+		expect(document.querySelector('aside')).toBe(liveSidebar);
+
+		nextIncrementButton?.click();
+		expect(nextCounter?.querySelector('[data-ref="count"]')?.textContent).toBe('1');
 	});
 
 	it('does not retain stale siblings when duplicate ids appear across navigations', () => {
@@ -407,7 +436,7 @@ describe('DomSwapper DOM behavior', () => {
 			].join(''),
 		);
 
-		swapper.replaceBody(nextDocument);
+		swapper.morphBody(nextDocument);
 
 		expect(document.querySelectorAll('#toggle-dark-mode')).toHaveLength(1);
 		expect(document.querySelector('#toggle-dark-mode')).toBe(currentToggle);

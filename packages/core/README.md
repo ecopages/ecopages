@@ -25,11 +25,11 @@ The important ownership rules are:
 - Direct local Eco Component imports (including named `export { X } from` barrels) and relative side-effect CSS imports supply Dependencies by default through the shared transform and existing collector; explicit asset declarations override inference, and inferred styles stay keyed by identity until collection. See [eco](src/eco/README.md) and [Plugin Contracts](src/plugins/README.md).
 - Every renderer receives the app-owned `AssetProcessingService`; dependency collection uses it to turn declared assets into runtime-ready output instead of treating a missing service as an empty asset set. See [Route Renderer](src/route-renderer/README.md).
 - Browser bundling and server module loading are separate paths. SSR-enabled lazy scripts execute on the server before rendering and in the browser only on their configured trigger.
-- The Project Watcher sends each Processor one batched `onChanges` notification per debounce window, schedules sustained edits no later than one second after the first, serializes their processing, and fails startup if the filesystem subscription is not ready within 30 seconds. See [Project Watcher](src/watchers/README.md).
+- The Project Watcher batches file and directory events, sends matching Processors one `onChanges` notification for each non-restart file batch, and dispatches every HMR-eligible path once per debounce window. Directory-only Pages batches refresh routes without Processor or HMR notifications. Sustained edits are scheduled no later than one second after the first; processing is serialized and startup fails if the filesystem subscription is not ready within 30 seconds. See [Project Watcher](src/watchers/README.md).
 - Development Page prewarm path collection and rendering run in the background without delaying server readiness. App configuration declares `devPrewarmPaths`; Processors declare pathnames through `collectDevPrewarmPaths()`. Collection failures are logged with their stack. See [Runtime Adapters](src/adapters/README.md) and [Plugin Contracts](src/plugins/README.md).
 - App shutdown tears down Integration runtime resources, including Lit workers. See [Runtime Adapters](src/adapters/README.md).
 - HMR and invalidation use shared graph-aware services instead of runtime-specific ad hoc wiring.
-- Browser and React navigation use one core-owned document commit pipeline; each router supplies its page swap and scroll handling while core coordinates fetch/cache/parse, head reconciliation, script activation, view transitions, and lifecycle events. Superseded stylesheet waits settle when a later page removes their staged links. For rerun scripts matched by relative `src` (without an explicit script id or HTML `id`), core keeps identity stable across pages with different `<base>` URLs while loading external modules from the incoming page's resolved URL. See [Router Layer](src/router/README.md).
+- Browser and React navigation use one core-owned document commit pipeline; each router supplies its page swap and scroll handling while core coordinates fetch/cache/parse, head reconciliation, script activation, view transitions, and lifecycle events. Browser-router always morphs the incoming body, keeping nodes with matching persistence keys attached when their ancestor structure remains compatible; during rerun refresh, custom-element descendants on that path also stay in place when their markup remains structurally compatible. Superseded stylesheet waits settle when a later page removes their staged links. For rerun scripts matched by relative `src` (without an explicit script id or HTML `id`), core keeps identity stable across pages with different `<base>` URLs while loading external modules from the incoming page's resolved URL. See [Router Layer](src/router/README.md).
 - The build adapter returns each build's plugin-recorded inputs by module alongside source-module closures, and passes an explicit recorder to Rolldown plugin hooks. Cache owners bind only the paths read by their entry closure, so development invalidates affected Page Browser Graphs, HTML entries, route modules, and browser entrypoints. Grouped browser scripts resolve by the path or name the caller passed (and the bundler's facade when that spelling differs); in-process Page caches also track reachable generated artifacts. See [Build Layer](src/build/README.md).
 
 ### Bootstrap And Runtime Ownership
@@ -63,7 +63,7 @@ flowchart TD
 	N --> F[One browser update]
 	D -->|Public asset| F
 	D -->|Processor-owned asset| G[Notify processor only]
-	D -->|Open HMR entrypoint| H[Core HMR manager]
+	D -->|HMR-eligible file batch| H[Core HMR manager]
 	H --> I[Strategy selection]
 	I --> J[Core JsHmrStrategy]
 	I --> K[Integration strategy e.g. ReactHmrStrategy]
@@ -101,7 +101,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/services/invalidation/README.md`: file-change classification and dirty-marking for bounded watcher batches
 - `src/hmr/README.md`: HMR strategy, update-layer ownership, and build error presentation
 - `src/dev-toolbar/README.md`: toolbar enablement, custom clients, and build error event contract
-- `src/router/README.md`: route discovery, matching, browser navigation coordination, and the shared client navigation pipeline
+- `src/router/README.md`: route discovery, matching, browser navigation coordination, persistence-aware body morphing, and the shared client navigation pipeline
 - `src/route-renderer/README.md`: rendering orchestration, dependency resolution, and HTML cache source paths
 - `src/static-site-generator/README.md`: static build execution path
 - `src/eco/README.md`: `eco` authoring APIs for pages, layouts, and components, including the `LayoutOptions` type contract

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { PageRequestCacheCoordinator } from '../cache/page-request-cache-coordinator.service.ts';
 import {
@@ -6,15 +6,9 @@ import {
 	getBrowserRuntimeAssetGeneration,
 } from './browser-runtime-asset-generation.ts';
 
-const originalNodeEnv = process.env.NODE_ENV;
-
-afterEach(() => {
-	process.env.NODE_ENV = originalNodeEnv;
-});
-
 describe('browser runtime asset generation', () => {
 	it('includes generation in development cache keys and advances on bump', async () => {
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		const appConfig = { rootDir: '/tmp/eco-runtime-gen' } as EcoPagesAppConfig;
 
 		expect(getBrowserRuntimeAssetGeneration(appConfig)).toBe(0);
@@ -30,7 +24,7 @@ describe('browser runtime asset generation', () => {
 	});
 
 	it('does not append generation outside development', () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const appConfig = { rootDir: '/tmp/eco-runtime-gen-prod' } as EcoPagesAppConfig;
 		const coordinator = new PageRequestCacheCoordinator(null, 'static', () =>
 			getBrowserRuntimeAssetGeneration(appConfig),

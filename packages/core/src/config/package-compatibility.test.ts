@@ -77,20 +77,18 @@ describe('published package compatibility', () => {
 		}
 	});
 
-	test('built npm artifacts do not ship raw TypeScript sources', () => {
-		const distDirs = [
-			'packages/core/dist',
-			'packages/integrations/react/dist',
-			'packages/processors/postcss-processor/dist',
-		];
+	const distDirs = [
+		'packages/core/dist',
+		'packages/integrations/react/dist',
+		'packages/processors/postcss-processor/dist',
+	];
 
-		for (const relativeDistDir of distDirs) {
-			const distDir = resolveRepoPath(relativeDistDir);
-			if (!existsSync(distDir) || !statSync(distDir).isDirectory()) {
-				continue;
-			}
+	for (const relativeDistDir of distDirs) {
+		const distDir = resolveRepoPath(relativeDistDir);
+		const isBuilt = existsSync(distDir) && statSync(distDir).isDirectory();
 
+		test.skipIf(!isBuilt)(`${relativeDistDir} does not ship raw TypeScript sources`, () => {
 			expect(collectTypeScriptFiles(distDir), relativeDistDir).toEqual([]);
-		}
-	});
+		});
+	}
 });

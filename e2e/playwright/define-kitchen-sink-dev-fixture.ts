@@ -18,11 +18,22 @@ import {
 const devLauncher = 'node e2e/scripts/playwright/start-kitchen-sink-dev-server.mjs';
 const DEV_TEST_TIMEOUT_MS = 90_000;
 
+/**
+ * Longest the Bun parity server may take to print its ready line.
+ *
+ * @remarks
+ * The watcher's initial crawl is about 78x slower on Bun than on Node, so dev init takes about 30 s
+ * there against under 2 s on Node. The ceiling leaves room for a slow CI runner and fails a run
+ * whose init time regresses, instead of letting it pass inside the 180 s web server timeout.
+ */
+const BUN_DEV_INIT_CEILING_MS = 45_000;
+
 type DevVariant = {
 	name: string;
 	port: number;
 	runtime: 'bun' | 'node';
 	artifactScope: string;
+	initCeilingMs?: number;
 	testMatch: string;
 	testIgnore?: string[];
 };
@@ -41,6 +52,7 @@ const devVariants: DevVariant[] = [
 		port: 4013,
 		runtime: 'bun',
 		artifactScope: 'cross-integration-bun-parity',
+		initCeilingMs: BUN_DEV_INIT_CEILING_MS,
 		testMatch: crossIntegrationParityMatch,
 	},
 ];
@@ -52,6 +64,7 @@ function buildDevServerCommand(variant: DevVariant): string {
 		`ECOPAGES_PORT=${variant.port}`,
 		`ECOPAGES_DEV_RUNTIME=${variant.runtime}`,
 		`ECOPAGES_E2E_ARTIFACT_SCOPE=${variant.artifactScope}`,
+		...(variant.initCeilingMs ? [`ECOPAGES_E2E_DEV_INIT_CEILING_MS=${variant.initCeilingMs}`] : []),
 		devLauncher,
 	].join(' ');
 }

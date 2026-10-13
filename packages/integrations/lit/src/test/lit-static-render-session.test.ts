@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EcoComponent } from '@ecopages/core';
 import type { StaticExportContext } from '@ecopages/core/plugins/integration-plugin';
 import { LitStaticRenderSession } from '../lit-static-render-session.ts';
@@ -19,6 +19,10 @@ const createWorkerClient = () => ({
 });
 
 describe('LitStaticRenderSession', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
 	it('preloads SSR scripts and always starts the render worker', async () => {
 		const lazyScriptComponent = {
 			config: {

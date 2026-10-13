@@ -5,6 +5,13 @@ function generateHash(content: string): string {
 	return rapidhash(content).toString();
 }
 
+function getBundledSourceSignature(dep: AssetDefinition): string[] {
+	const bundledSourceFilepaths = dep.bundledSourceFilepaths;
+	return bundledSourceFilepaths?.length
+		? [`bundled-sources:${generateHash(JSON.stringify(bundledSourceFilepaths))}`]
+		: [];
+}
+
 function getScriptDependencyBuildSignature(dep: AssetDefinition): string | undefined {
 	if (dep.kind !== 'script') {
 		return undefined;
@@ -54,6 +61,8 @@ export function getAssetDependencyKey(dep: AssetDefinition): string {
 	if ('position' in dep && dep.position) {
 		parts.push(dep.position);
 	}
+
+	parts.push(...getBundledSourceSignature(dep));
 
 	if ('packageRole' in dep && dep.packageRole) {
 		parts.push(`package:${dep.packageRole}`);

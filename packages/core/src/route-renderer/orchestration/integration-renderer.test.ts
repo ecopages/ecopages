@@ -31,6 +31,34 @@ import {
 } from './integration-renderer.test-fixtures.ts';
 
 describe('IntegrationRenderer', () => {
+	it('keeps route params and query authoritative over extra page props', async () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: testAppConfig,
+			assetProcessingService: testAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		const Page = ((props: Record<string, unknown>) => {
+			const params = props.params as Record<string, string>;
+			const query = props.query as Record<string, string>;
+			return `<main>${params.slug}:${query.sort}:${String(props.title)}</main>`;
+		}) as EcoComponent<Record<string, unknown>>;
+		const HtmlTemplate = ((props: HtmlTemplateProps) =>
+			`<html><body>${String(props.children ?? '')}</body></html>`) as EcoComponent<HtmlTemplateProps>;
+
+		const html = await IntegrationRenderer.prototype.render.call(renderer, {
+			file: '/app/pages/posts/[slug].tsx',
+			params: { slug: 'current' },
+			query: { sort: 'recent' },
+			props: { params: { slug: 'stale' }, query: { sort: 'stale' }, title: 'from static props' },
+			metadata: { title: 'Posts', description: 'Post details' },
+			HtmlTemplate,
+			Page,
+			resolvedDependencies: [],
+		} as IntegrationRendererRenderOptions);
+
+		expect(String(html)).toContain('<main>current:recent:from static props</main>');
+	});
+
 	it('creates a renderer from hooks without a renderer subclass', async () => {
 		const renderComponent = vi.fn(async () => ({
 			html: '<main>hook-rendered</main>',

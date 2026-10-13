@@ -220,7 +220,12 @@ export class SessionPageBrowserGraphCache {
 		key: GraphKey,
 		provisionalDependencyPaths: ReadonlySet<string>,
 		build: () => Promise<GraphBuildResult | undefined>,
+		options: { reuseCachedResult?: boolean } = {},
 	): Promise<PageBrowserGraphResult | undefined> {
+		if (options.reuseCachedResult === false) {
+			return this.buildGraphWithoutCaching(build);
+		}
+
 		const serializedKey = serializeGraphKey(key);
 
 		const cached = this.records.get(serializedKey);
@@ -240,6 +245,13 @@ export class SessionPageBrowserGraphCache {
 		const buildPromise = this.runGraphBuild(serializedKey, key, buildGeneration, build);
 		this.inFlight.set(serializedKey, buildPromise);
 		return buildPromise;
+	}
+
+	private async buildGraphWithoutCaching(
+		build: () => Promise<GraphBuildResult | undefined>,
+	): Promise<PageBrowserGraphResult | undefined> {
+		this.buildCount += 1;
+		return (await build())?.result;
 	}
 
 	resolveGroupedGraph(

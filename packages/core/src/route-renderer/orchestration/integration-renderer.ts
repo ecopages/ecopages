@@ -1099,9 +1099,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				page: {
 					component: options.Page,
 					props: {
-						params: options.params,
-						query: options.query,
 						...options.props,
+						params: options.params ?? {},
+						query: options.query ?? {},
 						locals: options.pageLocals,
 					},
 				},

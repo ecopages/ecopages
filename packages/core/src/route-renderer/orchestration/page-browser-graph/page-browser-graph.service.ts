@@ -152,6 +152,7 @@ export class PageBrowserGraphService {
 			},
 			collectPageBrowserGraphDependencyPaths(input.routeFile, contribution, contribution.assets ?? []),
 			async () => this.buildPageBrowserGraphRecord(input, contribution),
+			{ reuseCachedResult: input.cacheable !== false },
 		);
 	}
 

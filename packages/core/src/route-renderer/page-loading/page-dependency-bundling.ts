@@ -73,10 +73,10 @@ function isBundleableFileScriptAsset(dependency: AssetDefinition): dependency is
 }
 
 type PageDependencyPackagingPlan = {
-	bundledStylesheet?: AssetDefinition;
-	bundledScript?: AssetDefinition;
-	bundleableStyleFilepaths: Set<string>;
-	bundleableScriptFilepaths: Set<string>;
+	stylesheetBundles: Map<number, AssetDefinition>;
+	bundledStylesheetMembers: Set<number>;
+	scriptBundles: Map<number, AssetDefinition>;
+	bundledScriptMembers: Set<number>;
 };
 
 /**
@@ -138,58 +138,81 @@ function createPageDependencyPackagingPlan(
 		})
 		.filter(isBundleableFileScriptAsset);
 
-	const bundledStylesheet =
-		bundleableStyles.length > 1
-			? AssetFactory.createContentStylesheet({
-					content: bundleableStyles.map((dependency) => readFileSync(dependency.filepath, 'utf8')).join('\n'),
-					position: 'head',
-					attributes: { rel: 'stylesheet' },
-					packageRole: 'page-style',
-					bundledSourceFilepaths: bundleableStyles.map((dependency) => dependency.filepath),
-				})
-			: undefined;
+	const eligibleStyles = new Set<AssetDefinition>(bundleableStyles);
+	const eligibleScripts = new Set<AssetDefinition>(bundleableScripts);
+	const isEligibleStyle = (dependency: AssetDefinition): dependency is FileStylesheetAsset =>
+		eligibleStyles.has(dependency);
+	const isEligibleScript = (dependency: AssetDefinition): dependency is FileScriptAsset =>
+		eligibleScripts.has(dependency);
+	const stylesheetBundles = new Map<number, AssetDefinition>();
+	const bundledStylesheetMembers = new Set<number>();
+	const scriptBundles = new Map<number, AssetDefinition>();
+	const bundledScriptMembers = new Set<number>();
 
-	const pageScriptImports = [...new Set(bundleableScripts.map((dependency) => dependency.filepath))];
-	const shouldBundlePageScript = pageScriptImports.length > 0 && bundleableScripts.length > 1;
-	const bundledScript = shouldBundlePageScript
-		? AssetFactory.createContentScript({
-				name: `${integrationName}-page-${rapidhash(pageScriptImports.join('|')).toString(16)}`,
-				content: pageScriptImports.map((filepath) => `import ${JSON.stringify(filepath)};`).join('\n'),
-				position: 'head',
-				attributes: { type: 'module', defer: '' },
-				packageRole: 'page-script',
-				bundledSourceFilepaths: pageScriptImports,
-			})
-		: undefined;
+	for (const run of collectContiguousEligibleRuns(dependencies, isEligibleStyle)) {
+		const bundledStylesheet = AssetFactory.createContentStylesheet({
+			content: run.assets.map((dependency) => readFileSync(dependency.filepath, 'utf8')).join('\n'),
+			position: 'head',
+			attributes: { rel: 'stylesheet' },
+			packageRole: 'page-style',
+			bundledSourceFilepaths: run.assets.map((dependency) => dependency.filepath),
+		});
+		stylesheetBundles.set(run.startIndex, bundledStylesheet);
+		for (let index = run.startIndex; index < run.startIndex + run.assets.length; index += 1) {
+			bundledStylesheetMembers.add(index);
+		}
+	}
 
-	if (!bundledStylesheet && !bundledScript) {
+	for (const run of collectContiguousEligibleRuns(dependencies, isEligibleScript)) {
+		const pageScriptImports = [...new Set(run.assets.map((dependency) => dependency.filepath))];
+		const bundledScript = AssetFactory.createContentScript({
+			name: `${integrationName}-page-${rapidhash(pageScriptImports.join('|')).toString(16)}`,
+			content: pageScriptImports.map((filepath) => `import ${JSON.stringify(filepath)};`).join('\n'),
+			position: 'head',
+			attributes: { type: 'module', defer: '' },
+			packageRole: 'page-script',
+			bundledSourceFilepaths: pageScriptImports,
+		});
+		scriptBundles.set(run.startIndex, bundledScript);
+		for (let index = run.startIndex; index < run.startIndex + run.assets.length; index += 1) {
+			bundledScriptMembers.add(index);
+		}
+	}
+
+	if (stylesheetBundles.size === 0 && scriptBundles.size === 0) {
 		return undefined;
 	}
 
 	return {
-		bundledStylesheet,
-		bundledScript,
-		bundleableStyleFilepaths: new Set(bundleableStyles.map((dependency) => dependency.filepath)),
-		bundleableScriptFilepaths: new Set(pageScriptImports),
+		stylesheetBundles,
+		bundledStylesheetMembers,
+		scriptBundles,
+		bundledScriptMembers,
 	};
 }
 
-function isBundledStylesheetDependency(dependency: AssetDefinition, plan: PageDependencyPackagingPlan): boolean {
-	return (
-		Boolean(plan.bundledStylesheet) &&
-		dependency.kind === 'stylesheet' &&
-		dependency.source === 'file' &&
-		plan.bundleableStyleFilepaths.has(dependency.filepath)
-	);
-}
+function collectContiguousEligibleRuns<T extends AssetDefinition>(
+	dependencies: AssetDefinition[],
+	isEligible: (dependency: AssetDefinition) => dependency is T,
+): Array<{ startIndex: number; assets: T[] }> {
+	const runs: Array<{ startIndex: number; assets: T[] }> = [];
+	let startIndex: number | undefined;
+	let assets: T[] = [];
 
-function isBundledScriptDependency(dependency: AssetDefinition, plan: PageDependencyPackagingPlan): boolean {
-	return (
-		Boolean(plan.bundledScript) &&
-		dependency.kind === 'script' &&
-		dependency.source === 'file' &&
-		plan.bundleableScriptFilepaths.has(dependency.filepath)
-	);
+	for (const [index, dependency] of dependencies.entries()) {
+		if (isEligible(dependency)) {
+			startIndex ??= index;
+			assets.push(dependency);
+			continue;
+		}
+
+		if (assets.length > 1 && startIndex !== undefined) runs.push({ startIndex, assets });
+		startIndex = undefined;
+		assets = [];
+	}
+
+	if (assets.length > 1 && startIndex !== undefined) runs.push({ startIndex, assets });
+	return runs;
 }
 
 function applyPageDependencyPackagingPlan(
@@ -197,35 +220,23 @@ function applyPageDependencyPackagingPlan(
 	plan: PageDependencyPackagingPlan,
 ): AssetDefinition[] {
 	const unifiedDependencies: AssetDefinition[] = [];
-	let insertedStylesheet = false;
-	let insertedScript = false;
 
-	for (const dependency of dependencies) {
-		if (isBundledStylesheetDependency(dependency, plan)) {
-			if (!insertedStylesheet) {
-				unifiedDependencies.push(plan.bundledStylesheet!);
-				insertedStylesheet = true;
-			}
+	for (const [index, dependency] of dependencies.entries()) {
+		const stylesheetBundle = plan.stylesheetBundles.get(index);
+		if (stylesheetBundle) {
+			unifiedDependencies.push(stylesheetBundle);
 			continue;
 		}
+		if (plan.bundledStylesheetMembers.has(index)) continue;
 
-		if (isBundledScriptDependency(dependency, plan)) {
-			if (!insertedScript) {
-				unifiedDependencies.push(plan.bundledScript!);
-				insertedScript = true;
-			}
+		const scriptBundle = plan.scriptBundles.get(index);
+		if (scriptBundle) {
+			unifiedDependencies.push(scriptBundle);
 			continue;
 		}
+		if (plan.bundledScriptMembers.has(index)) continue;
 
 		unifiedDependencies.push(dependency);
-	}
-
-	if (plan.bundledScript && !insertedScript) {
-		unifiedDependencies.push(plan.bundledScript);
-	}
-
-	if (plan.bundledStylesheet && !insertedStylesheet) {
-		unifiedDependencies.push(plan.bundledStylesheet);
 	}
 
 	return unifiedDependencies;
@@ -234,8 +245,8 @@ function applyPageDependencyPackagingPlan(
 /**
  * Rewrites eligible flat dependency declarations into page-owned stylesheet and script bundles.
  *
- * Only assets with the default attribute shape and without explicit packaging roles are
- * collapsed so integration-specific or lazy behavior keeps its existing ownership model.
+ * Only consecutive assets with the default attribute shape and without explicit packaging roles are
+ * collapsed so integration-specific, lazy, or custom-attribute assets keep their declared order.
  */
 export function packagePageDependencies(
 	dependencies: AssetDefinition[],

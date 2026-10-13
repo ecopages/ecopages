@@ -46,6 +46,14 @@ describe('resolveEcoConfigPath', () => {
 		expect(resolveEcoConfigPath({ cwd: tempDir })).toBe(customPath);
 	});
 
+	it('ignores the emitted config of an unnamed output directory', () => {
+		const emittedPath = path.join(tempDir, 'dist', '.server', 'eco.config.mjs');
+		fs.mkdirSync(path.dirname(emittedPath), { recursive: true });
+		fs.writeFileSync(emittedPath, 'export default {}');
+
+		expect(resolveEcoConfigPath({ cwd: tempDir, preferEmitted: true, required: false })).toBeUndefined();
+	});
+
 	it('prefers the emitted config for production startup', () => {
 		const sourcePath = path.join(tempDir, 'eco.config.ts');
 		const emittedPath = path.join(tempDir, 'dist', '.server', 'eco.config.mjs');
@@ -53,7 +61,7 @@ describe('resolveEcoConfigPath', () => {
 		fs.writeFileSync(sourcePath, 'export default {}');
 		fs.writeFileSync(emittedPath, 'export default {}');
 
-		expect(resolveEcoConfigPath({ cwd: tempDir, preferEmitted: true })).toBe(emittedPath);
+		expect(resolveEcoConfigPath({ cwd: tempDir, preferEmitted: true, distDir: 'dist' })).toBe(emittedPath);
 	});
 
 	describe('when the running entry is a server bundle', () => {

@@ -74,7 +74,7 @@ function getMainHelpText() {
 	].join('\n');
 }
 
-function getServerCommandHelpText(commandName, description) {
+function getServerCommandHelpText(commandName, description, extraOptionLines = []) {
 	return [
 		`Usage: ecopages ${commandName} [options]`,
 		'',
@@ -88,6 +88,7 @@ function getServerCommandHelpText(commandName, description) {
 		'      --runtime <runtime>                 Force bun or node',
 		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
 		'  -c, --config <file>                     Ecopages config file (default: eco.config.ts)',
+		...extraOptionLines,
 		'  -h, --help                              Show help',
 	].join('\n');
 }
@@ -103,10 +104,14 @@ function parseCommandArguments(rawArgs, options) {
 
 function parseServerCommandArgs(rawArgs, definition) {
 	const commandName = definition.name;
-	const { values, positionals } = parseCommandArguments(rawArgs, sharedServerOptionDefinitions);
+	const valueOptions = definition.valueOptions ?? {};
+	const { values, positionals } = parseCommandArguments(rawArgs, {
+		...sharedServerOptionDefinitions,
+		...Object.fromEntries(Object.keys(valueOptions).map((option) => [option, { type: 'string' }])),
+	});
 
 	if (values.help) {
-		console.log(getServerCommandHelpText(commandName, definition.description));
+		console.log(getServerCommandHelpText(commandName, definition.description, Object.values(valueOptions)));
 		return { help: true };
 	}
 
@@ -127,6 +132,7 @@ function parseServerCommandArgs(rawArgs, definition) {
 			debug: values.debug,
 			runtime: values.runtime,
 			configFile: values.config,
+			distDir: values['dist-dir'],
 		},
 	};
 }
@@ -337,6 +343,10 @@ const SERVER_COMMANDS = {
 		description: 'Start the production server.',
 		entryArgs: [],
 		optionOverrides: { nodeEnv: 'production' },
+		valueOptions: {
+			'dist-dir':
+				'      --dist-dir <dir>                    Build output directory to start (default: the only one)',
+		},
 	},
 	types: {
 		description:

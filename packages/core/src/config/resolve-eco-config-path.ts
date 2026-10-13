@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { SERVER_BUNDLE_DIR } from '../utils/resolve-entry-file.ts';
-import { DEFAULT_ECOPAGES_DIST_DIR } from './constants.ts';
 import { EMITTED_ECO_CONFIG_FILENAME } from './server-config-bundle.ts';
 
 export const DEFAULT_ECO_CONFIG_FILENAME = 'eco.config.ts';
@@ -26,20 +25,17 @@ export type ResolveEcoConfigPathOptions = {
 	required?: boolean;
 	/** Prefer the emitted production config over the source config when both exist. */
 	preferEmitted?: boolean;
-	/** The app's `distDir` setting, relative to `cwd`. */
+	/**
+	 * The build output directory, relative to `cwd`, whose emitted config may be used.
+	 * Without it only a config beside the running server bundle counts as emitted.
+	 */
 	distDir?: string;
 };
 
-/** Resolves the emitted production config without consulting source overrides. */
-export function resolveEmittedEcoConfigPath(
-	cwd = process.cwd(),
-	distDir = DEFAULT_ECOPAGES_DIST_DIR,
-): string | undefined {
-	const candidates = [
-		path.resolve(cwd, distDir, SERVER_BUNDLE_DIR, EMITTED_ECO_CONFIG_FILENAME),
-		path.resolve(cwd, SERVER_BUNDLE_DIR, EMITTED_ECO_CONFIG_FILENAME),
-	];
-	return candidates.find((candidate) => fileSystem.exists(candidate));
+/** Resolves the emitted production config of one build output directory without consulting source overrides. */
+export function resolveEmittedEcoConfigPath(cwd: string, distDir: string): string | undefined {
+	const candidate = path.resolve(cwd, distDir, SERVER_BUNDLE_DIR, EMITTED_ECO_CONFIG_FILENAME);
+	return fileSystem.exists(candidate) ? candidate : undefined;
 }
 
 /**
@@ -89,7 +85,7 @@ export function resolveEcoConfigPath(options: ResolveEcoConfigPathOptions = {}):
 	if (serverBundleConfigPath) return serverBundleConfigPath;
 
 	const defaultPath = path.resolve(cwd, DEFAULT_ECO_CONFIG_FILENAME);
-	const emittedConfigPath = resolveEmittedEcoConfigPath(cwd, options.distDir);
+	const emittedConfigPath = options.distDir ? resolveEmittedEcoConfigPath(cwd, options.distDir) : undefined;
 	if (options.preferEmitted && emittedConfigPath) return emittedConfigPath;
 	if (fileSystem.exists(defaultPath)) return defaultPath;
 	if (emittedConfigPath) return emittedConfigPath;

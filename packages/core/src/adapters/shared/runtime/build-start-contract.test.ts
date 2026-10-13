@@ -89,7 +89,7 @@ describe('build → start contract', () => {
 			'the deploy manifest holds no absolute path',
 		);
 
-		const resolvedEntry = resolveProductionServerEntry(rootDir);
+		const resolvedEntry = resolveProductionServerEntry(rootDir, 'dist');
 		assert.equal(resolvedEntry, serverEntryPath);
 	});
 
@@ -160,7 +160,7 @@ describe('build → start contract', () => {
 		const { serverEntryPath, serverOutdir } = getServerBundleOutputPaths(appConfig);
 		assert.equal(serverOutdir, path.join(rootDir, 'build', '.server'));
 		assert.equal(resolveProductionServerEntry(rootDir, 'build'), serverEntryPath);
-		assert.equal(resolveProductionServerEntry(rootDir), undefined);
+		assert.equal(resolveProductionServerEntry(rootDir, 'dist'), undefined);
 		assert.equal(
 			resolveEcoConfigPath({ cwd: rootDir, preferEmitted: true, distDir: 'build' }),
 			path.join(serverOutdir, EMITTED_ECO_CONFIG_FILENAME),
@@ -204,7 +204,7 @@ describe('build → start contract', () => {
 		assert.equal(fileSystem.exists(serverEntryPath), false, 'should not produce dist/.server/app.mjs');
 		assert.equal(fileSystem.exists(manifestPath), false, 'should not produce dist/.server/manifest.json');
 
-		const resolvedEntry = resolveProductionServerEntry(rootDir);
+		const resolvedEntry = resolveProductionServerEntry(rootDir, 'dist');
 		assert.equal(resolvedEntry, undefined);
 	});
 
@@ -293,13 +293,13 @@ describe('build → start contract', () => {
 
 		writeFileSync(configPath, `${configSource}\nexport const changedAfterBuild = true;\n`, 'utf8');
 		assert.throws(() => {
-			assertProductionConfigIdentity(rootDir, configPath, { isExplicitOverride: true });
+			assertProductionConfigIdentity(rootDir, configPath, { distDir: 'dist', isExplicitOverride: true });
 		}, /Ecopages config mismatch/);
 		writeFileSync(configPath, configSource, 'utf8');
 
 		writeFileSync(expectedEmittedConfig, `${emittedConfigSource}\nexport const tampered = true;\n`, 'utf8');
 		assert.throws(() => {
-			assertProductionConfigIdentity(rootDir, expectedEmittedConfig);
+			assertProductionConfigIdentity(rootDir, expectedEmittedConfig, { distDir: 'dist' });
 		}, /Ecopages config mismatch/);
 		writeFileSync(expectedEmittedConfig, emittedConfigSource, 'utf8');
 
@@ -307,17 +307,18 @@ describe('build → start contract', () => {
 		rmSync(configPath);
 		rmSync(entryPath);
 
-		const resolvedConfigPath = resolveEcoConfigPath({ cwd: rootDir });
+		const resolvedConfigPath = resolveEcoConfigPath({ cwd: rootDir, preferEmitted: true, distDir: 'dist' });
 		assert.equal(resolvedConfigPath, expectedEmittedConfig);
 
 		// Must not throw for standard bundled config deployment
 		assert.doesNotThrow(() => {
-			assertProductionConfigIdentity(rootDir, resolvedConfigPath);
+			assertProductionConfigIdentity(rootDir, resolvedConfigPath, { distDir: 'dist' });
 		});
 
 		// Explicit mismatch with a non-existent or different config should throw
 		assert.throws(() => {
 			assertProductionConfigIdentity(rootDir, path.join(rootDir, 'other.config.ts'), {
+				distDir: 'dist',
 				isExplicitOverride: true,
 			});
 		}, /Ecopages config mismatch/);

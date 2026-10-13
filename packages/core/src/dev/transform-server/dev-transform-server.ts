@@ -59,7 +59,6 @@ export class DevTransformServer {
 		this.rebuildRuntimeSpecifierMap();
 		this.vendorRegistry = new DevTransformVendorRegistry({
 			appConfig: options.appConfig,
-			getRuntimeSpecifierMap: () => this.runtimeSpecifierMap,
 			resolveVendorBundlePlugins: () => this.resolveVendorBundlePlugins(),
 		});
 		this.bundler = new DevTransformBundler({

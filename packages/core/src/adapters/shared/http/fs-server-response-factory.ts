@@ -2,9 +2,18 @@ import { STATUS_MESSAGE } from '../../../config/constants.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { FileSystemServerOptions } from '../../../types/internal-types.ts';
 import type { RouteRendererBody } from '../../../types/public-types.ts';
-import { isContentHashedAssetFilename } from '../../../services/assets/hashed-browser-asset.ts';
+import {
+	HASHED_BROWSER_ASSET_INDEX_FILENAME,
+	hashBrowserAssetBytes,
+	isHashedBrowserAsset,
+} from '../../../services/assets/hashed-browser-asset.ts';
 import { fileSystem } from '@ecopages/file-system';
 import path from 'node:path';
+
+export type FileSystemServerRequestOptions = {
+	acceptEncoding?: string | null;
+	ifNoneMatch?: string | null;
+};
 
 /**
  * Builds HTTP responses for static files and shared file-system fallbacks.
@@ -49,31 +58,31 @@ export class FileSystemServerResponseFactory {
 	/**
 	 * Reads a static file response, returning `null` when the file is missing.
 	 */
-	async createFileResponse(filePath: string, contentType: string): Promise<Response | null> {
-		try {
-			let file: Buffer;
-			const contentEncodingHeader: HeadersInit = {};
+	async createFileResponse(
+		filePath: string,
+		contentType: string,
+		requestOptions: FileSystemServerRequestOptions = {},
+	): Promise<Response | null> {
+		if (path.basename(filePath) === HASHED_BROWSER_ASSET_INDEX_FILENAME) return null;
 
-			if (this.shouldEnableGzip(contentType)) {
-				const gzipPath = `${filePath}.gz`;
-				if (fileSystem.exists(gzipPath)) {
-					file = fileSystem.readFileAsBuffer(gzipPath);
-					contentEncodingHeader['Content-Encoding'] = 'gzip';
-					contentEncodingHeader['Vary'] = 'Accept-Encoding';
-				} else {
-					appLogger.debug('Gzip file not found, serving uncompressed', gzipPath);
-					file = fileSystem.readFileAsBuffer(filePath);
-				}
-			} else {
-				file = fileSystem.readFileAsBuffer(filePath);
+		try {
+			const gzipPath = `${filePath}.gz`;
+			const hasGzipVariant = this.shouldEnableGzip(contentType) && fileSystem.exists(gzipPath);
+			const useGzip = hasGzipVariant && acceptsGzip(requestOptions.acceptEncoding);
+			const file = fileSystem.readFileAsBuffer(useGzip ? gzipPath : filePath);
+			const cacheHeaders = this.fileCacheHeaders(filePath, file);
+			const headers: HeadersInit = {
+				'Content-Type': contentType,
+				...cacheHeaders,
+				...(useGzip ? { 'Content-Encoding': 'gzip' } : {}),
+				...(hasGzipVariant ? { Vary: 'Accept-Encoding' } : {}),
+			};
+			if (matchesIfNoneMatch(requestOptions.ifNoneMatch, cacheHeaders.ETag)) {
+				return new Response(null, { status: 304, headers });
 			}
 
 			return await this.createResponseWithBody(file as unknown as BodyInit, {
-				headers: {
-					'Content-Type': contentType,
-					...this.hashedAssetCacheHeaders(filePath),
-					...contentEncodingHeader,
-				},
+				headers,
 			});
 		} catch (error) {
 			const err = error as Error & { code?: string; cause?: { code?: string } };
@@ -88,18 +97,55 @@ export class FileSystemServerResponseFactory {
 	}
 
 	/**
-	 * Returns long-lived Cache-Control for content-hashed production assets.
+	 * Returns shared cache headers for an emitted static file.
 	 *
 	 * @remarks
-	 * Watch mode keeps source-relative names for HMR, so those URLs must not be
-	 * treated as immutable. Unhashed filenames such as vendor runtimes also stay
-	 * without `immutable`.
+	 * HTML keeps a stable URL and is always revalidated, and so does every file the
+	 * build did not record as content-hashed, such as public files and vendor
+	 * runtimes. Immutable caching is based on the output registry populated by
+	 * build writers, never the filename.
 	 */
-	private hashedAssetCacheHeaders(filePath: string): HeadersInit {
-		if (this.options.watchMode || !isContentHashedAssetFilename(path.basename(filePath))) {
-			return {};
+	private fileCacheHeaders(filePath: string, file: Buffer): HeadersInit & { ETag: string } {
+		const etag = `"${hashBrowserAssetBytes(file)}"`;
+		const extension = path.extname(filePath).toLowerCase();
+		if (extension === '.html') {
+			return { 'Cache-Control': 'public, max-age=0, must-revalidate', ETag: etag };
 		}
 
-		return { 'Cache-Control': 'public, max-age=31536000, immutable' };
+		if (this.options.watchMode) {
+			return { 'Cache-Control': 'no-cache', ETag: etag };
+		}
+
+		if (isHashedBrowserAsset(filePath)) {
+			return { 'Cache-Control': 'public, max-age=31536000, immutable', ETag: etag };
+		}
+
+		return { 'Cache-Control': 'public, max-age=0, must-revalidate', ETag: etag };
 	}
+}
+
+function acceptsGzip(acceptEncoding: string | null | undefined): boolean {
+	const encodings = (acceptEncoding ?? '').split(',').map((value) => {
+		const [encoding, ...parameters] = value.trim().toLowerCase().split(';');
+		const quality = parameters
+			.find((parameter) => parameter.trim().startsWith('q='))
+			?.trim()
+			.slice(2);
+		return { encoding, quality };
+	});
+	const explicitGzip = encodings.find(({ encoding }) => encoding === 'gzip');
+	const selectedEncoding = explicitGzip ?? encodings.find(({ encoding }) => encoding === '*');
+	return (
+		selectedEncoding !== undefined &&
+		(selectedEncoding.quality === undefined || Number(selectedEncoding.quality) > 0)
+	);
+}
+
+function matchesIfNoneMatch(ifNoneMatch: string | null | undefined, etag: string): boolean {
+	if (!ifNoneMatch) return false;
+
+	return ifNoneMatch.split(',').some((value) => {
+		const candidate = value.trim();
+		return candidate === '*' || candidate === etag || candidate === `W/${etag}`;
+	});
 }

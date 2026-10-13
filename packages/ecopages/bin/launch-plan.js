@@ -5,6 +5,7 @@ import {
 	resolveEcoConfigPath,
 	resolveEmittedEcoConfigPath,
 	resolveProductionServerEntry,
+	resolveProductionDistDir,
 	assertProductionConfigIdentity,
 } from '@ecopages/core/config';
 import { ECOPAGES_ENTRY_WATCH_ENV, getDevEnvFileNames } from '@ecopages/core/dev/development-restart';
@@ -41,6 +42,7 @@ export function resolveEcoConfigFilePath(options = {}, cwd = process.cwd(), reso
 		cwd,
 		required: false,
 		preferEmitted: resolverOptions.preferEmitted,
+		distDir: resolverOptions.distDir,
 	});
 }
 
@@ -107,10 +109,10 @@ function inferLaunchMode(args, launchMode) {
 /**
  * Builds the command and environment needed to launch the app.
  *
- * In `start` mode, the bundled server
- * entry at `dist/{SERVER_BUNDLE_DIR}/{SERVER_BUNDLE_FILENAME}` is used
- * directly. If the bundle is missing, an error is thrown directing the
- * caller to run `ecopages build` first.
+ * In `start` mode, the server bundle of one build output directory is used
+ * directly: `options.distDir` names it, otherwise the only directory below the
+ * working directory that holds `.server/manifest.json`. A missing or ambiguous
+ * bundle throws an error that says how to fix it.
  *
  * In `build`, `dev`, `preview`, and `types` modes, the source entry file is executed via tsx
  * on Node, or as `bun run` with the same forwarded arguments. `--watch` is added for both
@@ -121,31 +123,37 @@ function inferLaunchMode(args, launchMode) {
  * @param {string} entryFile - Path to the entry file (default: `app.ts`).
  * @param {'build' | 'dev' | 'preview' | 'start' | 'types'} launchMode - The CLI command mode.
  * @returns {{ runtime: string, command: string, commandArgs: string[], envOverrides: object, env: object }}
- * @throws {Error} When `launchMode` is `start` and the bundle does not exist.
+ * @throws {Error} When `launchMode` is `start` and no single bundle can be selected.
  */
 
-export function createLaunchPlan(args, options, entryFile, launchMode) {
+export async function createLaunchPlan(args, options, entryFile, launchMode) {
 	const resolvedOptions = options ?? {};
 	const resolvedEntryFile = entryFile ?? 'app.ts';
 	const { envOverrides, env } = buildLaunchEnv(resolvedOptions);
 	const runtime = detectRuntime(resolvedOptions);
 	const resolvedLaunchMode = inferLaunchMode(args, launchMode);
+	const shouldUseBundle = usesProductionBundle(resolvedLaunchMode);
+	const distDir = shouldUseBundle
+		? await resolveProductionDistDir({ cwd: process.cwd(), distDir: resolvedOptions.distDir })
+		: undefined;
 	const isExplicitConfig = Boolean(resolvedOptions.configFile || process.env.ECOPAGES_CONFIG_FILE);
 	const resolvedConfigFile = resolveEcoConfigFilePath(resolvedOptions, process.cwd(), {
-		preferEmitted: usesProductionBundle(resolvedLaunchMode) && !isExplicitConfig,
+		preferEmitted: shouldUseBundle && !isExplicitConfig,
+		distDir,
 	});
 
-	const distServerApp = resolveProductionServerEntry(process.cwd());
-	const shouldUseBundle = usesProductionBundle(resolvedLaunchMode);
-	const useBundle = shouldUseBundle && Boolean(distServerApp);
-
-	if (shouldUseBundle && !useBundle) {
-		throw new Error('No production bundle found. Run `ecopages build` before starting in production mode.');
-	}
-
-	if (useBundle) {
-		assertProductionConfigIdentity(process.cwd(), resolvedConfigFile, { isExplicitOverride: isExplicitConfig });
-		const runtimeConfigFile = resolveEmittedEcoConfigPath(process.cwd()) ?? resolvedConfigFile;
+	if (shouldUseBundle) {
+		const distServerApp = resolveProductionServerEntry(process.cwd(), distDir);
+		if (!distServerApp) {
+			throw new Error(
+				`Production server entry not found in ${path.relative(process.cwd(), distDir) || '.'}. Run \`ecopages build\` again.`,
+			);
+		}
+		assertProductionConfigIdentity(process.cwd(), resolvedConfigFile, {
+			isExplicitOverride: isExplicitConfig,
+			distDir,
+		});
+		const runtimeConfigFile = resolveEmittedEcoConfigPath(process.cwd(), distDir) ?? resolvedConfigFile;
 		if (runtimeConfigFile) {
 			envOverrides.ECOPAGES_CONFIG_FILE = runtimeConfigFile;
 			env.ECOPAGES_CONFIG_FILE = runtimeConfigFile;

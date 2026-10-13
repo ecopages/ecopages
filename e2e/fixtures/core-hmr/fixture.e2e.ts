@@ -28,7 +28,7 @@ export default defineFixture(
 			{
 				name: 'core-hmr-static-e2e',
 				mode: 'static',
-				port: 43111,
+				port: 4611,
 				env: { [ECOPAGES_CONFIG_FILE_ENV]: path.join(fixtureDir, postcssConfig) },
 				testIgnore: [`${fixtureDirRelative}/**/*.dev.test.e2e.ts`],
 			},

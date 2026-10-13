@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { createEcoComponentMetaTransform } from '../../plugins/eco-component-meta-plugin.ts';
+import { isHashedBrowserAsset } from './hashed-browser-asset.ts';
 import { BrowserBundleService } from './browser-bundle.service.ts';
 
 describe('BrowserBundleService', () => {
@@ -8,7 +9,7 @@ describe('BrowserBundleService', () => {
 		const routeModuleBuild = vi.fn(async () => ({
 			success: true,
 			logs: [],
-			outputs: [{ path: '/tmp/out/entry.js' }],
+			outputs: [{ path: '/tmp/out/entry.js', contentHashed: true }],
 		}));
 		const hmrBuild = vi.fn(async () => ({
 			success: true,
@@ -48,6 +49,7 @@ describe('BrowserBundleService', () => {
 
 		expect(routeModuleBuild).toHaveBeenCalledTimes(1);
 		expect(hmrBuild).not.toHaveBeenCalled();
+		expect(isHashedBrowserAsset('/tmp/out/entry.js')).toBe(true);
 
 		buildRuntime.getProfile('browser-hmr').build = originalHmrBuild;
 	});

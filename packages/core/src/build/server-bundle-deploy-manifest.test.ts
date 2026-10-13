@@ -10,6 +10,7 @@ import { EMITTED_ECO_CONFIG_FILENAME } from '../config/server-config-bundle.ts';
 import {
 	assertProductionConfigIdentity,
 	getServerBundleOutputPaths,
+	resolveProductionDistDir,
 	resolveProductionServerEntry,
 	writeServerBundleDeployManifest,
 } from './server-bundle-deploy-manifest.ts';
@@ -53,7 +54,7 @@ describe('server-bundle-deploy-manifest', () => {
 		const { manifestPath } = getServerBundleOutputPaths(appConfig);
 		assert.equal(fileSystem.exists(manifestPath), true);
 
-		const resolved = resolveProductionServerEntry(rootDir);
+		const resolved = resolveProductionServerEntry(rootDir, 'dist');
 		assert.equal(resolved, serverEntryPath);
 	});
 
@@ -104,12 +105,14 @@ describe('server-bundle-deploy-manifest', () => {
 		});
 
 		useRuntimeHash(check);
-		assert.doesNotThrow(() => assertProductionConfigIdentity(rootDir, emittedConfigPath));
-		assert.doesNotThrow(() => assertProductionConfigIdentity(rootDir, configPath, { isExplicitOverride: true }));
+		assert.doesNotThrow(() => assertProductionConfigIdentity(rootDir, emittedConfigPath, { distDir: 'dist' }));
+		assert.doesNotThrow(() =>
+			assertProductionConfigIdentity(rootDir, configPath, { distDir: 'dist', isExplicitOverride: true }),
+		);
 
 		writeFileSync(configPath, 'export default { changed: true };\n', 'utf8');
 		assert.throws(
-			() => assertProductionConfigIdentity(rootDir, configPath, { isExplicitOverride: true }),
+			() => assertProductionConfigIdentity(rootDir, configPath, { distDir: 'dist', isExplicitOverride: true }),
 			/Ecopages config mismatch/,
 		);
 	});
@@ -165,9 +168,14 @@ describe('server-bundle-deploy-manifest', () => {
 		rmSync(built.rootDir, { recursive: true, force: true });
 
 		const movedServerDir = path.join(deployDir, 'dist', SERVER_BUNDLE_DIR);
-		assert.equal(resolveProductionServerEntry(deployDir), path.join(movedServerDir, SERVER_BUNDLE_FILENAME));
+		assert.equal(
+			resolveProductionServerEntry(deployDir, 'dist'),
+			path.join(movedServerDir, SERVER_BUNDLE_FILENAME),
+		);
 		assert.doesNotThrow(() =>
-			assertProductionConfigIdentity(deployDir, path.join(movedServerDir, EMITTED_ECO_CONFIG_FILENAME)),
+			assertProductionConfigIdentity(deployDir, path.join(movedServerDir, EMITTED_ECO_CONFIG_FILENAME), {
+				distDir: 'dist',
+			}),
 		);
 	});
 
@@ -175,14 +183,92 @@ describe('server-bundle-deploy-manifest', () => {
 		const { rootDir, serverOutdir, emittedConfigPath } = createBuiltApp('eco-deploy-manifest-dist-dir-', 'build');
 
 		assert.equal(resolveProductionServerEntry(rootDir, 'build'), path.join(serverOutdir, SERVER_BUNDLE_FILENAME));
-		assert.equal(resolveProductionServerEntry(rootDir), undefined);
+		assert.equal(resolveProductionServerEntry(rootDir, 'dist'), undefined);
 		assert.doesNotThrow(() => assertProductionConfigIdentity(rootDir, emittedConfigPath, { distDir: 'build' }));
+	});
+
+	it('treats a server entry without a manifest as no bundle and refuses to check its config', () => {
+		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-deploy-manifest-missing-'));
+		tempDirs.push(rootDir);
+		const serverDir = path.join(rootDir, 'dist', SERVER_BUNDLE_DIR);
+		fileSystem.ensureDir(serverDir);
+		writeFileSync(path.join(serverDir, SERVER_BUNDLE_FILENAME), 'export {};\n', 'utf8');
+		const configPath = path.join(rootDir, 'eco.config.ts');
+		writeFileSync(configPath, 'export default {};\n', 'utf8');
+
+		assert.equal(resolveProductionServerEntry(rootDir, 'dist'), undefined);
+		assert.throws(
+			() => assertProductionConfigIdentity(rootDir, configPath, { distDir: 'dist' }),
+			/No readable production bundle manifest/,
+		);
 	});
 
 	it('resolves nothing when no server bundle was built', () => {
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-deploy-manifest-none-'));
 		tempDirs.push(rootDir);
 
-		assert.equal(resolveProductionServerEntry(rootDir), undefined);
+		assert.equal(resolveProductionServerEntry(rootDir, 'dist'), undefined);
+	});
+
+	describe('resolveProductionDistDir', () => {
+		it('selects the only build output below the project root, whatever its name', async () => {
+			const { rootDir } = createBuiltApp('eco-deploy-manifest-select-', 'build');
+
+			assert.equal(await resolveProductionDistDir({ cwd: rootDir }), path.join(rootDir, 'build'));
+		});
+
+		it('refuses to choose between build outputs and names each of them', async () => {
+			const { rootDir } = createBuiltApp('eco-deploy-manifest-ambiguous-', 'dist');
+			cpSync(path.join(rootDir, 'dist'), path.join(rootDir, 'build'), { recursive: true });
+
+			await assert.rejects(
+				resolveProductionDistDir({ cwd: rootDir }),
+				/Multiple production bundles found: build, dist\. Pass --dist-dir <dir> to select one\./,
+			);
+		});
+
+		it('finds a dot-prefixed build output', async () => {
+			const { rootDir } = createBuiltApp('eco-deploy-manifest-dot-', '.output');
+
+			assert.equal(await resolveProductionDistDir({ cwd: rootDir }), path.join(rootDir, '.output'));
+		});
+
+		it('tells how to select an output that discovery cannot see', async () => {
+			const { rootDir } = createBuiltApp('eco-deploy-manifest-nested-', 'out/web');
+
+			await assert.rejects(resolveProductionDistDir({ cwd: rootDir }), /or pass --dist-dir <dir>/);
+			assert.equal(
+				await resolveProductionDistDir({ cwd: rootDir, distDir: 'out/web' }),
+				path.join(rootDir, 'out', 'web'),
+			);
+		});
+
+		it('selects the named output among several', async () => {
+			const { rootDir } = createBuiltApp('eco-deploy-manifest-named-', 'dist');
+			cpSync(path.join(rootDir, 'dist'), path.join(rootDir, 'build'), { recursive: true });
+
+			assert.equal(
+				await resolveProductionDistDir({ cwd: rootDir, distDir: 'build' }),
+				path.join(rootDir, 'build'),
+			);
+		});
+
+		it('fails instead of using another output when the named one holds no bundle', async () => {
+			const { rootDir } = createBuiltApp('eco-deploy-manifest-named-missing-', 'dist');
+
+			await assert.rejects(
+				resolveProductionDistDir({ cwd: rootDir, distDir: 'build' }),
+				/No production bundle found in build\/\.server/,
+			);
+		});
+
+		it('asks for a build when there is no output, and ignores a directory without a manifest', async () => {
+			const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-deploy-manifest-empty-'));
+			tempDirs.push(rootDir);
+			fileSystem.ensureDir(path.join(rootDir, 'dist', SERVER_BUNDLE_DIR));
+			writeFileSync(path.join(rootDir, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME), 'export {};\n');
+
+			await assert.rejects(resolveProductionDistDir({ cwd: rootDir }), /Run `ecopages build`/);
+		});
 	});
 });

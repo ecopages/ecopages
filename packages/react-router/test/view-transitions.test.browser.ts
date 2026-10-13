@@ -109,7 +109,13 @@ describe('react-router view transitions', () => {
 	});
 
 	it('runs the swap inside startViewTransition and names the incoming page elements', async () => {
-		const startViewTransition = vi.spyOn(document, 'startViewTransition');
+		const namesWhenSwapped: string[][] = [];
+		const startTransition = document.startViewTransition.bind(document);
+		const startViewTransition = vi.spyOn(document, 'startViewTransition').mockImplementation((update) => {
+			const transition = startTransition(update);
+			void transition.updateCallbackDone.then(() => namesWhenSwapped.push(viewTransitionNames()));
+			return transition;
+		});
 		const index = createPage(
 			'index',
 			createElement('div', null, namedTitle('page-title'), createElement('a', { href: '/post' }, 'to post')),
@@ -122,7 +128,7 @@ describe('react-router view transitions', () => {
 
 		await expect.element(page.getByRole('heading', { name: 'post-title' })).toBeVisible();
 		expect(startViewTransition).toHaveBeenCalledTimes(1);
-		expect(viewTransitionNames()).toEqual(['post-title']);
+		await expect.poll(() => namesWhenSwapped).toEqual([['post-title']]);
 	});
 
 	it('skips view transitions and root styles when they are disabled', async () => {

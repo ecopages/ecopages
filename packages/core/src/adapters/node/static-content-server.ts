@@ -1,15 +1,19 @@
 import { createServer, type IncomingMessage, type Server as NodeHttpServer, type ServerResponse } from 'node:http';
-import { basename, extname, join, normalize, sep } from 'node:path';
+import { extname, join, normalize, sep } from 'node:path';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT, STATUS_MESSAGE } from '../../config/constants.ts';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { ServerUtils } from '../../utils/server-utils.module.ts';
-import { isContentHashedAssetFilename, hashBrowserAssetBytes } from '../../services/assets/hashed-browser-asset.ts';
+import { FileSystemServerResponseFactory } from '../shared/http/fs-server-response-factory.ts';
 
 type NodeStaticContentServerOptions = {
 	hostname?: string;
 	port?: number;
 };
+
+function normalizeHeader(value: string | string[] | undefined): string | undefined {
+	return Array.isArray(value) ? value.join(',') : value;
+}
 
 /**
  * Serves prebuilt static Ecopages output through Node's HTTP server.
@@ -22,6 +26,7 @@ type NodeStaticContentServerOptions = {
 export class NodeStaticContentServer {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly options: NodeStaticContentServerOptions;
+	private readonly fileResponseFactory = new FileSystemServerResponseFactory({ options: { watchMode: false } });
 	private server: NodeHttpServer | null = null;
 
 	/**
@@ -33,14 +38,6 @@ export class NodeStaticContentServer {
 			hostname: options?.hostname ?? DEFAULT_ECOPAGES_HOSTNAME,
 			port: options?.port ?? DEFAULT_ECOPAGES_PORT,
 		};
-	}
-
-	/**
-	 * Returns whether the given content type should be served from a pre-gzipped
-	 * companion file when available.
-	 */
-	private shouldServeGzip(contentType: string): boolean {
-		return ['text/javascript', 'text/css'].includes(contentType);
 	}
 
 	/**
@@ -95,89 +92,28 @@ export class NodeStaticContentServer {
 		this.sendResponse(res, 404, { 'Content-Type': 'text/html' }, isHead ? undefined : file);
 	}
 
-	/**
-	 * Serves one concrete file path, honoring gzip and HEAD semantics.
-	 */
-	private serveFile(req: IncomingMessage, res: ServerResponse, filePath: string, status = 200): void {
+	/** Serves one concrete file using the shared response, cache, ETag, and gzip policy. */
+	private async serveFile(req: IncomingMessage, res: ServerResponse, filePath: string): Promise<void> {
 		const contentType = ServerUtils.getContentType(extname(filePath));
-		const acceptsGzip = req.headers['accept-encoding']?.includes('gzip');
 		const isHead = (req.method ?? 'GET').toUpperCase() === 'HEAD';
-
-		if (acceptsGzip && this.shouldServeGzip(contentType)) {
-			const gzipPath = `${filePath}.gz`;
-			if (fileSystem.exists(gzipPath)) {
-				const file = fileSystem.readFileAsBuffer(gzipPath);
-				const cacheHeaders = this.fileCacheHeaders(filePath, file, req.headers['if-none-match']);
-				this.sendResponse(
-					res,
-					status,
-					{
-						'Content-Type': contentType,
-						'Content-Encoding': 'gzip',
-						Vary: 'Accept-Encoding',
-						...cacheHeaders.headers,
-					},
-					isHead ? undefined : file,
-				);
-				return;
-			}
-		}
-
-		if (!fileSystem.exists(filePath)) {
+		const response = await this.fileResponseFactory.createFileResponse(filePath, contentType, {
+			acceptEncoding: normalizeHeader(req.headers['accept-encoding']),
+			ifNoneMatch: normalizeHeader(req.headers['if-none-match']),
+		});
+		if (!response) {
 			this.sendNotFoundPage(req, res);
 			return;
 		}
 
-		const file = fileSystem.readFileAsBuffer(filePath);
-		const cacheHeaders = this.fileCacheHeaders(filePath, file, req.headers['if-none-match']);
-		if (cacheHeaders.notModified) {
-			this.sendResponse(res, 304, { 'Content-Type': contentType, ...cacheHeaders.headers });
-			return;
-		}
-		this.sendResponse(
-			res,
-			status,
-			{ 'Content-Type': contentType, ...cacheHeaders.headers },
-			isHead ? undefined : file,
-		);
-	}
-
-	/**
-	 * Returns Cache-Control (and ETag for HTML) for one served file.
-	 *
-	 * @remarks
-	 * Content-hashed production assets are `immutable`. Exported HTML lives at a
-	 * stable URL, so it is revalidated with ETag instead.
-	 */
-	private fileCacheHeaders(
-		filePath: string,
-		file: Buffer,
-		ifNoneMatch: string | string[] | undefined,
-	): { headers: Record<string, string>; notModified: boolean } {
-		if (isContentHashedAssetFilename(basename(filePath))) {
-			return { headers: { 'Cache-Control': 'public, max-age=31536000, immutable' }, notModified: false };
-		}
-
-		if (!ServerUtils.getContentType(extname(filePath)).startsWith('text/html')) {
-			return { headers: {}, notModified: false };
-		}
-
-		const etag = `"${hashBrowserAssetBytes(file)}"`;
-		const candidates = Array.isArray(ifNoneMatch) ? ifNoneMatch.join(',') : (ifNoneMatch ?? '');
-		const notModified = candidates.split(',').some((value) => {
-			const candidate = value.trim();
-			return candidate === etag || candidate === `W/${etag}`;
-		});
-		return {
-			headers: { 'Cache-Control': 'public, max-age=0, must-revalidate', ETag: etag },
-			notModified,
-		};
+		const headers = Object.fromEntries(response.headers.entries());
+		const body = isHead || !response.body ? undefined : Buffer.from(await response.arrayBuffer());
+		this.sendResponse(res, response.status, headers, body);
 	}
 
 	/**
 	 * Handles one incoming Node HTTP request against the built static output tree.
 	 */
-	private handleRequest(req: IncomingMessage, res: ServerResponse): void {
+	private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
 		const method = (req.method ?? 'GET').toUpperCase();
 		const isHead = method === 'HEAD';
 		if (method !== 'GET' && method !== 'HEAD') {
@@ -219,7 +155,7 @@ export class NodeStaticContentServer {
 
 		const filePath = ServerUtils.resolveStaticFilePath(join(this.appConfig.absolutePaths.distDir, relativePath));
 		if (filePath) {
-			this.serveFile(req, res, filePath);
+			await this.serveFile(req, res, filePath);
 			return;
 		}
 
@@ -234,7 +170,15 @@ export class NodeStaticContentServer {
 			return this.server;
 		}
 
-		this.server = createServer(this.handleRequest.bind(this));
+		this.server = createServer((req, res) => {
+			void this.handleRequest(req, res).catch((error: unknown) => {
+				if (res.headersSent) {
+					res.destroy(error instanceof Error ? error : undefined);
+					return;
+				}
+				this.sendResponse(res, 500, { 'Content-Type': 'text/plain' }, Buffer.from(STATUS_MESSAGE[500]));
+			});
+		});
 		const hostname = this.options.hostname ?? DEFAULT_ECOPAGES_HOSTNAME;
 		const port = this.options.port ?? DEFAULT_ECOPAGES_PORT;
 

@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { DEFAULT_ECOPAGES_DIST_DIR } from '../config/constants.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '../utils/resolve-entry-file.ts';
 
@@ -104,18 +103,62 @@ function readServerBundleDeployManifest(serverDir: string): ServerBundleDeployMa
 }
 
 /**
- * Returns the server entry that `ecopages start` runs, or `undefined` when no server bundle was built.
+ * Selects the build output directory whose server bundle `ecopages start` runs.
+ *
+ * @remarks
+ * `ecopages start` does not load the app config, so it cannot read `distDir` from it. A given `distDir` is used
+ * as is. Otherwise the directories directly below `cwd` that hold `.server/manifest.json` are the candidates:
+ * one is used, none or several fail. Dot-prefixed directories count; symlinked and nested outputs (`out/web`) do
+ * not, and need `--dist-dir`. Guessing between several would run a stale bundle from an earlier build
+ * that used another `distDir`.
+ *
+ * @param options.cwd - Project root.
+ * @param options.distDir - Directory named with `--dist-dir`, relative to `cwd`.
+ * @returns The absolute path of the build output directory.
+ */
+export async function resolveProductionDistDir(options: { cwd?: string; distDir?: string } = {}): Promise<string> {
+	const cwd = path.resolve(options.cwd ?? process.cwd());
+	const describe = (distDir: string) => path.relative(cwd, distDir) || '.';
+
+	if (options.distDir !== undefined) {
+		const distDir = path.resolve(cwd, options.distDir);
+		if (!fileSystem.exists(path.join(resolveServerBundleDir(cwd, distDir), SERVER_BUNDLE_MANIFEST_FILENAME))) {
+			throw new Error(
+				`No production bundle found in ${describe(distDir)}/${SERVER_BUNDLE_DIR}. Run \`ecopages build\` first.`,
+			);
+		}
+		return distDir;
+	}
+
+	const manifests = await fileSystem.glob([`{*,.*}/${SERVER_BUNDLE_DIR}/${SERVER_BUNDLE_MANIFEST_FILENAME}`], {
+		cwd,
+	});
+	const distDirs = manifests.map((manifest) => path.resolve(cwd, manifest, '..', '..')).sort();
+	if (distDirs.length > 1) {
+		throw new Error(
+			`Multiple production bundles found: ${distDirs.map(describe).join(', ')}. Pass --dist-dir <dir> to select one.`,
+		);
+	}
+	if (distDirs.length === 0) {
+		throw new Error(
+			'No production bundle found. Run `ecopages build` before starting in production mode, or pass --dist-dir <dir> for an output that is not a direct subdirectory.',
+		);
+	}
+	return distDirs[0]!;
+}
+
+/**
+ * Returns the server entry that `ecopages start` runs, or `undefined` when the build output has no manifest or its entry is missing.
  *
  * @param rootDir - Project root; `distDir` is relative to it.
- * @param distDir - The app's `distDir` setting.
+ * @param distDir - The build output directory.
  */
-export function resolveProductionServerEntry(
-	rootDir = process.cwd(),
-	distDir = DEFAULT_ECOPAGES_DIST_DIR,
-): string | undefined {
+export function resolveProductionServerEntry(rootDir: string, distDir: string): string | undefined {
 	const serverDir = resolveServerBundleDir(rootDir, distDir);
 	const manifest = readServerBundleDeployManifest(serverDir);
-	const serverEntryPath = path.join(serverDir, manifest?.serverEntry ?? SERVER_BUNDLE_FILENAME);
+	if (!manifest) return undefined;
+
+	const serverEntryPath = path.join(serverDir, manifest.serverEntry);
 	return fileSystem.exists(serverEntryPath) ? serverEntryPath : undefined;
 }
 
@@ -160,26 +203,32 @@ function hasConfigIdentity(manifest: ServerBundleDeployManifest): boolean {
  * @remarks
  * Production `start` must not load a different config than the one compiled into the bundle.
  *
- * @param rootDir - Project root; `distDir` is relative to it.
- * @param options.distDir - The app's `distDir` setting.
+ * @param rootDir - Project root; `options.distDir` is relative to it.
+ * @param options.distDir - The build output directory whose manifest is checked.
+ * @throws When that directory has no readable manifest, or the config differs from the one built.
  */
 export function assertProductionConfigIdentity(
 	rootDir: string,
 	requestedConfigPath: string | undefined,
-	options?: { isExplicitOverride?: boolean; distDir?: string },
+	options: { distDir: string; isExplicitOverride?: boolean },
 ): void {
 	if (!requestedConfigPath) {
 		return;
 	}
 
-	const manifestDir = resolveServerBundleDir(rootDir, options?.distDir ?? DEFAULT_ECOPAGES_DIST_DIR);
+	const manifestDir = resolveServerBundleDir(rootDir, options.distDir);
 	const manifest = readServerBundleDeployManifest(manifestDir);
-	if (!manifest || !hasConfigIdentity(manifest)) return;
+	if (!manifest) {
+		throw new Error(
+			`No readable production bundle manifest in ${path.join(manifestDir, SERVER_BUNDLE_MANIFEST_FILENAME)}. Run \`ecopages build\` again.`,
+		);
+	}
+	if (!hasConfigIdentity(manifest)) return;
 
 	if (
 		isEmittedConfigArtifact(manifest, manifestDir, requestedConfigPath) ||
 		matchesBuiltConfigHash(manifest, requestedConfigPath) ||
-		matchesBuiltConfigPath(manifest, rootDir, requestedConfigPath, options?.isExplicitOverride)
+		matchesBuiltConfigPath(manifest, rootDir, requestedConfigPath, options.isExplicitOverride)
 	) {
 		return;
 	}

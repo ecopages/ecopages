@@ -15,7 +15,7 @@ export default defineFixture(
 			{
 				name: 'html-pages-e2e',
 				mode: 'static',
-				port: 43120,
+				port: 4620,
 				testIgnore: [`${fixtureDirRelative}/**/*.dev.test.e2e.ts`],
 			},
 			{

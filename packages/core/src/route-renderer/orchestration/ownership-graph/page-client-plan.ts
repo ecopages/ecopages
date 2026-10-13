@@ -99,6 +99,11 @@ function collectPendingLazyClientEntries(
 
 /**
  * Walks the declared component graph once and returns every client entry for the page.
+ *
+ * @remarks
+ * Each component is visited once, but an island is a property of an edge: a repeat visit from a
+ * parent of another Integration still records the component, so the order in which parents reach
+ * it does not change the plan. A component is listed at most once.
  */
 export function collectPageClientPlan(
 	components: Array<EcoComponent | Partial<EcoComponent> | ComponentGraphRoot>,
@@ -114,10 +119,29 @@ export function collectPageClientPlan(
 	const childrenByComponent = new Map<object, EcoComponent[]>();
 	const integrationByComponent = new Map<object, string>();
 	const visited: EcoComponent[] = [];
+	const islandComponents = new Set<object>();
+
+	const recordIsland = ({ component, parentIntegrationName, source }: ComponentGraphWalkInput): void => {
+		const file = getComponentIdentity(component)?.file;
+		const integrationName =
+			integrationByComponent.get(component) ?? getIntegrationName(component, parentIntegrationName);
+		if (
+			!file ||
+			integrationName === parentIntegrationName ||
+			source === 'html-template' ||
+			islandComponents.has(component)
+		) {
+			return;
+		}
+
+		islandComponents.add(component);
+		islandEntries.push({ component, file, integrationName });
+	};
 
 	componentGraph.walkComponentGraph({
 		roots: toGraphRoots(components),
 		currentIntegrationName,
+		onRepeatVisit: recordIsland,
 		onComponent: ({ component, parentIntegrationName, source }: ComponentGraphWalkInput) => {
 			const integrationName = getIntegrationName(component, parentIntegrationName);
 			integrationNames.add(integrationName);
@@ -131,13 +155,10 @@ export function collectPageClientPlan(
 
 			collectPendingLazyClientEntries(component.config, lazyClientEntries, lazyConfigs, seenLazyKeys);
 
-			const file = getComponentIdentity(component)?.file;
-			if (file) {
+			if (getComponentIdentity(component)?.file) {
 				sourceComponents.push(component);
-				if (integrationName !== parentIntegrationName && source !== 'html-template') {
-					islandEntries.push({ component, file, integrationName });
-				}
 			}
+			recordIsland({ component, parentIntegrationName, source });
 
 			const children = (component.config?.dependencies?.components ?? []).filter(Boolean) as EcoComponent[];
 			childrenByComponent.set(component, children);

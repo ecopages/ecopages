@@ -2,33 +2,21 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createTestAppConfig } from '@ecopages/testing';
 import { IntegrationPlugin } from '../../../plugins/integration-plugin.ts';
-import { IntegrationRenderer } from '../../../route-renderer/orchestration/integration-renderer.ts';
+import { StringMarkupRenderer } from '../../../route-renderer/orchestration/string-markup-renderer.ts';
 import { FileScriptProcessor } from '../../../services/assets/asset-processing-service/processors/script/file-script.processor.ts';
 import { FileStylesheetProcessor } from '../../../services/assets/asset-processing-service/processors/stylesheet/file-stylesheet.processor.ts';
-import type {
-	EcoFunctionComponent,
-	IntegrationRendererRenderOptions,
-	RouteRendererBody,
-	RouteRendererOptions,
-	RouteRenderResult,
-} from '../../../types/public-types.ts';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import type { EcoComponent, EcoFunctionComponent, HtmlTemplateProps } from '../../../types/public-types.ts';
 import { createRenderContext } from './render-context.ts';
 
-class HandlerViewRenderer extends IntegrationRenderer {
+const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => `<html><body>${children}</body></html>`;
+
+class HandlerViewRenderer extends StringMarkupRenderer {
 	declare name: string;
 
-	async render(_options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
-		return '';
-	}
-
-	override async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
-		const view = options.pageModule?.default;
-		if (view) {
-			await this.processComponentDependencies([view]);
-		}
-		return { body: 'ok' };
+	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
+		return HtmlTemplate;
 	}
 }
 
@@ -62,42 +50,24 @@ describe('handler-rendered view asset cache', () => {
 		writeFileSync(path.join(viewDir, 'site.css'), 'body { color: red; }');
 		writeFileSync(path.join(viewDir, 'site.js'), 'console.log(1);\n');
 
-		const appConfig = {
-			rootDir,
-			srcDir: 'src',
-			distDir: 'dist',
-			absolutePaths: {
-				srcDir: path.join(rootDir, 'src'),
-				distDir: path.join(rootDir, 'dist'),
-			},
-			processors: new Map(),
-		} as unknown as EcoPagesAppConfig;
-
-		const plugin = new HandlerViewPlugin({
-			name: 'kitajs',
-			extensions: ['.kita.tsx'],
-		});
+		const appConfig = await createTestAppConfig({ rootDir, integrations: [] });
+		const plugin = new HandlerViewPlugin({ name: 'kitajs', extensions: ['.kita.tsx'] });
 		plugin.setConfig(appConfig);
 
-		const view = (() => '') as EcoFunctionComponent<Record<string, unknown>, string>;
+		const view = (() => '<main>Latest</main>') as EcoFunctionComponent<Record<string, unknown>, string>;
 		view.config = {
 			integration: 'kitajs',
-			identity: {
-				id: 'latest',
-				file: path.join(viewDir, 'latest.kita.tsx'),
-				integration: 'kitajs',
-			},
-			dependencies: {
-				stylesheets: ['./site.css'],
-				scripts: ['./site.js'],
-			},
+			identity: { id: 'latest', file: path.join(viewDir, 'latest.kita.tsx'), integration: 'kitajs' },
+			dependencies: { stylesheets: ['./site.css'], scripts: ['./site.js'] },
 		};
 
 		const renderContext = createRenderContext({ integrations: [plugin] });
 
-		await renderContext.render(view, {});
-		await renderContext.render(view, {});
+		const first = await (await renderContext.render(view, {})).text();
+		const second = await (await renderContext.render(view, {})).text();
 
+		expect(first).toContain('<main>Latest</main>');
+		expect(second).toContain('<main>Latest</main>');
 		expect(vi.mocked(FileStylesheetProcessor.prototype.process)).toHaveBeenCalledTimes(1);
 		expect(vi.mocked(FileScriptProcessor.prototype.process)).toHaveBeenCalledTimes(1);
 	});

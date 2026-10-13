@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { createPagePackage } from '../../services/assets/asset-processing-service/index.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from './foreign-child/component-render-context.ts';
 import { IntegrationRenderer } from './integration-renderer.ts';
+import { collectPageClientPlan } from './ownership-graph/page-client-plan.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import type {
@@ -822,6 +823,34 @@ describe('IntegrationRenderer', () => {
 			};
 
 			expect(renderer.testHasForeignChildDescendants(Root)).toBe(true);
+		});
+
+		it('should not reuse the page owner plan for a leaf of the renderer asking', async () => {
+			const renderer = new TestIntegrationRenderer({
+				appConfig: testAppConfig,
+				assetProcessingService: testAssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+
+			const Leaf = (() => '<span>Leaf</span>') as EcoComponent<Record<string, unknown>>;
+			Leaf.config = {
+				integration: 'test-renderer',
+				identity: { id: 'leaf', file: '/app/components/leaf.tsx', integration: 'test-renderer' },
+			};
+			const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
+			Page.config = {
+				integration: 'page-owner',
+				identity: { id: 'page', file: '/app/pages/index.tsx', integration: 'page-owner' },
+				dependencies: { components: [Leaf] },
+			};
+			const ownerPlan = collectPageClientPlan([Page], 'page-owner');
+
+			const hasForeignDescendants = await runWithComponentRenderContext(
+				{ currentIntegration: 'test-renderer', pageClientPlan: ownerPlan },
+				async () => renderer.testHasForeignChildDescendants(Leaf),
+			);
+
+			expect(hasForeignDescendants.value).toBe(false);
 		});
 	});
 

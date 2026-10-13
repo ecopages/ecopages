@@ -31,6 +31,7 @@ type ComponentGraphWalkState = {
 	seenConfigs: Set<object>;
 	visitLayout?: boolean;
 	onComponent?: (node: ComponentGraphWalkInput) => void | boolean;
+	onRepeatVisit?: (node: ComponentGraphWalkInput) => void;
 	onConfig?: (config: EcoComponent['config']) => void;
 };
 
@@ -110,6 +111,7 @@ function createComponentGraphVisitor(state: ComponentGraphWalkState) {
 
 		const ecoComponent = component as EcoComponent;
 		if (state.seenComponents.has(ecoComponent)) {
+			state.onRepeatVisit?.({ component: ecoComponent, parentIntegrationName, source });
 			return;
 		}
 
@@ -141,6 +143,7 @@ export function walkComponentGraph(input: {
 	currentIntegrationName: string;
 	visitLayout?: boolean;
 	onComponent?: (node: ComponentGraphWalkInput) => void | boolean;
+	onRepeatVisit?: (node: ComponentGraphWalkInput) => void;
 	onConfig?: (config: EcoComponent['config']) => void;
 }): void {
 	const state: ComponentGraphWalkState = {
@@ -148,6 +151,7 @@ export function walkComponentGraph(input: {
 		seenConfigs: new Set(),
 		visitLayout: input.visitLayout,
 		onComponent: input.onComponent,
+		onRepeatVisit: input.onRepeatVisit,
 		onConfig: input.onConfig,
 	};
 	const visitComponent = createComponentGraphVisitor(state);

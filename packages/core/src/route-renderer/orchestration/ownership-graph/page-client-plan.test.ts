@@ -123,3 +123,40 @@ test('collectPageClientPlan collects pending lazy client entries from the declar
 	assert.deepEqual(plan.lazyClientEntries, [lazyAsset]);
 	assert.equal(plan.lazyConfigs.length, 1);
 });
+
+test('collectPageClientPlan lists a component as an island when only a later parent is foreign to it', () => {
+	const button = createComponent({ integration: 'react', file: '/app/button.tsx' });
+	const reactParent = createComponent({ integration: 'react', file: '/app/react-parent.tsx', children: [button] });
+	const kitaParent = createComponent({ integration: 'kita', file: '/app/kita-parent.kita.tsx', children: [button] });
+
+	for (const parents of [
+		[reactParent, kitaParent],
+		[kitaParent, reactParent],
+	]) {
+		const page = createComponent({ integration: 'kita', file: '/app/page.kita.tsx', children: parents });
+		const plan = collectPageClientPlan([page], 'kita');
+
+		assert.deepEqual(plan.islandEntries.map((entry) => entry.file).sort(), [
+			'/app/button.tsx',
+			'/app/react-parent.tsx',
+		]);
+	}
+});
+
+test('collectPageClientPlan lists a component once when several foreign parents reach it', () => {
+	const button = createComponent({ integration: 'react', file: '/app/button.tsx' });
+	const firstParent = createComponent({ integration: 'kita', file: '/app/first.kita.tsx', children: [button] });
+	const secondParent = createComponent({ integration: 'kita', file: '/app/second.kita.tsx', children: [button] });
+	const page = createComponent({
+		integration: 'lit',
+		file: '/app/page.lit.ts',
+		children: [firstParent, secondParent],
+	});
+
+	const plan = collectPageClientPlan([page], 'lit');
+
+	assert.deepEqual(
+		plan.islandEntries.map((entry) => entry.file).filter((file) => file === '/app/button.tsx'),
+		['/app/button.tsx'],
+	);
+});

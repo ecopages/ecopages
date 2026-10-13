@@ -162,7 +162,8 @@ export class PageModuleLoaderService {
 	 * @remarks
 	 * Static props are resolved first because page metadata may depend on those
 	 * props. This preserves the same ordering whether data hooks are declared as
-	 * component statics or module exports.
+	 * component statics or module exports. Props passed with the render, such as
+	 * an explicit view's props, win over static props and are visible to metadata.
 	 */
 	async resolvePageData(options: {
 		pageModule: {
@@ -174,10 +175,11 @@ export class PageModuleLoaderService {
 		props: Record<string, unknown>;
 		metadata: PageMetadataProps;
 	}> {
-		const { props } = await this.getStaticPropsForPage({
+		const { props: staticProps } = await this.getStaticPropsForPage({
 			getStaticProps: options.pageModule.getStaticProps,
 			params: options.routeOptions.params,
 		});
+		const props = { ...staticProps, ...(options.routeOptions.props ?? {}) };
 
 		const metadata = await this.getMetadataPropsForPage({
 			getMetadata: options.pageModule.getMetadata,

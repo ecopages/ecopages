@@ -1010,12 +1010,19 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return getComponentRenderContext()?.islandRenderAssetsByFile ?? this.islandRenderAssetsByFile;
 	}
 
+	/**
+	 * @remarks
+	 * The active plan answers "foreign to whom" for the page owner. A nested renderer of another
+	 * Integration, such as a React leaf under a Kita page, must not reuse it: every React component
+	 * is foreign to Kita, so the plan would report foreign children for a leaf that has none. That
+	 * renderer builds a plan for itself.
+	 */
 	protected hasForeignChildDescendants(
 		component: EcoComponent,
 		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
 	): boolean {
 		const activePlan = getComponentRenderContext()?.pageClientPlan;
-		if (activePlan) {
+		if (activePlan?.currentIntegrationName === this.name) {
 			return planHasForeignChildDescendants(activePlan, component, this.name, foreignChildRoots);
 		}
 

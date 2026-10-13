@@ -2,7 +2,7 @@ import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { AppBuildManifest } from '../build/contracts/build-manifest.ts';
 import type { BuildAdapter } from '../build/build-adapter.ts';
 import type { BuildInputDependencyIndex } from '../build/cache/build-input-dependency-index.ts';
-import type { BuildRuntime } from '../build/runtime/build-runtime.ts';
+import type { BuildQueue } from '../build/runtime/build-queue.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type { EcoSourceTransform } from '../plugins/source-transform.ts';
@@ -182,8 +182,8 @@ export type EcoPagesAppConfig = {
 		serverInvalidationState?: ServerInvalidationState;
 		serverModuleTranspiler?: ServerModuleTranspiler;
 		routeModuleBuildCaches?: Map<string, RouteModuleBuildCache>;
-		/** Profile-based build runtime installed by {@link installBuildRuntime}. */
-		buildRuntime?: BuildRuntime;
+		/** The queue every build of the app goes through, installed by {@link installBuildQueue}. */
+		buildQueue?: BuildQueue;
 		/** Set after {@link setupAppRuntimePlugins} runs processor/integration setup once per process. */
 		runtimeAssetsPrepared?: boolean;
 		/**

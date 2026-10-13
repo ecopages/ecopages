@@ -6,12 +6,11 @@
  *
  * - `BuildAdapter` — the low-level backend contract. The bundled adapter
  *   is the backend.
- * - `BuildExecutor` — the runtime-facing facade stored on
- *   `appConfig.runtime.buildRuntime` via profile-based accessors.
+ * - `BuildExecutor` — the runtime-facing facade; the app's `BuildQueue`,
+ *   stored on `appConfig.runtime.buildQueue`, implements it.
  * - App-owned helpers (`getAppBuildAdapter` and the `set*` counterparts) —
  *   the supported way for runtime code to read and mutate the active adapter
- *   per `EcoPagesAppConfig`. Profile executors live on
- *   `appConfig.runtime.buildRuntime`.
+ *   per `EcoPagesAppConfig`.
  */
 
 import type { EcoBuildPlugin } from './contracts/build-types.ts';
@@ -225,8 +224,8 @@ export function getAppBrowserBuildPlugins(appConfig: EcoPagesAppConfig): EcoBuil
  *
  * @remarks
  * `executor` defaults to the default-bundler adapter for non-app-aware
- * callsites. App-aware code should pass a profile executor from
- * {@link requireBuildRuntime} to honor the per-app pipeline.
+ * callsites. App-aware code should pass the app's queue from
+ * {@link requireBuildQueue} to honor the per-app pipeline.
  */
 export function build(
 	options: BuildOptions,

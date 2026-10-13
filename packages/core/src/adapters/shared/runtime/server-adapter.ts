@@ -4,7 +4,7 @@ import type { ServerAdapterOptions, ServerAdapterResult } from '../../abstract/s
 import { RouteRendererFactory } from '../../../route-renderer/route-renderer.ts';
 import { RouteRegistry } from '../../../router/server/route-registry.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
-import { requestBuildDedupe } from '../../../diagnostics/request-build-dedupe.ts';
+import { requireBuildQueue } from '../../../build/runtime/build-queue.ts';
 import { getAppBuildInputIndex, runWithBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
 import { MemoryCacheStore } from '../../../services/cache/memory-cache-store.ts';
 import { PageCacheService, registerAppPageCacheService } from '../../../services/cache/page-cache-service.ts';
@@ -104,7 +104,7 @@ export abstract class SharedServerAdapter<
 			collectPathnames: () => collectAppDevPrewarmPaths(this.appConfig),
 			signal: this.devStaticRoutePrewarmAbort.signal,
 			renderPath: (pathname: string) =>
-				requestBuildDedupe.run(() =>
+				requireBuildQueue(this.appConfig).withRequestScope(() =>
 					runWithBuildInputIndex(getAppBuildInputIndex(this.appConfig), async () => {
 						const response = await this.routeHandler.handleResponse(
 							new Request(new URL(pathname, runtimeOrigin).toString(), { method: 'GET' }),
@@ -437,7 +437,7 @@ export abstract class SharedServerAdapter<
 	 * native HTTP objects into Web Standard Requests.
 	 */
 	public async handleSharedRequest(request: Request, context: SharedRequestContext): Promise<Response> {
-		return requestBuildDedupe.run(() =>
+		return requireBuildQueue(this.appConfig).withRequestScope(() =>
 			runWithBuildInputIndex(getAppBuildInputIndex(this.appConfig), () =>
 				startupTrace.traceFirstRequest(request, async () => {
 					const devClientResponse = await this.tryHandleSharedDevClientRequest(request, context);

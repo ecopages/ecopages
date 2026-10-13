@@ -3,7 +3,7 @@ import { describe, it } from 'vitest';
 import type { BuildResult } from '../../build/build-adapter.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
 import { setAppBuildAdapter } from '../../build/build-adapter.ts';
-import { requireBuildRuntime } from '../../build/runtime/build-runtime.ts';
+import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { CounterServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
 import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
@@ -135,7 +135,7 @@ describe('ServerModuleTranspiler', () => {
 		} as unknown as EcoPagesAppConfig;
 
 		setAppBuildAdapter(appConfig, new RolldownBuildAdapter());
-		const routeModuleExecutor = requireBuildRuntime(appConfig).getProfile('route-module');
+		const routeModuleExecutor = requireBuildQueue(appConfig);
 
 		const moduleLoader = getAppModuleLoader(appConfig) as unknown as {
 			pageModuleImportService: {

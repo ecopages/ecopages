@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, test, vi } from 'vitest';
-import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
+import { installBuildQueue } from '../../build/runtime/build-queue.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
@@ -118,9 +118,9 @@ test('NodeHmrManager registers script entrypoints with dev transform URLs withou
 		} as any,
 	});
 
-	installBuildRuntime(config);
+	const buildQueue = installBuildQueue(config);
 	const buildCalls: string[] = [];
-	config.runtime!.buildRuntime!.getProfile('browser-hmr').build = vi.fn(async (options) => {
+	buildQueue.build = vi.fn(async (options) => {
 		buildCalls.push(options.entrypoints[0] as string);
 		return {
 			success: true,

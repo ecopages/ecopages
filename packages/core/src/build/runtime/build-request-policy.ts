@@ -4,8 +4,7 @@ import type { BuildEnvironment, BuildOptions } from '../contracts/build-contract
 import { appliesToBuildEnvironment } from '../contracts/build-manifest.ts';
 import { getAppBrowserBuildPlugins, getAppServerBuildPlugins, getAppTranspileOptions } from '../build-adapter.ts';
 import { resolveBuildEnvironmentOptions } from './build-environment-options.ts';
-import { resolveBuildProfileOptions } from './build-profile-options.ts';
-import type { BuildProfile } from './build-runtime.ts';
+import { resolveBuildProfileOptions, type ServerBuildProfile } from './build-profile-options.ts';
 import { getJsxOwnershipPlugins } from '../browser/jsx-ownership-plugins.ts';
 import { getAppSourceTransforms, mergeSourceTransformPlugins } from '../../plugins/source-transform.ts';
 import { createPreserveImportMetaTransform } from '../preserve-import-meta-transform.ts';
@@ -49,7 +48,7 @@ export function mergeCallerBuildPlugins(
 
 export type ServerBuildRequestInput = Partial<BuildOptions> & {
 	entrypoints: BuildOptions['entrypoints'];
-	profile?: Extract<BuildProfile, 'server-entry' | 'route-module'>;
+	profile?: ServerBuildProfile;
 };
 
 export type BrowserBuildRequestInput = Partial<BuildOptions> & {

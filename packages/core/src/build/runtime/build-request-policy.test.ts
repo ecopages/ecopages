@@ -153,7 +153,7 @@ test('browser compilation on the route-module executor keeps browser defaults an
 	assert.equal(request.target, 'browser');
 	assert.equal(request.format, 'esm');
 	assert.ok(request.plugins?.every((plugin) => plugin.name !== 'server-only'));
-	const { installBuildRuntime, requireBuildRuntime } = await import('./build-runtime.ts');
+	const { installBuildQueue, requireBuildQueue } = await import('./build-queue.ts');
 	const observed: import('../contracts/build-contracts.ts').BuildOptions[] = [];
 	appConfig.runtime ??= {};
 	appConfig.runtime.buildAdapter = {
@@ -168,8 +168,8 @@ test('browser compilation on the route-module executor keeps browser defaults an
 			return { target: 'browser', format: 'esm', sourcemap: 'none' };
 		},
 	};
-	installBuildRuntime(appConfig);
-	await requireBuildRuntime(appConfig).getProfile('route-module').build(request);
+	installBuildQueue(appConfig);
+	await requireBuildQueue(appConfig).build(request);
 	assert.equal(observed[0]?.environment, 'browser');
 	assert.equal(observed[0]?.target, 'browser');
 });

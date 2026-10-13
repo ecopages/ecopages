@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { installBuildRuntime } from '../build/runtime/build-runtime.ts';
+import { installBuildQueue } from '../build/runtime/build-queue.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { BrowserBundleService } from '../services/assets/browser-bundle.service.ts';
 import { DevToolbarHost } from './dev-toolbar-host.ts';
@@ -25,7 +25,7 @@ describe('dev toolbar runtime bundle', () => {
 			devToolbar: { package: '@ecopages/dev-toolbar' },
 		});
 
-		installBuildRuntime(appConfig);
+		installBuildQueue(appConfig);
 		const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-toolbar-runtime-'));
 		workDirs.push(workDir);
 

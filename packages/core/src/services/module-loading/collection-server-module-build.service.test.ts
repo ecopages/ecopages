@@ -37,13 +37,7 @@ describe('buildCollectionServerModule', () => {
 			absolutePaths: { workDir: path.join(rootDir, '.eco') },
 			integrations: [],
 			runtime: {
-				buildRuntime: {
-					getProfile: (profile: string) => {
-						assert.equal(profile, 'route-module');
-						return routeModuleExecutor;
-					},
-					dispose: async () => {},
-				},
+				buildQueue: routeModuleExecutor,
 			},
 		} as unknown as EcoPagesAppConfig;
 

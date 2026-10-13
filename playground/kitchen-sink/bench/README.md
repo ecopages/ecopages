@@ -212,6 +212,7 @@ bench/
   the same way `createApp()` finalizes `eco.config.ts`.
 - `lib/static-build-fixture.ts` — bootstrap for static-build benches.
 - `lib/bench-env.ts` — temporary env overrides for graph on/off scenarios.
+- `lib/startup-bench-process.mjs` — spawns, waits for and stops the dev child of the startup benchmark. A child that dies of a signal counts as exited, so stopping it never waits for the timeout.
 - `scripts/consolidate-baseline.ts` — reads `mitata-bench.json`, writes `bench-baseline.json`.
 - `scripts/compare-baseline.ts` — diffs `mitata-bench.json` against `bench-baseline.json`.
 - `startup/run.mjs` — process-level dev startup + first-page interactive timing.

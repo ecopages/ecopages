@@ -24,11 +24,7 @@ import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { createRouteModuleReuseIdentity, resolvePageModuleOutputFileName } from './route-module-build-manifest.ts';
 import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
-import {
-	RouteModuleDependencyHasher,
-	resolveRouteModuleDependencyPaths,
-	type RouteModuleDependencyHashes,
-} from './route-module-dependency-hasher.ts';
+import { resolveRouteModuleDependencyPaths } from './route-module-dependency-hasher.ts';
 import { assertBuildSucceeded } from '../../build/build-log.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
 
@@ -77,12 +73,10 @@ export interface PageModuleImportDependencies {
 
 interface ImportCacheEntry {
 	promise: Promise<unknown>;
-	dependencyHashes?: RouteModuleDependencyHashes;
 }
 
 type LoadModuleOptions = PageModuleBuildImportOptions & {
 	fileHash: string;
-	importCacheKey?: string;
 };
 
 /**
@@ -97,7 +91,6 @@ type LoadModuleOptions = PageModuleBuildImportOptions & {
 export class PageModuleImportService {
 	private readonly appConfig?: EcoPagesAppConfig;
 	private readonly dependencies: PageModuleImportDependencies;
-	private readonly dependencyHasher: RouteModuleDependencyHasher;
 	private readonly importCache = new Map<string, ImportCacheEntry>();
 	private developmentImportGeneration = 0;
 
@@ -112,10 +105,6 @@ export class PageModuleImportService {
 						options,
 					)),
 		};
-		this.dependencyHasher = new RouteModuleDependencyHasher({
-			hashFile: (filePath) => this.dependencies.hashFile(filePath),
-			exists: (filePath) => fileSystem.exists(filePath),
-		});
 	}
 
 	/**
@@ -130,13 +119,16 @@ export class PageModuleImportService {
 	}
 
 	/**
-	 * Clears in-memory import promises and dependency-hash memoization so the next
-	 * import revalidates against current source and transform identity.
+	 * Clears in-memory import promises and advances the development generation so the next
+	 * import rebuilds against current source and transform identity.
+	 *
+	 * @remarks
+	 * This is the only way a cached development import is dropped: the cache does not re-hash a module's
+	 * dependencies on a hit, because the watcher records every server module closure and invalidates it.
 	 */
 	invalidateDevelopmentGraph(): void {
 		this.developmentImportGeneration += 1;
 		this.clearImportCache();
-		this.dependencyHasher.clearMemo();
 	}
 
 	/**
@@ -165,25 +157,14 @@ export class PageModuleImportService {
 			const cachedModule = this.importCache.get(cacheKey);
 
 			if (cachedModule) {
-				if (!cachedModule.dependencyHashes) {
-					const loadedModule = (await cachedModule.promise) as T;
-					recordPageModuleLoad('import-cache-hit');
-					return loadedModule;
-				}
-
-				if (this.dependencyHasher.matchesStoredHashes(cachedModule.dependencyHashes, filePath, fileHash)) {
-					const loadedModule = (await cachedModule.promise) as T;
-					recordPageModuleLoad('import-cache-hit');
-					return loadedModule;
-				}
-
-				this.importCache.delete(cacheKey);
+				const loadedModule = (await cachedModule.promise) as T;
+				recordPageModuleLoad('import-cache-hit');
+				return loadedModule;
 			}
 
 			const importPromise = this.loadModule<T>({
 				...options,
 				fileHash,
-				importCacheKey: cacheKey,
 			});
 
 			this.importCache.set(cacheKey, { promise: importPromise });
@@ -223,7 +204,6 @@ export class PageModuleImportService {
 		const importPromise = this.loadModule<T>({
 			...options,
 			fileHash: this.dependencies.hashFile(options.filePath),
-			importCacheKey: cacheKey,
 		});
 		this.importCache.set(cacheKey, { promise: importPromise });
 
@@ -336,22 +316,11 @@ export class PageModuleImportService {
 		fileHash: string,
 		rootDir: string,
 		buildResult: BuildResult,
-		importCacheKey: string | undefined,
 		cacheBuildOptions: ReturnType<PageModuleImportService['createRouteModuleCacheBuildOptions']>,
 		outdir: string,
 	): Promise<T> {
 		const dependencyModulePaths = resolveRouteModuleDependencyPaths(buildResult, filePath, rootDir);
 		this.registerRouteModuleDependencies(filePath, dependencyModulePaths);
-		const dependencyHashes = this.dependencyHasher.createDependencyHashes(dependencyModulePaths);
-		dependencyHashes[path.normalize(filePath)] = fileHash;
-
-		if (importCacheKey) {
-			const cacheEntry = this.importCache.get(importCacheKey);
-			if (cacheEntry) {
-				cacheEntry.dependencyHashes = dependencyHashes;
-			}
-		}
-
 		this.getRouteModuleBuildCache(outdir).recordBuild({
 			...cacheBuildOptions,
 			outputPath: compiledOutput,
@@ -378,7 +347,7 @@ export class PageModuleImportService {
 	}
 
 	private async loadModule<T = unknown>(options: LoadModuleOptions): Promise<T> {
-		const { filePath, fileHash, importCacheKey } = options;
+		const { filePath, fileHash } = options;
 		const owner = this.appConfig && findIntegrationForFile(this.appConfig.integrations, filePath);
 		if (this.appConfig && owner?.compilePageModule) {
 			return (await owner.compilePageModule(filePath, this.appConfig)) as T;
@@ -434,7 +403,6 @@ export class PageModuleImportService {
 			fileHash,
 			resolvedRootDir,
 			buildResult,
-			importCacheKey,
 			cacheBuildOptions,
 			resolvedOutdir,
 		);

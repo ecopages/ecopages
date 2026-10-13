@@ -242,10 +242,6 @@ describe('FileSystemResponseMatcher', () => {
 			expect(response.headers.get('X-Cache')).toBe('DISABLED');
 			expect(response.headers.get('Cache-Control')).toBe('no-store, must-revalidate');
 		});
-
-		it('should return null for getCacheService when not configured', () => {
-			expect(matcherWithoutCache.getCacheService()).toBeNull();
-		});
 	});
 
 	describe('with cache service', () => {
@@ -262,10 +258,6 @@ describe('FileSystemResponseMatcher', () => {
 			fileSystemResponseFactory,
 			cacheService,
 			defaultCacheStrategy: 'static',
-		});
-
-		it('should return cache service via getCacheService', () => {
-			expect(matcherWithCache.getCacheService()).toBe(cacheService);
 		});
 
 		it('should return X-Cache header on first request (MISS)', async () => {

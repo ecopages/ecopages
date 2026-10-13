@@ -224,6 +224,36 @@ test('NodeHmrManager stop clears retained registration state', async () => {
 	assert.equal(config.runtime?.entrypointDependencyGraph?.getDependencyEntrypoints(entrypointPath).size, 0);
 });
 
+test('NodeHmrManager leaves server modules of a registered entrypoint edit to the watcher batch', async () => {
+	const rootDir = createTempRoot('ecopages-node-hmr-no-second-invalidation');
+	const pagesDir = path.join(rootDir, 'src', 'pages');
+	fs.mkdirSync(pagesDir, { recursive: true });
+
+	const entrypointPath = path.join(pagesDir, 'react-content.tsx');
+	fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
+
+	const config = await finalizeEcoPagesConfig({ rootDir });
+	const appModuleLoader = {
+		importModule: vi.fn(async () => ({})),
+		invalidateDevelopmentGraph: vi.fn(),
+	};
+	config.runtime = { ...config.runtime, appModuleLoader: appModuleLoader as never };
+	using manager = new NodeHmrManager({
+		appConfig: config,
+		bridge: {
+			subscriberCount: 1,
+			broadcast: () => {},
+		} as any,
+	});
+	manager.setEnabled(true);
+
+	await manager.registerEntrypoint(entrypointPath);
+	await manager.handleFileChange(entrypointPath);
+
+	assert.equal(appModuleLoader.invalidateDevelopmentGraph.mock.calls.length, 0);
+	assert.equal(appModuleLoader.importModule.mock.calls.length, 0);
+});
+
 test('NodeHmrManager keeps internal browser and server-module outputs out of distDir', async () => {
 	const rootDir = createTempRoot('ecopages-node-hmr-internal-paths');
 	const config = await finalizeEcoPagesConfig({ rootDir });

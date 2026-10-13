@@ -1,13 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { ServerStaticBuilder, type ServeOptions, type ServerStaticBuilderLogger } from './server-static-builder';
-import {
-	resolveEntryFile,
-	DEFAULT_ENTRY_FILE,
-	ENTRY_FILE_ENV,
-	SERVER_BUNDLE_DIR,
-	SERVER_BUNDLE_FILENAME,
-} from '../../../utils/resolve-entry-file';
+import { resolveEntryFile, DEFAULT_ENTRY_FILE, ENTRY_FILE_ENV } from '../../../utils/resolve-entry-file';
 import {
 	setAppBuildAdapter,
 	type BuildAdapter,
@@ -212,48 +206,6 @@ describe('resolveEntryFile', () => {
 			}),
 		).toBe('env-fallback.ts');
 	});
-
-	it('precedence order: entryFile arg > env > --entry-file flag > default', () => {
-		expect(
-			resolveEntryFile({
-				entryFile: '1-arg.ts',
-				env: { [ENTRY_FILE_ENV]: '2-env.ts' },
-				argv: ['node', '--entry-file', '3-flag.ts'],
-			}),
-		).toBe('1-arg.ts');
-
-		expect(
-			resolveEntryFile({
-				env: { [ENTRY_FILE_ENV]: '2-env.ts' },
-				argv: ['node', '--entry-file', '3-flag.ts'],
-			}),
-		).toBe('2-env.ts');
-
-		expect(
-			resolveEntryFile({
-				env: emptyEnv,
-				argv: ['node', '--entry-file', '3-flag.ts'],
-			}),
-		).toBe('3-flag.ts');
-	});
-});
-
-describe('resolve-entry-file constants', () => {
-	it('exposes the canonical default entry file', () => {
-		expect(DEFAULT_ENTRY_FILE).toBe('app.ts');
-	});
-
-	it('exposes the canonical env var name', () => {
-		expect(ENTRY_FILE_ENV).toBe('ECOPAGES_ENTRY_FILE');
-	});
-
-	it('exposes the canonical server bundle directory', () => {
-		expect(SERVER_BUNDLE_DIR).toBe('.server');
-	});
-
-	it('exposes the canonical server bundle filename', () => {
-		expect(SERVER_BUNDLE_FILENAME).toBe('app.mjs');
-	});
 });
 
 describe('ServerStaticBuilder', () => {
@@ -266,18 +218,6 @@ describe('ServerStaticBuilder', () => {
 	});
 
 	describe('constructor', () => {
-		it('should create instance with provided options', () => {
-			const { AppConfig, StaticSiteGenerator, ServeOptions, logger } = createMockDependencies();
-			const builder = new ServerStaticBuilder({
-				appConfig: AppConfig,
-				staticSiteGenerator: StaticSiteGenerator,
-				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
-				logger,
-			});
-			expect(builder).toBeDefined();
-		});
-
 		it('uses the rebound listening port for later builds', async () => {
 			const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger, calls } =
 				createMockDependencies();

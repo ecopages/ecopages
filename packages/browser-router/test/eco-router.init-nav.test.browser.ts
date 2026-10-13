@@ -12,11 +12,6 @@ describe('EcoRouter', () => {
 	installEcoRouterTestHooks(fixtures);
 
 	describe('Initialization', () => {
-		it('should create router instance', () => {
-			fixtures.router = createRouter();
-			expect(fixtures.router).toBeInstanceOf(EcoRouter);
-		});
-
 		it('should reuse the active router instance across repeated createRouter calls', () => {
 			const firstRouter = createRouter();
 			const secondRouter = createRouter();
@@ -40,12 +35,6 @@ describe('EcoRouter', () => {
 				owner: 'none',
 				canHandleSpaNavigation: false,
 			});
-		});
-
-		it('should start and stop without errors', () => {
-			fixtures.router = new EcoRouter();
-			expect(() => fixtures.router!.start()).not.toThrow();
-			expect(() => fixtures.router!.stop()).not.toThrow();
 		});
 	});
 

@@ -93,6 +93,7 @@ You can customize the router behavior by passing an options object:
 | `smoothScroll`                    | `boolean`                       | `false`                                      | Enables smooth scrolling.                                                                                                                                       |
 | `viewTransitions`                 | `boolean`                       | `true`                                       | Enables [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API). Disables UA root crossfade by default. `false` disables. |
 | `prefetch`                        | `PrefetchConfig \| false`       | `Object`                                     | Configuration for prefetching behavior.                                                                                                                         |
+| `reloadDocument`                  | `(href: string) => void`        | `(href) => window.location.assign(href)`     | Loads a URL as a full document when the router hands a navigation back to the browser.                                                                          |
 
 ### View Transitions
 

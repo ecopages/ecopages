@@ -1,10 +1,8 @@
-import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ReactHmrStrategy } from './hmr-strategy.ts';
 import { HmrPageMetadataCache } from './page-metadata-cache.ts';
 import type { DefaultHmrContext } from '@ecopages/core';
 import { createBrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
-import { HmrStrategyType } from '@ecopages/core/hmr/hmr-strategy';
 
 const defaultRuntimeManifest = createBrowserRuntimeManifest([
 	{
@@ -48,25 +46,19 @@ function createPageMetadataCache(
 		initialOwnedEntrypoints?: string[];
 		getDeclaredModules?: (entrypointPath: string) => string[] | undefined;
 		ownsEntrypoint?: (entrypointPath: string) => boolean;
-		markOwnedEntrypoint?: (entrypointPath: string) => void;
-		setDeclaredModules?: (entrypointPath: string, declaredModules: string[]) => void;
 	} = {},
-) {
-	const owned = new Set(
-		(overrides.initialOwnedEntrypoints ?? []).map((entrypointPath) => path.resolve(entrypointPath)),
-	);
-
-	return {
-		getDeclaredModules: overrides.getDeclaredModules ?? (() => undefined),
-		getOwnedEntrypoints: () => [...owned].sort((left, right) => left.localeCompare(right)),
-		ownsEntrypoint:
-			overrides.ownsEntrypoint ?? ((entrypointPath: string) => owned.has(path.resolve(entrypointPath))),
-		markOwnedEntrypoint: (entrypointPath: string) => {
-			owned.add(path.resolve(entrypointPath));
-			overrides.markOwnedEntrypoint?.(entrypointPath);
-		},
-		setDeclaredModules: overrides.setDeclaredModules ?? (() => undefined),
-	};
+): HmrPageMetadataCache {
+	const cache = new HmrPageMetadataCache();
+	for (const entrypointPath of overrides.initialOwnedEntrypoints ?? []) {
+		cache.markOwnedEntrypoint(entrypointPath);
+	}
+	if (overrides.getDeclaredModules) {
+		vi.spyOn(cache, 'getDeclaredModules').mockImplementation(overrides.getDeclaredModules);
+	}
+	if (overrides.ownsEntrypoint) {
+		vi.spyOn(cache, 'ownsEntrypoint').mockImplementation(overrides.ownsEntrypoint);
+	}
+	return cache;
 }
 
 function createImportServerModuleMock(result: {
@@ -130,7 +122,7 @@ function createRegisteredScriptStrategy(options: {
 		}),
 		pageMetadataCache: createPageMetadataCache({
 			ownsEntrypoint,
-		}) as any,
+		}),
 		runtimeManifest: defaultRuntimeManifest,
 		ownedTemplateExtensions,
 		allTemplateExtensions,
@@ -142,23 +134,13 @@ describe('ReactHmrStrategy', () => {
 		vi.restoreAllMocks();
 	});
 
-	it('has INTEGRATION type', () => {
-		const strategy = new ReactHmrStrategy({
-			context: createMockContext(),
-			pageMetadataCache: createPageMetadataCache() as any,
-			runtimeManifest: defaultRuntimeManifest,
-		});
-
-		expect(strategy.type).toBe(HmrStrategyType.INTEGRATION);
-	});
-
 	it('claims owned React entrypoints for dev transform plugin selection', () => {
 		const pagePath = '/tmp/src/pages/index.tsx';
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext(),
 			pageMetadataCache: createPageMetadataCache({
 				ownsEntrypoint: (entrypointPath) => entrypointPath === pagePath,
-			}) as any,
+			}),
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
@@ -169,7 +151,7 @@ describe('ReactHmrStrategy', () => {
 		const pagePath = '/tmp/src/pages/dashboard.tsx';
 		const strategy = new ReactHmrStrategy({
 			context: createMockContext(),
-			pageMetadataCache: createPageMetadataCache() as any,
+			pageMetadataCache: createPageMetadataCache(),
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
@@ -204,7 +186,7 @@ describe('ReactHmrStrategy', () => {
 			context: createMockContext(),
 			pageMetadataCache: createPageMetadataCache({
 				ownsEntrypoint: (entrypointPath) => entrypointPath === pagePath,
-			}) as any,
+			}),
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
@@ -221,7 +203,7 @@ describe('ReactHmrStrategy', () => {
 			}),
 			pageMetadataCache: createPageMetadataCache({
 				ownsEntrypoint: (entrypointPath) => entrypointPath === '/tmp/src/pages/react-lab.tsx',
-			}) as any,
+			}),
 			runtimeManifest: defaultRuntimeManifest,
 			ownedTemplateExtensions: ['.tsx', '.react.tsx'],
 			allTemplateExtensions: ['.tsx', '.react.tsx', '.kita.tsx', '.lit.tsx'],
@@ -318,7 +300,7 @@ describe('ReactHmrStrategy', () => {
 			context: createMockContext({
 				importServerModule,
 			}),
-			pageMetadataCache: createPageMetadataCache() as any,
+			pageMetadataCache: createPageMetadataCache(),
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
@@ -343,7 +325,7 @@ describe('ReactHmrStrategy', () => {
 				getDeclaredModules: () => [],
 				ownsEntrypoint: (entrypointPath) => entrypointPath === changedEntrypoint,
 				initialOwnedEntrypoints: [changedEntrypoint],
-			}) as any,
+			}),
 			runtimeManifest: defaultRuntimeManifest,
 			ownedTemplateExtensions: ['.react.tsx'],
 			allTemplateExtensions: ['.react.tsx', '.mdx', '.kita.tsx'],
@@ -379,7 +361,7 @@ describe('ReactHmrStrategy', () => {
 			pageMetadataCache: createPageMetadataCache({
 				getDeclaredModules: () => [],
 				initialOwnedEntrypoints: [entrypointA, entrypointB],
-			}) as any,
+			}),
 			runtimeManifest: defaultRuntimeManifest,
 			getMdxLoaderPlugin: () => ({ name: 'mdx-loader', setup: () => {} }),
 			ownedTemplateExtensions: ['.react.tsx', '.mdx'],
@@ -418,7 +400,7 @@ describe('ReactHmrStrategy', () => {
 				getDeclaredModules: () => [],
 				ownsEntrypoint: (entrypointPath) => entrypointPath === changedEntrypoint,
 				initialOwnedEntrypoints: [changedEntrypoint, '/tmp/src/pages/dashboard.tsx'],
-			}) as any,
+			}),
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
@@ -449,7 +431,7 @@ describe('ReactHmrStrategy', () => {
 				getDeclaredModules: () => [],
 				ownsEntrypoint: (entrypointPath) => entrypointPath === changedEntrypoint,
 				initialOwnedEntrypoints: [changedEntrypoint],
-			}) as any,
+			}),
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
@@ -482,7 +464,7 @@ describe('ReactHmrStrategy', () => {
 			pageMetadataCache: createPageMetadataCache({
 				getDeclaredModules: () => [],
 				initialOwnedEntrypoints: [pageEntrypoint, '/tmp/src/pages/dashboard.tsx'],
-			}) as any,
+			}),
 			runtimeManifest: defaultRuntimeManifest,
 		});
 
@@ -525,7 +507,7 @@ describe('ReactHmrStrategy', () => {
 				}),
 				pageMetadataCache: createPageMetadataCache({
 					ownsEntrypoint: (entrypointPath) => entrypointPath === '/tmp/src/pages/index.tsx',
-				}) as any,
+				}),
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
@@ -551,7 +533,7 @@ describe('ReactHmrStrategy', () => {
 				}),
 				pageMetadataCache: createPageMetadataCache({
 					ownsEntrypoint: (entrypointPath) => entrypointPath === '/tmp/src/pages/index.tsx',
-				}) as any,
+				}),
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
@@ -583,7 +565,7 @@ describe('ReactHmrStrategy', () => {
 					getDeclaredModules: () => [],
 					ownsEntrypoint: (entrypointPath) =>
 						entrypointPath === entrypointA || entrypointPath === entrypointB,
-				}) as any,
+				}),
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
@@ -622,7 +604,7 @@ describe('ReactHmrStrategy', () => {
 				pageMetadataCache: createPageMetadataCache({
 					getDeclaredModules: () => [],
 					ownsEntrypoint: (entrypointPath) => entrypointPath === entrypointA,
-				}) as any,
+				}),
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
@@ -660,7 +642,7 @@ describe('ReactHmrStrategy', () => {
 						entrypointPath === entrypointA ||
 						entrypointPath === entrypointB ||
 						entrypointPath === layoutEntrypoint,
-				}) as any,
+				}),
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
@@ -730,7 +712,7 @@ describe('ReactHmrStrategy', () => {
 					initialOwnedEntrypoints: [entrypointA, entrypointB],
 					ownsEntrypoint: (entrypointPath) =>
 						entrypointPath === entrypointA || entrypointPath === entrypointB,
-				}) as any,
+				}),
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
@@ -771,7 +753,7 @@ describe('ReactHmrStrategy', () => {
 					initialOwnedEntrypoints: [entrypointA, entrypointB],
 					ownsEntrypoint: (entrypointPath) =>
 						entrypointPath === entrypointA || entrypointPath === entrypointB,
-				}) as any,
+				}),
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
@@ -847,7 +829,7 @@ describe('ReactHmrStrategy', () => {
 					initialOwnedEntrypoints: [entrypointA, entrypointB],
 					ownsEntrypoint: (entrypointPath) =>
 						entrypointPath === entrypointA || entrypointPath === entrypointB,
-				}) as any,
+				}),
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
@@ -919,7 +901,7 @@ describe('ReactHmrStrategy', () => {
 						entrypointPath === entrypointA ||
 						entrypointPath === entrypointB ||
 						entrypointPath === changedComponent,
-				}) as any,
+				}),
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
@@ -952,7 +934,7 @@ describe('ReactHmrStrategy', () => {
 				}),
 				pageMetadataCache: createPageMetadataCache({
 					ownsEntrypoint: (entrypointPath) => entrypointPath === entrypointA,
-				}) as any,
+				}),
 				runtimeManifest: defaultRuntimeManifest,
 			});
 
@@ -983,7 +965,7 @@ describe('ReactHmrStrategy', () => {
 					getDeclaredModules: () => [],
 					ownsEntrypoint: (entrypointPath) =>
 						entrypointPath === entrypointA || entrypointPath === entrypointB,
-				}) as any,
+				}),
 				runtimeManifest: defaultRuntimeManifest,
 			});
 

@@ -35,134 +35,54 @@ function createMatcher(staticRoutes: StaticRoute[]) {
 
 describe('ExplicitStaticRouteMatcher', () => {
 	describe('match', () => {
-		test('should match exact static path', () => {
-			const matcher = createMatcher([createMockRoute('/about')]);
+		test.each([
+			{ pattern: '/about', url: '/about', params: {} },
+			{ pattern: '/', url: '/', params: {} },
+			{ pattern: '/docs/getting-started', url: '/docs/getting-started', params: {} },
+			{ pattern: '/blog/:slug', url: '/blog/hello-world', params: { slug: 'hello-world' } },
+			{
+				pattern: '/blog/:year/:month/:slug',
+				url: '/blog/2024/01/hello-world',
+				params: { year: '2024', month: '01', slug: 'hello-world' },
+			},
+			{ pattern: '/users/:id/posts', url: '/users/123/posts', params: { id: '123' } },
+			{ pattern: '/blog/[slug]', url: '/blog/hello-world', params: { slug: 'hello-world' } },
+			{
+				pattern: '/products/[category]/[id]',
+				url: '/products/electronics/12345',
+				params: { category: 'electronics', id: '12345' },
+			},
+			{
+				pattern: '/docs/[...path]',
+				url: '/docs/api/reference/components',
+				params: { path: 'api/reference/components' },
+			},
+			{
+				pattern: '/files/:...path',
+				url: '/files/images/2024/photo.jpg',
+				params: { path: 'images/2024/photo.jpg' },
+			},
+			{ pattern: '/docs/[...path]', url: '/docs/intro', params: { path: 'intro' } },
+			{ pattern: '/search', url: '/search?q=test&page=1', params: {} },
+			{ pattern: '/docs/intro', url: '/docs/intro#section-1', params: {} },
+			{ pattern: '/about', url: '/about/', params: {} },
+		])('matches $pattern against $url', ({ pattern, url, params }) => {
+			const matcher = createMatcher([createMockRoute(pattern)]);
 
-			const result = matcher.match('http://localhost:3000/about');
+			const result = matcher.match(`http://localhost:3000${url}`);
 
-			expect(result).not.toBeNull();
-			expect(result?.route.path).toBe('/about');
-			expect(result?.params).toEqual({});
+			expect(result?.route.path).toBe(pattern);
+			expect(result?.params).toEqual(params);
 		});
 
-		test('should match root path', () => {
-			const matcher = createMatcher([createMockRoute('/')]);
+		test.each([
+			{ name: 'a different path', routes: ['/about'], url: '/contact' },
+			{ name: 'a longer path than the route', routes: ['/about'], url: '/about/team' },
+			{ name: 'an empty route list', routes: [], url: '/anything' },
+		])('returns null for $name', ({ routes, url }) => {
+			const matcher = createMatcher(routes.map((route) => createMockRoute(route)));
 
-			const result = matcher.match('http://localhost:3000/');
-
-			expect(result).not.toBeNull();
-			expect(result?.route.path).toBe('/');
-			expect(result?.params).toEqual({});
-		});
-
-		test('should match nested static path', () => {
-			const matcher = createMatcher([createMockRoute('/docs/getting-started')]);
-
-			const result = matcher.match('http://localhost:3000/docs/getting-started');
-
-			expect(result).not.toBeNull();
-			expect(result?.route.path).toBe('/docs/getting-started');
-		});
-
-		test('should return null for non-matching path', () => {
-			const matcher = createMatcher([createMockRoute('/about')]);
-
-			const result = matcher.match('http://localhost:3000/contact');
-
-			expect(result).toBeNull();
-		});
-
-		test('should return null for partial match', () => {
-			const matcher = createMatcher([createMockRoute('/about')]);
-
-			const result = matcher.match('http://localhost:3000/about/team');
-
-			expect(result).toBeNull();
-		});
-	});
-
-	describe('match with :param syntax', () => {
-		test('should match dynamic segment with colon syntax', () => {
-			const matcher = createMatcher([createMockRoute('/blog/:slug')]);
-
-			const result = matcher.match('http://localhost:3000/blog/hello-world');
-
-			expect(result).not.toBeNull();
-			expect(result?.params).toEqual({ slug: 'hello-world' });
-		});
-
-		test('should match multiple dynamic segments', () => {
-			const matcher = createMatcher([createMockRoute('/blog/:year/:month/:slug')]);
-
-			const result = matcher.match('http://localhost:3000/blog/2024/01/hello-world');
-
-			expect(result).not.toBeNull();
-			expect(result?.params).toEqual({
-				year: '2024',
-				month: '01',
-				slug: 'hello-world',
-			});
-		});
-
-		test('should match mixed static and dynamic segments', () => {
-			const matcher = createMatcher([createMockRoute('/users/:id/posts')]);
-
-			const result = matcher.match('http://localhost:3000/users/123/posts');
-
-			expect(result).not.toBeNull();
-			expect(result?.params).toEqual({ id: '123' });
-		});
-	});
-
-	describe('match with [param] syntax', () => {
-		test('should match dynamic segment with bracket syntax', () => {
-			const matcher = createMatcher([createMockRoute('/blog/[slug]')]);
-
-			const result = matcher.match('http://localhost:3000/blog/hello-world');
-
-			expect(result).not.toBeNull();
-			expect(result?.params).toEqual({ slug: 'hello-world' });
-		});
-
-		test('should match multiple bracket parameters', () => {
-			const matcher = createMatcher([createMockRoute('/products/[category]/[id]')]);
-
-			const result = matcher.match('http://localhost:3000/products/electronics/12345');
-
-			expect(result).not.toBeNull();
-			expect(result?.params).toEqual({
-				category: 'electronics',
-				id: '12345',
-			});
-		});
-	});
-
-	describe('match with catch-all routes', () => {
-		test('should match catch-all with bracket syntax', () => {
-			const matcher = createMatcher([createMockRoute('/docs/[...path]')]);
-
-			const result = matcher.match('http://localhost:3000/docs/api/reference/components');
-
-			expect(result).not.toBeNull();
-			expect(result?.params).toEqual({ path: 'api/reference/components' });
-		});
-
-		test('should match catch-all with colon syntax', () => {
-			const matcher = createMatcher([createMockRoute('/files/:...path')]);
-
-			const result = matcher.match('http://localhost:3000/files/images/2024/photo.jpg');
-
-			expect(result).not.toBeNull();
-			expect(result?.params).toEqual({ path: 'images/2024/photo.jpg' });
-		});
-
-		test('should match catch-all with single segment', () => {
-			const matcher = createMatcher([createMockRoute('/docs/[...path]')]);
-
-			const result = matcher.match('http://localhost:3000/docs/intro');
-
-			expect(result).not.toBeNull();
-			expect(result?.params).toEqual({ path: 'intro' });
+			expect(matcher.match(`http://localhost:3000${url}`)).toBeNull();
 		});
 	});
 
@@ -204,43 +124,6 @@ describe('ExplicitStaticRouteMatcher', () => {
 
 			expect(result?.route.path).toBe('/blog/:slug');
 			expect(result?.params).toEqual({ slug: 'featured' });
-		});
-	});
-
-	describe('edge cases', () => {
-		test('should handle URL with query parameters', () => {
-			const matcher = createMatcher([createMockRoute('/search')]);
-
-			const result = matcher.match('http://localhost:3000/search?q=test&page=1');
-
-			expect(result).not.toBeNull();
-			expect(result?.route.path).toBe('/search');
-		});
-
-		test('should handle URL with hash', () => {
-			const matcher = createMatcher([createMockRoute('/docs/intro')]);
-
-			const result = matcher.match('http://localhost:3000/docs/intro#section-1');
-
-			expect(result).not.toBeNull();
-			expect(result?.route.path).toBe('/docs/intro');
-		});
-
-		test('should handle trailing slash', () => {
-			const matcher = createMatcher([createMockRoute('/about')]);
-
-			const result = matcher.match('http://localhost:3000/about/');
-
-			expect(result).not.toBeNull();
-			expect(result?.route.path).toBe('/about');
-		});
-
-		test('should return null for empty routes array', () => {
-			const matcher = createMatcher([]);
-
-			const result = matcher.match('http://localhost:3000/anything');
-
-			expect(result).toBeNull();
 		});
 	});
 

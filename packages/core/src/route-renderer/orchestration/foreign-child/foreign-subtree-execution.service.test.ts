@@ -29,6 +29,24 @@ function createAsset(content: string): ProcessedAsset {
 	};
 }
 
+describe('ForeignSubtreeExecutionService.shouldDelegateForeignChild', () => {
+	it.each([
+		[
+			'a different integration owns the boundary',
+			{ currentIntegration: 'string', targetIntegration: 'react' },
+			true,
+		],
+		['the same integration owns the boundary', { currentIntegration: 'react', targetIntegration: 'react' }, false],
+		[
+			'the boundary has no owning integration',
+			{ currentIntegration: 'react', targetIntegration: undefined },
+			false,
+		],
+	])('when %s', (_name, input, expected) => {
+		expect(new ForeignSubtreeExecutionService().shouldDelegateForeignChild(input)).toBe(expected);
+	});
+});
+
 describe('ForeignSubtreeExecutionService queue resolution', () => {
 	it('creates scoped queue tokens and stores runtime state on the render input', () => {
 		const service = new ForeignSubtreeExecutionService();

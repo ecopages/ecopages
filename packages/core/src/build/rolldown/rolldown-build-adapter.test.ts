@@ -120,6 +120,25 @@ describe('RolldownBuildAdapter', () => {
 		expect(result.logs.map((log) => log.message).join('\n')).toContain(entrypoint);
 	});
 
+	test('rejects a server-only module reached through a package.json import alias in a browser build', async () => {
+		writeFixture('package.json', JSON.stringify({ name: 'app', imports: { '#db': './db.server.ts' } }));
+		writeFixture('db.server.ts', 'export const secret = "server-secret";');
+		const entrypoint = writeFixture('entry.ts', "export { secret } from '#db';");
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+		});
+
+		expect(result.success).toBe(false);
+		const message = result.logs.map((log) => log.message).join('\n');
+		expect(message).toContain('server-only');
+		expect(message).toContain(entrypoint);
+	});
+
 	test('allows server-only imports in server builds', async () => {
 		writeFixture('db.server.ts', 'export const secret = "server-secret";');
 		const entrypoint = writeFixture('entry.ts', "export { secret } from './db.server.ts';");

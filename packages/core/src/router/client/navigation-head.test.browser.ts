@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { activatePreparedNavigationScripts, prepareNavigationHead } from './navigation-pipeline.ts';
+import { stageStylesheets } from './staged-stylesheets.test-fixtures.ts';
 
 function parseDocument(html: string): Document {
 	return new DOMParser().parseFromString(html, 'text/html');
@@ -21,20 +22,11 @@ describe('shared navigation head updates', () => {
 		const incoming = parseDocument(
 			'<html><head><title>Next</title><meta name="description" content="New description"><meta name="keywords" content="navigation"><link rel="stylesheet" href="/new.css"></head><body></body></html>',
 		);
-		const originalAppendChild = document.head.appendChild.bind(document.head);
-		const stagedStylesheets: HTMLLinkElement[] = [];
-		document.head.appendChild = ((node: Node) => {
-			const result = originalAppendChild(node);
-			if (node instanceof HTMLLinkElement && node.href.endsWith('/new.css')) {
-				stagedStylesheets.push(node);
-				queueMicrotask(() => node.dispatchEvent(new Event('load')));
-			}
-			return result;
-		}) as typeof document.head.appendChild;
+		const staged = stageStylesheets();
 
 		const update = await prepareNavigationHead(incoming);
-		document.head.appendChild = originalAppendChild;
-		expect(stagedStylesheets).toHaveLength(1);
+		staged.stop();
+		expect(staged.links.map((link) => link.href)).toEqual([new URL('/new.css', window.location.origin).href]);
 		update.commit();
 
 		expect(document.title).toBe('Next');
@@ -54,22 +46,14 @@ describe('shared navigation head updates', () => {
 		const incoming = parseDocument(
 			'<html><head><link rel="stylesheet" href="/stale.css"></head><body></body></html>',
 		);
-		const originalAppendChild = document.head.appendChild.bind(document.head);
-		const stagedStylesheets: HTMLLinkElement[] = [];
-		document.head.appendChild = ((node: Node) => {
-			const result = originalAppendChild(node);
-			if (node instanceof HTMLLinkElement && node.href.endsWith('/stale.css')) {
-				stagedStylesheets.push(node);
-				queueMicrotask(() => node.dispatchEvent(new Event('load')));
-			}
-			return result;
-		}) as typeof document.head.appendChild;
+		const staged = stageStylesheets();
 
 		const update = await prepareNavigationHead(incoming);
-		document.head.appendChild = originalAppendChild;
+		staged.stop();
 		update.cancel();
 
-		expect(stagedStylesheets[0]?.isConnected).toBe(false);
+		expect(staged.links).toHaveLength(1);
+		expect(staged.links[0]?.isConnected).toBe(false);
 		expect(document.head.querySelector('link[href$="current.css"]')).not.toBeNull();
 		expect(document.head.querySelector('link[href$="stale.css"]')).toBeNull();
 	});

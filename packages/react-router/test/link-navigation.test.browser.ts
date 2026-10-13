@@ -276,6 +276,41 @@ describe('EcoRouter link navigation', () => {
 		unregister();
 	});
 
+	it('leaves a modified click to the browser instead of navigating', async () => {
+		const Page = createMultiLinkPage('ModifiedClick', [{ href: '/next', label: 'next-link' }]);
+		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise<Response>(() => {}));
+
+		ctx.root = createRoot(ctx.container);
+		ctx.root.render(
+			createElement(EcoRouter, {
+				page: Page,
+				pageProps: {},
+				options: { viewTransitions: false },
+				// oxlint-disable-next-line no-children-prop
+				children: createElement(PageContent),
+			}),
+		);
+
+		await ctx.ready();
+		let defaultPreventedByRouter: boolean | null = null;
+		const recordAndCancel = (event: MouseEvent) => {
+			defaultPreventedByRouter = event.defaultPrevented;
+			event.preventDefault();
+		};
+		window.addEventListener('click', recordAndCancel);
+		try {
+			const link = ctx.container.querySelector('[data-testid="ModifiedClick-next-link"]') as HTMLAnchorElement;
+			await userEvent.click(link, { modifiers: ['Shift'] });
+		} finally {
+			window.removeEventListener('click', recordAndCancel);
+		}
+
+		expect(defaultPreventedByRouter).toBe(false);
+		await flushTasks();
+		expect(fetchSpy).not.toHaveBeenCalled();
+		expect(window.location.pathname).toBe('/');
+	});
+
 	it('clears isNavigating after a successful SPA navigation', async () => {
 		const Page = createMultiLinkPage('NavTerminal', [{ href: '/next', label: 'next-link' }]);
 		const NavigatingProbe = () => {

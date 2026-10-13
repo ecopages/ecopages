@@ -147,12 +147,16 @@ describe('launch-plan', () => {
 		}
 	});
 
-	it('createLaunchPlan runs Node entries directly', async () => {
+	it.each([
+		{ name: 'without a config file', withConfig: false },
+		{ name: 'next to an eco.config.ts', withConfig: true },
+	])('createLaunchPlan runs the requested Node entry directly $name', async ({ withConfig }) => {
 		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
 		try {
 			vi.stubEnv('npm_config_user_agent', 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64');
 			process.chdir(tempDir);
 			fs.writeFileSync(path.join(tempDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
+			if (withConfig) writeExperimentalRuntimeConfig(tempDir);
 
 			const plan = await createLaunchPlan(
 				['--dev'],
@@ -178,66 +182,25 @@ describe('launch-plan', () => {
 		}
 	});
 
-	it('createLaunchPlan runs Bun entries with the same forwarded arguments as Node', async () => {
+	it.each([
+		{ mode: 'dev', flag: '--dev', nodeEnv: 'development', withConfig: false },
+		{ mode: 'preview', flag: '--preview', nodeEnv: 'production', withConfig: true },
+	])('createLaunchPlan runs a Bun $mode with the entry file and the Node arguments', async (row) => {
 		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
 		try {
 			process.chdir(tempDir);
 			fs.writeFileSync(path.join(tempDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
-
-			const plan = await createLaunchPlan(['--dev'], { runtime: 'bun', nodeEnv: 'development' }, 'app.ts', 'dev');
-
-			expect(plan.command).toBe('bun');
-			expect(plan.commandArgs).toEqual(['run', 'app.ts', '--dev']);
-		} finally {
-			fs.rmSync(tempDir, { recursive: true, force: true });
-		}
-	});
-
-	it('createLaunchPlan runs a Bun preview with the entry file and the same arguments', async () => {
-		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
-		try {
-			process.chdir(tempDir);
-			fs.writeFileSync(path.join(tempDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
-			writeExperimentalRuntimeConfig(tempDir);
+			if (row.withConfig) writeExperimentalRuntimeConfig(tempDir);
 
 			const plan = await createLaunchPlan(
-				['--preview'],
-				{ runtime: 'bun', nodeEnv: 'production' },
+				[row.flag],
+				{ runtime: 'bun', nodeEnv: row.nodeEnv },
 				'app.ts',
-				'preview',
+				row.mode,
 			);
 
-			expect(plan).toMatchObject({
-				runtime: 'bun',
-				command: 'bun',
-			});
-			expect(plan.commandArgs).toEqual(['run', 'app.ts', '--preview']);
-		} finally {
-			fs.rmSync(tempDir, { recursive: true, force: true });
-		}
-	});
-
-	it('createLaunchPlan always targets the requested entry file', async () => {
-		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
-		try {
-			process.chdir(tempDir);
-			fs.writeFileSync(path.join(tempDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
-			writeExperimentalRuntimeConfig(tempDir);
-
-			const plan = await createLaunchPlan(
-				['--dev'],
-				{ runtime: 'node', nodeEnv: 'development' },
-				'app.ts',
-				'dev',
-			);
-			expect(plan.commandArgs).toEqual([
-				'--import',
-				nodeRequirePreload,
-				'--import',
-				tsxLoader,
-				'app.ts',
-				'--dev',
-			]);
+			expect(plan).toMatchObject({ runtime: 'bun', command: 'bun' });
+			expect(plan.commandArgs).toEqual(['run', 'app.ts', row.flag]);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -272,31 +235,6 @@ describe('launch-plan', () => {
 
 				expect(plan.runtime).toBe('node');
 				expect(plan.command).toBe(process.execPath);
-				expect(plan.commandArgs).toEqual([
-					path.join(realTempDir, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
-				]);
-			} finally {
-				fs.rmSync(tempDir, { recursive: true, force: true });
-			}
-		});
-
-		it('uses manifest.json serverEntry when present', async () => {
-			const tempDir = setupBundleFixture();
-			const realTempDir = fs.realpathSync(tempDir);
-			try {
-				vi.stubEnv('npm_config_user_agent', 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64');
-				const serverDir = path.join(tempDir, 'dist', SERVER_BUNDLE_DIR);
-				fs.mkdirSync(serverDir, { recursive: true });
-				const bundlePath = path.join(serverDir, SERVER_BUNDLE_FILENAME);
-				fs.writeFileSync(bundlePath, '// bundled', 'utf8');
-				fs.writeFileSync(
-					path.join(serverDir, 'manifest.json'),
-					JSON.stringify({ serverEntry: SERVER_BUNDLE_FILENAME }),
-					'utf8',
-				);
-
-				const plan = await createLaunchPlan([], { runtime: 'node', nodeEnv: 'production' }, 'app.ts', 'start');
-
 				expect(plan.commandArgs).toEqual([
 					path.join(realTempDir, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
 				]);

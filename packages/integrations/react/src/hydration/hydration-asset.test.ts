@@ -5,6 +5,16 @@ import { assertNoBareEcopagesImports } from './assert-no-bare-ecopages-imports.t
 import { APP_BROWSER_CLIENT_BUNDLE_ID } from '@ecopages/core/services/asset-processing-service';
 import { getIslandComponentKey, HydrationAssetService } from './hydration-asset.ts';
 
+type HydrationAssetServiceOptions = ConstructorParameters<typeof HydrationAssetService>[0];
+
+/**
+ * Casts a partial collaborator double to the constructor option type.
+ *
+ * @remarks
+ * Each test supplies only the methods the code under test calls, so a missing method surfaces as a runtime error in that test.
+ */
+const fake = <T>(partial: object): T => partial as T;
+
 const devTransformPageUrl = (relativePath: string): string => `${DEV_TRANSFORM_URL_PREFIX}/${relativePath}`;
 
 const productionRuntimeImports = {
@@ -35,12 +45,12 @@ describe('HydrationAssetService', () => {
 	it('creates one page-owned route entry asset', async () => {
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => undefined,
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				getRuntimeImports: () => productionRuntimeImports,
-			} as any,
+			}),
 		});
 
 		const dependencies = await service.createPageDependencies({
@@ -87,12 +97,12 @@ describe('HydrationAssetService', () => {
 				},
 				getRouterProps: () => '{}',
 			},
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => undefined,
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				getRuntimeImports: () => browserRuntimeImports,
-			} as any,
+			}),
 		});
 
 		const dependencies = await service.createPageDependencies({
@@ -134,12 +144,12 @@ describe('HydrationAssetService', () => {
 				},
 				getRouterProps: () => '{}',
 			},
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => ({ isEnabled: () => true }),
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				getRuntimeImports: () => browserRuntimeImports,
-			} as any,
+			}),
 		});
 
 		const dependencies = await service.createPageDependencies({
@@ -186,12 +196,12 @@ describe('HydrationAssetService', () => {
 				},
 				getRouterProps: () => '{}',
 			},
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => ({ isEnabled: () => true }),
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				getRuntimeImports: () => browserRuntimeImports,
-			} as any,
+			}),
 		});
 
 		const dependencies = await service.createPageDependencies({
@@ -220,14 +230,14 @@ describe('HydrationAssetService', () => {
 		const processDependencies = vi.fn(async () => []);
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => undefined,
 				processDependencies,
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				createBundleOptions,
 				getRuntimeImports: () => ({ ...productionRuntimeImports, router: undefined }),
-			} as any,
+			}),
 		});
 
 		await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
@@ -262,14 +272,14 @@ describe('HydrationAssetService', () => {
 				},
 				getRouterProps: () => '{}',
 			},
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => undefined,
 				processDependencies,
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				createBundleOptions,
 				getRuntimeImports: () => browserRuntimeImports,
-			} as any,
+			}),
 		});
 
 		await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
@@ -290,13 +300,13 @@ describe('HydrationAssetService', () => {
 		const createBundleOptions = vi.fn(async () => ({}));
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => undefined,
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				createBundleOptions,
 				getRuntimeImports: () => ({ ...browserRuntimeImports, router: undefined }),
-			} as any,
+			}),
 		});
 
 		const dependencies = await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
@@ -327,16 +337,16 @@ describe('HydrationAssetService', () => {
 		const registerEntrypoint = vi.fn(async () => pageModuleUrl);
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => ({
 					isEnabled: () => true,
 					registerScriptEntrypoint,
 					registerEntrypoint,
 				}),
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				getRuntimeImports: () => ({ ...productionRuntimeImports, router: undefined }),
-			} as any,
+			}),
 		});
 
 		const importPath = await service.resolveAssetImportPath('/app/src/pages/index.tsx', 'ecopages-react-index');
@@ -349,17 +359,17 @@ describe('HydrationAssetService', () => {
 	it('records the HMR entrypoint as the active page module in development', async () => {
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => ({
 					isEnabled: () => true,
 					registerEntrypoint: async () => devTransformPageUrl('pages/index.js'),
 					registerScriptEntrypoint: async () => '/assets/scripts/index.js',
 				}),
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				createBundleOptions: async () => ({}),
 				getRuntimeImports: () => ({ ...browserRuntimeImports, router: undefined }),
-			} as any,
+			}),
 		});
 
 		const dependencies = await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
@@ -377,21 +387,21 @@ describe('HydrationAssetService', () => {
 		const processDependencies = vi.fn(async () => []);
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => ({
 					isEnabled: () => true,
 					registerEntrypoint,
 					registerScriptEntrypoint,
 				}),
 				processDependencies,
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				createBundleOptions: vi.fn(),
 				getRuntimeImports: () => ({ ...browserRuntimeImports, router: undefined }),
-			} as any,
-			hmrPageMetadataCache: {
+			}),
+			hmrPageMetadataCache: fake<HydrationAssetServiceOptions['hmrPageMetadataCache']>({
 				markOwnedEntrypoint: vi.fn(),
-			} as any,
+			}),
 		});
 
 		await service.buildPageClientRenderAssets({

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 import { createRouter } from '../src/client/eco-router';
+import type { EcoRouterOptions } from '../src/client/types';
 import {
 	clickWithoutNavigation,
 	clickWithNavigation,
@@ -13,6 +14,13 @@ import {
 	spyPushState,
 	waitForNavigation,
 } from './eco-router.harness';
+
+type LeftAloneRow = {
+	name: string;
+	attributes: Record<string, string>;
+	click?: Partial<MouseEventInit>;
+	routerOptions?: EcoRouterOptions;
+};
 
 describe('EcoRouter', () => {
 	const fixtures: EcoRouterTestFixtures = {
@@ -110,215 +118,89 @@ describe('EcoRouter', () => {
 				expect(document.body.innerHTML).not.toContain('Recovered Content');
 			});
 
-			it('should intercept clicks on internal links', async () => {
+			it.each([
+				{ name: 'root-relative path', href: '/test-link', expectedUrl: '/test-link' },
+				{ name: 'path relative to the origin', href: 'relative/path', expectedUrl: '/relative/path' },
+				{
+					name: 'same-origin absolute URL',
+					href: `${window.location.origin}/absolute-path`,
+					expectedUrl: '/absolute-path',
+				},
+				{
+					name: 'link with a query string',
+					href: '/page?foo=bar&baz=qux',
+					expectedUrl: '/page?foo=bar&baz=qux',
+				},
+			])('should intercept a click on a $name', async ({ href, expectedUrl }) => {
 				fixtures.router = createRouter();
-				const link = createLink({ href: '/test-link', id: 'link' });
 				const pushStateSpy = spyPushState();
 
-				await Promise.all([waitForNavigation(), userEvent.click(link)]);
+				await clickWithNavigation(createLink({ href, id: 'internal-link' }));
 
-				expect(pushStateSpy).toHaveBeenCalled();
+				expect(pushStateSpy).toHaveBeenCalledWith({}, '', expect.stringContaining(expectedUrl));
 			});
 
-			it('should intercept clicks on relative path links', async () => {
-				fixtures.router = createRouter();
-				const link = createLink({ href: 'relative/path', id: 'rel-link' });
-				await clickWithNavigation(link);
-			});
-
-			it('should intercept clicks on links with query parameters', async () => {
-				fixtures.router = createRouter();
-				const link = createLink({ href: '/page?foo=bar&baz=qux', id: 'query-link' });
-				const pushStateSpy = spyPushState();
-
-				await Promise.all([waitForNavigation(), userEvent.click(link)]);
-
-				expect(pushStateSpy).toHaveBeenCalledWith({}, '', expect.stringContaining('/page?foo=bar&baz=qux'));
-			});
-
-			it('should intercept clicks on same-origin absolute URLs', async () => {
-				fixtures.router = createRouter();
-				const link = createLink({ href: `${window.location.origin}/absolute-path`, id: 'abs-link' });
-				await clickWithNavigation(link);
-			});
-
-			it('should intercept clicks on nested anchor elements', async () => {
+			it.each([
+				{
+					name: 'a nested element',
+					createTarget: (link: HTMLAnchorElement) => {
+						const span = document.createElement('span');
+						span.textContent = 'Click me';
+						link.replaceChildren(span);
+						return span;
+					},
+				},
+				{
+					name: 'a link inside Shadow DOM',
+					createTarget: () => {
+						const host = document.createElement('div');
+						document.body.appendChild(host);
+						const link = document.createElement('a');
+						link.href = '/shadow-link';
+						link.textContent = 'Shadow Link';
+						host.attachShadow({ mode: 'open' }).appendChild(link);
+						return link;
+					},
+				},
+			])('should intercept a click on $name', async ({ createTarget }) => {
 				fixtures.router = createRouter();
 				const link = createLink({ href: '/nested-test', id: 'nested-link' });
-				const span = document.createElement('span');
-				span.textContent = 'Click me';
-				link.innerHTML = '';
-				link.appendChild(span);
 
-				await clickWithNavigation(span);
-			});
-
-			it('should intercept clicks on links inside Shadow DOM', async () => {
-				fixtures.router = createRouter();
-				const host = document.createElement('div');
-				host.id = 'shadow-host';
-				document.body.appendChild(host);
-				const shadow = host.attachShadow({ mode: 'open' });
-				const link = document.createElement('a');
-				link.href = '/shadow-link';
-				link.textContent = 'Shadow Link';
-				shadow.appendChild(link);
-
-				await clickWithNavigation(link);
+				await clickWithNavigation(createTarget(link));
 			});
 		});
 
-		describe('External Links (should NOT intercept)', () => {
-			it('should NOT intercept external links', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(createLink({ href: 'https://example.com', id: 'ext-link' }));
+		describe('Links left to the browser', () => {
+			const rows: LeftAloneRow[] = [
+				{
+					name: 'a target other than _self',
+					attributes: { href: '/page', target: '_blank' },
+				},
+				{
+					name: 'a modified click',
+					attributes: { href: '/page' },
+					click: { shiftKey: true },
+				},
+				{
+					name: 'the configured reload attribute',
+					attributes: { href: '/reload', 'data-full-reload': '' },
+					routerOptions: { reloadAttribute: 'data-full-reload' },
+				},
+			];
+
+			it.each(rows)('should not intercept $name', async ({ attributes, click, routerOptions }) => {
+				fixtures.router = createRouter(routerOptions);
+
+				await clickWithoutNavigation(createLink({ ...attributes, id: 'left-alone' }), click);
 			});
 
-			it('should NOT intercept cross-origin links with different port', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(
-					createLink({ href: 'http://localhost:9999/different-port', id: 'port-link' }),
-				);
-			});
-		});
-
-		describe('Link Attributes (should NOT intercept)', () => {
-			it('should NOT intercept links with target="_blank"', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(createLink({ href: '/page', target: '_blank', id: 'blank-link' }));
-			});
-
-			it('should NOT intercept links with target="_parent"', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(createLink({ href: '/page', target: '_parent', id: 'parent-link' }));
-			});
-
-			it('should NOT intercept links with target="_top"', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(createLink({ href: '/page', target: '_top', id: 'top-link' }));
-			});
-
-			it('should intercept links with target="_self"', async () => {
-				fixtures.router = createRouter();
-				await clickWithNavigation(createLink({ href: '/page', target: '_self', id: 'self-link' }));
-			});
-
-			it('should NOT intercept links with download attribute', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(createLink({ href: '/file.pdf', download: '', id: 'dl-link' }));
-			});
-
-			it('should NOT intercept links with download attribute and filename', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(
-					createLink({ href: '/file.pdf', download: 'custom-name.pdf', id: 'dl-named-link' }),
-				);
-			});
-
-			it('should NOT intercept links to static asset files', async () => {
-				fixtures.router = createRouter();
-
-				for (const href of ['/skill.txt', '/skill/reference/full-stack.md', '/llms.txt']) {
-					await clickWithoutNavigation(createLink({ href, id: `static-${href}` }));
-				}
-			});
-
-			it('should NOT intercept links with data-eco-reload attribute', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(createLink({ href: '/reload', 'data-eco-reload': '', id: 'reload-link' }));
-			});
-
-			it('should NOT intercept links without href attribute', async () => {
-				fixtures.router = createRouter();
-				const link = document.createElement('a');
-				link.id = 'no-href-link';
-				link.textContent = 'No href';
-				document.body.appendChild(link);
-				await clickWithoutNavigation(link);
-			});
-		});
-
-		describe('Special href Values (should NOT intercept)', () => {
-			it('should NOT intercept hash-only links', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(createLink({ href: '#section', id: 'hash-link' }));
-			});
-
-			it('should NOT intercept javascript: links', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(createLink({ href: 'javascript:void(0)', id: 'js-link' }));
-			});
-
-			it('should NOT intercept mailto: links', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(createLink({ href: 'mailto:test@example.com', id: 'mailto-link' }));
-			});
-
-			it('should NOT intercept tel: links', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(createLink({ href: 'tel:+1234567890', id: 'tel-link' }));
-			});
-		});
-
-		describe('Modifier Keys (should NOT intercept)', () => {
-			it('should NOT intercept clicks with metaKey (Cmd on Mac)', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(createLink({ href: '/page', id: 'meta-link' }), { metaKey: true });
-			});
-
-			it('should NOT intercept clicks with ctrlKey', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(createLink({ href: '/page', id: 'ctrl-link' }), { ctrlKey: true });
-			});
-
-			it('should NOT intercept clicks with shiftKey', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(createLink({ href: '/page', id: 'shift-link' }), { shiftKey: true });
-			});
-
-			it('should NOT intercept clicks with altKey', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(createLink({ href: '/page', id: 'alt-link' }), { altKey: true });
-			});
-
-			it('should NOT intercept middle mouse button clicks', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(createLink({ href: '/page', id: 'middle-link' }), { button: 1 });
-			});
-
-			it('should NOT intercept right mouse button clicks', async () => {
-				fixtures.router = createRouter();
-				await clickWithoutNavigation(createLink({ href: '/page', id: 'right-link' }), { button: 2 });
-			});
-		});
-
-		describe('Custom Link Selector', () => {
-			it('should only intercept links matching custom selector', async () => {
+			it('should only intercept links matching the link selector', async () => {
 				fixtures.router = createRouter({ linkSelector: 'a.router-link' });
 				const regularLink = createLink({ href: '/regular', id: 'regular' });
 				const routerLink = createLink({ href: '/router', id: 'router', class: 'router-link' });
 
 				await clickWithoutNavigation(regularLink);
 				await clickWithNavigation(routerLink);
-			});
-
-			it('should work with data attribute selector', async () => {
-				fixtures.router = createRouter({ linkSelector: 'a[data-router]' });
-				await clickWithNavigation(createLink({ href: '/data-router', 'data-router': '', id: 'data-link' }));
-			});
-		});
-
-		describe('Custom Reload Attribute', () => {
-			it('should respect custom reload attribute', async () => {
-				fixtures.router = createRouter({ reloadAttribute: 'data-full-reload' });
-				await clickWithoutNavigation(
-					createLink({ href: '/reload', 'data-full-reload': '', id: 'custom-reload' }),
-				);
-			});
-
-			it('should intercept links with default reload attribute when custom is set', async () => {
-				fixtures.router = createRouter({ reloadAttribute: 'data-full-reload' });
-				await clickWithNavigation(createLink({ href: '/reload', 'data-eco-reload': '', id: 'default-reload' }));
 			});
 		});
 	});

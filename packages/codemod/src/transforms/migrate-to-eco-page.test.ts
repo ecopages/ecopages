@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import jscodeshift from 'jscodeshift';
 import prettier from 'prettier';
 import { describe, expect, it } from 'vitest';
-import transform, { parser } from './migrate-to-eco-page.ts';
+import transform from './migrate-to-eco-page.ts';
 
 const fixturesDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '__fixtures__', 'migrate-to-eco-page');
 
@@ -44,11 +44,5 @@ describe('migrate-to-eco-page', () => {
 		const input = readFixture('export-object-prototype-key', 'input');
 		const expected = readFixture('export-object-prototype-key', 'output');
 		expect(await runTransform(input)).toBe(expected);
-	});
-});
-
-describe('migrate-to-eco-page parser', () => {
-	it('uses the tsx parser', () => {
-		expect(parser).toBe('tsx');
 	});
 });

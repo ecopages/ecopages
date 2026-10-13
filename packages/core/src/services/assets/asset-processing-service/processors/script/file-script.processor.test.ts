@@ -428,6 +428,7 @@ describe('FileScriptProcessor', () => {
 				success: true,
 				logs: [],
 				outputs: [{ path: '/tmp/index.js' }],
+				entryOutputs: { [entrypoint]: '/tmp/index.js' },
 				loadedInputs: [pluginInput],
 				dependencyGraph: {
 					entrypoints: {
@@ -445,6 +446,26 @@ describe('FileScriptProcessor', () => {
 			});
 
 			expect(result.bundledSourceFilepaths).toEqual([entrypoint, helper, pluginInput]);
+		});
+
+		test('uses the output the build recorded for the entry, not another emitted file', async () => {
+			const entrypoint = '/test/project/src/pages/index.tsx';
+			vi.spyOn(BrowserBundleService.prototype, 'bundle').mockResolvedValue({
+				success: true,
+				logs: [],
+				outputs: [{ path: '/tmp/chunk-1.js' }, { path: '/tmp/index-abc123.js' }],
+				entryOutputs: { [entrypoint]: '/tmp/index-abc123.js' },
+			});
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+
+			const result = await processor.process({
+				kind: 'script',
+				source: 'file',
+				filepath: entrypoint,
+				bundle: true,
+			});
+
+			expect(result.filepath).toBe('/tmp/index-abc123.js');
 		});
 
 		test('should disable splitting for page-owned script bundles by default', async () => {

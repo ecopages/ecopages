@@ -187,8 +187,8 @@ describe('DevTransformBundler', () => {
 		const existingManifest = getAppBuildManifest(config);
 		setAppBuildManifest(config, {
 			...existingManifest,
-			plugins: [
-				...existingManifest.plugins,
+			browser: [
+				...existingManifest.browser,
 				{
 					name: 'ecopages:images',
 					setup(build) {

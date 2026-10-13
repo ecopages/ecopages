@@ -5,9 +5,12 @@ import {
 	createBrowserBuildRequest,
 	createServerBuildRequest,
 	mergeCallerBuildPlugins,
-	resolveServerAppBuildPlugins,
+	resolveAppBuildPlugins,
+	resolveBuildPluginOrder,
 } from './build-request-policy.ts';
 import { setAppBuildManifest } from '../build-adapter.ts';
+import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
+import { getAppSourceTransforms } from '../../plugins/source-transform.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 
@@ -27,9 +30,7 @@ function createAppConfig(): EcoPagesAppConfig {
 
 	setAppBuildManifest(
 		appConfig,
-		createAppBuildManifest({
-			plugins: [appPlugin, browserPlugin],
-		}),
+		createAppBuildManifest([appPlugin, browserPlugin].map((plugin) => ({ plugin, source: plugin.name }))),
 	);
 
 	return appConfig;
@@ -122,7 +123,7 @@ test('server requests take the server environment defaults', () => {
 	assert.equal(request.externalPackages, true);
 });
 
-test('resolveServerAppBuildPlugins matches createServerBuildRequest app plugin set', () => {
+test('resolveAppBuildPlugins matches createServerBuildRequest app plugin set', () => {
 	const appConfig = createAppConfig();
 	const request = createServerBuildRequest(appConfig, {
 		environment: 'server' as const,
@@ -134,7 +135,7 @@ test('resolveServerAppBuildPlugins matches createServerBuildRequest app plugin s
 		request.plugins
 			?.map((plugin) => plugin.name)
 			.filter((name) => name !== 'preserve-import-meta-for-server-output'),
-		resolveServerAppBuildPlugins(appConfig).map((plugin) => plugin.name),
+		resolveAppBuildPlugins(appConfig, 'server').map((plugin) => plugin.name),
 	);
 	assert.ok(request.plugins?.some((plugin) => plugin.name === 'preserve-import-meta-for-server-output'));
 });
@@ -179,4 +180,108 @@ test('browser compilation on the route-module executor keeps browser defaults an
 	await requireBuildQueue(appConfig).build(request);
 	assert.equal(observed[0]?.environment, 'browser');
 	assert.equal(observed[0]?.target, 'browser');
+});
+
+function createOrderedAppConfig(): EcoPagesAppConfig {
+	const named = (name: string, environments?: Array<'server' | 'browser'>): EcoBuildPlugin => ({
+		name,
+		environments,
+		setup() {},
+	});
+	const transform = (name: string, enforce?: 'pre' | 'post') => ({
+		name,
+		enforce,
+		filter: /\.tsx$/u,
+		transform: () => undefined,
+	});
+	const appConfig = {
+		rootDir: '/app',
+		loaders: new Map(),
+		runtime: {},
+		absolutePaths: { projectDir: '/app' },
+		integrations: [{ name: 'react', extensions: ['.tsx'], jsxImportSource: 'react' }],
+		sourceTransforms: new Map(
+			[
+				transform('post-transform', 'post'),
+				transform('default-transform'),
+				transform('pre-transform', 'pre'),
+			].map((entry) => [entry.name, entry]),
+		),
+	} as unknown as EcoPagesAppConfig;
+	setAppBuildManifest(
+		appConfig,
+		createAppBuildManifest(
+			[named('browser-only', ['browser']), named('shared'), named('server-only', ['server'])].map((plugin) => ({
+				plugin,
+				source: plugin.name,
+			})),
+			createBrowserRuntimeManifest([
+				{
+					specifier: 'react',
+					owner: '@ecopages/react',
+					importPath: 'react',
+					publicPath: '/assets/vendors/react.js',
+				},
+			]),
+		),
+	);
+	return appConfig;
+}
+
+test('resolveBuildPluginOrder lists every plugin of a server request in hook order', () => {
+	const order = resolveBuildPluginOrder(createOrderedAppConfig(), 'server', {
+		callerPlugins: [
+			{ name: 'caller', setup() {} },
+			{ name: 'caller-browser-only', environments: ['browser'], setup() {} },
+		],
+		sourceTransforms: getAppSourceTransforms(createOrderedAppConfig()),
+	});
+
+	assert.deepEqual(
+		order.map((plugin) => plugin.name),
+		[
+			'caller',
+			'ecopages-alias-resolver',
+			'shared',
+			'server-only',
+			'ecopages-jsx-ownership-react--tsx',
+			'pre-transform',
+			'default-transform',
+			'post-transform',
+		],
+	);
+});
+
+test('resolveBuildPluginOrder lists every plugin of a browser request in hook order', () => {
+	const order = resolveBuildPluginOrder(createOrderedAppConfig(), 'browser', {
+		callerPlugins: [{ name: 'caller', setup() {} }],
+		excludeAppBuildPlugins: ['shared'],
+		sourceTransforms: getAppSourceTransforms(createOrderedAppConfig()),
+	});
+
+	assert.deepEqual(
+		order.map((plugin) => plugin.name),
+		[
+			'caller',
+			'ecopages-alias-resolver',
+			'browser-runtime-plugin',
+			'browser-only',
+			'ecopages-jsx-ownership-react--tsx',
+			'pre-transform',
+			'default-transform',
+			'post-transform',
+		],
+	);
+});
+
+test('resolveBuildPluginOrder lets an app plugin keep its place against a caller plugin of the same name', () => {
+	const caller: EcoBuildPlugin = { name: 'shared', setup() {} };
+
+	const order = resolveBuildPluginOrder(createOrderedAppConfig(), 'server', {
+		callerPlugins: [caller],
+		sourceTransforms: [],
+	});
+
+	assert.equal(order.filter((plugin) => plugin.name === 'shared').length, 1);
+	assert.ok(!order.includes(caller));
 });

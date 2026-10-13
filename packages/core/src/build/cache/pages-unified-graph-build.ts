@@ -12,7 +12,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import { buildOrThrow } from '../runtime/build-queue.ts';
-import { createServerBuildRequest, resolveServerAppBuildPlugins } from '../runtime/build-request-policy.ts';
+import { createServerBuildRequest, resolveAppBuildPlugins } from '../runtime/build-request-policy.ts';
 import { hashAppConfigFile } from './app-config-hash.ts';
 import { collectBuildOutputImports, getBuildEntryOutput } from '../build-graph.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -69,7 +69,7 @@ export function isPagesUnifiedGraphPage(filePath: string, appConfig: EcoPagesApp
 }
 
 function createPagesUnifiedGraphBuildKey(appConfig: EcoPagesAppConfig, outdir: string): string {
-	const pluginNames = resolveServerAppBuildPlugins(appConfig)
+	const pluginNames = resolveAppBuildPlugins(appConfig, 'server')
 		.map((plugin) => plugin.name)
 		.sort()
 		.join('|');

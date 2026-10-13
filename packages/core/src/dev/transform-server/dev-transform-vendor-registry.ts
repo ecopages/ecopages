@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 import { RESOLVED_ASSETS_VENDORS_DIR } from '../../config/constants.ts';
-import { getAppBrowserBuildPlugins } from '../../build/build-adapter.ts';
+import { resolveAppBuildPlugins } from '../../build/runtime/build-request-policy.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-resolver.ts';
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
@@ -128,7 +128,7 @@ export class DevTransformVendorRegistry {
 			treeshaking: true,
 			splitting: false,
 			conditions: [...getVendorBundleConditions(specifier)],
-			excludeAppBuildPlugins: getAppBrowserBuildPlugins(this.appConfig).map((plugin) => plugin.name),
+			excludeAppBuildPlugins: resolveAppBuildPlugins(this.appConfig, 'browser').map((plugin) => plugin.name),
 			plugins: [...vendorPlugins],
 		});
 

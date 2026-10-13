@@ -11,9 +11,9 @@
 
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { rolldown, type RolldownLog } from 'rolldown';
+import { rolldown } from 'rolldown';
 
-import type { BuildAdapter, BuildOptions, BuildResult } from '../build-adapter.ts';
+import type { BuildAdapter, BuildLog, BuildOptions, BuildResult, BuildSuccess } from '../build-adapter.ts';
 import {
 	buildResultFromRolldownOutput,
 	resolveRolldownOptions,
@@ -40,7 +40,7 @@ export class RolldownBuildAdapter implements BuildAdapter {
 	 * Warnings are collected on the result and still printed by Rolldown's default handler. Rolldown
 	 * reports them only once a build completes, so a failed build has none.
 	 */
-	async buildOrThrow(options: BuildOptions): Promise<BuildResult> {
+	async buildOrThrow(options: BuildOptions): Promise<BuildSuccess> {
 		if (options.environment !== 'server' && options.environment !== 'browser') {
 			throw new Error('Build requests require environment: "server" or "browser".');
 		}
@@ -62,7 +62,7 @@ export class RolldownBuildAdapter implements BuildAdapter {
 
 		const dependencyGraph: BuildDependencyGraph = { entrypoints: {} };
 		inputOptions.plugins = [inputOptions.plugins, createEntryModuleClosuresPlugin(dependencyGraph, contextRoot)];
-		const warnings: RolldownLog[] = [];
+		const warnings: BuildLog[] = [];
 		const bundle = await rolldown({
 			...inputOptions,
 			onLog: (level, log, defaultHandler) => {
@@ -101,7 +101,6 @@ export class RolldownBuildAdapter implements BuildAdapter {
 			return {
 				success: false,
 				logs: toBuildLogs(error),
-				outputs: [],
 			};
 		}
 	}

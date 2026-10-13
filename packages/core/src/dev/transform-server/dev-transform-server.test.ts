@@ -289,8 +289,7 @@ describe('DevTransformServer', () => {
 
 		expect(entryResponse?.ok).toBe(true);
 		const entryCode = await entryResponse!.text();
-		const chunkUrlMatch = entryCode.match(new RegExp(`${DEV_TRANSFORM_URL_PREFIX}/pages/lazy-part\\.js`));
-		expect(chunkUrlMatch).not.toBeNull();
+		expect(entryCode).toMatch(new RegExp(`${DEV_TRANSFORM_URL_PREFIX}/pages/lazy-part\\.js\\?v=[0-9a-f]+`));
 
 		const chunkResponse = await server.tryHandleRequest(
 			new Request(`http://localhost${DEV_TRANSFORM_URL_PREFIX}/pages/lazy-part.js`),

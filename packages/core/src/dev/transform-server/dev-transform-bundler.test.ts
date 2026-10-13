@@ -24,44 +24,6 @@ afterEach(() => {
 });
 
 describe('DevTransformBundler', () => {
-	it('transpiles a module and rewrites relative dynamic imports to dev-transform URLs', async () => {
-		const rootDir = createTempRoot('dev-transform-bundler-lazy-import');
-		const pagesDir = path.join(rootDir, 'src', 'pages');
-		fs.mkdirSync(pagesDir, { recursive: true });
-		fs.writeFileSync(
-			path.join(pagesDir, 'lazy-devtools.ts'),
-			"export const ReactQueryDevtools = 'devtools';\n",
-			'utf8',
-		);
-		const entrypointPath = path.join(pagesDir, 'login.tsx');
-		fs.writeFileSync(
-			entrypointPath,
-			[
-				'export async function loadDevtools() {',
-				"  const module = await import('./lazy-devtools.ts');",
-				'  return module.ReactQueryDevtools;',
-				'}',
-			].join('\n'),
-			'utf8',
-		);
-
-		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildRuntime(config);
-		const vendorRegistry = new DevTransformVendorRegistry({
-			appConfig: config,
-		});
-		const bundler = new DevTransformBundler({
-			appConfig: config,
-			getRuntimeSpecifierMap: () => new Map(),
-			vendorRegistry,
-		});
-
-		const result = await bundler.transpileModule(entrypointPath);
-
-		expect(result.code).toContain('devtools');
-		expect(result.code).toMatch(new RegExp(`${DEV_TRANSFORM_URL_PREFIX}/pages/lazy-devtools\\.js\\?v=[0-9a-f]+`));
-	});
-
 	it('names the build plugin and the file that failed to load', async () => {
 		const rootDir = createTempRoot('dev-transform-bundler-plugin-error');
 		const entrypointPath = path.join(rootDir, 'src', 'widget.ts');

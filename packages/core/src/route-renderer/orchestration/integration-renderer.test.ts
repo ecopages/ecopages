@@ -15,6 +15,7 @@ import type {
 	EcoComponent,
 	HtmlTemplateProps,
 	PageBrowserGraphContribution,
+	IntegrationRendererRenderOptions,
 } from '../../types/public-types.ts';
 import type { EcoPageComponent } from '../../eco/eco.types.ts';
 import {
@@ -25,9 +26,13 @@ import {
 } from './integration-renderer.test-fixtures.ts';
 
 describe('IntegrationRenderer', () => {
-	it('serializes concurrent execute calls on one renderer instance', async () => {
+	it('renders concurrent execute calls on one renderer instance at the same time', async () => {
 		let active = 0;
 		let maxActive = 0;
+		let releaseBarrier: (() => void) | undefined;
+		const barrier = new Promise<void>((resolve) => {
+			releaseBarrier = resolve;
+		});
 		const Page = (() => 'page') as EcoComponent;
 		Page.config = {};
 		const HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
@@ -36,7 +41,8 @@ describe('IntegrationRenderer', () => {
 			override async render() {
 				active += 1;
 				maxActive = Math.max(maxActive, active);
-				await new Promise((resolve) => setTimeout(resolve, 10));
+				if (active === 2) releaseBarrier?.();
+				await barrier;
 				active -= 1;
 				return '<html><body>ok</body></html>';
 			}
@@ -53,10 +59,51 @@ describe('IntegrationRenderer', () => {
 			renderer.execute({ file: '/app/pages/b.tsx', params: {}, query: {} }),
 		]);
 
-		expect(maxActive).toBe(1);
+		expect(maxActive).toBe(2);
 	});
 
-	it('holds a partial explicit view until the in-flight route render finishes', async () => {
+	it('keeps the assets of overlapping renders on one renderer apart', async () => {
+		let releaseBarrier: (() => void) | undefined;
+		let waiting = 0;
+		const barrier = new Promise<void>((resolve) => {
+			releaseBarrier = resolve;
+		});
+		const Page = (() => 'page') as EcoComponent;
+		Page.config = {};
+		const HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
+
+		const renderer = new (class extends TestIntegrationRenderer {
+			override async render(options: IntegrationRendererRenderOptions<EcoPagesElement>) {
+				this.appendProcessedDependencies([
+					{ kind: 'script', srcUrl: `/assets/${options.query?.name}.js`, position: 'body' },
+				] as ProcessedAsset[]);
+				waiting += 1;
+				if (waiting === 2) releaseBarrier?.();
+				await barrier;
+				return '<html><head></head><body>ok</body></html>';
+			}
+		})({
+			appConfig: testAppConfig,
+			assetProcessingService: testAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = HtmlTemplate;
+
+		const [first, second] = await Promise.all([
+			renderer.execute({ file: '/app/pages/a.tsx', params: {}, query: { name: 'first' } }),
+			renderer.execute({ file: '/app/pages/b.tsx', params: {}, query: { name: 'second' } }),
+		]);
+		const firstHtml = await new Response(first.body as BodyInit).text();
+		const secondHtml = await new Response(second.body as BodyInit).text();
+
+		expect(firstHtml).toContain('/assets/first.js');
+		expect(firstHtml).not.toContain('/assets/second.js');
+		expect(secondHtml).toContain('/assets/second.js');
+		expect(secondHtml).not.toContain('/assets/first.js');
+	});
+
+	it('does not wait for an in-flight route render before rendering a partial explicit view', async () => {
 		let releaseRoute: (() => void) | undefined;
 		const routeGate = new Promise<void>((resolve) => {
 			releaseRoute = resolve;
@@ -86,20 +133,11 @@ describe('IntegrationRenderer', () => {
 		const route = renderer.execute({ file: '/app/pages/a.tsx', params: {}, query: {} });
 		await vi.waitUntil(() => routeEntered);
 
-		let partialFinished = false;
-		const partial = renderer
-			.renderExplicitView(View, { content: 'Partial' }, { partial: true })
-			.then((response) => {
-				partialFinished = true;
-				return response;
-			});
-		await Promise.resolve();
-		expect(partialFinished).toBe(false);
+		const response = await renderer.renderExplicitView(View, { content: 'Partial' }, { partial: true });
+		expect(await response.text()).toBe('<div>Partial</div>');
 
 		releaseRoute?.();
 		await route;
-		const response = await partial;
-		expect(await response.text()).toBe('<div>Partial</div>');
 	});
 
 	it('keeps each render plan when a nested foreign-child context opens', async () => {
@@ -426,7 +464,7 @@ describe('IntegrationRenderer', () => {
 		]);
 	});
 
-	it('transformRouteResponse prefers renderer-owned page package updates over stale prepare-time package', async () => {
+	it('transformRouteResponse prefers the page package of the active render over the prepare-time package', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
@@ -441,19 +479,36 @@ describe('IntegrationRenderer', () => {
 			attributes: { type: 'module' },
 		} as ProcessedAsset;
 
-		renderer.setTestPagePackage(stalePagePackage);
-		renderer.appendTestProcessedDependencies([renderTimeAsset]);
-
-		const body = await renderer.testTransformRouteResponse(
-			new Response('<html><head></head><body></body></html>', {
-				headers: { 'Content-Type': 'text/html' },
-			}),
-			[],
-			stalePagePackage,
+		const { value: body } = await runWithComponentRenderContext(
+			{ currentIntegration: 'test-renderer', pagePackage: stalePagePackage },
+			async () => {
+				renderer.appendTestProcessedDependencies([renderTimeAsset]);
+				return renderer.testTransformRouteResponse(
+					new Response('<html><head></head><body></body></html>', {
+						headers: { 'Content-Type': 'text/html' },
+					}),
+					[],
+					stalePagePackage,
+				);
+			},
 		);
 		const html = typeof body === 'string' ? body : await new Response(body as BodyInit).text();
 
 		expect(html).toContain('/assets/scripts/render-time-hydration.js');
+	});
+
+	it('refuses assets appended outside a render', () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: testAppConfig,
+			assetProcessingService: testAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+
+		expect(() =>
+			renderer.appendTestProcessedDependencies([
+				{ kind: 'script', srcUrl: '/assets/orphan.js', position: 'body' } as ProcessedAsset,
+			]),
+		).toThrow('outside a render');
 	});
 
 	it('should extract cache strategy from page component (static property)', async () => {
@@ -818,10 +873,7 @@ describe('IntegrationRenderer', () => {
 			const body = await new Response(result.body as BodyInit).text();
 			expect(body).toContain('<main>Test Page</main>');
 
-			const processedDeps = renderer.getTestProcessedDependencies();
-			expect(processedDeps.some((dep: ProcessedAsset) => dep.srcUrl === '/assets/nested-explicit.js')).toBe(
-				false,
-			);
+			expect(body).not.toContain('/assets/nested-explicit.js');
 		});
 
 		it('should skip foreign-child wrapping for pure same-integration component trees', () => {

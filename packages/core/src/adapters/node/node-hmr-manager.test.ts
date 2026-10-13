@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { inspect } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { afterEach, test, vi } from 'vitest';
 import { installBuildQueue } from '../../build/runtime/build-queue.ts';
@@ -273,4 +274,50 @@ test('NodeHmrManager keeps internal browser and server-module outputs out of dis
 		importModule.mock.calls[0]?.[0]?.outdir,
 		path.join(resolveInternalExecutionDir(config), '.server-modules'),
 	);
+});
+
+function createEnabledManager(config: Awaited<ReturnType<typeof finalizeEcoPagesConfig>>) {
+	installBuildQueue(config);
+	const manager = new NodeHmrManager({
+		appConfig: config,
+		bridge: {
+			subscriberCount: 0,
+			broadcast: () => {},
+		} as any,
+	});
+	manager.setEnabled(true);
+	return manager;
+}
+
+test('NodeHmrManager keeps HMR on and logs when the Dev Toolbar package is not installed', async () => {
+	const rootDir = createTempRoot('ecopages-node-hmr-toolbar-missing');
+	const config = await finalizeEcoPagesConfig({ rootDir, devToolbar: { package: '@ecopages/missing-dev-toolbar' } });
+	using manager = createEnabledManager(config);
+	const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+	await assert.doesNotReject(() => manager.ensureRuntimeReady());
+
+	assert.equal(manager.isEnabled(), true);
+	assert.match(errorSpy.mock.calls.flat().join(' '), /Could not bundle the Dev Toolbar/);
+});
+
+test('NodeHmrManager keeps HMR on and logs when the Dev Toolbar package fails to bundle', async () => {
+	const rootDir = createTempRoot('ecopages-node-hmr-toolbar-bundle-failure');
+	const packageDir = path.join(rootDir, 'node_modules', 'broken-dev-toolbar');
+	fs.mkdirSync(path.join(packageDir, 'src'), { recursive: true });
+	fs.writeFileSync(
+		path.join(packageDir, 'package.json'),
+		'{"name":"broken-dev-toolbar","type":"module","exports":"./src/bootstrap.js"}',
+		'utf8',
+	);
+	fs.writeFileSync(path.join(packageDir, 'src', 'bootstrap.js'), "import './does-not-exist.js';", 'utf8');
+	const config = await finalizeEcoPagesConfig({ rootDir, devToolbar: { package: 'broken-dev-toolbar' } });
+	using manager = createEnabledManager(config);
+	const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+	await assert.doesNotReject(() => manager.ensureRuntimeReady());
+
+	assert.equal(manager.isEnabled(), true);
+	assert.match(errorSpy.mock.calls.flat().join(' '), /Could not bundle the Dev Toolbar/);
+	assert.match(inspect(errorSpy.mock.calls.flat(), { depth: 5 }), /does-not-exist/);
 });

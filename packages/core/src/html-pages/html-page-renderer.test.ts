@@ -502,6 +502,7 @@ describe('HtmlPageRenderer', () => {
 			);
 			await setup();
 			await expect(render(file)).rejects.toThrow('Could not build the HTML Page module scripts');
+			await expect(render(file)).rejects.toThrow(/broken\.ts:\d+:\d+: /);
 
 			write('src/components/broken.ts', "export const broken = 'FIXED';");
 			const [url] = scriptUrls(await render(file));

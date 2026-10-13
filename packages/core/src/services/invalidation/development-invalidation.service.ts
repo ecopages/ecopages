@@ -3,9 +3,7 @@ import { isDevEnvFilePath } from '../../dev/development-restart-watch-paths.ts';
 import { matchesAdditionalWatchPath, resolveAdditionalWatchPath } from '../../utils/additional-watch-paths.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
-import { getAppServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
 import { clearAppDevelopmentRouteModuleBuildCaches } from '../module-loading/route-module-build-cache-registry.ts';
-import { clearCollectionServerBuildArtifacts } from '../module-loading/collection-server-module-build.service.ts';
 import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../cache/page-cache-service.ts';
 import { getAppPageBrowserGraphSession } from '../../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
@@ -163,13 +161,15 @@ export class DevelopmentInvalidationService {
 	}
 
 	/**
-	 * Invalidates the app-owned server-module graph.
+	 * Marks the app-owned server-module graph stale and advances the development generation.
+	 *
+	 * @remarks
+	 * The generation lives on the app module loader. Dev caches that outlive one import, such as the compiled
+	 * collection modules and the Lit render worker, compare it instead of keeping a counter of their own.
 	 */
-	invalidateServerModules(changedFiles?: string[]): void {
-		getAppServerInvalidationState(this.appConfig).invalidateServerModules(changedFiles);
+	invalidateServerModules(): void {
 		this.appConfig.runtime?.appModuleLoader?.invalidateDevelopmentGraph();
 		clearAppDevelopmentRouteModuleBuildCaches(this.appConfig);
-		clearCollectionServerBuildArtifacts(this.appConfig);
 
 		for (const processor of this.appConfig.processors.values()) {
 			processor.invalidateServerArtifacts?.();
@@ -244,9 +244,7 @@ export class DevelopmentInvalidationService {
 	private async markAppliedFilesDirty(files: AppliedDevFileChange[], applied: AppliedDevFileChanges): Promise<void> {
 		getAppBuildInputIndex(this.appConfig).recordChanges(files.map((file) => file.filePath));
 		if (applied.invalidateServerModules) {
-			this.invalidateServerModules(
-				files.filter((file) => file.plan.invalidateServerModules).map((file) => file.filePath),
-			);
+			this.invalidateServerModules();
 		}
 
 		await this.invalidatePageHtmlCache(files);

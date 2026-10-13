@@ -10,10 +10,6 @@ import {
 	NoopEntrypointDependencyGraph,
 	setAppEntrypointDependencyGraph,
 } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
-import {
-	CounterServerInvalidationState,
-	setAppServerInvalidationState,
-} from '../services/runtime-state/server-invalidation-state.service.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { invariant } from '../utils/invariant.ts';
 import {
@@ -290,7 +286,6 @@ export async function finalizeEcoPagesConfig(
 
 	setAppBuildAdapter(config, createBuildAdapter());
 	await sealAppBuildManifest(config);
-	setAppServerInvalidationState(config, new CounterServerInvalidationState());
 	setAppEntrypointDependencyGraph(config, new NoopEntrypointDependencyGraph());
 
 	return config;

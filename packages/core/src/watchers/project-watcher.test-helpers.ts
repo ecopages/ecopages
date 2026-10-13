@@ -6,6 +6,7 @@ import {
 	InMemoryEntrypointDependencyGraph,
 	setAppEntrypointDependencyGraph,
 } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
+import { getAppModuleLoader } from '../services/module-loading/app-server-module-transpiler.service.ts';
 import { getAppBuildInputIndex } from '../build/cache/build-input-dependency-index.ts';
 import type { IClientBridge } from '../types/internal-types.ts';
 
@@ -28,6 +29,7 @@ export const createMockHmrManager = (): IHmrManager =>
 		getWatchedFiles: vi.fn(() => new Map()),
 		getRegisteredEntrypoints: vi.fn(() => new Map()),
 		tryHandleAssetRequest: vi.fn(() => null),
+		injectDevClientRuntimes: vi.fn(async (response: Response) => response),
 		getDefaultContext: vi.fn(() => ({
 			getWatchedFiles: () => new Map(),
 			getRegisteredEntrypoints: () => new Map(),
@@ -80,12 +82,13 @@ export const createMockBridge = (): IClientBridge =>
 
 /**
  * Installs the in-memory entrypoint dependency graph that the HMR managers
- * provide in dev.
+ * provide in dev, and the app module loader that owns the development generation.
  *
  * @remarks
- * `finalizeEcoPagesConfig()` already installs the invalidation counter and a
- * no-op graph; this swaps in a graph that records dependencies.
+ * `finalizeEcoPagesConfig()` already installs a no-op graph; this swaps in a graph
+ * that records dependencies.
  */
 export function installDevRuntimeState(appConfig: EcoPagesAppConfig): void {
+	getAppModuleLoader(appConfig);
 	setAppEntrypointDependencyGraph(appConfig, new InMemoryEntrypointDependencyGraph(getAppBuildInputIndex(appConfig)));
 }

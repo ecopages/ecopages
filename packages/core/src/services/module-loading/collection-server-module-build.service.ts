@@ -8,7 +8,7 @@ import { recordCollectionBuild } from '../../diagnostics/request-pipeline-metric
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { getAppServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
+import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
 import { getBuildEntryOutput } from '../../build/build-graph.ts';
 
 export type CollectionServerBuildArtifact = {
@@ -29,10 +29,6 @@ function getArtifactMap(appConfig: EcoPagesAppConfig): Map<string, CollectionSer
 		artifactsByCollection.set(appConfig, artifacts);
 	}
 	return artifacts;
-}
-
-export function clearCollectionServerBuildArtifacts(appConfig: EcoPagesAppConfig): void {
-	getArtifactMap(appConfig).clear();
 }
 
 function createCollectionBuildIdentity(
@@ -76,7 +72,7 @@ export async function buildCollectionServerModule(input: {
 		splitting: false,
 		externalPackages: true,
 	});
-	const invalidationVersion = getAppServerInvalidationState(appConfig).getServerInvalidationVersion();
+	const invalidationVersion = getAppModuleLoader(appConfig).getDevelopmentGeneration();
 	const buildIdentity = createCollectionBuildIdentity(
 		createBuildRequestIdentity(buildRequest),
 		sourceFilePath,
@@ -96,6 +92,7 @@ export async function buildCollectionServerModule(input: {
 		appConfig,
 		buildOptions,
 		`Error building collection server module ${collectionName}`,
+		'nested',
 	);
 
 	const compiledOutput = getBuildEntryOutput(buildResult, sourceFilePath, appConfig.rootDir);

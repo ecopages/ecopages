@@ -5,7 +5,7 @@ import { FileScriptProcessor } from './file-script.processor';
 import { BrowserBundleService } from '../../../browser-bundle.service.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../../../types/internal-types';
 import type { FileScriptAsset } from '../../assets.types';
-import { createBuildSuccess } from '../../../../../__fixtures__/build/build-result.ts';
+import { createBuildFailure, createBuildSuccess } from '../../../../../__fixtures__/build/build-result.ts';
 
 const originalReadFileSync = fileSystem.readFileSync;
 const originalCopyFile = fileSystem.copyFile;
@@ -448,6 +448,18 @@ describe('FileScriptProcessor', () => {
 			});
 
 			expect(result.bundledSourceFilepaths).toEqual([entrypoint, helper, pluginInput]);
+		});
+
+		test('throws the formatted logs of a failed bundle, with plugin and file', async () => {
+			const entrypoint = '/test/project/src/pages/index.tsx';
+			vi.spyOn(BrowserBundleService.prototype, 'bundle').mockResolvedValue(
+				createBuildFailure([{ message: 'no loader', plugin: 'eco-loader', id: entrypoint }]),
+			);
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+
+			await expect(
+				processor.process({ kind: 'script', source: 'file', filepath: entrypoint, bundle: true }),
+			).rejects.toThrow(`Could not bundle ${entrypoint}:\n[eco-loader] ${entrypoint}: no loader`);
 		});
 
 		test('uses the output the build recorded for the entry, not another emitted file', async () => {

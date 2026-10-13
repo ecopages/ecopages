@@ -10,6 +10,7 @@ import {
 	type BuildResult,
 	type BuildSuccess,
 } from '../../build/build-adapter.ts';
+import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
 import { createServerBuildRequest } from '../../build/runtime/build-request-policy.ts';
 import { resolveBuildEnvironmentOptions } from '../../build/runtime/build-environment-options.ts';
 import {
@@ -107,7 +108,10 @@ export class PageModuleImportService {
 			hashFile: dependencies?.hashFile ?? ((filePath) => fileSystem.hash(filePath)),
 			buildModule:
 				dependencies?.buildModule ??
-				((options, buildExecutor) => (buildExecutor ?? defaultBuildAdapter).build(options)),
+				((options, buildExecutor) =>
+					(buildExecutor ?? (this.appConfig ? requireBuildQueue(this.appConfig) : defaultBuildAdapter)).build(
+						options,
+					)),
 		};
 		this.dependencyHasher = new RouteModuleDependencyHasher({
 			hashFile: (filePath) => this.dependencies.hashFile(filePath),
@@ -120,6 +124,10 @@ export class PageModuleImportService {
 	 */
 	clearImportCache(): void {
 		this.importCache.clear();
+	}
+
+	getDevelopmentGeneration(): number {
+		return this.developmentImportGeneration;
 	}
 
 	/**

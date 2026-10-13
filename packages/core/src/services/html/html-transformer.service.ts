@@ -113,7 +113,7 @@ export class HtmlTransformerService {
 	 * Documents without a `<head>` or `<body>` element, or whose element never
 	 * closes, skip the matching head or body injections (lol-html semantics).
 	 */
-	private createRewriter(contributions: HtmlDocumentContribution[], pagePackage?: PagePackageResult) {
+	private createRewriter({ pagePackage, contributions = [] }: HtmlTransformInput) {
 		const { head, body } = this.groupDependenciesByPosition(pagePackage);
 		const slots = {
 			head: {

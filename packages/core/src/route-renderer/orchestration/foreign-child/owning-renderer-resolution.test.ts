@@ -71,4 +71,27 @@ describe('resolveOwningIntegrationRenderer', () => {
 
 		ensureReady.mockRestore();
 	});
+
+	it('hands every render the one renderer its Integration owns', async () => {
+		const ensureReady = vi
+			.spyOn(appBuildManifestRuntime, 'ensureIntegrationRuntimeReady')
+			.mockResolvedValue(undefined);
+		const renderer = { name: 'react' };
+		const plugin = { name: 'react', getRenderer: vi.fn(() => renderer), initializeRenderer: vi.fn() };
+		const input = {
+			appConfig: { integrations: [plugin] } as unknown as EcoPagesAppConfig,
+			runtimeOrigin: 'test-origin',
+			currentIntegrationName: 'kitajs',
+			currentRenderer: { name: 'kitajs' } as never,
+			integrationName: 'react',
+		};
+
+		const first = await resolveOwningIntegrationRenderer({ ...input, cache: new Map() });
+		const second = await resolveOwningIntegrationRenderer({ ...input, cache: new Map() });
+
+		expect(first).toBe(second);
+		expect(plugin.initializeRenderer).not.toHaveBeenCalled();
+
+		ensureReady.mockRestore();
+	});
 });

@@ -8,7 +8,9 @@ export type ComponentIdentity = {
 	integration: string;
 };
 
-function asConfig(value: EcoComponent | EcoComponentConfig | undefined): EcoComponentConfig | undefined {
+type OwnedValue = EcoComponent | Partial<EcoComponent> | Pick<EcoComponentConfig, 'integration' | 'identity'>;
+
+function asConfig(value: OwnedValue | undefined | null): EcoComponentConfig | undefined {
 	if (!value) return undefined;
 	if (typeof value === 'function') return value.config;
 	if ('config' in value) return value.config;
@@ -16,9 +18,7 @@ function asConfig(value: EcoComponent | EcoComponentConfig | undefined): EcoComp
 }
 
 /** Gets canonical component attribution. */
-export function getComponentIdentity(
-	value: EcoComponent | EcoComponentConfig | undefined,
-): ComponentIdentity | undefined {
+export function getComponentIdentity(value: OwnedValue | undefined | null): ComponentIdentity | undefined {
 	const config = asConfig(value);
 	return config?.identity;
 }

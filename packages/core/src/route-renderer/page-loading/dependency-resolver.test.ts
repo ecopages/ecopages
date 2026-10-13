@@ -13,6 +13,7 @@ import type {
 } from '../../services/assets/asset-processing-service/index.ts';
 import { APP_BROWSER_CLIENT_BUNDLE_ID } from '../../services/assets/asset-processing-service/index.ts';
 import type { EcoComponent } from '../../types/public-types.ts';
+import { collectPageClientPlan } from '../orchestration/ownership-graph/page-client-plan.ts';
 import { UndeclaredComponentDependencyError } from '../../errors/undeclared-component-dependency-error.ts';
 
 describe('DependencyResolverService', () => {

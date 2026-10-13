@@ -76,6 +76,7 @@ export class LitStaticRenderWorkerClient {
 						html: message.html,
 						cacheStrategy: message.cacheStrategy,
 						sourceDependencyPaths: message.sourceDependencyPaths,
+						metadata: message.metadata,
 					});
 				}
 			});

@@ -305,7 +305,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			'Component',
 		);
 		const assets = input.component.config?.dependencies
-			? await this.processComponentDependencies([input.component])
+			? await this.resolveComponentRenderAssets(input.component)
 			: undefined;
 		const queuedResolution = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
 		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
@@ -530,6 +530,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 		return renderPageDocumentShell(
 			{
+				integrationName: this.name,
 				renderComponentWithForeignChildren: (renderInput) =>
 					this.renderComponentWithForeignChildren(renderInput),
 				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),

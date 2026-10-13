@@ -96,7 +96,9 @@ The route-render contract is:
 3. `RouteRenderOrchestrator.prepareRenderOptions()` loads the page module and final props, prepares and validates the shell graph, resolves page-dependency roots, then adds and validates those roots in the prepared graph. Route assets, the page client plan, and development cache watch paths reuse its recorded nodes; production grouped prebuild retains that same graph through route preparation. The page browser graph cache identity includes route params and query; contribution collection receives those same final props.
 4. The integration renderer performs page, layout, and document-shell rendering. When it encounters a foreign child, it delegates that child back to the owning renderer.
 5. If a renderer needs queued handoff, it emits internal foreign-subtree tokens and resolves them before returning final HTML.
-6. `RouteRenderOrchestrator.executePrepared()` captures the final body, rejects unresolved `<eco-marker>` artifacts, stamps document attributes when needed, and runs the HTML transformer.
+6. `RouteRenderOrchestrator.executePrepared()` captures the final body, rejects unresolved `<eco-marker>` artifacts, stamps document attributes when needed, and runs the HTML transformer with the render's page package.
+
+Renders hold their state on the component render context (page package, page client plan, island assets), not on the renderer, so renders of one Integration overlap freely. `HtmlTransformerService` keeps no state either: each transform takes the page package it injects. Assets a renderer appends during a render go to that render's page package, and appending outside a render throws.
 
 Important:
 
@@ -119,7 +121,7 @@ The render context lives in `AsyncLocalStorage`, so overlapping renders each see
 
 `renderComponentWithForeignChildren()` is the renderer entrypoint for mixed-integration trees. It is responsible for:
 
-- reusing the execution-scoped owning-renderer cache
+- reusing the execution-scoped owning-renderer cache, which holds the shared renderer of each owning Integration
 - deciding whether the current component can stay local
 - creating a foreign-child runtime when nested foreign ownership must be resolved
 - normalizing unresolved artifact HTML before the render leaves the renderer

@@ -31,6 +31,7 @@ import {
 import { HtmlTransformerService } from '../../services/html/html-transformer.service.ts';
 import type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
 import { invariant } from '../../utils/invariant.ts';
+import { isProductionRuntime } from '../../utils/runtime.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
@@ -452,7 +453,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const existingPackage = session?.pagePackage ?? context?.pagePackage;
 		const existingDependencies = existingPackage?.assets ?? session?.processedDependencies ?? [];
 		const mergedDependencies = this.htmlTransformer.dedupeProcessedAssets([
-			...existingDependencies,
+			...(context.pagePackage?.assets ?? []),
 			...nextDependencies,
 		]);
 		const pagePackage = createPagePackage(mergedDependencies, {
@@ -508,6 +509,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 		return renderPageDocumentShell(
 			{
+				integrationName: this.name,
 				renderComponentWithForeignChildren: (renderInput) =>
 					this.renderComponentWithForeignChildren(renderInput),
 				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
@@ -571,7 +573,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.assertStringRenderContent(input, content);
 		const html = content as string;
 		const assets = input.component.config?.dependencies
-			? await this.processComponentDependencies([input.component])
+			? await this.resolveComponentRenderAssets(input.component)
 			: undefined;
 
 		return {

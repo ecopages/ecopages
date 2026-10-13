@@ -169,7 +169,10 @@ describe('StaticSiteGenerator', () => {
 			const RendererFactory = {
 				getPageRenderer: vi.fn(() => ({
 					loadPageModule: vi.fn(async () => createStaticPageModule()),
-					execute: vi.fn(async () => ({ body: '<html>Static</html>' })),
+					execute: vi.fn(async () => ({
+						body: '<html>Static</html>',
+						metadata: { title: 'Page', description: 'Page description' },
+					})),
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
@@ -191,7 +194,10 @@ describe('StaticSiteGenerator', () => {
 			const RendererFactory = {
 				getPageRenderer: vi.fn(() => ({
 					loadPageModule: vi.fn(async () => createStaticPageModule()),
-					execute: vi.fn(async () => ({ body: '<html>Blog Post</html>' })),
+					execute: vi.fn(async () => ({
+						body: '<html>Blog Post</html>',
+						metadata: { title: 'Page', description: 'Page description' },
+					})),
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
@@ -233,7 +239,10 @@ describe('StaticSiteGenerator', () => {
 			const RendererFactory = {
 				getPageRenderer: vi.fn(() => ({
 					loadPageModule: vi.fn(async () => createStaticPageModule()),
-					execute: vi.fn(async () => ({ body: '<html>Home</html>' })),
+					execute: vi.fn(async () => ({
+						body: '<html>Home</html>',
+						metadata: { title: 'Page', description: 'Page description' },
+					})),
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
@@ -256,7 +265,10 @@ describe('StaticSiteGenerator', () => {
 			const RendererFactory = {
 				getPageRenderer: vi.fn(() => ({
 					loadPageModule: vi.fn(async () => createStaticPageModule()),
-					execute: vi.fn(async () => ({ body: bufferContent })),
+					execute: vi.fn(async () => ({
+						body: bufferContent,
+						metadata: { title: 'Page', description: 'Page description' },
+					})),
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
@@ -275,7 +287,10 @@ describe('StaticSiteGenerator', () => {
 				'/dashboard': { filePath: '/src/pages/dashboard.tsx', pathname: '/dashboard' },
 			});
 
-			const execute = vi.fn(async () => ({ body: '<html>Dashboard</html>' }));
+			const execute = vi.fn(async () => ({
+				body: '<html>Dashboard</html>',
+				metadata: { title: 'Page', description: 'Page description' },
+			}));
 			const loadPageModule = vi.fn(async () => ({
 				default: Object.assign(() => null, { cache: 'dynamic' }),
 			}));
@@ -305,7 +320,10 @@ describe('StaticSiteGenerator', () => {
 				'/': { filePath, pathname: '/' },
 			});
 			const loadPageModule = vi.fn(async () => createStaticPageModule());
-			const execute = vi.fn(async () => ({ body: '<html>Home</html>' }));
+			const execute = vi.fn(async () => ({
+				body: '<html>Home</html>',
+				metadata: { title: 'Page', description: 'Page description' },
+			}));
 			const pageRenderer = { loadPageModule, execute };
 			const RendererFactory = {
 				getPageRenderer: vi.fn(() => pageRenderer),
@@ -695,6 +713,7 @@ describe('StaticSiteGenerator', () => {
 			});
 			const ssg = new StaticSiteGenerator({ appConfig });
 
+			const loadPageModules: Array<ReturnType<typeof vi.fn>> = [];
 			const RendererFactory = {
 				getPageRenderer: vi.fn((_filePath: string) => ({
 					loadPageModule: vi.fn(async () => {
@@ -849,7 +868,10 @@ describe('StaticSiteGenerator', () => {
 			const ssg = new StaticSiteGenerator({
 				appConfig: createMockConfig({ baseUrl: 'http://localhost:3000' } as any),
 			});
-			const executeExplicitView = vi.fn(async () => ({ body: '<html>Post</html>' }));
+			const executeExplicitView = vi.fn(async () => ({
+				body: '<html>Post</html>',
+				metadata: { title: 'Page', description: 'Page description' },
+			}));
 			const staticProps = vi.fn(async ({ pathname }) => ({
 				props: pathname.params,
 			}));

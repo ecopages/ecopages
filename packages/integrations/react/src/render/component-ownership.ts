@@ -21,8 +21,7 @@ export type RequiresAwareComponent = {
  * Reads the declared integration name for a component or layout.
  *
  * @remarks
- * Honors both the explicit `config.integration` override and build-time
- * `getComponentIdentity(component)?.integration` attribution.
+ * Core's ownership rule: the explicit `config.integration` override, then the build-time identity.
  */
 export function getComponentIntegration(component?: { config?: EcoComponentConfig } | null): string | undefined {
 	return getComponentOwner(component?.config);

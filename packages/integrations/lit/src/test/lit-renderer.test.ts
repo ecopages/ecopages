@@ -699,6 +699,7 @@ describe('LitRenderer', () => {
 			const sessionHolder: { current?: Pick<LitStaticRenderSession, 'renderPageInWorker'> } = {};
 			const renderPageInWorker = vi.fn(async () => ({
 				html: '<html>lazy-worker</html>',
+				metadata: { title: 'Page', description: 'Page description' },
 				cacheStrategy: { revalidate: 15 },
 				sourceDependencyPaths: ['/app/pages/index.lit.tsx'],
 			}));
@@ -736,6 +737,7 @@ describe('LitRenderer', () => {
 		it('forces in-process execute when locals are present', async () => {
 			const renderPageInWorker = vi.fn(async () => ({
 				html: '<html>worker</html>',
+				metadata: { title: 'Page', description: 'Page description' },
 			}));
 
 			const renderer = new LitRenderer({
@@ -751,6 +753,7 @@ describe('LitRenderer', () => {
 
 			const inProcessSpy = vi.spyOn(IntegrationRenderer.prototype, 'execute').mockResolvedValue({
 				body: '<html>locals-in-process</html>',
+				metadata: { title: 'Page', description: 'Page description' },
 			});
 
 			try {
@@ -766,7 +769,10 @@ describe('LitRenderer', () => {
 					params: { id: '1' },
 					locals: { requestId: 'req-1' },
 				});
-				expect(result).toEqual({ body: '<html>locals-in-process</html>' });
+				expect(result).toEqual({
+					body: '<html>locals-in-process</html>',
+					metadata: { title: 'Page', description: 'Page description' },
+				});
 			} finally {
 				inProcessSpy.mockRestore();
 			}
@@ -775,6 +781,7 @@ describe('LitRenderer', () => {
 		it('forces in-process execute when explicit view props are present', async () => {
 			const renderPageInWorker = vi.fn(async () => ({
 				html: '<html>worker</html>',
+				metadata: { title: 'Page', description: 'Page description' },
 			}));
 			const renderer = new LitRenderer({
 				appConfig: Config,
@@ -788,6 +795,7 @@ describe('LitRenderer', () => {
 			});
 			const inProcessSpy = vi.spyOn(IntegrationRenderer.prototype, 'execute').mockResolvedValue({
 				body: '<html>props-in-process</html>',
+				metadata: { title: 'Page', description: 'Page description' },
 			});
 
 			try {
@@ -799,7 +807,10 @@ describe('LitRenderer', () => {
 				});
 
 				expect(renderPageInWorker).not.toHaveBeenCalled();
-				expect(result).toEqual({ body: '<html>props-in-process</html>' });
+				expect(result).toEqual({
+					body: '<html>props-in-process</html>',
+					metadata: { title: 'Page', description: 'Page description' },
+				});
 				expect(inProcessSpy).toHaveBeenCalled();
 			} finally {
 				inProcessSpy.mockRestore();

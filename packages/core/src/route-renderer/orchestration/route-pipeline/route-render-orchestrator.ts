@@ -94,6 +94,18 @@ export type RouteRenderHost<C> = Pick<
 >;
 
 /**
+ * What route preparation derives from a Page's shell roots (Html template, Layouts, Page) and its
+ * declared dependencies, before the Page Browser Graph is resolved.
+ */
+type PreparedShellDependencies = {
+	resolvedPageDependencies: ResolvedPageDependencies | undefined;
+	resolvedDependencies: ProcessedAsset[];
+	clientPlan: PageClientPlan;
+	clientBrowserAssets: PageClientBrowserAssets;
+	allDependencies: ProcessedAsset[];
+};
+
+/**
  * Captured route-render output in both replayable body and string HTML forms.
  */
 export interface CapturedHtmlRenderResult {
@@ -137,6 +149,7 @@ export class RouteRenderOrchestrator {
 	private readonly assetProcessingService: AssetProcessingService;
 	private readonly ownershipValidationService: OwnershipValidationService;
 	private readonly pageBrowserGraphService: PageBrowserGraphService;
+	private readonly preparedShellDependencies = new WeakMap<object, Promise<PreparedShellDependencies>>();
 
 	constructor(
 		appConfig: EcoPagesAppConfig,
@@ -393,6 +406,98 @@ export class RouteRenderOrchestrator {
 			pageClientPlan: clientPlan,
 			islandRenderAssetsByFile: clientBrowserAssets.islandRenderAssetsByFile,
 		};
+	}
+
+	/**
+	 * Validates ownership and resolves the dependencies and client assets the shell roots declare.
+	 */
+	private async prepareShellDependencies<C>(input: {
+		adapter: RouteRenderOrchestratorAdapter<C>;
+		graphContext: PageBrowserGraphContributionContext;
+		shellRoots: DeclaredOwnershipRoot[];
+		componentsToResolve: EcoComponent[];
+	}): Promise<PreparedShellDependencies> {
+		const { adapter, graphContext, shellRoots, componentsToResolve } = input;
+		await measureRouteRenderPhase('ownership-validation', async () => {
+			const validationErrors = this.ownershipValidationService.validate({
+				currentIntegrationName: adapter.name,
+				roots: shellRoots,
+			});
+			throwIfOwnershipInvalid(validationErrors);
+		});
+
+		const resolvedPageDependencies = await adapter.resolvePageDependencies(graphContext);
+		const { resolvedDependencies } = await measureRouteRenderPhase('resolve-dependencies', () =>
+			adapter.resolveRouteDependencies({
+				components: componentsToResolve,
+			}),
+		);
+		const dependencyRoots = [
+			...shellRoots,
+			...(resolvedPageDependencies?.components ?? []).map((component) => ({ component })),
+		];
+		const clientPlan = collectPageClientPlan(dependencyRoots, adapter.name);
+		const clientBrowserAssets = await adapter.buildPageClientBrowserAssets(clientPlan);
+		if (clientBrowserAssets.lazyTriggers.length > 0) {
+			clientPlan.lazyTriggers = clientBrowserAssets.lazyTriggers;
+		}
+
+		const allDependencies = [
+			...resolvedDependencies,
+			...clientBrowserAssets.processedAssets,
+			...collectUsedIntegrationDependenciesFromNames(this.appConfig, clientPlan.integrationNames, adapter.name),
+		];
+
+		const triggers = clientPlan.lazyTriggers;
+		const globalAssets =
+			triggers.length > 0
+				? await buildGlobalInjectorAssets(this.appConfig, this.assetProcessingService, triggers, adapter.name)
+				: [];
+		allDependencies.push(...globalAssets);
+
+		return { resolvedPageDependencies, resolvedDependencies, clientPlan, clientBrowserAssets, allDependencies };
+	}
+
+	private isHmrEnabled(): boolean {
+		return (
+			typeof this.assetProcessingService.getHmrManager === 'function' &&
+			this.assetProcessingService.getHmrManager()?.isEnabled() === true
+		);
+	}
+
+	/**
+	 * Prepares the shell dependencies of `page`, once per process when they cannot change.
+	 *
+	 * @remarks
+	 * A production process never edits a source file, and a Page without a `dependencies` function
+	 * declares them statically, so the Html template, Layouts and Page of one Page object always
+	 * resolve to the same assets. A render of an unchanged view then skips the dependency work a
+	 * cached filesystem Page skips. A `dependencies` function reads the render's props, params and
+	 * query, so those Pages prepare on every render. So does every render outside production and
+	 * every render while HMR is enabled, even under `NODE_ENV=production`, because a source edit
+	 * changes the result. A failed preparation is not kept.
+	 */
+	private reuseShellDependencies(
+		page: object,
+		prepare: () => Promise<PreparedShellDependencies>,
+	): Promise<PreparedShellDependencies> {
+		if (!isProductionRuntime() || this.isHmrEnabled() || (page as EcoPageComponent<unknown>).resolveDependencies) {
+			return prepare();
+		}
+
+		const known = this.preparedShellDependencies.get(page);
+		if (known) {
+			return known;
+		}
+
+		const prepared = prepare();
+		this.preparedShellDependencies.set(page, prepared);
+		prepared.catch(() => {
+			if (this.preparedShellDependencies.get(page) === prepared) {
+				this.preparedShellDependencies.delete(page);
+			}
+		});
+		return prepared;
 	}
 
 	async resolveDeclaredPageBrowserGraph(input: {

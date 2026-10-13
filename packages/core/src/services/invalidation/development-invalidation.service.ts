@@ -288,13 +288,27 @@ export class DevelopmentInvalidationService {
 
 	/**
 	 * Classifies one changed file into an explicit framework invalidation plan.
+	 *
+	 * @remarks
+	 * A file in the recorded closure of a server route module invalidates server modules whatever its
+	 * category. A public file or a processor-owned asset that a route module read (a stylesheet or data
+	 * file it imports) would otherwise leave the cached import serving the old content, because cached
+	 * imports no longer re-hash their dependencies. The category stays as classified, so the other
+	 * flags (browser reload, public copy, processor handling) are unchanged.
 	 */
 	planFileChange(
 		filePath: string,
 		context: DevelopmentInvalidationPlanningContext = {},
 	): DevelopmentInvalidationPlan {
 		const category = this.classifyFileChange(filePath, context);
-		return { category, ...INVALIDATION_PLAN_BY_CATEGORY[category] };
+		const plan = INVALIDATION_PLAN_BY_CATEGORY[category];
+		const readByServerRouteModule =
+			getAppBuildInputIndex(this.appConfig).resolveKeys('server-route-module', filePath).length > 0;
+		return {
+			category,
+			...plan,
+			invalidateServerModules: plan.invalidateServerModules || readByServerRouteModule,
+		};
 	}
 
 	private classifyFileChange(

@@ -7,8 +7,8 @@ import type {
 	ResponseOptions,
 } from '../../../types/public-types.ts';
 import type {
+	ExplicitViewRenderContext,
 	IntegrationRenderer,
-	RenderToResponseContext,
 } from '../../../route-renderer/orchestration/integration-renderer.ts';
 import type { AnyIntegrationPlugin } from '../../../plugins/integration-plugin.ts';
 import { invariant } from '../../../utils/invariant.ts';
@@ -37,6 +37,34 @@ function mergePropsWithLocals<P>(props: P, locals: Record<string, unknown> | und
 		return props;
 	}
 	return { ...(props as Record<string, unknown>), locals } as P;
+}
+
+/**
+ * Request data the handler context carries into an explicit view render.
+ *
+ * @remarks
+ * The render methods are spread onto the handler context, so `this` holds the request, its route
+ * params, and its locals.
+ */
+type HandlerRequestScope = {
+	locals?: Record<string, unknown>;
+	params?: Record<string, string | string[]>;
+	request?: Request;
+};
+
+function createExplicitViewContext(
+	scope: HandlerRequestScope | undefined,
+	renderOptions: RenderOptions | undefined,
+	partial: boolean,
+): ExplicitViewRenderContext {
+	return {
+		partial,
+		status: renderOptions?.status,
+		headers: renderOptions?.headers,
+		locals: scope?.locals as ExplicitViewRenderContext['locals'],
+		params: scope?.params,
+		query: scope?.request ? Object.fromEntries(new URL(scope.request.url).searchParams) : undefined,
+	};
 }
 
 /**
@@ -74,60 +102,52 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 		},
 
 		async renderServerModule<P = Record<string, unknown>>(
-			this: { locals?: Record<string, unknown> } | undefined,
+			this: HandlerRequestScope | undefined,
 			filePath: string | URL,
 			props?: P,
 			renderOptions?: RenderOptions,
 		): Promise<Response> {
 			const module = await renderContext.importServerModule<{ default: EcoPageComponent<P> }>(filePath);
 			const view = module.default as EcoComponent<P>;
-			const locals = (this as { locals?: Record<string, unknown> } | undefined)?.locals;
+			const locals = this?.locals;
 			const mergedProps = mergePropsWithLocals<P>(props ?? ({} as P), locals);
 
 			const renderer = getRendererForView(view);
-			const ctx: RenderToResponseContext = {
-				partial: false,
-				status: renderOptions?.status,
-				headers: renderOptions?.headers,
-			};
-
-			return await renderer.renderExplicitView(view, mergedProps, ctx);
+			return await renderer.renderExplicitView(
+				view,
+				mergedProps,
+				createExplicitViewContext(this, renderOptions, false),
+			);
 		},
 
 		async render<P>(
-			this: { locals?: Record<string, unknown> } | undefined,
+			this: HandlerRequestScope | undefined,
 			view: EcoComponent<P>,
 			props?: P,
 			renderOptions?: RenderOptions,
 		): Promise<Response> {
-			const locals = (this as { locals?: Record<string, unknown> } | undefined)?.locals;
+			const locals = this?.locals;
 			const mergedProps = mergePropsWithLocals<P>(props ?? ({} as P), locals);
 
 			const renderer = getRendererForView(view);
-			const ctx: RenderToResponseContext = {
-				partial: false,
-				status: renderOptions?.status,
-				headers: renderOptions?.headers,
-			};
-			return renderer.renderExplicitView(view, mergedProps, ctx);
+			return renderer.renderExplicitView(
+				view,
+				mergedProps,
+				createExplicitViewContext(this, renderOptions, false),
+			);
 		},
 
 		async renderPartial<P>(
-			this: { locals?: Record<string, unknown> } | undefined,
+			this: HandlerRequestScope | undefined,
 			view: EcoComponent<P>,
 			props: P,
 			renderOptions?: RenderOptions,
 		): Promise<Response> {
-			const locals = (this as { locals?: Record<string, unknown> } | undefined)?.locals;
+			const locals = this?.locals;
 			const mergedProps = mergePropsWithLocals<P>(props, locals);
 
 			const renderer = getRendererForView(view);
-			const ctx: RenderToResponseContext = {
-				partial: true,
-				status: renderOptions?.status,
-				headers: renderOptions?.headers,
-			};
-			return renderer.renderExplicitView(view, mergedProps, { ...ctx, partial: true });
+			return renderer.renderExplicitView(view, mergedProps, createExplicitViewContext(this, renderOptions, true));
 		},
 
 		json(data: unknown, responseOptions?: ResponseOptions): Response {

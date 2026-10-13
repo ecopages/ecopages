@@ -58,8 +58,13 @@ export type PageClientBrowserAssets = {
 	lazyTriggers: ResolvedLazyTrigger[];
 };
 
+/**
+ * @remarks
+ * An explicit `config.integration` wins over the identity's, as it does when the graph walk and
+ * render routing pick an owner, so a component has one Integration everywhere.
+ */
 function getIntegrationName(component: EcoComponent | Partial<EcoComponent>, parentIntegrationName: string): string {
-	return getComponentIdentity(component)?.integration ?? component.config?.integration ?? parentIntegrationName;
+	return component.config?.integration ?? getComponentIdentity(component)?.integration ?? parentIntegrationName;
 }
 
 function collectPendingLazyClientEntries(

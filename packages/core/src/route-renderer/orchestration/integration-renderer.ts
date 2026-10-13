@@ -106,6 +106,12 @@ export interface RenderToResponseContext {
 	headers?: HeadersInit;
 }
 
+/**
+ * Request data an explicit view render forwards to the route pipeline.
+ */
+export type ExplicitViewRenderContext = RenderToResponseContext &
+	Partial<Pick<RouteRendererOptions, 'params' | 'query' | 'locals' | 'file'>>;
+
 export type HtmlDocumentContributionContext<C = EcoPagesElement> = {
 	renderOptions?: IntegrationRendererRenderOptions<C>;
 	partial?: boolean;
@@ -130,7 +136,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected assetProcessingService: AssetProcessingService;
 	protected htmlTransformer: HtmlTransformerService;
 	protected hmrManager?: IHmrManager;
-	protected islandRenderAssetsByFile = new Map<string, ProcessedAsset[]>();
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
 	declare protected options: Required<IntegrationRendererRenderOptions>;
 	protected runtimeOrigin: string;
@@ -781,53 +786,60 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Renders one explicit view through the route pipeline.
 	 *
 	 * @remarks
-	 * A partial render stays on `renderComponentWithForeignChildren` and still
-	 * takes the same exclusive render as `execute`, so runtime activation and
-	 * the transformer lock apply. A full render calls `execute` with the view
-	 * as the page module, so it receives the same layouts, metadata, and client
-	 * plan as a filesystem Page. `file` is the view's identity file, or a
-	 * stable synthetic key when the view has none.
+	 * A partial render stays on `renderComponentWithForeignChildren`. A full render
+	 * goes through {@link IntegrationRenderer.executeExplicitView}, so it receives the
+	 * same layouts, metadata, and client plan as a filesystem Page.
 	 */
-	async renderExplicitView<P>(
-		view: EcoComponent<P>,
-		props: P,
-		ctx: RenderToResponseContext & Partial<Pick<RouteRendererOptions, 'params' | 'query' | 'locals' | 'file'>>,
-	): Promise<Response> {
+	async renderExplicitView<P>(view: EcoComponent<P>, props: P, ctx: ExplicitViewRenderContext): Promise<Response> {
 		if (ctx.partial) {
-			return this.runRenderExclusive(async () => {
-				const plan = collectPageClientPlan([{ component: view }], this.name);
-				const assets = await this.buildPageClientBrowserAssets(plan);
-				const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
-				const { value } = await runWithComponentRenderContext(
-					{
-						currentIntegration: this.name,
-						pageClientPlan: plan,
-						islandRenderAssetsByFile: assets.islandRenderAssetsByFile,
-					},
-					async () => {
-						const rendered = await this.renderComponentWithForeignChildren({
-							component: view as EcoComponent,
-							props: (props ?? {}) as Record<string, unknown>,
-							integrationContext: { rendererCache },
-						});
-						return this.createHtmlResponse(rendered.html, ctx);
-					},
-				);
-				return value;
-			});
+			const plan = collectPageClientPlan([{ component: view }], this.name);
+			const assets = await this.buildPageClientBrowserAssets(plan);
+			const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
+			const { value } = await runWithComponentRenderContext(
+				{
+					currentIntegration: this.name,
+					pageClientPlan: plan,
+					islandRenderAssetsByFile: assets.islandRenderAssetsByFile,
+				},
+				async () => {
+					const rendered = await this.renderComponentWithForeignChildren({
+						component: view as EcoComponent,
+						props: (props ?? {}) as Record<string, unknown>,
+						integrationContext: { rendererCache },
+					});
+					return this.createHtmlResponse(rendered.html, ctx);
+				},
+			);
+			return value;
 		}
 
+		const result = await this.executeExplicitView(view, props, ctx);
+		return this.createHtmlResponse(result.body as BodyInit, ctx);
+	}
+
+	/**
+	 * Renders one explicit view as a full document and returns the route result.
+	 *
+	 * @remarks
+	 * `file` is the view's identity file, or a stable synthetic key when the view has
+	 * none. `props` are the view's final props: its `staticProps` hook is the caller's
+	 * to run, so it is not run here.
+	 */
+	async executeExplicitView<P>(
+		view: EcoComponent<P>,
+		props: P,
+		ctx: Omit<ExplicitViewRenderContext, 'partial'> = {},
+	): Promise<RouteRenderResult> {
 		const identity = getComponentIdentity(view);
-		const result = await this.execute({
+		return this.execute({
 			file: ctx.file ?? identity?.file ?? `explicit:${this.name}:${identity?.id ?? 'view'}`,
 			pageModule: { default: view },
 			params: ctx.params,
 			query: ctx.query,
 			locals: ctx.locals,
 			props: (props ?? {}) as Record<string, unknown>,
+			skipStaticProps: true,
 		});
-
-		return this.createHtmlResponse(result.body as BodyInit, ctx);
 	}
 
 	/**
@@ -994,11 +1006,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Island assets for the active render.
 	 *
 	 * @remarks
-	 * The render context owns the map. The renderer field remains for tests that
-	 * assign it without entering a render context.
+	 * The render context owns the map; outside a render there are none.
 	 */
 	protected getActiveIslandRenderAssets(): ReadonlyMap<string, ProcessedAsset[]> {
-		return getComponentRenderContext()?.islandRenderAssetsByFile ?? this.islandRenderAssetsByFile;
+		return getComponentRenderContext()?.islandRenderAssetsByFile ?? new Map();
 	}
 
 	/**

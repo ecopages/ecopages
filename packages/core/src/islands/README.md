@@ -17,7 +17,7 @@ Hydratable component instances stamp a small, integration-agnostic attribute set
 
 React integrations may emit `<eco-island>` as the SSR host. Island and lazy-entry
 client modules are built together from the page client plan, in one grouped
-browser build, during route preparation. Island entries are components whose Integration differs from their parent's, excluding the Html shell. Hydrating integrations take Foreign Children of another page owner (`selectHydrationIslandEntries`),
+browser build, during route preparation. Island entries are components whose Integration differs from their parent's, excluding the Html shell; a component also reached by a parent of another Integration is an island whatever the order the parents were visited in, and is listed once. Hydrating integrations take Foreign Children of another page owner (`selectHydrationIslandEntries`),
 not the page owner's Page, Layout, or nested includes. The page owner collects that
 build from every island-hydrating integration on the plan, so a React island on a
 Kita or Lit route still gets a hydration script. Island grouped entries re-export the

@@ -372,6 +372,7 @@ export class RouteRenderOrchestrator {
 				body,
 				cacheStrategy: renderOptions.cacheStrategy,
 				sourceDependencyPaths,
+				metadata: renderOptions.metadata,
 			};
 		}
 
@@ -395,6 +396,7 @@ export class RouteRenderOrchestrator {
 			body,
 			cacheStrategy: renderOptions.cacheStrategy,
 			sourceDependencyPaths,
+			metadata: renderOptions.metadata,
 		};
 	}
 

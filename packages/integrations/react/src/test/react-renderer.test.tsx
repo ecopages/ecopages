@@ -12,6 +12,7 @@ import {
 } from '@ecopages/core';
 import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { type RouteModuleLoadOptions } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { runWithComponentRenderContext } from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { fileSystem } from '@ecopages/file-system';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
@@ -285,19 +286,22 @@ describe('ReactRenderer', () => {
 					currentIntegrationName: string;
 					islandEntries: Array<{ file: string; integrationName: string; component: EcoComponent }>;
 				}) => Promise<Map<string, unknown[]>>;
-				islandRenderAssetsByFile: Map<string, unknown[]>;
 			};
-			renderer.islandRenderAssetsByFile = await renderer.collectIslandRenderAssets({
+			const islandRenderAssetsByFile = await renderer.collectIslandRenderAssets({
 				currentIntegrationName: 'kitajs',
 				islandEntries: [{ file: pageFilePath, integrationName: 'react', component: Component }],
 			});
 			expect(assetProcessingService.processDependencies).toHaveBeenCalled();
 
-			const result = await testRenderer.renderComponent({
-				component: Component,
-				props: { title: 'Island' },
-				integrationContext: { componentInstanceId: 'island-1' },
-			});
+			const { value: result } = await runWithComponentRenderContext(
+				{ currentIntegration: 'kitajs', islandRenderAssetsByFile: islandRenderAssetsByFile as never },
+				async () =>
+					testRenderer.renderComponent({
+						component: Component,
+						props: { title: 'Island' },
+						integrationContext: { componentInstanceId: 'island-1' },
+					}),
+			);
 
 			expect(result.canAttachAttributes).toBe(true);
 			expect(result.html).toBe('<eco-island style="display:contents"><h3>Island</h3></eco-island>');

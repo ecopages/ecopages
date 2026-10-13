@@ -861,6 +861,13 @@ export type RouteRendererOptions = {
 	 * `stack` on the custom 500 page).
 	 */
 	props?: Record<string, unknown>;
+	/**
+	 * Skips the page's `staticProps` hook for this render.
+	 * @remarks Set when the caller already holds the final props, as the caller of an
+	 * explicit view does. `props` then replaces the hook's result instead of being
+	 * merged into it, and metadata sees the same props.
+	 */
+	skipStaticProps?: boolean;
 };
 
 /**
@@ -877,6 +884,8 @@ export type RouteRenderResult = {
 	cacheStrategy?: CacheStrategy;
 	/** Source paths observed during render preparation for HTML cache invalidation. */
 	sourceDependencyPaths?: readonly string[];
+	/** Page metadata the document was rendered with. */
+	metadata?: PageMetadataProps;
 };
 
 /**

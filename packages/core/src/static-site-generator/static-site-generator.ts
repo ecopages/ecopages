@@ -263,25 +263,6 @@ export class StaticSiteGenerator {
 		return metadata;
 	}
 
-	private async resolveExplicitViewMetadata(input: {
-		view: EcoPageComponent<any>;
-		params: Record<string, string | string[]>;
-		props: Record<string, unknown>;
-	}): Promise<PageMetadataProps> {
-		if (!input.view.metadata) {
-			return this.appConfig.defaultMetadata;
-		}
-
-		const dynamicMetadata = await input.view.metadata({
-			params: input.params,
-			query: {},
-			props: input.props,
-			appConfig: this.appConfig,
-		});
-
-		return { ...this.appConfig.defaultMetadata, ...dynamicMetadata };
-	}
-
 	private async createFilesystemStaticContents(input: {
 		route: StaticGenerationRoute;
 		baseUrl: string;
@@ -629,6 +610,7 @@ export class StaticSiteGenerator {
 		});
 
 		for (const { pathname, params } of routeEntries) {
+			let renderedMetadata: PageMetadataProps | undefined;
 			await this.writeStaticPageArtifact({
 				pathname,
 				activeStaticPathnames,
@@ -637,26 +619,23 @@ export class StaticSiteGenerator {
 						pathname,
 						sitemapEligiblePathnames,
 						resolveMetadata: async () => {
-							const { props } = await prepareExplicitStaticRender({
-								routePath,
-								view,
-								params,
-								appConfig: this.appConfig,
-								runtimeOrigin: this.appConfig.baseUrl,
-								routeRendererFactory,
-								errors: STATIC_SITE_GENERATOR_ERRORS,
-							});
-							return this.resolveExplicitViewMetadata({ view, params, props });
+							if (!renderedMetadata) {
+								throw new Error(`No metadata was rendered for ${pathname}`);
+							}
+							return renderedMetadata;
 						},
 					}),
-				createContents: () =>
-					this.createExplicitStaticContents({
+				createContents: async () => {
+					const { html, metadata } = await this.createExplicitStaticContents({
 						routePath,
 						view,
 						params,
 						routeRendererFactory,
 						renderer,
-					}),
+					});
+					renderedMetadata = metadata;
+					return html;
+				},
 			});
 
 			appLogger.debug(`Generated static page: ${pathname}`);
@@ -687,7 +666,7 @@ export class StaticSiteGenerator {
 		params: Record<string, string | string[]>;
 		routeRendererFactory: ExplicitStaticRouteRendererFactory;
 		renderer: ExplicitViewRenderer;
-	}): Promise<string> {
+	}): Promise<{ html: string; metadata?: PageMetadataProps }> {
 		const { props, view: renderableView } = await prepareExplicitStaticRender({
 			routePath: input.routePath,
 			view: input.view,
@@ -698,8 +677,8 @@ export class StaticSiteGenerator {
 			errors: STATIC_SITE_GENERATOR_ERRORS,
 		});
 
-		const response = await input.renderer.renderExplicitView(renderableView, props, { params: input.params });
-		return response.text();
+		const result = await input.renderer.executeExplicitView(renderableView, props, { params: input.params });
+		return { html: await new Response(result.body as BodyInit).text(), metadata: result.metadata };
 	}
 
 	private async listExplicitStaticRouteEntries(

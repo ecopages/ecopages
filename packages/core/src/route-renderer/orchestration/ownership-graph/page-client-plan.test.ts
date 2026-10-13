@@ -162,3 +162,21 @@ test('collectPageClientPlan lists a component once when several foreign parents 
 		['/app/button.tsx'],
 	);
 });
+
+test('collectPageClientPlan gives a component with both an identity and a config integration the config one', () => {
+	const child = {
+		config: {
+			integration: 'react',
+			identity: { id: 'child', file: '/app/child.tsx', integration: 'kitajs' },
+			dependencies: { components: [] },
+		},
+	} as unknown as EcoComponent;
+	const page = createComponent({ integration: 'kitajs', file: '/app/page.kita.tsx', children: [child] });
+
+	const plan = collectPageClientPlan([{ component: page }], 'kitajs');
+
+	assert.deepEqual(
+		plan.islandEntries.map((entry) => [entry.file, entry.integrationName]),
+		[['/app/child.tsx', 'react']],
+	);
+});

@@ -18,10 +18,11 @@ export type PageRouteRenderer = Pick<IntegrationRenderer<unknown>, 'execute' | '
  * Narrow explicit-view render contract exposed to static route handling.
  *
  * @remarks
- * Explicit views render through `renderExplicitView()`, which calls `execute`
- * for a full document and keeps a partial render on the component path.
+ * Explicit views render through `renderExplicitView()`, which returns a response, or
+ * `executeExplicitView()`, which returns the route result with its metadata. A full
+ * document goes through `execute`; a partial render stays on the component path.
  */
-export type ExplicitViewRenderer = Pick<IntegrationRenderer<unknown>, 'renderExplicitView'>;
+export type ExplicitViewRenderer = Pick<IntegrationRenderer<unknown>, 'renderExplicitView' | 'executeExplicitView'>;
 
 export interface PageRendererResolver {
 	getPageRenderer(filePath: string): PageRouteRenderer;

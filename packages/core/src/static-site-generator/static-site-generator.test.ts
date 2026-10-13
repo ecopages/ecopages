@@ -465,7 +465,7 @@ describe('StaticSiteGenerator', () => {
 				baseUrl: 'http://localhost:3000',
 				routeRendererFactory: {
 					getPageRenderer: vi.fn(),
-					getExplicitViewRenderer: vi.fn(() => ({ renderExplicitView })),
+					getExplicitViewRenderer: vi.fn(() => ({ renderExplicitView, executeExplicitView: vi.fn() })),
 				} satisfies StaticGenerationRendererFactory,
 				errorPageLoaders: {
 					notFound: async () => ({ default: view as never }),
@@ -693,15 +693,19 @@ describe('StaticSiteGenerator', () => {
 					},
 				}),
 			});
-			const renderExplicitView = vi.fn(async () => new Response('<html>Private</html>'));
+			const executeExplicitView = vi.fn(async () => ({
+				body: '<html>Private</html>',
+				metadata: { title: 'Private', description: 'Private', robots: { index: false } },
+			}));
+			const metadata = vi.fn(async () => ({
+				title: 'Private',
+				description: 'Private',
+				robots: { index: false },
+			}));
 			const privateView = Object.assign(() => null, {
 				cache: 'static',
 				config: { identity: { ...testInjectedMeta, file: '/src/views/private.tsx' } },
-				metadata: async () => ({
-					title: 'Private',
-					description: 'Private',
-					robots: { index: false },
-				}),
+				metadata,
 			}) as any;
 
 			await ssg.run({
@@ -712,7 +716,8 @@ describe('StaticSiteGenerator', () => {
 				routeRendererFactory: {
 					getPageRenderer: vi.fn(),
 					getExplicitViewRenderer: vi.fn(() => ({
-						renderExplicitView,
+						renderExplicitView: vi.fn(),
+						executeExplicitView,
 					})),
 				} satisfies StaticGenerationRendererFactory,
 				staticRoutes: [
@@ -728,6 +733,7 @@ describe('StaticSiteGenerator', () => {
 			);
 			expect(sitemapWrite).toBeDefined();
 			expect(String(sitemapWrite?.[1])).not.toContain('/private');
+			expect(metadata).not.toHaveBeenCalled();
 		});
 
 		test('should skip explicit static routes backed by cache dynamic views', async () => {
@@ -758,7 +764,7 @@ describe('StaticSiteGenerator', () => {
 			const ssg = new StaticSiteGenerator({
 				appConfig: createMockConfig({ baseUrl: 'http://localhost:3000' } as any),
 			});
-			const renderExplicitView = vi.fn(async () => new Response('<html>Post</html>'));
+			const executeExplicitView = vi.fn(async () => ({ body: '<html>Post</html>' }));
 			const staticProps = vi.fn(async ({ pathname }) => ({
 				props: pathname.params,
 			}));
@@ -771,7 +777,8 @@ describe('StaticSiteGenerator', () => {
 				routeRendererFactory: {
 					getPageRenderer: vi.fn(),
 					getExplicitViewRenderer: vi.fn(() => ({
-						renderExplicitView,
+						renderExplicitView: vi.fn(),
+						executeExplicitView,
 					})),
 				} satisfies StaticGenerationRendererFactory,
 				staticRoutes: [
@@ -793,11 +800,8 @@ describe('StaticSiteGenerator', () => {
 				appConfig: expect.any(Object),
 				runtimeOrigin: 'http://localhost:3000',
 			});
-			expect(staticProps.mock.calls.length).toBeGreaterThan(0);
-			for (const [argument] of staticProps.mock.calls) {
-				expect(argument?.pathname?.params?.slug).toBe('hello-world');
-			}
-			expect(renderExplicitView).toHaveBeenCalledWith(
+			expect(staticProps).toHaveBeenCalledTimes(1);
+			expect(executeExplicitView).toHaveBeenCalledWith(
 				expect.any(Function),
 				{ slug: 'hello-world' },
 				{
@@ -821,6 +825,7 @@ describe('StaticSiteGenerator', () => {
 					getPageRenderer: vi.fn(),
 					getExplicitViewRenderer: vi.fn(() => ({
 						renderExplicitView: vi.fn(),
+						executeExplicitView: vi.fn(),
 					})),
 				} satisfies StaticGenerationRendererFactory,
 				staticRoutes: [

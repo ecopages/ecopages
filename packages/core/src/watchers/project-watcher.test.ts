@@ -742,39 +742,6 @@ describe('ProjectWatcher - File Change Handling', () => {
 			expect(Bridge.reload).not.toHaveBeenCalled();
 		});
 
-		test('preserves the single-file manager contract for custom HMR managers', async () => {
-			const legacyHmrManager = createMockHmrManager();
-			delete legacyHmrManager.handleFileChanges;
-			const legacyBridge = createMockBridge();
-			const firstFilePath = '/test/project/src/components/Button.tsx';
-			const secondFilePath = '/test/project/src/components/Card.tsx';
-			const batchWatcher = new ProjectWatcher({
-				config: Config,
-				refreshRouterRoutesCallback: RefreshCallback,
-				hmrManager: legacyHmrManager,
-				bridge: legacyBridge,
-				changeDebounceMs: 20,
-			});
-
-			try {
-				await Promise.all([
-					handleWatcherFileChange(batchWatcher, firstFilePath),
-					handleWatcherFileChange(batchWatcher, secondFilePath),
-				]);
-			} finally {
-				await batchWatcher.close();
-			}
-
-			expect(legacyHmrManager.handleFileChange).toHaveBeenCalledTimes(2);
-			expect(legacyHmrManager.handleFileChange).toHaveBeenNthCalledWith(1, path.resolve(firstFilePath), {
-				broadcast: false,
-			});
-			expect(legacyHmrManager.handleFileChange).toHaveBeenNthCalledWith(2, path.resolve(secondFilePath), {
-				broadcast: false,
-			});
-			expect(legacyBridge.reload).toHaveBeenCalledOnce();
-		});
-
 		test('should handle processor without watchConfig', async () => {
 			const Processor = {
 				getWatchConfig: vi.fn(() => null),

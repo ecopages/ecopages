@@ -394,25 +394,17 @@ export class ProjectWatcher {
 	private async notifyBatchClientUpdate(applied: AppliedDevFileChanges): Promise<void> {
 		const hmrCandidates = applied.files.filter((file) => file.plan.delegateToHmr);
 		const shouldReloadBrowser = applied.reloadBrowser || hmrCandidates.some((file) => file.kind === 'deleted');
-		if (this.hmrManager.handleFileChanges) {
+		try {
 			if (hmrCandidates.length > 0) {
 				await this.hmrManager.handleFileChanges(
 					hmrCandidates.map((file) => file.filePath),
 					{ broadcast: !shouldReloadBrowser },
 				);
 			}
+		} finally {
 			if (shouldReloadBrowser) {
 				this.requestBrowserReload();
 			}
-			return;
-		}
-
-		const fallbackReload = shouldReloadBrowser || hmrCandidates.length > 1;
-		for (const file of hmrCandidates) {
-			await this.hmrManager.handleFileChange(file.filePath, { broadcast: !fallbackReload });
-		}
-		if (fallbackReload) {
-			this.requestBrowserReload();
 		}
 	}
 

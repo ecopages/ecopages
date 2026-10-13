@@ -281,18 +281,10 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	public async handleFileChange(filePath: string, options: HandleFileChangeOptions = {}): Promise<void> {
-		await this.dispatchFileChanges([filePath], options, false);
+		await this.handleFileChanges([filePath], options);
 	}
 
 	public async handleFileChanges(filePaths: string[], options: HandleFileChangeOptions = {}): Promise<void> {
-		await this.dispatchFileChanges(filePaths, options, true);
-	}
-
-	private async dispatchFileChanges(
-		filePaths: string[],
-		options: HandleFileChangeOptions,
-		coalesce: boolean,
-	): Promise<void> {
 		if (filePaths.length === 0) {
 			return;
 		}
@@ -306,10 +298,15 @@ export abstract class SharedHmrManager implements IHmrManager {
 				options.graphIdentities ??
 				(this.isEnabled() ? prepareHmrFileChange(this.appConfig, filePath).affectedGraphIdentities : undefined);
 			const graphIdentities = affectedGraphIdentities?.length ? affectedGraphIdentities : undefined;
-			events.push(...(await this.processFileChange(filePath, graphIdentities)));
+			try {
+				events.push(...(await this.processFileChange(filePath, graphIdentities)));
+			} catch (error) {
+				appLogger.error(error instanceof Error ? error : new Error(String(error)));
+				events.push({ type: 'error', message: error instanceof Error ? error.message : String(error) });
+			}
 		}
 
-		this.broadcastBatchEvents(events, options, uniqueFilePaths, coalesce);
+		this.broadcastBatchEvents(events, options, uniqueFilePaths);
 	}
 
 	private async processFileChange(
@@ -362,9 +359,8 @@ export abstract class SharedHmrManager implements IHmrManager {
 		events: ClientBridgeEvent[],
 		options: HandleFileChangeOptions,
 		filePaths: string[],
-		coalesce: boolean,
 	): void {
-		const batchEvents = coalesce ? coalesceBatchEvents(events) : events;
+		const batchEvents = coalesceBatchEvents(events);
 		if (options.broadcast === false || batchEvents.length === 0) {
 			return;
 		}
@@ -610,11 +606,16 @@ function buildStrategyEvents(
 	);
 }
 
+/**
+ * @remarks
+ * A `reload` makes every other update redundant. Otherwise each distinct update is kept, so edits that touch several
+ * islands hot-update each of them, and several layout updates collapse into one soft refresh.
+ */
 function coalesceBatchEvents(events: ClientBridgeEvent[]): ClientBridgeEvent[] {
 	const errors = deduplicateEvents(events.filter((event) => event.type === 'error'));
 	const updates = deduplicateEvents(events.filter((event) => event.type !== 'error'));
-	if (updates.length === 0) {
-		return errors;
+	if (updates.length <= 1) {
+		return [...errors, ...updates];
 	}
 
 	const graphIdentities = mergeGraphIdentities(updates);
@@ -622,22 +623,21 @@ function coalesceBatchEvents(events: ClientBridgeEvent[]): ClientBridgeEvent[] {
 		return [...errors, { type: 'reload', ...(graphIdentities ? { graphIdentities } : {}) }];
 	}
 
-	if (updates.length === 1) {
-		return [...errors, updates[0]];
+	const layoutUpdates = updates.filter((event) => event.type === 'layout-update');
+	const others = updates.filter((event) => event.type !== 'layout-update');
+	if (layoutUpdates.length <= 1) {
+		return [...errors, ...others, ...layoutUpdates];
 	}
 
-	if (updates.every((event) => event.type === 'layout-update')) {
-		return [
-			...errors,
-			{
-				type: 'layout-update',
-				timestamp: Math.max(...updates.map((event) => event.timestamp ?? 0)),
-				...(graphIdentities ? { graphIdentities } : {}),
-			},
-		];
-	}
-
-	return [...errors, { type: 'reload', ...(graphIdentities ? { graphIdentities } : {}) }];
+	return [
+		...errors,
+		...others,
+		{
+			type: 'layout-update',
+			timestamp: Math.max(...layoutUpdates.map((event) => event.timestamp ?? 0)),
+			...(graphIdentities ? { graphIdentities } : {}),
+		},
+	];
 }
 
 function deduplicateEvents(events: ClientBridgeEvent[]): ClientBridgeEvent[] {

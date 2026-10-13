@@ -317,6 +317,7 @@ describe('ProjectWatcher - File Change Handling', () => {
 						return {} as T;
 					},
 					invalidateDevelopmentGraph: vi.fn(() => {}),
+					getDevelopmentGeneration: () => 0,
 				},
 			};
 

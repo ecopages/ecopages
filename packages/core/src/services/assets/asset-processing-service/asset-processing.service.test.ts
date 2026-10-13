@@ -690,8 +690,7 @@ test('AssetProcessingService - a change to a produced file evicts its cached ass
 });
 
 test('AssetProcessingService advances the browser runtime generation when a runtime source changes', async () => {
-	const previousNodeEnv = process.env.NODE_ENV;
-	process.env.NODE_ENV = 'development';
+	vi.stubEnv('NODE_ENV', 'development');
 	fileSystem.exists = vi.fn(() => true);
 	fileSystem.hash = vi
 		.fn()
@@ -699,41 +698,37 @@ test('AssetProcessingService advances the browser runtime generation when a runt
 		.mockReturnValueOnce('source-v1')
 		.mockReturnValue('source-v2');
 
-	try {
-		const config = { ...Config } as unknown as EcoPagesAppConfig;
-		const service = new AssetProcessingService(config);
-		const processMock = vi
-			.fn()
-			.mockResolvedValueOnce({
-				filepath: '/test/dist/assets/vendors/runtime-v1.js',
-				kind: 'script',
-				inline: false,
-				packageRole: 'runtime',
-			})
-			.mockResolvedValueOnce({
-				filepath: '/test/dist/assets/vendors/runtime-v2.js',
-				kind: 'script',
-				inline: false,
-				packageRole: 'runtime',
-			});
-		service.registerProcessor('script', 'file', { process: processMock });
-
-		const dependency: AssetDefinition = {
+	const config = { ...Config } as unknown as EcoPagesAppConfig;
+	const service = new AssetProcessingService(config);
+	const processMock = vi
+		.fn()
+		.mockResolvedValueOnce({
+			filepath: '/test/dist/assets/vendors/runtime-v1.js',
 			kind: 'script',
-			source: 'file',
-			filepath: '/test/src/runtime.ts',
+			inline: false,
 			packageRole: 'runtime',
-		};
+		})
+		.mockResolvedValueOnce({
+			filepath: '/test/dist/assets/vendors/runtime-v2.js',
+			kind: 'script',
+			inline: false,
+			packageRole: 'runtime',
+		});
+	service.registerProcessor('script', 'file', { process: processMock });
 
-		await service.processDependencies([dependency], 'runtime-generation');
-		expect(getBrowserRuntimeAssetGeneration(config)).toBe(0);
+	const dependency: AssetDefinition = {
+		kind: 'script',
+		source: 'file',
+		filepath: '/test/src/runtime.ts',
+		packageRole: 'runtime',
+	};
 
-		await service.processDependencies([dependency], 'runtime-generation');
-		expect(getBrowserRuntimeAssetGeneration(config)).toBe(1);
-		expect(processMock).toHaveBeenCalledTimes(2);
-	} finally {
-		process.env.NODE_ENV = previousNodeEnv;
-	}
+	await service.processDependencies([dependency], 'runtime-generation');
+	expect(getBrowserRuntimeAssetGeneration(config)).toBe(0);
+
+	await service.processDependencies([dependency], 'runtime-generation');
+	expect(getBrowserRuntimeAssetGeneration(config)).toBe(1);
+	expect(processMock).toHaveBeenCalledTimes(2);
 });
 
 test('AssetProcessingService - skips missing file dependencies', async () => {
@@ -859,8 +854,7 @@ test('AssetProcessingService - starts a new processor run for a request made aft
 });
 
 test('AssetProcessingService - gzips a production asset once, not on every request that finds it cached', async () => {
-	const originalNodeEnv = process.env.NODE_ENV;
-	process.env.NODE_ENV = 'production';
+	vi.stubEnv('NODE_ENV', 'production');
 	fileSystem.exists = vi.fn(() => true);
 	const appConfig = { ...Config } as EcoPagesAppConfig;
 	const service = new AssetProcessingService(appConfig);
@@ -874,23 +868,18 @@ test('AssetProcessingService - gzips a production asset once, not on every reque
 	});
 	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/gzip-once.ts' };
 
-	try {
-		await service.processDependencies([dependency], 'gzip-1');
-		await service.processDependencies([dependency], 'gzip-2');
-		await service.processDependencies([dependency], 'gzip-3');
-		expect(fileSystem.gzipFile).toHaveBeenCalledTimes(1);
+	await service.processDependencies([dependency], 'gzip-1');
+	await service.processDependencies([dependency], 'gzip-2');
+	await service.processDependencies([dependency], 'gzip-3');
+	expect(fileSystem.gzipFile).toHaveBeenCalledTimes(1);
 
-		getAppBuildInputIndex(appConfig).recordChanges(['/test/src/gzip-once.ts']);
-		await service.processDependencies([dependency], 'gzip-4');
-		expect(fileSystem.gzipFile).toHaveBeenCalledTimes(2);
-	} finally {
-		process.env.NODE_ENV = originalNodeEnv;
-	}
+	getAppBuildInputIndex(appConfig).recordChanges(['/test/src/gzip-once.ts']);
+	await service.processDependencies([dependency], 'gzip-4');
+	expect(fileSystem.gzipFile).toHaveBeenCalledTimes(2);
 });
 
 test('AssetProcessingService - reuses a cached asset in production without re-reading its source', async () => {
-	const originalNodeEnv = process.env.NODE_ENV;
-	process.env.NODE_ENV = 'production';
+	vi.stubEnv('NODE_ENV', 'production');
 	fileSystem.exists = vi.fn(() => true);
 	const hash = vi.fn(() => 'v1');
 	fileSystem.hash = hash;
@@ -903,15 +892,11 @@ test('AssetProcessingService - reuses a cached asset in production without re-re
 	service.registerProcessor('script', 'file', { process: processMock });
 	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/reuse.ts' };
 
-	try {
-		await service.processDependencies([dependency], 'reuse-1');
-		const hashesAfterFirstRun = hash.mock.calls.length;
-		hash.mockReturnValue('v2');
-		await service.processDependencies([dependency], 'reuse-2');
+	await service.processDependencies([dependency], 'reuse-1');
+	const hashesAfterFirstRun = hash.mock.calls.length;
+	hash.mockReturnValue('v2');
+	await service.processDependencies([dependency], 'reuse-2');
 
-		expect(processMock).toHaveBeenCalledTimes(1);
-		expect(hash.mock.calls.length).toBe(hashesAfterFirstRun);
-	} finally {
-		process.env.NODE_ENV = originalNodeEnv;
-	}
+	expect(processMock).toHaveBeenCalledTimes(1);
+	expect(hash.mock.calls.length).toBe(hashesAfterFirstRun);
 });

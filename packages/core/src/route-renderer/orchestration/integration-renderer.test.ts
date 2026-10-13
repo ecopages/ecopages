@@ -763,6 +763,7 @@ describe('IntegrationRenderer', () => {
 
 			const appConfig = {
 				...testAppConfig,
+				runtime: {},
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'explicit-renderer',
@@ -972,6 +973,7 @@ describe('IntegrationRenderer', () => {
 		})({
 			appConfig: {
 				...testAppConfig,
+				runtime: {},
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'react',

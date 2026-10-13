@@ -172,12 +172,21 @@ describe('codegen', () => {
 
 describe('attachMdxExports ownership guard', () => {
 	test('throws for mismatched lanes, skips async invocation in a foreign lane, and passes in the owning lane', async () => {
-		const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+		const { mkdtempSync, mkdirSync, realpathSync, symlinkSync, writeFileSync, rmSync } = await import('node:fs');
+		const { tmpdir } = await import('node:os');
 		const { join } = await import('node:path');
 		const { runWithComponentRenderContext } =
 			await import('@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context');
 
-		const tempDir = mkdtempSync(join(import.meta.dirname, '.codegen-'));
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-codegen-'));
+		mkdirSync(join(tempDir, 'node_modules', '@ecopages'), { recursive: true });
+		const packageRoot = join(import.meta.dirname, '..', '..');
+		symlinkSync(packageRoot, join(tempDir, 'node_modules', '@ecopages', 'content-processor'), 'dir');
+		symlinkSync(
+			realpathSync(join(packageRoot, 'node_modules', '@ecopages', 'core')),
+			join(tempDir, 'node_modules', '@ecopages', 'core'),
+			'dir',
+		);
 		const cacheDir = join(tempDir, 'cache');
 		mkdirSync(cacheDir, { recursive: true });
 		mkdirSync(join(tempDir, 'src'), { recursive: true });

@@ -1,13 +1,28 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { describe, it } from 'vitest';
+import { afterEach, describe, it } from 'vitest';
 import { createViewModuleLoader } from './view-module-loader.ts';
 
 describe('createViewModuleLoader', () => {
+	const tempRoots: string[] = [];
+
+	const createRootDir = (): string => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'view-module-loader-'));
+		tempRoots.push(rootDir);
+		return rootDir;
+	};
+
+	afterEach(() => {
+		for (const rootDir of tempRoots.splice(0)) {
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
 	it('resolves integration shorthand paths against templatesExt', async () => {
-		const rootDir = fs.mkdtempSync(path.join(import.meta.dirname, '.view-module-loader-'));
+		const rootDir = createRootDir();
 		const viewsDir = path.join(rootDir, 'src', 'views');
 		fs.mkdirSync(viewsDir, { recursive: true });
 		const viewPath = path.join(viewsDir, 'sample.kita.tsx');
@@ -32,12 +47,10 @@ describe('createViewModuleLoader', () => {
 
 		const loader = createViewModuleLoader(appConfig, './src/views/sample.kita');
 		await loader();
-
-		fs.rmSync(rootDir, { recursive: true, force: true });
 	});
 
 	it('resolves URL registrations and preserves missing paths for import errors', async () => {
-		const rootDir = fs.mkdtempSync(path.join(import.meta.dirname, '.view-module-loader-'));
+		const rootDir = createRootDir();
 		const viewsDir = path.join(rootDir, 'src', 'views');
 		fs.mkdirSync(viewsDir, { recursive: true });
 		const viewPath = path.join(viewsDir, 'sample.kita.tsx');
@@ -57,15 +70,8 @@ describe('createViewModuleLoader', () => {
 			runtime: { serverModuleTranspiler: { importModule } },
 		} as unknown as Parameters<typeof createViewModuleLoader>[0];
 
-		try {
-			await createViewModuleLoader(appConfig, pathToFileURL(viewPath))();
-			await assert.rejects(
-				createViewModuleLoader(appConfig, './src/views/missing.kita')(),
-				/missing view module/,
-			);
-			assert.deepEqual(importedPaths, [viewPath, path.join(rootDir, 'src', 'views', 'missing.kita')]);
-		} finally {
-			fs.rmSync(rootDir, { recursive: true, force: true });
-		}
+		await createViewModuleLoader(appConfig, pathToFileURL(viewPath))();
+		await assert.rejects(createViewModuleLoader(appConfig, './src/views/missing.kita')(), /missing view module/);
+		assert.deepEqual(importedPaths, [viewPath, path.join(rootDir, 'src', 'views', 'missing.kita')]);
 	});
 });

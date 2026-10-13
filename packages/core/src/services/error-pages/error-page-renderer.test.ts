@@ -20,15 +20,8 @@ function createView(file = '/app/src/views/not-found.kita.tsx') {
 }
 
 describe('ErrorPageRenderer', () => {
-	const originalNodeEnv = process.env.NODE_ENV;
-
 	afterEach(() => {
 		vi.restoreAllMocks();
-		if (originalNodeEnv === undefined) {
-			delete process.env.NODE_ENV;
-		} else {
-			process.env.NODE_ENV = originalNodeEnv;
-		}
 	});
 
 	it('prefers a filesystem template over a registered loader', async () => {
@@ -116,7 +109,7 @@ describe('ErrorPageRenderer', () => {
 			},
 		});
 
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const result = renderer.renderBuiltIn({ kind: 'serverError', error: new Error('secret') });
 
 		expect(result.body).toContain('eco-error-page__title">Something went wrong</h1>');

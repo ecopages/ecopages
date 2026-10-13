@@ -108,6 +108,15 @@ const checks: Check[] = [
 			'Apps, templates, playgrounds, and fixtures should use the root @ecopages/core exports instead of runtime subpaths.',
 		match: (_relativePath, content) => findMatchingLines(/@ecopages\/core\/(bun|node)(?:\/[^'"\s]+)?/, content),
 	},
+	{
+		id: 'test-process-env-write',
+		roots: ['packages', 'apps', 'templates', 'playground', 'e2e', 'scripts'],
+		message:
+			'Tests must change environment variables with vi.stubEnv: Vitest restores them (unstubEnvs), so a failing test cannot leak them into the next one.',
+		shouldSkip: (relativePath) => !/\.test\./.test(path.posix.basename(relativePath)),
+		match: (_relativePath, content) =>
+			findMatchingLines(/process\.env(\.\w+|\[[^\]]+\])\s*=(?!=)|delete process\.env/, content),
+	},
 ];
 
 /**

@@ -3,22 +3,16 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildEnvOverrides, buildLaunchEnv, createLaunchPlan, detectRuntime } from './launch-plan.js';
 import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '@ecopages/core/utils/resolve-entry-file';
 
 const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
 const tsxLoader = import.meta.resolve('tsx/esm');
 
-const originalUserAgent = process.env.npm_config_user_agent;
 const originalCwd = process.cwd();
 
 afterEach(() => {
-	if (originalUserAgent === undefined) {
-		delete process.env.npm_config_user_agent;
-	} else {
-		process.env.npm_config_user_agent = originalUserAgent;
-	}
 	process.chdir(originalCwd);
 });
 
@@ -65,14 +59,14 @@ describe('launch-plan', () => {
 	});
 
 	it('detectRuntime returns node when Bun is not available', () => {
-		process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
+		vi.stubEnv('npm_config_user_agent', 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64');
 		expect(detectRuntime()).toBe('node');
 		expect(detectRuntime({ runtime: 'bun' })).toBe('bun');
 		expect(detectRuntime({ runtime: 'node' })).toBe('node');
 	});
 
 	it('detectRuntime picks bun when the command was launched through Bun', () => {
-		process.env.npm_config_user_agent = 'bun/1.3.0 npm/? node/v24.0.0 darwin arm64';
+		vi.stubEnv('npm_config_user_agent', 'bun/1.3.0 npm/? node/v24.0.0 darwin arm64');
 		expect(detectRuntime()).toBe('bun');
 		expect(detectRuntime({ runtime: 'node' })).toBe('node');
 	});
@@ -100,8 +94,6 @@ describe('launch-plan', () => {
 
 	it('buildLaunchEnv loads env files and lets process env and CLI overrides win', () => {
 		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
-		const originalTestEnv = process.env.TEST_ECOPAGES_ENV;
-		const originalPort = process.env.ECOPAGES_PORT;
 		try {
 			process.chdir(tempDir);
 			fs.writeFileSync(
@@ -110,8 +102,8 @@ describe('launch-plan', () => {
 				'utf8',
 			);
 			fs.writeFileSync(path.join(tempDir, '.env.production'), 'TEST_ECOPAGES_ENV=production\n', 'utf8');
-			process.env.TEST_ECOPAGES_ENV = 'from-process';
-			process.env.ECOPAGES_PORT = '3333';
+			vi.stubEnv('TEST_ECOPAGES_ENV', 'from-process');
+			vi.stubEnv('ECOPAGES_PORT', '3333');
 
 			const { env } = buildLaunchEnv({ nodeEnv: 'production', port: '2222' });
 
@@ -121,18 +113,6 @@ describe('launch-plan', () => {
 				ECOPAGES_PORT: '2222',
 			});
 		} finally {
-			if (originalTestEnv === undefined) {
-				delete process.env.TEST_ECOPAGES_ENV;
-			} else {
-				process.env.TEST_ECOPAGES_ENV = originalTestEnv;
-			}
-
-			if (originalPort === undefined) {
-				delete process.env.ECOPAGES_PORT;
-			} else {
-				process.env.ECOPAGES_PORT = originalPort;
-			}
-
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
@@ -140,7 +120,7 @@ describe('launch-plan', () => {
 	it('createLaunchPlan adds node --watch for dev:watch', async () => {
 		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
 		try {
-			process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
+			vi.stubEnv('npm_config_user_agent', 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64');
 			process.chdir(tempDir);
 			fs.writeFileSync(path.join(tempDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
 
@@ -169,7 +149,7 @@ describe('launch-plan', () => {
 	it('createLaunchPlan runs Node entries directly', async () => {
 		const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-cli-launch-plan-'));
 		try {
-			process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
+			vi.stubEnv('npm_config_user_agent', 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64');
 			process.chdir(tempDir);
 			fs.writeFileSync(path.join(tempDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
 
@@ -273,7 +253,7 @@ describe('launch-plan', () => {
 			const tempDir = setupBundleFixture();
 			const realTempDir = fs.realpathSync(tempDir);
 			try {
-				process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
+				vi.stubEnv('npm_config_user_agent', 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64');
 				fs.mkdirSync(path.join(tempDir, 'dist', SERVER_BUNDLE_DIR), { recursive: true });
 				fs.writeFileSync(
 					path.join(tempDir, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
@@ -297,7 +277,7 @@ describe('launch-plan', () => {
 			const tempDir = setupBundleFixture();
 			const realTempDir = fs.realpathSync(tempDir);
 			try {
-				process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
+				vi.stubEnv('npm_config_user_agent', 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64');
 				const serverDir = path.join(tempDir, 'dist', SERVER_BUNDLE_DIR);
 				fs.mkdirSync(serverDir, { recursive: true });
 				const bundlePath = path.join(serverDir, SERVER_BUNDLE_FILENAME);
@@ -376,7 +356,7 @@ describe('launch-plan', () => {
 		it('does not use the bundle in development mode even when present', async () => {
 			const tempDir = setupBundleFixture();
 			try {
-				process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
+				vi.stubEnv('npm_config_user_agent', 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64');
 				fs.mkdirSync(path.join(tempDir, 'dist', SERVER_BUNDLE_DIR), { recursive: true });
 				fs.writeFileSync(
 					path.join(tempDir, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
@@ -408,7 +388,7 @@ describe('launch-plan', () => {
 		it('does not use the bundle in preview mode even when present', async () => {
 			const tempDir = setupBundleFixture();
 			try {
-				process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
+				vi.stubEnv('npm_config_user_agent', 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64');
 				fs.mkdirSync(path.join(tempDir, 'dist', SERVER_BUNDLE_DIR), { recursive: true });
 				fs.writeFileSync(
 					path.join(tempDir, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
@@ -440,7 +420,7 @@ describe('launch-plan', () => {
 		it('throws in production when bundle is missing', () => {
 			const tempDir = setupBundleFixture();
 			try {
-				process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
+				vi.stubEnv('npm_config_user_agent', 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64');
 				fs.writeFileSync(path.join(tempDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
 
 				expect(() =>
@@ -455,7 +435,7 @@ describe('launch-plan', () => {
 			const tempDir = setupBundleFixture();
 			const realTempDir = fs.realpathSync(tempDir);
 			try {
-				process.env.npm_config_user_agent = 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64';
+				vi.stubEnv('npm_config_user_agent', 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64');
 				fs.mkdirSync(path.join(tempDir, 'dist', SERVER_BUNDLE_DIR), { recursive: true });
 				fs.writeFileSync(
 					path.join(tempDir, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
@@ -548,13 +528,14 @@ describe('launch-plan', () => {
 				].join('\n'),
 			);
 
+			const { TEST_ECOPAGES_ENV: _inherited, ...inheritedEnv } = process.env;
 			run = await new Promise((resolve) => {
 				const child = spawn(
 					process.execPath,
 					[cliPath, 'dev', '--entry-file', 'app.ts', '--runtime', 'node', '-p', '2222'],
 					{
 						cwd: tempDir,
-						env: { ...process.env, VITEST: '' },
+						env: { ...inheritedEnv, VITEST: '' },
 						stdio: ['ignore', 'pipe', 'pipe'],
 					},
 				);

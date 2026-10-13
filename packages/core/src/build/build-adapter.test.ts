@@ -483,8 +483,7 @@ test('ensureIntegrationRuntimeReady evicts failed activation so a later caller c
 });
 
 test('setupAppRuntimePlugins skips processor setup in Lit static-render worker threads', async () => {
-	const previousWorkerFlag = process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER;
-	process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER = 'true';
+	vi.stubEnv('ECOPAGES_LIT_STATIC_RENDER_WORKER', 'true');
 
 	const processor = {
 		plugins: [{ name: 'processor-runtime-plugin', setup() {} }],
@@ -498,24 +497,16 @@ test('setupAppRuntimePlugins skips processor setup in Lit static-render worker t
 		setup: vi.fn(async () => {}),
 	};
 
-	try {
-		await setupAppRuntimePlugins({
-			appConfig: {
-				loaders: new Map(),
-				processors: new Map([['processor', processor]]),
-				integrations: [integration],
-			} as any,
-			runtimeOrigin: 'http://localhost:3000',
-		});
+	await setupAppRuntimePlugins({
+		appConfig: {
+			loaders: new Map(),
+			processors: new Map([['processor', processor]]),
+			integrations: [integration],
+		} as any,
+		runtimeOrigin: 'http://localhost:3000',
+	});
 
-		assert.equal(processor.setup.mock.calls.length, 0);
-		assert.equal(integration.setup.mock.calls.length, 0);
-		assert.equal(integration.setConfig.mock.calls.length, 0);
-	} finally {
-		if (previousWorkerFlag === undefined) {
-			delete process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER;
-		} else {
-			process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER = previousWorkerFlag;
-		}
-	}
+	assert.equal(processor.setup.mock.calls.length, 0);
+	assert.equal(integration.setup.mock.calls.length, 0);
+	assert.equal(integration.setConfig.mock.calls.length, 0);
 });

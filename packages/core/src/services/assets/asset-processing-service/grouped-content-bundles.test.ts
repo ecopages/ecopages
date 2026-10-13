@@ -8,8 +8,7 @@ import type { AssetDefinition, ContentScriptAsset, ProcessedAsset } from './asse
 
 describe('grouped-content-bundles', () => {
 	test('ensureGroupedContentScriptsBundle enables bundling for grouped scripts in production', () => {
-		const previousNodeEnv = process.env.NODE_ENV;
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 
 		const dependency: ContentScriptAsset = {
 			kind: 'script',
@@ -25,13 +24,10 @@ describe('grouped-content-bundles', () => {
 		ensureGroupedContentScriptsBundle([dependency]);
 
 		expect(dependency.bundle).toBe(true);
-
-		process.env.NODE_ENV = previousNodeEnv;
 	});
 
 	test('ensureGroupedContentScriptsBundle leaves grouped scripts unbundled in development', () => {
-		const previousNodeEnv = process.env.NODE_ENV;
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 
 		const dependency: ContentScriptAsset = {
 			kind: 'script',
@@ -47,8 +43,6 @@ describe('grouped-content-bundles', () => {
 		ensureGroupedContentScriptsBundle([dependency]);
 
 		expect(dependency.bundle).toBe(false);
-
-		process.env.NODE_ENV = previousNodeEnv;
 	});
 
 	test('partitionGroupedContentScriptDependencies routes grouped scripts together', () => {

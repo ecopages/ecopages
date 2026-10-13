@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { test } from 'vitest';
+import { onTestFinished, test } from 'vitest';
 import { isDeclaredAppPackageImport, isWorkspacePackageImport } from './app-package-declarations.ts';
 
 test('isWorkspacePackageImport detects workspace protocol dependencies', () => {
 	const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-workspace-'));
+	onTestFinished(() => rmSync(rootDir, { recursive: true, force: true }));
 	writeFileSync(
 		path.join(rootDir, 'package.json'),
 		JSON.stringify({
@@ -23,6 +24,7 @@ test('isWorkspacePackageImport detects workspace protocol dependencies', () => {
 
 test('isDeclaredAppPackageImport detects app-declared dependencies', () => {
 	const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-declared-'));
+	onTestFinished(() => rmSync(rootDir, { recursive: true, force: true }));
 	writeFileSync(
 		path.join(rootDir, 'package.json'),
 		JSON.stringify({

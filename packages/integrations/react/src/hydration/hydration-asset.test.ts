@@ -215,8 +215,7 @@ describe('HydrationAssetService', () => {
 	});
 
 	it('bundles the React runtime into production page browser graph entries', async () => {
-		const originalNodeEnv = process.env.NODE_ENV;
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const createBundleOptions = vi.fn(async () => ({}));
 		const processDependencies = vi.fn(async () => []);
 		const service = new HydrationAssetService({
@@ -231,26 +230,21 @@ describe('HydrationAssetService', () => {
 			} as any,
 		});
 
-		try {
-			await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
+		await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
 
-			expect(createBundleOptions).toHaveBeenCalledWith(
-				`ecopages-react-${rapidhash('/app/src/pages/index.tsx')}`,
-				false,
-				[],
-				{
-					includeRuntime: true,
-					splitting: false,
-				},
-			);
-		} finally {
-			process.env.NODE_ENV = originalNodeEnv;
-		}
+		expect(createBundleOptions).toHaveBeenCalledWith(
+			`ecopages-react-${rapidhash('/app/src/pages/index.tsx')}`,
+			false,
+			[],
+			{
+				includeRuntime: true,
+				splitting: false,
+			},
+		);
 	});
 
 	it('uses shared runtime imports for router-managed production page browser graph entries', async () => {
-		const originalNodeEnv = process.env.NODE_ENV;
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const createBundleOptions = vi.fn(async () => ({}));
 		const processDependencies = vi.fn(async () => []);
 		const service = new HydrationAssetService({
@@ -278,26 +272,21 @@ describe('HydrationAssetService', () => {
 			} as any,
 		});
 
-		try {
-			await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
+		await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
 
-			expect(createBundleOptions).toHaveBeenCalledWith(
-				`ecopages-react-${rapidhash('/app/src/pages/index.tsx')}`,
-				false,
-				[],
-				{
-					includeRuntime: false,
-					splitting: true,
-				},
-			);
-		} finally {
-			process.env.NODE_ENV = originalNodeEnv;
-		}
+		expect(createBundleOptions).toHaveBeenCalledWith(
+			`ecopages-react-${rapidhash('/app/src/pages/index.tsx')}`,
+			false,
+			[],
+			{
+				includeRuntime: false,
+				splitting: true,
+			},
+		);
 	});
 
 	it('uses shared runtime imports and readable non-HMR scripts in hosted development', async () => {
-		const originalNodeEnv = process.env.NODE_ENV;
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		const createBundleOptions = vi.fn(async () => ({}));
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
@@ -310,34 +299,26 @@ describe('HydrationAssetService', () => {
 			} as any,
 		});
 
-		try {
-			const dependencies = await service.createPageBrowserGraphDependencies(
-				'/app/src/pages/index.tsx',
-				false,
-				[],
-			);
+		const dependencies = await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
 
-			expect(createBundleOptions).toHaveBeenCalledWith(
-				`ecopages-react-${rapidhash('/app/src/pages/index.tsx')}`,
-				false,
-				[],
-				{
-					includeRuntime: false,
-					splitting: false,
-				},
-			);
-			expect(dependencies[0]).toMatchObject({
-				bundle: true,
-				content: expect.stringContaining('import { hydrateRoot } from "/assets/vendors/react-dom.js";'),
-			});
-			expect(String((dependencies[0] as { content?: string }).content ?? '')).not.toContain('hmr: {');
-			expect(String((dependencies[0] as { content?: string }).content ?? '')).toContain(
-				'from "/assets/vendors/layout-compose.js"',
-			);
-			assertNoBareEcopagesImports(String((dependencies[0] as { content?: string }).content ?? ''));
-		} finally {
-			process.env.NODE_ENV = originalNodeEnv;
-		}
+		expect(createBundleOptions).toHaveBeenCalledWith(
+			`ecopages-react-${rapidhash('/app/src/pages/index.tsx')}`,
+			false,
+			[],
+			{
+				includeRuntime: false,
+				splitting: false,
+			},
+		);
+		expect(dependencies[0]).toMatchObject({
+			bundle: true,
+			content: expect.stringContaining('import { hydrateRoot } from "/assets/vendors/react-dom.js";'),
+		});
+		expect(String((dependencies[0] as { content?: string }).content ?? '')).not.toContain('hmr: {');
+		expect(String((dependencies[0] as { content?: string }).content ?? '')).toContain(
+			'from "/assets/vendors/layout-compose.js"',
+		);
+		assertNoBareEcopagesImports(String((dependencies[0] as { content?: string }).content ?? ''));
 	});
 
 	it('uses the React-owned HMR entrypoint path for hydration assets in development', async () => {

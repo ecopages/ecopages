@@ -1,16 +1,11 @@
 import { rmSync } from 'node:fs';
-import { afterAll, afterEach, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { getBrowserRuntimeManifestFromPlugin } from '@ecopages/core/build/browser-runtime-plugin';
 import { copyFixtureApp } from '../../../../core/__fixtures__/app/copy-fixture-app.ts';
 import { RuntimeBundleService } from './runtime-bundle.ts';
 import { resolveReactPluginRuntimeModules } from './runtime-modules.ts';
 
-const originalNodeEnv = process.env.NODE_ENV;
 const fixtureAppRoot = copyFixtureApp();
-
-afterEach(() => {
-	process.env.NODE_ENV = originalNodeEnv;
-});
 
 afterAll(() => {
 	rmSync(fixtureAppRoot, { recursive: true, force: true });
@@ -18,7 +13,7 @@ afterAll(() => {
 
 describe('RuntimeBundleService', () => {
 	it('uses production vendor asset names outside development mode', () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const service = new RuntimeBundleService({ rootDir: fixtureAppRoot });
 
 		expect(service.getRuntimeImports()).toEqual({
@@ -60,7 +55,7 @@ describe('RuntimeBundleService', () => {
 	});
 
 	it('uses development vendor asset names in development mode', () => {
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		const service = new RuntimeBundleService({
 			rootDir: fixtureAppRoot,
 			routerAdapter: {
@@ -150,19 +145,19 @@ describe('RuntimeBundleService', () => {
 	});
 
 	it('re-evaluates vendor asset names when the runtime mode changes after construction', () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const service = new RuntimeBundleService({ rootDir: fixtureAppRoot });
 
 		expect(service.getRuntimeImports().react).toBe('/assets/vendors/react.js');
 
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 
 		expect(service.getRuntimeImports().react).toBe('/assets/vendors/react.development.js');
 		expect(service.getRuntimeImports().reactDomClient).toBe('/assets/vendors/react-dom.development.js');
 	});
 
 	it('registers configured runtime modules as shared browser vendors', () => {
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		const service = new RuntimeBundleService({
 			rootDir: fixtureAppRoot,
 			runtimeModules: resolveReactPluginRuntimeModules(['@mdx-js/mdx']),
@@ -202,7 +197,7 @@ describe('RuntimeBundleService', () => {
 	});
 
 	it('rewrites sibling runtime modules to their shared vendor URLs', () => {
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		const service = new RuntimeBundleService({
 			rootDir: fixtureAppRoot,
 			runtimeModules: resolveReactPluginRuntimeModules([

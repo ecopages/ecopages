@@ -8,16 +8,16 @@ async function loadFreshMetrics() {
 
 describe('request-pipeline-metrics', () => {
 	beforeEach(() => {
-		process.env.ECOPAGES_REQUEST_PIPELINE_METRICS = '1';
+		vi.stubEnv('ECOPAGES_REQUEST_PIPELINE_METRICS', '1');
 	});
 
 	afterEach(() => {
-		delete process.env.ECOPAGES_REQUEST_PIPELINE_METRICS;
+		vi.stubEnv('ECOPAGES_REQUEST_PIPELINE_METRICS', undefined);
 	});
 
 	it('stays disabled unless explicitly enabled', async () => {
 		const metrics = await loadFreshMetrics();
-		delete process.env.ECOPAGES_REQUEST_PIPELINE_METRICS;
+		vi.stubEnv('ECOPAGES_REQUEST_PIPELINE_METRICS', undefined);
 		metrics.recordPageModuleLoad('cold-build', 3);
 		assert.equal(metrics.isRequestPipelineMetricsEnabled(), false);
 		assert.deepEqual(metrics.getRequestPipelineMetricsSnapshot().pageModuleBuilds, 0);

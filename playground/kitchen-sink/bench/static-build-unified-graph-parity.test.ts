@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
-import { afterAll, afterEach, describe, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { isPagesUnifiedGraphPage } from '../../../packages/core/src/build/cache/pages-unified-graph-build';
 import { appLogger } from '../../../packages/core/src/global/app-logger';
@@ -20,9 +20,10 @@ import {
  * @remarks
  * Each part fixes one failure that appeared when the oracle ran from the repository root:
  *
- * - `NODE_ENV` is `production` from the start. Setting it inside the test body is too late: `react`
- *   would already have loaded its development build next to a production `react-dom/server`, and
- *   every React page fails with `dispatcher.getOwner is not a function`.
+ * - `NODE_ENV` is `production` from the start, and again before each test, because `unstubEnvs` resets it
+ *   before every test. Setting it only inside the test body is too late: `react` would already have
+ *   loaded its development build next to a production `react-dom/server`, and every React page fails
+ *   with `dispatcher.getOwner is not a function`.
  * - The working directory is the app root. The Lit static render worker reloads `eco.config.ts` with
  *   the working directory as root, and from the repository root it reads `src/includes/html.kita.tsx`
  *   from the wrong directory.
@@ -36,8 +37,8 @@ import {
  * builds without it and still compare equal.
  */
 const original = vi.hoisted(() => {
-	const previous = { nodeEnv: process.env.NODE_ENV, cwd: process.cwd() };
-	process.env.NODE_ENV = 'production';
+	const previous = { cwd: process.cwd() };
+	vi.stubEnv('NODE_ENV', 'production');
 	process.chdir(`${import.meta.dirname}/..`);
 	const hooks = process.getBuiltinModule('node:module').registerHooks({
 		resolve: (specifier, context, nextResolve) =>
@@ -89,27 +90,16 @@ function collectHtmlArtifacts(distDir: string): Map<string, string> {
 }
 
 describe('static-build unified graph parity', () => {
-	const originalUnifiedGraph = process.env.ECOPAGES_UNIFIED_PAGES_GRAPH;
-	const originalMetrics = process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS;
-
 	afterAll(() => {
-		process.env.NODE_ENV = original.nodeEnv;
 		process.chdir(original.cwd);
 		original.hooks.deregister();
 	});
 
+	beforeEach(() => {
+		vi.stubEnv('NODE_ENV', 'production');
+	});
+
 	afterEach(() => {
-		vi.restoreAllMocks();
-		if (originalUnifiedGraph === undefined) {
-			delete process.env.ECOPAGES_UNIFIED_PAGES_GRAPH;
-		} else {
-			process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = originalUnifiedGraph;
-		}
-		if (originalMetrics === undefined) {
-			delete process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS;
-		} else {
-			process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = originalMetrics;
-		}
 		resetRolldownBuildInvocationCounts();
 	});
 
@@ -122,17 +112,17 @@ describe('static-build unified graph parity', () => {
 	});
 
 	it('produces identical static HTML with unified graph on vs off', async () => {
-		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
+		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', '1');
 		const logError = vi.spyOn(appLogger, 'error');
 
 		const baselineConfig = await loadStaticBuildBenchConfigWithScope(PARITY_SCOPE_BASELINE);
 		resetBenchBuildState(baselineConfig);
-		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '0';
+		vi.stubEnv('ECOPAGES_UNIFIED_PAGES_GRAPH', '0');
 		await runStaticSiteGeneration(baselineConfig, { force: true });
 
 		const graphConfig = await loadStaticBuildBenchConfigWithScope(PARITY_SCOPE_GRAPH);
 		resetBenchBuildState(graphConfig);
-		delete process.env.ECOPAGES_UNIFIED_PAGES_GRAPH;
+		vi.stubEnv('ECOPAGES_UNIFIED_PAGES_GRAPH', undefined);
 		resetRolldownBuildInvocationCounts();
 		await runStaticSiteGeneration(graphConfig, { force: true });
 

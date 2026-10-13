@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { afterEach, beforeEach, describe, it } from 'vitest';
+import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 import {
 	createRouteModuleBuildKey,
 	resolvePageModuleOutputFileName,
@@ -26,12 +26,12 @@ describe('RouteModuleBuildCache', () => {
 
 	beforeEach(() => {
 		tempDir = mkdtempSync(join(tmpdir(), 'ecopages-route-module-build-cache-'));
-		delete process.env.NODE_ENV;
+		vi.stubEnv('NODE_ENV', undefined);
 	});
 
 	afterEach(() => {
 		rmSync(tempDir, { recursive: true, force: true });
-		delete process.env.NODE_ENV;
+		vi.stubEnv('NODE_ENV', undefined);
 	});
 
 	function createCache(exists: (filePath: string) => boolean = (filePath) => filePath.endsWith('.mjs')) {
@@ -61,7 +61,7 @@ describe('RouteModuleBuildCache', () => {
 			false,
 		);
 
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		assert.equal(
 			shouldCacheRouteModuleBuild({
 				filePath: '/app/pages/about.tsx',
@@ -71,7 +71,7 @@ describe('RouteModuleBuildCache', () => {
 			true,
 		);
 
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		assert.equal(
 			shouldCacheRouteModuleBuild({
 				filePath: '/app/pages/about.tsx',
@@ -83,7 +83,7 @@ describe('RouteModuleBuildCache', () => {
 	});
 
 	it('persists scoped imports used only for probes or request metadata', () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		assert.equal(
 			shouldCacheRouteModuleBuild({
 				filePath: '/app/pages/about.tsx',
@@ -110,7 +110,7 @@ describe('RouteModuleBuildCache', () => {
 	});
 
 	it('returns a cache hit when rootDir trailing slashes differ between record and lookup', () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const outputPath = join(tempDir, 'about-abc123.mjs');
 		const cache = createCache();
 		const filePath = '/app/pages/about.tsx';
@@ -135,7 +135,7 @@ describe('RouteModuleBuildCache', () => {
 	});
 
 	it('returns a cache hit when the manifest, import graph, and output file all match', () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const outputPath = join(tempDir, 'about-abc123.mjs');
 		const cache = createCache();
 		const options = {
@@ -160,7 +160,7 @@ describe('RouteModuleBuildCache', () => {
 	});
 
 	it('misses once a file the cached output imports is gone', () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const outputPath = join(tempDir, 'posts-abc123.mjs');
 		const collectionPath = join(tempDir, '..', '.server-collections', 'posts-1.mjs');
 		const present = new Set([outputPath, collectionPath, join(tempDir, 'chunk-a.js'), join(tempDir, 'lazy-b.js')]);
@@ -185,7 +185,7 @@ describe('RouteModuleBuildCache', () => {
 	});
 
 	it('misses once a shared chunk reached through another output import is gone', () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const outputPath = join(tempDir, 'page-abc123.mjs');
 		const srcChunk = join(tempDir, 'src-CLtpMCiA.js');
 		const commonChunk = join(tempDir, 'common-C70_Ss5a.js');
@@ -208,7 +208,7 @@ describe('RouteModuleBuildCache', () => {
 	});
 
 	it('misses when a tracked dependency hash changes', () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const outputPath = join(tempDir, 'about-abc123.mjs');
 		const hashes = new Map<string, string>([
 			['/app/pages/about.tsx', 'hash:about.tsx'],
@@ -242,7 +242,7 @@ describe('RouteModuleBuildCache', () => {
 	});
 
 	it('misses after the config module or a file it imports changes', () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		let configHash = 'config-a';
 		const cache = new RouteModuleBuildCache({
 			exists: (filePath) => filePath.endsWith('.mjs'),
@@ -263,7 +263,7 @@ describe('RouteModuleBuildCache', () => {
 	});
 
 	it('keys the shared app cache on the config module and the files it imports', () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const configPath = join(tempDir, 'eco.config.ts');
 		const optionsPath = join(tempDir, 'options.ts');
 		writeFileSync(configPath, "import { options } from './options';\nexport default { options };\n");
@@ -285,7 +285,7 @@ describe('RouteModuleBuildCache', () => {
 	});
 
 	it('misses when the build key changes even if the source hash is unchanged', () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const outputPath = join(tempDir, 'about-abc123.mjs');
 		const cache = createCache();
 		const baseOptions = {
@@ -344,7 +344,7 @@ describe('RouteModuleBuildCache', () => {
 	});
 
 	it('keeps entries in memory, so another cache instance starts empty', () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const cache = new RouteModuleBuildCache({
 			createDependencyHasher: () => createTestDependencyHasher(),
 		});
@@ -362,7 +362,7 @@ describe('RouteModuleBuildCache', () => {
 	});
 
 	it('forgets every entry after development invalidation', () => {
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		const cache = createCache();
 		const options = { filePath: '/app/pages/about.tsx', rootDir: '/app', outdir: tempDir, fileHash: 'abc123' };
 		cache.recordBuild({

@@ -110,6 +110,7 @@ describe('renderer foreign-child delegation', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: {
 				...testAppConfig,
+				runtime: {},
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'foreign-renderer',
@@ -166,6 +167,7 @@ describe('renderer foreign-child delegation', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: {
 				...testAppConfig,
+				runtime: {},
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'foreign-renderer',
@@ -209,6 +211,7 @@ describe('renderer foreign-child delegation', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: {
 				...testAppConfig,
+				runtime: {},
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'foreign-renderer',
@@ -337,6 +340,7 @@ describe('renderer foreign-child delegation', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: {
 				...testAppConfig,
+				runtime: {},
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'react',
@@ -394,6 +398,7 @@ describe('renderer foreign-child delegation', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: {
 				...testAppConfig,
+				runtime: {},
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'react',
@@ -469,6 +474,7 @@ describe('renderer foreign-child delegation', () => {
 		const initializeRenderer = vi.fn(() => foreignRenderer);
 		const appConfig = {
 			...testAppConfig,
+			runtime: {},
 			integrations: [
 				createMockIntegrationPlugin({
 					name: 'foreign-renderer',

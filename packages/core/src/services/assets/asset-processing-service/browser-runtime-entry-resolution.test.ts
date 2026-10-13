@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -87,8 +88,8 @@ test('resolveBrowserRuntimeEntryImport selects the import condition from the app
 
 test('resolvePackageEsmEntryPath stays rooted at the application when the caller has a same-named package', () => {
 	const rootDir = fs.mkdtempSync(path.join(tmpdir(), 'eco-browser-runtime-resolution-'));
-	const packageName = 'app-root-runtime-wins';
-	const callerPackageDir = path.join(import.meta.dirname, 'node_modules', packageName);
+	const packageName = `app-root-runtime-wins-${randomUUID()}`;
+	const callerPackageDir = path.resolve(import.meta.dirname, '../../../../node_modules', packageName);
 	try {
 		fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({ type: 'module' }), 'utf8');
 		fs.mkdirSync(path.join(rootDir, 'node_modules', packageName), { recursive: true });
@@ -109,7 +110,7 @@ test('resolvePackageEsmEntryPath stays rooted at the application when the caller
 
 		assert.match(
 			resolvePackageEsmEntryPath(packageName, rootDir) ?? '',
-			/node_modules\/app-root-runtime-wins\/app-entry\.js$/,
+			new RegExp(`node_modules/${packageName}/app-entry\\.js$`),
 		);
 	} finally {
 		fs.rmSync(callerPackageDir, { recursive: true, force: true });

@@ -1,5 +1,6 @@
-import { afterAll, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import sharp from 'sharp';
@@ -17,8 +18,8 @@ async function createTestImage(width: number, height: number, filepath: string):
 	}).toFile(filepath);
 }
 
-const testDir = path.join(__dirname, '__fixtures__');
-const testImage = path.join(testDir, 'images/test.jpg');
+let testDir: string;
+let testImage: string;
 
 function createProcessor(
 	config: Partial<ImageProcessorConfig> = {},
@@ -51,12 +52,10 @@ function createProcessor(
 
 describe('ImageProcessor', () => {
 	beforeEach(async () => {
+		testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'image-processor-test-'));
+		testImage = path.join(testDir, 'images/test.jpg');
 		const imagesDir = path.join(testDir, 'images');
 		const optimizedDir = path.join(testDir, 'optimized');
-
-		if (fs.existsSync(testDir)) {
-			fs.rmSync(testDir, { recursive: true, force: true });
-		}
 
 		fs.mkdirSync(imagesDir, { recursive: true });
 		fs.mkdirSync(optimizedDir, { recursive: true });
@@ -64,10 +63,8 @@ describe('ImageProcessor', () => {
 		await createTestImage(1920, 1080, testImage);
 	});
 
-	afterAll(() => {
-		if (fs.existsSync(testDir)) {
-			fs.rmSync(testDir, { recursive: true, force: true });
-		}
+	afterEach(() => {
+		fs.rmSync(testDir, { recursive: true, force: true });
 	});
 
 	test('processes single image with default configuration', async () => {

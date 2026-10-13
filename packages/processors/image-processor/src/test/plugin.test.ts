@@ -233,23 +233,14 @@ describe('ImageProcessorPlugin', () => {
 		fs.mkdirSync(sourceDir, { recursive: true });
 		await createTestImage(path.join(sourceDir, 'hero.png'));
 
-		const previousWorkerFlag = process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER;
-		process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER = 'true';
+		vi.stubEnv('ECOPAGES_LIT_STATIC_RENDER_WORKER', 'true');
 
-		try {
-			const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
+		const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-			await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [plugin] });
+		await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [plugin] });
 
-			expect(fs.existsSync(outputDir)).toBe(false);
-			await plugin.setup();
-			expect(fs.existsSync(outputDir)).toBe(false);
-		} finally {
-			if (previousWorkerFlag === undefined) {
-				delete process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER;
-			} else {
-				process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER = previousWorkerFlag;
-			}
-		}
+		expect(fs.existsSync(outputDir)).toBe(false);
+		await plugin.setup();
+		expect(fs.existsSync(outputDir)).toBe(false);
 	});
 });

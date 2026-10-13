@@ -41,6 +41,6 @@ try {
 }
 ```
 
-`copy-fixture-app.ts` imports only Node built-ins, so suites in other packages (such as `@ecopages/react`) import it by relative path.
+`copy-fixture-app.ts` imports only Node built-ins, so suites in other packages (such as `@ecopages/react`) import it by relative path. `copyFixtureApp(sourceDir)` copies any other workspace app the same way, as the e2e fixture suites do.
 
 `app.ts` uses `createApp()` with no arguments so CLI and e2e exercise the real config module path.

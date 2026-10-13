@@ -92,7 +92,7 @@ Keep `import type` when you only need props from the script module. Do not add `
 
 ## MDX Support
 
-Enable MDX to treat `.mdx` files as JSX routes compiled against the `@ecopages/jsx` runtime.
+Add an `mdx` object to treat `.mdx` files as JSX routes compiled against the `@ecopages/jsx` runtime. Omit the property to disable MDX. Put `remarkPlugins`, `rehypePlugins`, and `recmaPlugins` next to `compilerOptions`, not inside it.
 
 ```ts
 import { defineConfig } from '@ecopages/core/config';
@@ -102,7 +102,6 @@ export default defineConfig({
 	integrations: [
 		ecopagesJsxPlugin({
 			mdx: {
-				enabled: true,
 				extensions: ['.mdx', '.md'],
 			},
 		}),
@@ -121,3 +120,4 @@ Important:
 - Ecopages validates mixed-renderer ownership from declared dependencies during render preparation. It does not treat rendered HTML alone as the source of truth.
 - Route-level dependency resolvers can supply Components at request time; Ecopages JSX includes those resolved roots when deciding whether a Foreign Subtree needs handoff.
 - Ecopages JSX keeps raw-markup preservation and asset collection inside the JSX renderer.
+- JSX renderers use the required core `AssetProcessingService` to process declared component dependencies.

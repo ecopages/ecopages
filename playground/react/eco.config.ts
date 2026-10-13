@@ -8,7 +8,7 @@ import { ecoRouter } from '@ecopages/react-router';
 
 export default defineConfig({
 	devPrewarmPaths: ['/'],
-	integrations: [reactPlugin({ router: ecoRouter(), mdx: { enabled: true } })],
+	integrations: [reactPlugin({ router: ecoRouter(), mdx: {} })],
 	processors: [
 		imageProcessorPlugin({
 			options: {

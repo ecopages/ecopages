@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import { BUILD_ERROR_OVERLAY_ID, clearBuildError, showBuildError } from './build-error-overlay.ts';
 
 const getOverlay = () => document.getElementById(BUILD_ERROR_OVERLAY_ID);
@@ -29,30 +30,32 @@ describe('build error overlay', () => {
 		expect(getOverlay()).not.toBeNull();
 	});
 
-	it('is removed by clear, the Dismiss button and Escape', () => {
+	it('is removed by clear, the Dismiss button and Escape', async () => {
 		showBuildError('error');
 		clearBuildError();
 		expect(getOverlay()).toBeNull();
 
 		showBuildError('error');
-		getOverlay()?.querySelector('button')?.click();
+		await userEvent.click(getOverlay()!.querySelector('button')!);
 		expect(getOverlay()).toBeNull();
 
 		showBuildError('error');
-		document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+		await userEvent.keyboard('{Escape}');
 		expect(getOverlay()).toBeNull();
 	});
 
-	it('stays open when a click ends a text selection', () => {
+	it('stays open when a click ends a text selection', async () => {
 		showBuildError('selectable error');
 		const entry = getOverlay()!.querySelector('pre')!;
-		document.getSelection()?.selectAllChildren(entry);
 
-		entry.click();
+		await userEvent.dragAndDrop(entry, entry, {
+			sourcePosition: { x: 2, y: 5 },
+			targetPosition: { x: 60, y: 5 },
+		});
 
+		expect(document.getSelection()?.isCollapsed).toBe(false);
 		expect(getOverlay()).not.toBeNull();
-		document.getSelection()?.removeAllRanges();
-		entry.click();
+		await userEvent.click(entry);
 		expect(getOverlay()).toBeNull();
 	});
 });

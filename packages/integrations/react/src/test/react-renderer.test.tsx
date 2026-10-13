@@ -24,7 +24,6 @@ import {
 import React, { type JSX } from 'react';
 import { ReactRenderer, type ReactRendererConfig } from '../render/react-renderer.ts';
 import type { ReactRuntime } from '../render/layout-compose.ts';
-import { resolveComposeChildren } from '../render/unified-layout-composition.ts';
 import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
 import { ErrorPage } from './fixture/error-page';
 import { Page } from './fixture/test-page';
@@ -167,6 +166,14 @@ class TestReactRenderer extends ReactRenderer {
 
 	public getCurrentPagePackageForTest() {
 		return this.htmlTransformer.getPagePackage();
+	}
+
+	public resolveComposeChildrenForTest(options: {
+		page: { component: EcoComponent; props: Record<string, unknown> };
+		shellLayouts: Array<{ component: EcoComponent; props?: Record<string, unknown> }>;
+		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
+	}) {
+		return this.resolveComposeChildren(options);
 	}
 }
 
@@ -673,14 +680,10 @@ describe('ReactRenderer', () => {
 			config: { integration: 'ecopages-jsx' },
 		}) as unknown as EcoComponent;
 
-		const composeChildren = resolveComposeChildren({
+		const composeChildren = testRenderer.resolveComposeChildrenForTest({
 			page: { component: ReactPage, props: {} },
 			shellLayouts: [{ component: ReactLayout }],
 			foreignChildRoots: [ForeignRoot],
-			reactIntegrationName: 'react',
-			hasForeignChildDescendants: (component, roots) =>
-				(testRenderer as any).hasForeignChildDescendants(component, roots),
-			composeChildren: async () => ({ children: null, layoutRenders: [] }),
 		});
 
 		expect(composeChildren).toBeUndefined();
@@ -691,13 +694,9 @@ describe('ReactRenderer', () => {
 				dependencies: { components: [ForeignRoot] },
 			},
 		}) as unknown as EcoComponent;
-		const nestedComposeChildren = resolveComposeChildren({
+		const nestedComposeChildren = testRenderer.resolveComposeChildrenForTest({
 			page: { component: NestedForeignPage, props: {} },
 			shellLayouts: [{ component: ReactLayout }],
-			reactIntegrationName: 'react',
-			hasForeignChildDescendants: (component, roots) =>
-				(testRenderer as any).hasForeignChildDescendants(component, roots),
-			composeChildren: async () => ({ children: null, layoutRenders: [] }),
 		});
 
 		expect(nestedComposeChildren).toBeUndefined();
@@ -708,13 +707,9 @@ describe('ReactRenderer', () => {
 				dependencies: { components: [ForeignRoot] },
 			},
 		}) as unknown as EcoComponent;
-		const layoutForeignComposeChildren = resolveComposeChildren({
+		const layoutForeignComposeChildren = testRenderer.resolveComposeChildrenForTest({
 			page: { component: ReactPage, props: {} },
 			shellLayouts: [{ component: NestedForeignLayout }],
-			reactIntegrationName: 'react',
-			hasForeignChildDescendants: (component, roots) =>
-				(testRenderer as any).hasForeignChildDescendants(component, roots),
-			composeChildren: async () => ({ children: null, layoutRenders: [] }),
 		});
 
 		expect(layoutForeignComposeChildren).toBeUndefined();
@@ -833,6 +828,41 @@ describe('ReactRenderer', () => {
 		const text = await new Response(result.body as BodyInit).text();
 		expect(text).toContain('<script id="__ECO_PAGE_DATA__" type="application/json">');
 		expect(text).not.toContain('__ECO_PAGE_DATA_FALLBACK__');
+	});
+
+	it('does not rebuild the route payload for a React html template', async () => {
+		const testRenderer = createRenderer({ routerAdapter: mockRouterAdapter });
+		testRenderer.importedPageFileOverride = {
+			default: Page,
+			config: {},
+		} as EcoPageFile;
+		const buildSerializedPageProps = vi.spyOn(testRenderer.pagePayloadService, 'buildSerializedPageProps');
+
+		await testRenderer.execute({
+			file: pageFilePath,
+			params: {},
+			query: {},
+		});
+
+		expect(buildSerializedPageProps).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not build HTML contributions without a router', async () => {
+		const testRenderer = createRenderer();
+		testRenderer.htmlTemplate = NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
+		testRenderer.importedPageFileOverride = {
+			default: Page,
+			config: {},
+		} as EcoPageFile;
+		const buildSerializedPageProps = vi.spyOn(testRenderer.pagePayloadService, 'buildSerializedPageProps');
+
+		await testRenderer.execute({
+			file: pageFilePath,
+			params: {},
+			query: {},
+		});
+
+		expect(buildSerializedPageProps).toHaveBeenCalledTimes(1);
 	});
 
 	it('should preserve unresolved eco-marker artifact html through non-react html templates', async () => {

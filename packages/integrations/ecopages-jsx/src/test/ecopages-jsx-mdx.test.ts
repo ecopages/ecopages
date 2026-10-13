@@ -59,7 +59,7 @@ describe('ecopages-jsx-mdx', () => {
 			["import { Child } from './child';", "import './style.css';", '', '# JSX MDX'].join('\n'),
 		);
 
-		const compilerOptions = resolveMdxCompilerOptions({ enabled: true });
+		const compilerOptions = resolveMdxCompilerOptions({});
 		const plugin = createMdxLoaderPlugin({
 			compilerOptions,
 			extensions: ['.mdx'],

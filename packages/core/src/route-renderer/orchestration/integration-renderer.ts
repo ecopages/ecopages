@@ -453,11 +453,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const content = await component(props);
 		this.assertStringRenderContent(input, content);
 		const html = content as string;
-		const assets =
-			input.component.config?.dependencies &&
-			typeof this.assetProcessingService?.processDependencies === 'function'
-				? await this.processComponentDependencies([input.component])
-				: undefined;
+		const assets = input.component.config?.dependencies
+			? await this.processComponentDependencies([input.component])
+			: undefined;
 
 		return {
 			html,

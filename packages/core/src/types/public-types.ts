@@ -464,12 +464,10 @@ export type EcoComponentConfig = {
 	/**
 	 * Internal: Resolved lazy triggers for the global injector map.
 	 * Set by the renderer in the default full orchestration flow.
-	 * @internal
 	 */
 	_resolvedLazyTriggers?: ResolvedLazyTrigger[];
 	/**
 	 * Internal: Unprocessed lazy client entries held for the page's grouped browser build.
-	 * @internal
 	 */
 	_pendingLazyClientAssets?: AssetDefinition[];
 };
@@ -485,19 +483,19 @@ export type EcoComponentBase = {
 
 	/**
 	 * Static paths for dynamic routes (consolidated eco.page API).
-	 * @internal Used by the renderer to retrieve static paths from the page component.
+	 * Used by the renderer to retrieve static paths from the page component.
 	 */
 	staticPaths?: GetStaticPaths;
 
 	/**
 	 * Static props fetcher (consolidated eco.page API).
-	 * @internal Used by the renderer to retrieve static props from the page component.
+	 * Used by the renderer to retrieve static props from the page component.
 	 */
 	staticProps?: GetStaticProps<any>;
 
 	/**
 	 * Metadata generator (consolidated eco.page API).
-	 * @internal Used by the renderer to retrieve metadata from the page component.
+	 * Used by the renderer to retrieve metadata from the page component.
 	 */
 	metadata?: GetMetadata<any>;
 };
@@ -893,18 +891,18 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	Layout?: EcoPageLayoutComponent<any>;
 	layoutEntries?: EcoPageLayoutEntry[];
 	dependencies?: EcoComponentDependencies;
-	/** @internal Resolved page dependencies carried through the render pipeline. */
+	/** Resolved page dependencies carried through the render pipeline. */
 	resolvedPageDependencyComponents?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
 	resolvedDependencies: ProcessedAsset[];
 	pagePackage?: PagePackageResult;
 	pageProps?: Record<string, unknown>;
 	cacheStrategy?: CacheStrategy;
 	pageLocals?: RequestLocals;
-	/** @internal Source paths from render preparation for HTML cache dependency registration. */
+	/** Source paths from render preparation for HTML cache dependency registration. */
 	sourceDependencyPaths?: readonly string[];
-	/** @internal Client entries collected from one walk of the declared component graph. */
+	/** Client entries collected from one walk of the declared component graph. */
 	pageClientPlan?: PageClientPlan;
-	/** @internal Island browser assets keyed by source file, built from the page client plan. */
+	/** Island browser assets keyed by source file, built from the page client plan. */
 	islandRenderAssetsByFile?: Map<string, ProcessedAsset[]>;
 };
 

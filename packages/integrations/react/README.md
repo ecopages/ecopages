@@ -35,7 +35,7 @@ For component-level islands, Ecopages React uses this contract:
 
 ## MDX Support
 
-The React plugin includes built-in MDX support. When enabled, you can write `.mdx` pages alongside `.tsx` pages with unified client-side routing, hydration, and HMR.
+The React plugin includes built-in MDX support. Add an `mdx` object to enable it; omit the property to disable MDX. You can write `.mdx` pages alongside `.tsx` pages with unified client-side routing, hydration, and HMR. Put `remarkPlugins`, `rehypePlugins`, and `recmaPlugins` next to `compilerOptions`, not inside it.
 
 ```ts
 import { defineConfig } from '@ecopages/core/config';
@@ -45,10 +45,9 @@ export default defineConfig({
 	integrations: [
 		reactPlugin({
 			mdx: {
-				enabled: true,
-				compilerOptions: {
-					// Optional: remark/rehype plugins
-				},
+				remarkPlugins: [],
+				rehypePlugins: [],
+				recmaPlugins: [],
 			},
 		}),
 	],
@@ -71,6 +70,7 @@ Important:
 - Ecopages validates mixed-renderer ownership from declared dependencies during render preparation. It does not infer every foreign subtree from rendered HTML alone.
 - Route-level dependency resolvers can supply Components at request time; React includes those resolved roots when deciding whether a Foreign Subtree needs handoff.
 - React still keeps its own child transport and hydration rules for React-owned subtrees.
+- React renderers use the required core `AssetProcessingService` to process declared component and MDX config dependencies.
 
 ## Server and Client Graph Contract
 
@@ -212,7 +212,7 @@ The main regression coverage lives in:
 - [src/client-graph/boundary-plugin.test.ts](src/client-graph/boundary-plugin.test.ts): verifies server-only `eco.page(...)` options are stripped from browser bundles.
 - [src/render/react-renderer.locals.test.ts](src/render/react-renderer.locals.test.ts): verifies only declared `requires` keys are serialized into hydration payloads.
 - [src/hydration/hydration-script-compiler.test.ts](src/hydration/hydration-script-compiler.test.ts): verifies editable browser sources compile to readable and minified entries.
-- [../../react-router/test/hmr-reload.test.browser.ts](../../react-router/test/hmr-reload.test.browser.ts): verifies router-backed layout hydration receives `locals` with `persistLayouts` both enabled and disabled.
+- [../../react-router/test/layout-persistence.test.browser.ts](../../react-router/test/layout-persistence.test.browser.ts): verifies router-backed layout hydration receives `locals` with `persistLayouts` both enabled and disabled.
 
 If you change the AST transform or hydration flow, update the corresponding tests in the same change.
 

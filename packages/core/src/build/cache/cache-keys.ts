@@ -1,24 +1,7 @@
-import { readFileSync } from 'node:fs';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import type { BuildOptions } from '../contracts/build-contracts.ts';
 
-let cachedCorePackageVersion: string | undefined;
-
-/**
- * Returns the installed `@ecopages/core` package version for cache invalidation.
- */
-export function getCorePackageVersion(): string {
-	if (cachedCorePackageVersion) {
-		return cachedCorePackageVersion;
-	}
-
-	const packageJsonPath = new URL('../../../package.json', import.meta.url);
-	const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as { version?: string };
-	cachedCorePackageVersion = packageJson.version ?? '0.0.0';
-	return cachedCorePackageVersion;
-}
-
-/** Stable fingerprint for JSX options used in build and disk cache keys. */
+/** Stable fingerprint for JSX options used in build and in-process cache keys. */
 export function createJsxCacheKey(jsx: BuildOptions['jsx']): string {
 	if (!jsx) {
 		return 'jsx:default';
@@ -52,7 +35,7 @@ export function createPluginCacheKey(plugins?: EcoBuildPlugin[]): string {
  * Stable fingerprint of a function body for cache and request identity keys.
  *
  * @remarks
- * Hashes `fn.toString()`. Suitable for in-process and persisted keys that must
+ * Hashes `fn.toString()`. Suitable for in-process keys that must
  * agree within one install; not stable across minifiers or renames.
  */
 export function hashFunctionIdentity(fn: (...args: never[]) => unknown): string {

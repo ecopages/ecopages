@@ -8,6 +8,7 @@ import {
 	readdirSync,
 	readFileSync,
 	realpathSync,
+	renameSync,
 	rmSync,
 	symlinkSync,
 	writeFileSync,
@@ -20,9 +21,6 @@ import { afterEach, expect, test } from 'vitest';
 const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url));
 const cliPath = path.join(repoRoot, 'packages/ecopages/bin/cli.js');
 const HOME_MARKER = 'Relocated home';
-const corePackageJson = JSON.parse(readFileSync(path.join(repoRoot, 'packages/core/package.json'), 'utf8')) as {
-	version: string;
-};
 
 let workDir: string | undefined;
 let server: ChildProcess | undefined;
@@ -61,6 +59,10 @@ function linkDirectory(linkPath: string, targetPath: string): void {
  * are not reachable as bare specifiers from the app. This is the layout the
  * server output has to survive. Packages outside a `node_modules` folder copy
  * only their published `files`, like the published `@ecopages/*` packages.
+ * Native `.node` bindings are symlinked to the installed file instead of copied.
+ * The build only loads them and never bundles them, and the OS vets every
+ * newly written binary on its first load, which costs about half a second
+ * per binding on macOS.
  */
 function installIsolated(appDir: string, packages: Record<string, string>): void {
 	const storeDir = (name: string) => path.join(appDir, 'node_modules/.pnpm', name.replace('/', '+'), 'node_modules');
@@ -75,12 +77,24 @@ function installIsolated(appDir: string, packages: Record<string, string>): void
 		};
 		const isWorkspacePackage = !sourceDir.split(path.sep).includes('node_modules');
 		const entries = isWorkspacePackage && packageJson.files ? ['package.json', ...packageJson.files] : ['.'];
+		const nativeBindings: string[] = [];
 		for (const entry of entries) {
 			cpSync(path.join(sourceDir, entry), path.join(storeDir(name), name, entry), {
 				recursive: true,
 				dereference: true,
-				filter: (source) => !path.relative(sourceDir, source).split(path.sep).includes('node_modules'),
+				filter: (source) => {
+					const relative = path.relative(sourceDir, source);
+					if (relative.split(path.sep).includes('node_modules')) return false;
+					if (!source.endsWith('.node')) return true;
+					nativeBindings.push(relative);
+					return false;
+				},
 			});
+		}
+		for (const binding of nativeBindings) {
+			const bindingPath = path.join(storeDir(name), name, binding);
+			mkdirSync(path.dirname(bindingPath), { recursive: true });
+			symlinkSync(path.join(sourceDir, binding), bindingPath);
 		}
 		for (const dependency of Object.keys({ ...packageJson.dependencies, ...packageJson.optionalDependencies })) {
 			const dependencyDir = findPackageDir(sourceDir, dependency);
@@ -118,7 +132,14 @@ function writeLocationBoundPackages(fixturesDir: string): string {
 	);
 	writeFileSync(
 		path.join(sourceLibDir, 'src/index.ts'),
-		"import { loadBinding } from 'native-like';\n\nexport const binding: { native: boolean } = loadBinding();\n",
+		[
+			"import { readFileSync } from 'node:fs';",
+			"import { loadBinding } from 'native-like';",
+			'',
+			'export const binding: { native: boolean } = loadBinding();',
+			"export const packageName: string = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).name;",
+			'',
+		].join('\n'),
 	);
 	writeFileSync(
 		path.join(nativeLikeDir, 'package.json'),
@@ -153,12 +174,11 @@ function writeApp(appDir: string): void {
 		[
 			"import { readFileSync } from 'node:fs';",
 			"import { createApp } from '@ecopages/core/create-app';",
-			"import { getCorePackageVersion } from './node_modules/@ecopages/core/src/build/cache/cache-keys.ts';",
-			"import { binding } from 'source-lib';",
+			"import { binding, packageName } from 'source-lib';",
 			'',
 			'const app = await createApp();',
 			"app.get('/api/ping', async ({ response }) => response.json({ ok: true }));",
-			"app.get('/api/core-version', async ({ response }) => response.json(getCorePackageVersion()));",
+			"app.get('/api/package-name', async ({ response }) => response.json(packageName));",
 			"app.get('/api/binding', async ({ response }) => response.json(binding));",
 			"app.get('/api/source-name', async ({ response }) => response.json(JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).name));",
 			'await app.start();',
@@ -182,28 +202,67 @@ function readServerOutput(serverDir: string): string {
 /**
  * @remarks
  * The server listens on port 0, so the OS picks a free port and the startup
- * log reports it; no port is reserved ahead of time.
+ * log reports it; no port is reserved ahead of time. A server that never
+ * logs it ends with the test timeout.
  */
-async function waitForServerUrl(child: ChildProcess, output: () => string): Promise<string> {
-	const deadline = Date.now() + 30_000;
-	while (Date.now() < deadline) {
-		const url = /running at (http:\/\/\S+)/u.exec(output())?.[1];
-		if (url) return url;
-		if (child.exitCode !== null) throw new Error(`Server exited with ${child.exitCode}:\n${output()}`);
-		await new Promise((resolve) => setTimeout(resolve, 100));
-	}
-	throw new Error(`Server did not start:\n${output()}`);
+function waitForServerUrl(child: ChildProcess, output: () => string): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const check = () => {
+			const url = /running at (http:\/\/\S+)/u.exec(output())?.[1];
+			if (url) resolve(url);
+		};
+		child.stdout?.on('data', check);
+		child.stderr?.on('data', check);
+		child.once('exit', (code) => reject(new Error(`Server exited with ${code}:\n${output()}`)));
+	});
+}
+
+/**
+ * Starts the deployed server with `command` in `cwd`, checks what it serves, and stops it.
+ */
+async function expectDeployServes(cwd: string, command: string, args: string[]): Promise<void> {
+	let output = '';
+	server = spawn(command, args, {
+		cwd,
+		env: {
+			...process.env,
+			VITEST: '',
+			NODE_ENV: 'production',
+			ECOPAGES_HOSTNAME: '127.0.0.1',
+			ECOPAGES_PORT: '0',
+		},
+		stdio: 'pipe',
+	});
+	server.stdout?.on('data', (chunk: Buffer) => (output += chunk.toString()));
+	server.stderr?.on('data', (chunk: Buffer) => (output += chunk.toString()));
+
+	const serverUrl = await waitForServerUrl(server, () => output);
+	const response = await fetch(new URL('/', serverUrl), { signal: AbortSignal.timeout(15_000) });
+	expect(response.status).toBe(200);
+	expect(await response.text()).toContain(HOME_MARKER);
+	const getJson = async (route: string) =>
+		await (await fetch(new URL(route, serverUrl), { signal: AbortSignal.timeout(15_000) })).json();
+	expect(await getJson('/api/binding')).toEqual({ native: true });
+	expect(await getJson('/api/package-name')).toBe('source-lib');
+	expect(await getJson('/api/source-name')).toBe('relocated-app');
+
+	const exited = once(server, 'exit');
+	server.kill();
+	await exited;
+	server = undefined;
 }
 
 /**
  * @remarks
- * Builds a real app with `node`, copies the deploy layout to a directory
- * with a different root, deletes the build tree, then serves it with `node`.
+ * Builds a real app with `node`, moves the deploy layout to a directory
+ * with a different root, which leaves nothing at the build path, then serves it with `node`.
  * Any absolute path to the build machine in the server output fails here, and
  * so do a bundled location-bound package (a dependency of a source package
  * that loads a file next to itself) and an `import.meta.url` read in the
- * bundled entry, by the app or by Core reading its own `package.json`, that
- * resolves from `dist/.server/` instead of the source file. The deploy keeps
+ * bundled entry, by the app or by a bundled source package reading its own
+ * `package.json`, that resolves from `dist/.server/` instead of the source
+ * file. The deploy manifest holds no absolute path, and `ecopages start` finds
+ * the server entry through it in the new root. The deploy keeps
  * `eco.config.ts`, which `node` cannot load because it imports TypeScript
  * from `node_modules`, so the server must pick the emitted config itself.
  * `VITEST` is cleared for the build because the `ecopages` CLI does not run
@@ -232,37 +291,23 @@ test(
 		const serverOutput = readServerOutput(path.join(buildDir, 'dist/.server'));
 		expect(serverOutput).not.toContain('file://');
 		expect(serverOutput).not.toContain(buildDir);
+		const deployManifest = JSON.parse(
+			readFileSync(path.join(buildDir, 'dist/.server/manifest.json'), 'utf8'),
+		) as Record<string, string>;
+		expect(Object.values(deployManifest).filter((value) => path.isAbsolute(value))).toEqual([]);
+		expect(JSON.stringify(deployManifest)).not.toContain(buildDir);
 
+		mkdirSync(deployDir, { recursive: true });
 		for (const entry of ['dist', 'src', 'node_modules', 'package.json', 'eco.config.ts']) {
-			cpSync(path.join(buildDir, entry), path.join(deployDir, entry), {
-				recursive: true,
-				verbatimSymlinks: true,
-			});
+			renameSync(path.join(buildDir, entry), path.join(deployDir, entry));
 		}
 		rmSync(path.join(workDir, 'build'), { recursive: true, force: true });
 
-		let output = '';
-		server = spawn(process.execPath, ['dist/.server/app.mjs'], {
-			cwd: deployDir,
-			env: {
-				...process.env,
-				NODE_ENV: 'production',
-				ECOPAGES_HOSTNAME: '127.0.0.1',
-				ECOPAGES_PORT: '0',
-			},
-			stdio: 'pipe',
-		});
-		server.stdout?.on('data', (chunk: Buffer) => (output += chunk.toString()));
-		server.stderr?.on('data', (chunk: Buffer) => (output += chunk.toString()));
-
-		const serverUrl = await waitForServerUrl(server, () => output);
-		const response = await fetch(new URL('/', serverUrl), { signal: AbortSignal.timeout(15_000) });
-		expect(response.status).toBe(200);
-		expect(await response.text()).toContain(HOME_MARKER);
-		const getJson = async (route: string) =>
-			await (await fetch(new URL(route, serverUrl), { signal: AbortSignal.timeout(15_000) })).json();
-		expect(await getJson('/api/binding')).toEqual({ native: true });
-		expect(await getJson('/api/core-version')).toBe(corePackageJson.version);
-		expect(await getJson('/api/source-name')).toBe('relocated-app');
+		for (const launch of [
+			{ command: process.execPath, args: ['dist/.server/app.mjs'] },
+			{ command: process.execPath, args: [cliPath, 'start', '--runtime', 'node'] },
+		]) {
+			await expectDeployServes(deployDir, launch.command, launch.args);
+		}
 	},
 );

@@ -13,7 +13,6 @@ describe('EcoRouter', () => {
 	const fixtures: EcoRouterTestFixtures = {
 		router: null,
 		fetchSpy: null,
-		user: null!,
 	};
 
 	installEcoRouterTestHooks(fixtures);
@@ -49,11 +48,17 @@ describe('EcoRouter', () => {
 			});
 
 			window.history.pushState({}, '', '/popstate-test');
+			window.history.pushState({}, '', '/popstate-later');
 
-			window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+			window.history.back();
 			await fetchCalled;
 			await waitForNavigation();
 
+			expect(window.location.pathname).toBe('/popstate-test');
+			expect(fixtures.fetchSpy).toHaveBeenCalledWith(
+				expect.stringContaining('/popstate-test'),
+				expect.anything(),
+			);
 			expect(document.body.innerHTML).toContain('Popstate Content');
 		});
 	});
@@ -89,7 +94,7 @@ describe('EcoRouter', () => {
 			});
 
 			void fixtures.router.navigate('/first-page');
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			await vi.waitFor(() => expect(fixtures.fetchSpy).toHaveBeenCalledOnce(), { interval: 1 });
 			await fixtures.router.navigate('/second-page');
 
 			expect(consoleSpy).not.toHaveBeenCalled();
@@ -113,7 +118,7 @@ describe('EcoRouter', () => {
 			});
 
 			fixtures.router.navigate('/first-page');
-			await new Promise((r) => setTimeout(r, 10));
+			await vi.waitFor(() => expect(fixtures.fetchSpy).toHaveBeenCalledOnce(), { interval: 1 });
 
 			expect(abortSignal?.aborted).toBe(false);
 
@@ -201,7 +206,7 @@ describe('EcoRouter', () => {
 			});
 
 			const slowNavigation = fixtures.router.navigate('/slow-page');
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			await vi.waitFor(() => expect(fixtures.fetchSpy).toHaveBeenCalledOnce(), { interval: 1 });
 			await getEcoNavigationRuntime(window).cleanupOwner('browser-router');
 			slowPage.resolve();
 			await slowNavigation;

@@ -1,21 +1,21 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { EMITTED_ECO_CONFIG_FILENAME } from '../../config/server-config-bundle.ts';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import { EMITTED_ECO_CONFIG_FILENAME } from '../config/server-config-bundle.ts';
 import {
 	assertProductionConfigIdentity,
 	getServerBundleOutputPaths,
 	resolveProductionServerEntry,
 	writeServerBundleDeployManifest,
-} from './server-entry-build-cache.ts';
-import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '../../utils/resolve-entry-file.ts';
+} from './server-bundle-deploy-manifest.ts';
+import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '../utils/resolve-entry-file.ts';
 
-describe('server-entry-build-cache', () => {
+describe('server-bundle-deploy-manifest', () => {
 	const tempDirs: string[] = [];
 	const originalNodeEnv = process.env.NODE_ENV;
 
@@ -102,7 +102,6 @@ describe('server-entry-build-cache', () => {
 
 		useRuntimeHash(build);
 		writeServerBundleDeployManifest(appConfig, serverEntryPath, {
-			sourceConfigPath: configPath,
 			emittedConfigModule: EMITTED_ECO_CONFIG_FILENAME,
 		});
 
@@ -115,5 +114,77 @@ describe('server-entry-build-cache', () => {
 			() => assertProductionConfigIdentity(rootDir, configPath, { isExplicitOverride: true }),
 			/Ecopages config mismatch/,
 		);
+	});
+
+	function createBuiltApp(prefix: string, distDirName = 'dist') {
+		const rootDir = mkdtempSync(path.join(tmpdir(), prefix));
+		tempDirs.push(rootDir);
+		const distDir = path.join(rootDir, distDirName);
+		const serverOutdir = path.join(distDir, SERVER_BUNDLE_DIR);
+		fileSystem.ensureDir(serverOutdir);
+		const configPath = path.join(rootDir, 'eco.config.ts');
+		const emittedConfigPath = path.join(serverOutdir, EMITTED_ECO_CONFIG_FILENAME);
+		const serverEntryPath = path.join(serverOutdir, SERVER_BUNDLE_FILENAME);
+		writeFileSync(configPath, 'export default {};\n', 'utf8');
+		writeFileSync(emittedConfigPath, 'export default { emitted: true };\n', 'utf8');
+		writeFileSync(serverEntryPath, 'export {};\n', 'utf8');
+		const appConfig = {
+			rootDir,
+			distDir: distDirName,
+			absolutePaths: { distDir, config: configPath },
+		} as unknown as EcoPagesAppConfig;
+		writeServerBundleDeployManifest(appConfig, serverEntryPath, {
+			emittedConfigModule: EMITTED_ECO_CONFIG_FILENAME,
+		});
+		return { rootDir, appConfig, serverOutdir, emittedConfigPath };
+	}
+
+	it('records no absolute path', () => {
+		const { appConfig } = createBuiltApp('eco-deploy-manifest-paths-');
+		const manifest = JSON.parse(readFileSync(getServerBundleOutputPaths(appConfig).manifestPath, 'utf8')) as Record<
+			string,
+			string
+		>;
+
+		assert.deepEqual(manifest, {
+			serverEntry: SERVER_BUNDLE_FILENAME,
+			sourceConfigRelativePath: 'eco.config.ts',
+			emittedConfigModule: EMITTED_ECO_CONFIG_FILENAME,
+			configHash: manifest.configHash,
+			emittedConfigHash: manifest.emittedConfigHash,
+		});
+		assert.deepEqual(
+			Object.values(manifest).filter((value) => path.isAbsolute(value) || value.includes(appConfig.rootDir)),
+			[],
+		);
+	});
+
+	it('resolves the server entry and accepts the emitted config after the bundle moves to another directory', () => {
+		const built = createBuiltApp('eco-deploy-manifest-moved-');
+		const deployDir = mkdtempSync(path.join(tmpdir(), 'eco-deploy-manifest-target-'));
+		tempDirs.push(deployDir);
+		cpSync(path.join(built.rootDir, 'dist'), path.join(deployDir, 'dist'), { recursive: true });
+		rmSync(built.rootDir, { recursive: true, force: true });
+
+		const movedServerDir = path.join(deployDir, 'dist', SERVER_BUNDLE_DIR);
+		assert.equal(resolveProductionServerEntry(deployDir), path.join(movedServerDir, SERVER_BUNDLE_FILENAME));
+		assert.doesNotThrow(() =>
+			assertProductionConfigIdentity(deployDir, path.join(movedServerDir, EMITTED_ECO_CONFIG_FILENAME)),
+		);
+	});
+
+	it('looks for the server bundle in the given distDir', () => {
+		const { rootDir, serverOutdir, emittedConfigPath } = createBuiltApp('eco-deploy-manifest-dist-dir-', 'build');
+
+		assert.equal(resolveProductionServerEntry(rootDir, 'build'), path.join(serverOutdir, SERVER_BUNDLE_FILENAME));
+		assert.equal(resolveProductionServerEntry(rootDir), undefined);
+		assert.doesNotThrow(() => assertProductionConfigIdentity(rootDir, emittedConfigPath, { distDir: 'build' }));
+	});
+
+	it('resolves nothing when no server bundle was built', () => {
+		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-deploy-manifest-none-'));
+		tempDirs.push(rootDir);
+
+		assert.equal(resolveProductionServerEntry(rootDir), undefined);
 	});
 });

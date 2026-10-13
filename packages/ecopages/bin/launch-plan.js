@@ -1,15 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseEnv } from 'node:util';
-import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '@ecopages/core/utils/resolve-entry-file';
 import {
 	resolveEcoConfigPath,
 	resolveEmittedEcoConfigPath,
+	resolveProductionServerEntry,
 	assertProductionConfigIdentity,
 } from '@ecopages/core/config';
 import { ECOPAGES_ENTRY_WATCH_ENV, getDevEnvFileNames } from '@ecopages/core/dev/development-restart';
-
-const SERVER_BUNDLE_MANIFEST_FILENAME = 'manifest.json';
 
 const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
 const tsxLoader = import.meta.resolve('tsx/esm');
@@ -125,34 +123,6 @@ function inferLaunchMode(args, launchMode) {
  * @returns {{ runtime: string, command: string, commandArgs: string[], envOverrides: object, env: object }}
  * @throws {Error} When `launchMode` is `start` and the bundle does not exist.
  */
-
-function resolveProductionServerEntry(cwd = process.cwd()) {
-	const manifestPath = path.join(cwd, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_MANIFEST_FILENAME);
-	if (existsSync(manifestPath)) {
-		try {
-			const parsed = JSON.parse(readFileSync(manifestPath, 'utf8'));
-			if (parsed?.serverEntry) {
-				const fromManifest = path.isAbsolute(parsed.serverEntry)
-					? parsed.serverEntry
-					: path.join(path.dirname(manifestPath), parsed.serverEntry);
-				if (existsSync(fromManifest)) {
-					return fromManifest;
-				}
-			}
-			if (parsed?.distDir) {
-				const fromDistDir = path.join(parsed.distDir, SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME);
-				if (existsSync(fromDistDir)) {
-					return fromDistDir;
-				}
-			}
-		} catch {
-			// fall through to legacy path
-		}
-	}
-
-	const legacyPath = path.join(cwd, 'dist', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME);
-	return existsSync(legacyPath) ? legacyPath : undefined;
-}
 
 export function createLaunchPlan(args, options, entryFile, launchMode) {
 	const resolvedOptions = options ?? {};

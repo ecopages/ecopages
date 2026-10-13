@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement, useEffect, type ElementType, type ReactNode } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { mountIslands, updateIslands, type IslandHydrationRuntime } from './browser/island-hydration.ts';
@@ -41,6 +41,21 @@ type TestWindow = Window &
 			rerunScripts?: Record<string, () => unknown>;
 		};
 	};
+
+/**
+ * Resolves after the browser has run every task queued before the call.
+ *
+ * @remarks
+ * For asserting that something did not happen. A message-channel round trip runs after all pending
+ * promise reactions without a timer, so it cannot be mistaken for waiting out a delay.
+ */
+function flushTasks(): Promise<void> {
+	return new Promise((resolve) => {
+		const channel = new MessageChannel();
+		channel.port1.onmessage = () => resolve();
+		channel.port2.postMessage(null);
+	});
+}
 
 function createPageOptions(
 	testWindow: TestWindow,
@@ -116,7 +131,7 @@ describe('React page lifecycle', () => {
 		document.body.innerHTML = '<script data-eco-script-id="ecopages-react-page"></script>';
 
 		startPageHydration(createPageOptions(testWindow, true));
-		await new Promise((resolve) => setTimeout(resolve, 0));
+		await vi.waitFor(() => expect(testState.hydrateCalls).toHaveLength(1), { interval: 1 });
 
 		expect(testState.hydrateCalls).toHaveLength(1);
 		expect(testState.hydrateCalls[0].containerTag).toBe('BODY');
@@ -158,7 +173,7 @@ describe('React page lifecycle', () => {
 		document.body.innerHTML = '<script data-eco-script-id="ecopages-react-page"></script>';
 
 		startPageHydration(createPageOptions(testWindow, true, existingRoot));
-		await new Promise((resolve) => setTimeout(resolve, 0));
+		await flushTasks();
 
 		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls).toHaveLength(0);
 		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.renderCalls).toHaveLength(0);
@@ -193,7 +208,7 @@ describe('React page lifecycle', () => {
 
 		await testWindow.__ECO_PAGES__?.react?.cleanupPageRoot?.();
 		resolvePreload();
-		await new Promise((resolve) => setTimeout(resolve, 0));
+		await flushTasks();
 		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls).toHaveLength(0);
 	});
 
@@ -211,7 +226,9 @@ describe('React page lifecycle', () => {
 		const options = createPageOptions(testWindow, false);
 		options.hmr = { importPath: '/assets/page.js' };
 		startPageHydration(options);
-		await new Promise((resolve) => setTimeout(resolve, 0));
+		await vi.waitFor(() => expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls).toHaveLength(1), {
+			interval: 1,
+		});
 
 		let resolveUpdate!: () => void;
 		(globalThis as Record<string, unknown>).__ECO_TEST_HMR_RELEASE__ = new Promise<void>((resolve) => {
@@ -220,13 +237,19 @@ describe('React page lifecycle', () => {
 		const source = [
 			'export default function UpdatedPage() {}',
 			'export async function preload() {',
+			'  globalThis.__ECO_TEST_HMR_PRELOAD_STARTED__ = true',
 			'  await globalThis.__ECO_TEST_HMR_RELEASE__',
 			'}',
 		].join('\n');
 		const hmrHandler = testWindow.__ECO_PAGES__?.hmrHandlers?.['/assets/page.js'];
 		expect(hmrHandler).toBeDefined();
 		const update = hmrHandler?.(`data:text/javascript;charset=utf-8,${encodeURIComponent(source)}`);
-		await new Promise((resolve) => setTimeout(resolve, 0));
+		await vi.waitFor(
+			() => expect((globalThis as Record<string, unknown>).__ECO_TEST_HMR_PRELOAD_STARTED__).toBe(true),
+			{
+				interval: 1,
+			},
+		);
 
 		await testWindow.__ECO_PAGES__?.react?.cleanupPageRoot?.();
 		const replacementRoot = {
@@ -241,6 +264,7 @@ describe('React page lifecycle', () => {
 		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.renderCalls).toHaveLength(0);
 		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.unmountCount).toBe(1);
 		delete (globalThis as Record<string, unknown>).__ECO_TEST_HMR_RELEASE__;
+		delete (globalThis as Record<string, unknown>).__ECO_TEST_HMR_PRELOAD_STARTED__;
 	});
 
 	it('restores HMR handler with updated generation on page reactivation after cleanup', async () => {
@@ -258,8 +282,9 @@ describe('React page lifecycle', () => {
 		options.hmr = { importPath: '/assets/page.js' };
 
 		startPageHydration(options);
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls).toHaveLength(1);
+		await vi.waitFor(() => expect(testWindow.__ECO_REACT_HYDRATION_TEST__?.hydrateCalls).toHaveLength(1), {
+			interval: 1,
+		});
 
 		const initialHmr = testWindow.__ECO_PAGES__?.hmrHandlers?.['/assets/page.js'];
 		expect(initialHmr).toBeDefined();
@@ -396,7 +421,7 @@ describe('React Island Host lifecycle', () => {
 
 		mountIslands(options);
 		mountIslands(options);
-		await new Promise((resolve) => setTimeout(resolve, 0));
+		await flushTasks();
 
 		expect(calls.hydrate).toBe(1);
 		expect(host.firstElementChild).toBe(child);
@@ -415,8 +440,7 @@ describe('React Island Host lifecycle', () => {
 		expect(hydratedComponents[hydratedComponents.length - 1]).toBe(NextComponent);
 
 		host.remove();
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(calls.unmount).toBe(1);
+		await vi.waitFor(() => expect(calls.unmount).toBe(1), { interval: 1 });
 		runtime.observer?.disconnect();
 	});
 
@@ -495,7 +519,7 @@ describe('React Island Host lifecycle', () => {
 			runtime: reactRuntime,
 			runtimeState: runtime,
 		});
-		await new Promise((resolve) => setTimeout(resolve, 20));
+		await vi.waitFor(() => expect(host.getAttribute('data-eco-hydrated')).toBe('true'), { interval: 1 });
 
 		expect(host.firstElementChild).toBe(input);
 		expect(input.value).toBe('typed before hydration');

@@ -178,7 +178,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 
 		this.mdxExtensions = jsxConfig?.mdxExtensions ?? ['.mdx'];
 		const radiantSsrEnabled = jsxConfig?.radiantSsrEnabled ?? false;
-		this.radiantSsrPolicy = jsxConfig?.radiantSsrPolicy ?? new EcopagesJsxRadiantSsrPolicy(radiantSsrEnabled);
+		this.radiantSsrPolicy = this.createRadiantSsrPolicy(radiantSsrEnabled);
 		this.ssrScriptPreloader = new CustomElementScriptPreloader({
 			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx,
 			collectForIntegration: ECOPAGES_JSX_PLUGIN_NAME,
@@ -194,6 +194,10 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 			 */
 			importServerModule: createSharedServerModuleImporter(this.appConfig),
 		});
+	}
+
+	protected createRadiantSsrPolicy(enabled: boolean): EcopagesJsxRadiantSsrPolicy {
+		return new EcopagesJsxRadiantSsrPolicy(enabled);
 	}
 
 	/** Returns whether the requested page file should be treated as MDX. */
@@ -293,11 +297,9 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 						(children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
 							this.renderQueuedForeignSubtreeChildren(children, queuedResolutionsByToken, resolveToken),
 					);
-					const componentAssets =
-						input.component.config?.dependencies &&
-						typeof this.assetProcessingService?.processDependencies === 'function'
-							? await this.processComponentDependencies([input.component])
-							: [];
+					const componentAssets = input.component.config?.dependencies
+						? await this.processComponentDependencies([input.component])
+						: [];
 					const assets = this.htmlTransformer.dedupeProcessedAssets([
 						...queuedForeignSubtreeResolution.assets,
 						...componentAssets,

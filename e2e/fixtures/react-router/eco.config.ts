@@ -12,12 +12,12 @@ export default defineConfig({
 	baseUrl: process.env.ECOPAGES_BASE_URL,
 	distDir,
 	workDir,
-	devPrewarmPaths: ['/eco-layout-missing', '/', '/docs'],
+	devPrewarmPaths: ['/', '/docs'],
 	integrations: [
 		reactPlugin({
 			router: ecoRouter({ persistLayouts }),
 			runtimeModules: ['@tanstack/react-query'],
-			mdx: { enabled: true },
+			mdx: {},
 		}),
 	],
 });

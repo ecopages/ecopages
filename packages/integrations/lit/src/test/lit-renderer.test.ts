@@ -14,6 +14,7 @@ import {
 	htmlDocumentHead,
 	renderFilesystemPageAndExplicitView,
 } from '@ecopages/testing';
+import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { LitElement, html as litHtml } from 'lit';
@@ -25,6 +26,12 @@ import type { LitStaticRenderSession } from '../lit-static-render-session.ts';
 let customElementIndex = 0;
 
 const Config = await createTestAppConfig();
+
+function createTestAssetProcessingService(appConfig: typeof Config): AssetProcessingService {
+	const service = new AssetProcessingService(appConfig);
+	vi.spyOn(service, 'processDependencies').mockResolvedValue([]);
+	return service;
+}
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
 	return `<html><body>${children}</body></html>`;
@@ -46,7 +53,7 @@ class TestLitRenderer extends LitRenderer {
 const createRenderer = () => {
 	return new TestLitRenderer({
 		appConfig: Config,
-		assetProcessingService: {} as any,
+		assetProcessingService: createTestAssetProcessingService(Config),
 		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
 	});
@@ -74,7 +81,7 @@ const createRendererWithAssets = () => {
 
 const renderer = new LitRenderer({
 	appConfig: Config,
-	assetProcessingService: {} as any,
+	assetProcessingService: createTestAssetProcessingService(Config),
 	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],
 });
@@ -414,7 +421,7 @@ describe('LitRenderer', () => {
 
 			const testRenderer = new TestLitRenderer({
 				appConfig: config,
-				assetProcessingService: {} as any,
+				assetProcessingService: createTestAssetProcessingService(config),
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
@@ -906,7 +913,7 @@ describe('LitRenderer', () => {
 
 			const testRenderer = new LitRenderer({
 				appConfig: config,
-				assetProcessingService: {} as any,
+				assetProcessingService: createTestAssetProcessingService(config),
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
@@ -1166,7 +1173,7 @@ describe('LitRenderer', () => {
 
 			const renderer = new LitRenderer({
 				appConfig: Config,
-				assetProcessingService: {} as never,
+				assetProcessingService: createTestAssetProcessingService(Config),
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 				getRenderSession: () => sessionHolder.current as LitStaticRenderSession | undefined,
@@ -1213,7 +1220,7 @@ describe('LitRenderer', () => {
 
 			const renderer = new LitRenderer({
 				appConfig: Config,
-				assetProcessingService: {} as never,
+				assetProcessingService: createTestAssetProcessingService(Config),
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 				getRenderSession: () =>

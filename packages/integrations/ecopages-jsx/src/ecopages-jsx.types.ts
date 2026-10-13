@@ -1,4 +1,4 @@
-import type { CompileOptions } from '@mdx-js/mdx';
+import type { MdxCompilerOptionsInput } from '@ecopages/mdx/core';
 import type { IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
 import type {
 	AssetDefinition,
@@ -6,18 +6,6 @@ import type {
 	ProcessedAsset,
 } from '@ecopages/core/services/asset-processing-service';
 import type { EcoPagesAppConfig } from '@ecopages/core';
-import type { EcopagesJsxRadiantSsrPolicy } from './ecopages-jsx-radiant-ssr-policy.ts';
-
-type MdxPluginList = NonNullable<CompileOptions['remarkPlugins']>;
-
-export type EcopagesJsxMdxCompileOptions = Omit<
-	CompileOptions,
-	'jsxImportSource' | 'jsxRuntime' | 'remarkPlugins' | 'rehypePlugins' | 'recmaPlugins'
-> & {
-	remarkPlugins?: MdxPluginList;
-	rehypePlugins?: MdxPluginList;
-	recmaPlugins?: MdxPluginList;
-};
 
 /**
  * MDX configuration for the JSX integration.
@@ -25,20 +13,7 @@ export type EcopagesJsxMdxCompileOptions = Omit<
  * Mirrors Ecopages' built-in combined integration pattern where a single
  * JSX-capable plugin can own both `.tsx` and `.mdx` route files.
  */
-export type EcopagesJsxMdxOptions = {
-	/** Enables MDX file handling inside the JSX integration. */
-	enabled: boolean;
-	/** Additional MDX compiler options. JSX runtime fields are managed by the integration. */
-	compilerOptions?: EcopagesJsxMdxCompileOptions;
-	/** Extra remark plugins appended to `compilerOptions.remarkPlugins`. */
-	remarkPlugins?: MdxPluginList;
-	/** Extra rehype plugins appended to `compilerOptions.rehypePlugins`. */
-	rehypePlugins?: MdxPluginList;
-	/** Extra recma plugins appended to `compilerOptions.recmaPlugins`. */
-	recmaPlugins?: MdxPluginList;
-	/** Custom file extensions to treat as MDX. */
-	extensions?: string[];
-};
+export type EcopagesJsxMdxOptions = MdxCompilerOptionsInput;
 
 /** Options for the JSX integration plugin. */
 export type EcopagesJsxPluginOptions = Omit<IntegrationPluginConfig, 'name' | 'extensions'> & {
@@ -60,7 +35,6 @@ export type EcopagesJsxPluginOptions = Omit<IntegrationPluginConfig, 'name' | 'e
 
 export type EcopagesJsxRendererConfig = {
 	mdxExtensions?: string[];
-	radiantSsrPolicy?: EcopagesJsxRadiantSsrPolicy;
 	radiantSsrEnabled?: boolean;
 };
 

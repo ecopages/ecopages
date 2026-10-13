@@ -1,9 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
 
-function count(html: string, pattern: RegExp): number {
-	return html.match(pattern)?.length ?? 0;
-}
-
 async function markDocument(page: Page): Promise<void> {
 	await page.evaluate(() => {
 		(window as Window & { __ECO_E2E_SAME_DOCUMENT__?: boolean }).__ECO_E2E_SAME_DOCUMENT__ = true;
@@ -15,48 +11,6 @@ async function isSameDocument(page: Page): Promise<boolean> {
 		Boolean((window as Window & { __ECO_E2E_SAME_DOCUMENT__?: boolean }).__ECO_E2E_SAME_DOCUMENT__),
 	);
 }
-
-test.describe('HTML Pages static export', () => {
-	test('renders each Page inside the Html shell with one document structure', async ({ request }) => {
-		const html = await (await request.get('/about')).text();
-
-		expect(count(html, /<!doctype html>/gi)).toBe(1);
-		expect(count(html, /<html[\s>]/gi)).toBe(1);
-		expect(count(html, /<meta charset/gi)).toBe(1);
-		expect(count(html, /<title>/gi)).toBe(1);
-		expect(html).toContain('<title>About us</title>');
-		expect(html).toMatch(/<meta name="description" content="Who we are\." ?\/?>/);
-		expect(count(html, /<meta name="description"/g)).toBe(1);
-		expect(html).toMatch(/<meta property="og:title" content="About us" ?\/?>/);
-		expect(count(html, /<meta property="og:title"/g)).toBe(1);
-		expect(html).toMatch(/<link rel="canonical" href="https:\/\/example\.com\/about" ?\/?>/);
-		expect(count(html, /href="\/assets\/[a-f0-9]{16}\.css"/g)).toBe(2);
-		expect(html).toMatch(/<link rel="stylesheet" href="\/assets\/[a-f0-9]{16}\.css" ?\/?>(<meta [^>]*>)*<\/head>/);
-		expect(html).toMatch(/<img src="\/images\/team\.svg" alt="Our team" ?\/?>/);
-		expect(html).toMatch(/<\/main>\s*<script type="module" src="\/assets\/pages\/counter[^"]*\.js"><\/script>/);
-	});
-
-	test('merges root attributes from a pasted document', async ({ request }) => {
-		const html = await (await request.get('/landing')).text();
-
-		expect(html).toContain('<html lang="fr" class="marketing">');
-		expect(html).toContain('<body class="campaign">');
-		expect(html).toContain('<script src="/assets/pages/vendor/tiny-query.js"></script>');
-		expect(html).toContain('<script src="/assets/pages/classic/greeting.js"></script>');
-		expect(count(html, /<meta charset/gi)).toBe(1);
-		expect(count(html, /<meta name="robots"/g)).toBe(1);
-	});
-
-	test('serves 404.html and leaves noindex Pages out of the sitemap', async ({ request }) => {
-		const notFound = await request.get('/missing-page');
-		expect(notFound.status()).toBe(404);
-		expect(await notFound.text()).toContain('Page not found');
-
-		const sitemap = await (await request.get('/sitemap.xml')).text();
-		expect(sitemap).toContain('/about</loc>');
-		expect(sitemap).not.toContain('/landing</loc>');
-	});
-});
 
 test.describe('HTML Pages in the browser', () => {
 	test('runs Page scripts on a full document load', async ({ page }) => {

@@ -237,8 +237,6 @@ function createAbsolutePaths(
  * Workspace packages and tests import it from `@ecopages/core/internal/finalize-config`, a
  * subpath the npm build drops from the published package, so keep it out of user-facing docs.
  *
- * @internal
- *
  * @throws When `userConfig` is an already finalized config; when Integration names or
  * extensions, or Processor, loader, or source transform names, repeat; when a semantic
  * template matches more than one extension.

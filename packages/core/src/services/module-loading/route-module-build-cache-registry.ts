@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { hashAppConfigFile } from '../../build/cache/build-input-fingerprint.ts';
+import { hashAppConfigFile } from '../../build/cache/app-config-hash.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { RouteModuleBuildCache } from './route-module-build-cache.store.ts';
@@ -8,10 +8,8 @@ import { RouteModuleBuildCache } from './route-module-build-cache.store.ts';
  * Returns the outdir whose transpile cache backs in-process static generation.
  *
  * @remarks
- * Static pages render through `.eco/.server-modules`. The in-process cache there carries
- * import-graph hashes from transpile, so static-render reuse must read the same
- * directory rather than `.server-route-modules`, which only serves route-registry
- * scanning.
+ * Static pages render through `.eco/.server-modules`; `.server-route-modules` only
+ * serves route-registry scanning.
  */
 export function getServerModuleBuildCacheOutdir(appConfig: EcoPagesAppConfig): string {
 	return path.join(resolveInternalExecutionDir(appConfig), '.server-modules');
@@ -40,7 +38,7 @@ function getRouteModuleBuildCacheMap(appConfig: EcoPagesAppConfig): Map<string, 
  */
 export function getSharedRouteModuleBuildCache(outdir: string, appConfig?: EcoPagesAppConfig): RouteModuleBuildCache {
 	if (!appConfig) {
-		return new RouteModuleBuildCache(outdir);
+		return new RouteModuleBuildCache();
 	}
 
 	const caches = getRouteModuleBuildCacheMap(appConfig);
@@ -50,7 +48,7 @@ export function getSharedRouteModuleBuildCache(outdir: string, appConfig?: EcoPa
 	}
 
 	let configHash: string | undefined;
-	const routeModuleBuildCache = new RouteModuleBuildCache(outdir, {
+	const routeModuleBuildCache = new RouteModuleBuildCache({
 		getConfigHash: () => (configHash ??= hashAppConfigFile(appConfig)),
 	});
 	caches.set(outdir, routeModuleBuildCache);
@@ -59,15 +57,7 @@ export function getSharedRouteModuleBuildCache(outdir: string, appConfig?: EcoPa
 
 /** Clears route-module cache entries that can retain stale external server modules during development. */
 export function clearAppDevelopmentRouteModuleBuildCaches(appConfig: EcoPagesAppConfig): void {
-	const serverModuleCacheOutdir = getServerModuleBuildCacheOutdir(appConfig);
-	const caches = appConfig.runtime?.routeModuleBuildCaches;
-	const serverModuleCache =
-		caches?.get(serverModuleCacheOutdir) ?? new RouteModuleBuildCache(serverModuleCacheOutdir);
-	serverModuleCache.clearDevelopmentEntries();
-
-	for (const cache of caches?.values() ?? []) {
-		if (cache !== serverModuleCache) {
-			cache.clearDevelopmentEntries();
-		}
+	for (const cache of appConfig.runtime?.routeModuleBuildCaches?.values() ?? []) {
+		cache.clearDevelopmentEntries();
 	}
 }

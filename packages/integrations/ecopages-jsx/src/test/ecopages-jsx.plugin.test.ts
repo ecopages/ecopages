@@ -63,7 +63,6 @@ test('EcopagesJsxPlugin matches custom multi-dot MDX extensions exactly', async 
 	const plugin = ecopagesJsxPlugin({
 		radiant: false,
 		mdx: {
-			enabled: true,
 			extensions: ['.story.mdx'],
 		},
 	});
@@ -92,7 +91,6 @@ test('EcopagesJsxPlugin supports direct construction with MDX public options', (
 	const plugin = new EcopagesJsxPlugin({
 		extensions: ['.eco.tsx'],
 		mdx: {
-			enabled: true,
 			extensions: ['.guide.mdx'],
 		},
 	});
@@ -151,10 +149,7 @@ test('EcopagesJsxPlugin skips Radiant SSR invalidation registration when Radiant
 });
 
 test('configured MDX compiler accepts remark-gfm on fenced code content', async () => {
-	const compilerOptions = resolveMdxCompilerOptions({
-		enabled: true,
-		remarkPlugins: [remarkGfm],
-	});
+	const compilerOptions = resolveMdxCompilerOptions({ remarkPlugins: [remarkGfm] });
 
 	const compiled = await compile(
 		new VFile({
@@ -170,9 +165,7 @@ test('configured MDX compiler accepts remark-gfm on fenced code content', async 
 test('EcopagesJsxPlugin throws when preparing MDX without appConfig.rootDir', async () => {
 	const plugin = ecopagesJsxPlugin({
 		radiant: false,
-		mdx: {
-			enabled: true,
-		},
+		mdx: {},
 	});
 
 	await assert.rejects(() => plugin.prepareBuildContributions(), /appConfig\.rootDir is required/);
@@ -185,9 +178,7 @@ test('EcopagesJsxPlugin setup exposes the MDX loader as a build plugin only', as
 	try {
 		const plugin = ecopagesJsxPlugin({
 			radiant: false,
-			mdx: {
-				enabled: true,
-			},
+			mdx: {},
 		});
 		plugin.setConfig({ rootDir: '/tmp/project' } as EcoPagesAppConfig);
 		await plugin.setup();

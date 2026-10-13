@@ -2,13 +2,13 @@ import path from 'node:path';
 import { bench, group } from 'mitata';
 import { build } from '../../../packages/core/src/build/build-adapter';
 import { requireBuildRuntime, installBuildRuntime } from '../../../packages/core/src/build/runtime/build-runtime';
-import { getServerBundleOutputPaths } from '../../../packages/core/src/build/cache/server-entry-build-cache';
+import { getServerBundleOutputPaths } from '../../../packages/core/src/build/server-bundle-deploy-manifest';
 import { getAppModuleLoader } from '../../../packages/core/src/services/module-loading/app-server-module-transpiler.service';
 import { resolveInternalExecutionDir } from '../../../packages/core/src/utils/resolve-work-dir';
 import { SERVER_BUNDLE_FILENAME } from '../../../packages/core/src/utils/resolve-entry-file';
 import { KITCHEN_SINK_PATHS, KITCHEN_SINK_REPRESENTATIVE_PAGES } from './lib/kitchen-sink-fixture';
 import {
-	clearBenchProductionCaches,
+	resetBenchBuildState,
 	importRouteModuleDiskCold,
 	loadKitchenSinkProductionConfig,
 	loadStaticBuildBenchConfig,
@@ -99,21 +99,13 @@ export function registerStaticBuildBench(): void {
 			await Promise.all(REPRESENTATIVE_PAGES.map((page) => importStaticPageWarm(config, page)));
 		});
 
-		bench('kitchen-sink StaticSiteGenerator.run warm (full route tree)', async () => {
-			await runStaticSiteGeneration(await getBenchConfig(), { force: false, preserveExportDirectory: true });
-		});
-
-		bench('kitchen-sink buildStatic warm (full app, isolated dist)', async () => {
-			await runBuildStatic(await getBenchConfig(), { force: false });
-		});
-
 		bench('kitchen-sink buildStatic cold baseline (unified graph off, metrics)', async () => {
 			await withBenchEnv(
 				{ nodeEnv: 'production', unifiedPagesGraph: 'off', rolldownBuildMetrics: true },
 				async () => {
 					resetBenchSessionState();
 					const config = await loadStaticBuildBenchConfig();
-					clearBenchProductionCaches(config);
+					resetBenchBuildState(config);
 					resetRolldownBuildInvocationCounts();
 					await runBuildStatic(config, { force: true });
 					if (getTotalRolldownBuildInvocations() === 0) {
@@ -129,7 +121,7 @@ export function registerStaticBuildBench(): void {
 				async () => {
 					resetBenchSessionState();
 					const config = await loadStaticBuildBenchConfig();
-					clearBenchProductionCaches(config);
+					resetBenchBuildState(config);
 					resetRolldownBuildInvocationCounts();
 					await runBuildStatic(config, { force: true });
 					if (getPageModuleRolldownBuildInvocations() > 0) {
@@ -147,7 +139,7 @@ export function registerStaticBuildBench(): void {
 				async () => {
 					resetBenchSessionState();
 					const config = await loadStaticBuildBenchConfig();
-					clearBenchProductionCaches(config);
+					resetBenchBuildState(config);
 					resetRolldownBuildInvocationCounts();
 					await runStaticSiteGeneration(config, { force: true });
 					if (getPageModuleRolldownBuildInvocations() > 0) {
@@ -162,7 +154,7 @@ export function registerStaticBuildBench(): void {
 		bench('kitchen-sink buildStatic cold (full app, isolated dist)', async () => {
 			resetBenchSessionState();
 			const config = await loadStaticBuildBenchConfig();
-			clearBenchProductionCaches(config);
+			resetBenchBuildState(config);
 			await runBuildStatic(config, { force: true });
 		});
 	});
@@ -171,7 +163,7 @@ export function registerStaticBuildBench(): void {
 		group('static-build-bench production dist', () => {
 			bench('kitchen-sink buildStatic cold (full app, production dist/)', async () => {
 				const config = await loadKitchenSinkProductionConfig();
-				clearBenchProductionCaches(config);
+				resetBenchBuildState(config);
 				await runBuildStatic(config, { force: true });
 			});
 		});

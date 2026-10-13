@@ -1,24 +1,17 @@
-import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import {
-	ROUTE_MODULE_BUILD_CACHE_FILENAME,
-	type RouteModuleBuildCacheManifest,
-	createPersistedRouteModuleBuildKey,
-	readRouteModuleBuildCacheManifest,
+	createRouteModuleBuildKey,
 	resolvePageModuleOutputFileName,
-	shouldPersistRouteModuleBuildCache,
+	shouldCacheRouteModuleBuild,
 } from './route-module-build-manifest.ts';
 import { RouteModuleBuildCache } from './route-module-build-cache.store.ts';
 import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { createPluginCacheKey, hashFunctionIdentity } from '../../build/cache/cache-keys.ts';
-import {
-	clearProductionBuildCaches,
-	shouldResetStaticExportDirectory,
-} from '../../static-site-generator/static-build-invalidation.ts';
 import { RouteModuleDependencyHasher } from './route-module-dependency-hasher.ts';
 
 function createTestDependencyHasher(): RouteModuleDependencyHasher {
@@ -30,11 +23,9 @@ function createTestDependencyHasher(): RouteModuleDependencyHasher {
 
 describe('RouteModuleBuildCache', () => {
 	let tempDir: string;
-	let manifestWrites: RouteModuleBuildCacheManifest[];
 
 	beforeEach(() => {
 		tempDir = mkdtempSync(join(tmpdir(), 'ecopages-route-module-build-cache-'));
-		manifestWrites = [];
 		delete process.env.NODE_ENV;
 	});
 
@@ -44,12 +35,7 @@ describe('RouteModuleBuildCache', () => {
 	});
 
 	function createCache(exists: (filePath: string) => boolean = (filePath) => filePath.endsWith('.mjs')) {
-		return new RouteModuleBuildCache(tempDir, {
-			getCorePackageVersion: () => '1.0.0-test',
-			readManifest: () => undefined,
-			writeManifest: (_manifestPath, manifest) => {
-				manifestWrites.push(structuredClone(manifest));
-			},
+		return new RouteModuleBuildCache({
 			exists,
 			createDependencyHasher: () => createTestDependencyHasher(),
 		});
@@ -67,7 +53,7 @@ describe('RouteModuleBuildCache', () => {
 
 	it('persists unchanged development and production route-module builds', () => {
 		assert.equal(
-			shouldPersistRouteModuleBuildCache({
+			shouldCacheRouteModuleBuild({
 				filePath: '/app/pages/about.tsx',
 				rootDir: '/app',
 				outdir: tempDir,
@@ -77,7 +63,7 @@ describe('RouteModuleBuildCache', () => {
 
 		process.env.NODE_ENV = 'development';
 		assert.equal(
-			shouldPersistRouteModuleBuildCache({
+			shouldCacheRouteModuleBuild({
 				filePath: '/app/pages/about.tsx',
 				rootDir: '/app',
 				outdir: tempDir,
@@ -87,7 +73,7 @@ describe('RouteModuleBuildCache', () => {
 
 		process.env.NODE_ENV = 'production';
 		assert.equal(
-			shouldPersistRouteModuleBuildCache({
+			shouldCacheRouteModuleBuild({
 				filePath: '/app/pages/about.tsx',
 				rootDir: '/app',
 				outdir: tempDir,
@@ -99,7 +85,7 @@ describe('RouteModuleBuildCache', () => {
 	it('persists scoped imports used only for probes or request metadata', () => {
 		process.env.NODE_ENV = 'production';
 		assert.equal(
-			shouldPersistRouteModuleBuildCache({
+			shouldCacheRouteModuleBuild({
 				filePath: '/app/pages/about.tsx',
 				rootDir: '/app',
 				outdir: tempDir,
@@ -109,12 +95,12 @@ describe('RouteModuleBuildCache', () => {
 	});
 
 	it('treats rootDir paths with and without trailing slashes as the same build key', () => {
-		const withSlash = createPersistedRouteModuleBuildKey({
+		const withSlash = createRouteModuleBuildKey({
 			filePath: '/app/pages/about.tsx',
 			rootDir: '/app/',
 			outdir: tempDir,
 		});
-		const withoutSlash = createPersistedRouteModuleBuildKey({
+		const withoutSlash = createRouteModuleBuildKey({
 			filePath: '/app/pages/about.tsx',
 			rootDir: '/app',
 			outdir: tempDir,
@@ -189,7 +175,7 @@ describe('RouteModuleBuildCache', () => {
 		});
 
 		assert.deepEqual(
-			manifestWrites[manifestWrites.length - 1]?.entries['/app/pages/posts.tsx']?.outputImports?.sort(),
+			cache.lookup(options)?.entry.outputImports.sort(),
 			[join(tempDir, 'chunk-a.js'), join(tempDir, 'lazy-b.js'), collectionPath].sort(),
 		);
 		assert.equal(cache.lookup(options)?.outputPath, outputPath);
@@ -214,10 +200,7 @@ describe('RouteModuleBuildCache', () => {
 			outputImports: [srcChunk, commonChunk],
 		});
 
-		assert.deepEqual(
-			manifestWrites[manifestWrites.length - 1]?.entries['/app/pages/index.tsx']?.outputImports?.sort(),
-			[srcChunk, commonChunk].sort(),
-		);
+		assert.deepEqual(cache.lookup(options)?.entry.outputImports.sort(), [srcChunk, commonChunk].sort());
 		assert.equal(cache.lookup(options)?.outputPath, outputPath);
 
 		present.delete(commonChunk);
@@ -235,10 +218,7 @@ describe('RouteModuleBuildCache', () => {
 			exists: () => true,
 			hashFile: (filePath) => hashes.get(filePath) ?? 'missing',
 		});
-		const cache = new RouteModuleBuildCache(tempDir, {
-			getCorePackageVersion: () => '1.0.0-test',
-			readManifest: () => undefined,
-			writeManifest: () => {},
+		const cache = new RouteModuleBuildCache({
 			exists: () => true,
 			createDependencyHasher: () => hasher,
 		});
@@ -264,10 +244,7 @@ describe('RouteModuleBuildCache', () => {
 	it('misses after the config module or a file it imports changes', () => {
 		process.env.NODE_ENV = 'production';
 		let configHash = 'config-a';
-		const cache = new RouteModuleBuildCache(tempDir, {
-			getCorePackageVersion: () => '1.0.0-test',
-			readManifest: () => undefined,
-			writeManifest: () => {},
+		const cache = new RouteModuleBuildCache({
 			exists: (filePath) => filePath.endsWith('.mjs'),
 			createDependencyHasher: () => createTestDependencyHasher(),
 			getConfigHash: () => configHash,
@@ -305,44 +282,6 @@ describe('RouteModuleBuildCache', () => {
 
 		writeFileSync(optionsPath, 'export const options = { a: 2 };\n');
 		assert.ok(cache.lookup(options), 'a running process keeps the options it loaded');
-
-		const nextProcessConfig = { absolutePaths: appConfig.absolutePaths } as unknown as EcoPagesAppConfig;
-		assert.equal(getSharedRouteModuleBuildCache(tempDir, nextProcessConfig).lookup(options), undefined);
-	});
-
-	it('misses when the core package version changes', () => {
-		const outputPath = join(tempDir, 'about-abc123.mjs');
-		const cache = new RouteModuleBuildCache(tempDir, {
-			getCorePackageVersion: () => '2.0.0-test',
-			readManifest: () => ({
-				corePackageVersion: '1.0.0-test',
-				entries: {
-					'/app/pages/about.tsx': {
-						sourceHash: 'abc123',
-						outputPath,
-						builtAt: 1,
-						buildKey: 'stale',
-						dependencyHashes: {
-							'/app/pages/about.tsx': 'hash:about.tsx',
-						},
-						outputImports: [],
-					},
-				},
-			}),
-			writeManifest: () => {},
-			exists: () => true,
-			createDependencyHasher: () => createTestDependencyHasher(),
-		});
-
-		assert.equal(
-			cache.lookup({
-				filePath: '/app/pages/about.tsx',
-				rootDir: '/app',
-				outdir: tempDir,
-				fileHash: 'abc123',
-			}),
-			undefined,
-		);
 	});
 
 	it('misses when the build key changes even if the source hash is unchanged', () => {
@@ -386,13 +325,13 @@ describe('RouteModuleBuildCache', () => {
 			},
 		};
 
-		const keyA = createPersistedRouteModuleBuildKey({
+		const keyA = createRouteModuleBuildKey({
 			filePath: '/app/pages/about.tsx',
 			rootDir: '/app',
 			outdir: tempDir,
 			plugins: [pluginA],
 		});
-		const keyB = createPersistedRouteModuleBuildKey({
+		const keyB = createRouteModuleBuildKey({
 			filePath: '/app/pages/about.tsx',
 			rootDir: '/app',
 			outdir: tempDir,
@@ -404,372 +343,37 @@ describe('RouteModuleBuildCache', () => {
 		assert.notEqual(hashFunctionIdentity(pluginA.setup), hashFunctionIdentity(pluginB.setup));
 	});
 
-	it('prunes rendered outputs that are no longer part of the active route set', () => {
+	it('keeps entries in memory, so another cache instance starts empty', () => {
 		process.env.NODE_ENV = 'production';
-		const cache = createCache();
-		const context = {
-			configHash: 'config-1',
-			buildInputsFingerprint: 'stable',
-			watchedInputsHash: 'none',
-		};
-		const filePath = '/app/pages/about.tsx';
-
-		cache.recordBuild({
-			filePath,
-			rootDir: '/app',
-			outdir: tempDir,
-			fileHash: 'abc123',
-			outputPath: join(tempDir, 'about-abc123.mjs'),
-			dependencyModulePaths: [filePath],
-		});
-		cache.ensureIncrementalStaticGenerationContext(context);
-		cache.recordStaticRender({
-			filePath,
-			pathname: '/about',
-			sourceHash: 'abc123',
-			renderedOutputPath: join(tempDir, 'dist', 'about.html'),
-			context,
-		});
-		cache.recordStaticRender({
-			filePath,
-			pathname: '/legacy',
-			sourceHash: 'abc123',
-			renderedOutputPath: join(tempDir, 'dist', 'legacy.html'),
-			context,
-		});
-
-		const removed = cache.pruneStaleRenderedOutputs(new Set(['/about']));
-
-		assert.deepEqual(removed, [join(tempDir, 'dist', 'legacy.html')]);
-		assert.equal(
-			cache.lookupStaticRender({
-				filePath,
-				pathname: '/legacy',
-				sourceHash: 'abc123',
-				renderedOutputPath: join(tempDir, 'dist', 'legacy.html'),
-				context,
-			}),
-			false,
-		);
-	});
-
-	it('stops incremental static generation when watched rendering inputs change', () => {
-		process.env.NODE_ENV = 'production';
-		const cache = createCache();
-		const context = { configHash: 'config-1', buildInputsFingerprint: 'stable', watchedInputsHash: 'content-1' };
-
-		cache.ensureIncrementalStaticGenerationContext(context);
-
-		assert.equal(cache.isIncrementalStaticGenerationAvailable(context), true);
-		assert.equal(
-			cache.isIncrementalStaticGenerationAvailable({ ...context, watchedInputsHash: 'content-2' }),
-			false,
-		);
-	});
-
-	it('records the watched-inputs hash of the last static render, so the next export can compare it', () => {
-		process.env.NODE_ENV = 'production';
-		const cache = createCache();
-		const context = { configHash: 'config-1', buildInputsFingerprint: 'stable', watchedInputsHash: 'content-7' };
-
-		cache.recordStaticRender({
-			filePath: '/app/pages/about.tsx',
-			pathname: '/about',
-			sourceHash: 'abc123',
-			renderedOutputPath: join(tempDir, 'dist', 'about.html'),
-			context,
-		});
-
-		assert.equal(cache.getRecordedWatchedInputsHash(), 'content-7');
-		assert.equal(manifestWrites[manifestWrites.length - 1]?.watchedInputsHash, 'content-7');
-	});
-
-	it('drops rendered outputs when the route module is rebuilt', () => {
-		process.env.NODE_ENV = 'production';
-		const cache = createCache((filePath) => filePath.endsWith('.mjs') || filePath.endsWith('.html'));
-		const context = {
-			configHash: 'config-1',
-			buildInputsFingerprint: 'stable',
-			watchedInputsHash: 'none',
-		};
-		const filePath = '/app/pages/about.tsx';
-		const pathname = '/about';
-		const renderedOutputPath = join(tempDir, 'dist', 'about.html');
-		const outputPath = join(tempDir, 'about-abc123.mjs');
-
-		cache.recordBuild({
-			filePath,
-			rootDir: '/app',
-			outdir: tempDir,
-			fileHash: 'abc123',
-			outputPath,
-			dependencyModulePaths: [filePath],
-		});
-		cache.ensureIncrementalStaticGenerationContext(context);
-		cache.recordStaticRender({
-			filePath,
-			pathname,
-			sourceHash: 'abc123',
-			renderedOutputPath,
-			context,
-		});
-
-		const otherFilePath = '/app/pages/contact.tsx';
-		cache.recordBuild({
-			filePath: otherFilePath,
-			rootDir: '/app',
-			outdir: tempDir,
-			fileHash: 'xyz789',
-			outputPath: join(tempDir, 'contact-xyz789.mjs'),
-			dependencyModulePaths: [otherFilePath],
-		});
-
-		assert.equal(
-			cache.lookupStaticRender({
-				filePath,
-				pathname,
-				sourceHash: 'abc123',
-				renderedOutputPath,
-				context,
-			}),
-			true,
-			'unrelated route build preserves about static render output',
-		);
-
-		cache.recordBuild({
-			filePath,
-			rootDir: '/app',
-			outdir: tempDir,
-			fileHash: 'abc123',
-			outputPath,
-			dependencyModulePaths: [filePath],
-		});
-
-		assert.equal(
-			cache.lookupStaticRender({
-				filePath,
-				pathname,
-				sourceHash: 'abc123',
-				renderedOutputPath,
-				context,
-			}),
-			false,
-		);
-	});
-
-	it('records and reuses static render outputs by pathname when the import graph is fresh', () => {
-		process.env.NODE_ENV = 'production';
-		const cache = new RouteModuleBuildCache(tempDir, {
-			getCorePackageVersion: () => '1.0.0-test',
-			readManifest: () => undefined,
-			writeManifest: (_manifestPath, manifest) => {
-				manifestWrites.push(structuredClone(manifest));
-			},
-			exists: () => true,
+		const cache = new RouteModuleBuildCache({
 			createDependencyHasher: () => createTestDependencyHasher(),
 		});
-		const context = {
-			configHash: 'config-1',
-			buildInputsFingerprint: 'stable',
-			watchedInputsHash: 'none',
-		};
-		const filePath = '/app/pages/about.tsx';
-		const pathname = '/about';
-		const renderedOutputPath = join(tempDir, 'dist', 'about.html');
-
-		cache.recordBuild({
-			filePath,
-			rootDir: '/app',
-			outdir: tempDir,
-			fileHash: 'abc123',
-			outputPath: join(tempDir, 'about-abc123.mjs'),
-			dependencyModulePaths: [filePath, '/app/layouts/shared.tsx'],
-			outputImports: [join(tempDir, 'chunk-a.js')],
-		});
-		cache.ensureIncrementalStaticGenerationContext(context);
-		cache.recordStaticRender({
-			filePath,
-			pathname,
-			sourceHash: 'abc123',
-			renderedOutputPath,
-			context,
-		});
-
-		assert.deepEqual(manifestWrites[manifestWrites.length - 1]?.entries[filePath]?.outputImports, [
-			join(tempDir, 'chunk-a.js'),
-		]);
-
-		assert.equal(
-			cache.lookupStaticRender({
-				filePath,
-				pathname,
-				sourceHash: 'abc123',
-				renderedOutputPath,
-				context,
-			}),
-			true,
-		);
-	});
-
-	it('does not write a route-module manifest to disk', () => {
-		process.env.NODE_ENV = 'production';
-		const manifestPath = join(tempDir, ROUTE_MODULE_BUILD_CACHE_FILENAME);
-		const cache = new RouteModuleBuildCache(tempDir, {
-			getCorePackageVersion: () => '1.0.0-test',
-			createDependencyHasher: () => createTestDependencyHasher(),
-		});
+		const options = { filePath: '/app/pages/about.tsx', rootDir: '/app', outdir: tempDir, fileHash: 'abc123' };
 		const outputPath = join(tempDir, 'about-abc123.mjs');
 		writeFileSync(outputPath, 'export default {};', 'utf8');
 
+		cache.recordBuild({ ...options, outputPath, dependencyModulePaths: ['/app/pages/about.tsx'] });
+
+		assert.equal(cache.lookup(options)?.outputPath, outputPath);
+		assert.equal(
+			new RouteModuleBuildCache({ createDependencyHasher: () => createTestDependencyHasher() }).lookup(options),
+			undefined,
+		);
+	});
+
+	it('forgets every entry after development invalidation', () => {
+		process.env.NODE_ENV = 'development';
+		const cache = createCache();
+		const options = { filePath: '/app/pages/about.tsx', rootDir: '/app', outdir: tempDir, fileHash: 'abc123' };
 		cache.recordBuild({
-			filePath: '/app/pages/about.tsx',
-			rootDir: '/app',
-			outdir: tempDir,
-			fileHash: 'abc123',
-			outputPath,
+			...options,
+			outputPath: join(tempDir, 'about-abc123.mjs'),
 			dependencyModulePaths: ['/app/pages/about.tsx'],
 		});
+		assert.ok(cache.lookup(options));
 
-		assert.equal(existsSync(manifestPath), false);
-		assert.equal(
-			cache.lookup({
-				filePath: '/app/pages/about.tsx',
-				rootDir: '/app',
-				outdir: tempDir,
-				fileHash: 'abc123',
-			})?.outputPath,
-			outputPath,
-		);
+		cache.clearDevelopmentEntries();
 
-		const otherProcess = new RouteModuleBuildCache(tempDir, {
-			getCorePackageVersion: () => '1.0.0-test',
-			createDependencyHasher: () => createTestDependencyHasher(),
-		});
-		assert.equal(
-			otherProcess.lookup({
-				filePath: '/app/pages/about.tsx',
-				rootDir: '/app',
-				outdir: tempDir,
-				fileHash: 'abc123',
-			}),
-			undefined,
-		);
-	});
-});
-
-describe('production build cache utilities', () => {
-	let tempDir: string;
-
-	beforeEach(() => {
-		tempDir = mkdtempSync(join(tmpdir(), 'ecopages-build-cache-utils-'));
-		delete process.env.NODE_ENV;
-	});
-
-	afterEach(() => {
-		rmSync(tempDir, { recursive: true, force: true });
-		delete process.env.NODE_ENV;
-	});
-
-	it('drops persisted entries that have no outputImports when reading the manifest', () => {
-		const manifestPath = join(tempDir, ROUTE_MODULE_BUILD_CACHE_FILENAME);
-		const entry = { sourceHash: 'a', outputPath: '/out/a.mjs', builtAt: 1, buildKey: 'key' };
-		writeFileSync(
-			manifestPath,
-			JSON.stringify({
-				corePackageVersion: '1.0.0-test',
-				entries: { '/app/legacy.tsx': entry, '/app/current.tsx': { ...entry, outputImports: [] } },
-			}),
-			'utf8',
-		);
-
-		assert.deepEqual(Object.keys(readRouteModuleBuildCacheManifest(manifestPath)?.entries ?? {}), [
-			'/app/current.tsx',
-		]);
-	});
-
-	it('clears persisted manifests on force builds in production', () => {
-		process.env.NODE_ENV = 'production';
-		const ecoDir = join(tempDir, '.eco');
-		const modulesDir = join(ecoDir, '.server-modules');
-		const manifestPath = join(modulesDir, ROUTE_MODULE_BUILD_CACHE_FILENAME);
-		mkdirSync(modulesDir, { recursive: true });
-		writeFileSync(manifestPath, '{}', 'utf8');
-		const cache = new RouteModuleBuildCache(modulesDir, {
-			getCorePackageVersion: () => '1.0.0-test',
-			readManifest: () => ({
-				corePackageVersion: '1.0.0-test',
-				entries: {
-					'/app/pages/about.tsx': {
-						sourceHash: 'abc123',
-						outputPath: join(modulesDir, 'about.mjs'),
-						builtAt: 1,
-						buildKey: 'stale',
-						outputImports: [],
-					},
-				},
-			}),
-			writeManifest: () => {},
-			exists: () => true,
-		});
-
-		clearProductionBuildCaches({
-			rootDir: tempDir,
-			workDir: '.eco',
-			absolutePaths: {
-				workDir: ecoDir,
-			},
-			runtime: {
-				routeModuleBuildCaches: new Map([[modulesDir, cache]]),
-			},
-		} as any);
-
-		assert.equal(existsSync(manifestPath), false);
-		assert.equal(
-			cache.lookup({
-				filePath: '/app/pages/about.tsx',
-				rootDir: '/app',
-				outdir: modulesDir,
-				fileHash: 'abc123',
-			}),
-			undefined,
-		);
-	});
-
-	it('clears persisted pages unified graph manifest on force builds in production', () => {
-		process.env.NODE_ENV = 'production';
-		const ecoDir = join(tempDir, '.eco');
-		const graphManifestPath = join(ecoDir, '.server-pages-graph', ROUTE_MODULE_BUILD_CACHE_FILENAME);
-		mkdirSync(join(ecoDir, '.server-pages-graph'), { recursive: true });
-		writeFileSync(graphManifestPath, '{}', 'utf8');
-
-		clearProductionBuildCaches({
-			rootDir: tempDir,
-			workDir: '.eco',
-			absolutePaths: {
-				workDir: ecoDir,
-			},
-		} as any);
-
-		assert.equal(existsSync(graphManifestPath), false);
-	});
-
-	it('requests a dist reset when incremental static generation is unavailable', () => {
-		process.env.NODE_ENV = 'production';
-		const ecoDir = join(tempDir, '.eco');
-		mkdirSync(join(ecoDir, '.server-modules'), { recursive: true });
-
-		assert.equal(
-			shouldResetStaticExportDirectory(
-				{
-					rootDir: tempDir,
-					workDir: '.eco',
-					absolutePaths: { workDir: ecoDir, distDir: join(tempDir, 'dist') },
-					processors: new Map(),
-					integrations: [],
-				} as any,
-				false,
-			),
-			true,
-		);
+		assert.equal(cache.lookup(options), undefined);
 	});
 });

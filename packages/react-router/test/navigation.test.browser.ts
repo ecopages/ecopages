@@ -432,12 +432,16 @@ describe('loadPageModule', () => {
 		expect(state.completed).toBe(false);
 		expect(state.props).toEqual({ slug: 'hello-world' });
 
-		const settledEarly = await Promise.race([
-			loadPromise.then(() => true),
-			new Promise<false>((resolve) => {
-				setTimeout(() => resolve(false), 20);
-			}),
-		]);
+		let settledEarly = false;
+		void loadPromise.then(() => {
+			settledEarly = true;
+		});
+		vi.useFakeTimers();
+		try {
+			await vi.advanceTimersByTimeAsync(20);
+		} finally {
+			vi.useRealTimers();
+		}
 		expect(settledEarly).toBe(false);
 
 		state.release?.();

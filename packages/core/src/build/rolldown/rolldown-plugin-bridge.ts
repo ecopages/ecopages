@@ -70,15 +70,23 @@ function joinNamespace(namespace: string | undefined, value: string): string {
 	return namespace ? `${namespace}${NAMESPACE_SEPARATOR}${value}` : value;
 }
 
+/**
+ * @remarks
+ * A Windows drive prefix such as `C:\` or `C:/` is part of the path, not a namespace.
+ */
 function splitNamespace(id: string): { namespace: string | undefined; path: string } {
 	const separatorIndex = id.indexOf(NAMESPACE_SEPARATOR);
-	if (separatorIndex <= 0) {
+	if (separatorIndex <= 0 || /^[A-Za-z]:[\\/]/.test(id)) {
 		return { namespace: undefined, path: id };
 	}
 	return {
 		namespace: id.slice(0, separatorIndex),
 		path: id.slice(separatorIndex + 1),
 	};
+}
+
+function stripQuery(id: string): string {
+	return id.replace(/[?#].*$/, '');
 }
 
 function inferRolldownModuleTypeFromPath(filePath: string): string {
@@ -505,7 +513,7 @@ export async function createRolldownPluginBridge(
 		let current = code;
 		const mapState: TransformMapState = { map: undefined, invalidated: false, preserveIncoming: false };
 		for (const { matches, callback, pluginName } of transformRegistrations) {
-			if (!matches(sourcePath) && !matches(id)) {
+			if (!matches(sourcePath) && !matches(stripQuery(sourcePath))) {
 				continue;
 			}
 			let result: EcoBuildOnTransformResult | string | undefined;

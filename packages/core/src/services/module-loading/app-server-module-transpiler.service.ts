@@ -27,6 +27,9 @@ export function createAppModuleLoader(appConfig: EcoPagesAppConfig): AppModuleLo
 		invalidateDevelopmentGraph() {
 			pageModuleImportService.invalidateDevelopmentGraph();
 		},
+		getDevelopmentGeneration() {
+			return pageModuleImportService.getDevelopmentGeneration();
+		},
 	};
 
 	return appModuleLoader;

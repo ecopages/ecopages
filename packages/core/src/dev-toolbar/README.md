@@ -4,11 +4,11 @@ Server-side wiring for the development-only in-browser inspector. Public docs: [
 
 ## Boundaries
 
-| Layer                                     | Owns                                                                                              |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| **Core** (`DevToolbarHost`)               | Enablement, `/_dev_toolbar.js` delivery, per-route `#__ECO_DEV_MANIFEST__`, HTML script injection |
-| **Client package** (`devToolbar.package`) | Dock UI, panels, and any extra apps                                                               |
-| **Integrations**                          | Page rendering and browser assets — not toolbar dock apps                                         |
+| Layer                                     | Owns                                                                                                                 |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Core**                                  | Enablement, per-route `#__ECO_DEV_MANIFEST__`, the toolbar runtime entry the HMR manager bundles, serves and injects |
+| **Client package** (`devToolbar.package`) | Dock UI, panels, and any extra apps                                                                                  |
+| **Integrations**                          | Page rendering and browser assets — not toolbar dock apps                                                            |
 
 `@ecopages/dev-toolbar` is an optional peer. Core does not import it at runtime unless `devToolbar.package` is configured. The dev manifest contract (`dev-toolbar-manifest-contract.ts`) lives in core so apps and custom toolbar clients can type the payload without installing the reference toolbar package.
 
@@ -16,12 +16,11 @@ Server-side wiring for the development-only in-browser inspector. Public docs: [
 
 | File                               | Role                                                                                                                                                                        |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dev-toolbar-host.ts`              | Enablement, manifest contribution, runtime bundling, HTML injection                                                                                                         |
+| `dev-toolbar-runtime.ts`           | Describes the toolbar bundle as a dev client runtime, with its log-only failure policy                                                                                      |
 | `dev-toolbar-manifest-contract.ts` | `#__ECO_DEV_MANIFEST__` id and payload types (public: `@ecopages/core/dev-toolbar/dev-toolbar-manifest-contract`; mirrored in `@ecopages/dev-toolbar` for browser bundling) |
-| `dev-toolbar-manifest.ts`          | Builds and serializes the per-page dev manifest                                                                                                                             |
+| `dev-toolbar-manifest.ts`          | Builds and serializes the per-page dev manifest and its HTML contribution                                                                                                   |
 | `dev-toolbar-package.ts`           | Resolves `devToolbar.package` bootstrap entry (`bootstrap.js`, then `.ts`)                                                                                                  |
 | `dev-toolbar-config.ts`            | `isDevToolbarEnabled` — watch mode, env var, package required                                                                                                               |
-| `dev-toolbar-html-response.ts`     | Adapter helpers for injecting `import '/_dev_toolbar.js'`                                                                                                                   |
 | `dev-toolbar-runtime-paths.ts`     | `/_dev_toolbar.js` URL and work-dir paths                                                                                                                                   |
 | `define-dev-tool.ts`               | Config helper for bring-your-own client packages                                                                                                                            |
 | `build-error-contract.ts`          | Public error, clear, and replay event names and error payload type for custom clients                                                                                       |
@@ -37,8 +36,10 @@ The reference toolbar opens its Build errors app automatically, reveals stealth 
 ## Injection sequence
 
 1. Route HTML is finalized with `#__ECO_DEV_MANIFEST__` appended to `<body>` (`route-html-finalization.service.ts`).
-2. The server adapter injects `import '/_dev_toolbar.js'` before `</html>` when the toolbar is enabled (`server-adapter.ts` → `DevToolbarHost.injectHtmlResponse`).
-3. HMR manager copies or bundles the configured client package to `/_dev_toolbar.js` during watch mode (`shared-hmr-manager.ts`).
+2. The HMR manager bundles the configured client package to `/_dev_toolbar.js` during watch mode and serves it, next to the HMR client, through the same bundle, asset and injection routines (`shared-hmr-manager.ts`, `hmr/dev-client-runtime.ts`).
+3. The server adapter asks the manager to load its runtimes from each HTML response (`injectDevClientRuntimes`), which adds `import '/_dev_toolbar.js'` before `</html>` only after the toolbar bundle was built.
+
+A package that is not installed or fails to bundle is logged as `Could not bundle the Dev Toolbar runtime` and leaves HMR on; only a failed HMR runtime bundle disables HMR. The toolbar is gated on HMR being enabled: when the HMR runtime fails to bundle, the Node runtime disables HMR for the session and the page gets neither the toolbar script nor the `#__ECO_DEV_MANIFEST__` payload.
 
 ## Config
 

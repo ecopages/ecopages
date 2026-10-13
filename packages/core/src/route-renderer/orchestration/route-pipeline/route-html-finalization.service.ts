@@ -3,7 +3,7 @@ import type { IntegrationRendererRenderOptions } from '../../../types/public-typ
 import type { RouteHtmlFinalization } from './route-render-orchestrator.ts';
 import { buildRobotsMetaContribution } from './robots-meta.contribution.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import { DevToolbarHost } from '../../../dev-toolbar/dev-toolbar-host.ts';
+import { buildDevToolbarManifestContribution } from '../../../dev-toolbar/dev-toolbar-manifest.ts';
 
 export type RouteHtmlFinalizationContext<C> = {
 	appConfig: EcoPagesAppConfig;
@@ -30,7 +30,7 @@ export function buildRouteHtmlFinalization<C>(context: RouteHtmlFinalizationCont
 	const documentAttributes = context.getDocumentAttributes(renderOptions);
 	const integrationContributions = context.getHtmlDocumentContributions({ renderOptions, partial: false }) ?? [];
 	const robotsContribution = buildRobotsMetaContribution(renderOptions.metadata ?? {});
-	const devToolbarContribution = buildDevToolbarManifestContribution(context);
+	const devToolbarContribution = buildRouteDevToolbarManifestContribution(context);
 	const htmlContributions = [
 		...(robotsContribution ? [robotsContribution] : []),
 		...(devToolbarContribution ? [devToolbarContribution] : []),
@@ -54,14 +54,16 @@ export function buildRouteHtmlFinalization<C>(context: RouteHtmlFinalizationCont
 	};
 }
 
-function buildDevToolbarManifestContribution<C>(
+function buildRouteDevToolbarManifestContribution<C>(
 	context: RouteHtmlFinalizationContext<C>,
 ): HtmlDocumentContribution | undefined {
-	return DevToolbarHost.forApp(context.appConfig, {
-		watch: context.watch,
-	}).buildRouteManifestContribution({
-		routeFile: context.renderOptions.file,
-		integrationName: context.integrationName,
-		pagePackage: context.renderOptions.pagePackage,
-	});
+	return buildDevToolbarManifestContribution(
+		context.appConfig,
+		{ watch: context.watch },
+		{
+			routeFile: context.renderOptions.file,
+			integrationName: context.integrationName,
+			pagePackage: context.renderOptions.pagePackage,
+		},
+	);
 }

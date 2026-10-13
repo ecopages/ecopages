@@ -3,4 +3,12 @@ import type { PageModuleBuildImportOptions } from './page-module-import.service.
 export interface AppModuleLoader {
 	importModule<T = unknown>(options: PageModuleBuildImportOptions): Promise<T>;
 	invalidateDevelopmentGraph(): void;
+	/**
+	 * The development generation of the app: it grows by one each time server modules are marked stale.
+	 *
+	 * @remarks
+	 * Anything that outlives one import, such as a compiled output name or a render worker, compares this
+	 * number to know whether the server code it holds is stale. It is the only counter of that event.
+	 */
+	getDevelopmentGeneration(): number;
 }

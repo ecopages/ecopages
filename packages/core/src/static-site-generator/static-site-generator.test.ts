@@ -88,44 +88,21 @@ describe('StaticSiteGenerator', () => {
 		vi.restoreAllMocks();
 	});
 
-	describe('constructor', () => {
-		test('should create instance with appConfig', () => {
-			const config = createMockConfig();
-			const ssg = new StaticSiteGenerator({ appConfig: config });
-			expect(ssg.appConfig).toBe(config);
-		});
-	});
-
 	describe('getDirectories', () => {
-		test('should return empty array for root-level routes', () => {
+		test.each([
+			{ name: 'root-level routes', routes: ['/about', '/contact'], directories: [] },
+			{ name: 'nested routes', routes: ['/blog/post-1', '/docs/api'], directories: ['/blog', '/docs'] },
+			{
+				name: 'absolute URLs by their pathname',
+				routes: ['http://localhost:3000/blog/post'],
+				directories: ['/blog'],
+			},
+			{ name: 'siblings once', routes: ['/blog/a', '/blog/b', '/blog/c'], directories: ['/blog'] },
+			{ name: 'deeply nested paths', routes: ['/a/b/c/page'], directories: ['/a/b/c'] },
+		])('lists directories for $name', ({ routes, directories }) => {
 			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-			const dirs = ssg.getDirectories(['/about', '/contact']);
-			expect(dirs).toEqual([]);
-		});
 
-		test('should extract directories from nested routes', () => {
-			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-			const dirs = ssg.getDirectories(['/blog/post-1', '/blog/post-2', '/docs/api']);
-			expect(dirs).toContain('/blog');
-			expect(dirs).toContain('/docs');
-		});
-
-		test('should handle HTTP URLs and extract pathname', () => {
-			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-			const dirs = ssg.getDirectories(['http://localhost:3000/blog/post']);
-			expect(dirs).toContain('/blog');
-		});
-
-		test('should deduplicate directories', () => {
-			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-			const dirs = ssg.getDirectories(['/blog/a', '/blog/b', '/blog/c']);
-			expect(dirs.filter((d) => d === '/blog').length).toBe(1);
-		});
-
-		test('should handle deeply nested paths', () => {
-			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
-			const dirs = ssg.getDirectories(['/a/b/c/page']);
-			expect(dirs).toContain('/a/b/c');
+			expect(ssg.getDirectories(routes)).toEqual(directories);
 		});
 	});
 

@@ -193,12 +193,12 @@ export class EcoRouter {
 		const url = new URL(href, window.location.origin);
 
 		if (url.origin !== window.location.origin) {
-			window.location.href = href;
+			this.options.reloadDocument(href);
 			return;
 		}
 
 		if (isStaticAssetHref(href)) {
-			window.location.assign(url.href);
+			this.options.reloadDocument(url.href);
 			return;
 		}
 
@@ -353,7 +353,7 @@ export class EcoRouter {
 
 			console.error('[ecopages] Navigation failed:', error);
 			if (allowFullDocumentFallback) {
-				window.location.href = url.href;
+				this.options.reloadDocument(url.href);
 			}
 			return false;
 		} finally {

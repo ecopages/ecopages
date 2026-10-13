@@ -95,19 +95,26 @@ describe('RadiantCodeTabs', () => {
 	});
 
 	it('renders Shiki markup as HTML and copies its plain-text content', async () => {
+		const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
 		const codeTabs = document.createElement('radiant-code-tabs') as RadiantCodeTabs;
 		codeTabs.tabs = [
 			{
 				id: 'typescript',
 				label: 'example.ts',
 				html: '<pre><code><span class="shiki-token">const answer = 42;</span></code></pre>',
-				content: 'const answer = 42;',
+				content: 'plain clipboard text',
 			},
 		];
 		document.body.appendChild(codeTabs);
 
 		await vi.waitFor(() => {
 			expect(codeTabs.querySelector('.shiki-token')?.textContent).toBe('const answer = 42;');
+		});
+
+		await userEvent.click(codeTabs.querySelector<HTMLButtonElement>('.code-tabs__copy')!);
+
+		await vi.waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith('plain clipboard text');
 		});
 	});
 

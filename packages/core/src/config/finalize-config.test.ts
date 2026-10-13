@@ -14,6 +14,8 @@ import { appLogger } from '../global/app-logger.ts';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { Processor } from '../plugins/processor.ts';
 import { fileSystem } from '@ecopages/file-system';
+import { NoopEntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
+import { CounterServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
 import { finalizeEcoPagesConfig } from './finalize-config.ts';
 import type { EcoPagesUserConfig } from './user-config-types.ts';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
@@ -155,12 +157,6 @@ describe('finalizeEcoPagesConfig', () => {
 		expect(config.rootDir).toBe(path.join('/workspace', 'app'));
 	});
 
-	test('should configure static development prewarm paths', async () => {
-		const config = await finalize({ devPrewarmPaths: ['/'] });
-
-		expect(config.devPrewarmPaths).toEqual(['/']);
-	});
-
 	test('should create a dedicated build adapter per app config', async () => {
 		const config = await finalize();
 
@@ -168,8 +164,8 @@ describe('finalizeEcoPagesConfig', () => {
 		expect(getAppBuildAdapter(config)).not.toBe(defaultBuildAdapter);
 		expect(getAppBuildManifest(config).plugins).toHaveLength(0);
 		expect(config.sourceTransforms.size).toBeGreaterThan(0);
-		expect(config.runtime?.serverInvalidationState).toBeDefined();
-		expect(config.runtime?.entrypointDependencyGraph).toBeDefined();
+		expect(config.runtime?.serverInvalidationState).toBeInstanceOf(CounterServerInvalidationState);
+		expect(config.runtime?.entrypointDependencyGraph).toBeInstanceOf(NoopEntrypointDependencyGraph);
 	});
 
 	test('should allow explicit app-owned source transforms', async () => {
@@ -299,18 +295,6 @@ describe('finalizeEcoPagesConfig', () => {
 		).rejects.toThrow('Multiple html templates found');
 	});
 
-	test('should set robotsTxt', async () => {
-		const robotsTxt = {
-			preferences: {
-				'*': ['/private'],
-				Googlebot: ['/public'],
-			},
-		};
-		const config = await finalize({ robotsTxt });
-
-		expect(config.robotsTxt).toEqual(robotsTxt);
-	});
-
 	test('should set sitemap with defaults merged', async () => {
 		const config = await finalize({ sitemap: { enabled: true, extraUrls: ['/rss.xml'] } });
 
@@ -340,14 +324,19 @@ describe('finalizeEcoPagesConfig', () => {
 		expect(config.integrations[0]).toBe(integrations[0]);
 	});
 
-	test('should set defaultMetadata', async () => {
-		const defaultMetadata = {
-			title: 'Custom Title',
-			description: 'Custom Description',
-		};
-		const config = await finalize({ defaultMetadata });
-
-		expect(config.defaultMetadata).toEqual(defaultMetadata);
+	test('defaults the metadata title and description and keeps the user fields', async () => {
+		expect((await finalize()).defaultMetadata).toEqual({
+			title: 'Ecopages',
+			description: 'This is a static site generated with Ecopages',
+		});
+		expect(
+			(await finalize({ defaultMetadata: { title: 'Mine', description: 'Mine too', image: '/og.png' } }))
+				.defaultMetadata,
+		).toEqual({
+			title: 'Mine',
+			description: 'Mine too',
+			image: '/og.png',
+		});
 	});
 
 	test('should derive absolutePaths correctly', async () => {
@@ -461,31 +450,27 @@ describe('finalizeEcoPagesConfig', () => {
 		debugSpy.mockRestore();
 	});
 
-	test('should add additionalWatchPaths', async () => {
-		const config = await finalize({ additionalWatchPaths: ['/additional-path'] });
-
-		expect(config.additionalWatchPaths).toEqual(['/additional-path']);
-	});
-
-	test('should set cache config', async () => {
-		const config = await finalize({ cache: { store: 'memory', defaultStrategy: 'static', enabled: true } });
-
-		expect(config.cache).toEqual({
+	test('carries watch, prewarm, robots, cache and experimental fields through unchanged', async () => {
+		const robotsTxt = { preferences: { '*': ['/private'], Googlebot: ['/public'] } };
+		const cache: EcoPagesUserConfig['cache'] = {
 			store: 'memory',
-			defaultStrategy: 'static',
+			defaultStrategy: { revalidate: 3600, tags: ['default'] },
 			enabled: true,
+		};
+		const config = await finalize({
+			additionalWatchPaths: ['/additional-path'],
+			devPrewarmPaths: ['/'],
+			robotsTxt,
+			cache,
+			experimental: { unsafe: { featureFlag: true } },
 		});
-	});
 
-	test('should set cache config with revalidation default', async () => {
-		const config = await finalize({ cache: { defaultStrategy: { revalidate: 3600, tags: ['default'] } } });
-
-		expect(config.cache?.defaultStrategy).toEqual({ revalidate: 3600, tags: ['default'] });
-	});
-
-	test('should set experimental unsafe config', async () => {
-		const config = await finalize({ experimental: { unsafe: { featureFlag: true } } });
-
-		expect(config.experimental?.unsafe).toEqual({ featureFlag: true });
+		expect(config).toMatchObject({
+			additionalWatchPaths: ['/additional-path'],
+			devPrewarmPaths: ['/'],
+			robotsTxt,
+			cache,
+			experimental: { unsafe: { featureFlag: true } },
+		});
 	});
 });

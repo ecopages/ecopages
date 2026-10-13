@@ -87,6 +87,16 @@ export interface EcoRouterOptions {
 	 * @default { strategy: 'intent', delay: 65, noPrefetchAttribute: 'data-eco-no-prefetch', respectDataSaver: true }
 	 */
 	prefetch?: PrefetchConfig | false;
+	/**
+	 * Loads a URL as a full document, replacing the current page.
+	 *
+	 * @remarks
+	 * Runs for every navigation the router hands back to the browser: cross-origin and
+	 * static asset targets of `navigate()`, a `before-swap` listener calling `reload()`,
+	 * a document owned by a runtime that cannot take over, and a failed fetch or swap.
+	 * @default (href) => window.location.assign(href)
+	 */
+	reloadDocument?: (href: string) => void;
 }
 
 export type BrowserRouterNavigateOptions = {
@@ -115,4 +125,5 @@ export const DEFAULT_OPTIONS: Required<EcoRouterOptions> = {
 	viewTransitions: true,
 	smoothScroll: false,
 	prefetch: DEFAULT_PREFETCH_CONFIG,
+	reloadDocument: (href) => window.location.assign(href),
 };

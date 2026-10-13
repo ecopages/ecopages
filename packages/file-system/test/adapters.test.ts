@@ -108,12 +108,12 @@ for (const [name, fs] of adapters) {
 		});
 
 		describe('hash', () => {
-			test('returns consistent hash for same content', () => {
-				const hash1 = fs.hash(path.join(testDir, 'test.txt'));
-				const hash2 = fs.hash(path.join(testDir, 'test.txt'));
-				expect(hash1).toBe(hash2);
-				expect(typeof hash1).toBe('string');
-				expect(hash1.length).toBeGreaterThan(0);
+			test('hashes by content, not by path', () => {
+				const duplicate = path.join(testDir, 'duplicate.txt');
+				fs.write(duplicate, 'Hello World');
+
+				expect(fs.hash(duplicate)).toBe(fs.hash(path.join(testDir, 'test.txt')));
+				expect(fs.hash(path.join(testDir, 'test.ts'))).not.toBe(fs.hash(path.join(testDir, 'test.txt')));
 			});
 		});
 

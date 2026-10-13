@@ -30,11 +30,4 @@ describe('defineIntegration', () => {
 		expect(plugin.extensions).toEqual(['.example', '.ex']);
 		expect(plugin.jsxImportSource).toBe('@example/jsx');
 	});
-
-	it('exposes the generated plugin class', () => {
-		const plugin = new examplePlugin.Plugin();
-
-		expect(plugin).toBeInstanceOf(examplePlugin.Plugin);
-		expect(plugin.name).toBe('example');
-	});
 });

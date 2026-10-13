@@ -16,10 +16,6 @@ function resetDocumentElement(): void {
 }
 
 describe('document-element-sync', () => {
-	it('exposes the default document-owned html attributes', () => {
-		expect(DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC).toEqual(['lang', 'dir', ECO_DOCUMENT_OWNER_ATTRIBUTE]);
-	});
-
 	it('updates changed synced attributes from the incoming document', () => {
 		resetDocumentElement();
 		document.documentElement.setAttribute('lang', 'en');

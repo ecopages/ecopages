@@ -33,7 +33,7 @@ describe('toLitStaticRenderResult', () => {
 	});
 
 	it('rejects a body it cannot serialize', async () => {
-		await expect(toLitStaticRenderResult({ body: 42 as never })).rejects.toThrow(
+		await expect(toLitStaticRenderResult({ body: 42 as never, metadata: rendered.metadata })).rejects.toThrow(
 			'Unsupported Lit static render body type: number',
 		);
 	});

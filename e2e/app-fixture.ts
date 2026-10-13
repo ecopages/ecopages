@@ -101,12 +101,13 @@ async function stopServer(child: ChildProcess): Promise<void> {
  *
  * @remarks
  * `app` is a worker-scoped fixture: the first test of a worker that needs it copies the project's
- * `appOptions.source` to `.e2e-tmp/<project>-w<parallelIndex>`, starts `ecopages dev` there on a free port,
+ * `appOptions.source` to `.e2e-tmp/<project>-w<workerIndex>`, starts `ecopages dev` there on a free port,
  * and waits for the ready line. `baseURL` points at that server, so `page` and `request` reach it, and a worker
  * whose tests never ask for a page or for `app` starts nothing. Every worker has its own copy, so specs edit
  * files under `app.dir` and parallel workers never see each other's edits. The server stops and the copy is
  * removed when the worker ends, unless `ECOPAGES_KEEP_E2E_TMP=true`; a copy that a killed run left behind is
- * replaced when the same slot starts again. The server runs in its own process group so the stop reaches the
+ * replaced when the same worker index starts again. The folder is keyed by the worker index, which is unique per worker process, not by the parallel index:
+ * a worker restarted after a failure reuses the parallel index while the old one may still be removing its copy. The server runs in its own process group so the stop reaches the
  * runtime processes the CLI starts.
  */
 export const test = base.extend<{}, { appOptions: AppOptions | undefined; app: App }>({
@@ -120,7 +121,7 @@ export const test = base.extend<{}, { appOptions: AppOptions | undefined; app: A
 
 			const dir = copyFixtureApp(
 				path.join(repoRoot, appOptions.source),
-				path.join(repoRoot, '.e2e-tmp', `${workerInfo.project.name}-w${workerInfo.parallelIndex}`),
+				path.join(repoRoot, '.e2e-tmp', `${workerInfo.project.name}-w${workerInfo.workerIndex}`),
 			);
 			const port = await pickFreePort();
 			const runtime = appOptions.runtime ?? 'node';

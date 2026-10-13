@@ -7,6 +7,7 @@ import {
 	type BuildExecutor,
 	type BuildOptions,
 	type BuildResult,
+	type BuildSuccess,
 } from '../build-adapter.ts';
 import { assertBuildSucceeded } from '../build-log.ts';
 import { createBuildRequestIdentity } from './build-request-identity.ts';
@@ -138,7 +139,7 @@ export async function buildOrThrow(
 	options: BuildOptions,
 	failure: string | ((details: string) => string),
 	lane: BuildLane = 'build',
-): Promise<BuildResult> {
+): Promise<BuildSuccess> {
 	const result = await requireBuildQueue(appConfig).build(options, lane);
 	assertBuildSucceeded(result, failure);
 	return result;

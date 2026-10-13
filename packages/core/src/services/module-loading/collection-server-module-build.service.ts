@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { BuildResult } from '../../build/build-adapter.ts';
 import { createBuildRequestIdentity } from '../../build/runtime/build-request-identity.ts';
 import { createServerBuildRequest } from '../../build/runtime/build-request-policy.ts';
 import { buildOrThrow } from '../../build/runtime/build-queue.ts';
@@ -93,7 +92,7 @@ export async function buildCollectionServerModule(input: {
 	const buildOptions = { ...buildRequest, naming: outputFileName.replace(/\.mjs$/u, '.[ext]') };
 
 	recordCollectionBuild();
-	const buildResult: BuildResult = await buildOrThrow(
+	const buildResult = await buildOrThrow(
 		appConfig,
 		buildOptions,
 		`Error building collection server module ${collectionName}`,

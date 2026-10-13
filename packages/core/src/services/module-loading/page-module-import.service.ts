@@ -8,6 +8,7 @@ import {
 	type BuildExecutor,
 	type BuildOptions,
 	type BuildResult,
+	type BuildSuccess,
 } from '../../build/build-adapter.ts';
 import { createServerBuildRequest } from '../../build/runtime/build-request-policy.ts';
 import { resolveBuildEnvironmentOptions } from '../../build/runtime/build-environment-options.ts';
@@ -310,7 +311,7 @@ export class PageModuleImportService {
 	}
 
 	private resolveCompiledRouteModuleOutput(
-		buildResult: BuildResult,
+		buildResult: BuildSuccess,
 		filePath: string,
 		rootDir: string,
 		noOutputMessage: (targetFilePath: string) => string,
@@ -327,7 +328,7 @@ export class PageModuleImportService {
 		filePath: string,
 		fileHash: string,
 		rootDir: string,
-		buildResult: BuildResult,
+		buildResult: BuildSuccess,
 		importCacheKey: string | undefined,
 		cacheBuildOptions: ReturnType<PageModuleImportService['createRouteModuleCacheBuildOptions']>,
 		outdir: string,
@@ -410,9 +411,8 @@ export class PageModuleImportService {
 
 		recordPageModuleBuildInvocation();
 		const buildResult = await this.dependencies.buildModule(buildOptions, options.buildExecutor);
-		recordPageModuleLoad('cold-build', buildResult.outputs.length);
-
 		assertBuildSucceeded(buildResult, transpileErrorMessage);
+		recordPageModuleLoad('cold-build', buildResult.outputs.length);
 
 		const compiledOutput = this.resolveCompiledRouteModuleOutput(
 			buildResult,

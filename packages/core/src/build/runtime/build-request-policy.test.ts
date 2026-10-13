@@ -9,6 +9,7 @@ import {
 	resolveBuildPluginOrder,
 } from './build-request-policy.ts';
 import { setAppBuildManifest } from '../build-adapter.ts';
+import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
 import { getAppSourceTransforms } from '../../plugins/source-transform.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -170,7 +171,7 @@ test('browser compilation on the route-module executor keeps browser defaults an
 	appConfig.runtime.buildAdapter = {
 		async build(options) {
 			observed.push(options);
-			return { success: true, outputs: [], logs: [] };
+			return createBuildSuccess();
 		},
 		resolve(specifier) {
 			return specifier;

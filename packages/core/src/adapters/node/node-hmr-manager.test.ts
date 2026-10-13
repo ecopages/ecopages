@@ -9,6 +9,7 @@ import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transfo
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { NodeHmrManager } from './node-hmr-manager.ts';
+import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 
 const tempRoots: string[] = [];
 
@@ -122,11 +123,7 @@ test('NodeHmrManager registers script entrypoints with dev transform URLs withou
 	const buildCalls: string[] = [];
 	buildQueue.build = vi.fn(async (options) => {
 		buildCalls.push(options.entrypoints[0] as string);
-		return {
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/unused.js' }],
-		};
+		return createBuildSuccess({ outputs: [{ path: '/tmp/unused.js' }] });
 	});
 
 	vi.spyOn(manager, 'handleFileChange').mockImplementation(async () => {});

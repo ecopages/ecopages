@@ -1,3 +1,4 @@
+import type { BuildResult } from '../build/build-adapter.ts';
 import type { HtmlDocumentContribution } from '../services/html/html-transformer.service.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { PagePackageResult } from '../types/public-types.ts';
@@ -24,11 +25,7 @@ type DevToolbarBundleService = {
 		outdir: string;
 		naming: string;
 		minify: boolean;
-	}) => Promise<{
-		success: boolean;
-		logs: unknown;
-		outputs: Array<{ path: string }>;
-	}>;
+	}) => Promise<BuildResult>;
 };
 
 /**

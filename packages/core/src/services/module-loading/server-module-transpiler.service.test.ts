@@ -8,13 +8,10 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { CounterServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
 import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
 import { ServerModuleTranspiler, type ServerModuleImportDependency } from './server-module-transpiler.service.ts';
+import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 
 function createBuildResult(): BuildResult {
-	return {
-		success: true,
-		logs: [],
-		outputs: [],
-	};
+	return createBuildSuccess();
 }
 
 function createFakeImportService(): {

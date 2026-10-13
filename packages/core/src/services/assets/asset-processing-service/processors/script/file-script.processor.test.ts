@@ -448,6 +448,20 @@ describe('FileScriptProcessor', () => {
 			expect(result.bundledSourceFilepaths).toEqual([entrypoint, helper, pluginInput]);
 		});
 
+		test('throws the formatted logs of a failed bundle, with plugin and file', async () => {
+			const entrypoint = '/test/project/src/pages/index.tsx';
+			vi.spyOn(BrowserBundleService.prototype, 'bundle').mockResolvedValue({
+				success: false,
+				logs: [{ message: 'no loader', plugin: 'eco-loader', id: entrypoint }],
+				outputs: [],
+			});
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+
+			await expect(
+				processor.process({ kind: 'script', source: 'file', filepath: entrypoint, bundle: true }),
+			).rejects.toThrow(`Could not bundle ${entrypoint}:\n[eco-loader] ${entrypoint}: no loader`);
+		});
+
 		test('uses the output the build recorded for the entry, not another emitted file', async () => {
 			const entrypoint = '/test/project/src/pages/index.tsx';
 			vi.spyOn(BrowserBundleService.prototype, 'bundle').mockResolvedValue({

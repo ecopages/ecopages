@@ -220,7 +220,6 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 					return {
 						html: `<span>${String(input.props.label ?? '')}</span>`,
 						attachmentPolicy: { kind: 'first-element' },
-						rootTag: 'span',
 						integrationName: 'deferred',
 						rootAttributes: {
 							'data-owner': 'child',
@@ -236,7 +235,6 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 				return {
 					html: `<section>${input.children ?? ''}</section>`,
 					attachmentPolicy: { kind: 'first-element' },
-					rootTag: 'section',
 					integrationName: 'deferred',
 					rootAttributes: {
 						'data-owner': 'parent',
@@ -331,7 +329,6 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 					html: `<section>${input.children ?? ''}</section>`,
 					assets: [],
 					attachmentPolicy: { kind: 'first-element' },
-					rootTag: 'section',
 					integrationName: 'deferred',
 				}),
 			}),
@@ -361,7 +358,6 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 				html: `<section>${JSON.stringify(input.children)}</section>`,
 				assets: [],
 				attachmentPolicy: { kind: 'first-element' },
-				rootTag: 'section',
 				integrationName: 'deferred',
 			}),
 		);
@@ -415,7 +411,6 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 						html: '<section>__TEST_QUEUE__host__2__</section>',
 						assets: [],
 						attachmentPolicy: { kind: 'first-element' },
-						rootTag: 'section',
 						integrationName: 'deferred',
 					};
 				}
@@ -424,7 +419,6 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 					html: '<strong>child</strong>',
 					assets: [],
 					attachmentPolicy: { kind: 'first-element' },
-					rootTag: 'strong',
 					integrationName: 'deferred',
 				};
 			},

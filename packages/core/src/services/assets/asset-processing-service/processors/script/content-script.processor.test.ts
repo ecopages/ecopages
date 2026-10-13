@@ -6,6 +6,7 @@ import type { ContentScriptAsset } from '../../assets.types.ts';
 import type { BrowserBundleGroupedEntry } from '../../../browser-bundle.service.ts';
 import { BrowserBundleService } from '../../../browser-bundle.service.ts';
 import type { BundledScriptOutput } from '../base/base-script-processor.ts';
+import { createBuildSuccess } from '../../../../../__fixtures__/build/build-result.ts';
 
 function createMockConfig(): EcoPagesAppConfig {
 	return {
@@ -90,14 +91,17 @@ describe('ContentScriptProcessor', () => {
 
 	test.each([false, true])('maps blog and blog-post to their own outputs with reversed order %s', async (reverse) => {
 		const outputs = ['/test/project/assets/pages__blog-post-hash.js', '/test/project/assets/pages__blog-hash.js'];
-		vi.spyOn(BrowserBundleService.prototype, 'bundleGroupedEntries').mockImplementation(async (entries) => ({
-			success: true,
-			logs: [],
-			outputs: (reverse ? [...outputs].reverse() : outputs).map((path) => ({ path })),
-			entryOutputs: Object.fromEntries(
-				entries.map((entry) => [entry.entrypoint, entry.entryName === 'pages__blog' ? outputs[1] : outputs[0]]),
-			),
-		}));
+		vi.spyOn(BrowserBundleService.prototype, 'bundleGroupedEntries').mockImplementation(async (entries) =>
+			createBuildSuccess({
+				outputs: (reverse ? [...outputs].reverse() : outputs).map((path) => ({ path })),
+				entryOutputs: Object.fromEntries(
+					entries.map((entry) => [
+						entry.entrypoint,
+						entry.entryName === 'pages__blog' ? outputs[1] : outputs[0],
+					]),
+				),
+			}),
+		);
 		const processor = new ContentScriptProcessor({ appConfig: createMockConfig() });
 		const result = await processor.processGrouped(
 			['blog', 'blog-post'].map((name) => ({
@@ -111,11 +115,9 @@ describe('ContentScriptProcessor', () => {
 	});
 
 	test('rejects a grouped build without an entry output record instead of guessing from its filename', async () => {
-		vi.spyOn(BrowserBundleService.prototype, 'bundleGroupedEntries').mockResolvedValue({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/test/project/assets/pages__blog-hash.js' }],
-		});
+		vi.spyOn(BrowserBundleService.prototype, 'bundleGroupedEntries').mockResolvedValue(
+			createBuildSuccess({ outputs: [{ path: '/test/project/assets/pages__blog-hash.js' }] }),
+		);
 		const processor = new ContentScriptProcessor({ appConfig: createMockConfig() });
 		await expect(
 			processor.processGrouped([
@@ -285,9 +287,7 @@ describe('ContentScriptProcessor', () => {
 			buildCount += 1;
 			if (buildCount === 2) releaseBuilds?.();
 			await bothBuildsStarted;
-			return {
-				success: true,
-				logs: [],
+			return createBuildSuccess({
 				outputs: [{ path: outputPath }],
 				entryOutputs: Object.fromEntries(entries.map((entry) => [entry.entrypoint, outputPath])),
 				dependencyGraph: {
@@ -296,7 +296,7 @@ describe('ContentScriptProcessor', () => {
 					),
 				},
 				loadedInputsByModule: Object.fromEntries(entries.map((entry) => [entry.entrypoint, [buildInput]])),
-			};
+			});
 		});
 		const processor = new ContentScriptProcessor({ appConfig: createMockConfig() });
 		const dependency: ContentScriptAsset = {

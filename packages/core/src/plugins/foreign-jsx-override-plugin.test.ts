@@ -11,7 +11,7 @@ describe('foreign-jsx-override-plugin', () => {
 		await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 	});
 
-	it('preserves jsx loader selection and resolveDir for jsx files', async () => {
+	it('preserves jsx loader selection for jsx files', async () => {
 		const tempDir = await mkdtemp(path.join(tmpdir(), 'foreign-jsx-override-'));
 		tempDirs.push(tempDir);
 		const filePath = path.join(tempDir, 'component.jsx');
@@ -22,9 +22,7 @@ describe('foreign-jsx-override-plugin', () => {
 			foreignExtensions: ['.jsx'],
 		});
 
-		let onLoad:
-			| ((args: { path: string }) => { contents: string; loader: string; resolveDir: string } | undefined)
-			| undefined;
+		let onLoad: ((args: { path: string }) => { contents: string; loader: string } | undefined) | undefined;
 
 		plugin.setup({
 			onLoad(_options: unknown, callback: unknown) {
@@ -37,7 +35,6 @@ describe('foreign-jsx-override-plugin', () => {
 		expect(result).toEqual({
 			contents: '/** @jsxImportSource react */\nexport const Component = () => <div />;',
 			loader: 'jsx',
-			resolveDir: tempDir,
 		});
 	});
 

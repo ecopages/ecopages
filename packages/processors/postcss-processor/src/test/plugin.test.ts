@@ -220,7 +220,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 
 		activeColor = 'purple';
 		const callsBeforeChange = pluginFactoryCalls;
-		const processSpy = vi.spyOn(plugin, 'process');
+		const processSpy = vi.spyOn(plugin, 'transformStylesheet');
 		await watchConfig.onChanges({ created: [], changed: dependencyFiles, deleted: [], bridge: Bridge });
 
 		expect(pluginFactoryCalls).toBe(callsBeforeChange + 1);
@@ -262,7 +262,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 			reload: () => {},
 		} as unknown as IClientBridge;
 		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
-		const processSpy = vi.spyOn(plugin, 'process');
+		const processSpy = vi.spyOn(plugin, 'transformStylesheet');
 		const watchConfig = plugin.getWatchConfig();
 		if (!watchConfig?.onChanges) {
 			throw new Error('Plugin does not have watch handler');
@@ -336,7 +336,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 		plugin.setContext(config);
 		await plugin.setup();
 
-		const initialResult = await plugin.process(fs.readFileSync(cssFile, 'utf-8'), cssFile);
+		const initialResult = await plugin.transformStylesheet(fs.readFileSync(cssFile, 'utf-8'), cssFile);
 		expect(initialResult).toContain('color: green');
 
 		const Bridge = {
@@ -382,7 +382,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 		plugin.setContext(config);
 		await plugin.setup();
 
-		const result = await plugin.process(fs.readFileSync(cssFile, 'utf-8'), cssFile);
+		const result = await plugin.transformStylesheet(fs.readFileSync(cssFile, 'utf-8'), cssFile);
 
 		expect(result).toContain('/* direct */');
 		expect(result).toContain('.foo { color: red; }');
@@ -569,7 +569,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 		plugin.setContext(config);
 		await plugin.setup();
 
-		const result = await plugin.process(fs.readFileSync(cssFile, 'utf-8'), cssFile);
+		const result = await plugin.transformStylesheet(fs.readFileSync(cssFile, 'utf-8'), cssFile);
 
 		expect(result).toContain('.api-lab__workspace-grid');
 		expect(result).not.toContain('__workspace-grid.api-lab');

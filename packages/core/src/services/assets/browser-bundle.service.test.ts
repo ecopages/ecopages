@@ -3,14 +3,13 @@ import { installBuildQueue } from '../../build/runtime/build-queue.ts';
 import { createEcoComponentMetaTransform } from '../../plugins/eco-component-meta-plugin.ts';
 import { isHashedBrowserAsset } from './hashed-browser-asset.ts';
 import { BrowserBundleService } from './browser-bundle.service.ts';
+import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 
 describe('BrowserBundleService', () => {
 	it('queues browser-script builds on the build lane', async () => {
-		const build = vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/out/entry.js', contentHashed: true }],
-		}));
+		const build = vi.fn(async () =>
+			createBuildSuccess({ outputs: [{ path: '/tmp/out/entry.js', contentHashed: true }] }),
+		);
 		const appConfig = createAppConfig(build);
 		const queue = installBuildQueue(appConfig);
 		const queueBuild = vi.spyOn(queue, 'build');
@@ -29,11 +28,7 @@ describe('BrowserBundleService', () => {
 	});
 
 	it.each(['hmr-entrypoint', 'hmr-runtime'] as const)('queues %s rebuilds on the hmr lane', async (profile) => {
-		const build = vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/out/entry.js' }],
-		}));
+		const build = vi.fn(async () => createBuildSuccess({ outputs: [{ path: '/tmp/out/entry.js' }] }));
 		const appConfig = createAppConfig(build);
 		const queue = installBuildQueue(appConfig);
 		const queueBuild = vi.spyOn(queue, 'build');
@@ -53,11 +48,7 @@ describe('BrowserBundleService', () => {
 	});
 
 	it('forwards app-owned source transforms to browser bundle builds', async () => {
-		const build = vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/out/entry.js' }],
-		}));
+		const build = vi.fn(async () => createBuildSuccess({ outputs: [{ path: '/tmp/out/entry.js' }] }));
 		const metaTransform = createEcoComponentMetaTransform({
 			config: {
 				integrations: [{ name: 'react', extensions: ['.tsx'] }],
@@ -93,11 +84,7 @@ describe('BrowserBundleService', () => {
 	});
 
 	it('passes grouped entry names to the build executor as named entrypoints', async () => {
-		const build = vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/out/page-entry.js' }],
-		}));
+		const build = vi.fn(async () => createBuildSuccess({ outputs: [{ path: '/tmp/out/page-entry.js' }] }));
 		const appConfig = {
 			runtime: {},
 			loaders: new Map(),

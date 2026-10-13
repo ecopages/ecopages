@@ -41,7 +41,6 @@ export type EcoBuildOnLoadResult = {
 	exports?: Record<string, unknown>;
 	/** Source map for the loaded contents, when the loader rewrites source. */
 	map?: unknown;
-	resolveDir?: string;
 };
 
 /**

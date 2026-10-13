@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { BuildResult } from './build-adapter.ts';
+import type { BuildLog, BuildResult } from './build-adapter.ts';
 import { assertBuildSucceeded, formatBuildLog } from './build-log.ts';
+import { createBuildFailure, createBuildSuccess } from '../__fixtures__/build/build-result.ts';
 
 describe('formatBuildLog', () => {
 	it('prefixes the plugin and location, then adds the frame and stack frames', () => {
@@ -31,10 +32,10 @@ describe('formatBuildLog', () => {
 });
 
 describe('assertBuildSucceeded', () => {
-	const failed = (logs: BuildResult['logs']): BuildResult => ({ success: false, logs, outputs: [] });
+	const failed = (logs: BuildLog[]): BuildResult => createBuildFailure(logs);
 
 	it('does nothing for a successful build', () => {
-		expect(() => assertBuildSucceeded({ success: true, logs: [], outputs: [] }, 'Build failed')).not.toThrow();
+		expect(() => assertBuildSucceeded(createBuildSuccess(), 'Build failed')).not.toThrow();
 	});
 
 	it('throws the failure line followed by every formatted log, keeping plugin and file', () => {

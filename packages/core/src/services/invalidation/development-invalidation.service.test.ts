@@ -34,10 +34,6 @@ class StylesheetProcessor extends Processor {
 	}
 
 	override async setup(): Promise<void> {}
-
-	override async process<T>(input: T): Promise<T> {
-		return input;
-	}
 }
 
 class ContentCollectionProcessor extends Processor {
@@ -55,10 +51,6 @@ class ContentCollectionProcessor extends Processor {
 	}
 
 	override async setup(): Promise<void> {}
-
-	override async process<T>(input: T): Promise<T> {
-		return input;
-	}
 }
 
 describe('DevelopmentInvalidationService', () => {

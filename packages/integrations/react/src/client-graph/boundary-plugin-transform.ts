@@ -1,4 +1,4 @@
-import { dirname, extname } from 'node:path';
+import { extname } from 'node:path';
 import type { EcoBuildOnLoadResult } from '@ecopages/core/plugins/integration-plugin';
 import { recordModuleTransformProfile } from '@ecopages/core/cache';
 import { inlineReadFileSyncCalls } from './boundary-plugin-read-file-inline.ts';
@@ -18,7 +18,7 @@ export type TransformClientGraphModuleOptions = {
 
 function toLoaderResult(filePath: string, contents: string): EcoBuildOnLoadResult {
 	const ext = extname(filePath).slice(1) as 'ts' | 'tsx' | 'js' | 'jsx';
-	return { contents, loader: ext, resolveDir: dirname(filePath) };
+	return { contents, loader: ext };
 }
 
 /**

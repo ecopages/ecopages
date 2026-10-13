@@ -62,12 +62,6 @@ export class ObsidianIngestProcessor extends Processor {
 		await this.writeSearchIndex();
 	}
 
-	async process(): Promise<unknown> {
-		await ingestVault({ appRoot: this.getAppRoot() });
-		await this.writeSearchIndex();
-		return undefined;
-	}
-
 	private async writeSearchIndex(): Promise<void> {
 		const paths = this.context?.config.absolutePaths;
 		if (!paths?.publicDir) {

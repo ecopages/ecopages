@@ -23,6 +23,8 @@ import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifes
 import { createBrowserRuntimePlugin } from '../browser/browser-runtime-plugin.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import { BuildInputDependencyIndex, runWithBuildInputIndex } from '../cache/build-input-dependency-index.ts';
+import { assertBuildSucceeded } from '../build-log.ts';
+import { assertBuildFailed } from '../../__fixtures__/build/build-result.ts';
 
 let workDir: string;
 
@@ -82,7 +84,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		expect(result.success, JSON.stringify(result.logs)).toBe(true);
+		assertBuildSucceeded(result, 'Build failed');
 		expect(readFileSync(result.outputs[0]!.path, 'utf8')).toContain('isServerOnlyModuleSpecifier');
 	});
 
@@ -115,7 +117,7 @@ describe('RolldownBuildAdapter', () => {
 			],
 		});
 
-		expect(result.success).toBe(false);
+		assertBuildFailed(result);
 		expect(result.logs.map((log) => log.message).join('\n')).toContain('server-only');
 		expect(result.logs.map((log) => log.message).join('\n')).toContain(entrypoint);
 	});
@@ -133,7 +135,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		expect(result.success).toBe(false);
+		assertBuildFailed(result);
 		const message = result.logs.map((log) => log.message).join('\n');
 		expect(message).toContain('server-only');
 		expect(message).toContain(entrypoint);
@@ -151,7 +153,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		expect(result.success).toBe(true);
+		assertBuildSucceeded(result, 'Build failed');
 		expect(readFileSync(result.outputs[0]!.path, 'utf8')).toContain('server-secret');
 	});
 
@@ -169,7 +171,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		assert.ok(result.outputs.length > 0, 'at least one output file');
 		const firstOutput = result.outputs[0]!;
 		assert.ok(firstOutput.path.startsWith(outdir), 'output path is under outdir');
@@ -206,7 +208,7 @@ describe('RolldownBuildAdapter', () => {
 			}),
 		);
 
-		expect(result.success, JSON.stringify(result.logs)).toBe(true);
+		assertBuildSucceeded(result, 'Build failed');
 		expect(result.loadedInputs).toContain(realpathSync(entrypoint));
 		expect(buildInputIndex.recordedWatchPaths()).toContain(realpathSync(entrypoint));
 	});
@@ -227,7 +229,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		assert.ok(result.outputs.length > 0, 'at least one output file');
 		const firstOutput = result.outputs[0]!;
 		const code = readFileSync(firstOutput.path, 'utf-8');
@@ -262,7 +264,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		assert.ok(result.outputs.length > 0, 'at least one output file');
 		const firstOutput = result.outputs[0]!;
 		const code = readFileSync(firstOutput.path, 'utf-8');
@@ -308,7 +310,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		const outputPath = result.outputs[0]!.path;
 		const code = readFileSync(outputPath, 'utf-8');
 		const nativeEntry = path.join(realpathSync(workDir), 'node_modules/native-like/index.js');
@@ -344,10 +346,66 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		assert.ok(result.outputs.length > 0, 'at least one output file');
 		const code = readFileSync(result.outputs[0]!.path, 'utf-8');
 		expect(code).toMatch(/from ['"]node:fs['"]/);
+	});
+
+	test.each(['fs', 'fs/promises', 'path/posix', 'node:test', 'node:sea'])(
+		'a node-target build keeps the builtin %s external',
+		async (specifier) => {
+			const entrypoint = writeFixture(
+				'builtin-entry.ts',
+				`import * as builtin from '${specifier}';\nexport { builtin };\n`,
+			);
+
+			const result = await new RolldownBuildAdapter().build({
+				environment: 'server' as const,
+				entrypoints: [entrypoint],
+				outdir: path.join(workDir, 'dist'),
+				target: 'node',
+				format: 'esm',
+				root: workDir,
+			});
+
+			assertBuildSucceeded(result, 'Build failed');
+			expect(readFileSync(result.outputs[0]!.path, 'utf-8')).toContain(`from "${specifier}"`);
+		},
+	);
+
+	test.each(['fs', 'fs/promises', 'node:path'])('a browser build rejects the builtin %s', async (specifier) => {
+		const entrypoint = writeFixture('browser-builtin.ts', `export * from '${specifier}';\n`);
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+		});
+
+		assertBuildFailed(result);
+		expect(result.logs.map((log) => log.message).join('\n')).toContain(`Node builtin "${specifier}"`);
+	});
+
+	test('a server build turns a css import into an empty module and emits no stylesheet', async () => {
+		writeFixture('styles.css', 'body { color: red; }');
+		const entrypoint = writeFixture('css-entry.ts', "import './styles.css';\nexport const ready = true;\n");
+
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'node',
+			format: 'esm',
+			root: workDir,
+		});
+
+		assertBuildSucceeded(result, 'Build failed');
+		expect(result.outputs.some((output) => output.path.endsWith('.css'))).toBe(false);
+		expect(readFileSync(result.outputs[0]!.path, 'utf-8')).not.toContain('color');
 	});
 
 	test('externalPackages points undeclared core-owned runtime packages at paths relative to the output', async () => {
@@ -366,7 +424,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		assert.ok(result.outputs.length > 0, 'at least one output file');
 		const firstOutput = result.outputs[0]!;
 		const code = readFileSync(firstOutput.path, 'utf-8');
@@ -391,7 +449,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		const code = readFileSync(result.outputs[0]!.path, 'utf-8');
 		expect(code).toMatch(/from "\.\.?\/[^"]*@standard-schema\/utils\/dist\/index\.js"/);
 		expect(code).not.toContain('index.cjs');
@@ -411,7 +469,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		expect(readFileSync(result.outputs[0]!.path, 'utf-8')).toMatch(/from ['"]oxc-parser['"]/);
 	});
 
@@ -450,7 +508,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		expect(warn).toHaveBeenCalledTimes(1);
 		const message = String(warn.mock.calls[0]?.[0]);
 		expect(message).toContain(
@@ -464,7 +522,7 @@ describe('RolldownBuildAdapter', () => {
 
 		const result = await buildWithCoreImports(['oxc-parser'], { reportPackagesOutsideRoot: true });
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		expect(String(warn.mock.calls[0]?.[0])).toContain('imports 1 package from outside the app folder (oxc-parser)');
 	});
 
@@ -476,7 +534,7 @@ describe('RolldownBuildAdapter', () => {
 			{ reportPackagesOutsideRoot: true },
 		);
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		expect(String(warn.mock.calls[0]?.[0])).toContain(
 			'6 packages from outside the app folder (@clack/prompts, @ecopages/logger, @standard-schema/utils, chokidar, oxc-parser and 1 more)',
 		);
@@ -509,7 +567,7 @@ describe('RolldownBuildAdapter', () => {
 
 		const result = await buildWithCoreImports(['oxc-parser']);
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		expect(warn).not.toHaveBeenCalled();
 	});
 
@@ -526,7 +584,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, false);
+		assertBuildFailed(result);
 		expect(result.logs.map((log) => log.message).join('\n')).toContain('nested/entry');
 	});
 
@@ -551,7 +609,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		assert.ok(result.outputs.length > 0, 'at least one output file');
 		const firstOutput = result.outputs[0]!;
 		const code = readFileSync(firstOutput.path, 'utf-8');
@@ -591,7 +649,7 @@ describe('RolldownBuildAdapter', () => {
 			],
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		assert.ok(result.outputs.length > 0, 'at least one output file');
 		const firstOutput = result.outputs[0]!;
 		const code = readFileSync(firstOutput.path, 'utf-8');
@@ -617,7 +675,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		assert.ok(result.outputs.length > 0, 'at least one output file');
 		const firstOutput = result.outputs[0]!;
 		const code = readFileSync(firstOutput.path, 'utf-8');
@@ -652,7 +710,7 @@ describe('RolldownBuildAdapter', () => {
 			plugins: [runtimePlugin],
 		});
 
-		assert.equal(result.success, true, JSON.stringify(result.logs));
+		assertBuildSucceeded(result, 'Build failed');
 		const hashedOutputs = result.outputs.filter((output) =>
 			/-[A-Za-z0-9_-]+\.js$/u.test(path.basename(output.path)),
 		);
@@ -677,7 +735,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, true, JSON.stringify(result.logs));
+		assertBuildSucceeded(result, 'Build failed');
 		const chunk = result.outputs.find((output) => output.path.endsWith('.js'));
 		const map = result.outputs.find((output) => output.path.endsWith('.js.map'));
 		assert.ok(chunk && map);
@@ -698,7 +756,7 @@ describe('RolldownBuildAdapter', () => {
 			writeToDisk: false,
 		});
 
-		assert.equal(result.success, true, JSON.stringify(result.logs));
+		assertBuildSucceeded(result, 'Build failed');
 		const output = result.outputs[0];
 		assert.ok(output);
 		expect(output.content).toContain('memory');
@@ -721,7 +779,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		assert.ok(result.outputs.length > 0, 'at least one output file');
 		const firstOutput = result.outputs[0]!;
 		assert.ok(
@@ -749,7 +807,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		assert.ok(result.outputs.length > 0, 'at least one output file');
 		const firstOutput = result.outputs[0]!;
 		assert.ok(
@@ -777,7 +835,7 @@ describe('RolldownBuildAdapter', () => {
 			splitting: false,
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		const entryOutputPath =
 			result.entryOutputs?.[path.resolve(entrypoint)] ??
 			result.outputs.find((output) => output.path.endsWith('entry.js'))?.path ??
@@ -802,7 +860,7 @@ describe('RolldownBuildAdapter', () => {
 			target: 'browser',
 			format: 'esm',
 		});
-		expect(result.success).toBe(true);
+		assertBuildSucceeded(result, 'Build failed');
 		expect(result.dependencyGraph?.entrypoints[realpathSync(entry)]).toEqual(
 			expect.arrayContaining([realpathSync(dependency), realpathSync(unused)]),
 		);
@@ -826,7 +884,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		assert.ok(result.dependencyGraph, 'dependency graph present');
 		const entrypoints = result.dependencyGraph?.entrypoints ?? {};
 		const entryKeys = Object.keys(entrypoints);
@@ -862,7 +920,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		const modulesOf = (entry: string) =>
 			(result.dependencyGraph?.entrypoints[realpathSync(entry)] ?? []).map((modulePath) =>
 				path.basename(modulePath),
@@ -893,7 +951,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		for (const entry of [first, second]) {
 			const modules = (result.dependencyGraph?.entrypoints[realpathSync(entry)] ?? []).map((modulePath) =>
 				path.basename(modulePath),
@@ -915,9 +973,8 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, false);
+		assertBuildFailed(result);
 		assert.ok(result.logs.length > 0, 'has at least one log entry');
-		assert.ok(result.outputs.length === 0, 'no outputs on failure');
 	});
 
 	test('keeps the code, file and location of a syntax error', async () => {
@@ -933,7 +990,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, false);
+		assertBuildFailed(result);
 		expect(result.logs).toHaveLength(1);
 		expect(result.logs[0]).toMatchObject({
 			code: 'PARSE_ERROR',
@@ -971,7 +1028,7 @@ describe('RolldownBuildAdapter', () => {
 			],
 		});
 
-		assert.equal(result.success, false);
+		assertBuildFailed(result);
 		expect(result.logs).toHaveLength(1);
 		expect(result.logs[0]).toMatchObject({
 			code: 'PLUGIN_ERROR',
@@ -1008,7 +1065,7 @@ describe('RolldownBuildAdapter', () => {
 			],
 		});
 
-		assert.equal(result.success, false);
+		assertBuildFailed(result);
 		expect(result.logs[0]).toMatchObject({ plugin: 'eco-transform', id: entrypoint, message: 'transform boom' });
 	});
 
@@ -1033,7 +1090,7 @@ describe('RolldownBuildAdapter', () => {
 			],
 		});
 
-		assert.equal(result.success, false);
+		assertBuildFailed(result);
 		expect(result.logs[0]).toMatchObject({ plugin: 'broken-setup', message: 'setup boom' });
 	});
 
@@ -1052,7 +1109,7 @@ describe('RolldownBuildAdapter', () => {
 				root: workDir,
 			});
 
-			assert.equal(result.success, true);
+			assertBuildSucceeded(result, 'Build failed');
 			expect(result.warnings).toEqual([expect.objectContaining({ code: 'EVAL', id: entrypoint })]);
 			expect(printWarning).toHaveBeenCalledWith(expect.stringContaining('eval'));
 		} finally {
@@ -1085,7 +1142,7 @@ describe('RolldownBuildAdapter', () => {
 			],
 		});
 
-		assert.equal(result.success, false);
+		assertBuildFailed(result);
 		expect(result.logs.map((log) => log.id).sort()).toEqual(files);
 		expect(result.logs.every((log) => log.plugin === 'shared-loader')).toBe(true);
 		expect(Object.keys(shared)).toEqual([]);
@@ -1115,6 +1172,7 @@ describe('RolldownBuildAdapter', () => {
 			],
 		});
 
+		assertBuildFailed(result);
 		expect(result.logs).toEqual([
 			expect.objectContaining({ plugin: 'frozen-loader', id: stylesheet, message: 'frozen boom' }),
 		]);
@@ -1141,6 +1199,7 @@ describe('RolldownBuildAdapter', () => {
 			],
 		});
 
+		assertBuildFailed(result);
 		expect(result.logs).toEqual([
 			expect.objectContaining({ plugin: 'aggregate-setup', message: 'setup failed twice' }),
 		]);
@@ -1176,6 +1235,7 @@ describe('RolldownBuildAdapter', () => {
 				},
 			},
 		]);
+		assertBuildFailed(resolveResult);
 		expect(resolveResult.logs).toEqual([
 			expect.objectContaining({ plugin: 'broken-resolver', id: entrypoint, message: 'resolve boom' }),
 		]);
@@ -1191,6 +1251,7 @@ describe('RolldownBuildAdapter', () => {
 				},
 			},
 		]);
+		assertBuildFailed(moduleResult);
 		expect(moduleResult.logs).toEqual([
 			expect.objectContaining({ plugin: 'broken-virtual', id: 'virtual:broken', message: 'module boom' }),
 		]);
@@ -1234,7 +1295,7 @@ describe('RolldownBuildAdapter', () => {
 			],
 		});
 
-		assert.equal(result.success, true);
+		assertBuildSucceeded(result, 'Build failed');
 		const outputPath = result.outputs.find((output) => /\.(?:mjs|js)$/u.test(output.path))?.path;
 		assert.ok(outputPath, 'expected a JavaScript output');
 		const outputCode = readFileSync(outputPath, 'utf-8');
@@ -1275,9 +1336,9 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		assert.equal(result.success, false);
+		assertBuildFailed(result);
+		assertBuildFailed(result);
 		expect(result.logs).toEqual([expect.objectContaining({ message: 'forced failure' })]);
-		assert.equal(result.outputs.length, 0);
 		buildSpy.mockRestore();
 	});
 });

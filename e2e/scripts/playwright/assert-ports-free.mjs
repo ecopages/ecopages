@@ -2,7 +2,7 @@
  * Fail before a fixture web server starts when one of its ports already has a listener.
  *
  * Usage:
- *   node e2e/scripts/playwright/assert-ports-free.mjs 43111 [4007 ...] && <server command>
+ *   node e2e/scripts/playwright/assert-ports-free.mjs 4611 [4007 ...] && <server command>
  *
  * @remarks
  * `playwright.config.ts` prefixes every fixture `webServer` command with this script.

@@ -13,9 +13,9 @@ export default defineFixture(
 	{
 		block: 'core-hmr',
 		dir: fixtureDir,
-		devPort: 43110,
-		postcssDevPort: 43112,
-		staticPort: 43111,
+		devPort: 4610,
+		postcssDevPort: 4612,
+		staticPort: 4611,
 		postcssDevEnv: postcssEnv,
 		staticEnv: postcssEnv,
 		devWorkers: 1,

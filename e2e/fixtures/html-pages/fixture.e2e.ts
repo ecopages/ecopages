@@ -13,19 +13,19 @@ export default defineFixture(
 		projects: [
 			{
 				name: 'html-pages-e2e',
-				port: 43120,
+				port: 4620,
 				mode: 'static',
 				testIgnore: [`${fixtureDir}/**/*.dev.test.e2e.ts`],
 			},
 			{
 				name: 'html-pages-dev-e2e',
-				port: 43122,
+				port: 4622,
 				mode: 'dev',
 				testMatch: [`${fixtureDir}/shared-module.test.e2e.ts`],
 			},
 			{
 				name: 'html-pages-classic-script-dev-e2e',
-				port: 43123,
+				port: 4623,
 				mode: 'dev',
 				testMatch: [`${fixtureDir}/**/*.dev.test.e2e.ts`],
 			},

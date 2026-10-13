@@ -196,7 +196,6 @@ describe('StringMarkupRenderer', () => {
 		expect(result).toEqual<ForeignSubtreeRenderPayload>({
 			html: '<main>Foreign Subtree</main>',
 			assets: [],
-			rootTag: 'main',
 			rootAttributes: undefined,
 			attachmentPolicy: { kind: 'first-element' },
 			integrationName: 'string',

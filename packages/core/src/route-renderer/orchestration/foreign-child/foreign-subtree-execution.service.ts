@@ -140,7 +140,6 @@ export function toForeignSubtreeRenderPayload(result: ComponentRenderResult): Fo
 	return {
 		html: result.html,
 		assets: result.assets ?? [],
-		rootTag: result.rootTag,
 		rootAttributes: result.rootAttributes,
 		attachmentPolicy: result.canAttachAttributes ? { kind: 'first-element' } : { kind: 'none' },
 		integrationName: result.integrationName,

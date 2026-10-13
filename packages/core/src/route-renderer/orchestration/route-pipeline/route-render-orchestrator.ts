@@ -24,6 +24,7 @@ import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependen
 import { collectComponentConfigFilePaths } from '../../page-loading/file-scoped-dependency-components.ts';
 import type { HtmlDocumentContribution } from '../../../services/html/html-transformer.service.ts';
 import { inspectUnresolvedMarkerArtifactHtml } from './marker-artifact.utils.ts';
+import type { DeclaredOwnershipRoot } from '../ownership-graph/component-graph.ts';
 import {
 	OwnershipValidationService,
 	throwIfOwnershipInvalid,
@@ -99,7 +100,7 @@ export interface RouteRenderOrchestratorAdapter<C> {
 	 */
 	buildPageBrowserGraphContributionContext(
 		routeFile: string,
-		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query'>,
+		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query' | 'pageModule'>,
 	): Promise<PageBrowserGraphContributionContext>;
 	/**
 	 * Builds island and lazy-entry browser assets from the page client plan.
@@ -187,19 +188,20 @@ export class RouteRenderOrchestrator {
 			props: finalProps,
 		};
 		const { Page, HtmlTemplate, Layouts } = finalResolvedInputs;
+		const shellRoots: DeclaredOwnershipRoot[] = [
+			{ component: HtmlTemplate as EcoComponent, source: 'html-template' },
+			...Layouts.map((layout) => ({ component: layout as EcoComponent, source: 'layout' as const })),
+			{ component: Page as EcoComponent, source: 'page' },
+		];
 		await measureRouteRenderPhase('ownership-validation', async () => {
 			const validationErrors = this.ownershipValidationService.validate({
 				currentIntegrationName: adapter.name,
-				roots: [
-					{ component: HtmlTemplate as EcoComponent, source: 'html-template' },
-					...Layouts.map((layout) => ({ component: layout as EcoComponent, source: 'layout' as const })),
-					{ component: Page as EcoComponent, source: 'page' },
-				],
+				roots: shellRoots,
 			});
 			throwIfOwnershipInvalid(validationErrors);
 		});
 
-		const componentsToResolve = [HtmlTemplate, ...Layouts, Page];
+		const componentsToResolve = shellRoots.map((root) => root.component);
 		const dependencyInstanceKey = createPageDependencyInstanceKey({
 			params: routeOptions.params,
 			query: routeOptions.query,
@@ -236,7 +238,10 @@ export class RouteRenderOrchestrator {
 			dependencyInstanceKey,
 		});
 		const resolvedPageDependencyComponents = resolvedPageDependencies?.components ?? [];
-		const dependencyRoots = [...componentsToResolve, ...resolvedPageDependencyComponents];
+		const dependencyRoots = [
+			...shellRoots,
+			...resolvedPageDependencyComponents.map((component) => ({ component })),
+		];
 		const clientPlan = collectPageClientPlan(dependencyRoots, adapter.name);
 		const clientBrowserAssets = await adapter.buildPageClientBrowserAssets(clientPlan);
 		if (clientBrowserAssets.lazyTriggers.length > 0) {
@@ -259,7 +264,7 @@ export class RouteRenderOrchestrator {
 		const additionalSourcePaths = collectRenderShellSourcePaths(this.appConfig, [
 			...componentsToResolve,
 			...resolvedPageDependencyComponents,
-			...clientPlan.islandEntries.map((entry) => entry.component),
+			...clientPlan.sourceComponents,
 		]);
 		const buildInputIndex = getAppBuildInputIndex(this.appConfig);
 		const sourceDependencyPaths = collectHtmlCacheSourceDependencyPaths({
@@ -367,6 +372,7 @@ export class RouteRenderOrchestrator {
 				body,
 				cacheStrategy: renderOptions.cacheStrategy,
 				sourceDependencyPaths,
+				metadata: renderOptions.metadata,
 			};
 		}
 
@@ -390,6 +396,7 @@ export class RouteRenderOrchestrator {
 			body,
 			cacheStrategy: renderOptions.cacheStrategy,
 			sourceDependencyPaths,
+			metadata: renderOptions.metadata,
 		};
 	}
 

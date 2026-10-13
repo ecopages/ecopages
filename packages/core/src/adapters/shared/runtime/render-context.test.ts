@@ -8,12 +8,12 @@ describe('createRenderContext', () => {
 	const RenderToResponse = vi.fn(() => Promise.resolve(new Response('rendered')));
 	const Renderer = {
 		name: '-renderer',
-		renderToResponse: RenderToResponse,
+		renderExplicitView: RenderToResponse,
 	} as unknown as IntegrationRenderer;
 
 	const ExplicitRenderer = {
 		name: 'explicit-renderer',
-		renderToResponse: RenderToResponse,
+		renderExplicitView: RenderToResponse,
 	} as unknown as IntegrationRenderer;
 
 	const InitializeRenderer = vi.fn(() => Renderer);

@@ -7,7 +7,6 @@ import type {
 } from '@ecopages/core';
 import {
 	IntegrationRenderer,
-	type RenderToResponseContext,
 	type RouteModuleLoadOptions,
 } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { resolveDocumentShellLayouts } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';
@@ -317,39 +316,6 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 					});
 				} catch (error) {
 					throw this.createRenderError('Error rendering component', error);
-				}
-			});
-		});
-	}
-
-	override async renderToResponse<P = any>(
-		view: EcoComponent<P>,
-		props: P,
-		ctx: RenderToResponseContext,
-	): Promise<Response> {
-		return await this.withPreparedRadiantRuntime(async () => {
-			const viewComponent = view as AsyncEcoComponent<Record<string, unknown>>;
-			const layouts = viewComponent.config?.layouts;
-			await this.ssrScriptPreloader.preloadSsrScripts([view as EcoComponent, ...(layouts ?? [])]);
-
-			return await withEjsxHmrOwnershipScope(async () => {
-				try {
-					if (typeof view !== 'function') {
-						throw new TypeError('JSX renderer expected a callable view component.');
-					}
-
-					const response = await this.renderViewWithDocumentShell({
-						view: viewComponent,
-						props: props as Record<string, unknown>,
-						ctx,
-						layout: layouts?.[layouts.length - 1],
-					});
-
-					recordEjsxHmrOwnership([view as EcoComponent]);
-
-					return response;
-				} catch (error) {
-					throw this.createRenderError('Error rendering view', error);
 				}
 			});
 		});

@@ -19,7 +19,10 @@ import type {
 } from '../route-renderer/route-renderer.ts';
 import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { prepareExplicitStaticRender } from '../route-renderer/explicit-view-render-preparation.ts';
+import {
+	prepareExplicitStaticRender,
+	resolveExplicitViewRenderer,
+} from '../route-renderer/explicit-view-render-preparation.ts';
 import { getServerModuleBuildCacheOutdir } from '../services/module-loading/route-module-build-cache-registry.ts';
 import type { StaticExportContext } from './static-export-context.ts';
 import {
@@ -258,25 +261,6 @@ export class StaticSiteGenerator {
 			},
 		});
 		return metadata;
-	}
-
-	private async resolveExplicitViewMetadata(input: {
-		view: EcoPageComponent<any>;
-		params: Record<string, string | string[]>;
-		props: Record<string, unknown>;
-	}): Promise<PageMetadataProps> {
-		if (!input.view.metadata) {
-			return this.appConfig.defaultMetadata;
-		}
-
-		const dynamicMetadata = await input.view.metadata({
-			params: input.params,
-			query: {},
-			props: input.props,
-			appConfig: this.appConfig,
-		});
-
-		return { ...this.appConfig.defaultMetadata, ...dynamicMetadata };
 	}
 
 	private async createFilesystemStaticContents(input: {
@@ -626,6 +610,7 @@ export class StaticSiteGenerator {
 		});
 
 		for (const { pathname, params } of routeEntries) {
+			let renderedMetadata: PageMetadataProps | undefined;
 			await this.writeStaticPageArtifact({
 				pathname,
 				activeStaticPathnames,
@@ -634,26 +619,23 @@ export class StaticSiteGenerator {
 						pathname,
 						sitemapEligiblePathnames,
 						resolveMetadata: async () => {
-							const { props } = await prepareExplicitStaticRender({
-								routePath,
-								view,
-								params,
-								appConfig: this.appConfig,
-								runtimeOrigin: this.appConfig.baseUrl,
-								routeRendererFactory,
-								errors: STATIC_SITE_GENERATOR_ERRORS,
-							});
-							return this.resolveExplicitViewMetadata({ view, params, props });
+							if (!renderedMetadata) {
+								throw new Error(`No metadata was rendered for ${pathname}`);
+							}
+							return renderedMetadata;
 						},
 					}),
-				createContents: () =>
-					this.createExplicitStaticContents({
+				createContents: async () => {
+					const { html, metadata } = await this.createExplicitStaticContents({
 						routePath,
 						view,
 						params,
 						routeRendererFactory,
 						renderer,
-					}),
+					});
+					renderedMetadata = metadata;
+					return html;
+				},
 			});
 
 			appLogger.debug(`Generated static page: ${pathname}`);
@@ -665,12 +647,9 @@ export class StaticSiteGenerator {
 		view: EcoPageComponent<any>;
 		routeRendererFactory: ExplicitStaticRouteRendererFactory;
 	}): Promise<{ renderer: ExplicitViewRenderer; routeEntries: ExplicitStaticRouteEntry[] }> {
-		const { renderer } = await prepareExplicitStaticRender({
+		const { renderer } = resolveExplicitViewRenderer({
 			routePath: input.routePath,
 			view: input.view,
-			params: {},
-			appConfig: this.appConfig,
-			runtimeOrigin: this.appConfig.baseUrl,
 			routeRendererFactory: input.routeRendererFactory,
 			errors: STATIC_SITE_GENERATOR_ERRORS,
 		});
@@ -687,7 +666,7 @@ export class StaticSiteGenerator {
 		params: Record<string, string | string[]>;
 		routeRendererFactory: ExplicitStaticRouteRendererFactory;
 		renderer: ExplicitViewRenderer;
-	}): Promise<string> {
+	}): Promise<{ html: string; metadata?: PageMetadataProps }> {
 		const { props, view: renderableView } = await prepareExplicitStaticRender({
 			routePath: input.routePath,
 			view: input.view,
@@ -698,8 +677,8 @@ export class StaticSiteGenerator {
 			errors: STATIC_SITE_GENERATOR_ERRORS,
 		});
 
-		const response = await input.renderer.renderToResponse(renderableView, props, {});
-		return response.text();
+		const result = await input.renderer.executeExplicitView(renderableView, props, { params: input.params });
+		return { html: await new Response(result.body as BodyInit).text(), metadata: result.metadata };
 	}
 
 	private async listExplicitStaticRouteEntries(

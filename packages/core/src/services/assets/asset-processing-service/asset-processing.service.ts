@@ -45,6 +45,7 @@ export class AssetProcessingService {
 	private registry = new ProcessorRegistry();
 	private hmrManager?: IHmrManager;
 	private cache = new Map<string, CachedAsset>();
+	private readonly inFlight = new Map<string, Promise<unknown>>();
 	private readonly config: EcoPagesAppConfig;
 
 	/**
@@ -136,41 +137,51 @@ export class AssetProcessingService {
 			const { groupedBundleDeps, ungroupedDeps } = partitionGroupedContentScriptDependencies(typeDeps);
 
 			const typePromises = ungroupedDeps.map((dep) =>
-				processUngroupedDependency({
-					dep,
-					depKey: getAssetDependencyKey(dep),
-					getCachedAsset: (assetDep, depKey) => this.getCachedAsset(assetDep, depKey),
-					getProcessor: (assetDep) => this.registry.getProcessor(assetDep.kind, assetDep.source),
+				this.shareInFlight(getAssetDependencyKey(dep), () =>
+					processUngroupedDependency({
+						dep,
+						depKey: getAssetDependencyKey(dep),
+						getCachedAsset: (assetDep, depKey) => this.getCachedAsset(assetDep, depKey),
+						getProcessor: (assetDep) => this.registry.getProcessor(assetDep.kind, assetDep.source),
+						resolveProcessedAssetSrcUrl: (processed) => this.resolveProcessedAssetSrcUrl(processed),
+						setCachedAsset: (assetDep, depKey, processed) =>
+							this.setCachedAsset(assetDep, depKey, processed),
+						logMissingProcessor: (assetDep) => {
+							appLogger.error(`No processor found for ${assetDep.kind}/${assetDep.source}`);
+						},
+						logMissingFile: (assetDep) => {
+							appLogger.warn(`Skipping missing ${assetDep.kind} file: ${assetDep.filepath}`);
+						},
+						logProcessingError: (assetDep, error) => {
+							appLogger.error(`Failed to process ${assetDep.kind}/${assetDep.source} dependency:`, error);
+						},
+					}),
+				),
+			);
+
+			const groupedBundles = Array.from(groupedBundleDeps.values());
+			const groupedKey = groupedBundles
+				.flatMap((bundle) => bundle.map(getAssetDependencyKey))
+				.sort()
+				.join('|');
+			const groupedResults = await this.shareInFlight(`grouped:${groupedKey}`, () =>
+				processGroupedDependencyBundles({
+					bundles: groupedBundles,
+					getCachedAsset: (dep, depKey) => this.getCachedAsset(dep, depKey),
+					getDependencyKey: getAssetDependencyKey,
+					getGroupedProcessor: (bundleDeps) => {
+						const source = bundleDeps[0]?.source === 'file' ? 'file' : 'content';
+						return this.registry.getProcessor('script', source) as {
+							processGrouped?: (deps: AssetDefinition[]) => Promise<ProcessedAsset[]>;
+						};
+					},
 					resolveProcessedAssetSrcUrl: (processed) => this.resolveProcessedAssetSrcUrl(processed),
-					setCachedAsset: (assetDep, depKey, processed) => this.setCachedAsset(assetDep, depKey, processed),
-					logMissingProcessor: (assetDep) => {
-						appLogger.error(`No processor found for ${assetDep.kind}/${assetDep.source}`);
-					},
-					logMissingFile: (assetDep) => {
-						appLogger.warn(`Skipping missing ${assetDep.kind} file: ${assetDep.filepath}`);
-					},
-					logProcessingError: (assetDep, error) => {
-						appLogger.error(`Failed to process ${assetDep.kind}/${assetDep.source} dependency:`, error);
+					setCachedAsset: (dep, depKey, processed) => this.setCachedAsset(dep, depKey, processed),
+					logError: (error) => {
+						appLogger.error('Failed to process grouped dependency bundle:', error);
 					},
 				}),
 			);
-
-			const groupedResults = await processGroupedDependencyBundles({
-				bundles: Array.from(groupedBundleDeps.values()),
-				getCachedAsset: (dep, depKey) => this.getCachedAsset(dep, depKey),
-				getDependencyKey: getAssetDependencyKey,
-				getGroupedProcessor: (bundleDeps) => {
-					const source = bundleDeps[0]?.source === 'file' ? 'file' : 'content';
-					return this.registry.getProcessor('script', source) as {
-						processGrouped?: (deps: AssetDefinition[]) => Promise<ProcessedAsset[]>;
-					};
-				},
-				resolveProcessedAssetSrcUrl: (processed) => this.resolveProcessedAssetSrcUrl(processed),
-				setCachedAsset: (dep, depKey, processed) => this.setCachedAsset(dep, depKey, processed),
-				logError: (error) => {
-					appLogger.error('Failed to process grouped dependency bundle:', error);
-				},
-			});
 
 			const typeResults = await Promise.all(typePromises);
 			const processedTypeResults = typeResults.flatMap((result) => {
@@ -186,6 +197,29 @@ export class AssetProcessingService {
 
 		const allTypeResults = await Promise.all(groupPromises);
 		return allTypeResults.flat();
+	}
+
+	/**
+	 * Runs `run` once for `key` while an earlier call with the same key is still running.
+	 *
+	 * @remarks
+	 * Concurrent renders that need the same uncached asset would otherwise each run its processor and
+	 * write the same output file. A file change clears the map, so a render that starts after the
+	 * change never joins a run that began before it.
+	 */
+	private shareInFlight<T>(key: string, run: () => Promise<T>): Promise<T> {
+		const running = this.inFlight.get(key) as Promise<T> | undefined;
+		if (running) {
+			return running;
+		}
+
+		const promise = run().finally(() => {
+			if (this.inFlight.get(key) === promise) {
+				this.inFlight.delete(key);
+			}
+		});
+		this.inFlight.set(key, promise);
+		return promise;
 	}
 
 	/**
@@ -407,6 +441,7 @@ export class AssetProcessingService {
 	 * Removes cached assets that were produced from the given file path.
 	 */
 	private invalidateCacheForFile(filepath: string): void {
+		this.inFlight.clear();
 		const resolvedPath = path.resolve(filepath);
 		let invalidatesBrowserRuntime = false;
 		for (const [key, value] of this.cache.entries()) {

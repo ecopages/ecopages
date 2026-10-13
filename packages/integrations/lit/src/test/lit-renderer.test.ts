@@ -8,7 +8,12 @@ import {
 	type EcoComponent,
 	type HtmlTemplateProps,
 } from '@ecopages/core';
-import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
+import {
+	createDeferredIntegrationPlugin,
+	createTestAppConfig,
+	htmlDocumentHead,
+	renderFilesystemPageAndExplicitView,
+} from '@ecopages/testing';
 import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
@@ -961,14 +966,14 @@ describe('LitRenderer', () => {
 		});
 	});
 
-	describe('renderToResponse', () => {
+	describe('renderExplicitView', () => {
 		it('should render a view with default status 200', async () => {
 			const testRenderer = createRenderer();
 			const View = (async (props: { title: string }) => `<h1>${props.title}</h1>`) as unknown as EcoComponent<{
 				title: string;
 			}>;
 
-			const response = await testRenderer.renderToResponse(View, { title: 'Hello' }, {});
+			const response = await testRenderer.renderExplicitView(View, { title: 'Hello' }, {});
 
 			expect(response.status).toBe(200);
 			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
@@ -981,7 +986,7 @@ describe('LitRenderer', () => {
 			const View = (async (props: { content: string }) =>
 				`<div>${props.content}</div>`) as unknown as EcoComponent<{ content: string }>;
 
-			const response = await testRenderer.renderToResponse(View, { content: 'Partial' }, { partial: true });
+			const response = await testRenderer.renderExplicitView(View, { content: 'Partial' }, { partial: true });
 
 			const body = await response.text();
 			expect(body).toContain('<div>Partial</div>');
@@ -992,7 +997,7 @@ describe('LitRenderer', () => {
 			const testRenderer = createRenderer();
 			const View = (async () => '<p>Not Found</p>') as unknown as EcoComponent<object>;
 
-			const response = await testRenderer.renderToResponse(View, {}, { status: 404 });
+			const response = await testRenderer.renderExplicitView(View, {}, { status: 404 });
 
 			expect(response.status).toBe(404);
 		});
@@ -1001,7 +1006,7 @@ describe('LitRenderer', () => {
 			const testRenderer = createRenderer();
 			const View = (async () => '<p>Cached</p>') as unknown as EcoComponent<object>;
 
-			const response = await testRenderer.renderToResponse(
+			const response = await testRenderer.renderExplicitView(
 				View,
 				{},
 				{
@@ -1026,18 +1031,46 @@ describe('LitRenderer', () => {
 			}>;
 			View.config = { layouts: [Layout] };
 
-			const response = await testRenderer.renderToResponse(View, { message: 'With Layout' }, {});
+			const response = await testRenderer.renderExplicitView(View, { message: 'With Layout' }, {});
 
 			const body = await response.text();
 			expect(body).toContain('<main class="layout">');
 			expect(body).toContain('<p>With Layout</p>');
 		});
 
+		it('matches the filesystem page head and layouts', async () => {
+			const testRenderer = createRenderer();
+			testRenderer.htmlTemplate = (async ({ children, metadata }) =>
+				`<html><head><title>${metadata.title}</title></head><body>${children}</body></html>`) as EcoComponent<HtmlTemplateProps>;
+			const Layout = ((props: { children: string }) =>
+				`<main class="layout">${props.children}</main>`) as EcoComponent<{ children: string }>;
+			const View = (async (props: { message: string }) => `<p>${props.message}</p>`) as unknown as EcoComponent<{
+				message: string;
+			}>;
+			View.metadata = (async () => ({
+				title: 'About title',
+				description: 'About',
+			})) as unknown as EcoComponent['metadata'];
+			View.config = { layouts: [Layout] };
+
+			const { pageHtml, explicitHtml } = await renderFilesystemPageAndExplicitView(
+				testRenderer,
+				View,
+				{ message: 'With Layout' },
+				'/app/pages/about.lit.ts',
+			);
+
+			expect(htmlDocumentHead(explicitHtml)).toContain('About title');
+			expect(htmlDocumentHead(explicitHtml)).toBe(htmlDocumentHead(pageHtml));
+			expect(explicitHtml).toContain('<main class="layout">');
+			expect(explicitHtml).toBe(pageHtml);
+		});
+
 		it('should not route full view rendering through capture-plus-finalize', async () => {
 			const testRenderer = createRenderer();
 			const View = (async () => '<p>Explicit</p>') as unknown as EcoComponent<object>;
 
-			const response = await testRenderer.renderToResponse(View, {}, {});
+			const response = await testRenderer.renderExplicitView(View, {}, {});
 			const body = await response.text();
 
 			expect(body).toContain('<p>Explicit</p>');
@@ -1052,7 +1085,7 @@ describe('LitRenderer', () => {
 
 			testRenderer.htmlTemplate = LitHtmlTemplate;
 
-			const response = await testRenderer.renderToResponse(View, {}, {});
+			const response = await testRenderer.renderExplicitView(View, {}, {});
 			const body = await response.text();
 
 			expect(body).toContain('<body class="shell">');
@@ -1069,7 +1102,7 @@ describe('LitRenderer', () => {
 				staticHtml`<section data-testid="lit-view">Lit view</section>`) as unknown as EcoComponent<object>;
 			View.config = { layouts: [Layout] };
 
-			const response = await testRenderer.renderToResponse(View, {}, {});
+			const response = await testRenderer.renderExplicitView(View, {}, {});
 			const body = await response.text();
 
 			expect(body).toContain('<main class="layout">');
@@ -1086,7 +1119,7 @@ describe('LitRenderer', () => {
 
 			testRenderer.htmlTemplate = NonLitHtmlTemplate;
 
-			const response = await testRenderer.renderToResponse(View, {}, {});
+			const response = await testRenderer.renderExplicitView(View, {}, {});
 			const body = await response.text();
 
 			expect(body).toContain('<main class="shell">');
@@ -1110,7 +1143,7 @@ describe('LitRenderer', () => {
 
 			testRenderer.htmlTemplate = NonLitHtmlTemplate;
 
-			const response = await testRenderer.renderToResponse(View, {}, {});
+			const response = await testRenderer.renderExplicitView(View, {}, {});
 			const body = await response.text();
 
 			expect(body).toContain('<p>Fallback</p>');
@@ -1123,8 +1156,8 @@ describe('LitRenderer', () => {
 				throw new Error('View failed to render');
 			}) as unknown as EcoComponent<object>;
 
-			await expect(testRenderer.renderToResponse(View, {}, {})).rejects.toThrow(
-				'Error rendering view: View failed to render',
+			await expect(testRenderer.renderExplicitView(View, {}, {})).rejects.toThrow(
+				'Error rendering page: View failed to render',
 			);
 		});
 	});
@@ -1214,6 +1247,40 @@ describe('LitRenderer', () => {
 					locals: { requestId: 'req-1' },
 				});
 				expect(result).toEqual({ body: '<html>locals-in-process</html>' });
+			} finally {
+				inProcessSpy.mockRestore();
+			}
+		});
+
+		it('forces in-process execute when explicit view props are present', async () => {
+			const renderPageInWorker = vi.fn(async () => ({
+				html: '<html>worker</html>',
+			}));
+			const renderer = new LitRenderer({
+				appConfig: Config,
+				assetProcessingService: {} as never,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+				getRenderSession: () =>
+					({
+						renderPageInWorker,
+					}) as Pick<LitStaticRenderSession, 'renderPageInWorker'> as LitStaticRenderSession,
+			});
+			const inProcessSpy = vi.spyOn(IntegrationRenderer.prototype, 'execute').mockResolvedValue({
+				body: '<html>props-in-process</html>',
+			});
+
+			try {
+				const result = await renderer.execute({
+					file: 'explicit:lit:view',
+					params: {},
+					props: { label: 'Ready' },
+					pageModule: { default: (() => '<p>Ready</p>') as EcoComponent },
+				});
+
+				expect(renderPageInWorker).not.toHaveBeenCalled();
+				expect(result).toEqual({ body: '<html>props-in-process</html>' });
+				expect(inProcessSpy).toHaveBeenCalled();
 			} finally {
 				inProcessSpy.mockRestore();
 			}

@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { EcoComponent, EcoPagesElement } from '@ecopages/core';
+import type { EcoPagesElement } from '@ecopages/core';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import {
-	IntegrationRenderer,
-	type RenderToResponseContext,
-} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { createStringMarkupIntegration, createTestAppConfig } from './index.ts';
 
 class TestRenderer extends IntegrationRenderer<EcoPagesElement> {
@@ -21,14 +18,6 @@ class TestRenderer extends IntegrationRenderer<EcoPagesElement> {
 			rootTag: 'div',
 			integrationName: this.name,
 		};
-	}
-
-	async renderToResponse<P = Record<string, unknown>>(
-		_view: EcoComponent<P>,
-		_props: P,
-		_ctx: RenderToResponseContext,
-	) {
-		return new Response('');
 	}
 }
 

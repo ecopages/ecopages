@@ -3,6 +3,16 @@ import { getAssetDependencyKey } from './asset-dependency-keys.ts';
 import { AssetFactory } from './asset.factory.ts';
 
 describe('getAssetDependencyKey', () => {
+	it('keeps stylesheet declarations of the same file with different attributes apart', () => {
+		const filepath = '/app/src/site.css';
+
+		expect(
+			getAssetDependencyKey(AssetFactory.createFileStylesheet({ filepath, attributes: { media: 'print' } })),
+		).not.toBe(
+			getAssetDependencyKey(AssetFactory.createFileStylesheet({ filepath, attributes: { media: 'screen' } })),
+		);
+	});
+
 	it('keeps a classic and a module declaration of the same file apart', () => {
 		const filepath = '/app/src/pages/greeting.ts';
 

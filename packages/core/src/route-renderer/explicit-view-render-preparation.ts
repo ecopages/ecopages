@@ -15,6 +15,38 @@ function getViewIntegrationName(view: {
 }
 
 /**
+ * Resolves the renderer for one explicit view without reading its static props.
+ *
+ * @remarks
+ * Static export planning calls this so a dynamic route whose `staticProps`
+ * reads params is not invoked before a slug exists.
+ */
+export function resolveExplicitViewRenderer(input: {
+	routePath: string;
+	view: EcoPageComponent<any>;
+	routeRendererFactory: ExplicitViewRendererResolver;
+	errors: {
+		missingIntegration(routePath: string): string;
+		noRendererForIntegration(integrationName: string): string;
+	};
+}): { renderer: ExplicitViewRenderer; view: EcoFunctionComponent<Record<string, unknown>, any> } {
+	const integrationName = getViewIntegrationName(input.view);
+	if (!integrationName) {
+		throw new Error(input.errors.missingIntegration(input.routePath));
+	}
+
+	const renderer = input.routeRendererFactory.getExplicitViewRenderer(integrationName);
+	if (!renderer) {
+		throw new Error(input.errors.noRendererForIntegration(integrationName));
+	}
+
+	return {
+		renderer,
+		view: input.view as EcoFunctionComponent<Record<string, unknown>, any>,
+	};
+}
+
+/**
  * Resolves the renderer and static props needed to render one explicit static
  * view at runtime or during static generation.
  */
@@ -30,15 +62,7 @@ export async function prepareExplicitStaticRender(input: {
 		noRendererForIntegration(integrationName: string): string;
 	};
 }): Promise<ExplicitStaticRenderPreparationResult> {
-	const integrationName = getViewIntegrationName(input.view);
-	if (!integrationName) {
-		throw new Error(input.errors.missingIntegration(input.routePath));
-	}
-
-	const renderer = input.routeRendererFactory.getExplicitViewRenderer(integrationName);
-	if (!renderer) {
-		throw new Error(input.errors.noRendererForIntegration(integrationName));
-	}
+	const { renderer, view } = resolveExplicitViewRenderer(input);
 
 	const props = input.view.staticProps
 		? (
@@ -53,6 +77,6 @@ export async function prepareExplicitStaticRender(input: {
 	return {
 		renderer,
 		props,
-		view: input.view as EcoFunctionComponent<Record<string, unknown>, any>,
+		view,
 	};
 }

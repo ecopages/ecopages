@@ -244,12 +244,12 @@ describe('ExplicitStaticRouteMatcher', () => {
 			};
 
 			const mockResponse = new Response('<html>Test</html>');
-			const renderToResponse = vi.fn(() => mockResponse);
+			const renderExplicitView = vi.fn(() => mockResponse);
 			const matcher = new ExplicitStaticRouteMatcher({
 				appConfig: { baseUrl: 'http://localhost:3000' } as any,
 				routeRendererFactory: {
 					getExplicitViewRenderer: vi.fn(() => ({
-						renderToResponse,
+						renderExplicitView,
 					})),
 				} as any,
 				staticRoutes: [createMockRoute('/about', view)],
@@ -259,7 +259,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const response = await matcher.handleMatch(match!);
 
 			expect(response).toBe(mockResponse);
-			expect(renderToResponse).toHaveBeenCalledWith(view, {}, {});
+			expect(renderExplicitView).toHaveBeenCalledWith(view, {}, { params: {} });
 		});
 
 		test('should throw error when view is missing __eco.integration', async () => {
@@ -307,7 +307,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 				appConfig: { baseUrl: 'http://localhost:3000' } as any,
 				routeRendererFactory: {
 					getExplicitViewRenderer: vi.fn(() => ({
-						renderToResponse: vi.fn(() => {
+						renderExplicitView: vi.fn(() => {
 							throw HttpError.Forbidden('Admin only');
 						}),
 					})),
@@ -331,7 +331,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 				appConfig: { baseUrl: 'http://localhost:3000' } as any,
 				routeRendererFactory: {
 					getExplicitViewRenderer: vi.fn(() => ({
-						renderToResponse: vi.fn(() => {
+						renderExplicitView: vi.fn(() => {
 							throw new Error('Intentional server error');
 						}),
 					})),
@@ -344,13 +344,13 @@ describe('ExplicitStaticRouteMatcher', () => {
 			await expect(matcher.handleMatch(match!)).rejects.toThrow('Intentional server error');
 		});
 
-		test('should call renderer.renderToResponse with correct arguments', async () => {
+		test('should call renderer.renderExplicitView with correct arguments', async () => {
 			const view = createMockView('string');
 			const mockResponse = new Response('<html>Test</html>');
 			const RenderToResponse = vi.fn(() => mockResponse);
 			const RendererFactory = {
 				getExplicitViewRenderer: vi.fn(() => ({
-					renderToResponse: RenderToResponse,
+					renderExplicitView: RenderToResponse,
 				})),
 			};
 
@@ -365,7 +365,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 
 			expect(response).toBe(mockResponse);
 			expect(RenderToResponse).toHaveBeenCalledTimes(1);
-			expect(RenderToResponse).toHaveBeenCalledWith(view, {}, {});
+			expect(RenderToResponse).toHaveBeenCalledWith(view, {}, { params: {} });
 		});
 
 		test('should resolve staticProps and pass to renderer', async () => {
@@ -378,7 +378,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const RenderToResponse = vi.fn(() => mockResponse);
 			const RendererFactory = {
 				getExplicitViewRenderer: vi.fn(() => ({
-					renderToResponse: RenderToResponse,
+					renderExplicitView: RenderToResponse,
 				})),
 			};
 
@@ -392,7 +392,13 @@ describe('ExplicitStaticRouteMatcher', () => {
 			await matcher.handleMatch(match!);
 
 			expect(view.staticProps).toHaveBeenCalledTimes(1);
-			expect(RenderToResponse).toHaveBeenCalledWith(view, { title: 'About Page', content: 'Hello' }, {});
+			expect(RenderToResponse).toHaveBeenCalledWith(
+				view,
+				{ title: 'About Page', content: 'Hello' },
+				{
+					params: {},
+				},
+			);
 		});
 
 		test('should pass params to staticProps', async () => {
@@ -404,7 +410,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const mockResponse = new Response('<html>Test</html>');
 			const RendererFactory = {
 				getExplicitViewRenderer: vi.fn(() => ({
-					renderToResponse: vi.fn(() => mockResponse),
+					renderExplicitView: vi.fn(() => mockResponse),
 				})),
 			};
 

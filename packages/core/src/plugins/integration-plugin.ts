@@ -262,20 +262,37 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 
 	/**
 	 * Creates the shared renderer options owned by core lifecycle setup.
+	 *
+	 * @remarks
+	 * Handler renders call `initializeRenderer()` on every `render`, `renderPartial`,
+	 * and `renderServerModule`. Each call still builds a new renderer, and all of
+	 * them share this Integration's asset-processing service. An unchanged file
+	 * asset is reused until its source hash changes, its output is missing, or a
+	 * development change batch drops the entry. The cache key is the dependency
+	 * identity; the source hash is the freshness check. A missing service is
+	 * created here so a plugin that received `appConfig` without `setConfig()`
+	 * still has one.
 	 */
 	protected createRendererOptions(): IntegrationRendererConstructorOptions {
 		if (!this.appConfig) {
 			throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_APP_CONFIG);
 		}
 
-		const assetProcessingService = AssetProcessingService.createWithDefaultProcessors(this.appConfig);
+		if (!this.assetProcessingService) {
+			this.initializeAssetDefinitionService();
+		}
+
+		if (!this.assetProcessingService) {
+			throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_ASSET_SERVICE);
+		}
+
 		if (this.hmrManager) {
-			assetProcessingService.setHmrManager(this.hmrManager);
+			this.assetProcessingService.setHmrManager(this.hmrManager);
 		}
 
 		return {
 			appConfig: this.appConfig,
-			assetProcessingService,
+			assetProcessingService: this.assetProcessingService,
 			resolvedIntegrationDependencies: this.resolvedIntegrationDependencies,
 			runtimeOrigin: this.runtimeOrigin,
 		};
@@ -300,8 +317,11 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Instantiates the integration renderer with app-owned services.
 	 *
 	 * @remarks
-	 * Renderers are cheap runtime objects. They receive the finalized app config,
-	 * a fresh asset-processing service, and integration-global processed assets.
+	 * Renderers are cheap runtime objects. Handler renders still create a new one
+	 * on every `render`, `renderPartial`, and `renderServerModule` call. They share
+	 * the Integration's asset-processing service, so an unchanged stylesheet or
+	 * script is reused until its source changes, its output is missing, or
+	 * development invalidation drops the entry.
 	 */
 	initializeRenderer(): IntegrationRenderer<C> {
 		const renderer = new this.renderer(this.createRendererOptions());

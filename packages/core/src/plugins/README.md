@@ -40,7 +40,7 @@ These contracts are responsible for:
 1. Config build validates and prepares plugin contributions.
 2. Core seals the app-owned build manifest.
 3. Runtime startup calls runtime-only setup hooks.
-4. Request-time rendering and development invalidation reuse those finalized contracts.
+4. Request-time rendering and development invalidation reuse those finalized contracts. Handler renders create a renderer on every render call and share that Integration's one asset-processing service, so an unchanged stylesheet or script is reused until its source changes, its output is missing, or development invalidation drops the entry.
 5. `DevelopmentInvalidationService.invalidateServerModules()` calls `Processor.invalidateServerArtifacts()` so processors can discard compiled server artifacts that are not part of the route-module graph.
 
 ## Discovered dependency metadata

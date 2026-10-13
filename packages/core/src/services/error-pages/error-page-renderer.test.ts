@@ -57,7 +57,10 @@ describe('ErrorPageRenderer', () => {
 			appConfig,
 			routeRendererFactory: {
 				getPageRenderer: vi.fn(),
-				getExplicitViewRenderer: vi.fn(() => ({ renderToResponse })),
+				getExplicitViewRenderer: vi.fn(() => ({
+					renderExplicitView: renderToResponse,
+					executeExplicitView: vi.fn(),
+				})),
 			},
 			errorPageLoaders: {
 				notFound: async () => ({ default: createView() }),

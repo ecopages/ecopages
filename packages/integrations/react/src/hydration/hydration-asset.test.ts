@@ -413,8 +413,15 @@ describe('HydrationAssetService', () => {
 			} as any,
 		});
 
-		await service.buildComponentRenderAssets('/app/src/components/counter.tsx', {
-			identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+		await service.buildPageClientRenderAssets({
+			islands: [
+				{
+					file: '/app/src/components/counter.tsx',
+					config: {
+						identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+					},
+				},
+			],
 		});
 
 		expect(registerEntrypoint).toHaveBeenCalledWith('/app/src/components/counter.tsx');
@@ -508,11 +515,25 @@ describe('HydrationAssetService', () => {
 			} as unknown as ConstructorParameters<typeof HydrationAssetService>[0]['bundleService'],
 		});
 
-		await service.buildComponentRenderAssets('/app/src/components/counter.tsx', {
-			identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+		await service.buildPageClientRenderAssets({
+			islands: [
+				{
+					file: '/app/src/components/counter.tsx',
+					config: {
+						identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+					},
+				},
+			],
 		});
-		await service.buildComponentRenderAssets('/app/src/components/counter.tsx', {
-			identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+		await service.buildPageClientRenderAssets({
+			islands: [
+				{
+					file: '/app/src/components/counter.tsx',
+					config: {
+						identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+					},
+				},
+			],
 		});
 
 		const islandName = `ecopages-react-island-${rapidhash('/app/src/components/counter.tsx')}`;

@@ -40,7 +40,7 @@ export type IntegrationRouteRenderAdapterHost<C> = {
 	): Promise<ResolvedPageDependencies | undefined>;
 	buildPageBrowserGraphContributionContext(
 		routeFile: string,
-		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query'>,
+		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query' | 'pageModule'>,
 	): Promise<PageBrowserGraphContributionContext>;
 	renderRouteBody(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody>;
 	buildPageClientBrowserAssets(plan: PageClientPlan): Promise<PageClientBrowserAssets>;

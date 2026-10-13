@@ -4,10 +4,7 @@ import { AssetProcessingService } from '../services/assets/asset-processing-serv
 import type { IHmrManager } from '../types/public-types.ts';
 import type { AssetDefinition } from '../services/assets/asset-processing-service';
 import type { IntegrationRendererRenderOptions, RouteRendererBody } from '../types/public-types.ts';
-import {
-	IntegrationRenderer,
-	type RenderToResponseContext,
-} from '../route-renderer/orchestration/integration-renderer.ts';
+import { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 
 class NamelessRenderer extends IntegrationRenderer {
@@ -15,10 +12,6 @@ class NamelessRenderer extends IntegrationRenderer {
 
 	async render(_options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		return '<div>ok</div>';
-	}
-
-	async renderToResponse(_view: never, _props: never, _ctx: RenderToResponseContext): Promise<Response> {
-		return new Response('<div>ok</div>');
 	}
 }
 

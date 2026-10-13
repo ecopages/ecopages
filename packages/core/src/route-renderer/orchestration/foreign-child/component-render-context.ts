@@ -1,4 +1,6 @@
-import type { EcoComponent } from '../../../types/public-types.ts';
+import type { EcoComponent, PagePackageResult } from '../../../types/public-types.ts';
+import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/assets.types.ts';
+import type { PageClientPlan } from '../ownership-graph/page-client-plan.ts';
 import { addTriggerAttribute, isThenable } from './foreign-child-output.utils.ts';
 
 /**
@@ -138,6 +140,16 @@ class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
 export type ComponentRenderContext = {
 	currentIntegration: string;
 	foreignChildRuntime?: ForeignChildRuntime;
+	/**
+	 * Page client plan for this render.
+	 *
+	 * @remarks
+	 * Lives on the render context so a second render on the same renderer cannot
+	 * replace the plan the first render reads.
+	 */
+	pageClientPlan?: PageClientPlan;
+	islandRenderAssetsByFile?: ReadonlyMap<string, ProcessedAsset[]>;
+	pagePackage?: PagePackageResult;
 	interceptForeignChild(
 		input: ForeignChildRenderInput,
 	): Promise<ForeignChildInterceptionResult> | ForeignChildInterceptionResult;
@@ -286,12 +298,19 @@ export async function runWithComponentRenderContext<T>(
 	input: {
 		currentIntegration: string;
 		foreignChildRuntime?: ForeignChildRuntime;
+		pageClientPlan?: PageClientPlan;
+		islandRenderAssetsByFile?: ReadonlyMap<string, ProcessedAsset[]>;
+		pagePackage?: PagePackageResult;
 	},
 	render: () => Promise<T>,
 ): Promise<{ value: T }> {
+	const parent = getComponentRenderContext();
 	const context = {
 		currentIntegration: input.currentIntegration,
 		foreignChildRuntime: input.foreignChildRuntime,
+		pageClientPlan: input.pageClientPlan ?? parent?.pageClientPlan,
+		islandRenderAssetsByFile: input.islandRenderAssetsByFile ?? parent?.islandRenderAssetsByFile,
+		pagePackage: input.pagePackage ?? parent?.pagePackage,
 	} as ComponentRenderContext;
 	const runtime = new ContextualComponentRenderRuntime(context);
 	context.interceptForeignChild = (deferredInput: ForeignChildRenderInput) =>

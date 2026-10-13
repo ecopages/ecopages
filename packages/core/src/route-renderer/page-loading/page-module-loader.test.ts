@@ -143,6 +143,48 @@ describe('PageModuleLoaderService', () => {
 		});
 	});
 
+	it('should give metadata the props passed with the render over static props', async () => {
+		const service = new PageModuleLoaderService(appConfig, 'http://localhost:3000');
+		const result = await service.resolvePageData({
+			pageModule: {
+				getStaticProps: async () => ({ props: { title: 'Static', kept: 'static' } }),
+				getMetadata: async ({ props }) => ({ title: String(props.title), description: String(props.kept) }),
+			},
+			routeOptions: {
+				file: '/app/views/latest.kita.tsx',
+				params: {},
+				query: {},
+				props: { title: 'Explicit' },
+			},
+		});
+
+		expect(result).toEqual({
+			props: { title: 'Explicit', kept: 'static' },
+			metadata: { title: 'Explicit', description: 'static' },
+		});
+	});
+
+	it('should pass explicit render props to metadata', async () => {
+		const service = new PageModuleLoaderService(appConfig, 'http://localhost:3000');
+		const result = await service.resolvePageData({
+			pageModule: {
+				getMetadata: async ({ props }) => ({
+					title: String((props.release as { title: string }).title),
+					description: 'Release',
+				}),
+			},
+			routeOptions: {
+				file: '/app/views/latest.kita.tsx',
+				params: {},
+				query: {},
+				props: { release: { title: '1.2.0' } },
+			},
+		});
+
+		expect(result.metadata.title).toBe('1.2.0');
+		expect(result.metadata.description).toBe('Release');
+	});
+
 	it('should import page files through the app-owned module loader', async () => {
 		const calls: Array<unknown> = [];
 		const expectedModule = {

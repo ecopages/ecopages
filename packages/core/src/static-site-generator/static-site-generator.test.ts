@@ -456,7 +456,7 @@ describe('StaticSiteGenerator', () => {
 			const view = Object.assign(() => null, {
 				config: { identity: { integration: 'fixture', file: '/src/views/not-found.tsx' } },
 			});
-			const renderToResponse = vi.fn(async () => new Response('<html>Registered not found</html>'));
+			const renderExplicitView = vi.fn(async () => new Response('<html>Registered not found</html>'));
 
 			await ssg.run({
 				router: {
@@ -465,7 +465,7 @@ describe('StaticSiteGenerator', () => {
 				baseUrl: 'http://localhost:3000',
 				routeRendererFactory: {
 					getPageRenderer: vi.fn(),
-					getExplicitViewRenderer: vi.fn(() => ({ renderToResponse })),
+					getExplicitViewRenderer: vi.fn(() => ({ renderExplicitView, executeExplicitView: vi.fn() })),
 				} satisfies StaticGenerationRendererFactory,
 				errorPageLoaders: {
 					notFound: async () => ({ default: view as never }),
@@ -473,7 +473,7 @@ describe('StaticSiteGenerator', () => {
 			});
 
 			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/404.html', '<html>Registered not found</html>');
-			expect(renderToResponse).toHaveBeenCalledWith(expect.anything(), { status: 404 }, { status: 404 });
+			expect(renderExplicitView).toHaveBeenCalledWith(expect.anything(), { status: 404 }, { status: 404 });
 		});
 
 		test('should fail the build when a registered semantic error view breaks', async () => {
@@ -693,15 +693,19 @@ describe('StaticSiteGenerator', () => {
 					},
 				}),
 			});
-			const renderToResponse = vi.fn(async () => new Response('<html>Private</html>'));
+			const executeExplicitView = vi.fn(async () => ({
+				body: '<html>Private</html>',
+				metadata: { title: 'Private', description: 'Private', robots: { index: false } },
+			}));
+			const metadata = vi.fn(async () => ({
+				title: 'Private',
+				description: 'Private',
+				robots: { index: false },
+			}));
 			const privateView = Object.assign(() => null, {
 				cache: 'static',
 				config: { identity: { ...testInjectedMeta, file: '/src/views/private.tsx' } },
-				metadata: async () => ({
-					title: 'Private',
-					description: 'Private',
-					robots: { index: false },
-				}),
+				metadata,
 			}) as any;
 
 			await ssg.run({
@@ -712,7 +716,8 @@ describe('StaticSiteGenerator', () => {
 				routeRendererFactory: {
 					getPageRenderer: vi.fn(),
 					getExplicitViewRenderer: vi.fn(() => ({
-						renderToResponse,
+						renderExplicitView: vi.fn(),
+						executeExplicitView,
 					})),
 				} satisfies StaticGenerationRendererFactory,
 				staticRoutes: [
@@ -728,6 +733,7 @@ describe('StaticSiteGenerator', () => {
 			);
 			expect(sitemapWrite).toBeDefined();
 			expect(String(sitemapWrite?.[1])).not.toContain('/private');
+			expect(metadata).not.toHaveBeenCalled();
 		});
 
 		test('should skip explicit static routes backed by cache dynamic views', async () => {
@@ -758,7 +764,7 @@ describe('StaticSiteGenerator', () => {
 			const ssg = new StaticSiteGenerator({
 				appConfig: createMockConfig({ baseUrl: 'http://localhost:3000' } as any),
 			});
-			const renderToResponse = vi.fn(async () => new Response('<html>Post</html>'));
+			const executeExplicitView = vi.fn(async () => ({ body: '<html>Post</html>' }));
 			const staticProps = vi.fn(async ({ pathname }) => ({
 				props: pathname.params,
 			}));
@@ -771,7 +777,8 @@ describe('StaticSiteGenerator', () => {
 				routeRendererFactory: {
 					getPageRenderer: vi.fn(),
 					getExplicitViewRenderer: vi.fn(() => ({
-						renderToResponse,
+						renderExplicitView: vi.fn(),
+						executeExplicitView,
 					})),
 				} satisfies StaticGenerationRendererFactory,
 				staticRoutes: [
@@ -793,7 +800,14 @@ describe('StaticSiteGenerator', () => {
 				appConfig: expect.any(Object),
 				runtimeOrigin: 'http://localhost:3000',
 			});
-			expect(renderToResponse).toHaveBeenCalledWith(expect.any(Function), { slug: 'hello-world' }, {});
+			expect(staticProps).toHaveBeenCalledTimes(1);
+			expect(executeExplicitView).toHaveBeenCalledWith(
+				expect.any(Function),
+				{ slug: 'hello-world' },
+				{
+					params: { slug: 'hello-world' },
+				},
+			);
 			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/blog/hello-world.html', '<html>Post</html>');
 		});
 
@@ -810,7 +824,8 @@ describe('StaticSiteGenerator', () => {
 				routeRendererFactory: {
 					getPageRenderer: vi.fn(),
 					getExplicitViewRenderer: vi.fn(() => ({
-						renderToResponse: vi.fn(),
+						renderExplicitView: vi.fn(),
+						executeExplicitView: vi.fn(),
 					})),
 				} satisfies StaticGenerationRendererFactory,
 				staticRoutes: [

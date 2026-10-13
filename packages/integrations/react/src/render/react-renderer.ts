@@ -28,7 +28,6 @@ import {
 	selectHydrationIslandEntries,
 	type PageClientBrowserAssets,
 	type PageClientPlan,
-	type RenderToResponseContext,
 } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { resolveDocumentShellLayouts } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
@@ -48,20 +47,12 @@ import { PageModuleService } from '../page/page-module.ts';
 import { PagePayloadService } from '../hydration/page-payload.ts';
 import { HydrationAssetService } from '../hydration/hydration-asset.ts';
 import {
-	composeDocumentShell,
-	finalizeDocumentShellHtml,
 	renderPageDocumentShell,
 	type DocumentShellComposeChildrenContext,
 	type DocumentShellComposeChildrenResult,
 	type DocumentShellLayoutInput,
 } from '@ecopages/core/route-renderer/orchestration/document-shell/document-shell-render.service';
-import { mergePageBrowserGraph } from '@ecopages/core/route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils';
-import {
-	asNonReactShellComponent,
-	asReactComponent,
-	getComponentRequires,
-	isReactManagedComponent,
-} from './component-ownership.ts';
+import { asNonReactShellComponent, getComponentRequires, isReactManagedComponent } from './component-ownership.ts';
 import {
 	buildHydrationProps,
 	renderComponentHtml,
@@ -207,54 +198,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		return this.reactRuntimeModules;
 	}
 
-	private buildPagePayload(options: {
-		Page: EcoComponent;
-		pageProps?: IntegrationRendererRenderOptions<ReactNode>['pageProps'];
-		params: IntegrationRendererRenderOptions<ReactNode>['params'];
-		query: IntegrationRendererRenderOptions<ReactNode>['query'];
-		locals: IntegrationRendererRenderOptions<ReactNode>['locals'];
-		pagePackage?: IntegrationRendererRenderOptions<ReactNode>['pagePackage'];
-	}): { pageModuleUrl: string | undefined; pageProps: Record<string, unknown> } {
-		const safeLocals = this.pagePayloadService.getSerializableLocals(
-			options.locals,
-			getComponentRequires(options.Page),
-		);
-
-		return {
-			pageModuleUrl: this.pagePayloadService.resolvePageModuleUrl(options.pagePackage, {
-				routerEnabled: Boolean(this.routerAdapter),
-			}),
-			pageProps: this.pagePayloadService.buildSerializedPageProps({
-				pageProps: options.pageProps,
-				params: options.params,
-				query: options.query,
-				safeLocals,
-			}),
-		};
-	}
-
-	/**
-	 * Appends route hydration assets for a concrete page/view file to the current
-	 * HTML transformer state.
-	 */
-	private async appendHydrationAssetsForFile(filePath?: string): Promise<void> {
-		if (!filePath) {
-			return;
-		}
-
-		const pageBrowserGraph = await this.resolvePageBrowserGraphForFile(filePath);
-		if (!pageBrowserGraph) {
-			return;
-		}
-
-		const { pagePackage } = mergePageBrowserGraph(
-			this.htmlTransformer.getPagePackage(),
-			this.htmlTransformer.getProcessedDependencies(),
-			pageBrowserGraph,
-		);
-		this.htmlTransformer.setPagePackage(pagePackage);
-	}
-
 	private resolveReactQueuedForeignSubtreeHtml(
 		html: string,
 		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
@@ -295,6 +238,32 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			queuedResolutionsByToken,
 			resolveToken,
 		);
+	}
+
+	private buildPagePayload(options: {
+		Page: EcoComponent;
+		pageProps?: IntegrationRendererRenderOptions<ReactNode>['pageProps'];
+		params: IntegrationRendererRenderOptions<ReactNode>['params'];
+		query: IntegrationRendererRenderOptions<ReactNode>['query'];
+		locals: IntegrationRendererRenderOptions<ReactNode>['locals'];
+		pagePackage?: IntegrationRendererRenderOptions<ReactNode>['pagePackage'];
+	}): { pageModuleUrl: string | undefined; pageProps: Record<string, unknown> } {
+		const safeLocals = this.pagePayloadService.getSerializableLocals(
+			options.locals,
+			getComponentRequires(options.Page),
+		);
+
+		return {
+			pageModuleUrl: this.pagePayloadService.resolvePageModuleUrl(options.pagePackage, {
+				routerEnabled: Boolean(this.routerAdapter),
+			}),
+			pageProps: this.pagePayloadService.buildSerializedPageProps({
+				pageProps: options.pageProps,
+				params: options.params,
+				query: options.query,
+				safeLocals,
+			}),
+		};
 	}
 
 	/**
@@ -390,7 +359,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 				componentKey: getIslandComponentKey(componentFile, componentConfig),
 				props: buildHydrationProps(input.props),
 			});
-			assets = this.islandRenderAssetsByFile?.get(componentFile);
+			assets = this.getActiveIslandRenderAssets().get(componentFile);
 			html = `<eco-island style="display:contents">${html}</eco-island>`;
 		}
 
@@ -669,112 +638,5 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 	protected override getDocumentAttributes(): Record<string, string> | undefined {
 		return this.getRouterDocumentAttributes();
-	}
-
-	protected override async renderViewWithDocumentShell<P>(input: {
-		view: EcoComponent<P>;
-		props: P;
-		ctx: RenderToResponseContext;
-		layout?: EcoComponent;
-	}): Promise<Response> {
-		const normalizedProps = (input.props ?? {}) as Record<string, unknown>;
-
-		if (input.ctx.partial) {
-			const { react, reactDomServer } = this.getReactRuntimeModules();
-			const ViewComponent = asReactComponent(input.view);
-			return this.renderPartialViewResponse({
-				...input,
-				renderInline: async () =>
-					await reactDomServer.renderToReadableStream(react.createElement(ViewComponent, normalizedProps)),
-			});
-		}
-
-		await this.prepareViewDependencies(input.view, input.layout);
-		if (!input.ctx.partial) {
-			await this.appendHydrationAssetsForFile(getComponentIdentity(input.view)?.file);
-		}
-
-		const HtmlTemplate = await this.getHtmlTemplate();
-		const metadata = await this.resolveViewMetadata(input.view, input.props);
-		const pagePayload = this.buildPagePayload({
-			Page: input.view,
-			pageProps: normalizedProps,
-			params: {},
-			query: {},
-			locals: undefined,
-			pagePackage: this.htmlTransformer.getPagePackage(),
-		});
-		const shellLayouts: DocumentShellLayoutInput[] = input.layout ? [{ component: input.layout, props: {} }] : [];
-		const composeChildren = this.resolveComposeChildren({
-			page: { component: input.view, props: normalizedProps },
-			shellLayouts,
-		});
-
-		const { documentHtml } = await composeDocumentShell(
-			{
-				renderComponentWithForeignChildren: (renderInput) =>
-					this.renderComponentWithForeignChildren(renderInput),
-				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
-			},
-			{
-				primaryComponent: input.view,
-				primaryProps: normalizedProps,
-				layout: input.layout
-					? {
-							component: input.layout,
-							props: {},
-						}
-					: undefined,
-				layouts: shellLayouts.length > 0 ? shellLayouts : undefined,
-				composeChildren,
-				htmlTemplate: HtmlTemplate,
-				documentProps: {
-					metadata,
-					pageProps: pagePayload.pageProps,
-					...(pagePayload.pageModuleUrl && { pageModuleUrl: pagePayload.pageModuleUrl }),
-				},
-			},
-		);
-
-		const html = await finalizeDocumentShellHtml(this.htmlTransformer, {
-			html: `${this.DOC_TYPE}${documentHtml}`,
-			partial: false,
-			documentAttributes: this.getRouterDocumentAttributes(),
-			htmlContributions: this.pagePayloadService.buildNonReactDocumentContributions({
-				htmlTemplate: HtmlTemplate,
-				pageProps: pagePayload.pageProps,
-				pageModuleUrl: pagePayload.pageModuleUrl,
-				reactIntegrationName: this.name,
-				routerEnabled: Boolean(this.routerAdapter),
-			}),
-		});
-
-		return this.createHtmlResponse(html, input.ctx);
-	}
-
-	/**
-	 * Renders an arbitrary React view through the application's HTML shell.
-	 *
-	 * Unlike route rendering, this path starts from a single component rather than a
-	 * page module discovered by the router. It still needs to resolve metadata,
-	 * layout dependencies, and hydration assets so direct `ctx.render()` calls match
-	 * normal page responses.
-	 */
-	async renderToResponse<P = Record<string, unknown>>(
-		view: EcoComponent<P>,
-		props: P,
-		ctx: RenderToResponseContext,
-	): Promise<Response> {
-		try {
-			const layouts = view.config?.layouts;
-			return await this.renderViewWithDocumentShell({
-				view,
-				props,
-				ctx,
-				layout: layouts?.[layouts.length - 1],
-			});
-		} catch (error) {
-			throw this.createRenderError('Failed to render view', error);
-		}
 	}
 }

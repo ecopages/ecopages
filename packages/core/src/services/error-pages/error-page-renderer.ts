@@ -153,7 +153,7 @@ export class ErrorPageRenderer {
 			errors: ERROR_PAGE_RENDER_ERRORS,
 		});
 
-		const response = await renderer.renderToResponse(renderableView, { ...staticProps, ...props }, { status });
+		const response = await renderer.renderExplicitView(renderableView, { ...staticProps, ...props }, { status });
 
 		return { body: await response.text() };
 	}

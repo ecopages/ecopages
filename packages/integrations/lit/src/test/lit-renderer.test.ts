@@ -686,22 +686,14 @@ describe('LitRenderer', () => {
 		});
 
 		it('forwards resolved page props to the document shell', async () => {
-			const testRenderer = createRenderer();
-			const pageProps = { title: 'Resolved' };
-			const renderPageShell = vi
-				.spyOn(
-					testRenderer as unknown as {
-						renderPageWithDocumentShell(input: unknown): Promise<string>;
-					},
-					'renderPageWithDocumentShell',
-				)
-				.mockResolvedValue('<html><body></body></html>');
+			const Shell = (async ({ children, pageProps }) =>
+				`<html><body><h1>${String(pageProps.title)}</h1>${children}</body></html>`) as EcoComponent<HtmlTemplateProps>;
 
-			await testRenderer.render({
+			const body = await renderer.render({
 				params: {},
 				query: {},
 				props: { title: 'Handler' },
-				pageProps,
+				pageProps: { title: 'Resolved' },
 				file: 'file',
 				resolvedDependencies: [],
 				metadata: {
@@ -709,14 +701,11 @@ describe('LitRenderer', () => {
 					description: 'Hello World',
 				},
 				Page: async () => '<div>Hello World</div>',
-				HtmlTemplate,
+				HtmlTemplate: Shell,
 			});
 
-			expect(renderPageShell).toHaveBeenCalledWith(
-				expect.objectContaining({
-					pageProps,
-				}),
-			);
+			const text = await new Response(body as BodyInit).text();
+			expect(text).toContain('<h1>Resolved</h1>');
 		});
 
 		it('passes route-resolved dependency roots into the document shell', async () => {

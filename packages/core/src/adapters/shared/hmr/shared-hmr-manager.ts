@@ -10,7 +10,6 @@ import { isDevTransformModuleUrl } from '../../../hmr/hmr-asset-paths.ts';
 import {
 	removeStaleHmrEntrypointOutput,
 	isRegisteredDevTransformEntrypoint,
-	isRegisteredScriptEntrypoint,
 } from '../../../hmr/hmr-entrypoint-output.ts';
 import type {
 	DefaultHmrContext,
@@ -337,7 +336,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 		}
 
 		if (isRegisteredDevTransformEdit) {
-			await this.prepareRegisteredEntrypointChange(resolvedFilePath);
+			await this.runRegisteredEntrypointChangeHandlers(resolvedFilePath);
 
 			const registered = this.entrypointRegistry.getRegisteredEntrypoints().get(resolvedFilePath);
 			if (registered && isDevTransformModuleUrl(registered.outputUrl)) {
@@ -425,16 +424,13 @@ export abstract class SharedHmrManager implements IHmrManager {
 		});
 	}
 
-	private async prepareRegisteredEntrypointChange(filePath: string): Promise<void> {
-		const isRegisteredScript = isRegisteredScriptEntrypoint(
-			this.entrypointRegistry.getRegisteredEntrypoints(),
-			filePath,
-		);
-
-		if (!isRegisteredScript) {
-			this.invalidationService.invalidateServerModules([filePath]);
-		}
-
+	/**
+	 * @remarks
+	 * The Project Watcher batch already marked the server modules of this file dirty through
+	 * `applyDevFileChanges`, so the manager neither invalidates them again nor imports them ahead of the
+	 * next request that needs them.
+	 */
+	private async runRegisteredEntrypointChangeHandlers(filePath: string): Promise<void> {
 		const handlers = this.appConfig.runtime?.registeredScriptEntrypointChangeHandlers ?? [];
 		for (const handler of handlers) {
 			try {
@@ -451,23 +447,6 @@ export abstract class SharedHmrManager implements IHmrManager {
 				throw error;
 			}
 		}
-
-		if (isRegisteredScript) {
-			return;
-		}
-
-		const appModuleLoader = this.appConfig.runtime?.appModuleLoader;
-		if (!appModuleLoader) {
-			return;
-		}
-
-		await appModuleLoader.importModule({
-			filePath,
-			rootDir: this.appConfig.rootDir,
-			outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules'),
-			externalPackages: true,
-			bypassCache: true,
-		});
 	}
 
 	/**

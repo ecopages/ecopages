@@ -378,6 +378,39 @@ describe('DevelopmentInvalidationService', () => {
 		expect(moduleLoader.getDevelopmentGeneration()).toBe(1);
 	});
 
+	it('invalidates server modules for a public file or processor-owned asset a route module read', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		appConfig.processors.set('css', new StylesheetProcessor());
+		const service = new DevelopmentInvalidationService(appConfig);
+		const publicFile = path.join(appConfig.absolutePaths.publicDir, 'data.json');
+		const stylesheet = path.join(appConfig.absolutePaths.srcDir, 'styles/main.css');
+		const unreadStylesheet = path.join(appConfig.absolutePaths.srcDir, 'styles/other.css');
+		getAppBuildInputIndex(appConfig).register({ consumer: 'server-route-module', key: '/test/project/page.tsx' }, [
+			publicFile,
+			stylesheet,
+		]);
+
+		expect(service.planFileChange(publicFile)).toMatchObject({
+			category: 'public-asset',
+			invalidateServerModules: true,
+			reloadBrowser: true,
+		});
+		expect(service.planFileChange(stylesheet)).toMatchObject({
+			category: 'processor-owned-asset',
+			invalidateServerModules: true,
+			processorHandledAsset: true,
+			delegateToHmr: false,
+		});
+		expect(service.planFileChange(unreadStylesheet).invalidateServerModules).toBe(false);
+
+		const moduleLoader = getAppModuleLoader(appConfig);
+		await service.applyDevFileChanges({ changed: [stylesheet], created: [], deleted: [] });
+		expect(moduleLoader.getDevelopmentGeneration()).toBe(1);
+
+		await service.applyDevFileChanges({ changed: [unreadStylesheet], created: [], deleted: [] });
+		expect(moduleLoader.getDevelopmentGeneration()).toBe(1);
+	});
+
 	it('clears in-process route-module entries before a route imports them', async () => {
 		vi.stubEnv('NODE_ENV', 'development');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-development-invalidation-'));

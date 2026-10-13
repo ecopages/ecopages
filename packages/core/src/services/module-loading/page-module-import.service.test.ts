@@ -571,7 +571,7 @@ describe('PageModuleImportService', () => {
 		}
 	});
 
-	it('should miss the in-memory dev cache when a tracked layout dependency changes', async () => {
+	it('should reuse the in-memory dev cache until the development graph is invalidated', async () => {
 		vi.stubEnv('NODE_ENV', 'development');
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-dev-graph-cache-'));
 		const rootDir = join(tempDir, 'app');
@@ -623,6 +623,15 @@ describe('PageModuleImportService', () => {
 			assert.equal(buildCount, 1);
 
 			writeFileSync(layoutPath, 'export const v = 2;\n', 'utf8');
+
+			await devService.importModule({
+				filePath: pagePath,
+				rootDir,
+				outdir: tempDir,
+			});
+			assert.equal(buildCount, 1);
+
+			devService.invalidateDevelopmentGraph();
 
 			await devService.importModule({
 				filePath: pagePath,

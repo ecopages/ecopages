@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, test, vi } from 'vitest';
 import { HMR_RUNTIME_SCRIPT_URL } from '../../../hmr/hmr-runtime-paths.ts';
+import { injectDevClientRuntimes } from '../../../hmr/dev-client-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { ServerAdapterResult } from '../../abstract/server-adapter.ts';
@@ -48,6 +49,16 @@ function createHmrAssetManager(runtimePath: string): IHmrManager {
 			}
 			return null;
 		},
+		injectDevClientRuntimes: (response: Response) =>
+			injectDevClientRuntimes(response, [
+				{
+					name: 'HMR',
+					url: HMR_RUNTIME_SCRIPT_URL,
+					workDir: '',
+					resolveEntry: () => '',
+					onFailure: () => {},
+				},
+			]),
 		getDefaultContext: vi.fn(),
 		handleFileChange: vi.fn(),
 		handleFileChanges: vi.fn(),

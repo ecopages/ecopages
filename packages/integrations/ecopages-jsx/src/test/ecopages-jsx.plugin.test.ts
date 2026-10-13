@@ -24,6 +24,7 @@ function createHmrManagerStub(): IHmrManager {
 		getWatchedFiles: vi.fn(() => new Map()),
 		getRegisteredEntrypoints: vi.fn(() => new Map()),
 		tryHandleAssetRequest: vi.fn(() => null),
+		injectDevClientRuntimes: vi.fn(async (response: Response) => response),
 		getDefaultContext: vi.fn(() => ({
 			getWatchedFiles: () => new Map(),
 			getRegisteredEntrypoints: () => new Map(),

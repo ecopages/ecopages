@@ -114,6 +114,10 @@ export class PageModuleImportService {
 		this.importCache.clear();
 	}
 
+	getDevelopmentGeneration(): number {
+		return this.developmentImportGeneration;
+	}
+
 	/**
 	 * Clears in-memory import promises and dependency-hash memoization so the next
 	 * import revalidates against current source and transform identity.

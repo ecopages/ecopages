@@ -16,7 +16,6 @@ import type { CacheConfig } from '../services/cache/cache.types.ts';
 import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
 import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { SessionPageBrowserGraphCache } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
-import type { ServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
 import type { ServerModuleTranspiler } from '../services/module-loading/server-module-transpiler.service.ts';
 import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 
@@ -179,7 +178,6 @@ export type EcoPagesAppConfig = {
 		entrypointDependencyGraph?: EntrypointDependencyGraph;
 		buildInputIndex?: BuildInputDependencyIndex;
 		pageBrowserGraphSession?: SessionPageBrowserGraphCache;
-		serverInvalidationState?: ServerInvalidationState;
 		serverModuleTranspiler?: ServerModuleTranspiler;
 		routeModuleBuildCaches?: Map<string, RouteModuleBuildCache>;
 		/** Profile-based build runtime installed by {@link installBuildRuntime}. */

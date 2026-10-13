@@ -67,11 +67,14 @@ class TestStylesheetProcessor extends Processor {
 describe('ContentStylesheetProcessor', () => {
 	let writeMock: ReturnType<typeof vi.spyOn>;
 	const written = new Set<string>();
+	const stylesheetWrites: string[] = [];
 
 	beforeEach(() => {
 		written.clear();
+		stylesheetWrites.length = 0;
 		writeMock = vi.spyOn(fileSystem, 'write').mockImplementation((filepath: string) => {
 			written.add(filepath);
+			if (filepath.endsWith('.css')) stylesheetWrites.push(filepath);
 		});
 		vi.spyOn(fileSystem, 'ensureDir').mockImplementation(() => {});
 		vi.spyOn(fileSystem, 'exists').mockImplementation((filepath: string) => written.has(filepath));
@@ -210,7 +213,7 @@ describe('ContentStylesheetProcessor', () => {
 			const result1 = await processor.process(dep);
 			const result2 = await processor.process(dep);
 
-			expect(writeMock.mock.calls.length).toBe(1);
+			expect(stylesheetWrites).toHaveLength(1);
 			expect(result1).toEqual(result2);
 		});
 
@@ -234,7 +237,7 @@ describe('ContentStylesheetProcessor', () => {
 			await processor.process(dep1);
 			await processor.process(dep2);
 
-			expect(writeMock.mock.calls.length).toBe(2);
+			expect(stylesheetWrites).toHaveLength(2);
 		});
 	});
 

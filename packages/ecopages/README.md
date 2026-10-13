@@ -29,12 +29,14 @@ bun dev
 | `ecopages dev`        | Starts the dev server (supervises config/.env restarts) | `bun run [entry] --dev`                                      |
 | `ecopages dev:watch`  | Dev server + hard restarts on file changes              | Bun: `bun --watch run [entry] --dev`; Node: `node --watch …` |
 | `ecopages build`      | Creates a production build                              | `bun run [entry] --build`                                    |
-| `ecopages start`      | Starts the production server                            | `bun run [entry]`                                            |
+| `ecopages start`      | Starts the production server from the built output      | Runs the emitted server bundle                               |
 | `ecopages preview`    | Previews the production build locally                   | `bun run [entry] --preview`                                  |
 | `ecopages types`      | Writes virtual-module types for `tsc`, then exits       | Loads `eco.config.ts` only; the entry does not run           |
 
 > [!NOTE]
 > The entry file defaults to `app.ts`. Override it with `--entry-file`.
+
+`ecopages start` does not load `eco.config.ts`, so it finds the build output by looking for `.server/manifest.json` one level below the app root (dot-prefixed directories included). It uses the only match, fails with the matches listed when there are several, and fails with "run `ecopages build`" when there is none. Pass `--dist-dir <dir>` to select a directory, which is required for nested (`out/web`) and symlinked outputs and whenever the app builds several outputs, such as `dist-<scope>` per build target.
 
 ### Templates
 

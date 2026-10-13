@@ -30,6 +30,7 @@ The important ownership rules are:
 - App shutdown tears down Integration runtime resources, including Lit workers. See [Runtime Adapters](src/adapters/README.md).
 - HMR and invalidation use shared graph-aware services instead of runtime-specific ad hoc wiring.
 - Browser and React navigation use one core-owned document commit pipeline; each router supplies its page swap and scroll handling while core coordinates fetch/cache/parse, head reconciliation, script activation, view transitions, and lifecycle events. Browser-router always morphs the incoming body, keeping nodes with matching persistence keys attached when their ancestor structure remains compatible; during rerun refresh, custom-element descendants on that path also stay in place when their markup remains structurally compatible. Superseded stylesheet waits settle when a later page removes their staged links. For rerun scripts matched by relative `src` (without an explicit script id or HTML `id`), core keeps identity stable across pages with different `<base>` URLs while loading external modules from the incoming page's resolved URL. See [Router Layer](src/router/README.md).
+- Static file responses share one cache policy across the runtime file server and the Node preview: ETags, conditional 304s including gzip, and `immutable` only for outputs the build recorded as content-hashed. HTML stays revalidated. See [Services](src/services/README.md) and [Runtime Adapters](src/adapters/README.md).
 - The build adapter returns each build's plugin-recorded inputs by module alongside source-module closures, and passes an explicit recorder to Rolldown plugin hooks. Cache owners bind only the paths read by their entry closure, so development invalidates affected Page Browser Graphs, HTML entries, route modules, and browser entrypoints. Grouped browser scripts resolve by the path or name the caller passed (and the bundler's facade when that spelling differs); in-process Page caches also track reachable generated artifacts. See [Build Layer](src/build/README.md).
 
 ### Bootstrap And Runtime Ownership
@@ -96,7 +97,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/build/README.md`: build adapter, executor, shared `.server` browser import guard, development build coordination, standalone Node server packaging and its deploy layout
 - `src/services/README.md`: cross-cutting runtime services and orchestration helpers
 - `src/adapters/README.md`: Node HTTP host and shared adapter boundaries
-- `src/dev/README.md`: dev transform server, on-demand client delivery (including workspace-package `@fs` URLs), and invalidation during compilation
+- `src/dev/README.md`: dev transform server, in-memory on-demand vendor bundles, client delivery (including workspace-package `@fs` URLs), and invalidation during compilation
 - `src/watchers/README.md`: recursive source subscriptions with bounded readiness and scheduled debounce batches, external build-input and linked-package watching, batched `applyDevFileChanges`, and restart invalidation
 - `src/services/invalidation/README.md`: file-change classification and dirty-marking for bounded watcher batches
 - `src/hmr/README.md`: HMR strategy, update-layer ownership, and build error presentation

@@ -22,7 +22,6 @@ import {
 	mayContainAdditionalWatchMatches,
 	resolveAdditionalWatchPath,
 } from '../utils/additional-watch-paths.ts';
-import { RESOLVED_ASSETS_VENDORS_DIR } from '../config/constants.ts';
 import { resolveWorkspacePackageWatchRoots, isWorkspacePackageFile } from './workspace-package-watch-roots.ts';
 import { getAppBuildInputIndex } from '../build/cache/build-input-dependency-index.ts';
 import { copyRuntimePublicFile } from '../adapters/shared/runtime/copy-runtime-public-dir.ts';
@@ -75,7 +74,6 @@ export class ProjectWatcher {
 	private readonly onRestartRequest?: (filePath: string) => Promise<void>;
 	private readonly entryWatcherOwnsConfig: boolean;
 	private restartRequestScheduled = false;
-	private restartNeedsVendorInvalidation = false;
 	private workspacePackageRoots: string[] = [];
 	private watcher: FSWatcher | null = null;
 	private watcherReady?: Promise<void>;
@@ -252,39 +250,30 @@ export class ProjectWatcher {
 
 	/**
 	 * @remarks
-	 * Linked dependencies can be bundled inside an unchanged package whose vendor
-	 * fingerprint does not include them. Discard generated vendors before the
-	 * host restarts so the next process cannot reuse those stale bundles.
+	 * A linked package change restarts the host so its server imports and
+	 * process-local browser vendor bundles are rebuilt from the updated files.
 	 */
 	private handleRuntimeRestart(filePath: string): void {
 		const onRestartRequest = this.onRestartRequest;
 		if (!onRestartRequest) {
 			appLogger.warn(
 				isWorkspacePackageFile(filePath, this.workspacePackageRoots)
-					? `Linked package changed (${filePath}). Clear ${path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_VENDORS_DIR)} and restart the development server to apply it.`
+					? `Linked package changed (${filePath}). Restart the development server to rebuild its in-memory vendor bundle.`
 					: `Development restart input changed (${filePath}). Restart the development server to apply it.`,
 			);
 			return;
 		}
 
-		this.restartNeedsVendorInvalidation ||= isWorkspacePackageFile(filePath, this.workspacePackageRoots);
 		if (this.restartRequestScheduled) {
 			return;
 		}
 
 		this.restartRequestScheduled = true;
 		void this.changeQueue
-			.then(() => {
-				if (this.restartNeedsVendorInvalidation) {
-					const vendorsDir = path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_VENDORS_DIR);
-					if (fileSystem.exists(vendorsDir)) fileSystem.remove(vendorsDir);
-				}
-				return onRestartRequest(filePath);
-			})
+			.then(() => onRestartRequest(filePath))
 			.catch((error) => this.handleError(error))
 			.finally(() => {
 				this.restartRequestScheduled = false;
-				this.restartNeedsVendorInvalidation = false;
 			});
 	}
 

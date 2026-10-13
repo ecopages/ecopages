@@ -1,14 +1,11 @@
 import { createHash } from 'node:crypto';
-import { readdirSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 
-import { fileSystem } from '@ecopages/file-system';
 import { RESOLVED_ASSETS_VENDORS_DIR } from '../../config/constants.ts';
 import { getAppBrowserBuildPlugins } from '../../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-resolver.ts';
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
-import { resolveRuntimeSpecifierPublicPath } from '../../build/browser/browser-runtime-manifest.ts';
 import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { formatBuildLog } from '../../build/build-log.ts';
@@ -19,10 +16,8 @@ const BROWSER_NODE_BUILTIN_GUARD_MARKER = '[browser-build] Node builtin';
 
 type VendorEntry = {
 	url: string;
-	filePath: string;
+	content: string;
 };
-
-type ResolvedVendorEntry = { path: string; packageJsonPath?: string };
 
 function getVendorBundleConditions(specifier: string): readonly string[] {
 	return toPackageRootSpecifier(specifier) === '@ecopages/core'
@@ -32,42 +27,26 @@ function getVendorBundleConditions(specifier: string): readonly string[] {
 
 export type DevTransformVendorRegistryOptions = {
 	appConfig: EcoPagesAppConfig;
-	getRuntimeSpecifierMap: () => ReadonlyMap<string, string>;
 	resolveVendorBundlePlugins?: () => Promise<readonly EcoBuildPlugin[]>;
 };
 
 /**
- * Lazily prebundles bare npm imports into cacheable `/assets/vendors/*` chunks.
+ * Lazily prebundles bare npm imports into process-local `/assets/vendors/*` chunks.
  */
 export class DevTransformVendorRegistry {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly browserBundleService: BrowserBundleService;
-	private readonly getRuntimeSpecifierMap: () => ReadonlyMap<string, string>;
 	private readonly resolveVendorBundlePlugins?: () => Promise<readonly EcoBuildPlugin[]>;
-	private readonly vendorsDir: string;
 	private readonly cache = new Map<string, VendorEntry>();
 	private readonly inFlight = new Map<string, Promise<VendorEntry>>();
-	private readonly etags = new Map<string, { stamp: string; etag: string }>();
 
 	constructor(options: DevTransformVendorRegistryOptions) {
 		this.appConfig = options.appConfig;
 		this.browserBundleService = new BrowserBundleService(options.appConfig);
-		this.getRuntimeSpecifierMap = options.getRuntimeSpecifierMap;
 		this.resolveVendorBundlePlugins = options.resolveVendorBundlePlugins;
-		const distDir = options.appConfig.absolutePaths?.distDir ?? path.join(options.appConfig.rootDir, '.eco');
-		this.vendorsDir = path.join(distDir, RESOLVED_ASSETS_VENDORS_DIR);
-	}
-
-	resolveKnownVendorUrl(specifier: string): string | undefined {
-		return resolveRuntimeSpecifierPublicPath(specifier, this.getRuntimeSpecifierMap());
 	}
 
 	async resolveVendorUrl(specifier: string): Promise<string> {
-		const known = this.resolveKnownVendorUrl(specifier);
-		if (known && this.resolveExistingVendorPath(known)) {
-			return known;
-		}
-
 		const cached = this.cache.get(specifier);
 		if (cached) {
 			return cached.url;
@@ -78,17 +57,26 @@ export class DevTransformVendorRegistry {
 			return (await pending).url;
 		}
 
-		const promise = this.prebundleSpecifier(specifier).finally(() => {
-			this.inFlight.delete(specifier);
-		});
+		const promise: Promise<VendorEntry> = this.prebundleSpecifier(specifier)
+			.then((entry) => {
+				if (this.inFlight.get(specifier) === promise) {
+					this.cache.set(specifier, entry);
+				}
+				return entry;
+			})
+			.finally(() => {
+				if (this.inFlight.get(specifier) === promise) {
+					this.inFlight.delete(specifier);
+				}
+			});
 		this.inFlight.set(specifier, promise);
 		return (await promise).url;
 	}
 
 	/**
 	 * @remarks
-	 * Responses carry `no-cache` and a content `ETag`, so browsers revalidate vendor
-	 * files each load and get `304` while `ifNoneMatch` still matches the file on disk.
+	 * Responses carry `no-cache` and a content `ETag`, so browsers revalidate each
+	 * load and get `304` while `ifNoneMatch` still matches the in-memory bundle.
 	 */
 	tryHandleVendorRequest(pathname: string, ifNoneMatch?: string | null): Response | null {
 		const prefix = `/${RESOLVED_ASSETS_VENDORS_DIR}/`;
@@ -101,17 +89,8 @@ export class DevTransformVendorRegistry {
 			return null;
 		}
 
-		const filePath = path.join(this.vendorsDir, fileName);
-		if (!fileSystem.exists(filePath)) {
-			for (const entry of this.cache.values()) {
-				if (entry.url === pathname && fileSystem.exists(entry.filePath)) {
-					return this.createVendorResponse(entry.filePath, ifNoneMatch);
-				}
-			}
-			return null;
-		}
-
-		return this.createVendorResponse(filePath, ifNoneMatch);
+		const entry = [...this.cache.values()].find((cachedEntry) => cachedEntry.url === pathname);
+		return entry ? this.createVendorResponse(entry, ifNoneMatch) : null;
 	}
 
 	invalidateAll(): void {
@@ -119,64 +98,31 @@ export class DevTransformVendorRegistry {
 		this.inFlight.clear();
 	}
 
-	private createVendorResponse(filePath: string, ifNoneMatch?: string | null): Response {
-		const { mtimeMs, size } = statSync(filePath);
-		const stamp = `${mtimeMs}:${size}`;
-		const cached = this.etags.get(filePath);
-		let body: string | undefined;
-		let etag = cached?.stamp === stamp ? cached.etag : undefined;
-		if (!etag) {
-			body = fileSystem.readFileSync(filePath);
-			etag = `"${createHash('sha256').update(body).digest('hex').slice(0, 16)}"`;
-			this.etags.set(filePath, { stamp, etag });
-		}
+	private createVendorResponse(entry: VendorEntry, ifNoneMatch?: string | null): Response {
+		const etag = `"${createHash('sha256').update(entry.content).digest('hex').slice(0, 16)}"`;
 
 		const headers = { 'Cache-Control': 'no-cache', ETag: etag };
 		if (matchesIfNoneMatch(ifNoneMatch, etag)) {
 			return new Response(null, { status: 304, headers });
 		}
 
-		return new Response(body ?? fileSystem.readFileSync(filePath), {
+		return new Response(entry.content, {
 			headers: { ...headers, 'Content-Type': 'application/javascript' },
 		});
 	}
 
-	private resolveExistingVendorPath(url: string): string | undefined {
-		const prefix = `/${RESOLVED_ASSETS_VENDORS_DIR}/`;
-		const pathname = new URL(url, 'http://ecopages.local').pathname;
-		if (!pathname.startsWith(prefix)) {
-			return undefined;
-		}
-
-		const fileName = pathname.slice(prefix.length);
-		if (!fileName || fileName.includes('..')) {
-			return undefined;
-		}
-
-		const filePath = path.join(this.vendorsDir, fileName);
-		return fileSystem.exists(filePath) ? filePath : undefined;
-	}
-
 	private async prebundleSpecifier(specifier: string): Promise<VendorEntry> {
 		const resolvedEntry = this.resolvePackageEntry(specifier);
-		fileSystem.ensureDir(this.vendorsDir);
-
-		const fileName = `${sanitizeSpecifierForFileName(specifier)}.${hashVendorEntry(specifier, resolvedEntry)}.js`;
-		const outPath = path.join(this.vendorsDir, fileName);
+		const fileName = `${sanitizeSpecifierForFileName(specifier)}.${hashVendorSpecifier(specifier)}.js`;
 		const url = `/${RESOLVED_ASSETS_VENDORS_DIR}/${fileName}`;
-
-		if (fileSystem.exists(outPath)) {
-			const entry = { url, filePath: outPath };
-			this.cache.set(specifier, entry);
-			return entry;
-		}
 
 		const vendorPlugins = this.resolveVendorBundlePlugins ? await this.resolveVendorBundlePlugins() : [];
 		const result = await this.browserBundleService.bundle({
 			profile: 'browser-script',
 			entrypoints: [resolvedEntry.path],
-			outdir: this.vendorsDir,
+			outdir: path.join(this.appConfig.absolutePaths.workDir, 'vendor-memory'),
 			naming: fileName,
+			writeToDisk: false,
 			minify: false,
 			externalPackages: false,
 			treeshaking: true,
@@ -191,19 +137,20 @@ export class DevTransformVendorRegistry {
 			throw new Error(formatVendorPrebundleError(specifier, details));
 		}
 
-		const outputPath = result.outputs[0]?.path ?? outPath;
-		const entry = { url, filePath: outputPath };
-		this.cache.set(specifier, entry);
-		return entry;
+		const output = result.outputs.find((candidate) => typeof candidate.content === 'string');
+		if (!output || typeof output.content !== 'string') {
+			throw new Error(`[dev-transform] Vendor prebundle produced no in-memory JavaScript for ${specifier}`);
+		}
+		return { url, content: output.content };
 	}
 
-	private resolvePackageEntry(specifier: string): ResolvedVendorEntry {
+	private resolvePackageEntry(specifier: string): { path: string } {
 		const resolved = resolveBarePackageBrowserEntry(this.appConfig.rootDir, specifier);
 		if (!resolved) {
 			throw new Error(`[dev-transform] Unable to resolve bare import "${specifier}" for vendor prebundle`);
 		}
 
-		return resolved;
+		return { path: resolved.path };
 	}
 }
 
@@ -225,65 +172,8 @@ function sanitizeSpecifierForFileName(specifier: string): string {
 	return specifier.replaceAll(/^@/gu, '').replaceAll(/[/:@]/gu, '-');
 }
 
-/**
- * @remarks
- * Includes the installed package's `version` because an entry file can stay
- * byte-identical across releases, and a bundle whose name already exists on disk
- * is reused, even after a restart. The manifest is the resolver's package root,
- * so aliased installs (`npm:react@x`) and renamed forks are versioned too.
- *
- * A workspace-linked package (its entry's real path is outside any `node_modules`,
- * as with a pnpm `workspace:` or `link:` dependency) is edited in place without a
- * version bump, so its whole source tree is hashed as well.
- */
-function hashVendorEntry(specifier: string, entry: ResolvedVendorEntry): string {
-	const hash = createHash('sha256')
-		.update(specifier)
-		.update('\0')
-		.update(readPackageVersion(entry.packageJsonPath))
-		.update('\0')
-		.update(fileSystem.readFileSync(entry.path));
-
-	if (entry.packageJsonPath && !entry.path.split(path.sep).includes('node_modules')) {
-		hashPackageTree(hash, path.dirname(realpathSync(entry.packageJsonPath)));
-	}
-
-	return hash.digest('hex').slice(0, 8);
-}
-
-/**
- * Feeds every file path and its bytes under `dir` into `hash`, in a stable order.
- *
- * @remarks
- * Skips `node_modules` and dot entries (`.git`, build caches). Dependencies of the
- * linked package are therefore not hashed; a change to them that leaves the
- * package's own files, `package.json` included, untouched keeps the old bundle.
- */
-function hashPackageTree(hash: ReturnType<typeof createHash>, dir: string): void {
-	const entries = readdirSync(dir, { withFileTypes: true }).sort((left, right) =>
-		left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
-	);
-	for (const dirent of entries) {
-		if (dirent.name === 'node_modules' || dirent.name.startsWith('.')) {
-			continue;
-		}
-
-		const entryPath = path.join(dir, dirent.name);
-		if (dirent.isDirectory()) {
-			hashPackageTree(hash, entryPath);
-		} else if (dirent.isFile()) {
-			hash.update(entryPath).update('\0').update(fileSystem.readFileAsBuffer(entryPath)).update('\0');
-		}
-	}
-}
-
-function readPackageVersion(packageJsonPath: string | undefined): string {
-	if (!packageJsonPath) {
-		return '';
-	}
-
-	const manifest: { version?: unknown } = JSON.parse(fileSystem.readFileSync(packageJsonPath));
-	return typeof manifest.version === 'string' ? manifest.version : '';
+function hashVendorSpecifier(specifier: string): string {
+	return createHash('sha256').update(specifier).digest('hex').slice(0, 8);
 }
 
 /**

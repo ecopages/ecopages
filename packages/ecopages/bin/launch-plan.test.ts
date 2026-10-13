@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
@@ -249,6 +250,11 @@ describe('launch-plan', () => {
 			return tempDir;
 		}
 
+		function writeBundleManifest(distDir: string, serverEntry = SERVER_BUNDLE_FILENAME) {
+			const serverDir = path.join(distDir, SERVER_BUNDLE_DIR);
+			fs.writeFileSync(path.join(serverDir, 'manifest.json'), JSON.stringify({ serverEntry }), 'utf8');
+		}
+
 		it('uses the bundled server entry in production for Node', async () => {
 			const tempDir = setupBundleFixture();
 			const realTempDir = fs.realpathSync(tempDir);
@@ -260,6 +266,7 @@ describe('launch-plan', () => {
 					'// bundled',
 					'utf8',
 				);
+				writeBundleManifest(path.join(tempDir, 'dist'));
 
 				const plan = await createLaunchPlan([], { runtime: 'node', nodeEnv: 'production' }, 'app.ts', 'start');
 
@@ -298,7 +305,7 @@ describe('launch-plan', () => {
 			}
 		});
 
-		it('runs production bundles with the emitted config even when source config exists', () => {
+		it('runs production bundles with the emitted config even when source config exists', async () => {
 			const tempDir = setupBundleFixture();
 			const realTempDir = fs.realpathSync(tempDir);
 			try {
@@ -320,7 +327,7 @@ describe('launch-plan', () => {
 					'utf8',
 				);
 
-				const plan = createLaunchPlan([], { runtime: 'node', nodeEnv: 'production' }, 'app.ts', 'start');
+				const plan = await createLaunchPlan([], { runtime: 'node', nodeEnv: 'production' }, 'app.ts', 'start');
 
 				expect(plan.env.ECOPAGES_CONFIG_FILE).toBe(resolvedEmittedConfigPath);
 				expect(plan.envOverrides.ECOPAGES_CONFIG_FILE).toBe(resolvedEmittedConfigPath);
@@ -339,6 +346,7 @@ describe('launch-plan', () => {
 					'// bundled',
 					'utf8',
 				);
+				writeBundleManifest(path.join(tempDir, 'dist'));
 
 				const plan = await createLaunchPlan([], { runtime: 'bun', nodeEnv: 'production' }, 'app.ts', 'start');
 
@@ -363,6 +371,7 @@ describe('launch-plan', () => {
 					'// bundled',
 					'utf8',
 				);
+				writeBundleManifest(path.join(tempDir, 'dist'));
 				fs.writeFileSync(path.join(tempDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
 
 				const plan = await createLaunchPlan(
@@ -380,6 +389,156 @@ describe('launch-plan', () => {
 					'app.ts',
 					'--dev',
 				]);
+			} finally {
+				fs.rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		function writeBundle(tempDir: string, distName: string, manifest: Record<string, unknown> = {}) {
+			const serverDir = path.join(tempDir, distName, SERVER_BUNDLE_DIR);
+			fs.mkdirSync(serverDir, { recursive: true });
+			fs.writeFileSync(path.join(serverDir, SERVER_BUNDLE_FILENAME), '// bundled', 'utf8');
+			fs.writeFileSync(
+				path.join(serverDir, 'manifest.json'),
+				JSON.stringify({ serverEntry: SERVER_BUNDLE_FILENAME, ...manifest }),
+				'utf8',
+			);
+		}
+
+		function startPlan(options: Record<string, unknown> = {}) {
+			return createLaunchPlan([], { runtime: 'node', nodeEnv: 'production', ...options }, 'app.ts', 'start');
+		}
+
+		it('starts the bundle built into a custom distDir when no dist directory exists', async () => {
+			const tempDir = setupBundleFixture();
+			const realTempDir = fs.realpathSync(tempDir);
+			try {
+				writeBundle(tempDir, 'build');
+
+				const plan = await startPlan();
+
+				expect(plan.commandArgs).toEqual([
+					path.join(realTempDir, 'build', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
+				]);
+			} finally {
+				fs.rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it('refuses to guess between two bundles and names both', async () => {
+			const tempDir = setupBundleFixture();
+			try {
+				writeBundle(tempDir, 'dist');
+				writeBundle(tempDir, 'build');
+
+				await expect(startPlan()).rejects.toThrow(
+					/Multiple production bundles found: build, dist\. Pass --dist-dir <dir> to select one\./,
+				);
+			} finally {
+				fs.rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it('starts the bundle that --dist-dir names when several exist', async () => {
+			const tempDir = setupBundleFixture();
+			const realTempDir = fs.realpathSync(tempDir);
+			try {
+				writeBundle(tempDir, 'dist');
+				writeBundle(tempDir, 'build');
+
+				const plan = await startPlan({ distDir: 'build' });
+
+				expect(plan.commandArgs).toEqual([
+					path.join(realTempDir, 'build', SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME),
+				]);
+			} finally {
+				fs.rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it('fails when --dist-dir names a directory without a bundle instead of using another one', async () => {
+			const tempDir = setupBundleFixture();
+			try {
+				writeBundle(tempDir, 'dist');
+
+				await expect(startPlan({ distDir: 'build' })).rejects.toThrow(
+					/No production bundle found in build\/\.server/,
+				);
+			} finally {
+				fs.rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it('runs the emitted config of the selected output directory', async () => {
+			const tempDir = setupBundleFixture();
+			const realTempDir = fs.realpathSync(tempDir);
+			try {
+				writeBundle(tempDir, 'build', { emittedConfigModule: 'eco.config.mjs' });
+				fs.writeFileSync(path.join(tempDir, 'build', SERVER_BUNDLE_DIR, 'eco.config.mjs'), 'export default {}');
+
+				const plan = await startPlan();
+
+				expect(plan.env.ECOPAGES_CONFIG_FILE).toBe(
+					path.join(realTempDir, 'build', SERVER_BUNDLE_DIR, 'eco.config.mjs'),
+				);
+			} finally {
+				fs.rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it('rejects an emitted config of the selected output directory that changed after the build', async () => {
+			const tempDir = setupBundleFixture();
+			try {
+				const emittedPath = path.join(tempDir, 'build', SERVER_BUNDLE_DIR, 'eco.config.mjs');
+				writeBundle(tempDir, 'build', {
+					emittedConfigModule: 'eco.config.mjs',
+					emittedConfigHash: createHash('sha256').update('export default {}').digest('hex'),
+				});
+				fs.writeFileSync(emittedPath, 'export default { edited: true }');
+
+				await expect(startPlan()).rejects.toThrow(/Ecopages config mismatch/);
+			} finally {
+				fs.rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it('runs the emitted config of the selected output directory for an explicit --config', async () => {
+			const tempDir = setupBundleFixture();
+			const realTempDir = fs.realpathSync(tempDir);
+			try {
+				const configPath = path.join(tempDir, 'eco.config.ts');
+				fs.writeFileSync(configPath, 'export default {};', 'utf8');
+				writeBundle(tempDir, 'build', {
+					emittedConfigModule: 'eco.config.mjs',
+					configHash: createHash('sha256').update(fs.readFileSync(configPath)).digest('hex'),
+				});
+				fs.writeFileSync(path.join(tempDir, 'build', SERVER_BUNDLE_DIR, 'eco.config.mjs'), 'export default {}');
+
+				const plan = await startPlan({ configFile: 'eco.config.ts' });
+
+				expect(plan.env.ECOPAGES_CONFIG_FILE).toBe(
+					path.join(realTempDir, 'build', SERVER_BUNDLE_DIR, 'eco.config.mjs'),
+				);
+			} finally {
+				fs.rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it('checks an explicit config against the manifest of the selected output directory', async () => {
+			const tempDir = setupBundleFixture();
+			try {
+				const sourceConfigPath = path.join(tempDir, 'eco.config.ts');
+				const otherConfigPath = path.join(tempDir, 'other.config.ts');
+				fs.writeFileSync(sourceConfigPath, 'export default {};', 'utf8');
+				fs.writeFileSync(otherConfigPath, 'export default { other: true };', 'utf8');
+				const hashOf = (file: string) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+				writeBundle(tempDir, 'dist', { configHash: hashOf(otherConfigPath) });
+				writeBundle(tempDir, 'build', { configHash: hashOf(sourceConfigPath) });
+
+				await expect(startPlan({ distDir: 'build', configFile: 'other.config.ts' })).rejects.toThrow(
+					/Ecopages config mismatch/,
+				);
+				await expect(startPlan({ distDir: 'dist', configFile: 'other.config.ts' })).resolves.toBeDefined();
 			} finally {
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
@@ -417,15 +576,13 @@ describe('launch-plan', () => {
 			}
 		});
 
-		it('throws in production when bundle is missing', () => {
+		it('throws in production when bundle is missing', async () => {
 			const tempDir = setupBundleFixture();
 			try {
 				vi.stubEnv('npm_config_user_agent', 'pnpm/10.0.0 npm/? node/v24.0.0 darwin arm64');
 				fs.writeFileSync(path.join(tempDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
 
-				expect(() =>
-					createLaunchPlan([], { runtime: 'node', nodeEnv: 'production' }, 'app.ts', 'start'),
-				).toThrow(/No production bundle found/);
+				await expect(startPlan()).rejects.toThrow(/No production bundle found/);
 			} finally {
 				fs.rmSync(tempDir, { recursive: true, force: true });
 			}
@@ -442,6 +599,7 @@ describe('launch-plan', () => {
 					'// bundled',
 					'utf8',
 				);
+				writeBundleManifest(path.join(tempDir, 'dist'));
 
 				const plan = await createLaunchPlan(
 					['--port', '4000', '--hostname', '127.0.0.1'],

@@ -155,19 +155,36 @@ describe('DevTransformServer', () => {
 
 	it('answers a vendor request with 304 when If-None-Match carries its ETag', async () => {
 		const rootDir = createTempRoot('dev-transform-vendor-etag');
+		fs.writeFileSync(
+			path.join(rootDir, 'package.json'),
+			JSON.stringify({ name: 'vendor-etag-app', type: 'module' }),
+		);
+		const packageDir = path.join(rootDir, 'node_modules', 'fixture-lib');
+		fs.mkdirSync(packageDir, { recursive: true });
+		fs.writeFileSync(
+			path.join(packageDir, 'package.json'),
+			JSON.stringify({ name: 'fixture-lib', version: '1.0.0', type: 'module', module: 'index.js' }),
+		);
+		fs.writeFileSync(path.join(packageDir, 'index.js'), 'export const release = 1;');
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		installBuildRuntime(config);
 		const server = new DevTransformServer({ appConfig: config });
-		const vendorsDir = path.join(config.absolutePaths.distDir, 'assets', 'vendors');
-		fs.mkdirSync(vendorsDir, { recursive: true });
-		fs.writeFileSync(path.join(vendorsDir, 'fixture-lib.js'), 'export const release = 1;');
-		const url = 'http://localhost/assets/vendors/fixture-lib.js';
+		const sourcePath = path.join(config.absolutePaths.srcDir, 'vendor-consumer.ts');
+		fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+		fs.writeFileSync(sourcePath, "import { release } from 'fixture-lib';\nexport { release };\n");
+		const moduleUrl = server.registerModule(sourcePath);
+		const consumer = await server.tryHandleRequest(new Request(`http://localhost${moduleUrl}`));
+		const consumerCode = await consumer?.text();
+		const vendorUrl = consumerCode?.match(/['"](\/assets\/vendors\/[^'"]+)['"]/u)?.[1];
+		expect(vendorUrl).toBeTruthy();
 
-		const first = await server.tryHandleRequest(new Request(url));
+		const first = await server.tryHandleRequest(new Request(`http://localhost${vendorUrl}`));
 		const etag = first?.headers.get('ETag');
 		expect(etag).toBeTruthy();
+		expect(fs.existsSync(path.join(config.absolutePaths.distDir, vendorUrl!.slice('/'.length)))).toBe(false);
 
 		const revalidated = await server.tryHandleRequest(
-			new Request(url, { headers: { 'If-None-Match': `${etag}` } }),
+			new Request(`http://localhost${vendorUrl}`, { headers: { 'If-None-Match': `${etag}` } }),
 		);
 		expect(revalidated?.status).toBe(304);
 	});

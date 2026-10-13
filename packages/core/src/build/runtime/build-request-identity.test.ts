@@ -42,6 +42,7 @@ test('createBuildRequestIdentity distinguishes output-affecting fields', () => {
 		{ field: 'minify', left: true, right: false },
 		{ field: 'treeshaking', left: true, right: false },
 		{ field: 'naming', left: '[name].js', right: '[name]-[hash].js' },
+		{ field: 'writeToDisk', left: true, right: false },
 	];
 
 	for (const { field, left, right } of cases) {

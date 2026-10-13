@@ -91,7 +91,7 @@ export class FileSystemResponseMatcher {
 	 * @param requestUrl Incoming pathname.
 	 * @returns Static file response or rendered 404 response.
 	 */
-	async handleNoMatch(requestUrl: string): Promise<Response> {
+	async handleNoMatch(requestUrl: string, request?: Request): Promise<Response> {
 		const isStaticFileRequest = ServerUtils.hasKnownStaticExtension(requestUrl);
 
 		if (!isStaticFileRequest) {
@@ -106,7 +106,10 @@ export class FileSystemResponseMatcher {
 		const filePath = path.join(this.assetPrefix, relativeUrl);
 		const contentType = ServerUtils.getContentType(filePath);
 
-		const response = await this.fileSystemResponseFactory.createFileResponse(filePath, contentType);
+		const response = await this.fileSystemResponseFactory.createFileResponse(filePath, contentType, {
+			acceptEncoding: request?.headers.get('Accept-Encoding'),
+			ifNoneMatch: request?.headers.get('If-None-Match'),
+		});
 		return (
 			response ??
 			this.renderClientErrorResponseOrServerError(

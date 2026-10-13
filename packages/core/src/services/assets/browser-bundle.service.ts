@@ -6,6 +6,7 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { requestBuildDedupe } from '../../diagnostics/request-build-dedupe.ts';
 import { createBuildRequestIdentity } from '../../build/runtime/build-request-identity.ts';
+import { forgetHashedBrowserAsset, recordHashedBrowserAsset } from './hashed-browser-asset.ts';
 
 /**
  * Browser-oriented build request accepted by {@link BrowserBundleService}.
@@ -36,6 +37,7 @@ export type BrowserBundleOptions = {
 	externalPackages?: boolean;
 	external?: string[];
 	plugins?: EcoBuildPlugin[];
+	writeToDisk?: boolean;
 	executor?: 'build' | 'hmr';
 	profile: 'browser-script' | 'hmr-runtime' | 'hmr-entrypoint';
 	excludeAppBuildPlugins?: string[];
@@ -97,6 +99,15 @@ export class BrowserBundleService {
 
 		return requestBuildDedupe.dedupeBuild(dedupeKey, async () => {
 			const result = await buildExecutor.build(request);
+			if (result.success && options.writeToDisk !== false) {
+				for (const output of result.outputs) {
+					if (output.contentHashed === true) {
+						recordHashedBrowserAsset(output.path);
+					} else if (output.contentHashed === false) {
+						forgetHashedBrowserAsset(output.path);
+					}
+				}
+			}
 			startupTrace.recordBrowserBundle(result.outputs);
 			return result;
 		});

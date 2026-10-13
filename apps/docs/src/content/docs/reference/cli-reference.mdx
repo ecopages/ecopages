@@ -76,7 +76,7 @@ Builds your project and starts a local production server for testing.
 
 ### `start`
 
-Starts the production server using the existing build in the `dist` directory.
+Starts the production server using the existing build. `start` does not read `distDir` from `eco.config.ts`. It runs the only `<dir>/.server/manifest.json` that exists one level below the app root, including dot-prefixed directories such as `.output`. With none it asks you to run `ecopages build`, and with several it fails and lists them. Pass `--dist-dir <dir>` to choose one, which is also needed for a nested output such as `out/web` or a symlinked directory. An app that builds several outputs, such as `dist-<scope>` per build target, therefore needs `--dist-dir` for a plain `start`.
 
 - Does not watch files for changes.
 - optimized for performance.
@@ -105,6 +105,7 @@ These flags are supported by server commands and map to environment variables.
 | `-d, --debug`              | `ECOPAGES_LOGGER_DEBUG` | Enable debug logs                                         |
 | `-c, --config <file>`      | `ECOPAGES_CONFIG_FILE`  | Ecopages config file (default `eco.config.ts`)            |
 | `--runtime <runtime>`      | -                       | Force execution via `bun` or `node` |
+| `--dist-dir <dir>`         | -                       | `start` only: select the existing production output directory |
 
 ---
 

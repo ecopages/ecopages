@@ -1,16 +1,17 @@
 /**
- * Root Vitest config: `shared-core` (node) and `browser`.
- *
- * Opt-in suites: `scripts/vitest-optional-includes.ts` + `e2e/README.md`.
+ * Root Vitest config: `shared-core` (node), `browser`, and one project per app or template that keeps its own `@` alias:
+ * `docs`, `docs-starter` and `llm-wiki`.
  */
 import { defineConfig, configDefaults } from 'vitest/config';
-import { getOptionalVitestIncludes } from './scripts/vitest-optional-includes.ts';
 
 export default defineConfig({
 	test: {
 		silent: 'passed-only',
 		projects: [
 			'vitest.browser.config.ts',
+			'apps/docs/vitest.config.ts',
+			'templates/docs-starter/vitest.config.ts',
+			'templates/llm-wiki/app/vitest.config.ts',
 			{
 				test: {
 					name: 'shared-core',
@@ -35,8 +36,8 @@ export default defineConfig({
 						'e2e/scripts/**/*.test.ts',
 						'e2e/playwright/**/*.test.ts',
 						'scripts/**/*.test.ts',
+						'playground/kitchen-sink/bench/*.test.ts',
 						'playground/kitchen-sink/bench/lib/**/*.test.ts',
-						...getOptionalVitestIncludes(),
 					],
 					exclude: [...configDefaults.exclude, 'packages/**/*.test.node.ts', 'packages/**/*.test.bun.ts'],
 				},

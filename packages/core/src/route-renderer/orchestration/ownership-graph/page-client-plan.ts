@@ -46,8 +46,49 @@ export type PageClientPlan = {
 	 * {@link PageClientPlan.islandEntries}, which is the foreign-to-parent subset.
 	 */
 	sourceComponents: EcoComponent[];
-	componentsWithForeignDescendants: WeakSet<object>;
 };
+
+type PlanGraph = {
+	integrationByComponent: ReadonlyMap<object, string>;
+	childrenByComponent: ReadonlyMap<object, readonly EcoComponent[]>;
+	foreignByIntegration: Map<string, Map<object, boolean>>;
+};
+
+const planGraphs = new WeakMap<PageClientPlan, PlanGraph>();
+
+/**
+ * Whether `component`, or anything below it, belongs to an Integration other than `integrationName`.
+ *
+ * @remarks
+ * One plan answers for any renderer: a nested renderer asks the page owner's plan about its own
+ * Integration instead of building a plan of its own. Answers are memoized per Integration, and a
+ * cycle in the declared graph counts as no foreign descendants.
+ */
+function isForeignTo(graph: PlanGraph, component: object, integrationName: string): boolean {
+	let memo = graph.foreignByIntegration.get(integrationName);
+	if (!memo) {
+		memo = new Map();
+		graph.foreignByIntegration.set(integrationName, memo);
+	}
+
+	const known = memo.get(component);
+	if (known !== undefined) {
+		return known;
+	}
+
+	memo.set(component, false);
+	let found = (graph.integrationByComponent.get(component) ?? integrationName) !== integrationName;
+	if (!found) {
+		for (const child of graph.childrenByComponent.get(component) ?? []) {
+			if (isForeignTo(graph, child, integrationName)) {
+				found = true;
+				break;
+			}
+		}
+	}
+	memo.set(component, found);
+	return found;
+}
 
 /**
  * Browser assets produced from one page client plan.
@@ -155,37 +196,7 @@ export function collectPageClientPlan(roots: ComponentGraphRoot[], currentIntegr
 		},
 	});
 
-	const componentsWithForeignDescendants = new WeakSet<object>();
-	const foreignCache = new Map<object, boolean>();
-
-	const isForeignToRenderer = (component: EcoComponent): boolean => {
-		const cached = foreignCache.get(component);
-		if (cached !== undefined) {
-			return cached;
-		}
-
-		const ownIntegration = integrationByComponent.get(component) ?? currentIntegrationName;
-		let found = ownIntegration !== currentIntegrationName;
-		if (!found) {
-			for (const child of childrenByComponent.get(component) ?? []) {
-				if (isForeignToRenderer(child)) {
-					found = true;
-					break;
-				}
-			}
-		}
-		foreignCache.set(component, found);
-		if (found) {
-			componentsWithForeignDescendants.add(component);
-		}
-		return found;
-	};
-
-	for (const component of visited) {
-		isForeignToRenderer(component);
-	}
-
-	return {
+	const plan: PageClientPlan = {
 		currentIntegrationName,
 		integrationNames,
 		lazyTriggers,
@@ -193,8 +204,9 @@ export function collectPageClientPlan(roots: ComponentGraphRoot[], currentIntegr
 		lazyConfigs,
 		islandEntries,
 		sourceComponents,
-		componentsWithForeignDescendants,
 	};
+	planGraphs.set(plan, { integrationByComponent, childrenByComponent, foreignByIntegration: new Map() });
+	return plan;
 }
 
 /**
@@ -228,21 +240,39 @@ export function selectHydrationIslandEntries(
 }
 
 /**
- * Returns whether a component's declared subtree (plus optional extra roots) crosses integrations.
+ * Returns whether the plan's declared graph includes `component` and every extra root.
+ *
+ * @remarks
+ * A renderer asks {@link planHasForeignChildDescendants} only for components the plan walked;
+ * anything else needs a plan of its own.
+ */
+export function planCoversComponents(
+	plan: PageClientPlan,
+	component: EcoComponent,
+	foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
+): boolean {
+	const graph = planGraphs.get(plan);
+	if (!graph) {
+		return false;
+	}
+
+	return [component, ...(foreignChildRoots ?? [])].every((entry) => graph.integrationByComponent.has(entry));
+}
+
+/**
+ * Returns whether a component's declared subtree (plus optional extra roots) crosses integrations,
+ * seen from the renderer of `integrationName`.
  */
 export function planHasForeignChildDescendants(
 	plan: PageClientPlan,
 	component: EcoComponent,
-	currentIntegrationName: string,
+	integrationName: string,
 	foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
 ): boolean {
-	for (const root of foreignChildRoots ?? []) {
-		if (getIntegrationName(root, currentIntegrationName) !== currentIntegrationName) {
-			return true;
-		}
-		if (plan.componentsWithForeignDescendants.has(root)) {
-			return true;
-		}
+	const graph = planGraphs.get(plan);
+	if (!graph) {
+		return false;
 	}
-	return plan.componentsWithForeignDescendants.has(component);
+
+	return [component, ...(foreignChildRoots ?? [])].some((entry) => isForeignTo(graph, entry, integrationName));
 }

@@ -4,6 +4,7 @@ import type { EcoComponent, ResolvedLazyTrigger } from '../../../types/public-ty
 import * as componentGraph from './component-graph.ts';
 import {
 	collectPageClientPlan,
+	planCoversComponents,
 	planHasForeignChildDescendants,
 	selectHydrationIslandEntries,
 } from './page-client-plan.ts';
@@ -179,4 +180,34 @@ test('collectPageClientPlan gives a component with both an identity and a config
 		plan.islandEntries.map((entry) => [entry.file, entry.integrationName]),
 		[['/app/child.tsx', 'react']],
 	);
+});
+
+test('planHasForeignChildDescendants answers for the renderer asking, from the page owner plan', () => {
+	const leaf = createComponent({ integration: 'react', file: '/app/leaf.tsx' });
+	const kitaChild = createComponent({ integration: 'kitajs', file: '/app/child.kita.tsx' });
+	const reactParent = createComponent({ integration: 'react', file: '/app/parent.tsx', children: [kitaChild] });
+	const page = createComponent({
+		integration: 'kitajs',
+		file: '/app/page.kita.tsx',
+		children: [leaf, reactParent],
+	});
+
+	const plan = collectPageClientPlan([{ component: page }], 'kitajs');
+
+	assert.equal(planHasForeignChildDescendants(plan, leaf, 'react'), false);
+	assert.equal(planHasForeignChildDescendants(plan, reactParent, 'react'), true);
+	assert.equal(planHasForeignChildDescendants(plan, kitaChild, 'kitajs'), false);
+	assert.equal(planHasForeignChildDescendants(plan, page, 'kitajs'), true);
+	assert.equal(planCoversComponents(plan, leaf), true);
+	assert.equal(planCoversComponents(plan, createComponent({ integration: 'react' })), false);
+});
+
+test('planHasForeignChildDescendants terminates on a cycle in the declared graph', () => {
+	const first = createComponent({ integration: 'kitajs', file: '/app/first.kita.tsx' });
+	const second = createComponent({ integration: 'kitajs', file: '/app/second.kita.tsx', children: [first] });
+	first.config!.dependencies = { components: [second] };
+
+	const plan = collectPageClientPlan([{ component: first }], 'kitajs');
+
+	assert.equal(planHasForeignChildDescendants(plan, first, 'kitajs'), false);
 });

@@ -38,11 +38,12 @@ import { getComponentIdentity } from '../../eco/component-identity.ts';
 import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
 import {
 	collectPageClientPlan,
+	planCoversComponents,
 	planHasForeignChildDescendants,
-	uniqueIslandIntegrationNames,
 	type PageClientBrowserAssets,
 	type PageClientPlan,
 } from './ownership-graph/page-client-plan.ts';
+import { buildPageClientBrowserAssets } from './ownership-graph/page-client-browser-assets.ts';
 import {
 	finalizeComponentRender,
 	getComponentRenderContext,
@@ -1032,22 +1033,21 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 	/**
 	 * @remarks
-	 * The active plan answers "foreign to whom" for the page owner. A nested renderer of another
-	 * Integration, such as a React leaf under a Kita page, must not reuse it: every React component
-	 * is foreign to Kita, so the plan would report foreign children for a leaf that has none. That
-	 * renderer builds a plan for itself.
+	 * The active plan is the page owner's, but it answers for any renderer: a nested renderer of
+	 * another Integration asks it about its own Integration, so a React leaf under a Kita page has no
+	 * foreign children. A component the plan did not walk gets a plan built for it.
 	 */
 	protected hasForeignChildDescendants(
 		component: EcoComponent,
 		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
 	): boolean {
 		const activePlan = getComponentRenderContext()?.pageClientPlan;
-		if (activePlan?.currentIntegrationName === this.name) {
+		if (activePlan && planCoversComponents(activePlan, component, foreignChildRoots)) {
 			return planHasForeignChildDescendants(activePlan, component, this.name, foreignChildRoots);
 		}
 
 		const plan = collectPageClientPlan(
-			[{ component }, ...(foreignChildRoots ?? []).map((child) => ({ component: child }))],
+			[component, ...(foreignChildRoots ?? [])].map((root) => ({ component: root })),
 			this.name,
 		);
 		return planHasForeignChildDescendants(plan, component, this.name, foreignChildRoots);
@@ -1077,56 +1077,30 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Builds island and lazy-entry browser assets from the page client plan.
 	 *
 	 * @remarks
-	 * The page owner collects its own island assets, then asks every other
-	 * island-hydrating integration on the plan to contribute its grouped client
-	 * build. Lazy entries join that same grouped build when an Integration
-	 * includes them; otherwise they are processed here as one grouped batch.
+	 * The planning and merging live in `ownership-graph/page-client-browser-assets.ts`; this method
+	 * supplies what only the renderer has: its own island assets, the owning renderers of other
+	 * Integrations, and its asset service.
 	 */
 	protected async buildPageClientBrowserAssets(plan: PageClientPlan): Promise<PageClientBrowserAssets> {
-		const { islandRenderAssetsByFile, processedAssets: combined } =
-			await this.collectContributorPageClientAssets(plan);
-		const lazyAlreadyProcessed = combined.some((asset) => Boolean(asset.attributes?.['data-eco-lazy-key']));
-		const processedLazy =
-			!lazyAlreadyProcessed && plan.lazyClientEntries.length > 0
-				? await this.assetProcessingService.processDependencies(plan.lazyClientEntries, this.name)
-				: [];
-		const processedAssets = [...combined, ...processedLazy];
-		const lazyTriggers = this.dependencyResolverService.applyPendingLazyTriggers(processedAssets, plan.lazyConfigs);
-		return {
-			processedAssets,
-			islandRenderAssetsByFile,
-			lazyTriggers,
-		};
-	}
-
-	/**
-	 * Merges this renderer's island assets with grouped client builds from other
-	 * island-hydrating integrations on the plan.
-	 */
-	private async collectContributorPageClientAssets(plan: PageClientPlan): Promise<{
-		islandRenderAssetsByFile: Map<string, ProcessedAsset[]>;
-		processedAssets: ProcessedAsset[];
-	}> {
-		const ownIslands = await this.collectIslandRenderAssets(plan);
-		const islandRenderAssetsByFile = new Map<string, ProcessedAsset[]>();
-		mergeIslandRenderAssetMaps(islandRenderAssetsByFile, ownIslands);
-		const processedAssets = [...ownIslands.values()].flat();
 		const rendererCache = new Map<string, ForeignSubtreeExecutionOwningRenderer>();
-
-		for (const integrationName of uniqueIslandIntegrationNames(plan)) {
-			if (integrationName === this.name) {
-				continue;
-			}
-			const owning = await this.resolveOwningRenderer(integrationName, rendererCache);
-			if (!(owning instanceof IntegrationRenderer) || !owning.contributesAppBrowserClientBuild()) {
-				continue;
-			}
-			const contributed = await owning.buildPageClientBrowserAssets(plan);
-			mergeIslandRenderAssetMaps(islandRenderAssetsByFile, contributed.islandRenderAssetsByFile);
-			processedAssets.push(...contributed.processedAssets);
-		}
-
-		return { islandRenderAssetsByFile, processedAssets };
+		return buildPageClientBrowserAssets({
+			plan,
+			integrationName: this.name,
+			collectOwnIslandAssets: (ownPlan) => this.collectIslandRenderAssets(ownPlan),
+			resolveContributor: async (integrationName) => {
+				const owning = await this.resolveOwningRenderer(integrationName, rendererCache);
+				return owning instanceof IntegrationRenderer
+					? {
+							contributesAppBrowserClientBuild: () => owning.contributesAppBrowserClientBuild(),
+							buildPageClientBrowserAssets: (contributedPlan) =>
+								owning.buildPageClientBrowserAssets(contributedPlan),
+						}
+					: undefined;
+			},
+			processLazyEntries: (entries) => this.assetProcessingService.processDependencies(entries, this.name),
+			applyPendingLazyTriggers: (assets, configs) =>
+				this.dependencyResolverService.applyPendingLazyTriggers(assets, configs),
+		});
 	}
 
 	/**
@@ -1201,15 +1175,5 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			runtimeContextKey: getForeignSubtreeResolutionContextKey(this.name),
 			tokenPrefix: getForeignSubtreeTokenPrefix(this.name),
 		});
-	}
-}
-
-function mergeIslandRenderAssetMaps(
-	target: Map<string, ProcessedAsset[]>,
-	source: Map<string, ProcessedAsset[]>,
-): void {
-	for (const [file, assets] of source) {
-		const existing = target.get(file);
-		target.set(file, existing ? [...existing, ...assets] : assets);
 	}
 }

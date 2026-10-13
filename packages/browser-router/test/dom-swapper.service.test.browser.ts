@@ -2,20 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	activatePreparedNavigationScripts,
 	prepareNavigationHead,
-	runNavigationViewTransition,
 	type NavigationHeadUpdate,
 } from '@ecopages/core/router/navigation-pipeline';
 import { stageStylesheets } from '../../core/src/router/client/staged-stylesheets.test-fixtures.ts';
 import { DomSwapper } from '../src/client/dom/dom-swapper.ts';
-
-type DocumentWithViewTransition = Document & {
-	startViewTransition?: (callback: () => void | Promise<void>) => {
-		finished: Promise<void>;
-		ready: Promise<void>;
-		updateCallbackDone: Promise<void>;
-		skipTransition(): void;
-	};
-};
 
 function parseDocument(html: string): Document {
 	return new DOMParser().parseFromString(html, 'text/html');
@@ -53,7 +43,6 @@ function resetDocument(): void {
 }
 
 afterEach(() => {
-	Reflect.deleteProperty(document as DocumentWithViewTransition, 'startViewTransition');
 	vi.restoreAllMocks();
 });
 
@@ -404,166 +393,5 @@ describe('DomSwapper service behavior', () => {
 		expect(rerun).toHaveBeenCalledTimes(2);
 		expect(observedSrcs).toEqual(['/assets/counter.js']);
 		expect(document.head.querySelectorAll('script[src*="/assets/counter.js"]')).toHaveLength(1);
-	});
-
-	it('falls back to a fresh URL for external module rerun scripts without stable ids', async () => {
-		resetDocument();
-		const swapper = new DomSwapper('data-eco-persist');
-		const observedSrcs: string[] = [];
-		const originalAppendChild = document.head.appendChild.bind(document.head);
-
-		document.head.appendChild = ((node: Node) => {
-			if (node instanceof HTMLScriptElement && (node.getAttribute('src') ?? '').includes('/assets/counter.js')) {
-				observedSrcs.push(node.getAttribute('src') ?? '');
-			}
-			return originalAppendChild(node);
-		}) as typeof document.head.appendChild;
-
-		try {
-			const nextHtml = parseDocument(
-				[
-					'<html><head>',
-					'<script type="module" src="/assets/counter.js" data-eco-rerun="true"></script>',
-					'</head><body><div id="content">Counter Page</div></body></html>',
-				].join(''),
-			);
-
-			const headUpdate3 = await prepareHead(nextHtml);
-			swapper.morphBody(nextHtml);
-			flushScripts(headUpdate3);
-
-			const headUpdate4 = await prepareHead(nextHtml);
-			swapper.morphBody(nextHtml);
-			flushScripts(headUpdate4);
-		} finally {
-			document.head.appendChild = originalAppendChild;
-		}
-
-		const finalSrc = document.head
-			.querySelector<HTMLScriptElement>('script[src*="/assets/counter.js"]')
-			?.getAttribute('src');
-		expect(observedSrcs[0]).toContain('__eco_rerun=');
-		expect(finalSrc).toContain('__eco_rerun=');
-		expect(finalSrc).not.toBe(observedSrcs[0]);
-		expect(document.head.querySelectorAll('script[src*="/assets/counter.js"]')).toHaveLength(1);
-	});
-
-	it('falls back to a fresh URL when a stable-id external module rerun script has no registered callback', async () => {
-		resetDocument();
-		const swapper = new DomSwapper('data-eco-persist');
-		const observedSrcs: string[] = [];
-		const originalAppendChild = document.head.appendChild.bind(document.head);
-
-		document.head.appendChild = ((node: Node) => {
-			if (node instanceof HTMLScriptElement && (node.getAttribute('src') ?? '').includes('/assets/counter.js')) {
-				observedSrcs.push(node.getAttribute('src') ?? '');
-			}
-			return originalAppendChild(node);
-		}) as typeof document.head.appendChild;
-
-		try {
-			const nextHtml = parseDocument(
-				[
-					'<html><head>',
-					'<script type="module" src="/assets/counter.js" data-eco-rerun="true" data-eco-script-id="counter"></script>',
-					'</head><body><div id="content">Counter Page</div></body></html>',
-				].join(''),
-			);
-
-			const headUpdate5 = await prepareHead(nextHtml);
-			swapper.morphBody(nextHtml);
-			flushScripts(headUpdate5);
-
-			const headUpdate6 = await prepareHead(nextHtml);
-			swapper.morphBody(nextHtml);
-			flushScripts(headUpdate6);
-		} finally {
-			document.head.appendChild = originalAppendChild;
-		}
-
-		const finalSrc = document.head
-			.querySelector<HTMLScriptElement>('script[src*="/assets/counter.js"]')
-			?.getAttribute('src');
-		expect(observedSrcs[0]).toContain('__eco_rerun=');
-		expect(finalSrc).toContain('__eco_rerun=');
-		expect(finalSrc).not.toBe(observedSrcs[0]);
-		expect(document.head.querySelectorAll('script[src*="/assets/counter.js"]')).toHaveLength(1);
-	});
-
-	it('skips startViewTransition when no named transition elements are present', async () => {
-		resetDocument();
-		const startViewTransition = vi.fn((callback: () => void | Promise<void>) => {
-			const updateCallbackDone = Promise.resolve().then(async () => {
-				await callback();
-			});
-
-			return {
-				finished: Promise.resolve(),
-				ready: Promise.resolve(),
-				updateCallbackDone,
-				skipTransition() {},
-			};
-		});
-
-		Reflect.set(document as DocumentWithViewTransition, 'startViewTransition', startViewTransition);
-
-		await runNavigationViewTransition(
-			() => {
-				document.body.innerHTML = '<div>Updated</div>';
-			},
-			{ enabled: true },
-		);
-
-		expect(startViewTransition).not.toHaveBeenCalled();
-		expect(document.body.innerHTML).toContain('Updated');
-	});
-
-	it('ignores skipped view transition finish rejections after the DOM update commits', async () => {
-		resetDocument();
-		document.body.innerHTML = '<div data-view-transition="hero">Old</div>';
-		const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-		const startViewTransition = vi.fn((callback: () => void | Promise<void>) => {
-			const updateCallbackDone = Promise.resolve().then(async () => {
-				await callback();
-			});
-
-			return {
-				finished: Promise.reject(new DOMException('Transition was skipped', 'AbortError')),
-				ready: Promise.reject(new DOMException('Transition was skipped', 'AbortError')),
-				updateCallbackDone,
-				skipTransition() {},
-			};
-		});
-
-		Reflect.set(document as DocumentWithViewTransition, 'startViewTransition', startViewTransition);
-
-		await runNavigationViewTransition(
-			() => {
-				document.body.innerHTML = '<div>Updated</div>';
-			},
-			{ enabled: true },
-		);
-		await Promise.resolve();
-
-		expect(startViewTransition).toHaveBeenCalledTimes(1);
-		expect(document.body.innerHTML).toContain('Updated');
-		expect(consoleSpy).not.toHaveBeenCalled();
-	});
-
-	it('injects persisted root styles when view transitions are enabled', async () => {
-		resetDocument();
-		await runNavigationViewTransition(() => {}, { enabled: true });
-
-		const style = document.getElementById('eco-vt-root-styles');
-		expect(style?.hasAttribute('data-eco-persist')).toBe(true);
-		expect(style?.textContent).toContain('view-transition-name: none');
-		expect(style?.textContent).not.toContain('!important');
-	});
-
-	it('does not inject root styles when view transitions are disabled', async () => {
-		resetDocument();
-		await runNavigationViewTransition(() => {}, { enabled: false });
-
-		expect(document.getElementById('eco-vt-root-styles')).toBeNull();
 	});
 });

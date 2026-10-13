@@ -117,6 +117,19 @@ describe('EcoRouter', () => {
 			}
 		});
 
+		it('should run the swap inside startViewTransition when the incoming page has named elements', async () => {
+			fixtures.router = createRouter();
+			const startViewTransition = vi.spyOn(document, 'startViewTransition');
+			fixtures.fetchSpy?.mockImplementation(async () =>
+				htmlFetchResponse('<html><head></head><body><h1 data-view-transition="title">Next</h1></body></html>'),
+			);
+
+			await fixtures.router.navigate('/with-transition');
+
+			expect(startViewTransition).toHaveBeenCalledTimes(1);
+			expect(document.body.textContent).toContain('Next');
+		});
+
 		it('should hard-navigate when before-swap requests reload', async () => {
 			const reloadDocument = vi.fn();
 			fixtures.router = createRouter({ reloadDocument });

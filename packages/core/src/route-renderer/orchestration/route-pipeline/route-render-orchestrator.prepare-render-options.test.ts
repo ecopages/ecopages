@@ -5,12 +5,9 @@ import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type {
 	EcoComponent,
 	EcoPageComponent,
-	EcoPageFile,
 	HtmlTemplateProps,
 	PageBrowserGraphContribution,
 	PageBrowserGraphContributionContext,
-	PageMetadataProps,
-	RouteRendererOptions,
 } from '../../../types/public-types.ts';
 import { registerDiscoveredDependencies } from '../../../eco/discovered-dependencies.ts';
 import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
@@ -21,10 +18,9 @@ import type {
 	ProcessedAsset,
 } from '../../../services/assets/asset-processing-service/index.ts';
 import type { GroupedScriptBundle } from '../../../services/assets/asset-processing-service/assets.types.ts';
-import { OwnershipValidationService } from '../ownership-graph/ownership-validation.service.ts';
-import { resolvePageLayoutComponents } from '../document-shell/layout-shell-props.service.ts';
-import { createPageDependencyInstanceKey } from '../page-browser-graph/route-instance-key.ts';
-import { type RouteRenderOrchestratorAdapter, RouteRenderOrchestrator } from './route-render-orchestrator.ts';
+import type { OwnershipValidationService } from '../ownership-graph/ownership-validation.service.ts';
+import { RouteRenderOrchestrator } from './route-render-orchestrator.ts';
+import { createFlowAdapter, createRouteOptions } from './route-render-orchestrator.test-fixtures.ts';
 
 declare module '../../../types/public-types.ts' {
 	interface RequestLocals {
@@ -33,198 +29,189 @@ declare module '../../../types/public-types.ts' {
 	}
 }
 
-function createFlowAdapter<C>(input: {
-	resolvePageModule: (file: string) => Promise<{
-		Page: EcoPageComponent<any> | EcoComponent;
-		getStaticProps?: unknown;
-		getMetadata?: unknown;
-		integrationSpecificProps: Record<string, unknown>;
-	}>;
-	getHtmlTemplate: () => Promise<EcoComponent<HtmlTemplateProps>>;
-	resolvePageData: (
-		pageModule: {
-			getStaticProps?: unknown;
-			getMetadata?: unknown;
-		},
-		routeOptions: RouteRendererOptions,
-	) => Promise<{ props: Record<string, unknown>; metadata: PageMetadataProps }>;
-	resolveDependencies: (components: (EcoComponent | Partial<EcoComponent>)[]) => Promise<ProcessedAsset[]>;
-	collectPageBrowserGraphContribution: (
-		context: PageBrowserGraphContributionContext,
-	) => Promise<PageBrowserGraphContribution | undefined>;
-	resolvePageDependencies?: (
-		context: PageBrowserGraphContributionContext,
-	) => Promise<import('../../page-loading/resolved-page-dependencies.ts').ResolvedPageDependencies | undefined>;
-}): RouteRenderOrchestratorAdapter<C> {
+type PageConfig = EcoPageComponent<Record<string, unknown>>['config'];
+type GroupedContentScript = Extract<AssetDefinition, { kind: 'script'; source: 'content' }>;
+
+function createPage(config?: PageConfig): EcoPageComponent<Record<string, unknown>> {
+	return Object.assign(() => '<main>Page</main>', { config }) as unknown as EcoPageComponent<Record<string, unknown>>;
+}
+
+function createComponent(config: PageConfig): EcoComponent<Record<string, unknown>> {
+	return Object.assign(() => '<aside>Component</aside>', { config }) as unknown as EcoComponent<
+		Record<string, unknown>
+	>;
+}
+
+function createScriptAsset(srcUrl: string, overrides: Partial<ProcessedAsset> = {}): ProcessedAsset {
+	return { kind: 'script', srcUrl, position: 'head', ...overrides } as ProcessedAsset;
+}
+
+/**
+ * Builds a {@link RouteRenderOrchestrator} over a recording `processDependencies` double.
+ *
+ * @remarks
+ * `hmrEnabled` adds `getHmrManager`; leave it undefined for tests that never reach the page browser
+ * graph cache. The default app config is a static-cache app with no integrations.
+ */
+function createOrchestrator(
+	options: {
+		integrations?: unknown[];
+		appConfig?: Record<string, unknown>;
+		processDependencies?: AssetProcessingService['processDependencies'];
+		hmrEnabled?: boolean;
+		orchestratorOptions?: ConstructorParameters<typeof RouteRenderOrchestrator>[2];
+	} = {},
+) {
+	const processDependencies = vi.fn<AssetProcessingService['processDependencies']>(
+		options.processDependencies ?? (async () => []),
+	);
+	const appConfig = {
+		cache: { defaultStrategy: 'static' },
+		integrations: options.integrations ?? [],
+		...options.appConfig,
+	} as unknown as EcoPagesAppConfig;
+	const assetProcessingService = {
+		processDependencies,
+		...(options.hmrEnabled === undefined
+			? {}
+			: { getHmrManager: vi.fn(() => ({ isEnabled: () => options.hmrEnabled })) }),
+	} as unknown as AssetProcessingService;
+
 	return {
-		name: 'string',
-		resolveRouteRenderInputs: async (routeOptions) => {
-			const pageModule = await input.resolvePageModule(routeOptions.file);
-			const HtmlTemplate = await input.getHtmlTemplate();
-			const Layouts = resolvePageLayoutComponents(pageModule.Page.config?.layouts);
-			const Layout = Layouts[Layouts.length - 1];
-			const { props, metadata } = await input.resolvePageData(pageModule, routeOptions);
-
-			return {
-				Page: pageModule.Page,
-				pageModule: {
-					default: pageModule.Page,
-					...pageModule.integrationSpecificProps,
-				} as EcoPageFile,
-				HtmlTemplate,
-				Layouts,
-				Layout,
-				layoutEntries: pageModule.Page.config?.layoutEntries,
-				props,
-				metadata,
-				integrationSpecificProps: pageModule.integrationSpecificProps,
-			};
-		},
-		resolveRouteDependencies: async ({ components }) => ({
-			resolvedDependencies: await input.resolveDependencies(components),
-		}),
-		collectPageBrowserGraphContribution: async (context) =>
-			await input.collectPageBrowserGraphContribution(context),
-		resolvePageDependencies: input.resolvePageDependencies ?? (async () => undefined),
-		buildPageClientBrowserAssets: async () => ({
-			processedAssets: [],
-			islandRenderAssetsByFile: new Map(),
-			lazyTriggers: [],
-		}),
-		buildPageBrowserGraphContributionContext: async (routeFile, routeOptions) => {
-			const pageModule = await input.resolvePageModule(routeFile);
-			const { props } = await input.resolvePageData(pageModule, {
-				file: routeFile,
-				params: routeOptions?.params,
-				query: routeOptions?.query,
-			});
-
-			return {
-				file: routeFile,
-				pageModule: {
-					default: pageModule.Page,
-					...pageModule.integrationSpecificProps,
-				} as EcoPageFile,
-				props,
-				params: routeOptions?.params,
-				query: routeOptions?.query,
-				dependencyInstanceKey: createPageDependencyInstanceKey({
-					params: routeOptions?.params,
-					query: routeOptions?.query,
-				}),
-			};
-		},
-		renderRouteBody: async () => '',
-		getRouteHtmlFinalization: () => ({}),
-		transformRouteResponse: async (response) => await response.text(),
+		appConfig,
+		processDependencies,
+		flow: new RouteRenderOrchestrator(appConfig, assetProcessingService, options.orchestratorOptions),
 	};
 }
 
-function createProcessedGroupedScriptAsset(groupedBundle: GroupedScriptBundle, srcUrl: string): ProcessedAsset {
+function createReactIntegration(dependencies: ProcessedAsset[] = [], extra: Record<string, unknown> = {}) {
 	return {
-		kind: 'script',
-		srcUrl,
-		position: 'head',
-		packageRole: 'page-script',
-		groupedBundle,
+		name: 'react',
+		initializeRenderer: vi.fn(),
+		getResolvedIntegrationDependencies: () => dependencies,
+		...extra,
 	};
-}
-
-function isGroupedContentScriptDependency(asset: AssetDefinition): asset is Extract<
-	AssetDefinition,
-	{ kind: 'script'; source: 'content' }
-> & {
-	groupedBundle: GroupedScriptBundle;
-} {
-	return asset.kind === 'script' && asset.source === 'content' && Boolean(asset.groupedBundle);
 }
 
 function createGroupedPageScriptDependency(
-	content: string,
-	name: string,
+	file: string,
 	groupedBundle: GroupedScriptBundle,
-): Extract<AssetDefinition, { kind: 'script'; source: 'content' }> {
+	content = `console.log("${file}")`,
+): GroupedContentScript {
 	return {
 		kind: 'script',
 		source: 'content',
 		content,
-		name,
+		name: `${groupedBundle.entryName}-entry`,
 		packageRole: 'page-script',
 		groupedBundle,
 	};
 }
 
+/**
+ * Prepares routes through a react-owned orchestrator whose page browser graph contributes one
+ * grouped content script per route.
+ *
+ * @remarks
+ * `processDependencies` answers the `react:grouped-page-browser-graph` batch with one processed
+ * asset per grouped script, so assertions read the asset a route received and how many batches
+ * the orchestrator processed.
+ */
+function createGroupedHarness(options: {
+	bundleFor: (file: string) => GroupedScriptBundle;
+	srcUrl?: (bundle: GroupedScriptBundle) => string;
+	contentFor?: (file: string) => string;
+	hmrEnabled?: boolean;
+}) {
+	const srcUrl = options.srcUrl ?? ((bundle) => `/assets/${bundle.entryName}.js`);
+	const { flow, processDependencies } = createOrchestrator({
+		integrations: [createReactIntegration([], { extensions: ['.tsx'] })],
+		appConfig: { absolutePaths: { pagesDir: '/app/pages' } },
+		hmrEnabled: options.hmrEnabled ?? false,
+		processDependencies: async (dependencies, key) =>
+			key === 'react:grouped-page-browser-graph'
+				? dependencies
+						.filter(
+							(dependency): dependency is GroupedContentScript & { groupedBundle: GroupedScriptBundle } =>
+								Boolean(
+									dependency.kind === 'script' &&
+									dependency.source === 'content' &&
+									dependency.groupedBundle,
+								),
+						)
+						.map((dependency) =>
+							createScriptAsset(srcUrl(dependency.groupedBundle), {
+								packageRole: 'page-script',
+								groupedBundle: dependency.groupedBundle,
+							}),
+						)
+				: [],
+	});
+	const collectPageBrowserGraphContribution = vi.fn(
+		async (context: PageBrowserGraphContributionContext): Promise<PageBrowserGraphContribution> => ({
+			dependencies: [
+				createGroupedPageScriptDependency(
+					context.file,
+					options.bundleFor(context.file),
+					options.contentFor?.(context.file),
+				),
+			],
+		}),
+	);
+
+	return {
+		processDependencies,
+		collectPageBrowserGraphContribution,
+		prepare: (file: string) =>
+			flow.prepareRenderOptions(
+				createRouteOptions(file),
+				createFlowAdapter({ name: 'react', collectPageBrowserGraphContribution }),
+			),
+	};
+}
+
+const reactRouterBundleFor = (file: string): GroupedScriptBundle => ({
+	id: 'react-router-pages',
+	entryName: file.includes('dashboard') ? 'dashboard' : 'index',
+});
+
 describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 	it('should prepare dynamic render options and merge renderer-owned assets', async () => {
-		const integrationDependency = {
-			kind: 'script',
-			srcUrl: '/assets/react-runtime.js',
-			position: 'head',
-		} as ProcessedAsset;
+		const integrationDependency = createScriptAsset('/assets/react-runtime.js');
 		const resolvedDependency = {
 			kind: 'stylesheet',
 			srcUrl: '/assets/page.css',
 			position: 'head',
 		} as ProcessedAsset;
-		const pageDependency = {
-			kind: 'script',
-			srcUrl: '/assets/page-entry.js',
-			position: 'head',
-		} as ProcessedAsset;
-		const assetProcessingService = {
-			processDependencies: vi.fn(async () => []),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [
-				{
-					name: 'react',
-					initializeRenderer: vi.fn(),
-					getResolvedIntegrationDependencies: () => [integrationDependency],
-				},
-			],
-		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Nested = (() => '<aside>Nested</aside>') as EcoComponent<Record<string, unknown>>;
-		Nested.config = {
+		const pageDependency = createScriptAsset('/assets/page-entry.js');
+		const { flow } = createOrchestrator({ integrations: [createReactIntegration([integrationDependency])] });
+		const Nested = createComponent({
 			integration: 'react',
 			identity: { id: 'nested', file: '/app/components/nested.tsx', integration: 'react' },
-		};
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+		});
+		const Page = createPage({ dependencies: { components: [Nested] } });
 		Page.cache = 'dynamic';
-		Page.config = {
-			dependencies: {
-				components: [Nested],
-			},
-		};
-		const routeOptions = {
-			file: '/app/pages/index.tsx',
-			params: { slug: 'hello' },
-			query: { preview: '1' },
-			props: { title: 'Overridden title' },
-			locals: { user: 'andee' },
-		} as unknown as RouteRendererOptions;
+		const collectPageBrowserGraphContribution = vi.fn(async () => ({ assets: [pageDependency] }));
+
 		const result = await flow.prepareRenderOptions(
-			routeOptions,
+			createRouteOptions('/app/pages/index.tsx', {
+				params: { slug: 'hello' },
+				query: { preview: '1' },
+				props: { title: 'Overridden title' },
+				locals: { user: 'andee' },
+			}),
 			createFlowAdapter({
-				resolvePageModule: async () => ({
-					Page,
-					integrationSpecificProps: { layoutMode: 'full' },
-				}),
-				getHtmlTemplate: async () => HtmlTemplate,
-				resolvePageData: async () => ({
-					props: { title: 'Hello' },
-					metadata: { title: 'Hello', description: 'Hello description' },
-				}),
+				Page,
+				integrationSpecificProps: { layoutMode: 'full' },
+				pageData: { props: { title: 'Hello' }, metadata: { title: 'Hello', description: 'Hello description' } },
 				resolveDependencies: async () => [resolvedDependency],
-				collectPageBrowserGraphContribution: async (context) => {
-					expect(context.props).toEqual({ title: 'Overridden title' });
-					return { assets: [pageDependency] };
-				},
+				collectPageBrowserGraphContribution,
 			}),
 		);
 
+		expect(collectPageBrowserGraphContribution).toHaveBeenCalledWith(
+			expect.objectContaining({ props: { title: 'Overridden title' } }),
+		);
 		expect(result.locals).toEqual({ user: 'andee' });
 		expect(result.pageLocals).toEqual({ user: 'andee' });
 		expect(result.pageProps).toEqual({
@@ -244,220 +231,97 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		);
 	});
 
-	it('adds the watch files a Page identity registers to the cached HTML dependencies', async () => {
-		const appConfig = { cache: { defaultStrategy: 'static' }, integrations: [] } as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, {
-			processDependencies: vi.fn(async () => []),
-		} as unknown as AssetProcessingService);
-		const identity = { id: 'about-page', file: '/app/pages/about.html', integration: 'string' };
-		registerDiscoveredDependencies(identity, {
-			components: () => [],
-			stylesheets: [],
-			watchFiles: ['/app/pages/about.css', '/app/pages/counter.ts'],
-		});
-		const Page = (() => '<main>About</main>') as unknown as EcoPageComponent<unknown>;
-		Page.config = { identity };
+	describe('source dependency paths', () => {
+		it('adds registered route-module inputs to the cached HTML dependencies', async () => {
+			const { flow, appConfig } = createOrchestrator();
+			const routeFile = '/app/pages/about.html';
+			const routeHelper = '/app/components/shared-title.ts';
+			getAppBuildInputIndex(appConfig).register({ consumer: 'server-route-module', key: routeFile }, [
+				routeFile,
+				routeHelper,
+			]);
 
-		const result = await flow.prepareRenderOptions(
-			{ file: '/app/pages/about.html', params: {}, query: {} } as unknown as RouteRendererOptions,
-			createFlowAdapter({
-				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
-				getHtmlTemplate: async () => (() => '<html></html>') as EcoComponent<HtmlTemplateProps>,
-				resolvePageData: async () => ({ props: {}, metadata: { title: 'About', description: 'About' } }),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution: async () => undefined,
-			}),
-		);
-
-		expect(result.sourceDependencyPaths).toEqual(
-			expect.arrayContaining(['/app/pages/about.html', '/app/pages/about.css', '/app/pages/counter.ts']),
-		);
-	});
-
-	it('adds registered route-module inputs to the cached HTML dependencies', async () => {
-		const appConfig = { cache: { defaultStrategy: 'static' }, integrations: [] } as unknown as EcoPagesAppConfig;
-		const routeFile = '/app/pages/about.html';
-		const routeHelper = '/app/components/shared-title.ts';
-		getAppBuildInputIndex(appConfig).register({ consumer: 'server-route-module', key: routeFile }, [
-			routeFile,
-			routeHelper,
-		]);
-		const flow = new RouteRenderOrchestrator(appConfig, {
-			processDependencies: vi.fn(async () => []),
-		} as unknown as AssetProcessingService);
-		const Page = (() => '<main>About</main>') as unknown as EcoPageComponent<unknown>;
-		Page.config = {
-			identity: { id: 'about-page', file: routeFile, integration: 'string' },
-		};
-
-		const result = await flow.prepareRenderOptions(
-			{ file: routeFile, params: {}, query: {} } as unknown as RouteRendererOptions,
-			createFlowAdapter({
-				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
-				getHtmlTemplate: async () => (() => '<html></html>') as EcoComponent<HtmlTemplateProps>,
-				resolvePageData: async () => ({ props: {}, metadata: { title: 'About', description: 'About' } }),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution: async () => undefined,
-			}),
-		);
-
-		expect(result.sourceDependencyPaths).toEqual(expect.arrayContaining([routeFile, routeHelper]));
-		expect(getAppBuildInputIndex(appConfig).recordedWatchPaths()).toContain(routeHelper);
-	});
-
-	it('collects no source dependency paths in production, where nothing watches them', async () => {
-		vi.stubEnv('NODE_ENV', 'production');
-		const appConfig = { cache: { defaultStrategy: 'static' }, integrations: [] } as unknown as EcoPagesAppConfig;
-		const routeFile = '/app/pages/about.html';
-		const flow = new RouteRenderOrchestrator(appConfig, {
-			processDependencies: vi.fn(async () => []),
-		} as unknown as AssetProcessingService);
-		const Page = (() => '<main>About</main>') as unknown as EcoPageComponent<unknown>;
-		Page.config = { identity: { id: 'about-page', file: routeFile, integration: 'string' } };
-
-		const result = await flow.prepareRenderOptions(
-			{ file: routeFile, params: {}, query: {} } as unknown as RouteRendererOptions,
-			createFlowAdapter({
-				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
-				getHtmlTemplate: async () => (() => '<html></html>') as EcoComponent<HtmlTemplateProps>,
-				resolvePageData: async () => ({ props: {}, metadata: { title: 'About', description: 'About' } }),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution: async () => undefined,
-			}),
-		);
-
-		expect(result.sourceDependencyPaths).toBeUndefined();
-		expect(getAppBuildInputIndex(appConfig).recordedWatchPaths()).toEqual([]);
-	});
-
-	it('adds nested Component identity files to the cached HTML dependencies', async () => {
-		const appConfig = { cache: { defaultStrategy: 'static' }, integrations: [] } as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, {
-			processDependencies: vi.fn(async () => []),
-		} as unknown as AssetProcessingService);
-		const Child = (() => '<div></div>') as EcoComponent;
-		Child.config = {
-			identity: { id: 'counter', file: '/app/src/components/counter.lit.tsx', integration: 'string' },
-		};
-		const Page = (() => '<main></main>') as unknown as EcoPageComponent<any>;
-		Page.config = {
-			identity: { id: 'discovery', file: '/app/src/pages/discovery.lit.tsx', integration: 'string' },
-			dependencies: { components: [Child] },
-		};
-
-		const result = await flow.prepareRenderOptions(
-			{ file: '/app/src/pages/discovery.lit.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			createFlowAdapter({
-				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
-				getHtmlTemplate: async () => (() => '<html></html>') as EcoComponent<HtmlTemplateProps>,
-				resolvePageData: async () => ({
-					props: {},
-					metadata: { title: 'Discovery', description: 'Discovery' },
+			const result = await flow.prepareRenderOptions(
+				createRouteOptions(routeFile),
+				createFlowAdapter({
+					Page: createPage({ identity: { id: 'about-page', file: routeFile, integration: 'string' } }),
 				}),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution: async () => undefined,
-			}),
-		);
+			);
 
-		expect(result.sourceDependencyPaths).toEqual(
-			expect.arrayContaining(['/app/src/pages/discovery.lit.tsx', '/app/src/components/counter.lit.tsx']),
-		);
-	});
-
-	it('adds interned discovery watch files to the cached HTML dependencies', async () => {
-		const appConfig = { cache: { defaultStrategy: 'static' }, integrations: [] } as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, {
-			processDependencies: vi.fn(async () => []),
-		} as unknown as AssetProcessingService);
-		const identity = { id: 'discovery', file: '/app/src/pages/discovery.lit.tsx', integration: 'string' };
-		registerDiscoveredDependencies(identity, {
-			components: () => [],
-			stylesheets: [],
-			watchFiles: [
-				'/app/src/components/dependency-discovery/counter.lit.tsx',
-				'/app/src/components/dependency-discovery/barrel/index.ts',
-			],
+			expect(result.sourceDependencyPaths).toEqual(expect.arrayContaining([routeFile, routeHelper]));
+			expect(getAppBuildInputIndex(appConfig).recordedWatchPaths()).toContain(routeHelper);
 		});
-		const Page = (() => '<main></main>') as unknown as EcoPageComponent<any>;
-		Page.config = { identity };
 
-		const result = await flow.prepareRenderOptions(
-			{ file: '/app/src/pages/discovery.lit.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			createFlowAdapter({
-				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
-				getHtmlTemplate: async () => (() => '<html></html>') as EcoComponent<HtmlTemplateProps>,
-				resolvePageData: async () => ({
-					props: {},
-					metadata: { title: 'Discovery', description: 'Discovery' },
+		it('collects none in production, where nothing watches them', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+			const { flow, appConfig } = createOrchestrator();
+			const routeFile = '/app/pages/about.html';
+
+			const result = await flow.prepareRenderOptions(
+				createRouteOptions(routeFile),
+				createFlowAdapter({
+					Page: createPage({ identity: { id: 'about-page', file: routeFile, integration: 'string' } }),
 				}),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution: async () => undefined,
-			}),
-		);
+			);
 
-		expect(result.sourceDependencyPaths).toEqual(
-			expect.arrayContaining([
-				'/app/src/pages/discovery.lit.tsx',
+			expect(result.sourceDependencyPaths).toBeUndefined();
+			expect(getAppBuildInputIndex(appConfig).recordedWatchPaths()).toEqual([]);
+		});
+
+		it('adds nested Component identity files', async () => {
+			const { flow } = createOrchestrator();
+			const Child = createComponent({
+				identity: { id: 'counter', file: '/app/src/components/counter.lit.tsx', integration: 'string' },
+			});
+
+			const result = await flow.prepareRenderOptions(
+				createRouteOptions('/app/src/pages/discovery.lit.tsx'),
+				createFlowAdapter({
+					Page: createPage({
+						identity: { id: 'discovery', file: '/app/src/pages/discovery.lit.tsx', integration: 'string' },
+						dependencies: { components: [Child] },
+					}),
+				}),
+			);
+
+			expect(result.sourceDependencyPaths).toEqual(
+				expect.arrayContaining(['/app/src/pages/discovery.lit.tsx', '/app/src/components/counter.lit.tsx']),
+			);
+		});
+
+		it('adds the watch files a Page identity registers', async () => {
+			const { flow, appConfig } = createOrchestrator();
+			const identity = { id: 'discovery', file: '/app/src/pages/discovery.lit.tsx', integration: 'string' };
+			const watchFiles = [
 				'/app/src/components/dependency-discovery/counter.lit.tsx',
 				'/app/src/components/dependency-discovery/barrel/index.ts',
-			]),
-		);
-		expect(getAppBuildInputIndex(appConfig).recordedWatchPaths()).toEqual(
-			expect.arrayContaining([
-				'/app/src/pages/discovery.lit.tsx',
-				'/app/src/components/dependency-discovery/counter.lit.tsx',
-				'/app/src/components/dependency-discovery/barrel/index.ts',
-			]),
-		);
+			];
+			registerDiscoveredDependencies(identity, { components: () => [], stylesheets: [], watchFiles });
+
+			const result = await flow.prepareRenderOptions(
+				createRouteOptions(identity.file),
+				createFlowAdapter({ Page: createPage({ identity }) }),
+			);
+
+			const expected = expect.arrayContaining([identity.file, ...watchFiles]);
+			expect(result.sourceDependencyPaths).toEqual(expected);
+			expect(getAppBuildInputIndex(appConfig).recordedWatchPaths()).toEqual(expected);
+		});
 	});
 
 	it('includes integration dependencies from route-resolved page roots', async () => {
-		const integrationDependency = {
-			kind: 'script',
-			srcUrl: '/assets/lit-runtime.js',
-			position: 'head',
-		} as ProcessedAsset;
-		const pageDependency = {
-			kind: 'stylesheet',
-			srcUrl: '/assets/entry.css',
-			position: 'head',
-		} as ProcessedAsset;
-		const assetProcessingService = {
-			processDependencies: vi.fn(async () => []),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [
-				{
-					name: 'lit',
-					initializeRenderer: vi.fn(),
-					getResolvedIntegrationDependencies: () => [integrationDependency],
-				},
-			],
-		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-		const resolvedContent = (() => '<article>Content</article>') as EcoComponent;
-		resolvedContent.config = {
+		const integrationDependency = createScriptAsset('/assets/lit-runtime.js');
+		const pageDependency = { kind: 'stylesheet', srcUrl: '/assets/entry.css', position: 'head' } as ProcessedAsset;
+		const { flow } = createOrchestrator({
+			integrations: [{ ...createReactIntegration([integrationDependency]), name: 'lit' }],
+		});
+		const resolvedContent = createComponent({
 			identity: { id: 'content', file: '/app/content/intro.mdx', integration: 'lit' },
-		};
+		});
 
 		const result = await flow.prepareRenderOptions(
-			{
-				file: '/app/pages/docs/[...slug].tsx',
-				params: { slug: ['intro'] },
-				query: {},
-			} as unknown as RouteRendererOptions,
+			createRouteOptions('/app/pages/docs/[...slug].tsx', { params: { slug: ['intro'] } }),
 			createFlowAdapter({
-				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
-				getHtmlTemplate: async () => HtmlTemplate,
-				resolvePageData: async () => ({
-					props: { entry: { slug: 'intro' } },
-					metadata: { title: 'Content', description: 'Content description' },
-				}),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
 				resolvePageDependencies: async () => ({
 					ownerFile: '/app/content/intro.mdx',
 					components: [resolvedContent],
@@ -473,8 +337,10 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 	});
 
 	it('inlines the global injector bootstrap when resolved lazy triggers are present', async () => {
-		const processDependencies = vi.fn<AssetProcessingService['processDependencies']>().mockImplementation(
-			async (dependencies) =>
+		const fixtureRootDir = path.join(process.cwd(), 'playground/react');
+		const { flow, processDependencies } = createOrchestrator({
+			appConfig: { rootDir: fixtureRootDir, absolutePaths: { projectDir: fixtureRootDir } },
+			processDependencies: async (dependencies) =>
 				dependencies.map((dependency) => ({
 					kind: dependency.kind,
 					position: dependency.position,
@@ -483,45 +349,17 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					inline: dependency.inline,
 					packageRole: dependency.packageRole,
 				})) as ProcessedAsset[],
-		);
-		const assetProcessingService = {
-			processDependencies,
-		} as unknown as AssetProcessingService;
-		const fixtureRootDir = path.join(process.cwd(), 'playground/react');
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [],
-			rootDir: fixtureRootDir,
-			absolutePaths: { projectDir: fixtureRootDir },
-		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-		Page.config = {
+		});
+		const Page = createPage({
 			_resolvedLazyTriggers: [
 				{
 					triggerId: 'eco-trigger-theme-toggle',
 					rules: [{ 'on:interaction': { value: 'click', scripts: ['/assets/lazy-theme-toggle.js'] } }],
 				},
 			],
-		};
+		});
 
-		await flow.prepareRenderOptions(
-			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			createFlowAdapter({
-				resolvePageModule: async () => ({
-					Page,
-					integrationSpecificProps: {},
-				}),
-				getHtmlTemplate: async () => HtmlTemplate,
-				resolvePageData: async () => ({
-					props: {},
-					metadata: { title: 'Page', description: 'Page description' },
-				}),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-			}),
-		);
+		await flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), createFlowAdapter({ Page }));
 
 		expect(processDependencies).toHaveBeenCalledOnce();
 		expect(processDependencies).toHaveBeenCalledWith(
@@ -537,159 +375,49 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		);
 	});
 
-	it('caches page browser graph resolution across repeated route preparation when HMR is disabled', async () => {
-		const pageBrowserAsset = {
-			kind: 'script',
-			srcUrl: '/assets/page.js',
-			position: 'head',
-		} as ProcessedAsset;
-		const collectPageBrowserGraphContribution = vi.fn(async (): Promise<PageBrowserGraphContribution> => ({
-			dependencies: [
-				{
-					kind: 'script',
-					source: 'content',
-					content: 'console.log("page")',
-					name: 'page',
-					attributes: { type: 'module' },
-				},
-			],
-		}));
-		const processDependencies = vi.fn(async () => [pageBrowserAsset]);
-		const assetProcessingService = {
-			processDependencies,
-			getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [],
-		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+	it.each([
+		{ hmr: 'disabled', hmrEnabled: false, expectedCollections: 1 },
+		{ hmr: 'enabled', hmrEnabled: true, expectedCollections: 2 },
+	])(
+		'collects the page browser graph $expectedCollections time(s) across repeated route preparation when HMR is $hmr',
+		async ({ hmrEnabled, expectedCollections }) => {
+			const { flow, processDependencies } = createOrchestrator({
+				hmrEnabled,
+				processDependencies: async () => [createScriptAsset('/assets/page.js')],
+			});
+			const collectPageBrowserGraphContribution = vi.fn(async (): Promise<PageBrowserGraphContribution> => ({
+				dependencies: [
+					{
+						kind: 'script',
+						source: 'content',
+						content: 'console.log("page")',
+						name: 'page',
+						attributes: { type: 'module' },
+					},
+				],
+			}));
+			const adapter = createFlowAdapter({ collectPageBrowserGraphContribution });
+			const route = createRouteOptions('/app/pages/index.tsx');
 
-		const adapter = createFlowAdapter({
-			resolvePageModule: async () => ({
-				Page,
-				integrationSpecificProps: {},
-			}),
-			getHtmlTemplate: async () => HtmlTemplate,
-			resolvePageData: async () => ({
-				props: {},
-				metadata: { title: 'Page', description: 'Page description' },
-			}),
-			resolveDependencies: async () => [],
-			collectPageBrowserGraphContribution,
-		});
+			await flow.prepareRenderOptions(route, adapter);
+			await flow.prepareRenderOptions(route, adapter);
 
-		await flow.prepareRenderOptions(
-			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			adapter,
-		);
-		await flow.prepareRenderOptions(
-			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			adapter,
-		);
-
-		expect(collectPageBrowserGraphContribution).toHaveBeenCalledOnce();
-		expect(processDependencies).toHaveBeenCalledOnce();
-	});
-
-	it('reuses the page browser graph cache when HMR is enabled and sources are unchanged', async () => {
-		const pageBrowserAsset = {
-			kind: 'script',
-			srcUrl: '/assets/page.js',
-			position: 'head',
-		} as ProcessedAsset;
-		const collectPageBrowserGraphContribution = vi.fn(async (): Promise<PageBrowserGraphContribution> => ({
-			dependencies: [
-				{
-					kind: 'script',
-					source: 'content',
-					content: 'console.log("page")',
-					name: 'page',
-					attributes: { type: 'module' },
-				},
-			],
-		}));
-		const processDependencies = vi.fn(async () => [pageBrowserAsset]);
-		const assetProcessingService = {
-			processDependencies,
-			getHmrManager: vi.fn(() => ({ isEnabled: () => true })),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [],
-		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-
-		const adapter = createFlowAdapter({
-			resolvePageModule: async () => ({
-				Page,
-				integrationSpecificProps: {},
-			}),
-			getHtmlTemplate: async () => HtmlTemplate,
-			resolvePageData: async () => ({
-				props: {},
-				metadata: { title: 'Page', description: 'Page description' },
-			}),
-			resolveDependencies: async () => [],
-			collectPageBrowserGraphContribution,
-		});
-
-		await flow.prepareRenderOptions(
-			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			adapter,
-		);
-		await flow.prepareRenderOptions(
-			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			adapter,
-		);
-
-		expect(collectPageBrowserGraphContribution).toHaveBeenCalledTimes(2);
-		expect(processDependencies).toHaveBeenCalledOnce();
-	});
+			expect(collectPageBrowserGraphContribution).toHaveBeenCalledTimes(expectedCollections);
+			expect(processDependencies).toHaveBeenCalledOnce();
+		},
+	);
 
 	it('threads the structured page browser graph through the returned page package', async () => {
-		const entryAsset = {
-			kind: 'script',
-			srcUrl: '/assets/page.js',
-			position: 'head',
-			packageRole: 'page-script',
-		} as ProcessedAsset;
-		const chunkAsset = {
-			kind: 'script',
-			srcUrl: '/assets/page.chunk.js',
+		const entryAsset = createScriptAsset('/assets/page.js', { packageRole: 'page-script' });
+		const chunkAsset = createScriptAsset('/assets/page.chunk.js', {
 			position: 'body',
 			packageRole: 'dynamic-chunk',
-		} as ProcessedAsset;
-		const processDependencies = vi.fn(async () => [entryAsset]);
-		const assetProcessingService = {
-			processDependencies,
-			getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [],
-		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+		});
+		const { flow } = createOrchestrator({ hmrEnabled: false, processDependencies: async () => [entryAsset] });
 
 		const result = await flow.prepareRenderOptions(
-			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
+			createRouteOptions('/app/pages/index.tsx'),
 			createFlowAdapter({
-				resolvePageModule: async () => ({
-					Page,
-					integrationSpecificProps: {},
-				}),
-				getHtmlTemplate: async () => HtmlTemplate,
-				resolvePageData: async () => ({
-					props: {},
-					metadata: { title: 'Page', description: 'Page description' },
-				}),
-				resolveDependencies: async () => [],
 				collectPageBrowserGraphContribution: async () => ({
 					dependencies: [
 						{
@@ -717,696 +445,235 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		);
 	});
 
-	it('resolves grouped page-browser assets per route without a production build plan', async () => {
-		const processDependencies = vi.fn(async (dependencies: AssetDefinition[], key: string) => {
-			if (key === 'react:grouped-page-browser-graph') {
-				return dependencies
-					.filter(isGroupedContentScriptDependency)
-					.map((dependency, index) =>
-						createProcessedGroupedScriptAsset(
-							dependency.groupedBundle,
-							`/assets/grouped-${dependency.groupedBundle.entryName}-${index}.js`,
-						),
-					);
-			}
+	describe('grouped page-browser assets', () => {
+		it('resolves them per route without a production build plan', async () => {
+			const { prepare, processDependencies, collectPageBrowserGraphContribution } = createGroupedHarness({
+				bundleFor: reactRouterBundleFor,
+			});
 
-			return [];
+			const firstResult = await prepare('/app/pages/index.tsx');
+			const secondResult = await prepare('/app/pages/dashboard.tsx');
+
+			expect(processDependencies).toHaveBeenCalledTimes(2);
+			expect(processDependencies.mock.calls[0]?.[1]).toBe('react:grouped-page-browser-graph');
+			expect(collectPageBrowserGraphContribution).toHaveBeenCalledWith(
+				expect.objectContaining({ file: '/app/pages/dashboard.tsx' }),
+			);
+			expect(firstResult.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
+				expect.objectContaining({ groupedBundle: { id: 'react-router-pages', entryName: 'index' } }),
+			]);
+			expect(secondResult.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
+				expect.objectContaining({ groupedBundle: { id: 'react-router-pages', entryName: 'dashboard' } }),
+			]);
 		});
-		const assetProcessingService = {
-			processDependencies,
-			getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [
-				{
-					name: 'react',
-					extensions: ['.tsx'],
-					initializeRenderer: vi.fn(),
-					getResolvedIntegrationDependencies: () => [],
-				},
-			],
-			absolutePaths: {
-				pagesDir: '/app/pages',
-			},
-		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-		const groupedDependencyByRoute = new Map<
-			string,
-			Extract<AssetDefinition, { kind: 'script'; source: 'content' }>
-		>([
-			[
-				'/app/pages/index.tsx',
-				createGroupedPageScriptDependency('console.log("index")', 'index-entry', {
-					id: 'react-router-pages',
+
+		it('keeps them scoped by bundle id when routes reuse the same entry name', async () => {
+			vi.spyOn(fileSystem, 'glob').mockResolvedValue(['marketing.tsx', 'docs.tsx']);
+			const { prepare } = createGroupedHarness({
+				bundleFor: (file) => ({
+					id: file.includes('marketing') ? 'marketing-layout' : 'docs-layout',
 					entryName: 'index',
 				}),
-			],
-			[
-				'/app/pages/dashboard.tsx',
-				createGroupedPageScriptDependency('console.log("dashboard")', 'dashboard-entry', {
-					id: 'react-router-pages',
-					entryName: 'dashboard',
+				srcUrl: (bundle) => `/assets/${bundle.id}-${bundle.entryName}.js`,
+			});
+
+			const marketingResult = await prepare('/app/pages/marketing.tsx');
+			const docsResult = await prepare('/app/pages/docs.tsx');
+
+			expect(marketingResult.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
+				expect.objectContaining({
+					srcUrl: '/assets/marketing-layout-index.js',
+					groupedBundle: { id: 'marketing-layout', entryName: 'index' },
 				}),
-			],
-		]);
-		const collectPageBrowserGraphContribution = vi.fn(
-			async (context: PageBrowserGraphContributionContext): Promise<PageBrowserGraphContribution> => ({
-				dependencies: [groupedDependencyByRoute.get(context.file)!],
-			}),
-		);
-		const createReactFlowAdapter = () => ({
-			...createFlowAdapter({
-				resolvePageModule: async () => ({
-					Page,
-					integrationSpecificProps: {},
+			]);
+			expect(docsResult.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
+				expect.objectContaining({
+					srcUrl: '/assets/docs-layout-index.js',
+					groupedBundle: { id: 'docs-layout', entryName: 'index' },
 				}),
-				getHtmlTemplate: async () => HtmlTemplate,
-				resolvePageData: async () => ({
-					props: {},
-					metadata: { title: 'Page', description: 'Page description' },
-				}),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution,
-			}),
-			name: 'react' as const,
+			]);
 		});
 
-		const firstResult = await flow.prepareRenderOptions(
-			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			createReactFlowAdapter(),
-		);
+		it('rebuilds them when the contribution fingerprint changes under HMR', async () => {
+			vi.spyOn(fileSystem, 'glob').mockResolvedValue(['index.tsx', 'dashboard.tsx']);
+			let groupedVersion = 1;
+			const { prepare, processDependencies } = createGroupedHarness({
+				hmrEnabled: true,
+				bundleFor: reactRouterBundleFor,
+				contentFor: (file) => `console.log("${file}-v${groupedVersion}")`,
+				srcUrl: (bundle) => `/assets/${bundle.entryName}-v${groupedVersion}.js`,
+			});
 
-		const secondResult = await flow.prepareRenderOptions(
-			{ file: '/app/pages/dashboard.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			createReactFlowAdapter(),
-		);
+			const firstResult = await prepare('/app/pages/index.tsx');
+			groupedVersion = 2;
+			const secondResult = await prepare('/app/pages/index.tsx');
 
-		expect(processDependencies).toHaveBeenCalledTimes(2);
-		expect(processDependencies.mock.calls[0]?.[1]).toBe('react:grouped-page-browser-graph');
-		expect(collectPageBrowserGraphContribution).toHaveBeenCalledWith(
-			expect.objectContaining({ file: '/app/pages/dashboard.tsx' }),
-		);
-		expect(firstResult.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
-			expect.objectContaining({ groupedBundle: { id: 'react-router-pages', entryName: 'index' } }),
-		]);
-		expect(secondResult.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
-			expect.objectContaining({ groupedBundle: { id: 'react-router-pages', entryName: 'dashboard' } }),
-		]);
-	});
-
-	it('keeps grouped page-browser assets scoped by bundle id when routes reuse the same entry name', async () => {
-		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['marketing.tsx', 'docs.tsx']);
-		const processDependencies = vi.fn(async (dependencies: AssetDefinition[], key: string) => {
-			if (key === 'react:grouped-page-browser-graph') {
-				return dependencies
-					.filter(isGroupedContentScriptDependency)
-					.map((dependency) =>
-						createProcessedGroupedScriptAsset(
-							dependency.groupedBundle,
-							`/assets/${dependency.groupedBundle.id}-${dependency.groupedBundle.entryName}.js`,
-						),
-					);
-			}
-
-			return [];
-		});
-		const assetProcessingService = {
-			processDependencies,
-			getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [
-				{
-					name: 'react',
-					extensions: ['.tsx'],
-					initializeRenderer: vi.fn(),
-					getResolvedIntegrationDependencies: () => [],
-				},
-			],
-			absolutePaths: {
-				pagesDir: '/app/pages',
-			},
-		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-		const groupedDependencyByRoute = new Map<
-			string,
-			Extract<AssetDefinition, { kind: 'script'; source: 'content' }>
-		>([
-			[
-				'/app/pages/marketing.tsx',
-				createGroupedPageScriptDependency('console.log("marketing")', 'marketing-entry', {
-					id: 'marketing-layout',
-					entryName: 'index',
-				}),
-			],
-			[
-				'/app/pages/docs.tsx',
-				createGroupedPageScriptDependency('console.log("docs")', 'docs-entry', {
-					id: 'docs-layout',
-					entryName: 'index',
-				}),
-			],
-		]);
-		const collectPageBrowserGraphContribution = vi.fn(
-			async (context: PageBrowserGraphContributionContext): Promise<PageBrowserGraphContribution> => ({
-				dependencies: [groupedDependencyByRoute.get(context.file)!],
-			}),
-		);
-		const createReactFlowAdapter = () => ({
-			...createFlowAdapter({
-				resolvePageModule: async () => ({
-					Page,
-					integrationSpecificProps: {},
-				}),
-				getHtmlTemplate: async () => HtmlTemplate,
-				resolvePageData: async () => ({
-					props: {},
-					metadata: { title: 'Page', description: 'Page description' },
-				}),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution,
-			}),
-			name: 'react' as const,
+			expect(firstResult.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
+				expect.objectContaining({ srcUrl: '/assets/index-v1.js' }),
+			]);
+			expect(secondResult.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
+				expect.objectContaining({ srcUrl: '/assets/index-v2.js' }),
+			]);
+			expect(processDependencies).toHaveBeenCalledTimes(2);
 		});
 
-		const marketingResult = await flow.prepareRenderOptions(
-			{ file: '/app/pages/marketing.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			createReactFlowAdapter(),
-		);
+		it('processes only the current route grouped deps under HMR', async () => {
+			vi.spyOn(fileSystem, 'glob').mockResolvedValue(['index.tsx', 'dashboard.tsx']);
+			const { prepare, processDependencies, collectPageBrowserGraphContribution } = createGroupedHarness({
+				hmrEnabled: true,
+				bundleFor: reactRouterBundleFor,
+			});
 
-		const docsResult = await flow.prepareRenderOptions(
-			{ file: '/app/pages/docs.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			createReactFlowAdapter(),
-		);
+			await prepare('/app/pages/index.tsx');
 
-		expect(marketingResult.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
-			expect.objectContaining({
-				srcUrl: '/assets/marketing-layout-index.js',
-				groupedBundle: { id: 'marketing-layout', entryName: 'index' },
-			}),
-		]);
-		expect(docsResult.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
-			expect.objectContaining({
-				srcUrl: '/assets/docs-layout-index.js',
-				groupedBundle: { id: 'docs-layout', entryName: 'index' },
-			}),
-		]);
-	});
-
-	it('rebuilds grouped page-browser assets when the contribution fingerprint changes under HMR', async () => {
-		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['index.tsx', 'dashboard.tsx']);
-		let groupedVersion = 1;
-		const processDependencies = vi.fn(async (dependencies: AssetDefinition[], key: string) => {
-			if (key === 'react:grouped-page-browser-graph') {
-				return dependencies
-					.filter(isGroupedContentScriptDependency)
-					.map((dependency) =>
-						createProcessedGroupedScriptAsset(
-							dependency.groupedBundle,
-							`/assets/${dependency.groupedBundle.entryName}-v${groupedVersion}.js`,
-						),
-					);
-			}
-
-			return [];
+			expect(collectPageBrowserGraphContribution).toHaveBeenCalledOnce();
+			expect(collectPageBrowserGraphContribution).toHaveBeenCalledWith(
+				expect.objectContaining({ file: '/app/pages/index.tsx' }),
+			);
+			const groupedCall = processDependencies.mock.calls.find(
+				(call) => call[1] === 'react:grouped-page-browser-graph',
+			);
+			expect(groupedCall?.[0]).toHaveLength(1);
+			expect((groupedCall?.[0]?.[0] as { groupedBundle?: { entryName: string } })?.groupedBundle?.entryName).toBe(
+				'index',
+			);
 		});
-		const assetProcessingService = {
-			processDependencies,
-			getHmrManager: vi.fn(() => ({ isEnabled: () => true })),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [
-				{
-					name: 'react',
-					extensions: ['.tsx'],
-					initializeRenderer: vi.fn(),
-					getResolvedIntegrationDependencies: () => [],
-				},
-			],
-			absolutePaths: {
-				pagesDir: '/app/pages',
-			},
-		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-		const collectPageBrowserGraphContribution = vi.fn(
-			async (context: PageBrowserGraphContributionContext): Promise<PageBrowserGraphContribution> => ({
-				dependencies: [
-					createGroupedPageScriptDependency(
-						`console.log("${context.file}-v${groupedVersion}")`,
-						`${context.file}-entry`,
-						{
-							id: 'react-router-pages',
-							entryName: context.file.includes('dashboard') ? 'dashboard' : 'index',
-						},
-					),
-				],
-			}),
-		);
-		const createReactFlowAdapter = () => ({
-			...createFlowAdapter({
-				resolvePageModule: async () => ({
-					Page,
-					integrationSpecificProps: {},
-				}),
-				getHtmlTemplate: async () => HtmlTemplate,
-				resolvePageData: async () => ({
-					props: {},
-					metadata: { title: 'Page', description: 'Page description' },
-				}),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution,
-			}),
-			name: 'react' as const,
-		});
-
-		const firstResult = await flow.prepareRenderOptions(
-			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			createReactFlowAdapter(),
-		);
-
-		groupedVersion = 2;
-
-		const secondResult = await flow.prepareRenderOptions(
-			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			createReactFlowAdapter(),
-		);
-
-		expect(firstResult.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
-			expect.objectContaining({ srcUrl: '/assets/index-v1.js' }),
-		]);
-		expect(secondResult.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
-			expect.objectContaining({ srcUrl: '/assets/index-v2.js' }),
-		]);
-		expect(processDependencies).toHaveBeenCalledTimes(2);
-	});
-
-	it('processes only the current route grouped deps under HMR', async () => {
-		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['index.tsx', 'dashboard.tsx']);
-		const processDependencies = vi.fn(async (dependencies: AssetDefinition[], key: string) => {
-			if (key === 'react:grouped-page-browser-graph') {
-				return dependencies
-					.filter(isGroupedContentScriptDependency)
-					.map((dependency) =>
-						createProcessedGroupedScriptAsset(
-							dependency.groupedBundle,
-							`/assets/${dependency.groupedBundle.entryName}.js`,
-						),
-					);
-			}
-
-			return [];
-		});
-		const assetProcessingService = {
-			processDependencies,
-			getHmrManager: vi.fn(() => ({ isEnabled: () => true })),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [
-				{
-					name: 'react',
-					extensions: ['.tsx'],
-					initializeRenderer: vi.fn(),
-					getResolvedIntegrationDependencies: () => [],
-				},
-			],
-			absolutePaths: {
-				pagesDir: '/app/pages',
-			},
-		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-		const collectPageBrowserGraphContribution = vi.fn(
-			async (context: PageBrowserGraphContributionContext): Promise<PageBrowserGraphContribution> => ({
-				dependencies: [
-					createGroupedPageScriptDependency(`console.log("${context.file}")`, `${context.file}-entry`, {
-						id: 'react-router-pages',
-						entryName: context.file.includes('dashboard') ? 'dashboard' : 'index',
-					}),
-				],
-			}),
-		);
-
-		await flow.prepareRenderOptions(
-			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			{
-				...createFlowAdapter({
-					resolvePageModule: async () => ({
-						Page,
-						integrationSpecificProps: {},
-					}),
-					getHtmlTemplate: async () => HtmlTemplate,
-					resolvePageData: async () => ({
-						props: {},
-						metadata: { title: 'Page', description: 'Page description' },
-					}),
-					resolveDependencies: async () => [],
-					collectPageBrowserGraphContribution,
-				}),
-				name: 'react' as const,
-			},
-		);
-
-		expect(collectPageBrowserGraphContribution).toHaveBeenCalledOnce();
-		expect(collectPageBrowserGraphContribution).toHaveBeenCalledWith(
-			expect.objectContaining({ file: '/app/pages/index.tsx' }),
-		);
-		const groupedCall = processDependencies.mock.calls.find(
-			(call) => call[1] === 'react:grouped-page-browser-graph',
-		);
-		expect(groupedCall?.[0]).toHaveLength(1);
-		expect((groupedCall?.[0]?.[0] as { groupedBundle?: { entryName: string } })?.groupedBundle?.entryName).toBe(
-			'index',
-		);
 	});
 
 	it('should guard page locals for static pages', async () => {
-		const assetProcessingService = {
-			processDependencies: vi.fn(async () => []),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [],
-		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
+		const { flow } = createOrchestrator();
 
-		const result = await flow.prepareRenderOptions(
-			{
-				file: '/app/pages/index.tsx',
-				params: {},
-				query: {},
-			} as unknown as RouteRendererOptions,
-			createFlowAdapter({
-				resolvePageModule: async () => ({
-					Page,
-					integrationSpecificProps: {},
-				}),
-				getHtmlTemplate: async () => HtmlTemplate,
-				resolvePageData: async () => ({
-					props: {},
-					metadata: { title: 'Static page', description: 'Static page description' },
-				}),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-			}),
-		);
+		const result = await flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), createFlowAdapter());
 
 		expect(result.locals).toBeUndefined();
 		expect(() => Reflect.get(result.pageLocals as object, 'guarded')).toThrow(LocalsAccessError);
 	});
 
 	it('skips undefined component entries while collecting integration dependencies and triggers', async () => {
-		const integrationDependency = {
-			kind: 'script',
-			srcUrl: '/assets/react-runtime.js',
-			position: 'head',
-		} as ProcessedAsset;
-		const assetProcessingService = {
-			processDependencies: vi.fn(async () => []),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [
-				{
-					name: 'react',
-					initializeRenderer: vi.fn(),
-					getResolvedIntegrationDependencies: () => [integrationDependency],
-				},
-			],
-		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Nested = (() => '<aside>Nested</aside>') as EcoComponent<Record<string, unknown>>;
-		Nested.config = {
+		const integrationDependency = createScriptAsset('/assets/react-runtime.js');
+		const { flow } = createOrchestrator({ integrations: [createReactIntegration([integrationDependency])] });
+		const Nested = createComponent({
 			integration: 'react',
 			identity: { id: 'nested', file: '/app/components/nested.tsx', integration: 'react' },
-		};
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-		Page.config = {
-			dependencies: {
-				components: [undefined, Nested] as unknown as EcoComponent[],
-			},
-		};
+		});
+		const Page = createPage({ dependencies: { components: [undefined, Nested] as unknown as EcoComponent[] } });
+
 		const result = await flow.prepareRenderOptions(
-			{ file: '/app/pages/404.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			createFlowAdapter({
-				resolvePageModule: async () => ({
-					Page,
-					integrationSpecificProps: {},
-				}),
-				getHtmlTemplate: async () => HtmlTemplate,
-				resolvePageData: async () => ({
-					props: {},
-					metadata: { title: '404', description: 'Not found' },
-				}),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-			}),
+			createRouteOptions('/app/pages/404.tsx'),
+			createFlowAdapter({ Page }),
 		);
 
-		expect(result.pagePackage).toEqual(
-			expect.objectContaining({
-				assets: [integrationDependency],
-			}),
-		);
+		expect(result.pagePackage).toEqual(expect.objectContaining({ assets: [integrationDependency] }));
 	});
 
-	it('uses an injected ownership validation service when provided', async () => {
-		const assetProcessingService = {
-			processDependencies: vi.fn(async () => []),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [],
-		} as unknown as EcoPagesAppConfig;
-		const injectedOwnershipValidationService = {
-			validate: vi.fn(() => []),
-		} as unknown as OwnershipValidationService;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService, {
-			ownershipValidationService: injectedOwnershipValidationService,
+	describe('ownership validation', () => {
+		it('uses an injected ownership validation service when provided', async () => {
+			const validate = vi.fn(() => []);
+			const { flow } = createOrchestrator({
+				orchestratorOptions: {
+					ownershipValidationService: { validate } as unknown as OwnershipValidationService,
+				},
+			});
+			const Page = createPage();
+			const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+
+			await flow.prepareRenderOptions(
+				createRouteOptions('/app/pages/index.tsx'),
+				createFlowAdapter({ Page, HtmlTemplate }),
+			);
+
+			expect(validate).toHaveBeenCalledWith({
+				currentIntegrationName: 'string',
+				roots: [
+					{ component: HtmlTemplate, source: 'html-template' },
+					{ component: Page, source: 'page' },
+				],
+			});
 		});
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
 
-		await flow.prepareRenderOptions(
-			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			createFlowAdapter({
-				resolvePageModule: async () => ({
-					Page,
-					integrationSpecificProps: {},
-				}),
-				getHtmlTemplate: async () => HtmlTemplate,
-				resolvePageData: async () => ({
-					props: {},
-					metadata: { title: 'Page', description: 'Page description' },
-				}),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-			}),
-		);
-
-		expect(injectedOwnershipValidationService.validate).toHaveBeenCalledWith({
-			currentIntegrationName: 'string',
-			roots: [
-				{ component: HtmlTemplate, source: 'html-template' },
-				{ component: Page, source: 'page' },
-			],
-		});
-	});
-
-	it('throws when injected ownership validation reports errors', async () => {
-		const assetProcessingService = {
-			processDependencies: vi.fn(async () => []),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [],
-		} as unknown as EcoPagesAppConfig;
-		const injectedOwnershipValidationService = {
-			validate: vi.fn(() => [
+		it('throws when injected ownership validation reports errors', async () => {
+			const message =
+				'[ecopages] Foreign child "missing-foreign-component" references unknown integration owner "missing-renderer".';
+			const validate = vi.fn(() => [
 				{
 					code: 'UNKNOWN_INTEGRATION_OWNER',
-					message:
-						'[ecopages] Foreign child "missing-foreign-component" references unknown integration owner "missing-renderer".',
+					message,
 					componentId: 'missing-foreign-component',
 					integrationName: 'missing-renderer',
 				},
-			]),
-		} as unknown as OwnershipValidationService;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService, {
-			ownershipValidationService: injectedOwnershipValidationService,
+			]);
+			const { flow } = createOrchestrator({
+				orchestratorOptions: {
+					ownershipValidationService: { validate } as unknown as OwnershipValidationService,
+				},
+			});
+
+			await expect(
+				flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), createFlowAdapter()),
+			).rejects.toThrow(message);
 		});
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
 
-		await expect(
-			flow.prepareRenderOptions(
-				{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-				createFlowAdapter({
-					resolvePageModule: async () => ({
-						Page,
-						integrationSpecificProps: {},
-					}),
-					getHtmlTemplate: async () => HtmlTemplate,
-					resolvePageData: async () => ({
-						props: {},
-						metadata: { title: 'Page', description: 'Page description' },
-					}),
-					resolveDependencies: async () => [],
-					collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-				}),
-			),
-		).rejects.toThrow(
-			'[ecopages] Foreign child "missing-foreign-component" references unknown integration owner "missing-renderer".',
-		);
-	});
-
-	it('prepares render options when declared foreign dependencies are valid', async () => {
-		const assetProcessingService = {
-			processDependencies: vi.fn(async () => []),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [{ name: 'foreign-renderer', initializeRenderer: vi.fn() }],
-		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-
-		const ForeignComponent = (() => '<aside>Foreign</aside>') as EcoComponent<Record<string, unknown>>;
-		ForeignComponent.config = {
-			integration: 'foreign-renderer',
-			identity: {
-				id: 'foreign-component',
-				file: '/app/components/foreign-component.tsx',
+		it('prepares render options when declared foreign dependencies are valid', async () => {
+			const { flow } = createOrchestrator({
+				integrations: [{ name: 'foreign-renderer', initializeRenderer: vi.fn() }],
+			});
+			const ForeignComponent = createComponent({
 				integration: 'foreign-renderer',
-			},
-		};
+				identity: {
+					id: 'foreign-component',
+					file: '/app/components/foreign-component.tsx',
+					integration: 'foreign-renderer',
+				},
+			});
+			const Layout = createComponent({
+				identity: { id: 'layout-component', file: '/app/layouts/default.tsx', integration: 'string' },
+				dependencies: { components: [ForeignComponent] },
+			});
+			const Page = createPage({
+				layouts: [Layout],
+				identity: { id: 'page-component', file: '/app/pages/index.tsx', integration: 'string' },
+			});
+			const HtmlTemplate = Object.assign(() => '<html></html>', {
+				config: { identity: { id: 'html-template', file: '/app/index.ts', integration: 'string' } },
+			}) as unknown as EcoComponent<HtmlTemplateProps>;
 
-		const Layout = (() => '<main>Layout</main>') as EcoComponent<Record<string, unknown>>;
-		Layout.config = {
-			identity: {
-				id: 'layout-component',
-				file: '/app/layouts/default.tsx',
-				integration: 'string',
-			},
-			dependencies: {
-				components: [ForeignComponent],
-			},
-		};
+			const result = await flow.prepareRenderOptions(
+				createRouteOptions('/app/pages/index.tsx'),
+				createFlowAdapter({ Page, HtmlTemplate }),
+			);
 
-		const Page = (() => 'Page Content') as EcoPageComponent<any>;
-		Page.config = {
-			layouts: [Layout],
-			identity: {
-				id: 'page-component',
-				file: '/app/pages/index.tsx',
-				integration: 'string',
-			},
-		};
-
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		HtmlTemplate.config = {
-			identity: {
-				id: 'html-template',
-				file: '/app/index.ts',
-				integration: 'string',
-			},
-		};
-
-		const result = await flow.prepareRenderOptions(
-			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			{
-				...createFlowAdapter({
-					resolvePageModule: async () => ({
-						Page,
-						integrationSpecificProps: {},
-					}),
-					getHtmlTemplate: async () => HtmlTemplate,
-					resolvePageData: async () => ({
-						props: {},
-						metadata: { title: 'Page', description: 'Page description' },
-					}),
-					resolveDependencies: async () => [],
-					collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-				}),
-				name: 'string',
-			},
-		);
-
-		expect(result).toEqual(
-			expect.objectContaining({
-				Page,
-				Layout,
-				HtmlTemplate,
-			}),
-		);
+			expect(result).toEqual(expect.objectContaining({ Page, Layout, HtmlTemplate }));
+		});
 	});
 
 	it('resolves dependencies for every layout tier in the stack', async () => {
-		const assetProcessingService = {
-			processDependencies: vi.fn(async () => []),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [
-				{
-					name: 'react',
-					initializeRenderer: vi.fn(),
-					getResolvedIntegrationDependencies: () => [],
-				},
-			],
-		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const OuterLayout = (() => '<outer></outer>') as EcoComponent;
-		OuterLayout.config = {
+		const { flow } = createOrchestrator({ integrations: [createReactIntegration()] });
+		const OuterLayout = createComponent({
 			integration: 'react',
 			identity: { id: 'outer', file: '/app/layouts/outer.tsx', integration: 'react' },
-		};
-		const InnerLayout = (() => '<inner></inner>') as EcoComponent;
-		InnerLayout.config = {
+		});
+		const InnerLayout = createComponent({
 			integration: 'react',
 			identity: { id: 'inner', file: '/app/layouts/inner.tsx', integration: 'react' },
-		};
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-		Page.config = {
+		});
+		const Page = createPage({
 			layouts: [OuterLayout, InnerLayout],
 			layoutEntries: [{ component: OuterLayout }, { component: InnerLayout }],
-		};
+		});
+		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const resolvedComponents: EcoComponent[] = [];
 
 		await flow.prepareRenderOptions(
-			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			{
-				...createFlowAdapter({
-					resolvePageModule: async () => ({
-						Page,
-						integrationSpecificProps: {},
-					}),
-					getHtmlTemplate: async () => HtmlTemplate,
-					resolvePageData: async () => ({
-						props: {},
-						metadata: { title: 'Page', description: 'Page description' },
-					}),
-					resolveDependencies: async (components) => {
-						resolvedComponents.push(...(components as EcoComponent[]));
-						return [];
-					},
-					collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-				}),
+			createRouteOptions('/app/pages/index.tsx'),
+			createFlowAdapter({
 				name: 'react',
-			},
+				Page,
+				HtmlTemplate,
+				resolveDependencies: async (components) => {
+					resolvedComponents.push(...(components as EcoComponent[]));
+					return [];
+				},
+			}),
 		);
 
 		expect(resolvedComponents).toEqual([HtmlTemplate, OuterLayout, InnerLayout, Page]);

@@ -1,111 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import type {
-	EcoComponent,
-	EcoPageFile,
-	HtmlTemplateProps,
-	IntegrationRendererRenderOptions,
-	PageBrowserGraphContribution,
-	PageBrowserGraphContributionContext,
-	PageMetadataProps,
-	RouteRendererBody,
-	RouteRendererOptions,
-} from '../../../types/public-types.ts';
+import type { AssetProcessingService } from '../../../services/assets/asset-processing-service/index.ts';
+import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import type { EcoComponent, IntegrationRendererRenderOptions, RouteRendererBody } from '../../../types/public-types.ts';
 import { createUnresolvedMarkerArtifact } from '../integration-renderer.test-fixtures.ts';
 import { buildRouteHtmlFinalization } from './route-html-finalization.service.ts';
-import {
-	type RouteHtmlFinalization,
-	type RouteRenderOrchestratorAdapter,
-	RouteRenderOrchestrator,
-} from './route-render-orchestrator.ts';
-import { resolvePageLayoutComponents } from '../document-shell/layout-shell-props.service.ts';
-import { createPageDependencyInstanceKey } from '../page-browser-graph/route-instance-key.ts';
+import { RouteRenderOrchestrator } from './route-render-orchestrator.ts';
+import { createFlowAdapter, createRouteOptions } from './route-render-orchestrator.test-fixtures.ts';
 import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
 
-function createFlowAdapter(input: {
-	resolvePageModule: (file: string) => Promise<{
-		Page: EcoComponent<Record<string, unknown>>;
-		integrationSpecificProps: Record<string, unknown>;
-		getStaticProps?: unknown;
-		getMetadata?: unknown;
-	}>;
-	getHtmlTemplate: () => Promise<EcoComponent<HtmlTemplateProps>>;
-	resolvePageData: (
-		pageModule: {
-			getStaticProps?: unknown;
-			getMetadata?: unknown;
-		},
-		routeOptions: RouteRendererOptions,
-	) => Promise<{ props: Record<string, unknown>; metadata: PageMetadataProps }>;
-	resolveDependencies: (components: (EcoComponent | Partial<EcoComponent>)[]) => Promise<any[]>;
-	collectPageBrowserGraphContribution: (
-		context: PageBrowserGraphContributionContext,
-	) => Promise<PageBrowserGraphContribution | undefined>;
-	renderRouteBody: () => Promise<RouteRendererBody>;
-	getRouteHtmlFinalization?: () => RouteHtmlFinalization;
-	transformRouteResponse: (response: Response) => Promise<RouteRendererBody>;
-}): RouteRenderOrchestratorAdapter<unknown> {
-	return {
-		name: 'test-renderer',
-		resolveRouteRenderInputs: async (routeOptions) => {
-			const pageModule = await input.resolvePageModule(routeOptions.file);
-			const HtmlTemplate = await input.getHtmlTemplate();
-			const Layouts = resolvePageLayoutComponents(pageModule.Page.config?.layouts);
-			const Layout = Layouts[Layouts.length - 1];
-			const { props, metadata } = await input.resolvePageData(pageModule, routeOptions);
+function createHtmlStream(html: string): BodyInit {
+	const encoder = new TextEncoder();
 
-			return {
-				Page: pageModule.Page,
-				pageModule: {
-					default: pageModule.Page,
-					...pageModule.integrationSpecificProps,
-				} as EcoPageFile,
-				HtmlTemplate,
-				Layouts,
-				Layout,
-				layoutEntries: pageModule.Page.config?.layoutEntries,
-				props,
-				metadata,
-				integrationSpecificProps: pageModule.integrationSpecificProps,
-			};
+	return new ReadableStream({
+		start(controller) {
+			controller.enqueue(encoder.encode(html));
+			controller.close();
 		},
-		resolveRouteDependencies: async ({ components }) => ({
-			resolvedDependencies: await input.resolveDependencies(components),
-		}),
-		collectPageBrowserGraphContribution: async (context) =>
-			await input.collectPageBrowserGraphContribution(context),
-		resolvePageDependencies: async () => undefined,
-		buildPageClientBrowserAssets: async () => ({
-			processedAssets: [],
-			islandRenderAssetsByFile: new Map(),
-			lazyTriggers: [],
-		}),
-		buildPageBrowserGraphContributionContext: async (routeFile, routeOptions) => {
-			const pageModule = await input.resolvePageModule(routeFile);
-			const { props } = await input.resolvePageData(pageModule, {
-				file: routeFile,
-				params: routeOptions?.params,
-				query: routeOptions?.query,
-			});
-
-			return {
-				file: routeFile,
-				pageModule: {
-					default: pageModule.Page,
-					...pageModule.integrationSpecificProps,
-				} as EcoPageFile,
-				props,
-				params: routeOptions?.params,
-				query: routeOptions?.query,
-				dependencyInstanceKey: createPageDependencyInstanceKey({
-					params: routeOptions?.params,
-					query: routeOptions?.query,
-				}),
-			};
-		},
-		renderRouteBody: input.renderRouteBody,
-		getRouteHtmlFinalization: input.getRouteHtmlFinalization ?? (() => ({})),
-		transformRouteResponse: input.transformRouteResponse,
-	};
+	}) as unknown as BodyInit;
 }
 
 describe('RouteRenderOrchestrator', () => {
@@ -113,23 +24,18 @@ describe('RouteRenderOrchestrator', () => {
 		cache: { defaultStrategy: 'static' },
 		defaultMetadata: { title: 'Default title', description: 'Default description' },
 		integrations: [],
-	} as any;
+	} as unknown as EcoPagesAppConfig;
 	const assetProcessingService = {
 		processDependencies: async () => [],
-	} as any;
+	} as unknown as AssetProcessingService;
+	const createFlow = () => new RouteRenderOrchestrator(appConfig, assetProcessingService);
+	const cachedPage = Object.assign(() => '<main>Page</main>', {
+		cache: { revalidate: 60 },
+	}) as unknown as EcoComponent;
 
 	it('captures streamed render bodies before final HTML handling', async () => {
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const encoder = new TextEncoder();
-
-		const result = await flow.captureHtmlRender(
-			async () =>
-				new ReadableStream({
-					start(controller) {
-						controller.enqueue(encoder.encode('<html><body><main>Streamed</main></body></html>'));
-						controller.close();
-					},
-				}) as unknown as BodyInit,
+		const result = await createFlow().captureHtmlRender(async () =>
+			createHtmlStream('<html><body><main>Streamed</main></body></html>'),
 		);
 
 		expect(result.body).toBeInstanceOf(ReadableStream);
@@ -137,31 +43,11 @@ describe('RouteRenderOrchestrator', () => {
 	});
 
 	it('executes prepared route renders and preserves cache strategy', async () => {
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const encoder = new TextEncoder();
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
-		(Page as EcoComponent<Record<string, unknown>> & { cache?: unknown }).cache = { revalidate: 60 };
-
-		const result = await flow.execute(
-			{
-				file: '/app/pages/index.tsx',
-				params: {},
-				query: {},
-			} as unknown as RouteRendererOptions,
+		const result = await createFlow().execute(
+			createRouteOptions('/app/pages/index.tsx'),
 			createFlowAdapter({
-				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
-				getHtmlTemplate: async () => HtmlTemplate,
-				resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution: async () => undefined,
-				renderRouteBody: async () =>
-					new ReadableStream({
-						start(controller) {
-							controller.enqueue(encoder.encode('<html><body><main>Streamed</main></body></html>'));
-							controller.close();
-						},
-					}) as unknown as BodyInit,
+				Page: cachedPage,
+				renderRouteBody: async () => createHtmlStream('<html><body><main>Streamed</main></body></html>'),
 				transformRouteResponse: async (response) => response.body as RouteRendererBody,
 			}),
 		);
@@ -172,28 +58,18 @@ describe('RouteRenderOrchestrator', () => {
 	});
 
 	it('adds the HTML template module closure to the cached document inputs', async () => {
-		const shellConfig = { ...appConfig, absolutePaths: { htmlTemplatePath: '/app/includes/html.tsx' } } as any;
+		const shellConfig = {
+			...appConfig,
+			absolutePaths: { htmlTemplatePath: '/app/includes/html.tsx' },
+		} as unknown as EcoPagesAppConfig;
 		getAppBuildInputIndex(shellConfig).register(
 			{ consumer: 'server-route-module', key: '/app/includes/html.tsx' },
 			['/app/includes/html.tsx', '/app/includes/seo.tsx'],
 		);
-		const flow = new RouteRenderOrchestrator(shellConfig, assetProcessingService);
-		const adapter = createFlowAdapter({
-			resolvePageModule: async () => ({
-				Page: (() => '') as EcoComponent<Record<string, unknown>>,
-				integrationSpecificProps: {},
-			}),
-			getHtmlTemplate: async () => (() => '') as EcoComponent<HtmlTemplateProps>,
-			resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
-			resolveDependencies: async () => [],
-			collectPageBrowserGraphContribution: async () => undefined,
-			renderRouteBody: async () => '<html><body><main>Page</main></body></html>',
-			transformRouteResponse: async (response) => response.body as RouteRendererBody,
-		});
 
-		const result = await flow.executePrepared(
+		const result = await new RouteRenderOrchestrator(shellConfig, assetProcessingService).executePrepared(
 			{ sourceDependencyPaths: ['/app/pages/index.tsx'] } as unknown as IntegrationRendererRenderOptions<unknown>,
-			adapter,
+			createFlowAdapter({ renderRouteBody: async () => '<html><body><main>Page</main></body></html>' }),
 		);
 
 		expect(result.sourceDependencyPaths).toEqual([
@@ -204,23 +80,10 @@ describe('RouteRenderOrchestrator', () => {
 	});
 
 	it('applies document attributes to fully resolved route HTML', async () => {
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
-		(Page as EcoComponent<Record<string, unknown>> & { cache?: unknown }).cache = { revalidate: 60 };
-
-		const result = await flow.execute(
-			{
-				file: '/app/pages/index.tsx',
-				params: {},
-				query: {},
-			} as unknown as RouteRendererOptions,
+		const result = await createFlow().execute(
+			createRouteOptions('/app/pages/index.tsx'),
 			createFlowAdapter({
-				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
-				getHtmlTemplate: async () => HtmlTemplate,
-				resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution: async () => undefined,
+				Page: cachedPage,
 				renderRouteBody: async () => '<html><body><main>Resolved</main></body></html>',
 				getRouteHtmlFinalization: () =>
 					buildRouteHtmlFinalization({
@@ -238,7 +101,6 @@ describe('RouteRenderOrchestrator', () => {
 									.join(' ')}`,
 							),
 					}),
-				transformRouteResponse: async (response) => await response.text(),
 			}),
 		);
 
@@ -257,22 +119,10 @@ describe('RouteRenderOrchestrator', () => {
 			'<html><body>&amp;lt;eco-marker data-eco-node-id=&quot;n_2&quot; data-eco-component-ref=&quot;page-component&quot; data-eco-props-ref=&quot;p_2&quot;&amp;gt;&amp;lt;/eco-marker&amp;gt;</body></html>',
 		],
 	])('throws when the route HTML contains %s', async (_name, html) => {
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
-
 		await expect(
-			flow.execute(
-				{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-				createFlowAdapter({
-					resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
-					getHtmlTemplate: async () => HtmlTemplate,
-					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
-					resolveDependencies: async () => [],
-					collectPageBrowserGraphContribution: async () => undefined,
-					renderRouteBody: async () => html,
-					transformRouteResponse: async (response) => await response.text(),
-				}),
+			createFlow().execute(
+				createRouteOptions('/app/pages/index.tsx'),
+				createFlowAdapter({ renderRouteBody: async () => html }),
 			),
 		).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
 	});

@@ -1,5 +1,5 @@
 import { Processor } from '@ecopages/core/plugins/processor';
-import type { EcoBuildPlugin, ProcessorWatchChanges, ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
+import type { ProcessorWatchChanges, ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
 import { join } from 'node:path';
 import { writeWikiSearchIndex } from '@/lib/search/wiki';
 import { ingestVault, resolveSourcesDir, resolveVaultDir } from '@/lib/wiki/ingest';
@@ -16,9 +16,6 @@ import { ingestVault, resolveSourcesDir, resolveVaultDir } from '@/lib/wiki/inge
  * reloads browsers.
  */
 export class ObsidianIngestProcessor extends Processor {
-	plugins: EcoBuildPlugin[] = [];
-	buildPlugins: EcoBuildPlugin[] = [];
-
 	constructor() {
 		const watch: ProcessorWatchConfig = {
 			paths: [resolveVaultDir(process.cwd()), resolveSourcesDir(process.cwd())],
@@ -49,15 +46,17 @@ export class ObsidianIngestProcessor extends Processor {
 	}
 
 	/**
-	 * Runs before the content collection scan, so generated pages exist before
-	 * configuration finalization rather than only after processor setup.
+	 * Runs before the content processor's `setup()` scans the collections, because processors set up in the order
+	 * they are registered and `eco.config.ts` lists this one first. Core sets Processors up before it reads any
+	 * Page in `dev`, `build` and `preview`.
+	 *
+	 * @remarks
+	 * It also runs for `ecopages types`, which needs the generated pages but not the search index. Once the
+	 * setup context carries the run mode (`types`, `dev` or `build`), the index can be written for `dev` and
+	 * `build` only.
 	 */
-	override async prepareBuildContributions(): Promise<void> {
-		this.bindWatchPaths();
-		await ingestVault({ appRoot: this.getAppRoot() });
-	}
-
 	async setup(): Promise<void> {
+		this.bindWatchPaths();
 		await ingestVault({ appRoot: this.getAppRoot() });
 		await this.writeSearchIndex();
 	}

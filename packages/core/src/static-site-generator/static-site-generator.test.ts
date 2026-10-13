@@ -813,6 +813,8 @@ describe('StaticSiteGenerator', () => {
 				],
 			});
 
+			expect(executeExplicitView).toHaveBeenCalledTimes(1);
+
 			const sitemapWrite = writeMock.mock.calls.find((call: unknown[]) =>
 				String(call[0]).endsWith('sitemap.xml'),
 			);

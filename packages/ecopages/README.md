@@ -23,15 +23,15 @@ bun dev
 
 ## Commands
 
-| Command               | Description                                             | Equivalent (Bun)                                             |
-| :-------------------- | :------------------------------------------------------ | :----------------------------------------------------------- |
-| `ecopages init [dir]` | Scaffolds a new project (interactive without `dir`)     | N/A                                                          |
-| `ecopages dev`        | Starts the dev server (supervises config/.env restarts) | `bun run [entry] --dev`                                      |
-| `ecopages dev:watch`  | Dev server + hard restarts on file changes              | Bun: `bun --watch run [entry] --dev`; Node: `node --watch …` |
-| `ecopages build`      | Creates a production build                              | `bun run [entry] --build`                                    |
-| `ecopages start`      | Starts the production server from the built output      | Runs the emitted server bundle                               |
-| `ecopages preview`    | Previews the production build locally                   | `bun run [entry] --preview`                                  |
-| `ecopages types`      | Writes virtual-module types for `tsc`, then exits       | Loads `eco.config.ts` only; the entry does not run           |
+| Command               | Description                                             | Equivalent (Bun)                                                     |
+| :-------------------- | :------------------------------------------------------ | :------------------------------------------------------------------- |
+| `ecopages init [dir]` | Scaffolds a new project (interactive without `dir`)     | N/A                                                                  |
+| `ecopages dev`        | Starts the dev server (supervises config/.env restarts) | `bun run [entry] --dev`                                              |
+| `ecopages dev:watch`  | Dev server + hard restarts on file changes              | Bun: `bun --watch run [entry] --dev`; Node: `node --watch …`         |
+| `ecopages build`      | Creates a production build                              | `bun run [entry] --build`                                            |
+| `ecopages start`      | Starts the production server from the built output      | Runs the emitted server bundle                                       |
+| `ecopages preview`    | Previews the production build locally                   | `bun run [entry] --preview`                                          |
+| `ecopages types`      | Writes virtual-module types for `tsc`, then exits       | Loads `eco.config.ts` and sets processors up; the entry does not run |
 
 > [!NOTE]
 > The entry file defaults to `app.ts`. Override it with `--entry-file`.

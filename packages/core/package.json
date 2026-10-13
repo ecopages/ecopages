@@ -223,10 +223,6 @@
 			"types": "./src/plugins/define-integration.ts",
 			"default": "./src/plugins/define-integration.ts"
 		},
-		"./plugins/source-transform": {
-			"types": "./src/plugins/source-transform.ts",
-			"default": "./src/plugins/source-transform.ts"
-		},
 		"./build/build-adapter": {
 			"types": "./src/build/build-adapter.ts",
 			"default": "./src/build/build-adapter.ts"

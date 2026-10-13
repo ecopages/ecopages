@@ -19,9 +19,8 @@ These contracts are responsible for:
 - `define-integration.ts`: typed factory for integrations that only need declarative config and a renderer class
 - `find-integration-for-file.ts`: resolves the Integration that owns a file by its longest registered extension; route rendering, page-module loading, route discovery, the pages graph, and component attribution all use it
 - `processor.ts`: asset-transformation contract for processors, including the optional `transformStylesheet(css, file)` that core's stylesheet pipeline calls for processors with a matching `stylesheet` capability, and generated `@types` package helpers for virtual modules
-- `source-transform.ts`: bundler-neutral source-transform primitive; core transforms use MagicString to preserve locations, and Rolldown builds run them as `transform` plugins
 - `component-import-discovery.ts`: resolves direct local factory exports, named `export { X } from` barrels (imported binding only), relative CSS imports, and aliased CSS imports; records the imported module, factory file, and successful named re-export hops as watch files; excludes `export *`, type imports, package imports, and ordinary helpers.
-- `eco-component-meta-plugin.ts`: component-identity attribution transform for `eco.*()` factories and `attributeMdxComponentIdentity` for compiled MDX modules
+- `eco-component-meta-plugin.ts`: the component-identity attribution build plugin for `eco.*()` factories, which core adds to every build request, and `attributeMdxComponentIdentity` for compiled MDX modules
 
 ## Ownership Rules
 
@@ -35,17 +34,17 @@ These contracts are responsible for:
 - Core owns lifecycle ordering, startup orchestration, and manifest assembly.
 - `staticExport(context)` starts export-wide work before the first page renders and may return a release; core awaits the releases in reverse order after the export, on success or failure.
 - App shutdown calls Integration `teardown()` to release resources created during runtime setup.
-- Integrations and Processors expose one `plugins` getter. Build plugins declare their server/browser environments; omitted environments apply to both. Config finalization rejects a duplicate name within one environment and names both contributors.
-- The transform wraps native `eco.page()`, `eco.component()`, `eco.layout()`, and `eco.html()` factory options with `bindComponentIdentity()`. Factories retain the resulting `options.identity` on `config`, and runtime consumers read it through `getComponentIdentity()`. Browser, HMR, and server builds use the same source transform, so ownership and dependency diagnostics retain stable file attribution without a loader duplicate.
+- Integrations and Processors expose one `plugins(app)` method. Core reads it once during config finalization, and it is the only Processor method that runs then, so it does no I/O. A Processor generates files, loads configuration and warms caches in `setup()`, or lazily in its own plugin callbacks when a build can run first. Build plugins declare their server/browser environments; omitted environments apply to both. Config finalization rejects a duplicate name within one environment and names both contributors.
+- The transform wraps native `eco.page()`, `eco.component()`, `eco.layout()`, and `eco.html()` factory options with `bindComponentIdentity()`. Factories retain the resulting `options.identity` on `config`, and runtime consumers read it through `getComponentIdentity()`. Browser, HMR, and server builds use the same plugin, so ownership and dependency diagnostics retain stable file attribution without a loader duplicate.
 - MDX modules compiled by `@ecopages/mdx/core` use `attributeMdxComponentIdentity()`, which returns `{ code, map }` with the compiler map composed, to strip bare CSS imports, attach live component accessors to `config.dependencies`, keep inferred stylesheets on identity, and assign `MDXContent.config = config`. The loader requires `projectRoot` from app config. Its source map composes the MDX compiler map with identity edits. Markdown code blocks and dynamic imports within functions are distinguished and left unaffected.
 
 ## Lifecycle Summary
 
-1. Config build validates and prepares plugin contributions.
-2. Core seals the app-owned build manifest.
-3. Runtime startup calls runtime-only setup hooks.
+1. Config finalization validates registrations and reads each `plugins(app)` once.
+2. Core seals the app-owned build manifest from them.
+3. Runtime startup calls the setup hooks, in every mode and before the router reads any Page. `ecopages build` and `ecopages preview` empty `dist/` first, so a Page module that resolves what a Processor generates in `setup()` finds it. Only the Lit render worker skips Processor setup.
 4. Request-time rendering and development invalidation reuse those finalized contracts. Each Integration lazily owns one renderer shared by route rendering, explicit views, and foreign-child handoffs. It also shares the Integration's app-owned asset-processing service, so an unchanged stylesheet or script is reused until its source changes, its output is missing, or development invalidation drops the entry.
-5. `DevelopmentInvalidationService.invalidateServerModules()` calls `Processor.invalidateServerArtifacts()` so processors can discard compiled server artifacts that are not part of the route-module graph.
+5. `DevelopmentInvalidationService.invalidateServerModules()` advances the app module loader's development generation. A Processor that keeps compiled server artifacts outside the route-module graph, such as the content processor's collection bundles, compares `appConfig.runtime.appModuleLoader.getDevelopmentGeneration()` with the generation it built at and rebuilds on a mismatch; there is no invalidation hook.
 
 ## Discovered dependency metadata
 

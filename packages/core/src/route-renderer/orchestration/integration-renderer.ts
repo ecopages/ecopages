@@ -451,7 +451,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const context = getComponentRenderContext();
 		const session = context?.session;
 		const existingPackage = session?.pagePackage ?? context?.pagePackage;
-		const existingDependencies = existingPackage?.assets ?? session?.processedDependencies ?? [];
+		const existingDependencies = existingPackage?.assets ?? [];
 		const mergedDependencies = this.htmlTransformer.dedupeProcessedAssets([
 			...existingDependencies,
 			...nextDependencies,
@@ -462,7 +462,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 		if (session) {
 			session.pagePackage = pagePackage;
-			session.processedDependencies = mergedDependencies;
 		}
 		if (context) {
 			context.pagePackage = pagePackage;
@@ -981,7 +980,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 						context.pagePackage = renderOptions.pagePackage;
 					}
 					session.pagePackage = renderOptions.pagePackage;
-					session.processedDependencies = [...(renderOptions.pagePackage?.assets ?? [])];
 					return this.routeRenderOrchestrator.executePrepared(renderOptions, this);
 				},
 			);

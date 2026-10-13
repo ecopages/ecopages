@@ -16,8 +16,7 @@ export {
 	redirect,
 	type GroupHandler,
 } from './adapters/shared/http/define-api-handler.ts';
-export { type EcoSourceTransform, type EcoSourceTransformResult } from './plugins/source-transform.ts';
-export { attributeMdxComponentIdentity, createEcoComponentMetaTransform } from './plugins/eco-component-meta-plugin.ts';
+export { attributeMdxComponentIdentity } from './plugins/eco-component-meta-plugin.ts';
 export {
 	bindComponentIdentity,
 	getComponentIdentity,

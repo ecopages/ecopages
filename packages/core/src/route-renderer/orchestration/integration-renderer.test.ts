@@ -20,6 +20,7 @@ import type {
 	EcoComponent,
 	HtmlTemplateProps,
 	PageBrowserGraphContribution,
+	IHmrManager,
 } from '../../types/public-types.ts';
 import type { EcoPageComponent } from '../../eco/eco.types.ts';
 import {
@@ -361,6 +362,60 @@ describe('IntegrationRenderer', () => {
 		expect(firstRender).toHaveBeenCalledOnce();
 		expect(secondRender).toHaveBeenCalledOnce();
 		expect(getRenderer).toHaveBeenCalledTimes(2);
+	});
+
+	it('uses the page package as the partial render asset accumulator', async () => {
+		const renderer = new TestIntegrationRenderer({
+			appConfig: testAppConfig,
+			assetProcessingService: testAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		const firstAsset = {
+			kind: 'script',
+			srcUrl: '/assets/first.js',
+		} as ProcessedAsset;
+		const secondAsset = {
+			kind: 'script',
+			srcUrl: '/assets/second.js',
+		} as ProcessedAsset;
+		const session = createRenderSession();
+
+		await runWithComponentRenderContext({ currentIntegration: 'test-renderer', session }, async () => {
+			renderer.appendTestProcessedDependencies([firstAsset]);
+			renderer.appendTestProcessedDependencies([secondAsset]);
+		});
+
+		expect(session.pagePackage?.assets).toEqual([firstAsset, secondAsset]);
+	});
+
+	it('bypasses processed dependency reuse for production renders with HMR enabled', async () => {
+		const processDependencies = vi.fn(async () => [] as ProcessedAsset[]);
+		const assetProcessingService = {
+			processDependencies,
+			setHmrManager: vi.fn(),
+		} as unknown as AssetProcessingService;
+		const Renderer = createIntegrationRenderer<EcoPagesElement>('hmr-cache-test');
+		const renderer = new Renderer({
+			appConfig: testAppConfig,
+			assetProcessingService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		const component = (() => '<div />') as EcoComponent;
+		component.config = {
+			identity: { id: 'hmr-cache', file: '/app/components/hmr-cache.tsx', integration: 'hmr-cache-test' },
+			dependencies: { scripts: ['./client.ts'] },
+		};
+		renderer.setHmrManager({ isEnabled: () => true } as IHmrManager);
+		vi.stubEnv('NODE_ENV', 'production');
+
+		try {
+			await renderer.resolveRouteDependencies({ components: [component] });
+			await renderer.resolveRouteDependencies({ components: [component] });
+
+			expect(processDependencies).toHaveBeenCalledTimes(2);
+		} finally {
+			vi.unstubAllEnvs();
+		}
 	});
 
 	it('finishes a partial explicit view while a route render is still in flight', async () => {

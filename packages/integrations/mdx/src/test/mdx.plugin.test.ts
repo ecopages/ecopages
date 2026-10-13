@@ -65,13 +65,13 @@ describe('MDXPlugin', () => {
 		});
 	});
 
-	it('throws when preparing the loader without appConfig.rootDir', async () => {
+	it('declares the MDX loader from the app config alone', () => {
 		const plugin = mdxPlugin({
 			compilerOptions: {
 				jsxImportSource: '@kitajs/html',
 			},
 		});
 
-		await expect(plugin.prepareBuildContributions()).rejects.toThrow(/appConfig\.rootDir is required/);
+		expect(plugin.plugins(Config).map((contributed) => contributed.name)).toEqual(['mdx-loader']);
 	});
 });

@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types';
 import {
 	Processor,
@@ -12,8 +11,6 @@ import {
 } from './processor.ts';
 
 class TestProcessor extends Processor {
-	override plugins?: EcoBuildPlugin[] = [];
-
 	override async setup(): Promise<void> {}
 }
 

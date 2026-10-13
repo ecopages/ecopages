@@ -60,6 +60,31 @@ describe('DependencyResolverService', () => {
 		expect(capturedDeps).toEqual([expect.objectContaining({ filepath: '/app/parent.js' })]);
 	});
 
+	it('evicts a rejected production dependency result so the next render can retry', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const failure = new Error('temporary asset processing failure');
+		const processDependencies = vi
+			.fn()
+			.mockRejectedValueOnce(failure)
+			.mockResolvedValueOnce([] as ProcessedAsset[]);
+		const assetProcessingService = { processDependencies } as unknown as AssetProcessingService;
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const component = (() => '<div />') as EcoComponent;
+		component.config = {
+			identity: { id: 'retry-dependency', file: '/app/retry.tsx', integration: 'react' },
+			dependencies: { scripts: ['./client.ts'] },
+		};
+
+		try {
+			await expect(service.processComponentDependencies([component], 'react')).rejects.toBe(failure);
+			await expect(service.processComponentDependencies([component], 'react')).resolves.toEqual([]);
+
+			expect(processDependencies).toHaveBeenCalledTimes(2);
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
 	it('lets overlapping renders that share a lazy component each plan its lazy entries', async () => {
 		const assetProcessingService = {
 			processDependencies: vi.fn(async () => [] as ProcessedAsset[]),

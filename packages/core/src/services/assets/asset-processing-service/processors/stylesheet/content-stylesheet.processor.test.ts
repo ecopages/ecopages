@@ -42,14 +42,10 @@ function createMockConfig(processors = new Map<string, Processor>()): EcoPagesAp
 		},
 		processors,
 		loaders: new Map(),
-		sourceTransforms: new Map(),
 	};
 }
 
 class TestStylesheetProcessor extends Processor {
-	readonly buildPlugins = undefined;
-	readonly plugins = undefined;
-
 	constructor(config: Pick<ProcessorConfig, 'name' | 'capabilities'> = { name: 'bundled-css' }) {
 		super({ capabilities: [{ kind: 'stylesheet' }], ...config });
 	}
@@ -199,7 +195,6 @@ describe('ContentStylesheetProcessor', () => {
 		}
 
 		class HooklessProcessor extends Processor {
-			readonly plugins = undefined;
 			constructor() {
 				super({ name: 'postcss-lookalike', capabilities: [{ kind: 'stylesheet' }] });
 			}

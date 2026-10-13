@@ -1,7 +1,6 @@
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { AnyProcessor } from '../plugins/processor.ts';
-import type { EcoSourceTransform } from '../plugins/source-transform.ts';
 import type { CacheConfig } from '../services/cache/cache.types.ts';
 import type { EcoPagesAppConfig, RobotsPreference } from '../types/internal-types.ts';
 import type { PageMetadataProps, SitemapConfig } from '../types/public-types.ts';
@@ -136,11 +135,6 @@ export type EcoPagesUserConfig = {
 	 * Custom Rolldown build loaders and asset transforms.
 	 */
 	loaders?: EcoBuildPlugin[];
-
-	/**
-	 * AST transforms applied to source files before compilation (e.g. island script extraction).
-	 */
-	sourceTransforms?: EcoSourceTransform[];
 
 	/**
 	 * Cache policy configuration for page and asset build outputs.

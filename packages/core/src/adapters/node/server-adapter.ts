@@ -54,7 +54,16 @@ export interface NodeServerAdapterParams {
 	options?: {
 		watch?: boolean;
 	};
-	deferRuntimeAssetSetup?: boolean;
+	/**
+	 * When Processors and Integrations set up.
+	 *
+	 * @remarks
+	 * `start` sets them up before routes are read, `export` empties `dist/` first and then does the same for a
+	 * run that exports the site (`build`, `preview`), and `none` leaves them alone for a preview that only serves
+	 * an earlier export. Every mode sets up before the router reads a Page, so a Page module can resolve what a
+	 * Processor generates in `setup()`.
+	 */
+	runtimeAssetSetup?: 'start' | 'export' | 'none';
 	allowPortFallback?: boolean;
 	onDevelopmentRestart?: (changedFile: string) => Promise<void>;
 	previewHost?: StaticPreviewHost;
@@ -97,7 +106,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	private bridge: NodeClientBridge | null = null;
 	private hmrManager: NodeHmrManager | null = null;
 	private projectWatcher: ProjectWatcher | null = null;
-	private readonly deferRuntimeAssetSetup: boolean;
+	private readonly runtimeAssetSetup: 'start' | 'export' | 'none';
 	private readonly allowPortFallback: boolean;
 	private readonly onDevelopmentRestart?: (changedFile: string) => Promise<void>;
 	private readonly previewHost: StaticPreviewHost;
@@ -125,7 +134,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		},
 	) {
 		super(options);
-		this.deferRuntimeAssetSetup = options.deferRuntimeAssetSetup === true;
+		this.runtimeAssetSetup = options.runtimeAssetSetup ?? 'start';
 		this.allowPortFallback = options.allowPortFallback !== false;
 		this.onDevelopmentRestart = options.onDevelopmentRestart;
 		this.apiHandlers = options.apiHandlers || [];
@@ -147,15 +156,27 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 * 2. **Public dir** is copied before any build so static assets are in `distDir`
 	 *    before the first request arrives.
 	 * 3. **Plugins** (processors, then integrations) are set up after the public dir
-	 *    is in place so they can safely reference dist-relative paths.
+	 *    is in place so they can safely reference dist-relative paths. An export
+	 *    (`build`, `preview`) empties `dist/` first.
 	 * 4. **Router** is initialised last because it may depend on files written by
-	 *    processors during their `setup()` calls.
+	 *    processors during their `setup()` calls, and in build mode it imports Pages.
 	 */
 	public async initialize(): Promise<void> {
 		installBuildQueue(this.appConfig);
 
 		prepareRuntimePublicDir(this.appConfig);
-		if (!this.deferRuntimeAssetSetup) {
+		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
+		this.staticBuilder = new ServerStaticBuilder({
+			appConfig: this.appConfig,
+			staticSiteGenerator: this.staticSiteGenerator,
+			serveOptions: this.serveOptions,
+			runtimeOrigin: this.runtimeOrigin,
+			needsServerBundle: this.apiHandlers.length > 0 || this.websocketHandlers.size > 0,
+			hmrManager: this.hmrManager ?? undefined,
+		});
+		if (this.runtimeAssetSetup === 'export') {
+			await this.staticBuilder.prepareExport();
+		} else if (this.runtimeAssetSetup === 'start') {
 			await setupAppRuntimePlugins({
 				appConfig: this.appConfig,
 				runtimeOrigin: this.runtimeOrigin,
@@ -164,15 +185,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		await this.initializeSharedRouteHandling({
 			staticRoutes: this.staticRoutes,
 			errorPageLoaders: this.errorPageLoaders,
-			hmrManager: this.hmrManager ?? undefined,
-		});
-		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
-		this.staticBuilder = new ServerStaticBuilder({
-			appConfig: this.appConfig,
-			staticSiteGenerator: this.staticSiteGenerator,
-			serveOptions: this.serveOptions,
-			runtimeOrigin: this.runtimeOrigin,
-			needsServerBundle: this.apiHandlers.length > 0 || this.websocketHandlers.size > 0,
 			hmrManager: this.hmrManager ?? undefined,
 		});
 		this.initialized = true;

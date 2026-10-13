@@ -3,11 +3,8 @@ import type { EcoPagesAppConfig } from '@ecopages/core';
 import { ReactPlugin, reactPlugin } from './react.plugin.ts';
 
 async function getMdxLoaderFilter(plugin: ReactPlugin): Promise<RegExp | undefined> {
-	plugin.setConfig({ rootDir: '/tmp/project' } as EcoPagesAppConfig);
-	await plugin.prepareBuildContributions();
-
 	let filter: RegExp | undefined;
-	await plugin.plugins[0]?.setup({
+	await plugin.plugins({ rootDir: '/tmp/project' } as EcoPagesAppConfig)[0]?.setup({
 		onResolve() {},
 		onLoad(options) {
 			filter = options.filter;
@@ -36,6 +33,16 @@ describe('ReactPlugin', () => {
 
 		expect(plugin.extensions).toEqual(['.react.tsx', '.docs.mdx']);
 		expect((plugin as any).mdxExtensions).toEqual(['.docs.mdx']);
+	});
+
+	it('gives an app config for another root its own MDX loader', () => {
+		const plugin = new ReactPlugin({ mdx: {} });
+
+		const first = plugin.plugins({ rootDir: '/tmp/first' } as EcoPagesAppConfig)[0];
+		const second = plugin.plugins({ rootDir: '/tmp/second' } as EcoPagesAppConfig)[0];
+
+		expect(first).not.toBe(second);
+		expect(plugin.plugins({ rootDir: '/tmp/first' } as EcoPagesAppConfig)[0]).toBe(first);
 	});
 
 	it('derives the MDX loader filter from declared MDX extensions only', async () => {

@@ -26,7 +26,7 @@ const createMockIntegration = (
 ): IntegrationPlugin => {
 	return new (class extends IntegrationPlugin {
 		renderer = vi.fn() as any;
-		override get plugins(): EcoBuildPlugin[] {
+		override plugins(): EcoBuildPlugin[] {
 			return plugins;
 		}
 		override extensions: string[];
@@ -164,25 +164,7 @@ describe('finalizeEcoPagesConfig', () => {
 		expect(getAppBuildAdapter(config)).not.toBe(defaultBuildAdapter);
 		expect(getAppBuildManifest(config).server).toHaveLength(0);
 		expect(getAppBuildManifest(config).browser).toHaveLength(0);
-		expect(config.sourceTransforms.size).toBeGreaterThan(0);
 		expect(config.runtime?.entrypointDependencyGraph).toBeInstanceOf(NoopEntrypointDependencyGraph);
-	});
-
-	test('should allow explicit app-owned source transforms', async () => {
-		const config = await finalize({
-			baseUrl: 'https://example.com',
-			sourceTransforms: [
-				{
-					name: 'test-source-transform',
-					filter: /entry\.tsx$/,
-					transform(code) {
-						return { code: `/* source transform */\n${code}` };
-					},
-				},
-			],
-		});
-
-		expect(config.sourceTransforms.has('test-source-transform')).toBe(true);
 	});
 
 	test('should finalize processor and integration manifest contributions during config build', async () => {
@@ -193,14 +175,15 @@ describe('finalizeEcoPagesConfig', () => {
 		const integrationBrowserPlugin = { name: 'integration-browser-plugin', setup() {} };
 
 		const processor = new (class extends Processor {
-			plugins = [processorRuntimePlugin, processorBrowserPlugin];
-			override async prepareBuildContributions(): Promise<void> {}
+			override plugins(): EcoBuildPlugin[] {
+				return [processorRuntimePlugin, processorBrowserPlugin];
+			}
 			override async setup(): Promise<void> {}
 		})({ name: 'test-processor' });
 
 		const integration = new (class extends IntegrationPlugin {
 			renderer = vi.fn() as any;
-			override get plugins() {
+			override plugins() {
 				return [integrationRuntimePlugin, integrationBrowserPlugin];
 			}
 			override get browserRuntimeManifest() {
@@ -213,7 +196,6 @@ describe('finalizeEcoPagesConfig', () => {
 					},
 				]);
 			}
-			override async prepareBuildContributions(): Promise<void> {}
 		})({ name: 'test-integration', extensions: ['.test'] });
 
 		try {
@@ -414,23 +396,17 @@ describe('finalizeEcoPagesConfig', () => {
 		).rejects.toThrow('takes the user config first');
 	});
 
-	test('should throw for duplicate processor, loader, and source transform names', async () => {
+	test('should throw for duplicate processor and loader names', async () => {
 		const processor = new (class extends Processor {
-			buildPlugins = [];
-			plugins = [];
 			override async setup(): Promise<void> {}
 		})({ name: 'twice' });
 		const loader = { name: 'twice', setup() {} };
-		const sourceTransform = { name: 'twice', filter: /x/, transform: () => undefined };
 
 		await expect(finalize({ processors: [processor, processor] })).rejects.toThrow(
 			'Processor with name "twice" already exists',
 		);
 		await expect(finalize({ loaders: [loader, loader] })).rejects.toThrow(
 			'Loader with name "twice" already exists',
-		);
-		await expect(finalize({ sourceTransforms: [sourceTransform, sourceTransform] })).rejects.toThrow(
-			'Source transform with name "twice" already exists',
 		);
 	});
 

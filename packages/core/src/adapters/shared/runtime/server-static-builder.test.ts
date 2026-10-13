@@ -36,6 +36,7 @@ function createMockDependencies() {
 	} as unknown as StaticSiteGenerator;
 
 	const mockIntegration = {
+		extensions: ['.tsx'],
 		setConfig: () => {},
 		setRuntimeOrigin: () => {},
 		setHmrManager: () => {},
@@ -262,6 +263,27 @@ describe('ServerStaticBuilder', () => {
 			expect(calls.processorSetup).toBe(1);
 			expect(calls.integrationSetup).toBe(0);
 			expect(appConfig.runtime?.runtimeAssetsPrepared).toBe(true);
+		});
+
+		it('sets up once when the export was prepared before the build', async () => {
+			const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger, calls } =
+				createMockDependencies();
+			const builder = new ServerStaticBuilder({
+				appConfig: AppConfig,
+				staticSiteGenerator: StaticSiteGenerator,
+				serveOptions: ServeOptions,
+				runtimeOrigin: 'http://127.0.0.1:3000',
+				logger,
+			});
+
+			await builder.prepareExport();
+			expect(calls.processorSetup).toBe(1);
+
+			await builder.build(undefined, { router: Router, routeRendererFactory: RouteRendererFactory });
+			expect(calls.processorSetup).toBe(1);
+
+			await builder.build(undefined, { router: Router, routeRendererFactory: RouteRendererFactory });
+			expect(calls.processorSetup).toBe(2);
 		});
 
 		it('should run static site generator with correct options', async () => {

@@ -60,10 +60,11 @@ function assertValidCollectionName(collectionName: string): void {
  * each one as `ecopages:content/<collection>` virtual modules.
  */
 export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
-	private collectionsGenerated = false;
+	private collectionsGeneration?: Promise<void>;
 	private readonly scanners = new Map<string, ContentScanner>();
 	private readonly collectionBuildPromises = new Map<string, Promise<void>>();
 	private readonly collectionGenerations = new Map<string, number>();
+	private readonly collectionServerBuiltAt = new Map<string, number>();
 
 	/**
 	 * Absolute paths to generated collection entry modules, keyed by collection name.
@@ -106,11 +107,12 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 				this.collectionServerModules,
 				this.collectionServerCompiledModules,
 				this.collectionBrowserModules,
+				() => this.ensureCollectionsGenerated(),
 			),
 		].map((plugin) => ({ ...plugin, environments: ['browser'] as Array<'browser'> }));
 	}
 
-	get plugins(): EcoBuildPlugin[] {
+	override plugins(): EcoBuildPlugin[] {
 		return [
 			{
 				...createContentPlugin(
@@ -119,17 +121,12 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 					this.collectionServerCompiledModules,
 					this.collectionBrowserModules,
 					(collectionName) => this.ensureCollectionServerArtifact(collectionName),
+					() => this.ensureCollectionsGenerated(),
 				),
 				environments: ['server'],
 			},
 			...this.browserPlugins,
 		];
-	}
-
-	override invalidateServerArtifacts(): void {
-		for (const collectionName of Object.keys(this.getCollectionsConfig())) {
-			this.invalidateCollectionServerArtifact(collectionName);
-		}
 	}
 
 	private getCollectionsConfig(): ContentProcessorConfig['collections'] {
@@ -457,6 +454,10 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 			return;
 		}
 
+		if (this.collectionServerBuiltAt.get(collectionName) !== this.getServerSourceGeneration()) {
+			delete this.collectionServerCompiledModules[collectionName];
+		}
+
 		if (this.collectionServerCompiledModules[collectionName]) {
 			return;
 		}
@@ -471,6 +472,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		}
 
 		const generation = this.collectionGenerations.get(collectionName) ?? 0;
+		const serverSourceGeneration = this.getServerSourceGeneration();
 		const serverOutputFile = this.collectionServerModules[collectionName];
 		if (!serverOutputFile) {
 			throw new Error(`Unknown content collection: ${collectionName}`);
@@ -480,9 +482,14 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		const ownedSourcePaths = scanner ? (await scanner.getEntrySources()).map(({ filePath }) => filePath) : [];
 		const buildPromise = this.buildCollectionServerArtifact(collectionName, serverOutputFile, ownedSourcePaths)
 			.then(() => {
-				if (generation !== (this.collectionGenerations.get(collectionName) ?? 0)) {
+				const changedDuringBuild =
+					generation !== (this.collectionGenerations.get(collectionName) ?? 0) ||
+					serverSourceGeneration !== this.getServerSourceGeneration();
+				if (changedDuringBuild) {
 					delete this.collectionServerCompiledModules[collectionName];
+					return;
 				}
+				this.collectionServerBuiltAt.set(collectionName, serverSourceGeneration);
 			})
 			.finally(() => this.collectionBuildPromises.delete(collectionName));
 		this.collectionBuildPromises.set(collectionName, buildPromise);
@@ -492,18 +499,33 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		}
 	}
 
-	private async ensureCollectionsGenerated(): Promise<void> {
-		if (this.collectionsGenerated) {
-			return;
-		}
-
-		this.initializeWatchPaths();
-		await this.regenerateAllCollections();
-		this.collectionsGenerated = true;
+	/**
+	 * The app module loader's development generation, which advances whenever server source changes.
+	 *
+	 * @remarks
+	 * A compiled collection embeds the modules its entries import, such as a component, so it is stale once the
+	 * generation differs from the one it was built at. Core announces no invalidation to Processors.
+	 */
+	private getServerSourceGeneration(): number {
+		return this.context?.config.runtime?.appModuleLoader?.getDevelopmentGeneration() ?? 0;
 	}
 
-	override async prepareBuildContributions(): Promise<void> {
-		await this.ensureCollectionsGenerated();
+	/**
+	 * Generates the collection modules and types once, and shares that work between callers.
+	 *
+	 * @remarks
+	 * {@link setup} and every collection resolve call it, so a build that starts before `setup()` waits for the
+	 * generated modules instead of finding none. A failed generation is dropped so the next caller retries.
+	 */
+	private ensureCollectionsGenerated(): Promise<void> {
+		this.collectionsGeneration ??= (async () => {
+			this.initializeWatchPaths();
+			await this.regenerateAllCollections();
+		})().catch((error) => {
+			this.collectionsGeneration = undefined;
+			throw error;
+		});
+		return this.collectionsGeneration;
 	}
 
 	override async setup(): Promise<void> {

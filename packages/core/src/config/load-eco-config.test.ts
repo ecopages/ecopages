@@ -119,7 +119,7 @@ describe('loadEcoPagesConfig', () => {
 
 	afterEach(() => {
 		fs.rmSync(tempDir, { recursive: true, force: true });
-		delete (globalThis as { __ecoPrepareCalls?: () => number }).__ecoPrepareCalls;
+		delete (globalThis as { __ecoPluginReads?: () => number }).__ecoPluginReads;
 	});
 
 	it('finalizes user config and preserves absolutePaths.config', async () => {
@@ -152,11 +152,11 @@ describe('loadEcoPagesConfig', () => {
 			configPath,
 			[
 				`import { Processor } from ${JSON.stringify(processorModule)};`,
-				'let preparations = 0;',
-				'globalThis.__ecoPrepareCalls = () => preparations;',
+				'let reads = 0;',
+				'globalThis.__ecoPluginReads = () => reads;',
 				'class CountingProcessor extends Processor {',
 				"  constructor() { super({ name: 'counting' }); }",
-				'  override async prepareBuildContributions() { preparations += 1; }',
+				'  override plugins() { reads += 1; return []; }',
 				'}',
 				`export default { rootDir: ${JSON.stringify(tempDir)}, processors: [new CountingProcessor()] };`,
 			].join('\n'),
@@ -166,7 +166,7 @@ describe('loadEcoPagesConfig', () => {
 		const second = await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
 
 		expect(second).toBe(first);
-		expect((globalThis as { __ecoPrepareCalls?: () => number }).__ecoPrepareCalls?.()).toBe(1);
+		expect((globalThis as { __ecoPluginReads?: () => number }).__ecoPluginReads?.()).toBe(1);
 	});
 
 	it('defaults omitted rootDir to the loader cwd', async () => {

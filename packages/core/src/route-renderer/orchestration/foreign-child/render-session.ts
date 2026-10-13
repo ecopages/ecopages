@@ -10,7 +10,6 @@ import type { PagePackageResult } from '../../../types/public-types.ts';
  * leaking into another render on the same instance.
  */
 export type RenderSession = {
-	processedDependencies: ProcessedAsset[];
 	pagePackage?: PagePackageResult;
 	resolvedIntegrationDependencies: ProcessedAsset[];
 	rendererCache: Map<string, unknown>;
@@ -21,7 +20,6 @@ export type RenderSession = {
  */
 export function createRenderSession(resolvedIntegrationDependencies: ProcessedAsset[] = []): RenderSession {
 	return {
-		processedDependencies: [],
 		resolvedIntegrationDependencies: [...resolvedIntegrationDependencies],
 		rendererCache: new Map(),
 	};

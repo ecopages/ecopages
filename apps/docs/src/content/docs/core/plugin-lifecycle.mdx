@@ -18,29 +18,17 @@ During this phase Ecopages:
 2. validates integration names and extensions
 3. validates processor names
 4. derives absolute paths and semantic template paths
-5. adds the component-meta source transform
-6. initializes processor context
-7. creates the app-owned build adapter and build manifest, the server invalidation counter, and a no-op entrypoint dependency graph that development replaces
+5. initializes processor context
+6. reads `plugins(app)` of each processor, then of each integration, once, and seals the build manifest from them
+7. creates the app-owned build adapter, the server invalidation counter, and a no-op entrypoint dependency graph that development replaces
 
-This is where app-owned build/runtime state becomes stable.
+`plugins(app)` is the only plugin method that runs here, and it must be a pure read: no file access, generation or config loading. A processor whose `setup()` throws does not fail finalization. State that a plugin needs, such as generated collection modules or the PostCSS plugin list, is created in `setup()` or by the plugin's own callbacks when a build can run first.
 
-## Phase 2: Build Contribution Preparation
+This ordering is core-owned because processors often provide generic asset capabilities that integrations depend on indirectly. This is where app-owned build/runtime state becomes stable.
 
-Build-facing contributions are collected before the app starts handling requests.
+## Phase 2: App Startup Setup
 
-The ordering is:
-
-1. processors run `prepareBuildContributions()` first
-2. processor `plugins` are collected into runtime plugin contributions
-3. processor `buildPlugins` are collected into browser bundle contributions
-4. integrations then run `prepareBuildContributions()`
-5. integration `plugins` are collected into runtime plugin contributions
-
-This ordering is core-owned because processors often provide generic asset capabilities that integrations depend on indirectly.
-
-## Phase 3: App Startup Setup
-
-Runtime-only setup happens after the build manifest has already been sealed.
+Runtime setup happens after the build manifest has already been sealed.
 
 The ordering is:
 
@@ -52,7 +40,7 @@ The ordering is:
 
 At this point Ecopages has enough live runtime context to resolve integration dependencies, initialize renderers, and register development behavior.
 
-## Phase 4: Request-Time Rendering
+## Phase 3: Request-Time Rendering
 
 For each request, core owns routing and dispatch:
 
@@ -63,7 +51,7 @@ For each request, core owns routing and dispatch:
 
 Integrations own rendering semantics here. Core still owns orchestration and shared post-processing.
 
-## Phase 5: Development Invalidation And HMR
+## Phase 4: Development Invalidation And HMR
 
 Development invalidation is classified in core and then routed to the appropriate participant.
 

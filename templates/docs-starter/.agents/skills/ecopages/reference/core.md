@@ -131,7 +131,7 @@ Included URLs: successfully exported static pages whose metadata resolves and `r
 
 **Data fetching:** Prefer direct function calls in `staticPaths` / `staticProps` over HTTP to your own API during static generation.
 
-**Type checking:** `ecopages:images` and `ecopages:content/*` get their types only when the app finalizes its config, so a fresh checkout has none. Run `ecopages types && tsc --noEmit` (the templates' `typecheck` script) instead of bare `tsc`.
+**Type checking:** `ecopages:images` and `ecopages:content/*` get their types only when the processors set up, so a fresh checkout has none. Run `ecopages types && tsc --noEmit` (the templates' `typecheck` script) instead of bare `tsc`.
 
 ## Best practices
 

@@ -332,30 +332,45 @@ export function createNodeBuiltinExternalPlugin(): RolldownPlugin {
 }
 
 /**
- * Rejects Node builtins and `.server` imports in browser-target builds.
+ * Rejects Node builtins and `.server` modules in browser-target builds.
  *
  * @remarks
  * With `platform: 'browser'`, Rolldown leaves `node:*` imports in the output as
  * bare specifiers. This plugin fails the build instead so server-only graphs
  * cannot reach the browser as silent CORS errors.
+ *
+ * The `.server` check reads the resolved ids a module imports once it is parsed,
+ * not the specifiers as written, so an alias such as a `package.json` `imports`
+ * entry or a tsconfig path is rejected like a relative import. Rolldown has no
+ * importer at `load`, so `moduleParsed` is the earliest hook that can name it.
  */
 export function createBrowserServerOnlyGuardPlugin(): RolldownPlugin {
+	const rejectServerOnly = (id: string, importer: string | undefined): never => {
+		const from = importer ? ` (imported from ${importer})` : '';
+		throw new Error(
+			`[browser-build] server-only module "${id}" cannot be bundled for the browser${from}. Check the browser graph boundary for the importer.`,
+		);
+	};
 	return {
 		name: 'ecopages-browser-server-only-guard',
 		resolveId(id, importer) {
-			const from = importer ? ` (imported from ${importer})` : '';
-			if (isServerOnlyModuleSpecifier(id)) {
-				throw new Error(
-					`[browser-build] server-only module "${id}" cannot be bundled for the browser${from}. Check the browser graph boundary for the importer.`,
-				);
-			}
 			if (!isNodeBuiltinSpecifier(id)) {
 				return null;
 			}
-
+			const from = importer ? ` (imported from ${importer})` : '';
 			throw new Error(
 				`[browser-build] Node builtin "${id}" cannot be bundled for the browser${from}. Check package "browser" exports and the client-graph boundary for the importer.`,
 			);
+		},
+		moduleParsed(info) {
+			if (info.isEntry && isServerOnlyModuleSpecifier(info.id)) {
+				rejectServerOnly(info.id, undefined);
+			}
+			for (const imported of [...info.importedIds, ...info.dynamicallyImportedIds]) {
+				if (isServerOnlyModuleSpecifier(imported)) {
+					rejectServerOnly(imported, info.id);
+				}
+			}
 		},
 	};
 }

@@ -147,7 +147,7 @@ App-manifest plugins keep canonical registration order and cannot be silently re
 
 ## BuildOptions Caveats
 
-Core-owned browser builds reject imports matching the `.server` naming convention (including extensionless `./db.server`) and Node builtins during resolution. Query and fragment suffixes do not change the naming classification. The error names the specifier and its importer. This applies to browser scripts from every Integration, including Lit and ecopages-jsx, and to static imports, re-exports, side-effect imports, and dynamic imports that reach resolution. Server builds allow `.server` imports.
+Core-owned browser builds reject Node builtins during resolution and imports matching the `.server` naming convention (including extensionless `./db.server`) by the resolved module, so an alias such as a `package.json` `imports` entry or a tsconfig path to `db.server.ts` fails like a relative import. Query and fragment suffixes do not change the naming classification. The error names the resolved module and its importer. This applies to browser scripts from every Integration, including Lit and ecopages-jsx, and to static imports, re-exports, side-effect imports, and dynamic imports that reach resolution. Server builds allow `.server` imports.
 
 An Integration can prune server-only imports before resolution. React uses the shared naming predicate while removing server-only Page options, so a middleware-only `.server` import does not fail the browser build. No `server-only` package marker is interpreted by this guard.
 

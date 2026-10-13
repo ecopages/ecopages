@@ -117,9 +117,6 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 				await this.notifyListening(previewOrigin);
 			}
 
-			if (build) {
-				process.exit(0);
-			}
 			return;
 		}
 

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EcoPagesAppConfig } from '@ecopages/core';
 import type { StaticExportContext } from '@ecopages/core/plugins/integration-plugin';
+import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import { LitPlugin } from '../lit.plugin.ts';
 import { LitStaticRenderSession } from '../lit-static-render-session.ts';
 
@@ -98,6 +99,28 @@ describe('LitPlugin staticExport', () => {
 		await release();
 
 		expect(ensureWorker).not.toHaveBeenCalled();
+		expect(dispose).toHaveBeenCalledTimes(1);
+		expect(plugin['renderSession']).toBeNull();
+	});
+
+	it('keeps one session when setup runs after staticExport, as in ecopages build', async () => {
+		const { plugin, context, dispose } = createStaticExportFixture();
+		const sessions = new Set<unknown>();
+		vi.spyOn(LitStaticRenderSession.prototype, 'ensureWorker').mockImplementation(async function (this: unknown) {
+			sessions.add(this);
+		});
+		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
+		plugin.setRuntimeOrigin('http://127.0.0.1:3000');
+
+		const release = await plugin.staticExport(context);
+		const exportSession = plugin['renderSession'];
+		await plugin.setup();
+
+		expect(plugin['renderSession']).toBe(exportSession);
+		expect(sessions.size).toBe(1);
+
+		await release();
+
 		expect(dispose).toHaveBeenCalledTimes(1);
 		expect(plugin['renderSession']).toBeNull();
 	});

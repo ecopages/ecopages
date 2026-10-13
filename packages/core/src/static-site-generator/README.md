@@ -46,7 +46,7 @@ Semantic error pages are excluded from ordinary page enumeration and emitted onc
 
 Integrations may implement:
 
-- `staticExport(context)` — runs after unified-graph prebuild, before page rendering. It may return a release function. Core awaits every release in reverse order once the export ends, including when it fails or an Integration listed later throws from `staticExport`, so a worker started for the export stops without `process.exit()`. A release that throws is logged and does not fail the export.
+- `staticExport(context)` — runs after unified-graph prebuild, before page rendering. It may return a release function. Core awaits every release in reverse order once the export ends, including when it fails or an Integration listed later throws from `staticExport`, so a worker started for the export stops with it: `ecopages build` ends by itself and no longer calls `process.exit()`. A release that throws is logged and does not fail the export.
 
 Core calls no other Integration hook around generation.
 

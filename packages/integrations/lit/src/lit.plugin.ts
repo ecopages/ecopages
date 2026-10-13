@@ -120,7 +120,7 @@ export class LitPlugin extends IntegrationPlugin {
 			return;
 		}
 
-		this.renderSession = this.createRenderSession();
+		this.renderSession ??= this.createRenderSession();
 		await this.renderSession.ensureWorker({
 			configModulePath: this.appConfig.absolutePaths.config,
 			runtimeOrigin: this.runtimeOrigin,
@@ -137,8 +137,11 @@ export class LitPlugin extends IntegrationPlugin {
 	 * Starts the render worker if `setup()` has not and preloads the Lit routes.
 	 *
 	 * @remarks
-	 * The returned release stops the worker once the export ends, so an in-process export leaves no
-	 * worker thread running. A later render in the same process falls back to rendering in-process.
+	 * `ecopages build` defers Integration setup until the first page renders, so `staticExport()` normally
+	 * creates the session and the later `setup()` reuses it, with its preloaded routes, instead of starting a
+	 * second one. The worker restarts only if the two origins differ. The returned release stops the worker once the export ends, so an in-process
+	 * export leaves no worker thread running. A later render in the same process falls back to rendering
+	 * in-process.
 	 */
 	override async staticExport(context: StaticExportContext): Promise<StaticExportRelease> {
 		if (!this.renderSession) {

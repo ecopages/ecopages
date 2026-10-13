@@ -11,7 +11,7 @@ Typical responsibilities include:
 - server-module loading and transpilation
 - browser bundle coordination
 - asset processing and runtime asset declaration helpers
-- server invalidation state and entrypoint dependency graphs
+- entrypoint dependency graphs
 - HTML finalization and dependency injection
 
 ## Main Areas
@@ -20,7 +20,7 @@ Typical responsibilities include:
 - `assets/`: shared browser build coordination and processed asset pipelines. Production CSS, copied scripts, image variants and Rolldown outputs record their content-addressed output paths when written (`hashed-browser-asset.ts`), and file responses use that record for `immutable` caching. Development keeps source-relative names so CSS HMR can refresh the same href. Vendor runtimes keep stable names, and dev vendor bundles stay in process memory.
 - `cache/`: page HTML cache stores, source-path invalidation through the shared build-input index, and request coordination. Each HTML entry records its route-module closure, browser graph, processed asset, and render-shell inputs; development evicts only entries bound to a changed file, and clears the HTML cache on `additionalWatchPaths` edits because the pages that read those files are unknown. The `static` strategy reuses HTML until invalidation or the next deploy and sends `must-revalidate` with an ETag; `immutable` is reserved for content-hashed asset URLs. Page caching is off in watch mode unless `cache.enabled: true` opts in.
 - `invalidation/`: file-change classification and `applyDevFileChanges`, which marks one bounded debounce batch of development results dirty without rebuilding them. See [invalidation](invalidation/README.md).
-- `runtime-state/`: app-owned invalidation state and browser entrypoint dependency graphs (the reverse lookup shares the build-input index)
+- `runtime-state/`: browser entrypoint dependency graphs (the reverse lookup shares the build-input index)
 - `runtime-manifest/`: node runtime manifest derivation and persistence
 - `html/`: final HTML dependency injection and attribute stamping through `HtmlRewriter`, an in-house streaming rewriter with a subset of Bun's `HTMLRewriter` API that matches lol-html output (tag-name selectors; `before`/`prepend`/`append`/`after`; attributes). It runs the same way on Bun and Node. `html-rewriter.test.ts` pins the lol-html output. `html-tokenizer.ts` holds the lexing rules it shares with `html-source-parser.ts`, a positional parser for callers that splice the original markup, such as HTML Pages.
 - `error-pages/`: shared semantic 404/500 source precedence, rendering, built-in documents, and static export artifacts

@@ -69,8 +69,7 @@ export function mergeCallerBuildPlugins(
  *    the same name.
  * 2. {@link resolveAppBuildPlugins}, less the names in `excludeAppBuildPlugins`. Use it to omit app plugins that a
  *    request replaces; an environment cannot express that.
- * 3. Source transforms as `transform` plugins, `pre` before default before `post`. A transform with the name of
- *    another plugin of the request throws.
+ * 3. Source transforms as `transform` plugins, `pre` before default before `post`.
  */
 export function resolveBuildPluginOrder(
 	appConfig: EcoPagesAppConfig,

@@ -5,7 +5,6 @@ import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapte
 import { setAppBuildAdapter } from '../../build/build-adapter.ts';
 import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { CounterServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
 import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
 import { ServerModuleTranspiler, type ServerModuleImportDependency } from './server-module-transpiler.service.ts';
 
@@ -129,9 +128,6 @@ describe('ServerModuleTranspiler', () => {
 			},
 			templatesExt: ['.tsx'],
 			loaders: new Map(),
-			runtime: {
-				serverInvalidationState: new CounterServerInvalidationState(),
-			},
 		} as unknown as EcoPagesAppConfig;
 
 		setAppBuildAdapter(appConfig, new RolldownBuildAdapter());
@@ -151,7 +147,7 @@ describe('ServerModuleTranspiler', () => {
 			return { default: { ok: true } } as T;
 		};
 
-		appConfig.runtime!.serverInvalidationState!.invalidateServerModules(['/app/src/includes/seo.kita.tsx']);
+		getAppModuleLoader(appConfig).invalidateDevelopmentGraph();
 
 		await getAppModuleLoader(appConfig).importModule({
 			filePath: '/app/src/includes/html.kita.tsx',

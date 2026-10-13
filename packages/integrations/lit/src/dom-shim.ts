@@ -1,9 +1,17 @@
 import { installWindowOnGlobal } from '@lit-labs/ssr/lib/dom-shim.js';
 import '@lit-labs/ssr/lib/install-global-dom-shim.js';
 
-/** Repairs the minimal Lit DOM surface after another Integration installs its SSR globals. */
+/**
+ * Repairs the minimal Lit DOM surface after another Integration installs its SSR globals.
+ *
+ * @remarks
+ * The shim is installed only while no global custom element registry exists.
+ * `installWindowOnGlobal()` copies `window: undefined` onto the global, so a
+ * `window` check never turns true and every call would swap in a fresh
+ * registry, dropping elements that preloaded SSR scripts already defined.
+ */
 export function ensureLitDomShim(): void {
-	if (typeof globalThis.window === 'undefined') {
+	if (typeof globalThis.customElements === 'undefined') {
 		installWindowOnGlobal();
 	}
 

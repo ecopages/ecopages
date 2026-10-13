@@ -353,6 +353,12 @@ export interface IHmrManager {
 	tryHandleAssetRequest(request: Request): Response | null;
 
 	/**
+	 * Loads the browser dev runtimes (the HMR client and, when configured, the Dev Toolbar client) from an
+	 * HTML response. Returns the response unchanged while HMR is disabled.
+	 */
+	injectDevClientRuntimes(response: Response): Promise<Response>;
+
+	/**
 	 * Gets the default HMR context.
 	 */
 	getDefaultContext(): DefaultHmrContext;

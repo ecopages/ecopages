@@ -30,7 +30,7 @@ Source dependency hashes use the adapter's entry module closure and plugin-recor
 
 Development import URLs use `sourceHash` plus a per-service import generation counter in the `?update=` query. The compiled output filename includes that generation on every runtime, because Bun retains a previously imported file when only its query changes. Both advance after `invalidateDevelopmentGraph()` without a process-wide invalidation version in reuse keys.
 
-Compiled collection server modules also include the app-owned server invalidation version in their output filename (`<collection>-<buildIdentity>-<invalidationVersion>.mjs`) so Node's ESM loader treats recompiled bundles as new modules after co-located helper files change.
+Compiled collection server modules also include the development generation in their output filename (`<collection>-<buildIdentity>-<generation>.mjs`) so Node's ESM loader treats recompiled bundles as new modules after co-located helper files change. A cached collection build is reused only while the generation is unchanged, so invalidation does not clear collection artifacts separately.
 
 ## Files
 
@@ -49,4 +49,4 @@ Compiled collection server modules also include the app-owned server invalidatio
 
 ## Development invalidation
 
-`DevelopmentInvalidationService.invalidateServerModules()` calls `appModuleLoader.invalidateDevelopmentGraph()`, which clears the in-memory import cache, bumps the per-service dev import generation used for runtime URLs and compiled output filenames, and clears dependency-hash memoization. It also clears the in-process route-module entries: externalized generated modules can change without appearing in a route bundle's dependency graph, so retaining those entries could reload stale server HTML.
+`DevelopmentInvalidationService.invalidateServerModules()` calls `appModuleLoader.invalidateDevelopmentGraph()`, which clears the in-memory import cache, bumps the development generation (`appModuleLoader.getDevelopmentGeneration()`), the one counter of "server source changed", which runtime URLs, compiled output filenames, collection builds and the Lit render worker compare, and clears dependency-hash memoization. It also clears the in-process route-module entries: externalized generated modules can change without appearing in a route bundle's dependency graph, so retaining those entries could reload stale server HTML.

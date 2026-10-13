@@ -23,22 +23,12 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-
-type RolldownPluginLike = {
-	name: string;
-	resolveId: (source: string, importer: string | undefined) => Promise<string | null> | string | null;
-	load: (id: string) =>
-		| Promise<{ code: string; moduleType: 'js'; moduleSideEffects: boolean } | null>
-		| {
-				code: string;
-				moduleType: 'js';
-				moduleSideEffects: boolean;
-		  }
-		| null;
-};
+import type { RolldownPlugin } from 'rolldown';
+import { id as idFilter, include } from 'rolldown/filter';
 
 const CSS_PATH = /\.css$/u;
 const CSS_QUERY = '?ecopages-css-shim';
+const CSS_SHIM_ID = /\?ecopages-css-shim$/u;
 
 function stripShimQuery(id: string): string {
 	const queryIndex = id.indexOf('?');
@@ -49,29 +39,26 @@ function stripShimQuery(id: string): string {
  * Builds a Rolldown plugin that turns `.css` imports into no-op ESM
  * modules while preserving the dependency graph.
  */
-export function createServerSideCssShimPlugin(): RolldownPluginLike {
+export function createServerSideCssShimPlugin(): RolldownPlugin {
 	return {
 		name: 'ecopages:server-side-css-shim',
-		async resolveId(source, importer) {
-			if (!CSS_PATH.test(source)) {
-				return null;
-			}
-
-			const resolved = importer ? path.resolve(path.dirname(importer), source) : path.resolve(source);
-			return existsSync(resolved) ? `${resolved}${CSS_QUERY}` : null;
+		resolveId: {
+			filter: [include(idFilter(CSS_PATH))],
+			handler(source, importer) {
+				const resolved = importer ? path.resolve(path.dirname(importer), source) : path.resolve(source);
+				return existsSync(resolved) ? `${resolved}${CSS_QUERY}` : null;
+			},
 		},
-		async load(id) {
-			if (!id.endsWith(CSS_QUERY)) {
-				return null;
-			}
-
-			const realPath = stripShimQuery(id);
-			readFileSync(realPath, 'utf-8');
-			return {
-				code: 'export default "";',
-				moduleType: 'js',
-				moduleSideEffects: true,
-			};
+		load: {
+			filter: [include(idFilter(CSS_SHIM_ID))],
+			handler(id) {
+				readFileSync(stripShimQuery(id), 'utf-8');
+				return {
+					code: 'export default "";',
+					moduleType: 'js',
+					moduleSideEffects: true,
+				};
+			},
 		},
 	};
 }

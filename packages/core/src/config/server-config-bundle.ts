@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import type { BuildResult } from '../build/contracts/build-contracts.ts';
+import type { BuildSuccess } from '../build/contracts/build-contracts.ts';
 import { createServerBuildRequest } from '../build/runtime/build-request-policy.ts';
 import { buildOrThrow } from '../build/runtime/build-queue.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
@@ -10,7 +10,7 @@ export const EMITTED_ECO_CONFIG_FILENAME = 'eco.config.mjs';
 
 export interface BundleEcoConfigModuleResult {
 	emittedConfigPath: string;
-	buildResult: BuildResult;
+	buildResult: BuildSuccess;
 }
 
 /**

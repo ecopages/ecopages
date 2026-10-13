@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
 	applySourceTransform,
-	applySourceTransforms,
 	createEcoBuildPluginFromSourceTransform,
+	mergeSourceTransformPlugins,
 	normalizeTransformId,
 	type EcoSourceTransform,
 } from './source-transform.ts';
@@ -31,15 +31,24 @@ describe('source-transform', () => {
 		});
 	});
 
-	it('applies transforms in pre, default, and post order', () => {
-		const calls: string[] = [];
+	it('throws when a source transform has the name of a plugin of the same request', () => {
+		const plugin = { name: transform.name, setup() {} };
+
+		expect(() => mergeSourceTransformPlugins([plugin], [transform])).toThrow(
+			`Source transform "${transform.name}" has the name of a build plugin of the same request.`,
+		);
+		expect(
+			mergeSourceTransformPlugins([plugin], [{ ...transform, name: 'other-transform' }]).map((p) => p.name),
+		).toEqual([transform.name, 'other-transform']);
+	});
+
+	it('orders merged transform plugins pre, default, and post', () => {
 		const transforms = [
 			{
 				name: 'post',
 				enforce: 'post' as const,
 				filter: /main\.tsx$/,
 				transform(code: string) {
-					calls.push('post');
 					return code;
 				},
 			},
@@ -48,7 +57,6 @@ describe('source-transform', () => {
 				enforce: 'pre' as const,
 				filter: /main\.tsx$/,
 				transform(code: string) {
-					calls.push('pre');
 					return code;
 				},
 			},
@@ -56,15 +64,14 @@ describe('source-transform', () => {
 				name: 'default',
 				filter: /main\.tsx$/,
 				transform(code: string) {
-					calls.push('default');
 					return code;
 				},
 			},
 		];
 
-		applySourceTransforms(transforms, 'export const value = 1;', '/src/main.tsx');
+		const order = mergeSourceTransformPlugins([], transforms).map((plugin) => plugin.name);
 
-		expect(calls).toEqual(['pre', 'default', 'post']);
+		expect(order).toEqual(['pre', 'default', 'post']);
 	});
 
 	it('creates an Ecopages build plugin wrapper', async () => {

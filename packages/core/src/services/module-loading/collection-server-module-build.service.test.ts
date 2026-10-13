@@ -10,6 +10,7 @@ import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapte
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
 import { buildCollectionServerModule } from './collection-server-module-build.service.ts';
+import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 
 describe('buildCollectionServerModule', () => {
 	let rootDir: string;
@@ -38,12 +39,10 @@ describe('buildCollectionServerModule', () => {
 						ownedSourcePaths: [],
 					});
 				}
-				return {
-					success: true,
-					logs: [],
+				return createBuildSuccess({
 					outputs: [{ path: compiled }],
 					entryOutputs: { [sourceFilePath]: compiled },
-				};
+				});
 			},
 			resolve: (specifier) => specifier,
 		};

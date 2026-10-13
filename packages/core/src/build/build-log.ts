@@ -1,4 +1,4 @@
-import type { BuildResult } from './contracts/build-contracts.ts';
+import type { BuildLog, BuildResult, BuildSuccess } from './contracts/build-contracts.ts';
 
 /**
  * Throws when a build failed, with the formatted logs after `failure`.
@@ -8,7 +8,10 @@ import type { BuildResult } from './contracts/build-contracts.ts';
  * somewhere else. Logs keep their plugin, file, code frame and stack, so callers should throw this error instead of
  * joining `log.message`.
  */
-export function assertBuildSucceeded(result: BuildResult, failure: string | ((details: string) => string)): void {
+export function assertBuildSucceeded(
+	result: BuildResult,
+	failure: string | ((details: string) => string),
+): asserts result is BuildSuccess {
 	if (result.success) {
 		return;
 	}
@@ -24,7 +27,7 @@ export function assertBuildSucceeded(result: BuildResult, failure: string | ((de
  * Only the `at …` lines of the stack are kept, because its first line repeats the message. Errors that
  * Rolldown raises itself, such as parse errors, carry no stack.
  */
-export function formatBuildLog(log: BuildResult['logs'][number]): string {
+export function formatBuildLog(log: BuildLog): string {
 	const file = log.loc?.file ?? log.id;
 	const position = log.loc ? `:${log.loc.line}:${log.loc.column}` : '';
 	const location = file ? `${file}${position}: ` : '';

@@ -59,7 +59,7 @@ describe('RouteModuleDependencyHasher', () => {
 	it('resolves dependency paths from build results', () => {
 		const dependencyPaths = resolveRouteModuleDependencyPaths(
 			{
-				loadedInputs: ['/app/data/posts.json'],
+				loadedInputsByModule: { '/app/pages/about.tsx': ['/app/data/posts.json'] },
 				dependencyGraph: {
 					entrypoints: {
 						'/app/pages/about.tsx': [

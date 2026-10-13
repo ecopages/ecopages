@@ -857,3 +857,61 @@ test('AssetProcessingService - starts a new processor run for a request made aft
 
 	expect(processMock).toHaveBeenCalledTimes(2);
 });
+
+test('AssetProcessingService - gzips a production asset once, not on every request that finds it cached', async () => {
+	const originalNodeEnv = process.env.NODE_ENV;
+	process.env.NODE_ENV = 'production';
+	fileSystem.exists = vi.fn(() => true);
+	const appConfig = { ...Config } as EcoPagesAppConfig;
+	const service = new AssetProcessingService(appConfig);
+	service.registerProcessor('script', 'file', {
+		process: vi.fn(async () => ({
+			filepath: '/test/dist/assets/gzip-once.js',
+			kind: 'script' as const,
+			inline: false,
+			sourceFilepath: '/test/src/gzip-once.ts',
+		})),
+	});
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/gzip-once.ts' };
+
+	try {
+		await service.processDependencies([dependency], 'gzip-1');
+		await service.processDependencies([dependency], 'gzip-2');
+		await service.processDependencies([dependency], 'gzip-3');
+		expect(fileSystem.gzipFile).toHaveBeenCalledTimes(1);
+
+		getAppBuildInputIndex(appConfig).recordChanges(['/test/src/gzip-once.ts']);
+		await service.processDependencies([dependency], 'gzip-4');
+		expect(fileSystem.gzipFile).toHaveBeenCalledTimes(2);
+	} finally {
+		process.env.NODE_ENV = originalNodeEnv;
+	}
+});
+
+test('AssetProcessingService - reuses a cached asset in production without re-reading its source', async () => {
+	const originalNodeEnv = process.env.NODE_ENV;
+	process.env.NODE_ENV = 'production';
+	fileSystem.exists = vi.fn(() => true);
+	const hash = vi.fn(() => 'v1');
+	fileSystem.hash = hash;
+	const service = new AssetProcessingService({ ...Config } as EcoPagesAppConfig);
+	const processMock = vi.fn(async () => ({
+		filepath: '/test/dist/assets/reuse.js',
+		kind: 'script' as const,
+		inline: false,
+	}));
+	service.registerProcessor('script', 'file', { process: processMock });
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/reuse.ts' };
+
+	try {
+		await service.processDependencies([dependency], 'reuse-1');
+		const hashesAfterFirstRun = hash.mock.calls.length;
+		hash.mockReturnValue('v2');
+		await service.processDependencies([dependency], 'reuse-2');
+
+		expect(processMock).toHaveBeenCalledTimes(1);
+		expect(hash.mock.calls.length).toBe(hashesAfterFirstRun);
+	} finally {
+		process.env.NODE_ENV = originalNodeEnv;
+	}
+});

@@ -35,4 +35,28 @@ import type { Entry } from 'ecopages:content/docs';
 			rmSync(dir, { recursive: true, force: true });
 		}
 	});
+
+	it('reads a component file once in production and on every call otherwise', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'ecopages-virtual-imports-memo-'));
+		const file = join(dir, 'component.ts');
+		const originalNodeEnv = process.env.NODE_ENV;
+		try {
+			writeFileSync(file, "import { a } from 'ecopages:content/first';\n");
+
+			process.env.NODE_ENV = 'production';
+			const before = extractEcopagesVirtualImports(file);
+			writeFileSync(file, "import { b } from 'ecopages:content/second';\n");
+			const afterEdit = extractEcopagesVirtualImports(file);
+
+			process.env.NODE_ENV = 'development';
+			const developmentAfterEdit = extractEcopagesVirtualImports(file);
+
+			expect(before.map((entry) => entry.from)).toEqual(['ecopages:content/first']);
+			expect(afterEdit).toEqual(before);
+			expect(developmentAfterEdit.map((entry) => entry.from)).toEqual(['ecopages:content/second']);
+		} finally {
+			process.env.NODE_ENV = originalNodeEnv;
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
 });

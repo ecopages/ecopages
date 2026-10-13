@@ -414,6 +414,56 @@ describe('PageModuleImportService', () => {
 		}
 	});
 
+	it('should not hash the page file again for a repeated import outside development', async () => {
+		process.env.NODE_ENV = 'production';
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-no-rehash-'));
+		const compiledOutput = join(tempDir, 'page-hash123.mjs');
+		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
+		service = new PageModuleImportService(undefined, {
+			...fakeDependencies.dependencies,
+			async buildModule(options, buildExecutor) {
+				fakeDependencies.calls.buildModule.push({ options, buildExecutor });
+				return createBuildResult({ outputs: [{ path: compiledOutput }] });
+			},
+		});
+		const importOptions = { filePath: '/app/pages/page.tsx', rootDir: '/app', outdir: tempDir };
+
+		try {
+			await service.importModule(importOptions);
+			await service.importModule(importOptions);
+			await service.importModule(importOptions);
+
+			assert.equal(fakeDependencies.calls.buildModule.length, 1);
+			assert.deepEqual(fakeDependencies.calls.hashFile, ['/app/pages/page.tsx']);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('should hash the page file on every import in development', async () => {
+		process.env.NODE_ENV = 'development';
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-rehash-'));
+		const compiledOutput = join(tempDir, 'page-hash123.mjs');
+		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
+		service = new PageModuleImportService(undefined, {
+			...fakeDependencies.dependencies,
+			async buildModule(options, buildExecutor) {
+				fakeDependencies.calls.buildModule.push({ options, buildExecutor });
+				return createBuildResult({ outputs: [{ path: compiledOutput }] });
+			},
+		});
+		const importOptions = { filePath: '/app/pages/page.tsx', rootDir: '/app', outdir: tempDir };
+
+		try {
+			await service.importModule(importOptions);
+			await service.importModule(importOptions);
+
+			assert.equal(fakeDependencies.calls.hashFile.length, 2);
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it('should reuse in-memory imports for the same page module within one process', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-reuse-'));
 		const compiledOutput = join(tempDir, 'page-hash123.mjs');

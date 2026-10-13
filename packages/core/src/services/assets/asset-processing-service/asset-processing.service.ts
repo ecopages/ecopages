@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../../config/constants.ts';
 import { isPathInside } from '../../../utils/path-containment.ts';
+import { isProductionRuntime } from '../../../utils/runtime.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
@@ -46,6 +47,7 @@ export class AssetProcessingService {
 	private hmrManager?: IHmrManager;
 	private cache = new Map<string, CachedAsset>();
 	private readonly inFlight = new Map<string, Promise<unknown>>();
+	private readonly gzippedFiles = new Set<string>();
 	private readonly config: EcoPagesAppConfig;
 
 	/**
@@ -299,6 +301,13 @@ export class AssetProcessingService {
 	 * Current optimization is intentionally conservative: only generated CSS and
 	 * JavaScript files inside the app dist directory are gzipped.
 	 */
+	/**
+	 * Gzips the emitted CSS and JS files of a production build, once per processed output.
+	 *
+	 * @remarks
+	 * A request that finds its assets cached must not compress them again; a file is compressed
+	 * again only after its processor ran and wrote it anew.
+	 */
 	private async optimizeDependencies(processedAssets: ProcessedAsset[]): Promise<void> {
 		if (process.env.NODE_ENV !== 'production') {
 			return;
@@ -322,18 +331,28 @@ export class AssetProcessingService {
 		}
 
 		for (const filePath of filesToGzip) {
-			if (fileSystem.exists(filePath)) {
+			if (!this.gzippedFiles.has(filePath) && fileSystem.exists(filePath)) {
 				fileSystem.gzipFile(filePath);
+				this.gzippedFiles.add(filePath);
 			}
 		}
 	}
 
 	/**
-	 * Returns the cached processed asset for a dependency key when available.
+	 * Returns the cached processed asset for a dependency key when it is still valid.
+	 *
+	 * @remarks
+	 * Outside production the source hash and the emitted file are re-checked on every call. In
+	 * production nothing edits the sources or the output directory while the process runs, so a cached
+	 * asset is reused as is instead of hashing its source on every request.
 	 */
 	private getCachedAsset(dep: AssetDefinition, depKey: string): ProcessedAsset | null {
 		if (dep.kind === 'script' && dep.source === 'content') {
 			return this.getCachedContentScriptAsset(dep, depKey);
+		}
+
+		if (isProductionRuntime()) {
+			return this.cache.get(depKey)?.asset ?? null;
 		}
 
 		const sourceHash = this.getFileSourceHash(dep);
@@ -410,6 +429,9 @@ export class AssetProcessingService {
 			asset,
 			sourceHash: this.getFileSourceHash(dep),
 		});
+		if (asset.filepath) {
+			this.gzippedFiles.delete(asset.filepath);
+		}
 
 		if (tracksBrowserRuntimeGeneration && previous !== undefined && previous.filepath !== asset.filepath) {
 			void bumpBrowserRuntimeAssetGeneration(this.config);

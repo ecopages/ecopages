@@ -24,6 +24,7 @@ import {
 	type RouteModuleDependencyHashes,
 } from './route-module-dependency-hasher.ts';
 import { formatBuildLog } from '../../build/build-log.ts';
+import { isProductionRuntime } from '../../utils/runtime.ts';
 
 interface PageModuleImportBaseOptions {
 	filePath: string;
@@ -138,6 +139,10 @@ export class PageModuleImportService {
 	async importModule<T = unknown>(options: PageModuleBuildImportOptions): Promise<T> {
 		const { filePath } = options;
 
+		if (!options.bypassCache && isProductionRuntime()) {
+			return this.importUnchangedModule<T>(options);
+		}
+
 		const fileHash = this.dependencies.hashFile(filePath);
 
 		if (!options.bypassCache) {
@@ -180,6 +185,39 @@ export class PageModuleImportService {
 			...options,
 			fileHash,
 		});
+	}
+
+	/**
+	 * Imports a module whose sources cannot change while the process runs.
+	 *
+	 * @remarks
+	 * In production nothing edits the sources and no watcher invalidates them: every build
+	 * compiles from source in a fresh process. A module loaded once is therefore reused as is, with
+	 * no hashing of its entry file and dependency files, which a request-time import such as
+	 * `ctx.renderServerModule` would otherwise repeat on every request.
+	 */
+	private async importUnchangedModule<T>(options: PageModuleBuildImportOptions): Promise<T> {
+		const cacheKey = [options.filePath, createRouteModuleReuseIdentity(options)].join('::');
+		const cachedModule = this.importCache.get(cacheKey);
+		if (cachedModule) {
+			const loadedModule = (await cachedModule.promise) as T;
+			recordPageModuleLoad('import-cache-hit');
+			return loadedModule;
+		}
+
+		const importPromise = this.loadModule<T>({
+			...options,
+			fileHash: this.dependencies.hashFile(options.filePath),
+			importCacheKey: cacheKey,
+		});
+		this.importCache.set(cacheKey, { promise: importPromise });
+
+		try {
+			return await importPromise;
+		} catch (error) {
+			this.importCache.delete(cacheKey);
+			throw error;
+		}
 	}
 
 	private createRouteModuleBuildOptions(

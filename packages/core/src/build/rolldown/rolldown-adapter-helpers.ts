@@ -25,6 +25,8 @@ import type {
 	RolldownOutput,
 	RolldownPlugin,
 } from 'rolldown';
+import { id as idFilter, include } from 'rolldown/filter';
+import { escapeRegExp } from '../browser/browser-runtime-plugin-helpers.ts';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import { isServerOnlyModuleSpecifier } from '../contracts/server-only-specifier.ts';
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
@@ -306,6 +308,10 @@ function isNodeBuiltinSpecifier(id: string): boolean {
 	return id.startsWith('node:') || nodeBuiltinSpecifiers.has(id);
 }
 
+const nodeBuiltinFilter = new RegExp(
+	`^(?:node:.*|${[...nodeBuiltinSpecifiers].map((specifier) => escapeRegExp(specifier)).join('|')})$`,
+);
+
 /**
  * Resolves Node builtins as external before Rolldown falls back to file resolution.
  *
@@ -325,8 +331,11 @@ function isNodeBuiltinSpecifier(id: string): boolean {
 export function createNodeBuiltinExternalPlugin(): RolldownPlugin {
 	return {
 		name: 'ecopages-node-builtin-external',
-		resolveId(id) {
-			return isNodeBuiltinSpecifier(id) ? { id, external: true } : null;
+		resolveId: {
+			filter: [include(idFilter(nodeBuiltinFilter))],
+			handler(id) {
+				return isNodeBuiltinSpecifier(id) ? { id, external: true } : null;
+			},
 		},
 	};
 }
@@ -353,14 +362,17 @@ export function createBrowserServerOnlyGuardPlugin(): RolldownPlugin {
 	};
 	return {
 		name: 'ecopages-browser-server-only-guard',
-		resolveId(id, importer) {
-			if (!isNodeBuiltinSpecifier(id)) {
-				return null;
-			}
-			const from = importer ? ` (imported from ${importer})` : '';
-			throw new Error(
-				`[browser-build] Node builtin "${id}" cannot be bundled for the browser${from}. Check package "browser" exports and the client-graph boundary for the importer.`,
-			);
+		resolveId: {
+			filter: [include(idFilter(nodeBuiltinFilter))],
+			handler(id, importer) {
+				if (!isNodeBuiltinSpecifier(id)) {
+					return null;
+				}
+				const from = importer ? ` (imported from ${importer})` : '';
+				throw new Error(
+					`[browser-build] Node builtin "${id}" cannot be bundled for the browser${from}. Check package "browser" exports and the client-graph boundary for the importer.`,
+				);
+			},
 		},
 		moduleParsed(info) {
 			if (info.isEntry && isServerOnlyModuleSpecifier(info.id)) {

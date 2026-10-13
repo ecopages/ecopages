@@ -276,7 +276,7 @@ describe('attachMdxExports ownership guard', () => {
 				),
 			).resolves.toEqual({ value: 'host-entry' });
 
-			await expect(render(reactComponent)).toBeDefined();
+			expect(await render(reactComponent)).toBe('react-entry');
 		} finally {
 			rmSync(tempDir, { force: true, recursive: true });
 		}

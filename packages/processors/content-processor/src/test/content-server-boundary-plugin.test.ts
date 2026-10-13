@@ -16,7 +16,6 @@ describe('createContentServerBoundaryPlugin', () => {
 
 		createContentServerBoundaryPlugin().setup(build);
 
-		expect(resolve).toBeDefined();
 		expect(() =>
 			resolve?.({
 				path: 'ecopages:content/posts/server',

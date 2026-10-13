@@ -26,6 +26,7 @@ import {
 } from './contracts/build-contracts.ts';
 export type {
 	BuildAdapter,
+	BuildFormat,
 	BuildChunk,
 	BuildDependencyGraph,
 	BuildExecutor,
@@ -33,6 +34,8 @@ export type {
 	BuildOutput,
 	BuildOwnership,
 	BuildResult,
+	BuildSourcemap,
+	BuildTarget,
 	BuildTranspileOptions,
 	BuildEnvironment,
 } from './contracts/build-contracts.ts';

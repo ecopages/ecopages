@@ -18,7 +18,7 @@ These contracts are responsible for:
 - `define-integration.ts`: typed factory for integrations that only need declarative config and a renderer class
 - `find-integration-for-file.ts`: resolves the Integration that owns a file by its longest registered extension; route rendering, page-module loading, route discovery, the pages graph, and component attribution all use it
 - `processor.ts`: asset-transformation contract for processors, including generated `@types` package helpers for virtual modules
-- `source-transform.ts`: bundler-neutral source-transform primitive; Rolldown builds run them as `transform` plugins
+- `source-transform.ts`: bundler-neutral source-transform primitive; core transforms use MagicString to preserve locations, and Rolldown builds run them as `transform` plugins
 - `component-import-discovery.ts`: resolves direct local factory exports, named `export { X } from` barrels (imported binding only), relative CSS imports, and aliased CSS imports; records the imported module, factory file, and successful named re-export hops as watch files; excludes `export *`, type imports, package imports, and ordinary helpers.
 - `eco-component-meta-plugin.ts`: component-identity attribution transform for `eco.*()` factories and `attributeMdxComponentIdentity` for compiled MDX modules
 
@@ -33,7 +33,7 @@ These contracts are responsible for:
 - App shutdown calls Integration `teardown()` to release resources created during runtime setup.
 - Integrations and Processors expose one `plugins` getter. Build plugins declare their server/browser environments; omitted environments apply to both. Config finalization rejects a duplicate name within one environment and names both contributors.
 - The transform wraps native `eco.page()`, `eco.component()`, `eco.layout()`, and `eco.html()` factory options with `bindComponentIdentity()`. Factories retain the resulting `options.identity` on `config`, and runtime consumers read it through `getComponentIdentity()`. Browser, HMR, and server builds use the same source transform, so ownership and dependency diagnostics retain stable file attribution without a loader duplicate.
-- MDX modules compiled by `@ecopages/mdx/core` use `attributeMdxComponentIdentity()` to strip bare CSS imports, attach live component accessors to `config.dependencies`, keep inferred stylesheets on identity, and assign `MDXContent.config = config`. The loader requires `projectRoot` from app config. Markdown code blocks and dynamic imports within functions are distinguished and left unaffected.
+- MDX modules compiled by `@ecopages/mdx/core` use `attributeMdxComponentIdentity()` to strip bare CSS imports, attach live component accessors to `config.dependencies`, keep inferred stylesheets on identity, and assign `MDXContent.config = config`. The loader requires `projectRoot` from app config. Its source map composes the MDX compiler map with identity edits. Markdown code blocks and dynamic imports within functions are distinguished and left unaffected.
 
 ## Lifecycle Summary
 

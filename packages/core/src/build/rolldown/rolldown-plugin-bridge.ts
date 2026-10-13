@@ -42,6 +42,7 @@
  */
 
 import path from 'node:path';
+import remapping, { type SourceMapInput as RemappingSourceMapInput } from '@jridgewell/remapping';
 import type {
 	LoadResult,
 	PartialResolvedId,
@@ -165,6 +166,7 @@ function convertPluginOnLoadResult(args: { id: string }, result: unknown): LoadR
 			code,
 			moduleType: (normalizeRolldownModuleType(candidate.loader) ??
 				inferRolldownModuleTypeFromPath(sourcePath)) as SourceDescription['moduleType'],
+			...(candidate.map !== undefined ? { map: toRolldownSourceMapInput(candidate.map) } : {}),
 		};
 		return description;
 	}
@@ -221,6 +223,69 @@ function toRolldownSourceMapInput(value: unknown): SourceMapInput | undefined {
 		return value as SourceMapInput;
 	}
 	return undefined;
+}
+
+function composeTransformMaps(next: SourceMapInput, previous: SourceMapInput): SourceMapInput {
+	return remapping(
+		[next as RemappingSourceMapInput, previous as RemappingSourceMapInput],
+		() => null,
+	) as SourceMapInput;
+}
+
+type TransformMapState = {
+	map: SourceMapInput | undefined;
+	invalidated: boolean;
+	preserveIncoming: boolean;
+};
+
+function invalidateTransformMap(state: TransformMapState): void {
+	state.map = undefined;
+	state.invalidated = true;
+	state.preserveIncoming = false;
+}
+
+function keepTransformMap(state: TransformMapState, map: SourceMapInput, pluginName: string, sourcePath: string): void {
+	if (state.invalidated) return;
+	if (state.preserveIncoming) {
+		state.map = map;
+		state.preserveIncoming = false;
+		return;
+	}
+	if (!state.map) {
+		state.map = map;
+		return;
+	}
+	try {
+		state.map = composeTransformMaps(map, state.map);
+	} catch (error) {
+		throw new EcoBuildPluginError(error, pluginName, sourcePath);
+	}
+}
+
+function updateTransformMap(
+	state: TransformMapState,
+	result: EcoBuildOnTransformResult,
+	previousCode: string,
+	currentCode: string,
+	pluginName: string,
+	sourcePath: string,
+): void {
+	if (result.map === null) {
+		if (!state.map && !state.invalidated) {
+			state.preserveIncoming = true;
+		}
+		return;
+	}
+	if (result.map === undefined) {
+		if (currentCode !== previousCode) invalidateTransformMap(state);
+		return;
+	}
+	const map = toRolldownSourceMapInput(result.map);
+	if (!map) {
+		invalidateTransformMap(state);
+		return;
+	}
+	keepTransformMap(state, map, pluginName, sourcePath);
 }
 
 type ResolveCallback = (
@@ -437,8 +502,9 @@ export async function createRolldownPluginBridge(
 	};
 
 	/**
-	 * Runs every matching transform. A rewrite without a map uses empty
-	 * `mappings` so Rolldown does not emit SOURCEMAP_BROKEN.
+	 * Runs every matching transform and composes maps between them. A rewrite
+	 * without a map uses empty `mappings` so Rolldown does not emit
+	 * SOURCEMAP_BROKEN or report stale source positions.
 	 */
 	const transformHandler = async (code: string, id: string): Promise<SourceDescription | undefined> => {
 		const { namespace, path: sourcePath } = splitNamespace(id);
@@ -447,7 +513,7 @@ export async function createRolldownPluginBridge(
 		}
 
 		let current = code;
-		let map: unknown;
+		const mapState: TransformMapState = { map: undefined, invalidated: false, preserveIncoming: false };
 		for (const { matches, callback, pluginName } of transformRegistrations) {
 			if (!matches(sourcePath) && !matches(id)) {
 				continue;
@@ -461,24 +527,24 @@ export async function createRolldownPluginBridge(
 			if (!result) {
 				continue;
 			}
+			const previous = current;
 			if (typeof result === 'string') {
 				current = result;
+				if (current !== previous) invalidateTransformMap(mapState);
 				continue;
 			}
 			current = result.code;
-			if (result.map !== undefined) {
-				map = result.map;
-			}
+			updateTransformMap(mapState, result, previous, current, pluginName, sourcePath);
 		}
 
-		const sourceMap = toRolldownSourceMapInput(map);
-		if (current === code && sourceMap === undefined) {
+		const sourceMap = toRolldownSourceMapInput(mapState.map);
+		if (current === code && sourceMap === undefined && !mapState.invalidated && !mapState.preserveIncoming) {
 			return undefined;
 		}
 
 		return {
 			code: current,
-			map: sourceMap ?? { mappings: '' },
+			map: sourceMap ?? (mapState.preserveIncoming ? null : { mappings: '' }),
 		};
 	};
 

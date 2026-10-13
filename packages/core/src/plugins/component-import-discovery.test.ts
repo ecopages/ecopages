@@ -53,6 +53,17 @@ describe('component import discovery', () => {
 		expect(result).toContain('import { eco, bindComponentIdentity }');
 		expect(attributeComponentIdentity(result, path.join(root, 'page.ts'), 'lit', root)).toBe(result);
 	});
+	it('keeps side-effect CSS when every Eco factory argument already has an identity', () => {
+		const { transform } = fixture();
+		const result = transform(
+			`import './style.css';\nimport { bindComponentIdentity } from '@ecopages/core';`,
+			`export default eco.page(bindComponentIdentity({ id: 'page', file: '/page.ts', integration: 'lit' }, {}));`,
+		);
+
+		expect(result).toContain(`import './style.css';`);
+		expect(result).toContain('eco.page(bindComponentIdentity(');
+		expect(result).not.toContain('stylesheets:');
+	});
 	it('shares imports among multiple declarations without reading them eagerly', () => {
 		const { transform } = fixture();
 		const result = transform(

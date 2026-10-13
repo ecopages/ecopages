@@ -132,7 +132,9 @@ Core source transforms use MagicString to keep unchanged source locations throug
 
 - `module(specifier, callback)` — declares a virtual module by name, with bundler-side namespace encoding.
 
-App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins explicitly.
+App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins explicitly. A source transform whose name is the name of a plugin in the same request throws instead of being dropped.
+
+The browser runtime plugin maps each manifest specifier to its public URL in `onResolve` only, for every form a bundler resolves (static import, re-export, side-effect import, `import()`), and marks it external. It does not read or rewrite source. Package subpaths that the manifest does not list are left alone.
 
 ## Build diagnostics
 

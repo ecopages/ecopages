@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { createJsxImportSourcePragma, filterJsxSourceExtensions } from './jsx-import-source.utils.ts';
 
@@ -67,7 +66,6 @@ export function createForeignJsxOverridePlugin(options: ForeignJsxOverrideOption
 				return {
 					contents: pragma + source,
 					loader,
-					resolveDir: path.dirname(args.path),
 				};
 			});
 		},

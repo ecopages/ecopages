@@ -46,10 +46,6 @@ export function createAppBuildManifest(input?: Partial<AppBuildManifest>): AppBu
 	};
 }
 
-export function getBrowserRuntimeManifest(manifest: AppBuildManifest): BrowserRuntimeManifest {
-	return manifest.browserRuntimeManifest;
-}
-
 export function getServerBuildPlugins(manifest: AppBuildManifest): EcoBuildPlugin[] {
 	return manifest.plugins.filter((plugin) => appliesToBuildEnvironment(plugin, 'server'));
 }

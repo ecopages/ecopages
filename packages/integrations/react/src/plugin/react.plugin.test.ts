@@ -34,6 +34,16 @@ describe('ReactPlugin', () => {
 		expect((plugin as any).mdxExtensions).toEqual(['.docs.mdx']);
 	});
 
+	it('gives an app config for another root its own MDX loader', () => {
+		const plugin = new ReactPlugin({ mdx: {} });
+
+		const first = plugin.plugins({ rootDir: '/tmp/first' } as EcoPagesAppConfig)[0];
+		const second = plugin.plugins({ rootDir: '/tmp/second' } as EcoPagesAppConfig)[0];
+
+		expect(first).not.toBe(second);
+		expect(plugin.plugins({ rootDir: '/tmp/first' } as EcoPagesAppConfig)[0]).toBe(first);
+	});
+
 	it('derives the MDX loader filter from declared MDX extensions only', async () => {
 		const plugin = new ReactPlugin({
 			extensions: ['.react.tsx'],

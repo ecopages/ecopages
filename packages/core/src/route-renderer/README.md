@@ -111,7 +111,7 @@ Static mixed-integration component configs must declare every possible foreign c
 
 At runtime, renderers still discover actual foreign children through the active component render context.
 
-Component renders always execute under a render context that names the rendering integration (`executeComponentRender` installs one when none is active). This lets ownership guards such as the content-processor's `getComponent()` detect a foreign render lane even when no foreign-child runtime is installed.
+The render context lives in `AsyncLocalStorage`, so overlapping renders each see their own. Component renders always execute under a render context that names the rendering integration (`executeComponentRender` installs one when none is active). This lets ownership guards such as the content-processor's `getComponent()` detect a foreign render lane even when no foreign-child runtime is installed.
 
 ## Foreign Subtree Contract
 

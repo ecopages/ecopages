@@ -319,7 +319,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		return {
 			html: queuedResolution.html,
 			canAttachAttributes: true,
-			rootTag: this.getRootTagName(queuedResolution.html),
 			integrationName: this.name,
 			assets: mergedAssets.length > 0 ? mergedAssets : undefined,
 		};
@@ -347,7 +346,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		const queuedResolution = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
 		html = queuedResolution.html;
 		const canAttachAttributes = hasSingleRootElement(html);
-		const rootTag = this.getRootTagName(html);
 		const componentFile = getComponentIdentity(componentConfig)?.file;
 
 		let rootAttributes: Record<string, string> | undefined;
@@ -370,7 +368,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		return {
 			html,
 			canAttachAttributes,
-			rootTag: rootAttributes ? 'eco-island' : rootTag,
 			integrationName: this.name,
 			rootAttributes,
 			assets: mergedAssets.length > 0 ? mergedAssets : undefined,
@@ -476,7 +473,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		const primaryRender: ComponentRenderResult = {
 			html: resolved.html,
 			canAttachAttributes: hasSingleRootElement(resolved.html),
-			rootTag: this.getRootTagName(resolved.html),
 			integrationName: this.name,
 			assets: resolved.assets.length > 0 ? resolved.assets : undefined,
 		};

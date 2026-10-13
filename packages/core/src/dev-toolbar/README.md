@@ -40,6 +40,8 @@ The reference toolbar opens its Build errors app automatically, reveals stealth 
 2. The server adapter injects `import '/_dev_toolbar.js'` before `</html>` when the toolbar is enabled (`server-adapter.ts` → `DevToolbarHost.injectHtmlResponse`).
 3. HMR manager copies or bundles the configured client package to `/_dev_toolbar.js` during watch mode (`shared-hmr-manager.ts`).
 
+A package that is not installed or fails to bundle is logged as `Could not bundle the Dev Toolbar runtime` and leaves HMR on; only a failed HMR runtime bundle disables HMR.
+
 ## Config
 
 ```ts

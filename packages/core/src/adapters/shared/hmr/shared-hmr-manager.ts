@@ -98,6 +98,13 @@ export abstract class SharedHmrManager implements IHmrManager {
 		return false;
 	}
 
+	/**
+	 * Reacts to a failed HMR runtime bundle.
+	 *
+	 * @remarks
+	 * Only the HMR runtime reports here. A Dev Toolbar bundle failure is logged by the manager and
+	 * leaves HMR running, because the toolbar is an optional client the page does not need to update.
+	 */
 	protected onRuntimeBundleFailure(error: unknown): void {
 		appLogger.error('[HMR] Failed to build runtime script:', error);
 	}
@@ -231,7 +238,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 		return this.getDevToolbarHost().bundleClientRuntime({
 			browserBundleService: this.browserBundleService,
 			workDir: this.devToolbarWorkDir,
-			onFailure: (error) => this.onRuntimeBundleFailure(error),
+			onFailure: (error) => appLogger.error('[DevToolbar] Could not bundle the Dev Toolbar runtime:', error),
 		});
 	}
 

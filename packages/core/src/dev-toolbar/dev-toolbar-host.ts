@@ -121,19 +121,19 @@ export class DevToolbarHost {
 			return true;
 		}
 
-		const client = resolveConfiguredDevToolbarClient(this.appConfig);
-		if (!client) {
-			options.onFailure(
-				new Error('[DevToolbar] No client package configured. Set devToolbar.package in your app config.'),
-			);
-			return false;
-		}
-
 		const runtimePath = path.join(options.workDir, path.basename(DEV_TOOLBAR_RUNTIME_SCRIPT_URL));
 
-		removeStaleHmrEntrypointOutput(runtimePath, 'DevToolbar');
-
 		try {
+			const client = resolveConfiguredDevToolbarClient(this.appConfig);
+			if (!client) {
+				options.onFailure(
+					new Error('[DevToolbar] No client package configured. Set devToolbar.package in your app config.'),
+				);
+				return false;
+			}
+
+			removeStaleHmrEntrypointOutput(runtimePath, 'DevToolbar');
+
 			const result = await options.browserBundleService.bundle({
 				profile: 'hmr-runtime',
 				entrypoints: [client.entryPath],

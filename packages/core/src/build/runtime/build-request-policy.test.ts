@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { test } from 'vitest';
 import { createAppBuildManifest } from '../contracts/build-manifest.ts';
 import {
@@ -11,6 +14,8 @@ import {
 import { setAppBuildManifest } from '../build-adapter.ts';
 import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
+import { RolldownBuildAdapter } from '../rolldown/rolldown-build-adapter.ts';
+import { assertBuildSucceeded } from '../build-log.ts';
 import { getAppSourceTransforms } from '../../plugins/source-transform.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
@@ -285,4 +290,40 @@ test('resolveBuildPluginOrder lets an app plugin keep its place against a caller
 
 	assert.equal(order.filter((plugin) => plugin.name === 'shared').length, 1);
 	assert.ok(!order.includes(caller));
+});
+
+test('createBrowserBuildRequest drops runtime manifest specifiers from external and keeps the rest', () => {
+	const appConfig = createOrderedAppConfig();
+
+	const request = createBrowserBuildRequest(appConfig, {
+		entrypoints: ['/app/client.ts'],
+		external: ['react', 'left-pad'],
+	});
+
+	assert.deepEqual(request.external, ['left-pad']);
+});
+
+test('a browser build maps an entry that lists a manifest specifier as external to its public URL', async () => {
+	const appConfig = createOrderedAppConfig();
+	const dir = mkdtempSync(path.join(tmpdir(), 'ecopages-external-manifest-'));
+	try {
+		writeFileSync(path.join(dir, 'entry.ts'), "import React from 'react';\nexport const value = React;\n");
+		const request = createBrowserBuildRequest(appConfig, {
+			entrypoints: [path.join(dir, 'entry.ts')],
+			outdir: path.join(dir, 'dist'),
+			root: dir,
+			external: ['react'],
+			plugins: [],
+		});
+
+		const result = await new RolldownBuildAdapter().build({
+			...request,
+			plugins: request.plugins?.filter((plugin) => plugin.name === 'browser-runtime-plugin'),
+		});
+
+		assertBuildSucceeded(result, 'Build failed');
+		assert.match(readFileSync(result.outputs[0]!.path, 'utf-8'), /from ['"]\/assets\/vendors\/react\.js['"]/);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
 });

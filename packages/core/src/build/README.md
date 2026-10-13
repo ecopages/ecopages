@@ -128,7 +128,9 @@ Core source transforms use MagicString to keep unchanged source locations throug
 
 - `module(specifier, callback)` — declares a virtual module by name, with bundler-side namespace encoding.
 
-App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins that the request replaces; the environment cannot express that.
+App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins that the request replaces; the environment cannot express that. A source transform whose name is the name of a plugin in the same request throws instead of being dropped.
+
+The browser runtime plugin maps each manifest specifier to its public URL in `onResolve` only, for every form a bundler resolves (static import, re-export, side-effect import, `import()`), and marks it external. It does not read or rewrite source. Package subpaths that the manifest does not list are left alone. Two consequences of resolving instead of rewriting: a browser request drops a manifest specifier from its `external` list (Rolldown checks `external` before any plugin, so it would otherwise stay a bare import and skip the public URL), and a tsconfig `paths` alias with the same name as a manifest specifier wins over the public URL, because the alias resolver runs first.
 
 ## Build diagnostics
 

@@ -137,6 +137,11 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
  * chosen by {@link BrowserBundleService}.
  *
  * Plugins follow {@link resolveBuildPluginOrder}; `excludeAppBuildPlugins` omits app-owned names.
+ *
+ * @remarks
+ * Specifiers of the browser runtime manifest are dropped from `external`. Rolldown checks `external` before any
+ * plugin, so one listed there would stay a bare import instead of becoming the manifest's public URL, which the
+ * browser runtime plugin maps while resolving.
  */
 export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: BrowserBuildRequestInput): BuildOptions {
 	const { excludeAppBuildPlugins, plugins: callerPlugins, ...overrides } = input;
@@ -146,9 +151,14 @@ export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: B
 		sourceTransforms: getAppSourceTransforms(appConfig),
 	});
 
+	const { bySpecifier } = getAppBuildManifest(appConfig).browserRuntimeManifest;
+
 	return {
 		...resolveBuildEnvironmentOptions('browser', appConfig),
 		...overrides,
+		...(overrides.external
+			? { external: overrides.external.filter((specifier) => !bySpecifier.has(specifier)) }
+			: {}),
 		environment: 'browser',
 		entrypoints: input.entrypoints,
 		plugins,

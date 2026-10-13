@@ -47,7 +47,13 @@ export class ObsidianIngestProcessor extends Processor {
 
 	/**
 	 * Runs before the content processor's `setup()` scans the collections, because processors set up in the order
-	 * they are registered and `eco.config.ts` lists this one first.
+	 * they are registered and `eco.config.ts` lists this one first. Core sets Processors up before it reads any
+	 * Page in `dev`, `build` and `preview`.
+	 *
+	 * @remarks
+	 * It also runs for `ecopages types`, which needs the generated pages but not the search index. Once the
+	 * setup context carries the run mode (`types`, `dev` or `build`), the index can be written for `dev` and
+	 * `build` only.
 	 */
 	async setup(): Promise<void> {
 		this.bindWatchPaths();

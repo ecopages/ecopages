@@ -169,6 +169,15 @@ test('EcopagesJsxPlugin declares the MDX loader as a build plugin', () => {
 	assert.equal(plugin.plugins(app)[0], plugin.plugins(app)[0]);
 });
 
+test('EcopagesJsxPlugin gives an app config for another root its own MDX loader', () => {
+	const plugin = ecopagesJsxPlugin({ radiant: false, mdx: {} });
+
+	const first = plugin.plugins({ rootDir: '/tmp/first' } as EcoPagesAppConfig)[0];
+	const second = plugin.plugins({ rootDir: '/tmp/second' } as EcoPagesAppConfig)[0];
+
+	assert.notEqual(first, second);
+});
+
 test('EcopagesJsxPlugin declares no build plugin without MDX', () => {
 	const plugin = ecopagesJsxPlugin({ radiant: false });
 

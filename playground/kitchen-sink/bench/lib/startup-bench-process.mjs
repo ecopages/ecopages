@@ -1,11 +1,29 @@
+/**
+ * Whether the child has already exited, by exit code or by signal.
+ *
+ * @remarks
+ * A child killed by a signal has `exitCode === null` and a set `signalCode`, so checking the exit code alone
+ * reads a finished child as still running.
+ */
+export function hasProcessExited(childProcess) {
+	return childProcess.exitCode !== null || childProcess.signalCode !== null;
+}
+
+/**
+ * Resolves with `{ code, signal }` once the child has exited.
+ *
+ * @remarks
+ * The result is always an object so callers can tell an exit from a timeout marker such as `null`, even when
+ * the child died of a signal and `code` is `null`.
+ */
 export function waitForProcessExit(childProcess) {
 	return new Promise((resolve) => {
-		if (childProcess.exitCode !== null) {
-			resolve(childProcess.exitCode);
+		if (hasProcessExited(childProcess)) {
+			resolve({ code: childProcess.exitCode, signal: childProcess.signalCode });
 			return;
 		}
 
-		childProcess.once('exit', (code) => resolve(code));
+		childProcess.once('exit', (code, signal) => resolve({ code, signal }));
 	});
 }
 
@@ -30,7 +48,7 @@ export async function waitForHttpReady(baseUrl, childProcess, output, timeoutMs 
 	const deadline = Date.now() + timeoutMs;
 
 	while (Date.now() < deadline) {
-		if (childProcess.exitCode !== null) {
+		if (hasProcessExited(childProcess)) {
 			throw new Error(
 				`Dev server exited before becoming ready (code=${childProcess.exitCode})\n${output.getOutput()}`,
 			);
@@ -42,7 +60,7 @@ export async function waitForHttpReady(baseUrl, childProcess, output, timeoutMs 
 				return;
 			}
 		} catch (error) {
-			if (childProcess.exitCode !== null) {
+			if (hasProcessExited(childProcess)) {
 				throw new Error(
 					`Dev server exited before becoming ready (code=${childProcess.exitCode})\n${output.getOutput()}`,
 				);
@@ -59,17 +77,21 @@ export async function waitForHttpReady(baseUrl, childProcess, output, timeoutMs 
 	throw new Error(`Timed out waiting for dev server HTTP ready at ${baseUrl}\n${output.getOutput()}`);
 }
 
-export async function stopChildProcess(childProcess) {
-	if (childProcess.exitCode !== null) {
+export async function stopChildProcess(childProcess, timeoutMs = 5_000) {
+	if (hasProcessExited(childProcess)) {
 		return;
 	}
 
 	childProcess.kill('SIGTERM');
 
+	let timer;
 	const exited = await Promise.race([
 		waitForProcessExit(childProcess),
-		new Promise((resolve) => setTimeout(() => resolve(null), 5_000)),
+		new Promise((resolve) => {
+			timer = setTimeout(() => resolve(null), timeoutMs);
+		}),
 	]);
+	clearTimeout(timer);
 
 	if (exited === null) {
 		childProcess.kill('SIGKILL');

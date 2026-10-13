@@ -131,6 +131,15 @@ function parseServerCommandArgs(rawArgs, definition) {
 	};
 }
 
+/**
+ * Signals the supervisor forwards to the child it runs.
+ *
+ * @remarks
+ * Without a handler, a signal ends the supervisor and leaves the child running as an orphan that keeps its
+ * port. Forwarding lets the child shut down first, and the supervisor exits from the child's `exit` event.
+ */
+const FORWARDED_SIGNALS = ['SIGTERM', 'SIGINT'];
+
 function runLaunchPlan(launchPlan, options = {}) {
 	if (Object.keys(launchPlan.envOverrides).length > 0) {
 		logger.debug(`Environment overrides: ${JSON.stringify(launchPlan.envOverrides)}`);
@@ -143,6 +152,13 @@ function runLaunchPlan(launchPlan, options = {}) {
 		stdio: 'inherit',
 		env: launchPlan.env,
 	});
+
+	const forwardSignal = (signal) => {
+		child.kill(signal);
+	};
+	for (const signal of FORWARDED_SIGNALS) {
+		process.on(signal, forwardSignal);
+	}
 
 	child.on('error', (error) => {
 		if (error && error.code === 'ENOENT') {
@@ -159,6 +175,10 @@ function runLaunchPlan(launchPlan, options = {}) {
 	});
 
 	child.on('exit', (code) => {
+		for (const signal of FORWARDED_SIGNALS) {
+			process.off(signal, forwardSignal);
+		}
+
 		if (options.superviseDevRestarts && code === ECOPAGES_DEV_RESTART_EXIT_CODE) {
 			options.onDevRestart?.();
 			return;

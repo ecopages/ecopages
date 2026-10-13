@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runCli } from './cli.js';
 import * as giget from 'giget';
 import * as fs from 'node:fs';
+import os from 'node:os';
 import * as launchPlan from './launch-plan.js';
 import * as childProcess from 'node:child_process';
 import path from 'node:path';
@@ -72,8 +73,16 @@ describe('CLI Commands', () => {
 		}) as never);
 	}
 
+	const originalCwd = process.cwd();
+	const forwardedSignals = ['SIGTERM', 'SIGINT'] as const;
+	let signalListenersBefore: Map<string, Set<unknown>>;
+	let tempCwd: string;
+
 	beforeEach(() => {
 		vi.clearAllMocks();
+		tempCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-cli-test-'));
+		process.chdir(tempCwd);
+		signalListenersBefore = new Map(forwardedSignals.map((signal) => [signal, new Set(process.listeners(signal))]));
 
 		vi.mocked(fs.existsSync).mockImplementation(
 			(filePath) =>
@@ -101,9 +110,13 @@ describe('CLI Commands', () => {
 	afterEach(() => {
 		vi.mocked(childProcess.spawn).mockReset();
 		vi.mocked(fileSystem.watch).mockReset();
-		for (const targetDir of ['my-new-project', 'my-dir', 'interactive-app', 'remote-app', 'failed-app']) {
-			fs.rmSync(targetDir, { recursive: true, force: true });
+		for (const signal of forwardedSignals) {
+			for (const listener of process.listeners(signal)) {
+				if (!signalListenersBefore.get(signal)?.has(listener)) process.off(signal, listener);
+			}
 		}
+		process.chdir(originalCwd);
+		fs.rmSync(tempCwd, { recursive: true, force: true });
 	});
 
 	it('runs init command with default template and repo', async () => {
@@ -421,6 +434,38 @@ describe('CLI Commands', () => {
 
 		exitSpy.mockRestore();
 	});
+
+	it.each(['SIGTERM', 'SIGINT'] as const)(
+		'forwards %s to the running child and stops forwarding once it exits',
+		async (signal) => {
+			const exitSpy = mockProcessExit();
+			const kill = vi.fn();
+			let onExit: ((code: number | null) => void) | undefined;
+			vi.mocked(childProcess.spawn).mockReturnValueOnce({
+				kill,
+				on: vi.fn((event: string, handler: (code: number | null) => void) => {
+					if (event === 'exit') onExit = handler;
+				}),
+			} as never);
+
+			await runCli(['dev']);
+			const [forward] = process
+				.listeners(signal)
+				.filter((listener) => !signalListenersBefore.get(signal)?.has(listener));
+			expect(forward).toBeDefined();
+			forward?.(signal);
+
+			expect(kill).toHaveBeenCalledWith(signal);
+			expect(exitSpy).not.toHaveBeenCalled();
+
+			expect(() => onExit?.(null)).toThrow('process.exit:0');
+			expect(
+				process.listeners(signal).filter((listener) => !signalListenersBefore.get(signal)?.has(listener)),
+			).toEqual([]);
+
+			exitSpy.mockRestore();
+		},
+	);
 
 	it('runs dev:watch command', async () => {
 		await runCli(['dev:watch']);

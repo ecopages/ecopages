@@ -2,22 +2,15 @@ import { describe, expect, it, vi } from 'vitest';
 import {
 	buildIslandHostAttributes,
 	eco,
-	type ForeignSubtreeRenderPayload,
 	type ComponentRenderInput,
 	type ComponentRenderResult,
 	type EcoComponent,
 	type HtmlTemplateProps,
 	type RequestLocals,
 } from '@ecopages/core';
-import {
-	createDeferredIntegrationPlugin,
-	createTestAppConfig,
-	htmlDocumentHead,
-	renderFilesystemPageAndExplicitView,
-} from '@ecopages/testing';
+import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { createStringMarkupContractFactories, describeRendererContract } from '@ecopages/testing/renderer-contract';
 import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
-import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { LitElement, html as litHtml } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
@@ -61,26 +54,6 @@ const createRenderer = () => {
 	});
 };
 
-const createRendererWithAssets = () => {
-	const assetProcessingService = {
-		processDependencies: vi.fn(async () => [
-			{
-				kind: 'script',
-				srcUrl: '/assets/island.js',
-				position: 'head',
-			},
-		]),
-	};
-
-	const renderer = new TestLitRenderer({
-		appConfig: Config,
-		assetProcessingService: assetProcessingService as any,
-		runtimeOrigin: 'http://localhost:3000',
-		resolvedIntegrationDependencies: [],
-	});
-	return { renderer, assetProcessingService };
-};
-
 const renderer = new LitRenderer({
 	appConfig: Config,
 	assetProcessingService: createTestAssetProcessingService(Config),
@@ -108,22 +81,6 @@ describeRendererContract({
 
 describe('LitRenderer', () => {
 	describe('renderComponent', () => {
-		it('should render a single component with structured output', async () => {
-			const testRenderer = createRenderer();
-			const Component = (async (props: { label: string }) =>
-				`<section>${props.label}</section>`) as unknown as EcoComponent<{ label: string }>;
-
-			const result = await testRenderer.renderComponent({
-				component: Component,
-				props: { label: 'Lit Component' },
-			});
-
-			expect(result.integrationName).toBe('lit');
-			expect(result.canAttachAttributes).toBe(true);
-			expect(result.rootTag).toBe('section');
-			expect(result.html).toContain('<section>Lit Component</section>');
-		});
-
 		it('should SSR registered custom elements from string markup', async () => {
 			const testRenderer = createRenderer();
 			const tagName = `lit-ssr-test-${++customElementIndex}`;
@@ -329,164 +286,6 @@ describe('LitRenderer', () => {
 			});
 
 			expect(testRenderer.preloadedComponentBatches).toEqual([[Component]]);
-		});
-
-		it('should include component assets when dependencies are declared', async () => {
-			const { renderer, assetProcessingService } = createRendererWithAssets();
-			const Component = (async (props: { label: string }) =>
-				`<section>${props.label}</section>`) as unknown as EcoComponent<{ label: string }>;
-			Component.config = {
-				identity: {
-					id: 'lit-comp',
-					file: '/project/src/components/lit-comp.lit.ts',
-					integration: 'lit',
-				},
-				dependencies: {
-					scripts: ['./lit-comp.script.ts'],
-				},
-			};
-
-			const result = await renderer.renderComponent({
-				component: Component,
-				props: { label: 'Lit Assets' },
-			});
-
-			expect(assetProcessingService.processDependencies).toHaveBeenCalled();
-			expect(result.assets).toBeDefined();
-			expect(result.assets?.[0]?.srcUrl).toBe('/assets/island.js');
-		});
-
-		it('should stamp island host attributes when the instance has client scripts', async () => {
-			const { renderer } = createRendererWithAssets();
-			const Component = (async (props: { label: string }) =>
-				`<section>${props.label}</section>`) as unknown as EcoComponent<{ label: string }>;
-			Component.config = {
-				identity: {
-					id: 'lit-island',
-					file: '/project/src/components/lit-island.lit.ts',
-					integration: 'lit',
-				},
-				dependencies: {
-					scripts: ['./lit-island.script.ts'],
-				},
-			};
-
-			const result = await renderer.renderComponent({
-				component: Component,
-				props: { label: 'Lit Island' },
-				integrationContext: { componentInstanceId: 'lit-island-1' },
-			});
-
-			expect(result.rootAttributes?.['data-eco-island']).toBe('');
-			expect(result.rootAttributes?.['data-eco-island-integration']).toBe('lit');
-			expect(result.rootAttributes?.['data-eco-component-id']).toBe('lit-island-1');
-		});
-
-		it('should expose the compatibility foreign-subtree payload contract', async () => {
-			const testRenderer = createRenderer();
-			const Component = (async () => '<section>Lit Foreign Subtree</section>') as unknown as EcoComponent<object>;
-
-			const result = toForeignSubtreeRenderPayload(
-				await testRenderer.renderComponentWithForeignChildren({
-					component: Component,
-					props: {},
-				}),
-			);
-
-			expect(result).toEqual<ForeignSubtreeRenderPayload>({
-				html: expect.stringContaining('<section>Lit Foreign Subtree</section>') as unknown as string,
-				assets: [],
-				rootTag: 'section',
-				rootAttributes: undefined,
-				attachmentPolicy: { kind: 'first-element' },
-				integrationName: 'lit',
-			});
-			expect(result.html).toContain('<section>Lit Foreign Subtree</section>');
-		});
-
-		it('should resolve foreign boundaries inside the lit renderer and bubble nested assets', async () => {
-			const deferredRenderComponent = vi.fn(
-				async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
-					html: '<button data-testid="deferred-widget">Deferred widget</button>',
-					canAttachAttributes: true,
-					rootTag: 'button',
-					integrationName: 'deferred',
-					rootAttributes: {
-						'data-eco-component-id':
-							(input.integrationContext as { componentInstanceId?: string } | undefined)
-								?.componentInstanceId ?? 'missing',
-					},
-					assets: [
-						{
-							kind: 'script' as const,
-							inline: true,
-							content: 'console.log("deferred")',
-							position: 'body' as const,
-						},
-					],
-				}),
-			);
-
-			const deferredPlugin = createDeferredIntegrationPlugin({
-				extensions: ['.deferred.ts'],
-				renderComponent: deferredRenderComponent,
-			});
-
-			const config = await createTestAppConfig({
-				integrations: [deferredPlugin],
-			});
-
-			deferredPlugin.setConfig(config);
-			deferredPlugin.setRuntimeOrigin('http://localhost:3000');
-
-			const testRenderer = new TestLitRenderer({
-				appConfig: config,
-				assetProcessingService: createTestAssetProcessingService(config),
-				runtimeOrigin: 'http://localhost:3000',
-				resolvedIntegrationDependencies: [],
-			});
-
-			const DeferredWidget = eco.component({
-				identity: {
-					id: 'deferred-widget',
-					file: '/app/components/deferred-widget.deferred.ts',
-					integration: 'deferred',
-				},
-				integration: 'deferred',
-				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
-			});
-
-			const Shell = eco.component<{ children?: unknown }, string>({
-				integration: 'lit',
-				dependencies: {
-					components: [DeferredWidget],
-				},
-				render: ({ children }) =>
-					litHtml`<main>${children ? unsafeHTML(String(children)) : ''}${unsafeHTML(String(DeferredWidget({})))}</main>` as unknown as string,
-			});
-
-			const result = await testRenderer.renderComponentWithForeignChildren({
-				component: Shell,
-				props: {},
-				children: '<section>Host child</section>',
-				integrationContext: {
-					componentInstanceId: 'host',
-				},
-			});
-
-			expect(result.html).toContain('<section>Host child</section>');
-			expect(result.html).toContain(
-				'<button data-testid="deferred-widget" data-eco-component-id="host_n_1">Deferred widget</button>',
-			);
-			expect(result.html).not.toContain('<eco-marker');
-			expect(result.assets).toEqual([
-				expect.objectContaining({
-					kind: 'script',
-					inline: true,
-					position: 'body',
-				}),
-			]);
-			expect(deferredRenderComponent).toHaveBeenCalledTimes(1);
 		});
 
 		it('should not stamp a script-less lit component as an island host when it wraps a foreign island with its own script', async () => {
@@ -952,193 +751,9 @@ describe('LitRenderer', () => {
 			expect(text).not.toContain('eco-lit-component-children');
 			expect(text).not.toContain('<--content-->');
 		});
-
-		it('should throw an error if the page fails to render', async () => {
-			await expect(
-				renderer.render({
-					params: {},
-					query: {},
-					props: {},
-					file: 'file',
-					resolvedDependencies: [],
-					metadata: {
-						title: 'Hello World',
-						description: 'Hello World',
-					},
-					Page: async () => {
-						throw new Error('Page failed to render');
-					},
-					HtmlTemplate,
-				}),
-			).rejects.toThrow('Error rendering page: Page failed to render');
-		});
-
-		it('should resolve deferred cross-integration layout components without leaving markers behind', async () => {
-			const deferredPlugin = createDeferredIntegrationPlugin({
-				extensions: ['.deferred.ts'],
-			});
-			const config = await createTestAppConfig({
-				integrations: [deferredPlugin],
-			});
-
-			deferredPlugin.setConfig(config);
-			deferredPlugin.setRuntimeOrigin('http://localhost:3000');
-
-			const testRenderer = new LitRenderer({
-				appConfig: config,
-				assetProcessingService: createTestAssetProcessingService(config),
-				runtimeOrigin: 'http://localhost:3000',
-				resolvedIntegrationDependencies: [],
-			});
-
-			const DeferredWidget = eco.component({
-				identity: {
-					id: 'deferred-widget',
-					file: '/app/components/deferred-widget.deferred.ts',
-					integration: 'deferred',
-				},
-				integration: 'deferred',
-				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
-			});
-
-			const Layout = eco.layout<string>({
-				integration: 'lit',
-				dependencies: {
-					components: [DeferredWidget],
-				},
-				render: ({ children }) =>
-					litHtml`<main>${children ? unsafeHTML(children) : ''}${unsafeHTML(String(DeferredWidget({})))}</main>` as unknown as string,
-			});
-
-			const Page = eco.page({
-				integration: 'lit',
-				layout: Layout,
-				render: () => '<section>Route page</section>',
-			});
-
-			const body = await testRenderer.render({
-				params: {},
-				query: {},
-				props: {},
-				file: '/app/pages/index.lit.ts',
-				resolvedDependencies: [],
-				metadata: {
-					title: 'Route page',
-					description: 'Route page',
-				},
-				Page: Page as unknown as EcoComponent<Record<string, unknown>>,
-				Layout: Layout as unknown as EcoComponent<Record<string, unknown>>,
-				HtmlTemplate,
-				pageProps: {},
-			});
-
-			const text = await new Response(body as BodyInit).text();
-			expect(text).toContain('<section>Route page</section>');
-			expect(text).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
-			expect(text).not.toContain('<eco-marker');
-		});
 	});
 
 	describe('renderExplicitView', () => {
-		it('should render a view with default status 200', async () => {
-			const testRenderer = createRenderer();
-			const View = (async (props: { title: string }) => `<h1>${props.title}</h1>`) as unknown as EcoComponent<{
-				title: string;
-			}>;
-
-			const response = await testRenderer.renderExplicitView(View, { title: 'Hello' }, {});
-
-			expect(response.status).toBe(200);
-			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
-			const body = await response.text();
-			expect(body).toContain('<h1>Hello</h1>');
-		});
-
-		it('should render a partial view without layout', async () => {
-			const testRenderer = createRenderer();
-			const View = (async (props: { content: string }) =>
-				`<div>${props.content}</div>`) as unknown as EcoComponent<{ content: string }>;
-
-			const response = await testRenderer.renderExplicitView(View, { content: 'Partial' }, { partial: true });
-
-			const body = await response.text();
-			expect(body).toContain('<div>Partial</div>');
-			expect(body).not.toContain('<!DOCTYPE html>');
-		});
-
-		it('should apply custom status code', async () => {
-			const testRenderer = createRenderer();
-			const View = (async () => '<p>Not Found</p>') as unknown as EcoComponent<object>;
-
-			const response = await testRenderer.renderExplicitView(View, {}, { status: 404 });
-
-			expect(response.status).toBe(404);
-		});
-
-		it('should apply custom headers', async () => {
-			const testRenderer = createRenderer();
-			const View = (async () => '<p>Cached</p>') as unknown as EcoComponent<object>;
-
-			const response = await testRenderer.renderExplicitView(
-				View,
-				{},
-				{
-					headers: {
-						'Cache-Control': 'max-age=3600',
-						'X-Custom-Header': 'test-value',
-					},
-				},
-			);
-
-			expect(response.headers.get('Cache-Control')).toBe('max-age=3600');
-			expect(response.headers.get('X-Custom-Header')).toBe('test-value');
-		});
-
-		it('should render with layout when not partial', async () => {
-			const testRenderer = createRenderer();
-			const Layout = ((props: { children: string }) =>
-				`<main class="layout">${props.children}</main>`) as EcoComponent<{ children: string }>;
-
-			const View = (async (props: { message: string }) => `<p>${props.message}</p>`) as unknown as EcoComponent<{
-				message: string;
-			}>;
-			View.config = { layouts: [Layout] };
-
-			const response = await testRenderer.renderExplicitView(View, { message: 'With Layout' }, {});
-
-			const body = await response.text();
-			expect(body).toContain('<main class="layout">');
-			expect(body).toContain('<p>With Layout</p>');
-		});
-
-		it('matches the filesystem page head and layouts', async () => {
-			const testRenderer = createRenderer();
-			testRenderer.htmlTemplate = (async ({ children, metadata }) =>
-				`<html><head><title>${metadata.title}</title></head><body>${children}</body></html>`) as EcoComponent<HtmlTemplateProps>;
-			const Layout = ((props: { children: string }) =>
-				`<main class="layout">${props.children}</main>`) as EcoComponent<{ children: string }>;
-			const View = (async (props: { message: string }) => `<p>${props.message}</p>`) as unknown as EcoComponent<{
-				message: string;
-			}>;
-			View.metadata = (async () => ({
-				title: 'About title',
-				description: 'About',
-			})) as unknown as EcoComponent['metadata'];
-			View.config = { layouts: [Layout] };
-
-			const { pageHtml, explicitHtml } = await renderFilesystemPageAndExplicitView(
-				testRenderer,
-				View,
-				{ message: 'With Layout' },
-				'/app/pages/about.lit.ts',
-			);
-
-			expect(htmlDocumentHead(explicitHtml)).toContain('About title');
-			expect(htmlDocumentHead(explicitHtml)).toBe(htmlDocumentHead(pageHtml));
-			expect(explicitHtml).toContain('<main class="layout">');
-			expect(explicitHtml).toBe(pageHtml);
-		});
-
 		it('should not route full view rendering through capture-plus-finalize', async () => {
 			const testRenderer = createRenderer();
 			const View = (async () => '<p>Explicit</p>') as unknown as EcoComponent<object>;
@@ -1221,17 +836,6 @@ describe('LitRenderer', () => {
 
 			expect(body).toContain('<p>Fallback</p>');
 			expect(body).not.toContain('<--content-->');
-		});
-
-		it('should throw an error if the view fails to render', async () => {
-			const testRenderer = createRenderer();
-			const View = (async () => {
-				throw new Error('View failed to render');
-			}) as unknown as EcoComponent<object>;
-
-			await expect(testRenderer.renderExplicitView(View, {}, {})).rejects.toThrow(
-				'Error rendering page: View failed to render',
-			);
 		});
 	});
 

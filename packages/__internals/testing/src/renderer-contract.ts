@@ -80,8 +80,10 @@ export type RendererContractHarness = {
 	 * Renders an island Component the way the Integration receives it in a page.
 	 *
 	 * @remarks
-	 * Defaults to `renderer.renderComponent`. An Integration that hands island
-	 * assets over through the render context supplies the context here.
+	 * Defaults to `renderer.renderComponent`, whose assets must include the ones
+	 * the asset service returned. An Integration that hands island assets over
+	 * through the render context supplies the context here and is held only to
+	 * returning script assets.
 	 */
 	renderIsland?(renderer: IntegrationRenderer<unknown>, input: ComponentRenderInput): Promise<ComponentRenderResult>;
 };
@@ -191,6 +193,9 @@ export function describeRendererContract(harness: RendererContractHarness): void
 
 			expect(result.assets?.length).toBeGreaterThan(0);
 			expect(result.assets?.every((asset) => asset.kind === 'script')).toBe(true);
+			if (!harness.renderIsland) {
+				expect(result.assets).toContainEqual(expect.objectContaining({ srcUrl: ISLAND_SCRIPT.srcUrl }));
+			}
 		});
 
 		it('stamps island host attributes when the instance has client scripts', async () => {

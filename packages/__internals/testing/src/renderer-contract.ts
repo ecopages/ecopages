@@ -4,6 +4,7 @@ import {
 	type ComponentRenderInput,
 	type ComponentRenderResult,
 	type EcoComponent,
+	type EcoFunctionComponent,
 	type ForeignSubtreeRenderPayload,
 } from '@ecopages/core';
 import type { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
@@ -275,10 +276,12 @@ export function describeRendererContract(harness: RendererContractHarness): void
 			const renderer = await createPlainRenderer();
 			const view = makeView({ text: 'Never rendered', fail: 'Contract view failed' });
 
-			const error = await renderer.renderExplicitView(view, {}, {}).then(
-				() => undefined,
-				(rejection: unknown) => rejection,
-			);
+			const error = await renderer
+				.renderExplicitView(view as EcoFunctionComponent<Record<string, unknown>, unknown>, {}, {})
+				.then(
+					() => undefined,
+					(rejection: unknown) => rejection,
+				);
 
 			expect(error).toBeInstanceOf(Error);
 			expect((error as Error).message).toContain(errorPrefix);
@@ -299,20 +302,30 @@ export function createStringMarkupContractFactories(
 ): Pick<RendererContractHarness, 'makeComponent' | 'makeView'> {
 	return {
 		makeComponent({ tag, acceptsChildren, asLayout, config, embed }) {
-			const declare = asLayout ? eco.layout : eco.component;
-			return declare<Record<string, unknown>, string>({
-				integration: name,
-				identity:
-					config?.identity ??
-					(asLayout
-						? { id: 'contract-layout', file: '/app/layouts/contract.tsx', integration: name }
-						: undefined),
-				dependencies: { ...config?.dependencies, ...(embed ? { components: embed } : {}) },
-				render: (props) =>
-					`<${tag}>${props.text ?? ''}${acceptsChildren ? String(props.children ?? '') : ''}${(embed ?? [])
-						.map((component) => String((component as unknown as (props: object) => unknown)({})))
-						.join('')}</${tag}>`,
-			}) as unknown as EcoComponent;
+			const identity =
+				config?.identity ??
+				(asLayout
+					? { id: 'contract-layout', file: '/app/layouts/contract.tsx', integration: name }
+					: undefined);
+			const dependencies = { ...config?.dependencies, ...(embed ? { components: embed } : {}) };
+			const renderMarkup = (props: Record<string, unknown>) =>
+				`<${tag}>${props.text ?? ''}${acceptsChildren ? String(props.children ?? '') : ''}${(embed ?? [])
+					.map((component) => String((component as unknown as (props: object) => unknown)({})))
+					.join('')}</${tag}>`;
+
+			return (asLayout
+				? eco.layout<string>({
+						integration: name,
+						identity,
+						dependencies,
+						render: (props) => renderMarkup({ ...props }),
+					})
+				: eco.component<Record<string, unknown>, string>({
+						integration: name,
+						identity,
+						dependencies,
+						render: renderMarkup,
+					})) as unknown as EcoComponent;
 		},
 		makeView({ text, layout, title, fail }) {
 			return eco.page<Record<string, unknown>, string>({

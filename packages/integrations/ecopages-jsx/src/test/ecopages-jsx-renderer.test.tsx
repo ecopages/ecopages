@@ -156,27 +156,37 @@ describeRendererContract({
 		return testRenderer;
 	},
 	makeComponent({ tag, acceptsChildren, asLayout, config, embed }) {
-		const declare = asLayout ? eco.layout : eco.component;
 		const Tag = tag as 'section';
-		return declare<Record<string, unknown>, JsxRenderable>({
-			integration: 'ecopages-jsx',
-			identity:
-				config?.identity ??
-				(asLayout
-					? { id: 'contract-layout', file: '/app/layouts/contract.tsx', integration: 'ecopages-jsx' }
-					: undefined),
-			dependencies: { ...config?.dependencies, ...(embed ? { components: embed } : {}) },
-			render: (props) => (
-				<Tag>
-					{props.text as string | undefined}
-					{acceptsChildren ? (props.children as JsxRenderable) : undefined}
-					{(embed ?? []).map((Widget) => {
-						const Embedded = Widget as unknown as () => JsxRenderable;
-						return <Embedded />;
-					})}
-				</Tag>
-			),
-		}) as unknown as EcoComponent;
+		const identity =
+			config?.identity ??
+			(asLayout
+				? { id: 'contract-layout', file: '/app/layouts/contract.tsx', integration: 'ecopages-jsx' }
+				: undefined);
+		const dependencies = { ...config?.dependencies, ...(embed ? { components: embed } : {}) };
+		const renderMarkup = (props: Record<string, unknown>) => (
+			<Tag>
+				{props.text as string | undefined}
+				{acceptsChildren ? (props.children as JsxRenderable) : undefined}
+				{(embed ?? []).map((Widget) => {
+					const Embedded = Widget as unknown as () => JsxRenderable;
+					return <Embedded />;
+				})}
+			</Tag>
+		);
+
+		return (asLayout
+			? eco.layout<JsxRenderable>({
+					integration: 'ecopages-jsx',
+					identity,
+					dependencies,
+					render: (props) => renderMarkup({ ...props }),
+				})
+			: eco.component<Record<string, unknown>, JsxRenderable>({
+					integration: 'ecopages-jsx',
+					identity,
+					dependencies,
+					render: renderMarkup,
+				})) as unknown as EcoComponent;
 	},
 	makeView({ text, layout, title, fail }) {
 		return eco.page<Record<string, unknown>, JsxRenderable>({

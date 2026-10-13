@@ -233,28 +233,36 @@ describeRendererContract({
 		return testRenderer;
 	},
 	makeComponent({ tag, acceptsChildren, asLayout, config, embed }) {
-		const declare = asLayout ? eco.layout : eco.component;
 		const Tag = tag as 'section';
-		return declare<Record<string, unknown>, JSX.Element>({
-			integration: 'react',
-			identity:
-				config?.identity ??
-				(asLayout
-					? { id: 'contract-layout', file: '/app/layouts/contract.tsx', integration: 'react' }
-					: undefined),
-			dependencies: { ...config?.dependencies, ...(embed ? { components: embed } : {}) },
-			render: (props) => (
-				<Tag>
-					{props.text as string | undefined}
-					{acceptsChildren ? (props.children as React.ReactNode) : undefined}
-					{(embed ?? []).map((Widget, index) => (
-						<React.Fragment key={index}>
-							{(Widget as unknown as (props: object) => React.ReactNode)({})}
-						</React.Fragment>
-					))}
-				</Tag>
-			),
-		}) as unknown as EcoComponent;
+		const identity =
+			config?.identity ??
+			(asLayout ? { id: 'contract-layout', file: '/app/layouts/contract.tsx', integration: 'react' } : undefined);
+		const dependencies = { ...config?.dependencies, ...(embed ? { components: embed } : {}) };
+		const renderMarkup = (props: Record<string, unknown>) => (
+			<Tag>
+				{props.text as string | undefined}
+				{acceptsChildren ? (props.children as React.ReactNode) : undefined}
+				{(embed ?? []).map((Widget, index) => (
+					<React.Fragment key={index}>
+						{(Widget as unknown as (props: object) => React.ReactNode)({})}
+					</React.Fragment>
+				))}
+			</Tag>
+		);
+
+		return (asLayout
+			? eco.layout<JSX.Element>({
+					integration: 'react',
+					identity,
+					dependencies,
+					render: (props) => renderMarkup({ ...props }),
+				})
+			: eco.component<Record<string, unknown>, JSX.Element>({
+					integration: 'react',
+					identity,
+					dependencies,
+					render: renderMarkup,
+				})) as unknown as EcoComponent;
 	},
 	makeView({ text, layout, title, fail }) {
 		return eco.page<Record<string, unknown>, JSX.Element>({

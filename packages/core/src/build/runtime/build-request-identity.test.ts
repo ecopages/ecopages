@@ -3,9 +3,8 @@ import { test } from 'vitest';
 import type { BuildOptions } from '../contracts/build-contracts.ts';
 import { createBuildRequestIdentity } from './build-request-identity.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
-import { createEcoBuildPluginFromSourceTransform } from '../../plugins/source-transform.ts';
 import { createForeignJsxOverridePlugin } from '../../plugins/foreign-jsx-override-plugin.ts';
-import { createPreserveImportMetaTransform } from '../preserve-import-meta-transform.ts';
+import { createPreserveImportMetaPlugin } from '../preserve-import-meta-transform.ts';
 
 const baseOptions: BuildOptions = {
 	environment: 'browser' as const,
@@ -122,7 +121,7 @@ test('createBuildRequestIdentity tells apart import.meta transforms of different
 	const identityFor = (runtimeDir: string) =>
 		createBuildRequestIdentity({
 			...baseOptions,
-			plugins: [createEcoBuildPluginFromSourceTransform(createPreserveImportMetaTransform(runtimeDir))],
+			plugins: [createPreserveImportMetaPlugin(runtimeDir)],
 		});
 
 	assert.notEqual(identityFor('/out/a'), identityFor('/out/b'));

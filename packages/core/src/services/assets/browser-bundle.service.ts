@@ -50,8 +50,7 @@ export class BrowserBundleService {
 	 * Runs one browser-targeted build through the app-owned executor.
 	 *
 	 * @remarks
-	 * Browser defaults, app-owned browser plugins, and
-	 * {@link getAppSourceTransforms | app source transforms} as `transform` plugins
+	 * Browser defaults, app-owned browser plugins, and core's own `transform` plugins
 	 * are applied here so HMR and asset generation do not recreate that policy at
 	 * each call site.
 	 */

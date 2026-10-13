@@ -44,7 +44,6 @@ function createMockConfig(): EcoPagesAppConfig {
 		},
 		processors: new Map(),
 		loaders: new Map(),
-		sourceTransforms: new Map(),
 	};
 }
 

@@ -20,8 +20,8 @@ The current core package is organized around app-owned runtime state and explici
 The important ownership rules are:
 
 - Config finalization, when `createApp()` loads `eco.config.ts`, installs the app-owned build adapter, build manifest, and runtime state; server startup adds the build executors.
-- Build requests declare server or browser environment independently of scheduling. Integrations and Processors contribute one environment-selected plugin list; config rejects duplicate names within an environment. Core source transforms preserve source locations and the bridge composes chained maps. See [Build Layer](src/build/README.md) and [Plugin Contracts](src/plugins/README.md) for migration.
-- Component identity attribution is one shared source transform for server, browser, and HMR compilation paths: after a lexical `eco.` gate, it uses Oxc to wrap supported factory options with `bindComponentIdentity()`, which factories retain as `config.identity`.
+- Build requests declare server or browser environment independently of scheduling. Integrations and Processors contribute one environment-selected plugin list; config rejects duplicate names within an environment. Core's own transforms preserve source locations and the bridge composes chained maps. See [Build Layer](src/build/README.md) and [Plugin Contracts](src/plugins/README.md) for migration.
+- Component identity attribution is one build plugin, shared by server, browser, and HMR compilation paths: after a lexical `eco.` gate, it uses Oxc to wrap supported factory options with `bindComponentIdentity()`, which factories retain as `config.identity`.
 - Direct local Eco Component imports (including named `export { X } from` barrels) and relative side-effect CSS imports supply Dependencies by default through the shared transform and existing collector; explicit asset declarations override inference, and inferred styles stay keyed by identity until collection. See [eco](src/eco/README.md) and [Plugin Contracts](src/plugins/README.md).
 - Every renderer receives the app-owned `AssetProcessingService`; dependency collection uses it to turn declared assets into runtime-ready output instead of treating a missing service as an empty asset set. See [Route Renderer](src/route-renderer/README.md).
 - Browser bundling and server module loading are separate paths. SSR-enabled lazy scripts execute on the server before rendering and in the browser only on their configured trigger.
@@ -316,11 +316,10 @@ Use these entrypoints when a browser runtime needs to coordinate document owners
 
 ### Extension Authoring
 
-Use these entrypoints when implementing integrations, processors, or source transforms:
+Use these entrypoints when implementing integrations or processors:
 
 - `@ecopages/core/plugins/integration-plugin`
 - `@ecopages/core/plugins/processor`
-- `@ecopages/core/plugins/source-transform`
 - `@ecopages/core/build/contracts/server-only-specifier` (dependency-free naming predicate, safe for browser imports)
 - `@ecopages/core/route-renderer/orchestration/integration-renderer`
 - `@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service`

@@ -3,9 +3,9 @@ import { originalPositionFor, TraceMap, type SourceMapInput } from '@jridgewell/
 import {
 	attributeComponentIdentity,
 	attributeMdxComponentIdentity,
-	createEcoComponentMetaTransform,
+	createEcoComponentMetaPlugin,
 } from './eco-component-meta-plugin';
-import { createEcoBuildPluginFromSourceTransform } from './source-transform';
+import { getPluginTransform } from '../__fixtures__/build/transform-plugin';
 import type { EcoPagesAppConfig } from '../types/internal-types';
 
 /**
@@ -39,8 +39,8 @@ describe('eco-component-meta-plugin', () => {
 		],
 	} as EcoPagesAppConfig;
 
-	const transform = createEcoComponentMetaTransform({ config: Config });
-	const plugin = createEcoBuildPluginFromSourceTransform(transform);
+	const plugin = createEcoComponentMetaPlugin({ config: Config });
+	const transform = getPluginTransform(plugin);
 
 	async function runPluginOnContent(content: string, filePath: string) {
 		let regexFilter: RegExp | undefined;
@@ -80,6 +80,15 @@ describe('eco-component-meta-plugin', () => {
 		);
 
 		expect(typeof result).toBe('object');
+		expect((result as { code: string }).code).toMatch(ecoMetaPattern('/path/to/pages/index.tsx', 'react'));
+	});
+
+	it('attributes the file an id with a query suffix names', () => {
+		const result = transform.transform(
+			"import { eco } from '@ecopages/core';\nexport default eco.page({ render: () => '<main />' });",
+			'/path/to/pages/index.tsx?import',
+		);
+
 		expect((result as { code: string }).code).toMatch(ecoMetaPattern('/path/to/pages/index.tsx', 'react'));
 	});
 

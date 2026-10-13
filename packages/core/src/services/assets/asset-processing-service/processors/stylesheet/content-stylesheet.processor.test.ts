@@ -42,7 +42,6 @@ function createMockConfig(processors = new Map<string, Processor>()): EcoPagesAp
 		},
 		processors,
 		loaders: new Map(),
-		sourceTransforms: new Map(),
 	};
 }
 

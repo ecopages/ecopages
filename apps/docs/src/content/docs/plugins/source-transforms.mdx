@@ -1,73 +1,64 @@
 ---
 title: "Source Transforms"
-description: "Register filter-based module source rewrites for browser and HMR builds."
+description: "Rewrite module source during builds with a build plugin's transform hook."
 order: 3
 ---
 
 # Source Transforms
 
-Source transforms rewrite module source during browser, HMR, and server builds. Register them in your configuration when you need deterministic, filter-based code rewrites without competing with processor `onLoad` plugins.
+A build plugin rewrites module source with its `transform` hook. The hook runs after the module is loaded in server, browser, and HMR builds, so it also sees what a loader produced, and it can return a source map.
 
-Prefer source transforms over ad hoc `EcoBuildPlugin` `onLoad` handlers when the change is a pure source rewrite. They run as bundler `transform` hooks after first-wins `onLoad`, so metadata injection still sees rewritten modules and can return a source map.
+Register the plugin in `loaders` when it belongs to your app, or return it from `plugins(app)` of a processor or integration you write.
 
-## EcoSourceTransform Shape
+## Writing a transform
 
 ```typescript
-import type { EcoSourceTransform } from '@ecopages/core/plugins/source-transform';
+import type { EcoBuildPlugin } from '@ecopages/core/plugins/processor';
 
-const bannerTransform: EcoSourceTransform = {
+export const bannerTransform: EcoBuildPlugin = {
 	name: 'file-banner',
-	filter: /entry\.tsx$/,
-	enforce: 'pre',
-	transform(code, id) {
-		return { code: `/* transformed: ${id} */\n${code}` };
+	setup(build) {
+		build.transform({ filter: /entry\.tsx$/ }, (code, id) => {
+			return { code: `/* transformed: ${id} */\n${code}` };
+		});
 	},
 };
 ```
 
-Fields:
-
-- `name` — stable identifier, unique among the build plugins of a request. A transform with the name of a plugin in the same build throws instead of being skipped.
-- `filter` — `RegExp` tested against normalized module ids
-- `enforce` — optional `'pre'` or `'post'` ordering (default runs between pre and post)
-- `transform(code, id)` — returns rewritten source, `{ code, map? }`, or `undefined` to skip
+- `name` identifies the plugin and must be unique among the plugins of an environment.
+- `filter` is a `RegExp` tested against the module id without its query or hash. The callback receives the id as the bundler gives it, so strip a query before reading the file.
+- The callback returns the rewritten source, `{ code, map? }`, or `undefined` to skip the module. A rewrite that changes code without a map clears the earlier mappings; return `map` to keep locations.
+- `environments: ['server']` or `['browser']` limits the plugin to one kind of build.
 
 ## Registration
-
-Register transforms in `eco.config.ts`:
 
 ```typescript
 import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
+import { bannerTransform } from './banner-transform';
 
 export default defineConfig({
 	rootDir: import.meta.dirname,
 	baseUrl: process.env.ECOPAGES_BASE_URL ?? 'http://localhost:3000',
-	sourceTransforms: [
-		{
-			name: 'test-source-transform',
-			filter: /entry\.tsx$/,
-			transform(code) {
-				return { code: `/* source transform */\n${code}` };
-			},
-		},
-	],
+	loaders: [bannerTransform],
 	integrations: [ecopagesJsxPlugin()],
 });
 ```
 
+## Order
+
+Transforms run in plugin order: loaders first, then processors, then integrations, and the plugins of each in the order they declare them. Ecopages adds its own transforms last: component identity attribution, then, in server builds, the rewrite that keeps `import.meta` pointing at the source files. A transform you register therefore sees the module before Ecopages attributes component identity and cannot run after it.
+
 ## Choosing the Right Extension Point
 
-| Mechanism | Use when |
-| --- | --- |
-| `EcoSourceTransform` | Filter-based source rewrites during browser, HMR, and server builds |
-| `EcoBuildPlugin` (`transform`) | The same rewrite as a plugin `transform` hook, with an optional source map |
+| Mechanism                               | Use when                                                   |
+| --------------------------------------- | ---------------------------------------------------------- |
+| `EcoBuildPlugin` (`transform`)          | A source rewrite, with an optional source map              |
 | `EcoBuildPlugin` (`onLoad` / `onResolve`) | Virtual modules, custom loaders, or resolve-time behavior |
-| Processor `plugins` | Runtime file processing owned by a processor |
-| Processor `buildPlugins` | Browser-only bundling behavior owned by a processor |
-| Integration `browserBuildPlugins` | Framework-specific browser transforms or import aliasing |
+| Processor `plugins(app)`                | Plugins owned by a processor, such as asset loaders        |
+| Integration `plugins(app)`              | Framework-specific transforms or import aliasing           |
 
 ## See also
 
-- [Plugin Lifecycle](/docs/core/plugin-lifecycle) — when build contributions are collected
+- [Plugin Lifecycle](/docs/core/plugin-lifecycle) — when `plugins(app)` is read
 - [Custom Processor](/docs/plugins/custom-processor) — processor-owned loaders and watch behavior

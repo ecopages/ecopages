@@ -4,7 +4,6 @@ import { createBuildAdapter, sealAppBuildManifest, setAppBuildAdapter } from '..
 import { appLogger } from '../global/app-logger.ts';
 import { HTML_PAGES_INTEGRATION_NAME } from '../html-pages/html-page-module.ts';
 import { HtmlPagesPlugin } from '../html-pages/html-pages.plugin.ts';
-import { createEcoComponentMetaTransform } from '../plugins/eco-component-meta-plugin.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import {
 	NoopEntrypointDependencyGraph,
@@ -219,7 +218,7 @@ function createAbsolutePaths(
  * 1. applies defaults (`baseUrl` falls back to `ECOPAGES_BASE_URL`, then `http://localhost:3000`),
  * 2. appends the HTML Pages Integration and rejects duplicate Integration names and extensions,
  * 3. resolves absolute paths, including the semantic `html.*` and error-page templates,
- * 4. adds the component-meta source transform and hands each Processor the config,
+ * 4. hands each Processor the config,
  * 5. installs the app-owned build adapter, build manifest, and runtime state.
  *
  * Every call returns a new config; nothing is cached.
@@ -229,7 +228,7 @@ function createAbsolutePaths(
  * subpath the npm build drops from the published package, so keep it out of user-facing docs.
  *
  * @throws When `userConfig` is an already finalized config; when Integration names or
- * extensions, or Processor, loader, or source transform names, repeat; when a semantic
+ * extensions, or Processor or loader names, repeat; when a semantic
  * template matches more than one extension.
  */
 export async function finalizeEcoPagesConfig(
@@ -254,7 +253,6 @@ export async function finalizeEcoPagesConfig(
 		templatesExt: collectTemplateExtensions(integrations),
 		processors: indexByName('Processor', userConfig.processors),
 		loaders: indexByName('Loader', userConfig.loaders),
-		sourceTransforms: indexByName('Source transform', userConfig.sourceTransforms),
 		additionalWatchPaths: userConfig.additionalWatchPaths ?? [],
 		devPrewarmPaths: userConfig.devPrewarmPaths ?? [],
 		cache: userConfig.cache,
@@ -276,10 +274,6 @@ export async function finalizeEcoPagesConfig(
 		),
 	};
 
-	const componentMetaTransform = createEcoComponentMetaTransform({ config });
-	if (!config.sourceTransforms.has(componentMetaTransform.name)) {
-		config.sourceTransforms.set(componentMetaTransform.name, componentMetaTransform);
-	}
 	for (const processor of config.processors.values()) {
 		processor.setContext(config);
 	}

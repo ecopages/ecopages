@@ -6,10 +6,11 @@ describe('RouteRendererFactory runtime binding', () => {
 	it('discards origin-bound renderers when the listening origin changes', () => {
 		const firstRenderer = { renderToResponse: vi.fn() };
 		const secondRenderer = { renderToResponse: vi.fn() };
+		let currentRenderer = firstRenderer;
 		const integration = {
 			name: 'test',
 			extensions: ['.test.ts'],
-			initializeRenderer: vi.fn().mockReturnValueOnce(firstRenderer).mockReturnValueOnce(secondRenderer),
+			getRenderer: vi.fn(() => currentRenderer),
 			setRuntimeOrigin: vi.fn(),
 		};
 		const factory = new RouteRendererFactory({
@@ -19,6 +20,7 @@ describe('RouteRendererFactory runtime binding', () => {
 
 		expect(factory.getExplicitViewRenderer('test')).toBe(firstRenderer);
 		factory.setRuntimeOrigin('http://localhost:3001');
+		currentRenderer = secondRenderer;
 
 		expect(factory.runtimeOrigin).toBe('http://localhost:3001');
 		expect(integration.setRuntimeOrigin).toHaveBeenCalledWith('http://localhost:3001');

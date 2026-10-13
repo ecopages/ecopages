@@ -119,6 +119,28 @@ describe('IntegrationPlugin', () => {
 		expect(renderer.name).toBe('test-plugin');
 	});
 
+	it('shares one app renderer until its runtime origin changes', () => {
+		const pluginWithRenderer = new (class extends TestIntegrationPlugin {
+			override renderer = NamelessRenderer as TestIntegrationPlugin['renderer'];
+		})(config);
+
+		(pluginWithRenderer as TestIntegrationPlugin & { appConfig?: object; runtimeOrigin: string }).appConfig =
+			{} as EcoPagesAppConfig;
+		pluginWithRenderer.setRuntimeOrigin('http://localhost:3000');
+		const initializeRenderer = vi.spyOn(pluginWithRenderer, 'initializeRenderer');
+
+		const first = pluginWithRenderer.getRenderer();
+		const second = pluginWithRenderer.getRenderer();
+
+		expect(second).toBe(first);
+		expect(initializeRenderer).toHaveBeenCalledTimes(1);
+
+		pluginWithRenderer.setRuntimeOrigin('http://localhost:3001');
+
+		expect(pluginWithRenderer.getRenderer()).not.toBe(first);
+		expect(initializeRenderer).toHaveBeenCalledTimes(2);
+	});
+
 	it('should stamp the plugin integration name when overrides use shared renderer runtime services', () => {
 		const pluginWithOverride = new OverrideInitializeRendererPlugin(config);
 

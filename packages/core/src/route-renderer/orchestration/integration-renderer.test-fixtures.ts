@@ -25,9 +25,24 @@ export function createUnresolvedMarkerArtifact(nodeId: string, componentRef: str
 export function createMockIntegrationPlugin(
 	plugin: { name: string } & Record<string, unknown>,
 ): EcoPagesAppConfig['integrations'][number] {
+	let renderer: unknown;
+	let rendererInitialized = false;
+	const getRenderer = () => {
+		if (!rendererInitialized) {
+			const initializeRenderer = plugin.initializeRenderer;
+			if (typeof initializeRenderer === 'function') {
+				renderer = Reflect.apply(initializeRenderer, plugin, []);
+			}
+			rendererInitialized = true;
+		}
+
+		return renderer;
+	};
+
 	return {
 		setConfig: vi.fn(),
 		setRuntimeOrigin: vi.fn(),
+		getRenderer,
 		setup: vi.fn(async () => {}),
 		...plugin,
 	} as unknown as EcoPagesAppConfig['integrations'][number];

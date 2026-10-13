@@ -132,6 +132,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	protected appConfig?: EcoPagesAppConfig;
 	protected assetProcessingService?: AssetProcessingService;
 	protected hmrManager?: IHmrManager;
+	private rendererInstance?: IntegrationRenderer<C>;
 	declare runtimeOrigin: string;
 
 	/**
@@ -193,6 +194,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * integration can resolve asset paths and other app-owned services later.
 	 */
 	setConfig(appConfig: EcoPagesAppConfig): void {
+		this.rendererInstance = undefined;
 		this.appConfig = appConfig;
 		this.initializeAssetDefinitionService();
 	}
@@ -201,7 +203,12 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Records the runtime origin used for page-module loading and renderer setup.
 	 */
 	setRuntimeOrigin(runtimeOrigin: string) {
+		if (this.runtimeOrigin === runtimeOrigin) {
+			return;
+		}
+
 		this.runtimeOrigin = runtimeOrigin;
+		this.rendererInstance = undefined;
 	}
 
 	/**
@@ -239,6 +246,8 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		if (this.assetProcessingService) {
 			this.assetProcessingService.setHmrManager(hmrManager);
 		}
+
+		this.rendererInstance?.setHmrManager(hmrManager);
 	}
 
 	/**
@@ -264,9 +273,8 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Creates the shared renderer options owned by core lifecycle setup.
 	 *
 	 * @remarks
-	 * Handler renders call `initializeRenderer()` on every `render`, `renderPartial`,
-	 * and `renderServerModule`. Each call still builds a new renderer, and all of
-	 * them share this Integration's asset-processing service. An unchanged file
+	 * `getRenderer()` caches one renderer for this Integration. The renderer and
+	 * this Integration share the app-owned asset-processing service. An unchanged file
 	 * asset is reused until its source hash changes, its output is missing, or a
 	 * development change batch drops the entry. The cache key is the dependency
 	 * identity; the source hash is the freshness check. A missing service is
@@ -314,19 +322,25 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Instantiates the integration renderer with app-owned services.
+	 * Instantiates a new integration renderer with app-owned services.
 	 *
 	 * @remarks
-	 * Renderers are cheap runtime objects. Handler renders still create a new one
-	 * on every `render`, `renderPartial`, and `renderServerModule` call. They share
-	 * the Integration's asset-processing service, so an unchanged stylesheet or
-	 * script is reused until its source changes, its output is missing, or
-	 * development invalidation drops the entry.
+	 * Integration implementations override this method to supply their renderer
+	 * options. Application runtime code should use `getRenderer()` so routes,
+	 * explicit views, and foreign-child handoffs share the same instance.
 	 */
 	initializeRenderer(): IntegrationRenderer<C> {
 		const renderer = new this.renderer(this.createRendererOptions());
 		renderer.name ||= this.name;
 		return this.attachRendererRuntimeServices(renderer);
+	}
+
+	/**
+	 * Returns the renderer shared by this Integration's application runtime.
+	 */
+	getRenderer(): IntegrationRenderer<C> {
+		this.rendererInstance ??= this.initializeRenderer();
+		return this.rendererInstance;
 	}
 
 	/**

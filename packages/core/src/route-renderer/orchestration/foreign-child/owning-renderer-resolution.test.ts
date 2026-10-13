@@ -37,9 +37,10 @@ describe('resolveOwningIntegrationRenderer', () => {
 		expect(cache.get('kitajs')).toBe(current);
 	});
 
-	it('activates runtime and initializes a foreign plugin renderer', async () => {
+	it("activates runtime and reuses the Integration's renderer", async () => {
 		const foreignRenderer = { name: 'react' };
-		const initializeRenderer = vi.fn(() => foreignRenderer);
+		const initializeRenderer = vi.fn();
+		const getRenderer = vi.fn(() => foreignRenderer);
 		const cache = new Map<string, never>();
 		const ensureReady = vi
 			.spyOn(appBuildManifestRuntime, 'ensureIntegrationRuntimeReady')
@@ -47,7 +48,7 @@ describe('resolveOwningIntegrationRenderer', () => {
 
 		const result = await resolveOwningIntegrationRenderer({
 			appConfig: {
-				integrations: [{ name: 'react', initializeRenderer }],
+				integrations: [{ name: 'react', initializeRenderer, getRenderer }],
 			} as unknown as EcoPagesAppConfig,
 			runtimeOrigin: 'test-origin',
 			currentIntegrationName: 'kitajs',
@@ -63,7 +64,8 @@ describe('resolveOwningIntegrationRenderer', () => {
 			integrationName: 'react',
 			runtimeOrigin: 'test-origin',
 		});
-		expect(initializeRenderer).toHaveBeenCalledWith();
+		expect(getRenderer).toHaveBeenCalledWith();
+		expect(initializeRenderer).not.toHaveBeenCalled();
 		expect(result).toBe(foreignRenderer);
 		expect(cache.get('react')).toBe(foreignRenderer);
 

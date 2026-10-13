@@ -24,7 +24,7 @@ export function getForeignSubtreeResolutionContextKey(integrationName: string): 
  * Resolves an owning integration renderer for a foreign-child handoff.
  *
  * Reuses the execution-scoped cache, activates the target runtime when needed,
- * and initializes the plugin renderer once per integration name.
+ * and retrieves the Integration's app-owned renderer.
  */
 export async function resolveOwningIntegrationRenderer(
 	input: OwningRendererResolutionInput,
@@ -48,7 +48,7 @@ export async function resolveOwningIntegrationRenderer(
 
 	const integrationPlugin = input.appConfig.integrations.find((integration) => integration.name === integrationName);
 	invariant(!!integrationPlugin, `[ecopages] Integration not found for foreign owner: ${integrationName}`);
-	const renderer = integrationPlugin.initializeRenderer();
+	const renderer = integrationPlugin.getRenderer();
 	cache.set(integrationName, renderer);
 	return renderer;
 }

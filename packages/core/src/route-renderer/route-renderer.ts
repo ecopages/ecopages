@@ -41,9 +41,9 @@ export type StaticGenerationRendererResolver = PageRendererResolver & ExplicitVi
  * Selects and caches integration renderers for route files and explicit views.
  *
  * @remarks
- * The factory owns the policy that maps a route file or explicit integration
- * name to one initialized integration renderer. Renderer instances are cached by
- * integration name so repeated requests do not rebuild renderer state.
+ * The factory maps a route file or explicit integration name to its Integration's
+ * shared renderer. The Integration owns the instance so route rendering,
+ * explicit views, and foreign-child handoffs use the same renderer.
  */
 export class RouteRendererFactory {
 	private appConfig: EcoPagesAppConfig;
@@ -101,7 +101,7 @@ export class RouteRendererFactory {
 			return cached;
 		}
 
-		const renderer = integrationPlugin.initializeRenderer();
+		const renderer = integrationPlugin.getRenderer();
 		this.rendererCache.set(integrationName, renderer);
 		return renderer;
 	}
@@ -129,7 +129,7 @@ export class RouteRendererFactory {
 			return cached;
 		}
 
-		const renderer = integrationPlugin.initializeRenderer();
+		const renderer = integrationPlugin.getRenderer();
 		this.rendererCache.set(integrationPlugin.name, renderer);
 		return renderer;
 	}

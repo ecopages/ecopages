@@ -35,9 +35,7 @@ describe('eco namespace', () => {
 				render: ({ count }) => `<my-counter count="${count}"></my-counter>`,
 			});
 
-			expect(Counter).toBeDefined();
 			expect(typeof Counter).toBe('function');
-			expect(Counter.config).toBeDefined();
 			expect(Counter.config?.dependencies?.stylesheets).toEqual(['./counter.css']);
 			expect(Counter.config?.dependencies?.scripts).toEqual(['./counter.script.ts']);
 		});
@@ -345,9 +343,9 @@ describe('eco namespace', () => {
 				render: () => '<h1>Welcome</h1>',
 			});
 
-			expect(Page).toBeDefined();
 			expect(typeof Page).toBe('function');
-			expect(Page.config).toBeDefined();
+			expect(Page.config?.dependencies?.components).toEqual([]);
+			expect(Page.staticProps).toBeUndefined();
 		});
 
 		test('should create a page with typed props', () => {
@@ -633,11 +631,6 @@ describe('eco namespace', () => {
 			render: ({ title }) => `<h1>${title}</h1>`,
 		});
 
-		expect(Page.staticPaths).toBeDefined();
-		expect(Page.staticProps).toBeDefined();
-		expect(Page.metadata).toBeDefined();
-
-		// Verify they work correctly
 		const paths = await Page.staticPaths!({ appConfig: mockAppConfig, runtimeOrigin: '' });
 		expect(paths.paths).toHaveLength(1);
 

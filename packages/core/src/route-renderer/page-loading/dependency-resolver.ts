@@ -116,6 +116,12 @@ export class DependencyResolverService {
 
 	/**
 	 * Resolves pending lazy triggers from processed grouped-build URLs.
+	 *
+	 * @remarks
+	 * The pending entries and groups of a config are a function of its declarations, and a config is
+	 * shared by every render that includes the component. Resolving does not consume them: a render
+	 * that finishes first must not take the entries away from an overlapping render that has already
+	 * collected the same component but not yet planned its client assets.
 	 */
 	applyPendingLazyTriggers(
 		processedAssets: ProcessedAsset[],
@@ -159,8 +165,6 @@ export class DependencyResolverService {
 			}
 
 			config._resolvedLazyTriggers = buildResolvedLazyTriggers(config, rawGroups);
-			config._pendingLazyClientAssets = undefined;
-			pendingLazyGroupsByConfig.delete(config);
 			if (config._resolvedLazyTriggers?.length) {
 				triggers.push(...config._resolvedLazyTriggers);
 			}

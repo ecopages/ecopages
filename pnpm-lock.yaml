@@ -329,6 +329,9 @@ importers:
       '@ecopages/scripts-injector':
         specifier: ^0.1.5
         version: 0.1.5(typescript@5.9.3)
+      '@jridgewell/remapping':
+        specifier: ^2.3.5
+        version: 2.3.5
       '@standard-schema/spec':
         specifier: ^1.1.0
         version: 1.1.0
@@ -338,6 +341,9 @@ importers:
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
+      magic-string:
+        specifier: ^1.4.3
+        version: 1.4.3
       oxc-parser:
         specifier: ^0.141.0
         version: 0.141.0
@@ -357,6 +363,9 @@ importers:
       '@ecopages/testing':
         specifier: workspace:*
         version: link:../__internals/testing
+      '@jridgewell/trace-mapping':
+        specifier: ^0.3.31
+        version: 0.3.31
       '@tanstack/react-query':
         specifier: ^5.90.2
         version: 5.102.8(react@19.2.8)
@@ -5789,6 +5798,9 @@ packages:
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
+  magic-string@1.4.3:
+    resolution: {integrity: sha512-z12OxmaPGE0F4xlpGdjuAUckipLpQlTAuAmyGhNoD7ODpYUzvDfvtxUbjM/jwznyP178oju/KDdyi220wNJ0RQ==}
+
   make-dir@2.1.0:
     resolution: {integrity: sha512-LS9X+dc8KLxXCb8dni79fLIIUA5VyZoyjSMCwTluaXA0o27cCK0bhXkpgw+sTXVpPy/lSO57ilRixqk0vDmtRA==}
     engines: {node: '>=6'}
@@ -11008,6 +11020,10 @@ snapshots:
       yallist: 3.1.1
 
   magic-string@0.30.21:
+    dependencies:
+      '@jridgewell/sourcemap-codec': 1.6.0
+
+  magic-string@1.4.3:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
 

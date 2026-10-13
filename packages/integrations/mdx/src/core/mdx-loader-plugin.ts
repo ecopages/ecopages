@@ -71,7 +71,11 @@ export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): Ec
 						format: resolveCompileFormat(filePath, compilerOptions),
 						SourceMapGenerator: sourceMap.SourceMapGenerator,
 					});
-					cached = { source, contents: String(compiled.value), map: compiled.map };
+					cached = {
+						source,
+						contents: String(compiled.value),
+						map: compiled.map ? { ...compiled.map, sourcesContent: [source] } : undefined,
+					};
 					compileCache.set(filePath, cached);
 				}
 				recordMdxTransform();
@@ -81,16 +85,13 @@ export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): Ec
 					filePath,
 					integrationName,
 					projectRoot,
+					includeSourceMap ? cached.map : undefined,
 				);
 
-				const inlineSourceMap =
-					includeSourceMap && cached.map
-						? `\n//# sourceMappingURL=data:application/json;base64,${Buffer.from(JSON.stringify(cached.map)).toString('base64')}\n`
-						: '';
-
 				return {
-					contents: `${transformed}${inlineSourceMap}`,
+					contents: transformed.code,
 					loader,
+					map: includeSourceMap ? transformed.map : undefined,
 					resolveDir: path.dirname(args.path),
 				};
 			});

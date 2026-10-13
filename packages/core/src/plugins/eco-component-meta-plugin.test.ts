@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { createEcoComponentMetaPlugin, createEcoComponentMetaTransform } from './eco-component-meta-plugin';
+import { originalPositionFor, TraceMap, type SourceMapInput } from '@jridgewell/trace-mapping';
+import {
+	attributeComponentIdentity,
+	attributeMdxComponentIdentity,
+	createEcoComponentMetaPlugin,
+	createEcoComponentMetaTransform,
+} from './eco-component-meta-plugin';
 import type { EcoPagesAppConfig } from '../types/internal-types';
 
 /**
@@ -75,6 +81,61 @@ describe('eco-component-meta-plugin', () => {
 
 		expect(typeof result).toBe('object');
 		expect((result as { code: string }).code).toMatch(ecoMetaPattern('/path/to/pages/index.tsx', 'react'));
+	});
+
+	it('maps attributed component code back to its source lines', () => {
+		const filePath = '/path/to/pages/index.tsx';
+		const source = [
+			"import { eco } from '@ecopages/core';",
+			'',
+			'export default eco.page({',
+			"\trender: () => '<main />',",
+			'});',
+		].join('\n');
+		const result = transform.transform(source, filePath) as { code: string; map?: SourceMapInput };
+
+		expect(result.map).toBeDefined();
+		const mappedLine = result.code.split('\n').findIndex((line) => line.includes('render:'));
+		expect(mappedLine).toBeGreaterThanOrEqual(0);
+
+		const original = originalPositionFor(new TraceMap(result.map as SourceMapInput), {
+			line: mappedLine + 1,
+			column: result.code.split('\n')[mappedLine]!.indexOf('render:'),
+		});
+
+		expect(original).toMatchObject({ line: 4, source: expect.stringContaining('index.tsx') });
+	});
+
+	it('composes MDX identity edits with the compiler source map', () => {
+		const filePath = '/path/to/pages/post.mdx';
+		const compiled = [
+			'// generated header',
+			'// generated header',
+			'export const config = { components: {} }; export default function MDXContent() { return <h1>Hello</h1>; }',
+		].join('\n');
+		const result = attributeMdxComponentIdentity(compiled, filePath, 'mdx', '/path/to', {
+			version: 3,
+			sources: [filePath],
+			sourcesContent: ['# Hello\n\nWorld\n\nBody'],
+			names: [],
+			mappings: ';;AAAA',
+		});
+		const mappedColumn = result.code.indexOf('MDXContent');
+		const codeBeforePosition = result.code.slice(0, mappedColumn);
+		const original = originalPositionFor(new TraceMap(result.map as SourceMapInput), {
+			line: codeBeforePosition.split('\n').length,
+			column: mappedColumn - codeBeforePosition.lastIndexOf('\n') - 1,
+		});
+
+		expect(original).toMatchObject({ line: 1, source: expect.stringContaining('post.mdx') });
+	});
+
+	it('keeps the identity map when the MDX compiler map is empty', () => {
+		const filePath = '/path/to/pages/post.mdx';
+		const compiled = 'export const config = {}; export default function MDXContent() { return null; }';
+		const result = attributeMdxComponentIdentity(compiled, filePath, 'mdx', '/path/to', { mappings: '' });
+
+		expect(result.map).toBeDefined();
 	});
 
 	it('does not attribute direct component config assignments', async () => {
@@ -301,6 +362,12 @@ export const Simple = eco.component(bindComponentIdentity(
 		const result = await runPluginOnContent(content, '/path/to/simple.tsx');
 
 		expect(result.contents.match(/bindComponentIdentity/g)).toHaveLength(2);
+	});
+
+	it('leaves text mentions of Eco factories unchanged', () => {
+		const content = `// eco.page({ render: () => null });\nconst example = 'eco.component({ render: () => null })';`;
+
+		expect(attributeComponentIdentity(content, '/path/to/example.ts', 'test-string').code).toBe(content);
 	});
 
 	it('should not inject into non-eco call expressions', async () => {

@@ -64,6 +64,28 @@ export interface BuildChunk {
 	facadeModuleId: string | null;
 }
 
+/** Targets supported by the Ecopages build adapter. */
+export type BuildTarget =
+	| 'browser'
+	| 'node'
+	| 'es3'
+	| 'es5'
+	| 'esnext'
+	| `es${number}`
+	| `chrome${string}`
+	| `edge${string}`
+	| `firefox${string}`
+	| `safari${string}`
+	| `hermes${string}`
+	| `deno${string}`
+	| `ios${string}`;
+
+/** Output formats normalized by the Ecopages build adapter. */
+export type BuildFormat = 'esm' | 'cjs' | 'iife';
+
+/** Source map modes accepted by the Ecopages build adapter. */
+export type BuildSourcemap = 'none' | 'inline' | 'external' | 'linked' | 'hidden';
+
 /**
  * Options accepted by every `BuildAdapter.build` call.
  *
@@ -80,9 +102,9 @@ export interface BuildOptions {
 	define?: Record<string, string>;
 	minify?: boolean;
 	treeshaking?: boolean;
-	target?: string;
-	format?: string;
-	sourcemap?: string;
+	target?: BuildTarget;
+	format?: BuildFormat;
+	sourcemap?: BuildSourcemap;
 	/** When `false` with a single entrypoint, inlines dynamic imports into one output file. */
 	splitting?: boolean;
 	root?: string;
@@ -116,9 +138,9 @@ export type BuildEnvironment = 'server' | 'browser';
 
 /** Resolved transpile settings for a compilation environment. */
 export interface BuildTranspileOptions {
-	target: string;
-	format: string;
-	sourcemap: string;
+	target: BuildTarget;
+	format: BuildFormat;
+	sourcemap: BuildSourcemap;
 }
 
 /** Low-level build backend contract. */

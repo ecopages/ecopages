@@ -215,7 +215,10 @@ test('collects the layouts of an entry reached through a symlink root', async ()
 
 		const inputs = collectBuildEntryInputPaths(result, entry, linkRoot);
 
-		expect(inputs).toEqual([realpathSync(path.join(realRoot, 'page.js')), realpathSync(path.join(realRoot, 'layout.js'))]);
+		expect(inputs).toEqual([
+			realpathSync(path.join(realRoot, 'page.js')),
+			realpathSync(path.join(realRoot, 'layout.js')),
+		]);
 		expect(Object.values(result.dependencyGraph?.entrypoints ?? {}).flat()).toContain('node:fs');
 	} finally {
 		rmSync(parent, { recursive: true, force: true });

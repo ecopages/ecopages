@@ -163,7 +163,7 @@ describe('app server module transpiler runtime state', () => {
 				outdir?: string;
 				naming?: string;
 				plugins?: Array<{ name: string }>;
-				entrypoints: string[];
+				entrypoints: string[] | Record<string, string>;
 			}) => {
 				observedPlugins.push((options.plugins ?? []).map((plugin) => plugin.name));
 				const naming = String(options.naming ?? 'index.[ext]');
@@ -176,7 +176,7 @@ describe('app server module transpiler runtime state', () => {
 					success: true,
 					logs: [],
 					outputs: [{ path: compiledOutputPath }],
-					entryOutputs: { [options.entrypoints[0]!]: compiledOutputPath },
+					entryOutputs: { [Object.values(options.entrypoints)[0]!]: compiledOutputPath },
 				};
 			},
 		};

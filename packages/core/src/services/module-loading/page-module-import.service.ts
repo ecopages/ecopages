@@ -370,7 +370,6 @@ export class PageModuleImportService {
 			return (await owner.compilePageModule(filePath, this.appConfig)) as T;
 		}
 		const {
-			outdir,
 			transpileErrorMessage = (details) => `Error transpiling page module: ${details}`,
 			noOutputMessage = (targetFilePath) => `No transpiled output generated for page module: ${targetFilePath}`,
 		} = options;

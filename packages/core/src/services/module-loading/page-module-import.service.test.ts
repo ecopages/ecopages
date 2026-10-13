@@ -141,7 +141,7 @@ describe('PageModuleImportService', () => {
 	it('imports the entry output when the build also emitted other files', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-entry-'));
 		const sharedChunk = join(tempDir, 'chunk-1.mjs');
-		const compiledOutput = join(tempDir, 'page-hash123.mjs');
+		const compiledOutput = join(tempDir, 'entry-abc.mjs');
 		writeFileSync(sharedChunk, 'export const value = "chunk";', 'utf8');
 		writeFileSync(compiledOutput, 'export const value = "entry";', 'utf8');
 		fakeDependencies.setNextBuildResult(
@@ -253,15 +253,18 @@ describe('PageModuleImportService', () => {
 			...fakeDependencies.dependencies,
 			async buildModule(): Promise<BuildResult> {
 				buildCalls += 1;
-				return createBuildResult({
-					outputs: [{ path: compiledOutput }],
-					loadedInputs: [pluginInputPath],
-					dependencyGraph: {
-						entrypoints: {
-							[pagePath]: [pagePath, helperPath],
+				return createBuildResult(
+					{
+						outputs: [{ path: compiledOutput }],
+						loadedInputs: [pluginInputPath],
+						dependencyGraph: {
+							entrypoints: {
+								[pagePath]: [pagePath, helperPath],
+							},
 						},
 					},
-				}, pagePath);
+					pagePath,
+				);
 			},
 		});
 
@@ -678,14 +681,17 @@ describe('PageModuleImportService', () => {
 				buildCount += 1;
 				const compiledOutput = join(tempDir, `page-build-${buildCount}.mjs`);
 				writeFileSync(compiledOutput, `export const build = ${buildCount};`, 'utf8');
-				return createBuildResult({
-					outputs: [{ path: compiledOutput }],
-					dependencyGraph: {
-						entrypoints: {
-							[pagePath]: [pagePath, layoutPath],
+				return createBuildResult(
+					{
+						outputs: [{ path: compiledOutput }],
+						dependencyGraph: {
+							entrypoints: {
+								[pagePath]: [pagePath, layoutPath],
+							},
 						},
 					},
-				}, pagePath);
+					pagePath,
+				);
 			},
 		});
 
@@ -740,14 +746,17 @@ describe('PageModuleImportService', () => {
 				buildCount += 1;
 				const compiledOutput = join(tempDir, `page-build-${buildCount}.mjs`);
 				writeFileSync(compiledOutput, `export const build = ${buildCount};`, 'utf8');
-				return createBuildResult({
-					outputs: [{ path: compiledOutput }],
-					dependencyGraph: {
-						entrypoints: {
-							[pagePath]: [pagePath, layoutPath],
+				return createBuildResult(
+					{
+						outputs: [{ path: compiledOutput }],
+						dependencyGraph: {
+							entrypoints: {
+								[pagePath]: [pagePath, layoutPath],
+							},
 						},
 					},
-				}, pagePath);
+					pagePath,
+				);
 			},
 		});
 
@@ -776,14 +785,17 @@ describe('PageModuleImportService', () => {
 					buildCount += 1;
 					const compiledOutput = join(tempDir, `page-build-${buildCount}.mjs`);
 					writeFileSync(compiledOutput, `export const build = ${buildCount};`, 'utf8');
-					return createBuildResult({
-						outputs: [{ path: compiledOutput }],
-						dependencyGraph: {
-							entrypoints: {
-								[pagePath]: [pagePath, layoutPath],
+					return createBuildResult(
+						{
+							outputs: [{ path: compiledOutput }],
+							dependencyGraph: {
+								entrypoints: {
+									[pagePath]: [pagePath, layoutPath],
+								},
 							},
 						},
-					}, pagePath);
+						pagePath,
+					);
 				},
 			});
 

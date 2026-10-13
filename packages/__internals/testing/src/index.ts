@@ -1,19 +1,16 @@
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
-	EcoPagesAppConfig,
 	EcoComponent,
+	EcoFunctionComponent,
+	EcoPagesAppConfig,
 	EcoPagesElement,
 } from '@ecopages/core';
-import { createApp, type EcopagesAppOptions } from '@ecopages/core/create-app';
 import { type EcoPagesUserConfig } from '@ecopages/core/config';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { defineIntegration } from '@ecopages/core/plugins/define-integration';
 import { IntegrationPlugin, type AnyIntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import {
-	IntegrationRenderer,
-	type RenderToResponseContext,
-} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { StringMarkupRenderer } from '@ecopages/core/route-renderer/orchestration/string-markup-renderer';
 
 export const TEST_RUNTIME_ORIGIN = 'http://localhost:3000';
@@ -30,9 +27,6 @@ export type CreateTestAppConfigOptions = {
 	title?: string;
 	workDir?: string;
 };
-
-export type CreateTestAppOptions = CreateTestAppConfigOptions &
-	Omit<EcopagesAppOptions, 'appConfig' | 'configFile' | 'userConfig'>;
 
 export type CreateDeferredIntegrationPluginOptions = {
 	extensions?: string[];
@@ -130,36 +124,6 @@ export async function createTestAppConfig(options: CreateTestAppConfigOptions = 
 	return config;
 }
 
-/** Creates a universal Ecopages app using {@link createTestAppConfig}. */
-export async function createTestApp(options: CreateTestAppOptions = {}) {
-	const {
-		baseUrl,
-		configure,
-		description,
-		distDir,
-		integrations,
-		rootDir,
-		runtimeOrigin,
-		title,
-		workDir,
-		...appOptions
-	} = options;
-
-	const appConfig = await createTestAppConfig({
-		baseUrl,
-		configure,
-		description,
-		distDir,
-		integrations,
-		rootDir,
-		runtimeOrigin,
-		title,
-		workDir,
-	});
-
-	return createApp({ ...appOptions, appConfig });
-}
-
 export type { EcoPagesAppConfig, AnyIntegrationPlugin };
 
 /**
@@ -193,14 +157,6 @@ export function createDeferredIntegrationPlugin(
 		override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
 			return await renderComponent(input);
 		}
-
-		async renderToResponse<P = Record<string, unknown>>(
-			_view: EcoComponent<P>,
-			_props: P,
-			_ctx: RenderToResponseContext,
-		) {
-			return new Response('');
-		}
 	}
 
 	return new (class DeferredPlugin extends IntegrationPlugin<EcoPagesElement> {
@@ -213,4 +169,56 @@ export function createDeferredIntegrationPlugin(
 			});
 		}
 	})();
+}
+
+/**
+ * The `<head>` of a rendered document, or an empty string when the shell has none.
+ */
+export function htmlDocumentHead(html: string): string {
+	return html.match(/<head\b[^>]*>[\s\S]*?<\/head>/i)?.[0] ?? '';
+}
+
+async function renderResultText(body: unknown): Promise<string> {
+	if (typeof body === 'string') {
+		return body;
+	}
+
+	if (body instanceof ReadableStream) {
+		return await new Response(body).text();
+	}
+
+	if (body instanceof Uint8Array) {
+		return new TextDecoder().decode(body);
+	}
+
+	return String(body);
+}
+
+/**
+ * Renders one view as a filesystem page and as an explicit view.
+ *
+ * @remarks
+ * The two documents are expected to match. A test fails when the explicit
+ * view drops a layout or a head field the filesystem page still has.
+ */
+export async function renderFilesystemPageAndExplicitView(
+	renderer: IntegrationRenderer<unknown>,
+	view: EcoComponent,
+	props: Record<string, unknown>,
+	file: string,
+): Promise<{ pageHtml: string; explicitHtml: string }> {
+	const pageView = view as EcoFunctionComponent<Record<string, unknown>, unknown>;
+	const page = await renderer.execute({
+		file,
+		pageModule: { default: pageView },
+		params: {},
+		query: {},
+		props,
+	});
+	const explicit = await renderer.renderExplicitView(pageView, props, { file });
+
+	return {
+		pageHtml: await renderResultText(page.body),
+		explicitHtml: await explicit.text(),
+	};
 }

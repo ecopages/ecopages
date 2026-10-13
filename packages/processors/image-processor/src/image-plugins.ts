@@ -20,10 +20,7 @@ function createPluginResult(exports: ImageMap): EcoBuildOnLoadResult {
 }
 
 /**
- * This function creates a plugin for bundling the image specifications.
- * https://bun.sh/docs/runtime/plugins#virtual-modules
- * @param exports
- * @returns
+ * Declares `ecopages:images` as a virtual module for server builds.
  */
 export function createImagePlugin(exports: ImageMap): EcoBuildPlugin {
 	return {
@@ -35,12 +32,7 @@ export function createImagePlugin(exports: ImageMap): EcoBuildPlugin {
 }
 
 /**
- * This function creates a plugin for bundling the image specifications.
- * Due to some limitations in the bundler, we need to use a different approach.
- * https://bun.sh/docs/runtime/plugins#virtual-modules > bun-v1.2.5
- * (This feature is currently only available at runtime with Bun.plugin and not yet supported in the bundler, but you can mimic the behavior using onResolve and onLoad.)
- * @param exports
- * @returns
+ * Resolves `ecopages:images` with `onResolve` and `onLoad` for browser builds.
  */
 export function createImagePluginBundler(exports: ImageMap): EcoBuildPlugin {
 	return {

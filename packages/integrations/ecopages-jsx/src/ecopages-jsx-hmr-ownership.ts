@@ -44,21 +44,6 @@ export function getEjsxHmrOwnership(): EjsxHmrOwnershipState {
 }
 
 /**
- * Updates the active render tree from one or more root components.
- *
- * @remarks
- * Walks each root through `getComponentIdentity`, `config.dependencies.components[*].config`,
- * and `config.layouts[*].config` recursively, collecting every file path. The
- * state is replaced only when the resulting file set has a different hash, so
- * the renderer's per-render hook is free in the steady state.
- */
-export function updateEjsxHmrOwnership(
-	components: ReadonlyArray<EcoComponent | Partial<EcoComponent> | undefined>,
-): void {
-	publishEjsxHmrOwnership(collectFileOwners(components));
-}
-
-/**
  * Runs one render and publishes the files it recorded once the outermost scope ends.
  *
  * @remarks
@@ -96,13 +81,6 @@ export function recordEjsxHmrOwnership(components: ReadonlyArray<EcoComponent | 
 	for (const file of collectFileOwners(components)) {
 		fileOwners.add(file);
 	}
-}
-
-/**
- * Resets the state to empty. Used by tests and by HMR manager teardown.
- */
-export function resetEjsxHmrOwnership(): void {
-	currentState = EMPTY_STATE;
 }
 
 function publishEjsxHmrOwnership(files: ReadonlySet<string>): void {

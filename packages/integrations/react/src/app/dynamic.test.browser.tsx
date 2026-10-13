@@ -1,6 +1,7 @@
 import { Suspense, type ReactElement } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { page } from 'vitest/browser';
 import { dynamic } from './dynamic.ts';
 
 function createDeferredImport<T>() {
@@ -16,8 +17,12 @@ function createDeferredImport<T>() {
 }
 
 describe('dynamic', () => {
+	let container: HTMLDivElement;
+	let root: Root;
+
 	afterEach(() => {
-		cleanup();
+		root.unmount();
+		container.remove();
 	});
 
 	it('returns a browser lazy component that resolves through Suspense', async () => {
@@ -26,19 +31,22 @@ describe('dynamic', () => {
 		}>();
 		const DynamicComponent = dynamic(() => deferredImport.promise);
 
-		render(
+		container = document.createElement('div');
+		document.body.appendChild(container);
+		root = createRoot(container);
+		root.render(
 			<Suspense fallback={<span>Loading dynamic component</span>}>
 				<DynamicComponent />
 			</Suspense>,
 		);
 
-		expect(screen.getByText('Loading dynamic component')).toBeTruthy();
+		await expect.element(page.getByText('Loading dynamic component')).toBeInTheDocument();
 
 		deferredImport.resolve({
 			default: () => <span>Dynamic content</span>,
 		});
 
-		expect(await screen.findByText('Dynamic content')).toBeTruthy();
-		expect(screen.queryByText('Loading dynamic component')).toBeNull();
+		await expect.element(page.getByText('Dynamic content')).toBeInTheDocument();
+		await expect.element(page.getByText('Loading dynamic component')).not.toBeInTheDocument();
 	});
 });

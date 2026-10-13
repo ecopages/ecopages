@@ -14,11 +14,8 @@ function buildPathPrefixFilter(prefix: string): RegExp {
 	return new RegExp(`^${escapeRegExp(prefix)}(?:/|$)`);
 }
 
-export function createAliasResolverPlugin(
-	projectRoot: string,
-	options?: { cache?: AliasResolverCache },
-): EcoBuildPlugin {
-	const cache = options?.cache ?? new AliasResolverCache();
+export function createAliasResolverPlugin(projectRoot: string): EcoBuildPlugin {
+	const cache = new AliasResolverCache();
 	const pathPrefixes = loadTsconfigPathPrefixes(projectRoot);
 
 	return {

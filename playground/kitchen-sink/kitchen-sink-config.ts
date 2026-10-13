@@ -49,7 +49,6 @@ export function createKitchenSinkUserConfig(options: KitchenSinkConfigOptions): 
 				router: ecoRouter(),
 				extensions: ['.react.tsx'],
 				mdx: {
-					enabled: true,
 					...withContentMdxPlugins(),
 				},
 				runtimeModules: ['zod'],

@@ -94,7 +94,6 @@ export class DependencyResolverService {
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
 	): Promise<ProcessedAsset[]> {
-		if (!this.assetProcessingService?.processDependencies) return [];
 		const { dependencies, lazyScriptsByConfig } = this.collectDependencies(components, integrationName, false);
 
 		const packagedDependencies = packagePageDependencies(dependencies, integrationName);
@@ -110,7 +109,6 @@ export class DependencyResolverService {
 				const lazyKey = dep.kind === 'script' ? dep.attributes?.['data-eco-lazy-key'] : undefined;
 				return Boolean(lazyKey && lazyKeys.has(lazyKey));
 			});
-			config._resolvedLazyScripts = undefined;
 		}
 
 		return this.assetProcessingService.processDependencies(eagerDeps, integrationName);
@@ -161,7 +159,6 @@ export class DependencyResolverService {
 			}
 
 			config._resolvedLazyTriggers = buildResolvedLazyTriggers(config, rawGroups);
-			config._resolvedLazyScripts = undefined;
 			config._pendingLazyClientAssets = undefined;
 			pendingLazyGroupsByConfig.delete(config);
 			if (config._resolvedLazyTriggers?.length) {
@@ -174,14 +171,11 @@ export class DependencyResolverService {
 
 	/**
 	 * Collects the unprocessed asset declarations of `components`, excluding Foreign Children and their descendants.
-	 *
-	 * @remarks Returns nothing when assets cannot be processed, matching `processComponentDependencies()`.
 	 */
 	collectOwnComponentDependencies(
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
 	): AssetDefinition[] {
-		if (!this.assetProcessingService?.processDependencies) return [];
 		return this.collectDependencies(components, integrationName, true).dependencies;
 	}
 

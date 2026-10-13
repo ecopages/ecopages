@@ -17,7 +17,6 @@ export interface StaticExportContext {
 	routeRendererFactory?: StaticGenerationRendererResolver;
 	staticRoutes?: StaticRoute[];
 	force: boolean;
-	preserveExportDirectory: boolean;
 	/**
 	 * Unfiltered static-generation routes (exact + expanded dynamic).
 	 *

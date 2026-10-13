@@ -30,16 +30,14 @@ export function inlineReadFileSyncCalls(
 	source: string,
 	sourcePath: string,
 	absWorkingDir: string,
-): { transformed: string; modified: boolean; inlinedExternalFile: boolean } {
+): { transformed: string; modified: boolean } {
 	if (!source.includes('readFileSync')) {
-		return { transformed: source, modified: false, inlinedExternalFile: false };
+		return { transformed: source, modified: false };
 	}
 
 	let modified = false;
-	let inlinedExternalFile = false;
 	const transformed = source.replace(READ_FILE_SYNC_PATTERN, (_match, _q, relPath) => {
 		modified = true;
-		inlinedExternalFile = true;
 		try {
 			const absolutePath = resolveReadFileCandidate(relPath, sourcePath, absWorkingDir);
 			if (!absolutePath) return '""';
@@ -49,5 +47,5 @@ export function inlineReadFileSyncCalls(
 		}
 	});
 
-	return { transformed, modified, inlinedExternalFile };
+	return { transformed, modified };
 }

@@ -8,6 +8,10 @@ Public packages are versioned with Changesets. `pnpm changeset` records a change
 
 Official templates ship agent skill packs under `.agents/skills`. After changing `apps/docs/src/public/skill` or `scripts/agent-skills`, run `pnpm sync:template-skills`. `pnpm check:templates` fails if those copies drift.
 
+## Test guardrails
+
+`check-portability.ts` (run by `pnpm typecheck`) rejects Bun filesystem calls in packages, runtime subpath imports in apps, and direct `process.env` writes in `*.test.*` files. Both Vitest projects set `unstubEnvs`, `unstubGlobals` and `restoreMocks`, so a test changes the environment with `vi.stubEnv('NAME', value)` (`undefined` unsets it) and Vitest puts it back after the test, even when the test fails. A test that writes files uses a `mkdtemp` directory under `os.tmpdir()` and removes it in `afterEach`.
+
 ## External app debug / bottleneck bench
 
 Use [`debug-app.bench.mjs`](./debug-app.bench.mjs) to measure an app that lives **outside** this repository (for example a product monorepo). Do not commit app-specific harnesses here — pass the app path and routes as CLI args.

@@ -2,6 +2,7 @@ import { collectBuildOutputImports } from '../../build/build-graph.ts';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
+import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
 import { build, type BuildExecutor, type BuildOptions, type BuildResult } from '../../build/build-adapter.ts';
 import { createServerBuildRequest } from '../../build/runtime/build-request-policy.ts';
 import { resolveBuildEnvironmentOptions } from '../../build/runtime/build-environment-options.ts';
@@ -23,6 +24,7 @@ import {
 	type RouteModuleDependencyHashes,
 } from './route-module-dependency-hasher.ts';
 import { formatBuildLog } from '../../build/build-log.ts';
+import { isProductionRuntime } from '../../utils/runtime.ts';
 
 interface PageModuleImportBaseOptions {
 	filePath: string;
@@ -137,11 +139,14 @@ export class PageModuleImportService {
 	async importModule<T = unknown>(options: PageModuleBuildImportOptions): Promise<T> {
 		const { filePath } = options;
 
+		if (!options.bypassCache && isProductionRuntime()) {
+			return this.importUnchangedModule<T>(options);
+		}
+
 		const fileHash = this.dependencies.hashFile(filePath);
 
 		if (!options.bypassCache) {
-			const runtime = typeof Bun !== 'undefined' ? 'bun' : 'node-build';
-			const cacheKey = [runtime, filePath, createRouteModuleReuseIdentity(options), fileHash].join('::');
+			const cacheKey = [filePath, createRouteModuleReuseIdentity(options), fileHash].join('::');
 			const cachedModule = this.importCache.get(cacheKey);
 
 			if (cachedModule) {
@@ -180,6 +185,39 @@ export class PageModuleImportService {
 			...options,
 			fileHash,
 		});
+	}
+
+	/**
+	 * Imports a module whose sources cannot change while the process runs.
+	 *
+	 * @remarks
+	 * In production nothing edits the sources and no watcher invalidates them: every build
+	 * compiles from source in a fresh process. A module loaded once is therefore reused as is, with
+	 * no hashing of its entry file and dependency files, which a request-time import such as
+	 * `ctx.renderServerModule` would otherwise repeat on every request.
+	 */
+	private async importUnchangedModule<T>(options: PageModuleBuildImportOptions): Promise<T> {
+		const cacheKey = [options.filePath, createRouteModuleReuseIdentity(options)].join('::');
+		const cachedModule = this.importCache.get(cacheKey);
+		if (cachedModule) {
+			const loadedModule = (await cachedModule.promise) as T;
+			recordPageModuleLoad('import-cache-hit');
+			return loadedModule;
+		}
+
+		const importPromise = this.loadModule<T>({
+			...options,
+			fileHash: this.dependencies.hashFile(options.filePath),
+			importCacheKey: cacheKey,
+		});
+		this.importCache.set(cacheKey, { promise: importPromise });
+
+		try {
+			return await importPromise;
+		} catch (error) {
+			this.importCache.delete(cacheKey);
+			throw error;
+		}
 	}
 
 	private createRouteModuleBuildOptions(
@@ -244,6 +282,10 @@ export class PageModuleImportService {
 		if (!cachedBuild) {
 			return undefined;
 		}
+		this.registerRouteModuleDependencies(
+			cacheBuildOptions.filePath,
+			Object.keys(cachedBuild.entry.dependencyHashes ?? {}),
+		);
 		const loadedModule = (await import(/* @vite-ignore */ pathToFileURL(cachedBuild.outputPath).href)) as T;
 		recordPageModuleLoad('disk-cache-hit');
 		return loadedModule;
@@ -287,6 +329,7 @@ export class PageModuleImportService {
 		outdir: string,
 	): Promise<T> {
 		const dependencyModulePaths = resolveRouteModuleDependencyPaths(buildResult, filePath, rootDir);
+		this.registerRouteModuleDependencies(filePath, dependencyModulePaths);
 		const dependencyHashes = this.dependencyHasher.createDependencyHashes(dependencyModulePaths);
 		dependencyHashes[path.normalize(filePath)] = fileHash;
 
@@ -309,6 +352,17 @@ export class PageModuleImportService {
 			compiledOutputUrl.searchParams.set('update', `${fileHash}-${this.developmentImportGeneration}`);
 		}
 		return (await import(/* @vite-ignore */ compiledOutputUrl.href)) as T;
+	}
+
+	private registerRouteModuleDependencies(filePath: string, dependencyPaths: readonly string[]): void {
+		if (!this.appConfig) {
+			return;
+		}
+
+		getAppBuildInputIndex(this.appConfig).register(
+			{ consumer: 'server-route-module', key: path.resolve(filePath) },
+			dependencyPaths,
+		);
 	}
 
 	private async loadModule<T = unknown>(options: LoadModuleOptions): Promise<T> {
@@ -389,15 +443,15 @@ function shouldAddRuntimeUpdateQuery(): boolean {
 }
 
 /**
- * Gives Bun a distinct compiled module path after development invalidation.
+ * Gives every runtime a distinct compiled module path after development invalidation.
  *
  * @remarks
- * Bun does not reload an already-imported module when only its URL query changes.
- * A dependency edit can leave the entrypoint source hash unchanged, so the output
- * filename must include the import generation as well as the runtime query.
+ * A dependency edit can leave the entrypoint source hash unchanged. The filename
+ * includes the import generation so the next import is a new file. A URL query
+ * is not enough: Bun keeps the module it already imported for that path.
  */
 function createRuntimeBuildOutputFileName(outputFileName: string, developmentImportGeneration: number): string {
-	if (typeof Bun === 'undefined' || !shouldAddRuntimeUpdateQuery()) {
+	if (!shouldAddRuntimeUpdateQuery()) {
 		return outputFileName;
 	}
 

@@ -49,14 +49,14 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 					inline: dep.inline,
 					excludeFromHtml: dep.excludeFromHtml,
 					packageRole: dep.packageRole,
-					bundledSourceFilepaths: dep.bundledSourceFilepaths,
+					bundledSourceFilepaths: this.getBundledSourceFilepaths(dep),
 				};
 			}
 
 			const outdir = path.join(this.getAssetsDir(), 'vendors');
 			const bundlerOptions = this.getBundlerOptions(dep);
 
-			const filePath = await this.bundleScript({
+			const bundledOutput = await this.bundleScript({
 				entrypoint: modulePath,
 				outdir: outdir,
 				minify: this.isProduction,
@@ -65,14 +65,14 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 			});
 
 			return {
-				filepath: filePath,
+				filepath: bundledOutput.filepath,
 				kind: dep.kind,
 				position: dep.position,
 				attributes: dep.attributes,
 				inline: dep.inline,
 				excludeFromHtml: dep.excludeFromHtml,
 				packageRole: dep.packageRole,
-				bundledSourceFilepaths: dep.bundledSourceFilepaths,
+				bundledSourceFilepaths: this.getBundledSourceFilepaths(dep, bundledOutput.inputPaths),
 			};
 		});
 	}

@@ -147,7 +147,7 @@ export type LazyTrigger = DependencyLazyTrigger;
  * @template E - The element/return type (defaults to EcoPagesElement for Kita, use ReactNode for React)
  */
 export interface ComponentOptions<P, E = EcoPagesElement> {
-	/** @internal Bound by the component identity attribution transform. */
+	/** Bound by the component identity attribution transform. */
 	identity?: ComponentIdentity;
 	integration?: string;
 	dependencies?: EcoComponentDependencies;
@@ -156,24 +156,13 @@ export interface ComponentOptions<P, E = EcoPagesElement> {
 
 export type HtmlOptions<E = EcoPagesElement> = ComponentOptions<HtmlTemplateProps, E>;
 
-export type LayoutOptions<E = EcoPagesElement> = ComponentOptions<LayoutProps<E>, E> & {
-	/**
-	 * Marks this layout as mounting shared client runtime state such as React context
-	 * providers or query clients.
-	 *
-	 * @remarks
-	 * When any layout in the app sets this flag, only flagged layouts participate in
-	 * React auto-vendoring discovery. This keeps shell-only layouts out of provider
-	 * scans while persisted SPA navigation stays on one shared vendor instance.
-	 */
-	runtimeProvider?: boolean;
-};
+export type LayoutOptions<E = EcoPagesElement> = ComponentOptions<LayoutProps<E>, E>;
 
 /**
  * Base options shared by all page variants
  */
 export interface PageOptionsBase<T, E = EcoPagesElement> {
-	/** @internal Bound by the component identity attribution transform. */
+	/** Bound by the component identity attribution transform. */
 	identity?: ComponentIdentity;
 	integration?: string;
 	/**
@@ -197,7 +186,10 @@ export interface PageOptionsBase<T, E = EcoPagesElement> {
 
 	/**
 	 * Generate page metadata (title, description, etc.).
-	 * Receives props from staticProps if defined.
+	 *
+	 * @remarks
+	 * Props come from `staticProps`. Props passed into the render are overlaid
+	 * and win when both set the same key. `metadata` sees the merged props.
 	 */
 	metadata?: GetMetadata<T>;
 

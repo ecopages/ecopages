@@ -6,7 +6,7 @@
 /// <reference types="@ecopages/core/declarations" />
 
 import { getEcoDocumentOwner } from '@ecopages/core/router/navigation-coordinator';
-import { isHtmlPageResponse } from '@ecopages/core/router/link-navigation-policy';
+import { fetchNavigationPage } from '@ecopages/core/router/navigation-pipeline';
 import type { EcoComponentConfig } from '@ecopages/core';
 import { resolveEcoPageDataModuleUrl, resolveEcoPageDataProps } from '@ecopages/react/serialize-page-data-script';
 import type { ComponentType } from 'react';
@@ -114,7 +114,7 @@ function isReactRouteDocument(doc: Document): boolean {
  * Disabled in production where filenames have content hashes.
  */
 function addCacheBuster(url: string): string {
-	if (import.meta.env?.MODE === 'production' || import.meta.env?.PROD) {
+	if (process.env.NODE_ENV === 'production') {
 		return url;
 	}
 	const separator = url.includes('?') ? '&' : '?';
@@ -160,36 +160,9 @@ export async function loadPageModule(
 	url: string,
 	options: LoadPageModuleOptions = {},
 ): Promise<LoadedPageModule | null> {
-	const fetchedPage = await fetchPageDocument(url, options);
-	if (!fetchedPage) {
-		return null;
-	}
-
-	return loadPageModuleFromDocument(fetchedPage.doc, fetchedPage.finalPath);
-}
-
-export async function fetchPageDocument(
-	url: string,
-	options: LoadPageModuleOptions = {},
-): Promise<FetchedPageDocument | null> {
+	let fetchedPage;
 	try {
-		const res = await fetch(url, {
-			signal: options.signal,
-			headers: {
-				Accept: 'text/html',
-			},
-		});
-		if (!res.ok || !isHtmlPageResponse(res)) {
-			return null;
-		}
-		const html = await res.text();
-
-		const finalUrl = new URL(res.url || url, window.location.origin);
-		const finalPath = finalUrl.pathname + finalUrl.search;
-
-		const doc = new DOMParser().parseFromString(html, 'text/html');
-
-		return { doc, finalPath, html };
+		fetchedPage = await fetchNavigationPage(url, { signal: options.signal });
 	} catch (e) {
 		if (e instanceof DOMException && e.name === 'AbortError') {
 			return null;
@@ -197,6 +170,10 @@ export async function fetchPageDocument(
 		console.error('[EcoRouter] Navigation failed:', e);
 		return null;
 	}
+	if (!fetchedPage) return null;
+
+	const finalPath = fetchedPage.finalUrl.pathname + fetchedPage.finalUrl.search + fetchedPage.finalUrl.hash;
+	return loadPageModuleFromDocument(fetchedPage.document, finalPath);
 }
 
 /**

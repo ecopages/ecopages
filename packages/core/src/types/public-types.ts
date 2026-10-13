@@ -143,11 +143,6 @@ export type EcoComponentScriptEntry = {
 	ssr?: boolean;
 };
 
-export type ResolvedLazyScriptGroup = {
-	lazy: DependencyLazyTrigger;
-	scripts: string;
-};
-
 export type LazyTriggerRule =
 	| { 'on:idle': { scripts: string[] } }
 	| { 'on:interaction': { value: string; scripts: string[] } }
@@ -282,6 +277,10 @@ export interface IClientBridge {
 
 export interface ResolvedHmrEntrypoint {
 	sourcePath: string;
+	/**
+	 * Emitted artifact path for disk-based HMR, or the resolved source path for
+	 * dev-transform entrypoints where modules are served on demand.
+	 */
 	outputPath: string;
 	outputUrl: string;
 	role: 'page' | 'script';
@@ -334,11 +333,6 @@ export interface IHmrManager {
 	broadcast(event: ClientBridgeEvent): void;
 
 	/**
-	 * Gets the output URL for a registered entrypoint.
-	 */
-	getOutputUrl(entrypointPath: string): string | undefined;
-
-	/**
 	 * Returns an existing emitted HMR script artifact without registering it.
 	 */
 	getResolvedScriptOutput?(entrypointPath: string): ResolvedHmrEntrypoint | undefined;
@@ -354,16 +348,6 @@ export interface IHmrManager {
 	getRegisteredEntrypoints(): ReadonlyMap<string, ResolvedHmrEntrypoint>;
 
 	/**
-	 * Gets the on-disk work directory for the bundled HMR client runtime.
-	 */
-	getRuntimeWorkDir(): string;
-
-	/**
-	 * Returns the on-disk path to the bundled HMR runtime script.
-	 */
-	getRuntimePath(): string;
-
-	/**
 	 * Serves a development HMR asset request when the URL matches a known HMR path.
 	 */
 	tryHandleAssetRequest(request: Request): Response | null;
@@ -377,6 +361,10 @@ export interface IHmrManager {
 	 * Handles a file change event.
 	 */
 	handleFileChange(path: string, options?: HmrFileChangeOptions): Promise<void>;
+	/**
+	 * Handles all file changes from one watcher batch and coalesces their client update.
+	 */
+	handleFileChanges(paths: string[], options?: HmrFileChangeOptions): Promise<void>;
 }
 
 /**
@@ -478,20 +466,12 @@ export type EcoComponentConfig = {
 	layoutEntries?: EcoPageLayoutEntry[];
 	dependencies?: EcoComponentDependencies;
 	/**
-	 * Internal: Resolved lazy scripts grouped by trigger.
-	 * Set by the renderer, used by eco.component() for multi-trigger auto-wrapping.
-	 * @internal
-	 */
-	_resolvedLazyScripts?: ResolvedLazyScriptGroup[];
-	/**
 	 * Internal: Resolved lazy triggers for the global injector map.
 	 * Set by the renderer in the default full orchestration flow.
-	 * @internal
 	 */
 	_resolvedLazyTriggers?: ResolvedLazyTrigger[];
 	/**
 	 * Internal: Unprocessed lazy client entries held for the page's grouped browser build.
-	 * @internal
 	 */
 	_pendingLazyClientAssets?: AssetDefinition[];
 };
@@ -507,19 +487,19 @@ export type EcoComponentBase = {
 
 	/**
 	 * Static paths for dynamic routes (consolidated eco.page API).
-	 * @internal Used by the renderer to retrieve static paths from the page component.
+	 * Used by the renderer to retrieve static paths from the page component.
 	 */
 	staticPaths?: GetStaticPaths;
 
 	/**
 	 * Static props fetcher (consolidated eco.page API).
-	 * @internal Used by the renderer to retrieve static props from the page component.
+	 * Used by the renderer to retrieve static props from the page component.
 	 */
 	staticProps?: GetStaticProps<any>;
 
 	/**
 	 * Metadata generator (consolidated eco.page API).
-	 * @internal Used by the renderer to retrieve metadata from the page component.
+	 * Used by the renderer to retrieve metadata from the page component.
 	 */
 	metadata?: GetMetadata<any>;
 };
@@ -615,9 +595,8 @@ export interface PageMetadataProps {
  * Configuration for automatic `sitemap.xml` generation during static export.
  *
  * @remarks
- * Disabled by default. When enabled, the sitemap is written after
- * `afterStaticExport` so integration-generated URLs can be listed via
- * `extraUrls`. Use `exclude` for bulk pathname filters and `metadata.robots.index: false`
+ * Disabled by default. When enabled, the sitemap is written after every page,
+ * so files generated during export can be listed via `extraUrls`. Use `exclude` for bulk pathname filters and `metadata.robots.index: false`
  * for page-level noindex that also removes the URL from the sitemap when metadata
  * is available during export.
  */
@@ -886,6 +865,13 @@ export type RouteRendererOptions = {
 	 * `stack` on the custom 500 page).
 	 */
 	props?: Record<string, unknown>;
+	/**
+	 * Skips the page's `staticProps` hook for this render.
+	 * @remarks Set when the caller already holds the final props, as the caller of an
+	 * explicit view does. `props` then replaces the hook's result instead of being
+	 * merged into it, and metadata sees the same props.
+	 */
+	skipStaticProps?: boolean;
 };
 
 /**
@@ -902,6 +888,8 @@ export type RouteRenderResult = {
 	cacheStrategy?: CacheStrategy;
 	/** Source paths observed during render preparation for HTML cache invalidation. */
 	sourceDependencyPaths?: readonly string[];
+	/** Page metadata the document was rendered with. */
+	metadata?: PageMetadataProps;
 };
 
 /**
@@ -916,18 +904,18 @@ export type IntegrationRendererRenderOptions<C = EcoPagesElement> = RouteRendere
 	Layout?: EcoPageLayoutComponent<any>;
 	layoutEntries?: EcoPageLayoutEntry[];
 	dependencies?: EcoComponentDependencies;
-	/** @internal Resolved page dependencies carried through the render pipeline. */
+	/** Resolved page dependencies carried through the render pipeline. */
 	resolvedPageDependencyComponents?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
 	resolvedDependencies: ProcessedAsset[];
 	pagePackage?: PagePackageResult;
 	pageProps?: Record<string, unknown>;
 	cacheStrategy?: CacheStrategy;
 	pageLocals?: RequestLocals;
-	/** @internal Source paths from render preparation for HTML cache dependency registration. */
+	/** Source paths from render preparation for HTML cache dependency registration. */
 	sourceDependencyPaths?: readonly string[];
-	/** @internal Client entries collected from one walk of the declared component graph. */
+	/** Client entries collected from one walk of the declared component graph. */
 	pageClientPlan?: PageClientPlan;
-	/** @internal Island browser assets keyed by source file, built from the page client plan. */
+	/** Island browser assets keyed by source file, built from the page client plan. */
 	islandRenderAssetsByFile?: Map<string, ProcessedAsset[]>;
 };
 

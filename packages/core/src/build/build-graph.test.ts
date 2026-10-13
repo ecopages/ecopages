@@ -4,7 +4,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import { collectBuildOutputImports, getBuildEntryOutput } from './build-graph.ts';
+import { collectBuildEntryInputPaths, collectBuildOutputImports, getBuildEntryOutput } from './build-graph.ts';
 import { RolldownBuildAdapter } from './rolldown/rolldown-build-adapter.ts';
 import { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 import { resolveRouteModuleDependencyPaths } from '../services/module-loading/route-module-dependency-hasher.ts';
@@ -19,7 +19,56 @@ afterEach(() => {
 	vi.unstubAllEnvs();
 });
 
-test('both persisted entries miss after their shared inlined source changes', async () => {
+test('collects only local source paths for one entry and its plugin inputs', () => {
+	const entry = path.join(root, 'pages/about.tsx');
+	const helper = path.join(root, 'src/lib/posts.ts');
+	const pluginInput = path.join(root, 'data/posts.json');
+	const paths = collectBuildEntryInputPaths(
+		{
+			dependencyGraph: {
+				entrypoints: {
+					[entry]: [entry, helper, 'node:fs', path.join(root, 'node_modules/react/index.js')],
+				},
+			},
+			loadedInputs: [pluginInput],
+		},
+		entry,
+		root,
+	);
+
+	expect(paths).toEqual([entry, helper, pluginInput]);
+});
+
+test('attributes plugin inputs to their entry closure when inputs overlap another entry module', () => {
+	const firstEntry = path.join(root, 'pages/first.tsx');
+	const firstHelper = path.join(root, 'src/lib/first-helper.tsx');
+	const secondEntry = path.join(root, 'pages/second.tsx');
+	const secondHelper = path.join(root, 'src/lib/second-helper.tsx');
+	const pluginOnlyInput = path.join(root, 'data/generated-routes.json');
+	const result = {
+		dependencyGraph: {
+			entrypoints: {
+				[firstEntry]: [firstEntry, firstHelper],
+				[secondEntry]: [secondEntry, secondHelper],
+			},
+		},
+		loadedInputs: [firstHelper, secondHelper, pluginOnlyInput],
+		loadedInputsByModule: {
+			[firstEntry]: [firstHelper],
+			[secondEntry]: [firstHelper, pluginOnlyInput],
+		},
+	};
+
+	expect(collectBuildEntryInputPaths(result, firstEntry, root)).toEqual([firstEntry, firstHelper]);
+	expect(collectBuildEntryInputPaths(result, secondEntry, root)).toEqual([
+		secondEntry,
+		secondHelper,
+		firstHelper,
+		pluginOnlyInput,
+	]);
+});
+
+test('both cached entries miss after their shared inlined source changes', async () => {
 	const shared = path.join(root, 'shared.js');
 	writeFileSync(shared, "export const value = 'before';");
 	const entries = ['blog', 'blog-post'].map((name) => {
@@ -37,7 +86,7 @@ test('both persisted entries miss after their shared inlined source changes', as
 		splitting: true,
 	});
 	expect(result.success).toBe(true);
-	const cache = new RouteModuleBuildCache(outdir);
+	const cache = new RouteModuleBuildCache();
 	for (const entry of entries) {
 		const output = getBuildEntryOutput(result, entry, root);
 		if (!output) throw new Error(`Missing output for ${entry}`);
@@ -51,14 +100,13 @@ test('both persisted entries miss after their shared inlined source changes', as
 		expect(cache.lookup(options)?.outputPath).toBe(output);
 	}
 	writeFileSync(shared, "export const value = 'after';");
-	const restored = new RouteModuleBuildCache(outdir);
 	for (const entry of entries)
 		expect(
-			restored.lookup({ filePath: entry, rootDir: root, outdir, fileHash: fileSystem.hash(entry) }),
+			cache.lookup({ filePath: entry, rootDir: root, outdir, fileHash: fileSystem.hash(entry) }),
 		).toBeUndefined();
 });
 
-test('a missing local external generated module invalidates a persisted build', async () => {
+test('a missing local external generated module invalidates a cached build', async () => {
 	const generated = path.join(root, 'generated.mjs');
 	writeFileSync(generated, "export const value = 'generated';");
 	const entry = path.join(root, 'entry.js');
@@ -81,7 +129,7 @@ test('a missing local external generated module invalidates a persisted build', 
 	const imports = collectBuildOutputImports(result, output);
 	expect(imports).toContain(generated);
 	const options = { filePath: entry, rootDir: root, outdir, fileHash: fileSystem.hash(entry) };
-	const cache = new RouteModuleBuildCache(outdir);
+	const cache = new RouteModuleBuildCache();
 	cache.recordBuild({
 		...options,
 		outputPath: output,
@@ -90,7 +138,7 @@ test('a missing local external generated module invalidates a persisted build', 
 	});
 	expect(cache.lookup(options)?.outputPath).toBe(output);
 	rmSync(generated);
-	expect(new RouteModuleBuildCache(outdir).lookup(options)).toBeUndefined();
+	expect(cache.lookup(options)).toBeUndefined();
 });
 
 test('walks static and dynamic chunk edges through cycles and retains missing leaves', () => {

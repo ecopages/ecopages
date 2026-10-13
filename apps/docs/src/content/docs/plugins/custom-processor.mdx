@@ -28,9 +28,6 @@ class CustomProcessor extends Processor {
 	constructor(config: Omit<ProcessorConfig, 'name'>) {
 		super({
 			name: 'custom-processor',
-			runtimeCapability: {
-				tags: ['node-compatible'],
-			},
 			capabilities: [
 				{
 					kind: 'stylesheet',
@@ -64,33 +61,6 @@ export const customProcessorPlugin = (config?: Omit<ProcessorConfig, 'name'>) =>
 
 Shipped processors such as PostCSS and Image expose a factory function (`postcssProcessorPlugin()`, `imageProcessorPlugin()`) rather than requiring callers to construct the class directly.
 
-## Declaring Runtime Requirements
-
-Processors can declare runtime assumptions through `runtimeCapability`. Ecopages validates this during config finalization, which means incompatible processors fail before startup proceeds.
-
-```typescript
-class CustomProcessor extends Processor {
-	constructor() {
-		super({
-			name: 'custom-processor',
-			runtimeCapability: {
-				tags: ['requires-node-builtins'],
-				minRuntimeVersion: '20.0.0',
-			},
-		});
-	}
-}
-```
-
-Available tags:
-
-1. `node-compatible`
-2. `requires-node-builtins`
-3. `bun-only`
-4. `requires-native-bun-api`
-
-Prefer the narrowest declaration that matches the processor's actual runtime needs.
-
 ## Processor Lifecycle
 
 Core owns the ordering. Processors participate in these phases:
@@ -99,9 +69,8 @@ Core owns the ordering. Processors participate in these phases:
 2. **Manifest collection** — processor `plugins` become runtime plugin contributions; `buildPlugins` become browser bundle contributions.
 3. **`setup()`** — runs at app startup after the manifest is sealed. Use for runtime-only work such as cache warming or watcher registration.
 4. **`process()`** — transforms assets when the asset pipeline or watch callbacks invoke the processor.
-5. **Watch callbacks** — in development, `onChange` / `onCreate` / `onDelete` on the `watch` config handle owned file paths.
+5. **Watch batches** — in development, `watch.onChanges({ created, changed, deleted, bridge })` receives matching absolute paths grouped once per debounce window. `extensions` select notifications; `capabilities` define asset ownership.
 6. **`collectDevPrewarmPaths()`** — optional; returns pathnames core renders in the background once the development server handles requests. Defaults to `[]`.
-7. **`teardown()`** — optional override for explicit cleanup. Core does not call this hook today.
 
 ## Asset Capabilities
 
@@ -207,7 +176,7 @@ class CustomProcessor extends Processor {
 
 ## File Watching
 
-Configure file watching for development mode:
+Configure file watching for development mode. Core calls `onChanges` once per debounce batch. Its `created`, `changed`, and `deleted` arrays contain the matching absolute paths for each event kind.
 
 ```typescript
 class CustomProcessor extends Processor {
@@ -217,11 +186,8 @@ class CustomProcessor extends Processor {
 			watch: {
 				paths: ['src/custom'],
 				extensions: ['.custom'],
-				onChange: async ({ path, bridge }) => {
-					// bridge.reload() or bridge.cssUpdate(path)
-				},
-				onDelete: async ({ path, bridge }) => {
-					// Handle file deletions
+				onChanges: async ({ bridge }) => {
+					bridge.reload();
 				},
 			},
 		});
@@ -261,8 +227,13 @@ class StyleProcessor extends Processor {
 			watch: {
 				paths: ['src/styles'],
 				extensions: ['.css'],
-				onChange: async ({ path, bridge }) => {
-					await this.processFile(path, bridge);
+				onChanges: async ({ created, changed, deleted, bridge }) => {
+					for (const filePath of [...created, ...changed]) {
+						await this.processFile(filePath, bridge);
+					}
+					if (deleted.length > 0) {
+						bridge.reload();
+					}
 				},
 			},
 		});
@@ -292,10 +263,9 @@ The `IClientBridge` contract provides:
 ## Best Practices
 
 1. Use meaningful names for your processors
-2. Declare the smallest valid `runtimeCapability`
-3. Register `capabilities` when the processor owns asset kinds
-4. Put manifest-facing work in `prepareBuildContributions()`; runtime work in `setup()`
-5. Cache expensive operations
+2. Register `capabilities` when the processor owns asset kinds
+3. Put manifest-facing work in `prepareBuildContributions()`; runtime work in `setup()`
+4. Cache expensive operations
 6. Use `bridge` for live updates instead of full reloads when possible
 7. Export a factory function for `eco.config.ts` registration
 8. See [PostCSS Processor](/docs/ecosystem/postcss-processor) for a production reference implementation

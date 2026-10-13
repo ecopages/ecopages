@@ -400,8 +400,9 @@ scripts: [{ src: './component.script.ts', lazy: { 'on:visible': true } }]; // or
 
 Each entry can define its own trigger, so mixed strategies in one component are supported.
 
-At render time, lazy script groups are emitted into a single [`scripts-injector`](https://github.com/ecopages/scripts-injector)
-wrapper using an internal `<script type="ecopages/injector-map">` payload.
+At render time, the component's root element receives a `data-eco-trigger` attribute, and the page carries one
+global injector map that tells the [`scripts-injector`](https://github.com/ecopages/scripts-injector) runtime which
+scripts to load for each trigger.
 
 ### `eco.page()`
 
@@ -574,20 +575,12 @@ export const Counter = eco.component({
 **HTML Output:**
 
 ```html
-<scripts-injector>
-	<script type="ecopages/injector-map">
-		{
-			"on:interaction": {
-				"value": "mouseenter,focusin",
-				"scripts": ["/_assets/components/counter/counter.script.js"]
-			}
-		}
-	</script>
-	<my-counter count="5">
-		<!-- SSR content -->
-	</my-counter>
-</scripts-injector>
+<my-counter count="5" data-eco-trigger="eco-trigger-1a2b3c">
+	<!-- SSR content -->
+</my-counter>
 ```
+
+The page also carries one `<script type="ecopages/global-injector-map">` that maps each `data-eco-trigger` id to its trigger and script URLs.
 
 ### Page with Lazy Component
 
@@ -659,7 +652,7 @@ interface ComponentOptions<P, E = EcoPagesElement> {
 // html() and layout() accept the same options as component() but return
 // narrower types to signal intent (EcoHtmlComponent / EcoLayoutComponent).
 type HtmlOptions<E = EcoPagesElement> = ComponentOptions<Record<string, unknown>, E>;
-type LayoutOptions<E = EcoPagesElement> = ComponentOptions<{ children: E }, E>;
+type LayoutOptions<E = EcoPagesElement> = ComponentOptions<LayoutProps<E>, E>;
 
 interface PageOptions<T, E = EcoPagesElement> {
 	componentDir?: string;

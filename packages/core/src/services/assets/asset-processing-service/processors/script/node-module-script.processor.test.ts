@@ -195,10 +195,17 @@ describe('NodeModuleScriptProcessor', () => {
 			const processor = new NodeModuleScriptProcessor({ appConfig: createMockConfig() });
 			const bundleScriptSpy = vi
 				.spyOn(
-					processor as unknown as { bundleScript: (options: Record<string, unknown>) => Promise<string> },
+					processor as unknown as {
+						bundleScript: (
+							options: Record<string, unknown>,
+						) => Promise<{ filepath: string; inputPaths: string[] }>;
+					},
 					'bundleScript',
 				)
-				.mockResolvedValue('/test/project/.eco/public/assets/vendors/react.development.js');
+				.mockResolvedValue({
+					filepath: '/test/project/.eco/public/assets/vendors/react.development.js',
+					inputPaths: [],
+				});
 
 			const dep: NodeModuleScriptAsset = {
 				kind: 'script',
@@ -261,7 +268,7 @@ describe('NodeModuleScriptProcessor', () => {
 			fileSystem.readFileAsBuffer = originalReadFileAsBuffer;
 		});
 
-		test('should resolve @ecopages/logger using Bun.resolveSync', async () => {
+		test('should resolve @ecopages/logger from node_modules', async () => {
 			const config = createMockConfig();
 			config.rootDir = process.cwd();
 			const processor = new NodeModuleScriptProcessor({ appConfig: config });

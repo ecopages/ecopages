@@ -1,5 +1,6 @@
-import { afterAll, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types';
@@ -24,6 +25,7 @@ describe('Processor', () => {
 	let processor: TestProcessor;
 	let config: ProcessorConfig;
 	let appConfig: EcoPagesAppConfig;
+	const testRoots: string[] = [];
 
 	beforeEach(() => {
 		config = {
@@ -34,11 +36,8 @@ describe('Processor', () => {
 			},
 		};
 
-		const testRoot = path.join(process.cwd(), '.test-tmp', 'processor-test');
-
-		if (fs.existsSync(testRoot)) {
-			fs.rmSync(testRoot, { recursive: true, force: true });
-		}
+		const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'processor-test-'));
+		testRoots.push(testRoot);
 
 		appConfig = {
 			rootDir: testRoot,
@@ -52,27 +51,14 @@ describe('Processor', () => {
 		processor.setContext(appConfig);
 	});
 
-	afterAll(() => {
-		fs.rmSync(path.join(process.cwd(), '.test-tmp'), { recursive: true, force: true });
+	afterEach(() => {
+		for (const testRoot of testRoots.splice(0)) {
+			fs.rmSync(testRoot, { recursive: true, force: true });
+		}
 	});
 
 	test('should initialize with correct name', () => {
 		expect(processor.getName()).toBe('test-processor');
-	});
-
-	test('should retain runtime capability declarations', () => {
-		const runtimeProcessor = new TestProcessor({
-			name: 'runtime-processor',
-			runtimeCapability: {
-				tags: ['requires-node-builtins'],
-				minRuntimeVersion: '18.0.0',
-			},
-		});
-
-		expect(runtimeProcessor.runtimeCapability).toEqual({
-			tags: ['requires-node-builtins'],
-			minRuntimeVersion: '18.0.0',
-		});
 	});
 
 	test('should return watch config', () => {

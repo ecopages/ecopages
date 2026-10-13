@@ -186,8 +186,6 @@ export type EcoPagesAppConfig = {
 		buildRuntime?: BuildRuntime;
 		/** Set after {@link setupAppRuntimePlugins} runs processor/integration setup once per process. */
 		runtimeAssetsPrepared?: boolean;
-		/** Registers integration runtime plugins when lazy activation completes. */
-		onRuntimePlugin?: (plugin: import('../build/contracts/build-types.ts').EcoBuildPlugin) => void;
 		/**
 		 * In-flight or completed lazy integration activation promises, keyed by integration name.
 		 *

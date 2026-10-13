@@ -1,9 +1,10 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import userEvent from '@testing-library/user-event';
+import { userEvent } from 'vitest/browser';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/router/navigation-lifecycle';
 import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
+import { flushTasks } from './react-router.harness.ts';
 
 function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
 	return new Response(body, {
@@ -36,12 +37,10 @@ function createNavigablePageHtml(moduleUrl: string, props: Record<string, unknow
 describe('react-router navigation lifecycle', () => {
 	let container: HTMLDivElement;
 	let root: ReturnType<typeof createRoot>;
-	let user: ReturnType<typeof userEvent.setup>;
 
 	beforeEach(() => {
 		container = document.createElement('div');
 		document.body.append(container);
-		user = userEvent.setup();
 	});
 
 	afterEach(() => {
@@ -89,7 +88,7 @@ describe('react-router navigation lifecycle', () => {
 			expect(node).not.toBeNull();
 			return node as HTMLAnchorElement;
 		});
-		await user.click(link);
+		await userEvent.click(link);
 
 		await vi.waitFor(
 			() => {
@@ -154,8 +153,8 @@ describe('react-router navigation lifecycle', () => {
 		slowLink.textContent = 'Slow';
 		container.append(slowLink);
 
-		void user.click(slowLink);
-		await user.click(fastLink);
+		await userEvent.click(slowLink);
+		await userEvent.click(fastLink);
 
 		await vi.waitFor(
 			() => {
@@ -167,7 +166,7 @@ describe('react-router navigation lifecycle', () => {
 		expect(fetchSpy).toHaveBeenCalledTimes(2);
 
 		resolveSlowFetch(htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'slow' }), { status: 200 }));
-		await new Promise((resolve) => setTimeout(resolve, 50));
+		await flushTasks();
 
 		expect(afterSwapSpy).toHaveBeenCalledTimes(1);
 		expect(pageLoadSpy).toHaveBeenCalledTimes(1);

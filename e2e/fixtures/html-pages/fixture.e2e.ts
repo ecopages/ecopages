@@ -18,17 +18,10 @@ export default defineFixture(
 				testIgnore: [`${fixtureDir}/**/*.dev.test.e2e.ts`],
 			},
 			{
-				name: 'html-pages-node-e2e',
-				port: 43121,
-				mode: 'static',
-				runtime: 'node',
-				testIgnore: [`${fixtureDir}/**/*.dev.test.e2e.ts`],
-			},
-			{
 				name: 'html-pages-dev-e2e',
 				port: 43122,
 				mode: 'dev',
-				testMatch: [`${fixtureDir}/dotted-routes.test.e2e.ts`, `${fixtureDir}/shared-module.test.e2e.ts`],
+				testMatch: [`${fixtureDir}/shared-module.test.e2e.ts`],
 			},
 			{
 				name: 'html-pages-classic-script-dev-e2e',

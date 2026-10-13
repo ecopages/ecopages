@@ -99,35 +99,10 @@ function inferRolldownModuleTypeFromPath(filePath: string): string {
 	}
 }
 
-const DIRECT_ROLLDOWN_MODULE_LOADERS = new Set([
-	'js',
-	'jsx',
-	'ts',
-	'tsx',
-	'json',
-	'css',
-	'text',
-	'base64',
-	'dataurl',
-	'binary',
-	'empty',
-]);
-
-const ROLLDOWN_LOADER_ALIASES: Record<string, string> = {
-	'global-css': 'css',
-	'local-css': 'css',
-	file: 'asset',
-	copy: 'asset',
-};
+const ROLLDOWN_MODULE_LOADERS = new Set(['js', 'jsx', 'ts', 'tsx']);
 
 function normalizeRolldownModuleType(loader: unknown): string | undefined {
-	if (typeof loader === 'string' && DIRECT_ROLLDOWN_MODULE_LOADERS.has(loader)) {
-		return loader;
-	}
-	if (typeof loader === 'string' && Object.prototype.hasOwnProperty.call(ROLLDOWN_LOADER_ALIASES, loader)) {
-		return ROLLDOWN_LOADER_ALIASES[loader];
-	}
-	return undefined;
+	return typeof loader === 'string' && ROLLDOWN_MODULE_LOADERS.has(loader) ? loader : undefined;
 }
 
 function convertLoadResultToModuleSource(result: EcoBuildOnLoadResult): string | undefined {
@@ -323,6 +298,8 @@ export function getEcoBuildPluginName(error: unknown): string | undefined {
 	return error instanceof EcoBuildPluginError ? error.ecoBuildPlugin : undefined;
 }
 
+export type BuildInputRecorder = (moduleId: string, filePath: string) => void;
+
 /**
  * Creates the single Rolldown `Plugin` that drives the supplied
  * `EcoBuildPlugin` instances.
@@ -354,7 +331,7 @@ export function getEcoBuildPluginName(error: unknown): string | undefined {
 export async function createRolldownPluginBridge(
 	plugins: EcoBuildPlugin[],
 	contextRoot: string,
-	recordBuildInput?: (filePath: string) => void,
+	recordBuildInput?: BuildInputRecorder,
 ): Promise<Plugin[]> {
 	if (plugins.length === 0) {
 		return [];
@@ -442,15 +419,12 @@ export async function createRolldownPluginBridge(
 			}
 			const { namespace, path: sourcePath } = splitNamespace(id);
 			const addWatchFile = typeof this?.addWatchFile === 'function' ? this.addWatchFile.bind(this) : undefined;
-			const addDependency = (filePath: string): void => {
-				const resolved = path.isAbsolute(filePath) ? filePath : path.resolve(contextRoot, filePath);
-				recordBuildInput?.(resolved);
-				addWatchFile?.(resolved);
-			};
-			addDependency(sourcePath);
+			const resolved = path.isAbsolute(sourcePath) ? sourcePath : path.resolve(contextRoot, sourcePath);
+			recordBuildInput?.(id, resolved);
+			addWatchFile?.(resolved);
 			let result: EcoBuildOnLoadResult | undefined;
 			try {
-				result = await callback({ path: sourcePath, namespace, addDependency });
+				result = await callback({ path: sourcePath, namespace });
 			} catch (error) {
 				throw new EcoBuildPluginError(error, pluginName, sourcePath);
 			}

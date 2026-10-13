@@ -21,11 +21,8 @@ function createHmrManagerStub(): IHmrManager {
 		stop: vi.fn(),
 		isEnabled: vi.fn(() => true),
 		broadcast: vi.fn(),
-		getOutputUrl: vi.fn(),
 		getWatchedFiles: vi.fn(() => new Map()),
 		getRegisteredEntrypoints: vi.fn(() => new Map()),
-		getRuntimeWorkDir: vi.fn(() => ''),
-		getRuntimePath: vi.fn(() => ''),
 		tryHandleAssetRequest: vi.fn(() => null),
 		getDefaultContext: vi.fn(() => ({
 			getWatchedFiles: () => new Map(),
@@ -66,7 +63,6 @@ test('EcopagesJsxPlugin matches custom multi-dot MDX extensions exactly', async 
 	const plugin = ecopagesJsxPlugin({
 		radiant: false,
 		mdx: {
-			enabled: true,
 			extensions: ['.story.mdx'],
 		},
 	});
@@ -95,7 +91,6 @@ test('EcopagesJsxPlugin supports direct construction with MDX public options', (
 	const plugin = new EcopagesJsxPlugin({
 		extensions: ['.eco.tsx'],
 		mdx: {
-			enabled: true,
 			extensions: ['.guide.mdx'],
 		},
 	});
@@ -154,10 +149,7 @@ test('EcopagesJsxPlugin skips Radiant SSR invalidation registration when Radiant
 });
 
 test('configured MDX compiler accepts remark-gfm on fenced code content', async () => {
-	const compilerOptions = resolveMdxCompilerOptions({
-		enabled: true,
-		remarkPlugins: [remarkGfm],
-	});
+	const compilerOptions = resolveMdxCompilerOptions({ remarkPlugins: [remarkGfm] });
 
 	const compiled = await compile(
 		new VFile({
@@ -173,24 +165,20 @@ test('configured MDX compiler accepts remark-gfm on fenced code content', async 
 test('EcopagesJsxPlugin throws when preparing MDX without appConfig.rootDir', async () => {
 	const plugin = ecopagesJsxPlugin({
 		radiant: false,
-		mdx: {
-			enabled: true,
-		},
+		mdx: {},
 	});
 
 	await assert.rejects(() => plugin.prepareBuildContributions(), /appConfig\.rootDir is required/);
 });
 
-test('EcopagesJsxPlugin setup exposes the MDX loader without calling Bun.plugin', async () => {
+test('EcopagesJsxPlugin setup exposes the MDX loader as a build plugin only', async () => {
 	const mockBunPlugin = vi.fn();
 	vi.stubGlobal('Bun', { plugin: mockBunPlugin });
 
 	try {
 		const plugin = ecopagesJsxPlugin({
 			radiant: false,
-			mdx: {
-				enabled: true,
-			},
+			mdx: {},
 		});
 		plugin.setConfig({ rootDir: '/tmp/project' } as EcoPagesAppConfig);
 		await plugin.setup();

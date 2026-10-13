@@ -5,6 +5,7 @@ import type { EcoPagesAppConfig } from '../../../../../types/internal-types.ts';
 import type { ContentScriptAsset } from '../../assets.types.ts';
 import type { BrowserBundleGroupedEntry } from '../../../browser-bundle.service.ts';
 import { BrowserBundleService } from '../../../browser-bundle.service.ts';
+import type { BundledScriptOutput } from '../base/base-script-processor.ts';
 
 function createMockConfig(): EcoPagesAppConfig {
 	return {
@@ -52,7 +53,7 @@ class TestContentScriptProcessor extends ContentScriptProcessor {
 		outdir: string;
 		naming?: string;
 	}> = [];
-	bundleScriptsResult = new Map<string, string>();
+	bundleScriptsResult = new Map<string, BundledScriptOutput>();
 	bundleScriptsError?: Error;
 
 	protected override async bundleScripts({
@@ -63,7 +64,7 @@ class TestContentScriptProcessor extends ContentScriptProcessor {
 		entries: BrowserBundleGroupedEntry[];
 		outdir: string;
 		naming?: string;
-	}): Promise<Map<string, string>> {
+	}): Promise<Map<string, BundledScriptOutput>> {
 		this.bundleScriptsCalls.push({ entries, outdir, naming });
 
 		if (this.bundleScriptsError) {
@@ -75,10 +76,8 @@ class TestContentScriptProcessor extends ContentScriptProcessor {
 }
 
 describe('ContentScriptProcessor', () => {
-	const originalNodeEnv = process.env.NODE_ENV;
-
 	beforeEach(() => {
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		vi.spyOn(fileSystem, 'ensureDir').mockImplementation(() => {});
 		vi.spyOn(fileSystem, 'write').mockImplementation(() => {});
 		vi.spyOn(fileSystem, 'remove').mockImplementation(() => {});
@@ -86,7 +85,6 @@ describe('ContentScriptProcessor', () => {
 	});
 
 	afterEach(() => {
-		process.env.NODE_ENV = originalNodeEnv;
 		vi.restoreAllMocks();
 	});
 
@@ -133,9 +131,23 @@ describe('ContentScriptProcessor', () => {
 
 	test('processGrouped should bundle grouped entries together and preserve logical entry mapping', async () => {
 		const processor = new TestContentScriptProcessor({ appConfig: createMockConfig() });
+		const pageHelper = '/test/project/src/page-helper.ts';
+		const lazyHelper = '/test/project/src/lazy-helper.ts';
 		processor.bundleScriptsResult = new Map([
-			['page-entry', '/test/project/.eco/public/assets/page-entry-abc123.js'],
-			['lazy-entry', '/test/project/.eco/public/assets/lazy-entry-def456.js'],
+			[
+				'page-entry',
+				{
+					filepath: '/test/project/.eco/public/assets/page-entry-abc123.js',
+					inputPaths: [pageHelper],
+				},
+			],
+			[
+				'lazy-entry',
+				{
+					filepath: '/test/project/.eco/public/assets/lazy-entry-def456.js',
+					inputPaths: [lazyHelper],
+				},
+			],
 		]);
 
 		const deps: ContentScriptAsset[] = [
@@ -176,11 +188,13 @@ describe('ContentScriptProcessor', () => {
 			expect.objectContaining({
 				filepath: '/test/project/.eco/public/assets/page-entry-abc123.js',
 				packageRole: 'page-script',
+				bundledSourceFilepaths: [pageHelper],
 				groupedBundle: { id: 'bundle-1', entryName: 'page-entry' },
 			}),
 			expect.objectContaining({
 				filepath: '/test/project/.eco/public/assets/lazy-entry-def456.js',
 				excludeFromHtml: true,
+				bundledSourceFilepaths: [lazyHelper],
 				groupedBundle: { id: 'bundle-1', entryName: 'lazy-entry' },
 			}),
 		]);
@@ -217,7 +231,7 @@ describe('ContentScriptProcessor', () => {
 	});
 
 	test('processGrouped should remove temporary entries when bundling fails', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const processor = new TestContentScriptProcessor({ appConfig: createMockConfig() });
 		processor.bundleScriptsError = new Error('bundle failed');
 
@@ -238,7 +252,7 @@ describe('ContentScriptProcessor', () => {
 	test('processGrouped writes a unique temp entry per call so concurrent same-content builds cannot collide', async () => {
 		const processor = new TestContentScriptProcessor({ appConfig: createMockConfig() });
 		processor.bundleScriptsResult = new Map([
-			['page-entry', '/test/project/.eco/public/assets/page-entry-abc123.js'],
+			['page-entry', { filepath: '/test/project/.eco/public/assets/page-entry-abc123.js', inputPaths: [] }],
 		]);
 		const written = new Set<string>();
 		vi.spyOn(fileSystem, 'write').mockImplementation((filepath) => {
@@ -255,5 +269,51 @@ describe('ContentScriptProcessor', () => {
 		await Promise.all([processor.processGrouped([dep]), processor.processGrouped([dep])]);
 
 		expect(written.size).toBe(2);
+	});
+
+	test('concurrent grouped builds keep each output entry closure when output paths match', async () => {
+		const firstInput = '/test/project/src/first.ts';
+		const secondInput = '/test/project/src/second.ts';
+		const outputPath = '/test/project/.eco/public/assets/page-entry-abc123.js';
+		let releaseBuilds: (() => void) | undefined;
+		const bothBuildsStarted = new Promise<void>((resolve) => {
+			releaseBuilds = resolve;
+		});
+		let buildCount = 0;
+		vi.spyOn(BrowserBundleService.prototype, 'bundleGroupedEntries').mockImplementation(async (entries) => {
+			const buildInput = buildCount === 0 ? firstInput : secondInput;
+			buildCount += 1;
+			if (buildCount === 2) releaseBuilds?.();
+			await bothBuildsStarted;
+			return {
+				success: true,
+				logs: [],
+				outputs: [{ path: outputPath }],
+				entryOutputs: Object.fromEntries(entries.map((entry) => [entry.entrypoint, outputPath])),
+				dependencyGraph: {
+					entrypoints: Object.fromEntries(
+						entries.map((entry) => [entry.entrypoint, [entry.entrypoint, buildInput]]),
+					),
+				},
+				loadedInputsByModule: Object.fromEntries(entries.map((entry) => [entry.entrypoint, [buildInput]])),
+			};
+		});
+		const processor = new ContentScriptProcessor({ appConfig: createMockConfig() });
+		const dependency: ContentScriptAsset = {
+			kind: 'script',
+			source: 'content',
+			content: 'import "/test/project/src/first.ts";',
+			groupedBundle: { id: 'ecopages-app-browser-client', entryName: 'page-entry' },
+		};
+
+		const [first, second] = await Promise.all([
+			processor.processGrouped([dependency]),
+			processor.processGrouped([dependency]),
+		]);
+
+		expect(first[0]?.filepath).toBe(outputPath);
+		expect(second[0]?.filepath).toBe(outputPath);
+		expect(first[0]?.bundledSourceFilepaths).toEqual([firstInput]);
+		expect(second[0]?.bundledSourceFilepaths).toEqual([secondInput]);
 	});
 });

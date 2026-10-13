@@ -10,9 +10,10 @@ import type {
 	HtmlTemplateProps,
 	PageProps,
 } from '@ecopages/core';
+import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import type { JsxRenderable } from '@ecopages/jsx';
-import { test } from 'vitest';
-import { getEjsxHmrOwnership, resetEjsxHmrOwnership } from '../ecopages-jsx-hmr-ownership.ts';
+import { test, vi } from 'vitest';
+import { getEjsxHmrOwnership } from '../ecopages-jsx-hmr-ownership.ts';
 import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 
 const radiantEntryUrl = import.meta.resolve('@ecopages/radiant');
@@ -21,6 +22,12 @@ const radiantCustomElementEntryUrl = import.meta.resolve('@ecopages/radiant/deco
 const lightDomGlobalKeys = ['customElements', 'Element', 'HTMLElement', 'HTMLScriptElement', 'Node', 'window'] as const;
 
 type LightDomGlobalKey = (typeof lightDomGlobalKeys)[number];
+
+function createTestAssetProcessingService(appConfig: EcoPagesAppConfig): AssetProcessingService {
+	const service = new AssetProcessingService(appConfig);
+	vi.spyOn(service, 'processDependencies').mockResolvedValue([]);
+	return service;
+}
 
 class TestEcopagesJsxRenderer extends EcopagesJsxRenderer {
 	public async testResolvePageModule(file: string) {
@@ -145,9 +152,10 @@ test('EcopagesJsxRenderer installs the Radiant light-dom environment before reso
 			token: 'resolve-page-module',
 		});
 
+		const appConfig = createAppConfig(tempDir);
 		const renderer = new TestEcopagesJsxRenderer({
-			appConfig: createAppConfig(tempDir),
-			assetProcessingService: {} as never,
+			appConfig,
+			assetProcessingService: createTestAssetProcessingService(appConfig),
 			resolvedIntegrationDependencies: [],
 			jsxConfig: {
 				radiantSsrEnabled: true,
@@ -180,9 +188,11 @@ test('Radiant SSR host serialization loads through the documented public export'
 });
 
 test('EcopagesJsxRenderer keeps MDX extension matching instance-owned', () => {
+	const appConfigA = createAppConfig(tmpdir());
+	const appConfigB = createAppConfig(tmpdir());
 	const rendererA = new TestEcopagesJsxRenderer({
-		appConfig: createAppConfig(tmpdir()),
-		assetProcessingService: {} as never,
+		appConfig: appConfigA,
+		assetProcessingService: createTestAssetProcessingService(appConfigA),
 		resolvedIntegrationDependencies: [],
 		jsxConfig: {
 			mdxExtensions: ['.docs.mdx'],
@@ -190,8 +200,8 @@ test('EcopagesJsxRenderer keeps MDX extension matching instance-owned', () => {
 		runtimeOrigin: 'http://localhost:3000',
 	});
 	const rendererB = new TestEcopagesJsxRenderer({
-		appConfig: createAppConfig(tmpdir()),
-		assetProcessingService: {} as never,
+		appConfig: appConfigB,
+		assetProcessingService: createTestAssetProcessingService(appConfigB),
 		resolvedIntegrationDependencies: [],
 		jsxConfig: {
 			mdxExtensions: ['.guide.mdx'],
@@ -206,10 +216,10 @@ test('EcopagesJsxRenderer keeps MDX extension matching instance-owned', () => {
 });
 
 test('EcopagesJsxRenderer records declared content dependencies for HMR ownership', async () => {
-	resetEjsxHmrOwnership();
+	const appConfig = createAppConfig(tmpdir());
 	const renderer = new TestEcopagesJsxRenderer({
-		appConfig: createAppConfig(tmpdir()),
-		assetProcessingService: {} as never,
+		appConfig,
+		assetProcessingService: createTestAssetProcessingService(appConfig),
 		resolvedIntegrationDependencies: [],
 		jsxConfig: {},
 		runtimeOrigin: 'http://localhost:3000',

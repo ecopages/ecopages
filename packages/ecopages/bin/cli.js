@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync, statSync, watch } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,8 +10,9 @@ import { createLaunchPlan, resolveEcoConfigFilePath } from './launch-plan.js';
 import {
 	ECOPAGES_DEV_RESTART_EXIT_CODE,
 	ECOPAGES_DEV_RESTART_REASON_ENV,
-	getDevEnvFileNames,
+	resolveDevelopmentRecoveryWatch,
 } from '@ecopages/core/dev/development-restart';
+import { fileSystem } from '@ecopages/file-system';
 import { withBrandBanner } from './brand.js';
 
 const logger = new Logger('[ecopages:cli]', { debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true' });
@@ -34,10 +35,6 @@ const sharedServerOptionDefinitions = {
 	debug: {
 		type: 'boolean',
 		short: 'd',
-	},
-	'react-fast-refresh': {
-		type: 'boolean',
-		short: 'r',
 	},
 	runtime: {
 		type: 'string',
@@ -64,7 +61,6 @@ function getMainHelpText() {
 		'  init [dir]              Initialize a new project from a template',
 		'  dev                     Start the development server',
 		'  dev:watch               Start the development server with watch mode',
-		'  dev:hot                 Start the development server with hot reload',
 		'  build                   Build the project for production',
 		'  start                   Start the production server',
 		'  preview                 Preview the production build',
@@ -78,7 +74,7 @@ function getMainHelpText() {
 	].join('\n');
 }
 
-function getServerCommandHelpText(commandName, description, extraHelpLines = []) {
+function getServerCommandHelpText(commandName, description, extraOptionLines = []) {
 	return [
 		`Usage: ecopages ${commandName} [options]`,
 		'',
@@ -89,11 +85,10 @@ function getServerCommandHelpText(commandName, description, extraHelpLines = [])
 		'  -n, --hostname <hostname>               Override ECOPAGES_HOSTNAME',
 		'  -b, --base-url <baseUrl>                Override ECOPAGES_BASE_URL',
 		'  -d, --debug                             Enable debug logging',
-		'  -r, --react-fast-refresh                Enable React Fast Refresh for Bun HMR',
 		'      --runtime <runtime>                 Force bun or node',
 		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
 		'  -c, --config <file>                     Ecopages config file (default: eco.config.ts)',
-		...extraHelpLines,
+		...extraOptionLines,
 		'  -h, --help                              Show help',
 	].join('\n');
 }
@@ -109,25 +104,14 @@ function parseCommandArguments(rawArgs, options) {
 
 function parseServerCommandArgs(rawArgs, definition) {
 	const commandName = definition.name;
-	const flags = definition.flags ?? {};
 	const valueOptions = definition.valueOptions ?? {};
-	const flagOptions = Object.fromEntries(Object.keys(flags).map((flag) => [flag, { type: 'boolean' }]));
-	const commandValueOptions = Object.fromEntries(
-		Object.keys(valueOptions).map((option) => [option, { type: 'string' }]),
-	);
 	const { values, positionals } = parseCommandArguments(rawArgs, {
 		...sharedServerOptionDefinitions,
-		...flagOptions,
-		...commandValueOptions,
+		...Object.fromEntries(Object.keys(valueOptions).map((option) => [option, { type: 'string' }])),
 	});
 
 	if (values.help) {
-		console.log(
-			getServerCommandHelpText(commandName, definition.description, [
-				...Object.values(valueOptions),
-				...Object.values(flags),
-			]),
-		);
+		console.log(getServerCommandHelpText(commandName, definition.description, Object.values(valueOptions)));
 		return { help: true };
 	}
 
@@ -141,21 +125,26 @@ function parseServerCommandArgs(rawArgs, definition) {
 
 	return {
 		entry,
-		flagArgs: Object.keys(flags)
-			.filter((flag) => values[flag] === true)
-			.map((flag) => `--${flag}`),
 		options: {
 			port: values.port,
 			hostname: values.hostname,
 			baseUrl: values['base-url'],
 			debug: values.debug,
-			reactFastRefresh: values['react-fast-refresh'],
 			runtime: values.runtime,
 			configFile: values.config,
 			distDir: values['dist-dir'],
 		},
 	};
 }
+
+/**
+ * Signals the supervisor forwards to the child it runs.
+ *
+ * @remarks
+ * Without a handler, a signal ends the supervisor and leaves the child running as an orphan that keeps its
+ * port. Forwarding lets the child shut down first, and the supervisor exits from the child's `exit` event.
+ */
+const FORWARDED_SIGNALS = ['SIGTERM', 'SIGINT'];
 
 function runLaunchPlan(launchPlan, options = {}) {
 	if (Object.keys(launchPlan.envOverrides).length > 0) {
@@ -170,12 +159,19 @@ function runLaunchPlan(launchPlan, options = {}) {
 		env: launchPlan.env,
 	});
 
+	const forwardSignal = (signal) => {
+		child.kill(signal);
+	};
+	for (const signal of FORWARDED_SIGNALS) {
+		process.on(signal, forwardSignal);
+	}
+
 	child.on('error', (error) => {
 		if (error && error.code === 'ENOENT') {
 			const hint =
 				launchPlan.runtime === 'bun'
 					? 'Install Bun from https://bun.sh to continue.'
-					: 'Reinstall Node.js or run with --runtime bun if this app requires Bun.';
+					: 'Reinstall Node.js or run with --runtime bun if this app needs the Bun runtime.';
 			logger.error(`Command not found: ${launchPlan.command}. ${hint}`);
 			process.exit(1);
 		}
@@ -185,6 +181,10 @@ function runLaunchPlan(launchPlan, options = {}) {
 	});
 
 	child.on('exit', (code) => {
+		for (const signal of FORWARDED_SIGNALS) {
+			process.off(signal, forwardSignal);
+		}
+
 		if (options.superviseDevRestarts && code === ECOPAGES_DEV_RESTART_EXIT_CODE) {
 			options.onDevRestart?.();
 			return;
@@ -201,81 +201,57 @@ function runLaunchPlan(launchPlan, options = {}) {
 }
 
 /**
- * The files whose change restarts a dev child after a failed restart.
+ * Watches the project from before a restarted dev child launches until that child exits.
  *
  * @remarks
- * These are the files the CLI loads: the resolved config (or the default `eco.config.ts` when none
- * exists) and the supported dotenv files in the working directory. A custom `rootDir` is not followed,
- * because the supervisor cannot read a broken config to find it.
+ * A restarted child that exits with an error keeps the supervisor alive until the next change in the
+ * project or a linked workspace package, so an error in the config or a file it imports does not end
+ * the dev session. The watch starts before the child, so a fix saved while it was loading relaunches
+ * at once.
+ * @param {string} rootDir - Project root, the directory of the resolved config
  */
-function resolveRestartWatchPaths(options) {
-	return [
-		resolveEcoConfigFilePath(options) ?? path.resolve('eco.config.ts'),
-		...getDevEnvFileNames(options.nodeEnv).map((envFile) => path.resolve(envFile)),
-	];
-}
-
-/**
- * Calls `onChange` once, on the first change to any of `filePaths`, and closes the watchers before it.
- *
- * @remarks
- * Watches the parent directories so that dotenv files created later, and editors that save by
- * replacing the file, are both seen.
- */
-function watchForNextChange(filePaths, onChange) {
-	const watchers = [];
-	let settled = false;
-
-	const settle = (callback) => {
-		if (settled) return;
-		settled = true;
-		for (const watcher of watchers) watcher.close();
-		callback();
-	};
-
-	const fail = (error) => {
-		settle(() => {
-			const message = error instanceof Error ? error.message : String(error);
-			logger.error(`Cannot watch the config and dotenv files for the next restart: ${message}`);
+async function watchProjectForRestart(rootDir) {
+	const { paths, ignored } = resolveDevelopmentRecoveryWatch(rootDir);
+	let changed = false;
+	let onNextChange;
+	const watcher = fileSystem.watch(paths, {
+		ignored,
+		onChange: () => {
+			changed = true;
+			onNextChange?.();
+		},
+		onError: (error) => {
+			logger.error('Cannot watch the project for the next restart', error);
 			process.exit(1);
-		});
-	};
-
-	try {
-		for (const dir of new Set(filePaths.map((filePath) => path.dirname(filePath)))) {
-			const watcher = watch(dir, (_event, fileName) => {
-				if (fileName && filePaths.includes(path.join(dir, fileName))) settle(onChange);
-			});
-			watchers.push(watcher);
-			watcher.on('error', fail);
-		}
-	} catch (error) {
-		fail(error);
-	}
-}
-
-/**
- * Modification times of `filePaths`, with `undefined` for a file that is missing or cannot be read.
- *
- * @remarks
- * The times only catch a change saved while a restarted child was loading. An unreadable file must
- * not crash the supervisor, and the directory watchers still see its next change.
- */
-function readModifiedTimes(filePaths) {
-	return filePaths.map((filePath) => {
-		try {
-			return statSync(filePath).mtimeMs;
-		} catch {
-			return undefined;
-		}
+		},
 	});
+	await watcher.ready;
+
+	return {
+		close: () => watcher.close(),
+		/** Calls `relaunch` once: now if the project changed since the watch started, otherwise on the next change. */
+		relaunchOnChange(relaunch) {
+			const run = () => {
+				onNextChange = undefined;
+				void watcher.close();
+				relaunch();
+			};
+			if (changed) {
+				logger.info('The project changed since the restart. Restarting...');
+				run();
+				return;
+			}
+			logger.info('Waiting for a change in the project to restart.');
+			onNextChange = run;
+		},
+	};
 }
 
 /**
- * Launch the entry file via the detected or forced runtime.
- * Node uses native Node semantics; Bun uses Bun runtime flags.
+ * Launch the entry file via the detected or forced runtime. Node and Bun get the same
+ * entry file and arguments.
  * @param {string[]} args - Arguments to pass to the entry file
- * @param {object} options - CLI options (watch, hot, port, hostname, etc.)
+ * @param {object} options - CLI options (watch, runtime, port, hostname, etc.)
  * @param {string} entryFile - Entry file to run
  */
 async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchMode = 'start') {
@@ -287,40 +263,20 @@ async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchM
 		process.exit(1);
 	}
 
-	const restartWatchPaths = superviseDevRestarts ? resolveRestartWatchPaths(options) : [];
+	const projectRoot = path.dirname(resolveEcoConfigFilePath(options) ?? path.resolve('eco.config.ts'));
 	const devRestartReason = 'configuration or environment change';
 
-	/**
-	 * @remarks
-	 * A restarted child that exits with an error keeps the supervisor alive until the next config or
-	 * dotenv change, so a typo in `eco.config.ts` does not end the dev session. A change saved since
-	 * that child was launched relaunches at once, because the watchers start only after it exits.
-	 * Signals still end the supervisor.
-	 */
-	const handleRestartFailure = (modifiedTimesAtLaunch) => {
-		const modifiedTimes = readModifiedTimes(restartWatchPaths);
-		if (modifiedTimes.some((time, index) => time !== modifiedTimesAtLaunch[index])) {
-			logger.info('The config or a dotenv file changed since the restart. Restarting...');
-			void launchChild(devRestartReason);
-			return;
-		}
-
-		logger.info('Waiting for a change to the config or a dotenv file to restart.');
-		watchForNextChange(restartWatchPaths, () => {
-			void launchChild(devRestartReason);
-		});
-	};
-
 	const launchChild = async (restartReason) => {
-		const modifiedTimesAtLaunch = restartReason ? readModifiedTimes(restartWatchPaths) : undefined;
+		const restartWatch = restartReason ? await watchProjectForRestart(projectRoot) : undefined;
+		const relaunchOnChange = () => restartWatch.relaunchOnChange(() => void launchChild(devRestartReason));
 		let launchPlan;
 		try {
 			launchPlan = await createLaunchPlan(args, options, entryFile, launchMode);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			logger.error(message);
-			if (modifiedTimesAtLaunch) {
-				handleRestartFailure(modifiedTimesAtLaunch);
+			if (restartWatch) {
+				relaunchOnChange();
 				return;
 			}
 			process.exit(1);
@@ -334,9 +290,10 @@ async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchM
 		runLaunchPlan(launchPlan, {
 			superviseDevRestarts,
 			onDevRestart: () => {
+				void restartWatch?.close();
 				void launchChild(devRestartReason);
 			},
-			onRestartFailure: modifiedTimesAtLaunch ? () => handleRestartFailure(modifiedTimesAtLaunch) : undefined,
+			onRestartFailure: restartWatch ? relaunchOnChange : undefined,
 		});
 	};
 
@@ -352,7 +309,7 @@ async function runServerCommand(rawArgs, definition) {
 
 	const entry = definition.resolveEntry?.() ?? parsed.entry;
 	await runEntryCommand(
-		[...definition.entryArgs, ...parsed.flagArgs],
+		definition.entryArgs,
 		{ ...parsed.options, ...definition.optionOverrides, entryFile: entry },
 		entry,
 		definition.launchMode ?? definition.name,
@@ -361,8 +318,7 @@ async function runServerCommand(rawArgs, definition) {
 
 /**
  * Commands that run an entry file, keyed by name. `launchMode` defaults to the name,
- * `resolveEntry` replaces the app entry (`app.ts`) with another script, and `flags` declares
- * boolean options that are forwarded to the entry as `--<flag>`, keyed by name with their help line.
+ * and `resolveEntry` replaces the app entry (`app.ts`) with another script.
  */
 const SERVER_COMMANDS = {
 	dev: {
@@ -377,26 +333,19 @@ const SERVER_COMMANDS = {
 		launchMode: 'dev',
 		optionOverrides: { watch: true, nodeEnv: 'development' },
 	},
-	'dev:hot': {
-		description: 'Start the development server with hot reload.',
-		entryArgs: ['--dev'],
-		launchMode: 'dev',
-		optionOverrides: { hot: true, nodeEnv: 'development' },
-	},
 	build: {
-		description: 'Build the project for production.',
+		description:
+			'Build the project for production: pre-render the Pages in src/pages, optimize assets and images, and write the result to dist.',
 		entryArgs: ['--build'],
 		optionOverrides: { nodeEnv: 'production' },
-		flags: {
-			force: '      --force                             Empty dist and the build caches, then rebuild everything',
-		},
 	},
 	start: {
 		description: 'Start the production server.',
 		entryArgs: [],
 		optionOverrides: { nodeEnv: 'production' },
 		valueOptions: {
-			'dist-dir': '      --dist-dir <dir>                    Select the production output directory',
+			'dist-dir':
+				'      --dist-dir <dir>                    Build output directory to start (default: the only one)',
 		},
 	},
 	types: {
@@ -407,12 +356,9 @@ const SERVER_COMMANDS = {
 		optionOverrides: { nodeEnv: 'production' },
 	},
 	preview: {
-		description: 'Preview the production build.',
+		description: 'Build the project for production, then serve dist locally to preview it.',
 		entryArgs: ['--preview'],
 		optionOverrides: { nodeEnv: 'production' },
-		flags: {
-			force: '      --force                             Empty dist and the build caches, then rebuild everything',
-		},
 	},
 };
 

@@ -5,8 +5,14 @@ import path from 'node:path';
 import type { ScriptAsset } from '../../assets.types.ts';
 import { BaseProcessor } from './base-processor.ts';
 import { BrowserBundleService, type BrowserBundleGroupedEntry } from '../../../browser-bundle.service.ts';
-import { getBuildEntryOutput } from '../../../../../build/build-graph.ts';
+import { collectBuildEntryInputPaths, getBuildEntryOutput } from '../../../../../build/build-graph.ts';
+import type { BuildResult } from '../../../../../build/build-adapter.ts';
 import { formatBuildLog } from '../../../../../build/build-log.ts';
+
+export type BundledScriptOutput = {
+	filepath: string;
+	inputPaths: string[];
+};
 
 export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BaseProcessor<T> {
 	private readonly browserBundleService: BrowserBundleService;
@@ -40,7 +46,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 	}: {
 		entrypoint: string;
 		outdir: string;
-	} & ScriptAsset['bundleOptions']): Promise<string> {
+	} & ScriptAsset['bundleOptions']): Promise<BundledScriptOutput> {
 		const buildResult = await this.browserBundleService.bundle({
 			profile: 'browser-script',
 			entrypoints: [entrypoint],
@@ -65,7 +71,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 			.find((outputPath) => path.basename(outputPath) === `${entryBaseName}.js`);
 
 		if (entryOutput) {
-			return entryOutput;
+			return this.toBundledScriptOutput(buildResult, entrypoint, entryOutput);
 		}
 
 		const nonVendorOutput = buildResult.outputs
@@ -73,22 +79,22 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 			.find((outputPath) => !path.basename(outputPath).startsWith('vendors'));
 
 		if (nonVendorOutput) {
-			return nonVendorOutput;
+			return this.toBundledScriptOutput(buildResult, entrypoint, nonVendorOutput);
 		}
 
 		const primaryOutput = buildResult.outputs[0]?.path;
 		if (primaryOutput) {
-			return primaryOutput;
+			return this.toBundledScriptOutput(buildResult, entrypoint, primaryOutput);
 		}
 
 		const namedFallbackOutput = path.join(outdir, `${entryBaseName}.js`);
 		if (fileSystem.exists(namedFallbackOutput)) {
-			return namedFallbackOutput;
+			return this.toBundledScriptOutput(buildResult, entrypoint, namedFallbackOutput);
 		}
 
 		const fallbackOutput = path.join(outdir, 'entry_0.js');
 		if (fileSystem.exists(fallbackOutput)) {
-			return fallbackOutput;
+			return this.toBundledScriptOutput(buildResult, entrypoint, fallbackOutput);
 		}
 
 		const logMessage = buildResult.logs.map(formatBuildLog).join('\n');
@@ -104,7 +110,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 	}: {
 		entries: BrowserBundleGroupedEntry[];
 		outdir: string;
-	} & ScriptAsset['bundleOptions']): Promise<Map<string, string>> {
+	} & ScriptAsset['bundleOptions']): Promise<Map<string, BundledScriptOutput>> {
 		const buildResult = await this.browserBundleService.bundleGroupedEntries(entries, {
 			profile: 'browser-script',
 			outdir,
@@ -122,12 +128,12 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 			}
 		}
 
-		const entryOutputs = new Map<string, string>();
+		const entryOutputs = new Map<string, BundledScriptOutput>();
 
 		for (const entry of entries) {
 			const output = getBuildEntryOutput(buildResult, entry.entrypoint, this.appConfig.rootDir);
 			if (output) {
-				entryOutputs.set(entry.entryName, output);
+				entryOutputs.set(entry.entryName, this.toBundledScriptOutput(buildResult, entry.entrypoint, output));
 				continue;
 			}
 
@@ -138,5 +144,26 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 		}
 
 		return entryOutputs;
+	}
+
+	protected getBundledSourceFilepaths(
+		dep: T,
+		inputPaths: readonly string[] = [],
+		excludedPaths: readonly string[] = [],
+	): string[] | undefined {
+		const excluded = new Set(excludedPaths.map((sourcePath) => path.resolve(sourcePath)));
+		const sourcePaths = new Set(
+			[...(dep.bundledSourceFilepaths ?? []), ...inputPaths].filter(
+				(sourcePath) => !excluded.has(path.resolve(sourcePath)),
+			),
+		);
+		return sourcePaths.size > 0 ? [...sourcePaths] : undefined;
+	}
+
+	private toBundledScriptOutput(buildResult: BuildResult, entrypoint: string, filepath: string): BundledScriptOutput {
+		return {
+			filepath,
+			inputPaths: collectBuildEntryInputPaths(buildResult, entrypoint, this.appConfig.rootDir),
+		};
 	}
 }

@@ -1,16 +1,54 @@
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
-import { afterEach, describe, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { isPagesUnifiedGraphPage } from '../../../packages/core/src/build/cache/pages-unified-graph-build';
+import { appLogger } from '../../../packages/core/src/global/app-logger';
 import { resetRolldownBuildInvocationCounts } from '../../../packages/core/src/build/rolldown/rolldown-build-invocation-metrics';
 import { KITCHEN_SINK_REPRESENTATIVE_PAGES, loadKitchenSinkConfig } from './lib/kitchen-sink-fixture';
 import {
-	clearBenchProductionCaches,
+	resetBenchBuildState,
 	loadStaticBuildBenchConfigWithScope,
 	runStaticSiteGeneration,
 } from './lib/static-build-fixture';
+
+/**
+ * Puts the process in the state a production `ecopages build` has when run from `playground/kitchen-sink`,
+ * before any import runs.
+ *
+ * @remarks
+ * Each part fixes one failure that appeared when the oracle ran from the repository root:
+ *
+ * - `NODE_ENV` is `production` from the start, and again before each test, because `unstubEnvs` resets it
+ *   before every test. Setting it only inside the test body is too late: `react` would already have
+ *   loaded its development build next to a production `react-dom/server`, and every React page fails
+ *   with `dispatcher.getOwner is not a function`.
+ * - The working directory is the app root. The Lit static render worker reloads `eco.config.ts` with
+ *   the working directory as root, and from the repository root it reads `src/includes/html.kita.tsx`
+ *   from the wrong directory.
+ * - Node resolves packages without the `development` condition. Vitest starts every worker with
+ *   `--conditions development`, so `@lit-labs/ssr` loads the development `@lit/reactive-element`
+ *   while the server modules the build emits import the production one, and a page with a
+ *   server-rendered Lit script fails with `this.__markUpdated is not a function`.
+ *
+ * Only `discovery-foreign` exercises the last case, so the test also asserts that no page logged an
+ * error: the static site generator logs a failed page and moves on, which would otherwise leave both
+ * builds without it and still compare equal.
+ */
+const original = vi.hoisted(() => {
+	const previous = { cwd: process.cwd() };
+	vi.stubEnv('NODE_ENV', 'production');
+	process.chdir(`${import.meta.dirname}/..`);
+	const hooks = process.getBuiltinModule('node:module').registerHooks({
+		resolve: (specifier, context, nextResolve) =>
+			nextResolve(specifier, {
+				...context,
+				conditions: context.conditions.filter((condition) => condition !== 'development'),
+			}),
+	});
+	return { ...previous, hooks };
+});
 
 const PARITY_SCOPE_BASELINE = '__bench-unified-graph-baseline__';
 const PARITY_SCOPE_GRAPH = '__bench-unified-graph-treatment__';
@@ -52,22 +90,16 @@ function collectHtmlArtifacts(distDir: string): Map<string, string> {
 }
 
 describe('static-build unified graph parity', () => {
-	const originalNodeEnv = process.env.NODE_ENV;
-	const originalUnifiedGraph = process.env.ECOPAGES_UNIFIED_PAGES_GRAPH;
-	const originalMetrics = process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS;
+	afterAll(() => {
+		process.chdir(original.cwd);
+		original.hooks.deregister();
+	});
+
+	beforeEach(() => {
+		vi.stubEnv('NODE_ENV', 'production');
+	});
 
 	afterEach(() => {
-		process.env.NODE_ENV = originalNodeEnv;
-		if (originalUnifiedGraph === undefined) {
-			delete process.env.ECOPAGES_UNIFIED_PAGES_GRAPH;
-		} else {
-			process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = originalUnifiedGraph;
-		}
-		if (originalMetrics === undefined) {
-			delete process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS;
-		} else {
-			process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = originalMetrics;
-		}
 		resetRolldownBuildInvocationCounts();
 	});
 
@@ -80,19 +112,25 @@ describe('static-build unified graph parity', () => {
 	});
 
 	it('produces identical static HTML with unified graph on vs off', async () => {
-		process.env.NODE_ENV = 'production';
-		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS = '1';
+		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', '1');
+		const logError = vi.spyOn(appLogger, 'error');
 
 		const baselineConfig = await loadStaticBuildBenchConfigWithScope(PARITY_SCOPE_BASELINE);
-		clearBenchProductionCaches(baselineConfig);
-		process.env.ECOPAGES_UNIFIED_PAGES_GRAPH = '0';
+		resetBenchBuildState(baselineConfig);
+		vi.stubEnv('ECOPAGES_UNIFIED_PAGES_GRAPH', '0');
 		await runStaticSiteGeneration(baselineConfig, { force: true });
 
 		const graphConfig = await loadStaticBuildBenchConfigWithScope(PARITY_SCOPE_GRAPH);
-		clearBenchProductionCaches(graphConfig);
-		delete process.env.ECOPAGES_UNIFIED_PAGES_GRAPH;
+		resetBenchBuildState(graphConfig);
+		vi.stubEnv('ECOPAGES_UNIFIED_PAGES_GRAPH', undefined);
 		resetRolldownBuildInvocationCounts();
 		await runStaticSiteGeneration(graphConfig, { force: true });
+
+		assert.deepEqual(
+			logError.mock.calls.map(([message]) => message),
+			[],
+			'every static page should render without a logged error',
+		);
 
 		const baselineArtifacts = collectHtmlArtifacts(baselineConfig.absolutePaths.distDir);
 		const graphArtifacts = collectHtmlArtifacts(graphConfig.absolutePaths.distDir);

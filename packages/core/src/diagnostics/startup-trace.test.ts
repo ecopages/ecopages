@@ -1,40 +1,33 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { startupTrace } from './startup-trace.ts';
+
+async function loadFreshStartupTrace() {
+	vi.resetModules();
+	return (await import('./startup-trace.ts')).startupTrace;
+}
 
 describe('startupTrace', () => {
-	const originalTraceEnv = process.env.ECOPAGES_STARTUP_TRACE;
-	const originalLoggerDebug = process.env.ECOPAGES_LOGGER_DEBUG;
-
 	afterEach(() => {
-		startupTrace.resetForTests();
-		if (originalTraceEnv === undefined) {
-			delete process.env.ECOPAGES_STARTUP_TRACE;
-		} else {
-			process.env.ECOPAGES_STARTUP_TRACE = originalTraceEnv;
-		}
-		if (originalLoggerDebug === undefined) {
-			process.env.ECOPAGES_LOGGER_DEBUG = 'false';
-		} else {
-			process.env.ECOPAGES_LOGGER_DEBUG = originalLoggerDebug;
-		}
 		vi.restoreAllMocks();
 	});
 
-	it('is disabled unless ECOPAGES_STARTUP_TRACE or ECOPAGES_LOGGER_DEBUG is true', () => {
-		process.env.ECOPAGES_STARTUP_TRACE = 'false';
-		process.env.ECOPAGES_LOGGER_DEBUG = 'false';
+	it('is disabled unless ECOPAGES_STARTUP_TRACE or ECOPAGES_LOGGER_DEBUG is true', async () => {
+		const startupTrace = await loadFreshStartupTrace();
+		vi.stubEnv('ECOPAGES_STARTUP_TRACE', 'false');
+		vi.stubEnv('ECOPAGES_LOGGER_DEBUG', 'false');
 		expect(startupTrace.isEnabled()).toBe(false);
 	});
 
-	it('enables when ECOPAGES_LOGGER_DEBUG is true', () => {
-		process.env.ECOPAGES_LOGGER_DEBUG = 'true';
+	it('enables when ECOPAGES_LOGGER_DEBUG is true', async () => {
+		const startupTrace = await loadFreshStartupTrace();
+		vi.stubEnv('ECOPAGES_LOGGER_DEBUG', 'true');
 		expect(startupTrace.isEnabled()).toBe(true);
 	});
 
 	it('emits phase and first-request summary lines when ECOPAGES_STARTUP_TRACE is true', async () => {
-		process.env.ECOPAGES_STARTUP_TRACE = 'true';
-		process.env.ECOPAGES_LOGGER_DEBUG = 'false';
+		vi.stubEnv('ECOPAGES_STARTUP_TRACE', 'true');
+		vi.stubEnv('ECOPAGES_LOGGER_DEBUG', 'false');
 
+		const startupTrace = await loadFreshStartupTrace();
 		const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 
 		startupTrace.markConfigReady();

@@ -6,15 +6,10 @@
 
 import { readFileSync } from 'node:fs';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { ClientGraphBoundaryCache, type RequestedExportRules } from './boundary-cache.ts';
-import {
-	parseDeclaredModules,
-	toModuleBaseSpecifier,
-	normalizeRequestedExportsKey,
-} from './specifier-classification.ts';
+import type { RequestedExportRules } from './specifier-classification.ts';
+import { parseDeclaredModules, toModuleBaseSpecifier } from './specifier-classification.ts';
 import { classifyClientGraphModule } from './module-classification.ts';
-import { recordModuleTransformProfile } from '@ecopages/core/cache';
-import { replayCachedClientGraphTransform, transformClientGraphModule } from './boundary-plugin-transform.ts';
+import { transformClientGraphModule } from './boundary-plugin-transform.ts';
 
 const SOURCE_FILE_FILTER = /\.(tsx?|jsx?)$/;
 
@@ -26,7 +21,6 @@ type ClientGraphBoundaryOptions = {
 	absWorkingDir?: string;
 	declaredModules?: readonly string[];
 	alwaysAllowSpecifiers?: string[];
-	cache?: ClientGraphBoundaryCache;
 };
 
 /**
@@ -37,7 +31,6 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 		name: 'ecopages-client-graph-boundary',
 		setup(build) {
 			const absWorkingDir = options?.absWorkingDir ?? process.cwd();
-			const cache = options?.cache;
 			const globallyDeclaredSources = parseDeclaredModules(options?.declaredModules);
 			const requestedExports = new Map<string, RequestedExportRules>();
 			for (const alwaysAllow of options?.alwaysAllowSpecifiers ?? []) {
@@ -57,7 +50,6 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 					return undefined;
 				}
 
-				const inboundRules = requestedExports.get(normalizeRequestedExportsKey(args.path));
 				const transformOptions = {
 					filePath: args.path,
 					source,
@@ -65,23 +57,7 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 					category,
 					globallyDeclaredSources,
 					requestedExports,
-					cache,
-					inboundRules,
 				};
-
-				if (cache) {
-					const cacheStartedAt = performance.now();
-					const cached = cache.get(args.path, source, globallyDeclaredSources, inboundRules);
-					recordModuleTransformProfile({
-						category,
-						phase: 'cache-lookup',
-						ms: performance.now() - cacheStartedAt,
-						cacheHit: Boolean(cached),
-					});
-					if (cached) {
-						return replayCachedClientGraphTransform(transformOptions, cached);
-					}
-				}
 
 				return transformClientGraphModule(transformOptions);
 			});

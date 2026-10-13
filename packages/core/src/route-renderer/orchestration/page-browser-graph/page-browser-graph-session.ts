@@ -11,7 +11,6 @@ import type {
 import { appLogger } from '../../../global/app-logger.ts';
 import {
 	BuildInputDependencyIndex,
-	collectedLoadedBuildInputs,
 	getAppBuildInputIndex,
 	type BuildInputBinding,
 } from '../../../build/cache/build-input-dependency-index.ts';
@@ -334,19 +333,6 @@ export class SessionPageBrowserGraphCache {
 		}
 	}
 
-	resetForTests(): void {
-		this.records.clear();
-		this.inFlight.clear();
-		this.inFlightDependencyPaths.clear();
-		this.inFlightGenerations.clear();
-		this.groupedRecords.clear();
-		this.groupedInFlight.clear();
-		this.graphGenerations.clear();
-		this.groupedGenerations.clear();
-		this.inputIndex.clearConsumer('page-browser-graph');
-		this.buildCount = 0;
-	}
-
 	exportRecords(policy: GraphPolicy): GraphRecord[] {
 		return [...this.records.values()].filter((record) => record.key.policy === policy);
 	}
@@ -660,10 +646,6 @@ export function collectPageBrowserGraphDependencyPaths(
 
 	for (const watchPath of contribution.watchPaths ?? []) {
 		dependencyPaths.add(normalizeDependencyPath(watchPath));
-	}
-
-	for (const loadedPath of collectedLoadedBuildInputs()) {
-		dependencyPaths.add(normalizeDependencyPath(loadedPath));
 	}
 
 	return dependencyPaths;

@@ -10,21 +10,6 @@ export function createServerBundleStagingDirectory(serverOutdir: string): string
 	return mkdtempSync(path.join(parentDir, `.${path.basename(serverOutdir)}.staging-`));
 }
 
-/** Maps build outputs from the staging directory to their published locations. */
-export function resolvePublishedServerBundlePaths(
-	outputPaths: readonly string[],
-	stagingDir: string,
-	serverOutdir: string,
-): string[] {
-	return outputPaths.map((outputPath) => {
-		const relativePath = path.relative(stagingDir, outputPath);
-		if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-			throw new Error(`Server bundle output escaped its staging directory: ${outputPath}`);
-		}
-		return path.join(serverOutdir, relativePath);
-	});
-}
-
 /**
  * Publishes a complete server bundle generation without exposing mixed artifacts.
  *

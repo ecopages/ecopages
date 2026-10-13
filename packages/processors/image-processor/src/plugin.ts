@@ -12,6 +12,7 @@ import {
 	writeGeneratedTypesPackage,
 	type EcoBuildPlugin,
 	type ProcessorConfig,
+	type ProcessorWatchChanges,
 	type ProcessorWatchConfig,
 } from '@ecopages/core/plugins/processor';
 import { isLitStaticRenderWorkerThread } from '@ecopages/core/build/lit-static-render-worker-context';
@@ -112,23 +113,20 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 	private resolvedConfig?: ImageProcessorConfig;
 	public processedImages: Record<string, ImageSpecifications> = {};
 
-	constructor(config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name' | 'description'>) {
+	constructor(config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name'>) {
 		const acceptedFormats = config.options?.acceptedFormats ?? ['jpg', 'jpeg', 'png', 'webp'];
 		const extensionPatterns = acceptedFormats.map((format) => `*.${format.replace(/^\./, '')}`);
 
 		const defaultWatchConfig: ProcessorWatchConfig = {
 			paths: [],
 			extensions: acceptedFormats,
-			onCreate: async (ctx) => this.process([ctx.path]),
-			onChange: async (ctx) => this.process([ctx.path]),
-			onDelete: async (ctx) => this.deleteProcessedImagesbyPath(ctx.path),
+			onChanges: async (changes) => this.handleImageChanges(changes),
 			onError: (error) => logger.error('Watcher error', { error }),
 		};
 
 		super({
 			...config,
 			name: 'ecopages-image-processor',
-			description: 'A Processor for optimizing images.',
 			capabilities: [
 				{
 					kind: 'image',
@@ -137,6 +135,17 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 			],
 			watch: config.watch ? mergeProcessorOptions(defaultWatchConfig, config.watch) : defaultWatchConfig,
 		});
+	}
+
+	private async handleImageChanges({ created, changed, deleted }: ProcessorWatchChanges): Promise<void> {
+		const changedImages = [...created, ...changed];
+		if (changedImages.length > 0) {
+			await this.process(changedImages);
+		}
+
+		for (const imagePath of deleted) {
+			await this.deleteProcessedImagesbyPath(imagePath);
+		}
 	}
 
 	get plugins(): EcoBuildPlugin[] {
@@ -476,13 +485,6 @@ declare module "ecopages:images" {
 	}
 
 	/**
-	 * Teardown the image processor.
-	 */
-	override async teardown(): Promise<void> {
-		logger.debug('Tearing down image processor');
-	}
-
-	/**
 	 * Get the image processor instance.
 	 * @returns The image processor instance.
 	 */
@@ -492,7 +494,7 @@ declare module "ecopages:images" {
 }
 
 export const imageProcessorPlugin = (
-	config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name' | 'description'>,
+	config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name'>,
 ): ImageProcessorPlugin => {
 	return new ImageProcessorPlugin(config);
 };

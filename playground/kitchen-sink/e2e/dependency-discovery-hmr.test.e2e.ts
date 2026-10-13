@@ -1,7 +1,36 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { HMR_MUTATION_ASSERT_TIMEOUT_MS, gotoPathSimple, startEcopagesHmrConnectionWatch } from './test-support';
+import {
+	assertNoMainFrameNavigationAfterHmr,
+	HMR_MUTATION_ASSERT_TIMEOUT_MS,
+	gotoPathSimple,
+	installFullDocumentReloadWatcher,
+	startEcopagesHmrConnectionWatch,
+} from './test-support';
+
+test('updates an imported React island component without a full reload @hmr', async ({ page }, testInfo) => {
+	test.skip(!testInfo.project.name.endsWith('-node-e2e'), 'Node-only coverage while Bun support is being removed');
+	const root = testInfo.project.metadata.isolatedAppDir;
+	if (typeof root !== 'string') throw new Error('Dependency discovery HMR requires an isolated app');
+	const componentFile = path.join(root, 'src/components/dependency-discovery/card.react.tsx');
+	const originalComponent = readFileSync(componentFile, 'utf8');
+	try {
+		const hmrReady = startEcopagesHmrConnectionWatch(page);
+		await installFullDocumentReloadWatcher(page);
+		await gotoPathSimple(page, '/discovery-react');
+		await hmrReady;
+		await expect(page.getByRole('button', { name: 'Count 0' })).toBeVisible();
+
+		writeFileSync(componentFile, originalComponent.replace('Count {count}', 'Updated Count {count}'));
+		await expect(page.getByRole('button', { name: 'Updated Count 0' })).toBeVisible({
+			timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
+		});
+		await assertNoMainFrameNavigationAfterHmr(page);
+	} finally {
+		writeFileSync(componentFile, originalComponent);
+	}
+});
 
 test('invalidates discovered CSS after import addition, edit and removal @hmr', async ({ page }, testInfo) => {
 	const root = testInfo.project.metadata.isolatedAppDir;

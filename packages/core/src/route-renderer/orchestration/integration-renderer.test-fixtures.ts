@@ -1,11 +1,6 @@
 import { vi } from 'vitest';
-import { resolveInnermostPageLayout } from './document-shell/layout-shell-props.service.ts';
 import { finalizeDocumentShellHtml } from './document-shell/document-shell-render.service.ts';
-import {
-	IntegrationRenderer,
-	type HtmlDocumentContribution,
-	type RenderToResponseContext,
-} from './integration-renderer.ts';
+import { IntegrationRenderer, type HtmlDocumentContribution } from './integration-renderer.ts';
 import { getComponentRenderContext, type ForeignChildRuntime } from './foreign-child/component-render-context.ts';
 import { toForeignSubtreeRenderPayload } from './foreign-child/foreign-subtree-execution.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -62,7 +57,6 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 	name = 'test-renderer';
 	ForeignChildRuntimeCreationCount = 0;
 	ForeignChildRenderCount = 0;
-	UseFailFastForeignChildRuntime = false;
 
 	PageModule: EcoPageFile | null = null;
 	HtmlTemplate: EcoComponent<HtmlTemplateProps> | null = null;
@@ -93,33 +87,6 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 	override async renderComponentWithForeignChildren(input: ComponentRenderInput): Promise<ComponentRenderResult> {
 		this.ForeignChildRenderCount += 1;
 		return await super.renderComponentWithForeignChildren(input);
-	}
-
-	async renderToResponse<P>(view: EcoComponent<P>, props: P, ctx: RenderToResponseContext): Promise<Response> {
-		const viewFn = view as (props: P) => EcoPagesElement;
-		const content = viewFn(props);
-
-		let body: string;
-		if (ctx.partial) {
-			body = content as string;
-		} else {
-			const Layout = resolveInnermostPageLayout(view.config?.layouts) as
-				((props: { children: string }) => string) | undefined;
-			const children = Layout ? Layout({ children: content as string }) : content;
-			body = `<!DOCTYPE html><html><body>${children}</body></html>`;
-		}
-
-		const headers = new Headers({ 'Content-Type': 'text/html; charset=utf-8' });
-		if (ctx.headers) {
-			for (const [key, value] of Object.entries(ctx.headers)) {
-				headers.set(key, value);
-			}
-		}
-
-		return new Response(body, {
-			status: ctx.status ?? 200,
-			headers,
-		});
 	}
 
 	protected override async importPageFile(_file: string): Promise<EcoPageFile> {
@@ -205,36 +172,6 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		return this.htmlTransformer.getProcessedDependencies();
 	}
 
-	public async testRenderPartialViewResponse<P>(input: {
-		view: EcoComponent<P>;
-		props: P;
-		ctx?: RenderToResponseContext;
-		renderInline?: () => Promise<BodyInit>;
-		transformHtml?: (html: string) => string;
-	}) {
-		return this.renderPartialViewResponse({
-			view: input.view,
-			props: input.props,
-			ctx: input.ctx ?? { partial: true },
-			renderInline: input.renderInline,
-			transformHtml: input.transformHtml,
-		});
-	}
-
-	public async testRenderViewWithDocumentShell<P>(input: {
-		view: EcoComponent<P>;
-		props: P;
-		ctx?: RenderToResponseContext;
-		layout?: EcoComponent;
-	}) {
-		return this.renderViewWithDocumentShell({
-			view: input.view,
-			props: input.props,
-			ctx: input.ctx ?? {},
-			layout: input.layout,
-		});
-	}
-
 	public async testRenderForeignSubtree(input: ComponentRenderInput) {
 		return toForeignSubtreeRenderPayload(await this.renderComponentWithForeignChildren(input));
 	}
@@ -244,10 +181,6 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}): ForeignChildRuntime {
 		this.ForeignChildRuntimeCreationCount += 1;
-
-		if (this.UseFailFastForeignChildRuntime) {
-			return this.foreignSubtreeExecutionService.createFailFastRuntime(this.name);
-		}
 
 		return super.createForeignChildRuntime(options);
 	}

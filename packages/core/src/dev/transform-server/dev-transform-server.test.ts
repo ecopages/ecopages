@@ -262,6 +262,7 @@ describe('DevTransformServer', () => {
 		);
 
 		expect(response?.status).toBe(200);
+		expect(response?.headers.get('Content-Type')).toContain('javascript');
 		expect(await response!.text()).toContain('home');
 		expect(server.getRegisteredSourcePath(`${DEV_TRANSFORM_URL_PREFIX}/pages/index.js`)).toBe(
 			path.resolve(entrypointPath),

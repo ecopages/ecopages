@@ -10,8 +10,7 @@ These contracts are responsible for:
 
 - integration registration and lifecycle hooks
 - processor registration and asset capability declaration
-- runtime capability declaration and validation input
-- shared build-plugin bridge types used by integrations and processors, including `addDependency` on the `onLoad` context so a plugin can record files it reads besides the loaded module
+- shared build-plugin bridge types used by integrations and processors
 
 ## Main Files
 
@@ -19,7 +18,6 @@ These contracts are responsible for:
 - `define-integration.ts`: typed factory for integrations that only need declarative config and a renderer class
 - `find-integration-for-file.ts`: resolves the Integration that owns a file by its longest registered extension; route rendering, page-module loading, route discovery, the pages graph, and component attribution all use it
 - `processor.ts`: asset-transformation contract for processors, including generated `@types` package helpers for virtual modules
-- `runtime-capability.ts`: runtime compatibility declaration types
 - `source-transform.ts`: bundler-neutral source-transform primitive; Rolldown builds run them as `transform` plugins
 - `component-import-discovery.ts`: resolves direct local factory exports, named `export { X } from` barrels (imported binding only), relative CSS imports, and aliased CSS imports; records the imported module, factory file, and successful named re-export hops as watch files; excludes `export *`, type imports, package imports, and ordinary helpers.
 - `eco-component-meta-plugin.ts`: component-identity attribution transform for `eco.*()` factories and `attributeMdxComponentIdentity` for compiled MDX modules
@@ -29,7 +27,8 @@ These contracts are responsible for:
 - Integrations own rendering semantics, hydration behavior, and integration-specific HMR strategy.
 - An Integration whose files are not JavaScript modules can compile them itself with `compilePageModule()`, and one whose Pages cannot receive Params overrides `acceptsParams` with `false`. Core asks the owning Integration instead of checking Integration names.
 - Processors own asset semantics, cache ownership, and processor-specific watch behavior.
-- `collectDevPrewarmPaths()` returns the pathnames to prewarm; core renders them in the background once the development server is serving requests.
+- A Processor's `watch.onChanges` callback runs once per debounced file batch with matching `created`, `changed`, and `deleted` paths plus the client bridge. Watch extensions select notifications; capabilities continue to declare asset ownership.
+- `collectDevPrewarmPaths()` returns the pathnames to prewarm; core collects and renders them in the background without delaying development server readiness. Collection failures are logged with their stack and do not stop the server.
 - Core owns lifecycle ordering, startup orchestration, and manifest assembly.
 - App shutdown calls Integration `teardown()` to release resources created during runtime setup.
 - Integrations and Processors expose one `plugins` getter. Build plugins declare their server/browser environments; omitted environments apply to both. Config finalization rejects a duplicate name within one environment and names both contributors.
@@ -41,7 +40,7 @@ These contracts are responsible for:
 1. Config build validates and prepares plugin contributions.
 2. Core seals the app-owned build manifest.
 3. Runtime startup calls runtime-only setup hooks.
-4. Request-time rendering and development invalidation reuse those finalized contracts.
+4. Request-time rendering and development invalidation reuse those finalized contracts. Handler renders create a renderer on every render call and share that Integration's one asset-processing service, so an unchanged stylesheet or script is reused until its source changes, its output is missing, or development invalidation drops the entry.
 5. `DevelopmentInvalidationService.invalidateServerModules()` calls `Processor.invalidateServerArtifacts()` so processors can discard compiled server artifacts that are not part of the route-module graph.
 
 ## Discovered dependency metadata

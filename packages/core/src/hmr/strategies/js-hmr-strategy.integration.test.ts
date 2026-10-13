@@ -6,7 +6,7 @@ import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
 import { HMR_RUNTIME_WORK_DIR_SEGMENT } from '../../hmr/hmr-runtime-paths.ts';
-import { HmrManager as BunHmrManager } from '../../adapters/bun/hmr-manager.ts';
+import { NodeHmrManager } from '../../adapters/node/node-hmr-manager.ts';
 import type { ClientBridgeEvent } from '../../types/public-types.ts';
 import { resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 
@@ -24,8 +24,8 @@ afterEach(() => {
 	}
 });
 
-async function readDevTransformModule(manager: BunHmrManager, entrypointPath: string): Promise<string | undefined> {
-	const outputUrl = manager.getOutputUrl(entrypointPath);
+async function readDevTransformModule(manager: NodeHmrManager, entrypointPath: string): Promise<string | undefined> {
+	const outputUrl = manager.getRegisteredEntrypoints().get(path.resolve(entrypointPath))?.outputUrl;
 	if (!outputUrl) {
 		return undefined;
 	}
@@ -59,7 +59,7 @@ describe('JsHmrStrategy integration', () => {
 		config.templatesExt = ['.eco.tsx'];
 
 		const broadcasts: ClientBridgeEvent[] = [];
-		using manager = new BunHmrManager({
+		using manager = new NodeHmrManager({
 			appConfig: config,
 			bridge: {
 				subscriberCount: 1,
@@ -75,7 +75,7 @@ describe('JsHmrStrategy integration', () => {
 		await manager.registerScriptEntrypoint(entrypointPath);
 
 		expect(manager.getWatchedFiles().has(path.resolve(entrypointPath))).toBe(true);
-		expect(manager.getOutputUrl(entrypointPath)).toBe(
+		expect(manager.getRegisteredEntrypoints().get(path.resolve(entrypointPath))?.outputUrl).toBe(
 			`${DEV_TRANSFORM_URL_PREFIX}/components/script-hmr/widget.script.eco.js`,
 		);
 
@@ -128,7 +128,7 @@ describe('JsHmrStrategy integration', () => {
 			invalidateDevelopmentGraph: () => undefined,
 		} as never;
 
-		using manager = new BunHmrManager({
+		using manager = new NodeHmrManager({
 			appConfig: config,
 			bridge: {
 				subscriberCount: 1,
@@ -143,7 +143,7 @@ describe('JsHmrStrategy integration', () => {
 
 		await manager.registerScriptEntrypoint(entrypointPath);
 
-		expect(manager.getOutputUrl(entrypointPath)).toBe(
+		expect(manager.getRegisteredEntrypoints().get(path.resolve(entrypointPath))?.outputUrl).toBe(
 			`${DEV_TRANSFORM_URL_PREFIX}/layouts/base-layout/base-layout.script.js`,
 		);
 
@@ -181,7 +181,7 @@ describe('JsHmrStrategy integration', () => {
 		const broadcasts: ClientBridgeEvent[] = [];
 		config.runtime ??= {};
 		config.runtime.registeredScriptEntrypointChangeHandlers = [() => true];
-		using manager = new BunHmrManager({
+		using manager = new NodeHmrManager({
 			appConfig: config,
 			bridge: {
 				subscriberCount: 1,

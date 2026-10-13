@@ -37,14 +37,6 @@ export class PageCacheService {
 	}
 
 	/**
-	 * Generate a cache key from URL and optional params.
-	 * Uses full URL (path + query) as the key.
-	 */
-	generateCacheKey(url: string): string {
-		return url;
-	}
-
-	/**
 	 * Check if an entry is stale (past its revalidation time).
 	 */
 	private isStale(entry: CacheEntry): boolean {
@@ -228,10 +220,6 @@ export class PageCacheService {
 		return count;
 	}
 
-	getDependencyIndex(): BuildInputDependencyIndex {
-		return this.dependencyIndex;
-	}
-
 	/**
 	 * Clear all cached entries.
 	 */
@@ -245,13 +233,6 @@ export class PageCacheService {
 	 */
 	async stats() {
 		return this.store.stats?.() ?? { entries: 0 };
-	}
-
-	/**
-	 * Get the underlying cache store.
-	 */
-	getStore(): CacheStore {
-		return this.store;
 	}
 }
 

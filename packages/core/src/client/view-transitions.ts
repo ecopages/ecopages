@@ -3,6 +3,8 @@
  * @module
  */
 
+import { ECO_PERSIST_ATTRIBUTE } from './navigation-attributes.ts';
+
 const VIEW_TRANSITION_ATTR = 'data-view-transition';
 const VIEW_TRANSITION_ANIMATE_ATTR = 'data-view-transition-animate';
 const VIEW_TRANSITION_DURATION_ATTR = 'data-view-transition-duration';
@@ -25,7 +27,7 @@ const ROOT_STYLES_CSS = `html {
 /**
  * Whether a document tree contains elements that participate in named view transitions.
  */
-export function documentHasNamedViewTransitions(doc: Document): boolean {
+function documentHasNamedViewTransitions(doc: Document): boolean {
 	return doc.querySelector(`[${VIEW_TRANSITION_ATTR}]`) !== null;
 }
 
@@ -48,7 +50,7 @@ export function ensureRootViewTransitionStyles(): void {
 	if (!styleEl) {
 		styleEl = document.createElement('style');
 		styleEl.id = ROOT_STYLES_ID;
-		styleEl.setAttribute('data-eco-persist', '');
+		styleEl.setAttribute(ECO_PERSIST_ATTRIBUTE, '');
 		document.head.append(styleEl);
 	}
 
@@ -117,7 +119,7 @@ function injectDynamicStyles(morphNames: string[], customDurations: { name: stri
 		 * @remarks
 		 * Head morphing must not drop this tag between navigations.
 		 */
-		styleEl.setAttribute('data-eco-persist', '');
+		styleEl.setAttribute(ECO_PERSIST_ATTRIBUTE, '');
 		document.head.append(styleEl);
 	}
 

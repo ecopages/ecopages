@@ -1,4 +1,3 @@
-import { createCustomElementServerModuleImporter } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	invalidateCustomElementScriptPreload,
@@ -84,8 +83,6 @@ export class LitPlugin extends IntegrationPlugin {
 			processDependencies: this.assetProcessingService.processDependencies.bind(this.assetProcessingService),
 			getInvalidationVersion: () =>
 				this.appConfig?.runtime?.serverInvalidationState?.getServerInvalidationVersion() ?? 0,
-			importServerModule: createCustomElementServerModuleImporter(this.appConfig, '.lit-ssr'),
-			preferSourceImports: typeof Bun !== 'undefined',
 		});
 	}
 

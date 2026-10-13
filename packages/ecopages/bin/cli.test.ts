@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runCli } from './cli.js';
 import * as giget from 'giget';
 import * as fs from 'node:fs';
+import os from 'node:os';
 import * as launchPlan from './launch-plan.js';
 import * as childProcess from 'node:child_process';
 import path from 'node:path';
@@ -9,7 +10,9 @@ import * as prompts from '@clack/prompts';
 import {
 	ECOPAGES_DEV_RESTART_EXIT_CODE,
 	ECOPAGES_DEV_RESTART_REASON_ENV,
+	resolveDevelopmentRecoveryWatch,
 } from '@ecopages/core/dev/development-restart';
+import { fileSystem, type WatchOptions } from '@ecopages/file-system';
 
 const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
 const cliVersionTag = `v${pkg.version}`;
@@ -33,13 +36,17 @@ vi.mock('node:fs', async (importOriginal) => {
 		...actual,
 		existsSync: vi.fn((path) => actual.existsSync(path)),
 		writeFileSync: actual.writeFileSync,
-		statSync: vi.fn(actual.statSync),
-		watch: vi.fn(() => {
-			const watcher = { close: vi.fn(), on: vi.fn(() => watcher) };
-			return watcher;
-		}),
 	};
 });
+
+vi.mock('@ecopages/file-system', () => ({
+	fileSystem: { watch: vi.fn() },
+}));
+
+vi.mock('@ecopages/core/dev/development-restart', async (importOriginal) => ({
+	...(await importOriginal<typeof import('@ecopages/core/dev/development-restart')>()),
+	resolveDevelopmentRecoveryWatch: vi.fn(),
+}));
 
 vi.mock('./launch-plan.js', () => ({
 	createLaunchPlan: vi.fn(),
@@ -66,8 +73,16 @@ describe('CLI Commands', () => {
 		}) as never);
 	}
 
+	const originalCwd = process.cwd();
+	const forwardedSignals = ['SIGTERM', 'SIGINT'] as const;
+	let signalListenersBefore: Map<string, Set<unknown>>;
+	let tempCwd: string;
+
 	beforeEach(() => {
 		vi.clearAllMocks();
+		tempCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-cli-test-'));
+		process.chdir(tempCwd);
+		signalListenersBefore = new Map(forwardedSignals.map((signal) => [signal, new Set(process.listeners(signal))]));
 
 		vi.mocked(fs.existsSync).mockImplementation(
 			(filePath) =>
@@ -89,15 +104,19 @@ describe('CLI Commands', () => {
 			envOverrides: {},
 			env: {},
 		} as any);
+		mockProjectWatches();
 	});
 
 	afterEach(() => {
 		vi.mocked(childProcess.spawn).mockReset();
-		vi.mocked(fs.statSync).mockReset();
-		vi.mocked(fs.watch).mockReset();
-		for (const targetDir of ['my-new-project', 'my-dir', 'interactive-app', 'remote-app', 'failed-app']) {
-			fs.rmSync(targetDir, { recursive: true, force: true });
+		vi.mocked(fileSystem.watch).mockReset();
+		for (const signal of forwardedSignals) {
+			for (const listener of process.listeners(signal)) {
+				if (!signalListenersBefore.get(signal)?.has(listener)) process.off(signal, listener);
+			}
 		}
+		process.chdir(originalCwd);
+		fs.rmSync(tempCwd, { recursive: true, force: true });
 	});
 
 	it('runs init command with default template and repo', async () => {
@@ -232,7 +251,7 @@ describe('CLI Commands', () => {
 		await runCli(['dev']);
 		childHandlers.get('exit')?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
 
-		await vi.waitFor(() => expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(2));
+		await vi.waitFor(() => expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(2), { interval: 1 });
 		const restartedPlan = await vi.mocked(launchPlan.createLaunchPlan).mock.results[1]?.value;
 		expect(restartedPlan.env[ECOPAGES_DEV_RESTART_REASON_ENV]).toBe('configuration or environment change');
 	});
@@ -250,37 +269,50 @@ describe('CLI Commands', () => {
 		return exitHandlers;
 	}
 
-	function getWatchListener() {
-		return vi.mocked(fs.watch).mock.calls[0]?.[1] as unknown as (event: string, file: string) => void;
+	const recoveryWatch = { paths: ['/project', '/workspace/linked-ui'], ignored: () => false };
+
+	function mockProjectWatches() {
+		const watches: Array<{ paths: readonly string[]; options: WatchOptions; close: ReturnType<typeof vi.fn> }> = [];
+		vi.mocked(resolveDevelopmentRecoveryWatch).mockReturnValue(recoveryWatch);
+		vi.mocked(fileSystem.watch).mockImplementation((paths, options) => {
+			const close = vi.fn(async () => {});
+			watches.push({ paths, options, close });
+			return { ready: Promise.resolve(), close };
+		});
+		return watches;
 	}
 
-	it('keeps a dev session alive when a restarted child fails, and relaunches on the next config change', async () => {
+	function changeProjectFile(watch: { options: WatchOptions } | undefined) {
+		watch?.options.onChange({ type: 'change', path: '/project/src/lib/options.ts' });
+	}
+
+	it('keeps a dev session alive when a restarted child fails, and relaunches on the next project change', async () => {
 		const exitSpy = mockProcessExit();
 		const exitHandlers = mockSpawnedChildren();
+		const watches = mockProjectWatches();
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2), { interval: 1 });
+		expect(watches).toHaveLength(1);
+		expect(watches[0]?.paths).toEqual(recoveryWatch.paths);
+		expect(watches[0]?.options.ignored).toBe(recoveryWatch.ignored);
 
 		exitHandlers[1]?.(1);
 		expect(exitSpy).not.toHaveBeenCalled();
-		expect(fs.watch).toHaveBeenCalledWith(process.cwd(), expect.any(Function));
-
-		const onWatchEvent = getWatchListener();
-		const watcher = vi.mocked(fs.watch).mock.results[0]?.value as { close: () => void };
-		onWatchEvent('change', 'app.ts');
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(2);
 
-		onWatchEvent('change', 'eco.config.ts');
-		expect(watcher.close).toHaveBeenCalled();
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
+		changeProjectFile(watches[0]);
+		expect(watches[0]?.close).toHaveBeenCalled();
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3), { interval: 1 });
 
 		exitSpy.mockRestore();
 	});
 
-	it('waits for a config change when the launch plan fails during a restart', async () => {
+	it('waits for a project change when the launch plan fails during a restart', async () => {
 		const exitSpy = mockProcessExit();
 		const exitHandlers = mockSpawnedChildren();
+		const watches = mockProjectWatches();
 		vi.mocked(launchPlan.createLaunchPlan)
 			.mockResolvedValueOnce({
 				runtime: 'node',
@@ -293,85 +325,86 @@ describe('CLI Commands', () => {
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
-		await vi.waitFor(() => expect(fs.watch).toHaveBeenCalled());
+		await vi.waitFor(() => expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(2), { interval: 1 });
 		expect(exitSpy).not.toHaveBeenCalled();
 
-		const onWatchEvent = getWatchListener();
-		onWatchEvent('rename', '.env.local');
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+		changeProjectFile(watches[0]);
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2), { interval: 1 });
 
 		exitSpy.mockRestore();
 	});
 
-	it('relaunches once when the same config change is reported twice', async () => {
+	it('relaunches once when one save is reported twice', async () => {
 		const exitSpy = mockProcessExit();
 		const exitHandlers = mockSpawnedChildren();
+		const watches = mockProjectWatches();
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2), { interval: 1 });
 		exitHandlers[1]?.(1);
 
-		getWatchListener()('change', 'eco.config.ts');
-		getWatchListener()('rename', 'eco.config.ts');
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
-		await new Promise((resolve) => setTimeout(resolve, 20));
+		changeProjectFile(watches[0]);
+		changeProjectFile(watches[0]);
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3), { interval: 1 });
+		await new Promise((resolve) => setImmediate(resolve));
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(3);
 
 		exitSpy.mockRestore();
 	});
 
-	it('relaunches at once when the config changed while the restarted child was loading', async () => {
+	it('relaunches at once when the project changed while the restarted child was loading', async () => {
 		const exitSpy = mockProcessExit();
 		const exitHandlers = mockSpawnedChildren();
-		let configModifiedTime = 1;
-		vi.mocked(fs.statSync).mockImplementation(((filePath: string) =>
-			filePath.endsWith('eco.config.ts') ? { mtimeMs: configModifiedTime } : undefined) as never);
+		const watches = mockProjectWatches();
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2), { interval: 1 });
 
-		configModifiedTime = 2;
+		changeProjectFile(watches[0]);
+		expect(launchPlan.createLaunchPlan).toHaveBeenCalledTimes(2);
 		exitHandlers[1]?.(1);
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3));
-		expect(fs.watch).not.toHaveBeenCalled();
+
+		expect(watches[0]?.close).toHaveBeenCalled();
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3), { interval: 1 });
 
 		exitSpy.mockRestore();
 	});
 
-	it('exits with a clear error when the restart files cannot be watched', async () => {
+	it('stops watching the project when a restarted child requests another restart', async () => {
 		const exitSpy = mockProcessExit();
 		const exitHandlers = mockSpawnedChildren();
-		vi.mocked(fs.watch).mockImplementationOnce(() => {
-			throw Object.assign(new Error('ENOSPC: System limit for number of file watchers reached'), {
-				code: 'ENOSPC',
-			});
-		});
+		const watches = mockProjectWatches();
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2), { interval: 1 });
+		exitHandlers[1]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
 
-		expect(() => exitHandlers[1]?.(1)).toThrow('process.exit:1');
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(3), { interval: 1 });
+		expect(watches[0]?.close).toHaveBeenCalled();
+		expect(watches).toHaveLength(2);
 
 		exitSpy.mockRestore();
 	});
 
-	it('keeps waiting when a restart file cannot be read', async () => {
+	it('exits with a clear error when the project cannot be watched', async () => {
 		const exitSpy = mockProcessExit();
 		const exitHandlers = mockSpawnedChildren();
-		vi.mocked(fs.statSync).mockImplementation(() => {
-			throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
-		});
+		const watches = mockProjectWatches();
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+		await vi.waitFor(() => expect(watches).toHaveLength(1), { interval: 1 });
 
-		exitHandlers[1]?.(1);
-		expect(exitSpy).not.toHaveBeenCalled();
-		expect(fs.watch).toHaveBeenCalled();
+		expect(() =>
+			watches[0]?.options.onError(
+				Object.assign(new Error('ENOSPC: System limit for number of file watchers reached'), {
+					code: 'ENOSPC',
+				}),
+			),
+		).toThrow('process.exit:1');
 
 		exitSpy.mockRestore();
 	});
@@ -379,37 +412,60 @@ describe('CLI Commands', () => {
 	it.each([0, null])('exits when a restarted child exits with %s', async (code) => {
 		const exitSpy = mockProcessExit();
 		const exitHandlers = mockSpawnedChildren();
+		mockProjectWatches();
 
 		await runCli(['dev']);
 		exitHandlers[0]?.(ECOPAGES_DEV_RESTART_EXIT_CODE);
-		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2));
+		await vi.waitFor(() => expect(exitHandlers).toHaveLength(2), { interval: 1 });
 
 		expect(() => exitHandlers[1]?.(code)).toThrow('process.exit:0');
-		expect(fs.watch).not.toHaveBeenCalled();
 
 		exitSpy.mockRestore();
 	});
 
-	it('exits when the first dev child fails', async () => {
+	it('exits when the first dev child fails, without watching the project', async () => {
 		const exitSpy = mockProcessExit();
 		const exitHandlers = mockSpawnedChildren();
+		mockProjectWatches();
 
 		await runCli(['dev']);
 		expect(() => exitHandlers[0]?.(1)).toThrow('process.exit:1');
-		expect(fs.watch).not.toHaveBeenCalled();
+		expect(fileSystem.watch).not.toHaveBeenCalled();
 
 		exitSpy.mockRestore();
 	});
 
-	it('runs dev:hot command', async () => {
-		await runCli(['dev:hot']);
-		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
-			['--dev'],
-			expect.objectContaining({ hot: true, nodeEnv: 'development' }),
-			'app.ts',
-			'dev',
-		);
-	});
+	it.each(['SIGTERM', 'SIGINT'] as const)(
+		'forwards %s to the running child and stops forwarding once it exits',
+		async (signal) => {
+			const exitSpy = mockProcessExit();
+			const kill = vi.fn();
+			let onExit: ((code: number | null) => void) | undefined;
+			vi.mocked(childProcess.spawn).mockReturnValueOnce({
+				kill,
+				on: vi.fn((event: string, handler: (code: number | null) => void) => {
+					if (event === 'exit') onExit = handler;
+				}),
+			} as never);
+
+			await runCli(['dev']);
+			const [forward] = process
+				.listeners(signal)
+				.filter((listener) => !signalListenersBefore.get(signal)?.has(listener));
+			expect(forward).toBeDefined();
+			forward?.(signal);
+
+			expect(kill).toHaveBeenCalledWith(signal);
+			expect(exitSpy).not.toHaveBeenCalled();
+
+			expect(() => onExit?.(null)).toThrow('process.exit:0');
+			expect(
+				process.listeners(signal).filter((listener) => !signalListenersBefore.get(signal)?.has(listener)),
+			).toEqual([]);
+
+			exitSpy.mockRestore();
+		},
+	);
 
 	it('runs dev:watch command', async () => {
 		await runCli(['dev:watch']);
@@ -442,26 +498,26 @@ describe('CLI Commands', () => {
 		);
 	});
 
-	it.each([
-		['build', '--build'],
-		['preview', '--preview'],
-	])('forwards --force to %s', async (command, entryArg) => {
-		await runCli([command, '--force']);
-		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
-			[entryArg, '--force'],
-			expect.objectContaining({ nodeEnv: 'production' }),
-			'app.ts',
-			command,
-		);
-	});
-
-	it('rejects --force for commands that do not build', async () => {
+	it.each(['build', 'preview', 'start'])('rejects --force for %s as an unknown option', async (command) => {
 		const exitSpy = mockProcessExit();
 
-		await expect(runCli(['start', '--force'])).rejects.toThrow('process.exit:1');
+		await expect(runCli([command, '--force'])).rejects.toThrow('process.exit:1');
 		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
 
 		exitSpy.mockRestore();
+	});
+
+	it('describes what the build does in the build help', async () => {
+		const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+		await runCli(['build', '--help']);
+
+		const help = String(log.mock.calls.at(-1)?.[0]);
+		expect(help).toContain('pre-render the Pages in src/pages');
+		expect(help).toContain('write the result to dist');
+		expect(help).not.toContain('--force');
+		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
+		log.mockRestore();
 	});
 
 	it('passes shared build options like base url and hostname correctly', async () => {
@@ -519,18 +575,36 @@ describe('CLI Commands', () => {
 		);
 	});
 
-	it('normalizes react fast refresh to the launch-plan option shape', async () => {
-		await runCli(['dev', '--react-fast-refresh', '--runtime', 'bun']);
+	it('passes the runtime flag through to the launch plan', async () => {
+		await runCli(['dev', '--runtime', 'bun']);
 		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
 			['--dev'],
 			expect.objectContaining({
 				nodeEnv: 'development',
-				reactFastRefresh: true,
 				runtime: 'bun',
 			}),
 			'app.ts',
 			'dev',
 		);
+	});
+
+	it('rejects dev:hot', async () => {
+		const exitSpy = mockProcessExit();
+
+		await expect(runCli(['dev:hot'])).rejects.toThrow('process.exit:1');
+		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
+
+		exitSpy.mockRestore();
+	});
+
+	it('rejects the removed React fast refresh flags', async () => {
+		const exitSpy = mockProcessExit();
+
+		await expect(runCli(['dev', '-r'])).rejects.toThrow('process.exit:1');
+		await expect(runCli(['dev', '--react-fast-refresh'])).rejects.toThrow('process.exit:1');
+		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
+
+		exitSpy.mockRestore();
 	});
 
 	it('rejects positional entry file arguments loudly', async () => {

@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
 	buildCommand,
 	buildEnv,
@@ -68,36 +68,26 @@ describe('run-isolated-app launcher', () => {
 	});
 
 	it('keeps a parent base URL and marks the run as a kitchen-sink e2e', () => {
-		const previous = process.env.ECOPAGES_BASE_URL;
-		process.env.ECOPAGES_BASE_URL = 'http://example.test';
+		vi.stubEnv('ECOPAGES_BASE_URL', 'http://example.test');
 
-		try {
-			const env = buildEnv({
-				mode: 'dev',
-				port: 4007,
-				artifactScope: 'cross-integration-dev',
-			});
+		const env = buildEnv({
+			mode: 'dev',
+			port: 4007,
+			artifactScope: 'cross-integration-dev',
+		});
 
-			expect(env.ECOPAGES_BASE_URL).toBe('http://example.test');
-			expect(env.ECOPAGES_CROSS_INTEGRATION_E2E).toBe('true');
-		} finally {
-			if (previous === undefined) {
-				delete process.env.ECOPAGES_BASE_URL;
-			} else {
-				process.env.ECOPAGES_BASE_URL = previous;
-			}
-		}
+		expect(env.ECOPAGES_BASE_URL).toBe('http://example.test');
+		expect(env.ECOPAGES_CROSS_INTEGRATION_E2E).toBe('true');
 	});
 
 	it('reuses an already-prepared shared workspace', () => {
 		const root = mkdtempSync(join(tmpdir(), 'eco-isolated-'));
 		const sourceDir = join(root, 'source');
 		const workspaceDir = join(root, 'workspace');
-		const previousValue = process.env.ECOPAGES_MANAGE_ISOLATED_WORKSPACES;
 
 		mkdirSync(sourceDir, { recursive: true });
 		writeFileSync(join(sourceDir, 'eco.config.ts'), 'export default {};\n');
-		process.env.ECOPAGES_MANAGE_ISOLATED_WORKSPACES = 'true';
+		vi.stubEnv('ECOPAGES_MANAGE_ISOLATED_WORKSPACES', 'true');
 
 		try {
 			prepareWorkspace(sourceDir, workspaceDir);
@@ -105,12 +95,6 @@ describe('run-isolated-app launcher', () => {
 			prepareWorkspace(sourceDir, workspaceDir);
 			expect(existsSync(join(workspaceDir, 'marker.txt'))).toBe(true);
 		} finally {
-			if (previousValue === undefined) {
-				delete process.env.ECOPAGES_MANAGE_ISOLATED_WORKSPACES;
-			} else {
-				process.env.ECOPAGES_MANAGE_ISOLATED_WORKSPACES = previousValue;
-			}
-
 			rmSync(root, { recursive: true, force: true });
 		}
 	});

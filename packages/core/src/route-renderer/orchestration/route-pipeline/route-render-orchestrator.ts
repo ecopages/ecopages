@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type {
 	EcoComponent,
@@ -18,11 +19,13 @@ import type {
 	AssetProcessingService,
 	ProcessedAsset,
 } from '../../../services/assets/asset-processing-service/index.ts';
+import { isProductionRuntime } from '../../../utils/runtime.ts';
 import { collectHtmlCacheSourceDependencyPaths } from '../../../services/cache/html-page-cache-dependency-index.ts';
 import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
 import { collectComponentConfigFilePaths } from '../../page-loading/file-scoped-dependency-components.ts';
 import type { HtmlDocumentContribution } from '../../../services/html/html-transformer.service.ts';
 import { inspectUnresolvedMarkerArtifactHtml } from './marker-artifact.utils.ts';
+import type { DeclaredOwnershipRoot } from '../ownership-graph/component-graph.ts';
 import {
 	OwnershipValidationService,
 	throwIfOwnershipInvalid,
@@ -98,7 +101,7 @@ export interface RouteRenderOrchestratorAdapter<C> {
 	 */
 	buildPageBrowserGraphContributionContext(
 		routeFile: string,
-		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query'>,
+		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query' | 'pageModule'>,
 	): Promise<PageBrowserGraphContributionContext>;
 	/**
 	 * Builds island and lazy-entry browser assets from the page client plan.
@@ -135,7 +138,6 @@ export interface CapturedHtmlRenderResult {
  */
 export interface RouteRenderOrchestratorDependencies {
 	ownershipValidationService?: OwnershipValidationService;
-	pageBrowserGraphService?: PageBrowserGraphService;
 }
 
 /**
@@ -161,8 +163,7 @@ export class RouteRenderOrchestrator {
 		this.assetProcessingService = assetProcessingService;
 		this.ownershipValidationService =
 			dependencies.ownershipValidationService ?? new OwnershipValidationService(appConfig);
-		this.pageBrowserGraphService =
-			dependencies.pageBrowserGraphService ?? new PageBrowserGraphService(appConfig, assetProcessingService);
+		this.pageBrowserGraphService = new PageBrowserGraphService(appConfig, assetProcessingService);
 	}
 
 	/**
@@ -188,19 +189,20 @@ export class RouteRenderOrchestrator {
 			props: finalProps,
 		};
 		const { Page, HtmlTemplate, Layouts } = finalResolvedInputs;
+		const shellRoots: DeclaredOwnershipRoot[] = [
+			{ component: HtmlTemplate as EcoComponent, source: 'html-template' },
+			...Layouts.map((layout) => ({ component: layout as EcoComponent, source: 'layout' as const })),
+			{ component: Page as EcoComponent, source: 'page' },
+		];
 		await measureRouteRenderPhase('ownership-validation', async () => {
 			const validationErrors = this.ownershipValidationService.validate({
 				currentIntegrationName: adapter.name,
-				roots: [
-					{ component: HtmlTemplate as EcoComponent, source: 'html-template' },
-					...Layouts.map((layout) => ({ component: layout as EcoComponent, source: 'layout' as const })),
-					{ component: Page as EcoComponent, source: 'page' },
-				],
+				roots: shellRoots,
 			});
 			throwIfOwnershipInvalid(validationErrors);
 		});
 
-		const componentsToResolve = [HtmlTemplate, ...Layouts, Page];
+		const componentsToResolve = shellRoots.map((root) => root.component);
 		const dependencyInstanceKey = createPageDependencyInstanceKey({
 			params: routeOptions.params,
 			query: routeOptions.query,
@@ -237,7 +239,10 @@ export class RouteRenderOrchestrator {
 			dependencyInstanceKey,
 		});
 		const resolvedPageDependencyComponents = resolvedPageDependencies?.components ?? [];
-		const dependencyRoots = [...componentsToResolve, ...resolvedPageDependencyComponents];
+		const dependencyRoots = [
+			...shellRoots,
+			...resolvedPageDependencyComponents.map((component) => ({ component })),
+		];
 		const clientPlan = collectPageClientPlan(dependencyRoots, adapter.name);
 		const clientBrowserAssets = await adapter.buildPageClientBrowserAssets(clientPlan);
 		if (clientBrowserAssets.lazyTriggers.length > 0) {
@@ -257,21 +262,18 @@ export class RouteRenderOrchestrator {
 				: [];
 		allDependencies.push(...globalAssets);
 
-		const additionalSourcePaths = collectRenderShellSourcePaths(this.appConfig, [
-			...componentsToResolve,
-			...resolvedPageDependencyComponents,
-			...clientPlan.islandEntries.map((entry) => entry.component),
-		]);
-		const sourceDependencyPaths = collectHtmlCacheSourceDependencyPaths({
-			routeFile: routeOptions.file,
-			processedAssets: allDependencies,
-			graphDependencyPaths,
-			additionalSourcePaths,
-		});
-		const buildInputIndex = getAppBuildInputIndex(this.appConfig);
-		for (const sourcePath of sourceDependencyPaths) {
-			buildInputIndex.recordWatchPath(sourcePath);
-		}
+		const sourceDependencyPaths = isProductionRuntime()
+			? undefined
+			: this.recordSourceDependencyPaths({
+					routeFile: routeOptions.file,
+					components: [
+						...componentsToResolve,
+						...resolvedPageDependencyComponents,
+						...clientPlan.sourceComponents,
+					],
+					processedAssets: allDependencies,
+					graphDependencyPaths,
+				});
 
 		return {
 			...buildPreparedRenderOptions<C>({
@@ -333,6 +335,7 @@ export class RouteRenderOrchestrator {
 		const renderExecution = await measureRouteRenderPhase('render-body', () =>
 			this.captureHtmlRender(async () => adapter.renderRouteBody(renderOptions)),
 		);
+		const sourceDependencyPaths = this.withHtmlTemplateClosure(renderOptions.sourceDependencyPaths);
 		const unresolvedArtifactInspection = inspectUnresolvedMarkerArtifactHtml(renderExecution.html);
 		const htmlFinalization = adapter.getRouteHtmlFinalization(renderOptions);
 		const hasUnresolvedMarkerHtml = unresolvedArtifactInspection.hasUnresolvedMarkerArtifacts;
@@ -362,7 +365,8 @@ export class RouteRenderOrchestrator {
 			return {
 				body,
 				cacheStrategy: renderOptions.cacheStrategy,
-				sourceDependencyPaths: renderOptions.sourceDependencyPaths,
+				sourceDependencyPaths,
+				metadata: renderOptions.metadata,
 			};
 		}
 
@@ -385,8 +389,57 @@ export class RouteRenderOrchestrator {
 		return {
 			body,
 			cacheStrategy: renderOptions.cacheStrategy,
-			sourceDependencyPaths: renderOptions.sourceDependencyPaths,
+			sourceDependencyPaths,
+			metadata: renderOptions.metadata,
 		};
+	}
+
+	/**
+	 * Collects the files a rendered page read and records them as watch paths.
+	 *
+	 * @remarks
+	 * These paths exist so development can evict the pages a changed file affects. A production
+	 * process has no watcher and no source edits, so it skips the collection on every request.
+	 */
+	private recordSourceDependencyPaths(input: {
+		routeFile: string;
+		components: Array<EcoComponent | Partial<EcoComponent>>;
+		processedAssets: Parameters<typeof collectHtmlCacheSourceDependencyPaths>[0]['processedAssets'];
+		graphDependencyPaths: ReadonlySet<string> | undefined;
+	}): string[] {
+		const buildInputIndex = getAppBuildInputIndex(this.appConfig);
+		const sourceDependencyPaths = collectHtmlCacheSourceDependencyPaths({
+			routeFile: input.routeFile,
+			processedAssets: input.processedAssets,
+			graphDependencyPaths: input.graphDependencyPaths,
+			additionalSourcePaths: collectRenderShellSourcePaths(this.appConfig, input.components),
+			routeModulePaths: buildInputIndex.sourcePaths({
+				consumer: 'server-route-module',
+				key: path.resolve(input.routeFile),
+			}),
+		});
+		for (const sourcePath of sourceDependencyPaths) {
+			buildInputIndex.recordWatchPath(sourcePath);
+		}
+		return sourceDependencyPaths;
+	}
+
+	/**
+	 * @remarks
+	 * The HTML template imports its includes (head, SEO, scripts) when the body renders, so its module
+	 * closure is recorded only then. Editing any of them must miss the cached document.
+	 */
+	private withHtmlTemplateClosure(sourcePaths: readonly string[] | undefined): readonly string[] | undefined {
+		const htmlTemplatePath = this.appConfig.absolutePaths?.htmlTemplatePath;
+		if (!sourcePaths || !htmlTemplatePath) {
+			return sourcePaths;
+		}
+
+		const templateClosure = getAppBuildInputIndex(this.appConfig).sourcePaths({
+			consumer: 'server-route-module',
+			key: path.resolve(htmlTemplatePath),
+		});
+		return [...new Set([...sourcePaths, ...templateClosure])];
 	}
 
 	private async captureRenderedBody(body: RouteRendererBody): Promise<{ body: RouteRendererBody; html: string }> {

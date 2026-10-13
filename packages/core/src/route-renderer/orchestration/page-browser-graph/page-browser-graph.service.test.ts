@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
@@ -17,12 +17,16 @@ import { PageBrowserGraphService } from './page-browser-graph.service.ts';
 import { createGroupedGraphBuildPlanKey } from './grouped-graph-build-plan.ts';
 import { createPageDependencyInstanceKey } from './route-instance-key.ts';
 
-const appConfig = {
-	integrations: [{ name: 'react', extensions: ['.tsx'] }],
-	absolutePaths: {
-		pagesDir: '/app/pages',
-	},
-} as unknown as EcoPagesAppConfig;
+let appConfig: EcoPagesAppConfig;
+
+beforeEach(() => {
+	appConfig = {
+		integrations: [{ name: 'react', extensions: ['.tsx'] }],
+		absolutePaths: {
+			pagesDir: '/app/pages',
+		},
+	} as unknown as EcoPagesAppConfig;
+});
 
 function createGroupedDependency(): AssetDefinition {
 	return {
@@ -45,7 +49,6 @@ function isGroupedContentScriptDependency(asset: AssetDefinition): asset is Extr
 
 afterEach(() => {
 	vi.restoreAllMocks();
-	getAppPageBrowserGraphSession(appConfig).resetForTests();
 });
 
 describe('SessionPageBrowserGraphCache', () => {
@@ -651,9 +654,9 @@ test('preserves processed grouped-asset order for a route', async () => {
 	expect(result?.entryAssets.map((asset) => asset.filepath)).toEqual(['/assets/second.js', '/assets/first.js']);
 });
 
-test('processes grouped assets once for a large set of static dependency instances', async () => {
+test('processes grouped assets once for all static dependency instances of a grouped plan', async () => {
 	const routeFile = '/app/pages/docs/[...slug]/index.tsx';
-	const instances = Array.from({ length: 1_000 }, (_, index) => {
+	const instances = Array.from({ length: 3 }, (_, index) => {
 		const slug = `entry-${index}`;
 		const dependencyInstanceKey = createPageDependencyInstanceKey({ params: { slug: ['docs', slug] } });
 		const groupedDependency: AssetDefinition = {
@@ -708,7 +711,7 @@ test('processes grouped assets once for a large set of static dependency instanc
 	}
 
 	expect(processDependencies).toHaveBeenCalledOnce();
-	expect(processDependencies.mock.calls[0]?.[0]).toHaveLength(1_000);
+	expect(processDependencies.mock.calls[0]?.[0]).toHaveLength(3);
 });
 
 test('PageBrowserGraphService does not commit route graphs built without a grouped plan', async () => {

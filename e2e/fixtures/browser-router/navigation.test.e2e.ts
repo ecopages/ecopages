@@ -113,6 +113,34 @@ test.describe('Browser Router Navigation', () => {
 		expect(bgColor).toBe(PAGE_COLORS.ABOUT);
 	});
 
+	test("removes the previous page's stylesheet after navigation", async ({ page }) => {
+		await gotoAndWait(page, '/about');
+		const aboutStylesheets = await page
+			.locator('link[rel="stylesheet"]')
+			.evaluateAll((links) => links.map((link) => (link as HTMLLinkElement).href));
+
+		await page.click(SELECTORS.LINK_HOME);
+		await page.waitForURL(/.*\/$/);
+		await expect(page.locator(SELECTORS.INDEX_PAGE)).toBeVisible();
+		const homeStylesheets = await page
+			.locator('link[rel="stylesheet"]')
+			.evaluateAll((links) => links.map((link) => (link as HTMLLinkElement).href));
+		const aboutOnlyStylesheet = aboutStylesheets.find((href) => !homeStylesheets.includes(href));
+
+		expect(aboutOnlyStylesheet).toBeDefined();
+		await expect
+			.poll(() =>
+				page
+					.locator('link[rel="stylesheet"]')
+					.evaluateAll(
+						(links, stylesheetHref) =>
+							links.some((link) => (link as HTMLLinkElement).href === stylesheetHref),
+						aboutOnlyStylesheet,
+					),
+			)
+			.toBe(false);
+	});
+
 	test('navigates to dynamic post page', async ({ page }) => {
 		await page.click(SELECTORS.LINK_POST);
 		await page.waitForURL('**/posts/test-post');

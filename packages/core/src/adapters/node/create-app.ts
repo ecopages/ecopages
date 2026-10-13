@@ -10,6 +10,7 @@ import { NodeHttpRequestBridge } from './http-request-bridge.ts';
 import type { NodeServerInstance } from './server-adapter.ts';
 import { NodeRuntimeHost, type NodeRuntimeServeOptions } from './runtime-host.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
+import { resolveProcessRuntimeLabel } from '../../dev/runtime-server-started-message.ts';
 import { resolveAppStartRoutes } from '../../utils/ecopages-route-info.ts';
 
 export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAppOptions, NodeServerInstance, Request> {
@@ -25,7 +26,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 			runtimeHost: RuntimeHost<NodeServerInstance, NodeRuntimeServeOptions>;
 		},
 	) {
-		super(options, 'Node');
+		super(options, resolveProcessRuntimeLabel());
 		this.runtimeHost = dependencies.runtimeHost;
 	}
 
@@ -97,7 +98,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 			return this.server;
 		}
 
-		const { build, preview, force, serveOnly } = this.cliArgs;
+		const { build, preview, serveOnly } = this.cliArgs;
 
 		if (preview && serveOnly) {
 			const previewOrigin = await this.serverAdapter.servePreviewOnly();
@@ -109,7 +110,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 
 		if (build || preview) {
 			appLogger.debugTime('Building static pages');
-			const previewOrigin = await this.serverAdapter.buildStatic({ preview, force });
+			const previewOrigin = await this.serverAdapter.buildStatic({ preview });
 			appLogger.debugTimeEnd('Building static pages');
 
 			if (preview && previewOrigin) {

@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -17,7 +16,6 @@ export type { ErrorPageKind };
 
 export type ErrorPageRenderResult = {
 	body: RouteRendererBody;
-	sourceFile?: string;
 };
 
 export type ErrorPageRenderInput = {
@@ -103,22 +101,6 @@ export class ErrorPageRenderer {
 		};
 	}
 
-	/**
-	 * Returns the source file used for incremental static-export reuse, without
-	 * rendering the page.
-	 */
-	async resolveSourceFile(kind: ErrorPageKind): Promise<string | undefined> {
-		const source = this.resolveCustomSource(kind);
-		if (source?.kind === 'filesystem') {
-			return source.templatePath;
-		}
-		if (source?.kind === 'loader') {
-			const view = (await source.loader()).default;
-			return this.resolveViewSourceFile(view.config?.identity?.file);
-		}
-		return undefined;
-	}
-
 	private resolveCustomSource(kind: ErrorPageKind): CustomErrorPageSource | undefined {
 		const templatePath = this.getTemplatePath(kind);
 		if (templatePath && fileSystem.exists(templatePath)) {
@@ -145,7 +127,7 @@ export class ErrorPageRenderer {
 			props,
 			locals: {},
 		});
-		return { body: result.body, sourceFile: templatePath };
+		return { body: result.body };
 	}
 
 	private async renderRegisteredPage(
@@ -171,12 +153,9 @@ export class ErrorPageRenderer {
 			errors: ERROR_PAGE_RENDER_ERRORS,
 		});
 
-		const response = await renderer.renderToResponse(renderableView, { ...staticProps, ...props }, { status });
+		const response = await renderer.renderExplicitView(renderableView, { ...staticProps, ...props }, { status });
 
-		return {
-			body: await response.text(),
-			sourceFile: this.resolveViewSourceFile(view.config?.identity?.file),
-		};
+		return { body: await response.text() };
 	}
 
 	private getTemplatePath(kind: ErrorPageKind): string {
@@ -195,13 +174,6 @@ export class ErrorPageRenderer {
 		}
 		const message = getPublicErrorMessage(error);
 		return message ? { status, message } : { status };
-	}
-
-	private resolveViewSourceFile(sourceFile: string | undefined): string | undefined {
-		if (!sourceFile) {
-			return undefined;
-		}
-		return path.isAbsolute(sourceFile) ? sourceFile : path.join(this.appConfig.rootDir, sourceFile);
 	}
 }
 

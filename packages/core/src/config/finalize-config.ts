@@ -29,7 +29,6 @@ import {
 } from './constants.ts';
 import { collectConfigModuleFiles } from './config-module-files.ts';
 import { DEFAULT_ECO_CONFIG_FILENAME, resolveUserConfigRootDir } from './resolve-eco-config-path.ts';
-import { validateRuntimeCapabilities } from './runtime-capability-validation.ts';
 import type { EcoPagesUserConfig, FinalizeEcoPagesConfigOptions } from './user-config-types.ts';
 
 /**
@@ -230,8 +229,7 @@ function createAbsolutePaths(
  * 2. appends the HTML Pages Integration and rejects duplicate Integration names and extensions,
  * 3. resolves absolute paths, including the semantic `html.*` and error-page templates,
  * 4. adds the component-meta source transform and hands each Processor the config,
- * 5. validates runtime capabilities,
- * 6. installs the app-owned build adapter, build manifest, and runtime state.
+ * 5. installs the app-owned build adapter, build manifest, and runtime state.
  *
  * Every call returns a new config; nothing is cached.
  *
@@ -239,11 +237,9 @@ function createAbsolutePaths(
  * Workspace packages and tests import it from `@ecopages/core/internal/finalize-config`, a
  * subpath the npm build drops from the published package, so keep it out of user-facing docs.
  *
- * @internal
- *
  * @throws When `userConfig` is an already finalized config; when Integration names or
  * extensions, or Processor, loader, or source transform names, repeat; when a semantic
- * template matches more than one extension; or when a plugin's `runtimeCapability` is not met.
+ * template matches more than one extension.
  */
 export async function finalizeEcoPagesConfig(
 	userConfig: EcoPagesUserConfig,
@@ -296,7 +292,6 @@ export async function finalizeEcoPagesConfig(
 	for (const processor of config.processors.values()) {
 		processor.setContext(config);
 	}
-	validateRuntimeCapabilities(config);
 
 	setAppBuildAdapter(config, createBuildAdapter());
 	updateAppBuildManifest(config, await collectConfiguredAppBuildManifestContributions(config));

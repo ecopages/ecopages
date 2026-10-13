@@ -3,6 +3,8 @@ import { fileSystem } from '@ecopages/file-system';
 import { AssetProcessingService } from './asset-processing.service';
 import type { AssetDefinition } from './assets.types';
 import { getBrowserRuntimeAssetGeneration } from '../browser-runtime-asset-generation';
+import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
 
 const Config = {
 	absolutePaths: {
@@ -20,6 +22,7 @@ const Processor = {
 
 const originalEnsureDirectoryExists = fileSystem.ensureDir;
 const originalGzipDir = fileSystem.gzipDir;
+const originalGzipFile = fileSystem.gzipFile;
 const originalWrite = fileSystem.write;
 const originalReadFileSync = fileSystem.readFileSync;
 const originalRemove = fileSystem.remove;
@@ -29,6 +32,7 @@ const originalHash = fileSystem.hash;
 beforeEach(() => {
 	fileSystem.ensureDir = vi.fn(() => {});
 	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.gzipFile = vi.fn(() => {});
 	fileSystem.write = vi.fn(() => {});
 	fileSystem.readFileSync = vi.fn(() => Buffer.from('') as any);
 	fileSystem.remove = vi.fn(() => {});
@@ -39,6 +43,7 @@ beforeEach(() => {
 afterEach(() => {
 	fileSystem.ensureDir = originalEnsureDirectoryExists;
 	fileSystem.gzipDir = originalGzipDir;
+	fileSystem.gzipFile = originalGzipFile;
 	fileSystem.write = originalWrite;
 	fileSystem.readFileSync = originalReadFileSync;
 	fileSystem.remove = originalRemove;
@@ -47,10 +52,19 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-test('AssetProcessingService - registerProcessor', () => {
+test('AssetProcessingService - registerProcessor', async () => {
+	fileSystem.exists = vi.fn(() => true);
 	const service = new AssetProcessingService(Config);
-	service.registerProcessor('script', 'file', Processor);
-	expect(service.getRegistry().getProcessor('script', 'file')).toBeDefined();
+	const process = vi.fn(Processor.process);
+	service.registerProcessor('script', 'file', { process });
+
+	const results = await service.processDependencies(
+		[{ kind: 'script', source: 'file', filepath: 'path/to/registered.js' }],
+		'register-key',
+	);
+
+	expect(results.map((asset) => asset.filepath)).toEqual(['/test/dist/assets/test.js']);
+	expect(process).toHaveBeenCalledTimes(1);
 });
 
 test('AssetProcessingService - processDependencies', async () => {
@@ -70,11 +84,6 @@ test('AssetProcessingService - processDependencies', async () => {
 	expect(results.length).toBe(1);
 	expect(results[0]?.kind).toBe('script');
 	expect(results[0]?.filepath).toBeDefined();
-});
-
-test('AssetProcessingService - createWithDefaultProcessors', () => {
-	const service = AssetProcessingService.createWithDefaultProcessors(Config);
-	expect([...service.getRegistry().getAllProcessors().values()].length).toBeGreaterThan(0);
 });
 
 test('AssetProcessingService - processDependencies - success', async () => {
@@ -287,6 +296,54 @@ test('AssetProcessingService - caching returns cached asset without reprocessing
 	expect(results2.length).toBe(1);
 	expect(results1[0].srcUrl).toBe('/assets/cached.js');
 	expect(results2[0].srcUrl).toBe('/assets/cached.js');
+});
+
+test('AssetProcessingService - rebuilds a cached bundle when one of its bundled inputs changes', async () => {
+	fileSystem.exists = vi.fn(() => true);
+	fileSystem.hash = vi.fn(() => 'entry-v1');
+	const appConfig = { ...Config } as EcoPagesAppConfig;
+	const service = new AssetProcessingService(appConfig);
+	const invalidateProcessorCache = vi.fn();
+	const processMock = vi.fn(async () => ({
+		filepath: '/test/dist/assets/entry.js',
+		kind: 'script' as const,
+		inline: false,
+		bundledSourceFilepaths: ['/test/src/helper.ts'],
+	}));
+	service.registerProcessor('script', 'file', {
+		process: processMock,
+		invalidateCacheForFile: invalidateProcessorCache,
+	});
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/entry.ts' };
+
+	await service.processDependencies([dependency], 'bundle-cache-1');
+	getAppBuildInputIndex(appConfig).recordChanges(['/test/src/helper.ts']);
+	await service.processDependencies([dependency], 'bundle-cache-2');
+
+	expect(processMock).toHaveBeenCalledTimes(2);
+	expect(invalidateProcessorCache).toHaveBeenCalledWith('/test/src/helper.ts');
+});
+
+test('AssetProcessingService - keeps a cached bundle without re-reading its inputs when an unrelated file changes', async () => {
+	fileSystem.exists = vi.fn(() => true);
+	fileSystem.hash = vi.fn(() => 'entry-v1');
+	const appConfig = { ...Config } as EcoPagesAppConfig;
+	const service = new AssetProcessingService(appConfig);
+	const processMock = vi.fn(async () => ({
+		filepath: '/test/dist/assets/entry.js',
+		kind: 'script' as const,
+		inline: false,
+		bundledSourceFilepaths: ['/test/src/helper.ts'],
+	}));
+	service.registerProcessor('script', 'file', { process: processMock });
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/entry.ts' };
+
+	await service.processDependencies([dependency], 'bundle-cache-1');
+	getAppBuildInputIndex(appConfig).recordChanges(['/test/src/other.ts']);
+	await service.processDependencies([dependency], 'bundle-cache-2');
+
+	expect(processMock).toHaveBeenCalledTimes(1);
+	expect(fileSystem.hash).not.toHaveBeenCalledWith('/test/src/helper.ts');
 });
 
 test('AssetProcessingService - reuses file stylesheets until their source changes', async () => {
@@ -555,6 +612,7 @@ test('AssetProcessingService - reuses service cache for content scripts across p
 		inline: false,
 		packageRole: 'page-script',
 		attributes: { type: 'module' },
+		bundledSourceFilepaths: ['/test/src/helper.ts'],
 	}));
 	service.registerProcessor('script', 'content', { process: processMock });
 
@@ -566,9 +624,10 @@ test('AssetProcessingService - reuses service cache for content scripts across p
 	};
 
 	await service.processDependencies([dependency], 'content-cache-key-1');
-	await service.processDependencies([dependency], 'content-cache-key-2');
+	const [secondResult] = await service.processDependencies([dependency], 'content-cache-key-2');
 
 	expect(processMock).toHaveBeenCalledTimes(1);
+	expect(secondResult?.bundledSourceFilepaths).toEqual(['/test/src/helper.ts']);
 });
 
 test('AssetProcessingService - materializes inline bundled cache hits from bundled output', async () => {
@@ -605,36 +664,13 @@ test('AssetProcessingService - materializes inline bundled cache hits from bundl
 	expect(processMock).toHaveBeenCalledTimes(1);
 });
 
-test('AssetProcessingService - clearCache clears all cached assets', async () => {
+test('AssetProcessingService - a change to a produced file evicts its cached asset', async () => {
 	fileSystem.ensureDir = vi.fn(() => {});
 	fileSystem.gzipDir = vi.fn(() => {});
 	fileSystem.exists = vi.fn(() => true);
 
-	const service = new AssetProcessingService(Config);
-	const processMock = vi.fn(async () => ({
-		filepath: '/test/dist/assets/clear.js',
-		kind: 'script',
-		inline: false,
-	}));
-	service.registerProcessor('script', 'file', { process: processMock });
-
-	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: 'path/to/clear.js' };
-
-	await service.processDependencies([dependency], 'key1');
-	expect(processMock).toHaveBeenCalledTimes(1);
-
-	service.clearCache();
-
-	await service.processDependencies([dependency], 'key2');
-	expect(processMock).toHaveBeenCalledTimes(2);
-});
-
-test('AssetProcessingService - invalidateCacheForFile removes specific file from cache', async () => {
-	fileSystem.ensureDir = vi.fn(() => {});
-	fileSystem.gzipDir = vi.fn(() => {});
-	fileSystem.exists = vi.fn(() => true);
-
-	const service = new AssetProcessingService(Config);
+	const appConfig = { ...Config } as EcoPagesAppConfig;
+	const service = new AssetProcessingService(appConfig);
 	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/invalidate.js',
 		kind: 'script',
@@ -647,15 +683,14 @@ test('AssetProcessingService - invalidateCacheForFile removes specific file from
 	await service.processDependencies([dependency], 'key1');
 	expect(processMock).toHaveBeenCalledTimes(1);
 
-	service.invalidateCacheForFile('/test/dist/assets/invalidate.js');
+	getAppBuildInputIndex(appConfig).recordChanges(['/test/dist/assets/invalidate.js']);
 
 	await service.processDependencies([dependency], 'key2');
 	expect(processMock).toHaveBeenCalledTimes(2);
 });
 
 test('AssetProcessingService advances the browser runtime generation when a runtime source changes', async () => {
-	const previousNodeEnv = process.env.NODE_ENV;
-	process.env.NODE_ENV = 'development';
+	vi.stubEnv('NODE_ENV', 'development');
 	fileSystem.exists = vi.fn(() => true);
 	fileSystem.hash = vi
 		.fn()
@@ -663,41 +698,37 @@ test('AssetProcessingService advances the browser runtime generation when a runt
 		.mockReturnValueOnce('source-v1')
 		.mockReturnValue('source-v2');
 
-	try {
-		const config = { ...Config } as any;
-		const service = new AssetProcessingService(config);
-		const processMock = vi
-			.fn()
-			.mockResolvedValueOnce({
-				filepath: '/test/dist/assets/vendors/runtime-v1.js',
-				kind: 'script',
-				inline: false,
-				packageRole: 'runtime',
-			})
-			.mockResolvedValueOnce({
-				filepath: '/test/dist/assets/vendors/runtime-v2.js',
-				kind: 'script',
-				inline: false,
-				packageRole: 'runtime',
-			});
-		service.registerProcessor('script', 'file', { process: processMock });
-
-		const dependency: AssetDefinition = {
+	const config = { ...Config } as unknown as EcoPagesAppConfig;
+	const service = new AssetProcessingService(config);
+	const processMock = vi
+		.fn()
+		.mockResolvedValueOnce({
+			filepath: '/test/dist/assets/vendors/runtime-v1.js',
 			kind: 'script',
-			source: 'file',
-			filepath: '/test/src/runtime.ts',
+			inline: false,
 			packageRole: 'runtime',
-		};
+		})
+		.mockResolvedValueOnce({
+			filepath: '/test/dist/assets/vendors/runtime-v2.js',
+			kind: 'script',
+			inline: false,
+			packageRole: 'runtime',
+		});
+	service.registerProcessor('script', 'file', { process: processMock });
 
-		await service.processDependencies([dependency], 'runtime-generation');
-		expect(getBrowserRuntimeAssetGeneration(config)).toBe(0);
+	const dependency: AssetDefinition = {
+		kind: 'script',
+		source: 'file',
+		filepath: '/test/src/runtime.ts',
+		packageRole: 'runtime',
+	};
 
-		await service.processDependencies([dependency], 'runtime-generation');
-		expect(getBrowserRuntimeAssetGeneration(config)).toBe(1);
-		expect(processMock).toHaveBeenCalledTimes(2);
-	} finally {
-		process.env.NODE_ENV = previousNodeEnv;
-	}
+	await service.processDependencies([dependency], 'runtime-generation');
+	expect(getBrowserRuntimeAssetGeneration(config)).toBe(0);
+
+	await service.processDependencies([dependency], 'runtime-generation');
+	expect(getBrowserRuntimeAssetGeneration(config)).toBe(1);
+	expect(processMock).toHaveBeenCalledTimes(2);
 });
 
 test('AssetProcessingService - skips missing file dependencies', async () => {
@@ -763,4 +794,109 @@ test('AssetProcessingService - restores grouped content-script metadata from in-
 		type: 'module',
 		'data-eco-page-bootstrap': 'react-router',
 	});
+});
+
+test('AssetProcessingService - shares one processor run between concurrent requests for the same asset', async () => {
+	fileSystem.exists = vi.fn(() => true);
+	const service = new AssetProcessingService({ ...Config } as EcoPagesAppConfig);
+	let finishProcessing!: () => void;
+	const processing = new Promise<void>((resolve) => {
+		finishProcessing = resolve;
+	});
+	const processMock = vi.fn(async () => {
+		await processing;
+		return { filepath: '/test/dist/assets/shared.js', kind: 'script' as const, inline: false };
+	});
+	service.registerProcessor('script', 'file', { process: processMock });
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/shared.ts' };
+
+	const first = service.processDependencies([dependency], 'shared-1');
+	const second = service.processDependencies([dependency], 'shared-2');
+	await vi.waitFor(() => expect(processMock).toHaveBeenCalled());
+	finishProcessing();
+	const [firstAssets, secondAssets] = await Promise.all([first, second]);
+
+	expect(processMock).toHaveBeenCalledTimes(1);
+	expect(firstAssets.map((asset) => asset.filepath)).toEqual(['/test/dist/assets/shared.js']);
+	expect(secondAssets.map((asset) => asset.filepath)).toEqual(['/test/dist/assets/shared.js']);
+});
+
+test('AssetProcessingService - starts a new processor run for a request made after the asset changed', async () => {
+	fileSystem.exists = vi.fn(() => true);
+	const appConfig = { ...Config } as EcoPagesAppConfig;
+	const service = new AssetProcessingService(appConfig);
+	let finishFirst!: () => void;
+	const firstRun = new Promise<void>((resolve) => {
+		finishFirst = resolve;
+	});
+	const processMock = vi
+		.fn()
+		.mockImplementationOnce(async () => {
+			await firstRun;
+			return { filepath: '/test/dist/assets/fresh.js', kind: 'script' as const, inline: false };
+		})
+		.mockImplementation(async () => ({
+			filepath: '/test/dist/assets/fresh.js',
+			kind: 'script' as const,
+			inline: false,
+		}));
+	service.registerProcessor('script', 'file', { process: processMock });
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/fresh.ts' };
+
+	const stale = service.processDependencies([dependency], 'fresh-1');
+	await vi.waitFor(() => expect(processMock).toHaveBeenCalledTimes(1));
+	getAppBuildInputIndex(appConfig).recordChanges(['/test/src/fresh.ts']);
+	const fresh = service.processDependencies([dependency], 'fresh-2');
+	finishFirst();
+	await Promise.all([stale, fresh]);
+
+	expect(processMock).toHaveBeenCalledTimes(2);
+});
+
+test('AssetProcessingService - gzips a production asset once, not on every request that finds it cached', async () => {
+	vi.stubEnv('NODE_ENV', 'production');
+	fileSystem.exists = vi.fn(() => true);
+	const appConfig = { ...Config } as EcoPagesAppConfig;
+	const service = new AssetProcessingService(appConfig);
+	service.registerProcessor('script', 'file', {
+		process: vi.fn(async () => ({
+			filepath: '/test/dist/assets/gzip-once.js',
+			kind: 'script' as const,
+			inline: false,
+			sourceFilepath: '/test/src/gzip-once.ts',
+		})),
+	});
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/gzip-once.ts' };
+
+	await service.processDependencies([dependency], 'gzip-1');
+	await service.processDependencies([dependency], 'gzip-2');
+	await service.processDependencies([dependency], 'gzip-3');
+	expect(fileSystem.gzipFile).toHaveBeenCalledTimes(1);
+
+	getAppBuildInputIndex(appConfig).recordChanges(['/test/src/gzip-once.ts']);
+	await service.processDependencies([dependency], 'gzip-4');
+	expect(fileSystem.gzipFile).toHaveBeenCalledTimes(2);
+});
+
+test('AssetProcessingService - reuses a cached asset in production without re-reading its source', async () => {
+	vi.stubEnv('NODE_ENV', 'production');
+	fileSystem.exists = vi.fn(() => true);
+	const hash = vi.fn(() => 'v1');
+	fileSystem.hash = hash;
+	const service = new AssetProcessingService({ ...Config } as EcoPagesAppConfig);
+	const processMock = vi.fn(async () => ({
+		filepath: '/test/dist/assets/reuse.js',
+		kind: 'script' as const,
+		inline: false,
+	}));
+	service.registerProcessor('script', 'file', { process: processMock });
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/reuse.ts' };
+
+	await service.processDependencies([dependency], 'reuse-1');
+	const hashesAfterFirstRun = hash.mock.calls.length;
+	hash.mockReturnValue('v2');
+	await service.processDependencies([dependency], 'reuse-2');
+
+	expect(processMock).toHaveBeenCalledTimes(1);
+	expect(hash.mock.calls.length).toBe(hashesAfterFirstRun);
 });

@@ -1,21 +1,18 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { describe, it } from 'vitest';
-import {
-	RouteModuleDependencyHasher,
-	filterTrackableRouteModuleDependencies,
-	isTrackableRouteModuleDependency,
-	resolveRouteModuleDependencyPaths,
-} from './route-module-dependency-hasher.ts';
+import { RouteModuleDependencyHasher, resolveRouteModuleDependencyPaths } from './route-module-dependency-hasher.ts';
 
 describe('RouteModuleDependencyHasher', () => {
 	it('excludes node builtins and node_modules paths from tracking', () => {
-		assert.equal(isTrackableRouteModuleDependency('node:fs'), false);
-		assert.equal(isTrackableRouteModuleDependency('package/subpath.js'), false);
-		assert.equal(isTrackableRouteModuleDependency('\0virtual.js'), false);
-		assert.equal(isTrackableRouteModuleDependency('/app/node_modules/react/index.js'), false);
-		assert.equal(isTrackableRouteModuleDependency('/app/src/layouts/shared.tsx'), true);
-		assert.equal(isTrackableRouteModuleDependency('/app/src/styles/theme.css'), true);
+		const hasher = new RouteModuleDependencyHasher({ exists: () => true, hashFile: () => 'hash' });
+
+		assert.equal(hasher.hashDependency('node:fs'), undefined);
+		assert.equal(hasher.hashDependency('package/subpath.js'), undefined);
+		assert.equal(hasher.hashDependency('\0virtual.js'), undefined);
+		assert.equal(hasher.hashDependency('/app/node_modules/react/index.js'), undefined);
+		assert.equal(hasher.hashDependency('/app/src/layouts/shared.tsx'), 'hash');
+		assert.equal(hasher.hashDependency('/app/src/styles/theme.css'), 'hash');
 	});
 
 	it('memoizes dependency hashes within one build run', () => {
@@ -51,10 +48,7 @@ describe('RouteModuleDependencyHasher', () => {
 			'node:fs',
 			'/app/node_modules/react/index.js',
 		]);
-		assert.deepEqual(
-			filterTrackableRouteModuleDependencies(['/app/pages/about.tsx', '/app/layouts/shared.tsx', 'node:fs']),
-			['/app/layouts/shared.tsx', '/app/pages/about.tsx'],
-		);
+		assert.deepEqual(Object.keys(storedHashes), ['/app/layouts/shared.tsx', '/app/pages/about.tsx']);
 		assert.equal(hasher.matchesStoredHashes(storedHashes), true);
 
 		hashes.set('/app/layouts/shared.tsx', 'hash-layout-v2');
@@ -65,9 +59,15 @@ describe('RouteModuleDependencyHasher', () => {
 	it('resolves dependency paths from build results', () => {
 		const dependencyPaths = resolveRouteModuleDependencyPaths(
 			{
+				loadedInputs: ['/app/data/posts.json'],
 				dependencyGraph: {
 					entrypoints: {
-						'/app/pages/about.tsx': ['/app/pages/about.tsx', '/app/layouts/shared.tsx', 'node:fs'],
+						'/app/pages/about.tsx': [
+							'/app/pages/about.tsx',
+							'/app/layouts/shared.tsx',
+							'node:fs',
+							'/app/node_modules/react/index.js',
+						],
 					},
 				},
 			},
@@ -75,6 +75,6 @@ describe('RouteModuleDependencyHasher', () => {
 			'/app',
 		);
 
-		assert.deepEqual(dependencyPaths, ['/app/pages/about.tsx', '/app/layouts/shared.tsx', 'node:fs']);
+		assert.deepEqual(dependencyPaths, ['/app/pages/about.tsx', '/app/layouts/shared.tsx', '/app/data/posts.json']);
 	});
 });

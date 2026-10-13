@@ -195,16 +195,6 @@ export class HydrationAssetService {
 	}
 
 	/**
-	 * Builds client-side assets for one React component island.
-	 */
-	async buildComponentRenderAssets(componentFile: string, config?: EcoComponentConfig): Promise<ProcessedAsset[]> {
-		const { assetsByFile } = await this.buildPageClientRenderAssets({
-			islands: [{ file: componentFile, config }],
-		});
-		return assetsByFile.get(componentFile) ?? [];
-	}
-
-	/**
 	 * Builds island and lazy-entry browser assets in one grouped multi-entry build.
 	 *
 	 * @remarks

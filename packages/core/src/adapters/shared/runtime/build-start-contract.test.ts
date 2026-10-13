@@ -3,14 +3,14 @@ import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from '
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { afterEach, describe, it } from 'vitest';
+import { afterEach, describe, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import {
 	assertProductionConfigIdentity,
 	getServerBundleOutputPaths,
-	resolveProductionServerBundle,
-} from '../../../build/cache/server-entry-build-cache.ts';
+	resolveProductionServerEntry,
+} from '../../../build/server-bundle-deploy-manifest.ts';
 import { resolveEcoConfigPath } from '../../../config/resolve-eco-config-path.ts';
 import { EMITTED_ECO_CONFIG_FILENAME } from '../../../config/server-config-bundle.ts';
 import { loadEcoPagesConfig } from '../../../config/load-eco-config.ts';
@@ -34,11 +34,9 @@ async function importByRealPath<T>(filePath: string): Promise<T> {
 
 describe('build → start contract', () => {
 	const tempDirs: string[] = [];
-	const originalNodeEnv = process.env.NODE_ENV;
 	const originalCwd = process.cwd();
 
 	afterEach(() => {
-		process.env.NODE_ENV = originalNodeEnv;
 		process.chdir(originalCwd);
 		for (const tempDir of tempDirs.splice(0)) {
 			fileSystem.remove(tempDir);
@@ -46,7 +44,7 @@ describe('build → start contract', () => {
 	});
 
 	it('emits a runnable server bundle and manifest when needsServerBundle is true', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-start-contract-'));
 		tempDirs.push(rootDir);
 		process.chdir(rootDir);
@@ -83,19 +81,20 @@ describe('build → start contract', () => {
 		assert.equal(fileSystem.exists(serverEntryPath), true, 'expected dist/.server/app.mjs');
 		assert.equal(fileSystem.exists(manifestPath), true, 'expected dist/.server/manifest.json');
 
-		const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
-			serverEntry: string;
-			distDir: string;
-		};
+		const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, string>;
 		assert.equal(manifest.serverEntry, SERVER_BUNDLE_FILENAME);
-		assert.equal(path.resolve(manifest.distDir), path.resolve(appConfig.absolutePaths.distDir));
+		assert.deepEqual(
+			Object.entries(manifest).filter(([, value]) => path.isAbsolute(value)),
+			[],
+			'the deploy manifest holds no absolute path',
+		);
 
-		const resolvedBundle = resolveProductionServerBundle({ cwd: rootDir });
-		assert.equal(resolvedBundle.serverEntryPath, serverEntryPath);
+		const resolvedEntry = resolveProductionServerEntry(rootDir);
+		assert.equal(resolvedEntry, serverEntryPath);
 	});
 
 	it('defaults omitted rootDir to the project cwd after emitting the config', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-start-default-root-'));
 		tempDirs.push(rootDir);
 		process.chdir(rootDir);
@@ -130,8 +129,51 @@ describe('build → start contract', () => {
 		assert.equal(loadedConfig.rootDir, rootDir);
 	});
 
+	it('writes the server bundle into the configured distDir and finds it there', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-start-dist-dir-'));
+		tempDirs.push(rootDir);
+		process.chdir(rootDir);
+
+		writeFileSync(path.join(rootDir, 'app.ts'), 'export const ready = true;\n', 'utf8');
+		const configPath = path.join(rootDir, 'eco.config.ts');
+		writeFileSync(configPath, 'export default {};\n', 'utf8');
+
+		const appConfig = await finalizeEcoPagesConfig(
+			{ rootDir, distDir: 'build', workDir: '.eco' },
+			{ configFilePath: configPath },
+		);
+		const builder = new ServerStaticBuilder({
+			appConfig,
+			staticSiteGenerator: { run: async () => {} } as unknown as StaticSiteGenerator,
+			serveOptions: { hostname: '127.0.0.1', port: 3000 },
+			runtimeOrigin: 'http://127.0.0.1:3000',
+			entryFile: 'app.ts',
+			needsServerBundle: true,
+		});
+
+		await builder.build(undefined, {
+			router: {} as RouteRegistry,
+			routeRendererFactory: {} as StaticGenerationRendererResolver,
+		});
+
+		const { serverEntryPath, serverOutdir } = getServerBundleOutputPaths(appConfig);
+		assert.equal(serverOutdir, path.join(rootDir, 'build', '.server'));
+		assert.equal(resolveProductionServerEntry(rootDir, 'build'), serverEntryPath);
+		assert.equal(resolveProductionServerEntry(rootDir), undefined);
+		assert.equal(
+			resolveEcoConfigPath({ cwd: rootDir, preferEmitted: true, distDir: 'build' }),
+			path.join(serverOutdir, EMITTED_ECO_CONFIG_FILENAME),
+		);
+		assert.doesNotThrow(() =>
+			assertProductionConfigIdentity(rootDir, path.join(serverOutdir, EMITTED_ECO_CONFIG_FILENAME), {
+				distDir: 'build',
+			}),
+		);
+	});
+
 	it('does not emit a server bundle for static-only apps', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-start-contract-'));
 		tempDirs.push(rootDir);
 		process.chdir(rootDir);
@@ -162,11 +204,12 @@ describe('build → start contract', () => {
 		assert.equal(fileSystem.exists(serverEntryPath), false, 'should not produce dist/.server/app.mjs');
 		assert.equal(fileSystem.exists(manifestPath), false, 'should not produce dist/.server/manifest.json');
 
-		assert.throws(() => resolveProductionServerBundle({ cwd: rootDir }), /No production bundle found/);
+		const resolvedEntry = resolveProductionServerEntry(rootDir);
+		assert.equal(resolvedEntry, undefined);
 	});
 
 	it('preserves import.meta.dirname semantics in emitted dist/.server/eco.config.mjs', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-import-meta-'));
 		tempDirs.push(rootDir);
 		process.chdir(rootDir);
@@ -214,7 +257,7 @@ describe('build → start contract', () => {
 	});
 
 	it('supports dist-only deployment and validates config identity', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-dist-only-'));
 		tempDirs.push(rootDir);
 		process.chdir(rootDir);

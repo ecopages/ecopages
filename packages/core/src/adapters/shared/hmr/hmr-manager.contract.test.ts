@@ -7,7 +7,6 @@ import { installBuildRuntime } from '../../../build/runtime/build-runtime.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import { NodeHmrManager } from '../../node/node-hmr-manager.ts';
-import { HmrManager as BunHmrManager } from '../../bun/hmr-manager.ts';
 import type { SharedHmrManager } from './shared-hmr-manager.ts';
 
 const tempRoots: string[] = [];
@@ -35,21 +34,6 @@ const runtimes = [
 				bridge: {
 					subscriberCount: 0,
 					broadcast: () => {},
-				} as any,
-			});
-		},
-	},
-	{
-		name: 'bun',
-		async create(rootDir: string): Promise<SharedHmrManager> {
-			const config = await finalizeEcoPagesConfig({ rootDir });
-			return new BunHmrManager({
-				appConfig: config,
-				bridge: {
-					subscriberCount: 0,
-					broadcast: () => {},
-					subscribe: () => {},
-					unsubscribe: () => {},
 				} as any,
 			});
 		},
@@ -145,8 +129,14 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		await manager.registerScriptEntrypoint(secondEntrypoint);
 
 		assert.deepEqual(buildCalls, []);
-		assert.equal(manager.getOutputUrl(firstEntrypoint), `${DEV_TRANSFORM_URL_PREFIX}/first.script.js`);
-		assert.equal(manager.getOutputUrl(secondEntrypoint), `${DEV_TRANSFORM_URL_PREFIX}/second.script.js`);
+		assert.equal(
+			manager.getRegisteredEntrypoints().get(firstEntrypoint)?.outputUrl,
+			`${DEV_TRANSFORM_URL_PREFIX}/first.script.js`,
+		);
+		assert.equal(
+			manager.getRegisteredEntrypoints().get(secondEntrypoint)?.outputUrl,
+			`${DEV_TRANSFORM_URL_PREFIX}/second.script.js`,
+		);
 	});
 
 	test('stop clears retained registration state', async () => {

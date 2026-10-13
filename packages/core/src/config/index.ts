@@ -9,7 +9,7 @@ export {
 } from './resolve-eco-config-path.ts';
 export {
 	assertProductionConfigIdentity,
-	resolveProductionServerBundle,
-} from '../build/cache/server-entry-build-cache.ts';
-export type { ResolvedProductionServerBundle } from '../build/cache/server-entry-build-cache.ts';
+	resolveProductionServerEntry,
+	resolveProductionDistDir,
+} from '../build/server-bundle-deploy-manifest.ts';
 export type { EcoPagesUserConfig, LoadedEcoPagesUserConfig, LoadEcoPagesConfigOptions } from './user-config-types.ts';

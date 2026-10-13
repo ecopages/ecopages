@@ -1,7 +1,7 @@
 import type { EcoComponent, EcoComponentConfig, ResolvedLazyTrigger } from '../../../types/public-types.ts';
 import type { AssetDefinition, ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
 import { getComponentIdentity } from '../../../eco/component-identity.ts';
-import { type ComponentGraphRoot } from './component-graph.ts';
+import { type ComponentGraphRoot, type ComponentGraphWalkInput } from './component-graph.ts';
 import * as componentGraph from './component-graph.ts';
 
 /**
@@ -29,17 +29,66 @@ export type PageClientPlan = {
 	lazyClientEntries: AssetDefinition[];
 	lazyConfigs: EcoComponentConfig[];
 	/**
-	 * Every identity-bearing file on the declared graph.
+	 * Components whose Integration differs from their parent's, except the Html shell.
 	 *
 	 * @remarks
-	 * Includes the page owner's Page, Layout, Html, and nested includes, which
-	 * are not hydratable islands. Integrations that emit island hydration
-	 * scripts must pass this list through {@link selectHydrationIslandEntries}.
+	 * The page owner's Page, Layout, and nested includes stay out of this list.
+	 * Integrations that emit island hydration scripts still pass it through
+	 * {@link selectHydrationIslandEntries}; which of these candidates hydrate
+	 * does not change.
 	 */
 	islandEntries: PageClientPlanIslandEntry[];
-	componentsWithForeignDescendants: WeakSet<object>;
-	walks: number;
+	/**
+	 * Every identity-bearing component on the declared graph.
+	 *
+	 * @remarks
+	 * Cache invalidation still watches these files. Island hydration uses
+	 * {@link PageClientPlan.islandEntries}, which is the foreign-to-parent subset.
+	 */
+	sourceComponents: EcoComponent[];
 };
+
+type PlanGraph = {
+	integrationByComponent: ReadonlyMap<object, string>;
+	childrenByComponent: ReadonlyMap<object, readonly EcoComponent[]>;
+	foreignByIntegration: Map<string, Map<object, boolean>>;
+};
+
+const planGraphs = new WeakMap<PageClientPlan, PlanGraph>();
+
+/**
+ * Whether `component`, or anything below it, belongs to an Integration other than `integrationName`.
+ *
+ * @remarks
+ * One plan answers for any renderer: a nested renderer asks the page owner's plan about its own
+ * Integration instead of building a plan of its own. Answers are memoized per Integration, and a
+ * cycle in the declared graph counts as no foreign descendants.
+ */
+function isForeignTo(graph: PlanGraph, component: object, integrationName: string): boolean {
+	let memo = graph.foreignByIntegration.get(integrationName);
+	if (!memo) {
+		memo = new Map();
+		graph.foreignByIntegration.set(integrationName, memo);
+	}
+
+	const known = memo.get(component);
+	if (known !== undefined) {
+		return known;
+	}
+
+	memo.set(component, false);
+	let found = (graph.integrationByComponent.get(component) ?? integrationName) !== integrationName;
+	if (!found) {
+		for (const child of graph.childrenByComponent.get(component) ?? []) {
+			if (isForeignTo(graph, child, integrationName)) {
+				found = true;
+				break;
+			}
+		}
+	}
+	memo.set(component, found);
+	return found;
+}
 
 /**
  * Browser assets produced from one page client plan.
@@ -50,12 +99,13 @@ export type PageClientBrowserAssets = {
 	lazyTriggers: ResolvedLazyTrigger[];
 };
 
-function toGraphRoots(components: (EcoComponent | Partial<EcoComponent>)[]): ComponentGraphRoot[] {
-	return components.filter(Boolean).map((component) => ({ component }));
-}
-
+/**
+ * @remarks
+ * An explicit `config.integration` wins over the identity's, as it does when the graph walk and
+ * render routing pick an owner, so a component has one Integration everywhere.
+ */
 function getIntegrationName(component: EcoComponent | Partial<EcoComponent>, parentIntegrationName: string): string {
-	return getComponentIdentity(component)?.integration ?? component.config?.integration ?? parentIntegrationName;
+	return component.config?.integration ?? getComponentIdentity(component)?.integration ?? parentIntegrationName;
 }
 
 function collectPendingLazyClientEntries(
@@ -83,25 +133,47 @@ function collectPendingLazyClientEntries(
 
 /**
  * Walks the declared component graph once and returns every client entry for the page.
+ *
+ * @remarks
+ * Each component is visited once, but an island is a property of an edge: a repeat visit from a
+ * parent of another Integration still records the component, so the order in which parents reach
+ * it does not change the plan. A component is listed at most once.
  */
-export function collectPageClientPlan(
-	components: (EcoComponent | Partial<EcoComponent>)[],
-	currentIntegrationName: string,
-): PageClientPlan {
+export function collectPageClientPlan(roots: ComponentGraphRoot[], currentIntegrationName: string): PageClientPlan {
 	const integrationNames = new Set<string>();
 	const lazyTriggers: ResolvedLazyTrigger[] = [];
 	const lazyClientEntries: AssetDefinition[] = [];
 	const seenLazyKeys = new Set<string>();
 	const lazyConfigs: EcoComponentConfig[] = [];
 	const islandEntries: PageClientPlanIslandEntry[] = [];
+	const sourceComponents: EcoComponent[] = [];
 	const childrenByComponent = new Map<object, EcoComponent[]>();
 	const integrationByComponent = new Map<object, string>();
 	const visited: EcoComponent[] = [];
+	const islandComponents = new Set<object>();
+
+	const recordIsland = ({ component, parentIntegrationName, source }: ComponentGraphWalkInput): void => {
+		const file = getComponentIdentity(component)?.file;
+		const integrationName =
+			integrationByComponent.get(component) ?? getIntegrationName(component, parentIntegrationName);
+		if (
+			!file ||
+			integrationName === parentIntegrationName ||
+			source === 'html-template' ||
+			islandComponents.has(component)
+		) {
+			return;
+		}
+
+		islandComponents.add(component);
+		islandEntries.push({ component, file, integrationName });
+	};
 
 	componentGraph.walkComponentGraph({
-		roots: toGraphRoots(components),
+		roots,
 		currentIntegrationName,
-		onComponent: ({ component, parentIntegrationName }) => {
+		onRepeatVisit: recordIsland,
+		onComponent: ({ component, parentIntegrationName, source }: ComponentGraphWalkInput) => {
 			const integrationName = getIntegrationName(component, parentIntegrationName);
 			integrationNames.add(integrationName);
 			integrationByComponent.set(component, integrationName);
@@ -114,56 +186,27 @@ export function collectPageClientPlan(
 
 			collectPendingLazyClientEntries(component.config, lazyClientEntries, lazyConfigs, seenLazyKeys);
 
-			const file = getComponentIdentity(component)?.file;
-			if (file) {
-				islandEntries.push({ component, file, integrationName });
+			if (getComponentIdentity(component)?.file) {
+				sourceComponents.push(component);
 			}
+			recordIsland({ component, parentIntegrationName, source });
 
 			const children = (component.config?.dependencies?.components ?? []).filter(Boolean) as EcoComponent[];
 			childrenByComponent.set(component, children);
 		},
 	});
 
-	const componentsWithForeignDescendants = new WeakSet<object>();
-	const foreignCache = new Map<object, boolean>();
-
-	const isForeignToRenderer = (component: EcoComponent): boolean => {
-		const cached = foreignCache.get(component);
-		if (cached !== undefined) {
-			return cached;
-		}
-
-		const ownIntegration = integrationByComponent.get(component) ?? currentIntegrationName;
-		let found = ownIntegration !== currentIntegrationName;
-		if (!found) {
-			for (const child of childrenByComponent.get(component) ?? []) {
-				if (isForeignToRenderer(child)) {
-					found = true;
-					break;
-				}
-			}
-		}
-		foreignCache.set(component, found);
-		if (found) {
-			componentsWithForeignDescendants.add(component);
-		}
-		return found;
-	};
-
-	for (const component of visited) {
-		isForeignToRenderer(component);
-	}
-
-	return {
+	const plan: PageClientPlan = {
 		currentIntegrationName,
 		integrationNames,
 		lazyTriggers,
 		lazyClientEntries,
 		lazyConfigs,
 		islandEntries,
-		componentsWithForeignDescendants,
-		walks: 1,
+		sourceComponents,
 	};
+	planGraphs.set(plan, { integrationByComponent, childrenByComponent, foreignByIntegration: new Map() });
+	return plan;
 }
 
 /**
@@ -181,13 +224,9 @@ export function uniqueIslandIntegrationNames(plan: PageClientPlan): string[] {
  * Island files that `integrationName` should hydrate as Foreign Children.
  *
  * @remarks
- * `islandEntries` lists every identity-bearing file on the page. The page
- * owner's own Page, Layout, Html, and nested includes live in that owner's
- * page bootstrap tree. Emitting per-component island hydration for them
- * downloads extra client graphs that never find a host. This returns only
- * files owned by `integrationName` when that integration is not the page
- * owner — the Foreign Children that actually need `hydrateRoot` on an
- * Island Host.
+ * `islandEntries` lists components whose Integration differs from their parent's,
+ * excluding the Html shell. This returns the ones owned by `integrationName`
+ * when that integration is not the page owner.
  */
 export function selectHydrationIslandEntries(
 	plan: Pick<PageClientPlan, 'currentIntegrationName' | 'islandEntries'>,
@@ -201,21 +240,39 @@ export function selectHydrationIslandEntries(
 }
 
 /**
- * Returns whether a component's declared subtree (plus optional extra roots) crosses integrations.
+ * Returns whether the plan's declared graph includes `component` and every extra root.
+ *
+ * @remarks
+ * A renderer asks {@link planHasForeignChildDescendants} only for components the plan walked;
+ * anything else needs a plan of its own.
+ */
+export function planCoversComponents(
+	plan: PageClientPlan,
+	component: EcoComponent,
+	foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
+): boolean {
+	const graph = planGraphs.get(plan);
+	if (!graph) {
+		return false;
+	}
+
+	return [component, ...(foreignChildRoots ?? [])].every((entry) => graph.integrationByComponent.has(entry));
+}
+
+/**
+ * Returns whether a component's declared subtree (plus optional extra roots) crosses integrations,
+ * seen from the renderer of `integrationName`.
  */
 export function planHasForeignChildDescendants(
 	plan: PageClientPlan,
 	component: EcoComponent,
-	currentIntegrationName: string,
+	integrationName: string,
 	foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
 ): boolean {
-	for (const root of foreignChildRoots ?? []) {
-		if (getIntegrationName(root, currentIntegrationName) !== currentIntegrationName) {
-			return true;
-		}
-		if (plan.componentsWithForeignDescendants.has(root)) {
-			return true;
-		}
+	const graph = planGraphs.get(plan);
+	if (!graph) {
+		return false;
 	}
-	return plan.componentsWithForeignDescendants.has(component);
+
+	return [component, ...(foreignChildRoots ?? [])].some((entry) => isForeignTo(graph, entry, integrationName));
 }

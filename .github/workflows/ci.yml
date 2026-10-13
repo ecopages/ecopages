@@ -24,9 +24,6 @@ jobs:
             - name: Setup pnpm
               uses: pnpm/action-setup@v6
 
-            - name: Setup Bun
-              uses: oven-sh/setup-bun@v2
-
             - name: Setup Node
               uses: actions/setup-node@v6
               with:
@@ -72,7 +69,6 @@ jobs:
               run: pnpm run test:ci:fast
 
     e2e:
-        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
         runs-on: ubuntu-latest
         permissions:
             contents: read
@@ -121,14 +117,14 @@ jobs:
 
             - name: Install Playwright Browsers
               if: steps.playwright-cache.outputs.cache-hit != 'true'
-              run: pnpm exec playwright install --with-deps
+              run: pnpm exec playwright install chromium --with-deps
 
             - name: Install Playwright OS deps
               if: steps.playwright-cache.outputs.cache-hit == 'true'
-              run: pnpm exec playwright install-deps
+              run: pnpm exec playwright install-deps chromium
 
-            - name: E2E (develop gate)
-              run: pnpm run test:ci:e2e
+            - name: E2E
+              run: pnpm run ${{ github.event_name == 'pull_request' && 'test:e2e:pr' || 'test:e2e' }}
               env:
                   ECOPAGES_LOGGER_DEBUG: false
                   ECOPAGES_E2E_TIMING: true

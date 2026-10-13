@@ -11,9 +11,7 @@ import { AssetProcessingService } from '../services/assets/asset-processing-serv
 import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
 import { deepMerge } from '../utils/deep-merge.ts';
 import type { StaticExportContext } from '../static-site-generator/static-export-context.ts';
-import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';
 
-export type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from './runtime-capability.ts';
 export type {
 	EcoBuildLoader,
 	EcoBuildOnLoadArgs,
@@ -55,7 +53,7 @@ export function mergeIntegrationOptions<TDefaults, TOverrides>(
  * Base configuration shared by all integration plugins.
  *
  * @remarks
- * Integrations declare their file ownership, optional runtime requirements, and
+ * Integrations declare their file ownership and
  * any global assets or build-time contributions here. Runtime-only side effects
  * belong in `setup()` rather than the constructor.
  */
@@ -74,11 +72,6 @@ export interface IntegrationPluginConfig {
 	 * They are not specific to any particular page or component.
 	 */
 	integrationDependencies?: AssetDefinition[];
-	/**
-	 * Declares runtime-specific requirements that must be satisfied before the
-	 * app can start with this integration enabled.
-	 */
-	runtimeCapability?: RuntimeCapabilityDeclaration;
 	/**
 	 * JSX import source owned by this integration.
 	 *
@@ -121,7 +114,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	readonly name: string;
 	readonly extensions: string[];
 	abstract renderer: RendererClass<C>;
-	readonly runtimeCapability?: RuntimeCapabilityDeclaration;
 	readonly jsxImportSource?: string;
 
 	/**
@@ -137,7 +129,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 
 	protected integrationDependencies: AssetDefinition[];
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
-	protected options?: Record<string, unknown>;
 	protected appConfig?: EcoPagesAppConfig;
 	protected assetProcessingService?: AssetProcessingService;
 	protected hmrManager?: IHmrManager;
@@ -176,7 +167,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		this.name = config.name;
 		this.extensions = config.extensions;
 		this.integrationDependencies = config.integrationDependencies || [];
-		this.runtimeCapability = config.runtimeCapability;
 		this.jsxImportSource = config.jsxImportSource;
 	}
 
@@ -272,20 +262,37 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 
 	/**
 	 * Creates the shared renderer options owned by core lifecycle setup.
+	 *
+	 * @remarks
+	 * Handler renders call `initializeRenderer()` on every `render`, `renderPartial`,
+	 * and `renderServerModule`. Each call still builds a new renderer, and all of
+	 * them share this Integration's asset-processing service. An unchanged file
+	 * asset is reused until its source hash changes, its output is missing, or a
+	 * development change batch drops the entry. The cache key is the dependency
+	 * identity; the source hash is the freshness check. A missing service is
+	 * created here so a plugin that received `appConfig` without `setConfig()`
+	 * still has one.
 	 */
 	protected createRendererOptions(): IntegrationRendererConstructorOptions {
 		if (!this.appConfig) {
 			throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_APP_CONFIG);
 		}
 
-		const assetProcessingService = AssetProcessingService.createWithDefaultProcessors(this.appConfig);
+		if (!this.assetProcessingService) {
+			this.initializeAssetDefinitionService();
+		}
+
+		if (!this.assetProcessingService) {
+			throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_ASSET_SERVICE);
+		}
+
 		if (this.hmrManager) {
-			assetProcessingService.setHmrManager(this.hmrManager);
+			this.assetProcessingService.setHmrManager(this.hmrManager);
 		}
 
 		return {
 			appConfig: this.appConfig,
-			assetProcessingService,
+			assetProcessingService: this.assetProcessingService,
 			resolvedIntegrationDependencies: this.resolvedIntegrationDependencies,
 			runtimeOrigin: this.runtimeOrigin,
 		};
@@ -310,8 +317,11 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Instantiates the integration renderer with app-owned services.
 	 *
 	 * @remarks
-	 * Renderers are cheap runtime objects. They receive the finalized app config,
-	 * a fresh asset-processing service, and integration-global processed assets.
+	 * Renderers are cheap runtime objects. Handler renders still create a new one
+	 * on every `render`, `renderPartial`, and `renderServerModule` call. They share
+	 * the Integration's asset-processing service, so an unchanged stylesheet or
+	 * script is reused until its source changes, its output is missing, or
+	 * development invalidation drops the entry.
 	 */
 	initializeRenderer(): IntegrationRenderer<C> {
 		const renderer = new this.renderer(this.createRendererOptions());
@@ -339,14 +349,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	async prepareBuildContributions(): Promise<void> {}
 
 	/**
-	 * Reports whether this integration's build inputs changed since the last
-	 * incremental static build.
-	 */
-	didChange(): boolean {
-		return false;
-	}
-
-	/**
 	 * Runs integration-specific setup before static page generation begins.
 	 *
 	 * @remarks
@@ -354,11 +356,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * start them here rather than per-page inside the renderer.
 	 */
 	async beforeStaticExport?(_context: StaticExportContext): Promise<void>;
-
-	/**
-	 * Releases resources started in {@link beforeStaticExport}.
-	 */
-	async afterStaticExport?(_context: StaticExportContext): Promise<void>;
 
 	/**
 	 * Performs runtime-only integration setup after config build has already

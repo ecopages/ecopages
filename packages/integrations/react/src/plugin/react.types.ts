@@ -1,46 +1,11 @@
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import type { CompileOptions } from '@mdx-js/mdx';
+import type { MdxCompilerOptionsInput } from '@ecopages/mdx/core';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import type { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';
 import type { ReactPluginRuntimeModule, ResolvedReactPluginRuntimeModule } from '../bundling/runtime-modules.ts';
-import type { ClientGraphBoundaryCache } from '../client-graph/boundary-cache.ts';
 
-/**
- * MDX configuration options for the React plugin.
- */
-export type ReactMdxOptions = {
-	/**
-	 * Whether to enable MDX support.
-	 * @default false
-	 */
-	enabled: boolean;
-	/**
-	 * Compiler options for MDX.
-	 * @default undefined
-	 */
-	compilerOptions?: Omit<CompileOptions, 'jsxImportSource' | 'jsxRuntime'>;
-	/**
-	 * Remark plugins.
-	 * @default undefined
-	 */
-	remarkPlugins?: CompileOptions['remarkPlugins'];
-	/**
-	 * Rehype plugins.
-	 * @default undefined
-	 */
-	rehypePlugins?: CompileOptions['rehypePlugins'];
-	/**
-	 * Recma plugins.
-	 * @default undefined
-	 */
-	recmaPlugins?: CompileOptions['recmaPlugins'];
-	/**
-	 * Custom extensions to be treated as MDX files.
-	 * @default ['.mdx']
-	 */
-	extensions?: string[];
-};
+export type ReactMdxOptions = MdxCompilerOptionsInput;
 
 /**
  * Options for the React plugin.
@@ -77,69 +42,38 @@ export type ReactPluginOptions = {
 	/**
 	 * Optional shared browser runtime vendors.
 	 *
-	 * With `router`, npm packages reachable from `eco.layout()` **render graphs**
-	 * under the app's configured `layouts/` and `components/` directories are
-	 * discovered automatically and registered as shared vendors (alongside React
-	 * and React DOM). This prevents duplicate module instances when persisted
-	 * layouts stay mounted across SPA navigation.
-	 *
-	 * Without `router`, only explicit entries here are vendored.
-	 *
 	 * @remarks
-	 * Discovery follows client reachability from each layout's `render` path,
-	 * resolves relative and tsconfig path aliases, and collects npm package roots
-	 * imported from provider/context modules in that graph (for example files named
-	 * `query-provider.tsx` or modules using `QueryClientProvider` / `createContext`).
-	 * It does not vendor every npm dependency reachable from shell or page UI.
-	 *
-	 * Singleton libraries (MobX, Redux, TanStack Query, audio engines) must be
-	 * peer dependencies in shared state/UI packages and registered here explicitly
-	 * when page code imports them outside the layout graph. List each singleton in
-	 * `externals` on library vendors that import it so one shared vendor URL is used.
-	 *
-	 * Layouts that mount shared runtime state should set `runtimeProvider: true` in
-	 * `eco.layout({ ... })`. Flagged layouts become the only discovery roots and
-	 * vendor every reachable npm package in that layout graph. When no layout opts
-	 * in, discovery falls back to scanning all layouts with provider-scoped npm
-	 * collection.
+	 * Packages listed here use one vendor URL across page browser graphs. Add
+	 * singleton packages such as TanStack Query or MobX when pages and layouts
+	 * need to share the same module instance; layouts do not infer these entries.
 	 *
 	 * @example
 	 * ```ts
-	 * export const QueryRootLayout = eco.layout({
-	 *   runtimeProvider: true,
-	 *   render: ({ children }) => <QueryProvider>{children}</QueryProvider>,
-	 * });
-	 *
 	 * reactPlugin({
 	 *   router: ecoRouter(),
+	 *   runtimeModules: ['@tanstack/react-query'],
 	 * });
 	 * ```
 	 *
-	 * Manual entries override auto-discovered entries for the same specifier.
-	 * Discovery normalizes package subpaths to package roots when collecting
-	 * vendors. Import rewrite matches exact specifiers only — register subpaths
-	 * separately in `runtimeModules` when page code imports them directly.
-	 *
-	 * `externals` on a library vendor must already be shared vendors (React, the
-	 * router, or another `runtimeModules` specifier). Unmapped externals throw.
+	 * Register the exact specifier imported by the page or layout. Package
+	 * subpaths are separate module contracts and need separate entries.
 	 *
 	 * @example Advanced vendor config
 	 * ```ts
 	 * runtimeModules: [
-	 *   { specifier: '@acme/ui', outputName: 'acme-ui', externals: ['react'] },
+	 *   { specifier: '@acme/ui', outputName: 'acme-ui' },
 	 * ]
 	 * ```
 	 */
 	runtimeModules?: ReactPluginRuntimeModule[];
 	/**
 	 * MDX configuration for handling .mdx files within the React plugin.
-	 * When enabled, MDX files are treated as React pages with full router support.
+	 * When configured, MDX files are treated as React pages with full router support.
 	 * @example
 	 * ```ts
 	 * reactPlugin({
 	 *   router: ecoRouter(),
 	 *   mdx: {
-	 *     enabled: true,
 	 *     extensions: ['.mdx', '.md'],
 	 *     remarkPlugins: [remarkGfm],
 	 *     rehypePlugins: [[rehypePrettyCode, { theme: '...' }]],
@@ -164,8 +98,6 @@ export type ReactRendererConfig = {
 	getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	mdxExtensions?: string[];
 	hmrPageMetadataCache?: HmrPageMetadataCache;
-	/** Persistent React-plugin-owned cache shared by bundles and HMR transforms. */
-	clientGraphBoundaryCache?: ClientGraphBoundaryCache;
 	/**
 	 * When true, always emit page browser graph / hydration assets for React pages.
 	 *

@@ -1,16 +1,13 @@
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
-import {
-	completeNavigationLifecycle,
-	dispatchBeforeSwap,
-	type EcoNavigationEvent,
-} from '@ecopages/core/router/navigation-lifecycle';
+import type { EcoNavigationEvent } from '@ecopages/core/router/navigation-lifecycle';
+import { commitNavigationPage } from '@ecopages/core/router/navigation-pipeline';
+import { manageWindowScroll } from '@ecopages/core/client/scroll';
 import type { EcoNavigationOwner } from '@ecopages/core/router/navigation-coordinator';
 import type { DomSwapper } from './dom/dom-swapper.ts';
 import type { PrefetchManager } from './services/prefetch-manager.ts';
-import type { ViewTransitionManager } from './services/view-transition-manager.ts';
 import type { EcoRouterOptions } from './types.ts';
 import { resolveNavigationReloadDecision } from './navigation-commit-reload.ts';
-import { runBrowserRouterCommitSwap } from './navigation-commit-swap.ts';
+import { syncDocumentElementAttributes } from './document-element-sync.ts';
 
 export type NavigationCommitOptions = {
 	html?: string;
@@ -43,18 +40,11 @@ function resolveCommitOwnerContext(
  */
 export class NavigationCommit {
 	private readonly domSwapper: DomSwapper;
-	private readonly viewTransitionManager: ViewTransitionManager;
 	private readonly prefetchManager: PrefetchManager | null;
 	private readonly options: Required<EcoRouterOptions>;
 
-	constructor(
-		domSwapper: DomSwapper,
-		viewTransitionManager: ViewTransitionManager,
-		prefetchManager: PrefetchManager | null,
-		options: Required<EcoRouterOptions>,
-	) {
+	constructor(domSwapper: DomSwapper, prefetchManager: PrefetchManager | null, options: Required<EcoRouterOptions>) {
 		this.domSwapper = domSwapper;
-		this.viewTransitionManager = viewTransitionManager;
 		this.prefetchManager = prefetchManager;
 		this.options = options;
 	}
@@ -73,78 +63,53 @@ export class NavigationCommit {
 			navigationRuntime,
 			newDocument,
 		);
-		const { requestedReload } = dispatchBeforeSwap(document, {
+		const result = await commitNavigationPage({
 			url,
 			direction,
 			newDocument,
+			isStale: isStaleNavigation,
+			viewTransitionsEnabled: this.options.viewTransitions,
+			persistAttribute: this.options.persistAttribute,
+			onReloadRequested: async () => {
+				const reloadDecision = await resolveNavigationReloadDecision({
+					shouldCleanupCurrentOwner,
+					currentDocumentOwner,
+					navigationRuntime,
+					isStaleNavigation,
+					allowFullDocumentFallback,
+					urlHref: url.href,
+				});
+				if (reloadDecision.kind === 'reload') this.reloadDocument(reloadDecision.href);
+			},
+			beforeTransition: async () => {
+				if (shouldCleanupCurrentOwner) await navigationRuntime.cleanupOwner(currentDocumentOwner);
+			},
+			beforeCommit: () => {
+				if (this.options.updateHistory && direction === 'forward') {
+					window.history.pushState({}, '', url.href);
+				} else if (direction === 'replace') {
+					window.history.replaceState({}, '', url.href);
+				}
+			},
+			swap: () => {
+				syncDocumentElementAttributes(document, newDocument, this.options.documentElementAttributesToSync);
+				this.domSwapper.morphBody(newDocument);
+			},
+			onSwapped: () => {
+				navigationRuntime.adoptDocumentOwner(newDocument, 'browser-router');
+			},
+			afterSwap: () =>
+				manageWindowScroll(url, previousUrl, {
+					scrollBehavior: this.options.scrollBehavior,
+					smoothScroll: this.options.smoothScroll,
+				}),
+			afterLifecycle: () => {
+				this.prefetchManager?.observeLinks();
+				if (options.html) this.prefetchManager?.cacheVisitedPage(url.href, options.html);
+			},
 		});
-		if (isStaleNavigation()) {
-			return false;
-		}
 
-		if (requestedReload) {
-			const reloadDecision = await resolveNavigationReloadDecision({
-				shouldCleanupCurrentOwner,
-				currentDocumentOwner,
-				navigationRuntime,
-				isStaleNavigation,
-				allowFullDocumentFallback,
-				urlHref: url.href,
-			});
-			if (reloadDecision.kind === 'reload') {
-				this.reloadDocument(reloadDecision.href);
-			}
-			return false;
-		}
-
-		const useViewTransitions = this.options.viewTransitions;
-		await this.domSwapper.preloadStylesheets(newDocument);
-		if (isStaleNavigation()) {
-			return false;
-		}
-
-		if (shouldCleanupCurrentOwner) {
-			await navigationRuntime.cleanupOwner(currentDocumentOwner);
-		}
-
-		if (isStaleNavigation()) {
-			return false;
-		}
-
-		const commitSwap = () => {
-			runBrowserRouterCommitSwap({
-				url,
-				previousUrl,
-				direction,
-				newDocument,
-				isStaleNavigation,
-				domSwapper: this.domSwapper,
-				options: this.options,
-				useViewTransitions,
-			});
-		};
-
-		if (useViewTransitions) {
-			await this.viewTransitionManager.transition(commitSwap, { incomingDocument: newDocument });
-		} else {
-			commitSwap();
-		}
-
-		if (isStaleNavigation()) {
-			return false;
-		}
-
-		navigationRuntime.adoptDocumentOwner(newDocument, 'browser-router');
-
-		completeNavigationLifecycle(document, { url, direction }, { isStale: isStaleNavigation });
-
-		this.prefetchManager?.observeLinks();
-
-		if (options.html) {
-			this.prefetchManager?.cacheVisitedPage(url.href, options.html);
-		}
-
-		return true;
+		return result === 'committed';
 	}
 
 	private reloadDocument(href: string): void {

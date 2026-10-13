@@ -78,7 +78,7 @@ export class ExplicitStaticRouteMatcher {
 				errors: EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS,
 			});
 
-			return renderer.renderToResponse(renderableView, props, {});
+			return renderer.renderExplicitView(renderableView, props, { params });
 		} catch (error) {
 			if (shouldLogPageFailure(error)) {
 				appLogger.error(

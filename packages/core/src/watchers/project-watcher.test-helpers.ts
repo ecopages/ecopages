@@ -1,17 +1,18 @@
 import path from 'node:path';
 import { vi } from 'vitest';
 import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
-import type { ResolvedHmrEntrypoint } from '../hmr/hmr-entrypoint-output.ts';
+import type { ResolvedHmrEntrypoint } from '../types/public-types.ts';
 import {
 	InMemoryEntrypointDependencyGraph,
 	setAppEntrypointDependencyGraph,
 } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import { getAppBuildInputIndex } from '../build/cache/build-input-dependency-index.ts';
-import type { ClientBridge } from '../adapters/bun/client-bridge.ts';
+import type { IClientBridge } from '../types/internal-types.ts';
 
 export const createMockHmrManager = (): IHmrManager =>
 	({
 		handleFileChange: vi.fn(async () => {}),
+		handleFileChanges: vi.fn(async () => {}),
 		broadcast: vi.fn(() => {}),
 		setEnabled: vi.fn(() => {}),
 		registerEntrypoint: vi.fn(async () => ''),
@@ -24,11 +25,8 @@ export const createMockHmrManager = (): IHmrManager =>
 		})),
 		registerStrategy: vi.fn(() => {}),
 		isEnabled: vi.fn(() => true),
-		getOutputUrl: vi.fn(() => undefined),
 		getWatchedFiles: vi.fn(() => new Map()),
 		getRegisteredEntrypoints: vi.fn(() => new Map()),
-		getRuntimeWorkDir: vi.fn(() => ''),
-		getRuntimePath: vi.fn(() => ''),
 		tryHandleAssetRequest: vi.fn(() => null),
 		getDefaultContext: vi.fn(() => ({
 			getWatchedFiles: () => new Map(),
@@ -68,7 +66,7 @@ export function registerMockEntrypoint(
 	);
 }
 
-export const createMockBridge = (): ClientBridge =>
+export const createMockBridge = (): IClientBridge =>
 	({
 		reload: vi.fn(() => {}),
 		error: vi.fn(() => {}),
@@ -78,7 +76,7 @@ export const createMockBridge = (): ClientBridge =>
 		unsubscribe: vi.fn(() => {}),
 		broadcast: vi.fn(() => {}),
 		subscriberCount: 0,
-	}) as unknown as ClientBridge;
+	}) as unknown as IClientBridge;
 
 /**
  * Installs the in-memory entrypoint dependency graph that the HMR managers

@@ -51,7 +51,7 @@ Start here for package-level architecture:
 - `packages/core/src/plugins/README.md`: integration and processor contracts
 - `packages/core/src/build/README.md`: build adapter, executor, and dev-build coordination
 - `packages/core/src/services/README.md`: shared runtime services, dev graph, invalidation, and browser/server seams
-- `packages/core/src/adapters/README.md`: Bun and Node adapter boundaries
+- `packages/core/src/adapters/README.md`: HTTP host. The process can be Node or Bun.
 - `packages/core/src/dev/README.md`: dev transform server and on-demand client delivery
 - `packages/core/src/hmr/README.md`: HMR strategy layer and build error presentation
 - `packages/core/src/dev-toolbar/README.md`: custom toolbar clients and build error event contract
@@ -63,7 +63,7 @@ Start here for package-level architecture:
 
 Domain vocabulary lives in `CONTEXT.md`, implementation details in localized READMEs, and agent rules in `AGENTS.md`. User-facing guides are on the [docs site](https://ecopages.app/docs/core/architecture).
 
-The current direction is explicit: Bun is the primary core-owned runtime path, `createApp()` still supports direct Node fallback execution, and esbuild is no longer a strategic core dependency.
+The current direction is explicit: Ecopages runs on Node or Bun through Node APIs, the CLI picks the runtime that launched it, and esbuild is no longer a strategic core dependency.
 
 ### Static Site Generation
 
@@ -156,7 +156,7 @@ For repository-local architecture notes and subsystem maps, start with the files
 Verify your site's functionality:
 `pnpm run test:all`
 
-CI runs the fast gate on pull requests and the e2e gate on pushes to `develop`.
+CI runs `test:ci:fast` (lint, format check, typecheck and every Vitest project, including `apps/docs`, the templates and the static-build parity oracle) and `test:e2e:pr` on pull requests, and `test:e2e` on pushes to `develop` and `main`.
 
 ### Releases
 

@@ -24,9 +24,7 @@ import { RuntimeBundleService } from '../bundling/runtime-bundle.ts';
 import { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';
 import { createReactMdxLoaderPlugin } from '../mdx/mdx-loader-plugin.ts';
 import { appendMdxExtensions, resolveMdxCompilerOptions } from '@ecopages/mdx/core';
-import { ClientGraphBoundaryCache } from '../client-graph/boundary-cache.ts';
-import { discoverLayoutRuntimeModuleSpecifiers } from '../bundling/discover-layout-runtime-modules.ts';
-import { mergeReactPluginRuntimeModules, resolveReactPluginRuntimeModules } from '../bundling/runtime-modules.ts';
+import { resolveReactPluginRuntimeModules } from '../bundling/runtime-modules.ts';
 
 export type { ReactMdxOptions, ReactPluginOptions, ReactRendererConfig } from './react.types.ts';
 
@@ -56,7 +54,7 @@ const resolveReactMdxCompilerOptions = (mdxOptions: ReactMdxOptions): CompileOpt
  * Defaults:
  * - `extensions`: `['.tsx']`
  * - `explicitGraph`: `false`
- * - `mdx.enabled`: `false`
+ * - MDX is disabled when `mdx` is omitted
  * - `mdx.extensions`: `['.mdx']`
  */
 const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactPluginConfig => {
@@ -70,16 +68,12 @@ const resolveReactPluginOptions = (options?: ReactPluginOptions): ResolvedReactP
 		...baseConfig
 	} = options ?? {};
 	const extensions = [...(userExtensions ?? ['.tsx'])];
-	const mdxEnabled = mdx?.enabled ?? false;
+	const mdxEnabled = mdx !== undefined;
 	const mdxExtensions = mdx?.extensions ?? ['.mdx'];
 	const resolvedRuntimeModules = resolveReactPluginRuntimeModules(runtimeModules);
 
 	if (mdxEnabled) {
 		appendMdxExtensions(extensions, mdxExtensions);
-	} else if (mdx?.extensions?.length) {
-		appLogger.warn(
-			'MDX extensions provided but MDX is disabled. MDX files will not be processed. Set mdx.enabled to true to enable MDX support.',
-		);
 	}
 
 	const rendererConfig: ReactRendererConfig = {
@@ -111,7 +105,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	private readonly getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	private readonly runtimeBundleService: RuntimeBundleService;
 	private readonly hmrPageMetadataCache: HmrPageMetadataCache;
-	private readonly clientGraphBoundaryCache: ClientGraphBoundaryCache;
 	private hmrStrategy?: ReactHmrStrategy;
 	private runtimeDependenciesInitialized = false;
 	/**
@@ -141,7 +134,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 			: undefined;
 		this.mdxExtensions = rendererConfig.mdxExtensions ?? ['.mdx'];
 		this.hmrPageMetadataCache = rendererConfig.hmrPageMetadataCache ?? new HmrPageMetadataCache();
-		this.clientGraphBoundaryCache = new ClientGraphBoundaryCache();
 		this.forceBrowserGraph = rendererConfig.forceBrowserGraph ?? false;
 		this.rendererConfig = {
 			...rendererConfig,
@@ -149,7 +141,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 			mdxExtensions: this.mdxExtensions,
 			hmrPageMetadataCache: this.hmrPageMetadataCache,
 			forceBrowserGraph: this.forceBrowserGraph,
-			clientGraphBoundaryCache: this.clientGraphBoundaryCache,
 		};
 
 		if (mdxCompilerOptions) {
@@ -189,42 +180,10 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 					? path.join(this.appConfig.rootDir, this.appConfig.workDir ?? '.eco')
 					: undefined),
 		);
-		this.runtimeBundleService.setRuntimeModules(this.resolveEffectiveRuntimeModules());
+		this.runtimeBundleService.setRuntimeModules(this.rendererConfig.runtimeModules ?? []);
 
 		this.integrationDependencies.unshift(...this.runtimeBundleService.getDependencies());
 		this.runtimeDependenciesInitialized = true;
-	}
-
-	private resolveEffectiveRuntimeModules() {
-		const manualModules = this.rendererConfig.runtimeModules ?? [];
-		if (!this.routerAdapter || !this.appConfig) {
-			return manualModules;
-		}
-
-		const discovery = discoverLayoutRuntimeModuleSpecifiers({
-			searchDirs: [this.appConfig.absolutePaths.layoutsDir, this.appConfig.absolutePaths.componentsDir].filter(
-				Boolean,
-			),
-			projectRoot: this.appConfig.absolutePaths.projectDir,
-			routerImportPath: this.routerAdapter.bundle.importPath,
-		});
-
-		const merged = mergeReactPluginRuntimeModules(manualModules, discovery.specifiers);
-		this.rendererConfig.runtimeModules = merged;
-
-		if (discovery.mode === 'provider-scoped-fallback') {
-			appLogger.debug(
-				'Layout runtime auto-vendoring is using provider-scoped fallback discovery. Set runtimeProvider: true on provider root layouts to scope discovery explicitly.',
-			);
-		}
-
-		if (discovery.specifiers.length > 0) {
-			appLogger.debug(
-				`Auto-vendoring layout runtime modules for persisted SPA layouts: ${discovery.specifiers.join(', ')}`,
-			);
-		}
-
-		return merged;
 	}
 
 	override get plugins(): EcoBuildPlugin[] {
@@ -305,7 +264,6 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 				getMdxLoaderPlugin: this.getMdxLoaderPlugin,
 				ownedTemplateExtensions: this.extensions,
 				allTemplateExtensions: this.appConfig.templatesExt,
-				clientGraphBoundaryCache: this.clientGraphBoundaryCache,
 			});
 		}
 

@@ -1,30 +1,16 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseCliArgs } from './parse-cli-args.ts';
 
 const originalArgv = [...process.argv];
-const originalNodeEnv = process.env.NODE_ENV;
-const originalPreviewServeOnly = process.env.ECOPAGES_PREVIEW_SERVE_ONLY;
 
 describe('parseCliArgs', () => {
 	afterEach(() => {
 		process.argv = [...originalArgv];
-
-		if (originalNodeEnv === undefined) {
-			delete process.env.NODE_ENV;
-		} else {
-			process.env.NODE_ENV = originalNodeEnv;
-		}
-
-		if (originalPreviewServeOnly === undefined) {
-			delete process.env.ECOPAGES_PREVIEW_SERVE_ONLY;
-		} else {
-			process.env.ECOPAGES_PREVIEW_SERVE_ONLY = originalPreviewServeOnly;
-		}
 	});
 
 	it('parses preview serve-only from env', () => {
-		delete process.env.NODE_ENV;
-		process.env.ECOPAGES_PREVIEW_SERVE_ONLY = 'true';
+		vi.stubEnv('NODE_ENV', undefined);
+		vi.stubEnv('ECOPAGES_PREVIEW_SERVE_ONLY', 'true');
 		process.argv = ['node', '/usr/local/bin/ecopages.js', 'preview'];
 
 		expect(parseCliArgs()).toMatchObject({
@@ -45,20 +31,8 @@ describe('parseCliArgs', () => {
 		expect(parseCliArgs()).toMatchObject({ start: true, dev: false, build: false, preview: false });
 	});
 
-	it('parses --force for production build commands', () => {
-		delete process.env.NODE_ENV;
-		process.argv = ['node', '/usr/local/bin/ecopages.js', 'build', '--force'];
-
-		expect(parseCliArgs()).toMatchObject({
-			build: true,
-			force: true,
-			dev: false,
-		});
-		expect(process.env.NODE_ENV).toBe('production');
-	});
-
 	it('forces production NODE_ENV for build when ambient env is development', () => {
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		process.argv = ['node', '/usr/local/bin/ecopages.js', 'build'];
 
 		expect(parseCliArgs()).toMatchObject({
@@ -69,7 +43,7 @@ describe('parseCliArgs', () => {
 	});
 
 	it('keeps development NODE_ENV for dev commands', () => {
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		process.argv = ['node', '/usr/local/bin/ecopages.js', 'dev'];
 
 		expect(parseCliArgs()).toMatchObject({
@@ -79,7 +53,7 @@ describe('parseCliArgs', () => {
 	});
 
 	it('forces production NODE_ENV for preview when ambient env is development', () => {
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		process.argv = ['node', '/usr/local/bin/ecopages.js', 'preview'];
 
 		expect(parseCliArgs()).toMatchObject({
@@ -90,7 +64,7 @@ describe('parseCliArgs', () => {
 	});
 
 	it('forces production NODE_ENV for start when ambient env is development', () => {
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		process.argv = ['node', '/usr/local/bin/ecopages.js', 'start'];
 
 		expect(parseCliArgs()).toMatchObject({
@@ -101,7 +75,7 @@ describe('parseCliArgs', () => {
 	});
 
 	it('defaults to start when the bin is present without a subcommand', () => {
-		delete process.env.NODE_ENV;
+		vi.stubEnv('NODE_ENV', undefined);
 		process.argv = ['node', '/usr/local/bin/ecopages.js'];
 
 		expect(parseCliArgs()).toMatchObject({
@@ -113,24 +87,14 @@ describe('parseCliArgs', () => {
 		expect(process.env.NODE_ENV).toBe('production');
 	});
 
-	it('parses port, hostname, and react-fast-refresh flags', () => {
-		delete process.env.NODE_ENV;
-		process.argv = [
-			'node',
-			'/usr/local/bin/ecopages.js',
-			'dev',
-			'--port',
-			'4321',
-			'--hostname',
-			'127.0.0.1',
-			'--react-fast-refresh',
-		];
+	it('parses port and hostname flags', () => {
+		vi.stubEnv('NODE_ENV', undefined);
+		process.argv = ['node', '/usr/local/bin/ecopages.js', 'dev', '--port', '4321', '--hostname', '127.0.0.1'];
 
 		expect(parseCliArgs()).toMatchObject({
 			dev: true,
 			port: 4321,
 			hostname: '127.0.0.1',
-			reactFastRefresh: true,
 		});
 	});
 });

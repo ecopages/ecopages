@@ -15,10 +15,7 @@ import type {
 	RouteRendererBody,
 	RouteRendererOptions,
 } from '@ecopages/core';
-import {
-	IntegrationRenderer,
-	type RenderToResponseContext,
-} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { resolveDocumentShellLayouts } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';
 import type {
 	QueuedForeignSubtreeChildRenderResult,
@@ -79,14 +76,15 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	 * @remarks
 	 * Activates the integration runtime before reading {@link getRenderSession}
 	 * so a renderer constructed before plugin setup still sees the session.
-	 * When `options.locals` is present, rendering stays in-process: request locals
-	 * are not structured-cloned across the worker boundary.
+	 * When `options.locals` or `options.props` is present, rendering stays in-process.
+	 * Request locals are not structured-cloned across the worker boundary, and the
+	 * worker re-imports `file` and drops the supplied view and props.
 	 */
 	public override async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
 		await this.ensureIntegrationRuntimeActivated();
 		const renderSession = this.getRenderSession?.();
 
-		if (renderSession && options.locals === undefined) {
+		if (renderSession && options.locals === undefined && options.props === undefined) {
 			const params: PageParams = options.params ?? {};
 			const result = await renderSession.renderPageInWorker({
 				filePath: options.file,
@@ -94,10 +92,8 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 				query: options.query,
 			});
 
-			return {
-				body: result.html,
-				cacheStrategy: result.cacheStrategy,
-			};
+			const { html, ...metadata } = result;
+			return { body: html, ...metadata };
 		}
 
 		return super.execute(options);
@@ -187,11 +183,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 				this.renderLitQueuedForeignSubtreeChildren(children, queuedResolutionsByToken, resolveToken),
 		);
 		const hasDependencies = Boolean(input.component.config?.dependencies);
-		const canResolveAssets = typeof this.assetProcessingService?.processDependencies === 'function';
-		const assets =
-			hasDependencies && canResolveAssets
-				? await this.processComponentDependencies([input.component])
-				: undefined;
+		const assets = hasDependencies ? await this.processComponentDependencies([input.component]) : undefined;
 
 		return this.finalizeIslandComponentRender(input, {
 			html: queuedForeignSubtreeResolution.html,
@@ -230,11 +222,10 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 	 * Preloads SSR-eligible scripts to register custom elements before render.
 	 *
 	 * @remarks
-	 * When a render session exists (main thread), preload uses the session so
-	 * Bun source imports and the Node asset pipeline stay on that isolate.
-	 * With no session (static-render worker), preload uses this renderer's
-	 * app-module importer. A native source import in the worker leaves custom
-	 * elements undefined for `@lit-labs/ssr`.
+	 * When a render session exists, preload uses the session so the asset-pipeline
+	 * module stays on that isolate. With no session, preload uses this renderer's
+	 * app-module importer, which writes a separate module per registry so
+	 * `@lit-labs/ssr` sees the element.
 	 */
 	protected async preloadSsrScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): Promise<void> {
 		ensureLitDomShim();
@@ -287,28 +278,6 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 			});
 		} catch (error) {
 			throw this.createRenderError('Error rendering page', error);
-		}
-	}
-
-	async renderToResponse<P = Record<string, unknown>>(
-		view: EcoComponent<P>,
-		props: P,
-		ctx: RenderToResponseContext,
-	): Promise<Response> {
-		try {
-			const layouts = view.config?.layouts;
-			const Layout = layouts?.[layouts.length - 1];
-			await this.preloadSsrScripts([view, Layout]);
-
-			return await this.renderViewWithDocumentShell({
-				view,
-				props,
-				ctx,
-				layout: Layout,
-				transformDocumentHtml: normalizeLitHtml,
-			});
-		} catch (error) {
-			throw this.createRenderError('Error rendering view', error);
 		}
 	}
 }

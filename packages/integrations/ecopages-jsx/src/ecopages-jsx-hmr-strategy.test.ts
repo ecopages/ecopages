@@ -1,15 +1,18 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import path from 'node:path';
 import { HmrStrategyType } from '@ecopages/core/hmr/hmr-strategy';
-import { EcopagesJsxHmrStrategy } from './ecopages-jsx-hmr-strategy.ts';
-import {
-	getEjsxHmrOwnership,
-	recordEjsxHmrOwnership,
-	resetEjsxHmrOwnership,
-	updateEjsxHmrOwnership,
-	withEjsxHmrOwnershipScope,
-} from './ecopages-jsx-hmr-ownership.ts';
 import type { EcoComponent, EcoComponentConfig, ResolvedHmrEntrypoint } from '@ecopages/core';
+
+type OwnershipModule = typeof import('./ecopages-jsx-hmr-ownership.ts');
+
+let EcopagesJsxHmrStrategy: typeof import('./ecopages-jsx-hmr-strategy.ts').EcopagesJsxHmrStrategy;
+let getEjsxHmrOwnership: OwnershipModule['getEjsxHmrOwnership'];
+let recordEjsxHmrOwnership: OwnershipModule['recordEjsxHmrOwnership'];
+let withEjsxHmrOwnershipScope: OwnershipModule['withEjsxHmrOwnershipScope'];
+
+async function publishOwnership(components: Parameters<typeof recordEjsxHmrOwnership>[0]): Promise<void> {
+	await withEjsxHmrOwnershipScope(() => recordEjsxHmrOwnership(components));
+}
 
 const SRC_DIR = '/test/project/src';
 const PAGES_DIR = '/test/project/src/pages';
@@ -74,8 +77,11 @@ function makeComponent(file: string, config: Partial<EcoComponentConfig> = {}): 
 }
 
 describe('EcopagesJsxHmrStrategy', () => {
-	beforeEach(() => {
-		resetEjsxHmrOwnership();
+	beforeEach(async () => {
+		vi.resetModules();
+		({ EcopagesJsxHmrStrategy } = await import('./ecopages-jsx-hmr-strategy.ts'));
+		({ getEjsxHmrOwnership, recordEjsxHmrOwnership, withEjsxHmrOwnershipScope } =
+			await import('./ecopages-jsx-hmr-ownership.ts'));
 	});
 
 	it('has INTEGRATION priority', () => {
@@ -152,16 +158,16 @@ describe('EcopagesJsxHmrStrategy', () => {
 			expect(strategy.matches(pagePath)).toBe(false);
 		});
 
-		it('matches files that appear in the active render tree', () => {
+		it('matches files that appear in the active render tree', async () => {
 			const componentFile = `${COMPONENTS_DIR}/copy-for-llm/index.tsx`;
 			const component = makeComponent(componentFile);
-			updateEjsxHmrOwnership([component]);
+			await publishOwnership([component]);
 
 			const strategy = new EcopagesJsxHmrStrategy(makeContext());
 			expect(strategy.matches(componentFile)).toBe(true);
 		});
 
-		it('matches layout files referenced by a page in the active render tree', () => {
+		it('matches layout files referenced by a page in the active render tree', async () => {
 			const layoutFile = `${LAYOUTS_DIR}/base-layout.tsx`;
 			const pageFile = `${PAGES_DIR}/index.tsx`;
 
@@ -169,13 +175,13 @@ describe('EcopagesJsxHmrStrategy', () => {
 			const pageComponent = makeComponent(pageFile, {
 				layouts: [layoutComponent],
 			});
-			updateEjsxHmrOwnership([pageComponent]);
+			await publishOwnership([pageComponent]);
 
 			const strategy = new EcopagesJsxHmrStrategy(makeContext());
 			expect(strategy.matches(layoutFile)).toBe(true);
 		});
 
-		it('matches nested dependency components in the active render tree', () => {
+		it('matches nested dependency components in the active render tree', async () => {
 			const nestedFile = `${COMPONENTS_DIR}/breadcrumb/breadcrumb.tsx`;
 			const rootFile = `${COMPONENTS_DIR}/docs-bar/index.tsx`;
 
@@ -183,7 +189,7 @@ describe('EcopagesJsxHmrStrategy', () => {
 			const rootComponent = makeComponent(rootFile, {
 				dependencies: { components: [nestedComponent] },
 			});
-			updateEjsxHmrOwnership([rootComponent]);
+			await publishOwnership([rootComponent]);
 
 			const strategy = new EcopagesJsxHmrStrategy(makeContext());
 			expect(strategy.matches(nestedFile)).toBe(true);
@@ -210,54 +216,51 @@ describe('EcopagesJsxHmrStrategy', () => {
 });
 
 describe('ecopages-jsx-hmr-ownership', () => {
-	beforeEach(() => {
-		resetEjsxHmrOwnership();
+	beforeEach(async () => {
+		vi.resetModules();
+		({ EcopagesJsxHmrStrategy } = await import('./ecopages-jsx-hmr-strategy.ts'));
+		({ getEjsxHmrOwnership, recordEjsxHmrOwnership, withEjsxHmrOwnershipScope } =
+			await import('./ecopages-jsx-hmr-ownership.ts'));
 	});
 
-	it('starts with an empty ownership set', () => {
-		const state = getEjsxHmrOwnership();
-		expect(state.fileOwners.size).toBe(0);
-		expect(state.hash).toBe('');
-	});
-
-	it('records the __eco.file of a single root component', () => {
+	it('records the __eco.file of a single root component', async () => {
 		const component = makeComponent(`${COMPONENTS_DIR}/copy-for-llm/index.tsx`);
-		updateEjsxHmrOwnership([component]);
+		await publishOwnership([component]);
 
 		const state = getEjsxHmrOwnership();
 		expect(state.fileOwners.has(`${COMPONENTS_DIR}/copy-for-llm/index.tsx`)).toBe(true);
 	});
 
-	it('walks nested dependencies.components[*].config.identity.file', () => {
+	it('walks nested dependencies.components[*].config.identity.file', async () => {
 		const nested = makeComponent(`${COMPONENTS_DIR}/breadcrumb/breadcrumb.tsx`);
 		const root = makeComponent(`${COMPONENTS_DIR}/docs-bar/index.tsx`, {
 			dependencies: { components: [nested] },
 		});
-		updateEjsxHmrOwnership([root]);
+		await publishOwnership([root]);
 
 		const state = getEjsxHmrOwnership();
 		expect(state.fileOwners.has(`${COMPONENTS_DIR}/docs-bar/index.tsx`)).toBe(true);
 		expect(state.fileOwners.has(`${COMPONENTS_DIR}/breadcrumb/breadcrumb.tsx`)).toBe(true);
 	});
 
-	it('walks layouts[*].config.identity.file', () => {
+	it('walks layouts[*].config.identity.file', async () => {
 		const layout = makeComponent(`${LAYOUTS_DIR}/base-layout.tsx`);
 		const page = makeComponent(`${PAGES_DIR}/index.tsx`, {
 			layouts: [layout],
 		});
-		updateEjsxHmrOwnership([page]);
+		await publishOwnership([page]);
 
 		const state = getEjsxHmrOwnership();
 		expect(state.fileOwners.has(`${LAYOUTS_DIR}/base-layout.tsx`)).toBe(true);
 	});
 
-	it('skips the update when the resulting file set is unchanged', () => {
+	it('skips the update when the resulting file set is unchanged', async () => {
 		const component = makeComponent(`${COMPONENTS_DIR}/copy-for-llm/index.tsx`);
-		updateEjsxHmrOwnership([component]);
+		await publishOwnership([component]);
 		const firstHash = getEjsxHmrOwnership().hash;
 		const firstSet = getEjsxHmrOwnership().fileOwners;
 
-		updateEjsxHmrOwnership([component]);
+		await publishOwnership([component]);
 		const secondHash = getEjsxHmrOwnership().hash;
 		const secondSet = getEjsxHmrOwnership().fileOwners;
 
@@ -265,19 +268,19 @@ describe('ecopages-jsx-hmr-ownership', () => {
 		expect(secondSet).toBe(firstSet);
 	});
 
-	it('updates the hash when the file set changes', () => {
+	it('updates the hash when the file set changes', async () => {
 		const first = makeComponent(`${COMPONENTS_DIR}/copy-for-llm/index.tsx`);
-		updateEjsxHmrOwnership([first]);
+		await publishOwnership([first]);
 		const firstHash = getEjsxHmrOwnership().hash;
 
 		const second = makeComponent(`${COMPONENTS_DIR}/docs-bar/index.tsx`);
-		updateEjsxHmrOwnership([first, second]);
+		await publishOwnership([first, second]);
 
 		expect(getEjsxHmrOwnership().hash).not.toBe(firstHash);
 		expect(getEjsxHmrOwnership().fileOwners.size).toBe(2);
 	});
 
-	it('protects against cycles in the dependency graph', () => {
+	it('protects against cycles in the dependency graph', async () => {
 		const fileA = `${COMPONENTS_DIR}/a.tsx`;
 		const fileB = `${COMPONENTS_DIR}/b.tsx`;
 
@@ -290,21 +293,21 @@ describe('ecopages-jsx-hmr-ownership', () => {
 			dependencies: { components: [b] },
 		};
 
-		updateEjsxHmrOwnership([a]);
+		await publishOwnership([a]);
 
 		const state = getEjsxHmrOwnership();
 		expect(state.fileOwners.has(fileA)).toBe(true);
 		expect(state.fileOwners.has(fileB)).toBe(true);
 	});
 
-	it('ignores components without __eco metadata', () => {
+	it('ignores components without __eco metadata', async () => {
 		const a = makeComponent(`${COMPONENTS_DIR}/a.tsx`);
 		const b = (() => undefined) as unknown as EcoComponent;
 		(b as { config?: EcoComponentConfig }).config = {
 			dependencies: { components: [a] },
 		};
 
-		updateEjsxHmrOwnership([a, b]);
+		await publishOwnership([a, b]);
 
 		const state = getEjsxHmrOwnership();
 		expect(state.fileOwners.has(`${COMPONENTS_DIR}/a.tsx`)).toBe(true);
@@ -332,15 +335,15 @@ describe('ecopages-jsx-hmr-ownership', () => {
 		expect(state.fileOwners.has(depFile)).toBe(true);
 	});
 
-	it('replaces ownership when page publish follows a separate component publish', () => {
+	it('replaces ownership when page publish follows a separate component publish', async () => {
 		const mdxFile = `${SRC_DIR}/content/docs/intro.mdx`;
 		const pageFile = `${PAGES_DIR}/docs/[...slug]/index.tsx`;
 
 		const mdx = makeComponent(mdxFile);
 		const page = makeComponent(pageFile);
 
-		updateEjsxHmrOwnership([mdx]);
-		updateEjsxHmrOwnership([page]);
+		await publishOwnership([mdx]);
+		await publishOwnership([page]);
 
 		const state = getEjsxHmrOwnership();
 		expect(state.fileOwners.has(pageFile)).toBe(true);

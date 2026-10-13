@@ -13,9 +13,36 @@ export interface GlobOptions {
 	ignore?: string[];
 }
 
+/** A watched file was added, changed or removed. */
+export interface FileChange {
+	type: 'add' | 'change' | 'unlink';
+	path: string;
+}
+
+/** Options for {@link FileSystem.watch}. */
+export interface WatchOptions {
+	/** Called for each file change after the watcher is ready. */
+	onChange: (change: FileChange) => void;
+	/** Called when watching fails, for example on a permission or watch-limit error. */
+	onError: (error: unknown) => void;
+	/**
+	 * Returns whether to skip a path.
+	 *
+	 * @remarks
+	 * Tested before a directory is read, so an ignored directory is never descended into.
+	 */
+	ignored?: (path: string) => boolean;
+}
+
+/** A running watch started by {@link FileSystem.watch}. */
+export interface FileWatcher {
+	/** Resolves once the initial scan is done; every later change is reported. */
+	ready: Promise<void>;
+	close(): Promise<void>;
+}
+
 /**
- * Runtime-agnostic file system interface.
- * Implementations exist for Bun (optimized) and Node.js (fallback).
+ * File system interface. `NodeFileSystem` implements it on every runtime.
  */
 export interface FileSystem {
 	/**
@@ -173,6 +200,16 @@ export interface FileSystem {
 	 * @throws FileNotFoundError
 	 */
 	verifyFileExists(path: string): void;
+
+	/**
+	 * Watch files and directories recursively.
+	 *
+	 * @remarks
+	 * Files that exist when watching starts are not reported. A path that does not exist yet is
+	 * watched for creation. A change is reported once the file has stopped growing, so a partial
+	 * save is not seen as a separate change.
+	 */
+	watch(paths: readonly string[], options: WatchOptions): FileWatcher;
 }
 
 /**

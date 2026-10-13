@@ -60,10 +60,6 @@ const config = await createTestAppConfig({
 	workDir: '.eco-parallel',
 	integrations: [plugin],
 });
-
-// Or boot the full app adapter (same config path as createApp()):
-const app = await createTestApp({ workDir: '.eco-parallel', integrations: [plugin] });
-await app.start();
 ```
 
 ## String markup fixtures

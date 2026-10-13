@@ -22,6 +22,7 @@ import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
 import { createBrowserRuntimePlugin } from '../browser/browser-runtime-plugin.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
+import { BuildInputDependencyIndex, runWithBuildInputIndex } from '../cache/build-input-dependency-index.ts';
 
 let workDir: string;
 
@@ -158,6 +159,37 @@ describe('RolldownBuildAdapter', () => {
 			readFileSync(firstOutput.path, 'utf-8').includes('answer'),
 			'bundled output contains exported symbol',
 		);
+	});
+
+	test('records the path a plugin loads during a real Rolldown build', async () => {
+		const entrypoint = writeFixture('entry.ts', 'export const title = "From plugin";');
+		const buildInputIndex = new BuildInputDependencyIndex();
+
+		const result = await runWithBuildInputIndex(buildInputIndex, () =>
+			new RolldownBuildAdapter().build({
+				environment: 'browser',
+				entrypoints: [entrypoint],
+				outdir: path.join(workDir, 'dist'),
+				target: 'browser',
+				format: 'esm',
+				root: workDir,
+				plugins: [
+					{
+						name: 'entry-loader',
+						setup(build) {
+							build.onLoad({ filter: /entry\.ts$/ }, () => ({
+								contents: 'export const title = "Loaded by plugin";',
+								loader: 'js',
+							}));
+						},
+					},
+				],
+			}),
+		);
+
+		expect(result.success, JSON.stringify(result.logs)).toBe(true);
+		expect(result.loadedInputs).toContain(realpathSync(entrypoint));
+		expect(buildInputIndex.recordedWatchPaths()).toContain(realpathSync(entrypoint));
 	});
 
 	test('externalPackages keeps bare package imports external', async () => {

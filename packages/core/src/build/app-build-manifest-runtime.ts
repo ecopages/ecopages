@@ -2,7 +2,6 @@ import type { EcoBuildPlugin } from './contracts/build-types.ts';
 import { mergeBrowserRuntimeManifests } from './browser/browser-runtime-manifest.ts';
 import type { AppBuildManifest } from './contracts/build-manifest.ts';
 import { validateBuildPluginRegistrations } from './contracts/build-manifest.ts';
-import { appliesToBuildEnvironment } from './contracts/build-manifest.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { startupTrace } from '../diagnostics/startup-trace.ts';
@@ -16,29 +15,6 @@ function patchAppRuntime(
 		...(appConfig.runtime ?? {}),
 		...patch,
 	};
-}
-
-function registerRuntimePlugins(
-	appConfig: EcoPagesAppConfig,
-	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void,
-): void {
-	for (const loader of appConfig.loaders.values()) {
-		if (appliesToBuildEnvironment(loader, 'server')) onRuntimePlugin?.(loader);
-	}
-
-	for (const processor of appConfig.processors.values()) {
-		if (processor.plugins) {
-			for (const plugin of processor.plugins) {
-				if (appliesToBuildEnvironment(plugin, 'server')) onRuntimePlugin?.(plugin);
-			}
-		}
-	}
-
-	for (const integration of appConfig.integrations) {
-		for (const plugin of integration.plugins) {
-			if (appliesToBuildEnvironment(plugin, 'server')) onRuntimePlugin?.(plugin);
-		}
-	}
 }
 
 /**
@@ -95,13 +71,11 @@ export async function collectConfiguredAppBuildManifestContributions(
 export async function setupAppRuntimePlugins(options: {
 	appConfig: EcoPagesAppConfig;
 	runtimeOrigin: string;
-	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
 }): Promise<void> {
 	startupTrace.markPhaseStart('setupAppRuntimePlugins');
 
 	if (options.appConfig.runtime?.runtimeAssetsPrepared) {
 		appLogger.debug('Skipped setupAppRuntimePlugins: runtime assets already prepared');
-		registerRuntimePlugins(options.appConfig, options.onRuntimePlugin);
 		startupTrace.markPhaseEnd('setupAppRuntimePlugins');
 		return;
 	}
@@ -113,25 +87,11 @@ export async function setupAppRuntimePlugins(options: {
 	appLogger.debugTime('setupAppRuntimePlugins');
 
 	try {
-		if (options.onRuntimePlugin) {
-			patchAppRuntime(options.appConfig, { onRuntimePlugin: options.onRuntimePlugin });
-		}
-
-		for (const loader of options.appConfig.loaders.values()) {
-			if (appliesToBuildEnvironment(loader, 'server')) options.onRuntimePlugin?.(loader);
-		}
-
 		const skipProcessorSetup = isLitStaticRenderWorkerThread();
 
 		for (const processor of options.appConfig.processors.values()) {
 			if (!skipProcessorSetup) {
 				await processor.setup();
-			}
-
-			if (processor.plugins) {
-				for (const plugin of processor.plugins) {
-					if (appliesToBuildEnvironment(plugin, 'server')) options.onRuntimePlugin?.(plugin);
-				}
 			}
 		}
 
@@ -153,7 +113,6 @@ export async function ensureIntegrationRuntimeReady(options: {
 	appConfig: EcoPagesAppConfig;
 	integrationName: string;
 	runtimeOrigin: string;
-	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
 }): Promise<void> {
 	const runtime = options.appConfig.runtime ?? {};
 	options.appConfig.runtime = runtime;
@@ -174,11 +133,6 @@ export async function ensureIntegrationRuntimeReady(options: {
 		integration.setConfig(options.appConfig);
 		integration.setRuntimeOrigin(options.runtimeOrigin);
 		await integration.setup();
-
-		const onRuntimePlugin = options.onRuntimePlugin ?? options.appConfig.runtime?.onRuntimePlugin;
-		for (const plugin of integration.plugins ?? []) {
-			if (appliesToBuildEnvironment(plugin, 'server')) onRuntimePlugin?.(plugin);
-		}
 	})();
 
 	runtime.integrationActivations.set(options.integrationName, activation);

@@ -2,21 +2,16 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { runDevStaticRoutePrewarm } from './dev-static-route-prewarm.ts';
 
-test('runDevStaticRoutePrewarm renders unique pathnames and registers them before rendering', async () => {
+test('runDevStaticRoutePrewarm renders each pathname', async () => {
 	const rendered: string[] = [];
-	let registered: readonly string[] | undefined;
 
 	await runDevStaticRoutePrewarm({
-		pathnames: ['/docs/a', '/docs/b', '/docs/a'],
+		pathnames: ['/docs/a', '/docs/b'],
 		renderPath: async (pathname) => {
 			rendered.push(pathname);
 		},
-		onPathnamesResolved: (pathnames) => {
-			registered = pathnames;
-		},
 	});
 
-	assert.deepEqual(registered, ['/docs/a', '/docs/b']);
 	assert.deepEqual(rendered, ['/docs/a', '/docs/b']);
 });
 

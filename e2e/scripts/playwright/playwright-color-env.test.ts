@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
 	configurePlaywrightColorEnv,
 	createPlaywrightSubprocessEnv,
@@ -31,49 +31,24 @@ describe('playwright color and inspector env', () => {
 	});
 
 	it('createPlaywrightSubprocessEnv applies overrides after color normalization', () => {
-		const previousNoColor = process.env.NO_COLOR;
-		process.env.NO_COLOR = '1';
+		vi.stubEnv('NO_COLOR', '1');
 
-		try {
-			const env = createPlaywrightSubprocessEnv({ EXAMPLE: 'value' });
-			expect(env.NO_COLOR).toBeUndefined();
-			expect(env.FORCE_COLOR).toBe('0');
-			expect(env.DEBUG_COLORS).toBe('0');
-			expect(env.EXAMPLE).toBe('value');
-		} finally {
-			if (previousNoColor === undefined) {
-				delete process.env.NO_COLOR;
-			} else {
-				process.env.NO_COLOR = previousNoColor;
-			}
-		}
+		const env = createPlaywrightSubprocessEnv({ EXAMPLE: 'value' });
+		expect(env.NO_COLOR).toBeUndefined();
+		expect(env.FORCE_COLOR).toBe('0');
+		expect(env.DEBUG_COLORS).toBe('0');
+		expect(env.EXAMPLE).toBe('value');
 	});
 
 	it('strips inherited PWDEBUG so Playwright cannot force headed inspector mode', () => {
-		const previousPwdebug = process.env.PWDEBUG;
-		const previousNpmConfig = process.env.npm_config_pwdebug;
-		process.env.PWDEBUG = '1';
-		process.env.npm_config_pwdebug = '1';
+		vi.stubEnv('PWDEBUG', '1');
+		vi.stubEnv('npm_config_pwdebug', '1');
 
-		try {
-			const env = createPlaywrightSubprocessEnv({ EXAMPLE: 'value' });
-			expect(env.PWDEBUG).toBeUndefined();
-			expect(env.npm_config_pwdebug).toBeUndefined();
-			expect(env.EXAMPLE).toBe('value');
-			expect(process.env.PWDEBUG).toBe('1');
-		} finally {
-			if (previousPwdebug === undefined) {
-				delete process.env.PWDEBUG;
-			} else {
-				process.env.PWDEBUG = previousPwdebug;
-			}
-
-			if (previousNpmConfig === undefined) {
-				delete process.env.npm_config_pwdebug;
-			} else {
-				process.env.npm_config_pwdebug = previousNpmConfig;
-			}
-		}
+		const env = createPlaywrightSubprocessEnv({ EXAMPLE: 'value' });
+		expect(env.PWDEBUG).toBeUndefined();
+		expect(env.npm_config_pwdebug).toBeUndefined();
+		expect(env.EXAMPLE).toBe('value');
+		expect(process.env.PWDEBUG).toBe('1');
 	});
 
 	it('keeps the Playwright inspector only when --debug is on the command line', () => {

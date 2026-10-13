@@ -65,83 +65,7 @@ describe('eco namespace', () => {
 			]);
 		});
 
-		test('should auto-wrap component with scripts-injector when lazy scripts are resolved', () => {
-			const Counter = eco.component({
-				dependencies: {
-					scripts: [{ src: './counter.script.ts', lazy: { 'on:interaction': 'mouseenter,focusin' } }],
-				},
-				render: () => '<my-counter></my-counter>',
-			});
-
-			if (Counter.config) {
-				Counter.config._resolvedLazyScripts = [
-					{ lazy: { 'on:interaction': 'mouseenter,focusin' }, scripts: '/_assets/counter.js' },
-				];
-			}
-
-			const result = Counter({});
-			expect(result).toContain('<scripts-injector');
-			expect(result).toContain('<script type="ecopages/injector-map">');
-			expect(result).toContain(
-				'"on:interaction":{"value":"mouseenter,focusin","scripts":["/_assets/counter.js"]}',
-			);
-			expect(result).toContain('<my-counter></my-counter>');
-			expect(result).toContain('</scripts-injector>');
-		});
-
-		test('should handle on:idle trigger', () => {
-			const Component = eco.component({
-				dependencies: {
-					scripts: [{ src: './script.ts', lazy: { 'on:idle': true } }],
-				},
-				render: () => '<div>Content</div>',
-			});
-
-			if (Component.config) {
-				Component.config._resolvedLazyScripts = [{ lazy: { 'on:idle': true }, scripts: '/_assets/script.js' }];
-			}
-
-			const result = Component({});
-			expect(result).toContain('"on:idle":{"scripts":["/_assets/script.js"]}');
-		});
-
-		test('should handle on:visible trigger with boolean', () => {
-			const Component = eco.component({
-				dependencies: {
-					scripts: [{ src: './script.ts', lazy: { 'on:visible': true } }],
-				},
-				render: () => '<div>Content</div>',
-			});
-
-			if (Component.config) {
-				Component.config._resolvedLazyScripts = [
-					{ lazy: { 'on:visible': true }, scripts: '/_assets/script.js' },
-				];
-			}
-
-			const result = Component({});
-			expect(result).toContain('"on:visible":{"scripts":["/_assets/script.js"]}');
-		});
-
-		test('should handle on:visible trigger with threshold value', () => {
-			const Component = eco.component({
-				dependencies: {
-					scripts: [{ src: './script.ts', lazy: { 'on:visible': '0.5' } }],
-				},
-				render: () => '<div>Content</div>',
-			});
-
-			if (Component.config) {
-				Component.config._resolvedLazyScripts = [
-					{ lazy: { 'on:visible': '0.5' }, scripts: '/_assets/script.js' },
-				];
-			}
-
-			const result = Component({});
-			expect(result).toContain('"on:visible":{"value":"0.5","scripts":["/_assets/script.js"]}');
-		});
-
-		test('should not wrap when lazy script entries exist but _resolvedLazyScripts is not set', () => {
+		test('should not wrap when lazy script entries exist but no lazy trigger is resolved', () => {
 			const Component = eco.component({
 				dependencies: {
 					scripts: [{ src: './script.ts', lazy: { 'on:interaction': 'mouseenter' } }],
@@ -162,31 +86,6 @@ describe('eco namespace', () => {
 
 			const result = Component({ name: 'Counter', count: 5 });
 			expect(result).toBe('<div>Counter: 5</div>');
-		});
-
-		test('should support multiple lazy triggers in dependencies.scripts', () => {
-			const Component = eco.component({
-				dependencies: {
-					scripts: [
-						{ src: './idle.ts', lazy: { 'on:idle': true } },
-						{ src: './visible.ts', lazy: { 'on:visible': '0.5' } },
-					],
-				},
-				render: () => '<section>Content</section>',
-			});
-
-			if (Component.config) {
-				Component.config._resolvedLazyScripts = [
-					{ lazy: { 'on:idle': true }, scripts: '/_assets/idle.js' },
-					{ lazy: { 'on:visible': '0.5' }, scripts: '/_assets/visible.js' },
-				];
-			}
-
-			const result = Component({});
-			expect(result).toContain('"on:idle":{"scripts":["/_assets/idle.js"]}');
-			expect(result).toContain('"on:visible":{"value":"0.5","scripts":["/_assets/visible.js"]}');
-			expect(result).toContain('<section>Content</section>');
-			expect((result.match(/<scripts-injector/g) ?? []).length).toBe(1);
 		});
 
 		test('should set explicit integration on component config', () => {
@@ -459,25 +358,6 @@ describe('eco namespace', () => {
 
 			const result = Page({ params: { slug: 'test-post' } });
 			expect(result).toBe('<h1>test-post</h1>');
-		});
-
-		test('should work with lazy dependencies on pages', () => {
-			const Page = eco.page({
-				dependencies: {
-					scripts: [{ src: './page.script.ts', lazy: { 'on:interaction': 'click' } }],
-				},
-				render: () => '<div>Page Content</div>',
-			});
-
-			if (Page.config) {
-				Page.config._resolvedLazyScripts = [
-					{ lazy: { 'on:interaction': 'click' }, scripts: '/_assets/page.js' },
-				];
-			}
-
-			const result = Page({});
-			expect(result).toContain('<scripts-injector');
-			expect(result).toContain('"on:interaction":{"value":"click","scripts":["/_assets/page.js"]}');
 		});
 
 		test('should store layout in config and include in dependencies', async () => {

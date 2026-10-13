@@ -15,13 +15,6 @@ describe('PageCacheService', () => {
 		service = new PageCacheService({ store });
 	});
 
-	describe('generateCacheKey', () => {
-		test('should use full URL as key', () => {
-			expect(service.generateCacheKey('/blog/post-1')).toBe('/blog/post-1');
-			expect(service.generateCacheKey('/search?q=test')).toBe('/search?q=test');
-		});
-	});
-
 	describe('getOrCreate', () => {
 		test('should return miss and render on cache miss', async () => {
 			const renderFn = vi.fn().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });

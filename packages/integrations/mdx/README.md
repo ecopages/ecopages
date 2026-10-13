@@ -6,8 +6,8 @@ Standalone MDX integration for Ecopages third-party JSX runtimes (for example `@
 
 | Runtime      | Plugin                                                       |
 | ------------ | ------------------------------------------------------------ |
-| React        | `reactPlugin({ mdx: { enabled: true } })`                    |
-| Ecopages JSX | `ecopagesJsxPlugin({ mdx: { enabled: true } })`              |
+| React        | `reactPlugin({ mdx: {} })`                                   |
+| Ecopages JSX | `ecopagesJsxPlugin({ mdx: {} })`                             |
 | Third-party  | `mdxPlugin({ compilerOptions: { jsxImportSource: '...' } })` |
 
 ## Installation
@@ -45,7 +45,9 @@ import type { JsxImportSource, KnownJsxImportSource, StandaloneMdxCompilerOption
 
 `KnownJsxImportSource` is `'@kitajs/html' | 'react' | '@ecopages/jsx'`. `JsxImportSource` also accepts custom runtime strings.
 
-Shared MDX loader utilities live at `@ecopages/mdx/core` for internal integration use.
+Shared MDX options are exported as `MdxCompilerOptionsInput` from `@ecopages/mdx/core`. Configure `remarkPlugins`,
+`rehypePlugins`, and `recmaPlugins` at the top level next to `compilerOptions`; the plugin lists are not accepted inside
+`compilerOptions`. The `ReactMdxOptions` and `EcopagesJsxMdxOptions` integration types use this shared shape.
 
 ## React MDX
 
@@ -55,7 +57,20 @@ Do not use standalone `mdxPlugin()` for React apps:
 import { reactPlugin } from '@ecopages/react';
 
 reactPlugin({
-	mdx: { enabled: true },
+	mdx: {},
+});
+```
+
+Providing an `mdx` object enables MDX; omit it to disable MDX. Plugin lists belong at the top level next to `compilerOptions`:
+
+```ts
+import remarkGfm from 'remark-gfm';
+
+reactPlugin({
+	mdx: {
+		compilerOptions: { format: 'mdx' },
+		remarkPlugins: [remarkGfm],
+	},
 });
 ```
 
@@ -68,4 +83,4 @@ The core MDX loader plugin automatically discovers top-level component and style
 - **Local components**: Top-level imports of local `eco.component()` declarations are added to `config.dependencies.components`.
 - **Stylesheets**: Relative and TSConfig-aliased bare CSS imports (e.g. `import './post.css';` or `import '@/styles/post.css';`) are stripped from the compiled JavaScript. Discovered paths stay on Component identity until collection; they are not copied into `config.dependencies.stylesheets`. Explicit `dependencies.stylesheets` entries remain authoritative for attributes such as `media`.
 - **Code blocks and functions**: Markdown code blocks containing import statements and dynamic imports inside functions are distinguished from top-level ESM declarations and remain untouched.
-- **Config synthesis**: Every compiled MDX module is attributed with `bindComponentIdentity` and `attachDiscoveredDependencies`. If `export const config = { ... }` is already present, discovered Components merge with explicit ones.
+- **Config synthesis**: Every compiled MDX module is attributed with `bindComponentIdentity` and `attachDiscoveredDependencies`. If `export const config = { ... }` is already present, discovered Components merge with explicit ones. The standalone renderer preserves the page config's existing `id` and `integration`, attaches the current page file path, and passes imported MDX layouts to dependency collection with their own identity intact.

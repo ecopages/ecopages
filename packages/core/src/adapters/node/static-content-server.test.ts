@@ -9,30 +9,30 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { recordHashedBrowserAsset } from '../../services/assets/hashed-browser-asset.ts';
 import { FileSystemServerResponseFactory } from '../shared/http/fs-server-response-factory.ts';
 
-const TMP_DIR = path.join(os.tmpdir(), 'node-static-content-server-test');
+let tmpDir: string;
 
 const createAppConfig = (): EcoPagesAppConfig =>
 	({
-		rootDir: TMP_DIR,
+		rootDir: tmpDir,
 		distDir: 'dist',
 		absolutePaths: {
-			distDir: path.join(TMP_DIR, 'dist'),
-			workDir: path.join(TMP_DIR, '.eco'),
+			distDir: path.join(tmpDir, 'dist'),
+			workDir: path.join(tmpDir, '.eco'),
 		} as EcoPagesAppConfig['absolutePaths'],
 	}) as EcoPagesAppConfig;
 
 describe('NodeStaticContentServer', () => {
 	beforeEach(() => {
-		fs.rmSync(TMP_DIR, { recursive: true, force: true });
-		fs.mkdirSync(path.join(TMP_DIR, 'dist', 'assets', 'pages'), { recursive: true });
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'node-static-content-server-test-'));
+		fs.mkdirSync(path.join(tmpDir, 'dist', 'assets', 'pages'), { recursive: true });
 	});
 
 	afterEach(() => {
-		fs.rmSync(TMP_DIR, { recursive: true, force: true });
+		fs.rmSync(tmpDir, { recursive: true, force: true });
 	});
 
 	it('should serve built CSS assets with the correct content type in preview mode', async () => {
-		const distDir = path.join(TMP_DIR, 'dist');
+		const distDir = path.join(tmpDir, 'dist');
 		fs.writeFileSync(
 			path.join(distDir, 'api-lab.html'),
 			'<html><head><link rel="stylesheet" href="/assets/pages/api-lab.css"></head><body>API Lab</body></html>',
@@ -58,7 +58,7 @@ describe('NodeStaticContentServer', () => {
 	});
 
 	it('serves a dotted route from its exported .html file or index.html', async () => {
-		const distDir = path.join(TMP_DIR, 'dist');
+		const distDir = path.join(tmpDir, 'dist');
 		fs.writeFileSync(path.join(distDir, 'v1.2.html'), 'Release 1.2');
 		fs.mkdirSync(path.join(distDir, 'release.notes'));
 		fs.writeFileSync(path.join(distDir, 'release.notes', 'index.html'), 'Release notes');
@@ -78,7 +78,7 @@ describe('NodeStaticContentServer', () => {
 	});
 
 	it('revalidates exported HTML and keeps immutable for hashed assets', async () => {
-		const distDir = path.join(TMP_DIR, 'dist');
+		const distDir = path.join(tmpDir, 'dist');
 		fs.writeFileSync(path.join(distDir, 'index.html'), '<html>preview</html>');
 		const hashedAssetPath = path.join(distDir, 'assets', 'pages', 'pages__docs__index-DlXqs-Dv.js');
 		fs.writeFileSync(hashedAssetPath, 'export const page = true;');
@@ -113,7 +113,7 @@ describe('NodeStaticContentServer', () => {
 	});
 
 	it('uses the same cache, ETag, and gzip policy as the runtime file server', async () => {
-		const filePath = path.join(TMP_DIR, 'dist', 'assets', 'pages', 'site-navigation.js');
+		const filePath = path.join(tmpDir, 'dist', 'assets', 'pages', 'site-navigation.js');
 		const fileBytes = Buffer.from('export const navigation = true;');
 		fs.writeFileSync(filePath, fileBytes);
 		fs.writeFileSync(`${filePath}.gz`, gzipSync(fileBytes));

@@ -39,19 +39,19 @@ function assertStandaloneJsxImportSource(
 ): asserts jsxImportSource is JsxImportSource {
 	if (!jsxImportSource) {
 		throw new Error(
-			'Standalone `mdxPlugin()` requires `compilerOptions.jsxImportSource` (for example `@kitajs/html`). React-backed MDX should use `reactPlugin({ mdx: { enabled: true } })`; Ecopages JSX MDX should use `ecopagesJsxPlugin({ mdx: { enabled: true } })`.',
+			'Standalone `mdxPlugin()` requires `compilerOptions.jsxImportSource` (for example `@kitajs/html`). React-backed MDX should use `reactPlugin({ mdx: {} })`; Ecopages JSX MDX should use `ecopagesJsxPlugin({ mdx: {} })`.',
 		);
 	}
 
 	if (jsxImportSource === 'react' || jsxImportSource.startsWith('react/')) {
 		throw new Error(
-			'Standalone `mdxPlugin()` does not support React JSX runtimes. Use `reactPlugin({ mdx: { enabled: true, compilerOptions: ... } })` instead.',
+			'Standalone `mdxPlugin()` does not support React JSX runtimes. Use `reactPlugin({ mdx: { compilerOptions: ... } })` instead.',
 		);
 	}
 
 	if (jsxImportSource === '@ecopages/jsx' || jsxImportSource.startsWith('@ecopages/jsx/')) {
 		throw new Error(
-			'Standalone `mdxPlugin()` does not support the Ecopages JSX runtime. Use `ecopagesJsxPlugin({ mdx: { enabled: true, compilerOptions: ... } })` instead.',
+			'Standalone `mdxPlugin()` does not support the Ecopages JSX runtime. Use `ecopagesJsxPlugin({ mdx: { compilerOptions: ... } })` instead.',
 		);
 	}
 }
@@ -88,8 +88,8 @@ function splitMarkdownExtensions(extensions: string[]): Pick<CompileOptions, 'md
  * Standalone `mdxPlugin()` is for third-party JSX runtimes. Set
  * `compilerOptions.jsxImportSource` explicitly (for example `@kitajs/html`).
  * React-backed MDX should be configured through
- * `reactPlugin({ mdx: { enabled: true, compilerOptions: ... } })`.
- * Ecopages JSX MDX should use `ecopagesJsxPlugin({ mdx: { enabled: true } })`.
+ * `reactPlugin({ mdx: { compilerOptions: ... } })`.
+ * Ecopages JSX MDX should use `ecopagesJsxPlugin({ mdx: {} })`.
  */
 export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 	renderer = MDXRenderer;

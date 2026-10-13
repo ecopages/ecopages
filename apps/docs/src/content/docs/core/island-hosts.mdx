@@ -30,6 +30,8 @@ Core applies island host metadata through `finalizeIslandComponentRender()` when
 
 Scripts of Foreign Children, components of another integration nested inside it, do not count. A Lit component without scripts that wraps a React island is not stamped as an island host.
 
+Island client modules come from the page client plan: every component whose integration differs from its parent's, except the Html shell. A component is an island if any of its parents belongs to another integration, and it is listed once.
+
 Integrations that extend the contract (for example React's component key and props snapshot) should build on `buildIslandHostAttributes()` from `@ecopages/core` rather than inventing per-demo selectors.
 
 ## Integration coverage

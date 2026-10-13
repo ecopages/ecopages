@@ -12,11 +12,17 @@
 		"resolveJsonModule": true,
 		"skipLibCheck": true,
 		"strict": true,
-		"target": "ES2021",
+		"target": "ES2024",
 		"types": ["node"],
 		"useDefineForClassFields": true,
 		"verbatimModuleSyntax": true
 	},
-	"include": ["playwright/**/*.ts", "scripts/playwright/**/*.ts", "fixtures/*/fixture.e2e.ts"],
+	"include": [
+		"playwright/**/*.ts",
+		"scripts/playwright/**/*.ts",
+		"fixtures/*/fixture.e2e.ts",
+		"fixtures/*/*.test.ts",
+		"utils/static-export.ts"
+	],
 	"exclude": ["fixtures/**/node_modules/**", "fixtures/**/dist*/**", "fixtures/**/.eco*/**", "fixtures/**/src/**"]
 }

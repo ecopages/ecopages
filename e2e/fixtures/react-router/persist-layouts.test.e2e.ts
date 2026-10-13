@@ -1,31 +1,23 @@
 import { test, expect } from '@playwright/test';
 import { gotoAndWait } from '../../utils/test-helpers';
 
+/**
+ * @remarks
+ * Layout persistence and layout switching are covered by `packages/react-router/test/layout-navigation.test.browser.ts`.
+ * The shared runtime module test stays because it needs the real bundles: a layout and a page must resolve one
+ * instance of a `runtimeModules` package, which a Vitest browser test cannot build.
+ */
 test.describe('React Router Persist Layouts', () => {
-	test('layout remains visible when navigating between pages with same layout', async ({ page }) => {
+	test('shared runtime module state survives navigation between layout pages', async ({ page }) => {
 		await gotoAndWait(page, '/docs');
+		await expect(page.getByTestId('query-client-count')).toHaveText('0');
 
-		const layout = page.locator('[data-testid="docs-layout"]');
-		await expect(layout).toBeVisible();
+		await page.getByTestId('increment-query-client-count').click();
+		await expect(page.getByTestId('query-client-count')).toHaveText('1');
 
-		await page.click('[data-testid="link-getting-started"]');
+		await page.getByTestId('link-getting-started').click();
 		await page.waitForURL('**/docs/getting-started');
-		await expect(page.locator('[data-testid="docs-getting-started"]')).toBeVisible();
-
-		await expect(layout).toBeVisible();
-	});
-
-	test('layout changes when navigating to page with different layout', async ({ page }) => {
-		await gotoAndWait(page, '/docs');
-
-		const docsLayout = page.locator('[data-testid="docs-layout"]');
-		await expect(docsLayout).toBeVisible();
-
-		await page.click('a[href="/"]');
-		await page.waitForURL(/\/$/);
-
-		await expect(docsLayout).not.toBeVisible();
-		await expect(page.locator('[data-testid="base-layout"]')).toBeVisible();
+		await expect(page.getByTestId('query-client-count')).toHaveText('1');
 	});
 
 	test('sidebar scroll position persists when navigating within same layout', async ({ page }) => {

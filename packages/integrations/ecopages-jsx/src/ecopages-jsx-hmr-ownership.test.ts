@@ -1,11 +1,11 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EcoComponent, EcoComponentConfig } from '@ecopages/core';
-import {
-	getEjsxHmrOwnership,
-	recordEjsxHmrOwnership,
-	resetEjsxHmrOwnership,
-	withEjsxHmrOwnershipScope,
-} from './ecopages-jsx-hmr-ownership.ts';
+
+type OwnershipModule = typeof import('./ecopages-jsx-hmr-ownership.ts');
+
+let getEjsxHmrOwnership: OwnershipModule['getEjsxHmrOwnership'];
+let recordEjsxHmrOwnership: OwnershipModule['recordEjsxHmrOwnership'];
+let withEjsxHmrOwnershipScope: OwnershipModule['withEjsxHmrOwnershipScope'];
 
 const PAGE_FILE = '/test/project/src/pages/docs/[...slug]/index.tsx';
 const MDX_FILE = '/test/project/src/content/docs/intro.mdx';
@@ -23,8 +23,16 @@ function makeComponent(file: string): EcoComponent {
 }
 
 describe('withEjsxHmrOwnershipScope', () => {
-	beforeEach(() => {
-		resetEjsxHmrOwnership();
+	beforeEach(async () => {
+		vi.resetModules();
+		({ getEjsxHmrOwnership, recordEjsxHmrOwnership, withEjsxHmrOwnershipScope } =
+			await import('./ecopages-jsx-hmr-ownership.ts'));
+	});
+
+	it('starts with an empty ownership set', () => {
+		const state = getEjsxHmrOwnership();
+		expect(state.fileOwners.size).toBe(0);
+		expect(state.hash).toBe('');
 	});
 
 	it('publishes the merged ownership once the outermost scope completes', async () => {

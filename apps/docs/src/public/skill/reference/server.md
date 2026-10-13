@@ -124,6 +124,9 @@ When rendering from handlers with `ctx.render()`:
 - Component must be `eco.page()` (not a plain framework component)
 - File lives in `src/views/`, not `src/pages/`
 - Import dynamically: `await import('@/views/dashboard')`
+- A full render uses the same route pipeline as a filesystem Page: every layout, default metadata, robots meta, and that view's page client plan. Props passed to the render are available to the view's `metadata`
+- `ctx.renderPartial()` stays a component fragment
+- The Html shell is not an island, even when its Integration differs from the page owner
 
 ## Client-side routing (React)
 

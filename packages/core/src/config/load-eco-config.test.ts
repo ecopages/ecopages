@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { pathToFileURL } from 'node:url';
 import { defineConfig } from './define-config.ts';
 import { finalizeEcoPagesConfig } from './finalize-config.ts';
-import { clearEcoPagesConfigCachesForTests, loadEcoPagesConfig, loadEcoPagesUserConfig } from './load-eco-config.ts';
+import { loadEcoPagesConfig, loadEcoPagesUserConfig } from './load-eco-config.ts';
 import { resolveEcoConfigPath, ECOPAGES_CONFIG_FILE_ENV, resolveUserConfigRootDir } from './resolve-eco-config-path.ts';
 
 describe('defineConfig', () => {
@@ -17,20 +17,14 @@ describe('defineConfig', () => {
 
 describe('resolveEcoConfigPath', () => {
 	let tempDir: string;
-	const originalEnv = process.env[ECOPAGES_CONFIG_FILE_ENV];
 
 	beforeEach(() => {
 		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-resolve-'));
-		delete process.env[ECOPAGES_CONFIG_FILE_ENV];
+		vi.stubEnv(ECOPAGES_CONFIG_FILE_ENV, undefined);
 	});
 
 	afterEach(() => {
 		fs.rmSync(tempDir, { recursive: true, force: true });
-		if (originalEnv === undefined) {
-			delete process.env[ECOPAGES_CONFIG_FILE_ENV];
-		} else {
-			process.env[ECOPAGES_CONFIG_FILE_ENV] = originalEnv;
-		}
 	});
 
 	it('defaults to eco.config.ts in cwd', () => {
@@ -48,7 +42,7 @@ describe('resolveEcoConfigPath', () => {
 	it('honors ECOPAGES_CONFIG_FILE', () => {
 		const customPath = path.join(tempDir, 'custom.ts');
 		fs.writeFileSync(customPath, 'export default {}');
-		process.env[ECOPAGES_CONFIG_FILE_ENV] = customPath;
+		vi.stubEnv(ECOPAGES_CONFIG_FILE_ENV, customPath);
 		expect(resolveEcoConfigPath({ cwd: tempDir })).toBe(customPath);
 	});
 
@@ -91,7 +85,7 @@ describe('resolveEcoConfigPath', () => {
 
 		it('still honors ECOPAGES_CONFIG_FILE', () => {
 			process.argv[1] = path.join(tempDir, 'dist', '.server', 'app.mjs');
-			process.env[ECOPAGES_CONFIG_FILE_ENV] = sourcePath;
+			vi.stubEnv(ECOPAGES_CONFIG_FILE_ENV, sourcePath);
 			expect(resolveEcoConfigPath({ cwd: tempDir })).toBe(sourcePath);
 		});
 	});
@@ -109,23 +103,15 @@ describe('resolveUserConfigRootDir', () => {
 
 describe('loadEcoPagesConfig', () => {
 	let tempDir: string;
-	const originalEnv = process.env[ECOPAGES_CONFIG_FILE_ENV];
 
 	beforeEach(() => {
 		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-config-load-'));
-		clearEcoPagesConfigCachesForTests();
-		delete process.env[ECOPAGES_CONFIG_FILE_ENV];
+		vi.stubEnv(ECOPAGES_CONFIG_FILE_ENV, undefined);
 	});
 
 	afterEach(() => {
 		fs.rmSync(tempDir, { recursive: true, force: true });
-		clearEcoPagesConfigCachesForTests();
 		delete (globalThis as { __ecoPrepareCalls?: () => number }).__ecoPrepareCalls;
-		if (originalEnv === undefined) {
-			delete process.env[ECOPAGES_CONFIG_FILE_ENV];
-		} else {
-			process.env[ECOPAGES_CONFIG_FILE_ENV] = originalEnv;
-		}
 	});
 
 	it('finalizes user config and preserves absolutePaths.config', async () => {

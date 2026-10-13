@@ -1,4 +1,7 @@
-export type NavigationLifecycleEvent = 'eco:before-swap' | 'eco:after-swap' | 'eco:page-load';
+import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/router/navigation-lifecycle';
+
+export type NavigationLifecycleEvent =
+	(typeof ECO_NAVIGATION_LIFECYCLE_EVENTS)[keyof typeof ECO_NAVIGATION_LIFECYCLE_EVENTS];
 
 type NavigationListener = () => void;
 

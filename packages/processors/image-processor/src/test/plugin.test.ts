@@ -49,6 +49,33 @@ afterEach(() => {
 });
 
 describe('ImageProcessorPlugin', () => {
+	test('routes a watch batch through one processing call and each deleted source', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-watch-batch-'));
+		tempRoots.push(rootDir);
+		const plugin = createImageProcessorPlugin({
+			sourceDir: path.join(rootDir, 'src', 'images'),
+			outputDir: path.join(rootDir, 'dist', 'images'),
+		});
+		const processSpy = vi.spyOn(plugin, 'process').mockResolvedValue();
+		const deleteSpy = vi.spyOn(plugin, 'deleteProcessedImagesbyPath').mockResolvedValue();
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onChanges) {
+			throw new Error('Expected image processor batched watch handler');
+		}
+
+		await watchConfig.onChanges({
+			created: ['/images/created.png'],
+			changed: ['/images/changed.png'],
+			deleted: ['/images/deleted.png'],
+			bridge: {} as never,
+		});
+
+		expect(processSpy).toHaveBeenCalledTimes(1);
+		expect(processSpy).toHaveBeenCalledWith(['/images/created.png', '/images/changed.png']);
+		expect(deleteSpy).toHaveBeenCalledTimes(1);
+		expect(deleteSpy).toHaveBeenCalledWith('/images/deleted.png');
+	});
+
 	test('prepareBuildContributions does not process images', async () => {
 		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-prepare-'));
 		tempRoots.push(rootDir);
@@ -206,23 +233,14 @@ describe('ImageProcessorPlugin', () => {
 		fs.mkdirSync(sourceDir, { recursive: true });
 		await createTestImage(path.join(sourceDir, 'hero.png'));
 
-		const previousWorkerFlag = process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER;
-		process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER = 'true';
+		vi.stubEnv('ECOPAGES_LIT_STATIC_RENDER_WORKER', 'true');
 
-		try {
-			const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
+		const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-			await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [plugin] });
+		await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [plugin] });
 
-			expect(fs.existsSync(outputDir)).toBe(false);
-			await plugin.setup();
-			expect(fs.existsSync(outputDir)).toBe(false);
-		} finally {
-			if (previousWorkerFlag === undefined) {
-				delete process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER;
-			} else {
-				process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER = previousWorkerFlag;
-			}
-		}
+		expect(fs.existsSync(outputDir)).toBe(false);
+		await plugin.setup();
+		expect(fs.existsSync(outputDir)).toBe(false);
 	});
 });

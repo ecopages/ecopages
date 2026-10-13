@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
 import { createRouter } from '../src/client/eco-router';
 import {
@@ -8,9 +9,7 @@ import {
 	createLink,
 	htmlFetchResponse,
 	installEcoRouterTestHooks,
-	preventDefaultOnClick,
 	type EcoRouterTestFixtures,
-	simulateClick,
 	spyPushState,
 	waitForNavigation,
 } from './eco-router.harness';
@@ -19,20 +18,12 @@ describe('EcoRouter', () => {
 	const fixtures: EcoRouterTestFixtures = {
 		router: null,
 		fetchSpy: null,
-		user: null!,
 	};
 
 	installEcoRouterTestHooks(fixtures);
 
 	describe('Link Interception', () => {
 		describe('Internal Links', () => {
-			it('should not intercept clicks while another runtime owns navigation', () => {
-				getEcoNavigationRuntime(window).claimOwnership('custom-router');
-				fixtures.router = createRouter();
-				const link = createLink({ href: '/react-route', id: 'react-link' });
-				clickWithoutNavigation(link);
-			});
-
 			it('should delegate clicks to the active runtime instead of dropping them', async () => {
 				const navigateSpy = vi.fn(async () => true);
 				fixtures.router = createRouter();
@@ -44,7 +35,7 @@ describe('EcoRouter', () => {
 				const link = createLink({ href: '/react-route', id: 'delegated-react-link' });
 				const pushStateSpy = spyPushState();
 
-				await fixtures.user.click(link);
+				await userEvent.click(link);
 				await vi.waitFor(() => {
 					expect(navigateSpy).toHaveBeenCalledWith({
 						href: '/react-route',
@@ -59,11 +50,11 @@ describe('EcoRouter', () => {
 
 			it('should keep intercepting clicks while another document owner is pending but not yet registered', async () => {
 				fixtures.router = createRouter();
-				getEcoNavigationRuntime(window).setOwner('react-router');
+				getEcoNavigationRuntime(window).claimOwnership('react-router');
 				const link = createLink({ href: '/pending-react-route', id: 'pending-react-link' });
 				const pushStateSpy = spyPushState();
 
-				await Promise.all([waitForNavigation(), fixtures.user.click(link)]);
+				await Promise.all([waitForNavigation(), userEvent.click(link)]);
 
 				expect(pushStateSpy).toHaveBeenCalled();
 			});
@@ -71,9 +62,17 @@ describe('EcoRouter', () => {
 			it('should ignore hover when a click lands on a non-link target during a slow navigation', async () => {
 				fixtures.router = createRouter();
 				const firstFetch = createDeferred();
-				fixtures.fetchSpy?.mockImplementationOnce(
+				fixtures.fetchSpy?.mockImplementation(
 					(url: string | URL | Request, init?: RequestInit) =>
 						new Promise<Response>((resolve, reject) => {
+							if (!String(url).includes('/first-route')) {
+								resolve(
+									htmlFetchResponse(
+										'<html><head></head><body><div id="content">Recovered Content</div></body></html>',
+									),
+								);
+								return;
+							}
 							const abortSignal = init?.signal;
 							const handleAbort = () => {
 								reject(new DOMException('Aborted', 'AbortError'));
@@ -90,21 +89,19 @@ describe('EcoRouter', () => {
 							});
 						}),
 				);
-				fixtures.fetchSpy?.mockResolvedValueOnce(
-					htmlFetchResponse(
-						'<html><head></head><body><div id="content">Recovered Content</div></body></html>',
-					),
-				);
 
 				const firstLink = createLink({ href: '/first-route', id: 'first-link' });
 				const hoveredLink = createLink({ href: '/hover-recovered-route', id: 'hovered-link' });
 				const pushStateSpy = spyPushState();
 
-				await fixtures.user.click(firstLink);
-				await fixtures.user.hover(hoveredLink);
+				await userEvent.click(firstLink);
+				await userEvent.hover(hoveredLink);
 				hoveredLink.remove();
+				const nonLink = document.createElement('div');
+				nonLink.textContent = 'Not a link';
+				document.body.appendChild(nonLink);
 				const navigation = waitForNavigation();
-				await fixtures.user.click(document.body);
+				await userEvent.click(nonLink);
 				firstFetch.resolve();
 				await navigation;
 
@@ -118,7 +115,7 @@ describe('EcoRouter', () => {
 				const link = createLink({ href: '/test-link', id: 'link' });
 				const pushStateSpy = spyPushState();
 
-				await Promise.all([waitForNavigation(), fixtures.user.click(link)]);
+				await Promise.all([waitForNavigation(), userEvent.click(link)]);
 
 				expect(pushStateSpy).toHaveBeenCalled();
 			});
@@ -134,8 +131,7 @@ describe('EcoRouter', () => {
 				const link = createLink({ href: '/page?foo=bar&baz=qux', id: 'query-link' });
 				const pushStateSpy = spyPushState();
 
-				simulateClick(link);
-				await waitForNavigation();
+				await Promise.all([waitForNavigation(), userEvent.click(link)]);
 
 				expect(pushStateSpy).toHaveBeenCalledWith({}, '', expect.stringContaining('/page?foo=bar&baz=qux'));
 			});
@@ -173,31 +169,33 @@ describe('EcoRouter', () => {
 		});
 
 		describe('External Links (should NOT intercept)', () => {
-			it('should NOT intercept external links', () => {
+			it('should NOT intercept external links', async () => {
 				fixtures.router = createRouter();
-				clickWithoutNavigation(createLink({ href: 'https://example.com', id: 'ext-link' }));
+				await clickWithoutNavigation(createLink({ href: 'https://example.com', id: 'ext-link' }));
 			});
 
-			it('should NOT intercept cross-origin links with different port', () => {
+			it('should NOT intercept cross-origin links with different port', async () => {
 				fixtures.router = createRouter();
-				clickWithoutNavigation(createLink({ href: 'http://localhost:9999/different-port', id: 'port-link' }));
+				await clickWithoutNavigation(
+					createLink({ href: 'http://localhost:9999/different-port', id: 'port-link' }),
+				);
 			});
 		});
 
 		describe('Link Attributes (should NOT intercept)', () => {
-			it('should NOT intercept links with target="_blank"', () => {
+			it('should NOT intercept links with target="_blank"', async () => {
 				fixtures.router = createRouter();
-				clickWithoutNavigation(createLink({ href: '/page', target: '_blank', id: 'blank-link' }));
+				await clickWithoutNavigation(createLink({ href: '/page', target: '_blank', id: 'blank-link' }));
 			});
 
-			it('should NOT intercept links with target="_parent"', () => {
+			it('should NOT intercept links with target="_parent"', async () => {
 				fixtures.router = createRouter();
-				clickWithoutNavigation(createLink({ href: '/page', target: '_parent', id: 'parent-link' }));
+				await clickWithoutNavigation(createLink({ href: '/page', target: '_parent', id: 'parent-link' }));
 			});
 
-			it('should NOT intercept links with target="_top"', () => {
+			it('should NOT intercept links with target="_top"', async () => {
 				fixtures.router = createRouter();
-				clickWithoutNavigation(createLink({ href: '/page', target: '_top', id: 'top-link' }));
+				await clickWithoutNavigation(createLink({ href: '/page', target: '_top', id: 'top-link' }));
 			});
 
 			it('should intercept links with target="_self"', async () => {
@@ -205,100 +203,92 @@ describe('EcoRouter', () => {
 				await clickWithNavigation(createLink({ href: '/page', target: '_self', id: 'self-link' }));
 			});
 
-			it('should NOT intercept links with download attribute', () => {
+			it('should NOT intercept links with download attribute', async () => {
 				fixtures.router = createRouter();
-				clickWithoutNavigation(createLink({ href: '/file.pdf', download: '', id: 'dl-link' }));
+				await clickWithoutNavigation(createLink({ href: '/file.pdf', download: '', id: 'dl-link' }));
 			});
 
-			it('should NOT intercept links with download attribute and filename', () => {
+			it('should NOT intercept links with download attribute and filename', async () => {
 				fixtures.router = createRouter();
-				clickWithoutNavigation(
+				await clickWithoutNavigation(
 					createLink({ href: '/file.pdf', download: 'custom-name.pdf', id: 'dl-named-link' }),
 				);
 			});
 
-			it('should NOT intercept links to static asset files', () => {
+			it('should NOT intercept links to static asset files', async () => {
 				fixtures.router = createRouter();
-				const pushStateSpy = spyPushState();
 
 				for (const href of ['/skill.txt', '/skill/reference/full-stack.md', '/llms.txt']) {
-					const link = createLink({ href, id: `static-${href}` });
-					preventDefaultOnClick(link);
-					simulateClick(link);
+					await clickWithoutNavigation(createLink({ href, id: `static-${href}` }));
 				}
-
-				expect(pushStateSpy).not.toHaveBeenCalled();
 			});
 
-			it('should NOT intercept links with data-eco-reload attribute', () => {
+			it('should NOT intercept links with data-eco-reload attribute', async () => {
 				fixtures.router = createRouter();
-				clickWithoutNavigation(createLink({ href: '/reload', 'data-eco-reload': '', id: 'reload-link' }));
+				await clickWithoutNavigation(createLink({ href: '/reload', 'data-eco-reload': '', id: 'reload-link' }));
 			});
 
-			it('should NOT intercept links without href attribute', () => {
+			it('should NOT intercept links without href attribute', async () => {
 				fixtures.router = createRouter();
 				const link = document.createElement('a');
 				link.id = 'no-href-link';
 				link.textContent = 'No href';
 				document.body.appendChild(link);
-				clickWithoutNavigation(link);
+				await clickWithoutNavigation(link);
 			});
 		});
 
 		describe('Special href Values (should NOT intercept)', () => {
-			it('should NOT intercept hash-only links', () => {
+			it('should NOT intercept hash-only links', async () => {
 				fixtures.router = createRouter();
-				clickWithoutNavigation(createLink({ href: '#section', id: 'hash-link' }));
+				await clickWithoutNavigation(createLink({ href: '#section', id: 'hash-link' }));
 			});
 
-			it('should NOT intercept javascript: links', () => {
+			it('should NOT intercept javascript: links', async () => {
 				fixtures.router = createRouter();
-				const link = createLink({ href: 'javascript:void(0)', id: 'js-link' });
-				const pushStateSpy = spyPushState();
-				simulateClick(link);
-				expect(pushStateSpy).not.toHaveBeenCalled();
+				await clickWithoutNavigation(createLink({ href: 'javascript:void(0)', id: 'js-link' }));
 			});
 
-			it('should NOT intercept mailto: links', () => {
+			it('should NOT intercept mailto: links', async () => {
 				fixtures.router = createRouter();
-				clickWithoutNavigation(createLink({ href: 'mailto:test@example.com', id: 'mailto-link' }));
+				await clickWithoutNavigation(createLink({ href: 'mailto:test@example.com', id: 'mailto-link' }));
 			});
 
-			it('should NOT intercept tel: links', () => {
+			it('should NOT intercept tel: links', async () => {
 				fixtures.router = createRouter();
-				clickWithoutNavigation(createLink({ href: 'tel:+1234567890', id: 'tel-link' }));
+				await clickWithoutNavigation(createLink({ href: 'tel:+1234567890', id: 'tel-link' }));
 			});
 		});
 
 		describe('Modifier Keys (should NOT intercept)', () => {
-			it('should NOT intercept clicks with metaKey (Cmd on Mac)', () => {
+			it('should NOT intercept clicks with metaKey (Cmd on Mac)', async () => {
 				fixtures.router = createRouter();
-				clickWithoutNavigation(createLink({ href: '/page', id: 'meta-link' }), { metaKey: true });
+				await clickWithoutNavigation(createLink({ href: '/page', id: 'meta-link' }), { metaKey: true });
 			});
 
-			it('should NOT intercept clicks with ctrlKey', () => {
+			it('should NOT intercept clicks with ctrlKey', async () => {
 				fixtures.router = createRouter();
-				clickWithoutNavigation(createLink({ href: '/page', id: 'ctrl-link' }), { ctrlKey: true });
+				await clickWithoutNavigation(createLink({ href: '/page', id: 'ctrl-link' }), { ctrlKey: true });
 			});
 
-			it('should NOT intercept clicks with shiftKey', () => {
+			it('should NOT intercept clicks with shiftKey', async () => {
 				fixtures.router = createRouter();
-				clickWithoutNavigation(createLink({ href: '/page', id: 'shift-link' }), { shiftKey: true });
+				await clickWithoutNavigation(createLink({ href: '/page', id: 'shift-link' }), { shiftKey: true });
 			});
 
-			it('should NOT intercept clicks with altKey', () => {
+			it('should NOT intercept clicks with altKey', async () => {
 				fixtures.router = createRouter();
-				clickWithoutNavigation(createLink({ href: '/page', id: 'alt-link' }), { altKey: true });
+				await clickWithoutNavigation(createLink({ href: '/page', id: 'alt-link' }), { altKey: true });
 			});
 
-			it('should NOT intercept middle mouse button clicks', () => {
+			it('should NOT intercept middle mouse button clicks', async () => {
 				fixtures.router = createRouter();
-				clickWithoutNavigation(createLink({ href: '/page', id: 'middle-link' }), { button: 1 });
+				await clickWithoutNavigation(createLink({ href: '/page', id: 'middle-link' }), { button: 1 });
 			});
 
-			it('should NOT intercept right mouse button clicks', () => {
+			it('should NOT intercept right mouse button clicks', async () => {
 				fixtures.router = createRouter();
-				clickWithoutNavigation(createLink({ href: '/page', id: 'right-link' }), { button: 2 });
+				await clickWithoutNavigation(createLink({ href: '/page', id: 'right-link' }), { button: 2 });
 			});
 		});
 
@@ -307,15 +297,9 @@ describe('EcoRouter', () => {
 				fixtures.router = createRouter({ linkSelector: 'a.router-link' });
 				const regularLink = createLink({ href: '/regular', id: 'regular' });
 				const routerLink = createLink({ href: '/router', id: 'router', class: 'router-link' });
-				const pushStateSpy = spyPushState();
-				preventDefaultOnClick(regularLink);
 
-				simulateClick(regularLink);
-				expect(pushStateSpy).not.toHaveBeenCalled();
-
-				simulateClick(routerLink);
-				await waitForNavigation();
-				expect(pushStateSpy).toHaveBeenCalled();
+				await clickWithoutNavigation(regularLink);
+				await clickWithNavigation(routerLink);
 			});
 
 			it('should work with data attribute selector', async () => {
@@ -325,9 +309,11 @@ describe('EcoRouter', () => {
 		});
 
 		describe('Custom Reload Attribute', () => {
-			it('should respect custom reload attribute', () => {
+			it('should respect custom reload attribute', async () => {
 				fixtures.router = createRouter({ reloadAttribute: 'data-full-reload' });
-				clickWithoutNavigation(createLink({ href: '/reload', 'data-full-reload': '', id: 'custom-reload' }));
+				await clickWithoutNavigation(
+					createLink({ href: '/reload', 'data-full-reload': '', id: 'custom-reload' }),
+				);
 			});
 
 			it('should intercept links with default reload attribute when custom is set', async () => {

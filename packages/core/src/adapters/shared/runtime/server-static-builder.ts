@@ -14,22 +14,16 @@ import { attachHmrToIntegrations } from './runtime-server-lifecycle.ts';
 import {
 	getServerBundleOutputPaths,
 	writeServerBundleDeployManifest,
-} from '../../../build/cache/server-entry-build-cache.ts';
-import {
-	clearProductionBuildCaches,
-	hashRecordedBuildInputs,
-	haveWatchedBuildInputsChanged,
-	shouldResetStaticExportDirectory,
-} from '../../../static-site-generator/static-build-invalidation.ts';
+} from '../../../build/server-bundle-deploy-manifest.ts';
 import { bundleEcoConfigModule, EMITTED_ECO_CONFIG_FILENAME } from '../../../config/server-config-bundle.ts';
 import { resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../../utils/resolve-entry-file.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
-import type { EcoBuildPlugin } from '../../../build/contracts/build-types.ts';
 import type { ErrorPageLoaders, StaticRoute } from '../../../types/public-types.ts';
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator.ts';
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import { formatBuildLog } from '../../../build/build-log.ts';
+import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
 
 export interface StaticBuildOptions {
 	baseUrl?: string;
@@ -55,7 +49,6 @@ export interface ServerStaticBuilderParams {
 	logger?: ServerStaticBuilderLogger;
 	entryFile?: string;
 	hmrManager?: IHmrManager;
-	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
 }
 
 /**
@@ -80,7 +73,6 @@ export class ServerStaticBuilder {
 	private readonly logger: ServerStaticBuilderLogger;
 	private readonly entryFile: string;
 	private readonly hmrManager?: IHmrManager;
-	private readonly onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
 
 	constructor({
 		appConfig,
@@ -91,7 +83,6 @@ export class ServerStaticBuilder {
 		logger,
 		entryFile,
 		hmrManager,
-		onRuntimePlugin,
 	}: ServerStaticBuilderParams) {
 		this.appConfig = appConfig;
 		this.staticSiteGenerator = staticSiteGenerator;
@@ -101,7 +92,6 @@ export class ServerStaticBuilder {
 		this.logger = logger ?? appLogger;
 		this.entryFile = resolveEntryFile({ entryFile });
 		this.hmrManager = hmrManager;
-		this.onRuntimePlugin = onRuntimePlugin;
 	}
 
 	/** Keeps build-time URLs aligned with the server's actual listening port. */
@@ -111,25 +101,20 @@ export class ServerStaticBuilder {
 	}
 
 	/**
-	 * @returns Whether `dist/` was kept, and the watched-inputs hash computed once for this export.
+	 * Empties `dist/` and copies the public directory into it.
+	 *
+	 * @remarks
+	 * Every build renders from source in a fresh process, so nothing in a previous `dist/` is reusable.
 	 */
-	private prepareExportDirectory(force: boolean): { preserveExportDirectory: boolean; watchedInputsHash: string } {
-		const watchedInputsHash = hashRecordedBuildInputs(this.appConfig);
-		if (force || haveWatchedBuildInputsChanged(this.appConfig, watchedInputsHash)) {
-			clearProductionBuildCaches(this.appConfig);
-		}
-
+	private prepareExportDirectory(): void {
 		const exportDir =
 			this.appConfig.absolutePaths?.distDir ?? path.join(this.appConfig.rootDir, this.appConfig.distDir);
-		const shouldCleanDist = shouldResetStaticExportDirectory(this.appConfig, force, watchedInputsHash);
-		fileSystem.ensureDir(exportDir, shouldCleanDist);
+		fileSystem.ensureDir(exportDir, true);
 
-		if (shouldCleanDist) {
-			this.appConfig.runtime = {
-				...(this.appConfig.runtime ?? {}),
-				runtimeAssetsPrepared: false,
-			};
-		}
+		this.appConfig.runtime = {
+			...(this.appConfig.runtime ?? {}),
+			runtimeAssetsPrepared: false,
+		};
 
 		const srcPublicDir = path.join(
 			this.appConfig.rootDir,
@@ -137,10 +122,8 @@ export class ServerStaticBuilder {
 			this.appConfig.publicDir ?? 'public',
 		);
 		if (fileSystem.exists(srcPublicDir)) {
-			fileSystem.copyDir(srcPublicDir, exportDir);
+			copyRuntimePublicDirIfChanged(srcPublicDir, exportDir);
 		}
-
-		return { preserveExportDirectory: !shouldCleanDist, watchedInputsHash };
 	}
 
 	private async refreshRuntimeAssets(): Promise<void> {
@@ -149,7 +132,6 @@ export class ServerStaticBuilder {
 			await setupAppRuntimePlugins({
 				appConfig: this.appConfig,
 				runtimeOrigin: this.runtimeOrigin,
-				onRuntimePlugin: this.onRuntimePlugin,
 			});
 
 			if (this.hmrManager?.isEnabled()) {
@@ -217,7 +199,6 @@ export class ServerStaticBuilder {
 			}
 
 			writeServerBundleDeployManifest(this.appConfig, stagedServerEntryPath, {
-				sourceConfigPath: this.appConfig.absolutePaths.config,
 				emittedConfigModule: configBundle ? EMITTED_ECO_CONFIG_FILENAME : undefined,
 				outputDir: stagingDir,
 			});
@@ -251,7 +232,7 @@ export class ServerStaticBuilder {
 			explicitBaseUrl ??
 			`http://${this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME}:${this.serveOptions.port || DEFAULT_ECOPAGES_PORT}`;
 
-		const { preserveExportDirectory, watchedInputsHash } = this.prepareExportDirectory(force);
+		this.prepareExportDirectory();
 		await this.refreshRuntimeAssets();
 
 		if (this.needsServerBundle) {
@@ -265,8 +246,6 @@ export class ServerStaticBuilder {
 			staticRoutes: dependencies.staticRoutes,
 			errorPageLoaders: dependencies.errorPageLoaders,
 			force,
-			preserveExportDirectory,
-			watchedInputsHash,
 		});
 
 		if (process.env.ECOPAGES_BENCH === '1' && process.env.ECOPAGES_BENCH_VERBOSE !== '1') {

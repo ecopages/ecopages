@@ -1,5 +1,7 @@
+import { EventEmitter } from 'node:events';
 import os from 'node:os';
 import path from 'node:path';
+import chokidar from 'chokidar';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -10,9 +12,33 @@ import { NodeClientAbortError } from './http-request-bridge.ts';
 import { NodeStaticPreviewHost } from './static-preview-host.ts';
 import { HtmlPagesPlugin } from '../../html-pages/html-pages.plugin.ts';
 import { ServerRouteHandler } from '../shared/runtime/server-route-handler.ts';
+import { appLogger } from '../../global/app-logger.ts';
+import {
+	getAppBuildInputIndex,
+	getBuildInputRecordingContext,
+} from '../../build/cache/build-input-dependency-index.ts';
+import { Processor, type EcoBuildPlugin } from '../../plugins/processor.ts';
 
 const upgrades = vi.hoisted(() => ({ attach: vi.fn() }));
 const devBridge = vi.hoisted(() => ({ reload: vi.fn() }));
+
+class PrewarmPathProcessor extends Processor {
+	override plugins?: EcoBuildPlugin[] = [];
+
+	constructor(private readonly collectPaths: () => Promise<readonly string[]>) {
+		super({ name: 'prewarm-test-processor' });
+	}
+
+	override collectDevPrewarmPaths(): Promise<readonly string[]> {
+		return this.collectPaths();
+	}
+
+	override async setup(): Promise<void> {}
+
+	override async process(input: unknown): Promise<unknown> {
+		return input;
+	}
+}
 
 vi.mock('../shared/ws/node-http-websocket-upgrades.ts', () => ({
 	attachNodeHttpWebSocketUpgrades: upgrades.attach,
@@ -64,21 +90,10 @@ class TestNodeServerAdapter extends NodeServerAdapter {
 		}
 	}
 
-	protected override async startDevStaticRoutePrewarmWhenReady(): Promise<void> {
+	protected override startDevStaticRoutePrewarmWhenReady(): void {
 		if (!this.skipDevRouteSetup) {
-			await super.startDevStaticRoutePrewarmWhenReady();
+			super.startDevStaticRoutePrewarmWhenReady();
 		}
-	}
-
-	public async processFileChangeForTest(file: string): Promise<void> {
-		const watcher = (this as unknown as { projectWatcher: unknown }).projectWatcher as {
-			processFileChange: (file: string, event: 'change') => Promise<void>;
-		};
-		await watcher.processFileChange(file, 'change');
-	}
-
-	public setHmrManagerForTest(hmrManager: { isEnabled: () => boolean } | null): void {
-		(this as unknown as { hmrManager: { isEnabled: () => boolean } | null }).hmrManager = hmrManager;
 	}
 
 	public override async handleSharedRequest(): Promise<Response> {
@@ -112,29 +127,6 @@ function createAdapter(options?: Partial<NodeServerAdapterParams>) {
 describe('NodeServerAdapter', () => {
 	beforeEach(() => {
 		vi.restoreAllMocks();
-	});
-
-	it('does not re-inject HMR at the Node boundary (inject lives in SharedServerAdapter)', async () => {
-		const adapter = createAdapter();
-		adapter.setInitializedForTest();
-		adapter.setHmrManagerForTest({ isEnabled: () => true });
-
-		const response = await adapter.handleRequest(new Request('http://localhost:3000/explicit/team'));
-		const html = await response.text();
-
-		expect(html).toBe('<html><body><h1>Explicit route</h1></body></html>');
-		expect(html).not.toContain("import '/_hmr_runtime.js'");
-	});
-
-	it('does not inject the HMR runtime when watch mode is disabled', async () => {
-		const adapter = createAdapter({ options: { watch: false } });
-		adapter.setInitializedForTest();
-		adapter.setHmrManagerForTest({ isEnabled: () => true });
-
-		const response = await adapter.handleRequest(new Request('http://localhost:3000/explicit/team'));
-		const html = await response.text();
-
-		expect(html).not.toContain("import '/_hmr_runtime.js'");
 	});
 
 	it('returns 499 for normalized client aborts', async () => {
@@ -260,16 +252,22 @@ describe('NodeServerAdapter', () => {
 		appConfig.integrations = [];
 		const adapter = createAdapter({ appConfig });
 		adapter.skipDevRouteSetupForTest();
-		const subscription = vi
-			.spyOn(ProjectWatcher.prototype, 'createWatcherSubscription')
-			.mockResolvedValue(undefined as never);
-		onTestFinished(() => subscription.mockRestore());
+		const fileEvents = Object.assign(new EventEmitter(), {
+			add: vi.fn(),
+			close: vi.fn(async () => {}),
+			getWatched: vi.fn(() => ({})),
+		});
+		const watch = vi.spyOn(chokidar, 'watch').mockImplementation(() => {
+			setTimeout(() => fileEvents.emit('ready'), 0);
+			return fileEvents as never;
+		});
+		onTestFinished(() => watch.mockRestore());
 		devBridge.reload.mockClear();
 
 		await adapter.completeInitialization({} as import('node:http').Server);
-		await adapter.processFileChangeForTest(path.join(appConfig.absolutePaths.publicDir, 'robots.txt'));
+		fileEvents.emit('change', path.join(appConfig.absolutePaths.publicDir, 'robots.txt'));
 
-		expect(devBridge.reload).toHaveBeenCalledTimes(1);
+		await vi.waitFor(() => expect(devBridge.reload).toHaveBeenCalledTimes(1));
 	});
 
 	it('completes initialization while a prewarm render is pending and waits for it before Integration teardown', async () => {
@@ -325,5 +323,89 @@ describe('NodeServerAdapter', () => {
 		finishPageRender();
 		await disposal;
 		expect(shutdownEvents).toEqual(['render finished', 'teardown']);
+	});
+
+	it('records the build inputs a prewarm render reads, as a request does', async () => {
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir: path.join(os.tmpdir(), 'ecopages-prewarm-build-inputs'),
+		});
+		appConfig.processors.set('prewarm', new PrewarmPathProcessor(async () => ['/prewarmed']));
+		const recordingIndexes: unknown[] = [];
+		const handleResponse = vi
+			.spyOn(ServerRouteHandler.prototype, 'handleResponse')
+			.mockImplementation(async (request: Request) => {
+				if (new URL(request.url).pathname === '/prewarmed') {
+					recordingIndexes.push(getBuildInputRecordingContext().index);
+				}
+				return new Response('ok');
+			});
+		onTestFinished(() => handleResponse.mockRestore());
+		const adapter = createAdapter({ appConfig, options: { watch: true } });
+		adapter.setInitializedForTest();
+		const subscription = vi
+			.spyOn(ProjectWatcher.prototype, 'createWatcherSubscription')
+			.mockResolvedValue(undefined as never);
+		onTestFinished(() => subscription.mockRestore());
+
+		await adapter.completeInitialization({} as import('node:http').Server);
+		await vi.waitFor(() => expect(recordingIndexes).toHaveLength(1));
+
+		expect(recordingIndexes[0]).toBe(getAppBuildInputIndex(appConfig));
+		await adapter.dispose();
+	});
+
+	it('completes initialization while Processor prewarm paths are still being collected', async () => {
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir: path.join(os.tmpdir(), 'ecopages-pending-prewarm-paths'),
+		});
+		const pathCollection = new Promise<readonly string[]>(() => {});
+		const collectDevPrewarmPaths = vi.fn(() => pathCollection);
+		appConfig.processors.set('slow-prewarm', new PrewarmPathProcessor(collectDevPrewarmPaths));
+		const adapter = createAdapter({ appConfig, options: { watch: true } });
+		adapter.setInitializedForTest();
+		let finishWatcherSubscription!: () => void;
+		const watcherSubscription = new Promise<void>((resolve) => {
+			finishWatcherSubscription = resolve;
+		});
+		const subscription = vi
+			.spyOn(ProjectWatcher.prototype, 'createWatcherSubscription')
+			.mockImplementation(() => watcherSubscription.then(() => undefined as never));
+		onTestFinished(() => subscription.mockRestore());
+
+		const initialization = adapter.completeInitialization({} as import('node:http').Server);
+		await vi.waitFor(() => expect(subscription).toHaveBeenCalledOnce());
+
+		expect(collectDevPrewarmPaths).not.toHaveBeenCalled();
+		finishWatcherSubscription();
+		await initialization;
+		expect(collectDevPrewarmPaths).not.toHaveBeenCalled();
+
+		const response = await adapter.handleRequest(new Request('http://localhost:3000/'));
+		expect(response.status).toBe(200);
+
+		await vi.waitFor(() => expect(collectDevPrewarmPaths).toHaveBeenCalledOnce());
+		await adapter.dispose();
+	});
+
+	it('keeps serving and logs Processor prewarm collection failures with their stack', async () => {
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir: path.join(os.tmpdir(), 'ecopages-failed-prewarm-paths'),
+		});
+		const failure = new Error('manifest unreadable');
+		appConfig.processors.set('failing-prewarm', new PrewarmPathProcessor(async () => Promise.reject(failure)));
+		const adapter = createAdapter({ appConfig, options: { watch: true } });
+		adapter.setInitializedForTest();
+		const subscription = vi
+			.spyOn(ProjectWatcher.prototype, 'createWatcherSubscription')
+			.mockResolvedValue(undefined as never);
+		onTestFinished(() => subscription.mockRestore());
+		const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+
+		await adapter.completeInitialization({} as import('node:http').Server);
+		const response = await adapter.handleRequest(new Request('http://localhost:3000/'));
+		await vi.waitFor(() => expect(errorSpy).toHaveBeenCalledWith('[ecopages:dev-prewarm] failed', failure));
+		expect(response.status).toBe(200);
+
+		await adapter.dispose();
 	});
 });

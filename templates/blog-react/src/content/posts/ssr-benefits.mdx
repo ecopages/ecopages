@@ -71,7 +71,7 @@ Static pages that export successfully and allow indexing are included. Pages wit
 
 ### 4. Write after export hooks
 
-The sitemap is written after `afterStaticExport`, so integrations can finish generating artifacts first. Set `ECOPAGES_BASE_URL` before building for production.
+The sitemap is written after every page, so files generated during export can be listed in `extraUrls`. Set `ECOPAGES_BASE_URL` before building for production.
 
 ## How they fit together
 

@@ -20,7 +20,7 @@ type MdxConfigDependencyProcessor = (components: Partial<EcoComponent>[]) => Pro
 export interface MdxConfigDependencyServiceConfig {
 	integrationName: string;
 	pageModuleService: Pick<PageModuleService, 'ensureConfigFileMetadata'>;
-	assetProcessingService?: Pick<AssetProcessingService, 'processDependencies'>;
+	assetProcessingService: Pick<AssetProcessingService, 'processDependencies'>;
 }
 
 /**
@@ -83,10 +83,6 @@ export class MdxConfigDependencyService {
 		components: Partial<EcoComponent>[],
 		pagePath: string,
 	): Promise<ProcessedAsset[]> {
-		if (!this.config.assetProcessingService?.processDependencies) {
-			return [];
-		}
-
 		const dependencies = this.collectDeclaredSsrLazyDependencies(components);
 		if (dependencies.length === 0) {
 			return [];

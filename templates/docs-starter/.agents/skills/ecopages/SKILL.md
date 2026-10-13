@@ -8,7 +8,7 @@ description: >-
 
 # Building with Ecopages
 
-Ecopages is a TypeScript-first static site generator with Bun and Node adapters. It is explicit, integration-agnostic, and static by default.
+Ecopages is a TypeScript-first static site generator. It runs on Node or Bun through Node APIs. It is explicit, integration-agnostic, and static by default.
 
 ## When to use this skill
 
@@ -27,8 +27,8 @@ Default to **Ecopages JSX** (`ecopagesJsxPlugin()`, `.tsx`). Use **KitaJS** (`ki
 
 | Integration        | Owns                    | Notes                                                                                |
 | ------------------ | ----------------------- | ------------------------------------------------------------------------------------ |
-| **Ecopages JSX**   | `.tsx` Pages (default)  | Optional Radiant; optional MDX via `ecopagesJsxPlugin({ mdx: { enabled: true } })`   |
-| **React**          | React Pages and islands | Use `reactPlugin({ mdx: { enabled: true } })` for React MDX                          |
+| **Ecopages JSX**   | `.tsx` Pages (default)  | Optional Radiant; optional MDX via `ecopagesJsxPlugin({ mdx: {} })`                  |
+| **React**          | React Pages and islands | Use `reactPlugin({ mdx: {} })` for React MDX                                         |
 | **Lit**            | Web components, SSR     | Foreign-child ownership in the renderer                                              |
 | **Standalone MDX** | Third-party JSX runtime | `mdxPlugin({ compilerOptions: { jsxImportSource } })` — not React or `@ecopages/jsx` |
 | **KitaJS**         | `.kita.tsx` Pages       | `@kitajs/html`                                                                       |

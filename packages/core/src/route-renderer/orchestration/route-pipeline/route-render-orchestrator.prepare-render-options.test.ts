@@ -255,7 +255,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			stylesheets: [],
 			watchFiles: ['/app/pages/about.css', '/app/pages/counter.ts'],
 		});
-		const Page = (() => '<main>About</main>') as unknown as EcoPageComponent<any>;
+		const Page = (() => '<main>About</main>') as unknown as EcoPageComponent<unknown>;
 		Page.config = { identity };
 
 		const result = await flow.prepareRenderOptions(
@@ -272,6 +272,62 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 		expect(result.sourceDependencyPaths).toEqual(
 			expect.arrayContaining(['/app/pages/about.html', '/app/pages/about.css', '/app/pages/counter.ts']),
 		);
+	});
+
+	it('adds registered route-module inputs to the cached HTML dependencies', async () => {
+		const appConfig = { cache: { defaultStrategy: 'static' }, integrations: [] } as unknown as EcoPagesAppConfig;
+		const routeFile = '/app/pages/about.html';
+		const routeHelper = '/app/components/shared-title.ts';
+		getAppBuildInputIndex(appConfig).register({ consumer: 'server-route-module', key: routeFile }, [
+			routeFile,
+			routeHelper,
+		]);
+		const flow = new RouteRenderOrchestrator(appConfig, {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService);
+		const Page = (() => '<main>About</main>') as unknown as EcoPageComponent<unknown>;
+		Page.config = {
+			identity: { id: 'about-page', file: routeFile, integration: 'string' },
+		};
+
+		const result = await flow.prepareRenderOptions(
+			{ file: routeFile, params: {}, query: {} } as unknown as RouteRendererOptions,
+			createFlowAdapter({
+				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
+				getHtmlTemplate: async () => (() => '<html></html>') as EcoComponent<HtmlTemplateProps>,
+				resolvePageData: async () => ({ props: {}, metadata: { title: 'About', description: 'About' } }),
+				resolveDependencies: async () => [],
+				collectPageBrowserGraphContribution: async () => undefined,
+			}),
+		);
+
+		expect(result.sourceDependencyPaths).toEqual(expect.arrayContaining([routeFile, routeHelper]));
+		expect(getAppBuildInputIndex(appConfig).recordedWatchPaths()).toContain(routeHelper);
+	});
+
+	it('collects no source dependency paths in production, where nothing watches them', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const appConfig = { cache: { defaultStrategy: 'static' }, integrations: [] } as unknown as EcoPagesAppConfig;
+		const routeFile = '/app/pages/about.html';
+		const flow = new RouteRenderOrchestrator(appConfig, {
+			processDependencies: vi.fn(async () => []),
+		} as unknown as AssetProcessingService);
+		const Page = (() => '<main>About</main>') as unknown as EcoPageComponent<unknown>;
+		Page.config = { identity: { id: 'about-page', file: routeFile, integration: 'string' } };
+
+		const result = await flow.prepareRenderOptions(
+			{ file: routeFile, params: {}, query: {} } as unknown as RouteRendererOptions,
+			createFlowAdapter({
+				resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
+				getHtmlTemplate: async () => (() => '<html></html>') as EcoComponent<HtmlTemplateProps>,
+				resolvePageData: async () => ({ props: {}, metadata: { title: 'About', description: 'About' } }),
+				resolveDependencies: async () => [],
+				collectPageBrowserGraphContribution: async () => undefined,
+			}),
+		);
+
+		expect(result.sourceDependencyPaths).toBeUndefined();
+		expect(getAppBuildInputIndex(appConfig).recordedWatchPaths()).toEqual([]);
 	});
 
 	it('adds nested Component identity files to the cached HTML dependencies', async () => {
@@ -1237,131 +1293,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		expect(result.locals).toBeUndefined();
 		expect(() => Reflect.get(result.pageLocals as object, 'guarded')).toThrow(LocalsAccessError);
-	});
-
-	it('does not eagerly emit lazy SSR component scripts for non-owning routes', async () => {
-		const eagerSsrLazyAsset = {
-			kind: 'script',
-			srcUrl: '/assets/components/lit-counter.script.js',
-			position: 'head',
-			packageRole: 'dynamic-chunk',
-		} as ProcessedAsset;
-		const processDependencies = vi.fn(async (dependencies: AssetDefinition[]) => {
-			const hasEagerSsrLazyDependency = dependencies.some((dependency) => {
-				if (dependency.kind !== 'script' || dependency.source !== 'file') {
-					return false;
-				}
-
-				return String(dependency.filepath).endsWith('/lit-counter.script.ts');
-			});
-
-			return hasEagerSsrLazyDependency ? [eagerSsrLazyAsset] : [];
-		});
-		const assetProcessingService = {
-			processDependencies,
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [{ name: 'lit' }],
-		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const LitCounter = (() => '<lit-counter count="0"></lit-counter>') as unknown as EcoComponent<object>;
-		LitCounter.config = {
-			identity: { id: 'lit-counter', file: '/app/components/lit-counter.lit.tsx', integration: 'lit' },
-			dependencies: {
-				scripts: [{ src: './lit-counter.script.ts', lazy: { 'on:interaction': 'click' }, ssr: true }],
-			},
-		};
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-		Page.config = {
-			dependencies: {
-				components: [LitCounter],
-			},
-		};
-
-		await flow.prepareRenderOptions(
-			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			createFlowAdapter({
-				resolvePageModule: async () => ({
-					Page,
-					integrationSpecificProps: {},
-				}),
-				getHtmlTemplate: async () => HtmlTemplate,
-				resolvePageData: async () => ({
-					props: {},
-					metadata: { title: 'Static page', description: 'Static page description' },
-				}),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-			}),
-		);
-
-		expect(processDependencies).not.toHaveBeenCalled();
-	});
-
-	it('does not add eager SSR script assets to the returned page package', async () => {
-		const eagerSsrLazyAsset = {
-			kind: 'script',
-			srcUrl: '/assets/components/lit-counter.script.js',
-			position: 'head',
-			packageRole: 'dynamic-chunk',
-		} as ProcessedAsset;
-		const assetProcessingService = {
-			processDependencies: vi.fn(async (dependencies: AssetDefinition[]) => {
-				const hasEagerSsrLazyDependency = dependencies.some((dependency) => {
-					if (dependency.kind !== 'script' || dependency.source !== 'file') {
-						return false;
-					}
-
-					return String(dependency.filepath).endsWith('/lit-counter.script.ts');
-				});
-
-				return hasEagerSsrLazyDependency ? [eagerSsrLazyAsset] : [];
-			}),
-		} as unknown as AssetProcessingService;
-		const appConfig = {
-			cache: { defaultStrategy: 'static' },
-			integrations: [{ name: 'lit' }],
-		} as unknown as EcoPagesAppConfig;
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const LitCounter = (() => '<lit-counter count="0"></lit-counter>') as unknown as EcoComponent<object>;
-		LitCounter.config = {
-			identity: { id: 'lit-counter', file: '/app/components/lit-counter.lit.tsx', integration: 'lit' },
-			dependencies: {
-				scripts: [{ src: './lit-counter.script.ts', lazy: { 'on:interaction': 'click' }, ssr: true }],
-			},
-		};
-		const Page = (() => '<main>Page</main>') as unknown as EcoPageComponent<any>;
-		Page.config = {
-			dependencies: {
-				components: [LitCounter],
-			},
-		};
-
-		const result = await flow.prepareRenderOptions(
-			{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
-			createFlowAdapter({
-				resolvePageModule: async () => ({
-					Page,
-					integrationSpecificProps: {},
-				}),
-				getHtmlTemplate: async () => HtmlTemplate,
-				resolvePageData: async () => ({
-					props: {},
-					metadata: { title: 'Static page', description: 'Static page description' },
-				}),
-				resolveDependencies: async () => [],
-				collectPageBrowserGraphContribution: async () => ({ assets: [] }),
-			}),
-		);
-
-		expect(result.pagePackage).toEqual(
-			expect.objectContaining({
-				dynamicChunks: [],
-			}),
-		);
 	});
 
 	it('skips undefined component entries while collecting integration dependencies and triggers', async () => {

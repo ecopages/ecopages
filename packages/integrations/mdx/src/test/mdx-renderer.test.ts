@@ -1,17 +1,31 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type {
 	ForeignSubtreeRenderPayload,
 	EcoComponent,
 	EcoPageFile,
 	EcoPagesElement,
 	HtmlTemplateProps,
+	ProcessedAsset,
 } from '@ecopages/core';
 import { eco } from '@ecopages/core';
-import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
+import {
+	createDeferredIntegrationPlugin,
+	createTestAppConfig,
+	htmlDocumentHead,
+	renderFilesystemPageAndExplicitView,
+} from '@ecopages/testing';
+import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
+import type { PageBrowserGraphContributionContext } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { MDXRenderer } from '../mdx-renderer.ts';
 
 const Config = await createTestAppConfig();
+
+function createTestAssetProcessingService(appConfig: typeof Config): AssetProcessingService {
+	const service = new AssetProcessingService(appConfig);
+	vi.spyOn(service, 'processDependencies').mockResolvedValue([]);
+	return service;
+}
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
 	return `<html><body>${children}</body></html>`;
@@ -28,7 +42,7 @@ class TestMdxRenderer extends MDXRenderer {
 const createRenderer = () => {
 	return new TestMdxRenderer({
 		appConfig: Config,
-		assetProcessingService: {} as any,
+		assetProcessingService: createTestAssetProcessingService(Config),
 		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
 	});
@@ -36,7 +50,7 @@ const createRenderer = () => {
 
 const renderer = new MDXRenderer({
 	appConfig: Config,
-	assetProcessingService: {} as any,
+	assetProcessingService: createTestAssetProcessingService(Config),
 	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],
 });
@@ -47,12 +61,27 @@ class ImportTestMdxRenderer extends MDXRenderer {
 	}
 }
 
+class BrowserGraphTestMdxRenderer extends MDXRenderer {
+	public resolvedComponents: Array<EcoComponent | Partial<EcoComponent>> = [];
+
+	public collectForTest(context: PageBrowserGraphContributionContext) {
+		return this.collectPageBrowserGraphContribution(context);
+	}
+
+	protected override async resolveDependencies(
+		components: Array<EcoComponent | Partial<EcoComponent>>,
+	): Promise<ProcessedAsset[]> {
+		this.resolvedComponents = components;
+		return [];
+	}
+}
+
 describe('MDXRenderer', () => {
 	describe('page importing', () => {
 		it('normalizes imported MDX modules without overriding the base import path', () => {
 			const testRenderer = new ImportTestMdxRenderer({
 				appConfig: Config,
-				assetProcessingService: {} as any,
+				assetProcessingService: createTestAssetProcessingService(Config),
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
@@ -74,6 +103,41 @@ describe('MDXRenderer', () => {
 			expect(result.default).toBe(Page);
 			expect(result.layout).toBe(Layout);
 			expect((result.default as typeof Page).config).toBe(config);
+		});
+	});
+
+	describe('page browser graph contribution', () => {
+		it('preserves page and imported MDX layout identities in dependency collection', async () => {
+			const renderer = new BrowserGraphTestMdxRenderer({
+				appConfig: Config,
+				assetProcessingService: createTestAssetProcessingService(Config),
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+			const Layout = (async ({ children }: { children: EcoPagesElement }) => children) as EcoComponent<{
+				children: EcoPagesElement;
+			}>;
+			Layout.config = {
+				identity: { id: 'imported-mdx-layout', file: '/app/layouts/site.mdx', integration: 'mdx' },
+				dependencies: { scripts: ['./site.client.js'] },
+			};
+			const Page = (async () => '<article>content</article>') as unknown as EcoComponent;
+			const pageConfig = {
+				identity: { id: 'existing-page-identity', file: '/app/pages/original.mdx', integration: 'mdx' },
+				dependencies: { scripts: ['./page.client.js'] },
+				layouts: [Layout],
+			};
+			Page.config = pageConfig;
+
+			await renderer.collectForTest({
+				file: '/app/pages/post.mdx',
+				pageModule: { default: Page, config: pageConfig } as EcoPageFile,
+			});
+
+			expect(renderer.resolvedComponents.map((component) => component.config?.identity)).toEqual([
+				{ id: 'imported-mdx-layout', file: '/app/layouts/site.mdx', integration: 'mdx' },
+				{ id: 'existing-page-identity', file: '/app/pages/post.mdx', integration: 'mdx' },
+			]);
 		});
 	});
 
@@ -130,7 +194,7 @@ describe('MDXRenderer', () => {
 			});
 			const renderer = new TestMdxRenderer({
 				appConfig: config,
-				assetProcessingService: {} as any,
+				assetProcessingService: createTestAssetProcessingService(config),
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
@@ -208,14 +272,14 @@ describe('MDXRenderer', () => {
 		});
 	});
 
-	describe('renderToResponse', () => {
+	describe('renderExplicitView', () => {
 		it('should render a view with default status 200', async () => {
 			const testRenderer = createRenderer();
 			const View = (async (props: { title: string }) => `<h1>${props.title}</h1>`) as unknown as EcoComponent<{
 				title: string;
 			}>;
 
-			const response = await testRenderer.renderToResponse(View, { title: 'Hello MDX' }, {});
+			const response = await testRenderer.renderExplicitView(View, { title: 'Hello MDX' }, {});
 
 			expect(response.status).toBe(200);
 			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
@@ -228,7 +292,7 @@ describe('MDXRenderer', () => {
 			const View = (async (props: { content: string }) =>
 				`<div>${props.content}</div>`) as unknown as EcoComponent<{ content: string }>;
 
-			const response = await testRenderer.renderToResponse(View, { content: 'Partial MDX' }, { partial: true });
+			const response = await testRenderer.renderExplicitView(View, { content: 'Partial MDX' }, { partial: true });
 
 			const body = await response.text();
 			expect(body).toBe('<div>Partial MDX</div>');
@@ -239,7 +303,7 @@ describe('MDXRenderer', () => {
 			const testRenderer = createRenderer();
 			const View = (async () => '<p>Not Found</p>') as unknown as EcoComponent<object>;
 
-			const response = await testRenderer.renderToResponse(View, {}, { status: 404 });
+			const response = await testRenderer.renderExplicitView(View, {}, { status: 404 });
 
 			expect(response.status).toBe(404);
 		});
@@ -248,7 +312,7 @@ describe('MDXRenderer', () => {
 			const testRenderer = createRenderer();
 			const View = (async () => '<p>Cached</p>') as unknown as EcoComponent<object>;
 
-			const response = await testRenderer.renderToResponse(
+			const response = await testRenderer.renderExplicitView(
 				View,
 				{},
 				{
@@ -273,11 +337,39 @@ describe('MDXRenderer', () => {
 			}>;
 			View.config = { layouts: [Layout] };
 
-			const response = await testRenderer.renderToResponse(View, { message: 'With Layout' }, {});
+			const response = await testRenderer.renderExplicitView(View, { message: 'With Layout' }, {});
 
 			const body = await response.text();
 			expect(body).toContain('<main class="layout">');
 			expect(body).toContain('<p>With Layout</p>');
+		});
+
+		it('matches the filesystem page head and layouts', async () => {
+			const testRenderer = createRenderer();
+			testRenderer.htmlTemplate = (async ({ children, metadata }) =>
+				`<html><head><title>${metadata.title}</title></head><body>${children}</body></html>`) as EcoComponent<HtmlTemplateProps>;
+			const Layout = (async (props: { children: EcoPagesElement }) =>
+				`<main class="layout">${props.children}</main>`) as EcoComponent<{ children: EcoPagesElement }>;
+			const View = (async (props: { message: string }) => `<p>${props.message}</p>`) as unknown as EcoComponent<{
+				message: string;
+			}>;
+			View.metadata = (async () => ({
+				title: 'About title',
+				description: 'About',
+			})) as unknown as EcoComponent['metadata'];
+			View.config = { layouts: [Layout] };
+
+			const { pageHtml, explicitHtml } = await renderFilesystemPageAndExplicitView(
+				testRenderer,
+				View,
+				{ message: 'With Layout' },
+				'/app/pages/about.mdx',
+			);
+
+			expect(htmlDocumentHead(explicitHtml)).toContain('About title');
+			expect(htmlDocumentHead(explicitHtml)).toBe(htmlDocumentHead(pageHtml));
+			expect(explicitHtml).toContain('<main class="layout">');
+			expect(explicitHtml).toBe(pageHtml);
 		});
 
 		it('should throw an error if the view fails to render', async () => {
@@ -286,8 +378,8 @@ describe('MDXRenderer', () => {
 				throw new Error('View failed to render');
 			}) as unknown as EcoComponent<object>;
 
-			await expect(testRenderer.renderToResponse(View, {}, {})).rejects.toThrow(
-				'Error rendering view: View failed to render',
+			await expect(testRenderer.renderExplicitView(View, {}, {})).rejects.toThrow(
+				'Error rendering page: View failed to render',
 			);
 		});
 	});

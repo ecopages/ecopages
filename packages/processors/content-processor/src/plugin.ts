@@ -12,6 +12,7 @@ import {
 	writeGeneratedTypesPackage,
 	type EcoBuildPlugin,
 	type ProcessorConfig,
+	type ProcessorWatchChanges,
 	type ProcessorWatchConfig,
 } from '@ecopages/core/plugins/processor';
 import { Logger } from '@ecopages/logger';
@@ -35,6 +36,12 @@ import { COLLECTION_NAME_PATTERN, CONTENT_PROCESSOR_NAME } from './constants.ts'
 import type { ContentProcessorConfig } from './collection-types.ts';
 import { buildContentDevPrewarmPathnames } from './dev-prewarm-paths.ts';
 import { buildCollectionServerModule } from '@ecopages/core/services/module-loading/collection-server-module-build.service';
+
+type ContentCollectionWatchChanges = {
+	regenerate: boolean;
+	changedEntries: string[];
+	invalidateServerArtifact: boolean;
+};
 
 const logger = new Logger('[@ecopages/content-processor]', {
 	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
@@ -77,19 +84,16 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	 */
 	public readonly collectionServerCompiledModules: Record<string, string> = {};
 
-	constructor(config: Omit<ProcessorConfig<ContentProcessorConfig>, 'name' | 'description'>) {
+	constructor(config: Omit<ProcessorConfig<ContentProcessorConfig>, 'name'>) {
 		const defaultWatchConfig: ProcessorWatchConfig = {
 			paths: [],
 			extensions: ['.mdx', '.md', '.ts', '.tsx', '.js', '.jsx', '.json'],
-			onCreate: async (ctx) => this.handleContentFileEvent(ctx.path, 'create'),
-			onChange: async (ctx) => this.handleContentFileEvent(ctx.path, 'change'),
-			onDelete: async (ctx) => this.handleContentFileEvent(ctx.path, 'delete'),
+			onChanges: async (changes) => this.handleContentFileChanges(changes),
 		};
 
 		super({
 			...config,
 			name: CONTENT_PROCESSOR_NAME,
-			description: 'Build-time content collections exposed as ecopages:content/* virtual modules.',
 			watch: config.watch ? mergeProcessorOptions(defaultWatchConfig, config.watch) : defaultWatchConfig,
 		});
 	}
@@ -264,59 +268,113 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		});
 	}
 
-	private async handleContentFileEvent(filePath: string, event: 'change' | 'create' | 'delete'): Promise<void> {
+	private async handleContentFileChanges({ created, changed, deleted }: ProcessorWatchChanges): Promise<void> {
 		if (!this.context) {
 			return;
 		}
 
-		const normalizedPath = path.normalize(filePath);
-		const affectedCollections: string[] = [];
-
-		for (const [collectionName, definition] of Object.entries(this.getCollectionsConfig())) {
-			const contentRoot = this.getCollectionContentRoot(definition.contentDir);
-			if (normalizedPath.startsWith(contentRoot + path.sep) || normalizedPath === contentRoot) {
-				affectedCollections.push(collectionName);
-			}
-		}
+		const collectionChanges = this.collectCollectionWatchChanges({ created, changed, deleted });
 
 		let shouldRegenerateTypes = false;
 
-		for (const collectionName of affectedCollections) {
-			const definition = this.getCollectionsConfig()[collectionName];
-			const isEntry = this.isCollectionEntryPath(normalizedPath, definition.extensions);
-
-			if (!isEntry) {
-				this.invalidateCollectionServerArtifact(collectionName);
-				continue;
-			}
-
-			if (event === 'create' || event === 'delete') {
-				await this.regenerateCollectionModule(collectionName);
-				shouldRegenerateTypes = true;
-				continue;
-			}
-
-			const scanner = this.getOrCreateScanner(collectionName);
-			const updateResult = await scanner.updateEntryForPath(normalizedPath, event);
-
-			if (updateResult === 'no-op') {
-				this.invalidateCollectionServerArtifact(collectionName);
-				continue;
-			}
-
-			if (updateResult === 'manifest') {
-				await this.regenerateCollectionEntriesModule(collectionName);
-				shouldRegenerateTypes = true;
-				continue;
-			}
-
-			await this.regenerateCollectionModule(collectionName);
-			shouldRegenerateTypes = true;
+		for (const [collectionName, changes] of collectionChanges) {
+			const regeneratedTypes = await this.applyCollectionWatchChanges(collectionName, changes);
+			shouldRegenerateTypes ||= regeneratedTypes;
 		}
 
 		if (shouldRegenerateTypes) {
 			this.generateTypes();
 		}
+	}
+
+	private collectCollectionWatchChanges({
+		created,
+		changed,
+		deleted,
+	}: Pick<ProcessorWatchChanges, 'created' | 'changed' | 'deleted'>): Map<string, ContentCollectionWatchChanges> {
+		const collectionChanges = new Map<string, ContentCollectionWatchChanges>();
+		const events = [
+			{ paths: created, event: 'create' as const },
+			{ paths: changed, event: 'change' as const },
+			{ paths: deleted, event: 'delete' as const },
+		];
+
+		for (const { paths, event } of events) {
+			for (const filePath of paths) {
+				const normalizedPath = path.normalize(filePath);
+				for (const [collectionName, definition] of Object.entries(this.getCollectionsConfig())) {
+					const contentRoot = this.getCollectionContentRoot(definition.contentDir);
+					if (normalizedPath.startsWith(contentRoot + path.sep) || normalizedPath === contentRoot) {
+						const changes = collectionChanges.get(collectionName) ?? {
+							regenerate: false,
+							changedEntries: [],
+							invalidateServerArtifact: false,
+						};
+						collectionChanges.set(collectionName, changes);
+						this.recordCollectionWatchChange(changes, normalizedPath, event, definition.extensions);
+					}
+				}
+			}
+		}
+
+		return collectionChanges;
+	}
+
+	private recordCollectionWatchChange(
+		changes: ContentCollectionWatchChanges,
+		filePath: string,
+		event: 'change' | 'create' | 'delete',
+		configuredExtensions: readonly string[] | undefined,
+	): void {
+		if (!this.isCollectionEntryPath(filePath, configuredExtensions)) {
+			changes.invalidateServerArtifact = true;
+		} else if (event === 'change') {
+			changes.changedEntries.push(filePath);
+		} else {
+			changes.regenerate = true;
+		}
+	}
+
+	private async applyCollectionWatchChanges(
+		collectionName: string,
+		changes: ContentCollectionWatchChanges,
+	): Promise<boolean> {
+		if (changes.regenerate) {
+			await this.regenerateCollectionModule(collectionName);
+			return true;
+		}
+
+		const updateResult = await this.updateChangedCollectionEntries(collectionName, changes);
+		if (updateResult === 'collection') {
+			await this.regenerateCollectionModule(collectionName);
+		} else if (updateResult === 'entries') {
+			await this.regenerateCollectionEntriesModule(collectionName);
+		}
+
+		if (changes.invalidateServerArtifact && updateResult !== 'collection') {
+			this.invalidateCollectionServerArtifact(collectionName);
+		}
+
+		return updateResult !== 'none';
+	}
+
+	private async updateChangedCollectionEntries(
+		collectionName: string,
+		changes: ContentCollectionWatchChanges,
+	): Promise<'none' | 'entries' | 'collection'> {
+		let result: 'none' | 'entries' | 'collection' = 'none';
+		for (const filePath of changes.changedEntries) {
+			const updateResult = await this.getOrCreateScanner(collectionName).updateEntryForPath(filePath, 'change');
+			if (updateResult === 'no-op') {
+				changes.invalidateServerArtifact = true;
+			} else if (updateResult === 'manifest' && result === 'none') {
+				result = 'entries';
+			} else if (updateResult !== 'manifest') {
+				result = 'collection';
+			}
+		}
+
+		return result;
 	}
 
 	private initializeWatchPaths(): void {
@@ -482,7 +540,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 }
 
 export const contentProcessorPlugin = (
-	config: Omit<ProcessorConfig<ContentProcessorConfig>, 'name' | 'description'>,
+	config: Omit<ProcessorConfig<ContentProcessorConfig>, 'name'>,
 ): ContentProcessorPlugin => {
 	return new ContentProcessorPlugin(config);
 };

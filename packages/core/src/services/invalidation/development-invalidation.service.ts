@@ -13,14 +13,19 @@ import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-
 export type DevelopmentInvalidationCategory =
 	| 'public-asset'
 	| 'additional-watch'
-	| 'include-source'
-	| 'explicit-server-view'
 	| 'route-source'
 	| 'processor-owned-asset'
-	| 'recorded-input'
-	| 'server-source'
+	| 'source'
 	| 'runtime-restart'
+	| 'entry-watched-config'
 	| 'other';
+
+export type DevelopmentInvalidationPlanningContext = {
+	workspacePackageRoots?: readonly string[];
+	entryWatcherOwnsConfig?: boolean;
+};
+
+const sourceFileExtension = /\.(?:[cm]?ts|[jt]sx?|mdx)$/u;
 
 /**
  * Framework-owned invalidation plan for one changed file.
@@ -38,6 +43,67 @@ export interface DevelopmentInvalidationPlan {
 	delegateToHmr: boolean;
 	processorHandledAsset: boolean;
 }
+
+type CategoryInvalidationPlan = Omit<DevelopmentInvalidationPlan, 'category'>;
+
+const INVALIDATION_PLAN_BY_CATEGORY = {
+	'runtime-restart': {
+		invalidateServerModules: false,
+		refreshRoutes: false,
+		reloadBrowser: false,
+		delegateToHmr: false,
+		processorHandledAsset: false,
+	},
+	'entry-watched-config': {
+		invalidateServerModules: false,
+		refreshRoutes: false,
+		reloadBrowser: false,
+		delegateToHmr: false,
+		processorHandledAsset: false,
+	},
+	'public-asset': {
+		invalidateServerModules: false,
+		refreshRoutes: false,
+		reloadBrowser: true,
+		delegateToHmr: false,
+		processorHandledAsset: false,
+	},
+	'additional-watch': {
+		invalidateServerModules: true,
+		refreshRoutes: false,
+		reloadBrowser: true,
+		delegateToHmr: false,
+		processorHandledAsset: false,
+	},
+	'processor-owned-asset': {
+		invalidateServerModules: false,
+		refreshRoutes: false,
+		reloadBrowser: false,
+		delegateToHmr: false,
+		processorHandledAsset: true,
+	},
+	'route-source': {
+		invalidateServerModules: true,
+		refreshRoutes: true,
+		reloadBrowser: false,
+		delegateToHmr: true,
+		processorHandledAsset: false,
+	},
+	source: {
+		invalidateServerModules: true,
+		refreshRoutes: false,
+		reloadBrowser: false,
+		delegateToHmr: true,
+		processorHandledAsset: false,
+	},
+	other: {
+		invalidateServerModules: false,
+		refreshRoutes: false,
+		reloadBrowser: false,
+		delegateToHmr: true,
+		processorHandledAsset: false,
+	},
+} satisfies Record<DevelopmentInvalidationCategory, CategoryInvalidationPlan>;
 
 /**
  * One debounce window of filesystem events, grouped by kind.
@@ -65,8 +131,9 @@ export interface AppliedDevFileChange {
  * Result of applying one batch of development file changes.
  *
  * @remarks
- * Caches are marked dirty here. Rebuild happens on the next request that
- * needs a result, not when the filesystem event arrives.
+ * Ordinary changes mark caches dirty here. A runtime restart path is returned
+ * without invalidating anything because the runtime owner will replace the app.
+ * Rebuild happens on the next request that needs a result, not on the filesystem event.
  */
 export interface AppliedDevFileChanges {
 	files: AppliedDevFileChange[];
@@ -74,6 +141,7 @@ export interface AppliedDevFileChanges {
 	refreshRoutes: boolean;
 	reloadBrowser: boolean;
 	delegateToHmr: boolean;
+	runtimeRestartPath?: string;
 }
 
 /**
@@ -111,14 +179,22 @@ export class DevelopmentInvalidationService {
 	/**
 	 * Plans one filesystem batch and marks affected results dirty without rebuilding them.
 	 */
-	async applyDevFileChanges(changes: DevFileChanges): Promise<AppliedDevFileChanges> {
-		const files = this.collectAppliedFiles(changes);
+	async applyDevFileChanges(
+		changes: DevFileChanges,
+		context: DevelopmentInvalidationPlanningContext = {},
+	): Promise<AppliedDevFileChanges> {
+		const files = this.collectAppliedFiles(changes, context);
 		const applied = this.summarizeAppliedFiles(files);
-		await this.markAppliedFilesDirty(files, applied);
+		if (!applied.runtimeRestartPath) {
+			await this.markAppliedFilesDirty(files, applied);
+		}
 		return applied;
 	}
 
-	private collectAppliedFiles(changes: DevFileChanges): AppliedDevFileChange[] {
+	private collectAppliedFiles(
+		changes: DevFileChanges,
+		context: DevelopmentInvalidationPlanningContext,
+	): AppliedDevFileChange[] {
 		const byPath = new Map<string, DevFileChangeKind>();
 		for (const filePath of changes.changed) {
 			byPath.set(path.resolve(filePath), 'changed');
@@ -132,7 +208,11 @@ export class DevelopmentInvalidationService {
 
 		const files: AppliedDevFileChange[] = [];
 		for (const [filePath, kind] of byPath) {
-			files.push({ filePath, kind, plan: this.planFileChange(filePath) });
+			const plan = this.planFileChange(filePath, context);
+			if (plan.category === 'entry-watched-config') {
+				continue;
+			}
+			files.push({ filePath, kind, plan });
 		}
 		return files;
 	}
@@ -150,10 +230,19 @@ export class DevelopmentInvalidationService {
 			delegateToHmr ||= file.plan.delegateToHmr;
 		}
 
-		return { files, invalidateServerModules, refreshRoutes, reloadBrowser, delegateToHmr };
+		const runtimeRestartPath = files.find((file) => file.plan.category === 'runtime-restart')?.filePath;
+		return {
+			files,
+			invalidateServerModules,
+			refreshRoutes,
+			reloadBrowser,
+			delegateToHmr,
+			...(runtimeRestartPath ? { runtimeRestartPath } : {}),
+		};
 	}
 
 	private async markAppliedFilesDirty(files: AppliedDevFileChange[], applied: AppliedDevFileChanges): Promise<void> {
+		getAppBuildInputIndex(this.appConfig).recordChanges(files.map((file) => file.filePath));
 		if (applied.invalidateServerModules) {
 			this.invalidateServerModules(
 				files.filter((file) => file.plan.invalidateServerModules).map((file) => file.filePath),
@@ -164,8 +253,13 @@ export class DevelopmentInvalidationService {
 		this.invalidatePageBrowserGraphs(files);
 	}
 
+	/**
+	 * @remarks
+	 * An `additionalWatchPaths` file can be read by any page without recording it, so a match clears
+	 * every cached document. Every other edit evicts only the entries that recorded the path.
+	 */
 	private async invalidatePageHtmlCache(files: AppliedDevFileChange[]): Promise<void> {
-		if (files.some((file) => shouldClearAllPageHtmlCache(file))) {
+		if (files.some((file) => file.plan.category === 'additional-watch')) {
 			await clearAppPageCache(this.appConfig);
 			return;
 		}
@@ -186,6 +280,10 @@ export class DevelopmentInvalidationService {
 			session.invalidateByFilePath(file.filePath);
 			if (file.plan.category === 'route-source' && file.kind !== 'changed') {
 				session.invalidateByRouteFile(file.filePath);
+				getAppBuildInputIndex(this.appConfig).unregister({
+					consumer: 'server-route-module',
+					key: path.resolve(file.filePath),
+				});
 			}
 		}
 	}
@@ -193,114 +291,50 @@ export class DevelopmentInvalidationService {
 	/**
 	 * Classifies one changed file into an explicit framework invalidation plan.
 	 */
-	planFileChange(filePath: string): DevelopmentInvalidationPlan {
-		if (this.isRuntimeRestartFile(filePath)) {
-			return {
-				category: 'runtime-restart',
-				invalidateServerModules: false,
-				refreshRoutes: false,
-				reloadBrowser: false,
-				delegateToHmr: false,
-				processorHandledAsset: false,
-			};
+	planFileChange(
+		filePath: string,
+		context: DevelopmentInvalidationPlanningContext = {},
+	): DevelopmentInvalidationPlan {
+		const category = this.classifyFileChange(filePath, context);
+		return { category, ...INVALIDATION_PLAN_BY_CATEGORY[category] };
+	}
+
+	private classifyFileChange(
+		filePath: string,
+		context: DevelopmentInvalidationPlanningContext,
+	): DevelopmentInvalidationCategory {
+		if (context.entryWatcherOwnsConfig && this.isConfigModuleFile(filePath)) {
+			return 'entry-watched-config';
+		}
+
+		if (
+			context.workspacePackageRoots?.some((root) => isPathInside(filePath, root)) ||
+			this.isRuntimeRestartFile(filePath)
+		) {
+			return 'runtime-restart';
 		}
 
 		if (this.isPublicDirFile(filePath)) {
-			return {
-				category: 'public-asset',
-				invalidateServerModules: false,
-				refreshRoutes: false,
-				reloadBrowser: true,
-				delegateToHmr: false,
-				processorHandledAsset: false,
-			};
+			return 'public-asset';
 		}
 
 		if (this.matchesAdditionalWatchPaths(filePath)) {
-			return {
-				category: 'additional-watch',
-				invalidateServerModules: true,
-				refreshRoutes: false,
-				reloadBrowser: true,
-				delegateToHmr: false,
-				processorHandledAsset: false,
-			};
+			return 'additional-watch';
 		}
 
 		if (this.isProcessorOwnedAsset(filePath)) {
-			return {
-				category: 'processor-owned-asset',
-				invalidateServerModules: false,
-				refreshRoutes: false,
-				reloadBrowser: false,
-				delegateToHmr: false,
-				processorHandledAsset: true,
-			};
+			return 'processor-owned-asset';
 		}
 
 		if (this.isRouteSourceFile(filePath)) {
-			return {
-				category: 'route-source',
-				invalidateServerModules: true,
-				refreshRoutes: true,
-				reloadBrowser: false,
-				delegateToHmr: true,
-				processorHandledAsset: false,
-			};
+			return 'route-source';
 		}
 
-		if (getAppBuildInputIndex(this.appConfig).hasSourcePath(filePath)) {
-			return {
-				category: 'recorded-input',
-				invalidateServerModules: true,
-				refreshRoutes: false,
-				reloadBrowser: false,
-				delegateToHmr: true,
-				processorHandledAsset: false,
-			};
+		if (getAppBuildInputIndex(this.appConfig).hasSourcePath(filePath) || this.isServerModuleSourceFile(filePath)) {
+			return 'source';
 		}
 
-		if (this.isIncludeSourceFile(filePath)) {
-			return {
-				category: 'include-source',
-				invalidateServerModules: true,
-				refreshRoutes: false,
-				reloadBrowser: false,
-				delegateToHmr: true,
-				processorHandledAsset: false,
-			};
-		}
-
-		if (this.isExplicitServerViewFile(filePath)) {
-			return {
-				category: 'explicit-server-view',
-				invalidateServerModules: true,
-				refreshRoutes: false,
-				reloadBrowser: false,
-				delegateToHmr: true,
-				processorHandledAsset: false,
-			};
-		}
-
-		if (this.isServerModuleSourceFile(filePath)) {
-			return {
-				category: 'server-source',
-				invalidateServerModules: true,
-				refreshRoutes: false,
-				reloadBrowser: false,
-				delegateToHmr: true,
-				processorHandledAsset: false,
-			};
-		}
-
-		return {
-			category: 'other',
-			invalidateServerModules: false,
-			refreshRoutes: false,
-			reloadBrowser: false,
-			delegateToHmr: true,
-			processorHandledAsset: false,
-		};
+		return 'other';
 	}
 
 	/**
@@ -353,78 +387,45 @@ export class DevelopmentInvalidationService {
 		);
 	}
 
+	/** Returns whether a file is an include or template source. */
+	isIncludeSourceFile(filePath: string): boolean {
+		const resolvedPath = path.resolve(filePath);
+		return isPathInside(resolvedPath, this.appConfig.absolutePaths.includesDir) && this.isSourceFile(resolvedPath);
+	}
+
+	/** Returns whether a file is an explicit server-rendered view module. */
+	isExplicitServerViewFile(filePath: string): boolean {
+		const resolvedPath = path.resolve(filePath);
+		const viewsDir = path.join(this.appConfig.absolutePaths.srcDir, 'views');
+		return isPathInside(resolvedPath, viewsDir) && this.isSourceFile(resolvedPath);
+	}
+
 	/**
 	 * Returns whether the file is a route source file.
 	 */
 	isRouteSourceFile(filePath: string): boolean {
 		const resolvedPath = path.resolve(filePath);
-
-		if (!isPathInside(resolvedPath, this.appConfig.absolutePaths.pagesDir)) {
-			return false;
-		}
-
-		if (this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))) {
-			return true;
-		}
-
-		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
+		return isPathInside(resolvedPath, this.appConfig.absolutePaths.pagesDir) && this.isSourceFile(resolvedPath);
 	}
 
 	/**
-	 * Returns whether the file is an include/template source file.
-	 */
-	isIncludeSourceFile(filePath: string): boolean {
-		const resolvedPath = path.resolve(filePath);
-
-		if (!isPathInside(resolvedPath, this.appConfig.absolutePaths.includesDir)) {
-			return false;
-		}
-
-		if (this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))) {
-			return true;
-		}
-
-		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
-	}
-
-	/**
-	 * Returns whether the file is an explicit server-rendered view module.
-	 *
-	 * @remarks
-	 * These modules are typically registered through `renderServerModule` in
-	 * `app.ts` rather than the filesystem router. They need a full browser reload
-	 * because their HTML is produced on the server, not through client HMR entrypoints.
-	 */
-	isExplicitServerViewFile(filePath: string): boolean {
-		const resolvedPath = path.resolve(filePath);
-		const viewsDir = path.join(this.appConfig.absolutePaths.srcDir, 'views');
-
-		if (!isPathInside(resolvedPath, viewsDir)) {
-			return false;
-		}
-
-		if (this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))) {
-			return true;
-		}
-
-		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
-	}
-
-	/**
-	 * Returns whether the file is a server-executed source module outside the
-	 * special route/include buckets.
+	 * Returns whether the file is source-like under a server-owned source root.
 	 */
 	isServerModuleSourceFile(filePath: string): boolean {
 		const resolvedPath = path.resolve(filePath);
-		if (!isPathInside(resolvedPath, this.appConfig.absolutePaths.srcDir)) {
-			return false;
-		}
+		const sourceRoots = [
+			this.appConfig.absolutePaths.srcDir,
+			this.appConfig.absolutePaths.includesDir,
+			path.join(this.appConfig.absolutePaths.srcDir, 'views'),
+		];
+		return sourceRoots.some((root) => isPathInside(resolvedPath, root)) && this.isSourceFile(resolvedPath);
+	}
 
-		if (this.appConfig.templatesExt.some((extension) => resolvedPath.endsWith(extension))) {
-			return true;
-		}
-
-		return /\.(?:[cm]?ts|[jt]sx?|mdx)$/u.test(resolvedPath);
+	private isSourceFile(filePath: string): boolean {
+		return (
+			this.appConfig.templatesExt.some((extension) => filePath.endsWith(extension)) ||
+			sourceFileExtension.test(filePath)
+		);
 	}
 
 	/**
@@ -455,17 +456,4 @@ export class DevelopmentInvalidationService {
 
 		return false;
 	}
-}
-
-function shouldClearAllPageHtmlCache(file: AppliedDevFileChange): boolean {
-	if (file.plan.category === 'processor-owned-asset') {
-		return file.kind !== 'created';
-	}
-	return (
-		file.plan.category === 'additional-watch' ||
-		file.plan.category === 'server-source' ||
-		file.plan.category === 'recorded-input' ||
-		file.plan.category === 'include-source' ||
-		file.plan.category === 'explicit-server-view'
-	);
 }

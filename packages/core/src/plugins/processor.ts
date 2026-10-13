@@ -5,9 +5,7 @@ import type { EcoPagesAppConfig, IClientBridge } from '../types/internal-types.t
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
 import { GENERATED_BASE_PATHS } from '../config/constants.ts';
 import { deepMerge } from '../utils/deep-merge.ts';
-import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';
 
-export type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from './runtime-capability.ts';
 export type {
 	EcoBuildLoader,
 	EcoBuildOnLoadArgs,
@@ -70,15 +68,24 @@ export function writeGeneratedTypesPackage(options: {
 	options.writeFile(packageManifestPath, serializeGeneratedTypesPackage(options.packageName));
 }
 
-export interface ProcessorWatchContext {
-	path: string;
+/**
+ * One debounce window of file changes, passed to {@link ProcessorWatchConfig.onChanges}.
+ *
+ * @remarks
+ * Paths are absolute and already filtered by the Processor's watch `extensions`. A path appears in one
+ * array only, by its last event in the window.
+ */
+export interface ProcessorWatchChanges {
+	created: string[];
+	changed: string[];
+	deleted: string[];
 	bridge: IClientBridge;
 }
 
 export interface ProcessorWatchConfig {
 	paths: string[];
 	/**
-	 * File extensions that trigger watch callbacks (`onCreate`, `onChange`, `onDelete`).
+	 * File extensions that select paths passed to `onChanges`.
 	 *
 	 * @remarks
 	 * Watch extensions drive notifications only. They do not declare asset ownership.
@@ -86,9 +93,14 @@ export interface ProcessorWatchConfig {
 	 * invalidation skips server modules and HMR for processor-handled assets.
 	 */
 	extensions?: string[];
-	onCreate?: (ctx: ProcessorWatchContext) => Promise<void>;
-	onChange?: (ctx: ProcessorWatchContext) => Promise<void>;
-	onDelete?: (ctx: ProcessorWatchContext) => Promise<void>;
+	/**
+	 * Called once per debounce window, after core has invalidated what the changes affect.
+	 *
+	 * @remarks
+	 * Never called when no path matches `extensions`. A rejection is logged with its stack; the other
+	 * Processors and the browser update for the window still run.
+	 */
+	onChanges?: (changes: ProcessorWatchChanges) => Promise<void>;
 	onError?: (error: Error) => void;
 }
 
@@ -112,11 +124,9 @@ export interface ProcessorAssetCapability {
 
 export interface ProcessorConfig<TOptions = unknown> {
 	name: string;
-	description?: string;
 	options?: TOptions;
 	watch?: ProcessorWatchConfig;
 	capabilities?: ProcessorAssetCapability[];
-	runtimeCapability?: RuntimeCapabilityDeclaration;
 }
 export interface ProcessorContext {
 	config: EcoPagesAppConfig;
@@ -145,7 +155,6 @@ export abstract class Processor<TOptions = unknown> {
 	protected options?: TOptions;
 	protected watchConfig?: ProcessorWatchConfig;
 	protected capabilities: ProcessorAssetCapability[] = [];
-	readonly runtimeCapability?: RuntimeCapabilityDeclaration;
 
 	/**
 	 * @remarks
@@ -159,7 +168,6 @@ export abstract class Processor<TOptions = unknown> {
 		this.options = config.options;
 		this.watchConfig = config.watch;
 		this.capabilities = config.capabilities ?? [];
-		this.runtimeCapability = config.runtimeCapability;
 	}
 
 	setContext(appConfig: EcoPagesAppConfig): void {
@@ -203,19 +211,6 @@ export abstract class Processor<TOptions = unknown> {
 		return Promise.resolve([]);
 	}
 
-	/**
-	 * Reports whether this processor's build inputs changed since the last
-	 * incremental static build.
-	 *
-	 * @remarks
-	 * No shipped processor overrides this today. Integrations and processors can
-	 * opt in when they own build inputs that should invalidate incremental static
-	 * exports without a full rebuild.
-	 */
-	didChange(): boolean {
-		return false;
-	}
-
 	abstract setup(): Promise<void>;
 	abstract process(input: unknown, filePath?: string): Promise<unknown>;
 
@@ -223,16 +218,6 @@ export abstract class Processor<TOptions = unknown> {
 	 * Discards cached server build artifacts when server modules are invalidated.
 	 */
 	invalidateServerArtifacts(): void {}
-
-	/**
-	 * Releases runtime resources owned by the processor.
-	 *
-	 * @remarks
-	 * Core does not call this hook today. Override only when a processor owns
-	 * watchers, compiler handles, or other resources that outlive individual
-	 * requests.
-	 */
-	async teardown(): Promise<void> {}
 
 	protected getCachePath(key: string): string {
 		return `${this.context?.cache}/${key}`;

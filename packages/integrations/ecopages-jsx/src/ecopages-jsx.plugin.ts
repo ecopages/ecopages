@@ -43,7 +43,7 @@ type ResolvedJsxPluginConfig = Omit<IntegrationPluginConfig, 'name' | 'extension
  * Defaults:
  * - `extensions`: `['.tsx']`
  * - `radiant`: `true`
- * - `mdx.enabled`: `false`
+ * - MDX is disabled when `mdx` is omitted
  * - `mdx.extensions`: `['.mdx']`
  */
 const resolvePluginOptions = (options?: EcopagesJsxPluginOptions): ResolvedJsxPluginConfig => {
@@ -51,7 +51,7 @@ const resolvePluginOptions = (options?: EcopagesJsxPluginOptions): ResolvedJsxPl
 
 	const extensions = [...(userExtensions ?? ['.tsx'])];
 	const mdxExtensions = mdx?.extensions ?? ['.mdx'];
-	const mdxEnabled = mdx?.enabled ?? false;
+	const mdxEnabled = mdx !== undefined;
 
 	if (mdxEnabled) {
 		appendMdxExtensions(extensions, mdxExtensions);
@@ -189,10 +189,6 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 
 	/**
 	 * Ensures the MDX loader exists, then completes the base integration setup.
-	 *
-	 * @remarks
-	 * Bun registers `integration.plugins` after `setup()` returns. Calling
-	 * `Bun.plugin` here would install the same MDX loader twice.
 	 */
 	override async setup(): Promise<void> {
 		this.ensureMdxLoaderPlugin();

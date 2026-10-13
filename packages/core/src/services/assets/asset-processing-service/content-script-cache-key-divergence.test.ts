@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { rapidhash } from '../../../utils/hash.ts';
 import { getAssetDependencyKey } from './asset-dependency-keys.ts';
 import type { ContentScriptAsset } from './assets.types.ts';
@@ -62,14 +62,8 @@ function processorKey(
 }
 
 describe('content-script cache key divergence', () => {
-	const originalNodeEnv = process.env.NODE_ENV;
-
 	beforeEach(() => {
-		process.env.NODE_ENV = 'development';
-	});
-
-	afterEach(() => {
-		process.env.NODE_ENV = originalNodeEnv;
+		vi.stubEnv('NODE_ENV', 'development');
 	});
 
 	test('processor and service keys use different formats for the same dependency', () => {

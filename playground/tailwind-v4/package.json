@@ -4,11 +4,10 @@
 	"type": "module",
 	"scripts": {
 		"start": "pnpm run build && NODE_ENV=production ecopages start",
-		"dev": "ecopages dev --react-fast-refresh",
+		"dev": "ecopages dev",
 		"build": "NODE_ENV=production ecopages build",
 		"preview": "NODE_ENV=production ecopages preview",
-		"watch:dev": "ecopages dev:watch",
-		"hot:dev": "ecopages dev:hot"
+		"watch:dev": "ecopages dev:watch"
 	},
 	"devDependencies": {
 		"@ecopages/core": "workspace:*",

@@ -7,7 +7,6 @@ import type {
 } from '@ecopages/core';
 import {
 	IntegrationRenderer,
-	type RenderToResponseContext,
 	type RouteModuleLoadOptions,
 } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { resolveDocumentShellLayouts } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';
@@ -179,25 +178,26 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 
 		this.mdxExtensions = jsxConfig?.mdxExtensions ?? ['.mdx'];
 		const radiantSsrEnabled = jsxConfig?.radiantSsrEnabled ?? false;
-		this.radiantSsrPolicy = jsxConfig?.radiantSsrPolicy ?? new EcopagesJsxRadiantSsrPolicy(radiantSsrEnabled);
-		const preferSourceImports = typeof Bun !== 'undefined';
+		this.radiantSsrPolicy = this.createRadiantSsrPolicy(radiantSsrEnabled);
 		this.ssrScriptPreloader = new CustomElementScriptPreloader({
 			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx,
 			collectForIntegration: ECOPAGES_JSX_PLUGIN_NAME,
 			enabled: radiantSsrEnabled,
 			logLabel: 'ecopages-jsx',
-			preferSourceImports,
 			resolveDependencyPath: (componentDir, sourcePath) => this.resolveDependencyPath(componentDir, sourcePath),
 			/**
 			 * @remarks
-			 * Bun imports the source file through `preferSourceImports`. Node must
-			 * not: dev asset output is still the `.tsx` source, and a browser bundle
-			 * is a second Radiant graph. The page server-module loader transpiles
-			 * the script and externalizes packages, so `customElements.define` hits
-			 * the same module instances the page already loaded.
+			 * Dev asset output is still the `.tsx` source, and a browser bundle is
+			 * a second Radiant graph. The page server-module loader transpiles the
+			 * script and externalizes packages, so `customElements.define` hits the
+			 * same module instances the page already loaded.
 			 */
-			importServerModule: preferSourceImports ? undefined : createSharedServerModuleImporter(this.appConfig),
+			importServerModule: createSharedServerModuleImporter(this.appConfig),
 		});
+	}
+
+	protected createRadiantSsrPolicy(enabled: boolean): EcopagesJsxRadiantSsrPolicy {
+		return new EcopagesJsxRadiantSsrPolicy(enabled);
 	}
 
 	/** Returns whether the requested page file should be treated as MDX. */
@@ -297,11 +297,9 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 						(children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
 							this.renderQueuedForeignSubtreeChildren(children, queuedResolutionsByToken, resolveToken),
 					);
-					const componentAssets =
-						input.component.config?.dependencies &&
-						typeof this.assetProcessingService?.processDependencies === 'function'
-							? await this.processComponentDependencies([input.component])
-							: [];
+					const componentAssets = input.component.config?.dependencies
+						? await this.processComponentDependencies([input.component])
+						: [];
 					const assets = this.htmlTransformer.dedupeProcessedAssets([
 						...queuedForeignSubtreeResolution.assets,
 						...componentAssets,
@@ -318,39 +316,6 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 					});
 				} catch (error) {
 					throw this.createRenderError('Error rendering component', error);
-				}
-			});
-		});
-	}
-
-	override async renderToResponse<P = any>(
-		view: EcoComponent<P>,
-		props: P,
-		ctx: RenderToResponseContext,
-	): Promise<Response> {
-		return await this.withPreparedRadiantRuntime(async () => {
-			const viewComponent = view as AsyncEcoComponent<Record<string, unknown>>;
-			const layouts = viewComponent.config?.layouts;
-			await this.ssrScriptPreloader.preloadSsrScripts([view as EcoComponent, ...(layouts ?? [])]);
-
-			return await withEjsxHmrOwnershipScope(async () => {
-				try {
-					if (typeof view !== 'function') {
-						throw new TypeError('JSX renderer expected a callable view component.');
-					}
-
-					const response = await this.renderViewWithDocumentShell({
-						view: viewComponent,
-						props: props as Record<string, unknown>,
-						ctx,
-						layout: layouts?.[layouts.length - 1],
-					});
-
-					recordEjsxHmrOwnership([view as EcoComponent]);
-
-					return response;
-				} catch (error) {
-					throw this.createRenderError('Error rendering view', error);
 				}
 			});
 		});

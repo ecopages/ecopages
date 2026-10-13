@@ -1,5 +1,7 @@
-import type { EcoComponent } from '../../../types/public-types.ts';
-import { addTriggerAttribute, isThenable, wrapWithScriptsInjector } from './foreign-child-output.utils.ts';
+import type { EcoComponent, PagePackageResult } from '../../../types/public-types.ts';
+import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/assets.types.ts';
+import type { PageClientPlan } from '../ownership-graph/page-client-plan.ts';
+import { addTriggerAttribute, isThenable } from './foreign-child-output.utils.ts';
 
 /**
  * Result returned by a renderer-owned foreign-child runtime.
@@ -52,7 +54,7 @@ type ForeignChildRenderInput = {
 /**
  * Shared output finalization behavior used both inside and outside active render contexts.
  *
- * This stage is responsible only for lazy trigger or injector wrapping. Foreign-child
+ * This stage is responsible only for lazy trigger attribute injection. Foreign-child
  * interception stays in `ContextualComponentRenderRuntime`.
  */
 class ComponentRenderOutputRuntime {
@@ -60,11 +62,6 @@ class ComponentRenderOutputRuntime {
 		const lazyTriggers = component.config?._resolvedLazyTriggers;
 		if (lazyTriggers && lazyTriggers.length > 0) {
 			return this.addTriggerToContent(content, lazyTriggers[0].triggerId) as T;
-		}
-
-		const lazyGroups = component.config?._resolvedLazyScripts;
-		if (lazyGroups && lazyGroups.length > 0) {
-			return this.wrapContentWithScriptsInjector(content, lazyGroups) as T;
 		}
 
 		return content;
@@ -76,17 +73,6 @@ class ComponentRenderOutputRuntime {
 		}
 
 		return addTriggerAttribute(content, triggerId);
-	}
-
-	private wrapContentWithScriptsInjector(
-		content: unknown,
-		lazyGroups: NonNullable<EcoComponent['config']>['_resolvedLazyScripts'],
-	): unknown {
-		if (isThenable(content)) {
-			return content.then((resolvedContent) => wrapWithScriptsInjector(resolvedContent, lazyGroups));
-		}
-
-		return wrapWithScriptsInjector(content, lazyGroups);
 	}
 }
 
@@ -149,11 +135,21 @@ class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
 
 /**
  * Per-render mutable state used while applying foreign-child interception and lazy
- * output wrapping.
+ * trigger attributes.
  */
 export type ComponentRenderContext = {
 	currentIntegration: string;
 	foreignChildRuntime?: ForeignChildRuntime;
+	/**
+	 * Page client plan for this render.
+	 *
+	 * @remarks
+	 * Lives on the render context so a second render on the same renderer cannot
+	 * replace the plan the first render reads.
+	 */
+	pageClientPlan?: PageClientPlan;
+	islandRenderAssetsByFile?: ReadonlyMap<string, ProcessedAsset[]>;
+	pagePackage?: PagePackageResult;
 	interceptForeignChild(
 		input: ForeignChildRenderInput,
 	): Promise<ForeignChildInterceptionResult> | ForeignChildInterceptionResult;
@@ -279,7 +275,7 @@ export function interceptForeignChild(
 }
 
 /**
- * Applies lazy trigger or injector wrapping to completed component output.
+ * Applies the lazy trigger attribute to completed component output.
  *
  * This helper works both inside render-context execution and in fallback flows
  * where no active context exists.
@@ -302,12 +298,19 @@ export async function runWithComponentRenderContext<T>(
 	input: {
 		currentIntegration: string;
 		foreignChildRuntime?: ForeignChildRuntime;
+		pageClientPlan?: PageClientPlan;
+		islandRenderAssetsByFile?: ReadonlyMap<string, ProcessedAsset[]>;
+		pagePackage?: PagePackageResult;
 	},
 	render: () => Promise<T>,
 ): Promise<{ value: T }> {
+	const parent = getComponentRenderContext();
 	const context = {
 		currentIntegration: input.currentIntegration,
 		foreignChildRuntime: input.foreignChildRuntime,
+		pageClientPlan: input.pageClientPlan ?? parent?.pageClientPlan,
+		islandRenderAssetsByFile: input.islandRenderAssetsByFile ?? parent?.islandRenderAssetsByFile,
+		pagePackage: input.pagePackage ?? parent?.pagePackage,
 	} as ComponentRenderContext;
 	const runtime = new ContextualComponentRenderRuntime(context);
 	context.interceptForeignChild = (deferredInput: ForeignChildRenderInput) =>

@@ -1,6 +1,7 @@
 /**
  * Serves a pre-built kitchen-sink dist for preview e2e. Run
  * `pnpm build:e2e:kitchen-sink` before Playwright — do not build here.
+ * `ECOPAGES_E2E_ARTIFACT_SCOPE` selects `dist-<scope>` (the Bun build). `ECOPAGES_PREVIEW_RUNTIME=bun` serves it on Bun, otherwise Node.
  */
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -10,14 +11,17 @@ import { fileURLToPath } from 'node:url';
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..', '..');
 const kitchenSinkDir = path.join(repoRoot, 'playground', 'kitchen-sink');
-const distDir = path.join(kitchenSinkDir, 'dist');
+const artifactScope = process.env.ECOPAGES_E2E_ARTIFACT_SCOPE?.trim();
+const distDir = path.join(kitchenSinkDir, artifactScope ? `dist-${artifactScope}` : 'dist');
 const ecopagesCli = path.join(repoRoot, 'packages', 'ecopages', 'bin', 'cli.js');
 
-const runtime = process.env.ECOPAGES_PREVIEW_RUNTIME === 'node' ? 'node' : 'bun';
+const runtime = process.env.ECOPAGES_PREVIEW_RUNTIME === 'bun' ? 'bun' : 'node';
 const port = process.env.ECOPAGES_PORT || '4008';
 
 if (!existsSync(distDir)) {
-	console.error('[kitchen-sink-preview] dist/ is missing. Run `pnpm build:e2e:kitchen-sink` before preview e2e.');
+	console.error(
+		`[kitchen-sink-preview] ${path.basename(distDir)}/ is missing. Run \`pnpm build:e2e:kitchen-sink\` before preview e2e.`,
+	);
 	process.exit(1);
 }
 

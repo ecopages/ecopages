@@ -9,18 +9,15 @@ import { getRuntimeArgv } from './runtime.ts';
  * @property dev - Whether to run in development mode
  * @property port - Optional port number
  * @property hostname - Optional hostname
- * @property reactFastRefresh - Whether React Fast Refresh is enabled
  */
 export type ReturnParseCliArgs = {
 	preview: boolean;
 	build: boolean;
 	start: boolean;
 	dev: boolean;
-	force: boolean;
 	serveOnly: boolean;
 	port?: number;
 	hostname?: string;
-	reactFastRefresh?: boolean;
 };
 
 const ECOPAGES_BIN_FILES = ['ecopages.ts', 'ecopages.js', 'cli.js'];
@@ -82,11 +79,9 @@ export function parseCliArgs(): ReturnParseCliArgs {
 			dev: { type: 'boolean' },
 			preview: { type: 'boolean' },
 			build: { type: 'boolean' },
-			force: { type: 'boolean' },
 			'serve-only': { type: 'boolean' },
 			port: { type: 'string' },
 			hostname: { type: 'string' },
-			'react-fast-refresh': { type: 'boolean' },
 		},
 		allowPositionals: true,
 	});
@@ -99,11 +94,9 @@ export function parseCliArgs(): ReturnParseCliArgs {
 		build: isBuildCommand,
 		start: isStartCommand,
 		dev: isDevCommand,
-		force: !!values.force,
 		serveOnly: !!values['serve-only'] || process.env.ECOPAGES_PREVIEW_SERVE_ONLY === 'true',
 		port: values.port ? Number(values.port) : undefined,
 		hostname: values.hostname,
-		reactFastRefresh: values['react-fast-refresh'],
 	};
 
 	applyNodeEnvForCliCommand(isDevCommand);

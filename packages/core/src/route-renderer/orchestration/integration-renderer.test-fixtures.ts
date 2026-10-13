@@ -2,7 +2,6 @@ import { vi } from 'vitest';
 import { finalizeDocumentShellHtml } from './document-shell/document-shell-render.service.ts';
 import { IntegrationRenderer, type HtmlDocumentContribution } from './integration-renderer.ts';
 import { getComponentRenderContext, type ForeignChildRuntime } from './foreign-child/component-render-context.ts';
-import { toForeignSubtreeRenderPayload } from './foreign-child/foreign-subtree-execution.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
 import type {
@@ -110,10 +109,6 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		return this.prepareRenderOptions(options);
 	}
 
-	public testShouldDelegateForeignChild(input: { currentIntegration: string; targetIntegration?: string }) {
-		return this.foreignSubtreeExecutionService.shouldDelegateForeignChild(input);
-	}
-
 	public testBuildPageClientBrowserAssets(plan: import('./ownership-graph/page-client-plan.ts').PageClientPlan) {
 		return this.buildPageClientBrowserAssets(plan);
 	}
@@ -124,14 +119,6 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 
 	public testHasForeignChildDescendants(component: EcoComponent) {
 		return this.hasForeignChildDescendants(component);
-	}
-
-	public async testGetHtmlTemplate() {
-		return this.getHtmlTemplate();
-	}
-
-	public async testBaseGetHtmlTemplate() {
-		return super.getHtmlTemplate();
 	}
 
 	public async testFinalizeDocumentShellHtml(options: {
@@ -164,16 +151,8 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		this.htmlTransformer.setPagePackage(pagePackage);
 	}
 
-	public getTestPagePackage() {
-		return this.htmlTransformer.getPagePackage();
-	}
-
 	public getTestProcessedDependencies() {
 		return this.htmlTransformer.getProcessedDependencies();
-	}
-
-	public async testRenderForeignSubtree(input: ComponentRenderInput) {
-		return toForeignSubtreeRenderPayload(await this.renderComponentWithForeignChildren(input));
 	}
 
 	protected override createForeignChildRuntime(options: {

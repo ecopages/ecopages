@@ -247,182 +247,30 @@ describe('RouteRenderOrchestrator', () => {
 		expect(result.body).toContain('<main>Resolved</main>');
 	});
 
-	it('throws when route HTML contains escaped unresolved eco-marker artifacts', async () => {
+	it.each([
+		[
+			'a raw marker nested inside shell html',
+			`<html><body><main><section data-shell="outer">Before${createUnresolvedMarkerArtifact('n_1', 'nested-component', 'props-1')}After</section></main></body></html>`,
+		],
+		[
+			'an entity-escaped marker',
+			'<html><body>&amp;lt;eco-marker data-eco-node-id=&quot;n_2&quot; data-eco-component-ref=&quot;page-component&quot; data-eco-props-ref=&quot;p_2&quot;&amp;gt;&amp;lt;/eco-marker&amp;gt;</body></html>',
+		],
+	])('throws when the route HTML contains %s', async (_name, html) => {
 		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
 		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
 		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
 
 		await expect(
 			flow.execute(
-				{
-					file: '/app/pages/index.tsx',
-					params: {},
-					query: {},
-				} as unknown as RouteRendererOptions,
+				{ file: '/app/pages/index.tsx', params: {}, query: {} } as unknown as RouteRendererOptions,
 				createFlowAdapter({
 					resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
 					getHtmlTemplate: async () => HtmlTemplate,
 					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
 					resolveDependencies: async () => [],
 					collectPageBrowserGraphContribution: async () => undefined,
-					renderRouteBody: async () =>
-						'<html><body>&amp;lt;eco-marker data-eco-node-id=&quot;n_2&quot; data-eco-component-ref=&quot;page-component&quot; data-eco-props-ref=&quot;p_2&quot;&amp;gt;&amp;lt;/eco-marker&amp;gt;</body></html>',
-					transformRouteResponse: async (response) => await response.text(),
-				}),
-			),
-		).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
-	});
-
-	it('throws when route HTML returns unresolved eco-marker artifact HTML', async () => {
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Page</main>') as EcoComponent<Record<string, unknown>>;
-
-		await expect(
-			flow.execute(
-				{
-					file: '/app/pages/index.tsx',
-					params: {},
-					query: {},
-				} as unknown as RouteRendererOptions,
-				createFlowAdapter({
-					resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
-					getHtmlTemplate: async () => HtmlTemplate,
-					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
-					resolveDependencies: async () => [],
-					collectPageBrowserGraphContribution: async () => undefined,
-					renderRouteBody: async () =>
-						'<html><body><eco-marker data-eco-node-id="n_1" data-eco-component-ref="unexpected-marker" data-eco-props-ref="p_1"></eco-marker></body></html>',
-					transformRouteResponse: async (response) => await response.text(),
-				}),
-			),
-		).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
-	});
-
-	it('fails route execution when unresolved eco-marker artifact HTML is returned', async () => {
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Test Page</main>') as EcoComponent<Record<string, unknown>>;
-
-		await expect(
-			flow.execute(
-				{
-					file: '/app/pages/index.ts',
-					params: {},
-					query: {},
-				} as unknown as RouteRendererOptions,
-				createFlowAdapter({
-					resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
-					getHtmlTemplate: async () => HtmlTemplate,
-					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
-					resolveDependencies: async () => [],
-					collectPageBrowserGraphContribution: async () => undefined,
-					renderRouteBody: async () =>
-						`<html><body><main>Before${createUnresolvedMarkerArtifact('n_1', 'nested-component', 'props-1')}After</main></body></html>`,
-					transformRouteResponse: async (response) => await response.text(),
-				}),
-			),
-		).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
-	});
-
-	it('fails route execution when unresolved eco-marker artifact HTML remains inside surrounding shell html', async () => {
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Test Page</main>') as EcoComponent<Record<string, unknown>>;
-
-		await expect(
-			flow.execute(
-				{
-					file: '/app/pages/index.ts',
-					params: {},
-					query: {},
-				} as unknown as RouteRendererOptions,
-				createFlowAdapter({
-					resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
-					getHtmlTemplate: async () => HtmlTemplate,
-					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
-					resolveDependencies: async () => [],
-					collectPageBrowserGraphContribution: async () => undefined,
-					renderRouteBody: async () =>
-						`<html><body><main><section data-shell="outer">Before${createUnresolvedMarkerArtifact('n_1', 'nested-component', 'props-1')}After</section></main></body></html>`,
-					transformRouteResponse: async (response) => await response.text(),
-				}),
-			),
-		).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
-	});
-
-	it('fails route execution for deep multi-level unresolved eco-marker artifacts', async () => {
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Test Page</main>') as EcoComponent<Record<string, unknown>>;
-
-		await expect(
-			flow.execute(
-				{
-					file: '/app/pages/index.ts',
-					params: {},
-					query: {},
-				} as unknown as RouteRendererOptions,
-				createFlowAdapter({
-					resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
-					getHtmlTemplate: async () => HtmlTemplate,
-					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
-					resolveDependencies: async () => [],
-					collectPageBrowserGraphContribution: async () => undefined,
-					renderRouteBody: async () =>
-						`<html><body><main>${createUnresolvedMarkerArtifact('n_1', 'root-component', 'props-root')}</main></body></html>`,
-					transformRouteResponse: async (response) => await response.text(),
-				}),
-			),
-		).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
-	});
-
-	it('fails route execution when props reference is missing', async () => {
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Test Page</main>') as EcoComponent<Record<string, unknown>>;
-
-		await expect(
-			flow.execute(
-				{
-					file: '/app/pages/index.ts',
-					params: {},
-					query: {},
-				} as unknown as RouteRendererOptions,
-				createFlowAdapter({
-					resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
-					getHtmlTemplate: async () => HtmlTemplate,
-					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
-					resolveDependencies: async () => [],
-					collectPageBrowserGraphContribution: async () => undefined,
-					renderRouteBody: async () =>
-						`<html><body><main>${createUnresolvedMarkerArtifact('n_1', 'nested-component', 'props-missing')}</main></body></html>`,
-					transformRouteResponse: async (response) => await response.text(),
-				}),
-			),
-		).rejects.toThrow('Full-route unresolved-marker fallback has been removed');
-	});
-
-	it('fails route execution when deep mixed-integration eco-marker artifacts are returned at the route level', async () => {
-		const flow = new RouteRenderOrchestrator(appConfig, assetProcessingService);
-		const HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
-		const Page = (() => '<main>Test Page</main>') as EcoComponent<Record<string, unknown>>;
-
-		await expect(
-			flow.execute(
-				{
-					file: '/app/pages/index.ts',
-					params: {},
-					query: {},
-				} as unknown as RouteRendererOptions,
-				createFlowAdapter({
-					resolvePageModule: async () => ({ Page, integrationSpecificProps: {} }),
-					getHtmlTemplate: async () => HtmlTemplate,
-					resolvePageData: async () => ({ props: {}, metadata: appConfig.defaultMetadata }),
-					resolveDependencies: async () => [],
-					collectPageBrowserGraphContribution: async () => undefined,
-					renderRouteBody: async () =>
-						`<html><body><main><div data-shell="deep">${createUnresolvedMarkerArtifact('n_1', 'root-component', 'props-root')}</div></main></body></html>`,
+					renderRouteBody: async () => html,
 					transformRouteResponse: async (response) => await response.text(),
 				}),
 			),

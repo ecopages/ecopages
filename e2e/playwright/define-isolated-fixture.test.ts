@@ -12,8 +12,8 @@ describe('defineCrossIntegrationFixture', () => {
 		expect(project.use?.appOptions?.runtime).toBeUndefined();
 	});
 
-	it('runs a file on one worker and lets different files run on different workers', () => {
-		expect(project.workers).toBeGreaterThan(1);
+	it('keeps a file serial and uses one worker by default', () => {
+		expect(project.workers).toBe(1);
 		expect(project.fullyParallel).toBe(false);
 	});
 });

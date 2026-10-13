@@ -776,7 +776,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			{
 				currentIntegration: this.name,
 				session,
-				serializeWhenContextStorageIsUnavailable: true,
 			},
 			async () => {
 				const adapter = this.createRouteRenderOrchestratorAdapter();
@@ -815,7 +814,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					currentIntegration: this.name,
 					pageClientPlan: plan,
 					session,
-					serializeWhenContextStorageIsUnavailable: true,
 				},
 				async () => {
 					const rendered = await this.renderComponentWithForeignChildren({

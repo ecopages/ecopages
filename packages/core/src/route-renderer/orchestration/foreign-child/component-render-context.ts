@@ -2,11 +2,6 @@ import type { EcoComponent, PagePackageResult } from '../../../types/public-type
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/assets.types.ts';
 import type { PageClientPlan } from '../ownership-graph/page-client-plan.ts';
 import type { RenderSession } from './render-session.ts';
-import {
-	createSerializedFallbackQueue,
-	runWithSerializedFallback,
-	type SerializedFallbackQueue,
-} from './serialized-fallback-queue.ts';
 import { addTriggerAttribute, isThenable } from './foreign-child-output.utils.ts';
 
 /**
@@ -184,10 +179,8 @@ type ContextStorage = {
  * this state is attached to a shared global scope instead of module-local state.
  */
 type ComponentRenderContextState = {
-	contextStack: ComponentRenderContext[];
 	nodeContextStorage: ContextStorage | null;
 	nodeContextStorageLoader: Promise<ContextStorage | null> | null;
-	fallbackExecutionQueue: SerializedFallbackQueue;
 };
 
 const GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY = '__ECOPAGES_COMPONENT_RENDER_CONTEXT_STATE__';
@@ -216,21 +209,18 @@ function getComponentRenderContextState(): ComponentRenderContextState {
 	};
 
 	sharedScope[GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY] ??= {
-		contextStack: [],
 		nodeContextStorage: null,
 		nodeContextStorageLoader: null,
-		fallbackExecutionQueue: createSerializedFallbackQueue(),
 	};
 
-	const state = sharedScope[GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY];
-	state.fallbackExecutionQueue ??= createSerializedFallbackQueue();
-	return state;
+	return sharedScope[GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY];
 }
 
 /**
  * Lazily initializes async context storage for Node runtimes.
  *
- * Falls back to in-memory stack mode when async_hooks is unavailable.
+ * Returns `null` when async_hooks is unavailable; render contexts require async-local storage
+ * so nested and concurrent renders cannot share process-wide state.
  *
  * @returns Async context storage when available; otherwise `null`.
  */
@@ -272,7 +262,7 @@ async function getContextStorage(): Promise<ContextStorage | null> {
  */
 export function getComponentRenderContext(): ComponentRenderContext | undefined {
 	const state = getComponentRenderContextState();
-	return state.nodeContextStorage?.getStore() ?? state.contextStack[state.contextStack.length - 1];
+	return state.nodeContextStorage?.getStore();
 }
 
 const componentRenderOutputRuntime = new ComponentRenderOutputRuntime();
@@ -316,44 +306,32 @@ export async function runWithComponentRenderContext<T>(
 		islandRenderAssetsByFile?: ReadonlyMap<string, ProcessedAsset[]>;
 		pagePackage?: PagePackageResult;
 		session?: RenderSession;
-		serializeWhenContextStorageIsUnavailable?: boolean;
 	},
 	render: () => Promise<T>,
 ): Promise<{ value: T }> {
 	const storage = await getContextStorage();
-	const execute = async () => {
-		const parent = getComponentRenderContext();
-		const context = {
-			currentIntegration: input.currentIntegration,
-			foreignChildRuntime: input.foreignChildRuntime,
-			pageClientPlan: input.pageClientPlan ?? parent?.pageClientPlan,
-			islandRenderAssetsByFile: input.islandRenderAssetsByFile ?? parent?.islandRenderAssetsByFile,
-			pagePackage: input.pagePackage ?? parent?.pagePackage,
-			session: input.session ?? parent?.session,
-		} as ComponentRenderContext;
-		const runtime = new ContextualComponentRenderRuntime(context);
-		context.interceptForeignChild = (deferredInput: ForeignChildRenderInput) =>
-			runtime.interceptForeignChild(deferredInput);
-		context.finalizeComponentRender = <TContent>(component: EcoComponent, content: TContent) =>
-			runtime.finalizeComponentRender(component, content);
+	if (!storage) {
+		throw new Error(
+			'[ecopages] Component render contexts require node:async_hooks AsyncLocalStorage in the current runtime.',
+		);
+	}
 
-		if (storage) {
-			return await storage.run(context, render);
-		}
+	const parent = storage.getStore();
+	const context = {
+		currentIntegration: input.currentIntegration,
+		foreignChildRuntime: input.foreignChildRuntime,
+		pageClientPlan: input.pageClientPlan ?? parent?.pageClientPlan,
+		islandRenderAssetsByFile: input.islandRenderAssetsByFile ?? parent?.islandRenderAssetsByFile,
+		pagePackage: input.pagePackage ?? parent?.pagePackage,
+		session: input.session ?? parent?.session,
+	} as ComponentRenderContext;
+	const runtime = new ContextualComponentRenderRuntime(context);
+	context.interceptForeignChild = (deferredInput: ForeignChildRenderInput) =>
+		runtime.interceptForeignChild(deferredInput);
+	context.finalizeComponentRender = <TContent>(component: EcoComponent, content: TContent) =>
+		runtime.finalizeComponentRender(component, content);
 
-		const state = getComponentRenderContextState();
-		state.contextStack.push(context);
-		try {
-			return await render();
-		} finally {
-			state.contextStack.pop();
-		}
-	};
-
-	const value =
-		!storage && input.serializeWhenContextStorageIsUnavailable
-			? await runWithSerializedFallback(getComponentRenderContextState().fallbackExecutionQueue, execute)
-			: await execute();
+	const value = await storage.run(context, render);
 
 	return {
 		value,

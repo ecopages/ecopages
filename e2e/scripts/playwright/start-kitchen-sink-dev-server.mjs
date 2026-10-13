@@ -1,5 +1,5 @@
 /**
- * Starts kitchen-sink dev from the repo tree (no .e2e-tmp copy).
+ * Starts kitchen-sink dev from the repo tree (no per-worker app copy).
  *
  * Env:
  * - ECOPAGES_PORT

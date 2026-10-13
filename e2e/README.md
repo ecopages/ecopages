@@ -38,6 +38,12 @@ Without `ECOPAGES_PLAYWRIGHT_PROJECTS`, `playwright.config.ts` boots **every** w
 
 Or `pnpm test:e2e:ui` for the Playwright UI.
 
+## App per worker
+
+`e2e/app-fixture.ts` exports a `test` whose worker-scoped `app` fixture gives each Playwright worker a dev server of its own. A project opts in with `use.appOptions` (`source` folder, optional `runtime`, `env`, `configFile` and `readyTimeoutMs`) and its specs import `test` and `expect` from the fixture instead of `@playwright/test`.
+
+The first test of a worker that needs a page, a request or `app` copies `source` to `.e2e-tmp/<project>-w<parallelIndex>` (`node_modules` is linked, build output and caches are left out), starts `ecopages dev` there on a port the OS picked, waits for the `Node server running at` or `Bun server running at` line, and points `baseURL` at it. A worker whose tests use none of these starts nothing. `app.dir` is the copy, so specs that edit sources edit files under it: the checked-in tree is never written, a run stopped with Ctrl-C leaves `git status` clean, and the copy is removed when the worker ends. A copy left by a killed run is replaced when the same slot starts again. The server runs in its own process group so stopping it also stops the runtime processes the CLI starts.
+
 ## Busy fixture ports
 
 Before a fixture web server starts, `playwright.config.ts` runs `e2e/scripts/playwright/assert-ports-free.mjs` on the ports its projects test against (from each project's `baseURL`). If something already listens there, the run stops with `Port <port> is already in use by PID <pid>` (the PID comes from `lsof` when it is installed). Stop that process, usually a server left by an interrupted run, and run again.
@@ -77,7 +83,7 @@ The Vitest browser regression in `packages/dev-toolbar/src/shell/build-errors.te
 - **Preview** — in-repo output, built before e2e; `webServer` only serves (`start-kitchen-sink-preview-server.mjs`). Node preview (`cross-integration-preview-e2e`) serves `dist/` from `ecopages build --runtime node` and runs every preview spec. The Bun build project (`cross-integration-bun-build-e2e`) serves `dist-bun-build` from `ecopages build --runtime bun` and runs only `dependency-discovery.preview.test.e2e.ts`.
 - **Canonical dev** — `cross-integration-dev-e2e` (ecopages + node), full suite.
 - **Parity** — bun runs only `parity.test.e2e.ts` (`@parity`), which also registers the dependency-discovery specs. `start-kitchen-sink-dev-server.mjs` logs its dev init time and fails the run above `ECOPAGES_E2E_DEV_INIT_CEILING_MS` (45 s for this project), because the watcher's initial crawl is much slower on Bun.
-- **HMR** — `*-hmr.test.e2e.ts`, isolated `.e2e-tmp` workspace each, `workers: 1`. Specs mutate that copy, so extra Playwright workers race the writes. `test:e2e:hmr` runs the Node project (`cross-integration-hmr-node-e2e`), in both `test:e2e` and `test:e2e:pr`. These fixtures compile Pages on demand instead of forcing unrelated Page prewarms on every restart. Playwright waits for the Ecopages listen log, which is printed after integration warmup and watcher initialization.
+- **HMR** — `*-hmr.test.e2e.ts` on the per-worker app copy (see "App per worker"). A file's tests run in order on one worker, and different files run on different workers, so `--workers 4` spreads the files over four copies. `test:e2e:hmr` runs the Node project (`cross-integration-hmr-node-e2e`), in both `test:e2e` and `test:e2e:pr`. These fixtures compile Pages on demand instead of forcing unrelated Page prewarms on every restart. The fixture waits for the Ecopages listen log, which is printed after integration warmup and watcher initialization.
 
 Development fixture projects default to a 60-second test timeout (`DEV_FIXTURE_TEST_TIMEOUT_MS` in `e2e/playwright/define-fixture.ts`). Ordinary Page HMR mutations retain their 25-second allowance. The WebSocket-handler scenario waits for the lightweight API route before reading a new connection's history, avoiding repeated failed browser handshakes during replacement. Restoration checks both Pages and the original chat history. CSS discovery scenarios wait for the HMR connection and observe the stylesheet update on the current Page, without polling manual reloads.
 
@@ -89,10 +95,9 @@ Browsers stay headless for `pnpm test:all` / `pnpm test:vitest` / `pnpm test:e2e
 
 ## Environment variables
 
-| Variable                                   | Effect                                                                      |
-| ------------------------------------------ | --------------------------------------------------------------------------- |
-| `ECOPAGES_REUSE_TEST_SERVERS=true`         | Reuse running web servers; skips the busy-port check                        |
-| `ECOPAGES_KEEP_E2E_TMP=true`               | Keep `.e2e-tmp/` after isolated runs                                        |
-| `ECOPAGES_PLAYWRIGHT_PROJECTS`             | Comma-separated project filter for `playwright test`                        |
-| `ECOPAGES_MANAGE_ISOLATED_WORKSPACES=true` | Set by `run-each-project.mjs` for kitchen-sink cells                        |
-| `ECOPAGES_E2E_DEV_INIT_CEILING_MS`         | Fail the kitchen-sink dev server when its ready line takes longer than this |
+| Variable                           | Effect                                                                      |
+| ---------------------------------- | --------------------------------------------------------------------------- |
+| `ECOPAGES_REUSE_TEST_SERVERS=true` | Reuse running web servers; skips the busy-port check                        |
+| `ECOPAGES_KEEP_E2E_TMP=true`       | Keep the per-worker app copies in `.e2e-tmp/` after a run                   |
+| `ECOPAGES_PLAYWRIGHT_PROJECTS`     | Comma-separated project filter for `playwright test`                        |
+| `ECOPAGES_E2E_DEV_INIT_CEILING_MS` | Fail the kitchen-sink dev server when its ready line takes longer than this |

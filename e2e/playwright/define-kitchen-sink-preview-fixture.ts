@@ -1,5 +1,5 @@
 /**
- * Kitchen-sink preview e2e — in-repo dist, no isolated workspace copy.
+ * Kitchen-sink preview e2e — in-repo dist, no app copy.
  *
  * Build once via `pnpm build:e2e:kitchen-sink` before Playwright. The Node preview
  * serves `dist/` from `ecopages build --runtime node` and runs every preview spec. The

@@ -1,12 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../../../e2e/app-fixture';
 import { HMR_MUTATION_ASSERT_TIMEOUT_MS, gotoPathSimple, startEcopagesHmrConnectionWatch } from './test-support';
 
-test('renders an edited content entry without restarting the dev server @hmr', async ({ page }, testInfo) => {
-	const root = testInfo.project.metadata.isolatedAppDir;
-	if (typeof root !== 'string') throw new Error('Content HMR requires an isolated app');
-	const postFile = path.join(root, 'src/content/posts/first-post.mdx');
+test('renders an edited content entry without restarting the dev server @hmr', async ({ page, app }) => {
+	const postFile = path.join(app.dir, 'src/content/posts/first-post.mdx');
 	const originalPost = fs.readFileSync(postFile, 'utf8');
 	try {
 		const hmrReady = startEcopagesHmrConnectionWatch(page);

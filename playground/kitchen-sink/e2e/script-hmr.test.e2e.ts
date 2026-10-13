@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../../../e2e/app-fixture';
 import {
 	assertRegisteredHmrScript,
 	createHmrPhaseTimer,
@@ -11,51 +10,12 @@ import {
 	HMR_MUTATION_ASSERT_TIMEOUT_MS,
 } from './test-support';
 
-const SCRIPT_MARKER_FILE = fileURLToPath(
-	new URL('../src/components/script-hmr/script-hmr-marker.eco.tsx', import.meta.url),
-);
-const SCRIPT_WIDGET_FILE = fileURLToPath(
-	new URL('../src/components/script-hmr/script-hmr-widget.script.tsx', import.meta.url),
-);
-const BASE_LAYOUT_SCRIPT_FILE = fileURLToPath(
-	new URL('../src/layouts/base-layout/base-layout.script.ts', import.meta.url),
-);
 const SCRIPT_HMR_BASELINE = 'SCRIPT_HMR_BASELINE';
 const SCRIPT_HMR_UPDATED = 'SCRIPT_HMR_UPDATED';
 const SCRIPT_WIDGET_BASELINE = 'SCRIPT_WIDGET_BASELINE';
 const SCRIPT_WIDGET_UPDATED = 'SCRIPT_WIDGET_UPDATED';
 const BASE_LAYOUT_SCRIPT_BASELINE = 'BASE_LAYOUT_SCRIPT_BASELINE';
 const BASE_LAYOUT_SCRIPT_UPDATED = 'BASE_LAYOUT_SCRIPT_UPDATED';
-
-function getScriptMarkerFile(projectMetadata: Record<string, unknown> | undefined) {
-	const isolatedAppDir = typeof projectMetadata?.isolatedAppDir === 'string' ? projectMetadata.isolatedAppDir : null;
-
-	if (!isolatedAppDir) {
-		return SCRIPT_MARKER_FILE;
-	}
-
-	return path.join(isolatedAppDir, 'src/components/script-hmr/script-hmr-marker.eco.tsx');
-}
-
-function getScriptWidgetFile(projectMetadata: Record<string, unknown> | undefined) {
-	const isolatedAppDir = typeof projectMetadata?.isolatedAppDir === 'string' ? projectMetadata.isolatedAppDir : null;
-
-	if (!isolatedAppDir) {
-		return SCRIPT_WIDGET_FILE;
-	}
-
-	return path.join(isolatedAppDir, 'src/components/script-hmr/script-hmr-widget.script.tsx');
-}
-
-function getBaseLayoutScriptFile(projectMetadata: Record<string, unknown> | undefined) {
-	const isolatedAppDir = typeof projectMetadata?.isolatedAppDir === 'string' ? projectMetadata.isolatedAppDir : null;
-
-	if (!isolatedAppDir) {
-		return BASE_LAYOUT_SCRIPT_FILE;
-	}
-
-	return path.join(isolatedAppDir, 'src/layouts/base-layout/base-layout.script.ts');
-}
 
 function patchBaseLayoutScript(content: string, marker: string) {
 	return content.replace(BASE_LAYOUT_SCRIPT_BASELINE, marker);
@@ -73,9 +33,9 @@ test.describe('Declared client script HMR @hmr', () => {
 	let originalScriptMarker = '';
 	let originalScriptWidget = '';
 	let originalBaseLayoutScript = '';
-	let scriptMarkerFile = SCRIPT_MARKER_FILE;
-	let scriptWidgetFile = SCRIPT_WIDGET_FILE;
-	let baseLayoutScriptFile = BASE_LAYOUT_SCRIPT_FILE;
+	let scriptMarkerFile = '';
+	let scriptWidgetFile = '';
+	let baseLayoutScriptFile = '';
 
 	test.describe.configure({ mode: 'serial' });
 
@@ -92,13 +52,10 @@ test.describe('Declared client script HMR @hmr', () => {
 		restoreFileIfChanged(baseLayoutScriptFile, originalBaseLayoutScript);
 	}
 
-	// oxlint-disable-next-line no-empty-pattern
-	test.beforeAll(async ({}, testInfo) => {
-		scriptMarkerFile = getScriptMarkerFile(testInfo.project.metadata as Record<string, unknown> | undefined);
-		scriptWidgetFile = getScriptWidgetFile(testInfo.project.metadata as Record<string, unknown> | undefined);
-		baseLayoutScriptFile = getBaseLayoutScriptFile(
-			testInfo.project.metadata as Record<string, unknown> | undefined,
-		);
+	test.beforeAll(({ app }) => {
+		scriptMarkerFile = path.join(app.dir, 'src/components/script-hmr/script-hmr-marker.eco.tsx');
+		scriptWidgetFile = path.join(app.dir, 'src/components/script-hmr/script-hmr-widget.script.tsx');
+		baseLayoutScriptFile = path.join(app.dir, 'src/layouts/base-layout/base-layout.script.ts');
 		originalScriptMarker = fs.readFileSync(scriptMarkerFile, 'utf-8');
 		originalScriptWidget = fs.readFileSync(scriptWidgetFile, 'utf-8');
 		originalBaseLayoutScript = fs.readFileSync(baseLayoutScriptFile, 'utf-8');

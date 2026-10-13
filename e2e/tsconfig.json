@@ -18,6 +18,7 @@
 		"verbatimModuleSyntax": true
 	},
 	"include": [
+		"app-fixture.ts",
 		"playwright/**/*.ts",
 		"scripts/playwright/**/*.ts",
 		"fixtures/*/fixture.e2e.ts",

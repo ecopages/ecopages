@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../../../e2e/app-fixture';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import {
@@ -9,11 +9,8 @@ import {
 	startEcopagesHmrConnectionWatch,
 } from './test-support';
 
-test('updates an imported React island component without a full reload @hmr', async ({ page }, testInfo) => {
-	test.skip(!testInfo.project.name.endsWith('-node-e2e'), 'Node-only coverage while Bun support is being removed');
-	const root = testInfo.project.metadata.isolatedAppDir;
-	if (typeof root !== 'string') throw new Error('Dependency discovery HMR requires an isolated app');
-	const componentFile = path.join(root, 'src/components/dependency-discovery/card.react.tsx');
+test('updates an imported React island component without a full reload @hmr', async ({ page, app }) => {
+	const componentFile = path.join(app.dir, 'src/components/dependency-discovery/card.react.tsx');
 	const originalComponent = readFileSync(componentFile, 'utf8');
 	try {
 		const hmrReady = startEcopagesHmrConnectionWatch(page);
@@ -32,11 +29,9 @@ test('updates an imported React island component without a full reload @hmr', as
 	}
 });
 
-test('invalidates discovered CSS after import addition, edit and removal @hmr', async ({ page }, testInfo) => {
-	const root = testInfo.project.metadata.isolatedAppDir;
-	if (typeof root !== 'string') throw new Error('Dependency discovery HMR requires an isolated app');
-	const componentFile = path.join(root, 'src/components/dependency-discovery/counter.lit.tsx');
-	const cssFile = path.join(root, 'src/components/dependency-discovery/hmr-extra.css');
+test('invalidates discovered CSS after import addition, edit and removal @hmr', async ({ page, app }) => {
+	const componentFile = path.join(app.dir, 'src/components/dependency-discovery/counter.lit.tsx');
+	const cssFile = path.join(app.dir, 'src/components/dependency-discovery/hmr-extra.css');
 	const originalComponent = readFileSync(componentFile, 'utf8');
 	const originalCss = readFileSync(cssFile, 'utf8');
 	const host = '.discovery-counter-host';
@@ -63,12 +58,8 @@ test('invalidates discovered CSS after import addition, edit and removal @hmr', 
 	}
 });
 
-test('invalidates discovered CSS after a live barrel retarget without editing the page @hmr', async ({
-	page,
-}, testInfo) => {
-	const root = testInfo.project.metadata.isolatedAppDir;
-	if (typeof root !== 'string') throw new Error('Dependency discovery HMR requires an isolated app');
-	const barrelFile = path.join(root, 'src/components/dependency-discovery/barrel/index.ts');
+test('invalidates discovered CSS after a live barrel retarget without editing the page @hmr', async ({ page, app }) => {
+	const barrelFile = path.join(app.dir, 'src/components/dependency-discovery/barrel/index.ts');
 	const originalBarrel = readFileSync(barrelFile, 'utf8');
 	const host = '.discovery-barrel-host';
 	try {

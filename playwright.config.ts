@@ -9,6 +9,7 @@ import { getSelectedPlaywrightProjects, includeWebServerForProjects } from './e2
 import { loadCapabilityFixtures, loadIsolatedFixtures } from './e2e/playwright/discover-fixtures';
 import { getWebServerTimeout } from './e2e/playwright/web-server-timeouts';
 import { getDefaultWorkerCount } from './e2e/playwright/workers';
+import type { AppOptions } from './e2e/app-fixture';
 import { configurePlaywrightColorEnv } from './e2e/playwright/playwright-color-env.mjs';
 
 configurePlaywrightColorEnv(process.env);
@@ -18,10 +19,7 @@ const selectedProjects = getSelectedPlaywrightProjects();
 const capabilityFixtures = loadCapabilityFixtures();
 const isolatedFixtures = loadIsolatedFixtures();
 
-const webServers = [
-	...capabilityFixtures.flatMap((fixture) => fixture.webServers),
-	...isolatedFixtures.flatMap((fixture) => fixture.webServers),
-];
+const webServers = capabilityFixtures.flatMap((fixture) => fixture.webServers);
 
 const projects = [
 	...capabilityFixtures.flatMap((fixture) => fixture.projects),
@@ -54,7 +52,7 @@ function withPortCheck(server: { command: string; projects: string[]; reuseExist
 		: `node ${JSON.stringify(assertPortsFreeScript)} ${[...ports].join(' ')} && ${server.command}`;
 }
 
-export default defineConfig({
+export default defineConfig<object, { appOptions: AppOptions | undefined }>({
 	testDir: '.',
 	testMatch: '**/*.test.e2e.ts',
 	fullyParallel: true,

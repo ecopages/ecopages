@@ -1,15 +1,13 @@
 /**
- * Isolated kitchen-sink HMR only — copies to `.e2e-tmp/` because tests mutate source.
+ * Kitchen-sink HMR only, on the per-worker app copy of `e2e/app-fixture.ts` because tests mutate source.
  *
  * Dev, parity, and preview run in-repo via `cross-integration-dev` and
  * `cross-integration-preview` fixtures.
  */
-import path from 'node:path';
 import type { PlaywrightTestProject } from '@playwright/test';
-import { getEcopagesServerReadySignal } from './isolated-dev-server-ready.ts';
+import type { AppOptions } from '../app-fixture.ts';
 
 export const crossIntegrationSourceDir = 'playground/kitchen-sink';
-export const isolatedAppLauncher = 'node e2e/scripts/playwright/run-isolated-app.mjs';
 
 export const crossIntegrationHmrMatch = `${crossIntegrationSourceDir}/e2e/*-hmr.test.e2e.ts`;
 
@@ -17,91 +15,40 @@ const CROSS_INTEGRATION_DEV_TEST_TIMEOUT_MS = 90_000;
 
 export type IsolatedFixtureModule = {
 	block: 'cross-integration';
-	projects: PlaywrightTestProject[];
-	webServers: IsolatedFixtureWebServer[];
+	projects: PlaywrightTestProject<object, { appOptions: AppOptions | undefined }>[];
 	batchProjects: string[];
-};
-
-export type IsolatedFixtureWebServer = {
-	command: string;
-	cwd: string;
-	port?: number;
-	url?: string;
-	projects: string[];
-	reuseExistingServer: boolean;
-	stdout: 'pipe';
-	stderr: 'pipe';
-	env?: Record<string, string>;
 };
 
 type DesktopChromeUse = NonNullable<PlaywrightTestProject['use']>;
 
-export function buildIsolatedAppCommand(options: {
-	sourceDir: string;
-	mode: 'dev';
-	port: number;
-	runtime: 'bun' | 'node';
-	workspace: string;
-	artifactScope: string;
-}): string {
-	return `${isolatedAppLauncher} --sourceDir ${options.sourceDir} --workspace ${options.workspace} --artifactScope ${options.artifactScope} --runtime ${options.runtime} --mode ${options.mode} --port ${options.port}`;
-}
-
 /**
- * Isolated kitchen-sink HMR Playwright project, run on Node.
+ * Kitchen-sink HMR Playwright project, run on Node.
  *
  * @remarks
- * `workers: 1` because the specs mutate one `.e2e-tmp` copy. Extra workers race those writes.
+ * Every worker runs the specs on its own copy of the app, so a spec edits files under `app.dir`. A file's
+ * tests run in order on one worker; different files run on different workers.
  */
-export function defineCrossIntegrationFixture(
-	repoRootDir: string,
-	desktopChrome: DesktopChromeUse,
-	options: { reuseExistingServer: boolean },
-): IsolatedFixtureModule {
-	const project = {
-		name: 'cross-integration-hmr-node-e2e',
-		port: 4017,
-		workspace: 'cross-integration-hmr-node',
-	};
+export function defineCrossIntegrationFixture(desktopChrome: DesktopChromeUse): IsolatedFixtureModule {
+	const name = 'cross-integration-hmr-node-e2e';
 
 	return {
 		block: 'cross-integration',
 		projects: [
 			{
-				name: project.name,
+				name,
 				testMatch: crossIntegrationHmrMatch,
-				workers: 1,
 				fullyParallel: false,
 				timeout: CROSS_INTEGRATION_DEV_TEST_TIMEOUT_MS,
-				metadata: {
-					artifactScope: project.workspace,
-					isolatedAppDir: path.join(repoRootDir, '.e2e-tmp', project.workspace),
-				},
 				use: {
 					...desktopChrome,
-					baseURL: `http://localhost:${project.port}`,
+					appOptions: {
+						source: crossIntegrationSourceDir,
+						env: { ECOPAGES_CROSS_INTEGRATION_E2E: 'true', ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS: '0' },
+					},
 				},
 			},
 		],
-		webServers: [
-			{
-				command: buildIsolatedAppCommand({
-					sourceDir: crossIntegrationSourceDir,
-					workspace: project.workspace,
-					artifactScope: project.workspace,
-					runtime: 'node',
-					mode: 'dev',
-					port: project.port,
-				}),
-				cwd: '.',
-				...getEcopagesServerReadySignal(),
-				projects: [project.name],
-				reuseExistingServer: options.reuseExistingServer,
-				stdout: 'pipe',
-				stderr: 'pipe',
-			},
-		],
-		batchProjects: [project.name],
+		batchProjects: [name],
 	};
 }
 

@@ -369,7 +369,7 @@ describe('RolldownBuildAdapter', () => {
 				root: workDir,
 			});
 
-			expect(result.success, JSON.stringify(result.logs)).toBe(true);
+			assertBuildSucceeded(result, 'Build failed');
 			expect(readFileSync(result.outputs[0]!.path, 'utf-8')).toContain(`from "${specifier}"`);
 		},
 	);
@@ -386,7 +386,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		expect(result.success).toBe(false);
+		assertBuildFailed(result);
 		expect(result.logs.map((log) => log.message).join('\n')).toContain(`Node builtin "${specifier}"`);
 	});
 
@@ -403,7 +403,7 @@ describe('RolldownBuildAdapter', () => {
 			root: workDir,
 		});
 
-		expect(result.success, JSON.stringify(result.logs)).toBe(true);
+		assertBuildSucceeded(result, 'Build failed');
 		expect(result.outputs.some((output) => output.path.endsWith('.css'))).toBe(false);
 		expect(readFileSync(result.outputs[0]!.path, 'utf-8')).not.toContain('color');
 	});

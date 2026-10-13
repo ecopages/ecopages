@@ -266,7 +266,7 @@ Kitchen-sink benchmarks (`ECOPAGES_BENCH=1 pnpm vitest bench`) show Rolldown win
 
 - `experimental.nativeMagicString: true` enables Rust-native string manipulation for faster transforms.
 - Server-side builds use `createServerSideCssShimPlugin()` to turn `.css` imports into empty ESM modules. Skipped for browser builds.
-- Core's own hooks (the Node builtin externalizer, the browser server-only guard and the CSS shim) declare Rolldown hook filters, so Rolldown calls them only for the ids they handle instead of for every module. The adapter closes its Rolldown bundle in a `finally`, so a failed write does not leave it open.
+- Core's own hooks (the browser server-only guard's builtin check and the CSS shim) declare Rolldown hook filters, so Rolldown calls them only for the ids they handle instead of for every module. The adapter closes its Rolldown bundle in a `finally`, so a failed write does not leave it open.
 
 ## Testing Strategy
 

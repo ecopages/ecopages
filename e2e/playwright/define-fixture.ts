@@ -5,15 +5,13 @@ import { getEcopagesServerReadySignal } from './isolated-dev-server-ready.ts';
 
 type DesktopChromeUse = NonNullable<PlaywrightTestProject['use']>;
 
-export type FixtureServerMode = 'dev' | 'static' | 'production';
+export type FixtureServerMode = 'dev' | 'static';
 
 export type FixtureProjectSpec = {
 	/** Playwright project name (e.g. `react-router-e2e`). */
 	name: string;
 	port: number;
 	mode: FixtureServerMode;
-	/** Runs a `static` project on Node through the `ecopages` CLI instead of Bun. */
-	runtime?: 'bun' | 'node';
 	env?: Record<string, string>;
 	testMatch?: string | string[];
 	testIgnore?: string[];
@@ -30,12 +28,9 @@ export type FixtureDefinition = {
 	projects?: FixtureProjectSpec[];
 	devPort?: number;
 	staticPort?: number;
-	productionPort?: number;
 	postcssDevPort?: number;
 	/** Only boot build + preview (no dev server). */
 	staticOnly?: boolean;
-	/** Only boot a production server (`bun run app.ts`, no build step). */
-	productionOnly?: boolean;
 	/** Only boot a dev server (no static project). */
 	devOnly?: boolean;
 	/** Extra env vars for the dev web server (e.g. feature flags). */
@@ -61,7 +56,7 @@ export type ExternalFixtureDefinition = {
 	 * How Playwright waits for the web server.
 	 *
 	 * @remarks
-	 * `stdout` matches the runtime startup log (`Bun server running at` / `Node server running at`).
+	 * `stdout` matches the runtime startup log (`Node server running at`, or `Bun server running at`).
 	 * `port` waits for the TCP port to accept connections (preview-only servers).
 	 */
 	readiness?: 'stdout' | 'port';
@@ -100,38 +95,24 @@ function buildEnvPrefix(options: { port: number; env?: Record<string, string>; n
 	].join(' ');
 }
 
-function buildDevServerCommand(options: { cwd: string; port: number; env?: Record<string, string> }): string {
-	const envPrefix = buildEnvPrefix({ port: options.port, env: options.env, nodeEnv: 'NODE_ENV=development' });
-	return `${envPrefix} bun run app.ts --dev`;
-}
+const ecopagesCli = `node ${JSON.stringify(path.join(process.cwd(), 'packages/ecopages/bin/cli.js'))}`;
 
-function buildStaticServerCommand(options: { cwd: string; port: number; env?: Record<string, string> }): string {
-	const envPrefix = buildEnvPrefix({ port: options.port, env: options.env, nodeEnv: 'NODE_ENV=production' });
-	return `${envPrefix} bun run app.ts --build && ${envPrefix} bun run app.ts --preview`;
-}
-
-function buildNodeStaticServerCommand(options: { port: number; env?: Record<string, string> }): string {
-	const envPrefix = buildEnvPrefix({ port: options.port, env: options.env, nodeEnv: 'NODE_ENV=production' });
-	return `${envPrefix} node ${path.join(process.cwd(), 'packages/ecopages/bin/cli.js')} preview --runtime node`;
-}
-
-function buildProductionServerCommand(options: { cwd: string; port: number; env?: Record<string, string> }): string {
-	const envPrefix = buildEnvPrefix({ port: options.port, env: options.env, nodeEnv: 'NODE_ENV=production' });
-	return `${envPrefix} bun run app.ts`;
-}
-
-function buildServerCommand(spec: FixtureProjectSpec, fixtureDir: string): string {
+/**
+ * Starts a fixture through the `ecopages` CLI on Node, from the fixture directory.
+ *
+ * @remarks
+ * `dev` serves the source tree. `preview` builds the static export, then serves it.
+ */
+function buildServerCommand(spec: FixtureProjectSpec): string {
 	const env = { ...spec.env, ECOPAGES_E2E_ARTIFACT_SCOPE: spec.name };
-	switch (spec.mode) {
-		case 'dev':
-			return buildDevServerCommand({ cwd: fixtureDir, port: spec.port, env });
-		case 'static':
-			return spec.runtime === 'node'
-				? buildNodeStaticServerCommand({ port: spec.port, env })
-				: buildStaticServerCommand({ cwd: fixtureDir, port: spec.port, env });
-		case 'production':
-			return buildProductionServerCommand({ cwd: fixtureDir, port: spec.port, env });
-	}
+	const envPrefix = buildEnvPrefix({
+		port: spec.port,
+		env,
+		nodeEnv: spec.mode === 'dev' ? 'NODE_ENV=development' : 'NODE_ENV=production',
+	});
+	const subcommand = spec.mode === 'dev' ? 'dev' : 'preview';
+
+	return `${envPrefix} ${ecopagesCli} ${subcommand} --runtime node`;
 }
 
 function defaultTestMatch(fixtureDir: string): string {
@@ -161,22 +142,6 @@ function resolveProjectSpecs(definition: FixtureDefinition, fixtureDir: string):
 				env: definition.staticEnv,
 				testMatch: defaultTest,
 				testIgnore: [`${fixtureDir}/**/*.dev.test.e2e.ts`],
-				workers: definition.staticWorkers,
-			},
-		];
-	}
-
-	if (definition.productionOnly) {
-		if (!definition.productionPort) {
-			throw new Error(`Fixture ${definition.block}: productionOnly requires productionPort`);
-		}
-
-		return [
-			{
-				name: `${definition.block}-e2e`,
-				port: definition.productionPort,
-				mode: 'production',
-				testMatch: defaultTest,
 				workers: definition.staticWorkers,
 			},
 		];
@@ -269,7 +234,7 @@ function buildWebServersFromSpecs(
 	options: { reuseExistingServer: boolean },
 ): FixtureWebServer[] {
 	return specs.map((spec) => ({
-		command: buildServerCommand(spec, fixtureDir),
+		command: buildServerCommand(spec),
 		cwd: fixtureDir,
 		projects: [spec.name],
 		reuseExistingServer: options.reuseExistingServer,

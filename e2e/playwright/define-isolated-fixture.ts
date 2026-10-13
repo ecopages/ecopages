@@ -48,68 +48,60 @@ export function buildIsolatedAppCommand(options: {
 }
 
 /**
- * Isolated kitchen-sink HMR Playwright projects (Bun and Node).
+ * Isolated kitchen-sink HMR Playwright project, run on Node.
  *
  * @remarks
- * Each project uses `workers: 1` because the specs mutate one `.e2e-tmp` copy.
- * Extra workers race those writes.
+ * `workers: 1` because the specs mutate one `.e2e-tmp` copy. Extra workers race those writes.
  */
 export function defineCrossIntegrationFixture(
 	repoRootDir: string,
 	desktopChrome: DesktopChromeUse,
 	options: { reuseExistingServer: boolean },
 ): IsolatedFixtureModule {
-	const hmrProjects = [
-		{
-			name: 'cross-integration-hmr-e2e',
-			port: 4016,
-			runtime: 'bun' as const,
-			workspace: 'cross-integration-hmr',
-			artifactScope: 'cross-integration-hmr',
-		},
-		{
-			name: 'cross-integration-hmr-node-e2e',
-			port: 4017,
-			runtime: 'node' as const,
-			workspace: 'cross-integration-hmr-node',
-			artifactScope: 'cross-integration-hmr-node',
-		},
-	];
+	const project = {
+		name: 'cross-integration-hmr-node-e2e',
+		port: 4017,
+		workspace: 'cross-integration-hmr-node',
+	};
 
 	return {
 		block: 'cross-integration',
-		projects: hmrProjects.map((project) => ({
-			name: project.name,
-			testMatch: crossIntegrationHmrMatch,
-			workers: 1,
-			fullyParallel: false,
-			timeout: CROSS_INTEGRATION_DEV_TEST_TIMEOUT_MS,
-			metadata: {
-				artifactScope: project.artifactScope,
-				isolatedAppDir: path.join(repoRootDir, '.e2e-tmp', project.workspace),
+		projects: [
+			{
+				name: project.name,
+				testMatch: crossIntegrationHmrMatch,
+				workers: 1,
+				fullyParallel: false,
+				timeout: CROSS_INTEGRATION_DEV_TEST_TIMEOUT_MS,
+				metadata: {
+					artifactScope: project.workspace,
+					isolatedAppDir: path.join(repoRootDir, '.e2e-tmp', project.workspace),
+				},
+				use: {
+					...desktopChrome,
+					baseURL: `http://localhost:${project.port}`,
+				},
 			},
-			use: {
-				...desktopChrome,
-				baseURL: `http://localhost:${project.port}`,
+		],
+		webServers: [
+			{
+				command: buildIsolatedAppCommand({
+					sourceDir: crossIntegrationSourceDir,
+					workspace: project.workspace,
+					artifactScope: project.workspace,
+					runtime: 'node',
+					mode: 'dev',
+					port: project.port,
+				}),
+				cwd: '.',
+				...getEcopagesServerReadySignal(),
+				projects: [project.name],
+				reuseExistingServer: options.reuseExistingServer,
+				stdout: 'pipe',
+				stderr: 'pipe',
 			},
-		})),
-		webServers: hmrProjects.map((project) => ({
-			command: buildIsolatedAppCommand({
-				sourceDir: crossIntegrationSourceDir,
-				workspace: project.workspace,
-				artifactScope: project.artifactScope,
-				runtime: project.runtime,
-				mode: 'dev',
-				port: project.port,
-			}),
-			cwd: '.',
-			...getEcopagesServerReadySignal(),
-			projects: [project.name],
-			reuseExistingServer: options.reuseExistingServer,
-			stdout: 'pipe',
-			stderr: 'pipe',
-		})),
-		batchProjects: hmrProjects.map((project) => project.name),
+		],
+		batchProjects: [project.name],
 	};
 }
 

@@ -6,19 +6,13 @@ export type PlaywrightWebServerConfig = {
 /**
  * Playwright `webServer.timeout` per server entry.
  *
- * Cross-integration preview must wait for `ecopages build` + full static generation
- * inside the isolated copy before the port opens — 300s is empirical headroom.
- * Dev/HMR rows get 180s for cold SSR startup; lightweight fixtures use 120s.
+ * Cross-integration dev, HMR and preview servers get 180s for cold SSR startup (the preview servers
+ * only serve a build made before Playwright). Fixture static projects run `ecopages preview`, which
+ * builds the static export before the port opens, so they get 180s too. The docs server builds on
+ * demand and gets 300s. Other servers use 120s.
  */
 export function getWebServerTimeout(server: PlaywrightWebServerConfig): number {
-	const isCrossIntegration = server.projects.some((project) => project.startsWith('cross-integration-'));
-	const isPreviewBuild = server.command.includes('--mode preview') || server.command.includes('--preview');
-
-	if (isCrossIntegration && isPreviewBuild) {
-		return 300_000;
-	}
-
-	if (isCrossIntegration) {
+	if (server.projects.some((project) => project.startsWith('cross-integration-'))) {
 		return 180_000;
 	}
 
@@ -26,7 +20,7 @@ export function getWebServerTimeout(server: PlaywrightWebServerConfig): number {
 		return 300_000;
 	}
 
-	if (server.command.includes('--build') || server.command.includes(' run build ')) {
+	if (server.command.includes(' preview --runtime node')) {
 		return 180_000;
 	}
 

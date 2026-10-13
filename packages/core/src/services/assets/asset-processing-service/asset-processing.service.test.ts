@@ -800,3 +800,60 @@ test('AssetProcessingService - restores grouped content-script metadata from in-
 		'data-eco-page-bootstrap': 'react-router',
 	});
 });
+
+test('AssetProcessingService - shares one processor run between concurrent requests for the same asset', async () => {
+	fileSystem.exists = vi.fn(() => true);
+	const service = new AssetProcessingService({ ...Config } as EcoPagesAppConfig);
+	let finishProcessing!: () => void;
+	const processing = new Promise<void>((resolve) => {
+		finishProcessing = resolve;
+	});
+	const processMock = vi.fn(async () => {
+		await processing;
+		return { filepath: '/test/dist/assets/shared.js', kind: 'script' as const, inline: false };
+	});
+	service.registerProcessor('script', 'file', { process: processMock });
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/shared.ts' };
+
+	const first = service.processDependencies([dependency], 'shared-1');
+	const second = service.processDependencies([dependency], 'shared-2');
+	await vi.waitFor(() => expect(processMock).toHaveBeenCalled());
+	finishProcessing();
+	const [firstAssets, secondAssets] = await Promise.all([first, second]);
+
+	expect(processMock).toHaveBeenCalledTimes(1);
+	expect(firstAssets.map((asset) => asset.filepath)).toEqual(['/test/dist/assets/shared.js']);
+	expect(secondAssets.map((asset) => asset.filepath)).toEqual(['/test/dist/assets/shared.js']);
+});
+
+test('AssetProcessingService - starts a new processor run for a request made after the asset changed', async () => {
+	fileSystem.exists = vi.fn(() => true);
+	const appConfig = { ...Config } as EcoPagesAppConfig;
+	const service = new AssetProcessingService(appConfig);
+	let finishFirst!: () => void;
+	const firstRun = new Promise<void>((resolve) => {
+		finishFirst = resolve;
+	});
+	const processMock = vi
+		.fn()
+		.mockImplementationOnce(async () => {
+			await firstRun;
+			return { filepath: '/test/dist/assets/fresh.js', kind: 'script' as const, inline: false };
+		})
+		.mockImplementation(async () => ({
+			filepath: '/test/dist/assets/fresh.js',
+			kind: 'script' as const,
+			inline: false,
+		}));
+	service.registerProcessor('script', 'file', { process: processMock });
+	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/fresh.ts' };
+
+	const stale = service.processDependencies([dependency], 'fresh-1');
+	await vi.waitFor(() => expect(processMock).toHaveBeenCalledTimes(1));
+	getAppBuildInputIndex(appConfig).recordChanges(['/test/src/fresh.ts']);
+	const fresh = service.processDependencies([dependency], 'fresh-2');
+	finishFirst();
+	await Promise.all([stale, fresh]);
+
+	expect(processMock).toHaveBeenCalledTimes(2);
+});

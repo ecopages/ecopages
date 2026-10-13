@@ -71,4 +71,35 @@ describe('handler-rendered view asset cache', () => {
 		expect(vi.mocked(FileStylesheetProcessor.prototype.process)).toHaveBeenCalledTimes(1);
 		expect(vi.mocked(FileScriptProcessor.prototype.process)).toHaveBeenCalledTimes(1);
 	});
+
+	it('processes each stylesheet and script once when the same view renders twice at once', async () => {
+		rootDir = mkdtempSync(path.join(tmpdir(), 'render-context-assets-'));
+		const viewDir = path.join(rootDir, 'src', 'views');
+		mkdirSync(viewDir, { recursive: true });
+		writeFileSync(path.join(viewDir, 'site.css'), 'body { color: red; }');
+		writeFileSync(path.join(viewDir, 'site.js'), 'console.log(1);\n');
+
+		const appConfig = await createTestAppConfig({ rootDir, integrations: [] });
+		const plugin = new HandlerViewPlugin({ name: 'kitajs', extensions: ['.kita.tsx'] });
+		plugin.setConfig(appConfig);
+
+		const view = (() => '<main>Latest</main>') as EcoFunctionComponent<Record<string, unknown>, string>;
+		view.config = {
+			integration: 'kitajs',
+			identity: { id: 'latest', file: path.join(viewDir, 'latest.kita.tsx'), integration: 'kitajs' },
+			dependencies: { stylesheets: ['./site.css'], scripts: ['./site.js'] },
+		};
+
+		const renderContext = createRenderContext({ integrations: [plugin] });
+
+		const [first, second] = await Promise.all([
+			renderContext.render(view, {}).then((response) => response.text()),
+			renderContext.render(view, {}).then((response) => response.text()),
+		]);
+
+		expect(first).toContain('<main>Latest</main>');
+		expect(second).toContain('<main>Latest</main>');
+		expect(vi.mocked(FileStylesheetProcessor.prototype.process)).toHaveBeenCalledTimes(1);
+		expect(vi.mocked(FileScriptProcessor.prototype.process)).toHaveBeenCalledTimes(1);
+	});
 });

@@ -1,13 +1,15 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
 	eco,
+	getComponentIdentity,
 	type ForeignSubtreeRenderPayload,
 	type ComponentRenderInput,
 	type ComponentRenderResult,
 	type EcoComponent,
+	type EcoComponentConfig,
 	type EcoPageFile,
 	type HtmlTemplateProps,
 	type PageBrowserGraphResult,
@@ -17,17 +19,12 @@ import { type RouteModuleLoadOptions } from '@ecopages/core/route-renderer/orche
 import { runWithComponentRenderContext } from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
-import {
-	createDeferredIntegrationPlugin,
-	createTestAppConfig,
-	htmlDocumentHead,
-	renderFilesystemPageAndExplicitView,
-} from '@ecopages/testing';
+import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
+import { describeRendererContract } from '@ecopages/testing/renderer-contract';
 import React, { type JSX } from 'react';
 import { ReactRenderer, type ReactRendererConfig } from '../render/react-renderer.ts';
 import type { ReactRuntime } from '../render/layout-compose.ts';
 import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
-import { ErrorPage } from './fixture/error-page';
 import { Page } from './fixture/test-page';
 
 const mockRouterAdapter = {
@@ -65,7 +62,6 @@ NonReactHtmlTemplate.config = {
 };
 
 const pageFilePath = path.resolve(__dirname, 'fixture/test-page.tsx');
-const errorPageFile = path.resolve(__dirname, 'fixture/error-page.tsx');
 
 type TestReactRuntimeModules = {
 	react: ReactRuntime;
@@ -93,14 +89,27 @@ const createAssetProcessingServiceMock = () => ({
 	),
 });
 
+/**
+ * Narrows the recording asset service double to the constructor option type in one place.
+ */
+const asAssetProcessingService = (mock: object) =>
+	mock as unknown as ConstructorParameters<typeof ReactRenderer>[0]['assetProcessingService'];
+
 const renderer = new ReactRenderer({
 	appConfig: Config,
-	assetProcessingService: createAssetProcessingServiceMock() as any,
+	assetProcessingService: asAssetProcessingService(createAssetProcessingServiceMock()),
 	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],
 });
 
+type ComposeChildrenRequest = {
+	page: { component: EcoComponent; props: Record<string, unknown> };
+	shellLayouts: Array<{ component: EcoComponent; props?: Record<string, unknown> }>;
+	foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
+};
+
 class TestReactRenderer extends ReactRenderer {
+	composeChildrenRequests: ComposeChildrenRequest[] = [];
 	htmlTemplate: EcoComponent<HtmlTemplateProps> = HtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
 	importedPageFileOverride?: EcoPageFile;
 	shouldHydratePageOverride?: boolean;
@@ -170,19 +179,20 @@ class TestReactRenderer extends ReactRenderer {
 		return this.htmlTransformer.getPagePackage();
 	}
 
-	public resolveComposeChildrenForTest(options: {
-		page: { component: EcoComponent; props: Record<string, unknown> };
-		shellLayouts: Array<{ component: EcoComponent; props?: Record<string, unknown> }>;
-		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
-	}) {
+	public resolveComposeChildrenForTest(options: ComposeChildrenRequest) {
 		return this.resolveComposeChildren(options);
+	}
+
+	protected override resolveComposeChildren(options: ComposeChildrenRequest) {
+		this.composeChildrenRequests.push(options);
+		return super.resolveComposeChildren(options);
 	}
 }
 
 const createRenderer = (reactConfig?: ReactRendererConfig) => {
 	return new TestReactRenderer({
 		appConfig: Config,
-		assetProcessingService: createAssetProcessingServiceMock() as any,
+		assetProcessingService: asAssetProcessingService(createAssetProcessingServiceMock()),
 		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
 		reactConfig,
@@ -193,6 +203,10 @@ class ImportTestReactRenderer extends ReactRenderer {
 	public async importForTest(file: string) {
 		return this.importPageFile(file);
 	}
+
+	public spyOnPageLoader() {
+		return vi.spyOn(this.pageModuleLoaderService, 'importPageFile');
+	}
 }
 
 const createRendererWithAssets = (reactConfig?: ReactRendererConfig) => {
@@ -200,7 +214,7 @@ const createRendererWithAssets = (reactConfig?: ReactRendererConfig) => {
 
 	const testRenderer = new TestReactRenderer({
 		appConfig: Config,
-		assetProcessingService: assetProcessingService as any,
+		assetProcessingService: asAssetProcessingService(assetProcessingService),
 		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
 		reactConfig,
@@ -208,29 +222,130 @@ const createRendererWithAssets = (reactConfig?: ReactRendererConfig) => {
 	return { testRenderer, assetProcessingService };
 };
 
+const HeadedHtmlTemplate: EcoComponent<HtmlTemplateProps, JSX.Element> = ({ headContent, children, metadata }) => (
+	<html lang="en">
+		<head>
+			<title>{metadata.title}</title>
+			{headContent}
+		</head>
+		<body>{children}</body>
+	</html>
+);
+
+describeRendererContract({
+	name: 'react',
+	errorPrefix: 'Failed to render component',
+	async createRenderer({ integrations, processDependencies }) {
+		const testRenderer = new TestReactRenderer({
+			appConfig: await createTestAppConfig({ distDir: testDir, integrations }),
+			assetProcessingService: {
+				getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+				processDependencies: vi.fn(async (deps: Array<{ groupedBundle?: unknown }>, ...rest: unknown[]) =>
+					deps.some((dep) => dep.groupedBundle)
+						? createAssetProcessingServiceMock().processDependencies(deps as never)
+						: (processDependencies as (...args: unknown[]) => unknown)(deps, ...rest),
+				),
+			} as never,
+			runtimeOrigin: 'http://localhost:3000',
+			resolvedIntegrationDependencies: [],
+		});
+		testRenderer.htmlTemplate = HeadedHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
+		return testRenderer;
+	},
+	makeComponent({ tag, acceptsChildren, asLayout, config, embed }) {
+		const Tag = tag as 'section';
+		const identity =
+			config?.identity ??
+			(asLayout ? { id: 'contract-layout', file: '/app/layouts/contract.tsx', integration: 'react' } : undefined);
+		const dependencies = { ...config?.dependencies, ...(embed ? { components: embed } : {}) };
+		const renderMarkup = (props: Record<string, unknown>) => (
+			<Tag>
+				{props.text as string | undefined}
+				{acceptsChildren ? (props.children as React.ReactNode) : undefined}
+				{(embed ?? []).map((Widget, index) => (
+					<React.Fragment key={index}>
+						{(Widget as unknown as (props: object) => React.ReactNode)({})}
+					</React.Fragment>
+				))}
+			</Tag>
+		);
+
+		return (asLayout
+			? eco.layout<JSX.Element>({
+					integration: 'react',
+					identity,
+					dependencies,
+					render: (props) => renderMarkup({ ...props }),
+				})
+			: eco.component<Record<string, unknown>, JSX.Element>({
+					integration: 'react',
+					identity,
+					dependencies,
+					render: renderMarkup,
+				})) as unknown as EcoComponent;
+	},
+	makeView({ text, layout, title, fail }) {
+		return eco.page<Record<string, unknown>, JSX.Element>({
+			integration: 'react',
+			layout: layout as never,
+			metadata: () => ({ title: title ?? 'Contract', description: title ?? 'Contract' }),
+			render: () => {
+				if (fail) {
+					throw new Error(fail);
+				}
+				return <section>{text}</section>;
+			},
+		}) as unknown as EcoComponent;
+	},
+	async renderIsland(renderer, input) {
+		const islandRenderer = renderer as unknown as {
+			collectIslandRenderAssets: (plan: {
+				currentIntegrationName: string;
+				islandEntries: Array<{ file: string; integrationName: string; component: EcoComponent }>;
+			}) => Promise<Map<string, unknown[]>>;
+		};
+		const file = input.component.config?.identity?.file ?? '';
+		const islandRenderAssetsByFile = await islandRenderer.collectIslandRenderAssets({
+			currentIntegrationName: 'kitajs',
+			islandEntries: [{ file, integrationName: 'react', component: input.component }],
+		});
+		const { value } = await runWithComponentRenderContext(
+			{ currentIntegration: 'kitajs', islandRenderAssetsByFile: islandRenderAssetsByFile as never },
+			async () => renderer.renderComponent(input),
+		);
+		return value;
+	},
+});
+
 describe('ReactRenderer', () => {
 	describe('renderComponent', () => {
-		it('should configure the page module service with app layout and component directories', () => {
-			expect((renderer.pageModuleService as any).config.layoutsDir).toBe(Config.absolutePaths.layoutsDir);
-			expect((renderer.pageModuleService as any).config.componentsDir).toBe(Config.absolutePaths.componentsDir);
-		});
+		it.each(['layoutsDir', 'componentsDir'] as const)(
+			'resolves a page relative script against the app %s',
+			async (dir) => {
+				const rootDir = mkdtempSync(path.join(os.tmpdir(), 'react-renderer-app-dirs-'));
+				try {
+					const config = await createTestAppConfig({ rootDir, distDir: testDir });
+					const scriptDir = config.absolutePaths[dir];
+					mkdirSync(scriptDir, { recursive: true });
+					writeFileSync(path.join(scriptDir, 'shell.script.ts'), '');
+					const appRenderer = new ReactRenderer({
+						appConfig: config,
+						assetProcessingService: asAssetProcessingService(createAssetProcessingServiceMock()),
+						runtimeOrigin: 'http://localhost:3000',
+						resolvedIntegrationDependencies: [],
+					});
 
-		it('should render a single React component with structured output', async () => {
-			const testRenderer = createRenderer();
-			const Component = ((props: { title: string }) => <h2>{props.title}</h2>) as unknown as EcoComponent<{
-				title: string;
-			}>;
+					const pageConfig = appRenderer.pageModuleService.ensureConfigFileMetadata(
+						{ dependencies: { scripts: ['./shell.script.ts'] } },
+						path.join(rootDir, 'elsewhere', 'guide.mdx'),
+					);
 
-			const result = await testRenderer.renderComponent({
-				component: Component,
-				props: { title: 'React Component' },
-			});
-
-			expect(result.integrationName).toBe('react');
-			expect(result.canAttachAttributes).toBe(true);
-			expect(result.rootTag).toBe('h2');
-			expect(result.html).toContain('<h2>React Component</h2>');
-		});
+					expect(getComponentIdentity(pageConfig)?.file).toBe(path.join(scriptDir, 'guide.mdx'));
+				} finally {
+					rmSync(rootDir, { recursive: true, force: true });
+				}
+			},
+		);
 
 		it('should compose React element children without escaping nested markup', async () => {
 			const testRenderer = createRenderer();
@@ -582,25 +697,12 @@ describe('ReactRenderer', () => {
 	});
 
 	it('should render boundaries with the app-scoped React runtime', async () => {
-		const createElement = vi.fn((component: unknown, props: unknown, ...children: unknown[]) => ({
-			component,
-			props,
-			children,
-		})) as unknown as typeof React.createElement;
-		const renderToString = vi.fn((value: unknown) => JSON.stringify(value));
+		const appReact = { ...React };
+		const appReactDomServer = { ...(await import('react-dom/server')) };
+		const createElement = vi.spyOn(appReact, 'createElement');
+		const renderToString = vi.spyOn(appReactDomServer, 'renderToString');
 		const testRenderer = createRenderer();
-		testRenderer.reactRuntimeModulesOverride = {
-			react: {
-				createElement,
-				Fragment: 'fragment-token' as unknown as typeof React.Fragment,
-			} as ReactRuntime,
-			reactDomServer: {
-				renderToReadableStream: vi.fn(
-					async () => new ReadableStream(),
-				) as unknown as typeof import('react-dom/server').renderToReadableStream,
-				renderToString: renderToString as unknown as typeof import('react-dom/server').renderToString,
-			} as typeof import('react-dom/server'),
-		};
+		testRenderer.reactRuntimeModulesOverride = { react: appReact, reactDomServer: appReactDomServer };
 
 		const ForeignSubtree = eco.component<{ label: string }, JSX.Element>({
 			integration: 'react',
@@ -612,8 +714,8 @@ describe('ReactRenderer', () => {
 			props: { label: 'Hello' },
 		});
 
-		expect(result.html).toContain('"label":"Hello"');
-		expect(createElement).toHaveBeenCalled();
+		expect(result.html).toBe('<section>Hello</section>');
+		expect(createElement).toHaveBeenCalledWith(ForeignSubtree, { label: 'Hello' });
 		expect(renderToString).toHaveBeenCalledTimes(1);
 	});
 
@@ -647,14 +749,6 @@ describe('ReactRenderer', () => {
 	it('passes route-resolved dependency roots into the document shell', async () => {
 		const testRenderer = createRenderer();
 		const resolvedContent = (() => <article>Resolved content</article>) as unknown as EcoComponent;
-		const renderPageShell = vi
-			.spyOn(
-				testRenderer as unknown as {
-					renderPageWithDocumentShell(input: unknown): Promise<string>;
-				},
-				'renderPageWithDocumentShell',
-			)
-			.mockResolvedValue('<html><body></body></html>');
 
 		await testRenderer.render({
 			params: {},
@@ -668,7 +762,9 @@ describe('ReactRenderer', () => {
 			HtmlTemplate,
 		});
 
-		expect(renderPageShell).toHaveBeenCalledWith(expect.objectContaining({ foreignChildRoots: [resolvedContent] }));
+		expect(testRenderer.composeChildrenRequests.map((request) => request.foreignChildRoots)).toEqual([
+			[resolvedContent],
+		]);
 	});
 
 	it('uses sequential shell rendering when a route dependency root is foreign', () => {
@@ -828,26 +924,20 @@ describe('ReactRenderer', () => {
 		expect(text).not.toContain('__ECO_PAGE_DATA_FALLBACK__');
 	});
 
-	it('does not rebuild the route payload for a React html template', async () => {
-		const testRenderer = createRenderer({ routerAdapter: mockRouterAdapter });
-		testRenderer.importedPageFileOverride = {
-			default: Page,
-			config: {},
-		} as EcoPageFile;
-		const buildSerializedPageProps = vi.spyOn(testRenderer.pagePayloadService, 'buildSerializedPageProps');
-
-		await testRenderer.execute({
-			file: pageFilePath,
-			params: {},
-			query: {},
-		});
-
-		expect(buildSerializedPageProps).toHaveBeenCalledTimes(1);
-	});
-
-	it('does not build HTML contributions without a router', async () => {
-		const testRenderer = createRenderer();
-		testRenderer.htmlTemplate = NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
+	it.each([
+		{
+			name: 'a router with a React html template',
+			reactConfig: { routerAdapter: mockRouterAdapter },
+			htmlTemplate: HtmlTemplate,
+		},
+		{
+			name: 'a non-react html template without a router',
+			reactConfig: undefined,
+			htmlTemplate: NonReactHtmlTemplate,
+		},
+	])('builds the route payload once for $name', async ({ reactConfig, htmlTemplate }) => {
+		const testRenderer = createRenderer(reactConfig);
+		testRenderer.htmlTemplate = htmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
 		testRenderer.importedPageFileOverride = {
 			default: Page,
 			config: {},
@@ -920,28 +1010,6 @@ describe('ReactRenderer', () => {
 		expect(text).not.toContain('&lt;eco-marker');
 	});
 
-	it('should throw an error if the page fails to render', async () => {
-		await expect(
-			renderer.render({
-				params: {},
-				query: {},
-				props: {},
-				file: errorPageFile,
-				resolvedDependencies: [],
-				metadata: {
-					title: 'Error Page',
-					description: 'Error Description',
-				},
-				dependencies: {
-					scripts: [],
-					stylesheets: [],
-				},
-				Page: ErrorPage,
-				HtmlTemplate,
-			}),
-		).rejects.toThrow('Failed to render component');
-	});
-
 	it('should resolve deferred cross-integration layout components in render', async () => {
 		const deferredPlugin = createDeferredIntegrationPlugin();
 		const config = await createTestAppConfig({
@@ -1002,20 +1070,6 @@ describe('ReactRenderer', () => {
 	});
 
 	describe('renderExplicitView', () => {
-		it('should render a view with default status 200', async () => {
-			const testRenderer = createRenderer();
-			const MockView = ((props: { title: string }) => <h1>{props.title}</h1>) as unknown as EcoComponent<{
-				title: string;
-			}>;
-
-			const response = await testRenderer.renderExplicitView(MockView, { title: 'Hello React' }, {});
-
-			expect(response.status).toBe(200);
-			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
-			const body = await response.text();
-			expect(body).toContain('<h1>Hello React</h1>');
-		});
-
 		it('should stamp router-backed documents with an explicit owner marker', async () => {
 			const testRenderer = createRenderer({ routerAdapter: mockRouterAdapter });
 			const MockView = ((props: { title: string }) => <h1>{props.title}</h1>) as unknown as EcoComponent<{
@@ -1088,18 +1142,6 @@ describe('ReactRenderer', () => {
 			expect(body).not.toContain('/assets/react-hydration.chunk.js');
 		});
 
-		it('should render a partial view without full HTML wrapper', async () => {
-			const testRenderer = createRenderer();
-			const MockView = ((props: { content: string }) => <div>{props.content}</div>) as unknown as EcoComponent<{
-				content: string;
-			}>;
-
-			const response = await testRenderer.renderExplicitView(MockView, { content: 'Partial' }, { partial: true });
-
-			const body = await response.text();
-			expect(body).toContain('<div>Partial</div>');
-		});
-
 		it('should resolve deferred foreign boundaries in partial views through explicit component rendering', async () => {
 			const deferredPlugin = createDeferredIntegrationPlugin();
 			const config = await createTestAppConfig({
@@ -1143,75 +1185,6 @@ describe('ReactRenderer', () => {
 			expect(body).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
 			expect(body).toContain('<section>Partial');
 			expect(body).not.toContain('<eco-marker');
-		});
-
-		it('should apply custom status code', async () => {
-			const testRenderer = createRenderer();
-			const MockView = (() => <p>Not Found</p>) as unknown as EcoComponent<object>;
-
-			const response = await testRenderer.renderExplicitView(MockView, {}, { status: 404 });
-
-			expect(response.status).toBe(404);
-		});
-
-		it('should apply custom headers', async () => {
-			const testRenderer = createRenderer();
-			const MockView = (() => <p>Cached</p>) as unknown as EcoComponent<object>;
-
-			const response = await testRenderer.renderExplicitView(
-				MockView,
-				{},
-				{
-					headers: {
-						'Cache-Control': 'max-age=3600',
-						'X-Custom-Header': 'test-value',
-					},
-				},
-			);
-
-			expect(response.headers.get('Cache-Control')).toBe('max-age=3600');
-			expect(response.headers.get('X-Custom-Header')).toBe('test-value');
-		});
-
-		it('should render with layout when not partial', async () => {
-			const testRenderer = createRenderer();
-			const MockLayout = (({ children }: { children: JSX.Element }) => (
-				<main className="layout">{children}</main>
-			)) as unknown as EcoComponent<{ children: JSX.Element }>;
-
-			const MockView = ((props: { message: string }) => <p>{props.message}</p>) as unknown as EcoComponent<{
-				message: string;
-			}>;
-			MockView.config = { layouts: [MockLayout] };
-
-			const response = await testRenderer.renderExplicitView(MockView, { message: 'With Layout' }, {});
-
-			const body = await response.text();
-			expect(body).toContain('layout');
-			expect(body).toContain('<p>With Layout</p>');
-		});
-
-		it('matches the filesystem page head and layouts', async () => {
-			const testRenderer = createRenderer();
-			const MockLayout = (({ children }: { children: JSX.Element }) => (
-				<main className="layout">{children}</main>
-			)) as unknown as EcoComponent<{ children: JSX.Element }>;
-			const MockView = ((props: { message: string }) => <p>{props.message}</p>) as unknown as EcoComponent<{
-				message: string;
-			}>;
-			MockView.config = { layouts: [MockLayout] };
-
-			const { pageHtml, explicitHtml } = await renderFilesystemPageAndExplicitView(
-				testRenderer,
-				MockView,
-				{ message: 'With Layout' },
-				'/app/pages/about.react.tsx',
-			);
-
-			expect(htmlDocumentHead(explicitHtml)).toBe(htmlDocumentHead(pageHtml));
-			expect(explicitHtml).toContain('layout');
-			expect(explicitHtml).toContain('<p>With Layout</p>');
-			expect(explicitHtml).toBe(pageHtml);
 		});
 
 		it('should render full views through explicit component boundaries for non-react layouts', async () => {
@@ -1260,43 +1233,31 @@ describe('ReactRenderer', () => {
 			expect(body).toContain('<p>With Layout</p>');
 			expect(body).not.toContain('<eco-marker');
 		});
-
-		it('should throw an error if the view fails to render', async () => {
-			const testRenderer = createRenderer();
-			const MockView = (() => {
-				throw new Error('View failed to render');
-			}) as unknown as EcoComponent<object>;
-
-			await expect(testRenderer.renderExplicitView(MockView, {}, {})).rejects.toThrow(
-				'Failed to render component',
-			);
-		});
 	});
 
 	describe('page importing', () => {
 		it('routes MDX and TSX page imports through the core page module loader and normalizes config onto the page component', async () => {
 			const testRenderer = new ImportTestReactRenderer({
 				appConfig: Config,
-				assetProcessingService: createAssetProcessingServiceMock() as any,
+				assetProcessingService: asAssetProcessingService(createAssetProcessingServiceMock()),
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 			const pageComponent = (() => null) as unknown as typeof Page;
-			const mdxConfig = { title: 'mdx-config' } as any;
-			const baseImporter = vi
-				.spyOn((testRenderer as any).pageModuleLoaderService, 'importPageFile')
-				.mockResolvedValueOnce({ default: pageComponent, config: mdxConfig })
+			const mdxConfig: EcoComponentConfig = { integration: 'react' };
+			const mdxPageModule: EcoPageFile & { config?: EcoComponentConfig } = {
+				default: pageComponent,
+				config: mdxConfig,
+			};
+			const baseImporter = testRenderer
+				.spyOnPageLoader()
+				.mockResolvedValueOnce(mdxPageModule)
 				.mockResolvedValueOnce({ default: Page });
 
 			const mdxModule = await testRenderer.importForTest('/tmp/page.mdx');
 			const tsxModule = await testRenderer.importForTest('/tmp/page.tsx');
 
-			expect(baseImporter).toHaveBeenNthCalledWith(1, '/tmp/page.mdx', {
-				bypassCache: undefined,
-			});
-			expect(baseImporter).toHaveBeenNthCalledWith(2, '/tmp/page.tsx', {
-				bypassCache: undefined,
-			});
+			expect(baseImporter.mock.calls.map(([file]) => file)).toEqual(['/tmp/page.mdx', '/tmp/page.tsx']);
 			expect(mdxModule.default).toBe(pageComponent);
 			expect((mdxModule.default as typeof pageComponent).config).toBe(mdxConfig);
 			expect(tsxModule.default).toBe(Page);

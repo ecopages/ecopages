@@ -79,7 +79,7 @@ export class NavigationCommit {
 					allowFullDocumentFallback,
 					urlHref: url.href,
 				});
-				if (reloadDecision.kind === 'reload') this.reloadDocument(reloadDecision.href);
+				if (reloadDecision.kind === 'reload') this.options.reloadDocument(reloadDecision.href);
 			},
 			beforeTransition: async () => {
 				if (shouldCleanupCurrentOwner) await navigationRuntime.cleanupOwner(currentDocumentOwner);
@@ -110,9 +110,5 @@ export class NavigationCommit {
 		});
 
 		return result === 'committed';
-	}
-
-	private reloadDocument(href: string): void {
-		window.location.assign(href);
 	}
 }

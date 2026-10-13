@@ -13,6 +13,7 @@ Current responsibilities:
 - `createTestAppConfig()` for the common Ecopages app-config test baseline.
 - `createStringMarkupIntegration()` for plain TypeScript fixture templates that return trusted HTML strings.
 - `createDeferredIntegrationPlugin()` for shared foreign-renderer contract fixtures.
+- `describeRendererContract()` (from `@ecopages/testing/renderer-contract`) for the behaviour every Integration renderer owes core.
 - Shared kitchen-sink shell components that are portable across package boundaries.
 
 ## Migration Rules
@@ -75,6 +76,24 @@ const config = await createTestAppConfig({
 ```
 
 This is test infrastructure, not an application rendering default. Production applications must register an Integration that owns their route file extensions.
+
+## Renderer contract
+
+`describeRendererContract(harness)` registers the rows every Integration renderer must pass. Call it once from each Integration's renderer test file. It lives behind its own entry point because it imports `vitest`; the package root stays safe to import from config files.
+
+Rows:
+
+- a component renders as structured output with the Integration's name and root tag
+- the foreign subtree payload of a plain component (empty assets, no root attributes, `first-element` attachment)
+- the assets a component declares are returned
+- island host attributes are stamped when the instance has client scripts
+- a foreign boundary resolves, bubbles its assets and leaves the script-less shell unstamped
+- a deferred foreign layout leaves no `<eco-marker` behind, and the explicit view equals the filesystem page, head included
+- a view that throws fails with the Integration's error prefix and the cause
+
+The harness supplies `name`, `errorPrefix`, `createRenderer({ integrations, processDependencies })`, `makeComponent(spec)` and `makeView(spec)`. The renderer's document shell must print `metadata.title` in `<head>`. Optional `viewFile` sets the file key and `renderIsland()` wraps island renders for an Integration that receives island assets through the render context (React). `createStringMarkupContractFactories(name)` builds `makeComponent` and `makeView` for Integrations whose components return HTML strings (kitajs, mdx, lit).
+
+Core owns status, headers, partial views and the shared island and foreign-subtree plumbing against a test renderer (`integration-renderer.test.ts`). Keep framework-specific cases in the Integration's own tests; do not repeat a contract row there.
 
 ## Design Constraints
 

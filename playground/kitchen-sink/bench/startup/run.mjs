@@ -21,12 +21,12 @@ const STARTUP_PAGES = [
 	{
 		name: 'lit-entry',
 		path: '/integration-matrix/lit-entry',
-		selector: '[data-testid="page-integration-matrix-lit-entry"]',
+		selector: '[data-testid="integration-matrix-host-shell-stack"]',
 	},
 	{
 		name: 'ecopages-jsx-entry',
 		path: '/integration-matrix/ecopages-jsx-entry',
-		selector: '[data-testid="page-integration-matrix-ecopages-jsx-entry"]',
+		selector: '[data-testid="integration-matrix-host-shell-stack"]',
 	},
 	{ name: 'docs-mdx', path: '/docs', selector: '[data-testid="page-docs"]' },
 ];

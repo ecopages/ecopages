@@ -23,19 +23,20 @@ async function waitForNextPaint(target: Locator) {
 }
 
 async function clickCounter(button: Locator) {
-	for (let attempt = 0; attempt < 3; attempt += 1) {
-		try {
-			await expect(button).toBeVisible();
-			await button.scrollIntoViewIfNeeded().catch(() => undefined);
-			await button.click({ noWaitAfter: true, timeout: 5000 });
-			return;
-		} catch (error) {
-			if (attempt === 2) {
-				throw error;
-			}
-			await new Promise((resolve) => setTimeout(resolve, 100));
-		}
-	}
+	await expect(button).toBeVisible();
+	await button.scrollIntoViewIfNeeded();
+	await button.click();
+}
+
+/**
+ * @remarks
+ * React islands expose a hydration marker; other counters use their own readiness checks.
+ */
+async function waitForReactIslandHydration(button: Locator) {
+	const island = button.locator('xpath=ancestor-or-self::*[@data-eco-island-integration="react"][1]');
+	if ((await island.count()) === 0) return;
+
+	await expect(island).toHaveAttribute('data-eco-hydrated', 'true');
 }
 
 async function waitForLitCounterReady(counter: Locator) {
@@ -79,28 +80,10 @@ async function readLitCounterValue(counter: Locator) {
 	});
 }
 
-async function clickLitCounterIncrement(counter: Locator) {
-	await counter.evaluate((element) => {
-		const litElement = element as HTMLElement & { shadowRoot: ShadowRoot | null };
-		litElement.shadowRoot?.querySelector<HTMLButtonElement>('[data-lit-inc]')?.click();
-	});
-}
-
 async function incrementLitCounter(counter: Locator, expectedValue: string) {
 	await waitForLitCounterReady(counter);
-	await expect
-		.poll(
-			async () => {
-				await clickLitCounterIncrement(counter);
-				await waitForNextPaint(counter);
-				return readLitCounterValue(counter);
-			},
-			{
-				intervals: [100, 200, 350, 500],
-				timeout: 5000,
-			},
-		)
-		.toBe(expectedValue);
+	await counter.locator('[data-lit-inc]').click();
+	await expect.poll(() => readLitCounterValue(counter), { timeout: 5000 }).toBe(expectedValue);
 }
 
 async function waitForRadiantCounterReady(counter: Locator) {
@@ -131,19 +114,9 @@ async function waitForRadiantCounterReady(counter: Locator) {
 }
 
 export async function incrementCounter(button: Locator, value: Locator, expectedValue: string) {
-	await expect
-		.poll(
-			async () => {
-				await clickCounter(button);
-				await waitForNextPaint(value);
-				return ((await value.textContent()) ?? '').trim();
-			},
-			{
-				intervals: [100, 200, 350, 500],
-				timeout: 5000,
-			},
-		)
-		.toBe(expectedValue);
+	await waitForReactIslandHydration(button);
+	await clickCounter(button);
+	await expect(value).toHaveText(expectedValue);
 }
 
 export async function assertCounterInteractivity(root: Locator, expectations: CounterExpectations = {}) {

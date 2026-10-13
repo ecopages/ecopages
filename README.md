@@ -156,7 +156,7 @@ For repository-local architecture notes and subsystem maps, start with the files
 Verify your site's functionality:
 `pnpm run test:all`
 
-CI runs `test:ci:fast` and `test:e2e:pr` on pull requests, and `test:e2e` on pushes to `develop` and `main`.
+CI runs `test:ci:fast` (lint, format check, typecheck and every Vitest project, including `apps/docs`, the templates and the static-build parity oracle) and `test:e2e:pr` on pull requests, and `test:e2e` on pushes to `develop` and `main`.
 
 ### Releases
 

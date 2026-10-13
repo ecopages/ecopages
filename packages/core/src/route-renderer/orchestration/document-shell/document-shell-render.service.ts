@@ -6,6 +6,7 @@ import type {
 } from '../../../types/public-types.ts';
 import type { InternalComponentRenderInput } from '../../../types/internal-types.ts';
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import { getComponentOwner } from '../../../eco/component-identity.ts';
 
 export type DocumentShellLayoutInput = {
 	component: EcoComponent;
@@ -75,6 +76,8 @@ export type DocumentShellPageRenderInput = {
 };
 
 export type DocumentShellRenderDependencies = {
+	/** The Integration rendering the shell. It owns a shell component that names no owner of its own. */
+	integrationName: string;
 	renderComponentWithForeignChildren(input: InternalComponentRenderInput): Promise<ComponentRenderResult>;
 	appendProcessedDependencies(...assetGroups: Array<readonly ProcessedAsset[] | undefined>): ProcessedAsset[];
 };
@@ -87,10 +90,6 @@ function resolveDocumentShellLayouts(
 	}
 
 	return input.layout ? [input.layout] : [];
-}
-
-function resolveComponentIntegrationName(component: EcoComponent): string {
-	return component.config?.integration ?? component.config?.identity?.integration ?? 'ecopages';
 }
 
 /**
@@ -156,7 +155,7 @@ export async function composeDocumentShell(
 			html: typeof composed.children === 'string' ? composed.children : '',
 			assets: [],
 			canAttachAttributes: true,
-			integrationName: resolveComponentIntegrationName(input.primaryComponent),
+			integrationName: getComponentOwner(input.primaryComponent, dependencies.integrationName),
 		};
 	} else {
 		primaryRender = await dependencies.renderComponentWithForeignChildren({

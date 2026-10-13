@@ -48,6 +48,7 @@ describe('document-shell-render.service', () => {
 
 		const { documentHtml } = await composeDocumentShell(
 			{
+				integrationName: 'kitajs',
 				renderComponentWithForeignChildren,
 				appendProcessedDependencies: () => [],
 			},
@@ -84,6 +85,7 @@ describe('document-shell-render.service', () => {
 
 		const { documentHtml } = await composeDocumentShell(
 			{
+				integrationName: 'kitajs',
 				renderComponentWithForeignChildren,
 				appendProcessedDependencies: () => [],
 			},
@@ -123,6 +125,7 @@ describe('document-shell-render.service', () => {
 
 		await composeDocumentShell(
 			{
+				integrationName: 'kitajs',
 				renderComponentWithForeignChildren,
 				appendProcessedDependencies: () => [],
 			},

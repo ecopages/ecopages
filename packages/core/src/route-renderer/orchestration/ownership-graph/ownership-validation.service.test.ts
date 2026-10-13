@@ -32,4 +32,45 @@ describe('OwnershipValidationService', () => {
 			}),
 		).toThrow(UndeclaredComponentDependencyError);
 	});
+
+	function createPageWithChild(childConfig: NonNullable<EcoComponent['config']>) {
+		const child = (() => '<child />') as EcoComponent;
+		child.config = childConfig;
+		const page = (() => '<page />') as EcoComponent;
+		page.config = {
+			identity: { id: 'page', file: '/app/pages/index.kita.tsx', integration: 'kitajs' },
+			dependencies: { components: [child] },
+		};
+		return page;
+	}
+
+	it('validates a child against its integration override, not the integration of its file', () => {
+		const page = createPageWithChild({
+			integration: 'missing-renderer',
+			identity: { id: 'child', file: '/app/child.kita.tsx', integration: 'kitajs' },
+		});
+
+		const errors = new OwnershipValidationService(appConfig).validate({
+			currentIntegrationName: 'kitajs',
+			roots: [{ component: page, source: 'page' }],
+		});
+
+		expect(errors).toEqual([
+			expect.objectContaining({ code: 'UNKNOWN_INTEGRATION_OWNER', integrationName: 'missing-renderer' }),
+		]);
+	});
+
+	it('treats a child whose override names the current integration as its own', () => {
+		const page = createPageWithChild({
+			integration: 'kitajs',
+			identity: { id: 'child', file: '/app/child.react.tsx', integration: 'missing-renderer' },
+		});
+
+		const errors = new OwnershipValidationService(appConfig).validate({
+			currentIntegrationName: 'kitajs',
+			roots: [{ component: page, source: 'page' }],
+		});
+
+		expect(errors).toEqual([]);
+	});
 });

@@ -602,11 +602,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 *
 	 * @remarks
 	 * Every render of a component asks for the same assets, and a production process never changes
-	 * its sources, so there the answer is kept per component. Outside production a source edit
-	 * changes the assets, so each render resolves them again. A failed resolution is not kept.
+	 * its sources, so there the answer is kept per component. Outside production, and while HMR is
+	 * enabled even under `NODE_ENV=production`, a source edit changes the assets, so each render
+	 * resolves them again. A failed resolution is not kept.
 	 */
 	protected resolveComponentRenderAssets(component: EcoComponent | Partial<EcoComponent>): Promise<ProcessedAsset[]> {
-		if (!isProductionRuntime()) {
+		if (!isProductionRuntime() || this.hmrManager?.isEnabled() === true) {
 			return this.processComponentDependencies([component]);
 		}
 

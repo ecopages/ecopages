@@ -685,10 +685,12 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			options: {
 				page?: EcoPageComponent<Record<string, unknown>>;
 				resolveDependencies?: () => Promise<ProcessedAsset[]>;
+				hmrEnabled?: boolean;
 			} = {},
 		) {
 			const validate = vi.fn(() => []);
 			const { flow } = createOrchestrator({
+				hmrEnabled: options.hmrEnabled,
 				orchestratorOptions: {
 					ownershipValidationService: { validate } as unknown as OwnershipValidationService,
 				},
@@ -711,6 +713,23 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			expect(validate).toHaveBeenCalledTimes(1);
 			expect(results[2]?.pageClientPlan).toBe(results[0]?.pageClientPlan);
 			expect(results[2]?.pagePackage).toEqual(results[0]?.pagePackage);
+		});
+
+		it('prepares them on every render while HMR is enabled, even under NODE_ENV=production', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+
+			const { resolveDependencies, validate } = await prepareTimes(3, { hmrEnabled: true });
+
+			expect(resolveDependencies).toHaveBeenCalledTimes(3);
+			expect(validate).toHaveBeenCalledTimes(3);
+		});
+
+		it('still reuses them in production when the HMR manager is disabled', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+
+			const { resolveDependencies } = await prepareTimes(3, { hmrEnabled: false });
+
+			expect(resolveDependencies).toHaveBeenCalledTimes(1);
 		});
 
 		it('prepares them on every render outside production', async () => {

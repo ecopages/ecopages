@@ -322,6 +322,13 @@ export class RouteRenderOrchestrator {
 		return { resolvedPageDependencies, resolvedDependencies, clientPlan, clientBrowserAssets, allDependencies };
 	}
 
+	private isHmrEnabled(): boolean {
+		return (
+			typeof this.assetProcessingService.getHmrManager === 'function' &&
+			this.assetProcessingService.getHmrManager()?.isEnabled() === true
+		);
+	}
+
 	/**
 	 * Prepares the shell dependencies of `page`, once per process when they cannot change.
 	 *
@@ -330,14 +337,15 @@ export class RouteRenderOrchestrator {
 	 * declares them statically, so the Html template, Layouts and Page of one Page object always
 	 * resolve to the same assets. A render of an unchanged view then skips the dependency work a
 	 * cached filesystem Page skips. A `dependencies` function reads the render's props, params and
-	 * query, so those Pages prepare on every render, and so does every render outside production,
-	 * where a source edit changes the result. A failed preparation is not kept.
+	 * query, so those Pages prepare on every render. So does every render outside production and
+	 * every render while HMR is enabled, even under `NODE_ENV=production`, because a source edit
+	 * changes the result. A failed preparation is not kept.
 	 */
 	private reuseShellDependencies(
 		page: object,
 		prepare: () => Promise<PreparedShellDependencies>,
 	): Promise<PreparedShellDependencies> {
-		if (!isProductionRuntime() || (page as EcoPageComponent<unknown>).resolveDependencies) {
+		if (!isProductionRuntime() || this.isHmrEnabled() || (page as EcoPageComponent<unknown>).resolveDependencies) {
 			return prepare();
 		}
 

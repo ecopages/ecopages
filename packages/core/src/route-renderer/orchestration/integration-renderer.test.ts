@@ -509,7 +509,10 @@ describe('IntegrationRenderer', () => {
 				}
 			})({
 				appConfig: testAppConfig,
-				assetProcessingService: testAssetService,
+				assetProcessingService: {
+					...testAssetService,
+					setHmrManager: vi.fn(),
+				} as unknown as AssetProcessingService,
 				runtimeOrigin: 'http://localhost:3000',
 			});
 			return { renderer, calls: () => calls, asset };
@@ -526,6 +529,18 @@ describe('IntegrationRenderer', () => {
 			expect(calls()).toBe(1);
 
 			await renderer.testResolveComponentRenderAssets(other);
+			expect(calls()).toBe(2);
+		});
+
+		it('resolves them again on every render while HMR is enabled, even under NODE_ENV=production', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+			const { renderer, calls } = createCountingRenderer();
+			renderer.setHmrManager({ isEnabled: () => true } as never);
+			const component = (() => 'component') as EcoComponent;
+
+			await renderer.testResolveComponentRenderAssets(component);
+			await renderer.testResolveComponentRenderAssets(component);
+
 			expect(calls()).toBe(2);
 		});
 

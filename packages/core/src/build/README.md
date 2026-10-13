@@ -104,7 +104,7 @@ Runtime code calls `requireBuildQueue(appConfig).build(options, lane)` with a co
 
 The exported `defaultBuildAdapter` is a non-app-aware escape hatch. Runtime code uses `getAppBuildAdapter()`, `requireBuildQueue()`, `createServerBuildRequest()` and `createBrowserBuildRequest()`.
 
-Every `BuildOptions` request requires `environment: 'server' | 'browser'`. Environment selects the platform, default target/format, and plugin participation. An explicit numeric `target` changes language transpilation without changing the environment. `resolveBuildEnvironmentOptions()` holds those defaults. The lane (`build` | `hmr`) selects scheduling only. `BrowserBundleService` derives the lane from the bundle's purpose (`hmr-entrypoint` and `hmr-runtime` use `hmr`); every request retains browser defaults on either lane.
+Every `BuildOptions` request requires `environment: 'server' | 'browser'`. Environment selects the platform, default target/format, and plugin participation. An explicit numeric `target` changes language transpilation without changing the environment. `resolveBuildEnvironmentOptions()` holds those defaults, one table per environment; a request names only what differs, as the server entry and the emitted config do with `reportPackagesOutsideRoot`. The lane (`build` | `hmr`) selects scheduling only. `BrowserBundleService` derives the lane from the bundle's purpose (`hmr-entrypoint` and `hmr-runtime` use `hmr`); every request retains browser defaults on either lane.
 
 Migration: move Integration `browserBuildPlugins` and Processor `buildPlugins` into `plugins` with `environments: ['browser']`. Keep server-only hooks in `plugins` with `environments: ['server']`. Replace the old transpile profile arguments with `'browser'` or `'server'`.
 

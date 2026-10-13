@@ -32,7 +32,7 @@ export async function bundleEcoConfigModule(
 	fileSystem.ensureDir(outputDir);
 
 	const buildOptions = createServerBuildRequest(appConfig, {
-		profile: 'server-entry',
+		reportPackagesOutsideRoot: true,
 		entrypoints: [configSourcePath],
 		outdir: outputDir,
 		naming: EMITTED_ECO_CONFIG_FILENAME,

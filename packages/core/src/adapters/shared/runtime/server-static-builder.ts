@@ -183,7 +183,7 @@ export class ServerStaticBuilder {
 			});
 			const stagedServerEntryPath = path.join(stagingDir, SERVER_BUNDLE_FILENAME);
 			const buildOptions = createServerBuildRequest(this.appConfig, {
-				profile: 'server-entry',
+				reportPackagesOutsideRoot: true,
 				entrypoints: [entryPath],
 				outdir: stagingDir,
 				naming: SERVER_BUNDLE_FILENAME,

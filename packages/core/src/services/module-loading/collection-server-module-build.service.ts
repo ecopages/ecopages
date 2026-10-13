@@ -71,7 +71,6 @@ export async function buildCollectionServerModule(input: {
 	const { appConfig, collectionName, sourceFilePath, ownedSourcePaths } = input;
 	const outdir = path.join(resolveInternalExecutionDir(appConfig), '.server-collections', collectionName);
 	const buildRequest = createServerBuildRequest(appConfig, {
-		profile: 'route-module',
 		entrypoints: [sourceFilePath],
 		outdir,
 		naming: '[name].[ext]',

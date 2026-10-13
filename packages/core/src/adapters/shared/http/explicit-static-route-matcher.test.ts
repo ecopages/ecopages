@@ -182,19 +182,28 @@ describe('ExplicitStaticRouteMatcher', () => {
 			expect(result?.route.path).toBe('/about');
 		});
 
-		test('should match exact route before dynamic route', () => {
-			const exactView = createMockView();
-			const dynamicView = createMockView();
-
+		test('should match an exact route registered before a dynamic route', () => {
 			const matcher = createMatcher([
-				createMockRoute('/blog/featured', exactView),
-				createMockRoute('/blog/:slug', dynamicView),
+				createMockRoute('/blog/featured', createMockView()),
+				createMockRoute('/blog/:slug', createMockView()),
 			]);
 
 			const result = matcher.match('http://localhost:3000/blog/featured');
 
-			expect(result).not.toBeNull();
 			expect(result?.route.path).toBe('/blog/featured');
+			expect(result?.params).toEqual({});
+		});
+
+		test('should match a dynamic route registered before a more specific exact route', () => {
+			const matcher = createMatcher([
+				createMockRoute('/blog/:slug', createMockView()),
+				createMockRoute('/blog/featured', createMockView()),
+			]);
+
+			const result = matcher.match('http://localhost:3000/blog/featured');
+
+			expect(result?.route.path).toBe('/blog/:slug');
+			expect(result?.params).toEqual({ slug: 'featured' });
 		});
 	});
 

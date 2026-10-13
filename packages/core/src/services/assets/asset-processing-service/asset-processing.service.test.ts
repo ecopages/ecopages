@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { AssetProcessingService } from './asset-processing.service';
 import type { AssetDefinition } from './assets.types';
-import { getBrowserRuntimeAssetGeneration } from '../browser-runtime-asset-generation';
+import { PageCacheService, registerAppPageCacheService } from '../../cache/page-cache-service.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
 
@@ -689,7 +689,7 @@ test('AssetProcessingService - a change to a produced file evicts its cached ass
 	expect(processMock).toHaveBeenCalledTimes(2);
 });
 
-test('AssetProcessingService advances the browser runtime generation when a runtime source changes', async () => {
+test('AssetProcessingService clears the page cache when a runtime asset changes its file path', async () => {
 	vi.stubEnv('NODE_ENV', 'development');
 	fileSystem.exists = vi.fn(() => true);
 	fileSystem.hash = vi
@@ -699,6 +699,9 @@ test('AssetProcessingService advances the browser runtime generation when a runt
 		.mockReturnValue('source-v2');
 
 	const config = { ...Config } as unknown as EcoPagesAppConfig;
+	const pageCache = new PageCacheService();
+	registerAppPageCacheService(config, pageCache);
+	const clearPageCache = vi.spyOn(pageCache, 'clear');
 	const service = new AssetProcessingService(config);
 	const processMock = vi
 		.fn()
@@ -724,10 +727,10 @@ test('AssetProcessingService advances the browser runtime generation when a runt
 	};
 
 	await service.processDependencies([dependency], 'runtime-generation');
-	expect(getBrowserRuntimeAssetGeneration(config)).toBe(0);
+	expect(clearPageCache).not.toHaveBeenCalled();
 
 	await service.processDependencies([dependency], 'runtime-generation');
-	expect(getBrowserRuntimeAssetGeneration(config)).toBe(1);
+	expect(clearPageCache).toHaveBeenCalledTimes(1);
 	expect(processMock).toHaveBeenCalledTimes(2);
 });
 

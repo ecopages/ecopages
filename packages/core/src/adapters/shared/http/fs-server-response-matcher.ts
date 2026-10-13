@@ -8,7 +8,6 @@ import type { CacheStrategy, RenderResult } from '../../../services/cache/cache.
 import type { EcoPageComponent } from '../../../eco/eco.types.ts';
 import type { EcoPageFile } from '../../../types/public-types.ts';
 import { PageRequestCacheCoordinator } from '../../../services/cache/page-request-cache-coordinator.service.ts';
-import { getBrowserRuntimeAssetGeneration } from '../../../services/assets/browser-runtime-asset-generation.ts';
 import { ServerUtils } from '../../../utils/server-utils.module.ts';
 import type { FileRouteMiddleware, RequestLocals } from '../../../types/public-types.ts';
 import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
@@ -79,9 +78,7 @@ export class FileSystemResponseMatcher {
 			errorPageLoaders,
 		});
 		this.fileSystemResponseFactory = fileSystemResponseFactory;
-		this.pageRequestCacheCoordinator = new PageRequestCacheCoordinator(cacheService, defaultCacheStrategy, () =>
-			getBrowserRuntimeAssetGeneration(this.appConfig),
-		);
+		this.pageRequestCacheCoordinator = new PageRequestCacheCoordinator(cacheService, defaultCacheStrategy);
 		this.fileRouteMiddlewarePipeline = new FileRouteMiddlewarePipeline(cacheService);
 	}
 

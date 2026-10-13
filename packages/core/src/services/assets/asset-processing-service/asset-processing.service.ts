@@ -18,7 +18,7 @@ import { isHmrAware } from './processor.interface.ts';
 import { ProcessorRegistry } from './processor.registry.ts';
 import { processUngroupedDependency } from './ungrouped-dependency-processing.ts';
 import { materializeContentScriptAsset } from './materialize-content-script-asset.ts';
-import { bumpBrowserRuntimeAssetGeneration } from '../browser-runtime-asset-generation.ts';
+import { clearPageCacheForBrowserRuntimeAssetChange } from '../browser-runtime-asset-page-cache.ts';
 import {
 	ContentScriptProcessor,
 	ContentStylesheetProcessor,
@@ -434,20 +434,20 @@ export class AssetProcessingService {
 		}
 
 		if (tracksBrowserRuntimeGeneration && previous !== undefined && previous.filepath !== asset.filepath) {
-			void bumpBrowserRuntimeAssetGeneration(this.config);
+			void clearPageCacheForBrowserRuntimeAssetChange(this.config);
 		}
 	}
 
 	/**
-	 * Removes a cached asset and advances the development HTML cache generation
-	 * when the removed asset can determine browser runtime URLs.
+	 * Removes a cached asset and clears the development HTML cache when the
+	 * removed asset can determine browser runtime URLs.
 	 */
 	private invalidateCachedAsset(depKey: string): void {
 		const cached = this.cache.get(depKey);
 		this.cache.delete(depKey);
 
 		if (cached?.asset.packageRole === 'runtime' || cached?.asset.packageRole === 'page-script') {
-			void bumpBrowserRuntimeAssetGeneration(this.config);
+			void clearPageCacheForBrowserRuntimeAssetChange(this.config);
 		}
 	}
 
@@ -483,7 +483,7 @@ export class AssetProcessingService {
 			}
 		}
 		if (invalidatesBrowserRuntime) {
-			void bumpBrowserRuntimeAssetGeneration(this.config);
+			void clearPageCacheForBrowserRuntimeAssetChange(this.config);
 		}
 	}
 

@@ -8,6 +8,7 @@ import { createDevTransformExternalizeImportsPlugin } from './dev-transform-exte
 import { rewriteModuleImports } from './dev-transform-import-rewriter.ts';
 import type { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
 import type { DevTransformBundleContributor, DevTransformBundleResult } from './types.ts';
+import { getBuildEntryOutput } from '../../build/build-graph.ts';
 import { formatBuildLog } from '../../build/build-log.ts';
 
 export type DevTransformBundlerOptions = {
@@ -82,10 +83,7 @@ export class DevTransformBundler {
 			);
 		}
 
-		const outputPath =
-			result.entryOutputs?.[normalized] ??
-			result.outputs.find((output) => path.basename(output.path) === `${entryKey}.js`)?.path ??
-			result.outputs[0]?.path;
+		const outputPath = getBuildEntryOutput(result, entryKey, this.appConfig.rootDir);
 		if (!outputPath) {
 			throw new Error(`[dev-transform] No transpile output for ${normalized}`);
 		}

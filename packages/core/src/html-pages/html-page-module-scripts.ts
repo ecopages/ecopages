@@ -1,4 +1,5 @@
 import { readdirSync, realpathSync, statSync } from 'node:fs';
+import { getBuildEntryOutput } from '../build/build-graph.ts';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
@@ -319,7 +320,7 @@ async function buildModuleScripts(
 
 	const urls = new Map<string, string>();
 	for (const script of scripts) {
-		const output = result.entryOutputs?.[realpathSync(script)];
+		const output = getBuildEntryOutput(result, script, appConfig.rootDir);
 		if (output) urls.set(realpathSync(script), `/${path.relative(distDir, output).split(path.sep).join('/')}`);
 	}
 	return urls;

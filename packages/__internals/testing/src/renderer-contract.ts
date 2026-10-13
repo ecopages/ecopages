@@ -159,7 +159,6 @@ export function describeRendererContract(harness: RendererContractHarness): void
 
 			expect(result.integrationName).toBe(name);
 			expect(result.canAttachAttributes).toBe(true);
-			expect(result.rootTag).toBe('h2');
 			expect(result.html).toContain('<h2>Hello contract</h2>');
 		});
 
@@ -175,7 +174,6 @@ export function describeRendererContract(harness: RendererContractHarness): void
 
 			expect(payload).toMatchObject<Partial<ForeignSubtreeRenderPayload>>({
 				assets: [],
-				rootTag: 'section',
 				rootAttributes: undefined,
 				attachmentPolicy: { kind: 'first-element' },
 				integrationName: name,
@@ -217,7 +215,6 @@ export function describeRendererContract(harness: RendererContractHarness): void
 			const renderDeferred = vi.fn(async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
 				html: DEFERRED_WIDGET_HTML,
 				canAttachAttributes: true,
-				rootTag: 'button',
 				integrationName: 'deferred',
 				rootAttributes: {
 					'data-eco-component-id':

@@ -103,7 +103,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	private readonly routerAdapter: ReactRouterAdapter | undefined;
 	private readonly mdxExtensions: string[];
 	private readonly mdxCompilerOptions: CompileOptions | undefined;
-	private mdxLoaderPlugin: EcoBuildPlugin | undefined;
+	private readonly mdxLoaderPlugins = new Map<string, EcoBuildPlugin>();
 	private readonly getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	private readonly runtimeBundleService: RuntimeBundleService;
 	private readonly hmrPageMetadataCache: HmrPageMetadataCache;
@@ -133,7 +133,12 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		this.routerAdapter = rendererConfig.routerAdapter;
 		this.mdxCompilerOptions = mdxCompilerOptions;
 		this.getMdxLoaderPlugin = mdxCompilerOptions
-			? () => this.resolveMdxLoaderPlugin(mdxCompilerOptions)
+			? () => {
+					if (!this.appConfig?.rootDir) {
+						throw new Error('[ReactPlugin] Cannot create MDX loader: appConfig.rootDir is required.');
+					}
+					return this.resolveMdxLoaderPlugin(mdxCompilerOptions, this.appConfig.rootDir);
+				}
 			: undefined;
 		this.mdxExtensions = rendererConfig.mdxExtensions ?? ['.mdx'];
 		this.hmrPageMetadataCache = rendererConfig.hmrPageMetadataCache ?? new HmrPageMetadataCache();
@@ -193,8 +198,8 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	 * Returns the MDX loader when MDX is enabled.
 	 *
 	 * @remarks
-	 * The loader is created on the first read and kept, because the renderer and the HMR strategy reuse the
-	 * instance the build manifest holds.
+	 * The loader is created on the first read for a root directory and kept, because the renderer and the HMR
+	 * strategy reuse the instance the build manifest holds. A config finalized for another root gets its own.
 	 */
 	override plugins(app: EcoPagesAppConfig): EcoBuildPlugin[] {
 		const loader = this.mdxCompilerOptions
@@ -207,15 +212,13 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		return this.runtimeBundleService.getRuntimeManifest();
 	}
 
-	private resolveMdxLoaderPlugin(
-		compilerOptions: CompileOptions,
-		projectRoot = this.appConfig?.rootDir,
-	): EcoBuildPlugin {
-		if (!projectRoot) {
-			throw new Error('[ReactPlugin] Cannot create MDX loader: appConfig.rootDir is required.');
+	private resolveMdxLoaderPlugin(compilerOptions: CompileOptions, projectRoot: string): EcoBuildPlugin {
+		let plugin = this.mdxLoaderPlugins.get(projectRoot);
+		if (!plugin) {
+			plugin = createReactMdxLoaderPlugin({ compilerOptions, projectRoot });
+			this.mdxLoaderPlugins.set(projectRoot, plugin);
 		}
-
-		return (this.mdxLoaderPlugin ??= createReactMdxLoaderPlugin({ compilerOptions, projectRoot }));
+		return plugin;
 	}
 
 	/**

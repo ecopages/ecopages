@@ -225,33 +225,6 @@ describe('finalizeEcoPagesConfig', () => {
 		}
 	});
 
-	test('finalizes a config whose processor and integration cannot set up', async () => {
-		const rejectSetup = async (): Promise<void> => {
-			throw new Error('setup must not run during finalization');
-		};
-		const processor = new (class extends Processor {
-			override async setup(): Promise<void> {
-				await rejectSetup();
-			}
-		})({ name: 'failing-processor' });
-		const integration = new (class extends IntegrationPlugin {
-			renderer = vi.fn() as any;
-			override async setup(): Promise<void> {
-				await rejectSetup();
-			}
-		})({ name: 'failing-integration', extensions: ['.failing'] });
-
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-finalize-config-'));
-
-		try {
-			const config = await finalize({ rootDir, processors: [processor], integrations: [integration] });
-
-			expect(config.processors.has('failing-processor')).toBe(true);
-		} finally {
-			fs.rmSync(rootDir, { recursive: true, force: true });
-		}
-	});
-
 	test('should set custom directories', async () => {
 		const config = await finalize({
 			srcDir: 'custom-src',

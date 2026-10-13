@@ -39,7 +39,7 @@ These contracts are responsible for:
 
 1. Config finalization validates registrations and reads each `plugins(app)` once.
 2. Core seals the app-owned build manifest from them.
-3. Runtime startup calls runtime-only setup hooks.
+3. Runtime startup calls the setup hooks, in every mode and before the router reads any Page. `ecopages build` and `ecopages preview` empty `dist/` first, so a Page module that resolves what a Processor generates in `setup()` finds it. Only the Lit render worker skips Processor setup.
 4. Request-time rendering and development invalidation reuse those finalized contracts. Handler renders create a renderer on every render call and share that Integration's one asset-processing service, so an unchanged stylesheet or script is reused until its source changes, its output is missing, or development invalidation drops the entry.
 5. `DevelopmentInvalidationService.invalidateServerModules()` advances the app module loader's development generation. A Processor that keeps compiled server artifacts outside the route-module graph, such as the content processor's collection bundles, compares `appConfig.runtime.appModuleLoader.getDevelopmentGeneration()` with the generation it built at and rebuilds on a mismatch; there is no invalidation hook.
 

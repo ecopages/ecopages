@@ -40,7 +40,7 @@ Semantic error pages are excluded from ordinary page enumeration and emitted onc
 
 ## Export directory
 
-`ServerStaticBuilder.prepareExportDirectory()` empties `dist/`, copies the public directory into it, and marks runtime assets for rebuilding. Every build renders every page from source in a fresh process, so nothing in an earlier `dist/` is reused and no HTML is skipped or pruned. Route-module transpile and the unified pages graph are reused in memory only, within the current process.
+`ServerStaticBuilder.prepareExport()` empties `dist/`, copies the public directory into it, marks runtime assets for rebuilding and sets Processors and Integrations up. The Node adapter calls it during initialization, before the router reads any Page, and `build()` prepares the export itself only when nothing did. Every build renders every page from source in a fresh process, so nothing in an earlier `dist/` is reused and no HTML is skipped or pruned. Route-module transpile and the unified pages graph are reused in memory only, within the current process.
 
 ## Integration hooks
 

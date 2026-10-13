@@ -72,6 +72,7 @@ export class ServerStaticBuilder {
 	private readonly logger: ServerStaticBuilderLogger;
 	private readonly entryFile: string;
 	private readonly hmrManager?: IHmrManager;
+	private exportPrepared = false;
 
 	constructor({
 		appConfig,
@@ -123,6 +124,20 @@ export class ServerStaticBuilder {
 		if (fileSystem.exists(srcPublicDir)) {
 			copyRuntimePublicDirIfChanged(srcPublicDir, exportDir);
 		}
+	}
+
+	/**
+	 * Empties `dist/`, copies the public directory into it and sets the Processors and Integrations up.
+	 *
+	 * @remarks
+	 * Call it before the router reads any Page, so a Page module that resolves what a Processor generates in
+	 * `setup()` finds it. The next {@link build} then skips this work once; a build without a prior call prepares
+	 * the export itself.
+	 */
+	async prepareExport(): Promise<void> {
+		this.prepareExportDirectory();
+		await this.refreshRuntimeAssets();
+		this.exportPrepared = true;
 	}
 
 	private async refreshRuntimeAssets(): Promise<void> {
@@ -226,8 +241,10 @@ export class ServerStaticBuilder {
 			explicitBaseUrl ??
 			`http://${this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME}:${this.serveOptions.port || DEFAULT_ECOPAGES_PORT}`;
 
-		this.prepareExportDirectory();
-		await this.refreshRuntimeAssets();
+		if (!this.exportPrepared) {
+			await this.prepareExport();
+		}
+		this.exportPrepared = false;
 
 		if (this.needsServerBundle) {
 			await this.bundleServerEntry();

@@ -597,30 +597,6 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			transformOutput: this.options?.transformOutput,
 		});
 	}
-
-	/**
-	 * Runs the PostCSS plugins over one stylesheet synchronously.
-	 *
-	 * @remarks
-	 * It cannot load the plugin list, so it runs the plugins that an earlier {@link transformStylesheet} call
-	 * loaded and applies none before then.
-	 */
-	processSync(fileAsString: string, filePath?: string): string {
-		const input =
-			this.options?.transformInput && filePath
-				? this.options.transformInput(fileAsString, filePath)
-				: fileAsString;
-
-		if (input instanceof Promise) {
-			throw new Error('transformInput must be synchronous when used with processSync');
-		}
-
-		return PostCssProcessor.processStringOrBufferSync(input, {
-			filePath,
-			plugins: this.postcssPlugins,
-			transformOutput: this.options?.transformOutput,
-		});
-	}
 }
 
 export const postcssProcessorPlugin = (config?: PostCssProcessorPluginConfig): PostCssProcessorPlugin => {

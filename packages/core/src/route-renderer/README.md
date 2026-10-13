@@ -54,7 +54,7 @@ See [`../build/README.md`](../build/README.md) for the JSX ownership helper spli
 
 ### `explicit-view-render-preparation.ts`
 
-`resolveExplicitViewRenderer` resolves the integration renderer for one `eco.page()` view without reading `staticProps`. Static export planning uses that so a dynamic route is not invoked before a slug exists. `prepareExplicitStaticRender` then reads `staticProps` with the route's params. A full explicit view calls `renderExplicitView` (a response) or `executeExplicitView` (the route result with its metadata), which run `execute` with the view as the page module and `skipStaticProps`, so it receives the same layouts, metadata, and page client plan as a filesystem Page but never re-runs `staticProps`. The props, route params, query and locals of the call are visible to the view and to its `metadata`. Static export renders through `executeExplicitView` and reuses the returned metadata for sitemap eligibility. A partial render stays on the component path and still takes the same exclusive render as a full view, so runtime activation and the transformer lock apply.
+`resolveExplicitViewRenderer` resolves the integration renderer for one `eco.page()` view without reading `staticProps`. Static export planning uses that so a dynamic route is not invoked before a slug exists. `prepareExplicitStaticRender` then reads `staticProps` with the route's params. A full explicit view calls `renderExplicitView` (a response) or `executeExplicitView` (the route result with its metadata), which run `execute` with the view as the page module and `skipStaticProps`, so it receives the same layouts, metadata, and page client plan as a filesystem Page but never re-runs `staticProps`. The props, route params, query and locals of the call are visible to the view and to its `metadata`. Static export renders through `executeExplicitView` and reuses the returned metadata for sitemap eligibility. A partial render stays on the component path.
 
 ### `orchestration/`
 
@@ -94,7 +94,9 @@ The route-render contract is:
 3. `RouteRenderOrchestrator.prepareRenderOptions()` loads the page module, validates ownership (fail-fast), resolves final page props, resolves dependencies, and builds the page browser graph. Graph cache identity includes route params and query; contribution collection receives those same final props.
 4. The integration renderer performs page, layout, and document-shell rendering. When it encounters a foreign child, it delegates that child back to the owning renderer.
 5. If a renderer needs queued handoff, it emits internal foreign-subtree tokens and resolves them before returning final HTML.
-6. `RouteRenderOrchestrator.executePrepared()` captures the final body, rejects unresolved `<eco-marker>` artifacts, stamps document attributes when needed, and runs the HTML transformer.
+6. `RouteRenderOrchestrator.executePrepared()` captures the final body, rejects unresolved `<eco-marker>` artifacts, stamps document attributes when needed, and runs the HTML transformer with the render's page package.
+
+Renders hold their state on the component render context (page package, page client plan, island assets), not on the renderer, so renders of one Integration overlap freely. `HtmlTransformerService` keeps no state either: each transform takes the page package it injects. Assets a renderer appends during a render go to that render's page package, and appending outside a render throws.
 
 Important:
 

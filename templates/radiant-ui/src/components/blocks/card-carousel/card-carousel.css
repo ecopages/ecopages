@@ -1,0 +1,70 @@
+.card-carousel__heading {
+	margin-block-end: var(--space-8);
+}
+
+.card-carousel__group {
+	display: grid;
+	gap: var(--space-5);
+	padding-inline: var(--space-1);
+}
+
+.card-carousel__card {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow: hidden;
+	border-radius: var(--radius-xl);
+	background: var(--surface-container-low);
+	box-shadow:
+		0 0 0 var(--border-width-hairline) var(--border),
+		var(--shadow-control);
+}
+
+.card-carousel__media :is(img, svg, video) {
+	display: block;
+	width: 100%;
+	height: auto;
+	aspect-ratio: 16 / 10;
+	object-fit: cover;
+}
+
+.card-carousel__body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	padding: var(--space-5);
+	flex: 1;
+}
+
+.card-carousel__title {
+	font-size: var(--text-body);
+	font-weight: var(--weight-semibold);
+	line-height: var(--leading-compact);
+}
+
+.card-carousel__text {
+	margin: 0;
+	font-size: var(--text-sm);
+	line-height: var(--leading-relaxed);
+	color: var(--muted);
+}
+
+.card-carousel__footer {
+	padding: 0 var(--space-5) var(--space-5);
+}
+
+@media (min-width: 768px) {
+	.card-carousel--2 .card-carousel__group {
+		grid-template-columns: repeat(2, 1fr);
+	}
+
+	.card-carousel--3 .card-carousel__group {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+
+@media (min-width: 1024px) {
+	.card-carousel--3 .card-carousel__group {
+		grid-template-columns: repeat(3, 1fr);
+	}
+}

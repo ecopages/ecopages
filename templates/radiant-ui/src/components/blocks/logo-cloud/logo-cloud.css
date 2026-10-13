@@ -1,0 +1,60 @@
+.logo-cloud__title {
+	margin: 0 0 var(--space-6);
+	text-align: center;
+	font-size: var(--text-sm);
+	font-weight: var(--weight-medium);
+	text-transform: uppercase;
+	letter-spacing: var(--tracking-wide);
+	color: var(--muted);
+}
+
+.logo-cloud__list {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-8) var(--space-12);
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.logo-cloud__item {
+	display: flex;
+	align-items: center;
+	height: var(--size-control-md);
+	font-size: var(--text-lg);
+	font-weight: var(--weight-semibold);
+	letter-spacing: -0.02em;
+	color: var(--neutral);
+}
+
+.logo-cloud__item :is(img, svg) {
+	max-height: 100%;
+	width: auto;
+}
+
+.logo-cloud--muted .logo-cloud__item {
+	opacity: var(--opacity-muted);
+	filter: grayscale(1);
+}
+
+@media (hover: hover) {
+	.logo-cloud--muted .logo-cloud__item {
+		transition:
+			opacity 0.2s ease-out,
+			filter 0.2s ease-out;
+	}
+
+	.logo-cloud--muted .logo-cloud__item:hover,
+	.logo-cloud--muted .logo-cloud__item:focus-within {
+		opacity: 1;
+		filter: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.logo-cloud--muted .logo-cloud__item {
+		transition: none;
+	}
+}

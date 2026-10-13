@@ -173,6 +173,33 @@ describe('addTriggerAttribute', () => {
 			]);
 		});
 
+		test('copies the trigger onto ssrIntrinsicProps without mutating the original props', () => {
+			const strings = ['<rui-disclosure', '></rui-disclosure>'];
+			Object.defineProperty(strings, 'raw', {
+				value: ['<rui-disclosure', '></rui-disclosure>'],
+			});
+			const props = { open: false, class: 'faq__item' };
+			const template = {
+				_$rType$: 1,
+				rootLocalName: 'rui-disclosure',
+				ssrIntrinsicProps: props,
+				parts: [{ kind: 'attr', name: 'class', type: 'attribute' }],
+				strings,
+				values: ['faq__item'],
+			};
+
+			const result = addTriggerAttribute(template, TRIGGER_ID) as unknown as {
+				ssrIntrinsicProps: Record<string, unknown>;
+			};
+
+			expect(result.ssrIntrinsicProps).toEqual({
+				open: false,
+				class: 'faq__item',
+				'data-eco-trigger': TRIGGER_ID,
+			});
+			expect(props).toEqual({ open: false, class: 'faq__item' });
+		});
+
 		test('preserves SSR markup node output while injecting into outerHTML', () => {
 			const markupNode = {
 				nodeType: 1,

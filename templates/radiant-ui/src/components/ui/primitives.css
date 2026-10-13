@@ -1,0 +1,8 @@
+/**
+ * Floating-layer and control primitives shared by popovers, tooltips,
+ * selects and the other overlay components.
+ *
+ * Wrappers reference this file as `'../primitives.css'`, so Ecopages
+ * resolves every reference to the same path and emits it once per page.
+ */
+@import '@ecopages/radiant-ui/primitives.css';

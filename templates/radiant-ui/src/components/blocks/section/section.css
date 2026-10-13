@@ -1,0 +1,80 @@
+/**
+ * Band, measure, and gutter for every block.
+ *
+ * Widths, block spacing, and inset are custom properties on the root so a page
+ * can retune the whole rhythm — `.block-section { --block-space-md: 2.5rem }` —
+ * without touching a single block. `width` is measure; `inset` is the inline
+ * gutter; `spacing` is padding-block.
+ */
+:root {
+	--block-width-narrow: 48rem;
+	--block-width-default: 72rem;
+	--block-width-wide: 88rem;
+
+	--block-space-sm: var(--space-8);
+	--block-space-md: var(--space-12);
+	--block-space-lg: var(--space-16);
+
+	--block-inset-compact: var(--space-3);
+	--block-inset-default: var(--space-5);
+}
+
+@media (min-width: 640px) {
+	:root {
+		--block-inset-compact: var(--space-4);
+		--block-inset-default: var(--space-8);
+	}
+}
+
+.block-section {
+	width: 100%;
+}
+
+.block-section--sm {
+	padding-block: var(--block-space-sm);
+}
+
+.block-section--md {
+	padding-block: var(--block-space-md);
+}
+
+.block-section--lg {
+	padding-block: var(--block-space-lg);
+}
+
+.block-section--tinted {
+	background: var(--surface-container-low);
+}
+
+.block-section__inner {
+	margin-inline: auto;
+	width: 100%;
+}
+
+.block-section__inner--inset-default {
+	padding-inline: var(--block-inset-default);
+}
+
+.block-section__inner--inset-compact {
+	padding-inline: var(--block-inset-compact);
+}
+
+.block-section__inner--inset-bleed {
+	padding-inline: 0;
+}
+
+.block-section__inner--narrow {
+	max-width: var(--block-width-narrow);
+}
+
+.block-section__inner--default {
+	max-width: var(--block-width-default);
+}
+
+.block-section__inner--wide {
+	max-width: var(--block-width-wide);
+}
+
+.block-section__inner--full {
+	max-width: none;
+}

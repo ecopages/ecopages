@@ -29,21 +29,45 @@ function cloneTemplateStrings(strings: readonly string[], firstString: string): 
 	return nextStrings;
 }
 
+function cloneSsrIntrinsicProps(props: unknown, triggerId: string): unknown {
+	if (typeof props !== 'object' || props === null || Array.isArray(props)) {
+		return props;
+	}
+
+	if ('data-eco-trigger' in props) {
+		return props;
+	}
+
+	return {
+		...props,
+		'data-eco-trigger': triggerId,
+	};
+}
+
 function cloneTemplateContentWithUpdatedFirstString<T extends TemplateContentShape>(
 	content: T,
 	firstString: string,
+	triggerId: string,
 ): T {
 	const descriptors = Object.getOwnPropertyDescriptors(content);
 	const clonedContent = Object.create(Object.getPrototypeOf(content)) as T;
 	const stringsDescriptor = descriptors.strings;
-
-	Object.defineProperties(clonedContent, {
+	const nextDescriptors: PropertyDescriptorMap = {
 		...descriptors,
 		strings: {
 			...stringsDescriptor,
 			value: cloneTemplateStrings(content.strings, firstString),
 		},
-	});
+	};
+
+	if (descriptors.ssrIntrinsicProps) {
+		nextDescriptors.ssrIntrinsicProps = {
+			...descriptors.ssrIntrinsicProps,
+			value: cloneSsrIntrinsicProps(content.ssrIntrinsicProps, triggerId),
+		};
+	}
+
+	Object.defineProperties(clonedContent, nextDescriptors);
 
 	return clonedContent;
 }
@@ -219,9 +243,13 @@ function injectTriggerAttributeIntoString(content: string, triggerId: string): s
  * unchanged so callers never receive a broken fragment.
  *
  * @remarks
- * `@ecopages/jsx` beta.8+ keeps attribute names in `parts`, so template
- * `strings[0]` is often just the opening tag name (`<html`) with no trailing
- * delimiter. In that shape the attribute is appended at the end of that string.
+ * `@ecopages/jsx` keeps attribute names in `parts`, so template `strings[0]` is
+ * often just the opening tag name (`<theme-toggle`) with no trailing delimiter.
+ * In that shape the attribute is appended at the end of that string.
+ *
+ * Registered custom elements are re-serialized from `ssrIntrinsicProps`, which
+ * drops attributes that exist only in `strings`. The trigger is copied onto that
+ * props object so the host SSR output still carries `data-eco-trigger`.
  *
  * @param content Rendered HTML string (or any value coercible to string).
  * @param triggerId Stable trigger identifier produced by `buildResolvedLazyTriggers`.
@@ -245,6 +273,7 @@ export function addTriggerAttribute(
 		return cloneTemplateContentWithUpdatedFirstString(
 			content,
 			injectTriggerAttributeIntoString(content.strings[0] ?? '', triggerId),
+			triggerId,
 		);
 	}
 

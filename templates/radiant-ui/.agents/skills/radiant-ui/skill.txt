@@ -1,0 +1,24 @@
+# Radiant UI Agent Skill
+
+Progressive skill pack for building interfaces with `@ecopages/radiant-ui`. Start with the main entry:
+
+- **Main skill:** [/skill/SKILL.md](/skill/SKILL.md)
+
+## Reference modules
+
+Read only the module relevant to your task:
+
+| Module | URL | Read when |
+| --- | --- | --- |
+| Composition | [/skill/reference/composition.md](/skill/reference/composition.md) | Views vs hosts, light-DOM targets, attribute forwarding |
+| Theming | [/skill/reference/theming.md](/skill/reference/theming.md) | Token packs, semantic roles, dark mode |
+
+Host authoring (`RadiantElement`, `RadiantController`, `@prop`, bindings, SSR) lives in the Radiant skill pack:
+
+- [Radiant skill index](https://radiant.ecopages.app/skill.txt)
+- [Radiant SKILL.md](https://radiant.ecopages.app/skill/SKILL.md)
+
+## Full documentation
+
+- [llms.txt](/llms.txt) — txt index of all generated docs
+- `/llms-content/<section>/<slug>.txt` — per-page exports linked from the index

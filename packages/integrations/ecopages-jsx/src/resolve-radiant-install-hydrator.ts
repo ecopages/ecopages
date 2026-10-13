@@ -1,6 +1,4 @@
-import { fileURLToPath } from 'node:url';
+import { resolveAppRadiantModule } from './resolve-app-radiant.ts';
 
-/** Absolute path to `@ecopages/radiant/client/install-hydrator` from this integration package. */
-export const RADIANT_INSTALL_HYDRATOR_FILEPATH = fileURLToPath(
-	import.meta.resolve('@ecopages/radiant/client/install-hydrator'),
-);
+/** Absolute path to the app's `@ecopages/radiant/client/install-hydrator`. */
+export const RADIANT_INSTALL_HYDRATOR_FILEPATH = resolveAppRadiantModule('client/install-hydrator');

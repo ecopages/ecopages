@@ -1,0 +1,88 @@
+@import 'tailwindcss';
+
+.catalog .block-section__inner {
+	display: grid;
+	gap: var(--space-12);
+}
+
+.swatch {
+	display: flex;
+	height: 10rem;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--radius-xl);
+	font-size: var(--text-sm);
+	font-weight: var(--weight-medium);
+}
+
+.swatch--1 {
+	background: var(--primary);
+	color: var(--on-primary);
+}
+
+.swatch--2 {
+	background: var(--success);
+	color: var(--on-success);
+}
+
+.swatch--3 {
+	background: var(--warning);
+	color: var(--on-warning);
+}
+
+.alert-stack {
+	display: flex;
+	width: 100%;
+	flex-direction: column;
+	gap: var(--space-3);
+}
+
+.hovercard {
+	display: flex;
+	max-width: 16rem;
+	align-items: center;
+	gap: var(--space-3);
+	font-size: var(--text-sm);
+}
+
+.popover-body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	padding: var(--space-2);
+}
+
+.navpanel {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+	padding: var(--space-3);
+	font-size: var(--text-sm);
+}
+
+.navpanel a {
+	color: var(--link);
+	text-decoration: none;
+}
+
+.sep-demo {
+	display: flex;
+	height: 2rem;
+	align-items: center;
+	gap: var(--space-4);
+	font-size: var(--text-sm);
+}
+
+.splitter {
+	height: 12rem;
+}
+
+.pane {
+	display: flex;
+	height: 100%;
+	align-items: center;
+	justify-content: center;
+	padding: var(--space-4);
+	font-size: var(--text-sm);
+	color: var(--muted);
+}

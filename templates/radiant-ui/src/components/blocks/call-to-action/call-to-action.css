@@ -1,0 +1,41 @@
+.cta__surface {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--space-6);
+	text-align: center;
+}
+
+.cta__surface--panel {
+	padding: var(--space-12) var(--space-6);
+	border-radius: var(--radius-xl);
+	background: var(--surface-container-low);
+	box-shadow:
+		0 0 0 var(--border-width-hairline) var(--border),
+		var(--shadow-control);
+}
+
+.cta__copy {
+	max-width: 40rem;
+}
+
+.cta__actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: var(--space-3);
+}
+
+@media (min-width: 768px) {
+	.cta__surface--inline {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		text-align: start;
+		gap: var(--space-8);
+	}
+
+	.cta__surface--inline .cta__actions {
+		flex-shrink: 0;
+	}
+}

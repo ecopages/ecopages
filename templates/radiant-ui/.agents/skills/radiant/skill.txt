@@ -1,0 +1,23 @@
+# Radiant Agent Skill
+
+Progressive skill pack for authoring Radiant reactive hosts. Start with the main entry:
+
+- **Main skill:** [/skill/SKILL.md](/skill/SKILL.md)
+
+## Reference modules
+
+Read only the module relevant to your task:
+
+| Module | URL | Read when |
+| --- | --- | --- |
+| Reactive model | [/skill/reference/reactive-model.md](/skill/reference/reactive-model.md) | Bindings vs plain reads vs `@bindTo`, derived `.map`, class/style |
+| Hosts | [/skill/reference/hosts.md](/skill/reference/hosts.md) | Element vs controller, public props vs bindings types |
+| Decorators | [/skill/reference/decorators.md](/skill/reference/decorators.md) | `@prop`, `@bindTo`, `@query`, `@onEvent`, `@onUpdated`, `@bound`, `@debounce` |
+| Context | [/skill/reference/context.md](/skill/reference/context.md) | Provide/consume, selectors vs update callbacks |
+| SSR | [/skill/reference/ssr.md](/skill/reference/ssr.md) | Server entrypoints, hydrate modes, render scope |
+| Authoring | [/skill/reference/authoring.md](/skill/reference/authoring.md) | Rules, review checklist, output shape |
+
+## Full documentation
+
+- [llms.txt](/llms.txt) — txt index of all generated docs
+- `/llms-content/<section>/<slug>.txt` — per-page exports linked from the index

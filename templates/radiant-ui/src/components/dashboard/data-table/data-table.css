@@ -1,0 +1,161 @@
+/**
+ * Layout chrome for the dashboard inventory table (`<dashboard-data-table>`).
+ */
+dashboard-data-table {
+	container-type: inline-size;
+	display: block;
+}
+
+.data-table {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-4);
+}
+
+.data-table__panel {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-4);
+}
+
+.data-table__toolbar {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+}
+
+.data-table__search-field {
+	width: 100%;
+}
+
+.data-table__toolbar-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--space-2);
+}
+
+.data-table__filters {
+	display: flex;
+	width: 18rem;
+	flex-direction: column;
+	gap: var(--space-4);
+	padding: var(--space-4);
+}
+
+.data-table__filters-title {
+	font-weight: var(--weight-semibold);
+}
+
+.data-table__filters-groups {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-4);
+}
+
+.data-table__filter-group {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+}
+
+.data-table__filter-group-label {
+	font-size: var(--text-sm);
+	font-weight: var(--weight-medium);
+}
+
+.data-table__error {
+	margin: 0;
+	font-size: var(--text-sm);
+	color: var(--error);
+}
+
+.data-table__actions-column {
+	width: 8rem;
+}
+
+.data-table__actions-header {
+	position: relative;
+	display: flex;
+	min-height: 1rem;
+	align-items: center;
+	padding-inline-end: var(--space-5);
+}
+
+.data-table__refresh-spinner {
+	position: absolute;
+	right: 0;
+}
+
+.data-table__footer {
+	display: grid;
+	gap: var(--space-3);
+	grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-areas:
+		'summary page-size'
+		'pagination pagination';
+	font-size: var(--text-sm);
+	color: var(--muted);
+}
+
+.data-table__summary {
+	grid-area: summary;
+	min-width: 0;
+	font-variant-numeric: tabular-nums;
+}
+
+.data-table__pagination {
+	grid-area: pagination;
+	min-width: 0;
+	max-width: 100%;
+	display: flex;
+	justify-content: center;
+}
+
+.data-table__page-size {
+	grid-area: page-size;
+	width: 8rem;
+	justify-self: end;
+}
+
+.data-table__sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+}
+
+@media (min-width: 640px) {
+	.data-table__toolbar {
+		flex-direction: row;
+		align-items: flex-end;
+		justify-content: space-between;
+	}
+
+	.data-table__search-field {
+		max-width: 24rem;
+	}
+
+	.data-table__filters {
+		width: auto;
+	}
+
+	.data-table__filters-groups {
+		flex-direction: row;
+		align-items: flex-start;
+	}
+}
+
+@container (min-width: 48rem) {
+	.data-table__footer {
+		grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+		grid-template-areas: 'summary pagination page-size';
+		align-items: center;
+	}
+}

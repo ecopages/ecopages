@@ -1,0 +1,8 @@
+.faq__heading {
+	margin-block-end: var(--space-8);
+}
+
+.faq__list {
+	display: block;
+	border-block-start: var(--border-width-hairline) solid var(--border);
+}

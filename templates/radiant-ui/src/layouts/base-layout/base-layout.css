@@ -1,0 +1,22 @@
+@layer components {
+	.site-logo {
+		@apply inline-flex items-center gap-2 text-base font-semibold no-underline;
+		font-family: var(--font-display);
+		letter-spacing: -0.01em;
+		color: var(--on-background);
+	}
+
+	.site-logo:hover {
+		color: var(--muted);
+	}
+
+	.layout-main {
+		@apply w-full flex-1;
+	}
+
+	.layout-main--contained {
+		margin-inline: auto;
+		max-width: 64rem;
+		padding: var(--space-8) var(--block-inset-default, var(--space-8));
+	}
+}

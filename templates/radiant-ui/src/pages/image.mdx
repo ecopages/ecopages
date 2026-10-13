@@ -1,0 +1,26 @@
+import { BaseLayout } from '../layouts/base-layout';
+import { EcoImage } from '@ecopages/image-processor/component/jsx';
+import { logoOnGhDarkPng } from 'ecopages:images';
+
+export const config = {
+	layout: { component: BaseLayout, props: () => ({ prose: true, contained: true }) },
+};
+
+# Images
+
+The `ecopages/image-processor` plugin processes images at build time and generates responsive, optimized markup.
+
+Click the image below to open the detail page and see a cross-page view transition.
+
+<a href="/image-detail" class="image-link block text-center">
+	<div
+		data-view-transition="kita-image"
+		data-view-transition-animate="fade"
+		data-view-transition-duration="600ms"
+		class="inline-block"
+	>
+		<EcoImage {...logoOnGhDarkPng} alt="Logo on GitHub dark" width={320} height={240} class="rounded" />
+	</div>
+</a>
+
+Check out the <a href="/" data-eco-reload>Home Page</a> to go back.

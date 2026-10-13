@@ -1,5 +1,7 @@
+import { pathToFileURL } from 'node:url';
 import { createMarkupNodeLike } from '@ecopages/jsx';
 import { createServerHydrationBindingState, withServerHydrationBindingState } from '@ecopages/jsx/server';
+import { resolveAppRadiantModule } from './resolve-app-radiant.ts';
 
 type RadiantLightDomShimWindow = {
 	CSS: { escape(value: string): string };
@@ -105,9 +107,10 @@ export class EcopagesJsxRadiantSsrPolicy {
 
 	private async ensureRuntimeInstalled(): Promise<void> {
 		if (!this.runtimeModulesPromise) {
-			const radiantLightDomShimEntry = import.meta.resolve('@ecopages/radiant/server/light-dom-shim');
-			const radiantElementSsrRuntimeModuleUrl = import.meta
-				.resolve('@ecopages/radiant/server/radiant-element-ssr');
+			const radiantLightDomShimEntry = pathToFileURL(resolveAppRadiantModule('server/light-dom-shim')).href;
+			const radiantElementSsrRuntimeModuleUrl = pathToFileURL(
+				resolveAppRadiantModule('server/radiant-element-ssr'),
+			).href;
 
 			this.runtimeModulesPromise = (async () => {
 				const lightDomShimModule = await import(/* @vite-ignore */ radiantLightDomShimEntry);

@@ -1,0 +1,7 @@
+/**
+ * Chrome for `Textarea`, pulled from the published package.
+ *
+ * PostCSS inlines these package specifiers at build time. Add your own
+ * overrides below the imports — they win by source order.
+ */
+@import '@ecopages/radiant-ui/textarea/styles.css';

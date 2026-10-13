@@ -510,10 +510,6 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		await this.ensureCollectionsGenerated();
 	}
 
-	override async process(_input: unknown): Promise<void> {
-		await this.regenerateAllCollections();
-	}
-
 	/**
 	 * Declares watch-mode SSR prewarm pathnames derived from collection manifests.
 	 *

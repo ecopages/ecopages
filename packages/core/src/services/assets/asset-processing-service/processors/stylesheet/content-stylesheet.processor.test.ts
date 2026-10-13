@@ -4,7 +4,7 @@ import { ContentStylesheetProcessor } from './content-stylesheet.processor';
 import type { EcoPagesAppConfig } from '../../../../../types/internal-types';
 import type { ContentStylesheetAsset } from '../../assets.types';
 import { getAssetDependencyKey } from '../../asset-dependency-keys.ts';
-import { Processor } from '../../../../../plugins/processor.ts';
+import { Processor, type ProcessorConfig } from '../../../../../plugins/processor.ts';
 
 function createMockConfig(processors = new Map<string, Processor>()): EcoPagesAppConfig {
 	return {
@@ -50,17 +50,14 @@ class TestStylesheetProcessor extends Processor {
 	readonly buildPlugins = undefined;
 	readonly plugins = undefined;
 
-	constructor() {
-		super({
-			name: 'bundled-css',
-			capabilities: [{ kind: 'stylesheet' }],
-		});
+	constructor(config: Pick<ProcessorConfig, 'name' | 'capabilities'> = { name: 'bundled-css' }) {
+		super({ capabilities: [{ kind: 'stylesheet' }], ...config });
 	}
 
 	override async setup(): Promise<void> {}
 
-	override async process(input: unknown): Promise<unknown> {
-		return typeof input === 'string' ? input.replace('red', 'green') : input;
+	override async transformStylesheet(css: string, _file?: string): Promise<string> {
+		return css.replace('red', 'green');
 	}
 }
 
@@ -151,9 +148,9 @@ describe('ContentStylesheetProcessor', () => {
 		test('hands processors processingOrigin as the file path and keys the dependency by it', async () => {
 			const filePaths: Array<string | undefined> = [];
 			const recorder = new (class extends TestStylesheetProcessor {
-				override async process(input: unknown, filePath?: string): Promise<unknown> {
-					filePaths.push(filePath);
-					return input;
+				override async transformStylesheet(css: string, file: string): Promise<string> {
+					filePaths.push(file);
+					return css;
 				}
 			})();
 			const processor = new ContentStylesheetProcessor({
@@ -176,6 +173,90 @@ describe('ContentStylesheetProcessor', () => {
 			expect(getAssetDependencyKey(dep())).not.toBe(
 				getAssetDependencyKey(dep('/test/project/src/pages/a.html.css')),
 			);
+		});
+	});
+
+	describe('process - stylesheet processors', () => {
+		const inlineDep: ContentStylesheetAsset = {
+			kind: 'stylesheet',
+			source: 'content',
+			content: 'a { color: red; }',
+			inline: true,
+			processingOrigin: '/test/project/src/pages/about.html.css',
+		};
+
+		class AppendingProcessor extends TestStylesheetProcessor {
+			constructor(
+				config: Pick<ProcessorConfig, 'name' | 'capabilities'>,
+				private readonly suffix: string,
+			) {
+				super(config);
+			}
+
+			override async transformStylesheet(css: string): Promise<string> {
+				return `${css}${this.suffix}`;
+			}
+		}
+
+		class HooklessProcessor extends Processor {
+			readonly plugins = undefined;
+			constructor() {
+				super({ name: 'postcss-lookalike', capabilities: [{ kind: 'stylesheet' }] });
+			}
+			override async setup(): Promise<void> {}
+		}
+
+		test('chains transformStylesheet in registration order', async () => {
+			const first = new AppendingProcessor({ name: 'first' }, '/*1*/');
+			const second = new AppendingProcessor({ name: 'second' }, '/*2*/');
+			const processor = new ContentStylesheetProcessor({
+				appConfig: createMockConfig(
+					new Map<string, Processor>([
+						[first.name, first],
+						[second.name, second],
+					]),
+				),
+			});
+
+			const result = await processor.process(inlineDep);
+
+			expect(result.content).toBe('a { color: red; }/*1*//*2*/');
+		});
+
+		test('skips a Processor that has no transformStylesheet', async () => {
+			const hookless = new HooklessProcessor();
+			const processor = new ContentStylesheetProcessor({
+				appConfig: createMockConfig(new Map<string, Processor>([[hookless.name, hookless]])),
+			});
+
+			const result = await processor.process(inlineDep);
+
+			expect(result.content).toBe('a { color: red; }');
+		});
+
+		test('does not run a Processor without capabilities because its name contains postcss', async () => {
+			const capabilityless = new AppendingProcessor({ name: 'my-postcss-fork', capabilities: [] }, '/*x*/');
+			const processor = new ContentStylesheetProcessor({
+				appConfig: createMockConfig(new Map<string, Processor>([[capabilityless.name, capabilityless]])),
+			});
+
+			const result = await processor.process(inlineDep);
+
+			expect(result.content).toBe('a { color: red; }');
+		});
+
+		test('skips a Processor that does not declare a stylesheet capability', async () => {
+			const imagesOnly = new AppendingProcessor(
+				{ name: 'images-only', capabilities: [{ kind: 'image' }] },
+				'/*x*/',
+			);
+			const processor = new ContentStylesheetProcessor({
+				appConfig: createMockConfig(new Map<string, Processor>([[imagesOnly.name, imagesOnly]])),
+			});
+
+			const result = await processor.process(inlineDep);
+
+			expect(result.content).toBe('a { color: red; }');
 		});
 	});
 

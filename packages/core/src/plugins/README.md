@@ -17,7 +17,7 @@ These contracts are responsible for:
 - `integration-plugin.ts`: framework-semantics contract for render integrations
 - `define-integration.ts`: typed factory for integrations that only need declarative config and a renderer class
 - `find-integration-for-file.ts`: resolves the Integration that owns a file by its longest registered extension; route rendering, page-module loading, route discovery, the pages graph, and component attribution all use it
-- `processor.ts`: asset-transformation contract for processors, including generated `@types` package helpers for virtual modules
+- `processor.ts`: asset-transformation contract for processors, including the optional `transformStylesheet(css, file)` that core's stylesheet pipeline calls for processors with a matching `stylesheet` capability, and generated `@types` package helpers for virtual modules
 - `source-transform.ts`: bundler-neutral source-transform primitive; core transforms use MagicString to preserve locations, and Rolldown builds run them as `transform` plugins
 - `component-import-discovery.ts`: resolves direct local factory exports, named `export { X } from` barrels (imported binding only), relative CSS imports, and aliased CSS imports; records the imported module, factory file, and successful named re-export hops as watch files; excludes `export *`, type imports, package imports, and ordinary helpers.
 - `eco-component-meta-plugin.ts`: component-identity attribution transform for `eco.*()` factories and `attributeMdxComponentIdentity` for compiled MDX modules

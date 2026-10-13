@@ -34,10 +34,6 @@ class PrewarmPathProcessor extends Processor {
 	}
 
 	override async setup(): Promise<void> {}
-
-	override async process(input: unknown): Promise<unknown> {
-		return input;
-	}
 }
 
 vi.mock('../shared/ws/node-http-websocket-upgrades.ts', () => ({

@@ -84,15 +84,15 @@ class CustomProcessor extends Processor {
 
 	override async setup(): Promise<void> {}
 
-	override async process(input: unknown, filePath?: string): Promise<unknown> {
-		return input;
+	override async transformStylesheet(css: string, file: string): Promise<string> {
+		return css;
 	}
 }
 
 export const customProcessorPlugin = (config?: Omit<ProcessorConfig, 'name'>) => new CustomProcessor(config ?? {});
 ```
 
-Use `capabilities` to participate in the asset pipeline. Declare capabilities for file types the processor owns as build assets (for example stylesheets or images). Use `watch.extensions` for dependency notifications that should not block server invalidation or HMR (for example Tailwind class scanning in TSX). Use `IClientBridge` in watch callbacks for dev HMR (`bridge.cssUpdate(path)`).
+Use `capabilities` to participate in the asset pipeline. Stylesheet processing also needs `transformStylesheet(css, file)`; a processor without it is skipped. Declare capabilities for file types the processor owns as build assets (for example stylesheets or images). Use `watch.extensions` for dependency notifications that should not block server invalidation or HMR (for example Tailwind class scanning in TSX). Use `IClientBridge` in watch callbacks for dev HMR (`bridge.cssUpdate(path)`).
 
 ## Custom integrations
 

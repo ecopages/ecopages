@@ -182,4 +182,39 @@ describe('explicit views rendered through real renderers', () => {
 		expect(buildAssets).not.toHaveBeenCalled();
 		buildAssets.mockRestore();
 	});
+
+	it('plans an explicit view from its own components after a route rendered on the same renderer', async () => {
+		const { plugin } = await createPlugin();
+		const renderer = plugin.initializeRenderer() as unknown as ExplicitViewTestRenderer;
+		const buildAssets = vi.spyOn(ExplicitViewTestRenderer.prototype as any, 'buildPageClientBrowserAssets');
+		const routeChild = createView(() => '<i>child</i>');
+		routeChild.config = {
+			integration: 'kitajs',
+			identity: {
+				id: 'route-child',
+				file: path.join(rootDir, 'src', 'components', 'route-child.kita.tsx'),
+				integration: 'kitajs',
+			},
+		};
+		const routePage = createView(() => '<p>route</p>');
+		routePage.config = { ...routePage.config, dependencies: { components: [routeChild] } };
+		const explicitView = createView(() => '<p>explicit</p>');
+
+		await renderer.execute({
+			file: path.join(rootDir, 'src', 'pages', 'index.kita.tsx'),
+			pageModule: { default: routePage },
+			params: {},
+			query: {},
+		});
+		await renderer.renderExplicitView(explicitView, {}, {});
+
+		const planFiles = buildAssets.mock.calls.map(([plan]) =>
+			(plan as { sourceComponents: EcoComponent[] }).sourceComponents.map(
+				(component) => component.config?.identity?.file,
+			),
+		);
+		expect(planFiles[0]).toContain(path.join(rootDir, 'src', 'components', 'route-child.kita.tsx'));
+		expect(planFiles[1]).not.toContain(path.join(rootDir, 'src', 'components', 'route-child.kita.tsx'));
+		buildAssets.mockRestore();
+	});
 });

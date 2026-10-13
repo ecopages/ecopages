@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from '
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { afterEach, describe, it } from 'vitest';
+import { afterEach, describe, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import {
@@ -34,11 +34,9 @@ async function importByRealPath<T>(filePath: string): Promise<T> {
 
 describe('build → start contract', () => {
 	const tempDirs: string[] = [];
-	const originalNodeEnv = process.env.NODE_ENV;
 	const originalCwd = process.cwd();
 
 	afterEach(() => {
-		process.env.NODE_ENV = originalNodeEnv;
 		process.chdir(originalCwd);
 		for (const tempDir of tempDirs.splice(0)) {
 			fileSystem.remove(tempDir);
@@ -46,7 +44,7 @@ describe('build → start contract', () => {
 	});
 
 	it('emits a runnable server bundle and manifest when needsServerBundle is true', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-start-contract-'));
 		tempDirs.push(rootDir);
 		process.chdir(rootDir);
@@ -96,7 +94,7 @@ describe('build → start contract', () => {
 	});
 
 	it('defaults omitted rootDir to the project cwd after emitting the config', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-start-default-root-'));
 		tempDirs.push(rootDir);
 		process.chdir(rootDir);
@@ -132,7 +130,7 @@ describe('build → start contract', () => {
 	});
 
 	it('writes the server bundle into the configured distDir and finds it there', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-start-dist-dir-'));
 		tempDirs.push(rootDir);
 		process.chdir(rootDir);
@@ -175,7 +173,7 @@ describe('build → start contract', () => {
 	});
 
 	it('does not emit a server bundle for static-only apps', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-start-contract-'));
 		tempDirs.push(rootDir);
 		process.chdir(rootDir);
@@ -211,7 +209,7 @@ describe('build → start contract', () => {
 	});
 
 	it('preserves import.meta.dirname semantics in emitted dist/.server/eco.config.mjs', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-import-meta-'));
 		tempDirs.push(rootDir);
 		process.chdir(rootDir);
@@ -259,7 +257,7 @@ describe('build → start contract', () => {
 	});
 
 	it('supports dist-only deployment and validates config identity', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-dist-only-'));
 		tempDirs.push(rootDir);
 		process.chdir(rootDir);

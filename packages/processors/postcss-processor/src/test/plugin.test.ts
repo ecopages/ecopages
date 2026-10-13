@@ -1,4 +1,5 @@
-import { describe, expect, test, afterAll, beforeAll, vi } from 'vitest';
+import { describe, expect, test, afterEach, beforeEach, vi } from 'vitest';
+import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import postcss from 'postcss';
@@ -7,12 +8,12 @@ import { PostCssProcessorPlugin } from '../plugin';
 import type { IClientBridge } from '@ecopages/core';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 
-const TMP_DIR = path.join(__dirname, 'tmp_test_hmr');
-const SRC_DIR = path.join(TMP_DIR, 'src');
-const DIST_DIR = path.join(TMP_DIR, 'dist');
+let tmpDir: string;
+let srcDir: string;
+let distDir: string;
 
 function hashedCssContents(): string[] {
-	const assetsDir = path.join(DIST_DIR, 'assets');
+	const assetsDir = path.join(distDir, 'assets');
 	if (!fs.existsSync(assetsDir)) {
 		return [];
 	}
@@ -24,20 +25,20 @@ function hashedCssContents(): string[] {
 }
 
 describe('PostCssProcessorPlugin HMR', () => {
-	beforeAll(() => {
-		if (fs.existsSync(TMP_DIR)) {
-			fs.rmSync(TMP_DIR, { recursive: true, force: true });
-		}
-		fs.mkdirSync(SRC_DIR, { recursive: true });
-		fs.mkdirSync(DIST_DIR, { recursive: true });
+	beforeEach(() => {
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'postcss-plugin-test-'));
+		srcDir = path.join(tmpDir, 'src');
+		distDir = path.join(tmpDir, 'dist');
+		fs.mkdirSync(srcDir, { recursive: true });
+		fs.mkdirSync(distDir, { recursive: true });
 	});
 
-	afterAll(() => {
-		fs.rmSync(TMP_DIR, { recursive: true, force: true });
+	afterEach(() => {
+		fs.rmSync(tmpDir, { recursive: true, force: true });
 	});
 
 	test('handleCssChange should apply transformInput', async () => {
-		const cssFile = path.join(SRC_DIR, 'style.css');
+		const cssFile = path.join(srcDir, 'style.css');
 		fs.writeFileSync(cssFile, '.foo { color: red; }');
 
 		const plugin = new PostCssProcessorPlugin({
@@ -50,7 +51,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 		});
 
 		const config = await finalizeEcoPagesConfig({
-			rootDir: TMP_DIR,
+			rootDir: tmpDir,
 			srcDir: 'src',
 			distDir: 'dist',
 			baseUrl: 'http://localhost:3000',
@@ -75,7 +76,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 			throw new Error('Plugin does not have watch handler');
 		}
 
-		const outputFile = path.join(DIST_DIR, 'assets', 'style.css');
+		const outputFile = path.join(distDir, 'assets', 'style.css');
 		expect(fs.existsSync(outputFile)).toBe(true);
 
 		const outputContent = fs.readFileSync(outputFile, 'utf-8');
@@ -87,8 +88,8 @@ describe('PostCssProcessorPlugin HMR', () => {
 	});
 
 	test('dependency changes should rebuild tracked CSS with fresh plugin instances', async () => {
-		const cssFile = path.join(SRC_DIR, 'style.css');
-		const dependencyFile = path.join(SRC_DIR, 'component.tsx');
+		const cssFile = path.join(srcDir, 'style.css');
+		const dependencyFile = path.join(srcDir, 'component.tsx');
 		fs.writeFileSync(cssFile, '.foo { color: red; }');
 		fs.writeFileSync(dependencyFile, 'export const Component = () => <div className="text-red-500" />;');
 
@@ -114,7 +115,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 		});
 
 		const config = await finalizeEcoPagesConfig({
-			rootDir: TMP_DIR,
+			rootDir: tmpDir,
 			srcDir: 'src',
 			distDir: 'dist',
 			baseUrl: 'http://localhost:3000',
@@ -140,7 +141,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 		activeColor = 'blue';
 		await watchConfig.onChanges({ created: [], changed: [dependencyFile], deleted: [], bridge: Bridge });
 
-		const outputFile = path.join(DIST_DIR, 'assets', 'style.css');
+		const outputFile = path.join(distDir, 'assets', 'style.css');
 		const outputContent = fs.readFileSync(outputFile, 'utf-8');
 
 		expect(outputContent).toContain('color: blue');
@@ -148,14 +149,14 @@ describe('PostCssProcessorPlugin HMR', () => {
 	});
 
 	test('non-CSS dependency changes should rebuild each CSS entry once', async () => {
-		const stylesDir = path.join(SRC_DIR, 'dependency-entry-test');
+		const stylesDir = path.join(srcDir, 'dependency-entry-test');
 		fs.mkdirSync(path.join(stylesDir, 'partials'), { recursive: true });
 
 		const entryFile = path.join(stylesDir, 'tailwind.css');
 		const themeFile = path.join(stylesDir, 'partials', 'theme.css');
 		const proseFile = path.join(stylesDir, 'partials', 'prose.css');
 		const dependencyFiles = Array.from({ length: 50 }, (_, index) =>
-			path.join(SRC_DIR, `entry-trigger-${index}.tsx`),
+			path.join(srcDir, `entry-trigger-${index}.tsx`),
 		);
 
 		fs.writeFileSync(themeFile, '.theme { color: red; }');
@@ -194,7 +195,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 		});
 
 		const config = await finalizeEcoPagesConfig({
-			rootDir: TMP_DIR,
+			rootDir: tmpDir,
 			srcDir: 'src',
 			distDir: 'dist',
 			baseUrl: 'http://localhost:3000',
@@ -230,9 +231,9 @@ describe('PostCssProcessorPlugin HMR', () => {
 	});
 
 	test('created and deleted CSS in one batch rebuilds the remaining CSS entry once', async () => {
-		const deletedCssFile = path.join(SRC_DIR, 'batch-lifecycle-deleted.css');
-		const createdCssFile = path.join(SRC_DIR, 'batch-lifecycle-created.css');
-		const remainingCssFile = path.join(SRC_DIR, 'batch-lifecycle-remaining.css');
+		const deletedCssFile = path.join(srcDir, 'batch-lifecycle-deleted.css');
+		const createdCssFile = path.join(srcDir, 'batch-lifecycle-created.css');
+		const remainingCssFile = path.join(srcDir, 'batch-lifecycle-remaining.css');
 		fs.writeFileSync(deletedCssFile, '.deleted { color: red; }');
 		fs.writeFileSync(remainingCssFile, '.remaining { color: green; }');
 
@@ -242,7 +243,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 		const config = await finalizeEcoPagesConfig({
-			rootDir: TMP_DIR,
+			rootDir: tmpDir,
 			srcDir: 'src',
 			distDir: 'dist',
 			baseUrl: 'http://localhost:3000',
@@ -281,14 +282,14 @@ describe('PostCssProcessorPlugin HMR', () => {
 		expect(bridgeSpy).toHaveBeenCalledTimes(2);
 		expect(bridgeSpy).toHaveBeenCalledWith(createdCssFile);
 		expect(bridgeSpy).toHaveBeenCalledWith(remainingCssFile);
-		expect(fs.readFileSync(path.join(DIST_DIR, 'assets', 'batch-lifecycle-created.css'), 'utf-8')).toContain(
+		expect(fs.readFileSync(path.join(distDir, 'assets', 'batch-lifecycle-created.css'), 'utf-8')).toContain(
 			'.created',
 		);
 	});
 
 	test('setup should use configured plugins initially and pluginFactories for rebuilds', async () => {
-		const cssFile = path.join(SRC_DIR, 'factory-precedence.css');
-		const dependencyFile = path.join(SRC_DIR, 'factory-precedence.tsx');
+		const cssFile = path.join(srcDir, 'factory-precedence.css');
+		const dependencyFile = path.join(srcDir, 'factory-precedence.tsx');
 		fs.writeFileSync(cssFile, '.foo { color: red; }');
 		fs.writeFileSync(dependencyFile, 'export const Component = () => <div className="text-red-500" />;');
 
@@ -326,7 +327,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 		});
 
 		const config = await finalizeEcoPagesConfig({
-			rootDir: TMP_DIR,
+			rootDir: tmpDir,
 			srcDir: 'src',
 			distDir: 'dist',
 			baseUrl: 'http://localhost:3000',
@@ -354,14 +355,14 @@ describe('PostCssProcessorPlugin HMR', () => {
 		refreshedColor = 'purple';
 		await watchConfig.onChanges({ created: [], changed: [dependencyFile], deleted: [], bridge: Bridge });
 
-		const outputFile = path.join(DIST_DIR, 'assets', 'factory-precedence.css');
+		const outputFile = path.join(distDir, 'assets', 'factory-precedence.css');
 		const outputContent = fs.readFileSync(outputFile, 'utf-8');
 
 		expect(outputContent).toContain('color: purple');
 	});
 
 	test('process should apply transformInput for direct asset-pipeline calls', async () => {
-		const cssFile = path.join(SRC_DIR, 'direct-process.css');
+		const cssFile = path.join(srcDir, 'direct-process.css');
 		fs.writeFileSync(cssFile, '.foo { color: red; }');
 
 		const plugin = new PostCssProcessorPlugin({
@@ -372,7 +373,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 		});
 
 		const config = await finalizeEcoPagesConfig({
-			rootDir: TMP_DIR,
+			rootDir: tmpDir,
 			srcDir: 'src',
 			distDir: 'dist',
 			baseUrl: 'http://localhost:3000',
@@ -388,7 +389,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 	});
 
 	test('imported CSS dependency change re-processes parent entry and broadcasts for parent path', async () => {
-		const stylesDir = path.join(SRC_DIR, 'styles_dep_test');
+		const stylesDir = path.join(srcDir, 'styles_dep_test');
 		const vendorDir = path.join(stylesDir, 'vendor');
 		fs.mkdirSync(vendorDir, { recursive: true });
 
@@ -405,7 +406,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 		});
 
 		const config = await finalizeEcoPagesConfig({
-			rootDir: TMP_DIR,
+			rootDir: tmpDir,
 			srcDir: 'src',
 			distDir: 'dist',
 			baseUrl: 'http://localhost:3000',
@@ -440,7 +441,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 	});
 
 	test('nested transitive imports resolve to the root entry file', async () => {
-		const stylesDir = path.join(SRC_DIR, 'styles_nested_test');
+		const stylesDir = path.join(srcDir, 'styles_nested_test');
 		const vendorDir = path.join(stylesDir, 'vendor');
 		const deepDir = path.join(vendorDir, 'deep');
 		fs.mkdirSync(deepDir, { recursive: true });
@@ -460,7 +461,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 		});
 
 		const config = await finalizeEcoPagesConfig({
-			rootDir: TMP_DIR,
+			rootDir: tmpDir,
 			srcDir: 'src',
 			distDir: 'dist',
 			baseUrl: 'http://localhost:3000',
@@ -497,7 +498,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 	});
 
 	test('entry file without imports should still HMR directly', async () => {
-		const stylesDir = path.join(SRC_DIR, 'styles_direct_test');
+		const stylesDir = path.join(srcDir, 'styles_direct_test');
 		fs.mkdirSync(stylesDir, { recursive: true });
 
 		const standaloneFile = path.join(stylesDir, 'standalone.css');
@@ -510,7 +511,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 		});
 
 		const config = await finalizeEcoPagesConfig({
-			rootDir: TMP_DIR,
+			rootDir: tmpDir,
 			srcDir: 'src',
 			distDir: 'dist',
 			baseUrl: 'http://localhost:3000',
@@ -543,7 +544,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 	});
 
 	test('process should preserve BEM selectors with nesting plugins during direct asset-pipeline calls', async () => {
-		const pagesDir = path.join(SRC_DIR, 'pages');
+		const pagesDir = path.join(srcDir, 'pages');
 		fs.mkdirSync(pagesDir, { recursive: true });
 
 		const cssFile = path.join(pagesDir, 'api-lab.css');
@@ -559,7 +560,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 		});
 
 		const config = await finalizeEcoPagesConfig({
-			rootDir: TMP_DIR,
+			rootDir: tmpDir,
 			srcDir: 'src',
 			distDir: 'dist',
 			baseUrl: 'http://localhost:3000',
@@ -578,7 +579,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 	test('persists production CSS under a hash of the processed bytes', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		try {
-			const cssFile = path.join(SRC_DIR, 'hashed-production.css');
+			const cssFile = path.join(srcDir, 'hashed-production.css');
 			fs.writeFileSync(cssFile, '.hashed { color: orange; }');
 
 			const plugin = new PostCssProcessorPlugin({
@@ -587,7 +588,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 				},
 			});
 			const config = await finalizeEcoPagesConfig({
-				rootDir: TMP_DIR,
+				rootDir: tmpDir,
 				srcDir: 'src',
 				distDir: 'dist',
 				baseUrl: 'http://localhost:3000',
@@ -596,7 +597,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 			await plugin.setup();
 
 			expect(hashedCssContents().some((css) => css.includes('.hashed { color: orange; }'))).toBe(true);
-			expect(fs.existsSync(path.join(DIST_DIR, 'assets', 'hashed-production.css'))).toBe(false);
+			expect(fs.existsSync(path.join(distDir, 'assets', 'hashed-production.css'))).toBe(false);
 		} finally {
 			vi.unstubAllEnvs();
 		}

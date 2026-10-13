@@ -76,10 +76,8 @@ class TestContentScriptProcessor extends ContentScriptProcessor {
 }
 
 describe('ContentScriptProcessor', () => {
-	const originalNodeEnv = process.env.NODE_ENV;
-
 	beforeEach(() => {
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		vi.spyOn(fileSystem, 'ensureDir').mockImplementation(() => {});
 		vi.spyOn(fileSystem, 'write').mockImplementation(() => {});
 		vi.spyOn(fileSystem, 'remove').mockImplementation(() => {});
@@ -87,7 +85,6 @@ describe('ContentScriptProcessor', () => {
 	});
 
 	afterEach(() => {
-		process.env.NODE_ENV = originalNodeEnv;
 		vi.restoreAllMocks();
 	});
 
@@ -234,7 +231,7 @@ describe('ContentScriptProcessor', () => {
 	});
 
 	test('processGrouped should remove temporary entries when bundling fails', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const processor = new TestContentScriptProcessor({ appConfig: createMockConfig() });
 		processor.bundleScriptsError = new Error('bundle failed');
 

@@ -392,8 +392,7 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('clears in-process route-module entries before a route imports them', async () => {
-		const originalNodeEnv = process.env.NODE_ENV;
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-development-invalidation-'));
 
 		try {
@@ -435,7 +434,6 @@ describe('DevelopmentInvalidationService', () => {
 				}),
 			).toBeUndefined();
 		} finally {
-			process.env.NODE_ENV = originalNodeEnv;
 			rmSync(rootDir, { recursive: true, force: true });
 		}
 	});
@@ -498,8 +496,7 @@ describe('DevelopmentInvalidationService', () => {
 	});
 
 	it('marks a 50-file batch dirty with one server invalidation and one route-module cache clear', async () => {
-		const originalNodeEnv = process.env.NODE_ENV;
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'ecopages-dev-file-batch-'));
 		let appConfig: Awaited<ReturnType<typeof finalizeEcoPagesConfig>> | undefined;
 
@@ -543,7 +540,6 @@ describe('DevelopmentInvalidationService', () => {
 			expect(invalidateHtml).toHaveBeenCalledTimes(1);
 			expect(invalidateHtml.mock.calls[0]?.[0]).toHaveLength(50);
 		} finally {
-			process.env.NODE_ENV = originalNodeEnv;
 			if (appConfig) {
 				registerAppPageCacheService(appConfig, null);
 			}

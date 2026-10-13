@@ -10,17 +10,12 @@ import { BundleService } from './bundle.ts';
 import { resolveReactPluginRuntimeModules } from './runtime-modules.ts';
 
 const withNodeEnv = async <T>(nodeEnv: string | undefined, run: () => Promise<T>): Promise<T> => {
-	const originalNodeEnv = process.env.NODE_ENV;
 	if (nodeEnv === undefined) {
-		delete process.env.NODE_ENV;
+		vi.stubEnv('NODE_ENV', undefined);
 	} else {
-		process.env.NODE_ENV = nodeEnv;
+		vi.stubEnv('NODE_ENV', nodeEnv);
 	}
-	try {
-		return await run();
-	} finally {
-		process.env.NODE_ENV = originalNodeEnv;
-	}
+	return await run();
 };
 
 const testAppConfig = {

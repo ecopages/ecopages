@@ -14,6 +14,9 @@ export default defineProject({
 	},
 	test: {
 		name: 'browser',
+		unstubEnvs: true,
+		unstubGlobals: true,
+		restoreMocks: true,
 		include: [
 			'packages/**/*.test.browser.ts',
 			'packages/**/*.test.browser.tsx',

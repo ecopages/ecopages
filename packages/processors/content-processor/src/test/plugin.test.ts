@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import type { IClientBridge } from '@ecopages/core';
 import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
+import { setAppBuildAdapter, type BuildAdapter } from '@ecopages/core/build/build-adapter';
 import { installBuildQueue } from '@ecopages/core/build/build-queue';
 import type {
 	EcoBuildPluginBuilder,
@@ -436,6 +437,75 @@ order: 2
 		expect(resolved).toEqual({
 			path: path.join(appConfig.absolutePaths.workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.ts'),
 		});
+	});
+
+	test('rebuilds the compiled collection once server source changes, without an invalidation hook', async () => {
+		const rootDir = createTempRoot('ecopages-content-server-generation-');
+		tempRoots.push(rootDir);
+
+		const contentDir = path.join(rootDir, 'src', 'content', 'docs');
+		fileSystem.ensureDir(contentDir);
+		fileSystem.write(
+			path.join(contentDir, 'intro.mdx'),
+			'---\ntitle: Intro\ndescription: Test\norder: 1\n---\n# Intro\n',
+		);
+
+		const plugin = createContentProcessorPlugin({ docs: { contentDir: 'content/docs' } });
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		const compiledOutputs: string[] = [];
+		const adapter: BuildAdapter = {
+			async build(options) {
+				const entry = Object.values(options.entrypoints)[0] as string;
+				const output = path.join(rootDir, `compiled-${compiledOutputs.length}.mjs`);
+				compiledOutputs.push(output);
+				return {
+					success: true,
+					outputs: [{ path: output }],
+					warnings: [],
+					loadedInputs: [],
+					loadedInputsByModule: {},
+					dependencyGraph: { entrypoints: {} },
+					entryOutputs: { [entry]: output },
+					outputGraph: {},
+				};
+			},
+			resolve: (specifier) => specifier,
+		};
+		setAppBuildAdapter(appConfig, adapter);
+		installBuildQueue(appConfig);
+		await plugin.setup();
+		const resolvers: Array<{ filter: RegExp; callback: (args: { path: string }) => unknown }> = [];
+		await plugin
+			.plugins()
+			.find((candidate) => candidate.environments?.includes('server'))
+			?.setup({
+				onResolve(options, callback) {
+					resolvers.push({
+						filter: options.filter,
+						callback: callback as (args: { path: string }) => unknown,
+					});
+				},
+				onLoad() {},
+				module() {},
+				transform() {},
+			} as EcoBuildPluginBuilder);
+		const resolveServerModule = () =>
+			resolvers
+				.find(({ filter }) => filter.test('ecopages:content/docs/server'))
+				?.callback({ path: 'ecopages:content/docs/server' });
+
+		expect(await resolveServerModule()).toEqual({ path: compiledOutputs[0], external: true });
+		expect(await resolveServerModule()).toEqual({ path: compiledOutputs[0], external: true });
+		expect(compiledOutputs).toHaveLength(1);
+
+		appConfig.runtime?.appModuleLoader?.invalidateDevelopmentGraph();
+
+		expect(await resolveServerModule()).toEqual({ path: compiledOutputs[1], external: true });
+		expect(compiledOutputs).toHaveLength(2);
 	});
 
 	test('setup adds collection pathnames to the app devPrewarmPaths', async () => {

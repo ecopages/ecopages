@@ -170,10 +170,6 @@ export class DevelopmentInvalidationService {
 	invalidateServerModules(): void {
 		this.appConfig.runtime?.appModuleLoader?.invalidateDevelopmentGraph();
 		clearAppDevelopmentRouteModuleBuildCaches(this.appConfig);
-
-		for (const processor of this.appConfig.processors.values()) {
-			processor.invalidateServerArtifacts?.();
-		}
 	}
 
 	/**

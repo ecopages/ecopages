@@ -213,11 +213,6 @@ export abstract class Processor<TOptions = unknown> {
 	 */
 	transformStylesheet?(css: string, file: string): Promise<string>;
 
-	/**
-	 * Discards cached server build artifacts when server modules are invalidated.
-	 */
-	invalidateServerArtifacts(): void {}
-
 	protected getCachePath(key: string): string {
 		return `${this.context?.cache}/${key}`;
 	}

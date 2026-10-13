@@ -13,8 +13,15 @@ const FIXTURES_DIR = fileURLToPath(new URL('./fixtures/', import.meta.url));
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => `<html><body>${children}</body></html>`;
 
 class TestLitRenderer extends LitRenderer {
+	preloadRequests: Array<Array<EcoComponent | undefined>> = [];
+
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		return HtmlTemplate;
+	}
+
+	protected override async preloadSsrScripts(components: Array<EcoComponent | undefined>): Promise<void> {
+		this.preloadRequests.push(components);
+		await super.preloadSsrScripts(components);
 	}
 }
 
@@ -70,5 +77,29 @@ describe('Lit SSR lazy script preload', () => {
 		expect(result.html).toContain('<template shadowrootmode="open">');
 		expect(result.html).toContain('data-ssr-lazy-component');
 		expect(result.html).toContain('<!--lit-part-->3<!--/lit-part-->');
+	});
+
+	it('preloads route-resolved dependency roots together with the page and layout', async () => {
+		const renderer = await createRenderer();
+		const Page = (async () => '<p>Page</p>') as unknown as EcoComponent<object>;
+		const Layout = (({ children }: { children: string }) => `<main>${children}</main>`) as EcoComponent<{
+			children: string;
+		}>;
+		const dependencyRoot = (() => '<article>Entry</article>') as unknown as EcoComponent<object>;
+
+		await renderer.render({
+			params: {},
+			query: {},
+			props: {},
+			file: '/app/pages/index.lit.ts',
+			resolvedDependencies: [],
+			resolvedPageDependencyComponents: [dependencyRoot],
+			metadata: { title: 'Page', description: 'Page' },
+			Page,
+			Layout,
+			HtmlTemplate,
+		});
+
+		expect(renderer.preloadRequests[0]).toEqual([Page, Layout, dependencyRoot]);
 	});
 });

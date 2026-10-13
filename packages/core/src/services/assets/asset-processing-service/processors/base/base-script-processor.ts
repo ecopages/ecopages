@@ -65,36 +65,9 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 			}
 		}
 
-		const entryBaseName = path.parse(entrypoint).name;
-		const entryOutput = buildResult.outputs
-			.map((output) => output.path)
-			.find((outputPath) => path.basename(outputPath) === `${entryBaseName}.js`);
-
+		const entryOutput = getBuildEntryOutput(buildResult, entrypoint, this.appConfig.rootDir);
 		if (entryOutput) {
 			return this.toBundledScriptOutput(buildResult, entrypoint, entryOutput);
-		}
-
-		const nonVendorOutput = buildResult.outputs
-			.map((output) => output.path)
-			.find((outputPath) => !path.basename(outputPath).startsWith('vendors'));
-
-		if (nonVendorOutput) {
-			return this.toBundledScriptOutput(buildResult, entrypoint, nonVendorOutput);
-		}
-
-		const primaryOutput = buildResult.outputs[0]?.path;
-		if (primaryOutput) {
-			return this.toBundledScriptOutput(buildResult, entrypoint, primaryOutput);
-		}
-
-		const namedFallbackOutput = path.join(outdir, `${entryBaseName}.js`);
-		if (fileSystem.exists(namedFallbackOutput)) {
-			return this.toBundledScriptOutput(buildResult, entrypoint, namedFallbackOutput);
-		}
-
-		const fallbackOutput = path.join(outdir, 'entry_0.js');
-		if (fileSystem.exists(fallbackOutput)) {
-			return this.toBundledScriptOutput(buildResult, entrypoint, fallbackOutput);
 		}
 
 		const logMessage = buildResult.logs.map(formatBuildLog).join('\n');

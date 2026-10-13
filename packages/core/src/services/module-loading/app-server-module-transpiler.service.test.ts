@@ -159,7 +159,12 @@ describe('app server module transpiler runtime state', () => {
 
 		const observedPlugins: string[][] = [];
 		const buildExecutor: BuildExecutor = {
-			build: async (options: { outdir?: string; naming?: string; plugins?: Array<{ name: string }> }) => {
+			build: async (options: {
+				outdir?: string;
+				naming?: string;
+				plugins?: Array<{ name: string }>;
+				entrypoints: string[];
+			}) => {
 				observedPlugins.push((options.plugins ?? []).map((plugin) => plugin.name));
 				const naming = String(options.naming ?? 'index.[ext]');
 				const compiledOutputPath = path.join(String(options.outdir), naming.replace('[ext]', 'mjs'));
@@ -171,6 +176,7 @@ describe('app server module transpiler runtime state', () => {
 					success: true,
 					logs: [],
 					outputs: [{ path: compiledOutputPath }],
+					entryOutputs: { [options.entrypoints[0]!]: compiledOutputPath },
 				};
 			},
 		};

@@ -190,3 +190,34 @@ test('finds the entry output through a symlink root and by the name the caller p
 		rmSync(parent, { recursive: true, force: true });
 	}
 });
+
+test('collects the layouts of an entry reached through a symlink root', async () => {
+	const parent = mkdtempSync(path.join(tmpdir(), 'ecopages-build-graph-closure-'));
+	try {
+		const realRoot = path.join(parent, 'real');
+		const linkRoot = path.join(parent, 'link');
+		mkdirSync(realRoot);
+		writeFileSync(path.join(realRoot, 'layout.js'), 'export const layout = 1;');
+		writeFileSync(
+			path.join(realRoot, 'page.js'),
+			"import fs from 'node:fs';\nimport { layout } from './layout.js';\nexport const page = [layout, fs];",
+		);
+		symlinkSync(realRoot, linkRoot);
+		const entry = path.join(linkRoot, 'page.js');
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
+			entrypoints: [entry],
+			root: linkRoot,
+			outdir: path.join(linkRoot, 'dist'),
+			target: 'node',
+		});
+		expect(result.success, JSON.stringify(result.logs)).toBe(true);
+
+		const inputs = collectBuildEntryInputPaths(result, entry, linkRoot);
+
+		expect(inputs).toEqual([realpathSync(path.join(realRoot, 'page.js')), realpathSync(path.join(realRoot, 'layout.js'))]);
+		expect(Object.values(result.dependencyGraph?.entrypoints ?? {}).flat()).toContain('node:fs');
+	} finally {
+		rmSync(parent, { recursive: true, force: true });
+	}
+});

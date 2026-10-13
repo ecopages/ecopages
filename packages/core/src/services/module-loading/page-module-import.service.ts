@@ -1,4 +1,4 @@
-import { collectBuildOutputImports } from '../../build/build-graph.ts';
+import { collectBuildOutputImports, getBuildEntryOutput } from '../../build/build-graph.ts';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
@@ -305,13 +305,11 @@ export class PageModuleImportService {
 
 	private resolveCompiledRouteModuleOutput(
 		buildResult: BuildResult,
-		preferredOutputPath: string,
 		filePath: string,
+		rootDir: string,
 		noOutputMessage: (targetFilePath: string) => string,
 	): string {
-		const compiledOutput =
-			buildResult.outputs.find((output) => output.path === preferredOutputPath)?.path ??
-			buildResult.outputs.find((output) => /\.(?:[cm]?js)$/u.test(output.path))?.path;
+		const compiledOutput = getBuildEntryOutput(buildResult, filePath, rootDir);
 		if (!compiledOutput) {
 			throw new Error(noOutputMessage(filePath));
 		}
@@ -382,7 +380,6 @@ export class PageModuleImportService {
 			this.developmentImportGeneration,
 		);
 		const outputNamingTemplate = outputFileName.replace(/\.mjs$/u, '.[ext]');
-		const preferredOutputPath = path.join(outdir, outputFileName);
 		const {
 			buildOptions,
 			rootDir: resolvedRootDir,
@@ -417,8 +414,8 @@ export class PageModuleImportService {
 
 		const compiledOutput = this.resolveCompiledRouteModuleOutput(
 			buildResult,
-			preferredOutputPath,
 			filePath,
+			resolvedRootDir,
 			noOutputMessage,
 		);
 		return await this.importCompiledRouteModule(

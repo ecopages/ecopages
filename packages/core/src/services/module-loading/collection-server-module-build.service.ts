@@ -10,6 +10,7 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { getAppServerInvalidationState } from '../runtime-state/server-invalidation-state.service.ts';
+import { getBuildEntryOutput } from '../../build/build-graph.ts';
 import { formatBuildLog } from '../../build/build-log.ts';
 
 export type CollectionServerBuildArtifact = {
@@ -103,10 +104,7 @@ export async function buildCollectionServerModule(input: {
 		throw new Error(`Error building collection server module ${collectionName}: ${details}`);
 	}
 
-	const preferredOutputPath = path.join(outdir, outputFileName);
-	const compiledOutput =
-		buildResult.outputs.find((output) => output.path === preferredOutputPath)?.path ??
-		buildResult.outputs.find((output) => /\.(?:[cm]?js)$/u.test(output.path))?.path;
+	const compiledOutput = getBuildEntryOutput(buildResult, sourceFilePath, appConfig.rootDir);
 
 	if (!compiledOutput) {
 		throw new Error(`No compiled output generated for collection server module: ${sourceFilePath}`);

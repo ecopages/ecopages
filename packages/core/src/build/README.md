@@ -98,7 +98,7 @@ Caller intent
   → RolldownBuildAdapter resolves Node and browser runtime specifiers during the build
 ```
 
-The queue uses one-shot Rolldown in both dev and production. A lane runs at most its limit of builds at once and starts the rest in arrival order: `build` serves every server and browser build that is not an HMR rebuild (all cores but one), `hmr` serves the development server's browser rebuilds (at most three). A request identical to a queued or running one, by `createBuildRequestIdentity`, shares that build whichever lane it asks for. Inside `withRequestScope`, which wraps each request the server handles, a finished build is also shared with later identical requests of the same scope. A build that rejects is not kept.
+The queue uses one-shot Rolldown in both dev and production. A lane runs at most its limit of builds at once and starts the rest in arrival order: `build` serves every server and browser build that is not an HMR rebuild (all cores but one), `hmr` serves the development server's browser rebuilds (at most three), and `nested` serves a build that a running build waits for, such as the collection bundle a content plugin requests from `onResolve`. A running build keeps its lane's slot, so a child in the same lane could wait for a slot its parent holds; `nested` builds never wait on each other. A request identical to a queued or running one, by `createBuildRequestIdentity`, shares that build whichever lane it asks for. Inside `withRequestScope`, which wraps each request the server handles, a finished build is also shared with later identical requests of the same scope. A build that rejects is not kept.
 
 Runtime code calls `requireBuildQueue(appConfig).build(options, lane)` with a complete `BuildOptions` object from the request-policy helpers. The queue is scheduling-only: it does **not** inject app plugins.
 
@@ -272,7 +272,7 @@ Kitchen-sink benchmarks (`ECOPAGES_BENCH=1 pnpm vitest bench`) show Rolldown win
 - `rolldown/rolldown-build-adapter.test.ts` covers the adapter's `build`, `resolve`, `getTranspileOptions`, and dependency-graph extraction end-to-end.
 - `rolldown/rolldown-plugin-bridge.test.ts` covers the `EcoBuildPlugin[]` → plugin translation in isolation.
 - `build-adapter.test.ts` covers the app-owned helpers, the `BuildOwnership` routing, and the default-fallback behaviour.
-- `runtime/build-queue.test.ts` covers lane limits, shared in-flight builds, and request-scope reuse.
+- `runtime/build-queue.test.ts` covers lane limits, shared in-flight builds, builds that wait for a child build, and request-scope reuse.
 - `runtime/build-request-policy.test.ts` and `runtime/build-request-identity.test.ts` cover request assembly and dedupe identity.
 - `rolldown/app-package-declarations.test.ts` covers the app `package.json` lookups that decide which packages stay external.
 - `server-bundle-relocation.test.ts` builds an app installed with an isolated (pnpm-style) layout, moves the deploy layout to another root, and serves the home page with `node`.

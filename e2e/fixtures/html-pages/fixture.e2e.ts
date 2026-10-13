@@ -5,6 +5,7 @@ import { shouldReuseExistingTestServers } from '../../playwright/config-env.ts';
 import { defineFixture } from '../../playwright/define-fixture.ts';
 
 const fixtureDir = path.dirname(fileURLToPath(import.meta.url));
+const fixtureDirRelative = path.relative(process.cwd(), fixtureDir).split(path.sep).join('/');
 
 export default defineFixture(
 	{
@@ -13,21 +14,14 @@ export default defineFixture(
 		projects: [
 			{
 				name: 'html-pages-e2e',
-				port: 43120,
 				mode: 'static',
-				testIgnore: [`${fixtureDir}/**/*.dev.test.e2e.ts`],
+				port: 43120,
+				testIgnore: [`${fixtureDirRelative}/**/*.dev.test.e2e.ts`],
 			},
 			{
 				name: 'html-pages-dev-e2e',
-				port: 43122,
 				mode: 'dev',
-				testMatch: [`${fixtureDir}/shared-module.test.e2e.ts`],
-			},
-			{
-				name: 'html-pages-classic-script-dev-e2e',
-				port: 43123,
-				mode: 'dev',
-				testMatch: [`${fixtureDir}/**/*.dev.test.e2e.ts`],
+				testMatch: [`${fixtureDirRelative}/**/*.dev.test.e2e.ts`],
 			},
 		],
 	},

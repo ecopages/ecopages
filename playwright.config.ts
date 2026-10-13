@@ -6,7 +6,7 @@ import './e2e/playwright/strip-inherited-pwdebug.mjs';
 import path from 'node:path';
 import { defineConfig } from '@playwright/test';
 import { getSelectedPlaywrightProjects, includeWebServerForProjects } from './e2e/playwright/config-env';
-import { loadCapabilityFixtures, loadIsolatedFixtures } from './e2e/playwright/discover-fixtures';
+import { loadCapabilityFixtures } from './e2e/playwright/discover-fixtures';
 import { getWebServerTimeout } from './e2e/playwright/web-server-timeouts';
 import { getDefaultWorkerCount } from './e2e/playwright/workers';
 import type { AppOptions } from './e2e/app-fixture';
@@ -17,14 +17,10 @@ configurePlaywrightColorEnv(process.env);
 const defaultWorkerCount = getDefaultWorkerCount();
 const selectedProjects = getSelectedPlaywrightProjects();
 const capabilityFixtures = loadCapabilityFixtures();
-const isolatedFixtures = loadIsolatedFixtures();
 
 const webServers = capabilityFixtures.flatMap((fixture) => fixture.webServers);
 
-const projects = [
-	...capabilityFixtures.flatMap((fixture) => fixture.projects),
-	...isolatedFixtures.flatMap((fixture) => fixture.projects),
-];
+const projects = capabilityFixtures.flatMap((fixture) => fixture.projects);
 
 const assertPortsFreeScript = path.join(process.cwd(), 'e2e/scripts/playwright/assert-ports-free.mjs');
 

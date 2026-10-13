@@ -5,19 +5,13 @@
  * `cross-integration-preview` fixtures.
  */
 import type { PlaywrightTestProject } from '@playwright/test';
-import type { AppOptions } from '../app-fixture.ts';
+import type { FixtureModule } from './define-fixture.ts';
 
 export const crossIntegrationSourceDir = 'playground/kitchen-sink';
 
 export const crossIntegrationHmrMatch = `${crossIntegrationSourceDir}/e2e/*-hmr.test.e2e.ts`;
 
 const CROSS_INTEGRATION_DEV_TEST_TIMEOUT_MS = 90_000;
-
-export type IsolatedFixtureModule = {
-	block: 'cross-integration';
-	projects: PlaywrightTestProject<object, { appOptions: AppOptions | undefined }>[];
-	batchProjects: string[];
-};
 
 type DesktopChromeUse = NonNullable<PlaywrightTestProject['use']>;
 
@@ -28,7 +22,7 @@ type DesktopChromeUse = NonNullable<PlaywrightTestProject['use']>;
  * Every worker runs the specs on its own copy of the app, so a spec edits files under `app.dir`. A file's
  * tests run in order on one worker; different files run on different workers.
  */
-export function defineCrossIntegrationFixture(desktopChrome: DesktopChromeUse): IsolatedFixtureModule {
+export function defineCrossIntegrationFixture(desktopChrome: DesktopChromeUse): FixtureModule {
 	const name = 'cross-integration-hmr-node-e2e';
 
 	return {
@@ -48,7 +42,7 @@ export function defineCrossIntegrationFixture(desktopChrome: DesktopChromeUse): 
 				},
 			},
 		],
-		batchProjects: [name],
+		webServers: [],
 	};
 }
 

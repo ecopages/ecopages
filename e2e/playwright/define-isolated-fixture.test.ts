@@ -6,7 +6,8 @@ describe('defineCrossIntegrationFixture', () => {
 	const [project] = fixture.projects;
 
 	it('runs the HMR project on Node, on a per-worker copy of kitchen-sink', () => {
-		expect(fixture.batchProjects).toEqual(['cross-integration-hmr-node-e2e']);
+		expect(fixture.projects.map((candidate) => candidate.name)).toEqual(['cross-integration-hmr-node-e2e']);
+		expect(fixture.webServers).toEqual([]);
 		expect(project.use?.appOptions).toMatchObject({ source: 'playground/kitchen-sink' });
 		expect(project.use?.appOptions?.runtime).toBeUndefined();
 	});

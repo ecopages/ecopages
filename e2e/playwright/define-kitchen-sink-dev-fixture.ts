@@ -1,12 +1,11 @@
 /**
- * Kitchen-sink dev + parity e2e — in-repo, no per-worker app copy.
+ * Kitchen-sink dev + parity e2e on the per-worker app copy of `e2e/app-fixture.ts`.
  *
- * One Playwright process can run both cells: each server uses a scoped
- * .eco-${scope} dir and its own port. HMR stays in the isolated fixture.
+ * Every worker of these projects runs its own `ecopages dev` on its own copy, so the
+ * projects can run side by side. HMR stays in `define-isolated-fixture.ts`.
  */
 import type { PlaywrightTestProject } from '@playwright/test';
-import { getEcopagesServerReadySignal } from './isolated-dev-server-ready.ts';
-import type { FixtureModule, FixtureWebServer } from './define-fixture.ts';
+import type { AppProject, FixtureModule } from './define-fixture.ts';
 import {
 	crossIntegrationHmrMatch,
 	crossIntegrationParityMatch,
@@ -15,7 +14,6 @@ import {
 	crossIntegrationTestMatch,
 } from './define-isolated-fixture.ts';
 
-const devLauncher = 'node e2e/scripts/playwright/start-kitchen-sink-dev-server.mjs';
 const DEV_TEST_TIMEOUT_MS = 90_000;
 
 /**
@@ -24,16 +22,14 @@ const DEV_TEST_TIMEOUT_MS = 90_000;
  * @remarks
  * The watcher's initial crawl is about 78x slower on Bun than on Node, so dev init takes about 30 s
  * there against under 2 s on Node. The ceiling leaves room for a slow CI runner and fails a run
- * whose init time regresses, instead of letting it pass inside the 180 s web server timeout.
+ * whose init time regresses, instead of letting it pass inside the fixture's much longer default.
  */
 const BUN_DEV_INIT_CEILING_MS = 45_000;
 
 type DevVariant = {
 	name: string;
-	port: number;
 	runtime: 'bun' | 'node';
-	artifactScope: string;
-	initCeilingMs?: number;
+	readyTimeoutMs?: number;
 	testMatch: string;
 	testIgnore?: string[];
 };
@@ -41,70 +37,36 @@ type DevVariant = {
 const devVariants: DevVariant[] = [
 	{
 		name: 'cross-integration-dev-e2e',
-		port: 4007,
 		runtime: 'node',
-		artifactScope: 'cross-integration-dev',
 		testMatch: crossIntegrationTestMatch,
 		testIgnore: [crossIntegrationPreviewMatch, crossIntegrationHmrMatch],
 	},
 	{
 		name: 'cross-integration-bun-parity-e2e',
-		port: 4013,
 		runtime: 'bun',
-		artifactScope: 'cross-integration-bun-parity',
-		initCeilingMs: BUN_DEV_INIT_CEILING_MS,
+		readyTimeoutMs: BUN_DEV_INIT_CEILING_MS,
 		testMatch: crossIntegrationParityMatch,
 	},
 ];
 
 type DesktopChromeUse = NonNullable<PlaywrightTestProject['use']>;
 
-function buildDevServerCommand(variant: DevVariant): string {
-	return [
-		`ECOPAGES_PORT=${variant.port}`,
-		`ECOPAGES_DEV_RUNTIME=${variant.runtime}`,
-		`ECOPAGES_E2E_ARTIFACT_SCOPE=${variant.artifactScope}`,
-		...(variant.initCeilingMs ? [`ECOPAGES_E2E_DEV_INIT_CEILING_MS=${variant.initCeilingMs}`] : []),
-		devLauncher,
-	].join(' ');
-}
-
-export function defineKitchenSinkDevFixture(
-	desktopChrome: DesktopChromeUse,
-	options: { reuseExistingServer: boolean },
-): FixtureModule {
-	const projects: PlaywrightTestProject[] = devVariants.map((variant) => ({
+export function defineKitchenSinkDevFixture(desktopChrome: DesktopChromeUse): FixtureModule {
+	const projects: AppProject[] = devVariants.map((variant) => ({
 		name: variant.name,
 		testMatch: variant.testMatch,
 		testIgnore: variant.testIgnore,
-		workers: 1,
 		timeout: DEV_TEST_TIMEOUT_MS,
 		use: {
 			...desktopChrome,
-			baseURL: `http://localhost:${variant.port}`,
+			appOptions: {
+				source: crossIntegrationSourceDir,
+				runtime: variant.runtime,
+				readyTimeoutMs: variant.readyTimeoutMs,
+				env: { ECOPAGES_CROSS_INTEGRATION_E2E: 'true' },
+			},
 		},
 	}));
 
-	const webServers: FixtureWebServer[] = devVariants.map((variant) => ({
-		command: buildDevServerCommand(variant),
-		cwd: '.',
-		...getEcopagesServerReadySignal(),
-		projects: [variant.name],
-		reuseExistingServer: options.reuseExistingServer,
-		stdout: 'pipe',
-		stderr: 'pipe',
-	}));
-
-	return {
-		definition: {
-			block: 'cross-integration-dev',
-			testMatch: `${crossIntegrationSourceDir}/e2e/**/*.test.e2e.ts`,
-			port: devVariants[0].port,
-			command: devLauncher,
-			cwd: '.',
-		},
-		projects,
-		webServers,
-		batchProjects: devVariants.map((variant) => variant.name),
-	};
+	return { block: 'cross-integration-dev', projects, webServers: [] };
 }

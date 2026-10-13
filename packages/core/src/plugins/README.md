@@ -30,6 +30,7 @@ These contracts are responsible for:
 - A Processor's `watch.onChanges` callback runs once per debounced file batch with matching `created`, `changed`, and `deleted` paths plus the client bridge. Watch extensions select notifications; capabilities continue to declare asset ownership.
 - A Processor that owns pages to prewarm appends their pathnames to `appConfig.devPrewarmPaths` from `setup()`; core reads that one list and renders it in the background without delaying development server readiness.
 - Core owns lifecycle ordering, startup orchestration, and manifest assembly.
+- `staticExport(context)` starts export-wide work before the first page renders and may return a release; core awaits the releases in reverse order after the export, on success or failure.
 - App shutdown calls Integration `teardown()` to release resources created during runtime setup.
 - Integrations and Processors expose one `plugins` getter. Build plugins declare their server/browser environments; omitted environments apply to both. Config finalization rejects a duplicate name within one environment and names both contributors.
 - The transform wraps native `eco.page()`, `eco.component()`, `eco.layout()`, and `eco.html()` factory options with `bindComponentIdentity()`. Factories retain the resulting `options.identity` on `config`, and runtime consumers read it through `getComponentIdentity()`. Browser, HMR, and server builds use the same source transform, so ownership and dependency diagnostics retain stable file attribution without a loader duplicate.

@@ -183,7 +183,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 				this.renderLitQueuedForeignSubtreeChildren(children, queuedResolutionsByToken, resolveToken),
 		);
 		const hasDependencies = Boolean(input.component.config?.dependencies);
-		const assets = hasDependencies ? await this.processComponentDependencies([input.component]) : undefined;
+		const assets = hasDependencies ? await this.resolveComponentRenderAssets(input.component) : undefined;
 
 		return this.finalizeIslandComponentRender(input, {
 			html: queuedForeignSubtreeResolution.html,

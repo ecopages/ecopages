@@ -7,6 +7,7 @@ const workerStart = vi.fn(async () => {});
 const workerRenderPage = vi.fn(async () => ({
 	html: '<html>Lit worker</html>',
 	cacheStrategy: { revalidate: 60 },
+	metadata: { title: 'Page', description: 'Page description' },
 }));
 const workerDispose = vi.fn(async () => {});
 
@@ -91,6 +92,7 @@ describe('LitStaticRenderSession', () => {
 		expect(result).toEqual({
 			html: '<html>Lit worker</html>',
 			cacheStrategy: { revalidate: 60 },
+			metadata: { title: 'Page', description: 'Page description' },
 		});
 
 		await session.dispose();
@@ -214,7 +216,10 @@ describe('LitStaticRenderSession', () => {
 	it('restarts once after source invalidation and serializes concurrent renders', async () => {
 		let version = 0;
 		const dispose = vi.fn(async () => {});
-		const renderPage = vi.fn(async () => ({ html: '<main />' }));
+		const renderPage = vi.fn(async () => ({
+			html: '<main />',
+			metadata: { title: 'Page', description: 'Page description' },
+		}));
 		const createClient = vi.fn(() => ({ start: async () => {}, dispose, renderPage }));
 		const session = new LitStaticRenderSession({
 			resolveDependencyPath: (_dir, src) => src,

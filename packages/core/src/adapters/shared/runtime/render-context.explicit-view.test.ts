@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -6,6 +6,7 @@ import { createTestAppConfig } from '@ecopages/testing';
 import { IntegrationPlugin } from '../../../plugins/integration-plugin.ts';
 import { StringMarkupRenderer } from '../../../route-renderer/orchestration/string-markup-renderer.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import type { AssetProcessingService } from '../../../services/assets/asset-processing-service/index.ts';
 import type {
 	EcoComponent,
 	EcoFunctionComponent,
@@ -15,7 +16,8 @@ import type {
 import { ExplicitStaticRouteMatcher } from '../http/explicit-static-route-matcher.ts';
 import { createRenderContext } from './render-context.ts';
 
-const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => `<html><body>${children}</body></html>`;
+const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) =>
+	`<html><head></head><body>${children}</body></html>`;
 
 class ExplicitViewTestRenderer extends StringMarkupRenderer {
 	declare name: string;
@@ -108,7 +110,7 @@ describe('explicit views rendered through real renderers', () => {
 		const view = createView(({ title }) => `<p>${title}</p>`, { staticProps, metadata });
 		const matcher = new ExplicitStaticRouteMatcher({
 			appConfig,
-			routeRendererFactory: { getExplicitViewRenderer: () => plugin.initializeRenderer() as never },
+			routeRendererFactory: { getExplicitViewRenderer: () => plugin.getRenderer() as never },
 			staticRoutes: [{ path: '/blog/[slug]', loader: async () => ({ default: view }) }],
 		});
 
@@ -120,12 +122,84 @@ describe('explicit views rendered through real renderers', () => {
 		expect(metadata).toHaveBeenCalledTimes(1);
 	});
 
+	it('renders every handler view of an Integration through one renderer', async () => {
+		const { plugin } = await createPlugin();
+		const initializeRenderer = vi.spyOn(plugin, 'initializeRenderer');
+		const handler = createRenderContext({ integrations: [plugin] });
+		const view = createView(({ n }) => `<p>${n}</p>`);
+
+		for (let n = 0; n < 4; n += 1) {
+			expect(await (await handler.render(view, { n })).text()).toContain(`<p>${n}</p>`);
+		}
+		expect(await (await handler.renderPartial(view, { n: 4 })).text()).toBe('<p>4</p>');
+
+		expect(initializeRenderer).toHaveBeenCalledTimes(1);
+	});
+
+	describe('asset preparation', () => {
+		async function createStyledView() {
+			const created = await createPlugin();
+			const viewDir = path.join(rootDir, 'src', 'views');
+			mkdirSync(viewDir, { recursive: true });
+			writeFileSync(path.join(viewDir, 'view.css'), '.view { color: red; }');
+			const view = createView(() => '<p class="view">view</p>');
+			view.config = { ...view.config, dependencies: { stylesheets: ['./view.css'] } };
+			const processDependencies = vi.spyOn(
+				created.plugin['assetProcessingService'] as AssetProcessingService,
+				'processDependencies',
+			);
+			return { ...created, view, processDependencies };
+		}
+
+		it('asks the asset service for the dependencies of a handler view once in production', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+			const { plugin, view, processDependencies } = await createStyledView();
+			const handler = createRenderContext({ integrations: [plugin] });
+
+			await handler.render(view, {});
+			const callsForFirstRender = processDependencies.mock.calls.length;
+			for (let render = 0; render < 4; render += 1) {
+				expect(await (await handler.render(view, {})).text()).toContain('<p class="view">view</p>');
+			}
+
+			expect(callsForFirstRender).toBeGreaterThan(0);
+			expect(processDependencies).toHaveBeenCalledTimes(callsForFirstRender);
+		});
+
+		it('asks again on every render outside production, where a source edit changes the assets', async () => {
+			vi.stubEnv('NODE_ENV', 'development');
+			const { plugin, view, processDependencies } = await createStyledView();
+			const handler = createRenderContext({ integrations: [plugin] });
+
+			await handler.render(view, {});
+			const callsForFirstRender = processDependencies.mock.calls.length;
+			await handler.render(view, {});
+
+			expect(processDependencies.mock.calls.length).toBe(callsForFirstRender * 2);
+		});
+
+		it('serves the stylesheet of a handler view on every render in production', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+			const { plugin, view } = await createStyledView();
+			const handler = createRenderContext({ integrations: [plugin] });
+
+			const first = await (await handler.render(view, {})).text();
+			let fifth = first;
+			for (let render = 0; render < 4; render += 1) {
+				fifth = await (await handler.render(view, {})).text();
+			}
+
+			expect(first).toMatch(/<link rel="stylesheet" href="[^"]+\.css"/);
+			expect(fifth).toMatch(/<link rel="stylesheet" href="[^"]+\.css"/);
+		});
+	});
+
 	it('keeps parallel renders on one integration separate', async () => {
 		const { plugin } = await createPlugin();
 		const handler = createRenderContext({ integrations: [plugin] });
 		const first = createView(() => '<p>first</p>');
 		const second = createView(() => '<p>second</p>');
-		const renderer = plugin.initializeRenderer() as unknown as ExplicitViewTestRenderer;
+		const renderer = plugin.getRenderer() as unknown as ExplicitViewTestRenderer;
 
 		const [firstHtml, secondHtml, routeResult] = await Promise.all([
 			handler.render(first, {}).then((response) => response.text()),
@@ -185,7 +259,7 @@ describe('explicit views rendered through real renderers', () => {
 
 	it('plans an explicit view from its own components after a route rendered on the same renderer', async () => {
 		const { plugin } = await createPlugin();
-		const renderer = plugin.initializeRenderer() as unknown as ExplicitViewTestRenderer;
+		const renderer = plugin.getRenderer() as unknown as ExplicitViewTestRenderer;
 		const buildAssets = vi.spyOn(ExplicitViewTestRenderer.prototype as any, 'buildPageClientBrowserAssets');
 		const routeChild = createView(() => '<i>child</i>');
 		routeChild.config = {

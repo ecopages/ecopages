@@ -52,7 +52,7 @@ Core calls no other Integration hook around generation.
 
 When `appConfig.sitemap.enabled` is true, `sitemap.xml` is written **after** every page, so a file an Integration writes during export can be listed through `extraUrls`. Development (`ecopages dev`) does not emit this file.
 
-Sitemap eligibility is decided during successful page export (`activeStaticPathnames` plus `robots.index !== false`, fail-closed on metadata errors). `resolveSitemapLocations` then applies `exclude` and appends `extraUrls`.
+Sitemap eligibility is decided during successful page export (`activeStaticPathnames` plus `robots.index !== false`). It reads the `metadata` the render returned, for filesystem pages and explicit views alike, so no page is loaded again for the sitemap; a page whose render fails is not exported and not listed. `resolveSitemapLocations` then applies `exclude` and appends `extraUrls`.
 
 `StaticExportContext.routes` is the unfiltered static-generation route list. Sitemap filtering is applied separately.
 

@@ -211,3 +211,22 @@ test('planHasForeignChildDescendants terminates on a cycle in the declared graph
 
 	assert.equal(planHasForeignChildDescendants(plan, first, 'kitajs'), false);
 });
+
+test('collectPageClientPlan lists a component under its integration override, not its file identity', () => {
+	const widget = {
+		config: {
+			integration: 'lit',
+			identity: { id: 'widget', file: '/app/widget.kita.tsx', integration: 'kitajs' },
+			dependencies: { components: [] },
+		},
+	} as unknown as EcoComponent;
+	const page = createComponent({ integration: 'kitajs', file: '/app/page.kita.tsx', children: [widget] });
+
+	const plan = collectPageClientPlan([{ component: page, source: 'page' }], 'kitajs');
+
+	assert.deepEqual(
+		plan.islandEntries.map((entry) => [entry.file, entry.integrationName]),
+		[['/app/widget.kita.tsx', 'lit']],
+	);
+	assert.equal(planHasForeignChildDescendants(plan, page, 'kitajs'), true);
+});

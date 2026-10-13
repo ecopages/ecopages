@@ -6,10 +6,7 @@ import type {
 } from '../../../types/public-types.ts';
 import type { InternalComponentRenderInput } from '../../../types/internal-types.ts';
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
-import {
-	HtmlTransformerService,
-	type HtmlDocumentContribution,
-} from '../../../services/html/html-transformer.service.ts';
+import { getComponentOwner } from '../../../eco/component-identity.ts';
 
 export type DocumentShellLayoutInput = {
 	component: EcoComponent;
@@ -79,13 +76,10 @@ export type DocumentShellPageRenderInput = {
 };
 
 export type DocumentShellRenderDependencies = {
+	/** The Integration rendering the shell. It owns a shell component that names no owner of its own. */
+	integrationName: string;
 	renderComponentWithForeignChildren(input: InternalComponentRenderInput): Promise<ComponentRenderResult>;
 	appendProcessedDependencies(...assetGroups: Array<readonly ProcessedAsset[] | undefined>): ProcessedAsset[];
-};
-
-export type DocumentShellAttributeStamping = {
-	applyAttributesToFirstBodyElement(html: string, attributes: Record<string, string>): string;
-	applyAttributesToHtmlElement(html: string, attributes: Record<string, string>): string;
 };
 
 function resolveDocumentShellLayouts(
@@ -96,10 +90,6 @@ function resolveDocumentShellLayouts(
 	}
 
 	return input.layout ? [input.layout] : [];
-}
-
-function resolveComponentIntegrationName(component: EcoComponent): string {
-	return component.config?.integration ?? component.config?.identity?.integration ?? 'ecopages';
 }
 
 /**
@@ -165,7 +155,7 @@ export async function composeDocumentShell(
 			html: typeof composed.children === 'string' ? composed.children : '',
 			assets: [],
 			canAttachAttributes: true,
-			integrationName: resolveComponentIntegrationName(input.primaryComponent),
+			integrationName: getComponentOwner(input.primaryComponent, dependencies.integrationName),
 		};
 	} else {
 		primaryRender = await dependencies.renderComponentWithForeignChildren({
@@ -204,31 +194,6 @@ export async function composeDocumentShell(
 }
 
 /**
- * Applies optional component-root and document-root attribute stamping before HTML
- * transformation runs on explicit renderer-owned paths.
- */
-export function applyDocumentShellAttributeStamping(
-	html: string,
-	stamping: DocumentShellAttributeStamping,
-	options: {
-		componentRootAttributes?: Record<string, string>;
-		documentAttributes?: Record<string, string>;
-	},
-): string {
-	let nextHtml = html;
-
-	if (options.componentRootAttributes && Object.keys(options.componentRootAttributes).length > 0) {
-		nextHtml = stamping.applyAttributesToFirstBodyElement(nextHtml, options.componentRootAttributes);
-	}
-
-	if (options.documentAttributes && Object.keys(options.documentAttributes).length > 0) {
-		nextHtml = stamping.applyAttributesToHtmlElement(nextHtml, options.documentAttributes);
-	}
-
-	return nextHtml;
-}
-
-/**
  * Builds the final serialized document HTML for one route page render.
  */
 export async function renderPageDocumentShell(
@@ -256,45 +221,4 @@ export async function renderPageDocumentShell(
 		: composedDocumentHtml;
 
 	return `${docType}${documentHtml}`;
-}
-
-/**
- * Finalizes already-resolved HTML for explicit renderer-owned paths.
- *
- * @remarks
- * Callers append renderer bootstrap dependencies before invoking this helper.
- * Stamps document/root attributes and runs HTML transformation after nested
- * foreign-subtree resolution without routing back through shared route execution.
- */
-export async function finalizeDocumentShellHtml(
-	htmlTransformer: HtmlTransformerService,
-	options: {
-		html: string;
-		partial?: boolean;
-		componentRootAttributes?: Record<string, string>;
-		documentAttributes?: Record<string, string>;
-		transformHtml?: boolean;
-		htmlContributions?: HtmlDocumentContribution[];
-	},
-): Promise<string> {
-	const html = applyDocumentShellAttributeStamping(
-		options.html,
-		{
-			applyAttributesToFirstBodyElement: (nextHtml, attributes) =>
-				htmlTransformer.applyAttributesToFirstBodyElement(nextHtml, attributes),
-			applyAttributesToHtmlElement: (nextHtml, attributes) =>
-				htmlTransformer.applyAttributesToHtmlElement(nextHtml, attributes),
-		},
-		{
-			componentRootAttributes: options.componentRootAttributes,
-			documentAttributes: options.documentAttributes,
-		},
-	);
-
-	const shouldTransform = options.transformHtml ?? !options.partial;
-	if (!shouldTransform) {
-		return html;
-	}
-
-	return htmlTransformer.transformHtml(html, options.htmlContributions);
 }

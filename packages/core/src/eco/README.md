@@ -40,6 +40,8 @@ Discovery is conservative and module-scoped: every Eco declaration in a file sha
 
 Imported Layouts contribute assets; only the explicit `layout` option controls Layout composition.
 
+`getComponentOwner(component, inheritedOwner?)` names the Integration that owns a Component. The `integration` option on `eco.component` / `eco.page` wins, then the Integration of the file that created the Component (its identity), then `inheritedOwner`: the owner of the parent Component, or of the Page at the root. Rendering, hydration planning, dependency collection and ownership validation all use it, so a Component has one owner everywhere.
+
 Explicit `dependencies` remain supported. Explicit Components come first, followed by discovered Components in import order, with duplicate Components removed. Explicit stylesheet declarations take precedence over discovered references to the same resolved file, preserving their attributes and order. Discovered stylesheets are **not** written into `config.dependencies.stylesheets`; they stay on Component identity until collection. Inferred styles follow explicit styles and are emitted once per collection. Circular dependency traversal is guarded by Component config identity, so two Components in one file remain distinct.
 
 When a Page combines its own relative assets with a content entry, use `mergePageDependencies()`. Do not object-spread the two bags: spread copies `ownerFile` onto the other side's relative paths.

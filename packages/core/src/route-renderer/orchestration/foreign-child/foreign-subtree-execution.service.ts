@@ -15,6 +15,7 @@ import {
 } from './component-render-context.ts';
 import { assertForeignChildrenNotOpaque, isMarkupNodeLike } from './foreign-child-output.utils.ts';
 import { dedupeProcessedAssets } from '../page-browser-graph/processed-asset-dedupe.ts';
+import { getComponentOwner } from '../../../eco/component-identity.ts';
 
 export type QueuedForeignChildDecisionInput = {
 	currentIntegration: string;
@@ -502,7 +503,7 @@ export class ForeignSubtreeExecutionService {
 		component: EcoComponent,
 		currentIntegrationName: string,
 	): string | undefined {
-		const integrationName = component.config?.integration ?? component.config?.identity?.integration;
+		const integrationName = getComponentOwner(component);
 		if (!integrationName || integrationName === 'html' || integrationName === currentIntegrationName) {
 			return undefined;
 		}

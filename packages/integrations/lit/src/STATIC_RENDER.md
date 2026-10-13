@@ -14,7 +14,7 @@ LitPlugin.setup()
                                      installBuildQueue()
                                      RouteRendererFactory
 
-LitPlugin.initializeRenderer()
+LitPlugin.getRenderer()  (creates it through initializeRenderer() on first use)
   └─ LitRenderer({ getRenderSession })   lazy accessor (not constructor snapshot)
 
 LitRenderer.execute() (main)

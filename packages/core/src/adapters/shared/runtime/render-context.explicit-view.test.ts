@@ -108,7 +108,7 @@ describe('explicit views rendered through real renderers', () => {
 		const view = createView(({ title }) => `<p>${title}</p>`, { staticProps, metadata });
 		const matcher = new ExplicitStaticRouteMatcher({
 			appConfig,
-			routeRendererFactory: { getExplicitViewRenderer: () => plugin.initializeRenderer() as never },
+			routeRendererFactory: { getExplicitViewRenderer: () => plugin.getRenderer() as never },
 			staticRoutes: [{ path: '/blog/[slug]', loader: async () => ({ default: view }) }],
 		});
 
@@ -120,12 +120,26 @@ describe('explicit views rendered through real renderers', () => {
 		expect(metadata).toHaveBeenCalledTimes(1);
 	});
 
+	it('renders every handler view of an Integration through one renderer', async () => {
+		const { plugin } = await createPlugin();
+		const initializeRenderer = vi.spyOn(plugin, 'initializeRenderer');
+		const handler = createRenderContext({ integrations: [plugin] });
+		const view = createView(({ n }) => `<p>${n}</p>`);
+
+		for (let n = 0; n < 4; n += 1) {
+			expect(await (await handler.render(view, { n })).text()).toContain(`<p>${n}</p>`);
+		}
+		expect(await (await handler.renderPartial(view, { n: 4 })).text()).toBe('<p>4</p>');
+
+		expect(initializeRenderer).toHaveBeenCalledTimes(1);
+	});
+
 	it('keeps parallel renders on one integration separate', async () => {
 		const { plugin } = await createPlugin();
 		const handler = createRenderContext({ integrations: [plugin] });
 		const first = createView(() => '<p>first</p>');
 		const second = createView(() => '<p>second</p>');
-		const renderer = plugin.initializeRenderer() as unknown as ExplicitViewTestRenderer;
+		const renderer = plugin.getRenderer() as unknown as ExplicitViewTestRenderer;
 
 		const [firstHtml, secondHtml, routeResult] = await Promise.all([
 			handler.render(first, {}).then((response) => response.text()),
@@ -185,7 +199,7 @@ describe('explicit views rendered through real renderers', () => {
 
 	it('plans an explicit view from its own components after a route rendered on the same renderer', async () => {
 		const { plugin } = await createPlugin();
-		const renderer = plugin.initializeRenderer() as unknown as ExplicitViewTestRenderer;
+		const renderer = plugin.getRenderer() as unknown as ExplicitViewTestRenderer;
 		const buildAssets = vi.spyOn(ExplicitViewTestRenderer.prototype as any, 'buildPageClientBrowserAssets');
 		const routeChild = createView(() => '<i>child</i>');
 		routeChild.config = {

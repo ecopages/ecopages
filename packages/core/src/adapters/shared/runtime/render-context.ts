@@ -92,7 +92,7 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 		const integration = integrations.find((i) => i.name === integrationName);
 		invariant(!!integration, `No integration found for: ${integrationName}`);
 
-		return integration.initializeRenderer() as IntegrationRenderer;
+		return integration.getRenderer() as IntegrationRenderer;
 	};
 
 	const renderContext: RenderContext = {

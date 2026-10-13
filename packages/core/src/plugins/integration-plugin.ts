@@ -133,6 +133,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	protected assetProcessingService?: AssetProcessingService;
 	protected hmrManager?: IHmrManager;
 	declare runtimeOrigin: string;
+	private sharedRenderer?: IntegrationRenderer<C>;
 
 	/**
 	 * @remarks
@@ -195,12 +196,16 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	setConfig(appConfig: EcoPagesAppConfig): void {
 		this.appConfig = appConfig;
 		this.initializeAssetDefinitionService();
+		this.sharedRenderer = undefined;
 	}
 
 	/**
 	 * Records the runtime origin used for page-module loading and renderer setup.
 	 */
 	setRuntimeOrigin(runtimeOrigin: string) {
+		if (this.runtimeOrigin !== runtimeOrigin) {
+			this.sharedRenderer = undefined;
+		}
 		this.runtimeOrigin = runtimeOrigin;
 	}
 
@@ -230,6 +235,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 */
 	setHmrManager(hmrManager: IHmrManager) {
 		this.hmrManager = hmrManager;
+		this.sharedRenderer = undefined;
 
 		const strategy = this.getHmrStrategy?.();
 		if (strategy) {
@@ -264,14 +270,11 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Creates the shared renderer options owned by core lifecycle setup.
 	 *
 	 * @remarks
-	 * Handler renders call `initializeRenderer()` on every `render`, `renderPartial`,
-	 * and `renderServerModule`. Each call still builds a new renderer, and all of
-	 * them share this Integration's asset-processing service. An unchanged file
-	 * asset is reused until its source hash changes, its output is missing, or a
-	 * development change batch drops the entry. The cache key is the dependency
-	 * identity; the source hash is the freshness check. A missing service is
-	 * created here so a plugin that received `appConfig` without `setConfig()`
-	 * still has one.
+	 * Every renderer this Integration creates shares its asset-processing service. An unchanged file
+	 * asset is reused until its source hash changes, its output is missing, or a development change
+	 * batch drops the entry. The cache key is the dependency identity; the source hash is the
+	 * freshness check. A missing service is created here so a plugin that received `appConfig`
+	 * without `setConfig()` still has one.
 	 */
 	protected createRendererOptions(): IntegrationRendererConstructorOptions {
 		if (!this.appConfig) {
@@ -314,14 +317,26 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Instantiates the integration renderer with app-owned services.
+	 * Returns the app's renderer for this Integration, creating it on first use.
 	 *
 	 * @remarks
-	 * Renderers are cheap runtime objects. Handler renders still create a new one
-	 * on every `render`, `renderPartial`, and `renderServerModule` call. They share
-	 * the Integration's asset-processing service, so an unchanged stylesheet or
-	 * script is reused until its source changes, its output is missing, or
-	 * development invalidation drops the entry.
+	 * Route renders, handler renders (`ctx.render`, `ctx.renderPartial`, `ctx.renderServerModule`) and
+	 * foreign handoffs all use this one instance, so the services a renderer builds and the runtime
+	 * modules it resolves are paid once. A renderer holds no per-render state, so concurrent renders
+	 * share it. Changing the app config, the runtime origin or the HMR manager drops the instance,
+	 * because it captured them when it was created; a render already running keeps the one it has.
+	 */
+	getRenderer(): IntegrationRenderer<C> {
+		this.sharedRenderer ??= this.initializeRenderer();
+		return this.sharedRenderer;
+	}
+
+	/**
+	 * Instantiates a new integration renderer with app-owned services.
+	 *
+	 * @remarks
+	 * Integrations override this to construct their renderer with extra options. Core calls it only
+	 * through {@link IntegrationPlugin.getRenderer}.
 	 */
 	initializeRenderer(): IntegrationRenderer<C> {
 		const renderer = new this.renderer(this.createRendererOptions());

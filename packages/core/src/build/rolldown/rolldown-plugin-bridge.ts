@@ -42,7 +42,7 @@
  */
 
 import path from 'node:path';
-import remapping, { type SourceMapInput as RemappingSourceMapInput } from '@jridgewell/remapping';
+import { composeSourceMaps, isUsableSourceMap } from '../source-maps.ts';
 import type {
 	LoadResult,
 	PartialResolvedId,
@@ -211,25 +211,15 @@ function convertPluginOnResolveResult(
  *
  * @remarks
  * `EcoBuildOnTransformResult.map` is `unknown` so plugin authors stay free of
- * Rolldown types. Only string maps, `null` (keep the existing map), and objects
- * with `mappings` are forwarded. The object branch asserts `SourceMapInput`
- * after that check so the original map object is returned without a copy.
+ * Rolldown types. Only usable maps (see {@link isUsableSourceMap}) and `null` (keep the existing map) are
+ * forwarded; an empty or source-less map is dropped, so the caller treats the rewrite as unmapped. The
+ * assertion to `SourceMapInput` happens after that check, so the original map object is returned without a copy.
  */
 function toRolldownSourceMapInput(value: unknown): SourceMapInput | undefined {
-	if (value === null || typeof value === 'string') {
+	if (value === null) {
 		return value;
 	}
-	if (typeof value === 'object' && 'mappings' in value && typeof value.mappings === 'string') {
-		return value as SourceMapInput;
-	}
-	return undefined;
-}
-
-function composeTransformMaps(next: SourceMapInput, previous: SourceMapInput): SourceMapInput {
-	return remapping(
-		[next as RemappingSourceMapInput, previous as RemappingSourceMapInput],
-		() => null,
-	) as SourceMapInput;
+	return isUsableSourceMap(value) ? (value as SourceMapInput) : undefined;
 }
 
 type TransformMapState = {
@@ -256,7 +246,7 @@ function keepTransformMap(state: TransformMapState, map: SourceMapInput, pluginN
 		return;
 	}
 	try {
-		state.map = composeTransformMaps(map, state.map);
+		state.map = composeSourceMaps(map as never, state.map as never) as SourceMapInput;
 	} catch (error) {
 		throw new EcoBuildPluginError(error, pluginName, sourcePath);
 	}

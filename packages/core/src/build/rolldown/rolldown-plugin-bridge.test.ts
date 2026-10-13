@@ -432,6 +432,38 @@ test('createRolldownPluginBridge does not reuse an earlier map after an unmapped
 	assert.deepEqual(result?.map, { mappings: '' });
 });
 
+for (const order of ['mapped-first', 'empty-first'] as const) {
+	test(`createRolldownPluginBridge treats an empty map as unmapped next to a mapped transform (${order})`, async () => {
+		const mapped: EcoBuildPlugin = {
+			name: 'mapped',
+			setup(build) {
+				build.transform({ filter: /page\.ts$/ }, (code, id) => {
+					const source = new MagicString(code, { filename: id });
+					source.prepend('mapped;\n');
+					return { code: source.toString(), map: source.generateMap({ source: id, hires: 'boundary' }) };
+				});
+			},
+		};
+		const empty: EcoBuildPlugin = {
+			name: 'empty',
+			setup(build) {
+				build.transform({ filter: /page\.ts$/ }, (code) => ({
+					code: `empty;\n${code}`,
+					map: { mappings: '' },
+				}));
+			},
+		};
+
+		const [plugin] = await createRolldownPluginBridge(
+			order === 'mapped-first' ? [mapped, empty] : [empty, mapped],
+			'/app',
+		);
+		const result = await callTransform(plugin!, 'export const value = 1;', '/app/page.ts');
+
+		assert.deepEqual(result?.map, { mappings: '' });
+	});
+}
+
 test('createRolldownPluginBridge forwards null maps to preserve an upstream map', async () => {
 	const plugins: EcoBuildPlugin[] = [
 		{

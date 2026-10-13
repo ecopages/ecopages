@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { appLogger } from '../../global/app-logger.ts';
-import type { BuildOptions, BuildTarget } from '../contracts/build-contracts.ts';
+import type { BuildOptions } from '../contracts/build-contracts.ts';
 import { RolldownBuildAdapter } from './rolldown-build-adapter.ts';
 import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
 import { createBrowserRuntimePlugin } from '../browser/browser-runtime-plugin.ts';
@@ -1192,20 +1192,6 @@ describe('RolldownBuildAdapter', () => {
 			);
 			assert.notEqual(map.mappings, '');
 		}
-	});
-
-	test('BuildTarget accepts runtime families forwarded to Rolldown', () => {
-		const targets = [
-			'chrome120',
-			'edge120',
-			'firefox120',
-			'safari17',
-			'hermes',
-			'deno2',
-			'ios18',
-		] satisfies BuildTarget[];
-
-		assert.equal(targets.length, 7);
 	});
 
 	test('resolve delegates to node module resolution from the supplied root', () => {

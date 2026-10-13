@@ -188,7 +188,7 @@ export class ServerStaticBuilder {
 				entrypoints: [entryPath],
 				outdir: stagingDir,
 				naming: SERVER_BUNDLE_FILENAME,
-				sourcemap: 'hidden',
+				sourcemap: 'linked',
 				runtimeOutdir: serverOutdir,
 			});
 			const result = await build(buildOptions, requireBuildRuntime(this.appConfig).getProfile('server-entry'));

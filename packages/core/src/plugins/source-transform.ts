@@ -1,31 +1,9 @@
-import MagicString from 'magic-string';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 
 export interface EcoSourceTransformResult {
 	code: string;
 	map?: unknown;
-}
-
-/**
- * Applies source edits while preserving mappings to the original file.
- *
- * @remarks
- * Core transforms use this when they change source positions. Inserted text is
- * unmapped; retained text keeps its original line and column positions.
- */
-export function createMappedSourceTransformResult(
-	code: string,
-	id: string,
-	edit: (source: MagicString) => void,
-): EcoSourceTransformResult {
-	const source = new MagicString(code, { filename: id });
-	edit(source);
-
-	return {
-		code: source.toString(),
-		map: source.generateMap({ source: id, includeContent: true, hires: 'boundary' }),
-	};
 }
 
 /**

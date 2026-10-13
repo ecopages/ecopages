@@ -348,6 +348,7 @@ describe('createMdxLoaderPlugin', () => {
 			}),
 		);
 		expect(original).toMatchObject({ line: 4, source: expect.stringContaining('post.mdx') });
+		expect(result?.map).toMatchObject({ sourcesContent: [expect.stringContaining('Post Title')] });
 	});
 
 	it('omits maps when includeSourceMap is disabled', async () => {

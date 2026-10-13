@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { attributeMdxComponentIdentityWithMap } from '@ecopages/core';
+import { attributeMdxComponentIdentity } from '@ecopages/core';
 import { type CompileOptions, compile } from '@mdx-js/mdx';
 import { recordMdxTransform } from '@ecopages/core/diagnostics/request-pipeline-metrics';
 import sourceMap from 'source-map';
@@ -71,18 +71,21 @@ export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): Ec
 						format: resolveCompileFormat(filePath, compilerOptions),
 						SourceMapGenerator: sourceMap.SourceMapGenerator,
 					});
-					cached = { source, contents: String(compiled.value), map: compiled.map };
+					cached = {
+						source,
+						contents: String(compiled.value),
+						map: compiled.map ? { ...compiled.map, sourcesContent: [source] } : undefined,
+					};
 					compileCache.set(filePath, cached);
 				}
 				recordMdxTransform();
 
-				const transformed = attributeMdxComponentIdentityWithMap(
+				const transformed = attributeMdxComponentIdentity(
 					cached.contents,
 					filePath,
 					integrationName,
 					projectRoot,
 					includeSourceMap ? cached.map : undefined,
-					includeSourceMap,
 				);
 
 				return {

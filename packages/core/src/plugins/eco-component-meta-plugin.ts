@@ -1,9 +1,10 @@
-import remapping, { type SourceMapInput as RemappingSourceMapInput } from '@jridgewell/remapping';
 import MagicString from 'magic-string';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { createJsxImportSourcePragma } from './jsx-import-source.utils.ts';
 import type { EcoSourceTransform, EcoSourceTransformResult } from './source-transform.ts';
-import { createEcoBuildPluginFromSourceTransform, createMappedSourceTransformResult } from './source-transform.ts';
+import { createEcoBuildPluginFromSourceTransform } from './source-transform.ts';
+import { composeSourceMaps, isUsableSourceMap } from '../build/source-maps.ts';
+import { createMappedSourceTransformResult } from '../build/mapped-source-transform.ts';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { rapidhash } from '../utils/hash.ts';
@@ -28,7 +29,6 @@ type SourceEdit =
 type SourceEditOptions = {
 	prepend?: string;
 	append?: string;
-	includeSourceMap?: boolean;
 };
 
 function applySourceEdits(
@@ -61,11 +61,6 @@ function applySourceEdits(
 		if (options.prepend) source.prepend(options.prepend);
 		if (options.append) source.append(options.append);
 	};
-	if (options.includeSourceMap === false) {
-		const source = new MagicString(contents, { filename: filePath });
-		editSource(source);
-		return { code: source.toString() };
-	}
 	return createMappedSourceTransformResult(contents, filePath, editSource);
 }
 
@@ -204,36 +199,26 @@ export function attributeComponentIdentity(
 	filePath: string,
 	integration: string,
 	projectRoot?: string,
-): string {
-	return attributeComponentIdentityWithMap(contents, filePath, integration, projectRoot, undefined, false).code;
-}
-
-function attributeComponentIdentityWithMap(
-	contents: string,
-	filePath: string,
-	integration: string,
-	projectRoot?: string,
 	jsxImportSource?: string,
-	includeSourceMap = true,
 ): EcoSourceTransformResult {
 	const pragma =
 		jsxImportSource && !contents.includes('@jsxImportSource')
 			? createJsxImportSourcePragma(jsxImportSource)
 			: undefined;
 	if (!contents.includes('eco.')) {
-		return applySourceEdits(contents, [], filePath, { prepend: pragma, includeSourceMap });
+		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
 
 	let program: AstNode;
 	try {
 		program = parseModuleSource(filePath, contents, { sourceType: 'module' }).program as unknown as AstNode;
 	} catch {
-		return applySourceEdits(contents, [], filePath, { prepend: pragma, includeSourceMap });
+		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
 
 	const identityLiteral = `{ id: ${JSON.stringify(rapidhash(filePath).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
 	if (!hasEcoFactoryCall(program)) {
-		return applySourceEdits(contents, [], filePath, { prepend: pragma, includeSourceMap });
+		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
 
 	const factoryArguments: Array<{ start: number; end: number }> = [];
@@ -246,7 +231,7 @@ function attributeComponentIdentityWithMap(
 	});
 
 	if (factoryArguments.length === 0) {
-		return applySourceEdits(contents, [], filePath, { prepend: pragma, includeSourceMap });
+		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
 
 	const discovered = projectRoot ? discoverComponentImports(program, filePath, projectRoot) : undefined;
@@ -260,7 +245,7 @@ function attributeComponentIdentityWithMap(
 	edits.push(...(discovered?.removals ?? []));
 	const importEdit = createNamedImportEdit(program, '@ecopages/core', 'bindComponentIdentity');
 	if (importEdit) edits.push(importEdit);
-	return applySourceEdits(contents, edits, filePath, { prepend: pragma, includeSourceMap });
+	return applySourceEdits(contents, edits, filePath, { prepend: pragma });
 }
 
 function findMdxConfigDeclarator(program: AstNode): AstNode | undefined {
@@ -321,37 +306,19 @@ function buildMdxIdentityAppend(options: {
 	return appended;
 }
 
-/** Attributes compiled MDX module with canonical component identity and discovered dependencies. */
+/**
+ * Attributes a compiled MDX module with canonical component identity and discovered dependencies.
+ *
+ * @remarks
+ * Pass the MDX compiler's map as `previousMap` so the returned map traces back to the `.mdx` file; without
+ * it the map is relative to the compiled module.
+ */
 export function attributeMdxComponentIdentity(
 	contents: string,
 	filePath: string,
 	integration: string,
 	projectRoot: string,
-): string {
-	return attributeMdxComponentIdentityWithMap(contents, filePath, integration, projectRoot, undefined, false).code;
-}
-
-function toRemappingSourceMapInput(value: unknown): RemappingSourceMapInput | undefined {
-	if (typeof value === 'string') return value;
-	if (typeof value !== 'object' || value === null) return undefined;
-	if ('mappings' in value && typeof value.mappings === 'string') return value as RemappingSourceMapInput;
-	return undefined;
-}
-
-function composeSourceMaps(nextMap: unknown, previousMap: unknown): unknown {
-	const next = toRemappingSourceMapInput(nextMap);
-	const previous = toRemappingSourceMapInput(previousMap);
-	if (!next || !previous) return nextMap;
-	return remapping([next, previous], () => null);
-}
-
-export function attributeMdxComponentIdentityWithMap(
-	contents: string,
-	filePath: string,
-	integration: string,
-	projectRoot: string,
 	previousMap?: unknown,
-	includeSourceMap = true,
 ): EcoSourceTransformResult {
 	if (!projectRoot) {
 		throw new Error(`[ecopages] Cannot process MDX dependencies for "${filePath}": projectRoot is required.`);
@@ -392,11 +359,13 @@ export function attributeMdxComponentIdentityWithMap(
 
 	const transformed = applySourceEdits(contents, edits, filePath, {
 		append: `\n${appended}`,
-		includeSourceMap,
 	});
 	return {
 		...transformed,
-		map: includeSourceMap && previousMap ? composeSourceMaps(transformed.map, previousMap) : transformed.map,
+		map:
+			isUsableSourceMap(previousMap) && isUsableSourceMap(transformed.map)
+				? composeSourceMaps(transformed.map, previousMap)
+				: transformed.map,
 	};
 }
 
@@ -418,7 +387,7 @@ export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOp
 			if (!integration) {
 				return { code };
 			}
-			return attributeComponentIdentityWithMap(
+			return attributeComponentIdentity(
 				code,
 				id,
 				integration.name,

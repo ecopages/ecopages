@@ -2,7 +2,7 @@ import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import type { EcoSourceTransform } from '../plugins/source-transform.ts';
-import { createMappedSourceTransformResult } from '../plugins/source-transform.ts';
+import { createMappedSourceTransformResult } from './mapped-source-transform.ts';
 
 type AstNode = {
 	type?: string;

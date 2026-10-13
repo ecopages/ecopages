@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { originalPositionFor, TraceMap, type SourceMapInput } from '@jridgewell/trace-mapping';
 import {
 	attributeComponentIdentity,
-	attributeMdxComponentIdentityWithMap,
+	attributeMdxComponentIdentity,
 	createEcoComponentMetaPlugin,
 	createEcoComponentMetaTransform,
 } from './eco-component-meta-plugin';
@@ -109,14 +109,16 @@ describe('eco-component-meta-plugin', () => {
 	it('composes MDX identity edits with the compiler source map', () => {
 		const filePath = '/path/to/pages/post.mdx';
 		const compiled = [
+			'// generated header',
+			'// generated header',
 			'export const config = { components: {} }; export default function MDXContent() { return <h1>Hello</h1>; }',
 		].join('\n');
-		const result = attributeMdxComponentIdentityWithMap(compiled, filePath, 'mdx', '/path/to', {
+		const result = attributeMdxComponentIdentity(compiled, filePath, 'mdx', '/path/to', {
 			version: 3,
 			sources: [filePath],
-			sourcesContent: ['# Hello'],
+			sourcesContent: ['# Hello\n\nWorld\n\nBody'],
 			names: [],
-			mappings: 'AAAA',
+			mappings: ';;AAAA',
 		});
 		const mappedColumn = result.code.indexOf('MDXContent');
 		const codeBeforePosition = result.code.slice(0, mappedColumn);
@@ -126,6 +128,14 @@ describe('eco-component-meta-plugin', () => {
 		});
 
 		expect(original).toMatchObject({ line: 1, source: expect.stringContaining('post.mdx') });
+	});
+
+	it('keeps the identity map when the MDX compiler map is empty', () => {
+		const filePath = '/path/to/pages/post.mdx';
+		const compiled = 'export const config = {}; export default function MDXContent() { return null; }';
+		const result = attributeMdxComponentIdentity(compiled, filePath, 'mdx', '/path/to', { mappings: '' });
+
+		expect(result.map).toBeDefined();
 	});
 
 	it('does not attribute direct component config assignments', async () => {
@@ -357,7 +367,7 @@ export const Simple = eco.component(bindComponentIdentity(
 	it('leaves text mentions of Eco factories unchanged', () => {
 		const content = `// eco.page({ render: () => null });\nconst example = 'eco.component({ render: () => null })';`;
 
-		expect(attributeComponentIdentity(content, '/path/to/example.ts', 'test-string')).toBe(content);
+		expect(attributeComponentIdentity(content, '/path/to/example.ts', 'test-string').code).toBe(content);
 	});
 
 	it('should not inject into non-eco call expressions', async () => {

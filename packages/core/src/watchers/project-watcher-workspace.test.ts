@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
-import { installBuildRuntime } from '../build/runtime/build-runtime.ts';
+import { installBuildQueue } from '../build/runtime/build-queue.ts';
 import { DevTransformVendorRegistry } from '../dev/transform-server/dev-transform-vendor-registry.ts';
 import { ProjectWatcher } from './project-watcher.ts';
 import { resolveWorkspacePackageWatchRoots } from './workspace-package-watch-roots.ts';
@@ -56,7 +56,7 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 		if (edited === 'unlink') writeFileSync(extra, 'export const extra = 1;');
 		symlinkSync(packageDir, path.join(rootDir, 'node_modules/@acme/ui'), 'dir');
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildRuntime(config);
+		installBuildQueue(config);
 		const registry = () => new DevTransformVendorRegistry({ appConfig: config });
 		const running = registry();
 		const oldUrl = await running.resolveVendorUrl('@acme/ui');
@@ -88,7 +88,7 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 				edited === 'package' ? "export const label = 'after-edit';" : "export const dep = 'dependency-after';",
 			);
 		await vi.waitFor(() => expect(restart).toHaveBeenCalledWith(changedPath), { timeout: 3000 });
-		expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
+		expect(hmrManager.handleFileChanges).not.toHaveBeenCalled();
 		const restarted = registry();
 		const newUrl = await restarted.resolveVendorUrl('@acme/ui');
 		expect(newUrl).toBe(oldUrl);

@@ -11,15 +11,9 @@
 
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { rolldown, type RolldownLog } from 'rolldown';
+import { rolldown } from 'rolldown';
 
-import type {
-	BuildAdapter,
-	BuildOptions,
-	BuildResult,
-	BuildTranspileOptions,
-	BuildEnvironment,
-} from '../build-adapter.ts';
+import type { BuildAdapter, BuildLog, BuildOptions, BuildResult, BuildSuccess } from '../build-adapter.ts';
 import {
 	buildResultFromRolldownOutput,
 	resolveRolldownOptions,
@@ -29,7 +23,6 @@ import {
 import { recordRolldownBuildInvocation } from './rolldown-build-invocation-metrics.ts';
 import { createEntryModuleClosuresPlugin } from './entry-module-closures.ts';
 import type { BuildDependencyGraph } from '../build-adapter.ts';
-import { resolveTranspileOptions } from '../runtime/build-environment-options.ts';
 import { createBuildInputRecorder, getBuildInputRecordingContext } from '../cache/build-input-dependency-index.ts';
 
 const moduleRequire = createRequire(import.meta.url);
@@ -47,7 +40,7 @@ export class RolldownBuildAdapter implements BuildAdapter {
 	 * Warnings are collected on the result and still printed by Rolldown's default handler. Rolldown
 	 * reports them only once a build completes, so a failed build has none.
 	 */
-	async buildOrThrow(options: BuildOptions): Promise<BuildResult> {
+	async buildOrThrow(options: BuildOptions): Promise<BuildSuccess> {
 		if (options.environment !== 'server' && options.environment !== 'browser') {
 			throw new Error('Build requests require environment: "server" or "browser".');
 		}
@@ -69,7 +62,7 @@ export class RolldownBuildAdapter implements BuildAdapter {
 
 		const dependencyGraph: BuildDependencyGraph = { entrypoints: {} };
 		inputOptions.plugins = [inputOptions.plugins, createEntryModuleClosuresPlugin(dependencyGraph, contextRoot)];
-		const warnings: RolldownLog[] = [];
+		const warnings: BuildLog[] = [];
 		const bundle = await rolldown({
 			...inputOptions,
 			onLog: (level, log, defaultHandler) => {
@@ -79,26 +72,31 @@ export class RolldownBuildAdapter implements BuildAdapter {
 				defaultHandler(level, log);
 			},
 		});
-		const output =
-			options.writeToDisk === false ? await bundle.generate(outputOptions) : await bundle.write(outputOptions);
-		await bundle.close();
+		try {
+			const output =
+				options.writeToDisk === false
+					? await bundle.generate(outputOptions)
+					: await bundle.write(outputOptions);
 
-		return {
-			...buildResultFromRolldownOutput(
-				output,
-				outdir,
-				contextRoot,
-				dependencyGraph,
-				options.entrypoints,
-				options.naming,
-				options.writeToDisk === false,
-			),
-			loadedInputs: [...loadedInputs],
-			loadedInputsByModule: Object.fromEntries(
-				[...loadedInputsByModule].map(([moduleId, paths]) => [moduleId, [...paths]]),
-			),
-			warnings,
-		};
+			return {
+				...buildResultFromRolldownOutput(
+					output,
+					outdir,
+					contextRoot,
+					dependencyGraph,
+					options.entrypoints,
+					options.naming,
+					options.writeToDisk === false,
+				),
+				loadedInputs: [...loadedInputs],
+				loadedInputsByModule: Object.fromEntries(
+					[...loadedInputsByModule].map(([moduleId, paths]) => [moduleId, [...paths]]),
+				),
+				warnings,
+			};
+		} finally {
+			await bundle.close();
+		}
 	}
 
 	async build(options: BuildOptions): Promise<BuildResult> {
@@ -108,17 +106,12 @@ export class RolldownBuildAdapter implements BuildAdapter {
 			return {
 				success: false,
 				logs: toBuildLogs(error),
-				outputs: [],
 			};
 		}
 	}
 
 	resolve(importPath: string, rootDir: string): string {
 		return moduleRequire.resolve(importPath, { paths: [rootDir] });
-	}
-
-	getTranspileOptions(environment: BuildEnvironment): BuildTranspileOptions {
-		return resolveTranspileOptions(environment);
 	}
 }
 

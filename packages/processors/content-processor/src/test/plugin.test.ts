@@ -5,7 +5,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import type { IClientBridge } from '@ecopages/core';
 import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
-import { installBuildRuntime } from '@ecopages/core/build/build-runtime';
+import { installBuildQueue } from '@ecopages/core/build/build-queue';
 import type { ProcessorWatchChanges, ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
 import { fileSystem } from '@ecopages/file-system';
 import { contentProcessorPlugin, ContentProcessorPlugin } from '../plugin.ts';
@@ -252,7 +252,7 @@ order: 1
 			processors: [plugin],
 		});
 
-		installBuildRuntime(appConfig);
+		installBuildQueue(appConfig);
 		await plugin.setup();
 
 		expect(plugin.collectionServerCompiledModules.docs).toBeUndefined();

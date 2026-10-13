@@ -22,6 +22,8 @@ export interface EcoSourceTransform {
 	filter: RegExp;
 	/** Runs before default transforms, or after them when set to `post`. */
 	enforce?: 'pre' | 'post';
+	/** Copied to {@link EcoBuildPlugin.cacheKey} by {@link createEcoBuildPluginFromSourceTransform}. */
+	cacheKey?: string;
 	transform(code: string, id: string): EcoSourceTransformResult | string | undefined;
 }
 
@@ -65,35 +67,6 @@ function getSourceTransformEnforceOrder(transform: EcoSourceTransform): number {
 }
 
 /**
- * Applies app-owned source transforms in deterministic `pre` → default → `post` order.
- *
- * @remarks
- * Used when chaining transforms in tests. The Rolldown plugin bridge runs each
- * transform as a `transform` hook instead.
- *
- * @param transforms - App-owned transforms, usually from {@link getAppSourceTransforms}.
- * @param code - Current module source.
- * @param id - Module id forwarded to each transform after query/hash normalization.
- * @returns The transformed source, or the original `code` when no transform matches.
- */
-export function applySourceTransforms(transforms: readonly EcoSourceTransform[], code: string, id: string): string {
-	let current = code;
-
-	for (const transform of [...transforms].sort(
-		(left, right) => getSourceTransformEnforceOrder(left) - getSourceTransformEnforceOrder(right),
-	)) {
-		const result = applySourceTransform(transform, current, id);
-		if (!result) {
-			continue;
-		}
-
-		current = typeof result === 'string' ? result : result.code;
-	}
-
-	return current;
-}
-
-/**
  * Adapts a source transform into an {@link EcoBuildPlugin} `transform` hook.
  *
  * @remarks
@@ -103,6 +76,7 @@ export function applySourceTransforms(transforms: readonly EcoSourceTransform[],
 export function createEcoBuildPluginFromSourceTransform(transform: EcoSourceTransform): EcoBuildPlugin {
 	return {
 		name: transform.name,
+		cacheKey: transform.cacheKey,
 		setup(build) {
 			build.transform({ filter: transform.filter }, (code, id) => {
 				return applySourceTransform(transform, code, id);
@@ -119,17 +93,24 @@ export function getAppSourceTransforms(appConfig: EcoPagesAppConfig): EcoSourceT
 }
 
 /**
- * Converts app-owned source transforms into `transform` plugins, skipping names
- * already present in `plugins`.
+ * Converts app-owned source transforms into `transform` plugins, placed after `plugins`.
+ *
+ * @remarks
+ * A transform whose name is already the name of a plugin in `plugins` throws, because the request would
+ * otherwise run one of them and not the other.
  */
 export function mergeSourceTransformPlugins(
 	plugins: EcoBuildPlugin[],
 	transforms: readonly EcoSourceTransform[],
 ): EcoBuildPlugin[] {
 	const names = new Set(plugins.map((plugin) => plugin.name));
+	for (const transform of transforms) {
+		if (names.has(transform.name)) {
+			throw new Error(`Source transform "${transform.name}" has the name of a build plugin of the same request.`);
+		}
+	}
 	const extra = [...transforms]
 		.sort((left, right) => getSourceTransformEnforceOrder(left) - getSourceTransformEnforceOrder(right))
-		.filter((transform) => !names.has(transform.name))
 		.map(createEcoBuildPluginFromSourceTransform);
 	return extra.length === 0 ? plugins : [...plugins, ...extra];
 }

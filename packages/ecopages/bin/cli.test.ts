@@ -215,14 +215,74 @@ describe('CLI Commands', () => {
 		exitSpy.mockRestore();
 	});
 
-	it('runs dev command and passes defaults to launch plan', async () => {
-		await runCli(['dev']);
-		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
-			['--dev'],
-			expect.objectContaining({ nodeEnv: 'development' }),
-			'app.ts',
-			'dev',
-		);
+	it.each([
+		{
+			name: 'dev defaults',
+			argv: ['dev'],
+			args: ['--dev'],
+			options: { nodeEnv: 'development' },
+			entry: 'app.ts',
+			mode: 'dev',
+		},
+		{
+			name: 'dev:watch',
+			argv: ['dev:watch'],
+			args: ['--dev'],
+			options: { watch: true, nodeEnv: 'development' },
+			entry: 'app.ts',
+			mode: 'dev',
+		},
+		{
+			name: 'the runtime flag',
+			argv: ['dev', '--runtime', 'bun'],
+			args: ['--dev'],
+			options: { nodeEnv: 'development', runtime: 'bun' },
+			entry: 'app.ts',
+			mode: 'dev',
+		},
+		{
+			name: 'a custom build entry file',
+			argv: ['build', '--entry-file', 'server.ts'],
+			args: ['--build'],
+			options: { nodeEnv: 'production', entryFile: 'server.ts' },
+			entry: 'server.ts',
+			mode: 'build',
+		},
+		{
+			name: 'shared build options',
+			argv: ['build', '--base-url', '/docs/', '--hostname', '127.0.0.1'],
+			args: ['--build'],
+			options: { nodeEnv: 'production', baseUrl: '/docs/', hostname: '127.0.0.1' },
+			entry: 'app.ts',
+			mode: 'build',
+		},
+		{
+			name: 'shared server options',
+			argv: ['start', '-p', '4000', '--hostname', '0.0.0.0'],
+			args: [],
+			options: { nodeEnv: 'production', port: '4000', hostname: '0.0.0.0' },
+			entry: 'app.ts',
+			mode: 'start',
+		},
+		{
+			name: 'the production output directory, without forwarding it to the app',
+			argv: ['start', '--dist-dir', 'build'],
+			args: [],
+			options: { nodeEnv: 'production', distDir: 'build' },
+			entry: 'app.ts',
+			mode: 'start',
+		},
+		{
+			name: 'base url and debug overrides',
+			argv: ['preview', '--base-url', '/my-app/', '-d'],
+			args: ['--preview'],
+			options: { nodeEnv: 'production', baseUrl: '/my-app/', debug: true },
+			entry: 'app.ts',
+			mode: 'preview',
+		},
+	])('passes $name to the launch plan', async ({ argv, args, options, entry, mode }) => {
+		await runCli(argv);
+		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(args, expect.objectContaining(options), entry, mode);
 	});
 
 	it('respawns supervised dev children after a restart request', async () => {
@@ -467,16 +527,6 @@ describe('CLI Commands', () => {
 		},
 	);
 
-	it('runs dev:watch command', async () => {
-		await runCli(['dev:watch']);
-		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
-			['--dev'],
-			expect.objectContaining({ watch: true, nodeEnv: 'development' }),
-			'app.ts',
-			'dev',
-		);
-	});
-
 	it('runs the types command on the core config entry, never the app entry', async () => {
 		vi.mocked(fs.existsSync).mockImplementation((filePath) => String(filePath).endsWith('write-types.ts'));
 		await runCli(['types', '--config', 'eco.staging.ts']);
@@ -486,16 +536,6 @@ describe('CLI Commands', () => {
 		expect(entry).toMatch(/core\/src\/config\/write-types\.ts$/);
 		expect(options).toMatchObject({ nodeEnv: 'production', entryFile: entry, configFile: 'eco.staging.ts' });
 		expect(launchMode).toBe('types');
-	});
-
-	it('runs build command with custom entry file', async () => {
-		await runCli(['build', '--entry-file', 'server.ts']);
-		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
-			['--build'],
-			expect.objectContaining({ nodeEnv: 'production', entryFile: 'server.ts' }),
-			'server.ts',
-			'build',
-		);
 	});
 
 	it.each(['build', 'preview', 'start'])('rejects --force for %s as an unknown option', async (command) => {
@@ -520,97 +560,15 @@ describe('CLI Commands', () => {
 		log.mockRestore();
 	});
 
-	it('passes shared build options like base url and hostname correctly', async () => {
-		await runCli(['build', '--base-url', '/docs/', '--hostname', '127.0.0.1']);
-		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
-			['--build'],
-			expect.objectContaining({
-				nodeEnv: 'production',
-				baseUrl: '/docs/',
-				hostname: '127.0.0.1',
-			}),
-			'app.ts',
-			'build',
-		);
-	});
-
-	it('passes shared server options like port and hostname correctly', async () => {
-		await runCli(['start', '-p', '4000', '--hostname', '0.0.0.0']);
-		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
-			[],
-			expect.objectContaining({
-				nodeEnv: 'production',
-				port: '4000',
-				hostname: '0.0.0.0',
-			}),
-			'app.ts',
-			'start',
-		);
-	});
-
-	it('passes the production output directory to start without forwarding it to the app', async () => {
-		await runCli(['start', '--dist-dir', 'build']);
-		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
-			[],
-			expect.objectContaining({
-				nodeEnv: 'production',
-				distDir: 'build',
-			}),
-			'app.ts',
-			'start',
-		);
-	});
-
-	it('allows overriding base url and debug options', async () => {
-		await runCli(['preview', '--base-url', '/my-app/', '-d']);
-		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
-			['--preview'],
-			expect.objectContaining({
-				nodeEnv: 'production',
-				baseUrl: '/my-app/',
-				debug: true,
-			}),
-			'app.ts',
-			'preview',
-		);
-	});
-
-	it('passes the runtime flag through to the launch plan', async () => {
-		await runCli(['dev', '--runtime', 'bun']);
-		expect(launchPlan.createLaunchPlan).toHaveBeenCalledWith(
-			['--dev'],
-			expect.objectContaining({
-				nodeEnv: 'development',
-				runtime: 'bun',
-			}),
-			'app.ts',
-			'dev',
-		);
-	});
-
-	it('rejects dev:hot', async () => {
+	it.each([
+		['the removed dev:hot command', ['dev:hot']],
+		['the removed React fast refresh short flag', ['dev', '-r']],
+		['the removed React fast refresh flag', ['dev', '--react-fast-refresh']],
+		['a positional entry file', ['build', 'server.ts']],
+	])('rejects %s', async (_name, argv) => {
 		const exitSpy = mockProcessExit();
 
-		await expect(runCli(['dev:hot'])).rejects.toThrow('process.exit:1');
-		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
-
-		exitSpy.mockRestore();
-	});
-
-	it('rejects the removed React fast refresh flags', async () => {
-		const exitSpy = mockProcessExit();
-
-		await expect(runCli(['dev', '-r'])).rejects.toThrow('process.exit:1');
-		await expect(runCli(['dev', '--react-fast-refresh'])).rejects.toThrow('process.exit:1');
-		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
-
-		exitSpy.mockRestore();
-	});
-
-	it('rejects positional entry file arguments loudly', async () => {
-		const exitSpy = mockProcessExit();
-
-		await expect(runCli(['build', 'server.ts'])).rejects.toThrow('process.exit:1');
+		await expect(runCli(argv)).rejects.toThrow('process.exit:1');
 		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
 
 		exitSpy.mockRestore();

@@ -1,22 +1,19 @@
 import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
-import { EventEmitter } from 'node:events';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import chokidar from 'chokidar';
 import { ProjectWatcher } from './project-watcher';
 import type { EcoPagesAppConfig } from '../types/internal-types';
 import type { ProcessorWatchConfig } from '../plugins/processor.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
-import { createMockHmrManager, createMockBridge } from './project-watcher.test-helpers';
+import {
+	createMockHmrManager,
+	createMockBridge,
+	installFakeChokidar,
+	subscribeWithFakeChokidar,
+} from './project-watcher.test-helpers';
 
 let testRoot: string;
-
-const createTestDir = (subpath: string): string => {
-	const fullPath = path.join(testRoot, subpath);
-	mkdirSync(fullPath, { recursive: true });
-	return fullPath;
-};
 
 const writeTestFile = (filePath: string, content: string): void => {
 	const dir = path.dirname(filePath);
@@ -31,47 +28,25 @@ const createIntegrationConfig = async (testId: string): Promise<EcoPagesAppConfi
 	return await finalizeEcoPagesConfig({ rootDir });
 };
 
-type FakeFileEvents = EventEmitter & {
-	add: ReturnType<typeof vi.fn>;
-	close: ReturnType<typeof vi.fn>;
-	getWatched: ReturnType<typeof vi.fn>;
-};
-
 describe('ProjectWatcher - Integration Tests', () => {
-	const openWatchers: ProjectWatcher[] = [];
-
-	const startWatcherWithFakeFileEvents = async (
+	const startWatcherWithFakeFileEvents = (
 		config: EcoPagesAppConfig,
 		bridge = createMockBridge(),
 		hmrManager = createMockHmrManager(),
-	) => {
-		const fileEvents: FakeFileEvents = Object.assign(new EventEmitter(), {
-			add: vi.fn(),
-			close: vi.fn(async () => {}),
-			getWatched: vi.fn(() => ({})),
-		});
-		vi.spyOn(chokidar, 'watch').mockImplementation(() => {
-			setTimeout(() => fileEvents.emit('ready'), 0);
-			return fileEvents as never;
-		});
-		const watcher = new ProjectWatcher({
+	) =>
+		subscribeWithFakeChokidar({
 			config,
 			refreshRouterRoutesCallback: vi.fn(async () => {}),
 			hmrManager,
 			bridge,
 			changeDebounceMs: 0,
-		});
-		openWatchers.push(watcher);
-		await watcher.createWatcherSubscription();
-		return { fileEvents, bridge, hmrManager };
-	};
+		}).then(({ emit }) => ({ emit, bridge, hmrManager }));
 
 	beforeEach(() => {
 		testRoot = mkdtempSync(path.join(os.tmpdir(), 'ecopages-integration-test-'));
 	});
 
-	afterEach(async () => {
-		await Promise.all(openWatchers.splice(0).map((watcher) => watcher.close()));
+	afterEach(() => {
 		rmSync(testRoot, { recursive: true, force: true });
 		vi.restoreAllMocks();
 	});
@@ -129,62 +104,62 @@ describe('ProjectWatcher - Integration Tests', () => {
 	describe('Public Directory File Operations', () => {
 		test('copies a file added to the public directory', async () => {
 			const config = await createIntegrationConfig('public-file-add');
-			const { fileEvents } = await startWatcherWithFakeFileEvents(config);
+			const { emit } = await startWatcherWithFakeFileEvents(config);
 			const sourceFile = path.join(config.absolutePaths.publicDir, 'favicon.ico');
 			const destFile = path.join(config.absolutePaths.distDir, 'favicon.ico');
 
 			writeTestFile(sourceFile, 'fake-icon-data');
-			fileEvents.emit('add', sourceFile);
+			await emit('add', sourceFile);
 
 			await vi.waitFor(() => expect(readFileSync(destFile, 'utf-8')).toBe('fake-icon-data'));
 		});
 
 		test('copies a file into the matching subdirectory in dist', async () => {
 			const config = await createIntegrationConfig('public-subdir-add');
-			const { fileEvents } = await startWatcherWithFakeFileEvents(config);
+			const { emit } = await startWatcherWithFakeFileEvents(config);
 			const sourceFile = path.join(config.absolutePaths.publicDir, 'images', 'logo.png');
 			const destFile = path.join(config.absolutePaths.distDir, 'images', 'logo.png');
 
 			writeTestFile(sourceFile, 'fake-png-data');
-			fileEvents.emit('add', sourceFile);
+			await emit('add', sourceFile);
 
 			await vi.waitFor(() => expect(readFileSync(destFile, 'utf-8')).toBe('fake-png-data'));
 		});
 
 		test('updates the dist copy when a public file changes', async () => {
 			const config = await createIntegrationConfig('public-file-update');
-			const { fileEvents } = await startWatcherWithFakeFileEvents(config);
+			const { emit } = await startWatcherWithFakeFileEvents(config);
 			const sourceFile = path.join(config.absolutePaths.publicDir, 'robots.txt');
 			const destFile = path.join(config.absolutePaths.distDir, 'robots.txt');
 
 			writeTestFile(sourceFile, 'User-agent: *\nDisallow: /');
-			fileEvents.emit('add', sourceFile);
+			await emit('add', sourceFile);
 			await vi.waitFor(() => expect(readFileSync(destFile, 'utf-8')).toBe('User-agent: *\nDisallow: /'));
 
 			writeTestFile(sourceFile, 'User-agent: *\nAllow: /');
-			fileEvents.emit('change', sourceFile);
+			await emit('change', sourceFile);
 			await vi.waitFor(() => expect(readFileSync(destFile, 'utf-8')).toBe('User-agent: *\nAllow: /'));
 		});
 
 		test('copies a file from a deeply nested public directory', async () => {
 			const config = await createIntegrationConfig('public-deep-nesting');
-			const { fileEvents } = await startWatcherWithFakeFileEvents(config);
+			const { emit } = await startWatcherWithFakeFileEvents(config);
 			const sourceFile = path.join(config.absolutePaths.publicDir, 'assets', 'fonts', 'woff2', 'font.woff2');
 			const destFile = path.join(config.absolutePaths.distDir, 'assets', 'fonts', 'woff2', 'font.woff2');
 
 			writeTestFile(sourceFile, 'fake-font-binary-data');
-			fileEvents.emit('add', sourceFile);
+			await emit('add', sourceFile);
 
 			await vi.waitFor(() => expect(readFileSync(destFile, 'utf-8')).toBe('fake-font-binary-data'));
 		});
 
 		test('reloads the browser after a public file is copied', async () => {
 			const config = await createIntegrationConfig('public-reload-trigger');
-			const { fileEvents, bridge } = await startWatcherWithFakeFileEvents(config);
+			const { emit, bridge } = await startWatcherWithFakeFileEvents(config);
 			const sourceFile = path.join(config.absolutePaths.publicDir, 'manifest.json');
 
 			writeTestFile(sourceFile, '{"name":"test"}');
-			fileEvents.emit('add', sourceFile);
+			await emit('add', sourceFile);
 
 			await vi.waitFor(() => expect(bridge.reload).toHaveBeenCalledOnce());
 			expect(existsSync(path.join(config.absolutePaths.distDir, 'manifest.json'))).toBe(true);
@@ -192,10 +167,10 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 		test('copies nothing for a public file that no longer exists', async () => {
 			const config = await createIntegrationConfig('public-copy-missing');
-			const { fileEvents, bridge } = await startWatcherWithFakeFileEvents(config);
+			const { emit, bridge } = await startWatcherWithFakeFileEvents(config);
 			const missingFile = path.join(config.absolutePaths.publicDir, 'does-not-exist.txt');
 
-			fileEvents.emit('change', missingFile);
+			await emit('change', missingFile);
 
 			await vi.waitFor(() => expect(bridge.reload).toHaveBeenCalledOnce());
 			expect(existsSync(path.join(config.absolutePaths.distDir, 'does-not-exist.txt'))).toBe(false);
@@ -216,16 +191,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 					onChanges,
 				}),
 			} as never);
-			const watcherEvents = Object.assign(new EventEmitter(), {
-				add: vi.fn(),
-				close: vi.fn(async () => {}),
-				getWatched: vi.fn(() => ({})),
-			});
-			vi.spyOn(chokidar, 'watch').mockImplementation(() => {
-				setTimeout(() => watcherEvents.emit('ready'), 0);
-				return watcherEvents as never;
-			});
-			const watcher = new ProjectWatcher({
+			const { emit } = await subscribeWithFakeChokidar({
 				config,
 				refreshRouterRoutesCallback: vi.fn(async () => {}),
 				hmrManager,
@@ -240,30 +206,17 @@ describe('ProjectWatcher - Integration Tests', () => {
 			writeTestFile(changedPath, 'export const Changed = () => 0;');
 			writeTestFile(deletedPath, '.deleted { color: red; }');
 			writeTestFile(ignoredPath, '# Before');
+			writeTestFile(createdPath, '.created { color: red; }');
+			writeTestFile(changedPath, 'export const Changed = () => 1;');
+			writeTestFile(ignoredPath, '# After');
+			rmSync(deletedPath);
 
-			try {
-				await watcher.createWatcherSubscription();
-				writeTestFile(createdPath, '.created { color: red; }');
-				writeTestFile(changedPath, 'export const Changed = () => 1;');
-				writeTestFile(ignoredPath, '# After');
-				rmSync(deletedPath);
-				watcherEvents.emit('add', createdPath);
-				watcherEvents.emit('change', changedPath);
-				watcherEvents.emit('change', ignoredPath);
-				watcherEvents.emit('unlink', deletedPath);
-				await vi.waitFor(
-					() =>
-						expect(onChanges).toHaveBeenCalledWith({
-							created: [path.resolve(createdPath)],
-							changed: [path.resolve(changedPath)],
-							deleted: [path.resolve(deletedPath)],
-							bridge,
-						}),
-					{ timeout: 2000 },
-				);
-			} finally {
-				await watcher.close();
-			}
+			await Promise.all([
+				emit('add', createdPath),
+				emit('change', changedPath),
+				emit('change', ignoredPath),
+				emit('unlink', deletedPath),
+			]);
 
 			expect(onChanges).toHaveBeenCalledTimes(1);
 			expect(onChanges).toHaveBeenCalledWith({
@@ -278,22 +231,15 @@ describe('ProjectWatcher - Integration Tests', () => {
 			const testId = 'processor-watch-max-wait';
 			const config = await createIntegrationConfig(testId);
 			vi.useFakeTimers();
-			const hmrManager = createMockHmrManager();
 			const bridge = createMockBridge();
 			const onChanges = vi.fn(async () => {});
 			config.processors.set('max-wait-test', {
 				getWatchConfig: () => ({ paths: [], extensions: ['.tsx'], onChanges }),
 			} as never);
-			const watcherEvents = Object.assign(new EventEmitter(), {
-				add: vi.fn(),
-				close: vi.fn(async () => {}),
-				getWatched: vi.fn(() => ({})),
-			});
-			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
-			const watcher = new ProjectWatcher({
+			const { emit } = await subscribeWithFakeChokidar({
 				config,
 				refreshRouterRoutesCallback: vi.fn(async () => {}),
-				hmrManager,
+				hmrManager: createMockHmrManager(),
 				bridge,
 				changeDebounceMs: 150,
 			});
@@ -302,12 +248,8 @@ describe('ProjectWatcher - Integration Tests', () => {
 			);
 
 			try {
-				const subscription = watcher.createWatcherSubscription();
-				watcherEvents.emit('ready');
-				await subscription;
-
 				for (const changedPath of changedPaths) {
-					watcherEvents.emit('change', changedPath);
+					void emit('change', changedPath);
 					await vi.advanceTimersByTimeAsync(100);
 				}
 
@@ -320,13 +262,12 @@ describe('ProjectWatcher - Integration Tests', () => {
 				});
 
 				const nextChangedPath = path.join(config.absolutePaths.srcDir, 'next.tsx');
-				watcherEvents.emit('change', nextChangedPath);
+				void emit('change', nextChangedPath);
 				await vi.advanceTimersByTimeAsync(149);
 				expect(onChanges).toHaveBeenCalledTimes(1);
 				await vi.advanceTimersByTimeAsync(1);
 				expect(onChanges).toHaveBeenCalledTimes(2);
 			} finally {
-				await watcher.close();
 				vi.useRealTimers();
 			}
 		});
@@ -335,8 +276,6 @@ describe('ProjectWatcher - Integration Tests', () => {
 			const testId = 'processor-watch-queued-max-wait';
 			const config = await createIntegrationConfig(testId);
 			vi.useFakeTimers();
-			const hmrManager = createMockHmrManager();
-			const bridge = createMockBridge();
 			const batches: string[][] = [];
 			let releaseFirstBatch: () => void = () => {};
 			const firstBatchGate = new Promise<void>((resolve) => {
@@ -364,39 +303,29 @@ describe('ProjectWatcher - Integration Tests', () => {
 			config.processors.set('queued-max-wait-test', {
 				getWatchConfig: () => ({ paths: [], extensions: ['.tsx'], onChanges }),
 			} as never);
-			const watcherEvents = Object.assign(new EventEmitter(), {
-				add: vi.fn(),
-				close: vi.fn(async () => {}),
-				getWatched: vi.fn(() => ({})),
-			});
-			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
-			const watcher = new ProjectWatcher({
+			const { emit } = await subscribeWithFakeChokidar({
 				config,
 				refreshRouterRoutesCallback: vi.fn(async () => {}),
-				hmrManager,
-				bridge,
+				hmrManager: createMockHmrManager(),
+				bridge: createMockBridge(),
 				changeDebounceMs: 150,
 			});
 			const firstPath = path.join(config.absolutePaths.srcDir, 'first.tsx');
 			const queuedPath = path.join(config.absolutePaths.srcDir, 'queued.tsx');
 
 			try {
-				const subscription = watcher.createWatcherSubscription();
-				watcherEvents.emit('ready');
-				await subscription;
-
-				watcherEvents.emit('change', firstPath);
+				void emit('change', firstPath);
 				await vi.advanceTimersByTimeAsync(150);
 				await firstBatchStarted;
 
-				watcherEvents.emit('change', queuedPath);
+				void emit('change', queuedPath);
 				for (let index = 0; index < 9; index += 1) {
 					await vi.advanceTimersByTimeAsync(100);
-					watcherEvents.emit('change', queuedPath);
+					void emit('change', queuedPath);
 				}
 				await vi.advanceTimersByTimeAsync(100);
 
-				watcherEvents.emit('change', latePath);
+				void emit('change', latePath);
 				await vi.advanceTimersByTimeAsync(150);
 				releaseFirstBatch();
 				await lateBatchProcessed;
@@ -408,7 +337,6 @@ describe('ProjectWatcher - Integration Tests', () => {
 				]);
 			} finally {
 				releaseFirstBatch();
-				await watcher.close();
 				vi.useRealTimers();
 			}
 		});
@@ -417,8 +345,6 @@ describe('ProjectWatcher - Integration Tests', () => {
 			const testId = 'processor-watch-close-queued-restart';
 			const config = await createIntegrationConfig(testId);
 			vi.useFakeTimers();
-			const hmrManager = createMockHmrManager();
-			const bridge = createMockBridge();
 			let releaseFirstBatch: () => void = () => {};
 			const firstBatchGate = new Promise<void>((resolve) => {
 				releaseFirstBatch = resolve;
@@ -434,33 +360,23 @@ describe('ProjectWatcher - Integration Tests', () => {
 			config.processors.set('close-queued-restart-test', {
 				getWatchConfig: () => ({ paths: [], extensions: ['.tsx'], onChanges }),
 			} as never);
-			const watcherEvents = Object.assign(new EventEmitter(), {
-				add: vi.fn(),
-				close: vi.fn(async () => {}),
-				getWatched: vi.fn(() => ({})),
-			});
-			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
 			const onRestartRequest = vi.fn(async () => {});
-			const watcher = new ProjectWatcher({
+			const { emit, watcher } = await subscribeWithFakeChokidar({
 				config,
 				refreshRouterRoutesCallback: vi.fn(async () => {}),
-				hmrManager,
-				bridge,
+				hmrManager: createMockHmrManager(),
+				bridge: createMockBridge(),
 				changeDebounceMs: 150,
 				onRestartRequest,
 			});
 			const firstPath = path.join(config.absolutePaths.srcDir, 'first.tsx');
 
 			try {
-				const subscription = watcher.createWatcherSubscription();
-				watcherEvents.emit('ready');
-				await subscription;
-
-				watcherEvents.emit('change', firstPath);
+				void emit('change', firstPath);
 				await vi.advanceTimersByTimeAsync(150);
 				await firstBatchStarted;
 
-				watcherEvents.emit('change', config.absolutePaths.config);
+				void emit('change', config.absolutePaths.config);
 				await vi.advanceTimersByTimeAsync(150);
 
 				const closePromise = watcher.close();
@@ -471,7 +387,6 @@ describe('ProjectWatcher - Integration Tests', () => {
 				expect(onRestartRequest).not.toHaveBeenCalled();
 			} finally {
 				releaseFirstBatch();
-				await watcher.close();
 				vi.useRealTimers();
 			}
 		});
@@ -480,12 +395,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 			const testId = 'watcher-ready-timeout';
 			const config = await createIntegrationConfig(testId);
 			vi.useFakeTimers();
-			const watcherEvents = Object.assign(new EventEmitter(), {
-				add: vi.fn(),
-				close: vi.fn(async () => {}),
-				getWatched: vi.fn(() => ({})),
-			});
-			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
+			const fake = installFakeChokidar({ ready: 'manual' });
 			const watcher = new ProjectWatcher({
 				config,
 				refreshRouterRoutesCallback: vi.fn(async () => {}),
@@ -500,7 +410,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 				);
 				await vi.advanceTimersByTimeAsync(30_000);
 				await rejection;
-				expect(watcherEvents.close).toHaveBeenCalledOnce();
+				expect(fake.handle.close).toHaveBeenCalledOnce();
 			} finally {
 				await watcher.close();
 				vi.useRealTimers();
@@ -510,12 +420,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 		test('closes the watcher when subscription startup fails', async () => {
 			const testId = 'watcher-ready-error';
 			const config = await createIntegrationConfig(testId);
-			const watcherEvents = Object.assign(new EventEmitter(), {
-				add: vi.fn(),
-				close: vi.fn(async () => {}),
-				getWatched: vi.fn(() => ({})),
-			});
-			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
+			const fake = installFakeChokidar({ ready: 'manual' });
 			const watcher = new ProjectWatcher({
 				config,
 				refreshRouterRoutesCallback: vi.fn(async () => {}),
@@ -525,21 +430,16 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			const subscription = watcher.createWatcherSubscription();
 			const rejection = expect(subscription).rejects.toThrow('watcher startup failed');
-			watcherEvents.emit('error', new Error('watcher startup failed'));
+			await fake.emit('error', new Error('watcher startup failed'));
 			await rejection;
 
-			expect(watcherEvents.close).toHaveBeenCalledOnce();
+			expect(fake.handle.close).toHaveBeenCalledOnce();
 		});
 
 		test('rejects watcher startup when it is closed before ready', async () => {
 			const testId = 'watcher-close-before-ready';
 			const config = await createIntegrationConfig(testId);
-			const watcherEvents = Object.assign(new EventEmitter(), {
-				add: vi.fn(),
-				close: vi.fn(async () => {}),
-				getWatched: vi.fn(() => ({})),
-			});
-			vi.spyOn(chokidar, 'watch').mockImplementation(() => watcherEvents as never);
+			const fake = installFakeChokidar({ ready: 'manual' });
 			const watcher = new ProjectWatcher({
 				config,
 				refreshRouterRoutesCallback: vi.fn(async () => {}),
@@ -552,61 +452,17 @@ describe('ProjectWatcher - Integration Tests', () => {
 			await watcher.close();
 			await rejection;
 
-			expect(watcherEvents.close).toHaveBeenCalledOnce();
-		});
-
-		test('should handle public file through handleFileChange', async () => {
-			const testId = 'handle-public-change';
-			const config = await createIntegrationConfig(testId);
-			const hmrManager = createMockHmrManager();
-			const bridge = createMockBridge();
-
-			createTestDir(path.join(testId, 'src', 'public'));
-			createTestDir(path.join(testId, 'dist'));
-
-			const watcher = new ProjectWatcher({
-				config,
-				refreshRouterRoutesCallback: vi.fn(async () => {}),
-				hmrManager,
-				bridge,
-				changeDebounceMs: 0,
-			});
-
-			const sourceFile = path.join(config.absolutePaths.publicDir, 'sitemap.xml');
-			const destFile = path.join(config.absolutePaths.distDir, 'sitemap.xml');
-
-			writeTestFile(sourceFile, '<urlset></urlset>');
-
-			await (watcher as any).handleFileChange(sourceFile);
-
-			expect(existsSync(destFile)).toBe(true);
-			expect(bridge.reload).toHaveBeenCalled();
-			expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(fake.handle.close).toHaveBeenCalledOnce();
 		});
 
 		test('should not copy non-public files', async () => {
-			const testId = 'non-public-no-copy';
-			const config = await createIntegrationConfig(testId);
-			const hmrManager = createMockHmrManager();
-			const bridge = createMockBridge();
-
-			createTestDir(path.join(testId, 'src', 'components'));
-			createTestDir(path.join(testId, 'dist'));
-
-			const watcher = new ProjectWatcher({
-				config,
-				refreshRouterRoutesCallback: vi.fn(async () => {}),
-				hmrManager,
-				bridge,
-				changeDebounceMs: 0,
-			});
-
+			const config = await createIntegrationConfig('non-public-no-copy');
+			const { emit, bridge, hmrManager } = await startWatcherWithFakeFileEvents(config);
 			const sourceFile = path.join(config.absolutePaths.srcDir, 'components', 'Button.tsx');
 			const wouldBeDestFile = path.join(config.absolutePaths.distDir, 'components', 'Button.tsx');
 
 			writeTestFile(sourceFile, 'export const Button = () => {}');
-
-			await (watcher as any).handleFileChange(sourceFile);
+			await emit('change', sourceFile);
 
 			expect(existsSync(wouldBeDestFile)).toBe(false);
 			expect(hmrManager.handleFileChanges).toHaveBeenCalledWith([path.resolve(sourceFile)], { broadcast: true });
@@ -617,7 +473,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 	describe('Multiple File Operations', () => {
 		test('copies public files added one after another and reloads for each', async () => {
 			const config = await createIntegrationConfig('multiple-sequential');
-			const { fileEvents, bridge } = await startWatcherWithFakeFileEvents(config);
+			const { emit, bridge } = await startWatcherWithFakeFileEvents(config);
 
 			const files = ['file1.txt', 'file2.txt', 'file3.txt'];
 			for (const [index, filename] of files.entries()) {
@@ -625,7 +481,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 				const destFile = path.join(config.absolutePaths.distDir, filename);
 
 				writeTestFile(sourceFile, `content-of-${filename}`);
-				fileEvents.emit('add', sourceFile);
+				await emit('add', sourceFile);
 
 				await vi.waitFor(() => expect(readFileSync(destFile, 'utf-8')).toBe(`content-of-${filename}`));
 				await vi.waitFor(() => expect(bridge.reload).toHaveBeenCalledTimes(index + 1));
@@ -634,7 +490,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 		test('copies public files of mixed types', async () => {
 			const config = await createIntegrationConfig('mixed-file-types');
-			const { fileEvents } = await startWatcherWithFakeFileEvents(config);
+			const { emit } = await startWatcherWithFakeFileEvents(config);
 
 			const files = {
 				'robots.txt': 'User-agent: *',
@@ -648,7 +504,7 @@ describe('ProjectWatcher - Integration Tests', () => {
 				const destFile = path.join(config.absolutePaths.distDir, filename);
 
 				writeTestFile(sourceFile, content);
-				fileEvents.emit('add', sourceFile);
+				await emit('add', sourceFile);
 
 				await vi.waitFor(() => expect(readFileSync(destFile, 'utf-8')).toBe(content));
 			}
@@ -668,12 +524,12 @@ describe('ProjectWatcher - Integration Tests', () => {
 					onChanges,
 				})),
 			} as never);
-			const { fileEvents, bridge, hmrManager } = await startWatcherWithFakeFileEvents(config);
+			const { emit, bridge, hmrManager } = await startWatcherWithFakeFileEvents(config);
 
 			const mdxPath = path.join(config.absolutePaths.srcDir, 'content', 'docs', 'intro.mdx');
 			writeTestFile(mdxPath, '---\ntitle: Intro\n---\n# Intro\n');
 
-			fileEvents.emit('change', mdxPath);
+			await emit('change', mdxPath);
 
 			await vi.waitFor(() => expect(hmrManager.handleFileChanges).toHaveBeenCalledOnce());
 			expect(onChanges).toHaveBeenCalledWith({

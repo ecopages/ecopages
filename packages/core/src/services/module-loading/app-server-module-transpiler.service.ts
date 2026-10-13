@@ -1,4 +1,4 @@
-import { requireBuildRuntime } from '../../build/runtime/build-runtime.ts';
+import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { AppModuleLoader } from './app-module-loader.service.ts';
 import { PageModuleImportService, type PageModuleBuildImportOptions } from './page-module-import.service.ts';
@@ -21,11 +21,14 @@ export function createAppModuleLoader(appConfig: EcoPagesAppConfig): AppModuleLo
 		async importModule<T = unknown>(options: PageModuleBuildImportOptions) {
 			return await pageModuleImportService.importModule<T>({
 				...options,
-				buildExecutor: options.buildExecutor ?? requireBuildRuntime(appConfig).getProfile('route-module'),
+				buildExecutor: options.buildExecutor ?? requireBuildQueue(appConfig),
 			});
 		},
 		invalidateDevelopmentGraph() {
 			pageModuleImportService.invalidateDevelopmentGraph();
+		},
+		getDevelopmentGeneration() {
+			return pageModuleImportService.getDevelopmentGeneration();
 		},
 	};
 

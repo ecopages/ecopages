@@ -9,6 +9,7 @@ import type {
 	HtmlTemplateProps,
 } from '../../../types/public-types.ts';
 import { runWithComponentRenderContext } from './component-render-context.ts';
+import { toForeignSubtreeRenderPayload } from './foreign-subtree-execution.service.ts';
 import { IntegrationRenderer } from '../integration-renderer.ts';
 import { StringMarkupRenderer } from '../string-markup-renderer.ts';
 import {
@@ -42,10 +43,12 @@ describe('renderer foreign-child delegation', () => {
 			],
 		};
 
-		const payload = await renderer.testRenderForeignSubtree({
-			component: (() => '<main>Hello</main>') as EcoComponent<Record<string, unknown>>,
-			props: {},
-		});
+		const payload = toForeignSubtreeRenderPayload(
+			await renderer.renderComponentWithForeignChildren({
+				component: (() => '<main>Hello</main>') as EcoComponent<Record<string, unknown>>,
+				props: {},
+			}),
+		);
 
 		expect(payload).toEqual<ForeignSubtreeRenderPayload>({
 			html: '<main data-root="true">Hello</main>',
@@ -62,36 +65,6 @@ describe('renderer foreign-child delegation', () => {
 			attachmentPolicy: { kind: 'first-element' },
 			integrationName: 'test-renderer',
 		});
-	});
-
-	it('should resolve foreign-owned boundaries in the owning renderer', () => {
-		const renderer = new TestIntegrationRenderer({
-			appConfig: testAppConfig,
-			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
-		});
-
-		const result = renderer.testShouldDelegateForeignChild({
-			currentIntegration: 'string',
-			targetIntegration: 'react',
-		});
-
-		expect(result).toBe(true);
-	});
-
-	it('should keep same-integration boundaries in the current render pass', () => {
-		const renderer = new TestIntegrationRenderer({
-			appConfig: testAppConfig,
-			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
-		});
-
-		const result = renderer.testShouldDelegateForeignChild({
-			currentIntegration: 'react',
-			targetIntegration: 'react',
-		});
-
-		expect(result).toBe(false);
 	});
 
 	it('should delegate foreign component boundaries through the shared execution seam', async () => {

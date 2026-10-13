@@ -4,10 +4,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'vitest';
 import { type BuildExecutor, setAppBuildAdapter, setAppBuildManifest } from '../../build/build-adapter.ts';
-import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
+import { installBuildQueue } from '../../build/runtime/build-queue.ts';
+import { createAppBuildManifest } from '../../build/contracts/build-manifest.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
 import type { EcoPagesElement } from '../../types/public-types.ts';
 import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
+import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 
 describe('app server module transpiler runtime state', () => {
 	it('compiles Bun-owned Kita modules to string render functions during app module imports', async () => {
@@ -159,7 +161,12 @@ describe('app server module transpiler runtime state', () => {
 
 		const observedPlugins: string[][] = [];
 		const buildExecutor: BuildExecutor = {
-			build: async (options: { outdir?: string; naming?: string; plugins?: Array<{ name: string }> }) => {
+			build: async (options: {
+				outdir?: string;
+				naming?: string;
+				plugins?: Array<{ name: string }>;
+				entrypoints: string[] | Record<string, string>;
+			}) => {
 				observedPlugins.push((options.plugins ?? []).map((plugin) => plugin.name));
 				const naming = String(options.naming ?? 'index.[ext]');
 				const compiledOutputPath = path.join(String(options.outdir), naming.replace('[ext]', 'mjs'));
@@ -167,11 +174,10 @@ describe('app server module transpiler runtime state', () => {
 				fs.mkdirSync(path.dirname(compiledOutputPath), { recursive: true });
 				fs.writeFileSync(compiledOutputPath, 'export default { ok: true };', 'utf8');
 
-				return {
-					success: true,
-					logs: [],
+				return createBuildSuccess({
 					outputs: [{ path: compiledOutputPath }],
-				};
+					entryOutputs: { [Object.values(options.entrypoints)[0]!]: compiledOutputPath },
+				});
 			},
 		};
 
@@ -191,10 +197,10 @@ describe('app server module transpiler runtime state', () => {
 			runtime: {},
 		} as any;
 
-		setAppBuildManifest(appConfig, {
-			plugins: [{ name: 'react-mdx-loader', setup() {} }],
-			browserRuntimeManifest: { assets: [], bySpecifier: new Map() },
-		});
+		setAppBuildManifest(
+			appConfig,
+			createAppBuildManifest([{ plugin: { name: 'react-mdx-loader', setup() {} }, source: 'test' }]),
+		);
 
 		try {
 			await getAppModuleLoader(appConfig).importModule({
@@ -236,12 +242,9 @@ describe('app server module transpiler runtime state', () => {
 		} as any;
 
 		setAppBuildAdapter(appConfig, new RolldownBuildAdapter());
-		setAppBuildManifest(appConfig, {
-			plugins: [],
-			browserRuntimeManifest: { assets: [], bySpecifier: new Map() },
-		});
-		installBuildRuntime(appConfig);
-		const routeModuleExecutor = appConfig.runtime.buildRuntime.getProfile('route-module');
+		setAppBuildManifest(appConfig, createAppBuildManifest([]));
+		installBuildQueue(appConfig);
+		const routeModuleExecutor = appConfig.runtime.buildQueue;
 		const originalBuild = routeModuleExecutor.build.bind(routeModuleExecutor);
 		routeModuleExecutor.build = async (options: Parameters<BuildExecutor['build']>[0]) => {
 			observedExecutors.push(routeModuleExecutor);

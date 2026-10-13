@@ -24,13 +24,13 @@ Every server import goes through the Ecopages build pipeline. HTML Pages can sti
 
 Source dependency hashes use the adapter's entry module closure and plugin-recorded inputs, including inlined and tree-shaken imports. Each server route module registers those paths in the shared build-input index, including when a cached module is loaded. HTML cache entries include the route's registered closure. Compiled artifact checks use the emitted chunk graph, including static and dynamic chunks and local external generated modules as leaves. The cache store receives this reachable artifact list from its build caller and never reparses emitted JavaScript.
 
-1. **In-memory promise cache** (`PageModuleImportService.importCache`) — keyed by file path, content-derived reuse identity (`createRouteModuleReuseIdentity`), and source hash. Cleared by `invalidateDevelopmentGraph()`.
+1. **In-memory promise cache** (`PageModuleImportService.importCache`) — keyed by file path, content-derived reuse identity (`createRouteModuleReuseIdentity`), and source hash. A hit does not re-hash the module's dependencies; it is cleared by `invalidateDevelopmentGraph()`, which the watcher batch calls for every edit to a recorded server module closure.
 2. **In-process transpile cache** (`RouteModuleBuildCache`) — production and development graphs in this process when dependency hashes match. The build key includes a hash of the config module and the project files it imports, so plugin options defined there invalidate entries even though plugin identity cannot see them. An entry is also reused only while every local file its compiled output imports still exists. Entries live in memory only; a later process compiles from source. Development invalidation clears them once per `applyDevFileChanges` batch.
 3. **Unified graph** — production static export fast path only, in this process; see build layer docs. Reuse also requires matching source-file hashes and an exact match against the active template route set, so a deleted or edited layout or component cannot keep serving its compiled chunk.
 
 Development import URLs use `sourceHash` plus a per-service import generation counter in the `?update=` query. The compiled output filename includes that generation on every runtime, because Bun retains a previously imported file when only its query changes. Both advance after `invalidateDevelopmentGraph()` without a process-wide invalidation version in reuse keys.
 
-Compiled collection server modules also include the app-owned server invalidation version in their output filename (`<collection>-<buildIdentity>-<invalidationVersion>.mjs`) so Node's ESM loader treats recompiled bundles as new modules after co-located helper files change.
+Compiled collection server modules also include the development generation in their output filename (`<collection>-<buildIdentity>-<generation>.mjs`) so Node's ESM loader treats recompiled bundles as new modules after co-located helper files change. A cached collection build is reused only while the generation is unchanged, so invalidation does not clear collection artifacts separately.
 
 ## Files
 
@@ -49,4 +49,4 @@ Compiled collection server modules also include the app-owned server invalidatio
 
 ## Development invalidation
 
-`DevelopmentInvalidationService.invalidateServerModules()` calls `appModuleLoader.invalidateDevelopmentGraph()`, which clears the in-memory import cache, bumps the per-service dev import generation used for runtime URLs and compiled output filenames, and clears dependency-hash memoization. It also clears the in-process route-module entries: externalized generated modules can change without appearing in a route bundle's dependency graph, so retaining those entries could reload stale server HTML.
+`DevelopmentInvalidationService.invalidateServerModules()` calls `appModuleLoader.invalidateDevelopmentGraph()`, which clears the in-memory import cache, bumps the development generation (`appModuleLoader.getDevelopmentGeneration()`), the one counter of "server source changed", which runtime URLs, compiled output filenames, collection builds and the Lit render worker compare. It also clears the in-process route-module entries: externalized generated modules can change without appearing in a route bundle's dependency graph, so retaining those entries could reload stale server HTML.

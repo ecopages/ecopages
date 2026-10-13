@@ -1,12 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { parseDevToolbarPlacement, readDevToolbarPreferences } from './preferences.ts';
 
 describe('parseDevToolbarPlacement', () => {
-	it('accepts all supported placements', () => {
-		expect(parseDevToolbarPlacement('top')).toBe('top');
-		expect(parseDevToolbarPlacement('bottom')).toBe('bottom');
-		expect(parseDevToolbarPlacement('left')).toBe('left');
-		expect(parseDevToolbarPlacement('right')).toBe('right');
+	it.each(['top', 'bottom', 'left', 'right'])('accepts the %s placement', (placement) => {
+		expect(parseDevToolbarPlacement(placement)).toBe(placement);
 	});
 
 	it('falls back to bottom for unknown values', () => {
@@ -17,25 +14,8 @@ describe('parseDevToolbarPlacement', () => {
 
 describe('readDevToolbarPreferences', () => {
 	it('defaults stealth to enabled', () => {
-		const storage = new Map<string, string>();
-		const original = globalThis.localStorage;
-		Object.defineProperty(globalThis, 'localStorage', {
-			configurable: true,
-			value: {
-				getItem: (key: string) => storage.get(key) ?? null,
-				setItem: (key: string, value: string) => {
-					storage.set(key, value);
-				},
-			},
-		});
+		vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {} });
 
-		try {
-			expect(readDevToolbarPreferences().stealth).toBe(true);
-		} finally {
-			Object.defineProperty(globalThis, 'localStorage', {
-				configurable: true,
-				value: original,
-			});
-		}
+		expect(readDevToolbarPreferences().stealth).toBe(true);
 	});
 });

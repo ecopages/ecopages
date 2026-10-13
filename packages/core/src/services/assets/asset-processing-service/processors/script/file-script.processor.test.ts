@@ -5,6 +5,7 @@ import { FileScriptProcessor } from './file-script.processor';
 import { BrowserBundleService } from '../../../browser-bundle.service.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../../../types/internal-types';
 import type { FileScriptAsset } from '../../assets.types';
+import { createBuildFailure, createBuildSuccess } from '../../../../../__fixtures__/build/build-result.ts';
 
 const originalReadFileSync = fileSystem.readFileSync;
 const originalCopyFile = fileSystem.copyFile;
@@ -424,17 +425,19 @@ describe('FileScriptProcessor', () => {
 			const entrypoint = '/test/project/src/pages/index.tsx';
 			const helper = '/test/project/src/lib/posts.ts';
 			const pluginInput = '/test/project/data/posts.json';
-			vi.spyOn(BrowserBundleService.prototype, 'bundle').mockResolvedValue({
-				success: true,
-				logs: [],
-				outputs: [{ path: '/tmp/index.js' }],
-				loadedInputs: [pluginInput],
-				dependencyGraph: {
-					entrypoints: {
-						[entrypoint]: [entrypoint, helper],
+			vi.spyOn(BrowserBundleService.prototype, 'bundle').mockResolvedValue(
+				createBuildSuccess({
+					outputs: [{ path: '/tmp/index.js' }],
+					entryOutputs: { [entrypoint]: '/tmp/index.js' },
+					loadedInputs: [pluginInput],
+					loadedInputsByModule: { [entrypoint]: [pluginInput] },
+					dependencyGraph: {
+						entrypoints: {
+							[entrypoint]: [entrypoint, helper],
+						},
 					},
-				},
-			});
+				}),
+			);
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 
 			const result = await processor.process({
@@ -445,6 +448,38 @@ describe('FileScriptProcessor', () => {
 			});
 
 			expect(result.bundledSourceFilepaths).toEqual([entrypoint, helper, pluginInput]);
+		});
+
+		test('throws the formatted logs of a failed bundle, with plugin and file', async () => {
+			const entrypoint = '/test/project/src/pages/index.tsx';
+			vi.spyOn(BrowserBundleService.prototype, 'bundle').mockResolvedValue(
+				createBuildFailure([{ message: 'no loader', plugin: 'eco-loader', id: entrypoint }]),
+			);
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+
+			await expect(
+				processor.process({ kind: 'script', source: 'file', filepath: entrypoint, bundle: true }),
+			).rejects.toThrow(`Could not bundle ${entrypoint}:\n[eco-loader] ${entrypoint}: no loader`);
+		});
+
+		test('uses the output the build recorded for the entry, not another emitted file', async () => {
+			const entrypoint = '/test/project/src/pages/index.tsx';
+			vi.spyOn(BrowserBundleService.prototype, 'bundle').mockResolvedValue(
+				createBuildSuccess({
+					outputs: [{ path: '/tmp/chunk-1.js' }, { path: '/tmp/index-abc123.js' }],
+					entryOutputs: { [entrypoint]: '/tmp/index-abc123.js' },
+				}),
+			);
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+
+			const result = await processor.process({
+				kind: 'script',
+				source: 'file',
+				filepath: entrypoint,
+				bundle: true,
+			});
+
+			expect(result.filepath).toBe('/tmp/index-abc123.js');
 		});
 
 		test('should disable splitting for page-owned script bundles by default', async () => {

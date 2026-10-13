@@ -1,4 +1,3 @@
-import type { RolldownLog } from 'rolldown';
 import type { EcoBuildPlugin } from './build-types.ts';
 
 /** The bundler that owns the app's build pipeline. */
@@ -26,21 +25,32 @@ export interface BuildDependencyGraph {
 	entrypoints: Record<string, string[]>;
 }
 
-/** The full result of one `BuildAdapter.build` call. */
-export interface BuildResult {
-	success: boolean;
-	/**
-	 * Errors of a failed build, in Rolldown's log shape (`code`, `plugin`, `hook`, `id`, `loc`, `frame`, `stack`).
-	 *
-	 * @remarks
-	 * `plugin` names the `EcoBuildPlugin` that threw, not the bridge plugin that hosts it.
-	 */
-	logs: RolldownLog[];
-	/** Warnings reported by the bundler during a successful build. */
-	warnings?: RolldownLog[];
+/**
+ * One error or warning of a build.
+ *
+ * @remarks
+ * `plugin` names the `EcoBuildPlugin` that threw, not the bridge plugin that hosts it. Terminal colour codes
+ * are stripped from `message` and `frame`.
+ */
+export interface BuildLog {
+	message: string;
+	code?: string;
+	plugin?: string;
+	hook?: string;
+	id?: string;
+	loc?: { file?: string; line: number; column: number };
+	frame?: string;
+	stack?: string;
+}
+
+/** The result of a build that produced its outputs. */
+export interface BuildSuccess {
+	success: true;
 	outputs: BuildOutput[];
+	/** Warnings reported by the bundler. */
+	warnings: BuildLog[];
 	/** Absolute filesystem paths recorded by plugin load hooks during this build. */
-	loadedInputs?: string[];
+	loadedInputs: string[];
 	/**
 	 * Filesystem inputs recorded by each plugin-loaded module in this build.
 	 *
@@ -49,16 +59,26 @@ export interface BuildResult {
 	 * own entry closure, including when one entry's plugin explicitly reads a
 	 * file that another entry loads as a source module.
 	 */
-	loadedInputsByModule?: Record<string, string[]>;
-	dependencyGraph?: BuildDependencyGraph;
+	loadedInputsByModule: Record<string, string[]>;
+	dependencyGraph: BuildDependencyGraph;
 	/**
 	 * Emitted absolute output paths keyed by the entry path or name the caller
 	 * passed, plus the bundler's facade path when that spelling differs.
 	 */
-	entryOutputs?: Record<string, string>;
+	entryOutputs: Record<string, string>;
 	/** All emitted chunks keyed by absolute output path; local external edges remain leaves. */
-	outputGraph?: Record<string, BuildChunk>;
+	outputGraph: Record<string, BuildChunk>;
 }
+
+/** The result of a build that failed: it emitted nothing and says why. */
+export interface BuildFailure {
+	success: false;
+	/** The errors of the build. */
+	logs: BuildLog[];
+}
+
+/** The full result of one `BuildAdapter.build` call. */
+export type BuildResult = BuildSuccess | BuildFailure;
 
 export interface BuildChunk {
 	fileName: string;
@@ -154,7 +174,6 @@ export interface BuildAdapter {
 	readonly ownership?: BuildOwnership;
 	build(options: BuildOptions): Promise<BuildResult>;
 	resolve(importPath: string, rootDir: string): string;
-	getTranspileOptions(environment: BuildEnvironment): BuildTranspileOptions;
 }
 
 /** Runtime-facing facade for issuing builds. */

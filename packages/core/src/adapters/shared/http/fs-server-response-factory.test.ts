@@ -31,30 +31,18 @@ describe('FileSystemServerResponseFactory', () => {
 	});
 
 	describe('shouldEnableGzip', () => {
-		it('should return false in watch mode', () => {
-			const responseFactoryWatch = new FileSystemServerResponseFactory({
-				options: {
-					watchMode: true,
-				},
-			});
-
-			const result = responseFactoryWatch.shouldEnableGzip('text/javascript');
-			expect(result).toBe(false);
+		it.each([
+			{ contentType: 'text/javascript', enabled: true },
+			{ contentType: 'text/css', enabled: true },
+			{ contentType: 'application/json', enabled: false },
+		])('returns $enabled for $contentType', ({ contentType, enabled }) => {
+			expect(responseFactory.shouldEnableGzip(contentType)).toBe(enabled);
 		});
 
-		it('should return true for text/javascript content type', () => {
-			const result = responseFactory.shouldEnableGzip('text/javascript');
-			expect(result).toBe(true);
-		});
+		it('returns false in watch mode', () => {
+			const responseFactoryWatch = new FileSystemServerResponseFactory({ options: { watchMode: true } });
 
-		it('should return true for text/css content type', () => {
-			const result = responseFactory.shouldEnableGzip('text/css');
-			expect(result).toBe(true);
-		});
-
-		it('should return false for other content types', () => {
-			const result = responseFactory.shouldEnableGzip('application/json');
-			expect(result).toBe(false);
+			expect(responseFactoryWatch.shouldEnableGzip('text/javascript')).toBe(false);
 		});
 	});
 
@@ -69,22 +57,13 @@ describe('FileSystemServerResponseFactory', () => {
 	});
 
 	describe('createHtmlErrorResponse', () => {
-		it('should create an html 404 response from a rendered body', async () => {
-			const response = await responseFactory.createHtmlErrorResponse(404, '<h1>404 - Page Not Found</h1>');
-			const body = await response.text();
-			expect(body).toContain('<h1>404 - Page Not Found</h1>');
-			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
-			expect(response.status).toBe(404);
-			expect(response.statusText).toBe(STATUS_MESSAGE[404]);
-		});
+		it.each([404, 500] as const)('creates an html %i response from a rendered body', async (status) => {
+			const response = await responseFactory.createHtmlErrorResponse(status, `<h1>${status}</h1>`);
 
-		it('should create an html 500 response from a rendered body', async () => {
-			const response = await responseFactory.createHtmlErrorResponse(500, '<h1>500 - Internal Server Error</h1>');
-			const body = await response.text();
-			expect(body).toContain('<h1>500 - Internal Server Error</h1>');
+			expect(await response.text()).toContain(`<h1>${status}</h1>`);
 			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
-			expect(response.status).toBe(500);
-			expect(response.statusText).toBe(STATUS_MESSAGE[500]);
+			expect(response.status).toBe(status);
+			expect(response.statusText).toBe(STATUS_MESSAGE[status]);
 		});
 
 		it('should keep a non-factory status on the response envelope', async () => {

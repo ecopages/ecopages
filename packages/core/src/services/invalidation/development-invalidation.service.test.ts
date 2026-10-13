@@ -10,10 +10,7 @@ import {
 	type DevelopmentInvalidationPlan,
 	type DevelopmentInvalidationPlanningContext,
 } from './development-invalidation.service.ts';
-import {
-	CounterServerInvalidationState,
-	setAppServerInvalidationState,
-} from '../runtime-state/server-invalidation-state.service.ts';
+import { getAppModuleLoader } from '../module-loading/app-server-module-transpiler.service.ts';
 import {
 	getServerModuleBuildCacheOutdir,
 	getSharedRouteModuleBuildCache,
@@ -370,25 +367,48 @@ describe('DevelopmentInvalidationService', () => {
 		expect(service.matchesAdditionalWatchPaths('/test/project/.github/workflows/ci.yml')).toBe(true);
 	});
 
-	it('delegates server invalidation versioning to the app-owned invalidation state', async () => {
+	it('advances the app module loader development generation once per invalidation', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
-		const invalidationState = new CounterServerInvalidationState();
-		setAppServerInvalidationState(appConfig, invalidationState);
-		const invalidateDevelopmentGraph = vi.fn(() => {});
-		appConfig.runtime = {
-			...(appConfig.runtime ?? {}),
-			appModuleLoader: {
-				importModule: async <T = unknown>() => ({}) as T,
-				invalidateDevelopmentGraph,
-			},
-		};
+		const moduleLoader = getAppModuleLoader(appConfig);
 		const service = new DevelopmentInvalidationService(appConfig);
 
-		expect(invalidationState.getServerInvalidationVersion()).toBe(0);
+		expect(moduleLoader.getDevelopmentGeneration()).toBe(0);
 
-		service.invalidateServerModules(['/test/project/src/components/Button.tsx']);
-		expect(invalidationState.getServerInvalidationVersion()).toBe(1);
-		expect(invalidateDevelopmentGraph).toHaveBeenCalledTimes(1);
+		service.invalidateServerModules();
+		expect(moduleLoader.getDevelopmentGeneration()).toBe(1);
+	});
+
+	it('invalidates server modules for a public file or processor-owned asset a route module read', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		appConfig.processors.set('css', new StylesheetProcessor());
+		const service = new DevelopmentInvalidationService(appConfig);
+		const publicFile = path.join(appConfig.absolutePaths.publicDir, 'data.json');
+		const stylesheet = path.join(appConfig.absolutePaths.srcDir, 'styles/main.css');
+		const unreadStylesheet = path.join(appConfig.absolutePaths.srcDir, 'styles/other.css');
+		getAppBuildInputIndex(appConfig).register({ consumer: 'server-route-module', key: '/test/project/page.tsx' }, [
+			publicFile,
+			stylesheet,
+		]);
+
+		expect(service.planFileChange(publicFile)).toMatchObject({
+			category: 'public-asset',
+			invalidateServerModules: true,
+			reloadBrowser: true,
+		});
+		expect(service.planFileChange(stylesheet)).toMatchObject({
+			category: 'processor-owned-asset',
+			invalidateServerModules: true,
+			processorHandledAsset: true,
+			delegateToHmr: false,
+		});
+		expect(service.planFileChange(unreadStylesheet).invalidateServerModules).toBe(false);
+
+		const moduleLoader = getAppModuleLoader(appConfig);
+		await service.applyDevFileChanges({ changed: [stylesheet], created: [], deleted: [] });
+		expect(moduleLoader.getDevelopmentGeneration()).toBe(1);
+
+		await service.applyDevFileChanges({ changed: [unreadStylesheet], created: [], deleted: [] });
+		expect(moduleLoader.getDevelopmentGeneration()).toBe(1);
 	});
 
 	it('clears in-process route-module entries before a route imports them', async () => {
@@ -424,7 +444,7 @@ describe('DevelopmentInvalidationService', () => {
 				}),
 			).toMatchObject({ outputPath });
 
-			service.invalidateServerModules([path.join(rootDir, 'src/content/docs/intro.mdx')]);
+			service.invalidateServerModules();
 			expect(
 				cache.lookup({
 					filePath,
@@ -502,8 +522,7 @@ describe('DevelopmentInvalidationService', () => {
 
 		try {
 			appConfig = await finalizeEcoPagesConfig({ rootDir });
-			const invalidationState = new CounterServerInvalidationState();
-			setAppServerInvalidationState(appConfig, invalidationState);
+			const moduleLoader = getAppModuleLoader(appConfig);
 			const outdir = getServerModuleBuildCacheOutdir(appConfig);
 			mkdirSync(outdir, { recursive: true });
 			const cache = new RouteModuleBuildCache();
@@ -535,7 +554,7 @@ describe('DevelopmentInvalidationService', () => {
 
 			await service.applyDevFileChanges({ changed, created: [], deleted: [] });
 
-			expect(invalidationState.getServerInvalidationVersion()).toBe(1);
+			expect(moduleLoader.getDevelopmentGeneration()).toBe(1);
 			expect(clearEntries).toHaveBeenCalledTimes(1);
 			expect(invalidateHtml).toHaveBeenCalledTimes(1);
 			expect(invalidateHtml.mock.calls[0]?.[0]).toHaveLength(50);
@@ -549,19 +568,12 @@ describe('DevelopmentInvalidationService', () => {
 
 	it('plans created and deleted pages in one batch without rebuilding them', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
-		const invalidationState = new CounterServerInvalidationState();
-		setAppServerInvalidationState(appConfig, invalidationState);
+		const moduleLoader = getAppModuleLoader(appConfig);
 		let imported = false;
-		appConfig.runtime = {
-			...(appConfig.runtime ?? {}),
-			appModuleLoader: {
-				importModule: async <T = unknown>() => {
-					imported = true;
-					return {} as T;
-				},
-				invalidateDevelopmentGraph: vi.fn(() => {}),
-			},
-		};
+		vi.spyOn(moduleLoader, 'importModule').mockImplementation(async <T = unknown>() => {
+			imported = true;
+			return {} as T;
+		});
 		const service = new DevelopmentInvalidationService(appConfig);
 		const created = '/test/project/src/pages/new-page.tsx';
 		const deleted = '/test/project/src/pages/old-page.tsx';
@@ -574,7 +586,7 @@ describe('DevelopmentInvalidationService', () => {
 
 		expect(applied.refreshRoutes).toBe(true);
 		expect(applied.files).toHaveLength(2);
-		expect(invalidationState.getServerInvalidationVersion()).toBe(1);
+		expect(moduleLoader.getDevelopmentGeneration()).toBe(1);
 		expect(imported).toBe(false);
 	});
 

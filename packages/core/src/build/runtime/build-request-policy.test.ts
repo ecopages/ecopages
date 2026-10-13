@@ -1,13 +1,22 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { test } from 'vitest';
 import { createAppBuildManifest } from '../contracts/build-manifest.ts';
 import {
 	createBrowserBuildRequest,
 	createServerBuildRequest,
 	mergeCallerBuildPlugins,
-	resolveServerAppBuildPlugins,
+	resolveAppBuildPlugins,
+	resolveBuildPluginOrder,
 } from './build-request-policy.ts';
 import { setAppBuildManifest } from '../build-adapter.ts';
+import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
+import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
+import { RolldownBuildAdapter } from '../rolldown/rolldown-build-adapter.ts';
+import { assertBuildSucceeded } from '../build-log.ts';
+import { getAppSourceTransforms } from '../../plugins/source-transform.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 
@@ -27,9 +36,7 @@ function createAppConfig(): EcoPagesAppConfig {
 
 	setAppBuildManifest(
 		appConfig,
-		createAppBuildManifest({
-			plugins: [appPlugin, browserPlugin],
-		}),
+		createAppBuildManifest([appPlugin, browserPlugin].map((plugin) => ({ plugin, source: plugin.name }))),
 	);
 
 	return appConfig;
@@ -68,13 +75,13 @@ test('createServerBuildRequest includes app server plugins and jsx ownership', (
 	assert.ok(request.plugins?.some((plugin) => plugin.name === 'caller-plugin'));
 	assert.equal(request.plugins?.[0]?.name, 'caller-plugin');
 	assert.equal(request.environment, 'server');
-	assert.equal(request.target, 'es2022');
+	assert.equal(request.target, 'node');
 	assert.ok(request.plugins?.some((plugin) => plugin.name === 'preserve-import-meta-for-server-output'));
 });
 
 test('createServerBuildRequest keeps import.meta at the source for the directory the output runs from', async () => {
 	const appConfig = createAppConfig();
-	const transformFor = async (input: { profile?: 'server-entry' | 'route-module'; runtimeOutdir?: string }) => {
+	const transformFor = async (input: { runtimeOutdir?: string }) => {
 		const request = createServerBuildRequest(appConfig, {
 			entrypoints: ['/app/src/pages/index.ts'],
 			outdir: '/app/.eco/.server-modules',
@@ -98,21 +105,31 @@ test('createServerBuildRequest keeps import.meta at the source for the directory
 
 	assert.match(String(await transformFor({})), /new URL\("\.\.\/\.\.\/src\/pages\/index\.ts", import\.meta\.url\)/u);
 	assert.match(
-		String(await transformFor({ profile: 'server-entry', runtimeOutdir: '/app/.server' })),
+		String(await transformFor({ runtimeOutdir: '/app/.server' })),
 		/new URL\("\.\.\/src\/pages\/index\.ts", import\.meta\.url\)/u,
 	);
 });
 
-test('only the server-entry profile reports packages outside the app root', () => {
+test('a server request reports packages outside the app root only when asked to', () => {
 	const appConfig = createAppConfig();
-	const request = (profile: 'server-entry' | 'route-module') =>
-		createServerBuildRequest(appConfig, { profile, entrypoints: ['/app/app.ts'], outdir: '/out' });
+	const request = (extra: { reportPackagesOutsideRoot?: boolean }) =>
+		createServerBuildRequest(appConfig, { ...extra, entrypoints: ['/app/app.ts'], outdir: '/out' });
 
-	assert.equal(request('server-entry').reportPackagesOutsideRoot, true);
-	assert.equal(request('route-module').reportPackagesOutsideRoot, undefined);
+	assert.equal(request({ reportPackagesOutsideRoot: true }).reportPackagesOutsideRoot, true);
+	assert.equal(request({}).reportPackagesOutsideRoot, undefined);
 });
 
-test('resolveServerAppBuildPlugins matches createServerBuildRequest app plugin set', () => {
+test('server requests take the server environment defaults', () => {
+	const request = createServerBuildRequest(createAppConfig(), { entrypoints: ['/app/app.ts'], outdir: '/out' });
+
+	assert.equal(request.target, 'node');
+	assert.equal(request.format, 'esm');
+	assert.equal(request.sourcemap, 'none');
+	assert.equal(request.minify, false);
+	assert.equal(request.externalPackages, true);
+});
+
+test('resolveAppBuildPlugins matches createServerBuildRequest app plugin set', () => {
 	const appConfig = createAppConfig();
 	const request = createServerBuildRequest(appConfig, {
 		environment: 'server' as const,
@@ -124,7 +141,7 @@ test('resolveServerAppBuildPlugins matches createServerBuildRequest app plugin s
 		request.plugins
 			?.map((plugin) => plugin.name)
 			.filter((name) => name !== 'preserve-import-meta-for-server-output'),
-		resolveServerAppBuildPlugins(appConfig).map((plugin) => plugin.name),
+		resolveAppBuildPlugins(appConfig, 'server').map((plugin) => plugin.name),
 	);
 	assert.ok(request.plugins?.some((plugin) => plugin.name === 'preserve-import-meta-for-server-output'));
 });
@@ -153,23 +170,160 @@ test('browser compilation on the route-module executor keeps browser defaults an
 	assert.equal(request.target, 'browser');
 	assert.equal(request.format, 'esm');
 	assert.ok(request.plugins?.every((plugin) => plugin.name !== 'server-only'));
-	const { installBuildRuntime, requireBuildRuntime } = await import('./build-runtime.ts');
+	const { installBuildQueue, requireBuildQueue } = await import('./build-queue.ts');
 	const observed: import('../contracts/build-contracts.ts').BuildOptions[] = [];
 	appConfig.runtime ??= {};
 	appConfig.runtime.buildAdapter = {
 		async build(options) {
 			observed.push(options);
-			return { success: true, outputs: [], logs: [] };
+			return createBuildSuccess();
 		},
 		resolve(specifier) {
 			return specifier;
 		},
-		getTranspileOptions() {
-			return { target: 'browser', format: 'esm', sourcemap: 'none' };
-		},
 	};
-	installBuildRuntime(appConfig);
-	await requireBuildRuntime(appConfig).getProfile('route-module').build(request);
+	installBuildQueue(appConfig);
+	await requireBuildQueue(appConfig).build(request);
 	assert.equal(observed[0]?.environment, 'browser');
 	assert.equal(observed[0]?.target, 'browser');
+});
+
+function createOrderedAppConfig(): EcoPagesAppConfig {
+	const named = (name: string, environments?: Array<'server' | 'browser'>): EcoBuildPlugin => ({
+		name,
+		environments,
+		setup() {},
+	});
+	const transform = (name: string, enforce?: 'pre' | 'post') => ({
+		name,
+		enforce,
+		filter: /\.tsx$/u,
+		transform: () => undefined,
+	});
+	const appConfig = {
+		rootDir: '/app',
+		loaders: new Map(),
+		runtime: {},
+		absolutePaths: { projectDir: '/app' },
+		integrations: [{ name: 'react', extensions: ['.tsx'], jsxImportSource: 'react' }],
+		sourceTransforms: new Map(
+			[
+				transform('post-transform', 'post'),
+				transform('default-transform'),
+				transform('pre-transform', 'pre'),
+			].map((entry) => [entry.name, entry]),
+		),
+	} as unknown as EcoPagesAppConfig;
+	setAppBuildManifest(
+		appConfig,
+		createAppBuildManifest(
+			[named('browser-only', ['browser']), named('shared'), named('server-only', ['server'])].map((plugin) => ({
+				plugin,
+				source: plugin.name,
+			})),
+			createBrowserRuntimeManifest([
+				{
+					specifier: 'react',
+					owner: '@ecopages/react',
+					importPath: 'react',
+					publicPath: '/assets/vendors/react.js',
+				},
+			]),
+		),
+	);
+	return appConfig;
+}
+
+test('resolveBuildPluginOrder lists every plugin of a server request in hook order', () => {
+	const order = resolveBuildPluginOrder(createOrderedAppConfig(), 'server', {
+		callerPlugins: [
+			{ name: 'caller', setup() {} },
+			{ name: 'caller-browser-only', environments: ['browser'], setup() {} },
+		],
+		sourceTransforms: getAppSourceTransforms(createOrderedAppConfig()),
+	});
+
+	assert.deepEqual(
+		order.map((plugin) => plugin.name),
+		[
+			'caller',
+			'ecopages-alias-resolver',
+			'shared',
+			'server-only',
+			'ecopages-jsx-ownership-react--tsx',
+			'pre-transform',
+			'default-transform',
+			'post-transform',
+		],
+	);
+});
+
+test('resolveBuildPluginOrder lists every plugin of a browser request in hook order', () => {
+	const order = resolveBuildPluginOrder(createOrderedAppConfig(), 'browser', {
+		callerPlugins: [{ name: 'caller', setup() {} }],
+		excludeAppBuildPlugins: ['shared'],
+		sourceTransforms: getAppSourceTransforms(createOrderedAppConfig()),
+	});
+
+	assert.deepEqual(
+		order.map((plugin) => plugin.name),
+		[
+			'caller',
+			'ecopages-alias-resolver',
+			'browser-runtime-plugin',
+			'browser-only',
+			'ecopages-jsx-ownership-react--tsx',
+			'pre-transform',
+			'default-transform',
+			'post-transform',
+		],
+	);
+});
+
+test('resolveBuildPluginOrder lets an app plugin keep its place against a caller plugin of the same name', () => {
+	const caller: EcoBuildPlugin = { name: 'shared', setup() {} };
+
+	const order = resolveBuildPluginOrder(createOrderedAppConfig(), 'server', {
+		callerPlugins: [caller],
+		sourceTransforms: [],
+	});
+
+	assert.equal(order.filter((plugin) => plugin.name === 'shared').length, 1);
+	assert.ok(!order.includes(caller));
+});
+
+test('createBrowserBuildRequest drops runtime manifest specifiers from external and keeps the rest', () => {
+	const appConfig = createOrderedAppConfig();
+
+	const request = createBrowserBuildRequest(appConfig, {
+		entrypoints: ['/app/client.ts'],
+		external: ['react', 'left-pad'],
+	});
+
+	assert.deepEqual(request.external, ['left-pad']);
+});
+
+test('a browser build maps an entry that lists a manifest specifier as external to its public URL', async () => {
+	const appConfig = createOrderedAppConfig();
+	const dir = mkdtempSync(path.join(tmpdir(), 'ecopages-external-manifest-'));
+	try {
+		writeFileSync(path.join(dir, 'entry.ts'), "import React from 'react';\nexport const value = React;\n");
+		const request = createBrowserBuildRequest(appConfig, {
+			entrypoints: [path.join(dir, 'entry.ts')],
+			outdir: path.join(dir, 'dist'),
+			root: dir,
+			external: ['react'],
+			plugins: [],
+		});
+
+		const result = await new RolldownBuildAdapter().build({
+			...request,
+			plugins: request.plugins?.filter((plugin) => plugin.name === 'browser-runtime-plugin'),
+		});
+
+		assertBuildSucceeded(result, 'Build failed');
+		assert.match(readFileSync(result.outputs[0]!.path, 'utf-8'), /from ['"]\/assets\/vendors\/react\.js['"]/);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
 });

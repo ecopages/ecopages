@@ -131,9 +131,7 @@ describe('ImageProcessor', () => {
 		const processor = createProcessor();
 		const imageMap = await processor.processDirectory();
 
-		expect(Object.keys(imageMap)).toHaveLength(2);
-		expect(imageMap['test.jpg']).toBeDefined();
-		expect(imageMap['test2.jpg']).toBeDefined();
+		expect(Object.keys(imageMap).sort()).toEqual(['test.jpg', 'test2.jpg']);
 	});
 
 	test('handles empty sizes configuration', async () => {

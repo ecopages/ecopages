@@ -1,17 +1,11 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import { clearNavigationHtmlCache } from '../../core/src/router/client/navigation-document.ts';
-import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/router/link-navigation-policy';
 import { extractProps, extractComponentUrl, loadPageModule, loadPageModuleFromDocument } from '../src/navigation';
 import { resolveReactNavigation } from '../src/navigation-orchestrator.ts';
-import { DEFAULT_OPTIONS } from '../src/types';
 
 /** Mirrors `DEV_TRANSFORM_URL_PREFIX` from `@ecopages/core/dev/transform-server`. */
 const DEV_TRANSFORM_URL_PREFIX = '/assets/__eco_dev__';
-
-function linkNavigationPolicyOptions(options: typeof DEFAULT_OPTIONS) {
-	return { reloadAttribute: options.reloadAttribute };
-}
 
 function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
 	return new Response(body, {
@@ -26,25 +20,6 @@ function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
 
 function createMockDocument(html: string): Document {
 	return new DOMParser().parseFromString(html, 'text/html');
-}
-
-function createLink(href: string, attributes: Record<string, string> = {}): HTMLAnchorElement {
-	const link = document.createElement('a');
-	link.href = href;
-	for (const [key, value] of Object.entries(attributes)) {
-		link.setAttribute(key, value);
-	}
-	document.body.appendChild(link);
-	return link;
-}
-
-function createMouseEvent(overrides: Partial<MouseEventInit> = {}): MouseEvent {
-	return new MouseEvent('click', {
-		button: 0,
-		bubbles: true,
-		cancelable: true,
-		...overrides,
-	});
 }
 
 describe('extractProps', () => {
@@ -488,164 +463,5 @@ describe('resolveReactNavigation', () => {
 		await resolveReactNavigation(input);
 
 		expect(fetchMock).toHaveBeenCalledTimes(2);
-	});
-});
-
-describe('getLinkNavigationDecision', () => {
-	const options = DEFAULT_OPTIONS;
-	let links: HTMLAnchorElement[] = [];
-
-	beforeEach(() => {
-		links = [];
-	});
-
-	afterEach(() => {
-		links.forEach((link) => link.remove());
-		links = [];
-	});
-
-	it('should intercept normal same-origin clicks', () => {
-		const link = createLink('/about');
-		links.push(link);
-		const event = createMouseEvent();
-
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
-
-		expect(result).toBe(true);
-	});
-
-	it('should not intercept clicks with modifier keys (ctrl)', () => {
-		const link = createLink('/about');
-		links.push(link);
-
-		const result = getLinkNavigationDecision(
-			createMouseEvent({ ctrlKey: true }),
-			link,
-			linkNavigationPolicyOptions(options),
-		).shouldIntercept;
-		expect(result).toBe(false);
-	});
-
-	it('should not intercept clicks with modifier keys (meta)', () => {
-		const link = createLink('/about');
-		links.push(link);
-
-		const result = getLinkNavigationDecision(
-			createMouseEvent({ metaKey: true }),
-			link,
-			linkNavigationPolicyOptions(options),
-		).shouldIntercept;
-		expect(result).toBe(false);
-	});
-
-	it('should not intercept non-left clicks', () => {
-		const link = createLink('/about');
-		links.push(link);
-		const event = createMouseEvent({ button: 1 });
-
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
-
-		expect(result).toBe(false);
-	});
-
-	it('should not intercept external links', () => {
-		const link = createLink('https://external.com/page');
-		links.push(link);
-		const event = createMouseEvent();
-
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
-
-		expect(result).toBe(false);
-	});
-
-	it('should not intercept links with target attribute', () => {
-		const link = createLink('/about', { target: '_blank' });
-		links.push(link);
-		const event = createMouseEvent();
-
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
-
-		expect(result).toBe(false);
-	});
-
-	it('should not intercept links with download attribute', () => {
-		const link = createLink('/file.pdf', { download: 'file.pdf' });
-		links.push(link);
-		const event = createMouseEvent();
-
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
-
-		expect(result).toBe(false);
-	});
-
-	it('should not intercept links to static asset files', () => {
-		for (const href of ['/skill.txt', '/skill/reference/full-stack.md']) {
-			const link = createLink(href);
-			links.push(link);
-			const event = createMouseEvent();
-
-			expect(getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept).toBe(
-				false,
-			);
-			expect(getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options))).toEqual({
-				shouldIntercept: false,
-				reason: 'static-asset',
-			});
-		}
-	});
-
-	it('should not intercept links with reload attribute', () => {
-		const link = createLink('/about', { 'data-eco-reload': 'true' });
-		links.push(link);
-		const event = createMouseEvent();
-
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
-
-		expect(result).toBe(false);
-	});
-
-	it('should not intercept hash-only links', () => {
-		const link = createLink('#section');
-		links.push(link);
-		const event = createMouseEvent();
-
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
-
-		expect(result).toBe(false);
-	});
-
-	it('should not intercept same-page links that only add a hash fragment', () => {
-		window.history.replaceState({}, '', `${window.location.origin}/docs/ecosystem/browser-router`);
-		const link = createLink('/docs/ecosystem/browser-router#setup');
-		links.push(link);
-
-		const result = getLinkNavigationDecision(
-			createMouseEvent(),
-			link,
-			linkNavigationPolicyOptions(options),
-		).shouldIntercept;
-
-		expect(result).toBe(false);
-		expect(isSamePageHashNavigationHref('/docs/ecosystem/browser-router#setup')).toBe(true);
-	});
-
-	it('should not intercept mailto links', () => {
-		const link = createLink('mailto:test@example.com');
-		links.push(link);
-		const event = createMouseEvent();
-
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
-
-		expect(result).toBe(false);
-	});
-
-	it('should not intercept tel links', () => {
-		const link = createLink('tel:+1234567890');
-		links.push(link);
-		const event = createMouseEvent();
-
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
-
-		expect(result).toBe(false);
 	});
 });

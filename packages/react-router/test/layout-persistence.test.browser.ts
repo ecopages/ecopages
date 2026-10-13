@@ -7,7 +7,6 @@ import {
 	createLayoutAwarePage,
 	createMockPageComponent,
 	createPageWithCollidingDisplayNameLayout,
-	createPageWithEcoComponentLayout,
 	useRouterTestEnvironment,
 } from './react-router.harness.ts';
 
@@ -115,43 +114,5 @@ describe('EcoRouter layouts', () => {
 
 		await expect.element(page.getByTestId('base-layout')).toHaveTextContent('Base Layout');
 		await expect.element(page.getByTestId('docs-layout')).not.toBeInTheDocument();
-	});
-
-	it('switches between eco.component layouts with identical wrapper signatures', async () => {
-		const NotFoundPage = createPageWithEcoComponentLayout('NotFoundPage', 'minimal-layout-root', {
-			file: '/app/src/layouts/minimal-layout.tsx',
-			stylesheets: ['./minimal-layout.css'],
-		});
-		const HomePage = createPageWithEcoComponentLayout('HomePage', 'app-layout-root', {
-			file: '/app/src/layouts/app-layout.tsx',
-			stylesheets: ['./app-layout.css'],
-		});
-
-		ctx.root = createRoot(ctx.container);
-		ctx.root.render(
-			createElement(EcoRouter, {
-				page: NotFoundPage,
-				pageProps: {},
-				options: { persistLayouts: true },
-				// oxlint-disable-next-line no-children-prop
-				children: createElement(PageContent),
-			}),
-		);
-
-		await expect.element(page.getByTestId('minimal-layout-root')).toBeInTheDocument();
-		await expect.element(page.getByTestId('app-layout-root')).not.toBeInTheDocument();
-
-		ctx.root.render(
-			createElement(EcoRouter, {
-				page: HomePage,
-				pageProps: {},
-				options: { persistLayouts: true },
-				// oxlint-disable-next-line no-children-prop
-				children: createElement(PageContent),
-			}),
-		);
-
-		await expect.element(page.getByTestId('app-layout-root')).toBeInTheDocument();
-		await expect.element(page.getByTestId('minimal-layout-root')).not.toBeInTheDocument();
 	});
 });

@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
@@ -7,14 +6,8 @@ import { prepareHmrFileChange } from '../hmr/hmr-file-change-prep.ts';
 import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
-const benchDir = path.join(repoRoot, 'playground', 'kitchen-sink', 'bench');
 
 describe('kitchen-sink graph lifecycle regression contract', () => {
-	test('exposes startup baseline comparison tooling', () => {
-		expect(existsSync(path.join(benchDir, 'startup', 'compare-baseline.ts'))).toBe(true);
-		expect(existsSync(path.join(benchDir, 'startup', 'run.mjs'))).toBe(true);
-	});
-
 	test('invalidates cached graphs before HMR dispatch for tracked dependencies', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.join(repoRoot, 'playground', 'kitchen-sink') });
 		const session = getAppPageBrowserGraphSession(appConfig);

@@ -22,17 +22,15 @@ The build layer is the bundler contract for Ecopages. Rolldown is the bundled ad
 
 ## Mental Model
 
-Three concentric shapes, plus profile executors and request policy:
+Three concentric shapes, plus one build queue and request policy:
 
-| Shape                       | Lives in                               | Purpose                                                                                                                                                 |
-| --------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BuildAdapter`              | `build-adapter.ts`                     | Low-level backend. `RolldownBuildAdapter` is the bundled implementation.                                                                                |
-| `BuildRuntime`              | `runtime/build-runtime.ts`             | Profile-based executor registry. Scheduling, concurrency, and dedupe only.                                                                              |
-| `BuildExecutor`             | `contracts/build-contracts.ts`         | Narrower runtime facade. Only `build` is exposed. Retrieved via `buildRuntime.getProfile(...)`.                                                         |
-| `build-request-policy.ts`   | `runtime/build-request-policy.ts`      | Assembles complete `BuildOptions` before scheduling. Server and browser: plugins, including source transforms as `transform` hooks, plus JSX ownership. |
-| `build-request-identity.ts` | `runtime/build-request-identity.ts`    | Canonical request identity for in-flight and request-scope dedupe.                                                                                      |
-| `SerializedBuildExecutor`   | `runtime/serialized-build-executor.ts` | FIFO queue around any `BuildExecutor`. Used for server-entry single-flight ordering.                                                                    |
-| `ParallelBuildExecutor`     | `runtime/parallel-build-executor.ts`   | Concurrency-limited wrapper for independent route-module and HMR browser builds.                                                                        |
+| Shape                       | Lives in                            | Purpose                                                                                                                                                 |
+| --------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BuildAdapter`              | `build-adapter.ts`                  | Low-level backend. `RolldownBuildAdapter` is the bundled implementation.                                                                                |
+| `BuildQueue`                | `runtime/build-queue.ts`            | The one queue every build of an app goes through: lane concurrency limits, one build per identical in-flight request, request-scope reuse.              |
+| `BuildExecutor`             | `contracts/build-contracts.ts`      | Narrower runtime facade. Only `build` is exposed. `BuildQueue` implements it, on the `build` lane.                                                      |
+| `build-request-policy.ts`   | `runtime/build-request-policy.ts`   | Assembles complete `BuildOptions` before scheduling. Server and browser: plugins, including source transforms as `transform` hooks, plus JSX ownership. |
+| `build-request-identity.ts` | `runtime/build-request-identity.ts` | Canonical request identity for in-flight and request-scope dedupe: every `BuildOptions` field except `plugins`, plus plugin names and `cacheKey`s.      |
 
 Plus one translation bridge:
 
@@ -45,16 +43,16 @@ build/
   build-adapter.ts              app-owned adapter/manifest wiring
   app-build-manifest-runtime.ts contributor collection at startup
   contracts/                    EcoBuildPlugin, BuildOptions, AppBuildManifest
-  runtime/                        profiles, executors, request policy/identity
+  runtime/                        build queue, request policy/identity
   server-bundle-publication.ts   staged server/config artifact publication
   rolldown/                       bundler adapter, plugin bridge, package externalization
   cache/                          fingerprints, build-input reverse index, leftover-manifest cleanup, unified pages graph
   browser/                        client runtime rewrites, JSX ownership, Lit worker guard
 ```
 
-- `contracts/build-manifest.ts` + `app-build-manifest-runtime.ts`: environment-selected plugins in one `AppBuildManifest` and contributor validation.
+- `contracts/build-manifest.ts` + `app-build-manifest-runtime.ts`: the `AppBuildManifest` sealed once, with its plugins selected by environment, and contributor validation.
 - `build-adapter.ts`: types, factories, and app-owned adapter/manifest helpers.
-- `runtime/build-runtime.ts`: profile-based executor installation (`server-entry`, `route-module`, `browser-hmr`).
+- `runtime/build-queue.ts`: the `BuildQueue` and its installation on `appConfig.runtime.buildQueue`.
 - `runtime/build-request-policy.ts`: server/browser request constructors and plugin collision rules.
 - `runtime/build-request-identity.ts` / `cache/cache-keys.ts`: canonical request identity and shared cache fingerprints.
 - `contracts/build-types.ts`: the `EcoBuildPlugin` contract used by integrations and processors. `onLoad` receives the loaded `path` and `namespace`, and `loader` is one of `js`, `jsx`, `ts`, `tsx` or `object`.
@@ -62,7 +60,6 @@ build/
 - `contracts/server-only-specifier.ts`: the dependency-free `.server` naming predicate, exported at `@ecopages/core/build/contracts/server-only-specifier` for Integrations and browser code.
 - `rolldown/rolldown-build-adapter.ts`: the production `BuildAdapter`. Wraps the bundler and exposes a normalized `BuildResult`. With `externalPackages`, compiled packages the app declares stay bare imports, so Integration renderers and server bundles share one instance (one React). Source code is bundled: the app, workspace packages and TypeScript or JSX packages, including Core when it resolves to its TypeScript source. Every other compiled package installed in `node_modules` stays external as a `./` or `../` path from the output directory to the installed file, whichever source package imports it, because a compiled package may find files relative to itself at runtime (a native binding such as `sharp`, a platform package, a sibling file loaded through `createRequire(import.meta.url)`), which fails once it is bundled into another folder. A Rolldown `resolveId` hook resolves these packages through Rolldown with the `node` and `import` conditions and writes the path; a build whose chunk lands in a subdirectory of the output directory and imports such a path fails. The exceptions are the runtime packages that need CommonJS named-export interop (`ws`), which are bundled. The isolated installs of pnpm and Bun do not expose undeclared packages as bare specifiers to the app, so a path is used instead. Server output therefore needs no app-level framework dependencies and its code holds no absolute paths of the build machine: `dist` keeps working after it moves together with `node_modules`. Named output hashes cover the bytes that are written; the adapter does not rewrite emitted files after `bundle.write()`.
 - `rolldown/rolldown-plugin-bridge.ts`: `EcoBuildPlugin[]` → bundler-plugin translation.
-- `runtime/serialized-build-executor.ts`: FIFO queue primitive.
 - `server-bundle-deploy-manifest.ts`: the deploy manifest (`<distDir>/.server/manifest.json`) written beside the server entry, and the lookups that read it: `resolveProductionDistDir` selects the build output `ecopages start` runs (`--dist-dir`, else the only directory, dot-prefixed ones included, one level below the app root that holds a manifest; none or several fail, and nested or symlinked outputs need `--dist-dir`), then the production server entry and config identity lookups take that directory.
 - `server-bundle-publication.ts`: stages the server entry, emitted config, and deploy manifest together, then publishes the complete directory with rollback.
 - `rolldown/entry-module-closures.ts`: records each entry's static and dynamic source module closure in `generateBundle`, including inlined and tree-shaken imports.
@@ -71,19 +68,19 @@ build/
 
 ## Default Flow
 
-`finalizeEcoPagesConfig()` creates one app-owned adapter and manifest. When a server adapter initializes, it calls `installBuildRuntime(appConfig)`:
+`finalizeEcoPagesConfig()` creates one app-owned adapter and manifest. When a server adapter initializes, it calls `installBuildQueue(appConfig)`:
 
 ## App build manifest
 
-`AppBuildManifest` stores one `plugins` list and a separate `browserRuntimeManifest` on `appConfig.runtime.buildManifest`. Integrations and Processors both expose `plugins`. Each build plugin declares `environments: ['server']`, `['browser']`, or both; omitted environments apply to both. Config loaders join the same list.
+`AppBuildManifest` stores a `server` and a `browser` plugin list, already selected by environment, and a separate `browserRuntimeManifest` on `appConfig.runtime.buildManifest`. Integrations and Processors both expose `plugins`. Each build plugin declares `environments: ['server']`, `['browser']`, or both; omitted environments apply to both. Config loaders are registered with them. The browser list holds the plugins that also apply to the server first, then the browser runtime plugin, then the browser-only plugins; readers take a list as it is.
 
 Config finalization rejects duplicate plugin names within an environment and identifies both contributors. The same name can be registered once for server and once for browser. Browser runtime declarations remain data from an Integration's `browserRuntimeManifest`, from which core synthesizes import rewrites.
 
 **Sealing flow**
 
-1. `collectConfiguredAppBuildManifestContributions(config)` walks processors and integrations (after `prepareBuildContributions()`).
-2. `updateAppBuildManifest(config, contributions)` adds config loaders to the collected plugins.
-3. `createServerBuildRequest` / `createBrowserBuildRequest` read the sealed manifest through `getAppServerBuildPlugins` / `getAppBrowserBuildPlugins`.
+1. `sealAppBuildManifest(config)` registers the config loaders, then walks processors and integrations (after `prepareBuildContributions()`).
+2. `createAppBuildManifest(registrations, browserRuntimeManifest)` validates every registration once and stores `{ server, browser, browserRuntimeManifest }`.
+3. `createServerBuildRequest` / `createBrowserBuildRequest` order the request's plugins with `resolveBuildPluginOrder` (`runtime/build-request-policy.ts`): caller plugins that apply to the environment, then the app plugins (the alias resolver, the manifest list, JSX ownership), then source transforms. Rolldown asks plugins in that order and the first result of a resolve or load hook wins, so the position is the priority.
 
 **Rule of thumb**
 
@@ -91,25 +88,23 @@ Config finalization rejects duplicate plugin names within an environment and ide
 - Client-bundle-only work (vendor aliasing, async production CSS) → `plugins`, with `environments: ['browser']`.
 - Vendor specifier → public URL rewrites → `browserRuntimeManifest` (not a plugin list).
 
-Direct `setAppBuildManifest` is for tests and full manifest replacement. Production code should rely on `updateAppBuildManifest` during config build.
+Direct `setAppBuildManifest` is for tests. Production code relies on `sealAppBuildManifest` during config build.
 
 ```
 Caller intent
   → createServerBuildRequest / createBrowserBuildRequest (plugins assembled once, including source transforms)
-  → BuildRuntime.getProfile(...)
-      ├─ server-entry  → SerializedBuildExecutor → RolldownBuildAdapter
-      ├─ route-module  → DedupingBuildExecutor → ParallelBuildExecutor → RolldownBuildAdapter
-      └─ browser-hmr   → DedupingBuildExecutor → ParallelBuildExecutor → RolldownBuildAdapter
+  → BuildQueue.build(options, lane)   (lane: build | hmr)
+      → RolldownBuildAdapter
   → RolldownBuildAdapter resolves Node and browser runtime specifiers during the build
 ```
 
-Profiles use one-shot Rolldown in both dev and production. Route-module and browser-HMR builds run in parallel; server-entry stays serialized single-flight.
+The queue uses one-shot Rolldown in both dev and production. A lane runs at most its limit of builds at once and starts the rest in arrival order: `build` serves every server and browser build that is not an HMR rebuild (all cores but one), `hmr` serves the development server's browser rebuilds (at most three), and `nested` serves a build that a running build waits for, such as the collection bundle a content plugin requests from `onResolve`. A running build keeps its lane's slot, so a child in the same lane could wait for a slot its parent holds; `nested` builds never wait on each other. A request identical to a queued or running one, by `createBuildRequestIdentity`, shares that build whichever lane it asks for. Inside `withRequestScope`, which wraps each request the server handles, a finished build is also shared with later identical requests of the same scope. A build that rejects is not kept.
 
-Runtime code should call `requireBuildRuntime(appConfig).getProfile('route-module' | 'browser-hmr' | 'server-entry')` with a complete `BuildOptions` object from the request-policy helpers. Profiles are scheduling-only: bare `getProfile(...).build()` does **not** inject app plugins.
+Runtime code calls `requireBuildQueue(appConfig).build(options, lane)` with a complete `BuildOptions` object from the request-policy helpers. The queue is scheduling-only: it does **not** inject app plugins.
 
-The exported `defaultBuildAdapter` and the top-level `build()` / `getTranspileOptions()` helpers are non-app-aware escape hatches. New runtime code should prefer `getAppBuildAdapter()`, `requireBuildRuntime()`, `createServerBuildRequest()`, `createBrowserBuildRequest()`, and `getAppTranspileOptions()`.
+The exported `defaultBuildAdapter` is a non-app-aware escape hatch. Runtime code uses `getAppBuildAdapter()`, `requireBuildQueue()`, `createServerBuildRequest()` and `createBrowserBuildRequest()`.
 
-Every `BuildOptions` request requires `environment: 'server' | 'browser'`. Environment selects the platform, default target/format, and plugin participation. An explicit numeric `target` changes language transpilation without changing the environment. `getTranspileOptions()` takes that environment. `BuildProfile` (`server-entry` | `route-module` | `browser-hmr`) selects scheduling only. `BrowserBundleService` uses its purpose and executor to select the scheduling lane; every request retains browser defaults even on `route-module`.
+Every `BuildOptions` request requires `environment: 'server' | 'browser'`. Environment selects the platform, default target/format, and plugin participation. An explicit numeric `target` changes language transpilation without changing the environment. `resolveBuildEnvironmentOptions()` holds those defaults, one table per environment; a request names only what differs, as the server entry and the emitted config do with `reportPackagesOutsideRoot`. The lane (`build` | `hmr`) selects scheduling only. `BrowserBundleService` derives the lane from the bundle's purpose (`hmr-entrypoint` and `hmr-runtime` use `hmr`); every request retains browser defaults on either lane.
 
 Migration: move Integration `browserBuildPlugins` and Processor `buildPlugins` into `plugins` with `environments: ['browser']`. Keep server-only hooks in `plugins` with `environments: ['server']`. Replace the old transpile profile arguments with `'browser'` or `'server'`.
 
@@ -120,6 +115,7 @@ Migration: move Integration `browserBuildPlugins` and Processor `buildPlugins` i
 - `name: string`
 - `environments?: ('server' | 'browser')[]` (omitted means both)
 - `setup(build: EcoBuildPluginBuilder): void | Promise<void>`
+- `cacheKey?: string` — set by a factory that captures an option which changes its output (the `import.meta` transform sets its runtime directory). A build request is identified by every `BuildOptions` field except `plugins`, plus each plugin's name, environments and `cacheKey` in order, so two plugins of one name from different options are separate builds only through `cacheKey`. The source of `setup` is not hashed.
 
 `EcoBuildPluginBuilder` exposes four hooks:
 
@@ -132,22 +128,24 @@ Core source transforms use MagicString to keep unchanged source locations throug
 
 - `module(specifier, callback)` — declares a virtual module by name, with bundler-side namespace encoding.
 
-App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins explicitly.
+App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins that the request replaces; the environment cannot express that. A source transform whose name is the name of a plugin in the same request throws instead of being dropped.
+
+The browser runtime plugin maps each manifest specifier to its public URL in `onResolve` only, for every form a bundler resolves (static import, re-export, side-effect import, `import()`), and marks it external. It does not read or rewrite source. Package subpaths that the manifest does not list are left alone. Two consequences of resolving instead of rewriting: a browser request drops a manifest specifier from its `external` list (Rolldown checks `external` before any plugin, so it would otherwise stay a bare import and skip the public URL), and a tsconfig `paths` alias with the same name as a manifest specifier wins over the public URL, because the alias resolver runs first.
 
 ## Build diagnostics
 
-`BuildResult.logs` holds the errors of a failed build, and `BuildResult.warnings` the warnings of a successful one. `loadedInputs` lists the absolute filesystem paths recorded by plugin load hooks for that build; `loadedInputsByModule` retains those paths under the module load that recorded them. `dependencyGraph.entrypoints` carries each entry's source-module closure. Cache owners combine the relevant entry closure with only the plugin inputs recorded by modules in that closure, so another entry's source module can still be retained when a plugin explicitly reads it. Both logs and warnings use Rolldown's `RolldownLog` shape: `message` plus, when Rolldown or the plugin provides them, `code`, `plugin`, `hook`, `id`, `loc`, `frame` and `stack`. Other fields of a thrown error, such as PostCSS's `source`, are not copied. Terminal colour codes are stripped from `message` and `frame`.
+`BuildResult` is a `BuildSuccess` or a `BuildFailure`, told apart by `success`. A `BuildFailure` has only `logs`, the errors of the build. A `BuildSuccess` always has `outputs`, `warnings`, `loadedInputs`, `loadedInputsByModule`, `dependencyGraph`, `entryOutputs` and `outputGraph`; `assertBuildSucceeded` narrows a result to it. `loadedInputs` lists the absolute filesystem paths recorded by plugin load hooks for that build; `loadedInputsByModule` retains those paths under the module load that recorded them. `dependencyGraph.entrypoints` carries each entry's source-module closure. Cache owners combine the relevant entry closure with only the plugin inputs recorded by modules in that closure, so another entry's source module can still be retained when a plugin explicitly reads it. Both logs and warnings are `BuildLog`s: `message` plus, when Rolldown or the plugin provides them, `code`, `plugin`, `hook`, `id`, `loc`, `frame` and `stack`. Other fields of a thrown error, such as PostCSS's `source`, are not copied. Terminal colour codes are stripped from `message` and `frame`.
 
 - Each `BuildOutput` records whether Rolldown gave it a content-addressed name (`contentHashed`: assets, non-entry chunks, and entries named with `[hash]`). `BrowserBundleService` records those paths beside the output files (`.ecopages-hashed-assets`) so runtime file serving and the Node preview apply `immutable` from the build's record instead of a filename guess. `writeToDisk: false` calls Rolldown `generate()` and returns the output content in memory; the dev transform vendor registry uses it to keep vendor bundles process-local.
 
 - An unattributed Rolldown `BundleError` becomes one log per underlying error; any other error, including an `AggregateError`, becomes one log (`toBuildLogs` in `rolldown/rolldown-adapter-helpers.ts`).
 - `EcoBuildPlugin` callbacks run inside the single Rolldown plugin the bridge creates, and Rolldown overwrites `plugin` on a thrown error with that Rolldown plugin's name. The bridge therefore catches errors from `setup`, `onResolve`, `onLoad`, `module()` and `transform` callbacks and throws a new error that keeps the `EcoBuildPlugin` name, the thrown value as `cause`, its message, stack, `loc` and `frame`, and its `id` or else the module (the loaded or transformed file, or the importer for a resolve). The thrown value is never changed, so a plugin can share or freeze it. The log conversion restores `plugin` to the `EcoBuildPlugin` name.
 - Warnings are collected through Rolldown's `onLog` input option and still printed by Rolldown's default handler. Rolldown reports them only once a build completes, so a failed build has none.
-- `formatBuildLog()` (`build-log.ts`) is the one text form of a log, `[plugin] file:line:column: message` followed by the frame and stack frames. Every caller that turns failed build logs into an error message uses it.
+- `formatBuildLog()` (`build-log.ts`) is the one text form of a log, `[plugin] file:line:column: message` followed by the frame and stack frames. `assertBuildSucceeded()` throws an error built from it, and `buildOrThrow(appConfig, options, failure, lane)` (`runtime/build-queue.ts`) queues a build and does the same, so no caller joins `log.message` or formats the logs itself.
 
 ## BuildOptions Caveats
 
-Core-owned browser builds reject imports matching the `.server` naming convention (including extensionless `./db.server`) and Node builtins during resolution. Query and fragment suffixes do not change the naming classification. The error names the specifier and its importer. This applies to browser scripts from every Integration, including Lit and ecopages-jsx, and to static imports, re-exports, side-effect imports, and dynamic imports that reach resolution. Server builds allow `.server` imports.
+Core-owned browser builds reject Node builtins during resolution and imports matching the `.server` naming convention (including extensionless `./db.server`) by the resolved module, so an alias such as a `package.json` `imports` entry or a tsconfig path to `db.server.ts` fails like a relative import. Query and fragment suffixes do not change the naming classification. The error names the resolved module and its importer. This applies to browser scripts from every Integration, including Lit and ecopages-jsx, and to static imports, re-exports, side-effect imports, and dynamic imports that reach resolution. Server builds allow `.server` imports.
 
 An Integration can prune server-only imports before resolution. React uses the shared naming predicate while removing server-only Page options, so a middleware-only `.server` import does not fail the browser build. No `server-only` package marker is interpreted by this guard.
 
@@ -157,15 +155,7 @@ An Integration can prune server-only imports before resolution. React uses the s
 
 ## Dev / watch path
 
-`installBuildRuntime` installs profile-based executors:
-
-| Profile        | Backend           | Concurrency          |
-| -------------- | ----------------- | -------------------- |
-| `server-entry` | Rolldown one-shot | Serialized           |
-| `route-module` | Rolldown one-shot | Parallel             |
-| `browser-hmr`  | Rolldown one-shot | Parallel (limit ≤ 3) |
-
-`hmr-entrypoint` and `hmr-runtime` rebuilds with `executor: 'hmr'` use the `browser-hmr` profile. Other browser builds (`browser-script`, and any build with `executor: 'build'`) use `route-module`.
+`installBuildQueue` installs the app's `BuildQueue`. The development server's `hmr-entrypoint` and `hmr-runtime` rebuilds run on the `hmr` lane (limit three); every other build runs on the `build` lane.
 
 `ProjectWatcher` deduplicates watch roots, ignores `.eco/` and `dist/`, and coalesces duplicate chokidar events within 150ms.
 
@@ -179,7 +169,7 @@ Every new process compiles from source. Route-module transpile, the unified page
 
 The adapter records source closures from Rolldown's module graph and all emitted chunk edges separately. `BuildResult.entryOutputs` is keyed by the path or grouped name the caller passed, plus the bundler's facade path when that spelling differs, so a symlink root or Windows drive casing still finds the chunk. Consumers look entries up through `getBuildEntryOutput` rather than by filename prefix. `outputGraph` supplies static and dynamic output reachability without parsing emitted JavaScript.
 
-`requireBuildRuntime(appConfig).getProfile('server-entry')` serves server-entry bundling. Every process bundles the server entry from source.
+`requireBuildQueue(appConfig)` queues server-entry bundling on the `build` lane. Every process bundles the server entry from source.
 
 The deploy manifest (`dist/.server/manifest.json`) names the server entry and the emitted config relative to `dist/.server/`, and the source config relative to the project root, so it holds no absolute path and the bundle can move. It records SHA-256 hashes of the source and emitted config whatever runtime ran the build, because `ecopages start` checks them from the Node CLI. The build writes it under the app's `distDir`; `resolveProductionServerEntry()`, `assertProductionConfigIdentity()` and `resolveEmittedEcoConfigPath()` take that `distDir` as a required argument, and a server entry without a manifest counts as no bundle.
 
@@ -278,13 +268,14 @@ Kitchen-sink benchmarks (`ECOPAGES_BENCH=1 pnpm vitest bench`) show Rolldown win
 
 - `experimental.nativeMagicString: true` enables Rust-native string manipulation for faster transforms.
 - Server-side builds use `createServerSideCssShimPlugin()` to turn `.css` imports into empty ESM modules. Skipped for browser builds.
+- Core's own hooks (the browser server-only guard's builtin check and the CSS shim) declare Rolldown hook filters, so Rolldown calls them only for the ids they handle instead of for every module. The adapter closes its Rolldown bundle in a `finally`, so a failed write does not leave it open.
 
 ## Testing Strategy
 
-- `rolldown/rolldown-build-adapter.test.ts` covers the adapter's `build`, `resolve`, `getTranspileOptions`, and dependency-graph extraction end-to-end.
+- `rolldown/rolldown-build-adapter.test.ts` covers the adapter's `build`, `resolve`, and dependency-graph extraction end-to-end.
 - `rolldown/rolldown-plugin-bridge.test.ts` covers the `EcoBuildPlugin[]` → plugin translation in isolation.
 - `build-adapter.test.ts` covers the app-owned helpers, the `BuildOwnership` routing, and the default-fallback behaviour.
-- `runtime/build-runtime.test.ts` covers profile executor installation and parallelism.
+- `runtime/build-queue.test.ts` covers lane limits, shared in-flight builds, builds that wait for a child build, and request-scope reuse.
 - `runtime/build-request-policy.test.ts` and `runtime/build-request-identity.test.ts` cover request assembly and dedupe identity.
 - `rolldown/app-package-declarations.test.ts` covers the app `package.json` lookups that decide which packages stay external.
 - `server-bundle-relocation.test.ts` builds an app installed with an isolated (pnpm-style) layout, moves the deploy layout to another root, and serves the home page with `node`.

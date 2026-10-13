@@ -11,7 +11,7 @@ import {
 import { RouteModuleBuildCache } from './route-module-build-cache.store.ts';
 import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { createPluginCacheKey, hashFunctionIdentity } from '../../build/cache/cache-keys.ts';
+import { createPluginCacheKey } from '../../build/cache/cache-keys.ts';
 import { RouteModuleDependencyHasher } from './route-module-dependency-hasher.ts';
 
 function createTestDependencyHasher(): RouteModuleDependencyHasher {
@@ -313,16 +313,16 @@ describe('RouteModuleBuildCache', () => {
 		);
 	});
 
-	it('changes the build key when plugin setup changes even if names stay the same', () => {
+	it('changes the build key when a plugin cache key changes even if names stay the same', () => {
 		const pluginA = {
 			name: 'test-plugin',
+			cacheKey: 'dir-a',
 			setup() {},
 		};
 		const pluginB = {
 			name: 'test-plugin',
-			setup() {
-				void 'different';
-			},
+			cacheKey: 'dir-b',
+			setup() {},
 		};
 
 		const keyA = createRouteModuleBuildKey({
@@ -340,7 +340,6 @@ describe('RouteModuleBuildCache', () => {
 
 		assert.notEqual(keyA, keyB);
 		assert.notEqual(createPluginCacheKey([pluginA]), createPluginCacheKey([pluginB]));
-		assert.notEqual(hashFunctionIdentity(pluginA.setup), hashFunctionIdentity(pluginB.setup));
 	});
 
 	it('keeps entries in memory, so another cache instance starts empty', () => {

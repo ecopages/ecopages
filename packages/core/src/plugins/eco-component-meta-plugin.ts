@@ -2,10 +2,8 @@ import MagicString from 'magic-string';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { createJsxImportSourcePragma } from './jsx-import-source.utils.ts';
 import type { EcoSourceTransform, EcoSourceTransformResult } from './source-transform.ts';
-import { createEcoBuildPluginFromSourceTransform } from './source-transform.ts';
 import { composeSourceMaps, isUsableSourceMap } from '../build/source-maps.ts';
 import { createMappedSourceTransformResult } from '../build/mapped-source-transform.ts';
-import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { rapidhash } from '../utils/hash.ts';
 import { discoverComponentImports, type DiscoveredImports } from './component-import-discovery.ts';
@@ -396,10 +394,6 @@ export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOp
 			);
 		},
 	};
-}
-
-export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptions): EcoBuildPlugin {
-	return createEcoBuildPluginFromSourceTransform(createEcoComponentMetaTransform(options));
 }
 
 export default createEcoComponentMetaTransform;

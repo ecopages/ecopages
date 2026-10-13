@@ -5,13 +5,6 @@ const NAVIGATION_TIMEOUT = 45_000;
 const HMR_CLIENT_CONNECT_TIMEOUT_MS = 60_000;
 /** Post-mutation assert window for isolated kitchen-sink HMR cells on slower hosts. */
 export const HMR_MUTATION_ASSERT_TIMEOUT_MS = 25_000;
-const RETRIABLE_REQUEST_ERROR_FRAGMENTS = ['ECONNRESET', 'ECONNREFUSED', 'socket hang up', 'fetch failed'];
-
-export function isRetriableRequestError(error: unknown): error is Error {
-	return (
-		error instanceof Error && RETRIABLE_REQUEST_ERROR_FRAGMENTS.some((fragment) => error.message.includes(fragment))
-	);
-}
 
 type EcoNavigationWindow = Window & {
 	__ECO_PAGES__?: {
@@ -153,44 +146,24 @@ export function trackRuntimeErrors(page: Page) {
 		assertClean() {
 			const combinedErrors = `${pageErrors.join('\n')}\n${consoleErrors.join('\n')}`;
 			for (const pattern of RUNTIME_ERROR_PATTERNS) {
-				expect(pattern.test(combinedErrors), `runtime errors should not match ${pattern}`).toBe(false);
+				expect(
+					pattern.test(combinedErrors),
+					`runtime errors should not match ${pattern}: ${combinedErrors}`,
+				).toBe(false);
 			}
 			assertNoForbiddenHmrDiagnostics(consoleMessages);
 		},
 	};
 }
 
+/** Makes one GET request and throws with the status and response excerpt for non-2xx results. */
 export async function requestGetAndWait(request: APIRequestContext, href: string, timeout = 30000) {
-	let lastResponse: Awaited<ReturnType<typeof request.get>> | undefined;
+	const response = await request.get(href, { timeout });
+	if (response.ok()) return response;
 
-	await expect
-		.poll(
-			async () => {
-				try {
-					lastResponse = await request.get(href);
-					return lastResponse.ok() ? lastResponse.status() : 0;
-				} catch (error) {
-					if (!isRetriableRequestError(error)) {
-						throw error;
-					}
-
-					lastResponse = undefined;
-					return 0;
-				}
-			},
-			{
-				intervals: [100, 200, 350, 500],
-				timeout,
-			},
-		)
-		.toBe(200);
-
-	expect(
-		lastResponse?.ok(),
-		`${href} should respond with a successful status after retrying transient request failures`,
-	).toBe(true);
-
-	return lastResponse!;
+	const bodyExcerpt = (await response.text()).trim().slice(0, 300);
+	const details = bodyExcerpt ? `: ${bodyExcerpt}` : '';
+	throw new Error(`GET ${href} returned HTTP ${response.status()}${details}`);
 }
 
 /** Begin waiting for the ecopages HMR websocket before the page navigates. */
@@ -274,7 +247,11 @@ export async function installFullDocumentReloadWatcher(page: Page) {
 			}
 
 			const entries = performance.getEntriesByType('navigation');
-			if (entries.slice(initialNavigationCount).some((entry) => entry.type === 'reload')) {
+			if (
+				entries
+					.slice(initialNavigationCount)
+					.some((entry) => entry.entryType === 'navigation' && 'type' in entry && entry.type === 'reload')
+			) {
 				state.detected = true;
 				state.done = true;
 				return;

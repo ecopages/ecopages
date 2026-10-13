@@ -47,58 +47,20 @@ export async function waitForPageReady(page: Page, href?: string) {
 	const targetUrl = href ? new URL(href, page.url()) : undefined;
 
 	if (targetUrl) {
-		await expect
-			.poll(
-				() => {
-					try {
-						const currentUrl = new URL(page.url());
-						return `${currentUrl.pathname}${currentUrl.search}`;
-					} catch {
-						return '';
-					}
-				},
-				{ timeout: 10000 },
-			)
-			.toBe(`${targetUrl.pathname}${targetUrl.search}`);
+		await expect(page).toHaveURL(`${targetUrl.pathname}${targetUrl.search}`, { timeout: 10000 });
 	}
 
-	await page.waitForLoadState('domcontentloaded').catch(() => undefined);
-	await page
-		.waitForFunction(() => document.readyState !== 'loading' && !!document.body, null, {
+	await page.waitForLoadState('domcontentloaded', { timeout: 10000 });
+	await page.waitForFunction(
+		() => document.readyState !== 'loading' && !!document.body && document.body.childElementCount > 0,
+		null,
+		{
 			timeout: 10000,
-		})
-		.catch(() => undefined);
-	await expect
-		.poll(
-			async () => {
-				try {
-					return await page.evaluate(() => !!document.body && document.body.childElementCount > 0);
-				} catch {
-					return false;
-				}
-			},
-			{ timeout: 10000 },
-		)
-		.toBe(true);
+		},
+	);
 }
 
 export async function gotoAndWait(page: Page, href: string) {
-	for (let attempt = 0; attempt < 3; attempt += 1) {
-		try {
-			await page.goto(href, { waitUntil: 'commit' });
-			break;
-		} catch (error) {
-			const isTransientNavigationError =
-				error instanceof Error &&
-				/(net::ERR_ABORTED|net::ERR_CONNECTION_RESET|net::ERR_NETWORK_IO_SUSPENDED|frame was detached)/i.test(
-					error.message,
-				);
-
-			if (!isTransientNavigationError || attempt === 2) {
-				throw error;
-			}
-		}
-	}
-
+	await page.goto(href, { waitUntil: 'commit' });
 	await waitForPageReady(page, href);
 }

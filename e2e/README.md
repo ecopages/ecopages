@@ -81,6 +81,10 @@ The Vitest browser regression in `packages/dev-toolbar/src/shell/build-errors.te
 
 Development fixture projects default to a 60-second test timeout (`DEV_FIXTURE_TEST_TIMEOUT_MS` in `e2e/playwright/define-fixture.ts`). Ordinary Page HMR mutations retain their 25-second allowance. The WebSocket-handler scenario waits for the lightweight API route before reading a new connection's history, avoiding repeated failed browser handshakes during replacement. Restoration checks both Pages and the original chat history. CSS discovery scenarios wait for the HMR connection and observe the stylesheet update on the current Page, without polling manual reloads.
 
+## Helper failures
+
+Playwright's web-server readiness check handles startup. After a test starts, `requestGetAndWait` makes one GET; a non-2xx response fails with its status and up to 300 characters of the response body, and its optional timeout bounds that request. `gotoAndWait` performs one navigation, while `waitForPageReady` propagates URL and document-readiness failures. Counter helpers wait for the runtime-specific hydration or readiness signal when one exists, click once, and assert the resulting value.
+
 Browsers stay headless for `pnpm test:all` / `pnpm test:vitest` / `pnpm test:e2e` (`playwright.config.ts` `use.headless`, Vitest `browser.headless`, `--browser.headless`). Inherited `PWDEBUG` is stripped before Playwright launches so the inspector cannot force headed Chromium (one visible tab per parallel worker). Use `pnpm test:e2e:ui` or `playwright test --headed` when you want a visible window. `--debug` still enables the inspector.
 
 ## Environment variables

@@ -1137,7 +1137,13 @@ describe('RolldownBuildAdapter', () => {
 		});
 	});
 
-	test('a transform that inserts a line returns a map that points at the original source', async () => {
+	test.each([
+		{ mode: 'none', emitsMap: false, linksMap: false },
+		{ mode: 'inline', emitsMap: false, linksMap: true },
+		{ mode: 'external', emitsMap: true, linksMap: false },
+		{ mode: 'linked', emitsMap: true, linksMap: true },
+		{ mode: 'hidden', emitsMap: true, linksMap: false },
+	] as const)('maps a transformed source correctly for the "$mode" option', async ({ mode, emitsMap, linksMap }) => {
 		const entrypoint = writeFixture('page.ts', 'export const value = 1;\n');
 		const adapter = new RolldownBuildAdapter();
 		const outdir = path.join(workDir, 'dist');
@@ -1148,7 +1154,7 @@ describe('RolldownBuildAdapter', () => {
 			target: 'es2022',
 			format: 'esm',
 			root: workDir,
-			sourcemap: 'linked',
+			sourcemap: mode,
 			plugins: [
 				{
 					name: 'insert-line',
@@ -1170,14 +1176,22 @@ describe('RolldownBuildAdapter', () => {
 		});
 
 		assert.equal(result.success, true);
+		const outputPath = result.outputs.find((output) => /\.(?:mjs|js)$/u.test(output.path))?.path;
+		assert.ok(outputPath, 'expected a JavaScript output');
+		const outputCode = readFileSync(outputPath, 'utf-8');
+		assert.equal(outputCode.includes('sourceMappingURL='), linksMap);
+		if (mode === 'inline') assert.match(outputCode, /sourceMappingURL=data:application\/json/);
+
 		const mapPath = result.outputs.find((output) => output.path.endsWith('.map'))?.path;
-		assert.ok(mapPath, 'expected a source map artifact');
-		const map = JSON.parse(readFileSync(mapPath, 'utf-8')) as { sources: string[]; mappings: string };
-		assert.ok(
-			map.sources.some((source) => source.includes('page.ts')),
-			`expected original page.ts in map sources, got: ${map.sources.join(', ')}`,
-		);
-		assert.notEqual(map.mappings, '');
+		assert.equal(Boolean(mapPath), emitsMap);
+		if (mapPath) {
+			const map = JSON.parse(readFileSync(mapPath, 'utf-8')) as { sources: string[]; mappings: string };
+			assert.ok(
+				map.sources.some((source) => source.includes('page.ts')),
+				`expected original page.ts in map sources, got: ${map.sources.join(', ')}`,
+			);
+			assert.notEqual(map.mappings, '');
+		}
 	});
 
 	test('resolve delegates to node module resolution from the supplied root', () => {

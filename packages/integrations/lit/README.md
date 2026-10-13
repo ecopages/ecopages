@@ -33,6 +33,10 @@ export default defineConfig({ integrations: [kitajsPlugin(), litPlugin()] });
 
 This setup lets Kita own the page shell while Lit owns the nested Lit component boundaries.
 
+## Page props and request locals
+
+Lit page components receive the resolved page props and request locals prepared by the route pipeline. To use request locals, declare `cache: 'dynamic'` on the page and provide the locals from middleware or a handler. Reading `locals` on a static page fails with the request-locals message instead of a `TypeError` from `undefined`. The document shell receives the resolved page props, while layouts continue to receive route locals.
+
 ## What This Integration Owns
 
 - `.lit.tsx` route files.

@@ -1,7 +1,10 @@
+import MagicString from 'magic-string';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import { prependJsxImportSourceIfMissing } from './jsx-import-source.utils.ts';
-import type { EcoSourceTransform } from './source-transform.ts';
+import { createJsxImportSourcePragma } from './jsx-import-source.utils.ts';
+import type { EcoSourceTransform, EcoSourceTransformResult } from './source-transform.ts';
 import { createEcoBuildPluginFromSourceTransform } from './source-transform.ts';
+import { composeSourceMaps, isUsableSourceMap } from '../build/source-maps.ts';
+import { createMappedSourceTransformResult } from '../build/mapped-source-transform.ts';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { rapidhash } from '../utils/hash.ts';
@@ -19,7 +22,47 @@ type AstNode = {
 	[key: string]: unknown;
 };
 
-type SourceEdit = { start: number; end: number; replacement: string };
+type SourceEdit =
+	| { start: number; end: number; replacement: string }
+	| { start: number; end: number; prefix: string; suffix: string };
+
+type SourceEditOptions = {
+	prepend?: string;
+	append?: string;
+};
+
+function applySourceEdits(
+	contents: string,
+	edits: SourceEdit[],
+	filePath: string,
+	options: SourceEditOptions = {},
+): EcoSourceTransformResult {
+	if (edits.length === 0 && !options.prepend && !options.append) {
+		return { code: contents };
+	}
+
+	const editSource = (source: MagicString): void => {
+		for (const edit of edits.sort((left, right) => right.start - left.start)) {
+			if ('prefix' in edit) {
+				source.appendLeft(edit.start, edit.prefix);
+				source.appendRight(edit.end, edit.suffix);
+				continue;
+			}
+
+			if (edit.start === edit.end) {
+				source.appendLeft(edit.start, edit.replacement);
+			} else if (edit.replacement === '') {
+				source.remove(edit.start, edit.end);
+			} else {
+				source.overwrite(edit.start, edit.end, edit.replacement);
+			}
+		}
+
+		if (options.prepend) source.prepend(options.prepend);
+		if (options.append) source.append(options.append);
+	};
+	return createMappedSourceTransformResult(contents, filePath, editSource);
+}
 
 function isAstNode(value: unknown): value is AstNode {
 	return typeof value === 'object' && value !== null;
@@ -57,12 +100,11 @@ function walkAst(node: unknown, visit: (node: AstNode) => void): void {
 	for (const value of Object.values(node)) walkAst(value, visit);
 }
 
-function addNamedImport(
-	contents: string,
+function createNamedImportEdit(
 	program: AstNode,
 	sourceModule: string,
 	importedName: string | readonly string[],
-): string {
+): SourceEdit | undefined {
 	const importedNames = typeof importedName === 'string' ? [importedName] : [...importedName];
 	const imports = (program.body as unknown[]).filter(
 		(node): node is AstNode =>
@@ -72,7 +114,9 @@ function addNamedImport(
 			node.source.value === sourceModule,
 	);
 	const valueImport = imports.find((node) => node.importKind !== 'type');
-	if (!valueImport) return `import { ${importedNames.join(', ')} } from '${sourceModule}';\n${contents}`;
+	if (!valueImport) {
+		return { start: 0, end: 0, replacement: `import { ${importedNames.join(', ')} } from '${sourceModule}';\n` };
+	}
 
 	const specifiers = Array.isArray(valueImport.specifiers) ? valueImport.specifiers.filter(isAstNode) : [];
 	const existingNames = new Set(
@@ -83,30 +127,34 @@ function addNamedImport(
 		}),
 	);
 	const missing = importedNames.filter((name) => !existingNames.has(name));
-	if (missing.length === 0) {
-		return contents;
-	}
+	if (missing.length === 0) return undefined;
 
 	const namedSpecifiers = specifiers.filter((specifier) => specifier.type === 'ImportSpecifier');
 	if (namedSpecifiers.length > 0) {
 		const lastSpecifier = namedSpecifiers[namedSpecifiers.length - 1]!;
-		return `${contents.slice(0, lastSpecifier.end)}, ${missing.join(', ')}${contents.slice(lastSpecifier.end)}`;
+		if (typeof lastSpecifier.end === 'number') {
+			return {
+				start: lastSpecifier.end,
+				end: lastSpecifier.end,
+				replacement: `, ${missing.join(', ')}`,
+			};
+		}
 	}
 
 	if (specifiers.some((specifier) => specifier.type === 'ImportNamespaceSpecifier')) {
-		return `import { ${missing.join(', ')} } from '${sourceModule}';\n${contents}`;
+		return { start: 0, end: 0, replacement: `import { ${missing.join(', ')} } from '${sourceModule}';\n` };
 	}
 
 	const defaultSpecifier = specifiers.find((specifier) => specifier.type === 'ImportDefaultSpecifier');
-	if (defaultSpecifier) {
-		return `${contents.slice(0, defaultSpecifier.end)}, { ${missing.join(', ')} }${contents.slice(defaultSpecifier.end)}`;
+	if (defaultSpecifier && typeof defaultSpecifier.end === 'number') {
+		return {
+			start: defaultSpecifier.end,
+			end: defaultSpecifier.end,
+			replacement: `, { ${missing.join(', ')} }`,
+		};
 	}
 
-	return `import { ${missing.join(', ')} } from '${sourceModule}';\n${contents}`;
-}
-
-function addIdentityBindingImport(contents: string, program: AstNode): string {
-	return addNamedImport(contents, program, '@ecopages/core', 'bindComponentIdentity');
+	return { start: 0, end: 0, replacement: `import { ${missing.join(', ')} } from '${sourceModule}';\n` };
 }
 
 function serializeDiscoveryArgument(discovered: DiscoveredImports | undefined): string {
@@ -151,43 +199,53 @@ export function attributeComponentIdentity(
 	filePath: string,
 	integration: string,
 	projectRoot?: string,
-): string {
-	if (!contents.includes('eco.')) return contents;
+	jsxImportSource?: string,
+): EcoSourceTransformResult {
+	const pragma =
+		jsxImportSource && !contents.includes('@jsxImportSource')
+			? createJsxImportSourcePragma(jsxImportSource)
+			: undefined;
+	if (!contents.includes('eco.')) {
+		return applySourceEdits(contents, [], filePath, { prepend: pragma });
+	}
 
 	let program: AstNode;
 	try {
 		program = parseModuleSource(filePath, contents, { sourceType: 'module' }).program as unknown as AstNode;
 	} catch {
-		return contents;
+		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
 
 	const identityLiteral = `{ id: ${JSON.stringify(rapidhash(filePath).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
-	const edits: SourceEdit[] = [];
-	const hasFactory = hasEcoFactoryCall(program);
-	const discovered = hasFactory && projectRoot ? discoverComponentImports(program, filePath, projectRoot) : undefined;
-	const discoveryArgument = serializeDiscoveryArgument(discovered);
+	if (!hasEcoFactoryCall(program)) {
+		return applySourceEdits(contents, [], filePath, { prepend: pragma });
+	}
+
+	const factoryArguments: Array<{ start: number; end: number }> = [];
 	walkAst(program, (node) => {
 		if (!isEcoFactoryCall(node) || !Array.isArray(node.arguments)) return;
 		const firstArgument = node.arguments[0];
 		if (!isAstNode(firstArgument) || isIdentityBinding(firstArgument)) return;
 		if (typeof firstArgument.start !== 'number' || typeof firstArgument.end !== 'number') return;
-		edits.push({
-			start: firstArgument.start,
-			end: firstArgument.end,
-			replacement: `bindComponentIdentity(${identityLiteral}, ${contents.slice(firstArgument.start, firstArgument.end)}${discoveryArgument})`,
-		});
+		factoryArguments.push({ start: firstArgument.start, end: firstArgument.end });
 	});
-	if (edits.length === 0) return contents;
-	edits.push(...(discovered?.removals ?? []));
 
-	let transformed = contents;
-	for (const edit of edits.sort((left, right) => right.start - left.start)) {
-		transformed = `${transformed.slice(0, edit.start)}${edit.replacement}${transformed.slice(edit.end)}`;
+	if (factoryArguments.length === 0) {
+		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
-	return addIdentityBindingImport(
-		transformed,
-		parseModuleSource(filePath, transformed, { sourceType: 'module' }).program as unknown as AstNode,
-	);
+
+	const discovered = projectRoot ? discoverComponentImports(program, filePath, projectRoot) : undefined;
+	const discoveryArgument = serializeDiscoveryArgument(discovered);
+	const edits: SourceEdit[] = factoryArguments.map((firstArgument) => ({
+		start: firstArgument.start,
+		end: firstArgument.end,
+		prefix: `bindComponentIdentity(${identityLiteral}, `,
+		suffix: `${discoveryArgument})`,
+	}));
+	edits.push(...(discovered?.removals ?? []));
+	const importEdit = createNamedImportEdit(program, '@ecopages/core', 'bindComponentIdentity');
+	if (importEdit) edits.push(importEdit);
+	return applySourceEdits(contents, edits, filePath, { prepend: pragma });
 }
 
 function findMdxConfigDeclarator(program: AstNode): AstNode | undefined {
@@ -228,7 +286,8 @@ function buildMdxConfigIdentityEdits(options: {
 	edits.push({
 		start: init.start,
 		end: init.end,
-		replacement: `bindComponentIdentity(${options.identityLiteral}, ${options.contents.slice(init.start, init.end)}${options.discoveryArgument})`,
+		prefix: `bindComponentIdentity(${options.identityLiteral}, `,
+		suffix: `${options.discoveryArgument})`,
 	});
 
 	return edits;
@@ -247,13 +306,20 @@ function buildMdxIdentityAppend(options: {
 	return appended;
 }
 
-/** Attributes compiled MDX module with canonical component identity and discovered dependencies. */
+/**
+ * Attributes a compiled MDX module with canonical component identity and discovered dependencies.
+ *
+ * @remarks
+ * Pass the MDX compiler's map as `previousMap` so the returned map traces back to the `.mdx` file; without
+ * it the map is relative to the compiled module.
+ */
 export function attributeMdxComponentIdentity(
 	contents: string,
 	filePath: string,
 	integration: string,
 	projectRoot: string,
-): string {
+	previousMap?: unknown,
+): EcoSourceTransformResult {
 	if (!projectRoot) {
 		throw new Error(`[ecopages] Cannot process MDX dependencies for "${filePath}": projectRoot is required.`);
 	}
@@ -263,13 +329,13 @@ export function attributeMdxComponentIdentity(
 		program = parseModuleSource(filePath, contents, { lang: 'jsx', sourceType: 'module' })
 			.program as unknown as AstNode;
 	} catch {
-		return contents;
+		return { code: contents, map: previousMap };
 	}
 
 	const configDeclarator = findMdxConfigDeclarator(program);
 
 	if (configDeclarator && isIdentityBinding(configDeclarator.init)) {
-		return contents;
+		return { code: contents, map: previousMap };
 	}
 
 	const discovered = discoverComponentImports(program, filePath, projectRoot);
@@ -285,18 +351,22 @@ export function attributeMdxComponentIdentity(
 	});
 	const appended = buildMdxIdentityAppend({ configDeclarator, identityLiteral, discoveryArgument });
 
-	let transformed = contents;
-	for (const edit of edits.sort((left, right) => right.start - left.start)) {
-		transformed = `${transformed.slice(0, edit.start)}${edit.replacement}${transformed.slice(edit.end)}`;
-	}
-	transformed = `${transformed}\n${appended}`;
+	const importEdit = createNamedImportEdit(program, '@ecopages/core', [
+		'bindComponentIdentity',
+		'attachDiscoveredDependencies',
+	]);
+	if (importEdit) edits.push(importEdit);
 
-	return addNamedImport(
-		transformed,
-		parseModuleSource(filePath, transformed, { lang: 'jsx', sourceType: 'module' }).program as unknown as AstNode,
-		'@ecopages/core',
-		['bindComponentIdentity', 'attachDiscoveredDependencies'],
-	);
+	const transformed = applySourceEdits(contents, edits, filePath, {
+		append: `\n${appended}`,
+	});
+	return {
+		...transformed,
+		map:
+			isUsableSourceMap(previousMap) && isUsableSourceMap(transformed.map)
+				? composeSourceMaps(transformed.map, previousMap)
+				: transformed.map,
+	};
 }
 
 function createComponentMetaFilter(config: EcoPagesAppConfig): RegExp {
@@ -317,12 +387,13 @@ export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOp
 			if (!integration) {
 				return { code };
 			}
-			return {
-				code: prependJsxImportSourceIfMissing(
-					attributeComponentIdentity(code, id, integration.name, options.config.rootDir),
-					integration.jsxImportSource,
-				),
-			};
+			return attributeComponentIdentity(
+				code,
+				id,
+				integration.name,
+				options.config.rootDir,
+				integration.jsxImportSource,
+			);
 		},
 	};
 }

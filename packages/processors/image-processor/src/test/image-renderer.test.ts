@@ -271,7 +271,7 @@ describe('ImageRenderer', () => {
 				data: 'test',
 			});
 			expect(attributes?.layout).toBeUndefined();
-			expect(attributes?.style).toBeDefined();
+			expect(attributes?.style).toMatchObject({ color: 'red' });
 		});
 
 		it('should merge user styles with generated styles in JSX', () => {

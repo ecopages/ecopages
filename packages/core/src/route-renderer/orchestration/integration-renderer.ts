@@ -31,6 +31,7 @@ import {
 import { HtmlTransformerService } from '../../services/html/html-transformer.service.ts';
 import type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
 import { invariant } from '../../utils/invariant.ts';
+import { isProductionRuntime } from '../../utils/runtime.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
@@ -164,6 +165,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected routeRenderOrchestrator: RouteRenderOrchestrator;
 	protected readonly foreignSubtreeExecutionService: ForeignSubtreeExecutionService =
 		new ForeignSubtreeExecutionService();
+	private readonly componentRenderAssets = new WeakMap<object, Promise<ProcessedAsset[]>>();
+
 	protected DOC_TYPE = '<!DOCTYPE html>';
 
 	/**
@@ -458,7 +461,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.assertStringRenderContent(input, content);
 		const html = content as string;
 		const assets = input.component.config?.dependencies
-			? await this.processComponentDependencies([input.component])
+			? await this.resolveComponentRenderAssets(input.component)
 			: undefined;
 
 		return {
@@ -594,6 +597,34 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		components: (EcoComponent | Partial<EcoComponent>)[],
 	): Promise<ProcessedAsset[]> {
 		return this.dependencyResolverService.processComponentDependencies(components, this.name);
+	}
+
+	/**
+	 * Resolves the assets one component contributes when it renders, without the global integration dependencies.
+	 *
+	 * @remarks
+	 * Every render of a component asks for the same assets, and a production process never changes
+	 * its sources, so there the answer is kept per component. Outside production a source edit
+	 * changes the assets, so each render resolves them again. A failed resolution is not kept.
+	 */
+	protected resolveComponentRenderAssets(component: EcoComponent | Partial<EcoComponent>): Promise<ProcessedAsset[]> {
+		if (!isProductionRuntime()) {
+			return this.processComponentDependencies([component]);
+		}
+
+		const known = this.componentRenderAssets.get(component);
+		if (known) {
+			return known;
+		}
+
+		const resolved = this.processComponentDependencies([component]);
+		this.componentRenderAssets.set(component, resolved);
+		resolved.catch(() => {
+			if (this.componentRenderAssets.get(component) === resolved) {
+				this.componentRenderAssets.delete(component);
+			}
+		});
+		return resolved;
 	}
 
 	/**

@@ -129,6 +129,10 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		return adapter.transformRouteResponse(response, htmlContributions, pagePackage);
 	}
 
+	public testResolveComponentRenderAssets(component: EcoComponent) {
+		return this.resolveComponentRenderAssets(component);
+	}
+
 	public appendTestProcessedDependencies(assets: ProcessedAsset[]) {
 		return this.appendProcessedDependencies(assets);
 	}

@@ -497,6 +497,60 @@ describe('IntegrationRenderer', () => {
 		expect(html).toContain('/assets/scripts/render-time-hydration.js');
 	});
 
+	describe('component render assets', () => {
+		function createCountingRenderer(failFirst = false) {
+			const asset = { kind: 'stylesheet', srcUrl: '/assets/component.css' } as ProcessedAsset;
+			let calls = 0;
+			const renderer = new (class extends TestIntegrationRenderer {
+				protected override async processComponentDependencies() {
+					calls += 1;
+					if (failFirst && calls === 1) throw new Error('assets unavailable');
+					return [asset];
+				}
+			})({
+				appConfig: testAppConfig,
+				assetProcessingService: testAssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+			return { renderer, calls: () => calls, asset };
+		}
+
+		it('resolves the assets of a component once per process in production', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+			const { renderer, calls, asset } = createCountingRenderer();
+			const component = (() => 'component') as EcoComponent;
+			const other = (() => 'other') as EcoComponent;
+
+			expect(await renderer.testResolveComponentRenderAssets(component)).toEqual([asset]);
+			expect(await renderer.testResolveComponentRenderAssets(component)).toEqual([asset]);
+			expect(calls()).toBe(1);
+
+			await renderer.testResolveComponentRenderAssets(other);
+			expect(calls()).toBe(2);
+		});
+
+		it('resolves them again on every render outside production', async () => {
+			vi.stubEnv('NODE_ENV', 'development');
+			const { renderer, calls } = createCountingRenderer();
+			const component = (() => 'component') as EcoComponent;
+
+			await renderer.testResolveComponentRenderAssets(component);
+			await renderer.testResolveComponentRenderAssets(component);
+
+			expect(calls()).toBe(2);
+		});
+
+		it('does not keep a resolution that failed', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+			const { renderer, calls, asset } = createCountingRenderer(true);
+			const component = (() => 'component') as EcoComponent;
+
+			await expect(renderer.testResolveComponentRenderAssets(component)).rejects.toThrow('assets unavailable');
+			expect(await renderer.testResolveComponentRenderAssets(component)).toEqual([asset]);
+			expect(calls()).toBe(2);
+		});
+	});
+
 	it('refuses assets appended outside a render', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,

@@ -110,12 +110,12 @@ describe('ProjectWatcher - Integration Tests', () => {
 				bridge,
 				changeDebounceMs: 0,
 			});
+			const newFile = path.join(sourceDirectory, 'new-post.ts');
 
 			try {
 				const fileWatcher = await watcher.createWatcherSubscription();
 				await vi.waitFor(() => expect(fileWatcher.getWatched()).toHaveProperty(sourceDirectory));
 				expect(watchEvents).toEqual([]);
-				const newFile = path.join(sourceDirectory, 'new-post.ts');
 				writeTestFile(newFile, 'export const newPost = {};\n');
 				await vi.waitFor(
 					() => expect(watchEvents).toContainEqual({ kind: 'created', path: path.resolve(newFile) }),
@@ -126,8 +126,8 @@ describe('ProjectWatcher - Integration Tests', () => {
 				await watcher.close();
 			}
 
-			expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
-			expect(bridge.reload).toHaveBeenCalledOnce();
+			expect(hmrManager.handleFileChanges).toHaveBeenCalledWith([path.resolve(newFile)], { broadcast: true });
+			expect(bridge.reload).not.toHaveBeenCalled();
 		});
 	});
 
@@ -614,8 +614,8 @@ describe('ProjectWatcher - Integration Tests', () => {
 			await (watcher as any).handleFileChange(sourceFile);
 
 			expect(existsSync(wouldBeDestFile)).toBe(false);
-			expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
-			expect(bridge.reload).toHaveBeenCalledTimes(1);
+			expect(hmrManager.handleFileChanges).toHaveBeenCalledWith([path.resolve(sourceFile)], { broadcast: true });
+			expect(bridge.reload).not.toHaveBeenCalled();
 		});
 	});
 
@@ -680,14 +680,14 @@ describe('ProjectWatcher - Integration Tests', () => {
 
 			fileEvents.emit('change', mdxPath);
 
-			await vi.waitFor(() => expect(bridge.reload).toHaveBeenCalledTimes(1));
+			await vi.waitFor(() => expect(hmrManager.handleFileChanges).toHaveBeenCalledOnce());
 			expect(onChanges).toHaveBeenCalledWith({
 				created: [],
 				changed: [path.resolve(mdxPath)],
 				deleted: [],
 				bridge,
 			});
-			expect(hmrManager.handleFileChange).not.toHaveBeenCalled();
+			expect(hmrManager.handleFileChanges).toHaveBeenCalledWith([path.resolve(mdxPath)], { broadcast: true });
 		});
 	});
 });

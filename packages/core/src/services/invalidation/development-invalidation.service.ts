@@ -17,7 +17,13 @@ export type DevelopmentInvalidationCategory =
 	| 'processor-owned-asset'
 	| 'source'
 	| 'runtime-restart'
+	| 'entry-watched-config'
 	| 'other';
+
+export type DevelopmentInvalidationPlanningContext = {
+	workspacePackageRoots?: readonly string[];
+	entryWatcherOwnsConfig?: boolean;
+};
 
 const sourceFileExtension = /\.(?:[cm]?ts|[jt]sx?|mdx)$/u;
 
@@ -37,6 +43,67 @@ export interface DevelopmentInvalidationPlan {
 	delegateToHmr: boolean;
 	processorHandledAsset: boolean;
 }
+
+type CategoryInvalidationPlan = Omit<DevelopmentInvalidationPlan, 'category'>;
+
+const INVALIDATION_PLAN_BY_CATEGORY = {
+	'runtime-restart': {
+		invalidateServerModules: false,
+		refreshRoutes: false,
+		reloadBrowser: false,
+		delegateToHmr: false,
+		processorHandledAsset: false,
+	},
+	'entry-watched-config': {
+		invalidateServerModules: false,
+		refreshRoutes: false,
+		reloadBrowser: false,
+		delegateToHmr: false,
+		processorHandledAsset: false,
+	},
+	'public-asset': {
+		invalidateServerModules: false,
+		refreshRoutes: false,
+		reloadBrowser: true,
+		delegateToHmr: false,
+		processorHandledAsset: false,
+	},
+	'additional-watch': {
+		invalidateServerModules: true,
+		refreshRoutes: false,
+		reloadBrowser: true,
+		delegateToHmr: false,
+		processorHandledAsset: false,
+	},
+	'processor-owned-asset': {
+		invalidateServerModules: false,
+		refreshRoutes: false,
+		reloadBrowser: false,
+		delegateToHmr: false,
+		processorHandledAsset: true,
+	},
+	'route-source': {
+		invalidateServerModules: true,
+		refreshRoutes: true,
+		reloadBrowser: false,
+		delegateToHmr: true,
+		processorHandledAsset: false,
+	},
+	source: {
+		invalidateServerModules: true,
+		refreshRoutes: false,
+		reloadBrowser: false,
+		delegateToHmr: true,
+		processorHandledAsset: false,
+	},
+	other: {
+		invalidateServerModules: false,
+		refreshRoutes: false,
+		reloadBrowser: false,
+		delegateToHmr: true,
+		processorHandledAsset: false,
+	},
+} satisfies Record<DevelopmentInvalidationCategory, CategoryInvalidationPlan>;
 
 /**
  * One debounce window of filesystem events, grouped by kind.
@@ -64,8 +131,9 @@ export interface AppliedDevFileChange {
  * Result of applying one batch of development file changes.
  *
  * @remarks
- * Caches are marked dirty here. Rebuild happens on the next request that
- * needs a result, not when the filesystem event arrives.
+ * Ordinary changes mark caches dirty here. A runtime restart path is returned
+ * without invalidating anything because the runtime owner will replace the app.
+ * Rebuild happens on the next request that needs a result, not on the filesystem event.
  */
 export interface AppliedDevFileChanges {
 	files: AppliedDevFileChange[];
@@ -73,6 +141,7 @@ export interface AppliedDevFileChanges {
 	refreshRoutes: boolean;
 	reloadBrowser: boolean;
 	delegateToHmr: boolean;
+	runtimeRestartPath?: string;
 }
 
 /**
@@ -110,14 +179,22 @@ export class DevelopmentInvalidationService {
 	/**
 	 * Plans one filesystem batch and marks affected results dirty without rebuilding them.
 	 */
-	async applyDevFileChanges(changes: DevFileChanges): Promise<AppliedDevFileChanges> {
-		const files = this.collectAppliedFiles(changes);
+	async applyDevFileChanges(
+		changes: DevFileChanges,
+		context: DevelopmentInvalidationPlanningContext = {},
+	): Promise<AppliedDevFileChanges> {
+		const files = this.collectAppliedFiles(changes, context);
 		const applied = this.summarizeAppliedFiles(files);
-		await this.markAppliedFilesDirty(files, applied);
+		if (!applied.runtimeRestartPath) {
+			await this.markAppliedFilesDirty(files, applied);
+		}
 		return applied;
 	}
 
-	private collectAppliedFiles(changes: DevFileChanges): AppliedDevFileChange[] {
+	private collectAppliedFiles(
+		changes: DevFileChanges,
+		context: DevelopmentInvalidationPlanningContext,
+	): AppliedDevFileChange[] {
 		const byPath = new Map<string, DevFileChangeKind>();
 		for (const filePath of changes.changed) {
 			byPath.set(path.resolve(filePath), 'changed');
@@ -131,7 +208,11 @@ export class DevelopmentInvalidationService {
 
 		const files: AppliedDevFileChange[] = [];
 		for (const [filePath, kind] of byPath) {
-			files.push({ filePath, kind, plan: this.planFileChange(filePath) });
+			const plan = this.planFileChange(filePath, context);
+			if (plan.category === 'entry-watched-config') {
+				continue;
+			}
+			files.push({ filePath, kind, plan });
 		}
 		return files;
 	}
@@ -149,7 +230,15 @@ export class DevelopmentInvalidationService {
 			delegateToHmr ||= file.plan.delegateToHmr;
 		}
 
-		return { files, invalidateServerModules, refreshRoutes, reloadBrowser, delegateToHmr };
+		const runtimeRestartPath = files.find((file) => file.plan.category === 'runtime-restart')?.filePath;
+		return {
+			files,
+			invalidateServerModules,
+			refreshRoutes,
+			reloadBrowser,
+			delegateToHmr,
+			...(runtimeRestartPath ? { runtimeRestartPath } : {}),
+		};
 	}
 
 	private async markAppliedFilesDirty(files: AppliedDevFileChange[], applied: AppliedDevFileChanges): Promise<void> {
@@ -202,81 +291,50 @@ export class DevelopmentInvalidationService {
 	/**
 	 * Classifies one changed file into an explicit framework invalidation plan.
 	 */
-	planFileChange(filePath: string): DevelopmentInvalidationPlan {
-		if (this.isRuntimeRestartFile(filePath)) {
-			return {
-				category: 'runtime-restart',
-				invalidateServerModules: false,
-				refreshRoutes: false,
-				reloadBrowser: false,
-				delegateToHmr: false,
-				processorHandledAsset: false,
-			};
+	planFileChange(
+		filePath: string,
+		context: DevelopmentInvalidationPlanningContext = {},
+	): DevelopmentInvalidationPlan {
+		const category = this.classifyFileChange(filePath, context);
+		return { category, ...INVALIDATION_PLAN_BY_CATEGORY[category] };
+	}
+
+	private classifyFileChange(
+		filePath: string,
+		context: DevelopmentInvalidationPlanningContext,
+	): DevelopmentInvalidationCategory {
+		if (context.entryWatcherOwnsConfig && this.isConfigModuleFile(filePath)) {
+			return 'entry-watched-config';
+		}
+
+		if (
+			context.workspacePackageRoots?.some((root) => isPathInside(filePath, root)) ||
+			this.isRuntimeRestartFile(filePath)
+		) {
+			return 'runtime-restart';
 		}
 
 		if (this.isPublicDirFile(filePath)) {
-			return {
-				category: 'public-asset',
-				invalidateServerModules: false,
-				refreshRoutes: false,
-				reloadBrowser: true,
-				delegateToHmr: false,
-				processorHandledAsset: false,
-			};
+			return 'public-asset';
 		}
 
 		if (this.matchesAdditionalWatchPaths(filePath)) {
-			return {
-				category: 'additional-watch',
-				invalidateServerModules: true,
-				refreshRoutes: false,
-				reloadBrowser: true,
-				delegateToHmr: false,
-				processorHandledAsset: false,
-			};
+			return 'additional-watch';
 		}
 
 		if (this.isProcessorOwnedAsset(filePath)) {
-			return {
-				category: 'processor-owned-asset',
-				invalidateServerModules: false,
-				refreshRoutes: false,
-				reloadBrowser: false,
-				delegateToHmr: false,
-				processorHandledAsset: true,
-			};
+			return 'processor-owned-asset';
 		}
 
 		if (this.isRouteSourceFile(filePath)) {
-			return {
-				category: 'route-source',
-				invalidateServerModules: true,
-				refreshRoutes: true,
-				reloadBrowser: false,
-				delegateToHmr: true,
-				processorHandledAsset: false,
-			};
+			return 'route-source';
 		}
 
 		if (getAppBuildInputIndex(this.appConfig).hasSourcePath(filePath) || this.isServerModuleSourceFile(filePath)) {
-			return {
-				category: 'source',
-				invalidateServerModules: true,
-				refreshRoutes: false,
-				reloadBrowser: false,
-				delegateToHmr: true,
-				processorHandledAsset: false,
-			};
+			return 'source';
 		}
 
-		return {
-			category: 'other',
-			invalidateServerModules: false,
-			refreshRoutes: false,
-			reloadBrowser: false,
-			delegateToHmr: true,
-			processorHandledAsset: false,
-		};
+		return 'other';
 	}
 
 	/**

@@ -22,7 +22,8 @@ Different file types require different update methods. Ecopages handles this aut
 
 - **CSS Updates**: When a `.css` file changes, Ecopages broadcasts a `css-update` event. The browser hot-swaps the dynamic `<link>` tag without a full page reload.
 - **React Fast Refresh**: The React integration uses a custom strategy to apply component updates in-place while keeping state.
-- **Full Reload**: If a core configuration or an include file (like `head.ts`) changes, Ecopages triggers a full page reload to ensure consistency.
+- **Server-Rendered Templates**: When an include file (like `head.ts`) or an explicit view changes, Ecopages refreshes the page in place when the navigation runtime is available, and reloads it otherwise.
+- **Full Reload**: If a core configuration file changes, Ecopages triggers a full page reload to ensure consistency.
 - **Build Errors**: When a client-side module that the dev server sends to the browser, such as a `*.script.ts` file or a hydrated component, fails to build, for example after a syntax error, the error appears at the bottom of the page and in the browser console. A page opened while the module still fails shows it too. The next update removes it; press Escape or Dismiss to close it sooner.
 
 ## Client-Side Scripting

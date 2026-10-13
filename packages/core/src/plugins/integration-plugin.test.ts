@@ -91,6 +91,7 @@ describe('IntegrationPlugin', () => {
 			tryHandleAssetRequest: vi.fn(() => null),
 			getDefaultContext: vi.fn(),
 			handleFileChange: vi.fn(),
+			handleFileChanges: vi.fn(),
 		} satisfies IHmrManager;
 
 		const strategy = { matches: vi.fn(() => false), process: vi.fn(), priority: 10, type: 'integration' } as any;

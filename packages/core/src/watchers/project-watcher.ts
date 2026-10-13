@@ -12,9 +12,8 @@ import {
 	type AppliedDevFileChanges,
 	type DevFileChangeKind,
 	type DevFileChanges,
+	type DevelopmentInvalidationPlanningContext,
 } from '../services/invalidation/development-invalidation.service.ts';
-import { isRegisteredDevTransformEntrypoint } from '../hmr/hmr-entrypoint-output.ts';
-import { prepareHmrFileChange } from '../hmr/hmr-file-change-prep.ts';
 import { createProjectWatcherIgnorePredicate } from './project-watcher-ignore.ts';
 import { resolveRuntimeRestartWatchPaths } from '../dev/development-restart-watch-paths.ts';
 import {
@@ -26,6 +25,7 @@ import {
 import { RESOLVED_ASSETS_VENDORS_DIR } from '../config/constants.ts';
 import { resolveWorkspacePackageWatchRoots, isWorkspacePackageFile } from './workspace-package-watch-roots.ts';
 import { getAppBuildInputIndex } from '../build/cache/build-input-dependency-index.ts';
+import { copyRuntimePublicFile } from '../adapters/shared/runtime/copy-runtime-public-dir.ts';
 
 /**
  * Configuration options for the ProjectWatcher
@@ -84,6 +84,7 @@ export class ProjectWatcher {
 	private unsubscribeFromRecordedWatchPaths?: () => void;
 	private closed = false;
 	private pendingDevFileKinds = new Map<string, DevFileChangeKind>();
+	private pendingDirectoryPaths = new Set<string>();
 	private pendingFlushTimer: ReturnType<typeof setTimeout> | undefined;
 	private pendingMaxFlushTimer: ReturnType<typeof setTimeout> | undefined;
 	private pendingFlushResolvers: Array<() => void> = [];
@@ -111,13 +112,8 @@ export class ProjectWatcher {
 		this.onRestartRequest = onRestartRequest;
 		this.entryWatcherOwnsConfig = entryWatcherOwnsConfig === true;
 		this.invalidationService = new DevelopmentInvalidationService(config);
-		this.triggerRouterRefresh = this.triggerRouterRefresh.bind(this);
 		this.handleError = this.handleError.bind(this);
 		this.handleFileChange = this.handleFileChange.bind(this);
-	}
-
-	private isRouteSourceFile(filePath: string): boolean {
-		return this.invalidationService.isRouteSourceFile(filePath);
 	}
 
 	private requestBrowserReload(): void {
@@ -128,12 +124,7 @@ export class ProjectWatcher {
 		try {
 			const relativePath = path.relative(this.appConfig.absolutePaths.publicDir, filePath);
 			const destPath = path.join(this.appConfig.absolutePaths.distDir, relativePath);
-
-			if (fileSystem.exists(filePath)) {
-				const destDir = path.dirname(destPath);
-				fileSystem.ensureDir(destDir);
-				await fileSystem.copyFileAsync(filePath, destPath);
-			}
+			await copyRuntimePublicFile(filePath, destPath);
 		} catch (error) {
 			appLogger.error(`Failed to copy public file: ${formatErrorWithStack(error)}`);
 		}
@@ -159,7 +150,19 @@ export class ProjectWatcher {
 
 		const resolvedPath = path.resolve(rawPath);
 		this.pendingDevFileKinds.set(resolvedPath, watcherEventToDevFileChangeKind(event));
+		return this.scheduleChangeFlush();
+	}
 
+	private handleDirectoryChange(rawPath: string): Promise<void> {
+		if (this.closed) {
+			return Promise.resolve();
+		}
+
+		this.pendingDirectoryPaths.add(path.resolve(rawPath));
+		return this.scheduleChangeFlush();
+	}
+
+	private scheduleChangeFlush(): Promise<void> {
 		if (this.changeDebounceMs === 0) {
 			return this.enqueueChange(() => this.flushPendingDevFileChanges());
 		}
@@ -186,10 +189,11 @@ export class ProjectWatcher {
 	private flushScheduledDevFileChanges(): void {
 		this.clearPendingFlushTimers();
 		const changes = takePendingDevFileChanges(this.pendingDevFileKinds);
+		const directoryPaths = takePendingDirectoryPaths(this.pendingDirectoryPaths);
 		const resolvers = this.pendingFlushResolvers.splice(0);
 		void this.enqueueChange(async () => {
 			if (this.closed) return;
-			await this.processDevFileChanges(changes);
+			await this.processDevFileChanges(changes, directoryPaths);
 		}).finally(() => {
 			for (const resolve of resolvers) {
 				resolve();
@@ -237,12 +241,13 @@ export class ProjectWatcher {
 	}
 
 	private async flushPendingDevFileChanges(): Promise<void> {
-		if (this.pendingDevFileKinds.size === 0) {
+		if (this.pendingDevFileKinds.size === 0 && this.pendingDirectoryPaths.size === 0) {
 			return;
 		}
 
 		const changes = takePendingDevFileChanges(this.pendingDevFileKinds);
-		await this.processDevFileChanges(changes);
+		const directoryPaths = takePendingDirectoryPaths(this.pendingDirectoryPaths);
+		await this.processDevFileChanges(changes, directoryPaths);
 	}
 
 	/**
@@ -286,22 +291,21 @@ export class ProjectWatcher {
 	/**
 	 * Applies one collected batch: mark dirty, refresh routes once, notify once.
 	 */
-	private async processDevFileChanges(changes: DevFileChanges): Promise<void> {
+	private async processDevFileChanges(changes: DevFileChanges, directoryPaths: string[] = []): Promise<void> {
 		try {
-			const restartPath = this.findBatchRestartPath(changes);
-			if (restartPath) {
-				this.handleRuntimeRestart(restartPath);
+			const planningContext = this.getInvalidationPlanningContext();
+			const applied = await this.applyFileChanges(changes, planningContext);
+			if (applied?.runtimeRestartPath) {
+				this.handleRuntimeRestart(applied.runtimeRestartPath);
 				return;
 			}
 
-			const applied = await this.invalidationService.applyDevFileChanges(changes);
-			if (applied.files.length === 0) {
+			if (await this.refreshRouteRegistry(applied, directoryPaths)) {
 				return;
 			}
 
-			await this.copyPublicAssets(applied.files);
-			if (applied.refreshRoutes) {
-				await this.refreshRouterRoutesCallback();
+			if (!applied || applied.files.length === 0) {
+				return;
 			}
 			await this.notifyProcessorsForBatch(applied.files);
 			await this.notifyBatchClientUpdate(applied);
@@ -310,24 +314,38 @@ export class ProjectWatcher {
 		}
 	}
 
-	private findBatchRestartPath(changes: DevFileChanges): string | undefined {
-		for (const filePath of [...changes.changed, ...changes.created, ...changes.deleted]) {
-			if (isWorkspacePackageFile(filePath, this.workspacePackageRoots)) {
-				return filePath;
-			}
-
-			if (!this.invalidationService.isRuntimeRestartFile(filePath)) {
-				continue;
-			}
-
-			if (this.entryWatcherOwnsConfig && this.invalidationService.isConfigModuleFile(filePath)) {
-				continue;
-			}
-
-			return filePath;
+	private async applyFileChanges(
+		changes: DevFileChanges,
+		context: DevelopmentInvalidationPlanningContext,
+	): Promise<AppliedDevFileChanges | undefined> {
+		if (changes.changed.length + changes.created.length + changes.deleted.length === 0) {
+			return undefined;
 		}
 
-		return undefined;
+		return this.invalidationService.applyDevFileChanges(changes, context);
+	}
+
+	private async refreshRouteRegistry(
+		applied: AppliedDevFileChanges | undefined,
+		directoryPaths: string[],
+	): Promise<boolean> {
+		const refreshDirectoryRoutes = directoryPaths.some((filePath) => this.isRouteDirectoryEvent(filePath));
+		if ((!applied || applied.files.length === 0) && !refreshDirectoryRoutes) {
+			return false;
+		}
+
+		await this.copyPublicAssets(applied?.files ?? []);
+		if (applied?.refreshRoutes || refreshDirectoryRoutes) {
+			await this.refreshRouterRoutesCallback();
+		}
+		return !applied || applied.files.length === 0;
+	}
+
+	private getInvalidationPlanningContext(): DevelopmentInvalidationPlanningContext {
+		return {
+			workspacePackageRoots: this.workspacePackageRoots,
+			entryWatcherOwnsConfig: this.entryWatcherOwnsConfig,
+		};
 	}
 
 	private async copyPublicAssets(files: AppliedDevFileChange[]): Promise<void> {
@@ -374,66 +392,24 @@ export class ProjectWatcher {
 	}
 
 	private async notifyBatchClientUpdate(applied: AppliedDevFileChanges): Promise<void> {
-		const hmrCandidates = applied.files.filter(
-			(file) => file.plan.delegateToHmr && !file.plan.processorHandledAsset && !file.plan.reloadBrowser,
-		);
-		if (hmrCandidates.length === 0) {
-			if (applied.reloadBrowser) {
+		const hmrCandidates = applied.files.filter((file) => file.plan.delegateToHmr);
+		const shouldReloadBrowser = applied.reloadBrowser || hmrCandidates.some((file) => file.kind === 'deleted');
+		try {
+			if (hmrCandidates.length > 0) {
+				await this.hmrManager.handleFileChanges(
+					hmrCandidates.map((file) => file.filePath),
+					{ broadcast: !shouldReloadBrowser },
+				);
+			}
+		} finally {
+			if (shouldReloadBrowser) {
 				this.requestBrowserReload();
 			}
-			return;
-		}
-
-		const registeredHmrFiles = this.collectRegisteredHmrFiles(hmrCandidates);
-		const hasUnregisteredHmr = registeredHmrFiles.length !== hmrCandidates.length;
-
-		if (registeredHmrFiles.length === 1 && !applied.reloadBrowser && !hasUnregisteredHmr) {
-			await this.delegateRegisteredHmrFile(registeredHmrFiles[0]);
-			return;
-		}
-
-		for (const file of registeredHmrFiles) {
-			await this.delegateRegisteredHmrFile(file, false);
-		}
-
-		if (applied.reloadBrowser || hasUnregisteredHmr || registeredHmrFiles.length > 1) {
-			this.requestBrowserReload();
 		}
 	}
 
-	private collectRegisteredHmrFiles(files: AppliedDevFileChange[]): AppliedDevFileChange[] {
-		if (typeof this.hmrManager.getRegisteredEntrypoints !== 'function') {
-			return [];
-		}
-
-		const registered = this.hmrManager.getRegisteredEntrypoints();
-		return files.filter((file) => isRegisteredDevTransformEntrypoint(registered, file.filePath));
-	}
-
-	private async delegateRegisteredHmrFile(file: AppliedDevFileChange, broadcast = true): Promise<void> {
-		const graphPreparation = this.hmrManager.isEnabled()
-			? prepareHmrFileChange(this.appConfig, file.filePath)
-			: undefined;
-		await this.hmrManager.handleFileChange(file.filePath, {
-			broadcast,
-			graphIdentities: graphPreparation?.affectedGraphIdentities,
-		});
-	}
-
-	/**
-	 * Triggers router refresh for page directory changes.
-	 * This ensures the router is updated when pages are added or removed.
-	 *
-	 * @param {string} path - Path of the changed directory
-	 */
-	async triggerRouterRefresh(changedPath: string): Promise<void> {
-		const resolvedPath = path.resolve(changedPath);
-		const isPageDir =
-			isPathInside(resolvedPath, this.appConfig.absolutePaths.pagesDir) && path.extname(resolvedPath) === '';
-
-		if (isPageDir || this.isRouteSourceFile(resolvedPath)) {
-			await this.refreshRouterRoutesCallback();
-		}
+	private isRouteDirectoryEvent(directoryPath: string): boolean {
+		return isPathInside(path.resolve(directoryPath), this.appConfig.absolutePaths.pagesDir);
 	}
 
 	/**
@@ -442,7 +418,7 @@ export class ProjectWatcher {
 	 * @param {unknown} error - The error to handle
 	 */
 	handleError(error: unknown) {
-		if (error instanceof Error && typeof this.hmrManager.broadcast === 'function') {
+		if (error instanceof Error) {
 			this.hmrManager.broadcast({ type: 'error', message: error.message });
 		}
 		appLogger.error(`Watcher error: ${formatErrorWithStack(error)}`);
@@ -577,9 +553,9 @@ export class ProjectWatcher {
 		this.watcher
 			.on('change', (p) => this.handleFileChange(p, 'change'))
 			.on('add', (p) => this.handleFileChange(p, 'add'))
-			.on('addDir', (p) => this.enqueueChange(() => this.triggerRouterRefresh(p)))
+			.on('addDir', (p) => this.handleDirectoryChange(p))
 			.on('unlink', (p) => this.handleFileChange(p, 'unlink'))
-			.on('unlinkDir', (p) => this.enqueueChange(() => this.triggerRouterRefresh(p)))
+			.on('unlinkDir', (p) => this.handleDirectoryChange(p))
 			.on('error', (error) => this.handleError(error));
 
 		for (const processor of this.appConfig.processors.values()) {
@@ -618,6 +594,7 @@ export class ProjectWatcher {
 
 		this.clearPendingFlushTimers();
 		this.pendingDevFileKinds.clear();
+		this.pendingDirectoryPaths.clear();
 		for (const resolve of this.pendingFlushResolvers.splice(0)) {
 			resolve();
 		}
@@ -662,4 +639,10 @@ function takePendingDevFileChanges(pending: Map<string, DevFileChangeKind>): Dev
 	pending.clear();
 
 	return { changed, created, deleted };
+}
+
+function takePendingDirectoryPaths(pending: Set<string>): string[] {
+	const directoryPaths = [...pending];
+	pending.clear();
+	return directoryPaths;
 }

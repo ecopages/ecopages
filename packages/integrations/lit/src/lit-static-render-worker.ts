@@ -9,6 +9,7 @@ import type {
 	LitStaticRenderWorkerRequestMessage,
 	LitStaticRenderWorkerResponseMessage,
 } from './lit-static-render-protocol.ts';
+import { toLitStaticRenderResult } from './lit-static-render-result.ts';
 import './dom-shim.ts';
 
 let appConfig: EcoPagesAppConfig | null = null;
@@ -48,21 +49,7 @@ async function renderPage(filePath: string, params: PageParams, query?: PageQuer
 		query,
 	});
 
-	const { body, cacheStrategy, sourceDependencyPaths } = result;
-	const metadata = { cacheStrategy, sourceDependencyPaths };
-	if (typeof body === 'string') {
-		return { html: body, ...metadata };
-	}
-
-	if (Buffer.isBuffer(body)) {
-		return { html: body.toString('utf8'), ...metadata };
-	}
-
-	if (body instanceof ReadableStream) {
-		return { html: await new Response(body).text(), ...metadata };
-	}
-
-	throw new TypeError(`Unsupported Lit static render body type: ${typeof body}`);
+	return toLitStaticRenderResult(result);
 }
 
 function postMessage(message: LitStaticRenderWorkerResponseMessage): void {

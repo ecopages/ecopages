@@ -295,7 +295,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 							this.renderQueuedForeignSubtreeChildren(children, queuedResolutionsByToken, resolveToken),
 					);
 					const componentAssets = input.component.config?.dependencies
-						? await this.resolveComponentRenderAssets(input.component)
+						? await this.processComponentDependencies([input.component])
 						: [];
 					const assets = this.htmlTransformer.dedupeProcessedAssets([
 						...queuedForeignSubtreeResolution.assets,

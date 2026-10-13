@@ -15,7 +15,6 @@ import {
 } from './component-render-context.ts';
 import { assertForeignChildrenNotOpaque, isMarkupNodeLike } from './foreign-child-output.utils.ts';
 import { dedupeProcessedAssets } from '../page-browser-graph/processed-asset-dedupe.ts';
-import { getComponentOwner } from '../../../eco/component-identity.ts';
 
 export type QueuedForeignChildDecisionInput = {
 	currentIntegration: string;
@@ -288,7 +287,7 @@ export async function resolveQueuedHtml<TContext extends QueuedForeignSubtreeRes
 		queueLabel: options.currentIntegrationName,
 		renderQueuedChildren: options.renderQueuedChildren,
 		resolveForeignSubtree: (input, rendererCache) =>
-			resolveForeignSubtreeInOwningRenderer({
+			resolveForeignChildInOwningRenderer({
 				currentIntegrationName: options.currentIntegrationName,
 				input,
 				rendererCache: rendererCache as Map<string, ForeignSubtreeExecutionOwningRenderer>,
@@ -509,25 +508,6 @@ async function resolveForeignChildInOwningRenderer(options: {
 		rendererCache: options.rendererCache,
 		getOwningRenderer: options.getOwningRenderer,
 		run: (owningRenderer, delegatedInput) => owningRenderer.renderComponentWithForeignChildren(delegatedInput),
-	});
-}
-
-async function resolveForeignSubtreeInOwningRenderer(options: {
-	currentIntegrationName: string;
-	input: ComponentRenderInput;
-	rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>;
-	getOwningRenderer(
-		integrationName: string,
-		rendererCache: Map<string, ForeignSubtreeExecutionOwningRenderer>,
-	): Promise<ForeignSubtreeExecutionOwningRenderer>;
-}): Promise<ComponentRenderResult | undefined> {
-	return await runInForeignOwningRenderer({
-		currentIntegrationName: options.currentIntegrationName,
-		input: options.input,
-		rendererCache: options.rendererCache,
-		getOwningRenderer: options.getOwningRenderer,
-		run: async (owningRenderer, delegatedInput) =>
-			await owningRenderer.renderComponentWithForeignChildren(delegatedInput),
 	});
 }
 

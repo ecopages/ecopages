@@ -12,7 +12,6 @@ import type {
 	IntegrationRenderer,
 } from '../../../route-renderer/orchestration/integration-renderer.ts';
 import type { AnyIntegrationPlugin } from '../../../plugins/integration-plugin.ts';
-import { getComponentOwner } from '../../../eco/component-identity.ts';
 import { invariant } from '../../../utils/invariant.ts';
 import { createBodyResponse } from '../http/create-body-response.ts';
 

@@ -39,7 +39,7 @@ export interface ExplicitViewRendererResolver {
 export type StaticGenerationRendererResolver = PageRendererResolver & ExplicitViewRendererResolver;
 
 /**
- * Selects integration renderers for route files and explicit views.
+ * Selects and caches integration renderers for route files and explicit views.
  *
  * @remarks
  * The factory maps a route file or explicit integration name to its Integration's
@@ -49,6 +49,7 @@ export type StaticGenerationRendererResolver = PageRendererResolver & ExplicitVi
 export class RouteRendererFactory {
 	private appConfig: EcoPagesAppConfig;
 	runtimeOrigin: string;
+	private rendererCache = new Map<string, IntegrationRenderer<unknown>>();
 
 	/**
 	 * Creates the route-renderer factory for one app/runtime instance.
@@ -63,8 +64,8 @@ export class RouteRendererFactory {
 	 *
 	 * @remarks
 	 * A development server may select a fallback port after this factory is
-	 * constructed. Renderers retain their original page-module loader, so each
-	 * Integration discards its renderer when the origin changes.
+	 * constructed. Cached renderers retain their original page-module loader, so
+	 * they must be discarded when the origin changes.
 	 */
 	setRuntimeOrigin(runtimeOrigin: string): void {
 		if (this.runtimeOrigin === runtimeOrigin) {
@@ -72,6 +73,7 @@ export class RouteRendererFactory {
 		}
 
 		this.runtimeOrigin = runtimeOrigin;
+		this.rendererCache.clear();
 		for (const integration of this.appConfig.integrations) {
 			integration.setRuntimeOrigin?.(runtimeOrigin);
 		}
@@ -118,7 +120,8 @@ export class RouteRendererFactory {
 	}
 
 	/**
-	 * Returns the renderer of the file's owning integration.
+	 * Returns the cached renderer engine for the file's owning integration,
+	 * creating it on first use.
 	 */
 	private getRouteRendererEngine(filePath: string): IntegrationRenderer<unknown> {
 		const integrationPlugin = this.getIntegrationPlugin(filePath);

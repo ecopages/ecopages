@@ -894,8 +894,8 @@ export type RouteRenderResult = {
 	cacheStrategy?: CacheStrategy;
 	/** Source paths observed during render preparation for HTML cache invalidation. */
 	sourceDependencyPaths?: readonly string[];
-	/** Page metadata the document was rendered with. Static export reads it for the sitemap. */
-	metadata: PageMetadataProps;
+	/** Page metadata the document was rendered with. */
+	metadata?: PageMetadataProps;
 };
 
 /**

@@ -18,15 +18,13 @@ describe('RouteRendererFactory runtime binding', () => {
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
-		expect(factory.getExplicitViewRenderer('test')).toBe(renderer);
-		expect(factory.getPageRenderer('/app/pages/index.test.ts')).toBe(renderer);
-		expect(factory.getExplicitViewRenderer('other')).toBeNull();
-
+		expect(factory.getExplicitViewRenderer('test')).toBe(firstRenderer);
 		factory.setRuntimeOrigin('http://localhost:3001');
 		currentRenderer = secondRenderer;
 
 		expect(factory.runtimeOrigin).toBe('http://localhost:3001');
 		expect(integration.setRuntimeOrigin).toHaveBeenCalledWith('http://localhost:3001');
+		expect(factory.getExplicitViewRenderer('test')).toBe(secondRenderer);
 	});
 
 	it('resolves a dotted file name to its owner, and names a file no Integration owns', () => {

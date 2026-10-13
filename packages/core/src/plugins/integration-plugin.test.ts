@@ -6,7 +6,6 @@ import type { AssetDefinition } from '../services/assets/asset-processing-servic
 import type { IntegrationRendererRenderOptions, RouteRendererBody } from '../types/public-types.ts';
 import { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import { ensureIntegrationRuntimeReady } from '../build/app-build-manifest-runtime.ts';
 
 class NamelessRenderer extends IntegrationRenderer {
 	declare name: string;
@@ -157,95 +156,5 @@ describe('IntegrationPlugin', () => {
 
 		const renderer = pluginWithOverride.initializeRenderer();
 		expect(renderer.name).toBe('test-plugin');
-	});
-
-	describe('getRenderer', () => {
-		function createRendererPlugin() {
-			const pluginWithRenderer = new (class extends TestIntegrationPlugin {
-				override renderer = NamelessRenderer as TestIntegrationPlugin['renderer'];
-			})(config);
-			pluginWithRenderer.setConfig({
-				absolutePaths: { distDir: '/dist' },
-				integrations: [],
-			} as unknown as EcoPagesAppConfig);
-			pluginWithRenderer.setRuntimeOrigin('http://localhost:3000');
-			return pluginWithRenderer;
-		}
-
-		it('creates one renderer and hands it to every caller', () => {
-			const pluginWithRenderer = createRendererPlugin();
-			const initializeRenderer = vi.spyOn(pluginWithRenderer, 'initializeRenderer');
-
-			expect(pluginWithRenderer.getRenderer()).toBe(pluginWithRenderer.getRenderer());
-			expect(initializeRenderer).toHaveBeenCalledTimes(1);
-		});
-
-		it('keeps the renderer when the runtime origin is set to the value it has', () => {
-			const pluginWithRenderer = createRendererPlugin();
-			const renderer = pluginWithRenderer.getRenderer();
-
-			pluginWithRenderer.setRuntimeOrigin('http://localhost:3000');
-
-			expect(pluginWithRenderer.getRenderer()).toBe(renderer);
-		});
-
-		it('keeps its renderer and asset service when setConfig gets the config it already has', () => {
-			const appConfig = { absolutePaths: { distDir: '/dist' }, integrations: [] } as unknown as EcoPagesAppConfig;
-			const pluginWithRenderer = new (class extends TestIntegrationPlugin {
-				override renderer = NamelessRenderer as TestIntegrationPlugin['renderer'];
-			})(config);
-			pluginWithRenderer.setConfig(appConfig);
-			pluginWithRenderer.setRuntimeOrigin('http://localhost:3000');
-			const renderer = pluginWithRenderer.getRenderer();
-			const assetProcessingService = pluginWithRenderer['assetProcessingService'];
-
-			pluginWithRenderer.setConfig(appConfig);
-
-			expect(pluginWithRenderer.getRenderer()).toBe(renderer);
-			expect(pluginWithRenderer['assetProcessingService']).toBe(assetProcessingService);
-		});
-
-		it('keeps the renderer created before runtime activation', async () => {
-			const pluginWithRenderer = new (class extends TestIntegrationPlugin {
-				override renderer = NamelessRenderer as TestIntegrationPlugin['renderer'];
-			})(config);
-			const appConfig = {
-				absolutePaths: { distDir: '/dist' },
-				integrations: [pluginWithRenderer],
-			} as unknown as EcoPagesAppConfig;
-			pluginWithRenderer.setConfig(appConfig);
-			pluginWithRenderer.setRuntimeOrigin('http://localhost:3000');
-			const renderer = pluginWithRenderer.getRenderer();
-
-			await ensureIntegrationRuntimeReady({
-				appConfig,
-				integrationName: pluginWithRenderer.name,
-				runtimeOrigin: 'http://localhost:3000',
-			});
-
-			expect(pluginWithRenderer.getRenderer()).toBe(renderer);
-		});
-
-		it('creates a new renderer after the runtime origin, config or HMR manager changes', () => {
-			const pluginWithRenderer = createRendererPlugin();
-			const original = pluginWithRenderer.getRenderer();
-
-			pluginWithRenderer.setRuntimeOrigin('http://localhost:3001');
-			const afterOrigin = pluginWithRenderer.getRenderer();
-			expect(afterOrigin).not.toBe(original);
-
-			pluginWithRenderer.setConfig({
-				absolutePaths: { distDir: '/dist' },
-				integrations: [],
-			} as unknown as EcoPagesAppConfig);
-			const afterConfig = pluginWithRenderer.getRenderer();
-			expect(afterConfig).not.toBe(afterOrigin);
-
-			pluginWithRenderer.setHmrManager({
-				registerStrategy: vi.fn(),
-				isEnabled: vi.fn(() => false),
-			} as unknown as IHmrManager);
-			expect(pluginWithRenderer.getRenderer()).not.toBe(afterConfig);
-		});
 	});
 });

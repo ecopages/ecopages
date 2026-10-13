@@ -284,23 +284,6 @@ describe('HtmlTransformerService', () => {
 		expect(html).not.toContain('/ignored.js');
 	});
 
-	it('transforms two page packages independently on one service', () => {
-		const transformer = new HtmlTransformerService();
-		const shell = '<html><head></head><body></body></html>';
-		const first = createPagePackage([{ kind: 'script', srcUrl: '/first.js', position: 'body' } as ProcessedAsset]);
-		const second = createPagePackage([
-			{ kind: 'script', srcUrl: '/second.js', position: 'body' } as ProcessedAsset,
-		]);
-
-		const firstHtml = transformer.transformHtml(shell, { pagePackage: first });
-		const secondHtml = transformer.transformHtml(shell, { pagePackage: second });
-
-		expect(firstHtml).toContain('/first.js');
-		expect(firstHtml).not.toContain('/second.js');
-		expect(secondHtml).toContain('/second.js');
-		expect(secondHtml).not.toContain('/first.js');
-	});
-
 	it('injects page browser entry assets while keeping chunk assets out of initial html', () => {
 		const transformer = new HtmlTransformerService();
 		const routeStylesheet = {

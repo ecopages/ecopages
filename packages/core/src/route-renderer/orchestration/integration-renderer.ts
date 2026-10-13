@@ -31,7 +31,6 @@ import {
 import { HtmlTransformerService } from '../../services/html/html-transformer.service.ts';
 import type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
 import { invariant } from '../../utils/invariant.ts';
-import { isProductionRuntime } from '../../utils/runtime.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
 import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
@@ -103,6 +102,7 @@ import {
 	resolveDocumentShellLayouts,
 } from './document-shell/layout-shell-props.service.ts';
 import { finalizeIslandComponentRender } from '../../islands/island-host.ts';
+import { isProductionRuntime } from '../../utils/runtime.ts';
 
 /**
  * Controls how one route module is loaded outside the normal render path.
@@ -453,7 +453,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		const existingPackage = session?.pagePackage ?? context?.pagePackage;
 		const existingDependencies = existingPackage?.assets ?? session?.processedDependencies ?? [];
 		const mergedDependencies = this.htmlTransformer.dedupeProcessedAssets([
-			...(context.pagePackage?.assets ?? []),
+			...existingDependencies,
 			...nextDependencies,
 		]);
 		const pagePackage = createPagePackage(mergedDependencies, {
@@ -509,7 +509,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 		return renderPageDocumentShell(
 			{
-				integrationName: this.name,
 				renderComponentWithForeignChildren: (renderInput) =>
 					this.renderComponentWithForeignChildren(renderInput),
 				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
@@ -573,7 +572,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.assertStringRenderContent(input, content);
 		const html = content as string;
 		const assets = input.component.config?.dependencies
-			? await this.resolveComponentRenderAssets(input.component)
+			? await this.processComponentDependencies([input.component])
 			: undefined;
 
 		return {
@@ -641,7 +640,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.resolvedIntegrationDependencies = resolvedIntegrationDependencies || [];
 		this.runtimeOrigin = runtimeOrigin;
 		this.integrationHooks = hooks ?? {};
-		this.dependencyResolverService = new DependencyResolverService(appConfig, assetProcessingService);
+		this.dependencyResolverService = new DependencyResolverService(
+			appConfig,
+			assetProcessingService,
+			() => isProductionRuntime() && this.hmrManager?.isEnabled() !== true,
+		);
 		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig, runtimeOrigin);
 		this.routeRenderOrchestrator = new RouteRenderOrchestrator(appConfig, assetProcessingService, {
 			ownershipValidationService: new OwnershipValidationService(appConfig),

@@ -30,7 +30,7 @@ Three concentric shapes, plus profile executors and request policy:
 | `BuildRuntime`              | `runtime/build-runtime.ts`             | Profile-based executor registry. Scheduling, concurrency, and dedupe only.                                                                              |
 | `BuildExecutor`             | `contracts/build-contracts.ts`         | Narrower runtime facade. Only `build` is exposed. Retrieved via `buildRuntime.getProfile(...)`.                                                         |
 | `build-request-policy.ts`   | `runtime/build-request-policy.ts`      | Assembles complete `BuildOptions` before scheduling. Server and browser: plugins, including source transforms as `transform` hooks, plus JSX ownership. |
-| `build-request-identity.ts` | `runtime/build-request-identity.ts`    | Canonical request identity for in-flight and request-scope dedupe.                                                                                      |
+| `build-request-identity.ts` | `runtime/build-request-identity.ts`    | Canonical request identity for in-flight and request-scope dedupe: every `BuildOptions` field except `plugins`, plus plugin names and `cacheKey`s.      |
 | `SerializedBuildExecutor`   | `runtime/serialized-build-executor.ts` | FIFO queue around any `BuildExecutor`. Used for server-entry single-flight ordering.                                                                    |
 | `ParallelBuildExecutor`     | `runtime/parallel-build-executor.ts`   | Concurrency-limited wrapper for independent route-module and HMR browser builds.                                                                        |
 
@@ -120,6 +120,7 @@ Migration: move Integration `browserBuildPlugins` and Processor `buildPlugins` i
 - `name: string`
 - `environments?: ('server' | 'browser')[]` (omitted means both)
 - `setup(build: EcoBuildPluginBuilder): void | Promise<void>`
+- `cacheKey?: string` — set by a factory that captures an option which changes its output (the `import.meta` transform sets its runtime directory). A build request is identified by every `BuildOptions` field except `plugins`, plus each plugin's name, environments and `cacheKey` in order, so two plugins of one name from different options are separate builds only through `cacheKey`. The source of `setup` is not hashed.
 
 `EcoBuildPluginBuilder` exposes four hooks:
 

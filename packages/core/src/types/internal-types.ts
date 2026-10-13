@@ -112,7 +112,13 @@ export type EcoPagesAppConfig = {
 	sitemap: SitemapConfig;
 	/** Additional paths to watch. Use this to monitor extra files. It is relative to the rootDir */
 	additionalWatchPaths: string[];
-	/** Static paths to SSR-prewarm in the background during development. */
+	/**
+	 * Static paths to SSR-prewarm in the background during development.
+	 *
+	 * @remarks
+	 * Starts as the user's `devPrewarmPaths`. A Processor appends the paths it owns from `setup()`, which runs
+	 * before the server reports that it is listening; core reads the list once, after that.
+	 */
 	devPrewarmPaths?: string[];
 	/**
 	 * @default { title: 'Ecopages', description: 'Ecopages' }

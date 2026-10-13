@@ -70,7 +70,7 @@ Core owns the ordering. Processors participate in these phases:
 3. **`setup()`** — runs at app startup after the manifest is sealed. Use for runtime-only work such as cache warming or watcher registration.
 4. **`transformStylesheet(css, file)`** — optional; transforms every `.css`, `.scss`, `.sass` and `.less` asset the processor's `stylesheet` capability matches, in processor registration order. A processor without it takes no part in stylesheet processing.
 5. **Watch batches** — in development, `watch.onChanges({ created, changed, deleted, bridge })` receives matching absolute paths grouped once per debounce window. `extensions` select notifications; `capabilities` define asset ownership.
-6. **`collectDevPrewarmPaths()`** — optional; returns pathnames core renders in the background once the development server handles requests. Defaults to `[]`.
+6. **Prewarm** — a processor that owns pages to warm appends their pathnames to `this.context.config.devPrewarmPaths` from `setup()`. Core renders that list in the background once the development server handles requests.
 
 ## Asset Capabilities
 

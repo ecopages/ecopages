@@ -200,17 +200,6 @@ export abstract class Processor<TOptions = unknown> {
 	 */
 	async prepareBuildContributions(): Promise<void> {}
 
-	/**
-	 * Declares watch-mode SSR prewarm pathnames for core.
-	 *
-	 * @remarks
-	 * Processors return paths; core renders them in the background through the normal response
-	 * pipeline. Prewarming does not change which responses the page cache stores.
-	 */
-	collectDevPrewarmPaths(): Promise<readonly string[]> {
-		return Promise.resolve([]);
-	}
-
 	abstract setup(): Promise<void>;
 
 	/**

@@ -16,7 +16,6 @@ import { FileSystemServerResponseFactory } from '../http/fs-server-response-fact
 import { FileSystemResponseMatcher } from '../http/fs-server-response-matcher.ts';
 import { ServerRouteHandler } from './server-route-handler.ts';
 import { startDevStaticRoutePrewarm } from './dev-static-route-prewarm.ts';
-import { collectAppDevPrewarmPaths } from './collect-dev-prewarm-paths.ts';
 import { createRenderContext } from './render-context.ts';
 import { ApiRequestPipeline } from '../http/api-request-pipeline.ts';
 import { isHtmlResponse, withUncachedDevHtml } from '../hmr/hmr-html-response.ts';
@@ -92,7 +91,7 @@ export abstract class SharedServerAdapter<
 
 		const runtimeOrigin = this.runtimeOrigin;
 		this.devStaticRoutePrewarm = startDevStaticRoutePrewarm({
-			collectPathnames: () => collectAppDevPrewarmPaths(this.appConfig),
+			collectPathnames: () => this.appConfig.devPrewarmPaths ?? [],
 			signal: this.devStaticRoutePrewarmAbort.signal,
 			renderPath: (pathname: string) =>
 				requireBuildQueue(this.appConfig).withRequestScope(() =>

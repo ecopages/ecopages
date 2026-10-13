@@ -1,8 +1,8 @@
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
-import type { EcoSourceTransform } from '../plugins/source-transform.ts';
-import { createMappedSourceTransformResult } from './mapped-source-transform.ts';
+import type { EcoBuildPlugin } from './contracts/build-types.ts';
+import { createCoreTransformPlugin, createMappedSourceTransformResult } from './mapped-source-transform.ts';
 
 type AstNode = {
 	type?: string;
@@ -122,7 +122,7 @@ function collectImportMetaEdits(
 }
 
 /**
- * Creates a source transform that keeps `import.meta.url`, `import.meta.dirname`
+ * Creates a build plugin that keeps `import.meta.url`, `import.meta.dirname`
  * and `import.meta.filename` (and Bun's `dir`, `path` and `file`) of every bundled
  * module pointing at its source file, for server output that runs from
  * `runtimeDir`.
@@ -137,13 +137,13 @@ function collectImportMetaEdits(
  * plugin already requires. `import.meta.resolve()` is not rewritten and
  * resolves from the output chunk.
  *
- * The filter matches the extensions the shared source-transform pass accepts
+ * The filter matches the extensions this transform accepts
  * (`.ts`, `.tsx`, `.js`, `.jsx`), so bundled `.mjs`, `.cjs`, `.mts` and
  * `.cts` modules keep the `import.meta` of their output chunk.
  */
-export function createPreserveImportMetaTransform(runtimeDir: string): EcoSourceTransform {
+export function createPreserveImportMetaPlugin(runtimeDir: string): EcoBuildPlugin {
 	let realRuntimeDir: string | undefined;
-	return {
+	return createCoreTransformPlugin({
 		name: 'preserve-import-meta-for-server-output',
 		cacheKey: runtimeDir,
 		filter: /\.[jt]sx?$/,
@@ -161,5 +161,5 @@ export function createPreserveImportMetaTransform(runtimeDir: string): EcoSource
 				if (needsNodePath) source.prepend(`import * as ${pathBinding} from 'node:path';\n`);
 			});
 		},
-	};
+	});
 }

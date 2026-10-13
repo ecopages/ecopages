@@ -5,7 +5,6 @@ import type { BuildInputDependencyIndex } from '../build/cache/build-input-depen
 import type { BuildQueue } from '../build/runtime/build-queue.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
-import type { EcoSourceTransform } from '../plugins/source-transform.ts';
 import type { ComponentRenderInput, EcoComponent, PageMetadataProps, SitemapConfig } from './public-types.ts';
 
 /** Internal render input carrying route-resolved dependency roots. */
@@ -161,10 +160,6 @@ export type EcoPagesAppConfig = {
 	 * Loaders to be used in the app, these are used to process the files when importing them
 	 */
 	loaders: Map<string, EcoBuildPlugin>;
-	/**
-	 * App-owned source transforms. Builds run them as `transform` hooks.
-	 */
-	sourceTransforms: Map<string, EcoSourceTransform>;
 	/**
 	 * Cache configuration for ISR and page caching.
 	 * @default { store: 'memory', defaultStrategy: 'static', enabled: true }

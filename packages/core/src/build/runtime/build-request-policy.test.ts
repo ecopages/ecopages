@@ -16,7 +16,6 @@ import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
 import { RolldownBuildAdapter } from '../rolldown/rolldown-build-adapter.ts';
 import { assertBuildSucceeded } from '../build-log.ts';
-import { getAppSourceTransforms } from '../../plugins/source-transform.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 
@@ -140,13 +139,16 @@ test('resolveAppBuildPlugins matches createServerBuildRequest app plugin set', (
 	assert.deepEqual(
 		request.plugins
 			?.map((plugin) => plugin.name)
-			.filter((name) => name !== 'preserve-import-meta-for-server-output'),
+			.filter(
+				(name) =>
+					name !== 'preserve-import-meta-for-server-output' && name !== 'eco-component-identity-attribution',
+			),
 		resolveAppBuildPlugins(appConfig, 'server').map((plugin) => plugin.name),
 	);
 	assert.ok(request.plugins?.some((plugin) => plugin.name === 'preserve-import-meta-for-server-output'));
 });
 
-test('createBrowserBuildRequest excludes app plugins by name and attaches source transforms as plugins', () => {
+test('createBrowserBuildRequest excludes app plugins by name and attaches core transforms as plugins', () => {
 	const appConfig = createAppConfig();
 
 	const request = createBrowserBuildRequest(appConfig, {
@@ -194,25 +196,12 @@ function createOrderedAppConfig(): EcoPagesAppConfig {
 		environments,
 		setup() {},
 	});
-	const transform = (name: string, enforce?: 'pre' | 'post') => ({
-		name,
-		enforce,
-		filter: /\.tsx$/u,
-		transform: () => undefined,
-	});
 	const appConfig = {
 		rootDir: '/app',
 		loaders: new Map(),
 		runtime: {},
 		absolutePaths: { projectDir: '/app' },
 		integrations: [{ name: 'react', extensions: ['.tsx'], jsxImportSource: 'react' }],
-		sourceTransforms: new Map(
-			[
-				transform('post-transform', 'post'),
-				transform('default-transform'),
-				transform('pre-transform', 'pre'),
-			].map((entry) => [entry.name, entry]),
-		),
 	} as unknown as EcoPagesAppConfig;
 	setAppBuildManifest(
 		appConfig,
@@ -240,7 +229,7 @@ test('resolveBuildPluginOrder lists every plugin of a server request in hook ord
 			{ name: 'caller', setup() {} },
 			{ name: 'caller-browser-only', environments: ['browser'], setup() {} },
 		],
-		sourceTransforms: getAppSourceTransforms(createOrderedAppConfig()),
+		coreTransforms: [{ name: 'core-transform', setup() {} }],
 	});
 
 	assert.deepEqual(
@@ -251,9 +240,8 @@ test('resolveBuildPluginOrder lists every plugin of a server request in hook ord
 			'shared',
 			'server-only',
 			'ecopages-jsx-ownership-react--tsx',
-			'pre-transform',
-			'default-transform',
-			'post-transform',
+			'eco-component-identity-attribution',
+			'core-transform',
 		],
 	);
 });
@@ -262,7 +250,6 @@ test('resolveBuildPluginOrder lists every plugin of a browser request in hook or
 	const order = resolveBuildPluginOrder(createOrderedAppConfig(), 'browser', {
 		callerPlugins: [{ name: 'caller', setup() {} }],
 		excludeAppBuildPlugins: ['shared'],
-		sourceTransforms: getAppSourceTransforms(createOrderedAppConfig()),
 	});
 
 	assert.deepEqual(
@@ -273,9 +260,7 @@ test('resolveBuildPluginOrder lists every plugin of a browser request in hook or
 			'browser-runtime-plugin',
 			'browser-only',
 			'ecopages-jsx-ownership-react--tsx',
-			'pre-transform',
-			'default-transform',
-			'post-transform',
+			'eco-component-identity-attribution',
 		],
 	);
 });
@@ -285,11 +270,23 @@ test('resolveBuildPluginOrder lets an app plugin keep its place against a caller
 
 	const order = resolveBuildPluginOrder(createOrderedAppConfig(), 'server', {
 		callerPlugins: [caller],
-		sourceTransforms: [],
 	});
 
 	assert.equal(order.filter((plugin) => plugin.name === 'shared').length, 1);
 	assert.ok(!order.includes(caller));
+});
+
+test('resolveBuildPluginOrder throws instead of running a core transform next to a plugin of its name', () => {
+	const appConfig = createOrderedAppConfig();
+
+	assert.throws(
+		() =>
+			resolveBuildPluginOrder(appConfig, 'server', {
+				callerPlugins: [{ name: 'caller', setup() {} }],
+				coreTransforms: [{ name: 'shared', setup() {} }],
+			}),
+		/Core transform "shared" has the name of a build plugin of the same request/,
+	);
 });
 
 test('createBrowserBuildRequest drops runtime manifest specifiers from external and keeps the rest', () => {

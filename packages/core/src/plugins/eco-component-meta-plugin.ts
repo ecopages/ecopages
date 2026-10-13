@@ -1,9 +1,9 @@
 import MagicString from 'magic-string';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { createJsxImportSourcePragma } from './jsx-import-source.utils.ts';
-import type { EcoSourceTransform, EcoSourceTransformResult } from './source-transform.ts';
+import type { EcoBuildOnTransformResult, EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { composeSourceMaps, isUsableSourceMap } from '../build/source-maps.ts';
-import { createMappedSourceTransformResult } from '../build/mapped-source-transform.ts';
+import { createCoreTransformPlugin, createMappedSourceTransformResult } from '../build/mapped-source-transform.ts';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { rapidhash } from '../utils/hash.ts';
 import { discoverComponentImports, type DiscoveredImports } from './component-import-discovery.ts';
@@ -34,7 +34,7 @@ function applySourceEdits(
 	edits: SourceEdit[],
 	filePath: string,
 	options: SourceEditOptions = {},
-): EcoSourceTransformResult {
+): EcoBuildOnTransformResult {
 	if (edits.length === 0 && !options.prepend && !options.append) {
 		return { code: contents };
 	}
@@ -198,7 +198,7 @@ export function attributeComponentIdentity(
 	integration: string,
 	projectRoot?: string,
 	jsxImportSource?: string,
-): EcoSourceTransformResult {
+): EcoBuildOnTransformResult {
 	const pragma =
 		jsxImportSource && !contents.includes('@jsxImportSource')
 			? createJsxImportSourcePragma(jsxImportSource)
@@ -317,7 +317,7 @@ export function attributeMdxComponentIdentity(
 	integration: string,
 	projectRoot: string,
 	previousMap?: unknown,
-): EcoSourceTransformResult {
+): EcoBuildOnTransformResult {
 	if (!projectRoot) {
 		throw new Error(`[ecopages] Cannot process MDX dependencies for "${filePath}": projectRoot is required.`);
 	}
@@ -375,10 +375,16 @@ function createComponentMetaFilter(config: EcoPagesAppConfig): RegExp {
 	return new RegExp(`(${extensions.join('|')})(\\?.*)?$`);
 }
 
-export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOptions): EcoSourceTransform {
-	return {
+/**
+ * Creates the build plugin that attributes component identity in every Integration's script files.
+ *
+ * @remarks
+ * Core adds it to every build request after the app's plugins and before its `import.meta` transform, so no
+ * contributed plugin sees the attribution of another.
+ */
+export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptions): EcoBuildPlugin {
+	return createCoreTransformPlugin({
 		name: 'eco-component-identity-attribution',
-		enforce: 'pre',
 		filter: createComponentMetaFilter(options.config),
 		transform(code, id) {
 			const integration = findIntegrationForFile(options.config.integrations, id);
@@ -393,7 +399,7 @@ export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOp
 				integration.jsxImportSource,
 			);
 		},
-	};
+	});
 }
 
-export default createEcoComponentMetaTransform;
+export default createEcoComponentMetaPlugin;

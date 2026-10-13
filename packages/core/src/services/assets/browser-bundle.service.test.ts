@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import { installBuildQueue } from '../../build/runtime/build-queue.ts';
-import { createEcoComponentMetaTransform } from '../../plugins/eco-component-meta-plugin.ts';
 import { isHashedBrowserAsset } from './hashed-browser-asset.ts';
 import { BrowserBundleService } from './browser-bundle.service.ts';
 import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
@@ -47,17 +46,12 @@ describe('BrowserBundleService', () => {
 		);
 	});
 
-	it('forwards app-owned source transforms to browser bundle builds', async () => {
+	it('adds the component identity transform to browser bundle builds', async () => {
 		const build = vi.fn(async () => createBuildSuccess({ outputs: [{ path: '/tmp/out/entry.js' }] }));
-		const metaTransform = createEcoComponentMetaTransform({
-			config: {
-				integrations: [{ name: 'react', extensions: ['.tsx'] }],
-			} as any,
-		});
 		const appConfig = {
 			runtime: {},
 			loaders: new Map(),
-			sourceTransforms: new Map([[metaTransform.name, metaTransform]]),
+			integrations: [{ name: 'react', extensions: ['.tsx'] }],
 		} as any;
 
 		setAppBuildAdapterForTest(appConfig, {
@@ -78,7 +72,9 @@ describe('BrowserBundleService', () => {
 
 		expect(build).toHaveBeenCalledWith(
 			expect.objectContaining({
-				plugins: expect.arrayContaining([expect.objectContaining({ name: metaTransform.name })]),
+				plugins: expect.arrayContaining([
+					expect.objectContaining({ name: 'eco-component-identity-attribution' }),
+				]),
 			}),
 		);
 	});
@@ -88,6 +84,7 @@ describe('BrowserBundleService', () => {
 		const appConfig = {
 			runtime: {},
 			loaders: new Map(),
+			integrations: [],
 		} as any;
 
 		setAppBuildAdapterForTest(appConfig, {
@@ -130,7 +127,7 @@ function setAppBuildAdapterForTest(appConfig: any, adapter: any): void {
 }
 
 function createAppConfig(build: ReturnType<typeof vi.fn>): any {
-	const appConfig = { runtime: {}, loaders: new Map() } as any;
+	const appConfig = { runtime: {}, loaders: new Map(), integrations: [] } as any;
 	setAppBuildAdapterForTest(appConfig, {
 		ownership: 'rolldown',
 		build,

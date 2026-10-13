@@ -36,6 +36,7 @@ function createMockDependencies() {
 	} as unknown as StaticSiteGenerator;
 
 	const mockIntegration = {
+		extensions: ['.tsx'],
 		setConfig: () => {},
 		setRuntimeOrigin: () => {},
 		setHmrManager: () => {},

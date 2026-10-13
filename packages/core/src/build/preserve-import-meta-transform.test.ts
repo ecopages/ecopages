@@ -3,20 +3,21 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { originalPositionFor, TraceMap, type SourceMapInput } from '@jridgewell/trace-mapping';
-import { createPreserveImportMetaTransform } from './preserve-import-meta-transform.ts';
+import { getPluginTransform } from '../__fixtures__/build/transform-plugin.ts';
+import { createPreserveImportMetaPlugin } from './preserve-import-meta-transform.ts';
 
 function transformConfigSource(
 	code: string,
 	id = '/project/eco.config.ts',
 	runtimeDir = '/project/dist/.server',
 ): string {
-	const transform = createPreserveImportMetaTransform(runtimeDir);
+	const transform = getPluginTransform(createPreserveImportMetaPlugin(runtimeDir));
 	const result = transform.transform(code, id);
 	if (!result || typeof result === 'string') return result ?? code;
 	return result.code;
 }
 
-describe('createPreserveImportMetaTransform', () => {
+describe('createPreserveImportMetaPlugin', () => {
 	it('rewrites syntax nodes without changing strings, comments, or legacy bindings', () => {
 		const transformed = transformConfigSource(`
 			const label = 'import.meta.dirname';
@@ -53,7 +54,10 @@ describe('createPreserveImportMetaTransform', () => {
 	it('maps rewritten import.meta expressions back to their source line', () => {
 		const filePath = '/project/eco.config.ts';
 		const source = '\nexport const root = import.meta.dirname;\n';
-		const result = createPreserveImportMetaTransform('/project/dist/.server').transform(source, filePath) as {
+		const result = getPluginTransform(createPreserveImportMetaPlugin('/project/dist/.server')).transform(
+			source,
+			filePath,
+		) as {
 			code: string;
 			map?: SourceMapInput;
 		};

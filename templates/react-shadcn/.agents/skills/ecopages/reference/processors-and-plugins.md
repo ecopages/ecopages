@@ -114,32 +114,31 @@ Class-based integrations extend `IntegrationPlugin`, provide a renderer, and spl
 
 ## Source transforms
 
-For filter-based module rewrites during browser/HMR builds:
+A build plugin rewrites module source with its `transform` hook. Register it in `loaders`, or return it from a processor's or integration's `plugins(app)`:
 
 ```typescript
 import { defineConfig } from '@ecopages/core/config';
 
 export default defineConfig({
 	rootDir: import.meta.dirname,
-	sourceTransforms: [
+	loaders: [
 		{
 			name: 'banner-transform',
-			filter: /entry\.tsx$/,
-			transform(code) {
-				return { code: `/* banner */\n${code}` };
+			setup(build) {
+				build.transform({ filter: /entry\.tsx$/ }, (code) => ({ code: `/* banner */\n${code}` }));
 			},
 		},
 	],
 });
 ```
 
-Prefer source transforms over competing `onLoad` plugins when the change is a pure source rewrite.
+Plugins transform in plugin order: loaders, processors, then integrations. Core's own transforms (component identity, then `import.meta` in server builds) run after them. Prefer `transform` over a competing `onLoad` when the change is a pure source rewrite.
 
 ## Extension point comparison
 
 | Mechanism                                       | Use when                                                        |
 | ----------------------------------------------- | --------------------------------------------------------------- |
-| `EcoSourceTransform`                            | Filter-based source rewrites                                    |
-| `EcoBuildPlugin`                                | Virtual modules, custom loaders, resolve behavior               |
+| `EcoBuildPlugin` (`transform`)                  | Source rewrites, with an optional source map                    |
+| `EcoBuildPlugin` (`onLoad` / `onResolve`)       | Virtual modules, custom loaders, resolve behavior               |
 | Processor `plugins(app)`                        | File processing in server and browser builds                    |
 | `plugins(app)` with `environments: ['browser']` | Browser-only bundling, framework transforms and import aliasing |

@@ -18,10 +18,9 @@ During this phase Ecopages:
 2. validates integration names and extensions
 3. validates processor names
 4. derives absolute paths and semantic template paths
-5. adds the component-meta source transform
-6. initializes processor context
-7. reads `plugins(app)` of each processor, then of each integration, once, and seals the build manifest from them
-8. creates the app-owned build adapter, the server invalidation counter, and a no-op entrypoint dependency graph that development replaces
+5. initializes processor context
+6. reads `plugins(app)` of each processor, then of each integration, once, and seals the build manifest from them
+7. creates the app-owned build adapter, the server invalidation counter, and a no-op entrypoint dependency graph that development replaces
 
 `plugins(app)` is the only plugin method that runs here, and it must be a pure read: no file access, generation or config loading. A processor whose `setup()` throws does not fail finalization. State that a plugin needs, such as generated collection modules or the PostCSS plugin list, is created in `setup()` or by the plugin's own callbacks when a build can run first.
 

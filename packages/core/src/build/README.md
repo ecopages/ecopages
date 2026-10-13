@@ -24,13 +24,13 @@ The build layer is the bundler contract for Ecopages. Rolldown is the bundled ad
 
 Three concentric shapes, plus one build queue and request policy:
 
-| Shape                       | Lives in                            | Purpose                                                                                                                                                 |
-| --------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BuildAdapter`              | `build-adapter.ts`                  | Low-level backend. `RolldownBuildAdapter` is the bundled implementation.                                                                                |
-| `BuildQueue`                | `runtime/build-queue.ts`            | The one queue every build of an app goes through: lane concurrency limits, one build per identical in-flight request, request-scope reuse.              |
-| `BuildExecutor`             | `contracts/build-contracts.ts`      | Narrower runtime facade. Only `build` is exposed. `BuildQueue` implements it, on the `build` lane.                                                      |
-| `build-request-policy.ts`   | `runtime/build-request-policy.ts`   | Assembles complete `BuildOptions` before scheduling. Server and browser: plugins, including source transforms as `transform` hooks, plus JSX ownership. |
-| `build-request-identity.ts` | `runtime/build-request-identity.ts` | Canonical request identity for in-flight and request-scope dedupe: every `BuildOptions` field except `plugins`, plus plugin names and `cacheKey`s.      |
+| Shape                       | Lives in                            | Purpose                                                                                                                                            |
+| --------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BuildAdapter`              | `build-adapter.ts`                  | Low-level backend. `RolldownBuildAdapter` is the bundled implementation.                                                                           |
+| `BuildQueue`                | `runtime/build-queue.ts`            | The one queue every build of an app goes through: lane concurrency limits, one build per identical in-flight request, request-scope reuse.         |
+| `BuildExecutor`             | `contracts/build-contracts.ts`      | Narrower runtime facade. Only `build` is exposed. `BuildQueue` implements it, on the `build` lane.                                                 |
+| `build-request-policy.ts`   | `runtime/build-request-policy.ts`   | Assembles complete `BuildOptions` before scheduling. Server and browser: plugins, then core's own `transform` plugins, plus JSX ownership.         |
+| `build-request-identity.ts` | `runtime/build-request-identity.ts` | Canonical request identity for in-flight and request-scope dedupe: every `BuildOptions` field except `plugins`, plus plugin names and `cacheKey`s. |
 
 Plus one translation bridge:
 
@@ -80,7 +80,7 @@ Config finalization rejects duplicate plugin names within an environment and ide
 
 1. `sealAppBuildManifest(config)` registers the config loaders, then reads `plugins(app)` of each processor and integration once. It is synchronous and calls no other Processor method.
 2. `createAppBuildManifest(registrations, browserRuntimeManifest)` validates every registration once and stores `{ server, browser, browserRuntimeManifest }`.
-3. `createServerBuildRequest` / `createBrowserBuildRequest` order the request's plugins with `resolveBuildPluginOrder` (`runtime/build-request-policy.ts`): caller plugins that apply to the environment, then the app plugins (the alias resolver, the manifest list, JSX ownership), then source transforms. Rolldown asks plugins in that order and the first result of a resolve or load hook wins, so the position is the priority.
+3. `createServerBuildRequest` / `createBrowserBuildRequest` order the request's plugins with `resolveBuildPluginOrder` (`runtime/build-request-policy.ts`): caller plugins that apply to the environment, then the app plugins (the alias resolver, the manifest list, JSX ownership), then core's own `transform` plugins: component identity attribution and, on server requests, the `import.meta` rewrite. Rolldown asks plugins in that order and the first result of a resolve or load hook wins, so the position is the priority.
 
 **Rule of thumb**
 
@@ -92,7 +92,7 @@ Direct `setAppBuildManifest` is for tests. Production code relies on `sealAppBui
 
 ```
 Caller intent
-  → createServerBuildRequest / createBrowserBuildRequest (plugins assembled once, including source transforms)
+  → createServerBuildRequest / createBrowserBuildRequest (plugins assembled once, with core's own transforms last)
   → BuildQueue.build(options, lane)   (lane: build | hmr)
       → RolldownBuildAdapter
   → RolldownBuildAdapter resolves Node and browser runtime specifiers during the build
@@ -124,11 +124,11 @@ Migration: move Integration `browserBuildPlugins` and Processor `buildPlugins` i
 - With a `namespace`, a filter matches only ids that start with `<namespace>:`, and is tested against the path after it.
 - `transform({ filter }, callback)` — the bundler's `transform` hook, for source rewrites that must run after `load` and can return a source map. The bridge composes maps from chained transforms in registration order. A rewrite that changes code without a map clears earlier mappings and returns `{ mappings: '' }`, so debug locations do not point at stale source positions; `map: null` declares that the transform does not move code and preserves an incoming Rolldown map.
 
-Core source transforms use MagicString to keep unchanged source locations through JSX pragma, component identity, and `import.meta` edits. `BuildOptions.sourcemap` accepts `none`, `inline`, `external`, `linked`, or `hidden`: `linked` writes a map and a `sourceMappingURL`, `external` and `hidden` write a map without a link, `inline` embeds it, and `none` disables it.
+Core's own transforms use MagicString to keep unchanged source locations through JSX pragma, component identity, and `import.meta` edits. `BuildOptions.sourcemap` accepts `none`, `inline`, `external`, `linked`, or `hidden`: `linked` writes a map and a `sourceMappingURL`, `external` and `hidden` write a map without a link, `inline` embeds it, and `none` disables it.
 
 - `module(specifier, callback)` — declares a virtual module by name, with bundler-side namespace encoding.
 
-App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins that the request replaces; the environment cannot express that. A source transform whose name is the name of a plugin in the same request throws instead of being dropped.
+App-manifest plugins keep canonical registration order and cannot be silently replaced by caller plugins. Use `excludeAppBuildPlugins` on browser requests to omit app-owned plugins that the request replaces; the environment cannot express that. A core transform whose name is the name of a plugin in the same request throws instead of being dropped. A contributed plugin that registers a `transform` runs before the core transforms, in manifest order: loaders, processors, then integrations.
 
 The browser runtime plugin maps each manifest specifier to its public URL in `onResolve` only, for every form a bundler resolves (static import, re-export, side-effect import, `import()`), and marks it external. It does not read or rewrite source. Package subpaths that the manifest does not list are left alone. Two consequences of resolving instead of rewriting: a browser request drops a manifest specifier from its `external` list (Rolldown checks `external` before any plugin, so it would otherwise stay a bare import and skip the public URL), and a tsconfig `paths` alias with the same name as a manifest specifier wins over the public URL, because the alias resolver runs first.
 
@@ -179,7 +179,7 @@ The route-module registry (`route-module-build-cache-registry.ts`) shares one `R
 
 ## Server bundle deploy layout
 
-An app with API or WebSocket handlers builds a server bundle into `dist/.server/` (`app.mjs`, its chunks, `eco.config.mjs` and `manifest.json`). The bundle imports the compiled packages the app declares as bare specifiers and every other compiled package, such as the dependencies of bundled Core and of workspace processors and integrations, as paths relative to `dist/.server/`. Every server build (the server entry, the emitted config, route modules in `.eco/.server-modules/`, the unified pages graph and collections) rewrites `import.meta.url`, `import.meta.dirname` and `import.meta.filename` of bundled `.ts`, `.tsx`, `.js` and `.jsx` modules to paths relative to the output that point at their source files, so bundled Core reads its own `package.json` and a page that globs `import.meta.dirname` scans `src/pages`. Bundled `.mjs`, `.cjs`, `.mts` and `.cts` modules are not rewritten in this release, because the shared source-transform pass only runs on those four extensions, and `import.meta.resolve()` is not rewritten anywhere and resolves from the output folder. The bundle holds no absolute paths of the build machine, so it runs from any root as long as these entries of the app folder keep their relative positions:
+An app with API or WebSocket handlers builds a server bundle into `dist/.server/` (`app.mjs`, its chunks, `eco.config.mjs` and `manifest.json`). The bundle imports the compiled packages the app declares as bare specifiers and every other compiled package, such as the dependencies of bundled Core and of workspace processors and integrations, as paths relative to `dist/.server/`. Every server build (the server entry, the emitted config, route modules in `.eco/.server-modules/`, the unified pages graph and collections) rewrites `import.meta.url`, `import.meta.dirname` and `import.meta.filename` of bundled `.ts`, `.tsx`, `.js` and `.jsx` modules to paths relative to the output that point at their source files, so bundled Core reads its own `package.json` and a page that globs `import.meta.dirname` scans `src/pages`. Bundled `.mjs`, `.cjs`, `.mts` and `.cts` modules are not rewritten in this release, because the `import.meta` transform only runs on those four extensions, and `import.meta.resolve()` is not rewritten anywhere and resolves from the output folder. The bundle holds no absolute paths of the build machine, so it runs from any root as long as these entries of the app folder keep their relative positions:
 
 | Entry           | Why the server needs it                                                                   |
 | --------------- | ----------------------------------------------------------------------------------------- |
@@ -220,7 +220,7 @@ Mixed-integration apps need explicit `@jsxImportSource` handling in two differen
 | ------------------------------------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `getJsxOwnershipPlugins()`           | App-wide server/transpile builds          | Each JSX integration extension gets its **own** `jsxImportSource` so native files keep their owning runtime.            |
 | `getHostScopedJsxOwnershipPlugins()` | One integration's **client** bundle graph | Foreign `.tsx`/`.jsx` files compile with the **host** integration JSX runtime (for example React bundling `.kita.tsx`). |
-| component identity source transform  | Component identity attribution            | Prepends the **owning** integration pragma when injecting `identity` into native files.                                 |
+| component identity build plugin      | Component identity attribution            | Prepends the **owning** integration pragma when injecting `identity` into native files.                                 |
 
 `foreign-jsx-override-plugin.ts` is the shared implementation. Prefer the helpers above instead of calling it directly from integrations.
 

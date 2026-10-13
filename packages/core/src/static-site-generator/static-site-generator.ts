@@ -24,7 +24,7 @@ import {
 	resolveExplicitViewRenderer,
 } from '../route-renderer/explicit-view-render-preparation.ts';
 import { getServerModuleBuildCacheOutdir } from '../services/module-loading/route-module-build-cache-registry.ts';
-import type { StaticExportContext } from './static-export-context.ts';
+import type { StaticExportContext, StaticExportRelease } from './static-export-context.ts';
 import {
 	ensurePagesUnifiedGraphBuilt,
 	shouldBuildPagesUnifiedGraph,
@@ -358,9 +358,32 @@ export class StaticSiteGenerator {
 		};
 	}
 
-	private async invokeBeforeStaticExport(context: StaticExportContext): Promise<void> {
-		for (const integration of this.appConfig.integrations) {
-			await integration.beforeStaticExport?.(context);
+	private async startStaticExports(context: StaticExportContext): Promise<StaticExportRelease[]> {
+		const releases: StaticExportRelease[] = [];
+		try {
+			for (const integration of this.appConfig.integrations) {
+				const release = await integration.staticExport?.(context);
+				if (release) {
+					releases.push(release);
+				}
+			}
+		} catch (error) {
+			await this.releaseStaticExports(releases);
+			throw error;
+		}
+		return releases;
+	}
+
+	private async releaseStaticExports(releases: readonly StaticExportRelease[]): Promise<void> {
+		for (const release of [...releases].reverse()) {
+			try {
+				await release();
+			} catch (error) {
+				appLogger.error(
+					'Failed to release an Integration after static export:',
+					error instanceof Error ? error : new Error(String(error)),
+				);
+			}
 		}
 	}
 
@@ -498,32 +521,36 @@ export class StaticSiteGenerator {
 			routes: exportRoutes,
 		});
 
-		await this.invokeBeforeStaticExport(staticExportContext);
+		const releases = await this.startStaticExports(staticExportContext);
 
 		try {
-			await this.executeStaticGenerationBody({
-				router,
+			try {
+				await this.executeStaticGenerationBody({
+					router,
+					baseUrl,
+					routeRendererFactory,
+					staticRoutes,
+					errorPageLoaders,
+					routes,
+					skippedDynamicPages,
+					activeStaticPathnames,
+					sitemapEligiblePathnames,
+				});
+			} catch (error) {
+				if (shouldPrebuildProductionPageBrowserGraphs()) {
+					clearProductionPageBrowserGraphSession(this.appConfig);
+				}
+				throw error;
+			}
+
+			this.finalizeStaticGenerationRun({
 				baseUrl,
-				routeRendererFactory,
-				staticRoutes,
-				errorPageLoaders,
-				routes,
 				skippedDynamicPages,
-				activeStaticPathnames,
 				sitemapEligiblePathnames,
 			});
-		} catch (error) {
-			if (shouldPrebuildProductionPageBrowserGraphs()) {
-				clearProductionPageBrowserGraphSession(this.appConfig);
-			}
-			throw error;
+		} finally {
+			await this.releaseStaticExports(releases);
 		}
-
-		this.finalizeStaticGenerationRun({
-			baseUrl,
-			skippedDynamicPages,
-			sitemapEligiblePathnames,
-		});
 	}
 
 	private async generateExplicitStaticPages(input: {

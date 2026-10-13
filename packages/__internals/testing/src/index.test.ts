@@ -15,7 +15,6 @@ class TestRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return {
 			html: '<div>test</div>',
 			canAttachAttributes: true,
-			rootTag: 'div',
 			integrationName: this.name,
 		};
 	}

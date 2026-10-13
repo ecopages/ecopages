@@ -8,7 +8,12 @@ type StaticGenerationRouteSource = {
 };
 
 /**
- * Context passed to integration plugins during static export lifecycle hooks.
+ * Releases what an Integration's `staticExport()` started. Core awaits it once the export ends.
+ */
+export type StaticExportRelease = () => Promise<void>;
+
+/**
+ * Context passed to `IntegrationPlugin.staticExport()`.
  */
 export interface StaticExportContext {
 	appConfig: EcoPagesAppConfig;

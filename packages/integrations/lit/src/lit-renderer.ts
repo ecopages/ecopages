@@ -188,7 +188,6 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return this.finalizeIslandComponentRender(input, {
 			html: queuedForeignSubtreeResolution.html,
 			canAttachAttributes: true,
-			rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
 			integrationName: this.name,
 			assets: this.htmlTransformer.dedupeProcessedAssets([
 				...(assets ?? []),

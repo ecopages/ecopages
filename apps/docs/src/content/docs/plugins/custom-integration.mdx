@@ -295,6 +295,25 @@ Core calls `teardown()` when the app stops or the development server restarts, a
 2. `setup()` for runtime-only side effects
 3. `teardown()` for explicit cleanup when the app stops or restarts
 
+## Static Export
+
+Override `staticExport(context)` when `ecopages build` needs work that spans every page, such as starting a render worker or preloading modules. It runs before the first page renders and may return a function that undoes what it started:
+
+```typescript
+class CustomIntegration extends IntegrationPlugin {
+	renderer = CustomRenderer;
+
+	override async staticExport(context: StaticExportContext): Promise<StaticExportRelease> {
+		const worker = await startRenderWorker(context.baseUrl);
+		return async () => {
+			await worker.stop();
+		};
+	}
+}
+```
+
+Core awaits every returned release, last started first, once the export ends, whether it succeeded or failed. A release that throws is logged and does not fail the export.
+
 ## Using the Integration
 
 Register the integration in the Ecopages configuration:

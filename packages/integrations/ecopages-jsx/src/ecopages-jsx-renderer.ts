@@ -310,7 +310,6 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 					return this.finalizeIslandComponentRender(input, {
 						html: queuedForeignSubtreeResolution.html,
 						canAttachAttributes: true,
-						rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
 						integrationName: this.name,
 						assets,
 					});

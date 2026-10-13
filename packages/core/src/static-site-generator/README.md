@@ -33,7 +33,7 @@ Semantic error pages are excluded from ordinary page enumeration and emitted onc
 | File                                        | Role                                                                       |
 | ------------------------------------------- | -------------------------------------------------------------------------- |
 | `static-site-generator.ts`                  | Route enumeration, HTML artifact writes, integration export hooks, sitemap |
-| `static-export-context.ts`                  | Hook context type for `beforeStaticExport`                                 |
+| `static-export-context.ts`                  | Context and release types for `staticExport`                               |
 | `sitemap.ts`                                | Pure sitemap.xml renderer                                                  |
 | `sitemap-routes.ts`                         | Sitemap location assembly (`exclude`, `extraUrls`, dedupe)                 |
 | `production-page-browser-graph-prebuild.ts` | Warms and prebuilds browser asset graphs before static export rendering    |
@@ -46,9 +46,9 @@ Semantic error pages are excluded from ordinary page enumeration and emitted onc
 
 Integrations may implement:
 
-- `beforeStaticExport(context)` — runs after unified-graph prebuild, before page rendering
+- `staticExport(context)` — runs after unified-graph prebuild, before page rendering. It may return a release function. Core awaits every release in reverse order once the export ends, including when it fails or an Integration listed later throws from `staticExport`, so a worker started for the export stops with it: `ecopages build` ends by itself and no longer calls `process.exit()`. A release that throws is logged and does not fail the export.
 
-Core calls no Integration hook after generation.
+Core calls no other Integration hook around generation.
 
 When `appConfig.sitemap.enabled` is true, `sitemap.xml` is written **after** every page, so a file an Integration writes during export can be listed through `extraUrls`. Development (`ecopages dev`) does not emit this file.
 

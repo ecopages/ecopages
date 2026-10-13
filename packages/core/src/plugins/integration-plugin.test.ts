@@ -6,6 +6,7 @@ import type { AssetDefinition } from '../services/assets/asset-processing-servic
 import type { IntegrationRendererRenderOptions, RouteRendererBody } from '../types/public-types.ts';
 import { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import { ensureIntegrationRuntimeReady } from '../build/app-build-manifest-runtime.ts';
 
 class NamelessRenderer extends IntegrationRenderer {
 	declare name: string;
@@ -157,6 +158,43 @@ describe('IntegrationPlugin', () => {
 			const renderer = pluginWithRenderer.getRenderer();
 
 			pluginWithRenderer.setRuntimeOrigin('http://localhost:3000');
+
+			expect(pluginWithRenderer.getRenderer()).toBe(renderer);
+		});
+
+		it('keeps its renderer and asset service when setConfig gets the config it already has', () => {
+			const appConfig = { absolutePaths: { distDir: '/dist' }, integrations: [] } as unknown as EcoPagesAppConfig;
+			const pluginWithRenderer = new (class extends TestIntegrationPlugin {
+				override renderer = NamelessRenderer as TestIntegrationPlugin['renderer'];
+			})(config);
+			pluginWithRenderer.setConfig(appConfig);
+			pluginWithRenderer.setRuntimeOrigin('http://localhost:3000');
+			const renderer = pluginWithRenderer.getRenderer();
+			const assetProcessingService = pluginWithRenderer['assetProcessingService'];
+
+			pluginWithRenderer.setConfig(appConfig);
+
+			expect(pluginWithRenderer.getRenderer()).toBe(renderer);
+			expect(pluginWithRenderer['assetProcessingService']).toBe(assetProcessingService);
+		});
+
+		it('keeps the renderer created before runtime activation', async () => {
+			const pluginWithRenderer = new (class extends TestIntegrationPlugin {
+				override renderer = NamelessRenderer as TestIntegrationPlugin['renderer'];
+			})(config);
+			const appConfig = {
+				absolutePaths: { distDir: '/dist' },
+				integrations: [pluginWithRenderer],
+			} as unknown as EcoPagesAppConfig;
+			pluginWithRenderer.setConfig(appConfig);
+			pluginWithRenderer.setRuntimeOrigin('http://localhost:3000');
+			const renderer = pluginWithRenderer.getRenderer();
+
+			await ensureIntegrationRuntimeReady({
+				appConfig,
+				integrationName: pluginWithRenderer.name,
+				runtimeOrigin: 'http://localhost:3000',
+			});
 
 			expect(pluginWithRenderer.getRenderer()).toBe(renderer);
 		});

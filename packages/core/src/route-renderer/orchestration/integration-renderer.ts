@@ -467,7 +467,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return {
 			html,
 			canAttachAttributes: true,
-			rootTag: this.getRootTagName(html),
 			integrationName: this.name,
 			assets,
 		};
@@ -497,7 +496,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return this.finalizeIslandComponentRender(input, {
 			...componentRender,
 			html: queuedForeignSubtreeResolution.html,
-			rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
 			assets: mergedAssets.length > 0 ? mergedAssets : undefined,
 		});
 	}
@@ -1130,20 +1128,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return {
 			html,
 			canAttachAttributes: true,
-			rootTag: this.getRootTagName(html),
 			integrationName: this.name,
 		};
-	}
-
-	/**
-	 * Extracts the first root element tag name from HTML output.
-	 *
-	 * @param html HTML fragment.
-	 * @returns Root tag name when present; otherwise `undefined`.
-	 */
-	protected getRootTagName(html: string): string | undefined {
-		const rootTag = html.match(/^(?:\s|<!--[\s\S]*?-->)*<([a-zA-Z][a-zA-Z0-9:-]*)\b/);
-		return rootTag?.[1];
 	}
 
 	/**

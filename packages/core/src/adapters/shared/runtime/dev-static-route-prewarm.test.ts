@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { runDevStaticRoutePrewarm } from './dev-static-route-prewarm.ts';
+import { startDevStaticRoutePrewarm } from './dev-static-route-prewarm.ts';
 
-test('runDevStaticRoutePrewarm renders each pathname', async () => {
+test('startDevStaticRoutePrewarm renders each pathname', async () => {
 	const rendered: string[] = [];
 
-	await runDevStaticRoutePrewarm({
+	await startDevStaticRoutePrewarm({
 		pathnames: ['/docs/a', '/docs/b'],
 		renderPath: async (pathname) => {
 			rendered.push(pathname);
@@ -15,10 +15,10 @@ test('runDevStaticRoutePrewarm renders each pathname', async () => {
 	assert.deepEqual(rendered, ['/docs/a', '/docs/b']);
 });
 
-test('runDevStaticRoutePrewarm continues after a path failure', async () => {
+test('startDevStaticRoutePrewarm continues after a path failure', async () => {
 	const rendered: string[] = [];
 
-	await runDevStaticRoutePrewarm({
+	await startDevStaticRoutePrewarm({
 		pathnames: ['/ok', '/fail', '/also-ok'],
 		renderPath: async (pathname) => {
 			if (pathname === '/fail') {
@@ -43,7 +43,7 @@ test('stopping prewarm skips queued paths and waits for active renders', async (
 	const started = new Promise<void>((resolve) => {
 		signalStarted = resolve;
 	});
-	const prewarm = runDevStaticRoutePrewarm({
+	const prewarm = startDevStaticRoutePrewarm({
 		pathnames: ['/a', '/b', '/c', '/d', '/e'],
 		signal: controller.signal,
 		renderPath: async (pathname) => {

@@ -3,9 +3,9 @@ import { originalPositionFor, TraceMap, type SourceMapInput } from '@jridgewell/
 import {
 	attributeComponentIdentity,
 	attributeMdxComponentIdentity,
-	createEcoComponentMetaPlugin,
 	createEcoComponentMetaTransform,
 } from './eco-component-meta-plugin';
+import { createEcoBuildPluginFromSourceTransform } from './source-transform';
 import type { EcoPagesAppConfig } from '../types/internal-types';
 
 /**
@@ -39,8 +39,8 @@ describe('eco-component-meta-plugin', () => {
 		],
 	} as EcoPagesAppConfig;
 
-	const plugin = createEcoComponentMetaPlugin({ config: Config });
 	const transform = createEcoComponentMetaTransform({ config: Config });
+	const plugin = createEcoBuildPluginFromSourceTransform(transform);
 
 	async function runPluginOnContent(content: string, filePath: string) {
 		let regexFilter: RegExp | undefined;

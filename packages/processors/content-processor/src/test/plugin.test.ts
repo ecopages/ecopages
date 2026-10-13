@@ -384,7 +384,7 @@ order: 2
 		expect(fileSystem.readFileSync(cacheFile)).not.toContain('"slug":"intro"');
 	});
 
-	test('collectDevPrewarmPaths honors collection pathnames', async () => {
+	test('setup adds collection pathnames to the app devPrewarmPaths', async () => {
 		const rootDir = createTempRoot('ecopages-content-prewarm-');
 		tempRoots.push(rootDir);
 
@@ -410,13 +410,30 @@ order: 1
 						routePrefix: '/docs',
 						devPrewarm: 'first',
 					},
+					unprefixed: {
+						contentDir: 'content/docs',
+						schema: testContentSchema,
+						devPrewarm: 'all',
+					},
 				},
 			},
 		});
+		const userPaths = ['/'];
 
-		await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [plugin] });
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+			devPrewarmPaths: userPaths,
+		});
 
-		expect(await plugin.collectDevPrewarmPaths()).toEqual(['/docs/intro']);
+		expect(appConfig.devPrewarmPaths).toEqual(['/']);
+
+		await plugin.setup();
+		await plugin.setup();
+
+		expect(appConfig.devPrewarmPaths).toEqual(['/', '/docs/intro']);
+		expect(userPaths).toEqual(['/']);
 	});
 
 	test('generates separate client and server collection modules', async () => {

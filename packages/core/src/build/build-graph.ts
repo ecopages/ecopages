@@ -1,7 +1,7 @@
 import { existsSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { BuildOptions, BuildResult } from './build-adapter.ts';
+import type { BuildOptions, BuildSuccess } from './build-adapter.ts';
 
 function tryRealpath(filePath: string): string | undefined {
 	try {
@@ -89,11 +89,11 @@ export function recordBuildEntryOutput(
  * Finds the emitted file for an entry using the path or name the caller passed.
  */
 export function getBuildEntryOutput(
-	result: Pick<BuildResult, 'entryOutputs'>,
+	result: Pick<BuildSuccess, 'entryOutputs'>,
 	entry: string,
 	root: string,
 ): string | undefined {
-	const outputs = result.entryOutputs ?? {};
+	const outputs = result.entryOutputs;
 	const resolved = resolveBuildEntryPath(entry, root);
 	for (const key of [entry, resolved, tryRealpath(entry), tryRealpath(resolved)]) {
 		if (key && outputs[key]) {
@@ -114,20 +114,18 @@ export function getBuildEntryOutput(
 
 /** Collects one entry's source-module closure and plugin-recorded inputs. */
 export function collectBuildEntryInputPaths(
-	result: Pick<BuildResult, 'dependencyGraph' | 'loadedInputs' | 'loadedInputsByModule'>,
+	result: Pick<BuildSuccess, 'dependencyGraph' | 'loadedInputsByModule'>,
 	entry: string,
 	root: string,
 ): string[] {
 	const resolvedEntry = resolveBuildEntryPath(entry, root);
-	const entrypoints = result.dependencyGraph?.entrypoints ?? {};
+	const entrypoints = result.dependencyGraph.entrypoints;
 	const closureEntry = [resolvedEntry, tryRealpath(resolvedEntry)].find(
 		(candidate) => candidate && entrypoints[candidate],
 	);
 	const moduleClosure = closureEntry ? entrypoints[closureEntry] : undefined;
 	const entryModules = moduleClosure?.length ? moduleClosure : [resolvedEntry];
-	const pluginInputs = result.loadedInputsByModule
-		? collectInputsForModuleClosure(result.loadedInputsByModule, entryModules)
-		: collectUnattributedPluginInputs(result.loadedInputs ?? [], entrypoints);
+	const pluginInputs = collectInputsForModuleClosure(result.loadedInputsByModule, entryModules);
 	return [...new Set([...entryModules, ...pluginInputs])].filter(
 		(filePath) =>
 			path.isAbsolute(filePath) &&
@@ -169,32 +167,16 @@ function collectInputsForModuleClosure(
 	return [...inputs];
 }
 
-function collectUnattributedPluginInputs(
-	loadedInputs: readonly string[],
-	entrypoints: Record<string, string[]>,
-): string[] {
-	const allModulePaths = new Set<string>();
-	for (const paths of Object.values(entrypoints)) {
-		for (const filePath of paths) {
-			if (!path.isAbsolute(filePath)) continue;
-			for (const alias of modulePathAliases(filePath)) allModulePaths.add(alias);
-		}
-	}
-	return loadedInputs.filter(
-		(filePath) => ![...modulePathAliases(filePath)].some((alias) => allModulePaths.has(alias)),
-	);
-}
-
 /**
  * @remarks
  * Traverses emitted chunk edges without reading output code. Local external
  * imports remain in the result even when missing, so in-process caches fail
  * validation when a generated server module has been removed.
  */
-export function collectBuildOutputImports(result: Pick<BuildResult, 'outputGraph'>, outputPath: string): string[] {
+export function collectBuildOutputImports(result: Pick<BuildSuccess, 'outputGraph'>, outputPath: string): string[] {
 	const visited = new Set([outputPath]);
 	for (const current of visited) {
-		const chunk = result.outputGraph?.[current];
+		const chunk = result.outputGraph[current];
 		if (!chunk) continue;
 		for (const imported of [...chunk.imports, ...chunk.dynamicImports]) {
 			const local = imported.startsWith('file:')

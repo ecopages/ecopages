@@ -27,12 +27,12 @@ describe('incrementCounter', () => {
 			</div>
 			<script>
 				window.clicks = 0;
-				document.querySelector('#inc').addEventListener('click', () => {
-					window.clicks += 1;
-					document.querySelector('#value').textContent = String(window.clicks);
-				});
 				setTimeout(() => {
 					document.querySelector('[data-eco-island-integration]').dataset.ecoHydrated = 'true';
+					document.querySelector('#inc').addEventListener('click', () => {
+						window.clicks += 1;
+						document.querySelector('#value').textContent = String(window.clicks);
+					});
 				}, 100);
 			</script>
 		`);

@@ -34,7 +34,6 @@ import {
 	prebuildProductionPageBrowserGraphs,
 	shouldPrebuildProductionPageBrowserGraphs,
 } from './production-page-browser-graph-prebuild.ts';
-import { PageModuleLoaderService } from '../route-renderer/page-loading/page-module-loader.ts';
 import { renderSitemap } from './sitemap.ts';
 import { resolveSitemapLocations } from './sitemap-routes.ts';
 import { toEcopagesRouteInfo } from '../utils/ecopages-route-info.ts';
@@ -107,7 +106,6 @@ async function runWithConcurrency<T>(
  */
 export class StaticSiteGenerator {
 	appConfig: EcoPagesAppConfig;
-	private pageModuleLoader?: PageModuleLoaderService;
 
 	/**
 	 * Creates the static-site generator for one app config.
@@ -237,38 +235,11 @@ export class StaticSiteGenerator {
 		}
 	}
 
-	private getPageModuleLoader(baseUrl: string): PageModuleLoaderService {
-		this.pageModuleLoader ??= new PageModuleLoaderService(this.appConfig, baseUrl);
-		return this.pageModuleLoader;
-	}
-
-	private async resolveFilesystemPageMetadata(input: {
-		filePath: string;
-		params: Record<string, string | string[]>;
-		baseUrl: string;
-		routeRendererFactory: StaticPageRouteRendererFactory;
-	}): Promise<PageMetadataProps> {
-		const loader = this.getPageModuleLoader(input.baseUrl);
-		const pageModule = await loader.resolvePageModule({
-			file: input.filePath,
-			importPageFileFn: (file) => input.routeRendererFactory.getPageRenderer(file).loadPageModule(file),
-		});
-		const { metadata } = await loader.resolvePageData({
-			pageModule,
-			routeOptions: {
-				file: input.filePath,
-				params: input.params,
-			},
-		});
-		return metadata;
-	}
-
 	private async createFilesystemStaticContents(input: {
 		route: StaticGenerationRoute;
-		baseUrl: string;
 		routeRendererFactory?: StaticPageRouteRendererFactory;
 		skipped?: string[];
-	}): Promise<string | Buffer | null> {
+	}): Promise<{ body: string | Buffer; metadata?: PageMetadataProps } | null> {
 		const {
 			route: {
 				templateRoute: { filePath },
@@ -295,11 +266,11 @@ export class StaticSiteGenerator {
 
 		const body = result.body;
 		if (typeof body === 'string' || Buffer.isBuffer(body)) {
-			return body;
+			return { body, metadata: result.metadata };
 		}
 
 		if (body instanceof ReadableStream) {
-			return new Response(body).text();
+			return { body: await new Response(body).text(), metadata: result.metadata };
 		}
 
 		throw new Error(STATIC_SITE_GENERATOR_ERRORS.unsupportedBodyType(typeof body));
@@ -333,6 +304,7 @@ export class StaticSiteGenerator {
 
 		await runWithConcurrency(routes, resolveStaticPageConcurrency(), async (route) => {
 			try {
+				let renderedMetadata: PageMetadataProps | undefined;
 				await this.writeStaticPageArtifact({
 					pathname: route.pathname,
 					directories,
@@ -341,25 +313,22 @@ export class StaticSiteGenerator {
 						this.considerSitemapEligibility({
 							pathname: route.pathname,
 							sitemapEligiblePathnames,
-							resolveMetadata: () => {
-								if (!routeRendererFactory) {
-									throw new Error(STATIC_SITE_GENERATOR_ERRORS.ROUTE_RENDERER_FACTORY_REQUIRED);
+							resolveMetadata: async () => {
+								if (!renderedMetadata) {
+									throw new Error(`No metadata was rendered for ${route.pathname}`);
 								}
-								return this.resolveFilesystemPageMetadata({
-									filePath: route.templateRoute.filePath,
-									params: route.params,
-									baseUrl,
-									routeRendererFactory,
-								});
+								return renderedMetadata;
 							},
 						}),
-					createContents: () =>
-						this.createFilesystemStaticContents({
+					createContents: async () => {
+						const rendered = await this.createFilesystemStaticContents({
 							route,
-							baseUrl,
 							routeRendererFactory,
 							skipped,
-						}),
+						});
+						renderedMetadata = rendered?.metadata;
+						return rendered?.body ?? null;
+					},
 				});
 			} catch (error) {
 				appLogger.error(
@@ -396,7 +365,6 @@ export class StaticSiteGenerator {
 	}
 
 	private resetStaticGenerationState(force: boolean): void {
-		this.pageModuleLoader = undefined;
 		if (shouldPrebuildProductionPageBrowserGraphs() && force) {
 			clearProductionPageBrowserGraphSession(this.appConfig);
 		}

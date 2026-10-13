@@ -506,24 +506,23 @@ describe('StaticSiteGenerator', () => {
 		});
 
 		test('should write sitemap.xml after every page when enabled', async () => {
-			const ssg = new StaticSiteGenerator({
-				appConfig: createMockConfig({
-					baseUrl: 'https://example.com',
-					sitemap: {
-						enabled: true,
-						fileName: 'sitemap.xml',
-						extraUrls: ['/rss.xml'],
-						exclude: ['/admin/**'],
-					},
-				}),
+			const appConfig = createMockConfig({
+				baseUrl: 'https://example.com',
+				sitemap: {
+					enabled: true,
+					fileName: 'sitemap.xml',
+					extraUrls: ['/rss.xml'],
+					exclude: ['/admin/**'],
+				},
 			});
+			const ssg = new StaticSiteGenerator({ appConfig });
 
 			const RendererFactory = {
 				getPageRenderer: vi.fn(() => ({
 					loadPageModule: vi.fn(async () => ({
 						default: Object.assign(() => null, { cache: 'static' }),
 					})),
-					execute: vi.fn(async () => ({ body: '<html>Page</html>' })),
+					execute: vi.fn(async () => ({ body: '<html>Page</html>', metadata: appConfig.defaultMetadata })),
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
@@ -581,51 +580,42 @@ describe('StaticSiteGenerator', () => {
 			}
 		});
 
-		test('should omit noindex pages and metadata failures from sitemap', async () => {
+		test('uses rendered metadata for sitemap eligibility without resolving it again', async () => {
 			const metadataError = new Error('metadata boom');
-			const debugLog = vi.spyOn(appLogger, 'debug').mockReturnValue(appLogger);
-			const ssg = new StaticSiteGenerator({
-				appConfig: createMockConfig({
-					baseUrl: 'https://example.com',
-					sitemap: {
-						enabled: true,
-						fileName: 'sitemap.xml',
-						extraUrls: [],
-						exclude: [],
-					},
-				}),
+			const draftMetadata = vi.fn(async () => ({
+				title: 'Draft',
+				description: 'Draft',
+				robots: { index: false },
+			}));
+			const brokenMetadata = vi.fn(async () => {
+				throw metadataError;
 			});
+			const metadataByFile = new Map([
+				['/src/pages/draft.tsx', draftMetadata],
+				['/src/pages/broken.tsx', brokenMetadata],
+			]);
+			const appConfig = createMockConfig({
+				baseUrl: 'https://example.com',
+				sitemap: {
+					enabled: true,
+					fileName: 'sitemap.xml',
+					extraUrls: [],
+					exclude: [],
+				},
+			});
+			const ssg = new StaticSiteGenerator({ appConfig });
 
 			const RendererFactory = {
 				getPageRenderer: vi.fn((filePath: string) => ({
 					loadPageModule: vi.fn(async () => {
-						if (filePath.includes('draft')) {
-							return {
-								default: Object.assign(() => null, {
-									cache: 'static',
-									metadata: async () => ({
-										title: 'Draft',
-										description: 'Draft',
-										robots: { index: false },
-									}),
-								}),
-							};
-						}
-						if (filePath.includes('broken')) {
-							return {
-								default: Object.assign(() => null, {
-									cache: 'static',
-									metadata: async () => {
-										throw metadataError;
-									},
-								}),
-							};
-						}
 						return {
 							default: Object.assign(() => null, { cache: 'static' }),
 						};
 					}),
-					execute: vi.fn(async () => ({ body: '<html>Page</html>' })),
+					execute: vi.fn(async ({ file }: { file: string }) => ({
+						body: '<html>Page</html>',
+						metadata: (await metadataByFile.get(file)?.()) ?? appConfig.defaultMetadata,
+					})),
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
@@ -682,10 +672,8 @@ describe('StaticSiteGenerator', () => {
 			expect(sitemapContent).toContain('<loc>https://example.com/</loc>');
 			expect(sitemapContent).not.toContain('/draft');
 			expect(sitemapContent).not.toContain('/broken');
-			const metadataFailureLog = debugLog.mock.calls.find(([message]) =>
-				String(message).includes('Sitemap eligibility skipped for /broken'),
-			);
-			expect(metadataFailureLog?.[1]).toContain(metadataError.stack ?? 'metadata boom');
+			expect(draftMetadata).toHaveBeenCalledTimes(1);
+			expect(brokenMetadata).toHaveBeenCalledTimes(1);
 		});
 
 		test('should honor robots.index on explicit static views in sitemap', async () => {

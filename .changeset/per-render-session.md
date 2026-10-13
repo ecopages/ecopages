@@ -11,3 +11,5 @@ Pages of one integration can render at the same time when async context storage 
 Render contexts now require `node:async_hooks` AsyncLocalStorage. Runtimes without it fail before rendering instead of using the shared-stack fallback.
 
 Each Integration now lazily owns one renderer shared by route renders, explicit views, and foreign-child handoffs.
+
+Static export uses the metadata returned by each rendered route for sitemap eligibility instead of loading the page again.

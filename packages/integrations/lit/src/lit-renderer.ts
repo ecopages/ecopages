@@ -243,11 +243,13 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 		query,
 		props,
 		locals,
+		pageLocals,
 		metadata,
 		Page,
 		Layout,
 		layoutEntries,
 		HtmlTemplate,
+		pageProps,
 		resolvedPageDependencyComponents,
 	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		try {
@@ -260,7 +262,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 						params,
 						query,
 						...props,
-						locals,
+						locals: pageLocals,
 					},
 				},
 				layouts: resolveDocumentShellLayouts({
@@ -272,7 +274,7 @@ export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
 				}),
 				htmlTemplate: HtmlTemplate,
 				metadata,
-				pageProps: props || {},
+				pageProps: pageProps ?? props ?? {},
 				foreignChildRoots: resolvedPageDependencyComponents,
 				transformDocumentHtml: normalizeLitHtml,
 			});

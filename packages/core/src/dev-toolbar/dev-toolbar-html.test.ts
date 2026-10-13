@@ -1,56 +1,95 @@
-import { rmSync } from 'node:fs';
-import { afterEach, describe, expect, it } from 'vitest';
-import { copyFixtureApp } from '../../__fixtures__/app/copy-fixture-app.ts';
-import { createFixtureUserConfig } from '../../__fixtures__/app/fixture-user-config.ts';
-import { createNodeServerAdapter } from '../adapters/node/server-adapter.ts';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { NodeHmrManager } from '../adapters/node/node-hmr-manager.ts';
+import { installBuildRuntime } from '../build/runtime/build-runtime.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
-import { DEV_TOOLBAR_RUNTIME_IMPORT } from './dev-toolbar-runtime-paths.ts';
 
-const cleanups: Array<() => Promise<void> | void> = [];
+const toolbarPackageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../dev-toolbar');
+const HMR_RUNTIME_IMPORT = "import '/_hmr_runtime.js'";
+const DEV_TOOLBAR_RUNTIME_IMPORT = "import '/_dev_toolbar.js'";
+const tempRoots: string[] = [];
+const managers: NodeHmrManager[] = [];
 
-afterEach(async () => {
-	for (const cleanup of cleanups.splice(0)) {
-		await cleanup();
+afterEach(() => {
+	for (const manager of managers.splice(0)) {
+		manager.stop();
 	}
+	for (const root of tempRoots.splice(0)) {
+		fs.rmSync(root, { recursive: true, force: true });
+	}
+	vi.restoreAllMocks();
 });
 
-/** Renders the fixture home page through the Node request path with the dev toolbar configured. */
-async function renderHome(options: { watch: boolean }): Promise<string> {
-	const appDir = copyFixtureApp();
-	cleanups.push(() => rmSync(appDir, { recursive: true, force: true }));
-
-	const appConfig = await finalizeEcoPagesConfig(
-		createFixtureUserConfig({ rootDir: appDir, devToolbar: { package: '@ecopages/dev-toolbar' } }),
-	);
-	for (const integration of appConfig.integrations) {
-		integration.setConfig(appConfig);
-		integration.setRuntimeOrigin('http://localhost:3000');
+/** Creates a manager for an app whose `node_modules` holds the workspace Dev Toolbar package, or none. */
+async function createManager(options: { toolbarPackage: string; installToolbar: boolean }): Promise<NodeHmrManager> {
+	const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-dev-client-runtimes-'));
+	tempRoots.push(rootDir);
+	if (options.installToolbar) {
+		const scopeDir = path.join(rootDir, 'node_modules', '@ecopages');
+		fs.mkdirSync(scopeDir, { recursive: true });
+		fs.symlinkSync(toolbarPackageDir, path.join(scopeDir, 'dev-toolbar'), 'dir');
 	}
 
-	const adapter = await createNodeServerAdapter({
+	const appConfig = await finalizeEcoPagesConfig({ rootDir, devToolbar: { package: options.toolbarPackage } });
+	installBuildRuntime(appConfig);
+	const manager = new NodeHmrManager({
 		appConfig,
-		runtimeOrigin: 'http://localhost:3000',
-		serveOptions: {},
-		options,
+		bridge: { subscriberCount: 0, broadcast: () => {} } as never,
 	});
-	cleanups.push(() => adapter.dispose());
+	managers.push(manager);
+	return manager;
+}
 
-	const response = await adapter.handleRequest(new Request('http://localhost:3000/'));
-	expect(response.status).toBe(200);
+async function injectIntoHtml(manager: NodeHmrManager): Promise<string> {
+	const response = await manager.injectDevClientRuntimes(
+		new Response('<html><body></body></html>', { headers: { 'Content-Type': 'text/html' } }),
+	);
 	return await response.text();
 }
 
-describe('dev toolbar HTML', () => {
-	it('loads the toolbar runtime at the end of a page rendered in watch mode', async () => {
-		const html = await renderHome({ watch: true });
+describe('dev client runtimes', () => {
+	it('loads the HMR runtime and then the Dev Toolbar runtime at the end of a page', async () => {
+		const manager = await createManager({ toolbarPackage: '@ecopages/dev-toolbar', installToolbar: true });
+		manager.setEnabled(true);
+		expect(await manager.ensureRuntimeReady()).toBe(true);
 
-		expect(html).toContain(`<script type="module">${DEV_TOOLBAR_RUNTIME_IMPORT};</script></html>`);
-		expect(html.split(DEV_TOOLBAR_RUNTIME_IMPORT)).toHaveLength(2);
+		const html = await injectIntoHtml(manager);
+
+		expect(html).toContain(
+			`<script type="module">${HMR_RUNTIME_IMPORT};</script><script type="module">${DEV_TOOLBAR_RUNTIME_IMPORT};</script></html>`,
+		);
+		expect(manager.tryHandleAssetRequest(new Request('http://localhost/_dev_toolbar.js'))?.status).toBe(200);
 	});
 
-	it('leaves the toolbar runtime out of a page rendered without watch mode', async () => {
-		const html = await renderHome({ watch: false });
+	it('does not load the same runtime twice', async () => {
+		const manager = await createManager({ toolbarPackage: '@ecopages/dev-toolbar', installToolbar: true });
+		manager.setEnabled(true);
+		await manager.ensureRuntimeReady();
 
+		const once = await manager.injectDevClientRuntimes(new Response(await injectIntoHtml(manager)));
+
+		expect((await once.text()).split(DEV_TOOLBAR_RUNTIME_IMPORT)).toHaveLength(2);
+	});
+
+	it('keeps the HMR runtime and leaves the Dev Toolbar runtime out when its package is not installed', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		const manager = await createManager({ toolbarPackage: '@ecopages/missing-dev-toolbar', installToolbar: false });
+		manager.setEnabled(true);
+		await manager.ensureRuntimeReady();
+
+		const html = await injectIntoHtml(manager);
+
+		expect(html).toContain(HMR_RUNTIME_IMPORT);
 		expect(html).not.toContain(DEV_TOOLBAR_RUNTIME_IMPORT);
+		expect(manager.tryHandleAssetRequest(new Request('http://localhost/_dev_toolbar.js'))).toBeNull();
+	});
+
+	it('leaves a page alone while HMR is disabled', async () => {
+		const manager = await createManager({ toolbarPackage: '@ecopages/dev-toolbar', installToolbar: true });
+
+		expect(await injectIntoHtml(manager)).toBe('<html><body></body></html>');
 	});
 });

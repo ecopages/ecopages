@@ -42,7 +42,7 @@ const entry = (name: string): BuildOptions => ({ ...baseOptions, entrypoints: [`
 describe('BuildQueue', () => {
 	it('runs identical concurrent requests as one build and returns its result to both callers', async () => {
 		const control = createControlledAdapter();
-		const queue = new BuildQueue(control.adapter, { build: 4, hmr: 1 });
+		const queue = new BuildQueue(control.adapter, { build: 4, hmr: 1, nested: 1 });
 
 		const first = queue.build(baseOptions);
 		const second = queue.build({ ...baseOptions });
@@ -55,7 +55,7 @@ describe('BuildQueue', () => {
 
 	it('shares one build between lanes', async () => {
 		const control = createControlledAdapter();
-		const queue = new BuildQueue(control.adapter, { build: 4, hmr: 1 });
+		const queue = new BuildQueue(control.adapter, { build: 4, hmr: 1, nested: 1 });
 
 		const first = queue.build(baseOptions, 'build');
 		const second = queue.build(baseOptions, 'hmr');
@@ -68,7 +68,7 @@ describe('BuildQueue', () => {
 
 	it('builds requests that differ only in runtimeOutdir separately', async () => {
 		const control = createControlledAdapter();
-		const queue = new BuildQueue(control.adapter, { build: 4, hmr: 1 });
+		const queue = new BuildQueue(control.adapter, { build: 4, hmr: 1, nested: 1 });
 
 		const first = queue.build({ ...baseOptions, runtimeOutdir: '/run/a' });
 		const second = queue.build({ ...baseOptions, runtimeOutdir: '/run/b' });
@@ -82,7 +82,7 @@ describe('BuildQueue', () => {
 
 	it('never runs more builds at once than the lane allows, and starts the rest in arrival order', async () => {
 		const control = createControlledAdapter();
-		const queue = new BuildQueue(control.adapter, { build: 2, hmr: 1 });
+		const queue = new BuildQueue(control.adapter, { build: 2, hmr: 1, nested: 1 });
 
 		const results = ['a', 'b', 'c', 'd', 'e'].map((name) => queue.build(entry(name)));
 		await control.flush();
@@ -102,7 +102,7 @@ describe('BuildQueue', () => {
 
 	it('keeps a busy hmr lane from holding up the build lane', async () => {
 		const control = createControlledAdapter();
-		const queue = new BuildQueue(control.adapter, { build: 1, hmr: 1 });
+		const queue = new BuildQueue(control.adapter, { build: 1, hmr: 1, nested: 1 });
 
 		void queue.build(entry('hmr-one'), 'hmr');
 		void queue.build(entry('hmr-two'), 'hmr');
@@ -122,7 +122,7 @@ describe('BuildQueue', () => {
 			},
 			resolve: (specifier) => specifier,
 		};
-		const queue = new BuildQueue(adapter, { build: 1, hmr: 1 });
+		const queue = new BuildQueue(adapter, { build: 1, hmr: 1, nested: 1 });
 
 		await expect(queue.build(baseOptions)).rejects.toThrow('boom');
 		await expect(queue.build(baseOptions)).resolves.toMatchObject({ success: true });
@@ -131,7 +131,7 @@ describe('BuildQueue', () => {
 
 	it('builds an identical request again once the first finished', async () => {
 		const control = createControlledAdapter();
-		const queue = new BuildQueue(control.adapter, { build: 1, hmr: 1 });
+		const queue = new BuildQueue(control.adapter, { build: 1, hmr: 1, nested: 1 });
 
 		const first = queue.build(baseOptions);
 		await control.flush();
@@ -145,10 +145,65 @@ describe('BuildQueue', () => {
 		expect(control.started).toHaveLength(2);
 	});
 
+	describe('a build that waits for another build', () => {
+		const timeout = (ms: number) =>
+			new Promise<never>((_resolve, reject) => setTimeout(() => reject(new Error('timed out')), ms));
+		const createParentWaitingAdapter = (lane: 'build' | 'nested') => {
+			const queueRef: { current?: BuildQueue } = {};
+			const adapter: BuildAdapter = {
+				async build(options): Promise<BuildResult> {
+					if (Object.values(options.entrypoints).includes('/in/parent.ts')) {
+						await queueRef.current!.build(entry('child'), lane);
+					}
+					return { success: true, logs: [], outputs: [] };
+				},
+				resolve: (specifier) => specifier,
+			};
+			queueRef.current = new BuildQueue(adapter, { build: 1, hmr: 1, nested: 1 });
+			return queueRef.current;
+		};
+
+		it('finishes when the child runs on the nested lane, though the build lane has one slot', async () => {
+			const queue = createParentWaitingAdapter('nested');
+
+			await expect(Promise.race([queue.build(entry('parent')), timeout(2000)])).resolves.toMatchObject({
+				success: true,
+			});
+		});
+
+		it('never finishes when the child waits for the lane slot its parent holds', async () => {
+			const queue = createParentWaitingAdapter('build');
+
+			await expect(Promise.race([queue.build(entry('parent')), timeout(200)])).rejects.toThrow('timed out');
+		});
+
+		it('lets two parents that each wait for a child share the nested lane', async () => {
+			const queueRef: { current?: BuildQueue } = {};
+			const adapter: BuildAdapter = {
+				async build(options): Promise<BuildResult> {
+					const parent = /\/parent-(\w)\.ts$/.exec(String(Object.values(options.entrypoints)[0]));
+					if (parent) {
+						await queueRef.current!.build(entry(`kid-${parent[1]}`), 'nested');
+					}
+					return { success: true, logs: [], outputs: [] };
+				},
+				resolve: (specifier) => specifier,
+			};
+			queueRef.current = new BuildQueue(adapter, { build: 2, hmr: 1, nested: 1 });
+
+			await expect(
+				Promise.race([
+					Promise.all([queueRef.current.build(entry('parent-a')), queueRef.current.build(entry('parent-b'))]),
+					timeout(2000),
+				]),
+			).resolves.toHaveLength(2);
+		});
+	});
+
 	describe('withRequestScope', () => {
 		it('shares a finished build with later identical requests of the same scope only', async () => {
 			const control = createControlledAdapter();
-			const queue = new BuildQueue(control.adapter, { build: 1, hmr: 1 });
+			const queue = new BuildQueue(control.adapter, { build: 1, hmr: 1, nested: 1 });
 
 			await queue.withRequestScope(async () => {
 				const first = queue.build(baseOptions);
@@ -166,9 +221,29 @@ describe('BuildQueue', () => {
 			expect(control.started).toHaveLength(2);
 		});
 
+		it('rebuilds a request whose build rejected inside the scope', async () => {
+			let calls = 0;
+			const adapter: BuildAdapter = {
+				async build() {
+					calls += 1;
+					if (calls === 1) throw new Error('boom');
+					return { success: true, logs: [], outputs: [] };
+				},
+				resolve: (specifier) => specifier,
+			};
+			const queue = new BuildQueue(adapter, { build: 1, hmr: 1, nested: 1 });
+
+			await queue.withRequestScope(async () => {
+				await expect(queue.build(baseOptions)).rejects.toThrow('boom');
+				await expect(queue.build(baseOptions)).resolves.toMatchObject({ success: true });
+			});
+
+			expect(calls).toBe(2);
+		});
+
 		it('joins the scope that is already active', async () => {
 			const control = createControlledAdapter();
-			const queue = new BuildQueue(control.adapter, { build: 1, hmr: 1 });
+			const queue = new BuildQueue(control.adapter, { build: 1, hmr: 1, nested: 1 });
 
 			await queue.withRequestScope(async () => {
 				const first = queue.build(baseOptions);
@@ -187,6 +262,7 @@ describe('BuildQueue', () => {
 
 		expect(limits.build).toBe(Math.max(1, availableParallelism() - 1));
 		expect(limits.hmr).toBe(Math.min(3, limits.build));
+		expect(limits.nested).toBe(limits.build);
 	});
 });
 

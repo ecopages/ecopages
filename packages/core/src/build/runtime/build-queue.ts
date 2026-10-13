@@ -18,15 +18,20 @@ import { createBuildRequestIdentity } from './build-request-identity.ts';
  * `build` carries every server and browser build that is not an HMR rebuild and may use all but one of the
  * machine's cores. `hmr` carries the browser rebuilds of the development server and runs at most three at once, so
  * a burst of rebuilds leaves room for the `build` lane.
+ *
+ * `nested` is for a build that a running build waits for, such as the collection bundle a content plugin's
+ * `onResolve` hook triggers. A running build holds its lane's slot until it ends, so a build it waits for in the
+ * same lane could wait for a slot that its own parent holds, and with every slot taken that way none would ever free.
+ * A `nested` build never waits on another `nested` build, so its lane cannot lock up.
  */
-export type BuildLane = 'build' | 'hmr';
+export type BuildLane = 'build' | 'hmr' | 'nested';
 
 type LaneState = { limit: number; active: number; waiting: Array<() => void> };
 
 /** Concurrency each lane gets on this machine. */
 export function resolveBuildLaneLimits(): Record<BuildLane, number> {
 	const build = Math.max(1, availableParallelism() - 1);
-	return { build, hmr: Math.min(3, build) };
+	return { build, hmr: Math.min(3, build), nested: build };
 }
 
 /**
@@ -53,6 +58,7 @@ export class BuildQueue implements BuildExecutor {
 		this.lanes = {
 			build: { limit: Math.max(1, limits.build), active: 0, waiting: [] },
 			hmr: { limit: Math.max(1, limits.hmr), active: 0, waiting: [] },
+			nested: { limit: Math.max(1, limits.nested), active: 0, waiting: [] },
 		};
 	}
 

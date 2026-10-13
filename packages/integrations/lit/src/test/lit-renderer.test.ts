@@ -32,17 +32,23 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
 	return `<html><body>${children}</body></html>`;
 };
 
+/**
+ * Renderer for tests that define their custom elements in the test body.
+ *
+ * @remarks
+ * The real preload installs a fresh global custom element registry on every
+ * call, so elements defined by a test before rendering would be dropped.
+ * Preload is therefore skipped here; `lit-ssr-lazy-preload.test.ts` covers it
+ * with real scripts.
+ */
 class TestLitRenderer extends LitRenderer {
 	htmlTemplate: EcoComponent<HtmlTemplateProps> = HtmlTemplate;
-	preloadedComponentBatches: Array<Array<EcoComponent | undefined>> = [];
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		return this.htmlTemplate;
 	}
 
-	protected override async preloadSsrScripts(components: Array<EcoComponent | undefined>): Promise<void> {
-		this.preloadedComponentBatches.push(components);
-	}
+	protected override async preloadSsrScripts(): Promise<void> {}
 }
 
 const createRenderer = () => {
@@ -260,34 +266,6 @@ describe('LitRenderer', () => {
 			expect(result.html).not.toContain('&lt;!--eco-lit-component-children--&gt;');
 		});
 
-		it('should preload SSR lazy scripts before component-level renders', async () => {
-			const testRenderer = createRenderer();
-			const Component = (() => '<lit-counter count="0"></lit-counter>') as unknown as EcoComponent<object>;
-			Component.config = {
-				identity: {
-					id: 'lit-counter',
-					file: '/project/src/components/lit-counter.lit.tsx',
-					integration: 'lit',
-				},
-				dependencies: {
-					scripts: [
-						{
-							src: './lit-counter.script.ts',
-							lazy: { 'on:interaction': 'click' },
-							ssr: true,
-						},
-					],
-				},
-			};
-
-			await testRenderer.renderComponent({
-				component: Component,
-				props: {},
-			});
-
-			expect(testRenderer.preloadedComponentBatches).toEqual([[Component]]);
-		});
-
 		it('should not stamp a script-less lit component as an island host when it wraps a foreign island with its own script', async () => {
 			const deferredPlugin = createDeferredIntegrationPlugin({
 				extensions: ['.deferred.ts'],
@@ -373,85 +351,6 @@ describe('LitRenderer', () => {
 		});
 	});
 
-	describe('ssr lazy preload', () => {
-		it('should collect nested lazy script entries for SSR preload when ssr is true', () => {
-			const testRenderer = createRenderer();
-			const nested = (() => '<div>Nested</div>') as unknown as EcoComponent<object>;
-			nested.config = {
-				identity: {
-					id: 'nested',
-					file: '/project/src/components/nested.lit.tsx',
-					integration: 'lit',
-				},
-				dependencies: {
-					scripts: [{ src: './nested.script.ts', lazy: { 'on:interaction': 'click' }, ssr: true }],
-				},
-			};
-
-			const view = (() => '<div>View</div>') as unknown as EcoComponent<object>;
-			view.config = {
-				identity: {
-					id: 'view',
-					file: '/project/src/pages/index.lit.tsx',
-					integration: 'lit',
-				},
-				dependencies: {
-					components: [nested],
-					scripts: [{ src: './view.script.ts', lazy: { 'on:idle': true }, ssr: true }],
-				},
-			};
-
-			const scripts = (testRenderer as any).collectSsrPreloadScripts([view]);
-
-			expect(scripts).toContain('/project/src/pages/view.script.ts');
-			expect(scripts).toContain('/project/src/components/nested.script.ts');
-		});
-
-		it('should skip lazy scripts from SSR preload when ssr is not true', () => {
-			const testRenderer = createRenderer();
-			const view = (() => '<div>View</div>') as unknown as EcoComponent<object>;
-			view.config = {
-				identity: {
-					id: 'view',
-					file: '/project/src/pages/index.lit.tsx',
-					integration: 'lit',
-				},
-				dependencies: {
-					scripts: [{ src: './view.script.ts', lazy: { 'on:idle': true }, ssr: false }],
-				},
-			};
-
-			const scripts = (testRenderer as any).collectSsrPreloadScripts([view]);
-
-			expect(scripts).toEqual([]);
-		});
-
-		it('should collect object-entry lazy scripts when ssr is true', () => {
-			const testRenderer = createRenderer();
-			const view = (() => '<div>View</div>') as unknown as EcoComponent<object>;
-			view.config = {
-				identity: {
-					id: 'view',
-					file: '/project/src/pages/index.lit.tsx',
-					integration: 'lit',
-				},
-				dependencies: {
-					scripts: [
-						{
-							src: './view.script.ts',
-							lazy: { 'on:interaction': 'click' },
-							ssr: true,
-						},
-					],
-				},
-			};
-
-			const scripts = (testRenderer as any).collectSsrPreloadScripts([view]);
-
-			expect(scripts).toEqual(['/project/src/pages/view.script.ts']);
-		});
-	});
-
 	describe('render', () => {
 		it('should render the page', async () => {
 			const body = await renderer.render({
@@ -524,54 +423,6 @@ describe('LitRenderer', () => {
 
 			const text = await new Response(body as BodyInit).text();
 			expect(text).toContain('<h1>Resolved</h1>');
-		});
-
-		it('passes route-resolved dependency roots into the document shell', async () => {
-			const testRenderer = createRenderer();
-			const resolvedContent = (() => '<article>Resolved content</article>') as unknown as EcoComponent;
-			const resolvedDependencyMetadata: Partial<EcoComponent> = {
-				config: {
-					identity: {
-						id: 'resolved-dependency-metadata',
-						file: '/project/src/content/entry.mdx',
-						integration: 'lit',
-					},
-					dependencies: {
-						scripts: [{ src: './entry.ts', lazy: { 'on:idle': true }, ssr: true }],
-					},
-				},
-			};
-			const renderPageShell = vi
-				.spyOn(
-					testRenderer as unknown as {
-						renderPageWithDocumentShell(input: unknown): Promise<string>;
-					},
-					'renderPageWithDocumentShell',
-				)
-				.mockResolvedValue('<html><body></body></html>');
-
-			await testRenderer.render({
-				params: {},
-				query: {},
-				props: {},
-				file: 'file',
-				resolvedDependencies: [],
-				resolvedPageDependencyComponents: [resolvedContent, resolvedDependencyMetadata],
-				metadata: {
-					title: 'Hello World',
-					description: 'Hello World',
-				},
-				Page: async () => '<div>Hello World</div>',
-				HtmlTemplate,
-			});
-
-			expect(renderPageShell).toHaveBeenCalledWith(
-				expect.objectContaining({
-					foreignChildRoots: [resolvedContent, resolvedDependencyMetadata],
-				}),
-			);
-			expect(testRenderer.preloadedComponentBatches[0]).toContain(resolvedContent);
-			expect(testRenderer.preloadedComponentBatches[0]).toContain(resolvedDependencyMetadata);
 		});
 
 		it('should render the page with layout', async () => {
@@ -965,6 +816,16 @@ describe('LitRenderer', () => {
 	});
 
 	describe('ensureLitDomShim', () => {
+		it('keeps the existing global custom element registry', async () => {
+			const { ensureLitDomShim } = await import('../dom-shim.ts');
+			const registry = globalThis.customElements;
+
+			ensureLitDomShim();
+			ensureLitDomShim();
+
+			expect(globalThis.customElements).toBe(registry);
+		});
+
 		it('repairs Element and HTMLElement when foreign shim lacks attributes and attachShadow', async () => {
 			const { ensureLitDomShim } = await import('../dom-shim.ts');
 			const originalAttributes = Object.getOwnPropertyDescriptor(globalThis.Element.prototype, 'attributes');

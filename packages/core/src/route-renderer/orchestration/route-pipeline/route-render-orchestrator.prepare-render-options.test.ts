@@ -678,4 +678,91 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		expect(resolvedComponents).toEqual([HtmlTemplate, OuterLayout, InnerLayout, Page]);
 	});
+
+	describe('shell dependency reuse', () => {
+		async function prepareTimes(
+			count: number,
+			options: {
+				page?: EcoPageComponent<Record<string, unknown>>;
+				resolveDependencies?: () => Promise<ProcessedAsset[]>;
+				hmrEnabled?: boolean;
+			} = {},
+		) {
+			const validate = vi.fn(() => []);
+			const { flow } = createOrchestrator({
+				hmrEnabled: options.hmrEnabled,
+				orchestratorOptions: {
+					ownershipValidationService: { validate } as unknown as OwnershipValidationService,
+				},
+			});
+			const resolveDependencies = vi.fn(options.resolveDependencies ?? (async () => []));
+			const adapter = createFlowAdapter({ Page: options.page ?? createPage(), resolveDependencies });
+			const results = [];
+			for (let index = 0; index < count; index += 1) {
+				results.push(await flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), adapter));
+			}
+			return { results, resolveDependencies, validate };
+		}
+
+		it('prepares the shell roots of one Page once in production', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+
+			const { results, resolveDependencies, validate } = await prepareTimes(3);
+
+			expect(resolveDependencies).toHaveBeenCalledTimes(1);
+			expect(validate).toHaveBeenCalledTimes(1);
+			expect(results[2]?.pageClientPlan).toBe(results[0]?.pageClientPlan);
+			expect(results[2]?.pagePackage).toEqual(results[0]?.pagePackage);
+		});
+
+		it('prepares them on every render while HMR is enabled, even under NODE_ENV=production', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+
+			const { resolveDependencies, validate } = await prepareTimes(3, { hmrEnabled: true });
+
+			expect(resolveDependencies).toHaveBeenCalledTimes(3);
+			expect(validate).toHaveBeenCalledTimes(3);
+		});
+
+		it('still reuses them in production when the HMR manager is disabled', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+
+			const { resolveDependencies } = await prepareTimes(3, { hmrEnabled: false });
+
+			expect(resolveDependencies).toHaveBeenCalledTimes(1);
+		});
+
+		it('prepares them on every render outside production', async () => {
+			vi.stubEnv('NODE_ENV', 'development');
+
+			const { resolveDependencies, validate } = await prepareTimes(3);
+
+			expect(resolveDependencies).toHaveBeenCalledTimes(3);
+			expect(validate).toHaveBeenCalledTimes(3);
+		});
+
+		it('prepares a Page whose dependencies are a function on every render in production', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+			const page = createPage();
+			page.resolveDependencies = async () => undefined;
+
+			const { resolveDependencies } = await prepareTimes(3, { page });
+
+			expect(resolveDependencies).toHaveBeenCalledTimes(3);
+		});
+
+		it('does not keep a preparation that failed', async () => {
+			vi.stubEnv('NODE_ENV', 'production');
+			const failing = vi.fn(async () => {
+				throw new Error('dependencies unavailable');
+			});
+			const { flow } = createOrchestrator();
+			const adapter = createFlowAdapter({ resolveDependencies: failing });
+			const options = createRouteOptions('/app/pages/index.tsx');
+
+			await expect(flow.prepareRenderOptions(options, adapter)).rejects.toThrow('dependencies unavailable');
+			await expect(flow.prepareRenderOptions(options, adapter)).rejects.toThrow('dependencies unavailable');
+			expect(failing).toHaveBeenCalledTimes(2);
+		});
+	});
 });

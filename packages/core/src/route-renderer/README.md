@@ -92,6 +92,9 @@ The route-render contract is:
 1. `RouteRendererFactory` selects the owning integration renderer.
 2. `IntegrationRenderer.execute()` delegates preparation and finalization to `RouteRenderOrchestrator`.
 3. `RouteRenderOrchestrator.prepareRenderOptions()` loads the page module, validates ownership (fail-fast), resolves final page props, resolves dependencies, and builds the page browser graph. Graph cache identity includes route params and query; contribution collection receives those same final props.
+
+    In production, a Page without a `dependencies` function prepares its shell dependencies (ownership validation, the assets of the Html template, Layouts and Page, the page client plan, island and lazy-entry assets) once per process and reuses them. The Page Browser Graph is still resolved per render, through its own cache. Each renderer also keeps the assets one component contributes when it renders (`resolveComponentRenderAssets`) after the first render. Development, any process with HMR enabled, and Pages with a `dependencies` function prepare on every render.
+
 4. The integration renderer performs page, layout, and document-shell rendering. When it encounters a foreign child, it delegates that child back to the owning renderer.
 5. If a renderer needs queued handoff, it emits internal foreign-subtree tokens and resolves them before returning final HTML.
 6. `RouteRenderOrchestrator.executePrepared()` captures the final body, rejects unresolved `<eco-marker>` artifacts, stamps document attributes when needed, and runs the HTML transformer with the render's page package.

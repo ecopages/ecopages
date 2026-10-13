@@ -7,6 +7,7 @@ import type { BuildExecutor } from '../../build/build-adapter.ts';
 import type { BuildOptions } from '../../build/contracts/build-contracts.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
 import { buildCollectionServerModule } from './collection-server-module-build.service.ts';
 
 describe('buildCollectionServerModule', () => {
@@ -59,5 +60,42 @@ describe('buildCollectionServerModule', () => {
 			[[sourceFilePath]],
 		);
 		assert.ok(fs.existsSync(artifact.outputPath));
+	});
+
+	it('reuses a build until the development generation advances', async () => {
+		const sourceFilePath = path.join(rootDir, 'posts.collection.ts');
+		fs.writeFileSync(sourceFilePath, 'export const posts = [];\n', 'utf8');
+
+		const adapter = new RolldownBuildAdapter();
+		let buildCount = 0;
+		const appConfig = {
+			rootDir,
+			absolutePaths: { workDir: path.join(rootDir, '.eco') },
+			integrations: [],
+			runtime: {
+				buildRuntime: {
+					getProfile: () => ({
+						build(options: BuildOptions) {
+							buildCount += 1;
+							return adapter.build(options);
+						},
+					}),
+					dispose: async () => {},
+				},
+			},
+		} as unknown as EcoPagesAppConfig;
+		const build = () =>
+			buildCollectionServerModule({ appConfig, collectionName: 'posts', sourceFilePath, ownedSourcePaths: [] });
+
+		const first = await build();
+		const second = await build();
+		assert.equal(second, first);
+		assert.equal(buildCount, 1);
+
+		getAppModuleLoader(appConfig).invalidateDevelopmentGraph();
+		const third = await build();
+
+		assert.equal(buildCount, 2);
+		assert.notEqual(third.outputPath, first.outputPath);
 	});
 });

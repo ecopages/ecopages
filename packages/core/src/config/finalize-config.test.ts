@@ -15,7 +15,6 @@ import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { Processor } from '../plugins/processor.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { NoopEntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
-import { CounterServerInvalidationState } from '../services/runtime-state/server-invalidation-state.service.ts';
 import { finalizeEcoPagesConfig } from './finalize-config.ts';
 import type { EcoPagesUserConfig } from './user-config-types.ts';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
@@ -164,7 +163,6 @@ describe('finalizeEcoPagesConfig', () => {
 		expect(getAppBuildAdapter(config)).not.toBe(defaultBuildAdapter);
 		expect(getAppBuildManifest(config).plugins).toHaveLength(0);
 		expect(config.sourceTransforms.size).toBeGreaterThan(0);
-		expect(config.runtime?.serverInvalidationState).toBeInstanceOf(CounterServerInvalidationState);
 		expect(config.runtime?.entrypointDependencyGraph).toBeInstanceOf(NoopEntrypointDependencyGraph);
 	});
 

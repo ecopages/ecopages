@@ -289,12 +289,20 @@ export class HydrationAssetService {
 		uniqueIslands: Array<{ file: string; config?: EcoComponentConfig }>,
 	): Promise<AssetDefinition[]> {
 		const islandEntries: AssetDefinition[] = [];
+		const groupedEntrypointFiles = uniqueIslands.map(({ file }) => file);
+		const groupedDeclaredModules = [
+			...new Set(uniqueIslands.flatMap(({ config }) => collectDeclaredModulesInConfig(config))),
+		];
 		for (const island of uniqueIslands) {
 			const componentName = this.getIslandBundleName(island.file);
 			const bundleOptions = await this.config.bundleService.createBundleOptions(
 				componentName,
 				false,
 				collectDeclaredModulesInConfig(island.config),
+				{},
+				island.file,
+				groupedEntrypointFiles,
+				groupedDeclaredModules,
 			);
 			islandEntries.push(
 				createAppBrowserClientEntry({
@@ -466,6 +474,7 @@ export class HydrationAssetService {
 			isMdx,
 			declaredModules,
 			{ includeRuntime: !useBrowserRuntimeImports, splitting: usesRouterRuntime },
+			pagePath,
 		);
 		const dependencies = await this.createPageDependencies({
 			pagePath,

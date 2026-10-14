@@ -250,6 +250,7 @@ describe('HydrationAssetService', () => {
 				includeRuntime: true,
 				splitting: false,
 			},
+			'/app/src/pages/index.tsx',
 		);
 	});
 
@@ -292,6 +293,7 @@ describe('HydrationAssetService', () => {
 				includeRuntime: false,
 				splitting: true,
 			},
+			'/app/src/pages/index.tsx',
 		);
 	});
 
@@ -319,6 +321,7 @@ describe('HydrationAssetService', () => {
 				includeRuntime: false,
 				splitting: false,
 			},
+			'/app/src/pages/index.tsx',
 		);
 		expect(dependencies[0]).toMatchObject({
 			bundle: true,
@@ -456,8 +459,20 @@ describe('HydrationAssetService', () => {
 
 		const { assetsByFile } = await service.buildPageClientRenderAssets({
 			islands: [
-				{ file: islandA, config: { identity: { id: 'Counter', file: islandA, integration: 'react' } } },
-				{ file: islandB, config: { identity: { id: 'Cart', file: islandB, integration: 'react' } } },
+				{
+					file: islandA,
+					config: {
+						identity: { id: 'Counter', file: islandA, integration: 'react' },
+						dependencies: { modules: ['node:path'] },
+					},
+				},
+				{
+					file: islandB,
+					config: {
+						identity: { id: 'Cart', file: islandB, integration: 'react' },
+						dependencies: { modules: ['node:fs'] },
+					},
+				},
 			],
 		});
 
@@ -474,6 +489,26 @@ describe('HydrationAssetService', () => {
 		]);
 		expect(clientEntries[0]?.content).toContain(`export * from ${JSON.stringify(islandA)}`);
 		expect(clientEntries[1]?.content).toContain(`export * from ${JSON.stringify(islandB)}`);
+		expect(createBundleOptions).toHaveBeenNthCalledWith(
+			1,
+			`ecopages-react-island-${rapidhash(islandA)}`,
+			false,
+			['node:path'],
+			{},
+			islandA,
+			[islandA, islandB],
+			['node:path', 'node:fs'],
+		);
+		expect(createBundleOptions).toHaveBeenNthCalledWith(
+			2,
+			`ecopages-react-island-${rapidhash(islandB)}`,
+			false,
+			['node:fs'],
+			{},
+			islandB,
+			[islandA, islandB],
+			['node:path', 'node:fs'],
+		);
 
 		const hydrationCall = processDependencies.mock.calls[1]?.[0] as Array<{ content?: string }>;
 		expect(hydrationCall?.[0]?.content).toContain(`/assets/ecopages-react-island-${rapidhash(islandA)}.js`);
@@ -528,8 +563,26 @@ describe('HydrationAssetService', () => {
 		});
 
 		const islandName = `ecopages-react-island-${rapidhash('/app/src/components/counter.tsx')}`;
-		expect(createBundleOptions).toHaveBeenNthCalledWith(1, islandName, false, []);
-		expect(createBundleOptions).toHaveBeenNthCalledWith(2, islandName, false, []);
+		expect(createBundleOptions).toHaveBeenNthCalledWith(
+			1,
+			islandName,
+			false,
+			[],
+			{},
+			'/app/src/components/counter.tsx',
+			['/app/src/components/counter.tsx'],
+			[],
+		);
+		expect(createBundleOptions).toHaveBeenNthCalledWith(
+			2,
+			islandName,
+			false,
+			[],
+			{},
+			'/app/src/components/counter.tsx',
+			['/app/src/components/counter.tsx'],
+			[],
+		);
 
 		const firstIslandEntries = processDependencies.mock.calls[0]?.[0] as Array<{
 			groupedBundle?: { entryName: string };

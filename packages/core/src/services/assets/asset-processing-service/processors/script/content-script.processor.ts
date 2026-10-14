@@ -50,70 +50,23 @@ export class ContentScriptProcessor extends BaseScriptProcessor<ContentScriptAss
 	 * another in-flight Rolldown graph.
 	 */
 	async processGrouped(deps: ContentScriptAsset[]): Promise<ProcessedAsset[]> {
-		if (deps.length === 0) {
-			return [];
-		}
-
 		const shouldBundle = deps.every((dep) => this.shouldBundle(dep));
-		if (!shouldBundle || deps.some((dep) => dep.inline)) {
-			return Promise.all(deps.map((dep) => this.process(dep)));
-		}
-
-		let tempEntries: Array<{ dep: ContentScriptAsset; contentHash: string; tempFilepath: string }> = [];
-
-		try {
-			tempEntries = deps.map((dep) => {
+		return this.processGroupedScripts(deps, {
+			shouldBundleTogether: shouldBundle && deps.every((dep) => !dep.inline),
+			prepareEntry: (dep) => {
 				const contentHash = this.generateHash(dep.content);
 				const tempFilepath = this.getContentScriptEntryPath();
-
 				fileSystem.write(tempFilepath, dep.content);
 
 				return {
-					dep,
-					contentHash,
-					tempFilepath,
-				};
-			});
-
-			const outputPaths = await this.bundleScripts({
-				...this.getGroupedBundlerOptions(deps),
-				entries: tempEntries.map(({ dep, contentHash, tempFilepath }) => ({
 					entryName: dep.groupedBundle?.entryName ?? dep.name ?? contentHash,
 					entrypoint: tempFilepath,
-				})),
-				outdir: this.getAssetsDir(),
-				minify: this.isProduction,
-				naming: '[name]-[hash].[ext]',
-			});
-
-			return tempEntries.map(({ dep, contentHash, tempFilepath }) => {
-				const entryName = dep.groupedBundle?.entryName ?? dep.name ?? contentHash;
-				const bundledOutput = outputPaths.get(entryName);
-				if (!bundledOutput) {
-					throw new Error(`Missing grouped bundle output for ${entryName}`);
-				}
-
-				return this.toProcessedAsset(dep, bundledOutput.filepath, bundledOutput.inputPaths, tempFilepath);
-			});
-		} finally {
-			for (const { tempFilepath } of tempEntries) {
-				fileSystem.remove(tempFilepath);
-			}
-		}
-	}
-
-	private getGroupedBundlerOptions(deps: ContentScriptAsset[]): Record<string, unknown> {
-		const primaryDep = deps[0]!;
-		const options = this.getBundlerOptions(primaryDep);
-
-		if (deps.some((dep) => dep.bundleOptions?.splitting === false)) {
-			return {
-				...options,
-				splitting: false,
-			};
-		}
-
-		return options;
+					cleanup: () => fileSystem.remove(tempFilepath),
+				};
+			},
+			toProcessedAsset: (dep, output, entrypoint) =>
+				this.toProcessedAsset(dep, output.filepath, output.inputPaths, entrypoint),
+		});
 	}
 
 	/**

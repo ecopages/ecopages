@@ -41,50 +41,16 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	 * HMR, inline, and unbundled entries fall back to per-file processing.
 	 */
 	async processGrouped(deps: FileScriptAsset[]): Promise<ProcessedAsset[]> {
-		if (deps.length === 0) {
-			return [];
-		}
-
 		const hmrEnabled = this.hmrManager?.isEnabled() === true;
 		const shouldBundle = deps.every((dep) => this.shouldBundle(dep));
-		if (!shouldBundle || deps.some((dep) => dep.inline) || hmrEnabled) {
-			return Promise.all(deps.map((dep) => this.process(dep)));
-		}
-
-		const outputPaths = await this.bundleScripts({
-			...this.getGroupedBundlerOptions(deps),
-			entries: deps.map((dep) => ({
+		return this.processGroupedScripts(deps, {
+			shouldBundleTogether: shouldBundle && deps.every((dep) => !dep.inline) && !hmrEnabled,
+			prepareEntry: (dep) => ({
 				entryName: dep.groupedBundle?.entryName ?? dep.name ?? path.parse(dep.filepath).name,
 				entrypoint: dep.filepath,
-			})),
-			outdir: this.getAssetsDir(),
-			minify: this.isProduction,
-			naming: '[name]-[hash].[ext]',
+			}),
+			toProcessedAsset: (dep, output) => this.toProcessedAsset(dep, output.filepath, output.inputPaths),
 		});
-
-		return deps.map((dep) => {
-			const entryName = dep.groupedBundle?.entryName ?? dep.name ?? path.parse(dep.filepath).name;
-			const bundledOutput = outputPaths.get(entryName);
-			if (!bundledOutput) {
-				throw new Error(`Missing grouped bundle output for ${entryName}`);
-			}
-
-			return this.toProcessedAsset(dep, bundledOutput.filepath, bundledOutput.inputPaths);
-		});
-	}
-
-	private getGroupedBundlerOptions(deps: FileScriptAsset[]): Record<string, unknown> {
-		const primaryDep = deps[0]!;
-		const options = this.getBundlerOptions(primaryDep);
-
-		if (deps.some((dep) => dep.bundleOptions?.splitting === false)) {
-			return {
-				...options,
-				splitting: false,
-			};
-		}
-
-		return options;
 	}
 
 	/**

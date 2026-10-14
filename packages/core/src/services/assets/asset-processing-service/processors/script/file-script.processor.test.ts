@@ -534,6 +534,81 @@ describe('FileScriptProcessor', () => {
 	});
 
 	describe('processGrouped', () => {
+		test('combines bundle options from every grouped entry', async () => {
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const firstPlugin = { name: 'island-a-plugin', setup: () => {} };
+			const secondPlugin = { name: 'island-b-plugin', setup: () => {} };
+			const bundleGroupedEntriesSpy = vi
+				.spyOn(BrowserBundleService.prototype, 'bundleGroupedEntries')
+				.mockImplementation(async (entries) => {
+					const entryOutputs = Object.fromEntries(
+						entries.map((entry) => [
+							entry.entrypoint,
+							`/test/project/.eco/public/assets/${entry.entryName}-hash.js`,
+						]),
+					);
+					return createBuildSuccess({
+						outputs: Object.values(entryOutputs).map((path) => ({ path })),
+						entryOutputs,
+					});
+				});
+
+			await processor.processGrouped([
+				{
+					kind: 'script',
+					source: 'file',
+					filepath: '/test/project/src/islands/a.tsx',
+					groupedBundle: { id: 'ecopages-app-browser-client', entryName: 'island-a' },
+					bundleOptions: {
+						external: ['island-a-external'],
+						define: { __ISLAND_A__: 'true' },
+						plugins: [firstPlugin],
+					},
+				},
+				{
+					kind: 'script',
+					source: 'file',
+					filepath: '/test/project/src/islands/b.tsx',
+					groupedBundle: { id: 'ecopages-app-browser-client', entryName: 'island-b' },
+					bundleOptions: {
+						external: ['island-b-external'],
+						define: { __ISLAND_B__: 'true' },
+						plugins: [secondPlugin],
+						splitting: false,
+					},
+				},
+			]);
+
+			const groupedOptions = bundleGroupedEntriesSpy.mock.calls[0]?.[1];
+			expect(groupedOptions?.external).toEqual(['island-a-external', 'island-b-external']);
+			expect(groupedOptions?.define).toEqual({ __ISLAND_A__: 'true', __ISLAND_B__: 'true' });
+			expect(groupedOptions?.plugins).toEqual([firstPlugin, secondPlugin]);
+			expect(groupedOptions?.splitting).toBe(false);
+		});
+
+		test('rejects conflicting defines in one grouped build', async () => {
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+
+			await expect(
+				processor.processGrouped([
+					{
+						kind: 'script',
+						source: 'file',
+						filepath: '/test/project/src/islands/a.tsx',
+						groupedBundle: { id: 'ecopages-app-browser-client', entryName: 'island-a' },
+						bundleOptions: { define: { __SHARED__: 'true' } },
+					},
+					{
+						kind: 'script',
+						source: 'file',
+						filepath: '/test/project/src/islands/b.tsx',
+						groupedBundle: { id: 'ecopages-app-browser-client', entryName: 'island-b' },
+						bundleOptions: { define: { __SHARED__: 'false' } },
+					},
+				]),
+			).rejects.toThrow('Grouped script entries have conflicting bundleOptions.define values for "__SHARED__"');
+		});
+
 		test('bundles grouped file entries together and maps outputs by entry name', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 			const bundleScriptsSpy = vi

@@ -51,6 +51,128 @@ function createPluginTestHarness(pluginOptions?: Parameters<typeof createClientG
 }
 
 describe('createClientGraphBoundaryPlugin', () => {
+	it('scopes declared modules to their grouped entry', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const islandA = join(tempDir, 'island-a.tsx');
+		const islandB = join(tempDir, 'island-b.tsx');
+		const sharedHelper = join(tempDir, 'shared-helper.ts');
+		const source =
+			"import fs from 'node:fs';\nimport path from 'node:path';\nimport crypto from 'node:crypto';\nexport default String(!!fs && !!path && !!crypto);\n";
+		writeFileSync(islandA, source, 'utf-8');
+		writeFileSync(islandB, source, 'utf-8');
+		writeFileSync(sharedHelper, source, 'utf-8');
+
+		const registrations: OnLoadRegistration[] = [];
+		const groupedEntrypointFiles = [islandA, islandB];
+		const builder: EcoBuildPluginBuilder = {
+			onResolve: () => {},
+			onLoad: (options, callback) => registrations.push({ options, callback }),
+			module: () => {},
+			transform: () => {},
+		};
+
+		try {
+			for (const plugin of [
+				createClientGraphBoundaryPlugin({
+					entrypointFile: islandA,
+					groupedEntrypointFiles,
+					groupedDeclaredModules: ['node:fs', 'node:path'],
+					declaredModules: ['node:path'],
+				}),
+				createClientGraphBoundaryPlugin({
+					entrypointFile: islandB,
+					groupedEntrypointFiles,
+					groupedDeclaredModules: ['node:fs', 'node:path'],
+					declaredModules: ['node:fs'],
+				}),
+			]) {
+				await plugin.setup(builder);
+			}
+
+			const transformEntry = async (filePath: string): Promise<string> => {
+				for (const registration of registrations) {
+					if (!registration.options.filter.test(filePath)) continue;
+					const result = await registration.callback({ path: filePath });
+					if (typeof result?.contents === 'string') return result.contents;
+				}
+				return readFileSync(filePath, 'utf-8');
+			};
+
+			expect(await transformEntry(islandA)).not.toContain("from 'node:fs'");
+			expect(await transformEntry(islandA)).toContain("from 'node:path'");
+			expect(await transformEntry(islandA)).not.toContain("from 'node:crypto'");
+			expect(await transformEntry(islandB)).toContain("from 'node:fs'");
+			expect(await transformEntry(islandB)).not.toContain("from 'node:path'");
+			expect(await transformEntry(islandB)).not.toContain("from 'node:crypto'");
+			const transformedHelper = await transformEntry(sharedHelper);
+			expect(transformedHelper).toContain("from 'node:fs'");
+			expect(transformedHelper).toContain("from 'node:path'");
+			expect(transformedHelper).not.toContain("from 'node:crypto'");
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('shares reachability rules across grouped entry boundary plugins', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const islandA = join(tempDir, 'island-a.tsx');
+		const islandB = join(tempDir, 'island-b.tsx');
+		const sharedHelper = join(tempDir, 'shared-helper.ts');
+		writeFileSync(islandA, 'export default 1;\n', 'utf-8');
+		writeFileSync(
+			islandB,
+			[
+				"import { read } from './shared-helper';",
+				'export default eco.page({',
+				'\trender: () => read()',
+				'});',
+			].join('\n'),
+			'utf-8',
+		);
+		writeFileSync(
+			sharedHelper,
+			[
+				"import { readFileSync } from 'node:fs';",
+				'export function read() {',
+				"\treturn readFileSync('/secret', 'utf8');",
+				'}',
+			].join('\n'),
+			'utf-8',
+		);
+
+		const registrations: OnLoadRegistration[] = [];
+		const groupedEntrypointFiles = [islandA, islandB];
+		const builder: EcoBuildPluginBuilder = {
+			onResolve: () => {},
+			onLoad: (options, callback) => registrations.push({ options, callback }),
+			module: () => {},
+			transform: () => {},
+		};
+
+		try {
+			for (const plugin of [
+				createClientGraphBoundaryPlugin({ entrypointFile: islandA, groupedEntrypointFiles }),
+				createClientGraphBoundaryPlugin({ entrypointFile: islandB, groupedEntrypointFiles }),
+			]) {
+				await plugin.setup(builder);
+			}
+
+			const transformEntry = async (filePath: string): Promise<string | undefined> => {
+				for (const registration of registrations) {
+					if (!registration.options.filter.test(filePath)) continue;
+					const result = await registration.callback({ path: filePath });
+					if (typeof result?.contents === 'string') return result.contents;
+				}
+				return undefined;
+			};
+
+			await transformEntry(islandB);
+			await expect(transformEntry(sharedHelper)).rejects.toThrow("Forbidden client import 'node:fs'");
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it('builds a browser Page after pruning server-only middleware before resolution', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
 		const pagesDir = join(tempDir, 'pages');

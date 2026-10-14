@@ -166,7 +166,7 @@ export interface CacheInvalidator {
 	invalidateByTags(tags: string[]): Promise<number>;
 
 	/**
-	 * Invalidate cached entries by exact path.
+	 * Invalidate cached entries by pathname, across query and fragment variants.
 	 * @param paths - Array of URL paths to invalidate
 	 * @returns Number of entries invalidated
 	 */

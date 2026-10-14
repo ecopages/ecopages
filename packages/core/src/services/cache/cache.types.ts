@@ -65,17 +65,26 @@ export interface CacheStore {
 	/** Retrieve an entry by key */
 	get(key: string): Promise<CacheEntry | null>;
 
-	/** Store an entry */
-	set(key: string, entry: CacheEntry): Promise<void>;
+	/**
+	 * Store an entry.
+	 * @returns The keys evicted to make room for this entry.
+	 */
+	set(key: string, entry: CacheEntry): Promise<string[]>;
 
 	/** Delete a specific entry */
 	delete(key: string): Promise<boolean>;
 
-	/** Delete all entries matching any of the provided tags */
-	invalidateByTags(tags: string[]): Promise<number>;
+	/**
+	 * Delete all entries matching any of the provided tags.
+	 * @returns The keys that were removed from the store.
+	 */
+	invalidateByTags(tags: string[]): Promise<string[]>;
 
-	/** Delete entries by exact path */
-	invalidateByPaths(paths: string[]): Promise<number>;
+	/**
+	 * Delete entries whose pathname matches any of the provided paths.
+	 * @returns The keys that were removed from the store.
+	 */
+	invalidateByPaths(paths: string[]): Promise<string[]>;
 
 	/** Clear all entries */
 	clear(): Promise<void>;

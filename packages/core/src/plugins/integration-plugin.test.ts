@@ -134,12 +134,19 @@ describe('IntegrationPlugin', () => {
 
 		const first = pluginWithRenderer.getRenderer();
 		const second = pluginWithRenderer.getRenderer();
+		const setRendererHmrManager = vi.spyOn(first, 'setHmrManager');
 
 		expect(second).toBe(first);
 		expect(initializeRenderer).toHaveBeenCalledTimes(1);
 		pluginWithRenderer.setConfig(appConfig);
 		expect(pluginWithRenderer.getRenderer()).toBe(first);
 		expect(initializeRenderer).toHaveBeenCalledTimes(1);
+
+		const hmrManager = {} as IHmrManager;
+		pluginWithRenderer.setHmrManager(hmrManager);
+
+		expect(pluginWithRenderer.getRenderer()).toBe(first);
+		expect(setRendererHmrManager).toHaveBeenCalledWith(hmrManager);
 
 		pluginWithRenderer.setRuntimeOrigin('http://localhost:3001');
 

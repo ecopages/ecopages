@@ -510,6 +510,8 @@ test('rebuilds an existing graph when one render disables graph caching', async 
 	const freshGraph = await service.resolvePageBrowserGraph({ ...input, cacheable: false });
 
 	expect(freshGraph?.entryAssets.map((asset) => asset.filepath)).toEqual(['/assets/fresh.js']);
+	const cachedGraph = await service.resolvePageBrowserGraph(input);
+	expect(cachedGraph?.entryAssets.map((asset) => asset.filepath)).toEqual(['/assets/stale.js']);
 	expect(processDependencies).toHaveBeenCalledTimes(2);
 });
 

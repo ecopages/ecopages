@@ -57,9 +57,23 @@ describe('DependencyResolverService', () => {
 			dependencies: { scripts: ['./parent.js'], components: [child] },
 		};
 
-		await service.processPreparedComponentDependencies([parent], 'react');
+		vi.stubEnv('NODE_ENV', 'production');
+		try {
+			await service.processPreparedComponentDependencies([parent], 'react');
+			expect(capturedDeps).toEqual([expect.objectContaining({ filepath: '/app/parent.js' })]);
 
-		expect(capturedDeps).toEqual([expect.objectContaining({ filepath: '/app/parent.js' })]);
+			await service.processComponentDependencies([parent], 'react');
+
+			expect(capturedDeps).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ filepath: '/app/parent.js' }),
+					expect.objectContaining({ filepath: '/app/child.js' }),
+				]),
+			);
+			expect(assetProcessingService.processDependencies).toHaveBeenCalledTimes(2);
+		} finally {
+			vi.unstubAllEnvs();
+		}
 	});
 
 	it('evicts a rejected production dependency result so the next render can retry', async () => {

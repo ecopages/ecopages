@@ -138,6 +138,9 @@ class CustomIntegration extends IntegrationPlugin {
 Use `plugins(app)` for build-facing declarations, such as loaders or browser-only build plugins. Core reads it once while finalizing the config and seals the app manifest from it, so it must not do I/O. Use `setup()` for runtime work.
 
 ```typescript
+import type { EcoPagesAppConfig } from '@ecopages/core';
+import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
+
 override plugins(app: EcoPagesAppConfig): EcoBuildPlugin[] {
 	return [
 		{

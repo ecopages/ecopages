@@ -39,7 +39,7 @@ export interface ExplicitViewRendererResolver {
 export type StaticGenerationRendererResolver = PageRendererResolver & ExplicitViewRendererResolver;
 
 /**
- * Selects and caches integration renderers for route files and explicit views.
+ * Selects Integration-owned renderers for route files and explicit views.
  *
  * @remarks
  * The factory maps a route file or explicit integration name to its Integration's
@@ -49,7 +49,6 @@ export type StaticGenerationRendererResolver = PageRendererResolver & ExplicitVi
 export class RouteRendererFactory {
 	private appConfig: EcoPagesAppConfig;
 	runtimeOrigin: string;
-	private rendererCache = new Map<string, IntegrationRenderer<unknown>>();
 
 	/**
 	 * Creates the route-renderer factory for one app/runtime instance.
@@ -60,12 +59,11 @@ export class RouteRendererFactory {
 	}
 
 	/**
-	 * Rebinds renderer creation to the actual listening origin.
+	 * Rebinds Integration-owned renderers to the actual listening origin.
 	 *
 	 * @remarks
 	 * A development server may select a fallback port after this factory is
-	 * constructed. Cached renderers retain their original page-module loader, so
-	 * they must be discarded when the origin changes.
+	 * constructed. Integrations discard their renderer when the origin changes.
 	 */
 	setRuntimeOrigin(runtimeOrigin: string): void {
 		if (this.runtimeOrigin === runtimeOrigin) {
@@ -73,7 +71,6 @@ export class RouteRendererFactory {
 		}
 
 		this.runtimeOrigin = runtimeOrigin;
-		this.rendererCache.clear();
 		for (const integration of this.appConfig.integrations) {
 			integration.setRuntimeOrigin?.(runtimeOrigin);
 		}
@@ -97,14 +94,7 @@ export class RouteRendererFactory {
 			return null;
 		}
 
-		const cached = this.rendererCache.get(integrationName);
-		if (cached) {
-			return cached;
-		}
-
-		const renderer = integrationPlugin.getRenderer();
-		this.rendererCache.set(integrationName, renderer);
-		return renderer;
+		return integrationPlugin.getRenderer();
 	}
 
 	/**
@@ -120,18 +110,10 @@ export class RouteRendererFactory {
 	}
 
 	/**
-	 * Returns the cached renderer engine for the file's owning integration,
-	 * creating it on first use.
+	 * Returns the renderer engine for the file's owning Integration.
 	 */
 	private getRouteRendererEngine(filePath: string): IntegrationRenderer<unknown> {
 		const integrationPlugin = this.getIntegrationPlugin(filePath);
-		const cached = this.rendererCache.get(integrationPlugin.name);
-		if (cached) {
-			return cached;
-		}
-
-		const renderer = integrationPlugin.getRenderer();
-		this.rendererCache.set(integrationPlugin.name, renderer);
-		return renderer;
+		return integrationPlugin.getRenderer();
 	}
 }

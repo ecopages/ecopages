@@ -192,6 +192,23 @@ describe('MemoryCacheStore', () => {
 			expect(await store.get('/blog/2')).not.toBeNull();
 		});
 
+		test('should invalidate every query and development runtime variant of a pathname', async () => {
+			await store.set('/blog/1', createEntry());
+			await store.set('/blog/1?page=2', createEntry());
+			await store.set('/blog/1#__eco_rt=3', createEntry());
+			await store.set('/blog/1?page=2#__eco_rt=4', createEntry());
+			await store.set('/blog/10?page=2', createEntry());
+
+			const count = await store.invalidateByPaths(['/blog/1']);
+
+			expect(count).toBe(4);
+			expect(await store.get('/blog/1')).toBeNull();
+			expect(await store.get('/blog/1?page=2')).toBeNull();
+			expect(await store.get('/blog/1#__eco_rt=3')).toBeNull();
+			expect(await store.get('/blog/1?page=2#__eco_rt=4')).toBeNull();
+			expect(await store.get('/blog/10?page=2')).not.toBeNull();
+		});
+
 		test('should handle multiple paths', async () => {
 			await store.set('/blog/1', createEntry());
 			await store.set('/blog/2', createEntry());

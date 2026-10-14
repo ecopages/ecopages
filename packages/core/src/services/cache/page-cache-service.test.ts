@@ -5,14 +5,17 @@
 import { describe, expect, test, beforeEach, vi } from 'vitest';
 import { PageCacheService, getCacheControlHeader } from './page-cache-service.js';
 import { MemoryCacheStore } from './memory-cache-store.js';
+import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.js';
 
 describe('PageCacheService', () => {
 	let service: PageCacheService;
 	let store: MemoryCacheStore;
+	let dependencyIndex: BuildInputDependencyIndex;
 
 	beforeEach(() => {
 		store = new MemoryCacheStore();
-		service = new PageCacheService({ store });
+		dependencyIndex = new BuildInputDependencyIndex();
+		service = new PageCacheService({ store, dependencyIndex });
 	});
 
 	describe('getOrCreate', () => {
@@ -107,13 +110,20 @@ describe('PageCacheService', () => {
 	describe('invalidation', () => {
 		test('should invalidate by tags', async () => {
 			const strategy = { revalidate: 3600, tags: ['blog'] };
-			const renderFn = vi.fn().mockResolvedValue({ html: '<html>hello</html>', strategy });
+			const sourcePath = '/src/blog/1.astro';
+			const renderFn = vi.fn().mockResolvedValue({
+				html: '<html>hello</html>',
+				strategy,
+				sourceDependencyPaths: [sourcePath],
+			});
 
 			await service.getOrCreate('/blog/1', strategy, renderFn);
 			await service.getOrCreate('/blog/2', strategy, renderFn);
+			expect(dependencyIndex.resolveKeys('html-cache', sourcePath)).toEqual(['/blog/1', '/blog/2']);
 
 			const count = await service.invalidateByTags(['blog']);
 			expect(count).toBe(2);
+			expect(dependencyIndex.resolveKeys('html-cache', sourcePath)).toEqual([]);
 
 			renderFn.mockClear();
 			const result = await service.getOrCreate('/blog/1', 'static', renderFn);
@@ -122,11 +132,17 @@ describe('PageCacheService', () => {
 
 		test('should invalidate by paths', async () => {
 			const renderFn = vi.fn().mockResolvedValue({ html: '<html>hello</html>', strategy: 'static' as const });
+			const sourcePath = '/src/blog/1.astro';
 
-			await service.getOrCreate('/blog/1', 'static', renderFn);
+			await service.getOrCreate('/blog/1?page=2#__eco_rt=3', 'static', async () => ({
+				...(await renderFn()),
+				sourceDependencyPaths: [sourcePath],
+			}));
+			expect(dependencyIndex.resolveKeys('html-cache', sourcePath)).toEqual(['/blog/1?page=2#__eco_rt=3']);
 
 			const count = await service.invalidateByPaths(['/blog/1']);
 			expect(count).toBe(1);
+			expect(dependencyIndex.resolveKeys('html-cache', sourcePath)).toEqual([]);
 
 			renderFn.mockClear();
 			const result = await service.getOrCreate('/blog/1', 'static', renderFn);

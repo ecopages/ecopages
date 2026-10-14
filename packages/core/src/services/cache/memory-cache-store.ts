@@ -6,6 +6,11 @@
 
 import type { CacheEntry, CacheStats, CacheStore } from './cache.types.ts';
 
+function cacheKeyPath(key: string): string {
+	const separator = key.search(/[?#]/);
+	return separator === -1 ? key : key.slice(0, separator);
+}
+
 export interface MemoryCacheStoreOptions {
 	/** Maximum number of entries before LRU eviction. @default 1000 */
 	maxEntries?: number;
@@ -89,7 +94,10 @@ export class MemoryCacheStore implements CacheStore {
 		return this.cache.delete(key);
 	}
 
-	async invalidateByTags(tags: string[]): Promise<number> {
+	async invalidateByTags(
+		tags: string[],
+		deleteEntry: (key: string) => Promise<boolean> = (key) => this.delete(key),
+	): Promise<number> {
 		let count = 0;
 		const keysToDelete = new Set<string>();
 
@@ -103,17 +111,24 @@ export class MemoryCacheStore implements CacheStore {
 		}
 
 		for (const key of keysToDelete) {
-			if (await this.delete(key)) count++;
+			if (await deleteEntry(key)) count++;
 		}
 
 		return count;
 	}
 
-	async invalidateByPaths(paths: string[]): Promise<number> {
+	async invalidateByPaths(
+		paths: string[],
+		deleteEntry: (key: string) => Promise<boolean> = (key) => this.delete(key),
+	): Promise<number> {
 		let count = 0;
-		for (const path of paths) {
-			if (await this.delete(path)) count++;
+		const pathsToDelete = new Set(paths.map(cacheKeyPath));
+		const keysToDelete = [...this.cache.keys()].filter((key) => pathsToDelete.has(cacheKeyPath(key)));
+
+		for (const key of keysToDelete) {
+			if (await deleteEntry(key)) count++;
 		}
+
 		return count;
 	}
 

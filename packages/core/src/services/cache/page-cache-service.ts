@@ -188,14 +188,20 @@ export class PageCacheService {
 	 * Invalidate cache entries by tags.
 	 */
 	async invalidateByTags(tags: string[]): Promise<number> {
-		return this.store.invalidateByTags(tags);
+		return this.store.invalidateByTags(tags, (key) => this.delete(key));
 	}
 
 	/**
 	 * Invalidate cache entries by paths.
 	 */
 	async invalidateByPaths(paths: string[]): Promise<number> {
-		return this.store.invalidateByPaths(paths);
+		return this.store.invalidateByPaths(paths, (key) => this.delete(key));
+	}
+
+	private async delete(key: string): Promise<boolean> {
+		const deleted = await this.store.delete(key);
+		this.dependencyIndex.unregister(htmlCacheBinding(key));
+		return deleted;
 	}
 
 	/**
@@ -211,10 +217,9 @@ export class PageCacheService {
 		let count = 0;
 
 		for (const cacheKey of cacheKeys) {
-			if (await this.store.delete(cacheKey)) {
+			if (await this.delete(cacheKey)) {
 				count += 1;
 			}
-			this.dependencyIndex.unregister(htmlCacheBinding(cacheKey));
 		}
 
 		return count;

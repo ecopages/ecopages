@@ -1414,7 +1414,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 export function createIntegrationRenderer<C = EcoPagesElement>(
 	name: string,
 	hooks: IntegrationRendererHooks | IntegrationRendererHookFactory = {},
-): new (options: IntegrationRendererOptions) => IntegrationRenderer<C> {
+): new (options: IntegrationRendererOptions) => IntegrationRenderer<C> & { name: string } {
 	return class HookedIntegrationRenderer extends IntegrationRenderer<C> {
 		name = name;
 

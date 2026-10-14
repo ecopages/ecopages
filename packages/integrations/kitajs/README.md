@@ -27,6 +27,8 @@ export default defineConfig({ integrations: [kitajsPlugin()] });
 - Page, layout, and document shells rendered by `@kitajs/html`.
 - HTML-first outer shells that host nested foreign subtrees from other integrations.
 
+The default renderer uses core's `createIntegrationRenderer()` factory. Core owns the common route and document-shell pipeline; add hooks for Kita-specific behavior, and subclass only when the hook API cannot express a needed capability.
+
 ## Mixed Rendering
 
 Kita works well as the outer renderer in mixed apps. When a Kita-owned page encounters a nested foreign child from another integration, Ecopages resolves that foreign subtree with its owning renderer and inserts the resulting HTML back into the Kita shell.

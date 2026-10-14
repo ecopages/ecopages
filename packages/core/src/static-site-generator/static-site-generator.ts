@@ -120,12 +120,18 @@ export class StaticSiteGenerator {
 
 	private async shouldSkipStaticPageFile(
 		filePath: string,
+		params: Record<string, string | string[]>,
 		routeRendererFactory: StaticPageRouteRendererFactory,
 	): Promise<boolean> {
-		const pageModule: EcoPageFile = await routeRendererFactory.getPageRenderer(filePath).loadPageModule(filePath);
+		const renderer = routeRendererFactory.getPageRenderer(filePath);
+		const pageModule: EcoPageFile = await renderer.loadPageModule(filePath);
 		const Page = pageModule.default as EcoPageComponent<any>;
+		if (Page.cache !== 'dynamic') {
+			return false;
+		}
 
-		return Page.cache === 'dynamic';
+		renderer.clearPrebuiltRoutePreparation?.({ file: filePath, params });
+		return true;
 	}
 
 	private shouldSkipStaticView(_routePath: string, view: EcoPageComponent<any>): boolean {
@@ -239,7 +245,7 @@ export class StaticSiteGenerator {
 		route: StaticGenerationRoute;
 		routeRendererFactory?: StaticPageRouteRendererFactory;
 		skipped?: string[];
-	}): Promise<{ contents: string | Buffer; metadata?: PageMetadataProps } | null> {
+	}): Promise<{ body: string | Buffer; metadata?: PageMetadataProps } | null> {
 		const {
 			route: {
 				templateRoute: { filePath },
@@ -253,7 +259,7 @@ export class StaticSiteGenerator {
 			throw new Error(STATIC_SITE_GENERATOR_ERRORS.ROUTE_RENDERER_FACTORY_REQUIRED);
 		}
 
-		if (await this.shouldSkipStaticPageFile(filePath, routeRendererFactory)) {
+		if (await this.shouldSkipStaticPageFile(filePath, params, routeRendererFactory)) {
 			skipped?.push(filePath);
 			return null;
 		}
@@ -266,11 +272,11 @@ export class StaticSiteGenerator {
 
 		const body = result.body;
 		if (typeof body === 'string' || Buffer.isBuffer(body)) {
-			return { contents: body, metadata: result.metadata };
+			return { body, metadata: result.metadata };
 		}
 
 		if (body instanceof ReadableStream) {
-			return { contents: await new Response(body).text(), metadata: result.metadata };
+			return { body: await new Response(body).text(), metadata: result.metadata };
 		}
 
 		throw new Error(STATIC_SITE_GENERATOR_ERRORS.unsupportedBodyType(typeof body));
@@ -327,7 +333,7 @@ export class StaticSiteGenerator {
 							skipped,
 						});
 						renderedMetadata = rendered?.metadata;
-						return rendered?.contents ?? null;
+						return rendered?.body ?? null;
 					},
 				});
 			} catch (error) {

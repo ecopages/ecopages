@@ -126,6 +126,51 @@ describe('SessionPageBrowserGraphCache', () => {
 		expect(builds).toBe(1);
 	});
 
+	test('builds a non-cacheable graph independently of an in-flight cached build', async () => {
+		const session = new SessionPageBrowserGraphCache();
+		let releaseCachedBuild: (() => void) | undefined;
+		const cachedBuildGate = new Promise<void>((resolve) => {
+			releaseCachedBuild = resolve;
+		});
+		const key = {
+			integrationName: 'react',
+			routeFile: '/app/pages/index.tsx',
+			dependencyInstanceKey: '',
+			entryFingerprint: 'file:/app/pages/index.tsx',
+			policy: 'production' as const,
+		};
+
+		const cachedBuild = session.resolveGraph(key, new Set(['/app/pages/index.tsx']), async () => {
+			await cachedBuildGate;
+			return {
+				result: {
+					entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/cached.js' }],
+					chunkAssets: [],
+				},
+				dependencyPaths: new Set(['/app/pages/index.tsx']),
+			};
+		});
+		const nonCacheableBuild = session.resolveGraph(
+			key,
+			new Set(['/app/pages/index.tsx']),
+			async () => ({
+				result: {
+					entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/fresh.js' }],
+					chunkAssets: [],
+				},
+				dependencyPaths: new Set(['/app/pages/index.tsx']),
+				cacheable: false,
+			}),
+			{ reuseCachedResult: false },
+		);
+
+		releaseCachedBuild?.();
+		const [cached, nonCacheable] = await Promise.all([cachedBuild, nonCacheableBuild]);
+
+		expect(cached?.entryAssets[0]?.filepath).toBe('/assets/cached.js');
+		expect(nonCacheable?.entryAssets[0]?.filepath).toBe('/assets/fresh.js');
+	});
+
 	test('preserves the last valid record when a rebuild fails', async () => {
 		const session = new SessionPageBrowserGraphCache();
 		const key = {
@@ -435,6 +480,39 @@ test('PageBrowserGraphService reuses HMR graph records for unchanged requests', 
 	await service.resolvePageBrowserGraph(input);
 
 	expect(processDependencies).toHaveBeenCalledTimes(1);
+});
+
+test('rebuilds an existing graph when one render disables graph caching', async () => {
+	const processDependencies = vi
+		.fn()
+		.mockResolvedValueOnce([
+			{ filepath: '/assets/stale.js', kind: 'script', inline: false } satisfies ProcessedAsset,
+		])
+		.mockResolvedValueOnce([
+			{ filepath: '/assets/fresh.js', kind: 'script', inline: false } satisfies ProcessedAsset,
+		]);
+	const assetProcessingService = {
+		processDependencies,
+		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+	} as unknown as AssetProcessingService;
+	const service = new PageBrowserGraphService(appConfig, assetProcessingService);
+	const input = {
+		routeFile: '/app/pages/index.tsx',
+		integrationName: 'react',
+		collectContribution: async () => ({
+			dependencies: [
+				{ kind: 'script', source: 'file', filepath: '/app/pages/index.tsx' } satisfies AssetDefinition,
+			],
+		}),
+	};
+
+	await service.resolvePageBrowserGraph(input);
+	const freshGraph = await service.resolvePageBrowserGraph({ ...input, cacheable: false });
+
+	expect(freshGraph?.entryAssets.map((asset) => asset.filepath)).toEqual(['/assets/fresh.js']);
+	const cachedGraph = await service.resolvePageBrowserGraph(input);
+	expect(cachedGraph?.entryAssets.map((asset) => asset.filepath)).toEqual(['/assets/stale.js']);
+	expect(processDependencies).toHaveBeenCalledTimes(2);
 });
 
 test('createPageBrowserGraphEntryFingerprint includes direct contribution assets', () => {

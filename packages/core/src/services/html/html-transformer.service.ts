@@ -13,21 +13,11 @@ export type HtmlDocumentContribution = {
 	html: string;
 };
 
-/**
- * What one document transform injects: the page package's assets and the document contributions.
- */
-export type HtmlTransformInput = {
-	pagePackage: PagePackageResult;
+export type PageAssetInjection = {
+	pagePackage?: PagePackageResult;
 	contributions?: HtmlDocumentContribution[];
 };
 
-/**
- * Injects a page package and document contributions into rendered HTML.
- *
- * @remarks
- * The service holds no request state. Every transform takes the page package of the render it
- * belongs to, so renders of one Integration can finish documents at the same time.
- */
 export class HtmlTransformerService {
 	private formatAttributes(attrs?: Record<string, string>): string {
 		if (!attrs) return '';
@@ -103,17 +93,17 @@ export class HtmlTransformerService {
 	}
 
 	/**
-	 * Injects the page package assets and document contributions into a streaming HTML response.
+	 * Injects page assets and document contributions into a streaming HTML response.
 	 */
-	transform(res: Response, input: HtmlTransformInput): Response {
-		return this.createRewriter(input).transform(res);
+	transform(res: Response, input: PageAssetInjection = {}): Response {
+		return this.createRewriter(input.contributions ?? [], input.pagePackage).transform(res);
 	}
 
 	/**
-	 * Injects the page package assets and document contributions into a complete HTML string.
+	 * Injects page assets and document contributions into a complete HTML string.
 	 */
-	transformHtml(html: string, input: HtmlTransformInput): string {
-		return this.createRewriter(input).transform(html);
+	injectPageAssets(html: string, input: PageAssetInjection = {}): string {
+		return this.createRewriter(input.contributions ?? [], input.pagePackage).transform(html);
 	}
 
 	/**
@@ -123,7 +113,7 @@ export class HtmlTransformerService {
 	 * Documents without a `<head>` or `<body>` element, or whose element never
 	 * closes, skip the matching head or body injections (lol-html semantics).
 	 */
-	private createRewriter({ pagePackage, contributions = [] }: HtmlTransformInput) {
+	private createRewriter(contributions: HtmlDocumentContribution[], pagePackage?: PagePackageResult) {
 		const { head, body } = this.groupDependenciesByPosition(pagePackage);
 		const slots = {
 			head: {
@@ -152,8 +142,8 @@ export class HtmlTransformerService {
 	/**
 	 * Splits processed assets into head and body injection groups.
 	 */
-	private groupDependenciesByPosition(pagePackage: PagePackageResult) {
-		const dependencies = this.resolvePagePackageHtmlDependencies(pagePackage);
+	private groupDependenciesByPosition(pagePackage?: PagePackageResult) {
+		const dependencies = pagePackage ? this.resolvePagePackageHtmlDependencies(pagePackage) : [];
 
 		return dependencies.reduce(
 			(acc, dep) => {

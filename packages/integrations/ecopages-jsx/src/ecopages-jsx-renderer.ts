@@ -14,6 +14,7 @@ import type {
 	QueuedForeignSubtreeChildRenderResult,
 	QueuedForeignSubtreeResolutionContext,
 } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
+import { resolveQueuedTokens } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import type {
 	ForeignChildInterceptionInput,
 	ForeignChildRuntime,
@@ -129,11 +130,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 		const html = typeof children === 'string' ? children : await this.renderJsx(children as JsxRenderable);
 
 		return {
-			html: await this.foreignSubtreeExecutionService.resolveQueuedTokens(
-				html,
-				queuedResolutionsByToken,
-				resolveToken,
-			),
+			html: await resolveQueuedTokens(html, queuedResolutionsByToken, resolveToken),
 		};
 	}
 
@@ -298,7 +295,7 @@ export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
 							this.renderQueuedForeignSubtreeChildren(children, queuedResolutionsByToken, resolveToken),
 					);
 					const componentAssets = input.component.config?.dependencies
-						? await this.resolveComponentRenderAssets(input.component)
+						? await this.processComponentDependencies([input.component])
 						: [];
 					const assets = this.htmlTransformer.dedupeProcessedAssets([
 						...queuedForeignSubtreeResolution.assets,

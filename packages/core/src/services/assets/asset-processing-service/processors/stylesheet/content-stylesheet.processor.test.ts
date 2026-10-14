@@ -114,6 +114,24 @@ describe('ContentStylesheetProcessor', () => {
 			expect(result.filepath).toMatch(/[a-f0-9]{16}\.css$/);
 		});
 
+		test('keeps source metadata distinct when identical CSS bundles have different inputs', async () => {
+			const processor = new ContentStylesheetProcessor({ appConfig: createMockConfig() });
+			const createBundle = (bundledSourceFilepaths: string[]): ContentStylesheetAsset => ({
+				kind: 'stylesheet',
+				source: 'content',
+				content: '.example { color: red; }',
+				inline: false,
+				packageRole: 'page-style',
+				bundledSourceFilepaths,
+			});
+
+			const first = await processor.process(createBundle(['/app/a.css', '/app/b.css']));
+			const second = await processor.process(createBundle(['/app/d.css', '/app/e.css']));
+
+			expect(second.bundledSourceFilepaths).toEqual(['/app/d.css', '/app/e.css']);
+			expect(first.bundledSourceFilepaths).toEqual(['/app/a.css', '/app/b.css']);
+		});
+
 		test('keeps the URL when the processed bytes are unchanged and changes it when they are not', async () => {
 			const processor = new ContentStylesheetProcessor({ appConfig: createMockConfig() });
 			const first = await processor.process({

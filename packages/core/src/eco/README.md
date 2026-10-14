@@ -40,8 +40,6 @@ Discovery is conservative and module-scoped: every Eco declaration in a file sha
 
 Imported Layouts contribute assets; only the explicit `layout` option controls Layout composition.
 
-`getComponentOwner(component, inheritedOwner?)` names the Integration that owns a Component. The `integration` option on `eco.component` / `eco.page` wins, then the Integration of the file that created the Component (its identity), then `inheritedOwner`: the owner of the parent Component, or of the Page at the root. Rendering, hydration planning, dependency collection and ownership validation all use it, so a Component has one owner everywhere.
-
 Explicit `dependencies` remain supported. Explicit Components come first, followed by discovered Components in import order, with duplicate Components removed. Explicit stylesheet declarations take precedence over discovered references to the same resolved file, preserving their attributes and order. Discovered stylesheets are **not** written into `config.dependencies.stylesheets`; they stay on Component identity until collection. Inferred styles follow explicit styles and are emitted once per collection. Circular dependency traversal is guarded by Component config identity, so two Components in one file remain distinct.
 
 When a Page combines its own relative assets with a content entry, use `mergePageDependencies()`. Do not object-spread the two bags: spread copies `ownerFile` onto the other side's relative paths.
@@ -74,6 +72,10 @@ For Lit and Ecopages JSX (Radiant hosts), `ssr: true` imports the script on the 
 Scripts listening to client navigation events (`eco:after-swap`, `eco:page-load`) should be registered as client scripts (e.g., using `scripts: ['./component.script.ts']`) or guarded by `isServer` from `@ecopages/radiant/is-server` when used in Radiant projects where `document` is defined during SSR.
 
 Named barrel re-exports (`export { Counter } from './counter'`) are followed for the imported binding only. The imported module, the factory file, and successful named re-export hops are watch paths, so editing a child Component or retargeting a barrel updates page assets without editing the importing Page. Discovery does not follow `export * from './components'`, dynamic imports, namespace imports (`import * as`), package Components/CSS, CSS Modules, or custom import attributes. `export *` would pull an entire kit into the page asset graph; keep that explicit with `dependencies.components`. Plain-function modules retain their existing behavior. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
+
+## Component ownership
+
+The effective Integration owner follows one precedence rule everywhere: `config.integration`, then the build-time `config.identity.integration`, then the containing component's owner. A component-level override therefore controls both server rendering and its Page Client Plan even when the file belongs to another Integration. Components without either declaration inherit their parent's owner.
 
 ## Component Patterns
 

@@ -4,6 +4,7 @@ import { eco } from '../../../eco/eco.ts';
 import {
 	composeDocumentShell,
 	composeSequentialLayoutChildren,
+	applyDocumentShellAttributeStamping,
 	type DocumentShellComposeChildrenContext,
 } from './document-shell-render.service.ts';
 
@@ -48,11 +49,11 @@ describe('document-shell-render.service', () => {
 
 		const { documentHtml } = await composeDocumentShell(
 			{
-				integrationName: 'kitajs',
 				renderComponentWithForeignChildren,
 				appendProcessedDependencies: () => [],
 			},
 			{
+				inheritedOwner: 'kitajs',
 				primaryComponent: Page,
 				primaryProps: { title: 'Hello' },
 				layout: { component: Layout, props: { section: 'docs' } },
@@ -85,11 +86,11 @@ describe('document-shell-render.service', () => {
 
 		const { documentHtml } = await composeDocumentShell(
 			{
-				integrationName: 'kitajs',
 				renderComponentWithForeignChildren,
 				appendProcessedDependencies: () => [],
 			},
 			{
+				inheritedOwner: 'test',
 				primaryComponent: Page,
 				primaryProps: {},
 				layouts: [{ component: Outer }, { component: Inner }],
@@ -125,11 +126,11 @@ describe('document-shell-render.service', () => {
 
 		await composeDocumentShell(
 			{
-				integrationName: 'kitajs',
 				renderComponentWithForeignChildren,
 				appendProcessedDependencies: () => [],
 			},
 			{
+				inheritedOwner: 'test',
 				primaryComponent: Page,
 				primaryProps: {},
 				layout: { component: Layout },
@@ -190,5 +191,34 @@ describe('document-shell-render.service', () => {
 			children: '<page />',
 			integrationContext: { rendererCache },
 		});
+	});
+
+	it('stamps component-root and document attributes through applyDocumentShellAttributeStamping', () => {
+		const stamped = applyDocumentShellAttributeStamping(
+			'<html><body><main>Page</main></body></html>',
+			{
+				applyAttributesToFirstBodyElement: (html, attributes) =>
+					html.replace(
+						'<main',
+						`<main ${Object.entries(attributes)
+							.map(([key, value]) => `${key}="${value}"`)
+							.join(' ')}`,
+					),
+				applyAttributesToHtmlElement: (html, attributes) =>
+					html.replace(
+						'<html',
+						`<html ${Object.entries(attributes)
+							.map(([key, value]) => `${key}="${value}"`)
+							.join(' ')}`,
+					),
+			},
+			{
+				componentRootAttributes: { 'data-eco-component-id': 'eco-page-root' },
+				documentAttributes: { 'data-eco-document-owner': 'react-router' },
+			},
+		);
+
+		expect(stamped).toContain('<html data-eco-document-owner="react-router"><body>');
+		expect(stamped).toContain('<main data-eco-component-id="eco-page-root">Page</main>');
 	});
 });

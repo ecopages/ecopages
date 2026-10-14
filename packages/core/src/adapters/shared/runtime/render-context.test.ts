@@ -16,18 +16,18 @@ describe('createRenderContext', () => {
 		renderExplicitView: RenderToResponse,
 	} as unknown as IntegrationRenderer;
 
-	const InitializeRenderer = vi.fn(() => Renderer);
+	const GetRenderer = vi.fn(() => Renderer);
 
 	const Plugin = {
 		name: '-integration',
-		getRenderer: InitializeRenderer,
+		getRenderer: GetRenderer,
 	} as unknown as IntegrationPlugin;
 
-	const ExplicitInitializeRenderer = vi.fn(() => ExplicitRenderer);
+	const ExplicitGetRenderer = vi.fn(() => ExplicitRenderer);
 
 	const ExplicitPlugin = {
 		name: 'explicit-renderer',
-		getRenderer: ExplicitInitializeRenderer,
+		getRenderer: ExplicitGetRenderer,
 	} as unknown as IntegrationPlugin;
 
 	const ViewFn = ((props: { foo: string }) => `<div>${props.foo}</div>`) as EcoFunctionComponent<
@@ -137,14 +137,14 @@ describe('createRenderContext', () => {
 	describe('render', () => {
 		it('should call renderer.renderToResponse with partial: false', async () => {
 			RenderToResponse.mockClear();
-			InitializeRenderer.mockClear();
-			ExplicitInitializeRenderer.mockClear();
+			GetRenderer.mockClear();
+			ExplicitGetRenderer.mockClear();
 			const props = { foo: 'bar' };
 			const options = { status: 201, headers: { 'X-Custom': '1' } };
 
 			const response = await renderContext.render(ViewFn, props, options);
 
-			expect(InitializeRenderer).toHaveBeenCalledWith();
+			expect(GetRenderer).toHaveBeenCalledWith();
 			expect(RenderToResponse).toHaveBeenCalledWith(ViewFn, props, {
 				partial: false,
 				status: 201,
@@ -167,8 +167,8 @@ describe('createRenderContext', () => {
 
 		it('should prefer explicit config.integration over injected metadata', async () => {
 			RenderToResponse.mockClear();
-			InitializeRenderer.mockClear();
-			ExplicitInitializeRenderer.mockClear();
+			GetRenderer.mockClear();
+			ExplicitGetRenderer.mockClear();
 
 			const explicitViewFn = (() => '<div></div>') as EcoFunctionComponent<{}, string>;
 			explicitViewFn.config = {
@@ -178,8 +178,8 @@ describe('createRenderContext', () => {
 
 			await renderContext.render(explicitViewFn, {});
 
-			expect(ExplicitInitializeRenderer).toHaveBeenCalled();
-			expect(InitializeRenderer).not.toHaveBeenCalled();
+			expect(ExplicitGetRenderer).toHaveBeenCalled();
+			expect(GetRenderer).not.toHaveBeenCalled();
 		});
 	});
 
@@ -191,7 +191,7 @@ describe('createRenderContext', () => {
 
 			await renderContext.renderPartial(ViewFn, props, options);
 
-			expect(InitializeRenderer).toHaveBeenCalled();
+			expect(GetRenderer).toHaveBeenCalled();
 			expect(RenderToResponse).toHaveBeenCalledWith(ViewFn, props, {
 				partial: true,
 				status: 200,

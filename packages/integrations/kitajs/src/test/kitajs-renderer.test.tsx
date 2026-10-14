@@ -40,7 +40,7 @@ HtmlTemplate.config = {
 class EcopagesJsxForeignRenderer extends IntegrationRenderer<MarkupNodeLike> {
 	name = 'ecopages-jsx';
 
-	async render(): Promise<string> {
+	override async render(): Promise<string> {
 		return '';
 	}
 

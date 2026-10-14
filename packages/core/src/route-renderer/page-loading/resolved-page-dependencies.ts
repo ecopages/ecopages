@@ -24,7 +24,7 @@ export type ResolvePageDependenciesContribution = (
 export async function resolvePageDependenciesFromContext(
 	context: PageBrowserGraphContributionContext,
 	integrationName: string,
-	materializeContribution: ResolvePageDependenciesContribution,
+	materializeContribution?: ResolvePageDependenciesContribution,
 ): Promise<ResolvedPageDependencies | undefined> {
 	const pageComponent = context.pageModule.default as EcoPageComponent<unknown>;
 	const resolveDependencies = pageComponent.resolveDependencies;
@@ -50,7 +50,7 @@ export async function resolvePageDependenciesFromContext(
 		integrationName,
 	});
 
-	if (components.length === 0) {
+	if (components.length === 0 || !materializeContribution) {
 		return {
 			ownerFile: resolvedOwnerFile,
 			components,

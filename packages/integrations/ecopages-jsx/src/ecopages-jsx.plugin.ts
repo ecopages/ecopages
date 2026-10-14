@@ -69,6 +69,7 @@ const resolvePluginOptions = (options?: EcopagesJsxPluginOptions): ResolvedJsxPl
 /** JSX integration plugin for Ecopages, supporting `.tsx` templates and optional Radiant web components. */
 export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	renderer = EcopagesJsxRenderer;
+	override readonly bundlesPageDependencies = true;
 
 	private includeRadiant: boolean;
 	private mdxCompilerOptions?: ResolvedMdxCompileOptions;

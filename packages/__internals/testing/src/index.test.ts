@@ -7,7 +7,7 @@ import { createStringMarkupIntegration, createTestAppConfig } from './index.ts';
 class TestRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = 'test';
 
-	async render(): Promise<string> {
+	override async render(): Promise<string> {
 		return '';
 	}
 

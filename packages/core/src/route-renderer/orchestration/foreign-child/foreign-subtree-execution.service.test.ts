@@ -3,13 +3,17 @@ import { eco } from '../../../eco/eco.ts';
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
 import type {
 	BaseIntegrationContext,
-	ForeignSubtreeRenderPayload,
 	ComponentRenderInput,
 	EcoComponent,
+	ComponentRenderResult,
 } from '../../../types/public-types.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from './component-render-context.ts';
 import {
-	ForeignSubtreeExecutionService,
+	createQueueRuntime,
+	executeComponentRender,
+	getRuntimeContext,
+	resolveQueuedForeignSubtreeTokens,
+	shouldDelegateForeignChild,
 	type QueuedForeignSubtreeResolutionContext,
 } from './foreign-subtree-execution.service.ts';
 
@@ -29,7 +33,7 @@ function createAsset(content: string): ProcessedAsset {
 	};
 }
 
-describe('ForeignSubtreeExecutionService.shouldDelegateForeignChild', () => {
+describe('shouldDelegateForeignChild', () => {
 	it.each([
 		[
 			'a different integration owns the boundary',
@@ -43,13 +47,12 @@ describe('ForeignSubtreeExecutionService.shouldDelegateForeignChild', () => {
 			false,
 		],
 	])('when %s', (_name, input, expected) => {
-		expect(new ForeignSubtreeExecutionService().shouldDelegateForeignChild(input)).toBe(expected);
+		expect(shouldDelegateForeignChild(input)).toBe(expected);
 	});
 });
 
-describe('ForeignSubtreeExecutionService queue resolution', () => {
+describe('queued foreign-subtree resolution', () => {
 	it('creates scoped queue tokens and stores runtime state on the render input', () => {
-		const service = new ForeignSubtreeExecutionService();
 		const shell = createComponent('shell', 'shell');
 		const deferredWidget = createComponent('deferred-widget', 'deferred');
 		const renderInput: ComponentRenderInput = {
@@ -62,7 +65,7 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 		const rendererCache = new Map<string, unknown>();
 		const originalProps = { label: 'deferred' };
 
-		const runtime = service.createQueueRuntime({
+		const runtime = createQueueRuntime({
 			renderInput,
 			rendererCache,
 			runtimeContextKey: '__testQueuedForeignSubtreeRuntime',
@@ -83,7 +86,7 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 			value: '__TEST_QUEUE__host__1__',
 		});
 
-		const runtimeContext = service.getRuntimeContext<QueuedForeignSubtreeResolutionContext>(
+		const runtimeContext = getRuntimeContext<QueuedForeignSubtreeResolutionContext>(
 			renderInput,
 			'__testQueuedForeignSubtreeRuntime',
 		);
@@ -109,7 +112,6 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 	});
 
 	it('rejects opaque foreign children when queuing instead of string-coercing them', () => {
-		const service = new ForeignSubtreeExecutionService();
 		const shell = createComponent('shell', 'shell');
 		const deferredWidget = createComponent('deferred-widget', 'deferred');
 		const renderInput: ComponentRenderInput = {
@@ -120,7 +122,7 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 			},
 		};
 
-		const runtime = service.createQueueRuntime({
+		const runtime = createQueueRuntime({
 			renderInput,
 			rendererCache: new Map(),
 			runtimeContextKey: '__testQueuedForeignSubtreeRuntime',
@@ -139,7 +141,6 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 	});
 
 	it('preserves existing shared integration context fields when queue runtime state is attached', () => {
-		const service = new ForeignSubtreeExecutionService();
 		const shell = createComponent('shell', 'shell');
 		const renderInput: ComponentRenderInput = {
 			component: shell,
@@ -151,7 +152,7 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 		};
 		const rendererCache = new Map<string, unknown>();
 
-		service.createQueueRuntime({
+		createQueueRuntime({
 			renderInput,
 			rendererCache,
 			runtimeContextKey: '__testQueuedForeignSubtreeRuntime',
@@ -169,7 +170,6 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 	});
 
 	it('resolves nested queued foreign subtrees, applies root attributes, and dedupes bubbled assets', async () => {
-		const service = new ForeignSubtreeExecutionService();
 		const shell = createComponent('shell', 'shell');
 		const parentForeignSubtree = createComponent('parent-foreign-subtree', 'deferred');
 		const childForeignSubtree = createComponent('child-foreign-subtree', 'deferred');
@@ -182,7 +182,7 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 		};
 		const rendererCache = new Map<string, unknown>();
 
-		const runtime = service.createQueueRuntime({
+		const runtime = createQueueRuntime({
 			renderInput,
 			rendererCache,
 			runtimeContextKey: '__testQueuedForeignSubtreeRuntime',
@@ -204,7 +204,7 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 			props: { label: 'child' },
 		});
 
-		const runtimeContext = service.getRuntimeContext<QueuedForeignSubtreeResolutionContext>(
+		const runtimeContext = getRuntimeContext<QueuedForeignSubtreeResolutionContext>(
 			renderInput,
 			'__testQueuedForeignSubtreeRuntime',
 		);
@@ -214,37 +214,35 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 
 		runtimeContext.queuedResolutions[0].props.children = `<slot>${childToken.value}</slot>`;
 
-		const resolveForeignSubtree = vi.fn(
-			async (input: ComponentRenderInput): Promise<ForeignSubtreeRenderPayload> => {
-				if (input.component === childForeignSubtree) {
-					return {
-						html: `<span>${String(input.props.label ?? '')}</span>`,
-						attachmentPolicy: { kind: 'first-element' },
-						integrationName: 'deferred',
-						rootAttributes: {
-							'data-owner': 'child',
-							'data-instance': String(
-								(input.integrationContext as { componentInstanceId?: string } | undefined)
-									?.componentInstanceId ?? 'missing',
-							),
-						},
-						assets: [createAsset('shared-asset'), createAsset('child-asset')],
-					};
-				}
-
+		const resolveForeignSubtree = vi.fn(async (input: ComponentRenderInput): Promise<ComponentRenderResult> => {
+			if (input.component === childForeignSubtree) {
 				return {
-					html: `<section>${input.children ?? ''}</section>`,
-					attachmentPolicy: { kind: 'first-element' },
+					html: `<span>${String(input.props.label ?? '')}</span>`,
+					canAttachAttributes: true,
 					integrationName: 'deferred',
 					rootAttributes: {
-						'data-owner': 'parent',
+						'data-owner': 'child',
+						'data-instance': String(
+							(input.integrationContext as { componentInstanceId?: string } | undefined)
+								?.componentInstanceId ?? 'missing',
+						),
 					},
-					assets: [createAsset('shared-asset'), createAsset('parent-asset')],
+					assets: [createAsset('shared-asset'), createAsset('child-asset')],
 				};
-			},
-		);
+			}
 
-		const result = await service.resolveQueuedForeignSubtreeTokens({
+			return {
+				html: `<section>${input.children ?? ''}</section>`,
+				canAttachAttributes: true,
+				integrationName: 'deferred',
+				rootAttributes: {
+					'data-owner': 'parent',
+				},
+				assets: [createAsset('shared-asset'), createAsset('parent-asset')],
+			};
+		});
+
+		const result = await resolveQueuedForeignSubtreeTokens({
 			html: `<article>${parentToken.value}</article>`,
 			runtimeContext,
 			queueLabel: 'Test',
@@ -280,7 +278,6 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 	});
 
 	it('throws when queued foreign subtrees form a cycle', async () => {
-		const service = new ForeignSubtreeExecutionService();
 		const foreignSubtreeA = createComponent('foreign-subtree-a', 'deferred');
 		const foreignSubtreeB = createComponent('foreign-subtree-b', 'deferred');
 		const runtimeContext: QueuedForeignSubtreeResolutionContext = {
@@ -304,7 +301,7 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 		};
 
 		await expect(
-			service.resolveQueuedForeignSubtreeTokens({
+			resolveQueuedForeignSubtreeTokens({
 				html: `<article>__TEST_QUEUE__host__1__</article>`,
 				runtimeContext,
 				queueLabel: 'Test',
@@ -328,7 +325,7 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 				resolveForeignSubtree: async (input) => ({
 					html: `<section>${input.children ?? ''}</section>`,
 					assets: [],
-					attachmentPolicy: { kind: 'first-element' },
+					canAttachAttributes: true,
 					integrationName: 'deferred',
 				}),
 			}),
@@ -336,7 +333,6 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 	});
 
 	it('passes structured queued children through to the owning renderer', async () => {
-		const service = new ForeignSubtreeExecutionService();
 		const foreignSubtree = createComponent('foreign-subtree', 'deferred');
 		const structuredChildren = { kind: 'structured-child' };
 		const runtimeContext: QueuedForeignSubtreeResolutionContext = {
@@ -353,16 +349,14 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 			],
 		};
 
-		const resolveForeignSubtree = vi.fn(
-			async (input: ComponentRenderInput): Promise<ForeignSubtreeRenderPayload> => ({
-				html: `<section>${JSON.stringify(input.children)}</section>`,
-				assets: [],
-				attachmentPolicy: { kind: 'first-element' },
-				integrationName: 'deferred',
-			}),
-		);
+		const resolveForeignSubtree = vi.fn(async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
+			html: `<section>${JSON.stringify(input.children)}</section>`,
+			assets: [],
+			canAttachAttributes: true,
+			integrationName: 'deferred',
+		}));
 
-		const result = await service.resolveQueuedForeignSubtreeTokens({
+		const result = await resolveQueuedForeignSubtreeTokens({
 			html: '<article>__TEST_QUEUE__host__1__</article>',
 			runtimeContext,
 			queueLabel: 'Test',
@@ -380,7 +374,6 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 	});
 
 	it('resolves queued tokens appended while another token is resolving', async () => {
-		const service = new ForeignSubtreeExecutionService();
 		const parentForeignSubtree = createComponent('parent-foreign-subtree', 'deferred');
 		const childForeignSubtree = createComponent('child-foreign-subtree', 'deferred');
 		const runtimeContext: QueuedForeignSubtreeResolutionContext = {
@@ -397,34 +390,32 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 			],
 		};
 
-		const resolveForeignSubtree = vi.fn(
-			async (input: ComponentRenderInput): Promise<ForeignSubtreeRenderPayload> => {
-				if (input.component === parentForeignSubtree) {
-					runtimeContext.queuedResolutions.push({
-						token: '__TEST_QUEUE__host__2__',
-						component: childForeignSubtree,
-						props: {},
-						componentInstanceId: 'host_n_2',
-					});
-
-					return {
-						html: '<section>__TEST_QUEUE__host__2__</section>',
-						assets: [],
-						attachmentPolicy: { kind: 'first-element' },
-						integrationName: 'deferred',
-					};
-				}
+		const resolveForeignSubtree = vi.fn(async (input: ComponentRenderInput): Promise<ComponentRenderResult> => {
+			if (input.component === parentForeignSubtree) {
+				runtimeContext.queuedResolutions.push({
+					token: '__TEST_QUEUE__host__2__',
+					component: childForeignSubtree,
+					props: {},
+					componentInstanceId: 'host_n_2',
+				});
 
 				return {
-					html: '<strong>child</strong>',
+					html: '<section>__TEST_QUEUE__host__2__</section>',
 					assets: [],
-					attachmentPolicy: { kind: 'first-element' },
+					canAttachAttributes: true,
 					integrationName: 'deferred',
 				};
-			},
-		);
+			}
 
-		const result = await service.resolveQueuedForeignSubtreeTokens({
+			return {
+				html: '<strong>child</strong>',
+				assets: [],
+				canAttachAttributes: true,
+				integrationName: 'deferred',
+			};
+		});
+
+		const result = await resolveQueuedForeignSubtreeTokens({
 			html: '<article>__TEST_QUEUE__host__1__</article>',
 			runtimeContext,
 			queueLabel: 'Test',
@@ -437,15 +428,14 @@ describe('ForeignSubtreeExecutionService queue resolution', () => {
 	});
 });
 
-describe('ForeignSubtreeExecutionService executeComponentRender context', () => {
+describe('executeComponentRender context', () => {
 	it('names the current integration for a top-level component with no foreign children and restores context after render', async () => {
-		const service = new ForeignSubtreeExecutionService();
 		const page = createComponent('page', 'react');
 		let seenIntegration: string | undefined;
 
 		expect(getComponentRenderContext()).toBeUndefined();
 
-		const result = await service.executeComponentRender({
+		const result = await executeComponentRender({
 			currentIntegrationName: 'react',
 			input: { component: page, props: {} },
 			renderComponent: async () => {
@@ -473,7 +463,7 @@ describe('ForeignSubtreeExecutionService executeComponentRender context', () => 
 		await runWithComponentRenderContext({ currentIntegration: 'ecopages-jsx' }, async () => {
 			let nestedIntegration: string | undefined;
 
-			await service.executeComponentRender({
+			await executeComponentRender({
 				currentIntegrationName: 'react',
 				input: { component: page, props: {} },
 				renderComponent: async () => {

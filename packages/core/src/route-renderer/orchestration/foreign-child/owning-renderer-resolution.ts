@@ -24,7 +24,7 @@ export function getForeignSubtreeResolutionContextKey(integrationName: string): 
  * Resolves an owning integration renderer for a foreign-child handoff.
  *
  * Reuses the execution-scoped cache, activates the target runtime when needed,
- * and returns the renderer the owning Integration shares with every other render.
+ * and retrieves the Integration's app-owned renderer.
  */
 export async function resolveOwningIntegrationRenderer(
 	input: OwningRendererResolutionInput,

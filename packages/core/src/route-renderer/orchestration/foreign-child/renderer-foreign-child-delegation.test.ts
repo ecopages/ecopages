@@ -5,11 +5,9 @@ import type {
 	BaseIntegrationContext,
 	ComponentRenderInput,
 	EcoComponent,
-	ForeignSubtreeRenderPayload,
 	HtmlTemplateProps,
 } from '../../../types/public-types.ts';
 import { runWithComponentRenderContext } from './component-render-context.ts';
-import { toForeignSubtreeRenderPayload } from './foreign-subtree-execution.service.ts';
 import { IntegrationRenderer } from '../integration-renderer.ts';
 import { StringMarkupRenderer } from '../string-markup-renderer.ts';
 import {
@@ -20,7 +18,7 @@ import {
 } from '../integration-renderer.test-fixtures.ts';
 
 describe('renderer foreign-child delegation', () => {
-	it('should expose a compatibility foreign-subtree payload contract', async () => {
+	it('returns the owning renderer component result directly', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
@@ -42,14 +40,12 @@ describe('renderer foreign-child delegation', () => {
 			],
 		};
 
-		const payload = toForeignSubtreeRenderPayload(
-			await renderer.renderComponentWithForeignChildren({
-				component: (() => '<main>Hello</main>') as EcoComponent<Record<string, unknown>>,
-				props: {},
-			}),
-		);
+		const result = await renderer.renderComponentWithForeignChildren({
+			component: (() => '<main>Hello</main>') as EcoComponent<Record<string, unknown>>,
+			props: {},
+		});
 
-		expect(payload).toEqual<ForeignSubtreeRenderPayload>({
+		expect(result).toEqual({
 			html: '<main data-root="true">Hello</main>',
 			assets: [
 				{
@@ -60,7 +56,7 @@ describe('renderer foreign-child delegation', () => {
 				},
 			],
 			rootAttributes: { 'data-eco-component-id': 'root-1' },
-			attachmentPolicy: { kind: 'first-element' },
+			canAttachAttributes: true,
 			integrationName: 'test-renderer',
 		});
 	});
@@ -75,7 +71,7 @@ describe('renderer foreign-child delegation', () => {
 			})),
 		} as unknown as IntegrationRenderer;
 
-		const getRenderer = vi.fn(() => foreignRenderer);
+		const initializeRenderer = vi.fn(() => foreignRenderer);
 		const setup = vi.fn(async () => {});
 		const renderer = new TestIntegrationRenderer({
 			appConfig: {
@@ -84,7 +80,7 @@ describe('renderer foreign-child delegation', () => {
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'foreign-renderer',
-						getRenderer,
+						initializeRenderer,
 						setup,
 					}),
 				],
@@ -117,7 +113,7 @@ describe('renderer foreign-child delegation', () => {
 			}),
 		);
 		expect(setup).toHaveBeenCalledTimes(1);
-		expect(getRenderer).toHaveBeenCalledTimes(1);
+		expect(initializeRenderer).toHaveBeenCalledTimes(1);
 		expect(foreignRenderer.renderComponentWithForeignChildren).toHaveBeenCalledTimes(1);
 	});
 
@@ -131,7 +127,7 @@ describe('renderer foreign-child delegation', () => {
 				integrationName: 'foreign-renderer',
 			})),
 		} as unknown as IntegrationRenderer;
-		const getRenderer = vi.fn(() => foreignRenderer);
+		const initializeRenderer = vi.fn(() => foreignRenderer);
 
 		const renderer = new TestIntegrationRenderer({
 			appConfig: {
@@ -140,7 +136,7 @@ describe('renderer foreign-child delegation', () => {
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'foreign-renderer',
-						getRenderer,
+						initializeRenderer,
 					}),
 				],
 			} as EcoPagesAppConfig,
@@ -184,7 +180,7 @@ describe('renderer foreign-child delegation', () => {
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'foreign-renderer',
-						getRenderer: () => renderer,
+						initializeRenderer: () => renderer,
 					}),
 				],
 			} as EcoPagesAppConfig,
@@ -311,7 +307,7 @@ describe('renderer foreign-child delegation', () => {
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'react',
-						getRenderer: () => ({ name: 'react' }),
+						initializeRenderer: () => ({ name: 'react' }),
 					}),
 				],
 			} as unknown as EcoPagesAppConfig,
@@ -359,7 +355,7 @@ describe('renderer foreign-child delegation', () => {
 				integrationName: 'react',
 			})),
 		} as unknown as IntegrationRenderer;
-		const getRenderer = vi.fn(() => reactRenderer);
+		const initializeRenderer = vi.fn(() => reactRenderer);
 		const renderer = new TestIntegrationRenderer({
 			appConfig: {
 				...testAppConfig,
@@ -367,7 +363,7 @@ describe('renderer foreign-child delegation', () => {
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'react',
-						getRenderer,
+						initializeRenderer,
 					}),
 				],
 			} as unknown as EcoPagesAppConfig,
@@ -433,14 +429,14 @@ describe('renderer foreign-child delegation', () => {
 			renderComponentWithForeignChildren: renderForeignComponent,
 		} as unknown as IntegrationRenderer;
 
-		const getRenderer = vi.fn(() => foreignRenderer);
+		const initializeRenderer = vi.fn(() => foreignRenderer);
 		const appConfig = {
 			...testAppConfig,
 			runtime: {},
 			integrations: [
 				createMockIntegrationPlugin({
 					name: 'foreign-renderer',
-					getRenderer,
+					initializeRenderer,
 				}),
 			],
 		} as unknown as EcoPagesAppConfig;

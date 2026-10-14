@@ -37,13 +37,13 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  A[IntegrationRenderer.execute] --> B[RouteRenderOrchestrator.prepareRenderOptions]
-  B --> C[resolvePageModule]
-  C --> D[ownershipValidationService.validate]
-  D --> E[resolvePageData]
-  E --> F[ownershipValidationService.validate + throwIfOwnershipInvalid]
-  F --> G[resolveDependencies + buildPageBrowserGraph]
-  G --> H[collect lazy injector assets]
+  A[IntegrationRenderer.execute] --> B[ensure Integration runtime]
+  B --> C[optional renderRemote hook]
+  C --> D{remote result?}
+  D -- Yes --> E[remote route result]
+  D -- No --> F[create per-render session]
+  F --> G[RouteRenderOrchestrator.prepareRenderOptions]
+  G --> H[resolve page, data, ownership, dependencies, and browser graph]
   H --> I[build pagePackage and prepared render options]
   I --> J[IntegrationRenderer.render via document shell]
   J --> K[capture rendered body as html]
@@ -71,8 +71,8 @@ flowchart TD
   D -- Yes --> E[render inline]
   D -- No --> F[delegate to owning renderer]
   F --> G[owning renderer renderComponentWithForeignChildren]
-  G --> H[owning renderer renderComponentWithForeignChildren mapped via toForeignSubtreeRenderPayload]
-  H --> I[resolved html plus assets and attachment policy]
+  G --> H[owning renderer returns ComponentRenderResult]
+  H --> I[resolved html plus assets and optional root attributes]
 ```
 
 ## 4) Queued Foreign-Subtree Resolution
@@ -85,7 +85,7 @@ flowchart TD
   B -- Yes --> C[return resolved renderer-owned output]
   B -- No --> D[queue foreign-subtree token]
   D --> E[finish current render pass]
-  E --> F[ForeignSubtreeExecutionService resolveQueuedHtml]
+  E --> F[resolveQueuedHtml function]
   F --> G[resolve nested queued tokens first]
   G --> H[dispatch foreign subtree to owning renderer]
   H --> I[merge emitted assets and root attributes]

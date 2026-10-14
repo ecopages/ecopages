@@ -68,7 +68,12 @@ export abstract class BaseProcessor<T extends BaseAsset> {
 		const attrsHash = dep.attributes ? this.generateHash(JSON.stringify(dep.attributes)) : '';
 		const position = dep.position ?? '';
 		const packageRole = dep.packageRole ?? '';
-		return `${identifier}:${contentHash}:${position}:${attrsHash}:${packageRole}`;
+		const processingOrigin = 'processingOrigin' in dep ? dep.processingOrigin : undefined;
+		const processingMetadataHash =
+			processingOrigin || dep.bundledSourceFilepaths?.length
+				? this.generateHash(JSON.stringify([processingOrigin, dep.bundledSourceFilepaths ?? []]))
+				: '';
+		return `${identifier}:${contentHash}:${position}:${attrsHash}:${packageRole}:${processingMetadataHash}`;
 	}
 
 	protected getOrProcess(

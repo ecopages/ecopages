@@ -15,6 +15,7 @@ These contracts are responsible for:
 ## Main Files
 
 - `integration-plugin.ts`: framework-semantics contract for render integrations
+- `integration-renderer.ts`: core-owned route renderer plus `createIntegrationRenderer()` and the optional hooks custom Integrations can supply
 - `define-integration.ts`: typed factory for integrations that only need declarative config and a renderer class
 - `find-integration-for-file.ts`: resolves the Integration that owns a file by its longest registered extension; route rendering, page-module loading, route discovery, the pages graph, and component attribution all use it
 - `processor.ts`: asset-transformation contract for processors, including the optional `transformStylesheet(css, file)` that core's stylesheet pipeline calls for processors with a matching `stylesheet` capability, and generated `@types` package helpers for virtual modules
@@ -24,7 +25,9 @@ These contracts are responsible for:
 ## Ownership Rules
 
 - Integrations own rendering semantics, hydration behavior, and integration-specific HMR strategy.
+- `createIntegrationRenderer()` supplies the shared route render path. Integrations add framework behavior through optional hooks; use a renderer subclass only when the integration needs its own renderer state or lower-level lifecycle.
 - An Integration whose files are not JavaScript modules can compile them itself with `compilePageModule()`, and one whose Pages cannot receive Params overrides `acceptsParams` with `false`. Core asks the owning Integration instead of checking Integration names.
+- Core resolves component ownership through `getComponentOwner()`: explicit `config.integration`, build-time identity, then the inherited owner. Integrations set `bundlesPageDependencies` when core may collapse their eligible Page assets into page-owned output bundles.
 - Processors own asset semantics, cache ownership, and processor-specific watch behavior.
 - A Processor's `watch.onChanges` callback runs once per debounced file batch with matching `created`, `changed`, and `deleted` paths plus the client bridge. Watch extensions select notifications; capabilities continue to declare asset ownership.
 - A Processor that owns pages to prewarm appends their pathnames to `appConfig.devPrewarmPaths` from `setup()`; core reads that one list and renders it in the background without delaying development server readiness.
@@ -40,7 +43,7 @@ These contracts are responsible for:
 1. Config finalization validates registrations and reads each `plugins(app)` once.
 2. Core seals the app-owned build manifest from them.
 3. Runtime startup calls the setup hooks, in every mode and before the router reads any Page. `ecopages build` and `ecopages preview` empty `dist/` first, so a Page module that resolves what a Processor generates in `setup()` finds it. Only the Lit render worker skips Processor setup.
-4. Request-time rendering and development invalidation reuse those finalized contracts. Handler renders create a renderer on every render call and share that Integration's one asset-processing service, so an unchanged stylesheet or script is reused until its source changes, its output is missing, or development invalidation drops the entry.
+4. Request-time rendering and development invalidation reuse those finalized contracts. Each Integration lazily owns one renderer shared by route rendering, explicit views, and foreign-child handoffs. It also shares the Integration's app-owned asset-processing service, so an unchanged stylesheet or script is reused until its source changes, its output is missing, or development invalidation drops the entry.
 5. `DevelopmentInvalidationService.invalidateServerModules()` advances the app module loader's development generation. A Processor that keeps compiled server artifacts outside the route-module graph, such as the content processor's collection bundles, compares `appConfig.runtime.appModuleLoader.getDevelopmentGeneration()` with the generation it built at and rebuilds on a mismatch; there is no invalidation hook.
 
 ## Discovered dependency metadata

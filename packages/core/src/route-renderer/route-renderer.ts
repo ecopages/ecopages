@@ -12,7 +12,8 @@ import type { IntegrationRenderer } from './orchestration/integration-renderer.t
  * loading. Returning this narrowed shape avoids a dedicated wrapper class while
  * still keeping callers off the full integration renderer surface.
  */
-export type PageRouteRenderer = Pick<IntegrationRenderer<unknown>, 'execute' | 'loadPageModule'>;
+export type PageRouteRenderer = Pick<IntegrationRenderer<unknown>, 'execute' | 'loadPageModule'> &
+	Partial<Pick<IntegrationRenderer<unknown>, 'clearPrebuiltRoutePreparation'>>;
 
 /**
  * Narrow explicit-view render contract exposed to static route handling.
@@ -38,12 +39,12 @@ export interface ExplicitViewRendererResolver {
 export type StaticGenerationRendererResolver = PageRendererResolver & ExplicitViewRendererResolver;
 
 /**
- * Selects integration renderers for route files and explicit views.
+ * Selects Integration-owned renderers for route files and explicit views.
  *
  * @remarks
- * The factory owns the policy that maps a route file or explicit integration
- * name to an Integration. The Integration owns its one renderer, so every caller
- * gets the same instance.
+ * The factory maps a route file or explicit integration name to its Integration's
+ * shared renderer. The Integration owns the instance so route rendering,
+ * explicit views, and foreign-child handoffs use the same renderer.
  */
 export class RouteRendererFactory {
 	private appConfig: EcoPagesAppConfig;
@@ -58,12 +59,11 @@ export class RouteRendererFactory {
 	}
 
 	/**
-	 * Rebinds renderer creation to the actual listening origin.
+	 * Rebinds Integration-owned renderers to the actual listening origin.
 	 *
 	 * @remarks
 	 * A development server may select a fallback port after this factory is
-	 * constructed. Renderers retain their original page-module loader, so each
-	 * Integration discards its renderer when the origin changes.
+	 * constructed. Integrations discard their renderer when the origin changes.
 	 */
 	setRuntimeOrigin(runtimeOrigin: string): void {
 		if (this.runtimeOrigin === runtimeOrigin) {
@@ -110,9 +110,10 @@ export class RouteRendererFactory {
 	}
 
 	/**
-	 * Returns the renderer of the file's owning integration.
+	 * Returns the renderer engine for the file's owning Integration.
 	 */
 	private getRouteRendererEngine(filePath: string): IntegrationRenderer<unknown> {
-		return this.getIntegrationPlugin(filePath).getRenderer();
+		const integrationPlugin = this.getIntegrationPlugin(filePath);
+		return integrationPlugin.getRenderer();
 	}
 }

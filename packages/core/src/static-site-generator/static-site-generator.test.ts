@@ -169,10 +169,7 @@ describe('StaticSiteGenerator', () => {
 			const RendererFactory = {
 				getPageRenderer: vi.fn(() => ({
 					loadPageModule: vi.fn(async () => createStaticPageModule()),
-					execute: vi.fn(async () => ({
-						body: '<html>Static</html>',
-						metadata: { title: 'Page', description: 'Page description' },
-					})),
+					execute: vi.fn(async () => ({ body: '<html>Static</html>' })),
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
@@ -194,10 +191,7 @@ describe('StaticSiteGenerator', () => {
 			const RendererFactory = {
 				getPageRenderer: vi.fn(() => ({
 					loadPageModule: vi.fn(async () => createStaticPageModule()),
-					execute: vi.fn(async () => ({
-						body: '<html>Blog Post</html>',
-						metadata: { title: 'Page', description: 'Page description' },
-					})),
+					execute: vi.fn(async () => ({ body: '<html>Blog Post</html>' })),
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
@@ -239,10 +233,7 @@ describe('StaticSiteGenerator', () => {
 			const RendererFactory = {
 				getPageRenderer: vi.fn(() => ({
 					loadPageModule: vi.fn(async () => createStaticPageModule()),
-					execute: vi.fn(async () => ({
-						body: '<html>Home</html>',
-						metadata: { title: 'Page', description: 'Page description' },
-					})),
+					execute: vi.fn(async () => ({ body: '<html>Home</html>' })),
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
@@ -265,10 +256,7 @@ describe('StaticSiteGenerator', () => {
 			const RendererFactory = {
 				getPageRenderer: vi.fn(() => ({
 					loadPageModule: vi.fn(async () => createStaticPageModule()),
-					execute: vi.fn(async () => ({
-						body: bufferContent,
-						metadata: { title: 'Page', description: 'Page description' },
-					})),
+					execute: vi.fn(async () => ({ body: bufferContent })),
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
@@ -287,10 +275,7 @@ describe('StaticSiteGenerator', () => {
 				'/dashboard': { filePath: '/src/pages/dashboard.tsx', pathname: '/dashboard' },
 			});
 
-			const execute = vi.fn(async () => ({
-				body: '<html>Dashboard</html>',
-				metadata: { title: 'Page', description: 'Page description' },
-			}));
+			const execute = vi.fn(async () => ({ body: '<html>Dashboard</html>' }));
 			const loadPageModule = vi.fn(async () => ({
 				default: Object.assign(() => null, { cache: 'dynamic' }),
 			}));
@@ -320,10 +305,7 @@ describe('StaticSiteGenerator', () => {
 				'/': { filePath, pathname: '/' },
 			});
 			const loadPageModule = vi.fn(async () => createStaticPageModule());
-			const execute = vi.fn(async () => ({
-				body: '<html>Home</html>',
-				metadata: { title: 'Page', description: 'Page description' },
-			}));
+			const execute = vi.fn(async () => ({ body: '<html>Home</html>' }));
 			const pageRenderer = { loadPageModule, execute };
 			const RendererFactory = {
 				getPageRenderer: vi.fn(() => pageRenderer),
@@ -614,27 +596,23 @@ describe('StaticSiteGenerator', () => {
 		});
 
 		test('should write sitemap.xml after every page when enabled', async () => {
-			const ssg = new StaticSiteGenerator({
-				appConfig: createMockConfig({
-					baseUrl: 'https://example.com',
-					sitemap: {
-						enabled: true,
-						fileName: 'sitemap.xml',
-						extraUrls: ['/rss.xml'],
-						exclude: ['/admin/**'],
-					},
-				}),
+			const appConfig = createMockConfig({
+				baseUrl: 'https://example.com',
+				sitemap: {
+					enabled: true,
+					fileName: 'sitemap.xml',
+					extraUrls: ['/rss.xml'],
+					exclude: ['/admin/**'],
+				},
 			});
+			const ssg = new StaticSiteGenerator({ appConfig });
 
 			const RendererFactory = {
 				getPageRenderer: vi.fn(() => ({
 					loadPageModule: vi.fn(async () => ({
 						default: Object.assign(() => null, { cache: 'static' }),
 					})),
-					execute: vi.fn(async () => ({
-						body: '<html>Page</html>',
-						metadata: { title: 'Page', description: 'Page description' },
-					})),
+					execute: vi.fn(async () => ({ body: '<html>Page</html>', metadata: appConfig.defaultMetadata })),
 				})),
 			} satisfies StaticPageRouteRendererFactory;
 
@@ -692,43 +670,43 @@ describe('StaticSiteGenerator', () => {
 			}
 		});
 
-		test('should omit noindex pages and pages that fail to render from sitemap', async () => {
-			const renderError = new Error('metadata boom');
-			const errorLog = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
-			const ssg = new StaticSiteGenerator({
-				appConfig: createMockConfig({
-					baseUrl: 'https://example.com',
-					sitemap: {
-						enabled: true,
-						fileName: 'sitemap.xml',
-						extraUrls: [],
-						exclude: [],
-					},
-				}),
+		test('uses rendered metadata for sitemap eligibility without resolving it again', async () => {
+			const metadataError = new Error('metadata boom');
+			const draftMetadata = vi.fn(async () => ({
+				title: 'Draft',
+				description: 'Draft',
+				robots: { index: false },
+			}));
+			const brokenMetadata = vi.fn(async () => {
+				throw metadataError;
 			});
+			const metadataByFile = new Map([
+				['/src/pages/draft.tsx', draftMetadata],
+				['/src/pages/broken.tsx', brokenMetadata],
+			]);
+			const appConfig = createMockConfig({
+				baseUrl: 'https://example.com',
+				sitemap: {
+					enabled: true,
+					fileName: 'sitemap.xml',
+					extraUrls: [],
+					exclude: [],
+				},
+			});
+			const ssg = new StaticSiteGenerator({ appConfig });
 
-			const loadPageModules: Array<ReturnType<typeof vi.fn>> = [];
 			const RendererFactory = {
-				getPageRenderer: vi.fn((filePath: string) => {
-					const loadPageModule = vi.fn(async () => ({
-						default: Object.assign(() => null, { cache: 'static' }),
-					}));
-					loadPageModules.push(loadPageModule);
-					return {
-						loadPageModule,
-						execute: vi.fn(async () => {
-							if (filePath.includes('broken')) {
-								throw renderError;
-							}
-							return {
-								body: '<html>Page</html>',
-								metadata: filePath.includes('draft')
-									? { title: 'Draft', description: 'Draft', robots: { index: false } }
-									: { title: 'Page', description: 'Page description' },
-							};
-						}),
-					};
-				}),
+				getPageRenderer: vi.fn((_filePath: string) => ({
+					loadPageModule: vi.fn(async () => {
+						return {
+							default: Object.assign(() => null, { cache: 'static' }),
+						};
+					}),
+					execute: vi.fn(async ({ file }: { file: string }) => ({
+						body: '<html>Page</html>',
+						metadata: (await metadataByFile.get(file)?.()) ?? appConfig.defaultMetadata,
+					})),
+				})),
 			} satisfies StaticPageRouteRendererFactory;
 
 			await ssg.run({
@@ -784,56 +762,8 @@ describe('StaticSiteGenerator', () => {
 			expect(sitemapContent).toContain('<loc>https://example.com/</loc>');
 			expect(sitemapContent).not.toContain('/draft');
 			expect(sitemapContent).not.toContain('/broken');
-			expect(errorLog).toHaveBeenCalledWith(
-				'Error generating static page for https://example.com/broken:',
-				renderError,
-			);
-		});
-
-		test('should take the sitemap metadata of a filesystem page from its render, not from loading it again', async () => {
-			const ssg = new StaticSiteGenerator({
-				appConfig: createMockConfig({
-					baseUrl: 'https://example.com',
-					sitemap: { enabled: true, fileName: 'sitemap.xml', extraUrls: [], exclude: [] },
-				}),
-			});
-			const loadPageModule = vi.fn(async () => ({
-				default: Object.assign(() => null, { cache: 'static' }),
-			}));
-			const execute = vi.fn(async () => ({
-				body: '<html>Page</html>',
-				metadata: { title: 'Page', description: 'Page description' },
-			}));
-
-			await ssg.run({
-				router: {
-					listStaticGenerationRoutes: vi.fn(async () => [
-						{
-							requestUrl: 'https://example.com/',
-							pathname: '/',
-							templateRoute: {
-								pathname: '/',
-								kind: 'exact' as const,
-								filePath: '/src/pages/index.tsx',
-								paramNames: [],
-							},
-							params: {},
-						},
-					]),
-				} satisfies StaticGenerationRunnerInput['router'],
-				baseUrl: 'https://example.com',
-				routeRendererFactory: {
-					getPageRenderer: vi.fn(() => ({ loadPageModule, execute })),
-					getExplicitViewRenderer: vi.fn(),
-				} satisfies StaticGenerationRendererFactory,
-			});
-
-			const sitemapWrite = writeMock.mock.calls.find((call: unknown[]) =>
-				String(call[0]).endsWith('sitemap.xml'),
-			);
-			expect(String(sitemapWrite?.[1])).toContain('<loc>https://example.com/</loc>');
-			expect(loadPageModule).toHaveBeenCalledTimes(1);
-			expect(execute).toHaveBeenCalledTimes(1);
+			expect(draftMetadata).toHaveBeenCalledTimes(1);
+			expect(brokenMetadata).toHaveBeenCalledTimes(1);
 		});
 
 		test('should honor robots.index on explicit static views in sitemap', async () => {
@@ -883,6 +813,8 @@ describe('StaticSiteGenerator', () => {
 				],
 			});
 
+			expect(executeExplicitView).toHaveBeenCalledTimes(1);
+
 			const sitemapWrite = writeMock.mock.calls.find((call: unknown[]) =>
 				String(call[0]).endsWith('sitemap.xml'),
 			);
@@ -919,10 +851,7 @@ describe('StaticSiteGenerator', () => {
 			const ssg = new StaticSiteGenerator({
 				appConfig: createMockConfig({ baseUrl: 'http://localhost:3000' } as any),
 			});
-			const executeExplicitView = vi.fn(async () => ({
-				body: '<html>Post</html>',
-				metadata: { title: 'Page', description: 'Page description' },
-			}));
+			const executeExplicitView = vi.fn(async () => ({ body: '<html>Post</html>' }));
 			const staticProps = vi.fn(async ({ pathname }) => ({
 				props: pathname.params,
 			}));

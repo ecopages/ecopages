@@ -13,9 +13,10 @@ import type {
 import { resolvePageLayoutComponents } from '../document-shell/layout-shell-props.service.ts';
 import { createPageDependencyInstanceKey } from '../page-browser-graph/route-instance-key.ts';
 import type { ResolvedPageDependencies } from '../../page-loading/resolved-page-dependencies.ts';
-import type { RouteHtmlFinalization, RouteRenderOrchestratorAdapter } from './route-render-orchestrator.ts';
+import type { PreparedComponentGraphNode } from '../ownership-graph/component-graph.ts';
+import type { RouteHtmlFinalization, RouteRenderHost } from './route-render-orchestrator.ts';
 
-export interface FlowAdapterInput {
+export interface FlowRendererInput {
 	name?: string;
 	Page?: EcoPageComponent<any> | EcoComponent;
 	integrationSpecificProps?: Record<string, unknown>;
@@ -28,20 +29,24 @@ export interface FlowAdapterInput {
 	resolvePageDependencies?: (
 		context: PageBrowserGraphContributionContext,
 	) => Promise<ResolvedPageDependencies | undefined>;
+	resolvePageDependencyContribution?: (input: {
+		nodes: ReadonlyArray<PreparedComponentGraphNode>;
+		ownerFile: string;
+	}) => Promise<PageBrowserGraphContribution | undefined>;
 	renderRouteBody?: () => Promise<RouteRendererBody>;
 	getRouteHtmlFinalization?: () => RouteHtmlFinalization;
 	transformRouteResponse?: (response: Response) => Promise<RouteRendererBody>;
 }
 
 /**
- * Builds a {@link RouteRenderOrchestratorAdapter} whose every input has a working default, so a
+ * Builds a {@link RouteRenderHost} whose every input has a working default, so a
  * test names only the inputs it asserts on.
  *
  * @remarks
  * Defaults describe an empty page: a one-line `Page`, an empty `<html>` template, no
  * dependencies, an empty browser-graph contribution and a plain-text response transform.
  */
-export function createFlowAdapter<C = unknown>(input: FlowAdapterInput = {}): RouteRenderOrchestratorAdapter<C> {
+export function createFlowRenderer<C = unknown>(input: FlowRendererInput = {}): RouteRenderHost<C> {
 	const Page = input.Page ?? ((() => '<main>Page</main>') as unknown as EcoPageComponent<any>);
 	const HtmlTemplate = input.HtmlTemplate ?? ((() => '<html></html>') as EcoComponent<HtmlTemplateProps>);
 	const integrationSpecificProps = input.integrationSpecificProps ?? {};
@@ -75,7 +80,9 @@ export function createFlowAdapter<C = unknown>(input: FlowAdapterInput = {}): Ro
 			input.collectPageBrowserGraphContribution
 				? await input.collectPageBrowserGraphContribution(context)
 				: { assets: [] },
-		resolvePageDependencies: input.resolvePageDependencies ?? (async () => undefined),
+		resolvePageDependenciesForRoute: input.resolvePageDependencies ?? (async () => undefined),
+		getPrebuiltRouteComponentGraphs: () => undefined,
+		resolvePageDependencyContribution: input.resolvePageDependencyContribution ?? (async () => undefined),
 		buildPageClientBrowserAssets: async () => ({
 			processedAssets: [],
 			islandRenderAssetsByFile: new Map(),

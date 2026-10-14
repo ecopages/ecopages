@@ -90,7 +90,7 @@ class TestEcopagesJsxRenderer extends EcopagesJsxRenderer {
 
 class StringChildContractRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = 'string-child-contract';
-	async render(): Promise<string> {
+	override async render(): Promise<string> {
 		return '';
 	}
 

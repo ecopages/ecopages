@@ -76,6 +76,7 @@ export type PageBrowserGraphResolveInput = {
 	dependencyInstanceKey?: string;
 	integrationName: string;
 	collectContribution: () => Promise<PageBrowserGraphContribution | undefined>;
+	cacheable?: boolean;
 	groupedBuildPlan?: GroupedGraphBuildPlan;
 	policy?: GraphPolicy;
 };
@@ -122,7 +123,7 @@ export class PageBrowserGraphService {
 		const session = getAppPageBrowserGraphSession(this.appConfig);
 		const dependencyInstanceKey = input.dependencyInstanceKey ?? '';
 
-		if (!this.isHmrEnabled()) {
+		if (input.cacheable !== false && !this.isHmrEnabled()) {
 			const cachedByRoute = session.getGraphByRoute(
 				input.integrationName,
 				input.routeFile,
@@ -151,6 +152,7 @@ export class PageBrowserGraphService {
 			},
 			collectPageBrowserGraphDependencyPaths(input.routeFile, contribution, contribution.assets ?? []),
 			async () => this.buildPageBrowserGraphRecord(input, contribution),
+			{ reuseCachedResult: input.cacheable !== false },
 		);
 	}
 
@@ -209,7 +211,7 @@ export class PageBrowserGraphService {
 		return {
 			result,
 			dependencyPaths,
-			cacheable: groupedResolution?.cacheable ?? true,
+			cacheable: input.cacheable !== false && (groupedResolution?.cacheable ?? true),
 		};
 	}
 
@@ -217,6 +219,13 @@ export class PageBrowserGraphService {
 		input: PageBrowserGraphResolveInput,
 		currentContribution: PageBrowserGraphContribution,
 	): Promise<GroupedPageBrowserAssetsResult> {
+		if (input.cacheable === false) {
+			return {
+				...(await this.buildGroupedPageBrowserAssets(input, currentContribution)),
+				cacheable: false,
+			};
+		}
+
 		if (this.isHmrEnabled()) {
 			return await this.buildGroupedPageBrowserAssets(input, currentContribution);
 		}

@@ -7,6 +7,7 @@ import type {
 	ProcessedAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
 import { rapidhash } from '../../utils/hash.ts';
+import { isProductionRuntime } from '../../utils/runtime.ts';
 import { AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
 import { buildResolvedLazyTriggers, type ResolvedLazyGroup } from './lazy-trigger-planning.ts';
 import { collectComponentDependencies } from './component-dependency-collection.ts';
@@ -40,6 +41,23 @@ function resolveLazyScripts(appConfig: EcoPagesAppConfig, componentDir: string, 
 }
 
 const pendingLazyGroupsByConfig = new WeakMap<NonNullable<EcoComponent['config']>, Map<string, LazyGroup>>();
+const MAX_PROCESSED_DEPENDENCY_CACHE_ENTRIES = 128;
+
+function copyProcessedAssets(assets: ProcessedAsset[]): ProcessedAsset[] {
+	return assets.map((asset) => {
+		const copy: ProcessedAsset = { ...asset };
+		if (asset.attributes) {
+			copy.attributes = { ...asset.attributes };
+		}
+		if (asset.groupedBundle) {
+			copy.groupedBundle = { ...asset.groupedBundle };
+		}
+		if (asset.bundledSourceFilepaths) {
+			copy.bundledSourceFilepaths = [...asset.bundledSourceFilepaths];
+		}
+		return copy;
+	});
+}
 
 function isLazyClientScript(dep: AssetDefinition): boolean {
 	return dep.kind === 'script' && Boolean(dep.attributes?.['data-eco-lazy-key']);
@@ -52,6 +70,10 @@ function createEcopagesJsxLazyEntryName(integrationName: string, key: string): s
 export class DependencyResolverService {
 	private appConfig: EcoPagesAppConfig;
 	private assetProcessingService: AssetProcessingService;
+	private readonly shouldCacheProcessedDependencies: () => boolean;
+	private readonly processedDependenciesCache = new Map<string, Promise<ProcessedAsset[]>>();
+	private readonly componentCacheIds = new WeakMap<object, number>();
+	private nextComponentCacheId = 0;
 
 	/**
 	 * Creates the dependency resolver used by route and component rendering.
@@ -61,9 +83,14 @@ export class DependencyResolverService {
 	 * dependency collection, lazy trigger grouping, and processed-asset generation
 	 * can evolve without changing renderer implementations.
 	 */
-	constructor(appConfig: EcoPagesAppConfig, assetProcessingService: AssetProcessingService) {
+	constructor(
+		appConfig: EcoPagesAppConfig,
+		assetProcessingService: AssetProcessingService,
+		shouldCacheProcessedDependencies: () => boolean = isProductionRuntime,
+	) {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
+		this.shouldCacheProcessedDependencies = shouldCacheProcessedDependencies;
 	}
 
 	/**
@@ -94,9 +121,35 @@ export class DependencyResolverService {
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
 	): Promise<ProcessedAsset[]> {
-		const { dependencies, lazyScriptsByConfig } = this.collectDependencies(components, integrationName, false);
+		return this.processPreparedDependencies(components, integrationName, false);
+	}
 
-		const packagedDependencies = packagePageDependencies(dependencies, integrationName);
+	/**
+	 * Processes dependencies from a component list that already came from a prepared graph walk.
+	 */
+	async processPreparedComponentDependencies(
+		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
+		integrationName: string,
+	): Promise<ProcessedAsset[]> {
+		return this.processPreparedDependencies(components, integrationName, true);
+	}
+
+	private async processPreparedDependencies(
+		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
+		integrationName: string,
+		skipNestedComponents: boolean,
+	): Promise<ProcessedAsset[]> {
+		const { dependencies, lazyScriptsByConfig } = this.collectDependencies(
+			components,
+			integrationName,
+			false,
+			skipNestedComponents,
+		);
+
+		const bundlesPageDependencies =
+			this.appConfig.integrations?.find((integration) => integration.name === integrationName)
+				?.bundlesPageDependencies ?? false;
+		const packagedDependencies = packagePageDependencies(dependencies, integrationName, bundlesPageDependencies);
 		const lazyDeps = packagedDependencies.filter(isLazyClientScript);
 		const eagerDeps = packagedDependencies.filter((dep) => !isLazyClientScript(dep));
 
@@ -111,7 +164,74 @@ export class DependencyResolverService {
 			});
 		}
 
-		return this.assetProcessingService.processDependencies(eagerDeps, integrationName);
+		if (!this.shouldCacheProcessedDependencies()) {
+			return this.assetProcessingService.processDependencies(eagerDeps, integrationName);
+		}
+
+		const cacheKey = this.getProcessedDependenciesCacheKey(
+			components,
+			integrationName,
+			skipNestedComponents,
+			bundlesPageDependencies,
+		);
+		if (!cacheKey) {
+			return this.assetProcessingService.processDependencies(eagerDeps, integrationName);
+		}
+
+		let pending = this.processedDependenciesCache.get(cacheKey);
+		if (pending) {
+			this.processedDependenciesCache.delete(cacheKey);
+			this.processedDependenciesCache.set(cacheKey, pending);
+		} else {
+			pending = this.assetProcessingService.processDependencies(eagerDeps, integrationName);
+			this.processedDependenciesCache.set(cacheKey, pending);
+			if (this.processedDependenciesCache.size > MAX_PROCESSED_DEPENDENCY_CACHE_ENTRIES) {
+				const oldestKey = this.processedDependenciesCache.keys().next().value;
+				if (oldestKey !== undefined) {
+					this.processedDependenciesCache.delete(oldestKey);
+				}
+			}
+		}
+
+		try {
+			return copyProcessedAssets(await pending);
+		} catch (error) {
+			if (this.processedDependenciesCache.get(cacheKey) === pending) {
+				this.processedDependenciesCache.delete(cacheKey);
+			}
+			throw error;
+		}
+	}
+
+	private getProcessedDependenciesCacheKey(
+		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
+		integrationName: string,
+		skipNestedComponents: boolean,
+		bundlesPageDependencies: boolean,
+	): string | undefined {
+		const componentIds: number[] = [];
+		for (const component of components) {
+			if (!component) {
+				continue;
+			}
+
+			if (
+				typeof (component as EcoComponent & { resolveDependencies?: unknown }).resolveDependencies ===
+				'function'
+			) {
+				return undefined;
+			}
+
+			const cacheIdentity = component.config ?? component;
+			let componentId = this.componentCacheIds.get(cacheIdentity);
+			if (componentId === undefined) {
+				componentId = ++this.nextComponentCacheId;
+				this.componentCacheIds.set(cacheIdentity, componentId);
+			}
+			componentIds.push(componentId);
+		}
+
+		return JSON.stringify([integrationName, skipNestedComponents, bundlesPageDependencies, componentIds]);
 	}
 
 	/**
@@ -187,11 +307,13 @@ export class DependencyResolverService {
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
 		excludeForeignChildren: boolean,
+		skipNestedComponents = false,
 	) {
 		return collectComponentDependencies({
 			components,
 			integrationName,
 			excludeForeignChildren,
+			skipNestedComponents,
 			resolveLazyScripts: (componentDir, scripts) => this.resolveLazyScripts(componentDir, scripts),
 			createEcopagesJsxLazyEntryName,
 			errors: {

@@ -2,8 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import HtmlTemplate from '../../../__fixtures__/app/src/includes/html.ts';
 import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
 import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.ts';
-import { eco, type ForeignSubtreeRenderPayload, type EcoComponent, type HtmlTemplateProps } from '../../index.ts';
-import { toForeignSubtreeRenderPayload } from '../../route-renderer/orchestration/foreign-child/foreign-subtree-execution.service.ts';
+import { eco, type EcoComponent, type HtmlTemplateProps } from '../../index.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { StringMarkupRenderer } from './string-markup-renderer.ts';
 import { testAssetService } from './integration-renderer.test-fixtures.ts';
@@ -182,22 +181,18 @@ describe('StringMarkupRenderer', () => {
 		expect(body).not.toContain('<eco-marker');
 	});
 
-	it('should expose the compatibility foreign-subtree payload contract', async () => {
+	it('returns the component render result directly', async () => {
 		const renderer = createRenderer();
 		const Component = (async () => '<main>Foreign Subtree</main>') as EcoComponent<Record<string, unknown>>;
 
-		const result = toForeignSubtreeRenderPayload(
-			await renderer.renderComponentWithForeignChildren({
-				component: Component,
-				props: {},
-			}),
-		);
+		const result = await renderer.renderComponentWithForeignChildren({
+			component: Component,
+			props: {},
+		});
 
-		expect(result).toEqual<ForeignSubtreeRenderPayload>({
+		expect(result).toEqual({
 			html: '<main>Foreign Subtree</main>',
-			assets: [],
-			rootAttributes: undefined,
-			attachmentPolicy: { kind: 'first-element' },
+			canAttachAttributes: true,
 			integrationName: 'string',
 		});
 	});

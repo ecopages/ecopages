@@ -6,7 +6,7 @@ import {
 	type ComponentRenderResult,
 	type EcoComponent,
 	type HtmlTemplateProps,
-	type RequestLocals,
+	type RouteRendererOptions,
 } from '@ecopages/core';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { createStringMarkupContractFactories, describeRendererContract } from '@ecopages/testing/renderer-contract';
@@ -43,6 +43,10 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
  */
 class TestLitRenderer extends LitRenderer {
 	htmlTemplate: EcoComponent<HtmlTemplateProps> = HtmlTemplate;
+
+	public renderRemoteForTest(options: RouteRendererOptions) {
+		return this.renderRemote(options);
+	}
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		return this.htmlTemplate;
@@ -371,34 +375,20 @@ describe('LitRenderer', () => {
 			expect(text).toContain('<div>Hello World</div>');
 		});
 
-		it('gives a static page the locals proxy instead of undefined locals', async () => {
-			const pageLocals = new Proxy(
-				{},
-				{
-					get() {
-						throw new Error('locals proxy');
-					},
-				},
-			) as RequestLocals;
+		it('passes the static locals guard through the route pipeline', async () => {
+			const testRenderer = createRenderer();
+			const Page = ((props: Record<string, unknown>) => {
+				return `<p>${String((props.locals as { user: string }).user)}</p>`;
+			}) as EcoComponent<Record<string, unknown>>;
 
 			await expect(
-				renderer.render({
+				testRenderer.execute({
+					file: '/app/pages/index.lit.tsx',
 					params: {},
 					query: {},
-					props: {},
-					locals: undefined,
-					pageLocals,
-					pageProps: {},
-					file: '/app/pages/index.lit.tsx',
-					resolvedDependencies: [],
-					metadata: {
-						title: 'Hello World',
-						description: 'Hello World',
-					},
-					Page: async (props) => `<p>${(props.locals as { user: string }).user}</p>`,
-					HtmlTemplate,
+					pageModule: { default: Page },
 				}),
-			).rejects.toThrow('Error rendering page: locals proxy');
+			).rejects.toThrow(/Request locals are only available during request-time rendering/);
 		});
 
 		it('forwards resolved page props to the document shell', async () => {
@@ -694,12 +684,11 @@ describe('LitRenderer', () => {
 			const sessionHolder: { current?: Pick<LitStaticRenderSession, 'renderPageInWorker'> } = {};
 			const renderPageInWorker = vi.fn(async () => ({
 				html: '<html>lazy-worker</html>',
-				metadata: { title: 'Page', description: 'Page description' },
 				cacheStrategy: { revalidate: 15 },
 				sourceDependencyPaths: ['/app/pages/index.lit.tsx'],
 			}));
 
-			const renderer = new LitRenderer({
+			const renderer = new TestLitRenderer({
 				appConfig: Config,
 				assetProcessingService: createTestAssetProcessingService(Config),
 				runtimeOrigin: 'http://localhost:3000',
@@ -707,46 +696,31 @@ describe('LitRenderer', () => {
 				getRenderSession: () => sessionHolder.current as LitStaticRenderSession | undefined,
 			});
 
-			const inProcessSpy = vi.spyOn(IntegrationRenderer.prototype, 'execute').mockResolvedValue({
-				body: '<html>in-process</html>',
-				metadata: { title: 'Page', description: 'Page description' },
+			const options = {
+				file: '/app/pages/index.lit.tsx',
+				params: { slug: ['a', 'b'] },
+				query: { tag: ['x', 'y'] },
+			};
+
+			expect(await renderer.renderRemoteForTest(options)).toBeUndefined();
+			sessionHolder.current = { renderPageInWorker };
+			const result = await renderer.execute(options);
+
+			expect(renderPageInWorker).toHaveBeenCalledWith({
+				filePath: '/app/pages/index.lit.tsx',
+				params: { slug: ['a', 'b'] },
+				query: { tag: ['x', 'y'] },
 			});
-
-			try {
-				await renderer.execute({ file: '/app/pages/index.lit.tsx', params: {} });
-				expect(renderPageInWorker).not.toHaveBeenCalled();
-				expect(inProcessSpy).toHaveBeenCalledTimes(1);
-
-				sessionHolder.current = { renderPageInWorker };
-				inProcessSpy.mockClear();
-
-				const result = await renderer.execute({
-					file: '/app/pages/index.lit.tsx',
-					params: { slug: ['a', 'b'] },
-					query: { tag: ['x', 'y'] },
-				});
-
-				expect(inProcessSpy).not.toHaveBeenCalled();
-				expect(renderPageInWorker).toHaveBeenCalledWith({
-					filePath: '/app/pages/index.lit.tsx',
-					params: { slug: ['a', 'b'] },
-					query: { tag: ['x', 'y'] },
-				});
-				expect(result).toEqual({
-					body: '<html>lazy-worker</html>',
-					metadata: { title: 'Page', description: 'Page description' },
-					cacheStrategy: { revalidate: 15 },
-					sourceDependencyPaths: ['/app/pages/index.lit.tsx'],
-				});
-			} finally {
-				inProcessSpy.mockRestore();
-			}
+			expect(result).toEqual({
+				body: '<html>lazy-worker</html>',
+				cacheStrategy: { revalidate: 15 },
+				sourceDependencyPaths: ['/app/pages/index.lit.tsx'],
+			});
 		});
 
 		it('forces in-process execute when locals are present', async () => {
 			const renderPageInWorker = vi.fn(async () => ({
 				html: '<html>worker</html>',
-				metadata: { title: 'Page', description: 'Page description' },
 			}));
 
 			const renderer = new LitRenderer({
@@ -762,7 +736,6 @@ describe('LitRenderer', () => {
 
 			const inProcessSpy = vi.spyOn(IntegrationRenderer.prototype, 'execute').mockResolvedValue({
 				body: '<html>locals-in-process</html>',
-				metadata: { title: 'Page', description: 'Page description' },
 			});
 
 			try {
@@ -778,10 +751,7 @@ describe('LitRenderer', () => {
 					params: { id: '1' },
 					locals: { requestId: 'req-1' },
 				});
-				expect(result).toEqual({
-					body: '<html>locals-in-process</html>',
-					metadata: { title: 'Page', description: 'Page description' },
-				});
+				expect(result).toEqual({ body: '<html>locals-in-process</html>' });
 			} finally {
 				inProcessSpy.mockRestore();
 			}
@@ -790,7 +760,6 @@ describe('LitRenderer', () => {
 		it('forces in-process execute when explicit view props are present', async () => {
 			const renderPageInWorker = vi.fn(async () => ({
 				html: '<html>worker</html>',
-				metadata: { title: 'Page', description: 'Page description' },
 			}));
 			const renderer = new LitRenderer({
 				appConfig: Config,
@@ -804,7 +773,6 @@ describe('LitRenderer', () => {
 			});
 			const inProcessSpy = vi.spyOn(IntegrationRenderer.prototype, 'execute').mockResolvedValue({
 				body: '<html>props-in-process</html>',
-				metadata: { title: 'Page', description: 'Page description' },
 			});
 
 			try {
@@ -816,10 +784,7 @@ describe('LitRenderer', () => {
 				});
 
 				expect(renderPageInWorker).not.toHaveBeenCalled();
-				expect(result).toEqual({
-					body: '<html>props-in-process</html>',
-					metadata: { title: 'Page', description: 'Page description' },
-				});
+				expect(result).toEqual({ body: '<html>props-in-process</html>' });
 				expect(inProcessSpy).toHaveBeenCalled();
 			} finally {
 				inProcessSpy.mockRestore();

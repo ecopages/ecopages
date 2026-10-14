@@ -11,6 +11,7 @@ export function buildProcessedAssetDedupeKey(asset: ProcessedAsset): string {
 		asset.excludeFromHtml ? 'excluded' : 'included',
 		asset.packageRole ?? '',
 		JSON.stringify(asset.attributes ?? {}),
+		JSON.stringify(asset.bundledSourceFilepaths ?? []),
 	].join('|');
 }
 

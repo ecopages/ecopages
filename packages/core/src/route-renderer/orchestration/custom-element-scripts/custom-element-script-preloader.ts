@@ -142,7 +142,7 @@ export interface CustomElementScriptPreloaderOptions {
 	 * @remarks
 	 * Dependency trees may include foreign integrations whose `ssr: true` scripts
 	 * are preloaded by their own renderer. Ownership uses
-	 * `config.integration ?? identity.integration`, matching render routing.
+	 * `getComponentOwner`, matching render routing.
 	 * Ecopages JSX still walks nested components so it can find owned Radiant
 	 * hosts deeper in the graph.
 	 */

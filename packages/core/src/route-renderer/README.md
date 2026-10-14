@@ -18,16 +18,16 @@ The architecture is organized around three distinct concepts:
 
 - `ownership`: declared component dependency metadata validated before render
 - `foreign child`: a component encountered during render whose owning integration differs from the current integration
-- `foreign subtree`: the resolved HTML, assets, and root-attachment metadata returned by the owning renderer for that foreign child
+- `foreign subtree`: the rendered HTML and assets returned by the owning renderer for that Foreign Child
 
 These concepts intentionally live in different places:
 
 - `ownership-validation.service.ts` validates declared foreign ownership up front and fails the render on misconfiguration
 - `component-render-context.ts` intercepts foreign children during active component render
-- `foreign-subtree-execution.service.ts` owns mixed-integration execution policy and queued token resolution
+- `foreign-subtree-execution.service.ts` contains the functions for mixed-integration execution and queued-token resolution
 - `document-shell-render.service.ts` composes page, layout, and html template shells with one execution-scoped renderer cache
 - `integration-renderer.ts` owns renderer-to-renderer delegation and integration-specific render hooks
-- `route-render-orchestrator.ts` owns route preparation, final response capture, and unresolved artifact enforcement. Preparation walks the declared component graph once into a `pageClientPlan` (entries, foreign runtimes, lazy triggers, island files). `islandEntries` lists components whose Integration differs from their parent's, excluding the Html shell. The page owner's Page, Layout, and nested includes stay on `sourceComponents` so cache invalidation still watches them. Hydrating integrations pass `islandEntries` through `selectHydrationIslandEntries` so only Foreign Children of another owner receive per-component island scripts; the page owner's own tree is hydrated by the page bootstrap. The page owner then asks every island-hydrating integration on that plan to contribute one grouped multi-entry browser build (`ecopages-app-browser-client`) for islands and lazy entries, so React islands on a Kita or Lit route still receive hydration scripts. Hydration scripts import URLs from the recorded build graph. Renderers stamp those assets during SSR instead of starting a per-island build. Resolved lazy-trigger ids stay on the component config across later dependency passes so serialized foreign-child HTML can still receive `data-eco-trigger`. Concurrent grouped content-script builds write unique temp entry files so mixed-page static export cannot delete another route's Rolldown entry. Island entries in that grouped build re-export the source module so the hydration script can import the component; a side-effect-only `import "path"` dropped named exports and left React counters inert.
+- `route-render-orchestrator.ts` owns route preparation, final response capture, and unresolved artifact enforcement. Preparation builds one `PreparedComponentGraph` from the Html, Layout, Page, and resolved page-dependency roots. The graph records each component's owner, source file, direct assets, children, and foreign-descendant state. Ownership validation, route dependency collection, the page client plan, and dev cache watch paths consume that graph instead of walking component configs independently. The client plan contains entries, foreign runtimes, lazy triggers, and island files. `islandEntries` lists components whose Integration differs from their parent's, excluding the Html shell. The page owner's Page, Layout, and nested includes stay on `sourceComponents` so cache invalidation still watches them. Hydrating integrations pass `islandEntries` through `selectHydrationIslandEntries` so only Foreign Children of another owner receive per-component island scripts; the page owner's own tree is hydrated by the page bootstrap. The page owner then asks every island-hydrating integration on that plan to contribute one grouped multi-entry browser build (`ecopages-app-browser-client`) for islands and lazy entries, so React islands on a Kita or Lit route still receive hydration scripts. Hydration scripts import URLs from the recorded build graph. Renderers stamp those assets during SSR instead of starting a per-island build. Resolved lazy-trigger ids stay on the component config across later dependency passes so serialized foreign-child HTML can still receive `data-eco-trigger`. Concurrent grouped content-script builds write unique temp entry files so mixed-page static export cannot delete another route's Rolldown entry. Island entries in that grouped build re-export the source module so the hydration script can import the component; a side-effect-only `import "path"` dropped named exports and left React counters inert.
 
 ## Build-Time JSX vs Runtime Foreign Children
 
@@ -45,27 +45,29 @@ See [`../build/README.md`](../build/README.md) for the JSX ownership helper spli
 
 `composeDocumentShell` in core is the single string-shell primitive for wrapping a primary component with optional layout tiers and an Html template. Integrations may supply an optional `composeChildren` hook to replace sequential string wrapping with a unified tree (for example React element children) while still delegating foreign subtrees through `renderComponentWithForeignChildren`.
 
+`IntegrationRenderer.render()` owns the common route shell and page-props contract. An Integration that only needs optional rendering behavior can use `createIntegrationRenderer()` with hooks for component rendering, queued children, page-module normalization, Page Browser Graph contributions, shell composition, document contributions and attributes, island assets, pre-render setup, or final HTML transforms. Frameworks with a distinct component model can still implement `renderComponent()` as a hook.
+
 ## Main Files
 
 ### `route-renderer.ts`
 
-- `RouteRendererFactory` chooses the Integration for a route file or explicit view; the Integration (`IntegrationPlugin.getRenderer()`) owns its one renderer, which route renders, handler renders and foreign handoffs from other integrations all use
+- `RouteRendererFactory` chooses the owning Integration's shared renderer from route files
 - `RouteRenderer` delegates execution to the selected renderer
 
 ### `explicit-view-render-preparation.ts`
 
-`resolveExplicitViewRenderer` resolves the integration renderer for one `eco.page()` view without reading `staticProps`. Static export planning uses that so a dynamic route is not invoked before a slug exists. `prepareExplicitStaticRender` then reads `staticProps` with the route's params. A full explicit view calls `renderExplicitView` (a response) or `executeExplicitView` (the route result with its metadata), which run `execute` with the view as the page module and `skipStaticProps`, so it receives the same layouts, metadata, and page client plan as a filesystem Page but never re-runs `staticProps`. The props, route params, query and locals of the call are visible to the view and to its `metadata`. Static export renders through `executeExplicitView` and reuses the returned metadata for sitemap eligibility. A partial render stays on the component path.
+`resolveExplicitViewRenderer` resolves the owning Integration's shared renderer for one `eco.page()` view without reading `staticProps`. Static export planning uses that so a dynamic route is not invoked before a slug exists. `prepareExplicitStaticRender` then reads `staticProps` with the route's params. A full explicit view calls `renderExplicitView` (a response) or `executeExplicitView` (the route result with its metadata), which run `execute` with the view as the page module and `skipStaticProps`, so it receives the same layouts, metadata, and page client plan as a filesystem Page but never re-runs `staticProps`. The props, route params, query and locals of the call are visible to the view and to its `metadata`. Static export renders through `executeExplicitView` and reuses the returned metadata for sitemap eligibility. Each `execute` opens a render session for that page's assets and foreign-renderer cache, so static export can render several pages of one Integration at the same time. Route rendering, explicit views, and foreign-child handoffs reuse that Integration's renderer. Render contexts use `node:async_hooks` AsyncLocalStorage to isolate nested and concurrent renders; a runtime without it fails before rendering. A partial render stays on the component path and opens its own render session.
 
 ### `orchestration/`
 
-Root renderer classes:
+Renderer entrypoints:
 
-- `integration-renderer.ts`: abstract base class for route rendering, explicit view rendering, and foreign-child delegation
-- `string-markup-renderer.ts`: shared base for string-markup integrations
+- `integration-renderer.ts`: shared route pipeline, explicit view rendering, foreign-child delegation, and optional Integration hooks
+- `string-markup-renderer.ts`: typed convenience base for string-markup integrations; common rendering behavior lives in `IntegrationRenderer`
 
 Domain folders:
 
-- `ownership-graph/`: component graph walk/collect, one page client plan per prepare, and up-front ownership validation
+- `ownership-graph/`: the prepared route component graph, its page client plan, and ownership validation
 - `foreign-child/`: active render context, foreign-subtree execution, deferred template serialization
 - `document-shell/`: shared page/layout/html shell composition, layout prop resolution, and attribute stamping helpers
 - `route-pipeline/`: route preparation, final HTML capture, marker-artifact enforcement
@@ -90,16 +92,11 @@ Domain folders:
 The route-render contract is:
 
 1. `RouteRendererFactory` selects the owning integration renderer.
-2. `IntegrationRenderer.execute()` delegates preparation and finalization to `RouteRenderOrchestrator`.
-3. `RouteRenderOrchestrator.prepareRenderOptions()` loads the page module, validates ownership (fail-fast), resolves final page props, resolves dependencies, and builds the page browser graph. Graph cache identity includes route params and query; contribution collection receives those same final props.
-
-    In production, a Page without a `dependencies` function prepares its shell dependencies (ownership validation, the assets of the Html template, Layouts and Page, the page client plan, island and lazy-entry assets) once per process and reuses them. The Page Browser Graph is still resolved per render, through its own cache. Each renderer also keeps the assets one component contributes when it renders (`resolveComponentRenderAssets`) after the first render. Development, any process with HMR enabled, and Pages with a `dependencies` function prepare on every render.
-
+2. `IntegrationRenderer.execute()` activates the Integration runtime, gives an optional remote-render hook first refusal, then opens a per-render session and delegates preparation and finalization to `RouteRenderOrchestrator`.
+3. `RouteRenderOrchestrator.prepareRenderOptions()` loads the page module and final props, prepares and validates the shell graph, resolves page-dependency roots, then adds and validates those roots in the prepared graph. Route assets, the page client plan, and development cache watch paths reuse its recorded nodes; production grouped prebuild retains that same graph through route preparation. The page browser graph cache identity includes route params and query; contribution collection receives those same final props. When rendering, route params and query take precedence over similarly named extra props.
 4. The integration renderer performs page, layout, and document-shell rendering. When it encounters a foreign child, it delegates that child back to the owning renderer.
 5. If a renderer needs queued handoff, it emits internal foreign-subtree tokens and resolves them before returning final HTML.
-6. `RouteRenderOrchestrator.executePrepared()` captures the final body, rejects unresolved `<eco-marker>` artifacts, stamps document attributes when needed, and runs the HTML transformer with the render's page package.
-
-Renders hold their state on the component render context (page package, page client plan, island assets), not on the renderer, so renders of one Integration overlap freely. `HtmlTransformerService` keeps no state either: each transform takes the page package it injects. Assets a renderer appends during a render go to that render's page package, and appending outside a render throws.
+6. `RouteRenderOrchestrator.executePrepared()` captures the final body, rejects unresolved `<eco-marker>` artifacts, stamps document attributes when needed, and runs the HTML transformer.
 
 Important:
 
@@ -122,12 +119,12 @@ The render context lives in `AsyncLocalStorage`, so overlapping renders each see
 
 `renderComponentWithForeignChildren()` is the renderer entrypoint for mixed-integration trees. It is responsible for:
 
-- reusing the execution-scoped owning-renderer cache, which holds the shared renderer of each owning Integration
+- reusing the execution-scoped owning-renderer cache
 - deciding whether the current component can stay local
 - creating a foreign-child runtime when nested foreign ownership must be resolved
 - normalizing unresolved artifact HTML before the render leaves the renderer
 
-Queue resolution maps owning-renderer output into the foreign-subtree payload shape via `toForeignSubtreeRenderPayload()` inside `foreign-subtree-execution.service.ts`.
+The owning renderer returns a `ComponentRenderResult` directly. Queue resolution merges its HTML and assets before replacing the token; there is no intermediate payload or root-tag contract.
 
 ## Queue Model
 
@@ -135,7 +132,7 @@ Not every integration needs queue-based handoff.
 
 - If a renderer can resolve a foreign child inline, it returns resolved output immediately.
 - If it cannot, it may emit internal foreign-subtree tokens and resolve them before returning final HTML.
-- Queue mechanics live inside `ForeignSubtreeExecutionService`; they are renderer-owned transport inside one render pass, not a general route-level fallback mechanism.
+- Queue mechanics are module functions in `foreign-subtree-execution.service.ts`; they are renderer-owned transport inside one render pass, not a general route-level fallback mechanism.
 
 ## React Island Notes
 

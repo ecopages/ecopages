@@ -34,6 +34,20 @@ describe('getAssetDependencyKey', () => {
 		);
 	});
 
+	it('keeps content bundles with different source files apart', () => {
+		const createBundle = (bundledSourceFilepaths: string[]) =>
+			AssetFactory.createContentStylesheet({
+				content: '.example { color: red; }',
+				attributes: { rel: 'stylesheet' },
+				packageRole: 'page-style',
+				bundledSourceFilepaths,
+			});
+
+		expect(getAssetDependencyKey(createBundle(['/app/a.css', '/app/b.css']))).not.toBe(
+			getAssetDependencyKey(createBundle(['/app/d.css', '/app/e.css'])),
+		);
+	});
+
 	describe('content scripts', () => {
 		const base = createContentScript();
 

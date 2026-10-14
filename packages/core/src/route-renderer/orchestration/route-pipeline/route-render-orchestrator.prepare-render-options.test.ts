@@ -20,7 +20,7 @@ import type {
 import type { GroupedScriptBundle } from '../../../services/assets/asset-processing-service/assets.types.ts';
 import type { OwnershipValidationService } from '../ownership-graph/ownership-validation.service.ts';
 import { RouteRenderOrchestrator } from './route-render-orchestrator.ts';
-import { createFlowAdapter, createRouteOptions } from './route-render-orchestrator.test-fixtures.ts';
+import { createFlowRenderer, createRouteOptions } from './route-render-orchestrator.test-fixtures.ts';
 
 declare module '../../../types/public-types.ts' {
 	interface RequestLocals {
@@ -87,7 +87,7 @@ function createOrchestrator(
 function createReactIntegration(dependencies: ProcessedAsset[] = [], extra: Record<string, unknown> = {}) {
 	return {
 		name: 'react',
-		getRenderer: vi.fn(),
+		initializeRenderer: vi.fn(),
 		getResolvedIntegrationDependencies: () => dependencies,
 		...extra,
 	};
@@ -165,7 +165,7 @@ function createGroupedHarness(options: {
 		prepare: (file: string) =>
 			flow.prepareRenderOptions(
 				createRouteOptions(file),
-				createFlowAdapter({ name: 'react', collectPageBrowserGraphContribution }),
+				createFlowRenderer({ name: 'react', collectPageBrowserGraphContribution }),
 			),
 	};
 }
@@ -200,7 +200,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 				props: { title: 'Overridden title' },
 				locals: { user: 'andee' },
 			}),
-			createFlowAdapter({
+			createFlowRenderer({
 				Page,
 				integrationSpecificProps: { layoutMode: 'full' },
 				pageData: { props: { title: 'Hello' }, metadata: { title: 'Hello', description: 'Hello description' } },
@@ -243,7 +243,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 			const result = await flow.prepareRenderOptions(
 				createRouteOptions(routeFile),
-				createFlowAdapter({
+				createFlowRenderer({
 					Page: createPage({ identity: { id: 'about-page', file: routeFile, integration: 'string' } }),
 				}),
 			);
@@ -259,7 +259,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 			const result = await flow.prepareRenderOptions(
 				createRouteOptions(routeFile),
-				createFlowAdapter({
+				createFlowRenderer({
 					Page: createPage({ identity: { id: 'about-page', file: routeFile, integration: 'string' } }),
 				}),
 			);
@@ -276,7 +276,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 			const result = await flow.prepareRenderOptions(
 				createRouteOptions('/app/src/pages/discovery.lit.tsx'),
-				createFlowAdapter({
+				createFlowRenderer({
 					Page: createPage({
 						identity: { id: 'discovery', file: '/app/src/pages/discovery.lit.tsx', integration: 'string' },
 						dependencies: { components: [Child] },
@@ -300,7 +300,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 			const result = await flow.prepareRenderOptions(
 				createRouteOptions(identity.file),
-				createFlowAdapter({ Page: createPage({ identity }) }),
+				createFlowRenderer({ Page: createPage({ identity }) }),
 			);
 
 			const expected = expect.arrayContaining([identity.file, ...watchFiles]);
@@ -321,7 +321,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		const result = await flow.prepareRenderOptions(
 			createRouteOptions('/app/pages/docs/[...slug].tsx', { params: { slug: ['intro'] } }),
-			createFlowAdapter({
+			createFlowRenderer({
 				resolvePageDependencies: async () => ({
 					ownerFile: '/app/content/intro.mdx',
 					components: [resolvedContent],
@@ -359,7 +359,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			],
 		});
 
-		await flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), createFlowAdapter({ Page }));
+		await flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), createFlowRenderer({ Page }));
 
 		expect(processDependencies).toHaveBeenCalledOnce();
 		expect(processDependencies).toHaveBeenCalledWith(
@@ -396,11 +396,11 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					},
 				],
 			}));
-			const adapter = createFlowAdapter({ collectPageBrowserGraphContribution });
+			const renderer = createFlowRenderer({ collectPageBrowserGraphContribution });
 			const route = createRouteOptions('/app/pages/index.tsx');
 
-			await flow.prepareRenderOptions(route, adapter);
-			await flow.prepareRenderOptions(route, adapter);
+			await flow.prepareRenderOptions(route, renderer);
+			await flow.prepareRenderOptions(route, renderer);
 
 			expect(collectPageBrowserGraphContribution).toHaveBeenCalledTimes(expectedCollections);
 			expect(processDependencies).toHaveBeenCalledOnce();
@@ -417,7 +417,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		const result = await flow.prepareRenderOptions(
 			createRouteOptions('/app/pages/index.tsx'),
-			createFlowAdapter({
+			createFlowRenderer({
 				collectPageBrowserGraphContribution: async () => ({
 					dependencies: [
 						{
@@ -543,7 +543,10 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 	it('should guard page locals for static pages', async () => {
 		const { flow } = createOrchestrator();
 
-		const result = await flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), createFlowAdapter());
+		const result = await flow.prepareRenderOptions(
+			createRouteOptions('/app/pages/index.tsx'),
+			createFlowRenderer(),
+		);
 
 		expect(result.locals).toBeUndefined();
 		expect(() => Reflect.get(result.pageLocals as object, 'guarded')).toThrow(LocalsAccessError);
@@ -560,18 +563,53 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		const result = await flow.prepareRenderOptions(
 			createRouteOptions('/app/pages/404.tsx'),
-			createFlowAdapter({ Page }),
+			createFlowRenderer({ Page }),
 		);
 
 		expect(result.pagePackage).toEqual(expect.objectContaining({ assets: [integrationDependency] }));
 	});
 
+	it('materializes page dependency assets from the prepared graph nodes', async () => {
+		const { flow } = createOrchestrator();
+		const Page = createPage();
+		const child = createComponent({
+			identity: { id: 'dependency-child', file: '/app/dependencies/child.tsx', integration: 'string' },
+		});
+		const dependency = createComponent({
+			identity: { id: 'dependency-root', file: '/app/dependencies/root.tsx', integration: 'string' },
+			dependencies: { components: [child] },
+		});
+		const pageDependency = createScriptAsset('/assets/page-dependency.js');
+		const resolvePageDependencyContribution = vi.fn(async () => ({ assets: [pageDependency] }));
+
+		const result = await flow.prepareRenderOptions(
+			createRouteOptions('/app/pages/index.tsx'),
+			createFlowRenderer({
+				Page,
+				resolvePageDependencies: async () => ({
+					ownerFile: '/app/dependencies/root.tsx',
+					components: [dependency],
+				}),
+				resolvePageDependencyContribution,
+			}),
+		);
+
+		expect(resolvePageDependencyContribution).toHaveBeenCalledWith({
+			nodes: expect.arrayContaining([
+				expect.objectContaining({ component: dependency }),
+				expect.objectContaining({ component: child }),
+			]),
+			ownerFile: '/app/dependencies/root.tsx',
+		});
+		expect(result.pagePackage?.assets).toContain(pageDependency);
+	});
+
 	describe('ownership validation', () => {
 		it('uses an injected ownership validation service when provided', async () => {
-			const validate = vi.fn(() => []);
+			const validateGraph = vi.fn(() => []);
 			const { flow } = createOrchestrator({
 				orchestratorOptions: {
-					ownershipValidationService: { validate } as unknown as OwnershipValidationService,
+					ownershipValidationService: { validateGraph } as unknown as OwnershipValidationService,
 				},
 			});
 			const Page = createPage();
@@ -579,22 +617,16 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 			await flow.prepareRenderOptions(
 				createRouteOptions('/app/pages/index.tsx'),
-				createFlowAdapter({ Page, HtmlTemplate }),
+				createFlowRenderer({ Page, HtmlTemplate }),
 			);
 
-			expect(validate).toHaveBeenCalledWith({
-				currentIntegrationName: 'string',
-				roots: [
-					{ component: HtmlTemplate, source: 'html-template' },
-					{ component: Page, source: 'page' },
-				],
-			});
+			expect(validateGraph).toHaveBeenCalledOnce();
 		});
 
 		it('throws when injected ownership validation reports errors', async () => {
 			const message =
 				'[ecopages] Foreign child "missing-foreign-component" references unknown integration owner "missing-renderer".';
-			const validate = vi.fn(() => [
+			const validateGraph = vi.fn(() => [
 				{
 					code: 'UNKNOWN_INTEGRATION_OWNER',
 					message,
@@ -604,18 +636,18 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			]);
 			const { flow } = createOrchestrator({
 				orchestratorOptions: {
-					ownershipValidationService: { validate } as unknown as OwnershipValidationService,
+					ownershipValidationService: { validateGraph } as unknown as OwnershipValidationService,
 				},
 			});
 
 			await expect(
-				flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), createFlowAdapter()),
+				flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), createFlowRenderer()),
 			).rejects.toThrow(message);
 		});
 
 		it('prepares render options when declared foreign dependencies are valid', async () => {
 			const { flow } = createOrchestrator({
-				integrations: [{ name: 'foreign-renderer', getRenderer: vi.fn() }],
+				integrations: [{ name: 'foreign-renderer', initializeRenderer: vi.fn() }],
 			});
 			const ForeignComponent = createComponent({
 				integration: 'foreign-renderer',
@@ -639,14 +671,14 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 			const result = await flow.prepareRenderOptions(
 				createRouteOptions('/app/pages/index.tsx'),
-				createFlowAdapter({ Page, HtmlTemplate }),
+				createFlowRenderer({ Page, HtmlTemplate }),
 			);
 
 			expect(result).toEqual(expect.objectContaining({ Page, Layout, HtmlTemplate }));
 		});
 	});
 
-	it('resolves dependencies for every layout tier in the stack', async () => {
+	it('resolves dependencies from every file-backed layout tier in the stack', async () => {
 		const { flow } = createOrchestrator({ integrations: [createReactIntegration()] });
 		const OuterLayout = createComponent({
 			integration: 'react',
@@ -665,7 +697,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		await flow.prepareRenderOptions(
 			createRouteOptions('/app/pages/index.tsx'),
-			createFlowAdapter({
+			createFlowRenderer({
 				name: 'react',
 				Page,
 				HtmlTemplate,
@@ -676,93 +708,6 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			}),
 		);
 
-		expect(resolvedComponents).toEqual([HtmlTemplate, OuterLayout, InnerLayout, Page]);
-	});
-
-	describe('shell dependency reuse', () => {
-		async function prepareTimes(
-			count: number,
-			options: {
-				page?: EcoPageComponent<Record<string, unknown>>;
-				resolveDependencies?: () => Promise<ProcessedAsset[]>;
-				hmrEnabled?: boolean;
-			} = {},
-		) {
-			const validate = vi.fn(() => []);
-			const { flow } = createOrchestrator({
-				hmrEnabled: options.hmrEnabled,
-				orchestratorOptions: {
-					ownershipValidationService: { validate } as unknown as OwnershipValidationService,
-				},
-			});
-			const resolveDependencies = vi.fn(options.resolveDependencies ?? (async () => []));
-			const adapter = createFlowAdapter({ Page: options.page ?? createPage(), resolveDependencies });
-			const results = [];
-			for (let index = 0; index < count; index += 1) {
-				results.push(await flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), adapter));
-			}
-			return { results, resolveDependencies, validate };
-		}
-
-		it('prepares the shell roots of one Page once in production', async () => {
-			vi.stubEnv('NODE_ENV', 'production');
-
-			const { results, resolveDependencies, validate } = await prepareTimes(3);
-
-			expect(resolveDependencies).toHaveBeenCalledTimes(1);
-			expect(validate).toHaveBeenCalledTimes(1);
-			expect(results[2]?.pageClientPlan).toBe(results[0]?.pageClientPlan);
-			expect(results[2]?.pagePackage).toEqual(results[0]?.pagePackage);
-		});
-
-		it('prepares them on every render while HMR is enabled, even under NODE_ENV=production', async () => {
-			vi.stubEnv('NODE_ENV', 'production');
-
-			const { resolveDependencies, validate } = await prepareTimes(3, { hmrEnabled: true });
-
-			expect(resolveDependencies).toHaveBeenCalledTimes(3);
-			expect(validate).toHaveBeenCalledTimes(3);
-		});
-
-		it('still reuses them in production when the HMR manager is disabled', async () => {
-			vi.stubEnv('NODE_ENV', 'production');
-
-			const { resolveDependencies } = await prepareTimes(3, { hmrEnabled: false });
-
-			expect(resolveDependencies).toHaveBeenCalledTimes(1);
-		});
-
-		it('prepares them on every render outside production', async () => {
-			vi.stubEnv('NODE_ENV', 'development');
-
-			const { resolveDependencies, validate } = await prepareTimes(3);
-
-			expect(resolveDependencies).toHaveBeenCalledTimes(3);
-			expect(validate).toHaveBeenCalledTimes(3);
-		});
-
-		it('prepares a Page whose dependencies are a function on every render in production', async () => {
-			vi.stubEnv('NODE_ENV', 'production');
-			const page = createPage();
-			page.resolveDependencies = async () => undefined;
-
-			const { resolveDependencies } = await prepareTimes(3, { page });
-
-			expect(resolveDependencies).toHaveBeenCalledTimes(3);
-		});
-
-		it('does not keep a preparation that failed', async () => {
-			vi.stubEnv('NODE_ENV', 'production');
-			const failing = vi.fn(async () => {
-				throw new Error('dependencies unavailable');
-			});
-			const { flow } = createOrchestrator();
-			const adapter = createFlowAdapter({ resolveDependencies: failing });
-			const options = createRouteOptions('/app/pages/index.tsx');
-
-			await expect(flow.prepareRenderOptions(options, adapter)).rejects.toThrow('dependencies unavailable');
-			await expect(flow.prepareRenderOptions(options, adapter)).rejects.toThrow('dependencies unavailable');
-			expect(failing).toHaveBeenCalledTimes(2);
-		});
+		expect(resolvedComponents).toEqual([OuterLayout, InnerLayout]);
 	});
 });

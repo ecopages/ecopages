@@ -5,10 +5,8 @@ import {
 	type ComponentRenderResult,
 	type EcoComponent,
 	type EcoFunctionComponent,
-	type ForeignSubtreeRenderPayload,
 } from '@ecopages/core';
 import type { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import type { AssetProcessingService, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import {
 	createDeferredIntegrationPlugin,
@@ -162,23 +160,19 @@ export function describeRendererContract(harness: RendererContractHarness): void
 			expect(result.html).toContain('<h2>Hello contract</h2>');
 		});
 
-		it('exposes the foreign subtree payload for a plain component', async () => {
+		it('returns the plain component render result for a foreign subtree', async () => {
 			const renderer = await createPlainRenderer();
 
-			const payload = toForeignSubtreeRenderPayload(
-				await renderer.renderComponentWithForeignChildren({
-					component: makeComponent({ tag: 'section' }),
-					props: { text: 'Foreign subtree' },
-				}),
-			);
+			const result = await renderer.renderComponentWithForeignChildren({
+				component: makeComponent({ tag: 'section' }),
+				props: { text: 'Foreign subtree' },
+			});
 
-			expect(payload).toMatchObject<Partial<ForeignSubtreeRenderPayload>>({
-				assets: [],
-				rootAttributes: undefined,
-				attachmentPolicy: { kind: 'first-element' },
+			expect(result).toMatchObject({
+				canAttachAttributes: true,
 				integrationName: name,
 			});
-			expect(payload.html).toContain('<section>Foreign subtree</section>');
+			expect(result.html).toContain('<section>Foreign subtree</section>');
 		});
 
 		it('returns the assets a component declares', async () => {

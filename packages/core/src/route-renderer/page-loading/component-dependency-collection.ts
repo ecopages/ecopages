@@ -70,6 +70,10 @@ type CollectComponentDependenciesOptions = {
 	 * @remarks Those are Foreign Children: their owning Integration renders them and emits their assets.
 	 */
 	excludeForeignChildren?: boolean;
+	/**
+	 * Treats each supplied component as an already flattened graph node.
+	 */
+	skipNestedComponents?: boolean;
 	resolveLazyScripts: (componentDir: string, scripts: string[]) => string;
 	createEcopagesJsxLazyEntryName: (integrationName: string, key: string) => string;
 	errors: {
@@ -82,6 +86,7 @@ type CollectComponentDependenciesOptions = {
 type ComponentDependencyCollectionContext = {
 	integrationName: string;
 	excludeForeignChildren: boolean;
+	skipNestedComponents: boolean;
 	resolveLazyScripts: CollectComponentDependenciesOptions['resolveLazyScripts'];
 	createEcopagesJsxLazyEntryName: CollectComponentDependenciesOptions['createEcopagesJsxLazyEntryName'];
 	errors: CollectComponentDependenciesOptions['errors'];
@@ -138,8 +143,7 @@ function recordExplicitAndInferredStyles(
  * @remarks A nested component without an Integration inherits its parent's, so it is not a Foreign Child.
  */
 function isForeignChild(component: EcoComponent, integrationName: string): boolean {
-	const componentIntegration = getComponentOwner(component);
-	return componentIntegration !== undefined && componentIntegration !== integrationName;
+	return getComponentOwner(component, integrationName) !== integrationName;
 }
 
 /**
@@ -205,6 +209,9 @@ function collectNestedComponentDependencies(
 		}
 
 		assertEcoDeclaredComponent(nestedComponent, { parentComponentFile });
+		if (context.skipNestedComponents) {
+			continue;
+		}
 		if (context.excludeForeignChildren && isForeignChild(nestedComponent, context.integrationName)) {
 			continue;
 		}
@@ -230,6 +237,7 @@ export function collectComponentDependencies(
 		components,
 		integrationName,
 		excludeForeignChildren = false,
+		skipNestedComponents = false,
 		resolveLazyScripts,
 		createEcopagesJsxLazyEntryName,
 		errors,
@@ -240,6 +248,9 @@ export function collectComponentDependencies(
 	const visited = new Set<NonNullable<EcoComponent['config']>>();
 	const inferredStyles: Array<{ dir: string; src: string }> = [];
 	const explicitStylePaths = new Set<string>();
+	const modulesMap = new Map<string, Set<string> | null>();
+	const preparedStylesheetDependencyKeys = skipNestedComponents ? new Set<string>() : undefined;
+	const preparedScriptDependencyKeys = skipNestedComponents ? new Set<string>() : undefined;
 
 	for (const component of components) {
 		if (!component) continue;
@@ -250,6 +261,7 @@ export function collectComponentDependencies(
 		const collectionContext: ComponentDependencyCollectionContext = {
 			integrationName,
 			excludeForeignChildren,
+			skipNestedComponents,
 			resolveLazyScripts,
 			createEcopagesJsxLazyEntryName,
 			errors,
@@ -259,30 +271,14 @@ export function collectComponentDependencies(
 			visited,
 			inferredStyles,
 			explicitStylePaths,
-			stylesheetDependencyKeys: new Set<string>(),
-			scriptDependencyKeys: new Set<string>(),
-			modulesMap: new Map<string, Set<string> | null>(),
+			stylesheetDependencyKeys: preparedStylesheetDependencyKeys ?? new Set<string>(),
+			scriptDependencyKeys: preparedScriptDependencyKeys ?? new Set<string>(),
+			modulesMap,
 		};
 
 		collectComponentConfigDependencies(component.config, collectionContext);
-
-		const { modulesMap } = collectionContext;
-
-		dependencies.push(
-			...Array.from(modulesMap.entries()).map(([from, importsSet]) => {
-				const imports = importsSet ? Array.from(importsSet) : undefined;
-				return AssetFactory.createContentScript({
-					position: 'head',
-					name: createModuleScriptName(from, imports),
-					content:
-						imports && imports.length > 0
-							? createNamedImportModuleSource(from, imports)
-							: createNamespaceImportModuleSource(from),
-					attributes: createModuleScriptAttributes(),
-				});
-			}),
-		);
 	}
+	dependencies.push(...createModuleDependencies(modulesMap));
 
 	for (const { dir, src } of inferredStyles) {
 		const filepath = resolveDependencyPath(dir, src);
@@ -296,4 +292,19 @@ export function collectComponentDependencies(
 		dependencies,
 		lazyScriptsByConfig,
 	};
+}
+
+function createModuleDependencies(modulesMap: Map<string, Set<string> | null>): AssetDefinition[] {
+	return Array.from(modulesMap.entries()).map(([from, importsSet]) => {
+		const imports = importsSet ? Array.from(importsSet) : undefined;
+		return AssetFactory.createContentScript({
+			position: 'head',
+			name: createModuleScriptName(from, imports),
+			content:
+				imports && imports.length > 0
+					? createNamedImportModuleSource(from, imports)
+					: createNamespaceImportModuleSource(from),
+			attributes: createModuleScriptAttributes(),
+		});
+	});
 }

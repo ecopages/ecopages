@@ -6,7 +6,10 @@ import {
 import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
 import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
 import type { EcoPageFile, EcoPagesElement } from '../types/public-types.ts';
-import type { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
+import type {
+	IntegrationRenderer,
+	IntegrationRendererOptions,
+} from '../route-renderer/orchestration/integration-renderer.ts';
 import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
 import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
 import { deepMerge } from '../utils/deep-merge.ts';
@@ -83,14 +86,9 @@ export interface IntegrationPluginConfig {
 	jsxImportSource?: string;
 }
 
-type IntegrationRendererConstructorOptions = {
-	appConfig: EcoPagesAppConfig;
-	assetProcessingService: AssetProcessingService;
-	resolvedIntegrationDependencies: ProcessedAsset[];
-	runtimeOrigin: string;
-};
-
-type RendererClass<C> = new (options: IntegrationRendererConstructorOptions) => IntegrationRenderer<C>;
+type RendererClass<C> = new (
+	options: IntegrationRendererOptions & { resolvedIntegrationDependencies: ProcessedAsset[] },
+) => IntegrationRenderer<C>;
 
 /**
  * Base class for framework integrations.
@@ -126,14 +124,16 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * It describes the Integration, so it is a class member rather than a user option.
 	 */
 	readonly acceptsParams: boolean = true;
+	/** Whether core may collapse this Integration's eligible Page assets into page-owned bundles. */
+	readonly bundlesPageDependencies: boolean = false;
 
 	protected integrationDependencies: AssetDefinition[];
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
 	protected appConfig?: EcoPagesAppConfig;
 	protected assetProcessingService?: AssetProcessingService;
 	protected hmrManager?: IHmrManager;
+	private rendererInstance?: IntegrationRenderer<C>;
 	declare runtimeOrigin: string;
-	private sharedRenderer?: IntegrationRenderer<C>;
 
 	/**
 	 * Declares the build plugins this Integration contributes.
@@ -197,29 +197,29 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 *
 	 * Core calls this during config finalization before runtime setup so the
 	 * integration can resolve asset paths and other app-owned services later.
-	 *
-	 * @remarks
-	 * Runtime activation hands the same config over again on first use. That is a no-op, so the asset
-	 * service and the renderer built before activation survive it. A different config replaces both.
 	 */
 	setConfig(appConfig: EcoPagesAppConfig): void {
-		if (this.appConfig === appConfig && this.assetProcessingService) {
-			return;
+		if (this.appConfig !== appConfig) {
+			this.rendererInstance = undefined;
+			this.appConfig = appConfig;
+			this.assetProcessingService = undefined;
 		}
 
-		this.appConfig = appConfig;
-		this.initializeAssetDefinitionService();
-		this.sharedRenderer = undefined;
+		if (!this.assetProcessingService) {
+			this.initializeAssetDefinitionService();
+		}
 	}
 
 	/**
 	 * Records the runtime origin used for page-module loading and renderer setup.
 	 */
 	setRuntimeOrigin(runtimeOrigin: string) {
-		if (this.runtimeOrigin !== runtimeOrigin) {
-			this.sharedRenderer = undefined;
+		if (this.runtimeOrigin === runtimeOrigin) {
+			return;
 		}
+
 		this.runtimeOrigin = runtimeOrigin;
+		this.rendererInstance = undefined;
 	}
 
 	/**
@@ -248,7 +248,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 */
 	setHmrManager(hmrManager: IHmrManager) {
 		this.hmrManager = hmrManager;
-		this.sharedRenderer = undefined;
 
 		const strategy = this.getHmrStrategy?.();
 		if (strategy) {
@@ -258,6 +257,8 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		if (this.assetProcessingService) {
 			this.assetProcessingService.setHmrManager(hmrManager);
 		}
+
+		this.rendererInstance?.setHmrManager(hmrManager);
 	}
 
 	/**
@@ -283,13 +284,17 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	 * Creates the shared renderer options owned by core lifecycle setup.
 	 *
 	 * @remarks
-	 * Every renderer this Integration creates shares its asset-processing service. An unchanged file
-	 * asset is reused until its source hash changes, its output is missing, or a development change
-	 * batch drops the entry. The cache key is the dependency identity; the source hash is the
-	 * freshness check. A missing service is created here so a plugin that received `appConfig`
-	 * without `setConfig()` still has one.
+	 * `getRenderer()` caches one renderer for this Integration. The renderer and
+	 * this Integration share the app-owned asset-processing service. An unchanged file
+	 * asset is reused until its source hash changes, its output is missing, or a
+	 * development change batch drops the entry. The cache key is the dependency
+	 * identity; the source hash is the freshness check. A missing service is
+	 * created here so a plugin that received `appConfig` without `setConfig()`
+	 * still has one.
 	 */
-	protected createRendererOptions(): IntegrationRendererConstructorOptions {
+	protected createRendererOptions(): IntegrationRendererOptions & {
+		resolvedIntegrationDependencies: ProcessedAsset[];
+	} {
 		if (!this.appConfig) {
 			throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_APP_CONFIG);
 		}
@@ -330,31 +335,25 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Returns the app's renderer for this Integration, creating it on first use.
-	 *
-	 * @remarks
-	 * Route renders, handler renders (`ctx.render`, `ctx.renderPartial`, `ctx.renderServerModule`) and
-	 * foreign handoffs all use this one instance, so the services a renderer builds and the runtime
-	 * modules it resolves are paid once. A renderer holds no per-render state, so concurrent renders
-	 * share it. Changing the app config, the runtime origin or the HMR manager drops the instance,
-	 * because it captured them when it was created; a render already running keeps the one it has.
-	 */
-	getRenderer(): IntegrationRenderer<C> {
-		this.sharedRenderer ??= this.initializeRenderer();
-		return this.sharedRenderer;
-	}
-
-	/**
 	 * Instantiates a new integration renderer with app-owned services.
 	 *
 	 * @remarks
-	 * Integrations override this to construct their renderer with extra options. Core calls it only
-	 * through {@link IntegrationPlugin.getRenderer}.
+	 * Integration implementations override this method to supply their renderer
+	 * options. Application runtime code should use `getRenderer()` so routes,
+	 * explicit views, and foreign-child handoffs share the same instance.
 	 */
 	initializeRenderer(): IntegrationRenderer<C> {
 		const renderer = new this.renderer(this.createRendererOptions());
 		renderer.name ||= this.name;
 		return this.attachRendererRuntimeServices(renderer);
+	}
+
+	/**
+	 * Returns the renderer shared by this Integration's application runtime.
+	 */
+	getRenderer(): IntegrationRenderer<C> {
+		this.rendererInstance ??= this.initializeRenderer();
+		return this.rendererInstance;
 	}
 
 	/**

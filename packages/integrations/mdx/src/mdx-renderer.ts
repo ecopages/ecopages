@@ -29,7 +29,7 @@ export class MDXRenderer extends StringMarkupRenderer {
 		this.compilerOptions = mdxConfig?.compilerOptions ?? {};
 	}
 
-	protected override async collectPageBrowserGraphContribution(
+	override async collectPageBrowserGraphContribution(
 		context: PageBrowserGraphContributionContext,
 	): Promise<PageBrowserGraphContribution> {
 		const { file: pagePath, pageModule } = context;

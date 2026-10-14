@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { EcoComponent, PagePackageResult } from '../../../types/public-types.ts';
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/assets.types.ts';
 import type { PageClientPlan } from '../ownership-graph/page-client-plan.ts';
+import type { RenderSession } from './render-session.ts';
 import { addTriggerAttribute, isThenable } from './foreign-child-output.utils.ts';
 
 /**
@@ -151,6 +152,10 @@ export type ComponentRenderContext = {
 	pageClientPlan?: PageClientPlan;
 	islandRenderAssetsByFile?: ReadonlyMap<string, ProcessedAsset[]>;
 	pagePackage?: PagePackageResult;
+	/**
+	 * Shared mutable state for this render, including nested foreign-child contexts.
+	 */
+	session?: RenderSession;
 	interceptForeignChild(
 		input: ForeignChildRenderInput,
 	): Promise<ForeignChildInterceptionResult> | ForeignChildInterceptionResult;
@@ -246,16 +251,19 @@ export async function runWithComponentRenderContext<T>(
 		pageClientPlan?: PageClientPlan;
 		islandRenderAssetsByFile?: ReadonlyMap<string, ProcessedAsset[]>;
 		pagePackage?: PagePackageResult;
+		session?: RenderSession;
 	},
 	render: () => Promise<T>,
 ): Promise<{ value: T }> {
-	const parent = getComponentRenderContext();
+	const storage = getComponentRenderContextState().storage;
+	const parent = storage.getStore();
 	const context = {
 		currentIntegration: input.currentIntegration,
 		foreignChildRuntime: input.foreignChildRuntime,
 		pageClientPlan: input.pageClientPlan ?? parent?.pageClientPlan,
 		islandRenderAssetsByFile: input.islandRenderAssetsByFile ?? parent?.islandRenderAssetsByFile,
 		pagePackage: input.pagePackage ?? parent?.pagePackage,
+		session: input.session ?? parent?.session,
 	} as ComponentRenderContext;
 	const runtime = new ContextualComponentRenderRuntime(context);
 	context.interceptForeignChild = (deferredInput: ForeignChildRenderInput) =>
@@ -263,7 +271,7 @@ export async function runWithComponentRenderContext<T>(
 	context.finalizeComponentRender = <TContent>(component: EcoComponent, content: TContent) =>
 		runtime.finalizeComponentRender(component, content);
 
-	const value = await getComponentRenderContextState().storage.run(context, render);
+	const value = await storage.run(context, render);
 
 	return {
 		value,

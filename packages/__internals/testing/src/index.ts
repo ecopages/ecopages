@@ -149,7 +149,7 @@ export function createDeferredIntegrationPlugin(
 	class DeferredRenderer extends IntegrationRenderer<EcoPagesElement> {
 		name = integrationName;
 
-		async render(): Promise<string> {
+		override async render(): Promise<string> {
 			return '';
 		}
 

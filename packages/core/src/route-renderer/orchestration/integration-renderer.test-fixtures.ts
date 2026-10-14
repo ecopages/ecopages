@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import { finalizeDocumentShellHtml } from './document-shell/document-shell-render.service.ts';
 import { IntegrationRenderer, type HtmlDocumentContribution } from './integration-renderer.ts';
 import { getComponentRenderContext, type ForeignChildRuntime } from './foreign-child/component-render-context.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -23,9 +24,24 @@ export function createUnresolvedMarkerArtifact(nodeId: string, componentRef: str
 export function createMockIntegrationPlugin(
 	plugin: { name: string } & Record<string, unknown>,
 ): EcoPagesAppConfig['integrations'][number] {
+	let renderer: unknown;
+	let rendererInitialized = false;
+	const getRenderer = () => {
+		if (!rendererInitialized) {
+			const initializeRenderer = plugin.initializeRenderer;
+			if (typeof initializeRenderer === 'function') {
+				renderer = Reflect.apply(initializeRenderer, plugin, []);
+			}
+			rendererInitialized = true;
+		}
+
+		return renderer;
+	};
+
 	return {
 		setConfig: vi.fn(),
 		setRuntimeOrigin: vi.fn(),
+		getRenderer,
 		setup: vi.fn(async () => {}),
 		...plugin,
 	} as unknown as EcoPagesAppConfig['integrations'][number];
@@ -66,7 +82,7 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 	ImportedFiles: string[] = [];
 	HtmlContributions: HtmlDocumentContribution[] = [];
 
-	async render(_options: IntegrationRendererRenderOptions<EcoPagesElement>): Promise<RouteRendererBody> {
+	override async render(_options: IntegrationRendererRenderOptions<EcoPagesElement>): Promise<RouteRendererBody> {
 		if (this.RenderBodyFactory) {
 			return await this.RenderBodyFactory(getComponentRenderContext());
 		}
@@ -120,21 +136,38 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		return this.hasForeignChildDescendants(component);
 	}
 
+	public async testFinalizeDocumentShellHtml(options: {
+		html: string;
+		partial?: boolean;
+		htmlContributions?: HtmlDocumentContribution[];
+	}) {
+		return finalizeDocumentShellHtml(this.htmlTransformer, {
+			html: options.html,
+			partial: options.partial,
+			htmlContributions:
+				options.htmlContributions ?? this.getHtmlDocumentContributions({ partial: options.partial ?? false }),
+		});
+	}
+
 	public async testTransformRouteResponse(
 		response: Response,
 		htmlContributions?: HtmlDocumentContribution[],
 		pagePackage?: PagePackageResult,
 	) {
-		const adapter = this.createRouteRenderOrchestratorAdapter();
-		return adapter.transformRouteResponse(response, htmlContributions, pagePackage);
-	}
-
-	public testResolveComponentRenderAssets(component: EcoComponent) {
-		return this.resolveComponentRenderAssets(component);
+		return this.transformRouteResponse(
+			response,
+			htmlContributions,
+			pagePackage,
+			{} as IntegrationRendererRenderOptions<EcoPagesElement>,
+		);
 	}
 
 	public appendTestProcessedDependencies(assets: ProcessedAsset[]) {
 		return this.appendProcessedDependencies(assets);
+	}
+
+	public async testRenderForeignSubtree(input: ComponentRenderInput) {
+		return this.renderComponentWithForeignChildren(input);
 	}
 
 	protected override createForeignChildRuntime(options: {

@@ -220,7 +220,12 @@ export class SessionPageBrowserGraphCache {
 		key: GraphKey,
 		provisionalDependencyPaths: ReadonlySet<string>,
 		build: () => Promise<GraphBuildResult | undefined>,
+		options: { reuseCachedResult?: boolean } = {},
 	): Promise<PageBrowserGraphResult | undefined> {
+		if (options.reuseCachedResult === false) {
+			return this.buildGraphWithoutCaching(build);
+		}
+
 		const serializedKey = serializeGraphKey(key);
 
 		const cached = this.records.get(serializedKey);
@@ -240,6 +245,13 @@ export class SessionPageBrowserGraphCache {
 		const buildPromise = this.runGraphBuild(serializedKey, key, buildGeneration, build);
 		this.inFlight.set(serializedKey, buildPromise);
 		return buildPromise;
+	}
+
+	private async buildGraphWithoutCaching(
+		build: () => Promise<GraphBuildResult | undefined>,
+	): Promise<PageBrowserGraphResult | undefined> {
+		this.buildCount += 1;
+		return (await build())?.result;
 	}
 
 	resolveGroupedGraph(
@@ -654,9 +666,29 @@ export function collectPageBrowserGraphDependencyPaths(
 function describeProcessedAsset(asset: ProcessedAsset): string {
 	const filepath = asset.filepath ?? '';
 	const sourceFilepath = asset.sourceFilepath ?? '';
+	const srcUrl = asset.srcUrl ?? '';
 	const content = typeof asset.content === 'string' ? asset.content : '';
-	const contentDigest = content ? createHash('sha1').update(content).digest('hex').slice(0, 12) : '';
-	return `asset:${asset.kind}:${filepath}:${sourceFilepath}:${contentDigest}`;
+	const contentDigest = content ? createHash('sha1').update(content).digest('hex') : '';
+	const attributes = Object.entries(asset.attributes ?? {}).sort(([left], [right]) => left.localeCompare(right));
+	const groupedBundle = asset.groupedBundle ? [asset.groupedBundle.id, asset.groupedBundle.entryName] : undefined;
+	const bundledSourceFilepaths = [...(asset.bundledSourceFilepaths ?? [])].sort((left, right) =>
+		left.localeCompare(right),
+	);
+	return JSON.stringify([
+		'asset',
+		asset.kind,
+		filepath,
+		sourceFilepath,
+		srcUrl,
+		contentDigest,
+		asset.position ?? '',
+		attributes,
+		asset.inline ?? false,
+		asset.excludeFromHtml ?? false,
+		asset.packageRole ?? '',
+		groupedBundle,
+		bundledSourceFilepaths,
+	]);
 }
 
 function describeAssetDependency(dependency: AssetDefinition): string {

@@ -894,8 +894,8 @@ export type RouteRenderResult = {
 	cacheStrategy?: CacheStrategy;
 	/** Source paths observed during render preparation for HTML cache invalidation. */
 	sourceDependencyPaths?: readonly string[];
-	/** Page metadata the document was rendered with. Static export reads it for the sitemap. */
-	metadata: PageMetadataProps;
+	/** Page metadata the document was rendered with. */
+	metadata?: PageMetadataProps;
 };
 
 /**
@@ -1014,16 +1014,6 @@ export interface OwnershipValidationError {
 }
 
 export type OwnershipPlanNodeSource = 'route' | 'page' | 'layout' | 'html-template' | 'dependency';
-
-export type ForeignSubtreeAttachmentPolicy = { kind: 'none' } | { kind: 'first-element' };
-
-export interface ForeignSubtreeRenderPayload {
-	html: string;
-	assets: ProcessedAsset[];
-	rootAttributes?: Record<string, string>;
-	attachmentPolicy: ForeignSubtreeAttachmentPolicy;
-	integrationName: string;
-}
 
 /**
  * Shared execution-scoped context threaded through foreign-child renders.

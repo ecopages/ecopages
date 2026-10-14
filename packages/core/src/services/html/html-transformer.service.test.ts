@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createPagePackage, type ProcessedAsset } from '../assets/asset-processing-service/index.ts';
+import { createPagePackage, type ProcessedAsset } from '../assets/asset-processing-service/index.js';
 import { buildIslandHostAttributes } from '../../islands/island-host.ts';
 import { applyAttributesToFirstElement, HtmlTransformerService } from './html-transformer.service.ts';
 
@@ -84,16 +84,15 @@ describe('HtmlTransformerService', () => {
 	it.each(INJECTION_SCENARIOS)('$label', ({ html, dependencies, expected }) => {
 		const transformer = new HtmlTransformerService();
 
-		expect(transformer.transformHtml(html, { pagePackage: createPagePackage(dependencies) })).toBe(expected);
+		expect(transformer.injectPageAssets(html, { pagePackage: createPagePackage(dependencies) })).toBe(expected);
 	});
 
 	it('injects html contributions into explicit document slots in array order', () => {
 		const transformer = new HtmlTransformerService();
 
-		const html = transformer.transformHtml(
+		const html = transformer.injectPageAssets(
 			'<html><head><title>Base</title></head><body><main>Page</main></body></html>',
 			{
-				pagePackage: createPagePackage([]),
 				contributions: [
 					{ placement: 'head-prepend', html: '<meta name="first">' },
 					{ placement: 'head-prepend', html: '<meta name="second">' },
@@ -136,14 +135,15 @@ describe('HtmlTransformerService', () => {
 
 	it('skips head injection when the document has no head element', () => {
 		const transformer = new HtmlTransformerService();
-		const pagePackage = createPagePackage([
-			{ kind: 'stylesheet', inline: false, position: 'head', srcUrl: '/a.css' },
-			{ kind: 'script', inline: false, position: 'body', srcUrl: '/b.js' },
-		]);
 
-		expect(transformer.transformHtml('<body><main>M</main></body>', { pagePackage })).toBe(
-			'<body><main>M</main><script src="/b.js"></script></body>',
-		);
+		expect(
+			transformer.injectPageAssets('<body><main>M</main></body>', {
+				pagePackage: createPagePackage([
+					{ kind: 'stylesheet', inline: false, position: 'head', srcUrl: '/a.css' },
+					{ kind: 'script', inline: false, position: 'body', srcUrl: '/b.js' },
+				]),
+			}),
+		).toBe('<body><main>M</main><script src="/b.js"></script></body>');
 	});
 
 	it('should apply attributes to the html element', () => {
@@ -256,49 +256,32 @@ describe('HtmlTransformerService', () => {
 		expect(transformer.dedupeProcessedAssets([pageScript, runtimeScript])).toEqual([pageScript, runtimeScript]);
 	});
 
-	it('injects the html assets of the page package, not its other assets', () => {
+	it('injects the page package html assets', () => {
 		const transformer = new HtmlTransformerService();
-		const pagePackage = {
-			assets: [
-				{
-					kind: 'script',
-					srcUrl: '/ignored.js',
-					position: 'body',
-				},
-			],
-			htmlAssets: [
-				{
-					kind: 'script',
-					srcUrl: '/chosen.js',
-					position: 'body',
-				},
-			],
-			inlineAssets: [],
-			separateAssets: [],
-			dynamicChunks: [],
-		} satisfies Parameters<HtmlTransformerService['transformHtml']>[1]['pagePackage'];
-
-		const html = transformer.transformHtml('<html><head></head><body></body></html>', { pagePackage });
+		const html = transformer.injectPageAssets('<html><head></head><body></body></html>', {
+			pagePackage: {
+				assets: [
+					{
+						kind: 'script',
+						srcUrl: '/ignored.js',
+						position: 'body',
+					},
+				],
+				htmlAssets: [
+					{
+						kind: 'script',
+						srcUrl: '/chosen.js',
+						position: 'body',
+					},
+				],
+				inlineAssets: [],
+				separateAssets: [],
+				dynamicChunks: [],
+			},
+		});
 
 		expect(html).toContain('<script src="/chosen.js"></script>');
 		expect(html).not.toContain('/ignored.js');
-	});
-
-	it('transforms two page packages independently on one service', () => {
-		const transformer = new HtmlTransformerService();
-		const shell = '<html><head></head><body></body></html>';
-		const first = createPagePackage([{ kind: 'script', srcUrl: '/first.js', position: 'body' } as ProcessedAsset]);
-		const second = createPagePackage([
-			{ kind: 'script', srcUrl: '/second.js', position: 'body' } as ProcessedAsset,
-		]);
-
-		const firstHtml = transformer.transformHtml(shell, { pagePackage: first });
-		const secondHtml = transformer.transformHtml(shell, { pagePackage: second });
-
-		expect(firstHtml).toContain('/first.js');
-		expect(firstHtml).not.toContain('/second.js');
-		expect(secondHtml).toContain('/second.js');
-		expect(secondHtml).not.toContain('/first.js');
 	});
 
 	it('injects page browser entry assets while keeping chunk assets out of initial html', () => {
@@ -321,7 +304,7 @@ describe('HtmlTransformerService', () => {
 			packageRole: 'dynamic-chunk',
 		} as ProcessedAsset;
 
-		const html = transformer.transformHtml('<html><head></head><body></body></html>', {
+		const html = transformer.injectPageAssets('<html><head></head><body></body></html>', {
 			pagePackage: {
 				assets: [routeStylesheet, entryScript, chunkScript],
 				pageBrowserGraph: {
@@ -335,7 +318,6 @@ describe('HtmlTransformerService', () => {
 				dynamicChunks: [chunkScript],
 			},
 		});
-
 		expect(html).toContain('<link rel="stylesheet" href="/route.css">');
 		expect(html).toContain('<script src="/page-entry.js"></script>');
 		expect(html).not.toContain('/page-chunk.js');

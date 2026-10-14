@@ -11,10 +11,12 @@ import type {
 	ContentScriptAsset,
 	InlineContentScriptAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
-import { APP_BROWSER_CLIENT_BUNDLE_ID } from '../../services/assets/asset-processing-service/index.ts';
+import { APP_BROWSER_CLIENT_BUNDLE_ID, AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
 import type { EcoComponent } from '../../types/public-types.ts';
 import { collectPageClientPlan } from '../orchestration/ownership-graph/page-client-plan.ts';
 import { UndeclaredComponentDependencyError } from '../../errors/undeclared-component-dependency-error.ts';
+import { packagePageDependencies } from './page-dependency-bundling.ts';
+import { deduplicateAssetDependencies } from '../../services/assets/asset-processing-service/asset-dependency-keys.ts';
 
 describe('DependencyResolverService', () => {
 	const appConfig = {
@@ -33,6 +35,70 @@ describe('DependencyResolverService', () => {
 		expect(service.resolveLazyScripts('/app/components/card', ['./client.ts', './widget.tsx'])).toBe(
 			'/assets/components/card/client.js,/assets/components/card/widget.js',
 		);
+	});
+
+	it('processes prepared graph nodes without recursively revisiting nested components', async () => {
+		let capturedDeps: AssetDefinition[] = [];
+		const assetProcessingService = {
+			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
+				capturedDeps = deps;
+				return [] as ProcessedAsset[];
+			}),
+		} as unknown as AssetProcessingService;
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const child = (() => '<child />') as EcoComponent;
+		child.config = {
+			identity: { id: 'child', file: '/app/child.tsx', integration: 'react' },
+			dependencies: { scripts: ['./child.js'] },
+		};
+		const parent = (() => '<parent />') as EcoComponent;
+		parent.config = {
+			identity: { id: 'parent', file: '/app/parent.tsx', integration: 'react' },
+			dependencies: { scripts: ['./parent.js'], components: [child] },
+		};
+
+		vi.stubEnv('NODE_ENV', 'production');
+		try {
+			await service.processPreparedComponentDependencies([parent], 'react');
+			expect(capturedDeps).toEqual([expect.objectContaining({ filepath: '/app/parent.js' })]);
+
+			await service.processComponentDependencies([parent], 'react');
+
+			expect(capturedDeps).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ filepath: '/app/parent.js' }),
+					expect.objectContaining({ filepath: '/app/child.js' }),
+				]),
+			);
+			expect(assetProcessingService.processDependencies).toHaveBeenCalledTimes(2);
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
+	it('evicts a rejected production dependency result so the next render can retry', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const failure = new Error('temporary asset processing failure');
+		const processDependencies = vi
+			.fn()
+			.mockRejectedValueOnce(failure)
+			.mockResolvedValueOnce([] as ProcessedAsset[]);
+		const assetProcessingService = { processDependencies } as unknown as AssetProcessingService;
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const component = (() => '<div />') as EcoComponent;
+		component.config = {
+			identity: { id: 'retry-dependency', file: '/app/retry.tsx', integration: 'react' },
+			dependencies: { scripts: ['./client.ts'] },
+		};
+
+		try {
+			await expect(service.processComponentDependencies([component], 'react')).rejects.toBe(failure);
+			await expect(service.processComponentDependencies([component], 'react')).resolves.toEqual([]);
+
+			expect(processDependencies).toHaveBeenCalledTimes(2);
+		} finally {
+			vi.unstubAllEnvs();
+		}
 	});
 
 	it('lets overlapping renders that share a lazy component each plan its lazy entries', async () => {
@@ -517,6 +583,12 @@ describe('DependencyResolverService', () => {
 
 		const bundleAppConfig = {
 			...appConfig,
+			integrations: [
+				{
+					name: 'react',
+					bundlesPageDependencies: true,
+				} as unknown as EcoPagesAppConfig['integrations'][number],
+			],
 			rootDir: tempDir,
 			absolutePaths: {
 				srcDir: tempDir,
@@ -562,6 +634,122 @@ describe('DependencyResolverService', () => {
 		}
 	});
 
+	it('keeps bundleable assets in order around stylesheets with custom attributes', () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-order-'));
+		const paths = ['first.css', 'screen.css', 'last.css'].map((file) => join(tempDir, file));
+
+		try {
+			for (const [index, filepath] of paths.entries()) {
+				writeFileSync(filepath, `.example { order: ${index}; }`, 'utf-8');
+			}
+
+			const dependencies = [
+				AssetFactory.createFileStylesheet({ filepath: paths[0]!, attributes: { rel: 'stylesheet' } }),
+				AssetFactory.createFileStylesheet({
+					filepath: paths[1]!,
+					attributes: { rel: 'stylesheet', media: 'screen' },
+				}),
+				AssetFactory.createFileStylesheet({ filepath: paths[2]!, attributes: { rel: 'stylesheet' } }),
+			];
+			const packaged = packagePageDependencies(dependencies, 'react', true);
+			const packagedPaths = packaged.flatMap((dependency) =>
+				dependency.bundledSourceFilepaths?.length
+					? dependency.bundledSourceFilepaths
+					: dependency.source === 'file'
+						? [dependency.filepath]
+						: [],
+			);
+
+			expect(packagedPaths).toEqual(paths);
+		} finally {
+			vi.unstubAllEnvs();
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('keeps bundleable module scripts in order around a script with custom attributes', () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-script-order-'));
+		const paths = ['first.ts', 'integrity.ts', 'last.ts'].map((file) => join(tempDir, file));
+
+		try {
+			for (const [index, filepath] of paths.entries()) {
+				writeFileSync(filepath, `export const order${index} = ${index};`, 'utf-8');
+			}
+
+			const dependencies = [
+				AssetFactory.createFileScript({
+					filepath: paths[0]!,
+					position: 'head',
+					attributes: { type: 'module', defer: '' },
+				}),
+				AssetFactory.createFileScript({
+					filepath: paths[1]!,
+					position: 'head',
+					attributes: { type: 'module', defer: '', integrity: 'sha256-integrity' },
+				}),
+				AssetFactory.createFileScript({
+					filepath: paths[2]!,
+					position: 'head',
+					attributes: { type: 'module', defer: '' },
+				}),
+			];
+			const packaged = packagePageDependencies(dependencies, 'react', true);
+			const packagedPaths = packaged.flatMap((dependency) =>
+				dependency.bundledSourceFilepaths?.length
+					? dependency.bundledSourceFilepaths
+					: dependency.source === 'file'
+						? [dependency.filepath]
+						: [],
+			);
+
+			expect(packagedPaths).toEqual(paths);
+		} finally {
+			vi.unstubAllEnvs();
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('retains identical stylesheet bundles on either side of an ordered stylesheet', () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-order-repeat-'));
+		const paths = ['first.css', 'second.css', 'screen.css', 'fourth.css', 'fifth.css'].map((file) =>
+			join(tempDir, file),
+		);
+		const content = [
+			'.example { color: orange; }',
+			'.example { color: red; }',
+			'.example { color: blue; }',
+			'.example { color: orange; }',
+			'.example { color: red; }',
+		];
+
+		try {
+			for (const [index, filepath] of paths.entries()) writeFileSync(filepath, content[index]!, 'utf-8');
+
+			const dependencies = [
+				AssetFactory.createFileStylesheet({ filepath: paths[0]!, attributes: { rel: 'stylesheet' } }),
+				AssetFactory.createFileStylesheet({ filepath: paths[1]!, attributes: { rel: 'stylesheet' } }),
+				AssetFactory.createFileStylesheet({
+					filepath: paths[2]!,
+					attributes: { rel: 'stylesheet', media: 'screen' },
+				}),
+				AssetFactory.createFileStylesheet({ filepath: paths[3]!, attributes: { rel: 'stylesheet' } }),
+				AssetFactory.createFileStylesheet({ filepath: paths[4]!, attributes: { rel: 'stylesheet' } }),
+			];
+			const packaged = packagePageDependencies(dependencies, 'react', true);
+			const deduplicated = deduplicateAssetDependencies(packaged);
+
+			expect(deduplicated).toHaveLength(3);
+			expect(deduplicated[0]?.bundledSourceFilepaths).toEqual([paths[0], paths[1]]);
+			expect(deduplicated[2]?.bundledSourceFilepaths).toEqual([paths[3], paths[4]]);
+		} finally {
+			vi.unstubAllEnvs();
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it('should keep bundleable page stylesheets and scripts as file assets during development', async () => {
 		vi.stubEnv('NODE_ENV', 'development');
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-style-dev-'));
@@ -587,6 +775,12 @@ describe('DependencyResolverService', () => {
 
 		const bundleAppConfig = {
 			...appConfig,
+			integrations: [
+				{
+					name: 'react',
+					bundlesPageDependencies: true,
+				} as unknown as EcoPagesAppConfig['integrations'][number],
+			],
 			rootDir: tempDir,
 			absolutePaths: {
 				srcDir: tempDir,

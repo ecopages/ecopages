@@ -122,6 +122,10 @@ test('EcopagesJsxPlugin skips the explicit Radiant hydrator bootstrap when Radia
 	assert.equal(dependency, undefined);
 });
 
+test('EcopagesJsxPlugin enables page dependency bundling', () => {
+	assert.equal(new EcopagesJsxPlugin({ radiant: false }).bundlesPageDependencies, true);
+});
+
 test('EcopagesJsxPlugin registers Radiant SSR invalidation when Radiant is enabled', () => {
 	const appConfig = { runtime: {} } as EcoPagesAppConfig;
 	const plugin = new EcopagesJsxPlugin();

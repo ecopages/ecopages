@@ -33,6 +33,7 @@ import { resolveDocumentShellLayouts } from '@ecopages/core/route-renderer/orche
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
 import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import { resolveQueuedTokens } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
 import type { ReactNode } from 'react';
 import { hasSingleRootElement } from './html-boundary.ts';
@@ -160,7 +161,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	/**
 	 * Builds React island and lazy-entry modules in one grouped browser build.
 	 */
-	protected override async buildPageClientBrowserAssets(plan: PageClientPlan): Promise<PageClientBrowserAssets> {
+	override async buildPageClientBrowserAssets(plan: PageClientPlan): Promise<PageClientBrowserAssets> {
 		const result = await this.hydrationAssetService.buildPageClientRenderAssets({
 			islands: selectHydrationIslandEntries(plan, this.name).map((entry) => ({
 				file: entry.file,
@@ -233,11 +234,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		);
 		html = restoreRuntimeChildHtml(html, runtimeContext);
 
-		return await this.foreignSubtreeExecutionService.resolveQueuedTokens(
-			html,
-			queuedResolutionsByToken,
-			resolveToken,
-		);
+		return await resolveQueuedTokens(html, queuedResolutionsByToken, resolveToken);
 	}
 
 	private buildPagePayload(options: {
@@ -308,7 +305,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			'Component',
 		);
 		const assets = input.component.config?.dependencies
-			? await this.resolveComponentRenderAssets(input.component)
+			? await this.processComponentDependencies([input.component])
 			: undefined;
 		const queuedResolution = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
 		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
@@ -403,7 +400,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		} as TPageModule;
 	}
 
-	protected override async collectPageBrowserGraphContribution(
+	override async collectPageBrowserGraphContribution(
 		context: PageBrowserGraphContributionContext,
 	): Promise<{ dependencies?: AssetDefinition[]; assets?: ProcessedAsset[] }> {
 		try {
@@ -533,13 +530,13 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 
 		return renderPageDocumentShell(
 			{
-				integrationName: this.name,
 				renderComponentWithForeignChildren: (renderInput) =>
 					this.renderComponentWithForeignChildren(renderInput),
 				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
 			},
 			{
 				...input,
+				inheritedOwner: this.name,
 				composeChildren,
 			},
 			this.DOC_TYPE,
@@ -554,7 +551,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 * serialize only the browser-safe page payload, compose the mixed React/non-
 	 * React shell tree, and hand the result back as a document body.
 	 */
-	async render({
+	override async render({
 		params,
 		query,
 		props,

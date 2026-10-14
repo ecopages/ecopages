@@ -25,10 +25,8 @@ test('a failed preview shutdown still tears down Integrations and allows setup a
 			projectWatcher: undefined,
 			hmrManager: undefined,
 			bridge: undefined,
-			previewHost: {
-				async stop() {
-					throw new Error('preview shutdown failed');
-				},
+			stopPreviewServer: async () => {
+				throw new Error('preview shutdown failed');
 			},
 		}),
 		/preview shutdown failed/,
@@ -50,10 +48,8 @@ test('several failed cleanup steps reject with every error', async () => {
 			projectWatcher: undefined,
 			hmrManager: undefined,
 			bridge: undefined,
-			previewHost: {
-				async stop() {
-					throw new Error('preview shutdown failed');
-				},
+			stopPreviewServer: async () => {
+				throw new Error('preview shutdown failed');
 			},
 		}),
 		(error: unknown) => {
@@ -84,7 +80,7 @@ test('the next start attaches the new HMR manager after shutdown', async () => {
 		projectWatcher: undefined,
 		hmrManager: undefined,
 		bridge: undefined,
-		previewHost: { async stop() {} },
+		stopPreviewServer: async () => {},
 	});
 	attachHmrToIntegrations(appConfig, secondManager);
 	assert.equal(attached.length, 2);
@@ -114,7 +110,7 @@ test('an Integration setup still in flight finishes before teardown', async () =
 		projectWatcher: undefined,
 		hmrManager: undefined,
 		bridge: undefined,
-		previewHost: { async stop() {} },
+		stopPreviewServer: async () => {},
 	});
 	await new Promise<void>((resolve) => setImmediate(resolve));
 	finishSetup();
@@ -141,7 +137,7 @@ test('a failed Integration teardown still lets the next startup run setup', asyn
 			projectWatcher: undefined,
 			hmrManager: undefined,
 			bridge: undefined,
-			previewHost: { async stop() {} },
+			stopPreviewServer: async () => {},
 		}),
 		/teardown failed/,
 	);

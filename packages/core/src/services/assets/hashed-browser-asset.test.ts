@@ -71,10 +71,11 @@ test('reloads the output index in a fresh server module before applying immutabl
 	});
 
 	vi.resetModules();
-	const { FileSystemServerResponseFactory } =
-		await import('../../adapters/shared/http/fs-server-response-factory.ts');
-	const responseFactory = new FileSystemServerResponseFactory({ options: { watchMode: false } });
-	const response = await responseFactory.createFileResponse(filepath, 'text/javascript');
+	const { serveDistFile } = await import('../../adapters/shared/http/dist-file-handler.ts');
+	const response = await serveDistFile(new Request(`http://localhost/${path.basename(filepath)}`), {
+		distDir: directory,
+		watchMode: false,
+	});
 
-	expect(response?.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
+	expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
 });

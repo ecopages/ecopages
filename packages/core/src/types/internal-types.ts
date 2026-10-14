@@ -242,14 +242,6 @@ export type MatchResult = {
 	params: Record<string, string | string[]>;
 };
 
-/**
- * Represents the options for the file system server.
- */
-export type FileSystemServerOptions = {
-	watchMode: boolean;
-	port?: number | string;
-};
-
 // Re-export HMR types from public-types for internal use
 export type {
 	ClientBridgeEvent,

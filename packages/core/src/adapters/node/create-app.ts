@@ -33,7 +33,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 	protected createServerAdapter(
 		params: Parameters<typeof createNodeServerAdapter>[0],
 	): Promise<NodeServerAdapterResult> {
-		return createNodeServerAdapter(params);
+		return createNodeServerAdapter(params, this.runtimeHost);
 	}
 
 	public override async stop(force = true): Promise<void> {

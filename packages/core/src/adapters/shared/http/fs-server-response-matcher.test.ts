@@ -1,6 +1,5 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { fileSystem } from '@ecopages/file-system';
-import { rmSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { APP_TEST_ROUTES } from '../../../../__fixtures__/constants.ts';
 import { copyFixtureApp } from '../../../../__fixtures__/app/copy-fixture-app.ts';
@@ -205,11 +204,7 @@ const { factory: routeRendererFactoryForNoMatchTests } = createRouteRendererFact
 	appConfig.absolutePaths.error404TemplatePath,
 );
 
-const fileSystemResponseFactory = new FileSystemServerResponseFactory({
-	options: {
-		watchMode: false,
-	},
-});
+const fileSystemResponseFactory = new FileSystemServerResponseFactory();
 
 describe('FileSystemResponseMatcher', () => {
 	describe('without cache service', () => {
@@ -458,10 +453,11 @@ describe('FileSystemResponseMatcher', () => {
 		});
 
 		it('should serve text/plain files from disk', async () => {
-			const readFileAsBuffer = vi.spyOn(fileSystem, 'readFileAsBuffer').mockReturnValue(Buffer.from('robots'));
+			mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
+			writeFileSync(path.join(appConfig.absolutePaths.distDir, 'robots.txt'), 'robots');
 			const response = await matcher.handleNoMatch('/robots.txt');
-			readFileAsBuffer.mockRestore();
 			expect(response.headers.get('Content-Type')).toBe('text/plain');
+			expect(await response.text()).toBe('robots');
 		});
 
 		it('should return custom 404 page for non-existent static files', async () => {

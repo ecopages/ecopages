@@ -84,13 +84,13 @@ export async function disposeDevResources(options: {
 	appConfig: EcoPagesAppConfig;
 	hmrManager: IHmrManager | null | undefined;
 	bridge: { destroy(): void } | null | undefined;
-	previewHost: { stop(): Promise<void> };
+	stopPreviewServer: () => Promise<void>;
 }): Promise<void> {
 	const cleanup = [
 		() => options.projectWatcher?.close(),
 		() => options.hmrManager?.stop(),
 		() => options.bridge?.destroy(),
-		() => options.previewHost.stop(),
+		options.stopPreviewServer,
 		() => Promise.allSettled(options.appConfig.runtime?.integrationActivations?.values() ?? []),
 		...options.appConfig.integrations.map((integration) => () => integration.teardown()),
 	];

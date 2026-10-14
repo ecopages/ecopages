@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import chokidar from 'chokidar';
@@ -9,8 +10,8 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import type { NodeServerAdapterParams } from './server-adapter.ts';
 import { NodeServerAdapter } from './server-adapter.ts';
-import { NodeClientAbortError } from './http-request-bridge.ts';
-import { NodeStaticPreviewHost } from './static-preview-host.ts';
+import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
+import { NodeRuntimeHost } from './runtime-host.ts';
 import { Processor } from '../../plugins/processor.ts';
 import { HtmlPagesPlugin } from '../../html-pages/html-pages.plugin.ts';
 import { ServerRouteHandler } from '../shared/runtime/server-route-handler.ts';
@@ -89,7 +90,10 @@ class TestNodeServerAdapter extends NodeServerAdapter {
 	}
 }
 
-function createAdapter(options?: Partial<NodeServerAdapterParams>) {
+function createAdapter(
+	options?: Partial<NodeServerAdapterParams>,
+	runtimeHost = new NodeRuntimeHost(new NodeHttpRequestBridge()),
+) {
 	const appConfig = {
 		rootDir: '/tmp/app',
 		distDir: '.ecopages',
@@ -101,9 +105,23 @@ function createAdapter(options?: Partial<NodeServerAdapterParams>) {
 		runtimeOrigin: 'http://localhost:3000',
 		serveOptions: {},
 		options: { watch: true },
-		previewHost: new NodeStaticPreviewHost(),
+		runtimeHost,
 		...options,
 	});
+}
+
+async function getAvailablePort(): Promise<number> {
+	const server = net.createServer();
+	await new Promise<void>((resolve, reject) => {
+		server.once('error', reject);
+		server.listen(0, '127.0.0.1', () => resolve());
+	});
+	const address = server.address();
+	if (!address || typeof address === 'string') throw new Error('Expected an available TCP port');
+	await new Promise<void>((resolve, reject) => {
+		server.close((error) => (error ? reject(error) : resolve()));
+	});
+	return address.port;
 }
 
 describe('NodeServerAdapter', () => {
@@ -163,6 +181,169 @@ describe('NodeServerAdapter', () => {
 			expect.objectContaining({ baseUrl: 'http://localhost:3000' }),
 			expect.any(Object),
 		);
+	});
+
+	it('serves preview output through the runtime host', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-runtime-preview-'));
+		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		fs.mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
+		fs.writeFileSync(path.join(appConfig.absolutePaths.distDir, 'about.html'), '<h1>About</h1>');
+		const adapter = createAdapter({
+			appConfig,
+			serveOptions: { hostname: '127.0.0.1', port: await getAvailablePort() },
+			options: { watch: false },
+		});
+		adapter.setInitializedForTest();
+
+		try {
+			const previewOrigin = await adapter.servePreviewOnly();
+			if (!previewOrigin) throw new Error('Expected a preview origin');
+			const response = await fetch(`${previewOrigin}/about`);
+
+			expect(response.status).toBe(200);
+			expect(await response.text()).toBe('<h1>About</h1>');
+		} finally {
+			await adapter.dispose();
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
+	it('does not restart a preview after disposal begins during replacement shutdown', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-preview-stop-race-'));
+		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		fs.mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
+		const runtimeHost = new NodeRuntimeHost(new NodeHttpRequestBridge());
+		const adapter = createAdapter(
+			{
+				appConfig,
+				serveOptions: { hostname: '127.0.0.1', port: 0 },
+				options: { watch: false },
+			},
+			runtimeHost,
+		);
+		adapter.setInitializedForTest();
+		let releaseStop!: () => void;
+		const stopGate = new Promise<void>((resolve) => {
+			releaseStop = resolve;
+		});
+		let stopCalls = 0;
+		let replacement: Promise<string | undefined> | undefined;
+		let disposal: Promise<void> | undefined;
+
+		try {
+			const previewOrigin = await adapter.servePreviewOnly();
+			expect(previewOrigin).toBeDefined();
+			const stopServer = runtimeHost.stop.bind(runtimeHost);
+			const stop = vi.spyOn(runtimeHost, 'stop').mockImplementation(async (server, options) => {
+				stopCalls += 1;
+				if (stopCalls === 1) await stopGate;
+				await stopServer(server, options);
+			});
+			const start = vi.spyOn(runtimeHost, 'start');
+
+			replacement = adapter.servePreviewOnly();
+			await vi.waitFor(() => expect(stop).toHaveBeenCalledTimes(1), { interval: 1, timeout: 100 });
+			disposal = adapter.dispose();
+			releaseStop();
+
+			await expect(replacement).rejects.toThrow('adapter disposal has begun');
+			await disposal;
+			expect(stop).toHaveBeenCalledTimes(1);
+			expect(start).not.toHaveBeenCalled();
+		} finally {
+			releaseStop();
+			await Promise.allSettled([...(replacement ? [replacement] : []), ...(disposal ? [disposal] : [])]);
+			await adapter.dispose();
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
+	it('stops a preview whose replacement finishes binding after disposal begins', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-preview-start-race-'));
+		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		fs.mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
+		const runtimeHost = new NodeRuntimeHost(new NodeHttpRequestBridge());
+		const adapter = createAdapter(
+			{
+				appConfig,
+				serveOptions: { hostname: '127.0.0.1', port: 0 },
+				options: { watch: false },
+			},
+			runtimeHost,
+		);
+		adapter.setInitializedForTest();
+		let releaseStart!: () => void;
+		const startGate = new Promise<void>((resolve) => {
+			releaseStart = resolve;
+		});
+		let replacement: Promise<string | undefined> | undefined;
+		let disposal: Promise<void> | undefined;
+
+		try {
+			expect(await adapter.servePreviewOnly()).toBeDefined();
+			const startServer = runtimeHost.start.bind(runtimeHost);
+			const start = vi.spyOn(runtimeHost, 'start').mockImplementation(async (options) => {
+				await startGate;
+				return startServer(options);
+			});
+			const stopServer = runtimeHost.stop.bind(runtimeHost);
+			const stop = vi.spyOn(runtimeHost, 'stop').mockImplementation(async (server, options) => {
+				await stopServer(server, options);
+			});
+
+			replacement = adapter.servePreviewOnly();
+			await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(1), { interval: 1, timeout: 100 });
+			disposal = adapter.dispose();
+			releaseStart();
+
+			await expect(replacement).rejects.toThrow('adapter disposal has begun');
+			await disposal;
+			expect(stop).toHaveBeenCalledTimes(2);
+		} finally {
+			releaseStart();
+			await Promise.allSettled([...(replacement ? [replacement] : []), ...(disposal ? [disposal] : [])]);
+			await adapter.dispose();
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
+	});
+
+	it('retries preview shutdown after a failed close through the public preview path', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-preview-stop-retry-'));
+		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		fs.mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
+		fs.writeFileSync(path.join(appConfig.absolutePaths.distDir, 'about.html'), '<h1>About</h1>');
+		const runtimeHost = new NodeRuntimeHost(new NodeHttpRequestBridge());
+		const adapter = createAdapter(
+			{
+				appConfig,
+				serveOptions: { hostname: '127.0.0.1', port: 0 },
+				options: { watch: false },
+			},
+			runtimeHost,
+		);
+		adapter.setInitializedForTest();
+
+		try {
+			expect(await adapter.servePreviewOnly()).toBeDefined();
+			const stopServer = runtimeHost.stop.bind(runtimeHost);
+			const stop = vi
+				.spyOn(runtimeHost, 'stop')
+				.mockRejectedValueOnce(new Error('close failed'))
+				.mockImplementation(async (server, options) => await stopServer(server, options));
+
+			await expect(adapter.servePreviewOnly()).rejects.toThrow('close failed');
+			expect(stop).toHaveBeenCalledTimes(1);
+
+			const retriedOrigin = await adapter.servePreviewOnly();
+			expect(retriedOrigin).toBeDefined();
+			expect(stop).toHaveBeenCalledTimes(2);
+			const response = await fetch(`${retriedOrigin}/about`);
+			expect(response.status).toBe(200);
+			expect(await response.text()).toBe('<h1>About</h1>');
+		} finally {
+			await adapter.dispose();
+			fs.rmSync(rootDir, { recursive: true, force: true });
+		}
 	});
 
 	describe('runtime asset setup', () => {

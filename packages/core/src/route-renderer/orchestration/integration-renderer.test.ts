@@ -86,6 +86,37 @@ describe('IntegrationRenderer', () => {
 		expect(renderComponent).toHaveBeenCalledOnce();
 	});
 
+	it('creates renderer hooks from each app-owned renderer configuration', async () => {
+		const hookFactory = vi.fn((options) => ({
+			renderComponent: async () => ({
+				html: `<main>${options.appConfig.rootDir}</main>`,
+				canAttachAttributes: false,
+				integrationName: 'hooked',
+			}),
+		}));
+		const HookRenderer = createIntegrationRenderer('hooked', hookFactory);
+		const createRenderer = (rootDir: string) =>
+			new HookRenderer({
+				appConfig: { ...testAppConfig, rootDir } as EcoPagesAppConfig,
+				assetProcessingService: testAssetService,
+				runtimeOrigin: 'http://localhost:3000',
+			});
+		const firstRenderer = createRenderer('/app/first');
+		const secondRenderer = createRenderer('/app/second');
+		const component = (() => '') as EcoComponent;
+
+		const firstResult = await firstRenderer.renderComponent({ component, props: {} });
+		const firstRenderAgain = await firstRenderer.renderComponent({ component, props: {} });
+		const secondResult = await secondRenderer.renderComponent({ component, props: {} });
+		const secondRenderAgain = await secondRenderer.renderComponent({ component, props: {} });
+
+		expect(firstResult.html).toBe('<main>/app/first</main>');
+		expect(firstRenderAgain.html).toBe('<main>/app/first</main>');
+		expect(secondResult.html).toBe('<main>/app/second</main>');
+		expect(secondRenderAgain.html).toBe('<main>/app/second</main>');
+		expect(hookFactory).toHaveBeenCalledTimes(2);
+	});
+
 	it('resolves queued children through the optional Integration hook', async () => {
 		const foreignChildValue = { $$typeof: Symbol.for('react.element') };
 		const renderComponent = vi.fn(async (input: ComponentRenderInput) => ({

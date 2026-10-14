@@ -160,10 +160,10 @@ test('collectPageClientPlan lists a component once when several foreign parents 
 	);
 });
 
-test('collectPageClientPlan gives a component with both an identity and a config integration the config one', () => {
+test('a Kita Page hydrates a component under its config integration when its file belongs to Kita', () => {
 	const child = {
 		config: {
-			integration: 'react',
+			integration: 'lit',
 			identity: { id: 'child', file: '/app/child.tsx', integration: 'kitajs' },
 			dependencies: { components: [] },
 		},
@@ -174,7 +174,11 @@ test('collectPageClientPlan gives a component with both an identity and a config
 
 	assert.deepEqual(
 		plan.islandEntries.map((entry) => [entry.file, entry.integrationName]),
-		[['/app/child.tsx', 'react']],
+		[['/app/child.tsx', 'lit']],
+	);
+	assert.deepEqual(
+		selectHydrationIslandEntries(plan, 'lit').map((entry) => entry.file),
+		['/app/child.tsx'],
 	);
 });
 

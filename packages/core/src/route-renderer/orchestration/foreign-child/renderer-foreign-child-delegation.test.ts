@@ -63,11 +63,11 @@ describe('renderer foreign-child delegation', () => {
 
 	it('should delegate foreign component boundaries through the shared execution seam', async () => {
 		const foreignRenderer = {
-			name: 'foreign-renderer',
+			name: 'lit',
 			renderComponentWithForeignChildren: vi.fn(async () => ({
 				html: '<aside>Owned by foreign renderer</aside>',
 				canAttachAttributes: true,
-				integrationName: 'foreign-renderer',
+				integrationName: 'lit',
 			})),
 		} as unknown as IntegrationRenderer;
 
@@ -79,7 +79,7 @@ describe('renderer foreign-child delegation', () => {
 				runtime: {},
 				integrations: [
 					createMockIntegrationPlugin({
-						name: 'foreign-renderer',
+						name: 'lit',
 						initializeRenderer,
 						setup,
 					}),
@@ -88,14 +88,15 @@ describe('renderer foreign-child delegation', () => {
 			assetProcessingService: testAssetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});
+		renderer.name = 'kitajs';
 
 		const ForeignComponent = (() => '<aside>Foreign</aside>') as EcoComponent<Record<string, unknown>>;
 		ForeignComponent.config = {
-			integration: 'foreign-renderer',
+			integration: 'lit',
 			identity: {
 				id: 'foreign-component',
 				file: '/app/components/foreign-component.tsx',
-				integration: 'foreign-renderer',
+				integration: 'kitajs',
 			},
 		};
 
@@ -109,7 +110,7 @@ describe('renderer foreign-child delegation', () => {
 		expect(result).toEqual(
 			expect.objectContaining({
 				html: '<aside>Owned by foreign renderer</aside>',
-				integrationName: 'foreign-renderer',
+				integrationName: 'lit',
 			}),
 		);
 		expect(setup).toHaveBeenCalledTimes(1);

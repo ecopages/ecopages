@@ -7,6 +7,7 @@
  * @module ServerAdapter
  */
 
+import type { AppRuntime } from '../../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { ApiHandler } from '../../types/public-types.ts';
 import type { StaticGenerationRoute } from '../../router/server/route-registry.ts';
@@ -16,6 +17,8 @@ import type { StaticGenerationRoute } from '../../router/server/route-registry.t
  */
 export interface ServerAdapterOptions {
 	appConfig: EcoPagesAppConfig;
+	/** The runtime assembled for `appConfig`. `createApp()` passes `requireAppRuntime(appConfig)`. */
+	runtime: AppRuntime;
 	apiHandlers?: ApiHandler<string, any>[];
 	options?: {
 		watch?: boolean;
@@ -55,15 +58,18 @@ export abstract class AbstractServerAdapter<
 	TResult extends ServerAdapterResult = ServerAdapterResult,
 > {
 	protected appConfig: EcoPagesAppConfig;
+	protected readonly runtime: AppRuntime;
 	protected options: TOptions['options'];
 	protected serveOptions: TOptions['serveOptions'];
 	protected runtimeOrigin: string;
 
 	constructor(options: TOptions) {
 		this.appConfig = options.appConfig;
+		this.runtime = options.runtime;
 		this.options = options.options || {};
 		this.serveOptions = options.serveOptions || {};
 		this.runtimeOrigin = options.runtimeOrigin;
+		this.runtime.origin = options.runtimeOrigin;
 	}
 
 	/**
@@ -71,6 +77,7 @@ export abstract class AbstractServerAdapter<
 	 */
 	public applyBoundPort(input: { port: number; runtimeOrigin: string }): void {
 		this.runtimeOrigin = input.runtimeOrigin;
+		this.runtime.origin = input.runtimeOrigin;
 		this.serveOptions = {
 			...this.serveOptions,
 			port: input.port,

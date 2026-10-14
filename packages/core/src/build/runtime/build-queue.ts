@@ -126,11 +126,15 @@ export function requireBuildQueue(appConfig: EcoPagesAppConfig): BuildQueue {
  * Installs the build queue of one app instance on the app's runtime state.
  *
  * @remarks
- * The queue builds with the app's installed {@link BuildAdapter}.
+ * The queue builds with the app's installed {@link BuildAdapter}. Startup installs a queue again after
+ * finalization, so an assembled {@link AppRuntime} takes that later queue instead of keeping the first one.
  */
 export function installBuildQueue(appConfig: EcoPagesAppConfig): BuildQueue {
 	const buildQueue = new BuildQueue(getAppBuildAdapter(appConfig));
 	appConfig.runtime = { ...(appConfig.runtime ?? {}), buildQueue };
+	if (appConfig.appRuntime) {
+		appConfig.appRuntime.buildQueue = buildQueue;
+	}
 	return buildQueue;
 }
 

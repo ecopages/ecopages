@@ -16,6 +16,7 @@ import type { AppModuleLoader } from '../services/module-loading/app-module-load
 import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { SessionPageBrowserGraphCache } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import type { ServerModuleTranspiler } from '../services/module-loading/server-module-transpiler.service.ts';
+import type { AppRuntime } from '../config/app-runtime.ts';
 import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 
 /** Integration hook for registered `dependencies.scripts` entrypoint changes in dev. */
@@ -165,6 +166,14 @@ export type EcoPagesAppConfig = {
 	 * @default { store: 'memory', defaultStrategy: 'static', enabled: true }
 	 */
 	cache?: CacheConfig;
+	/**
+	 * The one runtime assembled by config finalization.
+	 *
+	 * @remarks
+	 * Absent on a config that skipped finalization. Read it with `requireAppRuntime`, which throws
+	 * rather than inventing a build adapter, manifest, or graph.
+	 */
+	appRuntime?: AppRuntime;
 	/**
 	 * Runtime-owned services attached after config construction.
 	 *

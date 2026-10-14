@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import chokidar from 'chokidar';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import type { AppRuntime } from '../../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
@@ -107,6 +108,7 @@ function createAdapter(
 		options: { watch: true },
 		runtimeHost,
 		...options,
+		runtime: options?.runtime ?? ({ origin: 'http://localhost:3000', hmr: null } as AppRuntime),
 	});
 }
 

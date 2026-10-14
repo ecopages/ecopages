@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, test, vi } from 'vitest';
 import { HMR_RUNTIME_SCRIPT_URL } from '../../../hmr/hmr-runtime-paths.ts';
 import { injectDevClientRuntimes } from '../../../hmr/dev-client-runtime.ts';
+import type { AppRuntime } from '../../../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { ServerAdapterResult } from '../../abstract/server-adapter.ts';
@@ -124,8 +125,10 @@ class TestSharedServerAdapter extends SharedServerAdapter<any, ServerAdapterResu
 	}
 
 	constructor(rootDir: string, appConfig?: EcoPagesAppConfig, options: { watch?: boolean } = {}) {
+		const config = appConfig ?? ({ rootDir } as EcoPagesAppConfig);
 		super({
-			appConfig: appConfig ?? ({ rootDir } as EcoPagesAppConfig),
+			appConfig: config,
+			runtime: config.appRuntime ?? ({ origin: 'http://localhost:3000', hmr: null } as AppRuntime),
 			runtimeOrigin: 'http://localhost:3000',
 			serveOptions: {},
 			options,

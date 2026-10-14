@@ -722,12 +722,17 @@ describe('PageModuleImportService', () => {
 		}
 	});
 
-	it('should give every runtime a new compiled filename after development graph invalidation', async () => {
+	it.each([
+		{ name: 'without a config', assemble: false },
+		{ name: 'on a finalized config', assemble: true },
+	])('gives a new compiled filename after development graph invalidation $name', async ({ assemble }) => {
 		vi.stubEnv('NODE_ENV', 'development');
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-invalidate-filename-'));
+		const rootDir = assemble ? mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-invalidate-root-')) : '/app';
 		let buildCount = 0;
+		const appConfig = assemble ? await finalizeEcoPagesConfig({ rootDir }) : undefined;
 
-		service = new PageModuleImportService(undefined, {
+		service = new PageModuleImportService(appConfig, {
 			...fakeDependencies.dependencies,
 			async buildModule(options, buildExecutor) {
 				fakeDependencies.calls.buildModule.push({ options, buildExecutor });
@@ -745,7 +750,7 @@ describe('PageModuleImportService', () => {
 		try {
 			const first = await service.importModule<{ version: number }>({
 				filePath: '/app/pages/page.tsx',
-				rootDir: '/app',
+				rootDir,
 				outdir: tempDir,
 				bypassCache: true,
 			});
@@ -754,7 +759,7 @@ describe('PageModuleImportService', () => {
 
 			const second = await service.importModule<{ version: number }>({
 				filePath: '/app/pages/page.tsx',
-				rootDir: '/app',
+				rootDir,
 				outdir: tempDir,
 				bypassCache: true,
 			});
@@ -766,6 +771,9 @@ describe('PageModuleImportService', () => {
 			assert.equal(fakeDependencies.calls.buildModule[1]?.options.naming, 'page-hash123-1.[ext]');
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
+			if (assemble) {
+				rmSync(rootDir, { recursive: true, force: true });
+			}
 		}
 	});
 });

@@ -2,6 +2,7 @@ import { parentPort } from 'node:worker_threads';
 import { loadEcoPagesConfig } from '@ecopages/core/config';
 import { setupAppRuntimePlugins } from '@ecopages/core/build/build-adapter';
 import { installBuildQueue } from '@ecopages/core/build/build-queue';
+import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
 import { RouteRendererFactory } from '@ecopages/core/route-renderer/route-renderer';
 import type { EcoPagesAppConfig, PageParams, PageQuery } from '@ecopages/core';
 import type {
@@ -34,6 +35,7 @@ async function initializeWorker(configModulePath: string, runtimeOrigin: string)
 
 	routeRendererFactory = new RouteRendererFactory({
 		appConfig,
+		runtime: requireAppRuntime(appConfig),
 		runtimeOrigin,
 	});
 }

@@ -475,8 +475,15 @@ const pageCacheByAppConfig = new WeakMap<EcoPagesAppConfig, PageCacheService>();
 
 /**
  * Registers the page cache service for one app config instance.
+ *
+ * @remarks
+ * An assembled app runtime stores the same value, including `null` when caching is off.
  */
 export function registerAppPageCacheService(appConfig: EcoPagesAppConfig, service: PageCacheService | null): void {
+	if (appConfig.appRuntime) {
+		appConfig.appRuntime.pageCache = service;
+	}
+
 	if (service) {
 		pageCacheByAppConfig.set(appConfig, service);
 		return;

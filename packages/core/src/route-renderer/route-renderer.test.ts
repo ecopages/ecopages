@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { AppRuntime } from '../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { RouteRendererFactory } from './route-renderer.ts';
+
+function testRuntime(origin: string): AppRuntime {
+	return { origin, hmr: null } as AppRuntime;
+}
 
 describe('RouteRendererFactory runtime binding', () => {
 	it('discards origin-bound renderers when the listening origin changes', () => {
@@ -15,6 +20,7 @@ describe('RouteRendererFactory runtime binding', () => {
 		};
 		const factory = new RouteRendererFactory({
 			appConfig: { integrations: [integration] } as unknown as EcoPagesAppConfig,
+			runtime: testRuntime('http://localhost:3000'),
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
@@ -37,6 +43,7 @@ describe('RouteRendererFactory runtime binding', () => {
 		};
 		const factory = new RouteRendererFactory({
 			appConfig: { integrations: [integration] } as unknown as EcoPagesAppConfig,
+			runtime: testRuntime('http://localhost:3000'),
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
@@ -49,6 +56,7 @@ describe('RouteRendererFactory runtime binding', () => {
 		const html = { name: 'html', extensions: ['.html'] };
 		const factory = new RouteRendererFactory({
 			appConfig: { integrations: [html] } as unknown as EcoPagesAppConfig,
+			runtime: testRuntime('http://localhost:3000'),
 			runtimeOrigin: 'http://localhost:3000',
 		});
 

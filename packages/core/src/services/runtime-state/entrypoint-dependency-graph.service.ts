@@ -80,6 +80,10 @@ export function getAppEntrypointDependencyGraph(appConfig: EcoPagesAppConfig): E
 
 /**
  * Installs the dependency graph used by one app instance.
+ *
+ * @remarks
+ * The HMR manager replaces finalization's no-op graph once development starts. An assembled app runtime
+ * keeps that replacement, so readers of either slot see one graph.
  */
 export function setAppEntrypointDependencyGraph(
 	appConfig: EcoPagesAppConfig,
@@ -89,4 +93,7 @@ export function setAppEntrypointDependencyGraph(
 		...(appConfig.runtime ?? {}),
 		entrypointDependencyGraph,
 	};
+	if (appConfig.appRuntime) {
+		appConfig.appRuntime.entrypointDependencyGraph = entrypointDependencyGraph;
+	}
 }

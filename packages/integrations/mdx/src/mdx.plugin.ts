@@ -12,12 +12,7 @@ import { MDXRenderer } from './mdx-renderer.ts';
 import type { MDXPluginConfig } from './mdx.types.ts';
 import type { JsxImportSource } from './core/jsx-import-source.ts';
 
-export type {
-	MDXPluginConfig,
-	MDXRendererConfig,
-	MDXRendererOptions,
-	StandaloneMdxCompilerOptions,
-} from './mdx.types.ts';
+export type { MDXPluginConfig, StandaloneMdxCompilerOptions } from './mdx.types.ts';
 export type { JsxImportSource, KnownJsxImportSource, ThirdPartyJsxImportSource } from './core/jsx-import-source.ts';
 
 const appLogger = new Logger('[MDXPlugin]');
@@ -119,16 +114,6 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 		this.compilerOptions = finalCompilerOptions;
 
 		appLogger.debug(`MDX plugin configured with jsxImportSource: ${jsxImportSource}`);
-	}
-
-	override initializeRenderer(): MDXRenderer {
-		const renderer = new this.renderer({
-			...this.createRendererOptions(),
-			mdxConfig: {
-				compilerOptions: this.compilerOptions,
-			},
-		});
-		return this.attachRendererRuntimeServices(renderer);
 	}
 
 	override plugins(app: EcoPagesAppConfig): EcoBuildPlugin[] {

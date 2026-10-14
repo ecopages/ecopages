@@ -104,11 +104,18 @@ describe('IntegrationRenderer', () => {
 		const firstRenderer = createRenderer('/app/first');
 		const secondRenderer = createRenderer('/app/second');
 		const component = (() => '') as EcoComponent;
+		const processDependencies = vi.spyOn(testAssetService, 'processDependencies');
+		processDependencies.mockClear();
 
 		const firstResult = await firstRenderer.renderComponent({ component, props: {} });
 		const firstRenderAgain = await firstRenderer.renderComponent({ component, props: {} });
 		const secondResult = await secondRenderer.renderComponent({ component, props: {} });
 		const secondRenderAgain = await secondRenderer.renderComponent({ component, props: {} });
+		const resolveDependencies = hookFactory.mock.calls[0][0].resolveDependencies;
+
+		expect(await resolveDependencies([])).toEqual([]);
+		expect(processDependencies).toHaveBeenCalledOnce();
+		expect(processDependencies).toHaveBeenCalledWith([], 'hooked');
 
 		expect(firstResult.html).toBe('<main>/app/first</main>');
 		expect(firstRenderAgain.html).toBe('<main>/app/first</main>');

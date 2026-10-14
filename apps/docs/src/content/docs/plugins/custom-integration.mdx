@@ -93,7 +93,7 @@ export class TemplateIntegration extends IntegrationPlugin {
 
 ## Creating a Custom Renderer
 
-`createIntegrationRenderer(name, hooks)` returns an `IntegrationRenderer` class without requiring a renderer subclass. Pass a hook object when its callbacks need no renderer-specific setup, or pass a factory that receives the renderer's app config, asset service, and runtime origin. Core calls that factory once for each renderer instance, then supplies the route `render()` implementation, shared document shell, per-render session, dependency handling, and final document transform.
+`createIntegrationRenderer(name, hooks)` returns an `IntegrationRenderer` class without requiring a renderer subclass. Pass a hook object when its callbacks need no renderer-specific setup, or pass a factory that receives the renderer's app config, asset service, runtime origin, and `resolveDependencies()` helper. Core calls that factory once for each renderer instance, then supplies the route `render()` implementation, shared document shell, per-render session, dependency handling, and final document transform. Use `resolveDependencies()` when a hook contributes a custom component list to the Page Browser Graph; it keeps lazy scripts, integration dependencies, and asset processing on core's existing path.
 
 ```typescript
 import { createIntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';

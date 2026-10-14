@@ -52,13 +52,14 @@ describeRendererContract({
 });
 
 class ImportTestMdxRenderer extends MDXRenderer {
-	public normalizeForTest(module: Parameters<MDXRenderer['normalizeImportedPageFile']>[1]) {
+	public normalizeForTest(module: EcoPageFile) {
 		return this.normalizeImportedPageFile('/tmp/page.mdx', module as never);
 	}
 }
 
 class BrowserGraphTestMdxRenderer extends MDXRenderer {
 	public resolvedComponents: Array<EcoComponent | Partial<EcoComponent>> = [];
+	public resolvedAssets: ProcessedAsset[] = [];
 
 	public collectForTest(context: PageBrowserGraphContributionContext) {
 		return this.collectPageBrowserGraphContribution(context);
@@ -68,7 +69,7 @@ class BrowserGraphTestMdxRenderer extends MDXRenderer {
 		components: Array<EcoComponent | Partial<EcoComponent>>,
 	): Promise<ProcessedAsset[]> {
 		this.resolvedComponents = components;
-		return [];
+		return this.resolvedAssets;
 	}
 }
 
@@ -113,6 +114,8 @@ describe('MDXRenderer', () => {
 			const Layout = (async ({ children }: { children: EcoPagesElement }) => children) as EcoComponent<{
 				children: EcoPagesElement;
 			}>;
+			const layoutAsset = { kind: 'script', inline: false, srcUrl: '/assets/mdx-layout.js' } as ProcessedAsset;
+			renderer.resolvedAssets = [layoutAsset];
 			Layout.config = {
 				identity: { id: 'imported-mdx-layout', file: '/app/layouts/site.mdx', integration: 'mdx' },
 				dependencies: { scripts: ['./site.client.js'] },
@@ -125,7 +128,7 @@ describe('MDXRenderer', () => {
 			};
 			Page.config = pageConfig;
 
-			await renderer.collectForTest({
+			const contribution = await renderer.collectForTest({
 				file: '/app/pages/post.mdx',
 				pageModule: { default: Page, config: pageConfig } as EcoPageFile,
 			});
@@ -134,6 +137,7 @@ describe('MDXRenderer', () => {
 				{ id: 'imported-mdx-layout', file: '/app/layouts/site.mdx', integration: 'mdx' },
 				{ id: 'existing-page-identity', file: '/app/pages/post.mdx', integration: 'mdx' },
 			]);
+			expect(contribution?.assets).toEqual([layoutAsset]);
 		});
 	});
 

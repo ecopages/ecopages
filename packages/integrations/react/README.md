@@ -72,6 +72,8 @@ Important:
 - React still keeps its own child transport and hydration rules for React-owned subtrees.
 - React renderers use the required core `AssetProcessingService` to process declared component and MDX config dependencies.
 
+React uses the shared core route and document-shell pipeline. Its renderer hooks supply the browser-safe page payload, unified React layout composition, document contributions and router ownership attributes, and one grouped island/lazy browser build.
+
 ## Server and Client Graph Contract
 
 The React integration supports Node.js modules and server-only code **only on the server execution graph**.

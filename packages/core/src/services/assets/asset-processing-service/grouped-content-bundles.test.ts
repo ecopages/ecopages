@@ -99,7 +99,7 @@ describe('grouped-content-bundles', () => {
 
 		const results = await processGroupedDependencyBundles({
 			bundles: [bundleDeps],
-			getCachedAsset: () => null,
+			getCachedBundle: () => null,
 			getDependencyKey: (dep) => (dep.kind === 'script' && dep.source === 'content' ? dep.content : dep.kind),
 			getGroupedProcessor: (_deps) => ({
 				processGrouped: vi.fn(async (): Promise<ProcessedAsset[]> => [
@@ -119,7 +119,7 @@ describe('grouped-content-bundles', () => {
 				]),
 			}),
 			resolveProcessedAssetSrcUrl: (processed) => processed.filepath?.replace('/test/dist', '') ?? undefined,
-			setCachedAsset: vi.fn(),
+			setCachedBundle: vi.fn(),
 			logError: vi.fn(),
 		});
 
@@ -127,5 +127,46 @@ describe('grouped-content-bundles', () => {
 			'/test/dist/assets/page-entry.js',
 			'/test/dist/assets/lazy-entry.js',
 		]);
+	});
+
+	test('processGroupedDependencyBundles does not cache an incomplete processor result', async () => {
+		const bundleId = 'bundle-1';
+		const bundleDeps = [
+			{
+				kind: 'script' as const,
+				source: 'content' as const,
+				content: 'import "/page.js";',
+				groupedBundle: { id: bundleId, entryName: 'page-entry' },
+			},
+			{
+				kind: 'script' as const,
+				source: 'content' as const,
+				content: 'import "/lazy.js";',
+				groupedBundle: { id: bundleId, entryName: 'lazy-entry' },
+			},
+		];
+		const setCachedBundle = vi.fn();
+
+		const results = await processGroupedDependencyBundles({
+			bundles: [bundleDeps],
+			getCachedBundle: () => null,
+			getDependencyKey: (dep) => (dep.kind === 'script' && dep.source === 'content' ? dep.content : dep.kind),
+			getGroupedProcessor: () => ({
+				processGrouped: vi.fn(async (): Promise<ProcessedAsset[]> => [
+					{
+						filepath: '/test/dist/assets/page-entry.js',
+						kind: 'script',
+						inline: false,
+						groupedBundle: { id: bundleId, entryName: 'page-entry' },
+					},
+				]),
+			}),
+			resolveProcessedAssetSrcUrl: (processed) => processed.filepath?.replace('/test/dist', '') ?? undefined,
+			setCachedBundle,
+			logError: vi.fn(),
+		});
+
+		expect(results).toHaveLength(1);
+		expect(setCachedBundle).not.toHaveBeenCalled();
 	});
 });

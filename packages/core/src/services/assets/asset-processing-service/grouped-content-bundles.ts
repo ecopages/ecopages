@@ -64,41 +64,40 @@ type GroupedBundleProcessor = {
 
 type ProcessGroupedDependencyBundlesOptions = {
 	bundles: AssetDefinition[][];
-	getCachedAsset: (dep: AssetDefinition, depKey: string) => ProcessedAsset | null;
+	getCachedBundle: (deps: AssetDefinition[], depKeys: string[]) => ProcessedAsset[] | null;
 	getDependencyKey: (dep: AssetDefinition) => string;
 	getGroupedProcessor: (deps: AssetDefinition[]) => GroupedBundleProcessor | undefined;
 	resolveProcessedAssetSrcUrl: (processed: ProcessedAsset) => string | undefined;
-	setCachedAsset: (dep: AssetDefinition, depKey: string, processed: ProcessedAsset) => void;
+	setCachedBundle: (deps: AssetDefinition[], depKeys: string[], processed: ProcessedAsset[]) => void;
 	logError: (error: unknown) => void;
 };
 
 /**
- * Processes grouped content-script bundles while preserving per-entry cache keys.
+ * Processes grouped script bundles while caching each complete group.
  *
- * When every dependency in a bundle already has a cached processed asset, the cached
- * entries are returned directly and the grouped processor is skipped.
+ * @remarks
+ * The cache owner must only return a bundle when its complete dependency set was built
+ * together. Partial processor results are returned, but are not cached as a complete group.
  */
 export async function processGroupedDependencyBundles(
 	options: ProcessGroupedDependencyBundlesOptions,
 ): Promise<ProcessedAsset[]> {
 	const {
 		bundles,
-		getCachedAsset,
+		getCachedBundle,
 		getDependencyKey,
 		getGroupedProcessor,
 		resolveProcessedAssetSrcUrl,
-		setCachedAsset,
+		setCachedBundle,
 		logError,
 	} = options;
 
 	const groupedPromises = bundles.map(async (bundleDeps) => {
-		const cachedResults = bundleDeps.map((dep) => {
-			const cached = getCachedAsset(dep, getDependencyKey(dep));
-			return cached ? finalizeProcessedAsset(cached, resolveProcessedAssetSrcUrl) : null;
-		});
+		const dependencyKeys = bundleDeps.map(getDependencyKey);
+		const cachedBundle = getCachedBundle(bundleDeps, dependencyKeys);
 
-		if (cachedResults.every((result) => result !== null)) {
-			return cachedResults.filter((result): result is ProcessedAsset => result !== null);
+		if (cachedBundle) {
+			return cachedBundle.map((result) => finalizeProcessedAsset(result, resolveProcessedAssetSrcUrl));
 		}
 
 		const processor = getGroupedProcessor(bundleDeps);
@@ -118,7 +117,7 @@ export async function processGroupedDependencyBundles(
 				processedByEntryKey.set(getGroupedBundleAssetKey(processed.groupedBundle), processed);
 			}
 
-			return bundleDeps.flatMap((dep) => {
+			const processedBundle = bundleDeps.flatMap((dep) => {
 				if (!isGroupedScriptDependency(dep)) {
 					return [];
 				}
@@ -128,12 +127,16 @@ export async function processGroupedDependencyBundles(
 					return [];
 				}
 
-				const depKey = getDependencyKey(dep);
 				const finalized = finalizeProcessedAsset(processed, resolveProcessedAssetSrcUrl);
 
-				setCachedAsset(dep, depKey, finalized);
 				return [finalized];
 			});
+
+			if (processedBundle.length === bundleDeps.length) {
+				setCachedBundle(bundleDeps, dependencyKeys, processedBundle);
+			}
+
+			return processedBundle;
 		} catch (error) {
 			logError(error);
 			return [];

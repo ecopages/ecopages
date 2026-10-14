@@ -5,7 +5,11 @@ import { eco } from '../../eco/eco.ts';
 import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from './foreign-child/component-render-context.ts';
 import { createRenderSession } from './foreign-child/render-session.ts';
-import { createIntegrationRenderer, IntegrationRenderer } from './integration-renderer.ts';
+import {
+	createIntegrationRenderer,
+	IntegrationRenderer,
+	type IntegrationRendererHookFactoryOptions,
+} from './integration-renderer.ts';
 import { collectPageClientPlan } from './ownership-graph/page-client-plan.ts';
 import type { PreparedComponentGraphNode } from './ownership-graph/component-graph.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -159,6 +163,42 @@ describe('IntegrationRenderer', () => {
 		expect(secondResult.html).toBe('<main>/app/second</main>');
 		expect(secondRenderAgain.html).toBe('<main>/app/second</main>');
 		expect(hookFactory).toHaveBeenCalledTimes(2);
+	});
+
+	it('merges a renderer-options hook factory over generated renderer hooks', async () => {
+		const defaultRenderComponent = vi.fn(async () => ({
+			html: '<main>default</main>',
+			canAttachAttributes: false,
+			integrationName: 'hooked',
+		}));
+		const configuredRenderComponent = vi.fn(async () => ({
+			html: '<main>configured</main>',
+			canAttachAttributes: false,
+			integrationName: 'hooked',
+		}));
+		const optionsFactory = vi.fn((_options: IntegrationRendererHookFactoryOptions) => ({
+			renderComponent: configuredRenderComponent,
+		}));
+		const HookRenderer = createIntegrationRenderer('hooked', { renderComponent: defaultRenderComponent });
+		const renderer = new HookRenderer({
+			appConfig: testAppConfig,
+			assetProcessingService: testAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+			hooks: optionsFactory,
+		});
+		const component = (() => '') as EcoComponent;
+
+		expect(
+			await renderer.renderComponent({
+				component,
+				props: {},
+			}),
+		).toMatchObject({ html: '<main>configured</main>' });
+		expect(optionsFactory).toHaveBeenCalledOnce();
+		expect(optionsFactory.mock.calls[0]?.[0].hooks?.renderComponent).toBe(defaultRenderComponent);
+		expect(optionsFactory.mock.calls[0]?.[0].resolveDependencies).toEqual(expect.any(Function));
+		expect(defaultRenderComponent).not.toHaveBeenCalled();
+		expect(configuredRenderComponent).toHaveBeenCalledOnce();
 	});
 
 	it('resolves queued children through the optional Integration hook', async () => {

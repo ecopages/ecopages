@@ -5,10 +5,50 @@ import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import remarkGfm from 'remark-gfm';
 import { VFile, type Compatible as VFileCompatible } from 'vfile';
 import { EcopagesJsxPlugin, ecopagesJsxPlugin } from '../ecopages-jsx.plugin.ts';
+import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 import { resolveMdxCompilerOptions } from '../ecopages-jsx-mdx.ts';
 import { RADIANT_INSTALL_HYDRATOR_FILEPATH } from '../resolve-radiant-install-hydrator.ts';
 import { invalidateRadiantRegisteredScriptSsrRegistration } from '../radiant-registered-script-ssr-invalidation.ts';
-import type { EcoPagesAppConfig, IHmrManager } from '@ecopages/core';
+import type { EcoComponent, EcoPageFile, EcoPagesAppConfig, IHmrManager } from '@ecopages/core';
+import { createTestAppConfig } from '@ecopages/testing';
+
+const lightDomGlobalKeys = [
+	'CSS',
+	'CustomEvent',
+	'Document',
+	'Element',
+	'Event',
+	'HTMLScriptElement',
+	'HTMLElement',
+	'Node',
+	'document',
+	'customElements',
+	'requestAnimationFrame',
+	'cancelAnimationFrame',
+	'window',
+] as const;
+
+async function withClearedLightDomGlobals<T>(run: () => Promise<T>): Promise<T> {
+	const descriptors = new Map<(typeof lightDomGlobalKeys)[number], PropertyDescriptor | undefined>();
+
+	for (const key of lightDomGlobalKeys) {
+		descriptors.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+		Reflect.deleteProperty(globalThis, key);
+	}
+
+	try {
+		return await run();
+	} finally {
+		for (const key of lightDomGlobalKeys) {
+			Reflect.deleteProperty(globalThis, key);
+			const descriptor = descriptors.get(key);
+
+			if (descriptor) {
+				Object.defineProperty(globalThis, key, descriptor);
+			}
+		}
+	}
+}
 
 function createHmrManagerStub(): IHmrManager {
 	return {
@@ -180,6 +220,50 @@ test('EcopagesJsxPlugin gives an app config for another root its own MDX loader'
 	const second = plugin.plugins({ rootDir: '/tmp/second' } as EcoPagesAppConfig)[0];
 
 	assert.notEqual(first, second);
+});
+
+test('EcopagesJsxPlugin passes resolved JSX options to custom EcopagesJsxRenderer subclasses', async () => {
+	class CustomRenderer extends EcopagesJsxRenderer {
+		public async preparePageImport(): Promise<void> {
+			await this.integrationHooks.beforeImportPageModule?.('/tmp/page.tsx');
+		}
+
+		public normalizePageModule(file: string, module: EcoPageFile): EcoPageFile {
+			return this.normalizeImportedPageFile(file, module);
+		}
+	}
+
+	await withClearedLightDomGlobals(async () => {
+		const plugin = new EcopagesJsxPlugin({
+			mdx: {
+				extensions: ['.docs.mdx'],
+			},
+		});
+		plugin.renderer = CustomRenderer;
+
+		const appConfig = await createTestAppConfig({
+			rootDir: '/tmp/ecopages-jsx-custom-renderer',
+			integrations: [plugin],
+		});
+		const renderer = plugin.getRenderer() as CustomRenderer;
+		const page = (() => '') as EcoComponent;
+		page.config = {
+			identity: { id: 'custom-renderer-page', file: '/tmp/page.docs.mdx', integration: 'ecopages-jsx' },
+		};
+
+		await renderer.preparePageImport();
+
+		assert.equal(typeof globalThis.HTMLElement, 'function');
+		assert.notEqual(
+			renderer.normalizePageModule('/tmp/page.docs.mdx', { default: page } as EcoPageFile).default,
+			page,
+		);
+		assert.equal(
+			renderer.normalizePageModule('/tmp/page.guide.mdx', { default: page } as EcoPageFile).default,
+			page,
+		);
+		assert.equal(appConfig.rootDir, '/tmp/ecopages-jsx-custom-renderer');
+	});
 });
 
 test('EcopagesJsxPlugin declares no build plugin without MDX', () => {

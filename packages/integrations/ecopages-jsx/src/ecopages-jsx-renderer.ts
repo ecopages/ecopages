@@ -1,27 +1,20 @@
 import type {
 	ComponentRenderInput,
-	ComponentRenderResult,
 	EcoComponent,
-	IntegrationRendererRenderOptions,
+	EcoFunctionComponent,
+	EcoPageFile,
+	EcoPagesElement,
 	RouteRendererBody,
 } from '@ecopages/core';
+import { HttpError } from '@ecopages/core/errors';
 import {
-	IntegrationRenderer,
-	type RouteModuleLoadOptions,
+	createIntegrationRenderer,
+	type IntegrationRendererHookFactory,
+	type IntegrationRendererHookFactoryOptions,
 } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import { resolveDocumentShellLayouts } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';
-import type {
-	QueuedForeignSubtreeChildRenderResult,
-	QueuedForeignSubtreeResolutionContext,
-} from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
 import { resolveQueuedTokens } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
-import type {
-	ForeignChildInterceptionInput,
-	ForeignChildRuntime,
-} from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
 import { createMarkupNodeLike, type JsxRenderable } from '@ecopages/jsx';
 import { renderToString, withServerCustomElementRenderHook } from '@ecopages/jsx/server';
-import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
 import {
 	isMdxFile,
 	normalizeMdxPageModule,
@@ -35,306 +28,201 @@ import {
 	CustomElementScriptPreloader,
 } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
 import { createSharedServerModuleImporter } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer';
-import type { EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';
+import type { EcopagesJsxRendererConfig } from './ecopages-jsx.types.ts';
+import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
 
-export type { EcopagesJsxRendererConfig, EcopagesJsxRendererOptions } from './ecopages-jsx.types.ts';
+export type { EcopagesJsxRendererConfig } from './ecopages-jsx.types.ts';
 
-/**
- * Local Ecopages renderer for JSX templates in the docs app.
- *
- * This keeps the integration scoped to the docs package while supporting
- * async page, layout, and html template components on the server.
- */
-export class EcopagesJsxRenderer extends IntegrationRenderer<JsxRenderable> {
-	name = ECOPAGES_JSX_PLUGIN_NAME;
-	private readonly mdxExtensions: string[];
-	private readonly radiantSsrPolicy: EcopagesJsxRadiantSsrPolicy;
-	private readonly ssrScriptPreloader: CustomElementScriptPreloader;
+export type EcopagesJsxRenderer = InstanceType<ReturnType<typeof createEcopagesJsxRenderer>>;
 
-	/**
-	 * Serializes foreign-child props for string-first boundaries.
-	 *
-	 * @remarks
-	 * DOM nodes become `outerHTML`. JSX trees, arrays, and template results are
-	 * stringified here. Other values are left for core foreign-child interception,
-	 * which rejects opaque plain objects before queueing. Cross-integration
-	 * children must use `EcoEmbed`.
-	 */
-	private normalizeForeignChildProps(props: Record<string, unknown>): Record<string, unknown> {
-		if (!('children' in props)) {
-			return props;
-		}
+/** Creates the hook-based Ecopages JSX renderer for one plugin configuration. */
+export function createEcopagesJsxRenderer(
+	jsxConfig: EcopagesJsxRendererConfig = {},
+): ReturnType<typeof createIntegrationRenderer<JsxRenderable>> {
+	return createIntegrationRenderer<JsxRenderable>(
+		ECOPAGES_JSX_PLUGIN_NAME,
+		createEcopagesJsxRendererHookFactory(jsxConfig),
+	);
+}
 
-		const children = props.children;
-		if (children === undefined || typeof children === 'string') {
-			return props;
-		}
+/** Creates JSX renderer hooks that can also configure a custom renderer subclass. */
+export function createEcopagesJsxRendererHookFactory(
+	jsxConfig: EcopagesJsxRendererConfig = {},
+): IntegrationRendererHookFactory {
+	const mdxExtensions = jsxConfig.mdxExtensions ?? ['.mdx'];
 
-		if (
-			typeof children === 'object' &&
-			children !== null &&
-			'nodeType' in children &&
-			typeof (children as { nodeType: unknown }).nodeType === 'number' &&
-			'outerHTML' in children &&
-			typeof (children as { outerHTML: unknown }).outerHTML === 'string'
-		) {
-			return {
-				...props,
-				children: (children as { outerHTML: string }).outerHTML,
-			};
-		}
-
-		if (this.isJsxSerializableForeignChild(children)) {
-			return {
-				...props,
-				children: renderToString(children as JsxRenderable),
-			};
-		}
-
-		return props;
-	}
-
-	/**
-	 * Returns whether children are a JSX/template shape this renderer can
-	 * serialize before foreign-child queueing.
-	 */
-	private isJsxSerializableForeignChild(children: unknown): boolean {
-		if (Array.isArray(children)) {
-			return true;
-		}
-
-		if (children === null || typeof children !== 'object') {
-			return false;
-		}
-
-		if ('$$typeof' in children) {
-			return true;
-		}
-
-		return 'strings' in children && Array.isArray((children as { strings: unknown }).strings);
-	}
-
-	/**
-	 * Re-renders queued JSX children inside the owning renderer so nested custom
-	 * elements and queued foreign subtrees resolve here rather than as opaque markup.
-	 */
-	private async renderQueuedForeignSubtreeChildren(
-		children: unknown,
-		queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolutionContext['queuedResolutions'][number]>,
-		resolveToken: (token: string) => Promise<string>,
-	): Promise<QueuedForeignSubtreeChildRenderResult> {
-		if (children === undefined) {
-			return {};
-		}
-
-		const html = typeof children === 'string' ? children : await this.renderJsx(children as JsxRenderable);
-
-		return {
-			html: await resolveQueuedTokens(html, queuedResolutionsByToken, resolveToken),
-		};
-	}
-
-	protected override createForeignChildRuntime(options: {
-		renderInput: ComponentRenderInput;
-		rendererCache: Map<string, IntegrationRenderer<any>>;
-	}): ForeignChildRuntime {
-		const runtime = super.createForeignChildRuntime(options);
-		const interceptForeignChild = runtime.interceptForeignChild;
-		const interceptForeignChildSync = runtime.interceptForeignChildSync;
-		const wrapInput = (input: ForeignChildInterceptionInput): ForeignChildInterceptionInput => ({
-			...input,
-			props:
-				input.targetIntegration && input.targetIntegration !== this.name
-					? this.normalizeForeignChildProps(input.props)
-					: input.props,
-		});
-
-		return {
-			interceptForeignChild: interceptForeignChild
-				? (input: ForeignChildInterceptionInput) => interceptForeignChild(wrapInput(input))
-				: undefined,
-			interceptForeignChildSync: interceptForeignChildSync
-				? (input: ForeignChildInterceptionInput) => interceptForeignChildSync(wrapInput(input))
-				: undefined,
-		};
-	}
-
-	constructor({
+	return ({
 		appConfig,
-		assetProcessingService,
-		resolvedIntegrationDependencies,
-		jsxConfig,
-		runtimeOrigin,
-	}: EcopagesJsxRendererOptions) {
-		super({
-			appConfig,
-			assetProcessingService,
-			resolvedIntegrationDependencies,
-			runtimeOrigin,
-		});
-
-		this.mdxExtensions = jsxConfig?.mdxExtensions ?? ['.mdx'];
-		const radiantSsrEnabled = jsxConfig?.radiantSsrEnabled ?? false;
-		this.radiantSsrPolicy = this.createRadiantSsrPolicy(radiantSsrEnabled);
-		this.ssrScriptPreloader = new CustomElementScriptPreloader({
+		resolveComponentDependencies,
+		resolveDependencyPath,
+	}: IntegrationRendererHookFactoryOptions) => {
+		const radiantSsrPolicy = new EcopagesJsxRadiantSsrPolicy(jsxConfig.radiantSsrEnabled ?? false);
+		const ssrScriptPreloader = new CustomElementScriptPreloader({
 			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx,
 			collectForIntegration: ECOPAGES_JSX_PLUGIN_NAME,
-			enabled: radiantSsrEnabled,
+			enabled: jsxConfig.radiantSsrEnabled ?? false,
 			logLabel: 'ecopages-jsx',
-			resolveDependencyPath: (componentDir, sourcePath) => this.resolveDependencyPath(componentDir, sourcePath),
-			/**
-			 * @remarks
-			 * Dev asset output is still the `.tsx` source, and a browser bundle is
-			 * a second Radiant graph. The page server-module loader transpiles the
-			 * script and externalizes packages, so `customElements.define` hits the
-			 * same module instances the page already loaded.
-			 */
-			importServerModule: createSharedServerModuleImporter(this.appConfig),
+			resolveDependencyPath,
+			importServerModule: createSharedServerModuleImporter(appConfig),
 		});
-	}
 
-	protected createRadiantSsrPolicy(enabled: boolean): EcopagesJsxRadiantSsrPolicy {
-		return new EcopagesJsxRadiantSsrPolicy(enabled);
-	}
+		const withCustomElementRenderHook = async <T>(render: () => T): Promise<T> =>
+			await radiantSsrPolicy.withRuntime(() =>
+				withServerCustomElementRenderHook(
+					({ instance }: { instance?: unknown; tagName: string }) =>
+						instance ? radiantSsrPolicy.renderIntrinsicElementMarkup(instance) : undefined,
+					render,
+				),
+			);
 
-	/** Returns whether the requested page file should be treated as MDX. */
-	public isMdxFile(filePath: string): boolean {
-		return isMdxFile(filePath, this.mdxExtensions);
-	}
+		const renderJsx = async (value: JsxRenderable): Promise<string> =>
+			await withCustomElementRenderHook(() => renderToString(value));
 
-	protected override async importPageFile(
-		file: string,
-		options?: RouteModuleLoadOptions,
-	): Promise<EcopagesJsxMdxPageModule> {
-		return await this.withPreparedRadiantRuntime(async () => {
-			const module = (await super.importPageFile(file, options)) as EcopagesJsxMdxPageModule;
+		const normalizeForeignChildProps = (input: {
+			targetIntegration?: string;
+			props: Record<string, unknown>;
+		}): Record<string, unknown> => {
+			if (!input.targetIntegration || input.targetIntegration === ECOPAGES_JSX_PLUGIN_NAME) {
+				return input.props;
+			}
 
-			return this.isMdxFile(file) ? normalizeMdxPageModule(file, module) : module;
-		});
-	}
+			return normalizeForeignChildren(input.props);
+		};
 
-	override async render(options: IntegrationRendererRenderOptions<JsxRenderable>): Promise<RouteRendererBody> {
-		return await this.withPreparedRadiantRuntime(async () => {
-			await this.ssrScriptPreloader.preloadSsrScripts([
-				options.Page,
-				options.Layout,
-				options.HtmlTemplate,
-				...(options.resolvedPageDependencyComponents ?? []),
-			]);
+		return {
+			beforeImportPageModule: async () => await radiantSsrPolicy.prepareRuntime(),
+			normalizePageModule: <TPageModule extends EcoPageFile>(file: string, module: TPageModule): TPageModule =>
+				isMdxFile(file, mdxExtensions)
+					? (normalizeMdxPageModule(file, module as EcopagesJsxMdxPageModule) as TPageModule)
+					: module,
+			beforeRender: async (options) => {
+				await radiantSsrPolicy.prepareRuntime();
+				await ssrScriptPreloader.preloadSsrScripts([
+					options.Page,
+					options.Layout,
+					options.HtmlTemplate,
+					...(options.resolvedPageDependencyComponents ?? []),
+				]);
+			},
+			renderComponent: async (input: ComponentRenderInput) => {
+				await radiantSsrPolicy.prepareRuntime();
+				await ssrScriptPreloader.preloadSsrScripts([input.component]);
 
-			return await withEjsxHmrOwnershipScope(async () => {
-				try {
-					const result = await this.renderPageWithDocumentShell({
-						page: {
-							component: options.Page,
-							props: {
-								...options.pageProps,
-								locals: options.pageLocals,
-							},
-						},
-						/**
-						 * @remarks Content components supplied by the Page dependency
-						 * resolver (for example the active MDX entry) carry foreign
-						 * ownership the static Page config cannot declare.
-						 */
-						foreignChildRoots: options.resolvedPageDependencyComponents,
-						layouts: resolveDocumentShellLayouts({
-							layout: options.Layout,
-							layoutEntries: options.layoutEntries,
-							params: options.params,
-							query: options.query,
-							locals: options.locals,
-						}),
-						htmlTemplate: options.HtmlTemplate,
-						metadata: options.metadata,
-						pageProps: options.pageProps ?? {},
-					});
+				return await withEjsxHmrOwnershipScope(async () => {
+					try {
+						if (typeof input.component !== 'function') {
+							throw new TypeError('JSX renderer expected a callable component.');
+						}
+						const component = input.component as AsyncEcoComponent<Record<string, unknown>>;
+						const componentProps =
+							input.children === undefined
+								? input.props
+								: {
+										...input.props,
+										children:
+											typeof input.children === 'string'
+												? createMarkupNodeLike(input.children)
+												: input.children,
+									};
+						const content = await withCustomElementRenderHook(() => component(componentProps));
+						const html = await renderJsx(content);
+						const assets = input.component.config?.dependencies
+							? await resolveComponentDependencies([input.component])
+							: undefined;
 
+						recordEjsxHmrOwnership([input.component]);
+
+						return {
+							html,
+							canAttachAttributes: true,
+							integrationName: ECOPAGES_JSX_PLUGIN_NAME,
+							assets,
+						};
+					} catch (error) {
+						throw createRenderError('Error rendering component', error);
+					}
+				});
+			},
+			renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
+				if (children === undefined) {
+					return {};
+				}
+
+				const html = typeof children === 'string' ? children : await renderJsx(children as JsxRenderable);
+				return { html: await resolveQueuedTokens(html, queuedResolutionsByToken, resolveToken) };
+			},
+			normalizeForeignChildProps: (input) => normalizeForeignChildProps(input),
+			renderRoute: async (options, render): Promise<RouteRendererBody> =>
+				await withEjsxHmrOwnershipScope(async () => {
+					const body = await render();
 					recordEjsxHmrOwnership([
 						options.Page,
 						options.Layout,
 						options.HtmlTemplate,
 						...(options.resolvedPageDependencyComponents ?? []),
 					]);
+					return body;
+				}),
+		};
+	};
+}
 
-					return result;
-				} catch (error) {
-					throw this.createRenderError('Error rendering page', error);
-				}
-			});
-		});
+export const EcopagesJsxRenderer = createEcopagesJsxRenderer();
+
+function normalizeForeignChildren(props: Record<string, unknown>): Record<string, unknown> {
+	if (!('children' in props)) {
+		return props;
 	}
 
-	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		return await this.withPreparedRadiantRuntime(async () => {
-			await this.ssrScriptPreloader.preloadSsrScripts([input.component as EcoComponent]);
-
-			return await withEjsxHmrOwnershipScope(async () => {
-				try {
-					if (typeof input.component !== 'function') {
-						throw new TypeError('JSX renderer expected a callable component.');
-					}
-					const component = input.component as AsyncEcoComponent<Record<string, unknown>>;
-
-					const componentProps =
-						input.children === undefined
-							? input.props
-							: {
-									...input.props,
-									children:
-										typeof input.children === 'string'
-											? createMarkupNodeLike(input.children)
-											: input.children,
-								};
-					const content = await this.withCustomElementRenderHook(() => component(componentProps));
-					const html = await this.renderJsx(content);
-					const queuedForeignSubtreeResolution = await this.resolveQueuedForeignSubtrees(
-						html,
-						this.getQueuedForeignSubtreeContext(input),
-						(children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
-							this.renderQueuedForeignSubtreeChildren(children, queuedResolutionsByToken, resolveToken),
-					);
-					const componentAssets = input.component.config?.dependencies
-						? await this.processComponentDependencies([input.component])
-						: [];
-					const assets = this.htmlTransformer.dedupeProcessedAssets([
-						...queuedForeignSubtreeResolution.assets,
-						...componentAssets,
-					]);
-
-					recordEjsxHmrOwnership([input.component as EcoComponent]);
-
-					return this.finalizeIslandComponentRender(input, {
-						html: queuedForeignSubtreeResolution.html,
-						canAttachAttributes: true,
-						integrationName: this.name,
-						assets,
-					});
-				} catch (error) {
-					throw this.createRenderError('Error rendering component', error);
-				}
-			});
-		});
+	const children = props.children;
+	if (children === undefined || typeof children === 'string') {
+		return props;
 	}
 
-	private async renderJsx(value: JsxRenderable): Promise<string> {
-		return await this.withCustomElementRenderHook(() => renderToString(value));
-	}
-
-	private async withCustomElementRenderHook<T>(render: () => T): Promise<T> {
-		return await this.radiantSsrPolicy.withRuntime(() =>
-			withServerCustomElementRenderHook(this.createIntrinsicCustomElementRenderHook(), render),
-		);
-	}
-
-	private async withPreparedRadiantRuntime<T>(render: () => Promise<T>): Promise<T> {
-		await this.radiantSsrPolicy.prepareRuntime();
-		return await render();
-	}
-
-	private createIntrinsicCustomElementRenderHook() {
-		return ({ instance }: { instance?: unknown; tagName: string }) => {
-			return instance ? this.radiantSsrPolicy.renderIntrinsicElementMarkup(instance) : undefined;
+	if (
+		typeof children === 'object' &&
+		children !== null &&
+		'nodeType' in children &&
+		typeof (children as { nodeType: unknown }).nodeType === 'number' &&
+		'outerHTML' in children &&
+		typeof (children as { outerHTML: unknown }).outerHTML === 'string'
+	) {
+		return {
+			...props,
+			children: (children as { outerHTML: string }).outerHTML,
 		};
 	}
+
+	if (isJsxSerializableForeignChild(children)) {
+		return {
+			...props,
+			children: renderToString(children as JsxRenderable),
+		};
+	}
+
+	return props;
+}
+
+function isJsxSerializableForeignChild(children: unknown): boolean {
+	if (Array.isArray(children)) {
+		return true;
+	}
+
+	if (children === null || typeof children !== 'object') {
+		return false;
+	}
+
+	if ('$$typeof' in children) {
+		return true;
+	}
+
+	return 'strings' in children && Array.isArray((children as { strings: unknown }).strings);
+}
+
+function createRenderError(message: string, cause?: unknown): HttpError {
+	if (HttpError.isHttpError(cause)) {
+		return cause;
+	}
+	const errorMessage = cause instanceof Error ? `${message}: ${cause.message}` : message;
+	return HttpError.InternalServerError(errorMessage);
 }

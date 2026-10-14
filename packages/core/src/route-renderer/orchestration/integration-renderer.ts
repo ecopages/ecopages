@@ -72,7 +72,7 @@ import {
 	createGroupedGraphBuildPlanKey,
 	type GroupedGraphBuildPlan,
 } from './page-browser-graph/grouped-graph-build-plan.ts';
-import type { ForeignChildRuntime } from './foreign-child/component-render-context.ts';
+import type { ForeignChildInterceptionInput, ForeignChildRuntime } from './foreign-child/component-render-context.ts';
 import { normalizeUnresolvedMarkerArtifactHtml } from './route-pipeline/marker-artifact.utils.ts';
 import { isMarkupNodeLike } from './foreign-child/foreign-child-output.utils.ts';
 import {
@@ -165,6 +165,7 @@ export type { HtmlDocumentContribution } from '../../services/html/html-transfor
 export type IntegrationRendererHooks = {
 	renderComponent?: (input: ComponentRenderInput) => Promise<ComponentRenderResult>;
 	renderQueuedChildren?: RenderQueuedForeignSubtreeChildren<QueuedForeignSubtreeResolutionContext>;
+	normalizeForeignChildProps?: (input: ForeignChildInterceptionInput) => Record<string, unknown>;
 	composeChildren?: (input: {
 		page: { component: EcoComponent; props: Record<string, unknown> };
 		layouts: DocumentShellLayoutInput[];
@@ -178,7 +179,12 @@ export type IntegrationRendererHooks = {
 	documentAttributes?: <C>(renderOptions: IntegrationRendererRenderOptions<C>) => Record<string, string> | undefined;
 	buildIslandClientAssets?: (plan: PageClientPlan) => Promise<PageClientBrowserAssets>;
 	beforeRender?: <C>(options: IntegrationRendererRenderOptions<C>) => Promise<void>;
+	beforeImportPageModule?: (file: string) => Promise<void>;
 	transformDocumentHtml?: (html: string) => string;
+	renderRoute?: <C>(
+		renderOptions: IntegrationRendererRenderOptions<C>,
+		render: () => Promise<RouteRendererBody>,
+	) => Promise<RouteRendererBody>;
 	/** Reconciles integration-owned document markup after core transforms the response. */
 	finalizeDocument?: <C>(
 		body: RouteRendererBody,
@@ -192,11 +198,13 @@ export type IntegrationRendererOptions = {
 	assetProcessingService: AssetProcessingService;
 	resolvedIntegrationDependencies?: ProcessedAsset[];
 	runtimeOrigin: string;
-	hooks?: IntegrationRendererHooks;
+	/** Supplies Integration hooks that override or compose with renderer class defaults. */
+	hooks?: IntegrationRendererHooks | IntegrationRendererHookFactory;
 };
 
 /** Options available while creating one renderer's Integration hooks. */
-export type IntegrationRendererHookFactoryOptions = IntegrationRendererOptions & {
+export type IntegrationRendererHookFactoryOptions = Omit<IntegrationRendererOptions, 'hooks'> & {
+	hooks?: IntegrationRendererHooks;
 	/** Resolves component assets with this renderer's dependency rules and active render session. */
 	resolveDependencies: (
 		components: (EcoComponent | Partial<EcoComponent>)[],
@@ -724,6 +732,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @returns The imported module.
 	 */
 	protected async importPageFile(file: string, options?: RouteModuleLoadOptions): Promise<EcoPageFile> {
+		await this.integrationHooks.beforeImportPageModule?.(file);
 		const pageModule = await this.pageModuleLoaderService.importPageFile(file, {
 			bypassCache: options?.bypassCache,
 		});
@@ -1137,7 +1146,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Integrations can add preparation and final HTML hooks around core composition.
 	 */
 	async render(options: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {
-		try {
+		const renderRoute = async (): Promise<RouteRendererBody> => {
 			await this.beforeRender(options);
 			return await this.renderPageWithDocumentShell({
 				page: {
@@ -1162,6 +1171,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				foreignChildRoots: options.resolvedPageDependencyComponents,
 				transformDocumentHtml: (html) => this.transformDocumentHtml(html),
 			});
+		};
+
+		try {
+			return await (this.integrationHooks.renderRoute?.(options, renderRoute) ?? renderRoute());
 		} catch (error) {
 			throw this.createRenderError('Error rendering page', error);
 		}
@@ -1437,12 +1450,32 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		renderInput: ComponentRenderInput;
 		rendererCache: Map<string, IntegrationRenderer<any>>;
 	}): ForeignChildRuntime {
-		return createQueuedRuntime({
+		const runtime = createQueuedRuntime({
 			renderInput: options.renderInput,
 			rendererCache: options.rendererCache,
 			runtimeContextKey: getForeignSubtreeResolutionContextKey(this.name),
 			tokenPrefix: getForeignSubtreeTokenPrefix(this.name),
 		});
+		const normalizeForeignChildProps = this.integrationHooks.normalizeForeignChildProps;
+		if (!normalizeForeignChildProps) {
+			return runtime;
+		}
+
+		const wrapInput = (input: ForeignChildInterceptionInput): ForeignChildInterceptionInput => ({
+			...input,
+			props: normalizeForeignChildProps(input),
+		});
+		const interceptForeignChild = runtime.interceptForeignChild;
+		const interceptForeignChildSync = runtime.interceptForeignChildSync;
+
+		return {
+			interceptForeignChild: interceptForeignChild
+				? (input) => interceptForeignChild(wrapInput(input))
+				: undefined,
+			interceptForeignChildSync: interceptForeignChildSync
+				? (input) => interceptForeignChildSync(wrapInput(input))
+				: undefined,
+		};
 	}
 }
 
@@ -1461,13 +1494,21 @@ export function createIntegrationRenderer<C = EcoPagesElement>(
 		name = name;
 
 		constructor(options: IntegrationRendererOptions) {
-			const rendererHooks =
-				typeof hooks === 'function'
-					? (factoryOptions: IntegrationRendererHookFactoryOptions) => ({
-							...hooks({ ...factoryOptions, hooks: options.hooks ?? {} }),
-							...options.hooks,
-						})
-					: { ...hooks, ...options.hooks };
+			const rendererHooks = (factoryOptions: IntegrationRendererHookFactoryOptions) => {
+				const configuredHooks =
+					typeof hooks === 'function'
+						? hooks({
+								...factoryOptions,
+								hooks: typeof options.hooks === 'function' ? {} : (options.hooks ?? {}),
+							})
+						: hooks;
+				const instanceHooks =
+					typeof options.hooks === 'function'
+						? options.hooks({ ...factoryOptions, hooks: configuredHooks ?? {} })
+						: options.hooks;
+
+				return { ...configuredHooks, ...instanceHooks };
+			};
 			super({ ...options, hooks: rendererHooks });
 		}
 	};

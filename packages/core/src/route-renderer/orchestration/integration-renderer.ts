@@ -202,6 +202,13 @@ export type IntegrationRendererHookFactoryOptions = IntegrationRendererOptions &
 		components: (EcoComponent | Partial<EcoComponent>)[],
 		options?: { preparedGraph?: true },
 	) => Promise<ProcessedAsset[]>;
+	/** Resolves component-owned assets without prepending Integration-wide dependencies. */
+	resolveComponentDependencies: (
+		components: (EcoComponent | Partial<EcoComponent>)[],
+		options?: { preparedGraph?: true },
+	) => Promise<ProcessedAsset[]>;
+	/** Resolves a declared component asset relative to its owning component file. */
+	resolveDependencyPath: (componentDir: string, pathUrl: string) => string;
 };
 
 /** Creates the optional hooks for one app-owned renderer instance. */
@@ -679,6 +686,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 						runtimeOrigin,
 						hooks: {},
 						resolveDependencies: (components, options) => this.resolveDependencies(components, options),
+						resolveComponentDependencies: (components, options) =>
+							this.processComponentDependencies(components, options),
+						resolveDependencyPath: (componentDir, pathUrl) =>
+							this.resolveDependencyPath(componentDir, pathUrl),
 					})
 				: (hooks ?? {});
 	}
@@ -1383,7 +1394,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
 		const renderHook = this.integrationHooks.renderComponent;
 		if (renderHook) {
-			return this.resolveQueuedForeignChildren(input, await renderHook(input));
+			const resolvedRender = await this.resolveQueuedForeignChildren(input, await renderHook(input));
+			return this.finalizeIslandComponentRender(input, resolvedRender);
 		}
 
 		if (typeof input.component !== 'function') {

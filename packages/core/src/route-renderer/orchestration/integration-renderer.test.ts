@@ -86,6 +86,40 @@ describe('IntegrationRenderer', () => {
 		expect(renderComponent).toHaveBeenCalledOnce();
 	});
 
+	it('finalizes island attributes around hook-rendered components', async () => {
+		const HookRenderer = createIntegrationRenderer('hooked', {
+			renderComponent: async () => ({
+				html: '<button>hook-rendered</button>',
+				canAttachAttributes: true,
+				integrationName: 'hooked',
+			}),
+		});
+		const renderer = new HookRenderer({
+			appConfig: testAppConfig,
+			assetProcessingService: testAssetService,
+			runtimeOrigin: 'http://localhost:3000',
+		});
+		const component = (() => '') as EcoComponent;
+		component.config = {
+			identity: { id: 'hook-rendered', file: '/app/components/hook-rendered.tsx', integration: 'hooked' },
+			dependencies: { scripts: ['./hook-rendered.js'] },
+		};
+
+		const result = await renderer.renderComponent({
+			component,
+			props: {},
+			integrationContext: { componentInstanceId: 'hook-rendered:1' },
+		});
+
+		expect(result.rootAttributes).toEqual(
+			expect.objectContaining({
+				'data-eco-island': '',
+				'data-eco-island-integration': 'hooked',
+				'data-eco-component-id': 'hook-rendered:1',
+			}),
+		);
+	});
+
 	it('creates renderer hooks from each app-owned renderer configuration', async () => {
 		const hookFactory = vi.fn((options) => ({
 			renderComponent: async () => ({
@@ -111,9 +145,12 @@ describe('IntegrationRenderer', () => {
 		const firstRenderAgain = await firstRenderer.renderComponent({ component, props: {} });
 		const secondResult = await secondRenderer.renderComponent({ component, props: {} });
 		const secondRenderAgain = await secondRenderer.renderComponent({ component, props: {} });
-		const resolveDependencies = hookFactory.mock.calls[0][0].resolveDependencies;
+		const hookFactoryOptions = hookFactory.mock.calls[0][0];
+		const resolveDependencies = hookFactoryOptions.resolveDependencies;
 
 		expect(await resolveDependencies([])).toEqual([]);
+		expect(typeof hookFactoryOptions.resolveComponentDependencies).toBe('function');
+		expect(hookFactoryOptions.resolveDependencyPath('/app/pages', './style.css')).toBe('/app/pages/style.css');
 		expect(processDependencies).toHaveBeenCalledOnce();
 		expect(processDependencies).toHaveBeenCalledWith([], 'hooked');
 

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import { createTestAppConfig } from '@ecopages/testing';
+import { CustomElementScriptPreloader } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
 import { LitRenderer } from '../lit-renderer.ts';
 
 const PACKAGE_ROOT = fileURLToPath(new URL('../..', import.meta.url));
@@ -13,15 +14,8 @@ const FIXTURES_DIR = fileURLToPath(new URL('./fixtures/', import.meta.url));
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => `<html><body>${children}</body></html>`;
 
 class TestLitRenderer extends LitRenderer {
-	preloadRequests: Array<Array<EcoComponent | undefined>> = [];
-
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		return HtmlTemplate;
-	}
-
-	protected override async preloadSsrScripts(components: Array<EcoComponent | undefined>): Promise<void> {
-		this.preloadRequests.push(components);
-		await super.preloadSsrScripts(components);
 	}
 }
 
@@ -60,6 +54,7 @@ function createLazyHost(tagName: string, script: string): EcoComponent<object> {
 }
 
 afterEach(async () => {
+	vi.restoreAllMocks();
 	for (const dir of tempDirs.splice(0)) {
 		await rm(dir, { recursive: true, force: true });
 	}
@@ -81,6 +76,7 @@ describe('Lit SSR lazy script preload', () => {
 
 	it('preloads route-resolved dependency roots together with the page and layout', async () => {
 		const renderer = await createRenderer();
+		const preloadSpy = vi.spyOn(CustomElementScriptPreloader.prototype, 'preloadSsrScripts');
 		const Page = (async () => '<p>Page</p>') as unknown as EcoComponent<object>;
 		const Layout = (({ children }: { children: string }) => `<main>${children}</main>`) as EcoComponent<{
 			children: string;
@@ -100,6 +96,6 @@ describe('Lit SSR lazy script preload', () => {
 			HtmlTemplate,
 		});
 
-		expect(renderer.preloadRequests[0]).toEqual([Page, Layout, dependencyRoot]);
+		expect(preloadSpy.mock.calls[0]?.[0]).toEqual([Page, Layout, dependencyRoot]);
 	});
 });

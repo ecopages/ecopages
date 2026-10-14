@@ -20,7 +20,7 @@ import path from 'node:path';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
 import { litElementHydrateScript } from './lit-element-hydrate.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
-import { LitRenderer } from './lit-renderer.ts';
+import { createLitRenderer, LitRenderer } from './lit-renderer.ts';
 import { LitStaticRenderSession } from './lit-static-render-session.ts';
 
 /**
@@ -87,10 +87,9 @@ export class LitPlugin extends IntegrationPlugin {
 	}
 
 	override initializeRenderer(): LitRenderer {
-		const renderer = new this.renderer({
-			...this.createRendererOptions(),
-			getRenderSession: () => this.renderSession ?? undefined,
-		});
+		const Renderer =
+			this.renderer === LitRenderer ? createLitRenderer(() => this.renderSession ?? undefined) : this.renderer;
+		const renderer = new Renderer(this.createRendererOptions());
 		return this.attachRendererRuntimeServices(renderer);
 	}
 

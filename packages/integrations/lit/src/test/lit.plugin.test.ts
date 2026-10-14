@@ -3,6 +3,7 @@ import type { EcoPagesAppConfig } from '@ecopages/core';
 import type { StaticExportContext } from '@ecopages/core/plugins/integration-plugin';
 import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import { LitPlugin } from '../lit.plugin.ts';
+import { LitRenderer } from '../lit-renderer.ts';
 import { LitStaticRenderSession } from '../lit-static-render-session.ts';
 
 describe('LitPlugin', () => {
@@ -26,6 +27,23 @@ describe('LitPlugin', () => {
 
 		expect(dependency.content).toContain('(() => {');
 		expect(dependency.content).toContain('globalThis.litElementHydrateSupport');
+	});
+
+	it('initializes its configured renderer class', () => {
+		class CustomLitRenderer extends LitRenderer {}
+
+		const plugin = new LitPlugin();
+		plugin.renderer = CustomLitRenderer;
+		plugin.setConfig({
+			rootDir: '/app',
+			srcDir: 'src',
+			absolutePaths: { config: '/app/eco.config.ts' },
+		} as unknown as EcoPagesAppConfig);
+		plugin.setRuntimeOrigin('http://127.0.0.1:3000');
+
+		const renderer = plugin.initializeRenderer();
+
+		expect(renderer).toBeInstanceOf(CustomLitRenderer);
 	});
 });
 

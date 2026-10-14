@@ -15,7 +15,7 @@ import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration
 import { LitElement, html as litHtml } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { html as staticHtml } from 'lit/static-html.js';
-import { LitRenderer } from '../lit-renderer.ts';
+import { createLitRenderer, LitRenderer } from '../lit-renderer.ts';
 import type { LitStaticRenderSession } from '../lit-static-render-session.ts';
 
 let customElementIndex = 0;
@@ -51,8 +51,6 @@ class TestLitRenderer extends LitRenderer {
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		return this.htmlTemplate;
 	}
-
-	protected override async preloadSsrScripts(): Promise<void> {}
 }
 
 const createRenderer = () => {
@@ -688,12 +686,18 @@ describe('LitRenderer', () => {
 				sourceDependencyPaths: ['/app/pages/index.lit.tsx'],
 			}));
 
-			const renderer = new TestLitRenderer({
+			const Renderer = createLitRenderer(() => sessionHolder.current as LitStaticRenderSession | undefined);
+			class SessionLitRenderer extends Renderer {
+				renderRemoteForTest(options: RouteRendererOptions) {
+					return this.renderRemote(options);
+				}
+			}
+
+			const renderer = new SessionLitRenderer({
 				appConfig: Config,
 				assetProcessingService: createTestAssetProcessingService(Config),
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
-				getRenderSession: () => sessionHolder.current as LitStaticRenderSession | undefined,
 			});
 
 			const options = {
@@ -723,15 +727,17 @@ describe('LitRenderer', () => {
 				html: '<html>worker</html>',
 			}));
 
-			const renderer = new LitRenderer({
+			const Renderer = createLitRenderer(
+				() =>
+					({
+						renderPageInWorker,
+					}) as Pick<LitStaticRenderSession, 'renderPageInWorker'> as LitStaticRenderSession,
+			);
+			const renderer = new Renderer({
 				appConfig: Config,
 				assetProcessingService: createTestAssetProcessingService(Config),
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
-				getRenderSession: () =>
-					({
-						renderPageInWorker,
-					}) as Pick<LitStaticRenderSession, 'renderPageInWorker'> as LitStaticRenderSession,
 			});
 
 			const inProcessSpy = vi.spyOn(IntegrationRenderer.prototype, 'execute').mockResolvedValue({
@@ -761,15 +767,17 @@ describe('LitRenderer', () => {
 			const renderPageInWorker = vi.fn(async () => ({
 				html: '<html>worker</html>',
 			}));
-			const renderer = new LitRenderer({
+			const Renderer = createLitRenderer(
+				() =>
+					({
+						renderPageInWorker,
+					}) as Pick<LitStaticRenderSession, 'renderPageInWorker'> as LitStaticRenderSession,
+			);
+			const renderer = new Renderer({
 				appConfig: Config,
 				assetProcessingService: {} as never,
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
-				getRenderSession: () =>
-					({
-						renderPageInWorker,
-					}) as Pick<LitStaticRenderSession, 'renderPageInWorker'> as LitStaticRenderSession,
 			});
 			const inProcessSpy = vi.spyOn(IntegrationRenderer.prototype, 'execute').mockResolvedValue({
 				body: '<html>props-in-process</html>',

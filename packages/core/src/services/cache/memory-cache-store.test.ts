@@ -130,8 +130,8 @@ describe('MemoryCacheStore', () => {
 			await store.set('/blog/2', createEntry({ tags: ['blog'] }));
 			await store.set('/about', createEntry({ tags: ['static'] }));
 
-			const count = await store.invalidateByTags(['blog']);
-			expect(count).toBe(2);
+			const deletedKeys = await store.invalidateByTags(['blog']);
+			expect(deletedKeys).toEqual(['/blog/1', '/blog/2']);
 			expect(await store.get('/blog/1')).toBeNull();
 			expect(await store.get('/blog/2')).toBeNull();
 			expect(await store.get('/about')).not.toBeNull();
@@ -141,14 +141,14 @@ describe('MemoryCacheStore', () => {
 			await store.set('/blog/1', createEntry({ tags: ['blog', 'featured'] }));
 			await store.set('/product/1', createEntry({ tags: ['product'] }));
 
-			const count = await store.invalidateByTags(['blog', 'product']);
-			expect(count).toBe(2);
+			const deletedKeys = await store.invalidateByTags(['blog', 'product']);
+			expect(deletedKeys).toEqual(['/blog/1', '/product/1']);
 		});
 
 		test('should return 0 for non-matching tags', async () => {
 			await store.set('/page', createEntry({ tags: ['blog'] }));
-			const count = await store.invalidateByTags(['nonexistent']);
-			expect(count).toBe(0);
+			const deletedKeys = await store.invalidateByTags(['nonexistent']);
+			expect(deletedKeys).toEqual([]);
 		});
 
 		test('should clean up all tag references when entry has multiple tags', async () => {
@@ -156,15 +156,15 @@ describe('MemoryCacheStore', () => {
 			await store.set('/blog/regular', createEntry({ tags: ['blog'] }));
 			await store.set('/featured-product', createEntry({ tags: ['featured', 'product'] }));
 
-			const count = await store.invalidateByTags(['blog']);
-			expect(count).toBe(2);
+			const deletedKeys = await store.invalidateByTags(['blog']);
+			expect(deletedKeys).toEqual(['/blog/featured', '/blog/regular']);
 
 			expect(await store.get('/blog/featured')).toBeNull();
 			expect(await store.get('/blog/regular')).toBeNull();
 			expect(await store.get('/featured-product')).not.toBeNull();
 
-			const countFeatured = await store.invalidateByTags(['featured']);
-			expect(countFeatured).toBe(1);
+			const deletedFeaturedKeys = await store.invalidateByTags(['featured']);
+			expect(deletedFeaturedKeys).toEqual(['/featured-product']);
 			expect(await store.get('/featured-product')).toBeNull();
 		});
 
@@ -176,8 +176,8 @@ describe('MemoryCacheStore', () => {
 			expect(await store.get('/page1')).toBeNull();
 
 			await store.set('/page2', createEntry({ tags: ['tagB'] }));
-			const count = await store.invalidateByTags(['tagB']);
-			expect(count).toBe(1);
+			const deletedKeys = await store.invalidateByTags(['tagB']);
+			expect(deletedKeys).toEqual(['/page2']);
 		});
 	});
 
@@ -186,8 +186,8 @@ describe('MemoryCacheStore', () => {
 			await store.set('/blog/1', createEntry());
 			await store.set('/blog/2', createEntry());
 
-			const count = await store.invalidateByPaths(['/blog/1']);
-			expect(count).toBe(1);
+			const deletedKeys = await store.invalidateByPaths(['/blog/1']);
+			expect(deletedKeys).toEqual(['/blog/1']);
 			expect(await store.get('/blog/1')).toBeNull();
 			expect(await store.get('/blog/2')).not.toBeNull();
 		});
@@ -199,9 +199,14 @@ describe('MemoryCacheStore', () => {
 			await store.set('/blog/1?page=2#__eco_rt=4', createEntry());
 			await store.set('/blog/10?page=2', createEntry());
 
-			const count = await store.invalidateByPaths(['/blog/1']);
+			const deletedKeys = await store.invalidateByPaths(['/blog/1']);
 
-			expect(count).toBe(4);
+			expect(deletedKeys).toEqual([
+				'/blog/1',
+				'/blog/1?page=2',
+				'/blog/1#__eco_rt=3',
+				'/blog/1?page=2#__eco_rt=4',
+			]);
 			expect(await store.get('/blog/1')).toBeNull();
 			expect(await store.get('/blog/1?page=2')).toBeNull();
 			expect(await store.get('/blog/1#__eco_rt=3')).toBeNull();
@@ -214,8 +219,8 @@ describe('MemoryCacheStore', () => {
 			await store.set('/blog/2', createEntry());
 			await store.set('/about', createEntry());
 
-			const count = await store.invalidateByPaths(['/blog/1', '/about']);
-			expect(count).toBe(2);
+			const deletedKeys = await store.invalidateByPaths(['/blog/1', '/about']);
+			expect(deletedKeys).toEqual(['/blog/1', '/about']);
 		});
 	});
 

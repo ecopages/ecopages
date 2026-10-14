@@ -50,7 +50,8 @@ export class MemoryCacheStore implements CacheStore {
 	 * the Map (oldest/least-recently-used) is evicted to make room.
 	 * Updating an existing key refreshes its LRU position.
 	 */
-	async set(key: string, entry: CacheEntry): Promise<void> {
+	async set(key: string, entry: CacheEntry): Promise<string[]> {
+		const evictedKeys: string[] = [];
 		const existingEntry = this.cache.get(key);
 
 		if (existingEntry) {
@@ -63,7 +64,7 @@ export class MemoryCacheStore implements CacheStore {
 			this.cache.delete(key);
 		} else if (this.cache.size >= this.maxEntries) {
 			const oldestKey = this.cache.keys().next().value;
-			if (oldestKey) await this.delete(oldestKey);
+			if (oldestKey && (await this.delete(oldestKey))) evictedKeys.push(oldestKey);
 		}
 
 		this.cache.set(key, entry);
@@ -74,6 +75,8 @@ export class MemoryCacheStore implements CacheStore {
 			}
 			this.tagIndex.get(tag)!.add(key);
 		}
+
+		return evictedKeys;
 	}
 
 	/**
@@ -94,11 +97,8 @@ export class MemoryCacheStore implements CacheStore {
 		return this.cache.delete(key);
 	}
 
-	async invalidateByTags(
-		tags: string[],
-		deleteEntry: (key: string) => Promise<boolean> = (key) => this.delete(key),
-	): Promise<number> {
-		let count = 0;
+	async invalidateByTags(tags: string[]): Promise<string[]> {
+		const deletedKeys: string[] = [];
 		const keysToDelete = new Set<string>();
 
 		for (const tag of tags) {
@@ -111,25 +111,22 @@ export class MemoryCacheStore implements CacheStore {
 		}
 
 		for (const key of keysToDelete) {
-			if (await deleteEntry(key)) count++;
+			if (await this.delete(key)) deletedKeys.push(key);
 		}
 
-		return count;
+		return deletedKeys;
 	}
 
-	async invalidateByPaths(
-		paths: string[],
-		deleteEntry: (key: string) => Promise<boolean> = (key) => this.delete(key),
-	): Promise<number> {
-		let count = 0;
+	async invalidateByPaths(paths: string[]): Promise<string[]> {
+		const deletedKeys: string[] = [];
 		const pathsToDelete = new Set(paths.map(cacheKeyPath));
 		const keysToDelete = [...this.cache.keys()].filter((key) => pathsToDelete.has(cacheKeyPath(key)));
 
 		for (const key of keysToDelete) {
-			if (await deleteEntry(key)) count++;
+			if (await this.delete(key)) deletedKeys.push(key);
 		}
 
-		return count;
+		return deletedKeys;
 	}
 
 	async clear(): Promise<void> {

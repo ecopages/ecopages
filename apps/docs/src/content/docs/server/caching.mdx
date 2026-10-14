@@ -94,6 +94,8 @@ export default defineConfig({
 | `maxEntries`      | `number`        | `1000`                          | Maximum number of items to keep in the default memory store. Oldest items are removed when this limit is reached.                                                                                                                                                                                                        |
 | `store`           | `CacheStore`    | `'memory'`                      | The storage backend to use. You can pass a custom class implementing the `CacheStore` interface (e.g., for Redis).                                                                                                                                                                                                       |
 
+Custom `CacheStore` implementations must return keys evicted by `set()` and keys removed by `invalidateByTags()` or `invalidateByPaths()`. Return an empty array when no entries were removed. The page cache uses these keys to keep its dependency tracking in sync with the backing store.
+
 The page cache is disabled by default in `ecopages dev` and `ecopages dev:watch`, so each request renders fresh HTML unless `cache.enabled` is set to `true`. Production builds enable it by default.
 
 ## On-Demand Invalidation
@@ -116,6 +118,8 @@ app.post('/api/revalidate', async ({ request, services }) => {
 	return Response.json({ revalidated: true });
 });
 ```
+
+Path invalidation matches the pathname across query strings and fragments. Calling `invalidateByPaths(['/blog/1'])` clears every cached query and development runtime variant for `/blog/1`.
 
 ## Headers
 

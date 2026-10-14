@@ -190,8 +190,23 @@ export type IntegrationRendererOptions = {
 	hooks?: IntegrationRendererHooks;
 };
 
+/** Options available while creating one renderer's Integration hooks. */
+export type IntegrationRendererHookFactoryOptions = IntegrationRendererOptions & {
+	/** Resolves component assets with this renderer's dependency rules and active render session. */
+	resolveDependencies: (
+		components: (EcoComponent | Partial<EcoComponent>)[],
+		options?: { preparedGraph?: true },
+	) => Promise<ProcessedAsset[]>;
+};
+
 /** Creates the optional hooks for one app-owned renderer instance. */
-export type IntegrationRendererHookFactory = (options: IntegrationRendererOptions) => IntegrationRendererHooks;
+export type IntegrationRendererHookFactory = (
+	options: IntegrationRendererHookFactoryOptions,
+) => IntegrationRendererHooks;
+
+type IntegrationRendererConstructionOptions = Omit<IntegrationRendererOptions, 'hooks'> & {
+	hooks?: IntegrationRendererHooks | IntegrationRendererHookFactory;
+};
 
 type PrebuiltRoutePreparation = {
 	resolvedInputs: RouteRenderOrchestratorResolvedInputs;
@@ -635,13 +650,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		resolvedIntegrationDependencies,
 		runtimeOrigin,
 		hooks,
-	}: IntegrationRendererOptions) {
+	}: IntegrationRendererConstructionOptions) {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
 		this.htmlTransformer = new HtmlTransformerService();
 		this.resolvedIntegrationDependencies = resolvedIntegrationDependencies || [];
 		this.runtimeOrigin = runtimeOrigin;
-		this.integrationHooks = hooks ?? {};
 		this.dependencyResolverService = new DependencyResolverService(
 			appConfig,
 			assetProcessingService,
@@ -651,6 +665,17 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		this.routeRenderOrchestrator = new RouteRenderOrchestrator(appConfig, assetProcessingService, {
 			ownershipValidationService: new OwnershipValidationService(appConfig),
 		});
+		this.integrationHooks =
+			typeof hooks === 'function'
+				? hooks({
+						appConfig,
+						assetProcessingService,
+						resolvedIntegrationDependencies,
+						runtimeOrigin,
+						hooks: {},
+						resolveDependencies: (components, options) => this.resolveDependencies(components, options),
+					})
+				: (hooks ?? {});
 	}
 
 	/**
@@ -1419,8 +1444,14 @@ export function createIntegrationRenderer<C = EcoPagesElement>(
 		name = name;
 
 		constructor(options: IntegrationRendererOptions) {
-			const rendererHooks = typeof hooks === 'function' ? hooks(options) : hooks;
-			super({ ...options, hooks: { ...rendererHooks, ...options.hooks } });
+			const rendererHooks =
+				typeof hooks === 'function'
+					? (factoryOptions: IntegrationRendererHookFactoryOptions) => ({
+							...hooks({ ...factoryOptions, hooks: options.hooks ?? {} }),
+							...options.hooks,
+						})
+					: { ...hooks, ...options.hooks };
+			super({ ...options, hooks: rendererHooks });
 		}
 	};
 }

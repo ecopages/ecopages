@@ -37,6 +37,8 @@ export default defineConfig({
 
 `compilerOptions.jsxImportSource` is **required**. `react` and `@ecopages/jsx` are rejected — use `reactPlugin` or `ecopagesJsxPlugin` for those runtimes.
 
+MDX uses core's shared route renderer. Its page-module normalization and Page Browser Graph dependencies are supplied through the Integration hook factory; compiler options are consumed by the MDX build plugin.
+
 ## Types
 
 ```ts

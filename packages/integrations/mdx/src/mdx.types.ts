@@ -1,6 +1,5 @@
-import type { EcoComponent, EcoComponentConfig, EcoPagesAppConfig, GetMetadata } from '@ecopages/core';
+import type { EcoComponent, EcoComponentConfig, GetMetadata } from '@ecopages/core';
 import type { IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
-import type { AssetProcessingService, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import type { CompileOptions } from '@mdx-js/mdx';
 import type { ThirdPartyJsxImportSource } from './core/jsx-import-source.ts';
 
@@ -19,18 +18,6 @@ export type StandaloneMdxCompilerOptions = Omit<CompileOptions, 'jsxImportSource
 
 export type MDXPluginConfig = Partial<Omit<IntegrationPluginConfig, 'name' | 'compilerOptions'>> & {
 	compilerOptions: StandaloneMdxCompilerOptions;
-};
-
-export type MDXRendererConfig = {
-	compilerOptions?: CompileOptions;
-};
-
-export type MDXRendererOptions = {
-	appConfig: EcoPagesAppConfig;
-	assetProcessingService: AssetProcessingService;
-	resolvedIntegrationDependencies: ProcessedAsset[];
-	runtimeOrigin: string;
-	mdxConfig?: MDXRendererConfig;
 };
 
 /**

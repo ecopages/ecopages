@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { EcoPagesAppConfig, MatchResult } from '../../../types/internal-types.ts';
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
@@ -8,7 +7,6 @@ import type { CacheStrategy, RenderResult } from '../../../services/cache/cache.
 import type { EcoPageComponent } from '../../../eco/eco.types.ts';
 import type { EcoPageFile } from '../../../types/public-types.ts';
 import { PageRequestCacheCoordinator } from '../../../services/cache/page-request-cache-coordinator.service.ts';
-import { ServerUtils } from '../../../utils/server-utils.module.ts';
 import type { FileRouteMiddleware, RequestLocals } from '../../../types/public-types.ts';
 import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
 import { classifyPageFailure, type PageFailureClassification } from '../../../errors/http-error-page-contract.ts';
@@ -16,6 +14,7 @@ import { isDevelopmentRuntime } from '../../../utils/runtime.ts';
 import type { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 import type { ErrorPageLoaders } from '../../../types/public-types.ts';
 import { ErrorPageRenderer, logErrorPageFailure } from '../../../services/error-pages/error-page-renderer.ts';
+import { serveDistFile } from './dist-file-handler.ts';
 
 type FileRouteExecutionPlan = {
 	cacheKey: string;
@@ -35,6 +34,7 @@ export interface FileSystemResponseMatcherOptions {
 	routeRendererFactory: StaticGenerationRendererResolver;
 	errorPageLoaders?: ErrorPageLoaders;
 	fileSystemResponseFactory: FileSystemServerResponseFactory;
+	watchMode?: boolean;
 	/** Optional cache service. When null, caching is disabled. */
 	cacheService?: PageCacheService | null;
 	/** Default cache strategy when caching is enabled. @default 'static' */
@@ -55,6 +55,7 @@ export class FileSystemResponseMatcher {
 	private routeRendererFactory: StaticGenerationRendererResolver;
 	private errorPageRenderer: ErrorPageRenderer;
 	private fileSystemResponseFactory: FileSystemServerResponseFactory;
+	private watchMode: boolean;
 	private pageRequestCacheCoordinator: PageRequestCacheCoordinator;
 	private fileRouteMiddlewarePipeline: FileRouteMiddlewarePipeline;
 
@@ -65,6 +66,7 @@ export class FileSystemResponseMatcher {
 		routeRendererFactory,
 		errorPageLoaders = {},
 		fileSystemResponseFactory,
+		watchMode = false,
 		cacheService = null,
 		defaultCacheStrategy = 'static',
 	}: FileSystemResponseMatcherOptions) {
@@ -78,6 +80,7 @@ export class FileSystemResponseMatcher {
 			errorPageLoaders,
 		});
 		this.fileSystemResponseFactory = fileSystemResponseFactory;
+		this.watchMode = watchMode;
 		this.pageRequestCacheCoordinator = new PageRequestCacheCoordinator(cacheService, defaultCacheStrategy);
 		this.fileRouteMiddlewarePipeline = new FileRouteMiddlewarePipeline(cacheService);
 	}
@@ -89,32 +92,18 @@ export class FileSystemResponseMatcher {
 	 * @returns Static file response or rendered 404 response.
 	 */
 	async handleNoMatch(requestUrl: string, request?: Request): Promise<Response> {
-		const isStaticFileRequest = ServerUtils.hasKnownStaticExtension(requestUrl);
-
-		if (!isStaticFileRequest) {
-			return this.renderClientErrorResponseOrServerError(
-				requestUrl,
-				{ status: 404, kind: 'notFound', logAsServerError: false },
-				undefined,
-			);
-		}
-
-		const relativeUrl = requestUrl.startsWith('/') ? requestUrl.slice(1) : requestUrl;
-		const filePath = path.join(this.assetPrefix, relativeUrl);
-		const contentType = ServerUtils.getContentType(filePath);
-
-		const response = await this.fileSystemResponseFactory.createFileResponse(filePath, contentType, {
-			acceptEncoding: request?.headers.get('Accept-Encoding'),
-			ifNoneMatch: request?.headers.get('If-None-Match'),
+		const distRequest = request ?? new Request(new URL(requestUrl, this.appConfig.baseUrl));
+		return await serveDistFile(distRequest, {
+			distDir: this.assetPrefix,
+			watchMode: this.watchMode,
+			staticFilesOnly: true,
+			notFound: () =>
+				this.renderClientErrorResponseOrServerError(
+					requestUrl,
+					{ status: 404, kind: 'notFound', logAsServerError: false },
+					undefined,
+				),
 		});
-		return (
-			response ??
-			this.renderClientErrorResponseOrServerError(
-				requestUrl,
-				{ status: 404, kind: 'notFound', logAsServerError: false },
-				undefined,
-			)
-		);
 	}
 
 	/**

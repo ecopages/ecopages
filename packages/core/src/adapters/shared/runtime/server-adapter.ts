@@ -125,7 +125,7 @@ export abstract class SharedServerAdapter<
 	}
 
 	/**
-	 * Releases the watcher, HMR, bridge, preview host and Integration resources the runtime owns.
+	 * Releases the watcher, HMR, bridge, preview listener and Integration resources the runtime owns.
 	 */
 	protected abstract disposeRuntimeResources(): Promise<void>;
 
@@ -255,11 +255,7 @@ export abstract class SharedServerAdapter<
 		staticRoutes: StaticRoute[],
 		errorPageLoaders?: ErrorPageLoaders,
 	): SharedResponseHandlerDependencies {
-		const fileSystemResponseFactory = new FileSystemServerResponseFactory({
-			options: {
-				watchMode: !!this.options?.watch,
-			},
-		});
+		const fileSystemResponseFactory = new FileSystemServerResponseFactory();
 
 		const cacheService = this.getOrCreateSharedPageCacheService();
 		const fileSystemResponseMatcher = new FileSystemResponseMatcher({
@@ -269,6 +265,7 @@ export abstract class SharedServerAdapter<
 			routeRendererFactory: this.routeRendererFactory,
 			errorPageLoaders,
 			fileSystemResponseFactory,
+			watchMode: !!this.options?.watch,
 			cacheService,
 			defaultCacheStrategy: this.appConfig.cache?.defaultStrategy ?? 'static',
 		});

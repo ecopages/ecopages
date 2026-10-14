@@ -30,10 +30,12 @@ import {
 	startDevWarmup,
 } from '../shared/runtime/runtime-server-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
+import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
+import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
 import { isNodeClientAbortError } from './http-request-bridge.ts';
-import { NodeStaticPreviewHost } from './static-preview-host.ts';
-import type { StaticPreviewHost } from '../shared/runtime/static-preview-host.ts';
 import { createNodeServerDevRuntime } from './server-adapter-dependencies.ts';
+import type { NodeRuntimeServeOptions } from './runtime-host.ts';
+import { serveDistFile } from '../shared/http/dist-file-handler.ts';
 
 export type NodeServerInstance = NodeHttpServer;
 export type NodeServeAdapterServerOptions = {
@@ -66,7 +68,6 @@ export interface NodeServerAdapterParams {
 	runtimeAssetSetup?: 'start' | 'export' | 'none';
 	allowPortFallback?: boolean;
 	onDevelopmentRestart?: (changedFile: string) => Promise<void>;
-	previewHost?: StaticPreviewHost;
 }
 
 export interface NodeServerAdapterResult extends ServerAdapterResult {
@@ -109,7 +110,11 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	private readonly runtimeAssetSetup: 'start' | 'export' | 'none';
 	private readonly allowPortFallback: boolean;
 	private readonly onDevelopmentRestart?: (changedFile: string) => Promise<void>;
-	private readonly previewHost: StaticPreviewHost;
+	private readonly runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions>;
+	private previewServer: NodeHttpServer | null = null;
+	private previewLifecycleTail: Promise<void> = Promise.resolve();
+	private previewDisposalPromise: Promise<void> | null = null;
+	private previewDisposing = false;
 	/**
 	 * Reference to the application-level WebSocket handlers map.
 	 *
@@ -120,18 +125,8 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 */
 	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>> = new Map();
 
-	/**
-	 * @remarks
-	 * `previewHost` is optional on the public {@link NodeServerAdapterParams} so
-	 * factory callers can omit it, but it is mandatory by the time the concrete
-	 * adapter is constructed — {@link createNodeServerAdapter} fills in the Node
-	 * default first. The constructor signature makes that invariant explicit
-	 * instead of relying on non-null assertions.
-	 */
 	constructor(
-		options: NodeServerAdapterParams & {
-			previewHost: StaticPreviewHost;
-		},
+		options: NodeServerAdapterParams & { runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> },
 	) {
 		super(options);
 		this.runtimeAssetSetup = options.runtimeAssetSetup ?? 'start';
@@ -141,7 +136,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		this.staticRoutes = options.staticRoutes || [];
 		this.errorPageLoaders = options.errorPageLoaders ?? {};
 		this.errorHandler = options.errorHandler;
-		this.previewHost = options.previewHost;
+		this.runtimeHost = options.runtimeHost;
 		if (options.websocketHandlers) {
 			this.websocketHandlers = options.websocketHandlers;
 		}
@@ -238,20 +233,74 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		return this.startPreviewServer();
 	}
 
-	private async startPreviewServer(): Promise<string | undefined> {
-		const activePreviewPort = await this.previewHost.start({
-			appConfig: this.appConfig,
-			hostname: String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME),
-			port: Number(this.serveOptions.port || DEFAULT_ECOPAGES_PORT),
-			allowPortFallback: this.allowPortFallback,
+	private startPreviewServer(): Promise<string | undefined> {
+		return this.runPreviewLifecycle(async () => {
+			this.ensurePreviewCanStart();
+			await this.stopPreviewServerNow();
+			this.ensurePreviewCanStart();
+
+			const binding = await bindRuntimeServer(this.runtimeHost, {
+				startOptions: {
+					serveOptions: {
+						hostname: String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME),
+						port: Number(this.serveOptions.port ?? DEFAULT_ECOPAGES_PORT),
+						handleRequest: (request) =>
+							serveDistFile(request, {
+								distDir: this.appConfig.absolutePaths.distDir,
+								watchMode: false,
+								resolveExportedPages: true,
+							}),
+					},
+				},
+				allowPortFallback: this.allowPortFallback,
+				usePortManager: true,
+			});
+			this.previewServer = binding.server;
+			if (this.previewDisposing) {
+				await this.stopPreviewServerNow();
+				this.ensurePreviewCanStart();
+			}
+
+			return binding.runtimeOrigin;
 		});
+	}
 
-		if (!activePreviewPort) {
-			return undefined;
+	/**
+	 * @remarks Preview changes run in order so overlapping starts cannot orphan listeners, and disposal can prevent a queued or in-flight start.
+	 */
+	private runPreviewLifecycle<T>(operation: () => Promise<T>): Promise<T> {
+		const result = this.previewLifecycleTail.then(operation, operation);
+		this.previewLifecycleTail = result.then(
+			() => undefined,
+			() => undefined,
+		);
+		return result;
+	}
+
+	private stopPreviewServer(): Promise<void> {
+		return this.runPreviewLifecycle(() => this.stopPreviewServerNow());
+	}
+
+	private async stopPreviewServerNow(): Promise<void> {
+		const activeServer = this.previewServer;
+		if (!activeServer) return;
+
+		await this.runtimeHost.stop(activeServer);
+		if (this.previewServer === activeServer) this.previewServer = null;
+	}
+
+	private ensurePreviewCanStart(): void {
+		if (this.previewDisposing) {
+			throw new Error('Cannot start a preview after adapter disposal has begun.');
 		}
+	}
 
-		const previewHostname = this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME;
-		return `http://${previewHostname}:${activePreviewPort}`;
+	public override dispose(): Promise<void> {
+		if (this.previewDisposalPromise) return this.previewDisposalPromise;
+
+		this.previewDisposing = true;
+		this.previewDisposalPromise = super.dispose();
+		return this.previewDisposalPromise;
 	}
 
 	public async createAdapter(): Promise<NodeServerAdapterResult> {
@@ -275,7 +324,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			appConfig: this.appConfig,
 			hmrManager: this.hmrManager,
 			bridge: this.bridge,
-			previewHost: this.previewHost,
+			stopPreviewServer: () => this.stopPreviewServer(),
 		});
 
 		this.projectWatcher = null;
@@ -420,14 +469,16 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
  * so callers only need to set it when the server is behind a reverse proxy that
  * changes the effective host or port.
  */
-export async function createNodeServerAdapter(params: NodeServerAdapterParams): Promise<NodeServerAdapterResult> {
+export async function createNodeServerAdapter(
+	params: NodeServerAdapterParams,
+	runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions>,
+): Promise<NodeServerAdapterResult> {
 	const runtimeOrigin = params.runtimeOrigin ?? resolveServeRuntimeOrigin(params.serveOptions);
-	const previewHost = params.previewHost ?? new NodeStaticPreviewHost();
 
 	const adapter = new NodeServerAdapter({
 		...params,
 		runtimeOrigin,
-		previewHost,
+		runtimeHost,
 	});
 
 	return adapter.createAdapter();

@@ -1,11 +1,8 @@
-import type { AddressInfo } from 'node:net';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { vi } from 'vitest';
 import { createApp } from '../../packages/core/src/adapters/create-app.ts';
 import { NodeEcopagesApp } from '../../packages/core/src/adapters/node/create-app.ts';
-import { NodeStaticContentServer } from '../../packages/core/src/adapters/node/static-content-server.ts';
-import { loadEcoPagesConfig } from '../../packages/core/src/config/load-eco-config.ts';
 import { copyFixtureApp } from '../../packages/core/__fixtures__/app/copy-fixture-app.ts';
 
 export type StaticExport = {
@@ -31,24 +28,19 @@ export async function startStaticExport(fixtureDir: string): Promise<StaticExpor
 	const appDir = copyFixtureApp(fixtureDir);
 	const configFile = path.join(appDir, 'eco.config.ts');
 
-	const app = await createApp({ configFile });
+	const app = await createApp({ configFile, serverOptions: { hostname: '127.0.0.1', port: 0 } });
 	if (!(app instanceof NodeEcopagesApp)) {
 		throw new Error('Expected the Node host');
 	}
 	await app.fetch(new Request('http://localhost:3000/'));
 	await app.serverAdapter!.buildStatic();
-
-	const preview = new NodeStaticContentServer({
-		appConfig: await loadEcoPagesConfig({ cwd: appDir, configFile }),
-		options: { hostname: '127.0.0.1', port: 0 },
-	});
-	const { port } = (await preview.start()).address() as AddressInfo;
+	const origin = await app.serverAdapter!.servePreviewOnly();
+	if (!origin) throw new Error('Expected the static preview server to bind');
 
 	return {
-		origin: `http://127.0.0.1:${port}`,
+		origin,
 		app,
 		stop: async () => {
-			await preview.stop();
 			await app.stop();
 			rmSync(appDir, { recursive: true, force: true });
 		},

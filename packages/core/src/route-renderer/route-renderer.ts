@@ -1,3 +1,4 @@
+import type { AppRuntime } from '../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { invariant } from '../utils/invariant.ts';
@@ -48,14 +49,25 @@ export type StaticGenerationRendererResolver = PageRendererResolver & ExplicitVi
  */
 export class RouteRendererFactory {
 	private appConfig: EcoPagesAppConfig;
+	private readonly runtime: AppRuntime;
 	runtimeOrigin: string;
 
 	/**
 	 * Creates the route-renderer factory for one app/runtime instance.
 	 */
-	constructor({ appConfig, runtimeOrigin }: { appConfig: EcoPagesAppConfig; runtimeOrigin: string }) {
+	constructor({
+		appConfig,
+		runtime,
+		runtimeOrigin,
+	}: {
+		appConfig: EcoPagesAppConfig;
+		runtime: AppRuntime;
+		runtimeOrigin: string;
+	}) {
 		this.appConfig = appConfig;
+		this.runtime = runtime;
 		this.runtimeOrigin = runtimeOrigin;
+		this.runtime.origin = runtimeOrigin;
 	}
 
 	/**
@@ -71,6 +83,7 @@ export class RouteRendererFactory {
 		}
 
 		this.runtimeOrigin = runtimeOrigin;
+		this.runtime.origin = runtimeOrigin;
 		for (const integration of this.appConfig.integrations) {
 			integration.setRuntimeOrigin?.(runtimeOrigin);
 		}

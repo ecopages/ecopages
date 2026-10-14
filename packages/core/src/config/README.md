@@ -14,12 +14,13 @@ It is responsible for:
 - rejecting overlapping build-plugin names per server/browser environment, with both contributor names in the error
 - appending the core [HTML Pages](../html-pages/README.md) Integration after user Integrations unless one of them declares `.html`, so `.html` routes work in every app
 - resolving semantic paths such as `html` and `404` templates from registered Integration extensions; more than one match for a basename (for example `html.tsx` and `html.html`) is an error
-- creating app-owned runtime state: the Rolldown build adapter, the build manifest, the server invalidation counter, and a no-op entrypoint dependency graph that development replaces (build executors are installed later, at server startup)
+- creating one `AppRuntime` for the config: the Rolldown build adapter, the build manifest, the build queue, the build-input index, the Page Browser Graph session, the server invalidation counter, the entrypoint dependency graph, the module loader, route-module build caches, and the integration activation map. `origin` starts as `baseUrl`. `hmr` stays `null`. `pageCache` stays `null` until `registerAppPageCacheService` stores one
 
 ## Main Files
 
 - `define-config.ts`: synchronous `defineConfig()` identity for `eco.config.ts` authoring
 - `finalize-config.ts`: `finalizeEcoPagesConfig(userConfig, options)`, the only finalization path. Workspace packages and tests import it from `@ecopages/core/internal/finalize-config`; the npm build drops every `./internal/*` subpath from the published package. It applies defaults (omitted `rootDir` resolves from `cwd`; `baseUrl` falls back to `ECOPAGES_BASE_URL`, then `http://localhost:3000`; `absolutePaths.config` defaults to `<rootDir>/eco.config.ts`), runs every validation, and installs runtime state
+- `app-runtime.ts`: `createAppRuntime(appConfig)` builds that runtime once at the end of finalization. `requireAppRuntime(appConfig)` returns it, and throws `Missing app runtime` for a config that was never finalized. Published callers import it from `@ecopages/core/config/app-runtime`. The server adapter, route renderer factory, and static builder take this object in their constructors
 - `load-eco-config.ts`: resolves the config module path, imports the user config, and finalizes it
 - `config-module-files.ts`: when the config is loaded from source, lists it and the project files it imports as `absolutePaths.configModuleFiles`. Packages, files outside `rootDir` and imports that do not resolve stay out. Build-input fingerprints hash these files, and `ecopages dev` restarts when any of them change, so an edit to a plugin options module the config imports takes effect like an edit to the config itself. Components imported by the config lose hot reload.
 - `resolve-eco-config-path.ts`: `eco.config.ts` discovery (`configFile`, `ECOPAGES_CONFIG_FILE`, the `eco.config.mjs` beside a running `.server` entry, cwd default, and the emitted config beside the selected production bundle) and `resolveUserConfigRootDir()`
@@ -38,7 +39,7 @@ App-owned Rolldown is the only build path. Finalization installs that adapter on
 
 ## Output
 
-The result of this layer is a built `EcoPagesAppConfig` with resolved absolute paths and app-owned runtime services attached under `appConfig.runtime`.
+The result of this layer is a built `EcoPagesAppConfig` with resolved absolute paths, app-owned services under `appConfig.runtime`, and one `appConfig.appRuntime`.
 
 That built config is then consumed by server adapters, static generation, route rendering, and HMR.
 

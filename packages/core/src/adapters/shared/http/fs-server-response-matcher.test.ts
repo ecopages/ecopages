@@ -6,6 +6,7 @@ import { copyFixtureApp } from '../../../../__fixtures__/app/copy-fixture-app.ts
 import { createFixtureAppConfig } from '../../../../__fixtures__/app/test-app-config.ts';
 import type { HttpErrorPageStatus } from '../../../errors/http-error-page-contract.ts';
 import type { EcoPagesAppConfig, MatchResult } from '../../../types/internal-types.ts';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { RouteRendererFactory, type StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import { RouteRegistry } from '../../../router/server/route-registry.ts';
 import { MemoryCacheStore } from '../../../services/cache/memory-cache-store.ts';
@@ -43,6 +44,7 @@ await router.init();
 
 const routeRendererFactory = new RouteRendererFactory({
 	appConfig,
+	runtime: requireAppRuntime(appConfig),
 	runtimeOrigin: appConfig.baseUrl,
 });
 

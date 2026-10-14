@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import {
 	assertProductionConfigIdentity,
@@ -64,6 +65,7 @@ describe('build → start contract', () => {
 
 		const builder = new ServerStaticBuilder({
 			appConfig,
+			runtime: requireAppRuntime(appConfig),
 			staticSiteGenerator,
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
 			runtimeOrigin: 'http://127.0.0.1:3000',
@@ -111,6 +113,7 @@ describe('build → start contract', () => {
 		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
 		const builder = new ServerStaticBuilder({
 			appConfig,
+			runtime: requireAppRuntime(appConfig),
 			staticSiteGenerator,
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
 			runtimeOrigin: 'http://127.0.0.1:3000',
@@ -145,6 +148,7 @@ describe('build → start contract', () => {
 		);
 		const builder = new ServerStaticBuilder({
 			appConfig,
+			runtime: requireAppRuntime(appConfig),
 			staticSiteGenerator: { run: async () => {} } as unknown as StaticSiteGenerator,
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
 			runtimeOrigin: 'http://127.0.0.1:3000',
@@ -188,6 +192,7 @@ describe('build → start contract', () => {
 
 		const builder = new ServerStaticBuilder({
 			appConfig,
+			runtime: requireAppRuntime(appConfig),
 			staticSiteGenerator,
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
 			runtimeOrigin: 'http://127.0.0.1:3000',
@@ -231,6 +236,7 @@ describe('build → start contract', () => {
 		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
 		const builder = new ServerStaticBuilder({
 			appConfig,
+			runtime: requireAppRuntime(appConfig),
 			staticSiteGenerator,
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
 			runtimeOrigin: 'http://127.0.0.1:3000',
@@ -276,6 +282,7 @@ describe('build → start contract', () => {
 		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
 		const builder = new ServerStaticBuilder({
 			appConfig,
+			runtime: requireAppRuntime(appConfig),
 			staticSiteGenerator,
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
 			runtimeOrigin: 'http://127.0.0.1:3000',

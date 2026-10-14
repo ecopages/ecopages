@@ -116,7 +116,7 @@ export class PageModuleImportService {
 	}
 
 	getDevelopmentGeneration(): number {
-		return this.developmentImportGeneration;
+		return this.appConfig?.appRuntime?.serverInvalidation.currentGeneration() ?? this.developmentImportGeneration;
 	}
 
 	/**
@@ -128,7 +128,12 @@ export class PageModuleImportService {
 	 * dependencies on a hit, because the watcher records every server module closure and invalidates it.
 	 */
 	invalidateDevelopmentGraph(): void {
-		this.developmentImportGeneration += 1;
+		const serverInvalidation = this.appConfig?.appRuntime?.serverInvalidation;
+		if (serverInvalidation) {
+			serverInvalidation.advance();
+		} else {
+			this.developmentImportGeneration += 1;
+		}
 		this.clearImportCache();
 	}
 
@@ -331,7 +336,7 @@ export class PageModuleImportService {
 
 		const compiledOutputUrl = pathToFileURL(compiledOutput);
 		if (shouldAddRuntimeUpdateQuery()) {
-			compiledOutputUrl.searchParams.set('update', `${fileHash}-${this.developmentImportGeneration}`);
+			compiledOutputUrl.searchParams.set('update', `${fileHash}-${this.getDevelopmentGeneration()}`);
 		}
 		return (await import(/* @vite-ignore */ compiledOutputUrl.href)) as T;
 	}
@@ -360,7 +365,7 @@ export class PageModuleImportService {
 
 		const outputFileName = createRuntimeBuildOutputFileName(
 			resolvePageModuleOutputFileName({ filePath, fileHash }),
-			this.developmentImportGeneration,
+			this.getDevelopmentGeneration(),
 		);
 		const outputNamingTemplate = outputFileName.replace(/\.mjs$/u, '.[ext]');
 		const {

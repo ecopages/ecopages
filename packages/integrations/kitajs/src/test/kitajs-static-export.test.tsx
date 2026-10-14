@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { jsx as kitaJsx } from '@kitajs/html/jsx-runtime';
 import type { EcoComponent, EcoPageComponent, EcoPageFile, HtmlTemplateProps } from '@ecopages/core';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
+import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
 import { RouteRendererFactory } from '@ecopages/core/route-renderer/route-renderer';
 import { createTestAppConfig } from '@ecopages/testing';
 import { StaticSiteGenerator } from '../../../../core/src/static-site-generator/static-site-generator.ts';
@@ -127,7 +128,11 @@ describe('Kita static export', () => {
 
 		const integration = new StaticExportKitaPlugin();
 		const appConfig = await createTestAppConfig({ rootDir, integrations: [integration] });
-		const routeRendererFactory = new RouteRendererFactory({ appConfig, runtimeOrigin: 'https://example.com' });
+		const routeRendererFactory = new RouteRendererFactory({
+			appConfig,
+			runtime: requireAppRuntime(appConfig),
+			runtimeOrigin: 'https://example.com',
+		});
 		const routes = [
 			{ filePath: firstRouteFile, pathname: '/first', requestUrl: 'https://example.com/first' },
 			{ filePath: secondRouteFile, pathname: '/second', requestUrl: 'https://example.com/second' },

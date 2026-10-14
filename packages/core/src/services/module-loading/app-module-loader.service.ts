@@ -8,7 +8,8 @@ export interface AppModuleLoader {
 	 *
 	 * @remarks
 	 * Anything that outlives one import, such as a compiled output name or a render worker, compares this
-	 * number to know whether the server code it holds is stale. It is the only counter of that event.
+	 * number to know whether the server code it holds is stale. On an assembled app the counter is the
+	 * runtime's server invalidation state; this method reports that counter.
 	 */
 	getDevelopmentGeneration(): number;
 }

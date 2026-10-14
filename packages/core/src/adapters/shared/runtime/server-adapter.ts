@@ -146,6 +146,7 @@ export abstract class SharedServerAdapter<
 
 		this.routeRendererFactory = new RouteRendererFactory({
 			appConfig: this.appConfig,
+			runtime: this.runtime,
 			runtimeOrigin: this.runtimeOrigin,
 		});
 	}

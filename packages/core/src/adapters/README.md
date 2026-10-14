@@ -4,7 +4,7 @@ This directory contains the runtime-host integration layer for Ecopages.
 
 ## Purpose
 
-Adapters translate app-owned core services into concrete runtime behavior at the host boundary. `createApp()` always uses the Node HTTP host. The process can still be Bun: the CLI launches Bun when Bun started the command or when `--runtime bun` is passed, and the start log names that runtime.
+Adapters translate app-owned core services into concrete runtime behavior at the host boundary. The server adapter, the route renderer factory, and the static builder each take the config's assembled `AppRuntime`; `createApp()` reads it from the finalized config. `createApp()` always uses the Node HTTP host. The process can still be Bun: the CLI launches Bun when Bun started the command or when `--runtime bun` is passed, and the start log names that runtime.
 
 They are responsible for:
 

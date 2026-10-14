@@ -12,6 +12,7 @@ import { NodeRuntimeHost, type NodeRuntimeServeOptions } from './runtime-host.ts
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { resolveProcessRuntimeLabel } from '../../dev/runtime-server-started-message.ts';
 import { resolveAppStartRoutes } from '../../utils/ecopages-route-info.ts';
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 
 export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAppOptions, NodeServerInstance, Request> {
 	serverAdapter: NodeServerAdapterResult | undefined;
@@ -82,6 +83,7 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 
 		return this.createServerAdapter({
 			runtimeOrigin: this.runtimeOrigin,
+			runtime: requireAppRuntime(this.appConfig),
 			appConfig: this.appConfig,
 			apiHandlers: this.apiHandlers,
 			staticRoutes: this.staticRoutes as StaticRoute[],

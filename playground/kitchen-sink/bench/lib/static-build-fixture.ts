@@ -12,6 +12,7 @@ import { setupAppRuntimePlugins } from '../../../../packages/core/src/build/buil
 import { installBuildQueue } from '../../../../packages/core/src/build/runtime/build-queue';
 import { createNodeServerAdapter } from '../../../../packages/core/src/adapters/node/server-adapter';
 import { RouteRegistry } from '../../../../packages/core/src/router/server/route-registry';
+import { requireAppRuntime } from '../../../../packages/core/src/config/app-runtime';
 import { RouteRendererFactory } from '../../../../packages/core/src/route-renderer/route-renderer';
 import { StaticSiteGenerator } from '../../../../packages/core/src/static-site-generator/static-site-generator';
 import {
@@ -139,6 +140,7 @@ export async function bootstrapStaticGenerationStack(appConfig: EcoPagesAppConfi
 
 	const routeRendererFactory = new RouteRendererFactory({
 		appConfig,
+		runtime: requireAppRuntime(appConfig),
 		runtimeOrigin,
 	});
 	const staticSiteGenerator = new StaticSiteGenerator({ appConfig });
@@ -179,6 +181,7 @@ export async function getStaticBuildBenchAdapter(
 
 	const adapter = await createNodeServerAdapter({
 		appConfig,
+		runtime: requireAppRuntime(appConfig),
 		runtimeOrigin: 'http://127.0.0.1:3000',
 		serveOptions: { hostname: '127.0.0.1', port: 0 },
 		options: { watch: false },

@@ -36,6 +36,7 @@ import { isNodeClientAbortError } from './http-request-bridge.ts';
 import { createNodeServerDevRuntime } from './server-adapter-dependencies.ts';
 import type { NodeRuntimeServeOptions } from './runtime-host.ts';
 import { serveDistFile } from '../shared/http/dist-file-handler.ts';
+import type { AppRuntime } from '../../config/app-runtime.ts';
 
 export type NodeServerInstance = NodeHttpServer;
 export type NodeServeAdapterServerOptions = {
@@ -46,6 +47,7 @@ export type NodeServeAdapterServerOptions = {
 
 export interface NodeServerAdapterParams {
 	appConfig: EcoPagesAppConfig;
+	runtime: AppRuntime;
 	runtimeOrigin: string;
 	serveOptions: NodeServeAdapterServerOptions;
 	apiHandlers?: ApiHandler[];
@@ -163,6 +165,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
 		this.staticBuilder = new ServerStaticBuilder({
 			appConfig: this.appConfig,
+			runtime: this.runtime,
 			staticSiteGenerator: this.staticSiteGenerator,
 			serveOptions: this.serveOptions,
 			runtimeOrigin: this.runtimeOrigin,

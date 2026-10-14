@@ -6,6 +6,10 @@ import type { NodeServerAdapterResult } from './node/server-adapter.ts';
 import type { NodeServerAdapterParams } from './node/server-adapter.ts';
 import type { RuntimeHost } from './shared/runtime/runtime-host.ts';
 
+function disposalAppConfig() {
+	return { runtime: {}, appRuntime: { origin: 'http://localhost:3000', hmr: null } } as never;
+}
+
 function createMockServerAdapterResult(dispose = vi.fn().mockResolvedValue(undefined)) {
 	return {
 		getServerOptions: () => ({ port: 3000, hostname: 'localhost' }),
@@ -84,7 +88,7 @@ describe('NodeEcopagesApp disposal', () => {
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
 		};
 
-		const app = new TestNodeEcopagesApp({ appConfig: { runtime: {} } as never }, runtimeHost);
+		const app = new TestNodeEcopagesApp({ appConfig: disposalAppConfig() }, runtimeHost);
 		app.setServerForTest(server);
 		await app.bindServerAdapterForTest();
 
@@ -105,7 +109,7 @@ describe('NodeEcopagesApp disposal', () => {
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
 		};
 
-		const app = new TestNodeEcopagesApp({ appConfig: { runtime: {} } as never }, runtimeHost);
+		const app = new TestNodeEcopagesApp({ appConfig: disposalAppConfig() }, runtimeHost);
 		app.setServerForTest(server);
 		await app.bindServerAdapterForTest();
 
@@ -125,7 +129,7 @@ describe('NodeEcopagesApp disposal', () => {
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
 		};
 
-		const app = new TestNodeEcopagesApp({ appConfig: { runtime: {} } as never }, runtimeHost);
+		const app = new TestNodeEcopagesApp({ appConfig: disposalAppConfig() }, runtimeHost);
 		app.setCliArgsForTest({ preview: true });
 
 		await app.start();
@@ -145,7 +149,7 @@ describe('NodeEcopagesApp disposal', () => {
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
 		};
 
-		const app = new TestNodeEcopagesApp({ appConfig: { runtime: {} } as never }, runtimeHost);
+		const app = new TestNodeEcopagesApp({ appConfig: disposalAppConfig() }, runtimeHost);
 
 		await app.start();
 		await app.stop();

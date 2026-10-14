@@ -17,6 +17,7 @@ import {
 } from '../../../build/server-bundle-deploy-manifest.ts';
 import { bundleEcoConfigModule, EMITTED_ECO_CONFIG_FILENAME } from '../../../config/server-config-bundle.ts';
 import { resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../../utils/resolve-entry-file.ts';
+import type { AppRuntime } from '../../../config/app-runtime.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
 import type { ErrorPageLoaders, StaticRoute } from '../../../types/public-types.ts';
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
@@ -36,6 +37,7 @@ export interface ServeOptions {
 
 export interface ServerStaticBuilderParams {
 	appConfig: EcoPagesAppConfig;
+	runtime: AppRuntime;
 	staticSiteGenerator: StaticSiteGenerator;
 	serveOptions: ServeOptions;
 	runtimeOrigin: string;
@@ -65,6 +67,7 @@ export interface ServerStaticBuilderLogger {
  */
 export class ServerStaticBuilder {
 	private readonly appConfig: EcoPagesAppConfig;
+	private readonly runtime: AppRuntime;
 	private readonly staticSiteGenerator: StaticSiteGenerator;
 	private serveOptions: ServeOptions;
 	private runtimeOrigin: string;
@@ -76,6 +79,7 @@ export class ServerStaticBuilder {
 
 	constructor({
 		appConfig,
+		runtime,
 		staticSiteGenerator,
 		serveOptions,
 		runtimeOrigin,
@@ -85,9 +89,11 @@ export class ServerStaticBuilder {
 		hmrManager,
 	}: ServerStaticBuilderParams) {
 		this.appConfig = appConfig;
+		this.runtime = runtime;
 		this.staticSiteGenerator = staticSiteGenerator;
 		this.serveOptions = serveOptions;
 		this.runtimeOrigin = runtimeOrigin;
+		this.runtime.origin = runtimeOrigin;
 		this.needsServerBundle = needsServerBundle ?? false;
 		this.logger = logger ?? appLogger;
 		this.entryFile = resolveEntryFile({ entryFile });
@@ -98,6 +104,7 @@ export class ServerStaticBuilder {
 	setRuntimeBinding(input: { port: number; runtimeOrigin: string }): void {
 		this.serveOptions = { ...this.serveOptions, port: input.port };
 		this.runtimeOrigin = input.runtimeOrigin;
+		this.runtime.origin = input.runtimeOrigin;
 	}
 
 	/**

@@ -8,6 +8,7 @@ import {
 	type BuildOptions,
 	type BuildResult,
 } from '../../../build/build-adapter';
+import type { AppRuntime } from '../../../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator';
 import type { RouteRegistry } from '../../../router/server/route-registry';
@@ -18,6 +19,10 @@ import os from 'node:os';
 import { createBuildSuccess } from '../../../__fixtures__/build/build-result.ts';
 
 let tmpDir: string;
+
+function staticBuilderRuntime(): AppRuntime {
+	return { origin: 'http://localhost:3000', hmr: null } as AppRuntime;
+}
 
 function createMockDependencies() {
 	const calls = {
@@ -222,6 +227,7 @@ describe('ServerStaticBuilder', () => {
 				createMockDependencies();
 			const builder = new ServerStaticBuilder({
 				appConfig: AppConfig,
+				runtime: staticBuilderRuntime(),
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
 				runtimeOrigin: 'http://localhost:3000',
@@ -249,6 +255,7 @@ describe('ServerStaticBuilder', () => {
 
 			const builder = new ServerStaticBuilder({
 				appConfig,
+				runtime: staticBuilderRuntime(),
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
 				runtimeOrigin: 'http://127.0.0.1:3000',
@@ -270,6 +277,7 @@ describe('ServerStaticBuilder', () => {
 				createMockDependencies();
 			const builder = new ServerStaticBuilder({
 				appConfig: AppConfig,
+				runtime: staticBuilderRuntime(),
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
 				runtimeOrigin: 'http://127.0.0.1:3000',
@@ -292,6 +300,7 @@ describe('ServerStaticBuilder', () => {
 
 			const builder = new ServerStaticBuilder({
 				appConfig: AppConfig,
+				runtime: staticBuilderRuntime(),
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
 				runtimeOrigin: 'http://127.0.0.1:3000',
@@ -326,6 +335,7 @@ describe('ServerStaticBuilder', () => {
 
 			const builder = new ServerStaticBuilder({
 				appConfig: AppConfig,
+				runtime: staticBuilderRuntime(),
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: customServeOptions,
 				runtimeOrigin: 'http://0.0.0.0:8080',
@@ -346,6 +356,7 @@ describe('ServerStaticBuilder', () => {
 
 			const builder = new ServerStaticBuilder({
 				appConfig: AppConfig,
+				runtime: staticBuilderRuntime(),
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
 				runtimeOrigin: 'http://127.0.0.1:3000',
@@ -369,6 +380,7 @@ describe('ServerStaticBuilder', () => {
 
 			const builder = new ServerStaticBuilder({
 				appConfig: AppConfig,
+				runtime: staticBuilderRuntime(),
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
 				runtimeOrigin: 'http://127.0.0.1:3000',
@@ -389,6 +401,7 @@ describe('ServerStaticBuilder', () => {
 
 			const builder = new ServerStaticBuilder({
 				appConfig: AppConfig,
+				runtime: staticBuilderRuntime(),
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
 				runtimeOrigin: 'http://127.0.0.1:3000',
@@ -420,6 +433,7 @@ describe('ServerStaticBuilder', () => {
 
 			const builder = new ServerStaticBuilder({
 				appConfig: AppConfig,
+				runtime: staticBuilderRuntime(),
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
 				runtimeOrigin: 'http://127.0.0.1:3000',
@@ -455,6 +469,7 @@ describe('ServerStaticBuilder', () => {
 
 				const builder = new ServerStaticBuilder({
 					appConfig,
+					runtime: staticBuilderRuntime(),
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
 					runtimeOrigin: 'http://127.0.0.1:3000',
@@ -484,6 +499,7 @@ describe('ServerStaticBuilder', () => {
 
 				const builder = new ServerStaticBuilder({
 					appConfig,
+					runtime: staticBuilderRuntime(),
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
 					runtimeOrigin: 'http://127.0.0.1:3000',
@@ -532,6 +548,7 @@ describe('ServerStaticBuilder', () => {
 
 				const builder = new ServerStaticBuilder({
 					appConfig,
+					runtime: staticBuilderRuntime(),
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
 					runtimeOrigin: 'http://127.0.0.1:3000',
@@ -566,6 +583,7 @@ describe('ServerStaticBuilder', () => {
 
 				const builder = new ServerStaticBuilder({
 					appConfig,
+					runtime: staticBuilderRuntime(),
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
 					runtimeOrigin: 'http://127.0.0.1:3000',
@@ -601,6 +619,7 @@ describe('ServerStaticBuilder', () => {
 
 				const builder = new ServerStaticBuilder({
 					appConfig,
+					runtime: staticBuilderRuntime(),
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
 					runtimeOrigin: 'http://127.0.0.1:3000',

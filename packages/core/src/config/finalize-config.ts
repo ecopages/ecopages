@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { createBuildAdapter, sealAppBuildManifest, setAppBuildAdapter } from '../build/build-adapter.ts';
+import { createAppRuntime } from './app-runtime.ts';
 import { appLogger } from '../global/app-logger.ts';
 import { HTML_PAGES_INTEGRATION_NAME } from '../html-pages/html-page-module.ts';
 import { HtmlPagesPlugin } from '../html-pages/html-pages.plugin.ts';
@@ -219,7 +220,8 @@ function createAbsolutePaths(
  * 2. appends the HTML Pages Integration and rejects duplicate Integration names and extensions,
  * 3. resolves absolute paths, including the semantic `html.*` and error-page templates,
  * 4. hands each Processor the config,
- * 5. installs the app-owned build adapter, build manifest, and runtime state.
+ * 5. installs the app-owned build adapter, build manifest, and entrypoint graph, then assembles one
+ *    app runtime on the config.
  *
  * Every call returns a new config; nothing is cached.
  *
@@ -281,6 +283,7 @@ export async function finalizeEcoPagesConfig(
 	setAppBuildAdapter(config, createBuildAdapter());
 	sealAppBuildManifest(config);
 	setAppEntrypointDependencyGraph(config, new NoopEntrypointDependencyGraph());
+	createAppRuntime(config);
 
 	return config;
 }

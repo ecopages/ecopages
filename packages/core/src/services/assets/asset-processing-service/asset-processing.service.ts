@@ -32,6 +32,10 @@ type CachedAsset = {
 	sourceHash?: string;
 };
 
+type CachedGroupedBundle = {
+	dependencyKeys: string[];
+};
+
 /**
  * Processes declared component and page asset dependencies for one app instance.
  *
@@ -46,6 +50,7 @@ export class AssetProcessingService {
 	private registry = new ProcessorRegistry();
 	private hmrManager?: IHmrManager;
 	private cache = new Map<string, CachedAsset>();
+	private readonly groupedBundleCache = new Map<string, CachedGroupedBundle>();
 	private readonly inFlight = new Map<string, Promise<unknown>>();
 	private readonly gzippedFiles = new Set<string>();
 	private readonly config: EcoPagesAppConfig;
@@ -169,7 +174,8 @@ export class AssetProcessingService {
 			const groupedResults = await this.shareInFlight(`grouped:${groupedKey}`, () =>
 				processGroupedDependencyBundles({
 					bundles: groupedBundles,
-					getCachedAsset: (dep, depKey) => this.getCachedAsset(dep, depKey),
+					getCachedBundle: (bundleDeps, dependencyKeys) =>
+						this.getCachedGroupedBundle(bundleDeps, dependencyKeys),
 					getDependencyKey: getAssetDependencyKey,
 					getGroupedProcessor: (bundleDeps) => {
 						const source = bundleDeps[0]?.source === 'file' ? 'file' : 'content';
@@ -178,7 +184,8 @@ export class AssetProcessingService {
 						};
 					},
 					resolveProcessedAssetSrcUrl: (processed) => this.resolveProcessedAssetSrcUrl(processed),
-					setCachedAsset: (dep, depKey, processed) => this.setCachedAsset(dep, depKey, processed),
+					setCachedBundle: (bundleDeps, dependencyKeys, processedAssets) =>
+						this.setCachedGroupedBundle(bundleDeps, dependencyKeys, processedAssets),
 					logError: (error) => {
 						appLogger.error('Failed to process grouped dependency bundle:', error);
 					},
@@ -379,6 +386,61 @@ export class AssetProcessingService {
 		return currentCache.asset;
 	}
 
+	private getGroupedBundleCacheKey(deps: AssetDefinition[]): string | undefined {
+		const dependency = deps[0];
+		if (dependency?.kind !== 'script' || !dependency.groupedBundle?.id) {
+			return undefined;
+		}
+
+		return `${dependency.kind}:${dependency.source}:${dependency.groupedBundle.id}`;
+	}
+
+	private getCachedGroupedBundle(deps: AssetDefinition[], dependencyKeys: string[]): ProcessedAsset[] | null {
+		const cacheKey = this.getGroupedBundleCacheKey(deps);
+		if (!cacheKey) {
+			return null;
+		}
+
+		const cachedBundle = this.groupedBundleCache.get(cacheKey);
+		const sortedDependencyKeys = [...dependencyKeys].sort();
+		if (!cachedBundle || JSON.stringify(cachedBundle.dependencyKeys) !== JSON.stringify(sortedDependencyKeys)) {
+			this.groupedBundleCache.delete(cacheKey);
+			return null;
+		}
+
+		const cachedAssets = deps.map((dep, index) => {
+			const depKey = dependencyKeys[index];
+			return depKey ? this.getCachedAsset(dep, depKey) : null;
+		});
+		if (cachedAssets.some((asset) => asset === null)) {
+			this.groupedBundleCache.delete(cacheKey);
+			return null;
+		}
+
+		return cachedAssets.filter((asset): asset is ProcessedAsset => asset !== null);
+	}
+
+	private setCachedGroupedBundle(
+		deps: AssetDefinition[],
+		dependencyKeys: string[],
+		processedAssets: ProcessedAsset[],
+	): void {
+		for (const [index, dep] of deps.entries()) {
+			const depKey = dependencyKeys[index];
+			const processed = processedAssets[index];
+			if (depKey && processed) {
+				this.setCachedAsset(dep, depKey, processed);
+			}
+		}
+
+		const cacheKey = this.getGroupedBundleCacheKey(deps);
+		if (cacheKey) {
+			this.groupedBundleCache.set(cacheKey, {
+				dependencyKeys: [...dependencyKeys].sort(),
+			});
+		}
+	}
+
 	private getCachedContentScriptAsset(dep: ContentScriptAsset, depKey: string): ProcessedAsset | null {
 		const filepath = this.resolveCachedContentScriptFilepath(depKey);
 
@@ -450,6 +512,7 @@ export class AssetProcessingService {
 	private invalidateCachedAsset(depKey: string): void {
 		const cached = this.cache.get(depKey);
 		this.cache.delete(depKey);
+		this.invalidateGroupedBundlesContaining(depKey);
 
 		if (cached?.asset.packageRole === 'runtime' || cached?.asset.packageRole === 'page-script') {
 			void clearPageCacheForBrowserRuntimeAssetChange(this.config);
@@ -471,6 +534,7 @@ export class AssetProcessingService {
 		this.inFlight.clear();
 		const resolvedPath = path.resolve(filepath);
 		let invalidatesBrowserRuntime = false;
+		const invalidatedKeys = new Set<string>();
 		for (const [key, value] of this.cache.entries()) {
 			if (
 				(value.asset.filepath && path.resolve(value.asset.filepath) === resolvedPath) ||
@@ -480,7 +544,11 @@ export class AssetProcessingService {
 				invalidatesBrowserRuntime ||=
 					value.asset.packageRole === 'runtime' || value.asset.packageRole === 'page-script';
 				this.cache.delete(key);
+				invalidatedKeys.add(key);
 			}
+		}
+		for (const key of invalidatedKeys) {
+			this.invalidateGroupedBundlesContaining(key);
 		}
 		for (const processor of this.registry.getAllProcessors().values()) {
 			if (typeof processor.invalidateCacheForFile === 'function') {
@@ -489,6 +557,14 @@ export class AssetProcessingService {
 		}
 		if (invalidatesBrowserRuntime) {
 			void clearPageCacheForBrowserRuntimeAssetChange(this.config);
+		}
+	}
+
+	private invalidateGroupedBundlesContaining(depKey: string): void {
+		for (const [cacheKey, bundle] of this.groupedBundleCache) {
+			if (bundle.dependencyKeys.includes(depKey)) {
+				this.groupedBundleCache.delete(cacheKey);
+			}
 		}
 	}
 

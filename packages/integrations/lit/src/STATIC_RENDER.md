@@ -15,16 +15,16 @@ LitPlugin.setup()
                                      RouteRendererFactory
 
 LitPlugin.getRenderer()  (creates it through initializeRenderer() on first use)
-  └─ LitRenderer({ getRenderSession })   lazy accessor (not constructor snapshot)
+  └─ createLitRenderer(() => renderSession)  hook factory closes over lazy accessor
 
-LitRenderer.execute() (main)
+IntegrationRenderer.execute() (main)
   └─ ensureIntegrationRuntimeActivated()
   └─ getRenderSession()
-       ├─ locals present ──────────► super.execute() (in-process)
+       ├─ locals present ──────────► remote hook declines; core renders in-process
        └─ session.renderPageInWorker()
             └─ postMessage(render) ─────► RouteRendererFactory.execute()
                                           (no active session in worker)
-                                          LitRenderer.ssrScriptPreloader uses
+                                          Lit's preload hook uses
                                           importServerModule (no entrypoint resolver)
 
 staticExport
@@ -41,7 +41,7 @@ staticExport
 | Concern                    | Owner                                                                                                                                                                  |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Session + worker lifecycle | `LitPlugin` (`renderSession`)                                                                                                                                          |
-| Lazy session lookup        | `LitRenderer` via `getRenderSession`                                                                                                                                   |
+| Lazy session lookup        | `createLitRenderer()` hook factory via `getRenderSession`                                                                                                              |
 | Worker identity            | First `{ configModulePath, runtimeOrigin }` passed to `ensureWorker`; same identity is sticky; a later `ensureWorker` with a different identity disposes and recreates |
 
 Renderers created before plugin `setup()` still use the worker after setup assigns the session, because `execute` activates the integration runtime then reads the accessor.
@@ -50,7 +50,7 @@ Renderers created before plugin `setup()` still use the worker after setup assig
 
 ## Locals policy
 
-When `RouteRendererOptions.locals` is present, `LitRenderer.execute` forces the in-process path (`super.execute`). Request locals are not sent through the worker protocol (structured-clone risk and request-scoped data). Static export and routes without locals continue through the worker.
+When `RouteRendererOptions.locals` is present, the Lit remote-render hook declines the worker path and core continues in-process. Request locals are not sent through the worker protocol (structured-clone risk and request-scoped data). Static export and routes without locals continue through the worker.
 
 ## Files
 

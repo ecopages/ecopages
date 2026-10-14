@@ -29,7 +29,7 @@ commit for development diagnostics.
 
 ## Where stamping happens
 
-`finalizeIslandComponentRender()` in `island-host.ts` is called from integration renderers when:
+`IntegrationRenderer` calls `finalizeIslandComponentRender()` in `island-host.ts` after the component's foreign children are resolved when:
 
 1. `integrationContext.componentInstanceId` is present
 2. The render result can attach attributes to a single root element

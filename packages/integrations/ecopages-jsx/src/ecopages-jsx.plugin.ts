@@ -15,7 +15,11 @@ import {
 	resolveMdxCompilerOptions,
 	type ResolvedMdxCompileOptions,
 } from './ecopages-jsx-mdx.ts';
-import { EcopagesJsxRenderer } from './ecopages-jsx-renderer.ts';
+import {
+	createEcopagesJsxRenderer,
+	createEcopagesJsxRendererHookFactory,
+	EcopagesJsxRenderer,
+} from './ecopages-jsx-renderer.ts';
 import { EcopagesJsxHmrStrategy } from './ecopages-jsx-hmr-strategy.ts';
 import { EcopagesJsxDevTransformContributor } from './dev-transform/ecopages-jsx-dev-transform-contributor.ts';
 import { assignPageOwnedContentScriptGroupedBundles } from './page-owned-content-script-grouping.ts';
@@ -102,15 +106,21 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 
 	/** Creates the renderer instance with the resolved JSX integration runtime options. */
 	override initializeRenderer(): EcopagesJsxRenderer {
-		return this.attachRendererRuntimeServices(
-			new this.renderer({
-				...this.createRendererOptions(),
-				jsxConfig: {
-					mdxExtensions: this.mdxExtensions,
-					radiantSsrEnabled: this.includeRadiant,
-				},
-			}),
-		);
+		const jsxConfig = {
+			mdxExtensions: this.mdxExtensions,
+			radiantSsrEnabled: this.includeRadiant,
+		};
+		const rendererOptions = this.createRendererOptions();
+		const customRendererOptions = { ...rendererOptions, jsxConfig };
+		const renderer =
+			this.renderer === EcopagesJsxRenderer
+				? new (createEcopagesJsxRenderer(jsxConfig))(rendererOptions)
+				: new this.renderer({
+						...customRendererOptions,
+						hooks: createEcopagesJsxRendererHookFactory(jsxConfig),
+					});
+
+		return this.attachRendererRuntimeServices(renderer);
 	}
 
 	constructor(options?: EcopagesJsxPluginOptions) {

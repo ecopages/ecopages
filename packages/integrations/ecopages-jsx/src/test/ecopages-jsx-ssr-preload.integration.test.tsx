@@ -12,7 +12,7 @@ import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	invalidateCustomElementScriptPreload,
 } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
-import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
+import { createEcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 
 declare module '@ecopages/jsx' {
 	interface JsxCustomIntrinsicElements {
@@ -33,7 +33,7 @@ const HtmlTemplate = ({ children }: { children: JsxRenderable }) => (
 	</html>
 );
 
-class TestEcopagesJsxRenderer extends EcopagesJsxRenderer {
+class TestEcopagesJsxRenderer extends createEcopagesJsxRenderer({ radiantSsrEnabled: true }) {
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		return HtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
 	}
@@ -87,9 +87,6 @@ describe('Ecopages JSX SSR script preload integration', () => {
 					} as never,
 					runtimeOrigin: 'http://localhost:3000',
 					resolvedIntegrationDependencies: [],
-					jsxConfig: {
-						radiantSsrEnabled: true,
-					},
 				});
 
 				const result = await renderer.renderComponent({
@@ -147,9 +144,6 @@ describe('Ecopages JSX SSR script preload integration', () => {
 				} as never,
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
-				jsxConfig: {
-					radiantSsrEnabled: true,
-				},
 			});
 
 			const result = await renderer.renderComponent({

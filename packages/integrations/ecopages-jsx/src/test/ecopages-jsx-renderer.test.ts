@@ -6,15 +6,16 @@ import { pathToFileURL } from 'node:url';
 import type {
 	EcoComponent,
 	EcoFunctionComponent,
+	EcoPageFile,
 	EcoPagesAppConfig,
 	HtmlTemplateProps,
 	PageProps,
 } from '@ecopages/core';
 import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
+import { createEcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { test, vi } from 'vitest';
 import { getEjsxHmrOwnership } from '../ecopages-jsx-hmr-ownership.ts';
-import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 
 const radiantEntryUrl = import.meta.resolve('@ecopages/radiant');
 const radiantCustomElementEntryUrl = import.meta.resolve('@ecopages/radiant/decorators/custom-element');
@@ -29,7 +30,16 @@ function createTestAssetProcessingService(appConfig: EcoPagesAppConfig): AssetPr
 	return service;
 }
 
-class TestEcopagesJsxRenderer extends EcopagesJsxRenderer {
+class TestEcopagesJsxRenderer extends createEcopagesJsxRenderer() {
+	public async testResolvePageModule(file: string) {
+		return this.pageModuleLoaderService.resolvePageModule({
+			file,
+			importPageFileFn: (targetFile) => this.importPageFile(targetFile),
+		});
+	}
+}
+
+class TestRadiantEcopagesJsxRenderer extends createEcopagesJsxRenderer({ radiantSsrEnabled: true }) {
 	public async testResolvePageModule(file: string) {
 		return this.pageModuleLoaderService.resolvePageModule({
 			file,
@@ -153,13 +163,10 @@ test('EcopagesJsxRenderer installs the Radiant light-dom environment before reso
 		});
 
 		const appConfig = createAppConfig(tempDir);
-		const renderer = new TestEcopagesJsxRenderer({
+		const renderer = new TestRadiantEcopagesJsxRenderer({
 			appConfig,
 			assetProcessingService: createTestAssetProcessingService(appConfig),
 			resolvedIntegrationDependencies: [],
-			jsxConfig: {
-				radiantSsrEnabled: true,
-			},
 			runtimeOrigin: 'http://localhost:3000',
 		});
 
@@ -188,31 +195,40 @@ test('Radiant SSR host serialization loads through the documented public export'
 });
 
 test('EcopagesJsxRenderer keeps MDX extension matching instance-owned', () => {
+	class DocsRenderer extends createEcopagesJsxRenderer({ mdxExtensions: ['.docs.mdx'] }) {
+		public normalizeModule(file: string, module: EcoPageFile): EcoPageFile {
+			return this.normalizeImportedPageFile(file, module);
+		}
+	}
+	class GuideRenderer extends createEcopagesJsxRenderer({ mdxExtensions: ['.guide.mdx'] }) {
+		public normalizeModule(file: string, module: EcoPageFile): EcoPageFile {
+			return this.normalizeImportedPageFile(file, module);
+		}
+	}
 	const appConfigA = createAppConfig(tmpdir());
 	const appConfigB = createAppConfig(tmpdir());
-	const rendererA = new TestEcopagesJsxRenderer({
+	const rendererA = new DocsRenderer({
 		appConfig: appConfigA,
 		assetProcessingService: createTestAssetProcessingService(appConfigA),
 		resolvedIntegrationDependencies: [],
-		jsxConfig: {
-			mdxExtensions: ['.docs.mdx'],
-		},
 		runtimeOrigin: 'http://localhost:3000',
 	});
-	const rendererB = new TestEcopagesJsxRenderer({
+	const rendererB = new GuideRenderer({
 		appConfig: appConfigB,
 		assetProcessingService: createTestAssetProcessingService(appConfigB),
 		resolvedIntegrationDependencies: [],
-		jsxConfig: {
-			mdxExtensions: ['.guide.mdx'],
-		},
 		runtimeOrigin: 'http://localhost:3000',
 	});
+	const page = (() => '') as EcoComponent;
+	page.config = {
+		identity: { id: 'page', file: '/tmp/page.docs.mdx', integration: 'ecopages-jsx' },
+	};
+	const module = { default: page } as EcoPageFile;
 
-	assert.equal(rendererA.isMdxFile('/tmp/page.docs.mdx'), true);
-	assert.equal(rendererA.isMdxFile('/tmp/page.guide.mdx'), false);
-	assert.equal(rendererB.isMdxFile('/tmp/page.docs.mdx'), false);
-	assert.equal(rendererB.isMdxFile('/tmp/page.guide.mdx'), true);
+	assert.notEqual(rendererA.normalizeModule('/tmp/page.docs.mdx', module).default, page);
+	assert.equal(rendererA.normalizeModule('/tmp/page.guide.mdx', module).default, page);
+	assert.equal(rendererB.normalizeModule('/tmp/page.docs.mdx', module).default, page);
+	assert.notEqual(rendererB.normalizeModule('/tmp/page.guide.mdx', module).default, page);
 });
 
 test('EcopagesJsxRenderer records declared content dependencies for HMR ownership', async () => {
@@ -221,7 +237,6 @@ test('EcopagesJsxRenderer records declared content dependencies for HMR ownershi
 		appConfig,
 		assetProcessingService: createTestAssetProcessingService(appConfig),
 		resolvedIntegrationDependencies: [],
-		jsxConfig: {},
 		runtimeOrigin: 'http://localhost:3000',
 	});
 	const demo = (() => '<demo></demo>') as EcoComponent;

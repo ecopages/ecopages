@@ -4,7 +4,7 @@ import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config'
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import type { JsxCustomElementAttributes, JsxRenderable } from '@ecopages/jsx';
 import { installLightDomShim } from '@ecopages/radiant/server/light-dom-shim';
-import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
+import { createEcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 
 type IntrinsicContractElement = HTMLElement & { count?: number };
 
@@ -28,7 +28,7 @@ const TestConfig = await finalizeEcoPagesConfig({
 	baseUrl: 'http://localhost:3000',
 });
 
-class TestEcopagesJsxRenderer extends EcopagesJsxRenderer {
+class TestEcopagesJsxRenderer extends createEcopagesJsxRenderer({ radiantSsrEnabled: true }) {
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		return RouteHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
 	}
@@ -84,9 +84,6 @@ describe('EcopagesJsxRenderer hydration scope', () => {
 			} as never,
 			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
-			jsxConfig: {
-				radiantSsrEnabled: true,
-			},
 		});
 
 		const Layout = eco.layout<JsxRenderable>({

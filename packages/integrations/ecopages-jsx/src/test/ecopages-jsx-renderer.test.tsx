@@ -21,7 +21,7 @@ import { createTestAppConfig } from '@ecopages/testing';
 import { describeRendererContract } from '@ecopages/testing/renderer-contract';
 import type { ForeignChildInterceptionInput } from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
 import { ecopagesJsxPlugin } from '../ecopages-jsx.plugin';
-import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer';
+import { createEcopagesJsxRenderer } from '../ecopages-jsx-renderer';
 
 type StringChildProps = {
 	children?: JsxRenderable;
@@ -69,24 +69,29 @@ function serializeStringChild(children: JsxRenderable | undefined): string {
 	return typeof children === 'string' ? children : renderToString(children);
 }
 
-class TestEcopagesJsxRenderer extends EcopagesJsxRenderer {
-	htmlTemplate: EcoComponent<HtmlTemplateProps> = HtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
+function createTestRendererClass(radiantSsrEnabled = false) {
+	return class TestEcopagesJsxRenderer extends createEcopagesJsxRenderer({ radiantSsrEnabled }) {
+		htmlTemplate: EcoComponent<HtmlTemplateProps> = HtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
 
-	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
-		return this.htmlTemplate;
-	}
+		protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
+			return this.htmlTemplate;
+		}
 
-	protected override async resolveDependencies(): Promise<[]> {
-		return [];
-	}
+		protected override async resolveDependencies(): Promise<[]> {
+			return [];
+		}
 
-	public createTestForeignChildRuntime(input: ComponentRenderInput) {
-		return this.createForeignChildRuntime({
-			renderInput: input,
-			rendererCache: new Map<string, IntegrationRenderer<any>>(),
-		});
-	}
+		public createTestForeignChildRuntime(input: ComponentRenderInput) {
+			return this.createForeignChildRuntime({
+				renderInput: input,
+				rendererCache: new Map<string, IntegrationRenderer<any>>(),
+			});
+		}
+	};
 }
+
+class TestEcopagesJsxRenderer extends createTestRendererClass() {}
+class RadiantTestEcopagesJsxRenderer extends createTestRendererClass(true) {}
 
 class StringChildContractRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = 'string-child-contract';
@@ -791,16 +796,13 @@ describe('EcopagesJsxRenderer', () => {
 				customElements.define(INTRINSIC_TEST_TAG, IntrinsicContractElement);
 			}
 
-			const renderer = new TestEcopagesJsxRenderer({
+			const renderer = new RadiantTestEcopagesJsxRenderer({
 				appConfig: Config,
 				assetProcessingService: {
 					processDependencies: vi.fn(async () => []),
 				} as never,
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
-				jsxConfig: {
-					radiantSsrEnabled: true,
-				},
 			});
 
 			const WrappedIntrinsic = eco.component<{}, JsxRenderable>({
@@ -825,7 +827,7 @@ describe('EcopagesJsxRenderer', () => {
 			expect(result.html).toContain('data-ssr-mode="plain"');
 			expect(result.html).toContain('data-count="2"');
 			expect(result.html).toContain('data-testid="intrinsic-contract"');
-			expect(result.assets).toEqual([]);
+			expect(result.assets).toBeUndefined();
 		});
 
 		it('server-renders Radiant custom elements with array props without requiring wrapper attribute serialization', async () => {
@@ -850,16 +852,13 @@ describe('EcopagesJsxRenderer', () => {
 				void RadiantArrayContractElement;
 			}
 
-			const renderer = new TestEcopagesJsxRenderer({
+			const renderer = new RadiantTestEcopagesJsxRenderer({
 				appConfig: Config,
 				assetProcessingService: {
 					processDependencies: vi.fn(async () => []),
 				} as never,
 				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
-				jsxConfig: {
-					radiantSsrEnabled: true,
-				},
 			});
 
 			const Page = eco.component<{}, JsxRenderable>({

@@ -74,7 +74,7 @@ When no `src/includes/html.*` exists, `HtmlPageRenderer.getHtmlTemplate()` retur
 
 ## Head reconciliation
 
-The renderer retains the Page head for the active render and `finalizeDocument()` reconciles it after Integration and core head contributions are in the document. A direct `HtmlPageRenderer.render()` call, outside a route render, reconciles the HTML it returns the same way:
+The renderer retains the Page head for the active render and its `finalizeDocument` hook reconciles it after Integration and core head contributions are in the document. A direct `HtmlPageRenderer.render()` call, outside a route render, reconciles the HTML it returns the same way:
 
 - A Page singleton, including a derived social tag, replaces the first shell tag with the same key, in place. This includes the core robots tag built from `metadata.robots`.
 - A Page `<meta charset>` matching the shell is dropped; a different encoding is an error naming the Page. A Page charset or `<base>` without a shell copy is inserted at the start of `<head>`.

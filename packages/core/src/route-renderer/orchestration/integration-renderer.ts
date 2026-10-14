@@ -179,6 +179,11 @@ export type IntegrationRendererHooks = {
 	buildIslandClientAssets?: (plan: PageClientPlan) => Promise<PageClientBrowserAssets>;
 	beforeRender?: <C>(options: IntegrationRendererRenderOptions<C>) => Promise<void>;
 	transformDocumentHtml?: (html: string) => string;
+	/** Reconciles integration-owned document markup after core transforms the response. */
+	finalizeDocument?: <C>(
+		body: RouteRendererBody,
+		renderOptions: IntegrationRendererRenderOptions<C>,
+	) => Promise<RouteRendererBody> | RouteRendererBody;
 	renderRemote?: (options: RouteRendererOptions) => Promise<RouteRenderResult | undefined>;
 };
 
@@ -795,9 +800,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 	protected finalizeDocument(
 		body: RouteRendererBody,
-		_renderOptions: IntegrationRendererRenderOptions<C>,
+		renderOptions: IntegrationRendererRenderOptions<C>,
 	): Promise<RouteRendererBody> | RouteRendererBody {
-		return body;
+		return this.integrationHooks.finalizeDocument?.(body, renderOptions) ?? body;
 	}
 
 	async resolveRouteRenderInputs(routeOptions: RouteRendererOptions): Promise<RouteRenderOrchestratorResolvedInputs> {

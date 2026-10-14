@@ -11,15 +11,19 @@ import {
 	type EcoComponentConfig,
 	type EcoPageFile,
 	type HtmlTemplateProps,
+	type IntegrationRendererRenderOptions,
 	type PageBrowserGraphResult,
 } from '@ecopages/core';
-import { type RouteModuleLoadOptions } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import {
+	type PageClientPlan,
+	type RouteModuleLoadOptions,
+} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { runWithComponentRenderContext } from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
 import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { describeRendererContract } from '@ecopages/testing/renderer-contract';
-import React, { type JSX } from 'react';
+import React, { type JSX, type ReactNode } from 'react';
 import { ReactRenderer, type ReactRendererConfig } from '../render/react-renderer.ts';
 import type { ReactRuntime } from '../render/layout-compose.ts';
 import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
@@ -111,6 +115,24 @@ type ComposeChildrenRequest = {
 	foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
 };
 
+function createPageClientPlan(currentIntegrationName: string, component: EcoComponent): PageClientPlan {
+	return {
+		currentIntegrationName,
+		integrationNames: new Set([currentIntegrationName, 'react']),
+		lazyTriggers: [],
+		lazyClientEntries: [],
+		lazyConfigs: [],
+		islandEntries: [
+			{
+				file: component.config?.identity?.file ?? pageFilePath,
+				integrationName: 'react',
+				component,
+			},
+		],
+		sourceComponents: [component],
+	};
+}
+
 class TestReactRenderer extends ReactRenderer {
 	composeChildrenRequests: ComposeChildrenRequest[] = [];
 	htmlTemplate: EcoComponent<HtmlTemplateProps> = HtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
@@ -176,6 +198,10 @@ class TestReactRenderer extends ReactRenderer {
 
 	public async testCollectPageBrowserGraphContribution(filePath: string, pageModule: EcoPageFile) {
 		return await this.collectPageBrowserGraphContribution({ file: filePath, pageModule });
+	}
+
+	public async testProcessComponentDependencies(component: EcoComponent) {
+		await this.processComponentDependencies([component]);
 	}
 
 	public resolveComposeChildrenForTest(options: ComposeChildrenRequest) {
@@ -297,19 +323,11 @@ describeRendererContract({
 		}) as unknown as EcoComponent;
 	},
 	async renderIsland(renderer, input) {
-		const islandRenderer = renderer as unknown as {
-			collectIslandRenderAssets: (plan: {
-				currentIntegrationName: string;
-				islandEntries: Array<{ file: string; integrationName: string; component: EcoComponent }>;
-			}) => Promise<Map<string, unknown[]>>;
-		};
-		const file = input.component.config?.identity?.file ?? '';
-		const islandRenderAssetsByFile = await islandRenderer.collectIslandRenderAssets({
-			currentIntegrationName: 'kitajs',
-			islandEntries: [{ file, integrationName: 'react', component: input.component }],
-		});
+		const islandAssets = await renderer.buildPageClientBrowserAssets(
+			createPageClientPlan('kitajs', input.component),
+		);
 		const { value } = await runWithComponentRenderContext(
-			{ currentIntegration: 'kitajs', islandRenderAssetsByFile: islandRenderAssetsByFile as never },
+			{ currentIntegration: 'kitajs', islandRenderAssetsByFile: islandAssets.islandRenderAssetsByFile },
 			async () => renderer.renderComponent(input),
 		);
 		return value;
@@ -395,20 +413,13 @@ describe('ReactRenderer', () => {
 				},
 			};
 
-			const renderer = testRenderer as unknown as {
-				collectIslandRenderAssets: (plan: {
-					currentIntegrationName: string;
-					islandEntries: Array<{ file: string; integrationName: string; component: EcoComponent }>;
-				}) => Promise<Map<string, unknown[]>>;
-			};
-			const islandRenderAssetsByFile = await renderer.collectIslandRenderAssets({
-				currentIntegrationName: 'kitajs',
-				islandEntries: [{ file: pageFilePath, integrationName: 'react', component: Component }],
-			});
+			const islandAssets = await testRenderer.buildPageClientBrowserAssets(
+				createPageClientPlan('kitajs', Component),
+			);
 			expect(assetProcessingService.processDependencies).toHaveBeenCalled();
 
 			const { value: result } = await runWithComponentRenderContext(
-				{ currentIntegration: 'kitajs', islandRenderAssetsByFile: islandRenderAssetsByFile as never },
+				{ currentIntegration: 'kitajs', islandRenderAssetsByFile: islandAssets.islandRenderAssetsByFile },
 				async () =>
 					testRenderer.renderComponent({
 						component: Component,
@@ -442,19 +453,36 @@ describe('ReactRenderer', () => {
 				},
 			};
 
-			const renderer = testRenderer as unknown as {
-				collectIslandRenderAssets: (plan: {
-					currentIntegrationName: string;
-					islandEntries: Array<{ file: string; integrationName: string; component: EcoComponent }>;
-				}) => Promise<Map<string, unknown[]>>;
-			};
-
-			await renderer.collectIslandRenderAssets({
-				currentIntegrationName: 'react',
-				islandEntries: [{ file: pageFilePath, integrationName: 'react', component: Component }],
-			});
+			await testRenderer.buildPageClientBrowserAssets(createPageClientPlan('react', Component));
 
 			expect(assetProcessingService.processDependencies).not.toHaveBeenCalled();
+		});
+
+		it('resolves pending lazy scripts to the grouped browser output URL', async () => {
+			const { testRenderer } = createRendererWithAssets();
+			const Component = (() => <div>Page</div>) as unknown as EcoComponent<object>;
+			Component.config = {
+				identity: { id: 'lazy-page', file: pageFilePath, integration: 'react' },
+				dependencies: {
+					scripts: [{ src: './lazy-client.ts', lazy: { 'on:interaction': 'click' } }],
+				},
+			};
+			await testRenderer.testProcessComponentDependencies(Component);
+
+			const plan = createPageClientPlan('react', Component);
+			plan.lazyClientEntries = Component.config._pendingLazyClientAssets ?? [];
+			plan.lazyConfigs = [Component.config];
+
+			const assets = await testRenderer.buildPageClientBrowserAssets(plan);
+			const lazyOutputUrl = assets.processedAssets.find(
+				(asset) => asset.attributes?.['data-eco-lazy-key'],
+			)?.srcUrl;
+
+			expect(lazyOutputUrl).toBeDefined();
+			expect(assets.lazyTriggers).toHaveLength(1);
+			expect(assets.lazyTriggers[0]?.rules).toEqual([
+				{ 'on:interaction': { value: 'click', scripts: [lazyOutputUrl] } },
+			]);
 		});
 
 		it('should not emit island assets when no componentInstanceId is provided', async () => {
@@ -632,6 +660,50 @@ describe('ReactRenderer', () => {
 			expect(deferredRenderComponent).toHaveBeenCalledTimes(1);
 		});
 
+		it('keeps a React island host when its root is a queued foreign component', async () => {
+			const deferredPlugin = createDeferredIntegrationPlugin({
+				renderComponent: async (): Promise<ComponentRenderResult> => ({
+					html: '<button>Foreign root</button>',
+					canAttachAttributes: true,
+					integrationName: 'deferred',
+					assets: [{ kind: 'script', srcUrl: '/assets/foreign.js', position: 'body' }],
+				}),
+			});
+			const config = await createTestAppConfig({ distDir: testDir, integrations: [deferredPlugin] });
+			const testRenderer = new TestReactRenderer({
+				appConfig: config,
+				assetProcessingService: { processDependencies: vi.fn(async () => []) } as any,
+				runtimeOrigin: 'http://localhost:3000',
+				resolvedIntegrationDependencies: [],
+			});
+			const DeferredWidget = eco.component<{}, string>({
+				identity: {
+					id: 'deferred-root',
+					file: '/app/components/deferred-root.deferred.tsx',
+					integration: 'deferred',
+				},
+				integration: 'deferred',
+				render: () => '',
+			});
+			const ForeignWidget = DeferredWidget as unknown as React.ComponentType;
+			const Island = eco.component<Record<string, never>, JSX.Element>({
+				identity: { id: 'react-island', file: pageFilePath, integration: 'react' },
+				integration: 'react',
+				dependencies: { components: [DeferredWidget] },
+				render: () => <ForeignWidget />,
+			});
+
+			const result = await testRenderer.renderComponentWithForeignChildren({
+				component: Island,
+				props: {},
+				integrationContext: { componentInstanceId: 'island-foreign-root' },
+			});
+
+			expect(result.html).toBe('<eco-island style="display:contents"><button>Foreign root</button></eco-island>');
+			expect(result.rootAttributes?.['data-eco-component-id']).toBe('island-foreign-root');
+			expect(result.assets).toContainEqual(expect.objectContaining({ srcUrl: '/assets/foreign.js' }));
+		});
+
 		it('returns island host metadata with the component render result', async () => {
 			const { testRenderer } = createRendererWithAssets();
 			const Component = ((props: { title: string }) => <h3>{props.title}</h3>) as unknown as EcoComponent<{
@@ -735,6 +807,33 @@ describe('ReactRenderer', () => {
 
 		const text = await new Response(body as BodyInit).text();
 		expect(text).toContain('<div>Hello World</div>');
+	});
+
+	it('serializes route params and query over conflicting page props', async () => {
+		const testRenderer = createRenderer();
+		const htmlTemplateMock = vi.fn(({ children }: HtmlTemplateProps) => children as unknown as ReactNode);
+
+		await testRenderer.render({
+			params: { slug: 'route-value' },
+			query: { preview: 'route-value' },
+			props: { title: 'Page title' },
+			pageProps: {
+				title: 'Page title',
+				params: { slug: 'props-value' },
+				query: { preview: 'props-value' },
+			},
+			resolvedDependencies: [],
+			file: pageFilePath,
+			metadata: { title: 'Test Page', description: 'Test Description' },
+			Page,
+			HtmlTemplate: htmlTemplateMock as IntegrationRendererRenderOptions<ReactNode>['HtmlTemplate'],
+		});
+
+		expect(htmlTemplateMock.mock.calls[0]?.[0]?.pageProps).toEqual({
+			title: 'Page title',
+			params: { slug: 'route-value' },
+			query: { preview: 'route-value' },
+		});
 	});
 
 	it('passes route-resolved dependency roots into the document shell', async () => {

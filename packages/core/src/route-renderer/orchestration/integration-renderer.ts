@@ -177,6 +177,12 @@ export type IntegrationRendererHooks = {
 	) => Promise<PageBrowserGraphContribution | undefined>;
 	documentContributions?: <C>(context: HtmlDocumentContributionContext<C>) => HtmlDocumentContribution[] | undefined;
 	documentAttributes?: <C>(renderOptions: IntegrationRendererRenderOptions<C>) => Record<string, string> | undefined;
+	/** Supplies an Integration-specific browser page payload or top-level document props. */
+	documentShellProps?: <C>(renderOptions: IntegrationRendererRenderOptions<C>) => {
+		pageProps?: Record<string, unknown>;
+		documentProps?: Record<string, unknown>;
+	};
+	/** Builds this Integration's island and lazy-entry assets for the grouped page browser plan. */
 	buildIslandClientAssets?: (plan: PageClientPlan) => Promise<PageClientBrowserAssets>;
 	beforeRender?: <C>(options: IntegrationRendererRenderOptions<C>) => Promise<void>;
 	beforeImportPageModule?: (file: string) => Promise<void>;
@@ -217,6 +223,11 @@ export type IntegrationRendererHookFactoryOptions = Omit<IntegrationRendererOpti
 	) => Promise<ProcessedAsset[]>;
 	/** Resolves a declared component asset relative to its owning component file. */
 	resolveDependencyPath: (componentDir: string, pathUrl: string) => string;
+	/** Resolves lazy client triggers from processed assets using the current render session. */
+	applyPendingLazyTriggers: (
+		assets: ProcessedAsset[],
+		configs: PageClientPlan['lazyConfigs'],
+	) => PageClientBrowserAssets['lazyTriggers'];
 };
 
 /** Creates the optional hooks for one app-owned renderer instance. */
@@ -698,6 +709,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 							this.processComponentDependencies(components, options),
 						resolveDependencyPath: (componentDir, pathUrl) =>
 							this.resolveDependencyPath(componentDir, pathUrl),
+						applyPendingLazyTriggers: (assets, configs) =>
+							this.dependencyResolverService.applyPendingLazyTriggers(assets, configs),
 					})
 				: (hooks ?? {});
 	}
@@ -1148,6 +1161,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	async render(options: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {
 		const renderRoute = async (): Promise<RouteRendererBody> => {
 			await this.beforeRender(options);
+			const documentShellProps = this.integrationHooks.documentShellProps?.(options);
 			return await this.renderPageWithDocumentShell({
 				page: {
 					component: options.Page,
@@ -1167,7 +1181,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				}),
 				htmlTemplate: options.HtmlTemplate,
 				metadata: options.metadata,
-				pageProps: options.pageProps ?? options.props ?? {},
+				pageProps: documentShellProps?.pageProps ?? options.pageProps ?? options.props ?? {},
+				documentProps: documentShellProps?.documentProps,
 				foreignChildRoots: options.resolvedPageDependencyComponents,
 				transformDocumentHtml: (html) => this.transformDocumentHtml(html),
 			});
@@ -1354,7 +1369,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * app-wide grouped browser build that other page owners should run for the plan.
 	 */
 	protected contributesAppBrowserClientBuild(): boolean {
-		return false;
+		return this.integrationHooks.buildIslandClientAssets !== undefined;
 	}
 
 	/**

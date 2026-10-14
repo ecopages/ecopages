@@ -99,6 +99,35 @@ describe('HtmlPageRenderer', () => {
 		expect(html).toContain('<meta property="og:title" content="About">');
 	});
 
+	it('reconciles the Page head through document finalization after route transforms', async () => {
+		const file = write('src/pages/about.html', '<head><title>About</title></head><main>About</main>');
+		const renderer = createRenderer();
+		const options = {
+			params: {},
+			query: {},
+			props: {},
+			file,
+			metadata: { title: 'Site', description: 'Site' },
+			Page: loadHtmlPageModule(appConfig, file).default as IntegrationRendererRenderOptions['Page'],
+			resolvedDependencies: [],
+			HtmlTemplate: getBuiltInHtmlShell() as EcoComponent<HtmlTemplateProps>,
+		} satisfies IntegrationRendererRenderOptions;
+
+		const body = await renderer.renderRouteBody(options);
+		const transformed = await renderer.transformRouteResponse(
+			new Response(body as BodyInit),
+			[{ placement: 'head-append', html: '<title>Injected</title>' }],
+			undefined,
+			options,
+		);
+		const html = await new Response(transformed as BodyInit).text();
+
+		expect(html).toContain('<title>About</title>');
+		expect(html).not.toContain('<title>Injected</title>');
+		expect(html.match(/<title>/g)).toHaveLength(1);
+		expect(html).toContain('<meta property="og:title" content="About">');
+	});
+
 	it('wraps the Page in <body> when a JSX shell leaves <body> to its layouts', async () => {
 		const file = write('src/pages/about.html', '<main>About</main>');
 		const BodylessShell = (async ({ children }: HtmlTemplateProps) =>

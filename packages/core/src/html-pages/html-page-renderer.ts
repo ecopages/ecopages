@@ -12,6 +12,7 @@ import type {
 import { AssetFactory } from '../services/assets/asset-processing-service/asset.factory.ts';
 import type { AssetDefinition } from '../services/assets/asset-processing-service/assets.types.ts';
 import { StringMarkupRenderer } from '../route-renderer/orchestration/string-markup-renderer.ts';
+import type { IntegrationRendererOptions } from '../route-renderer/orchestration/integration-renderer.ts';
 import { findElements, parseHtml } from '../services/html/html-source-parser.ts';
 import { escapeHtmlAttribute } from '../utils/html-escaping.ts';
 import { invariant } from '../utils/invariant.ts';
@@ -92,7 +93,15 @@ function escapeStyleContent(css: string): string {
  */
 export class HtmlPageRenderer extends StringMarkupRenderer {
 	name = HTML_PAGES_INTEGRATION_NAME;
-	private readonly renderedHeads = new WeakMap<IntegrationRendererRenderOptions, RenderedHtmlPageHead>();
+	private readonly renderedHeads = new WeakMap<object, RenderedHtmlPageHead>();
+
+	constructor(options: IntegrationRendererOptions) {
+		super(options);
+		this.integrationHooks = {
+			...this.integrationHooks,
+			finalizeDocument: (body, renderOptions) => this.finalizeHtmlPageDocument(body, renderOptions),
+		};
+	}
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		const htmlTemplatePath = this.appConfig.absolutePaths.htmlTemplatePath;
@@ -142,9 +151,9 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 		return rendered.html;
 	}
 
-	protected override async finalizeDocument(
+	private async finalizeHtmlPageDocument<C>(
 		body: RouteRendererBody,
-		options: IntegrationRendererRenderOptions,
+		options: IntegrationRendererRenderOptions<C>,
 	): Promise<RouteRendererBody> {
 		const head = this.renderedHeads.get(options);
 		if (!head) return body;

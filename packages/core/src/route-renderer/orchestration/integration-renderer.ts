@@ -190,6 +190,9 @@ export type IntegrationRendererOptions = {
 	hooks?: IntegrationRendererHooks;
 };
 
+/** Creates the optional hooks for one app-owned renderer instance. */
+export type IntegrationRendererHookFactory = (options: IntegrationRendererOptions) => IntegrationRendererHooks;
+
 type PrebuiltRoutePreparation = {
 	resolvedInputs: RouteRenderOrchestratorResolvedInputs;
 	graphContext: PageBrowserGraphContributionContext;
@@ -1410,13 +1413,14 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
  */
 export function createIntegrationRenderer<C = EcoPagesElement>(
 	name: string,
-	hooks: IntegrationRendererHooks = {},
+	hooks: IntegrationRendererHooks | IntegrationRendererHookFactory = {},
 ): new (options: IntegrationRendererOptions) => IntegrationRenderer<C> {
 	return class HookedIntegrationRenderer extends IntegrationRenderer<C> {
 		name = name;
 
 		constructor(options: IntegrationRendererOptions) {
-			super({ ...options, hooks: { ...hooks, ...options.hooks } });
+			const rendererHooks = typeof hooks === 'function' ? hooks(options) : hooks;
+			super({ ...options, hooks: { ...rendererHooks, ...options.hooks } });
 		}
 	};
 }

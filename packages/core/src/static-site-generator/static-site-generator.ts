@@ -427,6 +427,7 @@ export class StaticSiteGenerator {
 	}): Promise<void> {
 		if (shouldPrebuildProductionPageBrowserGraphs() && input.routeRendererFactory) {
 			await prebuildProductionPageBrowserGraphs(
+				this.appConfig,
 				input.routes.map((route) => ({
 					routeFile: route.templateRoute.filePath,
 					params: route.params,

@@ -395,6 +395,7 @@ export async function createRolldownPluginBridge(
 	plugins: EcoBuildPlugin[],
 	contextRoot: string,
 	recordBuildInput?: BuildInputRecorder,
+	entrypoints?: Readonly<Record<string, string>>,
 ): Promise<Plugin[]> {
 	if (plugins.length === 0) {
 		return [];
@@ -416,6 +417,7 @@ export async function createRolldownPluginBridge(
 	for (const ecoPlugin of plugins) {
 		const pluginName = ecoPlugin.name;
 		const builder: EcoBuildPluginBuilder = {
+			...(entrypoints ? { entrypoints } : {}),
 			onResolve: (options, callback) => {
 				assertOpen('onResolve');
 				resolveRegistrations.push(createRegistration(options.filter, options.namespace, callback, pluginName));

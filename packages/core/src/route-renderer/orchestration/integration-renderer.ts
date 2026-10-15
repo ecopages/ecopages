@@ -37,15 +37,19 @@ import { PageModuleLoaderService } from '../page-loading/page-module-loader.ts';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
 import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
 import {
+	type PreparedComponentGraph,
 	type PreparedComponentGraphNode,
 	type PreparedRouteComponentGraphs,
 } from './ownership-graph/component-graph.ts';
 import { collectComponentGraphWatchPaths } from './ownership-graph/component-graph-collectors.ts';
 import {
 	collectPageClientPlan,
+	collectPageClientPlanFromGraph,
 	planCoversComponents,
 	planHasForeignChildDescendants,
+	uniqueIslandIntegrationNames,
 	type PageClientBrowserAssets,
+	type PageClientBuildEntry,
 	type PageClientPlan,
 } from './ownership-graph/page-client-plan.ts';
 import { buildPageClientBrowserAssets } from './ownership-graph/page-client-browser-assets.ts';
@@ -72,6 +76,7 @@ import {
 	createGroupedGraphBuildPlanKey,
 	type GroupedGraphBuildPlan,
 } from './page-browser-graph/grouped-graph-build-plan.ts';
+import { createRouteGraphLookupKey } from './page-browser-graph/route-instance-key.ts';
 import type { ForeignChildInterceptionInput, ForeignChildRuntime } from './foreign-child/component-render-context.ts';
 import { normalizeUnresolvedMarkerArtifactHtml } from './route-pipeline/marker-artifact.utils.ts';
 import { isMarkupNodeLike } from './foreign-child/foreign-child-output.utils.ts';
@@ -158,6 +163,7 @@ export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext 
 export {
 	selectHydrationIslandEntries,
 	type PageClientBrowserAssets,
+	type PageClientBuildEntry,
 	type PageClientPlan,
 } from './ownership-graph/page-client-plan.ts';
 export type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
@@ -184,6 +190,8 @@ export type IntegrationRendererHooks = {
 	};
 	/** Builds this Integration's island and lazy-entry assets for the grouped page browser plan. */
 	buildIslandClientAssets?: (plan: PageClientPlan) => Promise<PageClientBrowserAssets>;
+	/** Collects this Integration's raw island entries for a static production app browser build. */
+	collectAppBrowserClientBuildEntries?: (plan: PageClientPlan) => Promise<PageClientBuildEntry[]>;
 	beforeRender?: <C>(options: IntegrationRendererRenderOptions<C>) => Promise<void>;
 	beforeImportPageModule?: (file: string) => Promise<void>;
 	transformDocumentHtml?: (html: string) => string;
@@ -265,6 +273,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected routeRenderOrchestrator: RouteRenderOrchestrator;
 	protected integrationHooks: IntegrationRendererHooks;
 	private readonly prebuiltRoutePreparations = new Map<string, PrebuiltRoutePreparation>();
+	private readonly prebuiltGroupedBuildPlans = new Map<string, GroupedGraphBuildPlan>();
+	private readonly prebuiltPageClientBrowserAssets = new Map<
+		string,
+		NonNullable<GroupedGraphBuildPlan['instances'][number]['prebuiltPageClientBrowserAssets']>
+	>();
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
 
@@ -293,6 +306,26 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		},
 	): Promise<void> {
 		await this.ensureIntegrationRuntimeActivated();
+		if (options?.groupedBuildPlan) {
+			const routeKey = createPrebuiltRoutePreparationKey({
+				file: routeFile,
+				params: options.params,
+				query: options.query,
+			});
+			this.prebuiltGroupedBuildPlans.set(routeKey, options.groupedBuildPlan);
+			const dependencyInstanceKey = createPageDependencyInstanceKey({
+				params: options.params,
+				query: options.query,
+			});
+			const routeLookupKey = createRouteGraphLookupKey(routeFile, dependencyInstanceKey);
+			const plannedInstance = options.groupedBuildPlan.instances.find(
+				(instance) =>
+					createRouteGraphLookupKey(instance.routeFile, instance.dependencyInstanceKey) === routeLookupKey,
+			);
+			if (plannedInstance?.prebuiltPageClientBrowserAssets) {
+				this.prebuiltPageClientBrowserAssets.set(routeKey, plannedInstance.prebuiltPageClientBrowserAssets);
+			}
+		}
 		await this.resolvePageBrowserGraphForRoute(routeFile, options, options?.groupedBuildPlan);
 	}
 
@@ -308,6 +341,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	): Promise<GroupedGraphBuildPlan> {
 		await this.ensureIntegrationRuntimeActivated();
 		this.prebuiltRoutePreparations.clear();
+		this.prebuiltGroupedBuildPlans.clear();
+		this.prebuiltPageClientBrowserAssets.clear();
 		const builtInstances = await Promise.all(
 			instances.map(async (routeInstance) => {
 				const routeOptions = {
@@ -341,6 +376,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					resolvedPageDependencies,
 					componentGraphs,
 				});
+				this.prepareGraphLazyClientDependencies(graph);
+				const pageClientPlan = collectPageClientPlanFromGraph(graph);
+				const pageClientBuildEntries = await this.collectAppBrowserClientBuildEntries(pageClientPlan);
 				return {
 					routeFile: routeInstance.routeFile,
 					dependencyInstanceKey: context.dependencyInstanceKey ?? '',
@@ -348,6 +386,12 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 						await this.collectPageBrowserGraphContribution(context),
 						resolvedPageDependencies?.contribution,
 					),
+					pageClientBuildEntries,
+					prebuiltPageClientBrowserAssets: {
+						processedAssets: [],
+						islandRenderAssetsByFile: new Map(),
+						fallbackDependencies: [],
+					},
 				};
 			}),
 		);
@@ -375,7 +419,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Drops a production prebuild result when static export skips that route.
 	 */
 	clearPrebuiltRoutePreparation(input: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>): void {
-		this.prebuiltRoutePreparations.delete(createPrebuiltRoutePreparationKey(input));
+		const routeKey = createPrebuiltRoutePreparationKey(input);
+		this.prebuiltRoutePreparations.delete(routeKey);
+		this.prebuiltGroupedBuildPlans.delete(routeKey);
+		this.prebuiltPageClientBrowserAssets.delete(routeKey);
 	}
 
 	/**
@@ -456,6 +503,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		routeOptions?: Pick<RouteRendererOptions, 'params' | 'query'>,
 		groupedBuildPlan?: GroupedGraphBuildPlan,
 	): Promise<PageBrowserGraphResult | undefined> {
+		const groupedPlan =
+			groupedBuildPlan ??
+			this.prebuiltGroupedBuildPlans.get(
+				createPrebuiltRoutePreparationKey({
+					file: filePath,
+					params: routeOptions?.params,
+					query: routeOptions?.query,
+				}),
+			);
 		const graphContext = await this.buildPageBrowserGraphContributionContext(filePath, routeOptions);
 		const resolvedPageDependencies = await this.resolvePageDependenciesForContext(graphContext, {
 			file: filePath,
@@ -467,7 +523,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			routeFile: filePath,
 			dependencyInstanceKey: graphContext.dependencyInstanceKey,
 			integrationName: this.name,
-			groupedBuildPlan,
+			groupedBuildPlan: groupedPlan,
 			collectContribution: async () =>
 				mergePageBrowserGraphContributions(
 					await this.collectPageBrowserGraphContribution(graphContext),
@@ -1380,7 +1436,38 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * supplies what only the renderer has: its own island assets, the owning renderers of other
 	 * Integrations, and its asset service.
 	 */
-	async buildPageClientBrowserAssets(plan: PageClientPlan): Promise<PageClientBrowserAssets> {
+	async buildPageClientBrowserAssets(
+		plan: PageClientPlan,
+		route?: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>,
+	): Promise<PageClientBrowserAssets> {
+		const prebuilt = route
+			? this.prebuiltPageClientBrowserAssets.get(createPrebuiltRoutePreparationKey(route))
+			: undefined;
+		if (prebuilt) {
+			const fallbackGroups = new Map<string, PageClientBuildEntry['dependency'][]>();
+			for (const { dependency, integrationName } of prebuilt.fallbackDependencies) {
+				const dependencies = fallbackGroups.get(integrationName) ?? [];
+				dependencies.push(dependency);
+				fallbackGroups.set(integrationName, dependencies);
+			}
+			const fallbackAssets = (
+				await Promise.all(
+					[...fallbackGroups].map(([integrationName, dependencies]) =>
+						this.assetProcessingService.processDependencies(dependencies, integrationName),
+					),
+				)
+			).flat();
+			const processedAssets = [...prebuilt.processedAssets, ...fallbackAssets];
+			return {
+				processedAssets,
+				islandRenderAssetsByFile: prebuilt.islandRenderAssetsByFile,
+				lazyTriggers: this.dependencyResolverService.applyPendingLazyTriggers(
+					processedAssets,
+					plan.lazyConfigs,
+				),
+			};
+		}
+
 		const buildAssetsHook = this.integrationHooks.buildIslandClientAssets;
 		if (buildAssetsHook) {
 			return buildAssetsHook(plan);
@@ -1409,6 +1496,43 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			applyPendingLazyTriggers: (assets, configs) =>
 				this.dependencyResolverService.applyPendingLazyTriggers(assets, configs),
 		});
+	}
+
+	private async collectAppBrowserClientBuildEntries(
+		plan: PageClientPlan,
+	): Promise<Array<PageClientBuildEntry & { integrationName: string }>> {
+		const entries: Array<PageClientBuildEntry & { integrationName: string }> = [];
+		const ownEntries = await this.integrationHooks.collectAppBrowserClientBuildEntries?.(plan);
+		if (ownEntries) {
+			entries.push(...ownEntries.map((entry) => ({ ...entry, integrationName: this.name })));
+		}
+
+		const rendererCache = new Map<string, ForeignSubtreeExecutionOwningRenderer>();
+		for (const integrationName of uniqueIslandIntegrationNames(plan)) {
+			if (integrationName === this.name) continue;
+			const owning = await this.resolveOwningRenderer(integrationName, rendererCache);
+			if (!(owning instanceof IntegrationRenderer)) continue;
+			const contributed = await owning.integrationHooks.collectAppBrowserClientBuildEntries?.(plan);
+			if (contributed) {
+				entries.push(...contributed.map((entry) => ({ ...entry, integrationName: owning.name })));
+			}
+		}
+
+		entries.push(...plan.lazyClientEntries.map((dependency) => ({ dependency, integrationName: this.name })));
+		return entries;
+	}
+
+	private prepareGraphLazyClientDependencies(graph: PreparedComponentGraph): void {
+		const componentsByIntegration = new Map<string, EcoComponent[]>();
+		for (const node of graph.nodes) {
+			const components = componentsByIntegration.get(node.integrationName) ?? [];
+			components.push(node.component);
+			componentsByIntegration.set(node.integrationName, components);
+		}
+
+		for (const [integrationName, components] of componentsByIntegration) {
+			this.dependencyResolverService.prepareLazyClientDependencies(components, integrationName);
+		}
 	}
 
 	/**

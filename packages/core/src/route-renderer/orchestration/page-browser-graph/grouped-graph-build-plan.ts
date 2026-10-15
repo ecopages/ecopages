@@ -1,9 +1,24 @@
 import type { PageBrowserGraphContribution } from '../../../types/public-types.ts';
+import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/assets.types.ts';
+import type { PageClientBuildEntry } from '../ownership-graph/page-client-plan.ts';
+
+export type PlannedPageClientBuildEntry = PageClientBuildEntry & {
+	integrationName: string;
+};
+
+export type PrebuiltPageClientBrowserAssets = {
+	processedAssets: ProcessedAsset[];
+	islandRenderAssetsByFile: Map<string, ProcessedAsset[]>;
+	fallbackDependencies: Array<{ dependency: PageClientBuildEntry['dependency']; integrationName: string }>;
+};
 
 export type GroupedGraphBuildPlanInstance = {
 	routeFile: string;
 	dependencyInstanceKey: string;
 	contribution?: PageBrowserGraphContribution;
+	prebuiltGroupedAssets?: ReadonlyArray<ProcessedAsset>;
+	pageClientBuildEntries?: ReadonlyArray<PlannedPageClientBuildEntry>;
+	prebuiltPageClientBrowserAssets?: PrebuiltPageClientBrowserAssets;
 };
 
 export type GroupedGraphBuildPlan = {

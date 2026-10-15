@@ -76,6 +76,28 @@ describe('DependencyResolverService', () => {
 		}
 	});
 
+	it('prepares lazy assets for foreign graph nodes without processing eager dependencies', () => {
+		const processDependencies = vi.fn(async () => [] as ProcessedAsset[]);
+		const assetProcessingService = { processDependencies } as unknown as AssetProcessingService;
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const component = (() => '<div />') as EcoComponent;
+		component.config = {
+			identity: { id: 'foreign-lazy', file: '/app/foreign-lazy.tsx', integration: 'lit' },
+			dependencies: {
+				scripts: [{ src: './lazy.ts', lazy: { 'on:idle': true } }, './eager.ts'],
+			},
+		};
+
+		const entries = service.prepareLazyClientDependencies([component], 'lit');
+		const plan = collectPageClientPlan([{ component }], 'kita');
+
+		expect(entries).toHaveLength(1);
+		expect(entries[0]).toEqual(expect.objectContaining({ content: 'import "/app/lazy.ts";' }));
+		expect(component.config._pendingLazyClientAssets).toEqual(entries);
+		expect(plan.lazyClientEntries).toEqual(entries);
+		expect(processDependencies).not.toHaveBeenCalled();
+	});
+
 	it('evicts a rejected production dependency result so the next render can retry', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const failure = new Error('temporary asset processing failure');

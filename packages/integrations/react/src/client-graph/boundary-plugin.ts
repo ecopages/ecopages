@@ -6,7 +6,11 @@
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import type { EcoBuildOnLoadArgs, EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
+import type {
+	EcoBuildOnLoadArgs,
+	EcoBuildOnLoadResult,
+	EcoBuildPlugin,
+} from '@ecopages/core/plugins/integration-plugin';
 import type { RequestedExportRules } from './specifier-classification.ts';
 import { parseDeclaredModules, toModuleBaseSpecifier } from './specifier-classification.ts';
 import { classifyClientGraphModule } from './module-classification.ts';
@@ -22,6 +26,15 @@ const SOURCE_FILE_FILTER = /\.(tsx?|jsx?)$/;
  * must be visible to whichever boundary plugin transforms that helper first.
  */
 const groupedRequestedExports = new WeakMap<readonly string[], Map<string, RequestedExportRules>>();
+const buildRequestedExports = new WeakMap<Readonly<Record<string, string>>, Map<string, RequestedExportRules>>();
+
+type ClientGraphBoundaryBuildContext = {
+	configs: NormalizedClientGraphBoundaryOptions[];
+	entrypointFiles: Set<string>;
+	requestedExports: Map<string, RequestedExportRules>;
+};
+
+const buildContexts = new WeakMap<Readonly<Record<string, string>>, ClientGraphBoundaryBuildContext>();
 
 function getRequestedExports(groupedEntrypointFiles?: readonly string[]): Map<string, RequestedExportRules> {
 	if (!groupedEntrypointFiles) {
@@ -142,6 +155,71 @@ function loadClientGraphBoundaryModule(
 	});
 }
 
+function resolveEntryImports(entrypointFiles: Set<string>, entrypoint: string): void {
+	try {
+		const source = readFileSync(entrypoint, 'utf-8');
+		const wrapper = /^\s*(?:export\s+\*\s+from|import)\s+(['"])([^'"\n]+)\1\s*;?\s*$/.exec(source);
+		const specifier = wrapper?.[2];
+		if (!specifier) return;
+		if (path.isAbsolute(specifier)) {
+			entrypointFiles.add(path.resolve(specifier));
+		} else if (specifier.startsWith('.')) {
+			entrypointFiles.add(path.resolve(path.dirname(entrypoint), specifier));
+		}
+	} catch {}
+}
+
+function getBuildContext(
+	entrypoints: Readonly<Record<string, string>>,
+	options: NormalizedClientGraphBoundaryOptions,
+): ClientGraphBoundaryBuildContext {
+	const existing = buildContexts.get(entrypoints);
+	if (existing) return existing;
+
+	const entrypointFiles = new Set<string>(
+		Object.values(entrypoints).map((entry) => path.resolve(options.absWorkingDir, entry)),
+	);
+	for (const entrypoint of entrypointFiles) resolveEntryImports(entrypointFiles, entrypoint);
+	const context: ClientGraphBoundaryBuildContext = {
+		configs: [],
+		entrypointFiles,
+		requestedExports: buildRequestedExports.get(entrypoints) ?? new Map(),
+	};
+	buildRequestedExports.set(entrypoints, context.requestedExports);
+	buildContexts.set(entrypoints, context);
+	return context;
+}
+
+function loadBuildClientGraphBoundaryModule(
+	args: EcoBuildOnLoadArgs,
+	context: ClientGraphBoundaryBuildContext,
+): EcoBuildOnLoadResult | undefined {
+	const sourcePath = path.resolve(context.configs[0]?.absWorkingDir ?? process.cwd(), args.path);
+	const rootConfigs = context.configs.filter((config) => config.entrypointFile === sourcePath);
+	const reactEntrypointFiles = new Set(
+		context.configs
+			.flatMap((config) => [config.entrypointFile, ...config.groupedEntrypointFiles])
+			.filter((filePath): filePath is string => filePath !== undefined),
+	);
+	if (context.entrypointFiles.has(sourcePath) && !reactEntrypointFiles.has(sourcePath)) {
+		return undefined;
+	}
+
+	const first = context.configs[0];
+	if (!first) return undefined;
+	const groupedDeclaredModules = [...new Set(context.configs.flatMap((config) => config.groupedDeclaredModules))];
+	const declaredModules = [...new Set(rootConfigs.flatMap((config) => config.declaredModules))];
+	const options: NormalizedClientGraphBoundaryOptions = {
+		...first,
+		entrypointFile: rootConfigs.length > 0 ? sourcePath : undefined,
+		groupedEntrypointFiles: reactEntrypointFiles,
+		declaredModules,
+		groupedDeclaredModules,
+		alwaysAllowSpecifiers: [...new Set(context.configs.flatMap((config) => config.alwaysAllowSpecifiers))],
+	};
+	return loadClientGraphBoundaryModule(args, options, context.requestedExports);
+}
+
 /**
  * Instantiates the client graph boundary build plugin.
  */
@@ -152,10 +230,18 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 	return {
 		name: 'ecopages-client-graph-boundary',
 		cacheKey: normalizedOptions.cacheKey,
+		bundleGroupKey: 'react-client-graph-boundary',
 		setup(build) {
-			build.onLoad({ filter: SOURCE_FILE_FILTER }, (args) =>
-				loadClientGraphBoundaryModule(args, normalizedOptions, requestedExports),
-			);
+			if (!build.entrypoints) {
+				build.onLoad({ filter: SOURCE_FILE_FILTER }, (args) =>
+					loadClientGraphBoundaryModule(args, normalizedOptions, requestedExports),
+				);
+				return;
+			}
+
+			const context = getBuildContext(build.entrypoints, normalizedOptions);
+			context.configs.push(normalizedOptions);
+			build.onLoad({ filter: SOURCE_FILE_FILTER }, (args) => loadBuildClientGraphBoundaryModule(args, context));
 		},
 	};
 }

@@ -792,6 +792,49 @@ test('processes grouped assets once for all static dependency instances of a gro
 	expect(processDependencies.mock.calls[0]?.[0]).toHaveLength(3);
 });
 
+test('uses app-prebuilt grouped assets without invoking the per-render asset processor', async () => {
+	const routeFile = '/app/pages/docs/index.tsx';
+	const dependencyInstanceKey = '';
+	const groupedDependency = createGroupedDependency();
+	const processedAsset: ProcessedAsset = {
+		kind: 'script',
+		inline: false,
+		filepath: '/app/dist/assets/client.js',
+		srcUrl: '/assets/client.js',
+		groupedBundle: { id: 'ecopages-app-browser-client', entryName: 'client-entry' },
+	};
+	const contribution = { dependencies: [groupedDependency] };
+	const processDependencies = vi.fn(async (): Promise<ProcessedAsset[]> => []);
+	const assetProcessingService = {
+		processDependencies,
+		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+	} as unknown as AssetProcessingService;
+	const service = new PageBrowserGraphService(appConfig, assetProcessingService);
+	const groupedBuildPlan = {
+		integrationName: 'react',
+		planKey: 'app-wide-build',
+		instances: [
+			{
+				routeFile,
+				dependencyInstanceKey,
+				contribution,
+				prebuiltGroupedAssets: [processedAsset],
+			},
+		],
+	};
+
+	const result = await service.resolvePageBrowserGraph({
+		routeFile,
+		dependencyInstanceKey,
+		integrationName: 'react',
+		collectContribution: async () => contribution,
+		groupedBuildPlan,
+	});
+
+	expect(result?.entryAssets).toEqual([processedAsset]);
+	expect(processDependencies).not.toHaveBeenCalled();
+});
+
 test('PageBrowserGraphService does not commit route graphs built without a grouped plan', async () => {
 	const routeFile = '/app/pages/docs/[...slug]/index.tsx';
 	const dependencyInstanceKey = createPageDependencyInstanceKey({ params: { slug: ['docs', 'intro'] } });

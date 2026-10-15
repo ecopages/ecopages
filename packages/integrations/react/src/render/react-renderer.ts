@@ -29,6 +29,7 @@ import {
 	type PageBrowserGraphContributionContext,
 	selectHydrationIslandEntries,
 	type PageClientBrowserAssets,
+	type PageClientBuildEntry,
 	type PageClientPlan,
 } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
@@ -98,6 +99,7 @@ type ReactRendererRuntimeStateRef = {
 type ReactRendererHookTargets = Pick<
 	IntegrationRendererHooks,
 	| 'buildIslandClientAssets'
+	| 'collectAppBrowserClientBuildEntries'
 	| 'renderComponent'
 	| 'renderQueuedChildren'
 	| 'normalizePageModule'
@@ -136,6 +138,8 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 		this.runtimeStateRef = runtimeStateRef;
 		this.hookTargets = hookTargets;
 		this.hookTargets.buildIslandClientAssets = (plan) => this.buildPageClientBrowserAssetsHook(plan);
+		this.hookTargets.collectAppBrowserClientBuildEntries = (plan) =>
+			this.collectAppBrowserClientBuildEntriesHook(plan);
 		this.hookTargets.renderComponent = (input) => this.renderComponentHook(input);
 		this.hookTargets.renderQueuedChildren = (children, runtimeContext, queuedResolutionsByToken, resolveToken) =>
 			this.renderQueuedChildrenHook(children, runtimeContext, queuedResolutionsByToken, resolveToken);
@@ -213,6 +217,15 @@ export class ReactRenderer extends ReactIntegrationRenderer {
 			islandRenderAssetsByFile: result.assetsByFile,
 			lazyTriggers,
 		};
+	}
+
+	private async collectAppBrowserClientBuildEntriesHook(plan: PageClientPlan): Promise<PageClientBuildEntry[]> {
+		return this.hydrationAssetService.collectAppBrowserClientBuildEntries(
+			selectHydrationIslandEntries(plan, this.name).map((entry) => ({
+				file: entry.file,
+				config: entry.component.config,
+			})),
+		);
 	}
 
 	private getRouterDocumentAttributes(): Record<string, string> | undefined {
@@ -668,6 +681,8 @@ function createReactRendererHookFactory(
 		return {
 			buildIslandClientAssets: (plan) =>
 				requireReactRendererHookTarget(hookTargets, 'buildIslandClientAssets')(plan),
+			collectAppBrowserClientBuildEntries: (plan) =>
+				requireReactRendererHookTarget(hookTargets, 'collectAppBrowserClientBuildEntries')(plan),
 			renderComponent: (input) => requireReactRendererHookTarget(hookTargets, 'renderComponent')(input),
 			renderQueuedChildren: (children, runtimeContext, queuedResolutionsByToken, resolveToken) =>
 				requireReactRendererHookTarget(hookTargets, 'renderQueuedChildren')(

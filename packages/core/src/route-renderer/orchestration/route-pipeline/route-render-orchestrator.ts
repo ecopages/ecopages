@@ -352,7 +352,7 @@ export class RouteRenderOrchestrator {
 		});
 		const resolvedPageDependencyComponents = resolvedPageDependencies?.components ?? [];
 		const clientPlan = collectPageClientPlanFromGraph(preparedGraph);
-		const clientBrowserAssets = await renderer.buildPageClientBrowserAssets(clientPlan);
+		const clientBrowserAssets = await renderer.buildPageClientBrowserAssets(clientPlan, routeOptions);
 		if (clientBrowserAssets.lazyTriggers.length > 0) {
 			clientPlan.lazyTriggers = clientBrowserAssets.lazyTriggers;
 		}

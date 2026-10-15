@@ -11,12 +11,14 @@ import path from 'node:path';
 import type { EcoComponentConfig } from '@ecopages/core';
 import { rapidhash } from '@ecopages/core/hash';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
+import type { PageClientBuildEntry } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { isReactProductionRuntime } from '../bundling/runtime-mode.ts';
 import {
 	APP_BROWSER_CLIENT_BUNDLE_ID,
 	AssetFactory,
 	createAppBrowserClientEntry,
 	type AssetDefinition,
+	type ContentScriptAsset,
 	type ProcessedAsset,
 } from '@ecopages/core/services/asset-processing-service';
 import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
@@ -218,6 +220,54 @@ export class HydrationAssetService {
 		return this.buildGroupedPageClientRenderAssets(uniqueIslands, input.lazyEntries);
 	}
 
+	/** Collects React island hydration entries for the production app browser build. */
+	async collectAppBrowserClientBuildEntries(
+		islands: Array<{ file: string; config?: EcoComponentConfig }>,
+	): Promise<PageClientBuildEntry[]> {
+		const uniqueIslands = this.uniqueIslands(islands);
+		const groupedEntrypointFiles = uniqueIslands.map(({ file }) => file);
+		const groupedDeclaredModules = [
+			...new Set(uniqueIslands.flatMap(({ config }) => collectDeclaredModulesInConfig(config))),
+		];
+		const entries: PageClientBuildEntry[] = [];
+
+		for (const island of uniqueIslands) {
+			const componentName = this.getIslandBundleName(island.file);
+			const declaredModules = collectDeclaredModulesInConfig(island.config);
+			const bundleOptions = await this.config.bundleService.createBundleOptions(
+				componentName,
+				false,
+				declaredModules,
+				{},
+				island.file,
+				groupedEntrypointFiles,
+				groupedDeclaredModules,
+			);
+			const componentKey = getIslandComponentKey(island.file, island.config);
+			const hydrationName = this.getIslandHydrationName(componentName, componentKey);
+			const hydrationScript = await this.createIslandHydrationScript(
+				island.file,
+				island.config,
+				island.file,
+				false,
+			);
+			entries.push({
+				dependency: {
+					...hydrationScript,
+					bundle: true,
+					groupedBundle: {
+						id: APP_BROWSER_CLIENT_BUNDLE_ID,
+						entryName: hydrationName,
+					},
+					bundleOptions,
+				},
+				islandFile: island.file,
+			});
+		}
+
+		return entries;
+	}
+
 	private uniqueIslands(
 		islands: Array<{ file: string; config?: EcoComponentConfig }>,
 	): Array<{ file: string; config?: EcoComponentConfig }> {
@@ -399,7 +449,7 @@ export class HydrationAssetService {
 		config: EcoComponentConfig | undefined,
 		importPath: string,
 		hmrEnabled: boolean,
-	): Promise<AssetDefinition> {
+	): Promise<ContentScriptAsset> {
 		const componentName = this.getIslandBundleName(componentFile);
 		const componentKey = getIslandComponentKey(componentFile, config);
 		const hydrationName = this.getIslandHydrationName(componentName, componentKey);

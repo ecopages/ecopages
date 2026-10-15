@@ -134,6 +134,22 @@ export class DependencyResolverService {
 		return this.processPreparedDependencies(components, integrationName, true);
 	}
 
+	/** Collects lazy client entries from prepared graph nodes without processing eager assets. */
+	prepareLazyClientDependencies(
+		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
+		integrationName: string,
+	): AssetDefinition[] {
+		const { dependencies, lazyScriptsByConfig } = this.collectDependencies(
+			components,
+			integrationName,
+			false,
+			true,
+		);
+		const lazyDependencies = dependencies.filter(isLazyClientScript);
+		this.storePendingLazyClientDependencies(lazyScriptsByConfig, lazyDependencies);
+		return lazyDependencies;
+	}
+
 	private async processPreparedDependencies(
 		components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>,
 		integrationName: string,
@@ -153,16 +169,7 @@ export class DependencyResolverService {
 		const lazyDeps = packagedDependencies.filter(isLazyClientScript);
 		const eagerDeps = packagedDependencies.filter((dep) => !isLazyClientScript(dep));
 
-		for (const [config, lazyGroupsMap] of lazyScriptsByConfig.entries()) {
-			pendingLazyGroupsByConfig.set(config, lazyGroupsMap);
-			const lazyKeys = new Set(
-				[...lazyGroupsMap.values()].flatMap((group) => group.scripts.map((script) => script.lazyKey)),
-			);
-			config._pendingLazyClientAssets = lazyDeps.filter((dep) => {
-				const lazyKey = dep.kind === 'script' ? dep.attributes?.['data-eco-lazy-key'] : undefined;
-				return Boolean(lazyKey && lazyKeys.has(lazyKey));
-			});
-		}
+		this.storePendingLazyClientDependencies(lazyScriptsByConfig, lazyDeps);
 
 		if (!this.shouldCacheProcessedDependencies()) {
 			return this.assetProcessingService.processDependencies(eagerDeps, integrationName);
@@ -200,6 +207,22 @@ export class DependencyResolverService {
 				this.processedDependenciesCache.delete(cacheKey);
 			}
 			throw error;
+		}
+	}
+
+	private storePendingLazyClientDependencies(
+		lazyScriptsByConfig: Map<NonNullable<EcoComponent['config']>, Map<string, LazyGroup>>,
+		lazyDependencies: AssetDefinition[],
+	): void {
+		for (const [config, lazyGroupsMap] of lazyScriptsByConfig) {
+			pendingLazyGroupsByConfig.set(config, lazyGroupsMap);
+			const lazyKeys = new Set(
+				[...lazyGroupsMap.values()].flatMap((group) => group.scripts.map((script) => script.lazyKey)),
+			);
+			config._pendingLazyClientAssets = lazyDependencies.filter((dependency) => {
+				const lazyKey = dependency.kind === 'script' ? dependency.attributes?.['data-eco-lazy-key'] : undefined;
+				return Boolean(lazyKey && lazyKeys.has(lazyKey));
+			});
 		}
 	}
 

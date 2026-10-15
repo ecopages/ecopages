@@ -128,6 +128,59 @@ describe('HydrationAssetService', () => {
 		});
 	});
 
+	it('collects island hydration entries that import their source into the app-wide build', async () => {
+		const createBundleOptions = vi.fn(async () => ({ plugins: [] }));
+		const service = new HydrationAssetService({
+			srcDir: '/app/src',
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
+				getHmrManager: () => undefined,
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
+				createBundleOptions,
+				getRuntimeImports: () => productionRuntimeImports,
+			}),
+		});
+		const islandA = '/app/src/components/island-a.tsx';
+		const islandB = '/app/src/components/island-b.tsx';
+
+		const entries = await service.collectAppBrowserClientBuildEntries([
+			{ file: islandA, config: { dependencies: { modules: ['node:path'] } } },
+			{ file: islandB, config: { dependencies: { modules: ['node:fs'] } } },
+		]);
+
+		expect(entries).toHaveLength(2);
+		expect(entries[0]).toMatchObject({
+			islandFile: islandA,
+			dependency: {
+				kind: 'script',
+				bundle: true,
+				groupedBundle: { id: APP_BROWSER_CLIENT_BUNDLE_ID },
+			},
+		});
+		expect(entries[0]?.dependency).toHaveProperty('content', expect.stringContaining(islandA));
+		expect(entries[1]?.dependency).toHaveProperty('content', expect.stringContaining(islandB));
+		expect(createBundleOptions).toHaveBeenNthCalledWith(
+			1,
+			`ecopages-react-island-${rapidhash(islandA)}`,
+			false,
+			['node:path'],
+			{},
+			islandA,
+			[islandA, islandB],
+			['node:path', 'node:fs'],
+		);
+		expect(createBundleOptions).toHaveBeenNthCalledWith(
+			2,
+			`ecopages-react-island-${rapidhash(islandB)}`,
+			false,
+			['node:fs'],
+			{},
+			islandB,
+			[islandA, islandB],
+			['node:path', 'node:fs'],
+		);
+	});
+
 	it('keeps router-managed page bootstraps unbundled in development with vendor helper imports', async () => {
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',

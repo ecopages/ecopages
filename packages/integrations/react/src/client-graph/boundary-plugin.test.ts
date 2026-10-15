@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type {
 	EcoBuildOnLoadArgs,
@@ -11,6 +12,7 @@ import type {
 } from '@ecopages/core/plugins/integration-plugin';
 import { createClientGraphBoundaryPlugin } from './boundary-plugin.ts';
 import { RolldownBuildAdapter } from '../../../../core/src/build/rolldown/rolldown-build-adapter.ts';
+import { getBuildEntryOutput } from '../../../../core/src/build/build-graph.ts';
 import { assertBuildSucceeded } from '../../../../core/src/build/build-log.ts';
 
 type OnLoadRegistration = {
@@ -169,6 +171,117 @@ describe('createClientGraphBoundaryPlugin', () => {
 			await transformEntry(islandB);
 			await expect(transformEntry(sharedHelper)).rejects.toThrow("Forbidden client import 'node:fs'");
 		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('keeps per-entry declarations in an app-wide browser build', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const islandA = join(tempDir, 'island-a.tsx');
+		const islandB = join(tempDir, 'island-b.tsx');
+		const htmlEntry = join(tempDir, 'shell.ts');
+		writeFileSync(
+			islandA,
+			"import { readFileSync, writeFileSync } from 'node:fs';\nexport default String(!!readFileSync) + String(!!writeFileSync);",
+			'utf-8',
+		);
+		writeFileSync(
+			islandB,
+			"import { readFileSync, writeFileSync } from 'node:fs';\nexport default String(!!readFileSync) + String(!!writeFileSync);",
+			'utf-8',
+		);
+		writeFileSync(htmlEntry, "import fs from 'node:fs';\nexport default String(!!fs);", 'utf-8');
+
+		const registrations: OnLoadRegistration[] = [];
+		const entrypoints = { islandA, islandB, htmlEntry };
+		const builder: EcoBuildPluginBuilder = {
+			entrypoints,
+			onResolve: () => {},
+			onLoad: (options, callback) => registrations.push({ options, callback }),
+			module: () => {},
+			transform: () => {},
+		};
+
+		try {
+			for (const plugin of [
+				createClientGraphBoundaryPlugin({
+					absWorkingDir: tempDir,
+					projectRoot: tempDir,
+					entrypointFile: islandA,
+					groupedEntrypointFiles: [islandA, islandB],
+					groupedDeclaredModules: ['node:fs{readFileSync}', 'node:fs{writeFileSync}'],
+					declaredModules: ['node:fs{readFileSync}'],
+				}),
+				createClientGraphBoundaryPlugin({
+					absWorkingDir: tempDir,
+					projectRoot: tempDir,
+					entrypointFile: islandB,
+					groupedEntrypointFiles: [islandA, islandB],
+					groupedDeclaredModules: ['node:fs{readFileSync}', 'node:fs{writeFileSync}'],
+					declaredModules: ['node:fs{writeFileSync}'],
+				}),
+			]) {
+				await plugin.setup(builder);
+			}
+
+			const transformEntry = async (filePath: string): Promise<string | undefined> => {
+				for (const registration of registrations) {
+					if (!registration.options.filter.test(filePath)) continue;
+					const result = await registration.callback({ path: filePath });
+					if (typeof result?.contents === 'string') return result.contents;
+				}
+				return undefined;
+			};
+
+			const transformedIslandA = await transformEntry(islandA);
+			const transformedIslandB = await transformEntry(islandB);
+			expect(transformedIslandA).toContain("import { readFileSync } from 'node:fs';");
+			expect(transformedIslandA).not.toContain("writeFileSync } from 'node:fs';");
+			expect(transformedIslandB).toContain("import { writeFileSync } from 'node:fs';");
+			expect(transformedIslandB).not.toContain("readFileSync, writeFileSync } from 'node:fs';");
+			expect(await transformEntry(htmlEntry)).toBeUndefined();
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('evaluates a shared island module once across app-wide hydration entries', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const store = join(tempDir, 'cart-store.js');
+		const hydrationA = join(tempDir, 'hydration-a.js');
+		const hydrationB = join(tempDir, 'hydration-b.js');
+		const globalKey = `__ecopages_cart_store_${Math.random().toString(36).slice(2)}`;
+		const globalState = globalThis as Record<string, unknown>;
+		writeFileSync(join(tempDir, 'package.json'), '{"type":"module"}');
+		writeFileSync(
+			store,
+			`globalThis[${JSON.stringify(globalKey)}] = (globalThis[${JSON.stringify(globalKey)}] ?? 0) + 1; export const cart = {};`,
+		);
+		writeFileSync(hydrationA, "import { cart } from './cart-store.js'; export { cart };");
+		writeFileSync(hydrationB, "import { cart } from './cart-store.js'; export { cart };");
+
+		try {
+			const result = await new RolldownBuildAdapter().build({
+				environment: 'browser',
+				entrypoints: { hydrationA, hydrationB },
+				outdir: join(tempDir, 'dist'),
+				root: tempDir,
+				target: 'browser',
+				format: 'esm',
+				splitting: true,
+			});
+			assertBuildSucceeded(result, 'Build failed');
+			const hydrationAOutput = getBuildEntryOutput(result, 'hydrationA', tempDir);
+			const hydrationBOutput = getBuildEntryOutput(result, 'hydrationB', tempDir);
+			expect(hydrationAOutput).toBeDefined();
+			expect(hydrationBOutput).toBeDefined();
+
+			await import(pathToFileURL(hydrationAOutput!).href);
+			await import(pathToFileURL(hydrationBOutput!).href);
+
+			expect(globalState[globalKey]).toBe(1);
+		} finally {
+			delete globalState[globalKey];
 			rmSync(tempDir, { recursive: true, force: true });
 		}
 	});

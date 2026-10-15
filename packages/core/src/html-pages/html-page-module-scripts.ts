@@ -20,6 +20,13 @@ type ModuleScriptBuild = {
 	urls: Promise<ReadonlyMap<string, string>>;
 };
 
+export type HtmlPageModuleScriptBuildInputs = {
+	htmlFiles: string[];
+	scripts: string[];
+	files: string[];
+	fingerprint: string;
+};
+
 const builds = new WeakMap<EcoPagesAppConfig, ModuleScriptBuild>();
 
 /**
@@ -48,11 +55,26 @@ export function getHtmlPageModuleScriptUrls(appConfig: EcoPagesAppConfig): Promi
 		return previous.urls;
 	}
 
-	const htmlFiles = listHtmlFiles(appConfig);
-	if (previous && previous.fingerprint === fingerprint([...htmlFiles, ...previous.files])) {
+	const inputs = collectHtmlPageModuleScriptBuildInputs(appConfig);
+	if (previous && previous.fingerprint === inputs.fingerprint) {
 		return previous.urls;
 	}
 
+	const build: ModuleScriptBuild = {
+		fingerprint: inputs.fingerprint,
+		files: inputs.files,
+		urls: buildModuleScripts(appConfig, inputs.scripts),
+	};
+	builds.set(appConfig, build);
+	build.urls.catch(() => {
+		if (builds.get(appConfig) === build) builds.delete(appConfig);
+	});
+	return build.urls;
+}
+
+/** Collects the HTML module-script files for the production app browser build. */
+export function collectHtmlPageModuleScriptBuildInputs(appConfig: EcoPagesAppConfig): HtmlPageModuleScriptBuildInputs {
+	const htmlFiles = listHtmlFiles(appConfig);
 	const moduleScripts = htmlFiles.flatMap((file) =>
 		collectFileAssets(appConfig, file).flatMap((asset) => (asset.kind === 'module-script' ? [asset.filepath] : [])),
 	);
@@ -61,19 +83,25 @@ export function getHtmlPageModuleScriptUrls(appConfig: EcoPagesAppConfig): Promi
 		...scanModuleScript(appConfig, script),
 	}));
 	const files = [...new Set(scans.flatMap((scan) => scan.files))];
-	const build: ModuleScriptBuild = {
-		fingerprint: fingerprint([...htmlFiles, ...files]),
+	return {
+		htmlFiles,
+		scripts: scans.flatMap((scan) => (scan.stylesheetImport ? [] : [scan.script])),
 		files,
-		urls: buildModuleScripts(
-			appConfig,
-			scans.flatMap((scan) => (scan.stylesheetImport ? [] : [scan.script])),
-		),
+		fingerprint: fingerprint([...htmlFiles, ...files]),
 	};
-	builds.set(appConfig, build);
-	build.urls.catch(() => {
-		if (builds.get(appConfig) === build) builds.delete(appConfig);
+}
+
+/** Reuses URLs emitted by the app-wide production browser build. */
+export function setPrebuiltHtmlPageModuleScriptUrls(
+	appConfig: EcoPagesAppConfig,
+	urls: ReadonlyMap<string, string>,
+): void {
+	const inputs = collectHtmlPageModuleScriptBuildInputs(appConfig);
+	builds.set(appConfig, {
+		fingerprint: inputs.fingerprint,
+		files: inputs.files,
+		urls: Promise.resolve(new Map(urls)),
 	});
-	return build.urls;
 }
 
 const SCRIPT_FILE = /\.[cm]?[jt]sx?$/;

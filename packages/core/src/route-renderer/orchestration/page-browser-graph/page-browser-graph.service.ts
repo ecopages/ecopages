@@ -7,11 +7,11 @@ import {
 	type ProcessedAsset,
 } from '../../../services/assets/asset-processing-service/index.ts';
 import { appLogger } from '../../../global/app-logger.ts';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
 import {
 	collectPageBrowserGraphDependencyPaths,
 	createPageBrowserGraphEntryFingerprint,
-	getAppPageBrowserGraphSession,
 	type GraphBuildResult,
 	type GraphPolicy,
 } from './page-browser-graph-session.ts';
@@ -107,7 +107,7 @@ export class PageBrowserGraphService {
 		policy?: GraphPolicy;
 	}): ReadonlySet<string> | undefined {
 		const policy = input.policy ?? this.resolveGraphPolicy();
-		return getAppPageBrowserGraphSession(this.appConfig).getDependencyPathsByRoute(
+		return requireAppRuntime(this.appConfig).pageBrowserGraphSession.getDependencyPathsByRoute(
 			input.integrationName,
 			input.routeFile,
 			policy,
@@ -120,7 +120,7 @@ export class PageBrowserGraphService {
 	 */
 	async getOrBuild(input: PageBrowserGraphResolveInput): Promise<PageBrowserGraphResult | undefined> {
 		const policy = input.policy ?? this.resolveGraphPolicy();
-		const session = getAppPageBrowserGraphSession(this.appConfig);
+		const session = requireAppRuntime(this.appConfig).pageBrowserGraphSession;
 		const dependencyInstanceKey = input.dependencyInstanceKey ?? '';
 
 		if (input.cacheable !== false && !this.isHmrEnabled()) {
@@ -176,7 +176,9 @@ export class PageBrowserGraphService {
 			return undefined;
 		}
 
-		startupTrace.markFirstPageBrowserGraphReady(getAppPageBrowserGraphSession(this.appConfig).getBuildCount());
+		startupTrace.markFirstPageBrowserGraphReady(
+			requireAppRuntime(this.appConfig).pageBrowserGraphSession.getBuildCount(),
+		);
 		return result;
 	}
 
@@ -238,7 +240,7 @@ export class PageBrowserGraphService {
 			};
 		}
 
-		const session = getAppPageBrowserGraphSession(this.appConfig);
+		const session = requireAppRuntime(this.appConfig).pageBrowserGraphSession;
 		const groupedScope = {
 			integrationName: input.integrationName,
 			planKey: input.groupedBuildPlan.planKey,

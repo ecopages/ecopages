@@ -10,13 +10,12 @@ import {
 	type DevelopmentInvalidationPlan,
 	type DevelopmentInvalidationPlanningContext,
 } from './development-invalidation.service.ts';
-import { getAppModuleLoader } from '../module-loading/app-server-module-transpiler.service.ts';
 import {
 	getServerModuleBuildCacheOutdir,
 	getSharedRouteModuleBuildCache,
 } from '../module-loading/route-module-build-cache-registry.ts';
 import { RouteModuleBuildCache } from '../module-loading/route-module-build-cache.store.ts';
-import { PageCacheService, registerAppPageCacheService } from '../cache/page-cache-service.ts';
+import { PageCacheService } from '../cache/page-cache-service.ts';
 
 class StylesheetProcessor extends Processor {
 	constructor() {
@@ -355,7 +354,7 @@ describe('DevelopmentInvalidationService', () => {
 
 	it('advances the app module loader development generation once per invalidation', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
-		const moduleLoader = getAppModuleLoader(appConfig);
+		const moduleLoader = requireAppRuntime(appConfig).moduleLoader;
 		const service = new DevelopmentInvalidationService(appConfig);
 
 		expect(moduleLoader.getDevelopmentGeneration()).toBe(0);
@@ -389,7 +388,7 @@ describe('DevelopmentInvalidationService', () => {
 		});
 		expect(service.planFileChange(unreadStylesheet).invalidateServerModules).toBe(false);
 
-		const moduleLoader = getAppModuleLoader(appConfig);
+		const moduleLoader = requireAppRuntime(appConfig).moduleLoader;
 		await service.applyDevFileChanges({ changed: [stylesheet], created: [], deleted: [] });
 		expect(moduleLoader.getDevelopmentGeneration()).toBe(1);
 
@@ -508,7 +507,8 @@ describe('DevelopmentInvalidationService', () => {
 
 		try {
 			appConfig = await finalizeEcoPagesConfig({ rootDir });
-			const moduleLoader = getAppModuleLoader(appConfig);
+			const runtime = requireAppRuntime(appConfig);
+			const moduleLoader = runtime.moduleLoader;
 			const outdir = getServerModuleBuildCacheOutdir(appConfig);
 			mkdirSync(outdir, { recursive: true });
 			const cache = new RouteModuleBuildCache();
@@ -526,9 +526,9 @@ describe('DevelopmentInvalidationService', () => {
 				outputPath,
 				dependencyModulePaths: [filePath],
 			});
-			requireAppRuntime(appConfig).routeModuleBuildCaches.set(outdir, cache);
+			runtime.routeModuleBuildCaches.set(outdir, cache);
 			const pageCache = new PageCacheService();
-			registerAppPageCacheService(appConfig, pageCache);
+			runtime.pageCache = pageCache;
 			const invalidateHtml = vi.spyOn(pageCache, 'invalidateBySourceDependencyPaths');
 			const service = new DevelopmentInvalidationService(appConfig);
 			const changed = Array.from({ length: 50 }, (_, index) =>
@@ -543,7 +543,7 @@ describe('DevelopmentInvalidationService', () => {
 			expect(invalidateHtml.mock.calls[0]?.[0]).toHaveLength(50);
 		} finally {
 			if (appConfig) {
-				registerAppPageCacheService(appConfig, null);
+				requireAppRuntime(appConfig).pageCache = null;
 			}
 			rmSync(rootDir, { recursive: true, force: true });
 		}
@@ -551,7 +551,7 @@ describe('DevelopmentInvalidationService', () => {
 
 	it('plans created and deleted pages in one batch without rebuilding them', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
-		const moduleLoader = getAppModuleLoader(appConfig);
+		const moduleLoader = requireAppRuntime(appConfig).moduleLoader;
 		let imported = false;
 		vi.spyOn(moduleLoader, 'importModule').mockImplementation(async <T = unknown>() => {
 			imported = true;
@@ -577,7 +577,7 @@ describe('DevelopmentInvalidationService', () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		appConfig.processors.set('css', new StylesheetProcessor());
 		const pageCache = new PageCacheService();
-		registerAppPageCacheService(appConfig, pageCache);
+		requireAppRuntime(appConfig).pageCache = pageCache;
 		const clearHtml = vi.spyOn(pageCache, 'clear');
 		const service = new DevelopmentInvalidationService(appConfig);
 
@@ -588,14 +588,15 @@ describe('DevelopmentInvalidationService', () => {
 		});
 
 		expect(clearHtml).not.toHaveBeenCalled();
-		registerAppPageCacheService(appConfig, null);
+		requireAppRuntime(appConfig).pageCache = null;
 	});
 
 	it('evicts only the cached HTML documents that recorded a changed processor-owned stylesheet', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		appConfig.processors.set('css', new StylesheetProcessor());
-		const pageCache = new PageCacheService({ dependencyIndex: requireAppRuntime(appConfig).buildInputIndex });
-		registerAppPageCacheService(appConfig, pageCache);
+		const runtime = requireAppRuntime(appConfig);
+		const pageCache = new PageCacheService({ dependencyIndex: runtime.buildInputIndex });
+		runtime.pageCache = pageCache;
 		const clearHtml = vi.spyOn(pageCache, 'clear');
 		const invalidateHtml = vi.spyOn(pageCache, 'invalidateBySourceDependencyPaths');
 		const service = new DevelopmentInvalidationService(appConfig);
@@ -608,13 +609,14 @@ describe('DevelopmentInvalidationService', () => {
 
 		expect(clearHtml).not.toHaveBeenCalled();
 		expect(invalidateHtml).toHaveBeenCalledWith(['/test/project/src/styles/main.css']);
-		registerAppPageCacheService(appConfig, null);
+		runtime.pageCache = null;
 	});
 
 	it('evicts only the cached HTML documents that recorded a changed source file', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
-		const pageCache = new PageCacheService({ dependencyIndex: requireAppRuntime(appConfig).buildInputIndex });
-		registerAppPageCacheService(appConfig, pageCache);
+		const runtime = requireAppRuntime(appConfig);
+		const pageCache = new PageCacheService({ dependencyIndex: runtime.buildInputIndex });
+		runtime.pageCache = pageCache;
 		const clearHtml = vi.spyOn(pageCache, 'clear');
 		const service = new DevelopmentInvalidationService(appConfig);
 		const changedSource = '/test/project/src/components/dependency-discovery/counter.lit.tsx';
@@ -652,14 +654,15 @@ describe('DevelopmentInvalidationService', () => {
 		expect(clearHtml).not.toHaveBeenCalled();
 		expect(affectedRenders).toBe(2);
 		expect(unrelatedRenders).toBe(1);
-		registerAppPageCacheService(appConfig, null);
+		runtime.pageCache = null;
 	});
 
 	it('clears cached HTML when an additional watch path has no page-level dependency mapping', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		appConfig.additionalWatchPaths = ['data'];
-		const pageCache = new PageCacheService({ dependencyIndex: requireAppRuntime(appConfig).buildInputIndex });
-		registerAppPageCacheService(appConfig, pageCache);
+		const runtime = requireAppRuntime(appConfig);
+		const pageCache = new PageCacheService({ dependencyIndex: runtime.buildInputIndex });
+		runtime.pageCache = pageCache;
 		const clearHtml = vi.spyOn(pageCache, 'clear');
 		const service = new DevelopmentInvalidationService(appConfig);
 		let renders = 0;
@@ -684,6 +687,6 @@ describe('DevelopmentInvalidationService', () => {
 
 		expect(clearHtml).toHaveBeenCalledTimes(1);
 		expect(renders).toBe(2);
-		registerAppPageCacheService(appConfig, null);
+		runtime.pageCache = null;
 	});
 });

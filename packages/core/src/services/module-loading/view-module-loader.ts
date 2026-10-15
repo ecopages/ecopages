@@ -4,7 +4,7 @@ import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoPageComponent, ViewLoader } from '../../types/public-types.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
-import { getAppServerModuleTranspiler } from './app-server-module-transpiler.service.ts';
+import { createAppServerModuleTranspiler } from './app-server-module-transpiler.service.ts';
 
 function resolveViewModuleOnDisk(filePath: string, templatesExt: readonly string[]): string {
 	if (fileSystem.exists(filePath)) {
@@ -51,7 +51,7 @@ export function createViewModuleLoader<P = Record<string, unknown>>(
 	const filePath = resolveViewModuleFilePath(appConfig, modulePath);
 
 	return async () =>
-		await getAppServerModuleTranspiler(appConfig).importModule<{ default: EcoPageComponent<P> }>({
+		await createAppServerModuleTranspiler(appConfig).importModule<{ default: EcoPageComponent<P> }>({
 			filePath,
 			outdir: path.join(resolveInternalExecutionDir(appConfig), '.server-modules'),
 			externalPackages: true,

@@ -49,15 +49,12 @@ describe('LitPlugin render session invalidation', () => {
 	it('reads the invalidation version from the app module loader generation', async () => {
 		let generation = 0;
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', srcDir: 'src' });
-		appConfig.runtime = {
-			...appConfig.runtime,
-			appModuleLoader: {
-				importModule: async <T = unknown>() => ({}) as T,
-				invalidateDevelopmentGraph: () => {
-					generation += 1;
-				},
-				getDevelopmentGeneration: () => generation,
+		appConfig.appRuntime!.moduleLoader = {
+			importModule: async <T = unknown>() => ({}) as T,
+			invalidateDevelopmentGraph: () => {
+				generation += 1;
 			},
+			getDevelopmentGeneration: () => generation,
 		};
 
 		const plugin = new LitPlugin();
@@ -66,7 +63,7 @@ describe('LitPlugin render session invalidation', () => {
 
 		expect(session['getInvalidationVersion']()).toBe(0);
 
-		appConfig.runtime?.appModuleLoader?.invalidateDevelopmentGraph();
+		appConfig.appRuntime!.moduleLoader.invalidateDevelopmentGraph();
 
 		expect(session['getInvalidationVersion']()).toBe(1);
 	});

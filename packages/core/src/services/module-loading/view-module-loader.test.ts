@@ -40,8 +40,8 @@ describe('createViewModuleLoader', () => {
 		const appConfig = {
 			rootDir,
 			templatesExt: ['.kita.tsx'],
-			runtime: {
-				serverModuleTranspiler: { importModule },
+			appRuntime: {
+				moduleLoader: { importModule },
 			},
 		} as unknown as Parameters<typeof createViewModuleLoader>[0];
 
@@ -67,7 +67,7 @@ describe('createViewModuleLoader', () => {
 		const appConfig = {
 			rootDir,
 			templatesExt: ['.kita.tsx'],
-			runtime: { serverModuleTranspiler: { importModule } },
+			appRuntime: { moduleLoader: { importModule } },
 		} as unknown as Parameters<typeof createViewModuleLoader>[0];
 
 		await createViewModuleLoader(appConfig, pathToFileURL(viewPath))();

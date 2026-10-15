@@ -5,6 +5,7 @@
 
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
+import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
 import {
 	mergeProcessorOptions,
 	Processor,
@@ -507,7 +508,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	 * generation differs from the one it was built at. Core announces no invalidation to Processors.
 	 */
 	private getServerSourceGeneration(): number {
-		return this.context?.config.runtime?.appModuleLoader?.getDevelopmentGeneration() ?? 0;
+		return this.context ? requireAppRuntime(this.context.config).moduleLoader.getDevelopmentGeneration() : 0;
 	}
 
 	/**

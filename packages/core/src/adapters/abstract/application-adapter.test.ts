@@ -101,9 +101,7 @@ class TestApplicationAdapter extends AbstractApplicationAdapter<ApplicationAdapt
 describe('application adapter error pages', () => {
 	it('registers not-found and server-error view loaders', () => {
 		const adapter = new TestApplicationAdapter({
-			appConfig: {
-				runtime: {},
-			} as ApplicationAdapterOptions['appConfig'],
+			appConfig: {} as ApplicationAdapterOptions['appConfig'],
 		});
 		const notFoundLoader = async () => ({ default: {} as never });
 		const serverErrorLoader = async () => ({ default: {} as never });
@@ -122,9 +120,7 @@ describe('application adapter listening', () => {
 	it('logs a default runtime startup message when no onAppStart callback is registered', () => {
 		const infoSpy = vi.spyOn(appLogger, 'info').mockReturnValue(appLogger);
 		const adapter = new TestApplicationAdapter({
-			appConfig: {
-				runtime: {},
-			} as ApplicationAdapterOptions['appConfig'],
+			appConfig: {} as ApplicationAdapterOptions['appConfig'],
 		});
 
 		adapter.emitListening('http://localhost:3000/');
@@ -136,9 +132,7 @@ describe('application adapter listening', () => {
 	it('skips the default startup message when an onAppStart callback is registered', async () => {
 		const infoSpy = vi.spyOn(appLogger, 'info').mockReturnValue(appLogger);
 		const adapter = new TestApplicationAdapter({
-			appConfig: {
-				runtime: {},
-			} as ApplicationAdapterOptions['appConfig'],
+			appConfig: {} as ApplicationAdapterOptions['appConfig'],
 		});
 
 		let receivedRoutes: unknown;

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { AssetProcessingService } from './asset-processing.service';
 import type { AssetDefinition } from './assets.types';
-import { PageCacheService, registerAppPageCacheService } from '../../cache/page-cache-service.ts';
+import { PageCacheService } from '../../cache/page-cache-service.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import { BuildInputDependencyIndex } from '../../../build/cache/build-input-dependency-index.ts';
 import { requireAppRuntime, type AppRuntime } from '../../../config/app-runtime.ts';
@@ -712,7 +712,7 @@ test('AssetProcessingService clears the page cache when the source of a runtime 
 
 	const config = createTestConfig();
 	const pageCache = new PageCacheService();
-	registerAppPageCacheService(config, pageCache);
+	requireAppRuntime(config).pageCache = pageCache;
 	const clearPageCache = vi.spyOn(pageCache, 'clear');
 	const service = new AssetProcessingService(config);
 	const processMock = vi
@@ -752,7 +752,7 @@ test('AssetProcessingService clears the page cache when a page script keeps its 
 
 	const config = createTestConfig();
 	const pageCache = new PageCacheService();
-	registerAppPageCacheService(config, pageCache);
+	requireAppRuntime(config).pageCache = pageCache;
 	const clearPageCache = vi.spyOn(pageCache, 'clear');
 	const service = new AssetProcessingService(config);
 	let bundleVersion = 'v1';

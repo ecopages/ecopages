@@ -3,9 +3,9 @@ import { describe, it } from 'vitest';
 import type { BuildResult } from '../../build/build-adapter.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
 import { BuildQueue, requireBuildQueue } from '../../build/runtime/build-queue.ts';
-import { ServerInvalidationState } from '../../config/app-runtime.ts';
+import { createAppRuntime, requireAppRuntime, ServerInvalidationState } from '../../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
+import { createAppModuleLoader } from './app-server-module-transpiler.service.ts';
 import { ServerModuleTranspiler, type ServerModuleImportDependency } from './server-module-transpiler.service.ts';
 import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 
@@ -94,7 +94,7 @@ describe('ServerModuleTranspiler', () => {
 		]);
 	});
 
-	it('reuses one app-owned module loader per app config', () => {
+	it('reuses one app-owned module loader per app runtime', () => {
 		const appConfig = {
 			rootDir: '/app',
 			absolutePaths: {
@@ -104,11 +104,14 @@ describe('ServerModuleTranspiler', () => {
 				componentsDir: '/app/src/components',
 			},
 			templatesExt: ['.tsx'],
-			runtime: {},
+			loaders: new Map(),
+			processors: new Map(),
+			integrations: [],
 		} as unknown as EcoPagesAppConfig;
+		createAppRuntime(appConfig);
 
-		const firstLoader = getAppModuleLoader(appConfig);
-		const secondLoader = getAppModuleLoader(appConfig);
+		const firstLoader = requireAppRuntime(appConfig).moduleLoader;
+		const secondLoader = requireAppRuntime(appConfig).moduleLoader;
 
 		assert.equal(firstLoader, secondLoader);
 	});
@@ -132,10 +135,12 @@ describe('ServerModuleTranspiler', () => {
 				serverInvalidation: new ServerInvalidationState(),
 			},
 		} as unknown as EcoPagesAppConfig;
+		const loader = createAppModuleLoader(appConfig);
+		requireAppRuntime(appConfig).moduleLoader = loader;
 
 		const routeModuleExecutor = requireBuildQueue(appConfig);
 
-		const moduleLoader = getAppModuleLoader(appConfig) as unknown as {
+		const moduleLoader = loader as unknown as {
 			pageModuleImportService: {
 				importModule: <T = unknown>(options: unknown) => Promise<T>;
 			};
@@ -149,9 +154,9 @@ describe('ServerModuleTranspiler', () => {
 			return { default: { ok: true } } as T;
 		};
 
-		getAppModuleLoader(appConfig).invalidateDevelopmentGraph();
+		loader.invalidateDevelopmentGraph();
 
-		await getAppModuleLoader(appConfig).importModule({
+		await loader.importModule({
 			filePath: '/app/src/includes/html.kita.tsx',
 			rootDir: '/app',
 			outdir: '/app/.eco/.server-modules',

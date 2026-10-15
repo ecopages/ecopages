@@ -1,21 +1,19 @@
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
+import type { AppRuntime } from '../config/app-runtime.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
-import type { ComponentRenderInput, EcoComponent, PageMetadataProps, SitemapConfig } from './public-types.ts';
+import type {
+	CacheConfig,
+	ComponentRenderInput,
+	EcoComponent,
+	PageMetadataProps,
+	SitemapConfig,
+} from './public-types.ts';
 
 /** Internal render input carrying route-resolved dependency roots. */
 export type InternalComponentRenderInput = ComponentRenderInput & {
 	foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
 };
-import type { CacheConfig } from '../services/cache/cache.types.ts';
-import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
-import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
-import type { SessionPageBrowserGraphCache } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
-import type { ServerModuleTranspiler } from '../services/module-loading/server-module-transpiler.service.ts';
-import type { AppRuntime } from '../config/app-runtime.ts';
-
-/** Integration hook for registered `dependencies.scripts` entrypoint changes in dev. */
-export type RegisteredScriptEntrypointChangeHandler = (filePath: string) => void | boolean | Promise<void | boolean>;
 
 export interface RobotsPreference {
 	/**
@@ -169,31 +167,6 @@ export type EcoPagesAppConfig = {
 	 * rather than inventing a build adapter, manifest, or graph.
 	 */
 	appRuntime?: AppRuntime;
-	/**
-	 * Runtime-owned services attached after config construction.
-	 *
-	 * These values are internal implementation details used to thread per-app
-	 * executors and similar runtime state through the system without relying on
-	 * process-global registries.
-	 */
-	runtime?: {
-		appModuleLoader?: AppModuleLoader;
-		entrypointDependencyGraph?: EntrypointDependencyGraph;
-		pageBrowserGraphSession?: SessionPageBrowserGraphCache;
-		serverModuleTranspiler?: ServerModuleTranspiler;
-		/** Set after {@link setupAppRuntimePlugins} runs processor/integration setup once per process. */
-		runtimeAssetsPrepared?: boolean;
-		/**
-		 * In-flight or completed lazy integration activation promises, keyed by integration name.
-		 *
-		 * @remarks
-		 * Concurrent callers (background prewarm + first render) share the same promise.
-		 * Failed activations are removed so a later caller can retry.
-		 */
-		integrationActivations?: Map<string, Promise<void>>;
-		/** Integration hooks run when a registered `dependencies.scripts` entrypoint changes. */
-		registeredScriptEntrypointChangeHandlers?: RegisteredScriptEntrypointChangeHandler[];
-	};
 	/**
 	 * Development-only in-browser toolbar configuration.
 	 */

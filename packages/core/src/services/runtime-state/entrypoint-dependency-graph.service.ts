@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 
 /**
  * App-owned dependency graph used to target browser entrypoint rebuilds.
@@ -64,36 +63,5 @@ export class InMemoryEntrypointDependencyGraph implements EntrypointDependencyGr
 
 	reset(): void {
 		this.inputIndex.clearConsumer('entrypoint');
-	}
-}
-
-/**
- * Returns the app-owned entrypoint dependency graph.
- */
-export function getAppEntrypointDependencyGraph(appConfig: EcoPagesAppConfig): EntrypointDependencyGraph {
-	if (appConfig.runtime?.entrypointDependencyGraph) {
-		return appConfig.runtime.entrypointDependencyGraph;
-	}
-
-	return new NoopEntrypointDependencyGraph();
-}
-
-/**
- * Installs the dependency graph used by one app instance.
- *
- * @remarks
- * The HMR manager replaces finalization's no-op graph once development starts. An assembled app runtime
- * keeps that replacement, so readers of either slot see one graph.
- */
-export function setAppEntrypointDependencyGraph(
-	appConfig: EcoPagesAppConfig,
-	entrypointDependencyGraph: EntrypointDependencyGraph,
-): void {
-	appConfig.runtime = {
-		...(appConfig.runtime ?? {}),
-		entrypointDependencyGraph,
-	};
-	if (appConfig.appRuntime) {
-		appConfig.appRuntime.entrypointDependencyGraph = entrypointDependencyGraph;
 	}
 }

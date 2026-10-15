@@ -1,4 +1,5 @@
 import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { AppModuleLoader } from './app-module-loader.service.ts';
 import { PageModuleImportService, type PageModuleBuildImportOptions } from './page-module-import.service.ts';
@@ -35,24 +36,6 @@ export function createAppModuleLoader(appConfig: EcoPagesAppConfig): AppModuleLo
 	return appModuleLoader;
 }
 
-export function getAppModuleLoader(appConfig: EcoPagesAppConfig): AppModuleLoader {
-	const existingModuleLoader = appConfig.runtime?.appModuleLoader;
-	if (existingModuleLoader) {
-		return existingModuleLoader;
-	}
-
-	const appModuleLoader = createAppModuleLoader(appConfig);
-	setAppModuleLoader(appConfig, appModuleLoader);
-	return appModuleLoader;
-}
-
-export function setAppModuleLoader(appConfig: EcoPagesAppConfig, appModuleLoader: AppModuleLoader): void {
-	appConfig.runtime = {
-		...(appConfig.runtime ?? {}),
-		appModuleLoader,
-	};
-}
-
 /**
  * Creates the shared app-scoped server-module transpiler for one runtime
  * instance.
@@ -60,34 +43,6 @@ export function setAppModuleLoader(appConfig: EcoPagesAppConfig, appModuleLoader
 export function createAppServerModuleTranspiler(appConfig: EcoPagesAppConfig): ServerModuleTranspiler {
 	return new ServerModuleTranspiler({
 		rootDir: appConfig.rootDir,
-		pageModuleImportService: getAppModuleLoader(appConfig),
+		pageModuleImportService: requireAppRuntime(appConfig).moduleLoader,
 	});
-}
-
-/**
- * Returns the app-owned server-module transpiler, creating it lazily when the
- * runtime first needs one.
- */
-export function getAppServerModuleTranspiler(appConfig: EcoPagesAppConfig): ServerModuleTranspiler {
-	const existingTranspiler = appConfig.runtime?.serverModuleTranspiler;
-	if (existingTranspiler) {
-		return existingTranspiler;
-	}
-
-	const serverModuleTranspiler = createAppServerModuleTranspiler(appConfig);
-	setAppServerModuleTranspiler(appConfig, serverModuleTranspiler);
-	return serverModuleTranspiler;
-}
-
-/**
- * Installs the server-module transpiler that should serve one app instance.
- */
-export function setAppServerModuleTranspiler(
-	appConfig: EcoPagesAppConfig,
-	serverModuleTranspiler: ServerModuleTranspiler,
-): void {
-	appConfig.runtime = {
-		...(appConfig.runtime ?? {}),
-		serverModuleTranspiler,
-	};
 }

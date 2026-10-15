@@ -9,8 +9,7 @@ import type {
 	EcoPageComponent,
 } from '../../types/public-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { getAppModuleLoader } from '../../services/module-loading/app-server-module-transpiler.service.ts';
-import type { AppModuleLoader } from '../../services/module-loading/app-module-loader.service.ts';
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { HttpError } from '../../errors/http-error.ts';
 
@@ -24,7 +23,6 @@ import { HttpError } from '../../errors/http-error.ts';
  * page props and metadata into one renderer-facing shape.
  */
 export class PageModuleLoaderService {
-	private appModuleLoader: AppModuleLoader;
 	private appConfig: EcoPagesAppConfig;
 	private runtimeOrigin: string;
 
@@ -37,7 +35,6 @@ export class PageModuleLoaderService {
 	constructor(appConfig: EcoPagesAppConfig, runtimeOrigin: string) {
 		this.appConfig = appConfig;
 		this.runtimeOrigin = runtimeOrigin;
-		this.appModuleLoader = getAppModuleLoader(appConfig);
 	}
 
 	/**
@@ -49,7 +46,7 @@ export class PageModuleLoaderService {
 	 */
 	async importPageFile(file: string, options?: { bypassCache?: boolean }): Promise<EcoPageFile> {
 		try {
-			return await this.appModuleLoader.importModule<EcoPageFile>({
+			return await requireAppRuntime(this.appConfig).moduleLoader.importModule<EcoPageFile>({
 				filePath: file,
 				rootDir: this.appConfig.rootDir,
 				outdir: `${resolveInternalExecutionDir(this.appConfig)}/.server-modules`,

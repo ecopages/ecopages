@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
+import { createBrowserRuntimeManifest } from '../../build/browser/browser-runtime-manifest.ts';
 import { createAppRuntime } from '../../config/app-runtime.ts';
-import { NoopEntrypointDependencyGraph } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import { finalizeDocumentShellHtml } from './document-shell/document-shell-render.service.ts';
 import { IntegrationRenderer, type HtmlDocumentContribution } from './integration-renderer.ts';
 import { getComponentRenderContext, type ForeignChildRuntime } from './foreign-child/component-render-context.ts';
@@ -45,7 +45,12 @@ export function createMockIntegrationPlugin(
 		setRuntimeOrigin: vi.fn(),
 		getRenderer,
 		setup: vi.fn(async () => {}),
+		browserRuntimeManifest: createBrowserRuntimeManifest(),
 		...plugin,
+		plugins:
+			typeof plugin.plugins === 'function'
+				? plugin.plugins
+				: () => (Array.isArray(plugin.plugins) ? plugin.plugins : []),
 	} as unknown as EcoPagesAppConfig['integrations'][number];
 }
 
@@ -58,9 +63,6 @@ export function createMockAppConfig(overrides: Partial<EcoPagesAppConfig> = {}):
 		loaders: new Map(),
 		processors: new Map(),
 		integrations: [],
-		runtime: {
-			entrypointDependencyGraph: new NoopEntrypointDependencyGraph(),
-		},
 		defaultMetadata: {
 			title: 'Default Title',
 			description: 'Default Description',

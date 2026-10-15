@@ -5,7 +5,6 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
 import { clearAppDevelopmentRouteModuleBuildCaches } from '../module-loading/route-module-build-cache-registry.ts';
 import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../cache/page-cache-service.ts';
-import { getAppPageBrowserGraphSession } from '../../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import { requireAppRuntime } from '../../config/app-runtime.ts';
 
 export type DevelopmentInvalidationCategory =
@@ -168,7 +167,7 @@ export class DevelopmentInvalidationService {
 	 * collection modules and the Lit render worker, compare it instead of keeping a counter of their own.
 	 */
 	invalidateServerModules(): void {
-		this.appConfig.runtime?.appModuleLoader?.invalidateDevelopmentGraph();
+		requireAppRuntime(this.appConfig).moduleLoader.invalidateDevelopmentGraph();
 		clearAppDevelopmentRouteModuleBuildCaches(this.appConfig);
 	}
 
@@ -269,12 +268,13 @@ export class DevelopmentInvalidationService {
 	}
 
 	private invalidatePageBrowserGraphs(files: AppliedDevFileChange[]): void {
-		const session = getAppPageBrowserGraphSession(this.appConfig);
+		const runtime = requireAppRuntime(this.appConfig);
+		const session = runtime.pageBrowserGraphSession;
 		for (const file of files) {
 			session.invalidateByFilePath(file.filePath);
 			if (file.plan.category === 'route-source' && file.kind !== 'changed') {
 				session.invalidateByRouteFile(file.filePath);
-				requireAppRuntime(this.appConfig).buildInputIndex.unregister({
+				runtime.buildInputIndex.unregister({
 					consumer: 'server-route-module',
 					key: path.resolve(file.filePath),
 				});

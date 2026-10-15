@@ -576,39 +576,11 @@ export class SessionPageBrowserGraphCache {
 	}
 }
 
-const sessionByAppConfig = new WeakMap<EcoPagesAppConfig, SessionPageBrowserGraphCache>();
-
-/**
- * Returns the session graph cache for one app instance.
- */
-export function getAppPageBrowserGraphSession(
-	appConfig: EcoPagesAppConfig,
-	buildInputIndex?: BuildInputDependencyIndex,
-): SessionPageBrowserGraphCache {
-	const existing = appConfig.appRuntime?.pageBrowserGraphSession ?? appConfig.runtime?.pageBrowserGraphSession;
-	if (existing) {
-		return existing;
-	}
-
-	const cached = sessionByAppConfig.get(appConfig);
-	if (cached) {
-		return cached;
-	}
-
-	const session = new SessionPageBrowserGraphCache(buildInputIndex ?? requireAppRuntime(appConfig).buildInputIndex);
-	sessionByAppConfig.set(appConfig, session);
-	appConfig.runtime = {
-		...(appConfig.runtime ?? {}),
-		pageBrowserGraphSession: session,
-	};
-	return session;
-}
-
 /**
  * Invalidates graph records that depend on the changed file path.
  */
 export function invalidatePageBrowserGraphSession(appConfig: EcoPagesAppConfig, filePath: string): void {
-	getAppPageBrowserGraphSession(appConfig).invalidateByFilePath(filePath);
+	requireAppRuntime(appConfig).pageBrowserGraphSession.invalidateByFilePath(filePath);
 }
 
 /**
@@ -618,7 +590,7 @@ export function getAffectedPageBrowserGraphIdentities(
 	appConfig: EcoPagesAppConfig,
 	filePath: string,
 ): AffectedGraphIdentity[] {
-	return getAppPageBrowserGraphSession(appConfig).getAffectedGraphIdentities(filePath);
+	return requireAppRuntime(appConfig).pageBrowserGraphSession.getAffectedGraphIdentities(filePath);
 }
 
 /**

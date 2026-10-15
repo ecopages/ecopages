@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
 import { RESOLVED_ASSETS_DIR } from '../../../config/constants.ts';
 import { ensureIntegrationRuntimeReady } from '../../../build/app-build-manifest-runtime.ts';
@@ -20,8 +21,6 @@ export function prepareRuntimePublicDir(appConfig: EcoPagesAppConfig): void {
 	fileSystem.ensureDir(path.join(appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
 }
 
-const attachedHmrApps = new WeakSet<EcoPagesAppConfig>();
-
 /**
  * Attaches the shared HMR manager to every integration exactly once per app config.
  *
@@ -30,11 +29,12 @@ const attachedHmrApps = new WeakSet<EcoPagesAppConfig>();
  * this after the manager is enabled so late plugin init cannot double-bind integrations.
  */
 export function attachHmrToIntegrations(appConfig: EcoPagesAppConfig, hmrManager: IHmrManager): void {
-	if (attachedHmrApps.has(appConfig)) {
+	const runtime = requireAppRuntime(appConfig);
+	if (runtime.hmrAttachedToIntegrations) {
 		return;
 	}
 
-	attachedHmrApps.add(appConfig);
+	runtime.hmrAttachedToIntegrations = true;
 
 	for (const integration of appConfig.integrations) {
 		integration.setHmrManager(hmrManager);
@@ -86,12 +86,13 @@ export async function disposeDevResources(options: {
 	bridge: { destroy(): void } | null | undefined;
 	stopPreviewServer: () => Promise<void>;
 }): Promise<void> {
+	const runtime = requireAppRuntime(options.appConfig);
 	const cleanup = [
 		() => options.projectWatcher?.close(),
 		() => options.hmrManager?.stop(),
 		() => options.bridge?.destroy(),
 		options.stopPreviewServer,
-		() => Promise.allSettled(options.appConfig.runtime?.integrationActivations?.values() ?? []),
+		() => Promise.allSettled(runtime.integrationActivations.values()),
 		...options.appConfig.integrations.map((integration) => () => integration.teardown()),
 	];
 	const errors: unknown[] = [];
@@ -102,8 +103,8 @@ export async function disposeDevResources(options: {
 			errors.push(error);
 		}
 	}
-	options.appConfig.runtime?.integrationActivations?.clear();
-	attachedHmrApps.delete(options.appConfig);
+	runtime.integrationActivations.clear();
+	runtime.hmrAttachedToIntegrations = false;
 	if (errors.length === 1) throw errors[0];
 	if (errors.length > 1) throw new AggregateError(errors, 'Failed to release dev resources');
 }

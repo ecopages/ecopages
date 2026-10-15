@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import { eco } from '../../../eco/eco.ts';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type {
 	BaseIntegrationContext,
 	ComponentRenderInput,
@@ -12,6 +11,7 @@ import { IntegrationRenderer } from '../integration-renderer.ts';
 import { StringMarkupRenderer } from '../string-markup-renderer.ts';
 import {
 	TestIntegrationRenderer,
+	createMockAppConfig,
 	createMockIntegrationPlugin,
 	testAppConfig,
 	testAssetService,
@@ -74,9 +74,7 @@ describe('renderer foreign-child delegation', () => {
 		const initializeRenderer = vi.fn(() => foreignRenderer);
 		const setup = vi.fn(async () => {});
 		const renderer = new TestIntegrationRenderer({
-			appConfig: {
-				...testAppConfig,
-				runtime: {},
+			appConfig: createMockAppConfig({
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'lit',
@@ -84,7 +82,7 @@ describe('renderer foreign-child delegation', () => {
 						setup,
 					}),
 				],
-			} as EcoPagesAppConfig,
+			}),
 			assetProcessingService: testAssetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});
@@ -131,16 +129,14 @@ describe('renderer foreign-child delegation', () => {
 		const initializeRenderer = vi.fn(() => foreignRenderer);
 
 		const renderer = new TestIntegrationRenderer({
-			appConfig: {
-				...testAppConfig,
-				runtime: {},
+			appConfig: createMockAppConfig({
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'foreign-renderer',
 						initializeRenderer,
 					}),
 				],
-			} as EcoPagesAppConfig,
+			}),
 			assetProcessingService: testAssetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});
@@ -175,16 +171,14 @@ describe('renderer foreign-child delegation', () => {
 
 	it('should fall back to local rendering when the resolved owner renderer is the current renderer', async () => {
 		const renderer = new TestIntegrationRenderer({
-			appConfig: {
-				...testAppConfig,
-				runtime: {},
+			appConfig: createMockAppConfig({
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'foreign-renderer',
 						initializeRenderer: () => renderer,
 					}),
 				],
-			} as EcoPagesAppConfig,
+			}),
 			assetProcessingService: testAssetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});
@@ -302,16 +296,14 @@ describe('renderer foreign-child delegation', () => {
 
 	it('returns the view render result for a partial view that declares a foreign child', async () => {
 		const renderer = new TestIntegrationRenderer({
-			appConfig: {
-				...testAppConfig,
-				runtime: {},
+			appConfig: createMockAppConfig({
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'react',
 						initializeRenderer: () => ({ name: 'react' }),
 					}),
 				],
-			} as unknown as EcoPagesAppConfig,
+			}),
 			assetProcessingService: testAssetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});
@@ -358,16 +350,14 @@ describe('renderer foreign-child delegation', () => {
 		} as unknown as IntegrationRenderer;
 		const initializeRenderer = vi.fn(() => reactRenderer);
 		const renderer = new TestIntegrationRenderer({
-			appConfig: {
-				...testAppConfig,
-				runtime: {},
+			appConfig: createMockAppConfig({
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'react',
 						initializeRenderer,
 					}),
 				],
-			} as unknown as EcoPagesAppConfig,
+			}),
 			assetProcessingService: testAssetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});
@@ -431,16 +421,14 @@ describe('renderer foreign-child delegation', () => {
 		} as unknown as IntegrationRenderer;
 
 		const initializeRenderer = vi.fn(() => foreignRenderer);
-		const appConfig = {
-			...testAppConfig,
-			runtime: {},
+		const appConfig = createMockAppConfig({
 			integrations: [
 				createMockIntegrationPlugin({
 					name: 'foreign-renderer',
 					initializeRenderer,
 				}),
 			],
-		} as unknown as EcoPagesAppConfig;
+		});
 
 		const renderer = new (class extends StringMarkupRenderer {
 			name = 'test-renderer';

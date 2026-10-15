@@ -6,7 +6,6 @@ import type { EcoComponent, GetStaticProps, HtmlTemplateProps } from '../types/p
 import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
 import { createAppRuntime } from '../config/app-runtime.ts';
-import { NoopEntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import { StaticSiteGenerator } from './static-site-generator.ts';
 import {
 	TestIntegrationRenderer,
@@ -53,9 +52,6 @@ const createMockConfig = (): EcoPagesAppConfig => {
 		loaders: new Map(),
 		integrations: [],
 		processors: new Map(),
-		runtime: {
-			entrypointDependencyGraph: new NoopEntrypointDependencyGraph(),
-		},
 	} as unknown as EcoPagesAppConfig;
 	createAppRuntime(config);
 	return config;

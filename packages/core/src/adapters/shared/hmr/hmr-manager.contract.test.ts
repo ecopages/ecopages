@@ -5,8 +5,8 @@ import { inspect } from 'node:util';
 import { describe, test, vi } from 'vitest';
 import { installBuildQueue } from '../../../build/runtime/build-queue.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
-import { getAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir } from '../../../utils/resolve-work-dir.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { ClientBridgeEvent } from '../../../types/public-types.ts';
@@ -174,8 +174,9 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		const appModuleLoader = {
 			importModule: vi.fn(async () => ({})),
 			invalidateDevelopmentGraph: vi.fn(),
+			getDevelopmentGeneration: () => 0,
 		};
-		config.runtime = { ...config.runtime, appModuleLoader: appModuleLoader as never };
+		requireAppRuntime(config).moduleLoader = appModuleLoader as never;
 		const { manager } = await create(config, 1);
 		manager.setEnabled(true);
 
@@ -190,7 +191,7 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		const rootDir = createTempRoot('ecopages-hmr-contract-internal-paths');
 		const config = await finalizeEcoPagesConfig({ rootDir });
 		const importModule = vi
-			.spyOn(getAppServerModuleTranspiler(config), 'importModule')
+			.spyOn(requireAppRuntime(config).moduleLoader, 'importModule')
 			.mockImplementation(async () => ({}) as never);
 		const { manager } = await create(config);
 

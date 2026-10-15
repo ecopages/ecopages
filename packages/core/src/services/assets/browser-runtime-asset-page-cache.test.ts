@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
-import { PageCacheService, registerAppPageCacheService } from '../cache/page-cache-service.ts';
+import { PageCacheService } from '../cache/page-cache-service.ts';
 import { clearPageCacheForBrowserRuntimeAssetChange } from './browser-runtime-asset-page-cache.ts';
 
 async function createCachedApp() {
 	const appConfig = await finalizeEcoPagesConfig({ rootDir: '/tmp/eco-runtime-asset-cache' });
 	const pageCache = new PageCacheService();
-	registerAppPageCacheService(appConfig, pageCache);
+	requireAppRuntime(appConfig).pageCache = pageCache;
 	await pageCache.getOrCreate('/', 'static', async () => ({ html: '<html>old</html>', strategy: 'static' }));
 	return { appConfig, pageCache };
 }

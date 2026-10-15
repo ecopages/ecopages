@@ -12,6 +12,7 @@ import type { InteractionEventsString as ScriptsInjectorInteractionEventsString 
 import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { DevTransformBundleContributor } from '../dev/transform-server/types.ts';
 
+export type { CacheConfig } from '../services/cache/cache.types.ts';
 export type { EcoPagesAppConfig } from './internal-types.ts';
 export type {
 	EcoPageComponent,

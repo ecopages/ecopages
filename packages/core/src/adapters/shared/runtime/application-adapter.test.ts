@@ -7,7 +7,7 @@ import { SharedApplicationAdapter } from './application-adapter.ts';
 
 class TestRestartFailureAdapter extends SharedApplicationAdapter<ApplicationAdapterOptions, unknown, Request> {
 	constructor(private readonly stopError: unknown) {
-		super({ appConfig: { runtime: {} } as ApplicationAdapterOptions['appConfig'] }, 'Node');
+		super({ appConfig: {} as ApplicationAdapterOptions['appConfig'] }, 'Node');
 	}
 
 	public getDevelopmentRestartHandlerForTest(): ((changedFile: string) => Promise<void>) | undefined {

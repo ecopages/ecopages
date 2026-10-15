@@ -13,7 +13,6 @@ describe('PageModuleLoaderService', () => {
 			title: 'Default title',
 			description: 'Default description',
 		},
-		runtime: {},
 	} as EcoPagesAppConfig;
 
 	it('should resolve static props via getStaticPropsForPage', async () => {
@@ -197,8 +196,8 @@ describe('PageModuleLoaderService', () => {
 		const service = new PageModuleLoaderService(
 			{
 				...appConfig,
-				runtime: {
-					appModuleLoader: {
+				appRuntime: {
+					moduleLoader: {
 						async importModule<T = unknown>(options: unknown): Promise<T> {
 							calls.push(options);
 							return expectedModule as T;
@@ -209,7 +208,7 @@ describe('PageModuleLoaderService', () => {
 						getDevelopmentGeneration: () => 0,
 					} satisfies AppModuleLoader,
 				},
-			} as EcoPagesAppConfig,
+			} as unknown as EcoPagesAppConfig,
 			'http://localhost:3000',
 		);
 
@@ -236,8 +235,8 @@ describe('PageModuleLoaderService', () => {
 		const service = new PageModuleLoaderService(
 			{
 				...appConfig,
-				runtime: {
-					appModuleLoader: {
+				appRuntime: {
+					moduleLoader: {
 						async importModule<T = unknown>(options: unknown): Promise<T> {
 							calls.push(options);
 							return expectedModule as T;
@@ -248,7 +247,7 @@ describe('PageModuleLoaderService', () => {
 						getDevelopmentGeneration: () => 0,
 					} satisfies AppModuleLoader,
 				},
-			} as EcoPagesAppConfig,
+			} as unknown as EcoPagesAppConfig,
 			'http://localhost:3000',
 		);
 

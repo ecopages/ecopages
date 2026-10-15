@@ -7,7 +7,7 @@ import type { NodeServerAdapterParams } from './node/server-adapter.ts';
 import type { RuntimeHost } from './shared/runtime/runtime-host.ts';
 
 function disposalAppConfig() {
-	return { runtime: {}, appRuntime: { origin: 'http://localhost:3000', hmr: null } } as never;
+	return { appRuntime: { origin: 'http://localhost:3000', hmr: null } } as never;
 }
 
 function createMockServerAdapterResult(dispose = vi.fn().mockResolvedValue(undefined)) {

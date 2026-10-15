@@ -221,16 +221,14 @@ describe('IntegrationRenderer', () => {
 		};
 		const HookRenderer = createIntegrationRenderer('hooked', { renderComponent, renderQueuedChildren });
 		const renderer = new HookRenderer({
-			appConfig: {
-				...testAppConfig,
-				runtime: {},
+			appConfig: createMockAppConfig({
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'foreign',
 						initializeRenderer: () => foreignRenderer,
 					}),
 				],
-			} as unknown as EcoPagesAppConfig,
+			}),
 			assetProcessingService: testAssetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});
@@ -477,11 +475,9 @@ describe('IntegrationRenderer', () => {
 		};
 		let activeForeignRenderer = firstRenderer;
 		const getRenderer = vi.fn(() => activeForeignRenderer);
-		const appConfig = {
-			...testAppConfig,
-			runtime: {},
+		const appConfig = createMockAppConfig({
 			integrations: [createMockIntegrationPlugin({ name: 'foreign-renderer', getRenderer })],
-		} as unknown as EcoPagesAppConfig;
+		});
 		const renderer = new TestIntegrationRenderer({
 			appConfig,
 			assetProcessingService: testAssetService,
@@ -1250,16 +1246,14 @@ describe('IntegrationRenderer', () => {
 				),
 			};
 
-			const appConfig = {
-				...testAppConfig,
-				runtime: {},
+			const appConfig = createMockAppConfig({
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'explicit-renderer',
 						initializeRenderer: () => explicitRenderer,
 					}),
 				],
-			} as unknown as EcoPagesAppConfig;
+			});
 
 			const renderer = new TestIntegrationRenderer({
 				appConfig,
@@ -1455,9 +1449,7 @@ describe('IntegrationRenderer', () => {
 		const host = new (class extends TestIntegrationRenderer {
 			override name = 'kitajs';
 		})({
-			appConfig: {
-				...testAppConfig,
-				runtime: {},
+			appConfig: createMockAppConfig({
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'react',
@@ -1465,7 +1457,7 @@ describe('IntegrationRenderer', () => {
 						initializeRenderer: () => contributor,
 					}),
 				],
-			},
+			}),
 			assetProcessingService: testAssetService,
 			runtimeOrigin: 'http://localhost:3000',
 		});

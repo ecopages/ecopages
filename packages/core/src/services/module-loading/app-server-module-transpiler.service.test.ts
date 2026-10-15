@@ -10,7 +10,7 @@ import { createAppBuildManifest, type AppBuildManifest } from '../../build/contr
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
 import { requireAppRuntime, ServerInvalidationState } from '../../config/app-runtime.ts';
 import type { EcoPagesElement } from '../../types/public-types.ts';
-import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
+import { createAppModuleLoader } from './app-server-module-transpiler.service.ts';
 import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 
 function attachTestAppRuntime(
@@ -27,6 +27,7 @@ function attachTestAppRuntime(
 		routeModuleBuildCaches: new Map(),
 		collectionArtifacts: new Map(),
 		serverInvalidation: new ServerInvalidationState(),
+		moduleLoader: createAppModuleLoader(appConfig as never),
 	};
 }
 
@@ -95,11 +96,10 @@ describe('app server module transpiler runtime state', () => {
 				},
 			],
 			templatesExt: ['.eco.tsx', '.kita.tsx'],
-			runtime: {},
 		} as any;
 		attachTestAppRuntime(appConfig);
 
-		const moduleLoader = getAppModuleLoader(appConfig);
+		const moduleLoader = requireAppRuntime(appConfig).moduleLoader;
 
 		try {
 			const imported = await moduleLoader.importModule<{
@@ -147,12 +147,11 @@ describe('app server module transpiler runtime state', () => {
 			},
 			integrations: [],
 			templatesExt: ['.ts'],
-			runtime: {},
 		} as any;
 		attachTestAppRuntime(appConfig);
 
 		try {
-			const imported = await getAppModuleLoader(appConfig).importModule<{
+			const imported = await requireAppRuntime(appConfig).moduleLoader.importModule<{
 				default: { ok: boolean };
 				value: number;
 			}>({
@@ -215,7 +214,6 @@ describe('app server module transpiler runtime state', () => {
 			integrations: [],
 			loaders: new Map(),
 			templatesExt: ['.tsx'],
-			runtime: {},
 		} as any;
 
 		attachTestAppRuntime(
@@ -224,7 +222,7 @@ describe('app server module transpiler runtime state', () => {
 		);
 
 		try {
-			await getAppModuleLoader(appConfig).importModule({
+			await requireAppRuntime(appConfig).moduleLoader.importModule({
 				filePath: pageFilePath,
 				rootDir,
 				outdir: path.join(rootDir, '.eco', '.server-modules'),
@@ -264,7 +262,6 @@ describe('app server module transpiler runtime state', () => {
 			integrations: [],
 			loaders: new Map(),
 			templatesExt: ['.tsx'],
-			runtime: {},
 		} as any;
 
 		attachTestAppRuntime(appConfig);
@@ -277,7 +274,7 @@ describe('app server module transpiler runtime state', () => {
 		};
 
 		try {
-			await getAppModuleLoader(appConfig).importModule({
+			await requireAppRuntime(appConfig).moduleLoader.importModule({
 				filePath: pageFilePath,
 				rootDir,
 				outdir: path.join(rootDir, '.eco', '.server-modules'),

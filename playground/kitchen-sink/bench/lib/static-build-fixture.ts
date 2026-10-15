@@ -17,7 +17,7 @@ import { RouteRendererFactory } from '../../../../packages/core/src/route-render
 import { StaticSiteGenerator } from '../../../../packages/core/src/static-site-generator/static-site-generator';
 import {
 	createAppModuleLoader,
-	getAppServerModuleTranspiler,
+	createAppServerModuleTranspiler,
 } from '../../../../packages/core/src/services/module-loading/app-server-module-transpiler.service';
 import { resolveInternalExecutionDir } from '../../../../packages/core/src/utils/resolve-work-dir';
 import type { EcoPagesAppConfig } from '../../../../packages/core/src/types/internal-types';
@@ -109,7 +109,7 @@ export async function bootstrapStaticGenerationStack(appConfig: EcoPagesAppConfi
 		runtimeOrigin,
 	});
 
-	const serverModuleTranspiler = getAppServerModuleTranspiler(appConfig);
+	const serverModuleTranspiler = createAppServerModuleTranspiler(appConfig);
 	const router = new RouteRegistry({
 		pagesDir: path.join(appConfig.rootDir, appConfig.srcDir, appConfig.pagesDir),
 		appConfig,

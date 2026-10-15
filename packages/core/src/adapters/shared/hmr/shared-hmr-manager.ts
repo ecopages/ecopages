@@ -27,12 +27,9 @@ import { appLogger } from '../../../global/app-logger.ts';
 import type { ClientBridgeEvent, HmrFileChangeOptions, ResolvedHmrEntrypoint } from '../../../types/public-types.ts';
 import { DevTransformEntrypointRegistry } from './dev-transform-entrypoint-registry.ts';
 import { BrowserBundleService } from '../../../services/assets/browser-bundle.service.ts';
-import { getAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
-import {
-	getAppEntrypointDependencyGraph,
-	setAppEntrypointDependencyGraph,
-	type EntrypointDependencyGraph,
-} from '../../../services/runtime-state/entrypoint-dependency-graph.service.ts';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
+import { createAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
+import type { EntrypointDependencyGraph } from '../../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { ServerModuleTranspiler } from '../../../services/module-loading/server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';
 import { DevTransformServer } from '../../../dev/transform-server/dev-transform-server.ts';
@@ -79,11 +76,10 @@ export abstract class SharedHmrManager implements IHmrManager {
 		this.entrypointRegistry = new DevTransformEntrypointRegistry();
 		this.browserBundleService = new BrowserBundleService(appConfig);
 		this.invalidationService = new DevelopmentInvalidationService(appConfig);
-		this.entrypointDependencyGraph = this.createEntrypointDependencyGraph(
-			getAppEntrypointDependencyGraph(appConfig),
-		);
-		setAppEntrypointDependencyGraph(this.appConfig, this.entrypointDependencyGraph);
-		this.serverModuleTranspiler = getAppServerModuleTranspiler(this.appConfig);
+		const runtime = requireAppRuntime(appConfig);
+		this.entrypointDependencyGraph = this.createEntrypointDependencyGraph(runtime.entrypointDependencyGraph);
+		runtime.entrypointDependencyGraph = this.entrypointDependencyGraph;
+		this.serverModuleTranspiler = createAppServerModuleTranspiler(this.appConfig);
 		this.devTransformServer = new DevTransformServer({
 			appConfig: this.appConfig,
 			onModuleDependencies: (modulePath, dependencies) => {
@@ -377,7 +373,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	 * next request that needs them.
 	 */
 	private async runRegisteredEntrypointChangeHandlers(filePath: string): Promise<void> {
-		const handlers = this.appConfig.runtime?.registeredScriptEntrypointChangeHandlers ?? [];
+		const handlers = requireAppRuntime(this.appConfig).registeredScriptEntrypointChangeHandlers;
 		for (const handler of handlers) {
 			try {
 				const result = await handler(filePath);

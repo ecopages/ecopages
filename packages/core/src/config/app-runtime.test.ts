@@ -68,14 +68,11 @@ describe('AppRuntime', () => {
 				stopPreviewServer: async () => {},
 			}),
 		).rejects.toThrow(missingRuntime);
-		await expect(
-			setupAppRuntimePlugins({ appConfig: unfinalized, runtimeOrigin: 'http://localhost:3000' }),
-		).rejects.toThrow(missingRuntime);
+		await expect(setupAppRuntimePlugins({ appConfig: unfinalized })).rejects.toThrow(missingRuntime);
 		await expect(
 			ensureIntegrationRuntimeReady({
 				appConfig: unfinalized,
 				integrationName: 'react',
-				runtimeOrigin: 'http://localhost:3000',
 			}),
 		).rejects.toThrow(missingRuntime);
 		expect(() => getHtmlPageModuleScriptUrls(unfinalized)).toThrow(missingRuntime);

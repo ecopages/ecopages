@@ -8,7 +8,6 @@ describe('document shell finalization', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		renderer.PageModule = {
 			default: (() => 'Hello Route') as EcoPageComponent<any>,

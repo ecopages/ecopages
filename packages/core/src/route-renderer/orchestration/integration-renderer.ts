@@ -211,7 +211,6 @@ export type IntegrationRendererOptions = {
 	appConfig: EcoPagesAppConfig;
 	assetProcessingService: AssetProcessingService;
 	resolvedIntegrationDependencies?: ProcessedAsset[];
-	runtimeOrigin: string;
 	/** Supplies Integration hooks that override or compose with renderer class defaults. */
 	hooks?: IntegrationRendererHooks | IntegrationRendererHookFactory;
 };
@@ -267,7 +266,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected hmrManager?: IHmrManager;
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
 	declare protected options: Required<IntegrationRendererRenderOptions>;
-	protected runtimeOrigin: string;
 	protected dependencyResolverService: DependencyResolverService;
 	protected pageModuleLoaderService: PageModuleLoaderService;
 	protected routeRenderOrchestrator: RouteRenderOrchestrator;
@@ -281,6 +279,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 	protected DOC_TYPE = '<!DOCTYPE html>';
 
+	protected getActiveHmrManager(): IHmrManager | undefined {
+		return this.appConfig.appRuntime?.hmr ?? this.hmrManager;
+	}
+
 	/**
 	 * Activates the owning integration runtime on first render or graph use.
 	 */
@@ -288,7 +290,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		await ensureIntegrationRuntimeReady({
 			appConfig: this.appConfig,
 			integrationName: this.name,
-			runtimeOrigin: this.runtimeOrigin,
 		});
 		const integration = this.appConfig.integrations?.find((entry) => entry.name === this.name);
 		if (integration?.getResolvedIntegrationDependencies) {
@@ -735,20 +736,18 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		appConfig,
 		assetProcessingService,
 		resolvedIntegrationDependencies,
-		runtimeOrigin,
 		hooks,
 	}: IntegrationRendererConstructionOptions) {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
 		this.htmlTransformer = new HtmlTransformerService();
 		this.resolvedIntegrationDependencies = resolvedIntegrationDependencies || [];
-		this.runtimeOrigin = runtimeOrigin;
 		this.dependencyResolverService = new DependencyResolverService(
 			appConfig,
 			assetProcessingService,
-			() => isProductionRuntime() && this.hmrManager?.isEnabled() !== true,
+			() => isProductionRuntime() && this.getActiveHmrManager()?.isEnabled() !== true,
 		);
-		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig, runtimeOrigin);
+		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig);
 		this.routeRenderOrchestrator = new RouteRenderOrchestrator(appConfig, assetProcessingService, {
 			ownershipValidationService: new OwnershipValidationService(appConfig),
 		});
@@ -758,7 +757,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 						appConfig,
 						assetProcessingService,
 						resolvedIntegrationDependencies,
-						runtimeOrigin,
 						hooks: {},
 						resolveDependencies: (components, options) => this.resolveDependencies(components, options),
 						resolveComponentDependencies: (components, options) =>
@@ -862,7 +860,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	getRouteHtmlFinalization(renderOptions: IntegrationRendererRenderOptions<C>): RouteHtmlFinalization {
 		return buildRouteHtmlFinalization({
 			appConfig: this.appConfig,
-			watch: this.hmrManager?.isEnabled() === true,
+			watch: this.getActiveHmrManager()?.isEnabled() === true,
 			integrationName: this.name,
 			renderOptions,
 			getDocumentAttributes: (options) => this.getDocumentAttributes(options),
@@ -1295,7 +1293,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	): Promise<ForeignSubtreeExecutionOwningRenderer> {
 		return resolveOwningIntegrationRenderer({
 			appConfig: this.appConfig,
-			runtimeOrigin: this.runtimeOrigin,
 			currentIntegrationName: this.name,
 			currentRenderer: this,
 			integrationName,

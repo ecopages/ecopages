@@ -82,7 +82,6 @@ describe('EcopagesJsxRenderer hydration scope', () => {
 			assetProcessingService: {
 				processDependencies: vi.fn(async () => []),
 			} as never,
-			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 		});
 

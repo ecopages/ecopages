@@ -48,7 +48,6 @@ describe('ReactRenderer unified SSR layout composition', () => {
 		const renderer = new TestReactRenderer({
 			appConfig,
 			assetProcessingService: assetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const Layout = ({ children }: { children?: ReactNode }) => (
@@ -83,7 +82,6 @@ describe('ReactRenderer unified SSR layout composition', () => {
 		const renderer = new TestReactRenderer({
 			appConfig,
 			assetProcessingService: assetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const Outer = ({ children }: { children?: ReactNode }) => <div data-layout="outer">{children}</div>;

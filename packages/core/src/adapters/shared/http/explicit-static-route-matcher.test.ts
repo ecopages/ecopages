@@ -25,9 +25,16 @@ function createMockRoute(path: string, view?: EcoPageComponent<any>): StaticRout
 	};
 }
 
+function createMockAppConfig() {
+	return {
+		baseUrl: 'http://localhost:3000',
+		appRuntime: { origin: 'http://localhost:3000' },
+	} as any;
+}
+
 function createMatcher(staticRoutes: StaticRoute[]) {
 	return new ExplicitStaticRouteMatcher({
-		appConfig: { baseUrl: 'http://localhost:3000' } as any,
+		appConfig: createMockAppConfig(),
 		routeRendererFactory: {} as any,
 		staticRoutes,
 	});
@@ -138,7 +145,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const mockResponse = new Response('<html>Test</html>');
 			const renderExplicitView = vi.fn(() => mockResponse);
 			const matcher = new ExplicitStaticRouteMatcher({
-				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				appConfig: createMockAppConfig(),
 				routeRendererFactory: {
 					getExplicitViewRenderer: vi.fn(() => ({
 						renderExplicitView,
@@ -161,7 +168,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			};
 
 			const matcher = new ExplicitStaticRouteMatcher({
-				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				appConfig: createMockAppConfig(),
 				routeRendererFactory: {
 					getExplicitViewRenderer: vi.fn(() => null),
 				} as any,
@@ -180,7 +187,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			};
 
 			const matcher = new ExplicitStaticRouteMatcher({
-				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				appConfig: createMockAppConfig(),
 				routeRendererFactory: RendererFactory as any,
 				staticRoutes: [createMockRoute('/about', view)],
 			});
@@ -196,7 +203,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const view = createMockView('string');
 			const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
 			const matcher = new ExplicitStaticRouteMatcher({
-				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				appConfig: createMockAppConfig(),
 				routeRendererFactory: {
 					getExplicitViewRenderer: vi.fn(() => ({
 						renderExplicitView: vi.fn(() => {
@@ -220,7 +227,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 		test('should rethrow when rendering the view fails', async () => {
 			const view = createMockView('string');
 			const matcher = new ExplicitStaticRouteMatcher({
-				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				appConfig: createMockAppConfig(),
 				routeRendererFactory: {
 					getExplicitViewRenderer: vi.fn(() => ({
 						renderExplicitView: vi.fn(() => {
@@ -247,7 +254,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			};
 
 			const matcher = new ExplicitStaticRouteMatcher({
-				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				appConfig: createMockAppConfig(),
 				routeRendererFactory: RendererFactory as any,
 				staticRoutes: [createMockRoute('/about', view)],
 			});
@@ -275,7 +282,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			};
 
 			const matcher = new ExplicitStaticRouteMatcher({
-				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				appConfig: createMockAppConfig(),
 				routeRendererFactory: RendererFactory as any,
 				staticRoutes: [createMockRoute('/about', view)],
 			});
@@ -307,7 +314,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			};
 
 			const matcher = new ExplicitStaticRouteMatcher({
-				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				appConfig: createMockAppConfig(),
 				routeRendererFactory: RendererFactory as any,
 				staticRoutes: [createMockRoute('/blog/:slug', view)],
 			});

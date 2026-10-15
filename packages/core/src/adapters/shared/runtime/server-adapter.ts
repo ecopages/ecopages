@@ -75,7 +75,6 @@ export abstract class SharedServerAdapter<
 	/** Propagates the actual listening port to every binding-dependent service. */
 	public override applyBoundPort(input: { port: number; runtimeOrigin: string }): void {
 		super.applyBoundPort(input);
-		this.routeRendererFactory?.setRuntimeOrigin(input.runtimeOrigin);
 		this.staticBuilder?.setRuntimeBinding(input);
 	}
 
@@ -90,7 +89,7 @@ export abstract class SharedServerAdapter<
 
 		this.devStaticRoutePrewarmStarted = true;
 
-		const runtimeOrigin = this.runtimeOrigin;
+		const runtimeOrigin = this.runtime.origin;
 		this.devStaticRoutePrewarm = startDevStaticRoutePrewarm({
 			pathnames: [...new Set(this.appConfig.devPrewarmPaths)],
 			signal: this.devStaticRoutePrewarmAbort.signal,
@@ -133,7 +132,6 @@ export abstract class SharedServerAdapter<
 	protected async initializeSharedRouteHandling(options: {
 		staticRoutes: StaticRoute[];
 		errorPageLoaders?: ErrorPageLoaders;
-		hmrManager?: SharedHmrAssetManager;
 	}): Promise<void> {
 		this.ensureRouteRendererFactory();
 		await this.initSharedRouter();
@@ -148,14 +146,12 @@ export abstract class SharedServerAdapter<
 		this.routeRendererFactory = new RouteRendererFactory({
 			appConfig: this.appConfig,
 			runtime: this.runtime,
-			runtimeOrigin: this.runtimeOrigin,
 		});
 	}
 
 	protected createSharedWatchRefreshCallback(options: {
 		staticRoutes: StaticRoute[];
 		errorPageLoaders?: ErrorPageLoaders;
-		hmrManager?: SharedHmrAssetManager;
 		onRoutesReady?: () => Promise<void> | void;
 		onError?: (error: Error) => Promise<void> | void;
 	}): () => Promise<void> {
@@ -164,7 +160,6 @@ export abstract class SharedServerAdapter<
 				await this.initializeSharedRouteHandling({
 					staticRoutes: options.staticRoutes,
 					errorPageLoaders: options.errorPageLoaders,
-					hmrManager: options.hmrManager,
 				});
 
 				if (options.onRoutesReady) {
@@ -195,7 +190,7 @@ export abstract class SharedServerAdapter<
 		this.router = new RouteRegistry({
 			pagesDir: path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.pagesDir),
 			appConfig: this.appConfig,
-			origin: this.runtimeOrigin,
+			origin: this.runtime.origin,
 			templatesExt: this.appConfig.templatesExt,
 			buildMode: !this.options?.watch,
 			pageModuleAdapter: this.createRouteRegistryPageModuleAdapter(),
@@ -234,7 +229,6 @@ export abstract class SharedServerAdapter<
 	 */
 	protected configureSharedResponseHandlers(options: {
 		staticRoutes: StaticRoute[];
-		hmrManager?: IHmrManager;
 		errorPageLoaders?: ErrorPageLoaders;
 	}): void {
 		this.ensureRouteRendererFactory();
@@ -249,7 +243,6 @@ export abstract class SharedServerAdapter<
 			router: this.router,
 			fileSystemResponseMatcher: this.fileSystemResponseMatcher,
 			explicitStaticRouteMatcher,
-			hmrManager: options.hmrManager,
 		});
 	}
 
@@ -336,22 +329,26 @@ export abstract class SharedServerAdapter<
 		});
 	}
 
+	private getActiveHmrManager(context: SharedRequestContext): SharedHmrAssetManager | undefined {
+		return context.hmrManager ?? this.runtime.hmr ?? undefined;
+	}
+
 	private async tryHandleSharedDevClientRequest(
 		request: Request,
 		context: SharedRequestContext,
 	): Promise<Response | null> {
-		const manager = context.hmrManager as {
+		const manager = this.getActiveHmrManager(context) as {
 			tryHandleDevClientRequest?: (request: Request) => Promise<Response | null>;
 		} | null;
 		return (await manager?.tryHandleDevClientRequest?.(request)) ?? null;
 	}
 
 	private tryHandleSharedHmrRequest(request: Request, context: SharedRequestContext): Response | null {
-		return context.hmrManager?.tryHandleAssetRequest(request) ?? null;
+		return this.getActiveHmrManager(context)?.tryHandleAssetRequest(request) ?? null;
 	}
 
 	private async injectSharedHmrHtmlResponse(response: Response, context: SharedRequestContext): Promise<Response> {
-		const hmrManager = context.hmrManager;
+		const hmrManager = this.getActiveHmrManager(context);
 		if (!isHtmlResponse(response) || !hmrManager?.isEnabled()) {
 			return response;
 		}

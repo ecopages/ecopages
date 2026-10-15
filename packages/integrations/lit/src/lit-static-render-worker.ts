@@ -25,18 +25,18 @@ let routeRendererFactory: RouteRendererFactory | null = null;
  */
 async function initializeWorker(configModulePath: string, runtimeOrigin: string): Promise<void> {
 	appConfig = await loadEcoPagesConfig({ configFile: configModulePath });
+	const runtime = requireAppRuntime(appConfig);
+	runtime.origin = runtimeOrigin;
 
 	await setupAppRuntimePlugins({
 		appConfig,
-		runtimeOrigin,
 	});
 
 	installBuildQueue(appConfig);
 
 	routeRendererFactory = new RouteRendererFactory({
 		appConfig,
-		runtime: requireAppRuntime(appConfig),
-		runtimeOrigin,
+		runtime,
 	});
 }
 

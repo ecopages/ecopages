@@ -10,7 +10,6 @@ describe('resolveOwningIntegrationRenderer', () => {
 
 		const result = await resolveOwningIntegrationRenderer({
 			appConfig: { integrations: [] } as unknown as EcoPagesAppConfig,
-			runtimeOrigin: 'test',
 			currentIntegrationName: 'kitajs',
 			currentRenderer: { name: 'kitajs' } as never,
 			integrationName: 'react',
@@ -26,7 +25,6 @@ describe('resolveOwningIntegrationRenderer', () => {
 
 		const result = await resolveOwningIntegrationRenderer({
 			appConfig: { integrations: [] } as unknown as EcoPagesAppConfig,
-			runtimeOrigin: 'test',
 			currentIntegrationName: 'kitajs',
 			currentRenderer: current,
 			integrationName: 'kitajs',
@@ -50,7 +48,6 @@ describe('resolveOwningIntegrationRenderer', () => {
 			appConfig: {
 				integrations: [{ name: 'react', initializeRenderer, getRenderer }],
 			} as unknown as EcoPagesAppConfig,
-			runtimeOrigin: 'test-origin',
 			currentIntegrationName: 'kitajs',
 			currentRenderer: { name: 'kitajs' } as never,
 			integrationName: 'react',
@@ -62,7 +59,6 @@ describe('resolveOwningIntegrationRenderer', () => {
 				integrations: expect.any(Array),
 			}),
 			integrationName: 'react',
-			runtimeOrigin: 'test-origin',
 		});
 		expect(getRenderer).toHaveBeenCalledWith();
 		expect(initializeRenderer).not.toHaveBeenCalled();

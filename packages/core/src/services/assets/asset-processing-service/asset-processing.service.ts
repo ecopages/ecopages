@@ -86,7 +86,7 @@ export class AssetProcessingService {
 	}
 
 	getHmrManager(): IHmrManager | undefined {
-		return this.hmrManager;
+		return this.config.appRuntime?.hmr ?? this.hmrManager;
 	}
 
 	/**

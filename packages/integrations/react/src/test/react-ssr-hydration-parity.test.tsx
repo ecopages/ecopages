@@ -47,7 +47,6 @@ describe('React SSR and hydration layout parity', () => {
 		const renderer = new TestReactRenderer({
 			appConfig,
 			assetProcessingService: assetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const { react, reactDomServer } = renderer.getRuntime();
 

@@ -42,7 +42,6 @@ export function createMockIntegrationPlugin(
 
 	return {
 		setConfig: vi.fn(),
-		setRuntimeOrigin: vi.fn(),
 		getRenderer,
 		setup: vi.fn(async () => {}),
 		browserRuntimeManifest: createBrowserRuntimeManifest(),

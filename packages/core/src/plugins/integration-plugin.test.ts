@@ -36,7 +36,6 @@ class OverrideInitializeRendererPlugin extends TestIntegrationPlugin {
 			appConfig,
 			assetProcessingService,
 			resolvedIntegrationDependencies: [],
-			runtimeOrigin: this.runtimeOrigin,
 		});
 
 		return this.attachRendererRuntimeServices(renderer);
@@ -114,23 +113,19 @@ describe('IntegrationPlugin', () => {
 			override renderer = NamelessRenderer as TestIntegrationPlugin['renderer'];
 		})(config);
 
-		(pluginWithRenderer as TestIntegrationPlugin & { appConfig?: object; runtimeOrigin: string }).appConfig =
-			await finalizeEcoPagesConfig({ rootDir: '/app' });
-		pluginWithRenderer.runtimeOrigin = 'http://localhost:3000';
+		pluginWithRenderer.setConfig(await finalizeEcoPagesConfig({ rootDir: '/app' }));
 
 		const renderer = pluginWithRenderer.initializeRenderer();
 		expect(renderer.name).toBe('test-plugin');
 	});
 
-	it('shares one app renderer until its runtime origin changes', async () => {
+	it('shares one app renderer across repeated lookups and forwards HMR attachment', async () => {
 		const pluginWithRenderer = new (class extends TestIntegrationPlugin {
 			override renderer = NamelessRenderer as TestIntegrationPlugin['renderer'];
 		})(config);
 
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app' });
-		(pluginWithRenderer as TestIntegrationPlugin & { appConfig?: object; runtimeOrigin: string }).appConfig =
-			appConfig;
-		pluginWithRenderer.setRuntimeOrigin('http://localhost:3000');
+		pluginWithRenderer.setConfig(appConfig);
 		const initializeRenderer = vi.spyOn(pluginWithRenderer, 'initializeRenderer');
 
 		const first = pluginWithRenderer.getRenderer();
@@ -148,19 +143,12 @@ describe('IntegrationPlugin', () => {
 
 		expect(pluginWithRenderer.getRenderer()).toBe(first);
 		expect(setRendererHmrManager).toHaveBeenCalledWith(hmrManager);
-
-		pluginWithRenderer.setRuntimeOrigin('http://localhost:3001');
-
-		expect(pluginWithRenderer.getRenderer()).not.toBe(first);
-		expect(initializeRenderer).toHaveBeenCalledTimes(2);
 	});
 
 	it('should stamp the plugin integration name when overrides use shared renderer runtime services', async () => {
 		const pluginWithOverride = new OverrideInitializeRendererPlugin(config);
 
-		(pluginWithOverride as TestIntegrationPlugin & { appConfig?: object; runtimeOrigin: string }).appConfig =
-			await finalizeEcoPagesConfig({ rootDir: '/app' });
-		pluginWithOverride.runtimeOrigin = 'http://localhost:3000';
+		pluginWithOverride.setConfig(await finalizeEcoPagesConfig({ rootDir: '/app' }));
 
 		const renderer = pluginWithOverride.initializeRenderer();
 		expect(renderer.name).toBe('test-plugin');

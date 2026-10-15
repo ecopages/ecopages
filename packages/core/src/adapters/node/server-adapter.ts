@@ -48,7 +48,6 @@ export type NodeServeAdapterServerOptions = {
 export interface NodeServerAdapterParams {
 	appConfig: EcoPagesAppConfig;
 	runtime: AppRuntime;
-	runtimeOrigin: string;
 	serveOptions: NodeServeAdapterServerOptions;
 	apiHandlers?: ApiHandler[];
 	staticRoutes?: StaticRoute[];
@@ -168,22 +167,18 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			runtime: this.runtime,
 			staticSiteGenerator: this.staticSiteGenerator,
 			serveOptions: this.serveOptions,
-			runtimeOrigin: this.runtimeOrigin,
 			needsServerBundle: this.apiHandlers.length > 0 || this.websocketHandlers.size > 0,
-			hmrManager: this.hmrManager ?? undefined,
 		});
 		if (this.runtimeAssetSetup === 'export') {
 			await this.staticBuilder.prepareExport();
 		} else if (this.runtimeAssetSetup === 'start') {
 			await setupAppRuntimePlugins({
 				appConfig: this.appConfig,
-				runtimeOrigin: this.runtimeOrigin,
 			});
 		}
 		await this.initializeSharedRouteHandling({
 			staticRoutes: this.staticRoutes,
 			errorPageLoaders: this.errorPageLoaders,
-			hmrManager: this.hmrManager ?? undefined,
 		});
 		this.initialized = true;
 	}
@@ -351,7 +346,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			apiHandlers: this.apiHandlers,
 			errorHandler: this.errorHandler,
 			serverInstance: this.serverInstance,
-			hmrManager: this.hmrManager ?? undefined,
 		};
 
 		try {
@@ -394,6 +388,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			const wss = devRuntime.websocketServer;
 			this.bridge = devRuntime.bridge;
 			this.hmrManager = devRuntime.hmrManager;
+			this.runtime.hmr = devRuntime.hmrManager;
 			this.hmrManager.setEnabled(true);
 
 			await this.hmrManager.ensureRuntimeReady();
@@ -403,7 +398,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				socket: import('node:stream').Duplex,
 				head: Buffer,
 			): boolean => {
-				const url = new URL(req.url ?? '/', this.runtimeOrigin);
+				const url = new URL(req.url ?? '/', this.runtime.origin);
 				if (url.pathname !== '/_hmr') return false;
 				wss.handleUpgrade(req, socket, head, (ws) => {
 					this.bridge!.subscribe(ws);
@@ -415,7 +410,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			};
 
 			attachNodeHttpWebSocketUpgrades(server, {
-				runtimeOrigin: this.runtimeOrigin,
+				runtimeOrigin: this.runtime.origin,
 				websocketHandlers: this.websocketHandlers,
 				preflight: hmrPreflight,
 			});
@@ -423,12 +418,10 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			attachHmrToIntegrations(this.appConfig, this.hmrManager);
 			await startDevWarmup({
 				appConfig: this.appConfig,
-				runtimeOrigin: this.runtimeOrigin,
 			});
 
 			this.configureSharedResponseHandlers({
 				staticRoutes: this.staticRoutes,
-				hmrManager: this.hmrManager,
 				errorPageLoaders: this.errorPageLoaders,
 			});
 
@@ -437,7 +430,6 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 				refreshRouterRoutesCallback: this.createSharedWatchRefreshCallback({
 					staticRoutes: this.staticRoutes,
 					errorPageLoaders: this.errorPageLoaders,
-					hmrManager: this.hmrManager ?? undefined,
 				}),
 				hmrManager: this.hmrManager ?? undefined,
 				bridge: this.bridge,
@@ -449,7 +441,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			await watcher.createWatcherSubscription();
 		} else {
 			attachNodeHttpWebSocketUpgrades(server, {
-				runtimeOrigin: this.runtimeOrigin,
+				runtimeOrigin: this.runtime.origin,
 				websocketHandlers: this.websocketHandlers,
 			});
 		}
@@ -460,27 +452,20 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 			apiHandlers: this.apiHandlers.length,
 			staticRoutes: this.staticRoutes.length,
 			hasErrorHandler: !!this.errorHandler,
-			hmrEnabled: !!this.hmrManager?.isEnabled(),
+			hmrEnabled: !!this.runtime.hmr?.isEnabled(),
 		});
 	}
 }
 
 /**
  * Factory function that creates and fully initialises a `NodeServerAdapter`.
- *
- * `runtimeOrigin` is derived from `serveOptions` when not explicitly provided,
- * so callers only need to set it when the server is behind a reverse proxy that
- * changes the effective host or port.
  */
 export async function createNodeServerAdapter(
 	params: NodeServerAdapterParams,
 	runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions>,
 ): Promise<NodeServerAdapterResult> {
-	const runtimeOrigin = params.runtimeOrigin ?? resolveServeRuntimeOrigin(params.serveOptions);
-
 	const adapter = new NodeServerAdapter({
 		...params,
-		runtimeOrigin,
 		runtimeHost,
 	});
 

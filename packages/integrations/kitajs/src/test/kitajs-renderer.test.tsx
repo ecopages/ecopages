@@ -91,7 +91,6 @@ function createTestComponent<P>(fn: (props: P) => Promise<string> | string): Eco
 const renderer = new TestKitaRenderer({
 	appConfig: Config,
 	assetProcessingService: createTestAssetProcessingService(Config),
-	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],
 });
 
@@ -110,7 +109,6 @@ describeRendererContract({
 		const testRenderer = new TestKitaRenderer({
 			appConfig: await createTestAppConfig({ integrations }),
 			assetProcessingService: { processDependencies } as never,
-			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 		});
 		testRenderer.htmlTemplate = headedTemplate;
@@ -160,7 +158,6 @@ describe('KitaRenderer', () => {
 			assetProcessingService: {
 				processDependencies: vi.fn(async () => []),
 			} as never,
-			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 		});
 

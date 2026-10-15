@@ -399,6 +399,24 @@ describe('createMdxLoaderPlugin', () => {
 		expect(secondResult?.contents).toContain('components: () => [Child]');
 	});
 
+	it('keys the loader identity on the options that change its output', () => {
+		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-'));
+		tempDirs.push(tempDir);
+		function remarkNamed() {}
+		const withPlugin = { projectRoot: tempDir, compilerOptions: { remarkPlugins: [remarkNamed] } };
+
+		expect(createMdxLoaderPlugin(withPlugin).cacheKey).toBe(createMdxLoaderPlugin(withPlugin).cacheKey);
+		expect(createMdxLoaderPlugin({ projectRoot: tempDir }).cacheKey).not.toBe(
+			createMdxLoaderPlugin(withPlugin).cacheKey,
+		);
+		expect(createMdxLoaderPlugin({ projectRoot: tempDir }).cacheKey).not.toBe(
+			createMdxLoaderPlugin({ projectRoot: tempDir, includeSourceMap: false }).cacheKey,
+		);
+		expect(createMdxLoaderPlugin({ projectRoot: tempDir }).cacheKey).not.toBe(
+			createMdxLoaderPlugin({ projectRoot: tempDir, compilerOptions: { jsxImportSource: 'react' } }).cacheKey,
+		);
+	});
+
 	it('throws if projectRoot is missing when creating the loader plugin', async () => {
 		const { createMdxLoaderPlugin: createCore } = await import('../core/mdx-loader-plugin.ts');
 		expect(() => createCore({ name: 'mdx-loader', projectRoot: '' })).toThrow(/projectRoot is required/);

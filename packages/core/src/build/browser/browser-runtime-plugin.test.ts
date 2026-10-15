@@ -256,3 +256,31 @@ test('createBrowserRuntimePlugin does not map a package subpath the manifest doe
 	assert.match(code, /@acme\/ui\/button/);
 	assert.doesNotMatch(code, /acme-ui\.js/);
 });
+
+test('createBrowserRuntimePlugin keys its identity on the manifest and the resolve options', () => {
+	const otherManifest = createBrowserRuntimeManifest([
+		{
+			specifier: 'react',
+			owner: '@ecopages/react',
+			importPath: 'react',
+			publicPath: '/assets/vendors/react-dev.js',
+		},
+	]);
+
+	assert.equal(
+		createBrowserRuntimePlugin({ manifest })?.cacheKey,
+		createBrowserRuntimePlugin({ manifest })?.cacheKey,
+	);
+	assert.notEqual(
+		createBrowserRuntimePlugin({ manifest })?.cacheKey,
+		createBrowserRuntimePlugin({ manifest: otherManifest })?.cacheKey,
+	);
+	assert.notEqual(
+		createBrowserRuntimePlugin({ manifest })?.cacheKey,
+		createBrowserRuntimePlugin({ manifest, external: false })?.cacheKey,
+	);
+	assert.notEqual(
+		createBrowserRuntimePlugin({ manifest })?.cacheKey,
+		createBrowserRuntimePlugin({ manifest, matchPublicPaths: false })?.cacheKey,
+	);
+});

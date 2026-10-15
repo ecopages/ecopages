@@ -1,14 +1,13 @@
 import { beforeEach, describe, expect, test } from 'vitest';
 import { prepareHmrFileChange } from './hmr-file-change-prep.ts';
+import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 
 let appConfig: EcoPagesAppConfig;
 
-beforeEach(() => {
-	appConfig = {
-		runtime: {},
-	} as unknown as EcoPagesAppConfig;
+beforeEach(async () => {
+	appConfig = await finalizeEcoPagesConfig({ rootDir: '/app' });
 });
 
 describe('prepareHmrFileChange', () => {

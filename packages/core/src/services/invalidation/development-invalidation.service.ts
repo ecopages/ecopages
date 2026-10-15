@@ -6,7 +6,7 @@ import { isPathInside } from '../../utils/path-containment.ts';
 import { clearAppDevelopmentRouteModuleBuildCaches } from '../module-loading/route-module-build-cache-registry.ts';
 import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../cache/page-cache-service.ts';
 import { getAppPageBrowserGraphSession } from '../../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
-import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 
 export type DevelopmentInvalidationCategory =
 	| 'public-asset'
@@ -238,7 +238,7 @@ export class DevelopmentInvalidationService {
 	}
 
 	private async markAppliedFilesDirty(files: AppliedDevFileChange[], applied: AppliedDevFileChanges): Promise<void> {
-		getAppBuildInputIndex(this.appConfig).recordChanges(files.map((file) => file.filePath));
+		requireAppRuntime(this.appConfig).buildInputIndex.recordChanges(files.map((file) => file.filePath));
 		if (applied.invalidateServerModules) {
 			this.invalidateServerModules();
 		}
@@ -274,7 +274,7 @@ export class DevelopmentInvalidationService {
 			session.invalidateByFilePath(file.filePath);
 			if (file.plan.category === 'route-source' && file.kind !== 'changed') {
 				session.invalidateByRouteFile(file.filePath);
-				getAppBuildInputIndex(this.appConfig).unregister({
+				requireAppRuntime(this.appConfig).buildInputIndex.unregister({
 					consumer: 'server-route-module',
 					key: path.resolve(file.filePath),
 				});
@@ -299,7 +299,7 @@ export class DevelopmentInvalidationService {
 		const category = this.classifyFileChange(filePath, context);
 		const plan = INVALIDATION_PLAN_BY_CATEGORY[category];
 		const readByServerRouteModule =
-			getAppBuildInputIndex(this.appConfig).resolveKeys('server-route-module', filePath).length > 0;
+			requireAppRuntime(this.appConfig).buildInputIndex.resolveKeys('server-route-module', filePath).length > 0;
 		return {
 			category,
 			...plan,
@@ -338,7 +338,10 @@ export class DevelopmentInvalidationService {
 			return 'route-source';
 		}
 
-		if (getAppBuildInputIndex(this.appConfig).hasSourcePath(filePath) || this.isServerModuleSourceFile(filePath)) {
+		if (
+			requireAppRuntime(this.appConfig).buildInputIndex.hasSourcePath(filePath) ||
+			this.isServerModuleSourceFile(filePath)
+		) {
 			return 'source';
 		}
 

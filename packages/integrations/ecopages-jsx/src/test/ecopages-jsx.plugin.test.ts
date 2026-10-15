@@ -166,8 +166,8 @@ test('EcopagesJsxPlugin enables page dependency bundling', () => {
 	assert.equal(new EcopagesJsxPlugin({ radiant: false }).bundlesPageDependencies, true);
 });
 
-test('EcopagesJsxPlugin registers Radiant SSR invalidation when Radiant is enabled', () => {
-	const appConfig = { runtime: {} } as EcoPagesAppConfig;
+test('EcopagesJsxPlugin registers Radiant SSR invalidation when Radiant is enabled', async () => {
+	const appConfig = await createTestAppConfig({ rootDir: '/tmp/ecopages-jsx-radiant-enabled', integrations: [] });
 	const plugin = new EcopagesJsxPlugin();
 	plugin.setConfig(appConfig);
 
@@ -178,8 +178,8 @@ test('EcopagesJsxPlugin registers Radiant SSR invalidation when Radiant is enabl
 	]);
 });
 
-test('EcopagesJsxPlugin skips Radiant SSR invalidation registration when Radiant is disabled', () => {
-	const appConfig = { runtime: {} } as EcoPagesAppConfig;
+test('EcopagesJsxPlugin skips Radiant SSR invalidation registration when Radiant is disabled', async () => {
+	const appConfig = await createTestAppConfig({ rootDir: '/tmp/ecopages-jsx-radiant-disabled', integrations: [] });
 	const plugin = new EcopagesJsxPlugin({ radiant: false });
 	plugin.setConfig(appConfig);
 

@@ -1,14 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { availableParallelism } from 'node:os';
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import {
-	getAppBuildAdapter,
-	type BuildAdapter,
-	type BuildExecutor,
-	type BuildOptions,
-	type BuildResult,
-	type BuildSuccess,
-} from '../build-adapter.ts';
+import type { BuildAdapter, BuildExecutor, BuildOptions, BuildResult, BuildSuccess } from '../build-adapter.ts';
 import { assertBuildSucceeded } from '../build-log.ts';
 import { createBuildRequestIdentity } from './build-request-identity.ts';
 
@@ -113,28 +107,26 @@ export class BuildQueue implements BuildExecutor {
 	}
 }
 
-export function getBuildQueue(appConfig: EcoPagesAppConfig): BuildQueue | undefined {
-	return appConfig.runtime?.buildQueue;
-}
-
-/** Returns the app's build queue, installing it when missing. */
+/**
+ * Returns the app's build queue from its assembled {@link AppRuntime}.
+ *
+ * @throws When `appConfig` skipped finalization.
+ */
 export function requireBuildQueue(appConfig: EcoPagesAppConfig): BuildQueue {
-	return getBuildQueue(appConfig) ?? installBuildQueue(appConfig);
+	return requireAppRuntime(appConfig).buildQueue;
 }
 
 /**
- * Installs the build queue of one app instance on the app's runtime state.
+ * Installs a fresh build queue on the app's {@link AppRuntime}.
  *
  * @remarks
  * The queue builds with the app's installed {@link BuildAdapter}. Startup installs a queue again after
  * finalization, so an assembled {@link AppRuntime} takes that later queue instead of keeping the first one.
  */
 export function installBuildQueue(appConfig: EcoPagesAppConfig): BuildQueue {
-	const buildQueue = new BuildQueue(getAppBuildAdapter(appConfig));
-	appConfig.runtime = { ...(appConfig.runtime ?? {}), buildQueue };
-	if (appConfig.appRuntime) {
-		appConfig.appRuntime.buildQueue = buildQueue;
-	}
+	const runtime = requireAppRuntime(appConfig);
+	const buildQueue = new BuildQueue(runtime.buildAdapter);
+	runtime.buildQueue = buildQueue;
 	return buildQueue;
 }
 

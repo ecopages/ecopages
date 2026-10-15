@@ -3,7 +3,15 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import { installBuildQueue } from '../build/runtime/build-queue.ts';
+import { installBuildQueue, requireBuildQueue } from '../build/runtime/build-queue.ts';
+import { createBrowserBuildRequest, resolveAppBuildPlugins } from '../build/runtime/build-request-policy.ts';
+import { ensurePagesUnifiedGraphBuilt } from '../build/cache/pages-unified-graph-build.ts';
+import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
+import { buildCollectionServerModule } from '../services/module-loading/collection-server-module-build.service.ts';
+import {
+	clearAppDevelopmentRouteModuleBuildCaches,
+	getSharedRouteModuleBuildCache,
+} from '../services/module-loading/route-module-build-cache-registry.ts';
 import {
 	NoopEntrypointDependencyGraph,
 	setAppEntrypointDependencyGraph,
@@ -26,9 +34,34 @@ describe('AppRuntime', () => {
 		return dir;
 	}
 
-	it('throws for a config that was never assembled, naming the missing runtime', () => {
-		expect(() => requireAppRuntime({} as EcoPagesAppConfig)).toThrow(/Missing app runtime/);
-		expect(() => createAppRuntime({ runtime: {} } as EcoPagesAppConfig)).toThrow(/Missing app runtime/);
+	it('throws for a config that was never assembled, naming the missing runtime', async () => {
+		const unfinalized = {} as EcoPagesAppConfig;
+		const missingRuntime = 'Missing app runtime. This config was never assembled.';
+
+		expect(() => requireAppRuntime(unfinalized)).toThrow(missingRuntime);
+		expect(() => createAppRuntime({ runtime: {} } as EcoPagesAppConfig)).toThrow(missingRuntime);
+		expect(() => requireBuildQueue(unfinalized)).toThrow(missingRuntime);
+		expect(() => installBuildQueue(unfinalized)).toThrow(missingRuntime);
+		expect(() => resolveAppBuildPlugins(unfinalized, 'server')).toThrow(missingRuntime);
+		expect(() => createBrowserBuildRequest(unfinalized, { entrypoints: ['/in.ts'] })).toThrow(missingRuntime);
+		expect(() => getSharedRouteModuleBuildCache('/out', unfinalized)).toThrow(missingRuntime);
+		expect(() => clearAppDevelopmentRouteModuleBuildCaches(unfinalized)).toThrow(missingRuntime);
+		expect(() => new AssetProcessingService(unfinalized)).toThrow(missingRuntime);
+		await expect(
+			buildCollectionServerModule({
+				appConfig: unfinalized,
+				collectionName: 'blog',
+				sourceFilePath: '/in.ts',
+				ownedSourcePaths: ['/in.ts'],
+			}),
+		).rejects.toThrow(missingRuntime);
+		await expect(
+			ensurePagesUnifiedGraphBuilt({
+				appConfig: unfinalized,
+				entryPaths: [],
+				outdir: '/out',
+			}),
+		).rejects.toThrow(missingRuntime);
 	});
 
 	it('assembles one runtime for a finalized config and keeps a second config separate', async () => {
@@ -49,7 +82,7 @@ describe('AppRuntime', () => {
 		expect(firstRuntime.origin).toBe('http://first.test');
 		expect(firstRuntime.hmr).toBeNull();
 		expect(firstRuntime.pageCache).toBeNull();
-		expect(firstRuntime.buildAdapter).toBe(first.runtime?.buildAdapter);
+		expect(firstRuntime.buildAdapter).not.toBe(secondRuntime.buildAdapter);
 		expect(firstRuntime.moduleLoader.getDevelopmentGeneration()).toBe(0);
 
 		firstRuntime.moduleLoader.invalidateDevelopmentGraph();
@@ -67,8 +100,19 @@ describe('AppRuntime', () => {
 		setAppEntrypointDependencyGraph(config, nextGraph);
 
 		expect(runtime.buildQueue).toBe(nextQueue);
-		expect(runtime.buildQueue).toBe(config.runtime?.buildQueue);
 		expect(runtime.entrypointDependencyGraph).toBe(nextGraph);
 		expect(runtime.entrypointDependencyGraph).toBe(config.runtime?.entrypointDependencyGraph);
+	});
+
+	it('rolls back appConfig.appRuntime when manifest sealing throws', async () => {
+		const config = await finalizeEcoPagesConfig({ rootDir: tempRoot() });
+		config.appRuntime = undefined;
+		config.loaders = new Map([
+			['first', { name: 'duplicate-plugin', setup() {} }],
+			['second', { name: 'duplicate-plugin', setup() {} }],
+		]);
+
+		expect(() => createAppRuntime(config)).toThrow(/duplicate-plugin/);
+		expect(config.appRuntime).toBeUndefined();
 	});
 });

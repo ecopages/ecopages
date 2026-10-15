@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test, vi } from 'vitest';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import {
 	clearProductionPageBrowserGraphSession,
@@ -70,8 +70,8 @@ test('prebuildProductionPageBrowserGraphs deduplicates, sorts, and groups route 
 	]);
 });
 
-test('clearProductionPageBrowserGraphSession clears production session records', () => {
-	const appConfig = { runtime: {} } as EcoPagesAppConfig;
+test('clearProductionPageBrowserGraphSession clears production session records', async () => {
+	const appConfig = await finalizeEcoPagesConfig({ rootDir: '/tmp' });
 	const session = getAppPageBrowserGraphSession(appConfig);
 	const clearSpy = vi.spyOn(session, 'clearPolicyRecords');
 

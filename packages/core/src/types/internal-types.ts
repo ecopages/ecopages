@@ -1,8 +1,4 @@
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
-import type { AppBuildManifest } from '../build/contracts/build-manifest.ts';
-import type { BuildAdapter } from '../build/build-adapter.ts';
-import type { BuildInputDependencyIndex } from '../build/cache/build-input-dependency-index.ts';
-import type { BuildQueue } from '../build/runtime/build-queue.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type { ComponentRenderInput, EcoComponent, PageMetadataProps, SitemapConfig } from './public-types.ts';
@@ -17,7 +13,6 @@ import type { EntrypointDependencyGraph } from '../services/runtime-state/entryp
 import type { SessionPageBrowserGraphCache } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import type { ServerModuleTranspiler } from '../services/module-loading/server-module-transpiler.service.ts';
 import type { AppRuntime } from '../config/app-runtime.ts';
-import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 
 /** Integration hook for registered `dependencies.scripts` entrypoint changes in dev. */
 export type RegisteredScriptEntrypointChangeHandler = (filePath: string) => void | boolean | Promise<void | boolean>;
@@ -183,15 +178,9 @@ export type EcoPagesAppConfig = {
 	 */
 	runtime?: {
 		appModuleLoader?: AppModuleLoader;
-		buildAdapter?: BuildAdapter;
-		buildManifest?: AppBuildManifest;
 		entrypointDependencyGraph?: EntrypointDependencyGraph;
-		buildInputIndex?: BuildInputDependencyIndex;
 		pageBrowserGraphSession?: SessionPageBrowserGraphCache;
 		serverModuleTranspiler?: ServerModuleTranspiler;
-		routeModuleBuildCaches?: Map<string, RouteModuleBuildCache>;
-		/** The queue every build of the app goes through, installed by {@link installBuildQueue}. */
-		buildQueue?: BuildQueue;
 		/** Set after {@link setupAppRuntimePlugins} runs processor/integration setup once per process. */
 		runtimeAssetsPrepared?: boolean;
 		/**

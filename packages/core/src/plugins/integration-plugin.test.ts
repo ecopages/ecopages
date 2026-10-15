@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IntegrationPlugin, type IntegrationPluginConfig } from './integration-plugin.ts';
+import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
 import type { IHmrManager } from '../types/public-types.ts';
 import type { AssetDefinition } from '../services/assets/asset-processing-service';
@@ -108,25 +109,25 @@ describe('IntegrationPlugin', () => {
 		expect(registerStrategy).toHaveBeenCalledWith(strategy);
 	});
 
-	it('should stamp the plugin integration name onto initialized renderers', () => {
+	it('should stamp the plugin integration name onto initialized renderers', async () => {
 		const pluginWithRenderer = new (class extends TestIntegrationPlugin {
 			override renderer = NamelessRenderer as TestIntegrationPlugin['renderer'];
 		})(config);
 
 		(pluginWithRenderer as TestIntegrationPlugin & { appConfig?: object; runtimeOrigin: string }).appConfig =
-			{} as EcoPagesAppConfig;
+			await finalizeEcoPagesConfig({ rootDir: '/app' });
 		pluginWithRenderer.runtimeOrigin = 'http://localhost:3000';
 
 		const renderer = pluginWithRenderer.initializeRenderer();
 		expect(renderer.name).toBe('test-plugin');
 	});
 
-	it('shares one app renderer until its runtime origin changes', () => {
+	it('shares one app renderer until its runtime origin changes', async () => {
 		const pluginWithRenderer = new (class extends TestIntegrationPlugin {
 			override renderer = NamelessRenderer as TestIntegrationPlugin['renderer'];
 		})(config);
 
-		const appConfig = {} as EcoPagesAppConfig;
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app' });
 		(pluginWithRenderer as TestIntegrationPlugin & { appConfig?: object; runtimeOrigin: string }).appConfig =
 			appConfig;
 		pluginWithRenderer.setRuntimeOrigin('http://localhost:3000');
@@ -154,11 +155,11 @@ describe('IntegrationPlugin', () => {
 		expect(initializeRenderer).toHaveBeenCalledTimes(2);
 	});
 
-	it('should stamp the plugin integration name when overrides use shared renderer runtime services', () => {
+	it('should stamp the plugin integration name when overrides use shared renderer runtime services', async () => {
 		const pluginWithOverride = new OverrideInitializeRendererPlugin(config);
 
 		(pluginWithOverride as TestIntegrationPlugin & { appConfig?: object; runtimeOrigin: string }).appConfig =
-			{} as EcoPagesAppConfig;
+			await finalizeEcoPagesConfig({ rootDir: '/app' });
 		pluginWithOverride.runtimeOrigin = 'http://localhost:3000';
 
 		const renderer = pluginWithOverride.initializeRenderer();

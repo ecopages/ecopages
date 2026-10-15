@@ -11,35 +11,41 @@ import {
 	resolveAppBuildPlugins,
 	resolveBuildPluginOrder,
 } from './build-request-policy.ts';
-import { setAppBuildManifest } from '../build-adapter.ts';
 import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
 import { RolldownBuildAdapter } from '../rolldown/rolldown-build-adapter.ts';
 import { assertBuildSucceeded } from '../build-log.ts';
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 
 function createAppConfig(): EcoPagesAppConfig {
-	const appConfig = {
+	const appPlugin: EcoBuildPlugin = { name: 'app-plugin', setup() {} };
+	const browserPlugin: EcoBuildPlugin = { name: 'browser-plugin', environments: ['browser'], setup() {} };
+	const buildManifest = createAppBuildManifest(
+		[appPlugin, browserPlugin].map((plugin) => ({ plugin, source: plugin.name })),
+	);
+
+	return {
 		rootDir: '/app',
 		loaders: new Map(),
 		runtime: {},
+		appRuntime: {
+			buildManifest,
+		},
 		absolutePaths: {
 			projectDir: '/app',
 		},
 		integrations: [],
 	} as unknown as EcoPagesAppConfig;
-
-	const appPlugin: EcoBuildPlugin = { name: 'app-plugin', setup() {} };
-	const browserPlugin: EcoBuildPlugin = { name: 'browser-plugin', environments: ['browser'], setup() {} };
-
-	setAppBuildManifest(
-		appConfig,
-		createAppBuildManifest([appPlugin, browserPlugin].map((plugin) => ({ plugin, source: plugin.name }))),
-	);
-
-	return appConfig;
 }
+
+test('resolveAppBuildPlugins throws when the config was never assembled', () => {
+	assert.throws(
+		() => resolveAppBuildPlugins({ loaders: new Map() } as unknown as EcoPagesAppConfig, 'server'),
+		/Missing app runtime\. This config was never assembled\./,
+	);
+});
 
 test('mergeCallerBuildPlugins keeps app plugins on collision and prepends unique callers', () => {
 	const appPlugin: EcoBuildPlugin = { name: 'shared', setup() {} };
@@ -174,8 +180,7 @@ test('browser compilation on the route-module executor keeps browser defaults an
 	assert.ok(request.plugins?.every((plugin) => plugin.name !== 'server-only'));
 	const { installBuildQueue, requireBuildQueue } = await import('./build-queue.ts');
 	const observed: import('../contracts/build-contracts.ts').BuildOptions[] = [];
-	appConfig.runtime ??= {};
-	appConfig.runtime.buildAdapter = {
+	requireAppRuntime(appConfig).buildAdapter = {
 		async build(options) {
 			observed.push(options);
 			return createBuildSuccess();
@@ -196,31 +201,30 @@ function createOrderedAppConfig(): EcoPagesAppConfig {
 		environments,
 		setup() {},
 	});
-	const appConfig = {
+	const buildManifest = createAppBuildManifest(
+		[named('browser-only', ['browser']), named('shared'), named('server-only', ['server'])].map((plugin) => ({
+			plugin,
+			source: plugin.name,
+		})),
+		createBrowserRuntimeManifest([
+			{
+				specifier: 'react',
+				owner: '@ecopages/react',
+				importPath: 'react',
+				publicPath: '/assets/vendors/react.js',
+			},
+		]),
+	);
+	return {
 		rootDir: '/app',
 		loaders: new Map(),
 		runtime: {},
+		appRuntime: {
+			buildManifest,
+		},
 		absolutePaths: { projectDir: '/app' },
 		integrations: [{ name: 'react', extensions: ['.tsx'], jsxImportSource: 'react' }],
 	} as unknown as EcoPagesAppConfig;
-	setAppBuildManifest(
-		appConfig,
-		createAppBuildManifest(
-			[named('browser-only', ['browser']), named('shared'), named('server-only', ['server'])].map((plugin) => ({
-				plugin,
-				source: plugin.name,
-			})),
-			createBrowserRuntimeManifest([
-				{
-					specifier: 'react',
-					owner: '@ecopages/react',
-					importPath: 'react',
-					publicPath: '/assets/vendors/react.js',
-				},
-			]),
-		),
-	);
-	return appConfig;
 }
 
 test('resolveBuildPluginOrder lists every plugin of a server request in hook order', () => {

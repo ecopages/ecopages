@@ -10,7 +10,8 @@ import type {
 	PageBrowserGraphContributionContext,
 } from '../../../types/public-types.ts';
 import { registerDiscoveredDependencies } from '../../../eco/discovered-dependencies.ts';
-import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
+import { BuildInputDependencyIndex } from '../../../build/cache/build-input-dependency-index.ts';
+import { requireAppRuntime, type AppRuntime } from '../../../config/app-runtime.ts';
 import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
 import type {
 	AssetDefinition,
@@ -68,6 +69,9 @@ function createOrchestrator(
 	const appConfig = {
 		cache: { defaultStrategy: 'static' },
 		integrations: options.integrations ?? [],
+		appRuntime: {
+			buildInputIndex: new BuildInputDependencyIndex(),
+		} as AppRuntime,
 		...options.appConfig,
 	} as unknown as EcoPagesAppConfig;
 	const assetProcessingService = {
@@ -236,7 +240,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			const { flow, appConfig } = createOrchestrator();
 			const routeFile = '/app/pages/about.html';
 			const routeHelper = '/app/components/shared-title.ts';
-			getAppBuildInputIndex(appConfig).register({ consumer: 'server-route-module', key: routeFile }, [
+			requireAppRuntime(appConfig).buildInputIndex.register({ consumer: 'server-route-module', key: routeFile }, [
 				routeFile,
 				routeHelper,
 			]);
@@ -249,7 +253,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			);
 
 			expect(result.sourceDependencyPaths).toEqual(expect.arrayContaining([routeFile, routeHelper]));
-			expect(getAppBuildInputIndex(appConfig).recordedWatchPaths()).toContain(routeHelper);
+			expect(requireAppRuntime(appConfig).buildInputIndex.recordedWatchPaths()).toContain(routeHelper);
 		});
 
 		it('collects none in production, where nothing watches them', async () => {
@@ -265,7 +269,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			);
 
 			expect(result.sourceDependencyPaths).toBeUndefined();
-			expect(getAppBuildInputIndex(appConfig).recordedWatchPaths()).toEqual([]);
+			expect(requireAppRuntime(appConfig).buildInputIndex.recordedWatchPaths()).toEqual([]);
 		});
 
 		it('adds nested Component identity files', async () => {
@@ -305,7 +309,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 			const expected = expect.arrayContaining([identity.file, ...watchFiles]);
 			expect(result.sourceDependencyPaths).toEqual(expected);
-			expect(getAppBuildInputIndex(appConfig).recordedWatchPaths()).toEqual(expected);
+			expect(requireAppRuntime(appConfig).buildInputIndex.recordedWatchPaths()).toEqual(expected);
 		});
 	});
 

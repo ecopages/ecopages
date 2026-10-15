@@ -6,7 +6,8 @@ import { createUnresolvedMarkerArtifact } from '../integration-renderer.test-fix
 import { buildRouteHtmlFinalization } from './route-html-finalization.service.ts';
 import { RouteRenderOrchestrator } from './route-render-orchestrator.ts';
 import { createFlowRenderer, createRouteOptions } from './route-render-orchestrator.test-fixtures.ts';
-import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
+import { BuildInputDependencyIndex } from '../../../build/cache/build-input-dependency-index.ts';
+import { requireAppRuntime, type AppRuntime } from '../../../config/app-runtime.ts';
 
 function createHtmlStream(html: string): BodyInit {
 	const encoder = new TextEncoder();
@@ -24,6 +25,9 @@ describe('RouteRenderOrchestrator', () => {
 		cache: { defaultStrategy: 'static' },
 		defaultMetadata: { title: 'Default title', description: 'Default description' },
 		integrations: [],
+		appRuntime: {
+			buildInputIndex: new BuildInputDependencyIndex(),
+		} as AppRuntime,
 	} as unknown as EcoPagesAppConfig;
 	const assetProcessingService = {
 		processDependencies: async () => [],
@@ -61,8 +65,11 @@ describe('RouteRenderOrchestrator', () => {
 		const shellConfig = {
 			...appConfig,
 			absolutePaths: { htmlTemplatePath: '/app/includes/html.tsx' },
+			appRuntime: {
+				buildInputIndex: new BuildInputDependencyIndex(),
+			} as AppRuntime,
 		} as unknown as EcoPagesAppConfig;
-		getAppBuildInputIndex(shellConfig).register(
+		requireAppRuntime(shellConfig).buildInputIndex.register(
 			{ consumer: 'server-route-module', key: '/app/includes/html.tsx' },
 			['/app/includes/html.tsx', '/app/includes/seo.tsx'],
 		);

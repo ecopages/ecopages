@@ -1,13 +1,15 @@
-import { getAppBuildInputIndex } from '../build/cache/build-input-dependency-index.ts';
-import { installBuildQueue, type BuildQueue } from '../build/runtime/build-queue.ts';
-import type { BuildAdapter } from '../build/build-adapter.ts';
-import type { AppBuildManifest } from '../build/contracts/build-manifest.ts';
-import type { BuildInputDependencyIndex } from '../build/cache/build-input-dependency-index.ts';
+import { createBuildAdapter, type BuildAdapter } from '../build/build-adapter.ts';
+import { sealAppBuildManifest } from '../build/app-build-manifest-runtime.ts';
+import { BuildInputDependencyIndex, seedProcessorWatchPaths } from '../build/cache/build-input-dependency-index.ts';
+import type { PagesUnifiedGraphCacheManifest } from '../build/cache/pages-unified-graph-build.ts';
+import { createAppBuildManifest, type AppBuildManifest } from '../build/contracts/build-manifest.ts';
+import { BuildQueue } from '../build/runtime/build-queue.ts';
 import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import type { SessionPageBrowserGraphCache } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import { getAppPageCacheService, type PageCacheService } from '../services/cache/page-cache-service.ts';
 import { getAppModuleLoader } from '../services/module-loading/app-server-module-transpiler.service.ts';
 import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
+import type { CollectionServerBuildArtifact } from '../services/module-loading/collection-server-module-build.service.ts';
 import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
@@ -45,11 +47,13 @@ export interface AppRuntime {
 	buildManifest: AppBuildManifest;
 	buildQueue: BuildQueue;
 	buildInputIndex: BuildInputDependencyIndex;
+	pagesUnifiedGraphManifest: PagesUnifiedGraphCacheManifest | null;
 	pageBrowserGraphSession: SessionPageBrowserGraphCache;
 	serverInvalidation: ServerInvalidationState;
 	entrypointDependencyGraph: EntrypointDependencyGraph;
 	moduleLoader: AppModuleLoader;
 	routeModuleBuildCaches: Map<string, RouteModuleBuildCache>;
+	collectionArtifacts: Map<string, CollectionServerBuildArtifact>;
 	pageCache: PageCacheService | null;
 	integrationActivations: Map<string, Promise<void>>;
 	origin: string;
@@ -76,13 +80,13 @@ export function requireAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
  * Builds the one {@link AppRuntime} for `appConfig` and stores it on the config.
  *
  * @remarks
- * Finalization calls this after the build adapter, manifest, and entrypoint graph are installed.
+ * Finalization calls this after the entrypoint graph is installed.
  * A second call returns that same object. The module loader is created before the runtime is stored:
  * it reads the server-invalidation counter when a generation is requested, not while it is constructed.
  * A later `installBuildQueue` or `setAppEntrypointDependencyGraph` replaces the matching field here,
  * because startup and the HMR manager install those after finalization.
  *
- * @throws When the config has no installed build adapter, manifest, or entrypoint graph.
+ * @throws When the config was not assembled by finalization.
  */
 export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 	if (appConfig.appRuntime) {
@@ -90,36 +94,46 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 	}
 
 	const installed = appConfig.runtime;
-	const buildAdapter = installed?.buildAdapter;
-	const buildManifest = installed?.buildManifest;
 	const entrypointDependencyGraph = installed?.entrypointDependencyGraph;
-	if (!buildAdapter || !buildManifest || !entrypointDependencyGraph) {
+	if (!entrypointDependencyGraph || !appConfig.loaders || !appConfig.processors || !appConfig.integrations) {
 		throw new Error(MISSING_APP_RUNTIME);
 	}
 
+	const buildAdapter = createBuildAdapter();
+	const buildQueue = new BuildQueue(buildAdapter);
+	const buildInputIndex = new BuildInputDependencyIndex();
+	seedProcessorWatchPaths(appConfig, buildInputIndex);
 	const integrationActivations = installed.integrationActivations ?? new Map<string, Promise<void>>();
-	const routeModuleBuildCaches = installed.routeModuleBuildCaches ?? new Map<string, RouteModuleBuildCache>();
+	const routeModuleBuildCaches = new Map<string, RouteModuleBuildCache>();
+	const collectionArtifacts = new Map<string, CollectionServerBuildArtifact>();
 	appConfig.runtime = {
 		...installed,
 		integrationActivations,
-		routeModuleBuildCaches,
 	};
 
 	const runtime: AppRuntime = {
 		buildAdapter,
-		buildManifest,
-		buildQueue: installBuildQueue(appConfig),
-		buildInputIndex: getAppBuildInputIndex(appConfig),
-		pageBrowserGraphSession: getAppPageBrowserGraphSession(appConfig),
+		buildManifest: createAppBuildManifest([]),
+		buildQueue,
+		buildInputIndex,
+		pagesUnifiedGraphManifest: null,
+		pageBrowserGraphSession: getAppPageBrowserGraphSession(appConfig, buildInputIndex),
 		serverInvalidation: new ServerInvalidationState(),
 		entrypointDependencyGraph,
 		moduleLoader: getAppModuleLoader(appConfig),
 		routeModuleBuildCaches,
+		collectionArtifacts,
 		pageCache: getAppPageCacheService(appConfig),
 		integrationActivations,
 		origin: appConfig.baseUrl,
 		hmr: null,
 	};
 	appConfig.appRuntime = runtime;
+	try {
+		runtime.buildManifest = sealAppBuildManifest(appConfig);
+	} catch (error) {
+		appConfig.appRuntime = undefined;
+		throw error;
+	}
 	return runtime;
 }

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
-import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 import { Processor } from '../../plugins/processor.js';
 import {
 	DevelopmentInvalidationService,
@@ -236,7 +236,7 @@ describe('DevelopmentInvalidationService', () => {
 	it('announces each applied change batch to the build-input index', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		const announced: string[][] = [];
-		getAppBuildInputIndex(appConfig).subscribeToChanges((filePaths) => announced.push([...filePaths]));
+		requireAppRuntime(appConfig).buildInputIndex.subscribeToChanges((filePaths) => announced.push([...filePaths]));
 		const service = new DevelopmentInvalidationService(appConfig);
 
 		await service.applyDevFileChanges({
@@ -250,7 +250,7 @@ describe('DevelopmentInvalidationService', () => {
 
 	it('unregisters route-module inputs when a route is removed', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
-		const index = getAppBuildInputIndex(appConfig);
+		const index = requireAppRuntime(appConfig).buildInputIndex;
 		const routeFile = '/test/project/src/pages/about.tsx';
 		const helperFile = '/test/project/src/lib/page-title.ts';
 		index.register({ consumer: 'server-route-module', key: routeFile }, [routeFile, helperFile]);
@@ -371,10 +371,10 @@ describe('DevelopmentInvalidationService', () => {
 		const publicFile = path.join(appConfig.absolutePaths.publicDir, 'data.json');
 		const stylesheet = path.join(appConfig.absolutePaths.srcDir, 'styles/main.css');
 		const unreadStylesheet = path.join(appConfig.absolutePaths.srcDir, 'styles/other.css');
-		getAppBuildInputIndex(appConfig).register({ consumer: 'server-route-module', key: '/test/project/page.tsx' }, [
-			publicFile,
-			stylesheet,
-		]);
+		requireAppRuntime(appConfig).buildInputIndex.register(
+			{ consumer: 'server-route-module', key: '/test/project/page.tsx' },
+			[publicFile, stylesheet],
+		);
 
 		expect(service.planFileChange(publicFile)).toMatchObject({
 			category: 'public-asset',
@@ -526,10 +526,7 @@ describe('DevelopmentInvalidationService', () => {
 				outputPath,
 				dependencyModulePaths: [filePath],
 			});
-			appConfig.runtime = {
-				...(appConfig.runtime ?? {}),
-				routeModuleBuildCaches: new Map([[outdir, cache]]),
-			};
+			requireAppRuntime(appConfig).routeModuleBuildCaches.set(outdir, cache);
 			const pageCache = new PageCacheService();
 			registerAppPageCacheService(appConfig, pageCache);
 			const invalidateHtml = vi.spyOn(pageCache, 'invalidateBySourceDependencyPaths');
@@ -597,7 +594,7 @@ describe('DevelopmentInvalidationService', () => {
 	it('evicts only the cached HTML documents that recorded a changed processor-owned stylesheet', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		appConfig.processors.set('css', new StylesheetProcessor());
-		const pageCache = new PageCacheService({ dependencyIndex: getAppBuildInputIndex(appConfig) });
+		const pageCache = new PageCacheService({ dependencyIndex: requireAppRuntime(appConfig).buildInputIndex });
 		registerAppPageCacheService(appConfig, pageCache);
 		const clearHtml = vi.spyOn(pageCache, 'clear');
 		const invalidateHtml = vi.spyOn(pageCache, 'invalidateBySourceDependencyPaths');
@@ -616,7 +613,7 @@ describe('DevelopmentInvalidationService', () => {
 
 	it('evicts only the cached HTML documents that recorded a changed source file', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
-		const pageCache = new PageCacheService({ dependencyIndex: getAppBuildInputIndex(appConfig) });
+		const pageCache = new PageCacheService({ dependencyIndex: requireAppRuntime(appConfig).buildInputIndex });
 		registerAppPageCacheService(appConfig, pageCache);
 		const clearHtml = vi.spyOn(pageCache, 'clear');
 		const service = new DevelopmentInvalidationService(appConfig);
@@ -661,7 +658,7 @@ describe('DevelopmentInvalidationService', () => {
 	it('clears cached HTML when an additional watch path has no page-level dependency mapping', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		appConfig.additionalWatchPaths = ['data'];
-		const pageCache = new PageCacheService({ dependencyIndex: getAppBuildInputIndex(appConfig) });
+		const pageCache = new PageCacheService({ dependencyIndex: requireAppRuntime(appConfig).buildInputIndex });
 		registerAppPageCacheService(appConfig, pageCache);
 		const clearHtml = vi.spyOn(pageCache, 'clear');
 		const service = new DevelopmentInvalidationService(appConfig);

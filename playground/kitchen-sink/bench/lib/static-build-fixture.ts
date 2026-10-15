@@ -67,7 +67,7 @@ export async function loadKitchenSinkProductionConfig(): Promise<EcoPagesAppConf
 
 /** Drops the in-process route-module caches and the cached bench stacks so the next run compiles from source. */
 export function resetBenchBuildState(appConfig: EcoPagesAppConfig): void {
-	appConfig.runtime?.routeModuleBuildCaches?.clear();
+	requireAppRuntime(appConfig).routeModuleBuildCaches.clear();
 	cachedBenchAdapter = undefined;
 	cachedGenerationStack = undefined;
 	diskColdCounter = 0;

@@ -2,13 +2,9 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {
-	defaultBuildAdapter,
-	getAppBuildAdapter,
-	getAppBuildOwnership,
-	getAppBuildManifest,
-} from '../build/build-adapter.ts';
+import { defaultBuildAdapter, getBuildAdapterOwnership } from '../build/build-adapter.ts';
 import { createBrowserRuntimeManifest } from '../build/browser/browser-runtime-manifest.ts';
+import { requireAppRuntime } from './app-runtime.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../config/constants.ts';
 import { appLogger } from '../global/app-logger.ts';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
@@ -105,8 +101,8 @@ describe('finalizeEcoPagesConfig', () => {
 				createMockIntegration('second', ['.second'], [browserPlugin]),
 			],
 		});
-		expect(getAppBuildManifest(config).server).toEqual([serverPlugin]);
-		expect(getAppBuildManifest(config).browser).toEqual([browserPlugin]);
+		expect(requireAppRuntime(config).buildManifest.server).toEqual([serverPlugin]);
+		expect(requireAppRuntime(config).buildManifest.browser).toEqual([browserPlugin]);
 	});
 
 	beforeEach(() => {
@@ -159,11 +155,12 @@ describe('finalizeEcoPagesConfig', () => {
 
 	test('should create a dedicated build adapter per app config', async () => {
 		const config = await finalize();
+		const runtime = requireAppRuntime(config);
 
-		expect(getAppBuildOwnership(config)).toBe('rolldown');
-		expect(getAppBuildAdapter(config)).not.toBe(defaultBuildAdapter);
-		expect(getAppBuildManifest(config).server).toHaveLength(0);
-		expect(getAppBuildManifest(config).browser).toHaveLength(0);
+		expect(getBuildAdapterOwnership(runtime.buildAdapter)).toBe('rolldown');
+		expect(runtime.buildAdapter).not.toBe(defaultBuildAdapter);
+		expect(runtime.buildManifest.server).toHaveLength(0);
+		expect(runtime.buildManifest.browser).toHaveLength(0);
 		expect(config.runtime?.entrypointDependencyGraph).toBeInstanceOf(NoopEntrypointDependencyGraph);
 	});
 
@@ -212,12 +209,10 @@ describe('finalizeEcoPagesConfig', () => {
 				integrationRuntimePlugin,
 				integrationBrowserPlugin,
 			].map((plugin) => plugin.name);
-			expect(getAppBuildManifest(config).server.map((plugin) => plugin.name)).toEqual(contributed);
-			expect(getAppBuildManifest(config).browser.map((plugin) => plugin.name)).toEqual([
-				...contributed,
-				'browser-runtime-plugin',
-			]);
-			expect(getAppBuildManifest(config).browserRuntimeManifest.bySpecifier.get('react')?.publicPath).toBe(
+			const manifest = requireAppRuntime(config).buildManifest;
+			expect(manifest.server.map((plugin) => plugin.name)).toEqual(contributed);
+			expect(manifest.browser.map((plugin) => plugin.name)).toEqual([...contributed, 'browser-runtime-plugin']);
+			expect(manifest.browserRuntimeManifest.bySpecifier.get('react')?.publicPath).toBe(
 				'/assets/vendors/react.js',
 			);
 		} finally {

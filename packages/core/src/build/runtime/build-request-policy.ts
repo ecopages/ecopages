@@ -1,8 +1,8 @@
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import type { BuildEnvironment, BuildOptions } from '../contracts/build-contracts.ts';
 import { appliesToBuildEnvironment } from '../contracts/build-manifest.ts';
-import { getAppBuildManifest } from '../build-adapter.ts';
 import { createAliasResolverPlugin } from '../../plugins/alias-resolver-plugin.ts';
 import { resolveBuildEnvironmentOptions } from './build-environment-options.ts';
 import { getJsxOwnershipPlugins } from '../browser/jsx-ownership-plugins.ts';
@@ -23,7 +23,7 @@ export function resolveAppBuildPlugins(appConfig: EcoPagesAppConfig, environment
 	const projectDir = appConfig.absolutePaths?.projectDir;
 	return [
 		...(projectDir ? [createAliasResolverPlugin(projectDir)] : []),
-		...getAppBuildManifest(appConfig)[environment],
+		...requireAppRuntime(appConfig).buildManifest[environment],
 		...getJsxOwnershipPlugins(appConfig),
 	];
 }
@@ -151,7 +151,7 @@ export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: B
 		excludeAppBuildPlugins,
 	});
 
-	const { bySpecifier } = getAppBuildManifest(appConfig).browserRuntimeManifest;
+	const { bySpecifier } = requireAppRuntime(appConfig).buildManifest.browserRuntimeManifest;
 
 	return {
 		...resolveBuildEnvironmentOptions('browser', appConfig),

@@ -21,7 +21,7 @@ import type {
 } from '../../../services/assets/asset-processing-service/index.ts';
 import { isProductionRuntime } from '../../../utils/runtime.ts';
 import { collectHtmlCacheSourceDependencyPaths } from '../../../services/cache/html-page-cache-dependency-index.ts';
-import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import type { HtmlDocumentContribution } from '../../../services/html/html-transformer.service.ts';
 import { inspectUnresolvedMarkerArtifactHtml } from './marker-artifact.utils.ts';
 import {
@@ -513,7 +513,7 @@ export class RouteRenderOrchestrator {
 		processedAssets: Parameters<typeof collectHtmlCacheSourceDependencyPaths>[0]['processedAssets'];
 		graphDependencyPaths: ReadonlySet<string> | undefined;
 	}): string[] {
-		const buildInputIndex = getAppBuildInputIndex(this.appConfig);
+		const buildInputIndex = requireAppRuntime(this.appConfig).buildInputIndex;
 		const sourceDependencyPaths = collectHtmlCacheSourceDependencyPaths({
 			routeFile: input.routeFile,
 			processedAssets: input.processedAssets,
@@ -541,7 +541,7 @@ export class RouteRenderOrchestrator {
 			return sourcePaths;
 		}
 
-		const templateClosure = getAppBuildInputIndex(this.appConfig).sourcePaths({
+		const templateClosure = requireAppRuntime(this.appConfig).buildInputIndex.sourcePaths({
 			consumer: 'server-route-module',
 			key: path.resolve(htmlTemplatePath),
 		});

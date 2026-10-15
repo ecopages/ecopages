@@ -83,6 +83,7 @@ export function createBrowserRuntimePlugin(options: CreateBrowserRuntimePluginOp
 
 	const plugin: BrowserRuntimePlugin = {
 		name: options.name ?? DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME,
+		cacheKey: JSON.stringify([[...specifierMap].sort(), external, matchPublicPaths]),
 		setup(build) {
 			build.onResolve({ filter: specifierFilter }, (args) => {
 				const mappedPath = resolveBrowserRuntimePublicPath(args.path, manifest);

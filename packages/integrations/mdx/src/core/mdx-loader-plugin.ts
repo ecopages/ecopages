@@ -25,6 +25,29 @@ type MdxCompileCacheEntry = {
 };
 
 /**
+ * Fingerprint of the options that change what a loader emits.
+ *
+ * @remarks
+ * Compiler options hold remark and rehype plugins, which are functions; they enter by
+ * name, so two loaders that differ only in an anonymous plugin's closure share a key.
+ * Regular expressions enter by source, since `JSON.stringify` would drop them.
+ */
+function createLoaderCacheKey(options: {
+	projectRoot: string;
+	compilerOptions: CompileOptions | undefined;
+	extensions: string[];
+	includeSourceMap: boolean;
+	loader: 'js' | 'jsx';
+}): string {
+	return JSON.stringify(options, (_key, value: unknown) => {
+		if (typeof value === 'function') {
+			return `[function ${value.name || 'anonymous'}]`;
+		}
+		return value instanceof RegExp ? String(value) : value;
+	});
+}
+
+/**
  * Creates an MDX loader that compiles each file once per source revision.
  *
  * @remarks
@@ -59,6 +82,7 @@ export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): Ec
 
 	return {
 		name,
+		cacheKey: createLoaderCacheKey({ projectRoot, compilerOptions, extensions, includeSourceMap, loader }),
 		setup(build) {
 			build.onLoad({ filter }, async (args) => {
 				const filePath = args.path.includes('?') ? args.path.split('?')[0] : args.path;

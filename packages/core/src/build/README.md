@@ -115,7 +115,7 @@ Migration: move Integration `browserBuildPlugins` and Processor `buildPlugins` i
 - `name: string`
 - `environments?: ('server' | 'browser')[]` (omitted means both)
 - `setup(build: EcoBuildPluginBuilder): void | Promise<void>`
-- `cacheKey?: string` — set by a factory that captures an option which changes its output (the `import.meta` transform sets its runtime directory). A build request is identified by every `BuildOptions` field except `plugins`, plus each plugin's name, environments and `cacheKey` in order, so two plugins of one name from different options are separate builds only through `cacheKey`. The source of `setup` is not hashed.
+- `cacheKey?: string` — set by a factory that captures an option which changes its output: the `import.meta` transform sets its runtime directory, the alias resolver its project root and tsconfig path prefixes, the browser runtime plugin its manifest entries and resolve options, the foreign JSX override its import source and extensions, and the MDX loader its compiler options (plugin functions by name). A build request is identified by every `BuildOptions` field except `plugins`, plus each plugin's name, environments and `cacheKey` in order, so two plugins of one name from different options are separate builds only through `cacheKey`. The source of `setup` is not hashed.
 - `bundleGroupKey?: string` — lets entry-specific plugin instances with the same name, key and position relative to other plugins join one app-wide browser build. Every instance is retained so it can contribute its own entry configuration; an entry without that plugin can join too. Use `cacheKey` as well when captured options change the build output.
 
 `EcoBuildPluginBuilder` exposes four hooks and build context:

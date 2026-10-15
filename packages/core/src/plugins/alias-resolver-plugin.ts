@@ -20,6 +20,7 @@ export function createAliasResolverPlugin(projectRoot: string): EcoBuildPlugin {
 
 	return {
 		name: 'ecopages-alias-resolver',
+		cacheKey: JSON.stringify([projectRoot, pathPrefixes]),
 		setup(build) {
 			if (pathPrefixes.length === 0) {
 				return;

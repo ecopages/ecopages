@@ -27,12 +27,16 @@ function applyEdits(html: string, edits: HtmlEdit[]): string {
 	return result;
 }
 
-function collectShellHeadTags(head: HtmlElementNode): Map<string, HtmlElementNode> {
-	const shellTags = new Map<string, HtmlElementNode>();
+/** Shell head tags by identity, in source order, so repeated keys such as two `theme-color` metas match in order. */
+function collectShellHeadTags(head: HtmlElementNode): Map<string, HtmlElementNode[]> {
+	const shellTags = new Map<string, HtmlElementNode[]>();
 	for (const child of head.children) {
 		if (child.type !== 'element') continue;
 		const key = getHeadTagKey(child);
-		if (key && !shellTags.has(key)) shellTags.set(key, child);
+		if (!key) continue;
+		const tags = shellTags.get(key) ?? [];
+		tags.push(child);
+		shellTags.set(key, tags);
 	}
 	return shellTags;
 }
@@ -58,13 +62,12 @@ function reconcileHead(html: string, page: RenderedHtmlPageHead): string {
 	for (const node of page.nodes) {
 		if (!node.html) continue;
 		const { key } = node;
-		const shellTag = key ? shellTags.get(key) : undefined;
+		const shellTag = key ? shellTags.get(key)?.shift() : undefined;
 
 		if (shellTag && key === 'charset') {
 			assertMatchingCharset(page, node.charset, shellTag);
-		} else if (shellTag && key) {
+		} else if (shellTag) {
 			edits.push({ start: shellTag.start, end: shellTag.end, html: node.html });
-			shellTags.delete(key);
 		} else if (key && EARLY_HEAD_KEYS.has(key)) {
 			early += node.html;
 		} else {
@@ -103,7 +106,8 @@ function mergeRootAttributes(html: string, tagName: string, attributes: Record<s
  * Runs on the finalized document, after Integration and core head
  * contributions, so it treats an `html.html`, JSX, or React shell the same way.
  * A Page singleton (`<title>`, `<base>`, a keyed `<meta>`, the canonical link)
- * replaces the first shell tag with the same identity in place. A Page
+ * replaces the shell tag with the same identity in place; repeated identities,
+ * such as a light and a dark `theme-color`, match in source order. A Page
  * `<meta charset>` matching the shell's is dropped; a Page charset or `<base>`
  * the shell lacks goes at the start of `<head>`. Every other Page head node is
  * inserted before `</head>` in source order. A document without `<head>` gets no

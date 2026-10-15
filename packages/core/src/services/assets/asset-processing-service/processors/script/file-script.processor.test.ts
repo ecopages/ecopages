@@ -287,6 +287,21 @@ describe('FileScriptProcessor', () => {
 			).rejects.toThrow('/test/project/src/w.tsx cannot be used as a classic script: it is JSX.');
 		});
 
+		test('should reject a second classic script source that is emitted to the same output', async () => {
+			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			readFileSyncMock.mockReturnValue('var ready = true;');
+			existsMock.mockReturnValue(true);
+			const classic = (filepath: string) =>
+				processor.process({ kind: 'script', source: 'file', filepath, classic: true });
+
+			const first = await classic('/test/project/src/pages/a.ts');
+			expect(first.filepath).toMatch(/pages\/a\.js$/);
+			await expect(classic('/test/project/src/pages/a.js')).rejects.toThrow(
+				`/test/project/src/pages/a.js and /test/project/src/pages/a.ts are both emitted as ${first.filepath}. Rename one of them.`,
+			);
+			await expect(classic('/test/project/src/pages/a.ts')).resolves.toEqual(first);
+		});
+
 		test('should write a bundle: false script under a hash of its bytes', async () => {
 			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
 

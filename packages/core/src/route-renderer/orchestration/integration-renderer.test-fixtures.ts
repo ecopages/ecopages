@@ -1,4 +1,6 @@
 import { vi } from 'vitest';
+import { createAppRuntime } from '../../config/app-runtime.ts';
+import { NoopEntrypointDependencyGraph } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import { finalizeDocumentShellHtml } from './document-shell/document-shell-render.service.ts';
 import { IntegrationRenderer, type HtmlDocumentContribution } from './integration-renderer.ts';
 import { getComponentRenderContext, type ForeignChildRuntime } from './foreign-child/component-render-context.ts';
@@ -47,18 +49,30 @@ export function createMockIntegrationPlugin(
 	} as unknown as EcoPagesAppConfig['integrations'][number];
 }
 
-export const testAppConfig = {
-	absolutePaths: {
-		pagesDir: '/app/pages',
-		htmlTemplatePath: '/app/index.ts',
-	},
-	integrations: [],
-	defaultMetadata: {
-		title: 'Default Title',
-		description: 'Default Description',
-	},
-	srcDir: '/app',
-} as unknown as EcoPagesAppConfig;
+export function createMockAppConfig(overrides: Partial<EcoPagesAppConfig> = {}): EcoPagesAppConfig {
+	const config = {
+		absolutePaths: {
+			pagesDir: '/app/pages',
+			htmlTemplatePath: '/app/index.ts',
+		},
+		loaders: new Map(),
+		processors: new Map(),
+		integrations: [],
+		runtime: {
+			entrypointDependencyGraph: new NoopEntrypointDependencyGraph(),
+		},
+		defaultMetadata: {
+			title: 'Default Title',
+			description: 'Default Description',
+		},
+		srcDir: '/app',
+		...overrides,
+	} as unknown as EcoPagesAppConfig;
+	createAppRuntime(config);
+	return config;
+}
+
+export const testAppConfig = createMockAppConfig();
 
 export const testAssetService = {
 	processDependencies: vi.fn(() => Promise.resolve([])),

@@ -3,17 +3,14 @@ import { test, vi } from 'vitest';
 import {
 	createBuildAdapter,
 	defaultBuildAdapter,
-	getAppBuildOwnership,
-	getAppBuildAdapter,
-	getAppBuildManifest,
-	setAppBuildAdapter,
+	getBuildAdapterOwnership,
 	sealAppBuildManifest,
-	setAppBuildManifest,
 	setupAppRuntimePlugins,
 	ensureIntegrationRuntimeReady,
 } from './build-adapter.ts';
 import { RolldownBuildAdapter } from './rolldown/rolldown-build-adapter.ts';
 import { createBrowserRuntimeManifest } from './browser/browser-runtime-manifest.ts';
+import { BuildInputDependencyIndex } from './cache/build-input-dependency-index.ts';
 import { createAppBuildManifest } from './contracts/build-manifest.ts';
 import type { EcoBuildPlugin } from './contracts/build-types.ts';
 
@@ -28,24 +25,9 @@ test('createBuildAdapter returns the RolldownBuildAdapter', () => {
 	assert.equal(rolldownAdapter.ownership, 'rolldown');
 });
 
-test('getAppBuildAdapter returns the app-owned adapter before the shared default adapter', async () => {
-	const appConfig = {
-		runtime: {},
-		loaders: new Map(),
-	} as never;
-	const appAdapter = new RolldownBuildAdapter();
-
-	setAppBuildAdapter(appConfig, appAdapter);
-
-	assert.equal(getAppBuildAdapter(appConfig), appAdapter);
-	assert.equal(getAppBuildOwnership(appConfig), 'rolldown');
-	assert.notEqual(getAppBuildAdapter(appConfig), defaultBuildAdapter);
-});
-
-test('getAppBuildOwnership defaults to rolldown when no adapter is installed', () => {
-	const appConfig = { runtime: {}, loaders: new Map() } as never;
-	assert.equal(getAppBuildOwnership(appConfig), 'rolldown');
-	assert.ok(getAppBuildAdapter(appConfig) instanceof RolldownBuildAdapter);
+test('getBuildAdapterOwnership defaults to rolldown when no adapter is provided', () => {
+	assert.equal(getBuildAdapterOwnership(undefined), 'rolldown');
+	assert.equal(getBuildAdapterOwnership(new RolldownBuildAdapter()), 'rolldown');
 });
 
 const registrations = (...plugins: EcoBuildPlugin[]) => plugins.map((plugin) => ({ plugin, source: plugin.name }));
@@ -118,23 +100,6 @@ test('a plugin name may be registered once per environment', () => {
 	assert.deepEqual(manifest.browser, [browserOnly]);
 });
 
-test('getAppBuildManifest seals the config loaders when the app has no manifest yet', () => {
-	const loaderPlugin = { name: 'loader-plugin', setup() {} };
-	const appConfig = { loaders: new Map([[loaderPlugin.name, loaderPlugin]]), runtime: {} } as any;
-
-	assert.deepEqual(getAppBuildManifest(appConfig).server, [loaderPlugin]);
-	assert.deepEqual(getAppBuildManifest(appConfig).browser, [loaderPlugin]);
-});
-
-test('setAppBuildManifest installs the manifest getAppBuildManifest returns', () => {
-	const appConfig = { loaders: new Map(), runtime: {} } as any;
-	const manifest = createAppBuildManifest(registrations({ name: 'only', setup() {} }));
-
-	setAppBuildManifest(appConfig, manifest);
-
-	assert.equal(getAppBuildManifest(appConfig), manifest);
-});
-
 test('sealAppBuildManifest gathers loaders, then processor and integration plugins, and seals once', () => {
 	const calls: string[] = [];
 	const loaderPlugin = { name: 'loader-plugin', setup() {} };
@@ -174,14 +139,13 @@ test('sealAppBuildManifest gathers loaders, then processor and integration plugi
 		runtime: {},
 	} as any;
 
-	sealAppBuildManifest(appConfig);
+	const manifest = sealAppBuildManifest(appConfig);
 
 	assert.deepEqual(calls, ['processor-plugins', 'integration-config', 'integration-plugins']);
 	assert.deepEqual(processor.plugins.mock.calls, [[appConfig]]);
 	assert.deepEqual(integration.plugins.mock.calls, [[appConfig]]);
 	assert.equal(processor.setup.mock.calls.length, 0);
 	assert.equal(integration.setup.mock.calls.length, 0);
-	const manifest = getAppBuildManifest(appConfig);
 	assert.deepEqual(manifest.server, [loaderPlugin, processorRuntimePlugin, integrationRuntimePlugin]);
 	assert.deepEqual(manifest.browser, [
 		loaderPlugin,
@@ -242,9 +206,9 @@ test('sealAppBuildManifest merges integration browser runtime manifests', () => 
 		runtime: {},
 	} as any;
 
-	sealAppBuildManifest(appConfig);
+	const manifest = sealAppBuildManifest(appConfig);
 
-	assert.deepEqual(Array.from(getAppBuildManifest(appConfig).browserRuntimeManifest.bySpecifier.keys()), [
+	assert.deepEqual(Array.from(manifest.browserRuntimeManifest.bySpecifier.keys()), [
 		'react',
 		'@ecopages/react-router/browser',
 	]);
@@ -252,13 +216,17 @@ test('sealAppBuildManifest merges integration browser runtime manifests', () => 
 
 test('setupAppRuntimePlugins runs runtime setup without recomposing manifest contributions', async () => {
 	const contributionOrder: string[] = [];
+	const watchPaths: string[] = [];
+	const buildInputIndex = new BuildInputDependencyIndex();
 	const loaderPlugin = { name: 'loader-plugin', setup() {} };
 	const processorRuntimePlugin = { name: 'processor-runtime-plugin', setup() {} };
 	const integrationRuntimePlugin = { name: 'integration-runtime-plugin', setup() {} };
 	const processor = {
 		plugins: [processorRuntimePlugin],
+		getWatchConfig: () => ({ paths: watchPaths }),
 		setup: vi.fn(async () => {
 			contributionOrder.push('processor-setup');
+			watchPaths.push('/app/src/content');
 		}),
 	};
 	const integration = {
@@ -276,11 +244,13 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 			loaders: new Map([['loader-plugin', loaderPlugin]]),
 			processors: new Map([['processor', processor]]),
 			integrations: [integration],
+			appRuntime: { buildInputIndex },
 		} as any,
 		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.deepEqual(contributionOrder, ['processor-setup']);
+	assert.deepEqual(buildInputIndex.recordedWatchPaths(), ['/app/src/content']);
 });
 
 test('setupAppRuntimePlugins skips processor and integration setup when runtime assets are already prepared', async () => {

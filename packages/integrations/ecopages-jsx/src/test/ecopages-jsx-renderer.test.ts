@@ -12,6 +12,7 @@ import type {
 	PageProps,
 } from '@ecopages/core';
 import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
+import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { createEcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { test, vi } from 'vitest';
@@ -54,7 +55,7 @@ function createScopedModuleUrl(moduleUrl: string, token: string): string {
 	return scopedUrl.href;
 }
 
-function createAppConfig(rootDir: string): EcoPagesAppConfig {
+async function createAppConfig(rootDir: string): Promise<EcoPagesAppConfig> {
 	const appModuleLoader = {
 		async importModule<T = unknown>(options: { filePath: string }): Promise<T> {
 			const moduleUrl = pathToFileURL(options.filePath).href;
@@ -63,15 +64,20 @@ function createAppConfig(rootDir: string): EcoPagesAppConfig {
 		invalidateDevelopmentGraph(): void {
 			return;
 		},
+		getDevelopmentGeneration(): number {
+			return 0;
+		},
 	};
 
-	return {
-		defaultMetadata: {},
+	const config = await finalizeEcoPagesConfig({
 		rootDir,
-		runtime: {
-			appModuleLoader,
-		},
-	} as EcoPagesAppConfig;
+		defaultMetadata: { title: '', description: '' },
+	});
+	config.runtime = {
+		...config.runtime,
+		appModuleLoader,
+	};
+	return config;
 }
 
 async function withClearedLightDomGlobals<T>(run: () => Promise<T>): Promise<T> {
@@ -162,7 +168,7 @@ test('EcopagesJsxRenderer installs the Radiant light-dom environment before reso
 			token: 'resolve-page-module',
 		});
 
-		const appConfig = createAppConfig(tempDir);
+		const appConfig = await createAppConfig(tempDir);
 		const renderer = new TestRadiantEcopagesJsxRenderer({
 			appConfig,
 			assetProcessingService: createTestAssetProcessingService(appConfig),
@@ -194,7 +200,7 @@ test('Radiant SSR host serialization loads through the documented public export'
 	assert.equal(typeof radiantElementSsrRuntimeModule.withServerRadiantElementSsrRuntime, 'function');
 });
 
-test('EcopagesJsxRenderer keeps MDX extension matching instance-owned', () => {
+test('EcopagesJsxRenderer keeps MDX extension matching instance-owned', async () => {
 	class DocsRenderer extends createEcopagesJsxRenderer({ mdxExtensions: ['.docs.mdx'] }) {
 		public normalizeModule(file: string, module: EcoPageFile): EcoPageFile {
 			return this.normalizeImportedPageFile(file, module);
@@ -205,8 +211,8 @@ test('EcopagesJsxRenderer keeps MDX extension matching instance-owned', () => {
 			return this.normalizeImportedPageFile(file, module);
 		}
 	}
-	const appConfigA = createAppConfig(tmpdir());
-	const appConfigB = createAppConfig(tmpdir());
+	const appConfigA = await createAppConfig(tmpdir());
+	const appConfigB = await createAppConfig(tmpdir());
 	const rendererA = new DocsRenderer({
 		appConfig: appConfigA,
 		assetProcessingService: createTestAssetProcessingService(appConfigA),
@@ -232,7 +238,7 @@ test('EcopagesJsxRenderer keeps MDX extension matching instance-owned', () => {
 });
 
 test('EcopagesJsxRenderer records declared content dependencies for HMR ownership', async () => {
-	const appConfig = createAppConfig(tmpdir());
+	const appConfig = await createAppConfig(tmpdir());
 	const renderer = new TestEcopagesJsxRenderer({
 		appConfig,
 		assetProcessingService: createTestAssetProcessingService(appConfig),

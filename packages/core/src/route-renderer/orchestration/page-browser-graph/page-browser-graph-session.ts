@@ -11,9 +11,9 @@ import type {
 import { appLogger } from '../../../global/app-logger.ts';
 import {
 	BuildInputDependencyIndex,
-	getAppBuildInputIndex,
 	type BuildInputBinding,
 } from '../../../build/cache/build-input-dependency-index.ts';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
 
 function graphBinding(key: string): BuildInputBinding {
 	return { consumer: 'page-browser-graph', key };
@@ -581,8 +581,11 @@ const sessionByAppConfig = new WeakMap<EcoPagesAppConfig, SessionPageBrowserGrap
 /**
  * Returns the session graph cache for one app instance.
  */
-export function getAppPageBrowserGraphSession(appConfig: EcoPagesAppConfig): SessionPageBrowserGraphCache {
-	const existing = appConfig.runtime?.pageBrowserGraphSession;
+export function getAppPageBrowserGraphSession(
+	appConfig: EcoPagesAppConfig,
+	buildInputIndex?: BuildInputDependencyIndex,
+): SessionPageBrowserGraphCache {
+	const existing = appConfig.appRuntime?.pageBrowserGraphSession ?? appConfig.runtime?.pageBrowserGraphSession;
 	if (existing) {
 		return existing;
 	}
@@ -592,7 +595,7 @@ export function getAppPageBrowserGraphSession(appConfig: EcoPagesAppConfig): Ses
 		return cached;
 	}
 
-	const session = new SessionPageBrowserGraphCache(getAppBuildInputIndex(appConfig));
+	const session = new SessionPageBrowserGraphCache(buildInputIndex ?? requireAppRuntime(appConfig).buildInputIndex);
 	sessionByAppConfig.set(appConfig, session);
 	appConfig.runtime = {
 		...(appConfig.runtime ?? {}),

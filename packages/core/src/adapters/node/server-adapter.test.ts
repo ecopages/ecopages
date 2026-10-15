@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import chokidar from 'chokidar';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
-import type { AppRuntime } from '../../config/app-runtime.ts';
+import { requireAppRuntime, type AppRuntime } from '../../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
@@ -16,10 +16,7 @@ import { NodeRuntimeHost } from './runtime-host.ts';
 import { Processor } from '../../plugins/processor.ts';
 import { HtmlPagesPlugin } from '../../html-pages/html-pages.plugin.ts';
 import { ServerRouteHandler } from '../shared/runtime/server-route-handler.ts';
-import {
-	getAppBuildInputIndex,
-	getBuildInputRecordingContext,
-} from '../../build/cache/build-input-dependency-index.ts';
+import { getBuildInputRecordingContext } from '../../build/cache/build-input-dependency-index.ts';
 
 const upgrades = vi.hoisted(() => ({ attach: vi.fn() }));
 const devBridge = vi.hoisted(() => ({ reload: vi.fn() }));
@@ -568,6 +565,6 @@ describe('NodeServerAdapter', () => {
 
 		await adapter.dispose();
 
-		expect(recordingIndexes).toEqual([getAppBuildInputIndex(appConfig)]);
+		expect(recordingIndexes).toEqual([requireAppRuntime(appConfig).buildInputIndex]);
 	});
 });

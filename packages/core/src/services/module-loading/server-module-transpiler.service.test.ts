@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import type { BuildResult } from '../../build/build-adapter.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
-import { setAppBuildAdapter } from '../../build/build-adapter.ts';
-import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
+import { BuildQueue, requireBuildQueue } from '../../build/runtime/build-queue.ts';
+import { ServerInvalidationState } from '../../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
 import { ServerModuleTranspiler, type ServerModuleImportDependency } from './server-module-transpiler.service.ts';
@@ -115,6 +115,7 @@ describe('ServerModuleTranspiler', () => {
 
 	it('does not pass a process-wide invalidation version into app-owned module imports', async () => {
 		const calls: Array<unknown> = [];
+		const buildAdapter = new RolldownBuildAdapter();
 		const appConfig = {
 			rootDir: '/app',
 			absolutePaths: {
@@ -125,9 +126,13 @@ describe('ServerModuleTranspiler', () => {
 			},
 			templatesExt: ['.tsx'],
 			loaders: new Map(),
+			appRuntime: {
+				buildAdapter,
+				buildQueue: new BuildQueue(buildAdapter),
+				serverInvalidation: new ServerInvalidationState(),
+			},
 		} as unknown as EcoPagesAppConfig;
 
-		setAppBuildAdapter(appConfig, new RolldownBuildAdapter());
 		const routeModuleExecutor = requireBuildQueue(appConfig);
 
 		const moduleLoader = getAppModuleLoader(appConfig) as unknown as {

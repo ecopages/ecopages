@@ -273,8 +273,20 @@ describe('buildOrThrow', () => {
 			build: async () => result,
 			resolve: (specifier) => specifier,
 		};
-		return { runtime: { buildAdapter: adapter }, loaders: new Map() } as never;
+		return {
+			appRuntime: {
+				buildAdapter: adapter,
+				buildQueue: new BuildQueue(adapter),
+			},
+			loaders: new Map(),
+		} as never;
 	};
+
+	it('throws when the config has no assembled runtime', async () => {
+		await expect(buildOrThrow({} as never, baseOptions, 'Build failed')).rejects.toThrow(
+			'Missing app runtime. This config was never assembled.',
+		);
+	});
 
 	it('returns the result of a build that succeeded', async () => {
 		const result: BuildResult = createBuildSuccess({ outputs: [{ path: '/out/a.js' }] });

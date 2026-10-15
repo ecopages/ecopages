@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { createBuildAdapter, sealAppBuildManifest, setAppBuildAdapter } from '../build/build-adapter.ts';
 import { createAppRuntime } from './app-runtime.ts';
 import { appLogger } from '../global/app-logger.ts';
 import { HTML_PAGES_INTEGRATION_NAME } from '../html-pages/html-page-module.ts';
@@ -280,8 +279,6 @@ export async function finalizeEcoPagesConfig(
 		processor.setContext(config);
 	}
 
-	setAppBuildAdapter(config, createBuildAdapter());
-	sealAppBuildManifest(config);
 	setAppEntrypointDependencyGraph(config, new NoopEntrypointDependencyGraph());
 	createAppRuntime(config);
 

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
-import { getAppBuildAdapter } from '../../../../../build/build-adapter.ts';
+import { requireAppRuntime } from '../../../../../config/app-runtime.ts';
 import type { NodeModuleScriptAsset } from '../../assets.types.ts';
 import { BaseScriptProcessor } from '../base/base-script-processor.ts';
 
@@ -91,8 +91,9 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 			return importPath;
 		}
 
+		const buildAdapter = requireAppRuntime(this.appConfig).buildAdapter;
 		try {
-			return getAppBuildAdapter(this.appConfig).resolve(importPath, rootDir);
+			return buildAdapter.resolve(importPath, rootDir);
 		} catch {
 			return this.resolveModulePathFallback(importPath, rootDir);
 		}

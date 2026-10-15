@@ -14,7 +14,7 @@ It is responsible for:
 - rejecting overlapping build-plugin names per server/browser environment, with both contributor names in the error
 - appending the core [HTML Pages](../html-pages/README.md) Integration after user Integrations unless one of them declares `.html`, so `.html` routes work in every app
 - resolving semantic paths such as `html` and `404` templates from registered Integration extensions; more than one match for a basename (for example `html.tsx` and `html.html`) is an error
-- creating one `AppRuntime` for the config: the Rolldown build adapter, the build manifest, the build queue, the build-input index, the Page Browser Graph session, the server invalidation counter, the entrypoint dependency graph, the module loader, route-module build caches, and the integration activation map. `origin` starts as `baseUrl`. `hmr` stays `null`. `pageCache` stays `null` until `registerAppPageCacheService` stores one
+- creating one `AppRuntime` for the config: the Rolldown build adapter, the build manifest, the build queue, the build-input index, the unified pages graph manifest, the Page Browser Graph session, the server invalidation counter, the entrypoint dependency graph, the module loader, route-module build caches, collection server artifacts, and the integration activation map. `origin` starts as `baseUrl`. `hmr` stays `null`. `pageCache` stays `null` until `registerAppPageCacheService` stores one
 
 ## Main Files
 

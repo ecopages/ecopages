@@ -40,7 +40,7 @@ Plus one translation bridge:
 
 ```
 build/
-  build-adapter.ts              app-owned adapter/manifest wiring
+  build-adapter.ts              adapter factories and runtime plugin setup re-exports
   app-build-manifest-runtime.ts contributor collection at startup
   contracts/                    EcoBuildPlugin, BuildOptions, AppBuildManifest
   runtime/                        build queue, request policy/identity
@@ -51,8 +51,8 @@ build/
 ```
 
 - `contracts/build-manifest.ts` + `app-build-manifest-runtime.ts`: the `AppBuildManifest` sealed once, with its plugins selected by environment, and contributor validation.
-- `build-adapter.ts`: types, factories, and app-owned adapter/manifest helpers.
-- `runtime/build-queue.ts`: the `BuildQueue` and its installation on `appConfig.runtime.buildQueue`.
+- `build-adapter.ts`: types, factories, and runtime plugin setup helpers.
+- `runtime/build-queue.ts`: the `BuildQueue` and its installation on `AppRuntime.buildQueue`.
 - `runtime/build-request-policy.ts`: server/browser request constructors and plugin collision rules.
 - `runtime/build-request-identity.ts` / `cache/cache-keys.ts`: canonical request identity and shared cache fingerprints.
 - `contracts/build-types.ts`: the `EcoBuildPlugin` contract used by integrations and processors. `onLoad` receives the loaded `path` and `namespace`, and `loader` is one of `js`, `jsx`, `ts`, `tsx` or `object`.
@@ -68,11 +68,11 @@ build/
 
 ## Default Flow
 
-`finalizeEcoPagesConfig()` creates one app-owned adapter and manifest. When a server adapter initializes, it calls `installBuildQueue(appConfig)`:
+`finalizeEcoPagesConfig()` creates one app-owned adapter, manifest, and build queue on `AppRuntime`. When a server adapter initializes, it calls `installBuildQueue(appConfig)` to install a fresh queue on that runtime.
 
 ## App build manifest
 
-`AppBuildManifest` stores a `server` and a `browser` plugin list, already selected by environment, and a separate `browserRuntimeManifest` on `appConfig.runtime.buildManifest`. Integrations and Processors both expose `plugins(app)`. Each build plugin declares `environments: ['server']`, `['browser']`, or both; omitted environments apply to both. Config loaders are registered with them. The browser list holds the plugins that also apply to the server first, then the browser runtime plugin, then the browser-only plugins; readers take a list as it is.
+`AppBuildManifest` stores a `server` and a `browser` plugin list, already selected by environment, and a separate `browserRuntimeManifest` on `AppRuntime.buildManifest`. Integrations and Processors both expose `plugins(app)`. Each build plugin declares `environments: ['server']`, `['browser']`, or both; omitted environments apply to both. Config loaders are registered with them. The browser list holds the plugins that also apply to the server first, then the browser runtime plugin, then the browser-only plugins; readers take a list as it is.
 
 Config finalization rejects duplicate plugin names within an environment and identifies both contributors. The same name can be registered once for server and once for browser. Browser runtime declarations remain data from an Integration's `browserRuntimeManifest`, from which core synthesizes import rewrites.
 
@@ -88,7 +88,7 @@ Config finalization rejects duplicate plugin names within an environment and ide
 - Client-bundle-only work (vendor aliasing, async production CSS) → `plugins`, with `environments: ['browser']`.
 - Vendor specifier → public URL rewrites → `browserRuntimeManifest` (not a plugin list).
 
-Direct `setAppBuildManifest` is for tests. Production code relies on `sealAppBuildManifest` during config build.
+`createAppRuntime(config)` calls `sealAppBuildManifest(config)` once and stores the manifest on `AppRuntime.buildManifest`.
 
 ```
 Caller intent
@@ -102,7 +102,7 @@ The queue uses one-shot Rolldown in both dev and production. A lane runs at most
 
 Runtime code calls `requireBuildQueue(appConfig).build(options, lane)` with a complete `BuildOptions` object from the request-policy helpers. The queue is scheduling-only: it does **not** inject app plugins.
 
-The exported `defaultBuildAdapter` is a non-app-aware escape hatch. Runtime code uses `getAppBuildAdapter()`, `requireBuildQueue()`, `createServerBuildRequest()` and `createBrowserBuildRequest()`.
+The exported `defaultBuildAdapter` is a non-app-aware escape hatch. Runtime code uses `requireAppRuntime(appConfig).buildAdapter`, `requireBuildQueue()`, `createServerBuildRequest()` and `createBrowserBuildRequest()`.
 
 Every `BuildOptions` request requires `environment: 'server' | 'browser'`. Environment selects the platform, default target/format, and plugin participation. An explicit numeric `target` changes language transpilation without changing the environment. `resolveBuildEnvironmentOptions()` holds those defaults, one table per environment; a request names only what differs, as the server entry and the emitted config do with `reportPackagesOutsideRoot`. The lane (`build` | `hmr`) selects scheduling only. `BrowserBundleService` derives the lane from the bundle's purpose (`hmr-entrypoint` and `hmr-runtime` use `hmr`); every request retains browser defaults on either lane.
 
@@ -180,7 +180,7 @@ The deploy manifest (`dist/.server/manifest.json`) names the server entry and th
 
 The server entry and emitted config are built in a sibling staging directory; the deploy manifest joins that generation before the directory is published. A failed build therefore leaves the previous server generation intact.
 
-The route-module registry (`route-module-build-cache-registry.ts`) shares one `RouteModuleBuildCache` per `(app, outdir)` pair. Compiled chunks go to `.eco/.server-modules`.
+The route-module registry (`route-module-build-cache-registry.ts`) shares one `RouteModuleBuildCache` per `(app, outdir)` pair on `AppRuntime.routeModuleBuildCaches`. Compiled chunks go to `.eco/.server-modules`.
 
 ## Server bundle deploy layout
 
@@ -279,7 +279,7 @@ Kitchen-sink benchmarks (`ECOPAGES_BENCH=1 pnpm vitest bench`) show Rolldown win
 
 - `rolldown/rolldown-build-adapter.test.ts` covers the adapter's `build`, `resolve`, and dependency-graph extraction end-to-end.
 - `rolldown/rolldown-plugin-bridge.test.ts` covers the `EcoBuildPlugin[]` → plugin translation in isolation.
-- `build-adapter.test.ts` covers the app-owned helpers, the `BuildOwnership` routing, and the default-fallback behaviour.
+- `build-adapter.test.ts` covers the adapter factories, manifest sealing, and runtime plugin setup.
 - `runtime/build-queue.test.ts` covers lane limits, shared in-flight builds, builds that wait for a child build, and request-scope reuse.
 - `runtime/build-request-policy.test.ts` and `runtime/build-request-identity.test.ts` cover request assembly and dedupe identity.
 - `rolldown/app-package-declarations.test.ts` covers the app `package.json` lookups that decide which packages stay external.

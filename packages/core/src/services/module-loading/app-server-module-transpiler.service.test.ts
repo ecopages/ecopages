@@ -3,13 +3,32 @@ import fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'vitest';
-import { type BuildExecutor, setAppBuildAdapter, setAppBuildManifest } from '../../build/build-adapter.ts';
-import { installBuildQueue } from '../../build/runtime/build-queue.ts';
-import { createAppBuildManifest } from '../../build/contracts/build-manifest.ts';
+import type { BuildExecutor } from '../../build/build-adapter.ts';
+import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
+import { BuildQueue, installBuildQueue } from '../../build/runtime/build-queue.ts';
+import { createAppBuildManifest, type AppBuildManifest } from '../../build/contracts/build-manifest.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
+import { requireAppRuntime, ServerInvalidationState } from '../../config/app-runtime.ts';
 import type { EcoPagesElement } from '../../types/public-types.ts';
 import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
 import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
+
+function attachTestAppRuntime(
+	appConfig: Record<string, any>,
+	buildManifest: AppBuildManifest = createAppBuildManifest([]),
+): void {
+	const buildAdapter = new RolldownBuildAdapter();
+	appConfig.appRuntime = {
+		buildAdapter,
+		buildManifest,
+		buildQueue: new BuildQueue(buildAdapter),
+		buildInputIndex: new BuildInputDependencyIndex(),
+		pagesUnifiedGraphManifest: null,
+		routeModuleBuildCaches: new Map(),
+		collectionArtifacts: new Map(),
+		serverInvalidation: new ServerInvalidationState(),
+	};
+}
 
 describe('app server module transpiler runtime state', () => {
 	it('compiles Bun-owned Kita modules to string render functions during app module imports', async () => {
@@ -78,6 +97,7 @@ describe('app server module transpiler runtime state', () => {
 			templatesExt: ['.eco.tsx', '.kita.tsx'],
 			runtime: {},
 		} as any;
+		attachTestAppRuntime(appConfig);
 
 		const moduleLoader = getAppModuleLoader(appConfig);
 
@@ -129,6 +149,7 @@ describe('app server module transpiler runtime state', () => {
 			templatesExt: ['.ts'],
 			runtime: {},
 		} as any;
+		attachTestAppRuntime(appConfig);
 
 		try {
 			const imported = await getAppModuleLoader(appConfig).importModule<{
@@ -197,7 +218,7 @@ describe('app server module transpiler runtime state', () => {
 			runtime: {},
 		} as any;
 
-		setAppBuildManifest(
+		attachTestAppRuntime(
 			appConfig,
 			createAppBuildManifest([{ plugin: { name: 'react-mdx-loader', setup() {} }, source: 'test' }]),
 		);
@@ -246,10 +267,9 @@ describe('app server module transpiler runtime state', () => {
 			runtime: {},
 		} as any;
 
-		setAppBuildAdapter(appConfig, new RolldownBuildAdapter());
-		setAppBuildManifest(appConfig, createAppBuildManifest([]));
+		attachTestAppRuntime(appConfig);
 		installBuildQueue(appConfig);
-		const routeModuleExecutor = appConfig.runtime.buildQueue;
+		const routeModuleExecutor = requireAppRuntime(appConfig).buildQueue;
 		const originalBuild = routeModuleExecutor.build.bind(routeModuleExecutor);
 		routeModuleExecutor.build = async (options: Parameters<BuildExecutor['build']>[0]) => {
 			observedExecutors.push(routeModuleExecutor);

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoPagesAppConfig } from '@ecopages/core';
 import type { StaticExportContext } from '@ecopages/core/plugins/integration-plugin';
+import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import { LitPlugin } from '../lit.plugin.ts';
 import { LitRenderer } from '../lit-renderer.ts';
@@ -29,16 +29,14 @@ describe('LitPlugin', () => {
 		expect(dependency.content).toContain('globalThis.litElementHydrateSupport');
 	});
 
-	it('initializes its configured renderer class', () => {
+	it('initializes its configured renderer class', async () => {
 		class CustomLitRenderer extends LitRenderer {}
 
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', srcDir: 'src' });
+		appConfig.absolutePaths.config = '/app/eco.config.ts';
 		const plugin = new LitPlugin();
 		plugin.renderer = CustomLitRenderer;
-		plugin.setConfig({
-			rootDir: '/app',
-			srcDir: 'src',
-			absolutePaths: { config: '/app/eco.config.ts' },
-		} as unknown as EcoPagesAppConfig);
+		plugin.setConfig(appConfig);
 		plugin.setRuntimeOrigin('http://127.0.0.1:3000');
 
 		const renderer = plugin.initializeRenderer();
@@ -48,21 +46,19 @@ describe('LitPlugin', () => {
 });
 
 describe('LitPlugin render session invalidation', () => {
-	it('reads the invalidation version from the app module loader generation', () => {
+	it('reads the invalidation version from the app module loader generation', async () => {
 		let generation = 0;
-		const appConfig = {
-			rootDir: '/app',
-			srcDir: 'src',
-			runtime: {
-				appModuleLoader: {
-					importModule: async () => ({}),
-					invalidateDevelopmentGraph: () => {
-						generation += 1;
-					},
-					getDevelopmentGeneration: () => generation,
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', srcDir: 'src' });
+		appConfig.runtime = {
+			...appConfig.runtime,
+			appModuleLoader: {
+				importModule: async <T = unknown>() => ({}) as T,
+				invalidateDevelopmentGraph: () => {
+					generation += 1;
 				},
+				getDevelopmentGeneration: () => generation,
 			},
-		} as unknown as EcoPagesAppConfig;
+		};
 
 		const plugin = new LitPlugin();
 		plugin.setConfig(appConfig);
@@ -77,12 +73,9 @@ describe('LitPlugin render session invalidation', () => {
 });
 
 describe('LitPlugin staticExport', () => {
-	function createStaticExportFixture() {
-		const appConfig = {
-			rootDir: '/app',
-			srcDir: 'src',
-			absolutePaths: { config: '/app/eco.config.ts' },
-		} as unknown as EcoPagesAppConfig;
+	async function createStaticExportFixture() {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', srcDir: 'src' });
+		appConfig.absolutePaths.config = '/app/eco.config.ts';
 		const plugin = new LitPlugin();
 		plugin.setConfig(appConfig);
 		const context = { appConfig, baseUrl: 'http://127.0.0.1:3000' } as unknown as StaticExportContext;
@@ -93,7 +86,7 @@ describe('LitPlugin staticExport', () => {
 	}
 
 	it('stops the render worker when the returned release runs', async () => {
-		const { plugin, context, ensureWorker, dispose } = createStaticExportFixture();
+		const { plugin, context, ensureWorker, dispose } = await createStaticExportFixture();
 
 		const release = await plugin.staticExport(context);
 
@@ -110,7 +103,7 @@ describe('LitPlugin staticExport', () => {
 	});
 
 	it('releases the session that setup started instead of starting another', async () => {
-		const { plugin, context, ensureWorker, dispose } = createStaticExportFixture();
+		const { plugin, context, ensureWorker, dispose } = await createStaticExportFixture();
 		plugin['renderSession'] = plugin['createRenderSession']();
 
 		const release = await plugin.staticExport(context);
@@ -122,7 +115,7 @@ describe('LitPlugin staticExport', () => {
 	});
 
 	it('keeps one session when setup runs after staticExport, as in ecopages build', async () => {
-		const { plugin, context, dispose } = createStaticExportFixture();
+		const { plugin, context, dispose } = await createStaticExportFixture();
 		const sessions = new Set<unknown>();
 		vi.spyOn(LitStaticRenderSession.prototype, 'ensureWorker').mockImplementation(async function (this: unknown) {
 			sessions.add(this);

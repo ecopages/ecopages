@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { createBuildRequestIdentity } from '../../build/runtime/build-request-identity.ts';
 import { createServerBuildRequest } from '../../build/runtime/build-request-policy.ts';
 import { buildOrThrow } from '../../build/runtime/build-queue.ts';
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 import { recordCollectionBuild } from '../../diagnostics/request-pipeline-metrics.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
@@ -19,17 +20,6 @@ export type CollectionServerBuildArtifact = {
 	buildIdentity: string;
 	invalidationVersion: number;
 };
-
-const artifactsByCollection = new WeakMap<EcoPagesAppConfig, Map<string, CollectionServerBuildArtifact>>();
-
-function getArtifactMap(appConfig: EcoPagesAppConfig): Map<string, CollectionServerBuildArtifact> {
-	let artifacts = artifactsByCollection.get(appConfig);
-	if (!artifacts) {
-		artifacts = new Map();
-		artifactsByCollection.set(appConfig, artifacts);
-	}
-	return artifacts;
-}
 
 function createCollectionBuildIdentity(
 	buildRequestIdentity: string,
@@ -78,7 +68,7 @@ export async function buildCollectionServerModule(input: {
 		sourceFilePath,
 		ownedSourcePaths,
 	);
-	const artifacts = getArtifactMap(appConfig);
+	const artifacts = requireAppRuntime(appConfig).collectionArtifacts;
 	const existing = artifacts.get(collectionName);
 	if (existing?.buildIdentity === buildIdentity && existing?.invalidationVersion === invalidationVersion) {
 		return existing;

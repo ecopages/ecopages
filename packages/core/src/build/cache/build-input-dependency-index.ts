@@ -252,8 +252,6 @@ export class BuildInputDependencyIndex {
 	}
 }
 
-const indexByAppConfig = new WeakMap<EcoPagesAppConfig, BuildInputDependencyIndex>();
-
 /**
  * Captures the current build-input targets before handing plugin hooks to a bundler.
  */
@@ -306,30 +304,4 @@ export function seedProcessorWatchPaths(appConfig: EcoPagesAppConfig, index: Bui
 			index.recordWatchPath(watchPath);
 		}
 	}
-}
-
-/**
- * Returns the app-owned reverse index, creating it on first use.
- */
-export function getAppBuildInputIndex(appConfig: EcoPagesAppConfig): BuildInputDependencyIndex {
-	const existing = appConfig.runtime?.buildInputIndex;
-	if (existing) {
-		seedProcessorWatchPaths(appConfig, existing);
-		return existing;
-	}
-
-	const cached = indexByAppConfig.get(appConfig);
-	if (cached) {
-		seedProcessorWatchPaths(appConfig, cached);
-		return cached;
-	}
-
-	const index = new BuildInputDependencyIndex();
-	seedProcessorWatchPaths(appConfig, index);
-	indexByAppConfig.set(appConfig, index);
-	appConfig.runtime = {
-		...(appConfig.runtime ?? {}),
-		buildInputIndex: index,
-	};
-	return index;
 }

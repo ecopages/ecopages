@@ -2,13 +2,10 @@ import assert from 'node:assert/strict';
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { ServerStaticBuilder, type ServeOptions, type ServerStaticBuilderLogger } from './server-static-builder';
 import { resolveEntryFile, DEFAULT_ENTRY_FILE, ENTRY_FILE_ENV } from '../../../utils/resolve-entry-file';
-import {
-	setAppBuildAdapter,
-	type BuildAdapter,
-	type BuildOptions,
-	type BuildResult,
-} from '../../../build/build-adapter';
-import type { AppRuntime } from '../../../config/app-runtime.ts';
+import type { BuildAdapter, BuildOptions, BuildResult } from '../../../build/build-adapter';
+import { createAppBuildManifest } from '../../../build/contracts/build-manifest.ts';
+import { BuildQueue } from '../../../build/runtime/build-queue.ts';
+import { requireAppRuntime, type AppRuntime } from '../../../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator';
 import type { RouteRegistry } from '../../../router/server/route-registry';
@@ -84,7 +81,13 @@ function createMockDependencies() {
 			return importPath;
 		},
 	};
-	setAppBuildAdapter(AppConfig, defaultBuildAdapter);
+	AppConfig.appRuntime = {
+		buildAdapter: defaultBuildAdapter,
+		buildManifest: createAppBuildManifest([]),
+		buildQueue: new BuildQueue(defaultBuildAdapter),
+		origin: 'http://localhost:3000',
+		hmr: null,
+	} as AppRuntime;
 
 	const ServeOptions: ServeOptions = {
 		hostname: 'localhost',
@@ -529,7 +532,11 @@ describe('ServerStaticBuilder', () => {
 						return importPath;
 					},
 				};
-				setAppBuildAdapter(appConfig, buildAdapter);
+				appConfig.appRuntime = {
+					...requireAppRuntime(appConfig),
+					buildAdapter,
+					buildQueue: new BuildQueue(buildAdapter),
+				};
 				return buildCalls;
 			}
 

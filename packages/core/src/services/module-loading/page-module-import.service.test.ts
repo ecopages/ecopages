@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BuildResult, BuildSuccess } from '../../build/build-adapter.js';
-import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -253,7 +253,7 @@ describe('PageModuleImportService', () => {
 				outdir: rootDir,
 			});
 
-			const index = getAppBuildInputIndex(appConfig);
+			const index = requireAppRuntime(appConfig).buildInputIndex;
 			assert.deepEqual(index.resolveKeys('server-route-module', helperPath), [pagePath]);
 			assert.deepEqual(index.resolveKeys('server-route-module', pluginInputPath), [pagePath]);
 
@@ -538,7 +538,7 @@ describe('PageModuleImportService', () => {
 		fakeDependencies.setNextBuildResult(createBuildResult({ outputs: [{ path: compiledOutput }] }));
 
 		try {
-			const appConfig = { runtime: {}, integrations: [] } as unknown as EcoPagesAppConfig;
+			const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app' });
 			const productionService = new PageModuleImportService(appConfig, fakeDependencies.dependencies);
 			const first = await productionService.importModule<{ value: number }>({
 				filePath: '/app/pages/page.tsx',
@@ -649,7 +649,7 @@ describe('PageModuleImportService', () => {
 		writeFileSync(layoutPath, 'export const v = 1;\n', 'utf8');
 
 		let buildCount = 0;
-		const appConfig = { runtime: {}, integrations: [] } as unknown as EcoPagesAppConfig;
+		const appConfig = await finalizeEcoPagesConfig({ rootDir });
 		const productionService = new PageModuleImportService(appConfig, {
 			hashFile(filePath: string): string {
 				return fileSystem.hash(filePath);

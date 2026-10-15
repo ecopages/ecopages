@@ -10,7 +10,7 @@ import {
 } from './route-module-build-manifest.ts';
 import { RouteModuleBuildCache } from './route-module-build-cache.store.ts';
 import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { createPluginCacheKey } from '../../build/cache/cache-keys.ts';
 import { RouteModuleDependencyHasher } from './route-module-dependency-hasher.ts';
 
@@ -262,7 +262,7 @@ describe('RouteModuleBuildCache', () => {
 		assert.equal(cache.lookup(options), undefined);
 	});
 
-	it('keys the shared app cache on the config module and the files it imports', () => {
+	it('keys the shared app cache on the config module and the files it imports', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const configPath = join(tempDir, 'eco.config.ts');
 		const optionsPath = join(tempDir, 'options.ts');
@@ -272,9 +272,7 @@ describe('RouteModuleBuildCache', () => {
 		writeFileSync(pagePath, '# Post\n');
 		const outputPath = join(tempDir, 'post-abc123.mjs');
 		writeFileSync(outputPath, 'export default {};\n');
-		const appConfig = {
-			absolutePaths: { config: configPath, configModuleFiles: [configPath, optionsPath] },
-		} as unknown as EcoPagesAppConfig;
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: tempDir }, { configFilePath: configPath });
 		const cache = getSharedRouteModuleBuildCache(tempDir, appConfig);
 		const options = { filePath: pagePath, rootDir: tempDir, outdir: tempDir, fileHash: 'abc123' };
 		cache.recordBuild({ ...options, outputPath, dependencyModulePaths: [pagePath] });

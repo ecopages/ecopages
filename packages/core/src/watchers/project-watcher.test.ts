@@ -8,8 +8,8 @@ import { ProjectWatcher, type ProjectWatcherConfig } from './project-watcher';
 import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
 import type { IClientBridge } from '../types/internal-types.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
+import { requireAppRuntime } from '../config/app-runtime.ts';
 import { getAppModuleLoader } from '../services/module-loading/app-server-module-transpiler.service.ts';
-import { getAppBuildInputIndex } from '../build/cache/build-input-dependency-index.ts';
 import {
 	createMockHmrManager,
 	createMockBridge,
@@ -658,7 +658,7 @@ describe('ProjectWatcher', () => {
 		test('watches recorded paths outside srcDir directly and leaves source inputs to the srcDir watch', async () => {
 			const sourceInput = path.join(Config.absolutePaths.srcDir, 'lib/posts.ts');
 			const externalInput = path.join(Config.rootDir, '../shared/data/posts.json');
-			const buildInputIndex = getAppBuildInputIndex(Config);
+			const buildInputIndex = requireAppRuntime(Config).buildInputIndex;
 			buildInputIndex.recordWatchPath(sourceInput);
 			buildInputIndex.recordWatchPath(externalInput);
 

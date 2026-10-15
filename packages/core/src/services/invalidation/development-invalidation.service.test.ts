@@ -238,7 +238,7 @@ describe('DevelopmentInvalidationService', () => {
 		const service = new DevelopmentInvalidationService(appConfig);
 		const sharedModule = '/test/project/src/components/shared.tsx';
 		const serverOnlyModule = '/test/project/src/components/server-only.tsx';
-		const inputIndex = getAppBuildInputIndex(appConfig);
+		const inputIndex = requireAppRuntime(appConfig).buildInputIndex;
 		inputIndex.register({ consumer: 'server-route-module', key: '/test/project/src/pages/index.tsx' }, [
 			'/test/project/src/pages/index.tsx',
 			sharedModule,

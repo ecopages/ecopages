@@ -238,11 +238,11 @@ describe('ProjectWatcher', () => {
 				file: (c) => path.join(c.absolutePaths.componentsDir, 'Shared.tsx'),
 				arrange: ({ config }) => {
 					const sharedFile = path.join(config.absolutePaths.componentsDir, 'Shared.tsx');
-					getAppBuildInputIndex(config).register(
+					requireAppRuntime(config).buildInputIndex.register(
 						{ consumer: 'server-route-module', key: path.join(config.absolutePaths.pagesDir, 'index.tsx') },
 						[sharedFile],
 					);
-					getAppBuildInputIndex(config).register(
+					requireAppRuntime(config).buildInputIndex.register(
 						{ consumer: 'entrypoint', key: path.join(config.absolutePaths.componentsDir, 'island.tsx') },
 						[sharedFile],
 					);

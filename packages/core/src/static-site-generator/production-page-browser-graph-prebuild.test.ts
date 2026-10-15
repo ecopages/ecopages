@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import {
 	clearProductionPageBrowserGraphSession,

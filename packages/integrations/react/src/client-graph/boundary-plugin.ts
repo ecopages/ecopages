@@ -115,6 +115,7 @@ function loadClientGraphBoundaryModule(
 	args: EcoBuildOnLoadArgs,
 	options: NormalizedClientGraphBoundaryOptions,
 	requestedExports: Map<string, RequestedExportRules>,
+	isEntrypoint = options.entrypointFile === path.resolve(options.absWorkingDir, args.path),
 ) {
 	const sourcePath = path.resolve(options.absWorkingDir, args.path);
 	if (
@@ -152,6 +153,7 @@ function loadClientGraphBoundaryModule(
 		category,
 		globallyDeclaredSources,
 		requestedExports,
+		preserveUnreachableSideEffectImports: !isEntrypoint,
 	});
 }
 
@@ -232,9 +234,22 @@ export function createClientGraphBoundaryPlugin(options?: ClientGraphBoundaryOpt
 		cacheKey: normalizedOptions.cacheKey,
 		bundleGroupKey: 'react-client-graph-boundary',
 		setup(build) {
-			if (!build.entrypoints) {
+			if (
+				!build.entrypoints ||
+				(!normalizedOptions.entrypointFile && normalizedOptions.groupedEntrypointFiles.size === 0)
+			) {
+				const entrypointFiles = new Set(
+					Object.values(build.entrypoints ?? {}).map((entrypoint) =>
+						path.resolve(normalizedOptions.absWorkingDir, entrypoint),
+					),
+				);
 				build.onLoad({ filter: SOURCE_FILE_FILTER }, (args) =>
-					loadClientGraphBoundaryModule(args, normalizedOptions, requestedExports),
+					loadClientGraphBoundaryModule(
+						args,
+						normalizedOptions,
+						requestedExports,
+						entrypointFiles.has(path.resolve(normalizedOptions.absWorkingDir, args.path)),
+					),
 				);
 				return;
 			}

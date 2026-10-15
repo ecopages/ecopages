@@ -22,9 +22,13 @@ type OnLoadRegistration = {
 	) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>;
 };
 
-function createPluginTestHarness(pluginOptions?: Parameters<typeof createClientGraphBoundaryPlugin>[0]) {
+function createPluginTestHarness(
+	pluginOptions?: Parameters<typeof createClientGraphBoundaryPlugin>[0],
+	entrypoints?: Readonly<Record<string, string>>,
+) {
 	const onLoadRegistrations: OnLoadRegistration[] = [];
 	const builder: EcoBuildPluginBuilder = {
+		...(entrypoints ? { entrypoints } : {}),
 		onResolve: (_options, _callback: (args: EcoBuildOnResolveArgs) => EcoBuildOnResolveResult | undefined) => {},
 		onLoad: (options, callback) => {
 			onLoadRegistrations.push({ options, callback });
@@ -53,6 +57,51 @@ function createPluginTestHarness(pluginOptions?: Parameters<typeof createClientG
 }
 
 describe('createClientGraphBoundaryPlugin', () => {
+	it('keeps the standalone boundary for builds with an entrypoint map', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const entrypoint = join(tempDir, 'entry.tsx');
+		writeFileSync(entrypoint, "import fs from 'node:fs';\nexport default () => 'ok';", 'utf-8');
+
+		try {
+			const harness = createPluginTestHarness(undefined, { entry: entrypoint });
+			const transformed = await harness.transformFile(entrypoint);
+
+			expect(transformed).toBeDefined();
+			expect(transformed).not.toContain("import fs from 'node:fs';");
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('preserves side-effect imports in helpers shared with non-React entries', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const htmlEntrypoint = join(tempDir, 'html-entry.ts');
+		const reactEntrypoint = join(tempDir, 'react-entry.tsx');
+		const sharedHelper = join(tempDir, 'helper.ts');
+		const registration = join(tempDir, 'register.ts');
+		writeFileSync(htmlEntrypoint, "import { register } from './helper.ts';\nregister();", 'utf-8');
+		writeFileSync(reactEntrypoint, "import { register } from './helper.ts';\nexport default register;", 'utf-8');
+		writeFileSync(sharedHelper, "import './register.ts';\nexport function register() {}", 'utf-8');
+		writeFileSync(registration, 'globalThis.registered = true;', 'utf-8');
+
+		try {
+			const harness = createPluginTestHarness(
+				{
+					absWorkingDir: tempDir,
+					projectRoot: tempDir,
+					entrypointFile: reactEntrypoint,
+					groupedEntrypointFiles: [reactEntrypoint],
+				},
+				{ html: htmlEntrypoint, react: reactEntrypoint },
+			);
+			const transformed = await harness.transformFile(sharedHelper);
+
+			expect(transformed).toBeUndefined();
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it('scopes declared modules to their grouped entry', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
 		const islandA = join(tempDir, 'island-a.tsx');

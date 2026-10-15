@@ -14,6 +14,7 @@ export type TransformClientGraphModuleOptions = {
 	category: ClientGraphModuleKind;
 	globallyDeclaredSources: Map<string, Set<string> | '*'>;
 	requestedExports: Map<string, RequestedExportRules>;
+	preserveUnreachableSideEffectImports?: boolean;
 };
 
 function toLoaderResult(filePath: string, contents: string): EcoBuildOnLoadResult {
@@ -38,6 +39,7 @@ export function transformClientGraphModule(
 		options.globallyDeclaredSources,
 		options.requestedExports,
 		isPageOrLayoutEntry(options.filePath),
+		Boolean(options.preserveUnreachableSideEffectImports) && !isPageOrLayoutEntry(options.filePath),
 	);
 	recordModuleTransformProfile({
 		category: options.category,

@@ -111,7 +111,6 @@ function createAdapter(
 
 	return new TestNodeServerAdapter({
 		appConfig,
-		runtimeOrigin: 'http://localhost:3000',
 		serveOptions: {},
 		options: { watch: true },
 		runtimeHost,

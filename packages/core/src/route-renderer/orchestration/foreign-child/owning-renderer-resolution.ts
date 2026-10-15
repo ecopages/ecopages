@@ -5,7 +5,6 @@ import type { ForeignSubtreeExecutionOwningRenderer } from './foreign-subtree-ex
 
 export type OwningRendererResolutionInput = {
 	appConfig: EcoPagesAppConfig;
-	runtimeOrigin: string;
 	currentIntegrationName: string;
 	currentRenderer: ForeignSubtreeExecutionOwningRenderer;
 	integrationName: string;
@@ -43,7 +42,6 @@ export async function resolveOwningIntegrationRenderer(
 	await ensureIntegrationRuntimeReady({
 		appConfig: input.appConfig,
 		integrationName,
-		runtimeOrigin: input.runtimeOrigin,
 	});
 
 	const integrationPlugin = input.appConfig.integrations.find((integration) => integration.name === integrationName);

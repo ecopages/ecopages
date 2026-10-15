@@ -14,6 +14,6 @@ import { appLogger } from '../global/app-logger.ts';
 import { loadEcoPagesConfig } from './load-eco-config.ts';
 
 const appConfig = await loadEcoPagesConfig();
-await setupAppRuntimePlugins({ appConfig, runtimeOrigin: appConfig.baseUrl });
+await setupAppRuntimePlugins({ appConfig });
 appLogger.info('Wrote the generated types for the virtual modules in eco.config.ts.');
 process.exit(0);

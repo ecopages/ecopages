@@ -9,7 +9,6 @@ type RendererClass<C> = new (options: {
 	appConfig: EcoPagesAppConfig;
 	assetProcessingService: AssetProcessingService;
 	resolvedIntegrationDependencies: ProcessedAsset[];
-	runtimeOrigin: string;
 }) => IntegrationRenderer<C>;
 
 export interface DefineIntegrationDefinition<C = EcoPagesElement> extends IntegrationPluginConfig {

@@ -24,17 +24,14 @@ import { HttpError } from '../../errors/http-error.ts';
  */
 export class PageModuleLoaderService {
 	private appConfig: EcoPagesAppConfig;
-	private runtimeOrigin: string;
 
 	/**
 	 * Creates the page-module loader for one app/runtime instance.
 	 *
 	 * @param appConfig Finalized app config that owns build and invalidation state.
-	 * @param runtimeOrigin Runtime origin exposed to page data hooks.
 	 */
-	constructor(appConfig: EcoPagesAppConfig, runtimeOrigin: string) {
+	constructor(appConfig: EcoPagesAppConfig) {
 		this.appConfig = appConfig;
-		this.runtimeOrigin = runtimeOrigin;
 	}
 
 	/**
@@ -78,7 +75,7 @@ export class PageModuleLoaderService {
 			? await getStaticProps({
 					pathname: { params: params ?? {} },
 					appConfig: this.appConfig,
-					runtimeOrigin: this.runtimeOrigin,
+					runtimeOrigin: requireAppRuntime(this.appConfig).origin,
 				})
 					.then((data) => data)
 					.catch((err) => {

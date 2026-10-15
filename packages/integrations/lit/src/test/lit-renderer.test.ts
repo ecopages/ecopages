@@ -57,7 +57,6 @@ const createRenderer = () => {
 	return new TestLitRenderer({
 		appConfig: Config,
 		assetProcessingService: createTestAssetProcessingService(Config),
-		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
 	});
 };
@@ -65,7 +64,6 @@ const createRenderer = () => {
 const renderer = new LitRenderer({
 	appConfig: Config,
 	assetProcessingService: createTestAssetProcessingService(Config),
-	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],
 });
 
@@ -78,7 +76,6 @@ describeRendererContract({
 		const testRenderer = new TestLitRenderer({
 			appConfig: await createTestAppConfig({ integrations }),
 			assetProcessingService: { processDependencies } as never,
-			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 		});
 		testRenderer.htmlTemplate = (async ({ children, metadata }) =>
@@ -293,13 +290,11 @@ describe('LitRenderer', () => {
 			});
 			const config = await createTestAppConfig({ integrations: [deferredPlugin] });
 			deferredPlugin.setConfig(config);
-			deferredPlugin.setRuntimeOrigin('http://localhost:3000');
 
 			const processDependencies = vi.fn(async (dependencies: Array<{ kind: string }>) => dependencies);
 			const testRenderer = new TestLitRenderer({
 				appConfig: config,
 				assetProcessingService: { processDependencies } as never,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 
@@ -696,7 +691,6 @@ describe('LitRenderer', () => {
 			const renderer = new SessionLitRenderer({
 				appConfig: Config,
 				assetProcessingService: createTestAssetProcessingService(Config),
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 
@@ -736,7 +730,6 @@ describe('LitRenderer', () => {
 			const renderer = new Renderer({
 				appConfig: Config,
 				assetProcessingService: createTestAssetProcessingService(Config),
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 
@@ -776,7 +769,6 @@ describe('LitRenderer', () => {
 			const renderer = new Renderer({
 				appConfig: Config,
 				assetProcessingService: {} as never,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 			const inProcessSpy = vi.spyOn(IntegrationRenderer.prototype, 'execute').mockResolvedValue({

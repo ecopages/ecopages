@@ -14,6 +14,10 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 		this.hmrManager = hmrManager;
 	}
 
+	private getActiveHmrManager(): IHmrManager | undefined {
+		return this.appConfig.appRuntime?.hmr ?? this.hmrManager;
+	}
+
 	private toProcessedAsset(
 		dep: FileScriptAsset,
 		filepath: string,
@@ -41,7 +45,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	 * HMR, inline, and unbundled entries fall back to per-file processing.
 	 */
 	async processGrouped(deps: FileScriptAsset[]): Promise<ProcessedAsset[]> {
-		const hmrEnabled = this.hmrManager?.isEnabled() === true;
+		const hmrEnabled = this.getActiveHmrManager()?.isEnabled() === true;
 		const shouldBundle = deps.every((dep) => this.shouldBundle(dep));
 		return this.processGroupedScripts(deps, {
 			shouldBundleTogether: shouldBundle && deps.every((dep) => !dep.inline) && !hmrEnabled,
@@ -62,8 +66,9 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	 * stable names.
 	 */
 	async process(dep: FileScriptAsset): Promise<ProcessedAsset> {
-		if (this.hmrManager?.isEnabled() && !dep.inline && this.shouldBundle(dep)) {
-			const resolvedOutput = this.hmrManager.getResolvedScriptOutput?.(dep.filepath);
+		const hmrManager = this.getActiveHmrManager();
+		if (hmrManager?.isEnabled() && !dep.inline && this.shouldBundle(dep)) {
+			const resolvedOutput = hmrManager.getResolvedScriptOutput?.(dep.filepath);
 			if (resolvedOutput) {
 				return {
 					filepath: resolvedOutput.outputPath,
@@ -79,7 +84,7 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 				};
 			}
 
-			const registered = await this.hmrManager.registerScriptEntrypoint(dep.filepath);
+			const registered = await hmrManager.registerScriptEntrypoint(dep.filepath);
 			return {
 				filepath: registered.outputPath,
 				sourceFilepath: dep.filepath,

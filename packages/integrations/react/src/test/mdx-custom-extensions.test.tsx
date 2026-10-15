@@ -78,7 +78,6 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 				getHmrManager: () => null,
 				processDependencies: async (deps: any) => deps,
 			} as any,
-			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 			reactConfig: {
 				mdxExtensions: ['.md', '.story.mdx'],

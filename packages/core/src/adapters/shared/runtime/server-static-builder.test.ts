@@ -36,7 +36,6 @@ function createMockDependencies() {
 	const mockIntegration = {
 		extensions: ['.tsx'],
 		setConfig: () => {},
-		setRuntimeOrigin: () => {},
 		setHmrManager: () => {},
 		plugins: [],
 		setup: async () => {

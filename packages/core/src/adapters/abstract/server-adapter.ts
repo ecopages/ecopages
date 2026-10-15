@@ -25,7 +25,7 @@ export interface ServerAdapterOptions {
 		[key: string]: any;
 	};
 	serveOptions?: Record<string, any>;
-	runtimeOrigin: string;
+	runtimeOrigin?: string;
 }
 
 /**
@@ -61,22 +61,21 @@ export abstract class AbstractServerAdapter<
 	protected readonly runtime: AppRuntime;
 	protected options: TOptions['options'];
 	protected serveOptions: TOptions['serveOptions'];
-	protected runtimeOrigin: string;
 
 	constructor(options: TOptions) {
 		this.appConfig = options.appConfig;
 		this.runtime = options.runtime;
 		this.options = options.options || {};
 		this.serveOptions = options.serveOptions || {};
-		this.runtimeOrigin = options.runtimeOrigin;
-		this.runtime.origin = options.runtimeOrigin;
+		if (options.runtimeOrigin !== undefined) {
+			this.runtime.origin = options.runtimeOrigin;
+		}
 	}
 
 	/**
 	 * Updates listen metadata after the runtime binds its actual port.
 	 */
 	public applyBoundPort(input: { port: number; runtimeOrigin: string }): void {
-		this.runtimeOrigin = input.runtimeOrigin;
 		this.runtime.origin = input.runtimeOrigin;
 		this.serveOptions = {
 			...this.serveOptions,

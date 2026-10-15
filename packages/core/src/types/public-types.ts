@@ -264,6 +264,11 @@ export type HmrFileChangeOptions = {
 };
 
 /**
+ * Integration hook for registered `dependencies.scripts` entrypoint changes in dev.
+ */
+export type RegisteredScriptEntrypointChangeHandler = (filePath: string) => void | boolean | Promise<void | boolean>;
+
+/**
  * Adapter-agnostic interface for broadcasting development events to connected clients.
  * Implemented by both the Bun and Node client bridges.
  */
@@ -312,6 +317,11 @@ export interface IHmrManager {
 	 * Registers a custom HMR strategy.
 	 */
 	registerStrategy(strategy: HmrStrategy): void;
+
+	/**
+	 * Registers a handler that runs when a registered script entrypoint changes.
+	 */
+	onScriptEntrypointChanged?(handler: RegisteredScriptEntrypointChangeHandler): void;
 
 	/**
 	 * Enables or disables HMR.

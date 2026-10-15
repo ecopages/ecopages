@@ -22,7 +22,6 @@ describe('renderer foreign-child delegation', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		renderer.MockComponentRenderResult = {
@@ -84,7 +83,6 @@ describe('renderer foreign-child delegation', () => {
 				],
 			}),
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		renderer.name = 'kitajs';
 
@@ -138,7 +136,6 @@ describe('renderer foreign-child delegation', () => {
 				],
 			}),
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const ForeignComponent = (() => '<aside>Foreign</aside>') as EcoComponent<Record<string, unknown>>;
@@ -180,7 +177,6 @@ describe('renderer foreign-child delegation', () => {
 				],
 			}),
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		renderer.MockComponentRenderResult = {
 			html: '<aside>Local renderer</aside>',
@@ -212,7 +208,6 @@ describe('renderer foreign-child delegation', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		renderer.MockComponentRenderResult = {
@@ -248,7 +243,6 @@ describe('renderer foreign-child delegation', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const LeafComponent = eco.component<{}, string>({
@@ -276,7 +270,6 @@ describe('renderer foreign-child delegation', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const View = (() => '<section>Inline</section>') as EcoComponent<Record<string, unknown>>;
 		View.config = {
@@ -305,7 +298,6 @@ describe('renderer foreign-child delegation', () => {
 				],
 			}),
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const ForeignChild = (() => '<span>Foreign</span>') as EcoComponent<Record<string, unknown>>;
 		ForeignChild.config = {
@@ -359,7 +351,6 @@ describe('renderer foreign-child delegation', () => {
 				],
 			}),
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const Home = (() => '<p>Home</p>') as EcoComponent<Record<string, unknown>>;
 		Home.config = {
@@ -447,7 +438,6 @@ describe('renderer foreign-child delegation', () => {
 		})({
 			appConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const Layout = (() => '<main />') as EcoComponent<Record<string, unknown>>;

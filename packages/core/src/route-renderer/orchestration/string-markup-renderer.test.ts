@@ -40,7 +40,6 @@ const createRenderer = (config = appConfig) =>
 	new TestStringRenderer({
 		appConfig: config,
 		assetProcessingService: testAssetService,
-		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
 	});
 

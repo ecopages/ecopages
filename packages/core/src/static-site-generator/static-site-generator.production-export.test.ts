@@ -91,7 +91,6 @@ describe('StaticSiteGenerator production export', () => {
 		const renderer = new StaticExportRenderer({
 			appConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'https://example.com',
 		});
 		const buildGroupedGraphBuildPlan = vi.spyOn(renderer, 'buildGroupedGraphBuildPlan');
 		renderer.PageModule = { default: Page };

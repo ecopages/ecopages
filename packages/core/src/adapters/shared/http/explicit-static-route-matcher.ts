@@ -1,4 +1,5 @@
 import { appLogger } from '../../../global/app-logger.ts';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { shouldLogPageFailure } from '../../../errors/http-error-page-contract.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { StaticRoute } from '../../../types/public-types.ts';
@@ -73,7 +74,7 @@ export class ExplicitStaticRouteMatcher {
 				view,
 				params,
 				appConfig: this.appConfig,
-				runtimeOrigin: this.appConfig.baseUrl,
+				runtimeOrigin: requireAppRuntime(this.appConfig).origin,
 				routeRendererFactory: this.routeRendererFactory,
 				errors: EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS,
 			});

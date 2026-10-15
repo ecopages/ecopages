@@ -7,9 +7,19 @@ import type { IHmrManager } from '../../../types/public-types.ts';
 import { HttpError } from '../../../errors/http-error.ts';
 
 function createMockDependencies() {
+	const HmrManager = {
+		isEnabled: vi.fn(() => true),
+		broadcast: vi.fn(),
+	} as unknown as IHmrManager;
+
 	const Router = {
 		matchRequest: vi.fn(() => null),
 		origin: 'http://localhost:3000',
+		appConfig: {
+			appRuntime: {
+				hmr: HmrManager,
+			},
+		},
 	} as unknown as RouteRegistry;
 
 	const FileSystemResponseMatcher = {
@@ -17,11 +27,6 @@ function createMockDependencies() {
 		handleNoMatch: vi.fn(() => Promise.resolve(new Response('Not Found', { status: 404 }))),
 		renderServerError: vi.fn(() => Promise.resolve(new Response('Internal Server Error', { status: 500 }))),
 	} as unknown as FileSystemResponseMatcher;
-
-	const HmrManager = {
-		isEnabled: vi.fn(() => true),
-		broadcast: vi.fn(),
-	} as unknown as IHmrManager;
 
 	return {
 		Router,
@@ -110,11 +115,10 @@ describe('ServerRouteHandler', () => {
 		});
 
 		it('should not inject HMR script (injection lives in SharedServerAdapter)', async () => {
-			const { Router, FileSystemResponseMatcher, HmrManager } = createMockDependencies();
+			const { Router, FileSystemResponseMatcher } = createMockDependencies();
 			const handler = new ServerRouteHandler({
 				router: Router,
 				fileSystemResponseMatcher: FileSystemResponseMatcher,
-				hmrManager: HmrManager,
 			});
 
 			Router.matchRequest = vi.fn(() => ({}) as any);
@@ -139,7 +143,6 @@ describe('ServerRouteHandler', () => {
 			const handler = new ServerRouteHandler({
 				router: Router,
 				fileSystemResponseMatcher: FileSystemResponseMatcher,
-				hmrManager: HmrManager,
 			});
 
 			FileSystemResponseMatcher.handleNoMatch = vi.fn(() => {

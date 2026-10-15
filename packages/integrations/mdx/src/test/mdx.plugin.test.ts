@@ -81,7 +81,6 @@ describe('MDXPlugin', () => {
 		});
 
 		plugin.setConfig(Config);
-		plugin.setRuntimeOrigin('http://localhost:3000');
 
 		const renderer = plugin.initializeRenderer();
 

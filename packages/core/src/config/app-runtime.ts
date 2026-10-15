@@ -19,10 +19,9 @@ import {
 	type EntrypointDependencyGraph,
 } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import type { IHmrManager } from '../types/public-types.ts';
+import type { IHmrManager, RegisteredScriptEntrypointChangeHandler } from '../types/public-types.ts';
 
-/** Integration hook for registered `dependencies.scripts` entrypoint changes in dev. */
-export type RegisteredScriptEntrypointChangeHandler = (filePath: string) => void | boolean | Promise<void | boolean>;
+export type { RegisteredScriptEntrypointChangeHandler };
 
 /**
  * The counter bumped when server modules are marked stale.
@@ -47,9 +46,9 @@ export class ServerInvalidationState {
  * Per-app state assembled once for a finalized config.
  *
  * @remarks
- * `hmr` stays `null`. Watch mode still keeps its manager on the server adapter. `origin` starts as `baseUrl`
- * and follows the listening origin the route renderer and static builder bind. `pageCache` stays `null`
- * until the server adapter stores one.
+ * `origin` starts as `baseUrl` and updates when the runtime binds its listening origin. `hmr` stays
+ * `null` until a watch-mode dev session creates an HMR manager, and resets to `null` when dev resources
+ * are disposed. `pageCache` stays `null` until the server adapter stores one.
  */
 export interface AppRuntime {
 	buildAdapter: BuildAdapter;
@@ -67,7 +66,6 @@ export interface AppRuntime {
 	integrationActivations: Map<string, Promise<void>>;
 	runtimeAssetsPrepared: boolean;
 	hmrAttachedToIntegrations: boolean;
-	registeredScriptEntrypointChangeHandlers: RegisteredScriptEntrypointChangeHandler[];
 	htmlPageModuleScripts: HtmlPageModuleScriptState;
 	origin: string;
 	hmr: IHmrManager | null;
@@ -130,7 +128,6 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		integrationActivations: new Map(),
 		runtimeAssetsPrepared: false,
 		hmrAttachedToIntegrations: false,
-		registeredScriptEntrypointChangeHandlers: [],
 		htmlPageModuleScripts: createHtmlPageModuleScriptState(),
 		origin: appConfig.baseUrl,
 		hmr: null,

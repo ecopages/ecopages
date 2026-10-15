@@ -18,7 +18,7 @@ test('a failed preview shutdown still tears down Integrations and allows setup a
 		}
 	}
 	const appConfig = await finalizeEcoPagesConfig({ rootDir: '/project', integrations: [new ResourceIntegration()] });
-	await startDevWarmup({ appConfig, runtimeOrigin: 'http://localhost:3000' });
+	await startDevWarmup({ appConfig });
 	await assert.rejects(
 		disposeDevResources({
 			appConfig,
@@ -31,7 +31,7 @@ test('a failed preview shutdown still tears down Integrations and allows setup a
 		}),
 		/preview shutdown failed/,
 	);
-	await startDevWarmup({ appConfig, runtimeOrigin: 'http://localhost:3000' });
+	await startDevWarmup({ appConfig });
 	assert.deepEqual(events, ['setup', 'teardown', 'setup']);
 });
 
@@ -104,7 +104,7 @@ test('an Integration setup still in flight finishes before teardown', async () =
 		}
 	}
 	const appConfig = await finalizeEcoPagesConfig({ rootDir: '/project', integrations: [new SlowSetup()] });
-	const warmup = startDevWarmup({ appConfig, runtimeOrigin: 'http://localhost:3000' });
+	const warmup = startDevWarmup({ appConfig });
 	const disposal = disposeDevResources({
 		appConfig,
 		projectWatcher: undefined,
@@ -129,7 +129,7 @@ test('a failed Integration teardown still lets the next startup run setup', asyn
 		}
 	}
 	const appConfig = await finalizeEcoPagesConfig({ rootDir: '/project', integrations: [new FlakyTeardown()] });
-	await startDevWarmup({ appConfig, runtimeOrigin: 'http://localhost:3000' });
+	await startDevWarmup({ appConfig });
 	assert.equal(setups, 1);
 	await assert.rejects(
 		disposeDevResources({
@@ -141,7 +141,7 @@ test('a failed Integration teardown still lets the next startup run setup', asyn
 		}),
 		/teardown failed/,
 	);
-	await startDevWarmup({ appConfig, runtimeOrigin: 'http://localhost:3000' });
+	await startDevWarmup({ appConfig });
 	assert.equal(setups, 2);
 });
 
@@ -154,7 +154,6 @@ test('startDevWarmup activates every configured integration', async () => {
 
 	await startDevWarmup({
 		appConfig,
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.equal(ensureSpy.mock.calls.length, 2);
@@ -180,7 +179,6 @@ test('startDevWarmup logs failures without throwing', async () => {
 
 	await startDevWarmup({
 		appConfig,
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.equal(errorSpy.mock.calls.length, 1);

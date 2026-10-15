@@ -180,7 +180,6 @@ describe('JsHmrStrategy integration', () => {
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const broadcasts: ClientBridgeEvent[] = [];
-		requireAppRuntime(config).registeredScriptEntrypointChangeHandlers = [() => true];
 		using manager = new NodeHmrManager({
 			appConfig: config,
 			bridge: {
@@ -190,6 +189,7 @@ describe('JsHmrStrategy integration', () => {
 				},
 			} as never,
 		});
+		manager.onScriptEntrypointChanged(() => true);
 
 		manager.setEnabled(true);
 		installBuildQueue(config);

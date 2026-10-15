@@ -131,7 +131,6 @@ describe('Kita static export', () => {
 		const routeRendererFactory = new RouteRendererFactory({
 			appConfig,
 			runtime: requireAppRuntime(appConfig),
-			runtimeOrigin: 'https://example.com',
 		});
 		const routes = [
 			{ filePath: firstRouteFile, pathname: '/first', requestUrl: 'https://example.com/first' },

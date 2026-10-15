@@ -18,7 +18,7 @@ import {
 import { bundleEcoConfigModule, EMITTED_ECO_CONFIG_FILENAME } from '../../../config/server-config-bundle.ts';
 import { resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../../utils/resolve-entry-file.ts';
 import type { AppRuntime } from '../../../config/app-runtime.ts';
-import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { ErrorPageLoaders, StaticRoute } from '../../../types/public-types.ts';
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator.ts';
@@ -40,7 +40,7 @@ export interface ServerStaticBuilderParams {
 	runtime: AppRuntime;
 	staticSiteGenerator: StaticSiteGenerator;
 	serveOptions: ServeOptions;
-	runtimeOrigin: string;
+	runtimeOrigin?: string;
 	/**
 	 * Whether the app requires a server entry bundle for production use.
 	 * When `true`, the build step bundles the server entry file for `ecopages start`.
@@ -49,7 +49,6 @@ export interface ServerStaticBuilderParams {
 	needsServerBundle?: boolean;
 	logger?: ServerStaticBuilderLogger;
 	entryFile?: string;
-	hmrManager?: IHmrManager;
 }
 
 /**
@@ -70,11 +69,9 @@ export class ServerStaticBuilder {
 	private readonly runtime: AppRuntime;
 	private readonly staticSiteGenerator: StaticSiteGenerator;
 	private serveOptions: ServeOptions;
-	private runtimeOrigin: string;
 	private readonly needsServerBundle: boolean;
 	private readonly logger: ServerStaticBuilderLogger;
 	private readonly entryFile: string;
-	private readonly hmrManager?: IHmrManager;
 	private exportPrepared = false;
 
 	constructor({
@@ -86,24 +83,22 @@ export class ServerStaticBuilder {
 		needsServerBundle,
 		logger,
 		entryFile,
-		hmrManager,
 	}: ServerStaticBuilderParams) {
 		this.appConfig = appConfig;
 		this.runtime = runtime;
 		this.staticSiteGenerator = staticSiteGenerator;
 		this.serveOptions = serveOptions;
-		this.runtimeOrigin = runtimeOrigin;
-		this.runtime.origin = runtimeOrigin;
+		if (runtimeOrigin !== undefined) {
+			this.runtime.origin = runtimeOrigin;
+		}
 		this.needsServerBundle = needsServerBundle ?? false;
 		this.logger = logger ?? appLogger;
 		this.entryFile = resolveEntryFile({ entryFile });
-		this.hmrManager = hmrManager;
 	}
 
 	/** Keeps build-time URLs aligned with the server's actual listening port. */
 	setRuntimeBinding(input: { port: number; runtimeOrigin: string }): void {
 		this.serveOptions = { ...this.serveOptions, port: input.port };
-		this.runtimeOrigin = input.runtimeOrigin;
 		this.runtime.origin = input.runtimeOrigin;
 	}
 
@@ -149,11 +144,10 @@ export class ServerStaticBuilder {
 		try {
 			await setupAppRuntimePlugins({
 				appConfig: this.appConfig,
-				runtimeOrigin: this.runtimeOrigin,
 			});
 
-			if (this.hmrManager?.isEnabled()) {
-				attachHmrToIntegrations(this.appConfig, this.hmrManager);
+			if (this.runtime.hmr?.isEnabled()) {
+				attachHmrToIntegrations(this.appConfig, this.runtime.hmr);
 			}
 		} finally {
 			appLogger.debugTimeEnd('refreshRuntimeAssets');

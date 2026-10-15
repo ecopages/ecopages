@@ -45,10 +45,7 @@ export function sealAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildMani
 	return createAppBuildManifest(registrations, mergeBrowserRuntimeManifests(...browserRuntimeManifests));
 }
 
-export async function setupAppRuntimePlugins(options: {
-	appConfig: EcoPagesAppConfig;
-	runtimeOrigin: string;
-}): Promise<void> {
+export async function setupAppRuntimePlugins(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
 	startupTrace.markPhaseStart('setupAppRuntimePlugins');
 
 	const runtime = requireAppRuntime(options.appConfig);
@@ -91,7 +88,6 @@ export async function setupAppRuntimePlugins(options: {
 export async function ensureIntegrationRuntimeReady(options: {
 	appConfig: EcoPagesAppConfig;
 	integrationName: string;
-	runtimeOrigin: string;
 }): Promise<void> {
 	const runtime = requireAppRuntime(options.appConfig);
 
@@ -108,7 +104,6 @@ export async function ensureIntegrationRuntimeReady(options: {
 
 	const activation = (async () => {
 		integration.setConfig(options.appConfig);
-		integration.setRuntimeOrigin(options.runtimeOrigin);
 		await integration.setup();
 	})();
 

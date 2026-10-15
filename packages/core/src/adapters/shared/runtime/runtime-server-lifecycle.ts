@@ -50,8 +50,8 @@ export function attachHmrToIntegrations(appConfig: EcoPagesAppConfig, hmrManager
  * the server. Concurrent first-page renders still join the same coalesced
  * {@link ensureIntegrationRuntimeReady} promise.
  */
-export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig; runtimeOrigin: string }): Promise<void> {
-	const { appConfig, runtimeOrigin } = options;
+export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
+	const { appConfig } = options;
 
 	try {
 		await Promise.all(
@@ -59,7 +59,6 @@ export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig; ru
 				ensureIntegrationRuntimeReady({
 					appConfig,
 					integrationName: integration.name,
-					runtimeOrigin,
 				}),
 			),
 		);
@@ -82,14 +81,15 @@ export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig; ru
 export async function disposeDevResources(options: {
 	projectWatcher: ProjectWatcher | null | undefined;
 	appConfig: EcoPagesAppConfig;
-	hmrManager: IHmrManager | null | undefined;
+	hmrManager?: IHmrManager | null | undefined;
 	bridge: { destroy(): void } | null | undefined;
 	stopPreviewServer: () => Promise<void>;
 }): Promise<void> {
 	const runtime = requireAppRuntime(options.appConfig);
+	const hmrManager = options.hmrManager ?? runtime.hmr;
 	const cleanup = [
 		() => options.projectWatcher?.close(),
-		() => options.hmrManager?.stop(),
+		() => hmrManager?.stop(),
 		() => options.bridge?.destroy(),
 		options.stopPreviewServer,
 		() => Promise.allSettled(runtime.integrationActivations.values()),
@@ -103,6 +103,7 @@ export async function disposeDevResources(options: {
 			errors.push(error);
 		}
 	}
+	runtime.hmr = null;
 	runtime.integrationActivations.clear();
 	runtime.hmrAttachedToIntegrations = false;
 	if (errors.length === 1) throw errors[0];

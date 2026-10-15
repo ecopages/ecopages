@@ -68,7 +68,7 @@ const ROUTE_PRIORITY: Record<RouteKind, number> = {
 };
 
 export class RouteRegistry {
-	readonly origin: string;
+	private readonly fallbackOrigin: string;
 	readonly appConfig: EcoPagesAppConfig;
 	readonly pagesDir: string;
 	readonly templatesExt: readonly string[];
@@ -78,12 +78,19 @@ export class RouteRegistry {
 	private readonly reloadListeners = new Set<() => void>();
 
 	constructor(options: RouteRegistryOptions) {
-		this.origin = options.origin;
+		this.fallbackOrigin = options.origin;
 		this.appConfig = options.appConfig;
+		if (this.appConfig.appRuntime) {
+			this.appConfig.appRuntime.origin = options.origin;
+		}
 		this.pagesDir = options.pagesDir;
 		this.templatesExt = options.templatesExt;
 		this.buildMode = options.buildMode;
 		this.pageModuleAdapter = options.pageModuleAdapter;
+	}
+
+	get origin(): string {
+		return this.appConfig.appRuntime?.origin ?? this.fallbackOrigin;
 	}
 
 	get templateRoutes(): readonly TemplateRoute[] {

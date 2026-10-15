@@ -205,6 +205,35 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		);
 	});
 
+	test('registers script-change handlers on the session and clears runtime.hmr on stop', async () => {
+		const rootDir = createTempRoot('ecopages-hmr-contract-script-handler-session');
+		const scriptPath = path.join(rootDir, 'src', 'counter.script.ts');
+		fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
+		fs.writeFileSync(scriptPath, 'export const count = 1;\n', 'utf8');
+		const config = await finalizeEcoPagesConfig({ rootDir });
+		installBuildQueue(config);
+		const handler = vi.fn();
+
+		const { manager: firstManager } = await create(config);
+		assert.equal(requireAppRuntime(config).hmr, firstManager);
+		firstManager.onScriptEntrypointChanged(handler);
+		await firstManager.registerScriptEntrypoint(scriptPath);
+
+		firstManager.stop();
+		assert.equal(requireAppRuntime(config).hmr, null);
+
+		const { manager: secondManager } = await create(config);
+		assert.equal(requireAppRuntime(config).hmr, secondManager);
+		secondManager.onScriptEntrypointChanged(handler);
+		await secondManager.registerScriptEntrypoint(scriptPath);
+
+		fs.writeFileSync(scriptPath, 'export const count = 2;\n', 'utf8');
+		await secondManager.handleFileChange(scriptPath);
+
+		assert.equal(handler.mock.calls.length, 1);
+		assert.deepEqual(handler.mock.calls[0], [scriptPath]);
+	});
+
 	describe('when the Dev Toolbar runtime fails', () => {
 		test('keeps HMR on and logs when the Dev Toolbar package is not installed', async () => {
 			const rootDir = createTempRoot('ecopages-hmr-contract-toolbar-missing');

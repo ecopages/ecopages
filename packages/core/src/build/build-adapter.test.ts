@@ -229,7 +229,6 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 	const integration = {
 		plugins: [integrationRuntimePlugin],
 		setConfig: vi.fn(() => contributionOrder.push('integration-config')),
-		setRuntimeOrigin: vi.fn(() => contributionOrder.push('integration-origin')),
 		setHmrManager: vi.fn(() => contributionOrder.push('integration-hmr')),
 		setup: vi.fn(async () => {
 			contributionOrder.push('integration-setup');
@@ -243,7 +242,6 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 			integrations: [integration],
 			appRuntime: { buildInputIndex },
 		} as any,
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.deepEqual(contributionOrder, ['processor-setup']);
@@ -258,7 +256,6 @@ test('setupAppRuntimePlugins skips processor and integration setup when runtime 
 	const integration = {
 		plugins: [{ name: 'integration-runtime-plugin', setup() {} }],
 		setConfig: vi.fn(),
-		setRuntimeOrigin: vi.fn(),
 		setHmrManager: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
@@ -273,7 +270,6 @@ test('setupAppRuntimePlugins skips processor and integration setup when runtime 
 				integrationActivations: new Map(),
 			},
 		} as any,
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.equal(processor.setup.mock.calls.length, 0);
@@ -287,7 +283,6 @@ test('ensureIntegrationRuntimeReady activates one integration exactly once', asy
 		name: 'react',
 		plugins: [integrationRuntimePlugin],
 		setConfig: vi.fn(),
-		setRuntimeOrigin: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
 
@@ -301,13 +296,11 @@ test('ensureIntegrationRuntimeReady activates one integration exactly once', asy
 	await ensureIntegrationRuntimeReady({
 		appConfig,
 		integrationName: 'react',
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	await ensureIntegrationRuntimeReady({
 		appConfig,
 		integrationName: 'react',
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.equal(integration.setup.mock.calls.length, 1);
@@ -323,7 +316,6 @@ test('ensureIntegrationRuntimeReady coalesces concurrent callers to one setup', 
 		name: 'react',
 		plugins: [],
 		setConfig: vi.fn(),
-		setRuntimeOrigin: vi.fn(),
 		setup: vi.fn(async () => {
 			await setupGate;
 		}),
@@ -339,12 +331,10 @@ test('ensureIntegrationRuntimeReady coalesces concurrent callers to one setup', 
 	const first = ensureIntegrationRuntimeReady({
 		appConfig,
 		integrationName: 'react',
-		runtimeOrigin: 'http://localhost:3000',
 	});
 	const second = ensureIntegrationRuntimeReady({
 		appConfig,
 		integrationName: 'react',
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.equal(integration.setup.mock.calls.length, 1);
@@ -358,7 +348,6 @@ test('ensureIntegrationRuntimeReady evicts failed activation so a later caller c
 		name: 'react',
 		plugins: [],
 		setConfig: vi.fn(),
-		setRuntimeOrigin: vi.fn(),
 		setup: vi.fn().mockRejectedValueOnce(new Error('setup failed')).mockResolvedValueOnce(undefined),
 	};
 
@@ -374,7 +363,6 @@ test('ensureIntegrationRuntimeReady evicts failed activation so a later caller c
 			ensureIntegrationRuntimeReady({
 				appConfig,
 				integrationName: 'react',
-				runtimeOrigin: 'http://localhost:3000',
 			}),
 		/setup failed/,
 	);
@@ -384,7 +372,6 @@ test('ensureIntegrationRuntimeReady evicts failed activation so a later caller c
 	await ensureIntegrationRuntimeReady({
 		appConfig,
 		integrationName: 'react',
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.equal(integration.setup.mock.calls.length, 2);
@@ -401,7 +388,6 @@ test('setupAppRuntimePlugins skips processor setup in Lit static-render worker t
 	const integration = {
 		plugins: [{ name: 'integration-runtime-plugin', setup() {} }],
 		setConfig: vi.fn(),
-		setRuntimeOrigin: vi.fn(),
 		setHmrManager: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
@@ -416,7 +402,6 @@ test('setupAppRuntimePlugins skips processor setup in Lit static-render worker t
 				integrationActivations: new Map(),
 			},
 		} as any,
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.equal(processor.setup.mock.calls.length, 0);

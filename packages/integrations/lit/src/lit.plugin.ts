@@ -41,6 +41,9 @@ export const PLUGIN_NAME = LIT_PLUGIN_NAME;
 export class LitPlugin extends IntegrationPlugin {
 	renderer = LitRenderer;
 	private renderSession: LitStaticRenderSession | null = null;
+	private handleScriptEntrypointChanged = (scriptPath: string) => {
+		invalidateCustomElementScriptPreload(scriptPath, CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit);
+	};
 
 	constructor(options?: Omit<IntegrationPluginConfig, 'name'>) {
 		super({
@@ -97,14 +100,7 @@ export class LitPlugin extends IntegrationPlugin {
 
 	override setHmrManager(hmrManager: IHmrManager): void {
 		super.setHmrManager(hmrManager);
-
-		if (!this.appConfig) {
-			return;
-		}
-
-		requireAppRuntime(this.appConfig).registeredScriptEntrypointChangeHandlers.push((scriptPath) => {
-			invalidateCustomElementScriptPreload(scriptPath, CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit);
-		});
+		hmrManager.onScriptEntrypointChanged?.(this.handleScriptEntrypointChanged);
 	}
 
 	override async setup(): Promise<void> {
@@ -121,7 +117,7 @@ export class LitPlugin extends IntegrationPlugin {
 		this.renderSession ??= this.createRenderSession();
 		await this.renderSession.ensureWorker({
 			configModulePath: this.appConfig.absolutePaths.config,
-			runtimeOrigin: this.runtimeOrigin,
+			runtimeOrigin: requireAppRuntime(this.appConfig).origin,
 		});
 	}
 

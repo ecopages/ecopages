@@ -350,7 +350,6 @@ describe('IntegrationRenderer', () => {
 		})({
 			appConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;

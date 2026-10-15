@@ -8,7 +8,6 @@ import { injectDevClientRuntimes } from '../../../hmr/dev-client-runtime.ts';
 import type { AppRuntime } from '../../../config/app-runtime.ts';
 import { createAppRuntime } from '../../../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
-import { NoopEntrypointDependencyGraph } from '../../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { ServerAdapterResult } from '../../abstract/server-adapter.ts';
 import type { ApiHandler, ErrorHandler, IHmrManager } from '../../../types/public-types.ts';
@@ -135,9 +134,6 @@ class TestSharedServerAdapter extends SharedServerAdapter<any, ServerAdapterResu
 				loaders: new Map(),
 				processors: new Map(),
 				integrations: [],
-				runtime: {
-					entrypointDependencyGraph: new NoopEntrypointDependencyGraph(),
-				},
 			} as unknown as EcoPagesAppConfig);
 		const runtime: AppRuntime = config.appRuntime ?? createAppRuntime(config);
 		super({

@@ -9,7 +9,6 @@ import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts'
 import type { IClientBridge } from '../types/internal-types.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { requireAppRuntime } from '../config/app-runtime.ts';
-import { getAppModuleLoader } from '../services/module-loading/app-server-module-transpiler.service.ts';
 import {
 	createMockHmrManager,
 	createMockBridge,
@@ -365,7 +364,7 @@ describe('ProjectWatcher', () => {
 		test('should only invalidate server modules for route and server source changes', async () => {
 			const pageFilePath = path.join(Config.absolutePaths.pagesDir, 'about.tsx');
 			const cssFilePath = path.join(Config.absolutePaths.srcDir, 'styles', 'main.css');
-			const moduleLoader = getAppModuleLoader(Config);
+			const moduleLoader = requireAppRuntime(Config).moduleLoader;
 			Config.processors.set('css', stylesheetProcessor(vi.fn(async () => {})));
 			const { emit } = await subscribe();
 
@@ -414,7 +413,7 @@ describe('ProjectWatcher', () => {
 			expect(onRestartRequest).not.toHaveBeenCalled();
 			expect(HmrManager.handleFileChanges).not.toHaveBeenCalled();
 			expect(Bridge.reload).not.toHaveBeenCalled();
-			expect(getAppModuleLoader(Config).getDevelopmentGeneration()).toBe(0);
+			expect(requireAppRuntime(Config).moduleLoader.getDevelopmentGeneration()).toBe(0);
 		});
 
 		test('restarts when a file the config imports changes, even if the entry watcher owns the config', async () => {
@@ -433,16 +432,13 @@ describe('ProjectWatcher', () => {
 		test('marks an unopened page dirty without rebuilding it', async () => {
 			const pageFilePath = path.join(Config.absolutePaths.pagesDir, 'contact.tsx');
 			let imported = false;
-			Config.runtime = {
-				...(Config.runtime ?? {}),
-				appModuleLoader: {
-					importModule: async <T = unknown>() => {
-						imported = true;
-						return {} as T;
-					},
-					invalidateDevelopmentGraph: vi.fn(() => {}),
-					getDevelopmentGeneration: () => 0,
+			requireAppRuntime(Config).moduleLoader = {
+				importModule: async <T = unknown>() => {
+					imported = true;
+					return {} as T;
 				},
+				invalidateDevelopmentGraph: vi.fn(() => {}),
+				getDevelopmentGeneration: () => 0,
 			};
 			const { emit } = await subscribe();
 
@@ -556,7 +552,7 @@ describe('ProjectWatcher', () => {
 		test('applies fifty page edits in one debounce window with one invalidation and one browser update', async () => {
 			vi.useFakeTimers();
 			const { emit } = await subscribe({ changeDebounceMs: 150 });
-			const moduleLoader = getAppModuleLoader(Config);
+			const moduleLoader = requireAppRuntime(Config).moduleLoader;
 
 			for (let index = 0; index < 50; index += 1) {
 				void emit('change', path.join(Config.absolutePaths.pagesDir, `page-${index}.tsx`));
@@ -710,7 +706,7 @@ describe('ProjectWatcher', () => {
 
 					await emit('add', componentFile);
 
-					expect(getAppModuleLoader(Config).getDevelopmentGeneration()).toBe(1);
+					expect(requireAppRuntime(Config).moduleLoader.getDevelopmentGeneration()).toBe(1);
 					expect(HmrManager.handleFileChanges).toHaveBeenCalledWith([path.resolve(componentFile)], {
 						broadcast: true,
 					});

@@ -50,7 +50,6 @@ describe('BrowserBundleService', () => {
 	it('adds the component identity transform to browser bundle builds', async () => {
 		const build = vi.fn(async () => createBuildSuccess({ outputs: [{ path: '/tmp/out/entry.js' }] }));
 		const appConfig = {
-			runtime: {},
 			loaders: new Map(),
 			integrations: [{ name: 'react', extensions: ['.tsx'] }],
 		} as any;
@@ -83,7 +82,6 @@ describe('BrowserBundleService', () => {
 	it('passes grouped entry names to the build executor as named entrypoints', async () => {
 		const build = vi.fn(async () => createBuildSuccess({ outputs: [{ path: '/tmp/out/page-entry.js' }] }));
 		const appConfig = {
-			runtime: {},
 			loaders: new Map(),
 			integrations: [],
 		} as any;
@@ -129,7 +127,7 @@ function setAppBuildAdapterForTest(appConfig: any, adapter: any): void {
 }
 
 function createAppConfig(build: ReturnType<typeof vi.fn>): any {
-	const appConfig = { runtime: {}, loaders: new Map(), integrations: [] } as any;
+	const appConfig = { loaders: new Map(), integrations: [] } as any;
 	setAppBuildAdapterForTest(appConfig, {
 		ownership: 'rolldown',
 		build,

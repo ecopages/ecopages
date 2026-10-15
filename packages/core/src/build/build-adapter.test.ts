@@ -136,7 +136,6 @@ test('sealAppBuildManifest gathers loaders, then processor and integration plugi
 		loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
 		processors: new Map([['processor', processor]]),
 		integrations: [integration],
-		runtime: {},
 	} as any;
 
 	const manifest = sealAppBuildManifest(appConfig);
@@ -170,7 +169,6 @@ test('sealAppBuildManifest reports a plugin an integration registers under a loa
 				loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
 				processors: new Map(),
 				integrations: [integration],
-				runtime: {},
 			} as any),
 		/registered by both Loader "duplicate" and Integration "react"/,
 	);
@@ -203,7 +201,6 @@ test('sealAppBuildManifest merges integration browser runtime manifests', () => 
 		loaders: new Map(),
 		processors: new Map(),
 		integrations: [integrationFor('react', reactManifest), integrationFor('router', routerManifest)],
-		runtime: {},
 	} as any;
 
 	const manifest = sealAppBuildManifest(appConfig);
@@ -271,7 +268,10 @@ test('setupAppRuntimePlugins skips processor and integration setup when runtime 
 			loaders: new Map(),
 			processors: new Map([['processor', processor]]),
 			integrations: [integration],
-			runtime: { runtimeAssetsPrepared: true },
+			appRuntime: {
+				runtimeAssetsPrepared: true,
+				integrationActivations: new Map(),
+			},
 		} as any,
 		runtimeOrigin: 'http://localhost:3000',
 	});
@@ -293,6 +293,9 @@ test('ensureIntegrationRuntimeReady activates one integration exactly once', asy
 
 	const appConfig = {
 		integrations: [integration],
+		appRuntime: {
+			integrationActivations: new Map(),
+		},
 	} as any;
 
 	await ensureIntegrationRuntimeReady({
@@ -308,7 +311,7 @@ test('ensureIntegrationRuntimeReady activates one integration exactly once', asy
 	});
 
 	assert.equal(integration.setup.mock.calls.length, 1);
-	assert.ok(appConfig.runtime?.integrationActivations?.has('react'));
+	assert.ok(appConfig.appRuntime.integrationActivations.has('react'));
 });
 
 test('ensureIntegrationRuntimeReady coalesces concurrent callers to one setup', async () => {
@@ -328,6 +331,9 @@ test('ensureIntegrationRuntimeReady coalesces concurrent callers to one setup', 
 
 	const appConfig = {
 		integrations: [integration],
+		appRuntime: {
+			integrationActivations: new Map(),
+		},
 	} as any;
 
 	const first = ensureIntegrationRuntimeReady({
@@ -358,6 +364,9 @@ test('ensureIntegrationRuntimeReady evicts failed activation so a later caller c
 
 	const appConfig = {
 		integrations: [integration],
+		appRuntime: {
+			integrationActivations: new Map(),
+		},
 	} as any;
 
 	await assert.rejects(
@@ -370,7 +379,7 @@ test('ensureIntegrationRuntimeReady evicts failed activation so a later caller c
 		/setup failed/,
 	);
 
-	assert.equal(appConfig.runtime?.integrationActivations?.has('react'), false);
+	assert.equal(appConfig.appRuntime.integrationActivations.has('react'), false);
 
 	await ensureIntegrationRuntimeReady({
 		appConfig,
@@ -379,7 +388,7 @@ test('ensureIntegrationRuntimeReady evicts failed activation so a later caller c
 	});
 
 	assert.equal(integration.setup.mock.calls.length, 2);
-	assert.ok(appConfig.runtime?.integrationActivations?.has('react'));
+	assert.ok(appConfig.appRuntime.integrationActivations.has('react'));
 });
 
 test('setupAppRuntimePlugins skips processor setup in Lit static-render worker threads', async () => {
@@ -402,6 +411,10 @@ test('setupAppRuntimePlugins skips processor setup in Lit static-render worker t
 			loaders: new Map(),
 			processors: new Map([['processor', processor]]),
 			integrations: [integration],
+			appRuntime: {
+				runtimeAssetsPrepared: false,
+				integrationActivations: new Map(),
+			},
 		} as any,
 		runtimeOrigin: 'http://localhost:3000',
 	});

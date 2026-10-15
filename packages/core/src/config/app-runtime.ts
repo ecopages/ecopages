@@ -4,16 +4,25 @@ import { BuildInputDependencyIndex, seedProcessorWatchPaths } from '../build/cac
 import type { PagesUnifiedGraphCacheManifest } from '../build/cache/pages-unified-graph-build.ts';
 import { createAppBuildManifest, type AppBuildManifest } from '../build/contracts/build-manifest.ts';
 import { BuildQueue } from '../build/runtime/build-queue.ts';
-import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
-import type { SessionPageBrowserGraphCache } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
-import { getAppPageCacheService, type PageCacheService } from '../services/cache/page-cache-service.ts';
-import { getAppModuleLoader } from '../services/module-loading/app-server-module-transpiler.service.ts';
+import {
+	createHtmlPageModuleScriptState,
+	type HtmlPageModuleScriptState,
+} from '../html-pages/html-page-module-scripts.ts';
+import { SessionPageBrowserGraphCache } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
+import type { PageCacheService } from '../services/cache/page-cache-service.ts';
+import { createAppModuleLoader } from '../services/module-loading/app-server-module-transpiler.service.ts';
 import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
 import type { CollectionServerBuildArtifact } from '../services/module-loading/collection-server-module-build.service.ts';
 import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
-import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
+import {
+	NoopEntrypointDependencyGraph,
+	type EntrypointDependencyGraph,
+} from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { IHmrManager } from '../types/public-types.ts';
+
+/** Integration hook for registered `dependencies.scripts` entrypoint changes in dev. */
+export type RegisteredScriptEntrypointChangeHandler = (filePath: string) => void | boolean | Promise<void | boolean>;
 
 /**
  * The counter bumped when server modules are marked stale.
@@ -40,7 +49,7 @@ export class ServerInvalidationState {
  * @remarks
  * `hmr` stays `null`. Watch mode still keeps its manager on the server adapter. `origin` starts as `baseUrl`
  * and follows the listening origin the route renderer and static builder bind. `pageCache` stays `null`
- * until `registerAppPageCacheService` stores one.
+ * until the server adapter stores one.
  */
 export interface AppRuntime {
 	buildAdapter: BuildAdapter;
@@ -56,6 +65,10 @@ export interface AppRuntime {
 	collectionArtifacts: Map<string, CollectionServerBuildArtifact>;
 	pageCache: PageCacheService | null;
 	integrationActivations: Map<string, Promise<void>>;
+	runtimeAssetsPrepared: boolean;
+	hmrAttachedToIntegrations: boolean;
+	registeredScriptEntrypointChangeHandlers: RegisteredScriptEntrypointChangeHandler[];
+	htmlPageModuleScripts: HtmlPageModuleScriptState;
 	origin: string;
 	hmr: IHmrManager | null;
 }
@@ -80,11 +93,10 @@ export function requireAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
  * Builds the one {@link AppRuntime} for `appConfig` and stores it on the config.
  *
  * @remarks
- * Finalization calls this after the entrypoint graph is installed.
- * A second call returns that same object. The module loader is created before the runtime is stored:
- * it reads the server-invalidation counter when a generation is requested, not while it is constructed.
- * A later `installBuildQueue` or `setAppEntrypointDependencyGraph` replaces the matching field here,
- * because startup and the HMR manager install those after finalization.
+ * Finalization calls this once. A second call returns that same object. The module loader is
+ * created before the runtime is stored: it reads the server-invalidation counter when a generation
+ * is requested, not while it is constructed. Startup or the HMR manager may later replace
+ * `buildQueue` or `entrypointDependencyGraph` on the returned runtime.
  *
  * @throws When the config was not assembled by finalization.
  */
@@ -93,9 +105,7 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		return appConfig.appRuntime;
 	}
 
-	const installed = appConfig.runtime;
-	const entrypointDependencyGraph = installed?.entrypointDependencyGraph;
-	if (!entrypointDependencyGraph || !appConfig.loaders || !appConfig.processors || !appConfig.integrations) {
+	if (!appConfig.loaders || !appConfig.processors || !appConfig.integrations) {
 		throw new Error(MISSING_APP_RUNTIME);
 	}
 
@@ -103,13 +113,6 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 	const buildQueue = new BuildQueue(buildAdapter);
 	const buildInputIndex = new BuildInputDependencyIndex();
 	seedProcessorWatchPaths(appConfig, buildInputIndex);
-	const integrationActivations = installed.integrationActivations ?? new Map<string, Promise<void>>();
-	const routeModuleBuildCaches = new Map<string, RouteModuleBuildCache>();
-	const collectionArtifacts = new Map<string, CollectionServerBuildArtifact>();
-	appConfig.runtime = {
-		...installed,
-		integrationActivations,
-	};
 
 	const runtime: AppRuntime = {
 		buildAdapter,
@@ -117,14 +120,18 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		buildQueue,
 		buildInputIndex,
 		pagesUnifiedGraphManifest: null,
-		pageBrowserGraphSession: getAppPageBrowserGraphSession(appConfig, buildInputIndex),
+		pageBrowserGraphSession: new SessionPageBrowserGraphCache(buildInputIndex),
 		serverInvalidation: new ServerInvalidationState(),
-		entrypointDependencyGraph,
-		moduleLoader: getAppModuleLoader(appConfig),
-		routeModuleBuildCaches,
-		collectionArtifacts,
-		pageCache: getAppPageCacheService(appConfig),
-		integrationActivations,
+		entrypointDependencyGraph: new NoopEntrypointDependencyGraph(),
+		moduleLoader: createAppModuleLoader(appConfig),
+		routeModuleBuildCaches: new Map(),
+		collectionArtifacts: new Map(),
+		pageCache: null,
+		integrationActivations: new Map(),
+		runtimeAssetsPrepared: false,
+		hmrAttachedToIntegrations: false,
+		registeredScriptEntrypointChangeHandlers: [],
+		htmlPageModuleScripts: createHtmlPageModuleScriptState(),
 		origin: appConfig.baseUrl,
 		hmr: null,
 	};

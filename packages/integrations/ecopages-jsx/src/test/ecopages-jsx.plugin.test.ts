@@ -9,6 +9,7 @@ import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 import { resolveMdxCompilerOptions } from '../ecopages-jsx-mdx.ts';
 import { RADIANT_INSTALL_HYDRATOR_FILEPATH } from '../resolve-radiant-install-hydrator.ts';
 import { invalidateRadiantRegisteredScriptSsrRegistration } from '../radiant-registered-script-ssr-invalidation.ts';
+import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
 import type { EcoComponent, EcoPageFile, EcoPagesAppConfig, IHmrManager } from '@ecopages/core';
 import { createTestAppConfig } from '@ecopages/testing';
 
@@ -173,7 +174,7 @@ test('EcopagesJsxPlugin registers Radiant SSR invalidation when Radiant is enabl
 
 	plugin.setHmrManager(createHmrManagerStub());
 
-	assert.deepEqual(appConfig.runtime?.registeredScriptEntrypointChangeHandlers, [
+	assert.deepEqual(requireAppRuntime(appConfig).registeredScriptEntrypointChangeHandlers, [
 		invalidateRadiantRegisteredScriptSsrRegistration,
 	]);
 });
@@ -185,7 +186,7 @@ test('EcopagesJsxPlugin skips Radiant SSR invalidation registration when Radiant
 
 	plugin.setHmrManager(createHmrManagerStub());
 
-	assert.equal(appConfig.runtime?.registeredScriptEntrypointChangeHandlers, undefined);
+	assert.deepEqual(requireAppRuntime(appConfig).registeredScriptEntrypointChangeHandlers, []);
 });
 
 test('configured MDX compiler accepts remark-gfm on fenced code content', async () => {

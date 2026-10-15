@@ -5,6 +5,7 @@
  */
 
 import path from 'node:path';
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { CacheEntry, CacheResult, CacheStore, CacheStrategy, RenderResult } from './cache.types.ts';
@@ -471,39 +472,11 @@ export function getCacheControlHeader(strategy: CacheStrategy | 'disabled'): str
 	return 'no-store';
 }
 
-const pageCacheByAppConfig = new WeakMap<EcoPagesAppConfig, PageCacheService>();
-
-/**
- * Registers the page cache service for one app config instance.
- *
- * @remarks
- * An assembled app runtime stores the same value, including `null` when caching is off.
- */
-export function registerAppPageCacheService(appConfig: EcoPagesAppConfig, service: PageCacheService | null): void {
-	if (appConfig.appRuntime) {
-		appConfig.appRuntime.pageCache = service;
-	}
-
-	if (service) {
-		pageCacheByAppConfig.set(appConfig, service);
-		return;
-	}
-
-	pageCacheByAppConfig.delete(appConfig);
-}
-
-/**
- * Returns the registered page cache service for one app config, if any.
- */
-export function getAppPageCacheService(appConfig: EcoPagesAppConfig): PageCacheService | null {
-	return pageCacheByAppConfig.get(appConfig) ?? null;
-}
-
 /**
  * Clears rendered HTML cache entries for one app during development invalidation.
  */
 export async function clearAppPageCache(appConfig: EcoPagesAppConfig): Promise<void> {
-	await getAppPageCacheService(appConfig)?.clear();
+	await requireAppRuntime(appConfig).pageCache?.clear();
 }
 
 /**
@@ -513,5 +486,5 @@ export async function invalidateAppPageCacheBySourcePaths(
 	appConfig: EcoPagesAppConfig,
 	sourcePaths: readonly string[],
 ): Promise<number> {
-	return (await getAppPageCacheService(appConfig)?.invalidateBySourceDependencyPaths(sourcePaths)) ?? 0;
+	return (await requireAppRuntime(appConfig).pageCache?.invalidateBySourceDependencyPaths(sourcePaths)) ?? 0;
 }

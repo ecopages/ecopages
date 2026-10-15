@@ -118,10 +118,7 @@ export class ServerStaticBuilder {
 			this.appConfig.absolutePaths?.distDir ?? path.join(this.appConfig.rootDir, this.appConfig.distDir);
 		fileSystem.ensureDir(exportDir, true);
 
-		this.appConfig.runtime = {
-			...(this.appConfig.runtime ?? {}),
-			runtimeAssetsPrepared: false,
-		};
+		this.runtime.runtimeAssetsPrepared = false;
 
 		const srcPublicDir = path.join(
 			this.appConfig.rootDir,

@@ -12,6 +12,8 @@ import type {
 import { registerDiscoveredDependencies } from '../../../eco/discovered-dependencies.ts';
 import { BuildInputDependencyIndex } from '../../../build/cache/build-input-dependency-index.ts';
 import { requireAppRuntime, type AppRuntime } from '../../../config/app-runtime.ts';
+import { SessionPageBrowserGraphCache } from '../page-browser-graph/page-browser-graph-session.ts';
+import { NoopEntrypointDependencyGraph } from '../../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
 import type {
 	AssetDefinition,
@@ -71,6 +73,8 @@ function createOrchestrator(
 		integrations: options.integrations ?? [],
 		appRuntime: {
 			buildInputIndex: new BuildInputDependencyIndex(),
+			pageBrowserGraphSession: new SessionPageBrowserGraphCache(),
+			entrypointDependencyGraph: new NoopEntrypointDependencyGraph(),
 		} as AppRuntime,
 		...options.appConfig,
 	} as unknown as EcoPagesAppConfig;

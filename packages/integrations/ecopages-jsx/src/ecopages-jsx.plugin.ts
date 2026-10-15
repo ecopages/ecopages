@@ -4,6 +4,7 @@ import {
 	type IntegrationPluginConfig,
 } from '@ecopages/core/plugins/integration-plugin';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
+import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
 import type { EcoPagesAppConfig, IHmrManager } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
@@ -180,10 +181,9 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 			return;
 		}
 
-		const runtime = this.appConfig.runtime ?? {};
-		this.appConfig.runtime = runtime;
-		runtime.registeredScriptEntrypointChangeHandlers ??= [];
-		runtime.registeredScriptEntrypointChangeHandlers.push(invalidateRadiantRegisteredScriptSsrRegistration);
+		requireAppRuntime(this.appConfig).registeredScriptEntrypointChangeHandlers.push(
+			invalidateRadiantRegisteredScriptSsrRegistration,
+		);
 	}
 
 	/**

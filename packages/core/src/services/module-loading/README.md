@@ -16,7 +16,7 @@ Call site (route scan, renderer, SSG, API)
             └─ Rolldown per-page build → dynamic import of transpiled output
 ```
 
-`ServerModuleTranspiler` is a thin wrapper that injects `rootDir` and optional default plugins into the same `PageModuleImportService` path. App code should prefer `getAppModuleLoader(appConfig)` or `getAppServerModuleTranspiler(appConfig)`.
+`ServerModuleTranspiler` is a thin wrapper that injects `rootDir` and optional default plugins into the same `PageModuleImportService` path. App code should prefer `requireAppRuntime(appConfig).moduleLoader` or `createAppServerModuleTranspiler(appConfig)`.
 
 Every server import goes through the Ecopages build pipeline. HTML Pages can still compile in process. Bun and Node both use that pipeline.
 

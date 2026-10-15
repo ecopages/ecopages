@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'vitest';
 import { prepareHmrFileChange } from './hmr-file-change-prep.ts';
+import { requireAppRuntime } from '../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
-import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 
 let appConfig: EcoPagesAppConfig;
@@ -12,7 +12,7 @@ beforeEach(async () => {
 
 describe('prepareHmrFileChange', () => {
 	test('reports affected graph identities and invalidates dependent records', async () => {
-		const session = getAppPageBrowserGraphSession(appConfig);
+		const session = requireAppRuntime(appConfig).pageBrowserGraphSession;
 		const sharedLayout = '/app/src/layouts/root.tsx';
 
 		await session.resolveGraph(

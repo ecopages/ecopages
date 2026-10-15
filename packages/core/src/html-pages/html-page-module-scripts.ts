@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
+import { requireAppRuntime } from '../config/app-runtime.ts';
 import { RESOLVED_ASSETS_DIR } from '../config/constants.ts';
 import { isCssImport } from '../plugins/component-import-discovery.ts';
 import { stripsSideEffectStylesheetImports } from '../plugins/eco-component-meta-plugin.ts';
@@ -27,7 +28,20 @@ export type HtmlPageModuleScriptBuildInputs = {
 	fingerprint: string;
 };
 
-const builds = new WeakMap<EcoPagesAppConfig, ModuleScriptBuild>();
+/**
+ * Per-app HTML Page module-script build and scan state owned by {@link AppRuntime}.
+ */
+export type HtmlPageModuleScriptState = {
+	build: ModuleScriptBuild | null;
+	scans: Map<string, ModuleScriptScan>;
+};
+
+export function createHtmlPageModuleScriptState(): HtmlPageModuleScriptState {
+	return {
+		build: null,
+		scans: new Map(),
+	};
+}
 
 /**
  * Returns the URL of every `<script type="module">` of every HTML Page and the Html shell, keyed
@@ -50,7 +64,8 @@ const builds = new WeakMap<EcoPagesAppConfig, ModuleScriptBuild>();
  * kept, so the next render builds again.
  */
 export function getHtmlPageModuleScriptUrls(appConfig: EcoPagesAppConfig): Promise<ReadonlyMap<string, string>> {
-	const previous = builds.get(appConfig);
+	const state = requireAppRuntime(appConfig).htmlPageModuleScripts;
+	const previous = state.build;
 	if (previous && isProductionRuntime()) {
 		return previous.urls;
 	}
@@ -65,9 +80,9 @@ export function getHtmlPageModuleScriptUrls(appConfig: EcoPagesAppConfig): Promi
 		files: inputs.files,
 		urls: buildModuleScripts(appConfig, inputs.scripts),
 	};
-	builds.set(appConfig, build);
+	state.build = build;
 	build.urls.catch(() => {
-		if (builds.get(appConfig) === build) builds.delete(appConfig);
+		if (state.build === build) state.build = null;
 	});
 	return build.urls;
 }
@@ -97,11 +112,11 @@ export function setPrebuiltHtmlPageModuleScriptUrls(
 	urls: ReadonlyMap<string, string>,
 ): void {
 	const inputs = collectHtmlPageModuleScriptBuildInputs(appConfig);
-	builds.set(appConfig, {
+	requireAppRuntime(appConfig).htmlPageModuleScripts.build = {
 		fingerprint: inputs.fingerprint,
 		files: inputs.files,
 		urls: Promise.resolve(new Map(urls)),
-	});
+	};
 }
 
 const SCRIPT_FILE = /\.[cm]?[jt]sx?$/;
@@ -119,8 +134,6 @@ type ModuleStatement = {
 	exportKind?: string;
 	exported?: unknown;
 };
-
-const scans = new WeakMap<EcoPagesAppConfig, Map<string, ModuleScriptScan>>();
 
 function isTypeOnly(statement: ModuleStatement): boolean {
 	const specifiers = statement.specifiers ?? [];
@@ -216,11 +229,7 @@ export function scanModuleScript(
 	script: string,
 ): { files: string[]; stylesheetImport?: StylesheetImport } {
 	const entry = path.resolve(script);
-	let cache = scans.get(appConfig);
-	if (!cache) {
-		cache = new Map();
-		scans.set(appConfig, cache);
-	}
+	const cache = requireAppRuntime(appConfig).htmlPageModuleScripts.scans;
 	const previous = cache.get(entry);
 	if (previous && previous.fingerprint === fingerprint(previous.files)) return previous;
 

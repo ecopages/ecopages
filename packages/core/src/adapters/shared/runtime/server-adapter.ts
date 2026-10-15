@@ -8,7 +8,7 @@ import { requireBuildQueue } from '../../../build/runtime/build-queue.ts';
 import { runWithBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
 import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { MemoryCacheStore } from '../../../services/cache/memory-cache-store.ts';
-import { PageCacheService, registerAppPageCacheService } from '../../../services/cache/page-cache-service.ts';
+import { PageCacheService } from '../../../services/cache/page-cache-service.ts';
 import { SchemaValidationService } from '../../../services/validation/schema-validation-service.ts';
 import { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator.ts';
 import { ServerStaticBuilder } from './server-static-builder.ts';
@@ -21,7 +21,7 @@ import { createRenderContext } from './render-context.ts';
 import { ApiRequestPipeline } from '../http/api-request-pipeline.ts';
 import { isHtmlResponse, withUncachedDevHtml } from '../hmr/hmr-html-response.ts';
 import type { EcoPageFile } from '../../../types/public-types.ts';
-import { getAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
+import { createAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir } from '../../../utils/resolve-work-dir.ts';
 import type { RouteRegistryPageModuleAdapter } from '../../../router/server/route-registry.ts';
 import type {
@@ -314,7 +314,7 @@ export abstract class SharedServerAdapter<
 
 		const service = this.createSharedPageCacheServiceFromConfig();
 		this.sharedPageCacheService = service;
-		registerAppPageCacheService(this.appConfig, service);
+		this.runtime.pageCache = service;
 		return service;
 	}
 
@@ -323,7 +323,7 @@ export abstract class SharedServerAdapter<
 	}
 
 	protected getRenderContext(): RenderContext {
-		const serverModuleTranspiler = getAppServerModuleTranspiler(this.appConfig);
+		const serverModuleTranspiler = createAppServerModuleTranspiler(this.appConfig);
 
 		return createRenderContext({
 			integrations: this.appConfig.integrations,

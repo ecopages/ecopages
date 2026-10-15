@@ -4,11 +4,7 @@ import { onTestFinished, vi, type Mock } from 'vitest';
 import { ProjectWatcher, type ProjectWatcherConfig } from './project-watcher.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
 import type { ResolvedHmrEntrypoint } from '../types/public-types.ts';
-import {
-	InMemoryEntrypointDependencyGraph,
-	setAppEntrypointDependencyGraph,
-} from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
-import { getAppModuleLoader } from '../services/module-loading/app-server-module-transpiler.service.ts';
+import { InMemoryEntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import { requireAppRuntime } from '../config/app-runtime.ts';
 import type { IClientBridge } from '../types/internal-types.ts';
 
@@ -91,11 +87,8 @@ export const createMockBridge = (): IClientBridge =>
  * that records dependencies.
  */
 export function installDevRuntimeState(appConfig: EcoPagesAppConfig): void {
-	getAppModuleLoader(appConfig);
-	setAppEntrypointDependencyGraph(
-		appConfig,
-		new InMemoryEntrypointDependencyGraph(requireAppRuntime(appConfig).buildInputIndex),
-	);
+	const runtime = requireAppRuntime(appConfig);
+	runtime.entrypointDependencyGraph = new InMemoryEntrypointDependencyGraph(runtime.buildInputIndex);
 }
 
 type FakeChokidarListener = (...args: unknown[]) => unknown;

@@ -8,9 +8,9 @@ import { createAppBuildManifest } from '../../build/contracts/build-manifest.ts'
 import { BuildQueue } from '../../build/runtime/build-queue.ts';
 import type { BuildOptions } from '../../build/contracts/build-contracts.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
-import { ServerInvalidationState } from '../../config/app-runtime.ts';
+import { requireAppRuntime, ServerInvalidationState } from '../../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
+import { createAppModuleLoader } from './app-server-module-transpiler.service.ts';
 import { buildCollectionServerModule } from './collection-server-module-build.service.ts';
 import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 
@@ -20,6 +20,7 @@ function attachCollectionTestRuntime(appConfig: EcoPagesAppConfig, buildQueue: B
 		buildQueue: buildQueue as BuildQueue,
 		collectionArtifacts: new Map(),
 		serverInvalidation: new ServerInvalidationState(),
+		moduleLoader: createAppModuleLoader(appConfig),
 	} as EcoPagesAppConfig['appRuntime'];
 	return appConfig;
 }
@@ -144,7 +145,7 @@ describe('buildCollectionServerModule', () => {
 		assert.equal(second, first);
 		assert.equal(buildCount, 1);
 
-		getAppModuleLoader(appConfig).invalidateDevelopmentGraph();
+		requireAppRuntime(appConfig).moduleLoader.invalidateDevelopmentGraph();
 		const third = await build();
 
 		assert.equal(buildCount, 2);

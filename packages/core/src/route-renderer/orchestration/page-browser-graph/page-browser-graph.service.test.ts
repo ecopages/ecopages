@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import { createAppRuntime } from '../../../config/app-runtime.ts';
+import { createAppRuntime, requireAppRuntime } from '../../../config/app-runtime.ts';
 import { appLogger } from '../../../global/app-logger.ts';
-import { NoopEntrypointDependencyGraph } from '../../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type {
 	AssetDefinition,
@@ -12,7 +11,6 @@ import type {
 import {
 	collectPageBrowserGraphDependencyPaths,
 	createPageBrowserGraphEntryFingerprint,
-	getAppPageBrowserGraphSession,
 	SessionPageBrowserGraphCache,
 } from './page-browser-graph-session.ts';
 import { PageBrowserGraphService } from './page-browser-graph.service.ts';
@@ -34,9 +32,6 @@ beforeEach(() => {
 				browserRuntimeManifest: { runtimeGlobals: [], hmrRequirements: [] },
 			},
 		],
-		runtime: {
-			entrypointDependencyGraph: new NoopEntrypointDependencyGraph(),
-		},
 		absolutePaths: {
 			pagesDir: '/app/pages',
 		},
@@ -685,7 +680,7 @@ test('does not commit an in-flight graph after one of its watch paths changes', 
 
 	const staleBuild = service.resolvePageBrowserGraph(input);
 	await firstBuildStarted;
-	getAppPageBrowserGraphSession(appConfig).invalidateByFilePath(contentFile);
+	requireAppRuntime(appConfig).pageBrowserGraphSession.invalidateByFilePath(contentFile);
 	releaseFirstBuild?.();
 	await staleBuild;
 

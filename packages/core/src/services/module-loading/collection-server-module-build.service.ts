@@ -9,7 +9,6 @@ import { recordCollectionBuild } from '../../diagnostics/request-pipeline-metric
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
 import { getBuildEntryOutput } from '../../build/build-graph.ts';
 
 export type CollectionServerBuildArtifact = {
@@ -62,13 +61,14 @@ export async function buildCollectionServerModule(input: {
 		splitting: false,
 		externalPackages: true,
 	});
-	const invalidationVersion = getAppModuleLoader(appConfig).getDevelopmentGeneration();
+	const runtime = requireAppRuntime(appConfig);
+	const invalidationVersion = runtime.moduleLoader.getDevelopmentGeneration();
 	const buildIdentity = createCollectionBuildIdentity(
 		createBuildRequestIdentity(buildRequest),
 		sourceFilePath,
 		ownedSourcePaths,
 	);
-	const artifacts = requireAppRuntime(appConfig).collectionArtifacts;
+	const artifacts = runtime.collectionArtifacts;
 	const existing = artifacts.get(collectionName);
 	if (existing?.buildIdentity === buildIdentity && existing?.invalidationVersion === invalidationVersion) {
 		return existing;

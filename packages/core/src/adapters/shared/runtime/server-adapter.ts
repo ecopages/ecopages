@@ -5,7 +5,8 @@ import { RouteRendererFactory } from '../../../route-renderer/route-renderer.ts'
 import { RouteRegistry } from '../../../router/server/route-registry.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
 import { requireBuildQueue } from '../../../build/runtime/build-queue.ts';
-import { getAppBuildInputIndex, runWithBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
+import { runWithBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { MemoryCacheStore } from '../../../services/cache/memory-cache-store.ts';
 import { PageCacheService, registerAppPageCacheService } from '../../../services/cache/page-cache-service.ts';
 import { SchemaValidationService } from '../../../services/validation/schema-validation-service.ts';
@@ -95,7 +96,7 @@ export abstract class SharedServerAdapter<
 			signal: this.devStaticRoutePrewarmAbort.signal,
 			renderPath: (pathname: string) =>
 				requireBuildQueue(this.appConfig).withRequestScope(() =>
-					runWithBuildInputIndex(getAppBuildInputIndex(this.appConfig), async () => {
+					runWithBuildInputIndex(requireAppRuntime(this.appConfig).buildInputIndex, async () => {
 						const response = await this.routeHandler.handleResponse(
 							new Request(new URL(pathname, runtimeOrigin).toString(), { method: 'GET' }),
 						);
@@ -299,7 +300,11 @@ export abstract class SharedServerAdapter<
 				? new MemoryCacheStore({ maxEntries: cacheConfig?.maxEntries })
 				: cacheConfig.store;
 
-		return new PageCacheService({ store, enabled: true, dependencyIndex: getAppBuildInputIndex(this.appConfig) });
+		return new PageCacheService({
+			store,
+			enabled: true,
+			dependencyIndex: requireAppRuntime(this.appConfig).buildInputIndex,
+		});
 	}
 
 	private getOrCreateSharedPageCacheService(): PageCacheService | null {
@@ -404,7 +409,7 @@ export abstract class SharedServerAdapter<
 	 */
 	public async handleSharedRequest(request: Request, context: SharedRequestContext): Promise<Response> {
 		return requireBuildQueue(this.appConfig).withRequestScope(() =>
-			runWithBuildInputIndex(getAppBuildInputIndex(this.appConfig), () =>
+			runWithBuildInputIndex(requireAppRuntime(this.appConfig).buildInputIndex, () =>
 				startupTrace.traceFirstRequest(request, async () => {
 					const devClientResponse = await this.tryHandleSharedDevClientRequest(request, context);
 					if (devClientResponse) {

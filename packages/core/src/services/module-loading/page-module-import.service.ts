@@ -2,7 +2,7 @@ import { collectBuildOutputImports, getBuildEntryOutput } from '../../build/buil
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
-import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 import {
 	defaultBuildAdapter,
 	type BuildExecutor,
@@ -346,7 +346,7 @@ export class PageModuleImportService {
 			return;
 		}
 
-		getAppBuildInputIndex(this.appConfig).register(
+		requireAppRuntime(this.appConfig).buildInputIndex.register(
 			{ consumer: 'server-route-module', key: path.resolve(filePath) },
 			dependencyPaths,
 		);

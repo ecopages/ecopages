@@ -4,13 +4,25 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import type { BuildAdapter, BuildExecutor } from '../../build/build-adapter.ts';
+import { createAppBuildManifest } from '../../build/contracts/build-manifest.ts';
 import { BuildQueue } from '../../build/runtime/build-queue.ts';
 import type { BuildOptions } from '../../build/contracts/build-contracts.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
+import { ServerInvalidationState } from '../../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { getAppModuleLoader } from './app-server-module-transpiler.service.ts';
 import { buildCollectionServerModule } from './collection-server-module-build.service.ts';
 import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
+
+function attachCollectionTestRuntime(appConfig: EcoPagesAppConfig, buildQueue: BuildExecutor): EcoPagesAppConfig {
+	appConfig.appRuntime = {
+		buildManifest: createAppBuildManifest([]),
+		buildQueue: buildQueue as BuildQueue,
+		collectionArtifacts: new Map(),
+		serverInvalidation: new ServerInvalidationState(),
+	} as EcoPagesAppConfig['appRuntime'];
+	return appConfig;
+}
 
 describe('buildCollectionServerModule', () => {
 	let rootDir: string;
@@ -52,12 +64,14 @@ describe('buildCollectionServerModule', () => {
 			lanes.push(`${lane ?? 'build'}:${String(Object.values(options.entrypoints)[0])}`);
 			return queueBuild(options, lane);
 		};
-		const appConfig = {
-			rootDir,
-			absolutePaths: { workDir: path.join(rootDir, '.eco') },
-			integrations: [],
-			runtime: { buildQueue: queue },
-		} as unknown as EcoPagesAppConfig;
+		const appConfig = attachCollectionTestRuntime(
+			{
+				rootDir,
+				absolutePaths: { workDir: path.join(rootDir, '.eco') },
+				integrations: [],
+			} as unknown as EcoPagesAppConfig,
+			queue,
+		);
 
 		const result = await Promise.race([
 			queue.build({ environment: 'server', entrypoints: [parentEntry] }),
@@ -80,14 +94,14 @@ describe('buildCollectionServerModule', () => {
 				return adapter.build(options);
 			},
 		};
-		const appConfig = {
-			rootDir,
-			absolutePaths: { workDir: path.join(rootDir, '.eco') },
-			integrations: [],
-			runtime: {
-				buildQueue: routeModuleExecutor,
-			},
-		} as unknown as EcoPagesAppConfig;
+		const appConfig = attachCollectionTestRuntime(
+			{
+				rootDir,
+				absolutePaths: { workDir: path.join(rootDir, '.eco') },
+				integrations: [],
+			} as unknown as EcoPagesAppConfig,
+			routeModuleExecutor,
+		);
 
 		const artifact = await buildCollectionServerModule({
 			appConfig,
@@ -109,19 +123,19 @@ describe('buildCollectionServerModule', () => {
 
 		const adapter = new RolldownBuildAdapter();
 		let buildCount = 0;
-		const appConfig = {
-			rootDir,
-			absolutePaths: { workDir: path.join(rootDir, '.eco') },
-			integrations: [],
-			runtime: {
-				buildQueue: {
-					build(options: BuildOptions) {
-						buildCount += 1;
-						return adapter.build(options);
-					},
+		const appConfig = attachCollectionTestRuntime(
+			{
+				rootDir,
+				absolutePaths: { workDir: path.join(rootDir, '.eco') },
+				integrations: [],
+			} as unknown as EcoPagesAppConfig,
+			{
+				build(options: BuildOptions) {
+					buildCount += 1;
+					return adapter.build(options);
 				},
 			},
-		} as unknown as EcoPagesAppConfig;
+		);
 		const build = () =>
 			buildCollectionServerModule({ appConfig, collectionName: 'posts', sourceFilePath, ownedSourcePaths: [] });
 

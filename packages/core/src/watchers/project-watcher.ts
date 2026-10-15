@@ -23,7 +23,8 @@ import {
 	resolveAdditionalWatchPath,
 } from '../utils/additional-watch-paths.ts';
 import { resolveWorkspacePackageWatchRoots, isWorkspacePackageFile } from './workspace-package-watch-roots.ts';
-import { getAppBuildInputIndex } from '../build/cache/build-input-dependency-index.ts';
+import { seedProcessorWatchPaths } from '../build/cache/build-input-dependency-index.ts';
+import { requireAppRuntime } from '../config/app-runtime.ts';
 import { copyRuntimePublicFile } from '../adapters/shared/runtime/copy-runtime-public-dir.ts';
 
 /**
@@ -432,7 +433,8 @@ export class ProjectWatcher {
 			return this.waitForWatcherReady();
 		}
 
-		const buildInputIndex = getAppBuildInputIndex(this.appConfig);
+		const buildInputIndex = requireAppRuntime(this.appConfig).buildInputIndex;
+		seedProcessorWatchPaths(this.appConfig, buildInputIndex);
 		const srcDir = this.appConfig.absolutePaths.srcDir;
 		const literalPaths = new Set<string>([srcDir]);
 		const { pagesDir, componentsDir, includesDir, layoutsDir, publicDir } = this.appConfig.absolutePaths;

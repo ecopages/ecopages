@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { hashAppConfigFile } from '../../build/cache/app-config-hash.ts';
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { RouteModuleBuildCache } from './route-module-build-cache.store.ts';
@@ -15,20 +16,6 @@ export function getServerModuleBuildCacheOutdir(appConfig: EcoPagesAppConfig): s
 	return path.join(resolveInternalExecutionDir(appConfig), '.server-modules');
 }
 
-function getRouteModuleBuildCacheMap(appConfig: EcoPagesAppConfig): Map<string, RouteModuleBuildCache> {
-	const existing = appConfig.runtime?.routeModuleBuildCaches;
-	if (existing) {
-		return existing;
-	}
-
-	const routeModuleBuildCaches = new Map<string, RouteModuleBuildCache>();
-	appConfig.runtime = {
-		...(appConfig.runtime ?? {}),
-		routeModuleBuildCaches,
-	};
-	return routeModuleBuildCaches;
-}
-
 /**
  * Returns the shared production build cache for one server-module outdir.
  *
@@ -41,7 +28,7 @@ export function getSharedRouteModuleBuildCache(outdir: string, appConfig?: EcoPa
 		return new RouteModuleBuildCache();
 	}
 
-	const caches = getRouteModuleBuildCacheMap(appConfig);
+	const caches = requireAppRuntime(appConfig).routeModuleBuildCaches;
 	const existingCache = caches.get(outdir);
 	if (existingCache) {
 		return existingCache;
@@ -57,7 +44,7 @@ export function getSharedRouteModuleBuildCache(outdir: string, appConfig?: EcoPa
 
 /** Clears route-module cache entries that can retain stale external server modules during development. */
 export function clearAppDevelopmentRouteModuleBuildCaches(appConfig: EcoPagesAppConfig): void {
-	for (const cache of appConfig.runtime?.routeModuleBuildCaches?.values() ?? []) {
+	for (const cache of requireAppRuntime(appConfig).routeModuleBuildCaches.values()) {
 		cache.clearDevelopmentEntries();
 	}
 }

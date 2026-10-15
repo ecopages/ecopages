@@ -5,7 +5,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import type { IClientBridge } from '@ecopages/core';
 import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
-import { setAppBuildAdapter, type BuildAdapter } from '@ecopages/core/build/build-adapter';
+import type { BuildAdapter } from '@ecopages/core/build/build-adapter';
 import { installBuildQueue } from '@ecopages/core/build/build-queue';
 import type {
 	EcoBuildPluginBuilder,
@@ -475,7 +475,7 @@ order: 2
 			},
 			resolve: (specifier) => specifier,
 		};
-		setAppBuildAdapter(appConfig, adapter);
+		appConfig.appRuntime!.buildAdapter = adapter;
 		installBuildQueue(appConfig);
 		await plugin.setup();
 		const resolvers: Array<{ filter: RegExp; callback: (args: { path: string }) => unknown }> = [];

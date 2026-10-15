@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
+import { BuildInputDependencyIndex } from '../../../build/cache/build-input-dependency-index.ts';
+import { requireAppRuntime, type AppRuntime } from '../../../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import { AssetProcessingService } from './asset-processing.service.ts';
 import type { ContentScriptAsset } from './assets.types.ts';
@@ -10,6 +11,9 @@ const createConfig = (): EcoPagesAppConfig =>
 		absolutePaths: {
 			distDir: '/test/dist',
 		},
+		appRuntime: {
+			buildInputIndex: new BuildInputDependencyIndex(),
+		} as AppRuntime,
 	}) as unknown as EcoPagesAppConfig;
 
 const originalEnsureDir = fileSystem.ensureDir;
@@ -97,7 +101,7 @@ test('AssetProcessingService invalidates a grouped cache when a bundled input ch
 	];
 
 	await service.processDependencies(dependencies, 'page-before-change');
-	getAppBuildInputIndex(appConfig).recordChanges(['/test/src/shared-store.ts']);
+	requireAppRuntime(appConfig).buildInputIndex.recordChanges(['/test/src/shared-store.ts']);
 	const results = await service.processDependencies(dependencies, 'page-after-change');
 
 	expect(processGroupedMock).toHaveBeenCalledTimes(2);

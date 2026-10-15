@@ -5,6 +5,8 @@ import type { EcoPageComponent } from '../eco/eco.types.ts';
 import type { EcoComponent, GetStaticProps, HtmlTemplateProps } from '../types/public-types.ts';
 import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
+import { createAppRuntime } from '../config/app-runtime.ts';
+import { NoopEntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import { StaticSiteGenerator } from './static-site-generator.ts';
 import {
 	TestIntegrationRenderer,
@@ -27,8 +29,8 @@ const originalEnsureDir = fileSystem.ensureDir;
 const originalWrite = fileSystem.write;
 const writes: Array<{ filePath: string; contents: string | Buffer }> = [];
 
-const createMockConfig = (): EcoPagesAppConfig =>
-	({
+const createMockConfig = (): EcoPagesAppConfig => {
+	const config = {
 		rootDir: '/test/project',
 		distDir: 'dist',
 		workDir: DEFAULT_ECOPAGES_WORK_DIR,
@@ -48,9 +50,16 @@ const createMockConfig = (): EcoPagesAppConfig =>
 			distDir: '/test/project/dist',
 			workDir: '/test/project/.eco',
 		} as EcoPagesAppConfig['absolutePaths'],
+		loaders: new Map(),
 		integrations: [],
 		processors: new Map(),
-	}) as unknown as EcoPagesAppConfig;
+		runtime: {
+			entrypointDependencyGraph: new NoopEntrypointDependencyGraph(),
+		},
+	} as unknown as EcoPagesAppConfig;
+	createAppRuntime(config);
+	return config;
+};
 
 describe('StaticSiteGenerator production export', () => {
 	afterEach(() => {

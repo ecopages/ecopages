@@ -29,6 +29,7 @@ import type {
 import type { EcoPageComponent } from '../../eco/eco.types.ts';
 import {
 	TestIntegrationRenderer,
+	createMockAppConfig,
 	createMockIntegrationPlugin,
 	testAppConfig,
 	testAssetService,
@@ -938,18 +939,7 @@ describe('IntegrationRenderer', () => {
 				content: dependency.content ?? dependency.name ?? 'module',
 			})),
 		);
-		const appConfig = {
-			absolutePaths: {
-				pagesDir: '/app/pages',
-				htmlTemplatePath: '/app/index.ts',
-			},
-			integrations: [],
-			defaultMetadata: {
-				title: 'Default Title',
-				description: 'Default Description',
-			},
-			srcDir: '/app',
-		} as unknown as EcoPagesAppConfig;
+		const appConfig = createMockAppConfig();
 		const Page = (() => 'Page') as EcoPageComponent<any>;
 		Page.resolveDependencies = async () => ({
 			modules: ['react-aria-components{Table}'],

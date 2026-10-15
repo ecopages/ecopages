@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
+import { createAppRuntime } from '../../../config/app-runtime.ts';
 import { appLogger } from '../../../global/app-logger.ts';
+import { NoopEntrypointDependencyGraph } from '../../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type {
 	AssetDefinition,
@@ -21,11 +23,25 @@ let appConfig: EcoPagesAppConfig;
 
 beforeEach(() => {
 	appConfig = {
-		integrations: [{ name: 'react', extensions: ['.tsx'] }],
+		loaders: new Map(),
+		processors: new Map(),
+		integrations: [
+			{
+				name: 'react',
+				extensions: ['.tsx'],
+				setConfig: vi.fn(),
+				plugins: () => [],
+				browserRuntimeManifest: { runtimeGlobals: [], hmrRequirements: [] },
+			},
+		],
+		runtime: {
+			entrypointDependencyGraph: new NoopEntrypointDependencyGraph(),
+		},
 		absolutePaths: {
 			pagesDir: '/app/pages',
 		},
 	} as unknown as EcoPagesAppConfig;
+	createAppRuntime(appConfig);
 });
 
 function createGroupedDependency(): AssetDefinition {

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { installBuildQueue } from '../../build/runtime/build-queue.ts';
+import { createAppBuildManifest } from '../../build/contracts/build-manifest.ts';
 import { isHashedBrowserAsset } from './hashed-browser-asset.ts';
 import { BrowserBundleService } from './browser-bundle.service.ts';
 import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
@@ -120,9 +121,10 @@ describe('BrowserBundleService', () => {
 });
 
 function setAppBuildAdapterForTest(appConfig: any, adapter: any): void {
-	appConfig.runtime = {
-		...(appConfig.runtime ?? {}),
+	appConfig.appRuntime = {
+		...(appConfig.appRuntime ?? {}),
 		buildAdapter: adapter,
+		buildManifest: appConfig.appRuntime?.buildManifest ?? createAppBuildManifest([]),
 	};
 }
 

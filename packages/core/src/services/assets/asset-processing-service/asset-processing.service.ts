@@ -5,7 +5,7 @@ import { isProductionRuntime } from '../../../utils/runtime.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { getAppBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import type { AssetDefinition, AssetKind, AssetSource, ContentScriptAsset, ProcessedAsset } from './assets.types.ts';
 import { deduplicateAssetDependencies, getAssetDependencyKey } from './asset-dependency-keys.ts';
 import {
@@ -64,7 +64,7 @@ export class AssetProcessingService {
 	 */
 	constructor(config: EcoPagesAppConfig) {
 		this.config = config;
-		getAppBuildInputIndex(config).subscribeToChanges((filePaths) => {
+		requireAppRuntime(config).buildInputIndex.subscribeToChanges((filePaths) => {
 			for (const filePath of filePaths) {
 				this.invalidateCacheForFile(filePath);
 			}

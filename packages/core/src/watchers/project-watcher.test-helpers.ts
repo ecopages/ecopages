@@ -9,7 +9,7 @@ import {
 	setAppEntrypointDependencyGraph,
 } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import { getAppModuleLoader } from '../services/module-loading/app-server-module-transpiler.service.ts';
-import { getAppBuildInputIndex } from '../build/cache/build-input-dependency-index.ts';
+import { requireAppRuntime } from '../config/app-runtime.ts';
 import type { IClientBridge } from '../types/internal-types.ts';
 
 export const createMockHmrManager = (): IHmrManager =>
@@ -92,7 +92,10 @@ export const createMockBridge = (): IClientBridge =>
  */
 export function installDevRuntimeState(appConfig: EcoPagesAppConfig): void {
 	getAppModuleLoader(appConfig);
-	setAppEntrypointDependencyGraph(appConfig, new InMemoryEntrypointDependencyGraph(getAppBuildInputIndex(appConfig)));
+	setAppEntrypointDependencyGraph(
+		appConfig,
+		new InMemoryEntrypointDependencyGraph(requireAppRuntime(appConfig).buildInputIndex),
+	);
 }
 
 type FakeChokidarListener = (...args: unknown[]) => unknown;

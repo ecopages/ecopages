@@ -4,7 +4,7 @@ import {
 	InMemoryEntrypointDependencyGraph,
 	type EntrypointDependencyGraph,
 } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
-import { getAppBuildInputIndex } from '../../build/cache/build-input-dependency-index.ts';
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 import { SharedHmrManager } from '../shared/hmr/shared-hmr-manager.ts';
 
 export interface NodeHmrManagerParams {
@@ -46,7 +46,7 @@ export class NodeHmrManager extends SharedHmrManager {
 	protected override createEntrypointDependencyGraph(existingEntrypointDependencyGraph: EntrypointDependencyGraph) {
 		return existingEntrypointDependencyGraph instanceof InMemoryEntrypointDependencyGraph
 			? existingEntrypointDependencyGraph
-			: new InMemoryEntrypointDependencyGraph(getAppBuildInputIndex(this.appConfig));
+			: new InMemoryEntrypointDependencyGraph(requireAppRuntime(this.appConfig).buildInputIndex);
 	}
 
 	/**

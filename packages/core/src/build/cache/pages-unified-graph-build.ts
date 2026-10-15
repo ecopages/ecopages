@@ -9,6 +9,7 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import { buildOrThrow } from '../runtime/build-queue.ts';
@@ -26,9 +27,6 @@ import {
 	type RouteModuleDependencyHashes,
 } from '../../services/module-loading/route-module-dependency-hasher.ts';
 
-const graphs = new WeakMap<EcoPagesAppConfig, PagesUnifiedGraphCacheManifest>();
-const importableGraphs = new WeakMap<PagesUnifiedGraphCacheManifest, boolean>();
-
 export interface PagesUnifiedGraphCacheManifest {
 	buildKey: string;
 	outputs: Record<string, string>;
@@ -45,6 +43,10 @@ export interface PagesUnifiedGraphCacheManifest {
 	 * requires these hashes so a source edit or deletion rebuilds the graph.
 	 */
 	dependencyHashes: RouteModuleDependencyHashes;
+	/**
+	 * Memoized result of {@link isGraphManifestCurrent} for page imports.
+	 */
+	importable?: boolean;
 }
 
 /**
@@ -86,7 +88,7 @@ function createPagesUnifiedGraphBuildKey(appConfig: EcoPagesAppConfig, outdir: s
 }
 
 function readPagesUnifiedGraphManifest(appConfig: EcoPagesAppConfig): PagesUnifiedGraphCacheManifest | undefined {
-	return graphs.get(appConfig);
+	return requireAppRuntime(appConfig).pagesUnifiedGraphManifest ?? undefined;
 }
 
 function sourceDependenciesAreCurrent(manifest: PagesUnifiedGraphCacheManifest): boolean {
@@ -94,7 +96,7 @@ function sourceDependenciesAreCurrent(manifest: PagesUnifiedGraphCacheManifest):
 }
 
 function writePagesUnifiedGraphManifest(appConfig: EcoPagesAppConfig, manifest: PagesUnifiedGraphCacheManifest): void {
-	graphs.set(appConfig, manifest);
+	requireAppRuntime(appConfig).pagesUnifiedGraphManifest = manifest;
 }
 
 function createSafeGraphEntryKey(entryPath: string, rootDir: string): string {
@@ -151,11 +153,10 @@ function isManifestValidForEntries(
  * invalidated.
  */
 function isGraphImportable(manifest: PagesUnifiedGraphCacheManifest, appConfig: EcoPagesAppConfig): boolean {
-	const known = importableGraphs.get(manifest);
-	if (known !== undefined) return known;
+	if (manifest.importable !== undefined) return manifest.importable;
 
 	const current = isGraphManifestCurrent(manifest, appConfig, getServerModuleBuildCacheOutdir(appConfig));
-	importableGraphs.set(manifest, current);
+	manifest.importable = current;
 	return current;
 }
 
@@ -168,6 +169,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 	outdir: string;
 	force?: boolean;
 }): Promise<PagesUnifiedGraphCacheManifest | undefined> {
+	requireAppRuntime(options.appConfig);
 	if (!shouldBuildPagesUnifiedGraph()) {
 		return undefined;
 	}

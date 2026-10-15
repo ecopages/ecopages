@@ -98,6 +98,12 @@ export type PageClientBrowserAssets = {
 	lazyTriggers: ResolvedLazyTrigger[];
 };
 
+/** One raw client entry contributed to a static production app browser build. */
+export type PageClientBuildEntry = {
+	dependency: AssetDefinition;
+	islandFile?: string;
+};
+
 function collectPendingLazyClientEntries(
 	config: EcoComponentConfig | undefined,
 	lazyClientEntries: AssetDefinition[],

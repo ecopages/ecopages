@@ -140,7 +140,19 @@ export class PageBrowserGraphService {
 			return undefined;
 		}
 
-		const entryFingerprint = createPageBrowserGraphEntryFingerprint(contribution);
+		const routeLookupKey = createRouteGraphLookupKey(input.routeFile, dependencyInstanceKey);
+		const plannedInstance = input.groupedBuildPlan?.instances.find(
+			(instance) =>
+				createRouteGraphLookupKey(instance.routeFile, instance.dependencyInstanceKey) === routeLookupKey,
+		);
+		const usesPrebuiltGroupedAssets = plannedInstance?.prebuiltGroupedAssets !== undefined;
+		const graphContribution = usesPrebuiltGroupedAssets
+			? (plannedInstance.contribution ?? contribution)
+			: contribution;
+		const entryFingerprint = [
+			createPageBrowserGraphEntryFingerprint(graphContribution),
+			...(usesPrebuiltGroupedAssets ? [input.groupedBuildPlan?.planKey ?? ''] : []),
+		].join(':');
 
 		return await session.resolveGraph(
 			{
@@ -150,8 +162,8 @@ export class PageBrowserGraphService {
 				entryFingerprint,
 				policy,
 			},
-			collectPageBrowserGraphDependencyPaths(input.routeFile, contribution, contribution.assets ?? []),
-			async () => this.buildPageBrowserGraphRecord(input, contribution),
+			collectPageBrowserGraphDependencyPaths(input.routeFile, graphContribution, graphContribution.assets ?? []),
+			async () => this.buildPageBrowserGraphRecord(input, graphContribution),
 			{ reuseCachedResult: input.cacheable !== false },
 		);
 	}
@@ -184,14 +196,22 @@ export class PageBrowserGraphService {
 		input: PageBrowserGraphResolveInput,
 		contribution: PageBrowserGraphContribution,
 	): Promise<GraphBuildResult | undefined> {
+		const routeLookupKey = createRouteGraphLookupKey(input.routeFile, input.dependencyInstanceKey ?? '');
+		const plannedInstance = input.groupedBuildPlan?.instances.find(
+			(instance) =>
+				createRouteGraphLookupKey(instance.routeFile, instance.dependencyInstanceKey) === routeLookupKey,
+		);
 		const groupedDependencies = (contribution.dependencies ?? []).filter((dep) => isGroupedContentScriptAsset(dep));
 		const ungroupedDependencies = (contribution.dependencies ?? []).filter(
 			(dep) => !isGroupedContentScriptAsset(dep),
 		);
-
-		const groupedResolution = groupedDependencies.length
-			? await this.resolveGroupedPageBrowserAssets(input, contribution)
-			: undefined;
+		const groupedResolution = await this.resolvePlannedGroupedAssets(
+			input,
+			contribution,
+			plannedInstance,
+			groupedDependencies.length > 0,
+			routeLookupKey,
+		);
 
 		const groupedAssets =
 			groupedResolution?.assetsByRoute.get(
@@ -213,6 +233,25 @@ export class PageBrowserGraphService {
 			dependencyPaths,
 			cacheable: input.cacheable !== false && (groupedResolution?.cacheable ?? true),
 		};
+	}
+
+	private async resolvePlannedGroupedAssets(
+		input: PageBrowserGraphResolveInput,
+		contribution: PageBrowserGraphContribution,
+		plannedInstance: GroupedGraphBuildPlan['instances'][number] | undefined,
+		hasGroupedDependencies: boolean,
+		routeLookupKey: string,
+	): Promise<GroupedPageBrowserAssetsResult | undefined> {
+		if (plannedInstance?.prebuiltGroupedAssets !== undefined) {
+			return {
+				assetsByRoute: new Map([[routeLookupKey, [...plannedInstance.prebuiltGroupedAssets]]]),
+				dependencyPaths: new Set<string>(),
+				hasCollectionFailures: false,
+				cacheable: true,
+			};
+		}
+		if (!hasGroupedDependencies) return undefined;
+		return this.resolveGroupedPageBrowserAssets(input, contribution);
 	}
 
 	private async resolveGroupedPageBrowserAssets(

@@ -30,17 +30,17 @@ Semantic error pages are excluded from ordinary page enumeration and emitted onc
 
 ## Files
 
-| File                                        | Role                                                                       |
-| ------------------------------------------- | -------------------------------------------------------------------------- |
-| `static-site-generator.ts`                  | Route enumeration, HTML artifact writes, integration export hooks, sitemap |
-| `static-export-context.ts`                  | Context and release types for `staticExport`                               |
-| `sitemap.ts`                                | Pure sitemap.xml renderer                                                  |
-| `sitemap-routes.ts`                         | Sitemap location assembly (`exclude`, `extraUrls`, dedupe)                 |
-| `production-page-browser-graph-prebuild.ts` | Warms and prebuilds browser asset graphs before static export rendering    |
+| File                                        | Role                                                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `static-site-generator.ts`                  | Route enumeration, HTML artifact writes, integration export hooks, sitemap                       |
+| `static-export-context.ts`                  | Context and release types for `staticExport`                                                     |
+| `sitemap.ts`                                | Pure sitemap.xml renderer                                                                        |
+| `sitemap-routes.ts`                         | Sitemap location assembly (`exclude`, `extraUrls`, dedupe)                                       |
+| `production-page-browser-graph-prebuild.ts` | Collects renderer plans and prebuilds the app-wide browser client before static export rendering |
 
 ## Export directory
 
-`ServerStaticBuilder.prepareExport()` empties `dist/`, copies the public directory into it, marks runtime assets for rebuilding and sets Processors and Integrations up. The Node adapter calls it during initialization, before the router reads any Page, and `build()` prepares the export itself only when nothing did. Every build renders every page from source in a fresh process, so nothing in an earlier `dist/` is reused and no HTML is skipped or pruned. Route-module transpile and the unified pages graph are reused in memory only, within the current process.
+`ServerStaticBuilder.prepareExport()` empties `dist/`, copies the public directory into it, marks runtime assets for rebuilding and sets Processors and Integrations up. The Node adapter calls it during initialization, before the router reads any Page, and `build()` prepares the export itself only when nothing did. Every build renders every page from source in a fresh process, so nothing in an earlier `dist/` is reused and no HTML is skipped or pruned. Route-module transpile and the unified pages graph are reused in memory only, within the current process. Before rendering, production prebuild gathers grouped browser entries from every renderer and the HTML shell module scripts into compatible app-wide browser build groups, then associates their entry assets with the routes that use them.
 
 ## Integration hooks
 

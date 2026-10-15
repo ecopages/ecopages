@@ -76,6 +76,7 @@ export function transformModuleImports(
 	globallyAllowed: Map<string, Set<string> | '*'>,
 	requestedExports: Map<string, RequestedExportRules>,
 	stripServerOnlyPageOptions = false,
+	preserveUnreachableSideEffectImports = false,
 ): { transformed: string; modified: boolean } {
 	let result;
 	try {
@@ -97,6 +98,7 @@ export function transformModuleImports(
 		filename,
 		reachability,
 		allowedMap,
+		preserveUnreachableSideEffectImports,
 	});
 
 	if (edits.length === 0) {

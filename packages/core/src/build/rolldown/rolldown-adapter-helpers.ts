@@ -504,10 +504,14 @@ async function buildRolldownInputPlugins(
 	rolldownPlatform: 'browser' | 'node',
 	recordBuildInput: BuildInputRecorder,
 ): Promise<RolldownPlugin[]> {
+	const entrypoints = Array.isArray(options.entrypoints)
+		? Object.fromEntries(options.entrypoints.map((entry, index) => [String(index), entry]))
+		: options.entrypoints;
 	const appPlugins = await createRolldownPluginBridge(
 		(options.plugins ?? []).filter((plugin) => plugin.environments?.includes(options.environment) ?? true),
 		contextRoot,
 		recordBuildInput,
+		entrypoints,
 	);
 	return [
 		...(options.externalPackages === true

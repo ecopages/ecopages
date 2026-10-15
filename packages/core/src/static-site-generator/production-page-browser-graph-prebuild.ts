@@ -3,8 +3,10 @@ import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { PageParams } from '../types/public-types.ts';
 import type { PageRendererResolver } from '../route-renderer/route-renderer.ts';
 import type { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
+import type { GroupedGraphBuildPlan } from '../route-renderer/orchestration/page-browser-graph/grouped-graph-build-plan.ts';
 import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import { createPageDependencyInstanceKey } from '../route-renderer/orchestration/page-browser-graph/route-instance-key.ts';
+import { buildAppBrowserClient } from '../services/assets/app-browser-client-build.ts';
 
 export type ProductionPageBrowserGraphRouteInstance = {
 	routeFile: string;
@@ -48,6 +50,7 @@ function serializeProductionRouteInstance(instance: ProductionPageBrowserGraphRo
  * then resolves into `page-browser-graph-session`). Does not persist a disk manifest.
  */
 export async function prebuildProductionPageBrowserGraphs(
+	appConfig: EcoPagesAppConfig,
 	routeInstances: readonly ProductionPageBrowserGraphRouteInstance[],
 	routeRendererFactory: PageRendererResolver,
 ): Promise<void> {
@@ -67,8 +70,23 @@ export async function prebuildProductionPageBrowserGraphs(
 		instancesByRenderer.set(renderer, instances);
 	}
 
+	const rendererPlans: Array<{
+		renderer: IntegrationRenderer<unknown>;
+		routeInstances: ProductionPageBrowserGraphRouteInstance[];
+		groupedBuildPlan: GroupedGraphBuildPlan;
+	}> = [];
 	for (const [renderer, routeInstancesForRenderer] of instancesByRenderer) {
 		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan(routeInstancesForRenderer);
+		rendererPlans.push({ renderer, routeInstances: routeInstancesForRenderer, groupedBuildPlan });
+	}
+	const appBrowserPlans = await buildAppBrowserClient(
+		appConfig,
+		rendererPlans.map(({ groupedBuildPlan }) => groupedBuildPlan),
+	);
+
+	for (const [index, { renderer, routeInstances: routeInstancesForRenderer }] of rendererPlans.entries()) {
+		const groupedBuildPlan = appBrowserPlans[index];
+		if (!groupedBuildPlan) continue;
 		for (const routeInstance of routeInstancesForRenderer) {
 			await renderer.prebuildProductionPageBrowserGraph(routeInstance.routeFile, {
 				params: routeInstance.params,

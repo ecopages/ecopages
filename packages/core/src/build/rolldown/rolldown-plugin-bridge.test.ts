@@ -61,6 +61,33 @@ test('createRolldownPluginBridge runs each plugin.setup in array order before re
 	assert.deepEqual(setupCalls, ['a', 'b']);
 });
 
+test('createRolldownPluginBridge gives every plugin the same entrypoint map', async () => {
+	const entrypoints = Object.freeze({ first: '/app/first.ts', second: '/app/second.ts' });
+	const seen: Array<Readonly<Record<string, string>> | undefined> = [];
+	await createRolldownPluginBridge(
+		[
+			{
+				name: 'first',
+				setup(build) {
+					seen.push(build.entrypoints);
+				},
+			},
+			{
+				name: 'second',
+				setup(build) {
+					seen.push(build.entrypoints);
+				},
+			},
+		],
+		'/app',
+		undefined,
+		entrypoints,
+	);
+
+	assert.equal(seen[0], entrypoints);
+	assert.equal(seen[1], entrypoints);
+});
+
 test('createRolldownPluginBridge resolveId translates EcoBuildOnResolveResult to Rolldown shape', async () => {
 	const plugins: EcoBuildPlugin[] = [
 		{

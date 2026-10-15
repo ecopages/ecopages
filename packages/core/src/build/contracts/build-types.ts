@@ -59,6 +59,8 @@ export type EcoBuildOnTransformResult = {
  * call throws, because the bundler reads hook filters before the build starts.
  */
 export interface EcoBuildPluginBuilder {
+	/** Entry names and source paths passed to this build request. */
+	entrypoints?: Readonly<Record<string, string>>;
 	onResolve(
 		options: { filter: RegExp; namespace?: string },
 		callback: (
@@ -105,4 +107,13 @@ export type EcoBuildPlugin = {
 	 * artifact. A factory that captures an option which changes its output sets this to a string of that option.
 	 */
 	cacheKey?: string;
+	/**
+	 * Allows entry-specific plugin instances to share a browser build with matching group keys.
+	 *
+	 * @remarks
+	 * Instances remain in the build so each can contribute its own entry configuration. Plugins with the same name
+	 * must use the same key and position relative to other plugins to share a build; entries that omit the plugin may
+	 * still join that build.
+	 */
+	bundleGroupKey?: string;
 };

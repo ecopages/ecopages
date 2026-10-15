@@ -33,7 +33,7 @@ describe('HTML Pages static export', () => {
 		expect(count(html, /href="\/assets\/[a-f0-9]{16}\.css"/g)).toBe(2);
 		expect(html).toMatch(/<link rel="stylesheet" href="\/assets\/[a-f0-9]{16}\.css" ?\/?>(<meta [^>]*>)*<\/head>/);
 		expect(html).toMatch(/<img src="\/images\/team\.svg" alt="Our team" ?\/?>/);
-		expect(html).toMatch(/<\/main>\s*<script type="module" src="\/assets\/pages\/counter[^"]*\.js"><\/script>/);
+		expect(html).toMatch(/<\/main>\s*<script type="module" src="\/assets\/html-[a-f0-9]{16}-[^"]*\.js"><\/script>/);
 	});
 
 	it('merges root attributes from a pasted document', async () => {

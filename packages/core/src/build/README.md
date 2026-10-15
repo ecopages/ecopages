@@ -116,8 +116,11 @@ Migration: move Integration `browserBuildPlugins` and Processor `buildPlugins` i
 - `environments?: ('server' | 'browser')[]` (omitted means both)
 - `setup(build: EcoBuildPluginBuilder): void | Promise<void>`
 - `cacheKey?: string` — set by a factory that captures an option which changes its output (the `import.meta` transform sets its runtime directory). A build request is identified by every `BuildOptions` field except `plugins`, plus each plugin's name, environments and `cacheKey` in order, so two plugins of one name from different options are separate builds only through `cacheKey`. The source of `setup` is not hashed.
+- `bundleGroupKey?: string` — lets entry-specific plugin instances with the same name, key and position relative to other plugins join one app-wide browser build. Every instance is retained so it can contribute its own entry configuration; an entry without that plugin can join too. Use `cacheKey` as well when captured options change the build output.
 
-`EcoBuildPluginBuilder` exposes four hooks:
+`EcoBuildPluginBuilder` exposes four hooks and build context:
+
+- `entrypoints?: Readonly<Record<string, string>>` — the named entry files for the active build. Every plugin builder created for that build receives the same map, so plugins that coordinate work across entries can share build-scoped state. It is absent when the adapter cannot provide entrypoints.
 
 - `onResolve({ filter, namespace? }, callback)` — the bundler's `resolveId` mapped to the shared plugin shape.
 - `onLoad({ filter, namespace? }, callback)` — the bundler's `load` mapped the same way. The loaded `path` is recorded as a build input automatically. A `loader` of `js`, `jsx`, `ts` or `tsx` sets the module type, `object` builds a module from `exports`, and without a loader the type follows the file extension. Rewritten contents can return `map` to preserve their original locations.
@@ -170,6 +173,8 @@ Every new process compiles from source. Route-module transpile, the unified page
 The adapter records source closures from Rolldown's module graph and all emitted chunk edges separately. `BuildResult.entryOutputs` is keyed by the path or grouped name the caller passed, plus the bundler's facade path when that spelling differs, so a symlink root or Windows drive casing still finds the chunk. Consumers look entries up through `getBuildEntryOutput` rather than by filename prefix. `outputGraph` supplies static and dynamic output reachability without parsing emitted JavaScript.
 
 `requireBuildQueue(appConfig)` queues server-entry bundling on the `build` lane. Every process bundles the server entry from source.
+
+Static production export collects every renderer's grouped Page Browser Graph plan, each route's island and lazy client entries, and the HTML Page shell module scripts, then sends compatible browser entries through app-wide `BrowserBundleService` build groups. Entries with matching `bundleOptions` share a group across Integrations and HTML shell scripts and can share chunks when splitting is enabled; entries with different options use separate build groups so an entry's external modules, defines, plugins, plugin exclusions, minification, and splitting settings do not affect unrelated entries. The resulting entry assets are attached to their routes before export rendering; development and non-static runtime requests keep the regular grouped asset path.
 
 The deploy manifest (`dist/.server/manifest.json`) names the server entry and the emitted config relative to `dist/.server/`, and the source config relative to the project root, so it holds no absolute path and the bundle can move. It records SHA-256 hashes of the source and emitted config whatever runtime ran the build, because `ecopages start` checks them from the Node CLI. The build writes it under the app's `distDir`; `resolveProductionServerEntry()`, `assertProductionConfigIdentity()` and `resolveEmittedEcoConfigPath()` take that `distDir` as a required argument, and a server entry without a manifest counts as no bundle.
 

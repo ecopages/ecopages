@@ -233,6 +233,41 @@ describe('DevelopmentInvalidationService', () => {
 		});
 	});
 
+	it('reloads when a source module is shared by server-rendered markup and an island', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const service = new DevelopmentInvalidationService(appConfig);
+		const sharedModule = '/test/project/src/components/shared.tsx';
+		const serverOnlyModule = '/test/project/src/components/server-only.tsx';
+		const inputIndex = getAppBuildInputIndex(appConfig);
+		inputIndex.register({ consumer: 'server-route-module', key: '/test/project/src/pages/index.tsx' }, [
+			'/test/project/src/pages/index.tsx',
+			sharedModule,
+			serverOnlyModule,
+		]);
+		inputIndex.register({ consumer: 'entrypoint', key: '/test/project/src/islands/counter.tsx' }, [sharedModule]);
+		inputIndex.register({ consumer: 'entrypoint', key: '/test/project/src/islands/standalone.tsx' }, [
+			'/test/project/src/components/island-only.tsx',
+		]);
+
+		expect(service.planFileChange(sharedModule)).toMatchObject({
+			category: 'source',
+			invalidateServerModules: true,
+			reloadBrowser: true,
+			delegateToHmr: true,
+		});
+		expect(service.planFileChange(serverOnlyModule)).toMatchObject({
+			category: 'source',
+			invalidateServerModules: true,
+			reloadBrowser: false,
+		});
+		expect(service.planFileChange('/test/project/src/components/island-only.tsx')).toMatchObject({
+			category: 'source',
+			invalidateServerModules: true,
+			reloadBrowser: false,
+			delegateToHmr: true,
+		});
+	});
+
 	it('announces each applied change batch to the build-input index', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		const announced: string[][] = [];

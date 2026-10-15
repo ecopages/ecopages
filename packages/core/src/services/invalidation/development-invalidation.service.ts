@@ -289,8 +289,9 @@ export class DevelopmentInvalidationService {
 	 * A file in the recorded closure of a server route module invalidates server modules whatever its
 	 * category. A public file or a processor-owned asset that a route module read (a stylesheet or data
 	 * file it imports) would otherwise leave the cached import serving the old content, because cached
-	 * imports no longer re-hash their dependencies. The category stays as classified, so the other
-	 * flags (browser reload, public copy, processor handling) are unchanged.
+	 * imports no longer re-hash their dependencies. A source file also used by a browser entrypoint
+	 * reloads the browser so server-rendered markup is refreshed when the same module is used by an
+	 * island. Other categories keep their own reload and processing behavior.
 	 */
 	planFileChange(
 		filePath: string,
@@ -298,12 +299,15 @@ export class DevelopmentInvalidationService {
 	): DevelopmentInvalidationPlan {
 		const category = this.classifyFileChange(filePath, context);
 		const plan = INVALIDATION_PLAN_BY_CATEGORY[category];
-		const readByServerRouteModule =
-			getAppBuildInputIndex(this.appConfig).resolveKeys('server-route-module', filePath).length > 0;
+		const inputIndex = getAppBuildInputIndex(this.appConfig);
+		const readByServerRouteModule = inputIndex.resolveKeys('server-route-module', filePath).length > 0;
+		const readByBrowserEntrypoint = inputIndex.resolveKeys('entrypoint', filePath).length > 0;
 		return {
 			category,
 			...plan,
 			invalidateServerModules: plan.invalidateServerModules || readByServerRouteModule,
+			reloadBrowser:
+				plan.reloadBrowser || (category === 'source' && readByServerRouteModule && readByBrowserEntrypoint),
 		};
 	}
 

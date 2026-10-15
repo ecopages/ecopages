@@ -21,6 +21,8 @@ It is responsible for:
 
 Public-directory and `additionalWatchPaths` changes skip the HMR manager: the Project Watcher sends `reload` through the client bridge itself.
 
+A `source` module recorded in both a server route's and a browser entrypoint's import closures also reloads the browser. This refreshes server-rendered markup when an edited module is shared with an island; an island-only `update` would leave the server-rendered copy stale.
+
 ## Design Rule
 
 Generic invalidation policy belongs in core services.

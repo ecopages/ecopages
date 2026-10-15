@@ -234,6 +234,22 @@ describe('ProjectWatcher', () => {
 				expected: delegated,
 			},
 			{
+				name: 'a source file shared by a server route and a browser entrypoint',
+				file: (c) => path.join(c.absolutePaths.componentsDir, 'Shared.tsx'),
+				arrange: ({ config }) => {
+					const sharedFile = path.join(config.absolutePaths.componentsDir, 'Shared.tsx');
+					getAppBuildInputIndex(config).register(
+						{ consumer: 'server-route-module', key: path.join(config.absolutePaths.pagesDir, 'index.tsx') },
+						[sharedFile],
+					);
+					getAppBuildInputIndex(config).register(
+						{ consumer: 'entrypoint', key: path.join(config.absolutePaths.componentsDir, 'island.tsx') },
+						[sharedFile],
+					);
+				},
+				expected: { hmr: { broadcast: false }, reload: true, refreshRoutes: false, processorNotified: false },
+			},
+			{
 				name: 'a source file that no additionalWatchPaths entry matches',
 				file: (c) => path.join(c.absolutePaths.componentsDir, 'Button.tsx'),
 				arrange: ({ config }) => {

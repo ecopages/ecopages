@@ -86,9 +86,9 @@ class TestSharedServerAdapter extends SharedServerAdapter<any, ServerAdapterResu
 		};
 	}
 	public async handleRequest(request: Request): Promise<Response> {
+		this.runtime.hmr = createHmrAssetManager('');
 		return await this.handleSharedRequest(request, {
 			apiHandlers: [],
-			hmrManager: createHmrAssetManager(''),
 		});
 	}
 
@@ -97,9 +97,9 @@ class TestSharedServerAdapter extends SharedServerAdapter<any, ServerAdapterResu
 		apiHandlers: ApiHandler[],
 		hmrManager?: IHmrManager,
 	): Promise<Response> {
+		this.runtime.hmr = hmrManager ?? null;
 		return await this.handleSharedRequest(request, {
 			apiHandlers,
-			hmrManager,
 		});
 	}
 
@@ -139,7 +139,6 @@ class TestSharedServerAdapter extends SharedServerAdapter<any, ServerAdapterResu
 		super({
 			appConfig: config,
 			runtime,
-			runtimeOrigin: 'http://localhost:3000',
 			serveOptions: {},
 			options,
 		});

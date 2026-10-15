@@ -38,12 +38,12 @@ Default behavior:
 - base URL: `http://localhost:3000`
 - default metadata title/description: `Ecopages`
 - robots preferences: empty allow/disallow baseline
-- integrations: a test-only `string` Integration that owns `.string.ts` templates, configured on the final app config and initialized with a runtime origin
+- integrations: a test-only `string` Integration that owns `.string.ts` templates, configured on the final app config
 
 Supported overrides:
 
 - `baseUrl`: changes the final app config URL
-- `runtimeOrigin`: changes the runtime origin used to initialize integrations when it should differ from `baseUrl`
+- `runtimeOrigin`: sets `requireAppRuntime(config).origin` when the active runtime origin should differ from `baseUrl`
 - `distDir`: sets a custom dist dir for tests that need isolated outputs
 - `title` and `description`: override default metadata
 - `integrations`: replaces the default Integration list and initializes the supplied plugins; pass `[]` to register none of your own (core still appends its HTML Pages Integration)

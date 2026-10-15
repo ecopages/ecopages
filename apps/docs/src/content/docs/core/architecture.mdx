@@ -37,7 +37,7 @@ When a request hits your Ecopages application, it follows this simplified flow:
 The integration and processor lifecycle is split into stable framework-owned phases.
 
 1. **Config finalization**: `createApp()` loads the `defineConfig` object from `eco.config.ts` and finalizes it. This validates registrations, initializes processor context, reads each processor's and integration's `plugins(app)` once, and seals the app-owned build manifest. No processor `setup()` runs here.
-2. **App startup setup**: processors run `setup()` before integrations, and integrations receive runtime origin and HMR manager context before request handling begins.
+2. **App startup setup**: processors run `setup()` before integrations, and integrations receive app config and HMR manager context before request handling begins.
 3. **Request-time rendering**: core selects the route and owning integration, then the integration renderer produces the response body.
 4. **Development invalidation and HMR**: core classifies file changes, processors handle owned watch paths, and integrations participate through HMR strategies.
 

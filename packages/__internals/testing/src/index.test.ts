@@ -8,6 +8,10 @@ import { createStringMarkupIntegration, createTestAppConfig } from './index.ts';
 class TestRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = 'test';
 
+	getRuntimeOrigin(): string {
+		return requireAppRuntime(this.appConfig).origin;
+	}
+
 	override async render(): Promise<string> {
 		return '';
 	}
@@ -65,6 +69,9 @@ describe('createTestAppConfig', () => {
 			integrations: [plugin],
 		});
 
+		const renderer = plugin.getRenderer() as TestRenderer;
+		expect(renderer).toBeInstanceOf(TestRenderer);
+		expect(renderer.getRuntimeOrigin()).toBe('http://127.0.0.1:4100');
 		expect(requireAppRuntime(config).origin).toBe('http://127.0.0.1:4100');
 	});
 });

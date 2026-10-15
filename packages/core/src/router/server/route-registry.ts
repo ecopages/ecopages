@@ -80,9 +80,6 @@ export class RouteRegistry {
 	constructor(options: RouteRegistryOptions) {
 		this.fallbackOrigin = options.origin;
 		this.appConfig = options.appConfig;
-		if (this.appConfig.appRuntime) {
-			this.appConfig.appRuntime.origin = options.origin;
-		}
 		this.pagesDir = options.pagesDir;
 		this.templatesExt = options.templatesExt;
 		this.buildMode = options.buildMode;

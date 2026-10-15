@@ -40,7 +40,6 @@ export interface ServerStaticBuilderParams {
 	runtime: AppRuntime;
 	staticSiteGenerator: StaticSiteGenerator;
 	serveOptions: ServeOptions;
-	runtimeOrigin?: string;
 	/**
 	 * Whether the app requires a server entry bundle for production use.
 	 * When `true`, the build step bundles the server entry file for `ecopages start`.
@@ -79,7 +78,6 @@ export class ServerStaticBuilder {
 		runtime,
 		staticSiteGenerator,
 		serveOptions,
-		runtimeOrigin,
 		needsServerBundle,
 		logger,
 		entryFile,
@@ -88,9 +86,6 @@ export class ServerStaticBuilder {
 		this.runtime = runtime;
 		this.staticSiteGenerator = staticSiteGenerator;
 		this.serveOptions = serveOptions;
-		if (runtimeOrigin !== undefined) {
-			this.runtime.origin = runtimeOrigin;
-		}
 		this.needsServerBundle = needsServerBundle ?? false;
 		this.logger = logger ?? appLogger;
 		this.entryFile = resolveEntryFile({ entryFile });
@@ -99,7 +94,6 @@ export class ServerStaticBuilder {
 	/** Keeps build-time URLs aligned with the server's actual listening port. */
 	setRuntimeBinding(input: { port: number; runtimeOrigin: string }): void {
 		this.serveOptions = { ...this.serveOptions, port: input.port };
-		this.runtime.origin = input.runtimeOrigin;
 	}
 
 	/**

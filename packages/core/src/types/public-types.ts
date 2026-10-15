@@ -264,7 +264,10 @@ export type HmrFileChangeOptions = {
 };
 
 /**
- * Integration hook for registered `dependencies.scripts` entrypoint changes in dev.
+ * Integration callback for registered `dependencies.scripts` entrypoint changes in development.
+ *
+ * @remarks
+ * Returning `true` marks the script entrypoint as requiring a full page reload instead of an in-place HMR update.
  */
 export type RegisteredScriptEntrypointChangeHandler = (filePath: string) => void | boolean | Promise<void | boolean>;
 
@@ -319,7 +322,9 @@ export interface IHmrManager {
 	registerStrategy(strategy: HmrStrategy): void;
 
 	/**
-	 * Registers a handler that runs when a registered script entrypoint changes.
+	 * @remarks
+	 * Handlers belong to this HMR session and are cleared when {@link stop} runs. Returning `true` from a handler
+	 * forces a full page reload instead of an in-place script update.
 	 */
 	onScriptEntrypointChanged?(handler: RegisteredScriptEntrypointChangeHandler): void;
 

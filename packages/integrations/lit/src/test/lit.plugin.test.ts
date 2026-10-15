@@ -16,6 +16,25 @@ import { LitPlugin } from '../lit.plugin.ts';
 import { LitRenderer } from '../lit-renderer.ts';
 import { LitStaticRenderSession } from '../lit-static-render-session.ts';
 
+const preloadInvalidationSpy = vi.hoisted(() => vi.fn());
+
+vi.mock(
+	'@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader',
+	async (importOriginal) => {
+		const actual =
+			await importOriginal<
+				typeof import('@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader')
+			>();
+		return {
+			...actual,
+			invalidateCustomElementScriptPreload: (scriptPath: string, cacheScope?: string) => {
+				preloadInvalidationSpy(scriptPath, cacheScope);
+				return actual.invalidateCustomElementScriptPreload(scriptPath, cacheScope);
+			},
+		};
+	},
+);
+
 describe('LitPlugin', () => {
 	it('keeps the global hydrate-support bootstrap stable across browser-router swaps', () => {
 		const plugin = new LitPlugin();
@@ -161,11 +180,6 @@ describe('LitPlugin watch restart script-change invalidation', () => {
 		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
 
 		const plugin = new LitPlugin();
-		const originalInvalidate = plugin['handleScriptEntrypointChanged'];
-		const invalidationSpy = vi.fn((changedScriptPath: string) => {
-			originalInvalidate(changedScriptPath);
-		});
-		plugin['handleScriptEntrypointChanged'] = invalidationSpy;
 
 		const appConfig = await finalizeEcoPagesConfig({
 			rootDir,
@@ -226,12 +240,15 @@ describe('LitPlugin watch restart script-change invalidation', () => {
 			await preloader.preloadSsrScripts([component]);
 			expect(importServerModule).toHaveBeenCalledTimes(1);
 
-			invalidationSpy.mockClear();
+			preloadInvalidationSpy.mockClear();
 			fs.writeFileSync(scriptPath, "console.log('counter v2');\n", 'utf8');
 			await secondHmr!.handleFileChange(scriptPath);
 
-			expect(invalidationSpy).toHaveBeenCalledTimes(1);
-			expect(invalidationSpy).toHaveBeenCalledWith(scriptPath);
+			expect(preloadInvalidationSpy).toHaveBeenCalledTimes(1);
+			expect(preloadInvalidationSpy).toHaveBeenCalledWith(
+				scriptPath,
+				CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
+			);
 
 			await preloader.preloadSsrScripts([component]);
 			expect(importServerModule).toHaveBeenCalledTimes(2);

@@ -25,7 +25,6 @@ export interface ServerAdapterOptions {
 		[key: string]: any;
 	};
 	serveOptions?: Record<string, any>;
-	runtimeOrigin?: string;
 }
 
 /**
@@ -67,9 +66,6 @@ export abstract class AbstractServerAdapter<
 		this.runtime = options.runtime;
 		this.options = options.options || {};
 		this.serveOptions = options.serveOptions || {};
-		if (options.runtimeOrigin !== undefined) {
-			this.runtime.origin = options.runtimeOrigin;
-		}
 	}
 
 	/**

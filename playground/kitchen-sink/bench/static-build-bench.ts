@@ -2,7 +2,7 @@ import path from 'node:path';
 import { bench, group } from 'mitata';
 import { requireBuildQueue, installBuildQueue } from '../../../packages/core/src/build/runtime/build-queue';
 import { getServerBundleOutputPaths } from '../../../packages/core/src/build/server-bundle-deploy-manifest';
-import { getAppModuleLoader } from '../../../packages/core/src/services/module-loading/app-server-module-transpiler.service';
+import { requireAppRuntime } from '../../../packages/core/src/config/app-runtime';
 import { resolveInternalExecutionDir } from '../../../packages/core/src/utils/resolve-work-dir';
 import { SERVER_BUNDLE_FILENAME } from '../../../packages/core/src/utils/resolve-entry-file';
 import { KITCHEN_SINK_PATHS, KITCHEN_SINK_REPRESENTATIVE_PAGES } from './lib/kitchen-sink-fixture';
@@ -66,7 +66,7 @@ async function importStaticPageWarm(
 	filePath: string,
 ): Promise<void> {
 	installBuildQueue(appConfig);
-	const loader = getAppModuleLoader(appConfig);
+	const loader = requireAppRuntime(appConfig).moduleLoader;
 	const outdir = path.join(resolveInternalExecutionDir(appConfig), '.server-modules');
 
 	await loader.importModule({

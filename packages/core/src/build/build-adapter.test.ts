@@ -136,7 +136,6 @@ test('sealAppBuildManifest gathers loaders, then processor and integration plugi
 		loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
 		processors: new Map([['processor', processor]]),
 		integrations: [integration],
-		runtime: {},
 	} as any;
 
 	const manifest = sealAppBuildManifest(appConfig);
@@ -170,7 +169,6 @@ test('sealAppBuildManifest reports a plugin an integration registers under a loa
 				loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
 				processors: new Map(),
 				integrations: [integration],
-				runtime: {},
 			} as any),
 		/registered by both Loader "duplicate" and Integration "react"/,
 	);
@@ -203,7 +201,6 @@ test('sealAppBuildManifest merges integration browser runtime manifests', () => 
 		loaders: new Map(),
 		processors: new Map(),
 		integrations: [integrationFor('react', reactManifest), integrationFor('router', routerManifest)],
-		runtime: {},
 	} as any;
 
 	const manifest = sealAppBuildManifest(appConfig);
@@ -232,7 +229,6 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 	const integration = {
 		plugins: [integrationRuntimePlugin],
 		setConfig: vi.fn(() => contributionOrder.push('integration-config')),
-		setRuntimeOrigin: vi.fn(() => contributionOrder.push('integration-origin')),
 		setHmrManager: vi.fn(() => contributionOrder.push('integration-hmr')),
 		setup: vi.fn(async () => {
 			contributionOrder.push('integration-setup');
@@ -246,7 +242,6 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 			integrations: [integration],
 			appRuntime: { buildInputIndex },
 		} as any,
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.deepEqual(contributionOrder, ['processor-setup']);
@@ -261,7 +256,6 @@ test('setupAppRuntimePlugins skips processor and integration setup when runtime 
 	const integration = {
 		plugins: [{ name: 'integration-runtime-plugin', setup() {} }],
 		setConfig: vi.fn(),
-		setRuntimeOrigin: vi.fn(),
 		setHmrManager: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
@@ -271,9 +265,11 @@ test('setupAppRuntimePlugins skips processor and integration setup when runtime 
 			loaders: new Map(),
 			processors: new Map([['processor', processor]]),
 			integrations: [integration],
-			runtime: { runtimeAssetsPrepared: true },
+			appRuntime: {
+				runtimeAssetsPrepared: true,
+				integrationActivations: new Map(),
+			},
 		} as any,
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.equal(processor.setup.mock.calls.length, 0);
@@ -287,28 +283,28 @@ test('ensureIntegrationRuntimeReady activates one integration exactly once', asy
 		name: 'react',
 		plugins: [integrationRuntimePlugin],
 		setConfig: vi.fn(),
-		setRuntimeOrigin: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
 
 	const appConfig = {
 		integrations: [integration],
+		appRuntime: {
+			integrationActivations: new Map(),
+		},
 	} as any;
 
 	await ensureIntegrationRuntimeReady({
 		appConfig,
 		integrationName: 'react',
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	await ensureIntegrationRuntimeReady({
 		appConfig,
 		integrationName: 'react',
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.equal(integration.setup.mock.calls.length, 1);
-	assert.ok(appConfig.runtime?.integrationActivations?.has('react'));
+	assert.ok(appConfig.appRuntime.integrationActivations.has('react'));
 });
 
 test('ensureIntegrationRuntimeReady coalesces concurrent callers to one setup', async () => {
@@ -320,7 +316,6 @@ test('ensureIntegrationRuntimeReady coalesces concurrent callers to one setup', 
 		name: 'react',
 		plugins: [],
 		setConfig: vi.fn(),
-		setRuntimeOrigin: vi.fn(),
 		setup: vi.fn(async () => {
 			await setupGate;
 		}),
@@ -328,17 +323,18 @@ test('ensureIntegrationRuntimeReady coalesces concurrent callers to one setup', 
 
 	const appConfig = {
 		integrations: [integration],
+		appRuntime: {
+			integrationActivations: new Map(),
+		},
 	} as any;
 
 	const first = ensureIntegrationRuntimeReady({
 		appConfig,
 		integrationName: 'react',
-		runtimeOrigin: 'http://localhost:3000',
 	});
 	const second = ensureIntegrationRuntimeReady({
 		appConfig,
 		integrationName: 'react',
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.equal(integration.setup.mock.calls.length, 1);
@@ -352,12 +348,14 @@ test('ensureIntegrationRuntimeReady evicts failed activation so a later caller c
 		name: 'react',
 		plugins: [],
 		setConfig: vi.fn(),
-		setRuntimeOrigin: vi.fn(),
 		setup: vi.fn().mockRejectedValueOnce(new Error('setup failed')).mockResolvedValueOnce(undefined),
 	};
 
 	const appConfig = {
 		integrations: [integration],
+		appRuntime: {
+			integrationActivations: new Map(),
+		},
 	} as any;
 
 	await assert.rejects(
@@ -365,21 +363,19 @@ test('ensureIntegrationRuntimeReady evicts failed activation so a later caller c
 			ensureIntegrationRuntimeReady({
 				appConfig,
 				integrationName: 'react',
-				runtimeOrigin: 'http://localhost:3000',
 			}),
 		/setup failed/,
 	);
 
-	assert.equal(appConfig.runtime?.integrationActivations?.has('react'), false);
+	assert.equal(appConfig.appRuntime.integrationActivations.has('react'), false);
 
 	await ensureIntegrationRuntimeReady({
 		appConfig,
 		integrationName: 'react',
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.equal(integration.setup.mock.calls.length, 2);
-	assert.ok(appConfig.runtime?.integrationActivations?.has('react'));
+	assert.ok(appConfig.appRuntime.integrationActivations.has('react'));
 });
 
 test('setupAppRuntimePlugins skips processor setup in Lit static-render worker threads', async () => {
@@ -392,7 +388,6 @@ test('setupAppRuntimePlugins skips processor setup in Lit static-render worker t
 	const integration = {
 		plugins: [{ name: 'integration-runtime-plugin', setup() {} }],
 		setConfig: vi.fn(),
-		setRuntimeOrigin: vi.fn(),
 		setHmrManager: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
@@ -402,8 +397,11 @@ test('setupAppRuntimePlugins skips processor setup in Lit static-render worker t
 			loaders: new Map(),
 			processors: new Map([['processor', processor]]),
 			integrations: [integration],
+			appRuntime: {
+				runtimeAssetsPrepared: false,
+				integrationActivations: new Map(),
+			},
 		} as any,
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.equal(processor.setup.mock.calls.length, 0);

@@ -8,7 +8,7 @@ import { requireBuildQueue } from '../../../build/runtime/build-queue.ts';
 import { runWithBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
 import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { MemoryCacheStore } from '../../../services/cache/memory-cache-store.ts';
-import { PageCacheService, registerAppPageCacheService } from '../../../services/cache/page-cache-service.ts';
+import { PageCacheService } from '../../../services/cache/page-cache-service.ts';
 import { SchemaValidationService } from '../../../services/validation/schema-validation-service.ts';
 import { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator.ts';
 import { ServerStaticBuilder } from './server-static-builder.ts';
@@ -21,14 +21,13 @@ import { createRenderContext } from './render-context.ts';
 import { ApiRequestPipeline } from '../http/api-request-pipeline.ts';
 import { isHtmlResponse, withUncachedDevHtml } from '../hmr/hmr-html-response.ts';
 import type { EcoPageFile } from '../../../types/public-types.ts';
-import { getAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
+import { createAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir } from '../../../utils/resolve-work-dir.ts';
 import type { RouteRegistryPageModuleAdapter } from '../../../router/server/route-registry.ts';
 import type {
 	ApiHandler,
 	CacheInvalidator,
 	ErrorHandler,
-	IHmrManager,
 	RenderContext,
 	StaticRoute,
 	ErrorPageLoaders,
@@ -40,13 +39,10 @@ type SharedResponseHandlerDependencies = {
 	explicitStaticRouteMatcher?: ExplicitStaticRouteMatcher;
 };
 
-type SharedHmrAssetManager = IHmrManager;
-
 type SharedRequestContext<TServer = unknown> = {
 	apiHandlers: ApiHandler[];
 	errorHandler?: ErrorHandler<Request, TServer>;
 	serverInstance?: TServer;
-	hmrManager?: SharedHmrAssetManager;
 };
 
 export abstract class SharedServerAdapter<
@@ -75,7 +71,6 @@ export abstract class SharedServerAdapter<
 	/** Propagates the actual listening port to every binding-dependent service. */
 	public override applyBoundPort(input: { port: number; runtimeOrigin: string }): void {
 		super.applyBoundPort(input);
-		this.routeRendererFactory?.setRuntimeOrigin(input.runtimeOrigin);
 		this.staticBuilder?.setRuntimeBinding(input);
 	}
 
@@ -90,7 +85,7 @@ export abstract class SharedServerAdapter<
 
 		this.devStaticRoutePrewarmStarted = true;
 
-		const runtimeOrigin = this.runtimeOrigin;
+		const runtimeOrigin = this.runtime.origin;
 		this.devStaticRoutePrewarm = startDevStaticRoutePrewarm({
 			pathnames: [...new Set(this.appConfig.devPrewarmPaths)],
 			signal: this.devStaticRoutePrewarmAbort.signal,
@@ -133,7 +128,6 @@ export abstract class SharedServerAdapter<
 	protected async initializeSharedRouteHandling(options: {
 		staticRoutes: StaticRoute[];
 		errorPageLoaders?: ErrorPageLoaders;
-		hmrManager?: SharedHmrAssetManager;
 	}): Promise<void> {
 		this.ensureRouteRendererFactory();
 		await this.initSharedRouter();
@@ -148,14 +142,12 @@ export abstract class SharedServerAdapter<
 		this.routeRendererFactory = new RouteRendererFactory({
 			appConfig: this.appConfig,
 			runtime: this.runtime,
-			runtimeOrigin: this.runtimeOrigin,
 		});
 	}
 
 	protected createSharedWatchRefreshCallback(options: {
 		staticRoutes: StaticRoute[];
 		errorPageLoaders?: ErrorPageLoaders;
-		hmrManager?: SharedHmrAssetManager;
 		onRoutesReady?: () => Promise<void> | void;
 		onError?: (error: Error) => Promise<void> | void;
 	}): () => Promise<void> {
@@ -164,7 +156,6 @@ export abstract class SharedServerAdapter<
 				await this.initializeSharedRouteHandling({
 					staticRoutes: options.staticRoutes,
 					errorPageLoaders: options.errorPageLoaders,
-					hmrManager: options.hmrManager,
 				});
 
 				if (options.onRoutesReady) {
@@ -195,7 +186,7 @@ export abstract class SharedServerAdapter<
 		this.router = new RouteRegistry({
 			pagesDir: path.join(this.appConfig.rootDir, this.appConfig.srcDir, this.appConfig.pagesDir),
 			appConfig: this.appConfig,
-			origin: this.runtimeOrigin,
+			origin: this.runtime.origin,
 			templatesExt: this.appConfig.templatesExt,
 			buildMode: !this.options?.watch,
 			pageModuleAdapter: this.createRouteRegistryPageModuleAdapter(),
@@ -234,7 +225,6 @@ export abstract class SharedServerAdapter<
 	 */
 	protected configureSharedResponseHandlers(options: {
 		staticRoutes: StaticRoute[];
-		hmrManager?: IHmrManager;
 		errorPageLoaders?: ErrorPageLoaders;
 	}): void {
 		this.ensureRouteRendererFactory();
@@ -249,7 +239,6 @@ export abstract class SharedServerAdapter<
 			router: this.router,
 			fileSystemResponseMatcher: this.fileSystemResponseMatcher,
 			explicitStaticRouteMatcher,
-			hmrManager: options.hmrManager,
 		});
 	}
 
@@ -314,7 +303,7 @@ export abstract class SharedServerAdapter<
 
 		const service = this.createSharedPageCacheServiceFromConfig();
 		this.sharedPageCacheService = service;
-		registerAppPageCacheService(this.appConfig, service);
+		this.runtime.pageCache = service;
 		return service;
 	}
 
@@ -323,7 +312,7 @@ export abstract class SharedServerAdapter<
 	}
 
 	protected getRenderContext(): RenderContext {
-		const serverModuleTranspiler = getAppServerModuleTranspiler(this.appConfig);
+		const serverModuleTranspiler = createAppServerModuleTranspiler(this.appConfig);
 
 		return createRenderContext({
 			integrations: this.appConfig.integrations,
@@ -336,22 +325,19 @@ export abstract class SharedServerAdapter<
 		});
 	}
 
-	private async tryHandleSharedDevClientRequest(
-		request: Request,
-		context: SharedRequestContext,
-	): Promise<Response | null> {
-		const manager = context.hmrManager as {
+	private async tryHandleSharedDevClientRequest(request: Request): Promise<Response | null> {
+		const manager = this.runtime.hmr as {
 			tryHandleDevClientRequest?: (request: Request) => Promise<Response | null>;
 		} | null;
 		return (await manager?.tryHandleDevClientRequest?.(request)) ?? null;
 	}
 
-	private tryHandleSharedHmrRequest(request: Request, context: SharedRequestContext): Response | null {
-		return context.hmrManager?.tryHandleAssetRequest(request) ?? null;
+	private tryHandleSharedHmrRequest(request: Request): Response | null {
+		return this.runtime.hmr?.tryHandleAssetRequest(request) ?? null;
 	}
 
-	private async injectSharedHmrHtmlResponse(response: Response, context: SharedRequestContext): Promise<Response> {
-		const hmrManager = context.hmrManager;
+	private async injectSharedHmrHtmlResponse(response: Response): Promise<Response> {
+		const hmrManager = this.runtime.hmr;
 		if (!isHtmlResponse(response) || !hmrManager?.isEnabled()) {
 			return response;
 		}
@@ -411,23 +397,23 @@ export abstract class SharedServerAdapter<
 		return requireBuildQueue(this.appConfig).withRequestScope(() =>
 			runWithBuildInputIndex(requireAppRuntime(this.appConfig).buildInputIndex, () =>
 				startupTrace.traceFirstRequest(request, async () => {
-					const devClientResponse = await this.tryHandleSharedDevClientRequest(request, context);
+					const devClientResponse = await this.tryHandleSharedDevClientRequest(request);
 					if (devClientResponse) {
 						return devClientResponse;
 					}
 
-					const hmrResponse = this.tryHandleSharedHmrRequest(request, context);
+					const hmrResponse = this.tryHandleSharedHmrRequest(request);
 					if (hmrResponse) {
 						return hmrResponse;
 					}
 
 					const apiResponse = await this.tryHandleSharedApiRequest(request, context);
 					if (apiResponse) {
-						return await this.injectSharedHmrHtmlResponse(apiResponse, context);
+						return await this.injectSharedHmrHtmlResponse(apiResponse);
 					}
 
 					const routeResponse = await this.routeHandler.handleResponse(request);
-					return await this.injectSharedHmrHtmlResponse(routeResponse, context);
+					return await this.injectSharedHmrHtmlResponse(routeResponse);
 				}),
 			),
 		);

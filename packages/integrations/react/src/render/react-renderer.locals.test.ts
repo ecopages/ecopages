@@ -37,7 +37,6 @@ describe('ReactRenderer locals split', () => {
 		const renderer = new TestReactRenderer({
 			appConfig,
 			assetProcessingService: assetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const pageRenderMock = vi.fn((_props: { locals?: unknown }) => {
@@ -83,7 +82,6 @@ describe('ReactRenderer locals split', () => {
 		const renderer = new TestReactRenderer({
 			appConfig,
 			assetProcessingService: assetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const Page = Object.assign(
@@ -124,7 +122,6 @@ describe('ReactRenderer locals split', () => {
 		const renderer = new TestReactRenderer({
 			appConfig,
 			assetProcessingService: assetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const Page = vi.fn(

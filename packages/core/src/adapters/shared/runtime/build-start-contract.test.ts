@@ -68,7 +68,6 @@ describe('build → start contract', () => {
 			runtime: requireAppRuntime(appConfig),
 			staticSiteGenerator,
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
-			runtimeOrigin: 'http://127.0.0.1:3000',
 			entryFile: 'app.ts',
 			needsServerBundle: true,
 		});
@@ -116,7 +115,6 @@ describe('build → start contract', () => {
 			runtime: requireAppRuntime(appConfig),
 			staticSiteGenerator,
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
-			runtimeOrigin: 'http://127.0.0.1:3000',
 			entryFile: 'app.ts',
 			needsServerBundle: true,
 		});
@@ -151,7 +149,6 @@ describe('build → start contract', () => {
 			runtime: requireAppRuntime(appConfig),
 			staticSiteGenerator: { run: async () => {} } as unknown as StaticSiteGenerator,
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
-			runtimeOrigin: 'http://127.0.0.1:3000',
 			entryFile: 'app.ts',
 			needsServerBundle: true,
 		});
@@ -195,7 +192,6 @@ describe('build → start contract', () => {
 			runtime: requireAppRuntime(appConfig),
 			staticSiteGenerator,
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
-			runtimeOrigin: 'http://127.0.0.1:3000',
 			entryFile: 'app.ts',
 		});
 
@@ -239,7 +235,6 @@ describe('build → start contract', () => {
 			runtime: requireAppRuntime(appConfig),
 			staticSiteGenerator,
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
-			runtimeOrigin: 'http://127.0.0.1:3000',
 			entryFile: 'app.ts',
 			needsServerBundle: true,
 		});
@@ -285,7 +280,6 @@ describe('build → start contract', () => {
 			runtime: requireAppRuntime(appConfig),
 			staticSiteGenerator,
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
-			runtimeOrigin: 'http://127.0.0.1:3000',
 			entryFile: 'app.ts',
 			needsServerBundle: true,
 		});

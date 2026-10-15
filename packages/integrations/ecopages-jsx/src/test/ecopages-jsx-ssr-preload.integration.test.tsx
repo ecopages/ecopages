@@ -85,7 +85,6 @@ describe('Ecopages JSX SSR script preload integration', () => {
 					assetProcessingService: {
 						processDependencies: vi.fn(async () => []),
 					} as never,
-					runtimeOrigin: 'http://localhost:3000',
 					resolvedIntegrationDependencies: [],
 				});
 
@@ -142,7 +141,6 @@ describe('Ecopages JSX SSR script preload integration', () => {
 				assetProcessingService: {
 					processDependencies: vi.fn(async () => []),
 				} as never,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 

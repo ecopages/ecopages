@@ -17,10 +17,6 @@ import { createBuildSuccess } from '../../../__fixtures__/build/build-result.ts'
 
 let tmpDir: string;
 
-function staticBuilderRuntime(): AppRuntime {
-	return { origin: 'http://localhost:3000', hmr: null } as AppRuntime;
-}
-
 function createMockDependencies() {
 	const calls = {
 		staticSiteGeneratorRun: [] as Array<unknown>,
@@ -40,7 +36,6 @@ function createMockDependencies() {
 	const mockIntegration = {
 		extensions: ['.tsx'],
 		setConfig: () => {},
-		setRuntimeOrigin: () => {},
 		setHmrManager: () => {},
 		plugins: [],
 		setup: async () => {
@@ -69,7 +64,6 @@ function createMockDependencies() {
 			distDir: path.join(tmpDir, 'dist'),
 			workDir: path.join(tmpDir, '.eco'),
 		} as EcoPagesAppConfig['absolutePaths'],
-		runtime: {},
 	} as unknown as EcoPagesAppConfig;
 
 	const defaultBuildAdapter: BuildAdapter = {
@@ -87,6 +81,8 @@ function createMockDependencies() {
 		buildQueue: new BuildQueue(defaultBuildAdapter),
 		origin: 'http://localhost:3000',
 		hmr: null,
+		runtimeAssetsPrepared: false,
+		integrationActivations: new Map(),
 	} as AppRuntime;
 
 	const ServeOptions: ServeOptions = {
@@ -230,10 +226,9 @@ describe('ServerStaticBuilder', () => {
 				createMockDependencies();
 			const builder = new ServerStaticBuilder({
 				appConfig: AppConfig,
-				runtime: staticBuilderRuntime(),
+				runtime: AppConfig.appRuntime!,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://localhost:3000',
 				logger,
 			});
 
@@ -248,20 +243,20 @@ describe('ServerStaticBuilder', () => {
 		it('re-runs refreshRuntimeAssets even if adapter init already prepared runtime assets', async () => {
 			const { AppConfig, StaticSiteGenerator, ServeOptions, Router, RouteRendererFactory, logger, calls } =
 				createMockDependencies();
+			const runtime = {
+				...requireAppRuntime(AppConfig),
+				runtimeAssetsPrepared: true,
+			};
 			const appConfig = {
 				...AppConfig,
-				runtime: {
-					...AppConfig.runtime,
-					runtimeAssetsPrepared: true,
-				},
+				appRuntime: runtime,
 			} as EcoPagesAppConfig;
 
 			const builder = new ServerStaticBuilder({
 				appConfig,
-				runtime: staticBuilderRuntime(),
+				runtime,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -272,7 +267,7 @@ describe('ServerStaticBuilder', () => {
 
 			expect(calls.processorSetup).toBe(1);
 			expect(calls.integrationSetup).toBe(0);
-			expect(appConfig.runtime?.runtimeAssetsPrepared).toBe(true);
+			expect(requireAppRuntime(appConfig).runtimeAssetsPrepared).toBe(true);
 		});
 
 		it('sets up once when the export was prepared before the build', async () => {
@@ -280,10 +275,9 @@ describe('ServerStaticBuilder', () => {
 				createMockDependencies();
 			const builder = new ServerStaticBuilder({
 				appConfig: AppConfig,
-				runtime: staticBuilderRuntime(),
+				runtime: AppConfig.appRuntime!,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -303,10 +297,9 @@ describe('ServerStaticBuilder', () => {
 
 			const builder = new ServerStaticBuilder({
 				appConfig: AppConfig,
-				runtime: staticBuilderRuntime(),
+				runtime: AppConfig.appRuntime!,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -338,10 +331,9 @@ describe('ServerStaticBuilder', () => {
 
 			const builder = new ServerStaticBuilder({
 				appConfig: AppConfig,
-				runtime: staticBuilderRuntime(),
+				runtime: AppConfig.appRuntime!,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: customServeOptions,
-				runtimeOrigin: 'http://0.0.0.0:8080',
 				logger,
 			});
 
@@ -359,10 +351,9 @@ describe('ServerStaticBuilder', () => {
 
 			const builder = new ServerStaticBuilder({
 				appConfig: AppConfig,
-				runtime: staticBuilderRuntime(),
+				runtime: AppConfig.appRuntime!,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -383,10 +374,9 @@ describe('ServerStaticBuilder', () => {
 
 			const builder = new ServerStaticBuilder({
 				appConfig: AppConfig,
-				runtime: staticBuilderRuntime(),
+				runtime: AppConfig.appRuntime!,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -404,10 +394,9 @@ describe('ServerStaticBuilder', () => {
 
 			const builder = new ServerStaticBuilder({
 				appConfig: AppConfig,
-				runtime: staticBuilderRuntime(),
+				runtime: AppConfig.appRuntime!,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -436,10 +425,9 @@ describe('ServerStaticBuilder', () => {
 
 			const builder = new ServerStaticBuilder({
 				appConfig: AppConfig,
-				runtime: staticBuilderRuntime(),
+				runtime: AppConfig.appRuntime!,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -472,10 +460,9 @@ describe('ServerStaticBuilder', () => {
 
 				const builder = new ServerStaticBuilder({
 					appConfig,
-					runtime: staticBuilderRuntime(),
+					runtime: AppConfig.appRuntime!,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
 				});
 
@@ -502,10 +489,9 @@ describe('ServerStaticBuilder', () => {
 
 				const builder = new ServerStaticBuilder({
 					appConfig,
-					runtime: staticBuilderRuntime(),
+					runtime: AppConfig.appRuntime!,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
 					entryFile: 'nonexistent.ts',
 					needsServerBundle: true,
@@ -555,10 +541,9 @@ describe('ServerStaticBuilder', () => {
 
 				const builder = new ServerStaticBuilder({
 					appConfig,
-					runtime: staticBuilderRuntime(),
+					runtime: AppConfig.appRuntime!,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
 					needsServerBundle: true,
 				});
@@ -590,10 +575,9 @@ describe('ServerStaticBuilder', () => {
 
 				const builder = new ServerStaticBuilder({
 					appConfig,
-					runtime: staticBuilderRuntime(),
+					runtime: AppConfig.appRuntime!,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
 					entryFile: 'app.ts',
 					needsServerBundle: true,
@@ -626,10 +610,9 @@ describe('ServerStaticBuilder', () => {
 
 				const builder = new ServerStaticBuilder({
 					appConfig,
-					runtime: staticBuilderRuntime(),
+					runtime: AppConfig.appRuntime!,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
 					needsServerBundle: true,
 				});

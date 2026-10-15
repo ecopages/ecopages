@@ -50,43 +50,13 @@ export type StaticGenerationRendererResolver = PageRendererResolver & ExplicitVi
 export class RouteRendererFactory {
 	private appConfig: EcoPagesAppConfig;
 	private readonly runtime: AppRuntime;
-	runtimeOrigin: string;
 
 	/**
 	 * Creates the route-renderer factory for one app/runtime instance.
 	 */
-	constructor({
-		appConfig,
-		runtime,
-		runtimeOrigin,
-	}: {
-		appConfig: EcoPagesAppConfig;
-		runtime: AppRuntime;
-		runtimeOrigin: string;
-	}) {
+	constructor({ appConfig, runtime }: { appConfig: EcoPagesAppConfig; runtime: AppRuntime }) {
 		this.appConfig = appConfig;
 		this.runtime = runtime;
-		this.runtimeOrigin = runtimeOrigin;
-		this.runtime.origin = runtimeOrigin;
-	}
-
-	/**
-	 * Rebinds Integration-owned renderers to the actual listening origin.
-	 *
-	 * @remarks
-	 * A development server may select a fallback port after this factory is
-	 * constructed. Integrations discard their renderer when the origin changes.
-	 */
-	setRuntimeOrigin(runtimeOrigin: string): void {
-		if (this.runtimeOrigin === runtimeOrigin) {
-			return;
-		}
-
-		this.runtimeOrigin = runtimeOrigin;
-		this.runtime.origin = runtimeOrigin;
-		for (const integration of this.appConfig.integrations) {
-			integration.setRuntimeOrigin?.(runtimeOrigin);
-		}
 	}
 
 	/**

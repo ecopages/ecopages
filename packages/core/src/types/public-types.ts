@@ -12,6 +12,7 @@ import type { InteractionEventsString as ScriptsInjectorInteractionEventsString 
 import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { DevTransformBundleContributor } from '../dev/transform-server/types.ts';
 
+export type { CacheConfig } from '../services/cache/cache.types.ts';
 export type { EcoPagesAppConfig } from './internal-types.ts';
 export type {
 	EcoPageComponent,
@@ -263,6 +264,14 @@ export type HmrFileChangeOptions = {
 };
 
 /**
+ * Integration callback for registered `dependencies.scripts` entrypoint changes in development.
+ *
+ * @remarks
+ * Returning `true` marks the script entrypoint as requiring a full page reload instead of an in-place HMR update.
+ */
+export type RegisteredScriptEntrypointChangeHandler = (filePath: string) => void | boolean | Promise<void | boolean>;
+
+/**
  * Adapter-agnostic interface for broadcasting development events to connected clients.
  * Implemented by both the Bun and Node client bridges.
  */
@@ -311,6 +320,13 @@ export interface IHmrManager {
 	 * Registers a custom HMR strategy.
 	 */
 	registerStrategy(strategy: HmrStrategy): void;
+
+	/**
+	 * @remarks
+	 * Handlers belong to this HMR session and are cleared when {@link stop} runs. Returning `true` from a handler
+	 * forces a full page reload instead of an in-place script update.
+	 */
+	onScriptEntrypointChanged?(handler: RegisteredScriptEntrypointChangeHandler): void;
 
 	/**
 	 * Enables or disables HMR.

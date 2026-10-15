@@ -29,7 +29,6 @@ function createAppConfig(): EcoPagesAppConfig {
 	return {
 		rootDir: '/app',
 		loaders: new Map(),
-		runtime: {},
 		appRuntime: {
 			buildManifest,
 		},
@@ -218,7 +217,6 @@ function createOrderedAppConfig(): EcoPagesAppConfig {
 	return {
 		rootDir: '/app',
 		loaders: new Map(),
-		runtime: {},
 		appRuntime: {
 			buildManifest,
 		},

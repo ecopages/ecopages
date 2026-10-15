@@ -502,7 +502,7 @@ order: 2
 		expect(await resolveServerModule()).toEqual({ path: compiledOutputs[0], external: true });
 		expect(compiledOutputs).toHaveLength(1);
 
-		appConfig.runtime?.appModuleLoader?.invalidateDevelopmentGraph();
+		appConfig.appRuntime!.moduleLoader.invalidateDevelopmentGraph();
 
 		expect(await resolveServerModule()).toEqual({ path: compiledOutputs[1], external: true });
 		expect(compiledOutputs).toHaveLength(2);

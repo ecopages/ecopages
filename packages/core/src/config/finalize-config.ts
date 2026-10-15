@@ -5,10 +5,6 @@ import { appLogger } from '../global/app-logger.ts';
 import { HTML_PAGES_INTEGRATION_NAME } from '../html-pages/html-page-module.ts';
 import { HtmlPagesPlugin } from '../html-pages/html-pages.plugin.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
-import {
-	NoopEntrypointDependencyGraph,
-	setAppEntrypointDependencyGraph,
-} from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { invariant } from '../utils/invariant.ts';
 import {
@@ -279,7 +275,6 @@ export async function finalizeEcoPagesConfig(
 		processor.setContext(config);
 	}
 
-	setAppEntrypointDependencyGraph(config, new NoopEntrypointDependencyGraph());
 	createAppRuntime(config);
 
 	return config;

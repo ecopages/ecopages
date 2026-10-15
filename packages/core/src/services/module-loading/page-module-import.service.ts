@@ -2,7 +2,7 @@ import { collectBuildOutputImports, getBuildEntryOutput } from '../../build/buil
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
-import { requireAppRuntime } from '../../config/app-runtime.ts';
+import { requireAppRuntime, ServerInvalidationState } from '../../config/app-runtime.ts';
 import {
 	defaultBuildAdapter,
 	type BuildExecutor,
@@ -93,7 +93,7 @@ export class PageModuleImportService {
 	private readonly appConfig?: EcoPagesAppConfig;
 	private readonly dependencies: PageModuleImportDependencies;
 	private readonly importCache = new Map<string, ImportCacheEntry>();
-	private developmentImportGeneration = 0;
+	private readonly fallbackServerInvalidation = new ServerInvalidationState();
 
 	constructor(appConfig?: EcoPagesAppConfig, dependencies?: Partial<PageModuleImportDependencies>) {
 		this.appConfig = appConfig;
@@ -116,7 +116,10 @@ export class PageModuleImportService {
 	}
 
 	getDevelopmentGeneration(): number {
-		return this.appConfig?.appRuntime?.serverInvalidation.currentGeneration() ?? this.developmentImportGeneration;
+		const invalidation = this.appConfig
+			? requireAppRuntime(this.appConfig).serverInvalidation
+			: this.fallbackServerInvalidation;
+		return invalidation.currentGeneration();
 	}
 
 	/**
@@ -128,12 +131,10 @@ export class PageModuleImportService {
 	 * dependencies on a hit, because the watcher records every server module closure and invalidates it.
 	 */
 	invalidateDevelopmentGraph(): void {
-		const serverInvalidation = this.appConfig?.appRuntime?.serverInvalidation;
-		if (serverInvalidation) {
-			serverInvalidation.advance();
-		} else {
-			this.developmentImportGeneration += 1;
-		}
+		const invalidation = this.appConfig
+			? requireAppRuntime(this.appConfig).serverInvalidation
+			: this.fallbackServerInvalidation;
+		invalidation.advance();
 		this.clearImportCache();
 	}
 

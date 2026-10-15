@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { installBuildQueue } from '../../build/runtime/build-queue.ts';
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
 import { HMR_RUNTIME_WORK_DIR_SEGMENT } from '../../hmr/hmr-runtime-paths.ts';
@@ -119,13 +120,13 @@ describe('JsHmrStrategy integration', () => {
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const broadcasts: ClientBridgeEvent[] = [];
 		let importCalls = 0;
-		config.runtime ??= {};
-		config.runtime.appModuleLoader = {
+		requireAppRuntime(config).moduleLoader = {
 			importModule: async () => {
 				importCalls += 1;
 				throw new Error('browser-only registered scripts must not be server-imported');
 			},
 			invalidateDevelopmentGraph: () => undefined,
+			getDevelopmentGeneration: () => 0,
 		} as never;
 
 		using manager = new NodeHmrManager({
@@ -179,8 +180,6 @@ describe('JsHmrStrategy integration', () => {
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const broadcasts: ClientBridgeEvent[] = [];
-		config.runtime ??= {};
-		config.runtime.registeredScriptEntrypointChangeHandlers = [() => true];
 		using manager = new NodeHmrManager({
 			appConfig: config,
 			bridge: {
@@ -190,6 +189,7 @@ describe('JsHmrStrategy integration', () => {
 				},
 			} as never,
 		});
+		manager.onScriptEntrypointChanged(() => true);
 
 		manager.setEnabled(true);
 		installBuildQueue(config);

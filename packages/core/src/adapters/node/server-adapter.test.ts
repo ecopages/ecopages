@@ -7,6 +7,7 @@ import chokidar from 'chokidar';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { requireAppRuntime, type AppRuntime } from '../../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
+import { createAppModuleLoader } from '../../services/module-loading/app-server-module-transpiler.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import type { NodeServerAdapterParams } from './server-adapter.ts';
@@ -92,20 +93,29 @@ function createAdapter(
 	options?: Partial<NodeServerAdapterParams>,
 	runtimeHost = new NodeRuntimeHost(new NodeHttpRequestBridge()),
 ) {
-	const appConfig = {
-		rootDir: '/tmp/app',
-		distDir: '.ecopages',
-		runtime: {},
-	} as unknown as EcoPagesAppConfig;
+	const appConfig =
+		options?.appConfig ??
+		({
+			rootDir: '/tmp/app',
+			distDir: '.ecopages',
+		} as unknown as EcoPagesAppConfig);
+	const runtime =
+		options?.runtime ??
+		appConfig.appRuntime ??
+		({
+			origin: 'http://localhost:3000',
+			hmr: null,
+			moduleLoader: createAppModuleLoader(appConfig),
+		} as AppRuntime);
+	appConfig.appRuntime ??= runtime;
 
 	return new TestNodeServerAdapter({
 		appConfig,
-		runtimeOrigin: 'http://localhost:3000',
 		serveOptions: {},
 		options: { watch: true },
 		runtimeHost,
 		...options,
-		runtime: options?.runtime ?? ({ origin: 'http://localhost:3000', hmr: null } as AppRuntime),
+		runtime,
 	});
 }
 

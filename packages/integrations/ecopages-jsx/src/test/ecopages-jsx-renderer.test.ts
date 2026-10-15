@@ -73,10 +73,7 @@ async function createAppConfig(rootDir: string): Promise<EcoPagesAppConfig> {
 		rootDir,
 		defaultMetadata: { title: '', description: '' },
 	});
-	config.runtime = {
-		...config.runtime,
-		appModuleLoader,
-	};
+	config.appRuntime!.moduleLoader = appModuleLoader;
 	return config;
 }
 
@@ -173,7 +170,6 @@ test('EcopagesJsxRenderer installs the Radiant light-dom environment before reso
 			appConfig,
 			assetProcessingService: createTestAssetProcessingService(appConfig),
 			resolvedIntegrationDependencies: [],
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		await withClearedLightDomGlobals(async () => {
@@ -217,13 +213,11 @@ test('EcopagesJsxRenderer keeps MDX extension matching instance-owned', async ()
 		appConfig: appConfigA,
 		assetProcessingService: createTestAssetProcessingService(appConfigA),
 		resolvedIntegrationDependencies: [],
-		runtimeOrigin: 'http://localhost:3000',
 	});
 	const rendererB = new GuideRenderer({
 		appConfig: appConfigB,
 		assetProcessingService: createTestAssetProcessingService(appConfigB),
 		resolvedIntegrationDependencies: [],
-		runtimeOrigin: 'http://localhost:3000',
 	});
 	const page = (() => '') as EcoComponent;
 	page.config = {
@@ -243,7 +237,6 @@ test('EcopagesJsxRenderer records declared content dependencies for HMR ownershi
 		appConfig,
 		assetProcessingService: createTestAssetProcessingService(appConfig),
 		resolvedIntegrationDependencies: [],
-		runtimeOrigin: 'http://localhost:3000',
 	});
 	const demo = (() => '<demo></demo>') as EcoComponent;
 	demo.config = {

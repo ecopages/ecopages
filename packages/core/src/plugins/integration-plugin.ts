@@ -133,7 +133,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	protected assetProcessingService?: AssetProcessingService;
 	protected hmrManager?: IHmrManager;
 	private rendererInstance?: IntegrationRenderer<C>;
-	declare runtimeOrigin: string;
 
 	/**
 	 * Declares the build plugins this Integration contributes.
@@ -208,18 +207,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		if (!this.assetProcessingService) {
 			this.initializeAssetDefinitionService();
 		}
-	}
-
-	/**
-	 * Records the runtime origin used for page-module loading and renderer setup.
-	 */
-	setRuntimeOrigin(runtimeOrigin: string) {
-		if (this.runtimeOrigin === runtimeOrigin) {
-			return;
-		}
-
-		this.runtimeOrigin = runtimeOrigin;
-		this.rendererInstance = undefined;
 	}
 
 	/**
@@ -315,7 +302,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 			appConfig: this.appConfig,
 			assetProcessingService: this.assetProcessingService,
 			resolvedIntegrationDependencies: this.resolvedIntegrationDependencies,
-			runtimeOrigin: this.runtimeOrigin,
 		};
 	}
 

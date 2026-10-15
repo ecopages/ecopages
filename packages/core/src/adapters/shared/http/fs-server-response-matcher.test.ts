@@ -26,7 +26,6 @@ const INDEX_TEMPLATE_FILE = path.join(appDir, 'src/pages/index.ts');
 
 for (const integration of appConfig.integrations) {
 	integration.setConfig(appConfig);
-	integration.setRuntimeOrigin(appConfig.baseUrl);
 }
 
 const router = new RouteRegistry({
@@ -45,7 +44,6 @@ await router.init();
 const routeRendererFactory = new RouteRendererFactory({
 	appConfig,
 	runtime: requireAppRuntime(appConfig),
-	runtimeOrigin: appConfig.baseUrl,
 });
 
 function createRouteRendererFactoryWithStub404(

@@ -1,4 +1,3 @@
-import type { IHmrManager } from '../../../types/public-types.ts';
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { ExplicitStaticRouteMatcher } from '../http/explicit-static-route-matcher.ts';
 import type { FileSystemResponseMatcher } from '../http/fs-server-response-matcher.ts';
@@ -16,8 +15,6 @@ export interface ServerRouteHandlerParams {
 	fileSystemResponseMatcher: FileSystemResponseMatcher;
 	/** Optional matcher for explicit static routes like processed images or sitemaps. */
 	explicitStaticRouteMatcher?: ExplicitStaticRouteMatcher;
-	/** HMR manager for broadcasting hot module reload events in development. */
-	hmrManager?: IHmrManager;
 }
 
 /**
@@ -33,23 +30,16 @@ export class ServerRouteHandler {
 	private readonly router: RouteRegistry;
 	private readonly fileSystemResponseMatcher: FileSystemResponseMatcher;
 	private readonly explicitStaticRouteMatcher?: ExplicitStaticRouteMatcher;
-	private readonly hmrManager?: IHmrManager;
 
 	/**
 	 * Creates a new ServerRouteHandler instance.
 	 *
 	 * @param params - Configuration parameters
 	 */
-	constructor({
-		router,
-		fileSystemResponseMatcher,
-		explicitStaticRouteMatcher,
-		hmrManager,
-	}: ServerRouteHandlerParams) {
+	constructor({ router, fileSystemResponseMatcher, explicitStaticRouteMatcher }: ServerRouteHandlerParams) {
 		this.router = router;
 		this.fileSystemResponseMatcher = fileSystemResponseMatcher;
 		this.explicitStaticRouteMatcher = explicitStaticRouteMatcher;
-		this.hmrManager = hmrManager;
 	}
 
 	/**
@@ -107,7 +97,7 @@ export class ServerRouteHandler {
 				return error.toResponse();
 			}
 			if (error instanceof Error) {
-				this.hmrManager?.broadcast({ type: 'error', message: error.message });
+				this.router.appConfig?.appRuntime?.hmr?.broadcast({ type: 'error', message: error.message });
 				appLogger.error('Error handling no match:', error);
 			}
 			return await this.fileSystemResponseMatcher.renderServerError(pathname, error);

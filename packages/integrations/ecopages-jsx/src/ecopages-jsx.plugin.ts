@@ -176,14 +176,11 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 			);
 		}
 
-		if (!this.includeRadiant || !this.appConfig) {
+		if (!this.includeRadiant) {
 			return;
 		}
 
-		const runtime = this.appConfig.runtime ?? {};
-		this.appConfig.runtime = runtime;
-		runtime.registeredScriptEntrypointChangeHandlers ??= [];
-		runtime.registeredScriptEntrypointChangeHandlers.push(invalidateRadiantRegisteredScriptSsrRegistration);
+		hmrManager.onScriptEntrypointChanged?.(invalidateRadiantRegisteredScriptSsrRegistration);
 	}
 
 	/**

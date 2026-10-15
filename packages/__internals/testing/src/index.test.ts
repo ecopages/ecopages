@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { EcoPagesElement } from '@ecopages/core';
+import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
 import { createStringMarkupIntegration, createTestAppConfig } from './index.ts';
 
 class TestRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = 'test';
+
+	getRuntimeOrigin(): string {
+		return requireAppRuntime(this.appConfig).origin;
+	}
 
 	override async render(): Promise<string> {
 		return '';
@@ -58,13 +63,16 @@ describe('createTestAppConfig', () => {
 	it('allows integrations to use a runtime origin different from baseUrl', async () => {
 		const plugin = new TestPlugin();
 
-		await createTestAppConfig({
+		const config = await createTestAppConfig({
 			baseUrl: 'http://localhost:3100',
 			runtimeOrigin: 'http://127.0.0.1:4100',
 			integrations: [plugin],
 		});
 
-		expect(plugin.runtimeOrigin).toBe('http://127.0.0.1:4100');
+		const renderer = plugin.getRenderer() as TestRenderer;
+		expect(renderer).toBeInstanceOf(TestRenderer);
+		expect(renderer.getRuntimeOrigin()).toBe('http://127.0.0.1:4100');
+		expect(requireAppRuntime(config).origin).toBe('http://127.0.0.1:4100');
 	});
 });
 

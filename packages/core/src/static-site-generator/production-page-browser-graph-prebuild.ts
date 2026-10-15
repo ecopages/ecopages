@@ -1,10 +1,10 @@
 import path from 'node:path';
+import { requireAppRuntime } from '../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { PageParams } from '../types/public-types.ts';
 import type { PageRendererResolver } from '../route-renderer/route-renderer.ts';
 import type { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
 import type { GroupedGraphBuildPlan } from '../route-renderer/orchestration/page-browser-graph/grouped-graph-build-plan.ts';
-import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import { createPageDependencyInstanceKey } from '../route-renderer/orchestration/page-browser-graph/route-instance-key.ts';
 import { buildAppBrowserClient } from '../services/assets/app-browser-client-build.ts';
 
@@ -32,7 +32,7 @@ export function shouldPrebuildProductionPageBrowserGraphs(): boolean {
  * reuse staged graph output. Development session records are left intact.
  */
 export function clearProductionPageBrowserGraphSession(appConfig: EcoPagesAppConfig): void {
-	getAppPageBrowserGraphSession(appConfig).clearPolicyRecords('production');
+	requireAppRuntime(appConfig).pageBrowserGraphSession.clearPolicyRecords('production');
 }
 
 function serializeProductionRouteInstance(instance: ProductionPageBrowserGraphRouteInstance): string {

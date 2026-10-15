@@ -161,7 +161,7 @@ describe('finalizeEcoPagesConfig', () => {
 		expect(runtime.buildAdapter).not.toBe(defaultBuildAdapter);
 		expect(runtime.buildManifest.server).toHaveLength(0);
 		expect(runtime.buildManifest.browser).toHaveLength(0);
-		expect(config.runtime?.entrypointDependencyGraph).toBeInstanceOf(NoopEntrypointDependencyGraph);
+		expect(runtime.entrypointDependencyGraph).toBeInstanceOf(NoopEntrypointDependencyGraph);
 	});
 
 	test('should finalize processor and integration manifest contributions during config build', async () => {

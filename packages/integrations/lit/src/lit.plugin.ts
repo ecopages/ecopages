@@ -2,6 +2,7 @@ import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	invalidateCustomElementScriptPreload,
 } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
+import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
 import type { IHmrManager } from '@ecopages/core';
 /**
  * This module contains the Lit plugin
@@ -82,7 +83,8 @@ export class LitPlugin extends IntegrationPlugin {
 		return new LitStaticRenderSession({
 			resolveDependencyPath: (componentDir, sourcePath) => path.join(componentDir, sourcePath),
 			processDependencies: this.assetProcessingService.processDependencies.bind(this.assetProcessingService),
-			getInvalidationVersion: () => this.appConfig?.runtime?.appModuleLoader?.getDevelopmentGeneration() ?? 0,
+			getInvalidationVersion: () =>
+				this.appConfig ? requireAppRuntime(this.appConfig).moduleLoader.getDevelopmentGeneration() : 0,
 		});
 	}
 
@@ -95,15 +97,7 @@ export class LitPlugin extends IntegrationPlugin {
 
 	override setHmrManager(hmrManager: IHmrManager): void {
 		super.setHmrManager(hmrManager);
-
-		if (!this.appConfig) {
-			return;
-		}
-
-		const runtime = this.appConfig.runtime ?? {};
-		this.appConfig.runtime = runtime;
-		runtime.registeredScriptEntrypointChangeHandlers ??= [];
-		runtime.registeredScriptEntrypointChangeHandlers.push((scriptPath) => {
+		hmrManager.onScriptEntrypointChanged?.((scriptPath) => {
 			invalidateCustomElementScriptPreload(scriptPath, CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit);
 		});
 	}
@@ -122,7 +116,7 @@ export class LitPlugin extends IntegrationPlugin {
 		this.renderSession ??= this.createRenderSession();
 		await this.renderSession.ensureWorker({
 			configModulePath: this.appConfig.absolutePaths.config,
-			runtimeOrigin: this.runtimeOrigin,
+			runtimeOrigin: requireAppRuntime(this.appConfig).origin,
 		});
 	}
 

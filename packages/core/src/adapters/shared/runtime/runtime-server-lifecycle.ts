@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
 import { RESOLVED_ASSETS_DIR } from '../../../config/constants.ts';
 import { ensureIntegrationRuntimeReady } from '../../../build/app-build-manifest-runtime.ts';
@@ -20,8 +21,6 @@ export function prepareRuntimePublicDir(appConfig: EcoPagesAppConfig): void {
 	fileSystem.ensureDir(path.join(appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
 }
 
-const attachedHmrApps = new WeakSet<EcoPagesAppConfig>();
-
 /**
  * Attaches the shared HMR manager to every integration exactly once per app config.
  *
@@ -30,11 +29,12 @@ const attachedHmrApps = new WeakSet<EcoPagesAppConfig>();
  * this after the manager is enabled so late plugin init cannot double-bind integrations.
  */
 export function attachHmrToIntegrations(appConfig: EcoPagesAppConfig, hmrManager: IHmrManager): void {
-	if (attachedHmrApps.has(appConfig)) {
+	const runtime = requireAppRuntime(appConfig);
+	if (runtime.hmrAttachedToIntegrations) {
 		return;
 	}
 
-	attachedHmrApps.add(appConfig);
+	runtime.hmrAttachedToIntegrations = true;
 
 	for (const integration of appConfig.integrations) {
 		integration.setHmrManager(hmrManager);
@@ -50,8 +50,8 @@ export function attachHmrToIntegrations(appConfig: EcoPagesAppConfig, hmrManager
  * the server. Concurrent first-page renders still join the same coalesced
  * {@link ensureIntegrationRuntimeReady} promise.
  */
-export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig; runtimeOrigin: string }): Promise<void> {
-	const { appConfig, runtimeOrigin } = options;
+export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
+	const { appConfig } = options;
 
 	try {
 		await Promise.all(
@@ -59,7 +59,6 @@ export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig; ru
 				ensureIntegrationRuntimeReady({
 					appConfig,
 					integrationName: integration.name,
-					runtimeOrigin,
 				}),
 			),
 		);
@@ -82,16 +81,18 @@ export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig; ru
 export async function disposeDevResources(options: {
 	projectWatcher: ProjectWatcher | null | undefined;
 	appConfig: EcoPagesAppConfig;
-	hmrManager: IHmrManager | null | undefined;
+	hmrManager?: IHmrManager | null | undefined;
 	bridge: { destroy(): void } | null | undefined;
 	stopPreviewServer: () => Promise<void>;
 }): Promise<void> {
+	const runtime = requireAppRuntime(options.appConfig);
+	const hmrManager = options.hmrManager ?? runtime.hmr;
 	const cleanup = [
 		() => options.projectWatcher?.close(),
-		() => options.hmrManager?.stop(),
+		() => hmrManager?.stop(),
 		() => options.bridge?.destroy(),
 		options.stopPreviewServer,
-		() => Promise.allSettled(options.appConfig.runtime?.integrationActivations?.values() ?? []),
+		() => Promise.allSettled(runtime.integrationActivations.values()),
 		...options.appConfig.integrations.map((integration) => () => integration.teardown()),
 	];
 	const errors: unknown[] = [];
@@ -102,8 +103,9 @@ export async function disposeDevResources(options: {
 			errors.push(error);
 		}
 	}
-	options.appConfig.runtime?.integrationActivations?.clear();
-	attachedHmrApps.delete(options.appConfig);
+	runtime.hmr = null;
+	runtime.integrationActivations.clear();
+	runtime.hmrAttachedToIntegrations = false;
 	if (errors.length === 1) throw errors[0];
 	if (errors.length > 1) throw new AggregateError(errors, 'Failed to release dev resources');
 }

@@ -8,31 +8,6 @@ function testRuntime(origin: string): AppRuntime {
 }
 
 describe('RouteRendererFactory runtime binding', () => {
-	it('discards origin-bound renderers when the listening origin changes', () => {
-		const firstRenderer = { renderToResponse: vi.fn() };
-		const secondRenderer = { renderToResponse: vi.fn() };
-		let currentRenderer = firstRenderer;
-		const integration = {
-			name: 'test',
-			extensions: ['.test.ts'],
-			getRenderer: vi.fn(() => currentRenderer),
-			setRuntimeOrigin: vi.fn(),
-		};
-		const factory = new RouteRendererFactory({
-			appConfig: { integrations: [integration] } as unknown as EcoPagesAppConfig,
-			runtime: testRuntime('http://localhost:3000'),
-			runtimeOrigin: 'http://localhost:3000',
-		});
-
-		expect(factory.getExplicitViewRenderer('test')).toBe(firstRenderer);
-		factory.setRuntimeOrigin('http://localhost:3001');
-		currentRenderer = secondRenderer;
-
-		expect(factory.runtimeOrigin).toBe('http://localhost:3001');
-		expect(integration.setRuntimeOrigin).toHaveBeenCalledWith('http://localhost:3001');
-		expect(factory.getExplicitViewRenderer('test')).toBe(secondRenderer);
-	});
-
 	it('uses the Integration-owned renderer instead of keeping a second cache', () => {
 		const firstRenderer = { renderToResponse: vi.fn() };
 		const secondRenderer = { renderToResponse: vi.fn() };
@@ -44,7 +19,6 @@ describe('RouteRendererFactory runtime binding', () => {
 		const factory = new RouteRendererFactory({
 			appConfig: { integrations: [integration] } as unknown as EcoPagesAppConfig,
 			runtime: testRuntime('http://localhost:3000'),
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		expect(factory.getPageRenderer('/app/src/pages/about.test.ts')).toBe(firstRenderer);
@@ -57,7 +31,6 @@ describe('RouteRendererFactory runtime binding', () => {
 		const factory = new RouteRendererFactory({
 			appConfig: { integrations: [html] } as unknown as EcoPagesAppConfig,
 			runtime: testRuntime('http://localhost:3000'),
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		expect(factory.getIntegrationPlugin('/app/src/pages/v1.2.html')).toBe(html);

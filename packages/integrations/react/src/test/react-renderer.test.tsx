@@ -105,7 +105,6 @@ const asAssetProcessingService = (mock: object) =>
 const renderer = new ReactRenderer({
 	appConfig: Config,
 	assetProcessingService: asAssetProcessingService(createAssetProcessingServiceMock()),
-	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],
 });
 
@@ -218,7 +217,6 @@ const createRenderer = (reactConfig?: ReactRendererConfig) => {
 	return new TestReactRenderer({
 		appConfig: Config,
 		assetProcessingService: asAssetProcessingService(createAssetProcessingServiceMock()),
-		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
 		reactConfig,
 	});
@@ -240,7 +238,6 @@ const createRendererWithAssets = (reactConfig?: ReactRendererConfig) => {
 	const testRenderer = new TestReactRenderer({
 		appConfig: Config,
 		assetProcessingService: asAssetProcessingService(assetProcessingService),
-		runtimeOrigin: 'http://localhost:3000',
 		resolvedIntegrationDependencies: [],
 		reactConfig,
 	});
@@ -271,7 +268,6 @@ describeRendererContract({
 						: (processDependencies as (...args: unknown[]) => unknown)(deps, ...rest),
 				),
 			} as never,
-			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 		});
 		testRenderer.htmlTemplate = HeadedHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
@@ -348,7 +344,6 @@ describe('ReactRenderer', () => {
 					const appRenderer = new ReactRenderer({
 						appConfig: config,
 						assetProcessingService: asAssetProcessingService(createAssetProcessingServiceMock()),
-						runtimeOrigin: 'http://localhost:3000',
 						resolvedIntegrationDependencies: [],
 					});
 
@@ -611,7 +606,6 @@ describe('ReactRenderer', () => {
 				assetProcessingService: {
 					processDependencies: vi.fn(async () => []),
 				} as any,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 
@@ -673,7 +667,6 @@ describe('ReactRenderer', () => {
 			const testRenderer = new TestReactRenderer({
 				appConfig: config,
 				assetProcessingService: { processDependencies: vi.fn(async () => []) } as any,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 			const DeferredWidget = eco.component<{}, string>({
@@ -963,7 +956,6 @@ describe('ReactRenderer', () => {
 		const mdxRenderer = new TestReactRenderer({
 			appConfig: Config,
 			assetProcessingService: mdxAssetProcessingService as any,
-			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 			reactConfig: {
 				forceBrowserGraph: true,
@@ -1110,7 +1102,6 @@ describe('ReactRenderer', () => {
 		const testRenderer = new TestReactRenderer({
 			appConfig: config,
 			assetProcessingService: createAssetProcessingServiceMock() as any,
-			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 		});
 		testRenderer.htmlTemplate = NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
@@ -1247,7 +1238,6 @@ describe('ReactRenderer', () => {
 			const testRenderer = new ReactRenderer({
 				appConfig: config,
 				assetProcessingService: createAssetProcessingServiceMock() as any,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 
@@ -1292,7 +1282,6 @@ describe('ReactRenderer', () => {
 			const testRenderer = new TestReactRenderer({
 				appConfig: config,
 				assetProcessingService: createAssetProcessingServiceMock() as any,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 			testRenderer.htmlTemplate = NonReactHtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
@@ -1340,7 +1329,6 @@ describe('ReactRenderer', () => {
 			const testRenderer = new ImportTestReactRenderer({
 				appConfig: Config,
 				assetProcessingService: asAssetProcessingService(createAssetProcessingServiceMock()),
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 			const pageComponent = (() => null) as unknown as typeof Page;

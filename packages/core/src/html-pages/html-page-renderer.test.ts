@@ -44,7 +44,6 @@ describe('HtmlPageRenderer', () => {
 		new HtmlPageRenderer({
 			appConfig,
 			assetProcessingService: assetService,
-			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 		});
 
@@ -262,7 +261,6 @@ describe('HtmlPageRenderer', () => {
 					processDependencies: assetService.processDependencies,
 					getHmrManager: () => ({ isEnabled: () => true }),
 				} as unknown as AssetProcessingService,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 			let html = '';
@@ -399,7 +397,6 @@ describe('HtmlPageRenderer', () => {
 			renderer = new HtmlPageRenderer({
 				appConfig,
 				assetProcessingService: AssetProcessingService.createWithDefaultProcessors(appConfig),
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 		};
@@ -706,7 +703,6 @@ describe('HtmlPageRenderer', () => {
 						processDependencies: assetService.processDependencies,
 						getHmrManager: () => ({ isEnabled: () => true }),
 					} as unknown as AssetProcessingService,
-					runtimeOrigin: 'http://localhost:3000',
 					resolvedIntegrationDependencies: [],
 				}),
 				file,

@@ -5,6 +5,7 @@ import {
 	type AppBuildManifest,
 	type BuildPluginRegistration,
 } from './contracts/build-manifest.ts';
+import { requireAppRuntime } from '../config/app-runtime.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { startupTrace } from '../diagnostics/startup-trace.ts';
@@ -44,13 +45,11 @@ export function sealAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildMani
 	return createAppBuildManifest(registrations, mergeBrowserRuntimeManifests(...browserRuntimeManifests));
 }
 
-export async function setupAppRuntimePlugins(options: {
-	appConfig: EcoPagesAppConfig;
-	runtimeOrigin: string;
-}): Promise<void> {
+export async function setupAppRuntimePlugins(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
 	startupTrace.markPhaseStart('setupAppRuntimePlugins');
 
-	if (options.appConfig.runtime?.runtimeAssetsPrepared) {
+	const runtime = requireAppRuntime(options.appConfig);
+	if (runtime.runtimeAssetsPrepared) {
 		appLogger.debug('Skipped setupAppRuntimePlugins: runtime assets already prepared');
 		startupTrace.markPhaseEnd('setupAppRuntimePlugins');
 		return;
@@ -71,12 +70,7 @@ export async function setupAppRuntimePlugins(options: {
 			}
 		}
 
-		if (options.appConfig.appRuntime) {
-			seedProcessorWatchPaths(options.appConfig, options.appConfig.appRuntime.buildInputIndex);
-		}
-
-		const runtime = options.appConfig.runtime ?? {};
-		options.appConfig.runtime = runtime;
+		seedProcessorWatchPaths(options.appConfig, runtime.buildInputIndex);
 		runtime.runtimeAssetsPrepared = true;
 	} finally {
 		appLogger.debugTimeEnd('setupAppRuntimePlugins');
@@ -94,11 +88,8 @@ export async function setupAppRuntimePlugins(options: {
 export async function ensureIntegrationRuntimeReady(options: {
 	appConfig: EcoPagesAppConfig;
 	integrationName: string;
-	runtimeOrigin: string;
 }): Promise<void> {
-	const runtime = options.appConfig.runtime ?? {};
-	options.appConfig.runtime = runtime;
-	runtime.integrationActivations ??= new Map<string, Promise<void>>();
+	const runtime = requireAppRuntime(options.appConfig);
 
 	const existing = runtime.integrationActivations.get(options.integrationName);
 	if (existing) {
@@ -113,7 +104,6 @@ export async function ensureIntegrationRuntimeReady(options: {
 
 	const activation = (async () => {
 		integration.setConfig(options.appConfig);
-		integration.setRuntimeOrigin(options.runtimeOrigin);
 		await integration.setup();
 	})();
 

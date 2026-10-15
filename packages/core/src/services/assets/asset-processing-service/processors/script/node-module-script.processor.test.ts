@@ -3,7 +3,6 @@ import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { NodeModuleScriptProcessor } from './node-module-script.processor';
 import { createAppRuntime } from '../../../../../config/app-runtime';
-import { NoopEntrypointDependencyGraph } from '../../../../runtime-state/entrypoint-dependency-graph.service';
 import type { EcoPagesAppConfig } from '../../../../../types/internal-types';
 import type { NodeModuleScriptAsset } from '../../assets.types';
 
@@ -22,9 +21,6 @@ const createMockConfig = (): EcoPagesAppConfig => {
 		processors: new Map(),
 		loaders: new Map(),
 		integrations: [],
-		runtime: {
-			entrypointDependencyGraph: new NoopEntrypointDependencyGraph(),
-		},
 	} as unknown as EcoPagesAppConfig;
 	createAppRuntime(config);
 	return config;

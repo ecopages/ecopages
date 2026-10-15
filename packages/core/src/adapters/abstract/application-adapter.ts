@@ -8,7 +8,6 @@
  */
 
 import { appLogger } from '../../global/app-logger.ts';
-import { getAppModuleLoader } from '../../services/module-loading/app-server-module-transpiler.service.ts';
 import { createViewModuleLoader } from '../../services/module-loading/view-module-loader.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { invariant } from '../../utils/invariant.ts';
@@ -109,8 +108,6 @@ export abstract class AbstractApplicationAdapter<
 		this.appConfig = options.appConfig;
 		this.serverOptions = options.serverOptions || {};
 		this.cliArgs = parseCliArgs();
-
-		getAppModuleLoader(this.appConfig);
 
 		startupTrace.markConfigReady();
 	}

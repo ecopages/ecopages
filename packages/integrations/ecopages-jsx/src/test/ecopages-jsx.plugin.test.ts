@@ -53,6 +53,7 @@ async function withClearedLightDomGlobals<T>(run: () => Promise<T>): Promise<T> 
 function createHmrManagerStub(): IHmrManager {
 	return {
 		registerStrategy: vi.fn(),
+		onScriptEntrypointChanged: vi.fn(),
 		registerEntrypoint: vi.fn(),
 		registerDevTransformContributor: vi.fn(),
 		registerScriptEntrypoint: vi.fn(),
@@ -170,22 +171,26 @@ test('EcopagesJsxPlugin registers Radiant SSR invalidation when Radiant is enabl
 	const appConfig = await createTestAppConfig({ rootDir: '/tmp/ecopages-jsx-radiant-enabled', integrations: [] });
 	const plugin = new EcopagesJsxPlugin();
 	plugin.setConfig(appConfig);
+	const hmrManager = createHmrManagerStub();
 
-	plugin.setHmrManager(createHmrManagerStub());
+	plugin.setHmrManager(hmrManager);
 
-	assert.deepEqual(appConfig.runtime?.registeredScriptEntrypointChangeHandlers, [
+	assert.equal(vi.mocked(hmrManager.onScriptEntrypointChanged!).mock.calls.length, 1);
+	assert.equal(
+		vi.mocked(hmrManager.onScriptEntrypointChanged!).mock.calls[0]?.[0],
 		invalidateRadiantRegisteredScriptSsrRegistration,
-	]);
+	);
 });
 
 test('EcopagesJsxPlugin skips Radiant SSR invalidation registration when Radiant is disabled', async () => {
 	const appConfig = await createTestAppConfig({ rootDir: '/tmp/ecopages-jsx-radiant-disabled', integrations: [] });
 	const plugin = new EcopagesJsxPlugin({ radiant: false });
 	plugin.setConfig(appConfig);
+	const hmrManager = createHmrManagerStub();
 
-	plugin.setHmrManager(createHmrManagerStub());
+	plugin.setHmrManager(hmrManager);
 
-	assert.equal(appConfig.runtime?.registeredScriptEntrypointChangeHandlers, undefined);
+	assert.equal(vi.mocked(hmrManager.onScriptEntrypointChanged!).mock.calls.length, 0);
 });
 
 test('configured MDX compiler accepts remark-gfm on fenced code content', async () => {

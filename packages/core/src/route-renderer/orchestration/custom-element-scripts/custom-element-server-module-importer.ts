@@ -1,6 +1,6 @@
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import path from 'node:path';
-import { getAppModuleLoader } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { resolveInternalExecutionDir } from '../../../utils/resolve-work-dir.ts';
 
 /**
@@ -12,12 +12,7 @@ import { resolveInternalExecutionDir } from '../../../utils/resolve-work-dir.ts'
  */
 export function createCustomElementServerModuleImporter(appConfig: EcoPagesAppConfig, outdirSegment: string) {
 	return async (filePath: string, registryKey: string): Promise<unknown> => {
-		const loader = appConfig.runtime?.appModuleLoader;
-		if (!loader) {
-			throw new Error('Custom element SSR script preload requires the app server module loader');
-		}
-
-		return loader.importModule({
+		return requireAppRuntime(appConfig).moduleLoader.importModule({
 			filePath,
 			rootDir: appConfig.rootDir,
 			outdir: path.join(appConfig.absolutePaths.workDir, outdirSegment, registryKey),
@@ -34,7 +29,7 @@ export function createCustomElementServerModuleImporter(appConfig: EcoPagesAppCo
  */
 export function createSharedServerModuleImporter(appConfig: EcoPagesAppConfig) {
 	return async (filePath: string): Promise<unknown> => {
-		return getAppModuleLoader(appConfig).importModule({
+		return requireAppRuntime(appConfig).moduleLoader.importModule({
 			filePath,
 			rootDir: appConfig.rootDir,
 			outdir: `${resolveInternalExecutionDir(appConfig)}/.server-modules`,

@@ -7,6 +7,7 @@ import type {
 	EcoPagesElement,
 } from '@ecopages/core';
 import { type EcoPagesUserConfig } from '@ecopages/core/config';
+import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { defineIntegration } from '@ecopages/core/plugins/define-integration';
 import { IntegrationPlugin, type AnyIntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
@@ -115,10 +116,10 @@ export async function createTestAppConfig(options: CreateTestAppConfigOptions = 
 	}
 
 	const config = await finalizeEcoPagesConfig(userConfig);
+	requireAppRuntime(config).origin = runtimeOrigin;
 
 	for (const integration of integrations) {
 		integration.setConfig(config);
-		integration.setRuntimeOrigin(runtimeOrigin);
 	}
 
 	return config;

@@ -24,15 +24,17 @@ import { JsHmrStrategy } from '../../../hmr/strategies/js-hmr-strategy.ts';
 import { ServerRenderedTemplateHmrStrategy } from '../../../hmr/strategies/server-rendered-template-hmr-strategy.ts';
 import { DevelopmentInvalidationService } from '../../../services/invalidation/development-invalidation.service.ts';
 import { appLogger } from '../../../global/app-logger.ts';
-import type { ClientBridgeEvent, HmrFileChangeOptions, ResolvedHmrEntrypoint } from '../../../types/public-types.ts';
+import type {
+	ClientBridgeEvent,
+	HmrFileChangeOptions,
+	RegisteredScriptEntrypointChangeHandler,
+	ResolvedHmrEntrypoint,
+} from '../../../types/public-types.ts';
 import { DevTransformEntrypointRegistry } from './dev-transform-entrypoint-registry.ts';
 import { BrowserBundleService } from '../../../services/assets/browser-bundle.service.ts';
-import { getAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
-import {
-	getAppEntrypointDependencyGraph,
-	setAppEntrypointDependencyGraph,
-	type EntrypointDependencyGraph,
-} from '../../../services/runtime-state/entrypoint-dependency-graph.service.ts';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
+import { createAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
+import type { EntrypointDependencyGraph } from '../../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { ServerModuleTranspiler } from '../../../services/module-loading/server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';
 import { DevTransformServer } from '../../../dev/transform-server/dev-transform-server.ts';
@@ -52,6 +54,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	protected runtimeWorkDir: string;
 	protected enabled = false;
 	protected strategies: HmrStrategy[] = [];
+	private readonly scriptEntrypointChangeHandlers: RegisteredScriptEntrypointChangeHandler[] = [];
 	private readonly registeredScriptReloadRequired = new Set<string>();
 	protected readonly entrypointRegistry: DevTransformEntrypointRegistry;
 	protected readonly browserBundleService: BrowserBundleService;
@@ -79,11 +82,11 @@ export abstract class SharedHmrManager implements IHmrManager {
 		this.entrypointRegistry = new DevTransformEntrypointRegistry();
 		this.browserBundleService = new BrowserBundleService(appConfig);
 		this.invalidationService = new DevelopmentInvalidationService(appConfig);
-		this.entrypointDependencyGraph = this.createEntrypointDependencyGraph(
-			getAppEntrypointDependencyGraph(appConfig),
-		);
-		setAppEntrypointDependencyGraph(this.appConfig, this.entrypointDependencyGraph);
-		this.serverModuleTranspiler = getAppServerModuleTranspiler(this.appConfig);
+		const runtime = requireAppRuntime(appConfig);
+		runtime.hmr = this;
+		this.entrypointDependencyGraph = this.createEntrypointDependencyGraph(runtime.entrypointDependencyGraph);
+		runtime.entrypointDependencyGraph = this.entrypointDependencyGraph;
+		this.serverModuleTranspiler = createAppServerModuleTranspiler(this.appConfig);
 		this.devTransformServer = new DevTransformServer({
 			appConfig: this.appConfig,
 			onModuleDependencies: (modulePath, dependencies) => {
@@ -171,6 +174,12 @@ export abstract class SharedHmrManager implements IHmrManager {
 
 	public registerStrategy(strategy: HmrStrategy): void {
 		this.strategies.push(strategy);
+	}
+
+	public onScriptEntrypointChanged(handler: RegisteredScriptEntrypointChangeHandler): void {
+		if (!this.scriptEntrypointChangeHandlers.includes(handler)) {
+			this.scriptEntrypointChangeHandlers.push(handler);
+		}
 	}
 
 	public setEnabled(enabled: boolean): void {
@@ -377,8 +386,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	 * next request that needs them.
 	 */
 	private async runRegisteredEntrypointChangeHandlers(filePath: string): Promise<void> {
-		const handlers = this.appConfig.runtime?.registeredScriptEntrypointChangeHandlers ?? [];
-		for (const handler of handlers) {
+		for (const handler of this.scriptEntrypointChangeHandlers) {
 			try {
 				const result = await handler(filePath);
 				if (result === true) {
@@ -462,10 +470,16 @@ export abstract class SharedHmrManager implements IHmrManager {
 	}
 
 	public stop() {
+		this.enabled = false;
 		this.readyRuntimes.clear();
+		this.scriptEntrypointChangeHandlers.length = 0;
+		this.registeredScriptReloadRequired.clear();
 		this.entrypointRegistry.clearAll();
 		this.devTransformServer.reset();
 		this.entrypointDependencyGraph.reset();
+		if (this.appConfig.appRuntime?.hmr === this) {
+			this.appConfig.appRuntime.hmr = null;
+		}
 	}
 
 	protected clearFailedEntrypointRegistration(entrypointPath: string): void {

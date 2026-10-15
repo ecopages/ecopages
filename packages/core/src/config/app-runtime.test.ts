@@ -3,19 +3,25 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import { attachHmrToIntegrations, disposeDevResources } from '../adapters/shared/runtime/runtime-server-lifecycle.ts';
+import { ensureIntegrationRuntimeReady, setupAppRuntimePlugins } from '../build/app-build-manifest-runtime.ts';
 import { installBuildQueue, requireBuildQueue } from '../build/runtime/build-queue.ts';
 import { createBrowserBuildRequest, resolveAppBuildPlugins } from '../build/runtime/build-request-policy.ts';
 import { ensurePagesUnifiedGraphBuilt } from '../build/cache/pages-unified-graph-build.ts';
+import { getHtmlPageModuleScriptUrls, scanModuleScript } from '../html-pages/html-page-module-scripts.ts';
+import {
+	getAffectedPageBrowserGraphIdentities,
+	invalidatePageBrowserGraphSession,
+} from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
+import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../services/cache/page-cache-service.ts';
+import { createAppServerModuleTranspiler } from '../services/module-loading/app-server-module-transpiler.service.ts';
 import { buildCollectionServerModule } from '../services/module-loading/collection-server-module-build.service.ts';
 import {
 	clearAppDevelopmentRouteModuleBuildCaches,
 	getSharedRouteModuleBuildCache,
 } from '../services/module-loading/route-module-build-cache-registry.ts';
-import {
-	NoopEntrypointDependencyGraph,
-	setAppEntrypointDependencyGraph,
-} from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
+import { NoopEntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import { createAppRuntime, requireAppRuntime } from './app-runtime.ts';
 import { finalizeEcoPagesConfig } from './finalize-config.ts';
 
@@ -39,7 +45,7 @@ describe('AppRuntime', () => {
 		const missingRuntime = 'Missing app runtime. This config was never assembled.';
 
 		expect(() => requireAppRuntime(unfinalized)).toThrow(missingRuntime);
-		expect(() => createAppRuntime({ runtime: {} } as EcoPagesAppConfig)).toThrow(missingRuntime);
+		expect(() => createAppRuntime({} as EcoPagesAppConfig)).toThrow(missingRuntime);
 		expect(() => requireBuildQueue(unfinalized)).toThrow(missingRuntime);
 		expect(() => installBuildQueue(unfinalized)).toThrow(missingRuntime);
 		expect(() => resolveAppBuildPlugins(unfinalized, 'server')).toThrow(missingRuntime);
@@ -47,6 +53,30 @@ describe('AppRuntime', () => {
 		expect(() => getSharedRouteModuleBuildCache('/out', unfinalized)).toThrow(missingRuntime);
 		expect(() => clearAppDevelopmentRouteModuleBuildCaches(unfinalized)).toThrow(missingRuntime);
 		expect(() => new AssetProcessingService(unfinalized)).toThrow(missingRuntime);
+		await expect(clearAppPageCache(unfinalized)).rejects.toThrow(missingRuntime);
+		await expect(invalidateAppPageCacheBySourcePaths(unfinalized, ['/in.ts'])).rejects.toThrow(missingRuntime);
+		expect(() => invalidatePageBrowserGraphSession(unfinalized, '/in.ts')).toThrow(missingRuntime);
+		expect(() => getAffectedPageBrowserGraphIdentities(unfinalized, '/in.ts')).toThrow(missingRuntime);
+		expect(() => createAppServerModuleTranspiler(unfinalized)).toThrow(missingRuntime);
+		expect(() => attachHmrToIntegrations(unfinalized, {} as never)).toThrow(missingRuntime);
+		await expect(
+			disposeDevResources({
+				projectWatcher: null,
+				appConfig: unfinalized,
+				hmrManager: null,
+				bridge: null,
+				stopPreviewServer: async () => {},
+			}),
+		).rejects.toThrow(missingRuntime);
+		await expect(setupAppRuntimePlugins({ appConfig: unfinalized })).rejects.toThrow(missingRuntime);
+		await expect(
+			ensureIntegrationRuntimeReady({
+				appConfig: unfinalized,
+				integrationName: 'react',
+			}),
+		).rejects.toThrow(missingRuntime);
+		expect(() => getHtmlPageModuleScriptUrls(unfinalized)).toThrow(missingRuntime);
+		expect(() => scanModuleScript(unfinalized, '/in.ts')).toThrow(missingRuntime);
 		await expect(
 			buildCollectionServerModule({
 				appConfig: unfinalized,
@@ -97,11 +127,10 @@ describe('AppRuntime', () => {
 		const runtime = requireAppRuntime(config);
 		const nextQueue = installBuildQueue(config);
 		const nextGraph = new NoopEntrypointDependencyGraph();
-		setAppEntrypointDependencyGraph(config, nextGraph);
+		runtime.entrypointDependencyGraph = nextGraph;
 
 		expect(runtime.buildQueue).toBe(nextQueue);
 		expect(runtime.entrypointDependencyGraph).toBe(nextGraph);
-		expect(runtime.entrypointDependencyGraph).toBe(config.runtime?.entrypointDependencyGraph);
 	});
 
 	it('rolls back appConfig.appRuntime when manifest sealing throws', async () => {

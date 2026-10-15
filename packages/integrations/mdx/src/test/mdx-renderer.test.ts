@@ -29,7 +29,6 @@ class TestMdxRenderer extends MDXRenderer {
 const renderer = new MDXRenderer({
 	appConfig: Config,
 	assetProcessingService: createTestAssetProcessingService(Config),
-	runtimeOrigin: 'http://localhost:3000',
 	resolvedIntegrationDependencies: [],
 });
 
@@ -42,7 +41,6 @@ describeRendererContract({
 		const testRenderer = new TestMdxRenderer({
 			appConfig: await createTestAppConfig({ integrations }),
 			assetProcessingService: { processDependencies } as never,
-			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 		});
 		testRenderer.htmlTemplate = (async ({ children, metadata }) =>
@@ -79,7 +77,6 @@ describe('MDXRenderer', () => {
 			const testRenderer = new ImportTestMdxRenderer({
 				appConfig: Config,
 				assetProcessingService: createTestAssetProcessingService(Config),
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 			const Layout = (async ({ children }: { children: EcoPagesElement }) => children) as EcoComponent<{
@@ -108,7 +105,6 @@ describe('MDXRenderer', () => {
 			const renderer = new BrowserGraphTestMdxRenderer({
 				appConfig: Config,
 				assetProcessingService: createTestAssetProcessingService(Config),
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 			const Layout = (async ({ children }: { children: EcoPagesElement }) => children) as EcoComponent<{

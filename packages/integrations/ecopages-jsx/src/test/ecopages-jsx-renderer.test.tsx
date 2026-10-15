@@ -154,7 +154,6 @@ describeRendererContract({
 		const testRenderer = new TestEcopagesJsxRenderer({
 			appConfig: await createTestAppConfig({ ...outputDirs, integrations }),
 			assetProcessingService: { processDependencies } as never,
-			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 		});
 		testRenderer.htmlTemplate = headedTemplate as unknown as EcoComponent<HtmlTemplateProps>;
@@ -229,16 +228,13 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			kitajsPlugin.setConfig(config);
-			kitajsPlugin.setRuntimeOrigin('http://localhost:3000');
 			litPlugin.setConfig(config);
-			litPlugin.setRuntimeOrigin('http://localhost:3000');
 
 			const renderer = new TestEcopagesJsxRenderer({
 				appConfig: config,
 				assetProcessingService: {
 					processDependencies: vi.fn(async () => []),
 				} as never,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 
@@ -301,16 +297,13 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			kitajsPlugin.setConfig(config);
-			kitajsPlugin.setRuntimeOrigin('http://localhost:3000');
 			litPlugin.setConfig(config);
-			litPlugin.setRuntimeOrigin('http://localhost:3000');
 
 			const renderer = new TestEcopagesJsxRenderer({
 				appConfig: config,
 				assetProcessingService: {
 					processDependencies: vi.fn(async () => []),
 				} as never,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 
@@ -359,7 +352,6 @@ describe('EcopagesJsxRenderer', () => {
 				assetProcessingService: {
 					processDependencies: vi.fn(async () => []),
 				} as never,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 			const ForeignShell = eco.component({
@@ -399,14 +391,12 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			kitajsPlugin.setConfig(config);
-			kitajsPlugin.setRuntimeOrigin('http://localhost:3000');
 
 			const renderer = new TestEcopagesJsxRenderer({
 				appConfig: config,
 				assetProcessingService: {
 					processDependencies: vi.fn(async () => []),
 				} as never,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 
@@ -460,16 +450,13 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			kitajsPlugin.setConfig(config);
-			kitajsPlugin.setRuntimeOrigin('http://localhost:3000');
 			litPlugin.setConfig(config);
-			litPlugin.setRuntimeOrigin('http://localhost:3000');
 
 			const renderer = new TestEcopagesJsxRenderer({
 				appConfig: config,
 				assetProcessingService: {
 					processDependencies: vi.fn(async () => []),
 				} as never,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 
@@ -542,18 +529,14 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			kitajsPlugin.setConfig(config);
-			kitajsPlugin.setRuntimeOrigin('http://localhost:3000');
 			litPlugin.setConfig(config);
-			litPlugin.setRuntimeOrigin('http://localhost:3000');
 			reactPlugin.setConfig(config);
-			reactPlugin.setRuntimeOrigin('http://localhost:3000');
 
 			const renderer = new TestEcopagesJsxRenderer({
 				appConfig: config,
 				assetProcessingService: {
 					processDependencies: vi.fn(async () => []),
 				} as never,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 
@@ -643,16 +626,13 @@ describe('EcopagesJsxRenderer', () => {
 			});
 
 			jsxPlugin.setConfig(config);
-			jsxPlugin.setRuntimeOrigin('http://localhost:3000');
 			kitajsPlugin.setConfig(config);
-			kitajsPlugin.setRuntimeOrigin('http://localhost:3000');
 
 			const renderer = new TestEcopagesJsxRenderer({
 				appConfig: config,
 				assetProcessingService: {
 					processDependencies: vi.fn(async () => []),
 				} as never,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 
@@ -801,7 +781,6 @@ describe('EcopagesJsxRenderer', () => {
 				assetProcessingService: {
 					processDependencies: vi.fn(async () => []),
 				} as never,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 
@@ -857,7 +836,6 @@ describe('EcopagesJsxRenderer', () => {
 				assetProcessingService: {
 					processDependencies: vi.fn(async () => []),
 				} as never,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
 			});
 

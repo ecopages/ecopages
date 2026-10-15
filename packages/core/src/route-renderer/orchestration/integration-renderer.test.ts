@@ -40,7 +40,6 @@ describe('IntegrationRenderer', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const Page = ((props: Record<string, unknown>) => {
 			const params = props.params as Record<string, string>;
@@ -74,7 +73,6 @@ describe('IntegrationRenderer', () => {
 		const renderer = new HookRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const component = (() => '') as EcoComponent;
 
@@ -102,7 +100,6 @@ describe('IntegrationRenderer', () => {
 		const renderer = new HookRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const component = (() => '') as EcoComponent;
 		component.config = {
@@ -138,7 +135,6 @@ describe('IntegrationRenderer', () => {
 			new HookRenderer({
 				appConfig: { ...testAppConfig, rootDir } as EcoPagesAppConfig,
 				assetProcessingService: testAssetService,
-				runtimeOrigin: 'http://localhost:3000',
 			});
 		const firstRenderer = createRenderer('/app/first');
 		const secondRenderer = createRenderer('/app/second');
@@ -184,7 +180,6 @@ describe('IntegrationRenderer', () => {
 		const renderer = new HookRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 			hooks: optionsFactory,
 		});
 		const component = (() => '') as EcoComponent;
@@ -221,18 +216,15 @@ describe('IntegrationRenderer', () => {
 		};
 		const HookRenderer = createIntegrationRenderer('hooked', { renderComponent, renderQueuedChildren });
 		const renderer = new HookRenderer({
-			appConfig: {
-				...testAppConfig,
-				runtime: {},
+			appConfig: createMockAppConfig({
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'foreign',
 						initializeRenderer: () => foreignRenderer,
 					}),
 				],
-			} as unknown as EcoPagesAppConfig,
+			}),
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const Foreign = eco.component({
 			integration: 'foreign',
@@ -303,7 +295,6 @@ describe('IntegrationRenderer', () => {
 		})({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const routeFile = '/app/pages/[slug].tsx';
 		const params = { slug: 'captured' };
@@ -359,7 +350,6 @@ describe('IntegrationRenderer', () => {
 		})({
 			appConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
@@ -460,7 +450,6 @@ describe('IntegrationRenderer', () => {
 		})({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const routeFile = '/app/pages/override-dependencies.tsx';
 		renderer.PageModule = { default: Page };
@@ -510,7 +499,6 @@ describe('IntegrationRenderer', () => {
 		})({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = HtmlTemplate;
@@ -555,15 +543,12 @@ describe('IntegrationRenderer', () => {
 		};
 		let activeForeignRenderer = firstRenderer;
 		const getRenderer = vi.fn(() => activeForeignRenderer);
-		const appConfig = {
-			...testAppConfig,
-			runtime: {},
+		const appConfig = createMockAppConfig({
 			integrations: [createMockIntegrationPlugin({ name: 'foreign-renderer', getRenderer })],
-		} as unknown as EcoPagesAppConfig;
+		});
 		const renderer = new TestIntegrationRenderer({
 			appConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const ForeignView = (() => '<button />') as EcoComponent<Record<string, unknown>>;
 		ForeignView.config = {
@@ -590,7 +575,6 @@ describe('IntegrationRenderer', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const firstAsset = {
 			kind: 'script',
@@ -620,7 +604,6 @@ describe('IntegrationRenderer', () => {
 		const renderer = new Renderer({
 			appConfig: testAppConfig,
 			assetProcessingService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const component = (() => '<div />') as EcoComponent;
 		component.config = {
@@ -662,7 +645,6 @@ describe('IntegrationRenderer', () => {
 		})({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = HtmlTemplate;
@@ -688,7 +670,6 @@ describe('IntegrationRenderer', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		renderer.PageModule = { default: Page };
 		renderer.HtmlTemplate = HtmlTemplate;
@@ -729,7 +710,6 @@ describe('IntegrationRenderer', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		renderer.HtmlTemplate = HtmlTemplate;
 		renderer.RenderBodyFactory = async () => {
@@ -797,7 +777,6 @@ describe('IntegrationRenderer', () => {
 		})({
 			appConfig: testAppConfig,
 			assetProcessingService: { processDependencies } as unknown as AssetProcessingService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const result = await renderer.testPrepareRenderOptions({ file: '/app/pages/test.tsx', params: {}, query: {} });
@@ -857,7 +836,6 @@ describe('IntegrationRenderer', () => {
 		})({
 			appConfig: testAppConfig,
 			assetProcessingService: { processDependencies } as unknown as AssetProcessingService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const result = await renderer.testPrepareRenderOptions({ file: '/app/pages/demo.tsx', params: {}, query: {} });
@@ -910,7 +888,6 @@ describe('IntegrationRenderer', () => {
 		})({
 			appConfig: testAppConfig,
 			assetProcessingService: { processDependencies } as unknown as AssetProcessingService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		await renderer.testPrepareRenderOptions({
@@ -970,7 +947,6 @@ describe('IntegrationRenderer', () => {
 		})({
 			appConfig,
 			assetProcessingService: { processDependencies } as unknown as AssetProcessingService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const result = await renderer.testPrepareRenderOptions({ file: '/app/pages/demo.tsx', params: {}, query: {} });
@@ -994,7 +970,6 @@ describe('IntegrationRenderer', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const stalePagePackage = createPagePackage([]);
 		const renderTimeAsset = {
@@ -1029,7 +1004,6 @@ describe('IntegrationRenderer', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const PageIdx = (() => 'Page Content') as EcoPageComponent<any>;
@@ -1053,7 +1027,6 @@ describe('IntegrationRenderer', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const PageIdx = (() => 'Page Content') as EcoPageComponent<any>;
@@ -1076,7 +1049,6 @@ describe('IntegrationRenderer', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const PageIdx = (() => 'Page Content') as EcoPageComponent<any>;
@@ -1105,7 +1077,6 @@ describe('IntegrationRenderer', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const PageIdx = (() => 'Page Content') as EcoPageComponent<any>;
@@ -1129,7 +1100,6 @@ describe('IntegrationRenderer', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const PageIdx = (() => 'Page Content') as EcoPageComponent<any>;
@@ -1157,7 +1127,6 @@ describe('IntegrationRenderer', () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: testAppConfig,
 				assetProcessingService: testAssetService,
-				runtimeOrigin: 'http://localhost:3000',
 			});
 			renderer.HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
 			renderer.HtmlTemplate.config = {
@@ -1178,7 +1147,6 @@ describe('IntegrationRenderer', () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: testAppConfig,
 				assetProcessingService: testAssetService,
-				runtimeOrigin: 'http://localhost:3000',
 			});
 
 			const View = ((props: { content: string }) => `<div>${props.content}</div>`) as EcoComponent<{
@@ -1196,7 +1164,6 @@ describe('IntegrationRenderer', () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: testAppConfig,
 				assetProcessingService: testAssetService,
-				runtimeOrigin: 'http://localhost:3000',
 			});
 
 			renderer.HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
@@ -1214,7 +1181,6 @@ describe('IntegrationRenderer', () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: testAppConfig,
 				assetProcessingService: testAssetService,
-				runtimeOrigin: 'http://localhost:3000',
 			});
 
 			renderer.HtmlTemplate = (() => 'html') as EcoComponent<HtmlTemplateProps>;
@@ -1244,7 +1210,6 @@ describe('IntegrationRenderer', () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: testAppConfig,
 				assetProcessingService: testAssetService,
-				runtimeOrigin: 'http://localhost:3000',
 			});
 
 			const View = ((props: { title: string }) => `<h1>${props.title}</h1>`) as EcoComponent<{ title: string }>;
@@ -1265,7 +1230,6 @@ describe('IntegrationRenderer', () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: testAppConfig,
 				assetProcessingService: testAssetService,
-				runtimeOrigin: 'http://localhost:3000',
 			});
 
 			renderer.RenderedBody = new Response('<html><body><main>Stream Body</main></body></html>').body as BodyInit;
@@ -1295,7 +1259,6 @@ describe('IntegrationRenderer', () => {
 			const renderer = new DocumentAttributeRenderer({
 				appConfig: testAppConfig,
 				assetProcessingService: testAssetService,
-				runtimeOrigin: 'http://localhost:3000',
 			});
 
 			renderer.RenderedBody = '<html><body><main>Test Page</main></body></html>';
@@ -1328,21 +1291,18 @@ describe('IntegrationRenderer', () => {
 				),
 			};
 
-			const appConfig = {
-				...testAppConfig,
-				runtime: {},
+			const appConfig = createMockAppConfig({
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'explicit-renderer',
 						initializeRenderer: () => explicitRenderer,
 					}),
 				],
-			} as unknown as EcoPagesAppConfig;
+			});
 
 			const renderer = new TestIntegrationRenderer({
 				appConfig,
 				assetProcessingService: testAssetService,
-				runtimeOrigin: 'http://localhost:3000',
 			});
 
 			renderer.RenderedBody = '<html><body><main>Test Page</main></body></html>';
@@ -1393,7 +1353,6 @@ describe('IntegrationRenderer', () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: testAppConfig,
 				assetProcessingService: testAssetService,
-				runtimeOrigin: 'http://localhost:3000',
 			});
 
 			const Child = (() => '<span>Child</span>') as EcoComponent<Record<string, unknown>>;
@@ -1424,7 +1383,6 @@ describe('IntegrationRenderer', () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: testAppConfig,
 				assetProcessingService: testAssetService,
-				runtimeOrigin: 'http://localhost:3000',
 			});
 
 			const ForeignChild = (() => '<span>Child</span>') as EcoComponent<Record<string, unknown>>;
@@ -1455,7 +1413,6 @@ describe('IntegrationRenderer', () => {
 			const renderer = new TestIntegrationRenderer({
 				appConfig: testAppConfig,
 				assetProcessingService: testAssetService,
-				runtimeOrigin: 'http://localhost:3000',
 			});
 
 			const Leaf = (() => '<span>Leaf</span>') as EcoComponent<Record<string, unknown>>;
@@ -1484,7 +1441,6 @@ describe('IntegrationRenderer', () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const component = (() => '') as EcoComponent;
 		component.config = {
@@ -1528,14 +1484,11 @@ describe('IntegrationRenderer', () => {
 		})({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const host = new (class extends TestIntegrationRenderer {
 			override name = 'kitajs';
 		})({
-			appConfig: {
-				...testAppConfig,
-				runtime: {},
+			appConfig: createMockAppConfig({
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'react',
@@ -1543,9 +1496,8 @@ describe('IntegrationRenderer', () => {
 						initializeRenderer: () => contributor,
 					}),
 				],
-			},
+			}),
 			assetProcessingService: testAssetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const island = {
 			config: {

@@ -17,7 +17,6 @@ import { requireAppRuntime } from '../../config/app-runtime.ts';
 export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAppOptions, NodeServerInstance, Request> {
 	serverAdapter: NodeServerAdapterResult | undefined;
 	private server: NodeServerInstance | null = null;
-	private runtimeOrigin = '';
 	private stopped = false;
 	private readonly runtimeHost: RuntimeHost<NodeServerInstance, NodeRuntimeServeOptions>;
 
@@ -79,11 +78,11 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 			cliArgs: this.cliArgs,
 			serverOptions: this.serverOptions,
 		});
-		this.runtimeOrigin = binding.runtimeOrigin;
+		const runtime = requireAppRuntime(this.appConfig);
+		runtime.origin = binding.runtimeOrigin;
 
 		return this.createServerAdapter({
-			runtimeOrigin: this.runtimeOrigin,
-			runtime: requireAppRuntime(this.appConfig),
+			runtime,
 			appConfig: this.appConfig,
 			apiHandlers: this.apiHandlers,
 			staticRoutes: this.staticRoutes as StaticRoute[],
@@ -151,11 +150,10 @@ export class NodeEcopagesApp extends SharedApplicationAdapter<ResolvedEcopagesAp
 			usePortManager: this.cliArgs.dev,
 		});
 		this.server = bindingResult.server;
-		this.runtimeOrigin = bindingResult.runtimeOrigin;
 		this.serverAdapter.applyBoundPort(bindingResult);
 
 		await this.serverAdapter.completeInitialization(this.server);
-		await this.notifyListening(this.runtimeOrigin);
+		await this.notifyListening(requireAppRuntime(this.appConfig).origin);
 
 		return this.server;
 	}

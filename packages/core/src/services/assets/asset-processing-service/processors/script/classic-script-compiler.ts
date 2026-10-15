@@ -17,14 +17,19 @@ function plainText(error: { message?: string } | undefined): string {
 	return stripVTControlCharacters(error?.message ?? 'unknown error');
 }
 
+type ClassicScriptTransform = { code: string } | { problem: ClassicScriptProblem };
+
+const transformCache = new Map<string, { source: string; result: ClassicScriptTransform }>();
+
 /**
  * Compiles one file as a classic script: types are stripped in script mode and, when `minify` is set, the
  * output is minified without renaming top-level names, so its globals survive. Legal comments are kept.
  *
  * @remarks
  * Every check lives here, so any caller of `classic: true` gets them. The options are fixed and ignore any
- * `tsconfig.json`, so the output depends on the file alone. Legacy decorator lowering is on so that
- * decorators show up as a runtime helper, which a classic script cannot load.
+ * `tsconfig.json`, so the output depends on the file alone. The transform is kept per file while the
+ * source is unchanged, so the HTML Page renderer's validation and the asset pipeline's emit compile a file
+ * once per revision; only minification runs again.
  *
  * @returns The code, or the reason the file cannot be a classic script.
  */
@@ -33,6 +38,32 @@ export function compileClassicScript(
 	source: string,
 	options: { minify: boolean },
 ): { code: string } | { problem: ClassicScriptProblem } {
+	let cached = transformCache.get(filepath);
+	if (cached?.source !== source) {
+		cached = { source, result: transformClassicScript(filepath, source) };
+		transformCache.set(filepath, cached);
+	}
+	if ('problem' in cached.result || !options.minify) {
+		return cached.result;
+	}
+
+	const minified = minifySync(classicScriptOutputName(filepath), cached.result.code, {
+		module: false,
+		mangle: { toplevel: false },
+		codegen: { legalComments: 'inline' },
+	});
+	if (minified.errors.length > 0) {
+		return { problem: { reason: `could not be minified: ${plainText(minified.errors[0])}`, needsModule: false } };
+	}
+	return { code: minified.code };
+}
+
+/**
+ * @remarks
+ * Legacy decorator lowering is on so that decorators show up as a runtime helper, which a classic script
+ * cannot load.
+ */
+function transformClassicScript(filepath: string, source: string): ClassicScriptTransform {
 	if (JSX_FILE.test(filepath)) {
 		return { problem: { reason: 'is JSX', needsModule: true } };
 	}
@@ -84,17 +115,5 @@ export function compileClassicScript(
 			},
 		};
 	}
-	if (!options.minify) {
-		return { code: compiled.code };
-	}
-
-	const minified = minifySync(classicScriptOutputName(filepath), compiled.code, {
-		module: false,
-		mangle: { toplevel: false },
-		codegen: { legalComments: 'inline' },
-	});
-	if (minified.errors.length > 0) {
-		return { problem: { reason: `could not be minified: ${plainText(minified.errors[0])}`, needsModule: false } };
-	}
-	return { code: minified.code };
+	return { code: compiled.code };
 }

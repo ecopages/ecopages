@@ -40,6 +40,29 @@ describe('reconcileHtmlPageDocument', () => {
 		);
 	});
 
+	it('replaces repeated shell tags with the same key in source order', () => {
+		const html = reconcileHtmlPageDocument(
+			'<html><head><meta name="theme-color" media="(prefers-color-scheme: light)" content="#fff"><meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000"><title>x</title></head><body></body></html>',
+			page({
+				nodes: [
+					{
+						html: '<meta name="theme-color" media="(prefers-color-scheme: light)" content="#eee">',
+						key: 'meta:theme-color',
+					},
+					{
+						html: '<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#111">',
+						key: 'meta:theme-color',
+					},
+					{ html: '<meta name="theme-color" content="#222">', key: 'meta:theme-color' },
+				],
+			}),
+		);
+
+		expect(html).toBe(
+			'<html><head><meta name="theme-color" media="(prefers-color-scheme: light)" content="#eee"><meta name="theme-color" media="(prefers-color-scheme: dark)" content="#111"><title>x</title><meta name="theme-color" content="#222"></head><body></body></html>',
+		);
+	});
+
 	it('drops a matching Page charset, rejects a conflicting one, and inserts one the shell lacks first', () => {
 		const charset = { html: '<meta charset="UTF-8">', key: 'charset', charset: 'utf-8' };
 		expect(reconcileHtmlPageDocument(shell, page({ nodes: [charset] }))).toBe(shell);

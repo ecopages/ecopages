@@ -9,6 +9,8 @@ import { classicScriptOutputName, compileClassicScript } from './classic-script-
 
 export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	private hmrManager?: IHmrManager;
+	/** Source file of each classic script output, so `a.ts` and `a.js` cannot both become `a.js`. */
+	private readonly classicScriptSources = new Map<string, string>();
 
 	setHmrManager(hmrManager: IHmrManager) {
 		this.hmrManager = hmrManager;
@@ -170,7 +172,10 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	/**
 	 * @remarks
 	 * The output keeps the source path and name, with a TypeScript extension turned into `.js`, as a
-	 * copied classic `.js` does.
+	 * copied classic `.js` does. A second source file for the same output is rejected while the first
+	 * still exists, so a last write cannot silently win.
+	 *
+	 * @throws When the file cannot be a classic script, or another existing file is emitted to its output.
 	 */
 	private emitClassicScript(
 		dep: FileScriptAsset,
@@ -186,6 +191,11 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 		}
 
 		const filepath = path.join(this.getAssetsDir(), classicScriptOutputName(outFilepath));
+		const other = this.classicScriptSources.get(filepath);
+		if (other !== undefined && other !== dep.filepath && fileSystem.exists(other)) {
+			throw new Error(`${dep.filepath} and ${other} are both emitted as ${filepath}. Rename one of them.`);
+		}
+		this.classicScriptSources.set(filepath, dep.filepath);
 		fileSystem.write(filepath, compiled.code);
 		return { code: compiled.code, filepath };
 	}

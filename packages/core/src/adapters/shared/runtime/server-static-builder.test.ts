@@ -229,7 +229,6 @@ describe('ServerStaticBuilder', () => {
 				runtime: AppConfig.appRuntime!,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://localhost:3000',
 				logger,
 			});
 
@@ -258,7 +257,6 @@ describe('ServerStaticBuilder', () => {
 				runtime,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -280,7 +278,6 @@ describe('ServerStaticBuilder', () => {
 				runtime: AppConfig.appRuntime!,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -303,7 +300,6 @@ describe('ServerStaticBuilder', () => {
 				runtime: AppConfig.appRuntime!,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -338,7 +334,6 @@ describe('ServerStaticBuilder', () => {
 				runtime: AppConfig.appRuntime!,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: customServeOptions,
-				runtimeOrigin: 'http://0.0.0.0:8080',
 				logger,
 			});
 
@@ -359,7 +354,6 @@ describe('ServerStaticBuilder', () => {
 				runtime: AppConfig.appRuntime!,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -383,7 +377,6 @@ describe('ServerStaticBuilder', () => {
 				runtime: AppConfig.appRuntime!,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -404,7 +397,6 @@ describe('ServerStaticBuilder', () => {
 				runtime: AppConfig.appRuntime!,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -436,7 +428,6 @@ describe('ServerStaticBuilder', () => {
 				runtime: AppConfig.appRuntime!,
 				staticSiteGenerator: StaticSiteGenerator,
 				serveOptions: ServeOptions,
-				runtimeOrigin: 'http://127.0.0.1:3000',
 				logger,
 			});
 
@@ -472,7 +463,6 @@ describe('ServerStaticBuilder', () => {
 					runtime: AppConfig.appRuntime!,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
 				});
 
@@ -502,7 +492,6 @@ describe('ServerStaticBuilder', () => {
 					runtime: AppConfig.appRuntime!,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
 					entryFile: 'nonexistent.ts',
 					needsServerBundle: true,
@@ -555,7 +544,6 @@ describe('ServerStaticBuilder', () => {
 					runtime: AppConfig.appRuntime!,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
 					needsServerBundle: true,
 				});
@@ -590,7 +578,6 @@ describe('ServerStaticBuilder', () => {
 					runtime: AppConfig.appRuntime!,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
 					entryFile: 'app.ts',
 					needsServerBundle: true,
@@ -626,7 +613,6 @@ describe('ServerStaticBuilder', () => {
 					runtime: AppConfig.appRuntime!,
 					staticSiteGenerator: StaticSiteGenerator,
 					serveOptions: ServeOptions,
-					runtimeOrigin: 'http://127.0.0.1:3000',
 					logger,
 					needsServerBundle: true,
 				});

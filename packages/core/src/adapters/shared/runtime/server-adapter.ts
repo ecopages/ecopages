@@ -28,7 +28,6 @@ import type {
 	ApiHandler,
 	CacheInvalidator,
 	ErrorHandler,
-	IHmrManager,
 	RenderContext,
 	StaticRoute,
 	ErrorPageLoaders,
@@ -40,13 +39,10 @@ type SharedResponseHandlerDependencies = {
 	explicitStaticRouteMatcher?: ExplicitStaticRouteMatcher;
 };
 
-type SharedHmrAssetManager = IHmrManager;
-
 type SharedRequestContext<TServer = unknown> = {
 	apiHandlers: ApiHandler[];
 	errorHandler?: ErrorHandler<Request, TServer>;
 	serverInstance?: TServer;
-	hmrManager?: SharedHmrAssetManager;
 };
 
 export abstract class SharedServerAdapter<
@@ -329,26 +325,19 @@ export abstract class SharedServerAdapter<
 		});
 	}
 
-	private getActiveHmrManager(context: SharedRequestContext): SharedHmrAssetManager | undefined {
-		return context.hmrManager ?? this.runtime.hmr ?? undefined;
-	}
-
-	private async tryHandleSharedDevClientRequest(
-		request: Request,
-		context: SharedRequestContext,
-	): Promise<Response | null> {
-		const manager = this.getActiveHmrManager(context) as {
+	private async tryHandleSharedDevClientRequest(request: Request): Promise<Response | null> {
+		const manager = this.runtime.hmr as {
 			tryHandleDevClientRequest?: (request: Request) => Promise<Response | null>;
 		} | null;
 		return (await manager?.tryHandleDevClientRequest?.(request)) ?? null;
 	}
 
-	private tryHandleSharedHmrRequest(request: Request, context: SharedRequestContext): Response | null {
-		return this.getActiveHmrManager(context)?.tryHandleAssetRequest(request) ?? null;
+	private tryHandleSharedHmrRequest(request: Request): Response | null {
+		return this.runtime.hmr?.tryHandleAssetRequest(request) ?? null;
 	}
 
-	private async injectSharedHmrHtmlResponse(response: Response, context: SharedRequestContext): Promise<Response> {
-		const hmrManager = this.getActiveHmrManager(context);
+	private async injectSharedHmrHtmlResponse(response: Response): Promise<Response> {
+		const hmrManager = this.runtime.hmr;
 		if (!isHtmlResponse(response) || !hmrManager?.isEnabled()) {
 			return response;
 		}
@@ -408,23 +397,23 @@ export abstract class SharedServerAdapter<
 		return requireBuildQueue(this.appConfig).withRequestScope(() =>
 			runWithBuildInputIndex(requireAppRuntime(this.appConfig).buildInputIndex, () =>
 				startupTrace.traceFirstRequest(request, async () => {
-					const devClientResponse = await this.tryHandleSharedDevClientRequest(request, context);
+					const devClientResponse = await this.tryHandleSharedDevClientRequest(request);
 					if (devClientResponse) {
 						return devClientResponse;
 					}
 
-					const hmrResponse = this.tryHandleSharedHmrRequest(request, context);
+					const hmrResponse = this.tryHandleSharedHmrRequest(request);
 					if (hmrResponse) {
 						return hmrResponse;
 					}
 
 					const apiResponse = await this.tryHandleSharedApiRequest(request, context);
 					if (apiResponse) {
-						return await this.injectSharedHmrHtmlResponse(apiResponse, context);
+						return await this.injectSharedHmrHtmlResponse(apiResponse);
 					}
 
 					const routeResponse = await this.routeHandler.handleResponse(request);
-					return await this.injectSharedHmrHtmlResponse(routeResponse, context);
+					return await this.injectSharedHmrHtmlResponse(routeResponse);
 				}),
 			),
 		);

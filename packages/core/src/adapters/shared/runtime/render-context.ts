@@ -17,6 +17,7 @@ import { createBodyResponse } from '../http/create-body-response.ts';
 
 export interface CreateRenderContextOptions {
 	integrations: AnyIntegrationPlugin[];
+	ensureIntegrationReady?: (integrationName: string) => Promise<void>;
 	importServerModule?: (filePath: string) => Promise<unknown>;
 }
 
@@ -83,7 +84,7 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 	 * Resolves the appropriate renderer for a given view component based on its integration.
 	 * Throws an error if the integration cannot be determined or is not found.
 	 */
-	const getRendererForView = <P>(view: EcoComponent<P>): IntegrationRenderer => {
+	const getRendererForView = async <P>(view: EcoComponent<P>): Promise<IntegrationRenderer> => {
 		const integrationName = getComponentOwner(view);
 		invariant(
 			!!integrationName,
@@ -93,6 +94,7 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 		const integration = integrations.find((i) => i.name === integrationName);
 		invariant(!!integration, `No integration found for: ${integrationName}`);
 
+		await options.ensureIntegrationReady?.(integrationName);
 		return integration.getRenderer() as IntegrationRenderer;
 	};
 
@@ -113,7 +115,7 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 			const locals = this?.locals;
 			const mergedProps = mergePropsWithLocals<P>(props ?? ({} as P), locals);
 
-			const renderer = getRendererForView(view);
+			const renderer = await getRendererForView(view);
 			return await renderer.renderExplicitView(
 				view,
 				mergedProps,
@@ -130,7 +132,7 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 			const locals = this?.locals;
 			const mergedProps = mergePropsWithLocals<P>(props ?? ({} as P), locals);
 
-			const renderer = getRendererForView(view);
+			const renderer = await getRendererForView(view);
 			return renderer.renderExplicitView(
 				view,
 				mergedProps,
@@ -147,7 +149,7 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 			const locals = this?.locals;
 			const mergedProps = mergePropsWithLocals<P>(props, locals);
 
-			const renderer = getRendererForView(view);
+			const renderer = await getRendererForView(view);
 			return renderer.renderExplicitView(view, mergedProps, createExplicitViewContext(this, renderOptions, true));
 		},
 

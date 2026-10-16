@@ -35,8 +35,6 @@ function createMockDependencies() {
 
 	const mockIntegration = {
 		extensions: ['.tsx'],
-		setConfig: () => {},
-		setHmrManager: () => {},
 		plugins: [],
 		setup: async () => {
 			calls.integrationSetup += 1;
@@ -45,6 +43,7 @@ function createMockDependencies() {
 
 	const mockProcessor = {
 		plugins: [],
+		setContext: () => {},
 		setup: async () => {
 			calls.processorSetup += 1;
 			fs.mkdirSync(path.join(tmpDir, 'dist', 'images'), { recursive: true });

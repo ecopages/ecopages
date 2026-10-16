@@ -631,7 +631,7 @@ export class EcopagesApp implements AsyncDisposable {
 			startOptions: {
 				serveOptions: {
 					...serveOptions,
-					handleRequest: async (request: Request) => await session.adapter.handleRequest(request),
+					handleRequest: async (request: Request) => await session.adapter.handleServerRequest(request),
 				},
 			},
 			allowPortFallback: binding.allowPortFallback,

@@ -118,11 +118,14 @@ export async function createTestAppConfig(options: CreateTestAppConfigOptions = 
 	const config = await finalizeEcoPagesConfig(userConfig);
 	requireAppRuntime(config).origin = runtimeOrigin;
 
-	for (const integration of integrations) {
-		integration.setConfig(config);
-	}
-
 	return config;
+}
+
+export async function setupTestIntegration(
+	integration: AnyIntegrationPlugin,
+	appConfig: EcoPagesAppConfig,
+): Promise<void> {
+	await integration.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
 }
 
 export type { EcoPagesAppConfig, AnyIntegrationPlugin };

@@ -127,7 +127,6 @@ test('sealAppBuildManifest gathers loaders, then processor and integration plugi
 			return [integrationRuntimePlugin];
 		}),
 		browserRuntimeManifest: createBrowserRuntimeManifest(),
-		setConfig: vi.fn(() => calls.push('integration-config')),
 		setup: vi.fn(async () => {
 			throw new Error('finalization must not set an integration up');
 		}),
@@ -140,7 +139,7 @@ test('sealAppBuildManifest gathers loaders, then processor and integration plugi
 
 	const manifest = sealAppBuildManifest(appConfig);
 
-	assert.deepEqual(calls, ['processor-plugins', 'integration-config', 'integration-plugins']);
+	assert.deepEqual(calls, ['processor-plugins', 'integration-plugins']);
 	assert.deepEqual(processor.plugins.mock.calls, [[appConfig]]);
 	assert.deepEqual(integration.plugins.mock.calls, [[appConfig]]);
 	assert.equal(processor.setup.mock.calls.length, 0);
@@ -160,7 +159,6 @@ test('sealAppBuildManifest reports a plugin an integration registers under a loa
 		name: 'react',
 		plugins: () => [{ name: 'duplicate', setup() {} }],
 		browserRuntimeManifest: createBrowserRuntimeManifest(),
-		setConfig() {},
 	};
 
 	assert.throws(
@@ -195,7 +193,6 @@ test('sealAppBuildManifest merges integration browser runtime manifests', () => 
 		name,
 		plugins: () => [],
 		browserRuntimeManifest,
-		setConfig() {},
 	});
 	const appConfig = {
 		loaders: new Map(),
@@ -220,6 +217,7 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 	const integrationRuntimePlugin = { name: 'integration-runtime-plugin', setup() {} };
 	const processor = {
 		plugins: [processorRuntimePlugin],
+		setContext: vi.fn(),
 		getWatchConfig: () => ({ paths: watchPaths }),
 		setup: vi.fn(async () => {
 			contributionOrder.push('processor-setup');
@@ -228,8 +226,6 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 	};
 	const integration = {
 		plugins: [integrationRuntimePlugin],
-		setConfig: vi.fn(() => contributionOrder.push('integration-config')),
-		setHmrManager: vi.fn(() => contributionOrder.push('integration-hmr')),
 		setup: vi.fn(async () => {
 			contributionOrder.push('integration-setup');
 		}),
@@ -251,12 +247,11 @@ test('setupAppRuntimePlugins runs runtime setup without recomposing manifest con
 test('setupAppRuntimePlugins skips processor and integration setup when runtime assets are already prepared', async () => {
 	const processor = {
 		plugins: [{ name: 'processor-runtime-plugin', setup() {} }],
+		setContext: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
 	const integration = {
 		plugins: [{ name: 'integration-runtime-plugin', setup() {} }],
-		setConfig: vi.fn(),
-		setHmrManager: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
 
@@ -274,7 +269,6 @@ test('setupAppRuntimePlugins skips processor and integration setup when runtime 
 
 	assert.equal(processor.setup.mock.calls.length, 0);
 	assert.equal(integration.setup.mock.calls.length, 0);
-	assert.equal(integration.setConfig.mock.calls.length, 0);
 });
 
 test('ensureIntegrationRuntimeReady activates one integration exactly once', async () => {
@@ -282,7 +276,6 @@ test('ensureIntegrationRuntimeReady activates one integration exactly once', asy
 	const integration = {
 		name: 'react',
 		plugins: [integrationRuntimePlugin],
-		setConfig: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
 
@@ -315,7 +308,6 @@ test('ensureIntegrationRuntimeReady coalesces concurrent callers to one setup', 
 	const integration = {
 		name: 'react',
 		plugins: [],
-		setConfig: vi.fn(),
 		setup: vi.fn(async () => {
 			await setupGate;
 		}),
@@ -347,7 +339,6 @@ test('ensureIntegrationRuntimeReady evicts failed activation so a later caller c
 	const integration = {
 		name: 'react',
 		plugins: [],
-		setConfig: vi.fn(),
 		setup: vi.fn().mockRejectedValueOnce(new Error('setup failed')).mockResolvedValueOnce(undefined),
 	};
 
@@ -383,12 +374,11 @@ test('setupAppRuntimePlugins skips processor setup in Lit static-render worker t
 
 	const processor = {
 		plugins: [{ name: 'processor-runtime-plugin', setup() {} }],
+		setContext: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
 	const integration = {
 		plugins: [{ name: 'integration-runtime-plugin', setup() {} }],
-		setConfig: vi.fn(),
-		setHmrManager: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
 
@@ -406,5 +396,4 @@ test('setupAppRuntimePlugins skips processor setup in Lit static-render worker t
 
 	assert.equal(processor.setup.mock.calls.length, 0);
 	assert.equal(integration.setup.mock.calls.length, 0);
-	assert.equal(integration.setConfig.mock.calls.length, 0);
 });

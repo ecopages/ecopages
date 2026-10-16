@@ -87,7 +87,12 @@ describe('ImageProcessorPlugin', () => {
 
 		const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-		await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [plugin] });
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		plugin.setContext(appConfig);
 
 		const typesDir = path.join(rootDir, GENERATED_BASE_PATHS.types, plugin.name);
 		const typesFile = path.join(typesDir, 'virtual-module.d.ts');
@@ -118,7 +123,12 @@ describe('ImageProcessorPlugin', () => {
 		const processDirectorySpy = vi.spyOn(ImageProcessor.prototype, 'processDirectory');
 		const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-		await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [plugin] });
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		plugin.setContext(appConfig);
 
 		expect(processDirectorySpy).not.toHaveBeenCalled();
 
@@ -141,7 +151,12 @@ describe('ImageProcessorPlugin', () => {
 		const processDirectorySpy = vi.spyOn(ImageProcessor.prototype, 'processDirectory');
 		const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-		await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [plugin] });
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		plugin.setContext(appConfig);
 
 		expect(processDirectorySpy).not.toHaveBeenCalled();
 		expect(
@@ -182,7 +197,12 @@ describe('ImageProcessorPlugin', () => {
 
 		const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-		await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [plugin] });
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		plugin.setContext(appConfig);
 
 		await plugin.setup();
 
@@ -207,7 +227,12 @@ describe('ImageProcessorPlugin', () => {
 		const processDirectorySpy = vi.spyOn(ImageProcessor.prototype, 'processDirectory');
 		const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-		await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [plugin] });
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		plugin.setContext(appConfig);
 
 		await plugin.setup();
 		expect(processDirectorySpy).toHaveBeenCalledTimes(1);

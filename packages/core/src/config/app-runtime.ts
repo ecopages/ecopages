@@ -18,7 +18,6 @@ import type { CustomElementScriptPreloadScopeState } from '../route-renderer/orc
 import type { PageCacheService } from '../services/cache/page-cache-service.ts';
 import { createAppModuleLoader } from '../services/module-loading/app-server-module-transpiler.service.ts';
 import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
-import type { CollectionServerBuildArtifact } from '../services/module-loading/collection-server-module-build.service.ts';
 import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 import {
 	NoopEntrypointDependencyGraph,
@@ -67,7 +66,6 @@ export interface AppRuntime {
 	entrypointDependencyGraph: EntrypointDependencyGraph;
 	moduleLoader: AppModuleLoader;
 	routeModuleBuildCaches: Map<string, RouteModuleBuildCache>;
-	collectionArtifacts: Map<string, CollectionServerBuildArtifact>;
 	pageCache: PageCacheService | null;
 	integrationActivations: Map<string, Promise<void>>;
 	runtimeAssetsPrepared: boolean;
@@ -132,7 +130,6 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		entrypointDependencyGraph: new NoopEntrypointDependencyGraph(),
 		moduleLoader: createAppModuleLoader(appConfig),
 		routeModuleBuildCaches: new Map(),
-		collectionArtifacts: new Map(),
 		pageCache: null,
 		integrationActivations: new Map(),
 		runtimeAssetsPrepared: false,

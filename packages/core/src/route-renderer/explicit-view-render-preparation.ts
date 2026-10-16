@@ -1,5 +1,6 @@
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { getComponentOwner } from '../eco/component-identity.ts';
+import { ensureIntegrationRuntimeReady } from '../build/app-build-manifest-runtime.ts';
 import type { EcoFunctionComponent, EcoPageComponent } from '../types/public-types.ts';
 import type { ExplicitViewRenderer, ExplicitViewRendererResolver } from './route-renderer.ts';
 
@@ -57,6 +58,13 @@ export async function prepareExplicitStaticRender(input: {
 		noRendererForIntegration(integrationName: string): string;
 	};
 }): Promise<ExplicitStaticRenderPreparationResult> {
+	const integrationName = getComponentOwner(input.view);
+	if (integrationName && input.appConfig.appRuntime?.integrationActivations) {
+		await ensureIntegrationRuntimeReady({
+			appConfig: input.appConfig,
+			integrationName,
+		});
+	}
 	const { renderer, view } = resolveExplicitViewRenderer(input);
 
 	const props = input.view.staticProps

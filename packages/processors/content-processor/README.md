@@ -33,6 +33,8 @@ The processor gives you a typed manifest and MDX components at build time. Wire 
 
 During development, edits to an entry's MDX body invalidate its compiled server collection bundle even when its frontmatter and generated manifest are unchanged. The next request rebuilds that bundle and renders the new body.
 
+The content processor owns the compiled collection artifacts and their invalidation generation. Core provides the shared server-module build path; collection identity, source tracking, and cache lifetime stay with the content processor.
+
 Co-located non-entry files inside a collection directory (for example `survey-form.config.ts`, helper modules, or JSON data) also invalidate the compiled server collection without rewriting the generated entries manifest.
 
 ## Installation

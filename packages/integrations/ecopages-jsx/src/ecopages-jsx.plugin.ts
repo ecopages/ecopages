@@ -1,13 +1,13 @@
 import {
 	IntegrationPlugin,
+	type IntegrationRendererBase,
+	type IntegrationRuntimeContext,
 	type EcoBuildPlugin,
 	type IntegrationPluginConfig,
 } from '@ecopages/core/plugins/integration-plugin';
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
-import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
-import type { EcoPagesAppConfig, IHmrManager } from '@ecopages/core';
+import type { EcoPagesAppConfig } from '@ecopages/core';
 import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
-import type { RequestPipelineMetricsState } from '@ecopages/core/diagnostics/request-pipeline-metrics';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
 import { RADIANT_INSTALL_HYDRATOR_FILEPATH } from './resolve-radiant-install-hydrator.ts';
@@ -80,51 +80,46 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	private includeRadiant: boolean;
 	private mdxCompilerOptions?: ResolvedMdxCompileOptions;
 	private mdxExtensions: string[];
-	private readonly mdxLoaderPlugins = new WeakMap<RequestPipelineMetricsState, EcoBuildPlugin>();
 
 	/**
 	 * Returns the build plugins required by the JSX integration.
 	 *
 	 * @remarks
-	 * The MDX loader is created on the first read for an app runtime and kept, because the development transform
-	 * contributor reuses the instance the build manifest holds.
+	 * Returns a new loader declaration without registering or initializing it. The build manifest owns the
+	 * resulting instance for the app runtime.
 	 */
 	override plugins(app: EcoPagesAppConfig): EcoBuildPlugin[] {
 		if (!this.mdxCompilerOptions) {
 			return [];
 		}
 
-		const requestPipelineMetrics = requireAppRuntime(app).requestPipelineMetrics;
-		let plugin = this.mdxLoaderPlugins.get(requestPipelineMetrics);
-		if (!plugin) {
-			plugin = createMdxLoaderPlugin({
+		return [
+			createMdxLoaderPlugin({
 				compilerOptions: this.mdxCompilerOptions,
 				extensions: this.mdxExtensions,
 				projectRoot: app.rootDir,
-				requestPipelineMetrics,
-			});
-			this.mdxLoaderPlugins.set(requestPipelineMetrics, plugin);
-		}
-		return [plugin];
+				requestPipelineMetrics: requireAppRuntime(app).requestPipelineMetrics,
+			}),
+		];
 	}
 
 	/** Creates the renderer instance with the resolved JSX integration runtime options. */
-	override initializeRenderer(): EcopagesJsxRenderer {
+	override createRenderer(base: IntegrationRendererBase): EcopagesJsxRenderer {
 		const jsxConfig = {
 			mdxExtensions: this.mdxExtensions,
 			radiantSsrEnabled: this.includeRadiant,
 		};
-		const rendererOptions = this.createRendererOptions();
-		const customRendererOptions = { ...rendererOptions, jsxConfig };
+		const customRendererOptions = { ...base, jsxConfig };
 		const renderer =
 			this.renderer === EcopagesJsxRenderer
-				? new (createEcopagesJsxRenderer(jsxConfig))(rendererOptions)
+				? new (createEcopagesJsxRenderer(jsxConfig))(base)
 				: new this.renderer({
 						...customRendererOptions,
 						hooks: createEcopagesJsxRendererHookFactory(jsxConfig),
 					});
 
-		return this.attachRendererRuntimeServices(renderer);
+		renderer.name ||= this.name;
+		return renderer;
 	}
 
 	constructor(options?: EcopagesJsxPluginOptions) {
@@ -166,61 +161,41 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	}
 
 	/** Registers JSX HMR strategy, dev-transform plugins, and Radiant SSR invalidation hooks. */
-	override setHmrManager(hmrManager: IHmrManager): void {
-		super.setHmrManager(hmrManager);
-		const preloadScopes = this.appConfig
-			? requireAppRuntime(this.appConfig).customElementSsrPreloadScopes
-			: undefined;
+	override hmr(context: IntegrationRuntimeContext): void {
+		super.hmr(context);
+		const manager = context.runtime.hmr;
+		if (!manager) return;
+		const preloadScopes = context.runtime.customElementSsrPreloadScopes;
 
-		const strategy = this.getHmrStrategy();
-		if (strategy) {
-			hmrManager.registerDevTransformContributor(
-				new EcopagesJsxDevTransformContributor({
-					strategy: strategy as EcopagesJsxHmrStrategy,
-					getMdxLoaderPlugin: () =>
-						this.appConfig
-							? this.mdxLoaderPlugins.get(requireAppRuntime(this.appConfig).requestPipelineMetrics)
-							: undefined,
-				}),
-			);
-		}
+		const hmrContext = manager.getDefaultContext();
+		const absolutePaths = context.appConfig.absolutePaths;
+		const strategy = new EcopagesJsxHmrStrategy({
+			getRegisteredEntrypoints: hmrContext.getRegisteredEntrypoints,
+			getSrcDir: hmrContext.getSrcDir,
+			getPagesDir: hmrContext.getPagesDir,
+			getLayoutsDir: hmrContext.getLayoutsDir,
+			getIncludesDir: () => absolutePaths.includesDir,
+			getTemplateExtensions: () => this.extensions,
+		});
+
+		manager.registerStrategy(strategy);
+		manager.registerDevTransformContributor(
+			new EcopagesJsxDevTransformContributor({
+				strategy,
+				getMdxLoaderPlugin: () =>
+					context.runtime.buildManifest.server.find((plugin) => plugin.name === 'ecopages-jsx-mdx-loader'),
+			}),
+		);
 
 		if (!this.includeRadiant) {
 			return;
 		}
 
 		if (preloadScopes) {
-			hmrManager.onScriptEntrypointChanged?.((scriptPath) =>
+			manager.onScriptEntrypointChanged?.((scriptPath) =>
 				invalidateRadiantRegisteredScriptSsrRegistration(preloadScopes, scriptPath),
 			);
 		}
-	}
-
-	/**
-	 * Returns the JSX-integration HMR strategy.
-	 *
-	 * @remarks
-	 * The strategy handles `layout-update` broadcasts for page sources, layout
-	 * sources, and any component file in the active render tree. It defers
-	 * registered script entrypoints to the generic JS strategy and includes /
-	 * explicit server views to `ServerRenderedTemplateHmrStrategy`.
-	 */
-	override getHmrStrategy(): HmrStrategy | undefined {
-		if (!this.hmrManager || !this.appConfig) {
-			return undefined;
-		}
-
-		const context = this.hmrManager.getDefaultContext();
-		const absolutePaths = this.appConfig.absolutePaths;
-
-		return new EcopagesJsxHmrStrategy({
-			getRegisteredEntrypoints: context.getRegisteredEntrypoints,
-			getSrcDir: context.getSrcDir,
-			getPagesDir: context.getPagesDir,
-			getLayoutsDir: context.getLayoutsDir,
-			getIncludesDir: () => absolutePaths.includesDir,
-			getTemplateExtensions: () => this.extensions,
-		});
 	}
 }
 

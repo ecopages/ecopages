@@ -37,7 +37,6 @@ function stylesheetProcessor(onChanges: Mock<() => Promise<void>>): never {
 		canProcessAsset: vi.fn(
 			(kind: string, filepath?: string) => kind === 'stylesheet' && filepath?.endsWith('.css'),
 		),
-		matchesFileFilter: vi.fn((filepath: string) => filepath.endsWith('.css')),
 	} as never;
 }
 

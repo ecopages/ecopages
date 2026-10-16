@@ -126,6 +126,17 @@ describe('Processor capability matching', () => {
 		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.css')).toBe(false);
 		expect(processor.canProcessAsset('image', '/src/assets/logo.png')).toBe(true);
 	});
+
+	test('applies a capability filename filter without retaining stateful regex flags', () => {
+		const processor = new TestProcessor({
+			name: 'capability-filter',
+			capabilities: [{ kind: 'stylesheet', extensions: ['*.css'], filter: /\/src\/theme\.css$/gu }],
+		});
+
+		expect(processor.canProcessAsset('stylesheet', '/src/theme.css')).toBe(true);
+		expect(processor.canProcessAsset('stylesheet', '/src/theme.css')).toBe(true);
+		expect(processor.canProcessAsset('stylesheet', '/src/other.css')).toBe(false);
+	});
 });
 
 describe('generated types package', () => {

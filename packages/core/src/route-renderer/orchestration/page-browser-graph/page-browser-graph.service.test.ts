@@ -27,7 +27,6 @@ beforeEach(() => {
 			{
 				name: 'react',
 				extensions: ['.tsx'],
-				setConfig: vi.fn(),
 				plugins: () => [],
 				browserRuntimeManifest: { runtimeGlobals: [], hmrRequirements: [] },
 			},

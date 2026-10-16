@@ -16,6 +16,8 @@ import type { ErrorPageLoaders } from '../../../types/public-types.ts';
 import { ErrorPageRenderer, logErrorPageFailure } from '../../../services/error-pages/error-page-renderer.ts';
 import { serveDistFile } from './dist-file-handler.ts';
 import { requireAppRuntime } from '../../../config/app-runtime.ts';
+import { ensureIntegrationRuntimeReady } from '../../../build/app-build-manifest-runtime.ts';
+import { findIntegrationForFile } from '../../../plugins/find-integration-for-file.ts';
 
 type FileRouteExecutionPlan = {
 	cacheKey: string;
@@ -304,6 +306,13 @@ export class FileSystemResponseMatcher {
 	 * @returns Imported page module.
 	 */
 	private async importPageModule(filePath: string): Promise<EcoPageFile> {
+		const integration = findIntegrationForFile(this.appConfig.integrations, filePath);
+		if (integration) {
+			await ensureIntegrationRuntimeReady({
+				appConfig: this.appConfig,
+				integrationName: integration.name,
+			});
+		}
 		const routeRenderer = this.routeRendererFactory.getPageRenderer(filePath);
 		return routeRenderer.loadPageModule(filePath);
 	}

@@ -82,6 +82,23 @@ describe('finalizeEcoPagesConfig configModuleFiles', () => {
 });
 
 describe('finalizeEcoPagesConfig', () => {
+	test('does not run processor setup while finalizing config', async () => {
+		const setup = vi.fn(async () => {
+			throw new Error('runtime setup should not run during finalization');
+		});
+		const processor = new (class extends Processor {
+			constructor() {
+				super({ name: 'runtime-only-processor' });
+			}
+			override setup = setup;
+		})();
+
+		const config = await finalize({ processors: [processor] });
+
+		expect(config.processors.get(processor.name)).toBe(processor);
+		expect(setup).not.toHaveBeenCalled();
+	});
+
 	test('rejects plugin instances reused through direct config finalization', async () => {
 		const firstRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-plugin-owner-first-'));
 		const secondRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-plugin-owner-second-'));
@@ -101,7 +118,7 @@ describe('finalizeEcoPagesConfig', () => {
 			await expect(finalizeEcoPagesConfig({ rootDir: secondRoot, processors: [processor] })).rejects.toThrow(
 				/reused plugin instances for another app.*defineConfig\(\(\) =>/,
 			);
-			expect(processor.getConfiguredRootDir()).toBe(firstRoot);
+			expect(processor.getConfiguredRootDir()).toBeUndefined();
 		} finally {
 			fs.rmSync(firstRoot, { recursive: true, force: true });
 			fs.rmSync(secondRoot, { recursive: true, force: true });
@@ -209,17 +226,18 @@ describe('finalizeEcoPagesConfig', () => {
 			override plugins() {
 				return [integrationRuntimePlugin, integrationBrowserPlugin];
 			}
-			override get browserRuntimeManifest() {
-				return createBrowserRuntimeManifest([
-					{
-						specifier: 'react',
-						owner: '@ecopages/react',
-						importPath: 'react',
-						publicPath: '/assets/vendors/react.js',
-					},
-				]);
-			}
-		})({ name: 'test-integration', extensions: ['.test'] });
+		})({
+			name: 'test-integration',
+			extensions: ['.test'],
+			browserRuntimeManifest: createBrowserRuntimeManifest([
+				{
+					specifier: 'react',
+					owner: '@ecopages/react',
+					importPath: 'react',
+					publicPath: '/assets/vendors/react.js',
+				},
+			]),
+		});
 
 		try {
 			const config = await finalize({

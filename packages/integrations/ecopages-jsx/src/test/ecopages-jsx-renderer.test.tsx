@@ -17,7 +17,7 @@ import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration
 import { createMarkupNodeLike, type JsxCustomElementAttributes, type JsxRenderable } from '@ecopages/jsx';
 import { getActiveSsrScopeValue, renderToString, withActiveSsrScopeValue } from '@ecopages/jsx/server';
 import { installLightDomShim } from '@ecopages/radiant/server/light-dom-shim';
-import { createTestAppConfig } from '@ecopages/testing';
+import { createTestAppConfig, setupTestIntegration } from '@ecopages/testing';
 import { describeRendererContract } from '@ecopages/testing/renderer-contract';
 import type { ForeignChildInterceptionInput } from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
 import { ecopagesJsxPlugin } from '../ecopages-jsx.plugin';
@@ -227,8 +227,8 @@ describe('EcopagesJsxRenderer', () => {
 				baseUrl: 'http://localhost:3000',
 			});
 
-			kitajsPlugin.setConfig(config);
-			litPlugin.setConfig(config);
+			await setupTestIntegration(kitajsPlugin, config);
+			await setupTestIntegration(litPlugin, config);
 
 			const renderer = new TestEcopagesJsxRenderer({
 				appConfig: config,
@@ -296,8 +296,8 @@ describe('EcopagesJsxRenderer', () => {
 				baseUrl: 'http://localhost:3000',
 			});
 
-			kitajsPlugin.setConfig(config);
-			litPlugin.setConfig(config);
+			await setupTestIntegration(kitajsPlugin, config);
+			await setupTestIntegration(litPlugin, config);
 
 			const renderer = new TestEcopagesJsxRenderer({
 				appConfig: config,
@@ -390,7 +390,7 @@ describe('EcopagesJsxRenderer', () => {
 				baseUrl: 'http://localhost:3000',
 			});
 
-			kitajsPlugin.setConfig(config);
+			await setupTestIntegration(kitajsPlugin, config);
 
 			const renderer = new TestEcopagesJsxRenderer({
 				appConfig: config,
@@ -449,8 +449,8 @@ describe('EcopagesJsxRenderer', () => {
 				baseUrl: 'http://localhost:3000',
 			});
 
-			kitajsPlugin.setConfig(config);
-			litPlugin.setConfig(config);
+			await setupTestIntegration(kitajsPlugin, config);
+			await setupTestIntegration(litPlugin, config);
 
 			const renderer = new TestEcopagesJsxRenderer({
 				appConfig: config,
@@ -528,9 +528,9 @@ describe('EcopagesJsxRenderer', () => {
 				baseUrl: 'http://localhost:3000',
 			});
 
-			kitajsPlugin.setConfig(config);
-			litPlugin.setConfig(config);
-			reactPlugin.setConfig(config);
+			await setupTestIntegration(kitajsPlugin, config);
+			await setupTestIntegration(litPlugin, config);
+			await setupTestIntegration(reactPlugin, config);
 
 			const renderer = new TestEcopagesJsxRenderer({
 				appConfig: config,
@@ -625,8 +625,8 @@ describe('EcopagesJsxRenderer', () => {
 				baseUrl: 'http://localhost:3000',
 			});
 
-			jsxPlugin.setConfig(config);
-			kitajsPlugin.setConfig(config);
+			await setupTestIntegration(jsxPlugin, config);
+			await setupTestIntegration(kitajsPlugin, config);
 
 			const renderer = new TestEcopagesJsxRenderer({
 				appConfig: config,

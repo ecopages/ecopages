@@ -95,7 +95,7 @@ function createOrchestrator(
 function createReactIntegration(dependencies: ProcessedAsset[] = [], extra: Record<string, unknown> = {}) {
 	return {
 		name: 'react',
-		initializeRenderer: vi.fn(),
+		getRenderer: vi.fn(),
 		getResolvedIntegrationDependencies: () => dependencies,
 		...extra,
 	};
@@ -655,7 +655,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 		it('prepares render options when declared foreign dependencies are valid', async () => {
 			const { flow } = createOrchestrator({
-				integrations: [{ name: 'foreign-renderer', initializeRenderer: vi.fn() }],
+				integrations: [{ name: 'foreign-renderer', getRenderer: vi.fn() }],
 			});
 			const ForeignComponent = createComponent({
 				integration: 'foreign-renderer',

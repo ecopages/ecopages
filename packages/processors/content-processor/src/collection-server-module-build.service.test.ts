@@ -3,59 +3,92 @@ import fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'vitest';
-import type { BuildAdapter, BuildExecutor } from '../../build/build-adapter.ts';
-import { createAppBuildManifest } from '../../build/contracts/build-manifest.ts';
-import { BuildQueue } from '../../build/runtime/build-queue.ts';
-import type { BuildOptions } from '../../build/contracts/build-contracts.ts';
-import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
-import { requireAppRuntime, ServerInvalidationState } from '../../config/app-runtime.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { createAppModuleLoader } from './app-server-module-transpiler.service.ts';
-import { buildCollectionServerModule } from './collection-server-module-build.service.ts';
-import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
+import type { BuildAdapter, BuildExecutor, BuildOptions, BuildResult } from '@ecopages/core/build/build-adapter';
+import { BuildQueue } from '@ecopages/core/build/build-queue';
+import { createRequestPipelineMetricsState } from '@ecopages/core/diagnostics/request-pipeline-metrics';
+import type { ProcessorContext } from '@ecopages/core/plugins/processor';
+import {
+	buildCollectionServerModule,
+	type CollectionServerBuildArtifact,
+} from './collection-server-module-build.service.ts';
 
-function attachCollectionTestRuntime(appConfig: EcoPagesAppConfig, buildQueue: BuildExecutor): EcoPagesAppConfig {
+function successfulBuild(outputPath: string, sourceFilePath: string): BuildResult {
+	return {
+		success: true,
+		outputs: [{ path: outputPath }],
+		warnings: [],
+		loadedInputs: [],
+		loadedInputsByModule: {},
+		dependencyGraph: { entrypoints: {} },
+		entryOutputs: { [sourceFilePath]: outputPath },
+		outputGraph: {},
+	};
+}
+
+function attachCollectionTestRuntime(
+	appConfig: ProcessorContext['config'],
+	buildQueue: BuildExecutor,
+): ProcessorContext['config'] {
 	appConfig.appRuntime = {
-		buildManifest: createAppBuildManifest([]),
+		buildManifest: { server: [], browser: [] },
 		buildQueue: buildQueue as BuildQueue,
-		collectionArtifacts: new Map(),
-		serverInvalidation: new ServerInvalidationState(),
-		moduleLoader: createAppModuleLoader(appConfig),
-	} as EcoPagesAppConfig['appRuntime'];
+		moduleLoader: { getDevelopmentGeneration: () => generation },
+		requestPipelineMetrics: createRequestPipelineMetricsState(),
+	} as unknown as NonNullable<ProcessorContext['config']['appRuntime']>;
 	return appConfig;
 }
 
-describe('buildCollectionServerModule', () => {
+let generation = 0;
+
+describe('content processor collection server module builds', () => {
 	let rootDir: string;
+	let artifacts: Map<string, CollectionServerBuildArtifact>;
 
 	beforeEach(() => {
 		rootDir = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-collection-build-'));
+		artifacts = new Map();
+		generation = 0;
 	});
 
 	afterEach(() => {
 		fs.rmSync(rootDir, { recursive: true, force: true });
 	});
 
+	function createAppConfig(buildQueue: BuildExecutor): ProcessorContext['config'] {
+		return attachCollectionTestRuntime(
+			{
+				rootDir,
+				absolutePaths: { workDir: path.join(rootDir, '.eco') },
+				loaders: new Map(),
+				processors: new Map(),
+				integrations: [],
+			} as unknown as ProcessorContext['config'],
+			buildQueue,
+		);
+	}
+
 	it('builds on the nested lane, so a build waiting for it cannot lock up the build lane', async () => {
 		const sourceFilePath = path.join(rootDir, 'posts.collection.ts');
 		const parentEntry = path.join(rootDir, 'page.tsx');
-		const compiled = path.join(rootDir, 'posts-compiled.mjs');
 		fs.writeFileSync(sourceFilePath, 'export const posts = [];\n', 'utf8');
 		const lanes: string[] = [];
+		let appConfig: ProcessorContext['config'];
 		const adapter: BuildAdapter = {
 			async build(options) {
 				if (Object.values(options.entrypoints).includes(parentEntry)) {
 					await buildCollectionServerModule({
 						appConfig,
+						artifacts,
 						collectionName: 'posts',
 						sourceFilePath,
 						ownedSourcePaths: [],
 					});
+					return successfulBuild(path.join(rootDir, 'page.mjs'), parentEntry);
 				}
-				return createBuildSuccess({
-					outputs: [{ path: compiled }],
-					entryOutputs: { [sourceFilePath]: compiled },
-				});
+				return successfulBuild(
+					path.join(options.outdir!, options.naming!.replace('[ext]', 'mjs')),
+					sourceFilePath,
+				);
 			},
 			resolve: (specifier) => specifier,
 		};
@@ -65,14 +98,7 @@ describe('buildCollectionServerModule', () => {
 			lanes.push(`${lane ?? 'build'}:${String(Object.values(options.entrypoints)[0])}`);
 			return queueBuild(options, lane);
 		};
-		const appConfig = attachCollectionTestRuntime(
-			{
-				rootDir,
-				absolutePaths: { workDir: path.join(rootDir, '.eco') },
-				integrations: [],
-			} as unknown as EcoPagesAppConfig,
-			queue,
-		);
+		appConfig = createAppConfig(queue);
 
 		const result = await Promise.race([
 			queue.build({ environment: 'server', entrypoints: [parentEntry] }),
@@ -86,26 +112,21 @@ describe('buildCollectionServerModule', () => {
 	it('builds through the app route-module executor', async () => {
 		const sourceFilePath = path.join(rootDir, 'posts.collection.ts');
 		fs.writeFileSync(sourceFilePath, 'export const posts = [];\n', 'utf8');
-
-		const adapter = new RolldownBuildAdapter();
 		const routeModuleBuilds: BuildOptions[] = [];
-		const routeModuleExecutor: BuildExecutor = {
+		const appConfig = createAppConfig({
 			build(options) {
 				routeModuleBuilds.push(options);
-				return adapter.build(options);
+				return Promise.resolve(
+					successfulBuild(
+						path.join(options.outdir!, options.naming!.replace('[ext]', 'mjs')),
+						sourceFilePath,
+					),
+				);
 			},
-		};
-		const appConfig = attachCollectionTestRuntime(
-			{
-				rootDir,
-				absolutePaths: { workDir: path.join(rootDir, '.eco') },
-				integrations: [],
-			} as unknown as EcoPagesAppConfig,
-			routeModuleExecutor,
-		);
-
+		});
 		const artifact = await buildCollectionServerModule({
 			appConfig,
+			artifacts,
 			collectionName: 'posts',
 			sourceFilePath,
 			ownedSourcePaths: [],
@@ -115,37 +136,42 @@ describe('buildCollectionServerModule', () => {
 			routeModuleBuilds.map((options) => options.entrypoints),
 			[[sourceFilePath]],
 		);
-		assert.ok(fs.existsSync(artifact.outputPath));
+		assert.equal(
+			artifact.outputPath,
+			path.join(routeModuleBuilds[0].outdir!, routeModuleBuilds[0].naming!.replace('.[ext]', '.mjs')),
+		);
 	});
 
 	it('reuses a build until the development generation advances', async () => {
 		const sourceFilePath = path.join(rootDir, 'posts.collection.ts');
 		fs.writeFileSync(sourceFilePath, 'export const posts = [];\n', 'utf8');
-
-		const adapter = new RolldownBuildAdapter();
 		let buildCount = 0;
-		const appConfig = attachCollectionTestRuntime(
-			{
-				rootDir,
-				absolutePaths: { workDir: path.join(rootDir, '.eco') },
-				integrations: [],
-			} as unknown as EcoPagesAppConfig,
-			{
-				build(options: BuildOptions) {
-					buildCount += 1;
-					return adapter.build(options);
-				},
+		const appConfig = createAppConfig({
+			build(options) {
+				buildCount += 1;
+				return Promise.resolve(
+					successfulBuild(
+						path.join(options.outdir!, options.naming!.replace('[ext]', 'mjs')),
+						sourceFilePath,
+					),
+				);
 			},
-		);
+		});
 		const build = () =>
-			buildCollectionServerModule({ appConfig, collectionName: 'posts', sourceFilePath, ownedSourcePaths: [] });
+			buildCollectionServerModule({
+				appConfig,
+				artifacts,
+				collectionName: 'posts',
+				sourceFilePath,
+				ownedSourcePaths: [],
+			});
 
 		const first = await build();
 		const second = await build();
 		assert.equal(second, first);
 		assert.equal(buildCount, 1);
 
-		requireAppRuntime(appConfig).moduleLoader.invalidateDevelopmentGraph();
+		generation += 1;
 		const third = await build();
 
 		assert.equal(buildCount, 2);

@@ -109,6 +109,8 @@ export type ProcessorExtensionPattern = string;
 
 export interface ProcessorAssetCapability {
 	kind: ProcessorAssetKind;
+	/** Optional filename filter applied in addition to the declared extension patterns. */
+	filter?: RegExp;
 	/**
 	 * Supported patterns:
 	 * - `*` (all extensions)
@@ -174,7 +176,12 @@ export abstract class Processor<TOptions = unknown> {
 		this.name = config.name;
 		this.options = config.options;
 		this.watchConfig = config.watch;
-		this.capabilities = config.capabilities ?? [];
+		this.capabilities = (config.capabilities ?? []).map((capability) => ({
+			...capability,
+			...(capability.filter
+				? { filter: new RegExp(capability.filter.source, capability.filter.flags.replace(/[gy]/gu, '')) }
+				: {}),
+		}));
 	}
 
 	setContext(appConfig: EcoPagesAppConfig): void {
@@ -204,8 +211,8 @@ export abstract class Processor<TOptions = unknown> {
 	 *
 	 * @remarks
 	 * Core calls it for every `.css`, `.scss`, `.sass` and `.less` asset, from file and content dependencies alike,
-	 * when the Processor declares a `stylesheet` capability matching the file and {@link matchesFileFilter} accepts
-	 * it. Processors run in registration order, each receiving the previous result. A Processor without this method
+	 * when the Processor declares a `stylesheet` capability matching the file. Processors run in registration order,
+	 * each receiving the previous result. A Processor without this method
 	 * takes no part in stylesheet processing.
 	 *
 	 * @param css - Stylesheet source, or the previous Processor's output.
@@ -248,10 +255,6 @@ export abstract class Processor<TOptions = unknown> {
 		return this.capabilities;
 	}
 
-	matchesFileFilter(_filepath: string): boolean {
-		return true;
-	}
-
 	canProcessAsset(kind: ProcessorAssetKind, filepath?: string): boolean {
 		const capabilities = this.getAssetCapabilities();
 		if (capabilities.length === 0) {
@@ -267,7 +270,11 @@ export abstract class Processor<TOptions = unknown> {
 			return true;
 		}
 
-		return matchingKind.some((capability) => this.matchesCapabilityExtensions(filepath, capability.extensions));
+		return matchingKind.some(
+			(capability) =>
+				(!capability.filter || capability.filter.test(filepath)) &&
+				this.matchesCapabilityExtensions(filepath, capability.extensions),
+		);
 	}
 
 	private matchesCapabilityExtensions(filepath: string, extensions?: ProcessorExtensionPattern[]): boolean {

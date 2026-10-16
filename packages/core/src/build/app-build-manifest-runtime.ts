@@ -16,10 +16,8 @@ import { isLitStaticRenderWorkerThread } from './browser/lit-static-render-worke
  *
  * @remarks
  * Called during runtime assembly. Loaders come first, then processors, then integrations. Each one's
- * `plugins(app)` is read once, and a Processor has no other method called; every registration is validated once,
- * by {@link createAppBuildManifest}. Integration browser runtime manifests stay separate declarations. An
- * Integration still receives the app config through `setConfig()` here, because its renderer and HMR hooks
- * read it before runtime activation.
+ * `plugins(app)` is read once; every registration is validated once, by {@link createAppBuildManifest}. Browser
+ * runtime manifests are data, not lifecycle hooks. Runtime setup happens after finalization.
  */
 export function sealAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManifest {
 	const registrations: BuildPluginRegistration[] = [...appConfig.loaders.values()].map((plugin) => ({
@@ -35,7 +33,6 @@ export function sealAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildMani
 	}
 
 	for (const integration of appConfig.integrations) {
-		integration.setConfig(appConfig);
 		for (const plugin of integration.plugins(appConfig)) {
 			registrations.push({ plugin, source: `Integration "${integration.name}"` });
 		}
@@ -65,6 +62,7 @@ export async function setupAppRuntimePlugins(options: { appConfig: EcoPagesAppCo
 		const skipProcessorSetup = isLitStaticRenderWorkerThread();
 
 		for (const processor of options.appConfig.processors.values()) {
+			processor.setContext(options.appConfig);
 			if (!skipProcessorSetup) {
 				await processor.setup();
 			}
@@ -103,8 +101,7 @@ export async function ensureIntegrationRuntimeReady(options: {
 	}
 
 	const activation = (async () => {
-		integration.setConfig(options.appConfig);
-		await integration.setup();
+		await integration.setup({ appConfig: options.appConfig, runtime });
 	})();
 
 	runtime.integrationActivations.set(options.integrationName, activation);
@@ -115,4 +112,43 @@ export async function ensureIntegrationRuntimeReady(options: {
 		runtime.integrationActivations.delete(options.integrationName);
 		throw error;
 	}
+}
+
+export async function setupAppRuntimeIntegrations(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
+	await Promise.all(
+		options.appConfig.integrations.map((integration) =>
+			ensureIntegrationRuntimeReady({
+				appConfig: options.appConfig,
+				integrationName: integration.name,
+			}),
+		),
+	);
+}
+
+/**
+ * Releases runtime resources owned by the app's Integrations.
+ *
+ * @remarks
+ * Waits for in-flight setup calls before teardown and clears activation state after each activated Integration
+ * has had a chance to release its resources.
+ */
+export async function teardownAppRuntimeIntegrations(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
+	const runtime = requireAppRuntime(options.appConfig);
+	const activeIntegrations = new Set(runtime.integrationActivations.keys());
+	await Promise.allSettled(runtime.integrationActivations.values());
+
+	const errors: unknown[] = [];
+	for (const integration of options.appConfig.integrations) {
+		if (!activeIntegrations.has(integration.name)) continue;
+
+		try {
+			await integration.teardown();
+		} catch (error) {
+			errors.push(error);
+		}
+	}
+	runtime.integrationActivations.clear();
+
+	if (errors.length === 1) throw errors[0];
+	if (errors.length > 1) throw new AggregateError(errors, 'Failed to release Integration runtime resources');
 }

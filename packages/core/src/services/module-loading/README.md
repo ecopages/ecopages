@@ -30,22 +30,21 @@ Source dependency hashes use the adapter's entry module closure and plugin-recor
 
 Development import URLs use `sourceHash` plus `getDevelopmentGeneration()` in the `?update=` query. The compiled output filename includes that generation on every runtime, because Bun retains a previously imported file when only its query changes. On a finalized config that generation is the app runtime's server invalidation counter. Both advance after `invalidateDevelopmentGraph()` without a process-wide invalidation version in reuse keys.
 
-Compiled collection server modules (`AppRuntime.collectionArtifacts`) also include the development generation in their output filename (`<collection>-<buildIdentity>-<generation>.mjs`) so Node's ESM loader treats recompiled bundles as new modules after co-located helper files change. A cached collection build is reused only while the generation is unchanged, so invalidation does not clear collection artifacts separately.
+The content processor owns compiled collection server modules and their cache. Output filenames include the development generation (`<collection>-<buildIdentity>-<generation>.mjs`) so Node's ESM loader treats recompiled bundles as new modules after co-located helper files change.
 
 ## Files
 
-| File                                        | Role                                                             |
-| ------------------------------------------- | ---------------------------------------------------------------- |
-| `page-module-import.service.ts`             | Core import/cache/build orchestration                            |
-| `route-module-build-manifest.ts`            | Content-derived reuse identity and in-process cache shape        |
-| `route-module-build-cache.store.ts`         | In-process route-module transpile cache store                    |
-| `route-module-build-cache-registry.ts`      | Shared cache instance registry per `(appConfig, outdir)` pair    |
-| `route-module-dependency-hasher.ts`         | Dependency graph source file hashing and staleness validation    |
-| `collection-server-module-build.service.ts` | Compiles collection server modules with invalidation stamping    |
-| `app-module-loader.service.ts`              | App-facing loader interface                                      |
-| `app-server-module-transpiler.service.ts`   | Factory for app-scoped loader + transpiler                       |
-| `server-module-transpiler.service.ts`       | Injectable transpiler boundary for tests and bootstrap           |
-| `view-module-loader.ts`                     | Normalizes string/URL view registrations into transpiler loaders |
+| File                                      | Role                                                             |
+| ----------------------------------------- | ---------------------------------------------------------------- |
+| `page-module-import.service.ts`           | Core import/cache/build orchestration                            |
+| `route-module-build-manifest.ts`          | Content-derived reuse identity and in-process cache shape        |
+| `route-module-build-cache.store.ts`       | In-process route-module transpile cache store                    |
+| `route-module-build-cache-registry.ts`    | Shared cache instance registry per `(appConfig, outdir)` pair    |
+| `route-module-dependency-hasher.ts`       | Dependency graph source file hashing and staleness validation    |
+| `app-module-loader.service.ts`            | App-facing loader interface                                      |
+| `app-server-module-transpiler.service.ts` | Factory for app-scoped loader + transpiler                       |
+| `server-module-transpiler.service.ts`     | Injectable transpiler boundary for tests and bootstrap           |
+| `view-module-loader.ts`                   | Normalizes string/URL view registrations into transpiler loaders |
 
 ## Development invalidation
 

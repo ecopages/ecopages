@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { compile } from '@mdx-js/mdx';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
+import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
 import type {
 	EcoBuildOnLoadArgs,
 	EcoBuildOnLoadResult,
@@ -72,7 +73,7 @@ describe('MDXPlugin', () => {
 		).toThrow(/ecopagesJsxPlugin/);
 	});
 
-	it('initializes the shared MDX route renderer', () => {
+	it('initializes the shared MDX route renderer', async () => {
 		const plugin = mdxPlugin({
 			compilerOptions: {
 				jsxImportSource: '@kitajs/html',
@@ -80,9 +81,9 @@ describe('MDXPlugin', () => {
 			},
 		});
 
-		plugin.setConfig(Config);
+		await plugin.setup({ appConfig: Config, runtime: requireAppRuntime(Config) });
 
-		const renderer = plugin.initializeRenderer();
+		const renderer = plugin.getRenderer();
 
 		expect(renderer.name).toBe('MDX');
 	});

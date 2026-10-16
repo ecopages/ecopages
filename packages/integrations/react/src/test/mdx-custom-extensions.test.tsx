@@ -4,6 +4,8 @@ import path from 'node:path';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { ReactRenderer } from '../render/react-renderer.ts';
 import { reactPlugin } from '../plugin/react.plugin.ts';
+import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
+import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import { copyFixtureApp } from '../../../../core/__fixtures__/app/copy-fixture-app.ts';
 
 const MockPage = ({ children }: any) => <div>{children}</div>;
@@ -93,16 +95,15 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 	it('should add runtime vendor dependencies for the active NODE_ENV during setup', async () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const plugin = reactPlugin({});
-		plugin.setConfig(Config);
 		const processDependencies = vi
-			.spyOn((plugin as any).assetProcessingService, 'processDependencies')
+			.spyOn(AssetProcessingService.prototype, 'processDependencies')
 			.mockResolvedValue([]);
 
 		expect((plugin as any).integrationDependencies).toEqual([]);
 		expect(plugin.browserRuntimeManifest.bySpecifier.has('react')).toBe(true);
 		expect((plugin as any).integrationDependencies).toEqual([]);
 
-		await plugin.setup();
+		await plugin.setup({ appConfig: Config, runtime: requireAppRuntime(Config) });
 
 		const dependencies = processDependencies.mock.calls[0]?.[0] as Array<{ bundleOptions?: { naming?: string } }>;
 		expect(dependencies).toEqual(

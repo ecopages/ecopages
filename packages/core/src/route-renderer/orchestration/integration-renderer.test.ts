@@ -220,7 +220,7 @@ describe('IntegrationRenderer', () => {
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'foreign',
-						initializeRenderer: () => foreignRenderer,
+						getRenderer: () => foreignRenderer,
 					}),
 				],
 			}),
@@ -326,7 +326,7 @@ describe('IntegrationRenderer', () => {
 		const routeFile = '/app/pages/lazy.tsx';
 		const appConfig = {
 			...testAppConfig,
-			integrations: [createMockIntegrationPlugin({ name: 'lit', initializeRenderer: () => ({}) })],
+			integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
 		} as EcoPagesAppConfig;
 		const renderer = new (class extends TestIntegrationRenderer {
 			readonly resolvedGroupedPlans: unknown[] = [];
@@ -1295,7 +1295,7 @@ describe('IntegrationRenderer', () => {
 				integrations: [
 					createMockIntegrationPlugin({
 						name: 'explicit-renderer',
-						initializeRenderer: () => explicitRenderer,
+						getRenderer: () => explicitRenderer,
 					}),
 				],
 			});
@@ -1493,7 +1493,7 @@ describe('IntegrationRenderer', () => {
 					createMockIntegrationPlugin({
 						name: 'react',
 						plugins: [],
-						initializeRenderer: () => contributor,
+						getRenderer: () => contributor,
 					}),
 				],
 			}),

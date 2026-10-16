@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestAppConfig } from '@ecopages/testing';
 import { IntegrationPlugin } from '../../../plugins/integration-plugin.ts';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { StringMarkupRenderer } from '../../../route-renderer/orchestration/string-markup-renderer.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { AssetProcessingService } from '../../../services/assets/asset-processing-service/index.ts';
@@ -30,8 +31,6 @@ class ExplicitViewTestRenderer extends StringMarkupRenderer {
 class ExplicitViewTestPlugin extends IntegrationPlugin {
 	override renderer = ExplicitViewTestRenderer as IntegrationPlugin['renderer'];
 
-	override async setup(): Promise<void> {}
-
 	override async teardown(): Promise<void> {}
 }
 
@@ -48,7 +47,7 @@ describe('explicit views rendered through real renderers', () => {
 		rootDir = mkdtempSync(path.join(tmpdir(), 'explicit-view-'));
 		const appConfig = await createTestAppConfig({ rootDir, integrations: [] });
 		const plugin = new ExplicitViewTestPlugin({ name: 'kitajs', extensions: ['.kita.tsx'] });
-		plugin.setConfig(appConfig);
+		await plugin.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
 		return { plugin, appConfig };
 	}
 
@@ -124,7 +123,7 @@ describe('explicit views rendered through real renderers', () => {
 
 	it('renders every handler view of an Integration through one renderer', async () => {
 		const { plugin } = await createPlugin();
-		const initializeRenderer = vi.spyOn(plugin, 'initializeRenderer');
+		const createRenderer = vi.spyOn(plugin, 'createRenderer');
 		const handler = createRenderContext({ integrations: [plugin] });
 		const view = createView(({ n }) => `<p>${n}</p>`);
 
@@ -133,7 +132,7 @@ describe('explicit views rendered through real renderers', () => {
 		}
 		expect(await (await handler.renderPartial(view, { n: 4 })).text()).toBe('<p>4</p>');
 
-		expect(initializeRenderer).toHaveBeenCalledTimes(1);
+		expect(createRenderer).toHaveBeenCalledTimes(1);
 	});
 
 	describe('asset preparation', () => {

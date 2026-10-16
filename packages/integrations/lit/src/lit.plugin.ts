@@ -2,8 +2,6 @@ import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	invalidateCustomElementScriptPreload,
 } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
-import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
-import type { IHmrManager } from '@ecopages/core';
 /**
  * This module contains the Lit plugin
  * @module
@@ -12,6 +10,8 @@ import type { IHmrManager } from '@ecopages/core';
 import './console.ts';
 import {
 	IntegrationPlugin,
+	type IntegrationRendererBase,
+	type IntegrationRuntimeContext,
 	type IntegrationPluginConfig,
 	type StaticExportContext,
 	type StaticExportRelease,
@@ -76,31 +76,32 @@ export class LitPlugin extends IntegrationPlugin {
 	}
 
 	private createRenderSession(): LitStaticRenderSession {
-		if (!this.appConfig || !this.assetProcessingService) {
+		if (!this.appConfig || !this.runtime || !this.assetProcessingService) {
 			throw new Error('Lit plugin must be initialized before starting the render worker');
 		}
 
 		return new LitStaticRenderSession({
-			preloadScopes: requireAppRuntime(this.appConfig).customElementSsrPreloadScopes,
+			preloadScopes: this.runtime.customElementSsrPreloadScopes,
 			resolveDependencyPath: (componentDir, sourcePath) => path.join(componentDir, sourcePath),
 			processDependencies: this.assetProcessingService.processDependencies.bind(this.assetProcessingService),
-			getInvalidationVersion: () =>
-				this.appConfig ? requireAppRuntime(this.appConfig).moduleLoader.getDevelopmentGeneration() : 0,
+			getInvalidationVersion: () => this.runtime?.moduleLoader.getDevelopmentGeneration() ?? 0,
 		});
 	}
 
-	override initializeRenderer(): LitRenderer {
+	override createRenderer(base: IntegrationRendererBase): LitRenderer {
 		const Renderer =
 			this.renderer === LitRenderer ? createLitRenderer(() => this.renderSession ?? undefined) : this.renderer;
-		const renderer = new Renderer(this.createRendererOptions());
-		return this.attachRendererRuntimeServices(renderer);
+		const renderer = new Renderer(base);
+		renderer.name ||= this.name;
+		return renderer;
 	}
 
-	override setHmrManager(hmrManager: IHmrManager): void {
-		super.setHmrManager(hmrManager);
-		if (!this.appConfig) return;
-		const preloadScopes = requireAppRuntime(this.appConfig).customElementSsrPreloadScopes;
-		hmrManager.onScriptEntrypointChanged?.((scriptPath) => {
+	override hmr(context: IntegrationRuntimeContext): void {
+		super.hmr(context);
+		const manager = context.runtime.hmr;
+		if (!manager) return;
+		const preloadScopes = context.runtime.customElementSsrPreloadScopes;
+		manager.onScriptEntrypointChanged?.((scriptPath) => {
 			invalidateCustomElementScriptPreload(
 				preloadScopes,
 				scriptPath,
@@ -109,8 +110,8 @@ export class LitPlugin extends IntegrationPlugin {
 		});
 	}
 
-	override async setup(): Promise<void> {
-		await super.setup();
+	override async setup(context: IntegrationRuntimeContext): Promise<void> {
+		await super.setup(context);
 
 		if (!this.appConfig?.absolutePaths?.config) {
 			throw new Error('[ecopages][lit] Lit server rendering requires appConfig.absolutePaths.config');
@@ -123,7 +124,7 @@ export class LitPlugin extends IntegrationPlugin {
 		this.renderSession ??= this.createRenderSession();
 		await this.renderSession.ensureWorker({
 			configModulePath: this.appConfig.absolutePaths.config,
-			runtimeOrigin: requireAppRuntime(this.appConfig).origin,
+			runtimeOrigin: context.runtime.origin,
 		});
 	}
 
@@ -134,23 +135,20 @@ export class LitPlugin extends IntegrationPlugin {
 	}
 
 	/**
-	 * Starts the render worker if `setup()` has not and preloads the Lit routes.
+	 * Reconciles the render worker with the export origin and preloads Lit routes.
 	 *
 	 * @remarks
-	 * `ecopages build` defers Integration setup until the first page renders, so `staticExport()` normally
-	 * creates the session and the later `setup()` reuses it, with its preloaded routes, instead of starting a
-	 * second one. The worker restarts only if the two origins differ. The returned release stops the worker once the export ends, so an in-process
-	 * export leaves no worker thread running. A later render in the same process falls back to rendering
-	 * in-process.
+	 * `setup()` can start the session with the runtime origin before static export resolves its own base URL. The
+	 * session reuses the worker when the identities match and restarts it when the export origin differs. The returned
+	 * release stops the worker once the export ends, so an in-process export leaves no worker thread running. A later
+	 * render in the same process falls back to rendering in-process.
 	 */
 	override async staticExport(context: StaticExportContext): Promise<StaticExportRelease> {
-		if (!this.renderSession) {
-			this.renderSession = this.createRenderSession();
-			await this.renderSession.ensureWorker({
-				configModulePath: context.appConfig.absolutePaths.config,
-				runtimeOrigin: context.baseUrl,
-			});
-		}
+		this.renderSession ??= this.createRenderSession();
+		await this.renderSession.ensureWorker({
+			configModulePath: context.appConfig.absolutePaths.config,
+			runtimeOrigin: context.baseUrl,
+		});
 
 		const session = this.renderSession;
 		await session.preloadStaticRoutes(context);

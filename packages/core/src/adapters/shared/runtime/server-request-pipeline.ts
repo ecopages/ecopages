@@ -21,6 +21,7 @@ import { isHtmlResponse, withUncachedDevHtml } from '../hmr/hmr-html-response.ts
 import type { EcoPageFile } from '../../../types/public-types.ts';
 import { createAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir } from '../../../utils/resolve-work-dir.ts';
+import { ensureIntegrationRuntimeReady } from '../../../build/app-build-manifest-runtime.ts';
 import type { RouteRegistryPageModuleAdapter } from '../../../router/server/route-registry.ts';
 import type {
 	ApiHandler,
@@ -278,6 +279,8 @@ export class ServerRequestPipeline {
 
 		return createRenderContext({
 			integrations: this.appConfig.integrations,
+			ensureIntegrationReady: (integrationName) =>
+				ensureIntegrationRuntimeReady({ appConfig: this.appConfig, integrationName }),
 			importServerModule: async <T = unknown>(filePath: string) =>
 				await serverModuleTranspiler.importModule<T>({
 					filePath,

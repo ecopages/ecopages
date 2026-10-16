@@ -380,13 +380,14 @@ describe('PostCssProcessorPlugin HMR', () => {
 			options: { filter: /\.css$/, pluginFactories: { 'lazy-color-plugin': createPlugin } },
 		});
 
-		await finalizeEcoPagesConfig({
+		const appConfig = await finalizeEcoPagesConfig({
 			rootDir: tmpDir,
 			srcDir: 'src',
 			distDir: 'dist',
 			baseUrl: 'http://localhost:3000',
 			processors: [plugin],
 		});
+		plugin.setContext(appConfig);
 
 		expect(createPlugin).not.toHaveBeenCalled();
 

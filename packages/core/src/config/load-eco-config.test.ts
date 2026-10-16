@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { defineConfig } from './define-config.ts';
 import { finalizeEcoPagesConfig } from './finalize-config.ts';
 import { loadEcoPagesConfig, loadEcoPagesUserConfig } from './load-eco-config.ts';
+import { setupAppRuntimePlugins } from '../build/app-build-manifest-runtime.ts';
 import { resolveEcoConfigPath, ECOPAGES_CONFIG_FILE_ENV, resolveUserConfigRootDir } from './resolve-eco-config-path.ts';
 
 describe('defineConfig', () => {
@@ -162,6 +163,7 @@ describe('loadEcoPagesConfig', () => {
 				"  constructor() { super({ name: 'counting' }); }",
 				'  getConfiguredRootDir() { return this.context?.rootDir; }',
 				'  override plugins() { reads += 1; return []; }',
+				'  async setup() {}',
 				'}',
 				'export default () => ({ processors: [new CountingProcessor()] });',
 			].join('\n'),
@@ -179,6 +181,12 @@ describe('loadEcoPagesConfig', () => {
 		expect(second).not.toBe(first);
 		expect(second.appRuntime).not.toBe(first.appRuntime);
 		expect(secondProcessor).not.toBe(firstProcessor);
+		expect(firstProcessor.getConfiguredRootDir()).toBeUndefined();
+		expect(secondProcessor.getConfiguredRootDir()).toBeUndefined();
+		await Promise.all([
+			setupAppRuntimePlugins({ appConfig: first }),
+			setupAppRuntimePlugins({ appConfig: second }),
+		]);
 		expect(firstProcessor.getConfiguredRootDir()).toBe(tempDir);
 		expect(secondProcessor.getConfiguredRootDir()).toBe(otherRoot);
 		expect((globalThis as { __ecoConfigModuleLoads?: number }).__ecoConfigModuleLoads).toBe(1);

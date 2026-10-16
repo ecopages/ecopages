@@ -24,10 +24,6 @@ export async function applyStylesheetProcessors(
 			continue;
 		}
 
-		if (!processor.matchesFileFilter(filepath)) {
-			continue;
-		}
-
 		transformedContent = await processor.transformStylesheet(transformedContent, filepath);
 	}
 

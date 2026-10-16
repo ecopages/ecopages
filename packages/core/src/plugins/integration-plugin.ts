@@ -3,8 +3,8 @@ import {
 	createBrowserRuntimeManifest,
 	type BrowserRuntimeManifest,
 } from '../build/browser/browser-runtime-manifest.ts';
-import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
-import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
+import type { AppRuntime } from '../config/app-runtime.ts';
+import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { EcoPageFile, EcoPagesElement } from '../types/public-types.ts';
 import type {
 	IntegrationRenderer,
@@ -42,7 +42,6 @@ export type AnyIntegrationPlugin = IntegrationPlugin<unknown>;
 
 export const INTEGRATION_PLUGIN_ERRORS = {
 	NOT_INITIALIZED_WITH_APP_CONFIG: 'Plugin not initialized with app config',
-	NOT_INITIALIZED_WITH_ASSET_SERVICE: 'Plugin not initialized with asset dependency service',
 } as const;
 
 export function mergeIntegrationOptions<TDefaults, TOverrides>(
@@ -84,11 +83,22 @@ export interface IntegrationPluginConfig {
 	 * integration.
 	 */
 	jsxImportSource?: string;
+	/** Browser runtime rewrites declared as data for the app build manifest. */
+	browserRuntimeManifest?: BrowserRuntimeManifest;
 }
 
 type RendererClass<C> = new (
 	options: IntegrationRendererOptions & { resolvedIntegrationDependencies: ProcessedAsset[] },
 ) => IntegrationRenderer<C>;
+
+export interface IntegrationRuntimeContext {
+	appConfig: EcoPagesAppConfig;
+	runtime: AppRuntime;
+}
+
+export type IntegrationRendererBase = IntegrationRendererOptions & {
+	resolvedIntegrationDependencies: ProcessedAsset[];
+};
 
 /**
  * Base class for framework integrations.
@@ -113,6 +123,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	readonly extensions: string[];
 	abstract renderer: RendererClass<C>;
 	readonly jsxImportSource?: string;
+	readonly browserRuntimeManifest: BrowserRuntimeManifest;
 
 	/**
 	 * Whether this Integration's Pages can receive Params from `[param]` and `[...param]`
@@ -130,8 +141,8 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	protected integrationDependencies: AssetDefinition[];
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
 	protected appConfig?: EcoPagesAppConfig;
+	protected runtime?: AppRuntime;
 	protected assetProcessingService?: AssetProcessingService;
-	protected hmrManager?: IHmrManager;
 	private rendererInstance?: IntegrationRenderer<C>;
 
 	/**
@@ -150,18 +161,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Returns shared browser runtime asset declarations owned by this integration.
-	 *
-	 * @remarks
-	 * Core seals these declarations into the app build manifest so app-owned browser
-	 * bundle paths can rewrite manifest-owned imports even when a specific build
-	 * request does not install an integration-local runtime rewrite plugin.
-	 */
-	get browserRuntimeManifest(): BrowserRuntimeManifest {
-		return createBrowserRuntimeManifest();
-	}
-
-	/**
 	 * Creates the integration with static declaration-only configuration.
 	 *
 	 * @remarks
@@ -173,6 +172,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		this.extensions = config.extensions;
 		this.integrationDependencies = config.integrationDependencies || [];
 		this.jsxImportSource = config.jsxImportSource;
+		this.browserRuntimeManifest = config.browserRuntimeManifest ?? createBrowserRuntimeManifest();
 	}
 
 	/**
@@ -192,75 +192,6 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	compilePageModule?(filePath: string, appConfig: EcoPagesAppConfig): EcoPageFile | Promise<EcoPageFile>;
 
 	/**
-	 * Attaches the finalized app config to the integration.
-	 *
-	 * Core calls this during config finalization before runtime setup so the
-	 * integration can resolve asset paths and other app-owned services later.
-	 */
-	setConfig(appConfig: EcoPagesAppConfig): void {
-		if (this.appConfig !== appConfig) {
-			this.rendererInstance = undefined;
-			this.appConfig = appConfig;
-			this.assetProcessingService = undefined;
-		}
-
-		if (!this.assetProcessingService) {
-			this.initializeAssetDefinitionService();
-		}
-	}
-
-	/**
-	 * Returns an HMR strategy for this integration, if applicable.
-	 * The strategy will be registered with the HmrManager during initialization.
-	 *
-	 * @returns HmrStrategy instance or undefined if no custom HMR handling needed
-	 *
-	 * @example
-	 * ```typescript
-	 * getHmrStrategy(): HmrStrategy {
-	 *   const context = this.hmrManager!.getDefaultContext();
-	 *   return new ReactHmrStrategy({ context, pageMetadataCache, runtimeManifest });
-	 * }
-	 * ```
-	 */
-	getHmrStrategy?(): HmrStrategy | undefined;
-
-	/**
-	 * Attaches the shared HMR manager and registers integration-owned development hooks.
-	 *
-	 * @remarks
-	 * The default implementation registers the optional integration HMR strategy.
-	 * Integrations should override this only when they need to extend that shared
-	 * behavior rather than replace it.
-	 */
-	setHmrManager(hmrManager: IHmrManager) {
-		this.hmrManager = hmrManager;
-
-		const strategy = this.getHmrStrategy?.();
-		if (strategy) {
-			hmrManager.registerStrategy(strategy);
-		}
-
-		if (this.assetProcessingService) {
-			this.assetProcessingService.setHmrManager(hmrManager);
-		}
-
-		this.rendererInstance?.setHmrManager(hmrManager);
-	}
-
-	/**
-	 * Creates the asset-processing service used for global integration dependencies.
-	 */
-	initializeAssetDefinitionService(): void {
-		if (!this.appConfig) throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_APP_CONFIG);
-
-		this.assetProcessingService = AssetProcessingService.createWithDefaultProcessors(this.appConfig);
-		if (this.hmrManager) {
-			this.assetProcessingService.setHmrManager(this.hmrManager);
-		}
-	}
-
-	/**
 	 * Returns processed global assets resolved during `setup()`.
 	 */
 	getResolvedIntegrationDependencies(): ProcessedAsset[] {
@@ -268,34 +199,18 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Creates the shared renderer options owned by core lifecycle setup.
+	 * Creates the common renderer options from runtime setup state.
 	 *
 	 * @remarks
 	 * `getRenderer()` caches one renderer for this Integration. The renderer and
-	 * this Integration share the app-owned asset-processing service. An unchanged file
+	 * this Integration share its asset-processing service. An unchanged file
 	 * asset is reused until its source hash changes, its output is missing, or a
 	 * development change batch drops the entry. The cache key is the dependency
-	 * identity; the source hash is the freshness check. A missing service is
-	 * created here so a plugin that received `appConfig` without `setConfig()`
-	 * still has one.
+	 * identity; the source hash is the freshness check.
 	 */
-	protected createRendererOptions(): IntegrationRendererOptions & {
-		resolvedIntegrationDependencies: ProcessedAsset[];
-	} {
-		if (!this.appConfig) {
+	private createRendererBase(): IntegrationRendererBase {
+		if (!this.appConfig || !this.assetProcessingService) {
 			throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_APP_CONFIG);
-		}
-
-		if (!this.assetProcessingService) {
-			this.initializeAssetDefinitionService();
-		}
-
-		if (!this.assetProcessingService) {
-			throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_ASSET_SERVICE);
-		}
-
-		if (this.hmrManager) {
-			this.assetProcessingService.setHmrManager(this.hmrManager);
 		}
 
 		return {
@@ -306,49 +221,27 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Attaches runtime-only services after a renderer instance has been created.
-	 */
-	protected attachRendererRuntimeServices<T extends IntegrationRenderer<C>>(renderer: T): T {
-		if (typeof renderer.name !== 'string' || renderer.name.length === 0) {
-			renderer.name = this.name;
-		}
-
-		if (this.hmrManager) {
-			renderer.setHmrManager(this.hmrManager);
-		}
-
-		return renderer;
-	}
-
-	/**
-	 * Instantiates a new integration renderer with app-owned services.
+	 * Creates a renderer with the common options from runtime setup.
 	 *
 	 * @remarks
-	 * Integration implementations override this method to supply their renderer
-	 * options. Application runtime code should use `getRenderer()` so routes,
-	 * explicit views, and foreign-child handoffs share the same instance.
+	 * Core calls this once per Integration runtime. Override it to add framework-specific renderer options.
 	 */
-	initializeRenderer(): IntegrationRenderer<C> {
-		const renderer = new this.renderer(this.createRendererOptions());
+	createRenderer(base: IntegrationRendererBase): IntegrationRenderer<C> {
+		const renderer = new this.renderer(base);
 		renderer.name ||= this.name;
-		return this.attachRendererRuntimeServices(renderer);
+		return renderer;
 	}
 
 	/**
 	 * Returns the renderer shared by this Integration's application runtime.
 	 */
 	getRenderer(): IntegrationRenderer<C> {
-		this.rendererInstance ??= this.initializeRenderer();
+		this.rendererInstance ??= this.createRenderer(this.createRendererBase());
+		this.rendererInstance.name ||= this.name;
 		return this.rendererInstance;
 	}
 
-	/**
-	 * Shapes one dependency batch before core asset processing runs.
-	 *
-	 * @remarks
-	 * Integrations use this to assign grouped-build metadata or other batch-level
-	 * policy without teaching core about integration-specific asset graphs.
-	 */
+	/** Shapes one dependency batch before core asset processing runs. */
 	prepareAssetDependencies?(dependencies: AssetDefinition[]): AssetDefinition[];
 
 	/**
@@ -365,23 +258,35 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 	/**
 	 * Performs runtime integration setup, after config finalization has sealed the build manifest.
 	 */
-	async setup(): Promise<void> {
-		if (this.integrationDependencies.length === 0) return;
-		if (!this.assetProcessingService) throw new Error(INTEGRATION_PLUGIN_ERRORS.NOT_INITIALIZED_WITH_ASSET_SERVICE);
-
+	async setup(context: IntegrationRuntimeContext): Promise<void> {
+		this.appConfig = context.appConfig;
+		this.runtime = context.runtime;
+		this.rendererInstance = undefined;
+		this.assetProcessingService = AssetProcessingService.createWithDefaultProcessors(context.appConfig);
+		if (context.runtime.hmr) {
+			this.assetProcessingService.setHmrManager(context.runtime.hmr);
+		}
 		this.resolvedIntegrationDependencies = await this.assetProcessingService.processDependencies(
 			this.integrationDependencies,
 			this.name,
 		);
 	}
 
+	/** Registers Integration-owned development behavior against the app runtime. */
+	hmr(context: IntegrationRuntimeContext): void {
+		const manager = context.runtime.hmr;
+		if (!manager) return;
+		this.assetProcessingService?.setHmrManager(manager);
+		this.rendererInstance?.setHmrManager(manager);
+	}
+
 	/**
 	 * Releases runtime resources owned by the integration.
 	 *
 	 * @remarks
-	 * Core calls this when the app stops, after in-flight `setup()` calls and active
-	 * prewarm renders finish, then clears activation state so the next start runs
-	 * `setup()` again.
+	 * Core calls this after static-export releases and when the app stops or restarts,
+	 * after in-flight `setup()` calls and active prewarm renders finish. It then clears
+	 * activation state so the next runtime activation runs `setup()` again.
 	 * Most integrations do not need custom teardown. Override this only for
 	 * explicit cleanup such as watchers, compiler handles, or runtime registries
 	 * that outlive individual requests.

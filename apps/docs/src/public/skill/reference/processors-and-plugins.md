@@ -16,9 +16,11 @@ Core owns ordering. During config finalization (when `createApp()` loads `eco.co
 1. Core reads each Processor's, then each Integration's, `plugins(app)` once. It is a pure read with no I/O, and plugins declare `environments` (`['browser']` for browser-only; omitted means both)
 2. App build manifest is sealed
 
-Nothing else of a Processor runs during finalization. At startup: processors `setup()` first, then integrations `setup()`.
+Nothing else of a Processor or Integration runs during finalization. At runtime, core gives each Processor its app config and calls `setup()`, then activates Integrations before creating their renderers. The Lit render worker and Node's `preview --serve-only` mode skip Processor setup. For development, core calls Integration `hmr(ctx)` with `{ appConfig, runtime }`; Integration `setup(ctx)` receives that same context. Network watch startup attempts warmup for every configured Integration before releasing requests; setup failures are logged after all attempts settle and do not prevent startup. Request-only `app.fetch()` activates the Integrations used by the requested render, including foreign-child owners, and leaves unrelated Integrations inactive.
 
-Core calls Integration `teardown()` when the app stops or the development server restarts. Processors have no `teardown()` hook.
+Core calls `teardown()` for activated Integrations after static-export releases and when the app stops or the development server restarts. It waits for in-flight `setup()` calls and active prewarm renders first. Processors have no `teardown()` hook.
+
+Static export calls optional Integration `staticExport(ctx)` hooks before generating pages. A hook may return a release function; core awaits releases in reverse order after export, including when generation fails, then calls `teardown()` for activated Integrations.
 
 ## Shipped processors
 
@@ -89,7 +91,7 @@ class CustomProcessor extends Processor {
 export const customProcessorPlugin = (config?: Omit<ProcessorConfig, 'name'>) => new CustomProcessor(config ?? {});
 ```
 
-Use `capabilities` to participate in the asset pipeline. Stylesheet processing also needs `transformStylesheet(css, file)`; a processor without it is skipped. Declare capabilities for file types the processor owns as build assets (for example stylesheets or images). Use `watch.extensions` for dependency notifications that should not block server invalidation or HMR (for example Tailwind class scanning in TSX). Use `IClientBridge` in watch callbacks for dev HMR (`bridge.cssUpdate(path)`).
+Use `capabilities` to participate in the asset pipeline. Each capability can declare `filter: RegExp` in addition to `extensions`. Stylesheet processing also needs `transformStylesheet(css, file)`; a processor without it is skipped. Declare capabilities for file types the processor owns as build assets (for example stylesheets or images). Use `watch.extensions` for dependency notifications that should not block server invalidation or HMR (for example Tailwind class scanning in TSX). Use `IClientBridge` in watch callbacks for dev HMR (`bridge.cssUpdate(path)`).
 
 ## Custom integrations
 
@@ -111,6 +113,8 @@ export const customPlugin = defineIntegration({
 ```
 
 Class-based integrations extend `IntegrationPlugin`, provide a renderer, and split build declarations (`plugins(app)`, no I/O) from runtime work (`setup`).
+
+Override `createRenderer(base)` to add framework-specific renderer options, `hmr(ctx)` to register development strategies, and `staticExport(ctx)` when build-time work needs a release function. Set browser runtime rewrites with the constructor's `browserRuntimeManifest` data.
 
 ## Source transforms
 

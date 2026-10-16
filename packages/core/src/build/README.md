@@ -43,6 +43,7 @@ Each finalized `EcoPagesAppConfig` owns one `AppRuntime` with its build adapter,
 ```
 build/
   build-adapter.ts              adapter factories and runtime plugin setup re-exports
+  server-module.ts              builds an independent server module through the app request policy
   app-build-manifest-runtime.ts contributor collection at startup
   contracts/                    EcoBuildPlugin, BuildOptions, AppBuildManifest
   runtime/                        build queue, request policy/identity
@@ -66,6 +67,7 @@ build/
 - `server-bundle-publication.ts`: stages the server entry, emitted config, and deploy manifest together, then publishes the complete directory with rollback.
 - `rolldown/entry-module-closures.ts`: records each entry's static and dynamic source module closure in `generateBundle`, including inlined and tree-shaken imports.
 - `build-graph.ts`: shared entry path and output lookup (caller path, real path, and named grouped keys), plus emitted chunk reachability for in-process cache artifact checks. Local external imports remain leaves, including missing generated server modules.
+- `server-module.ts`: builds one server entry through the app's server request policy and returns its emitted path. The content processor owns collection-specific build identity and caching.
 - `*.test.ts`: regression coverage colocated with each module.
 
 ## Default Flow

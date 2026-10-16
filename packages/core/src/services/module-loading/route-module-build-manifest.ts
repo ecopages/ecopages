@@ -1,7 +1,10 @@
 import path from 'node:path';
-import { createJsxCacheKey, createPluginCacheKey } from '../../build/cache/cache-keys.ts';
+import type { BuildOptions } from '../../build/build-adapter.ts';
+import { createBuildRequestIdentity } from '../../build/runtime/build-request-identity.ts';
 import type { PageModuleBuildImportOptions } from './page-module-import.service.ts';
 import type { RouteModuleDependencyHashes } from './route-module-dependency-hasher.ts';
+
+const ROUTE_MODULE_OUTPUT_NAMING_IDENTITY = '[route-module-output]';
 
 /** One in-process route-module build entry. */
 export interface RouteModuleBuildCacheEntry {
@@ -44,16 +47,19 @@ export function shouldCacheRouteModuleBuild(options: PageModuleBuildImportOption
 	return !options.bypassCache;
 }
 
-/** Canonical reuse identity for in-process route-module caches. */
-export function createRouteModuleReuseIdentity(options: PageModuleBuildImportOptions): string {
-	return [
-		path.resolve(options.rootDir),
-		path.resolve(options.outdir),
-		options.splitting ?? 'default',
-		options.externalPackages ?? 'default',
-		createJsxCacheKey(options.jsx),
-		createPluginCacheKey(options.plugins),
-	].join('::');
+/**
+ * Canonical reuse identity for an assembled route-module build request.
+ *
+ * @remarks
+ * All build options flow through the shared build identity. Route output naming
+ * is normalized because it includes the entry source hash and development
+ * generation: the cache keys the source hash separately and stores the actual
+ * output path, while dependency hashes decide whether that output is reusable.
+ * A generation-only naming change therefore does not force the same output to
+ * be rebuilt.
+ */
+export function createRouteModuleReuseIdentity(options: BuildOptions): string {
+	return createBuildRequestIdentity({ ...options, naming: ROUTE_MODULE_OUTPUT_NAMING_IDENTITY });
 }
 
 /** Derives the deterministic on-disk filename for one transpiled route module. */
@@ -68,7 +74,7 @@ export function resolvePageModuleOutputFileName(options: { filePath: string; fil
  * @param configHash - Hash of the config module and the files it imports; plugin identity alone cannot see
  * plugin options defined there.
  */
-export function createRouteModuleBuildKey(options: PageModuleBuildImportOptions, configHash?: string): string {
+export function createRouteModuleBuildKey(options: BuildOptions, configHash?: string): string {
 	const reuseIdentity = createRouteModuleReuseIdentity(options);
 	return configHash === undefined ? reuseIdentity : `${reuseIdentity}::config:${configHash}`;
 }

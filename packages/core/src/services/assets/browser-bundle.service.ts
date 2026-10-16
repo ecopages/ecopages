@@ -9,15 +9,14 @@ import { forgetHashedBrowserAsset, recordHashedBrowserAsset } from './hashed-bro
  * Browser-oriented build request accepted by {@link BrowserBundleService}.
  *
  * @remarks
- * `profile` names the purpose of the bundle and picks the {@link BuildLane}: `hmr-entrypoint` and `hmr-runtime`
- * run on `hmr`, every other purpose on `build`. Request options are always assembled with browser environment
- * defaults via {@link createBrowserBuildRequest}.
+ * `lane` selects scheduling only. Browser environment defaults are assembled
+ * via {@link createBrowserBuildRequest} for either lane.
  *
  * The app's build queue shares a request that is identical to a queued or running one, and, inside a
  * request scope, to one that finished.
  */
 export type BrowserBundleOptions = BrowserBuildRequestInput & {
-	profile: 'browser-script' | 'hmr-runtime' | 'hmr-entrypoint';
+	lane: Extract<BuildLane, 'build' | 'hmr'>;
 };
 
 type BrowserBundleGroupedOptions = Omit<BrowserBundleOptions, 'entrypoints'>;
@@ -26,10 +25,6 @@ export type BrowserBundleGroupedEntry = {
 	entrypoint: string;
 	entryName: string;
 };
-
-function resolveBrowserBundleLane(profile: BrowserBundleOptions['profile']): BuildLane {
-	return profile === 'hmr-entrypoint' || profile === 'hmr-runtime' ? 'hmr' : 'build';
-}
 
 /**
  * App-owned boundary for browser-oriented bundle work.
@@ -55,10 +50,10 @@ export class BrowserBundleService {
 	 * each call site.
 	 */
 	async bundle(options: BrowserBundleOptions): Promise<BuildResult> {
-		const { profile, ...requestInput } = options;
+		const { lane, ...requestInput } = options;
 		const request = createBrowserBuildRequest(this.appConfig, requestInput);
 
-		const result = await requireBuildQueue(this.appConfig).build(request, resolveBrowserBundleLane(profile));
+		const result = await requireBuildQueue(this.appConfig).build(request, lane);
 		if (result.success && options.writeToDisk !== false) {
 			for (const output of result.outputs) {
 				if (output.contentHashed === true) {

@@ -76,8 +76,15 @@ interface ImportCacheEntry {
 	promise: Promise<unknown>;
 }
 
+interface RouteModuleBuildRequest {
+	buildOptions: BuildOptions;
+	rootDir: string;
+	outdir: string;
+}
+
 type LoadModuleOptions = PageModuleBuildImportOptions & {
 	fileHash: string;
+	routeModuleBuild?: RouteModuleBuildRequest;
 };
 
 /**
@@ -93,6 +100,7 @@ export class PageModuleImportService {
 	private readonly appConfig?: EcoPagesAppConfig;
 	private readonly dependencies: PageModuleImportDependencies;
 	private readonly importCache = new Map<string, ImportCacheEntry>();
+	private readonly productionFileHashes = new Map<string, string>();
 	private readonly fallbackServerInvalidation = new ServerInvalidationState();
 
 	private recordPipelineLoad(outcome: Parameters<typeof recordPageModuleLoad>[1], artifactCount = 0): void {
@@ -164,35 +172,7 @@ export class PageModuleImportService {
 
 		const fileHash = this.dependencies.hashFile(filePath);
 
-		if (!options.bypassCache) {
-			const cacheKey = [filePath, createRouteModuleReuseIdentity(options), fileHash].join('::');
-			const cachedModule = this.importCache.get(cacheKey);
-
-			if (cachedModule) {
-				const loadedModule = (await cachedModule.promise) as T;
-				this.recordPipelineLoad('import-cache-hit');
-				return loadedModule;
-			}
-
-			const importPromise = this.loadModule<T>({
-				...options,
-				fileHash,
-			});
-
-			this.importCache.set(cacheKey, { promise: importPromise });
-
-			try {
-				return await importPromise;
-			} catch (error) {
-				this.importCache.delete(cacheKey);
-				throw error;
-			}
-		}
-
-		return await this.loadModule<T>({
-			...options,
-			fileHash,
-		});
+		return this.importWithCache<T>(options, fileHash, !options.bypassCache);
 	}
 
 	/**
@@ -200,12 +180,43 @@ export class PageModuleImportService {
 	 *
 	 * @remarks
 	 * In production nothing edits the sources and no watcher invalidates them: every build
-	 * compiles from source in a fresh process. A module loaded once is therefore reused as is, with
-	 * no hashing of its entry file and dependency files, which a request-time import such as
-	 * `ctx.renderServerModule` would otherwise repeat on every request.
+	 * compiles from source in a fresh process. The entry source hash is read once per service and
+	 * memoized for the build identity. An in-memory hit therefore avoids file hashing; after that
+	 * cache is cleared, the route-module cache may still hash tracked dependencies to validate its
+	 * compiled output.
 	 */
 	private async importUnchangedModule<T>(options: PageModuleBuildImportOptions): Promise<T> {
-		const cacheKey = [options.filePath, createRouteModuleReuseIdentity(options)].join('::');
+		const fileHash = this.getProductionFileHash(options.filePath);
+		return this.importWithCache<T>(options, fileHash, true);
+	}
+
+	private async importWithCache<T>(
+		options: PageModuleBuildImportOptions,
+		fileHash: string,
+		cacheEnabled: boolean,
+	): Promise<T> {
+		if (!cacheEnabled) {
+			return this.loadModule<T>({ ...options, fileHash });
+		}
+
+		const owner = this.appConfig && findIntegrationForFile(this.appConfig.integrations, options.filePath);
+		const routeModuleBuild = owner?.compilePageModule
+			? undefined
+			: this.createRouteModuleBuildOptions(
+					options,
+					this.resolveRouteModuleOutputNaming(options.filePath, fileHash),
+				);
+		let cacheKey: string;
+		if (owner?.compilePageModule) {
+			cacheKey = [options.filePath, owner.name, fileHash].join('::');
+		} else if (routeModuleBuild) {
+			cacheKey = [options.filePath, createRouteModuleReuseIdentity(routeModuleBuild.buildOptions), fileHash].join(
+				'::',
+			);
+		} else {
+			throw new Error('A route-module build request was not assembled before caching.');
+		}
+
 		const cachedModule = this.importCache.get(cacheKey);
 		if (cachedModule) {
 			const loadedModule = (await cachedModule.promise) as T;
@@ -213,10 +224,7 @@ export class PageModuleImportService {
 			return loadedModule;
 		}
 
-		const importPromise = this.loadModule<T>({
-			...options,
-			fileHash: this.dependencies.hashFile(options.filePath),
-		});
+		const importPromise = this.loadModule<T>({ ...options, fileHash, routeModuleBuild });
 		this.importCache.set(cacheKey, { promise: importPromise });
 
 		try {
@@ -227,10 +235,29 @@ export class PageModuleImportService {
 		}
 	}
 
+	private getProductionFileHash(filePath: string): string {
+		const cached = this.productionFileHashes.get(filePath);
+		if (cached !== undefined) {
+			return cached;
+		}
+
+		const fileHash = this.dependencies.hashFile(filePath);
+		this.productionFileHashes.set(filePath, fileHash);
+		return fileHash;
+	}
+
+	private resolveRouteModuleOutputNaming(filePath: string, fileHash: string): string {
+		const outputFileName = createRuntimeBuildOutputFileName(
+			resolvePageModuleOutputFileName({ filePath, fileHash }),
+			this.getDevelopmentGeneration(),
+		);
+		return outputFileName.replace(/\.mjs$/u, '.[ext]');
+	}
+
 	private createRouteModuleBuildOptions(
-		options: LoadModuleOptions,
+		options: PageModuleBuildImportOptions,
 		outputNamingTemplate: string,
-	): { buildOptions: BuildOptions; rootDir: string; outdir: string } {
+	): RouteModuleBuildRequest {
 		const { filePath, rootDir, outdir, splitting, externalPackages } = options;
 		const buildOptions: BuildOptions = this.appConfig
 			? createServerBuildRequest(this.appConfig, {
@@ -263,19 +290,14 @@ export class PageModuleImportService {
 
 	private createRouteModuleCacheBuildOptions(
 		options: LoadModuleOptions,
-		buildOptions: BuildOptions,
-		resolvedRootDir: string,
-		resolvedOutdir: string,
+		routeModuleBuild: RouteModuleBuildRequest,
 		fileHash: string,
 	) {
 		return {
 			...options,
-			rootDir: resolvedRootDir,
-			outdir: resolvedOutdir,
-			splitting: buildOptions.splitting,
-			externalPackages: buildOptions.externalPackages,
-			jsx: buildOptions.jsx,
-			plugins: buildOptions.plugins,
+			rootDir: routeModuleBuild.rootDir,
+			outdir: routeModuleBuild.outdir,
+			buildOptions: routeModuleBuild.buildOptions,
 			fileHash,
 		};
 	}
@@ -369,23 +391,11 @@ export class PageModuleImportService {
 			noOutputMessage = (targetFilePath) => `No transpiled output generated for page module: ${targetFilePath}`,
 		} = options;
 
-		const outputFileName = createRuntimeBuildOutputFileName(
-			resolvePageModuleOutputFileName({ filePath, fileHash }),
-			this.getDevelopmentGeneration(),
-		);
-		const outputNamingTemplate = outputFileName.replace(/\.mjs$/u, '.[ext]');
-		const {
-			buildOptions,
-			rootDir: resolvedRootDir,
-			outdir: resolvedOutdir,
-		} = this.createRouteModuleBuildOptions(options, outputNamingTemplate);
-		const cacheBuildOptions = this.createRouteModuleCacheBuildOptions(
-			options,
-			buildOptions,
-			resolvedRootDir,
-			resolvedOutdir,
-			fileHash,
-		);
+		const routeModuleBuild =
+			options.routeModuleBuild ??
+			this.createRouteModuleBuildOptions(options, this.resolveRouteModuleOutputNaming(filePath, fileHash));
+		const { buildOptions, rootDir: resolvedRootDir, outdir: resolvedOutdir } = routeModuleBuild;
+		const cacheBuildOptions = this.createRouteModuleCacheBuildOptions(options, routeModuleBuild, fileHash);
 
 		const cachedModule = await this.tryLoadCachedRouteModuleBuild<T>(cacheBuildOptions, resolvedOutdir);
 		if (cachedModule !== undefined) {

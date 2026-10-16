@@ -89,7 +89,7 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 ### Practical Summary
 
 - Config finalization seeds one app-owned `AppRuntime` (build adapter, build manifest, build queue, build-input index, and module caches) and a no-op dev graph that development replaces; server startup refreshes the build queue.
-- `BrowserBundleService` is the shared browser build seam used by HMR and asset-oriented browser output paths.
+- `BrowserBundleService` is the shared browser build seam used by HMR and asset-oriented browser output paths; callers choose the `build` or `hmr` scheduling lane explicitly.
 - `ServerModuleTranspiler` is the shared server-side source loading seam used by runtime bootstrap and HMR metadata loading.
 - `RouteRegistry` gives exact and dynamic Pages priority over catch-alls, then selects the most specific matching catch-all prefix.
 - Browser runtime package entries resolve from the application root with ESM import conditions, so framework-local packages cannot shadow app dependencies.

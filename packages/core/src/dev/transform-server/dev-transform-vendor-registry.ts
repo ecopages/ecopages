@@ -118,7 +118,7 @@ export class DevTransformVendorRegistry {
 
 		const vendorPlugins = this.resolveVendorBundlePlugins ? await this.resolveVendorBundlePlugins() : [];
 		const result = await this.browserBundleService.bundle({
-			profile: 'browser-script',
+			lane: 'build',
 			entrypoints: [resolvedEntry.path],
 			outdir: path.join(this.appConfig.absolutePaths.workDir, 'vendor-memory'),
 			naming: fileName,

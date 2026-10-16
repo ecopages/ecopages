@@ -336,7 +336,7 @@ async function buildModuleScripts(
 	}
 
 	const result = await new BrowserBundleService(appConfig).bundle({
-		profile: 'browser-script',
+		lane: 'build',
 		entrypoints: Object.fromEntries(entrypoints),
 		outdir: path.join(distDir, RESOLVED_ASSETS_DIR),
 		root: appConfig.rootDir,

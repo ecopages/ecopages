@@ -97,18 +97,18 @@ Config finalization rejects duplicate plugin names within an environment and ide
 ```
 Caller intent
   → createServerBuildRequest / createBrowserBuildRequest (plugins assembled once, with core's own transforms last)
-  → BuildQueue.build(options, lane)   (lane: build | hmr)
+  → BuildQueue.build(options, lane)   (lane: build | nested | hmr)
       → RolldownBuildAdapter
   → RolldownBuildAdapter resolves Node and browser runtime specifiers during the build
 ```
 
-The queue uses one-shot Rolldown in both dev and production. A lane runs at most its limit of builds at once and starts the rest in arrival order: `build` serves every server and browser build that is not an HMR rebuild (all cores but one), `hmr` serves the development server's browser rebuilds (at most three), and `nested` serves a build that a running build waits for, such as the collection bundle a content plugin requests from `onResolve`. A running build keeps its lane's slot, so a child in the same lane could wait for a slot its parent holds; `nested` builds never wait on each other. A request identical to a queued or running one, by `createBuildRequestIdentity`, shares that build whichever lane it asks for. Inside `withRequestScope`, which wraps each request the server handles, a finished build is also shared with later identical requests of the same scope. A build that rejects is not kept.
+The queue uses one-shot Rolldown in both dev and production. A lane runs at most its limit of builds at once and starts the rest in arrival order: `build` serves ordinary server and browser builds (all cores but one), `hmr` serves the development server's browser rebuilds (at most three), and `nested` serves a build that a running build waits for, such as the collection bundle a content plugin requests from `onResolve`. A running build keeps its lane's slot, so a child in the same lane could wait for a slot its parent holds; `nested` builds never wait on each other. A request identical to a queued or running one, by `createBuildRequestIdentity`, shares that build whichever lane it asks for. Inside `withRequestScope`, which wraps each request the server handles, a finished build is also shared with later identical requests of the same scope. A build that rejects is not kept.
 
 Runtime code calls `requireBuildQueue(appConfig).build(options, lane)` with a complete `BuildOptions` object from the request-policy helpers. The queue is scheduling-only: it does **not** inject app plugins.
 
 The exported `defaultBuildAdapter` is a non-app-aware escape hatch. Runtime code uses `requireAppRuntime(appConfig).buildAdapter`, `requireBuildQueue()`, `createServerBuildRequest()` and `createBrowserBuildRequest()`.
 
-Every `BuildOptions` request requires `environment: 'server' | 'browser'`. Environment selects the platform, default target/format, and plugin participation. An explicit numeric `target` changes language transpilation without changing the environment. `resolveBuildEnvironmentOptions()` holds those defaults, one table per environment; a request names only what differs, as the server entry and the emitted config do with `reportPackagesOutsideRoot`. The lane (`build` | `hmr`) selects scheduling only. `BrowserBundleService` derives the lane from the bundle's purpose (`hmr-entrypoint` and `hmr-runtime` use `hmr`); every request retains browser defaults on either lane.
+Every `BuildOptions` request requires `environment: 'server' | 'browser'`. Environment selects the platform, default target/format, and plugin participation. An explicit numeric `target` changes language transpilation without changing the environment. `resolveBuildEnvironmentOptions()` holds those defaults, one table per environment; a request names only what differs, as the server entry and the emitted config do with `reportPackagesOutsideRoot`. The lane (`build` | `hmr`) selects scheduling only. `BrowserBundleService` takes an explicit lane; regular browser bundles use `build`, and development HMR rebuilds use `hmr`. Every request retains browser defaults on either lane.
 
 Migration: move Integration `browserBuildPlugins` and Processor `buildPlugins` into `plugins` with `environments: ['browser']`. Keep server-only hooks in `plugins` with `environments: ['server']`. Replace the old transpile profile arguments with `'browser'` or `'server'`.
 
@@ -162,7 +162,7 @@ An Integration can prune server-only imports before resolution. React uses the s
 
 ## Dev / watch path
 
-`installBuildQueue` installs the app's `BuildQueue`. The development server's `hmr-entrypoint` and `hmr-runtime` rebuilds run on the `hmr` lane (limit three); every other build runs on the `build` lane.
+`installBuildQueue` installs the app's `BuildQueue`. The development server's `hmr-entrypoint` and `hmr-runtime` rebuilds run on the `hmr` lane (limit three). A build that waits on another running build uses the `nested` lane; all other builds use the `build` lane.
 
 `ProjectWatcher` deduplicates watch roots, ignores `.eco/` and `dist/`, and coalesces duplicate chokidar events within 150ms.
 

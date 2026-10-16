@@ -159,7 +159,7 @@ export interface BuildOptions {
 	plugins?: EcoBuildPlugin[];
 }
 
-/** Compilation environment, independent of the executor's scheduling profile. */
+/** Compilation environment, independent of the build queue's scheduling lane. */
 export type BuildEnvironment = 'server' | 'browser';
 
 /** Resolved transpile settings for a compilation environment. */

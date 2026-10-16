@@ -10,6 +10,7 @@ import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { PageModuleImportService, type PageModuleImportDependencies } from './page-module-import.service.ts';
 import { createBuildFailure, createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
+import { createRequestPipelineMetricsState } from '../../diagnostics/request-pipeline-metrics.ts';
 
 const DEFAULT_PAGE = '/app/pages/page.tsx';
 
@@ -70,25 +71,76 @@ describe('PageModuleImportService', () => {
 		vi.stubEnv('NODE_ENV', undefined);
 	});
 
-	it('lets the owning Integration compile the file instead of bundling it', async () => {
+	it('keys Integration-owned compilation only on the owner, file and source hash', async () => {
+		vi.stubEnv('NODE_ENV', 'development');
 		const ownModule = { default: { compiled: true } };
+		let compileCount = 0;
+		let alternateCompileCount = 0;
+		let sourceHash = 'hash123';
 		const templates = {
 			name: 'templates',
 			extensions: ['.tpl'],
-			compilePageModule: async () => ownModule,
+			compilePageModule: async () => {
+				compileCount += 1;
+				return ownModule;
+			},
 		};
-		service = new PageModuleImportService(
-			{ integrations: [templates] } as unknown as EcoPagesAppConfig,
-			fakeDependencies.dependencies,
-		);
+		const alternateTemplates = {
+			name: 'alternate-templates',
+			extensions: ['.tpl'],
+			compilePageModule: async () => {
+				alternateCompileCount += 1;
+				return ownModule;
+			},
+		};
+		fakeDependencies.dependencies.hashFile = (filePath) => {
+			fakeDependencies.calls.hashFile.push(filePath);
+			return sourceHash;
+		};
+		const appConfig = {
+			integrations: [templates],
+			appRuntime: { requestPipelineMetrics: createRequestPipelineMetricsState() },
+		} as unknown as EcoPagesAppConfig;
+		service = new PageModuleImportService(appConfig, fakeDependencies.dependencies);
 
 		const own = await service.importModule({
 			filePath: '/app/pages/page.tpl',
 			rootDir: '/app',
 			outdir: '/app/.eco',
 		});
+		const sameCompiledModule = await service.importModule({
+			filePath: '/app/pages/page.tpl',
+			rootDir: '/other',
+			outdir: '/other/.eco',
+			splitting: false,
+			externalPackages: false,
+			jsx: { importSource: 'preact' },
+			plugins: [{ name: 'different-build-plugin', setup() {} }],
+			transpileErrorMessage: () => 'different error wording',
+			noOutputMessage: () => 'different missing output wording',
+		});
+		sourceHash = 'hash456';
+		await service.importModule({
+			filePath: '/app/pages/page.tpl',
+			rootDir: '/app',
+			outdir: '/app/.eco',
+		});
+		await service.importModule({
+			filePath: '/app/pages/other.tpl',
+			rootDir: '/app',
+			outdir: '/app/.eco',
+		});
+		appConfig.integrations = [alternateTemplates] as unknown as EcoPagesAppConfig['integrations'];
+		await service.importModule({
+			filePath: '/app/pages/other.tpl',
+			rootDir: '/app',
+			outdir: '/app/.eco',
+		});
 
 		assert.equal(own, ownModule);
+		assert.equal(sameCompiledModule, ownModule);
+		assert.equal(compileCount, 3);
+		assert.equal(alternateCompileCount, 1);
 		assert.deepEqual(fakeDependencies.calls.buildModule, []);
 	});
 
@@ -210,7 +262,7 @@ describe('PageModuleImportService', () => {
 		}
 	});
 
-	it('registers build inputs and module closure for the server route module', async () => {
+	it('reuses an unchanged server route build across development generations', async () => {
 		vi.stubEnv('NODE_ENV', 'development');
 		const rootDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-inputs-'));
 		const pagePath = join(rootDir, 'src/pages/page.tsx');
@@ -226,10 +278,12 @@ describe('PageModuleImportService', () => {
 		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
 		const appConfig = await finalizeEcoPagesConfig({ rootDir });
 		let buildCalls = 0;
+		const buildNames: string[] = [];
 		service = new PageModuleImportService(appConfig, {
 			...fakeDependencies.dependencies,
-			async buildModule(): Promise<BuildResult> {
+			async buildModule(options): Promise<BuildResult> {
 				buildCalls += 1;
+				buildNames.push(options.naming ?? '');
 				return createBuildResult(
 					{
 						outputs: [{ path: compiledOutput }],
@@ -266,6 +320,7 @@ describe('PageModuleImportService', () => {
 			});
 
 			assert.equal(buildCalls, 1);
+			assert.deepEqual(buildNames, ['page-hash123-0.[ext]']);
 			assert.deepEqual(index.resolveKeys('server-route-module', helperPath), [pagePath]);
 			assert.deepEqual(index.resolveKeys('server-route-module', pluginInputPath), [pagePath]);
 		} finally {
@@ -545,6 +600,13 @@ describe('PageModuleImportService', () => {
 				rootDir: '/app',
 				outdir: tempDir,
 			});
+			const inMemoryHit = await productionService.importModule<{ value: number }>({
+				filePath: '/app/pages/page.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+			});
+			assert.equal(inMemoryHit.value, 7);
+			assert.deepEqual(fakeDependencies.calls.hashFile, ['/app/pages/page.tsx']);
 			productionService.clearImportCache();
 
 			const second = await productionService.importModule<{ value: number }>({
@@ -556,6 +618,7 @@ describe('PageModuleImportService', () => {
 			assert.equal(first.value, 7);
 			assert.equal(second.value, 7);
 			assert.equal(fakeDependencies.calls.buildModule.length, 1);
+			assert.deepEqual(fakeDependencies.calls.hashFile, ['/app/pages/page.tsx']);
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}

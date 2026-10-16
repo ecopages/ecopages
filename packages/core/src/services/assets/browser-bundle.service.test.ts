@@ -15,7 +15,7 @@ describe('BrowserBundleService', () => {
 		const queueBuild = vi.spyOn(queue, 'build');
 
 		await new BrowserBundleService(appConfig).bundle({
-			profile: 'browser-script',
+			lane: 'build',
 			entrypoints: ['/tmp/entry.ts'],
 			outdir: '/tmp/out',
 			minify: false,
@@ -27,14 +27,14 @@ describe('BrowserBundleService', () => {
 		expect(isHashedBrowserAsset('/tmp/out/entry.js')).toBe(true);
 	});
 
-	it.each(['hmr-entrypoint', 'hmr-runtime'] as const)('queues %s rebuilds on the hmr lane', async (profile) => {
+	it('queues HMR rebuilds on the hmr lane', async () => {
 		const build = vi.fn(async () => createBuildSuccess({ outputs: [{ path: '/tmp/out/entry.js' }] }));
 		const appConfig = createAppConfig(build);
 		const queue = installBuildQueue(appConfig);
 		const queueBuild = vi.spyOn(queue, 'build');
 
 		await new BrowserBundleService(appConfig).bundle({
-			profile,
+			lane: 'hmr',
 			entrypoints: ['/tmp/layout.tsx'],
 			outdir: '/tmp/out',
 			minify: false,
@@ -63,7 +63,7 @@ describe('BrowserBundleService', () => {
 
 		const service = new BrowserBundleService(appConfig);
 		await service.bundle({
-			profile: 'hmr-entrypoint',
+			lane: 'hmr',
 			entrypoints: ['/tmp/layout.tsx'],
 			outdir: '/tmp/out',
 			minify: false,
@@ -100,7 +100,7 @@ describe('BrowserBundleService', () => {
 				{ entryName: 'module-images', entrypoint: '/tmp/.eco/content-script-entries/def456.js' },
 			],
 			{
-				profile: 'browser-script',
+				lane: 'build',
 				outdir: '/tmp/out',
 				minify: false,
 				naming: '[name]-[hash].[ext]',

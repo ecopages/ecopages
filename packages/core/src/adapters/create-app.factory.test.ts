@@ -15,6 +15,7 @@ describe('createApp initialization', () => {
 			start: false,
 			dev: false,
 			serveOnly: true,
+			keepGoing: false,
 			port: 4200,
 			hostname: '127.0.0.1',
 		};
@@ -22,6 +23,7 @@ describe('createApp initialization', () => {
 			...cliArgs,
 			preview: false,
 			serveOnly: false,
+			keepGoing: false,
 			start: true,
 		};
 		const parseCliArgs = vi.fn().mockReturnValueOnce(cliArgs).mockReturnValue(laterCliArgs);

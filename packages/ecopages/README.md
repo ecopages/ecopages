@@ -51,7 +51,7 @@ The official template IDs are `jsx`, `html`, `react`, `react-shadcn`, `lit-jsx`,
 
 ## Environment & Runtime Options
 
-Server and build commands accept the following options. They automatically map to the equivalent environment variables for the underlying process:
+Server and build commands accept the following shared options. They automatically map to the equivalent environment variables for the underlying process. `--keep-going` is specific to `ecopages build`:
 
 | Option                  | Env Var                 | Description                                               |
 | :---------------------- | :---------------------- | :-------------------------------------------------------- |
@@ -59,6 +59,7 @@ Server and build commands accept the following options. They automatically map t
 | `-n, --hostname <host>` | `ECOPAGES_HOSTNAME`     | Server hostname                                           |
 | `-b, --base-url <url>`  | `ECOPAGES_BASE_URL`     | Base URL string                                           |
 | `-d, --debug`           | `ECOPAGES_LOGGER_DEBUG` | Enables debug logging and startup phase trace (see below) |
+| `--keep-going`          |                         | Continue exporting pages after a Page render fails        |
 | `--runtime <runtime>`   |                         | Force execution via `bun` or `node`                       |
 
 ### Runtime Detection

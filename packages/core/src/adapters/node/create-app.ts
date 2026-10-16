@@ -606,7 +606,7 @@ export class EcopagesApp implements AsyncDisposable {
 	}
 
 	private async runStartup(session: AppSession): Promise<void> {
-		const { build, preview, serveOnly } = this.cliArgs;
+		const { build, preview, serveOnly, keepGoing } = this.cliArgs;
 		if (preview && serveOnly) {
 			const previewOrigin = await session.adapter.servePreviewOnly();
 			if (previewOrigin) await this.notifyListening(previewOrigin);
@@ -615,7 +615,7 @@ export class EcopagesApp implements AsyncDisposable {
 
 		if (build || preview) {
 			appLogger.debugTime('Building static pages');
-			const previewOrigin = await session.adapter.buildStatic({ preview });
+			const previewOrigin = await session.adapter.buildStatic({ preview, keepGoing });
 			appLogger.debugTimeEnd('Building static pages');
 			if (preview && previewOrigin) await this.notifyListening(previewOrigin);
 			return;

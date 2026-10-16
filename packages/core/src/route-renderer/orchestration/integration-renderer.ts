@@ -332,6 +332,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 	/**
 	 * Builds one production grouped graph plan for the supplied static route instances.
+	 *
+	 * @remarks
+	 * When `onRouteFailure` is provided, failed route instances are reported and omitted from the plan. Without it, a
+	 * route failure rejects the operation.
 	 */
 	public async buildGroupedGraphBuildPlan(
 		instances: ReadonlyArray<{
@@ -339,63 +343,82 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			params?: RouteRendererOptions['params'];
 			query?: RouteRendererOptions['query'];
 		}>,
+		options?: {
+			onRouteFailure?: (
+				routeInstance: {
+					routeFile: string;
+					params?: RouteRendererOptions['params'];
+					query?: RouteRendererOptions['query'];
+				},
+				error: unknown,
+			) => void;
+		},
 	): Promise<GroupedGraphBuildPlan> {
 		await this.ensureIntegrationRuntimeActivated();
 		this.prebuiltRoutePreparations.clear();
 		this.prebuiltGroupedBuildPlans.clear();
 		this.prebuiltPageClientBrowserAssets.clear();
-		const builtInstances = await Promise.all(
-			instances.map(async (routeInstance) => {
-				const routeOptions = {
-					file: routeInstance.routeFile,
-					params: routeInstance.params,
-					query: routeInstance.query,
-				};
-				const resolvedInputs = await this.resolveRouteRenderInputs(routeOptions);
-				const graphPreparation = await this.routeRenderOrchestrator.prepareRouteGraphContext({
-					routeOptions,
-					resolvedInputs,
-					props: resolvedInputs.props,
-					renderer: this,
-				});
-				const {
-					graphContext: context,
-					resolvedPageDependencies,
-					shellGraph,
-					shellDependencyComponents,
-					graph,
-				} = graphPreparation;
-				const componentGraphs = {
-					shellGraph,
-					shellDependencyComponents,
-					graph,
-					ownershipValidated: true,
-				};
-				this.prebuiltRoutePreparations.set(createPrebuiltRoutePreparationKey(routeOptions), {
-					resolvedInputs,
-					graphContext: context,
-					resolvedPageDependencies,
-					componentGraphs,
-				});
-				this.prepareGraphLazyClientDependencies(graph);
-				const pageClientPlan = collectPageClientPlanFromGraph(graph);
-				const pageClientBuildEntries = await this.collectAppBrowserClientBuildEntries(pageClientPlan);
-				return {
-					routeFile: routeInstance.routeFile,
-					dependencyInstanceKey: context.dependencyInstanceKey ?? '',
-					contribution: mergePageBrowserGraphContributions(
-						await this.collectPageBrowserGraphContribution(context),
-						resolvedPageDependencies?.contribution,
-					),
-					pageClientBuildEntries,
-					prebuiltPageClientBrowserAssets: {
-						processedAssets: [],
-						islandRenderAssetsByFile: new Map(),
-						fallbackDependencies: [],
-					},
-				};
-			}),
-		);
+		const builtInstances = (
+			await Promise.all(
+				instances.map(async (routeInstance) => {
+					try {
+						const routeOptions = {
+							file: routeInstance.routeFile,
+							params: routeInstance.params,
+							query: routeInstance.query,
+						};
+						const resolvedInputs = await this.resolveRouteRenderInputs(routeOptions);
+						const graphPreparation = await this.routeRenderOrchestrator.prepareRouteGraphContext({
+							routeOptions,
+							resolvedInputs,
+							props: resolvedInputs.props,
+							renderer: this,
+						});
+						const {
+							graphContext: context,
+							resolvedPageDependencies,
+							shellGraph,
+							shellDependencyComponents,
+							graph,
+						} = graphPreparation;
+						const componentGraphs = {
+							shellGraph,
+							shellDependencyComponents,
+							graph,
+							ownershipValidated: true,
+						};
+						this.prepareGraphLazyClientDependencies(graph);
+						const pageClientPlan = collectPageClientPlanFromGraph(graph);
+						const pageClientBuildEntries = await this.collectAppBrowserClientBuildEntries(pageClientPlan);
+						const builtInstance = {
+							routeFile: routeInstance.routeFile,
+							dependencyInstanceKey: context.dependencyInstanceKey ?? '',
+							contribution: mergePageBrowserGraphContributions(
+								await this.collectPageBrowserGraphContribution(context),
+								resolvedPageDependencies?.contribution,
+							),
+							pageClientBuildEntries,
+							prebuiltPageClientBrowserAssets: {
+								processedAssets: [],
+								islandRenderAssetsByFile: new Map(),
+								fallbackDependencies: [],
+							},
+						};
+						this.prebuiltRoutePreparations.set(createPrebuiltRoutePreparationKey(routeOptions), {
+							resolvedInputs,
+							graphContext: context,
+							resolvedPageDependencies,
+							componentGraphs,
+						});
+						return builtInstance;
+					} catch (error) {
+						if (!options?.onRouteFailure) throw error;
+						options.onRouteFailure(routeInstance, error);
+						return undefined;
+					}
+				}),
+			)
+		).filter((instance) => instance !== undefined);
 
 		return {
 			integrationName: this.name,

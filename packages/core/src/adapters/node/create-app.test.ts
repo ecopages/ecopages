@@ -22,6 +22,7 @@ const cliArgs: ReturnParseCliArgs = {
 	start: true,
 	dev: false,
 	serveOnly: false,
+	keepGoing: false,
 	port: undefined,
 	hostname: undefined,
 };
@@ -197,18 +198,18 @@ describe('EcopagesApp startup', () => {
 		}
 	});
 
-	it('builds for build mode without starting the HTTP host', async () => {
+	it('forwards keep-going to static build without starting the HTTP host', async () => {
 		const buildStatic = vi.fn().mockResolvedValue(undefined);
 		const servePreviewOnly = vi.fn();
 		const { app, runtimeHost } = createTestApp(
 			async () => createServerAdapter({ buildStatic, servePreviewOnly }),
 			undefined,
-			{ ...cliArgs, build: true, start: false },
+			{ ...cliArgs, build: true, keepGoing: true, start: false },
 		);
 
 		await app.start();
 
-		expect(buildStatic).toHaveBeenCalledWith({ preview: false });
+		expect(buildStatic).toHaveBeenCalledWith({ preview: false, keepGoing: true });
 		expect(servePreviewOnly).not.toHaveBeenCalled();
 		expect(runtimeHost.start).not.toHaveBeenCalled();
 	});

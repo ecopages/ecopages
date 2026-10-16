@@ -105,13 +105,20 @@ function parseCommandArguments(rawArgs, options) {
 function parseServerCommandArgs(rawArgs, definition) {
 	const commandName = definition.name;
 	const valueOptions = definition.valueOptions ?? {};
+	const booleanOptions = definition.booleanOptions ?? {};
 	const { values, positionals } = parseCommandArguments(rawArgs, {
 		...sharedServerOptionDefinitions,
 		...Object.fromEntries(Object.keys(valueOptions).map((option) => [option, { type: 'string' }])),
+		...booleanOptions,
 	});
 
 	if (values.help) {
-		console.log(getServerCommandHelpText(commandName, definition.description, Object.values(valueOptions)));
+		console.log(
+			getServerCommandHelpText(commandName, definition.description, [
+				...Object.values(valueOptions),
+				...(definition.optionHelpLines ?? []),
+			]),
+		);
 		return { help: true };
 	}
 
@@ -125,6 +132,7 @@ function parseServerCommandArgs(rawArgs, definition) {
 
 	return {
 		entry,
+		keepGoing: Boolean(values['keep-going']),
 		options: {
 			port: values.port,
 			hostname: values.hostname,
@@ -308,8 +316,10 @@ async function runServerCommand(rawArgs, definition) {
 	}
 
 	const entry = definition.resolveEntry?.() ?? parsed.entry;
+	const entryArgs = [...definition.entryArgs];
+	if (parsed.keepGoing) entryArgs.push('--keep-going');
 	await runEntryCommand(
-		definition.entryArgs,
+		entryArgs,
 		{ ...parsed.options, ...definition.optionOverrides, entryFile: entry },
 		entry,
 		definition.launchMode ?? definition.name,
@@ -337,6 +347,8 @@ const SERVER_COMMANDS = {
 		description:
 			'Build the project for production: pre-render the Pages in src/pages, optimize assets and images, and write the result to dist.',
 		entryArgs: ['--build'],
+		booleanOptions: { 'keep-going': { type: 'boolean' } },
+		optionHelpLines: ['      --keep-going                       Continue the build after a Page fails to render'],
 		optionOverrides: { nodeEnv: 'production' },
 	},
 	start: {

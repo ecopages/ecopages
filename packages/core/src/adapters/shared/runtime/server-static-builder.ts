@@ -28,6 +28,7 @@ import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
 export interface StaticBuildOptions {
 	baseUrl?: string;
 	force?: boolean;
+	keepGoing?: boolean;
 }
 
 export interface ServeOptions {
@@ -249,6 +250,7 @@ export class ServerStaticBuilder {
 			staticRoutes: dependencies.staticRoutes,
 			errorPageLoaders: dependencies.errorPageLoaders,
 			force,
+			keepGoing: options?.keepGoing,
 		});
 
 		if (process.env.ECOPAGES_BENCH === '1' && process.env.ECOPAGES_BENCH_VERBOSE !== '1') {

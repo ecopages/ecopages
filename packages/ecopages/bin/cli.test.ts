@@ -257,6 +257,14 @@ describe('CLI Commands', () => {
 			mode: 'build',
 		},
 		{
+			name: 'keep going after page render failures',
+			argv: ['build', '--keep-going'],
+			args: ['--build', '--keep-going'],
+			options: { nodeEnv: 'production' },
+			entry: 'app.ts',
+			mode: 'build',
+		},
+		{
 			name: 'shared server options',
 			argv: ['start', '-p', '4000', '--hostname', '0.0.0.0'],
 			args: [],
@@ -555,6 +563,7 @@ describe('CLI Commands', () => {
 		const help = String(log.mock.calls.at(-1)?.[0]);
 		expect(help).toContain('pre-render the Pages in src/pages');
 		expect(help).toContain('write the result to dist');
+		expect(help).toContain('--keep-going');
 		expect(help).not.toContain('--force');
 		expect(launchPlan.createLaunchPlan).not.toHaveBeenCalled();
 		log.mockRestore();

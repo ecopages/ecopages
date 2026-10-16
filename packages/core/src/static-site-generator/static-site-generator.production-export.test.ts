@@ -126,10 +126,11 @@ describe('StaticSiteGenerator production export', () => {
 		}
 
 		expect(buildGroupedGraphBuildPlan).toHaveBeenCalledTimes(1);
-		expect(buildGroupedGraphBuildPlan).toHaveBeenCalledWith([
+		expect(buildGroupedGraphBuildPlan.mock.calls[0]?.[0]).toEqual([
 			{ routeFile, params: { slug: 'first' } },
 			{ routeFile, params: { slug: 'second' } },
 		]);
+		expect(buildGroupedGraphBuildPlan.mock.calls[0]?.[1]?.onRouteFailure).toEqual(expect.any(Function));
 		expect(staticPropsMock).toHaveBeenCalledTimes(2);
 		expect(staticPropsMock.mock.calls.map(([context]) => context.pathname.params.slug)).toEqual([
 			'first',

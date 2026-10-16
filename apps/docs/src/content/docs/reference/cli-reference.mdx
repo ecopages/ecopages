@@ -66,6 +66,7 @@ Generates a static production build of your project.
 - Outputs the build to the `dist` directory.
 - Strips development-only code.
 - Empties `dist` and renders every Page from source on each run; the command takes no option to reuse earlier output.
+- By default, exits with status 1 after exporting the remaining pages if a Page fails to render. Pass `--keep-going` to retain the earlier log-and-continue behavior.
 
 ### `preview`
 

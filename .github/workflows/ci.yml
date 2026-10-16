@@ -68,7 +68,11 @@ jobs:
             - name: Fast gate
               run: pnpm run test:ci:fast
 
-    e2e:
+    e2e-shard:
+        strategy:
+            fail-fast: false
+            matrix:
+                shard: [1, 2, 3, 4]
         runs-on: ubuntu-latest
         permissions:
             contents: read
@@ -123,11 +127,22 @@ jobs:
               if: steps.playwright-cache.outputs.cache-hit == 'true'
               run: pnpm exec playwright install-deps chromium
 
-            - name: E2E
-              run: pnpm run ${{ github.event_name == 'pull_request' && 'test:e2e:pr' || 'test:e2e' }}
+            - name: E2E shard
+              run: pnpm test:e2e --shard=${{ matrix.shard }}/4
               env:
                   ECOPAGES_LOGGER_DEBUG: false
                   ECOPAGES_E2E_TIMING: true
+
+    e2e:
+        if: always()
+        needs: e2e-shard
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        steps:
+            - name: Fail if an E2E shard failed
+              if: needs.e2e-shard.result != 'success'
+              run: exit 1
 
     docs-changes:
         runs-on: ubuntu-latest

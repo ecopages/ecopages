@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createRequestPipelineMetricsState } from '@ecopages/core/diagnostics/request-pipeline-metrics';
 import type {
 	EcoBuildOnLoadArgs,
 	EcoBuildOnLoadResult,
@@ -64,6 +65,7 @@ describe('ecopages-jsx-mdx', () => {
 			compilerOptions,
 			extensions: ['.mdx'],
 			projectRoot: tempDir,
+			requestPipelineMetrics: createRequestPipelineMetricsState(),
 		});
 
 		const { builder, getOnLoadCallback } = createBuilderHarness();

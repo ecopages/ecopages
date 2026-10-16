@@ -10,6 +10,11 @@ import { resolveMdxCompilerOptions } from '../ecopages-jsx-mdx.ts';
 import { RADIANT_INSTALL_HYDRATOR_FILEPATH } from '../resolve-radiant-install-hydrator.ts';
 import { invalidateRadiantRegisteredScriptSsrRegistration } from '../radiant-registered-script-ssr-invalidation.ts';
 import type { EcoComponent, EcoPageFile, EcoPagesAppConfig, IHmrManager } from '@ecopages/core';
+import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
+import {
+	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
+	type CustomElementScriptPreloadScopeState,
+} from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
 import { createTestAppConfig } from '@ecopages/testing';
 
 const lightDomGlobalKeys = [
@@ -114,7 +119,8 @@ test('EcopagesJsxPlugin matches custom multi-dot MDX extensions exactly', async 
 		},
 	});
 
-	const mdxLoaderPlugin = plugin.plugins({ rootDir: '/tmp/project' } as EcoPagesAppConfig)[0];
+	const appConfig = await createTestAppConfig({ rootDir: '/tmp/project', integrations: [] });
+	const mdxLoaderPlugin = plugin.plugins(appConfig)[0];
 	assert.ok(mdxLoaderPlugin, 'Expected Ecopages JSX plugin to expose the MDX loader plugin.');
 
 	const filter = getMdxLoaderFilter(mdxLoaderPlugin);
@@ -172,14 +178,21 @@ test('EcopagesJsxPlugin registers Radiant SSR invalidation when Radiant is enabl
 	const plugin = new EcopagesJsxPlugin();
 	plugin.setConfig(appConfig);
 	const hmrManager = createHmrManagerStub();
+	const preloadScopes = requireAppRuntime(appConfig).customElementSsrPreloadScopes;
+	const scopeState: CustomElementScriptPreloadScopeState = {
+		preloadedScripts: new Set(['/tmp/widget.js']),
+		preloadFailedScripts: new Set(),
+		inFlightImports: new Map(),
+	};
+	preloadScopes.set(CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx, scopeState);
 
 	plugin.setHmrManager(hmrManager);
 
 	assert.equal(vi.mocked(hmrManager.onScriptEntrypointChanged!).mock.calls.length, 1);
-	assert.equal(
-		vi.mocked(hmrManager.onScriptEntrypointChanged!).mock.calls[0]?.[0],
-		invalidateRadiantRegisteredScriptSsrRegistration,
-	);
+	const onScriptChanged = vi.mocked(hmrManager.onScriptEntrypointChanged!).mock.calls[0]?.[0];
+	assert.notEqual(onScriptChanged, invalidateRadiantRegisteredScriptSsrRegistration);
+	onScriptChanged?.('/tmp/widget.js');
+	assert.equal(scopeState.preloadedScripts.has('/tmp/widget.js'), false);
 });
 
 test('EcopagesJsxPlugin skips Radiant SSR invalidation registration when Radiant is disabled', async () => {
@@ -207,22 +220,24 @@ test('configured MDX compiler accepts remark-gfm on fenced code content', async 
 	assert.match(String(compiled.value), /@ecopages\/jsx\/jsx-runtime/);
 });
 
-test('EcopagesJsxPlugin declares the MDX loader as a build plugin', () => {
+test('EcopagesJsxPlugin declares the MDX loader as a build plugin', async () => {
 	const plugin = ecopagesJsxPlugin({
 		radiant: false,
 		mdx: {},
 	});
-	const app = { rootDir: '/tmp/project' } as EcoPagesAppConfig;
+	const app = await createTestAppConfig({ rootDir: '/tmp/project', integrations: [] });
 
 	assert.equal(plugin.plugins(app)[0]?.name, 'ecopages-jsx-mdx-loader');
 	assert.equal(plugin.plugins(app)[0], plugin.plugins(app)[0]);
 });
 
-test('EcopagesJsxPlugin gives an app config for another root its own MDX loader', () => {
+test('EcopagesJsxPlugin gives each app runtime its own MDX loader at the same root', async () => {
 	const plugin = ecopagesJsxPlugin({ radiant: false, mdx: {} });
+	const firstApp = await createTestAppConfig({ rootDir: '/tmp/shared-project', integrations: [] });
+	const secondApp = await createTestAppConfig({ rootDir: '/tmp/shared-project', integrations: [] });
 
-	const first = plugin.plugins({ rootDir: '/tmp/first' } as EcoPagesAppConfig)[0];
-	const second = plugin.plugins({ rootDir: '/tmp/second' } as EcoPagesAppConfig)[0];
+	const first = plugin.plugins(firstApp)[0];
+	const second = plugin.plugins(secondApp)[0];
 
 	assert.notEqual(first, second);
 });

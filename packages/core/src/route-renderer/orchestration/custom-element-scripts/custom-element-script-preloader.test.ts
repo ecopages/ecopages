@@ -9,11 +9,13 @@ import {
 	invalidateCustomElementScriptPreload,
 	isExpectedCustomElementSsrPreloadError,
 } from './custom-element-script-preloader.ts';
+import type { CustomElementScriptPreloadScopeState } from './custom-element-script-preload-invalidation.ts';
 import { createCustomElementSsrPipelineImporter } from './custom-element-ssr-preload-entrypoint.ts';
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
 
 let cacheScope = '';
 let scopeCounter = 0;
+let preloadScopes = new Map<string, CustomElementScriptPreloadScopeState>();
 
 function installTestCustomElementsRegistry(): () => void {
 	const previousRegistry = globalThis.customElements;
@@ -46,15 +48,18 @@ function installTestCustomElementsRegistry(): () => void {
 beforeEach(() => {
 	scopeCounter += 1;
 	cacheScope = `test-custom-element-preload-${scopeCounter}`;
+	preloadScopes = new Map();
 });
 
 function createPreloader(options?: {
 	enabled?: boolean;
+	preloadScopes?: Map<string, CustomElementScriptPreloadScopeState>;
 	resolveDependencyPath?: (componentDir: string, sourcePath: string) => string;
 	importServerModule?: (scriptPath: string, registryKey: string) => Promise<unknown>;
 }) {
 	return new CustomElementScriptPreloader({
 		cacheScope,
+		preloadScopes: options?.preloadScopes ?? preloadScopes,
 		enabled: options?.enabled ?? true,
 		resolveDependencyPath:
 			options?.resolveDependencyPath ?? ((componentDir, sourcePath) => path.join(componentDir, sourcePath)),
@@ -295,9 +300,36 @@ describe('CustomElementScriptPreloader', () => {
 		);
 
 		await preloader.preloadSsrScripts([host]);
-		invalidateCustomElementScriptPreload('/app/marker.script.ts', cacheScope);
+		invalidateCustomElementScriptPreload(preloadScopes, '/app/marker.script.ts', cacheScope);
 		await preloader.preloadSsrScripts([host]);
 		expect(importServerModule).toHaveBeenCalledTimes(2);
+	});
+
+	it('keeps preload state and invalidation separate for two app runtimes', async () => {
+		const firstScopes = new Map<string, CustomElementScriptPreloadScopeState>();
+		const secondScopes = new Map<string, CustomElementScriptPreloadScopeState>();
+		const firstImport = vi.fn(async () => undefined);
+		const secondImport = vi.fn(async () => undefined);
+		const firstPreloader = createPreloader({ preloadScopes: firstScopes, importServerModule: firstImport });
+		const secondPreloader = createPreloader({ preloadScopes: secondScopes, importServerModule: secondImport });
+		const host = eco.component(
+			bindComponentIdentity(
+				{ id: 'host', file: '/app/host.tsx', integration: 'ecopages-jsx' },
+				{
+					render: () => '',
+					dependencies: { scripts: [{ src: './marker.script.ts', ssr: true }] },
+				},
+			),
+		);
+
+		await firstPreloader.preloadSsrScripts([host]);
+		await secondPreloader.preloadSsrScripts([host]);
+		invalidateCustomElementScriptPreload(firstScopes, '/app/marker.script.ts', cacheScope);
+		await firstPreloader.preloadSsrScripts([host]);
+		await secondPreloader.preloadSsrScripts([host]);
+
+		expect(firstImport).toHaveBeenCalledTimes(2);
+		expect(secondImport).toHaveBeenCalledTimes(1);
 	});
 
 	it('imports a cached script again for a replacement registry', async () => {

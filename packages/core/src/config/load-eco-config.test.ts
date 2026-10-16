@@ -120,6 +120,7 @@ describe('loadEcoPagesConfig', () => {
 	afterEach(() => {
 		fs.rmSync(tempDir, { recursive: true, force: true });
 		delete (globalThis as { __ecoPluginReads?: () => number }).__ecoPluginReads;
+		delete (globalThis as { __ecoConfigModuleLoads?: number }).__ecoConfigModuleLoads;
 	});
 
 	it('finalizes user config and preserves absolutePaths.config', async () => {
@@ -145,28 +146,86 @@ describe('loadEcoPagesConfig', () => {
 		expect(appConfig.absolutePaths.configModuleFiles.sort()).toEqual([configPath, optionsPath].sort());
 	});
 
-	it('finalizes one config file once per process', async () => {
+	it('caches the config module while its factory creates distinct plugin instances and runtimes', async () => {
+		const processorModule = pathToFileURL(path.join(import.meta.dirname, '../plugins/processor.ts')).href;
+		const configPath = path.join(tempDir, 'eco.config.ts');
+		const otherRoot = path.join(tempDir, 'other-root');
+		fs.mkdirSync(otherRoot);
+		fs.writeFileSync(
+			configPath,
+			[
+				'globalThis.__ecoConfigModuleLoads = (globalThis.__ecoConfigModuleLoads ?? 0) + 1;',
+				`import { Processor } from ${JSON.stringify(processorModule)};`,
+				'let reads = 0;',
+				'globalThis.__ecoPluginReads = () => reads;',
+				'class CountingProcessor extends Processor {',
+				"  constructor() { super({ name: 'counting' }); }",
+				'  getConfiguredRootDir() { return this.context?.rootDir; }',
+				'  override plugins() { reads += 1; return []; }',
+				'}',
+				'export default () => ({ processors: [new CountingProcessor()] });',
+			].join('\n'),
+		);
+
+		const first = await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
+		const second = await loadEcoPagesConfig({ cwd: otherRoot, configFile: configPath });
+		const firstProcessor = first.processors.get('counting') as unknown as {
+			getConfiguredRootDir(): string | undefined;
+		};
+		const secondProcessor = second.processors.get('counting') as unknown as {
+			getConfiguredRootDir(): string | undefined;
+		};
+
+		expect(second).not.toBe(first);
+		expect(second.appRuntime).not.toBe(first.appRuntime);
+		expect(secondProcessor).not.toBe(firstProcessor);
+		expect(firstProcessor.getConfiguredRootDir()).toBe(tempDir);
+		expect(secondProcessor.getConfiguredRootDir()).toBe(otherRoot);
+		expect((globalThis as { __ecoConfigModuleLoads?: number }).__ecoConfigModuleLoads).toBe(1);
+		expect((globalThis as { __ecoPluginReads?: () => number }).__ecoPluginReads?.()).toBe(2);
+	});
+
+	it('rejects reusing mutable plugin instances from an object config for a second app', async () => {
 		const processorModule = pathToFileURL(path.join(import.meta.dirname, '../plugins/processor.ts')).href;
 		const configPath = path.join(tempDir, 'eco.config.ts');
 		fs.writeFileSync(
 			configPath,
 			[
 				`import { Processor } from ${JSON.stringify(processorModule)};`,
-				'let reads = 0;',
-				'globalThis.__ecoPluginReads = () => reads;',
-				'class CountingProcessor extends Processor {',
-				"  constructor() { super({ name: 'counting' }); }",
-				'  override plugins() { reads += 1; return []; }',
+				'class SharedProcessor extends Processor {',
+				"  constructor() { super({ name: 'shared' }); }",
+				'  async setup() {}',
 				'}',
-				`export default { rootDir: ${JSON.stringify(tempDir)}, processors: [new CountingProcessor()] };`,
+				`export default { rootDir: ${JSON.stringify(tempDir)}, processors: [new SharedProcessor()] };`,
 			].join('\n'),
 		);
 
-		const first = await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
-		const second = await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
+		await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
+		await expect(loadEcoPagesConfig({ cwd: tempDir, configFile: configPath })).rejects.toThrow(
+			/reused plugin instances for another app.*defineConfig\(\(\) =>/,
+		);
+	});
 
-		expect(second).toBe(first);
-		expect((globalThis as { __ecoPluginReads?: () => number }).__ecoPluginReads?.()).toBe(1);
+	it('rejects a config factory that reuses a plugin instance across fresh config objects', async () => {
+		const processorModule = pathToFileURL(path.join(import.meta.dirname, '../plugins/processor.ts')).href;
+		const configPath = path.join(tempDir, 'eco.config.ts');
+		fs.writeFileSync(
+			configPath,
+			[
+				`import { Processor } from ${JSON.stringify(processorModule)};`,
+				'class SharedProcessor extends Processor {',
+				"  constructor() { super({ name: 'shared' }); }",
+				'  async setup() {}',
+				'}',
+				'const processor = new SharedProcessor();',
+				'export default () => ({ processors: [processor] });',
+			].join('\n'),
+		);
+
+		await loadEcoPagesConfig({ cwd: tempDir, configFile: configPath });
+		await expect(loadEcoPagesConfig({ cwd: tempDir, configFile: configPath })).rejects.toThrow(
+			/reused plugin instances for another app.*defineConfig\(\(\) =>/,
+		);
 	});
 
 	it('defaults omitted rootDir to the loader cwd', async () => {
@@ -214,7 +273,7 @@ describe('loadEcoPagesConfig', () => {
 		expect(configA).not.toBe(configB);
 	});
 
-	it('coalesces and caches loadEcoPagesConfig by config module path', async () => {
+	it('finalizes distinct configs for concurrent loads of one config module', async () => {
 		const configPath = path.join(tempDir, 'eco.config.ts');
 		fs.writeFileSync(configPath, `export default { rootDir: ${JSON.stringify(tempDir)} };`);
 
@@ -223,7 +282,8 @@ describe('loadEcoPagesConfig', () => {
 			loadEcoPagesConfig({ cwd: tempDir, configFile: configPath }),
 		]);
 
-		expect(first).toBe(second);
+		expect(first).not.toBe(second);
+		expect(first.appRuntime).not.toBe(second.appRuntime);
 	});
 
 	it('finalizeEcoPagesConfig produces distinct configs for distinct userConfig objects', async () => {

@@ -22,6 +22,7 @@ Typical responsibilities include:
 - `invalidation/`: file-change classification and `applyDevFileChanges`, which marks one bounded debounce batch of development results dirty without rebuilding them. See [invalidation](invalidation/README.md).
 - `runtime-state/`: browser entrypoint dependency graphs (the reverse lookup shares the build-input index)
 - `runtime-manifest/`: node runtime manifest derivation and persistence
+- Request-pipeline metrics counters are held by each `AppRuntime`; response headers and render/build instrumentation use the owning app's counters.
 - `html/`: final HTML dependency injection and attribute stamping through `HtmlRewriter`, an in-house streaming rewriter with a subset of Bun's `HTMLRewriter` API that matches lol-html output (tag-name selectors; `before`/`prepend`/`append`/`after`; attributes). `HtmlTransformerService.transform()` receives the page package and document contributions as per-call input, so concurrent renders do not share queued dependency state. The rewriter runs the same way on Bun and Node. `html-rewriter.test.ts` pins the lol-html output. `html-tokenizer.ts` holds the lexing rules it shares with `html-source-parser.ts`, a positional parser for callers that splice the original markup, such as HTML Pages.
 - `error-pages/`: shared semantic 404/500 source precedence, rendering, built-in documents, and static export artifacts
 

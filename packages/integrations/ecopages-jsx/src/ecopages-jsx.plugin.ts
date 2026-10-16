@@ -6,6 +6,8 @@ import {
 import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
 import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
 import type { EcoPagesAppConfig, IHmrManager } from '@ecopages/core';
+import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
+import type { RequestPipelineMetricsState } from '@ecopages/core/diagnostics/request-pipeline-metrics';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
 import { RADIANT_INSTALL_HYDRATOR_FILEPATH } from './resolve-radiant-install-hydrator.ts';
@@ -78,28 +80,30 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	private includeRadiant: boolean;
 	private mdxCompilerOptions?: ResolvedMdxCompileOptions;
 	private mdxExtensions: string[];
-	private readonly mdxLoaderPlugins = new Map<string, EcoBuildPlugin>();
+	private readonly mdxLoaderPlugins = new WeakMap<RequestPipelineMetricsState, EcoBuildPlugin>();
 
 	/**
 	 * Returns the build plugins required by the JSX integration.
 	 *
 	 * @remarks
-	 * The MDX loader is created on the first read for a root directory and kept, because the development transform
-	 * contributor reuses the instance the build manifest holds. A config finalized for another root gets its own.
+	 * The MDX loader is created on the first read for an app runtime and kept, because the development transform
+	 * contributor reuses the instance the build manifest holds.
 	 */
 	override plugins(app: EcoPagesAppConfig): EcoBuildPlugin[] {
 		if (!this.mdxCompilerOptions) {
 			return [];
 		}
 
-		let plugin = this.mdxLoaderPlugins.get(app.rootDir);
+		const requestPipelineMetrics = requireAppRuntime(app).requestPipelineMetrics;
+		let plugin = this.mdxLoaderPlugins.get(requestPipelineMetrics);
 		if (!plugin) {
 			plugin = createMdxLoaderPlugin({
 				compilerOptions: this.mdxCompilerOptions,
 				extensions: this.mdxExtensions,
 				projectRoot: app.rootDir,
+				requestPipelineMetrics,
 			});
-			this.mdxLoaderPlugins.set(app.rootDir, plugin);
+			this.mdxLoaderPlugins.set(requestPipelineMetrics, plugin);
 		}
 		return [plugin];
 	}
@@ -164,6 +168,9 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	/** Registers JSX HMR strategy, dev-transform plugins, and Radiant SSR invalidation hooks. */
 	override setHmrManager(hmrManager: IHmrManager): void {
 		super.setHmrManager(hmrManager);
+		const preloadScopes = this.appConfig
+			? requireAppRuntime(this.appConfig).customElementSsrPreloadScopes
+			: undefined;
 
 		const strategy = this.getHmrStrategy();
 		if (strategy) {
@@ -171,7 +178,9 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 				new EcopagesJsxDevTransformContributor({
 					strategy: strategy as EcopagesJsxHmrStrategy,
 					getMdxLoaderPlugin: () =>
-						this.appConfig ? this.mdxLoaderPlugins.get(this.appConfig.rootDir) : undefined,
+						this.appConfig
+							? this.mdxLoaderPlugins.get(requireAppRuntime(this.appConfig).requestPipelineMetrics)
+							: undefined,
 				}),
 			);
 		}
@@ -180,7 +189,11 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 			return;
 		}
 
-		hmrManager.onScriptEntrypointChanged?.(invalidateRadiantRegisteredScriptSsrRegistration);
+		if (preloadScopes) {
+			hmrManager.onScriptEntrypointChanged?.((scriptPath) =>
+				invalidateRadiantRegisteredScriptSsrRegistration(preloadScopes, scriptPath),
+			);
+		}
 	}
 
 	/**

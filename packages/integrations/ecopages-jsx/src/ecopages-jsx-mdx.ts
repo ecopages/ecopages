@@ -11,6 +11,7 @@ import {
 import type { JsxRenderable } from '@ecopages/jsx';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
 import type { EcopagesJsxMdxOptions } from './ecopages-jsx.types.ts';
+import type { RequestPipelineMetricsState } from '@ecopages/core/diagnostics/request-pipeline-metrics';
 
 export type ResolvedMdxCompileOptions = CompileOptions & { jsxImportSource: '@ecopages/jsx' };
 
@@ -37,6 +38,7 @@ export interface CreateEcopagesJsxMdxLoaderPluginOptions {
 	compilerOptions: ResolvedMdxCompileOptions;
 	extensions: string[];
 	projectRoot: string;
+	requestPipelineMetrics: RequestPipelineMetricsState;
 }
 
 export const createMdxLoaderPlugin = (options: CreateEcopagesJsxMdxLoaderPluginOptions): EcoBuildPlugin =>
@@ -48,6 +50,7 @@ export const createMdxLoaderPlugin = (options: CreateEcopagesJsxMdxLoaderPluginO
 		includeSourceMap: false,
 		loader: 'js',
 		projectRoot: options.projectRoot,
+		requestPipelineMetrics: options.requestPipelineMetrics,
 	});
 
 export const isMdxFile = (filePath: string, extensions: string[]): boolean => {

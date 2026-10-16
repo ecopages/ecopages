@@ -1,4 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
+import { createRequestPipelineMetricsState } from '../../diagnostics/request-pipeline-metrics.ts';
 import { MemoryCacheStore } from './memory-cache-store.ts';
 import { PageCacheService } from './page-cache-service.ts';
 import { PageRequestCacheCoordinator } from './page-request-cache-coordinator.service.ts';
@@ -7,7 +8,11 @@ describe('watch-mode page cache admission', () => {
 	test('static pages cache outside the prewarm list when cache strategy allows it', async () => {
 		const store = new MemoryCacheStore();
 		const cacheService = new PageCacheService({ store, enabled: true });
-		const coordinator = new PageRequestCacheCoordinator(cacheService, 'static');
+		const coordinator = new PageRequestCacheCoordinator(
+			cacheService,
+			'static',
+			createRequestPipelineMetricsState(),
+		);
 		const renderFn = vi.fn().mockResolvedValue({
 			html: '<html>warm</html>',
 			strategy: 'static' as const,
@@ -32,7 +37,11 @@ describe('watch-mode page cache admission', () => {
 	test('dynamic pages are never retained', async () => {
 		const store = new MemoryCacheStore();
 		const cacheService = new PageCacheService({ store, enabled: true });
-		const coordinator = new PageRequestCacheCoordinator(cacheService, 'static');
+		const coordinator = new PageRequestCacheCoordinator(
+			cacheService,
+			'static',
+			createRequestPipelineMetricsState(),
+		);
 		const renderFn = vi.fn().mockResolvedValue({ html: '<html>dynamic</html>', strategy: 'dynamic' as const });
 
 		await coordinator.render({
@@ -79,7 +88,11 @@ describe('watch-mode page cache admission', () => {
 
 	test('invalidates only HTML entries that registered a changed source path', async () => {
 		const cacheService = new PageCacheService({ enabled: true });
-		const coordinator = new PageRequestCacheCoordinator(cacheService, 'static');
+		const coordinator = new PageRequestCacheCoordinator(
+			cacheService,
+			'static',
+			createRequestPipelineMetricsState(),
+		);
 		const introRender = vi.fn().mockResolvedValue({
 			html: '<html>intro</html>',
 			strategy: 'static' as const,

@@ -6,6 +6,7 @@ import {
 	serializeRequestPipelineMetricsHeader,
 } from '../../diagnostics/request-pipeline-metrics.ts';
 import { hashBrowserAssetBytes } from '../assets/hashed-browser-asset.ts';
+import type { RequestPipelineMetricsState } from '../../diagnostics/request-pipeline-metrics.ts';
 
 type CacheStatus = 'hit' | 'miss' | 'stale' | 'expired' | 'disabled';
 
@@ -19,10 +20,16 @@ type CacheStatus = 'hit' | 'miss' | 'stale' | 'expired' | 'disabled';
 export class PageRequestCacheCoordinator {
 	private cacheService: PageCacheService | null;
 	private defaultCacheStrategy: CacheStrategy;
+	private readonly requestPipelineMetrics: RequestPipelineMetricsState;
 
-	constructor(cacheService: PageCacheService | null, defaultCacheStrategy: CacheStrategy) {
+	constructor(
+		cacheService: PageCacheService | null,
+		defaultCacheStrategy: CacheStrategy,
+		requestPipelineMetrics: RequestPipelineMetricsState,
+	) {
 		this.cacheService = cacheService;
 		this.defaultCacheStrategy = defaultCacheStrategy;
+		this.requestPipelineMetrics = requestPipelineMetrics;
 	}
 
 	/**
@@ -141,7 +148,9 @@ export class PageRequestCacheCoordinator {
 		};
 
 		if (isRequestPipelineMetricsEnabled()) {
-			headers[getRequestPipelineMetricsHeaderName()] = serializeRequestPipelineMetricsHeader();
+			headers[getRequestPipelineMetricsHeaderName()] = serializeRequestPipelineMetricsHeader(
+				this.requestPipelineMetrics,
+			);
 		}
 
 		if (strategy === 'static' && cacheStatus !== 'disabled') {

@@ -1,11 +1,4 @@
-import type {
-	ComponentRenderInput,
-	EcoComponent,
-	EcoFunctionComponent,
-	EcoPageFile,
-	EcoPagesElement,
-	RouteRendererBody,
-} from '@ecopages/core';
+import type { ComponentRenderInput, EcoPageFile, RouteRendererBody } from '@ecopages/core';
 import { HttpError } from '@ecopages/core/errors';
 import {
 	createIntegrationRenderer,
@@ -27,6 +20,7 @@ import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	CustomElementScriptPreloader,
 } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
+import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
 import { createSharedServerModuleImporter } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer';
 import type { EcopagesJsxRendererConfig } from './ecopages-jsx.types.ts';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
@@ -59,6 +53,7 @@ export function createEcopagesJsxRendererHookFactory(
 		const radiantSsrPolicy = new EcopagesJsxRadiantSsrPolicy(jsxConfig.radiantSsrEnabled ?? false);
 		const ssrScriptPreloader = new CustomElementScriptPreloader({
 			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx,
+			preloadScopes: requireAppRuntime(appConfig).customElementSsrPreloadScopes,
 			collectForIntegration: ECOPAGES_JSX_PLUGIN_NAME,
 			enabled: jsxConfig.radiantSsrEnabled ?? false,
 			logLabel: 'ecopages-jsx',

@@ -49,6 +49,7 @@ import type { IntegrationRenderer } from '../integration-renderer.ts';
 import { createPageDependencyInstanceKey } from '../page-browser-graph/route-instance-key.ts';
 import { buildPreparedRenderOptions } from './route-prepared-options.builder.ts';
 import { measureRouteRenderPhase } from '../../../diagnostics/request-pipeline-metrics.ts';
+import type { RequestPipelineMetricsState } from '../../../diagnostics/request-pipeline-metrics.ts';
 
 export type RouteRenderOrchestratorResolvedInputs = {
 	Page: EcoPageFile['default'] | EcoPageComponent<any>;
@@ -137,6 +138,7 @@ export class RouteRenderOrchestrator {
 	private readonly assetProcessingService: AssetProcessingService;
 	private readonly ownershipValidationService: OwnershipValidationService;
 	private readonly pageBrowserGraphService: PageBrowserGraphService;
+	private readonly requestPipelineMetrics: RequestPipelineMetricsState;
 
 	constructor(
 		appConfig: EcoPagesAppConfig,
@@ -144,6 +146,7 @@ export class RouteRenderOrchestrator {
 		dependencies: RouteRenderOrchestratorDependencies = {},
 	) {
 		this.appConfig = appConfig;
+		this.requestPipelineMetrics = requireAppRuntime(appConfig).requestPipelineMetrics;
 		this.assetProcessingService = assetProcessingService;
 		this.ownershipValidationService =
 			dependencies.ownershipValidationService ?? new OwnershipValidationService(appConfig);
@@ -151,7 +154,7 @@ export class RouteRenderOrchestrator {
 	}
 
 	private async validateOwnershipGraph(graph: PreparedComponentGraph): Promise<void> {
-		await measureRouteRenderPhase('ownership-validation', async () => {
+		await measureRouteRenderPhase(this.requestPipelineMetrics, 'ownership-validation', async () => {
 			const validationErrors = this.ownershipValidationService.validateGraph(graph);
 			throwIfOwnershipInvalid(validationErrors);
 		});
@@ -303,7 +306,7 @@ export class RouteRenderOrchestrator {
 		routeOptions: RouteRendererOptions,
 		renderer: RouteRenderHost<C>,
 	): Promise<IntegrationRendererRenderOptions<C>> {
-		const resolvedInputs = await measureRouteRenderPhase('resolve-route-inputs', () =>
+		const resolvedInputs = await measureRouteRenderPhase(this.requestPipelineMetrics, 'resolve-route-inputs', () =>
 			renderer.resolveRouteRenderInputs(routeOptions),
 		);
 		const finalProps = {
@@ -327,12 +330,15 @@ export class RouteRenderOrchestrator {
 			shellDependencyComponents,
 			graph: preparedGraph,
 		} = graphContext;
-		const { resolvedDependencies } = await measureRouteRenderPhase('resolve-dependencies', () =>
-			renderer.resolveRouteDependencies({
-				components: shellDependencyComponents,
-			}),
+		const { resolvedDependencies } = await measureRouteRenderPhase(
+			this.requestPipelineMetrics,
+			'resolve-dependencies',
+			() =>
+				renderer.resolveRouteDependencies({
+					components: shellDependencyComponents,
+				}),
 		);
-		const pageBrowserGraph = await measureRouteRenderPhase('page-browser-graph', () =>
+		const pageBrowserGraph = await measureRouteRenderPhase(this.requestPipelineMetrics, 'page-browser-graph', () =>
 			this.pageBrowserGraphService.resolvePageBrowserGraph({
 				routeFile: routeOptions.file,
 				dependencyInstanceKey,
@@ -436,7 +442,7 @@ export class RouteRenderOrchestrator {
 		renderOptions: IntegrationRendererRenderOptions<C>,
 		renderer: RouteRenderHost<C>,
 	): Promise<RouteRenderResult> {
-		const renderExecution = await measureRouteRenderPhase('render-body', () =>
+		const renderExecution = await measureRouteRenderPhase(this.requestPipelineMetrics, 'render-body', () =>
 			this.captureHtmlRender(async () => renderer.renderRouteBody(renderOptions)),
 		);
 		const sourceDependencyPaths = this.withHtmlTemplateClosure(renderOptions.sourceDependencyPaths);
@@ -454,7 +460,7 @@ export class RouteRenderOrchestrator {
 
 		if (canReuseCapturedBody) {
 			const responseBody = typeof renderExecution.body === 'string' ? renderExecution.body : renderExecution.html;
-			const body = await measureRouteRenderPhase('transform-response', () =>
+			const body = await measureRouteRenderPhase(this.requestPipelineMetrics, 'transform-response', () =>
 				renderer.transformRouteResponse(
 					new Response(responseBody, {
 						headers: {
@@ -479,7 +485,7 @@ export class RouteRenderOrchestrator {
 			? htmlFinalization.finalizeHtml(unresolvedArtifactInspection.normalizedHtml)
 			: unresolvedArtifactInspection.normalizedHtml;
 
-		const body = await measureRouteRenderPhase('transform-response', () =>
+		const body = await measureRouteRenderPhase(this.requestPipelineMetrics, 'transform-response', () =>
 			renderer.transformRouteResponse(
 				new Response(finalization, {
 					headers: {

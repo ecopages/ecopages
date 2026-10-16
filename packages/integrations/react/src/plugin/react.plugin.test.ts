@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { EcoPagesAppConfig } from '@ecopages/core';
+import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { ReactPlugin, reactPlugin } from './react.plugin.ts';
 
-async function getMdxLoaderFilter(plugin: ReactPlugin): Promise<RegExp | undefined> {
+async function createConfig(rootDir: string): Promise<EcoPagesAppConfig> {
+	return await finalizeEcoPagesConfig({ rootDir });
+}
+
+async function getMdxLoaderFilter(plugin: ReactPlugin, appConfig: EcoPagesAppConfig): Promise<RegExp | undefined> {
 	let filter: RegExp | undefined;
-	await plugin.plugins({ rootDir: '/tmp/project' } as EcoPagesAppConfig)[0]?.setup({
+	await plugin.plugins(appConfig)[0]?.setup({
 		onResolve() {},
 		onLoad(options) {
 			filter = options.filter;
@@ -35,14 +40,16 @@ describe('ReactPlugin', () => {
 		expect((plugin as any).mdxExtensions).toEqual(['.docs.mdx']);
 	});
 
-	it('gives an app config for another root its own MDX loader', () => {
+	it('gives each app runtime its own MDX loader at the same root', async () => {
 		const plugin = new ReactPlugin({ mdx: {} });
+		const firstConfig = await createConfig('/tmp/shared-project');
+		const secondConfig = await createConfig('/tmp/shared-project');
 
-		const first = plugin.plugins({ rootDir: '/tmp/first' } as EcoPagesAppConfig)[0];
-		const second = plugin.plugins({ rootDir: '/tmp/second' } as EcoPagesAppConfig)[0];
+		const first = plugin.plugins(firstConfig)[0];
+		const second = plugin.plugins(secondConfig)[0];
 
 		expect(first).not.toBe(second);
-		expect(plugin.plugins({ rootDir: '/tmp/first' } as EcoPagesAppConfig)[0]).toBe(first);
+		expect(plugin.plugins(firstConfig)[0]).toBe(first);
 	});
 
 	it('derives the MDX loader filter from declared MDX extensions only', async () => {
@@ -53,7 +60,7 @@ describe('ReactPlugin', () => {
 			},
 		});
 
-		const filter = await getMdxLoaderFilter(plugin);
+		const filter = await getMdxLoaderFilter(plugin, await createConfig('/tmp/project'));
 
 		expect(filter?.test('/tmp/project/src/pages/docs.react.mdx')).toBe(true);
 		expect(filter?.test('/tmp/project/src/pages/docs.mdx')).toBe(false);
@@ -70,7 +77,7 @@ describe('ReactPlugin', () => {
 			},
 		});
 
-		const filter = await getMdxLoaderFilter(plugin);
+		const filter = await getMdxLoaderFilter(plugin, await createConfig('/tmp/project'));
 
 		expect(filter?.test('/tmp/project/src/pages/docs.react.mdx')).toBe(true);
 		expect(filter?.test('/tmp/project/src/pages/docs.mdx')).toBe(false);

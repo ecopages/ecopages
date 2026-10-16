@@ -7,6 +7,7 @@ import {
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { createMdxLoaderPlugin } from './mdx-loader-plugin.ts';
+import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
 import { MDX_PLUGIN_NAME } from './mdx.constants.ts';
 import { MDXRenderer } from './mdx-renderer.ts';
 import type { MDXPluginConfig } from './mdx.types.ts';
@@ -117,7 +118,13 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 	}
 
 	override plugins(app: EcoPagesAppConfig): EcoBuildPlugin[] {
-		return [createMdxLoaderPlugin({ compilerOptions: this.compilerOptions, projectRoot: app.rootDir })];
+		return [
+			createMdxLoaderPlugin({
+				compilerOptions: this.compilerOptions,
+				projectRoot: app.rootDir,
+				requestPipelineMetrics: requireAppRuntime(app).requestPipelineMetrics,
+			}),
+		];
 	}
 }
 

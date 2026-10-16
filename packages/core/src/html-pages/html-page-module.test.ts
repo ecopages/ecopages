@@ -7,25 +7,20 @@ import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { GetMetadataContext } from '../types/public-types.ts';
 import { HTML_PAGES_INTEGRATION_NAME, loadHtmlPageModule } from './html-page-module.ts';
+import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 
 describe('html-page-module', () => {
 	let rootDir: string;
 	let appConfig: EcoPagesAppConfig;
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		rootDir = mkdtempSync(path.join(tmpdir(), 'eco-html-module-'));
 		mkdirSync(path.join(rootDir, 'src/pages'), { recursive: true });
 		mkdirSync(path.join(rootDir, 'src/includes'), { recursive: true });
-		appConfig = {
+		appConfig = await finalizeEcoPagesConfig({
 			rootDir,
 			defaultMetadata: { title: 'Site', description: 'Default description' },
-			absolutePaths: {
-				srcDir: path.join(rootDir, 'src'),
-				pagesDir: path.join(rootDir, 'src/pages'),
-				includesDir: path.join(rootDir, 'src/includes'),
-				htmlTemplatePath: path.join(rootDir, 'src/includes/html.html'),
-			},
-		} as unknown as EcoPagesAppConfig;
+		});
 	});
 
 	afterEach(() => {
@@ -44,6 +39,27 @@ describe('html-page-module', () => {
 
 			writeFileSync(file, '<main><img src="./photo-2.png" alt=""></main>');
 			loadHtmlPageModule(appConfig, file);
+			expect(warn).toHaveBeenCalledTimes(2);
+		} finally {
+			warn.mockRestore();
+			vi.unstubAllEnvs();
+		}
+	});
+
+	it('keeps relative-URL warning state separate for apps loaded from the same config module', async () => {
+		vi.stubEnv('NODE_ENV', 'development');
+		const warn = vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
+		const file = path.join(rootDir, 'src/pages/gallery.html');
+		const secondAppConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			defaultMetadata: { title: 'Site', description: 'Default description' },
+		});
+		try {
+			writeFileSync(file, '<main><img src="./photo.png" alt=""></main>');
+			loadHtmlPageModule(appConfig, file);
+			loadHtmlPageModule(appConfig, file);
+			loadHtmlPageModule(secondAppConfig, file);
+
 			expect(warn).toHaveBeenCalledTimes(2);
 		} finally {
 			warn.mockRestore();

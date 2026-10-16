@@ -9,6 +9,7 @@ import type { StaticExportContext } from '@ecopages/core/plugins/integration-plu
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	CustomElementScriptPreloader,
+	type CustomElementScriptPreloadScopeState,
 } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
 import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import { ensureLitDomShim } from '../dom-shim.ts';
@@ -27,9 +28,13 @@ vi.mock(
 			>();
 		return {
 			...actual,
-			invalidateCustomElementScriptPreload: (scriptPath: string, cacheScope?: string) => {
-				preloadInvalidationSpy(scriptPath, cacheScope);
-				return actual.invalidateCustomElementScriptPreload(scriptPath, cacheScope);
+			invalidateCustomElementScriptPreload: (
+				preloadScopes: Map<string, CustomElementScriptPreloadScopeState>,
+				scriptPath: string,
+				cacheScope?: string,
+			) => {
+				preloadInvalidationSpy(preloadScopes, scriptPath, cacheScope);
+				return actual.invalidateCustomElementScriptPreload(preloadScopes, scriptPath, cacheScope);
 			},
 		};
 	},
@@ -191,6 +196,7 @@ describe('LitPlugin watch restart script-change invalidation', () => {
 		const importServerModule = vi.fn(async () => ({}));
 		const preloader = new CustomElementScriptPreloader({
 			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
+			preloadScopes: requireAppRuntime(appConfig).customElementSsrPreloadScopes,
 			logLabel: 'lit',
 			requireLazyScriptEntry: true,
 			resolveDependencyPath: (componentDir, sourcePath) => path.join(componentDir, sourcePath),
@@ -246,6 +252,7 @@ describe('LitPlugin watch restart script-change invalidation', () => {
 
 			expect(preloadInvalidationSpy).toHaveBeenCalledTimes(1);
 			expect(preloadInvalidationSpy).toHaveBeenCalledWith(
+				requireAppRuntime(appConfig).customElementSsrPreloadScopes,
 				scriptPath,
 				CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
 			);

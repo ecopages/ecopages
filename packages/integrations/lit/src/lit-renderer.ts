@@ -4,7 +4,6 @@
  */
 
 import type {
-	ComponentRenderInput,
 	EcoComponent,
 	EcoFunctionComponent,
 	EcoPagesElement,
@@ -22,6 +21,7 @@ import {
 	CustomElementScriptPreloader,
 	type CustomElementSsrPreloadComponent,
 } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
+import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
 import { createCustomElementServerModuleImporter } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer';
 import { ensureLitDomShim } from './dom-shim.ts';
 import type { LitStaticRenderSession } from './lit-static-render-session.ts';
@@ -51,6 +51,7 @@ export function createLitRenderer(
 		({ appConfig, resolveComponentDependencies, resolveDependencyPath }: IntegrationRendererHookFactoryOptions) => {
 			const ssrScriptPreloader = new CustomElementScriptPreloader({
 				cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
+				preloadScopes: requireAppRuntime(appConfig).customElementSsrPreloadScopes,
 				logLabel: 'lit',
 				requireLazyScriptEntry: true,
 				resolveDependencyPath,

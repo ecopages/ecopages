@@ -77,7 +77,7 @@ export async function buildCollectionServerModule(input: {
 	const outputFileName = `${collectionName}-${buildIdentity}-${invalidationVersion}.mjs`;
 	const buildOptions = { ...buildRequest, naming: outputFileName.replace(/\.mjs$/u, '.[ext]') };
 
-	recordCollectionBuild();
+	recordCollectionBuild(runtime.requestPipelineMetrics);
 	const buildResult = await buildOrThrow(
 		appConfig,
 		buildOptions,

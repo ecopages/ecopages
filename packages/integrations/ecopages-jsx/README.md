@@ -77,7 +77,7 @@ The integration loads Radiant host serialization through the public `@ecopages/r
 
 ### Registered Radiant scripts (`ssr: true`)
 
-Declare custom-element registration once in `dependencies.scripts`. Ecopages JSX preloads entries marked `ssr: true` on the server before render so hosts can SSR without a redundant `import './my-element.script.ts'` in the component file.
+Declare custom-element registration once in `dependencies.scripts`. Ecopages JSX preloads entries marked `ssr: true` on the server before render so hosts can SSR without a redundant `import './my-element.script.ts'` in the component file. Preload deduplication and invalidation state belongs to the app's `AppRuntime`, so separate apps keep separate preload history.
 
 ```ts
 export const ThemeToggle = eco.component({

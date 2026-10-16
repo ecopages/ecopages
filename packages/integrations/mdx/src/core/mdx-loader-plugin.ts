@@ -2,7 +2,10 @@ import { readFile } from 'node:fs/promises';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { attributeMdxComponentIdentity } from '@ecopages/core';
 import { type CompileOptions, compile } from '@mdx-js/mdx';
-import { recordMdxTransform } from '@ecopages/core/diagnostics/request-pipeline-metrics';
+import {
+	recordMdxTransform,
+	type RequestPipelineMetricsState,
+} from '@ecopages/core/diagnostics/request-pipeline-metrics';
 import sourceMap from 'source-map';
 import { VFile } from 'vfile';
 import { createMdxExtensionFilter, resolveCompileFormat, resolveLoaderExtensions } from './mdx-utils.ts';
@@ -10,6 +13,7 @@ import { createMdxExtensionFilter, resolveCompileFormat, resolveLoaderExtensions
 export interface CreateMdxLoaderPluginOptions {
 	name: string;
 	projectRoot: string;
+	requestPipelineMetrics: RequestPipelineMetricsState;
 	integrationName?: string;
 	compilerOptions?: CompileOptions;
 	extensions?: string[];
@@ -101,7 +105,7 @@ export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): Ec
 					};
 					compileCache.set(filePath, cached);
 				}
-				recordMdxTransform();
+				recordMdxTransform(options.requestPipelineMetrics);
 
 				const transformed = attributeMdxComponentIdentity(
 					cached.contents,

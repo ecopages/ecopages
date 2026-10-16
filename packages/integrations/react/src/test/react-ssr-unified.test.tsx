@@ -2,8 +2,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createContext, useContext, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoPagesAppConfig } from '@ecopages/core';
 import type { HtmlTemplateProps, IntegrationRendererRenderOptions } from '@ecopages/core';
+import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import { ReactRenderer } from '../render/react-renderer.ts';
 
@@ -24,21 +24,15 @@ class TestReactRenderer extends ReactRenderer {
 }
 
 const integrationRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const appConfig = await finalizeEcoPagesConfig({
+	rootDir: integrationRoot,
+	defaultMetadata: {
+		title: 'Test',
+		description: 'Test',
+	},
+});
 
 describe('ReactRenderer unified SSR layout composition', () => {
-	const appConfig = {
-		rootDir: integrationRoot,
-		defaultMetadata: {
-			title: 'Test',
-			description: 'Test',
-		},
-		absolutePaths: {
-			htmlTemplatePath: '/tmp/template.tsx',
-			pagesDir: '/tmp/pages',
-		},
-		srcDir: '/tmp/src',
-	} as unknown as EcoPagesAppConfig;
-
 	const assetService = {
 		processDependencies: vi.fn(() => Promise.resolve([])),
 		getHmrManager: vi.fn(() => undefined),

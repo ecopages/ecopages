@@ -35,6 +35,7 @@ describe('LitStaticRenderSession', () => {
 		} as unknown as EcoComponent;
 
 		const session = new LitStaticRenderSession({
+			preloadScopes: new Map(),
 			resolveDependencyPath: (_componentDir, sourcePath) => sourcePath,
 			processDependencies,
 			createWorkerClient,
@@ -105,6 +106,7 @@ describe('LitStaticRenderSession', () => {
 
 		const createClient = vi.fn(() => createWorkerClient());
 		const session = new LitStaticRenderSession({
+			preloadScopes: new Map(),
 			resolveDependencyPath: (_componentDir, sourcePath) => sourcePath,
 			processDependencies,
 			createWorkerClient: createClient,
@@ -142,6 +144,7 @@ describe('LitStaticRenderSession', () => {
 		workerRenderPage.mockClear();
 
 		const session = new LitStaticRenderSession({
+			preloadScopes: new Map(),
 			resolveDependencyPath: (_componentDir, sourcePath) => sourcePath,
 			processDependencies,
 			createWorkerClient,
@@ -175,6 +178,7 @@ describe('LitStaticRenderSession', () => {
 		} as unknown as EcoComponent;
 
 		const session = new LitStaticRenderSession({
+			preloadScopes: new Map(),
 			resolveDependencyPath: (_componentDir, sourcePath) => sourcePath,
 			processDependencies,
 		});
@@ -222,6 +226,7 @@ describe('LitStaticRenderSession', () => {
 		}));
 		const createClient = vi.fn(() => ({ start: async () => {}, dispose, renderPage }));
 		const session = new LitStaticRenderSession({
+			preloadScopes: new Map(),
 			resolveDependencyPath: (_dir, src) => src,
 			processDependencies,
 			createWorkerClient: createClient,

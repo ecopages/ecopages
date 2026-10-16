@@ -91,7 +91,7 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 - Config finalization seeds one app-owned `AppRuntime` (build adapter, build manifest, build queue, build-input index, and module caches) and a no-op dev graph that development replaces; server startup refreshes the build queue.
 - `BrowserBundleService` is the shared browser build seam used by HMR and asset-oriented browser output paths; callers choose the `build` or `hmr` scheduling lane explicitly.
 - `ServerModuleTranspiler` is the shared server-side source loading seam used by runtime bootstrap and HMR metadata loading.
-- `RouteRegistry` gives exact and dynamic Pages priority over catch-alls, then selects the most specific matching catch-all prefix.
+- `RouteRegistry` gives exact and dynamic Pages priority over catch-alls, selects the most specific matching catch-all prefix, and shares segment matching and one-time URL decoding with API, explicit, and WebSocket routes.
 - Browser runtime package entries resolve from the application root with ESM import conditions, so framework-local packages cannot shadow app dependencies.
 - `createApp()` resolves config and CLI mode once, then returns the concrete `EcopagesApp`, which owns route registration and the Node HTTP server lifecycle.
 - One bundled adapter builds the app with Rolldown.

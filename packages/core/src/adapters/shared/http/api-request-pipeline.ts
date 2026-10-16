@@ -2,7 +2,12 @@ import { createRequire } from '../../../utils/locals-utils.ts';
 import { HttpError } from '../../../errors/http-error.ts';
 import { ApiResponseBuilder } from './api-response.ts';
 import { runMiddlewareChain } from './run-middleware-chain.ts';
-import { matchApiPathPattern, scoreApiPathPattern } from './segment-path-matcher.ts';
+import {
+	matchParsedSegmentPath,
+	parseSegmentPath,
+	scoreSegmentPathPattern,
+	type ParsedSegmentPath,
+} from '../../../router/server/segment-path-matcher.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { SchemaValidationService } from '../../../services/validation/schema-validation-service.ts';
 import type {
@@ -44,12 +49,14 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 	match(
 		request: TRequest,
 		apiHandlers: ApiHandler<string, TRequest, TServer>[],
+		parsedPathSegments?: ParsedSegmentPath,
 	): { routeConfig: ApiHandler<string, TRequest, TServer>; params: Record<string, string | string[]> } | null {
 		const pathname = new URL(request.url).pathname;
+		const pathSegments = parsedPathSegments ?? parseSegmentPath(pathname);
 		const method = request.method.toUpperCase();
 
 		const sortedHandlers = [...apiHandlers].sort((a, b) => {
-			return scoreApiPathPattern(b.path) - scoreApiPathPattern(a.path);
+			return scoreSegmentPathPattern(b.path, 'api') - scoreSegmentPathPattern(a.path, 'api');
 		});
 
 		for (const routeConfig of sortedHandlers) {
@@ -58,7 +65,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 				continue;
 			}
 
-			const params = matchApiPathPattern(routeConfig.path, pathname);
+			const params = matchParsedSegmentPath(routeConfig.path, pathSegments, 'api');
 			if (params) {
 				return { routeConfig, params };
 			}
@@ -72,8 +79,17 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 		apiHandlers: ApiHandler<string, TRequest, TServer>[],
 		serverInstance: TServer | undefined,
 		errorHandler?: ErrorHandler<TRequest, TServer>,
+		parsedPathSegments?: ParsedSegmentPath,
 	): Promise<Response | null> {
-		const apiMatch = this.match(request, apiHandlers);
+		let apiMatch: {
+			routeConfig: ApiHandler<string, TRequest, TServer>;
+			params: Record<string, string | string[]>;
+		} | null;
+		try {
+			apiMatch = this.match(request, apiHandlers, parsedPathSegments);
+		} catch (error) {
+			return await this.handleError(error, { request, serverInstance, errorHandler });
+		}
 		if (!apiMatch) {
 			return null;
 		}

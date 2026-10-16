@@ -65,7 +65,7 @@ describe('ServerRouteHandler', () => {
 			});
 			await handler.handleResponse(assetRequest);
 
-			expect(Router.matchRequest).toHaveBeenCalledExactlyOnceWith('http://localhost/v1.2');
+			expect(Router.matchRequest).toHaveBeenCalledExactlyOnceWith('http://localhost/v1.2', ['v1.2']);
 			expect(FileSystemResponseMatcher.handleNoMatch).toHaveBeenCalledWith('/assets/app.js', assetRequest);
 		});
 

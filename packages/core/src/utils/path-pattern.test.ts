@@ -1,5 +1,11 @@
-import { describe, expect, test } from 'vitest';
-import { matchPathPattern, matchesAnyPathPattern } from './path-pattern.ts';
+import { describe, expect, it, test } from 'vitest';
+import { matchPathPattern, matchesAnyPathPattern, normalizePathname } from './path-pattern.ts';
+
+describe('normalizePathname', () => {
+	it.each(['/about', '/about/', '/about//', 'about'])('normalizes %p to one route pathname', (pathname) => {
+		expect(normalizePathname(pathname)).toBe('/about');
+	});
+});
 
 describe('matchPathPattern', () => {
 	test('matches exact pathnames', () => {

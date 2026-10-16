@@ -82,6 +82,20 @@ describe('ExplicitStaticRouteMatcher', () => {
 			expect(result?.params).toEqual(params);
 		});
 
+		test('decodes dynamic route params', () => {
+			const matcher = createMatcher([createMockRoute('/blog/:slug')]);
+
+			expect(matcher.match('http://localhost:3000/blog/caf%C3%A9')?.params).toEqual({ slug: 'café' });
+		});
+
+		test('rejects malformed path escapes with HTTP 400', () => {
+			const matcher = createMatcher([createMockRoute('/blog/:slug')]);
+
+			expect(() => matcher.match('http://localhost:3000/blog/%E0%A4%A')).toThrow(
+				expect.objectContaining({ status: 400 }),
+			);
+		});
+
 		test.each([
 			{ name: 'a different path', routes: ['/about'], url: '/contact' },
 			{ name: 'a longer path than the route', routes: ['/about'], url: '/about/team' },

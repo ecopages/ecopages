@@ -1,6 +1,7 @@
 import type { Duplex } from 'node:stream';
 import type { Server as NodeHttpServer, IncomingMessage } from 'node:http';
 import { WebSocketServer, type WebSocket as WsWebSocket } from 'ws';
+import { HttpError } from '../../../errors/http-error.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type {
 	EcopagesSocket,
@@ -150,7 +151,17 @@ export function attachNodeHttpWebSocketUpgrades(
 		}
 
 		const url = new URL(req.url ?? '/', options.runtimeOrigin);
-		const wsMatch = findWebSocketRoute(options.websocketHandlers, url.pathname);
+		let wsMatch: WebSocketRouteMatch | null;
+		try {
+			wsMatch = findWebSocketRoute(options.websocketHandlers, url.pathname);
+		} catch (error) {
+			if (!HttpError.isHttpError(error) || error.status !== 400) {
+				throw error;
+			}
+
+			socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
+			return;
+		}
 
 		if (!wsMatch) {
 			socket.destroy();

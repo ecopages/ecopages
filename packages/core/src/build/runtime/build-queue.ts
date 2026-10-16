@@ -1,8 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { availableParallelism } from 'node:os';
 import { requireAppRuntime } from '../../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { BuildAdapter, BuildExecutor, BuildOptions, BuildResult, BuildSuccess } from '../build-adapter.ts';
+import { resolveBuildParallelism } from '../build-parallelism.ts';
 import { assertBuildSucceeded } from '../build-log.ts';
 import { createBuildRequestIdentity } from './build-request-identity.ts';
 
@@ -25,7 +25,7 @@ type LaneState = { limit: number; active: number; waiting: Array<() => void> };
 
 /** Concurrency each lane gets on this machine. */
 export function resolveBuildLaneLimits(): Record<BuildLane, number> {
-	const build = Math.max(1, availableParallelism() - 1);
+	const build = resolveBuildParallelism();
 	return { build, hmr: Math.min(3, build), nested: build };
 }
 

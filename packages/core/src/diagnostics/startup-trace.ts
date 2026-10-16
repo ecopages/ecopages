@@ -1,7 +1,7 @@
 import { mkdirSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { availableParallelism } from 'node:os';
 import { fileSystem } from '@ecopages/file-system';
+import { resolveBuildParallelism } from '../build/build-parallelism.ts';
 import { getProcessRuntime } from '../utils/runtime.ts';
 
 export type StartupTracePhase =
@@ -54,15 +54,6 @@ function isStartupTraceEnabled(): boolean {
 
 function wallMsSinceProcessStart(): number {
 	return Math.round(process.uptime() * 1000);
-}
-
-function resolveTraceBuildParallelism(): string {
-	const fromEnv = process.env.ECOPAGES_DEV_BUILD_PARALLELISM ?? process.env.ECOPAGES_DEV_HMR_PARALLELISM;
-	if (fromEnv) {
-		return fromEnv;
-	}
-
-	return String(Math.max(1, availableParallelism()));
 }
 
 function writeTraceLine(message: string): void {
@@ -145,7 +136,7 @@ class StartupTrace {
 			wallMs: wallMsSinceProcessStart(),
 		};
 		this.phases.set('config-ready', record);
-		writeTraceLine(`phase=config-ready wallMs=${record.wallMs} buildParallelism=${resolveTraceBuildParallelism()}`);
+		writeTraceLine(`phase=config-ready wallMs=${record.wallMs} buildParallelism=${resolveBuildParallelism()}`);
 		this.writeJsonReport();
 	}
 

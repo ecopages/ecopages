@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { resolveBuildParallelism } from '../build/build-parallelism.ts';
 
 async function loadFreshStartupTrace() {
 	vi.resetModules();
@@ -8,6 +9,7 @@ async function loadFreshStartupTrace() {
 describe('startupTrace', () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
+		vi.unstubAllEnvs();
 	});
 
 	it('is disabled unless ECOPAGES_STARTUP_TRACE or ECOPAGES_LOGGER_DEBUG is true', async () => {
@@ -26,6 +28,8 @@ describe('startupTrace', () => {
 	it('emits phase and first-request summary lines when ECOPAGES_STARTUP_TRACE is true', async () => {
 		vi.stubEnv('ECOPAGES_STARTUP_TRACE', 'true');
 		vi.stubEnv('ECOPAGES_LOGGER_DEBUG', 'false');
+		vi.stubEnv('ECOPAGES_DEV_BUILD_PARALLELISM', '99999');
+		vi.stubEnv('ECOPAGES_DEV_HMR_PARALLELISM', '88888');
 
 		const startupTrace = await loadFreshStartupTrace();
 		const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
@@ -38,6 +42,9 @@ describe('startupTrace', () => {
 
 		const output = stderr.mock.calls.map(([chunk]) => String(chunk)).join('');
 		expect(output).toContain('phase=config-ready');
+		expect(output).toContain(`buildParallelism=${resolveBuildParallelism()}`);
+		expect(output).not.toContain('buildParallelism=99999');
+		expect(output).not.toContain('buildParallelism=88888');
 		expect(output).toContain('phase=setupAppRuntimePlugins');
 		expect(output).toContain('phase=first-request-ssr');
 		expect(output).toContain('summary path=/docs/foo bundleCount=0 clientBundleBytes=0 graphBuildCount=0');

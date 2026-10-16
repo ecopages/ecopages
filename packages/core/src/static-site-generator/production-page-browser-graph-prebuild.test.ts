@@ -41,7 +41,7 @@ test('prebuildProductionPageBrowserGraphs deduplicates, sorts, and groups route 
 	const litAppBrowserPlan = { ...litGroupedBuildPlan, planKey: 'lit-app-browser-client' };
 	buildAppBrowserClientMock.mockResolvedValue([reactAppBrowserPlan, litAppBrowserPlan]);
 	const createRenderer = (rendererName: string, groupedBuildPlan: { planKey: string }) => ({
-		buildGroupedGraphBuildPlan: vi.fn(async () => groupedBuildPlan),
+		buildGroupedGraphBuildPlan: vi.fn(async (_instances: unknown[], _options: unknown) => groupedBuildPlan),
 		prebuildProductionPageBrowserGraph: async (
 			filePath: string,
 			options?: {
@@ -83,11 +83,11 @@ test('prebuildProductionPageBrowserGraphs deduplicates, sorts, and groups route 
 		appConfig,
 		[reactGroupedBuildPlan, litGroupedBuildPlan],
 	]);
-	assert.deepEqual(reactRenderer.buildGroupedGraphBuildPlan.mock.calls[0], [
-		[{ routeFile: '/tmp/a/page.tsx', params: { slug: 'alpha' } }],
+	assert.deepEqual(reactRenderer.buildGroupedGraphBuildPlan.mock.calls[0]?.[0], [
+		{ routeFile: '/tmp/a/page.tsx', params: { slug: 'alpha' } },
 	]);
-	assert.deepEqual(litRenderer.buildGroupedGraphBuildPlan.mock.calls[0], [
-		[{ routeFile: '/tmp/b/page.tsx', params: { slug: 'beta' } }],
+	assert.deepEqual(litRenderer.buildGroupedGraphBuildPlan.mock.calls[0]?.[0], [
+		{ routeFile: '/tmp/b/page.tsx', params: { slug: 'beta' } },
 	]);
 	assert.deepEqual(calls, [
 		{
@@ -103,6 +103,70 @@ test('prebuildProductionPageBrowserGraphs deduplicates, sorts, and groups route 
 			groupedBuildPlan: litAppBrowserPlan,
 		},
 	]);
+});
+
+test('prebuildProductionPageBrowserGraphs skips routes whose preparation failed', async () => {
+	const routeFile = '/tmp/pages/[slug].tsx';
+	const failure = new Error('broken static props');
+	const successfulInstance = {
+		routeFile,
+		dependencyInstanceKey: '["healthy"]',
+		contribution: { assets: [] },
+		pageClientBuildEntries: [],
+		prebuiltPageClientBrowserAssets: {
+			processedAssets: [],
+			islandRenderAssetsByFile: new Map(),
+			fallbackDependencies: [],
+		},
+	};
+	const groupedBuildPlan = {
+		integrationName: 'react',
+		planKey: 'react-plan',
+		instances: [successfulInstance],
+	};
+	buildAppBrowserClientMock.mockResolvedValue([{ ...groupedBuildPlan, planKey: 'app-browser-plan' }]);
+	const prebuiltRoutes: string[] = [];
+	const renderer = {
+		buildGroupedGraphBuildPlan: vi.fn(
+			async (
+				instances: Array<{ routeFile: string; params?: Record<string, string | string[]> }>,
+				options?: {
+					onRouteFailure?: (
+						routeInstance: { routeFile: string; params?: Record<string, string | string[]> },
+						error: unknown,
+					) => void;
+				},
+			) => {
+				const failedInstance = instances.find(({ params }) => params?.slug === 'broken');
+				if (!failedInstance) throw new Error('Expected the failing route instance');
+				options?.onRouteFailure?.(failedInstance, failure);
+				return groupedBuildPlan;
+			},
+		),
+		prebuildProductionPageBrowserGraph: vi.fn(async (routePath: string) => {
+			prebuiltRoutes.push(routePath);
+		}),
+	};
+	const appConfig = {
+		rootDir: '/tmp',
+		absolutePaths: { pagesDir: '/tmp/pages', srcDir: '/tmp/src', distDir: '/tmp/dist', workDir: '/tmp/.eco' },
+		integrations: [],
+	} as unknown as EcoPagesAppConfig;
+	const routeRendererFactory = {
+		getPageRenderer: () => renderer as never,
+	};
+
+	await prebuildProductionPageBrowserGraphs(
+		appConfig,
+		[
+			{ routeFile, params: { slug: 'broken' } },
+			{ routeFile, params: { slug: 'healthy' } },
+		],
+		routeRendererFactory,
+	);
+
+	assert.deepEqual(prebuiltRoutes, [routeFile]);
+	assert.deepEqual(buildAppBrowserClientMock.mock.calls[0]?.[1], [groupedBuildPlan]);
 });
 
 test('clearProductionPageBrowserGraphSession clears production session records', async () => {

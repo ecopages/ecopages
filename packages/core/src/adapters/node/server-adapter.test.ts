@@ -203,10 +203,10 @@ describe('NodeServerAdapter', () => {
 			build: staticBuilderBuild,
 		};
 
-		await adapter.buildStatic({ force: true });
+		await adapter.buildStatic({ force: true, keepGoing: true });
 
 		expect(staticBuilderBuild).toHaveBeenCalledWith(
-			expect.objectContaining({ baseUrl: 'http://localhost:3000' }),
+			expect.objectContaining({ baseUrl: 'http://localhost:3000', force: true, keepGoing: true }),
 			expect.any(Object),
 		);
 	});

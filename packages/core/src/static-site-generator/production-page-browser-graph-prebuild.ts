@@ -76,9 +76,23 @@ export async function prebuildProductionPageBrowserGraphs(
 		groupedBuildPlan: GroupedGraphBuildPlan;
 	}> = [];
 	for (const [renderer, routeInstancesForRenderer] of instancesByRenderer) {
-		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan(routeInstancesForRenderer);
-		rendererPlans.push({ renderer, routeInstances: routeInstancesForRenderer, groupedBuildPlan });
+		const failedRouteInstances = new Set<string>();
+		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan(routeInstancesForRenderer, {
+			onRouteFailure: (routeInstance) => {
+				failedRouteInstances.add(serializeProductionRouteInstance(routeInstance));
+			},
+		});
+		const successfulRouteInstances = routeInstancesForRenderer.filter(
+			(routeInstance) => !failedRouteInstances.has(serializeProductionRouteInstance(routeInstance)),
+		);
+		if (successfulRouteInstances.length === 0) continue;
+		rendererPlans.push({
+			renderer,
+			routeInstances: successfulRouteInstances,
+			groupedBuildPlan,
+		});
 	}
+	if (rendererPlans.length === 0) return;
 	const appBrowserPlans = await buildAppBrowserClient(
 		appConfig,
 		rendererPlans.map(({ groupedBuildPlan }) => groupedBuildPlan),

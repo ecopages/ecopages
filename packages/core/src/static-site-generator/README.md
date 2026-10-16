@@ -44,6 +44,8 @@ Semantic error pages are excluded from ordinary page enumeration and emitted onc
 
 `ServerStaticBuilder.prepareExport()` empties `dist/`, copies the public directory into it, marks runtime assets for rebuilding and sets Processors and Integrations up. The Node adapter calls it during initialization, before the router reads any Page, and `build()` prepares the export itself only when nothing did. Every build renders every page from source in a fresh process, so nothing in an earlier `dist/` is reused and no HTML is skipped or pruned. Route-module transpile and the unified pages graph are reused in memory only, within the current process. Before rendering, production prebuild gathers grouped browser entries from every renderer and the HTML shell module scripts into compatible app-wide browser build groups, then associates their entry assets with the routes that use them.
 
+Filesystem and explicit Page render failures are logged with their route and stack. By default, Core finishes the remaining routes and sitemap, releases export resources, then fails the build with all page failures; `ecopages build` exits with status 1. `ecopages build --keep-going` keeps the earlier log-and-continue behavior and exits successfully, leaving failed Pages out of the export.
+
 ## Integration hooks
 
 Integrations may implement:

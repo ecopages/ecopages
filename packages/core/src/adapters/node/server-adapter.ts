@@ -226,13 +226,17 @@ export class NodeServerAdapter {
 		return await this.requestPipeline.listStaticGenerationRoutes(input);
 	}
 
-	public async buildStatic(options?: { preview?: boolean; force?: boolean }): Promise<string | undefined> {
+	public async buildStatic(options?: {
+		preview?: boolean;
+		force?: boolean;
+		keepGoing?: boolean;
+	}): Promise<string | undefined> {
 		await this.initialize();
 
 		const baseUrl = resolveServeRuntimeOrigin(this.serveOptions);
 		const { router, routeRendererFactory } = this.requestPipeline.getStaticBuildContext();
 		await this.staticBuilder.build(
-			{ baseUrl, force: options?.force },
+			{ baseUrl, force: options?.force, keepGoing: options?.keepGoing },
 			{
 				router,
 				routeRendererFactory,

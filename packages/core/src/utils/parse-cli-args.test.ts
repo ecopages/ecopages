@@ -42,6 +42,12 @@ describe('parseCliArgs', () => {
 		expect(process.env.NODE_ENV).toBe('production');
 	});
 
+	it('parses the keep-going build option', () => {
+		process.argv = ['node', '/usr/local/bin/ecopages.js', 'build', '--keep-going'];
+
+		expect(parseCliArgs()).toMatchObject({ build: true, keepGoing: true });
+	});
+
 	it('keeps development NODE_ENV for dev commands', () => {
 		vi.stubEnv('NODE_ENV', 'development');
 		process.argv = ['node', '/usr/local/bin/ecopages.js', 'dev'];

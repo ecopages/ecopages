@@ -64,6 +64,18 @@ type ExplicitStaticRouteEntry = {
 	params: Record<string, string | string[]>;
 };
 
+function createStaticGenerationPageError(route: string, error: unknown, label = 'static page'): Error {
+	const cause = error instanceof Error ? error : new Error(String(error));
+	appLogger.error(`Error generating ${label} for ${route}:`, cause);
+	return new Error(`Failed to generate ${label} for ${route}`, { cause });
+}
+
+function throwStaticGenerationPageFailures(pageFailures: Error[], keepGoing: boolean): void {
+	if (!keepGoing && pageFailures.length > 0) {
+		throw new AggregateError(pageFailures, `Failed to generate ${pageFailures.length} static page(s)`);
+	}
+}
+
 export const STATIC_SITE_GENERATOR_ERRORS = {
 	ROUTE_RENDERER_FACTORY_REQUIRED: 'RouteRendererFactory is required for render strategy',
 	unsupportedBodyType: (bodyType: string) => `Unsupported body type for static generation: ${bodyType}`,
@@ -294,6 +306,7 @@ export class StaticSiteGenerator {
 		baseUrl: string;
 		routeRendererFactory?: StaticPageRouteRendererFactory;
 		skipped?: string[];
+		failures?: Error[];
 		activeStaticPathnames?: Set<string>;
 		preloadedRoutes?: readonly StaticGenerationRoute[];
 		sitemapEligiblePathnames?: Set<string>;
@@ -308,6 +321,7 @@ export class StaticSiteGenerator {
 		);
 
 		const directories = this.getDirectories(routes.map((route) => route.requestUrl));
+		const failures = input.failures ?? [];
 
 		await runWithConcurrency(routes, resolveBuildParallelism(), async (route) => {
 			try {
@@ -338,12 +352,13 @@ export class StaticSiteGenerator {
 					},
 				});
 			} catch (error) {
-				appLogger.error(
-					`Error generating static page for ${route.requestUrl}:`,
-					error instanceof Error ? error : String(error),
-				);
+				failures.push(createStaticGenerationPageError(route.requestUrl, error));
 			}
 		});
+
+		if (!input.failures && failures.length > 0) {
+			throw new AggregateError(failures, `Failed to generate ${failures.length} static page(s)`);
+		}
 	}
 
 	private createStaticExportContext(input: {
@@ -428,6 +443,7 @@ export class StaticSiteGenerator {
 		errorPageLoaders?: ErrorPageLoaders;
 		routes: readonly StaticGenerationRoute[];
 		skippedDynamicPages: string[];
+		pageFailures: Error[];
 		activeStaticPathnames: Set<string>;
 		sitemapEligiblePathnames?: Set<string>;
 	}): Promise<void> {
@@ -450,6 +466,7 @@ export class StaticSiteGenerator {
 			baseUrl: input.baseUrl,
 			routeRendererFactory: input.routeRendererFactory,
 			skipped: input.skippedDynamicPages,
+			failures: input.pageFailures,
 			activeStaticPathnames: input.activeStaticPathnames,
 			preloadedRoutes: pageRoutes,
 			sitemapEligiblePathnames: input.sitemapEligiblePathnames,
@@ -460,6 +477,7 @@ export class StaticSiteGenerator {
 				staticRoutes: input.staticRoutes,
 				routeRendererFactory: input.routeRendererFactory,
 				skipped: input.skippedDynamicPages,
+				failures: input.pageFailures,
 				activeStaticPathnames: input.activeStaticPathnames,
 				sitemapEligiblePathnames: input.sitemapEligiblePathnames,
 			});
@@ -508,6 +526,7 @@ export class StaticSiteGenerator {
 		staticRoutes,
 		errorPageLoaders,
 		force = false,
+		keepGoing = false,
 	}: {
 		router: StaticGenerationRouteSource;
 		baseUrl: string;
@@ -515,8 +534,10 @@ export class StaticSiteGenerator {
 		staticRoutes?: StaticRoute[];
 		errorPageLoaders?: ErrorPageLoaders;
 		force?: boolean;
+		keepGoing?: boolean;
 	}) {
 		const skippedDynamicPages: string[] = [];
+		const pageFailures: Error[] = [];
 		const activeStaticPathnames = new Set<string>();
 		const sitemapEligiblePathnames = this.appConfig.sitemap?.enabled ? new Set<string>() : undefined;
 		this.resetStaticGenerationState(force);
@@ -550,6 +571,7 @@ export class StaticSiteGenerator {
 					errorPageLoaders,
 					routes,
 					skippedDynamicPages,
+					pageFailures,
 					activeStaticPathnames,
 					sitemapEligiblePathnames,
 				});
@@ -565,6 +587,7 @@ export class StaticSiteGenerator {
 				skippedDynamicPages,
 				sitemapEligiblePathnames,
 			});
+			throwStaticGenerationPageFailures(pageFailures, keepGoing);
 		} catch (error) {
 			generationFailed = true;
 			generationError = error;
@@ -600,6 +623,7 @@ export class StaticSiteGenerator {
 		staticRoutes: StaticRoute[];
 		routeRendererFactory: ExplicitStaticRouteRendererFactory;
 		skipped?: string[];
+		failures: Error[];
 		activeStaticPathnames?: Set<string>;
 		sitemapEligiblePathnames?: Set<string>;
 	}): Promise<void> {
@@ -621,14 +645,12 @@ export class StaticSiteGenerator {
 					routePath: route.path,
 					view,
 					routeRendererFactory: input.routeRendererFactory,
+					failures: input.failures,
 					activeStaticPathnames: input.activeStaticPathnames,
 					sitemapEligiblePathnames: input.sitemapEligiblePathnames,
 				});
 			} catch (error) {
-				appLogger.error(
-					`Error generating explicit static page for ${route.path}:`,
-					error instanceof Error ? error : String(error),
-				);
+				input.failures.push(createStaticGenerationPageError(route.path, error, 'explicit static page'));
 			}
 		}
 	}
@@ -637,10 +659,12 @@ export class StaticSiteGenerator {
 		routePath: string;
 		view: EcoPageComponent<any>;
 		routeRendererFactory: ExplicitStaticRouteRendererFactory;
+		failures: Error[];
 		activeStaticPathnames?: Set<string>;
 		sitemapEligiblePathnames?: Set<string>;
 	}): Promise<void> {
-		const { routePath, view, routeRendererFactory, activeStaticPathnames, sitemapEligiblePathnames } = input;
+		const { routePath, view, routeRendererFactory, failures, activeStaticPathnames, sitemapEligiblePathnames } =
+			input;
 		const { renderer, routeEntries } = await this.planExplicitStaticRoute({
 			routePath,
 			view,
@@ -648,35 +672,39 @@ export class StaticSiteGenerator {
 		});
 
 		for (const { pathname, params } of routeEntries) {
-			let renderedMetadata: PageMetadataProps | undefined;
-			await this.writeStaticPageArtifact({
-				pathname,
-				activeStaticPathnames,
-				onSuccessfulExport: () =>
-					this.considerSitemapEligibility({
-						pathname,
-						sitemapEligiblePathnames,
-						resolveMetadata: async () => {
-							if (!renderedMetadata) {
-								throw new Error(`No metadata was rendered for ${pathname}`);
-							}
-							return renderedMetadata;
-						},
-					}),
-				createContents: async () => {
-					const { html, metadata } = await this.createExplicitStaticContents({
-						routePath,
-						view,
-						params,
-						routeRendererFactory,
-						renderer,
-					});
-					renderedMetadata = metadata;
-					return html;
-				},
-			});
+			try {
+				let renderedMetadata: PageMetadataProps | undefined;
+				await this.writeStaticPageArtifact({
+					pathname,
+					activeStaticPathnames,
+					onSuccessfulExport: () =>
+						this.considerSitemapEligibility({
+							pathname,
+							sitemapEligiblePathnames,
+							resolveMetadata: async () => {
+								if (!renderedMetadata) {
+									throw new Error(`No metadata was rendered for ${pathname}`);
+								}
+								return renderedMetadata;
+							},
+						}),
+					createContents: async () => {
+						const { html, metadata } = await this.createExplicitStaticContents({
+							routePath,
+							view,
+							params,
+							routeRendererFactory,
+							renderer,
+						});
+						renderedMetadata = metadata;
+						return html;
+					},
+				});
 
-			appLogger.debug(`Generated static page: ${pathname}`);
+				appLogger.debug(`Generated static page: ${pathname}`);
+			} catch (error) {
+				failures.push(createStaticGenerationPageError(pathname, error, 'explicit static page'));
+			}
 		}
 	}
 

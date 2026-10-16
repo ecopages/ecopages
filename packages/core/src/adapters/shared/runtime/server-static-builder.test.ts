@@ -315,6 +315,7 @@ describe('ServerStaticBuilder', () => {
 					staticRoutes: undefined,
 					errorPageLoaders: undefined,
 					force: false,
+					keepGoing: undefined,
 				},
 			]);
 		});

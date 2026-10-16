@@ -18,6 +18,7 @@ import type {
 	ComponentRenderInput,
 	EcoPagesElement,
 	EcoPageFile,
+	GetStaticProps,
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
 	RouteRendererOptions,
@@ -313,6 +314,43 @@ describe('IntegrationRenderer', () => {
 		expect(validateGraph).toHaveBeenCalledTimes(2);
 		expect(result.metadata?.title).toBe('captured');
 		validateGraph.mockRestore();
+	});
+
+	it('continues grouped production prebuild after a route data hook fails', async () => {
+		const routeFile = '/app/pages/[slug].tsx';
+		const failure = new Error('broken static props');
+		const staticProps: GetStaticProps<{ slug: string }> = async ({ pathname }) => {
+			const slug = String(pathname.params.slug);
+			if (slug === 'broken') throw failure;
+			return { props: { slug } };
+		};
+		const Page = (({ slug }: { slug: string }) => `<p>${slug}</p>`) as EcoPageComponent<{ slug: string }>;
+		Page.staticProps = staticProps;
+		const renderer = new TestIntegrationRenderer({
+			appConfig: testAppConfig,
+			assetProcessingService: testAssetService,
+		});
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const onRouteFailure = vi.fn();
+
+		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan(
+			[
+				{ routeFile, params: { slug: 'broken' } },
+				{ routeFile, params: { slug: 'healthy' } },
+			],
+			{ onRouteFailure },
+		);
+
+		expect(onRouteFailure).toHaveBeenCalledOnce();
+		expect(onRouteFailure.mock.calls[0]?.[0]).toEqual({ routeFile, params: { slug: 'broken' } });
+		expect(onRouteFailure.mock.calls[0]?.[1]).toMatchObject({
+			message: 'Error fetching static props: broken static props',
+			cause: failure,
+		});
+		expect(groupedBuildPlan.instances).toHaveLength(1);
+		expect(groupedBuildPlan.instances[0]?.routeFile).toBe(routeFile);
+		expect(groupedBuildPlan.instances[0]?.dependencyInstanceKey).toContain('healthy');
 	});
 
 	it('resolves lazy triggers from the prebuilt app browser client assets', async () => {

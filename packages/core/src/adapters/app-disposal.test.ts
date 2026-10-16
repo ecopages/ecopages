@@ -17,6 +17,7 @@ const defaultCliArgs = {
 	start: true,
 	dev: false,
 	serveOnly: false,
+	keepGoing: false,
 	port: undefined,
 	hostname: undefined,
 };
@@ -127,7 +128,7 @@ describe('EcopagesApp disposal', () => {
 
 		await app.start();
 
-		expect(buildStatic).toHaveBeenCalledWith({ preview: true });
+		expect(buildStatic).toHaveBeenCalledWith({ preview: true, keepGoing: false });
 		expect(dispose).not.toHaveBeenCalled();
 		expect(runtimeHost.stop).not.toHaveBeenCalled();
 	});

@@ -15,6 +15,7 @@ Typical responsibilities include:
 - asset processing and runtime asset declaration helpers
 - entrypoint dependency graphs
 - HTML finalization and dependency injection
+- request validation with Standard Schema
 
 ## Main Areas
 
@@ -27,6 +28,7 @@ Typical responsibilities include:
 - Request-pipeline metrics counters are held by each `AppRuntime`; response headers and render/build instrumentation use the owning app's counters.
 - `html/`: final HTML dependency injection and attribute stamping through `HtmlRewriter`, an in-house streaming rewriter with a subset of the HTMLRewriter API that matches lol-html output (tag-name selectors; `before`/`prepend`/`append`/`after`; attributes). `HtmlTransformerService.transform()` receives the page package and document contributions as per-call input, so concurrent renders do not share queued dependency state. Generated asset URLs and declared attribute values are escaped with `escapeHtmlAttribute` before their tags are injected. `html-rewriter.test.ts` pins the lol-html output. `html-tokenizer.ts` holds the lexing rules it shares with `html-source-parser.ts`, a positional parser for callers that splice the original markup, such as HTML Pages.
 - `error-pages/`: shared semantic 404/500 source precedence, rendering, built-in documents, and static export artifacts
+- `validation/`: `validateRequest()` runs declared Standard Schema validators concurrently when their inputs are available; a body schema always runs and receives `undefined` for an empty body, so required schemas reject it and optional schemas can accept it.
 
 The asset-processing service caches emitted file assets by dependency identity in development as well as production. Script and stylesheet attributes are part of that identity, so two declarations of the same file with different attributes stay apart. An ungrouped file asset is reused until its source hash changes, its output is missing, or a development change batch drops the entry.
 

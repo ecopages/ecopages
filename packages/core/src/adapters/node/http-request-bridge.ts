@@ -93,8 +93,8 @@ export class NodeHttpRequestBridge {
 	 * the shared server adapter.
 	 *
 	 * @remarks
-	 * Non-GET/HEAD requests retain streaming semantics via a `ReadableStream` so
-	 * large request bodies do not need to be buffered before route handling begins.
+	 * Requests with body framing retain streaming semantics via a `ReadableStream`
+	 * so large request bodies do not need to be buffered before route handling begins.
 	 */
 	public createWebRequest(req: IncomingMessage, runtimeOrigin: string): Request {
 		const url = new URL(req.url ?? '/', runtimeOrigin);
@@ -119,21 +119,57 @@ export class NodeHttpRequestBridge {
 			headers,
 		};
 
-		if (method !== 'GET' && method !== 'HEAD') {
+		const hasBodyFraming =
+			req.headers['transfer-encoding'] !== undefined || Number(req.headers['content-length'] ?? 0) > 0;
+		if (method !== 'GET' && method !== 'HEAD' && hasBodyFraming) {
+			let cancelled = false;
+			let settled = false;
+			let onData: ((chunk: Buffer) => void) | undefined;
 			const body = new ReadableStream({
 				start(controller) {
-					req.on('data', (chunk: Buffer) => controller.enqueue(chunk));
-					req.once('end', () => controller.close());
-					req.once('aborted', () => {
+					const dataListener = (chunk: Buffer) => {
+						if (!cancelled) controller.enqueue(chunk);
+					};
+					const onEnd = () => {
+						cleanup();
+						if (cancelled || settled) return;
+						settled = true;
+						controller.close();
+					};
+					const onAborted = () => {
+						req.off('data', dataListener);
+						req.off('end', onEnd);
+						req.off('aborted', onAborted);
+						if (cancelled || settled) return;
+						settled = true;
 						controller.error(new NodeClientAbortError());
-					});
-					req.once('error', (err) => {
+					};
+					const onError = (err: Error) => {
+						cleanup();
+						if (cancelled || settled) return;
+						settled = true;
 						const isClientAbort = (err as NodeJS.ErrnoException).code === 'ECONNRESET';
 						controller.error(isClientAbort ? new NodeClientAbortError() : err);
-					});
+					};
+					const onClose = () => cleanup();
+					const cleanup = () => {
+						req.off('data', dataListener);
+						req.off('end', onEnd);
+						req.off('aborted', onAborted);
+						req.off('error', onError);
+						req.off('close', onClose);
+					};
+					onData = dataListener;
+					req.on('data', dataListener);
+					req.once('end', onEnd);
+					req.once('aborted', onAborted);
+					req.once('error', onError);
+					req.once('close', onClose);
 				},
 				cancel() {
-					req.destroy();
+					cancelled = true;
+					if (onData) req.off('data', onData);
+					req.resume();
 				},
 			});
 

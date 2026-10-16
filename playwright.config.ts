@@ -65,7 +65,8 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 	{
 		name: 'cross-integration-hmr-node-e2e',
 		testMatch: 'playground/kitchen-sink/e2e/*-hmr.test.e2e.ts',
-		fullyParallel: false,
+		fullyParallel: true,
+		workers: 2,
 		timeout: 90_000,
 		use: {
 			...chrome,

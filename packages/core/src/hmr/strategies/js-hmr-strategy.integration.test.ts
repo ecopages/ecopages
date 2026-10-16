@@ -7,7 +7,7 @@ import { requireAppRuntime } from '../../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
 import { HMR_RUNTIME_WORK_DIR_SEGMENT } from '../../hmr/hmr-runtime-paths.ts';
-import { NodeHmrManager } from '../../adapters/node/node-hmr-manager.ts';
+import { HmrManager } from '../../adapters/shared/hmr/hmr-manager.ts';
 import type { ClientBridgeEvent } from '../../types/public-types.ts';
 import { resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 
@@ -25,7 +25,7 @@ afterEach(() => {
 	}
 });
 
-async function readDevTransformModule(manager: NodeHmrManager, entrypointPath: string): Promise<string | undefined> {
+async function readDevTransformModule(manager: HmrManager, entrypointPath: string): Promise<string | undefined> {
 	const outputUrl = manager.getRegisteredEntrypoints().get(path.resolve(entrypointPath))?.outputUrl;
 	if (!outputUrl) {
 		return undefined;
@@ -60,7 +60,7 @@ describe('JsHmrStrategy integration', () => {
 		config.templatesExt = ['.eco.tsx'];
 
 		const broadcasts: ClientBridgeEvent[] = [];
-		using manager = new NodeHmrManager({
+		using manager = new HmrManager({
 			appConfig: config,
 			bridge: {
 				subscriberCount: 1,
@@ -129,7 +129,7 @@ describe('JsHmrStrategy integration', () => {
 			getDevelopmentGeneration: () => 0,
 		} as never;
 
-		using manager = new NodeHmrManager({
+		using manager = new HmrManager({
 			appConfig: config,
 			bridge: {
 				subscriberCount: 1,
@@ -180,7 +180,7 @@ describe('JsHmrStrategy integration', () => {
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const broadcasts: ClientBridgeEvent[] = [];
-		using manager = new NodeHmrManager({
+		using manager = new HmrManager({
 			appConfig: config,
 			bridge: {
 				subscriberCount: 1,

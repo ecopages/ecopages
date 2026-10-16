@@ -10,8 +10,8 @@ import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import { resolveInternalExecutionDir } from '../../../utils/resolve-work-dir.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { ClientBridgeEvent } from '../../../types/public-types.ts';
-import { createTempRoot, startNodeHmrManager, writeSourceFile } from './hmr-manager.test-helpers.ts';
-import type { SharedHmrManager } from './shared-hmr-manager.ts';
+import { createTempRoot, startHmrManager, writeSourceFile } from './hmr-manager.test-helpers.ts';
+import type { HmrManager } from './hmr-manager.ts';
 import { createBuildSuccess } from '../../../__fixtures__/build/build-result.ts';
 
 const PAGE_SOURCE = 'export default function Page() { return null; }';
@@ -29,8 +29,8 @@ const runtimes = [
 		async create(
 			config: EcoPagesAppConfig,
 			subscriberCount = 0,
-		): Promise<{ manager: SharedHmrManager; broadcasts: ClientBridgeEvent[] }> {
-			return startNodeHmrManager(config, subscriberCount);
+		): Promise<{ manager: HmrManager; broadcasts: ClientBridgeEvent[] }> {
+			return startHmrManager(config, subscriberCount);
 		},
 	},
 ] as const;

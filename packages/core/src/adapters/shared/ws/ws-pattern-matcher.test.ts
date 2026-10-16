@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { findWebSocketRoute } from './ws-pattern-matcher.ts';
-import type { EcopagesWebSocketHandler } from '../../types/public-types.ts';
+import type { EcopagesWebSocketHandler } from '../../../types/public-types.ts';
 
 describe('findWebSocketRoute', () => {
 	it('returns the most specific matching handler', () => {

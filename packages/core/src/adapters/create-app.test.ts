@@ -10,14 +10,15 @@ import { defineIntegration } from '../plugins/define-integration.ts';
 import { StringMarkupRenderer } from '../route-renderer/orchestration/string-markup-renderer.ts';
 import { ProjectWatcher } from '../watchers/project-watcher.ts';
 import { createApp } from './create-app.ts';
-import { NodeEcopagesApp } from './node/create-app.ts';
+import { EcopagesApp } from './node/create-app.ts';
 import type { NodeRuntimeServeOptions } from './node/runtime-host.ts';
 import type { RuntimeHost } from './shared/runtime/runtime-host.ts';
+import { parseCliArgs } from '../utils/parse-cli-args.ts';
 
 describe('createApp', () => {
 	it('creates the Node host', async () => {
 		await using app = await createApp({ appConfig: {} as never });
-		expect(app).toBeInstanceOf(NodeEcopagesApp);
+		expect(app).toBeInstanceOf(EcopagesApp);
 		expect(typeof app.fetch).toBe('function');
 	});
 
@@ -94,9 +95,10 @@ describe('createApp', () => {
 			}),
 		};
 
-		const app = new NodeEcopagesApp(
+		const app = new EcopagesApp(
 			{
 				appConfig,
+				cliArgs: parseCliArgs(),
 			},
 			{ runtimeHost },
 		);

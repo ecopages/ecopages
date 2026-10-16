@@ -1,15 +1,14 @@
 import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { vi } from 'vitest';
-import { createApp } from '../../packages/core/src/adapters/create-app.ts';
-import { NodeEcopagesApp } from '../../packages/core/src/adapters/node/create-app.ts';
+import { createApp, type EcopagesApp } from '../../packages/core/src/adapters/create-app.ts';
 import { copyFixtureApp } from '../../packages/core/__fixtures__/app/copy-fixture-app.ts';
 
 export type StaticExport = {
 	/** Origin of a preview server that serves the exported files. */
 	origin: string;
 	/** The fixture app, still able to render a Page on request with `app.fetch()`. */
-	app: NodeEcopagesApp;
+	app: EcopagesApp;
 	/** Stops the servers and removes the private copy of the fixture. */
 	stop: () => Promise<void>;
 };
@@ -29,9 +28,6 @@ export async function startStaticExport(fixtureDir: string): Promise<StaticExpor
 	const configFile = path.join(appDir, 'eco.config.ts');
 
 	const app = await createApp({ configFile, serverOptions: { hostname: '127.0.0.1', port: 0 } });
-	if (!(app instanceof NodeEcopagesApp)) {
-		throw new Error('Expected the Node host');
-	}
 	await app.fetch(new Request('http://localhost:3000/'));
 	await app.serverAdapter!.buildStatic();
 	const origin = await app.serverAdapter!.servePreviewOnly();

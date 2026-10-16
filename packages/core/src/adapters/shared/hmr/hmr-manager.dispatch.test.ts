@@ -9,8 +9,7 @@ import { appLogger } from '../../../global/app-logger.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../../../hmr/hmr-strategy.ts';
 import type { ClientBridgeEvent } from '../../../types/public-types.ts';
-import { NodeHmrManager } from '../../node/node-hmr-manager.ts';
-import type { SharedHmrManager } from './shared-hmr-manager.ts';
+import { HmrManager } from './hmr-manager.ts';
 
 class FakeHmrStrategy extends HmrStrategy {
 	readonly type: HmrStrategyType;
@@ -82,12 +81,12 @@ const runtimes = [
 		name: 'node',
 		async create(rootDir: string, bridgeSpy: BridgeSpy) {
 			const config = await finalizeEcoPagesConfig({ rootDir });
-			return new NodeHmrManager({ appConfig: config, bridge: bridgeSpy.bridge as any });
+			return new HmrManager({ appConfig: config, bridge: bridgeSpy.bridge as any });
 		},
 	},
 ] as const;
 
-function collectPendingBuildErrors(manager: SharedHmrManager): ClientBridgeEvent[] {
+function collectPendingBuildErrors(manager: HmrManager): ClientBridgeEvent[] {
 	const received: ClientBridgeEvent[] = [];
 	manager.sendPendingBuildErrors({ send: (payload) => received.push(JSON.parse(payload)) });
 	return received;

@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { NodeHmrManager } from '../adapters/node/node-hmr-manager.ts';
+import { HmrManager } from '../adapters/shared/hmr/hmr-manager.ts';
 import { installBuildQueue } from '../build/runtime/build-queue.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 
@@ -11,7 +11,7 @@ const toolbarPackageDir = path.resolve(path.dirname(fileURLToPath(import.meta.ur
 const HMR_RUNTIME_IMPORT = "import '/_hmr_runtime.js'";
 const DEV_TOOLBAR_RUNTIME_IMPORT = "import '/_dev_toolbar.js'";
 const tempRoots: string[] = [];
-const managers: NodeHmrManager[] = [];
+const managers: HmrManager[] = [];
 
 afterEach(() => {
 	for (const manager of managers.splice(0)) {
@@ -24,7 +24,7 @@ afterEach(() => {
 });
 
 /** Creates a manager for an app whose `node_modules` holds the workspace Dev Toolbar package, or none. */
-async function createManager(options: { toolbarPackage: string; installToolbar: boolean }): Promise<NodeHmrManager> {
+async function createManager(options: { toolbarPackage: string; installToolbar: boolean }): Promise<HmrManager> {
 	const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-dev-client-runtimes-'));
 	tempRoots.push(rootDir);
 	if (options.installToolbar) {
@@ -35,7 +35,7 @@ async function createManager(options: { toolbarPackage: string; installToolbar: 
 
 	const appConfig = await finalizeEcoPagesConfig({ rootDir, devToolbar: { package: options.toolbarPackage } });
 	installBuildQueue(appConfig);
-	const manager = new NodeHmrManager({
+	const manager = new HmrManager({
 		appConfig,
 		bridge: { subscriberCount: 0, broadcast: () => {} } as never,
 	});
@@ -43,7 +43,7 @@ async function createManager(options: { toolbarPackage: string; installToolbar: 
 	return manager;
 }
 
-async function injectIntoHtml(manager: NodeHmrManager): Promise<string> {
+async function injectIntoHtml(manager: HmrManager): Promise<string> {
 	const response = await manager.injectDevClientRuntimes(
 		new Response('<html><body></body></html>', { headers: { 'Content-Type': 'text/html' } }),
 	);

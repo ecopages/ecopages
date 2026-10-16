@@ -114,7 +114,7 @@ describe('ServerRouteHandler', () => {
 			expect(FileSystemResponseMatcher.renderServerError).toHaveBeenCalledWith(new URL(url).pathname, error);
 		});
 
-		it('should not inject HMR script (injection lives in SharedServerAdapter)', async () => {
+		it('should not inject HMR script (injection lives in ServerRequestPipeline)', async () => {
 			const { Router, FileSystemResponseMatcher } = createMockDependencies();
 			const handler = new ServerRouteHandler({
 				router: Router,

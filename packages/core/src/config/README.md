@@ -33,6 +33,7 @@ It is responsible for:
 - Integrations and processors declare contributions.
 - `finalizeEcoPagesConfig()` decides ordering, validates compatibility, and installs the Rolldown adapter on the finalized app config.
 - Each config load creates a new finalized app config and runtime. A config factory also creates fresh integrations, processors and loaders for each app; reusing an object config with plugin instances for another app throws. Runtime startup reuses that app's config/build state; it should not recompute manifest ownership.
+- `EcopagesApp` shares one readiness promise across concurrent `start()` and `fetch()` calls. `stop()` disposes its Node server adapter and watch session; a later `start()` or `fetch()` creates a new adapter while continuing to use the same finalized config's `AppRuntime`.
 - Production startup loads the emitted config artifact recorded by the server build, even when the source config is still present.
 
 App-owned Rolldown is the only build path. Finalization installs that adapter on every config.

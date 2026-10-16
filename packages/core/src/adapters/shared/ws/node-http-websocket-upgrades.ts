@@ -7,14 +7,14 @@ import type {
 	EcopagesWebSocketHandler,
 	IncomingWebSocketMessage,
 } from '../../../types/public-types.ts';
-import { findWebSocketRoute, type WebSocketRouteMatch } from '../../abstract/ws-pattern-matcher.ts';
+import { findWebSocketRoute, type WebSocketRouteMatch } from './ws-pattern-matcher.ts';
 import { createEcopagesSocket, invokeWebSocketHandlerHook, toWebSocketCloseInfo } from './websocket-lifecycle.ts';
 
 export type NodeHttpWebSocketUpgradePreflight = (req: IncomingMessage, socket: Duplex, head: Buffer) => boolean;
 
 export type AttachNodeHttpWebSocketUpgradesOptions = {
 	runtimeOrigin: string;
-	websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>>;
+	websocketHandlers: Map<string, EcopagesWebSocketHandler<unknown, Record<string, string>>>;
 	preflight?: NodeHttpWebSocketUpgradePreflight;
 };
 

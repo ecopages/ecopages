@@ -1,14 +1,14 @@
-import type { EcopagesWebSocketHandler } from '../../types/public-types.ts';
-import { matchColonSegmentPath, scoreColonSegmentPath } from './segment-path-matcher.ts';
+import type { EcopagesWebSocketHandler } from '../../../types/public-types.ts';
+import { matchColonSegmentPath, scoreColonSegmentPath } from '../http/segment-path-matcher.ts';
 
 export type WebSocketRouteMatch = {
-	handler: EcopagesWebSocketHandler<any, any>;
+	handler: EcopagesWebSocketHandler<unknown, Record<string, string>>;
 	params: Record<string, string>;
 	kind: string;
 };
 
 export function findWebSocketRoute(
-	handlers: Map<string, EcopagesWebSocketHandler<any, any>>,
+	handlers: Map<string, EcopagesWebSocketHandler<unknown, Record<string, string>>>,
 	pathname: string,
 ): WebSocketRouteMatch | null {
 	let best: { score: number; match: WebSocketRouteMatch; index: number } | null = null;

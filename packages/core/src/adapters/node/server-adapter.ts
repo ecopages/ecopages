@@ -120,7 +120,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 * Reference to the application-level WebSocket handlers map.
 	 *
 	 * @remarks
-	 * This is a reference to the map owned by `AbstractApplicationAdapter`,
+	 * This is a reference to the map owned by `EcopagesApp`,
 	 * passed in via the constructor. The Node adapter reads from it to wire
 	 * WebSocket upgrades for user-registered patterns.
 	 */

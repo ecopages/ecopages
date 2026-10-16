@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createApp, type UniversalEcopagesApp } from '@ecopages/core/create-app';
+import { createApp } from '@ecopages/core/create-app';
 import { copyFixtureApp } from '../../../packages/core/__fixtures__/app/copy-fixture-app.ts';
 
 type RevalidateBody = { tags?: string[]; paths?: string[] };
@@ -22,7 +22,7 @@ const ORIGIN = 'http://localhost:3000';
  */
 async function startCacheApp() {
 	const appDir = copyFixtureApp(import.meta.dirname);
-	const app: UniversalEcopagesApp = await createApp({ configFile: path.join(appDir, 'eco.config.ts') });
+	const app = await createApp({ configFile: path.join(appDir, 'eco.config.ts') });
 
 	app.post('/api/revalidate', async ({ request, services }) => {
 		const body = (await request.json()) as RevalidateBody;

@@ -4,7 +4,7 @@ This directory contains the runtime-host integration layer for Ecopages.
 
 ## Purpose
 
-Adapters translate app-owned core services into concrete runtime behavior at the host boundary. The server adapter, the route renderer factory, and the static builder each take the config's assembled `AppRuntime`; `createApp()` reads it from the finalized config. `createApp()` always uses the Node HTTP host. The process can still be Bun: the CLI launches Bun when Bun started the command or when `--runtime bun` is passed, and the start log names that runtime.
+Adapters translate app-owned core services into concrete runtime behavior at the host boundary. `createApp()` resolves the config and command-line mode once, then returns the concrete `EcopagesApp`. That app owns route registration and the Node HTTP server lifecycle; the server adapter, route renderer factory, and static builder receive the finalized config's `AppRuntime`.
 
 They are responsible for:
 
@@ -26,11 +26,11 @@ They are not responsible for:
 
 ## Main Areas
 
-- `node/`: Node server adapter, app shell, HTTP request bridge, and HMR transport
+- `node/`: `EcopagesApp`, Node server adapter, HTTP request bridge, and HMR transport
 - `shared/`: runtime-neutral adapter helpers, clustered by concern:
     - `shared/http/` — API response builders, the shared `serveDistFile()` request handler, middleware runner, define-api helpers, explicit-static and filesystem matchers. The dist handler owns file lookup, path validation, HEAD and 405 behavior, ETags, conditional 304, gzip negotiation, and `Cache-Control` for both the runtime fallback and preview. In watch mode stable non-HTML files use `no-cache`; in production only recorded content-hashed outputs are `immutable`, and `.html` and every other file is revalidated (`public, max-age=0, must-revalidate`). A `.gz` variant is sent only to a client that accepts gzip, and any gzip-eligible file that has one carries `Vary: Accept-Encoding`. `FileSystemServerResponseFactory` only wraps rendered route and error-page bodies.
     - `shared/hmr/` — HMR HTML inject helpers, shared HMR manager, entrypoint registrar. `SharedHmrManager` assigns `appRuntime.hmr` for the dev session, owns per-session script entrypoint change handlers (`onScriptEntrypointChanged`), and clears both on `stop()`. In watch mode every HTML response is marked `no-store`
-    - `shared/runtime/` — shared server adapter, route handler, application adapter, static builder, port/bootstrap utilities (`PortManager` on dev and preview bind, Clack confirm on TTY port collisions), and the public asset copy helper used at startup, during static export, and by the watcher. Preview binds `serveDistFile()` through the same `RuntimeHost` transport used by the app server. Watch-mode `startDevWarmup()` finishes integration `setup()` before the server logs that it is listening. Declared prewarm paths (`devPrewarmPaths`, including those Processors append in `setup()`) are de-duplicated and rendered in the background, without delaying server readiness; a path that fails to render is skipped and logged at debug level. The Project Watcher also finishes its initial filesystem subscription before readiness is advertised. Node `bootServer()` calls `completeInitialization` before the listen log, so Playwright's listen-log ready signal does not start tests during that warmup.
+    - `shared/runtime/` — shared server adapter, route handler, static builder, port/bootstrap utilities (`PortManager` on dev and preview bind, Clack confirm on TTY port collisions), and the public asset copy helper used at startup, during static export, and by the watcher. Preview binds `serveDistFile()` through the same `RuntimeHost` transport used by the app server. Watch-mode `startDevWarmup()` finishes integration `setup()` before the server logs that it is listening. Declared prewarm paths (`devPrewarmPaths`, including those Processors append in `setup()`) are de-duplicated and rendered in the background, without delaying server readiness; a path that fails to render is skipped and logged at debug level. The Project Watcher also finishes its initial filesystem subscription before readiness is advertised. `EcopagesApp.start()` calls `completeInitialization` before the listen log, so Playwright's listen-log ready signal does not start tests during that warmup.
     - `shared/ws/` — WinterCG WebSocket lifecycle helpers and Node HTTP upgrade bridge
 
 ## Ownership Boundary

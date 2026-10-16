@@ -152,6 +152,9 @@ export type EcoPagesUserConfig = {
 	experimental?: EcoPagesAppConfig['experimental'];
 };
 
+/** Produces fresh plugin instances when one config module creates multiple apps in a process. */
+export type EcoPagesUserConfigFactory = () => EcoPagesUserConfig;
+
 export type LoadedEcoPagesUserConfig = {
 	config: EcoPagesUserConfig;
 	configFilePath: string;

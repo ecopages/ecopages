@@ -19,7 +19,7 @@ The current core package is organized around app-owned runtime state and explici
 
 The important ownership rules are:
 
-- Config finalization, when `createApp()` loads `eco.config.ts`, installs `AppRuntime` with the app-owned build adapter, build manifest, and build queue; server startup refreshes the build queue via `installBuildQueue(appConfig)`.
+- Every `loadEcoPagesConfig()` call imports the config module through the module cache, then finalizes a distinct app config and `AppRuntime`. Build state, HTML Page warnings, custom-element preload scopes, and request-pipeline metrics stay with that runtime; pure memo caches remain shared. Server startup refreshes the app's build queue via `installBuildQueue(appConfig)`.
 - Build requests declare server or browser environment independently of scheduling. Integrations and Processors contribute one environment-selected plugin list; config rejects duplicate names within an environment. Core's own transforms preserve source locations and the bridge composes chained maps. See [Build Layer](src/build/README.md) and [Plugin Contracts](src/plugins/README.md) for migration.
 - Component identity attribution is one build plugin, shared by server, browser, and HMR compilation paths: after a lexical `eco.` gate, it uses Oxc to wrap supported factory options with `bindComponentIdentity()`, which factories retain as `config.identity`.
 - Component ownership follows `config.integration`, then `config.identity.integration`, then the inherited owner through the exported `getComponentOwner()` helper. Integration plugins opt into page-owned asset bundling with `bundlesPageDependencies`; React and Ecopages JSX enable it. Bundling only combines consecutive eligible assets so custom-attribute files keep their declared order.
@@ -96,6 +96,7 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 Use this package README as the top-level map, then drill into the focused subsystem READMEs:
 
 - `src/config/README.md`: config finalization and app-owned runtime/build state
+- `src/diagnostics/README.md`: per-app request-pipeline metrics
 - `src/plugins/README.md`: integration and processor authoring contracts
 - `src/build/README.md`: build adapter, executor, shared `.server` browser import guard, development build coordination, standalone Node server packaging and its deploy layout
 - `src/services/README.md`: cross-cutting runtime services and orchestration helpers, including per-render HTML transformation inputs

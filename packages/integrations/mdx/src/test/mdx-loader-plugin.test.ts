@@ -4,18 +4,29 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { compile } from '@mdx-js/mdx';
 import sourceMap from 'source-map';
+import { createRequestPipelineMetricsState } from '@ecopages/core/diagnostics/request-pipeline-metrics';
 import type {
 	EcoBuildOnLoadArgs,
 	EcoBuildOnLoadResult,
 	EcoBuildPluginBuilder,
 } from '@ecopages/core/plugins/integration-plugin';
-import { createMdxLoaderPlugin } from '../mdx-loader-plugin.ts';
+import {
+	createMdxLoaderPlugin as createMdxLoaderPluginWithMetrics,
+	type MdxLoaderPluginOptions,
+} from '../mdx-loader-plugin.ts';
 import { resolveMdxCompilerOptions, type MdxCompilerOptionsInput } from '../core/mdx-utils.ts';
 
 vi.mock('@mdx-js/mdx', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('@mdx-js/mdx')>();
 	return { ...actual, compile: vi.fn(actual.compile) };
 });
+
+function createMdxLoaderPlugin(options: Omit<MdxLoaderPluginOptions, 'requestPipelineMetrics'>) {
+	return createMdxLoaderPluginWithMetrics({
+		...options,
+		requestPipelineMetrics: createRequestPipelineMetricsState(),
+	});
+}
 
 function createBuilderHarness() {
 	let onLoadCallback:
@@ -419,7 +430,13 @@ describe('createMdxLoaderPlugin', () => {
 
 	it('throws if projectRoot is missing when creating the loader plugin', async () => {
 		const { createMdxLoaderPlugin: createCore } = await import('../core/mdx-loader-plugin.ts');
-		expect(() => createCore({ name: 'mdx-loader', projectRoot: '' })).toThrow(/projectRoot is required/);
+		expect(() =>
+			createCore({
+				name: 'mdx-loader',
+				projectRoot: '',
+				requestPipelineMetrics: createRequestPipelineMetricsState(),
+			}),
+		).toThrow(/projectRoot is required/);
 		expect(() => createMdxLoaderPlugin({ projectRoot: '' })).toThrow(/projectRoot is required/);
 	});
 });

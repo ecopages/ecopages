@@ -17,20 +17,22 @@ describe('request-pipeline-metrics', () => {
 
 	it('stays disabled unless explicitly enabled', async () => {
 		const metrics = await loadFreshMetrics();
+		const state = metrics.createRequestPipelineMetricsState();
 		vi.stubEnv('ECOPAGES_REQUEST_PIPELINE_METRICS', undefined);
-		metrics.recordPageModuleLoad('cold-build', 3);
+		metrics.recordPageModuleLoad(state, 'cold-build', 3);
 		assert.equal(metrics.isRequestPipelineMetricsEnabled(), false);
-		assert.deepEqual(metrics.getRequestPipelineMetricsSnapshot().pageModuleBuilds, 0);
+		assert.deepEqual(metrics.getRequestPipelineMetricsSnapshot(state).pageModuleBuilds, 0);
 	});
 
 	it('records page module load outcomes and artifact counts', async () => {
 		const metrics = await loadFreshMetrics();
-		metrics.recordPageModuleLoad('cold-build', 4);
-		metrics.recordPageModuleLoad('import-cache-hit');
-		metrics.recordPageModuleLoad('disk-cache-hit');
-		metrics.recordPageModuleLoad('host-loader');
+		const state = metrics.createRequestPipelineMetricsState();
+		metrics.recordPageModuleLoad(state, 'cold-build', 4);
+		metrics.recordPageModuleLoad(state, 'import-cache-hit');
+		metrics.recordPageModuleLoad(state, 'disk-cache-hit');
+		metrics.recordPageModuleLoad(state, 'host-loader');
 
-		const snapshot = metrics.getRequestPipelineMetricsSnapshot();
+		const snapshot = metrics.getRequestPipelineMetricsSnapshot(state);
 		assert.equal(snapshot.pageModuleLoads, 4);
 		assert.equal(snapshot.pageModuleBuilds, 1);
 		assert.equal(snapshot.pageModuleCacheHits, 1);
@@ -41,11 +43,12 @@ describe('request-pipeline-metrics', () => {
 
 	it('records mdx transforms and route render phases', async () => {
 		const metrics = await loadFreshMetrics();
-		metrics.recordMdxTransform();
-		metrics.recordMdxTransform();
-		metrics.recordRouteRenderPhase('page-browser-graph', 12.5);
+		const state = metrics.createRequestPipelineMetricsState();
+		metrics.recordMdxTransform(state);
+		metrics.recordMdxTransform(state);
+		metrics.recordRouteRenderPhase(state, 'page-browser-graph', 12.5);
 
-		const snapshot = metrics.getRequestPipelineMetricsSnapshot();
+		const snapshot = metrics.getRequestPipelineMetricsSnapshot(state);
 		assert.equal(snapshot.mdxTransforms, 2);
 		assert.equal(snapshot.routeRenderPhases['page-browser-graph']?.count, 1);
 		assert.equal(snapshot.routeRenderPhases['page-browser-graph']?.lastDurationMs, 12.5);
@@ -53,9 +56,23 @@ describe('request-pipeline-metrics', () => {
 
 	it('serializes metrics for response headers', async () => {
 		const metrics = await loadFreshMetrics();
-		metrics.recordPageModuleLoad('cold-build', 1);
-		const parsed = JSON.parse(metrics.serializeRequestPipelineMetricsHeader());
+		const state = metrics.createRequestPipelineMetricsState();
+		metrics.recordPageModuleLoad(state, 'cold-build', 1);
+		const parsed = JSON.parse(metrics.serializeRequestPipelineMetricsHeader(state));
 		assert.equal(parsed.pageModuleBuilds, 1);
 		assert.equal(parsed.runtime, 'node');
+	});
+
+	it('keeps counters separate for two app runtimes', async () => {
+		const metrics = await loadFreshMetrics();
+		const first = metrics.createRequestPipelineMetricsState();
+		const second = metrics.createRequestPipelineMetricsState();
+		metrics.recordPageModuleLoad(first, 'cold-build', 2);
+		metrics.recordCollectionBuild(second);
+
+		assert.equal(metrics.getRequestPipelineMetricsSnapshot(first).pageModuleBuilds, 1);
+		assert.equal(metrics.getRequestPipelineMetricsSnapshot(first).collectionBuilds, 0);
+		assert.equal(metrics.getRequestPipelineMetricsSnapshot(second).pageModuleBuilds, 0);
+		assert.equal(metrics.getRequestPipelineMetricsSnapshot(second).collectionBuilds, 1);
 	});
 });

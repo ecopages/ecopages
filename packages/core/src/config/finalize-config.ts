@@ -17,6 +17,8 @@ import { collectConfigModuleFiles } from './config-module-files.ts';
 import { DEFAULT_ECO_CONFIG_FILENAME, resolveUserConfigRootDir } from './resolve-eco-config-path.ts';
 import type { EcoPagesUserConfig, FinalizeEcoPagesConfigOptions } from './user-config-types.ts';
 
+const finalizedPluginInstances = new WeakSet<object>();
+
 /**
  * Rejects values that are not a `defineConfig(...)` object.
  *
@@ -130,6 +132,20 @@ function indexByName<T extends { name: string }>(kind: string, items: T[] | unde
 	return index;
 }
 
+function getPluginInstances(userConfig: EcoPagesUserConfig): object[] {
+	const pluginInstances = new Set<object>();
+	for (const plugin of [
+		...(userConfig.integrations ?? []),
+		...(userConfig.processors ?? []),
+		...(userConfig.loaders ?? []),
+	]) {
+		if ((typeof plugin === 'object' && plugin !== null) || typeof plugin === 'function') {
+			pluginInstances.add(plugin);
+		}
+	}
+	return [...pluginInstances];
+}
+
 /**
  * Resolves `dirPath/basename` against the registered template extensions.
  *
@@ -233,49 +249,63 @@ export async function finalizeEcoPagesConfig(
 	options: FinalizeEcoPagesConfigOptions = {},
 ): Promise<EcoPagesAppConfig> {
 	assertUserConfig(userConfig, options.configFilePath);
-	const rootDir = resolveUserConfigRootDir(userConfig.rootDir, options.cwd);
-	const integrations = withHtmlPagesIntegration(userConfig.integrations ?? []);
-	const partialConfig: Omit<EcoPagesAppConfig, 'absolutePaths'> = {
-		baseUrl: resolveBaseUrl(userConfig.baseUrl),
-		rootDir,
-		...resolveDirectories(userConfig),
-		robotsTxt: userConfig.robotsTxt ?? { preferences: { '*': [] } },
-		sitemap: resolveSitemap(userConfig.sitemap),
-		defaultMetadata: {
-			title: 'Ecopages',
-			description: 'This is a static site generated with Ecopages',
-			...userConfig.defaultMetadata,
-		},
-		integrations,
-		templatesExt: collectTemplateExtensions(integrations),
-		processors: indexByName('Processor', userConfig.processors),
-		loaders: indexByName('Loader', userConfig.loaders),
-		additionalWatchPaths: userConfig.additionalWatchPaths ?? [],
-		devPrewarmPaths: userConfig.devPrewarmPaths ?? [],
-		cache: userConfig.cache,
-		devToolbar: userConfig.devToolbar,
-		experimental: userConfig.experimental,
-	};
-	const configFilePath = options.configFilePath ?? path.join(rootDir, DEFAULT_ECO_CONFIG_FILENAME);
-	const config: EcoPagesAppConfig = {
-		...partialConfig,
-		absolutePaths: createAbsolutePaths(
-			partialConfig,
-			configFilePath,
-			await resolveConfigModuleFiles(
-				configFilePath,
-				options.configFilePath !== undefined,
-				rootDir,
-				partialConfig.distDir,
-			),
-		),
-	};
-
-	for (const processor of config.processors.values()) {
-		processor.setContext(config);
+	const pluginInstances = getPluginInstances(userConfig);
+	if (pluginInstances.some((plugin) => finalizedPluginInstances.has(plugin))) {
+		const source = options.configFilePath ? ` at ${options.configFilePath}` : '';
+		throw new Error(
+			`Ecopages config${source} reused plugin instances for another app. Export defineConfig(() => ({ ... })) so each app receives fresh integrations, processors, and loaders.`,
+		);
 	}
+	for (const plugin of pluginInstances) finalizedPluginInstances.add(plugin);
 
-	createAppRuntime(config);
+	try {
+		const rootDir = resolveUserConfigRootDir(userConfig.rootDir, options.cwd);
+		const integrations = withHtmlPagesIntegration(userConfig.integrations ?? []);
+		const partialConfig: Omit<EcoPagesAppConfig, 'absolutePaths'> = {
+			baseUrl: resolveBaseUrl(userConfig.baseUrl),
+			rootDir,
+			...resolveDirectories(userConfig),
+			robotsTxt: userConfig.robotsTxt ?? { preferences: { '*': [] } },
+			sitemap: resolveSitemap(userConfig.sitemap),
+			defaultMetadata: {
+				title: 'Ecopages',
+				description: 'This is a static site generated with Ecopages',
+				...userConfig.defaultMetadata,
+			},
+			integrations,
+			templatesExt: collectTemplateExtensions(integrations),
+			processors: indexByName('Processor', userConfig.processors),
+			loaders: indexByName('Loader', userConfig.loaders),
+			additionalWatchPaths: userConfig.additionalWatchPaths ?? [],
+			devPrewarmPaths: userConfig.devPrewarmPaths ?? [],
+			cache: userConfig.cache,
+			devToolbar: userConfig.devToolbar,
+			experimental: userConfig.experimental,
+		};
+		const configFilePath = options.configFilePath ?? path.join(rootDir, DEFAULT_ECO_CONFIG_FILENAME);
+		const config: EcoPagesAppConfig = {
+			...partialConfig,
+			absolutePaths: createAbsolutePaths(
+				partialConfig,
+				configFilePath,
+				await resolveConfigModuleFiles(
+					configFilePath,
+					options.configFilePath !== undefined,
+					rootDir,
+					partialConfig.distDir,
+				),
+			),
+		};
 
-	return config;
+		for (const processor of config.processors.values()) {
+			processor.setContext(config);
+		}
+
+		createAppRuntime(config);
+
+		return config;
+	} catch (error) {
+		for (const plugin of pluginInstances) finalizedPluginInstances.delete(plugin);
+		throw error;
+	}
 }

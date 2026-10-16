@@ -7,6 +7,7 @@ import {
 	CustomElementScriptPreloader,
 	type CustomElementSsrPreloadComponent,
 } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
+import type { CustomElementScriptPreloadScopeState } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import { createCustomElementSsrPipelineImporter } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-ssr-preload-entrypoint';
 import { LitStaticRenderWorkerClient } from './lit-static-render-worker-client.ts';
@@ -21,6 +22,7 @@ type LitStaticRenderWorkerIdentity = {
 };
 
 type LitStaticRenderSessionOptions = {
+	preloadScopes: Map<string, CustomElementScriptPreloadScopeState>;
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
 	processDependencies: (dependencies: AssetDefinition[], integrationName: string) => Promise<ProcessedAsset[]>;
 	getInvalidationVersion?: () => number;
@@ -55,6 +57,7 @@ export class LitStaticRenderSession {
 		this.getInvalidationVersion = options.getInvalidationVersion ?? (() => 0);
 		this.preloader = new CustomElementScriptPreloader({
 			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
+			preloadScopes: options.preloadScopes,
 			logLabel: 'lit',
 			requireLazyScriptEntry: true,
 			resolveDependencyPath: options.resolveDependencyPath,

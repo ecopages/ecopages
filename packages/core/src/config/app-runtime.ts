@@ -5,10 +5,16 @@ import type { PagesUnifiedGraphCacheManifest } from '../build/cache/pages-unifie
 import { createAppBuildManifest, type AppBuildManifest } from '../build/contracts/build-manifest.ts';
 import { BuildQueue } from '../build/runtime/build-queue.ts';
 import {
+	createRequestPipelineMetricsState,
+	type RequestPipelineMetricsState,
+} from '../diagnostics/request-pipeline-metrics.ts';
+import { createHtmlPageWarningState, type HtmlPageWarningState } from '../html-pages/html-page-warning-state.ts';
+import {
 	createHtmlPageModuleScriptState,
 	type HtmlPageModuleScriptState,
 } from '../html-pages/html-page-module-scripts.ts';
 import { SessionPageBrowserGraphCache } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
+import type { CustomElementScriptPreloadScopeState } from '../route-renderer/orchestration/custom-element-scripts/custom-element-script-preload-invalidation.ts';
 import type { PageCacheService } from '../services/cache/page-cache-service.ts';
 import { createAppModuleLoader } from '../services/module-loading/app-server-module-transpiler.service.ts';
 import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
@@ -67,6 +73,9 @@ export interface AppRuntime {
 	runtimeAssetsPrepared: boolean;
 	hmrAttachedToIntegrations: boolean;
 	htmlPageModuleScripts: HtmlPageModuleScriptState;
+	htmlPageWarnings: HtmlPageWarningState;
+	customElementSsrPreloadScopes: Map<string, CustomElementScriptPreloadScopeState>;
+	requestPipelineMetrics: RequestPipelineMetricsState;
 	origin: string;
 	hmr: IHmrManager | null;
 }
@@ -129,6 +138,9 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		runtimeAssetsPrepared: false,
 		hmrAttachedToIntegrations: false,
 		htmlPageModuleScripts: createHtmlPageModuleScriptState(),
+		htmlPageWarnings: createHtmlPageWarningState(),
+		customElementSsrPreloadScopes: new Map(),
+		requestPipelineMetrics: createRequestPipelineMetricsState(),
 		origin: appConfig.baseUrl,
 		hmr: null,
 	};

@@ -95,6 +95,11 @@ export class PageModuleImportService {
 	private readonly importCache = new Map<string, ImportCacheEntry>();
 	private readonly fallbackServerInvalidation = new ServerInvalidationState();
 
+	private recordPipelineLoad(outcome: Parameters<typeof recordPageModuleLoad>[1], artifactCount = 0): void {
+		if (!this.appConfig) return;
+		recordPageModuleLoad(requireAppRuntime(this.appConfig).requestPipelineMetrics, outcome, artifactCount);
+	}
+
 	constructor(appConfig?: EcoPagesAppConfig, dependencies?: Partial<PageModuleImportDependencies>) {
 		this.appConfig = appConfig;
 		this.dependencies = {
@@ -165,7 +170,7 @@ export class PageModuleImportService {
 
 			if (cachedModule) {
 				const loadedModule = (await cachedModule.promise) as T;
-				recordPageModuleLoad('import-cache-hit');
+				this.recordPipelineLoad('import-cache-hit');
 				return loadedModule;
 			}
 
@@ -204,7 +209,7 @@ export class PageModuleImportService {
 		const cachedModule = this.importCache.get(cacheKey);
 		if (cachedModule) {
 			const loadedModule = (await cachedModule.promise) as T;
-			recordPageModuleLoad('import-cache-hit');
+			this.recordPipelineLoad('import-cache-hit');
 			return loadedModule;
 		}
 
@@ -288,7 +293,7 @@ export class PageModuleImportService {
 			Object.keys(cachedBuild.entry.dependencyHashes ?? {}),
 		);
 		const loadedModule = (await import(/* @vite-ignore */ pathToFileURL(cachedBuild.outputPath).href)) as T;
-		recordPageModuleLoad('disk-cache-hit');
+		this.recordPipelineLoad('disk-cache-hit');
 		return loadedModule;
 	}
 
@@ -300,7 +305,7 @@ export class PageModuleImportService {
 		if (graphModule === undefined) {
 			return undefined;
 		}
-		recordPageModuleLoad('unified-graph');
+		this.recordPipelineLoad('unified-graph');
 		return graphModule;
 	}
 
@@ -395,7 +400,7 @@ export class PageModuleImportService {
 		recordPageModuleBuildInvocation();
 		const buildResult = await this.dependencies.buildModule(buildOptions, options.buildExecutor);
 		assertBuildSucceeded(buildResult, transpileErrorMessage);
-		recordPageModuleLoad('cold-build', buildResult.outputs.length);
+		this.recordPipelineLoad('cold-build', buildResult.outputs.length);
 
 		const compiledOutput = this.resolveCompiledRouteModuleOutput(
 			buildResult,

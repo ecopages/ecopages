@@ -5,9 +5,11 @@ import { randomUUID } from 'node:crypto';
 import {
 	getCustomElementScriptPreloadScopeState,
 	invalidateCustomElementScriptPreload,
+	type CustomElementScriptPreloadScopeState,
 } from './custom-element-script-preload-invalidation.ts';
 
 export { invalidateCustomElementScriptPreload };
+export type { CustomElementScriptPreloadScopeState } from './custom-element-script-preload-invalidation.ts';
 
 const registryKeys = new WeakMap<CustomElementRegistry, string>();
 
@@ -118,6 +120,7 @@ export function collectCustomElementSsrPreloadScripts(
 
 export interface CustomElementScriptPreloaderOptions {
 	cacheScope: string;
+	preloadScopes: Map<string, CustomElementScriptPreloadScopeState>;
 	enabled?: boolean;
 	/**
 	 * When true, only lazy script entries with `ssr: true` are preloaded.
@@ -160,6 +163,7 @@ export interface CustomElementScriptPreloaderOptions {
  */
 export class CustomElementScriptPreloader {
 	private readonly cacheScope: string;
+	private readonly preloadScopes: Map<string, CustomElementScriptPreloadScopeState>;
 	private readonly enabled: boolean;
 	private readonly requireLazyScriptEntry: boolean;
 	private readonly resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
@@ -169,6 +173,7 @@ export class CustomElementScriptPreloader {
 
 	constructor({
 		cacheScope,
+		preloadScopes,
 		enabled = true,
 		requireLazyScriptEntry = false,
 		resolveDependencyPath,
@@ -177,6 +182,7 @@ export class CustomElementScriptPreloader {
 		logLabel = 'ecopages',
 	}: CustomElementScriptPreloaderOptions) {
 		this.cacheScope = cacheScope;
+		this.preloadScopes = preloadScopes;
 		this.enabled = enabled;
 		this.requireLazyScriptEntry = requireLazyScriptEntry;
 		this.resolveDependencyPath = resolveDependencyPath;
@@ -186,7 +192,7 @@ export class CustomElementScriptPreloader {
 	}
 
 	invalidateScript(scriptPath: string): void {
-		invalidateCustomElementScriptPreload(scriptPath, this.cacheScope);
+		invalidateCustomElementScriptPreload(this.preloadScopes, scriptPath, this.cacheScope);
 	}
 
 	isExpectedSsrPreloadError(error: unknown): boolean {
@@ -210,7 +216,7 @@ export class CustomElementScriptPreloader {
 			return;
 		}
 
-		const scopeState = getCustomElementScriptPreloadScopeState(this.cacheScope);
+		const scopeState = getCustomElementScriptPreloadScopeState(this.preloadScopes, this.cacheScope);
 		const registry = globalThis.customElements;
 		if (scopeState.activeRegistry !== registry) {
 			scopeState.preloadedScripts.clear();
@@ -229,7 +235,7 @@ export class CustomElementScriptPreloader {
 
 	private async preloadOneScript(
 		scriptPath: string,
-		scopeState: ReturnType<typeof getCustomElementScriptPreloadScopeState>,
+		scopeState: CustomElementScriptPreloadScopeState,
 		registry: CustomElementRegistry | undefined,
 	): Promise<void> {
 		if (scopeState.preloadedScripts.has(scriptPath) || scopeState.preloadFailedScripts.has(scriptPath)) {

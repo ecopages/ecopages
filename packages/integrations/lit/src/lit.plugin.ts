@@ -81,6 +81,7 @@ export class LitPlugin extends IntegrationPlugin {
 		}
 
 		return new LitStaticRenderSession({
+			preloadScopes: requireAppRuntime(this.appConfig).customElementSsrPreloadScopes,
 			resolveDependencyPath: (componentDir, sourcePath) => path.join(componentDir, sourcePath),
 			processDependencies: this.assetProcessingService.processDependencies.bind(this.assetProcessingService),
 			getInvalidationVersion: () =>
@@ -97,8 +98,14 @@ export class LitPlugin extends IntegrationPlugin {
 
 	override setHmrManager(hmrManager: IHmrManager): void {
 		super.setHmrManager(hmrManager);
+		if (!this.appConfig) return;
+		const preloadScopes = requireAppRuntime(this.appConfig).customElementSsrPreloadScopes;
 		hmrManager.onScriptEntrypointChanged?.((scriptPath) => {
-			invalidateCustomElementScriptPreload(scriptPath, CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit);
+			invalidateCustomElementScriptPreload(
+				preloadScopes,
+				scriptPath,
+				CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
+			);
 		});
 	}
 

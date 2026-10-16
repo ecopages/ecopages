@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { getCompiledHtmlTemplate } from './html-page-module.ts';
 import { HtmlPagesPlugin } from './html-pages.plugin.ts';
 
@@ -11,20 +12,14 @@ describe('HtmlPagesPlugin', () => {
 	let appConfig: EcoPagesAppConfig;
 	const at = (relativePath: string) => path.join(rootDir, relativePath);
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		rootDir = mkdtempSync(path.join(tmpdir(), 'eco-html-plugin-'));
 		mkdirSync(at('src/pages/blog'), { recursive: true });
 		mkdirSync(at('src/includes'), { recursive: true });
-		appConfig = {
+		appConfig = await finalizeEcoPagesConfig({
 			rootDir,
 			defaultMetadata: { title: 'Site', description: 'Default description' },
-			absolutePaths: {
-				srcDir: at('src'),
-				pagesDir: at('src/pages'),
-				includesDir: at('src/includes'),
-				htmlTemplatePath: at('src/includes/html.html'),
-			},
-		} as unknown as EcoPagesAppConfig;
+		});
 	});
 
 	afterEach(() => {

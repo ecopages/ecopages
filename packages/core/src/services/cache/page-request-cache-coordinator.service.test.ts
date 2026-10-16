@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createRequestPipelineMetricsState } from '../../diagnostics/request-pipeline-metrics.ts';
 import { MemoryCacheStore } from './memory-cache-store.js';
 import { PageCacheService } from './page-cache-service.js';
 import { PageRequestCacheCoordinator } from './page-request-cache-coordinator.service.ts';
@@ -6,7 +7,7 @@ import { PageRequestCacheCoordinator } from './page-request-cache-coordinator.se
 describe('PageRequestCacheCoordinator', () => {
 	it('should key entries by pathname and query only', () => {
 		vi.stubEnv('NODE_ENV', 'development');
-		const service = new PageRequestCacheCoordinator(null, 'static');
+		const service = new PageRequestCacheCoordinator(null, 'static', createRequestPipelineMetricsState());
 		expect(service.buildCacheKey({ pathname: '/blog' })).toBe('/blog');
 		expect(service.buildCacheKey({ pathname: '/blog', query: { page: '2' } })).toBe('/blog?page=2');
 	});
@@ -19,7 +20,7 @@ describe('PageRequestCacheCoordinator', () => {
 			html: '<html><body>dynamic</body></html>',
 			strategy: 'dynamic' as const,
 		}));
-		const service = new PageRequestCacheCoordinator(cacheService, 'static');
+		const service = new PageRequestCacheCoordinator(cacheService, 'static', createRequestPipelineMetricsState());
 
 		const response = await service.render({
 			cacheKey: '/dynamic',
@@ -41,7 +42,7 @@ describe('PageRequestCacheCoordinator', () => {
 				status: 'hit',
 			})),
 		} as unknown as PageCacheService;
-		const service = new PageRequestCacheCoordinator(cacheService, 'static');
+		const service = new PageRequestCacheCoordinator(cacheService, 'static', createRequestPipelineMetricsState());
 
 		const response = await service.render({
 			cacheKey: '/cached',
@@ -59,7 +60,7 @@ describe('PageRequestCacheCoordinator', () => {
 	});
 
 	it('should normalize supported body types to strings', async () => {
-		const service = new PageRequestCacheCoordinator(null, 'static');
+		const service = new PageRequestCacheCoordinator(null, 'static', createRequestPipelineMetricsState());
 
 		expect(await service.bodyToString('plain')).toBe('plain');
 		expect(await service.bodyToString(Buffer.from('buffered'))).toBe('buffered');
@@ -79,7 +80,7 @@ describe('PageRequestCacheCoordinator', () => {
 	it('sends must-revalidate and an ETag for static HTML and answers 304 when If-None-Match matches', async () => {
 		const cacheService = new PageCacheService({ store: new MemoryCacheStore() });
 		const html = '<html><body>static</body></html>';
-		const service = new PageRequestCacheCoordinator(cacheService, 'static');
+		const service = new PageRequestCacheCoordinator(cacheService, 'static', createRequestPipelineMetricsState());
 		const renderFn = async () => ({ html, strategy: 'static' as const });
 
 		const first = await service.render({

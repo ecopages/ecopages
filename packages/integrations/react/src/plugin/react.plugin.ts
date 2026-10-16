@@ -3,6 +3,8 @@
  * @module
  */
 import type { EcoPagesAppConfig } from '@ecopages/core';
+import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
+import type { RequestPipelineMetricsState } from '@ecopages/core/diagnostics/request-pipeline-metrics';
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import {
 	IntegrationPlugin,
@@ -104,7 +106,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	private readonly routerAdapter: ReactRouterAdapter | undefined;
 	private readonly mdxExtensions: string[];
 	private readonly mdxCompilerOptions: CompileOptions | undefined;
-	private readonly mdxLoaderPlugins = new Map<string, EcoBuildPlugin>();
+	private readonly mdxLoaderPlugins = new WeakMap<RequestPipelineMetricsState, EcoBuildPlugin>();
 	private readonly getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	private readonly runtimeBundleService: RuntimeBundleService;
 	private readonly hmrPageMetadataCache: HmrPageMetadataCache;
@@ -138,7 +140,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 					if (!this.appConfig?.rootDir) {
 						throw new Error('[ReactPlugin] Cannot create MDX loader: appConfig.rootDir is required.');
 					}
-					return this.resolveMdxLoaderPlugin(mdxCompilerOptions, this.appConfig.rootDir);
+					return this.resolveMdxLoaderPlugin(mdxCompilerOptions, this.appConfig);
 				}
 			: undefined;
 		this.mdxExtensions = rendererConfig.mdxExtensions ?? ['.mdx'];
@@ -199,13 +201,11 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	 * Returns the MDX loader when MDX is enabled.
 	 *
 	 * @remarks
-	 * The loader is created on the first read for a root directory and kept, because the renderer and the HMR
-	 * strategy reuse the instance the build manifest holds. A config finalized for another root gets its own.
+	 * The loader is created on the first read for an app runtime and kept, because the renderer and the HMR
+	 * strategy reuse the instance the build manifest holds.
 	 */
 	override plugins(app: EcoPagesAppConfig): EcoBuildPlugin[] {
-		const loader = this.mdxCompilerOptions
-			? this.resolveMdxLoaderPlugin(this.mdxCompilerOptions, app.rootDir)
-			: undefined;
+		const loader = this.mdxCompilerOptions ? this.resolveMdxLoaderPlugin(this.mdxCompilerOptions, app) : undefined;
 		return loader ? [loader] : [];
 	}
 
@@ -213,11 +213,16 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		return this.runtimeBundleService.getRuntimeManifest();
 	}
 
-	private resolveMdxLoaderPlugin(compilerOptions: CompileOptions, projectRoot: string): EcoBuildPlugin {
-		let plugin = this.mdxLoaderPlugins.get(projectRoot);
+	private resolveMdxLoaderPlugin(compilerOptions: CompileOptions, appConfig: EcoPagesAppConfig): EcoBuildPlugin {
+		const requestPipelineMetrics = requireAppRuntime(appConfig).requestPipelineMetrics;
+		let plugin = this.mdxLoaderPlugins.get(requestPipelineMetrics);
 		if (!plugin) {
-			plugin = createReactMdxLoaderPlugin({ compilerOptions, projectRoot });
-			this.mdxLoaderPlugins.set(projectRoot, plugin);
+			plugin = createReactMdxLoaderPlugin({
+				compilerOptions,
+				projectRoot: appConfig.rootDir,
+				requestPipelineMetrics,
+			});
+			this.mdxLoaderPlugins.set(requestPipelineMetrics, plugin);
 		}
 		return plugin;
 	}

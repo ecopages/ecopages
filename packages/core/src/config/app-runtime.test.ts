@@ -109,6 +109,9 @@ describe('AppRuntime', () => {
 		expect(createAppRuntime(first)).toBe(firstRuntime);
 		expect(firstRuntime).not.toBe(secondRuntime);
 		expect(firstRuntime.buildInputIndex).not.toBe(secondRuntime.buildInputIndex);
+		expect(firstRuntime.htmlPageWarnings).not.toBe(secondRuntime.htmlPageWarnings);
+		expect(firstRuntime.customElementSsrPreloadScopes).not.toBe(secondRuntime.customElementSsrPreloadScopes);
+		expect(firstRuntime.requestPipelineMetrics).not.toBe(secondRuntime.requestPipelineMetrics);
 		expect(firstRuntime.origin).toBe('http://first.test');
 		expect(firstRuntime.hmr).toBeNull();
 		expect(firstRuntime.pageCache).toBeNull();

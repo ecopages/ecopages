@@ -15,6 +15,7 @@ import type { FileSystemServerResponseFactory } from './fs-server-response-facto
 import type { ErrorPageLoaders } from '../../../types/public-types.ts';
 import { ErrorPageRenderer, logErrorPageFailure } from '../../../services/error-pages/error-page-renderer.ts';
 import { serveDistFile } from './dist-file-handler.ts';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
 
 type FileRouteExecutionPlan = {
 	cacheKey: string;
@@ -81,7 +82,11 @@ export class FileSystemResponseMatcher {
 		});
 		this.fileSystemResponseFactory = fileSystemResponseFactory;
 		this.watchMode = watchMode;
-		this.pageRequestCacheCoordinator = new PageRequestCacheCoordinator(cacheService, defaultCacheStrategy);
+		this.pageRequestCacheCoordinator = new PageRequestCacheCoordinator(
+			cacheService,
+			defaultCacheStrategy,
+			requireAppRuntime(appConfig).requestPipelineMetrics,
+		);
 		this.fileRouteMiddlewarePipeline = new FileRouteMiddlewarePipeline(cacheService);
 	}
 

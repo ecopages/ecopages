@@ -82,6 +82,32 @@ describe('finalizeEcoPagesConfig configModuleFiles', () => {
 });
 
 describe('finalizeEcoPagesConfig', () => {
+	test('rejects plugin instances reused through direct config finalization', async () => {
+		const firstRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-plugin-owner-first-'));
+		const secondRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eco-plugin-owner-second-'));
+		const processor = new (class extends Processor {
+			constructor() {
+				super({ name: 'shared-processor' });
+			}
+			async setup() {}
+			getConfiguredRootDir() {
+				return this.context?.rootDir;
+			}
+		})();
+
+		try {
+			await finalizeEcoPagesConfig({ rootDir: firstRoot, processors: [processor] });
+
+			await expect(finalizeEcoPagesConfig({ rootDir: secondRoot, processors: [processor] })).rejects.toThrow(
+				/reused plugin instances for another app.*defineConfig\(\(\) =>/,
+			);
+			expect(processor.getConfiguredRootDir()).toBe(firstRoot);
+		} finally {
+			fs.rmSync(firstRoot, { recursive: true, force: true });
+			fs.rmSync(secondRoot, { recursive: true, force: true });
+		}
+	});
+
 	test('rejects overlapping build plugin names and identifies both Integrations', async () => {
 		const integrations = [
 			createMockIntegration('first', ['.first'], [{ name: 'shared', environments: ['browser'], setup() {} }]),

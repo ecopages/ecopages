@@ -12,4 +12,9 @@ export {
 	resolveProductionServerEntry,
 	resolveProductionDistDir,
 } from '../build/server-bundle-deploy-manifest.ts';
-export type { EcoPagesUserConfig, LoadedEcoPagesUserConfig, LoadEcoPagesConfigOptions } from './user-config-types.ts';
+export type {
+	EcoPagesUserConfig,
+	EcoPagesUserConfigFactory,
+	LoadedEcoPagesUserConfig,
+	LoadEcoPagesConfigOptions,
+} from './user-config-types.ts';

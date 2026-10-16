@@ -8,6 +8,7 @@ import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import { createMarkupNodeLike, type JsxCustomElementAttributes, type JsxRenderable } from '@ecopages/jsx';
 import { installLightDomShim } from '@ecopages/radiant/server/light-dom-shim';
 import { createTestAppConfig } from '@ecopages/testing';
+import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	invalidateCustomElementScriptPreload,
@@ -59,6 +60,7 @@ describe('Ecopages JSX SSR script preload integration', () => {
 				Object.defineProperty(process.versions, 'bun', { value: '1.4.2', configurable: true });
 			}
 			invalidateCustomElementScriptPreload(
+				requireAppRuntime(Config).customElementSsrPreloadScopes,
 				RADIANT_HOST_SCRIPT,
 				CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx,
 			);

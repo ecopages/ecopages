@@ -3,6 +3,7 @@ import { fileSystem } from '@ecopages/file-system';
 import type { ComponentIdentity } from '../eco/component-identity.ts';
 import { registerDiscoveredDependencies } from '../eco/discovered-dependencies.ts';
 import { appLogger } from '../global/app-logger.ts';
+import { requireAppRuntime } from '../config/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { EcoComponent, EcoPageFile, GetMetadata } from '../types/public-types.ts';
 import { rapidhash } from '../utils/hash.ts';
@@ -37,18 +38,6 @@ const BUILT_IN_SHELL_SOURCE = `<!DOCTYPE html>
 let builtInShell: EcoComponent | undefined;
 
 /**
- * Last source hash each file warned for.
- *
- * @remarks
- * Development recompiles HTML Pages after every server-module invalidation, so
- * this keeps relative-URL warnings to one set per file revision.
- */
-const warnedSourceHashes = new Map<string, string>();
-
-/** Warnings the renderer logged for each file, with the file revision they belong to. */
-const renderWarnings = new Map<string, { revision: string | undefined; keys: Set<string> }>();
-
-/**
  * Logs a development warning found while rendering `file`, once per `key` and file revision.
  *
  * @remarks
@@ -56,13 +45,19 @@ const renderWarnings = new Map<string, { revision: string | undefined; keys: Set
  * a file of the shell, so they cannot be logged when the file compiles. `message` runs only when
  * the warning is logged, so a costly message is built at most once per revision.
  */
-export function warnHtmlTemplateRender(file: string, key: string, message: () => string): void {
+export function warnHtmlTemplateRender(
+	appConfig: EcoPagesAppConfig,
+	file: string,
+	key: string,
+	message: () => string,
+): void {
 	if (!isDevelopmentRuntime()) return;
-	const revision = warnedSourceHashes.get(file);
-	let warned = renderWarnings.get(file);
+	const warningState = requireAppRuntime(appConfig).htmlPageWarnings;
+	const revision = warningState.warnedSourceHashes.get(file);
+	let warned = warningState.renderWarnings.get(file);
 	if (!warned || warned.revision !== revision) {
 		warned = { revision, keys: new Set() };
-		renderWarnings.set(file, warned);
+		warningState.renderWarnings.set(file, warned);
 	}
 	if (warned.keys.has(key)) return;
 	warned.keys.add(key);
@@ -102,14 +97,15 @@ export function loadHtmlPageModule(appConfig: EcoPagesAppConfig, filePath: strin
 	const file = path.resolve(filePath);
 	const source = fileSystem.readFileSync(file);
 	const sourceHash = rapidhash(source).toString(36);
+	const warningState = requireAppRuntime(appConfig).htmlPageWarnings;
 	const options = {
 		srcDir: appConfig.absolutePaths.srcDir,
 		warn:
-			isDevelopmentRuntime() && warnedSourceHashes.get(file) !== sourceHash
+			isDevelopmentRuntime() && warningState.warnedSourceHashes.get(file) !== sourceHash
 				? (message: string) => appLogger.warn(message)
 				: undefined,
 	};
-	warnedSourceHashes.set(file, sourceHash);
+	warningState.warnedSourceHashes.set(file, sourceHash);
 	const isShell = file === appConfig.absolutePaths.htmlTemplatePath;
 	const template = isShell ? compileHtmlShell(file, source, options) : compileHtmlPage(file, source, options);
 	const identity: ComponentIdentity = {

@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoPagesAppConfig } from '@ecopages/core';
 import type { HtmlTemplateProps, IntegrationRendererRenderOptions } from '@ecopages/core';
+import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
 import type { ReactNode } from 'react';
 import { composeLayoutPageTree, assertComposablePage } from '../render/layout-compose.ts';
@@ -29,15 +29,12 @@ function extractLayoutMarkerOrder(html: string): string[] {
 }
 
 const integrationRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const appConfig = await finalizeEcoPagesConfig({
+	rootDir: integrationRoot,
+	defaultMetadata: { title: 'Test', description: 'Test' },
+});
 
 describe('React SSR and hydration layout parity', () => {
-	const appConfig = {
-		rootDir: integrationRoot,
-		defaultMetadata: { title: 'Test', description: 'Test' },
-		absolutePaths: { htmlTemplatePath: '/tmp/template.tsx', pagesDir: '/tmp/pages' },
-		srcDir: '/tmp/src',
-	} as unknown as EcoPagesAppConfig;
-
 	const assetService = {
 		processDependencies: vi.fn(() => Promise.resolve([])),
 		getHmrManager: vi.fn(() => undefined),

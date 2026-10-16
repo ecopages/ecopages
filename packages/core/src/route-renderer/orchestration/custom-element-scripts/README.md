@@ -2,7 +2,7 @@
 
 Shared orchestration for `dependencies.scripts` entries marked `ssr: true`.
 
-Lit and Ecopages JSX construct a {@link CustomElementScriptPreloader} with a stable `cacheScope` so imports are deduplicated across concurrent renders and dev invalidation can clear preload state without per-renderer registries.
+Lit and Ecopages JSX construct a {@link CustomElementScriptPreloader} with a stable `cacheScope` inside the app's `AppRuntime`. The scope deduplicates imports across concurrent renders for that app, and dev invalidation clears only that app's preload state. Two apps may use the same integration scope name without sharing preload history.
 
 Every preloader takes one `importServerModule(scriptPath, registryKey)`, and every runtime, Bun included, evaluates scripts through it. A script is never imported from source, because a native import skips the server loaders for its CSS, MDX and asset imports.
 

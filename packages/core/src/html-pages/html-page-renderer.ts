@@ -265,6 +265,7 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 			);
 			for (const url of findRelativeCssUrls(processed.content)) {
 				warnHtmlTemplateRender(
+					this.appConfig,
 					file,
 					`style-url:${url}`,
 					() =>
@@ -298,7 +299,7 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 			}
 			return spliceUrl(asset, await this.fileUrl(target, urls));
 		}
-		warnHtmlTemplateRender(template.file, `preload:${asset.reference}`, () =>
+		warnHtmlTemplateRender(this.appConfig, template.file, `preload:${asset.reference}`, () =>
 			this.describeUnmatchedPreload(template, asset, targets),
 		);
 		return asset.tag;

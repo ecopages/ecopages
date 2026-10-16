@@ -6,6 +6,7 @@ import { appLogger } from '../global/app-logger.ts';
 import { createMockConfig } from './static-site-generator.test-utils.ts';
 
 const graphBuildOrder: string[] = [];
+const resolveBuildParallelismMock = vi.hoisted(() => vi.fn(() => 2));
 const ensurePagesUnifiedGraphBuiltMock = vi.hoisted(() =>
 	vi.fn(async () => {
 		graphBuildOrder.push('ensurePagesUnifiedGraphBuilt');
@@ -22,6 +23,10 @@ vi.mock('../build/cache/pages-unified-graph-build.ts', async (importOriginal) =>
 		shouldBuildPagesUnifiedGraph: shouldBuildPagesUnifiedGraphMock,
 	};
 });
+
+vi.mock('../build/build-parallelism.ts', () => ({
+	resolveBuildParallelism: resolveBuildParallelismMock,
+}));
 
 const originalEnsureDir = fileSystem.ensureDir;
 const originalWrite = fileSystem.write;
@@ -46,6 +51,7 @@ describe('StaticSiteGenerator', () => {
 	beforeEach(() => {
 		ensureDirMock = vi.fn(() => {});
 		writeMock = vi.fn(() => {});
+		resolveBuildParallelismMock.mockClear();
 		fileSystem.ensureDir = ensureDirMock;
 		fileSystem.write = writeMock;
 		vi.spyOn(appLogger, 'warn').mockReturnValue(appLogger);
@@ -126,6 +132,28 @@ describe('StaticSiteGenerator', () => {
 
 		const createStaticPageModule = () => ({
 			default: Object.assign(() => null, { cache: 'static' }),
+		});
+
+		test('uses the shared build parallelism for static export', async () => {
+			const ssg = new StaticSiteGenerator({ appConfig: createMockConfig() });
+			const Router = createMockRouter({
+				'/static': { filePath: '/src/pages/static.ts', pathname: '/static' },
+			});
+
+			const RendererFactory = {
+				getPageRenderer: vi.fn(() => ({
+					loadPageModule: vi.fn(async () => createStaticPageModule()),
+					execute: vi.fn(async () => ({ body: '<html>Static</html>' })),
+				})),
+			} satisfies StaticPageRouteRendererFactory;
+
+			await ssg.generateStaticPages({
+				router: Router,
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: RendererFactory,
+			});
+
+			expect(resolveBuildParallelismMock).toHaveBeenCalledOnce();
 		});
 
 		test('should filter out dynamic routes containing [', async () => {

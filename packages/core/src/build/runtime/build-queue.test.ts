@@ -1,6 +1,6 @@
-import { availableParallelism } from 'node:os';
 import { describe, expect, it, vi } from 'vitest';
 import type { BuildAdapter, BuildOptions, BuildResult } from '../build-adapter.ts';
+import { resolveBuildParallelism } from '../build-parallelism.ts';
 import { BuildQueue, buildOrThrow, installBuildQueue, resolveBuildLaneLimits } from './build-queue.ts';
 import { createBuildFailure, createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 
@@ -261,7 +261,7 @@ describe('BuildQueue', () => {
 	it('gives the hmr lane at most three builds and the build lane all but one core', () => {
 		const limits = resolveBuildLaneLimits();
 
-		expect(limits.build).toBe(Math.max(1, availableParallelism() - 1));
+		expect(limits.build).toBe(resolveBuildParallelism());
 		expect(limits.hmr).toBe(Math.min(3, limits.build));
 		expect(limits.nested).toBe(limits.build);
 	});

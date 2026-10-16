@@ -27,6 +27,7 @@ Three concentric shapes, plus one build queue and request policy:
 | Shape                       | Lives in                            | Purpose                                                                                                                                            |
 | --------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `BuildAdapter`              | `build-adapter.ts`                  | Low-level backend. `RolldownBuildAdapter` is the bundled implementation.                                                                           |
+| `resolveBuildParallelism()` | `build-parallelism.ts`              | One CPU-based concurrency limit shared by queued builds, static export, and the startup trace.                                                     |
 | `BuildQueue`                | `runtime/build-queue.ts`            | The one queue every build of an app goes through: lane concurrency limits, one build per identical in-flight request, request-scope reuse.         |
 | `BuildExecutor`             | `contracts/build-contracts.ts`      | Narrower runtime facade. Only `build` is exposed. `BuildQueue` implements it, on the `build` lane.                                                 |
 | `build-request-policy.ts`   | `runtime/build-request-policy.ts`   | Assembles complete `BuildOptions` before scheduling. Server and browser: plugins, then core's own `transform` plugins, plus JSX ownership.         |
@@ -43,6 +44,7 @@ Each finalized `EcoPagesAppConfig` owns one `AppRuntime` with its build adapter,
 ```
 build/
   build-adapter.ts              adapter factories and runtime plugin setup re-exports
+  build-parallelism.ts           shared build and static-export concurrency limit
   server-module.ts              builds an independent server module through the app request policy
   app-build-manifest-runtime.ts contributor collection at startup
   contracts/                    EcoBuildPlugin, BuildOptions, AppBuildManifest

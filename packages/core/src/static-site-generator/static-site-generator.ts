@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { availableParallelism } from 'node:os';
 import { appLogger } from '../global/app-logger.ts';
+import { resolveBuildParallelism } from '../build/build-parallelism.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type {
 	EcoPageComponent,
@@ -73,10 +73,6 @@ export const STATIC_SITE_GENERATOR_ERRORS = {
 	dynamicRouteRequiresStaticPaths: (routePath: string) =>
 		`Dynamic route ${routePath} requires staticPaths to be defined on the view.`,
 } as const;
-
-function resolveStaticPageConcurrency(): number {
-	return Math.max(1, availableParallelism() - 1);
-}
 
 async function runWithConcurrency<T>(
 	items: readonly T[],
@@ -313,7 +309,7 @@ export class StaticSiteGenerator {
 
 		const directories = this.getDirectories(routes.map((route) => route.requestUrl));
 
-		await runWithConcurrency(routes, resolveStaticPageConcurrency(), async (route) => {
+		await runWithConcurrency(routes, resolveBuildParallelism(), async (route) => {
 			try {
 				let renderedMetadata: PageMetadataProps | undefined;
 				await this.writeStaticPageArtifact({

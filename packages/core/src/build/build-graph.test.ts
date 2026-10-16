@@ -4,6 +4,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
+import type { BuildOptions } from './build-adapter.ts';
 import { collectBuildEntryInputPaths, collectBuildOutputImports, getBuildEntryOutput } from './build-graph.ts';
 import { RolldownBuildAdapter } from './rolldown/rolldown-build-adapter.ts';
 import { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
@@ -78,20 +79,21 @@ test('both cached entries miss after their shared inlined source changes', async
 		return entry;
 	});
 	const outdir = path.join(root, 'dist');
-	const result = await new RolldownBuildAdapter().build({
+	const buildOptions = {
 		environment: 'server' as const,
 		entrypoints: entries,
 		root,
 		outdir,
 		target: 'node',
 		splitting: true,
-	});
+	} satisfies BuildOptions;
+	const result = await new RolldownBuildAdapter().build(buildOptions);
 	assertBuildSucceeded(result, 'Build failed');
 	const cache = new RouteModuleBuildCache();
 	for (const entry of entries) {
 		const output = getBuildEntryOutput(result, entry, root);
 		if (!output) throw new Error(`Missing output for ${entry}`);
-		const options = { filePath: entry, rootDir: root, outdir, fileHash: fileSystem.hash(entry) };
+		const options = { filePath: entry, rootDir: root, outdir, buildOptions, fileHash: fileSystem.hash(entry) };
 		cache.recordBuild({
 			...options,
 			outputPath: output,
@@ -103,7 +105,7 @@ test('both cached entries miss after their shared inlined source changes', async
 	writeFileSync(shared, "export const value = 'after';");
 	for (const entry of entries)
 		expect(
-			cache.lookup({ filePath: entry, rootDir: root, outdir, fileHash: fileSystem.hash(entry) }),
+			cache.lookup({ filePath: entry, rootDir: root, outdir, buildOptions, fileHash: fileSystem.hash(entry) }),
 		).toBeUndefined();
 });
 
@@ -116,20 +118,21 @@ test('a missing local external generated module invalidates a cached build', asy
 		`import { value } from ${JSON.stringify(pathToFileURL(generated).href)}; export const read = () => value;`,
 	);
 	const outdir = path.join(root, 'dist');
-	const result = await new RolldownBuildAdapter().build({
+	const buildOptions = {
 		environment: 'server' as const,
 		entrypoints: [entry],
 		root,
 		outdir,
 		target: 'node',
 		external: [pathToFileURL(generated).href],
-	});
+	} satisfies BuildOptions;
+	const result = await new RolldownBuildAdapter().build(buildOptions);
 	assertBuildSucceeded(result, 'Build failed');
 	const output = getBuildEntryOutput(result, entry, root);
 	if (!output) throw new Error('Missing entry output');
 	const imports = collectBuildOutputImports(result, output);
 	expect(imports).toContain(generated);
-	const options = { filePath: entry, rootDir: root, outdir, fileHash: fileSystem.hash(entry) };
+	const options = { filePath: entry, rootDir: root, outdir, buildOptions, fileHash: fileSystem.hash(entry) };
 	const cache = new RouteModuleBuildCache();
 	cache.recordBuild({
 		...options,

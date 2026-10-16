@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
+import type { BuildOptions } from '../../build/build-adapter.ts';
 import type { PageModuleBuildImportOptions } from './page-module-import.service.ts';
 import { RouteModuleDependencyHasher, type RouteModuleDependencyHashes } from './route-module-dependency-hasher.ts';
 import {
@@ -26,6 +27,10 @@ type RouteModuleBuildCacheDependencies = {
 	getConfigHash: () => string | undefined;
 };
 
+type RouteModuleBuildCacheRequest = PageModuleBuildImportOptions & {
+	buildOptions: BuildOptions;
+};
+
 /**
  * In-process route-module transpile metadata for one server outdir.
  */
@@ -44,7 +49,7 @@ export class RouteModuleBuildCache {
 	}
 
 	lookup(
-		options: PageModuleBuildImportOptions & {
+		options: RouteModuleBuildCacheRequest & {
 			fileHash: string;
 		},
 	): RouteModuleBuildCacheLookup | undefined {
@@ -52,7 +57,7 @@ export class RouteModuleBuildCache {
 			return undefined;
 		}
 
-		const buildKey = createRouteModuleBuildKey(options, this.dependencies.getConfigHash());
+		const buildKey = createRouteModuleBuildKey(options.buildOptions, this.dependencies.getConfigHash());
 		const cacheFilePath = normalizeRouteModuleCachePath(options.filePath);
 		const entry = this.manifest.entries[cacheFilePath];
 		if (!entry || entry.sourceHash !== options.fileHash || entry.buildKey !== buildKey) {
@@ -63,7 +68,7 @@ export class RouteModuleBuildCache {
 			return undefined;
 		}
 
-		const outputPath = resolveOutputPath(entry.outputPath, options.outdir);
+		const outputPath = resolveOutputPath(entry.outputPath, options.buildOptions.outdir ?? options.outdir);
 		if (!this.dependencies.exists(outputPath)) {
 			return undefined;
 		}
@@ -75,7 +80,7 @@ export class RouteModuleBuildCache {
 	}
 
 	recordBuild(
-		options: PageModuleBuildImportOptions & {
+		options: RouteModuleBuildCacheRequest & {
 			fileHash: string;
 			outputPath: string;
 			dependencyModulePaths?: readonly string[];
@@ -98,7 +103,7 @@ export class RouteModuleBuildCache {
 		this.manifest.entries[cacheFilePath] = {
 			sourceHash: options.fileHash,
 			outputPath: options.outputPath,
-			buildKey: createRouteModuleBuildKey(options, this.dependencies.getConfigHash()),
+			buildKey: createRouteModuleBuildKey(options.buildOptions, this.dependencies.getConfigHash()),
 			dependencyHashes,
 			outputImports: options.outputImports ?? [],
 		};

@@ -44,7 +44,7 @@ export async function bundleDevClientRuntime(
 		removeStaleHmrEntrypointOutput(runtimePath, runtime.name);
 
 		const result = await browserBundleService.bundle({
-			profile: 'hmr-runtime',
+			lane: 'hmr',
 			entrypoints: [runtime.resolveEntry()],
 			outdir: runtime.workDir,
 			naming: path.basename(runtime.url),

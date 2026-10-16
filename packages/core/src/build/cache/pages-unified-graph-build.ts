@@ -244,6 +244,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 			filePath: entryPath,
 			rootDir: options.appConfig.rootDir,
 			outdir,
+			buildOptions,
 			fileHash,
 			outputPath: compiledOutput,
 			dependencyModulePaths,

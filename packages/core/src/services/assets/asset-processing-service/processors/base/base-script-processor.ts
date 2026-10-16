@@ -129,7 +129,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 		outdir: string;
 	} & ScriptAsset['bundleOptions']): Promise<BundledScriptOutput> {
 		const buildResult = await this.browserBundleService.bundle({
-			profile: 'browser-script',
+			lane: 'build',
 			entrypoints: [entrypoint],
 			outdir,
 			root: this.appConfig.rootDir,
@@ -159,7 +159,7 @@ export abstract class BaseScriptProcessor<T extends ScriptAsset> extends BasePro
 		outdir: string;
 	} & ScriptAsset['bundleOptions']): Promise<Map<string, BundledScriptOutput>> {
 		const buildResult = await this.browserBundleService.bundleGroupedEntries(entries, {
-			profile: 'browser-script',
+			lane: 'build',
 			outdir,
 			root: this.appConfig.rootDir,
 			excludeAppBuildPlugins,

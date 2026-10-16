@@ -12,6 +12,7 @@ import { RouteModuleBuildCache } from './route-module-build-cache.store.ts';
 import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { createPluginCacheKey } from '../../build/cache/cache-keys.ts';
+import type { BuildOptions } from '../../build/build-adapter.ts';
 import { RouteModuleDependencyHasher } from './route-module-dependency-hasher.ts';
 
 function createTestDependencyHasher(): RouteModuleDependencyHasher {
@@ -19,6 +20,33 @@ function createTestDependencyHasher(): RouteModuleDependencyHasher {
 		exists: () => true,
 		hashFile: (filePath) => `hash:${basename(filePath)}`,
 	});
+}
+
+function createBuildOptions(options: {
+	filePath: string;
+	rootDir: string;
+	outdir: string;
+	splitting?: boolean;
+	externalPackages?: boolean;
+	jsx?: BuildOptions['jsx'];
+	plugins?: BuildOptions['plugins'];
+}): BuildOptions {
+	return {
+		environment: 'server',
+		entrypoints: [options.filePath],
+		root: options.rootDir,
+		outdir: options.outdir,
+		target: 'node',
+		format: 'esm',
+		splitting: options.splitting ?? true,
+		externalPackages: options.externalPackages ?? true,
+		jsx: options.jsx,
+		plugins: options.plugins,
+	};
+}
+
+function withBuildOptions<T extends { filePath: string; rootDir: string; outdir: string }>(options: T) {
+	return { ...options, buildOptions: createBuildOptions(options) };
 }
 
 describe('RouteModuleBuildCache', () => {
@@ -95,18 +123,62 @@ describe('RouteModuleBuildCache', () => {
 	});
 
 	it('treats rootDir paths with and without trailing slashes as the same build key', () => {
-		const withSlash = createRouteModuleBuildKey({
-			filePath: '/app/pages/about.tsx',
-			rootDir: '/app/',
-			outdir: tempDir,
-		});
-		const withoutSlash = createRouteModuleBuildKey({
+		const withSlash = createRouteModuleBuildKey(
+			createBuildOptions({
+				filePath: '/app/pages/about.tsx',
+				rootDir: '/app/',
+				outdir: tempDir,
+			}),
+		);
+		const withoutSlash = createRouteModuleBuildKey(
+			createBuildOptions({
+				filePath: '/app/pages/about.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+			}),
+		);
+
+		assert.equal(withSlash, withoutSlash);
+	});
+
+	it('normalizes generation-only output names and keeps every other BuildOptions field in route identity', () => {
+		const base = createBuildOptions({
 			filePath: '/app/pages/about.tsx',
 			rootDir: '/app',
 			outdir: tempDir,
 		});
+		const generationZero = createRouteModuleBuildKey({ ...base, naming: 'about-hash123-0.[ext]' });
+		const generationOne = createRouteModuleBuildKey({ ...base, naming: 'about-hash123-1.[ext]' });
+		assert.equal(generationZero, generationOne);
 
-		assert.equal(withSlash, withoutSlash);
+		const fields = {
+			environment: ['server', 'browser'],
+			entrypoints: [['/app/pages/about.tsx'], { about: '/app/pages/about.tsx' }],
+			outdir: [tempDir, join(tempDir, 'other')],
+			conditions: [['browser'], ['node']],
+			define: [{ A: '1' }, { A: '2' }],
+			minify: [true, false],
+			treeshaking: [true, false],
+			target: ['node', 'browser'],
+			format: ['esm', 'cjs'],
+			sourcemap: ['none', 'linked'],
+			splitting: [true, false],
+			root: ['/app', '/other'],
+			externalPackages: [true, false],
+			reportPackagesOutsideRoot: [true, false],
+			runtimeOutdir: ['/runtime-a', '/runtime-b'],
+			writeToDisk: [true, false],
+			external: [['react'], ['react-dom']],
+			jsx: [{ importSource: 'react' }, { importSource: 'preact' }],
+		} satisfies Record<Exclude<keyof BuildOptions, 'plugins' | 'naming'>, [unknown, unknown]>;
+
+		for (const [field, [, right]] of Object.entries(fields)) {
+			assert.notEqual(
+				generationZero,
+				createRouteModuleBuildKey({ ...base, naming: 'about-hash123-0.[ext]', [field]: right }),
+				`expected different route identities for ${field}`,
+			);
+		}
 	});
 
 	it('returns a cache hit when rootDir trailing slashes differ between record and lookup', () => {
@@ -115,21 +187,25 @@ describe('RouteModuleBuildCache', () => {
 		const cache = createCache();
 		const filePath = '/app/pages/about.tsx';
 
-		cache.recordBuild({
-			filePath,
-			rootDir: '/app',
-			outdir: tempDir,
-			fileHash: 'abc123',
-			outputPath,
-			dependencyModulePaths: [filePath],
-		});
+		cache.recordBuild(
+			withBuildOptions({
+				filePath,
+				rootDir: '/app',
+				outdir: tempDir,
+				fileHash: 'abc123',
+				outputPath,
+				dependencyModulePaths: [filePath],
+			}),
+		);
 
-		const lookup = cache.lookup({
-			filePath,
-			rootDir: '/app/',
-			outdir: tempDir,
-			fileHash: 'abc123',
-		});
+		const lookup = cache.lookup(
+			withBuildOptions({
+				filePath,
+				rootDir: '/app/',
+				outdir: tempDir,
+				fileHash: 'abc123',
+			}),
+		);
 
 		assert.equal(lookup?.outputPath, outputPath);
 	});
@@ -138,12 +214,12 @@ describe('RouteModuleBuildCache', () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const outputPath = join(tempDir, 'about-abc123.mjs');
 		const cache = createCache();
-		const options = {
+		const options = withBuildOptions({
 			filePath: '/app/pages/about.tsx',
 			rootDir: '/app',
 			outdir: tempDir,
 			fileHash: 'abc123',
-		};
+		});
 
 		cache.recordBuild({
 			...options,
@@ -165,7 +241,12 @@ describe('RouteModuleBuildCache', () => {
 		const collectionPath = join(tempDir, '..', '.server-collections', 'posts-1.mjs');
 		const present = new Set([outputPath, collectionPath, join(tempDir, 'chunk-a.js'), join(tempDir, 'lazy-b.js')]);
 		const cache = createCache((filePath) => present.has(filePath));
-		const options = { filePath: '/app/pages/posts.tsx', rootDir: '/app', outdir: tempDir, fileHash: 'abc123' };
+		const options = withBuildOptions({
+			filePath: '/app/pages/posts.tsx',
+			rootDir: '/app',
+			outdir: tempDir,
+			fileHash: 'abc123',
+		});
 
 		cache.recordBuild({
 			...options,
@@ -191,7 +272,12 @@ describe('RouteModuleBuildCache', () => {
 		const commonChunk = join(tempDir, 'common-C70_Ss5a.js');
 		const present = new Set([outputPath, srcChunk, commonChunk]);
 		const cache = createCache((filePath) => present.has(filePath));
-		const options = { filePath: '/app/pages/index.tsx', rootDir: '/app', outdir: tempDir, fileHash: 'abc123' };
+		const options = withBuildOptions({
+			filePath: '/app/pages/index.tsx',
+			rootDir: '/app',
+			outdir: tempDir,
+			fileHash: 'abc123',
+		});
 
 		cache.recordBuild({
 			...options,
@@ -222,12 +308,12 @@ describe('RouteModuleBuildCache', () => {
 			exists: () => true,
 			createDependencyHasher: () => hasher,
 		});
-		const options = {
+		const options = withBuildOptions({
 			filePath: '/app/pages/about.tsx',
 			rootDir: '/app',
 			outdir: tempDir,
 			fileHash: 'abc123',
-		};
+		});
 
 		cache.recordBuild({
 			...options,
@@ -249,7 +335,12 @@ describe('RouteModuleBuildCache', () => {
 			createDependencyHasher: () => createTestDependencyHasher(),
 			getConfigHash: () => configHash,
 		});
-		const options = { filePath: '/app/pages/post.mdx', rootDir: '/app', outdir: tempDir, fileHash: 'abc123' };
+		const options = withBuildOptions({
+			filePath: '/app/pages/post.mdx',
+			rootDir: '/app',
+			outdir: tempDir,
+			fileHash: 'abc123',
+		});
 		cache.recordBuild({
 			...options,
 			outputPath: join(tempDir, 'post-abc123.mjs'),
@@ -274,7 +365,7 @@ describe('RouteModuleBuildCache', () => {
 		writeFileSync(outputPath, 'export default {};\n');
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: tempDir }, { configFilePath: configPath });
 		const cache = getSharedRouteModuleBuildCache(tempDir, appConfig);
-		const options = { filePath: pagePath, rootDir: tempDir, outdir: tempDir, fileHash: 'abc123' };
+		const options = withBuildOptions({ filePath: pagePath, rootDir: tempDir, outdir: tempDir, fileHash: 'abc123' });
 		cache.recordBuild({ ...options, outputPath, dependencyModulePaths: [pagePath] });
 		assert.ok(cache.lookup(options));
 
@@ -286,12 +377,12 @@ describe('RouteModuleBuildCache', () => {
 		vi.stubEnv('NODE_ENV', 'production');
 		const outputPath = join(tempDir, 'about-abc123.mjs');
 		const cache = createCache();
-		const baseOptions = {
+		const baseOptions = withBuildOptions({
 			filePath: '/app/pages/about.tsx',
 			rootDir: '/app',
 			outdir: tempDir,
 			fileHash: 'abc123',
-		};
+		});
 
 		cache.recordBuild({
 			...baseOptions,
@@ -300,14 +391,44 @@ describe('RouteModuleBuildCache', () => {
 		});
 
 		assert.equal(
-			cache.lookup({
-				...baseOptions,
-				jsx: {
-					importSource: 'react',
-					runtime: 'automatic',
-				},
-			}),
+			cache.lookup(
+				withBuildOptions({
+					...baseOptions,
+					jsx: {
+						importSource: 'react',
+						runtime: 'automatic',
+					},
+				}),
+			),
 			undefined,
+		);
+	});
+
+	it('does not key route builds on behavior-only diagnostics callbacks', () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const outputPath = join(tempDir, 'about-abc123.mjs');
+		const cache = createCache();
+		const options = withBuildOptions({
+			filePath: '/app/pages/about.tsx',
+			rootDir: '/app',
+			outdir: tempDir,
+			fileHash: 'abc123',
+			transpileErrorMessage: (details: string) => `failed: ${details}`,
+			noOutputMessage: (filePath: string) => `missing: ${filePath}`,
+		});
+
+		cache.recordBuild({
+			...options,
+			outputPath,
+			dependencyModulePaths: ['/app/pages/about.tsx'],
+		});
+
+		assert.ok(
+			cache.lookup({
+				...options,
+				transpileErrorMessage: () => 'different diagnostic',
+				noOutputMessage: () => 'different missing output',
+			}),
 		);
 	});
 
@@ -323,18 +444,22 @@ describe('RouteModuleBuildCache', () => {
 			setup() {},
 		};
 
-		const keyA = createRouteModuleBuildKey({
-			filePath: '/app/pages/about.tsx',
-			rootDir: '/app',
-			outdir: tempDir,
-			plugins: [pluginA],
-		});
-		const keyB = createRouteModuleBuildKey({
-			filePath: '/app/pages/about.tsx',
-			rootDir: '/app',
-			outdir: tempDir,
-			plugins: [pluginB],
-		});
+		const keyA = createRouteModuleBuildKey(
+			createBuildOptions({
+				filePath: '/app/pages/about.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+				plugins: [pluginA],
+			}),
+		);
+		const keyB = createRouteModuleBuildKey(
+			createBuildOptions({
+				filePath: '/app/pages/about.tsx',
+				rootDir: '/app',
+				outdir: tempDir,
+				plugins: [pluginB],
+			}),
+		);
 
 		assert.notEqual(keyA, keyB);
 		assert.notEqual(createPluginCacheKey([pluginA]), createPluginCacheKey([pluginB]));
@@ -345,7 +470,12 @@ describe('RouteModuleBuildCache', () => {
 		const cache = new RouteModuleBuildCache({
 			createDependencyHasher: () => createTestDependencyHasher(),
 		});
-		const options = { filePath: '/app/pages/about.tsx', rootDir: '/app', outdir: tempDir, fileHash: 'abc123' };
+		const options = withBuildOptions({
+			filePath: '/app/pages/about.tsx',
+			rootDir: '/app',
+			outdir: tempDir,
+			fileHash: 'abc123',
+		});
 		const outputPath = join(tempDir, 'about-abc123.mjs');
 		writeFileSync(outputPath, 'export default {};', 'utf8');
 
@@ -361,7 +491,12 @@ describe('RouteModuleBuildCache', () => {
 	it('forgets every entry after development invalidation', () => {
 		vi.stubEnv('NODE_ENV', 'development');
 		const cache = createCache();
-		const options = { filePath: '/app/pages/about.tsx', rootDir: '/app', outdir: tempDir, fileHash: 'abc123' };
+		const options = withBuildOptions({
+			filePath: '/app/pages/about.tsx',
+			rootDir: '/app',
+			outdir: tempDir,
+			fileHash: 'abc123',
+		});
 		cache.recordBuild({
 			...options,
 			outputPath: join(tempDir, 'about-abc123.mjs'),

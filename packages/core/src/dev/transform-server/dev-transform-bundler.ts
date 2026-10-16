@@ -66,7 +66,7 @@ export class DevTransformBundler {
 		 */
 		const entryKey = createHash('sha256').update(normalized).digest('hex').slice(0, 16);
 		const result = await this.browserBundleService.bundle({
-			profile: 'hmr-entrypoint',
+			lane: 'hmr',
 			entrypoints: { [entryKey]: normalized },
 			outdir: tempDir,
 			naming: '[name].js',

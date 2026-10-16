@@ -592,7 +592,7 @@ async function executeAppBrowserBuild(
 			entrypoint,
 		}));
 		const result = await browserBundleService.bundleGroupedEntries(entriesForBuild, {
-			profile: 'browser-script',
+			lane: 'build',
 			outdir: path.join(appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR),
 			root: appConfig.rootDir,
 			...group.options,

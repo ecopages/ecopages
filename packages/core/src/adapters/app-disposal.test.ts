@@ -3,7 +3,7 @@ import type { Server as NodeHttpServer } from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
 import { createApp } from './create-app.ts';
 import { EcopagesApp } from './node/create-app.ts';
-import type { NodeServerAdapterResult } from './node/server-adapter.ts';
+import type { NodeServerAdapter } from './node/server-adapter.ts';
 import type { NodeRuntimeServeOptions } from './node/runtime-host.ts';
 import type { RuntimeHost } from './shared/runtime/runtime-host.ts';
 
@@ -21,21 +21,23 @@ const defaultCliArgs = {
 	hostname: undefined,
 };
 
-function createMockServerAdapterResult(dispose = vi.fn().mockResolvedValue(undefined)) {
+function createMockServerAdapter(dispose = vi.fn().mockResolvedValue(undefined)) {
 	return {
+		initialize: async () => {},
 		getServerOptions: () => ({ port: 3000, hostname: 'localhost' }),
 		completeInitialization: async () => {},
 		handleRequest: async () => new Response(null, { status: 204 }),
 		buildStatic: async () => {},
 		servePreviewOnly: async () => {},
 		applyBoundPort: () => {},
+		listStaticGenerationRoutes: async () => [],
 		dispose,
-	} as NodeServerAdapterResult;
+	} as unknown as NodeServerAdapter;
 }
 
 function createTestApp(
 	runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions>,
-	createServerAdapter: () => Promise<NodeServerAdapterResult>,
+	createServerAdapter: () => Promise<NodeServerAdapter>,
 ): EcopagesApp {
 	return new EcopagesApp(
 		{ appConfig: disposalAppConfig(), cliArgs: defaultCliArgs },
@@ -68,7 +70,7 @@ describe('EcopagesApp disposal', () => {
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
 		};
 		const dispose = vi.fn().mockResolvedValue(undefined);
-		const app = createTestApp(runtimeHost, async () => createMockServerAdapterResult(dispose));
+		const app = createTestApp(runtimeHost, async () => createMockServerAdapter(dispose));
 
 		await app.start();
 		await app.stop();
@@ -88,7 +90,7 @@ describe('EcopagesApp disposal', () => {
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
 		};
 		const dispose = vi.fn().mockResolvedValue(undefined);
-		const app = createTestApp(runtimeHost, async () => createMockServerAdapterResult(dispose));
+		const app = createTestApp(runtimeHost, async () => createMockServerAdapter(dispose));
 		await app.start();
 
 		await (async () => {
@@ -115,10 +117,11 @@ describe('EcopagesApp disposal', () => {
 			},
 			{
 				runtimeHost,
-				createServerAdapter: async () => ({
-					...createMockServerAdapterResult(dispose),
-					buildStatic,
-				}),
+				createServerAdapter: async () =>
+					({
+						...createMockServerAdapter(dispose),
+						buildStatic,
+					}) as unknown as NodeServerAdapter,
 			},
 		);
 
@@ -139,7 +142,7 @@ describe('EcopagesApp disposal', () => {
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
 		};
 		const dispose = vi.fn().mockResolvedValue(undefined);
-		const createServerAdapter = vi.fn(async () => createMockServerAdapterResult(dispose));
+		const createServerAdapter = vi.fn(async () => createMockServerAdapter(dispose));
 		const app = createTestApp(runtimeHost, createServerAdapter);
 
 		await app.start();
@@ -152,5 +155,76 @@ describe('EcopagesApp disposal', () => {
 		expect(runtimeStop).toHaveBeenNthCalledWith(2, secondServer, { force: true });
 		expect(createServerAdapter).toHaveBeenCalledTimes(2);
 		expect(dispose).toHaveBeenCalledTimes(2);
+	});
+
+	it('reinitializes the request pipeline when fetch follows stop', async () => {
+		const server = { id: 'node-server' } as unknown as NodeHttpServer;
+		const runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> = {
+			start: vi.fn().mockResolvedValue(server),
+			stop: vi.fn().mockResolvedValue(undefined),
+			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
+		};
+		let generation = 0;
+		const createServerAdapter = vi.fn(async () => {
+			generation += 1;
+			const adapter = createMockServerAdapter();
+			return {
+				...adapter,
+				handleRequest: async () => new Response(`generation ${generation}`),
+			} as unknown as NodeServerAdapter;
+		});
+		const app = createTestApp(runtimeHost, createServerAdapter);
+
+		await app.start();
+		await app.stop();
+		const response = await app.fetch(new Request('http://localhost:3000/'));
+
+		expect(await response.text()).toBe('generation 2');
+		expect(createServerAdapter).toHaveBeenCalledTimes(2);
+	});
+
+	it('shares one startup when start is called concurrently', async () => {
+		const server = { id: 'node-server' } as unknown as NodeHttpServer;
+		const runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> = {
+			start: vi.fn().mockResolvedValue(server),
+			stop: vi.fn().mockResolvedValue(undefined),
+			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
+		};
+		const createServerAdapter = vi.fn(async () => createMockServerAdapter());
+		const app = createTestApp(runtimeHost, createServerAdapter);
+
+		await Promise.all([app.start(), app.start()]);
+
+		expect(createServerAdapter).toHaveBeenCalledTimes(1);
+		expect(runtimeHost.start).toHaveBeenCalledTimes(1);
+	});
+
+	it('stops a bound server when watch-session startup fails', async () => {
+		const server = { id: 'node-server' } as unknown as NodeHttpServer;
+		const runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> = {
+			start: vi.fn().mockResolvedValue(server),
+			stop: vi.fn().mockResolvedValue(undefined),
+			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
+		};
+		const firstDispose = vi.fn().mockResolvedValue(undefined);
+		let generation = 0;
+		const createServerAdapter = vi.fn(async () => {
+			generation += 1;
+			const adapter = createMockServerAdapter(firstDispose);
+			return {
+				...adapter,
+				completeInitialization:
+					generation === 1 ? vi.fn().mockRejectedValue(new Error('watcher failed')) : async () => {},
+				handleRequest: async () => new Response(`generation ${generation}`),
+			} as unknown as NodeServerAdapter;
+		});
+		const app = createTestApp(runtimeHost, createServerAdapter);
+
+		await expect(app.start()).rejects.toThrow('watcher failed');
+		const response = await app.fetch(new Request('http://localhost:3000/'));
+
+		expect(runtimeHost.stop).toHaveBeenCalledWith(server, { force: true });
+		expect(firstDispose).toHaveBeenCalledOnce();
+		expect(await response.text()).toBe('generation 2');
 	});
 });

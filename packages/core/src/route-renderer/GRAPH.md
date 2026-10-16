@@ -14,21 +14,22 @@ This document maps the rendering logic in core using the ownership, foreign-chil
 
 ```mermaid
 flowchart TD
-  A[HTTP request] --> B[SharedServerAdapter handleSharedRequest]
-  B --> C{API route?}
-  C -- Yes --> D[executeApiHandler]
-  C -- No --> E[ServerRouteHandler handleResponse]
+  A[HTTP request] --> B[NodeServerAdapter handleRequest]
+  B --> C[ServerRequestPipeline handleSharedRequest]
+  C --> D{API route?}
+  D -- Yes --> E[executeApiHandler]
+  D -- No --> F[ServerRouteHandler handleResponse]
 
-  E --> F{Explicit static route match?}
-  F -- Yes --> G[ExplicitStaticRouteMatcher handleMatch]
-  F -- No --> H{FS route match without file extension?}
-  H -- Yes --> I[FileSystemResponseMatcher handleMatch]
-  H -- No --> J[FileSystemResponseMatcher handleNoMatch]
+  F --> G{Explicit static route match?}
+  G -- Yes --> H[ExplicitStaticRouteMatcher handleMatch]
+  G -- No --> I{FS route match without file extension?}
+  I -- Yes --> J[FileSystemResponseMatcher handleMatch]
+  I -- No --> K[FileSystemResponseMatcher handleNoMatch]
 
-  I --> K[RouteRendererFactory createRenderer]
-  K --> L[RouteRenderer createRoute]
-  L --> M[IntegrationRenderer execute]
-  M --> N[response body and cache strategy]
+  J --> L[RouteRendererFactory createRenderer]
+  L --> M[RouteRenderer createRoute]
+  M --> N[IntegrationRenderer execute]
+  N --> O[response body and cache strategy]
 ```
 
 ## 2) Route Render Flow

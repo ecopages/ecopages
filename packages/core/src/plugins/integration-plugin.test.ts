@@ -89,6 +89,7 @@ describe('IntegrationPlugin', () => {
 			broadcast: vi.fn(),
 			getWatchedFiles: vi.fn(() => new Map()),
 			getRegisteredEntrypoints: vi.fn(() => new Map()),
+			tryHandleDevClientRequest: vi.fn(async () => null),
 			tryHandleAssetRequest: vi.fn(() => null),
 			injectDevClientRuntimes: vi.fn(async (response: Response) => response),
 			getDefaultContext: vi.fn(),

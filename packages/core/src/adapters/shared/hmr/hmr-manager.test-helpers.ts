@@ -5,7 +5,7 @@ import { onTestFinished } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { ClientBridgeEvent, IClientBridge } from '../../../types/public-types.ts';
-import { NodeHmrManager } from '../../node/node-hmr-manager.ts';
+import { HmrManager } from './hmr-manager.ts';
 
 /**
  * Creates a directory under `os.tmpdir()` that is removed when the test finishes.
@@ -34,10 +34,10 @@ export function writeSourceFile(rootDir: string, relativePath: string, source: s
  * @remarks
  * `subscriberCount` is what the bridge reports as connected browsers. The manager stops when the test finishes.
  */
-export function startNodeHmrManager(
+export function startHmrManager(
 	config: EcoPagesAppConfig,
 	subscriberCount = 0,
-): { manager: NodeHmrManager; broadcasts: ClientBridgeEvent[] } {
+): { manager: HmrManager; broadcasts: ClientBridgeEvent[] } {
 	const broadcasts: ClientBridgeEvent[] = [];
 	const bridge: IClientBridge = {
 		subscriberCount,
@@ -49,7 +49,7 @@ export function startNodeHmrManager(
 		update: () => {},
 		error: () => {},
 	};
-	const manager = new NodeHmrManager({ appConfig: config, bridge });
+	const manager = new HmrManager({ appConfig: config, bridge });
 	onTestFinished(() => manager.stop());
 	return { manager, broadcasts };
 }
@@ -57,6 +57,6 @@ export function startNodeHmrManager(
 /**
  * Starts a Node HMR manager over a default app config rooted at `rootDir`.
  */
-export async function startNodeHmrManagerAt(rootDir: string, subscriberCount = 0) {
-	return startNodeHmrManager(await finalizeEcoPagesConfig({ rootDir }), subscriberCount);
+export async function startHmrManagerAt(rootDir: string, subscriberCount = 0) {
+	return startHmrManager(await finalizeEcoPagesConfig({ rootDir }), subscriberCount);
 }

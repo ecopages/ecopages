@@ -2,7 +2,7 @@ import { createRequire } from '../../../utils/locals-utils.ts';
 import { HttpError } from '../../../errors/http-error.ts';
 import { ApiResponseBuilder } from './api-response.ts';
 import { runMiddlewareChain } from './run-middleware-chain.ts';
-import { matchApiPathPattern, scoreApiPathPattern } from '../../abstract/segment-path-matcher.ts';
+import { matchApiPathPattern, scoreApiPathPattern } from './segment-path-matcher.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { SchemaValidationService } from '../../../services/validation/schema-validation-service.ts';
 import type {

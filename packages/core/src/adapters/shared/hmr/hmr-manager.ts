@@ -34,7 +34,10 @@ import { DevTransformEntrypointRegistry } from './dev-transform-entrypoint-regis
 import { BrowserBundleService } from '../../../services/assets/browser-bundle.service.ts';
 import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { createAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
-import type { EntrypointDependencyGraph } from '../../../services/runtime-state/entrypoint-dependency-graph.service.ts';
+import {
+	InMemoryEntrypointDependencyGraph,
+	type EntrypointDependencyGraph,
+} from '../../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { ServerModuleTranspiler } from '../../../services/module-loading/server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';
 import { DevTransformServer } from '../../../dev/transform-server/dev-transform-server.ts';
@@ -43,12 +46,12 @@ import { prepareHmrFileChange } from '../../../hmr/hmr-file-change-prep.ts';
 
 type HandleFileChangeOptions = HmrFileChangeOptions;
 
-type SharedHmrManagerParams = {
+type HmrManagerParams = {
 	appConfig: EcoPagesAppConfig;
 	bridge: IClientBridge;
 };
 
-export abstract class SharedHmrManager implements IHmrManager {
+export class HmrManager implements IHmrManager {
 	public readonly appConfig: EcoPagesAppConfig;
 	protected readonly bridge: IClientBridge;
 	protected runtimeWorkDir: string;
@@ -67,7 +70,7 @@ export abstract class SharedHmrManager implements IHmrManager {
 	private readonly readyRuntimes = new Set<DevClientRuntime>();
 	protected readonly devTransformServer: DevTransformServer;
 
-	constructor({ appConfig, bridge }: SharedHmrManagerParams) {
+	constructor({ appConfig, bridge }: HmrManagerParams) {
 		this.appConfig = appConfig;
 		this.bridge = bridge;
 		this.runtimeWorkDir = resolveHmrRuntimeWorkDir(resolveInternalWorkDir(this.appConfig));
@@ -98,12 +101,12 @@ export abstract class SharedHmrManager implements IHmrManager {
 		this.initializeStrategies();
 	}
 
-	protected abstract createEntrypointDependencyGraph(
+	protected createEntrypointDependencyGraph(
 		existingEntrypointDependencyGraph: EntrypointDependencyGraph,
-	): EntrypointDependencyGraph;
-
-	protected shouldSkipMissingFileChange(_filePath: string): boolean {
-		return false;
+	): EntrypointDependencyGraph {
+		return existingEntrypointDependencyGraph instanceof InMemoryEntrypointDependencyGraph
+			? existingEntrypointDependencyGraph
+			: new InMemoryEntrypointDependencyGraph(requireAppRuntime(this.appConfig).buildInputIndex);
 	}
 
 	/**
@@ -114,7 +117,8 @@ export abstract class SharedHmrManager implements IHmrManager {
 	 * leaves HMR running, because the toolbar is an optional client the page does not need to update.
 	 */
 	protected onRuntimeBundleFailure(error: unknown): void {
-		appLogger.error('[HMR] Failed to build runtime script:', error);
+		this.enabled = false;
+		appLogger.error('[HMR] Failed to build runtime script; continuing with HMR disabled.', error);
 	}
 
 	protected ensureRuntimeWorkDir(): void {
@@ -284,8 +288,8 @@ export abstract class SharedHmrManager implements IHmrManager {
 			this.invalidateDevTransformDependents(resolvedFilePath);
 		}
 
-		if (this.shouldSkipMissingFileChange(filePath) && !fileSystem.exists(filePath)) {
-			appLogger.debug(`[${this.constructor.name}] Skipping missing file change: ${filePath}`);
+		if (!fileSystem.exists(filePath)) {
+			appLogger.debug(`[HMR] Skipping missing file change: ${filePath}`);
 			this.clearFailedEntrypointRegistration(filePath);
 			return [];
 		}

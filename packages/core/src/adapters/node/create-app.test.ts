@@ -13,7 +13,7 @@ import type {
 import type { ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 import { EcopagesApp } from './create-app.ts';
 import type { NodeRuntimeServeOptions } from './runtime-host.ts';
-import type { NodeServerAdapterParams, NodeServerAdapterResult } from './server-adapter.ts';
+import type { NodeServerAdapter, NodeServerAdapterParams } from './server-adapter.ts';
 import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
 
 const cliArgs: ReturnParseCliArgs = {
@@ -36,22 +36,24 @@ function createRuntimeHost(stop: () => Promise<void> = async () => {}) {
 	return { runtimeHost, server };
 }
 
-function createServerAdapterResult(overrides: Partial<NodeServerAdapterResult> = {}): NodeServerAdapterResult {
+function createServerAdapter(overrides: Record<string, unknown> = {}): NodeServerAdapter {
 	return {
+		initialize: async () => {},
 		getServerOptions: () => ({ port: 3000, hostname: 'localhost' }),
 		completeInitialization: async () => {},
 		handleRequest: async () => new Response(null, { status: 204 }),
 		buildStatic: async () => {},
 		servePreviewOnly: async () => {},
 		applyBoundPort: () => {},
+		listStaticGenerationRoutes: async () => [],
 		dispose: async () => {},
 		...overrides,
-	} as NodeServerAdapterResult;
+	} as unknown as NodeServerAdapter;
 }
 
 function createTestApp(
-	createServerAdapter: (params: NodeServerAdapterParams) => Promise<NodeServerAdapterResult> = async () =>
-		createServerAdapterResult(),
+	createServerAdapterFactory: (params: NodeServerAdapterParams) => Promise<NodeServerAdapter> = async () =>
+		createServerAdapter(),
 	stop?: () => Promise<void>,
 	appCliArgs: ReturnParseCliArgs = cliArgs,
 ) {
@@ -64,7 +66,7 @@ function createTestApp(
 			} as never,
 			cliArgs: appCliArgs,
 		},
-		{ runtimeHost, createServerAdapter },
+		{ runtimeHost, createServerAdapter: createServerAdapterFactory },
 	);
 	return { app, runtimeHost, server };
 }
@@ -86,7 +88,7 @@ describe('EcopagesApp route registration', () => {
 		let receivedHandlers: NodeServerAdapterParams['apiHandlers'];
 		const { app } = createTestApp(async (params) => {
 			receivedHandlers = params.apiHandlers;
-			return createServerAdapterResult();
+			return createServerAdapter();
 		});
 
 		app.get('/direct', handler, { middleware: [middleware], schema });
@@ -156,7 +158,7 @@ describe('EcopagesApp startup', () => {
 
 	it('passes resolved static routes to onAppStart without logging the default message', async () => {
 		const info = vi.spyOn(appLogger, 'info').mockReturnValue(appLogger);
-		const listStaticGenerationRoutes = vi.fn(async () => [
+		const staticRoutes = [
 			{
 				requestUrl: 'http://localhost:3000/posts/one',
 				pathname: '/posts/one',
@@ -168,8 +170,16 @@ describe('EcopagesApp startup', () => {
 				},
 				params: { slug: 'one' },
 			},
-		]);
-		const { app } = createTestApp(async () => createServerAdapterResult({ listStaticGenerationRoutes }));
+		];
+		const serverAdapter = createServerAdapter();
+		const listStaticGenerationRoutes = vi.fn(function (
+			this: NodeServerAdapter & { testRoutes: typeof staticRoutes },
+			_input: { runtimeOrigin: string },
+		) {
+			return Promise.resolve(this.testRoutes);
+		});
+		Object.assign(serverAdapter, { testRoutes: staticRoutes, listStaticGenerationRoutes });
+		const { app } = createTestApp(async () => serverAdapter);
 		let receivedRoutes: unknown;
 
 		try {
@@ -190,7 +200,7 @@ describe('EcopagesApp startup', () => {
 		const buildStatic = vi.fn().mockResolvedValue(undefined);
 		const servePreviewOnly = vi.fn();
 		const { app, runtimeHost } = createTestApp(
-			async () => createServerAdapterResult({ buildStatic, servePreviewOnly }),
+			async () => createServerAdapter({ buildStatic, servePreviewOnly }),
 			undefined,
 			{ ...cliArgs, build: true, start: false },
 		);
@@ -206,7 +216,7 @@ describe('EcopagesApp startup', () => {
 		const buildStatic = vi.fn();
 		const servePreviewOnly = vi.fn().mockResolvedValue('http://localhost:4000');
 		const { app, runtimeHost } = createTestApp(
-			async () => createServerAdapterResult({ buildStatic, servePreviewOnly }),
+			async () => createServerAdapter({ buildStatic, servePreviewOnly }),
 			undefined,
 			{ ...cliArgs, preview: true, serveOnly: true, start: false },
 		);
@@ -227,7 +237,7 @@ describe('EcopagesApp development restart', () => {
 		let restart: ((changedFile: string) => Promise<void>) | undefined;
 		const { app } = createTestApp(async (params) => {
 			restart = params.onDevelopmentRestart;
-			return createServerAdapterResult();
+			return createServerAdapter();
 		}, stop);
 		const logged: unknown[] = [];
 		const errorLog = vi.spyOn(appLogger, 'error').mockImplementation((...args) => {
@@ -267,7 +277,7 @@ describe('EcopagesApp development restart', () => {
 		let restart: ((changedFile: string) => Promise<void>) | undefined;
 		const { app } = createTestApp(async (params) => {
 			restart = params.onDevelopmentRestart;
-			return createServerAdapterResult();
+			return createServerAdapter();
 		}, stop);
 		const logged: string[] = [];
 		const errorLog = vi.spyOn(appLogger, 'error').mockImplementation((...args) => {

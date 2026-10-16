@@ -316,6 +316,9 @@ export interface IHmrManager {
 
 	registerScriptEntrypoint(entrypointPath: string): Promise<ResolvedHmrEntrypoint>;
 
+	/** Serves a requested module from the active development transform server, when the path is managed by HMR. */
+	tryHandleDevClientRequest(request: Request): Promise<Response | null>;
+
 	/**
 	 * Registers a custom HMR strategy.
 	 */

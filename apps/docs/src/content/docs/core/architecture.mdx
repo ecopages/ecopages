@@ -17,7 +17,7 @@ Ecopages is structured around four main ownership layers:
 1. **Core owns orchestration**: config finalization, build manifest assembly, server loading, browser bundling coordination, and development invalidation policy.
 2. **Integrations own framework semantics**: rendering, hydration behavior, framework-specific HMR, and cross-integration ownership policy.
 3. **Processors own asset semantics**: asset transformation, emitted files, asset-specific caching, and processor-specific watch behavior.
-4. **Adapters own transport**: the Node HTTP host receives requests, wires server details, and delegates into the shared core pipeline. On Bun the same host runs through Node APIs, and the start log names the runtime that launched the process.
+4. **Adapters own transport**: the Node HTTP host receives requests, wires server details, and delegates into the shared core pipeline. Each finalized app config has a separate `AppRuntime` for its build, render, and development state.
 
 Packages declare contributions. Core decides lifecycle ordering and assembles the app-owned runtime/build state.
 
@@ -37,7 +37,7 @@ When a request hits your Ecopages application, it follows this simplified flow:
 The integration and processor lifecycle is split into stable framework-owned phases.
 
 1. **Config finalization**: `createApp()` loads the `defineConfig` object from `eco.config.ts` and finalizes it. This validates registrations, initializes processor context, reads each processor's and integration's `plugins(app)` once, and seals the app-owned build manifest. No processor `setup()` runs here.
-2. **App startup setup**: processors run `setup()` before integrations, and integrations receive app config and HMR manager context before request handling begins.
+2. **App startup setup**: processors run `setup()` before integrations. In watch mode, the `DevSession` attaches the HMR manager and starts the watcher before the app reports readiness.
 3. **Request-time rendering**: core selects the route and owning integration, then the integration renderer produces the response body.
 4. **Development invalidation and HMR**: core classifies file changes, processors handle owned watch paths, and integrations participate through HMR strategies.
 
@@ -52,8 +52,10 @@ Core uses [Rolldown](https://rolldown.rs) as the bundled backend. Browser and se
 For those wishing to dive deeper, we recommend exploring the source code:
 
 - **[`createApp`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/create-app.ts)**: Recommended runtime entrypoint. It always uses the Node HTTP host.
-- **[`SharedServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/shared/server-adapter.ts)**: The core server logic shared across environments.
-- **[`NodeServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/node/server-adapter.ts)**: Handles the low-level Node server interface.
+- **[`EcopagesApp`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/node/create-app.ts)**: Owns app-level routes and lifecycle, with one concrete Node server.
+- **[`NodeServerAdapter`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/node/server-adapter.ts)**: Owns the Node HTTP host and composes the request pipeline.
+- **[`DevSession`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/node/dev-session.ts)**: Owns watch-only resources, including HMR, the Project Watcher, and background Page prewarm.
+- **[`ServerRequestPipeline`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/adapters/shared/runtime/server-request-pipeline.ts)**: Owns request routing, response matching, and page caching.
 - **[`IntegrationPlugin`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/plugins/integration-plugin.ts)**: The base class for all templating integrations.
 - **[`Processor`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/plugins/processor.ts)**: The asset-processing boundary for file capabilities, transformation, and watch behavior.
 - **[`defineConfig` / `loadEcoPagesConfig`](https://github.com/ecopages/ecopages/blob/main/packages/core/src/config/index.ts)**: Ergonomic configuration authoring and asynchronous config loading.

@@ -5,7 +5,7 @@ import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { StaticRoute } from '../../../types/public-types.ts';
 import type { ExplicitViewRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import { prepareExplicitStaticRender } from '../../../route-renderer/explicit-view-render-preparation.ts';
-import { matchExplicitStaticPathPattern } from '../../abstract/segment-path-matcher.ts';
+import { matchExplicitStaticPathPattern } from './segment-path-matcher.ts';
 
 export const EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS = {
 	missingIntegration: (routePath: string) =>

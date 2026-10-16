@@ -30,7 +30,8 @@ import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
 import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
 import { NodeHttpRequestBridge } from './http-request-bridge.ts';
 import { NodeRuntimeHost, type NodeRuntimeServeOptions } from './runtime-host.ts';
-import { type NodeServerAdapterResult, createNodeServerAdapter, type NodeServerInstance } from './server-adapter.ts';
+import { createNodeServerAdapter, type NodeServerAdapter, type NodeServerAdapterParams } from './server-adapter.ts';
+import type { NodeServerInstance } from './server-adapter.ts';
 import { resolveAppStartRoutes } from '../../utils/ecopages-route-info.ts';
 import { requireAppRuntime } from '../../config/app-runtime.ts';
 import { createViewModuleLoader } from '../../services/module-loading/view-module-loader.ts';
@@ -59,7 +60,7 @@ export type EcopagesAppRuntimeOptions = {
 
 export type EcopagesAppDependencies = {
 	runtimeHost: RuntimeHost<NodeServerInstance, NodeRuntimeServeOptions>;
-	createServerAdapter?: (params: Parameters<typeof createNodeServerAdapter>[0]) => Promise<NodeServerAdapterResult>;
+	createServerAdapter?: (params: NodeServerAdapterParams) => NodeServerAdapter | Promise<NodeServerAdapter>;
 };
 
 /**
@@ -80,6 +81,17 @@ export type RouteGroupDefinition<
 	middleware?: readonly Middleware<TRequest, TServer, TContext>[];
 	routes: readonly ApiHandler<string, TRequest, TServer>[];
 };
+
+type AppSession = {
+	adapter: NodeServerAdapter;
+	server: NodeServerInstance | undefined;
+};
+
+type AppLifecycle =
+	| { phase: 'idle' | 'stopped' }
+	| { phase: 'starting'; ready: Promise<AppSession>; session?: AppSession }
+	| { phase: 'ready'; session: AppSession }
+	| { phase: 'stopping'; stopped: Promise<void> };
 
 function formatRestartStopFailure(error: unknown): string {
 	if (error instanceof Error) {
@@ -114,15 +126,15 @@ export class EcopagesApp implements AsyncDisposable {
 	/**
 	 * @remarks WebSocket handler contexts vary by registered route and are erased while handlers wait for transport dispatch.
 	 */
-	private readonly websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>> = new Map();
+	private readonly websocketHandlers: Map<string, EcopagesWebSocketHandler<unknown, Record<string, string>>> =
+		new Map();
 	private onAppStartCallback?: OnAppStartCallback;
 	private readonly runtimeLabel: EcopagesRuntimeLabel;
 	private readonly runtimeHost: RuntimeHost<NodeServerInstance, NodeRuntimeServeOptions>;
 	private readonly serverAdapterFactory: NonNullable<EcopagesAppDependencies['createServerAdapter']>;
 	/** @remarks Initialized by the first `fetch()` or `start()` call and exposed for host-level request middleware. */
-	public serverAdapter: NodeServerAdapterResult | undefined;
-	private server: NodeServerInstance | null = null;
-	private stopped = false;
+	public serverAdapter: NodeServerAdapter | undefined;
+	private lifecycle: AppLifecycle = { phase: 'idle' };
 
 	constructor(options: EcopagesAppRuntimeOptions, dependencies: EcopagesAppDependencies) {
 		this.runtimeLabel = resolveProcessRuntimeLabel();
@@ -459,7 +471,10 @@ export class EcopagesApp implements AsyncDisposable {
 			}
 		}
 
-		this.websocketHandlers.set(path, handler as EcopagesWebSocketHandler<any, any>);
+		this.websocketHandlers.set(
+			path,
+			handler as unknown as EcopagesWebSocketHandler<unknown, Record<string, string>>,
+		);
 		return this;
 	}
 
@@ -486,10 +501,8 @@ export class EcopagesApp implements AsyncDisposable {
 		return this;
 	}
 
-	private createServerAdapter(
-		params: Parameters<typeof createNodeServerAdapter>[0],
-	): Promise<NodeServerAdapterResult> {
-		return this.serverAdapterFactory(params);
+	private createServerAdapter(params: NodeServerAdapterParams): Promise<NodeServerAdapter> {
+		return Promise.resolve(this.serverAdapterFactory(params));
 	}
 
 	private resolveRuntimeAssetSetup(): 'start' | 'export' | 'none' {
@@ -500,7 +513,7 @@ export class EcopagesApp implements AsyncDisposable {
 		return build || preview ? 'export' : 'start';
 	}
 
-	private async initializeServerAdapter(): Promise<NodeServerAdapterResult> {
+	private async initializeServerAdapter(): Promise<NodeServerAdapter> {
 		const binding = resolveRuntimeBinding({
 			cliArgs: this.cliArgs,
 			serverOptions: this.serverOptions,
@@ -508,7 +521,7 @@ export class EcopagesApp implements AsyncDisposable {
 		const runtime = requireAppRuntime(this.appConfig);
 		runtime.origin = binding.runtimeOrigin;
 
-		return this.createServerAdapter({
+		const serverAdapter = await this.createServerAdapter({
 			runtime,
 			appConfig: this.appConfig,
 			apiHandlers: this.apiHandlers,
@@ -522,6 +535,17 @@ export class EcopagesApp implements AsyncDisposable {
 			allowPortFallback: binding.allowPortFallback,
 			onDevelopmentRestart: this.createDevelopmentRestartHandler(),
 		});
+		try {
+			await serverAdapter.initialize();
+		} catch (error) {
+			try {
+				await serverAdapter.dispose();
+			} catch (disposeError) {
+				throw new AggregateError([error, disposeError], 'Server adapter initialization and cleanup failed');
+			}
+			throw error;
+		}
+		return serverAdapter;
 	}
 
 	/**
@@ -536,41 +560,68 @@ export class EcopagesApp implements AsyncDisposable {
 	}
 
 	private async bootServer(): Promise<NodeServerInstance | void> {
-		if (this.stopped) {
-			this.serverAdapter = undefined;
-			this.stopped = false;
+		const session = await this.getReadySession();
+		const current = this.lifecycle;
+		if (current.phase === 'starting') return (await current.ready).server;
+		if (current.phase === 'stopping') {
+			await current.stopped;
+			return await this.bootServer();
+		}
+		if (session.server) return session.server;
+
+		const ready = this.runStartup(session).then(() => session);
+		const starting: AppLifecycle = { phase: 'starting', ready, session };
+		this.lifecycle = starting;
+		try {
+			await ready;
+			if (this.lifecycle === starting) this.lifecycle = { phase: 'ready', session };
+		} catch (error) {
+			if (this.lifecycle === starting) this.lifecycle = { phase: 'ready', session };
+			throw error;
+		}
+		return session.server;
+	}
+
+	private async getReadySession(): Promise<AppSession> {
+		const current = this.lifecycle;
+		if (current.phase === 'ready') return current.session;
+		if (current.phase === 'starting') return await current.ready;
+		if (current.phase === 'stopping') {
+			await current.stopped;
+			return await this.getReadySession();
 		}
 
-		if (!this.serverAdapter) {
-			this.serverAdapter = await this.initializeServerAdapter();
+		const ready = this.initializeServerAdapter().then((adapter) => ({ adapter, server: undefined }));
+		const starting: AppLifecycle = { phase: 'starting', ready };
+		this.lifecycle = starting;
+		try {
+			const session = await ready;
+			if (this.lifecycle === starting) this.lifecycle = { phase: 'ready', session };
+			this.serverAdapter = session.adapter;
+			return session;
+		} catch (error) {
+			if (this.lifecycle === starting) this.lifecycle = { phase: 'stopped' };
+			throw error;
 		}
+	}
 
-		if (this.server) {
-			return this.server;
-		}
-
+	private async runStartup(session: AppSession): Promise<void> {
 		const { build, preview, serveOnly } = this.cliArgs;
 		if (preview && serveOnly) {
-			const previewOrigin = await this.serverAdapter.servePreviewOnly();
-			if (previewOrigin) {
-				await this.notifyListening(previewOrigin);
-			}
+			const previewOrigin = await session.adapter.servePreviewOnly();
+			if (previewOrigin) await this.notifyListening(previewOrigin);
 			return;
 		}
 
 		if (build || preview) {
 			appLogger.debugTime('Building static pages');
-			const previewOrigin = await this.serverAdapter.buildStatic({ preview });
+			const previewOrigin = await session.adapter.buildStatic({ preview });
 			appLogger.debugTimeEnd('Building static pages');
-
-			if (preview && previewOrigin) {
-				await this.notifyListening(previewOrigin);
-			}
-
+			if (preview && previewOrigin) await this.notifyListening(previewOrigin);
 			return;
 		}
 
-		const serveOptions = this.serverAdapter.getServerOptions();
+		const serveOptions = session.adapter.getServerOptions();
 		const binding = resolveRuntimeBinding({
 			cliArgs: this.cliArgs,
 			serverOptions: this.serverOptions,
@@ -580,19 +631,36 @@ export class EcopagesApp implements AsyncDisposable {
 			startOptions: {
 				serveOptions: {
 					...serveOptions,
-					handleRequest: async (request: Request) => await this.serverAdapter!.handleRequest(request),
+					handleRequest: async (request: Request) => await session.adapter.handleRequest(request),
 				},
 			},
 			allowPortFallback: binding.allowPortFallback,
 			usePortManager: this.cliArgs.dev,
 		});
-		this.server = bindingResult.server;
-		this.serverAdapter.applyBoundPort(bindingResult);
-
-		await this.serverAdapter.completeInitialization(this.server);
+		session.server = bindingResult.server;
+		session.adapter.applyBoundPort(bindingResult);
+		try {
+			await session.adapter.completeInitialization(session.server);
+		} catch (error) {
+			const errors: unknown[] = [error];
+			const failedServer = session.server;
+			session.server = undefined;
+			try {
+				await this.runtimeHost.stop(failedServer, { force: true });
+			} catch (stopError) {
+				errors.push(stopError);
+			}
+			try {
+				await session.adapter.dispose();
+			} catch (disposeError) {
+				errors.push(disposeError);
+			}
+			if (this.serverAdapter === session.adapter) this.serverAdapter = undefined;
+			if (this.lifecycle.phase === 'starting') this.lifecycle = { phase: 'stopped' };
+			if (errors.length > 1) throw new AggregateError(errors, 'Server startup and cleanup failed');
+			throw error;
+		}
 		await this.notifyListening(requireAppRuntime(this.appConfig).origin);
-
-		return this.server;
 	}
 
 	private logServerStarted(origin: string): void {
@@ -625,8 +693,11 @@ export class EcopagesApp implements AsyncDisposable {
 	 * Uses the initialized server adapter's route lister when one is available.
 	 */
 	private async resolveAppRoutes(): Promise<EcopagesRouteInfo[]> {
+		const serverAdapter = this.serverAdapter;
 		return resolveAppStartRoutes({
-			listStaticGenerationRoutes: this.serverAdapter?.listStaticGenerationRoutes,
+			listStaticGenerationRoutes: serverAdapter
+				? (input) => serverAdapter.listStaticGenerationRoutes(input)
+				: undefined,
 			runtimeOrigin: this.appConfig.baseUrl,
 		});
 	}
@@ -651,22 +722,54 @@ export class EcopagesApp implements AsyncDisposable {
 	 * @remarks
 	 * Shutdown releases the bound HTTP server and adapter-owned runtime resources.
 	 */
-	public async stop(force = true): Promise<void> {
-		if (this.stopped) {
-			return;
+	public stop(force = true): Promise<void> {
+		const current = this.lifecycle;
+		if (current.phase === 'idle' || current.phase === 'stopped') return Promise.resolve();
+		if (current.phase === 'stopping') return current.stopped;
+		if (current.phase !== 'ready' && current.phase !== 'starting') return Promise.resolve();
+
+		const stopped = Promise.resolve().then(() => this.disposeSession(current, force));
+		this.lifecycle = { phase: 'stopping', stopped };
+		return stopped;
+	}
+
+	private async disposeSession(
+		current: Extract<AppLifecycle, { phase: 'ready' | 'starting' }>,
+		force: boolean,
+	): Promise<void> {
+		let session = current.session;
+		if (current.phase === 'starting') {
+			try {
+				session ??= await current.ready;
+			} catch {
+				if (!session) {
+					this.lifecycle = { phase: 'stopped' };
+					return;
+				}
+			}
 		}
 
-		if (this.server) {
-			const activeServer = this.server;
-			this.server = null;
-			await this.runtimeHost.stop(activeServer, { force });
+		const errors: unknown[] = [];
+		if (session?.server) {
+			const activeServer = session.server;
+			session.server = undefined;
+			try {
+				await this.runtimeHost.stop(activeServer, { force });
+			} catch (error) {
+				errors.push(error);
+			}
 		}
-
-		if (this.serverAdapter) {
-			await this.serverAdapter.dispose();
+		if (session) {
+			try {
+				await session.adapter.dispose();
+			} catch (error) {
+				errors.push(error);
+			}
+			if (this.serverAdapter === session.adapter) this.serverAdapter = undefined;
 		}
-
-		this.stopped = true;
+		this.lifecycle = { phase: 'stopped' };
+		if (errors.length === 1) throw errors[0];
+		if (errors.length > 1) throw new AggregateError(errors, 'Failed to stop the Ecopages app');
 	}
 
 	public async [Symbol.asyncDispose](): Promise<void> {
@@ -679,11 +782,8 @@ export class EcopagesApp implements AsyncDisposable {
 	 * other runtimes and frameworks.
 	 */
 	public async fetch(request: Request): Promise<Response> {
-		if (!this.serverAdapter) {
-			this.serverAdapter = await this.initializeServerAdapter();
-		}
-
-		return this.serverAdapter.handleRequest(request);
+		const session = await this.getReadySession();
+		return session.adapter.handleRequest(request);
 	}
 
 	private createDevelopmentRestartHandler(): (changedFile: string) => Promise<void> {

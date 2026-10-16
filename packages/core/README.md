@@ -4,9 +4,9 @@ The foundational engine for the Ecopages framework. It provides the core build p
 
 ## Overview
 
-Ecopages is an extensible static site generator (SSG). It runs on Node or Bun through Node APIs. It embraces a strictly MPA (Multi-Page Application) architecture by default, rendering HTML at build-time or request-time, and hydrating interactive islands only where necessary.
+Ecopages is an extensible static site generator (SSG) that runs on Node. It embraces a strictly MPA (Multi-Page Application) architecture by default, rendering HTML at build-time or request-time, and hydrating interactive islands only where necessary.
 
-- **Runtime Boundary**: `createApp()` uses the Node HTTP host. The start log names Bun or Node from the process that launched it.
+- **Runtime Boundary**: `createApp()` uses the Node HTTP host.
 - **Build Ownership**: Rolldown builds the app.
 - **Framework agnostic**: First-class support for KitaJS, Lit, React, and MDX via official integration plugins.
 - **Extensible**: Hook into the build process with custom processors or rendering integrations.
@@ -29,6 +29,7 @@ The important ownership rules are:
 - Browser bundling and server module loading are separate paths. SSR-enabled lazy scripts execute on the server before rendering and in the browser only on their configured trigger.
 - The Project Watcher batches file and directory events, sends matching Processors one `onChanges` notification for each non-restart file batch, and dispatches every HMR-eligible path once per debounce window. Directory-only Pages batches refresh routes without Processor or HMR notifications. Sustained edits are scheduled no later than one second after the first; processing is serialized and startup fails if the filesystem subscription is not ready within 30 seconds. See [Project Watcher](src/watchers/README.md).
 - Development Page prewarm renders run in the background without delaying server readiness. App configuration declares `devPrewarmPaths`; Processors append the pathnames they own to that list from `setup()`, which finishes before the server reports that it is listening. A path that fails to render is skipped and logged at debug level. See [Runtime Adapters](src/adapters/README.md) and [Plugin Contracts](src/plugins/README.md).
+- Watch-mode resources belong to one `DevSession`, including the watcher, HMR manager, client bridge, Page prewarm, and Dev Toolbar. `EcopagesApp` shares one readiness promise across concurrent startup and request-only calls; after `stop()`, `start()` and `fetch()` initialize a fresh server adapter.
 - App shutdown tears down Integration runtime resources, including Lit workers. See [Runtime Adapters](src/adapters/README.md).
 - HMR and invalidation use shared graph-aware services instead of runtime-specific ad hoc wiring. Editing a `source` module used by both a server route and a browser entrypoint reloads the browser so server-rendered markup and the island refresh together.
 - Browser and React navigation use one core-owned document commit pipeline; each router supplies its page swap and scroll handling while core coordinates fetch/cache/parse, head reconciliation, script activation, view transitions, and lifecycle events. Browser-router always morphs the incoming body, keeping nodes with matching persistence keys attached when their ancestor structure remains compatible; during rerun refresh, custom-element descendants on that path also stay in place when their markup remains structurally compatible. Superseded stylesheet waits settle when a later page removes their staged links. For rerun scripts matched by relative `src` (without an explicit script id or HTML `id`), core keeps identity stable across pages with different `<base>` URLs while loading external modules from the incoming page's resolved URL. See [Router Layer](src/router/README.md).
@@ -44,12 +45,16 @@ flowchart TD
 	C --> D[App build adapter]
 	C --> E[App build manifest]
 	C --> F[App build queue]
-	C --> G[Dev graph slot]
+	C --> G[AppRuntime]
 	D --> F
 	F --> I[PageModuleImportService]
 	F --> J[BrowserBundleService]
 	I --> K[EcopagesApp]
-	K --> L[Node HTTP host]
+	K --> L[NodeServerAdapter]
+	L --> M[Node HTTP host]
+	L --> N[ServerRequestPipeline]
+	L --> O[DevSession in watch mode]
+	O --> P[Project Watcher and HmrManager]
 	E --> J
 ```
 
@@ -123,10 +128,10 @@ The intended reading order is:
 ## Installation
 
 ```bash
-bun add @ecopages/core
+pnpm add @ecopages/core
 ```
 
-_(You can also use `npm`, `yarn`, or `pnpm`)_
+You can also use `npm` or `yarn`.
 
 ## Basic Usage
 
@@ -153,7 +158,7 @@ export default defineConfig({
 
 ### 2. Application Entry (`app.ts`)
 
-Start the application using `createApp`. It automatically resolves and loads `eco.config.ts` from the project root and serves through the Node HTTP host on Node and on Bun:
+Start the application using `createApp`. It automatically resolves and loads `eco.config.ts` from the project root and serves through the Node HTTP host:
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';

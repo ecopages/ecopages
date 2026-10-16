@@ -1,8 +1,9 @@
 import path from 'node:path';
-import { AbstractServerAdapter } from '../../abstract/server-adapter.ts';
-import type { ServerAdapterOptions, ServerAdapterResult } from '../../abstract/server-adapter.ts';
+import type { AppRuntime } from '../../../config/app-runtime.ts';
+import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import { RouteRendererFactory } from '../../../route-renderer/route-renderer.ts';
 import { RouteRegistry } from '../../../router/server/route-registry.ts';
+import type { StaticGenerationRoute } from '../../../router/server/route-registry.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
 import { requireBuildQueue } from '../../../build/runtime/build-queue.ts';
 import { runWithBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
@@ -10,13 +11,10 @@ import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { MemoryCacheStore } from '../../../services/cache/memory-cache-store.ts';
 import { PageCacheService } from '../../../services/cache/page-cache-service.ts';
 import { SchemaValidationService } from '../../../services/validation/schema-validation-service.ts';
-import { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator.ts';
-import { ServerStaticBuilder } from './server-static-builder.ts';
 import { ExplicitStaticRouteMatcher } from '../http/explicit-static-route-matcher.ts';
 import { FileSystemServerResponseFactory } from '../http/fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from '../http/fs-server-response-matcher.ts';
 import { ServerRouteHandler } from './server-route-handler.ts';
-import { startDevStaticRoutePrewarm } from './dev-static-route-prewarm.ts';
 import { createRenderContext } from './render-context.ts';
 import { ApiRequestPipeline } from '../http/api-request-pipeline.ts';
 import { isHtmlResponse, withUncachedDevHtml } from '../hmr/hmr-html-response.ts';
@@ -39,99 +37,63 @@ type SharedResponseHandlerDependencies = {
 	explicitStaticRouteMatcher?: ExplicitStaticRouteMatcher;
 };
 
-type SharedRequestContext<TServer = unknown> = {
+export type ServerRequestContext<TServer = unknown> = {
 	apiHandlers: ApiHandler[];
 	errorHandler?: ErrorHandler<Request, TServer>;
 	serverInstance?: TServer;
 };
 
-export abstract class SharedServerAdapter<
-	TOptions extends ServerAdapterOptions,
-	TResult extends ServerAdapterResult,
-> extends AbstractServerAdapter<TOptions, TResult> {
+export type ServerRequestPipelineOptions = {
+	appConfig: EcoPagesAppConfig;
+	runtime: AppRuntime;
+	watch?: boolean;
+	isClientAbortError?: (error: unknown) => boolean;
+};
+
+export class ServerRequestPipeline {
+	protected readonly appConfig: EcoPagesAppConfig;
+	protected readonly runtime: AppRuntime;
+	private readonly watchMode: boolean;
+	private clientAbortDetector: (error: unknown) => boolean = () => false;
 	protected router!: RouteRegistry;
 	protected fileSystemResponseMatcher!: FileSystemResponseMatcher;
 	protected routeRendererFactory!: RouteRendererFactory;
 	protected routeHandler!: ServerRouteHandler;
-	protected staticSiteGenerator!: StaticSiteGenerator;
-	protected staticBuilder!: ServerStaticBuilder;
 	protected schemaValidator = new SchemaValidationService();
 	protected readonly apiRequestPipeline = new ApiRequestPipeline<Request, unknown>({
 		schemaValidator: this.schemaValidator,
 		getRenderContext: () => this.getRenderContext(),
 		getCacheService: () => this.getCacheService(),
-		isClientAbort: (error) => this.isClientAbortError(error),
+		isClientAbort: (error) => this.clientAbortDetector(error),
 	});
-	private devStaticRoutePrewarmStarted = false;
-	private readonly devStaticRoutePrewarmAbort = new AbortController();
-	private devStaticRoutePrewarm: Promise<void> | undefined;
-	private disposed = false;
 	private sharedPageCacheService: PageCacheService | null | undefined;
 
-	/** Propagates the actual listening port to every binding-dependent service. */
-	public override applyBoundPort(input: { port: number; runtimeOrigin: string }): void {
-		super.applyBoundPort(input);
-		this.staticBuilder?.setRuntimeBinding(input);
+	public constructor(options: ServerRequestPipelineOptions) {
+		this.appConfig = options.appConfig;
+		this.runtime = options.runtime;
+		this.watchMode = options.watch ?? false;
+		this.clientAbortDetector = options.isClientAbortError ?? (() => false);
 	}
 
-	/**
-	 * Warms declared static paths asynchronously in the background after the
-	 * response pipeline is ready, without delaying server readiness.
-	 */
-	protected startDevStaticRoutePrewarmWhenReady(): void {
-		if (!this.options?.watch || this.devStaticRoutePrewarmStarted) {
-			return;
-		}
-
-		this.devStaticRoutePrewarmStarted = true;
-
-		const runtimeOrigin = this.runtime.origin;
-		this.devStaticRoutePrewarm = startDevStaticRoutePrewarm({
-			pathnames: [...new Set(this.appConfig.devPrewarmPaths)],
-			signal: this.devStaticRoutePrewarmAbort.signal,
-			renderPath: (pathname: string) =>
-				requireBuildQueue(this.appConfig).withRequestScope(() =>
-					runWithBuildInputIndex(requireAppRuntime(this.appConfig).buildInputIndex, async () => {
-						const response = await this.routeHandler.handleResponse(
-							new Request(new URL(pathname, runtimeOrigin).toString(), { method: 'GET' }),
-						);
-						await response.arrayBuffer();
-					}),
-				),
-		});
+	/** Renders one declared path inside the request build scope for a DevSession prewarm. */
+	public async renderDevPrewarmPath(pathname: string, runtimeOrigin: string): Promise<void> {
+		await requireBuildQueue(this.appConfig).withRequestScope(() =>
+			runWithBuildInputIndex(requireAppRuntime(this.appConfig).buildInputIndex, async () => {
+				const response = await this.routeHandler.handleResponse(
+					new Request(new URL(pathname, runtimeOrigin).toString(), { method: 'GET' }),
+				);
+				await response.arrayBuffer();
+			}),
+		);
 	}
 
-	/**
-	 * Stops background prewarm, then releases runtime resources once.
-	 *
-	 * @remarks
-	 * Active prewarm renders must finish before Integration teardown; otherwise they can
-	 * recreate workers after disposal. Aborting skips paths that have not started rendering.
-	 * Does not stop the bound server; callers shut down transport through the runtime host first.
-	 */
-	public async dispose(): Promise<void> {
-		if (this.disposed) {
-			return;
-		}
-
-		this.disposed = true;
-		this.devStaticRoutePrewarmAbort.abort();
-		await this.devStaticRoutePrewarm;
-		await this.disposeRuntimeResources();
-	}
-
-	/**
-	 * Releases the watcher, HMR, bridge, preview listener and Integration resources the runtime owns.
-	 */
-	protected abstract disposeRuntimeResources(): Promise<void>;
-
-	protected async initializeSharedRouteHandling(options: {
+	public async initializeRouteHandling(options: {
 		staticRoutes: StaticRoute[];
 		errorPageLoaders?: ErrorPageLoaders;
 	}): Promise<void> {
 		this.ensureRouteRendererFactory();
 		await this.initSharedRouter();
-		this.configureSharedResponseHandlers(options);
+		this.configureResponseHandlers(options);
 	}
 
 	private ensureRouteRendererFactory(): void {
@@ -145,7 +107,7 @@ export abstract class SharedServerAdapter<
 		});
 	}
 
-	protected createSharedWatchRefreshCallback(options: {
+	public createWatchRefreshCallback(options: {
 		staticRoutes: StaticRoute[];
 		errorPageLoaders?: ErrorPageLoaders;
 		onRoutesReady?: () => Promise<void> | void;
@@ -153,7 +115,7 @@ export abstract class SharedServerAdapter<
 	}): () => Promise<void> {
 		return async () => {
 			try {
-				await this.initializeSharedRouteHandling({
+				await this.initializeRouteHandling({
 					staticRoutes: options.staticRoutes,
 					errorPageLoaders: options.errorPageLoaders,
 				});
@@ -188,7 +150,7 @@ export abstract class SharedServerAdapter<
 			appConfig: this.appConfig,
 			origin: this.runtime.origin,
 			templatesExt: this.appConfig.templatesExt,
-			buildMode: !this.options?.watch,
+			buildMode: !this.watchMode,
 			pageModuleAdapter: this.createRouteRegistryPageModuleAdapter(),
 		});
 
@@ -223,7 +185,7 @@ export abstract class SharedServerAdapter<
 	 * 2. How to match logical routes to physical filesystem artifacts via `FileSystemResponseMatcher`
 	 * 3. Whether to serve the response from the embedded `PageCacheService` or generate it fresh on the fly.
 	 */
-	protected configureSharedResponseHandlers(options: {
+	public configureResponseHandlers(options: {
 		staticRoutes: StaticRoute[];
 		errorPageLoaders?: ErrorPageLoaders;
 	}): void {
@@ -256,7 +218,7 @@ export abstract class SharedServerAdapter<
 			routeRendererFactory: this.routeRendererFactory,
 			errorPageLoaders,
 			fileSystemResponseFactory,
-			watchMode: !!this.options?.watch,
+			watchMode: this.watchMode,
 			cacheService,
 			defaultCacheStrategy: this.appConfig.cache?.defaultStrategy ?? 'static',
 		});
@@ -277,7 +239,7 @@ export abstract class SharedServerAdapter<
 
 	private createSharedPageCacheServiceFromConfig(): PageCacheService | null {
 		const cacheConfig = this.appConfig.cache;
-		const watch = Boolean(this.options?.watch);
+		const watch = this.watchMode;
 		const isCacheEnabled = cacheConfig?.enabled ?? !watch;
 
 		if (!isCacheEnabled) {
@@ -326,10 +288,7 @@ export abstract class SharedServerAdapter<
 	}
 
 	private async tryHandleSharedDevClientRequest(request: Request): Promise<Response | null> {
-		const manager = this.runtime.hmr as {
-			tryHandleDevClientRequest?: (request: Request) => Promise<Response | null>;
-		} | null;
-		return (await manager?.tryHandleDevClientRequest?.(request)) ?? null;
+		return (await this.runtime.hmr?.tryHandleDevClientRequest(request)) ?? null;
 	}
 
 	private tryHandleSharedHmrRequest(request: Request): Response | null {
@@ -345,7 +304,7 @@ export abstract class SharedServerAdapter<
 		return await hmrManager.injectDevClientRuntimes(withUncachedDevHtml(response));
 	}
 
-	private async tryHandleSharedApiRequest(request: Request, context: SharedRequestContext): Promise<Response | null> {
+	private async tryHandleSharedApiRequest(request: Request, context: ServerRequestContext): Promise<Response | null> {
 		return await this.apiRequestPipeline.tryHandle(
 			request,
 			context.apiHandlers,
@@ -355,45 +314,46 @@ export abstract class SharedServerAdapter<
 	}
 
 	/**
-	 * Recognises a runtime-specific client disconnect so it answers 499.
-	 *
-	 * @remarks
-	 * Only the Node adapter overrides it: its request bridge raises a dedicated
-	 * error when the socket closes while the body is read.
-	 */
-	protected isClientAbortError(_error: unknown): boolean {
-		return false;
-	}
-
-	/**
 	 * Resolves an error that escaped {@link handleSharedRequest} with the same
 	 * precedence as API handler errors, so `app.onError` sees it on every runtime.
 	 */
-	protected async handleUnexpectedRequestError(
+	public async handleUnexpectedRequestError(
 		error: unknown,
 		request: Request,
-		context: SharedRequestContext,
+		context: ServerRequestContext,
 	): Promise<Response> {
 		const response = await this.apiRequestPipeline.handleError(error, {
 			request,
 			serverInstance: context.serverInstance,
 			errorHandler: context.errorHandler,
 		});
-		return this.options?.watch && isHtmlResponse(response) ? withUncachedDevHtml(response) : response;
+		return this.watchMode && isHtmlResponse(response) ? withUncachedDevHtml(response) : response;
+	}
+
+	public getStaticBuildContext(): {
+		router: RouteRegistry;
+		routeRendererFactory: RouteRendererFactory;
+	} {
+		return { router: this.router, routeRendererFactory: this.routeRendererFactory };
+	}
+
+	public async listStaticGenerationRoutes(input: {
+		runtimeOrigin: string;
+	}): Promise<readonly StaticGenerationRoute[]> {
+		return await this.router.listStaticGenerationRoutes(input);
 	}
 
 	/**
-	 * Universally processes an incoming WinterCG Web standard Request.
+	 * Processes an incoming WinterCG Web standard Request from the Node adapter.
 	 *
 	 * 1. Resolves static Hot Module Replacement runtime blobs if development.
 	 * 2. Checks if the incoming request matches any parsed API route schemas.
 	 *   - Routes through `ApiRequestPipeline` which performs strict validation.
 	 * 3. Falls through to standard `ServerRouteHandler` for React/Lit filesystem pages.
 	 *
-	 * Both Bun and Node bindings fall back to this exact function once they have mapped their
-	 * native HTTP objects into Web Standard Requests.
+	 * The Node host maps its native HTTP request into a Web Request before calling this method.
 	 */
-	public async handleSharedRequest(request: Request, context: SharedRequestContext): Promise<Response> {
+	public async handleSharedRequest(request: Request, context: ServerRequestContext): Promise<Response> {
 		return requireBuildQueue(this.appConfig).withRequestScope(() =>
 			runWithBuildInputIndex(requireAppRuntime(this.appConfig).buildInputIndex, () =>
 				startupTrace.traceFirstRequest(request, async () => {

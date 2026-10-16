@@ -9,9 +9,8 @@ import type { AppRuntime } from '../../../config/app-runtime.ts';
 import { createAppRuntime } from '../../../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import type { ServerAdapterResult } from '../../abstract/server-adapter.ts';
 import type { ApiHandler, ErrorHandler, IHmrManager } from '../../../types/public-types.ts';
-import { SharedServerAdapter } from './server-adapter.ts';
+import { ServerRequestPipeline } from './server-request-pipeline.ts';
 
 const tempRoots: string[] = [];
 
@@ -39,6 +38,7 @@ function createHmrAssetManager(runtimePath: string, enabled = true): IHmrManager
 		broadcast: vi.fn(),
 		getWatchedFiles: vi.fn(() => new Map()),
 		getRegisteredEntrypoints: vi.fn(() => new Map()),
+		tryHandleDevClientRequest: vi.fn(async () => null),
 		tryHandleAssetRequest: (request: Request) => {
 			const url = new URL(request.url);
 			if (url.pathname === HMR_RUNTIME_SCRIPT_URL && fs.existsSync(runtimePath)) {
@@ -67,24 +67,7 @@ function createHmrAssetManager(runtimePath: string, enabled = true): IHmrManager
 	};
 }
 
-class TestSharedServerAdapter extends SharedServerAdapter<any, ServerAdapterResult> {
-	public async initialize(): Promise<void> {}
-	protected async disposeRuntimeResources(): Promise<void> {}
-	public getServerOptions(): Record<string, never> {
-		return {};
-	}
-	public async buildStatic(): Promise<string | undefined> {
-		return undefined;
-	}
-	public async createAdapter(): Promise<ServerAdapterResult> {
-		return {
-			getServerOptions: () => ({}),
-			buildStatic: async () => undefined,
-			servePreviewOnly: async () => undefined,
-			applyBoundPort: () => {},
-			dispose: async () => {},
-		};
-	}
+class TestServerRequestPipeline extends ServerRequestPipeline {
 	public async handleRequest(request: Request): Promise<Response> {
 		this.runtime.hmr = createHmrAssetManager('');
 		return await this.handleSharedRequest(request, {
@@ -118,7 +101,7 @@ class TestSharedServerAdapter extends SharedServerAdapter<any, ServerAdapterResu
 	}
 
 	public setWatchModeForTest(watch: boolean): void {
-		(this as unknown as { options: { watch?: boolean } }).options = { watch };
+		(this as unknown as { watchMode: boolean }).watchMode = watch;
 	}
 
 	public createPageCacheServiceForTest() {
@@ -139,8 +122,7 @@ class TestSharedServerAdapter extends SharedServerAdapter<any, ServerAdapterResu
 		super({
 			appConfig: config,
 			runtime,
-			serveOptions: {},
-			options,
+			watch: options.watch,
 		});
 	}
 }
@@ -150,21 +132,21 @@ test.each([
 	{ name: 'enabled in watch mode when opted in', watch: true, enabled: true, expected: true },
 	{ name: 'enabled by default outside watch mode', watch: false, enabled: undefined, expected: true },
 	{ name: 'disabled when explicitly disabled', watch: false, enabled: false, expected: false },
-])('SharedServerAdapter leaves page caching $name', async ({ watch, enabled, expected }) => {
+])('ServerRequestPipeline leaves page caching $name', async ({ watch, enabled, expected }) => {
 	const rootDir = createTempRoot('ecopages-shared-server-cache-config');
 	const appConfig = await finalizeEcoPagesConfig({
 		rootDir,
 		integrations: [],
 		cache: enabled === undefined ? undefined : { enabled },
 	});
-	const adapter = new TestSharedServerAdapter(rootDir, appConfig, { watch });
+	const adapter = new TestServerRequestPipeline(rootDir, appConfig, { watch });
 
 	assert.equal(adapter.createPageCacheServiceForTest() !== null, expected);
 });
 
-test('SharedServerAdapter dispatches matching API handlers before filesystem routes', async () => {
+test('ServerRequestPipeline dispatches matching API handlers before filesystem routes', async () => {
 	const rootDir = createTempRoot('ecopages-shared-server-api-dispatch');
-	const adapter = new TestSharedServerAdapter(rootDir);
+	const adapter = new TestServerRequestPipeline(rootDir);
 	adapter.setRouteHandlerForTest(async () => new Response('filesystem'));
 
 	const response = await adapter.handleSharedRequestForTest(
@@ -182,9 +164,9 @@ test('SharedServerAdapter dispatches matching API handlers before filesystem rou
 	assert.equal(await response.text(), 'api:123');
 });
 
-test('SharedServerAdapter falls back to the route handler when no API handler matches', async () => {
+test('ServerRequestPipeline falls back to the route handler when no API handler matches', async () => {
 	const rootDir = createTempRoot('ecopages-shared-server-route-fallback');
-	const adapter = new TestSharedServerAdapter(rootDir);
+	const adapter = new TestServerRequestPipeline(rootDir);
 	adapter.setRouteHandlerForTest(async () => new Response('filesystem'));
 
 	const response = await adapter.handleSharedRequestForTest(
@@ -202,9 +184,9 @@ test('SharedServerAdapter falls back to the route handler when no API handler ma
 	assert.equal(await response.text(), 'filesystem');
 });
 
-test('SharedServerAdapter injects HMR script into HTML responses in watch mode', async () => {
+test('ServerRequestPipeline injects HMR script into HTML responses in watch mode', async () => {
 	const rootDir = createTempRoot('ecopages-shared-server-hmr-inject');
-	const adapter = new TestSharedServerAdapter(rootDir);
+	const adapter = new TestServerRequestPipeline(rootDir);
 	adapter.setWatchModeForTest(true);
 	const hmrManager = createHmrAssetManager('');
 	adapter.setRouteHandlerForTest(
@@ -221,9 +203,9 @@ test('SharedServerAdapter injects HMR script into HTML responses in watch mode',
 	assert.equal(response.headers.get('Cache-Control'), 'no-store, must-revalidate');
 });
 
-test('SharedServerAdapter leaves HTML responses untouched while the HMR manager is disabled', async () => {
+test('ServerRequestPipeline leaves HTML responses untouched while the HMR manager is disabled', async () => {
 	const rootDir = createTempRoot('ecopages-shared-server-hmr-no-inject');
-	const adapter = new TestSharedServerAdapter(rootDir);
+	const adapter = new TestServerRequestPipeline(rootDir);
 	adapter.setWatchModeForTest(true);
 	const hmrManager = createHmrAssetManager('', false);
 	adapter.setRouteHandlerForTest(
@@ -239,9 +221,9 @@ test('SharedServerAdapter leaves HTML responses untouched while the HMR manager 
 	assert.equal(response.headers.get('Cache-Control'), 'public, max-age=60');
 });
 
-test('SharedServerAdapter keeps an HTML error response out of the browser cache only in watch mode', async () => {
+test('ServerRequestPipeline keeps an HTML error response out of the browser cache only in watch mode', async () => {
 	const rootDir = createTempRoot('ecopages-shared-server-unexpected-error');
-	const adapter = new TestSharedServerAdapter(rootDir);
+	const adapter = new TestServerRequestPipeline(rootDir);
 	const renderErrorPage: ErrorHandler = () =>
 		new Response('<html><body>Error</body></html>', {
 			status: 500,
@@ -267,7 +249,7 @@ test('SharedServerAdapter keeps an HTML error response out of the browser cache 
 test('RouteRegistry page module adapter loads page modules through integration renderers', async () => {
 	const rootDir = createTempRoot('ecopages-route-registry-page-module-adapter');
 	const config = await finalizeEcoPagesConfig({ rootDir });
-	const adapter = new TestSharedServerAdapter(rootDir);
+	const adapter = new TestServerRequestPipeline(rootDir);
 	(adapter as unknown as { appConfig: typeof config }).appConfig = config;
 
 	const loadPageModule = vi.fn(async () => ({

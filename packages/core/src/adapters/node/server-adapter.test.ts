@@ -28,6 +28,8 @@ vi.mock('../shared/ws/node-http-websocket-upgrades.ts', () => ({
 
 const devRuntime = vi.hoisted(() => ({
 	websocketServer: {
+		clients: new Set(),
+		close: (callback?: (error?: Error) => void) => callback?.(),
 		handleUpgrade: (_req: unknown, _socket: unknown, _head: unknown, connected: (ws: unknown) => void) =>
 			connected(devRuntime.socket),
 	},
@@ -46,22 +48,44 @@ const devRuntime = vi.hoisted(() => ({
 	},
 }));
 
-vi.mock('./server-adapter-dependencies.ts', () => ({
-	createNodeServerDevRuntime: () => ({
-		...devRuntime,
-		bridge: { ...devRuntime.bridge, reload: devBridge.reload },
-	}),
+vi.mock('ws', () => ({
+	WebSocketServer: class {
+		constructor() {
+			return devRuntime.websocketServer;
+		}
+	},
+}));
+
+vi.mock('./node-client-bridge.ts', () => ({
+	NodeClientBridge: class {
+		constructor() {
+			return { ...devRuntime.bridge, reload: devBridge.reload };
+		}
+	},
+}));
+
+vi.mock('../shared/hmr/hmr-manager.ts', () => ({
+	HmrManager: class {
+		constructor() {
+			return devRuntime.hmrManager;
+		}
+	},
 }));
 
 class TestNodeServerAdapter extends NodeServerAdapter {
 	public handleSharedRequestImpl?: () => Promise<Response>;
+	private skipInitializationForTest = false;
 
-	public setInitializedForTest(): void {
-		(this as unknown as { initialized: boolean }).initialized = true;
+	public setReadyForTest(): void {
+		this.skipInitializationForTest = true;
+	}
+
+	public override initialize(): Promise<void> {
+		return this.skipInitializationForTest ? Promise.resolve() : super.initialize();
 	}
 
 	private skipDevRouteSetup = false;
-	/** Skips route handler setup and prewarm, which need real pages, when completing watch-mode initialization. */
+	/** Skips route handler setup, which needs real pages, when completing watch-mode initialization. */
 	public skipDevRouteSetupForTest(): void {
 		this.skipDevRouteSetup = true;
 	}
@@ -69,12 +93,6 @@ class TestNodeServerAdapter extends NodeServerAdapter {
 	protected override configureSharedResponseHandlers(options: never): void {
 		if (!this.skipDevRouteSetup) {
 			super.configureSharedResponseHandlers(options);
-		}
-	}
-
-	protected override startDevStaticRoutePrewarmWhenReady(): void {
-		if (!this.skipDevRouteSetup) {
-			super.startDevStaticRoutePrewarmWhenReady();
 		}
 	}
 
@@ -89,7 +107,7 @@ class TestNodeServerAdapter extends NodeServerAdapter {
 	}
 }
 
-function createAdapter(
+function makeNodeServerAdapter(
 	options?: Partial<NodeServerAdapterParams>,
 	runtimeHost = new NodeRuntimeHost(new NodeHttpRequestBridge()),
 ) {
@@ -139,8 +157,8 @@ describe('NodeServerAdapter', () => {
 	});
 
 	it('returns 499 for normalized client aborts', async () => {
-		const adapter = createAdapter({ options: { watch: false } });
-		adapter.setInitializedForTest();
+		const adapter = makeNodeServerAdapter({ options: { watch: false } });
+		adapter.setReadyForTest();
 		adapter.handleSharedRequestImpl = async () => {
 			throw new NodeClientAbortError();
 		};
@@ -152,8 +170,8 @@ describe('NodeServerAdapter', () => {
 
 	it('routes errors that escape the request pipeline through app.onError', async () => {
 		const errorHandler = vi.fn(async () => new Response('handled', { status: 418 }));
-		const adapter = createAdapter({ options: { watch: false }, errorHandler });
-		adapter.setInitializedForTest();
+		const adapter = makeNodeServerAdapter({ options: { watch: false }, errorHandler });
+		adapter.setReadyForTest();
 		adapter.handleSharedRequestImpl = async () => {
 			throw new Error('boom');
 		};
@@ -165,8 +183,8 @@ describe('NodeServerAdapter', () => {
 	});
 
 	it('answers escaped errors with 500 when no onError handler is registered', async () => {
-		const adapter = createAdapter({ options: { watch: false } });
-		adapter.setInitializedForTest();
+		const adapter = makeNodeServerAdapter({ options: { watch: false } });
+		adapter.setReadyForTest();
 		adapter.handleSharedRequestImpl = async () => {
 			throw new Error('boom');
 		};
@@ -178,8 +196,8 @@ describe('NodeServerAdapter', () => {
 
 	it('builds static pages without an ephemeral build server', async () => {
 		const staticBuilderBuild = vi.fn().mockResolvedValue(undefined);
-		const adapter = createAdapter({ options: { watch: false } });
-		adapter.setInitializedForTest();
+		const adapter = makeNodeServerAdapter({ options: { watch: false } });
+		adapter.setReadyForTest();
 		(adapter as unknown as { staticBuilder: { build: typeof staticBuilderBuild } }).staticBuilder = {
 			build: staticBuilderBuild,
 		};
@@ -197,12 +215,11 @@ describe('NodeServerAdapter', () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		fs.mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
 		fs.writeFileSync(path.join(appConfig.absolutePaths.distDir, 'about.html'), '<h1>About</h1>');
-		const adapter = createAdapter({
+		const adapter = makeNodeServerAdapter({
 			appConfig,
 			serveOptions: { hostname: '127.0.0.1', port: await getAvailablePort() },
 			options: { watch: false },
 		});
-		adapter.setInitializedForTest();
 
 		try {
 			const previewOrigin = await adapter.servePreviewOnly();
@@ -222,7 +239,7 @@ describe('NodeServerAdapter', () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		fs.mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
 		const runtimeHost = new NodeRuntimeHost(new NodeHttpRequestBridge());
-		const adapter = createAdapter(
+		const adapter = makeNodeServerAdapter(
 			{
 				appConfig,
 				serveOptions: { hostname: '127.0.0.1', port: 0 },
@@ -230,7 +247,6 @@ describe('NodeServerAdapter', () => {
 			},
 			runtimeHost,
 		);
-		adapter.setInitializedForTest();
 		let releaseStop!: () => void;
 		const stopGate = new Promise<void>((resolve) => {
 			releaseStop = resolve;
@@ -272,7 +288,7 @@ describe('NodeServerAdapter', () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		fs.mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
 		const runtimeHost = new NodeRuntimeHost(new NodeHttpRequestBridge());
-		const adapter = createAdapter(
+		const adapter = makeNodeServerAdapter(
 			{
 				appConfig,
 				serveOptions: { hostname: '127.0.0.1', port: 0 },
@@ -280,7 +296,6 @@ describe('NodeServerAdapter', () => {
 			},
 			runtimeHost,
 		);
-		adapter.setInitializedForTest();
 		let releaseStart!: () => void;
 		const startGate = new Promise<void>((resolve) => {
 			releaseStart = resolve;
@@ -322,7 +337,7 @@ describe('NodeServerAdapter', () => {
 		fs.mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
 		fs.writeFileSync(path.join(appConfig.absolutePaths.distDir, 'about.html'), '<h1>About</h1>');
 		const runtimeHost = new NodeRuntimeHost(new NodeHttpRequestBridge());
-		const adapter = createAdapter(
+		const adapter = makeNodeServerAdapter(
 			{
 				appConfig,
 				serveOptions: { hostname: '127.0.0.1', port: 0 },
@@ -330,7 +345,6 @@ describe('NodeServerAdapter', () => {
 			},
 			runtimeHost,
 		);
-		adapter.setInitializedForTest();
 
 		try {
 			expect(await adapter.servePreviewOnly()).toBeDefined();
@@ -369,7 +383,7 @@ describe('NodeServerAdapter', () => {
 			const appConfig = await finalizeEcoPagesConfig({ rootDir, processors: [processor] });
 			fs.mkdirSync(path.join(rootDir, 'dist'), { recursive: true });
 			fs.writeFileSync(path.join(rootDir, 'dist', 'stale.txt'), 'stale');
-			const adapter = createAdapter({ appConfig, options: { watch: false }, runtimeAssetSetup });
+			const adapter = makeNodeServerAdapter({ appConfig, options: { watch: false }, runtimeAssetSetup });
 			vi.spyOn(
 				adapter as unknown as { initializeSharedRouteHandling: () => Promise<void> },
 				'initializeSharedRouteHandling',
@@ -414,7 +428,7 @@ describe('NodeServerAdapter', () => {
 		});
 
 		it('attaches user upgrades without a preflight when serving without watch', async () => {
-			const adapter = createAdapter({ options: { watch: false } });
+			const adapter = makeNodeServerAdapter({ options: { watch: false } });
 
 			await adapter.completeInitialization(server);
 
@@ -433,7 +447,7 @@ describe('NodeServerAdapter', () => {
 			upgrades.attach.mockImplementationOnce(() => {
 				throw wiringDone;
 			});
-			const adapter = createAdapter({ options: { watch: true } });
+			const adapter = makeNodeServerAdapter({ options: { watch: true } });
 
 			await expect(adapter.completeInitialization(server)).rejects.toBe(wiringDone);
 
@@ -457,7 +471,7 @@ describe('NodeServerAdapter', () => {
 				.mockImplementation(() => {
 					calls.push('sendPendingBuildErrors');
 				});
-			const adapter = createAdapter({ options: { watch: true } });
+			const adapter = makeNodeServerAdapter({ options: { watch: true } });
 			await expect(adapter.completeInitialization(server)).rejects.toBe(wiringDone);
 			const { preflight } = upgrades.attach.mock.calls[0][1] as {
 				preflight: (req: { url: string }, socket: unknown, head: unknown) => boolean;
@@ -473,7 +487,7 @@ describe('NodeServerAdapter', () => {
 	it('reloads the browser for a public-directory edit', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.join(os.tmpdir(), 'ecopages-host-reload') });
 		appConfig.integrations = [];
-		const adapter = createAdapter({ appConfig });
+		const adapter = makeNodeServerAdapter({ appConfig });
 		adapter.skipDevRouteSetupForTest();
 		const fileEvents = Object.assign(new EventEmitter(), {
 			add: vi.fn(),
@@ -506,7 +520,7 @@ describe('NodeServerAdapter', () => {
 			devPrewarmPaths: ['/slow-page'],
 			integrations: [new ResourceIntegration()],
 		});
-		const adapter = createAdapter({ appConfig, options: { watch: true } });
+		const adapter = makeNodeServerAdapter({ appConfig, options: { watch: true } });
 		const subscription = vi
 			.spyOn(ProjectWatcher.prototype, 'createWatcherSubscription')
 			.mockResolvedValue(undefined as never);
@@ -563,8 +577,7 @@ describe('NodeServerAdapter', () => {
 				return new Response('ok');
 			});
 		onTestFinished(() => handleResponse.mockRestore());
-		const adapter = createAdapter({ appConfig, options: { watch: true } });
-		adapter.setInitializedForTest();
+		const adapter = makeNodeServerAdapter({ appConfig, options: { watch: true } });
 		const subscription = vi
 			.spyOn(ProjectWatcher.prototype, 'createWatcherSubscription')
 			.mockResolvedValue(undefined as never);

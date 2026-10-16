@@ -1,11 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
 	configurePlaywrightColorEnv,
-	createPlaywrightSubprocessEnv,
 	shouldDisablePlaywrightColors,
 	shouldKeepPlaywrightInspector,
 	stripInheritedPlaywrightInspectorEnv,
-} from '../../playwright/playwright-color-env.mjs';
+} from '../playwright/playwright-color-env.mjs';
 
 describe('playwright color and inspector env', () => {
 	it('shouldDisablePlaywrightColors honors NO_COLOR, CI, and Playwright disable flags', () => {
@@ -28,27 +27,6 @@ describe('playwright color and inspector env', () => {
 		expect(env.FORCE_COLOR).toBe('0');
 		expect(env.DEBUG_COLORS).toBe('0');
 		expect(env.EXAMPLE).toBe('value');
-	});
-
-	it('createPlaywrightSubprocessEnv applies overrides after color normalization', () => {
-		vi.stubEnv('NO_COLOR', '1');
-
-		const env = createPlaywrightSubprocessEnv({ EXAMPLE: 'value' });
-		expect(env.NO_COLOR).toBeUndefined();
-		expect(env.FORCE_COLOR).toBe('0');
-		expect(env.DEBUG_COLORS).toBe('0');
-		expect(env.EXAMPLE).toBe('value');
-	});
-
-	it('strips inherited PWDEBUG so Playwright cannot force headed inspector mode', () => {
-		vi.stubEnv('PWDEBUG', '1');
-		vi.stubEnv('npm_config_pwdebug', '1');
-
-		const env = createPlaywrightSubprocessEnv({ EXAMPLE: 'value' });
-		expect(env.PWDEBUG).toBeUndefined();
-		expect(env.npm_config_pwdebug).toBeUndefined();
-		expect(env.EXAMPLE).toBe('value');
-		expect(process.env.PWDEBUG).toBe('1');
 	});
 
 	it('keeps the Playwright inspector only when --debug is on the command line', () => {

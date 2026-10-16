@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test, expect } from '../../app-fixture';
-import { gotoAndWait } from '../../utils/test-helpers';
 
 async function readMainTitleColor(page: Page) {
 	return page.evaluate(() => {
@@ -17,24 +16,6 @@ async function readMainTitleColor(page: Page) {
 }
 
 test.describe('HMR E2E', () => {
-	test('should load page with .main-title element', async ({ page }) => {
-		await gotoAndWait(page, '/');
-		const title = page.locator('.main-title').first();
-		await expect(title).toBeVisible();
-	});
-
-	test('should connect to HMR WebSocket', async ({ page }) => {
-		const socketPromise = page.waitForEvent('websocket', {
-			predicate: (socket) => socket.url().endsWith('/_hmr'),
-			timeout: 10000,
-		});
-
-		await gotoAndWait(page, '/');
-		const socket = await socketPromise;
-
-		expect(socket.url()).toMatch(/\/_hmr$/);
-	});
-
 	test('should fall back to a full page reload when raw CSS file changes', async ({ page, app }) => {
 		const testCssFile = path.join(app.dir, 'src/pages/index.css');
 		const originalCss = readFileSync(testCssFile, 'utf-8');

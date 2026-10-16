@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '../../app-fixture';
+import { trackRuntimeErrors } from '../../utils/runtime-error-tracker';
 import { gotoAndWait } from '../../utils/test-helpers';
 
 function patchDocsHeading(content: string, suffix: string) {
@@ -23,25 +24,6 @@ function restoreFixtureFile(filePath: string, originalContent: string, options?:
 	if (options?.force || currentContent !== originalContent) {
 		fs.writeFileSync(filePath, originalContent, 'utf-8');
 	}
-}
-
-function createRuntimeErrorTracker() {
-	const pageErrors: string[] = [];
-	const consoleErrors: string[] = [];
-
-	return {
-		onPageError: (error: Error) => {
-			pageErrors.push(error.message);
-		},
-		onConsoleMessage: (message: string) => {
-			consoleErrors.push(message);
-		},
-		assertNoBoundaryRegressions: () => {
-			const combinedErrors = [...pageErrors, ...consoleErrors].join('\n');
-			expect(combinedErrors).not.toMatch(/is not defined/i);
-			expect(combinedErrors).not.toMatch(/Cannot set properties of null/i);
-		},
-	};
 }
 
 type SharedLayoutClientProbeState = {
@@ -80,7 +62,7 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 	let originalDocsPage: string;
 	let originalDocsLayout: string;
 	let originalDocsLayoutSidebarLink: string;
-	let runtimeErrorTracker = createRuntimeErrorTracker();
+	let runtimeErrorTracker: ReturnType<typeof trackRuntimeErrors>;
 
 	test.describe.configure({ mode: 'serial' });
 
@@ -113,21 +95,15 @@ test.describe('React Router Persist Layouts - Dev HMR', () => {
 		});
 	}
 
-	test.beforeEach(async ({ page }) => {
-		runtimeErrorTracker = createRuntimeErrorTracker();
-		page.on('pageerror', runtimeErrorTracker.onPageError);
-		page.on('console', (msg) => {
-			if (msg.type() === 'error') {
-				runtimeErrorTracker.onConsoleMessage(msg.text());
-			}
-		});
+	test.beforeEach(({ page }) => {
+		runtimeErrorTracker = trackRuntimeErrors(page);
 	});
 
 	test.afterEach(async () => {
 		restoreAllFixtureFiles();
 		await new Promise((resolve) => setTimeout(resolve, 50));
 
-		runtimeErrorTracker.assertNoBoundaryRegressions();
+		runtimeErrorTracker.assertClean();
 	});
 
 	test.afterAll(() => {

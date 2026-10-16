@@ -30,13 +30,13 @@ It builds `apps/docs` and serves that output from its dedicated `playwright.docs
 
 Source-mutating specs edit `app.dir`, their worker's private copy. The fixture removes that copy when the worker ends. A copy left behind by an interrupted process is replaced when that worker starts again. The server runs in its own process group so teardown also stops runtime processes started by the CLI.
 
-Kitchen-sink HMR uses one app copy per worker. Each HMR file runs serially on its worker, while different files can run in parallel. Shared-server projects do not edit their sources.
+Kitchen-sink HMR uses one app copy per worker, so source-mutating tests can run in parallel without sharing edits. Shared-server projects do not edit their sources.
 
 ## Add coverage
 
 Add the spec beside its fixture and add the project to the explicit array in `playwright.config.ts`. Put docs site browser checks in the docs config. Use `e2e/app-fixture.ts` when a dev test mutates source files or needs a private dev server; use `webServer` for shared static and preview servers.
 
-Vitest covers unit and browser-level behavior through `pnpm test:vitest`. Playwright covers behavior that needs the wired app and a real browser. The repository's CI runs `test:ci:fast` and the four-shard `test:e2e` suite on every pull request and on pushes to `develop` and `main`. Docs e2e runs separately when a pull request or push changes its selected paths.
+Vitest covers unit and browser-level behavior through `pnpm test:vitest`. Playwright covers behavior that needs the wired app and a real browser. On pull requests, repository CI runs `test:ci:fast` alongside the four-shard `test:e2e` suite. Pushes to `develop` and `main` run the sharded E2E suite. Docs e2e runs separately when a pull request or push changes its selected paths.
 
 `pnpm test:e2e:ui` opens Playwright's UI. Tests run headless by default; use `playwright test --headed` or `--debug` for local inspection. Inherited `PWDEBUG` is stripped unless `--debug` is present.
 

@@ -1,5 +1,6 @@
 import type { AssetPosition, ProcessedAsset, ScriptAsset } from '../assets/asset-processing-service/assets.types.ts';
 import type { PagePackageResult } from '../../types/public-types.ts';
+import { escapeHtmlAttribute } from '../../utils/html-escaping.ts';
 import { HtmlRewriter, rewriteFirstElement, type HtmlRewriterAttributeTarget } from './html-rewriter.ts';
 import {
 	buildProcessedAssetDedupeKey,
@@ -22,20 +23,20 @@ export class HtmlTransformerService {
 	private formatAttributes(attrs?: Record<string, string>): string {
 		if (!attrs) return '';
 		return ` ${Object.entries(attrs)
-			.map(([key, value]) => `${key}="${value}"`)
+			.map(([key, value]) => `${key}="${escapeHtmlAttribute(value)}"`)
 			.join(' ')}`;
 	}
 
 	private generateScriptTag(dep: ProcessedAsset & { kind: 'script' }): string {
 		return dep.inline
 			? `<script${this.formatAttributes(dep.attributes)}>${dep.content}</script>`
-			: `<script src="${dep.srcUrl}"${this.formatAttributes(dep.attributes)}></script>`;
+			: `<script src="${escapeHtmlAttribute(String(dep.srcUrl))}"${this.formatAttributes(dep.attributes)}></script>`;
 	}
 
 	private generateStylesheetTag(dep: ProcessedAsset): string {
 		return dep.inline
 			? `<style${this.formatAttributes(dep.attributes)}>${dep.content}</style>`
-			: `<link rel="stylesheet" href="${dep.srcUrl}"${this.formatAttributes(dep.attributes)}>`;
+			: `<link rel="stylesheet" href="${escapeHtmlAttribute(String(dep.srcUrl))}"${this.formatAttributes(dep.attributes)}>`;
 	}
 
 	private buildDependencyTags(dependencies: ProcessedAsset[]): string {

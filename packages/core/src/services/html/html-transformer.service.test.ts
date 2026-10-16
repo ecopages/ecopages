@@ -133,6 +133,30 @@ describe('HtmlTransformerService', () => {
 		);
 	});
 
+	it('escapes asset URLs and declared attribute values', () => {
+		const transformer = new HtmlTransformerService();
+		const pagePackage = createPagePackage([
+			{
+				kind: 'script',
+				inline: false,
+				position: 'head',
+				srcUrl: '/assets/app.js?value="x"&mode=<fast>',
+				attributes: { 'data-config': '{"enabled":true}&' },
+			} as ProcessedAsset,
+			{
+				kind: 'stylesheet',
+				inline: false,
+				position: 'head',
+				srcUrl: '/assets/app.css?theme="dark"&mode=<fast>',
+				attributes: { media: 'screen & print' },
+			} as ProcessedAsset,
+		]);
+
+		expect(transformer.injectPageAssets('<html><head></head><body></body></html>', { pagePackage })).toBe(
+			'<html><head><script src="/assets/app.js?value=&quot;x&quot;&amp;mode=&lt;fast&gt;" data-config="{&quot;enabled&quot;:true}&amp;"></script><link rel="stylesheet" href="/assets/app.css?theme=&quot;dark&quot;&amp;mode=&lt;fast&gt;" media="screen &amp; print"></head><body></body></html>',
+		);
+	});
+
 	it('skips head injection when the document has no head element', () => {
 		const transformer = new HtmlTransformerService();
 

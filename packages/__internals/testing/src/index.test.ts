@@ -3,7 +3,7 @@ import type { EcoPagesElement } from '@ecopages/core';
 import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
 import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
 import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import { createStringMarkupIntegration, createTestAppConfig } from './index.ts';
+import { createStringMarkupIntegration, createTestAppConfig, setupTestIntegration } from './index.ts';
 
 class TestRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = 'test';
@@ -68,6 +68,7 @@ describe('createTestAppConfig', () => {
 			runtimeOrigin: 'http://127.0.0.1:4100',
 			integrations: [plugin],
 		});
+		await setupTestIntegration(plugin, config);
 
 		const renderer = plugin.getRenderer() as TestRenderer;
 		expect(renderer).toBeInstanceOf(TestRenderer);

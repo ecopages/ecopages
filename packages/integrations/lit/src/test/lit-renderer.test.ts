@@ -289,7 +289,6 @@ describe('LitRenderer', () => {
 				}),
 			});
 			const config = await createTestAppConfig({ integrations: [deferredPlugin] });
-			deferredPlugin.setConfig(config);
 
 			const processDependencies = vi.fn(async (dependencies: Array<{ kind: string }>) => dependencies);
 			const testRenderer = new TestLitRenderer({

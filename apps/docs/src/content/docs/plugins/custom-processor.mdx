@@ -30,6 +30,7 @@ class CustomProcessor extends Processor {
 				{
 					kind: 'stylesheet',
 					extensions: ['*.custom'],
+					filter: /theme\.custom$/u,
 				},
 			],
 			watch: {
@@ -81,12 +82,15 @@ super({
 		{
 			kind: 'stylesheet',
 			extensions: ['*.{css,scss,sass}'],
+			filter: /(?:^|\/)app\.(?:css|scss|sass)$/u,
 		},
 	],
 });
 ```
 
 Supported `kind` values: `script`, `stylesheet`, `image`. Extension patterns support `*`, `.css`, `*.css`, and grouped forms such as `*.{css,scss}`.
+
+`filter` is an optional regular expression tested against the full file path after the extension patterns match. Core clones it for each capability and removes the stateful `g` and `y` flags, so repeated asset checks do not depend on a previous match.
 
 ## plugins(app)
 

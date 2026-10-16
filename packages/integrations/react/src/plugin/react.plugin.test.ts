@@ -49,7 +49,7 @@ describe('ReactPlugin', () => {
 		const second = plugin.plugins(secondConfig)[0];
 
 		expect(first).not.toBe(second);
-		expect(plugin.plugins(firstConfig)[0]).toBe(first);
+		expect(plugin.plugins(firstConfig)[0]).not.toBe(first);
 	});
 
 	it('derives the MDX loader filter from declared MDX extensions only', async () => {

@@ -16,7 +16,6 @@ import {
 import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
 import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../services/cache/page-cache-service.ts';
 import { createAppServerModuleTranspiler } from '../services/module-loading/app-server-module-transpiler.service.ts';
-import { buildCollectionServerModule } from '../services/module-loading/collection-server-module-build.service.ts';
 import {
 	clearAppDevelopmentRouteModuleBuildCaches,
 	getSharedRouteModuleBuildCache,
@@ -58,7 +57,7 @@ describe('AppRuntime', () => {
 		expect(() => invalidatePageBrowserGraphSession(unfinalized, '/in.ts')).toThrow(missingRuntime);
 		expect(() => getAffectedPageBrowserGraphIdentities(unfinalized, '/in.ts')).toThrow(missingRuntime);
 		expect(() => createAppServerModuleTranspiler(unfinalized)).toThrow(missingRuntime);
-		expect(() => attachHmrToIntegrations(unfinalized, {} as never)).toThrow(missingRuntime);
+		expect(() => attachHmrToIntegrations(unfinalized)).toThrow(missingRuntime);
 		await expect(
 			disposeDevResources({
 				projectWatcher: null,
@@ -77,14 +76,6 @@ describe('AppRuntime', () => {
 		).rejects.toThrow(missingRuntime);
 		expect(() => getHtmlPageModuleScriptUrls(unfinalized)).toThrow(missingRuntime);
 		expect(() => scanModuleScript(unfinalized, '/in.ts')).toThrow(missingRuntime);
-		await expect(
-			buildCollectionServerModule({
-				appConfig: unfinalized,
-				collectionName: 'blog',
-				sourceFilePath: '/in.ts',
-				ownedSourcePaths: ['/in.ts'],
-			}),
-		).rejects.toThrow(missingRuntime);
 		await expect(
 			ensurePagesUnifiedGraphBuilt({
 				appConfig: unfinalized,

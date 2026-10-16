@@ -46,6 +46,27 @@ describe('createRenderContext', () => {
 		integrations: [Plugin, ExplicitPlugin],
 	});
 
+	it('activates a view owner before acquiring its renderer', async () => {
+		const events: string[] = [];
+		const integration = {
+			...Plugin,
+			getRenderer: vi.fn(() => {
+				events.push('renderer');
+				return Renderer;
+			}),
+		} as unknown as IntegrationPlugin;
+		const context = createRenderContext({
+			integrations: [integration],
+			ensureIntegrationReady: async (integrationName) => {
+				events.push(`setup ${integrationName}`);
+			},
+		});
+
+		await context.render(ViewFn, { foo: 'ready' });
+
+		expect(events).toEqual(['setup -integration', 'renderer']);
+	});
+
 	it('should delegate importServerModule to the active render-context loader', async () => {
 		const ImportServerModule = vi.fn(async (filePath: string) => ({ filePath }));
 		const delegatedContext = createRenderContext({

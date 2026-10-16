@@ -230,8 +230,7 @@ function createAbsolutePaths(
  * 1. applies defaults (`baseUrl` falls back to `ECOPAGES_BASE_URL`, then `http://localhost:3000`),
  * 2. appends the HTML Pages Integration and rejects duplicate Integration names and extensions,
  * 3. resolves absolute paths, including the semantic `html.*` and error-page templates,
- * 4. hands each Processor the config,
- * 5. installs the app-owned build adapter, build manifest, and entrypoint graph, then assembles one
+ * 4. installs the app-owned build adapter, build manifest, and entrypoint graph, then assembles one
  *    app runtime on the config.
  *
  * Every call returns a new config; nothing is cached.
@@ -296,10 +295,6 @@ export async function finalizeEcoPagesConfig(
 				),
 			),
 		};
-
-		for (const processor of config.processors.values()) {
-			processor.setContext(config);
-		}
 
 		createAppRuntime(config);
 

@@ -36,7 +36,10 @@ import { createContentServerBoundaryPlugin } from './content-server-boundary-plu
 import { COLLECTION_NAME_PATTERN, CONTENT_PROCESSOR_NAME } from './constants.ts';
 import type { ContentProcessorConfig } from './collection-types.ts';
 import { buildContentDevPrewarmPathnames } from './dev-prewarm-paths.ts';
-import { buildCollectionServerModule } from '@ecopages/core/services/module-loading/collection-server-module-build.service';
+import {
+	buildCollectionServerModule,
+	type CollectionServerBuildArtifact,
+} from './collection-server-module-build.service.ts';
 
 type ContentCollectionWatchChanges = {
 	regenerate: boolean;
@@ -66,6 +69,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	private readonly collectionBuildPromises = new Map<string, Promise<void>>();
 	private readonly collectionGenerations = new Map<string, number>();
 	private readonly collectionServerBuiltAt = new Map<string, number>();
+	private readonly collectionServerArtifacts = new Map<string, CollectionServerBuildArtifact>();
 
 	/**
 	 * Absolute paths to generated collection entry modules, keyed by collection name.
@@ -435,6 +439,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 
 		const artifact = await buildCollectionServerModule({
 			appConfig: this.context.config,
+			artifacts: this.collectionServerArtifacts,
 			collectionName,
 			sourceFilePath: serverOutputFile,
 			ownedSourcePaths,

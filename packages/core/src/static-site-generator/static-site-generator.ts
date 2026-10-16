@@ -26,6 +26,11 @@ import {
 import { getServerModuleBuildCacheOutdir } from '../services/module-loading/route-module-build-cache-registry.ts';
 import type { StaticExportContext, StaticExportRelease } from './static-export-context.ts';
 import {
+	ensureIntegrationRuntimeReady,
+	setupAppRuntimeIntegrations,
+	teardownAppRuntimeIntegrations,
+} from '../build/app-build-manifest-runtime.ts';
+import {
 	ensurePagesUnifiedGraphBuilt,
 	shouldBuildPagesUnifiedGraph,
 } from '../build/cache/pages-unified-graph-build.ts';
@@ -368,7 +373,12 @@ export class StaticSiteGenerator {
 		const releases: StaticExportRelease[] = [];
 		try {
 			for (const integration of this.appConfig.integrations) {
-				const release = await integration.staticExport?.(context);
+				if (!integration.staticExport) continue;
+				await ensureIntegrationRuntimeReady({
+					appConfig: this.appConfig,
+					integrationName: integration.name,
+				});
+				const release = await integration.staticExport(context);
 				if (release) {
 					releases.push(release);
 				}
@@ -515,22 +525,26 @@ export class StaticSiteGenerator {
 		const sitemapEligiblePathnames = this.appConfig.sitemap?.enabled ? new Set<string>() : undefined;
 		this.resetStaticGenerationState(force);
 
-		const routes = await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl });
-		const exportRoutes = routes.map((route) => toEcopagesRouteInfo(route));
-		await this.ensureUnifiedGraphForStaticGeneration(routes, force);
-
-		const staticExportContext = this.createStaticExportContext({
-			router,
-			baseUrl,
-			routeRendererFactory,
-			staticRoutes,
-			force,
-			routes: exportRoutes,
-		});
-
-		const releases = await this.startStaticExports(staticExportContext);
-
+		let releases: StaticExportRelease[] = [];
+		let generationFailed = false;
+		let generationError: unknown;
 		try {
+			await setupAppRuntimeIntegrations({ appConfig: this.appConfig });
+			const routes = await router.listStaticGenerationRoutes({ runtimeOrigin: baseUrl });
+			const exportRoutes = routes.map((route) => toEcopagesRouteInfo(route));
+			await this.ensureUnifiedGraphForStaticGeneration(routes, force);
+
+			const staticExportContext = this.createStaticExportContext({
+				router,
+				baseUrl,
+				routeRendererFactory,
+				staticRoutes,
+				force,
+				routes: exportRoutes,
+			});
+
+			releases = await this.startStaticExports(staticExportContext);
+
 			try {
 				await this.executeStaticGenerationBody({
 					router,
@@ -555,8 +569,34 @@ export class StaticSiteGenerator {
 				skippedDynamicPages,
 				sitemapEligiblePathnames,
 			});
-		} finally {
+		} catch (error) {
+			generationFailed = true;
+			generationError = error;
+		}
+
+		const cleanupErrors: unknown[] = [];
+		try {
 			await this.releaseStaticExports(releases);
+		} catch (error) {
+			cleanupErrors.push(error);
+		}
+		try {
+			await teardownAppRuntimeIntegrations({ appConfig: this.appConfig });
+		} catch (error) {
+			cleanupErrors.push(error);
+		}
+
+		if (generationFailed) {
+			if (cleanupErrors.length > 0) {
+				throw new AggregateError([generationError, ...cleanupErrors], 'Static generation and cleanup failed', {
+					cause: generationError,
+				});
+			}
+			throw generationError;
+		}
+		if (cleanupErrors.length === 1) throw cleanupErrors[0];
+		if (cleanupErrors.length > 1) {
+			throw new AggregateError(cleanupErrors, 'Failed to clean up static generation resources');
 		}
 	}
 

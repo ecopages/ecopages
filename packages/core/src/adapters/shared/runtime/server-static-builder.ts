@@ -141,7 +141,7 @@ export class ServerStaticBuilder {
 			});
 
 			if (this.runtime.hmr?.isEnabled()) {
-				attachHmrToIntegrations(this.appConfig, this.runtime.hmr);
+				attachHmrToIntegrations(this.appConfig);
 			}
 		} finally {
 			appLogger.debugTimeEnd('refreshRuntimeAssets');

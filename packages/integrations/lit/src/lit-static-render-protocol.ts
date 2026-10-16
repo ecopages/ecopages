@@ -43,5 +43,12 @@ export type LitStaticRenderWorkerErrorMessage = {
 	message: string;
 };
 
+export type LitStaticRenderWorkerShutdownCompleteMessage = {
+	type: 'shutdown-complete';
+};
+
 export type LitStaticRenderWorkerResponseMessage =
-	LitStaticRenderWorkerReadyMessage | LitStaticRenderWorkerResultMessage | LitStaticRenderWorkerErrorMessage;
+	| LitStaticRenderWorkerReadyMessage
+	| LitStaticRenderWorkerResultMessage
+	| LitStaticRenderWorkerErrorMessage
+	| LitStaticRenderWorkerShutdownCompleteMessage;

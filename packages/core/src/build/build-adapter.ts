@@ -64,5 +64,7 @@ export function getBuildAdapterOwnership(buildAdapter: BuildAdapter | undefined)
 export {
 	ensureIntegrationRuntimeReady,
 	sealAppBuildManifest,
+	setupAppRuntimeIntegrations,
 	setupAppRuntimePlugins,
+	teardownAppRuntimeIntegrations,
 } from './app-build-manifest-runtime.ts';

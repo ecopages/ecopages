@@ -14,11 +14,11 @@ These contracts are responsible for:
 
 ## Main Files
 
-- `integration-plugin.ts`: framework-semantics contract for render integrations
+- `integration-plugin.ts`: framework-semantics contract for render integrations, with `plugins(app)`, `createRenderer(base)`, `setup(ctx)`, `hmr(ctx)`, `staticExport(ctx)`, and `teardown()` lifecycles
 - `integration-renderer.ts`: core-owned route renderer plus `createIntegrationRenderer()` and the optional hooks custom Integrations can supply
 - `define-integration.ts`: typed factory for integrations that only need declarative config and a renderer class
 - `find-integration-for-file.ts`: resolves the Integration that owns a file by its longest registered extension; route rendering, page-module loading, route discovery, the pages graph, and component attribution all use it
-- `processor.ts`: asset-transformation contract for processors, including the optional `transformStylesheet(css, file)` that core's stylesheet pipeline calls for processors with a matching `stylesheet` capability, and generated `@types` package helpers for virtual modules
+- `processor.ts`: asset-transformation contract for processors, including declarative asset capabilities with optional filename filters, the optional `transformStylesheet(css, file)` called for matching stylesheet capabilities, and generated `@types` package helpers for virtual modules
 - `component-import-discovery.ts`: resolves direct local factory exports, named `export { X } from` barrels (imported binding only), relative CSS imports, and aliased CSS imports; records the imported module, factory file, and successful named re-export hops as watch files; excludes `export *`, type imports, package imports, and ordinary helpers.
 - `eco-component-meta-plugin.ts`: the component-identity attribution build plugin for `eco.*()` factories, which core adds to every build request, and `attributeMdxComponentIdentity` for compiled MDX modules
 
@@ -31,18 +31,18 @@ These contracts are responsible for:
 - Processors own asset semantics, cache ownership, and processor-specific watch behavior.
 - A Processor's `watch.onChanges` callback runs once per debounced file batch with matching `created`, `changed`, and `deleted` paths plus the client bridge. Watch extensions select notifications; capabilities continue to declare asset ownership.
 - A Processor that owns pages to prewarm appends their pathnames to `appConfig.devPrewarmPaths` from `setup()`; core reads that one list and renders it in the background without delaying development server readiness.
-- Core owns lifecycle ordering, startup orchestration, and manifest assembly.
+- Core owns lifecycle ordering, startup orchestration, and manifest assembly. `plugins(app)` is the only plugin method called during finalization and must be a pure read; Plugins create state in `setup()` or lazily in their build hooks.
 - `staticExport(context)` starts export-wide work before the first page renders and may return a release; core awaits the releases in reverse order after the export, on success or failure.
-- App shutdown calls Integration `teardown()` to release resources created during runtime setup.
+- Core calls `teardown()` for activated Integrations after static-export releases and when the app shuts down or restarts; it waits for in-flight `setup()` calls first.
 - Integrations and Processors expose one `plugins(app)` method. Core reads it once during config finalization, and it is the only Processor method that runs then, so it does no I/O. A Processor generates files, loads configuration and warms caches in `setup()`, or lazily in its own plugin callbacks when a build can run first. Build plugins declare their server/browser environments; omitted environments apply to both. Config finalization rejects a duplicate name within one environment and names both contributors.
 - The transform wraps native `eco.page()`, `eco.component()`, `eco.layout()`, and `eco.html()` factory options with `bindComponentIdentity()`. Factories retain the resulting `options.identity` on `config`, and runtime consumers read it through `getComponentIdentity()`. Browser, HMR, and server builds use the same plugin, so ownership and dependency diagnostics retain stable file attribution without a loader duplicate.
 - MDX modules compiled by `@ecopages/mdx/core` use `attributeMdxComponentIdentity()`, which returns `{ code, map }` with the compiler map composed, to strip bare CSS imports, attach live component accessors to `config.dependencies`, keep inferred stylesheets on identity, and assign `MDXContent.config = config`. The loader requires `projectRoot` from app config. Its source map composes the MDX compiler map with identity edits. Markdown code blocks and dynamic imports within functions are distinguished and left unaffected.
 
 ## Lifecycle Summary
 
-1. Config finalization validates registrations and reads each `plugins(app)` once.
+1. Config finalization validates registrations and reads each `plugins(app)` once. It does not call `setContext()` or runtime setup methods.
 2. Core seals the app-owned build manifest from them.
-3. Runtime startup calls the setup hooks, in every mode and before the router reads any Page. `ecopages build` and `ecopages preview` empty `dist/` first, so a Page module that resolves what a Processor generates in `setup()` finds it. Only the Lit render worker skips Processor setup.
+3. Runtime startup gives each Processor its app config and calls its `setup()`, then activates Integrations before their renderers are created. In watch mode, core registers each Integration's `hmr(ctx)` before `setup(ctx)`. Request-only `app.fetch()` activates only the Integrations used by the requested render, including owners of foreign children; network watch startup attempts warmup for all configured Integrations before releasing requests, and logs setup failures after all attempts settle. `ecopages build` and normal `ecopages preview` empty `dist/` first, so a Page module that resolves what a Processor generates in `setup()` finds it. The Lit render worker and `preview --serve-only` skip Processor setup.
 4. Request-time rendering and development invalidation reuse those finalized contracts. Each Integration lazily owns one renderer shared by route rendering, explicit views, and foreign-child handoffs. It also shares the Integration's app-owned asset-processing service, so an unchanged stylesheet or script is reused until its source changes, its output is missing, or development invalidation drops the entry.
 5. `DevelopmentInvalidationService.invalidateServerModules()` advances the app module loader's development generation. A Processor that keeps compiled server artifacts outside the route-module graph, such as the content processor's collection bundles, compares `requireAppRuntime(appConfig).moduleLoader.getDevelopmentGeneration()` with the generation it built at and rebuilds on a mismatch; there is no invalidation hook.
 

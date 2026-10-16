@@ -10,6 +10,9 @@ A build plugin rewrites module source with its `transform` hook. The hook runs a
 
 Register the plugin in `loaders` when it belongs to your app, or return it from `plugins(app)` of a processor or integration you write.
 
+There is no separate `sourceTransforms` configuration option. Component identity attribution and the server `import.meta`
+rewrite are core-owned build plugins that run after contributed plugins.
+
 ## Writing a transform
 
 ```typescript
@@ -47,7 +50,7 @@ export default defineConfig({
 
 ## Order
 
-Transforms run in plugin order: loaders first, then processors, then integrations, and the plugins of each in the order they declare them. Ecopages adds its own transforms last: component identity attribution, then, in server builds, the rewrite that keeps `import.meta` pointing at the source files. A transform you register therefore sees the module before Ecopages attributes component identity and cannot run after it.
+Transforms run in plugin order: loaders first, then processors, then integrations, and the plugins of each in the order they declare them. Core's own transforms run last: component identity attribution, then, in server builds, the rewrite that keeps `import.meta` pointing at the source files. A transform you register therefore sees the module before Ecopages attributes component identity and cannot run after it.
 
 ## Choosing the Right Extension Point
 

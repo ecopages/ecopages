@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestAppConfig } from '@ecopages/testing';
 import { IntegrationPlugin } from '../../../plugins/integration-plugin.ts';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { StringMarkupRenderer } from '../../../route-renderer/orchestration/string-markup-renderer.ts';
 import { FileScriptProcessor } from '../../../services/assets/asset-processing-service/processors/script/file-script.processor.ts';
 import { FileStylesheetProcessor } from '../../../services/assets/asset-processing-service/processors/stylesheet/file-stylesheet.processor.ts';
@@ -22,8 +23,6 @@ class HandlerViewRenderer extends StringMarkupRenderer {
 
 class HandlerViewPlugin extends IntegrationPlugin {
 	override renderer = HandlerViewRenderer as IntegrationPlugin['renderer'];
-
-	override async setup(): Promise<void> {}
 
 	override async teardown(): Promise<void> {}
 }
@@ -52,7 +51,7 @@ describe('handler-rendered view asset cache', () => {
 
 		const appConfig = await createTestAppConfig({ rootDir, integrations: [] });
 		const plugin = new HandlerViewPlugin({ name: 'kitajs', extensions: ['.kita.tsx'] });
-		plugin.setConfig(appConfig);
+		await plugin.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
 
 		const view = (() => '<main>Latest</main>') as EcoFunctionComponent<Record<string, unknown>, string>;
 		view.config = {
@@ -81,7 +80,7 @@ describe('handler-rendered view asset cache', () => {
 
 		const appConfig = await createTestAppConfig({ rootDir, integrations: [] });
 		const plugin = new HandlerViewPlugin({ name: 'kitajs', extensions: ['.kita.tsx'] });
-		plugin.setConfig(appConfig);
+		await plugin.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
 
 		const view = (() => '<main>Latest</main>') as EcoFunctionComponent<Record<string, unknown>, string>;
 		view.config = {

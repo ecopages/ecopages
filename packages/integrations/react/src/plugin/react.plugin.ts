@@ -4,15 +4,14 @@
  */
 import type { EcoPagesAppConfig } from '@ecopages/core';
 import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
-import type { RequestPipelineMetricsState } from '@ecopages/core/diagnostics/request-pipeline-metrics';
 import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
 import {
 	IntegrationPlugin,
+	type IntegrationRendererBase,
+	type IntegrationRuntimeContext,
 	type EcoBuildPlugin,
 	type IntegrationPluginConfig,
 } from '@ecopages/core/plugins/integration-plugin';
-import type { BrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
-import type { HmrStrategy } from '@ecopages/core/hmr/hmr-strategy';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
 import path from 'node:path';
@@ -106,11 +105,9 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	private readonly routerAdapter: ReactRouterAdapter | undefined;
 	private readonly mdxExtensions: string[];
 	private readonly mdxCompilerOptions: CompileOptions | undefined;
-	private readonly mdxLoaderPlugins = new WeakMap<RequestPipelineMetricsState, EcoBuildPlugin>();
 	private readonly getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	private readonly runtimeBundleService: RuntimeBundleService;
 	private readonly hmrPageMetadataCache: HmrPageMetadataCache;
-	private hmrStrategy?: ReactHmrStrategy;
 	private runtimeDependenciesInitialized = false;
 	/**
 	 * When true, always emit page browser graph / hydration assets.
@@ -124,12 +121,17 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	constructor(options?: ReactPluginOptions) {
 		const config = resolveReactPluginOptions(options);
 		const { extensions, rendererConfig, integrationDependencies, mdxCompilerOptions, ...baseConfig } = config;
+		const runtimeBundleService = new RuntimeBundleService({
+			routerAdapter: rendererConfig.routerAdapter,
+			runtimeModules: rendererConfig.runtimeModules,
+		});
 
 		super({
 			name: PLUGIN_NAME,
 			extensions,
 			jsxImportSource: 'react',
 			integrationDependencies,
+			browserRuntimeManifest: runtimeBundleService.getRuntimeManifest(),
 			...baseConfig,
 		});
 
@@ -140,7 +142,11 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 					if (!this.appConfig?.rootDir) {
 						throw new Error('[ReactPlugin] Cannot create MDX loader: appConfig.rootDir is required.');
 					}
-					return this.resolveMdxLoaderPlugin(mdxCompilerOptions, this.appConfig);
+					const plugin = this.runtime?.buildManifest.server.find((item) => item.name === 'react-mdx-loader');
+					if (!plugin) {
+						throw new Error('[ReactPlugin] The app build manifest does not contain the React MDX loader.');
+					}
+					return plugin;
 				}
 			: undefined;
 		this.mdxExtensions = rendererConfig.mdxExtensions ?? ['.mdx'];
@@ -158,10 +164,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 			appLogger.debug('MDX mode enabled with React jsx runtime');
 		}
 
-		this.runtimeBundleService = new RuntimeBundleService({
-			routerAdapter: this.routerAdapter,
-			runtimeModules: this.rendererConfig.runtimeModules,
-		});
+		this.runtimeBundleService = runtimeBundleService;
 	}
 
 	/**
@@ -171,25 +174,23 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	 * Keeping that state on the instance avoids cross-plugin static mutation while
 	 * preserving the same runtime services the base initializer wires up.
 	 */
-	override initializeRenderer(): ReactRenderer {
+	override createRenderer(base: IntegrationRendererBase): ReactRenderer {
 		const renderer = new this.renderer({
-			...this.createRendererOptions(),
+			...base,
 			reactConfig: this.rendererConfig,
 		});
-		return this.attachRendererRuntimeServices(renderer);
+		renderer.name ||= this.name;
+		return renderer;
 	}
 
-	private ensureRuntimeDependencies(): void {
+	private ensureRuntimeDependencies(appConfig: EcoPagesAppConfig): void {
 		if (this.runtimeDependenciesInitialized) {
 			return;
 		}
 
-		this.runtimeBundleService.setRootDir(this.appConfig?.rootDir);
+		this.runtimeBundleService.setRootDir(appConfig.rootDir);
 		this.runtimeBundleService.setWorkDir(
-			this.appConfig?.absolutePaths?.workDir ??
-				(this.appConfig?.rootDir
-					? path.join(this.appConfig.rootDir, this.appConfig.workDir ?? '.eco')
-					: undefined),
+			appConfig.absolutePaths.workDir ?? path.join(appConfig.rootDir, appConfig.workDir ?? '.eco'),
 		);
 		this.runtimeBundleService.setRuntimeModules(this.rendererConfig.runtimeModules ?? []);
 
@@ -209,30 +210,21 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		return loader ? [loader] : [];
 	}
 
-	override get browserRuntimeManifest(): BrowserRuntimeManifest {
-		return this.runtimeBundleService.getRuntimeManifest();
-	}
-
 	private resolveMdxLoaderPlugin(compilerOptions: CompileOptions, appConfig: EcoPagesAppConfig): EcoBuildPlugin {
 		const requestPipelineMetrics = requireAppRuntime(appConfig).requestPipelineMetrics;
-		let plugin = this.mdxLoaderPlugins.get(requestPipelineMetrics);
-		if (!plugin) {
-			plugin = createReactMdxLoaderPlugin({
-				compilerOptions,
-				projectRoot: appConfig.rootDir,
-				requestPipelineMetrics,
-			});
-			this.mdxLoaderPlugins.set(requestPipelineMetrics, plugin);
-		}
-		return plugin;
+		return createReactMdxLoaderPlugin({
+			compilerOptions,
+			projectRoot: appConfig.rootDir,
+			requestPipelineMetrics,
+		});
 	}
 
 	/**
 	 * Adds the React runtime vendor assets to the global dependencies, then processes them.
 	 */
-	override async setup(): Promise<void> {
-		this.ensureRuntimeDependencies();
-		await super.setup();
+	override async setup(context: IntegrationRuntimeContext): Promise<void> {
+		this.ensureRuntimeDependencies(context.appConfig);
+		await super.setup(context);
 	}
 
 	/**
@@ -244,37 +236,25 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	 *
 	 * @returns ReactHmrStrategy instance for handling React component updates
 	 */
-	override setHmrManager(hmrManager: NonNullable<IntegrationPlugin['hmrManager']>): void {
-		super.setHmrManager(hmrManager);
-		const strategy = this.getHmrStrategy();
-		if (!strategy || !this.appConfig) {
-			return;
-		}
-		hmrManager.registerDevTransformContributor(
+	override hmr(context: IntegrationRuntimeContext): void {
+		super.hmr(context);
+		const manager = context.runtime.hmr;
+		if (!manager) return;
+		const strategy = new ReactHmrStrategy({
+			context: manager.getDefaultContext(),
+			projectRoot: context.appConfig.rootDir,
+			pageMetadataCache: this.hmrPageMetadataCache,
+			runtimeManifest: this.runtimeBundleService.getRuntimeManifest('development'),
+			getMdxLoaderPlugin: this.getMdxLoaderPlugin,
+			ownedTemplateExtensions: this.extensions,
+			allTemplateExtensions: context.appConfig.templatesExt,
+		});
+		manager.registerStrategy(strategy);
+		manager.registerDevTransformContributor(
 			new ReactDevTransformContributor({
 				strategy: strategy as ReactHmrStrategy,
 			}),
 		);
-	}
-
-	override getHmrStrategy(): HmrStrategy | undefined {
-		if (!this.hmrManager || !this.appConfig) {
-			return undefined;
-		}
-
-		if (!this.hmrStrategy) {
-			this.hmrStrategy = new ReactHmrStrategy({
-				context: this.hmrManager.getDefaultContext(),
-				projectRoot: this.appConfig.rootDir,
-				pageMetadataCache: this.hmrPageMetadataCache,
-				runtimeManifest: this.runtimeBundleService.getRuntimeManifest('development'),
-				getMdxLoaderPlugin: this.getMdxLoaderPlugin,
-				ownedTemplateExtensions: this.extensions,
-				allTemplateExtensions: this.appConfig.templatesExt,
-			});
-		}
-
-		return this.hmrStrategy;
 	}
 }
 

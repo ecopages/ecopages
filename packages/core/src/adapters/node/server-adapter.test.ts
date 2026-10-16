@@ -116,6 +116,7 @@ function makeNodeServerAdapter(
 		({
 			rootDir: '/tmp/app',
 			distDir: '.ecopages',
+			integrations: [],
 		} as unknown as EcoPagesAppConfig);
 	const runtime =
 		options?.runtime ??
@@ -405,6 +406,31 @@ describe('NodeServerAdapter', () => {
 			},
 		);
 
+		it('sets Integrations up before non-watch network requests are released', async () => {
+			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-runtime-integration-setup-'));
+			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
+			const events: string[] = [];
+			const integration = new HtmlPagesPlugin();
+			vi.spyOn(integration, 'setup').mockImplementation(async () => {
+				events.push('integration setup');
+			});
+			const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [integration] });
+			const adapter = makeNodeServerAdapter({ appConfig, options: { watch: false } });
+			vi.spyOn(
+				adapter as unknown as { initializeSharedRouteHandling: () => Promise<void> },
+				'initializeSharedRouteHandling',
+			).mockImplementation(async () => {
+				events.push('routes read');
+			});
+
+			await adapter.initialize();
+			expect(events).toEqual(['routes read']);
+
+			await adapter.completeInitialization({} as import('node:http').Server);
+
+			expect(events).toEqual(['routes read', 'integration setup']);
+		});
+
 		it('empties dist before an export sets Processors up and keeps what they generate', async () => {
 			const { rootDir } = await initializeWith('export');
 
@@ -455,6 +481,158 @@ describe('NodeServerAdapter', () => {
 				server,
 				expect.objectContaining({ preflight: expect.any(Function) }),
 			);
+		});
+
+		it('waits for watch-mode Integration setup before handling requests', async () => {
+			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-watch-integration-readiness-'));
+			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
+			fs.mkdirSync(path.join(rootDir, 'src'), { recursive: true });
+			let finishSetup!: () => void;
+			const setupGate = new Promise<void>((resolve) => {
+				finishSetup = resolve;
+			});
+			const setupEvents: string[] = [];
+			class PendingSetupIntegration extends HtmlPagesPlugin {
+				override async setup(): Promise<void> {
+					setupEvents.push('started');
+					await setupGate;
+					setupEvents.push('finished');
+				}
+			}
+			const integration = new PendingSetupIntegration();
+			const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [integration] });
+			const adapter = makeNodeServerAdapter({ appConfig, options: { watch: true } });
+			adapter.setReadyForTest();
+			adapter.skipDevRouteSetupForTest();
+			const expectedResponse = new Response('ready');
+			const handleSharedRequest = vi.spyOn(adapter, 'handleSharedRequest').mockResolvedValue(expectedResponse);
+			const initialization = adapter.completeInitialization(server);
+			const response = adapter.handleServerRequest(new Request('http://localhost:3000/page'));
+
+			try {
+				await vi.waitFor(() => expect(setupEvents).toContain('started'));
+				await new Promise<void>((resolve) => setImmediate(resolve));
+
+				expect(setupEvents).not.toContain('finished');
+				expect(handleSharedRequest).not.toHaveBeenCalled();
+
+				finishSetup();
+				await initialization;
+
+				await expect(response).resolves.toBe(expectedResponse);
+				expect(setupEvents).toEqual(['started', 'finished']);
+				expect(handleSharedRequest).toHaveBeenCalledTimes(1);
+			} finally {
+				finishSetup();
+				await Promise.allSettled([initialization, response]);
+				await adapter.dispose();
+			}
+		});
+
+		it('renders a filesystem Page for request-only fetches in watch mode', async () => {
+			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-watch-fetch-page-'));
+			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
+			fs.mkdirSync(path.join(rootDir, 'src', 'pages'), { recursive: true });
+			fs.writeFileSync(path.join(rootDir, 'src', 'pages', 'index.html'), '<h1>Request-only page</h1>');
+			const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+			const adapter = new NodeServerAdapter({
+				appConfig,
+				runtime: appConfig.appRuntime!,
+				serveOptions: {},
+				options: { watch: true },
+				runtimeHost: new NodeRuntimeHost(new NodeHttpRequestBridge()),
+			});
+
+			try {
+				const response = await adapter.handleRequest(new Request('http://localhost:3000/'));
+
+				expect(response.status).toBe(200);
+				expect(await response.text()).toContain('<h1>Request-only page</h1>');
+			} finally {
+				await adapter.dispose();
+			}
+		});
+
+		it('handles request-only fetches without waiting for the watch-mode listener', async () => {
+			const adapter = makeNodeServerAdapter({ options: { watch: true } });
+			adapter.setReadyForTest();
+			const expectedResponse = new Response('ready');
+			const handleSharedRequest = vi.spyOn(adapter, 'handleSharedRequest').mockResolvedValue(expectedResponse);
+
+			await expect(adapter.handleRequest(new Request('http://localhost:3000/page'))).resolves.toBe(
+				expectedResponse,
+			);
+			expect(handleSharedRequest).toHaveBeenCalledTimes(1);
+		});
+
+		it('does not initialize unused Integrations for request-only API fetches in watch mode', async () => {
+			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-watch-fetch-api-'));
+			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
+			fs.mkdirSync(path.join(rootDir, 'src', 'pages'), { recursive: true });
+			let setupCalls = 0;
+			class FailingUnusedIntegration extends HtmlPagesPlugin {
+				override async setup(): Promise<void> {
+					setupCalls += 1;
+					throw new Error('Unused Integration must not be initialized');
+				}
+			}
+			const appConfig = await finalizeEcoPagesConfig({
+				rootDir,
+				integrations: [new FailingUnusedIntegration()],
+			});
+			const adapter = new NodeServerAdapter({
+				appConfig,
+				runtime: appConfig.appRuntime!,
+				serveOptions: {},
+				options: { watch: true },
+				apiHandlers: [{ path: '/api/health', method: 'GET', handler: () => new Response('ok') }],
+				runtimeHost: new NodeRuntimeHost(new NodeHttpRequestBridge()),
+			});
+
+			try {
+				const response = await adapter.handleRequest(new Request('http://localhost:3000/api/health'));
+
+				expect(response.status).toBe(200);
+				expect(await response.text()).toBe('ok');
+				expect(setupCalls).toBe(0);
+			} finally {
+				await adapter.dispose();
+			}
+		});
+
+		it('does not initialize unused Integrations for request-only API fetches without watch mode', async () => {
+			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-fetch-api-'));
+			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
+			fs.mkdirSync(path.join(rootDir, 'src', 'pages'), { recursive: true });
+			let setupCalls = 0;
+			class FailingUnusedIntegration extends HtmlPagesPlugin {
+				override async setup(): Promise<void> {
+					setupCalls += 1;
+					throw new Error('Unused Integration must not be initialized');
+				}
+			}
+			const appConfig = await finalizeEcoPagesConfig({
+				rootDir,
+				integrations: [new FailingUnusedIntegration()],
+			});
+			const adapter = new NodeServerAdapter({
+				appConfig,
+				runtime: appConfig.appRuntime!,
+				serveOptions: {},
+				options: { watch: false },
+				apiHandlers: [{ path: '/api/health', method: 'GET', handler: () => new Response('ok') }],
+				runtimeHost: new NodeRuntimeHost(new NodeHttpRequestBridge()),
+			});
+
+			try {
+				const response = await adapter.handleRequest(new Request('http://localhost:3000/api/health'));
+
+				expect(response.status).toBe(200);
+				expect(await response.text()).toBe('ok');
+				expect(setupCalls).toBe(0);
+			} finally {
+				await adapter.dispose();
+			}
 		});
 
 		it('sends pending build errors to an HMR socket right after subscribing it', async () => {

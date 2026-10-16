@@ -4,6 +4,8 @@ import { appLogger } from '../../../global/app-logger.ts';
 import * as appBuildManifestRuntime from '../../../build/app-build-manifest-runtime.ts';
 import { attachHmrToIntegrations, disposeDevResources, startDevWarmup } from './runtime-server-lifecycle.ts';
 import type { IHmrManager } from '../../../types/internal-types.ts';
+import { requireAppRuntime } from '../../../config/app-runtime.ts';
+import type { IntegrationRuntimeContext } from '../../../plugins/integration-plugin.ts';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import { HtmlPagesPlugin } from '../../../html-pages/html-pages.plugin.ts';
 
@@ -37,11 +39,13 @@ test('a failed preview shutdown still tears down Integrations and allows setup a
 
 test('several failed cleanup steps reject with every error', async () => {
 	class FailingTeardown extends HtmlPagesPlugin {
+		override async setup(): Promise<void> {}
 		override async teardown(): Promise<void> {
 			throw new Error('teardown failed');
 		}
 	}
 	const appConfig = await finalizeEcoPagesConfig({ rootDir: '/project', integrations: [new FailingTeardown()] });
+	await startDevWarmup({ appConfig });
 	await assert.rejects(
 		disposeDevResources({
 			appConfig,
@@ -66,15 +70,17 @@ test('several failed cleanup steps reject with every error', async () => {
 test('the next start attaches the new HMR manager after shutdown', async () => {
 	const attached: unknown[] = [];
 	class HmrIntegration extends HtmlPagesPlugin {
-		override setHmrManager(hmrManager: IHmrManager): void {
-			attached.push(hmrManager);
+		override hmr({ runtime }: IntegrationRuntimeContext): void {
+			attached.push(runtime.hmr);
 		}
 	}
 	const appConfig = await finalizeEcoPagesConfig({ rootDir: '/project', integrations: [new HmrIntegration()] });
-	const firstManager = {} as IHmrManager;
-	const secondManager = {} as IHmrManager;
-	attachHmrToIntegrations(appConfig, firstManager);
-	attachHmrToIntegrations(appConfig, firstManager);
+	const runtime = requireAppRuntime(appConfig);
+	const firstManager = { stop: async () => {} } as unknown as IHmrManager;
+	const secondManager = { stop: async () => {} } as unknown as IHmrManager;
+	runtime.hmr = firstManager;
+	attachHmrToIntegrations(appConfig);
+	attachHmrToIntegrations(appConfig);
 	await disposeDevResources({
 		appConfig,
 		projectWatcher: undefined,
@@ -82,7 +88,8 @@ test('the next start attaches the new HMR manager after shutdown', async () => {
 		bridge: undefined,
 		stopPreviewServer: async () => {},
 	});
-	attachHmrToIntegrations(appConfig, secondManager);
+	runtime.hmr = secondManager;
+	attachHmrToIntegrations(appConfig);
 	assert.equal(attached.length, 2);
 	assert.equal(attached[0], firstManager);
 	assert.equal(attached[1], secondManager);
@@ -183,8 +190,43 @@ test('startDevWarmup logs failures without throwing', async () => {
 
 	assert.equal(errorSpy.mock.calls.length, 1);
 
-	assert.match(String(errorSpy.mock.calls[0]?.[0]), /Failed to prewarm integration runtimes/);
+	assert.match(String(errorSpy.mock.calls[0]?.[0]), /Failed to prewarm Integration "react"/);
 	assert.ok(String(errorSpy.mock.calls[0]?.[0]).includes(prewarmError.stack ?? 'prewarm failed'));
+
+	ensureSpy.mockRestore();
+	errorSpy.mockRestore();
+});
+
+test('startDevWarmup waits for every Integration setup attempt to settle', async () => {
+	let finishSlowSetup!: () => void;
+	const slowSetup = new Promise<void>((resolve) => {
+		finishSlowSetup = resolve;
+	});
+	const failure = new Error('first setup failed');
+	const ensureSpy = vi
+		.spyOn(appBuildManifestRuntime, 'ensureIntegrationRuntimeReady')
+		.mockImplementation(async ({ integrationName }) => {
+			if (integrationName === 'first') throw failure;
+			await slowSetup;
+		});
+	const errorSpy = vi.spyOn(appLogger, 'error').mockImplementation(() => appLogger);
+	const appConfig = {
+		integrations: [{ name: 'first' }, { name: 'slow' }],
+	} as any;
+
+	let warmupFinished = false;
+	const warmup = startDevWarmup({ appConfig }).then(() => {
+		warmupFinished = true;
+	});
+	await new Promise<void>((resolve) => setImmediate(resolve));
+
+	assert.equal(warmupFinished, false);
+	finishSlowSetup();
+	await warmup;
+
+	assert.equal(warmupFinished, true);
+	assert.equal(errorSpy.mock.calls.length, 1);
+	assert.ok(String(errorSpy.mock.calls[0]?.[0]).includes(failure.stack ?? failure.message));
 
 	ensureSpy.mockRestore();
 	errorSpy.mockRestore();

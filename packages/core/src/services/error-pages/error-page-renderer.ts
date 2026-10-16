@@ -1,5 +1,7 @@
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
+import { ensureIntegrationRuntimeReady } from '../../build/app-build-manifest-runtime.ts';
+import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { ErrorPageLoaders, RouteRendererBody, ViewLoader } from '../../types/public-types.ts';
 import { prepareExplicitStaticRender } from '../../route-renderer/explicit-view-render-preparation.ts';
@@ -121,6 +123,13 @@ export class ErrorPageRenderer {
 	): Promise<ErrorPageRenderResult> {
 		if (!this.routeRendererFactory) {
 			throw new Error(`No route renderer available for ${templatePath}`);
+		}
+		const integration = findIntegrationForFile(this.appConfig.integrations ?? [], templatePath);
+		if (integration && this.appConfig.appRuntime) {
+			await ensureIntegrationRuntimeReady({
+				appConfig: this.appConfig,
+				integrationName: integration.name,
+			});
 		}
 		const result = await this.routeRendererFactory.getPageRenderer(templatePath).execute({
 			file: templatePath,

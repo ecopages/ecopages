@@ -25,7 +25,7 @@ const appConfig = await createFixtureAppConfig({ rootDir: appDir });
 const INDEX_TEMPLATE_FILE = path.join(appDir, 'src/pages/index.ts');
 
 for (const integration of appConfig.integrations) {
-	integration.setConfig(appConfig);
+	await integration.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
 }
 
 const router = new RouteRegistry({

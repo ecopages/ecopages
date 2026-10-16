@@ -18,9 +18,8 @@ During this phase Ecopages:
 2. validates integration names and extensions
 3. validates processor names
 4. derives absolute paths and semantic template paths
-5. initializes processor context
-6. reads `plugins(app)` of each processor, then of each integration, once, and seals the build manifest from them
-7. creates the app-owned build adapter, the server invalidation counter, and a no-op entrypoint dependency graph that development replaces
+5. reads `plugins(app)` of each processor, then of each integration, once, and seals the build manifest from them
+6. creates the app-owned build adapter, the server invalidation counter, and a no-op entrypoint dependency graph that development replaces
 
 `plugins(app)` is the only plugin method that runs here, and it must be a pure read: no file access, generation or config loading. A processor whose `setup()` throws does not fail finalization. State that a plugin needs, such as generated collection modules or the PostCSS plugin list, is created in `setup()` or by the plugin's own callbacks when a build can run first.
 
@@ -32,13 +31,11 @@ Runtime setup happens after the build manifest has already been sealed.
 
 The ordering is:
 
-1. processors run `setup()` first
-2. processor runtime plugins are exposed to the active runtime startup path
-3. integrations receive app config and HMR manager context
-4. integrations register HMR strategies through the shared integration setup path
-5. integrations run `setup()`
+1. core gives each Processor its app config, then runs its `setup()`
+2. in watch mode, core puts the HMR manager on `AppRuntime` and calls each Integration's `hmr(ctx)` once
+3. core calls each Integration's `setup(ctx)` with `{ appConfig, runtime }` before creating its renderer. Startup and static export activate the Integrations they need; request-only `app.fetch()` activates the Integrations used by the requested render, including owners of foreign children.
 
-At this point Ecopages has enough live runtime context to resolve integration dependencies, initialize renderers, and register development behavior.
+`setup(ctx)` resolves Integration dependencies and stores the app runtime. `getRenderer()` lazily calls `createRenderer(base)` once per setup activation. Each Integration can add renderer options without receiving services through setters. Network watch startup attempts warmup for every configured Integration before releasing requests; setup failures are logged after all attempts settle and do not prevent startup. Request-only `app.fetch()` leaves Integrations unrelated to its render inactive.
 
 ## Phase 3: Request-Time Rendering
 
@@ -63,6 +60,13 @@ The main model is:
 4. full reloads remain a core decision when the change category requires it
 
 This keeps generic invalidation policy out of individual integrations.
+
+## Static Export
+
+Before generating pages, core activates each Integration with `setup(ctx)`, then calls its optional `staticExport(ctx)`.
+A hook can start resources shared across the export and return a release function. Core awaits the releases in reverse
+order, then calls `teardown()` for each activated Integration after export finishes, including when route discovery or
+generation fails.
 
 ## Ownership Summary
 

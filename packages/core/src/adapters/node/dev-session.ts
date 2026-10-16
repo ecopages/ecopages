@@ -75,7 +75,7 @@ export class DevSession {
 			preflight: (request, socket, head) => this.handleHmrUpgrade(request, socket, head),
 		});
 
-		attachHmrToIntegrations(appConfig, this.hmrManager);
+		attachHmrToIntegrations(appConfig);
 		await startDevWarmup({ appConfig });
 		this.options.configureResponseHandlers();
 

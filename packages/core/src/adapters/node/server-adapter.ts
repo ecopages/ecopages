@@ -1,7 +1,7 @@
 import { type Server as NodeHttpServer } from 'node:http';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { setupAppRuntimePlugins } from '../../build/build-adapter.ts';
+import { setupAppRuntimeIntegrations, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
 import { installBuildQueue } from '../../build/runtime/build-queue.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -50,10 +50,10 @@ export interface NodeServerAdapterParams {
 	 * When Processors and Integrations set up.
 	 *
 	 * @remarks
-	 * `start` sets them up before routes are read, `export` empties `dist/` first and then does the same for a
-	 * run that exports the site (`build`, `preview`), and `none` leaves them alone for a preview that only serves
-	 * an earlier export. Every mode sets up before the router reads a Page, so a Page module can resolve what a
-	 * Processor generates in `setup()`.
+	 * `start` sets Processors up before routes are read and activates Integrations before a network server handles
+	 * requests. Request-only `app.fetch()` activates only the Integrations used by that request. `export` empties
+	 * `dist/` first and prepares the export runtime; `none` leaves runtime assets alone for a preview that serves an
+	 * earlier export.
 	 */
 	runtimeAssetSetup?: 'start' | 'export' | 'none';
 	allowPortFallback?: boolean;
@@ -103,6 +103,10 @@ export class NodeServerAdapter {
 	private previewServer: NodeHttpServer | undefined;
 	private previewLifecycleTail: Promise<void> = Promise.resolve();
 	private disposal: Promise<void> | undefined;
+	/** Network requests wait until startup Integration setup and watch initialization are complete. */
+	private requestReadiness: Promise<void>;
+	private resolveRequestReadiness: () => void = () => {};
+	private rejectRequestReadiness: (error: unknown) => void = () => {};
 	/**
 	 * Reference to the application-level WebSocket handlers map.
 	 *
@@ -119,6 +123,11 @@ export class NodeServerAdapter {
 		this.appConfig = options.appConfig;
 		this.runtime = options.runtime;
 		this.options = options.options ?? {};
+		this.requestReadiness = new Promise<void>((resolve, reject) => {
+			this.resolveRequestReadiness = resolve;
+			this.rejectRequestReadiness = reject;
+		});
+		void this.requestReadiness.catch(() => {});
 		this.serveOptions = options.serveOptions ?? {};
 		this.requestPipeline = new ServerRequestPipeline({
 			appConfig: this.appConfig,
@@ -147,9 +156,10 @@ export class NodeServerAdapter {
 	 *    reference loader-provided file types in their own plugins.
 	 * 2. **Public dir** is copied before any build so static assets are in `distDir`
 	 *    before the first request arrives.
-	 * 3. **Plugins** (processors, then integrations) are set up after the public dir
-	 *    is in place so they can safely reference dist-relative paths. An export
-	 *    (`build`, `preview`) empties `dist/` first.
+	 * 3. **Processors** are set up after the public dir is in place so they can
+	 *    safely reference dist-relative paths. An export (`build`, `preview`)
+	 *    empties `dist/` first. Integrations activate at the runtime boundary that
+	 *    uses them.
 	 * 4. **Router** is initialised last because it may depend on files written by
 	 *    processors during their `setup()` calls, and in build mode it imports Pages.
 	 */
@@ -335,6 +345,7 @@ export class NodeServerAdapter {
 	}
 
 	private async disposeResources(): Promise<void> {
+		this.rejectRequestReadiness(new Error('Server adapter was disposed before request handling became ready.'));
 		await this.disposeRuntimeResources();
 	}
 
@@ -394,13 +405,28 @@ export class NodeServerAdapter {
 	}
 
 	/**
-	 * Handles a single incoming Web `Request` and returns a Web `Response`.
+	 * Handles a Web `Request` directly through the shared pipeline and returns a Web `Response`.
 	 *
 	 * Delegates to `handleSharedRequest` for all routing, caching, and response
 	 * handler logic. Escaped errors go through the shared `app.onError`
-	 * boundary, which answers client aborts (see {@link isClientAbortError}) with 499.
+	 * boundary, which answers client aborts (see {@link isClientAbortError}) with 499. This path supports
+	 * request-only `app.fetch()` use without a bound listener.
 	 */
 	public async handleRequest(request: Request): Promise<Response> {
+		return await this.handleRequestInternal(request, false);
+	}
+
+	/**
+	 * Handles an HTTP request after watch-mode startup has completed.
+	 *
+	 * @remarks
+	 * The Node transport uses this entry point so the first network request waits for Integration warmup.
+	 */
+	public async handleServerRequest(request: Request): Promise<Response> {
+		return await this.handleRequestInternal(request, true);
+	}
+
+	private async handleRequestInternal(request: Request, waitForReadiness: boolean): Promise<Response> {
 		await this.initialize();
 
 		const context = {
@@ -410,6 +436,9 @@ export class NodeServerAdapter {
 		};
 
 		try {
+			if (waitForReadiness) {
+				await this.requestReadiness;
+			}
 			return await this.handleSharedRequest(request, context);
 		} catch (error) {
 			return await this.requestPipeline.handleUnexpectedRequestError(error, request, context);
@@ -435,31 +464,40 @@ export class NodeServerAdapter {
 	public async completeInitialization(server: NodeServerInstance): Promise<void> {
 		this.serverInstance = server;
 
-		if (this.options?.watch) {
-			this.devSession = new DevSession({
-				appConfig: this.appConfig,
-				runtime: this.runtime,
-				server,
-				requestPipeline: this.requestPipeline,
-				websocketHandlers: this.websocketHandlers,
-				onDevelopmentRestart: this.onDevelopmentRestart,
-				configureResponseHandlers: () =>
-					this.configureSharedResponseHandlers({
-						staticRoutes: this.staticRoutes,
-						errorPageLoaders: this.errorPageLoaders,
-					}),
-				createWatchRefreshCallback: () =>
-					this.createSharedWatchRefreshCallback({
-						staticRoutes: this.staticRoutes,
-						errorPageLoaders: this.errorPageLoaders,
-					}),
-			});
-			await this.devSession.start();
-		} else {
-			attachNodeHttpWebSocketUpgrades(server, {
-				runtimeOrigin: this.runtime.origin,
-				websocketHandlers: this.websocketHandlers,
-			});
+		try {
+			if (this.options?.watch) {
+				this.devSession = new DevSession({
+					appConfig: this.appConfig,
+					runtime: this.runtime,
+					server,
+					requestPipeline: this.requestPipeline,
+					websocketHandlers: this.websocketHandlers,
+					onDevelopmentRestart: this.onDevelopmentRestart,
+					configureResponseHandlers: () =>
+						this.configureSharedResponseHandlers({
+							staticRoutes: this.staticRoutes,
+							errorPageLoaders: this.errorPageLoaders,
+						}),
+					createWatchRefreshCallback: () =>
+						this.createSharedWatchRefreshCallback({
+							staticRoutes: this.staticRoutes,
+							errorPageLoaders: this.errorPageLoaders,
+						}),
+				});
+				await this.devSession.start();
+			} else {
+				if (this.runtimeAssetSetup === 'start') {
+					await setupAppRuntimeIntegrations({ appConfig: this.appConfig });
+				}
+				attachNodeHttpWebSocketUpgrades(server, {
+					runtimeOrigin: this.runtime.origin,
+					websocketHandlers: this.websocketHandlers,
+				});
+			}
+			this.resolveRequestReadiness();
+		} catch (error) {
+			this.rejectRequestReadiness(error);
+			throw error;
 		}
 
 		appLogger.debug('Node server adapter initialization completed', {

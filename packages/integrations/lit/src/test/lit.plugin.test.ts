@@ -70,9 +70,11 @@ describe('LitPlugin', () => {
 		appConfig.absolutePaths.config = '/app/eco.config.ts';
 		const plugin = new LitPlugin();
 		plugin.renderer = CustomLitRenderer;
-		plugin.setConfig(appConfig);
+		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
+		vi.spyOn(LitStaticRenderSession.prototype, 'ensureWorker').mockResolvedValue();
+		await plugin.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
 
-		const renderer = plugin.initializeRenderer();
+		const renderer = plugin.getRenderer();
 
 		expect(renderer).toBeInstanceOf(CustomLitRenderer);
 	});
@@ -91,7 +93,9 @@ describe('LitPlugin render session invalidation', () => {
 		};
 
 		const plugin = new LitPlugin();
-		plugin.setConfig(appConfig);
+		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
+		vi.spyOn(LitStaticRenderSession.prototype, 'ensureWorker').mockResolvedValue();
+		await plugin.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
 		const session = plugin['createRenderSession']();
 
 		expect(session['getInvalidationVersion']()).toBe(0);
@@ -103,15 +107,17 @@ describe('LitPlugin render session invalidation', () => {
 });
 
 describe('LitPlugin staticExport', () => {
-	async function createStaticExportFixture() {
+	async function createStaticExportFixture(runtimeOrigin = 'http://127.0.0.1:3000') {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', srcDir: 'src' });
 		appConfig.absolutePaths.config = '/app/eco.config.ts';
 		const plugin = new LitPlugin();
-		plugin.setConfig(appConfig);
 		const context = { appConfig, baseUrl: 'http://127.0.0.1:3000' } as unknown as StaticExportContext;
 		const ensureWorker = vi.spyOn(LitStaticRenderSession.prototype, 'ensureWorker').mockResolvedValue();
 		vi.spyOn(LitStaticRenderSession.prototype, 'preloadStaticRoutes').mockResolvedValue();
 		const dispose = vi.spyOn(LitStaticRenderSession.prototype, 'dispose').mockResolvedValue();
+		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
+		requireAppRuntime(appConfig).origin = runtimeOrigin;
+		await plugin.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
 		return { plugin, context, ensureWorker, dispose };
 	}
 
@@ -120,6 +126,7 @@ describe('LitPlugin staticExport', () => {
 
 		const release = await plugin.staticExport(context);
 
+		expect(ensureWorker).toHaveBeenCalledTimes(2);
 		expect(ensureWorker).toHaveBeenCalledWith({
 			configModulePath: '/app/eco.config.ts',
 			runtimeOrigin: 'http://127.0.0.1:3000',
@@ -134,36 +141,46 @@ describe('LitPlugin staticExport', () => {
 
 	it('releases the session that setup started instead of starting another', async () => {
 		const { plugin, context, ensureWorker, dispose } = await createStaticExportFixture();
-		plugin['renderSession'] = plugin['createRenderSession']();
-
 		const release = await plugin.staticExport(context);
 		await release();
 
-		expect(ensureWorker).not.toHaveBeenCalled();
+		expect(ensureWorker).toHaveBeenCalledTimes(2);
 		expect(dispose).toHaveBeenCalledTimes(1);
 		expect(plugin['renderSession']).toBeNull();
 	});
 
-	it('keeps one session when setup runs after staticExport, as in ecopages build', async () => {
-		const { plugin, context, dispose } = await createStaticExportFixture();
-		const sessions = new Set<unknown>();
-		vi.spyOn(LitStaticRenderSession.prototype, 'ensureWorker').mockImplementation(async function (this: unknown) {
-			sessions.add(this);
-		});
-		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
-		context.appConfig.appRuntime!.origin = 'http://127.0.0.1:3000';
+	it('keeps one session across setup and static export', async () => {
+		const { plugin, context, ensureWorker, dispose } = await createStaticExportFixture();
+		const exportSession = plugin['renderSession'];
 
 		const release = await plugin.staticExport(context);
-		const exportSession = plugin['renderSession'];
-		await plugin.setup();
 
 		expect(plugin['renderSession']).toBe(exportSession);
-		expect(sessions.size).toBe(1);
+		expect(ensureWorker).toHaveBeenCalledTimes(2);
 
 		await release();
 
 		expect(dispose).toHaveBeenCalledTimes(1);
 		expect(plugin['renderSession']).toBeNull();
+	});
+
+	it('reconciles the worker origin with the static export base URL', async () => {
+		const setupOrigin = 'http://127.0.0.1:4000';
+		const { plugin, context, ensureWorker } = await createStaticExportFixture(setupOrigin);
+
+		const release = await plugin.staticExport(context);
+
+		expect(ensureWorker).toHaveBeenCalledTimes(2);
+		expect(ensureWorker).toHaveBeenNthCalledWith(1, {
+			configModulePath: '/app/eco.config.ts',
+			runtimeOrigin: setupOrigin,
+		});
+		expect(ensureWorker).toHaveBeenNthCalledWith(2, {
+			configModulePath: '/app/eco.config.ts',
+			runtimeOrigin: context.baseUrl,
+		});
+
+		await release();
 	});
 });
 

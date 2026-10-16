@@ -3,7 +3,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { StaticSiteGenerator } from './static-site-generator';
 import type { EcoPagesAppConfig } from '../types/internal-types';
 import { appLogger } from '../global/app-logger.ts';
-import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
+import { createMockConfig } from './static-site-generator.test-utils.ts';
 
 const graphBuildOrder: string[] = [];
 const ensurePagesUnifiedGraphBuiltMock = vi.hoisted(() =>
@@ -25,37 +25,6 @@ vi.mock('../build/cache/pages-unified-graph-build.ts', async (importOriginal) =>
 
 const originalEnsureDir = fileSystem.ensureDir;
 const originalWrite = fileSystem.write;
-
-const createMockConfig = (overrides: Partial<EcoPagesAppConfig> = {}): EcoPagesAppConfig =>
-	({
-		rootDir: '/test/project',
-		distDir: 'dist',
-		workDir: DEFAULT_ECOPAGES_WORK_DIR,
-		srcDir: 'src',
-		defaultMetadata: {
-			title: 'Test',
-			description: 'Test site',
-		},
-		robotsTxt: {
-			preferences: {
-				'*': ['/admin', '/private'],
-				Googlebot: ['/no-google'],
-			},
-		},
-		sitemap: {
-			enabled: false,
-			fileName: 'sitemap.xml',
-			extraUrls: [],
-			exclude: [],
-		},
-		absolutePaths: {
-			distDir: '/test/project/dist',
-			workDir: '/test/project/.eco',
-		} as EcoPagesAppConfig['absolutePaths'],
-		integrations: [],
-		processors: new Map(),
-		...overrides,
-	}) as EcoPagesAppConfig;
 
 const testInjectedMeta = {
 	id: 'test-page',
@@ -400,119 +369,6 @@ describe('StaticSiteGenerator', () => {
 					routes: [],
 				}),
 			);
-		});
-
-		describe('staticExport release', () => {
-			const router = {
-				listStaticGenerationRoutes: vi.fn(async () => []),
-			} satisfies StaticGenerationRunnerInput['router'];
-
-			function createIntegrations(events: string[]): EcoPagesAppConfig['integrations'] {
-				return ['first', 'second'].map((name) => ({
-					name,
-					extensions: [`.${name}.tsx`],
-					staticExport: async () => {
-						events.push(`start ${name}`);
-						return async () => {
-							events.push(`release ${name}`);
-						};
-					},
-				})) as unknown as EcoPagesAppConfig['integrations'];
-			}
-
-			test('awaits every release in reverse order after the pages are written', async () => {
-				const events: string[] = [];
-				writeMock.mockImplementation((filePath: string) => {
-					if (filePath.endsWith('robots.txt')) events.push('write robots.txt');
-				});
-				const ssg = new StaticSiteGenerator({
-					appConfig: createMockConfig({ integrations: createIntegrations(events) }),
-				});
-
-				await ssg.run({ router, baseUrl: 'http://localhost:3000' });
-
-				expect(events).toEqual([
-					'start first',
-					'start second',
-					'write robots.txt',
-					'release second',
-					'release first',
-				]);
-			});
-
-			test('releases when the export fails and still reports the export error', async () => {
-				const events: string[] = [];
-				const ssg = new StaticSiteGenerator({
-					appConfig: createMockConfig({ integrations: createIntegrations(events) }),
-				});
-
-				await expect(
-					ssg.run({
-						router,
-						baseUrl: 'http://localhost:3000',
-						routeRendererFactory: {
-							getPageRenderer: vi.fn(),
-							getExplicitViewRenderer: vi.fn(),
-						} satisfies StaticGenerationRendererFactory,
-						errorPageLoaders: {
-							notFound: async () => {
-								throw new Error('broken not-found view');
-							},
-						},
-					}),
-				).rejects.toThrow('broken not-found view');
-
-				expect(events).toEqual(['start first', 'start second', 'release second', 'release first']);
-			});
-
-			test('releases the integrations already started when a later staticExport throws', async () => {
-				const events: string[] = [];
-				const [first] = createIntegrations(events);
-				const failing = {
-					name: 'failing',
-					extensions: ['.failing.tsx'],
-					staticExport: async () => {
-						throw new Error('worker did not start');
-					},
-				};
-				const ssg = new StaticSiteGenerator({
-					appConfig: createMockConfig({
-						integrations: [first, failing] as unknown as EcoPagesAppConfig['integrations'],
-					}),
-				});
-
-				await expect(ssg.run({ router, baseUrl: 'http://localhost:3000' })).rejects.toThrow(
-					'worker did not start',
-				);
-
-				expect(events).toEqual(['start first', 'release first']);
-			});
-
-			test('logs a failing release and still releases the others', async () => {
-				const events: string[] = [];
-				const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
-				const failing = {
-					name: 'failing',
-					extensions: ['.failing.tsx'],
-					staticExport: async () => async () => {
-						throw new Error('worker would not stop');
-					},
-				};
-				const [first] = createIntegrations(events);
-				const ssg = new StaticSiteGenerator({
-					appConfig: createMockConfig({
-						integrations: [first, failing] as unknown as EcoPagesAppConfig['integrations'],
-					}),
-				});
-
-				await ssg.run({ router, baseUrl: 'http://localhost:3000' });
-
-				expect(events).toEqual(['start first', 'release first']);
-				expect(errorSpy).toHaveBeenCalledWith(
-					expect.any(String),
-					expect.objectContaining({ message: 'worker would not stop' }),
-				);
-			});
 		});
 
 		test('should call generateRobotsTxt and generateStaticPages', async () => {

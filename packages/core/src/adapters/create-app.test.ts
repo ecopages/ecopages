@@ -74,8 +74,6 @@ describe('createApp', () => {
 			rootDir,
 			integrations: [firstIntegration, secondIntegration],
 		});
-		firstIntegration.getRenderer();
-
 		const collision = Object.assign(new Error('listen EADDRINUSE: address already in use :::3000'), {
 			code: 'EADDRINUSE',
 		});

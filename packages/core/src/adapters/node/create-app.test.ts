@@ -42,6 +42,7 @@ function createServerAdapter(overrides: Record<string, unknown> = {}): NodeServe
 		getServerOptions: () => ({ port: 3000, hostname: 'localhost' }),
 		completeInitialization: async () => {},
 		handleRequest: async () => new Response(null, { status: 204 }),
+		handleServerRequest: async () => new Response(null, { status: 204 }),
 		buildStatic: async () => {},
 		servePreviewOnly: async () => {},
 		applyBoundPort: () => {},

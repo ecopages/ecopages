@@ -235,6 +235,10 @@
 			"types": "./src/build/runtime/build-queue.ts",
 			"default": "./src/build/runtime/build-queue.ts"
 		},
+		"./build/server-module": {
+			"types": "./src/build/server-module.ts",
+			"default": "./src/build/server-module.ts"
+		},
 		"./build/contracts/content-virtual-modules": {
 			"types": "./src/build/contracts/content-virtual-modules.ts",
 			"default": "./src/build/contracts/content-virtual-modules.ts"
@@ -242,10 +246,6 @@
 		"./build/contracts/server-only-specifier": {
 			"types": "./src/build/contracts/server-only-specifier.ts",
 			"default": "./src/build/contracts/server-only-specifier.ts"
-		},
-		"./services/module-loading/collection-server-module-build.service": {
-			"types": "./src/services/module-loading/collection-server-module-build.service.ts",
-			"default": "./src/services/module-loading/collection-server-module-build.service.ts"
 		},
 		"./build/browser-runtime-manifest": {
 			"types": "./src/build/browser/browser-runtime-manifest.ts",

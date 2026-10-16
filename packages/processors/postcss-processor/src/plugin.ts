@@ -112,7 +112,15 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	private readonly cssDependencyMap = new Map<string, Set<string>>();
 
 	private getCssFilter(): RegExp {
-		return this.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter;
+		return (
+			this.getAssetCapabilities().find((capability) => capability.kind === 'stylesheet')?.filter ??
+			this.options?.filter ??
+			PostCssProcessorPlugin.DEFAULT_OPTIONS.filter
+		);
+	}
+
+	private matchesCssFilter(filePath: string): boolean {
+		return this.canProcessAsset('stylesheet', filePath);
 	}
 
 	private isCssInsideSrc(filePath: string): boolean {
@@ -173,7 +181,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 		for (const relativePath of sourceFiles) {
 			const filePath = path.join(this.context.srcDir, relativePath);
-			if (!this.matchesFileFilter(filePath)) {
+			if (!this.matchesCssFilter(filePath)) {
 				continue;
 			}
 
@@ -292,11 +300,6 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		return processed;
 	}
 
-	override matchesFileFilter(filepath: string): boolean {
-		const filter = this.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter;
-		return filter.test(filepath);
-	}
-
 	private materializePluginFactories(pluginFactories: PluginFactoryRecord): postcss.AcceptedPlugin[] {
 		return Object.values(pluginFactories).map((factory) => factory());
 	}
@@ -317,7 +320,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 	private getTrackedCssFiles(): string[] {
 		return Array.from(this.trackedCssFiles).filter(
-			(filePath) => this.matchesFileFilter(filePath) && fileSystem.exists(filePath),
+			(filePath) => this.matchesCssFilter(filePath) && fileSystem.exists(filePath),
 		);
 	}
 
@@ -334,7 +337,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		}
 
 		return configuredEntryPaths.filter(
-			(filePath) => this.matchesFileFilter(filePath) && fileSystem.exists(filePath),
+			(filePath) => this.matchesCssFilter(filePath) && fileSystem.exists(filePath),
 		);
 	}
 
@@ -343,7 +346,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			return;
 		}
 
-		const cssFiles = [...new Set(filePaths)].filter((filePath) => this.matchesFileFilter(filePath));
+		const cssFiles = [...new Set(filePaths)].filter((filePath) => this.matchesCssFilter(filePath));
 		if (cssFiles.length === 0) {
 			return;
 		}
@@ -362,13 +365,16 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	) {
 		super({
 			name: 'ecopages-postcss-processor',
+			...config,
 			capabilities: [
+				...(config.capabilities ?? []).filter((capability) => capability.kind !== 'stylesheet'),
 				{
 					kind: 'stylesheet',
 					extensions: ['*.{css,scss,sass,less}'],
+					filter: config.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter,
 				},
 			],
-			watch: {
+			watch: config.watch ?? {
 				paths: [],
 				extensions: [
 					'.css',
@@ -386,15 +392,14 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 				],
 				onChanges: async (changes) => this.handleWatchChanges(changes),
 			},
-			...config,
 		});
 	}
 
 	private async handleWatchChanges({ created, changed, deleted, bridge }: ProcessorWatchChanges): Promise<void> {
 		await this.enqueueWatchTask(async () => {
-			const createdCss = created.filter((filePath) => this.matchesFileFilter(filePath));
-			const changedCss = changed.filter((filePath) => this.matchesFileFilter(filePath));
-			const deletedCss = deleted.filter((filePath) => this.matchesFileFilter(filePath));
+			const createdCss = created.filter((filePath) => this.matchesCssFilter(filePath));
+			const changedCss = changed.filter((filePath) => this.matchesCssFilter(filePath));
+			const deletedCss = deleted.filter((filePath) => this.matchesCssFilter(filePath));
 
 			for (const filePath of createdCss) {
 				this.trackedCssFiles.add(filePath);
@@ -412,7 +417,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			}
 
 			const dependencyChanged = [...created, ...changed, ...deleted].some(
-				(filePath) => !this.matchesFileFilter(filePath),
+				(filePath) => !this.matchesCssFilter(filePath),
 			);
 			const affectedCssEntryFiles = new Set<string>();
 			for (const filePath of [...createdCss, ...changedCss]) {

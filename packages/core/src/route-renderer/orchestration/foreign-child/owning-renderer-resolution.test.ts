@@ -37,7 +37,6 @@ describe('resolveOwningIntegrationRenderer', () => {
 
 	it("activates runtime and reuses the Integration's renderer", async () => {
 		const foreignRenderer = { name: 'react' };
-		const initializeRenderer = vi.fn();
 		const getRenderer = vi.fn(() => foreignRenderer);
 		const cache = new Map<string, never>();
 		const ensureReady = vi
@@ -46,7 +45,7 @@ describe('resolveOwningIntegrationRenderer', () => {
 
 		const result = await resolveOwningIntegrationRenderer({
 			appConfig: {
-				integrations: [{ name: 'react', initializeRenderer, getRenderer }],
+				integrations: [{ name: 'react', getRenderer }],
 			} as unknown as EcoPagesAppConfig,
 			currentIntegrationName: 'kitajs',
 			currentRenderer: { name: 'kitajs' } as never,
@@ -61,7 +60,6 @@ describe('resolveOwningIntegrationRenderer', () => {
 			integrationName: 'react',
 		});
 		expect(getRenderer).toHaveBeenCalledWith();
-		expect(initializeRenderer).not.toHaveBeenCalled();
 		expect(result).toBe(foreignRenderer);
 		expect(cache.get('react')).toBe(foreignRenderer);
 

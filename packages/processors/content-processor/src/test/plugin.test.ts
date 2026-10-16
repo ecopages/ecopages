@@ -56,6 +56,14 @@ function createContentProcessorPlugin(
 	});
 }
 
+async function setupContentProcessor(
+	plugin: ContentProcessorPlugin,
+	appConfig: Awaited<ReturnType<typeof finalizeEcoPagesConfig>>,
+): Promise<void> {
+	plugin.setContext(appConfig);
+	await plugin.setup();
+}
+
 afterEach(() => {
 	for (const root of tempRoots.splice(0)) {
 		if (fileSystem.exists(root)) {
@@ -99,7 +107,7 @@ order: 1
 		expect(fileSystem.exists(cacheFile)).toBe(false);
 		expect(fileSystem.exists(typesFile)).toBe(false);
 
-		await plugin.setup();
+		await setupContentProcessor(plugin, appConfig);
 
 		expect(fileSystem.exists(cacheFile)).toBe(true);
 		expect(fileSystem.readFileSync(cacheFile)).toContain('export const entries = [');
@@ -149,7 +157,7 @@ order: 1
 			baseUrl: 'http://localhost:3000',
 			processors: [plugin],
 		});
-		await plugin.setup();
+		await setupContentProcessor(plugin, appConfig);
 
 		const cacheFile = path.join(
 			appConfig.absolutePaths.workDir,
@@ -207,7 +215,7 @@ order: 1
 			baseUrl: 'http://localhost:3000',
 			processors: [plugin],
 		});
-		await plugin.setup();
+		await setupContentProcessor(plugin, appConfig);
 
 		const cacheFile = path.join(
 			appConfig.absolutePaths.workDir,
@@ -265,7 +273,7 @@ order: 1
 		});
 
 		installBuildQueue(appConfig);
-		await plugin.setup();
+		await setupContentProcessor(plugin, appConfig);
 
 		expect(plugin.collectionServerCompiledModules.docs).toBeUndefined();
 	});
@@ -297,7 +305,7 @@ order: 1
 			baseUrl: 'http://localhost:3000',
 			processors: [plugin],
 		});
-		await plugin.setup();
+		await setupContentProcessor(plugin, appConfig);
 
 		const cacheFile = path.join(
 			appConfig.absolutePaths.workDir,
@@ -361,7 +369,7 @@ order: 1
 			baseUrl: 'http://localhost:3000',
 			processors: [plugin],
 		});
-		await plugin.setup();
+		await setupContentProcessor(plugin, appConfig);
 		const cacheFile = path.join(
 			appConfig.absolutePaths.workDir,
 			GENERATED_BASE_PATHS.cache,
@@ -415,6 +423,7 @@ order: 2
 			baseUrl: 'http://localhost:3000',
 			processors: [plugin],
 		});
+		plugin.setContext(appConfig);
 		const resolvers: Array<{ filter: RegExp; callback: (args: { path: string }) => unknown }> = [];
 		await plugin
 			.plugins()
@@ -477,7 +486,7 @@ order: 2
 		};
 		appConfig.appRuntime!.buildAdapter = adapter;
 		installBuildQueue(appConfig);
-		await plugin.setup();
+		await setupContentProcessor(plugin, appConfig);
 		const resolvers: Array<{ filter: RegExp; callback: (args: { path: string }) => unknown }> = [];
 		await plugin
 			.plugins()
@@ -553,8 +562,8 @@ order: 1
 
 		expect(appConfig.devPrewarmPaths).toEqual(['/']);
 
-		await plugin.setup();
-		await plugin.setup();
+		await setupContentProcessor(plugin, appConfig);
+		await setupContentProcessor(plugin, appConfig);
 
 		expect(appConfig.devPrewarmPaths).toEqual(['/', '/docs/intro']);
 		expect(userPaths).toEqual(['/']);
@@ -588,7 +597,7 @@ order: ${index}
 			baseUrl: 'http://localhost:3000',
 			processors: [plugin],
 		});
-		await plugin.setup();
+		await setupContentProcessor(plugin, appConfig);
 
 		const workDir = appConfig.absolutePaths.workDir;
 		const clientCacheFile = path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.ts');

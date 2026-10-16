@@ -25,7 +25,6 @@ function attachTestAppRuntime(
 		buildInputIndex: new BuildInputDependencyIndex(),
 		pagesUnifiedGraphManifest: null,
 		routeModuleBuildCaches: new Map(),
-		collectionArtifacts: new Map(),
 		serverInvalidation: new ServerInvalidationState(),
 		moduleLoader: createAppModuleLoader(appConfig as never),
 	};

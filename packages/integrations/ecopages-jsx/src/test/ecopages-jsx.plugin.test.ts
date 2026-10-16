@@ -15,7 +15,7 @@ import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	type CustomElementScriptPreloadScopeState,
 } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
-import { createTestAppConfig } from '@ecopages/testing';
+import { createTestAppConfig, setupTestIntegration } from '@ecopages/testing';
 
 const lightDomGlobalKeys = [
 	'CSS',
@@ -176,9 +176,10 @@ test('EcopagesJsxPlugin enables page dependency bundling', () => {
 test('EcopagesJsxPlugin registers Radiant SSR invalidation when Radiant is enabled', async () => {
 	const appConfig = await createTestAppConfig({ rootDir: '/tmp/ecopages-jsx-radiant-enabled', integrations: [] });
 	const plugin = new EcopagesJsxPlugin();
-	plugin.setConfig(appConfig);
+	await setupTestIntegration(plugin, appConfig);
 	const hmrManager = createHmrManagerStub();
 	const preloadScopes = requireAppRuntime(appConfig).customElementSsrPreloadScopes;
+	const runtime = requireAppRuntime(appConfig);
 	const scopeState: CustomElementScriptPreloadScopeState = {
 		preloadedScripts: new Set(['/tmp/widget.js']),
 		preloadFailedScripts: new Set(),
@@ -186,7 +187,8 @@ test('EcopagesJsxPlugin registers Radiant SSR invalidation when Radiant is enabl
 	};
 	preloadScopes.set(CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx, scopeState);
 
-	plugin.setHmrManager(hmrManager);
+	runtime.hmr = hmrManager;
+	plugin.hmr({ appConfig, runtime });
 
 	assert.equal(vi.mocked(hmrManager.onScriptEntrypointChanged!).mock.calls.length, 1);
 	const onScriptChanged = vi.mocked(hmrManager.onScriptEntrypointChanged!).mock.calls[0]?.[0];
@@ -198,10 +200,12 @@ test('EcopagesJsxPlugin registers Radiant SSR invalidation when Radiant is enabl
 test('EcopagesJsxPlugin skips Radiant SSR invalidation registration when Radiant is disabled', async () => {
 	const appConfig = await createTestAppConfig({ rootDir: '/tmp/ecopages-jsx-radiant-disabled', integrations: [] });
 	const plugin = new EcopagesJsxPlugin({ radiant: false });
-	plugin.setConfig(appConfig);
+	await setupTestIntegration(plugin, appConfig);
 	const hmrManager = createHmrManagerStub();
 
-	plugin.setHmrManager(hmrManager);
+	const runtime = requireAppRuntime(appConfig);
+	runtime.hmr = hmrManager;
+	plugin.hmr({ appConfig, runtime });
 
 	assert.equal(vi.mocked(hmrManager.onScriptEntrypointChanged!).mock.calls.length, 0);
 });
@@ -228,7 +232,7 @@ test('EcopagesJsxPlugin declares the MDX loader as a build plugin', async () => 
 	const app = await createTestAppConfig({ rootDir: '/tmp/project', integrations: [] });
 
 	assert.equal(plugin.plugins(app)[0]?.name, 'ecopages-jsx-mdx-loader');
-	assert.equal(plugin.plugins(app)[0], plugin.plugins(app)[0]);
+	assert.notEqual(plugin.plugins(app)[0], undefined);
 });
 
 test('EcopagesJsxPlugin gives each app runtime its own MDX loader at the same root', async () => {
@@ -265,6 +269,7 @@ test('EcopagesJsxPlugin passes resolved JSX options to custom EcopagesJsxRendere
 			rootDir: '/tmp/ecopages-jsx-custom-renderer',
 			integrations: [plugin],
 		});
+		await setupTestIntegration(plugin, appConfig);
 		const renderer = plugin.getRenderer() as CustomRenderer;
 		const page = (() => '') as EcoComponent;
 		page.config = {

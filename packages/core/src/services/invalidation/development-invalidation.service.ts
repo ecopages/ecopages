@@ -458,13 +458,7 @@ export class DevelopmentInvalidationService {
 				continue;
 			}
 
-			const matchesConfiguredAsset =
-				typeof processor.matchesFileFilter !== 'function' || processor.matchesFileFilter(filePath);
-
-			if (
-				matchesConfiguredAsset &&
-				capabilities.some((capability) => processor.canProcessAsset?.(capability.kind, filePath))
-			) {
+			if (capabilities.some((capability) => processor.canProcessAsset?.(capability.kind, filePath))) {
 				return true;
 			}
 		}

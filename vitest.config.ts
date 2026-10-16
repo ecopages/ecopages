@@ -36,6 +36,7 @@ export default defineConfig({
 						'packages/dev-toolbar/**/*.test.ts',
 						'packages/dev-toolbar/**/*.test.tsx',
 						'e2e/fixtures/*/*.test.ts',
+						'e2e/utils/**/*.test.ts',
 						'e2e/scripts/**/*.test.ts',
 						'e2e/playwright/**/*.test.ts',
 						'scripts/**/*.test.ts',

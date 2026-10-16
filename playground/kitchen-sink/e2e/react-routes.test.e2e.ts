@@ -1,8 +1,10 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from 'playwright-core';
 import { integrationMatrixTestIds } from '../src/data/integration-matrix';
+import { getPageTestId } from '../src/data/primary-links';
 import {
 	assertAllCountersInteractivity,
+	assertRadiantCounterInteractivity,
 	gotoPath,
 	incrementCounter,
 	recoverToPath,
@@ -104,6 +106,22 @@ test.describe('React routes interactivity @content', () => {
 
 		await assertAllCountersInteractivity(page.getByTestId('integration-matrix-shell-counters-react'));
 
+		runtime.assertClean();
+	});
+
+	test('keeps a radiant light-DOM counter interactive after client navigation', async ({ page }) => {
+		const runtime = trackRuntimeErrors(page);
+
+		await gotoPath(page, '/integration-matrix/ecopages-jsx-entry');
+		const counter = page.locator('radiant-counter[data-radiant-counter]').first();
+		await assertRadiantCounterInteractivity(counter, '0');
+
+		await page.getByTestId('primary-link-images').click();
+		await expect(page.getByTestId(getPageTestId('/images'))).toBeVisible();
+		await page.goBack();
+		await expect(page).toHaveURL(/\/integration-matrix\/ecopages-jsx-entry$/);
+
+		await assertRadiantCounterInteractivity(counter, '0');
 		runtime.assertClean();
 	});
 });

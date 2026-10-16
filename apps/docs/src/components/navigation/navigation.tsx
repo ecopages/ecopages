@@ -38,7 +38,7 @@ export const Navigation = eco.component<NavigationProps, JsxRenderable>({
 						</li>
 					))}
 					<li>
-						<ThemeToggle id="toggle-dark-mode" label="Theme" />
+						<ThemeToggle id="toggle-dark-mode" label="Theme" data-eco-persist="theme-toggle" />
 					</li>
 				</ul>
 			</nav>

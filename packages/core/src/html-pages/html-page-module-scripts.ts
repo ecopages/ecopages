@@ -1,4 +1,5 @@
-import { readdirSync, realpathSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readdirSync, realpathSync } from 'node:fs';
 import { getBuildEntryOutput } from '../build/build-graph.ts';
 import { assertBuildSucceeded } from '../build/build-log.ts';
 import { createRequire } from 'node:module';
@@ -56,8 +57,8 @@ export function createHtmlPageModuleScriptState(): HtmlPageModuleScriptState {
  * entries.
  *
  * Production builds once. Otherwise the build is reused while the HTML files, the scripts they
- * reference, and the local modules {@link scanModuleScript} visits from them keep their size and
- * modification time, or stay missing; an edit to a package is not detected. An HTML file that
+ * reference, and the local modules {@link scanModuleScript} visits from them keep their contents;
+ * an edit to a package is not detected. An HTML file that
  * does not compile is left out, so only its own render fails. A script that imports a stylesheet
  * is left out too, so only the HTML files that load it fail. A script that does not build fails
  * the whole build, so every HTML Page with a module script fails to render; a failed build is not
@@ -102,7 +103,7 @@ export function collectHtmlPageModuleScriptBuildInputs(appConfig: EcoPagesAppCon
 		htmlFiles,
 		scripts: scans.flatMap((scan) => (scan.stylesheetImport ? [] : [scan.script])),
 		files,
-		fingerprint: fingerprint([...htmlFiles, ...files]),
+		fingerprint: fingerprint([...htmlFiles, ...files], appConfig.rootDir),
 	};
 }
 
@@ -117,6 +118,14 @@ export function setPrebuiltHtmlPageModuleScriptUrls(
 		files: inputs.files,
 		urls: Promise.resolve(new Map(urls)),
 	};
+}
+
+/** Returns the URLs installed by the app-wide browser build, if it has run. */
+export async function getPrebuiltHtmlPageModuleScriptUrls(
+	appConfig: EcoPagesAppConfig,
+): Promise<ReadonlyMap<string, string>> {
+	const build = requireAppRuntime(appConfig).htmlPageModuleScripts.build;
+	return build ? await build.urls : new Map();
 }
 
 const SCRIPT_FILE = /\.[cm]?[jt]sx?$/;
@@ -221,7 +230,7 @@ function readModuleImports(
  *
  * Relative and tsconfig-alias imports are followed; packages are not scanned, but a side-effect
  * import of a package stylesheet is reported. The result is kept while the visited files keep
- * their size and modification time. The scan stops at the first stylesheet import, so the visited
+ * their contents. The scan stops at the first stylesheet import, so the visited
  * files then include every file whose edit can remove it.
  */
 export function scanModuleScript(
@@ -231,7 +240,7 @@ export function scanModuleScript(
 	const entry = path.resolve(script);
 	const cache = requireAppRuntime(appConfig).htmlPageModuleScripts.scans;
 	const previous = cache.get(entry);
-	if (previous && previous.fingerprint === fingerprint(previous.files)) return previous;
+	if (previous && previous.fingerprint === fingerprint(previous.files, appConfig.rootDir)) return previous;
 
 	const visited = new Set<string>();
 	const visit = (file: string): StylesheetImport | undefined => {
@@ -249,7 +258,7 @@ export function scanModuleScript(
 	};
 	const stylesheetImport = visit(entry);
 	const files = [...visited];
-	const scan: ModuleScriptScan = { files, stylesheetImport, fingerprint: fingerprint(files) };
+	const scan: ModuleScriptScan = { files, stylesheetImport, fingerprint: fingerprint(files, appConfig.rootDir) };
 	cache.set(entry, scan);
 	return scan;
 }
@@ -267,11 +276,12 @@ function listHtmlFiles(appConfig: EcoPagesAppConfig): string[] {
 		: pages;
 }
 
-function fingerprint(files: string[]): string {
+function fingerprint(files: string[], rootDir: string): string {
 	return files
 		.map((file) => {
-			const stats = statSync(file, { throwIfNoEntry: false });
-			return `${file}:${stats?.size}:${stats?.mtimeMs}`;
+			const relativePath = path.relative(rootDir, file).split(path.sep).join('/');
+			if (!fileSystem.exists(file)) return `${relativePath}:missing`;
+			return `${relativePath}:${createHash('sha256').update(fileSystem.readFileSync(file)).digest('hex')}`;
 		})
 		.join('\n');
 }

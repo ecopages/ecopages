@@ -117,6 +117,7 @@ export function collectBuildEntryInputPaths(
 	result: Pick<BuildSuccess, 'dependencyGraph' | 'loadedInputsByModule'>,
 	entry: string,
 	root: string,
+	options: { includeNodeModules?: boolean } = {},
 ): string[] {
 	const resolvedEntry = resolveBuildEntryPath(entry, root);
 	const entrypoints = result.dependencyGraph.entrypoints;
@@ -129,7 +130,7 @@ export function collectBuildEntryInputPaths(
 	return [...new Set([...entryModules, ...pluginInputs])].filter(
 		(filePath) =>
 			path.isAbsolute(filePath) &&
-			!filePath.includes(`${path.sep}node_modules${path.sep}`) &&
+			(options.includeNodeModules === true || !filePath.includes(`${path.sep}node_modules${path.sep}`)) &&
 			!filePath.includes('\0'),
 	);
 }

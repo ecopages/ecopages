@@ -21,9 +21,14 @@ import { getBuildInputRecordingContext } from '../../build/cache/build-input-dep
 
 const upgrades = vi.hoisted(() => ({ attach: vi.fn() }));
 const devBridge = vi.hoisted(() => ({ reload: vi.fn() }));
+const browserManifestPrebuild = vi.hoisted(() => ({ run: vi.fn() }));
 
 vi.mock('../shared/ws/node-http-websocket-upgrades.ts', () => ({
 	attachNodeHttpWebSocketUpgrades: upgrades.attach,
+}));
+
+vi.mock('../../static-site-generator/production-page-browser-graph-prebuild.ts', () => ({
+	prebuildProductionPageBrowserGraphsFromManifest: browserManifestPrebuild.run,
 }));
 
 const devRuntime = vi.hoisted(() => ({
@@ -429,6 +434,56 @@ describe('NodeServerAdapter', () => {
 			await adapter.completeInitialization({} as import('node:http').Server);
 
 			expect(events).toEqual(['routes read', 'integration setup']);
+		});
+
+		it('restores the production browser manifest after Integration setup', async () => {
+			browserManifestPrebuild.run.mockReset();
+			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-runtime-browser-manifest-'));
+			onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
+			const events: string[] = [];
+			let releaseManifestRestore!: () => void;
+			const manifestRestore = new Promise<void>((resolve) => {
+				releaseManifestRestore = resolve;
+			});
+			const integration = new HtmlPagesPlugin();
+			vi.spyOn(integration, 'setup').mockImplementation(async () => {
+				events.push('integration setup');
+			});
+			browserManifestPrebuild.run.mockImplementation(async () => {
+				events.push('browser manifest restore started');
+				await manifestRestore;
+				events.push('browser manifest restored');
+			});
+			const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [integration] });
+			const adapter = makeNodeServerAdapter({ appConfig, options: { watch: false } });
+			vi.spyOn(
+				adapter as unknown as { initializeSharedRouteHandling: () => Promise<void> },
+				'initializeSharedRouteHandling',
+			).mockImplementation(async () => {
+				events.push('routes read');
+			});
+
+			await adapter.initialize();
+			const initialization = adapter.completeInitialization({} as import('node:http').Server);
+			await vi.waitFor(() => expect(events).toContain('browser manifest restore started'));
+			const handleSharedRequest = vi.spyOn(adapter, 'handleSharedRequest');
+			const request = adapter.handleServerRequest(new Request('http://localhost:3000/page'));
+			await Promise.resolve();
+
+			expect(handleSharedRequest).not.toHaveBeenCalled();
+			releaseManifestRestore();
+			await initialization;
+			await request;
+
+			expect(events).toEqual([
+				'routes read',
+				'integration setup',
+				'browser manifest restore started',
+				'browser manifest restored',
+			]);
+			expect(handleSharedRequest).toHaveBeenCalledTimes(1);
+			expect(browserManifestPrebuild.run).toHaveBeenCalledTimes(1);
+			expect(browserManifestPrebuild.run.mock.calls[0]?.[0]).toBe(appConfig);
 		});
 
 		it('empties dist before an export sets Processors up and keeps what they generate', async () => {

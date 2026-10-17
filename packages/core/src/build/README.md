@@ -68,7 +68,7 @@ build/
 - `server-bundle-deploy-manifest.ts`: the deploy manifest (`<distDir>/.server/manifest.json`) written beside the server entry, and the lookups that read it: `resolveProductionDistDir` selects the build output `ecopages start` runs (`--dist-dir`, else the only directory, dot-prefixed ones included, one level below the app root that holds a manifest; none or several fail, and nested or symlinked outputs need `--dist-dir`), then the production server entry and config identity lookups take that directory.
 - `server-bundle-publication.ts`: stages the server entry, emitted config, and deploy manifest together, then publishes the complete directory with rollback.
 - `rolldown/entry-module-closures.ts`: records each entry's static and dynamic source module closure in `generateBundle`, including inlined and tree-shaken imports.
-- `build-graph.ts`: shared entry path and output lookup (caller path, real path, and named grouped keys), plus emitted chunk reachability for in-process cache artifact checks. Local external imports remain leaves, including missing generated server modules.
+- `build-graph.ts`: shared entry path and output lookup (caller path, real path, and named grouped keys), emitted chunk reachability for in-process cache artifact checks, and dependency input collection. Browser build fingerprints can include package inputs under `node_modules`; local external imports remain leaves, including missing generated server modules.
 - `server-module.ts`: builds one server entry through the app's server request policy and returns its emitted path. The content processor owns collection-specific build identity and caching.
 - `*.test.ts`: regression coverage colocated with each module.
 

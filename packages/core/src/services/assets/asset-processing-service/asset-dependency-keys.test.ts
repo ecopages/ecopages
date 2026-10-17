@@ -1,7 +1,7 @@
 import { describe, expect, it, test } from 'vitest';
 import { getAssetDependencyKey } from './asset-dependency-keys.ts';
 import { AssetFactory } from './asset.factory.ts';
-import type { ContentScriptAsset } from './assets.types.ts';
+import type { ContentScriptAsset, ContentStylesheetAsset } from './assets.types.ts';
 
 function createContentScript(overrides: Partial<ContentScriptAsset> = {}): ContentScriptAsset {
 	return {
@@ -15,7 +15,26 @@ function createContentScript(overrides: Partial<ContentScriptAsset> = {}): Conte
 	};
 }
 
+function createContentStylesheet(overrides: Partial<ContentStylesheetAsset> = {}): ContentStylesheetAsset {
+	return {
+		kind: 'stylesheet',
+		source: 'content',
+		content: '@import "./tokens.css";',
+		inline: true,
+		...overrides,
+	};
+}
+
 describe('getAssetDependencyKey', () => {
+	it('keeps content stylesheets with different processing origins apart', () => {
+		const aboutStylesheet = createContentStylesheet({ processingOrigin: '/app/src/pages/about.html.css' });
+		const contactStylesheet = createContentStylesheet({ processingOrigin: '/app/src/pages/contact.html.css' });
+		const originlessStylesheet = createContentStylesheet();
+
+		expect(getAssetDependencyKey(aboutStylesheet)).not.toBe(getAssetDependencyKey(contactStylesheet));
+		expect(getAssetDependencyKey(originlessStylesheet)).not.toBe(getAssetDependencyKey(aboutStylesheet));
+	});
+
 	it('keeps stylesheet declarations of the same file with different attributes apart', () => {
 		const filepath = '/app/src/site.css';
 

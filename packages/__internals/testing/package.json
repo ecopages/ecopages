@@ -27,6 +27,6 @@
 		"@types/react": "^19.2.14"
 	},
 	"peerDependencies": {
-		"@ecopages/jsx": "^0.3.0-rc.9"
+		"@ecopages/jsx": "^0.4.0"
 	}
 }

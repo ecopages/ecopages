@@ -92,7 +92,8 @@ export type RouteRenderHost<C> = Pick<
 	| 'renderRouteBody'
 	| 'getRouteHtmlFinalization'
 	| 'transformRouteResponse'
->;
+> &
+	Partial<Pick<IntegrationRenderer<C>, 'getGroupedBuildPlanForRoute'>>;
 
 /**
  * Captured route-render output in both replayable body and string HTML forms.
@@ -343,6 +344,7 @@ export class RouteRenderOrchestrator {
 				routeFile: routeOptions.file,
 				dependencyInstanceKey,
 				integrationName: renderer.name,
+				groupedBuildPlan: renderer.getGroupedBuildPlanForRoute?.(routeOptions),
 				cacheable: !routeOptions.pageModule && !routeOptions.props && !routeOptions.skipStaticProps,
 				collectContribution: async () =>
 					mergePageBrowserGraphContributions(

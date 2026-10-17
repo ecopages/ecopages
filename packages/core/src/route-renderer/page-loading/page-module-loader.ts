@@ -165,6 +165,7 @@ export class PageModuleLoaderService {
 			getMetadata?: GetMetadata;
 		};
 		routeOptions: RouteRendererOptions;
+		skipMetadata?: boolean;
 	}): Promise<{
 		props: Record<string, unknown>;
 		metadata: PageMetadataProps;
@@ -179,14 +180,16 @@ export class PageModuleLoaderService {
 				).props;
 		const props = { ...staticProps, ...(options.routeOptions.props ?? {}) };
 
-		const metadata = await this.getMetadataPropsForPage({
-			getMetadata: options.pageModule.getMetadata,
-			context: {
-				props,
-				params: options.routeOptions.params ?? {},
-				query: options.routeOptions.query ?? {},
-			} as GetMetadataContext,
-		});
+		const metadata = options.skipMetadata
+			? this.appConfig.defaultMetadata
+			: await this.getMetadataPropsForPage({
+					getMetadata: options.pageModule.getMetadata,
+					context: {
+						props,
+						params: options.routeOptions.params ?? {},
+						query: options.routeOptions.query ?? {},
+					} as GetMetadataContext,
+				});
 
 		return { props, metadata };
 	}

@@ -15,6 +15,8 @@ export type PrebuiltPageClientBrowserAssets = {
 export type GroupedGraphBuildPlanInstance = {
 	routeFile: string;
 	dependencyInstanceKey: string;
+	skipStaticProps?: boolean;
+	isRouteTemplate?: boolean;
 	contribution?: PageBrowserGraphContribution;
 	prebuiltGroupedAssets?: ReadonlyArray<ProcessedAsset>;
 	pageClientBuildEntries?: ReadonlyArray<PlannedPageClientBuildEntry>;
@@ -32,10 +34,23 @@ export type GroupedGraphBuildPlan = {
  */
 export function createGroupedGraphBuildPlanKey(
 	integrationName: string,
-	instances: ReadonlyArray<Pick<GroupedGraphBuildPlanInstance, 'routeFile' | 'dependencyInstanceKey'>>,
+	instances: ReadonlyArray<
+		Pick<
+			GroupedGraphBuildPlanInstance,
+			'routeFile' | 'dependencyInstanceKey' | 'skipStaticProps' | 'isRouteTemplate'
+		>
+	>,
 ): string {
 	const canonicalInstances = [...instances]
-		.map((instance) => [instance.routeFile, instance.dependencyInstanceKey] as const)
+		.map(
+			(instance) =>
+				[
+					instance.routeFile,
+					instance.dependencyInstanceKey,
+					instance.skipStaticProps ?? false,
+					instance.isRouteTemplate ?? false,
+				] as const,
+		)
 		.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
 
 	return JSON.stringify(['grouped-plan', integrationName, canonicalInstances]);

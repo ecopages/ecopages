@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PageModuleLoaderService } from './page-module-loader.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import type { EcoPageFile } from '../../types/public-types.ts';
+import type { EcoPageFile, GetMetadata } from '../../types/public-types.ts';
 import type { EcoPageComponent } from '../../eco/eco.types.ts';
 import type { AppModuleLoader } from '../../services/module-loading/app-module-loader.service.ts';
 import { HttpError } from '../../errors/http-error.ts';
@@ -189,6 +189,28 @@ describe('PageModuleLoaderService', () => {
 
 		expect(result.metadata.title).toBe('1.2.0');
 		expect(result.metadata.description).toBe('Release');
+	});
+
+	it('keeps metadata active when static props are skipped', async () => {
+		const service = new PageModuleLoaderService(appConfig);
+		const getMetadata = async ({ params }: Parameters<GetMetadata>[0]) => ({
+			title: String(params.slug),
+			description: 'Route metadata',
+		});
+		const result = await service.resolvePageData({
+			pageModule: { getMetadata },
+			routeOptions: {
+				file: '/app/pages/products/[slug].tsx',
+				params: { slug: 'new-product' },
+				query: {},
+				skipStaticProps: true,
+			},
+		});
+
+		expect(result).toEqual({
+			props: {},
+			metadata: { title: 'new-product', description: 'Route metadata' },
+		});
 	});
 
 	it('should import page files through the app-owned module loader', async () => {

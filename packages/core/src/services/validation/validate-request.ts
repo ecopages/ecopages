@@ -1,3 +1,4 @@
+import { SchemaError, validateStandardSchema } from './validate-standard-schema.ts';
 import type { StandardSchema, StandardSchemaIssue } from './standard-schema.types.ts';
 
 export interface ValidationResult<T = unknown> {
@@ -64,12 +65,14 @@ export async function validateRequest(
 	const outcomes: ValidationOutcome[] = await Promise.all(
 		requested.map(async ({ source: part, schema, value }): Promise<ValidationOutcome> => {
 			try {
-				const result = await schema['~standard'].validate(value);
-				if (result.issues) {
+				const data = await validateStandardSchema(schema, value);
+				return { source: part, success: true, data };
+			} catch (error) {
+				if (error instanceof SchemaError) {
 					return {
 						source: part,
 						success: false,
-						errors: result.issues.map((issue: StandardSchemaIssue) => ({
+						errors: error.issues.map((issue: StandardSchemaIssue) => ({
 							message: issue.message,
 							path: issue.path?.map((segment) =>
 								typeof segment === 'object' && 'key' in segment ? segment.key : segment,
@@ -77,8 +80,7 @@ export async function validateRequest(
 						})),
 					};
 				}
-				return { source: part, success: true, data: result.value };
-			} catch (error) {
+
 				return {
 					source: part,
 					success: false,

@@ -44,6 +44,12 @@ type RouteBuildPlanInstance = {
 	pageClientBuildEntries: NonNullable<GroupedGraphBuildPlanInstance['pageClientBuildEntries']>;
 };
 
+export type AppBrowserClientBuildResult = {
+	plans: GroupedGraphBuildPlan[];
+	sourceFiles: string[];
+	outputPaths: string[];
+};
+
 function hash(value: string): string {
 	return createHash('sha256').update(value).digest('hex').slice(0, 16);
 }
@@ -91,7 +97,7 @@ function canBundle(dependency: AssetDefinition): dependency is AssetDefinition &
 	);
 }
 
-function createEntryKey(integrationName: string, dependency: AssetDefinition): string {
+export function createAppBrowserClientEntryKey(integrationName: string, dependency: AssetDefinition): string {
 	return JSON.stringify([integrationName, dependencyAssociationKey(dependency)]);
 }
 
@@ -102,7 +108,7 @@ function getOrCreateBuildEntry(
 	dependency: AssetDefinition,
 	cleanupEntries: Array<() => void>,
 ): BuildEntry {
-	const key = createEntryKey(integrationName, dependency);
+	const key = createAppBrowserClientEntryKey(integrationName, dependency);
 	const existing = entriesByKey.get(key);
 	if (existing) return existing;
 
@@ -582,8 +588,14 @@ async function executeAppBrowserBuild(
 	buildEntries: BuildEntry[],
 	routePlans: RouteBuildPlan[],
 	htmlEntryNames: ReadonlyMap<string, string>,
-): Promise<{ buildFingerprint: string; htmlScriptUrls: Map<string, string> }> {
+): Promise<{
+	buildFingerprint: string;
+	htmlScriptUrls: Map<string, string>;
+	sourceFiles: string[];
+	outputPaths: string[];
+}> {
 	const htmlScriptUrls = new Map<string, string>();
+	const sourceFiles = new Set<string>();
 	const outputPaths: string[] = [];
 	const browserBundleService = new BrowserBundleService(appConfig);
 	for (const group of groupBuildEntriesByOptions(buildEntries)) {
@@ -601,6 +613,13 @@ async function executeAppBrowserBuild(
 			minify: group.options.minify ?? true,
 		});
 		assertBuildSucceeded(result, '[ecopages] Could not build the app browser client');
+		for (const entry of group.entries) {
+			for (const filepath of collectBuildEntryInputPaths(result, entry.entrypoint, appConfig.rootDir, {
+				includeNodeModules: true,
+			})) {
+				sourceFiles.add(path.resolve(filepath));
+			}
+		}
 		for (const { path: output } of result.outputs) {
 			outputPaths.push(output);
 			if (output.endsWith('.js') || output.endsWith('.css')) fileSystem.gzipFile(output);
@@ -622,6 +641,8 @@ async function executeAppBrowserBuild(
 	return {
 		buildFingerprint: hash(outputPaths.sort().join('\n')),
 		htmlScriptUrls,
+		sourceFiles: [...sourceFiles],
+		outputPaths,
 	};
 }
 
@@ -629,7 +650,7 @@ async function executeAppBrowserBuild(
 export async function buildAppBrowserClient(
 	appConfig: EcoPagesAppConfig,
 	plans: readonly GroupedGraphBuildPlan[],
-): Promise<GroupedGraphBuildPlan[]> {
+): Promise<AppBrowserClientBuildResult> {
 	const cleanupEntries: Array<() => void> = [];
 	try {
 		const { routePlans, entries } = prepareRouteBuildPlans(appConfig, plans, cleanupEntries);
@@ -652,12 +673,21 @@ export async function buildAppBrowserClient(
 		const build =
 			buildEntries.length > 0
 				? await executeAppBrowserBuild(appConfig, buildEntries, routePlans, htmlEntryNames)
-				: { buildFingerprint: 'empty', htmlScriptUrls: new Map<string, string>() };
+				: {
+						buildFingerprint: 'empty',
+						htmlScriptUrls: new Map<string, string>(),
+						sourceFiles: [],
+						outputPaths: [],
+					};
 		setPrebuiltHtmlPageModuleScriptUrls(appConfig, build.htmlScriptUrls);
-		return routePlans.map(({ plan }) => ({
-			...plan,
-			planKey: JSON.stringify([plan.planKey, 'app-browser-client', build.buildFingerprint]),
-		}));
+		return {
+			plans: routePlans.map(({ plan }) => ({
+				...plan,
+				planKey: JSON.stringify([plan.planKey, 'app-browser-client', build.buildFingerprint]),
+			})),
+			sourceFiles: build.sourceFiles,
+			outputPaths: build.outputPaths,
+		};
 	} finally {
 		for (const cleanup of cleanupEntries) cleanup();
 	}

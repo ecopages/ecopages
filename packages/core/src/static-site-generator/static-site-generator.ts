@@ -76,6 +76,12 @@ function throwStaticGenerationPageFailures(pageFailures: Error[], keepGoing: boo
 	}
 }
 
+function clearProductionBrowserManifestOnFailure(appConfig: EcoPagesAppConfig, generationFailed: boolean): void {
+	if (generationFailed && shouldPrebuildProductionPageBrowserGraphs()) {
+		clearProductionPageBrowserGraphSession(appConfig);
+	}
+}
+
 export const STATIC_SITE_GENERATOR_ERRORS = {
 	ROUTE_RENDERER_FACTORY_REQUIRED: 'RouteRendererFactory is required for render strategy',
 	unsupportedBodyType: (bodyType: string) => `Unsupported body type for static generation: ${bodyType}`,
@@ -592,6 +598,7 @@ export class StaticSiteGenerator {
 			generationFailed = true;
 			generationError = error;
 		}
+		clearProductionBrowserManifestOnFailure(this.appConfig, generationFailed);
 
 		const cleanupErrors: unknown[] = [];
 		try {

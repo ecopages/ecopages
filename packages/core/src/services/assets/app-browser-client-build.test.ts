@@ -142,6 +142,14 @@ function assertRouteBuildAssets(
 	}
 }
 
+function assertHtmlModuleScriptUrls(): void {
+	const buildCall = required(setPrebuiltUrls.mock.calls[0]);
+	const urls = buildCall[1] as Map<string, string> | undefined;
+	const htmlUrl = required(urls?.get(realpathSync(htmlScript)));
+	assert.ok(htmlUrl.startsWith('/assets/html-'));
+	assert.ok(htmlUrl.endsWith('-hash.js'));
+}
+
 let rootDir = '';
 let htmlScript = '';
 let originalGzipFile: typeof fileSystem.gzipFile;
@@ -151,6 +159,9 @@ beforeEach(() => {
 	htmlScript = path.join(rootDir, 'src', 'shell.ts');
 	mkdirSync(path.dirname(htmlScript), { recursive: true });
 	writeFileSync(htmlScript, 'export const shell = true;');
+	const htmlPackageEntry = path.join(rootDir, 'node_modules', 'html-only-package', 'index.js');
+	mkdirSync(path.dirname(htmlPackageEntry), { recursive: true });
+	writeFileSync(htmlPackageEntry, 'export const htmlPackage = true;');
 	htmlScriptPath.value = htmlScript;
 	originalGzipFile = fileSystem.gzipFile;
 	fileSystem.gzipFile = vi.fn(() => {});
@@ -163,11 +174,18 @@ beforeEach(() => {
 			}));
 			return {
 				success: true,
-				outputs,
+				outputs: [...outputs, { path: path.join(options.outdir, 'shared-chunk.js') }],
 				warnings: [],
 				loadedInputs: [],
 				loadedInputsByModule: {},
-				dependencyGraph: { entrypoints: {} },
+				dependencyGraph: {
+					entrypoints: Object.fromEntries(
+						entries.map(({ entrypoint }) => [
+							entrypoint,
+							entrypoint === htmlScript ? [entrypoint, htmlPackageEntry] : [entrypoint],
+						]),
+					),
+				},
 				entryOutputs: Object.fromEntries(
 					entries.map(({ entryName }, index) => [entryName, outputs[index]?.path]),
 				),
@@ -210,7 +228,8 @@ test('buildAppBrowserClient bundles route entries and HTML module scripts in one
 		},
 	];
 
-	const [jsxPlan, litPlan] = await buildAppBrowserClient(appConfig, plans);
+	const build = await buildAppBrowserClient(appConfig, plans);
+	const [jsxPlan, litPlan] = build.plans;
 
 	assert.equal(bundleGroupedEntries.mock.calls.length, 1);
 	assert.equal(required(bundleGroupedEntries.mock.calls[0])[0].length, 6);
@@ -229,9 +248,9 @@ test('buildAppBrowserClient bundles route entries and HTML module scripts in one
 		required(plan.instances[0]?.prebuiltGroupedAssets?.[0]).filepath,
 		required(plan.instances[1]?.prebuiltGroupedAssets?.[0]).filepath,
 	);
-	const urls = setPrebuiltUrls.mock.calls[0]?.[1] as Map<string, string> | undefined;
-	assert.equal(urls?.get(realpathSync(htmlScript))?.startsWith('/assets/html-'), true);
-	assert.equal(urls?.get(realpathSync(htmlScript))?.endsWith('-hash.js'), true);
+	assertHtmlModuleScriptUrls();
+	assert.ok(build.sourceFiles.includes(path.join(rootDir, 'node_modules/html-only-package/index.js')));
+	assert.ok(build.outputPaths.includes(path.join(rootDir, 'dist/assets/shared-chunk.js')));
 });
 
 test('buildAppBrowserClient scopes bundle options to entries with matching options', async () => {

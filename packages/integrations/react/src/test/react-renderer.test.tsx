@@ -134,6 +134,7 @@ function createPageClientPlan(currentIntegrationName: string, component: EcoComp
 
 class TestReactRenderer extends ReactRenderer {
 	composeChildrenRequests: ComposeChildrenRequest[] = [];
+	capturedRenderOptions: IntegrationRendererRenderOptions<ReactNode> | undefined;
 	htmlTemplate: EcoComponent<HtmlTemplateProps> = HtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
 	importedPageFileOverride?: EcoPageFile;
 	shouldHydratePageOverride?: boolean;
@@ -179,6 +180,11 @@ class TestReactRenderer extends ReactRenderer {
 		return this.htmlTemplate as EcoComponent<HtmlTemplateProps, JSX.Element>;
 	}
 
+	override async render(options: IntegrationRendererRenderOptions<ReactNode>) {
+		this.capturedRenderOptions = options;
+		return await super.render(options);
+	}
+
 	protected override resolveReactRuntimeModules() {
 		return this.reactRuntimeModulesOverride ?? super.resolveReactRuntimeModules();
 	}
@@ -189,10 +195,6 @@ class TestReactRenderer extends ReactRenderer {
 		}
 
 		return await super.importPageFile(file);
-	}
-
-	public async testPrepareRenderOptions(filePath: string) {
-		return await this.prepareRenderOptions({ file: filePath, params: {}, query: {} });
 	}
 
 	public async testCollectPageBrowserGraphContribution(filePath: string, pageModule: EcoPageFile) {
@@ -917,11 +919,11 @@ describe('ReactRenderer', () => {
 
 		vi.stubEnv('NODE_ENV', 'development');
 
-		await expect(testRenderer.testPrepareRenderOptions(pageFilePath)).resolves.toEqual(
+		await testRenderer.execute({ file: pageFilePath, params: {}, query: {} });
+
+		expect(testRenderer.capturedRenderOptions?.pagePackage).toEqual(
 			expect.objectContaining({
-				pagePackage: expect.objectContaining({
-					assets: expect.arrayContaining(hydrationAssets),
-				}),
+				assets: expect.arrayContaining(hydrationAssets),
 			}),
 		);
 	});

@@ -19,10 +19,6 @@ import type { PageCacheService } from '../services/cache/page-cache-service.ts';
 import { AppModuleLoader, type AppModuleLoaderContract } from '../services/module-loading/app-module-loader.service.ts';
 import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 import type { DevelopmentInvalidationService } from '../services/invalidation/development-invalidation.service.ts';
-import {
-	NoopEntrypointDependencyGraph,
-	type EntrypointDependencyGraph,
-} from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { IHmrManager, RegisteredScriptEntrypointChangeHandler } from '../types/public-types.ts';
 
@@ -65,7 +61,6 @@ export interface AppRuntime {
 	pageBrowserGraphSession: SessionPageBrowserGraphCache;
 	serverInvalidation: ServerInvalidationState;
 	developmentInvalidation: DevelopmentInvalidationService | null;
-	entrypointDependencyGraph: EntrypointDependencyGraph;
 	moduleLoader: AppModuleLoaderContract;
 	routeModuleBuildCaches: Map<string, RouteModuleBuildCache>;
 	pageCache: PageCacheService | null;
@@ -103,7 +98,7 @@ export function requireAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
  * Finalization calls this once. A second call returns that same object. The module loader is
  * created before the runtime is stored: it reads the server-invalidation counter when a generation
  * is requested, not while it is constructed. Startup or the HMR manager may later replace
- * `buildQueue` or `entrypointDependencyGraph` on the returned runtime.
+ * `buildQueue` on the returned runtime.
  *
  * @throws When the config was not assembled by finalization.
  */
@@ -130,7 +125,6 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		pageBrowserGraphSession: new SessionPageBrowserGraphCache(buildInputIndex),
 		serverInvalidation: new ServerInvalidationState(),
 		developmentInvalidation: null,
-		entrypointDependencyGraph: new NoopEntrypointDependencyGraph(),
 		moduleLoader: new AppModuleLoader(appConfig),
 		routeModuleBuildCaches: new Map(),
 		pageCache: null,

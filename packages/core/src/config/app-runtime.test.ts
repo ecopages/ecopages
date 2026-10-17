@@ -20,7 +20,6 @@ import {
 	clearAppDevelopmentRouteModuleBuildCaches,
 	getSharedRouteModuleBuildCache,
 } from '../services/module-loading/route-module-build-cache-registry.ts';
-import { NoopEntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import { createAppRuntime, requireAppRuntime } from './app-runtime.ts';
 import { finalizeEcoPagesConfig } from './finalize-config.ts';
 
@@ -116,15 +115,12 @@ describe('AppRuntime', () => {
 		expect(secondRuntime.moduleLoader.getDevelopmentGeneration()).toBe(0);
 	});
 
-	it('follows a build queue or entrypoint graph installed after finalization', async () => {
+	it('follows a build queue installed after finalization', async () => {
 		const config = await finalizeEcoPagesConfig({ rootDir: tempRoot() });
 		const runtime = requireAppRuntime(config);
 		const nextQueue = installBuildQueue(config);
-		const nextGraph = new NoopEntrypointDependencyGraph();
-		runtime.entrypointDependencyGraph = nextGraph;
 
 		expect(runtime.buildQueue).toBe(nextQueue);
-		expect(runtime.entrypointDependencyGraph).toBe(nextGraph);
 	});
 
 	it('rolls back appConfig.appRuntime when manifest sealing throws', async () => {

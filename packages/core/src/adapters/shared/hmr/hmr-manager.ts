@@ -36,10 +36,7 @@ import type {
 import { DevTransformEntrypointRegistry } from './dev-transform-entrypoint-registry.ts';
 import { BrowserBundleService } from '../../../services/assets/browser-bundle.service.ts';
 import { requireAppRuntime } from '../../../config/app-runtime.ts';
-import {
-	InMemoryEntrypointDependencyGraph,
-	type EntrypointDependencyGraph,
-} from '../../../services/runtime-state/entrypoint-dependency-graph.service.ts';
+import { InMemoryEntrypointDependencyGraph } from '../../../hmr/entrypoint-dependency-graph.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';
 import { DevTransformServer } from '../../../dev/transform-server/dev-transform-server.ts';
 import type { DevTransformBundleContributor } from '../../../dev/transform-server/types.ts';
@@ -63,7 +60,7 @@ export class HmrManager implements IHmrManager {
 	protected readonly entrypointRegistry: DevTransformEntrypointRegistry;
 	protected readonly browserBundleService: BrowserBundleService;
 	protected readonly invalidationService: DevelopmentInvalidationService;
-	protected readonly entrypointDependencyGraph: EntrypointDependencyGraph;
+	protected readonly entrypointDependencyGraph: InMemoryEntrypointDependencyGraph;
 	private readonly hmrRuntime: DevClientRuntime;
 	private readonly devToolbarRuntime: DevClientRuntime;
 	private readonly runtimeBuilds = new Map<DevClientRuntime, Promise<boolean>>();
@@ -87,8 +84,7 @@ export class HmrManager implements IHmrManager {
 		this.invalidationService = getDevelopmentInvalidationService(appConfig);
 		const runtime = requireAppRuntime(appConfig);
 		runtime.hmr = this;
-		this.entrypointDependencyGraph = this.createEntrypointDependencyGraph(runtime.entrypointDependencyGraph);
-		runtime.entrypointDependencyGraph = this.entrypointDependencyGraph;
+		this.entrypointDependencyGraph = new InMemoryEntrypointDependencyGraph(runtime.buildInputIndex);
 		this.devTransformServer = new DevTransformServer({
 			appConfig: this.appConfig,
 			onModuleDependencies: (modulePath, dependencies) => {
@@ -98,14 +94,6 @@ export class HmrManager implements IHmrManager {
 		});
 		this.ensureRuntimeWorkDir();
 		this.initializeStrategies();
-	}
-
-	protected createEntrypointDependencyGraph(
-		existingEntrypointDependencyGraph: EntrypointDependencyGraph,
-	): EntrypointDependencyGraph {
-		return existingEntrypointDependencyGraph instanceof InMemoryEntrypointDependencyGraph
-			? existingEntrypointDependencyGraph
-			: new InMemoryEntrypointDependencyGraph(requireAppRuntime(this.appConfig).buildInputIndex);
 	}
 
 	/**
@@ -347,13 +335,6 @@ export class HmrManager implements IHmrManager {
 				this.devTransformServer.invalidateSource(entrypointPath);
 			}
 			this.devTransformServer.invalidateSource(changedFilePath);
-			return;
-		}
-
-		if (!this.entrypointDependencyGraph.supportsSelectiveInvalidation()) {
-			for (const sourcePath of this.entrypointRegistry.getRegisteredEntrypoints().keys()) {
-				this.devTransformServer.invalidateSource(sourcePath);
-			}
 			return;
 		}
 

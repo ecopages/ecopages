@@ -197,14 +197,6 @@ class TestReactRenderer extends ReactRenderer {
 		return await super.importPageFile(file);
 	}
 
-	public async testCollectPageBrowserGraphContribution(filePath: string, pageModule: EcoPageFile) {
-		return await this.collectPageBrowserGraphContribution({ file: filePath, pageModule });
-	}
-
-	public async testProcessComponentDependencies(component: EcoComponent) {
-		await this.processComponentDependencies([component]);
-	}
-
 	public resolveComposeChildrenForTest(options: ComposeChildrenRequest) {
 		return this.resolveComposeChildren(options);
 	}
@@ -457,27 +449,24 @@ describe('ReactRenderer', () => {
 
 		it('resolves pending lazy scripts to the grouped browser output URL', async () => {
 			const { testRenderer } = createRendererWithAssets();
+			const lazyPagePath = '/app/src/pages/lazy-client.tsx';
 			const Component = (() => <div>Page</div>) as unknown as EcoComponent<object>;
 			Component.config = {
-				identity: { id: 'lazy-page', file: pageFilePath, integration: 'react' },
+				identity: { id: 'lazy-page', file: lazyPagePath, integration: 'react' },
 				dependencies: {
 					scripts: [{ src: './lazy-client.ts', lazy: { 'on:interaction': 'click' } }],
 				},
 			};
-			await testRenderer.testProcessComponentDependencies(Component);
+			await testRenderer.executeExplicitView(Component, {}, { file: lazyPagePath });
 
-			const plan = createPageClientPlan('react', Component);
-			plan.lazyClientEntries = Component.config._pendingLazyClientAssets ?? [];
-			plan.lazyConfigs = [Component.config];
-
-			const assets = await testRenderer.buildPageClientBrowserAssets(plan);
-			const lazyOutputUrl = assets.processedAssets.find(
+			const renderOptions = testRenderer.capturedRenderOptions;
+			const lazyOutputUrl = renderOptions?.pagePackage?.assets.find(
 				(asset) => asset.attributes?.['data-eco-lazy-key'],
 			)?.srcUrl;
 
 			expect(lazyOutputUrl).toBeDefined();
-			expect(assets.lazyTriggers).toHaveLength(1);
-			expect(assets.lazyTriggers[0]?.rules).toEqual([
+			expect(renderOptions?.pageClientPlan?.lazyTriggers).toHaveLength(1);
+			expect(renderOptions?.pageClientPlan?.lazyTriggers[0]?.rules).toEqual([
 				{ 'on:interaction': { value: 'click', scripts: [lazyOutputUrl] } },
 			]);
 		});
@@ -940,16 +929,16 @@ describe('ReactRenderer', () => {
 		const withForceSpy = vi
 			.spyOn(withForce.hydrationAssetService, 'createPageBrowserGraphDependencies')
 			.mockResolvedValue([]);
+		withoutForce.importedPageFileOverride = pageWithoutModules;
+		withForce.importedPageFileOverride = pageWithoutModules;
+		withoutForce.declaredModulesOverride = [];
+		withForce.declaredModulesOverride = [];
 
-		await expect(
-			withoutForce.testCollectPageBrowserGraphContribution(pageFilePath, pageWithoutModules),
-		).resolves.toEqual({ assets: [] });
-		await expect(
-			withForce.testCollectPageBrowserGraphContribution(pageFilePath, pageWithoutModules),
-		).resolves.toEqual({ dependencies: [], assets: [] });
+		await withoutForce.execute({ file: '/app/src/pages/without-force.tsx', params: {}, query: {} });
+		await withForce.execute({ file: '/app/src/pages/with-force.tsx', params: {}, query: {} });
 
 		expect(withoutForceSpy).not.toHaveBeenCalled();
-		expect(withForceSpy).toHaveBeenCalledWith(pageFilePath, false, []);
+		expect(withForceSpy).toHaveBeenCalledWith('/app/src/pages/with-force.tsx', false, []);
 	});
 
 	it('ensures page-layout-normalization vendor only for MDX page graphs', async () => {
@@ -968,6 +957,8 @@ describe('ReactRenderer', () => {
 			default: Page,
 			config: {},
 		} as EcoPageFile;
+		tsxRenderer.importedPageFileOverride = pageModule;
+		mdxRenderer.importedPageFileOverride = pageModule;
 
 		vi.spyOn(tsxRenderer.hydrationAssetService, 'createPageBrowserGraphDependencies').mockResolvedValue([]);
 		vi.spyOn(mdxRenderer.hydrationAssetService, 'createPageBrowserGraphDependencies').mockResolvedValue([]);
@@ -981,8 +972,8 @@ describe('ReactRenderer', () => {
 		tsxRenderer.isMdxFileOverride = false;
 		mdxRenderer.isMdxFileOverride = true;
 
-		await tsxRenderer.testCollectPageBrowserGraphContribution(pageFilePath, pageModule);
-		await mdxRenderer.testCollectPageBrowserGraphContribution('/app/src/pages/guide.mdx', pageModule);
+		await tsxRenderer.execute({ file: '/app/src/pages/tsx-graph.tsx', params: {}, query: {} });
+		await mdxRenderer.execute({ file: '/app/src/pages/guide.mdx', params: {}, query: {} });
 
 		expect(tsxEnsureSpy).not.toHaveBeenCalled();
 		expect(mdxEnsureSpy).toHaveBeenCalledTimes(1);

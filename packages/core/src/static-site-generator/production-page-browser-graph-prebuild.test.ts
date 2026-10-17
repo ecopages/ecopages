@@ -364,6 +364,74 @@ test('prebuildProductionPageBrowserGraphsFromManifest restores app-wide outputs 
 	assert.deepEqual(restoredPageClientAssets.fallbackDependencies, [fallbackEntry]);
 });
 
+test('prebuildProductionPageBrowserGraphsFromManifest restores dynamic route templates without static props', async () => {
+	const appConfig = await createAppConfig();
+	const routeFile = path.join(appConfig.rootDir, 'pages/products/[slug].tsx');
+	const plan: GroupedGraphBuildPlan = {
+		integrationName: 'ecopages-jsx',
+		planKey: 'dynamic-template-plan',
+		instances: [
+			{
+				routeFile,
+				dependencyInstanceKey: '',
+				skipStaticProps: true,
+				isRouteTemplate: true,
+				contribution: { dependencies: [] },
+				pageClientBuildEntries: [],
+				prebuiltGroupedAssets: [],
+				prebuiltPageClientBrowserAssets: {
+					processedAssets: [],
+					islandRenderAssetsByFile: new Map(),
+					fallbackDependencies: [],
+				},
+			},
+		],
+	};
+	await writeAppBrowserClientManifest(
+		appConfig,
+		[plan],
+		[{ routeFile, skipStaticProps: true, isRouteTemplate: true }],
+		{
+			sourceFiles: [],
+			outputPaths: [],
+		},
+	);
+	assert.equal(readAppBrowserClientManifest(appConfig)?.entries[0]?.skipStaticProps, true);
+	assert.equal(readAppBrowserClientManifest(appConfig)?.entries[0]?.isRouteTemplate, true);
+
+	const runtimeAppConfig = await createAppConfig(appConfig.rootDir);
+	const renderer = {
+		name: 'ecopages-jsx',
+		buildGroupedGraphBuildPlan: vi.fn(
+			async (
+				_instances: Array<{
+					routeFile: string;
+					params?: Record<string, string | string[]>;
+					skipStaticProps?: boolean;
+					isRouteTemplate?: boolean;
+				}>,
+			) => plan,
+		),
+		prebuildProductionPageBrowserGraph: vi.fn(
+			async (_routeFile: string, options: { skipStaticProps?: boolean; isRouteTemplate?: boolean }) => {
+				assert.equal(options.skipStaticProps, true);
+				assert.equal(options.isRouteTemplate, true);
+			},
+		),
+	};
+
+	assert.equal(
+		await prebuildProductionPageBrowserGraphsFromManifest(runtimeAppConfig, {
+			getPageRenderer: () => renderer as never,
+		}),
+		true,
+	);
+	assert.deepEqual(renderer.buildGroupedGraphBuildPlan.mock.calls[0]?.[0], [
+		{ routeFile, params: undefined, skipStaticProps: true, isRouteTemplate: true },
+	]);
+	assert.equal(renderer.prebuildProductionPageBrowserGraph.mock.calls.length, 1);
+});
+
 test('prebuildProductionPageBrowserGraphsFromManifest rejects changed browser sources', async () => {
 	const appConfig = await createAppConfig();
 	const htmlPageFile = path.join(appConfig.absolutePaths.pagesDir, 'docs.html');

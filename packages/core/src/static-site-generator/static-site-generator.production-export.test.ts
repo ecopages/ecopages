@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { EcoPageComponent } from '../eco/eco.types.ts';
-import type { EcoComponent, GetStaticProps, HtmlTemplateProps } from '../types/public-types.ts';
+import type { EcoComponent, GetMetadata, GetStaticProps, HtmlTemplateProps } from '../types/public-types.ts';
 import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
 import { createAppRuntime } from '../config/app-runtime.ts';
@@ -76,9 +76,15 @@ describe('StaticSiteGenerator production export', () => {
 			props: { slug: pathname.params.slug },
 		}));
 		const staticProps: GetStaticProps<PageProps> = staticPropsMock;
+		const metadataMock = vi.fn(async ({ params }: Parameters<GetMetadata>[0]) => {
+			if (!params.slug) throw new Error('metadata requires a route slug');
+			return { title: String(params.slug), description: 'Route metadata' };
+		});
+		const metadata: GetMetadata = metadataMock;
 		const Page = (({ slug }: PageProps) => `<p>${slug}</p>`) as EcoPageComponent<PageProps>;
 		Page.cache = 'static';
 		Page.staticProps = staticProps;
+		Page.metadata = metadata;
 		Page.config = {
 			integration: 'test-renderer',
 			identity: { id: 'static-props-page', file: routeFile, integration: 'test-renderer' },
@@ -114,6 +120,14 @@ describe('StaticSiteGenerator production export', () => {
 			await ssg.run({
 				router: {
 					listStaticGenerationRoutes: vi.fn(async () => routes),
+					templateRoutes: [
+						{
+							pathname: '/blog/[slug]',
+							kind: 'dynamic',
+							filePath: routeFile,
+							paramNames: ['slug'],
+						},
+					],
 				},
 				baseUrl: 'https://example.com',
 				routeRendererFactory: {
@@ -127,11 +141,13 @@ describe('StaticSiteGenerator production export', () => {
 
 		expect(buildGroupedGraphBuildPlan).toHaveBeenCalledTimes(1);
 		expect(buildGroupedGraphBuildPlan.mock.calls[0]?.[0]).toEqual([
+			{ routeFile, skipStaticProps: true, isRouteTemplate: true },
 			{ routeFile, params: { slug: 'first' } },
 			{ routeFile, params: { slug: 'second' } },
 		]);
 		expect(buildGroupedGraphBuildPlan.mock.calls[0]?.[1]?.onRouteFailure).toEqual(expect.any(Function));
 		expect(staticPropsMock).toHaveBeenCalledTimes(2);
+		expect(metadataMock).toHaveBeenCalledTimes(2);
 		expect(staticPropsMock.mock.calls.map(([context]) => context.pathname.params.slug)).toEqual([
 			'first',
 			'second',

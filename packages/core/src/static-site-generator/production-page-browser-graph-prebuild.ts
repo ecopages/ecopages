@@ -5,10 +5,7 @@ import type { PageParams } from '../types/public-types.ts';
 import type { PageRendererResolver } from '../route-renderer/route-renderer.ts';
 import type { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
 import type { GroupedGraphBuildPlan } from '../route-renderer/orchestration/page-browser-graph/grouped-graph-build-plan.ts';
-import {
-	createPageDependencyInstanceKey,
-	createRouteGraphLookupKey,
-} from '../route-renderer/orchestration/page-browser-graph/route-instance-key.ts';
+import { createPageDependencyInstanceKey } from '../route-renderer/orchestration/page-browser-graph/route-instance-key.ts';
 import {
 	collectHtmlPageModuleScriptBuildInputs,
 	setPrebuiltHtmlPageModuleScriptUrls,
@@ -30,6 +27,8 @@ import type { AppBrowserClientManifestEntry } from '../services/assets/app-brows
 export type ProductionPageBrowserGraphRouteInstance = {
 	routeFile: string;
 	params?: PageParams;
+	skipStaticProps?: boolean;
+	isRouteTemplate?: boolean;
 };
 
 /**
@@ -58,7 +57,12 @@ export function clearProductionPageBrowserGraphSession(appConfig: EcoPagesAppCon
 function serializeProductionRouteInstance(instance: ProductionPageBrowserGraphRouteInstance): string {
 	const routeFile = path.resolve(instance.routeFile);
 	const dependencyInstanceKey = createPageDependencyInstanceKey({ params: instance.params });
-	return JSON.stringify([routeFile, dependencyInstanceKey]);
+	return JSON.stringify([
+		routeFile,
+		dependencyInstanceKey,
+		instance.skipStaticProps ?? false,
+		instance.isRouteTemplate ?? false,
+	]);
 }
 
 /**
@@ -130,6 +134,8 @@ export async function prebuildProductionPageBrowserGraphs(
 		for (const routeInstance of routeInstancesForRenderer) {
 			await renderer.prebuildProductionPageBrowserGraph(routeInstance.routeFile, {
 				params: routeInstance.params,
+				skipStaticProps: routeInstance.skipStaticProps,
+				isRouteTemplate: routeInstance.isRouteTemplate,
 				groupedBuildPlan,
 			});
 		}
@@ -161,13 +167,16 @@ function groupManifestEntriesByRenderer(
 
 function findPlanInstance(
 	entry: ResolvedManifestEntry,
-	instancesByRouteKey: ReadonlyMap<string, GroupedGraphBuildPlan['instances'][number]>,
+	instances: readonly GroupedGraphBuildPlan['instances'][number][],
 ): GroupedGraphBuildPlan['instances'][number] {
-	const routeKey = createRouteGraphLookupKey(
-		entry.routeFile,
-		createPageDependencyInstanceKey({ params: entry.params }),
+	const dependencyInstanceKey = createPageDependencyInstanceKey({ params: entry.params });
+	const instance = instances.find(
+		(candidate) =>
+			candidate.routeFile === entry.routeFile &&
+			candidate.dependencyInstanceKey === dependencyInstanceKey &&
+			(candidate.skipStaticProps ?? false) === (entry.skipStaticProps ?? false) &&
+			(candidate.isRouteTemplate ?? false) === (entry.isRouteTemplate ?? false),
 	);
-	const instance = instancesByRouteKey.get(routeKey);
 	if (!instance) {
 		throw new Error(
 			`The app browser build manifest has no current route plan for ${entry.routeFile}. Run \`ecopages build\` again.`,
@@ -256,23 +265,24 @@ async function prebuildManifestEntriesForRenderer(
 	entries: readonly ResolvedManifestEntry[],
 ): Promise<void> {
 	const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan(
-		entries.map(({ routeFile, params }) => ({ routeFile, params })),
-	);
-	const instancesByRouteKey = new Map(
-		groupedBuildPlan.instances.map((instance) => [
-			createRouteGraphLookupKey(instance.routeFile, instance.dependencyInstanceKey),
-			instance,
-		]),
+		entries.map(({ routeFile, params, skipStaticProps, isRouteTemplate }) => ({
+			routeFile,
+			params,
+			skipStaticProps,
+			isRouteTemplate,
+		})),
 	);
 	groupedBuildPlan.planKey = entries[0]?.planKey ?? groupedBuildPlan.planKey;
 
 	for (const entry of entries) {
-		const instance = findPlanInstance(entry, instancesByRouteKey);
+		const instance = findPlanInstance(entry, groupedBuildPlan.instances);
 		restoreManifestRouteAssets(appConfig, renderer, entry, instance);
 	}
 	for (const entry of entries) {
 		await renderer.prebuildProductionPageBrowserGraph(entry.routeFile, {
 			params: entry.params,
+			skipStaticProps: entry.skipStaticProps,
+			isRouteTemplate: entry.isRouteTemplate,
 			groupedBuildPlan,
 		});
 	}

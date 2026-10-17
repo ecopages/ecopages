@@ -17,7 +17,7 @@ import type {
 	PageRendererResolver,
 	StaticGenerationRendererResolver,
 } from '../route-renderer/route-renderer.ts';
-import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
+import type { StaticGenerationRoute, TemplateRoute } from '../router/server/route-registry.ts';
 import { fileSystem } from '@ecopages/file-system';
 import {
 	prepareExplicitStaticRender,
@@ -51,6 +51,7 @@ import {
 
 type StaticGenerationRouteSource = {
 	listStaticGenerationRoutes(input: { runtimeOrigin: string }): Promise<readonly StaticGenerationRoute[]>;
+	templateRoutes?: readonly TemplateRoute[];
 };
 
 type StaticPageRouteRendererFactory = PageRendererResolver;
@@ -454,12 +455,18 @@ export class StaticSiteGenerator {
 		sitemapEligiblePathnames?: Set<string>;
 	}): Promise<void> {
 		if (shouldPrebuildProductionPageBrowserGraphs() && input.routeRendererFactory) {
+			const dynamicRouteTemplates = (input.router.templateRoutes ?? [])
+				.filter((route) => route.kind !== 'exact')
+				.map((route) => ({ routeFile: route.filePath, skipStaticProps: true, isRouteTemplate: true }));
 			await prebuildProductionPageBrowserGraphs(
 				this.appConfig,
-				input.routes.map((route) => ({
-					routeFile: route.templateRoute.filePath,
-					params: route.params,
-				})),
+				[
+					...input.routes.map((route) => ({
+						routeFile: route.templateRoute.filePath,
+						params: route.params,
+					})),
+					...dynamicRouteTemplates,
+				],
 				input.routeRendererFactory,
 			);
 		}

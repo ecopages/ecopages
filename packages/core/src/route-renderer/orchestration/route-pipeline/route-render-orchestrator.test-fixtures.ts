@@ -82,6 +82,7 @@ export function createFlowRenderer<C = unknown>(input: FlowRendererInput = {}): 
 				: { assets: [] },
 		resolvePageDependenciesForRoute: input.resolvePageDependencies ?? (async () => undefined),
 		getPrebuiltRouteComponentGraphs: () => undefined,
+		getGroupedBuildPlanForRoute: () => undefined,
 		resolvePageDependencyContribution: input.resolvePageDependencyContribution ?? (async () => undefined),
 		buildPageClientBrowserAssets: async () => ({
 			processedAssets: [],

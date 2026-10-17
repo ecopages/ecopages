@@ -27,6 +27,8 @@ export type AppBrowserClientManifestEntry = {
 	integrationName: string;
 	routeFile: string;
 	params?: PageParams;
+	skipStaticProps?: boolean;
+	isRouteTemplate?: boolean;
 	planKey: string;
 	groupedDependencyKeys: string[];
 	pageClientBuildEntryKeys: string[];
@@ -116,6 +118,10 @@ function isOptionalStringArray(record: Record<string, unknown>, key: string): bo
 	return value === undefined || (Array.isArray(value) && value.every((item) => typeof item === 'string'));
 }
 
+function isOptionalBoolean(record: Record<string, unknown>, key: string): boolean {
+	return record[key] === undefined || typeof record[key] === 'boolean';
+}
+
 function isProcessedAsset(value: unknown): value is SerializedProcessedAsset {
 	if (!isRecord(value) || (value.kind !== 'script' && value.kind !== 'stylesheet')) return false;
 	return (
@@ -156,6 +162,8 @@ function isManifestEntry(value: unknown): value is AppBrowserClientManifestEntry
 		typeof value.integrationName === 'string' &&
 		typeof value.routeFile === 'string' &&
 		(value.params === undefined || isPageParams(value.params)) &&
+		isOptionalBoolean(value, 'skipStaticProps') &&
+		isOptionalBoolean(value, 'isRouteTemplate') &&
 		typeof value.planKey === 'string' &&
 		isStringArray(value.groupedDependencyKeys) &&
 		isStringArray(value.pageClientBuildEntryKeys) &&
@@ -203,6 +211,8 @@ function serializeEntry(
 		integrationName: plan.integrationName,
 		routeFile: toProjectPath(rootDir, instance.routeFile),
 		params,
+		skipStaticProps: instance.skipStaticProps,
+		isRouteTemplate: instance.isRouteTemplate,
 		planKey: plan.planKey,
 		groupedDependencyKeys: [
 			...new Set(
@@ -325,18 +335,34 @@ function fingerprintSources(rootDir: string, filepaths: Iterable<string>): Recor
 export async function writeAppBrowserClientManifest(
 	appConfig: EcoPagesAppConfig,
 	plans: readonly GroupedGraphBuildPlan[],
-	routeInstances: readonly { routeFile: string; params?: PageParams }[],
+	routeInstances: readonly {
+		routeFile: string;
+		params?: PageParams;
+		skipStaticProps?: boolean;
+		isRouteTemplate?: boolean;
+	}[],
 	browserBuild: { sourceFiles: readonly string[]; outputPaths: readonly string[] },
 ): Promise<void> {
 	const paramsByRouteKey = new Map(
 		routeInstances.map((instance) => [
-			createRouteGraphLookupKey(instance.routeFile, createPageDependencyInstanceKey({ params: instance.params })),
+			JSON.stringify([
+				createRouteGraphLookupKey(
+					instance.routeFile,
+					createPageDependencyInstanceKey({ params: instance.params }),
+				),
+				instance.skipStaticProps ?? false,
+				instance.isRouteTemplate ?? false,
+			]),
 			instance.params,
 		]),
 	);
 	const entries = plans.flatMap((plan) =>
 		plan.instances.map((instance) => {
-			const routeKey = createRouteGraphLookupKey(instance.routeFile, instance.dependencyInstanceKey);
+			const routeKey = JSON.stringify([
+				createRouteGraphLookupKey(instance.routeFile, instance.dependencyInstanceKey),
+				instance.skipStaticProps ?? false,
+				instance.isRouteTemplate ?? false,
+			]);
 			if (!paramsByRouteKey.has(routeKey)) {
 				throw new Error(`Missing route params for app browser client entry ${instance.routeFile}`);
 			}

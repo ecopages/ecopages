@@ -13,11 +13,16 @@ import {
 import { collectPageClientPlan } from './ownership-graph/page-client-plan.ts';
 import type { PreparedComponentGraphNode } from './ownership-graph/component-graph.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
+import type {
+	AssetDefinition,
+	AssetProcessingService,
+	ProcessedAsset,
+} from '../../services/assets/asset-processing-service/index.ts';
 import type {
 	ComponentRenderInput,
 	EcoPagesElement,
 	EcoPageFile,
+	GetMetadata,
 	GetStaticProps,
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
@@ -428,6 +433,116 @@ describe('IntegrationRenderer', () => {
 			expect.objectContaining({ srcUrl: '/assets/lazy-entry-hash.js' }),
 		);
 		expect(renderer.resolvedGroupedPlans).toEqual([groupedBuildPlan, undefined]);
+	});
+
+	it('reuses dynamic route template client assets when the page client entries match', async () => {
+		const renderedPageEntryAssets: ProcessedAsset[][] = [];
+		const lazyComponent = (() => '<button>lazy</button>') as EcoComponent;
+		lazyComponent.config = {
+			identity: { id: 'lazy-template-component', file: '/app/components/lazy-template.tsx', integration: 'lit' },
+		};
+		const otherComponent = (() => '<button>other</button>') as EcoComponent;
+		otherComponent.config = {
+			identity: {
+				id: 'other-template-component',
+				file: '/app/components/other-template.tsx',
+				integration: 'lit',
+			},
+		};
+		const dependency: AssetDefinition = {
+			kind: 'script',
+			source: 'content',
+			content: 'window.lazyTemplate = true;',
+			name: 'lazy-template',
+		};
+		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
+		Page.resolveDependencies = async () => ({ components: [lazyComponent] });
+		const routeFile = '/app/pages/products/[slug].tsx';
+		const appConfig = {
+			...testAppConfig,
+			integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
+		} as EcoPagesAppConfig;
+		const renderer = new (class extends TestIntegrationRenderer {
+			override async render(options: IntegrationRendererRenderOptions<EcoPagesElement>) {
+				renderedPageEntryAssets.push(options.pagePackage?.assets ?? []);
+				return await super.render(options);
+			}
+		})({
+			appConfig,
+			assetProcessingService: testAssetService,
+			hooks: {
+				collectAppBrowserClientBuildEntries: async (plan) =>
+					plan.sourceComponents.includes(lazyComponent) ? [{ dependency }] : [],
+			},
+		});
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([
+			{ routeFile, skipStaticProps: true, isRouteTemplate: true },
+		]);
+		const instance = groupedBuildPlan.instances[0];
+		if (!instance) throw new Error('Expected a dynamic route template plan');
+		instance.prebuiltPageClientBrowserAssets = {
+			processedAssets: [{ kind: 'script', srcUrl: '/assets/template-client.js' } as ProcessedAsset],
+			islandRenderAssetsByFile: new Map(),
+			fallbackDependencies: [],
+		};
+		await renderer.prebuildProductionPageBrowserGraph(routeFile, {
+			skipStaticProps: true,
+			isRouteTemplate: true,
+			groupedBuildPlan,
+		});
+		await renderer.execute({ file: routeFile, params: { slug: 'new-product' } });
+
+		const matchingPlan = collectPageClientPlan([{ component: lazyComponent }], 'test-renderer');
+		const reusedAssets = await renderer.buildPageClientBrowserAssets(matchingPlan, {
+			file: routeFile,
+			params: { slug: 'new-product' },
+		});
+		const changedPlan = collectPageClientPlan([{ component: otherComponent }], 'test-renderer');
+		const fallbackAssets = await renderer.buildPageClientBrowserAssets(changedPlan, {
+			file: routeFile,
+			params: { slug: 'new-product' },
+		});
+
+		expect(reusedAssets.processedAssets).toContainEqual(
+			expect.objectContaining({ srcUrl: '/assets/template-client.js' }),
+		);
+		expect(renderedPageEntryAssets.at(-1)).toContainEqual(
+			expect.objectContaining({ srcUrl: '/assets/template-client.js' }),
+		);
+		expect(fallbackAssets.processedAssets).not.toContainEqual(
+			expect.objectContaining({ srcUrl: '/assets/template-client.js' }),
+		);
+	});
+
+	it('keeps metadata active for route plans that only skip static props', async () => {
+		const routeFile = '/app/pages/products/[slug].tsx';
+		const metadata = vi.fn(async ({ params }: Parameters<GetMetadata>[0]) => ({
+			title: String(params.slug),
+			description: 'Route metadata',
+		}));
+		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
+		Page.metadata = metadata;
+		Page.config = {
+			integration: 'lit',
+			identity: { id: 'route-plan-metadata', file: routeFile, integration: 'lit' },
+		};
+		const renderer = new TestIntegrationRenderer({
+			appConfig: {
+				...testAppConfig,
+				integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
+			} as EcoPagesAppConfig,
+			assetProcessingService: testAssetService,
+		});
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+
+		await renderer.buildGroupedGraphBuildPlan([
+			{ routeFile, params: { slug: 'existing-product' }, skipStaticProps: true },
+		]);
+
+		expect(metadata).toHaveBeenCalledWith(expect.objectContaining({ params: { slug: 'existing-product' } }));
 	});
 
 	it('does not reuse prebuilt page dependencies when render props override the route', async () => {

@@ -10,7 +10,8 @@ import { createAppBuildManifest, type AppBuildManifest } from '../../build/contr
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
 import { requireAppRuntime, ServerInvalidationState } from '../../config/app-runtime.ts';
 import type { EcoPagesElement } from '../../types/public-types.ts';
-import { createAppModuleLoader } from './app-server-module-transpiler.service.ts';
+import { createRequestPipelineMetricsState } from '../../diagnostics/request-pipeline-metrics.ts';
+import { AppModuleLoader } from './app-module-loader.service.ts';
 import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 
 function attachTestAppRuntime(
@@ -23,20 +24,21 @@ function attachTestAppRuntime(
 		buildManifest,
 		buildQueue: new BuildQueue(buildAdapter),
 		buildInputIndex: new BuildInputDependencyIndex(),
+		requestPipelineMetrics: createRequestPipelineMetricsState(),
 		pagesUnifiedGraphManifest: null,
 		routeModuleBuildCaches: new Map(),
 		serverInvalidation: new ServerInvalidationState(),
-		moduleLoader: createAppModuleLoader(appConfig as never),
+		moduleLoader: new AppModuleLoader(appConfig as never),
 	};
 }
 
 describe('app server module transpiler runtime state', () => {
 	it('compiles Bun-owned Kita modules to string render functions during app module imports', async () => {
-		(
-			globalThis as typeof globalThis & {
-				Bun?: { hash(content: string | Buffer<ArrayBufferLike>): number | bigint };
-			}
-		).Bun = {
+		const runtimeGlobals = globalThis as typeof globalThis & {
+			Bun?: { hash(content: string | Buffer<ArrayBufferLike>): number | bigint };
+		};
+		const originalBun = runtimeGlobals.Bun;
+		runtimeGlobals.Bun = {
 			hash: (content) => {
 				const value = String(content);
 				let hash = 0;
@@ -105,16 +107,18 @@ describe('app server module transpiler runtime state', () => {
 				KitaChild: (() => EcoPagesElement) & { config?: Record<string, unknown> };
 			}>({
 				filePath: kitaComponentPath,
-				rootDir,
 				outdir: path.join(rootDir, '.eco', '.server-modules'),
-				buildExecutor: new RolldownBuildAdapter(),
 			});
 
 			const rendered = imported.KitaChild();
 			assert.equal(typeof rendered, 'string');
 			assert.match(String(rendered), /data-kita-child/);
 		} finally {
-			delete (globalThis as typeof globalThis & { Bun?: unknown }).Bun;
+			if (originalBun === undefined) {
+				delete runtimeGlobals.Bun;
+			} else {
+				runtimeGlobals.Bun = originalBun;
+			}
 			fs.rmSync(rootDir, { recursive: true, force: true });
 		}
 	});
@@ -155,9 +159,7 @@ describe('app server module transpiler runtime state', () => {
 				value: number;
 			}>({
 				filePath: pageFilePath,
-				rootDir,
 				outdir: path.join(rootDir, '.eco', '.server-modules'),
-				buildExecutor: new RolldownBuildAdapter(),
 			});
 
 			assert.deepEqual(imported.default, { ok: true });
@@ -219,13 +221,12 @@ describe('app server module transpiler runtime state', () => {
 			appConfig,
 			createAppBuildManifest([{ plugin: { name: 'react-mdx-loader', setup() {} }, source: 'test' }]),
 		);
+		requireAppRuntime(appConfig).buildQueue = buildExecutor as BuildQueue;
 
 		try {
 			await requireAppRuntime(appConfig).moduleLoader.importModule({
 				filePath: pageFilePath,
-				rootDir,
 				outdir: path.join(rootDir, '.eco', '.server-modules'),
-				buildExecutor,
 			});
 
 			assert.deepEqual(observedPlugins, [
@@ -275,7 +276,6 @@ describe('app server module transpiler runtime state', () => {
 		try {
 			await requireAppRuntime(appConfig).moduleLoader.importModule({
 				filePath: pageFilePath,
-				rootDir,
 				outdir: path.join(rootDir, '.eco', '.server-modules'),
 			});
 

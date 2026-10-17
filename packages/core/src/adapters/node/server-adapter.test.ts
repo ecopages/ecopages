@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { requireAppRuntime, type AppRuntime } from '../../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
-import { createAppModuleLoader } from '../../services/module-loading/app-server-module-transpiler.service.ts';
+import { AppModuleLoader } from '../../services/module-loading/app-module-loader.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { ProjectWatcher } from '../../watchers/project-watcher.ts';
 import type { NodeServerAdapterParams } from './server-adapter.ts';
@@ -130,8 +130,8 @@ function makeNodeServerAdapter(
 		({
 			origin: 'http://localhost:3000',
 			hmr: null,
-			moduleLoader: createAppModuleLoader(appConfig),
-		} as AppRuntime);
+			moduleLoader: new AppModuleLoader(appConfig),
+		} as unknown as AppRuntime);
 	appConfig.appRuntime ??= runtime;
 
 	return new TestNodeServerAdapter({

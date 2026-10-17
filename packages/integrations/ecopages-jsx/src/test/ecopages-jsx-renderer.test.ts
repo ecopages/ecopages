@@ -73,7 +73,7 @@ async function createAppConfig(rootDir: string): Promise<EcoPagesAppConfig> {
 		rootDir,
 		defaultMetadata: { title: '', description: '' },
 	});
-	config.appRuntime!.moduleLoader = appModuleLoader;
+	config.appRuntime!.moduleLoader = appModuleLoader as never;
 	return config;
 }
 

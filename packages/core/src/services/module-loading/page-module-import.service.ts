@@ -2,9 +2,8 @@ import { collectBuildOutputImports, getBuildEntryOutput } from '../../build/buil
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
-import { requireAppRuntime, ServerInvalidationState } from '../../config/app-runtime.ts';
+import { requireAppRuntime } from '../../config/app-runtime.ts';
 import {
-	defaultBuildAdapter,
 	type BuildExecutor,
 	type BuildOptions,
 	type BuildResult,
@@ -12,7 +11,6 @@ import {
 } from '../../build/build-adapter.ts';
 import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
 import { createServerBuildRequest } from '../../build/runtime/build-request-policy.ts';
-import { resolveBuildEnvironmentOptions } from '../../build/runtime/build-environment-options.ts';
 import {
 	importPagesUnifiedGraphModule,
 	isPagesUnifiedGraphPage,
@@ -97,27 +95,22 @@ type LoadModuleOptions = PageModuleBuildImportOptions & {
  * transpilation settings, and error semantics across the different callers.
  */
 export class PageModuleImportService {
-	private readonly appConfig?: EcoPagesAppConfig;
+	private readonly appConfig: EcoPagesAppConfig;
 	private readonly dependencies: PageModuleImportDependencies;
 	private readonly importCache = new Map<string, ImportCacheEntry>();
 	private readonly productionFileHashes = new Map<string, string>();
-	private readonly fallbackServerInvalidation = new ServerInvalidationState();
 
 	private recordPipelineLoad(outcome: Parameters<typeof recordPageModuleLoad>[1], artifactCount = 0): void {
-		if (!this.appConfig) return;
 		recordPageModuleLoad(requireAppRuntime(this.appConfig).requestPipelineMetrics, outcome, artifactCount);
 	}
 
-	constructor(appConfig?: EcoPagesAppConfig, dependencies?: Partial<PageModuleImportDependencies>) {
+	constructor(appConfig: EcoPagesAppConfig, dependencies?: Partial<PageModuleImportDependencies>) {
 		this.appConfig = appConfig;
 		this.dependencies = {
 			hashFile: dependencies?.hashFile ?? ((filePath) => fileSystem.hash(filePath)),
 			buildModule:
 				dependencies?.buildModule ??
-				((options, buildExecutor) =>
-					(buildExecutor ?? (this.appConfig ? requireBuildQueue(this.appConfig) : defaultBuildAdapter)).build(
-						options,
-					)),
+				((options, buildExecutor) => (buildExecutor ?? requireBuildQueue(this.appConfig)).build(options)),
 		};
 	}
 
@@ -129,10 +122,7 @@ export class PageModuleImportService {
 	}
 
 	getDevelopmentGeneration(): number {
-		const invalidation = this.appConfig
-			? requireAppRuntime(this.appConfig).serverInvalidation
-			: this.fallbackServerInvalidation;
-		return invalidation.currentGeneration();
+		return requireAppRuntime(this.appConfig).serverInvalidation.currentGeneration();
 	}
 
 	/**
@@ -144,10 +134,7 @@ export class PageModuleImportService {
 	 * dependencies on a hit, because the watcher records every server module closure and invalidates it.
 	 */
 	invalidateDevelopmentGraph(): void {
-		const invalidation = this.appConfig
-			? requireAppRuntime(this.appConfig).serverInvalidation
-			: this.fallbackServerInvalidation;
-		invalidation.advance();
+		requireAppRuntime(this.appConfig).serverInvalidation.advance();
 		this.clearImportCache();
 	}
 
@@ -199,7 +186,7 @@ export class PageModuleImportService {
 			return this.loadModule<T>({ ...options, fileHash });
 		}
 
-		const owner = this.appConfig && findIntegrationForFile(this.appConfig.integrations, options.filePath);
+		const owner = findIntegrationForFile(this.appConfig.integrations, options.filePath);
 		const routeModuleBuild = owner?.compilePageModule
 			? undefined
 			: this.createRouteModuleBuildOptions(
@@ -259,28 +246,16 @@ export class PageModuleImportService {
 		outputNamingTemplate: string,
 	): RouteModuleBuildRequest {
 		const { filePath, rootDir, outdir, splitting, externalPackages } = options;
-		const buildOptions: BuildOptions = this.appConfig
-			? createServerBuildRequest(this.appConfig, {
-					entrypoints: [filePath],
-					outdir,
-					naming: outputNamingTemplate,
-					splitting: splitting ?? true,
-					jsx: options.jsx,
-					plugins: options.plugins,
-					root: rootDir,
-					...(externalPackages !== undefined ? { externalPackages } : {}),
-				})
-			: {
-					...resolveBuildEnvironmentOptions('server', { rootDir } as EcoPagesAppConfig),
-					outdir,
-					naming: outputNamingTemplate,
-					splitting: splitting ?? true,
-					jsx: options.jsx,
-					plugins: options.plugins,
-					...(externalPackages !== undefined ? { externalPackages } : {}),
-					root: rootDir,
-					entrypoints: [filePath],
-				};
+		const buildOptions: BuildOptions = createServerBuildRequest(this.appConfig, {
+			entrypoints: [filePath],
+			outdir,
+			naming: outputNamingTemplate,
+			splitting: splitting ?? true,
+			jsx: options.jsx,
+			plugins: options.plugins,
+			root: rootDir,
+			...(externalPackages !== undefined ? { externalPackages } : {}),
+		});
 		return {
 			buildOptions,
 			rootDir: buildOptions.root ?? rootDir,
@@ -320,7 +295,7 @@ export class PageModuleImportService {
 	}
 
 	private async tryLoadPagesUnifiedGraphModule<T>(filePath: string): Promise<T | undefined> {
-		if (!shouldBuildPagesUnifiedGraph() || !this.appConfig || !isPagesUnifiedGraphPage(filePath, this.appConfig)) {
+		if (!shouldBuildPagesUnifiedGraph() || !isPagesUnifiedGraphPage(filePath, this.appConfig)) {
 			return undefined;
 		}
 		const graphModule = await importPagesUnifiedGraphModule<T>(this.appConfig, filePath);
@@ -370,10 +345,6 @@ export class PageModuleImportService {
 	}
 
 	private registerRouteModuleDependencies(filePath: string, dependencyPaths: readonly string[]): void {
-		if (!this.appConfig) {
-			return;
-		}
-
 		requireAppRuntime(this.appConfig).buildInputIndex.register(
 			{ consumer: 'server-route-module', key: path.resolve(filePath) },
 			dependencyPaths,
@@ -382,8 +353,8 @@ export class PageModuleImportService {
 
 	private async loadModule<T = unknown>(options: LoadModuleOptions): Promise<T> {
 		const { filePath, fileHash } = options;
-		const owner = this.appConfig && findIntegrationForFile(this.appConfig.integrations, filePath);
-		if (this.appConfig && owner?.compilePageModule) {
+		const owner = findIntegrationForFile(this.appConfig.integrations, filePath);
+		if (owner?.compilePageModule) {
 			return (await owner.compilePageModule(filePath, this.appConfig)) as T;
 		}
 		const {

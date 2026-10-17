@@ -14,7 +14,6 @@ export function createCustomElementServerModuleImporter(appConfig: EcoPagesAppCo
 	return async (filePath: string, registryKey: string): Promise<unknown> => {
 		return requireAppRuntime(appConfig).moduleLoader.importModule({
 			filePath,
-			rootDir: appConfig.rootDir,
 			outdir: path.join(appConfig.absolutePaths.workDir, outdirSegment, registryKey),
 		});
 	};
@@ -31,7 +30,6 @@ export function createSharedServerModuleImporter(appConfig: EcoPagesAppConfig) {
 	return async (filePath: string): Promise<unknown> => {
 		return requireAppRuntime(appConfig).moduleLoader.importModule({
 			filePath,
-			rootDir: appConfig.rootDir,
 			outdir: `${resolveInternalExecutionDir(appConfig)}/.server-modules`,
 			externalPackages: true,
 		});

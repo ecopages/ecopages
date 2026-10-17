@@ -8,6 +8,7 @@ import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-tran
 import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
 import { resolveInternalExecutionDir } from '../../../utils/resolve-work-dir.ts';
+import { InMemoryEntrypointDependencyGraph } from '../../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { ClientBridgeEvent } from '../../../types/public-types.ts';
 import { createTempRoot, startHmrManager, writeSourceFile } from './hmr-manager.test-helpers.ts';
@@ -152,6 +153,23 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 
 		assert.equal(manager.getWatchedFiles().size, 0);
 		assert.equal(dependencyGraph.getDependencyEntrypoints(dependencyPath).size, 0);
+	});
+
+	test('preserves an existing entrypoint dependency graph and its recorded dependencies', async () => {
+		const rootDir = createTempRoot('ecopages-hmr-contract-existing-dependency-graph');
+		const entrypointPath = writeSourceFile(rootDir, 'src/pages/react-content.tsx', PAGE_SOURCE);
+		const dependencyPath = writeSourceFile(rootDir, 'src/lib/shared.ts', 'export const shared = 1;');
+		const config = await finalizeEcoPagesConfig({ rootDir });
+		const runtime = requireAppRuntime(config);
+		const existingGraph = new InMemoryEntrypointDependencyGraph();
+		existingGraph.setEntrypointDependencies(entrypointPath, [dependencyPath]);
+		runtime.entrypointDependencyGraph = existingGraph;
+
+		const { manager } = await create(config);
+		const activeGraph = manager.getDefaultContext().getEntrypointDependencyGraph();
+
+		assert.equal(activeGraph, existingGraph);
+		assert.deepEqual(activeGraph.getDependencyEntrypoints(dependencyPath), new Set([path.resolve(entrypointPath)]));
 	});
 
 	test('broadcasts the dev transform URL as an update when a registered page source changes', async () => {

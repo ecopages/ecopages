@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import chokidar from 'chokidar';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import { fileSystem } from '@ecopages/file-system';
 import { requireAppRuntime, type AppRuntime } from '../../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { createAppModuleLoader } from '../../services/module-loading/app-server-module-transpiler.service.ts';
@@ -387,9 +388,13 @@ describe('NodeServerAdapter', () => {
 				}
 			})({ name: 'generating-processor' });
 			const appConfig = await finalizeEcoPagesConfig({ rootDir, processors: [processor] });
+			fs.mkdirSync(appConfig.absolutePaths.publicDir, { recursive: true });
+			const publicAsset = path.join(appConfig.absolutePaths.publicDir, 'logo.svg');
+			fs.writeFileSync(publicAsset, '<svg />');
 			fs.mkdirSync(path.join(rootDir, 'dist'), { recursive: true });
 			fs.writeFileSync(path.join(rootDir, 'dist', 'stale.txt'), 'stale');
 			const adapter = makeNodeServerAdapter({ appConfig, options: { watch: false }, runtimeAssetSetup });
+			const copyFile = vi.spyOn(fileSystem, 'copyFile');
 			vi.spyOn(
 				adapter as unknown as { initializeSharedRouteHandling: () => Promise<void> },
 				'initializeSharedRouteHandling',
@@ -399,7 +404,7 @@ describe('NodeServerAdapter', () => {
 
 			await adapter.initialize();
 
-			return { events, rootDir };
+			return { events, rootDir, copyFile, publicAsset };
 		}
 
 		it.each(['start', 'export'] as const)(
@@ -410,6 +415,15 @@ describe('NodeServerAdapter', () => {
 				expect(events).toEqual(['processor setup', 'routes read']);
 			},
 		);
+
+		it('copies the public directory once when export preparation clears dist', async () => {
+			const { rootDir, copyFile, publicAsset } = await initializeWith('export');
+			const publicAssetCopies = copyFile.mock.calls.filter(([source]) => source === publicAsset);
+
+			expect(publicAssetCopies).toHaveLength(1);
+			expect(fs.readFileSync(path.join(rootDir, 'dist', 'logo.svg'), 'utf8')).toBe('<svg />');
+			expect(fs.existsSync(path.join(rootDir, 'dist', 'assets'))).toBe(true);
+		});
 
 		it('sets Integrations up before non-watch network requests are released', async () => {
 			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-runtime-integration-setup-'));

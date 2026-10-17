@@ -7,11 +7,12 @@ import { isPathInside } from '../utils/path-containment.ts';
 import type { EcoPagesAppConfig, IHmrManager, IClientBridge } from '../types/internal-types.ts';
 import type { ProcessorWatchChanges } from '../plugins/processor.ts';
 import {
-	DevelopmentInvalidationService,
+	getDevelopmentInvalidationService,
 	type AppliedDevFileChange,
 	type AppliedDevFileChanges,
 	type DevFileChangeKind,
 	type DevFileChanges,
+	type DevelopmentInvalidationService,
 	type DevelopmentInvalidationPlanningContext,
 } from '../services/invalidation/development-invalidation.service.ts';
 import { createProjectWatcherIgnorePredicate } from './project-watcher-ignore.ts';
@@ -110,7 +111,7 @@ export class ProjectWatcher {
 			ProjectWatcher.duplicateChangeWindowMs;
 		this.onRestartRequest = onRestartRequest;
 		this.entryWatcherOwnsConfig = entryWatcherOwnsConfig === true;
-		this.invalidationService = new DevelopmentInvalidationService(config);
+		this.invalidationService = getDevelopmentInvalidationService(config);
 		this.handleError = this.handleError.bind(this);
 		this.handleFileChange = this.handleFileChange.bind(this);
 	}

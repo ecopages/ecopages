@@ -27,6 +27,7 @@ fixture. All benches read from the real `src/` tree and use
 - **Static production build segments** (`static-build-bench.ts`):
   server-entry Rolldown cold, route-module Rolldown cold vs warm import,
   `StaticSiteGenerator.run`, and full `buildStatic` cold
+- **Node end-to-end HMR** (`hmr-e2e-bench.mts`): page edit-to-DOM and CSS-discovery edit-to-DOM latency through a real development server
 - Heavy-library scenario (page that pulls in `react-dom`, `lit`, `kitajs`,
   `mdx` and the ecopages core)
 - Cross-integration cost: a representative page per integration
@@ -34,13 +35,9 @@ fixture. All benches read from the real `src/` tree and use
   KitaJS dynamic route, Lit, Ecopages-JSX)
 - Heap stability across 100 rebuilds
 
-**Out of scope (deferred):**
+**Out of scope:**
 
-- End-to-end HMR (file touch → chokidar → strategy → bundle → WS broadcast).
-  The previous implementation kept failing the subprocess spawn under
-  vitest's worker isolation. The user's "2s HMR" claim is now localized
-  through the heavy-library bench (heavy page 67-190 ms p99 vs single page
-  4-12 ms p99) — the bottleneck is library import graph, not bundling.
+- Bun HMR numbers. This benchmark exercises the Node runtime and does not collect Bun results.
 - Per-plugin micro-benchmarks. Sub-millisecond cost doesn't justify a
   bench harness.
 
@@ -58,6 +55,9 @@ pnpm test:bench:compare
 # The runner binds the dev server to 127.0.0.1 so browser probes match the Node default hostname behavior on macOS.
 ECOPAGES_BENCH=1 pnpm test:bench:startup
 pnpm test:bench:startup:compare
+
+# End-to-end HMR edit-to-DOM benchmark (Node dev server + Playwright Chromium)
+pnpm test:bench:hmr
 ```
 
 Without the gate, `run.mts` exits immediately. The bench never runs in default CI.
@@ -74,6 +74,7 @@ workers or plugin handles cannot keep the terminal command alive.
 | File                          | Purpose                                                                                                                                                           |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `results/mitata-bench.json`   | Raw mitata report from the latest run. Gitignored (regenerate freely).                                                                                            |
+| `results/hmr-e2e-bench.json`  | Node HMR edit-to-DOM samples and median/p95 summaries. Gitignored (regenerate freely).                                                                            |
 | `results/bench-baseline.json` | **Versioned** committed baseline. The source of truth for "where the bundle path was before optimization". Regenerate with `pnpm test:bench:baseline` and commit. |
 
 The consolidated baseline diff (`pnpm test:bench:compare`) reads
@@ -192,6 +193,17 @@ StaticSiteGenerator.run cold unified graph        | Asserts 0 per-page route-mod
 Parity suite compares normalized HTML for all static routes with graph on vs `ECOPAGES_UNIFIED_PAGES_GRAPH=0`.
 Primary success metric: `getPageModuleRolldownBuildInvocations() === 0` during SSG after one graph build.
 
+### End-to-end HMR baseline (Node, kitchen-sink, 2026-10-17)
+
+Measured on Node 24.15.0 / macOS arm64 with one warm-up and five samples. Each sample starts at the source write and ends when the browser observes the updated page text or CSS value. The dev server uses the default 150 ms watcher debounce, and runs in a private fixture copy.
+
+| Scenario                  |   Median |      p95 |
+| ------------------------- | -------: | -------: |
+| Page edit to DOM          |   795 ms |   797 ms |
+| CSS discovery edit to DOM | 1,112 ms | 1,124 ms |
+
+The earlier audit report measured a different checkout and host; use this runnable benchmark for follow-up comparisons. This benchmark exercises the Node runtime and does not collect Bun HMR results.
+
 ## Layout
 
 ```
@@ -216,6 +228,7 @@ bench/
 - `scripts/consolidate-baseline.ts` — reads `mitata-bench.json`, writes `bench-baseline.json`.
 - `scripts/compare-baseline.ts` — diffs `mitata-bench.json` against `bench-baseline.json`.
 - `startup/run.mjs` — process-level dev startup + first-page interactive timing.
+- `hmr-e2e-bench.mts` — isolated Node dev server that measures page and CSS-discovery edits through the browser.
 - `startup/consolidate-baseline.ts` — writes `startup-baseline.json`.
 - `startup/compare-baseline.ts` — diffs `startup-bench.json` against `startup-baseline.json`.
 - `build-bench.ts` — production bundle scenarios.

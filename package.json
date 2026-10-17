@@ -34,6 +34,7 @@
 		"test:bench:baseline": "pnpm --filter @ecopages/kitchen-sink exec tsx bench/scripts/consolidate-baseline.ts",
 		"test:bench:compare": "ECOPAGES_BENCH=1 pnpm --filter @ecopages/kitchen-sink exec tsx bench/run.mts && pnpm --filter @ecopages/kitchen-sink exec tsx bench/scripts/compare-baseline.ts",
 		"test:bench:startup": "ECOPAGES_BENCH=1 node playground/kitchen-sink/bench/startup/run.mjs",
+		"test:bench:hmr": "ECOPAGES_BENCH=1 node --experimental-strip-types playground/kitchen-sink/bench/hmr-e2e-bench.mts",
 		"test:bench:docs": "node scripts/benchmark-docs-dev.mjs",
 		"test:bench:startup:baseline": "pnpm --filter @ecopages/kitchen-sink exec tsx bench/startup/consolidate-baseline.ts",
 		"test:bench:startup:compare": "ECOPAGES_BENCH=1 node playground/kitchen-sink/bench/startup/run.mjs && pnpm --filter @ecopages/kitchen-sink exec tsx bench/startup/compare-baseline.ts",

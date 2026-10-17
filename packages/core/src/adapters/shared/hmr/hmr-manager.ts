@@ -22,7 +22,10 @@ import { HmrStrategyType, type HmrAction, type HmrStrategy } from '../../../hmr/
 import { DefaultHmrStrategy } from '../../../hmr/strategies/default-hmr-strategy.ts';
 import { JsHmrStrategy } from '../../../hmr/strategies/js-hmr-strategy.ts';
 import { ServerRenderedTemplateHmrStrategy } from '../../../hmr/strategies/server-rendered-template-hmr-strategy.ts';
-import { DevelopmentInvalidationService } from '../../../services/invalidation/development-invalidation.service.ts';
+import {
+	getDevelopmentInvalidationService,
+	type DevelopmentInvalidationService,
+} from '../../../services/invalidation/development-invalidation.service.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type {
 	ClientBridgeEvent,
@@ -84,7 +87,7 @@ export class HmrManager implements IHmrManager {
 		this.devToolbarRuntime = createDevToolbarClientRuntime(appConfig);
 		this.entrypointRegistry = new DevTransformEntrypointRegistry();
 		this.browserBundleService = new BrowserBundleService(appConfig);
-		this.invalidationService = new DevelopmentInvalidationService(appConfig);
+		this.invalidationService = getDevelopmentInvalidationService(appConfig);
 		const runtime = requireAppRuntime(appConfig);
 		runtime.hmr = this;
 		this.entrypointDependencyGraph = this.createEntrypointDependencyGraph(runtime.entrypointDependencyGraph);

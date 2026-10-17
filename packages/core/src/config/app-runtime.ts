@@ -19,6 +19,7 @@ import type { PageCacheService } from '../services/cache/page-cache-service.ts';
 import { createAppModuleLoader } from '../services/module-loading/app-server-module-transpiler.service.ts';
 import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
 import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
+import type { DevelopmentInvalidationService } from '../services/invalidation/development-invalidation.service.ts';
 import {
 	NoopEntrypointDependencyGraph,
 	type EntrypointDependencyGraph,
@@ -53,7 +54,8 @@ export class ServerInvalidationState {
  * @remarks
  * `origin` starts as `baseUrl` and updates when the runtime binds its listening origin. `hmr` stays
  * `null` until a watch-mode dev session creates an HMR manager, and resets to `null` when dev resources
- * are disposed. `pageCache` stays `null` until the server adapter stores one.
+ * are disposed. `developmentInvalidation` stays `null` until development services need it, then the
+ * watcher and HMR manager share that instance. `pageCache` stays `null` until the server adapter stores one.
  */
 export interface AppRuntime {
 	buildAdapter: BuildAdapter;
@@ -63,6 +65,7 @@ export interface AppRuntime {
 	pagesUnifiedGraphManifest: PagesUnifiedGraphCacheManifest | null;
 	pageBrowserGraphSession: SessionPageBrowserGraphCache;
 	serverInvalidation: ServerInvalidationState;
+	developmentInvalidation: DevelopmentInvalidationService | null;
 	entrypointDependencyGraph: EntrypointDependencyGraph;
 	moduleLoader: AppModuleLoader;
 	routeModuleBuildCaches: Map<string, RouteModuleBuildCache>;
@@ -127,6 +130,7 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		pagesUnifiedGraphManifest: null,
 		pageBrowserGraphSession: new SessionPageBrowserGraphCache(buildInputIndex),
 		serverInvalidation: new ServerInvalidationState(),
+		developmentInvalidation: null,
 		entrypointDependencyGraph: new NoopEntrypointDependencyGraph(),
 		moduleLoader: createAppModuleLoader(appConfig),
 		routeModuleBuildCaches: new Map(),

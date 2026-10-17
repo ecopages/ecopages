@@ -1,6 +1,9 @@
 import path from 'node:path';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
-import { isRegisteredDevTransformEntrypoint } from '@ecopages/core/hmr/hmr-entrypoint-output';
+import {
+	isRegisteredDevTransformEntrypoint,
+	isRegisteredScriptEntrypoint,
+} from '@ecopages/core/hmr/hmr-entrypoint-output';
 import type { HmrRegisteredEntrypointsContext } from '@ecopages/core/hmr/hmr-registered-entrypoints-context';
 import { getEjsxHmrOwnership } from './ecopages-jsx-hmr-ownership.ts';
 
@@ -25,7 +28,7 @@ export class EcopagesJsxHmrStrategy extends HmrStrategy {
 	override matches(filePath: string): boolean {
 		const resolvedPath = path.resolve(filePath);
 
-		if (isRegisteredDevTransformEntrypoint(this.context.getRegisteredEntrypoints(), resolvedPath)) {
+		if (isRegisteredScriptEntrypoint(this.context.getRegisteredEntrypoints(), resolvedPath)) {
 			return false;
 		}
 		const srcDir = path.resolve(this.context.getSrcDir());

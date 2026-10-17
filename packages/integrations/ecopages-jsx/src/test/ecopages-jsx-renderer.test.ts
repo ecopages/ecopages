@@ -12,6 +12,7 @@ import type {
 	PageProps,
 } from '@ecopages/core';
 import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
+import type { AppRuntime } from '@ecopages/core/config/app-runtime';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { createEcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 import type { JsxRenderable } from '@ecopages/jsx';
@@ -59,7 +60,7 @@ async function createAppConfig(rootDir: string): Promise<EcoPagesAppConfig> {
 		getDevelopmentGeneration(): number {
 			return 0;
 		},
-	};
+	} satisfies AppRuntime['moduleLoader'];
 
 	const config = await finalizeEcoPagesConfig({
 		rootDir,

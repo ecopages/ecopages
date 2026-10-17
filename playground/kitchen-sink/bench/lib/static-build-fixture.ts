@@ -15,10 +15,6 @@ import { RouteRegistry } from '../../../../packages/core/src/router/server/route
 import { requireAppRuntime } from '../../../../packages/core/src/config/app-runtime';
 import { RouteRendererFactory } from '../../../../packages/core/src/route-renderer/route-renderer';
 import { StaticSiteGenerator } from '../../../../packages/core/src/static-site-generator/static-site-generator';
-import {
-	createAppModuleLoader,
-	createAppServerModuleTranspiler,
-} from '../../../../packages/core/src/services/module-loading/app-server-module-transpiler.service';
 import { resolveInternalExecutionDir } from '../../../../packages/core/src/utils/resolve-work-dir';
 import type { EcoPagesAppConfig } from '../../../../packages/core/src/types/internal-types';
 import type { EcoPageFile } from '../../../../packages/core/src/types/public-types';
@@ -80,11 +76,10 @@ export function nextDiskColdOutdir(appConfig: EcoPagesAppConfig): string {
 
 export async function importRouteModuleDiskCold(appConfig: EcoPagesAppConfig, filePath: string): Promise<void> {
 	installBuildQueue(appConfig);
-	const loader = createAppModuleLoader(appConfig);
+	const loader = requireAppRuntime(appConfig).moduleLoader;
 
 	await loader.importModule({
 		filePath,
-		rootDir: appConfig.rootDir,
 		outdir: nextDiskColdOutdir(appConfig),
 		externalPackages: true,
 	});
@@ -109,7 +104,7 @@ export async function bootstrapStaticGenerationStack(appConfig: EcoPagesAppConfi
 		runtimeOrigin,
 	});
 
-	const serverModuleTranspiler = createAppServerModuleTranspiler(appConfig);
+	const moduleLoader = requireAppRuntime(appConfig).moduleLoader;
 	const router = new RouteRegistry({
 		pagesDir: path.join(appConfig.rootDir, appConfig.srcDir, appConfig.pagesDir),
 		appConfig,
@@ -118,7 +113,7 @@ export async function bootstrapStaticGenerationStack(appConfig: EcoPagesAppConfi
 		buildMode: true,
 		pageModuleAdapter: {
 			loadPageModule: async (filePath) => {
-				const module = (await serverModuleTranspiler.importModule({
+				const module = (await moduleLoader.importModule({
 					filePath,
 					outdir: path.join(resolveInternalExecutionDir(appConfig), '.server-route-modules'),
 					externalPackages: true,

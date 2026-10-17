@@ -16,8 +16,7 @@ import {
 import { SessionPageBrowserGraphCache } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import type { CustomElementScriptPreloadScopeState } from '../route-renderer/orchestration/custom-element-scripts/custom-element-script-preload-invalidation.ts';
 import type { PageCacheService } from '../services/cache/page-cache-service.ts';
-import { createAppModuleLoader } from '../services/module-loading/app-server-module-transpiler.service.ts';
-import type { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
+import { AppModuleLoader, type AppModuleLoaderContract } from '../services/module-loading/app-module-loader.service.ts';
 import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
 import type { DevelopmentInvalidationService } from '../services/invalidation/development-invalidation.service.ts';
 import {
@@ -67,7 +66,7 @@ export interface AppRuntime {
 	serverInvalidation: ServerInvalidationState;
 	developmentInvalidation: DevelopmentInvalidationService | null;
 	entrypointDependencyGraph: EntrypointDependencyGraph;
-	moduleLoader: AppModuleLoader;
+	moduleLoader: AppModuleLoaderContract;
 	routeModuleBuildCaches: Map<string, RouteModuleBuildCache>;
 	pageCache: PageCacheService | null;
 	integrationActivations: Map<string, Promise<void>>;
@@ -132,7 +131,7 @@ export function createAppRuntime(appConfig: EcoPagesAppConfig): AppRuntime {
 		serverInvalidation: new ServerInvalidationState(),
 		developmentInvalidation: null,
 		entrypointDependencyGraph: new NoopEntrypointDependencyGraph(),
-		moduleLoader: createAppModuleLoader(appConfig),
+		moduleLoader: new AppModuleLoader(appConfig),
 		routeModuleBuildCaches: new Map(),
 		pageCache: null,
 		integrationActivations: new Map(),

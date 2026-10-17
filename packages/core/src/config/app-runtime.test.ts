@@ -15,7 +15,7 @@ import {
 } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
 import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../services/cache/page-cache-service.ts';
-import { createAppServerModuleTranspiler } from '../services/module-loading/app-server-module-transpiler.service.ts';
+import { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
 import {
 	clearAppDevelopmentRouteModuleBuildCaches,
 	getSharedRouteModuleBuildCache,
@@ -56,7 +56,7 @@ describe('AppRuntime', () => {
 		await expect(invalidateAppPageCacheBySourcePaths(unfinalized, ['/in.ts'])).rejects.toThrow(missingRuntime);
 		expect(() => invalidatePageBrowserGraphSession(unfinalized, '/in.ts')).toThrow(missingRuntime);
 		expect(() => getAffectedPageBrowserGraphIdentities(unfinalized, '/in.ts')).toThrow(missingRuntime);
-		expect(() => createAppServerModuleTranspiler(unfinalized)).toThrow(missingRuntime);
+		expect(() => new AppModuleLoader(unfinalized).getDevelopmentGeneration()).toThrow(missingRuntime);
 		expect(() => attachHmrToIntegrations(unfinalized)).toThrow(missingRuntime);
 		await expect(
 			disposeDevResources({

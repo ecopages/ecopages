@@ -10,7 +10,6 @@ import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { PageModuleImportService, type PageModuleImportDependencies } from './page-module-import.service.ts';
 import { createBuildFailure, createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
-import { createRequestPipelineMetricsState } from '../../diagnostics/request-pipeline-metrics.ts';
 
 const DEFAULT_PAGE = '/app/pages/page.tsx';
 
@@ -60,15 +59,20 @@ function createFakeDependencies(): {
 describe('PageModuleImportService', () => {
 	let service: PageModuleImportService;
 	let fakeDependencies: ReturnType<typeof createFakeDependencies>;
+	let appConfig: EcoPagesAppConfig;
+	let appRootDir: string;
 
-	beforeEach(() => {
+	beforeEach(async () => {
+		appRootDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-app-'));
+		appConfig = await finalizeEcoPagesConfig({ rootDir: appRootDir });
 		fakeDependencies = createFakeDependencies();
-		service = new PageModuleImportService(undefined, fakeDependencies.dependencies);
+		service = new PageModuleImportService(appConfig, fakeDependencies.dependencies);
 	});
 
 	afterEach(() => {
 		service.clearImportCache();
 		vi.stubEnv('NODE_ENV', undefined);
+		rmSync(appRootDir, { recursive: true, force: true });
 	});
 
 	it('keys Integration-owned compilation only on the owner, file and source hash', async () => {
@@ -97,10 +101,7 @@ describe('PageModuleImportService', () => {
 			fakeDependencies.calls.hashFile.push(filePath);
 			return sourceHash;
 		};
-		const appConfig = {
-			integrations: [templates],
-			appRuntime: { requestPipelineMetrics: createRequestPipelineMetricsState() },
-		} as unknown as EcoPagesAppConfig;
+		appConfig.integrations = [templates] as unknown as EcoPagesAppConfig['integrations'];
 		service = new PageModuleImportService(appConfig, fakeDependencies.dependencies);
 
 		const own = await service.importModule({
@@ -444,7 +445,7 @@ describe('PageModuleImportService', () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-no-rehash-'));
 		const compiledOutput = join(tempDir, 'page-hash123.mjs');
 		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
-		service = new PageModuleImportService(undefined, {
+		service = new PageModuleImportService(appConfig, {
 			...fakeDependencies.dependencies,
 			async buildModule(options, buildExecutor) {
 				fakeDependencies.calls.buildModule.push({ options, buildExecutor });
@@ -470,7 +471,7 @@ describe('PageModuleImportService', () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-rehash-'));
 		const compiledOutput = join(tempDir, 'page-hash123.mjs');
 		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
-		service = new PageModuleImportService(undefined, {
+		service = new PageModuleImportService(appConfig, {
 			...fakeDependencies.dependencies,
 			async buildModule(options, buildExecutor) {
 				fakeDependencies.calls.buildModule.push({ options, buildExecutor });
@@ -496,7 +497,7 @@ describe('PageModuleImportService', () => {
 		writeFileSync(reactCompiledOutput, 'export const runtime = "react"; export default { ok: true };', 'utf8');
 		writeFileSync(kitaCompiledOutput, 'export const runtime = "kita"; export default { ok: true };', 'utf8');
 
-		service = new PageModuleImportService(undefined, {
+		service = new PageModuleImportService(appConfig, {
 			...fakeDependencies.dependencies,
 			async buildModule(options, buildExecutor) {
 				fakeDependencies.calls.buildModule.push({ options, buildExecutor });
@@ -547,7 +548,7 @@ describe('PageModuleImportService', () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-invalidate-'));
 		let buildCount = 0;
 
-		service = new PageModuleImportService(undefined, {
+		service = new PageModuleImportService(appConfig, {
 			...fakeDependencies.dependencies,
 			async buildModule(options, buildExecutor) {
 				fakeDependencies.calls.buildModule.push({ options, buildExecutor });
@@ -639,7 +640,7 @@ describe('PageModuleImportService', () => {
 		writeFileSync(layoutPath, 'export const v = 1;\n', 'utf8');
 
 		let buildCount = 0;
-		const devService = new PageModuleImportService(undefined, {
+		const devService = new PageModuleImportService(appConfig, {
 			hashFile(filePath: string): string {
 				return fileSystem.hash(filePath);
 			},
@@ -785,15 +786,11 @@ describe('PageModuleImportService', () => {
 		}
 	});
 
-	it.each([
-		{ name: 'without a config', assemble: false },
-		{ name: 'on a finalized config', assemble: true },
-	])('gives a new compiled filename after development graph invalidation $name', async ({ assemble }) => {
+	it('gives a new compiled filename after development graph invalidation', async () => {
 		vi.stubEnv('NODE_ENV', 'development');
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-invalidate-filename-'));
-		const rootDir = assemble ? mkdtempSync(join(tmpdir(), 'ecopages-page-module-import-invalidate-root-')) : '/app';
+		const rootDir = appRootDir;
 		let buildCount = 0;
-		const appConfig = assemble ? await finalizeEcoPagesConfig({ rootDir }) : undefined;
 
 		service = new PageModuleImportService(appConfig, {
 			...fakeDependencies.dependencies,
@@ -834,9 +831,6 @@ describe('PageModuleImportService', () => {
 			assert.equal(fakeDependencies.calls.buildModule[1]?.options.naming, 'page-hash123-1.[ext]');
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
-			if (assemble) {
-				rmSync(rootDir, { recursive: true, force: true });
-			}
 		}
 	});
 });

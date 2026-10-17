@@ -64,9 +64,17 @@ export function createEcopagesJsxRendererHookFactory(
 		const withCustomElementRenderHook = async <T>(render: () => T): Promise<T> =>
 			await radiantSsrPolicy.withRuntime(() =>
 				withServerCustomElementRenderHook(
-					({ instance }: { instance?: unknown; tagName: string }) =>
-						instance ? radiantSsrPolicy.renderIntrinsicElementMarkup(instance) : undefined,
+					({
+						instance,
+						applyChildren,
+					}: {
+						instance?: unknown;
+						tagName: string;
+						applyChildren?: () => void;
+					}) =>
+						instance ? radiantSsrPolicy.renderIntrinsicElementMarkup(instance, applyChildren) : undefined,
 					render,
+					{ ownsChildren: true },
 				),
 			);
 

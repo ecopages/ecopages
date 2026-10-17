@@ -18,6 +18,7 @@ const SCRIPT_WIDGET_UPDATED = 'SCRIPT_WIDGET_UPDATED';
 const BASE_LAYOUT_SCRIPT_BASELINE = 'BASE_LAYOUT_SCRIPT_BASELINE';
 const BASE_LAYOUT_SCRIPT_UPDATED = 'BASE_LAYOUT_SCRIPT_UPDATED';
 const JSX_HMR_LAYOUT_UPDATED = 'Ecopages JSX Layout updated';
+const JSX_HMR_PAGE_UPDATED = 'Ecopages JSX HMR page updated';
 
 function patchBaseLayoutScript(content: string, marker: string) {
 	return content.replace(BASE_LAYOUT_SCRIPT_BASELINE, marker);
@@ -36,10 +37,12 @@ test.describe('Declared client script HMR @hmr', () => {
 	let originalScriptWidget = '';
 	let originalBaseLayoutScript = '';
 	let originalLayoutSource = '';
+	let originalPageSource = '';
 	let scriptMarkerFile = '';
 	let scriptWidgetFile = '';
 	let baseLayoutScriptFile = '';
 	let layoutSourceFile = '';
+	let pageSourceFile = '';
 
 	test.describe.configure({ mode: 'serial' });
 
@@ -55,6 +58,7 @@ test.describe('Declared client script HMR @hmr', () => {
 		restoreFileIfChanged(scriptWidgetFile, originalScriptWidget);
 		restoreFileIfChanged(baseLayoutScriptFile, originalBaseLayoutScript);
 		restoreFileIfChanged(layoutSourceFile, originalLayoutSource);
+		restoreFileIfChanged(pageSourceFile, originalPageSource);
 	}
 
 	test.beforeAll(({ app }) => {
@@ -62,10 +66,12 @@ test.describe('Declared client script HMR @hmr', () => {
 		scriptWidgetFile = path.join(app.dir, 'src/components/script-hmr/script-hmr-widget.script.tsx');
 		baseLayoutScriptFile = path.join(app.dir, 'src/layouts/base-layout/base-layout.script.ts');
 		layoutSourceFile = path.join(app.dir, 'src/layouts/ecopages-jsx-hmr-layout.eco.tsx');
+		pageSourceFile = path.join(app.dir, 'src/pages/ecopages-jsx-hmr.eco.tsx');
 		originalScriptMarker = fs.readFileSync(scriptMarkerFile, 'utf-8');
 		originalScriptWidget = fs.readFileSync(scriptWidgetFile, 'utf-8');
 		originalBaseLayoutScript = fs.readFileSync(baseLayoutScriptFile, 'utf-8');
 		originalLayoutSource = fs.readFileSync(layoutSourceFile, 'utf-8');
+		originalPageSource = fs.readFileSync(pageSourceFile, 'utf-8');
 	});
 
 	test.afterEach(() => {
@@ -112,7 +118,9 @@ test.describe('Declared client script HMR @hmr', () => {
 		runtime.assertClean();
 	});
 
-	test('refreshes an Ecopages JSX Layout while preserving its client state @hmr', async ({ page }, testInfo) => {
+	test('refreshes Ecopages JSX Layout and Page entrypoints while preserving client state @hmr', async ({
+		page,
+	}, testInfo) => {
 		const timer = createHmrPhaseTimer(`${testInfo.project.name} :: Ecopages JSX Layout`);
 		const runtime = trackRuntimeErrors(page);
 		const hmrReady = startEcopagesHmrConnectionWatch(page);
@@ -161,6 +169,21 @@ test.describe('Declared client script HMR @hmr', () => {
 		expect(livePageState, 'expected an in-place page refresh without a full document reload').toBe('retained');
 		await expect(persistedInput).toHaveValue('layout state survives');
 		timer.mark('layout-state-preserved');
+
+		const updatedPageSource = originalPageSource.replace('Ecopages JSX HMR baseline', JSX_HMR_PAGE_UPDATED);
+		expect(updatedPageSource).not.toBe(originalPageSource);
+		fs.writeFileSync(pageSourceFile, updatedPageSource, 'utf-8');
+		timer.mark('page-mutation-applied');
+		await expect(page.getByRole('heading', { name: JSX_HMR_PAGE_UPDATED })).toBeVisible({
+			timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
+		});
+		timer.mark('page-entrypoint-updated');
+		runtime.assertClean();
+		const preservedPageState = await page.evaluate(
+			() => (window as Window & { __ecopagesJsxHmrPageState?: string }).__ecopagesJsxHmrPageState,
+		);
+		expect(preservedPageState, 'expected an in-place page refresh without a full document reload').toBe('retained');
+		await expect(persistedInput).toHaveValue('layout state survives');
 	});
 
 	test('reloads with an updated registered script entrypoint', async ({ page }, testInfo) => {

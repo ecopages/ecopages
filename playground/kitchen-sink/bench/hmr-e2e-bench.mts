@@ -107,36 +107,44 @@ async function main(): Promise<void> {
 	}
 
 	const appDir = copyFixtureApp(kitchenSinkDir);
-	const port = await pickFreePort();
-	const baseUrl = `http://127.0.0.1:${port}`;
-	const appPageFile = path.join(appDir, pageRelativePath);
-	const appCssComponentFile = path.join(appDir, cssComponentRelativePath);
-	const originalPage = readFileSync(appPageFile, 'utf8');
-	const originalCssComponent = readFileSync(appCssComponentFile, 'utf8');
-	const cssFile = path.join(appDir, cssFileRelativePath);
-	const originalCss = readFileSync(cssFile, 'utf8');
-	const child = spawn(
-		process.execPath,
-		[ecopagesCli, 'dev', '--runtime', 'node', '--port', String(port), '--hostname', '127.0.0.1'],
-		{
-			cwd: appDir,
-			env: {
-				...process.env,
-				NODE_ENV: 'development',
-				ECOPAGES_BASE_URL: baseUrl,
-				ECOPAGES_PORT: String(port),
-				ECOPAGES_HOSTNAME: '127.0.0.1',
-				ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS: '150',
-			},
-			stdio: ['ignore', 'pipe', 'pipe'],
-		},
-	);
-	const output = attachProcessOutput(child);
+	let appPageFile: string | undefined;
+	let originalPage: string | undefined;
+	let appCssComponentFile: string | undefined;
+	let originalCssComponent: string | undefined;
+	let cssFile: string | undefined;
+	let originalCss: string | undefined;
+	let child: ReturnType<typeof spawn> | undefined;
 	let browser: Browser | undefined;
-	const runtimeErrors: string[] = [];
 
 	try {
-		await waitForHttpReady(baseUrl, child, output);
+		const port = await pickFreePort();
+		const baseUrl = `http://127.0.0.1:${port}`;
+		appPageFile = path.join(appDir, pageRelativePath);
+		appCssComponentFile = path.join(appDir, cssComponentRelativePath);
+		originalPage = readFileSync(appPageFile, 'utf8');
+		originalCssComponent = readFileSync(appCssComponentFile, 'utf8');
+		cssFile = path.join(appDir, cssFileRelativePath);
+		originalCss = readFileSync(cssFile, 'utf8');
+		const server = spawn(
+			process.execPath,
+			[ecopagesCli, 'dev', '--runtime', 'node', '--port', String(port), '--hostname', '127.0.0.1'],
+			{
+				cwd: appDir,
+				env: {
+					...process.env,
+					NODE_ENV: 'development',
+					ECOPAGES_BASE_URL: baseUrl,
+					ECOPAGES_PORT: String(port),
+					ECOPAGES_HOSTNAME: '127.0.0.1',
+					ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS: '150',
+				},
+				stdio: ['ignore', 'pipe', 'pipe'],
+			},
+		);
+		child = server;
+		const output = attachProcessOutput(server);
+		const runtimeErrors: string[] = [];
+		await waitForHttpReady(baseUrl, server, output);
 		browser = await chromium.launch({ headless: true });
 		const page = await browser.newPage();
 		page.on('pageerror', (error) => runtimeErrors.push(error.message));
@@ -180,15 +188,23 @@ async function main(): Promise<void> {
 		console.log(`Wrote ${outputPath}`);
 	} finally {
 		try {
-			writeFileSync(appPageFile, originalPage);
-			writeFileSync(appCssComponentFile, originalCssComponent);
-			writeFileSync(cssFile, originalCss);
+			if (appPageFile && originalPage !== undefined) {
+				writeFileSync(appPageFile, originalPage);
+			}
+			if (appCssComponentFile && originalCssComponent !== undefined) {
+				writeFileSync(appCssComponentFile, originalCssComponent);
+			}
+			if (cssFile && originalCss !== undefined) {
+				writeFileSync(cssFile, originalCss);
+			}
 		} finally {
 			try {
 				await browser?.close();
 			} finally {
 				try {
-					await stopChildProcess(child);
+					if (child) {
+						await stopChildProcess(child);
+					}
 				} finally {
 					rmSync(appDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 				}

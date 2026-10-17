@@ -37,7 +37,7 @@ fixture. All benches read from the real `src/` tree and use
 
 **Out of scope:**
 
-- Bun HMR numbers. This benchmark follows the Node runtime while the Bun adapter is being removed.
+- Bun HMR numbers. This benchmark exercises the Node runtime and does not collect Bun results.
 - Per-plugin micro-benchmarks. Sub-millisecond cost doesn't justify a
   bench harness.
 
@@ -199,10 +199,10 @@ Measured on Node 24.15.0 / macOS arm64 with one warm-up and five samples. Each s
 
 | Scenario                  |   Median |      p95 |
 | ------------------------- | -------: | -------: |
-| Page edit to DOM          |   793 ms |   796 ms |
-| CSS discovery edit to DOM | 1,112 ms | 1,125 ms |
+| Page edit to DOM          |   795 ms |   797 ms |
+| CSS discovery edit to DOM | 1,112 ms | 1,124 ms |
 
-The earlier audit report measured a different checkout and host; use this runnable benchmark for follow-up comparisons. Bun results are not collected while the Bun adapter is being removed.
+The earlier audit report measured a different checkout and host; use this runnable benchmark for follow-up comparisons. This benchmark exercises the Node runtime and does not collect Bun HMR results.
 
 ## Layout
 

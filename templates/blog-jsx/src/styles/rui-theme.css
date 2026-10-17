@@ -1,5 +1,10 @@
 /**
- * Aurora palette, default spacing, and soft radius.
+ * Default theme, retuned to the former Aurora seeds, with the default soft radius.
  */
-@import '@ecopages/radiant-ui/themes/aurora';
-@import '@ecopages/radiant-ui/tokens/radius/soft';
+@import '@ecopages/radiant-ui/themes/default';
+
+:root {
+	--rui-neutral: oklch(56.9% 0.021 255.6);
+	--rui-primary: oklch(70% 0.17 243.34);
+	--rui-secondary: oklch(80.1% 0.118 50.17);
+}

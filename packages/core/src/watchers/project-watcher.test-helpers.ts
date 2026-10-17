@@ -2,10 +2,8 @@ import path from 'node:path';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { onTestFinished, vi, type Mock } from 'vitest';
 import { ProjectWatcher, type ProjectWatcherConfig } from './project-watcher.ts';
-import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
+import type { IHmrManager } from '../types/internal-types.ts';
 import type { ResolvedHmrEntrypoint } from '../types/public-types.ts';
-import { InMemoryEntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
-import { requireAppRuntime } from '../config/app-runtime.ts';
 import type { IClientBridge } from '../types/internal-types.ts';
 
 export const createMockHmrManager = (): IHmrManager =>
@@ -34,13 +32,6 @@ export const createMockHmrManager = (): IHmrManager =>
 			getSrcDir: () => '',
 			getLayoutsDir: () => '',
 			getPagesDir: () => '',
-			getEntrypointDependencyGraph: () => ({
-				supportsSelectiveInvalidation: () => false,
-				getDependencyEntrypoints: () => new Set(),
-				setEntrypointDependencies: () => {},
-				clearEntrypointDependencies: () => {},
-				reset: () => {},
-			}),
 			importServerModule: vi.fn(async () => ({})),
 		})),
 	}) as unknown as IHmrManager;
@@ -77,19 +68,6 @@ export const createMockBridge = (): IClientBridge =>
 		broadcast: vi.fn(() => {}),
 		subscriberCount: 0,
 	}) as unknown as IClientBridge;
-
-/**
- * Installs the in-memory entrypoint dependency graph that the HMR managers
- * provide in dev, and the app module loader that owns the development generation.
- *
- * @remarks
- * `finalizeEcoPagesConfig()` already installs a no-op graph; this swaps in a graph
- * that records dependencies.
- */
-export function installDevRuntimeState(appConfig: EcoPagesAppConfig): void {
-	const runtime = requireAppRuntime(appConfig);
-	runtime.entrypointDependencyGraph = new InMemoryEntrypointDependencyGraph(runtime.buildInputIndex);
-}
 
 type FakeChokidarListener = (...args: unknown[]) => unknown;
 

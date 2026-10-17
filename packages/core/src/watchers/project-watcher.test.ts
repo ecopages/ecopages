@@ -13,7 +13,6 @@ import type { AppModuleLoaderContract } from '../services/module-loading/app-mod
 import {
 	createMockHmrManager,
 	createMockBridge,
-	installDevRuntimeState,
 	installFakeChokidar,
 	registerMockEntrypoint,
 	subscribeWithFakeChokidar,
@@ -49,7 +48,6 @@ describe('ProjectWatcher', () => {
 
 	beforeEach(async () => {
 		Config = await createMockConfig();
-		installDevRuntimeState(Config);
 		HmrManager = createMockHmrManager();
 		Bridge = createMockBridge();
 		RefreshCallback = vi.fn(async () => {});
@@ -695,7 +693,6 @@ describe('ProjectWatcher', () => {
 				try {
 					mkdirSync(path.join(root, 'src/components'), { recursive: true });
 					Config = await finalizeEcoPagesConfig({ rootDir: root, integrations: [] });
-					installDevRuntimeState(Config);
 					const { emit } = await subscribe();
 					const componentFile = path.join(root, 'src/components/new-widget.tsx');
 					writeFileSync(componentFile, 'export default function Widget() { return null; }\n');
@@ -740,7 +737,6 @@ describe('ProjectWatcher', () => {
 			'watches the static base directory of the %s root %s glob before it exists',
 			async (rootDir, pattern, base) => {
 				Config = await createMockConfig(rootDir);
-				installDevRuntimeState(Config);
 				Config.additionalWatchPaths = [pattern];
 				vi.spyOn(fileSystem, 'exists').mockReturnValue(false);
 

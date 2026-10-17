@@ -9,7 +9,6 @@ import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
 import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
 import type { CacheStats, CacheStrategy } from '../services/cache/cache.types.ts';
 import type { InteractionEventsString as ScriptsInjectorInteractionEventsString } from '@ecopages/scripts-injector/types';
-import type { EntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import type { DevTransformBundleContributor } from '../dev/transform-server/types.ts';
 
 export type { CacheConfig } from '../services/cache/cache.types.ts';
@@ -221,7 +220,9 @@ export interface DefaultHmrContext {
 	/**
 	 * Entrypoint dependency graph for selective HMR invalidation.
 	 */
-	getEntrypointDependencyGraph(): EntrypointDependencyGraph;
+	getEntrypointDependencyGraph(): {
+		getDependencyEntrypoints(filePath: string): Set<string>;
+	};
 }
 
 /**

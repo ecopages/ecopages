@@ -10,7 +10,6 @@ import { appLogger } from '../global/app-logger.ts';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { Processor } from '../plugins/processor.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { NoopEntrypointDependencyGraph } from '../services/runtime-state/entrypoint-dependency-graph.service.ts';
 import { finalizeEcoPagesConfig } from './finalize-config.ts';
 import type { EcoPagesUserConfig } from './user-config-types.ts';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
@@ -204,7 +203,7 @@ describe('finalizeEcoPagesConfig', () => {
 		expect(runtime.buildAdapter).not.toBe(defaultBuildAdapter);
 		expect(runtime.buildManifest.server).toHaveLength(0);
 		expect(runtime.buildManifest.browser).toHaveLength(0);
-		expect(runtime.entrypointDependencyGraph).toBeInstanceOf(NoopEntrypointDependencyGraph);
+		expect(runtime).not.toHaveProperty('entrypointDependencyGraph');
 	});
 
 	test('should finalize processor and integration manifest contributions during config build', async () => {

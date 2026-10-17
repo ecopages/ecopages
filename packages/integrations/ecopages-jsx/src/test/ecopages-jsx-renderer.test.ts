@@ -15,6 +15,7 @@ import { AssetProcessingService } from '@ecopages/core/services/asset-processing
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import { createEcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 import type { JsxRenderable } from '@ecopages/jsx';
+import { jsx } from '@ecopages/jsx/jsx-runtime';
 import { test, vi } from 'vitest';
 import { getEjsxHmrOwnership } from '../ecopages-jsx-hmr-ownership.ts';
 
@@ -31,21 +32,12 @@ function createTestAssetProcessingService(appConfig: EcoPagesAppConfig): AssetPr
 	return service;
 }
 
-class TestEcopagesJsxRenderer extends createEcopagesJsxRenderer() {
-	public async testResolvePageModule(file: string) {
-		return this.pageModuleLoaderService.resolvePageModule({
-			file,
-			importPageFileFn: (targetFile) => this.importPageFile(targetFile),
-		});
-	}
-}
+const TestEcopagesJsxRenderer = createEcopagesJsxRenderer();
 
 class TestRadiantEcopagesJsxRenderer extends createEcopagesJsxRenderer({ radiantSsrEnabled: true }) {
-	public async testResolvePageModule(file: string) {
-		return this.pageModuleLoaderService.resolvePageModule({
-			file,
-			importPageFileFn: (targetFile) => this.importPageFile(targetFile),
-		});
+	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
+		return (({ children }) =>
+			jsx('html', { children: jsx('body', { children }) })) as EcoComponent<HtmlTemplateProps>;
 	}
 }
 
@@ -175,11 +167,10 @@ test('EcopagesJsxRenderer installs the Radiant light-dom environment before reso
 		await withClearedLightDomGlobals(async () => {
 			assert.equal('HTMLElement' in globalThis, false);
 
-			const pageModule = await renderer.testResolvePageModule(pagePath);
-			const html = await (pageModule.Page as () => string | Promise<string>)();
+			const result = await renderer.execute({ file: pagePath, params: {}, query: {} });
+			const html = await new Response(result.body as BodyInit).text();
 
-			assert.equal(typeof pageModule.Page, 'function');
-			assert.equal(html, 'radiant-module-ready');
+			assert.match(html, /radiant-module-ready/);
 			assert.equal(typeof globalThis.HTMLElement, 'function');
 			assert.equal(typeof globalThis.customElements?.get('top-level-radiant-counter'), 'function');
 		});

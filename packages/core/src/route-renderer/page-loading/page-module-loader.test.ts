@@ -4,6 +4,7 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoPageFile, GetMetadata } from '../../types/public-types.ts';
 import type { EcoPageComponent } from '../../eco/eco.types.ts';
 import { HttpError } from '../../errors/http-error.ts';
+import type { AppModuleLoaderContract } from '../../services/module-loading/app-module-loader.service.ts';
 
 describe('PageModuleLoaderService', () => {
 	const appConfig = {
@@ -230,7 +231,7 @@ describe('PageModuleLoaderService', () => {
 						return;
 					},
 					getDevelopmentGeneration: () => 0,
-				},
+				} satisfies AppModuleLoaderContract,
 			},
 		} as unknown as EcoPagesAppConfig);
 
@@ -266,7 +267,7 @@ describe('PageModuleLoaderService', () => {
 						return;
 					},
 					getDevelopmentGeneration: () => 0,
-				},
+				} satisfies AppModuleLoaderContract,
 			},
 		} as unknown as EcoPagesAppConfig);
 

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { createApp } from '@ecopages/core/create-app';
 import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
+import type { AppRuntime } from '@ecopages/core/config/app-runtime';
 import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
 import type { StaticExportContext } from '@ecopages/core/plugins/integration-plugin';
 import {
@@ -90,7 +91,7 @@ describe('LitPlugin render session invalidation', () => {
 				generation += 1;
 			},
 			getDevelopmentGeneration: () => generation,
-		} as never;
+		} satisfies AppRuntime['moduleLoader'];
 
 		const plugin = new LitPlugin();
 		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);

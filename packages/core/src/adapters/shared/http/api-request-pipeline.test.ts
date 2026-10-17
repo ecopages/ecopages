@@ -77,6 +77,91 @@ describe('ApiRequestPipeline', () => {
 		expect(await response!.text()).toBe('id:42');
 	});
 
+	it('selects the more specific literal route when dynamic and literal routes overlap', async () => {
+		const response = await createPipeline().tryHandle(
+			new Request('http://localhost/api/posts/latest'),
+			[
+				{ path: '/api/posts/[id]', method: 'GET', handler: () => new Response('dynamic') },
+				{ path: '/api/posts/latest', method: 'GET', handler: () => new Response('literal') },
+			],
+			undefined,
+		);
+
+		expect(response?.status).toBe(200);
+		expect(await response?.text()).toBe('literal');
+	});
+
+	it('decodes path params before the API handler receives them', async () => {
+		const pipeline = createPipeline();
+		const handlers: ApiHandler[] = [
+			{
+				path: '/api/posts/[slug]',
+				method: 'GET',
+				handler: ({ params }) => new Response(params.slug),
+			},
+		];
+
+		const response = await pipeline.tryHandle(
+			new Request('http://localhost/api/posts/caf%C3%A9'),
+			handlers,
+			undefined,
+		);
+
+		expect(response?.status).toBe(200);
+		expect(await response?.text()).toBe('café');
+	});
+
+	it('matches repeated trailing slashes after normalizing the pathname', async () => {
+		const response = await createPipeline().tryHandle(
+			new Request('http://localhost/api/posts//'),
+			[
+				{
+					path: '/api/posts',
+					method: 'GET',
+					handler: () => new Response('matched'),
+				},
+			],
+			undefined,
+		);
+
+		expect(response?.status).toBe(200);
+		expect(await response?.text()).toBe('matched');
+	});
+
+	it('answers malformed path escapes with HTTP 400', async () => {
+		const response = await createPipeline().tryHandle(
+			new Request('http://localhost/api/posts/%E0%A4%A'),
+			[
+				{
+					path: '/api/posts/[slug]',
+					method: 'GET',
+					handler: () => new Response('unreachable'),
+				},
+			],
+			undefined,
+		);
+
+		expect(response?.status).toBe(400);
+	});
+
+	it.each([
+		{ scenario: 'no registered handlers', handlers: [] as ApiHandler[] },
+		{
+			scenario: 'only method-mismatched handlers',
+			handlers: [
+				{ path: '/api/posts/[slug]', method: 'POST' as const, handler: () => new Response('unreachable') },
+			],
+		},
+	])('answers malformed paths with HTTP 400 for $scenario', async ({ handlers }) => {
+		const response = await createPipeline().tryHandle(
+			new Request('http://localhost/api/posts/%E0%A4%A'),
+			handlers,
+			undefined,
+		);
+
+		expect(response?.status).toBe(400);
+	});
+
 	it('returns a validation error response when schema fails', async () => {
 		const pipeline = createPipeline();
 		const handlers: ApiHandler[] = [

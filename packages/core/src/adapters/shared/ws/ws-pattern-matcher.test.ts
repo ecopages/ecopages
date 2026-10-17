@@ -29,4 +29,11 @@ describe('findWebSocketRoute', () => {
 		const handlers = new Map<string, EcopagesWebSocketHandler>([['/ws/chat/:roomId', { onConnect: () => {} }]]);
 		expect(findWebSocketRoute(handlers, '/api/health')).toBeNull();
 	});
+
+	it('decodes route params before the handler receives them', () => {
+		const handler = { onConnect: () => {} };
+		const match = findWebSocketRoute(new Map([['/ws/:room', handler]]), '/ws/caf%C3%A9');
+
+		expect(match?.params).toEqual({ room: 'café' });
+	});
 });

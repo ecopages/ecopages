@@ -4,6 +4,7 @@ import type { FileSystemResponseMatcher } from '../http/fs-server-response-match
 import { appLogger } from '../../../global/app-logger.ts';
 import { HttpError } from '../../../errors/http-error.ts';
 import { ServerUtils } from '../../../utils/server-utils.module.ts';
+import { parseSegmentPath, type ParsedSegmentPath } from '../../../router/server/segment-path-matcher.ts';
 
 /**
  * Configuration parameters for ServerRouteHandler.
@@ -54,27 +55,36 @@ export class ServerRouteHandler {
 	 * @param request - The incoming HTTP request
 	 * @returns HTTP response for the matched route
 	 */
-	async handleResponse(request: Request): Promise<Response> {
+	async handleResponse(request: Request, parsedPathSegments?: ParsedSegmentPath): Promise<Response> {
 		const pathname = new URL(request.url).pathname;
 
-		const explicitMatch = this.explicitStaticRouteMatcher?.match(request.url);
+		try {
+			const pathSegments = parsedPathSegments ?? parseSegmentPath(pathname);
+			const explicitMatch = this.explicitStaticRouteMatcher?.match(request.url, pathSegments);
 
-		if (explicitMatch) {
-			try {
-				return await this.explicitStaticRouteMatcher!.handleMatch(explicitMatch);
-			} catch (error) {
-				if (error instanceof Response) {
-					return error;
+			if (explicitMatch) {
+				try {
+					return await this.explicitStaticRouteMatcher!.handleMatch(explicitMatch);
+				} catch (error) {
+					if (error instanceof Response) {
+						return error;
+					}
+					return await this.fileSystemResponseMatcher.renderServerError(pathname, error);
 				}
-				return await this.fileSystemResponseMatcher.renderServerError(pathname, error);
 			}
+
+			const fsMatch =
+				!ServerUtils.hasKnownStaticExtension(pathname) && this.router.matchRequest(request.url, pathSegments);
+
+			return await (fsMatch
+				? this.fileSystemResponseMatcher.handleMatch(fsMatch, request)
+				: this.handleNoMatch(request));
+		} catch (error) {
+			if (error instanceof HttpError) {
+				return error.toResponse();
+			}
+			throw error;
 		}
-
-		const fsMatch = !ServerUtils.hasKnownStaticExtension(pathname) && this.router.matchRequest(request.url);
-
-		return await (fsMatch
-			? this.fileSystemResponseMatcher.handleMatch(fsMatch, request)
-			: this.handleNoMatch(request));
 	}
 
 	/**

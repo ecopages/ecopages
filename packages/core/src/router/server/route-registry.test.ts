@@ -1,9 +1,11 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, it, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
+import { ServerRouteHandler } from '../../adapters/shared/runtime/server-route-handler.ts';
+import type { FileSystemResponseMatcher } from '../../adapters/shared/http/fs-server-response-matcher.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.js';
 import { RouteRegistry, type RouteRegistryPageModuleAdapter, type TemplateRoute } from './route-registry.ts';
 
@@ -45,6 +47,7 @@ describe('RouteRegistry', () => {
 	test.each([
 		['/products/[id]', '/products/123', { id: '123' }],
 		['/products/[...id]', '/products/123/456/789', { id: ['123', '456', '789'] }],
+		['/products/[id]', '/products/caf%C3%A9', { id: 'café' }],
 	])('matches template route %p against request %p', async (pathname, requestPathname, expectedParams) => {
 		const registry = createRegistry();
 		await registry.init();
@@ -62,7 +65,49 @@ describe('RouteRegistry', () => {
 
 		expect(result?.params).toEqual(expectedParams);
 		expect(result?.templateRoute.pathname).toBe(pathname);
-		expect(result?.requestedPathname).toBe(requestPathname);
+		expect(result?.requestedPathname).toBe(new URL(`http://localhost:3000${requestPathname}`).pathname);
+	});
+
+	it('normalizes paths for routes discovered from page files', async () => {
+		const pagesDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-pages-'));
+		try {
+			await fs.writeFile(path.join(pagesDir, 'about.ts'), '');
+			const registry = createRegistry({ pagesDir, templatesExt: ['.ts'] });
+			await registry.init();
+
+			for (const pathname of ['/about', '/about/', '/about//', 'about']) {
+				const result = registry.matchRequest(new URL(pathname, 'http://localhost:3000').href);
+				expect(result?.requestedPathname).toBe('/about');
+				expect(result?.templateRoute.pathname).toBe('/about');
+			}
+		} finally {
+			await fs.rm(pagesDir, { recursive: true, force: true });
+		}
+	});
+
+	it('returns HTTP 400 for malformed escapes through filesystem request handling', async () => {
+		const pagesDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-pages-'));
+		try {
+			const blogDir = path.join(pagesDir, 'blog');
+			await fs.mkdir(blogDir, { recursive: true });
+			await fs.writeFile(path.join(blogDir, '[slug].ts'), '');
+			const registry = createRegistry({ pagesDir, templatesExt: ['.ts'] });
+			await registry.init();
+			const fileSystemResponseMatcher = {
+				handleMatch: vi.fn(async () => new Response('matched')),
+				handleNoMatch: vi.fn(async () => new Response('not found', { status: 404 })),
+				renderServerError: vi.fn(async () => new Response('server error', { status: 500 })),
+			} as unknown as FileSystemResponseMatcher;
+			const handler = new ServerRouteHandler({ router: registry, fileSystemResponseMatcher });
+
+			const response = await handler.handleResponse(new Request('http://localhost:3000/blog/%E0%A4%A'));
+
+			expect(response.status).toBe(400);
+			expect(fileSystemResponseMatcher.handleMatch).not.toHaveBeenCalled();
+			expect(fileSystemResponseMatcher.handleNoMatch).not.toHaveBeenCalled();
+		} finally {
+			await fs.rm(pagesDir, { recursive: true, force: true });
+		}
 	});
 
 	test('includes query parameters in match results', async () => {

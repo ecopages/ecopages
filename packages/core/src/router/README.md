@@ -19,7 +19,8 @@ It is responsible for:
 ```
 router/
 ├── server/                      # Server-side route discovery and matching
-│   └── route-registry.ts        # Owns template routes, request matching, static expansion, and reload
+│   ├── route-registry.ts        # Owns template routes, request matching, static expansion, and reload
+│   └── segment-path-matcher.ts  # Shared segment matching for every server route kind
 └── client/                      # Browser-side navigation coordination
     ├── navigation-coordinator.ts # Singleton runtime coordinator
     ├── navigation-commit.ts      # Shared client navigation commit pipeline
@@ -64,13 +65,26 @@ The public interface is intentionally small:
 
 Match priority:
 
-1. `exact` — the pathname must equal the route pathname exactly.
-2. `dynamic` — the clean (bracket-stripped) prefix must appear in the pathname, and the segment counts must match.
+1. `exact` — the normalized, decoded pathname segments must equal the route segments.
+2. `dynamic` — the route and pathname must have the same number of segments; literal segments must match exactly, and each parameter segment matches one segment.
 3. `catch-all` — the prefix segments must match the pathname. When multiple
    catch-all routes match, shared prefix segments are compared from left to right
    so an earlier static segment wins over a dynamic one; when those patterns tie,
    the route with the longer prefix wins, then pathname order provides a
    deterministic tie-breaker.
+
+The shared segment matcher uses `normalizePathname`, which adds a leading slash and removes trailing slashes except for `/`. It preserves repeated slashes inside a pathname; matching ignores the empty segments between them. The matcher splits paths on `/` before decoding each segment once, so an encoded slash stays inside its original segment. Malformed percent escapes raise an HTTP 400 error (subject to `app.onError` handling), even when no registered route matches.
+
+Supported dynamic route syntax and captured values:
+
+| Route kind | Named parameters    | Catch-all or wildcard     | Handler-facing value                                                                                       |
+| ---------- | ------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Filesystem | `[name]`            | `[...name]`               | Named parameter is a string; catch-all is a string array.                                                  |
+| API        | `:name` or `[name]` | `[...name]` or `*`        | Named parameters and catch-alls are strings; catch-all arrays are joined with `/`. `*` has no named value. |
+| Explicit   | `:name` or `[name]` | `:...name` or `[...name]` | Named parameters and catch-alls are strings; catch-all segments are joined with `/`.                       |
+| WebSocket  | `:name`             | None                      | Named parameters are strings.                                                                              |
+
+API and WebSocket matching still prioritize more specific routes. Filesystem routes keep their existing exact, dynamic, and catch-all ordering; explicit routes keep declaration order.
 
 ## `client/`
 

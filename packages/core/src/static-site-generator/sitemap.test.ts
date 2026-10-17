@@ -6,6 +6,7 @@ describe('buildSitemapLocation', () => {
 		expect(buildSitemapLocation('https://example.com', '/')).toBe('https://example.com/');
 		expect(buildSitemapLocation('https://example.com/', '/blog')).toBe('https://example.com/blog');
 		expect(buildSitemapLocation('https://example.com', '/blog/')).toBe('https://example.com/blog');
+		expect(buildSitemapLocation('https://example.com', '/about//')).toBe('https://example.com/about');
 	});
 
 	test('passes through absolute http(s) URLs', () => {

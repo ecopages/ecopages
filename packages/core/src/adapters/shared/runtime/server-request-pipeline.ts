@@ -17,6 +17,7 @@ import { FileSystemResponseMatcher } from '../http/fs-server-response-matcher.ts
 import { ServerRouteHandler } from './server-route-handler.ts';
 import { createRenderContext } from './render-context.ts';
 import { ApiRequestPipeline } from '../http/api-request-pipeline.ts';
+import { parseSegmentPath, type ParsedSegmentPath } from '../../../router/server/segment-path-matcher.ts';
 import { isHtmlResponse, withUncachedDevHtml } from '../hmr/hmr-html-response.ts';
 import type { EcoPageFile } from '../../../types/public-types.ts';
 import { createAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
@@ -307,12 +308,17 @@ export class ServerRequestPipeline {
 		return await hmrManager.injectDevClientRuntimes(withUncachedDevHtml(response));
 	}
 
-	private async tryHandleSharedApiRequest(request: Request, context: ServerRequestContext): Promise<Response | null> {
+	private async tryHandleSharedApiRequest(
+		request: Request,
+		context: ServerRequestContext,
+		parsedPathSegments: ParsedSegmentPath,
+	): Promise<Response | null> {
 		return await this.apiRequestPipeline.tryHandle(
 			request,
 			context.apiHandlers,
 			context.serverInstance,
 			context.errorHandler,
+			parsedPathSegments,
 		);
 	}
 
@@ -360,6 +366,17 @@ export class ServerRequestPipeline {
 		return requireBuildQueue(this.appConfig).withRequestScope(() =>
 			runWithBuildInputIndex(requireAppRuntime(this.appConfig).buildInputIndex, () =>
 				startupTrace.traceFirstRequest(request, async () => {
+					let parsedPathSegments: ParsedSegmentPath;
+					try {
+						parsedPathSegments = parseSegmentPath(new URL(request.url).pathname);
+					} catch (error) {
+						return await this.apiRequestPipeline.handleError(error, {
+							request,
+							serverInstance: context.serverInstance,
+							errorHandler: context.errorHandler,
+						});
+					}
+
 					const devClientResponse = await this.tryHandleSharedDevClientRequest(request);
 					if (devClientResponse) {
 						return devClientResponse;
@@ -370,12 +387,12 @@ export class ServerRequestPipeline {
 						return hmrResponse;
 					}
 
-					const apiResponse = await this.tryHandleSharedApiRequest(request, context);
+					const apiResponse = await this.tryHandleSharedApiRequest(request, context, parsedPathSegments);
 					if (apiResponse) {
 						return await this.injectSharedHmrHtmlResponse(apiResponse);
 					}
 
-					const routeResponse = await this.routeHandler.handleResponse(request);
+					const routeResponse = await this.routeHandler.handleResponse(request, parsedPathSegments);
 					return await this.injectSharedHmrHtmlResponse(routeResponse);
 				}),
 			),

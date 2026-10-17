@@ -7,6 +7,7 @@ import { requireAppRuntime } from '../../config/app-runtime.ts';
 import { Processor } from '../../plugins/processor.js';
 import {
 	DevelopmentInvalidationService,
+	getDevelopmentInvalidationService,
 	type DevelopmentInvalidationPlan,
 	type DevelopmentInvalidationPlanningContext,
 } from './development-invalidation.service.ts';
@@ -47,6 +48,16 @@ class ContentCollectionProcessor extends Processor {
 }
 
 describe('DevelopmentInvalidationService', () => {
+	it('keeps one service on each app runtime', async () => {
+		const firstApp = await finalizeEcoPagesConfig({ rootDir: '/test/first-app' });
+		const secondApp = await finalizeEcoPagesConfig({ rootDir: '/test/second-app' });
+
+		const firstService = getDevelopmentInvalidationService(firstApp);
+
+		expect(getDevelopmentInvalidationService(firstApp)).toBe(firstService);
+		expect(getDevelopmentInvalidationService(secondApp)).not.toBe(firstService);
+	});
+
 	it('uses one plan row for each change category', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		appConfig.additionalWatchPaths = ['/test/project/tailwind.config.ts'];

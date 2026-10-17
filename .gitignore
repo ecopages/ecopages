@@ -40,6 +40,7 @@ test-results/
 playwright-report/
 .vitest-attachments/
 .e2e-tmp/
+playground/kitchen-sink/bench/results/hmr-e2e-bench.json
 
 # local improvement tracking (details in ~/.gemini artifacts)
 **/.improvements/

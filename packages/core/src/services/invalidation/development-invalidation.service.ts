@@ -466,3 +466,10 @@ export class DevelopmentInvalidationService {
 		return false;
 	}
 }
+
+/** Returns the one lazily created development invalidation service for a finalized app. */
+export function getDevelopmentInvalidationService(appConfig: EcoPagesAppConfig): DevelopmentInvalidationService {
+	const runtime = requireAppRuntime(appConfig);
+	runtime.developmentInvalidation ??= new DevelopmentInvalidationService(appConfig);
+	return runtime.developmentInvalidation;
+}

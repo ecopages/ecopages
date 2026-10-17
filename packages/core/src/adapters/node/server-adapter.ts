@@ -189,7 +189,9 @@ export class NodeServerAdapter {
 	private async initializeResources(): Promise<void> {
 		installBuildQueue(this.appConfig);
 
-		prepareRuntimePublicDir(this.appConfig);
+		if (this.runtimeAssetSetup !== 'export') {
+			prepareRuntimePublicDir(this.appConfig);
+		}
 		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
 		this.staticBuilder = new ServerStaticBuilder({
 			appConfig: this.appConfig,

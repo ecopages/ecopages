@@ -131,7 +131,7 @@ describe('EcopagesJsxHmrStrategy', () => {
 			expect(strategy.matches(scriptPath)).toBe(false);
 		});
 
-		it('does not match registered page entrypoints', () => {
+		it('matches registered page entrypoints', () => {
 			const pagePath = `${PAGES_DIR}/index.tsx`;
 			const strategy = new EcopagesJsxHmrStrategy(
 				makeContext({
@@ -148,7 +148,8 @@ describe('EcopagesJsxHmrStrategy', () => {
 					]),
 				}),
 			);
-			expect(strategy.matches(pagePath)).toBe(false);
+			expect(strategy.matches(pagePath)).toBe(true);
+			expect(strategy.ownsDevTransformEntrypoint(pagePath)).toBe(true);
 		});
 
 		it('matches files that appear in the active render tree', async () => {

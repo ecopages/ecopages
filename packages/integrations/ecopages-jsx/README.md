@@ -37,6 +37,10 @@ ecopagesJsxPlugin({
 });
 ```
 
+## Development HMR
+
+In development, editing a registered Ecopages JSX page refreshes the current page through the navigation runtime. The shared Layout stays mounted where the router can preserve it; elements marked with `data-eco-persist` retain their DOM state. Declared client scripts continue to use script HMR.
+
 ## Radiant Support
 
 Radiant support is enabled by default. When `radiant: true`, the plugin keeps the ownership split explicit:

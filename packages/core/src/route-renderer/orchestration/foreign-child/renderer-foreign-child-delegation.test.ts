@@ -284,7 +284,7 @@ describe('renderer foreign-child delegation', () => {
 		const response = await renderer.renderExplicitView(View, {}, { partial: true });
 
 		expect(await response.text()).toBe('<section>Inline</section>');
-		expect(renderer.ForeignChildRenderCount).toBe(1);
+		expect(renderer.ForeignChildRuntimeCreationCount).toBe(0);
 	});
 
 	it('returns the view render result for a partial view that declares a foreign child', async () => {
@@ -328,7 +328,7 @@ describe('renderer foreign-child delegation', () => {
 		const response = await renderer.renderExplicitView(View, {}, { partial: true });
 
 		expect(await response.text()).toBe('<section data-rendered="view">Foreign Subtree</section>');
-		expect(renderer.ForeignChildRenderCount).toBe(1);
+		expect(renderer.ForeignChildRuntimeCreationCount).toBe(1);
 	});
 
 	it('hands off a partial view foreign child after an unrelated route render', async () => {

@@ -1,7 +1,6 @@
 import { vi } from 'vitest';
 import { createBrowserRuntimeManifest } from '../../build/browser/browser-runtime-manifest.ts';
 import { createAppRuntime } from '../../config/app-runtime.ts';
-import { finalizeDocumentShellHtml } from './document-shell/document-shell-render.service.ts';
 import { IntegrationRenderer, type HtmlDocumentContribution } from './integration-renderer.ts';
 import { getComponentRenderContext, type ForeignChildRuntime } from './foreign-child/component-render-context.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
@@ -13,11 +12,9 @@ import type {
 	IntegrationRendererRenderOptions,
 	EcoPageFile,
 	RouteRendererBody,
-	RouteRendererOptions,
 	EcoComponent,
 	HtmlTemplateProps,
 } from '../../types/public-types.ts';
-import type { PagePackageResult } from '../../types/public-types.ts';
 
 export function createUnresolvedMarkerArtifact(nodeId: string, componentRef: string, propsRef: string): string {
 	return `<eco-marker data-eco-node-id="${nodeId}" data-eco-component-ref="${componentRef}" data-eco-props-ref="${propsRef}"></eco-marker>`;
@@ -71,10 +68,11 @@ export const testAssetService = {
 export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = 'test-renderer';
 	ForeignChildRuntimeCreationCount = 0;
-	ForeignChildRenderCount = 0;
 
 	PageModule: EcoPageFile | null = null;
 	HtmlTemplate: EcoComponent<HtmlTemplateProps> | null = null;
+	UseDocumentShellRender = false;
+	CapturedRenderOptions: IntegrationRendererRenderOptions<EcoPagesElement> | null = null;
 	RenderedBody: RouteRendererBody = '<html><body>Test Page</body></html>';
 	RenderBodyFactory:
 		| ((context: ReturnType<typeof getComponentRenderContext>) => RouteRendererBody | Promise<RouteRendererBody>)
@@ -83,7 +81,12 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 	ImportedFiles: string[] = [];
 	HtmlContributions: HtmlDocumentContribution[] = [];
 
-	override async render(_options: IntegrationRendererRenderOptions<EcoPagesElement>): Promise<RouteRendererBody> {
+	override async render(options: IntegrationRendererRenderOptions<EcoPagesElement>): Promise<RouteRendererBody> {
+		this.CapturedRenderOptions = options;
+		if (this.UseDocumentShellRender) {
+			return super.render(options);
+		}
+
 		if (this.RenderBodyFactory) {
 			return await this.RenderBodyFactory(getComponentRenderContext());
 		}
@@ -97,11 +100,6 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		}
 
 		return super.renderComponent(_input);
-	}
-
-	override async renderComponentWithForeignChildren(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		this.ForeignChildRenderCount += 1;
-		return await super.renderComponentWithForeignChildren(input);
 	}
 
 	protected override async importPageFile(_file: string): Promise<EcoPageFile> {
@@ -119,56 +117,6 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		_components: (EcoComponent | Partial<EcoComponent>)[],
 	): Promise<ProcessedAsset[]> {
 		return [];
-	}
-
-	public async testPrepareRenderOptions(options: RouteRendererOptions) {
-		return this.prepareRenderOptions(options);
-	}
-
-	public testBuildPageClientBrowserAssets(plan: import('./ownership-graph/page-client-plan.ts').PageClientPlan) {
-		return this.buildPageClientBrowserAssets(plan);
-	}
-
-	public testFinalizeIslandComponentRender(input: ComponentRenderInput, result: ComponentRenderResult) {
-		return this.finalizeIslandComponentRender(input, result);
-	}
-
-	public testHasForeignChildDescendants(component: EcoComponent) {
-		return this.hasForeignChildDescendants(component);
-	}
-
-	public async testFinalizeDocumentShellHtml(options: {
-		html: string;
-		partial?: boolean;
-		htmlContributions?: HtmlDocumentContribution[];
-	}) {
-		return finalizeDocumentShellHtml(this.htmlTransformer, {
-			html: options.html,
-			partial: options.partial,
-			htmlContributions:
-				options.htmlContributions ?? this.getHtmlDocumentContributions({ partial: options.partial ?? false }),
-		});
-	}
-
-	public async testTransformRouteResponse(
-		response: Response,
-		htmlContributions?: HtmlDocumentContribution[],
-		pagePackage?: PagePackageResult,
-	) {
-		return this.transformRouteResponse(
-			response,
-			htmlContributions,
-			pagePackage,
-			{} as IntegrationRendererRenderOptions<EcoPagesElement>,
-		);
-	}
-
-	public appendTestProcessedDependencies(assets: ProcessedAsset[]) {
-		return this.appendProcessedDependencies(assets);
-	}
-
-	public async testRenderForeignSubtree(input: ComponentRenderInput) {
-		return this.renderComponentWithForeignChildren(input);
 	}
 
 	protected override createForeignChildRuntime(options: {

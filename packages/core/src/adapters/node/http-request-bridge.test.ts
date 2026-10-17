@@ -8,6 +8,7 @@ class MockIncomingMessage extends PassThrough {
 	public method = 'POST';
 	public headers: Record<string, string | string[] | undefined> = {
 		'content-type': 'application/json',
+		'content-length': '17',
 		'x-test': 'one',
 	};
 
@@ -73,6 +74,37 @@ describe('NodeHttpRequestBridge', () => {
 		expect(request.body).toBeNull();
 	});
 
+	it('does not attach a body stream when the request has no body framing', () => {
+		const bridge = new NodeHttpRequestBridge();
+		const req = new MockIncomingMessage();
+		req.headers = { 'content-type': 'application/json' };
+
+		const request = bridge.createWebRequest(req as unknown as IncomingMessage, 'http://localhost:3000');
+
+		expect(request.body).toBeNull();
+	});
+
+	it('does not attach a body stream when content length is zero', () => {
+		const bridge = new NodeHttpRequestBridge();
+		const req = new MockIncomingMessage();
+		req.headers = { 'content-length': '0' };
+
+		const request = bridge.createWebRequest(req as unknown as IncomingMessage, 'http://localhost:3000');
+
+		expect(request.body).toBeNull();
+	});
+
+	it('drains a cancelled request body without destroying the request', async () => {
+		const bridge = new NodeHttpRequestBridge();
+		const req = new MockIncomingMessage();
+		const request = bridge.createWebRequest(req as unknown as IncomingMessage, 'http://localhost:3000');
+
+		await request.body?.cancel();
+
+		expect(req.destroyed).toBe(false);
+		req.end('discarded');
+	});
+
 	it('normalizes aborted request bodies into NodeClientAbortError', async () => {
 		const bridge = new NodeHttpRequestBridge();
 		const req = new MockIncomingMessage();
@@ -83,6 +115,19 @@ describe('NodeHttpRequestBridge', () => {
 		req.emitAbort();
 
 		await expect(bodyRead).rejects.toBeInstanceOf(NodeClientAbortError);
+	});
+
+	it('handles ECONNRESET after an aborted request event', async () => {
+		const bridge = new NodeHttpRequestBridge();
+		const req = new MockIncomingMessage();
+		const request = bridge.createWebRequest(req as unknown as IncomingMessage, 'http://localhost:3000');
+		const bodyRead = request.text();
+
+		req.emitAbort();
+		req.emitNodeError('ECONNRESET');
+
+		await expect(bodyRead).rejects.toBeInstanceOf(NodeClientAbortError);
+		expect(req.listenerCount('error')).toBe(0);
 	});
 
 	it('normalizes ECONNRESET request stream errors into NodeClientAbortError', async () => {

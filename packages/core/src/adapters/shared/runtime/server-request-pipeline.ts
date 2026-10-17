@@ -10,7 +10,6 @@ import { runWithBuildInputIndex } from '../../../build/cache/build-input-depende
 import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { MemoryCacheStore } from '../../../services/cache/memory-cache-store.ts';
 import { PageCacheService } from '../../../services/cache/page-cache-service.ts';
-import { SchemaValidationService } from '../../../services/validation/schema-validation-service.ts';
 import { ExplicitStaticRouteMatcher } from '../http/explicit-static-route-matcher.ts';
 import { FileSystemServerResponseFactory } from '../http/fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from '../http/fs-server-response-matcher.ts';
@@ -61,9 +60,7 @@ export class ServerRequestPipeline {
 	protected fileSystemResponseMatcher!: FileSystemResponseMatcher;
 	protected routeRendererFactory!: RouteRendererFactory;
 	protected routeHandler!: ServerRouteHandler;
-	protected schemaValidator = new SchemaValidationService();
 	protected readonly apiRequestPipeline = new ApiRequestPipeline<Request, unknown>({
-		schemaValidator: this.schemaValidator,
 		getRenderContext: () => this.getRenderContext(),
 		getCacheService: () => this.getCacheService(),
 		isClientAbort: (error) => this.clientAbortDetector(error),

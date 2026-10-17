@@ -1,22 +1,40 @@
+import type { IncomingMessage } from 'node:http';
+import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { SchemaValidationService } from '../../../services/validation/schema-validation-service.ts';
 import type { ApiHandler, RenderContext } from '../../../types/public-types.ts';
 import { appLogger } from '../../../global/app-logger.ts';
+import { NodeClientAbortError, NodeHttpRequestBridge } from '../../node/http-request-bridge.ts';
 import { ApiRequestPipeline } from './api-request-pipeline.ts';
 
 class ClientAbort extends Error {}
 
+class NodeRequestFixture extends PassThrough {
+	public url = '/api/posts';
+	public method = 'POST';
+	public headers: Record<string, string> = {};
+}
+
 function createPipeline() {
 	return new ApiRequestPipeline({
-		schemaValidator: new SchemaValidationService(),
 		getRenderContext: () =>
 			({
 				render: vi.fn(),
 			}) as unknown as RenderContext,
 		getCacheService: () => null,
-		isClientAbort: (error) => error instanceof ClientAbort,
+		isClientAbort: (error) => error instanceof ClientAbort || error instanceof NodeClientAbortError,
 	});
+}
+
+function createEmptyNodeRequest(headers: Record<string, string>): Request {
+	const incomingRequest = new NodeRequestFixture();
+	incomingRequest.headers = headers;
+	const request = new NodeHttpRequestBridge().createWebRequest(
+		incomingRequest as unknown as IncomingMessage,
+		'http://localhost',
+	);
+	incomingRequest.end();
+	return request;
 }
 
 function throwingHandler(error: unknown): ApiHandler[] {
@@ -189,6 +207,251 @@ describe('ApiRequestPipeline', () => {
 		expect(response!.status).toBe(400);
 		const payload = (await response!.json()) as { error: string };
 		expect(payload.error).toBe('Validation failed');
+	});
+
+	it('rejects a missing body when the body schema requires one', async () => {
+		const response = await createPipeline().tryHandle(
+			new Request('http://localhost/api/posts', { method: 'POST' }),
+			[
+				{
+					path: '/api/posts',
+					method: 'POST',
+					schema: { body: z.object({ title: z.string() }) },
+					handler: () => new Response('unreachable'),
+				},
+			],
+			undefined,
+		);
+
+		expect(response?.status).toBe(400);
+		expect(await response?.json()).toMatchObject({ error: 'Validation failed' });
+	});
+
+	it('accepts a missing body when the body schema is optional', async () => {
+		const response = await createPipeline().tryHandle(
+			new Request('http://localhost/api/posts', { method: 'POST' }),
+			[
+				{
+					path: '/api/posts',
+					method: 'POST',
+					schema: { body: z.object({ title: z.string() }).optional() },
+					handler: ({ body }) => new Response(body === undefined ? 'no body' : 'body'),
+				},
+			],
+			undefined,
+		);
+
+		expect(response?.status).toBe(200);
+		expect(await response?.text()).toBe('no body');
+	});
+
+	it('accepts a bodyless Node request with JSON content type when the schema is optional', async () => {
+		const response = await createPipeline().tryHandle(
+			createEmptyNodeRequest({ 'content-type': 'application/json' }),
+			[
+				{
+					path: '/api/posts',
+					method: 'POST',
+					schema: { body: z.object({ title: z.string() }).optional() },
+					handler: ({ body }) => new Response(body === undefined ? 'no body' : 'body'),
+				},
+			],
+			undefined,
+		);
+
+		expect(response?.status).toBe(200);
+		expect(await response?.text()).toBe('no body');
+	});
+
+	it('validates an empty Node request without content type as a missing body', async () => {
+		const response = await createPipeline().tryHandle(
+			createEmptyNodeRequest({}),
+			[
+				{
+					path: '/api/posts',
+					method: 'POST',
+					schema: { body: z.object({ title: z.string() }) },
+					handler: () => new Response('unreachable'),
+				},
+			],
+			undefined,
+		);
+
+		expect(response?.status).toBe(400);
+		expect(await response?.json()).toMatchObject({ error: 'Validation failed' });
+	});
+
+	it('validates an empty chunked Node request without content type as a missing body', async () => {
+		const response = await createPipeline().tryHandle(
+			createEmptyNodeRequest({ 'transfer-encoding': 'chunked' }),
+			[
+				{
+					path: '/api/posts',
+					method: 'POST',
+					schema: { body: z.object({ title: z.string() }) },
+					handler: () => new Response('unreachable'),
+				},
+			],
+			undefined,
+		);
+
+		expect(response?.status).toBe(400);
+		expect(await response?.json()).toMatchObject({ error: 'Validation failed' });
+	});
+
+	it('keeps an empty chunked Node request readable for an optional body schema', async () => {
+		const incomingRequest = new NodeRequestFixture();
+		incomingRequest.headers = { 'transfer-encoding': 'chunked' };
+		const request = new NodeHttpRequestBridge().createWebRequest(
+			incomingRequest as unknown as IncomingMessage,
+			'http://localhost',
+		);
+		incomingRequest.end();
+
+		const response = await createPipeline().tryHandle(
+			request,
+			[
+				{
+					path: '/api/posts',
+					method: 'POST',
+					schema: { body: z.object({ title: z.string() }).optional() },
+					handler: async ({ body, request: handlerRequest }) =>
+						new Response(`${body === undefined ? 'no body' : 'body'}:${await handlerRequest.text()}`),
+				},
+			],
+			undefined,
+		);
+
+		expect(response?.status).toBe(200);
+		expect(await response?.text()).toBe('no body:');
+	});
+
+	it('rejects a nonempty chunked Node request without content type before upload ends', async () => {
+		const incomingRequest = new NodeRequestFixture();
+		incomingRequest.headers = { 'transfer-encoding': 'chunked' };
+		const request = new NodeHttpRequestBridge().createWebRequest(
+			incomingRequest as unknown as IncomingMessage,
+			'http://localhost',
+		);
+		const responsePromise = createPipeline().tryHandle(
+			request,
+			[
+				{
+					path: '/api/posts',
+					method: 'POST',
+					schema: { body: z.object({ title: z.string() }) },
+					handler: () => new Response('unreachable'),
+				},
+			],
+			undefined,
+		);
+
+		incomingRequest.write('payload');
+		const response = await responsePromise;
+
+		expect(response?.status).toBe(415);
+		expect(incomingRequest.destroyed).toBe(false);
+		expect(incomingRequest.listenerCount('data')).toBe(0);
+		incomingRequest.end('remaining');
+	});
+
+	it('answers a client abort during body validation with HTTP 499', async () => {
+		const incomingRequest = new NodeRequestFixture();
+		incomingRequest.headers = { 'transfer-encoding': 'chunked' };
+		const request = new NodeHttpRequestBridge().createWebRequest(
+			incomingRequest as unknown as IncomingMessage,
+			'http://localhost',
+		);
+		const responsePromise = createPipeline().tryHandle(
+			request,
+			[
+				{
+					path: '/api/posts',
+					method: 'POST',
+					schema: { body: z.object({ title: z.string() }) },
+					handler: () => new Response('unreachable'),
+				},
+			],
+			undefined,
+		);
+
+		incomingRequest.emit('aborted');
+
+		const response = await responsePromise;
+		expect(response?.status).toBe(499);
+	});
+
+	it('answers unsupported content types with HTTP 415 when a body schema is declared', async () => {
+		const response = await createPipeline().tryHandle(
+			new Request('http://localhost/api/posts', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				body: 'title=post',
+			}),
+			[
+				{
+					path: '/api/posts',
+					method: 'POST',
+					schema: { body: z.object({ title: z.string() }) },
+					handler: () => new Response('unreachable'),
+				},
+			],
+			undefined,
+		);
+
+		expect(response?.status).toBe(415);
+	});
+
+	it('drains a streamed Node request with an unsupported content type', async () => {
+		const incomingRequest = new NodeRequestFixture();
+		incomingRequest.headers = {
+			'content-type': 'application/octet-stream',
+			'transfer-encoding': 'chunked',
+		};
+		const request = new NodeHttpRequestBridge().createWebRequest(
+			incomingRequest as unknown as IncomingMessage,
+			'http://localhost',
+		);
+		const responsePromise = createPipeline().tryHandle(
+			request,
+			[
+				{
+					path: '/api/posts',
+					method: 'POST',
+					schema: { body: z.object({ title: z.string() }) },
+					handler: () => new Response('unreachable'),
+				},
+			],
+			undefined,
+		);
+
+		incomingRequest.write('payload');
+		const response = await responsePromise;
+
+		expect(response?.status).toBe(415);
+		expect(incomingRequest.destroyed).toBe(false);
+		expect(incomingRequest.listenerCount('data')).toBe(0);
+		incomingRequest.end('remaining');
+	});
+
+	it('answers HTTP 415 when a request body has no content type', async () => {
+		const response = await createPipeline().tryHandle(
+			new Request('http://localhost/api/posts', {
+				method: 'POST',
+				body: new Uint8Array([1]),
+			}),
+			[
+				{
+					path: '/api/posts',
+					method: 'POST',
+					schema: { body: z.object({ title: z.string() }) },
+					handler: () => new Response('unreachable'),
+				},
+			],
+			undefined,
+		);
+
+		expect(response?.status).toBe(415);
 	});
 
 	it('runs middleware before the handler', async () => {

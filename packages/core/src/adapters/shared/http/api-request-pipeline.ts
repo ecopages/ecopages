@@ -9,7 +9,7 @@ import {
 	type ParsedSegmentPath,
 } from '../../../router/server/segment-path-matcher.ts';
 import { appLogger } from '../../../global/app-logger.ts';
-import type { SchemaValidationService } from '../../../services/validation/schema-validation-service.ts';
+import { validateRequest } from '../../../services/validation/validate-request.ts';
 import type {
 	ApiHandler,
 	ApiHandlerContext,
@@ -18,8 +18,9 @@ import type {
 	RenderContext,
 } from '../../../types/public-types.ts';
 
+type ParsedRequestBody = { value: unknown } | { response: Response };
+
 export type ApiRequestPipelineOptions = {
-	schemaValidator: SchemaValidationService;
 	getRenderContext: () => RenderContext;
 	getCacheService: () => CacheInvalidator | null;
 	/**
@@ -34,13 +35,11 @@ export type ApiRequestPipelineOptions = {
 };
 
 export class ApiRequestPipeline<TRequest extends Request = Request, TServer = unknown> {
-	private readonly schemaValidator: SchemaValidationService;
 	private readonly getRenderContext: () => RenderContext;
 	private readonly getCacheService: () => CacheInvalidator | null;
 	private readonly isClientAbort: (error: unknown) => boolean;
 
 	constructor(options: ApiRequestPipelineOptions) {
-		this.schemaValidator = options.schemaValidator;
 		this.getRenderContext = options.getRenderContext;
 		this.getCacheService = options.getCacheService;
 		this.isClientAbort = options.isClientAbort ?? (() => false);
@@ -199,16 +198,12 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 
 		let body: unknown;
 		if (schema.body) {
-			try {
-				const contentType = context.request.headers.get('Content-Type') || '';
-				if (contentType.includes('application/json')) body = await context.request.clone().json();
-				else if (contentType.includes('text/plain')) body = await context.request.clone().text();
-			} catch {
-				return context.response.status(400).json({ error: 'Invalid request body' });
-			}
+			const parsedBody = await this.parseSchemaBody(context.request, context.response);
+			if ('response' in parsedBody) return parsedBody.response;
+			body = parsedBody.value;
 		}
 
-		const validationResult = await this.schemaValidator.validateRequest(
+		const validationResult = await validateRequest(
 			{ body, query: queryParams, headers, params: context.params },
 			schema,
 		);
@@ -226,6 +221,65 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 		if (validated.headers !== undefined) context.headers = validated.headers;
 		if (validated.params !== undefined) context.params = validated.params as Record<string, string>;
 		return undefined;
+	}
+
+	private async parseSchemaBody(request: TRequest, responseBuilder: ApiResponseBuilder): Promise<ParsedRequestBody> {
+		const contentType = request.headers.get('Content-Type')?.split(';', 1)[0]?.trim().toLowerCase() || '';
+		if (!contentType) return this.parseUntypedSchemaBody(request, responseBuilder);
+		if (contentType !== 'application/json' && contentType !== 'text/plain') {
+			return this.rejectUnsupportedMediaType(request, responseBuilder);
+		}
+		if (request.body === null) return { value: undefined };
+
+		try {
+			const text = await request.clone().text();
+			if (text.length === 0) return { value: undefined };
+			const value = contentType === 'application/json' ? JSON.parse(text) : text;
+			return { value };
+		} catch (error) {
+			if (this.isClientAbort(error)) throw error;
+			return { response: responseBuilder.status(400).json({ error: 'Invalid request body' }) };
+		}
+	}
+
+	private async parseUntypedSchemaBody(
+		request: TRequest,
+		responseBuilder: ApiResponseBuilder,
+	): Promise<ParsedRequestBody> {
+		try {
+			const hasBody = await this.hasBodyContent(request);
+			return hasBody
+				? { response: responseBuilder.status(415).json({ error: 'Unsupported Media Type' }) }
+				: { value: undefined };
+		} catch (error) {
+			if (this.isClientAbort(error)) throw error;
+			return { response: responseBuilder.status(400).json({ error: 'Invalid request body' }) };
+		}
+	}
+
+	private async rejectUnsupportedMediaType(
+		request: TRequest,
+		responseBuilder: ApiResponseBuilder,
+	): Promise<ParsedRequestBody> {
+		await request.body?.cancel();
+		return { response: responseBuilder.status(415).json({ error: 'Unsupported Media Type' }) };
+	}
+
+	private async hasBodyContent(request: TRequest): Promise<boolean> {
+		const body = request.clone().body;
+		if (!body) return false;
+		const reader = body.getReader();
+		try {
+			while (true) {
+				const { done, value } = await reader.read();
+				if (done) return false;
+				if (value.byteLength === 0) continue;
+				await Promise.all([reader.cancel(), request.body?.cancel()]);
+				return true;
+			}
+		} finally {
+			reader.releaseLock();
+		}
 	}
 
 	private async runMiddlewareChain(

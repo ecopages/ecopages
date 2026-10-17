@@ -14,6 +14,8 @@ The config starts only web servers used by the selected projects. With `--shard`
 
 CI runs the full Playwright suite on every pull request and on pushes to `develop` and `main`. Four shard jobs run in parallel; a final `e2e` check fails if any shard fails. Vitest runs in the `fast` job and does not run again in the E2E shards.
 
+Each E2E shard uploads its `test-results/` directory as a GitHub Actions artifact named `playwright-traces-shard-<shard>` for seven days. Download the artifact for the failed shard from the workflow run to inspect its Playwright traces and other test results.
+
 For a smaller local run, `pnpm test:e2e:pr` selects the fixture, preview and HMR projects and filters the canonical kitchen-sink and Bun parity projects to `@content`, `@stress`, and `@parity` tests.
 
 Docs e2e runs separately:

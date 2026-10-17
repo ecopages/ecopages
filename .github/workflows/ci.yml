@@ -133,6 +133,15 @@ jobs:
                   ECOPAGES_LOGGER_DEBUG: false
                   ECOPAGES_E2E_TIMING: true
 
+            - name: Upload Playwright traces
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: playwright-traces-shard-${{ matrix.shard }}
+                  path: test-results/
+                  if-no-files-found: ignore
+                  retention-days: 7
+
     e2e:
         if: always()
         needs: e2e-shard

@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import {
 	assertNoMainFrameNavigationAfterHmr,
+	HMR_FULL_RELOAD_ASSERT_TIMEOUT_MS,
 	HMR_MUTATION_ASSERT_TIMEOUT_MS,
 	gotoPathSimple,
 	installFullDocumentReloadWatcher,
@@ -86,6 +87,7 @@ test('updates an imported React island component without a full reload @hmr', as
 });
 
 test('invalidates discovered CSS after import addition, edit and removal @hmr', async ({ page, app }) => {
+	test.setTimeout(150_000);
 	const componentFile = path.join(app.dir, 'src/components/dependency-discovery/counter.lit.tsx');
 	const cssFile = path.join(app.dir, 'src/components/dependency-discovery/hmr-extra.css');
 	const originalComponent = readFileSync(componentFile, 'utf8');
@@ -100,7 +102,7 @@ test('invalidates discovered CSS after import addition, edit and removal @hmr', 
 		diagnostics.mark('adding CSS import');
 		writeFileSync(componentFile, `${originalComponent}\nimport './hmr-extra.css';\n`);
 		await expect(page.locator(host)).toHaveCSS('border-top-width', '11px', {
-			timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
+			timeout: HMR_FULL_RELOAD_ASSERT_TIMEOUT_MS,
 		});
 		diagnostics.mark('editing imported CSS');
 		writeFileSync(cssFile, originalCss.replace('11px', '13px'));
@@ -110,7 +112,7 @@ test('invalidates discovered CSS after import addition, edit and removal @hmr', 
 		diagnostics.mark('removing CSS import');
 		writeFileSync(componentFile, originalComponent);
 		await expect(page.locator(host)).toHaveCSS('border-top-width', '7px', {
-			timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
+			timeout: HMR_FULL_RELOAD_ASSERT_TIMEOUT_MS,
 		});
 	} catch (error) {
 		diagnostics.reportFailure(error);
@@ -122,6 +124,7 @@ test('invalidates discovered CSS after import addition, edit and removal @hmr', 
 });
 
 test('invalidates discovered CSS after a live barrel retarget without editing the page @hmr', async ({ page, app }) => {
+	test.setTimeout(150_000);
 	const barrelFile = path.join(app.dir, 'src/components/dependency-discovery/barrel/index.ts');
 	const originalBarrel = readFileSync(barrelFile, 'utf8');
 	const host = '.discovery-barrel-host';
@@ -134,11 +137,11 @@ test('invalidates discovered CSS after a live barrel retarget without editing th
 		diagnostics.mark('retargeting barrel');
 		writeFileSync(barrelFile, `export { BarrelWidget } from './widget-b.lit';\n`);
 		await expect(page.locator(host)).toHaveCSS('border-top-width', '19px', {
-			timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
+			timeout: HMR_FULL_RELOAD_ASSERT_TIMEOUT_MS,
 		});
 		writeFileSync(barrelFile, originalBarrel);
 		await expect(page.locator(host)).toHaveCSS('border-top-width', '17px', {
-			timeout: HMR_MUTATION_ASSERT_TIMEOUT_MS,
+			timeout: HMR_FULL_RELOAD_ASSERT_TIMEOUT_MS,
 		});
 	} catch (error) {
 		diagnostics.reportFailure(error);

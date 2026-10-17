@@ -6,6 +6,8 @@ const NAVIGATION_TIMEOUT = 45_000;
 const HMR_CLIENT_CONNECT_TIMEOUT_MS = 60_000;
 /** Post-mutation assert window for isolated kitchen-sink HMR cells on slower hosts. */
 export const HMR_MUTATION_ASSERT_TIMEOUT_MS = 25_000;
+/** Post-mutation window for fallback updates that need a full document reload. */
+export const HMR_FULL_RELOAD_ASSERT_TIMEOUT_MS = 45_000;
 
 type EcoNavigationWindow = Window & {
 	__ECO_PAGES__?: {

@@ -71,7 +71,6 @@ async function importStaticPageWarm(
 
 	await loader.importModule({
 		filePath,
-		rootDir: appConfig.rootDir,
 		outdir,
 	});
 }

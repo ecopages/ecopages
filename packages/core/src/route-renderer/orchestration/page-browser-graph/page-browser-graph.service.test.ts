@@ -553,6 +553,7 @@ test('PageBrowserGraphService keeps the request-time build when a dynamic route 
 	});
 
 	expect(result?.entryAssets).not.toContain(prebuiltAsset);
+	expect(result?.entryAssets).toContainEqual(runtimeAsset);
 	expect(processDependencies).toHaveBeenCalledOnce();
 });
 

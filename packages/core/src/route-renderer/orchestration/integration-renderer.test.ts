@@ -436,6 +436,7 @@ describe('IntegrationRenderer', () => {
 	});
 
 	it('reuses dynamic route template client assets when the page client entries match', async () => {
+		const renderedPageEntryAssets: ProcessedAsset[][] = [];
 		const lazyComponent = (() => '<button>lazy</button>') as EcoComponent;
 		lazyComponent.config = {
 			identity: { id: 'lazy-template-component', file: '/app/components/lazy-template.tsx', integration: 'lit' },
@@ -461,7 +462,12 @@ describe('IntegrationRenderer', () => {
 			...testAppConfig,
 			integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
 		} as EcoPagesAppConfig;
-		const renderer = new TestIntegrationRenderer({
+		const renderer = new (class extends TestIntegrationRenderer {
+			override async render(options: IntegrationRendererRenderOptions<EcoPagesElement>) {
+				renderedPageEntryAssets.push(options.pagePackage?.assets ?? []);
+				return await super.render(options);
+			}
+		})({
 			appConfig,
 			assetProcessingService: testAssetService,
 			hooks: {
@@ -486,6 +492,7 @@ describe('IntegrationRenderer', () => {
 			isRouteTemplate: true,
 			groupedBuildPlan,
 		});
+		await renderer.execute({ file: routeFile, params: { slug: 'new-product' } });
 
 		const matchingPlan = collectPageClientPlan([{ component: lazyComponent }], 'test-renderer');
 		const reusedAssets = await renderer.buildPageClientBrowserAssets(matchingPlan, {
@@ -499,6 +506,9 @@ describe('IntegrationRenderer', () => {
 		});
 
 		expect(reusedAssets.processedAssets).toContainEqual(
+			expect.objectContaining({ srcUrl: '/assets/template-client.js' }),
+		);
+		expect(renderedPageEntryAssets.at(-1)).toContainEqual(
 			expect.objectContaining({ srcUrl: '/assets/template-client.js' }),
 		);
 		expect(fallbackAssets.processedAssets).not.toContainEqual(

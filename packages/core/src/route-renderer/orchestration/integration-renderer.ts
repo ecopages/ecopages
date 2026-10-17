@@ -345,7 +345,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		}
 	}
 
-	/** Returns the production app browser plan that can serve one route instance. */
+	/** Returns the production app browser plan candidate for one route instance. */
 	getGroupedBuildPlanForRoute(
 		routeOptions: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>,
 	): GroupedGraphBuildPlan | undefined {

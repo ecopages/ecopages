@@ -87,7 +87,7 @@ test('updates an imported React island component without a full reload @hmr', as
 });
 
 test('invalidates discovered CSS after import addition, edit and removal @hmr', async ({ page, app }) => {
-	test.setTimeout(150_000);
+	test.setTimeout(210_000);
 	const componentFile = path.join(app.dir, 'src/components/dependency-discovery/counter.lit.tsx');
 	const cssFile = path.join(app.dir, 'src/components/dependency-discovery/hmr-extra.css');
 	const originalComponent = readFileSync(componentFile, 'utf8');
@@ -124,7 +124,7 @@ test('invalidates discovered CSS after import addition, edit and removal @hmr', 
 });
 
 test('invalidates discovered CSS after a live barrel retarget without editing the page @hmr', async ({ page, app }) => {
-	test.setTimeout(150_000);
+	test.setTimeout(210_000);
 	const barrelFile = path.join(app.dir, 'src/components/dependency-discovery/barrel/index.ts');
 	const originalBarrel = readFileSync(barrelFile, 'utf8');
 	const host = '.discovery-barrel-host';

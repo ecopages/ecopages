@@ -68,10 +68,10 @@ export const testAssetService = {
 export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = 'test-renderer';
 	ForeignChildRuntimeCreationCount = 0;
-	ForeignChildRenderCount = 0;
 
 	PageModule: EcoPageFile | null = null;
 	HtmlTemplate: EcoComponent<HtmlTemplateProps> | null = null;
+	UseDocumentShellRender = false;
 	CapturedRenderOptions: IntegrationRendererRenderOptions<EcoPagesElement> | null = null;
 	RenderedBody: RouteRendererBody = '<html><body>Test Page</body></html>';
 	RenderBodyFactory:
@@ -83,6 +83,10 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 
 	override async render(options: IntegrationRendererRenderOptions<EcoPagesElement>): Promise<RouteRendererBody> {
 		this.CapturedRenderOptions = options;
+		if (this.UseDocumentShellRender) {
+			return super.render(options);
+		}
+
 		if (this.RenderBodyFactory) {
 			return await this.RenderBodyFactory(getComponentRenderContext());
 		}
@@ -96,11 +100,6 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 		}
 
 		return super.renderComponent(_input);
-	}
-
-	override async renderComponentWithForeignChildren(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		this.ForeignChildRenderCount += 1;
-		return await super.renderComponentWithForeignChildren(input);
 	}
 
 	protected override async importPageFile(_file: string): Promise<EcoPageFile> {

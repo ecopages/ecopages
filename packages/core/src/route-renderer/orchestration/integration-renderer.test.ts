@@ -1499,14 +1499,21 @@ describe('IntegrationRenderer', () => {
 				dependencies: { components: [Child] },
 			};
 
-			await renderer.renderComponentWithForeignChildren({ component: Root, props: {} });
+			renderer.UseDocumentShellRender = true;
+			renderer.PageModule = { default: Root as EcoPageComponent<Record<string, unknown>> };
+			renderer.HtmlTemplate = (() => '<html><body></body></html>') as EcoComponent<HtmlTemplateProps>;
+
+			await renderer.execute({ file: '/app/pages/index.tsx', params: {}, query: {} });
 
 			expect(renderer.ForeignChildRuntimeCreationCount).toBe(0);
 		});
 
 		it('wraps nested cross-integration component trees for foreign children', async () => {
+			const appConfig = createMockAppConfig({
+				integrations: [createMockIntegrationPlugin({ name: 'react' })],
+			});
 			const renderer = new TestIntegrationRenderer({
-				appConfig: testAppConfig,
+				appConfig,
 				assetProcessingService: testAssetService,
 			});
 
@@ -1531,7 +1538,11 @@ describe('IntegrationRenderer', () => {
 				dependencies: { components: [ForeignChild] },
 			};
 
-			await renderer.renderComponentWithForeignChildren({ component: Root, props: {} });
+			renderer.UseDocumentShellRender = true;
+			renderer.PageModule = { default: Root as EcoPageComponent<Record<string, unknown>> };
+			renderer.HtmlTemplate = (() => '<html><body></body></html>') as EcoComponent<HtmlTemplateProps>;
+
+			await renderer.execute({ file: '/app/pages/index.tsx', params: {}, query: {} });
 
 			expect(renderer.ForeignChildRuntimeCreationCount).toBe(1);
 		});

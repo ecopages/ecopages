@@ -33,6 +33,8 @@ export type App = {
 	dir: string;
 	/** Origin the server listens on. */
 	url: string;
+	/** Captured tail of the worker's dev-server output, useful when a browser assertion fails. */
+	getServerOutput(): string;
 };
 
 /**
@@ -148,7 +150,7 @@ export const test = base.extend<{}, { appOptions: AppOptions | undefined; app: A
 
 			try {
 				await waitForReadyLine(child, () => tail, appOptions.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS);
-				await use({ dir, url: `http://localhost:${port}` });
+				await use({ dir, url: `http://localhost:${port}`, getServerOutput: () => tail });
 			} finally {
 				await stopServer(child);
 				if (process.env.ECOPAGES_KEEP_E2E_TMP !== 'true') {

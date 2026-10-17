@@ -6,7 +6,6 @@ import {
 	type ComponentRenderResult,
 	type EcoComponent,
 	type HtmlTemplateProps,
-	type RouteRendererOptions,
 } from '@ecopages/core';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { createStringMarkupContractFactories, describeRendererContract } from '@ecopages/testing/renderer-contract';
@@ -43,10 +42,6 @@ const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
  */
 class TestLitRenderer extends LitRenderer {
 	htmlTemplate: EcoComponent<HtmlTemplateProps> = HtmlTemplate;
-
-	public renderRemoteForTest(options: RouteRendererOptions) {
-		return this.renderRemote(options);
-	}
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		return this.htmlTemplate;
@@ -681,13 +676,7 @@ describe('LitRenderer', () => {
 			}));
 
 			const Renderer = createLitRenderer(() => sessionHolder.current as LitStaticRenderSession | undefined);
-			class SessionLitRenderer extends Renderer {
-				renderRemoteForTest(options: RouteRendererOptions) {
-					return this.renderRemote(options);
-				}
-			}
-
-			const renderer = new SessionLitRenderer({
+			const renderer = new Renderer({
 				appConfig: Config,
 				assetProcessingService: createTestAssetProcessingService(Config),
 				resolvedIntegrationDependencies: [],
@@ -699,7 +688,6 @@ describe('LitRenderer', () => {
 				query: { tag: ['x', 'y'] },
 			};
 
-			expect(await renderer.renderRemoteForTest(options)).toBeUndefined();
 			sessionHolder.current = { renderPageInWorker };
 			const result = await renderer.execute(options);
 

@@ -438,7 +438,7 @@ describe('ProjectWatcher', () => {
 				},
 				invalidateDevelopmentGraph: vi.fn(() => {}),
 				getDevelopmentGeneration: () => 0,
-			};
+			} as never;
 			const { emit } = await subscribe();
 
 			await emit('change', pageFilePath);

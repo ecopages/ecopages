@@ -36,12 +36,10 @@ import type {
 import { DevTransformEntrypointRegistry } from './dev-transform-entrypoint-registry.ts';
 import { BrowserBundleService } from '../../../services/assets/browser-bundle.service.ts';
 import { requireAppRuntime } from '../../../config/app-runtime.ts';
-import { createAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
 import {
 	InMemoryEntrypointDependencyGraph,
 	type EntrypointDependencyGraph,
 } from '../../../services/runtime-state/entrypoint-dependency-graph.service.ts';
-import type { ServerModuleTranspiler } from '../../../services/module-loading/server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';
 import { DevTransformServer } from '../../../dev/transform-server/dev-transform-server.ts';
 import type { DevTransformBundleContributor } from '../../../dev/transform-server/types.ts';
@@ -66,7 +64,6 @@ export class HmrManager implements IHmrManager {
 	protected readonly browserBundleService: BrowserBundleService;
 	protected readonly invalidationService: DevelopmentInvalidationService;
 	protected readonly entrypointDependencyGraph: EntrypointDependencyGraph;
-	protected readonly serverModuleTranspiler: ServerModuleTranspiler;
 	private readonly hmrRuntime: DevClientRuntime;
 	private readonly devToolbarRuntime: DevClientRuntime;
 	private readonly runtimeBuilds = new Map<DevClientRuntime, Promise<boolean>>();
@@ -92,7 +89,6 @@ export class HmrManager implements IHmrManager {
 		runtime.hmr = this;
 		this.entrypointDependencyGraph = this.createEntrypointDependencyGraph(runtime.entrypointDependencyGraph);
 		runtime.entrypointDependencyGraph = this.entrypointDependencyGraph;
-		this.serverModuleTranspiler = createAppServerModuleTranspiler(this.appConfig);
 		this.devTransformServer = new DevTransformServer({
 			appConfig: this.appConfig,
 			onModuleDependencies: (modulePath, dependencies) => {
@@ -468,7 +464,7 @@ export class HmrManager implements IHmrManager {
 			getPagesDir: () => this.appConfig.absolutePaths.pagesDir,
 			getEntrypointDependencyGraph: () => this.entrypointDependencyGraph,
 			importServerModule: async <T>(filePath: string) =>
-				await this.serverModuleTranspiler.importModule<T>({
+				await requireAppRuntime(this.appConfig).moduleLoader.importModule<T>({
 					filePath,
 					outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules'),
 					externalPackages: true,

@@ -7,7 +7,7 @@ import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.ts';
 import { copyFixtureApp } from '../../../__fixtures__/app/copy-fixture-app.ts';
 import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
 import { installBuildQueue } from '../runtime/build-queue.ts';
-import { createAppModuleLoader } from '../../services/module-loading/app-server-module-transpiler.service.ts';
+import { AppModuleLoader } from '../../services/module-loading/app-module-loader.service.ts';
 import { PageModuleImportService } from '../../services/module-loading/page-module-import.service.ts';
 import {
 	ensurePagesUnifiedGraphBuilt,
@@ -158,13 +158,12 @@ describe('pages-unified-graph-build', () => {
 		});
 		assert.equal(getTotalRolldownBuildInvocations(), 1);
 
-		const appModuleLoader = createAppModuleLoader(appConfig);
+		const appModuleLoader = new AppModuleLoader(appConfig);
 		resetRolldownBuildInvocationCounts();
 
 		for (const entryPath of entryPaths) {
 			const module = await appModuleLoader.importModule<{ default: unknown }>({
 				filePath: entryPath,
-				rootDir: appConfig.rootDir,
 				outdir,
 			});
 			assert.ok(module.default);

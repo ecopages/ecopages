@@ -6,9 +6,8 @@ Server-side source loading for framework-owned page modules, includes, and relat
 
 ```
 Call site (route scan, renderer, SSG, API)
-  └─ AppModuleLoader.importModule()          app-server-module-transpiler.service.ts
-       ├─ merges server build plugins + JSX ownership plugins
-       ├─ resolves route-module BuildExecutor
+  └─ AppModuleLoader.importModule()          app-module-loader.service.ts
+       ├─ uses the app root and BuildQueue
        └─ PageModuleImportService.importModule()
             ├─ owning Integration's compilePageModule() → compiled in-process, no bundler (HTML Pages)
             ├─ in-process transpile cache → route-module build cache
@@ -16,7 +15,7 @@ Call site (route scan, renderer, SSG, API)
             └─ Rolldown per-page build → dynamic import of transpiled output
 ```
 
-`ServerModuleTranspiler` is a thin wrapper that injects `rootDir` and optional default plugins into the same `PageModuleImportService` path. App code should prefer `requireAppRuntime(appConfig).moduleLoader` or `createAppServerModuleTranspiler(appConfig)`.
+Config finalization creates one `AppModuleLoader` for the app runtime. It requires the app config and uses that app's root directory and build queue for every import. Runtime call sites share it through `requireAppRuntime(appConfig).moduleLoader`; callers provide only the module path and request-specific build options.
 
 Every server import goes through the Ecopages build pipeline. HTML Pages can still compile in process. Bun and Node both use that pipeline.
 
@@ -34,17 +33,15 @@ The content processor owns compiled collection server modules and their cache. O
 
 ## Files
 
-| File                                      | Role                                                             |
-| ----------------------------------------- | ---------------------------------------------------------------- |
-| `page-module-import.service.ts`           | Core import/cache/build orchestration                            |
-| `route-module-build-manifest.ts`          | Content-derived reuse identity and in-process cache shape        |
-| `route-module-build-cache.store.ts`       | In-process route-module transpile cache store                    |
-| `route-module-build-cache-registry.ts`    | Shared cache instance registry per `(appConfig, outdir)` pair    |
-| `route-module-dependency-hasher.ts`       | Dependency graph source file hashing and staleness validation    |
-| `app-module-loader.service.ts`            | App-facing loader interface                                      |
-| `app-server-module-transpiler.service.ts` | Factory for app-scoped loader + transpiler                       |
-| `server-module-transpiler.service.ts`     | Injectable transpiler boundary for tests and bootstrap           |
-| `view-module-loader.ts`                   | Normalizes string/URL view registrations into transpiler loaders |
+| File                                   | Role                                                             |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| `page-module-import.service.ts`        | Core import/cache/build orchestration                            |
+| `route-module-build-manifest.ts`       | Content-derived reuse identity and in-process cache shape        |
+| `route-module-build-cache.store.ts`    | In-process route-module transpile cache store                    |
+| `route-module-build-cache-registry.ts` | Shared cache instance registry per `(appConfig, outdir)` pair    |
+| `route-module-dependency-hasher.ts`    | Dependency graph source file hashing and staleness validation    |
+| `app-module-loader.service.ts`         | App-scoped server module loader                                  |
+| `view-module-loader.ts`                | Normalizes string/URL view registrations into app-module loaders |
 
 ## Development invalidation
 

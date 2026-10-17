@@ -23,11 +23,7 @@ export function getServerModuleBuildCacheOutdir(appConfig: EcoPagesAppConfig): s
  * One app-scoped instance prevents in-process cache drift between page imports and static
  * generation during the same build process.
  */
-export function getSharedRouteModuleBuildCache(outdir: string, appConfig?: EcoPagesAppConfig): RouteModuleBuildCache {
-	if (!appConfig) {
-		return new RouteModuleBuildCache();
-	}
-
+export function getSharedRouteModuleBuildCache(outdir: string, appConfig: EcoPagesAppConfig): RouteModuleBuildCache {
 	const caches = requireAppRuntime(appConfig).routeModuleBuildCaches;
 	const existingCache = caches.get(outdir);
 	if (existingCache) {

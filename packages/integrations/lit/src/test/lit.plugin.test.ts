@@ -90,7 +90,7 @@ describe('LitPlugin render session invalidation', () => {
 				generation += 1;
 			},
 			getDevelopmentGeneration: () => generation,
-		};
+		} as never;
 
 		const plugin = new LitPlugin();
 		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);

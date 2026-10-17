@@ -19,7 +19,6 @@ import { ApiRequestPipeline } from '../http/api-request-pipeline.ts';
 import { parseSegmentPath, type ParsedSegmentPath } from '../../../router/server/segment-path-matcher.ts';
 import { isHtmlResponse, withUncachedDevHtml } from '../hmr/hmr-html-response.ts';
 import type { EcoPageFile } from '../../../types/public-types.ts';
-import { createAppServerModuleTranspiler } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
 import { resolveInternalExecutionDir } from '../../../utils/resolve-work-dir.ts';
 import { ensureIntegrationRuntimeReady } from '../../../build/app-build-manifest-runtime.ts';
 import type { RouteRegistryPageModuleAdapter } from '../../../router/server/route-registry.ts';
@@ -273,14 +272,14 @@ export class ServerRequestPipeline {
 	}
 
 	protected getRenderContext(): RenderContext {
-		const serverModuleTranspiler = createAppServerModuleTranspiler(this.appConfig);
+		const moduleLoader = requireAppRuntime(this.appConfig).moduleLoader;
 
 		return createRenderContext({
 			integrations: this.appConfig.integrations,
 			ensureIntegrationReady: (integrationName) =>
 				ensureIntegrationRuntimeReady({ appConfig: this.appConfig, integrationName }),
 			importServerModule: async <T = unknown>(filePath: string) =>
-				await serverModuleTranspiler.importModule<T>({
+				await moduleLoader.importModule<T>({
 					filePath,
 					outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules'),
 					externalPackages: true,

@@ -38,14 +38,12 @@ export class PageModuleLoaderService {
 	 * Imports one page module through the shared server-side module loading path.
 	 *
 	 * @remarks
-	 * The underlying transpiler keeps Bun and Node aligned on one framework-owned
-	 * loading contract even though the runtime-specific execution transport differs.
+	 * The app-owned module loader keeps every request on the same build and cache path.
 	 */
 	async importPageFile(file: string, options?: { bypassCache?: boolean }): Promise<EcoPageFile> {
 		try {
 			return await requireAppRuntime(this.appConfig).moduleLoader.importModule<EcoPageFile>({
 				filePath: file,
-				rootDir: this.appConfig.rootDir,
 				outdir: `${resolveInternalExecutionDir(this.appConfig)}/.server-modules`,
 				bypassCache: options?.bypassCache,
 				transpileErrorMessage: (details) => `Error transpiling page file: ${details}`,

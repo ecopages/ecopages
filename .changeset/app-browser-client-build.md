@@ -4,4 +4,4 @@
 '@ecopages/ecopages-jsx': minor
 ---
 
-Build island and lazy-entry browser modules in one grouped multi-entry Rolldown graph (`ecopages-app-browser-client`) from the page client plan. Hydration scripts import the recorded output URLs, so two islands that import the same app module share one instance.
+Island and lazy-entry browser modules for a Page are emitted together. Hydration scripts use the emitted URLs, so islands that import the same app module share one browser module instance.

@@ -3,4 +3,4 @@
 'ecopages': minor
 ---
 
-Core records every file a build plugin loads. One reverse index maps those recorded inputs, module closures, and Processor watch roots to the Page Browser Graphs, HTML cache entries, and browser entrypoints that depend on them. The development watcher subscribes to that recorded set plus `additionalWatchPaths`, pages, and public assets, instead of guessing from the whole `src` tree.
+During development, a change to a recorded build input marks only dependent Pages, HTML documents, browser entrypoints, and server routes dirty for rebuild. Changes matched by `additionalWatchPaths` invalidate all cached HTML documents because Ecopages cannot know which Pages read those arbitrary files. Public assets continue to trigger a browser reload.

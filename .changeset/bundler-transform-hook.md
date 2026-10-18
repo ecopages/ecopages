@@ -1,5 +1,5 @@
 ---
-'@ecopages/core': patch
+'@ecopages/core': minor
 ---
 
-Run source transforms as bundler `transform` hooks so they keep source maps and still apply after first-wins `load` plugins.
+Build plugins can register source transforms through `EcoBuildPluginBuilder.transform`. The transform hook runs after a `load` plugin has supplied a module, so transformations still apply when a load plugin claims that file.

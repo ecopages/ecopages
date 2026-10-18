@@ -1,4 +1,4 @@
-import { RESOLVED_ASSETS_DIR } from '../config/constants.ts';
+import { RESOLVED_ASSETS_DIR } from '../constants.ts';
 
 /** On-disk work directory segment under {@link RESOLVED_ASSETS_DIR} for the bundled HMR client runtime. */
 export const HMR_RUNTIME_WORK_DIR_SEGMENT = 'hmr-runtime';

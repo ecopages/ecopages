@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { RESOLVED_ASSETS_DIR } from '../../../config/constants.ts';
+import { RESOLVED_ASSETS_DIR } from '../../../constants.ts';
 import { isPathInside } from '../../../utils/path-containment.ts';
 import { isProductionRuntime } from '../../../utils/runtime.ts';
 import { appLogger } from '../../../global/app-logger.ts';

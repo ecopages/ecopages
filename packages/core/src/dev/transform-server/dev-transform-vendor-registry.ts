@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 
-import { RESOLVED_ASSETS_VENDORS_DIR } from '../../config/constants.ts';
+import { RESOLVED_ASSETS_VENDORS_DIR } from '../../constants.ts';
 import { resolveAppBuildPlugins } from '../../build/runtime/build-request-policy.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-resolver.ts';

@@ -1,4 +1,4 @@
-import { RESOLVED_ASSETS_DIR, RESOLVED_ASSETS_VENDORS_DIR } from '../../../config/constants.ts';
+import { RESOLVED_ASSETS_DIR, RESOLVED_ASSETS_VENDORS_DIR } from '../../../constants.ts';
 import { deepMerge } from '../../../utils/deep-merge.ts';
 import type {
 	ContentScriptAsset,

@@ -2,8 +2,8 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { EcoPagesAppConfig, IClientBridge } from '../types/internal-types.ts';
-import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
-import { GENERATED_BASE_PATHS } from '../config/constants.ts';
+import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
+import { GENERATED_BASE_PATHS } from '../constants.ts';
 import { deepMerge } from '../utils/deep-merge.ts';
 
 export type {

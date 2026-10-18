@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STATUS_MESSAGE } from '../../../config/constants.ts';
+import { STATUS_MESSAGE } from '../../../constants.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 
 describe('FileSystemServerResponseFactory', () => {

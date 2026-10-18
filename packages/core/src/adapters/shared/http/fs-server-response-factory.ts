@@ -1,4 +1,4 @@
-import { STATUS_MESSAGE } from '../../../config/constants.ts';
+import { STATUS_MESSAGE } from '../../../constants.ts';
 import type { RouteRendererBody } from '../../../types/public-types.ts';
 
 /**

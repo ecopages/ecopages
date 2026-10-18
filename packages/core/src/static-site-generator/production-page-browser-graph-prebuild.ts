@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { isProductionRuntime } from '../utils/runtime.ts';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { PageParams } from '../types/contracts.ts';
@@ -39,7 +40,7 @@ export type ProductionPageBrowserGraphRouteInstance = {
  * unified pages-graph env flags.
  */
 export function shouldPrebuildProductionPageBrowserGraphs(): boolean {
-	return process.env.NODE_ENV === 'production';
+	return isProductionRuntime();
 }
 
 /**

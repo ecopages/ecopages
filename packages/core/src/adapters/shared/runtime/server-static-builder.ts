@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { isEcopagesEnvEnabled } from '../../../env.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT, RESOLVED_ASSETS_DIR } from '../../../constants.ts';
 import { appLogger } from '../../../global/app-logger.ts';
@@ -254,7 +255,7 @@ export class ServerStaticBuilder {
 			keepGoing: options?.keepGoing,
 		});
 
-		if (process.env.ECOPAGES_BENCH === '1' && process.env.ECOPAGES_BENCH_VERBOSE !== '1') {
+		if (isEcopagesEnvEnabled('ECOPAGES_BENCH') && !isEcopagesEnvEnabled('ECOPAGES_BENCH_VERBOSE')) {
 			this.logger.debug('Build completed');
 		} else {
 			this.logger.info('Build completed');

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { getEcopagesEnv } from '../../env.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { createAppRuntime } from './app-runtime.ts';
@@ -58,7 +59,9 @@ function resolveDirectories(userConfig: EcoPagesUserConfig) {
 }
 
 function resolveBaseUrl(baseUrl: string | undefined): string {
-	return baseUrl || process.env.ECOPAGES_BASE_URL || `http://${DEFAULT_ECOPAGES_HOSTNAME}:${DEFAULT_ECOPAGES_PORT}`;
+	return (
+		baseUrl || getEcopagesEnv('ECOPAGES_BASE_URL') || `http://${DEFAULT_ECOPAGES_HOSTNAME}:${DEFAULT_ECOPAGES_PORT}`
+	);
 }
 
 function resolveSitemap(sitemap: EcoPagesUserConfig['sitemap']): EcoPagesAppConfig['sitemap'] {

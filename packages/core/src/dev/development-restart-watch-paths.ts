@@ -1,9 +1,10 @@
 import path from 'node:path';
+import { getNodeEnvironment } from '../env.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { getDevEnvFileNames } from './development-restart.ts';
 
 /** Returns whether `filePath` is a supported project-level dotenv file. */
-export function isDevEnvFilePath(filePath: string, rootDir?: string, nodeEnv = process.env.NODE_ENV): boolean {
+export function isDevEnvFilePath(filePath: string, rootDir?: string, nodeEnv = getNodeEnvironment()): boolean {
 	if (!rootDir) {
 		return false;
 	}
@@ -23,7 +24,7 @@ export function isDevEnvFilePath(filePath: string, rootDir?: string, nodeEnv = p
  * The paths need not exist yet. Watching every supported name allows creating
  * or removing a dotenv file to restart the development process too.
  */
-export function resolveDevEnvFilePaths(rootDir?: string, nodeEnv = process.env.NODE_ENV): string[] {
+export function resolveDevEnvFilePaths(rootDir?: string, nodeEnv = getNodeEnvironment()): string[] {
 	if (!rootDir) {
 		return [];
 	}

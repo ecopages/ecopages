@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseCliArgs } from './parse-cli-args.ts';
+import { isDevelopmentRuntime, isProductionRuntime } from './runtime.ts';
 
 const originalArgv = [...process.argv];
 
@@ -8,9 +9,9 @@ describe('parseCliArgs', () => {
 		process.argv = [...originalArgv];
 	});
 
-	it('parses preview serve-only from env', () => {
+	it.each(['true', '1'])('parses preview serve-only from env value %s', (value) => {
 		vi.stubEnv('NODE_ENV', undefined);
-		vi.stubEnv('ECOPAGES_PREVIEW_SERVE_ONLY', 'true');
+		vi.stubEnv('ECOPAGES_PREVIEW_SERVE_ONLY', value);
 		process.argv = ['node', '/usr/local/bin/ecopages.js', 'preview'];
 
 		expect(parseCliArgs()).toMatchObject({
@@ -39,7 +40,7 @@ describe('parseCliArgs', () => {
 			build: true,
 			dev: false,
 		});
-		expect(process.env.NODE_ENV).toBe('production');
+		expect(isProductionRuntime()).toBe(true);
 	});
 
 	it('parses the keep-going build option', () => {
@@ -55,7 +56,7 @@ describe('parseCliArgs', () => {
 		expect(parseCliArgs()).toMatchObject({
 			dev: true,
 		});
-		expect(process.env.NODE_ENV).toBe('development');
+		expect(isDevelopmentRuntime()).toBe(true);
 	});
 
 	it('forces production NODE_ENV for preview when ambient env is development', () => {
@@ -66,7 +67,7 @@ describe('parseCliArgs', () => {
 			preview: true,
 			dev: false,
 		});
-		expect(process.env.NODE_ENV).toBe('production');
+		expect(isProductionRuntime()).toBe(true);
 	});
 
 	it('forces production NODE_ENV for start when ambient env is development', () => {
@@ -77,7 +78,7 @@ describe('parseCliArgs', () => {
 			start: true,
 			dev: false,
 		});
-		expect(process.env.NODE_ENV).toBe('production');
+		expect(isProductionRuntime()).toBe(true);
 	});
 
 	it('defaults to start when the bin is present without a subcommand', () => {
@@ -90,7 +91,7 @@ describe('parseCliArgs', () => {
 			build: false,
 			preview: false,
 		});
-		expect(process.env.NODE_ENV).toBe('production');
+		expect(isProductionRuntime()).toBe(true);
 	});
 
 	it('parses port and hostname flags', () => {

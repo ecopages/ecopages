@@ -6,6 +6,7 @@
 /// <reference types="@ecopages/core/declarations" />
 
 import { getEcoDocumentOwner } from '@ecopages/core/client';
+import { isProductionRuntime } from '@ecopages/core';
 import { fetchNavigationPage } from '@ecopages/core/client';
 import type { EcoComponentConfig } from '@ecopages/core';
 import { resolveEcoPageDataModuleUrl, resolveEcoPageDataProps } from '@ecopages/react/serialize-page-data-script';
@@ -114,7 +115,7 @@ function isReactRouteDocument(doc: Document): boolean {
  * Disabled in production where filenames have content hashes.
  */
 function addCacheBuster(url: string): string {
-	if (process.env.NODE_ENV === 'production') {
+	if (isProductionRuntime()) {
 		return url;
 	}
 	const separator = url.includes('?') ? '&' : '?';

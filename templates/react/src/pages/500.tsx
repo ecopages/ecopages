@@ -1,4 +1,4 @@
-import { eco } from '@ecopages/core';
+import { eco, isDevelopmentRuntime } from '@ecopages/core';
 import type { ErrorPageTemplateProps } from '@ecopages/core';
 import { useState, type ReactNode } from 'react';
 import { BaseLayout } from '@/layouts/base-layout';
@@ -13,7 +13,7 @@ export default eco.page<ErrorPageTemplateProps, ReactNode>({
 				<p className="error500__status">ERROR 500</p>
 				<h1>Something went wrong</h1>
 				<p>Our server hit an unexpected error. Please try again in a moment.</p>
-				{process.env.NODE_ENV === 'development' && (message || stack) ? (
+				{isDevelopmentRuntime() && (message || stack) ? (
 					<ErrorDiagnostics message={message} stack={stack} />
 				) : null}
 			</div>

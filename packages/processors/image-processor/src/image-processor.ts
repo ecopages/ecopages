@@ -3,13 +3,14 @@ import { writeHashedBrowserAsset } from '@ecopages/core/processor';
 import { mergeProcessorOptions } from '@ecopages/core/processor';
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
+import { isEcopagesEnvEnabled } from '@ecopages/core/processor';
 import sharp, { type Metadata } from 'sharp';
 import { ImageUtils } from './image-utils.ts';
 import type { ImageMap, ImageProcessorConfig } from './plugin.ts';
 import type { ImageAttributes, ImageSpecifications, ImageVariant } from './types.ts';
 
 const appLogger = new Logger('[@ecopages/image-processor]', {
-	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
+	debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG'),
 });
 
 /**
@@ -188,7 +189,7 @@ export class ImageProcessor {
 		).filter(Boolean) as [string, ImageSpecifications][];
 
 		appLogger.debugTimeEnd('Processing images');
-		if (process.env.ECOPAGES_BENCH === '1' && process.env.ECOPAGES_BENCH_VERBOSE !== '1') {
+		if (isEcopagesEnvEnabled('ECOPAGES_BENCH') && !isEcopagesEnvEnabled('ECOPAGES_BENCH_VERBOSE')) {
 			appLogger.debug(`Processed ${results.length} images`);
 		} else {
 			appLogger.info(`Processed ${results.length} images`);

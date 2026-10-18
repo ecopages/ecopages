@@ -1,6 +1,7 @@
 import type { EcoPagesElement } from '@ecopages/core';
 import {
 	IntegrationPlugin,
+	isDevelopmentRuntime,
 	mergeIntegrationOptions,
 	type EcoBuildPlugin,
 	type IntegrationRuntimeContext,
@@ -28,7 +29,7 @@ const defaultOptions: CompileOptions = {
 	format: 'detect',
 	outputFormat: 'program',
 	jsxRuntime: 'automatic',
-	development: process.env.NODE_ENV === 'development',
+	development: isDevelopmentRuntime(),
 };
 
 function assertStandaloneJsxImportSource(

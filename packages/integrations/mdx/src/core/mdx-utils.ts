@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { CompileOptions } from '@mdx-js/mdx';
+import { isDevelopmentRuntime } from '@ecopages/core/integration';
 import type { JsxImportSource } from './jsx-import-source.ts';
 
 export type { JsxImportSource, KnownJsxImportSource } from './jsx-import-source.ts';
@@ -104,7 +105,7 @@ export function resolveMdxCompilerOptions(
 		...compilerOptions,
 		jsxImportSource: options.jsxImportSource,
 		jsxRuntime: options.jsxRuntime ?? 'automatic',
-		development: process.env.NODE_ENV === 'development',
+		development: isDevelopmentRuntime(),
 	};
 
 	const resolvedRemark = mergePluginLists(remarkPlugins);

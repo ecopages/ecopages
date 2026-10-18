@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { getNodeEnvironment, isEcopagesEnvEnabled } from '../env.ts';
 import { DEFAULT_ECOPAGES_DIST_DIR, DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
 import { createProjectWatcherIgnorePredicate } from '../watchers/project-watcher-ignore.ts';
 import { resolveWorkspacePackageWatchRoots } from '../watchers/workspace-package-watch-roots.ts';
@@ -17,11 +18,11 @@ export const ECOPAGES_ENTRY_WATCH_ENV = 'ECOPAGES_ENTRY_WATCH';
 
 /** Returns whether the runtime's entry watcher owns config-module restarts. */
 export function entryWatcherOwnsConfig(env: NodeJS.ProcessEnv = process.env): boolean {
-	return env[ECOPAGES_ENTRY_WATCH_ENV] === '1';
+	return isEcopagesEnvEnabled(ECOPAGES_ENTRY_WATCH_ENV, env);
 }
 
 /** Relative dotenv filenames loaded by the CLI, in precedence order. */
-export function getDevEnvFileNames(nodeEnv = process.env.NODE_ENV): string[] {
+export function getDevEnvFileNames(nodeEnv = getNodeEnvironment()): string[] {
 	const envFiles = ['.env', '.env.local'];
 
 	if (nodeEnv) {

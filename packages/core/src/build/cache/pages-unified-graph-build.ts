@@ -2,11 +2,13 @@
  * Unified pages Rolldown graph (Phase A build + Phase C import).
  *
  * Enabled by default in production builds. Opt out with
- * `ECOPAGES_UNIFIED_PAGES_GRAPH=0`. Covers all static page template extensions
+ * `ECOPAGES_UNIFIED_PAGES_GRAPH=false` or `0`. Covers all static page template extensions
  * registered on the app config.
  */
 
 import path from 'node:path';
+import { isEcopagesEnvDisabled } from '../../env.ts';
+import { isProductionRuntime } from '../../utils/runtime.ts';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
@@ -53,11 +55,11 @@ export interface PagesUnifiedGraphCacheManifest {
  * True when the unified graph should build or serve prebuilt page modules.
  *
  * @remarks
- * Enabled by default in production builds. `ECOPAGES_UNIFIED_PAGES_GRAPH=0` opts out, which the
+ * Enabled by default in production builds. `ECOPAGES_UNIFIED_PAGES_GRAPH=false` or `0` opts out, which the
  * bench parity suite uses as its per-page build oracle.
  */
 export function shouldBuildPagesUnifiedGraph(): boolean {
-	return process.env.ECOPAGES_UNIFIED_PAGES_GRAPH !== '0' && process.env.NODE_ENV === 'production';
+	return !isEcopagesEnvDisabled('ECOPAGES_UNIFIED_PAGES_GRAPH') && isProductionRuntime();
 }
 
 /**

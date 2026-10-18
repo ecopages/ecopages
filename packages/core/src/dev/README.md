@@ -27,7 +27,7 @@ For a custom client package, use `defineDevTool` from `@ecopages/core/client`.
 
 Install the client package in the app project. Core resolves it from the application root and bundles it during watch mode.
 
-Disable per project with `devToolbar: { enabled: false }`, or per process with `ECOPAGES_DEV_TOOLBAR=false`.
+Disable per project with `devToolbar: { enabled: false }`, or per process with `ECOPAGES_DEV_TOOLBAR=false` or `0`.
 
 Server wiring: [dev-toolbar/README.md](../dev-toolbar/README.md) (manifest and the toolbar runtime entry that the HMR manager bundles, serves and injects). Bring-your-own toolbars export `src/bootstrap.ts` and use the same `devToolbar.package` config key.
 

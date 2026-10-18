@@ -8,3 +8,4 @@ export {
 } from './eco/component-identity.ts';
 export { attachDiscoveredDependencies } from './eco/discovered-dependencies.ts';
 export { mergePageDependencies } from './eco/page-dependency-contributions.ts';
+export { isDevelopmentRuntime, isProductionRuntime } from './browser-env.ts';

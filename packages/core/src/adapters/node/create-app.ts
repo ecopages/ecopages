@@ -25,6 +25,7 @@ import {
 import type { ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { ECOPAGES_DEV_RESTART_EXIT_CODE, ECOPAGES_DEV_RESTART_REASON_ENV } from '../../dev/development-restart.ts';
+import { getEcopagesEnv } from '../../env.ts';
 import { resolveRuntimeBinding } from '../shared/runtime/runtime-app-bootstrap.ts';
 import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
 import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
@@ -672,7 +673,7 @@ export class EcopagesApp implements AsyncDisposable {
 
 		startupTrace.markServerListening();
 
-		const restartReason = process.env[ECOPAGES_DEV_RESTART_REASON_ENV];
+		const restartReason = getEcopagesEnv(ECOPAGES_DEV_RESTART_REASON_ENV);
 		if (restartReason) {
 			appLogger.info(`Development server restarted (${restartReason}).`);
 			delete process.env[ECOPAGES_DEV_RESTART_REASON_ENV];

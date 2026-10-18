@@ -2,10 +2,10 @@
  * Production runtime check for React bundle and hydration policy.
  *
  * @remarks
- * Matches core `isProductionRuntime` (`NODE_ENV === 'production'`) without a new
- * `@ecopages/core` export. Keeping this boundary shared ensures hosted-development
- * runtime imports and production bundle optimizations use the same definition.
+ * Uses the same runtime mode helper as the build and request pipelines.
  */
+import { isProductionRuntime } from '@ecopages/core/build';
+
 export function isReactProductionRuntime(): boolean {
-	return process.env.NODE_ENV === 'production';
+	return isProductionRuntime();
 }

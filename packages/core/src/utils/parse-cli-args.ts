@@ -1,4 +1,5 @@
 import { parseArgs } from 'node:util';
+import { isEcopagesEnvEnabled, setRuntimeModeForCliCommand } from '../env.ts';
 import { getRuntimeArgv } from './runtime.ts';
 
 /**
@@ -59,14 +60,6 @@ function deriveCliCommandFlags(
 	return { isStartCommand, isDevCommand, isBuildCommand, isPreviewCommand };
 }
 
-function applyNodeEnvForCliCommand(isDevCommand: boolean): void {
-	if (isDevCommand) {
-		process.env.NODE_ENV ??= 'development';
-	} else {
-		process.env.NODE_ENV = 'production';
-	}
-}
-
 /**
  * Parses command line arguments for the server.
  * It returns {@link ReturnParseCliArgs}
@@ -96,13 +89,13 @@ export function parseCliArgs(): ReturnParseCliArgs {
 		build: isBuildCommand,
 		start: isStartCommand,
 		dev: isDevCommand,
-		serveOnly: !!values['serve-only'] || process.env.ECOPAGES_PREVIEW_SERVE_ONLY === 'true',
+		serveOnly: !!values['serve-only'] || isEcopagesEnvEnabled('ECOPAGES_PREVIEW_SERVE_ONLY'),
 		keepGoing: !!values['keep-going'],
 		port: values.port ? Number(values.port) : undefined,
 		hostname: values.hostname,
 	};
 
-	applyNodeEnvForCliCommand(isDevCommand);
+	setRuntimeModeForCliCommand(isDevCommand);
 
 	return parsedCommandOptions;
 }

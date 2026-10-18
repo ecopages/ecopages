@@ -28,6 +28,7 @@ import type {
 import { id as idFilter, include } from 'rolldown/filter';
 import { escapeRegExp } from '../../utils/regex-escaping.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
+import { isEcopagesEnvEnabled } from '../../env.ts';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 import { isServerOnlyModuleSpecifier } from '../contracts/server-only-specifier.ts';
@@ -543,7 +544,7 @@ async function buildRolldownInputOptions(
 		transform: buildRolldownTransformOptions(options),
 		resolve: options.conditions ? { conditionNames: options.conditions } : undefined,
 		treeshake: typeof options.treeshaking === 'boolean' ? options.treeshaking : true,
-		...(process.env.ECOPAGES_PROFILE_BUILD === '1'
+		...(isEcopagesEnvEnabled('ECOPAGES_PROFILE_BUILD')
 			? {}
 			: {
 					checks: {

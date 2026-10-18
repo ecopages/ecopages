@@ -25,7 +25,7 @@ import { createRouteModuleReuseIdentity, resolvePageModuleOutputFileName } from 
 import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
 import { resolveRouteModuleDependencyPaths } from './route-module-dependency-hasher.ts';
 import { assertBuildSucceeded } from '../../build/build-log.ts';
-import { isProductionRuntime } from '../../utils/runtime.ts';
+import { isDevelopmentRuntime, isProductionRuntime } from '../../utils/runtime.ts';
 
 interface PageModuleImportBaseOptions {
 	filePath: string;
@@ -406,7 +406,7 @@ export class PageModuleImportService {
 }
 
 function shouldAddRuntimeUpdateQuery(): boolean {
-	return process.env.NODE_ENV === 'development';
+	return isDevelopmentRuntime();
 }
 
 /**

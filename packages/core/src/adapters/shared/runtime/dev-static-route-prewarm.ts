@@ -1,3 +1,4 @@
+import { getEcopagesEnv } from '../../../env.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 
 export type DevStaticRoutePrewarmOptions = {
@@ -9,7 +10,7 @@ export type DevStaticRoutePrewarmOptions = {
 const LOG_PREFIX = '[ecopages:dev-prewarm]';
 
 function resolvePrewarmConcurrency(): number {
-	const fromEnv = process.env.ECOPAGES_DEV_PREWARM_STATIC_ROUTES_PARALLELISM;
+	const fromEnv = getEcopagesEnv('ECOPAGES_DEV_PREWARM_STATIC_ROUTES_PARALLELISM');
 	if (fromEnv) {
 		const parsed = Number(fromEnv);
 		if (Number.isFinite(parsed) && parsed > 0) {

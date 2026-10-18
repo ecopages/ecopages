@@ -1,4 +1,4 @@
-import { eco } from '@ecopages/core';
+import { eco, isDevelopmentRuntime } from '@ecopages/core';
 import { RuiButton } from '@ecopages/radiant-ui/button';
 import { RuiHeading, RuiHeadingDescription, RuiHeadingEyebrow, RuiHeadingTitle } from '@ecopages/radiant-ui/heading';
 import { ErrorDiagnostics } from '@/components/error-diagnostics';
@@ -13,7 +13,7 @@ export default eco.page<ErrorPageTemplateProps, JsxRenderable>({
 	},
 
 	render: ({ message, stack }) => {
-		const showDiagnostics = process.env.NODE_ENV === 'development' && Boolean(message || stack);
+		const showDiagnostics = isDevelopmentRuntime() && Boolean(message || stack);
 
 		return (
 			<div class="error500 unstyled">

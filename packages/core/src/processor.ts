@@ -14,3 +14,12 @@ export {
 	resolveGeneratedPath,
 	writeGeneratedTypesPackage,
 } from './plugins/processor.ts';
+export {
+	getEcopagesEnv,
+	isDevelopmentRuntime,
+	isEcopagesEnvDisabled,
+	isEcopagesEnvEnabled,
+	isProductionRuntime,
+	type EcopagesBooleanEnvironmentVariable,
+	type EcopagesEnvironmentVariable,
+} from './env.ts';

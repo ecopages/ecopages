@@ -8,7 +8,7 @@
  */
 
 import type { EcoBuildPlugin } from '@ecopages/core/integration';
-import { createBrowserRuntimePlugin } from '@ecopages/core/build';
+import { createBrowserRuntimePlugin, isDevelopmentRuntime } from '@ecopages/core/build';
 import { DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME } from '@ecopages/core/build';
 import {
 	buildBrowserRuntimeAssetUrl,
@@ -68,7 +68,7 @@ export class RuntimeBundleService {
 	}
 
 	private get isDevelopment(): boolean {
-		return process.env.NODE_ENV === 'development';
+		return isDevelopmentRuntime();
 	}
 
 	private getCurrentRuntimeMode(): RuntimeMode {

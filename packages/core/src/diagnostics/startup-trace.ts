@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { resolveBuildParallelism } from '../build/build-parallelism.ts';
 import { getProcessRuntime } from '../utils/runtime.ts';
+import { getEcopagesEnv, isEcopagesEnvEnabled } from '../env.ts';
 
 export type StartupTracePhase =
 	| 'config-ready'
@@ -49,7 +50,7 @@ export type StartupTraceReport = {
 const LOG_PREFIX = '[ecopages:startup-trace]';
 
 function isStartupTraceEnabled(): boolean {
-	return process.env.ECOPAGES_STARTUP_TRACE === 'true' || process.env.ECOPAGES_LOGGER_DEBUG === 'true';
+	return isEcopagesEnvEnabled('ECOPAGES_STARTUP_TRACE') || isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG');
 }
 
 function wallMsSinceProcessStart(): number {
@@ -61,7 +62,7 @@ function writeTraceLine(message: string): void {
 }
 
 function resolveStartupTraceJsonPath(): string | undefined {
-	const configured = process.env.ECOPAGES_STARTUP_TRACE_JSON?.trim();
+	const configured = getEcopagesEnv('ECOPAGES_STARTUP_TRACE_JSON')?.trim();
 	return configured && configured.length > 0 ? configured : undefined;
 }
 

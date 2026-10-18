@@ -19,6 +19,8 @@ The current core package is organized around app-owned runtime state and explici
 
 The important ownership rules are:
 
+- Core runtime mode and `ECOPAGES_*` settings are read through `src/env.ts`. Its typed accessors define the supported variable names, parse `true` and `1` as enabled and `false` and `0` as disabled, and provide the runtime-mode helpers used by core, integrations and Processors. The user-facing settings are documented in the [CLI reference](../ecopages/README.md#environment--runtime-options).
+
 - Every `loadEcoPagesConfig()` call imports the config module through the module cache, then finalizes a distinct app config and `AppRuntime`. Build state, HTML Page warnings, custom-element preload scopes, and request-pipeline metrics stay with that runtime; pure memo caches remain shared. Server startup refreshes the app's build queue via `installBuildQueue(appConfig)`.
 - Build requests declare server or browser environment independently of scheduling. Integrations and Processors contribute one environment-selected plugin list; config rejects duplicate names within an environment. Core's own transforms preserve source locations and the bridge composes chained maps. See [Build Layer](src/build/README.md) and [Plugin Contracts](src/plugins/README.md) for migration.
 - Component identity attribution is one build plugin, shared by server, browser, and HMR compilation paths: after a lexical `eco.` gate, it uses Oxc to wrap supported factory options with `bindComponentIdentity()`, which factories retain as `config.identity`.
@@ -100,14 +102,14 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 
 Core source moves from shared foundations through app assembly. A lower layer may import within its own layer or from an earlier layer; it must not import a later layer.
 
-| Layer                | Folders and files                                                                                                 |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Foundation           | `types/`, `constants.ts`, `errors/`, `global/`, `utils/`, `html/`, `client/`, `islands/`, `validation/`           |
-| Contracts            | `plugins/`, `eco/`                                                                                                |
-| Build                | `build/`, `assets/`, `cache/`, `diagnostics/`                                                                     |
-| Rendering            | `router/`, `route-renderer/`, `html-pages/`, `page-cache/`, `static-site-generator/`                              |
-| Development and HMR  | `dev/`, `watchers/`, `dev-toolbar/`, `hmr/`                                                                       |
-| Application assembly | `adapters/`, `config/`, `index.ts`, `index.browser.ts`, `integration.ts`, `processor.ts`, `build.ts`, `client.ts` |
+| Layer                | Folders and files                                                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Foundation           | `types/`, `constants.ts`, `env.ts`, `browser-env.ts`, `errors/`, `global/`, `utils/`, `html/`, `client/`, `islands/`, `validation/` |
+| Contracts            | `plugins/`, `eco/`                                                                                                                  |
+| Build                | `build/`, `assets/`, `cache/`, `diagnostics/`                                                                                       |
+| Rendering            | `router/`, `route-renderer/`, `html-pages/`, `page-cache/`, `static-site-generator/`                                                |
+| Development and HMR  | `dev/`, `watchers/`, `dev-toolbar/`, `hmr/`                                                                                         |
+| Application assembly | `adapters/`, `config/`, `index.ts`, `index.browser.ts`, `integration.ts`, `processor.ts`, `build.ts`, `client.ts`                   |
 
 The guard in `scripts/check-portability.ts` checks runtime module references inside `packages/core/src`, including `import()`, `require()`, and resolver calls. Inline `type` modifiers count when TypeScript preserves their side-effect imports under `verbatimModuleSyntax`; explicit `import type` and `export type` declarations are erased and excluded. Test files and fixtures are excluded too. Existing upward references are listed in `scripts/core-layering-allowlist.json` with the issue that removes each edge. The allowlist only shrinks: the check fails for an unlisted upward reference and for an entry whose reference has gone away.
 

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { isDevelopmentRuntime, isProductionRuntime } from '../../utils/runtime.ts';
 import type { BuildOptions } from '../../build/build-adapter.ts';
 import { createBuildRequestIdentity } from '../../build/runtime/build-request-identity.ts';
 import type { PageModuleBuildImportOptions } from './page-module-import.service.ts';
@@ -40,7 +41,7 @@ export function normalizeRouteModuleCachePath(filePath: string): string {
  * Returns whether the in-process route-module cache should record this import.
  */
 export function shouldCacheRouteModuleBuild(options: PageModuleBuildImportOptions): boolean {
-	if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'development') {
+	if (!isProductionRuntime() && !isDevelopmentRuntime()) {
 		return false;
 	}
 

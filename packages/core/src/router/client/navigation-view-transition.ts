@@ -16,14 +16,37 @@ type NavigationViewTransition = {
 	updateCallbackDone: Promise<void>;
 };
 
-/** Wraps a router-provided page swap in the shared named-view-transition lifecycle. */
+/**
+ * @remarks
+ * Each navigation supersedes cleanup from earlier transitions, including commits that skip animation.
+ */
+let activeNavigationViewTransitionId = 0;
+
+/**
+ * Wraps a router-provided page swap in the shared named-view-transition lifecycle.
+ * @remarks Return `false` when the update did not commit; a void result counts as a committed update.
+ */
 export async function runNavigationViewTransition(
-	update: () => void | Promise<void>,
+	update: () => void | boolean | Promise<void | boolean>,
 	options: NavigationViewTransitionOptions,
 ): Promise<void> {
+	const transitionId = ++activeNavigationViewTransitionId;
 	const incomingDocument = options.incomingDocument ?? document;
+	const updateWithoutTransition = async () => {
+		try {
+			const committed = (await update()) !== false;
+			if (!committed && transitionId === activeNavigationViewTransitionId) {
+				clearViewTransitionNames();
+			}
+		} catch (error) {
+			if (transitionId === activeNavigationViewTransitionId) {
+				clearViewTransitionNames();
+			}
+			throw error;
+		}
+	};
 	if (!options.enabled) {
-		await update();
+		await updateWithoutTransition();
 		return;
 	}
 
@@ -32,20 +55,30 @@ export async function runNavigationViewTransition(
 		typeof document.startViewTransition !== 'function' ||
 		!navigationHasNamedViewTransitions(document, incomingDocument)
 	) {
-		await update();
+		await updateWithoutTransition();
 		return;
 	}
 
 	applyViewTransitionNames();
+	let committed = false;
 	const transition = document.startViewTransition(async () => {
-		await update();
-		applyViewTransitionNames();
+		committed = (await update()) !== false;
+		if (committed && transitionId === activeNavigationViewTransitionId) {
+			applyViewTransitionNames();
+		}
 	}) as NavigationViewTransition;
 
 	void transition.ready.catch(logViewTransitionError);
-	void transition.finished.catch(logViewTransitionError).finally(() => clearViewTransitionNames());
+	void transition.finished.catch(logViewTransitionError).finally(() => {
+		if (transitionId === activeNavigationViewTransitionId) {
+			clearViewTransitionNames();
+		}
+	});
 
 	await transition.updateCallbackDone;
+	if (!committed && transitionId === activeNavigationViewTransitionId) {
+		clearViewTransitionNames();
+	}
 }
 
 function logViewTransitionError(error: unknown): void {

@@ -98,6 +98,7 @@ describe('commitNavigationPage', () => {
 	});
 
 	it('does not prepare or swap a page after a before-swap listener requests reload', async () => {
+		document.title = 'Current';
 		const reloadRequested = vi.fn();
 		const swap = vi.fn();
 		const handleBeforeSwap = (event: Event) => {
@@ -119,7 +120,7 @@ describe('commitNavigationPage', () => {
 			expect(result).toBe('reload-requested');
 			expect(reloadRequested).toHaveBeenCalledOnce();
 			expect(swap).not.toHaveBeenCalled();
-			expect(document.title).toBe('');
+			expect(document.title).toBe('Current');
 		} finally {
 			document.removeEventListener(ECO_NAVIGATION_LIFECYCLE_EVENTS.BEFORE_SWAP, handleBeforeSwap);
 		}

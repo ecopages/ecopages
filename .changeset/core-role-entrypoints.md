@@ -2,7 +2,7 @@
 '@ecopages/core': minor
 ---
 
-**Breaking:** Core now publishes role-based entries only. Imports below must move to their listed entry; the `@ecopages/codemod` package provides `transform:core-entrypoints` to update source imports.
+**Breaking:** Core now publishes role-based entries only. Imports below must move to their listed entry. The source transform in `packages/codemod` rewrites imports whose requested names exist in the destination entry and reports unresolved names for manual migration. `@ecopages/codemod` is an internal workspace package and is not published to npm; see its README for how to run it from the Ecopages repository.
 
 - `@ecopages/core/assets/hashed-browser-asset` -> `@ecopages/core/processor`
 - `@ecopages/core/build/browser-runtime-manifest` -> `@ecopages/core/build`
@@ -26,7 +26,7 @@
 - `@ecopages/core/dev/development-restart` -> `@ecopages/core/build`
 - `@ecopages/core/dev/transform-server` -> `@ecopages/core/integration`
 - `@ecopages/core/diagnostics/request-pipeline-metrics` -> `@ecopages/core/build`
-- `@ecopages/core/eco/page-layout-normalization` -> `@ecopages/core/integration`
+- `@ecopages/core/eco/page-layout-normalization` -> `@ecopages/core/client`
 - `@ecopages/core/hash` -> `@ecopages/core/build`
 - `@ecopages/core/hmr/hmr-entrypoint-output` -> `@ecopages/core/integration`
 - `@ecopages/core/hmr/hmr-registered-entrypoints-context` -> `@ecopages/core/integration`

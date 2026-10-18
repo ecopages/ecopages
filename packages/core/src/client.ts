@@ -1,8 +1,39 @@
-export { manageWindowScroll } from './client/scroll.ts';
-export { applyViewTransitionNames, ensureRootViewTransitionStyles } from './client/view-transitions.ts';
+export { manageWindowScroll, type ManageWindowScrollOptions, type WindowScrollBehavior } from './client/scroll.ts';
+export {
+	applyViewTransitionNames,
+	clearViewTransitionNames,
+	ensureRootViewTransitionStyles,
+	navigationHasNamedViewTransitions,
+} from './client/view-transitions.ts';
 export { ensurePageConfigLayouts } from './eco/page-layout-normalization.ts';
+export { type DefineDevToolOptions, defineDevTool } from './dev-toolbar/define-dev-tool.ts';
 export * from './dev-toolbar/build-error-contract.ts';
-export { DEV_MANIFEST_ELEMENT_ID } from './dev-toolbar/dev-toolbar-manifest-contract.ts';
+export {
+	DEV_MANIFEST_ELEMENT_ID,
+	type DevManifestAsset,
+	type DevManifestPageBrowserGraph,
+	type EcoDevManifest,
+} from './dev-toolbar/dev-toolbar-manifest-contract.ts';
+export {
+	isNonExecutableHeadScript,
+	isRerunScript,
+	shouldPersistExecutableInlineHeadScript,
+} from './client/navigation-scripts/classification.ts';
+export {
+	getNavigationScriptIdentity,
+	type NavigationScriptIdentity,
+	type NavigationScriptIdentitySource,
+} from './client/navigation-scripts/identity.ts';
+export {
+	getRegisteredRerunScript,
+	RERUN_SRC_ATTR,
+	type RerunScriptCallback,
+} from './client/navigation-scripts/registry.ts';
+export {
+	collectRerunScripts,
+	type PendingRerunScript,
+	toRerunScriptActivation,
+} from './client/navigation-scripts/rerun-queue.ts';
 export {
 	type EcoPendingNavigationIntent,
 	getAnchorFromNavigationEvent,

@@ -49,10 +49,10 @@ Start here for package-level architecture:
 - `packages/core/README.md`: overall core architecture and ownership model
 - `packages/core/src/config/README.md`: config build and finalized app-owned runtime state
 - `packages/core/src/plugins/README.md`: integration and processor contracts
-- `packages/core/src/build/README.md`: build adapter, executor, and dev-build coordination
-- `packages/core/src/services/README.md`: shared runtime services, dev graph, invalidation, and browser/server seams
+- `packages/core/src/build/README.md`: build adapter, app-scoped server module loading, executor, and dev-build coordination
+- `packages/core/src/services/README.md`: shared runtime services, asset processing, caching, and request validation
 - `packages/core/src/adapters/README.md`: HTTP host. The process can be Node or Bun.
-- `packages/core/src/dev/README.md`: dev transform server and on-demand client delivery
+- `packages/core/src/dev/README.md`: development invalidation, dev transform server, and on-demand client delivery
 - `packages/core/src/hmr/README.md`: HMR strategy layer and build error presentation
 - `packages/core/src/dev-toolbar/README.md`: custom toolbar clients and build error event contract
 - `packages/dev-toolbar/README.md`: reference Dev Toolbar apps, including build errors

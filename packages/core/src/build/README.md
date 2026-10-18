@@ -45,6 +45,7 @@ Each finalized `EcoPagesAppConfig` owns one `AppRuntime` with its build adapter,
 build/
   build-adapter.ts              adapter factories and runtime plugin setup re-exports
   build-parallelism.ts           shared build and static-export concurrency limit
+  server/                        app-scoped source loading and route-module caches
   server-module.ts              builds an independent server module through the app request policy
   app-build-manifest-runtime.ts contributor collection at startup
   contracts/                    EcoBuildPlugin, BuildOptions, AppBuildManifest
@@ -60,6 +61,7 @@ build/
 - `runtime/build-queue.ts`: the `BuildQueue` and its installation on `AppRuntime.buildQueue`.
 - `runtime/build-request-policy.ts`: server/browser request constructors and plugin collision rules.
 - `runtime/build-request-identity.ts` / `cache/cache-keys.ts`: canonical request identity and shared cache fingerprints.
+- `server/README.md`: app-scoped module imports, route-module caches, dependency tracking, and development invalidation.
 - `contracts/build-types.ts`: the `EcoBuildPlugin` contract used by integrations and processors. `onLoad` receives the loaded `path` and `namespace`, and `loader` is one of `js`, `jsx`, `ts`, `tsx` or `object`.
 - `cache/build-input-dependency-index.ts`: one reverse index from recorded filesystem inputs to Page Browser Graphs, HTML cache entries, browser entrypoints, and server route modules. Plugin loads and module closures travel on each `BuildResult`; cache owners bind those inputs to the result they retain. Processor watch roots also feed the index. The Project Watcher subscribes to that set plus `additionalWatchPaths`. The Rolldown adapter captures the active index before handing hooks to Rolldown, then passes an explicit per-build recorder through the bridge because hook callbacks do not inherit the caller's AsyncLocalStorage context.
 - `contracts/server-only-specifier.ts`: the dependency-free `.server` naming predicate, exported at `@ecopages/core/build/contracts/server-only-specifier` for Integrations and browser code.

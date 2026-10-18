@@ -15,11 +15,11 @@ import {
 } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
 import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../services/cache/page-cache-service.ts';
-import { AppModuleLoader } from '../services/module-loading/app-module-loader.service.ts';
+import { AppModuleLoader } from '../build/server/app-module-loader.service.ts';
 import {
 	clearAppDevelopmentRouteModuleBuildCaches,
 	getSharedRouteModuleBuildCache,
-} from '../services/module-loading/route-module-build-cache-registry.ts';
+} from '../build/server/route-module-build-cache-registry.ts';
 import { createAppRuntime, requireAppRuntime } from './app-runtime.ts';
 import { finalizeEcoPagesConfig } from './finalize-config.ts';
 

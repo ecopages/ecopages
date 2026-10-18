@@ -103,7 +103,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/config/README.md`: config finalization and app-owned runtime/build state
 - `src/diagnostics/README.md`: per-app request-pipeline metrics and the startup trace
 - `src/plugins/README.md`: integration and processor authoring contracts
-- `src/build/README.md`: build adapter, executor, shared `.server` browser import guard, development build coordination, standalone Node server packaging and its deploy layout
+- `src/build/README.md`: build adapter, app-scoped server module loading, shared `.server` browser import guard, development build coordination, standalone Node server packaging and its deploy layout
 - `src/services/README.md`: cross-cutting runtime services and orchestration helpers, including request schema validation, per-render HTML transformation inputs and escaped asset tags
 - `src/adapters/README.md`: Node HTTP host and shared adapter boundaries
 - `src/dev/README.md`: development invalidation, dev transform server, in-memory on-demand vendor bundles, and client delivery (including workspace-package `@fs` URLs)

@@ -7,8 +7,8 @@ import { fileSystem } from '@ecopages/file-system';
 import type { BuildOptions } from './build-adapter.ts';
 import { collectBuildEntryInputPaths, collectBuildOutputImports, getBuildEntryOutput } from './build-graph.ts';
 import { RolldownBuildAdapter } from './rolldown/rolldown-build-adapter.ts';
-import { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
-import { resolveRouteModuleDependencyPaths } from '../services/module-loading/route-module-dependency-hasher.ts';
+import { RouteModuleBuildCache } from './server/route-module-build-cache.store.ts';
+import { resolveRouteModuleDependencyPaths } from './server/route-module-dependency-hasher.ts';
 import { assertBuildSucceeded } from './build-log.ts';
 
 let root: string;

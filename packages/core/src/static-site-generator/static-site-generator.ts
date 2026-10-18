@@ -23,7 +23,7 @@ import {
 	prepareExplicitStaticRender,
 	resolveExplicitViewRenderer,
 } from '../route-renderer/explicit-view-render-preparation.ts';
-import { getServerModuleBuildCacheOutdir } from '../services/module-loading/route-module-build-cache-registry.ts';
+import { getServerModuleBuildCacheOutdir } from '../build/server/route-module-build-cache-registry.ts';
 import type { StaticExportContext, StaticExportRelease } from './static-export-context.ts';
 import {
 	ensureIntegrationRuntimeReady,

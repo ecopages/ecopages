@@ -14,8 +14,8 @@ import {
 import {
 	getServerModuleBuildCacheOutdir,
 	getSharedRouteModuleBuildCache,
-} from '../../services/module-loading/route-module-build-cache-registry.ts';
-import { RouteModuleBuildCache } from '../../services/module-loading/route-module-build-cache.store.ts';
+} from '../../build/server/route-module-build-cache-registry.ts';
+import { RouteModuleBuildCache } from '../../build/server/route-module-build-cache.store.ts';
 import { PageCacheService } from '../../services/cache/page-cache-service.ts';
 
 class StylesheetProcessor extends Processor {

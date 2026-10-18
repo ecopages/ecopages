@@ -16,6 +16,13 @@ export type PageAssetInjection = {
 	contributions?: HtmlDocumentContribution[];
 };
 
+/**
+ * Rewrites rendered HTML with processed assets and per-render document contributions.
+ *
+ * @remarks
+ * Asset deduplication currently comes from the higher Build layer; #556 tracks moving this generic
+ * operation to a lower shared utility.
+ */
 export class HtmlTransformerService {
 	private formatAttributes(attrs?: Record<string, string>): string {
 		if (!attrs) return '';

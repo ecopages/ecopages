@@ -1,5 +1,7 @@
 # Build Layer
 
+**Layer:** Build.
+
 The build layer is the bundler contract for Ecopages. Rolldown is the bundled adapter.
 
 ## Contents

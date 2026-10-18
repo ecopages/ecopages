@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { requireAppRuntime } from '../../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../../types/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { BuildAdapter, BuildExecutor, BuildOptions, BuildResult, BuildSuccess } from '../build-adapter.ts';
 import { resolveBuildParallelism } from '../build-parallelism.ts';

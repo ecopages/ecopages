@@ -1,5 +1,7 @@
 # Router Layer
 
+**Layer:** Rendering.
+
 This directory contains route discovery, matching, and browser-side navigation infrastructure.
 
 ## Purpose

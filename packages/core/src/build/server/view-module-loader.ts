@@ -4,7 +4,7 @@ import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoPageComponent, ViewLoader } from '../../types/public-types.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
-import { requireAppRuntime } from '../../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../../types/app-runtime.ts';
 
 function resolveViewModuleOnDisk(filePath: string, templatesExt: readonly string[]): string {
 	if (fileSystem.exists(filePath)) {

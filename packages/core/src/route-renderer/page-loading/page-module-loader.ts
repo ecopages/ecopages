@@ -9,7 +9,7 @@ import type {
 	EcoPageComponent,
 } from '../../types/public-types.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { requireAppRuntime } from '../../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../../types/app-runtime.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { HttpError } from '../../errors/http-error.ts';
 

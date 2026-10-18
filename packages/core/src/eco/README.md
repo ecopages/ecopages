@@ -1,5 +1,7 @@
 # `eco` Namespace
 
+**Layer:** Contracts.
+
 A unified API for defining components, pages, and page data in EcoPages.
 
 ## Overview

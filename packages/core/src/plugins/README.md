@@ -1,5 +1,7 @@
 # Plugin Contracts
 
+**Layer:** Contracts.
+
 This directory contains the authoring contracts for Ecopages integrations, processors, and related plugin-facing runtime declarations.
 
 ## Purpose

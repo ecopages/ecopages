@@ -1,5 +1,7 @@
 # Static Site Generation
 
+**Layer:** Rendering.
+
 This directory contains the static-build execution path used when Ecopages renders pages ahead of time.
 
 ## Purpose

@@ -1,5 +1,7 @@
 # Dev toolbar (core)
 
+**Layer:** Development and HMR.
+
 Server-side wiring for the development-only in-browser inspector. Public docs: [Dev toolbar](/docs/core/dev-toolbar).
 
 ## Boundaries

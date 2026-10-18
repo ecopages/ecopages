@@ -33,7 +33,7 @@ import { NodeRuntimeHost, type NodeRuntimeServeOptions } from './runtime-host.ts
 import { createNodeServerAdapter, type NodeServerAdapter, type NodeServerAdapterParams } from './server-adapter.ts';
 import type { NodeServerInstance } from './server-adapter.ts';
 import { resolveAppStartRoutes } from '../../utils/ecopages-route-info.ts';
-import { requireAppRuntime } from '../../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../../types/app-runtime.ts';
 import { createViewModuleLoader } from '../../build/server/view-module-loader.ts';
 import { invariant } from '../../utils/invariant.ts';
 

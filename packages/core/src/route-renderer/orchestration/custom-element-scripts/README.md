@@ -1,5 +1,7 @@
 # Custom element SSR script preload
 
+**Layer:** Rendering.
+
 Shared orchestration for `dependencies.scripts` entries marked `ssr: true`.
 
 Lit and Ecopages JSX construct a {@link CustomElementScriptPreloader} with a stable `cacheScope` inside the app's `AppRuntime`. The scope deduplicates imports across concurrent renders for that app, and dev invalidation clears only that app's preload state. Two apps may use the same integration scope name without sharing preload history.

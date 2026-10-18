@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { requireAppRuntime } from '../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../types/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { PageParams } from '../types/public-types.ts';
 import type { PageRendererResolver } from '../route-renderer/route-renderer.ts';

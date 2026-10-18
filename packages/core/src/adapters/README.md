@@ -1,5 +1,7 @@
 # Runtime Adapters
 
+**Layer:** Application assembly.
+
 This directory contains the runtime-host integration layer for Ecopages.
 
 ## Purpose

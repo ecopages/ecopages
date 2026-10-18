@@ -1,5 +1,7 @@
 # Asset Processing
 
+**Layer:** Build.
+
 This directory owns shared browser-build coordination and processed-asset pipelines.
 
 Asset processing reads per-app state from the `AppRuntime` installed during config finalization. Each Integration owns an `AssetProcessingService` and its processed-asset cache. App-wide browser builds use the shared build queue, so static export can combine route assets before SSR requests.

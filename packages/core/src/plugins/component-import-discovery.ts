@@ -188,6 +188,13 @@ function isFactoryExport(
 	return result;
 }
 
+/**
+ * Component dependencies discovered from a source module.
+ *
+ * @remarks
+ * Parsing currently uses the shared Build-layer module cache; #556 tracks moving the parser contract
+ * into the plugin contracts layer.
+ */
 export type DiscoveredImports = {
 	components: string[];
 	stylesheets: string[];

@@ -1,3 +1,5 @@
+**Layer:** Development and HMR.
+
 Development-only browser tooling is opt-in per application.
 
 ## Development invalidation

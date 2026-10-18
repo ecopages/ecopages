@@ -1,5 +1,7 @@
 # Island host contract
 
+**Layer:** Foundation.
+
 Hydratable component instances stamp a small, integration-agnostic attribute set on their SSR root so devtools (and future runtime features) can discover islands without integration-specific selectors.
 
 ## Attributes

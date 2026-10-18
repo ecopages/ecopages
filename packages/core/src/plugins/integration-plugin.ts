@@ -3,7 +3,7 @@ import {
 	createBrowserRuntimeManifest,
 	type BrowserRuntimeManifest,
 } from '../build/browser/browser-runtime-manifest.ts';
-import type { AppRuntime } from '../config/assembly/app-runtime.ts';
+import type { AppRuntime } from '../types/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { EcoPageFile, EcoPagesElement } from '../types/public-types.ts';
 import type {
@@ -37,6 +37,10 @@ export type {
  *
  * Ecopages keeps one heterogeneous integration list, while each plugin and
  * renderer still owns its framework-specific render payload type internally.
+ *
+ * @remarks
+ * The plugin contract currently constructs the Build-layer asset service and runtime manifest; #556
+ * tracks moving those implementations behind the plugin contracts layer.
  */
 export type AnyIntegrationPlugin = IntegrationPlugin<unknown>;
 

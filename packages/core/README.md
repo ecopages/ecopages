@@ -96,11 +96,29 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 - `createApp()` resolves config and CLI mode once, then returns the concrete `EcopagesApp`, which owns route registration and the Node HTTP server lifecycle.
 - One bundled adapter builds the app with Rolldown.
 
+## Source Layering
+
+Core source moves from shared foundations through app assembly. A lower layer may import within its own layer or from an earlier layer; it must not import a later layer.
+
+| Layer                | Folders and files                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------- |
+| Foundation           | `types/`, `constants.ts`, `errors/`, `global/`, `utils/`, `html/`, `client/`, `islands/`, `validation/` |
+| Contracts            | `plugins/`, `eco/`                                                                                      |
+| Build                | `build/`, `assets/`, `cache/`, `diagnostics/`                                                           |
+| Rendering            | `router/`, `route-renderer/`, `html-pages/`, `page-cache/`, `static-site-generator/`                    |
+| Development and HMR  | `dev/`, `watchers/`, `dev-toolbar/`, `hmr/`                                                             |
+| Application assembly | `adapters/`, `config/`, `index.ts`, `index.browser.ts`                                                  |
+
+The guard in `scripts/check-portability.ts` checks runtime module references inside `packages/core/src`, including `import()`, `require()`, and resolver calls. Inline `type` modifiers count when TypeScript preserves their side-effect imports under `verbatimModuleSyntax`; explicit `import type` and `export type` declarations are erased and excluded. Test files and fixtures are excluded too. Existing upward references are listed in `scripts/core-layering-allowlist.json` with the issue that removes each edge. The allowlist only shrinks: the check fails for an unlisted upward reference and for an entry whose reference has gone away.
+
 ## Documentation Map
 
 Use this package README as the top-level map, then drill into the focused subsystem READMEs:
 
 - `src/config/README.md`: config loading, assembly, and app-owned runtime/build state
+- `src/types/README.md`: public, internal, and per-app runtime contracts
+- `src/errors/README.md`, `src/global/README.md`, `src/utils/README.md`, and `src/client/README.md`: shared Foundation modules
+- `src/cache/README.md`: Build-layer module parse cache
 - `src/diagnostics/README.md`: per-app request-pipeline metrics and the startup trace
 - `src/plugins/README.md`: integration and processor authoring contracts
 - `src/build/README.md`: build adapter, app-scoped server module loading, shared `.server` browser import guard, development build coordination, standalone Node server packaging and its deploy layout

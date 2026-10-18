@@ -1,5 +1,7 @@
 # HTML
 
+**Layer:** Foundation.
+
 Core's HTML utilities rewrite rendered documents and parse source markup for HTML Pages.
 
 ## Document rewriting

@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { hashAppConfigFile } from '../../build/cache/app-config-hash.ts';
-import { requireAppRuntime } from '../../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../../types/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { RouteModuleBuildCache } from './route-module-build-cache.store.ts';

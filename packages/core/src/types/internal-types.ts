@@ -1,5 +1,5 @@
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
-import type { AppRuntime } from '../config/assembly/app-runtime.ts';
+import type { AppRuntime } from './app-runtime.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type {

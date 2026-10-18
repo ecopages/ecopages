@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0
+
+### Minor Changes
+
+- [#745](https://github.com/ecopages/ecopages/pull/745) [`bf2c0e4`](https://github.com/ecopages/ecopages/commit/bf2c0e4e14231f456cc9c7bc23edbcd63b72fbcf) Thanks [@andeeplus](https://github.com/andeeplus)! - Require `@ecopages/jsx`, `@ecopages/radiant`, and `@ecopages/signals` 0.4, and `@ecopages/radiant-ui` 0.2. The previous ranges included the broken 0.3.0 release and stopped before 0.4.0.
+
+### Patch Changes
+
+- [#449](https://github.com/ecopages/ecopages/pull/449) [`1990d16`](https://github.com/ecopages/ecopages/commit/1990d16622d61feb39b3184699755f6eda579093) Thanks [@andeeplus](https://github.com/andeeplus)! - React island props that contain text outside Latin-1, such as `€`, CJK characters or emoji, no longer crash server rendering. The islands hydrate with the same text, and the dev toolbar's Islands panel previews it instead of garbled characters.
+
+- [#586](https://github.com/ecopages/ecopages/pull/586) [`f88f71a`](https://github.com/ecopages/ecopages/commit/f88f71a597dfb825ebea89e1bf9d8c02f98440da) Thanks [@andeeplus](https://github.com/andeeplus)! - Unify browser and React navigation through core's shared commit pipeline and fix toolbar navigation-owner telemetry.
+
+    **Breaking:** `@ecopages/browser-router` no longer exports `ViewTransitionManager`; import `runNavigationViewTransition` from `@ecopages/core/router/navigation-pipeline` or use `commitNavigationPage`. `@ecopages/react-router` no longer exports `morphHead`; use `commitNavigationPage` with the React render as its `swap` callback, or `prepareNavigationHead` when staged head work is needed. In `@ecopages/core`, `dispatchAfterSwap` and `schedulePageLoad` are no longer exported; use `completeNavigationLifecycle` to emit both post-swap events. `documentHasNamedViewTransitions` is now private; use `navigationHasNamedViewTransitions`. The script barrel no longer re-exports low-level rerun queue and registry operations; use the navigation pipeline's script activation APIs. These operations are owned by the shared pipeline so custom runtimes should use `@ecopages/core/router/navigation-pipeline` for document commits and listen to lifecycle events rather than dispatching or scheduling individual signals.
+
+    **Breaking (continued):** `@ecopages/browser-router`'s `DomSwapper` no longer has `morphHead`, `preloadStylesheets` or `flushScripts`; head work and script activation belong to the shared pipeline. `PrefetchOptions` requires `reloadAttribute`. `@ecopages/core/router/link-navigation-policy` no longer exports `assertHtmlPageResponse`: navigation accepts only `text/html` and `application/xhtml+xml` responses, so a server or test harness must send one of those types. Head reconciliation is now the same for both routers: after a navigation, head elements that the incoming page lacks are removed unless they carry the persist attribute, so elements injected into the head at runtime should carry it. The React router also activates head scripts that the incoming page adds.
+
+- [#519](https://github.com/ecopages/ecopages/pull/519) [`ee6f61c`](https://github.com/ecopages/ecopages/commit/ee6f61c88c53c34ed0c9543e9121a61af2251a21) Thanks [@andeeplus](https://github.com/andeeplus)! - Show development build errors in the Dev Toolbar with a count badge and a cancelable event contract for custom clients, preserving the in-page fallback for unclaimed errors.
+
 ## 0.2.0
 
 ### Minor Changes

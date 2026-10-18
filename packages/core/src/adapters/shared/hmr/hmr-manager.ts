@@ -25,7 +25,7 @@ import { ServerRenderedTemplateHmrStrategy } from '../../../hmr/strategies/serve
 import {
 	getDevelopmentInvalidationService,
 	type DevelopmentInvalidationService,
-} from '../../../services/invalidation/development-invalidation.service.ts';
+} from '../../../dev/invalidation/development-invalidation.service.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type {
 	ClientBridgeEvent,

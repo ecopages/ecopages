@@ -14,7 +14,7 @@ import {
 	type DevFileChanges,
 	type DevelopmentInvalidationService,
 	type DevelopmentInvalidationPlanningContext,
-} from '../services/invalidation/development-invalidation.service.ts';
+} from '../dev/invalidation/development-invalidation.service.ts';
 import { createProjectWatcherIgnorePredicate } from './project-watcher-ignore.ts';
 import { resolveRuntimeRestartWatchPaths } from '../dev/development-restart-watch-paths.ts';
 import {

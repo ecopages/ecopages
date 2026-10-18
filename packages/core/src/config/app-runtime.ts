@@ -18,7 +18,7 @@ import type { CustomElementScriptPreloadScopeState } from '../route-renderer/orc
 import type { PageCacheService } from '../services/cache/page-cache-service.ts';
 import { AppModuleLoader, type AppModuleLoaderContract } from '../services/module-loading/app-module-loader.service.ts';
 import type { RouteModuleBuildCache } from '../services/module-loading/route-module-build-cache.store.ts';
-import type { DevelopmentInvalidationService } from '../services/invalidation/development-invalidation.service.ts';
+import type { DevelopmentInvalidationService } from '../dev/invalidation/development-invalidation.service.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { IHmrManager, RegisteredScriptEntrypointChangeHandler } from '../types/public-types.ts';
 

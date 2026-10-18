@@ -7,7 +7,7 @@ import type {
 	EcoComponent,
 	ComponentRenderResult,
 } from '../../../types/public-types.ts';
-import { getComponentRenderContext, runWithComponentRenderContext } from './component-render-context.ts';
+import { getComponentRenderContext, runWithComponentRenderContext } from '../../../eco/component-render-context.ts';
 import {
 	createQueueRuntime,
 	executeComponentRender,

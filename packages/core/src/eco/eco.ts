@@ -33,8 +33,8 @@ import {
 	finalizeComponentRender,
 	getComponentRenderContext,
 	interceptForeignChild,
-} from '../route-renderer/orchestration/foreign-child/component-render-context.ts';
-import { isThenable } from '../route-renderer/orchestration/foreign-child/foreign-child-output.utils.ts';
+} from './component-render-context.ts';
+import { isThenable } from './component-render-output.ts';
 import { applyPageLayoutConfig, mergeLayoutDependencies, normalizePageLayouts } from './page-layout-normalization.ts';
 import { getComponentIdentity, getComponentOwner } from './component-identity.ts';
 import { attachDiscoveredDependencies } from './discovered-dependencies.ts';

@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
 import { eco } from '../../eco/eco.ts';
 import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
-import { getComponentRenderContext, runWithComponentRenderContext } from './foreign-child/component-render-context.ts';
+import { getComponentRenderContext, runWithComponentRenderContext } from '../../eco/component-render-context.ts';
+import type { RouteRenderContextState } from './foreign-child/render-session.ts';
 import {
 	createIntegrationRenderer,
 	IntegrationRenderer,
@@ -805,7 +806,7 @@ describe('IntegrationRenderer', () => {
 		renderer.RenderBodyFactory = async () => {
 			await runWithComponentRenderContext({ currentIntegration: 'lit' }, async () => {
 				nestedHasPage =
-					getComponentRenderContext()?.pageClientPlan?.sourceComponents.some(
+					getComponentRenderContext<RouteRenderContextState>()?.renderState?.pageClientPlan?.sourceComponents.some(
 						(component) => component === Page,
 					) ?? false;
 			});
@@ -842,7 +843,10 @@ describe('IntegrationRenderer', () => {
 		});
 		renderer.HtmlTemplate = HtmlTemplate;
 		renderer.RenderBodyFactory = async () => {
-			const files = (getComponentRenderContext()?.pageClientPlan?.sourceComponents ?? [])
+			const files = (
+				getComponentRenderContext<RouteRenderContextState>()?.renderState?.pageClientPlan?.sourceComponents ??
+				[]
+			)
 				.map((component) => getComponentIdentity(component)?.file)
 				.filter((file): file is string => Boolean(file))
 				.sort()
@@ -1579,7 +1583,7 @@ describe('IntegrationRenderer', () => {
 			const ownerPlan = collectPageClientPlan([{ component: Page }], 'page-owner');
 
 			const hasForeignDescendants = await runWithComponentRenderContext(
-				{ currentIntegration: 'test-renderer', pageClientPlan: ownerPlan },
+				{ currentIntegration: 'test-renderer', renderState: { pageClientPlan: ownerPlan } },
 				async () => renderer.renderComponentWithForeignChildren({ component: Leaf, props: {} }),
 			);
 

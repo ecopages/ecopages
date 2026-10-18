@@ -8,7 +8,8 @@ import type { InternalComponentRenderInput } from '../../../types/internal-types
 import type { ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
 import { getComponentOwner } from '../../../eco/component-identity.ts';
 import { HtmlTransformerService, type HtmlDocumentContribution } from '../../../html/html-transformer.service.ts';
-import { getComponentRenderContext } from '../foreign-child/component-render-context.ts';
+import { getComponentRenderContext } from '../../../eco/component-render-context.ts';
+import type { RouteRenderContextState } from '../foreign-child/render-session.ts';
 
 export type DocumentShellLayoutInput = {
 	component: EcoComponent;
@@ -143,7 +144,7 @@ export async function composeDocumentShell(
 	dependencies: DocumentShellRenderDependencies,
 	input: DocumentShellComposeInput,
 ): Promise<{ documentHtml: string }> {
-	const rendererCache = (getComponentRenderContext()?.session?.rendererCache ??
+	const rendererCache = (getComponentRenderContext<RouteRenderContextState>()?.renderState?.session?.rendererCache ??
 		new Map<string, unknown>()) as BaseIntegrationContext['rendererCache'];
 	const layouts = resolveDocumentShellLayouts(input);
 	const composeChildren = input.composeChildren ?? composeSequentialLayoutChildren;
@@ -299,7 +300,7 @@ export async function finalizeDocumentShellHtml(
 		return html;
 	}
 
-	const context = getComponentRenderContext();
+	const context = getComponentRenderContext<RouteRenderContextState>()?.renderState;
 	return htmlTransformer.injectPageAssets(html, {
 		contributions: options.htmlContributions,
 		pagePackage: context?.session?.pagePackage ?? context?.pagePackage,

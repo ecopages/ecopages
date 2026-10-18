@@ -1,51 +1,14 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { EcoComponent, PagePackageResult } from '../../../types/public-types.ts';
-import type { ProcessedAsset } from '../../../assets/asset-processing-service/assets.types.ts';
-import type { PageClientPlan } from '../ownership-graph/page-client-plan.ts';
-import type { RenderSession } from './render-session.ts';
-import { addTriggerAttribute, isThenable } from './foreign-child-output.utils.ts';
+import type { EcoComponent, ForeignChildRuntime as ForeignChildRuntimeContract } from '../types/public-types.ts';
+import { addTriggerAttribute, isThenable } from './component-render-output.ts';
 
-/**
- * Result returned by a renderer-owned foreign-child runtime.
- *
- * `inline` keeps rendering inside the current integration. `resolved.value` is
- * the queue transport token string allocated by `createQueuedRuntime`; callers
- * must not treat arbitrary objects as resolved output.
- */
-export type ForeignChildInterceptionResult =
-	{ kind: 'inline'; props?: Record<string, unknown> } | { kind: 'resolved'; value: string } | undefined;
-
-/**
- * Foreign-child metadata passed into the active renderer-owned runtime.
- */
-export type ForeignChildInterceptionInput = {
-	currentIntegration: string;
-	targetIntegration?: string;
-	component: EcoComponent;
-	props: Record<string, unknown>;
-};
-
-/**
- * Narrow renderer-owned foreign-child runtime injected into one active render
- * context.
- *
- * Integrations implement this contract when foreign children must be handed
- * off inside the renderer instead of being left for route-level reconciliation.
- */
-export interface ForeignChildRuntime {
-	/**
-	 * Intercepts one foreign child during an active render.
-	 *
-	 * This runtime is typically installed by the Foreign Subtree execution module,
-	 * which decides whether the child stays inline or leaves the current renderer.
-	 */
-	interceptForeignChild?(
-		input: ForeignChildInterceptionInput,
-	): ForeignChildInterceptionResult | Promise<ForeignChildInterceptionResult>;
-	interceptForeignChildSync?(
-		input: ForeignChildInterceptionInput,
-	): Exclude<ForeignChildInterceptionResult, undefined>;
-}
+export type ForeignChildInterceptionResult = Awaited<
+	ReturnType<NonNullable<ForeignChildRuntimeContract['interceptForeignChild']>>
+>;
+export type ForeignChildInterceptionInput = Parameters<
+	NonNullable<ForeignChildRuntimeContract['interceptForeignChild']>
+>[0];
+export type { ForeignChildRuntime } from '../types/public-types.ts';
 
 type ForeignChildRenderInput = {
 	component: EcoComponent;
@@ -117,7 +80,7 @@ class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
 		const asyncInterception = this.context.foreignChildRuntime?.interceptForeignChild?.(foreignChildRuntimeInput);
 		if (asyncInterception !== undefined) {
 			if (isThenable<ForeignChildInterceptionResult>(asyncInterception)) {
-				return asyncInterception.then((result) =>
+				return Promise.resolve(asyncInterception).then((result) =>
 					result === undefined ? undefined : this.applyForeignChildInterceptionResult(result),
 				);
 			}
@@ -139,23 +102,16 @@ class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
  * Per-render mutable state used while applying foreign-child interception and lazy
  * trigger attributes.
  */
-export type ComponentRenderContext = {
+export type ComponentRenderContext<TState extends object = object> = {
 	currentIntegration: string;
-	foreignChildRuntime?: ForeignChildRuntime;
+	foreignChildRuntime?: ForeignChildRuntimeContract;
 	/**
-	 * Page client plan for this render.
+	 * State owned by the layer that opened this render.
 	 *
 	 * @remarks
-	 * Lives on the render context so a second render on the same renderer cannot
-	 * replace the plan the first render reads.
+	 * Keeping this generic lets Eco scope renders without importing route-renderer types.
 	 */
-	pageClientPlan?: PageClientPlan;
-	islandRenderAssetsByFile?: ReadonlyMap<string, ProcessedAsset[]>;
-	pagePackage?: PagePackageResult;
-	/**
-	 * Shared mutable state for this render, including nested foreign-child contexts.
-	 */
-	session?: RenderSession;
+	renderState?: TState;
 	interceptForeignChild(
 		input: ForeignChildRenderInput,
 	): Promise<ForeignChildInterceptionResult> | ForeignChildInterceptionResult;
@@ -169,7 +125,7 @@ export type ComponentRenderContext = {
  * the storage is attached to a shared global scope instead of module-local state.
  */
 type ComponentRenderContextState = {
-	storage: AsyncLocalStorage<ComponentRenderContext>;
+	storage: AsyncLocalStorage<ComponentRenderContext<object>>;
 };
 
 const GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY = '__ECOPAGES_COMPONENT_RENDER_CONTEXT_STATE__';
@@ -207,8 +163,9 @@ function getComponentRenderContextState(): ComponentRenderContextState {
  *
  * @returns Active render context or `undefined` outside render execution.
  */
-export function getComponentRenderContext(): ComponentRenderContext | undefined {
-	return getComponentRenderContextState().storage.getStore();
+export function getComponentRenderContext<TState extends object = object>():
+	ComponentRenderContext<TState> | undefined {
+	return getComponentRenderContextState().storage.getStore() as ComponentRenderContext<TState> | undefined;
 }
 
 const componentRenderOutputRuntime = new ComponentRenderOutputRuntime();
@@ -244,27 +201,23 @@ export function finalizeComponentRender<T>(component: EcoComponent, content: T):
  * @param render Async render function to execute inside the context.
  * @returns Render result value.
  */
-export async function runWithComponentRenderContext<T>(
+export async function runWithComponentRenderContext<T, TState extends object = object>(
 	input: {
 		currentIntegration: string;
-		foreignChildRuntime?: ForeignChildRuntime;
-		pageClientPlan?: PageClientPlan;
-		islandRenderAssetsByFile?: ReadonlyMap<string, ProcessedAsset[]>;
-		pagePackage?: PagePackageResult;
-		session?: RenderSession;
+		foreignChildRuntime?: ForeignChildRuntimeContract;
+		renderState?: Partial<TState>;
 	},
 	render: () => Promise<T>,
 ): Promise<{ value: T }> {
 	const storage = getComponentRenderContextState().storage;
 	const parent = storage.getStore();
+	const renderState =
+		input.renderState === undefined ? parent?.renderState : { ...parent?.renderState, ...input.renderState };
 	const context = {
 		currentIntegration: input.currentIntegration,
 		foreignChildRuntime: input.foreignChildRuntime,
-		pageClientPlan: input.pageClientPlan ?? parent?.pageClientPlan,
-		islandRenderAssetsByFile: input.islandRenderAssetsByFile ?? parent?.islandRenderAssetsByFile,
-		pagePackage: input.pagePackage ?? parent?.pagePackage,
-		session: input.session ?? parent?.session,
-	} as ComponentRenderContext;
+		renderState,
+	} as ComponentRenderContext<object>;
 	const runtime = new ContextualComponentRenderRuntime(context);
 	context.interceptForeignChild = (deferredInput: ForeignChildRenderInput) =>
 		runtime.interceptForeignChild(deferredInput);

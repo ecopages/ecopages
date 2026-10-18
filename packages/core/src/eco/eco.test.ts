@@ -10,7 +10,7 @@ import {
 	type ForeignChildRuntime,
 	getComponentRenderContext,
 	runWithComponentRenderContext,
-} from '../route-renderer/orchestration/foreign-child/component-render-context.ts';
+} from './component-render-context.ts';
 
 const mockAppConfig = {} as EcoPagesAppConfig;
 
@@ -176,8 +176,8 @@ describe('eco namespace', () => {
 
 		test('should share render context across duplicated module instances', async () => {
 			const duplicateModule = (await import(
-				'../route-renderer/orchestration/foreign-child/component-render-context.ts?duplicate-instance' as string
-			)) as typeof import('../route-renderer/orchestration/foreign-child/component-render-context.ts');
+				'./component-render-context.ts?duplicate-instance' as string
+			)) as typeof import('./component-render-context.ts');
 
 			const execution = await runWithComponentRenderContext(
 				{

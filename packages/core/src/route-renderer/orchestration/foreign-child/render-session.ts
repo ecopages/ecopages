@@ -1,5 +1,6 @@
 import type { ProcessedAsset } from '../../../assets/asset-processing-service/assets.types.ts';
 import type { PagePackageResult } from '../../../types/public-types.ts';
+import type { PageClientPlan } from '../ownership-graph/page-client-plan.ts';
 
 /**
  * Mutable state for one route or view render.
@@ -13,6 +14,14 @@ export type RenderSession = {
 	pagePackage?: PagePackageResult;
 	resolvedIntegrationDependencies: ProcessedAsset[];
 	rendererCache: Map<string, unknown>;
+};
+
+/** Renderer-owned state attached to an active Eco component render context. */
+export type RouteRenderContextState = {
+	pageClientPlan?: PageClientPlan;
+	islandRenderAssetsByFile?: ReadonlyMap<string, ProcessedAsset[]>;
+	pagePackage?: PagePackageResult;
+	session?: RenderSession;
 };
 
 /**

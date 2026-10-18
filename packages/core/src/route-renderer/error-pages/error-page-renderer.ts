@@ -4,8 +4,8 @@ import { ensureIntegrationRuntimeReady } from '../../build/app-build-manifest-ru
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { ErrorPageLoaders, RouteRendererBody, ViewLoader } from '../../types/public-types.ts';
-import { prepareExplicitStaticRender } from '../../route-renderer/explicit-view-render-preparation.ts';
-import type { StaticGenerationRendererResolver } from '../../route-renderer/route-renderer.ts';
+import { prepareExplicitStaticRender } from '../explicit-view-render-preparation.ts';
+import type { StaticGenerationRendererResolver } from '../route-renderer.ts';
 import { ERROR_PAGE_STATUS_BY_KIND, kindForStatus, type ErrorPageKind } from '../../errors/http-error-page-contract.ts';
 import {
 	buildDefaultErrorHtml,

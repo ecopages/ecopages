@@ -39,7 +39,7 @@ They are not responsible for:
 
 The adapter layer is transport-oriented.
 
-Core services still own:
+Core-owned modules still own:
 
 - config finalization
 - build-manifest assembly
@@ -47,7 +47,7 @@ Core services still own:
 - invalidation classification
 - route rendering orchestration
 
-Semantic 404/500 page selection and rendering belongs to `src/services/error-pages/`; adapters only turn its rendered body into runtime responses.
+The error-pages module owns semantic error-page source selection and rendering. The filesystem response matcher classifies page failures, logs rendering failures, coordinates built-in fallback, and wraps the final body in an HTTP response.
 
 ## Shared Request Contracts
 

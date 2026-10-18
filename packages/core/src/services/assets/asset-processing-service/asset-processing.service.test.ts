@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { AssetProcessingService } from './asset-processing.service';
@@ -81,21 +82,27 @@ test('AssetProcessingService - registerProcessor', async () => {
 
 test('AssetProcessingService - processDependencies', async () => {
 	const service = AssetProcessingService.createWithDefaultProcessors(Config);
+	const outputFilepath = path.join(Config.absolutePaths.distDir, 'assets', 'scripts', 'page-entry.js');
 	const results = await service.processDependencies(
 		[
 			{
 				kind: 'script' as const,
 				source: 'content',
 				content: 'console.log("test")',
+				name: 'page-entry',
 				bundle: false,
 			} as AssetDefinition,
 		],
 		undefined,
 	);
 
-	expect(results.length).toBe(1);
-	expect(results[0]?.kind).toBe('script');
-	expect(results[0]?.filepath).toBeDefined();
+	expect(results).toHaveLength(1);
+	expect(results[0]).toMatchObject({
+		kind: 'script',
+		filepath: outputFilepath,
+		srcUrl: '/assets/scripts/page-entry.js',
+	});
+	expect(fileSystem.write).toHaveBeenCalledWith(outputFilepath, 'console.log("test")');
 });
 
 test('AssetProcessingService - processDependencies - success', async () => {

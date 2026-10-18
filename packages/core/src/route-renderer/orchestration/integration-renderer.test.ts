@@ -1139,13 +1139,13 @@ describe('IntegrationRenderer', () => {
 		};
 		renderer.HtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
 
-		await renderer.execute({
+		const result = await renderer.execute({
 			file: '/app/pages/cached-page.ts',
 			params: {},
 			query: {},
 		});
 
-		expect(renderer.CapturedRenderOptions?.cacheStrategy).toEqual({ revalidate: 60 });
+		expect(result.cacheStrategy).toEqual({ revalidate: 60 });
 	});
 
 	it('should return undefined cache strategy if not present', async () => {
@@ -1161,14 +1161,13 @@ describe('IntegrationRenderer', () => {
 		};
 		renderer.HtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
 
-		await renderer.execute({
+		const result = await renderer.execute({
 			file: '/app/pages/simple-page.ts',
 			params: {},
 			query: {},
 		});
 
-		expect(renderer.CapturedRenderOptions).toBeDefined();
-		expect(renderer.CapturedRenderOptions?.cacheStrategy).toBeUndefined();
+		expect(result.cacheStrategy).toBeUndefined();
 	});
 
 	it('should resolve static props and metadata correctly', async () => {
@@ -1177,7 +1176,7 @@ describe('IntegrationRenderer', () => {
 			assetProcessingService: testAssetService,
 		});
 
-		const PageIdx = (() => 'Page Content') as EcoPageComponent<any>;
+		const PageIdx = (({ title }: { title: string }) => `<main>${title}</main>`) as EcoPageComponent<any>;
 		PageIdx.staticProps = async () => ({ props: { title: 'Dynamic Title' } });
 		PageIdx.metadata = async ({ props }: { props: Record<string, unknown> }) => ({
 			title: props.title as string,
@@ -1187,16 +1186,19 @@ describe('IntegrationRenderer', () => {
 		renderer.PageModule = {
 			default: PageIdx,
 		};
-		renderer.HtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
+		renderer.HtmlTemplate = (async ({ children, metadata }) =>
+			`<html><head><title>${metadata.title}</title></head><body>${children}</body></html>`) as EcoComponent<HtmlTemplateProps>;
+		renderer.UseDocumentShellRender = true;
 
-		await renderer.execute({
+		const result = await renderer.execute({
 			file: '/app/pages/props-page.ts',
 			params: {},
 			query: {},
 		});
+		const html = await new Response(result.body as BodyInit).text();
 
-		expect(renderer.CapturedRenderOptions?.props).toEqual({ title: 'Dynamic Title' });
-		expect(renderer.CapturedRenderOptions?.metadata?.title).toBe('Dynamic Title');
+		expect(html).toContain('<title>Dynamic Title</title>');
+		expect(html).toContain('<main>Dynamic Title</main>');
 	});
 
 	it('should keep layout locals safe and page locals guarded on static pages', async () => {

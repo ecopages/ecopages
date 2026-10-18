@@ -179,6 +179,25 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		]);
 	});
 
+	test('records HMR dependencies in the app build input index', async () => {
+		const rootDir = createTempRoot('ecopages-hmr-contract-shared-build-index');
+		const entrypointPath = writeSourceFile(
+			rootDir,
+			'src/pages/index.tsx',
+			"import { data } from '../shared/page-data.ts';\nexport default function Page() { return data; }\n",
+		);
+		const dependencyPath = writeSourceFile(rootDir, 'src/shared/page-data.ts', 'export const data = 1;\n');
+		const { manager } = await createAt(rootDir);
+		const outputUrl = await manager.registerEntrypoint(entrypointPath);
+		const response = await manager.tryHandleDevClientRequest(new Request(`http://localhost${outputUrl}`));
+
+		assert.equal(response?.status, 200);
+		assert.deepEqual(
+			requireAppRuntime(manager.appConfig).buildInputIndex.resolveKeys('entrypoint', dependencyPath),
+			[path.resolve(entrypointPath)],
+		);
+	});
+
 	test('broadcasts the dev transform URL as an update when a registered page source changes', async () => {
 		const rootDir = createTempRoot('ecopages-hmr-contract-page-update');
 		const entrypointPath = writeSourceFile(rootDir, 'src/pages/about.tsx', PAGE_SOURCE);

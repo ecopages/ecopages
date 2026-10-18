@@ -1,5 +1,9 @@
 Development-only browser tooling is opt-in per application.
 
+## Development invalidation
+
+The [invalidation service](invalidation/README.md) classifies file changes and marks affected development results dirty. Each `AppRuntime` owns one instance shared by the Project Watcher and HMR manager.
+
 ## Dev toolbar
 
 - `/_dev_toolbar.js` — browser bundle built by core from `devToolbar.package` (for example `@ecopages/dev-toolbar`)

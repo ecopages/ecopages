@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 vi.mock('@clack/prompts', () => ({
 	cancel: vi.fn(),
@@ -17,6 +17,10 @@ import { confirm, note } from '@clack/prompts';
 import { mirrorKnowledgeLayers, obsidianCopyMessage, promptObsidianCopy, requireObsidianVaultPath } from './mirror.ts';
 
 const roots: string[] = [];
+
+beforeEach(() => {
+	vi.resetAllMocks();
+});
 
 afterEach(async () => {
 	await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));

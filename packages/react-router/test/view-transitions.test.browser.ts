@@ -31,9 +31,8 @@ function namedTitle(name: string, attributes: Record<string, string> = {}): Reac
 }
 
 function viewTransitionNames(): string[] {
-	return Array.from(document.querySelectorAll('[data-view-transition]')).map(
-		(element) => getComputedStyle(element).viewTransitionName,
-	);
+	const elements = Array.from(document.querySelectorAll('[data-view-transition]'));
+	return elements.map((element) => getComputedStyle(element).viewTransitionName);
 }
 
 describe('react-router view transitions', () => {
@@ -79,7 +78,7 @@ describe('react-router view transitions', () => {
 
 		await expect.element(page.getByRole('heading', { name: 'page-title' })).toBeVisible();
 
-		expect(viewTransitionNames()).toEqual(['page-title']);
+		await vi.waitFor(() => expect(viewTransitionNames()).toEqual(['page-title']));
 		expect(document.getElementById(ROOT_STYLES_ID)).not.toBeNull();
 	});
 
@@ -106,9 +105,11 @@ describe('react-router view transitions', () => {
 
 	it('runs the swap inside startViewTransition and names the incoming page elements', async () => {
 		const namesWhenSwapped: string[][] = [];
+		const transitionsFinished: Promise<void>[] = [];
 		const startTransition = document.startViewTransition.bind(document);
 		const startViewTransition = vi.spyOn(document, 'startViewTransition').mockImplementation((update) => {
 			const transition = startTransition(update);
+			transitionsFinished.push(transition.finished);
 			void transition.updateCallbackDone.then(() => namesWhenSwapped.push(viewTransitionNames()));
 			return transition;
 		});
@@ -125,6 +126,8 @@ describe('react-router view transitions', () => {
 		await expect.element(page.getByRole('heading', { name: 'post-title' })).toBeVisible();
 		expect(startViewTransition).toHaveBeenCalledTimes(1);
 		await expect.poll(() => namesWhenSwapped).toEqual([['post-title']]);
+		await Promise.all(transitionsFinished);
+		await vi.waitFor(() => expect(viewTransitionNames()).toEqual(['none']));
 	});
 
 	it('skips view transitions and root styles when they are disabled', async () => {

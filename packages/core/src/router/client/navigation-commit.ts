@@ -58,22 +58,23 @@ export async function commitNavigationPage(
 		let committed = false;
 		await runNavigationViewTransition(
 			async () => {
-				if (input.isStale()) return;
+				if (input.isStale()) return false;
 				input.beforeCommit?.();
-				if (input.isStale()) return;
+				if (input.isStale()) return false;
 				preparedHeadUpdate.commit();
 				const swapped = await input.swap(preparedHeadUpdate);
-				if (swapped === false || input.isStale()) return;
+				if (swapped === false || input.isStale()) return false;
 				await input.onSwapped?.();
-				if (input.isStale()) return;
+				if (input.isStale()) return false;
 				activatePreparedNavigationScripts(
 					preparedHeadUpdate,
 					input.persistAttribute ?? ECO_PERSIST_ATTRIBUTE,
 					input.includeBodyScripts ?? true,
 				);
 				await input.afterSwap?.();
-				if (input.isStale()) return;
+				if (input.isStale()) return false;
 				committed = true;
+				return true;
 			},
 			{ enabled: input.viewTransitionsEnabled, incomingDocument: input.newDocument },
 		);

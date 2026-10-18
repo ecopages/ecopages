@@ -1,16 +1,9 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 
 const appDeclaredPackageCache = new Map<string, Set<string>>();
 const appWorkspacePackageCache = new Map<string, Set<string>>();
-
-export function getPackageNameFromSpecifier(specifier: string): string {
-	if (specifier.startsWith('@')) {
-		return specifier.split('/').slice(0, 2).join('/');
-	}
-
-	return specifier.split('/')[0] ?? specifier;
-}
 
 function getDeclaredAppPackages(rootDir: string): Set<string> {
 	const cacheKey = path.resolve(rootDir);
@@ -91,9 +84,9 @@ function getWorkspacePackages(rootDir: string): Set<string> {
  * typically source-only, requiring bundling rather than externalization.
  */
 export function isWorkspacePackageImport(specifier: string, rootDir: string): boolean {
-	return getWorkspacePackages(rootDir).has(getPackageNameFromSpecifier(specifier));
+	return getWorkspacePackages(rootDir).has(toPackageRootSpecifier(specifier));
 }
 
 export function isDeclaredAppPackageImport(specifier: string, rootDir: string): boolean {
-	return getDeclaredAppPackages(rootDir).has(getPackageNameFromSpecifier(specifier));
+	return getDeclaredAppPackages(rootDir).has(toPackageRootSpecifier(specifier));
 }

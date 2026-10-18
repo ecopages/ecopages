@@ -19,6 +19,7 @@ test('isWorkspacePackageImport detects workspace protocol dependencies', () => {
 	);
 
 	assert.equal(isWorkspacePackageImport('@ecopages/core', rootDir), true);
+	assert.equal(isWorkspacePackageImport('@ecopages/core/build', rootDir), true);
 	assert.equal(isWorkspacePackageImport('react', rootDir), false);
 });
 
@@ -30,11 +31,14 @@ test('isDeclaredAppPackageImport detects app-declared dependencies', () => {
 		JSON.stringify({
 			dependencies: {
 				react: '^18.0.0',
+				'@acme/ui': '^1.0.0',
 			},
 		}),
 		'utf-8',
 	);
 
 	assert.equal(isDeclaredAppPackageImport('react', rootDir), true);
+	assert.equal(isDeclaredAppPackageImport('react/jsx-runtime', rootDir), true);
+	assert.equal(isDeclaredAppPackageImport('@acme/ui/button', rootDir), true);
 	assert.equal(isDeclaredAppPackageImport('left-pad', rootDir), false);
 });

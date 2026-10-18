@@ -161,6 +161,7 @@ describe('NodeModuleScriptProcessor', () => {
 
 	describe('process - custom name', () => {
 		test('should use custom name when provided', async () => {
+			vi.spyOn(fileSystem, 'ensureDir').mockImplementation(() => undefined);
 			const processor = new NodeModuleScriptProcessor({ appConfig: createMockConfig() });
 
 			const dep: NodeModuleScriptAsset = {
@@ -168,13 +169,13 @@ describe('NodeModuleScriptProcessor', () => {
 				source: 'node-module',
 				importPath: 'some-package/dist/index.js',
 				name: 'custom-vendor',
-				inline: true,
+				inline: false,
+				bundle: false,
 			};
 
 			const result = await processor.process(dep);
 
-			expect(result).toBeDefined();
-			expect(result.inline).toBe(true);
+			expect(result.filepath).toBe('/test/project/.eco/public/assets/vendors/custom-vendor');
 		});
 
 		test('should preserve explicit bundle naming when provided', async () => {

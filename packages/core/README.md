@@ -105,7 +105,8 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/plugins/README.md`: integration and processor authoring contracts
 - `src/build/README.md`: build adapter, app-scoped server module loading, shared `.server` browser import guard, development build coordination, standalone Node server packaging and its deploy layout
 - `src/page-cache/README.md`: HTML cache strategies, ISR, and source-aware invalidation
-- `src/services/README.md`: asset processing and request schema validation
+- `src/services/README.md`: shared asset processing
+- `src/validation/README.md`: request validation with Standard Schema
 - `src/html/README.md`: streaming HTML rewriting, per-render document contributions, source parsing, and escaped asset tags
 - `src/adapters/README.md`: Node HTTP host and shared adapter boundaries
 - `src/dev/README.md`: development invalidation, dev transform server, in-memory on-demand vendor bundles, and client delivery (including workspace-package `@fs` URLs)
@@ -124,7 +125,7 @@ The intended reading order is:
 1. this file for the big-picture architecture
 2. `src/config/README.md` for config and lifecycle ownership
 3. `src/plugins/README.md` and `src/build/README.md` for contribution contracts
-4. `src/page-cache/README.md`, `src/services/README.md`, `src/html/README.md`, and `src/adapters/README.md` for runtime execution
+4. `src/page-cache/README.md`, `src/services/README.md`, `src/validation/README.md`, `src/html/README.md`, and `src/adapters/README.md` for runtime execution
 5. `src/router/README.md` and `src/route-renderer/README.md` for request-time flow
 
 ## Installation

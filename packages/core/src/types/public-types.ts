@@ -109,7 +109,7 @@ import type {
 	StandardSchemaIssue,
 	InferOutput,
 	StandardSchemaV1,
-} from '../services/validation/standard-schema.types.ts';
+} from '../validation/standard-schema.types.ts';
 
 export type {
 	StandardSchema,

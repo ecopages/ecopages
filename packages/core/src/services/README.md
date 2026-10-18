@@ -1,8 +1,8 @@
 # Core Services
 
-This directory contains shared asset-processing and request-validation services.
+This directory contains shared asset-processing services.
 
-Asset processing reads per-app state from the `AppRuntime` installed during config finalization. Request validation uses stateless Standard Schema helpers.
+Asset processing reads per-app state from the `AppRuntime` installed during config finalization.
 
 ## Purpose
 
@@ -11,14 +11,12 @@ Services in this directory exist to keep cross-cutting framework logic out of ad
 Typical responsibilities include:
 
 - asset processing and runtime asset declaration helpers
-- request validation with Standard Schema
 
 ## Main Areas
 
 - `assets/`: shared browser build coordination and processed asset pipelines. `app-browser-client-build.ts` combines every static-export renderer plan, route island and lazy client entry, and HTML Page module script into compatible app-wide browser build groups, then attaches each route's entry assets. `app-browser-client-manifest.ts` persists those associations so `ecopages start` can restore the build outputs before SSR requests. Non-exact route templates receive a parameter-free plan without running route data hooks, allowing later params to reuse app-wide output when their grouped browser dependencies and page-client entries match; a new dependency graph uses the request-time fallback. Production CSS, copied scripts, image variants and Rolldown outputs record their content-addressed output paths when written (`hashed-browser-asset.ts`), and file responses use that record for `immutable` caching. Development keeps source-relative names so CSS HMR can refresh the same href. Vendor runtimes keep stable names, and dev vendor bundles stay in process memory.
 - Request-pipeline metrics counters are held by each `AppRuntime`; response headers and render/build instrumentation use the owning app's counters.
 - HTML finalization and source parsing now live under [`../html/README.md`](../html/README.md).
-- `validation/`: `validateRequest()` runs declared Standard Schema validators concurrently when their inputs are available; a body schema always runs and receives `undefined` for an empty body, so required schemas reject it and optional schemas can accept it.
 
 The asset-processing service owns the only processed-asset cache for its five processors. Dependency identity includes attributes, position and package role; file outputs retain their source path so development can verify freshness and invalidate imported inputs. Grouped and ungrouped processing share that cache, and a complete grouped result is reused only while its full dependency set matches. Integration-owned processing calls pass their Integration, whose optional `prepareAssetDependencies()` hook runs before dispatch; calls without an owning Integration pass `undefined`. The file-script processor reads the current HMR manager through the service getter rather than retaining a separately forwarded manager.
 

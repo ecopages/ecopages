@@ -9,7 +9,7 @@ import {
 	type ParsedSegmentPath,
 } from '../../../router/server/segment-path-matcher.ts';
 import { appLogger } from '../../../global/app-logger.ts';
-import { validateRequest } from '../../../services/validation/validate-request.ts';
+import { validateRequest } from '../../../validation/validate-request.ts';
 import type {
 	ApiHandler,
 	ApiHandlerContext,

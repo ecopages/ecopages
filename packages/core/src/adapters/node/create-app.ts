@@ -34,7 +34,7 @@ import { createNodeServerAdapter, type NodeServerAdapter, type NodeServerAdapter
 import type { NodeServerInstance } from './server-adapter.ts';
 import { resolveAppStartRoutes } from '../../utils/ecopages-route-info.ts';
 import { requireAppRuntime } from '../../config/app-runtime.ts';
-import { createViewModuleLoader } from '../../services/module-loading/view-module-loader.ts';
+import { createViewModuleLoader } from '../../build/server/view-module-loader.ts';
 import { invariant } from '../../utils/invariant.ts';
 
 export interface AppStartInfo {

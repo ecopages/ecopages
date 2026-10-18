@@ -3,7 +3,7 @@ import { isDevEnvFilePath } from '../development-restart-watch-paths.ts';
 import { matchesAdditionalWatchPath, resolveAdditionalWatchPath } from '../../utils/additional-watch-paths.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
-import { clearAppDevelopmentRouteModuleBuildCaches } from '../../services/module-loading/route-module-build-cache-registry.ts';
+import { clearAppDevelopmentRouteModuleBuildCaches } from '../../build/server/route-module-build-cache-registry.ts';
 import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../../services/cache/page-cache-service.ts';
 import { requireAppRuntime } from '../../config/app-runtime.ts';
 

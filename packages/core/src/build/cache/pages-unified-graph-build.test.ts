@@ -7,8 +7,8 @@ import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.ts';
 import { copyFixtureApp } from '../../../__fixtures__/app/copy-fixture-app.ts';
 import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
 import { installBuildQueue } from '../runtime/build-queue.ts';
-import { AppModuleLoader } from '../../services/module-loading/app-module-loader.service.ts';
-import { PageModuleImportService } from '../../services/module-loading/page-module-import.service.ts';
+import { AppModuleLoader } from '../server/app-module-loader.service.ts';
+import { PageModuleImportService } from '../server/page-module-import.service.ts';
 import {
 	ensurePagesUnifiedGraphBuilt,
 	importPagesUnifiedGraphModule,
@@ -20,7 +20,7 @@ import {
 	getTotalRolldownBuildInvocations,
 	resetRolldownBuildInvocationCounts,
 } from '../rolldown/rolldown-build-invocation-metrics.ts';
-import { getServerModuleBuildCacheOutdir } from '../../services/module-loading/route-module-build-cache-registry.ts';
+import { getServerModuleBuildCacheOutdir } from '../server/route-module-build-cache-registry.ts';
 
 function snapshotFixtureSources(): Map<string, Buffer> {
 	const sourceDir = path.join(FIXTURE_APP_PROJECT_DIR, 'src');

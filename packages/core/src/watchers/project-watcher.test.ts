@@ -9,7 +9,7 @@ import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts'
 import type { IClientBridge } from '../types/internal-types.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { requireAppRuntime } from '../config/app-runtime.ts';
-import type { AppModuleLoaderContract } from '../services/module-loading/app-module-loader.service.ts';
+import type { AppModuleLoaderContract } from '../build/server/app-module-loader.service.ts';
 import {
 	createMockHmrManager,
 	createMockBridge,

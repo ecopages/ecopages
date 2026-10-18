@@ -20,12 +20,12 @@ import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import {
 	getServerModuleBuildCacheOutdir,
 	getSharedRouteModuleBuildCache,
-} from '../../services/module-loading/route-module-build-cache-registry.ts';
+} from '../server/route-module-build-cache-registry.ts';
 import {
 	RouteModuleDependencyHasher,
 	resolveRouteModuleDependencyPaths,
 	type RouteModuleDependencyHashes,
-} from '../../services/module-loading/route-module-dependency-hasher.ts';
+} from '../server/route-module-dependency-hasher.ts';
 
 export interface PagesUnifiedGraphCacheManifest {
 	buildKey: string;

@@ -4,16 +4,9 @@ import type { EcoPagesAppConfig } from '../../../../../types/internal-types.ts';
 import { rapidhash } from '../../../../../utils/hash.ts';
 import { isDevelopmentRuntime, isProductionRuntime } from '../../../../../utils/runtime.ts';
 import type { BaseAsset, ProcessedAsset } from '../../assets.types.ts';
-import { fileSystem } from '@ecopages/file-system';
 
 export abstract class BaseProcessor<T extends BaseAsset> {
 	protected appConfig: EcoPagesAppConfig;
-	/**
-	 * Cache for processed assets to avoid reprocessing the same asset multiple times.
-	 * The cache key is a combination of the asset name and its hash.
-	 * The cache value is the processed asset.
-	 */
-	protected cache: Map<string, ProcessedAsset> = new Map();
 
 	constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
 		this.appConfig = appConfig;
@@ -33,71 +26,7 @@ export abstract class BaseProcessor<T extends BaseAsset> {
 		return path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR);
 	}
 
-	protected writeCacheFile(key: string, path: ProcessedAsset): void {
-		this.cache.set(key, path);
-	}
-
-	protected getCacheFile(key: string): ProcessedAsset | undefined {
-		return this.cache.get(key);
-	}
-
-	protected hasCacheFile(key: string): boolean {
-		return this.cache.has(key);
-	}
-
-	/**
-	 * Removes cached outputs that were built from the changed source path.
-	 */
-	invalidateCacheForFile(filepath: string): void {
-		const resolvedPath = path.resolve(filepath);
-		for (const [key, asset] of this.cache.entries()) {
-			if (
-				(asset.sourceFilepath && path.resolve(asset.sourceFilepath) === resolvedPath) ||
-				asset.bundledSourceFilepaths?.some((sourcePath) => path.resolve(sourcePath) === resolvedPath)
-			) {
-				this.cache.delete(key);
-			}
-		}
-	}
-
 	protected generateHash(content: string): string {
 		return rapidhash(content).toString();
-	}
-
-	protected buildCacheKey(identifier: string, contentHash: string, dep: T): string {
-		const attrsHash = dep.attributes ? this.generateHash(JSON.stringify(dep.attributes)) : '';
-		const position = dep.position ?? '';
-		const packageRole = dep.packageRole ?? '';
-		const processingOrigin = 'processingOrigin' in dep ? dep.processingOrigin : undefined;
-		const processingMetadataHash =
-			processingOrigin || dep.bundledSourceFilepaths?.length
-				? this.generateHash(JSON.stringify([processingOrigin, dep.bundledSourceFilepaths ?? []]))
-				: '';
-		return `${identifier}:${contentHash}:${position}:${attrsHash}:${packageRole}:${processingMetadataHash}`;
-	}
-
-	protected getOrProcess(
-		cacheKey: string,
-		processFn: () => ProcessedAsset | Promise<ProcessedAsset>,
-	): Promise<ProcessedAsset> {
-		if (this.hasCacheFile(cacheKey)) {
-			const cached = this.getCacheFile(cacheKey) as ProcessedAsset;
-			if (!cached.filepath || fileSystem.exists(cached.filepath)) {
-				return Promise.resolve(cached);
-			}
-
-			this.cache.delete(cacheKey);
-		}
-
-		const result = processFn();
-		if (result instanceof Promise) {
-			return result.then((asset) => {
-				this.writeCacheFile(cacheKey, asset);
-				return asset;
-			});
-		}
-
-		this.writeCacheFile(cacheKey, result);
-		return Promise.resolve(result);
 	}
 }

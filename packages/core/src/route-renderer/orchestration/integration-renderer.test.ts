@@ -134,10 +134,12 @@ describe('IntegrationRenderer', () => {
 			}),
 		}));
 		const HookRenderer = createIntegrationRenderer('hooked', hookFactory);
+		const assetProcessingIntegration = { name: 'hooked' };
 		const createRenderer = (rootDir: string) =>
 			new HookRenderer({
 				appConfig: { ...testAppConfig, rootDir } as EcoPagesAppConfig,
 				assetProcessingService: testAssetService,
+				assetProcessingIntegration,
 			});
 		const firstRenderer = createRenderer('/app/first');
 		const secondRenderer = createRenderer('/app/second');
@@ -156,7 +158,7 @@ describe('IntegrationRenderer', () => {
 		expect(typeof hookFactoryOptions.resolveComponentDependencies).toBe('function');
 		expect(hookFactoryOptions.resolveDependencyPath('/app/pages', './style.css')).toBe('/app/pages/style.css');
 		expect(processDependencies).toHaveBeenCalledOnce();
-		expect(processDependencies).toHaveBeenCalledWith([], 'hooked');
+		expect(processDependencies).toHaveBeenCalledWith([], assetProcessingIntegration);
 
 		expect(firstResult.html).toBe('<main>/app/first</main>');
 		expect(firstRenderAgain.html).toBe('<main>/app/first</main>');
@@ -864,6 +866,7 @@ describe('IntegrationRenderer', () => {
 
 	it('processes declarative page browser graph dependencies through shared route preparation', async () => {
 		const processDependencies = vi.fn(async () => [{ kind: 'script', inline: false, srcUrl: '/page.js' }]);
+		const assetProcessingIntegration = { name: 'declarative-renderer' };
 		let renderOptions: IntegrationRendererRenderOptions<EcoPagesElement> | undefined;
 		const renderer = new (class extends IntegrationRenderer<EcoPagesElement> {
 			name = 'declarative-renderer';
@@ -900,6 +903,7 @@ describe('IntegrationRenderer', () => {
 		})({
 			appConfig: testAppConfig,
 			assetProcessingService: { processDependencies } as unknown as AssetProcessingService,
+			assetProcessingIntegration,
 		});
 
 		await renderer.execute({ file: '/app/pages/test.tsx', params: {}, query: {} });
@@ -923,12 +927,13 @@ describe('IntegrationRenderer', () => {
 					attributes: { type: 'module' },
 				},
 			],
-			'declarative-renderer:/app/pages/test.tsx',
+			assetProcessingIntegration,
 		);
 	});
 
 	it('resolves resolveDependencies scripts through file-scoped dependency roots', async () => {
 		const processDependencies = vi.fn(async () => [{ kind: 'script', inline: false, srcUrl: '/demo.js' }]);
+		const assetProcessingIntegration = { name: 'declarative-renderer' };
 		let renderOptions: IntegrationRendererRenderOptions<EcoPagesElement> | undefined;
 		const Page = (() => 'Page') as EcoPageComponent<any>;
 		Page.resolveDependencies = async () => ({
@@ -955,6 +960,7 @@ describe('IntegrationRenderer', () => {
 		})({
 			appConfig: testAppConfig,
 			assetProcessingService: { processDependencies } as unknown as AssetProcessingService,
+			assetProcessingIntegration,
 		});
 
 		await renderer.execute({ file: '/app/pages/demo.tsx', params: {}, query: {} });
@@ -970,12 +976,13 @@ describe('IntegrationRenderer', () => {
 					filepath: '/app/pages/demo.client.ts',
 				}),
 			]),
-			'declarative-renderer',
+			assetProcessingIntegration,
 		);
 	});
 
 	it('resolves resolveDependencies ownerFile relative to the declaring file', async () => {
 		const processDependencies = vi.fn(async () => [{ kind: 'script', inline: false, srcUrl: '/demo.js' }]);
+		const assetProcessingIntegration = { name: 'declarative-renderer' };
 		let renderOptions: IntegrationRendererRenderOptions<EcoPagesElement> | undefined;
 		const Page = (() => 'Page') as EcoPageComponent<any>;
 		Page.resolveDependencies = async () => ({
@@ -1003,6 +1010,7 @@ describe('IntegrationRenderer', () => {
 		})({
 			appConfig: testAppConfig,
 			assetProcessingService: { processDependencies } as unknown as AssetProcessingService,
+			assetProcessingIntegration,
 		});
 
 		await renderer.execute({
@@ -1022,11 +1030,12 @@ describe('IntegrationRenderer', () => {
 					filepath: '/app/content/docs/demo.client.ts',
 				}),
 			]),
-			'declarative-renderer',
+			assetProcessingIntegration,
 		);
 	});
 
 	it('resolves resolveDependencies modules through file-scoped dependency roots', async () => {
+		const assetProcessingIntegration = { name: 'declarative-renderer' };
 		const processDependencies = vi.fn(async (dependencies: Array<{ content?: string; name?: string }>) =>
 			dependencies.map((dependency) => ({
 				kind: 'script' as const,
@@ -1061,6 +1070,7 @@ describe('IntegrationRenderer', () => {
 		})({
 			appConfig,
 			assetProcessingService: { processDependencies } as unknown as AssetProcessingService,
+			assetProcessingIntegration,
 		});
 
 		await renderer.execute({ file: '/app/pages/demo.tsx', params: {}, query: {} });
@@ -1073,7 +1083,7 @@ describe('IntegrationRenderer', () => {
 					content: expect.stringContaining('react-aria-components'),
 				}),
 			]),
-			'declarative-renderer',
+			assetProcessingIntegration,
 		);
 		expect(renderOptions?.pagePackage?.pageBrowserGraph?.entryAssets).toEqual([
 			{ kind: 'script', inline: true, content: expect.stringContaining('react-aria-components') },

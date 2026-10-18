@@ -11,34 +11,30 @@ export class ContentStylesheetProcessor extends BaseProcessor<ContentStylesheetA
 			dep.processingOrigin ?? path.join(this.appConfig.absolutePaths.distDir, 'styles', 'page-bundle.css');
 		const processedContent = await applyStylesheetProcessors(this.appConfig, dep.content, virtualFilepath);
 		const hash = this.generateHash(processedContent);
-		const cachekey = this.buildCacheKey(hash, hash, dep);
+		let filepath: string | undefined;
 
-		return this.getOrProcess(cachekey, () => {
-			let filepath: string | undefined;
-
-			if (!dep.inline) {
-				if (this.isProduction) {
-					filepath = writeHashedBrowserAsset({
-						bytes: processedContent,
-						directory: this.getAssetsDir(),
-						extension: '.css',
-					});
-				} else {
-					filepath = path.join(this.getAssetsDir(), 'styles', `style-${hash}.css`);
-					fileSystem.write(filepath, processedContent);
-				}
+		if (!dep.inline) {
+			if (this.isProduction) {
+				filepath = writeHashedBrowserAsset({
+					bytes: processedContent,
+					directory: this.getAssetsDir(),
+					extension: '.css',
+				});
+			} else {
+				filepath = path.join(this.getAssetsDir(), 'styles', `style-${hash}.css`);
+				fileSystem.write(filepath, processedContent);
 			}
+		}
 
-			return {
-				filepath,
-				content: dep.inline ? processedContent : undefined,
-				kind: 'stylesheet',
-				position: dep.position,
-				attributes: dep.attributes,
-				inline: dep.inline,
-				packageRole: dep.packageRole,
-				bundledSourceFilepaths: dep.bundledSourceFilepaths,
-			};
-		});
+		return {
+			filepath,
+			content: dep.inline ? processedContent : undefined,
+			kind: 'stylesheet',
+			position: dep.position,
+			attributes: dep.attributes,
+			inline: dep.inline,
+			packageRole: dep.packageRole,
+			bundledSourceFilepaths: dep.bundledSourceFilepaths,
+		};
 	}
 }

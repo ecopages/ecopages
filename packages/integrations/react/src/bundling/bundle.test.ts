@@ -200,9 +200,11 @@ describe('BundleService', () => {
 	});
 
 	it('processes page-layout-normalization vendor once for concurrent MDX callers', async () => {
+		const assetProcessingIntegration = { name: 'react' };
 		const service = new BundleService({
 			rootDir: '/app',
 			appConfig: testAppConfig,
+			assetProcessingIntegration,
 			hostIntegrationName: 'react',
 		});
 		let resolveProcess!: () => void;
@@ -227,7 +229,7 @@ describe('BundleService', () => {
 					name: 'page-layout-normalization',
 				}),
 			]),
-			'react:page-layout-normalization',
+			assetProcessingIntegration,
 		);
 
 		resolveProcess();

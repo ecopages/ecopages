@@ -6,6 +6,8 @@ import {
 	type AssetProcessingService,
 	type ProcessedAsset,
 } from '../../../services/assets/asset-processing-service/index.ts';
+import type { AssetProcessingIntegration } from '../../../services/assets/asset-processing-service/asset-processing-integration.ts';
+import { resolveAssetProcessingIntegration } from '../../../services/assets/asset-processing-service/asset-processing-integration.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
@@ -178,10 +180,20 @@ export type PageBrowserGraphResolveInput = {
 export class PageBrowserGraphService {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly assetProcessingService: AssetProcessingService;
+	private readonly assetProcessingIntegration?: AssetProcessingIntegration;
 
-	constructor(appConfig: EcoPagesAppConfig, assetProcessingService: AssetProcessingService) {
+	constructor(
+		appConfig: EcoPagesAppConfig,
+		assetProcessingService: AssetProcessingService,
+		assetProcessingIntegration?: AssetProcessingIntegration,
+	) {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
+		this.assetProcessingIntegration = assetProcessingIntegration;
+	}
+
+	private getAssetProcessingIntegration(name: string): AssetProcessingIntegration | undefined {
+		return resolveAssetProcessingIntegration(name, this.assetProcessingIntegration, this.appConfig.integrations);
 	}
 
 	async resolvePageBrowserGraph(input: PageBrowserGraphResolveInput): Promise<PageBrowserGraphResult | undefined> {
@@ -311,7 +323,7 @@ export class PageBrowserGraphService {
 		const processedDependencies = ungroupedDependencies.length
 			? await this.assetProcessingService.processDependencies(
 					ungroupedDependencies,
-					`${input.integrationName}:${input.routeFile}`,
+					this.getAssetProcessingIntegration(input.integrationName),
 				)
 			: [];
 		const resolvedAssets = [...processedDependencies, ...groupedAssets, ...(contribution.assets ?? [])];
@@ -580,7 +592,7 @@ export class PageBrowserGraphService {
 
 		const processedGroupedDependencies = await this.assetProcessingService.processDependencies(
 			groupedDependencies,
-			`${input.integrationName}:grouped-page-browser-graph`,
+			this.getAssetProcessingIntegration(input.integrationName),
 		);
 		const groupedAssetsByBundleKey = indexGroupedAssetsByBundleKey(processedGroupedDependencies);
 		const groupedAssetsByRoute = this.matchGroupedAssetsByRoute(

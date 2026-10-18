@@ -27,6 +27,7 @@ const createMockConfig = (): EcoPagesAppConfig =>
 	}) as unknown as EcoPagesAppConfig;
 
 describe('FileScriptProcessor', () => {
+	let activeHmrManager: IHmrManager | undefined;
 	let readFileSyncMock: any;
 	let copyFileMock: any;
 	let existsMock: any;
@@ -34,6 +35,7 @@ describe('FileScriptProcessor', () => {
 	let ensureDirMock: any;
 
 	beforeEach(() => {
+		activeHmrManager = undefined;
 		readFileSyncMock = vi.fn(() => 'console.log("test");');
 		copyFileMock = vi.fn(() => {});
 		existsMock = vi.fn(() => false);
@@ -57,21 +59,16 @@ describe('FileScriptProcessor', () => {
 		vi.restoreAllMocks();
 	});
 
-	describe('setHmrManager', () => {
-		test('should accept an HMR manager', () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
-			const HmrManager = {
-				isEnabled: () => true,
-				registerScriptEntrypoint: async () => '/hmr/script.js',
-			} as unknown as IHmrManager;
-
-			expect(() => processor.setHmrManager(HmrManager)).not.toThrow();
+	function createProcessor(): FileScriptProcessor {
+		return new FileScriptProcessor({
+			appConfig: createMockConfig(),
+			getHmrManager: () => activeHmrManager,
 		});
-	});
+	}
 
 	describe('process', () => {
 		test('should reuse an existing HMR artifact without blocking on registration', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 			const registerScriptEntrypoint = vi.fn(async () => '/assets/__eco_dev__/script.js');
 			const scriptPath = '/test/project/src/script.ts';
 			const HmrManager = {
@@ -83,7 +80,7 @@ describe('FileScriptProcessor', () => {
 					outputPath: scriptPath,
 				}),
 			} as unknown as IHmrManager;
-			processor.setHmrManager(HmrManager);
+			activeHmrManager = HmrManager;
 
 			const dep: FileScriptAsset = {
 				kind: 'script',
@@ -100,7 +97,7 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should register stale on-disk HMR artifacts that are not yet watched', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 			const registerScriptEntrypoint = vi.fn(async () => '/assets/__eco_dev__/script.js');
 			const scriptPath = '/test/project/src/script.ts';
 			const HmrManager = {
@@ -109,7 +106,7 @@ describe('FileScriptProcessor', () => {
 				getWatchedFiles: () => new Map(),
 				getResolvedScriptOutput: () => undefined,
 			} as unknown as IHmrManager;
-			processor.setHmrManager(HmrManager);
+			activeHmrManager = HmrManager;
 
 			const dep: FileScriptAsset = {
 				kind: 'script',
@@ -124,7 +121,7 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should delegate to HMR manager when enabled and not inline and preserve excludeFromHtml', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 			const HmrManager = {
 				isEnabled: () => true,
 				registerScriptEntrypoint: vi.fn(async () => ({
@@ -133,7 +130,7 @@ describe('FileScriptProcessor', () => {
 					outputPath: '/test/project/src/script.ts',
 				})),
 			} as unknown as IHmrManager;
-			processor.setHmrManager(HmrManager);
+			activeHmrManager = HmrManager;
 
 			const dep: FileScriptAsset = {
 				kind: 'script',
@@ -153,7 +150,7 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should preserve excludeFromHtml: false when delegating to HMR manager', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 			const HmrManager = {
 				isEnabled: () => true,
 				registerScriptEntrypoint: vi.fn(async () => ({
@@ -162,7 +159,7 @@ describe('FileScriptProcessor', () => {
 					outputPath: '/test/project/src/script.ts',
 				})),
 			} as unknown as IHmrManager;
-			processor.setHmrManager(HmrManager);
+			activeHmrManager = HmrManager;
 
 			const dep: FileScriptAsset = {
 				kind: 'script',
@@ -181,14 +178,14 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should propagate HMR registration failures instead of falling back to static assets', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 			const HmrManager = {
 				isEnabled: () => true,
 				registerScriptEntrypoint: vi.fn(async () => {
 					throw new Error('[HMR] Failed to register script entrypoint');
 				}),
 			} as unknown as IHmrManager;
-			processor.setHmrManager(HmrManager);
+			activeHmrManager = HmrManager;
 
 			const dep: FileScriptAsset = {
 				kind: 'script',
@@ -201,12 +198,12 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should not use HMR when inline is true', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 			const HmrManager = {
 				isEnabled: () => true,
 				registerScriptEntrypoint: vi.fn(async () => '/hmr/script.js'),
 			} as unknown as IHmrManager;
-			processor.setHmrManager(HmrManager);
+			activeHmrManager = HmrManager;
 
 			const dep: FileScriptAsset = {
 				kind: 'script',
@@ -224,13 +221,13 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should write a bundle: false script under a hash of its bytes even when HMR is enabled', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 			const HmrManager = {
 				isEnabled: () => true,
 				getResolvedScriptOutput: vi.fn(),
 				registerScriptEntrypoint: vi.fn(),
 			} as unknown as IHmrManager;
-			processor.setHmrManager(HmrManager);
+			activeHmrManager = HmrManager;
 
 			const result = await processor.process({
 				kind: 'script',
@@ -250,13 +247,13 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should compile a classic script itself, outside the ES-module HMR pipeline', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 			const HmrManager = {
 				isEnabled: () => true,
 				getResolvedScriptOutput: vi.fn(),
 				registerScriptEntrypoint: vi.fn(),
 			} as unknown as IHmrManager;
-			processor.setHmrManager(HmrManager);
+			activeHmrManager = HmrManager;
 			readFileSyncMock.mockReturnValue('function greet(name: string): string { return name; }');
 			const write = vi.spyOn(fileSystem, 'write').mockImplementation(() => {});
 
@@ -274,7 +271,7 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should reject a classic script that cannot be one, whoever sets classic', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 			readFileSyncMock.mockReturnValue('const node = <div />;');
 
 			await expect(
@@ -288,7 +285,7 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should reject a second classic script source that is emitted to the same output', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 			readFileSyncMock.mockReturnValue('var ready = true;');
 			existsMock.mockReturnValue(true);
 			const classic = (filepath: string) =>
@@ -303,7 +300,7 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should write a bundle: false script under a hash of its bytes', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 
 			const dep: FileScriptAsset = {
 				kind: 'script',
@@ -324,7 +321,7 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should return consistent result when called multiple times with same file', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 
 			const dep: FileScriptAsset = {
 				kind: 'script',
@@ -341,7 +338,7 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should include content when inline is true and bundle is false', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 
 			const dep: FileScriptAsset = {
 				kind: 'script',
@@ -359,7 +356,7 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should preserve attributes from dependency', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 
 			const dep: FileScriptAsset = {
 				kind: 'script',
@@ -375,7 +372,7 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should preserve position from dependency', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 
 			const dep: FileScriptAsset = {
 				kind: 'script',
@@ -391,7 +388,7 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should pass bundle plugins through when bundling', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 			const bundleScriptSpy = vi
 				.spyOn(processor as never as { bundleScript: (typeof processor)['bundleScript'] }, 'bundleScript')
 				.mockResolvedValue({ filepath: '/tmp/out.js', inputPaths: [] });
@@ -418,7 +415,7 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should bundle nested source files into dist assets subdirectories', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 			const bundleScriptSpy = vi
 				.spyOn(processor as never as { bundleScript: (typeof processor)['bundleScript'] }, 'bundleScript')
 				.mockResolvedValue({ filepath: '/tmp/out.js', inputPaths: [] });
@@ -453,7 +450,7 @@ describe('FileScriptProcessor', () => {
 					},
 				}),
 			);
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 
 			const result = await processor.process({
 				kind: 'script',
@@ -470,7 +467,7 @@ describe('FileScriptProcessor', () => {
 			vi.spyOn(BrowserBundleService.prototype, 'bundle').mockResolvedValue(
 				createBuildFailure([{ message: 'no loader', plugin: 'eco-loader', id: entrypoint }]),
 			);
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 
 			await expect(
 				processor.process({ kind: 'script', source: 'file', filepath: entrypoint, bundle: true }),
@@ -485,7 +482,7 @@ describe('FileScriptProcessor', () => {
 					entryOutputs: { [entrypoint]: '/tmp/index-abc123.js' },
 				}),
 			);
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 
 			const result = await processor.process({
 				kind: 'script',
@@ -498,7 +495,7 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should disable splitting for page-owned script bundles by default', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 			const bundleScriptSpy = vi
 				.spyOn(processor as never as { bundleScript: (typeof processor)['bundleScript'] }, 'bundleScript')
 				.mockResolvedValue({ filepath: '/tmp/out.js', inputPaths: [] });
@@ -518,7 +515,7 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('should return updated attributes when cached asset is retrieved with different attributes', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 
 			const depWithDefer: FileScriptAsset = {
 				kind: 'script',
@@ -550,7 +547,7 @@ describe('FileScriptProcessor', () => {
 
 	describe('processGrouped', () => {
 		test('combines bundle options from every grouped entry', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 			const firstPlugin = { name: 'island-a-plugin', setup: () => {} };
 			const secondPlugin = { name: 'island-b-plugin', setup: () => {} };
 			const bundleGroupedEntriesSpy = vi
@@ -602,7 +599,7 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('rejects conflicting defines in one grouped build', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 
 			await expect(
 				processor.processGrouped([
@@ -625,7 +622,7 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('bundles grouped file entries together and maps outputs by entry name', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 			const bundleScriptsSpy = vi
 				.spyOn(processor as never as { bundleScripts: (typeof processor)['bundleScripts'] }, 'bundleScripts')
 				.mockResolvedValue(
@@ -659,7 +656,7 @@ describe('FileScriptProcessor', () => {
 		});
 
 		test('rejects a grouped build without an entry output record', async () => {
-			const processor = new FileScriptProcessor({ appConfig: createMockConfig() });
+			const processor = createProcessor();
 			vi.spyOn(
 				processor as never as { bundleScripts: (typeof processor)['bundleScripts'] },
 				'bundleScripts',

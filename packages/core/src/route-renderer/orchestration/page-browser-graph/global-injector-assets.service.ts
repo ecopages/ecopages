@@ -40,5 +40,6 @@ export async function buildGlobalInjectorAssets(
 		bundle: true,
 	});
 
-	return assetProcessingService.processDependencies([mapScript, bootstrapInlineScript], currentIntegrationName);
+	const integration = appConfig.integrations?.find((entry) => entry.name === currentIntegrationName);
+	return assetProcessingService.processDependencies([mapScript, bootstrapInlineScript], integration);
 }

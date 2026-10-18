@@ -94,25 +94,6 @@ describe('NodeModuleScriptProcessor', () => {
 		});
 	});
 
-	describe('process - caching', () => {
-		test('should return cached result on subsequent calls', async () => {
-			const processor = new NodeModuleScriptProcessor({ appConfig: createMockConfig() });
-
-			const dep: NodeModuleScriptAsset = {
-				kind: 'script',
-				source: 'node-module',
-				importPath: 'cached-package/dist/index.js',
-				inline: true,
-			};
-
-			const result1 = await processor.process(dep);
-			const result2 = await processor.process(dep);
-
-			expect(readFileAsBufferMock.mock.calls.length).toBe(1);
-			expect(result1).toEqual(result2);
-		});
-	});
-
 	describe('resolveModulePath', () => {
 		test('should throw error when module not found', async () => {
 			existsMock = vi.fn(() => false);

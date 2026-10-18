@@ -18,63 +18,53 @@ export class NodeModuleScriptProcessor extends BaseScriptProcessor<NodeModuleScr
 		const moduleName = path.basename(modulePath);
 		const filename = dep.name ?? `nm-${moduleName}`;
 		const shouldBundle = this.shouldBundle(dep);
-		const configHash = this.generateHash(
-			JSON.stringify({
-				bundle: shouldBundle,
-				inline: dep.inline,
-				minify: shouldBundle && !dep.inline && this.isProduction,
-				opts: dep.bundleOptions,
-			}),
-		);
-		const cachekey = `${this.buildCacheKey(filename, this.generateHash(modulePath), dep)}:${configHash}`;
+		if (dep.inline || !shouldBundle) {
+			const content = fileSystem.readFileAsBuffer(modulePath).toString();
+			const filepath = dep.inline ? undefined : path.join(this.getAssetsDir(), 'vendors', filename);
 
-		return this.getOrProcess(cachekey, async () => {
-			if (dep.inline || !shouldBundle) {
-				const content = fileSystem.readFileAsBuffer(modulePath).toString();
-				const filepath = dep.inline ? undefined : path.join(this.getAssetsDir(), 'vendors', filename);
-
-				if (filepath) {
-					fileSystem.ensureDir(path.dirname(filepath));
-					if (!fileSystem.exists(filepath) || fileSystem.readFileAsBuffer(filepath).toString() !== content) {
-						fileSystem.copyFile(modulePath, filepath);
-					}
+			if (filepath) {
+				fileSystem.ensureDir(path.dirname(filepath));
+				if (!fileSystem.exists(filepath) || fileSystem.readFileAsBuffer(filepath).toString() !== content) {
+					fileSystem.copyFile(modulePath, filepath);
 				}
-
-				return {
-					filepath,
-					content,
-					kind: dep.kind,
-					position: dep.position,
-					attributes: dep.attributes,
-					inline: dep.inline,
-					excludeFromHtml: dep.excludeFromHtml,
-					packageRole: dep.packageRole,
-					bundledSourceFilepaths: this.getBundledSourceFilepaths(dep),
-				};
 			}
 
-			const outdir = path.join(this.getAssetsDir(), 'vendors');
-			const bundlerOptions = this.getBundlerOptions(dep);
-
-			const bundledOutput = await this.bundleScript({
-				entrypoint: modulePath,
-				outdir: outdir,
-				minify: this.isProduction,
-				naming: bundlerOptions.naming ?? (dep.name ? `${dep.name}-[hash].[ext]` : '[name]-[hash].[ext]'),
-				...bundlerOptions,
-			});
-
 			return {
-				filepath: bundledOutput.filepath,
+				filepath,
+				sourceFilepath: modulePath,
+				content,
 				kind: dep.kind,
 				position: dep.position,
 				attributes: dep.attributes,
 				inline: dep.inline,
 				excludeFromHtml: dep.excludeFromHtml,
 				packageRole: dep.packageRole,
-				bundledSourceFilepaths: this.getBundledSourceFilepaths(dep, bundledOutput.inputPaths),
+				bundledSourceFilepaths: this.getBundledSourceFilepaths(dep),
 			};
+		}
+
+		const outdir = path.join(this.getAssetsDir(), 'vendors');
+		const bundlerOptions = this.getBundlerOptions(dep);
+
+		const bundledOutput = await this.bundleScript({
+			entrypoint: modulePath,
+			outdir,
+			minify: this.isProduction,
+			naming: bundlerOptions.naming ?? (dep.name ? `${dep.name}-[hash].[ext]` : '[name]-[hash].[ext]'),
+			...bundlerOptions,
 		});
+
+		return {
+			filepath: bundledOutput.filepath,
+			sourceFilepath: modulePath,
+			kind: dep.kind,
+			position: dep.position,
+			attributes: dep.attributes,
+			inline: dep.inline,
+			excludeFromHtml: dep.excludeFromHtml,
+			packageRole: dep.packageRole,
+			bundledSourceFilepaths: this.getBundledSourceFilepaths(dep, bundledOutput.inputPaths),
+		};
 	}
 
 	/**

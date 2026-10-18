@@ -119,7 +119,7 @@ function createGroupedPageScriptDependency(
  * grouped content script per route.
  *
  * @remarks
- * `processDependencies` answers the `react:grouped-page-browser-graph` batch with one processed
+ * `processDependencies` answers batches owned by the React Integration with one processed
  * asset per grouped script, so assertions read the asset a route received and how many batches
  * the orchestrator processed.
  */
@@ -130,12 +130,13 @@ function createGroupedHarness(options: {
 	hmrEnabled?: boolean;
 }) {
 	const srcUrl = options.srcUrl ?? ((bundle) => `/assets/${bundle.entryName}.js`);
+	const reactIntegration = createReactIntegration([], { extensions: ['.tsx'] });
 	const { flow, processDependencies } = createOrchestrator({
-		integrations: [createReactIntegration([], { extensions: ['.tsx'] })],
+		integrations: [reactIntegration],
 		appConfig: { absolutePaths: { pagesDir: '/app/pages' } },
 		hmrEnabled: options.hmrEnabled ?? false,
-		processDependencies: async (dependencies, key) =>
-			key === 'react:grouped-page-browser-graph'
+		processDependencies: async (dependencies, integration) =>
+			integration === reactIntegration
 				? dependencies
 						.filter(
 							(dependency): dependency is GroupedContentScript & { groupedBundle: GroupedScriptBundle } =>
@@ -344,7 +345,9 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 
 	it('inlines the global injector bootstrap when resolved lazy triggers are present', async () => {
 		const fixtureRootDir = path.join(process.cwd(), 'playground/react');
+		const ownerIntegration = { name: 'string' };
 		const { flow, processDependencies } = createOrchestrator({
+			integrations: [ownerIntegration],
 			appConfig: { rootDir: fixtureRootDir, absolutePaths: { projectDir: fixtureRootDir } },
 			processDependencies: async (dependencies) =>
 				dependencies.map((dependency) => ({
@@ -377,7 +380,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					attributes: { type: 'module' },
 				}),
 			]),
-			'string',
+			ownerIntegration,
 		);
 	});
 
@@ -461,7 +464,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			const secondResult = await prepare('/app/pages/dashboard.tsx');
 
 			expect(processDependencies).toHaveBeenCalledTimes(2);
-			expect(processDependencies.mock.calls[0]?.[1]).toBe('react:grouped-page-browser-graph');
+			expect(processDependencies.mock.calls[0]?.[1]).toMatchObject({ name: 'react' });
 			expect(collectPageBrowserGraphContribution).toHaveBeenCalledWith(
 				expect.objectContaining({ file: '/app/pages/dashboard.tsx' }),
 			);
@@ -536,9 +539,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			expect(collectPageBrowserGraphContribution).toHaveBeenCalledWith(
 				expect.objectContaining({ file: '/app/pages/index.tsx' }),
 			);
-			const groupedCall = processDependencies.mock.calls.find(
-				(call) => call[1] === 'react:grouped-page-browser-graph',
-			);
+			const groupedCall = processDependencies.mock.calls.find((call) => call[1]?.name === 'react');
 			expect(groupedCall?.[0]).toHaveLength(1);
 			expect((groupedCall?.[0]?.[0] as { groupedBundle?: { entryName: string } })?.groupedBundle?.entryName).toBe(
 				'index',

@@ -6,19 +6,28 @@ import { appLogger } from '../../../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { requireAppRuntime } from '../../../config/app-runtime.ts';
-import type { AssetDefinition, AssetKind, AssetSource, ContentScriptAsset, ProcessedAsset } from './assets.types.ts';
+import type {
+	AssetDefinition,
+	AssetKind,
+	AssetSource,
+	ContentScriptAsset,
+	ContentStylesheetAsset,
+	FileScriptAsset,
+	FileStylesheetAsset,
+	NodeModuleScriptAsset,
+	ProcessedAsset,
+} from './assets.types.ts';
 import { deduplicateAssetDependencies, getAssetDependencyKey } from './asset-dependency-keys.ts';
 import {
 	ensureGroupedContentScriptsBundle,
 	partitionGroupedContentScriptDependencies,
-	processGroupedDependencyBundles,
 } from './grouped-content-bundles.ts';
-import { resolveIntegrationPluginForProcessingKey } from './resolve-integration-plugin.ts';
-import { isHmrAware } from './processor.interface.ts';
-import { ProcessorRegistry } from './processor.registry.ts';
-import { processUngroupedDependency } from './ungrouped-dependency-processing.ts';
+import type { AssetProcessor } from './processor.interface.ts';
 import { materializeContentScriptAsset } from './materialize-content-script-asset.ts';
 import { clearPageCacheForBrowserRuntimeAssetChange } from '../browser-runtime-asset-page-cache.ts';
+import { isBrowserRuntimeAssetRole } from './asset-package-role.ts';
+import type { AssetProcessingIntegration } from './asset-processing-integration.ts';
+import { finalizeProcessedAsset } from './finalize-processed-asset.ts';
 import {
 	ContentScriptProcessor,
 	ContentStylesheetProcessor,
@@ -36,6 +45,41 @@ type CachedGroupedBundle = {
 	dependencyKeys: string[];
 };
 
+type GroupedAssetProcessor<T extends AssetDefinition> = AssetProcessor<T> & {
+	processGrouped?: (dependencies: T[]) => Promise<ProcessedAsset[]>;
+};
+
+type RegisteredAssetProcessor =
+	| GroupedAssetProcessor<ContentScriptAsset>
+	| GroupedAssetProcessor<FileScriptAsset>
+	| AssetProcessor<NodeModuleScriptAsset>
+	| AssetProcessor<ContentStylesheetAsset>
+	| AssetProcessor<FileStylesheetAsset>;
+
+type AssetProcessorRecord = {
+	script: {
+		content?: GroupedAssetProcessor<ContentScriptAsset>;
+		file?: GroupedAssetProcessor<FileScriptAsset>;
+		'node-module'?: AssetProcessor<NodeModuleScriptAsset>;
+	};
+	stylesheet: {
+		content?: AssetProcessor<ContentStylesheetAsset>;
+		file?: AssetProcessor<FileStylesheetAsset>;
+	};
+};
+
+function isContentScriptBundle(dependencies: AssetDefinition[]): dependencies is ContentScriptAsset[] {
+	return dependencies.every(
+		(dependency) => dependency.kind === 'script' && dependency.source === 'content' && dependency.groupedBundle,
+	);
+}
+
+function isFileScriptBundle(dependencies: AssetDefinition[]): dependencies is FileScriptAsset[] {
+	return dependencies.every(
+		(dependency) => dependency.kind === 'script' && dependency.source === 'file' && dependency.groupedBundle,
+	);
+}
+
 /**
  * Processes declared component and page asset dependencies for one app instance.
  *
@@ -47,7 +91,7 @@ type CachedGroupedBundle = {
  */
 export class AssetProcessingService {
 	static readonly RESOLVED_ASSETS_DIR = RESOLVED_ASSETS_DIR;
-	private registry = new ProcessorRegistry();
+	private readonly processors: AssetProcessorRecord = { script: {}, stylesheet: {} };
 	private hmrManager?: IHmrManager;
 	private cache = new Map<string, CachedAsset>();
 	private readonly groupedBundleCache = new Map<string, CachedGroupedBundle>();
@@ -77,12 +121,6 @@ export class AssetProcessingService {
 	 */
 	setHmrManager(hmrManager: IHmrManager) {
 		this.hmrManager = hmrManager;
-
-		for (const processor of this.registry.getAllProcessors().values()) {
-			if (isHmrAware(processor)) {
-				processor.setHmrManager(hmrManager);
-			}
-		}
 	}
 
 	getHmrManager(): IHmrManager | undefined {
@@ -95,11 +133,38 @@ export class AssetProcessingService {
 	 * @param variant The asset source.
 	 * @param processor The processor to register.
 	 */
-	registerProcessor(kind: AssetKind, variant: AssetSource, processor: any): void {
-		if (this.hmrManager && isHmrAware(processor)) {
-			processor.setHmrManager(this.hmrManager);
+	registerProcessor(kind: 'script', variant: 'content', processor: GroupedAssetProcessor<ContentScriptAsset>): void;
+	registerProcessor(kind: 'script', variant: 'file', processor: GroupedAssetProcessor<FileScriptAsset>): void;
+	registerProcessor(kind: 'script', variant: 'node-module', processor: AssetProcessor<NodeModuleScriptAsset>): void;
+	registerProcessor(kind: 'stylesheet', variant: 'content', processor: AssetProcessor<ContentStylesheetAsset>): void;
+	registerProcessor(kind: 'stylesheet', variant: 'file', processor: AssetProcessor<FileStylesheetAsset>): void;
+	registerProcessor(kind: AssetKind, variant: AssetSource, processor: RegisteredAssetProcessor): void {
+		if (kind === 'script' && variant === 'content') {
+			this.processors.script.content = processor as GroupedAssetProcessor<ContentScriptAsset>;
+			return;
 		}
-		this.registry.register(kind, variant, processor);
+
+		if (kind === 'script' && variant === 'file') {
+			this.processors.script.file = processor as GroupedAssetProcessor<FileScriptAsset>;
+			return;
+		}
+
+		if (kind === 'script' && variant === 'node-module') {
+			this.processors.script['node-module'] = processor as AssetProcessor<NodeModuleScriptAsset>;
+			return;
+		}
+
+		if (kind === 'stylesheet' && variant === 'content') {
+			this.processors.stylesheet.content = processor as AssetProcessor<ContentStylesheetAsset>;
+			return;
+		}
+
+		if (kind === 'stylesheet' && variant === 'file') {
+			this.processors.stylesheet.file = processor as AssetProcessor<FileStylesheetAsset>;
+			return;
+		}
+
+		throw new Error(`No processor slot exists for ${kind}/${variant}`);
 	}
 
 	/**
@@ -112,22 +177,20 @@ export class AssetProcessingService {
 	 * outputs with inputs via dependency metadata such as `groupedBundle`, not by
 	 * array index alignment with the input list.
 	 */
-	async processDependencies(deps: AssetDefinition[], key: string): Promise<ProcessedAsset[]> {
+	async processDependencies(
+		deps: AssetDefinition[],
+		integration: AssetProcessingIntegration | undefined,
+	): Promise<ProcessedAsset[]> {
 		const depsDir = path.join(this.config.absolutePaths.distDir, RESOLVED_ASSETS_DIR);
 		fileSystem.ensureDir(depsDir);
 
 		const dedupedDeps = deduplicateAssetDependencies(deps);
-		const preparedDeps = this.prepareDependenciesForProcessing(dedupedDeps, key);
+		const preparedDeps = integration?.prepareAssetDependencies?.(dedupedDeps) ?? dedupedDeps;
 		ensureGroupedContentScriptsBundle(preparedDeps);
 		const results = await this.processDependenciesParallel(preparedDeps);
 
 		await this.optimizeDependencies(results);
 		return results;
-	}
-
-	private prepareDependenciesForProcessing(deps: AssetDefinition[], processingKey: string): AssetDefinition[] {
-		const plugin = resolveIntegrationPluginForProcessingKey(this.config, processingKey);
-		return plugin?.prepareAssetDependencies?.(deps) ?? deps;
 	}
 
 	/**
@@ -144,26 +207,7 @@ export class AssetProcessingService {
 			const { groupedBundleDeps, ungroupedDeps } = partitionGroupedContentScriptDependencies(typeDeps);
 
 			const typePromises = ungroupedDeps.map((dep) =>
-				this.shareInFlight(getAssetDependencyKey(dep), () =>
-					processUngroupedDependency({
-						dep,
-						depKey: getAssetDependencyKey(dep),
-						getCachedAsset: (assetDep, depKey) => this.getCachedAsset(assetDep, depKey),
-						getProcessor: (assetDep) => this.registry.getProcessor(assetDep.kind, assetDep.source),
-						resolveProcessedAssetSrcUrl: (processed) => this.resolveProcessedAssetSrcUrl(processed),
-						setCachedAsset: (assetDep, depKey, processed) =>
-							this.setCachedAsset(assetDep, depKey, processed),
-						logMissingProcessor: (assetDep) => {
-							appLogger.error(`No processor found for ${assetDep.kind}/${assetDep.source}`);
-						},
-						logMissingFile: (assetDep) => {
-							appLogger.warn(`Skipping missing ${assetDep.kind} file: ${assetDep.filepath}`);
-						},
-						logProcessingError: (assetDep, error) => {
-							appLogger.error(`Failed to process ${assetDep.kind}/${assetDep.source} dependency:`, error);
-						},
-					}),
-				),
+				this.shareInFlight(getAssetDependencyKey(dep), () => this.processUngroupedDependency(dep)),
 			);
 
 			const groupedBundles = Array.from(groupedBundleDeps.values());
@@ -172,24 +216,7 @@ export class AssetProcessingService {
 				.sort()
 				.join('|');
 			const groupedResults = await this.shareInFlight(`grouped:${groupedKey}`, () =>
-				processGroupedDependencyBundles({
-					bundles: groupedBundles,
-					getCachedBundle: (bundleDeps, dependencyKeys) =>
-						this.getCachedGroupedBundle(bundleDeps, dependencyKeys),
-					getDependencyKey: getAssetDependencyKey,
-					getGroupedProcessor: (bundleDeps) => {
-						const source = bundleDeps[0]?.source === 'file' ? 'file' : 'content';
-						return this.registry.getProcessor('script', source) as {
-							processGrouped?: (deps: AssetDefinition[]) => Promise<ProcessedAsset[]>;
-						};
-					},
-					resolveProcessedAssetSrcUrl: (processed) => this.resolveProcessedAssetSrcUrl(processed),
-					setCachedBundle: (bundleDeps, dependencyKeys, processedAssets) =>
-						this.setCachedGroupedBundle(bundleDeps, dependencyKeys, processedAssets),
-					logError: (error) => {
-						appLogger.error('Failed to process grouped dependency bundle:', error);
-					},
-				}),
+				this.processGroupedDependencyBundles(groupedBundles),
 			);
 
 			const typeResults = await Promise.all(typePromises);
@@ -206,6 +233,126 @@ export class AssetProcessingService {
 
 		const allTypeResults = await Promise.all(groupPromises);
 		return allTypeResults.flat();
+	}
+
+	private async processUngroupedDependency(dep: AssetDefinition): Promise<ProcessedAsset | null> {
+		const dependencyKey = getAssetDependencyKey(dep);
+		const cached = this.getCachedAsset(dep, dependencyKey);
+		if (cached) {
+			return finalizeProcessedAsset(cached, (processed) => this.resolveProcessedAssetSrcUrl(processed));
+		}
+
+		if (dep.source === 'file' && 'filepath' in dep && !fileSystem.exists(dep.filepath)) {
+			appLogger.warn(`Skipping missing ${dep.kind} file: ${dep.filepath}`);
+			return null;
+		}
+
+		try {
+			const processed = await this.runProcessor(dep);
+			if (!processed) {
+				appLogger.error(`No processor found for ${dep.kind}/${dep.source}`);
+				return null;
+			}
+
+			const finalized = finalizeProcessedAsset(processed, (asset) => this.resolveProcessedAssetSrcUrl(asset));
+			this.setCachedAsset(dep, dependencyKey, finalized);
+			return finalized;
+		} catch (error) {
+			appLogger.error(`Failed to process ${dep.kind}/${dep.source} dependency:`, error);
+			return null;
+		}
+	}
+
+	private runProcessor(dep: AssetDefinition): Promise<ProcessedAsset> | undefined {
+		switch (dep.kind) {
+			case 'script':
+				switch (dep.source) {
+					case 'content':
+						return this.processors.script.content?.process(dep);
+					case 'file':
+						return this.processors.script.file?.process(dep);
+					case 'node-module':
+						return this.processors.script['node-module']?.process(dep);
+					default:
+						return undefined;
+				}
+			case 'stylesheet':
+				switch (dep.source) {
+					case 'content':
+						return this.processors.stylesheet.content?.process(dep);
+					case 'file':
+						return this.processors.stylesheet.file?.process(dep);
+					default:
+						return undefined;
+				}
+			default:
+				return undefined;
+		}
+	}
+
+	private async processGroupedDependencyBundles(bundles: AssetDefinition[][]): Promise<ProcessedAsset[]> {
+		const processedBundles = await Promise.all(
+			bundles.map(async (bundleDeps) => {
+				const dependencyKeys = bundleDeps.map(getAssetDependencyKey);
+				const cachedBundle = this.getCachedGroupedBundle(bundleDeps, dependencyKeys);
+				if (cachedBundle) {
+					return cachedBundle.map((asset) =>
+						finalizeProcessedAsset(asset, (processed) => this.resolveProcessedAssetSrcUrl(processed)),
+					);
+				}
+
+				try {
+					const processedAssets = await this.runGroupedProcessor(bundleDeps);
+					if (!processedAssets) {
+						return [];
+					}
+
+					const processedByEntryKey = new Map<string, ProcessedAsset>();
+					for (const processed of processedAssets) {
+						if (processed.groupedBundle) {
+							processedByEntryKey.set(
+								`${processed.groupedBundle.id}:${processed.groupedBundle.entryName}`,
+								processed,
+							);
+						}
+					}
+
+					const processedBundle = bundleDeps.flatMap((dep) => {
+						if (dep.kind !== 'script' || !dep.groupedBundle) {
+							return [];
+						}
+						const asset = processedByEntryKey.get(`${dep.groupedBundle.id}:${dep.groupedBundle.entryName}`);
+						return asset
+							? [
+									finalizeProcessedAsset(asset, (processed) =>
+										this.resolveProcessedAssetSrcUrl(processed),
+									),
+								]
+							: [];
+					});
+
+					if (processedBundle.length === bundleDeps.length) {
+						this.setCachedGroupedBundle(bundleDeps, dependencyKeys, processedBundle);
+					}
+					return processedBundle;
+				} catch (error) {
+					appLogger.error('Failed to process grouped dependency bundle:', error);
+					return [];
+				}
+			}),
+		);
+
+		return processedBundles.flat();
+	}
+
+	private runGroupedProcessor(deps: AssetDefinition[]): Promise<ProcessedAsset[]> | undefined {
+		if (isContentScriptBundle(deps)) {
+			return this.processors.script.content?.processGrouped?.(deps);
+		}
+		if (isFileScriptBundle(deps)) {
+			return this.processors.script.file?.processGrouped?.(deps);
+		}
+		return undefined;
 	}
 
 	/**
@@ -362,14 +509,14 @@ export class AssetProcessingService {
 			return this.cache.get(depKey)?.asset ?? null;
 		}
 
-		const sourceHash = this.getFileSourceHash(dep);
-		if (dep.source === 'file' && sourceHash === undefined) {
-			this.invalidateCachedAsset(depKey);
-			return null;
-		}
-
 		const currentCache = this.cache.get(depKey);
 		if (!currentCache) {
+			return null;
+		}
+		const sourceFilepath = currentCache.asset.sourceFilepath ?? this.getDependencySourceFilepath(dep);
+		const sourceHash = sourceFilepath ? this.getFileSourceHash(sourceFilepath) : undefined;
+		if (sourceFilepath && sourceHash === undefined) {
+			this.invalidateCachedAsset(depKey);
 			return null;
 		}
 
@@ -490,11 +637,11 @@ export class AssetProcessingService {
 	 */
 	private setCachedAsset(dep: AssetDefinition, depKey: string, asset: ProcessedAsset): void {
 		const previous = this.cache.get(depKey)?.asset;
-		const isBrowserRuntimeAsset = dep.packageRole === 'runtime' || dep.packageRole === 'page-script';
+		const isBrowserRuntimeAsset = isBrowserRuntimeAssetRole(dep.packageRole);
 
 		this.cache.set(depKey, {
 			asset,
-			sourceHash: this.getFileSourceHash(dep),
+			sourceHash: this.getFileSourceHash(asset.sourceFilepath ?? this.getDependencySourceFilepath(dep)),
 		});
 		if (asset.filepath) {
 			this.gzippedFiles.delete(asset.filepath);
@@ -514,17 +661,21 @@ export class AssetProcessingService {
 		this.cache.delete(depKey);
 		this.invalidateGroupedBundlesContaining(depKey);
 
-		if (cached?.asset.packageRole === 'runtime' || cached?.asset.packageRole === 'page-script') {
+		if (isBrowserRuntimeAssetRole(cached?.asset.packageRole)) {
 			void clearPageCacheForBrowserRuntimeAssetChange(this.config);
 		}
 	}
 
-	private getFileSourceHash(dep: AssetDefinition): string | undefined {
-		if (dep.source !== 'file' || !('filepath' in dep) || !fileSystem.exists(dep.filepath)) {
+	private getDependencySourceFilepath(dep: AssetDefinition): string | undefined {
+		return dep.source === 'file' && 'filepath' in dep ? dep.filepath : undefined;
+	}
+
+	private getFileSourceHash(filepath: string | undefined): string | undefined {
+		if (!filepath || !fileSystem.exists(filepath)) {
 			return undefined;
 		}
 
-		return fileSystem.hash(dep.filepath);
+		return fileSystem.hash(filepath);
 	}
 
 	/**
@@ -541,19 +692,13 @@ export class AssetProcessingService {
 				(value.asset.sourceFilepath && path.resolve(value.asset.sourceFilepath) === resolvedPath) ||
 				value.asset.bundledSourceFilepaths?.some((sourcePath) => path.resolve(sourcePath) === resolvedPath)
 			) {
-				invalidatesBrowserRuntime ||=
-					value.asset.packageRole === 'runtime' || value.asset.packageRole === 'page-script';
+				invalidatesBrowserRuntime ||= isBrowserRuntimeAssetRole(value.asset.packageRole);
 				this.cache.delete(key);
 				invalidatedKeys.add(key);
 			}
 		}
 		for (const key of invalidatedKeys) {
 			this.invalidateGroupedBundlesContaining(key);
-		}
-		for (const processor of this.registry.getAllProcessors().values()) {
-			if (typeof processor.invalidateCacheForFile === 'function') {
-				processor.invalidateCacheForFile(filepath);
-			}
 		}
 		if (invalidatesBrowserRuntime) {
 			void clearPageCacheForBrowserRuntimeAssetChange(this.config);
@@ -575,7 +720,11 @@ export class AssetProcessingService {
 		const service = new AssetProcessingService(appConfig);
 
 		service.registerProcessor('script', 'content', new ContentScriptProcessor({ appConfig }));
-		service.registerProcessor('script', 'file', new FileScriptProcessor({ appConfig }));
+		service.registerProcessor(
+			'script',
+			'file',
+			new FileScriptProcessor({ appConfig, getHmrManager: () => service.getHmrManager() }),
+		);
 		service.registerProcessor('script', 'node-module', new NodeModuleScriptProcessor({ appConfig }));
 
 		service.registerProcessor('stylesheet', 'content', new ContentStylesheetProcessor({ appConfig }));

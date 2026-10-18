@@ -31,9 +31,11 @@ describe('resolveClassicScriptOptions', () => {
 		const filepath = write(name, source);
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: dir, srcDir: '.' });
 		installBuildQueue(appConfig);
-		const processor = new FileScriptProcessor({ appConfig });
 		const hmrManager = { isEnabled: () => true, registerScriptEntrypoint: vi.fn() };
-		processor.setHmrManager(hmrManager as unknown as IHmrManager);
+		const processor = new FileScriptProcessor({
+			appConfig,
+			getHmrManager: () => hmrManager as unknown as IHmrManager,
+		});
 		const processed = await processor.process({
 			kind: 'script',
 			source: 'file',

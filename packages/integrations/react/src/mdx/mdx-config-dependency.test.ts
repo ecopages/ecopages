@@ -20,6 +20,7 @@ describe('MdxConfigDependencyService', () => {
 				filepath: '/tmp/owned-config.js',
 			},
 		]);
+		const assetProcessingIntegration = { name: 'react' };
 		const service = new MdxConfigDependencyService({
 			integrationName: 'react',
 			pageModuleService: {
@@ -28,6 +29,7 @@ describe('MdxConfigDependencyService', () => {
 			assetProcessingService: {
 				processDependencies,
 			},
+			assetProcessingIntegration,
 		});
 
 		const declaredLitComponentConfig: EcoComponentConfig = {
@@ -73,7 +75,7 @@ describe('MdxConfigDependencyService', () => {
 					},
 				}),
 			],
-			`react-mdx-ssr-lazy:${path.resolve(__dirname, '../test/fixture/react-content.mdx')}`,
+			assetProcessingIntegration,
 		);
 		expect(assets).toEqual(
 			expect.arrayContaining([

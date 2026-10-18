@@ -631,6 +631,7 @@ function createReactRendererHookFactory(
 ): IntegrationRendererHookFactory {
 	return ({
 		appConfig,
+		assetProcessingIntegration,
 		assetProcessingService,
 		applyPendingLazyTriggers,
 	}: Parameters<IntegrationRendererHookFactory>[0]) => {
@@ -641,6 +642,7 @@ function createReactRendererHookFactory(
 		const bundleService = new BundleService({
 			rootDir: appConfig.rootDir,
 			appConfig,
+			assetProcessingIntegration,
 			hostIntegrationName: REACT_PLUGIN_NAME,
 			routerAdapter,
 			runtimeModules: reactConfig?.runtimeModules,
@@ -657,6 +659,7 @@ function createReactRendererHookFactory(
 			srcDir: appConfig.srcDir,
 			routerAdapter,
 			assetProcessingService,
+			assetProcessingIntegration,
 			bundleService,
 			hmrPageMetadataCache,
 		});
@@ -674,6 +677,7 @@ function createReactRendererHookFactory(
 				integrationName: REACT_PLUGIN_NAME,
 				pageModuleService,
 				assetProcessingService,
+				assetProcessingIntegration,
 			}),
 			applyPendingLazyTriggers,
 		};

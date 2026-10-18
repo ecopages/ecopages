@@ -992,7 +992,7 @@ test('builds explicit route overrides from their current grouped dependencies', 
 	});
 
 	expect(result?.entryAssets).toEqual([overrideAsset]);
-	expect(processDependencies).toHaveBeenCalledWith([overrideDependency], 'react:grouped-page-browser-graph');
+	expect(processDependencies).toHaveBeenCalledWith([overrideDependency], appConfig.integrations?.[0]);
 });
 
 test('PageBrowserGraphService does not commit route graphs built without a grouped plan', async () => {

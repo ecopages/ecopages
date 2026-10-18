@@ -1,8 +1,8 @@
 # Core Services
 
-This directory contains app-owned services used by runtime startup, rendering, asset processing, and browser bundling.
+This directory contains app-owned services for asset processing, HTML finalization, and request validation.
 
-Services read their per-app state from the `AppRuntime` installed during config finalization. They do not create fallback runtime state when given an unfinalized config.
+Asset processing reads per-app state from the `AppRuntime` installed during config finalization. HTML transformation receives per-call contributions, and request validation uses stateless Standard Schema helpers.
 
 ## Purpose
 
@@ -10,7 +10,6 @@ Services in this directory exist to keep cross-cutting framework logic out of ad
 
 Typical responsibilities include:
 
-- browser bundle coordination
 - asset processing and runtime asset declaration helpers
 - HTML finalization and dependency injection
 - request validation with Standard Schema
@@ -18,8 +17,6 @@ Typical responsibilities include:
 ## Main Areas
 
 - `assets/`: shared browser build coordination and processed asset pipelines. `app-browser-client-build.ts` combines every static-export renderer plan, route island and lazy client entry, and HTML Page module script into compatible app-wide browser build groups, then attaches each route's entry assets. `app-browser-client-manifest.ts` persists those associations so `ecopages start` can restore the build outputs before SSR requests. Non-exact route templates receive a parameter-free plan without running route data hooks, allowing later params to reuse app-wide output when their grouped browser dependencies and page-client entries match; a new dependency graph uses the request-time fallback. Production CSS, copied scripts, image variants and Rolldown outputs record their content-addressed output paths when written (`hashed-browser-asset.ts`), and file responses use that record for `immutable` caching. Development keeps source-relative names so CSS HMR can refresh the same href. Vendor runtimes keep stable names, and dev vendor bundles stay in process memory.
-- `cache/`: page HTML cache stores, source-path invalidation through the shared build-input index, and request coordination. Each HTML entry records its route-module closure, browser graph, processed asset, and render-shell inputs; development evicts only entries bound to a changed file, and clears the HTML cache on `additionalWatchPaths` edits because the pages that read those files are unknown. On-demand path invalidation removes every query and development runtime variant of the pathname, and path/tag eviction releases the entry's build-input bindings. The `static` strategy reuses HTML until invalidation or the next deploy and sends `must-revalidate` with an ETag; `immutable` is reserved for content-hashed asset URLs. Page caching is off in watch mode unless `cache.enabled: true` opts in.
-- `runtime-manifest/`: node runtime manifest derivation and persistence
 - Request-pipeline metrics counters are held by each `AppRuntime`; response headers and render/build instrumentation use the owning app's counters.
 - `html/`: final HTML dependency injection and attribute stamping through `HtmlRewriter`, an in-house streaming rewriter with a subset of the HTMLRewriter API that matches lol-html output (tag-name selectors; `before`/`prepend`/`append`/`after`; attributes). `HtmlTransformerService.transform()` receives the page package and document contributions as per-call input, so concurrent renders do not share queued dependency state. Generated asset URLs and declared attribute values are escaped with `escapeHtmlAttribute` before their tags are injected. `html-rewriter.test.ts` pins the lol-html output. `html-tokenizer.ts` holds the lexing rules it shares with `html-source-parser.ts`, a positional parser for callers that splice the original markup, such as HTML Pages.
 - `validation/`: `validateRequest()` runs declared Standard Schema validators concurrently when their inputs are available; a body schema always runs and receives `undefined` for an empty body, so required schemas reject it and optional schemas can accept it.

@@ -7,11 +7,11 @@ import type { EcoPageComponent } from '../eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
 import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
-import type { CacheStats, CacheStrategy } from '../services/cache/cache.types.ts';
+import type { CacheStats, CacheStrategy } from '../page-cache/cache.types.ts';
 import type { InteractionEventsString as ScriptsInjectorInteractionEventsString } from '@ecopages/scripts-injector/types';
 import type { DevTransformBundleContributor } from '../dev/transform-server/types.ts';
 
-export type { CacheConfig } from '../services/cache/cache.types.ts';
+export type { CacheConfig } from '../page-cache/cache.types.ts';
 export type { EcoPagesAppConfig } from './internal-types.ts';
 export type {
 	EcoPageComponent,

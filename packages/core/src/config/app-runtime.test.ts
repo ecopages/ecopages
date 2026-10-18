@@ -14,7 +14,7 @@ import {
 	invalidatePageBrowserGraphSession,
 } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
-import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../services/cache/page-cache-service.ts';
+import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../page-cache/page-cache-service.ts';
 import { AppModuleLoader } from '../build/server/app-module-loader.service.ts';
 import {
 	clearAppDevelopmentRouteModuleBuildCaches,

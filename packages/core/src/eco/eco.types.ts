@@ -22,7 +22,7 @@ import type {
 	PageParams,
 	PageQuery,
 } from '../types/public-types.ts';
-import type { CacheStrategy } from '../services/cache/cache.types.ts';
+import type { CacheStrategy } from '../page-cache/cache.types.ts';
 import type { ComponentIdentity } from './component-identity.ts';
 
 /**

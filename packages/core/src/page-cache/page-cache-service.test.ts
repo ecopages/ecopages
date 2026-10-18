@@ -6,7 +6,7 @@ import path from 'node:path';
 import { describe, expect, test, beforeEach, vi } from 'vitest';
 import { PageCacheService, getCacheControlHeader } from './page-cache-service.js';
 import { MemoryCacheStore } from './memory-cache-store.js';
-import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.js';
+import { BuildInputDependencyIndex } from '../build/cache/build-input-dependency-index.js';
 import type { CacheStore } from './cache.types.js';
 
 describe('PageCacheService', () => {

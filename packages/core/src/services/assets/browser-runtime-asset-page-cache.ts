@@ -1,5 +1,5 @@
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { clearAppPageCache } from '../cache/page-cache-service.ts';
+import { clearAppPageCache } from '../../page-cache/page-cache-service.ts';
 import { isDevelopmentRuntime } from '../../utils/runtime.ts';
 
 /**

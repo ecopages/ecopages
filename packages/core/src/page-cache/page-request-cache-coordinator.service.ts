@@ -4,9 +4,9 @@ import {
 	getRequestPipelineMetricsHeaderName,
 	isRequestPipelineMetricsEnabled,
 	serializeRequestPipelineMetricsHeader,
-} from '../../diagnostics/request-pipeline-metrics.ts';
-import { hashBrowserAssetBytes } from '../assets/hashed-browser-asset.ts';
-import type { RequestPipelineMetricsState } from '../../diagnostics/request-pipeline-metrics.ts';
+} from '../diagnostics/request-pipeline-metrics.ts';
+import { sha256Hex } from '../utils/sha256.ts';
+import type { RequestPipelineMetricsState } from '../diagnostics/request-pipeline-metrics.ts';
 
 type CacheStatus = 'hit' | 'miss' | 'stale' | 'expired' | 'disabled';
 
@@ -154,7 +154,7 @@ export class PageRequestCacheCoordinator {
 		}
 
 		if (strategy === 'static' && cacheStatus !== 'disabled') {
-			const etag = `"${hashBrowserAssetBytes(html)}"`;
+			const etag = `"${sha256Hex(html, 16)}"`;
 			headers.ETag = etag;
 			if (ifNoneMatchSatisfied(ifNoneMatch, etag)) {
 				return new Response(null, { status: 304, headers });

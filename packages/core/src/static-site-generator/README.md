@@ -28,7 +28,7 @@ It should not invent a parallel rendering stack just for build mode.
 
 Static export uses the same CPU-based concurrency limit as the build queue, and the startup trace reports that limit.
 
-Semantic error pages are excluded from ordinary page enumeration and emitted once by `services/error-pages/semantic-error-page-exporter.ts`, so runtime and static output share source precedence and rendering behavior.
+Semantic error pages are excluded from ordinary page enumeration and emitted once by `route-renderer/error-pages/semantic-error-page-exporter.ts`, so runtime and static output share source precedence and rendering behavior.
 
 ## Files
 

@@ -112,7 +112,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/hmr/README.md`: HMR strategy, update-layer ownership, and build error presentation
 - `src/dev-toolbar/README.md`: toolbar enablement, custom clients, and build error event contract
 - `src/router/README.md`: route discovery, matching, browser navigation coordination, persistence-aware body morphing, and the shared client navigation pipeline
-- `src/route-renderer/README.md`: rendering orchestration, dependency resolution, and HTML cache source paths
+- `src/route-renderer/README.md`: rendering orchestration, semantic error pages, dependency resolution, and HTML cache source paths
 - `src/static-site-generator/README.md`: static build execution, collected Page render failures, and sitemap eligibility from successful route-render metadata
 - `src/eco/README.md`: `eco` authoring APIs for pages, layouts, and components, including the `LayoutOptions` type contract
 - `src/html-pages/README.md`: built-in `.html` Filesystem Routes, Html shell, and head reconciliation

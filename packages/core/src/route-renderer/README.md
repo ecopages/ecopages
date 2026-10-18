@@ -58,6 +58,10 @@ See [`../build/README.md`](../build/README.md) for the JSX ownership helper spli
 
 `resolveExplicitViewRenderer` resolves the owning Integration's shared renderer for one `eco.page()` view without reading `staticProps`. Static export planning uses that so a dynamic route is not invoked before a slug exists. `prepareExplicitStaticRender` then reads `staticProps` with the route's params. A full explicit view calls `renderExplicitView` (a response) or `executeExplicitView` (the route result with its metadata), which run `execute` with the view as the page module and `skipStaticProps`, so it receives the same layouts, metadata, and page client plan as a filesystem Page but never re-runs `staticProps`. The props, route params, query and locals of the call are visible to the view and to its `metadata`. Static export renders through `executeExplicitView` and reuses the returned metadata for sitemap eligibility. Each `execute` opens a render session for that page's assets and foreign-renderer cache, so static export can render several pages of one Integration at the same time. Route rendering, explicit views, and foreign-child handoffs reuse that Integration's renderer. Render contexts use `node:async_hooks` AsyncLocalStorage to isolate nested and concurrent renders; a runtime without it fails before rendering. A partial render stays on the component path and opens its own render session.
 
+### `error-pages/`
+
+Owns semantic HTTP error-page source selection, rendering, built-in fallback documents, and static-export artifacts. Request adapters classify route failures and coordinate the final HTTP response.
+
 ### `orchestration/`
 
 Renderer entrypoints:

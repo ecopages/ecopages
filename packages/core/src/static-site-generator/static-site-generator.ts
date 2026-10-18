@@ -43,11 +43,11 @@ import { renderSitemap } from './sitemap.ts';
 import { resolveSitemapLocations } from './sitemap-routes.ts';
 import { toEcopagesRouteInfo } from '../utils/ecopages-route-info.ts';
 import { normalizePathname } from '../utils/path-pattern.ts';
-import { ErrorPageRenderer } from '../services/error-pages/error-page-renderer.ts';
+import { ErrorPageRenderer } from '../route-renderer/error-pages/error-page-renderer.ts';
 import {
 	SemanticErrorPageExporter,
 	SEMANTIC_ERROR_PAGE_PATHNAMES,
-} from '../services/error-pages/semantic-error-page-exporter.ts';
+} from '../route-renderer/error-pages/semantic-error-page-exporter.ts';
 
 type StaticGenerationRouteSource = {
 	listStaticGenerationRoutes(input: { runtimeOrigin: string }): Promise<readonly StaticGenerationRoute[]>;

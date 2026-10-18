@@ -13,7 +13,7 @@ import { classifyPageFailure, type PageFailureClassification } from '../../../er
 import { isDevelopmentRuntime } from '../../../utils/runtime.ts';
 import type { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 import type { ErrorPageLoaders } from '../../../types/public-types.ts';
-import { ErrorPageRenderer, logErrorPageFailure } from '../../../services/error-pages/error-page-renderer.ts';
+import { ErrorPageRenderer, logErrorPageFailure } from '../../../route-renderer/error-pages/error-page-renderer.ts';
 import { serveDistFile } from './dist-file-handler.ts';
 import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { ensureIntegrationRuntimeReady } from '../../../build/app-build-manifest-runtime.ts';

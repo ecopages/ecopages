@@ -3,11 +3,10 @@
 'ecopages': minor
 ---
 
-Remove the hooks and options no plugin uses, and the `--force` flag that depended on them. `ecopages build` and `ecopages preview` render every Page from source on each run, and `ecopages build --help` now says what the build does.
+Remove the hooks and options no plugin uses. `ecopages build` and `ecopages preview` render every Page from source on each run, and `ecopages build --help` now says what the build does.
 
 **Breaking:**
 
-- `ecopages build --force` and `ecopages preview --force` fail as unknown options. Remove the flag; the build never reused earlier output in a new process, so the result is the same.
 - `didChange()` is gone from `Processor` and `IntegrationPlugin`. No shipped plugin overrode it; remove your override.
 - `runtimeCapability`, `RuntimeCapabilityDeclaration` and `RuntimeCapabilityTag` are gone from `Processor`, `IntegrationPlugin` and their configs, and config finalization no longer validates them. Remove the declaration.
 - `afterStaticExport` is gone from `IntegrationPlugin`. Remove the hook; `staticExport` replaces `beforeStaticExport`. With `sitemap.enabled`, `sitemap.xml` is still written after every page.

@@ -5,4 +5,6 @@
 '@ecopages/postcss-processor': minor
 ---
 
-Build requests now declare a server or browser environment. Integrations and Processors use one plugins getter with environment selection; duplicate plugin names in the same environment fail during configuration. Move browserBuildPlugins or buildPlugins contributions to plugins with environments: [browser].
+Build requests declare a server or browser environment. The React, MDX, and Ecopages JSX Integrations, and the Content, Image, and PostCSS Processors, contribute bundler plugins through `plugins` with environment selection. Duplicate plugin names in the same environment fail during configuration.
+
+**Breaking:** Custom Integrations must move `browserBuildPlugins` contributions to `plugins` with `environments: ['browser']`; custom Processors must do the same for `buildPlugins`. Replace transpile profile arguments with the `server` or `browser` environment.

@@ -2,4 +2,4 @@
 '@ecopages/core': patch
 ---
 
-Record source module closures and emitted chunk graphs for accurate cache invalidation and grouped Page script output lookup.
+During development, a shared module change marks every Page that imports it as dirty, including dependencies reached through dynamic imports. Browser script URLs come from the chunks emitted for that Page, including shared chunks.

@@ -2,4 +2,4 @@
 '@ecopages/core': patch
 ---
 
-Find each build entry's output from the path or name the caller passed, including through a symlinked project root.
+Build output is found whether an entry is identified by its path or name, even when the project root is accessed through a symlink.

@@ -2,4 +2,4 @@
 '@ecopages/core': patch
 ---
 
-Resolve Core runtime imports during the server build and leave authored strings that look like imports unchanged. Hashed browser outputs are no longer rewritten after they are named.
+Server builds resolve Core runtime imports without changing authored text that happens to look like an import. Browser assets keep their final generated names and URLs.

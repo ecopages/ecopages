@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { createRequestPipelineMetricsState } from '../../diagnostics/request-pipeline-metrics.ts';
+import { createRequestPipelineMetricsState } from '../diagnostics/request-pipeline-metrics.ts';
 import { MemoryCacheStore } from './memory-cache-store.ts';
 import { PageCacheService } from './page-cache-service.ts';
 import { PageRequestCacheCoordinator } from './page-request-cache-coordinator.service.ts';

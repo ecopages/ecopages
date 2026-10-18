@@ -9,8 +9,8 @@ import type { EcoPagesAppConfig, MatchResult } from '../../../types/internal-typ
 import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { RouteRendererFactory, type StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import { RouteRegistry } from '../../../router/server/route-registry.ts';
-import { MemoryCacheStore } from '../../../services/cache/memory-cache-store.ts';
-import { PageCacheService } from '../../../services/cache/page-cache-service.ts';
+import { MemoryCacheStore } from '../../../page-cache/memory-cache-store.ts';
+import { PageCacheService } from '../../../page-cache/page-cache-service.ts';
 import { HttpError } from '../../../errors/http-error.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';

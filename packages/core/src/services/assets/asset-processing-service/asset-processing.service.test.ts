@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { AssetProcessingService } from './asset-processing.service';
 import type { AssetDefinition, ContentScriptAsset, ProcessedAsset } from './assets.types';
-import { PageCacheService } from '../../cache/page-cache-service.ts';
+import { PageCacheService } from '../../../page-cache/page-cache-service.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import { BuildInputDependencyIndex } from '../../../build/cache/build-input-dependency-index.ts';
 import { requireAppRuntime, type AppRuntime } from '../../../config/app-runtime.ts';

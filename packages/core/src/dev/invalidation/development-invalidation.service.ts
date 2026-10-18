@@ -4,7 +4,7 @@ import { matchesAdditionalWatchPath, resolveAdditionalWatchPath } from '../../ut
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
 import { clearAppDevelopmentRouteModuleBuildCaches } from '../../build/server/route-module-build-cache-registry.ts';
-import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../../services/cache/page-cache-service.ts';
+import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../../page-cache/page-cache-service.ts';
 import { requireAppRuntime } from '../../config/app-runtime.ts';
 
 export type DevelopmentInvalidationCategory =

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { requireAppRuntime } from '../../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
-import { PageCacheService } from '../cache/page-cache-service.ts';
+import { PageCacheService } from '../../page-cache/page-cache-service.ts';
 import { clearPageCacheForBrowserRuntimeAssetChange } from './browser-runtime-asset-page-cache.ts';
 
 async function createCachedApp() {

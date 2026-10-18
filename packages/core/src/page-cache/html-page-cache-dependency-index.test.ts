@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { collectHtmlCacheSourceDependencyPaths } from './html-page-cache-dependency-index.ts';
-import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
+import { BuildInputDependencyIndex } from '../build/cache/build-input-dependency-index.ts';
 
 describe('HTML cache source paths', () => {
 	test('the shared index resolves HTML cache keys for registered source paths', () => {

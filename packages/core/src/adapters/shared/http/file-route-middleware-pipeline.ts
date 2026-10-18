@@ -1,6 +1,6 @@
 import { createRequire } from '../../../utils/locals-utils.ts';
 import type { FileRouteMiddleware, FileRouteMiddlewareContext, RequestLocals } from '../../../types/public-types.ts';
-import type { PageCacheService } from '../../../services/cache/page-cache-service.ts';
+import type { PageCacheService } from '../../../page-cache/page-cache-service.ts';
 import { ApiResponseBuilder } from './api-response.ts';
 import { runMiddlewareChain } from './run-middleware-chain.ts';
 import { LocalsAccessError } from '../../../errors/locals-access-error.ts';

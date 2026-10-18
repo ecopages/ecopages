@@ -17,7 +17,7 @@ import type {
 	RequestLocals,
 	RequestPageContext,
 } from '../types/public-types.ts';
-import type { CacheStrategy } from '../services/cache/cache.types.ts';
+import type { CacheStrategy } from '../page-cache/cache.types.ts';
 import type {
 	ComponentOptions,
 	Eco,

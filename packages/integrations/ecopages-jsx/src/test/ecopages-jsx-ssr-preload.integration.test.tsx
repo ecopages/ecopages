@@ -1,5 +1,5 @@
 /** @jsxImportSource @ecopages/jsx */
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,10 +65,11 @@ describe('Ecopages JSX SSR script preload integration', () => {
 				CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx,
 			);
 			installLightDomShim();
-			const tempDir = await mkdtemp(path.join(PACKAGE_ROOT, '.eco-ssr-preload-'));
+			const tempDir = await mkdtemp(path.join(tmpdir(), 'ecopages-jsx-ssr-preload-'));
 			const hostFile = path.join(path.dirname(RADIANT_HOST_SCRIPT), 'host.tsx');
 
 			try {
+				await symlink(path.join(PACKAGE_ROOT, 'node_modules'), path.join(tempDir, 'node_modules'), 'dir');
 				const appConfig = await createTestAppConfig({
 					rootDir: PACKAGE_ROOT,
 					workDir: tempDir,
@@ -95,7 +96,7 @@ describe('Ecopages JSX SSR script preload integration', () => {
 					props: {},
 				});
 
-				expect(await readdir(tempDir, { recursive: true })).toContainEqual(
+				expect(await readdir(path.join(tempDir, '.server-modules'), { recursive: true })).toContainEqual(
 					expect.stringMatching(/ssr-preload-radiant-host\.script-[0-9a-f]+\.mjs$/),
 				);
 				expect(result.html).toContain('data-ssr-preload-radiant-host="true">1</span>');

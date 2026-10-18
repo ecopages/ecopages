@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import { createTestAppConfig } from '@ecopages/testing';
-import { CustomElementScriptPreloader } from '@ecopages/core/integration';
 import { LitRenderer } from '../lit-renderer.ts';
 
 const PACKAGE_ROOT = fileURLToPath(new URL('../..', import.meta.url));
@@ -73,16 +72,35 @@ describe('Lit SSR lazy script preload', () => {
 		expect(result.html).toContain('<!--lit-part-->3<!--/lit-part-->');
 	});
 
-	it('preloads route-resolved dependency roots together with the page and layout', async () => {
+	it('server-renders lazy custom elements used by the page, layout and route dependencies', async () => {
 		const renderer = await createRenderer();
-		const preloadSpy = vi.spyOn(CustomElementScriptPreloader.prototype, 'preloadSsrScripts');
-		const Page = (async () => '<p>Page</p>') as unknown as EcoComponent<object>;
-		const Layout = (({ children }: { children: string }) => `<main>${children}</main>`) as EcoComponent<{
-			children: string;
-		}>;
-		const dependencyRoot = (() => '<article>Entry</article>') as unknown as EcoComponent<object>;
+		const Page = eco.component<object, string>({
+			integration: 'lit',
+			identity: { id: 'lit-ssr-lazy-page', file: path.join(FIXTURES_DIR, 'host.lit.ts'), integration: 'lit' },
+			dependencies: {
+				scripts: [{ src: './ssr-lazy-page.script.ts', lazy: { 'on:interaction': 'click' }, ssr: true }],
+			},
+			render: () =>
+				'<lit-ssr-lazy-page count="3"><lit-ssr-route-root count="4"></lit-ssr-route-root></lit-ssr-lazy-page>',
+		});
+		const Layout = eco.component<{ children: string }, string>({
+			integration: 'lit',
+			identity: { id: 'lit-ssr-lazy-layout', file: path.join(FIXTURES_DIR, 'host.lit.ts'), integration: 'lit' },
+			dependencies: {
+				scripts: [{ src: './ssr-lazy-layout.script.ts', lazy: { 'on:interaction': 'click' }, ssr: true }],
+			},
+			render: ({ children }) => `<lit-ssr-lazy-layout count="2"></lit-ssr-lazy-layout>${children}`,
+		});
+		const dependencyRoot = eco.component<object, string>({
+			integration: 'lit',
+			identity: { id: 'lit-ssr-route-root', file: path.join(FIXTURES_DIR, 'root.lit.ts'), integration: 'lit' },
+			dependencies: {
+				scripts: [{ src: './ssr-route-root.script.ts', lazy: { 'on:interaction': 'click' }, ssr: true }],
+			},
+			render: () => '<article></article>',
+		});
 
-		await renderer.render({
+		const result = await renderer.render({
 			params: {},
 			query: {},
 			props: {},
@@ -95,6 +113,10 @@ describe('Lit SSR lazy script preload', () => {
 			HtmlTemplate,
 		});
 
-		expect(preloadSpy.mock.calls[0]?.[0]).toEqual([Page, Layout, dependencyRoot]);
+		const html = await new Response(result as BodyInit).text();
+
+		expect(html).toContain('data-ssr-lazy-page');
+		expect(html).toContain('data-ssr-lazy-layout');
+		expect(html).toContain('data-ssr-route-root');
 	});
 });

@@ -51,7 +51,8 @@ Start here for package-level architecture:
 - `packages/core/src/plugins/README.md`: integration and processor contracts
 - `packages/core/src/build/README.md`: build adapter, app-scoped server module loading, executor, and dev-build coordination
 - `packages/core/src/page-cache/README.md`: HTML cache strategies, ISR, and source-aware invalidation
-- `packages/core/src/services/README.md`: asset processing, HTML finalization, and request validation
+- `packages/core/src/services/README.md`: asset processing and request validation
+- `packages/core/src/html/README.md`: streaming HTML rewriting and source parsing
 - `packages/core/src/adapters/README.md`: HTTP host. The process can be Node or Bun.
 - `packages/core/src/dev/README.md`: development invalidation, dev transform server, and on-demand client delivery
 - `packages/core/src/hmr/README.md`: HMR strategy layer and build error presentation

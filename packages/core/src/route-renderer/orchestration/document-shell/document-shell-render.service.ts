@@ -7,10 +7,7 @@ import type {
 import type { InternalComponentRenderInput } from '../../../types/internal-types.ts';
 import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
 import { getComponentOwner } from '../../../eco/component-identity.ts';
-import {
-	HtmlTransformerService,
-	type HtmlDocumentContribution,
-} from '../../../services/html/html-transformer.service.ts';
+import { HtmlTransformerService, type HtmlDocumentContribution } from '../../../html/html-transformer.service.ts';
 import { getComponentRenderContext } from '../foreign-child/component-render-context.ts';
 
 export type DocumentShellLayoutInput = {

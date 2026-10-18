@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import type { ProcessedAsset } from './asset-processing-service/index.ts';
 import { dedupeProcessedAssets } from './processed-asset-dedupe.ts';
 
 test('keeps identical bundled assets with different source files in declaration order', () => {

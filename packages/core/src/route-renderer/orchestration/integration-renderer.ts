@@ -31,8 +31,8 @@ import {
 import type { AssetProcessingIntegration } from '../../services/assets/asset-processing-service/asset-processing-integration.ts';
 import { resolveAssetProcessingIntegration } from '../../services/assets/asset-processing-service/asset-processing-integration.ts';
 import { createAppBrowserClientEntryKey } from '../../services/assets/app-browser-client-build.ts';
-import { HtmlTransformerService } from '../../services/html/html-transformer.service.ts';
-import type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
+import { HtmlTransformerService } from '../../html/html-transformer.service.ts';
+import type { HtmlDocumentContribution } from '../../html/html-transformer.service.ts';
 import { invariant } from '../../utils/invariant.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { DependencyResolverService } from '../page-loading/dependency-resolver.ts';
@@ -178,7 +178,7 @@ export {
 	type PageClientBuildEntry,
 	type PageClientPlan,
 } from './ownership-graph/page-client-plan.ts';
-export type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
+export type { HtmlDocumentContribution } from '../../html/html-transformer.service.ts';
 
 export type IntegrationRendererHooks = {
 	renderComponent?: (input: ComponentRenderInput) => Promise<ComponentRenderResult>;

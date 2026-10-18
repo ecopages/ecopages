@@ -12,7 +12,7 @@ import {
 	walkElements,
 	type HtmlElementNode,
 	type HtmlNode,
-} from '../services/html/html-source-parser.ts';
+} from '../html/html-source-parser.ts';
 
 export type HtmlFileAssetKind = 'stylesheet' | 'module-script' | 'classic-script';
 

@@ -1,4 +1,4 @@
-import type { HtmlDocumentContribution } from '../../../services/html/html-transformer.service.ts';
+import type { HtmlDocumentContribution } from '../../../html/html-transformer.service.ts';
 import type { IntegrationRendererRenderOptions } from '../../../types/public-types.ts';
 import type { RouteHtmlFinalization } from './route-render-orchestrator.ts';
 import { buildRobotsMetaContribution } from './robots-meta.contribution.ts';

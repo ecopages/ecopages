@@ -29,17 +29,14 @@ import { id as idFilter, include } from 'rolldown/filter';
 import { escapeRegExp } from '../../utils/regex-escaping.ts';
 import { isPathInside } from '../../utils/path-containment.ts';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
+import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 import { isServerOnlyModuleSpecifier } from '../contracts/server-only-specifier.ts';
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { realpathOfDirectory } from '../preserve-import-meta-transform.ts';
 import type { BuildInputRecorder } from './rolldown-plugin-bridge.ts';
 import { createRolldownPluginBridge, getEcoBuildPluginName } from './rolldown-plugin-bridge.ts';
-import {
-	getPackageNameFromSpecifier,
-	isDeclaredAppPackageImport,
-	isWorkspacePackageImport,
-} from './app-package-declarations.ts';
+import { isDeclaredAppPackageImport, isWorkspacePackageImport } from './app-package-declarations.ts';
 import type {
 	BuildDependencyGraph,
 	BuildFormat,
@@ -188,7 +185,7 @@ function warnPackagesOutsideAppRoot(outputLabel: string, packageNames: Iterable<
 function isUndeclaredPackageImport(id: string, contextRoot: string): boolean {
 	return (
 		!isNodeBuiltinSpecifier(id) &&
-		!CORE_RUNTIME_BUNDLED_PACKAGES.has(getPackageNameFromSpecifier(id)) &&
+		!CORE_RUNTIME_BUNDLED_PACKAGES.has(toPackageRootSpecifier(id)) &&
 		isPackageImport(id, contextRoot) &&
 		!isDeclaredAppPackageImport(id, contextRoot)
 	);
@@ -260,7 +257,7 @@ export function createInstalledPackageExternalPlugin(
 				if (!isUndeclaredPackageImport(id, contextRoot)) {
 					return null;
 				}
-				const packageName = getPackageNameFromSpecifier(id);
+				const packageName = toPackageRootSpecifier(id);
 				const resolveOptions = { kind: extraOptions.kind, skipSelf: true };
 				const resolved =
 					(importer ? await this.resolve(id, importer, resolveOptions) : null) ??

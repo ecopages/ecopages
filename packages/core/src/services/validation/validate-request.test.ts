@@ -34,8 +34,9 @@ describe('validateRequest', () => {
 			);
 
 			expect(result.success).toBe(false);
-			expect(result.errors).toBeDefined();
-			expect(result.errors!.length).toBeGreaterThan(0);
+			expect(result.errors).toHaveLength(2);
+			expect(result.errors?.map((error) => error.path)).toEqual([['title'], ['count']]);
+			expect(result.errors?.every((error) => error.message.trim().length > 0)).toBe(true);
 		});
 	});
 
@@ -66,7 +67,9 @@ describe('validateRequest', () => {
 			);
 
 			expect(result.success).toBe(false);
-			expect(result.errors).toBeDefined();
+			expect(result.errors).toHaveLength(1);
+			expect(result.errors?.[0]).toMatchObject({ path: ['page'] });
+			expect(result.errors?.[0]?.message.trim().length).toBeGreaterThan(0);
 		});
 	});
 
@@ -111,7 +114,9 @@ describe('validateRequest', () => {
 			);
 
 			expect(result.success).toBe(false);
-			expect(result.errors).toBeDefined();
+			expect(result.errors).toHaveLength(1);
+			expect(result.errors?.[0]?.path?.[0]).toBe('x-custom');
+			expect(result.errors?.[0]?.message.trim().length).toBeGreaterThan(0);
 		});
 	});
 
@@ -205,8 +210,9 @@ describe('validateRequest', () => {
 			);
 
 			expect(result.success).toBe(false);
-			expect(result.errors).toBeDefined();
-			expect(result.errors!.length).toBeGreaterThan(1);
+			expect(result.errors).toHaveLength(2);
+			expect(result.errors?.map((error) => error.path)).toEqual([['title'], ['page']]);
+			expect(result.errors?.every((error) => error.message.trim().length > 0)).toBe(true);
 		});
 	});
 

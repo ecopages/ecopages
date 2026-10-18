@@ -7,8 +7,9 @@ import { isDevelopmentRuntime } from '../utils/runtime.ts';
  *
  * @remarks
  * Cached development documents hold the old script URLs, so every entry is dropped instead of keyed by a
- * generation. Only call this when a previously cached runtime/page-script asset filepath changes. First
- * inserts must not clear the cache or cold start thrashes it.
+ * generation. This currently reaches from the Build layer into rendered-page cache state; #556 tracks
+ * moving invalidation behind a lower-level cache contract. Only call this when a previously cached
+ * runtime/page-script asset filepath changes. First inserts must not clear the cache or cold start thrashes it.
  */
 export async function clearPageCacheForBrowserRuntimeAssetChange(appConfig: EcoPagesAppConfig): Promise<void> {
 	if (!isDevelopmentRuntime()) {

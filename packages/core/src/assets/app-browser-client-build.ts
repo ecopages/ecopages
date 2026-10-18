@@ -44,6 +44,13 @@ type RouteBuildPlanInstance = {
 	pageClientBuildEntries: NonNullable<GroupedGraphBuildPlanInstance['pageClientBuildEntries']>;
 };
 
+/**
+ * Results produced by the application-wide browser build.
+ *
+ * @remarks
+ * Route-instance identity and HTML Page script inputs currently come from rendering modules; #556 tracks
+ * moving those shared build inputs behind the Build layer.
+ */
 export type AppBrowserClientBuildResult = {
 	plans: GroupedGraphBuildPlan[];
 	sourceFiles: string[];

@@ -1,5 +1,7 @@
 # HTML Pages
 
+**Layer:** Rendering.
+
 This directory owns `.html` Filesystem Routes: plain HTML files under `src/pages/` rendered inside the application's Html shell with the app's default Cache Strategy. HTML Pages need no package, plugin call, or config field.
 
 ## Ownership

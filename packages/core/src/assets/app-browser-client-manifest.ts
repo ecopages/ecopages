@@ -23,6 +23,13 @@ type SerializedProcessedAsset = Omit<ProcessedAsset, 'filepath' | 'sourceFilepat
 	bundledSourceFilepaths?: string[];
 };
 
+/**
+ * One route's persisted assets from the application-wide browser build.
+ *
+ * @remarks
+ * The manifest still uses route-instance keys and HTML Page script data from Rendering; #556 tracks
+ * moving those contracts behind the Build layer.
+ */
 export type AppBrowserClientManifestEntry = {
 	integrationName: string;
 	routeFile: string;

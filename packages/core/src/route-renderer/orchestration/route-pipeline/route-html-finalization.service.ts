@@ -23,7 +23,9 @@ export type RouteHtmlFinalizationContext<C> = {
  *
  * @remarks
  * Merges core robots meta contributions with integration-owned document
- * contributions so page-level `metadata.robots` works across templates.
+ * contributions so page-level `metadata.robots` works across templates. The
+ * development toolbar manifest still comes from the higher Development layer;
+ * #556 tracks moving its render contribution behind Rendering.
  */
 export function buildRouteHtmlFinalization<C>(context: RouteHtmlFinalizationContext<C>): RouteHtmlFinalization {
 	const { renderOptions } = context;

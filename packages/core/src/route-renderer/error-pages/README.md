@@ -1,5 +1,7 @@
 # Error pages
 
+**Layer:** Rendering.
+
 This directory owns semantic error-page behavior for HTTP statuses 400, 401, 403, 404, 409, and 500, shared by request-time rendering and static export. Other 5xx statuses use the server-error page; other 4xx statuses use a built-in document.
 
 - `error-page-renderer.ts` applies filesystem → registered-loader → built-in precedence. Registered views reuse `prepareExplicitStaticRender`. Callers that need a guaranteed built-in document after a custom-page failure use `renderBuiltIn()`.

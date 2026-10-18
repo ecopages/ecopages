@@ -1,5 +1,7 @@
 # Route Renderer Architecture
 
+**Layer:** Rendering.
+
 This folder contains the core rendering orchestration for Ecopages.
 
 ## Purpose

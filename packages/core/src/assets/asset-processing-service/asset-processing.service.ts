@@ -5,7 +5,7 @@ import { isProductionRuntime } from '../../utils/runtime.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../types/internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { requireAppRuntime } from '../../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../../types/app-runtime.ts';
 import type {
 	AssetDefinition,
 	AssetKind,

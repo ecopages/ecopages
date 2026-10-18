@@ -1,5 +1,7 @@
 # Diagnostics
 
+**Layer:** Build.
+
 This directory owns opt-in counters for page-module loading, MDX transforms, collection builds, and route-render phases, plus the startup trace.
 
 `createAppRuntime()` creates a fresh metrics state for each app. Build and render instrumentation updates that state, and the response cache coordinator serializes the same app's snapshot into the `x-ecopages-pipeline-metrics` header when metrics are enabled. Two apps in one process therefore report independent counters.

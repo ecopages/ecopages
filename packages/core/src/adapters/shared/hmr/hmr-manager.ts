@@ -35,7 +35,7 @@ import type {
 } from '../../../types/public-types.ts';
 import { DevTransformEntrypointRegistry } from './dev-transform-entrypoint-registry.ts';
 import { BrowserBundleService } from '../../../assets/browser-bundle.service.ts';
-import { requireAppRuntime } from '../../../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../../../types/app-runtime.ts';
 import { InMemoryEntrypointDependencyGraph } from '../../../hmr/entrypoint-dependency-graph.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';
 import { DevTransformServer } from '../../../dev/transform-server/dev-transform-server.ts';

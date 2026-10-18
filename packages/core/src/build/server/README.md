@@ -1,5 +1,7 @@
 # Module Loading
 
+**Layer:** Build.
+
 Server-side source loading for framework-owned page modules, includes, and related templates.
 
 ## Import stack

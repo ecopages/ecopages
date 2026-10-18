@@ -25,7 +25,7 @@ import {
 } from '../utils/additional-watch-paths.ts';
 import { resolveWorkspacePackageWatchRoots, isWorkspacePackageFile } from './workspace-package-watch-roots.ts';
 import { seedProcessorWatchPaths } from '../build/cache/build-input-dependency-index.ts';
-import { requireAppRuntime } from '../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../types/app-runtime.ts';
 import { copyRuntimePublicFile } from '../adapters/shared/runtime/copy-runtime-public-dir.ts';
 
 /**
@@ -35,6 +35,8 @@ import { copyRuntimePublicFile } from '../adapters/shared/runtime/copy-runtime-p
  * @property {() => Promise<void>} refreshRouterRoutesCallback - Callback to refresh router routes
  * @property {IHmrManager} hmrManager - The HMR manager instance
  * @property {ClientBridge} bridge - The client bridge instance
+ * @remarks Public-file changes currently call a copy helper in the higher Application assembly layer;
+ * #556 tracks moving that shared filesystem operation behind the watcher.
  */
 export interface ProjectWatcherConfig {
 	config: EcoPagesAppConfig;

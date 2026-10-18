@@ -1,5 +1,7 @@
 # Config Loading and Assembly
 
+**Layer:** Application assembly.
+
 This directory loads `eco.config.ts` and assembles the app configuration consumed by Ecopages.
 
 ## Purpose
@@ -28,7 +30,7 @@ It is responsible for:
 `assembly/` turns the loaded user config into one app-owned runtime and finalized config:
 
 - `assembly/finalize-config.ts`: `finalizeEcoPagesConfig(userConfig, options)`, the only finalization path. Workspace packages and tests import it from `@ecopages/core/internal/finalize-config`; the npm build drops every `./internal/*` subpath from the published package. It applies defaults (omitted `rootDir` resolves from `cwd`; `baseUrl` falls back to `ECOPAGES_BASE_URL`, then `http://localhost:3000`; `absolutePaths.config` defaults to `<rootDir>/eco.config.ts`), runs every validation, and installs runtime state
-- `assembly/app-runtime.ts`: `createAppRuntime(appConfig)` builds that runtime once at the end of finalization. `requireAppRuntime(appConfig)` returns it, and throws `Missing app runtime` for a config that was never finalized. Published callers import it from `@ecopages/core/config/app-runtime`. The server adapter, route renderer factory, and static builder take this object in their constructors
+- `assembly/app-runtime.ts`: `createAppRuntime(appConfig)` builds that runtime once at the end of finalization and re-exports the published `@ecopages/core/config/app-runtime` contract. The runtime shape and `requireAppRuntime()` accessor live in `types/app-runtime.ts`, a Foundation module with type-only references to the state it holds. A config that skipped finalization makes the accessor throw `Missing app runtime`. The server adapter, route renderer factory, and static builder take this object in their constructors.
 - `assembly/finalize-config.test.ts` / `assembly/app-runtime.test.ts`: finalization and runtime coverage
 - `load-eco-config.test.ts`: config loading coverage
 

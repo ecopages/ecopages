@@ -9,7 +9,7 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
-import { requireAppRuntime } from '../../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../../types/app-runtime.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import { buildOrThrow } from '../runtime/build-queue.ts';

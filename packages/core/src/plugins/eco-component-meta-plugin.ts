@@ -9,6 +9,13 @@ import { rapidhash } from '../utils/hash.ts';
 import { discoverComponentImports, type DiscoveredImports } from './component-import-discovery.ts';
 import { findIntegrationForFile } from './find-integration-for-file.ts';
 
+/**
+ * Options for the plugin that attributes Eco Component identities.
+ *
+ * @remarks
+ * The plugin currently uses Build-layer transform, source-map, and parse-cache helpers; #556 tracks
+ * moving the reusable plugin transforms behind the Build layer.
+ */
 export interface EcoComponentDirPluginOptions {
 	config: EcoPagesAppConfig;
 }

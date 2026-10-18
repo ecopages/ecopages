@@ -1,5 +1,7 @@
 # HMR Layer
 
+**Layer:** Development and HMR.
+
 This directory contains the framework-owned hot-update strategy contracts used by runtime adapters and integrations.
 
 ## Purpose

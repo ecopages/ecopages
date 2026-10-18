@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import { createAppRuntime, requireAppRuntime } from '../../../config/app-runtime.ts';
+import { createAppRuntime, requireAppRuntime } from '../../../config/assembly/app-runtime.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type {

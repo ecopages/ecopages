@@ -2,17 +2,17 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { defaultBuildAdapter, getBuildAdapterOwnership } from '../build/build-adapter.ts';
-import { createBrowserRuntimeManifest } from '../build/browser/browser-runtime-manifest.ts';
+import { defaultBuildAdapter, getBuildAdapterOwnership } from '../../build/build-adapter.ts';
+import { createBrowserRuntimeManifest } from '../../build/browser/browser-runtime-manifest.ts';
 import { requireAppRuntime } from './app-runtime.ts';
-import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../constants.ts';
-import { appLogger } from '../global/app-logger.ts';
-import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
-import { Processor } from '../plugins/processor.ts';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
+import { appLogger } from '../../global/app-logger.ts';
+import { IntegrationPlugin } from '../../plugins/integration-plugin.ts';
+import { Processor } from '../../plugins/processor.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { finalizeEcoPagesConfig } from './finalize-config.ts';
-import type { EcoPagesUserConfig } from './user-config-types.ts';
-import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
+import type { EcoPagesUserConfig } from '../user-config-types.ts';
+import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 
 const createMockIntegration = (
 	name: string,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
+import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
 import { HmrStrategyType } from '../hmr-strategy.ts';
 import { DevelopmentInvalidationService } from '../../dev/invalidation/development-invalidation.service.ts';
 import { ServerRenderedTemplateHmrStrategy } from './server-rendered-template-hmr-strategy.ts';

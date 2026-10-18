@@ -107,7 +107,7 @@ test('createDistManifest drops internal subpaths from the published exports', ()
 			exports: {
 				'.': './src/index.ts',
 				'./config': './src/config/index.ts',
-				'./internal/finalize-config': './src/config/finalize-config.ts',
+				'./internal/finalize-config': './src/config/assembly/finalize-config.ts',
 			},
 		},
 		'1.2.3',

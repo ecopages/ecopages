@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestAppConfig } from '@ecopages/testing';
 import { IntegrationPlugin } from '../../../plugins/integration-plugin.ts';
-import { requireAppRuntime } from '../../../config/app-runtime.ts';
+import { requireAppRuntime } from '../../../config/assembly/app-runtime.ts';
 import { StringMarkupRenderer } from '../../../route-renderer/orchestration/string-markup-renderer.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { AssetProcessingService } from '../../../assets/asset-processing-service/index.ts';

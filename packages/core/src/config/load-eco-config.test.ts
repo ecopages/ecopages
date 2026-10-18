@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { pathToFileURL } from 'node:url';
 import { defineConfig } from './define-config.ts';
-import { finalizeEcoPagesConfig } from './finalize-config.ts';
+import { finalizeEcoPagesConfig } from './assembly/finalize-config.ts';
 import { loadEcoPagesConfig, loadEcoPagesUserConfig } from './load-eco-config.ts';
 import { setupAppRuntimePlugins } from '../build/app-build-manifest-runtime.ts';
 import { resolveEcoConfigPath, ECOPAGES_CONFIG_FILE_ENV, resolveUserConfigRootDir } from './resolve-eco-config-path.ts';

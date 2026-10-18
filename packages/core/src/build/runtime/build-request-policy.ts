@@ -1,4 +1,4 @@
-import { requireAppRuntime } from '../../config/app-runtime.ts';
+import { requireAppRuntime } from '../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 import type { BuildEnvironment, BuildOptions } from '../contracts/build-contracts.ts';

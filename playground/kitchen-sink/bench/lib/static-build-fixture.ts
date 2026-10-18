@@ -12,7 +12,7 @@ import { setupAppRuntimePlugins } from '../../../../packages/core/src/build/buil
 import { installBuildQueue } from '../../../../packages/core/src/build/runtime/build-queue';
 import { createNodeServerAdapter } from '../../../../packages/core/src/adapters/node/server-adapter';
 import { RouteRegistry } from '../../../../packages/core/src/router/server/route-registry';
-import { requireAppRuntime } from '../../../../packages/core/src/config/app-runtime';
+import { requireAppRuntime } from '../../../../packages/core/src/config/assembly/app-runtime';
 import { RouteRendererFactory } from '../../../../packages/core/src/route-renderer/route-renderer';
 import { StaticSiteGenerator } from '../../../../packages/core/src/static-site-generator/static-site-generator';
 import { resolveInternalExecutionDir } from '../../../../packages/core/src/utils/resolve-work-dir';

@@ -1,4 +1,4 @@
-import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
+import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { loadEcoPagesConfig } from '../config/load-eco-config.ts';
 import type { EcoPagesUserConfig } from '../config/user-config-types.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';

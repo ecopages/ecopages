@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { bench, group } from 'mitata';
 import { installBuildQueue } from '../../../packages/core/src/build/runtime/build-queue';
-import { requireAppRuntime } from '../../../packages/core/src/config/app-runtime';
+import { requireAppRuntime } from '../../../packages/core/src/config/assembly/app-runtime';
 import { resolveInternalExecutionDir } from '../../../packages/core/src/utils/resolve-work-dir';
 import { KITCHEN_SINK_REPRESENTATIVE_PAGES } from './lib/kitchen-sink-fixture';
 import { loadStaticBuildBenchConfig } from './lib/static-build-fixture';

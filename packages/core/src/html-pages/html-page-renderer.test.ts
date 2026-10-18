@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installBuildQueue } from '../build/runtime/build-queue.ts';
-import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
+import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { AssetProcessingService } from '../assets/asset-processing-service/asset-processing.service.ts';
 import type { AssetDefinition } from '../assets/asset-processing-service/assets.types.ts';
 import { appLogger } from '../global/app-logger.ts';

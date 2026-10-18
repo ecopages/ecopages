@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import { finalizeEcoPagesConfig } from './finalize-config.ts';
+import { finalizeEcoPagesConfig } from './assembly/finalize-config.ts';
 import { resolveEcoConfigPath } from './resolve-eco-config-path.ts';
 import type {
 	EcoPagesUserConfig,

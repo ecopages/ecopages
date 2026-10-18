@@ -6,7 +6,7 @@ import type { AssetDefinition, ContentScriptAsset, ProcessedAsset } from './asse
 import { PageCacheService } from '../../page-cache/page-cache-service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
-import { requireAppRuntime, type AppRuntime } from '../../config/app-runtime.ts';
+import { requireAppRuntime, type AppRuntime } from '../../config/assembly/app-runtime.ts';
 
 function createTestConfig(overrides: Record<string, unknown> = {}): EcoPagesAppConfig {
 	return {

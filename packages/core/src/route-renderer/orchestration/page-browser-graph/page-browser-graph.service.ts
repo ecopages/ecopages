@@ -9,7 +9,7 @@ import {
 import type { AssetProcessingIntegration } from '../../../assets/asset-processing-service/asset-processing-integration.ts';
 import { resolveAssetProcessingIntegration } from '../../../assets/asset-processing-service/asset-processing-integration.ts';
 import { appLogger } from '../../../global/app-logger.ts';
-import { requireAppRuntime } from '../../../config/app-runtime.ts';
+import { requireAppRuntime } from '../../../config/assembly/app-runtime.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
 import { createAppBrowserClientEntryKey } from '../../../assets/app-browser-client-build.ts';
 import {

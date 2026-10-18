@@ -15,7 +15,7 @@ import type { FileSystemServerResponseFactory } from './fs-server-response-facto
 import type { ErrorPageLoaders } from '../../../types/public-types.ts';
 import { ErrorPageRenderer, logErrorPageFailure } from '../../../route-renderer/error-pages/error-page-renderer.ts';
 import { serveDistFile } from './dist-file-handler.ts';
-import { requireAppRuntime } from '../../../config/app-runtime.ts';
+import { requireAppRuntime } from '../../../config/assembly/app-runtime.ts';
 import { ensureIntegrationRuntimeReady } from '../../../build/app-build-manifest-runtime.ts';
 import { findIntegrationForFile } from '../../../plugins/find-integration-for-file.ts';
 

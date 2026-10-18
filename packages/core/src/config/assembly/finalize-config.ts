@@ -1,21 +1,21 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { createAppRuntime } from './app-runtime.ts';
-import { appLogger } from '../global/app-logger.ts';
-import { HTML_PAGES_INTEGRATION_NAME } from '../html-pages/html-page-module.ts';
-import { HtmlPagesPlugin } from '../html-pages/html-pages.plugin.ts';
-import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import { invariant } from '../utils/invariant.ts';
+import { appLogger } from '../../global/app-logger.ts';
+import { HTML_PAGES_INTEGRATION_NAME } from '../../html-pages/html-page-module.ts';
+import { HtmlPagesPlugin } from '../../html-pages/html-pages.plugin.ts';
+import type { AnyIntegrationPlugin } from '../../plugins/integration-plugin.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { invariant } from '../../utils/invariant.ts';
 import {
 	DEFAULT_ECOPAGES_DIST_DIR,
 	DEFAULT_ECOPAGES_HOSTNAME,
 	DEFAULT_ECOPAGES_PORT,
 	DEFAULT_ECOPAGES_WORK_DIR,
-} from '../constants.ts';
-import { collectConfigModuleFiles } from './config-module-files.ts';
-import { DEFAULT_ECO_CONFIG_FILENAME, resolveUserConfigRootDir } from './resolve-eco-config-path.ts';
-import type { EcoPagesUserConfig, FinalizeEcoPagesConfigOptions } from './user-config-types.ts';
+} from '../../constants.ts';
+import { collectConfigModuleFiles } from '../config-module-files.ts';
+import { DEFAULT_ECO_CONFIG_FILENAME, resolveUserConfigRootDir } from '../resolve-eco-config-path.ts';
+import type { EcoPagesUserConfig, FinalizeEcoPagesConfigOptions } from '../user-config-types.ts';
 
 const finalizedPluginInstances = new WeakSet<object>();
 

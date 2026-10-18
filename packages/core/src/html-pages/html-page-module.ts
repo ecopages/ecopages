@@ -3,7 +3,7 @@ import { fileSystem } from '@ecopages/file-system';
 import type { ComponentIdentity } from '../eco/component-identity.ts';
 import { registerDiscoveredDependencies } from '../eco/discovered-dependencies.ts';
 import { appLogger } from '../global/app-logger.ts';
-import { requireAppRuntime } from '../config/app-runtime.ts';
+import { requireAppRuntime } from '../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { EcoComponent, EcoPageFile, GetMetadata } from '../types/public-types.ts';
 import { rapidhash } from '../utils/hash.ts';

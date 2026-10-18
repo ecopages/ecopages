@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import { createBrowserRuntimeManifest } from '../../build/browser/browser-runtime-manifest.ts';
-import { createAppRuntime } from '../../config/app-runtime.ts';
+import { createAppRuntime } from '../../config/assembly/app-runtime.ts';
 import { IntegrationRenderer, type HtmlDocumentContribution } from './integration-renderer.ts';
 import { getComponentRenderContext, type ForeignChildRuntime } from './foreign-child/component-render-context.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';

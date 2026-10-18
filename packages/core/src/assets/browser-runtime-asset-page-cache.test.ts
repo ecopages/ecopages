@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { requireAppRuntime } from '../config/app-runtime.ts';
-import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
+import { requireAppRuntime } from '../config/assembly/app-runtime.ts';
+import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { PageCacheService } from '../page-cache/page-cache-service.ts';
 import { clearPageCacheForBrowserRuntimeAssetChange } from './browser-runtime-asset-page-cache.ts';
 

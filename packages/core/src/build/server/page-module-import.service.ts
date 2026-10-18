@@ -2,7 +2,7 @@ import { collectBuildOutputImports, getBuildEntryOutput } from '../../build/buil
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
-import { requireAppRuntime } from '../../config/app-runtime.ts';
+import { requireAppRuntime } from '../../config/assembly/app-runtime.ts';
 import {
 	type BuildExecutor,
 	type BuildOptions,

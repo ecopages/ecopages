@@ -4,9 +4,9 @@ import { appLogger } from '../../../global/app-logger.ts';
 import * as appBuildManifestRuntime from '../../../build/app-build-manifest-runtime.ts';
 import { attachHmrToIntegrations, disposeDevResources, startDevWarmup } from './runtime-server-lifecycle.ts';
 import type { IHmrManager } from '../../../types/internal-types.ts';
-import { requireAppRuntime } from '../../../config/app-runtime.ts';
+import { requireAppRuntime } from '../../../config/assembly/app-runtime.ts';
 import type { IntegrationRuntimeContext } from '../../../plugins/integration-plugin.ts';
-import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
+import { finalizeEcoPagesConfig } from '../../../config/assembly/finalize-config.ts';
 import { HtmlPagesPlugin } from '../../../html-pages/html-pages.plugin.ts';
 
 test('a failed preview shutdown still tears down Integrations and allows setup again', async () => {

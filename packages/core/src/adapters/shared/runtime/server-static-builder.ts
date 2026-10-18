@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT, RESOLVED_ASSETS_DIR } from '../../../config/constants.ts';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT, RESOLVED_ASSETS_DIR } from '../../../constants.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { setupAppRuntimePlugins } from '../../../build/build-adapter.ts';
 import {

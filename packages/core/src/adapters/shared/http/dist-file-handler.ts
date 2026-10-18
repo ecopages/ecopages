@@ -1,4 +1,4 @@
-import { STATUS_MESSAGE } from '../../../config/constants.ts';
+import { STATUS_MESSAGE } from '../../../constants.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { fileSystem } from '@ecopages/file-system';
 import path from 'node:path';

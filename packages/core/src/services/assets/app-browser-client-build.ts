@@ -6,7 +6,7 @@ import { getBuildEntryOutput, collectBuildEntryInputPaths } from '../../build/bu
 import type { BuildSuccess } from '../../build/build-adapter.ts';
 import { assertBuildSucceeded } from '../../build/build-log.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
-import { RESOLVED_ASSETS_DIR } from '../../config/constants.ts';
+import { RESOLVED_ASSETS_DIR } from '../../constants.ts';
 import type {
 	GroupedGraphBuildPlan,
 	GroupedGraphBuildPlanInstance,

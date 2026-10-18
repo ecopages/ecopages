@@ -17,7 +17,7 @@ import { attachNodeHttpWebSocketUpgrades } from '../shared/ws/node-http-websocke
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
 import { ServerRequestPipeline, type ServerRequestContext } from '../shared/runtime/server-request-pipeline.ts';
 import { ServerStaticBuilder } from '../shared/runtime/server-static-builder.ts';
-import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
 import { disposeDevResources, prepareRuntimePublicDir } from '../shared/runtime/runtime-server-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
 import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';

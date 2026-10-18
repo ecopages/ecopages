@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { RESOLVED_ASSETS_DIR } from '../../../../../config/constants.ts';
+import { RESOLVED_ASSETS_DIR } from '../../../../../constants.ts';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../../../types/internal-types.ts';
 import type { FileScriptAsset, ProcessedAsset } from '../../assets.types.ts';

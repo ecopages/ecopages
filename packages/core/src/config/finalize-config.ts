@@ -12,7 +12,7 @@ import {
 	DEFAULT_ECOPAGES_HOSTNAME,
 	DEFAULT_ECOPAGES_PORT,
 	DEFAULT_ECOPAGES_WORK_DIR,
-} from './constants.ts';
+} from '../constants.ts';
 import { collectConfigModuleFiles } from './config-module-files.ts';
 import { DEFAULT_ECO_CONFIG_FILENAME, resolveUserConfigRootDir } from './resolve-eco-config-path.ts';
 import type { EcoPagesUserConfig, FinalizeEcoPagesConfigOptions } from './user-config-types.ts';

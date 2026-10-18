@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { DEFAULT_ECOPAGES_WORK_DIR } from '../../../config/constants.ts';
+import { DEFAULT_ECOPAGES_WORK_DIR } from '../../../constants.ts';
 import {
 	browserRuntimeEntryHasEsmExports,
 	inferBrowserRuntimeDefaultExportPolicy,

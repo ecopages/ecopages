@@ -1,4 +1,4 @@
-import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../../config/constants.ts';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../../constants.ts';
 import type { ReturnParseCliArgs } from '../../../utils/parse-cli-args.ts';
 
 export type RuntimeBinding = {

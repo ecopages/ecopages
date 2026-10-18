@@ -1,5 +1,5 @@
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
+import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
 
 export const createMockConfig = (overrides: Partial<EcoPagesAppConfig> = {}): EcoPagesAppConfig => {
 	const integrations = (overrides.integrations ?? []).map((integration) => ({

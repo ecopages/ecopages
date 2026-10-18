@@ -1,4 +1,4 @@
-import { RESOLVED_ASSETS_DIR } from '../config/constants.ts';
+import { RESOLVED_ASSETS_DIR } from '../constants.ts';
 
 /** On-disk work directory segment for the bundled dev toolbar client runtime. */
 export const DEV_TOOLBAR_RUNTIME_WORK_DIR_SEGMENT = 'dev-toolbar-runtime';

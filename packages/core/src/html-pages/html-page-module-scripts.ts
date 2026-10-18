@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { requireAppRuntime } from '../config/app-runtime.ts';
-import { RESOLVED_ASSETS_DIR } from '../config/constants.ts';
+import { RESOLVED_ASSETS_DIR } from '../constants.ts';
 import { isCssImport } from '../plugins/component-import-discovery.ts';
 import { stripsSideEffectStylesheetImports } from '../plugins/eco-component-meta-plugin.ts';
 import { isBarePackageImportSpecifier, resolveProjectModulePath } from '../plugins/tsconfig-import-resolver.ts';

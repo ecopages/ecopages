@@ -2,7 +2,7 @@ import type { HtmlDocumentContribution } from '../html/html-transformer.service.
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { PagePackageResult } from '../types/public-types.ts';
 import { isDevToolbarEnabled } from './dev-toolbar-config.ts';
-import type { ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
+import type { ProcessedAsset } from '../assets/asset-processing-service/assets.types.ts';
 import { DEV_TRANSFORM_URL_PREFIX, VENDOR_URL_PREFIX } from '../hmr/hmr-asset-paths.ts';
 import {
 	DEV_MANIFEST_ELEMENT_ID,

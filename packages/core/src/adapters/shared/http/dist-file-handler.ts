@@ -6,7 +6,7 @@ import {
 	HASHED_BROWSER_ASSET_INDEX_FILENAME,
 	hashBrowserAssetBytes,
 	isHashedBrowserAsset,
-} from '../../../services/assets/hashed-browser-asset.ts';
+} from '../../../assets/hashed-browser-asset.ts';
 import { ServerUtils } from '../../../utils/server-utils.module.ts';
 
 export type ServeDistFileOptions = {

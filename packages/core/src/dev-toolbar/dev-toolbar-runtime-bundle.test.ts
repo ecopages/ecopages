@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { installBuildQueue } from '../build/runtime/build-queue.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import { bundleDevClientRuntime } from '../hmr/dev-client-runtime.ts';
-import { BrowserBundleService } from '../services/assets/browser-bundle.service.ts';
+import { BrowserBundleService } from '../assets/browser-bundle.service.ts';
 import { createDevToolbarClientRuntime } from './dev-toolbar-runtime.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');

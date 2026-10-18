@@ -1,5 +1,5 @@
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import type { ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
 import path from 'node:path';
 import { getDiscoveredWatchFiles, getInferredStylesheets } from '../../../eco/discovered-dependencies.ts';
 import type { PreparedComponentGraphNode } from './component-graph.ts';

@@ -6,7 +6,7 @@ import type { PageClientPlan } from '../route-renderer/orchestration/ownership-g
 import type { EcoPageComponent } from '../eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
 import type { HmrStrategy } from '../hmr/hmr-strategy.ts';
-import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
+import type { AssetDefinition, ProcessedAsset } from '../assets/asset-processing-service/assets.types.ts';
 import type { CacheStats, CacheStrategy } from '../page-cache/cache.types.ts';
 import type { InteractionEventsString as ScriptsInjectorInteractionEventsString } from '@ecopages/scripts-injector/types';
 import type { DevTransformBundleContributor } from '../dev/transform-server/types.ts';
@@ -20,7 +20,7 @@ export type {
 	GetPageDependenciesContext,
 	PageDependenciesResult,
 } from '../eco/eco.types.ts';
-export type { ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
+export type { ProcessedAsset } from '../assets/asset-processing-service/assets.types.ts';
 
 /**
  * Runtime-agnostic incoming WebSocket frame.

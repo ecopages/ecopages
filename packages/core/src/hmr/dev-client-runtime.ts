@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import type { BrowserBundleService } from '../services/assets/browser-bundle.service.ts';
+import type { BrowserBundleService } from '../assets/browser-bundle.service.ts';
 import { removeStaleHmrEntrypointOutput } from './hmr-entrypoint-output.ts';
 
 /**

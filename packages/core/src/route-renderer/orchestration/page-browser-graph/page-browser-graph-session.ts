@@ -4,10 +4,7 @@ import { serializeGroupedGraphCacheKey } from './route-instance-key.ts';
 import { createHash } from 'node:crypto';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { PageBrowserGraphContribution, PageBrowserGraphResult } from '../../../types/public-types.ts';
-import type {
-	AssetDefinition,
-	ProcessedAsset,
-} from '../../../services/assets/asset-processing-service/assets.types.ts';
+import type { AssetDefinition, ProcessedAsset } from '../../../assets/asset-processing-service/assets.types.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import {
 	BuildInputDependencyIndex,

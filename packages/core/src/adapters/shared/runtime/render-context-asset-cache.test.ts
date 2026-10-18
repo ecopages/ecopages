@@ -6,8 +6,8 @@ import { createTestAppConfig } from '@ecopages/testing';
 import { IntegrationPlugin } from '../../../plugins/integration-plugin.ts';
 import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { StringMarkupRenderer } from '../../../route-renderer/orchestration/string-markup-renderer.ts';
-import { FileScriptProcessor } from '../../../services/assets/asset-processing-service/processors/script/file-script.processor.ts';
-import { FileStylesheetProcessor } from '../../../services/assets/asset-processing-service/processors/stylesheet/file-stylesheet.processor.ts';
+import { FileScriptProcessor } from '../../../assets/asset-processing-service/processors/script/file-script.processor.ts';
+import { FileStylesheetProcessor } from '../../../assets/asset-processing-service/processors/stylesheet/file-stylesheet.processor.ts';
 import type { EcoComponent, EcoFunctionComponent, HtmlTemplateProps } from '../../../types/public-types.ts';
 import { createRenderContext } from './render-context.ts';
 

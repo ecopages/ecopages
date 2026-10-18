@@ -18,8 +18,8 @@ import type {
 	AssetDefinition,
 	AssetProcessingService,
 	ProcessedAsset,
-} from '../../../services/assets/asset-processing-service/index.ts';
-import type { GroupedScriptBundle } from '../../../services/assets/asset-processing-service/assets.types.ts';
+} from '../../../assets/asset-processing-service/index.ts';
+import type { GroupedScriptBundle } from '../../../assets/asset-processing-service/assets.types.ts';
 import type { OwnershipValidationService } from '../ownership-graph/ownership-validation.service.ts';
 import { RouteRenderOrchestrator } from './route-render-orchestrator.ts';
 import { createFlowRenderer, createRouteOptions } from './route-render-orchestrator.test-fixtures.ts';

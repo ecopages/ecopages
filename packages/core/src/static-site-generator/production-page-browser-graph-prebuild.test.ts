@@ -7,13 +7,13 @@ import { requireAppRuntime } from '../config/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
 import type { GroupedGraphBuildPlan } from '../route-renderer/orchestration/page-browser-graph/grouped-graph-build-plan.ts';
 import { createPageDependencyInstanceKey } from '../route-renderer/orchestration/page-browser-graph/route-instance-key.ts';
-import type { ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
+import type { ProcessedAsset } from '../assets/asset-processing-service/assets.types.ts';
 import {
 	assertAppBrowserClientManifestHtmlOutputsExist,
 	readAppBrowserClientManifest,
 	restoreAppBrowserClientAssets,
 	writeAppBrowserClientManifest,
-} from '../services/assets/app-browser-client-manifest.ts';
+} from '../assets/app-browser-client-manifest.ts';
 import {
 	getPrebuiltHtmlPageModuleScriptUrls,
 	setPrebuiltHtmlPageModuleScriptUrls,
@@ -28,7 +28,7 @@ import {
 
 const { buildAppBrowserClientMock } = vi.hoisted(() => ({ buildAppBrowserClientMock: vi.fn() }));
 
-vi.mock('../services/assets/app-browser-client-build.ts', () => ({
+vi.mock('../assets/app-browser-client-build.ts', () => ({
 	buildAppBrowserClient: buildAppBrowserClientMock,
 	createAppBrowserClientEntryKey: (integrationName: string, dependency: unknown) =>
 		JSON.stringify([integrationName, dependency]),

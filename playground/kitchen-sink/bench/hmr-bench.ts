@@ -1,7 +1,7 @@
 import { mkdirSync, utimesSync } from 'node:fs';
 import path from 'node:path';
 import { bench, group } from 'mitata';
-import { BrowserBundleService } from '../../../packages/core/src/services/assets/browser-bundle.service';
+import { BrowserBundleService } from '../../../packages/core/src/assets/browser-bundle.service';
 import { KITCHEN_SINK_PATHS, loadKitchenSinkConfig } from './lib/kitchen-sink-fixture';
 
 const DIST_TMP = path.join(KITCHEN_SINK_PATHS.dist, '__bench__');

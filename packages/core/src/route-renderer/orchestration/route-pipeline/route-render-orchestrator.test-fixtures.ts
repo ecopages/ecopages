@@ -1,4 +1,4 @@
-import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import type { ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
 import type {
 	EcoComponent,
 	EcoPageComponent,

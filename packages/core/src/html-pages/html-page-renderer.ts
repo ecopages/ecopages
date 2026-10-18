@@ -9,8 +9,8 @@ import type {
 	IntegrationRendererRenderOptions,
 	RouteRendererBody,
 } from '../types/public-types.ts';
-import { AssetFactory } from '../services/assets/asset-processing-service/asset.factory.ts';
-import type { AssetDefinition } from '../services/assets/asset-processing-service/assets.types.ts';
+import { AssetFactory } from '../assets/asset-processing-service/asset.factory.ts';
+import type { AssetDefinition } from '../assets/asset-processing-service/assets.types.ts';
 import { StringMarkupRenderer } from '../route-renderer/orchestration/string-markup-renderer.ts';
 import type { IntegrationRendererOptions } from '../route-renderer/orchestration/integration-renderer.ts';
 import { findElements, parseHtml } from '../html/html-source-parser.ts';

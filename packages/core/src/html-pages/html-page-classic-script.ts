@@ -1,6 +1,6 @@
 import { fileSystem } from '@ecopages/file-system';
-import type { ScriptAsset } from '../services/assets/asset-processing-service/assets.types.ts';
-import { compileClassicScript } from '../services/assets/asset-processing-service/processors/script/classic-script-compiler.ts';
+import type { ScriptAsset } from '../assets/asset-processing-service/assets.types.ts';
+import { compileClassicScript } from '../assets/asset-processing-service/processors/script/classic-script-compiler.ts';
 
 /**
  * Picks how a local `<script src>` without `type="module"` is emitted, and rejects a file that

@@ -6,7 +6,7 @@ import { resolveAppBuildPlugins } from '../../build/runtime/build-request-policy
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-resolver.ts';
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
-import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
+import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { assertBuildSucceeded } from '../../build/build-log.ts';
 

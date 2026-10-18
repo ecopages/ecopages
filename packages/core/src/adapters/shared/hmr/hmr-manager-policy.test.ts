@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, vi } from 'vitest';
-import { BrowserBundleService } from '../../../services/assets/browser-bundle.service.ts';
+import { BrowserBundleService } from '../../../assets/browser-bundle.service.ts';
 import { createTempRoot, startHmrManagerAt, writeSourceFile } from './hmr-manager.test-helpers.ts';
 
 /**

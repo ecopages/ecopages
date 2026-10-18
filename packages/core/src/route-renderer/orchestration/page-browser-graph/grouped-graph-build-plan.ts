@@ -1,5 +1,5 @@
 import type { PageBrowserGraphContribution } from '../../../types/public-types.ts';
-import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/assets.types.ts';
+import type { ProcessedAsset } from '../../../assets/asset-processing-service/assets.types.ts';
 import type { PageClientBuildEntry } from '../ownership-graph/page-client-plan.ts';
 
 export type PlannedPageClientBuildEntry = PageClientBuildEntry & {

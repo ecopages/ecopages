@@ -19,7 +19,7 @@ import type {
 	AssetProcessingService,
 	AssetProcessingIntegration,
 	ProcessedAsset,
-} from '../../../services/assets/asset-processing-service/index.ts';
+} from '../../../assets/asset-processing-service/index.ts';
 import { isProductionRuntime } from '../../../utils/runtime.ts';
 import { collectHtmlCacheSourceDependencyPaths } from '../../../page-cache/html-page-cache-dependency-index.ts';
 import { requireAppRuntime } from '../../../config/app-runtime.ts';

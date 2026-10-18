@@ -316,7 +316,7 @@ Use the dev toolbar **Deps** panel to inspect vendor URLs loaded by the active P
 
 - `src/bundling/runtime-modules.test.ts`: explicit entries, exact package specifiers, and vendor filename normalization.
 - `src/bundling/runtime-bundle.test.ts`: vendor registration and manifest paths.
-- `../../core/src/services/assets/asset-processing-service/browser-runtime-entry-resolution.test.ts`: ESM entry resolution and default-export policy for React vs TanStack Query.
+- `../../core/src/assets/asset-processing-service/browser-runtime-entry-resolution.test.ts`: ESM entry resolution and default-export policy for React vs TanStack Query.
 - `../../../e2e/fixtures/react-router/persist-layouts.test.e2e.ts`: one QueryClient shared across Page navigation with an explicit `runtimeModules` entry.
 
 ### Client-only code in SSR trees

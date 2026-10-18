@@ -27,10 +27,10 @@ import {
 	type AssetProcessingService,
 	createPagePackage,
 	type ProcessedAsset,
-} from '../../services/assets/asset-processing-service/index.ts';
-import type { AssetProcessingIntegration } from '../../services/assets/asset-processing-service/asset-processing-integration.ts';
-import { resolveAssetProcessingIntegration } from '../../services/assets/asset-processing-service/asset-processing-integration.ts';
-import { createAppBrowserClientEntryKey } from '../../services/assets/app-browser-client-build.ts';
+} from '../../assets/asset-processing-service/index.ts';
+import type { AssetProcessingIntegration } from '../../assets/asset-processing-service/asset-processing-integration.ts';
+import { resolveAssetProcessingIntegration } from '../../assets/asset-processing-service/asset-processing-integration.ts';
+import { createAppBrowserClientEntryKey } from '../../assets/app-browser-client-build.ts';
 import { HtmlTransformerService } from '../../html/html-transformer.service.ts';
 import type { HtmlDocumentContribution } from '../../html/html-transformer.service.ts';
 import { invariant } from '../../utils/invariant.ts';

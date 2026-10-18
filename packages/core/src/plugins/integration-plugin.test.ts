@@ -5,9 +5,9 @@ import {
 	type IntegrationRuntimeContext,
 } from './integration-plugin.ts';
 import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
-import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
+import { AssetProcessingService } from '../assets/asset-processing-service/asset-processing.service.ts';
 import type { IHmrManager } from '../types/public-types.ts';
-import type { AssetDefinition } from '../services/assets/asset-processing-service';
+import type { AssetDefinition } from '../assets/asset-processing-service';
 import type { IntegrationRendererRenderOptions, RouteRendererBody } from '../types/public-types.ts';
 import { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
 import { requireAppRuntime } from '../config/app-runtime.ts';

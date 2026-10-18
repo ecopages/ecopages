@@ -11,7 +11,7 @@ import {
 } from './custom-element-script-preloader.ts';
 import type { CustomElementScriptPreloadScopeState } from './custom-element-script-preload-invalidation.ts';
 import { createCustomElementSsrPipelineImporter } from './custom-element-ssr-preload-entrypoint.ts';
-import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import type { ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
 
 let cacheScope = '';
 let scopeCounter = 0;

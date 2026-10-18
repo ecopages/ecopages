@@ -3,8 +3,8 @@ import type {
 	AssetDefinition,
 	FileScriptAsset,
 	FileStylesheetAsset,
-} from '../../services/assets/asset-processing-service/index.ts';
-import { AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
+} from '../../assets/asset-processing-service/index.ts';
+import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
 import { rapidhash } from '../../utils/hash.ts';
 
 /**

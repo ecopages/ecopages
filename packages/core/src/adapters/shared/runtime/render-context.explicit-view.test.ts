@@ -7,7 +7,7 @@ import { IntegrationPlugin } from '../../../plugins/integration-plugin.ts';
 import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { StringMarkupRenderer } from '../../../route-renderer/orchestration/string-markup-renderer.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import type { AssetProcessingService } from '../../../services/assets/asset-processing-service/index.ts';
+import type { AssetProcessingService } from '../../../assets/asset-processing-service/index.ts';
 import type {
 	EcoComponent,
 	EcoFunctionComponent,

@@ -10,7 +10,6 @@ import type {
 	ComponentRenderResult,
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
-	InternalIntegrationRendererRenderOptions,
 	EcoPageFile,
 	RouteRendererBody,
 	EcoComponent,
@@ -73,7 +72,6 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 	PageModule: EcoPageFile | null = null;
 	HtmlTemplate: EcoComponent<HtmlTemplateProps> | null = null;
 	UseDocumentShellRender = false;
-	CapturedRenderOptions: InternalIntegrationRendererRenderOptions<EcoPagesElement> | null = null;
 	RenderedBody: RouteRendererBody = '<html><body>Test Page</body></html>';
 	RenderBodyFactory:
 		| ((context: ReturnType<typeof getComponentRenderContext>) => RouteRendererBody | Promise<RouteRendererBody>)
@@ -83,7 +81,6 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 	HtmlContributions: HtmlDocumentContribution[] = [];
 
 	override async render(options: IntegrationRendererRenderOptions<EcoPagesElement>): Promise<RouteRendererBody> {
-		this.CapturedRenderOptions = options as InternalIntegrationRendererRenderOptions<EcoPagesElement>;
 		if (this.UseDocumentShellRender) {
 			return super.render(options);
 		}

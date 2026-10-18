@@ -1,5 +1,5 @@
 import { fileSystem } from '@ecopages/file-system';
-import { rapidhash } from '../../utils/hash.ts';
+import { contentHash } from '../../utils/content-hash.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 
 /**
@@ -17,10 +17,9 @@ export function hashAppConfigFile(appConfig: EcoPagesAppConfig): string {
 	}
 
 	const configModuleFiles = appConfig.absolutePaths.configModuleFiles ?? [configPath];
-	return rapidhash(
-		[...configModuleFiles]
-			.sort()
-			.map((filePath) => `${filePath}:${fileSystem.exists(filePath) ? fileSystem.hash(filePath) : 'missing'}`)
-			.join('\n'),
-	).toString(36);
+	const configContent = [...configModuleFiles]
+		.sort()
+		.map((filePath) => `${filePath}:${fileSystem.exists(filePath) ? fileSystem.hash(filePath) : 'missing'}`)
+		.join('\n');
+	return BigInt(`0x${contentHash(configContent, 16)}`).toString(36);
 }

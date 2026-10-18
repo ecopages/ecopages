@@ -1,4 +1,5 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { contentHash } from '../utils/content-hash.ts';
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
@@ -58,7 +59,7 @@ export type AppBrowserClientBuildResult = {
 };
 
 function hash(value: string): string {
-	return createHash('sha256').update(value).digest('hex').slice(0, 16);
+	return contentHash(value, 16);
 }
 
 function dependencyAssociationKey(dependency: AssetDefinition): string {

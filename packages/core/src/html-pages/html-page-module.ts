@@ -6,7 +6,7 @@ import { appLogger } from '../global/app-logger.ts';
 import { requireAppRuntime } from '../utils/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { EcoComponent, EcoPageFile, GetMetadata } from '../types/contracts.ts';
-import { rapidhash } from '../utils/hash.ts';
+import { contentHash } from '../utils/content-hash.ts';
 import { isDevelopmentRuntime } from '../utils/runtime.ts';
 import {
 	compileHtmlPage,
@@ -96,7 +96,7 @@ function createTemplateComponent(template: HtmlTemplate, identity?: ComponentIde
 export function loadHtmlPageModule(appConfig: EcoPagesAppConfig, filePath: string): EcoPageFile {
 	const file = path.resolve(filePath);
 	const source = fileSystem.readFileSync(file);
-	const sourceHash = rapidhash(source).toString(36);
+	const sourceHash = BigInt(`0x${contentHash(source, 16)}`).toString(36);
 	const warningState = requireAppRuntime(appConfig).htmlPageWarnings;
 	const options = {
 		srcDir: appConfig.absolutePaths.srcDir,
@@ -109,7 +109,7 @@ export function loadHtmlPageModule(appConfig: EcoPagesAppConfig, filePath: strin
 	const isShell = file === appConfig.absolutePaths.htmlTemplatePath;
 	const template = isShell ? compileHtmlShell(file, source, options) : compileHtmlPage(file, source, options);
 	const identity: ComponentIdentity = {
-		id: rapidhash(file).toString(36),
+		id: BigInt(`0x${contentHash(file, 16)}`).toString(36),
 		file,
 		integration: HTML_PAGES_INTEGRATION_NAME,
 	};

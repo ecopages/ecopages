@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { isPathStrictlyInside } from '../utils/path-containment.ts';
-import { createHash } from 'node:crypto';
 import { fileSystem } from '@ecopages/file-system';
+import { contentHash } from '../utils/content-hash.ts';
 import type { PageParams } from '../types/contracts.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import {
@@ -332,10 +332,7 @@ function fingerprintSources(rootDir: string, filepaths: Iterable<string>): Recor
 		[...new Set(filepaths)]
 			.filter((filepath) => fileSystem.exists(filepath))
 			.sort()
-			.map((filepath) => [
-				toProjectPath(rootDir, filepath),
-				createHash('sha256').update(fileSystem.readFileSync(filepath)).digest('hex'),
-			]),
+			.map((filepath) => [toProjectPath(rootDir, filepath), contentHash(fileSystem.readFileSync(filepath))]),
 	);
 }
 
@@ -492,10 +489,7 @@ export function assertAppBrowserClientSourcesMatch(
 ): void {
 	for (const [relativePath, expectedFingerprint] of Object.entries(sourceFingerprints)) {
 		const filepath = path.resolve(appConfig.rootDir, relativePath);
-		if (
-			!fileSystem.exists(filepath) ||
-			createHash('sha256').update(fileSystem.readFileSync(filepath)).digest('hex') !== expectedFingerprint
-		) {
+		if (!fileSystem.exists(filepath) || contentHash(fileSystem.readFileSync(filepath)) !== expectedFingerprint) {
 			throw new Error(
 				`The app browser build manifest is stale because ${relativePath} changed or is missing. Run \`ecopages build\` again.`,
 			);

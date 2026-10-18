@@ -5,7 +5,7 @@ import {
 	AssetFactory,
 	createAppBrowserClientEntry,
 } from '../../assets/asset-processing-service/index.ts';
-import { rapidhash } from '../../utils/hash.ts';
+import { contentHash } from '../../utils/content-hash.ts';
 import { getLazyTriggerKey } from './lazy-trigger-planning.ts';
 
 type LazyScriptRef = {
@@ -97,7 +97,7 @@ export function collectLazyScriptEntries(options: CollectLazyEntriesOptions): vo
 		const attributes = scriptEntry.attributes;
 
 		if (content) {
-			const lazyKey = `lazy:${rapidhash(`${componentFile}:entry:${index}:${content}`).toString(16)}`;
+			const lazyKey = `lazy:${contentHash(`${componentFile}:entry:${index}:${content}`, 16)}`;
 			const depKey = `lazy:entry:content:${getLazyTriggerKey(lazy)}:${content}:${JSON.stringify(attributes ?? {})}`;
 			const lazyEntryName = createEcopagesJsxLazyEntryName(integrationName, depKey);
 			pushUniqueDependency(
@@ -131,7 +131,7 @@ export function collectLazyScriptEntries(options: CollectLazyEntriesOptions): vo
 		const script = src ?? getDependencyEntrySrcOrThrow(scriptEntry, getLazyScriptMissingSrcMessage());
 		const resolvedPath = resolveDependencyPath(componentDir, script);
 		const fallbackUrl = resolveLazyScripts(componentDir, [script]).split(',')[0] ?? '';
-		const lazyKey = `lazy:${rapidhash(`${resolvedPath}:${getLazyTriggerKey(lazy)}`).toString(16)}`;
+		const lazyKey = `lazy:${contentHash(`${resolvedPath}:${getLazyTriggerKey(lazy)}`, 16)}`;
 		const lazyEntryName = createEcopagesJsxLazyEntryName(
 			integrationName,
 			`${resolvedPath}:${getLazyTriggerKey(lazy)}`,

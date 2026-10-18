@@ -1,4 +1,4 @@
-import { sha256Hex } from '../utils/sha256.ts';
+import { contentHash } from '../utils/content-hash.ts';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 
@@ -11,7 +11,7 @@ const loadedHashedBrowserAssetDirectories = new Set<string>();
  * Returns a filesystem-safe hash of the bytes that will be served.
  */
 export function hashBrowserAssetBytes(bytes: string | Buffer): string {
-	return sha256Hex(bytes, HASH_LENGTH);
+	return contentHash(bytes, HASH_LENGTH);
 }
 
 /** Records a content-addressed output path in process memory and beside the emitted file. */

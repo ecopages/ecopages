@@ -49,6 +49,6 @@ export {
 } from './diagnostics/request-pipeline-metrics.ts';
 export { toPackageRootSpecifier } from './plugins/package-specifier.ts';
 export { loadTsconfigPathPrefixes, matchesTsconfigPathPrefix } from './plugins/tsconfig-import-resolver.ts';
-export { rapidhash } from './utils/hash.ts';
+export { contentHash } from './utils/content-hash.ts';
 export { isPathInside } from './utils/path-containment.ts';
 export { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from './utils/resolve-entry-file.ts';

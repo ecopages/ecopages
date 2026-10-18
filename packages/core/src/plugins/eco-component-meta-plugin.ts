@@ -5,7 +5,7 @@ import type { EcoBuildOnTransformResult, EcoBuildPlugin } from '../build/contrac
 import { composeSourceMaps, isUsableSourceMap } from '../build/source-maps.ts';
 import { createCoreTransformPlugin, createMappedSourceTransformResult } from '../build/mapped-source-transform.ts';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
-import { rapidhash } from '../utils/hash.ts';
+import { contentHash } from '../utils/content-hash.ts';
 import { discoverComponentImports, type DiscoveredImports } from './component-import-discovery.ts';
 import { findIntegrationForFile } from './find-integration-for-file.ts';
 
@@ -221,7 +221,7 @@ export function attributeComponentIdentity(
 		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
 
-	const identityLiteral = `{ id: ${JSON.stringify(rapidhash(filePath).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
+	const identityLiteral = `{ id: ${JSON.stringify(BigInt(`0x${contentHash(filePath, 16)}`).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
 	if (!hasEcoFactoryCall(program)) {
 		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
@@ -344,7 +344,7 @@ export function attributeMdxComponentIdentity(
 	}
 
 	const discovered = discoverComponentImports(program, filePath, projectRoot);
-	const identityLiteral = `{ id: ${JSON.stringify(rapidhash(filePath).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
+	const identityLiteral = `{ id: ${JSON.stringify(BigInt(`0x${contentHash(filePath, 16)}`).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
 	const discoveryArgument = serializeDiscoveryArgument(discovered);
 
 	const edits = buildMdxConfigIdentityEdits({

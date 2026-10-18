@@ -1,10 +1,8 @@
-import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
-import { buildServerModule } from '@ecopages/core/build';
+import { buildServerModule, contentHash, recordCollectionBuild } from '@ecopages/core/build';
 import { requireAppRuntime } from '@ecopages/core/integration';
-import { recordCollectionBuild } from '@ecopages/core/build';
 import type { ProcessorContext } from '@ecopages/core/processor';
 
 export type CollectionServerBuildArtifact = {
@@ -28,11 +26,7 @@ function createCollectionBuildIdentity(sourceFilePath: string, ownedSourcePaths:
 		)
 		.join('\0');
 
-	return createHash('sha256')
-		.update('collection-server-build-v3\0')
-		.update(sourceIdentity)
-		.digest('hex')
-		.slice(0, 16);
+	return contentHash(`collection-server-build-v3\0${sourceIdentity}`, 16);
 }
 
 /** Builds one generated collection server module as an independent server unit. */

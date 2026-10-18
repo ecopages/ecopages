@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { contentHash } from '../utils/content-hash.ts';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
@@ -47,7 +47,7 @@ export function getServerBundleOutputPaths(appConfig: EcoPagesAppConfig): {
  * `fileSystem.hash`; it equals that hash today, so manifests written by earlier builds stay valid.
  */
 function hashDeployConfigFile(filePath: string): string {
-	return createHash('sha256').update(fileSystem.readFileAsBuffer(filePath)).digest('hex');
+	return contentHash(fileSystem.readFileAsBuffer(filePath));
 }
 
 function hashExistingFile(filePath: string | undefined): string | undefined {

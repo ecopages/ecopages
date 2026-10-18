@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../../../constants.ts';
 import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
-import { rapidhash } from '../../../../utils/hash.ts';
+import { contentHash } from '../../../../utils/content-hash.ts';
 import { isDevelopmentRuntime, isProductionRuntime } from '../../../../utils/runtime.ts';
 import type { BaseAsset, ProcessedAsset } from '../../assets.types.ts';
 
@@ -27,6 +27,6 @@ export abstract class BaseProcessor<T extends BaseAsset> {
 	}
 
 	protected generateHash(content: string): string {
-		return rapidhash(content).toString();
+		return BigInt(`0x${contentHash(content, 16)}`).toString(10);
 	}
 }

@@ -117,7 +117,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 
 - `src/config/README.md`: config loading, assembly, and app-owned runtime/build state
 - `src/types/README.md`: public, internal, and per-app runtime contracts
-- `src/errors/README.md`, `src/global/README.md`, `src/utils/README.md`, and `src/client/README.md`: shared Foundation modules, including path containment, markup escaping, entity decoding, and regex escaping
+- `src/errors/README.md`, `src/global/README.md`, `src/utils/README.md`, and `src/client/README.md`: shared Foundation modules, including path containment, markup escaping, entity decoding, regex escaping, and SHA-256 content hashes (`contentHash` from `@ecopages/core/build`)
 - `src/cache/README.md`: Build-layer module parse cache
 - `src/diagnostics/README.md`: per-app request-pipeline metrics and the startup trace
 - `src/plugins/README.md`: integration and processor authoring contracts

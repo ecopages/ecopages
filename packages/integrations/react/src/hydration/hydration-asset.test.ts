@@ -1,4 +1,4 @@
-import { rapidhash } from '@ecopages/core/build';
+import { contentHash } from '@ecopages/core/build';
 import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/integration';
 import { describe, expect, it, vi } from 'vitest';
 import { assertNoBareEcopagesImports } from './assert-no-bare-ecopages-imports.ts';
@@ -161,7 +161,7 @@ describe('HydrationAssetService', () => {
 		expect(entries[1]?.dependency).toHaveProperty('content', expect.stringContaining(islandB));
 		expect(createBundleOptions).toHaveBeenNthCalledWith(
 			1,
-			`ecopages-react-island-${rapidhash(islandA)}`,
+			`ecopages-react-island-${BigInt(`0x${contentHash(islandA, 16)}`).toString()}`,
 			false,
 			['node:path'],
 			{},
@@ -171,7 +171,7 @@ describe('HydrationAssetService', () => {
 		);
 		expect(createBundleOptions).toHaveBeenNthCalledWith(
 			2,
-			`ecopages-react-island-${rapidhash(islandB)}`,
+			`ecopages-react-island-${BigInt(`0x${contentHash(islandB, 16)}`).toString()}`,
 			false,
 			['node:fs'],
 			{},
@@ -296,7 +296,7 @@ describe('HydrationAssetService', () => {
 		await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
 
 		expect(createBundleOptions).toHaveBeenCalledWith(
-			`ecopages-react-${rapidhash('/app/src/pages/index.tsx')}`,
+			`ecopages-react-${BigInt(`0x${contentHash('/app/src/pages/index.tsx', 16)}`).toString()}`,
 			false,
 			[],
 			{
@@ -339,7 +339,7 @@ describe('HydrationAssetService', () => {
 		await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
 
 		expect(createBundleOptions).toHaveBeenCalledWith(
-			`ecopages-react-${rapidhash('/app/src/pages/index.tsx')}`,
+			`ecopages-react-${BigInt(`0x${contentHash('/app/src/pages/index.tsx', 16)}`).toString()}`,
 			false,
 			[],
 			{
@@ -367,7 +367,7 @@ describe('HydrationAssetService', () => {
 		const dependencies = await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
 
 		expect(createBundleOptions).toHaveBeenCalledWith(
-			`ecopages-react-${rapidhash('/app/src/pages/index.tsx')}`,
+			`ecopages-react-${BigInt(`0x${contentHash('/app/src/pages/index.tsx', 16)}`).toString()}`,
 			false,
 			[],
 			{
@@ -551,7 +551,7 @@ describe('HydrationAssetService', () => {
 		expect(clientEntries[1]?.content).toContain(`export * from ${JSON.stringify(islandB)}`);
 		expect(createBundleOptions).toHaveBeenNthCalledWith(
 			1,
-			`ecopages-react-island-${rapidhash(islandA)}`,
+			`ecopages-react-island-${BigInt(`0x${contentHash(islandA, 16)}`).toString()}`,
 			false,
 			['node:path'],
 			{},
@@ -561,7 +561,7 @@ describe('HydrationAssetService', () => {
 		);
 		expect(createBundleOptions).toHaveBeenNthCalledWith(
 			2,
-			`ecopages-react-island-${rapidhash(islandB)}`,
+			`ecopages-react-island-${BigInt(`0x${contentHash(islandB, 16)}`).toString()}`,
 			false,
 			['node:fs'],
 			{},
@@ -571,8 +571,12 @@ describe('HydrationAssetService', () => {
 		);
 
 		const hydrationCall = processDependencies.mock.calls[1]?.[0] as Array<{ content?: string }>;
-		expect(hydrationCall?.[0]?.content).toContain(`/assets/ecopages-react-island-${rapidhash(islandA)}.js`);
-		expect(hydrationCall?.[1]?.content).toContain(`/assets/ecopages-react-island-${rapidhash(islandB)}.js`);
+		expect(hydrationCall?.[0]?.content).toContain(
+			`/assets/ecopages-react-island-${BigInt(`0x${contentHash(islandA, 16)}`).toString()}.js`,
+		);
+		expect(hydrationCall?.[1]?.content).toContain(
+			`/assets/ecopages-react-island-${BigInt(`0x${contentHash(islandB, 16)}`).toString()}.js`,
+		);
 		expect(assetsByFile.get(islandA)?.length).toBeGreaterThan(0);
 		expect(assetsByFile.get(islandB)?.length).toBeGreaterThan(0);
 	});
@@ -622,7 +626,7 @@ describe('HydrationAssetService', () => {
 			],
 		});
 
-		const islandName = `ecopages-react-island-${rapidhash('/app/src/components/counter.tsx')}`;
+		const islandName = `ecopages-react-island-${BigInt(`0x${contentHash('/app/src/components/counter.tsx', 16)}`).toString()}`;
 		expect(createBundleOptions).toHaveBeenNthCalledWith(
 			1,
 			islandName,

@@ -1,8 +1,8 @@
-import { rapidhash } from '../../utils/hash.ts';
+import { contentHash } from '../../utils/content-hash.ts';
 import type { AssetDefinition } from './assets.types.ts';
 
 function generateHash(content: string): string {
-	return rapidhash(content).toString();
+	return BigInt(`0x${contentHash(content, 16)}`).toString(10);
 }
 
 function getBundledSourceSignature(dep: AssetDefinition): string[] {

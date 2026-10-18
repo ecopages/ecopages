@@ -1,7 +1,6 @@
 import type { Readable } from 'node:stream';
 import type { ComponentIdentity } from '../eco/component-identity.ts';
 import type { ApiResponseBuilder } from '../adapters/shared/http/api-response.ts';
-import type { ForeignChildRuntime } from '../route-renderer/orchestration/foreign-child/component-render-context.ts';
 import type { PageClientPlan } from '../route-renderer/orchestration/ownership-graph/page-client-plan.ts';
 import type { EcoPageComponent } from '../eco/eco.types.ts';
 import type { EcoPagesAppConfig } from './internal-types.ts';
@@ -119,7 +118,6 @@ export type {
 	StandardSchemaIssue,
 	InferOutput,
 	StandardSchemaV1,
-	ForeignChildRuntime,
 };
 
 export type InteractionEventsString = ScriptsInjectorInteractionEventsString;
@@ -583,6 +581,32 @@ export type EcoComponent<P = any, R = any> =
 		: P extends (props: infer Props, ...args: any[]) => infer Return
 			? EcoFunctionComponent<Props, Return>
 			: EcoFunctionComponent<P, R>;
+
+type ForeignChildInterceptionInput = {
+	currentIntegration: string;
+	targetIntegration?: string;
+	component: EcoComponent;
+	props: Record<string, unknown>;
+};
+
+type ForeignChildInterceptionResult =
+	{ kind: 'inline'; props?: Record<string, unknown> } | { kind: 'resolved'; value: string } | undefined;
+
+/**
+ * Renderer-provided policy for handing a component to its owning Integration.
+ *
+ * @remarks
+ * Inline results stay in the current renderer. Resolved results contain serialized
+ * output or a queue token for renderer-owned completion.
+ */
+export interface ForeignChildRuntime {
+	interceptForeignChild?(
+		input: ForeignChildInterceptionInput,
+	): ForeignChildInterceptionResult | Promise<ForeignChildInterceptionResult>;
+	interceptForeignChildSync?(
+		input: ForeignChildInterceptionInput,
+	): Exclude<ForeignChildInterceptionResult, undefined>;
+}
 
 /**
  * Represents a page in EcoPages.

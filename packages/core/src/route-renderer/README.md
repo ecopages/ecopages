@@ -23,7 +23,7 @@ The architecture is organized around three distinct concepts:
 These concepts intentionally live in different places:
 
 - `ownership-validation.service.ts` validates declared foreign ownership up front and fails the render on misconfiguration
-- `component-render-context.ts` intercepts foreign children during active component render
+- `../eco/component-render-context.ts` scopes component renders and exposes the active foreign-child runtime
 - `foreign-subtree-execution.service.ts` contains the functions for mixed-integration execution and queued-token resolution
 - `document-shell-render.service.ts` composes page, layout, and html template shells with one execution-scoped renderer cache
 - `integration-renderer.ts` owns renderer-to-renderer delegation and integration-specific render hooks
@@ -72,7 +72,7 @@ Renderer entrypoints:
 Domain folders:
 
 - `ownership-graph/`: the prepared route component graph, its page client plan, and ownership validation
-- `foreign-child/`: active render context, foreign-subtree execution, deferred template serialization
+- `foreign-child/`: foreign-subtree execution, opaque-child checks, deferred template serialization
 - `document-shell/`: shared page/layout/html shell composition, layout prop resolution, and attribute stamping helpers
 - `route-pipeline/`: route preparation, final HTML capture, marker-artifact enforcement
 - `page-browser-graph/`: browser asset graph build, session cache, and injector assets

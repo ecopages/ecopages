@@ -122,11 +122,11 @@ The most useful reading order is:
 3. `orchestration/integration-renderer.ts`
 4. `orchestration/ownership-graph/ownership-validation.service.ts`
 5. `orchestration/ownership-graph/component-graph.ts`
-6. `orchestration/foreign-child/component-render-context.ts`
+6. `../eco/component-render-context.ts`
 7. `orchestration/foreign-child/foreign-subtree-execution.service.ts`
 8. `page-loading/page-module-loader.ts`
 9. `page-loading/dependency-resolver.ts`
-10. `eco/eco.ts`
+10. `../eco/eco.ts`
 
 ## 7) Key Files
 
@@ -135,7 +135,7 @@ The most useful reading order is:
 - `packages/core/src/route-renderer/orchestration/integration-renderer.ts`
 - `packages/core/src/route-renderer/orchestration/ownership-graph/ownership-validation.service.ts`
 - `packages/core/src/route-renderer/orchestration/ownership-graph/component-graph.ts`
-- `packages/core/src/route-renderer/orchestration/foreign-child/component-render-context.ts`
+- `packages/core/src/eco/component-render-context.ts`
 - `packages/core/src/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service.ts`
 - `packages/core/src/route-renderer/page-loading/page-module-loader.ts`
 - `packages/core/src/route-renderer/page-loading/dependency-resolver.ts`

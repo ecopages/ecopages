@@ -96,9 +96,9 @@
 			"default": "./src/route-renderer/route-renderer.ts"
 		},
 		"./route-renderer/orchestration/foreign-child/component-render-context": {
-			"import": "./src/route-renderer/orchestration/foreign-child/component-render-context.ts",
-			"types": "./src/route-renderer/orchestration/foreign-child/component-render-context.ts",
-			"default": "./src/route-renderer/orchestration/foreign-child/component-render-context.ts"
+			"import": "./src/eco/component-render-context.ts",
+			"types": "./src/eco/component-render-context.ts",
+			"default": "./src/eco/component-render-context.ts"
 		},
 		"./route-renderer/orchestration/foreign-child/foreign-subtree-execution.service": {
 			"types": "./src/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service.ts",

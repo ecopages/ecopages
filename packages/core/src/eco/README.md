@@ -77,6 +77,8 @@ Named barrel re-exports (`export { Counter } from './counter'`) are followed for
 
 The effective Integration owner follows one precedence rule everywhere: `config.integration`, then the build-time `config.identity.integration`, then the containing component's owner. A component-level override therefore controls both server rendering and its Page Client Plan even when the file belongs to another Integration. Components without either declaration inherit their parent's owner.
 
+Component factories read their active render context from `eco/`. The route renderer opens that context for each render and supplies the foreign-child runtime used to hand off components owned by another Integration. Nested and overlapping renders keep their own context across asynchronous work.
+
 ## Component Patterns
 
 EcoPages supports two approaches for creating components, each suited for different use cases:

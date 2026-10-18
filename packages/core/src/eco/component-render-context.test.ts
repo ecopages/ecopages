@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { PageClientPlan } from '../ownership-graph/page-client-plan.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from './component-render-context.ts';
-import { createRenderSession } from './render-session.ts';
+import { createRenderSession } from '../route-renderer/orchestration/foreign-child/render-session.ts';
 
 describe('component render context', () => {
 	it('is absent outside a render', () => {
@@ -31,22 +30,28 @@ describe('component render context', () => {
 	});
 
 	it('lets a nested render inherit its plan and session and leaves the parent unchanged', async () => {
-		const pageClientPlan = { currentIntegrationName: 'kitajs' } as PageClientPlan;
-		const session = createRenderSession();
+		const renderState = {
+			pageClientPlan: { currentIntegrationName: 'kitajs' },
+			session: createRenderSession(),
+		};
 
 		const { value } = await runWithComponentRenderContext(
-			{ currentIntegration: 'kitajs', pageClientPlan, session },
+			{ currentIntegration: 'kitajs', renderState },
 			async () => {
 				const nested = await runWithComponentRenderContext({ currentIntegration: 'lit' }, async () => ({
 					integration: getComponentRenderContext()?.currentIntegration,
-					plan: getComponentRenderContext()?.pageClientPlan,
-					session: getComponentRenderContext()?.session,
+					plan: getComponentRenderContext<typeof renderState>()?.renderState?.pageClientPlan,
+					session: getComponentRenderContext<typeof renderState>()?.renderState?.session,
 				}));
 				return { nested: nested.value, after: getComponentRenderContext()?.currentIntegration };
 			},
 		);
 
-		expect(value.nested).toEqual({ integration: 'lit', plan: pageClientPlan, session });
+		expect(value.nested).toEqual({
+			integration: 'lit',
+			plan: renderState.pageClientPlan,
+			session: renderState.session,
+		});
 		expect(value.after).toBe('kitajs');
 	});
 

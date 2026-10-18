@@ -60,8 +60,8 @@ import {
 	finalizeComponentRender,
 	getComponentRenderContext,
 	runWithComponentRenderContext,
-} from './foreign-child/component-render-context.ts';
-import { createRenderSession } from './foreign-child/render-session.ts';
+} from '../../eco/component-render-context.ts';
+import { createRenderSession, type RouteRenderContextState } from './foreign-child/render-session.ts';
 import {
 	RouteRenderOrchestrator,
 	type RouteHtmlFinalization,
@@ -80,9 +80,9 @@ import {
 	type GroupedGraphBuildPlan,
 } from './page-browser-graph/grouped-graph-build-plan.ts';
 import { createRouteGraphLookupKey } from './page-browser-graph/route-instance-key.ts';
-import type { ForeignChildInterceptionInput, ForeignChildRuntime } from './foreign-child/component-render-context.ts';
+import type { ForeignChildInterceptionInput, ForeignChildRuntime } from '../../eco/component-render-context.ts';
 import { normalizeUnresolvedMarkerArtifactHtml } from './route-pipeline/marker-artifact.utils.ts';
-import { isMarkupNodeLike } from './foreign-child/foreign-child-output.utils.ts';
+import { isMarkupNodeLike } from '../../eco/component-render-output.ts';
 import {
 	getForeignSubtreeResolutionContextKey,
 	getForeignSubtreeTokenPrefix,
@@ -631,9 +631,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			return nextDependencies;
 		}
 
-		const context = getComponentRenderContext();
-		const session = context?.session;
-		const existingPackage = session?.pagePackage ?? context?.pagePackage;
+		const renderState = getComponentRenderContext<RouteRenderContextState>()?.renderState;
+		const session = renderState?.session;
+		const existingPackage = session?.pagePackage ?? renderState?.pagePackage;
 		const existingDependencies = existingPackage?.assets ?? [];
 		const mergedDependencies = this.htmlTransformer.dedupeProcessedAssets([
 			...existingDependencies,
@@ -646,8 +646,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		if (session) {
 			session.pagePackage = pagePackage;
 		}
-		if (context) {
-			context.pagePackage = pagePackage;
+		if (renderState) {
+			renderState.pagePackage = pagePackage;
 		}
 
 		return nextDependencies;
@@ -917,8 +917,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 	private prependResolvedIntegrationDependencies(componentDependencies: ProcessedAsset[]): ProcessedAsset[] {
 		const integrationDependencies =
-			getComponentRenderContext()?.session?.resolvedIntegrationDependencies ??
-			this.resolvedIntegrationDependencies;
+			getComponentRenderContext<RouteRenderContextState>()?.renderState?.session
+				?.resolvedIntegrationDependencies ?? this.resolvedIntegrationDependencies;
 		return integrationDependencies.concat(componentDependencies);
 	}
 
@@ -957,8 +957,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		pagePackage: IntegrationRendererRenderOptions<C>['pagePackage'],
 		renderOptions: IntegrationRendererRenderOptions<C>,
 	): Promise<RouteRendererBody> {
-		const context = getComponentRenderContext();
-		const resolvedPagePackage = context?.session?.pagePackage ?? context?.pagePackage ?? pagePackage;
+		const renderState = getComponentRenderContext<RouteRenderContextState>()?.renderState;
+		const resolvedPagePackage = renderState?.session?.pagePackage ?? renderState?.pagePackage ?? pagePackage;
 		const transformedResponse = this.htmlTransformer.transform(response, {
 			contributions: htmlContributions,
 			pagePackage: resolvedPagePackage,
@@ -1175,15 +1175,15 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			const { value } = await runWithComponentRenderContext(
 				{
 					currentIntegration: this.name,
-					session,
+					renderState: { session },
 				},
 				async () => {
 					const renderOptions = await this.prepareRenderOptions(options);
-					const context = getComponentRenderContext();
-					if (context) {
-						context.pageClientPlan = renderOptions.pageClientPlan;
-						context.islandRenderAssetsByFile = renderOptions.islandRenderAssetsByFile;
-						context.pagePackage = renderOptions.pagePackage;
+					const renderState = getComponentRenderContext<RouteRenderContextState>()?.renderState;
+					if (renderState) {
+						renderState.pageClientPlan = renderOptions.pageClientPlan;
+						renderState.islandRenderAssetsByFile = renderOptions.islandRenderAssetsByFile;
+						renderState.pagePackage = renderOptions.pagePackage;
 					}
 					session.pagePackage = renderOptions.pagePackage;
 					return this.routeRenderOrchestrator.executePrepared(renderOptions, this);
@@ -1219,8 +1219,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			const { value } = await runWithComponentRenderContext(
 				{
 					currentIntegration: this.name,
-					pageClientPlan: plan,
-					session,
+					renderState: { pageClientPlan: plan, session },
 				},
 				async () => {
 					const rendered = await this.renderComponentWithForeignChildren({
@@ -1466,7 +1465,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * The render context owns the map; outside a render there are none.
 	 */
 	protected getActiveIslandRenderAssets(): ReadonlyMap<string, ProcessedAsset[]> {
-		return getComponentRenderContext()?.islandRenderAssetsByFile ?? new Map();
+		return getComponentRenderContext<RouteRenderContextState>()?.renderState?.islandRenderAssetsByFile ?? new Map();
 	}
 
 	/**
@@ -1479,7 +1478,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		component: EcoComponent,
 		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
 	): boolean {
-		const activePlan = getComponentRenderContext()?.pageClientPlan;
+		const activePlan = getComponentRenderContext<RouteRenderContextState>()?.renderState?.pageClientPlan;
 		if (activePlan && planCoversComponents(activePlan, component, foreignChildRoots)) {
 			return planHasForeignChildDescendants(activePlan, component, this.name, foreignChildRoots);
 		}
@@ -1523,57 +1522,16 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		plan: PageClientPlan,
 		route?: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>,
 	): Promise<PageClientBrowserAssets> {
-		const prebuiltInstance = route ? this.resolvePrebuiltPageClientInstance(route) : undefined;
-		const currentEntries = prebuiltInstance ? await this.collectAppBrowserClientBuildEntries(plan) : undefined;
-		const plannedEntries = prebuiltInstance?.pageClientBuildEntries ?? [];
-		const hasMatchingEntries =
-			currentEntries !== undefined &&
-			JSON.stringify(
-				currentEntries
-					.map((entry) => createAppBrowserClientEntryKey(entry.integrationName, entry.dependency))
-					.sort(),
-			) ===
-				JSON.stringify(
-					plannedEntries
-						.map((entry) => createAppBrowserClientEntryKey(entry.integrationName, entry.dependency))
-						.sort(),
-				);
-		const prebuilt = hasMatchingEntries ? prebuiltInstance?.prebuiltPageClientBrowserAssets : undefined;
-		if (prebuilt) {
-			const fallbackGroups = new Map<string, PageClientBuildEntry['dependency'][]>();
-			for (const { dependency, integrationName } of prebuilt.fallbackDependencies) {
-				const dependencies = fallbackGroups.get(integrationName) ?? [];
-				dependencies.push(dependency);
-				fallbackGroups.set(integrationName, dependencies);
-			}
-			const fallbackAssets = (
-				await Promise.all(
-					[...fallbackGroups].map(([integrationName, dependencies]) =>
-						this.assetProcessingService.processDependencies(
-							dependencies,
-							this.getAssetProcessingIntegration(integrationName),
-						),
-					),
-				)
-			).flat();
-			const processedAssets = [...prebuilt.processedAssets, ...fallbackAssets];
-			return {
-				processedAssets,
-				islandRenderAssetsByFile: prebuilt.islandRenderAssetsByFile,
-				lazyTriggers: this.dependencyResolverService.applyPendingLazyTriggers(
-					processedAssets,
-					plan.lazyConfigs,
-				),
-			};
-		}
+		const prebuilt = route ? await this.buildPrebuiltPageClientBrowserAssets(plan, route) : undefined;
+		if (prebuilt) return prebuilt;
 
 		const buildAssetsHook = this.integrationHooks.buildIslandClientAssets;
 		if (buildAssetsHook) {
 			return buildAssetsHook(plan);
 		}
 
-		const rendererCache = (getComponentRenderContext()?.session?.rendererCache ??
-			new Map<string, ForeignSubtreeExecutionOwningRenderer>()) as Map<
+		const rendererCache = (getComponentRenderContext<RouteRenderContextState>()?.renderState?.session
+			?.rendererCache ?? new Map<string, ForeignSubtreeExecutionOwningRenderer>()) as Map<
 			string,
 			ForeignSubtreeExecutionOwningRenderer
 		>;
@@ -1596,6 +1554,53 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			applyPendingLazyTriggers: (assets, configs) =>
 				this.dependencyResolverService.applyPendingLazyTriggers(assets, configs),
 		});
+	}
+
+	private async buildPrebuiltPageClientBrowserAssets(
+		plan: PageClientPlan,
+		route: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>,
+	): Promise<PageClientBrowserAssets | undefined> {
+		const prebuiltInstance = this.resolvePrebuiltPageClientInstance(route);
+		if (!prebuiltInstance) return undefined;
+
+		const currentEntries = await this.collectAppBrowserClientBuildEntries(plan);
+		const plannedEntries = prebuiltInstance.pageClientBuildEntries ?? [];
+		const hasMatchingEntries =
+			JSON.stringify(
+				currentEntries
+					.map((entry) => createAppBrowserClientEntryKey(entry.integrationName, entry.dependency))
+					.sort(),
+			) ===
+			JSON.stringify(
+				plannedEntries
+					.map((entry) => createAppBrowserClientEntryKey(entry.integrationName, entry.dependency))
+					.sort(),
+			);
+		const prebuilt = hasMatchingEntries ? prebuiltInstance.prebuiltPageClientBrowserAssets : undefined;
+		if (!prebuilt) return undefined;
+
+		const fallbackGroups = new Map<string, PageClientBuildEntry['dependency'][]>();
+		for (const { dependency, integrationName } of prebuilt.fallbackDependencies) {
+			const dependencies = fallbackGroups.get(integrationName) ?? [];
+			dependencies.push(dependency);
+			fallbackGroups.set(integrationName, dependencies);
+		}
+		const fallbackAssets = (
+			await Promise.all(
+				[...fallbackGroups].map(([integrationName, dependencies]) =>
+					this.assetProcessingService.processDependencies(
+						dependencies,
+						this.getAssetProcessingIntegration(integrationName),
+					),
+				),
+			)
+		).flat();
+		const processedAssets = [...prebuilt.processedAssets, ...fallbackAssets];
+		return {
+			processedAssets,
+			islandRenderAssetsByFile: prebuilt.islandRenderAssetsByFile,
+			lazyTriggers: this.dependencyResolverService.applyPendingLazyTriggers(processedAssets, plan.lazyConfigs),
+		};
 	}
 
 	private resolvePrebuiltPageClientInstance(

@@ -317,7 +317,10 @@ describeRendererContract({
 			createPageClientPlan('kitajs', input.component),
 		);
 		const { value } = await runWithComponentRenderContext(
-			{ currentIntegration: 'kitajs', islandRenderAssetsByFile: islandAssets.islandRenderAssetsByFile },
+			{
+				currentIntegration: 'kitajs',
+				renderState: { islandRenderAssetsByFile: islandAssets.islandRenderAssetsByFile },
+			},
 			async () => renderer.renderComponent(input),
 		);
 		return value;
@@ -408,7 +411,10 @@ describe('ReactRenderer', () => {
 			expect(assetProcessingService.processDependencies).toHaveBeenCalled();
 
 			const { value: result } = await runWithComponentRenderContext(
-				{ currentIntegration: 'kitajs', islandRenderAssetsByFile: islandAssets.islandRenderAssetsByFile },
+				{
+					currentIntegration: 'kitajs',
+					renderState: { islandRenderAssetsByFile: islandAssets.islandRenderAssetsByFile },
+				},
 				async () =>
 					testRenderer.renderComponent({
 						component: Component,

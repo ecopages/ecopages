@@ -6,7 +6,7 @@ import type {
 	EcoComponent,
 	HtmlTemplateProps,
 } from '../../../types/public-types.ts';
-import { runWithComponentRenderContext } from './component-render-context.ts';
+import { runWithComponentRenderContext } from '../../../eco/component-render-context.ts';
 import { IntegrationRenderer } from '../integration-renderer.ts';
 import { StringMarkupRenderer } from '../string-markup-renderer.ts';
 import {

@@ -12,8 +12,9 @@ import {
 	getComponentRenderContext,
 	runWithComponentRenderContext,
 	type ForeignChildRuntime,
-} from './component-render-context.ts';
-import { assertForeignChildrenNotOpaque, isMarkupNodeLike } from './foreign-child-output.utils.ts';
+} from '../../../eco/component-render-context.ts';
+import { isMarkupNodeLike } from '../../../eco/component-render-output.ts';
+import { assertForeignChildrenNotOpaque } from './foreign-child-output.utils.ts';
 import { dedupeProcessedAssets } from '../../../assets/processed-asset-dedupe.ts';
 
 export type QueuedForeignChildDecisionInput = {

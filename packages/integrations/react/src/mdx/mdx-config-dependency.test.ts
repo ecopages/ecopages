@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { EcoComponentConfig } from '@ecopages/core';
-import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
+import type { AssetDefinition } from '@ecopages/core/integration';
 import { MdxConfigDependencyService } from './mdx-config-dependency.ts';
 
 describe('MdxConfigDependencyService', () => {

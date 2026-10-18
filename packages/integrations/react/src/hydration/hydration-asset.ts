@@ -9,9 +9,9 @@
 
 import path from 'node:path';
 import type { EcoComponentConfig } from '@ecopages/core';
-import { rapidhash } from '@ecopages/core/hash';
-import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
-import type { PageClientBuildEntry } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { rapidhash } from '@ecopages/core/build';
+import { RESOLVED_ASSETS_DIR } from '@ecopages/core/build';
+import type { PageClientBuildEntry } from '@ecopages/core/integration';
 import { isReactProductionRuntime } from '../bundling/runtime-mode.ts';
 import {
 	APP_BROWSER_CLIENT_BUNDLE_ID,
@@ -20,11 +20,8 @@ import {
 	type AssetDefinition,
 	type ContentScriptAsset,
 	type ProcessedAsset,
-} from '@ecopages/core/services/asset-processing-service';
-import type {
-	AssetProcessingIntegration,
-	AssetProcessingService,
-} from '@ecopages/core/services/asset-processing-service';
+} from '@ecopages/core/integration';
+import type { AssetProcessingIntegration, AssetProcessingService } from '@ecopages/core/integration';
 import { IslandHydrationScriptCompiler, PageHydrationScriptCompiler } from './hydration-script-compiler.ts';
 import { resolveHydrationBootstrapImports } from './bootstrap-imports.ts';
 import { collectDeclaredModulesInConfig } from '../client-graph/declared-modules.ts';

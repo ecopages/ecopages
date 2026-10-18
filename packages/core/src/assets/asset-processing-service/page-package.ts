@@ -1,6 +1,6 @@
-import type { PagePackageResult } from '../../types/public-types.ts';
+import type { PagePackageResult } from '../../types/contracts.ts';
 import type { ProcessedAsset } from './assets.types.ts';
-import type { PageBrowserGraphResult } from '../../types/public-types.ts';
+import type { PageBrowserGraphResult } from '../../types/contracts.ts';
 
 function getSuppressedSourceFilepaths(assets: ProcessedAsset[]): Set<string> {
 	const suppressed = new Set<string>();

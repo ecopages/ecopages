@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, vi } from 'vitest';
 import { act, createElement, type ReactNode } from 'react';
 import type { Root } from 'react-dom/client';
-import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import { getEcoNavigationRuntime } from '@ecopages/core/client';
 import { clearNavigationHtmlCache } from '../../core/src/router/client/navigation-document.ts';
 import { clearLayoutCache } from '../src/router.ts';
 

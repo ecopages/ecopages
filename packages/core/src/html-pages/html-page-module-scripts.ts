@@ -6,13 +6,13 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
-import { requireAppRuntime } from '../types/app-runtime.ts';
+import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { RESOLVED_ASSETS_DIR } from '../constants.ts';
 import { isCssImport } from '../plugins/component-import-discovery.ts';
 import { stripsSideEffectStylesheetImports } from '../plugins/eco-component-meta-plugin.ts';
 import { isBarePackageImportSpecifier, resolveProjectModulePath } from '../plugins/tsconfig-import-resolver.ts';
 import { BrowserBundleService } from '../assets/browser-bundle.service.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { isProductionRuntime } from '../utils/runtime.ts';
 import { compileHtmlPage, compileHtmlShell, type HtmlAssetDeclaration } from './html-page-template.ts';
 

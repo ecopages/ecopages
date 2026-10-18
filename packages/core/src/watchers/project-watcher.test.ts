@@ -5,10 +5,10 @@ import { mkdirSync, mkdtempSync, writeFileSync, utimesSync, rmSync, realpathSync
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
 import { ProjectWatcher, type ProjectWatcherConfig } from './project-watcher';
-import type { EcoPagesAppConfig, IHmrManager } from '../types/internal-types.ts';
-import type { IClientBridge } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig, IHmrManager } from '../config/internal-types.ts';
+import type { IClientBridge } from '../config/internal-types.ts';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
-import { requireAppRuntime } from '../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../utils/app-runtime.ts';
 import type { AppModuleLoaderContract } from '../build/server/app-module-loader.service.ts';
 import {
 	createMockHmrManager,

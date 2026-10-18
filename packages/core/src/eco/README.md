@@ -632,8 +632,8 @@ interface EcoComponentDependencies {
 	scripts?: Array<string | DependencyEntry>;
 	stylesheets?: Array<string | DependencyEntry>;
 	modules?: string[];
-	/** Declared eco components only — see `EcoDeclaredComponent`. */
-	components?: EcoDeclaredComponent[];
+	/** Declared eco components only — see `EcoComponent`. */
+	components?: EcoComponent[];
 }
 
 type FileOwnedDependencyContribution = EcoComponentDependencies & {
@@ -646,8 +646,8 @@ type PageDependenciesResult = FileOwnedDependencyContribution & {
 
 type GetPageDependencies<T> = (context: {
 	props: PagePropsFor<T>;
-	params?: Record<string, string>;
-	query?: Record<string, string>;
+	params?: PageParams;
+	query?: PageQuery;
 }) => PageDependenciesResult | undefined | Promise<PageDependenciesResult | undefined>;
 
 // Shared base option shape used by component(), html(), and layout()
@@ -680,8 +680,8 @@ type EcoPageComponent<T> = EcoComponent<PagePropsFor<T>> & {
 
 type PagePropsFor<T> =
 	T extends GetStaticProps<infer P>
-		? P & { params?: Record<string, string>; query?: Record<string, string> }
-		: T & { params?: Record<string, string>; query?: Record<string, string> };
+		? P & { params?: PageParams; query?: PageQuery }
+		: T & { params?: PageParams; query?: PageQuery };
 ```
 
 ## Benefits

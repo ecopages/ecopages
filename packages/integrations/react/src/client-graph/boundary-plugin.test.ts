@@ -9,7 +9,7 @@ import type {
 	EcoBuildOnResolveArgs,
 	EcoBuildOnResolveResult,
 	EcoBuildPluginBuilder,
-} from '@ecopages/core/plugins/integration-plugin';
+} from '@ecopages/core/integration';
 import { createClientGraphBoundaryPlugin } from './boundary-plugin.ts';
 import { RolldownBuildAdapter } from '../../../../core/src/build/rolldown/rolldown-build-adapter.ts';
 import { getBuildEntryOutput } from '../../../../core/src/build/build-graph.ts';

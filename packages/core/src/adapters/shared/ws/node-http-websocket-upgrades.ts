@@ -3,11 +3,7 @@ import type { Server as NodeHttpServer, IncomingMessage } from 'node:http';
 import { WebSocketServer, type WebSocket as WsWebSocket } from 'ws';
 import { HttpError } from '../../../errors/http-error.ts';
 import { appLogger } from '../../../global/app-logger.ts';
-import type {
-	EcopagesSocket,
-	EcopagesWebSocketHandler,
-	IncomingWebSocketMessage,
-} from '../../../types/public-types.ts';
+import type { EcopagesSocket, EcopagesWebSocketHandler, IncomingWebSocketMessage } from '../../../types/contracts.ts';
 import { findWebSocketRoute, type WebSocketRouteMatch } from './ws-pattern-matcher.ts';
 import { createEcopagesSocket, invokeWebSocketHandlerHook, toWebSocketCloseInfo } from './websocket-lifecycle.ts';
 

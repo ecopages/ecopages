@@ -1,7 +1,7 @@
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	invalidateCustomElementScriptPreload,
-} from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
+} from '@ecopages/core/integration';
 /**
  * This module contains the Lit plugin
  * @module
@@ -15,10 +15,10 @@ import {
 	type IntegrationPluginConfig,
 	type StaticExportContext,
 	type StaticExportRelease,
-} from '@ecopages/core/plugins/integration-plugin';
-import { isLitStaticRenderWorkerThread } from '@ecopages/core/build/lit-static-render-worker-context';
+} from '@ecopages/core/integration';
+import { isLitStaticRenderWorkerThread } from '@ecopages/core/build';
 import path from 'node:path';
-import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
+import { type AssetDefinition, AssetFactory } from '@ecopages/core/integration';
 import { litElementHydrateScript } from './lit-element-hydrate.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import { createLitRenderer, LitRenderer } from './lit-renderer.ts';

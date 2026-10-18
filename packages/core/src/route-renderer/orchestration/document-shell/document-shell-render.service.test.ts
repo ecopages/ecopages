@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoComponent } from '../../../types/public-types.ts';
+import type { EcoComponent } from '../../../types/contracts.ts';
 import { eco } from '../../../eco/eco.ts';
 import {
 	composeDocumentShell,

@@ -1,13 +1,14 @@
-import type { EcoPagesAppConfig, EcoPagesElement } from '@ecopages/core';
+import type { EcoPagesElement } from '@ecopages/core';
 import {
 	IntegrationPlugin,
 	mergeIntegrationOptions,
 	type EcoBuildPlugin,
-} from '@ecopages/core/plugins/integration-plugin';
+	type IntegrationRuntimeContext,
+} from '@ecopages/core/integration';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { createMdxLoaderPlugin } from './mdx-loader-plugin.ts';
-import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
+import { requireAppRuntime } from '@ecopages/core/integration';
 import { MDX_PLUGIN_NAME } from './mdx.constants.ts';
 import { MDXRenderer } from './mdx-renderer.ts';
 import type { MDXPluginConfig } from './mdx.types.ts';
@@ -117,7 +118,7 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 		appLogger.debug(`MDX plugin configured with jsxImportSource: ${jsxImportSource}`);
 	}
 
-	override plugins(app: EcoPagesAppConfig): EcoBuildPlugin[] {
+	override plugins(app: IntegrationRuntimeContext['appConfig']): EcoBuildPlugin[] {
 		return [
 			createMdxLoaderPlugin({
 				compilerOptions: this.compilerOptions,

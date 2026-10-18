@@ -1,16 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-	buildIslandHostAttributes,
-	eco,
-	type ComponentRenderInput,
-	type ComponentRenderResult,
-	type EcoComponent,
-	type HtmlTemplateProps,
-} from '@ecopages/core';
+import { buildIslandHostAttributes, eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
+import type { ComponentRenderInput, ComponentRenderResult } from '@ecopages/core/integration';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { createStringMarkupContractFactories, describeRendererContract } from '@ecopages/testing/renderer-contract';
-import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
-import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { AssetProcessingService } from '@ecopages/core/integration';
+import { IntegrationRenderer } from '@ecopages/core/integration';
 import { LitElement, html as litHtml } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { html as staticHtml } from 'lit/static-html.js';

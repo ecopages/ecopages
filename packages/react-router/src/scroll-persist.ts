@@ -8,7 +8,7 @@
  * @module scroll-persist
  */
 
-import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/router/navigation-pipeline';
+import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/client';
 
 const PERSIST_SELECTOR = `[${ECO_PERSIST_ATTRIBUTE}="scroll"]`;
 

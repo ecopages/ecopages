@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { resolveInternalExecutionDir } from '../utils/resolve-work-dir.ts';
 import { getBuildEntryOutput } from './build-graph.ts';
 import { buildOrThrow } from './runtime/build-queue.ts';

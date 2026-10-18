@@ -1,4 +1,4 @@
-import type { EcoComponentDependencies, EcoComponentConfig, EcoDeclaredComponent } from '../types/public-types.ts';
+import type { EcoComponentDependencies, EcoComponentConfig, EcoComponent } from '../types/contracts.ts';
 import type { ComponentIdentity } from './component-identity.ts';
 
 export type DiscoveredDependencies = {
@@ -64,8 +64,8 @@ export function getDiscoveredWatchFiles(config: EcoComponentConfig | undefined):
 	return discoveryRecord(identity)[DISCOVERED_WATCH_FILES] ?? discoveries.get(identity)?.watchFiles ?? [];
 }
 
-function isDeclared(value: unknown): value is EcoDeclaredComponent {
-	return typeof value === 'function' && Boolean((value as EcoDeclaredComponent).config?.identity);
+function isDeclared(value: unknown): value is EcoComponent {
+	return typeof value === 'function' && Boolean((value as EcoComponent).config?.identity);
 }
 
 /**

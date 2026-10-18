@@ -3,23 +3,17 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
-import {
-	eco,
-	type ComponentRenderInput,
-	type ComponentRenderResult,
-	type EcoComponent,
-	type EcoPagesElement,
-	type HtmlTemplateProps,
-} from '@ecopages/core';
-import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import { eco, type EcoComponent, type EcoPagesElement, type HtmlTemplateProps } from '@ecopages/core';
+import type { ComponentRenderInput, ComponentRenderResult } from '@ecopages/core/integration';
+import { IntegrationPlugin } from '@ecopages/core/integration';
+import { IntegrationRenderer } from '@ecopages/core/integration';
 import { createMarkupNodeLike, type JsxCustomElementAttributes, type JsxRenderable } from '@ecopages/jsx';
 import { getActiveSsrScopeValue, renderToString, withActiveSsrScopeValue } from '@ecopages/jsx/server';
 import { installLightDomShim } from '@ecopages/radiant/server/light-dom-shim';
 import { createTestAppConfig, setupTestIntegration } from '@ecopages/testing';
 import { describeRendererContract } from '@ecopages/testing/renderer-contract';
-import type { ForeignChildInterceptionInput } from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
+import type { ForeignChildInterceptionInput } from '@ecopages/core/integration';
 import { ecopagesJsxPlugin } from '../ecopages-jsx.plugin';
 import { createEcopagesJsxRenderer } from '../ecopages-jsx-renderer';
 

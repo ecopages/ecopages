@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import type { EcoPageComponent } from '../eco/eco.types.ts';
-import type { EcoComponent, GetMetadata, GetStaticProps, HtmlTemplateProps } from '../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import type { EcoPageComponent } from '../types/eco-api-types.ts';
+import type { EcoComponent, GetMetadata, GetStaticProps, HtmlTemplateProps } from '../types/contracts.ts';
 import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
 import { createAppRuntime } from '../config/assembly/app-runtime.ts';

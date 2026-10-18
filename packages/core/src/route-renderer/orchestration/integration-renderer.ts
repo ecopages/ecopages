@@ -4,7 +4,7 @@
  * @module
  */
 
-import type { EcoPagesAppConfig, IHmrManager, InternalComponentRenderInput } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig, IHmrManager, InternalComponentRenderInput } from '../../config/internal-types.ts';
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
@@ -15,6 +15,7 @@ import type {
 	BaseIntegrationContext,
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
+	InternalIntegrationRendererRenderOptions,
 	PageBrowserGraphContribution,
 	PageBrowserGraphContributionContext,
 	PageBrowserGraphResult,
@@ -22,7 +23,7 @@ import type {
 	RouteRendererBody,
 	RouteRendererOptions,
 	RouteRenderResult,
-} from '../../types/public-types.ts';
+} from '../../types/contracts.ts';
 import {
 	type AssetProcessingService,
 	createPagePackage,
@@ -171,7 +172,7 @@ export type HtmlDocumentContributionContext<C = EcoPagesElement> = {
 	partial?: boolean;
 };
 
-export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext } from '../../types/public-types.ts';
+export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext } from '../../types/contracts.ts';
 export {
 	selectHydrationIslandEntries,
 	type PageClientBrowserAssets,
@@ -279,7 +280,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	protected htmlTransformer: HtmlTransformerService;
 	protected hmrManager?: IHmrManager;
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
-	declare protected options: Required<IntegrationRendererRenderOptions>;
+	declare protected options: Required<InternalIntegrationRendererRenderOptions>;
 	protected dependencyResolverService: DependencyResolverService;
 	protected pageModuleLoaderService: PageModuleLoaderService;
 	protected routeRenderOrchestrator: RouteRenderOrchestrator;
@@ -939,7 +940,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		return this.dependencyResolverService.processComponentDependencies(components, this.name);
 	}
 
-	getRouteHtmlFinalization(renderOptions: IntegrationRendererRenderOptions<C>): RouteHtmlFinalization {
+	getRouteHtmlFinalization(renderOptions: InternalIntegrationRendererRenderOptions<C>): RouteHtmlFinalization {
 		return buildRouteHtmlFinalization({
 			appConfig: this.appConfig,
 			watch: this.getActiveHmrManager()?.isEnabled() === true,
@@ -954,8 +955,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	async transformRouteResponse(
 		response: Response,
 		htmlContributions: HtmlDocumentContribution[] | undefined,
-		pagePackage: IntegrationRendererRenderOptions<C>['pagePackage'],
-		renderOptions: IntegrationRendererRenderOptions<C>,
+		pagePackage: InternalIntegrationRendererRenderOptions<C>['pagePackage'],
+		renderOptions: InternalIntegrationRendererRenderOptions<C>,
 	): Promise<RouteRendererBody> {
 		const renderState = getComponentRenderContext<RouteRenderContextState>()?.renderState;
 		const resolvedPagePackage = renderState?.session?.pagePackage ?? renderState?.pagePackage ?? pagePackage;
@@ -1128,7 +1129,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		};
 	}
 
-	async renderRouteBody(renderOptions: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {
+	async renderRouteBody(renderOptions: InternalIntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {
 		return this.render(renderOptions);
 	}
 
@@ -1139,7 +1140,9 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @param options - The route renderer options.
 	 * @returns The prepared render options.
 	 */
-	protected async prepareRenderOptions(options: RouteRendererOptions): Promise<IntegrationRendererRenderOptions<C>> {
+	protected async prepareRenderOptions(
+		options: RouteRendererOptions,
+	): Promise<InternalIntegrationRendererRenderOptions<C>> {
 		const renderOptions = await this.routeRenderOrchestrator.prepareRenderOptions(options, this);
 		invariant(renderOptions.pagePackage !== undefined, 'Expected render preparation to produce a page package');
 		return renderOptions;
@@ -1298,6 +1301,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Integrations can add preparation and final HTML hooks around core composition.
 	 */
 	async render(options: IntegrationRendererRenderOptions<C>): Promise<RouteRendererBody> {
+		const internalOptions = options as InternalIntegrationRendererRenderOptions<C>;
 		const renderRoute = async (): Promise<RouteRendererBody> => {
 			await this.beforeRender(options);
 			const documentShellProps = this.integrationHooks.documentShellProps?.(options);
@@ -1322,7 +1326,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 				metadata: options.metadata,
 				pageProps: documentShellProps?.pageProps ?? options.pageProps ?? options.props ?? {},
 				documentProps: documentShellProps?.documentProps,
-				foreignChildRoots: options.resolvedPageDependencyComponents,
+				foreignChildRoots: internalOptions.pageDependencyComponents,
 				transformDocumentHtml: (html) => this.transformDocumentHtml(html),
 			});
 		};

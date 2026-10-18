@@ -6,7 +6,7 @@ import type {
 	ComponentRenderInput,
 	EcoComponent,
 	ComponentRenderResult,
-} from '../../../types/public-types.ts';
+} from '../../../types/contracts.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from '../../../eco/component-render-context.ts';
 import {
 	createQueueRuntime,

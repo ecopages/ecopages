@@ -1,5 +1,5 @@
 import type { EcoComponent, EcoComponentConfig, GetMetadata } from '@ecopages/core';
-import type { IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
+import type { IntegrationPluginConfig } from '@ecopages/core/integration';
 import type { CompileOptions } from '@mdx-js/mdx';
 import type { ThirdPartyJsxImportSource } from './core/jsx-import-source.ts';
 

@@ -1,12 +1,6 @@
 import * as bundledReact from 'react';
 import type { FunctionComponent, ReactElement } from 'react';
-import type {
-	EcoComponent,
-	EcoDeclaredComponent,
-	EcoPageLayoutEntry,
-	LayoutPropsContext,
-	RequestLocals,
-} from '@ecopages/core';
+import type { EcoComponent, EcoPageLayoutEntry, LayoutPropsContext, RequestLocals } from '@ecopages/core';
 import type { EcoComponentConfig } from '@ecopages/core';
 
 export type LayoutComposeContext = LayoutPropsContext;
@@ -194,6 +188,6 @@ export function composeLayoutPageTreeFromShell<P extends Record<string, unknown>
 /**
  * Normalizes page config layout metadata to an outer→inner component list.
  */
-export function normalizePageLayoutComponents(layouts?: EcoDeclaredComponent[]): EcoDeclaredComponent[] {
+export function normalizePageLayoutComponents(layouts?: EcoComponent[]): EcoComponent[] {
 	return layouts && layouts.length > 0 ? layouts : [];
 }

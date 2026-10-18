@@ -1,17 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
 import { jsx as kitajsx, jsxs as kitajsxs } from '@kitajs/html/jsx-runtime';
-import {
-	eco,
-	type ComponentRenderInput,
-	type ComponentRenderResult,
-	type EcoComponent,
-	type EcoPagesElement,
-	type HtmlTemplateProps,
-} from '@ecopages/core';
-import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
-import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { eco, type EcoComponent, type EcoPagesElement, type HtmlTemplateProps } from '@ecopages/core';
+import type { ComponentRenderInput, ComponentRenderResult } from '@ecopages/core/integration';
+import { IntegrationPlugin } from '@ecopages/core/integration';
+import { AssetProcessingService } from '@ecopages/core/integration';
+import { IntegrationRenderer } from '@ecopages/core/integration';
 import { createTestAppConfig } from '@ecopages/testing';
 import { createStringMarkupContractFactories, describeRendererContract } from '@ecopages/testing/renderer-contract';
 import { KitaRenderer } from '../kitajs-renderer.ts';

@@ -1,5 +1,5 @@
-import type { EcoNavigationOwner } from '@ecopages/core/router/navigation-coordinator';
-import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import type { EcoNavigationOwner } from '@ecopages/core/client';
+import { getEcoNavigationRuntime } from '@ecopages/core/client';
 
 export type NavigationReloadDecision = { kind: 'stale' } | { kind: 'reload'; href: string } | { kind: 'aborted' };
 

@@ -1,5 +1,5 @@
 /**
- * Browser-local mirror of `@ecopages/core/dev-toolbar/dev-toolbar-manifest-contract`.
+ * Browser-local mirror of `@ecopages/core/client`.
  *
  * @remarks Dev-toolbar is browser-bundled separately; Rolldown cannot resolve core
  * package export subpaths from the client entry. Keep in sync with core via

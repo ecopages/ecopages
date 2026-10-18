@@ -1,4 +1,4 @@
-import { defineIntegration, type DefinedIntegration } from '@ecopages/core/plugins/define-integration';
+import { defineIntegration, type DefinedIntegration } from '@ecopages/core/integration';
 import { KitaRenderer } from './kitajs-renderer.ts';
 import { KITAJS_PLUGIN_NAME } from './kitajs.constants.ts';
 

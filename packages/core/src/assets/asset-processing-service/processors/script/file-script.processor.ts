@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { RESOLVED_ASSETS_DIR } from '../../../../constants.ts';
 import { fileSystem } from '@ecopages/file-system';
-import type { EcoPagesAppConfig, IHmrManager } from '../../../../types/internal-types.ts';
+import type { EcoPagesAppConfig, IHmrManager } from '../../../../config/internal-types.ts';
 import type { FileScriptAsset, ProcessedAsset } from '../../assets.types.ts';
 import { writeHashedBrowserAsset } from '../../../hashed-browser-asset.ts';
 import { BaseScriptProcessor } from '../base/base-script-processor.ts';

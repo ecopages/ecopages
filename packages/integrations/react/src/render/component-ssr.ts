@@ -2,8 +2,12 @@
  * React component SSR helpers: renderToString, foreign-subtree HTML, island attributes.
  */
 
-import type { ComponentRenderInput, EcoComponent, EcoPagesElement } from '@ecopages/core';
-import type { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+/**
+ * React component SSR helpers: renderToString, foreign-subtree HTML, island attributes.
+ */
+import type { EcoComponent, EcoPagesElement } from '@ecopages/core';
+import type { ComponentRenderInput } from '@ecopages/core/integration';
+import type { IntegrationRenderer } from '@ecopages/core/integration';
 import type { ReactNode } from 'react';
 import { isValidElement } from 'react';
 import { asReactComponent, type SerializableProps } from './component-ownership.ts';

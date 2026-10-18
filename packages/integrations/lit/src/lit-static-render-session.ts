@@ -1,24 +1,22 @@
 import path from 'node:path';
-import type { EcoComponent, EcoPagesAppConfig, PageParams, PageQuery } from '@ecopages/core';
-import type { StaticExportContext } from '@ecopages/core/plugins/integration-plugin';
+import type { EcoComponent, PageParams, PageQuery } from '@ecopages/core';
+import type { AnyIntegrationPlugin, StaticExportContext } from '@ecopages/core/integration';
 import { ensureLitDomShim } from './dom-shim.ts';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	CustomElementScriptPreloader,
 	type CustomElementSsrPreloadComponent,
-} from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
-import type { CustomElementScriptPreloadScopeState } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
+} from '@ecopages/core/integration';
+import type { CustomElementScriptPreloadScopeState } from '@ecopages/core/integration';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
-import { createCustomElementSsrPipelineImporter } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-ssr-preload-entrypoint';
+import { createCustomElementSsrPipelineImporter } from '@ecopages/core/integration';
 import { LitStaticRenderWorkerClient } from './lit-static-render-worker-client.ts';
 import type { LitStaticRenderResult } from './lit-static-render-protocol.ts';
-import type {
-	AssetDefinition,
-	AssetProcessingIntegration,
-	ProcessedAsset,
-} from '@ecopages/core/services/asset-processing-service';
+import type { AssetDefinition, AssetProcessingIntegration, ProcessedAsset } from '@ecopages/core/integration';
 
 type LitStaticRenderWorkerClientContract = Pick<LitStaticRenderWorkerClient, 'start' | 'renderPage' | 'dispose'>;
+
+type LitAppConfig = { integrations: Pick<AnyIntegrationPlugin, 'name' | 'extensions'>[] };
 
 type LitStaticRenderWorkerIdentity = {
 	configModulePath: string;
@@ -196,7 +194,7 @@ export class LitStaticRenderSession {
 		await this.preloadSsrScripts(components);
 	}
 
-	private isLitRoute(filePath: string, appConfig: EcoPagesAppConfig): boolean {
+	private isLitRoute(filePath: string, appConfig: LitAppConfig): boolean {
 		const litIntegration = appConfig.integrations.find((plugin) => plugin.name === LIT_PLUGIN_NAME);
 		if (!litIntegration) {
 			return false;

@@ -27,18 +27,18 @@ import {
 } from 'react';
 import { type EcoRouterOptions, DEFAULT_OPTIONS } from './types.ts';
 import { RouterContext } from './context.ts';
-import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/router/link-navigation-policy';
-import { invalidateNavigationHtml } from '@ecopages/core/router/navigation-pipeline';
+import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/client';
+import { invalidateNavigationHtml } from '@ecopages/core/client';
 import { type PageState } from './navigation.ts';
 import { runRouterNavigate, type RouterNavigateOptions } from './router-navigate-runner.ts';
-import { applyViewTransitionNames, ensureRootViewTransitionStyles } from '@ecopages/core/client/view-transitions';
-import { manageWindowScroll } from '@ecopages/core/client/scroll';
+import { applyViewTransitionNames, ensureRootViewTransitionStyles } from '@ecopages/core/client';
+import { manageWindowScroll } from '@ecopages/core/client';
 import {
 	getEcoNavigationRuntime,
 	type EcoNavigationRequest,
 	type EcoNavigationTransaction,
 	type EcoReloadRequest,
-} from '@ecopages/core/router/navigation-coordinator';
+} from '@ecopages/core/client';
 import { clearLayoutCache, resolvePersistedLayoutStack, type LayoutComponent } from './layout-cache.ts';
 import {
 	composeLayoutPageTree,
@@ -51,7 +51,7 @@ import {
 	getAnchorFromNavigationEvent,
 	recoverPendingNavigationHref,
 	type EcoPendingNavigationIntent,
-} from '@ecopages/core/router/link-intent';
+} from '@ecopages/core/client';
 
 /**
  * Router-owned page state.

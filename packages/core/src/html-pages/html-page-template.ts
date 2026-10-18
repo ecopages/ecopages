@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
-import type { PageMetadataProps, PageRobotsMetadata } from '../types/public-types.ts';
+import type { PageMetadataProps, PageRobotsMetadata } from '../types/contracts.ts';
 import { escapeHtmlAttribute } from '../utils/html-escaping.ts';
 import {
 	findElements,

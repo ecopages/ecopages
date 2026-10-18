@@ -1,4 +1,4 @@
-import type { PageBrowserGraphContribution } from '../../../types/public-types.ts';
+import type { PageBrowserGraphContribution } from '../../../types/contracts.ts';
 
 /**
  * Merges multiple Page Browser Graph contributions into one declarative payload.

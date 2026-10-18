@@ -1,7 +1,7 @@
 import { createForeignJsxOverridePlugin } from '../../plugins/foreign-jsx-override-plugin.ts';
 import { collectJsxExtensions, filterJsxSourceExtensions } from '../../plugins/jsx-import-source.utils.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 
 type JsxExtensionEntry = {
 	integration: NonNullable<EcoPagesAppConfig['integrations']>[number];

@@ -1,21 +1,22 @@
 import { appLogger } from '../../../global/app-logger.ts';
-import type { EcoPagesAppConfig, MatchResult } from '../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { RouteMatch } from '../../../router/server/route-registry.ts';
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { PageCacheService } from '../../../page-cache/page-cache-service.ts';
 import type { CacheStrategy, RenderResult } from '../../../page-cache/cache.types.ts';
-import type { EcoPageComponent } from '../../../eco/eco.types.ts';
-import type { EcoPageFile } from '../../../types/public-types.ts';
+import type { EcoPageComponent } from '../../../types/eco-api-types.ts';
+import type { EcoPageFile } from '../../../types/contracts.ts';
 import { PageRequestCacheCoordinator } from '../../../page-cache/page-request-cache-coordinator.service.ts';
-import type { FileRouteMiddleware, RequestLocals } from '../../../types/public-types.ts';
+import type { FileRouteMiddleware, RequestLocals } from '../../../types/contracts.ts';
 import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
 import { classifyPageFailure, type PageFailureClassification } from '../../../errors/http-error-page-contract.ts';
 import { isDevelopmentRuntime } from '../../../utils/runtime.ts';
 import type { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
-import type { ErrorPageLoaders } from '../../../types/public-types.ts';
+import type { ErrorPageLoaders } from '../../../types/contracts.ts';
 import { ErrorPageRenderer, logErrorPageFailure } from '../../../route-renderer/error-pages/error-page-renderer.ts';
 import { serveDistFile } from './dist-file-handler.ts';
-import { requireAppRuntime } from '../../../types/app-runtime.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { ensureIntegrationRuntimeReady } from '../../../build/app-build-manifest-runtime.ts';
 import { findIntegrationForFile } from '../../../plugins/find-integration-for-file.ts';
 
@@ -124,7 +125,7 @@ export class FileSystemResponseMatcher {
 	 * @param request Optional incoming request. A synthetic GET request is created when omitted.
 	 * @returns Final response for the matched route.
 	 */
-	async handleMatch(match: MatchResult, request?: Request): Promise<Response> {
+	async handleMatch(match: RouteMatch, request?: Request): Promise<Response> {
 		try {
 			const executionPlan = await this.createExecutionPlan(match, request);
 
@@ -264,7 +265,7 @@ export class FileSystemResponseMatcher {
 		}
 	}
 
-	private async createExecutionPlan(match: MatchResult, request?: Request): Promise<FileRouteExecutionPlan> {
+	private async createExecutionPlan(match: RouteMatch, request?: Request): Promise<FileRouteExecutionPlan> {
 		const cacheKey = this.pageRequestCacheCoordinator.buildCacheKey({
 			pathname: match.requestedPathname,
 			query: match.query,

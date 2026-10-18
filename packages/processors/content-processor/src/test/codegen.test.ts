@@ -175,8 +175,7 @@ describe('attachMdxExports ownership guard', () => {
 		const { mkdtempSync, mkdirSync, realpathSync, symlinkSync, writeFileSync, rmSync } = await import('node:fs');
 		const { tmpdir } = await import('node:os');
 		const { join } = await import('node:path');
-		const { runWithComponentRenderContext } =
-			await import('@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context');
+		const { runWithComponentRenderContext } = await import('@ecopages/core/integration');
 
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-codegen-'));
 		mkdirSync(join(tempDir, 'node_modules', '@ecopages'), { recursive: true });

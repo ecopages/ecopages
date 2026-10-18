@@ -651,8 +651,8 @@ interface EcoComponentDependencies {
 	scripts?: Array<string | DependencyEntry>;
 	stylesheets?: Array<string | DependencyEntry>;
 	modules?: string[];
-	/** Declared eco components only — see `EcoDeclaredComponent`. */
-	components?: EcoDeclaredComponent[];
+	/** Declared eco components only — see `EcoComponent`. */
+	components?: EcoComponent[];
 }
 
 type FileOwnedDependencyContribution = EcoComponentDependencies & {
@@ -682,8 +682,8 @@ type HtmlOptions<E = EcoPagesElement> = ComponentOptions<Record<string, unknown>
 type LayoutOptions<E = EcoPagesElement> = ComponentOptions<{ children: E }, E>;
 
 type EcoPageLayoutSpec<E = EcoPagesElement> =
-	| EcoDeclaredComponent<any, E>
-	| { component: EcoDeclaredComponent<any, E>; props?: (context: LayoutPropsContext) => Record<string, unknown> };
+	| EcoComponent<any, E>
+	| { component: EcoComponent<any, E>; props?: (context: LayoutPropsContext) => Record<string, unknown> };
 
 /** Outer → inner. Normalized to `config.layouts` / `config.layoutEntries`. */
 type EcoPageLayouts<E = EcoPagesElement> = EcoPageLayoutSpec<E> | EcoPageLayoutSpec<E>[];

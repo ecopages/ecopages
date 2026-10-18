@@ -1,6 +1,6 @@
 import path from 'node:path';
-import type { EcoComponent, EcoComponentConfig, ResolvedLazyTrigger } from '../../types/public-types.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoComponent, EcoComponentConfig, ResolvedLazyTrigger } from '../../types/contracts.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type {
 	AssetDefinition,
 	AssetProcessingIntegration,
@@ -15,6 +15,11 @@ import { buildResolvedLazyTriggers, type ResolvedLazyGroup } from './lazy-trigge
 import { collectComponentDependencies } from './component-dependency-collection.ts';
 import { packagePageDependencies } from './page-dependency-bundling.ts';
 import type { LazyGroup } from './lazy-entry-collection.ts';
+import {
+	getResolvedLazyTriggers,
+	setPendingLazyClientAssets,
+	setResolvedLazyTriggers,
+} from '../../eco/component-internal-state.ts';
 
 export const DEPENDENCY_ERRORS = {
 	INVALID_STYLESHEET_ENTRY: 'Invalid stylesheet dependency entry: expected src or content',
@@ -237,10 +242,14 @@ export class DependencyResolverService {
 			const lazyKeys = new Set(
 				[...lazyGroupsMap.values()].flatMap((group) => group.scripts.map((script) => script.lazyKey)),
 			);
-			config._pendingLazyClientAssets = lazyDependencies.filter((dependency) => {
-				const lazyKey = dependency.kind === 'script' ? dependency.attributes?.['data-eco-lazy-key'] : undefined;
-				return Boolean(lazyKey && lazyKeys.has(lazyKey));
-			});
+			setPendingLazyClientAssets(
+				config,
+				lazyDependencies.filter((dependency) => {
+					const lazyKey =
+						dependency.kind === 'script' ? dependency.attributes?.['data-eco-lazy-key'] : undefined;
+					return Boolean(lazyKey && lazyKeys.has(lazyKey));
+				}),
+			);
 		}
 	}
 
@@ -306,8 +315,9 @@ export class DependencyResolverService {
 			}
 			const lazyGroupsMap = pendingLazyGroupsByConfig.get(config);
 			if (!lazyGroupsMap) {
-				if (config._resolvedLazyTriggers?.length) {
-					triggers.push(...config._resolvedLazyTriggers);
+				const resolvedTriggers = getResolvedLazyTriggers(config);
+				if (resolvedTriggers?.length) {
+					triggers.push(...resolvedTriggers);
 				}
 				continue;
 			}
@@ -325,9 +335,10 @@ export class DependencyResolverService {
 				rawGroups.push({ lazy: group.lazy, scripts: Array.from(new Set(resolvedUrls)) });
 			}
 
-			config._resolvedLazyTriggers = buildResolvedLazyTriggers(config, rawGroups);
-			if (config._resolvedLazyTriggers?.length) {
-				triggers.push(...config._resolvedLazyTriggers);
+			const resolvedTriggers = buildResolvedLazyTriggers(config, rawGroups);
+			setResolvedLazyTriggers(config, resolvedTriggers);
+			if (resolvedTriggers?.length) {
+				triggers.push(...resolvedTriggers);
 			}
 		}
 

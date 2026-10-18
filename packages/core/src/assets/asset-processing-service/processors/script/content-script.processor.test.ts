@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { ContentScriptProcessor } from './content-script.processor';
-import type { EcoPagesAppConfig } from '../../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
 import type { ContentScriptAsset } from '../../assets.types.ts';
 import type { BrowserBundleGroupedEntry } from '../../../browser-bundle.service.ts';
 import { BrowserBundleService } from '../../../browser-bundle.service.ts';

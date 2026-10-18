@@ -1,9 +1,10 @@
 import { createBodyResponse } from './create-body-response.ts';
+import type { ApiResponseBuilder as ApiResponseBuilderContract } from '../../../types/api-response.ts';
 
 /**
  * A builder class for creating Response objects fluently.
  */
-export class ApiResponseBuilder {
+export class ApiResponseBuilder implements ApiResponseBuilderContract {
 	private _status: Response['status'] = 200;
 	private _headers: Headers = new Headers();
 

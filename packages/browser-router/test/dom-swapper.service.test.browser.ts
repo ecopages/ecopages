@@ -3,7 +3,7 @@ import {
 	activatePreparedNavigationScripts,
 	prepareNavigationHead,
 	type NavigationHeadUpdate,
-} from '@ecopages/core/router/navigation-pipeline';
+} from '@ecopages/core/client';
 import { stageStylesheets } from '../../core/src/router/client/staged-stylesheets.test-fixtures.ts';
 import { DomSwapper } from '../src/client/dom/dom-swapper.ts';
 

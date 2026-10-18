@@ -3,7 +3,7 @@ import { RadiantElement } from '@ecopages/radiant';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { state } from '@ecopages/radiant/decorators/state';
 import type { JsxCustomElementAttributes } from '@ecopages/jsx';
-import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/router/navigation-lifecycle';
+import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/client';
 import type { DevToolbarBadge } from '../api/types.ts';
 import { toA11yBadge } from './a11y/a11y-badge.ts';
 import { resolveA11yIssueElement, runA11yChecks, toA11yIssueView, type A11yIssueView } from './a11y/run-a11y-checks.ts';

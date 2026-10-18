@@ -1,5 +1,5 @@
-import { Processor } from '@ecopages/core/plugins/processor';
-import type { ProcessorWatchChanges, ProcessorWatchConfig } from '@ecopages/core/plugins/processor';
+import { Processor } from '@ecopages/core/processor';
+import type { ProcessorWatchChanges, ProcessorWatchConfig } from '@ecopages/core/processor';
 import { join } from 'node:path';
 import { writeWikiSearchIndex } from '@/lib/search/wiki';
 import { ingestVault, resolveSourcesDir, resolveVaultDir } from '@/lib/wiki/ingest';

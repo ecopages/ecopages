@@ -15,7 +15,7 @@ Important: this renderer accepts **trusted HTML strings**. Template-string inter
 `StringMarkupRenderer` implements the document-shell and foreign-child orchestration for string-returning Components. Your renderer only supplies its Integration name.
 
 ```ts
-import { StringMarkupRenderer } from '@ecopages/core/route-renderer/orchestration/string-markup-renderer';
+import { StringMarkupRenderer } from '@ecopages/core/integration';
 
 export class AcmeStringRenderer extends StringMarkupRenderer {
 	name = 'acme-string';
@@ -27,7 +27,7 @@ export class AcmeStringRenderer extends StringMarkupRenderer {
 Use a distinct suffix so this Integration has unambiguous ownership. This example claims `.acme.ts` route and include files.
 
 ```ts
-import { defineIntegration } from '@ecopages/core/plugins/define-integration';
+import { defineIntegration } from '@ecopages/core/integration';
 import { AcmeStringRenderer } from './acme-string-renderer';
 
 export const acmeStringPlugin = defineIntegration({

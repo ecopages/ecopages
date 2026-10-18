@@ -1,4 +1,6 @@
-import type { ClientBridgeEvent } from '../types/public-types.ts';
+import type { HmrAction, HmrStrategyContract } from '../types/contracts.ts';
+
+export type { HmrAction } from '../types/contracts.ts';
 
 /**
  * HMR Strategy Pattern
@@ -59,19 +61,6 @@ export type HmrStrategyType = (typeof HmrStrategyType)[keyof typeof HmrStrategyT
 /**
  * Represents an action to be taken after processing a file change.
  */
-export interface HmrAction {
-	/**
-	 * Whether to broadcast an HMR event to connected clients.
-	 */
-	type: 'broadcast' | 'none';
-
-	/**
-	 * The HMR events to broadcast, if type is 'broadcast'.
-	 * Multiple events may be broadcast in one action.
-	 */
-	events?: ClientBridgeEvent[];
-}
-
 /**
  * Base class for HMR strategies.
  *
@@ -103,7 +92,7 @@ export interface HmrAction {
  * }
  * ```
  */
-export abstract class HmrStrategy {
+export abstract class HmrStrategy implements HmrStrategyContract {
 	/**
 	 * The category of this strategy, determining its base priority.
 	 */

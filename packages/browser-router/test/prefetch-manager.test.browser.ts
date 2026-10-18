@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { userEvent } from 'vitest/browser';
-import { clearNavigationHtmlCache, fetchNavigationPage } from '@ecopages/core/router/navigation-pipeline';
+import { clearNavigationHtmlCache, fetchNavigationPage } from '@ecopages/core/client';
 import { PrefetchManager, type PrefetchOptions } from '../src/client/services/prefetch-manager.ts';
 
 const HTML = '<html><head></head><body></body></html>';

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EcoComponent } from '@ecopages/core';
-import type { StaticExportContext } from '@ecopages/core/plugins/integration-plugin';
+import type { StaticExportContext } from '@ecopages/core/integration';
 import { LitStaticRenderSession } from '../lit-static-render-session.ts';
 
 const workerStart = vi.fn(async () => {});

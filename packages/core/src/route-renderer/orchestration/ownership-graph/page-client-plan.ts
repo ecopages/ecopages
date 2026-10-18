@@ -1,6 +1,8 @@
-import type { EcoComponent, EcoComponentConfig, ResolvedLazyTrigger } from '../../../types/public-types.ts';
-import type { AssetDefinition, ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
+import type { EcoComponent, EcoComponentConfig, ResolvedLazyTrigger } from '../../../types/contracts.ts';
+import type { PageClientPlan, PageClientPlanIslandEntry } from '../../../types/contracts.ts';
+import type { AssetDefinition } from '../../../assets/asset-processing-service/index.ts';
 import { getComponentIdentity } from '../../../eco/component-identity.ts';
+import { getPendingLazyClientAssets, getResolvedLazyTriggers } from '../../../eco/component-internal-state.ts';
 import {
 	type ComponentGraphRoot,
 	type PreparedComponentGraph,
@@ -9,49 +11,12 @@ import {
 	computeForeignDescendantMap,
 } from './component-graph.ts';
 
-/**
- * Client entries collected from one walk of a page's declared component graph.
- */
-export type PageClientPlanIslandEntry = {
-	component: EcoComponent;
-	file: string;
-	integrationName: string;
-};
-
-/**
- * One page's client entries, foreign runtimes, lazy triggers, and island files.
- *
- * @remarks
- * Static mixed-integration configs declare every Foreign Child, and page
- * dependency resolvers supply dynamic roots, so this plan is complete before
- * render. Integrations read island files from it instead of starting browser
- * builds during SSR.
- */
-export type PageClientPlan = {
-	currentIntegrationName: string;
-	integrationNames: Set<string>;
-	lazyTriggers: ResolvedLazyTrigger[];
-	lazyClientEntries: AssetDefinition[];
-	lazyConfigs: EcoComponentConfig[];
-	/**
-	 * Components whose Integration differs from their parent's, except the Html shell.
-	 *
-	 * @remarks
-	 * The page owner's Page, Layout, and nested includes stay out of this list.
-	 * Integrations that emit island hydration scripts still pass it through
-	 * {@link selectHydrationIslandEntries}; which of these candidates hydrate
-	 * does not change.
-	 */
-	islandEntries: PageClientPlanIslandEntry[];
-	/**
-	 * Every identity-bearing component on the declared graph.
-	 *
-	 * @remarks
-	 * Cache invalidation still watches these files. Island hydration uses
-	 * {@link PageClientPlan.islandEntries}, which is the foreign-to-parent subset.
-	 */
-	sourceComponents: EcoComponent[];
-};
+export type {
+	PageClientPlan,
+	PageClientPlanIslandEntry,
+	PageClientBrowserAssets,
+	PageClientBuildEntry,
+} from '../../../types/contracts.ts';
 
 type PlanGraph = {
 	currentIntegrationName: string;
@@ -89,28 +54,13 @@ function isForeignTo(graph: PlanGraph, component: object, integrationName: strin
 	return memo.get(node) ?? false;
 }
 
-/**
- * Browser assets produced from one page client plan.
- */
-export type PageClientBrowserAssets = {
-	processedAssets: ProcessedAsset[];
-	islandRenderAssetsByFile: Map<string, ProcessedAsset[]>;
-	lazyTriggers: ResolvedLazyTrigger[];
-};
-
-/** One raw client entry contributed to a static production app browser build. */
-export type PageClientBuildEntry = {
-	dependency: AssetDefinition;
-	islandFile?: string;
-};
-
 function collectPendingLazyClientEntries(
 	config: EcoComponentConfig | undefined,
 	lazyClientEntries: AssetDefinition[],
 	lazyConfigs: EcoComponentConfig[],
 	seenLazyKeys: Set<string>,
 ): void {
-	const pendingAssets = config?._pendingLazyClientAssets;
+	const pendingAssets = getPendingLazyClientAssets(config);
 	if (!pendingAssets?.length || !config) {
 		return;
 	}
@@ -191,7 +141,7 @@ export function collectPageClientPlanFromGraph(graph: PreparedComponentGraph): P
 
 		if (component.config && !lazyConfigSet.has(component.config)) {
 			lazyConfigSet.add(component.config);
-			const ownTriggers = component.config._resolvedLazyTriggers;
+			const ownTriggers = getResolvedLazyTriggers(component.config);
 			if (ownTriggers?.length) {
 				lazyTriggers.push(...ownTriggers);
 			}

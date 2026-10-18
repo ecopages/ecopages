@@ -1,5 +1,5 @@
-import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
+import type { AssetDefinition } from '@ecopages/core/integration';
+import type { EcoBuildPlugin } from '@ecopages/core/integration';
 import type { MdxCompilerOptionsInput } from '@ecopages/mdx/core';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import type { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';

@@ -1,5 +1,6 @@
 import { SchemaError, validateStandardSchema } from './validate-standard-schema.ts';
 import type { StandardSchema, StandardSchemaIssue } from './standard-schema.types.ts';
+import type { PageParams, PageQuery } from '../types/contracts.ts';
 
 export interface ValidationResult<T = unknown> {
 	success: boolean;
@@ -12,9 +13,9 @@ export interface ValidationResult<T = unknown> {
 
 export interface ValidationSource {
 	body?: unknown;
-	query?: Record<string, string>;
+	query?: PageQuery;
 	headers?: Record<string, string>;
-	params?: Record<string, string>;
+	params?: PageParams;
 }
 
 export interface ValidationSchemas {

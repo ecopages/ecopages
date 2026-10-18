@@ -1,5 +1,5 @@
 import { STATUS_MESSAGE } from '../../../constants.ts';
-import type { RouteRendererBody } from '../../../types/public-types.ts';
+import type { RouteRendererBody } from '../../../types/contracts.ts';
 
 /**
  * Builds response envelopes for rendered route and error-page bodies.

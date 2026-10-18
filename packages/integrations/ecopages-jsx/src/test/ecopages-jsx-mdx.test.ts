@@ -2,12 +2,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createRequestPipelineMetricsState } from '@ecopages/core/diagnostics/request-pipeline-metrics';
-import type {
-	EcoBuildOnLoadArgs,
-	EcoBuildOnLoadResult,
-	EcoBuildPluginBuilder,
-} from '@ecopages/core/plugins/integration-plugin';
+import { createRequestPipelineMetricsState } from '@ecopages/core/build';
+import type { EcoBuildOnLoadArgs, EcoBuildOnLoadResult, EcoBuildPluginBuilder } from '@ecopages/core/integration';
 import { createMdxLoaderPlugin, normalizeMdxPageModule, resolveMdxCompilerOptions } from '../ecopages-jsx-mdx.ts';
 
 function createBuilderHarness() {

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import { getEcoNavigationRuntime } from '@ecopages/core/client';
 import { cacheNavigationHtml, getCachedNavigationHtml } from '../../core/src/router/client/navigation-document.ts';
 import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
 import {

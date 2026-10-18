@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { CustomElementScriptPreloadScopeState } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
+import type { CustomElementScriptPreloadScopeState } from '@ecopages/core/integration';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';

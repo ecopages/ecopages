@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { activateScriptsInOrder, type ScriptActivation } from '@ecopages/core/router/navigation-pipeline';
+import { activateScriptsInOrder, type ScriptActivation } from '@ecopages/core/client';
 
 const libraryUrl = `data:text/javascript,${encodeURIComponent('window.__activation_library__ = true')}`;
 

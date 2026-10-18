@@ -100,14 +100,14 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 
 Core source moves from shared foundations through app assembly. A lower layer may import within its own layer or from an earlier layer; it must not import a later layer.
 
-| Layer                | Folders and files                                                                                       |
-| -------------------- | ------------------------------------------------------------------------------------------------------- |
-| Foundation           | `types/`, `constants.ts`, `errors/`, `global/`, `utils/`, `html/`, `client/`, `islands/`, `validation/` |
-| Contracts            | `plugins/`, `eco/`                                                                                      |
-| Build                | `build/`, `assets/`, `cache/`, `diagnostics/`                                                           |
-| Rendering            | `router/`, `route-renderer/`, `html-pages/`, `page-cache/`, `static-site-generator/`                    |
-| Development and HMR  | `dev/`, `watchers/`, `dev-toolbar/`, `hmr/`                                                             |
-| Application assembly | `adapters/`, `config/`, `index.ts`, `index.browser.ts`                                                  |
+| Layer                | Folders and files                                                                                                 |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Foundation           | `types/`, `constants.ts`, `errors/`, `global/`, `utils/`, `html/`, `client/`, `islands/`, `validation/`           |
+| Contracts            | `plugins/`, `eco/`                                                                                                |
+| Build                | `build/`, `assets/`, `cache/`, `diagnostics/`                                                                     |
+| Rendering            | `router/`, `route-renderer/`, `html-pages/`, `page-cache/`, `static-site-generator/`                              |
+| Development and HMR  | `dev/`, `watchers/`, `dev-toolbar/`, `hmr/`                                                                       |
+| Application assembly | `adapters/`, `config/`, `index.ts`, `index.browser.ts`, `integration.ts`, `processor.ts`, `build.ts`, `client.ts` |
 
 The guard in `scripts/check-portability.ts` checks runtime module references inside `packages/core/src`, including `import()`, `require()`, and resolver calls. Inline `type` modifiers count when TypeScript preserves their side-effect imports under `verbatimModuleSyntax`; explicit `import type` and `export type` declarations are erased and excluded. Test files and fixtures are excluded too. Existing upward references are listed in `scripts/core-layering-allowlist.json` with the issue that removes each edge. The allowlist only shrinks: the check fails for an unlisted upward reference and for an entry whose reference has gone away.
 
@@ -331,36 +331,27 @@ Use these entrypoints when building an Ecopages app:
 - `@ecopages/core/create-app`
 - `@ecopages/core/config`
 - `@ecopages/core/errors`
-- `@ecopages/core/hash`
-- `@ecopages/core/declarations`
-- `@ecopages/core/env`
+- `@ecopages/core/declarations` (types only)
+- `@ecopages/core/env` (types only)
 
-### Browser Navigation
+### Integration Authoring
 
-Use these entrypoints when a browser runtime needs to coordinate document ownership and link intent:
+Use `@ecopages/core/integration` for Integration contracts, render hooks, and shared Integration runtime helpers.
 
-- `@ecopages/core/router/navigation-coordinator`
-- `@ecopages/core/router/navigation-pipeline`
-- `@ecopages/core/router/navigation-lifecycle`
-- `@ecopages/core/router/link-intent`
+### Processor Authoring
 
-### Extension Authoring
+Use `@ecopages/core/processor` for Processor contracts and generated-asset helpers.
 
-Use these entrypoints when implementing integrations or processors:
+### Build Extensions
 
-- `@ecopages/core/plugins/integration-plugin`
-- `@ecopages/core/plugins/processor`
-- `@ecopages/core/build/contracts/server-only-specifier` (dependency-free naming predicate, safe for browser imports)
-- `@ecopages/core/route-renderer/orchestration/integration-renderer`
-- `@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service`
-- `@ecopages/core/services/asset-processing-service`
-- `@ecopages/core/assets/hashed-browser-asset`
-- `@ecopages/core/hmr/hmr-strategy`
+Use `@ecopages/core/build` for build adapters and build plugins. Use `@ecopages/core/build/contracts` for stable build contracts that also need to be safe in browser build graphs.
 
-### Build Adapter
+### Browser Runtime Extensions
 
-Use this entrypoint when an app needs the framework build adapter:
+Use `@ecopages/core/client` for browser navigation and client runtime helpers.
 
-- `@ecopages/core/build/build-adapter`
+### Runtime-Loaded Entries
 
-App code and most extensions should prefer the app-authoring or extension-authoring surfaces.
+`@ecopages/core/config/write-types` and `@ecopages/core/hmr/client/hmr-runtime` remain exported because Ecopages loads them by path at runtime. They are implementation entries, not general authoring surfaces.
+
+`@ecopages/core/errors` remains an alias for the root error exports.

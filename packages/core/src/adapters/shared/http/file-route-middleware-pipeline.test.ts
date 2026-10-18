@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { FileRouteMiddleware } from '../../../types/public-types.ts';
+import type { FileRouteMiddleware } from '../../../types/contracts.ts';
 import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
 import {
 	FILE_ROUTE_MIDDLEWARE_PIPELINE_ERRORS,
 	FileRouteMiddlewarePipeline,
 } from './file-route-middleware-pipeline.ts';
 
-declare module '../../../types/public-types.ts' {
+declare module '../../../types/contracts.ts' {
 	interface RequestLocals {
 		user?: string;
 		first?: boolean;

@@ -2,8 +2,8 @@ import type {
 	EcoComponent,
 	PageBrowserGraphContribution,
 	PageBrowserGraphContributionContext,
-} from '../../types/public-types.ts';
-import type { EcoPageComponent } from '../../types/public-types.ts';
+} from '../../types/contracts.ts';
+import type { EcoPageComponent } from '../../types/contracts.ts';
 import { listFileOwnedDependencyContributions } from '../../eco/page-dependency-contributions.ts';
 import { collectPageDependencyComponents } from './file-scoped-dependency-components.ts';
 

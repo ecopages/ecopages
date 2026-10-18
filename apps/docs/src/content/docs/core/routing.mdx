@@ -54,6 +54,8 @@ Access params via `staticPaths` and `staticProps` on `eco.page` views, or at req
 
 A catch-all also matches a path with a dot, such as `/docs/v1.2`, unless that path ends in a known static extension. A path that does end in one of those extensions is a file, so a catch-all does not render it.
 
+For a Page request to `/docs/a/b`, `params.slug` is `['a', 'b']`. A single `[slug]` segment stays a string. Repeated query keys are arrays, so `?tag=docs&tag=api` becomes `query.tag === ['docs', 'api']` on page props and route info.
+
 ---
 
 ## Programmatic API Routing
@@ -69,10 +71,16 @@ app.get('/api/users/:id', async ({ params, response }) => {
 	return response.json({ userId: params.id });
 });
 
+app.get('/api/files/[...path]', async ({ params, response }) => {
+	return response.json({ path: params.path });
+});
+
 await app.start();
 ```
 
 Use `app.add(handler)` for handlers created with `defineApiHandler`. See [Define Handlers](/docs/server/define-handlers).
+
+An API catch-all keeps each decoded path segment in an array. A request to `/api/files/docs/a` gives `params.path === ['docs', 'a']`. A named segment such as `:id` remains a string. Repeated query keys also stay as arrays on `ctx.query`; schemas receive the same parsed values before validation.
 
 ### Route Priority
 
@@ -124,9 +132,9 @@ Important:
 - Semantic error templates render outside the normal page-request middleware pipeline. They receive a safe empty `pageLocals` object instead of request-scoped `locals`. Do not use `cache: 'dynamic'`, `middleware`, or `requires` on `404.*` / `500.*` templates.
 
 ```tsx
-import { eco, type Error500TemplateProps } from '@ecopages/core';
+import { eco, type ErrorPageTemplateProps } from '@ecopages/core';
 
-export default eco.page<Error500TemplateProps>({
+export default eco.page<ErrorPageTemplateProps>({
 	render: ({ message, stack }) => (
 		<div>
 			<h1>Something went wrong</h1>

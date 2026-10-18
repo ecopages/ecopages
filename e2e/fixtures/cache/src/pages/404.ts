@@ -1,7 +1,7 @@
-import { eco, type Error404TemplateProps } from '@ecopages/core';
+import { eco, type ErrorPageTemplateProps } from '@ecopages/core';
 import { BaseLayout } from '../layouts/base-layout';
 
-const Error404 = eco.component<Error404TemplateProps>({
+const Error404 = eco.component<ErrorPageTemplateProps>({
 	dependencies: {
 		stylesheets: ['./404.css'],
 		components: [BaseLayout],

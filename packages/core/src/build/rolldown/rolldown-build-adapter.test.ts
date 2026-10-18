@@ -68,9 +68,7 @@ function writeAppPackageJson(fields: Record<string, unknown> = {}): void {
 
 describe('RolldownBuildAdapter', () => {
 	test('bundles the exported server-only predicate for the browser without Node dependencies', async () => {
-		const predicatePath = createRequire(import.meta.url).resolve(
-			'@ecopages/core/build/contracts/server-only-specifier',
-		);
+		const predicatePath = createRequire(import.meta.url).resolve('@ecopages/core/build/contracts');
 		const entrypoint = writeFixture(
 			'entry.ts',
 			`export { isServerOnlyModuleSpecifier } from ${JSON.stringify(predicatePath)};`,
@@ -86,6 +84,25 @@ describe('RolldownBuildAdapter', () => {
 
 		assertBuildSucceeded(result, 'Build failed');
 		expect(readFileSync(result.outputs[0]!.path, 'utf8')).toContain('isServerOnlyModuleSpecifier');
+	});
+
+	test('bundles the public client entry for the browser without Node dependencies', async () => {
+		const clientPath = createRequire(import.meta.url).resolve('@ecopages/core/client');
+		const entrypoint = writeFixture(
+			'entry.ts',
+			`export { ensurePageConfigLayouts } from ${JSON.stringify(clientPath)};`,
+		);
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'browser' as const,
+			entrypoints: [entrypoint],
+			outdir: path.join(workDir, 'dist'),
+			target: 'browser',
+			format: 'esm',
+			root: workDir,
+		});
+
+		assertBuildSucceeded(result, 'Build failed');
+		expect(readFileSync(result.outputs[0]!.path, 'utf8')).toContain('ensurePageConfigLayouts');
 	});
 
 	test.each([

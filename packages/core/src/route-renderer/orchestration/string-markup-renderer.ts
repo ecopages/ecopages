@@ -1,4 +1,4 @@
-import type { EcoPagesElement } from '../../types/public-types.ts';
+import type { EcoPagesElement } from '../../types/contracts.ts';
 import { IntegrationRenderer } from './integration-renderer.ts';
 
 /**

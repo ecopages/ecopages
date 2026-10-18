@@ -16,20 +16,20 @@ Server-side wiring for the development-only in-browser inspector. Public docs: [
 
 ## Module map
 
-| File                               | Role                                                                                                                                                                        |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dev-toolbar-runtime.ts`           | Describes the toolbar bundle as a dev client runtime, with its log-only failure policy                                                                                      |
-| `dev-toolbar-manifest-contract.ts` | `#__ECO_DEV_MANIFEST__` id and payload types (public: `@ecopages/core/dev-toolbar/dev-toolbar-manifest-contract`; mirrored in `@ecopages/dev-toolbar` for browser bundling) |
-| `dev-toolbar-manifest.ts`          | Builds and serializes the per-page dev manifest and its HTML contribution                                                                                                   |
-| `dev-toolbar-package.ts`           | Resolves `devToolbar.package` bootstrap entry (`bootstrap.js`, then `.ts`)                                                                                                  |
-| `dev-toolbar-config.ts`            | `isDevToolbarEnabled` — watch mode, env var, package required                                                                                                               |
-| `dev-toolbar-runtime-paths.ts`     | `/_dev_toolbar.js` URL and work-dir paths                                                                                                                                   |
-| `define-dev-tool.ts`               | Config helper for bring-your-own client packages                                                                                                                            |
-| `build-error-contract.ts`          | Public error, clear, and replay event names and error payload type for custom clients                                                                                       |
+| File                               | Role                                                                                                                                     |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `dev-toolbar-runtime.ts`           | Describes the toolbar bundle as a dev client runtime, with its log-only failure policy                                                   |
+| `dev-toolbar-manifest-contract.ts` | `#__ECO_DEV_MANIFEST__` id and payload types (public: `@ecopages/core/client`; mirrored in `@ecopages/dev-toolbar` for browser bundling) |
+| `dev-toolbar-manifest.ts`          | Builds and serializes the per-page dev manifest and its HTML contribution                                                                |
+| `dev-toolbar-package.ts`           | Resolves `devToolbar.package` bootstrap entry (`bootstrap.js`, then `.ts`)                                                               |
+| `dev-toolbar-config.ts`            | `isDevToolbarEnabled` — watch mode, env var, package required                                                                            |
+| `dev-toolbar-runtime-paths.ts`     | `/_dev_toolbar.js` URL and work-dir paths                                                                                                |
+| `define-dev-tool.ts`               | Config helper for bring-your-own client packages                                                                                         |
+| `build-error-contract.ts`          | Public error, clear, and replay event names and error payload type for custom clients                                                    |
 
 ## Build error presentation
 
-`@ecopages/core/dev-toolbar/build-error-contract` exports the window event names and `BuildErrorDetail` (`{ message: string }`). Custom clients listen for cancelable `ecopages:build-error` events and call `preventDefault()` synchronously only when they present the message. Unclaimed errors use the HMR runtime's in-page fallback, including when the toolbar is disabled or has not mounted.
+`@ecopages/core/client` exports the window event names and `BuildErrorDetail` (`{ message: string }`). Custom clients listen for cancelable `ecopages:build-error` events and call `preventDefault()` synchronously only when they present the message. Unclaimed errors use the HMR runtime's in-page fallback, including when the toolbar is disabled or has not mounted.
 
 Listen for `ecopages:build-error-clear` to reset messages and badges on any non-error HMR event. Register both listeners before dispatching `ecopages:build-error-request`: it synchronously replays active messages and rebuilds the fallback only for unclaimed messages. Remove listeners when the client unmounts. Messages may repeat; clients should deduplicate by message. Error text includes watcher and route failures as well as module compilation failures.
 
@@ -56,7 +56,7 @@ Bring-your-own client:
 
 ```ts
 import { defineConfig } from '@ecopages/core/config';
-import { defineDevTool } from '@ecopages/core/dev-toolbar/define-dev-tool';
+import { defineDevTool } from '@ecopages/core/client';
 
 export default defineConfig({ devToolbar: defineDevTool('@acme/my-dev-toolbar') });
 ```

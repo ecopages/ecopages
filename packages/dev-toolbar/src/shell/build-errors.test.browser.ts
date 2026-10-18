@@ -6,7 +6,7 @@ import {
 	BUILD_ERROR_CLEAR_EVENT,
 	BUILD_ERROR_REQUEST_EVENT,
 	type BuildErrorDetail,
-} from '@ecopages/core/dev-toolbar/build-error-contract';
+} from '@ecopages/core/client';
 import { EcoDevToolbar } from './eco-dev-toolbar.tsx';
 import { ensureDevToolbarStyles } from './ensure-dev-toolbar-styles.ts';
 

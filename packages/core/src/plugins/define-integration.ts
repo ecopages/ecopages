@@ -1,7 +1,7 @@
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { AssetProcessingService } from '../assets/asset-processing-service/asset-processing.service.ts';
 import type { ProcessedAsset } from '../assets/asset-processing-service/assets.types.ts';
-import type { EcoPagesElement } from '../types/public-types.ts';
+import type { EcoPagesElement } from '../types/contracts.ts';
 import type { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
 import { IntegrationPlugin, type IntegrationPluginConfig } from './integration-plugin.ts';
 

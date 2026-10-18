@@ -1,8 +1,8 @@
-import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
-import type { EcoNavigationEvent } from '@ecopages/core/router/navigation-lifecycle';
-import { commitNavigationPage } from '@ecopages/core/router/navigation-pipeline';
-import { manageWindowScroll } from '@ecopages/core/client/scroll';
-import type { EcoNavigationOwner } from '@ecopages/core/router/navigation-coordinator';
+import { getEcoNavigationRuntime } from '@ecopages/core/client';
+import type { EcoNavigationEvent } from '@ecopages/core/client';
+import { commitNavigationPage } from '@ecopages/core/client';
+import { manageWindowScroll } from '@ecopages/core/client';
+import type { EcoNavigationOwner } from '@ecopages/core/client';
 import type { DomSwapper } from './dom/dom-swapper.ts';
 import type { PrefetchManager } from './services/prefetch-manager.ts';
 import type { EcoRouterOptions } from './types.ts';

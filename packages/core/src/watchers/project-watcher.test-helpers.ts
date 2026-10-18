@@ -2,9 +2,9 @@ import path from 'node:path';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { onTestFinished, vi, type Mock } from 'vitest';
 import { ProjectWatcher, type ProjectWatcherConfig } from './project-watcher.ts';
-import type { IHmrManager } from '../types/internal-types.ts';
-import type { ResolvedHmrEntrypoint } from '../types/public-types.ts';
-import type { IClientBridge } from '../types/internal-types.ts';
+import type { IHmrManager } from '../config/internal-types.ts';
+import type { ResolvedHmrEntrypoint } from '../types/contracts.ts';
+import type { IClientBridge } from '../config/internal-types.ts';
 
 export const createMockHmrManager = (): IHmrManager =>
 	({

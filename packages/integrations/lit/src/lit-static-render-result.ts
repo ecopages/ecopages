@@ -1,4 +1,4 @@
-import type { RouteRenderResult } from '@ecopages/core';
+import type { RouteRenderResult } from '@ecopages/core/integration';
 import type { LitStaticRenderResult } from './lit-static-render-protocol.ts';
 
 /**

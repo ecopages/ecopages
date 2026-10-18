@@ -4,11 +4,11 @@ import {
 	setupAppRuntimeIntegrations,
 	setupAppRuntimePlugins,
 	teardownAppRuntimeIntegrations,
-} from '@ecopages/core/build/build-adapter';
-import { installBuildQueue } from '@ecopages/core/build/build-queue';
-import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
-import { RouteRendererFactory } from '@ecopages/core/route-renderer/route-renderer';
-import type { EcoPagesAppConfig, PageParams, PageQuery } from '@ecopages/core';
+} from '@ecopages/core/build';
+import { installBuildQueue } from '@ecopages/core/build';
+import { requireAppRuntime } from '@ecopages/core/integration';
+import { RouteRendererFactory } from '@ecopages/core/integration';
+import type { PageParams, PageQuery } from '@ecopages/core';
 import type {
 	LitStaticRenderResult,
 	LitStaticRenderWorkerRequestMessage,
@@ -17,7 +17,9 @@ import type {
 import { toLitStaticRenderResult } from './lit-static-render-result.ts';
 import './dom-shim.ts';
 
-let appConfig: EcoPagesAppConfig | null = null;
+type LoadedAppConfig = Awaited<ReturnType<typeof loadEcoPagesConfig>>;
+
+let appConfig: LoadedAppConfig | null = null;
 let routeRendererFactory: RouteRendererFactory | null = null;
 let activeRenders = 0;
 let shutdownRequested = false;

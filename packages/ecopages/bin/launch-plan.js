@@ -8,7 +8,7 @@ import {
 	resolveProductionDistDir,
 	assertProductionConfigIdentity,
 } from '@ecopages/core/config';
-import { ECOPAGES_ENTRY_WATCH_ENV, getDevEnvFileNames } from '@ecopages/core/dev/development-restart';
+import { ECOPAGES_ENTRY_WATCH_ENV, getDevEnvFileNames } from '@ecopages/core/build';
 
 const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
 const tsxLoader = import.meta.resolve('tsx/esm');

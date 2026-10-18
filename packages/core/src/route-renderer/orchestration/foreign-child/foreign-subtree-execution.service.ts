@@ -5,8 +5,8 @@ import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
 	EcoComponent,
-} from '../../../types/public-types.ts';
-import type { InternalComponentRenderInput } from '../../../types/internal-types.ts';
+} from '../../../types/contracts.ts';
+import type { InternalComponentRenderInput } from '../../../config/internal-types.ts';
 import { getComponentOwner } from '../../../eco/component-identity.ts';
 import {
 	getComponentRenderContext,

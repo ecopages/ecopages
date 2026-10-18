@@ -60,11 +60,11 @@ Name and image `capabilities` are fixed inside the factory. Pass options only un
 
 ## Custom processors
 
-Extend `Processor` from `@ecopages/core/plugins/processor`:
+Extend `Processor` from `@ecopages/core/processor`:
 
 ```typescript
 import type { EcoPagesAppConfig } from '@ecopages/core';
-import { Processor, type EcoBuildPlugin, type ProcessorConfig } from '@ecopages/core/plugins/processor';
+import { Processor, type EcoBuildPlugin, type ProcessorConfig } from '@ecopages/core/processor';
 
 class CustomProcessor extends Processor {
 	constructor(config: Omit<ProcessorConfig, 'name'>) {
@@ -98,8 +98,8 @@ Use `capabilities` to participate in the asset pipeline. Each capability can dec
 Minimal integrations:
 
 ```typescript
-import { defineIntegration } from '@ecopages/core/plugins/define-integration';
-import { StringMarkupRenderer } from '@ecopages/core/route-renderer/orchestration/string-markup-renderer';
+import { defineIntegration } from '@ecopages/core/integration';
+import { StringMarkupRenderer } from '@ecopages/core/integration';
 
 class CustomRenderer extends StringMarkupRenderer {
 	name = 'custom-integration';

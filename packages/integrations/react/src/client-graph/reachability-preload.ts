@@ -1,4 +1,4 @@
-import { parseModuleSource } from '@ecopages/core/cache';
+import { parseModuleSource } from '@ecopages/core/build';
 import type { ExportNamedDeclaration } from 'oxc-parser';
 
 export function isPreloadExportStatement(statement: ExportNamedDeclaration): boolean {

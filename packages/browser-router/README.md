@@ -138,7 +138,7 @@ Use `data-eco-reload` on an anchor tag to bypass the router and force a full pag
 
 ## Events
 
-Listen to navigation lifecycle events on the `document`. Event detail types live in `@ecopages/core/router/navigation-lifecycle`.
+Listen to navigation lifecycle events on the `document`. Event detail types live in `@ecopages/core/client`.
 
 ```ts
 document.addEventListener('eco:before-swap', (e) => {

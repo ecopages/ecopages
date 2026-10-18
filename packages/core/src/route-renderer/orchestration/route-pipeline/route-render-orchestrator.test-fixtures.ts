@@ -9,7 +9,7 @@ import type {
 	PageMetadataProps,
 	RouteRendererBody,
 	RouteRendererOptions,
-} from '../../../types/public-types.ts';
+} from '../../../types/contracts.ts';
 import { resolvePageLayoutComponents } from '../document-shell/layout-shell-props.service.ts';
 import { createPageDependencyInstanceKey } from '../page-browser-graph/route-instance-key.ts';
 import type { ResolvedPageDependencies } from '../../page-loading/resolved-page-dependencies.ts';

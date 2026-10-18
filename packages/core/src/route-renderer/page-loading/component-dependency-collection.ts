@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { DependencyLazyTrigger, EcoComponent, EcoComponentDependencies } from '../../types/public-types.ts';
+import type { DependencyLazyTrigger, EcoComponent, EcoComponentDependencies } from '../../types/contracts.ts';
 import { assertEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
 import { getComponentIdentity, getComponentOwner } from '../../eco/component-identity.ts';
 import { getInferredStylesheets } from '../../eco/discovered-dependencies.ts';

@@ -2,8 +2,8 @@ import {
 	APP_BROWSER_CLIENT_BUNDLE_ID,
 	type AssetDefinition,
 	type ContentScriptAsset,
-} from '@ecopages/core/services/asset-processing-service';
-import { rapidhash } from '@ecopages/core/hash';
+} from '@ecopages/core/integration';
+import { rapidhash } from '@ecopages/core/build';
 
 /** Returns the app-wide grouped-build id used for page-owned content scripts. */
 export function createPageOwnedContentScriptBundleId(_integrationName?: string): string {

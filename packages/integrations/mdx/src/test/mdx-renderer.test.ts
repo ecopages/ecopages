@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoComponent, EcoPageFile, EcoPagesElement, HtmlTemplateProps, ProcessedAsset } from '@ecopages/core';
+import type { EcoComponent, EcoPageFile, EcoPagesElement, HtmlTemplateProps } from '@ecopages/core';
+import type { ProcessedAsset } from '@ecopages/core/integration';
 import { createTestAppConfig } from '@ecopages/testing';
 import { createStringMarkupContractFactories, describeRendererContract } from '@ecopages/testing/renderer-contract';
-import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
-import type { PageBrowserGraphContributionContext } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { AssetProcessingService } from '@ecopages/core/integration';
+import type { PageBrowserGraphContributionContext } from '@ecopages/core/integration';
 import { MDXRenderer } from '../mdx-renderer.ts';
 
 const Config = await createTestAppConfig();

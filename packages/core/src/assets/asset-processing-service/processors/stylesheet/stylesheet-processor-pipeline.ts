@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { EcoPagesAppConfig } from '../../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
 
 const PROCESSABLE_STYLESHEET_EXTENSIONS = new Set(['.css', '.scss', '.sass', '.less']);
 

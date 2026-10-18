@@ -1,8 +1,8 @@
 import { eco } from '@ecopages/core';
-import type { Error404TemplateProps } from '@ecopages/core';
+import type { ErrorPageTemplateProps } from '@ecopages/core';
 import { MainLayout } from '@/layouts/main-layout.kita';
 
-export const NotFoundView = eco.page<Error404TemplateProps>({
+export const NotFoundView = eco.page<ErrorPageTemplateProps>({
 	layout: MainLayout,
 	metadata: () => ({
 		title: 'Not Found | Explicit Routes',

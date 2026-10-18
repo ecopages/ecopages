@@ -11,7 +11,7 @@ import {
 	ECOPAGES_DEV_RESTART_EXIT_CODE,
 	ECOPAGES_DEV_RESTART_REASON_ENV,
 	resolveDevelopmentRecoveryWatch,
-} from '@ecopages/core/dev/development-restart';
+} from '@ecopages/core/build';
 import { fileSystem } from '@ecopages/file-system';
 import { withBrandBanner } from './brand.js';
 

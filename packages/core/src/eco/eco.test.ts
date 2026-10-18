@@ -4,8 +4,8 @@
 
 import { describe, expect, test } from 'vitest';
 import { eco } from './eco.ts';
-import type { GetMetadataContext, HtmlTemplateProps, LayoutProps, StaticPath } from '../types/public-types.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { GetMetadataContext, HtmlTemplateProps, LayoutProps, StaticPath } from '../types/contracts.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import {
 	type ForeignChildRuntime,
 	getComponentRenderContext,

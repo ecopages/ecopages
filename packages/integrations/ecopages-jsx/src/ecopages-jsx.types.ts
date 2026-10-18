@@ -1,6 +1,6 @@
 import type { MdxCompilerOptionsInput } from '@ecopages/mdx/core';
-import type { IntegrationPluginConfig } from '@ecopages/core/plugins/integration-plugin';
-import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
+import type { IntegrationPluginConfig } from '@ecopages/core/integration';
+import type { AssetDefinition } from '@ecopages/core/integration';
 
 /**
  * MDX configuration for the JSX integration.

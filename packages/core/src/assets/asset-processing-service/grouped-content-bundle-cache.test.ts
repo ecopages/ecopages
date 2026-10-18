@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
-import { requireAppRuntime, type AppRuntime } from '../../config/assembly/app-runtime.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { requireAppRuntime } from '../../utils/app-runtime.ts';
+import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { AssetProcessingService } from './asset-processing.service.ts';
 import type { ContentScriptAsset } from './assets.types.ts';
 

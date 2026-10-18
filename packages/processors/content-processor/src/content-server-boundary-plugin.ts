@@ -1,4 +1,4 @@
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/processor';
+import type { EcoBuildPlugin } from '@ecopages/core/processor';
 import { CONTENT_SERVER_VIRTUAL_MODULE_PATTERN } from './constants.ts';
 
 /**

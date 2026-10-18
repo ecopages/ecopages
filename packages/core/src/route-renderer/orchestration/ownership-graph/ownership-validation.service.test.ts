@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import type { EcoComponent } from '../../../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { EcoComponent } from '../../../types/contracts.ts';
 import { UndeclaredComponentDependencyError } from '../../../errors/undeclared-component-dependency-error.ts';
 import { createPreparedComponentGraphBuilder } from './component-graph.ts';
 import { OwnershipValidationService } from './ownership-validation.service.ts';

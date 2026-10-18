@@ -4,15 +4,15 @@
  */
 
 import path from 'node:path';
-import type { IClientBridge } from '@ecopages/core';
-import { writeHashedBrowserAsset } from '@ecopages/core/assets/hashed-browser-asset';
+import type { IClientBridge } from '@ecopages/core/integration';
+import { writeHashedBrowserAsset } from '@ecopages/core/processor';
 import { fileSystem } from '@ecopages/file-system';
 import {
 	Processor,
 	type EcoBuildPlugin,
 	type ProcessorConfig,
 	type ProcessorWatchChanges,
-} from '@ecopages/core/plugins/processor';
+} from '@ecopages/core/processor';
 import { Logger } from '@ecopages/logger';
 import type postcss from 'postcss';
 import {

@@ -1,11 +1,12 @@
-import type { ComponentRenderInput, EcoPageFile, RouteRendererBody } from '@ecopages/core';
+import type { EcoPageFile } from '@ecopages/core';
+import type { ComponentRenderInput, RouteRendererBody } from '@ecopages/core/integration';
 import { HttpError } from '@ecopages/core/errors';
 import {
 	createIntegrationRenderer,
 	type IntegrationRendererHookFactory,
 	type IntegrationRendererHookFactoryOptions,
-} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import { resolveQueuedTokens } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
+} from '@ecopages/core/integration';
+import { resolveQueuedTokens } from '@ecopages/core/integration';
 import { createMarkupNodeLike, type JsxRenderable } from '@ecopages/jsx';
 import { renderToString, withServerCustomElementRenderHook } from '@ecopages/jsx/server';
 import {
@@ -16,12 +17,9 @@ import {
 } from './ecopages-jsx-mdx.ts';
 import { recordEjsxHmrOwnership, withEjsxHmrOwnershipScope } from './ecopages-jsx-hmr-ownership.ts';
 import { EcopagesJsxRadiantSsrPolicy } from './ecopages-jsx-radiant-ssr-policy.ts';
-import {
-	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
-	CustomElementScriptPreloader,
-} from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
-import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
-import { createSharedServerModuleImporter } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer';
+import { CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES, CustomElementScriptPreloader } from '@ecopages/core/integration';
+import { requireAppRuntime } from '@ecopages/core/integration';
+import { createSharedServerModuleImporter } from '@ecopages/core/integration';
 import type { EcopagesJsxRendererConfig } from './ecopages-jsx.types.ts';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
 
@@ -104,7 +102,7 @@ export function createEcopagesJsxRendererHookFactory(
 					options.Page,
 					options.Layout,
 					options.HtmlTemplate,
-					...(options.resolvedPageDependencyComponents ?? []),
+					...(options.pageDependencyComponents ?? []),
 				]);
 			},
 			renderComponent: async (input: ComponentRenderInput) => {
@@ -162,7 +160,7 @@ export function createEcopagesJsxRendererHookFactory(
 						options.Page,
 						options.Layout,
 						options.HtmlTemplate,
-						...(options.resolvedPageDependencyComponents ?? []),
+						...(options.pageDependencyComponents ?? []),
 					]);
 					return body;
 				}),

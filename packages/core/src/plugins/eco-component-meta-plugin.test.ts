@@ -6,7 +6,7 @@ import {
 	createEcoComponentMetaPlugin,
 } from './eco-component-meta-plugin';
 import { getPluginTransform } from '../__fixtures__/build/transform-plugin';
-import type { EcoPagesAppConfig } from '../types/internal-types';
+import type { EcoPagesAppConfig } from '../config/internal-types';
 
 /**
  * Creates a regex pattern to match identity attribution with any id hash.

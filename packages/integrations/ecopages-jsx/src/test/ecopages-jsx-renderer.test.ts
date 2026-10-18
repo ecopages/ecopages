@@ -3,17 +3,11 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type {
-	EcoComponent,
-	EcoFunctionComponent,
-	EcoPageFile,
-	EcoPagesAppConfig,
-	HtmlTemplateProps,
-	PageProps,
-} from '@ecopages/core';
-import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
-import type { AppRuntime } from '@ecopages/core/config/app-runtime';
-import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
+import type { EcoComponent, EcoFunctionComponent, EcoPageFile, HtmlTemplateProps, PageProps } from '@ecopages/core';
+import { AssetProcessingService } from '@ecopages/core/integration';
+import type { AppRuntime } from '@ecopages/core/integration';
+import type { IntegrationRuntimeContext } from '@ecopages/core/integration';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { createEcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { jsx } from '@ecopages/jsx/jsx-runtime';
@@ -27,7 +21,9 @@ const lightDomGlobalKeys = ['customElements', 'Element', 'HTMLElement', 'HTMLScr
 
 type LightDomGlobalKey = (typeof lightDomGlobalKeys)[number];
 
-function createTestAssetProcessingService(appConfig: EcoPagesAppConfig): AssetProcessingService {
+type FinalizedAppConfig = IntegrationRuntimeContext['appConfig'];
+
+function createTestAssetProcessingService(appConfig: FinalizedAppConfig): AssetProcessingService {
 	const service = new AssetProcessingService(appConfig);
 	vi.spyOn(service, 'processDependencies').mockResolvedValue([]);
 	return service;
@@ -48,7 +44,7 @@ function createScopedModuleUrl(moduleUrl: string, token: string): string {
 	return scopedUrl.href;
 }
 
-async function createAppConfig(rootDir: string): Promise<EcoPagesAppConfig> {
+async function createAppConfig(rootDir: string): Promise<FinalizedAppConfig> {
 	const appModuleLoader = {
 		async importModule<T = unknown>(options: { filePath: string }): Promise<T> {
 			const moduleUrl = pathToFileURL(options.filePath).href;
@@ -257,7 +253,7 @@ test('EcopagesJsxRenderer records declared content dependencies for HMR ownershi
 		HtmlTemplate: htmlTemplate,
 		metadata: { title: '', description: '' },
 		resolvedDependencies: [],
-		resolvedPageDependencyComponents: [content],
+		pageDependencyComponents: [content],
 	});
 
 	const { fileOwners } = getEjsxHmrOwnership();

@@ -41,12 +41,12 @@ Core delivers the configured client at `/_dev_toolbar.js` and injects `#__ECO_DE
 To replace this reference toolbar:
 
 1. Create a client package that exports a browser bootstrap module (same layout as `@ecopages/dev-toolbar`).
-2. Set `devToolbar.package` in `eco.config.ts` (use `defineDevTool` from `@ecopages/core/dev-toolbar/define-dev-tool` for BYO packages).
+2. Set `devToolbar.package` in `eco.config.ts` (use `defineDevTool` from `@ecopages/core/client` for BYO packages).
 3. Fork or copy this package if you want Radiant panels, manifest readers, and stealth dock behavior.
 
 `@ecopages/dev-toolbar` is the reference implementation.
 
-Custom clients can claim the HMR runtime's cancelable `ecopages:build-error` window event (`detail: { message: string }`) with synchronous `preventDefault()` to suppress the in-page fallback. Listen for `ecopages:build-error-clear` to reset errors. After registering listeners, dispatch `ecopages:build-error-request` to replay active messages if mounting late. Core exports the names and payload type from `@ecopages/core/dev-toolbar/build-error-contract`; the reference client mirrors the event names locally for browser bundling. Unclaimed errors still use the fallback. Remove listeners when unmounting.
+Custom clients can claim the HMR runtime's cancelable `ecopages:build-error` window event (`detail: { message: string }`) with synchronous `preventDefault()` to suppress the in-page fallback. Listen for `ecopages:build-error-clear` to reset errors. After registering listeners, dispatch `ecopages:build-error-request` to replay active messages if mounting late. Core exports the names and payload type from `@ecopages/core/client`; the reference client mirrors the event names locally for browser bundling. Unclaimed errors still use the fallback. Remove listeners when unmounting.
 
 ## Reference-toolbar internals
 

@@ -2,16 +2,15 @@
  * This module contains the react plugin for Ecopages
  * @module
  */
-import type { EcoPagesAppConfig } from '@ecopages/core';
-import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
-import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
+import { requireAppRuntime } from '@ecopages/core/integration';
+import type { AssetDefinition } from '@ecopages/core/integration';
 import {
 	IntegrationPlugin,
 	type IntegrationRendererBase,
 	type IntegrationRuntimeContext,
 	type EcoBuildPlugin,
 	type IntegrationPluginConfig,
-} from '@ecopages/core/plugins/integration-plugin';
+} from '@ecopages/core/integration';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
 import path from 'node:path';
@@ -183,7 +182,7 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 		return renderer;
 	}
 
-	private ensureRuntimeDependencies(appConfig: EcoPagesAppConfig): void {
+	private ensureRuntimeDependencies(appConfig: IntegrationRuntimeContext['appConfig']): void {
 		if (this.runtimeDependenciesInitialized) {
 			return;
 		}
@@ -205,12 +204,15 @@ export class ReactPlugin extends IntegrationPlugin<React.ReactNode> {
 	 * The loader is created on the first read for an app runtime and kept, because the renderer and the HMR
 	 * strategy reuse the instance the build manifest holds.
 	 */
-	override plugins(app: EcoPagesAppConfig): EcoBuildPlugin[] {
+	override plugins(app: IntegrationRuntimeContext['appConfig']): EcoBuildPlugin[] {
 		const loader = this.mdxCompilerOptions ? this.resolveMdxLoaderPlugin(this.mdxCompilerOptions, app) : undefined;
 		return loader ? [loader] : [];
 	}
 
-	private resolveMdxLoaderPlugin(compilerOptions: CompileOptions, appConfig: EcoPagesAppConfig): EcoBuildPlugin {
+	private resolveMdxLoaderPlugin(
+		compilerOptions: CompileOptions,
+		appConfig: IntegrationRuntimeContext['appConfig'],
+	): EcoBuildPlugin {
 		const requestPipelineMetrics = requireAppRuntime(appConfig).requestPipelineMetrics;
 		return createReactMdxLoaderPlugin({
 			compilerOptions,

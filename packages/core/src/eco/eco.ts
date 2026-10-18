@@ -5,7 +5,6 @@
 
 import type {
 	EcoComponent,
-	EcoDeclaredComponent,
 	EcoHtmlComponent,
 	EcoLayoutComponent,
 	EcoPagesElement,
@@ -16,7 +15,7 @@ import type {
 	GetStaticProps,
 	RequestLocals,
 	RequestPageContext,
-} from '../types/public-types.ts';
+} from '../types/contracts.ts';
 import type { CacheStrategy } from '../page-cache/cache.types.ts';
 import type {
 	ComponentOptions,
@@ -28,7 +27,7 @@ import type {
 	PagePropsFor,
 	PagePropsForWithLocals,
 	PageRequires,
-} from './eco.types.ts';
+} from '../types/eco-api-types.ts';
 import {
 	finalizeComponentRender,
 	getComponentRenderContext,
@@ -53,9 +52,9 @@ import { attachDiscoveredDependencies } from './discovered-dependencies.ts';
  * @param options Component options for rendering and dependency declaration.
  * @returns Configured eco component.
  */
-function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoDeclaredComponent<P, E> {
+function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
 	const integrationName = getComponentOwner(options);
-	const comp: EcoDeclaredComponent<P, E> = ((props: P) => {
+	const comp: EcoComponent<P, E> = ((props: P) => {
 		const componentProps = (props ?? {}) as Record<string, unknown>;
 		const renderInline = (nextProps: P = props) => finalizeComponentRender(comp, options.render(nextProps)) as E;
 		const activeRenderContext = getComponentRenderContext();
@@ -95,7 +94,7 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoDecla
 		}
 
 		return renderInline();
-	}) as EcoDeclaredComponent<P, E>;
+	}) as EcoComponent<P, E>;
 
 	comp.config = {
 		identity: options.identity,
@@ -113,7 +112,7 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoDecla
  * @param options Component definition options.
  * @returns Eco component function.
  */
-function component<P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>): EcoDeclaredComponent<P, E> {
+function component<P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
 	return createComponentFactory(options);
 }
 

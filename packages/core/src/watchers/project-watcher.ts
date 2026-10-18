@@ -4,7 +4,7 @@ import chokidar, { type FSWatcher } from 'chokidar';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
 import { isPathInside } from '../utils/path-containment.ts';
-import type { EcoPagesAppConfig, IHmrManager, IClientBridge } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig, IHmrManager, IClientBridge } from '../config/internal-types.ts';
 import type { ProcessorWatchChanges } from '../plugins/processor.ts';
 import {
 	getDevelopmentInvalidationService,
@@ -25,7 +25,7 @@ import {
 } from '../utils/additional-watch-paths.ts';
 import { resolveWorkspacePackageWatchRoots, isWorkspacePackageFile } from './workspace-package-watch-roots.ts';
 import { seedProcessorWatchPaths } from '../build/cache/build-input-dependency-index.ts';
-import { requireAppRuntime } from '../types/app-runtime.ts';
+import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { copyRuntimePublicFile } from '../adapters/shared/runtime/copy-runtime-public-dir.ts';
 
 /**

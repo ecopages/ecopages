@@ -1,7 +1,7 @@
-import { eco, type Error500TemplateProps } from '@ecopages/core';
+import { eco, type ErrorPageTemplateProps } from '@ecopages/core';
 import { BaseLayout } from '../layouts/base-layout';
 
-const Error500 = eco.component<Error500TemplateProps>({
+const Error500 = eco.component<ErrorPageTemplateProps>({
 	dependencies: {
 		stylesheets: ['./500.css'],
 		components: [BaseLayout],

@@ -1,5 +1,5 @@
 import MagicString from 'magic-string';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { createJsxImportSourcePragma } from './jsx-import-source.utils.ts';
 import type { EcoBuildOnTransformResult, EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { composeSourceMaps, isUsableSourceMap } from '../build/source-maps.ts';

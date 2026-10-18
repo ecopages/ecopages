@@ -16,7 +16,7 @@ import type {
 	EcoPagesAppConfig,
 	IHmrManager,
 	IClientBridge,
-} from '../../../types/internal-types.ts';
+} from '../../../config/internal-types.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { HmrStrategyType, type HmrAction, type HmrStrategy } from '../../../hmr/hmr-strategy.ts';
 import { DefaultHmrStrategy } from '../../../hmr/strategies/default-hmr-strategy.ts';
@@ -32,10 +32,10 @@ import type {
 	HmrFileChangeOptions,
 	RegisteredScriptEntrypointChangeHandler,
 	ResolvedHmrEntrypoint,
-} from '../../../types/public-types.ts';
+} from '../../../types/contracts.ts';
 import { DevTransformEntrypointRegistry } from './dev-transform-entrypoint-registry.ts';
 import { BrowserBundleService } from '../../../assets/browser-bundle.service.ts';
-import { requireAppRuntime } from '../../../types/app-runtime.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { InMemoryEntrypointDependencyGraph } from '../../../hmr/entrypoint-dependency-graph.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';
 import { DevTransformServer } from '../../../dev/transform-server/dev-transform-server.ts';

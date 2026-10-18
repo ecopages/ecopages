@@ -1,11 +1,11 @@
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
-import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { ReactRenderer } from '../render/react-renderer.ts';
 import { reactPlugin } from '../plugin/react.plugin.ts';
-import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
-import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
+import { requireAppRuntime } from '@ecopages/core/integration';
+import { AssetProcessingService } from '@ecopages/core/integration';
 import { copyFixtureApp } from '../../../../core/__fixtures__/app/copy-fixture-app.ts';
 
 const MockPage = ({ children }: any) => <div>{children}</div>;

@@ -2,7 +2,7 @@ import { collectBuildOutputImports, getBuildEntryOutput } from '../../build/buil
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
-import { requireAppRuntime } from '../../types/app-runtime.ts';
+import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import {
 	type BuildExecutor,
 	type BuildOptions,
@@ -20,7 +20,7 @@ import { findIntegrationForFile } from '../../plugins/find-integration-for-file.
 import { recordPageModuleBuildInvocation } from '../../build/rolldown/rolldown-build-invocation-metrics.ts';
 import { recordPageModuleLoad } from '../../diagnostics/request-pipeline-metrics.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { createRouteModuleReuseIdentity, resolvePageModuleOutputFileName } from './route-module-build-manifest.ts';
 import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
 import { resolveRouteModuleDependencyPaths } from './route-module-dependency-hasher.ts';

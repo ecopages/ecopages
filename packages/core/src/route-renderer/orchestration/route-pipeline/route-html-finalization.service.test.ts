@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import type { IntegrationRendererRenderOptions } from '../../../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { IntegrationRendererRenderOptions } from '../../../types/contracts.ts';
 import { buildRouteHtmlFinalization } from './route-html-finalization.service.ts';
 
 const disabledDevToolbarConfig = {

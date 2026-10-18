@@ -2,9 +2,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createContext, useContext, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import type { HtmlTemplateProps, IntegrationRendererRenderOptions } from '@ecopages/core';
-import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
-import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
+import type { HtmlTemplateProps } from '@ecopages/core';
+import type { IntegrationRendererRenderOptions } from '@ecopages/core/integration';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import type { AssetProcessingService } from '@ecopages/core/integration';
 import { ReactRenderer } from '../render/react-renderer.ts';
 
 const DataContext = createContext('missing');

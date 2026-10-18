@@ -1,5 +1,5 @@
 import { appLogger } from '../../../global/app-logger.ts';
-import type { EcopagesSocket, OutgoingWebSocketMessage, WebSocketCloseInfo } from '../../../types/public-types.ts';
+import type { EcopagesSocket, OutgoingWebSocketMessage, WebSocketCloseInfo } from '../../../types/contracts.ts';
 
 /**
  * @remarks

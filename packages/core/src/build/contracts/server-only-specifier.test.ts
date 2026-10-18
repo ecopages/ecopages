@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { isServerOnlyModuleSpecifier } from '@ecopages/core/build/contracts/server-only-specifier';
+import { isServerOnlyModuleSpecifier } from '@ecopages/core/build/contracts';
 
 test.each([
 	'./db.server.ts',

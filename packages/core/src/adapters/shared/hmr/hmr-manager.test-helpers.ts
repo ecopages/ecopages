@@ -3,8 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { onTestFinished } from 'vitest';
 import { finalizeEcoPagesConfig } from '../../../config/assembly/finalize-config.ts';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import type { ClientBridgeEvent, IClientBridge } from '../../../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { ClientBridgeEvent, IClientBridge } from '../../../types/contracts.ts';
 import { HmrManager } from './hmr-manager.ts';
 
 /**

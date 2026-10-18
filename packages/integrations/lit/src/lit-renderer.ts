@@ -3,26 +3,21 @@
  * @module
  */
 
-import type {
-	EcoComponent,
-	EcoFunctionComponent,
-	EcoPagesElement,
-	PageParams,
-	RouteRenderResult,
-	RouteRendererOptions,
-} from '@ecopages/core';
-import {
-	createIntegrationRenderer,
-	type IntegrationRendererHookFactoryOptions,
-} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import { resolveQueuedTokens } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
+/**
+ * This module contains the Lit renderer hooks.
+ * @module
+ */
+import type { EcoComponent, EcoFunctionComponent, EcoPagesElement, PageParams } from '@ecopages/core';
+import type { RouteRenderResult, RouteRendererOptions } from '@ecopages/core/integration';
+import { createIntegrationRenderer, type IntegrationRendererHookFactoryOptions } from '@ecopages/core/integration';
+import { resolveQueuedTokens } from '@ecopages/core/integration';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	CustomElementScriptPreloader,
 	type CustomElementSsrPreloadComponent,
-} from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
-import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
-import { createCustomElementServerModuleImporter } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer';
+} from '@ecopages/core/integration';
+import { requireAppRuntime } from '@ecopages/core/integration';
+import { createCustomElementServerModuleImporter } from '@ecopages/core/integration';
 import { ensureLitDomShim } from './dom-shim.ts';
 import type { LitStaticRenderSession } from './lit-static-render-session.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
@@ -76,7 +71,7 @@ export function createLitRenderer(
 					preloadSsrScripts([
 						renderOptions.Page,
 						renderOptions.Layout,
-						...(renderOptions.resolvedPageDependencyComponents ?? []),
+						...(renderOptions.pageDependencyComponents ?? []),
 					]),
 				transformDocumentHtml: normalizeLitHtml,
 				renderRemote: (routeOptions) => renderLitPageInWorker(routeOptions, getRenderSession),

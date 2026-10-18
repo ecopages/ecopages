@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
+import { setResolvedLazyTriggers } from '../../eco/component-internal-state.ts';
 import { eco } from '../../eco/eco.ts';
 import { OwnershipValidationService } from './ownership-graph/ownership-validation.service.ts';
 import { getComponentRenderContext, runWithComponentRenderContext } from '../../eco/component-render-context.ts';
@@ -11,7 +12,7 @@ import {
 } from './integration-renderer.ts';
 import { collectPageClientPlan } from './ownership-graph/page-client-plan.ts';
 import type { PreparedComponentGraphNode } from './ownership-graph/component-graph.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type {
 	AssetDefinition,
 	AssetProcessingService,
@@ -24,13 +25,14 @@ import type {
 	GetMetadata,
 	GetStaticProps,
 	IntegrationRendererRenderOptions,
+	InternalIntegrationRendererRenderOptions,
 	RouteRendererBody,
 	EcoComponent,
 	HtmlTemplateProps,
 	PageBrowserGraphContribution,
 	IHmrManager,
-} from '../../types/public-types.ts';
-import type { EcoPageComponent } from '../../eco/eco.types.ts';
+} from '../../types/contracts.ts';
+import type { EcoPageComponent } from '../../types/eco-api-types.ts';
 import {
 	TestIntegrationRenderer,
 	createMockAppConfig,
@@ -1602,10 +1604,10 @@ describe('IntegrationRenderer', () => {
 		component.config = {
 			integration: 'test-renderer',
 			identity: { id: 'discovery-counter', file: '/app/discovery-counter.tsx', integration: 'test-renderer' },
-			_resolvedLazyTriggers: [
-				{ triggerId: 'eco-trigger-1', rules: [{ 'on:visible': { scripts: ['/assets/lazy.js'] } }] },
-			],
 		};
+		setResolvedLazyTriggers(component.config, [
+			{ triggerId: 'eco-trigger-1', rules: [{ 'on:visible': { scripts: ['/assets/lazy.js'] } }] },
+		]);
 
 		const result = await renderer.renderComponentWithForeignChildren({ component, props: {} });
 
@@ -1669,8 +1671,10 @@ describe('IntegrationRenderer', () => {
 
 		expect(html).toContain('/assets/react-island-hydration.js');
 		expect(host.CapturedRenderOptions?.pagePackage?.assets).toEqual(expect.arrayContaining([hydrationAsset]));
-		expect(host.CapturedRenderOptions?.islandRenderAssetsByFile?.get('/app/react-counter.tsx')).toEqual([
-			hydrationAsset,
-		]);
+		expect(
+			(
+				host.CapturedRenderOptions as InternalIntegrationRendererRenderOptions<EcoPagesElement> | null
+			)?.islandRenderAssetsByFile?.get('/app/react-counter.tsx'),
+		).toEqual([hydrationAsset]);
 	});
 });

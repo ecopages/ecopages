@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { ErrorPageRenderer } from './error-page-renderer.ts';
 

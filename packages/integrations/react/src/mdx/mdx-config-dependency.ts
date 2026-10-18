@@ -5,14 +5,14 @@ import {
 	type EcoComponent,
 	type EcoComponentConfig,
 } from '@ecopages/core';
-import { attachEcoFileMetadataToConfig } from '@ecopages/core/route-renderer/page-loading/file-scoped-dependency-components';
+import { attachEcoFileMetadataToConfig } from '@ecopages/core/integration';
 import {
 	AssetFactory,
 	type AssetProcessingIntegration,
 	type AssetDefinition,
 	type AssetProcessingService,
 	type ProcessedAsset,
-} from '@ecopages/core/services/asset-processing-service';
+} from '@ecopages/core/integration';
 import { collectFromConfigForest, getComponentConfigs } from '../client-graph/component-config-traversal.ts';
 import type { PageModuleService } from '../page/page-module.ts';
 

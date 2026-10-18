@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
-import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
-import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import { GENERATED_BASE_PATHS } from '@ecopages/core/build';
 import { ImageProcessor } from '../image-processor';
 import { imageProcessorPlugin } from '../plugin';
 

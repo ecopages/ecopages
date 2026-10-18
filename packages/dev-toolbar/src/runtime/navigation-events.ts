@@ -1,4 +1,4 @@
-import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/router/navigation-lifecycle';
+import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/client';
 
 export type NavigationLifecycleEvent =
 	(typeof ECO_NAVIGATION_LIFECYCLE_EVENTS)[keyof typeof ECO_NAVIGATION_LIFECYCLE_EVENTS];

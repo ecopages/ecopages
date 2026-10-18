@@ -3,7 +3,7 @@
  * @module
  */
 
-import { createIntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { createIntegrationRenderer } from '@ecopages/core/integration';
 import { KITAJS_PLUGIN_NAME } from './kitajs.constants.ts';
 
 /**

@@ -1,9 +1,9 @@
 import { eco } from '@ecopages/core';
-import type { Error500TemplateProps } from '@ecopages/core';
+import type { ErrorPageTemplateProps } from '@ecopages/core';
 import type { ReactNode } from 'react';
 import { BaseLayout } from '../layouts/base-layout.kita';
 
-export default eco.page<Error500TemplateProps, ReactNode>({
+export default eco.page<ErrorPageTemplateProps, ReactNode>({
 	dependencies: {
 		components: [BaseLayout],
 	},

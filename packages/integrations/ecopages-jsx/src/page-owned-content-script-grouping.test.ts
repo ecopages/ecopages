@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, expect, test } from 'vitest';
-import type { AssetDefinition, ContentScriptAsset } from '@ecopages/core/services/asset-processing-service';
+import type { AssetDefinition, ContentScriptAsset } from '@ecopages/core/integration';
 import {
 	assignPageOwnedContentScriptGroupedBundles,
 	createPageOwnedContentScriptBundleId,

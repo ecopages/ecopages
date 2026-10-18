@@ -1,7 +1,7 @@
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { loadEcoPagesConfig } from '../config/load-eco-config.ts';
 import type { EcoPagesUserConfig } from '../config/user-config-types.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { parseCliArgs } from '../utils/parse-cli-args.ts';
 import { createNodeApp } from './node/create-app.ts';
 import type { EcopagesApp } from './node/create-app.ts';

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { IntegrationPlugin } from '../plugins/integration-plugin.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import type { EcoPageFile } from '../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import type { EcoPageFile } from '../types/contracts.ts';
 import { HTML_PAGES_INTEGRATION_NAME, loadHtmlPageModule } from './html-page-module.ts';
 import { HtmlPageRenderer } from './html-page-renderer.ts';
 

@@ -1,20 +1,16 @@
-import type {
-	ComponentRenderInput,
-	ComponentRenderResult,
-	EcoComponent,
-	EcoFunctionComponent,
-	EcoPagesAppConfig,
-	EcoPagesElement,
-} from '@ecopages/core';
+import type { EcoComponent, EcoFunctionComponent, EcoPagesElement } from '@ecopages/core';
+import type { ComponentRenderInput, ComponentRenderResult } from '@ecopages/core/integration';
 import { type EcoPagesUserConfig } from '@ecopages/core/config';
-import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
-import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
-import { defineIntegration } from '@ecopages/core/plugins/define-integration';
-import { IntegrationPlugin, type AnyIntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import { StringMarkupRenderer } from '@ecopages/core/route-renderer/orchestration/string-markup-renderer';
+import { requireAppRuntime } from '@ecopages/core/integration';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import { defineIntegration } from '@ecopages/core/integration';
+import { IntegrationPlugin, type AnyIntegrationPlugin } from '@ecopages/core/integration';
+import { IntegrationRenderer } from '@ecopages/core/integration';
+import { StringMarkupRenderer } from '@ecopages/core/integration';
 
 export const TEST_RUNTIME_ORIGIN = 'http://localhost:3000';
+
+type EcoPagesAppConfig = Awaited<ReturnType<typeof finalizeEcoPagesConfig>>;
 
 export type CreateTestAppConfigOptions = {
 	baseUrl?: string;

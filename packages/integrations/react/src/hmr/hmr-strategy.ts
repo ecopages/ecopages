@@ -9,15 +9,15 @@
 
 import path from 'node:path';
 
-import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
-import { isRegisteredScriptEntrypoint } from '@ecopages/core/hmr/hmr-entrypoint-output';
-import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/dev/transform-server';
-import { isPathInside } from '@ecopages/core/utils/path-containment';
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
-import type { BrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
+import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/integration';
+import { isRegisteredScriptEntrypoint } from '@ecopages/core/integration';
+import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/integration';
+import { isPathInside } from '@ecopages/core/build';
+import type { EcoBuildPlugin } from '@ecopages/core/integration';
+import { createBrowserRuntimePlugin } from '@ecopages/core/build';
+import type { BrowserRuntimeManifest } from '@ecopages/core/build';
 import { Logger } from '@ecopages/logger';
-import type { DefaultHmrContext } from '@ecopages/core';
+import type { DefaultHmrContext } from '@ecopages/core/integration';
 import { createClientGraphBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
 import { someInConfigTree } from '../client-graph/component-config-traversal.ts';
 import { getReactClientGraphAllowSpecifiers } from '../bundling/runtime-alias-map.ts';

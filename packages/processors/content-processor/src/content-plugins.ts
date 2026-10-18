@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/processor';
+import type { EcoBuildPlugin } from '@ecopages/core/processor';
 import {
 	CONTENT_BROWSER_VIRTUAL_MODULE_PATTERN,
 	CONTENT_SERVER_VIRTUAL_MODULE_PATTERN,

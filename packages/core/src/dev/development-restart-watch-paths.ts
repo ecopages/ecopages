@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { getDevEnvFileNames } from './development-restart.ts';
 
 /** Returns whether `filePath` is a supported project-level dotenv file. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { eco } from '../../../eco/eco.ts';
-import type { LayoutPropsContext } from '../../../types/public-types.ts';
+import type { LayoutPropsContext } from '../../../types/contracts.ts';
 import {
 	resolveDocumentShellLayouts,
 	resolveLayoutEntryProps,

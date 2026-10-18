@@ -2,7 +2,7 @@ import type { IncomingMessage } from 'node:http';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import type { ApiHandler, RenderContext } from '../../../types/public-types.ts';
+import type { ApiHandler, RenderContext } from '../../../types/contracts.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from '../../node/http-request-bridge.ts';
 import { ApiRequestPipeline } from './api-request-pipeline.ts';
@@ -115,7 +115,7 @@ describe('ApiRequestPipeline', () => {
 			{
 				path: '/api/posts/[slug]',
 				method: 'GET',
-				handler: ({ params }) => new Response(params.slug),
+				handler: ({ params }) => new Response(String(params.slug)),
 			},
 		];
 
@@ -127,6 +127,26 @@ describe('ApiRequestPipeline', () => {
 
 		expect(response?.status).toBe(200);
 		expect(await response?.text()).toBe('café');
+	});
+
+	it('preserves catch-all params and repeated query keys for API handlers', async () => {
+		const response = await createPipeline().tryHandle(
+			new Request('http://localhost/api/files/a/b?tag=one&tag=two'),
+			[
+				{
+					path: '/api/files/[...path]',
+					method: 'GET',
+					handler: ({ params, query }) => new Response(JSON.stringify({ params, query })),
+				},
+			],
+			undefined,
+		);
+
+		expect(response?.status).toBe(200);
+		expect(await response?.json()).toEqual({
+			params: { path: ['a', 'b'] },
+			query: { tag: ['one', 'two'] },
+		});
 	});
 
 	it('matches repeated trailing slashes after normalizing the pathname', async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { FileRouteMiddleware } from '../types/public-types.ts';
+import type { FileRouteMiddleware } from '../types/contracts.ts';
 import { eco } from './eco.browser.ts';
 
 describe('browser eco facade', () => {

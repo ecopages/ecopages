@@ -9,13 +9,9 @@
  * @module
  */
 
-import { isStaticAssetHref } from '@ecopages/core/router/link-intent';
-import type { EcoNavigationDirection } from '@ecopages/core/router/navigation-coordinator';
-import {
-	commitNavigationPage,
-	ECO_PERSIST_ATTRIBUTE,
-	fetchNavigationPage,
-} from '@ecopages/core/router/navigation-pipeline';
+import { isStaticAssetHref } from '@ecopages/core/client';
+import type { EcoNavigationDirection } from '@ecopages/core/client';
+import { commitNavigationPage, ECO_PERSIST_ATTRIBUTE, fetchNavigationPage } from '@ecopages/core/client';
 import { type FetchedPageDocument, type LoadedPageModule, loadPageModuleFromDocument } from './navigation.ts';
 import { isReactRouterPageBootstrapAssetSrc } from './hydration-assets.ts';
 

@@ -1,13 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-	eco,
-	type ComponentRenderInput,
-	type ComponentRenderResult,
-	type EcoComponent,
-	type EcoFunctionComponent,
-} from '@ecopages/core';
-import type { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import type { AssetProcessingService, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
+import { eco, type EcoComponent, type EcoFunctionComponent } from '@ecopages/core';
+import type { ComponentRenderInput, ComponentRenderResult } from '@ecopages/core/integration';
+import type { IntegrationRenderer } from '@ecopages/core/integration';
+import type { AssetProcessingService, ProcessedAsset } from '@ecopages/core/integration';
 import {
 	createDeferredIntegrationPlugin,
 	htmlDocumentHead,

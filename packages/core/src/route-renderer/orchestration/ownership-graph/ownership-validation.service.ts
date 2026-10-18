@@ -1,5 +1,5 @@
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import type { OwnershipValidationError } from '../../../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { OwnershipValidationError } from '../../../types/contracts.ts';
 import { assertEcoDeclaredComponent } from '../../../eco/eco-declared-component.ts';
 import { getComponentIdentity } from '../../../eco/component-identity.ts';
 import type { PreparedComponentGraph } from './component-graph.ts';

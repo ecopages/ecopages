@@ -1,6 +1,6 @@
 import type { HtmlDocumentContribution } from '../html/html-transformer.service.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import type { PagePackageResult } from '../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import type { PagePackageResult } from '../types/contracts.ts';
 import { isDevToolbarEnabled } from './dev-toolbar-config.ts';
 import type { ProcessedAsset } from '../assets/asset-processing-service/assets.types.ts';
 import { DEV_TRANSFORM_URL_PREFIX, VENDOR_URL_PREFIX } from '../hmr/hmr-asset-paths.ts';

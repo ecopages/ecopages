@@ -1,4 +1,4 @@
-import type { EcoComponent, EcoDeclaredComponent } from '../types/public-types.ts';
+import type { EcoComponent } from '../types/contracts.ts';
 import { UndeclaredComponentDependencyError } from '../errors/undeclared-component-dependency-error.ts';
 import { getComponentIdentity } from './component-identity.ts';
 
@@ -10,7 +10,7 @@ export { getUndeclaredComponentDependencyMessage } from '../errors/undeclared-co
  * `eco.html()` after the component identity transform binds identity via
  * `bindComponentIdentity`.
  */
-export function isEcoDeclaredComponent(component: unknown): component is EcoDeclaredComponent {
+export function isEcoDeclaredComponent(component: unknown): component is EcoComponent {
 	return (
 		typeof component === 'function' &&
 		typeof getComponentIdentity(component as EcoComponent)?.file === 'string' &&
@@ -24,7 +24,7 @@ export function isEcoDeclaredComponent(component: unknown): component is EcoDecl
 export function assertEcoDeclaredComponent(
 	component: unknown,
 	context: { parentComponentFile?: string } = {},
-): asserts component is EcoDeclaredComponent {
+): asserts component is EcoComponent {
 	if (isEcoDeclaredComponent(component)) {
 		return;
 	}

@@ -1,5 +1,5 @@
 import type { ProcessedAsset } from '../../../assets/asset-processing-service/assets.types.ts';
-import type { PagePackageResult } from '../../../types/public-types.ts';
+import type { PagePackageResult } from '../../../types/contracts.ts';
 import type { PageClientPlan } from '../ownership-graph/page-client-plan.ts';
 
 /**

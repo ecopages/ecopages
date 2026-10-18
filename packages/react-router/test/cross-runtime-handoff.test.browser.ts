@@ -2,11 +2,7 @@ import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import {
-	ECO_DOCUMENT_OWNER_ATTRIBUTE,
-	getEcoDocumentOwner,
-	getEcoNavigationRuntime,
-} from '@ecopages/core/router/navigation-coordinator';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE, getEcoDocumentOwner, getEcoNavigationRuntime } from '@ecopages/core/client';
 import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
 
 /**

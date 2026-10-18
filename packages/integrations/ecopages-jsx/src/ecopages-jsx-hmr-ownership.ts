@@ -18,8 +18,8 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { rapidhash } from '@ecopages/core/hash';
-import { collectComponentConfigFilePaths } from '@ecopages/core/route-renderer/page-loading/file-scoped-dependency-components';
+import { rapidhash } from '@ecopages/core/build';
+import { collectComponentConfigFilePaths } from '@ecopages/core/integration';
 import type { EcoComponent } from '@ecopages/core';
 
 export type EjsxHmrOwnershipState = {

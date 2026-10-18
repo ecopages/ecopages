@@ -6,7 +6,7 @@ import { installBuildQueue } from '../../../build/runtime/build-queue.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../../../hmr/hmr-strategy.ts';
-import type { ClientBridgeEvent } from '../../../types/public-types.ts';
+import type { ClientBridgeEvent } from '../../../types/contracts.ts';
 import { HmrManager } from './hmr-manager.ts';
 import { createTempRoot, startHmrManagerAt } from './hmr-manager.test-helpers.ts';
 

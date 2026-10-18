@@ -5,7 +5,7 @@
 
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
+import { requireAppRuntime } from '@ecopages/core/integration';
 import {
 	mergeProcessorOptions,
 	Processor,
@@ -15,7 +15,7 @@ import {
 	type ProcessorConfig,
 	type ProcessorWatchChanges,
 	type ProcessorWatchConfig,
-} from '@ecopages/core/plugins/processor';
+} from '@ecopages/core/processor';
 import { Logger } from '@ecopages/logger';
 import {
 	renderCollectionComponentsModule,

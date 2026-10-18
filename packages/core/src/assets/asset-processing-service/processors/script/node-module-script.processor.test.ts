@@ -3,7 +3,7 @@ import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { NodeModuleScriptProcessor } from './node-module-script.processor';
 import { createAppRuntime } from '../../../../config/assembly/app-runtime';
-import type { EcoPagesAppConfig } from '../../../../types/internal-types';
+import type { EcoPagesAppConfig } from '../../../../config/internal-types';
 import type { NodeModuleScriptAsset } from '../../assets.types';
 
 const originalExists = fileSystem.exists;

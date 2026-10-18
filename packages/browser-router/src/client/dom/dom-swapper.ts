@@ -1,4 +1,4 @@
-import { parseNavigationDocument } from '@ecopages/core/router/navigation-pipeline';
+import { parseNavigationDocument } from '@ecopages/core/client';
 import { morphBody } from './body-morpher.ts';
 
 /** Applies browser-router's DOM body swap. Core owns document navigation work. */

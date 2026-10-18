@@ -5,7 +5,7 @@ import {
 	createBrowserRuntimeManifest,
 	type BrowserRuntimeAssetDeclaration,
 	type BrowserRuntimeManifest,
-} from '@ecopages/core/build/browser-runtime-manifest';
+} from '@ecopages/core/build';
 import { LAYOUT_COMPOSE_PACKAGE } from './bootstrap-package-paths.ts';
 
 export type BuildReactRuntimeManifestOptions = {

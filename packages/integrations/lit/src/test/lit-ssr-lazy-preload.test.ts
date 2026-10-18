@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import { createTestAppConfig } from '@ecopages/testing';
-import { CustomElementScriptPreloader } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
+import { CustomElementScriptPreloader } from '@ecopages/core/integration';
 import { LitRenderer } from '../lit-renderer.ts';
 
 const PACKAGE_ROOT = fileURLToPath(new URL('../..', import.meta.url));
@@ -88,7 +88,7 @@ describe('Lit SSR lazy script preload', () => {
 			props: {},
 			file: '/app/pages/index.lit.ts',
 			resolvedDependencies: [],
-			resolvedPageDependencyComponents: [dependencyRoot],
+			pageDependencyComponents: [dependencyRoot],
 			metadata: { title: 'Page', description: 'Page' },
 			Page,
 			Layout,

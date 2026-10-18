@@ -1,4 +1,4 @@
-import type { EcoPagesAppConfig } from '../../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../../config/internal-types.ts';
 import path from 'node:path';
 import type { ScriptAsset } from '../../assets.types.ts';
 import { BaseProcessor } from './base-processor.ts';

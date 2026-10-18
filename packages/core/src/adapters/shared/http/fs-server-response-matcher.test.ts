@@ -5,8 +5,9 @@ import { APP_TEST_ROUTES } from '../../../../__fixtures__/constants.ts';
 import { copyFixtureApp } from '../../../../__fixtures__/app/copy-fixture-app.ts';
 import { createFixtureAppConfig } from '../../../../__fixtures__/app/test-app-config.ts';
 import type { HttpErrorPageStatus } from '../../../errors/http-error-page-contract.ts';
-import type { EcoPagesAppConfig, MatchResult } from '../../../types/internal-types.ts';
-import { requireAppRuntime } from '../../../config/assembly/app-runtime.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { RouteMatch } from '../../../router/server/route-registry.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { RouteRendererFactory, type StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import { RouteRegistry } from '../../../router/server/route-registry.ts';
 import { MemoryCacheStore } from '../../../page-cache/memory-cache-store.ts';
@@ -224,7 +225,7 @@ describe('FileSystemResponseMatcher', () => {
 		});
 
 		it('should handle match with disabled cache headers', async () => {
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -258,7 +259,7 @@ describe('FileSystemResponseMatcher', () => {
 		});
 
 		it('should return X-Cache header on first request (MISS)', async () => {
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: '/cache-test-miss',
 				templateRoute: {
 					kind: 'exact',
@@ -276,7 +277,7 @@ describe('FileSystemResponseMatcher', () => {
 
 		it('should return X-Cache HIT on second request to same path', async () => {
 			const uniquePath = `/cache-test-hit-${Date.now()}`;
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: uniquePath,
 				templateRoute: {
 					kind: 'exact',
@@ -296,7 +297,7 @@ describe('FileSystemResponseMatcher', () => {
 
 		it('returns 304 when If-None-Match matches the static HTML ETag', async () => {
 			const uniquePath = `/cache-test-etag-${Date.now()}`;
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: uniquePath,
 				templateRoute: {
 					kind: 'exact',
@@ -321,7 +322,7 @@ describe('FileSystemResponseMatcher', () => {
 		});
 
 		it('should cache different paths separately', async () => {
-			const match1: MatchResult = {
+			const match1: RouteMatch = {
 				requestedPathname: '/path-a',
 				templateRoute: {
 					kind: 'exact',
@@ -331,7 +332,7 @@ describe('FileSystemResponseMatcher', () => {
 				params: {},
 				query: {},
 			};
-			const match2: MatchResult = {
+			const match2: RouteMatch = {
 				requestedPathname: '/path-b',
 				templateRoute: {
 					kind: 'exact',
@@ -351,7 +352,7 @@ describe('FileSystemResponseMatcher', () => {
 
 		it('should include query params in cache key', async () => {
 			const basePath = `/search-${Date.now()}`;
-			const matchWithQuery: MatchResult = {
+			const matchWithQuery: RouteMatch = {
 				requestedPathname: basePath,
 				templateRoute: {
 					kind: 'exact',
@@ -361,7 +362,7 @@ describe('FileSystemResponseMatcher', () => {
 				params: {},
 				query: { q: 'test' },
 			};
-			const matchWithDifferentQuery: MatchResult = {
+			const matchWithDifferentQuery: RouteMatch = {
 				requestedPathname: basePath,
 				templateRoute: {
 					kind: 'exact',
@@ -399,7 +400,7 @@ describe('FileSystemResponseMatcher', () => {
 		});
 
 		it('should bypass cache entirely for dynamic strategy', async () => {
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: '/dynamic-page',
 				templateRoute: {
 					kind: 'exact',
@@ -485,7 +486,7 @@ describe('FileSystemResponseMatcher', () => {
 				routeRendererFactory: factoryWithStub404,
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -529,7 +530,7 @@ describe('FileSystemResponseMatcher', () => {
 				routeRendererFactory: factoryWithStub404,
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -697,7 +698,7 @@ describe('FileSystemResponseMatcher', () => {
 				routeRendererFactory: throwingFactory,
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -735,7 +736,7 @@ describe('FileSystemResponseMatcher', () => {
 				routeRendererFactory: factoryWithStub500,
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -772,7 +773,7 @@ describe('FileSystemResponseMatcher', () => {
 				routeRendererFactory: factoryWithStub500,
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -812,7 +813,7 @@ describe('FileSystemResponseMatcher', () => {
 				routeRendererFactory: factoryWithStub500,
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -856,7 +857,7 @@ describe('FileSystemResponseMatcher', () => {
 				routeRendererFactory: factoryWithStub500,
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -896,7 +897,7 @@ describe('FileSystemResponseMatcher', () => {
 				routeRendererFactory: factoryWithout500,
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -934,7 +935,7 @@ describe('FileSystemResponseMatcher', () => {
 				routeRendererFactory: factoryWithThrowing500,
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -1031,7 +1032,7 @@ describe('FileSystemResponseMatcher', () => {
 				},
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: { kind: 'exact', pathname: APP_TEST_ROUTES.index, filePath: INDEX_TEMPLATE_FILE },
 				params: {},
@@ -1114,7 +1115,7 @@ describe('FileSystemResponseMatcher', () => {
 				})),
 			};
 
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',

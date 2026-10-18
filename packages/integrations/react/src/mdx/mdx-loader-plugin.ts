@@ -1,5 +1,5 @@
 import type { CompileOptions } from '@mdx-js/mdx';
-import type { RequestPipelineMetricsState } from '@ecopages/core/diagnostics/request-pipeline-metrics';
+import type { RequestPipelineMetricsState } from '@ecopages/core/build';
 import { createMdxLoaderPlugin as createMdxLoaderPluginCore } from '@ecopages/mdx/core';
 
 export interface CreateReactMdxLoaderPluginOptions {

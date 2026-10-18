@@ -11,7 +11,7 @@ import {
 	ECOPAGES_DEV_RESTART_EXIT_CODE,
 	ECOPAGES_DEV_RESTART_REASON_ENV,
 	resolveDevelopmentRecoveryWatch,
-} from '@ecopages/core/dev/development-restart';
+} from '@ecopages/core/build';
 import { fileSystem, type WatchOptions } from '@ecopages/file-system';
 
 const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
@@ -43,8 +43,8 @@ vi.mock('@ecopages/file-system', () => ({
 	fileSystem: { watch: vi.fn() },
 }));
 
-vi.mock('@ecopages/core/dev/development-restart', async (importOriginal) => ({
-	...(await importOriginal<typeof import('@ecopages/core/dev/development-restart')>()),
+vi.mock('@ecopages/core/build', async (importOriginal) => ({
+	...(await importOriginal<typeof import('@ecopages/core/build')>()),
 	resolveDevelopmentRecoveryWatch: vi.fn(),
 }));
 

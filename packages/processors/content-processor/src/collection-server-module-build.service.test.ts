@@ -3,10 +3,10 @@ import fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'vitest';
-import type { BuildAdapter, BuildExecutor, BuildOptions, BuildResult } from '@ecopages/core/build/build-adapter';
-import { BuildQueue } from '@ecopages/core/build/build-queue';
-import { createRequestPipelineMetricsState } from '@ecopages/core/diagnostics/request-pipeline-metrics';
-import type { ProcessorContext } from '@ecopages/core/plugins/processor';
+import type { BuildAdapter, BuildExecutor, BuildOptions, BuildResult } from '@ecopages/core/build';
+import { BuildQueue } from '@ecopages/core/build';
+import { createRequestPipelineMetricsState } from '@ecopages/core/build';
+import type { ProcessorContext } from '@ecopages/core/processor';
 import {
 	buildCollectionServerModule,
 	type CollectionServerBuildArtifact,

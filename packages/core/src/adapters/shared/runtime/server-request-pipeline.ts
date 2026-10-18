@@ -1,13 +1,13 @@
 import path from 'node:path';
-import type { AppRuntime } from '../../../types/app-runtime.ts';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import { RouteRendererFactory } from '../../../route-renderer/route-renderer.ts';
 import { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { StaticGenerationRoute } from '../../../router/server/route-registry.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
 import { requireBuildQueue } from '../../../build/runtime/build-queue.ts';
 import { runWithBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
-import { requireAppRuntime } from '../../../types/app-runtime.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { MemoryCacheStore } from '../../../page-cache/memory-cache-store.ts';
 import { PageCacheService } from '../../../page-cache/page-cache-service.ts';
 import { ExplicitStaticRouteMatcher } from '../http/explicit-static-route-matcher.ts';
@@ -18,7 +18,7 @@ import { createRenderContext } from './render-context.ts';
 import { ApiRequestPipeline } from '../http/api-request-pipeline.ts';
 import { parseSegmentPath, type ParsedSegmentPath } from '../../../router/server/segment-path-matcher.ts';
 import { isHtmlResponse, withUncachedDevHtml } from '../hmr/hmr-html-response.ts';
-import type { EcoPageFile } from '../../../types/public-types.ts';
+import type { EcoPageComponent, EcoPageFile } from '../../../types/contracts.ts';
 import { resolveInternalExecutionDir } from '../../../utils/resolve-work-dir.ts';
 import { ensureIntegrationRuntimeReady } from '../../../build/app-build-manifest-runtime.ts';
 import type { RouteRegistryPageModuleAdapter } from '../../../router/server/route-registry.ts';
@@ -29,7 +29,7 @@ import type {
 	RenderContext,
 	StaticRoute,
 	ErrorPageLoaders,
-} from '../../../types/public-types.ts';
+} from '../../../types/contracts.ts';
 
 type SharedResponseHandlerDependencies = {
 	cacheService: PageCacheService | null;
@@ -166,10 +166,11 @@ export class ServerRequestPipeline {
 					.loadPageModule(filePath)) as EcoPageFile;
 
 				const page = module.default;
+				const pageComponent = page as EcoPageComponent<any> | undefined;
 
 				return {
-					staticPaths: page?.staticPaths ?? module.getStaticPaths,
-					staticProps: page?.staticProps ?? module.getStaticProps,
+					staticPaths: pageComponent?.staticPaths ?? module.getStaticPaths,
+					staticProps: pageComponent?.staticProps ?? module.getStaticProps,
 				};
 			},
 		};

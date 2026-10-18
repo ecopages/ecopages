@@ -2,16 +2,12 @@ import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
-import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
-import type { IClientBridge } from '@ecopages/core';
-import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
-import type { BuildAdapter } from '@ecopages/core/build/build-adapter';
-import { installBuildQueue } from '@ecopages/core/build/build-queue';
-import type {
-	EcoBuildPluginBuilder,
-	ProcessorWatchChanges,
-	ProcessorWatchConfig,
-} from '@ecopages/core/plugins/processor';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import type { IClientBridge } from '@ecopages/core/integration';
+import { GENERATED_BASE_PATHS } from '@ecopages/core/build';
+import type { BuildAdapter } from '@ecopages/core/build';
+import { installBuildQueue } from '@ecopages/core/build';
+import type { EcoBuildPluginBuilder, ProcessorWatchChanges, ProcessorWatchConfig } from '@ecopages/core/processor';
 import { fileSystem } from '@ecopages/file-system';
 import { contentProcessorPlugin, ContentProcessorPlugin } from '../plugin.ts';
 import { testContentSchema } from './test-schema.ts';

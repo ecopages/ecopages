@@ -1,5 +1,5 @@
 import { createPagePackage, type ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
-import type { PageBrowserGraphResult, PagePackageResult } from '../../../types/public-types.ts';
+import type { PageBrowserGraphResult, PagePackageResult } from '../../../types/contracts.ts';
 import { buildProcessedAssetDedupeKey, dedupeProcessedAssets } from '../../../assets/processed-asset-dedupe.ts';
 
 /**

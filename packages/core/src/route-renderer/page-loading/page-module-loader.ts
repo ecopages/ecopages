@@ -7,9 +7,9 @@ import type {
 	PageMetadataProps,
 	RouteRendererOptions,
 	EcoPageComponent,
-} from '../../types/public-types.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { requireAppRuntime } from '../../types/app-runtime.ts';
+} from '../../types/contracts.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
+import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { HttpError } from '../../errors/http-error.ts';
 
@@ -138,12 +138,13 @@ export class PageModuleLoaderService {
 			getMetadata: moduleGetMetadata,
 			...integrationSpecificProps
 		} = module;
+		const pageComponent = Page as EcoPageComponent<any>;
 
 		return {
 			module,
 			Page,
-			getStaticProps: Page.staticProps ?? moduleGetStaticProps,
-			getMetadata: Page.metadata ?? moduleGetMetadata,
+			getStaticProps: pageComponent.staticProps ?? moduleGetStaticProps,
+			getMetadata: pageComponent.metadata ?? moduleGetMetadata,
 			integrationSpecificProps,
 		};
 	}

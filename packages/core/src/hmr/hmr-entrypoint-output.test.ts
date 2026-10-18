@@ -4,7 +4,7 @@ import {
 	isRegisteredDevTransformEntrypoint,
 	isRegisteredScriptEntrypoint,
 } from './hmr-entrypoint-output.ts';
-import type { ResolvedHmrEntrypoint } from '../types/public-types.ts';
+import type { ResolvedHmrEntrypoint } from '../types/contracts.ts';
 
 function createRegisteredEntrypoint(
 	overrides: Partial<ResolvedHmrEntrypoint> & Pick<ResolvedHmrEntrypoint, 'sourcePath'>,

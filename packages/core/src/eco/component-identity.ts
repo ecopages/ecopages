@@ -1,12 +1,8 @@
-import type { EcoComponent, EcoComponentConfig } from '../types/public-types.ts';
+import type { EcoComponent, EcoComponentConfig } from '../types/contracts.ts';
+import type { ComponentIdentity } from '../types/component-identity.ts';
 import { registerDiscoveredDependencies, type DiscoveredDependencies } from './discovered-dependencies.ts';
 
-/** Stable attribution for a Component created by an Integration-owned module. */
-export type ComponentIdentity = {
-	id: string;
-	file: string;
-	integration: string;
-};
+export type { ComponentIdentity } from '../types/component-identity.ts';
 
 function asConfig(value: EcoComponent | EcoComponentConfig | undefined): EcoComponentConfig | undefined {
 	if (!value) return undefined;

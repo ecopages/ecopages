@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { HmrAction } from '@ecopages/core/hmr/hmr-strategy';
+import type { HmrAction } from '@ecopages/core/integration';
 import type { ReactHmrBuildTarget } from './react-hmr-dev-transform-plugins.ts';
 
 export type HmrProcessContext = {

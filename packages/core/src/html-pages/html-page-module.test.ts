@@ -4,8 +4,8 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDiscoveredWatchFiles } from '../eco/discovered-dependencies.ts';
 import { appLogger } from '../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import type { GetMetadataContext } from '../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import type { EcoPageComponent, GetMetadataContext } from '../types/contracts.ts';
 import { HTML_PAGES_INTEGRATION_NAME, loadHtmlPageModule } from './html-page-module.ts';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 
@@ -101,8 +101,8 @@ describe('html-page-module', () => {
 		const file = path.join(rootDir, 'src/pages/about.html');
 		writeFileSync(file, '<head><title>About</title></head><main>About</main>');
 
-		const Page = loadHtmlPageModule(appConfig, file).default;
-		const metadata = await Page.metadata?.({ appConfig } as GetMetadataContext);
+		const Page = loadHtmlPageModule(appConfig, file).default as EcoPageComponent<any>;
+		const metadata = await Page.metadata?.({ appConfig, params: {}, query: {}, props: {} } as GetMetadataContext);
 
 		expect(metadata).toEqual({ title: 'About', description: 'Default description' });
 		expect(Page.config?.identity).toMatchObject({ file, integration: HTML_PAGES_INTEGRATION_NAME });

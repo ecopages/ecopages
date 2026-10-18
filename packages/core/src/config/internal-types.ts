@@ -1,5 +1,5 @@
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
-import type { AppRuntime } from './app-runtime.ts';
+import type { AppRuntime } from './assembly/app-runtime.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { Processor } from '../plugins/processor.ts';
 import type {
@@ -8,7 +8,7 @@ import type {
 	EcoComponent,
 	PageMetadataProps,
 	SitemapConfig,
-} from './public-types.ts';
+} from '../types/contracts.ts';
 
 /** Internal render input carrying route-resolved dependency roots. */
 export type InternalComponentRenderInput = ComponentRenderInput & {
@@ -194,25 +194,6 @@ export type EcoPagesAppConfig = {
 	};
 };
 
-/**
- * The possible kinds of a route.
- */
-export type RouteKind = 'exact' | 'catch-all' | 'dynamic';
-
-/**
- * Represents the result of a route match.
- */
-export type MatchResult = {
-	requestedPathname: string;
-	templateRoute: {
-		filePath: string;
-		kind: RouteKind;
-		pathname: string;
-	};
-	query: Record<string, string>;
-	params: Record<string, string | string[]>;
-};
-
 // Re-export HMR types from public-types for internal use
 export type {
 	ClientBridgeEvent,
@@ -220,4 +201,4 @@ export type {
 	HmrFileChangeOptions,
 	IHmrManager,
 	IClientBridge,
-} from './public-types.ts';
+} from '../types/contracts.ts';

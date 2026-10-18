@@ -6,11 +6,7 @@
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import type {
-	EcoBuildOnLoadArgs,
-	EcoBuildOnLoadResult,
-	EcoBuildPlugin,
-} from '@ecopages/core/plugins/integration-plugin';
+import type { EcoBuildOnLoadArgs, EcoBuildOnLoadResult, EcoBuildPlugin } from '@ecopages/core/integration';
 import type { RequestedExportRules } from './specifier-classification.ts';
 import { parseDeclaredModules, toModuleBaseSpecifier } from './specifier-classification.ts';
 import { classifyClientGraphModule } from './module-classification.ts';

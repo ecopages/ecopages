@@ -3,9 +3,9 @@ import { fileSystem } from '@ecopages/file-system';
 import type { ComponentIdentity } from '../eco/component-identity.ts';
 import { registerDiscoveredDependencies } from '../eco/discovered-dependencies.ts';
 import { appLogger } from '../global/app-logger.ts';
-import { requireAppRuntime } from '../types/app-runtime.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import type { EcoComponent, EcoPageFile, GetMetadata } from '../types/public-types.ts';
+import { requireAppRuntime } from '../utils/app-runtime.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import type { EcoComponent, EcoPageFile, GetMetadata } from '../types/contracts.ts';
 import { rapidhash } from '../utils/hash.ts';
 import { isDevelopmentRuntime } from '../utils/runtime.ts';
 import {
@@ -22,7 +22,7 @@ export const HTML_PAGES_INTEGRATION_NAME = 'html-pages';
  */
 const HTML_TEMPLATE = Symbol.for('ecopages.html-pages.template');
 
-type HtmlTemplateComponent = EcoComponent & { [HTML_TEMPLATE]?: HtmlTemplate };
+type HtmlTemplateComponent = EcoComponent & { [HTML_TEMPLATE]?: HtmlTemplate; metadata?: GetMetadata };
 
 const BUILT_IN_SHELL_SOURCE = `<!DOCTYPE html>
 <html lang="en">

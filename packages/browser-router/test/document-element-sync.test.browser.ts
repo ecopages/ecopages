@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
 import { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC } from '../src/client/types.ts';
 import { syncDocumentElementAttributes } from '../src/client/document-element-sync.ts';
 

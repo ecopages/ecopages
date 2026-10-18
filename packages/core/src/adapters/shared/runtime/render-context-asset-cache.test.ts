@@ -4,11 +4,11 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestAppConfig } from '@ecopages/testing';
 import { IntegrationPlugin } from '../../../plugins/integration-plugin.ts';
-import { requireAppRuntime } from '../../../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { StringMarkupRenderer } from '../../../route-renderer/orchestration/string-markup-renderer.ts';
 import { FileScriptProcessor } from '../../../assets/asset-processing-service/processors/script/file-script.processor.ts';
 import { FileStylesheetProcessor } from '../../../assets/asset-processing-service/processors/stylesheet/file-stylesheet.processor.ts';
-import type { EcoComponent, EcoFunctionComponent, HtmlTemplateProps } from '../../../types/public-types.ts';
+import type { EcoComponent, EcoFunctionComponent, HtmlTemplateProps } from '../../../types/contracts.ts';
 import { createRenderContext } from './render-context.ts';
 
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => `<html><body>${children}</body></html>`;

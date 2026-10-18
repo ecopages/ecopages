@@ -1,31 +1,33 @@
 # @ecopages/codemod
 
-Automated code transformations for upgrading older Ecopages project structures to the latest consolidated APIs (`eco.page()` and `eco.component()`).
+Automated code transformations for upgrading Ecopages projects. This is an internal workspace package and is not published to npm. To run a transform, check out the Ecopages repository at the release ref matching the installed `@ecopages/core` version, then run the examples below from that checkout with an absolute path to the project being migrated.
 
 ## Installation
 
 ```bash
-bun install
+pnpm install --filter @ecopages/codemod
 ```
+
+Run transforms through the workspace package so they use the version from the matching Ecopages checkout. Pass absolute paths to the project files being migrated.
 
 ## Complete Migration Script
 
-Run this from your project root to migrate your entire structure (components, layouts, includes, and pages) at once:
+Run this from the Ecopages checkout to migrate components, layouts, includes, and pages in another project:
 
 ```bash
 # Migrate components, layouts, and includes
-npx jscodeshift \
-  -t node_modules/@ecopages/codemod/src/transforms/migrate-to-eco-component.ts \
+pnpm --filter @ecopages/codemod exec jscodeshift \
+  -t src/transforms/migrate-to-eco-component.ts \
   --parser tsx \
-  ./src/components \
-  ./src/layouts \
-  ./src/includes
+  /path/to/project/src/components \
+  /path/to/project/src/layouts \
+  /path/to/project/src/includes
 
 # Migrate pages
-npx jscodeshift \
-  -t node_modules/@ecopages/codemod/src/transforms/migrate-to-eco-page.ts \
+pnpm --filter @ecopages/codemod exec jscodeshift \
+  -t src/transforms/migrate-to-eco-page.ts \
   --parser tsx \
-  ./src/pages
+  /path/to/project/src/pages
 ```
 
 ## Individual Migrations
@@ -35,7 +37,7 @@ npx jscodeshift \
 Transforms pages from the legacy separate exports pattern to the consolidated API:
 
 ```bash
-npx jscodeshift -t codemod/src/transforms/migrate-to-eco-page.ts --parser tsx path/to/pages/
+pnpm --filter @ecopages/codemod exec jscodeshift -t src/transforms/migrate-to-eco-page.ts --parser tsx /path/to/project/src/pages
 ```
 
 ### Migrate Components to `eco.component()`
@@ -43,8 +45,21 @@ npx jscodeshift -t codemod/src/transforms/migrate-to-eco-page.ts --parser tsx pa
 Transforms components from the legacy `.config` assignment to the consolidated API:
 
 ```bash
-npx jscodeshift -t codemod/src/transforms/migrate-to-eco-component.ts --parser tsx path/to/components/
+pnpm --filter @ecopages/codemod exec jscodeshift -t src/transforms/migrate-to-eco-component.ts --parser tsx /path/to/project/src/components
 ```
+
+### Migrate Core Entry Points
+
+When upgrading to the role-based `@ecopages/core` exports, rewrite static imports and re-exports whose requested names are present in the destination entry. The transform also rewrites matching string-literal paths in `import.meta.resolve()` and `require.resolve()` calls. It leaves matching string-literal dynamic `import()` and `require()` calls unchanged and reports them for manual review because it cannot verify which exports the caller reads:
+
+```bash
+pnpm --filter @ecopages/codemod exec jscodeshift \
+  -t src/transforms/migrate-core-entrypoints.ts \
+  --parser tsx \
+  /path/to/project/src
+```
+
+The transform leaves imports unchanged and reports them when a requested named export is not present in the destination role entry. Review those imports manually. Matching string-literal dynamic `import()` and `require()` calls stay unchanged with a warning, since their accessed names cannot be checked safely. Computed or other nonliteral module paths are left unchanged without a warning. `@ecopages/core/config/write-types` and `@ecopages/core/hmr/client/hmr-runtime` remain unchanged because core loads those entries by path.
 
 ## Options
 

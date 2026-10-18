@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { PageModuleLoaderService } from './page-module-loader.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import type { EcoPageFile, GetMetadata } from '../../types/public-types.ts';
-import type { EcoPageComponent } from '../../eco/eco.types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
+import type { EcoPageFile, GetMetadata } from '../../types/contracts.ts';
+import type { EcoPageComponent } from '../../types/eco-api-types.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import type { AppModuleLoaderContract } from '../../build/server/app-module-loader.service.ts';
 

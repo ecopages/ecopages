@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { EcoBuildPluginBuilder } from '@ecopages/core/plugins/processor';
+import type { EcoBuildPluginBuilder } from '@ecopages/core/processor';
 import {
 	createContentPluginBundler,
 	parseCollectionName,

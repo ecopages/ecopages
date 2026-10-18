@@ -4,9 +4,10 @@ import { fileSystem } from '@ecopages/file-system';
 import { AssetProcessingService } from './asset-processing.service';
 import type { AssetDefinition, ContentScriptAsset, ProcessedAsset } from './assets.types';
 import { PageCacheService } from '../../page-cache/page-cache-service.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
-import { requireAppRuntime, type AppRuntime } from '../../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../../utils/app-runtime.ts';
+import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
 
 function createTestConfig(overrides: Record<string, unknown> = {}): EcoPagesAppConfig {
 	return {

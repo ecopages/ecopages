@@ -1,4 +1,4 @@
-import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/router/navigation-pipeline';
+import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/client';
 import { DEV_TOOLBAR_PERSIST_KEY } from '../runtime/constants.ts';
 import { DEV_TOOLBAR_STYLES } from './styles.ts';
 

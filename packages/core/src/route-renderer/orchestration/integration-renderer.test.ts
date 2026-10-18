@@ -25,7 +25,6 @@ import type {
 	GetMetadata,
 	GetStaticProps,
 	IntegrationRendererRenderOptions,
-	InternalIntegrationRendererRenderOptions,
 	RouteRendererBody,
 	EcoComponent,
 	HtmlTemplateProps,
@@ -1207,60 +1206,81 @@ describe('IntegrationRenderer', () => {
 		expect(html).toContain('<main>Dynamic Title</main>');
 	});
 
-	it('should keep layout locals safe and page locals guarded on static pages', async () => {
+	it('keeps request locals off static layouts and guards static page access', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
 		});
+		renderer.UseDocumentShellRender = true;
 
-		const PageIdx = (() => 'Page Content') as EcoPageComponent<any>;
+		const PageIdx = (({ locals }: { locals?: object }) => {
+			try {
+				Reflect.get(locals as object, 'session');
+				return '<p>request locals were available</p>';
+			} catch (error) {
+				return `<p>${error instanceof Error ? error.message : String(error)}</p>`;
+			}
+		}) as EcoPageComponent<Record<string, unknown>>;
+		const Layout = (({ children, locals }: { children?: unknown; locals?: object }) =>
+			`<main data-layout-locals="${locals === undefined ? 'absent' : 'present'}">${String(children ?? '')}</main>`) as EcoComponent<{
+			children?: unknown;
+			locals?: object;
+		}>;
+		PageIdx.config = { layouts: [Layout] };
 
 		renderer.PageModule = {
 			default: PageIdx,
 		};
-		renderer.HtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
+		renderer.HtmlTemplate = (({ children }) =>
+			`<html><body>${String(children ?? '')}</body></html>`) as EcoComponent<HtmlTemplateProps>;
 
-		await renderer.execute({
+		const result = await renderer.execute({
 			file: '/app/pages/static-page.ts',
 			params: {},
 			query: {},
 		});
+		const html = await new Response(result.body as BodyInit).text();
 
-		const renderOptions = renderer.CapturedRenderOptions;
-		expect(renderOptions).toBeDefined();
-		if (!renderOptions) {
-			throw new Error('Expected route rendering to capture its options.');
-		}
-		expect(renderOptions.locals).toBeUndefined();
-		const pageLocals = renderOptions.pageLocals as object;
-		expect(pageLocals).toBeDefined();
-		expect(() => Reflect.get(pageLocals, 'session')).toThrow();
+		expect(html).toContain('data-layout-locals="absent"');
+		expect(html).toContain(
+			"[ecopages] Request locals are only available during request-time rendering with cache: 'dynamic'. Page: /app/pages/static-page.ts",
+		);
 	});
 
-	it('should provide both locals and pageLocals on dynamic pages', async () => {
+	it('passes request locals to dynamic pages and layouts', async () => {
 		const renderer = new TestIntegrationRenderer({
 			appConfig: testAppConfig,
 			assetProcessingService: testAssetService,
 		});
+		renderer.UseDocumentShellRender = true;
 
-		const PageIdx = (() => 'Page Content') as EcoPageComponent<any>;
+		const PageIdx = (({ locals }: { locals?: { session?: { userId?: string } } }) =>
+			`<p data-page-user="${locals?.session?.userId ?? 'missing'}">Page</p>`) as EcoPageComponent<
+			Record<string, unknown>
+		>;
+		const Layout = (({ children, locals }: { children?: unknown; locals?: { session?: { userId?: string } } }) =>
+			`<main data-layout-user="${locals?.session?.userId ?? 'missing'}">${String(children ?? '')}</main>`) as EcoComponent<{
+			children?: unknown;
+			locals?: { session?: { userId?: string } };
+		}>;
 		PageIdx.cache = 'dynamic';
+		PageIdx.config = { layouts: [Layout] };
 
 		renderer.PageModule = {
 			default: PageIdx,
 		};
-		renderer.HtmlTemplate = (() => 'HTML Template') as EcoComponent<HtmlTemplateProps>;
+		renderer.HtmlTemplate = (({ children }) =>
+			`<html><body>${String(children ?? '')}</body></html>`) as EcoComponent<HtmlTemplateProps>;
 
-		const incomingLocals = { session: { userId: 'u-1' } } as Record<string, unknown>;
-		await renderer.execute({
+		const result = await renderer.execute({
 			file: '/app/pages/dynamic-page.ts',
 			params: {},
 			query: {},
-			locals: incomingLocals,
+			locals: { session: { userId: 'u-1' } },
 		});
+		const html = await new Response(result.body as BodyInit).text();
 
-		expect(renderer.CapturedRenderOptions?.locals).toBe(incomingLocals);
-		expect(renderer.CapturedRenderOptions?.pageLocals).toBe(incomingLocals);
+		expect(html).toContain('<main data-layout-user="u-1"><p data-page-user="u-1">Page</p></main>');
 	});
 
 	describe('renderExplicitView', () => {
@@ -1629,10 +1649,16 @@ describe('IntegrationRenderer', () => {
 			}
 			override async buildPageClientBrowserAssets() {
 				return {
-					processedAssets: [hydrationAsset],
+					processedAssets: [],
 					islandRenderAssetsByFile: new Map([['/app/react-counter.tsx', [hydrationAsset]]]),
 					lazyTriggers: [],
 				};
+			}
+			override async renderComponent(input: ComponentRenderInput) {
+				const result = await super.renderComponent(input);
+				const componentFile = input.component.config?.identity?.file;
+				const assets = componentFile ? this.getActiveIslandRenderAssets().get(componentFile) : undefined;
+				return assets ? { ...result, assets: [...(result.assets ?? []), ...assets] } : result;
 			}
 		})({
 			appConfig: testAppConfig,
@@ -1660,21 +1686,17 @@ describe('IntegrationRenderer', () => {
 		const Page = eco.component({
 			integration: 'kitajs',
 			dependencies: { components: [island] },
-			render: () => '<main>Page</main>',
+			render: () => `<main>${String(island({}))}</main>`,
 		});
 		host.PageModule = { default: Page };
-		host.HtmlTemplate = (() =>
-			'<html><head></head><body><main>Page</main></body></html>') as EcoComponent<HtmlTemplateProps>;
+		host.UseDocumentShellRender = true;
+		host.HtmlTemplate = (({ children }) =>
+			`<html><head></head><body>${String(children ?? '')}</body></html>`) as EcoComponent<HtmlTemplateProps>;
 
 		const result = await host.execute({ file: '/app/pages/index.kita.tsx', params: {}, query: {} });
 		const html = await new Response(result.body as BodyInit).text();
 
+		expect(html).toContain('<button>Counter</button>');
 		expect(html).toContain('/assets/react-island-hydration.js');
-		expect(host.CapturedRenderOptions?.pagePackage?.assets).toEqual(expect.arrayContaining([hydrationAsset]));
-		expect(
-			(
-				host.CapturedRenderOptions as InternalIntegrationRendererRenderOptions<EcoPagesElement> | null
-			)?.islandRenderAssetsByFile?.get('/app/react-counter.tsx'),
-		).toEqual([hydrationAsset]);
 	});
 });

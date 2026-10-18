@@ -432,6 +432,7 @@ describe('ReactRenderer', () => {
 				getIslandComponentKey(pageFilePath, Component.config),
 			);
 			expect(result.rootAttributes?.['data-eco-props']).toBe(btoa(JSON.stringify({ title: 'Island' })));
+			expect(result.assets).toContainEqual(expect.objectContaining({ srcUrl: '/assets/mock.js' }));
 		});
 
 		it('does not emit island hydration for the page owner React tree', async () => {

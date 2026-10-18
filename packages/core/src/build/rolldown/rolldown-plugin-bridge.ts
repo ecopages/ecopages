@@ -53,7 +53,7 @@ import type {
 	SourceMapInput,
 } from 'rolldown';
 import { id as idFilter, include } from 'rolldown/filter';
-import { escapeRegExp } from '../browser/browser-runtime-plugin-helpers.ts';
+import { escapeRegExp } from '../../utils/regex-escaping.ts';
 import type {
 	EcoBuildOnLoadArgs,
 	EcoBuildOnLoadResult,

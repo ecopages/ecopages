@@ -1,14 +1,6 @@
 import { isDevelopmentRuntime } from '../../utils/runtime.ts';
+import { escapeHtml } from '../../utils/html-escaping.ts';
 import { ERROR_PAGE_COPY, isHttpErrorPageStatus, isHttpErrorStatus } from '../../errors/http-error-page-contract.ts';
-
-function escapeHtml(value: string): string {
-	return value
-		.replaceAll('&', '&amp;')
-		.replaceAll('<', '&lt;')
-		.replaceAll('>', '&gt;')
-		.replaceAll('"', '&quot;')
-		.replaceAll("'", '&#39;');
-}
 
 /** Stable class hooks exposed by the framework-owned error documents. */
 export const DEFAULT_ERROR_PAGE_CLASS_NAMES = {

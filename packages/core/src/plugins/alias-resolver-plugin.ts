@@ -1,10 +1,7 @@
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
+import { escapeRegExp } from '../utils/regex-escaping.ts';
 import { AliasResolverCache } from './alias-resolver-cache.ts';
 import { loadTsconfigPathPrefixes, resolveProjectImportPath } from './tsconfig-import-resolver.ts';
-
-function escapeRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 function buildPathPrefixFilter(prefix: string): RegExp {
 	if (prefix.endsWith('/')) {

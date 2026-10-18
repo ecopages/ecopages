@@ -8,6 +8,9 @@ import {
 	scanTag,
 	VOID_ELEMENTS,
 } from './html-tokenizer.ts';
+import { decodeHtmlEntities } from '../utils/html-entities.ts';
+
+export { decodeHtmlEntities } from '../utils/html-entities.ts';
 
 /**
  * Positional HTML parser for callers that splice the original markup.
@@ -69,33 +72,6 @@ export const HEAD_CONTENT_ELEMENTS: ReadonlySet<string> = new Set([
 	'template',
 	'title',
 ]);
-
-const NAMED_CHARACTER_REFERENCES: Record<string, string> = {
-	amp: '&',
-	lt: '<',
-	gt: '>',
-	quot: '"',
-	apos: "'",
-	nbsp: ' ',
-};
-
-/**
- * Decodes numeric and the common named character references.
- *
- * @remarks
- * Callers read titles, metadata, and URLs through this, so the full named
- * reference table is not worth carrying.
- */
-export function decodeHtmlEntities(value: string): string {
-	return value.replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (reference, body: string) => {
-		if (body[0] === '#') {
-			const codePoint =
-				body[1] === 'x' || body[1] === 'X' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
-			return Number.isFinite(codePoint) && codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : reference;
-		}
-		return NAMED_CHARACTER_REFERENCES[body.toLowerCase()] ?? reference;
-	});
-}
 
 function findLastOpen(openElements: readonly HtmlElementNode[], tagName: string): number {
 	for (let position = openElements.length - 1; position >= 0; position--) {

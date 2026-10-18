@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
+import { isPathStrictlyInside } from '../utils/path-containment.ts';
 
 /**
  * @remarks
@@ -41,10 +42,5 @@ export function resolveWorkspacePackageWatchRoots(rootDir: string): string[] {
 }
 
 export function isWorkspacePackageFile(filePath: string, roots: readonly string[]): boolean {
-	return roots.some((root) => {
-		const relative = path.relative(root, filePath);
-		return (
-			relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)
-		);
-	});
+	return roots.some((root) => isPathStrictlyInside(filePath, root));
 }

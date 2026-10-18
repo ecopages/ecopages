@@ -2,6 +2,7 @@ import path from 'node:path';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import type { PageMetadataProps, PageRobotsMetadata } from '../types/contracts.ts';
 import { escapeHtmlAttribute } from '../utils/html-escaping.ts';
+import { isPathInside } from '../utils/path-containment.ts';
 import {
 	findElements,
 	getAttribute,
@@ -260,8 +261,7 @@ function readAssetDeclaration(
 		);
 	}
 
-	const relativeToSrc = path.relative(options.srcDir, filepath);
-	if (relativeToSrc.startsWith('..') || path.isAbsolute(relativeToSrc)) {
+	if (!isPathInside(filepath, options.srcDir)) {
 		throw htmlError(file, `"${reference}" resolves outside the source directory (${options.srcDir}).`);
 	}
 

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { isPathStrictlyInside } from '../utils/path-containment.ts';
 import { createHash } from 'node:crypto';
 import { fileSystem } from '@ecopages/file-system';
 import type { PageParams } from '../types/contracts.ts';
@@ -438,8 +439,7 @@ export function assertAppBrowserClientManifestHtmlOutputsExist(
 			appConfig.absolutePaths.distDir,
 			url.replace(/^\/+/, '').split(/[?#]/, 1)[0] ?? '',
 		);
-		const relativeOutputPath = path.relative(appConfig.absolutePaths.distDir, outputPath);
-		if (relativeOutputPath.startsWith('..') || relativeOutputPath === '' || !fileSystem.exists(outputPath)) {
+		if (!isPathStrictlyInside(outputPath, appConfig.absolutePaths.distDir) || !fileSystem.exists(outputPath)) {
 			throw new Error(
 				`The app browser build manifest references missing HTML module-script output for ${sourcePath}. Run \`ecopages build\` again.`,
 			);
@@ -454,8 +454,7 @@ export function assertAppBrowserClientOutputsExist(
 ): void {
 	for (const relativeOutputPath of relativeOutputPaths) {
 		const outputPath = path.resolve(appConfig.rootDir, relativeOutputPath);
-		const relativeDistPath = path.relative(appConfig.absolutePaths.distDir, outputPath);
-		if (path.isAbsolute(relativeDistPath) || relativeDistPath.startsWith('..') || !fileSystem.exists(outputPath)) {
+		if (!isPathStrictlyInside(outputPath, appConfig.absolutePaths.distDir) || !fileSystem.exists(outputPath)) {
 			throw new Error(
 				`The app browser build manifest references missing output ${relativeOutputPath}. Run \`ecopages build\` again.`,
 			);

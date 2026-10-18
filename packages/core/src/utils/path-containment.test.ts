@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isPathInside } from './path-containment.ts';
+import { isPathInside, isPathStrictlyInside } from './path-containment.ts';
 
 describe('isPathInside', () => {
 	it.each([
@@ -14,5 +14,16 @@ describe('isPathInside', () => {
 		['/app/src/public/../secret.ts', '/app/src/public', false],
 	])('%s inside %s is %s', (filePath, directory, expected) => {
 		expect(isPathInside(filePath, directory)).toBe(expected);
+	});
+});
+
+describe('isPathStrictlyInside', () => {
+	it.each([
+		['/app/src/public/logo.svg', '/app/src/public', true],
+		['/app/src/public', '/app/src/public', false],
+		['/app/src/public/../secret.ts', '/app/src/public', false],
+		['/app/src/public-api/client.ts', '/app/src/public', false],
+	])('%s is a strict descendant of %s: %s', (filePath, directory, expected) => {
+		expect(isPathStrictlyInside(filePath, directory)).toBe(expected);
 	});
 });

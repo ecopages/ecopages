@@ -274,7 +274,7 @@ test('AssetProcessingService - processDependencies - does not map a path beside 
 
 	const service = new AssetProcessingService(Config);
 	service.registerProcessor('script', 'file', {
-		process: vi.fn(async () => ({ srcUrl: '/test/dist-old/x.js', kind: 'script' as const, inline: false })),
+		process: vi.fn(async () => ({ filepath: '/test/dist-old/x.js', kind: 'script' as const, inline: false })),
 	});
 
 	const results = await service.processDependencies(
@@ -282,7 +282,7 @@ test('AssetProcessingService - processDependencies - does not map a path beside 
 		undefined,
 	);
 
-	expect(results[0].srcUrl).not.toBe('/-old/x.js');
+	expect(results[0].srcUrl).toBeUndefined();
 });
 
 test('AssetProcessingService - caching returns cached asset without reprocessing', async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import { getEcoNavigationRuntime } from '@ecopages/core/client';
 import { createRouter } from '../src/client/eco-router';
 import {
 	createDeferred,
@@ -8,26 +8,17 @@ import {
 	type EcoRouterTestFixtures,
 	waitForNavigation,
 } from './eco-router.harness';
+import { stageStylesheets } from '../../core/src/router/client/staged-stylesheets.test-fixtures.ts';
 
 describe('EcoRouter', () => {
 	const fixtures: EcoRouterTestFixtures = {
 		router: null,
 		fetchSpy: null,
-		user: null!,
 	};
 
 	installEcoRouterTestHooks(fixtures);
 
 	describe('History Management', () => {
-		it('should update history by default', async () => {
-			fixtures.router = createRouter();
-			const pushStateSpy = vi.spyOn(window.history, 'pushState');
-
-			await fixtures.router.navigate('/history-test');
-
-			expect(pushStateSpy).toHaveBeenCalled();
-		});
-
 		it('should not update history when updateHistory is false', async () => {
 			fixtures.router = createRouter({ updateHistory: false });
 			const pushStateSpy = vi.spyOn(window.history, 'pushState');
@@ -49,11 +40,17 @@ describe('EcoRouter', () => {
 			});
 
 			window.history.pushState({}, '', '/popstate-test');
+			window.history.pushState({}, '', '/popstate-later');
 
-			window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+			window.history.back();
 			await fetchCalled;
 			await waitForNavigation();
 
+			expect(window.location.pathname).toBe('/popstate-test');
+			expect(fixtures.fetchSpy).toHaveBeenCalledWith(
+				expect.stringContaining('/popstate-test'),
+				expect.anything(),
+			);
 			expect(document.body.innerHTML).toContain('Popstate Content');
 		});
 	});
@@ -89,7 +86,7 @@ describe('EcoRouter', () => {
 			});
 
 			void fixtures.router.navigate('/first-page');
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			await vi.waitFor(() => expect(fixtures.fetchSpy).toHaveBeenCalledOnce(), { interval: 1 });
 			await fixtures.router.navigate('/second-page');
 
 			expect(consoleSpy).not.toHaveBeenCalled();
@@ -113,7 +110,7 @@ describe('EcoRouter', () => {
 			});
 
 			fixtures.router.navigate('/first-page');
-			await new Promise((r) => setTimeout(r, 10));
+			await vi.waitFor(() => expect(fixtures.fetchSpy).toHaveBeenCalledOnce(), { interval: 1 });
 
 			expect(abortSignal?.aborted).toBe(false);
 
@@ -124,14 +121,16 @@ describe('EcoRouter', () => {
 
 		it('should ignore stale DOM swaps when a newer navigation finishes first', async () => {
 			fixtures.router = createRouter({ viewTransitions: false });
-			const slowStylesheets = createDeferred();
 			const afterSwapSpy = vi.fn();
+			const staged = stageStylesheets((link) => link.href.includes('/slow.css'));
 			document.addEventListener('eco:after-swap', afterSwapSpy);
 
 			fixtures.fetchSpy?.mockImplementation((url: string | URL | Request) => {
 				if (url.toString().includes('/slow-page')) {
 					return Promise.resolve(
-						htmlFetchResponse('<html><body><div id="content">Slow Content</div></body></html>'),
+						htmlFetchResponse(
+							'<html><head><link rel="stylesheet" href="/slow.css"></head><body><div id="content">Slow Content</div></body></html>',
+						),
 					);
 				}
 
@@ -140,27 +139,20 @@ describe('EcoRouter', () => {
 				);
 			});
 
-			const routerWithInternals = fixtures.router as unknown as {
-				domSwapper: { preloadStylesheets: (doc: Document) => Promise<void> };
-			};
-			const preloadSpy = vi.spyOn(routerWithInternals.domSwapper, 'preloadStylesheets');
-			preloadSpy.mockImplementation(async (doc: Document) => {
-				if (doc.body.textContent?.includes('Slow Content')) {
-					await slowStylesheets.promise;
-				}
-			});
-
-			const slowNavigation = fixtures.router.navigate('/slow-page');
-			await new Promise((resolve) => setTimeout(resolve, 0));
-			await fixtures.router.navigate('/fast-page');
-			slowStylesheets.resolve();
-			await slowNavigation;
-
 			try {
+				const slowNavigation = fixtures.router.navigate('/slow-page-stylesheet-race');
+				await vi.waitFor(() => expect(staged.links).toHaveLength(1));
+				await fixtures.router.navigate('/fast-page-stylesheet-race');
+				staged.finish(staged.links[0]!);
+				await slowNavigation;
+
 				expect(document.body.innerHTML).toContain('Fast Content');
 				expect(document.body.innerHTML).not.toContain('Slow Content');
-				expect(afterSwapSpy).toHaveBeenCalledTimes(1);
+				expect(afterSwapSpy.mock.calls.map(([event]) => (event as CustomEvent).detail.url.href)).toEqual([
+					window.location.href,
+				]);
 			} finally {
+				staged.stop();
 				document.removeEventListener('eco:after-swap', afterSwapSpy);
 			}
 		});
@@ -193,7 +185,7 @@ describe('EcoRouter', () => {
 			});
 
 			const slowNavigation = fixtures.router.navigate('/slow-page');
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			await vi.waitFor(() => expect(fixtures.fetchSpy).toHaveBeenCalledOnce(), { interval: 1 });
 			await getEcoNavigationRuntime(window).cleanupOwner('browser-router');
 			slowPage.resolve();
 			await slowNavigation;

@@ -1,6 +1,5 @@
 import fs from 'node:fs';
-import path from 'node:path';
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
+import type { EcoBuildPlugin } from '@ecopages/core/integration';
 
 function escapeRegExp(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -36,7 +35,6 @@ export function createReactDomRuntimeInteropPlugin(options?: {
 				return {
 					contents: `import * as __ecopages_react_runtime from '${reactSpecifier}';\n${rewritten}`,
 					loader: 'js',
-					resolveDir: path.dirname(args.path),
 				};
 			});
 		},

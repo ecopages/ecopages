@@ -8,19 +8,13 @@
  */
 
 import path from 'node:path';
-import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimePlugins } from '../../../../packages/core/src/build/build-adapter';
-import { installBuildRuntime } from '../../../../packages/core/src/build/runtime/build-runtime';
+import { installBuildQueue } from '../../../../packages/core/src/build/runtime/build-queue';
 import { createNodeServerAdapter } from '../../../../packages/core/src/adapters/node/server-adapter';
 import { RouteRegistry } from '../../../../packages/core/src/router/server/route-registry';
+import { requireAppRuntime } from '../../../../packages/core/src/config/assembly/app-runtime';
 import { RouteRendererFactory } from '../../../../packages/core/src/route-renderer/route-renderer';
 import { StaticSiteGenerator } from '../../../../packages/core/src/static-site-generator/static-site-generator';
-import {
-	createAppModuleLoader,
-	getAppServerModuleTranspiler,
-} from '../../../../packages/core/src/services/module-loading/app-server-module-transpiler.service';
-import { ROUTE_MODULE_BUILD_CACHE_FILENAME } from '../../../../packages/core/src/services/module-loading/route-module-build-manifest';
-import { PAGES_UNIFIED_GRAPH_CACHE_FILENAME } from '../../../../packages/core/src/build/cache/pages-unified-graph-build';
 import { resolveInternalExecutionDir } from '../../../../packages/core/src/utils/resolve-work-dir';
 import type { EcoPagesAppConfig } from '../../../../packages/core/src/types/internal-types';
 import type { EcoPageFile } from '../../../../packages/core/src/types/public-types';
@@ -67,26 +61,9 @@ export async function loadKitchenSinkProductionConfig(): Promise<EcoPagesAppConf
 	return loadKitchenSinkConfig();
 }
 
-export function clearBenchProductionCaches(appConfig: EcoPagesAppConfig): void {
-	const executionDir = resolveInternalExecutionDir(appConfig);
-	for (const subdir of ['.server-modules', '.server-route-modules'] as const) {
-		const manifestPath = path.join(executionDir, subdir, ROUTE_MODULE_BUILD_CACHE_FILENAME);
-		if (fileSystem.exists(manifestPath)) {
-			fileSystem.remove(manifestPath);
-		}
-	}
-
-	const serverEntryCachePath = path.join(executionDir, '.server-entry', ROUTE_MODULE_BUILD_CACHE_FILENAME);
-	if (fileSystem.exists(serverEntryCachePath)) {
-		fileSystem.remove(serverEntryCachePath);
-	}
-
-	const pagesGraphCachePath = path.join(executionDir, '.server-pages-graph', PAGES_UNIFIED_GRAPH_CACHE_FILENAME);
-	if (fileSystem.exists(pagesGraphCachePath)) {
-		fileSystem.remove(pagesGraphCachePath);
-	}
-
-	appConfig.runtime?.routeModuleBuildCaches?.clear();
+/** Drops the in-process route-module caches and the cached bench stacks so the next run compiles from source. */
+export function resetBenchBuildState(appConfig: EcoPagesAppConfig): void {
+	requireAppRuntime(appConfig).routeModuleBuildCaches.clear();
 	cachedBenchAdapter = undefined;
 	cachedGenerationStack = undefined;
 	diskColdCounter = 0;
@@ -98,12 +75,11 @@ export function nextDiskColdOutdir(appConfig: EcoPagesAppConfig): string {
 }
 
 export async function importRouteModuleDiskCold(appConfig: EcoPagesAppConfig, filePath: string): Promise<void> {
-	installBuildRuntime(appConfig);
-	const loader = createAppModuleLoader(appConfig);
+	installBuildQueue(appConfig);
+	const loader = requireAppRuntime(appConfig).moduleLoader;
 
 	await loader.importModule({
 		filePath,
-		rootDir: appConfig.rootDir,
 		outdir: nextDiskColdOutdir(appConfig),
 		externalPackages: true,
 	});
@@ -122,13 +98,13 @@ export async function bootstrapStaticGenerationStack(appConfig: EcoPagesAppConfi
 
 	const runtimeOrigin = 'http://127.0.0.1:3000';
 
-	installBuildRuntime(appConfig);
+	installBuildQueue(appConfig);
 	await setupAppRuntimePlugins({
 		appConfig,
 		runtimeOrigin,
 	});
 
-	const serverModuleTranspiler = getAppServerModuleTranspiler(appConfig);
+	const moduleLoader = requireAppRuntime(appConfig).moduleLoader;
 	const router = new RouteRegistry({
 		pagesDir: path.join(appConfig.rootDir, appConfig.srcDir, appConfig.pagesDir),
 		appConfig,
@@ -137,7 +113,7 @@ export async function bootstrapStaticGenerationStack(appConfig: EcoPagesAppConfi
 		buildMode: true,
 		pageModuleAdapter: {
 			loadPageModule: async (filePath) => {
-				const module = (await serverModuleTranspiler.importModule({
+				const module = (await moduleLoader.importModule({
 					filePath,
 					outdir: path.join(resolveInternalExecutionDir(appConfig), '.server-route-modules'),
 					externalPackages: true,
@@ -159,6 +135,7 @@ export async function bootstrapStaticGenerationStack(appConfig: EcoPagesAppConfi
 
 	const routeRendererFactory = new RouteRendererFactory({
 		appConfig,
+		runtime: requireAppRuntime(appConfig),
 		runtimeOrigin,
 	});
 	const staticSiteGenerator = new StaticSiteGenerator({ appConfig });
@@ -177,7 +154,6 @@ export async function runStaticSiteGeneration(
 	appConfig: EcoPagesAppConfig,
 	options?: {
 		force?: boolean;
-		preserveExportDirectory?: boolean;
 	},
 ): Promise<void> {
 	const stack = await bootstrapStaticGenerationStack(appConfig);
@@ -187,7 +163,6 @@ export async function runStaticSiteGeneration(
 		baseUrl: 'http://127.0.0.1:3000',
 		routeRendererFactory: stack.routeRendererFactory,
 		force: options?.force ?? false,
-		preserveExportDirectory: options?.preserveExportDirectory ?? !options?.force,
 	});
 }
 
@@ -201,6 +176,7 @@ export async function getStaticBuildBenchAdapter(
 
 	const adapter = await createNodeServerAdapter({
 		appConfig,
+		runtime: requireAppRuntime(appConfig),
 		runtimeOrigin: 'http://127.0.0.1:3000',
 		serveOptions: { hostname: '127.0.0.1', port: 0 },
 		options: { watch: false },

@@ -3,11 +3,7 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import {
-	createServerBundleStagingDirectory,
-	publishServerBundleDirectory,
-	resolvePublishedServerBundlePaths,
-} from './server-bundle-publication.ts';
+import { createServerBundleStagingDirectory, publishServerBundleDirectory } from './server-bundle-publication.ts';
 
 describe('server bundle publication', () => {
 	const tempDirs: string[] = [];
@@ -47,17 +43,5 @@ describe('server bundle publication', () => {
 		expect(() => publishServerBundleDirectory(path.join(rootDir, 'missing-staging'), serverOutdir)).toThrow();
 
 		expect(readFileSync(path.join(serverOutdir, 'app.mjs'), 'utf8')).toBe('old app');
-	});
-
-	it('maps staged outputs to their published paths', () => {
-		const { serverOutdir } = createFixture();
-		const stagingDir = createServerBundleStagingDirectory(serverOutdir);
-
-		expect(resolvePublishedServerBundlePaths([path.join(stagingDir, 'app.mjs')], stagingDir, serverOutdir)).toEqual(
-			[path.join(serverOutdir, 'app.mjs')],
-		);
-		expect(() =>
-			resolvePublishedServerBundlePaths([path.join(stagingDir, '..', 'escaped.mjs')], stagingDir, serverOutdir),
-		).toThrow(/escaped its staging directory/);
 	});
 });

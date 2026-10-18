@@ -1,31 +1,44 @@
-import { describe, expect, test, afterAll, beforeAll, vi } from 'vitest';
+import { describe, expect, test, afterEach, beforeEach, vi } from 'vitest';
+import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import postcss from 'postcss';
 import postcssNested from 'postcss-nested';
 import { PostCssProcessorPlugin } from '../plugin';
-import type { IClientBridge } from '@ecopages/core';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import type { IClientBridge } from '@ecopages/core/integration';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 
-const TMP_DIR = path.join(__dirname, 'tmp_test_hmr');
-const SRC_DIR = path.join(TMP_DIR, 'src');
-const DIST_DIR = path.join(TMP_DIR, 'dist');
+let tmpDir: string;
+let srcDir: string;
+let distDir: string;
+
+function hashedCssContents(): string[] {
+	const assetsDir = path.join(distDir, 'assets');
+	if (!fs.existsSync(assetsDir)) {
+		return [];
+	}
+
+	return fs
+		.readdirSync(assetsDir)
+		.filter((filename) => /^[a-f0-9]{16}\.css$/.test(filename))
+		.map((filename) => fs.readFileSync(path.join(assetsDir, filename), 'utf-8'));
+}
 
 describe('PostCssProcessorPlugin HMR', () => {
-	beforeAll(() => {
-		if (fs.existsSync(TMP_DIR)) {
-			fs.rmSync(TMP_DIR, { recursive: true, force: true });
-		}
-		fs.mkdirSync(SRC_DIR, { recursive: true });
-		fs.mkdirSync(DIST_DIR, { recursive: true });
+	beforeEach(() => {
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'postcss-plugin-test-'));
+		srcDir = path.join(tmpDir, 'src');
+		distDir = path.join(tmpDir, 'dist');
+		fs.mkdirSync(srcDir, { recursive: true });
+		fs.mkdirSync(distDir, { recursive: true });
 	});
 
-	afterAll(() => {
-		fs.rmSync(TMP_DIR, { recursive: true, force: true });
+	afterEach(() => {
+		fs.rmSync(tmpDir, { recursive: true, force: true });
 	});
 
 	test('handleCssChange should apply transformInput', async () => {
-		const cssFile = path.join(SRC_DIR, 'style.css');
+		const cssFile = path.join(srcDir, 'style.css');
 		fs.writeFileSync(cssFile, '.foo { color: red; }');
 
 		const plugin = new PostCssProcessorPlugin({
@@ -37,12 +50,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: tmpDir,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 
@@ -57,13 +70,13 @@ describe('PostCssProcessorPlugin HMR', () => {
 		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
 
 		const watchConfig = plugin.getWatchConfig();
-		if (watchConfig && watchConfig.onChange) {
-			await watchConfig.onChange({ path: cssFile, bridge: Bridge });
+		if (watchConfig && watchConfig.onChanges) {
+			await watchConfig.onChanges({ created: [], changed: [cssFile], deleted: [], bridge: Bridge });
 		} else {
 			throw new Error('Plugin does not have watch handler');
 		}
 
-		const outputFile = path.join(DIST_DIR, 'assets', 'style.css');
+		const outputFile = path.join(distDir, 'assets', 'style.css');
 		expect(fs.existsSync(outputFile)).toBe(true);
 
 		const outputContent = fs.readFileSync(outputFile, 'utf-8');
@@ -75,8 +88,8 @@ describe('PostCssProcessorPlugin HMR', () => {
 	});
 
 	test('dependency changes should rebuild tracked CSS with fresh plugin instances', async () => {
-		const cssFile = path.join(SRC_DIR, 'style.css');
-		const dependencyFile = path.join(SRC_DIR, 'component.tsx');
+		const cssFile = path.join(srcDir, 'style.css');
+		const dependencyFile = path.join(srcDir, 'component.tsx');
 		fs.writeFileSync(cssFile, '.foo { color: red; }');
 		fs.writeFileSync(dependencyFile, 'export const Component = () => <div className="text-red-500" />;');
 
@@ -101,12 +114,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: tmpDir,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 		await plugin.setup();
@@ -121,14 +134,14 @@ describe('PostCssProcessorPlugin HMR', () => {
 
 		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
+		if (!watchConfig?.onChanges) {
 			throw new Error('Plugin does not have watch handler');
 		}
 
 		activeColor = 'blue';
-		await watchConfig.onChange({ path: dependencyFile, bridge: Bridge });
+		await watchConfig.onChanges({ created: [], changed: [dependencyFile], deleted: [], bridge: Bridge });
 
-		const outputFile = path.join(DIST_DIR, 'assets', 'style.css');
+		const outputFile = path.join(distDir, 'assets', 'style.css');
 		const outputContent = fs.readFileSync(outputFile, 'utf-8');
 
 		expect(outputContent).toContain('color: blue');
@@ -136,13 +149,15 @@ describe('PostCssProcessorPlugin HMR', () => {
 	});
 
 	test('non-CSS dependency changes should rebuild each CSS entry once', async () => {
-		const stylesDir = path.join(SRC_DIR, 'dependency-entry-test');
+		const stylesDir = path.join(srcDir, 'dependency-entry-test');
 		fs.mkdirSync(path.join(stylesDir, 'partials'), { recursive: true });
 
 		const entryFile = path.join(stylesDir, 'tailwind.css');
 		const themeFile = path.join(stylesDir, 'partials', 'theme.css');
 		const proseFile = path.join(stylesDir, 'partials', 'prose.css');
-		const dependencyFile = path.join(SRC_DIR, 'entry-trigger.mdx');
+		const dependencyFiles = Array.from({ length: 50 }, (_, index) =>
+			path.join(srcDir, `entry-trigger-${index}.tsx`),
+		);
 
 		fs.writeFileSync(themeFile, '.theme { color: red; }');
 		fs.writeFileSync(proseFile, '.prose { color: blue; }');
@@ -150,9 +165,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 			entryFile,
 			`@import './partials/theme.css';\n@import './partials/prose.css';\n.root { display: flex; color: red; }`,
 		);
-		fs.writeFileSync(dependencyFile, '# trigger');
+		for (const dependencyFile of dependencyFiles) {
+			fs.writeFileSync(dependencyFile, 'export const Component = () => null;');
+		}
 
 		let activeColor = 'red';
+		let pluginFactoryCalls = 0;
 
 		const plugin = new PostCssProcessorPlugin({
 			options: {
@@ -160,6 +178,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 				dependencyEntryPaths: [entryFile],
 				pluginFactories: {
 					'test-color-plugin': () => {
+						pluginFactoryCalls += 1;
 						const colorAtCreation = activeColor;
 
 						return {
@@ -175,12 +194,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: tmpDir,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 		await plugin.setup();
@@ -195,20 +214,82 @@ describe('PostCssProcessorPlugin HMR', () => {
 
 		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
+		if (!watchConfig?.onChanges) {
 			throw new Error('Plugin does not have watch handler');
 		}
 
 		activeColor = 'purple';
-		await watchConfig.onChange({ path: dependencyFile, bridge: Bridge });
+		const callsBeforeChange = pluginFactoryCalls;
+		const processSpy = vi.spyOn(plugin, 'transformStylesheet');
+		await watchConfig.onChanges({ created: [], changed: dependencyFiles, deleted: [], bridge: Bridge });
 
+		expect(pluginFactoryCalls).toBe(callsBeforeChange + 1);
+		expect(processSpy).toHaveBeenCalledTimes(1);
+		expect(processSpy).toHaveBeenCalledWith(expect.any(String), entryFile);
 		expect(bridgeSpy).toHaveBeenCalledTimes(1);
 		expect(bridgeSpy).toHaveBeenCalledWith(entryFile);
 	});
 
+	test('created and deleted CSS in one batch rebuilds the remaining CSS entry once', async () => {
+		const deletedCssFile = path.join(srcDir, 'batch-lifecycle-deleted.css');
+		const createdCssFile = path.join(srcDir, 'batch-lifecycle-created.css');
+		const remainingCssFile = path.join(srcDir, 'batch-lifecycle-remaining.css');
+		fs.writeFileSync(deletedCssFile, '.deleted { color: red; }');
+		fs.writeFileSync(remainingCssFile, '.remaining { color: green; }');
+
+		const plugin = new PostCssProcessorPlugin({
+			options: {
+				filter: /batch-lifecycle.*\.css$/,
+			},
+		});
+		const config = await finalizeEcoPagesConfig({
+			rootDir: tmpDir,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
+		plugin.setContext(config);
+		await plugin.setup();
+
+		fs.rmSync(deletedCssFile);
+		fs.writeFileSync(createdCssFile, '.created { color: blue; }');
+
+		const Bridge = {
+			cssUpdate: () => {},
+			error: (msg: string) => {
+				throw new Error(msg);
+			},
+			reload: () => {},
+		} as unknown as IClientBridge;
+		const bridgeSpy = vi.spyOn(Bridge, 'cssUpdate');
+		const processSpy = vi.spyOn(plugin, 'transformStylesheet');
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onChanges) {
+			throw new Error('Plugin does not have watch handler');
+		}
+
+		await watchConfig.onChanges({
+			created: [createdCssFile],
+			changed: [],
+			deleted: [deletedCssFile],
+			bridge: Bridge,
+		});
+
+		expect(processSpy).toHaveBeenCalledTimes(2);
+		expect(processSpy.mock.calls.map(([, filePath]) => filePath).sort()).toEqual(
+			[createdCssFile, remainingCssFile].sort(),
+		);
+		expect(bridgeSpy).toHaveBeenCalledTimes(2);
+		expect(bridgeSpy).toHaveBeenCalledWith(createdCssFile);
+		expect(bridgeSpy).toHaveBeenCalledWith(remainingCssFile);
+		expect(fs.readFileSync(path.join(distDir, 'assets', 'batch-lifecycle-created.css'), 'utf-8')).toContain(
+			'.created',
+		);
+	});
+
 	test('setup should use configured plugins initially and pluginFactories for rebuilds', async () => {
-		const cssFile = path.join(SRC_DIR, 'factory-precedence.css');
-		const dependencyFile = path.join(SRC_DIR, 'factory-precedence.tsx');
+		const cssFile = path.join(srcDir, 'factory-precedence.css');
+		const dependencyFile = path.join(srcDir, 'factory-precedence.tsx');
 		fs.writeFileSync(cssFile, '.foo { color: red; }');
 		fs.writeFileSync(dependencyFile, 'export const Component = () => <div className="text-red-500" />;');
 
@@ -245,17 +326,17 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: tmpDir,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 		await plugin.setup();
 
-		const initialResult = await plugin.process(fs.readFileSync(cssFile, 'utf-8'), cssFile);
+		const initialResult = await plugin.transformStylesheet(fs.readFileSync(cssFile, 'utf-8'), cssFile);
 		expect(initialResult).toContain('color: green');
 
 		const Bridge = {
@@ -267,21 +348,61 @@ describe('PostCssProcessorPlugin HMR', () => {
 		} as unknown as IClientBridge;
 
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
+		if (!watchConfig?.onChanges) {
 			throw new Error('Plugin does not have watch handler');
 		}
 
 		refreshedColor = 'purple';
-		await watchConfig.onChange({ path: dependencyFile, bridge: Bridge });
+		await watchConfig.onChanges({ created: [], changed: [dependencyFile], deleted: [], bridge: Bridge });
 
-		const outputFile = path.join(DIST_DIR, 'assets', 'factory-precedence.css');
+		const outputFile = path.join(distDir, 'assets', 'factory-precedence.css');
 		const outputContent = fs.readFileSync(outputFile, 'utf-8');
 
 		expect(outputContent).toContain('color: purple');
 	});
 
+	test('loads the configured plugins on the first transform instead of at finalization', async () => {
+		const cssFile = path.join(srcDir, 'lazy-plugins.css');
+		fs.writeFileSync(cssFile, '.foo { color: red; }');
+
+		const createPlugin = vi.fn(
+			() =>
+				({
+					postcssPlugin: 'lazy-color-plugin',
+					Declaration(decl) {
+						if (decl.prop === 'color') {
+							decl.value = 'green';
+						}
+					},
+				}) as postcss.AcceptedPlugin,
+		);
+		const plugin = new PostCssProcessorPlugin({
+			options: { filter: /\.css$/, pluginFactories: { 'lazy-color-plugin': createPlugin } },
+		});
+
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir: tmpDir,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		plugin.setContext(appConfig);
+
+		expect(createPlugin).not.toHaveBeenCalled();
+
+		const [first, second] = await Promise.all([
+			plugin.transformStylesheet('.foo { color: red; }', cssFile),
+			plugin.transformStylesheet('.foo { color: red; }', cssFile),
+		]);
+
+		expect(first).toContain('color: green');
+		expect(second).toContain('color: green');
+		expect(createPlugin).toHaveBeenCalledTimes(1);
+	});
+
 	test('process should apply transformInput for direct asset-pipeline calls', async () => {
-		const cssFile = path.join(SRC_DIR, 'direct-process.css');
+		const cssFile = path.join(srcDir, 'direct-process.css');
 		fs.writeFileSync(cssFile, '.foo { color: red; }');
 
 		const plugin = new PostCssProcessorPlugin({
@@ -291,24 +412,24 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: tmpDir,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 		await plugin.setup();
 
-		const result = await plugin.process(fs.readFileSync(cssFile, 'utf-8'), cssFile);
+		const result = await plugin.transformStylesheet(fs.readFileSync(cssFile, 'utf-8'), cssFile);
 
 		expect(result).toContain('/* direct */');
 		expect(result).toContain('.foo { color: red; }');
 	});
 
 	test('imported CSS dependency change re-processes parent entry and broadcasts for parent path', async () => {
-		const stylesDir = path.join(SRC_DIR, 'styles_dep_test');
+		const stylesDir = path.join(srcDir, 'styles_dep_test');
 		const vendorDir = path.join(stylesDir, 'vendor');
 		fs.mkdirSync(vendorDir, { recursive: true });
 
@@ -324,12 +445,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: tmpDir,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 		await plugin.setup();
@@ -348,11 +469,11 @@ describe('PostCssProcessorPlugin HMR', () => {
 		fs.writeFileSync(importedFile, '.component { color: blue; }');
 
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
+		if (!watchConfig?.onChanges) {
 			throw new Error('Plugin does not have watch handler');
 		}
 
-		await watchConfig.onChange({ path: importedFile, bridge: Bridge });
+		await watchConfig.onChanges({ created: [], changed: [importedFile], deleted: [], bridge: Bridge });
 
 		// css-update should be broadcast for the ENTRY file, not the imported file
 		expect(bridgeSpy).toHaveBeenCalledWith(entryFile);
@@ -360,7 +481,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 	});
 
 	test('nested transitive imports resolve to the root entry file', async () => {
-		const stylesDir = path.join(SRC_DIR, 'styles_nested_test');
+		const stylesDir = path.join(srcDir, 'styles_nested_test');
 		const vendorDir = path.join(stylesDir, 'vendor');
 		const deepDir = path.join(vendorDir, 'deep');
 		fs.mkdirSync(deepDir, { recursive: true });
@@ -379,12 +500,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: tmpDir,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 		await plugin.setup();
@@ -403,11 +524,11 @@ describe('PostCssProcessorPlugin HMR', () => {
 		fs.writeFileSync(deepFile, '.deep { color: purple; }');
 
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
+		if (!watchConfig?.onChanges) {
 			throw new Error('Plugin does not have watch handler');
 		}
 
-		await watchConfig.onChange({ path: deepFile, bridge: Bridge });
+		await watchConfig.onChanges({ created: [], changed: [deepFile], deleted: [], bridge: Bridge });
 
 		// css-update should be broadcast for the ancestor entry files, not the leaf dependency
 		expect(bridgeSpy).toHaveBeenCalledWith(entryFile);
@@ -417,7 +538,7 @@ describe('PostCssProcessorPlugin HMR', () => {
 	});
 
 	test('entry file without imports should still HMR directly', async () => {
-		const stylesDir = path.join(SRC_DIR, 'styles_direct_test');
+		const stylesDir = path.join(srcDir, 'styles_direct_test');
 		fs.mkdirSync(stylesDir, { recursive: true });
 
 		const standaloneFile = path.join(stylesDir, 'standalone.css');
@@ -429,12 +550,12 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: tmpDir,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 		await plugin.setup();
@@ -452,18 +573,18 @@ describe('PostCssProcessorPlugin HMR', () => {
 		fs.writeFileSync(standaloneFile, '.standalone { color: blue; }');
 
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
+		if (!watchConfig?.onChanges) {
 			throw new Error('Plugin does not have watch handler');
 		}
 
-		await watchConfig.onChange({ path: standaloneFile, bridge: Bridge });
+		await watchConfig.onChanges({ created: [], changed: [standaloneFile], deleted: [], bridge: Bridge });
 
 		// css-update should be broadcast directly for the standalone file
 		expect(bridgeSpy).toHaveBeenCalledWith(standaloneFile);
 	});
 
 	test('process should preserve BEM selectors with nesting plugins during direct asset-pipeline calls', async () => {
-		const pagesDir = path.join(SRC_DIR, 'pages');
+		const pagesDir = path.join(srcDir, 'pages');
 		fs.mkdirSync(pagesDir, { recursive: true });
 
 		const cssFile = path.join(pagesDir, 'api-lab.css');
@@ -478,20 +599,47 @@ describe('PostCssProcessorPlugin HMR', () => {
 			},
 		});
 
-		const config = await new ConfigBuilder()
-			.setRootDir(TMP_DIR)
-			.setSrcDir('src')
-			.setDistDir('dist')
-			.setBaseUrl('http://localhost:3000')
-			.build();
+		const config = await finalizeEcoPagesConfig({
+			rootDir: tmpDir,
+			srcDir: 'src',
+			distDir: 'dist',
+			baseUrl: 'http://localhost:3000',
+		});
 
 		plugin.setContext(config);
 		await plugin.setup();
 
-		const result = await plugin.process(fs.readFileSync(cssFile, 'utf-8'), cssFile);
+		const result = await plugin.transformStylesheet(fs.readFileSync(cssFile, 'utf-8'), cssFile);
 
 		expect(result).toContain('.api-lab__workspace-grid');
 		expect(result).not.toContain('__workspace-grid.api-lab');
 		expect(result).toContain('display: grid');
+	});
+
+	test('persists production CSS under a hash of the processed bytes', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		try {
+			const cssFile = path.join(srcDir, 'hashed-production.css');
+			fs.writeFileSync(cssFile, '.hashed { color: orange; }');
+
+			const plugin = new PostCssProcessorPlugin({
+				options: {
+					filter: /\.css$/,
+				},
+			});
+			const config = await finalizeEcoPagesConfig({
+				rootDir: tmpDir,
+				srcDir: 'src',
+				distDir: 'dist',
+				baseUrl: 'http://localhost:3000',
+			});
+			plugin.setContext(config);
+			await plugin.setup();
+
+			expect(hashedCssContents().some((css) => css.includes('.hashed { color: orange; }'))).toBe(true);
+			expect(fs.existsSync(path.join(distDir, 'assets', 'hashed-production.css'))).toBe(false);
+		} finally {
+			vi.unstubAllEnvs();
+		}
 	});
 });

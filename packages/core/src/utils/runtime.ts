@@ -1,44 +1,22 @@
-import { createHash } from 'node:crypto';
+export type ProcessRuntime = {
+	name: 'bun' | 'node';
+	version: string;
+};
 
-export const RUNTIME_ERRORS = {
-	BUN_RUNTIME_REQUIRED: 'Bun runtime is required',
-} as const;
+export { getNodeEnvironment, isDevelopmentRuntime, isProductionRuntime } from '../env.ts';
 
-type RuntimeBun = typeof Bun;
-
-export function getBunRuntime(): RuntimeBun | undefined {
-	return (globalThis as { Bun?: RuntimeBun }).Bun;
-}
-
-export function getRequiredBunRuntime(): RuntimeBun {
-	const bun = getBunRuntime();
-
-	if (!bun) {
-		throw new Error(RUNTIME_ERRORS.BUN_RUNTIME_REQUIRED);
-	}
-
-	return bun;
+/**
+ * Names the JavaScript runtime running this process and its version.
+ *
+ * @remarks
+ * Reads `process.versions.bun`, which Bun sets through its Node API support, so
+ * no Bun global or Bun types are needed. Use it to report the runtime, never to branch: every runtime takes the same path.
+ */
+export function getProcessRuntime(): ProcessRuntime {
+	const bunVersion = process.versions.bun;
+	return bunVersion ? { name: 'bun', version: bunVersion } : { name: 'node', version: process.versions.node };
 }
 
 export function getRuntimeArgv(): string[] {
 	return process.argv;
-}
-
-export function isDevelopmentRuntime(): boolean {
-	return process.env.NODE_ENV === 'development';
-}
-
-export function isProductionRuntime(): boolean {
-	return process.env.NODE_ENV === 'production';
-}
-
-export function runtimeHash(content: string | Buffer<ArrayBufferLike>): number | bigint {
-	const bun = getBunRuntime();
-
-	if (bun) {
-		return bun.hash(content);
-	}
-
-	const hex = createHash('sha256').update(content).digest('hex').slice(0, 16);
-	return BigInt(`0x${hex}`);
 }

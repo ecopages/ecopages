@@ -1,0 +1,9 @@
+{
+	"name": "@ecopages/e2e-html-pages-app",
+	"private": true,
+	"type": "module",
+	"devDependencies": {
+		"@ecopages/browser-router": "workspace:*",
+		"@ecopages/core": "workspace:*"
+	}
+}

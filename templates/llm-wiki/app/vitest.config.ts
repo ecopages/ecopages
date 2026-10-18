@@ -7,11 +7,11 @@ export default defineConfig({
 			'@': path.resolve(import.meta.dirname, 'src'),
 		},
 	},
-	esbuild: {
-		jsx: 'automatic',
-		jsxImportSource: '@ecopages/jsx',
+	oxc: {
+		jsx: { runtime: 'automatic', importSource: '@ecopages/jsx' },
 	},
 	test: {
+		name: 'llm-wiki',
 		environment: 'node',
 		include: ['src/lib/**/*.test.ts'],
 	},

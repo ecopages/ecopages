@@ -1,5 +1,5 @@
 /** @jsxImportSource @ecopages/jsx */
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +8,12 @@ import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import { createMarkupNodeLike, type JsxCustomElementAttributes, type JsxRenderable } from '@ecopages/jsx';
 import { installLightDomShim } from '@ecopages/radiant/server/light-dom-shim';
 import { createTestAppConfig } from '@ecopages/testing';
-import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
+import { requireAppRuntime } from '@ecopages/core/integration';
+import {
+	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
+	invalidateCustomElementScriptPreload,
+} from '@ecopages/core/integration';
+import { createEcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 
 declare module '@ecopages/jsx' {
 	interface JsxCustomIntrinsicElements {
@@ -29,7 +34,7 @@ const HtmlTemplate = ({ children }: { children: JsxRenderable }) => (
 	</html>
 );
 
-class TestEcopagesJsxRenderer extends EcopagesJsxRenderer {
+class TestEcopagesJsxRenderer extends createEcopagesJsxRenderer({ radiantSsrEnabled: true }) {
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		return HtmlTemplate as unknown as EcoComponent<HtmlTemplateProps>;
 	}
@@ -40,50 +45,70 @@ class TestEcopagesJsxRenderer extends EcopagesJsxRenderer {
 }
 
 describe('Ecopages JSX SSR script preload integration', () => {
-	it('server-renders a RadiantElement registered from a tsx script on Node', async () => {
-		expect(typeof Bun).toBe('undefined');
-		installLightDomShim();
-		const tempDir = await mkdtemp(path.join(PACKAGE_ROOT, '.eco-ssr-preload-'));
-		const hostFile = path.join(path.dirname(RADIANT_HOST_SCRIPT), 'host.tsx');
+	/**
+	 * @remarks
+	 * The Bun case fakes Bun's globals on Node. Bun used to import the script
+	 * source natively, which drops the server loaders for its CSS, MDX and asset
+	 * imports. The compiled module in the work directory shows the script went
+	 * through the server-module loader instead.
+	 */
+	it.each(['Node', 'Bun'])(
+		'server-renders a RadiantElement registered from a tsx script through the server-module loader on %s',
+		async (runtime) => {
+			if (runtime === 'Bun') {
+				vi.stubGlobal('Bun', { version: '1.4.2' });
+				Object.defineProperty(process.versions, 'bun', { value: '1.4.2', configurable: true });
+			}
+			invalidateCustomElementScriptPreload(
+				requireAppRuntime(Config).customElementSsrPreloadScopes,
+				RADIANT_HOST_SCRIPT,
+				CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.ecopagesJsx,
+			);
+			installLightDomShim();
+			const tempDir = await mkdtemp(path.join(tmpdir(), 'ecopages-jsx-ssr-preload-'));
+			const hostFile = path.join(path.dirname(RADIANT_HOST_SCRIPT), 'host.tsx');
 
-		try {
-			const appConfig = await createTestAppConfig({
-				rootDir: PACKAGE_ROOT,
-				workDir: tempDir,
-			});
-			const Host = eco.component<{}, JsxRenderable>({
-				integration: 'ecopages-jsx',
-				identity: { id: 'ssr-preload-radiant-host', file: hostFile, integration: 'ecopages-jsx' },
-				dependencies: {
-					scripts: [{ src: `./${path.basename(RADIANT_HOST_SCRIPT)}`, ssr: true }],
-				},
-				render: () => <ecopages-jsx-ssr-preload-radiant-host />,
-			});
+			try {
+				await symlink(path.join(PACKAGE_ROOT, 'node_modules'), path.join(tempDir, 'node_modules'), 'dir');
+				const appConfig = await createTestAppConfig({
+					rootDir: PACKAGE_ROOT,
+					workDir: tempDir,
+				});
+				const Host = eco.component<{}, JsxRenderable>({
+					integration: 'ecopages-jsx',
+					identity: { id: 'ssr-preload-radiant-host', file: hostFile, integration: 'ecopages-jsx' },
+					dependencies: {
+						scripts: [{ src: `./${path.basename(RADIANT_HOST_SCRIPT)}`, ssr: true }],
+					},
+					render: () => <ecopages-jsx-ssr-preload-radiant-host />,
+				});
 
-			const renderer = new TestEcopagesJsxRenderer({
-				appConfig,
-				assetProcessingService: {
-					processDependencies: vi.fn(async () => []),
-				} as never,
-				runtimeOrigin: 'http://localhost:3000',
-				resolvedIntegrationDependencies: [],
-				jsxConfig: {
-					radiantSsrEnabled: true,
-				},
-			});
+				const renderer = new TestEcopagesJsxRenderer({
+					appConfig,
+					assetProcessingService: {
+						processDependencies: vi.fn(async () => []),
+					} as never,
+					resolvedIntegrationDependencies: [],
+				});
 
-			const result = await renderer.renderComponent({
-				component: Host,
-				props: {},
-			});
+				const result = await renderer.renderComponent({
+					component: Host,
+					props: {},
+				});
 
-			expect(result.html).toContain('data-ssr-preload-radiant-host="true">1</span>');
-			expect(result.html).toContain('data-hydration');
-			expect(result.html).toContain('data-hydration-key="label"');
-		} finally {
-			await rm(tempDir, { recursive: true, force: true });
-		}
-	});
+				expect(await readdir(path.join(tempDir, '.server-modules'), { recursive: true })).toContainEqual(
+					expect.stringMatching(/ssr-preload-radiant-host\.script-[0-9a-f]+\.mjs$/),
+				);
+				expect(result.html).toContain('data-ssr-preload-radiant-host="true">1</span>');
+				expect(result.html).toContain('data-hydration');
+				expect(result.html).toContain('data-hydration-key="label"');
+			} finally {
+				vi.unstubAllGlobals();
+				delete process.versions.bun;
+				await rm(tempDir, { recursive: true, force: true });
+			}
+		},
+	);
 
 	it('does not register Radiant hosts when dependencies.scripts omit ssr true', async () => {
 		installLightDomShim();
@@ -119,11 +144,7 @@ describe('Ecopages JSX SSR script preload integration', () => {
 				assetProcessingService: {
 					processDependencies: vi.fn(async () => []),
 				} as never,
-				runtimeOrigin: 'http://localhost:3000',
 				resolvedIntegrationDependencies: [],
-				jsxConfig: {
-					radiantSsrEnabled: true,
-				},
 			});
 
 			const result = await renderer.renderComponent({

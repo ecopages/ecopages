@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, expect, test } from 'vitest';
-import type { AssetDefinition, ContentScriptAsset } from '@ecopages/core/services/asset-processing-service';
+import type { AssetDefinition, ContentScriptAsset } from '@ecopages/core/integration';
 import {
 	assignPageOwnedContentScriptGroupedBundles,
 	createPageOwnedContentScriptBundleId,
@@ -52,7 +52,10 @@ describe('page-owned-content-script-grouping', () => {
 			entryName: 'module-ecopages-images',
 		});
 		expect(moduleScript.bundle).toBe(true);
-		expect(lazyScript.groupedBundle).toBeUndefined();
+		expect(lazyScript.groupedBundle).toEqual({
+			id: createPageOwnedContentScriptBundleId(ECOPAGES_JSX_PLUGIN_NAME),
+			entryName: 'ecopages-ecopages-jsx-lazy-deadbeef',
+		});
 		expect(fileScript).not.toHaveProperty('groupedBundle');
 		expect(injectorScript.groupedBundle).toBeUndefined();
 	});

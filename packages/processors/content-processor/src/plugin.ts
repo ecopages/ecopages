@@ -5,6 +5,8 @@
 
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
+import { isEcopagesEnvEnabled } from '@ecopages/core/processor';
+import { requireAppRuntime } from '@ecopages/core/integration';
 import {
 	mergeProcessorOptions,
 	Processor,
@@ -12,8 +14,9 @@ import {
 	writeGeneratedTypesPackage,
 	type EcoBuildPlugin,
 	type ProcessorConfig,
+	type ProcessorWatchChanges,
 	type ProcessorWatchConfig,
-} from '@ecopages/core/plugins/processor';
+} from '@ecopages/core/processor';
 import { Logger } from '@ecopages/logger';
 import {
 	renderCollectionComponentsModule,
@@ -34,10 +37,19 @@ import { createContentServerBoundaryPlugin } from './content-server-boundary-plu
 import { COLLECTION_NAME_PATTERN, CONTENT_PROCESSOR_NAME } from './constants.ts';
 import type { ContentProcessorConfig } from './collection-types.ts';
 import { buildContentDevPrewarmPathnames } from './dev-prewarm-paths.ts';
-import { buildCollectionServerModule } from '@ecopages/core/services/module-loading/collection-server-module-build.service';
+import {
+	buildCollectionServerModule,
+	type CollectionServerBuildArtifact,
+} from './collection-server-module-build.service.ts';
+
+type ContentCollectionWatchChanges = {
+	regenerate: boolean;
+	changedEntries: string[];
+	invalidateServerArtifact: boolean;
+};
 
 const logger = new Logger('[@ecopages/content-processor]', {
-	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
+	debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG'),
 });
 
 function assertValidCollectionName(collectionName: string): void {
@@ -53,10 +65,12 @@ function assertValidCollectionName(collectionName: string): void {
  * each one as `ecopages:content/<collection>` virtual modules.
  */
 export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
-	private collectionsGenerated = false;
+	private collectionsGeneration?: Promise<void>;
 	private readonly scanners = new Map<string, ContentScanner>();
 	private readonly collectionBuildPromises = new Map<string, Promise<void>>();
 	private readonly collectionGenerations = new Map<string, number>();
+	private readonly collectionServerBuiltAt = new Map<string, number>();
+	private readonly collectionServerArtifacts = new Map<string, CollectionServerBuildArtifact>();
 
 	/**
 	 * Absolute paths to generated collection entry modules, keyed by collection name.
@@ -77,24 +91,21 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	 */
 	public readonly collectionServerCompiledModules: Record<string, string> = {};
 
-	constructor(config: Omit<ProcessorConfig<ContentProcessorConfig>, 'name' | 'description'>) {
+	constructor(config: Omit<ProcessorConfig<ContentProcessorConfig>, 'name'>) {
 		const defaultWatchConfig: ProcessorWatchConfig = {
 			paths: [],
 			extensions: ['.mdx', '.md', '.ts', '.tsx', '.js', '.jsx', '.json'],
-			onCreate: async (ctx) => this.handleContentFileEvent(ctx.path, 'create'),
-			onChange: async (ctx) => this.handleContentFileEvent(ctx.path, 'change'),
-			onDelete: async (ctx) => this.handleContentFileEvent(ctx.path, 'delete'),
+			onChanges: async (changes) => this.handleContentFileChanges(changes),
 		};
 
 		super({
 			...config,
 			name: CONTENT_PROCESSOR_NAME,
-			description: 'Build-time content collections exposed as ecopages:content/* virtual modules.',
 			watch: config.watch ? mergeProcessorOptions(defaultWatchConfig, config.watch) : defaultWatchConfig,
 		});
 	}
 
-	get buildPlugins(): EcoBuildPlugin[] {
+	private get browserPlugins(): EcoBuildPlugin[] {
 		return [
 			createContentServerBoundaryPlugin(),
 			createContentPluginBundler(
@@ -102,26 +113,26 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 				this.collectionServerModules,
 				this.collectionServerCompiledModules,
 				this.collectionBrowserModules,
+				() => this.ensureCollectionsGenerated(),
 			),
-		];
+		].map((plugin) => ({ ...plugin, environments: ['browser'] as Array<'browser'> }));
 	}
 
-	get plugins(): EcoBuildPlugin[] {
+	override plugins(): EcoBuildPlugin[] {
 		return [
-			createContentPlugin(
-				this.collectionModules,
-				this.collectionServerModules,
-				this.collectionServerCompiledModules,
-				this.collectionBrowserModules,
-				(collectionName) => this.ensureCollectionServerArtifact(collectionName),
-			),
+			{
+				...createContentPlugin(
+					this.collectionModules,
+					this.collectionServerModules,
+					this.collectionServerCompiledModules,
+					this.collectionBrowserModules,
+					(collectionName) => this.ensureCollectionServerArtifact(collectionName),
+					() => this.ensureCollectionsGenerated(),
+				),
+				environments: ['server'],
+			},
+			...this.browserPlugins,
 		];
-	}
-
-	override invalidateServerArtifacts(): void {
-		for (const collectionName of Object.keys(this.getCollectionsConfig())) {
-			this.invalidateCollectionServerArtifact(collectionName);
-		}
 	}
 
 	private getCollectionsConfig(): ContentProcessorConfig['collections'] {
@@ -260,59 +271,113 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		});
 	}
 
-	private async handleContentFileEvent(filePath: string, event: 'change' | 'create' | 'delete'): Promise<void> {
+	private async handleContentFileChanges({ created, changed, deleted }: ProcessorWatchChanges): Promise<void> {
 		if (!this.context) {
 			return;
 		}
 
-		const normalizedPath = path.normalize(filePath);
-		const affectedCollections: string[] = [];
-
-		for (const [collectionName, definition] of Object.entries(this.getCollectionsConfig())) {
-			const contentRoot = this.getCollectionContentRoot(definition.contentDir);
-			if (normalizedPath.startsWith(contentRoot + path.sep) || normalizedPath === contentRoot) {
-				affectedCollections.push(collectionName);
-			}
-		}
+		const collectionChanges = this.collectCollectionWatchChanges({ created, changed, deleted });
 
 		let shouldRegenerateTypes = false;
 
-		for (const collectionName of affectedCollections) {
-			const definition = this.getCollectionsConfig()[collectionName];
-			const isEntry = this.isCollectionEntryPath(normalizedPath, definition.extensions);
-
-			if (!isEntry) {
-				this.invalidateCollectionServerArtifact(collectionName);
-				continue;
-			}
-
-			if (event === 'create' || event === 'delete') {
-				await this.regenerateCollectionModule(collectionName);
-				shouldRegenerateTypes = true;
-				continue;
-			}
-
-			const scanner = this.getOrCreateScanner(collectionName);
-			const updateResult = await scanner.updateEntryForPath(normalizedPath, event);
-
-			if (updateResult === 'no-op') {
-				this.invalidateCollectionServerArtifact(collectionName);
-				continue;
-			}
-
-			if (updateResult === 'manifest') {
-				await this.regenerateCollectionEntriesModule(collectionName);
-				shouldRegenerateTypes = true;
-				continue;
-			}
-
-			await this.regenerateCollectionModule(collectionName);
-			shouldRegenerateTypes = true;
+		for (const [collectionName, changes] of collectionChanges) {
+			const regeneratedTypes = await this.applyCollectionWatchChanges(collectionName, changes);
+			shouldRegenerateTypes ||= regeneratedTypes;
 		}
 
 		if (shouldRegenerateTypes) {
 			this.generateTypes();
 		}
+	}
+
+	private collectCollectionWatchChanges({
+		created,
+		changed,
+		deleted,
+	}: Pick<ProcessorWatchChanges, 'created' | 'changed' | 'deleted'>): Map<string, ContentCollectionWatchChanges> {
+		const collectionChanges = new Map<string, ContentCollectionWatchChanges>();
+		const events = [
+			{ paths: created, event: 'create' as const },
+			{ paths: changed, event: 'change' as const },
+			{ paths: deleted, event: 'delete' as const },
+		];
+
+		for (const { paths, event } of events) {
+			for (const filePath of paths) {
+				const normalizedPath = path.normalize(filePath);
+				for (const [collectionName, definition] of Object.entries(this.getCollectionsConfig())) {
+					const contentRoot = this.getCollectionContentRoot(definition.contentDir);
+					if (normalizedPath.startsWith(contentRoot + path.sep) || normalizedPath === contentRoot) {
+						const changes = collectionChanges.get(collectionName) ?? {
+							regenerate: false,
+							changedEntries: [],
+							invalidateServerArtifact: false,
+						};
+						collectionChanges.set(collectionName, changes);
+						this.recordCollectionWatchChange(changes, normalizedPath, event, definition.extensions);
+					}
+				}
+			}
+		}
+
+		return collectionChanges;
+	}
+
+	private recordCollectionWatchChange(
+		changes: ContentCollectionWatchChanges,
+		filePath: string,
+		event: 'change' | 'create' | 'delete',
+		configuredExtensions: readonly string[] | undefined,
+	): void {
+		if (!this.isCollectionEntryPath(filePath, configuredExtensions)) {
+			changes.invalidateServerArtifact = true;
+		} else if (event === 'change') {
+			changes.changedEntries.push(filePath);
+		} else {
+			changes.regenerate = true;
+		}
+	}
+
+	private async applyCollectionWatchChanges(
+		collectionName: string,
+		changes: ContentCollectionWatchChanges,
+	): Promise<boolean> {
+		if (changes.regenerate) {
+			await this.regenerateCollectionModule(collectionName);
+			return true;
+		}
+
+		const updateResult = await this.updateChangedCollectionEntries(collectionName, changes);
+		if (updateResult === 'collection') {
+			await this.regenerateCollectionModule(collectionName);
+		} else if (updateResult === 'entries') {
+			await this.regenerateCollectionEntriesModule(collectionName);
+		}
+
+		if (changes.invalidateServerArtifact && updateResult !== 'collection') {
+			this.invalidateCollectionServerArtifact(collectionName);
+		}
+
+		return updateResult !== 'none';
+	}
+
+	private async updateChangedCollectionEntries(
+		collectionName: string,
+		changes: ContentCollectionWatchChanges,
+	): Promise<'none' | 'entries' | 'collection'> {
+		let result: 'none' | 'entries' | 'collection' = 'none';
+		for (const filePath of changes.changedEntries) {
+			const updateResult = await this.getOrCreateScanner(collectionName).updateEntryForPath(filePath, 'change');
+			if (updateResult === 'no-op') {
+				changes.invalidateServerArtifact = true;
+			} else if (updateResult === 'manifest' && result === 'none') {
+				result = 'entries';
+			} else if (updateResult !== 'manifest') {
+				result = 'collection';
+			}
+		}
+
+		return result;
 	}
 
 	private initializeWatchPaths(): void {
@@ -369,12 +434,13 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		serverOutputFile: string,
 		ownedSourcePaths: string[],
 	): Promise<void> {
-		if (!this.context?.config.runtime?.buildRuntime) {
+		if (!this.context) {
 			return;
 		}
 
 		const artifact = await buildCollectionServerModule({
 			appConfig: this.context.config,
+			artifacts: this.collectionServerArtifacts,
 			collectionName,
 			sourceFilePath: serverOutputFile,
 			ownedSourcePaths,
@@ -391,8 +457,12 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	 * builds share the same promise.
 	 */
 	async ensureCollectionServerArtifact(collectionName: string): Promise<void> {
-		if (!this.context?.config.runtime?.buildRuntime) {
+		if (!this.context) {
 			return;
+		}
+
+		if (this.collectionServerBuiltAt.get(collectionName) !== this.getServerSourceGeneration()) {
+			delete this.collectionServerCompiledModules[collectionName];
 		}
 
 		if (this.collectionServerCompiledModules[collectionName]) {
@@ -409,6 +479,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		}
 
 		const generation = this.collectionGenerations.get(collectionName) ?? 0;
+		const serverSourceGeneration = this.getServerSourceGeneration();
 		const serverOutputFile = this.collectionServerModules[collectionName];
 		if (!serverOutputFile) {
 			throw new Error(`Unknown content collection: ${collectionName}`);
@@ -418,9 +489,14 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		const ownedSourcePaths = scanner ? (await scanner.getEntrySources()).map(({ filePath }) => filePath) : [];
 		const buildPromise = this.buildCollectionServerArtifact(collectionName, serverOutputFile, ownedSourcePaths)
 			.then(() => {
-				if (generation !== (this.collectionGenerations.get(collectionName) ?? 0)) {
+				const changedDuringBuild =
+					generation !== (this.collectionGenerations.get(collectionName) ?? 0) ||
+					serverSourceGeneration !== this.getServerSourceGeneration();
+				if (changedDuringBuild) {
 					delete this.collectionServerCompiledModules[collectionName];
+					return;
 				}
+				this.collectionServerBuiltAt.set(collectionName, serverSourceGeneration);
 			})
 			.finally(() => this.collectionBuildPromises.delete(collectionName));
 		this.collectionBuildPromises.set(collectionName, buildPromise);
@@ -430,48 +506,56 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		}
 	}
 
-	private async ensureCollectionsGenerated(): Promise<void> {
-		if (this.collectionsGenerated) {
-			return;
-		}
-
-		this.initializeWatchPaths();
-		await this.regenerateAllCollections();
-		this.collectionsGenerated = true;
+	/**
+	 * The app module loader's development generation, which advances whenever server source changes.
+	 *
+	 * @remarks
+	 * A compiled collection embeds the modules its entries import, such as a component, so it is stale once the
+	 * generation differs from the one it was built at. Core announces no invalidation to Processors.
+	 */
+	private getServerSourceGeneration(): number {
+		return this.context ? requireAppRuntime(this.context.config).moduleLoader.getDevelopmentGeneration() : 0;
 	}
 
-	override async prepareBuildContributions(): Promise<void> {
-		await this.ensureCollectionsGenerated();
+	/**
+	 * Generates the collection modules and types once, and shares that work between callers.
+	 *
+	 * @remarks
+	 * {@link setup} and every collection resolve call it, so a build that starts before `setup()` waits for the
+	 * generated modules instead of finding none. A failed generation is dropped so the next caller retries.
+	 */
+	private ensureCollectionsGenerated(): Promise<void> {
+		this.collectionsGeneration ??= (async () => {
+			this.initializeWatchPaths();
+			await this.regenerateAllCollections();
+		})().catch((error) => {
+			this.collectionsGeneration = undefined;
+			throw error;
+		});
+		return this.collectionsGeneration;
 	}
 
 	override async setup(): Promise<void> {
 		await this.ensureCollectionsGenerated();
-	}
-
-	override async process(_input: unknown): Promise<void> {
-		await this.regenerateAllCollections();
+		await this.addDevPrewarmPaths();
 	}
 
 	/**
-	 * Declares watch-mode SSR prewarm pathnames and readiness derived from collection manifests.
+	 * Adds the pathnames of collections with `devPrewarm` and a `routePrefix` to the app's `devPrewarmPaths`.
 	 *
 	 * @remarks
-	 * Core executes rendering in parallel; this hook only maps `routePrefix` + entry slugs to URLs.
+	 * Core renders the list in the background after the server is listening. The entries are read from the
+	 * manifests at startup, so an entry created later is not prewarmed until the next start. Existing paths stay,
+	 * and a repeated `setup()` adds nothing twice.
 	 */
-	override async collectDevPrewarmPlan(): Promise<{
-		pathnames: readonly string[];
-		readiness: 'background' | 'beforeReady';
-	}> {
-		await this.ensureCollectionsGenerated();
+	private async addDevPrewarmPaths(): Promise<void> {
+		if (!this.context) {
+			return;
+		}
 
 		const pathnames: string[] = [];
-		let readiness: 'background' | 'beforeReady' = 'background';
 
 		for (const [collectionName, definition] of Object.entries(this.getCollectionsConfig())) {
-			if (definition.devPrewarmReadiness === 'beforeReady') {
-				readiness = 'beforeReady';
-			}
-
 			if (!definition.devPrewarm || !definition.routePrefix) {
 				continue;
 			}
@@ -481,15 +565,13 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 			pathnames.push(...buildContentDevPrewarmPathnames(definition, entries));
 		}
 
-		return {
-			pathnames: [...new Set(pathnames)],
-			readiness,
-		};
+		const config = this.context.config;
+		config.devPrewarmPaths = [...new Set([...(config.devPrewarmPaths ?? []), ...pathnames])];
 	}
 }
 
 export const contentProcessorPlugin = (
-	config: Omit<ProcessorConfig<ContentProcessorConfig>, 'name' | 'description'>,
+	config: Omit<ProcessorConfig<ContentProcessorConfig>, 'name'>,
 ): ContentProcessorPlugin => {
 	return new ContentProcessorPlugin(config);
 };

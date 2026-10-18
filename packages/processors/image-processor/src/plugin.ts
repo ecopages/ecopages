@@ -12,10 +12,11 @@ import {
 	writeGeneratedTypesPackage,
 	type EcoBuildPlugin,
 	type ProcessorConfig,
+	type ProcessorWatchChanges,
 	type ProcessorWatchConfig,
-} from '@ecopages/core/plugins/processor';
-import { isLitStaticRenderWorkerThread } from '@ecopages/core/build/lit-static-render-worker-context';
+} from '@ecopages/core/processor';
 import { Logger } from '@ecopages/logger';
+import { isEcopagesEnvEnabled } from '@ecopages/core/processor';
 import { createImagePlugin, createImagePluginBundler } from './image-plugins.ts';
 import { ImageProcessor } from './image-processor.ts';
 import { getSourceImagePaths, loadProcessedImagesFromDisk, type ImageMap } from './image-runtime-state.ts';
@@ -23,7 +24,7 @@ import type { ImageSize, ImageSpecifications } from './types.ts';
 import { anyCaseToCamelCase } from './utils.ts';
 
 const logger = new Logger('[@ecopages/image-processor]', {
-	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
+	debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG'),
 });
 
 const IMAGE_VIRTUAL_MODULE_TYPES = `/**
@@ -108,27 +109,23 @@ export type { ImageMap } from './image-runtime-state.ts';
  */
 export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 	declare private processor: ImageProcessor;
-	private buildContributionsPrepared = false;
 	private resolvedConfig?: ImageProcessorConfig;
 	public processedImages: Record<string, ImageSpecifications> = {};
 
-	constructor(config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name' | 'description'>) {
+	constructor(config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name'>) {
 		const acceptedFormats = config.options?.acceptedFormats ?? ['jpg', 'jpeg', 'png', 'webp'];
 		const extensionPatterns = acceptedFormats.map((format) => `*.${format.replace(/^\./, '')}`);
 
 		const defaultWatchConfig: ProcessorWatchConfig = {
 			paths: [],
 			extensions: acceptedFormats,
-			onCreate: async (ctx) => this.process([ctx.path]),
-			onChange: async (ctx) => this.process([ctx.path]),
-			onDelete: async (ctx) => this.deleteProcessedImagesbyPath(ctx.path),
+			onChanges: async (changes) => this.handleImageChanges(changes),
 			onError: (error) => logger.error('Watcher error', { error }),
 		};
 
 		super({
 			...config,
 			name: 'ecopages-image-processor',
-			description: 'A Processor for optimizing images.',
 			capabilities: [
 				{
 					kind: 'image',
@@ -139,12 +136,22 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		});
 	}
 
-	get buildPlugins(): EcoBuildPlugin[] {
-		return [createImagePluginBundler(this.processedImages)];
+	private async handleImageChanges({ created, changed, deleted }: ProcessorWatchChanges): Promise<void> {
+		const changedImages = [...created, ...changed];
+		if (changedImages.length > 0) {
+			await this.process(changedImages);
+		}
+
+		for (const imagePath of deleted) {
+			await this.deleteProcessedImagesbyPath(imagePath);
+		}
 	}
 
-	get plugins(): EcoBuildPlugin[] {
-		return [createImagePlugin(this.processedImages)];
+	override plugins(): EcoBuildPlugin[] {
+		return [
+			{ ...createImagePlugin(this.processedImages), environments: ['server'] },
+			{ ...createImagePluginBundler(this.processedImages), environments: ['browser'] },
+		];
 	}
 
 	/**
@@ -199,31 +206,6 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		if (this.watchConfig) {
 			this.watchConfig.paths = [config.sourceDir];
 		}
-	}
-
-	/**
-	 * Prepares build-facing processor state before config build seals the app manifest.
-	 *
-	 * @remarks
-	 * Image processing stays in {@link setup}; this hook only initializes config and
-	 * restores any previously generated virtual-module state from disk.
-	 */
-	override async prepareBuildContributions(): Promise<void> {
-		if (this.buildContributionsPrepared) {
-			return;
-		}
-
-		// Lit SSR workers import eco.config in an isolated thread; image outputs are
-		// already prepared on the main dev server thread.
-		if (isLitStaticRenderWorkerThread()) {
-			this.buildContributionsPrepared = true;
-			return;
-		}
-
-		this.initializeProcessor();
-		await this.generateSourceTypes();
-		await this.syncProcessedImagesFromDisk();
-		this.buildContributionsPrepared = true;
 	}
 
 	private getRuntimeVirtualModulePath(): string {
@@ -302,31 +284,9 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 	}
 
 	/**
-	 * Generates virtual-module declarations from source filenames before image
-	 * processing runs.
-	 *
-	 * @remarks
-	 * Editors need the ambient `ecopages:images` module during config build, but
-	 * actual image optimization is deferred until {@link setup}. Declaring exports
-	 * from the source directory preserves typed named imports on a clean checkout.
-	 */
-	private async generateSourceTypes(): Promise<void> {
-		if (!this.resolvedConfig) {
-			return;
-		}
-
-		const sourceImages = await getSourceImagePaths(this.resolvedConfig);
-		this.writeVirtualModuleTypes(sourceImages.map((imagePath) => path.basename(imagePath)));
-	}
-
-	/**
 	 * Ensures optimized image outputs and virtual-module state exist on disk.
 	 */
 	async setup(): Promise<void> {
-		if (isLitStaticRenderWorkerThread()) {
-			return;
-		}
-
 		this.initializeProcessor();
 		await this.ensureGeneratedOutputs();
 	}
@@ -477,13 +437,6 @@ declare module "ecopages:images" {
 	}
 
 	/**
-	 * Teardown the image processor.
-	 */
-	override async teardown(): Promise<void> {
-		logger.debug('Tearing down image processor');
-	}
-
-	/**
 	 * Get the image processor instance.
 	 * @returns The image processor instance.
 	 */
@@ -493,7 +446,7 @@ declare module "ecopages:images" {
 }
 
 export const imageProcessorPlugin = (
-	config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name' | 'description'>,
+	config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name'>,
 ): ImageProcessorPlugin => {
 	return new ImageProcessorPlugin(config);
 };

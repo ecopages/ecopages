@@ -1,3 +1,5 @@
+import { getNavigationScriptIdentity } from './identity.ts';
+
 /**
  * Classifies head scripts for navigation-time persistence and execution.
  * @module
@@ -35,8 +37,7 @@ export function shouldPersistExecutableInlineHeadScript(element: Element): boole
 		return false;
 	}
 
-	const scriptId = element.getAttribute('data-eco-script-id') || element.getAttribute('id');
-	if (!scriptId) {
+	if (!getNavigationScriptIdentity(element).scriptId) {
 		return false;
 	}
 

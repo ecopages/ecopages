@@ -1,211 +1,52 @@
 import assert from 'node:assert/strict';
 import { test, vi } from 'vitest';
 import {
-	build,
-	collectConfiguredAppBuildManifestContributions,
-	createConfiguredAppBuildManifest,
 	createBuildAdapter,
 	defaultBuildAdapter,
-	getAppBuildOwnership,
-	getAppBuildAdapter,
-	getAppBuildManifest,
-	getAppBrowserBuildPlugins,
-	getDefaultBuildAdapter,
-	getAppServerBuildPlugins,
-	setAppBuildAdapter,
-	setAppBuildOwnership,
-	setAppBuildManifest,
+	getBuildAdapterOwnership,
+	sealAppBuildManifest,
 	setupAppRuntimePlugins,
 	ensureIntegrationRuntimeReady,
-	updateAppBuildManifest,
-	ViteHostBuildAdapter,
 } from './build-adapter.ts';
 import { RolldownBuildAdapter } from './rolldown/rolldown-build-adapter.ts';
 import { createBrowserRuntimeManifest } from './browser/browser-runtime-manifest.ts';
+import { BuildInputDependencyIndex } from './cache/build-input-dependency-index.ts';
 import { createAppBuildManifest } from './contracts/build-manifest.ts';
+import type { EcoBuildPlugin } from './contracts/build-types.ts';
 
 test('defaultBuildAdapter is the RolldownBuildAdapter', () => {
 	assert.ok(defaultBuildAdapter instanceof RolldownBuildAdapter);
 	assert.equal(defaultBuildAdapter.ownership, 'rolldown');
 });
 
-test('createBuildAdapter with ownership: "rolldown" returns the RolldownBuildAdapter', () => {
-	const rolldownAdapter = createBuildAdapter({ ownership: 'rolldown' });
+test('createBuildAdapter returns the RolldownBuildAdapter', () => {
+	const rolldownAdapter = createBuildAdapter();
 	assert.ok(rolldownAdapter instanceof RolldownBuildAdapter);
 	assert.equal(rolldownAdapter.ownership, 'rolldown');
 });
 
-test('createBuildAdapter with no ownership defaults to Rolldown', () => {
-	const defaultAdapter = createBuildAdapter();
-	assert.ok(defaultAdapter instanceof RolldownBuildAdapter);
+test('getBuildAdapterOwnership defaults to rolldown when no adapter is provided', () => {
+	assert.equal(getBuildAdapterOwnership(undefined), 'rolldown');
+	assert.equal(getBuildAdapterOwnership(new RolldownBuildAdapter()), 'rolldown');
 });
 
-test('createBuildAdapter with ownership: "vite-host" returns the ViteHostBuildAdapter', () => {
-	const viteAdapter = createBuildAdapter({ ownership: 'vite-host' });
-	const defaultViteAdapter = getDefaultBuildAdapter('vite-host');
+const registrations = (...plugins: EcoBuildPlugin[]) => plugins.map((plugin) => ({ plugin, source: plugin.name }));
 
-	assert.ok(viteAdapter instanceof ViteHostBuildAdapter);
-	assert.equal(viteAdapter.ownership, 'vite-host');
-	assert.ok(defaultViteAdapter instanceof ViteHostBuildAdapter);
-	assert.equal(defaultViteAdapter.ownership, 'vite-host');
-});
-
-test('ViteHostBuildAdapter rejects core-owned execution attempts', async () => {
-	const adapter = new ViteHostBuildAdapter();
-
-	await assert.rejects(
-		adapter.build({
-			entrypoints: ['/tmp/entry.ts'],
-			root: '/tmp',
-			outdir: '/tmp/out',
-			target: 'browser',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-		}),
-		/Vite-hosted builds are owned by the host runtime/,
-	);
-	assert.throws(() => adapter.resolve('react', '/tmp'), /Vite-hosted builds are owned by the host runtime/);
-	assert.throws(
-		() => adapter.getTranspileOptions('browser-script'),
-		/Vite-hosted builds are owned by the host runtime/,
-	);
-});
-
-test('build helper accepts an explicit executor across package and relative build-adapter imports', async () => {
-	const packageBuildAdapter = await import('@ecopages/core/build/build-adapter');
-	const executor = {
-		build: vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/shared.js' }],
-		})),
-	};
-
-	const result = await packageBuildAdapter.build(
-		{
-			entrypoints: ['/tmp/shared.ts'],
-			root: '/tmp',
-			outdir: '/tmp/out',
-			target: 'node',
-			format: 'esm',
-			sourcemap: 'none',
-			splitting: false,
-			minify: false,
-		},
-		executor,
-	);
-
-	assert.equal(result.success, true);
-	assert.deepEqual(result.outputs, [{ path: '/tmp/shared.js' }]);
-	assert.equal(executor.build.mock.calls.length, 1);
-});
-
-test('build helper uses the shared adapter when no executor is provided', async () => {
-	const executor = {
-		build: vi.fn(async () => ({
-			success: true,
-			logs: [],
-			outputs: [{ path: '/tmp/direct.js' }],
-		})),
-	};
-	const adapterSpy = vi.spyOn(defaultBuildAdapter, 'build').mockImplementation(executor.build);
-
-	const result = await build({
-		entrypoints: ['/tmp/direct.ts'],
-		root: '/tmp',
-		outdir: '/tmp/out',
-		target: 'node',
-		format: 'esm',
-		sourcemap: 'none',
-		splitting: false,
-		minify: false,
-	});
-
-	assert.equal(result.success, true);
-	assert.deepEqual(result.outputs, [{ path: '/tmp/direct.js' }]);
-	assert.equal(adapterSpy.mock.calls.length, 1);
-});
-
-test('getAppBuildAdapter returns the app-owned adapter before the shared default adapter', async () => {
-	const appConfig = {
-		runtime: {},
-		loaders: new Map(),
-	} as never;
-	const appAdapter = new RolldownBuildAdapter();
-
-	setAppBuildAdapter(appConfig, appAdapter);
-
-	assert.equal(getAppBuildAdapter(appConfig), appAdapter);
-	assert.equal(getAppBuildOwnership(appConfig), 'rolldown');
-	assert.notEqual(getAppBuildAdapter(appConfig), defaultBuildAdapter);
-});
-
-test('getAppBuildAdapter falls back to the explicit Vite-host adapter when ownership is host-owned', () => {
-	const appConfig = {
-		runtime: {},
-		loaders: new Map(),
-	} as any;
-
-	setAppBuildOwnership(appConfig, 'vite-host');
-
-	assert.equal(getAppBuildOwnership(appConfig), 'vite-host');
-	assert.ok(getAppBuildAdapter(appConfig) instanceof ViteHostBuildAdapter);
-});
-
-test('getAppBuildOwnership defaults to rolldown when no adapter and no ownership are set', () => {
-	const appConfig = { runtime: {}, loaders: new Map() } as never;
-	assert.equal(getAppBuildOwnership(appConfig), 'rolldown');
-	assert.ok(getAppBuildAdapter(appConfig) instanceof RolldownBuildAdapter);
-});
-
-test('build manifest separates server and browser plugin sets', () => {
+test('the sealed manifest holds the plugins of each environment, so readers do not filter', () => {
 	const loaderPlugin = { name: 'loader-plugin', setup() {} };
 	const runtimePlugin = { name: 'runtime-plugin', setup() {} };
-	const browserPlugin = { name: 'browser-plugin', setup() {} };
-	const appConfig = {
-		loaders: new Map(),
-		runtime: {},
-	} as any;
+	const browserPlugin: EcoBuildPlugin = { name: 'browser-plugin', environments: ['browser'], setup() {} };
+	const serverPlugin: EcoBuildPlugin = { name: 'server-plugin', environments: ['server'], setup() {} };
 
-	setAppBuildManifest(
-		appConfig,
-		createAppBuildManifest({
-			loaderPlugins: [loaderPlugin],
-			runtimePlugins: [runtimePlugin],
-			browserBundlePlugins: [browserPlugin],
-		}),
-	);
+	const manifest = createAppBuildManifest(registrations(loaderPlugin, runtimePlugin, browserPlugin, serverPlugin));
 
-	assert.deepEqual(getAppBuildManifest(appConfig).loaderPlugins, [loaderPlugin]);
-	assert.deepEqual(getAppServerBuildPlugins(appConfig), [loaderPlugin, runtimePlugin]);
-	assert.deepEqual(getAppBrowserBuildPlugins(appConfig), [loaderPlugin, runtimePlugin, browserPlugin]);
+	assert.deepEqual(manifest.server, [loaderPlugin, runtimePlugin, serverPlugin]);
+	assert.deepEqual(manifest.browser, [loaderPlugin, runtimePlugin, browserPlugin]);
 });
 
-test('createConfiguredAppBuildManifest defaults loader plugins from app config', () => {
-	const loaderPlugin = { name: 'loader-plugin', setup() {} };
-	const runtimePlugin = { name: 'runtime-plugin', setup() {} };
-	const appConfig = {
-		loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
-		runtime: {},
-	} as any;
-
-	const manifest = createConfiguredAppBuildManifest(appConfig, {
-		runtimePlugins: [runtimePlugin],
-	});
-
-	assert.deepEqual(manifest.loaderPlugins, [loaderPlugin]);
-	assert.deepEqual(manifest.runtimePlugins, [runtimePlugin]);
-	assert.deepEqual(manifest.browserBundlePlugins, []);
-	assert.deepEqual(manifest.browserRuntimeManifest.assets, []);
-});
-
-test('createConfiguredAppBuildManifest preserves explicit browser runtime manifest input', () => {
-	const appConfig = {
-		loaders: new Map(),
-		runtime: {},
-	} as any;
+test('the sealed browser list puts the runtime plugin between shared and browser-only plugins', () => {
+	const shared = { name: 'shared', setup() {} };
+	const browserOnly: EcoBuildPlugin = { name: 'browser-only', environments: ['browser'], setup() {} };
 	const browserRuntimeManifest = createBrowserRuntimeManifest([
 		{
 			specifier: 'react',
@@ -215,64 +56,123 @@ test('createConfiguredAppBuildManifest preserves explicit browser runtime manife
 		},
 	]);
 
-	const manifest = createConfiguredAppBuildManifest(appConfig, {
-		browserRuntimeManifest,
-	});
+	const manifest = createAppBuildManifest(registrations(browserOnly, shared), browserRuntimeManifest);
 
+	assert.deepEqual(
+		manifest.browser.map((plugin) => plugin.name),
+		['shared', 'browser-runtime-plugin', 'browser-only'],
+	);
 	assert.equal(manifest.browserRuntimeManifest.bySpecifier.get('react')?.publicPath, '/assets/vendors/react.js');
+	assert.deepEqual(
+		manifest.server.map((plugin) => plugin.name),
+		['shared'],
+	);
 });
 
-test('updateAppBuildManifest rebuilds the app manifest from config-owned loaders and explicit runtime plugins', () => {
+test('a manifest without runtime declarations has no runtime plugin', () => {
+	const manifest = createAppBuildManifest([]);
+
+	assert.deepEqual(manifest.browser, []);
+	assert.deepEqual(manifest.browserRuntimeManifest.assets, []);
+});
+
+test('sealing rejects a plugin name registered twice for one environment, naming both sources', () => {
+	const first = { name: 'same-name', setup() {} };
+	const second = { name: 'same-name', setup() {} };
+
+	assert.throws(
+		() =>
+			createAppBuildManifest([
+				{ plugin: first, source: 'Loader "a"' },
+				{ plugin: second, source: 'Processor "b"' },
+			]),
+		/Build plugin "same-name" for server is registered by both Loader "a" and Processor "b"\./,
+	);
+});
+
+test('a plugin name may be registered once per environment', () => {
+	const serverOnly: EcoBuildPlugin = { name: 'same-name', environments: ['server'], setup() {} };
+	const browserOnly: EcoBuildPlugin = { name: 'same-name', environments: ['browser'], setup() {} };
+
+	const manifest = createAppBuildManifest(registrations(serverOnly, browserOnly));
+
+	assert.deepEqual(manifest.server, [serverOnly]);
+	assert.deepEqual(manifest.browser, [browserOnly]);
+});
+
+test('sealAppBuildManifest gathers loaders, then processor and integration plugins, and seals once', () => {
+	const calls: string[] = [];
 	const loaderPlugin = { name: 'loader-plugin', setup() {} };
-	const runtimePlugin = { name: 'runtime-plugin', setup() {} };
-	const browserPlugin = { name: 'browser-plugin', setup() {} };
-	const appConfig = {
-		loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
-		runtime: {},
-	} as any;
-
-	updateAppBuildManifest(appConfig, {
-		runtimePlugins: [runtimePlugin],
-		browserBundlePlugins: [browserPlugin],
-	});
-
-	assert.deepEqual(getAppBuildManifest(appConfig).loaderPlugins, [loaderPlugin]);
-	assert.deepEqual(getAppServerBuildPlugins(appConfig), [loaderPlugin, runtimePlugin]);
-	assert.deepEqual(getAppBrowserBuildPlugins(appConfig), [loaderPlugin, runtimePlugin, browserPlugin]);
-});
-
-test('collectConfiguredAppBuildManifestContributions gathers processor and integration contributions during config build', async () => {
-	const contributionOrder: string[] = [];
 	const processorRuntimePlugin = { name: 'processor-runtime-plugin', setup() {} };
-	const processorBrowserPlugin = { name: 'processor-browser-plugin', setup() {} };
+	const processorBrowserPlugin: EcoBuildPlugin = {
+		name: 'processor-browser-plugin',
+		environments: ['browser'],
+		setup() {},
+	};
 	const integrationRuntimePlugin = { name: 'integration-runtime-plugin', setup() {} };
 	const processor = {
-		plugins: [processorRuntimePlugin],
-		buildPlugins: [processorBrowserPlugin],
-		prepareBuildContributions: vi.fn(async () => {
-			contributionOrder.push('processor-prepare');
+		name: 'processor',
+		plugins: vi.fn(() => {
+			calls.push('processor-plugins');
+			return [processorRuntimePlugin, processorBrowserPlugin];
+		}),
+		setup: vi.fn(async () => {
+			throw new Error('finalization must not set a processor up');
 		}),
 	};
 	const integration = {
-		plugins: [integrationRuntimePlugin],
-		setConfig: vi.fn(() => contributionOrder.push('integration-config')),
-		prepareBuildContributions: vi.fn(async () => {
-			contributionOrder.push('integration-prepare');
+		name: 'integration',
+		plugins: vi.fn(() => {
+			calls.push('integration-plugins');
+			return [integrationRuntimePlugin];
+		}),
+		browserRuntimeManifest: createBrowserRuntimeManifest(),
+		setup: vi.fn(async () => {
+			throw new Error('finalization must not set an integration up');
 		}),
 	};
-
-	const contributions = await collectConfiguredAppBuildManifestContributions({
+	const appConfig = {
+		loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
 		processors: new Map([['processor', processor]]),
 		integrations: [integration],
-	} as any);
+	} as any;
 
-	assert.deepEqual(contributionOrder, ['processor-prepare', 'integration-config', 'integration-prepare']);
-	assert.deepEqual(contributions.runtimePlugins, [processorRuntimePlugin, integrationRuntimePlugin]);
-	assert.deepEqual(contributions.browserBundlePlugins, [processorBrowserPlugin]);
-	assert.equal(contributions.browserRuntimeManifest.assets.length, 0);
+	const manifest = sealAppBuildManifest(appConfig);
+
+	assert.deepEqual(calls, ['processor-plugins', 'integration-plugins']);
+	assert.deepEqual(processor.plugins.mock.calls, [[appConfig]]);
+	assert.deepEqual(integration.plugins.mock.calls, [[appConfig]]);
+	assert.equal(processor.setup.mock.calls.length, 0);
+	assert.equal(integration.setup.mock.calls.length, 0);
+	assert.deepEqual(manifest.server, [loaderPlugin, processorRuntimePlugin, integrationRuntimePlugin]);
+	assert.deepEqual(manifest.browser, [
+		loaderPlugin,
+		processorRuntimePlugin,
+		integrationRuntimePlugin,
+		processorBrowserPlugin,
+	]);
 });
 
-test('collectConfiguredAppBuildManifestContributions merges integration browser runtime manifests', async () => {
+test('sealAppBuildManifest reports a plugin an integration registers under a loader name', () => {
+	const loaderPlugin = { name: 'duplicate', setup() {} };
+	const integration = {
+		name: 'react',
+		plugins: () => [{ name: 'duplicate', setup() {} }],
+		browserRuntimeManifest: createBrowserRuntimeManifest(),
+	};
+
+	assert.throws(
+		() =>
+			sealAppBuildManifest({
+				loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
+				processors: new Map(),
+				integrations: [integration],
+			} as any),
+		/registered by both Loader "duplicate" and Integration "react"/,
+	);
+});
+
+test('sealAppBuildManifest merges integration browser runtime manifests', () => {
 	const reactManifest = createBrowserRuntimeManifest([
 		{
 			specifier: 'react',
@@ -289,161 +189,86 @@ test('collectConfiguredAppBuildManifestContributions merges integration browser 
 			publicPath: '/assets/vendors/react-router.js',
 		},
 	]);
-
-	const contributions = await collectConfiguredAppBuildManifestContributions({
+	const integrationFor = (name: string, browserRuntimeManifest: typeof reactManifest) => ({
+		name,
+		plugins: () => [],
+		browserRuntimeManifest,
+	});
+	const appConfig = {
+		loaders: new Map(),
 		processors: new Map(),
-		integrations: [
-			{
-				setConfig() {},
-				prepareBuildContributions: vi.fn(async () => {}),
-				get plugins() {
-					return [];
-				},
-				get browserBuildPlugins() {
-					return [];
-				},
-				get browserRuntimeManifest() {
-					return reactManifest;
-				},
-			},
-			{
-				setConfig() {},
-				prepareBuildContributions: vi.fn(async () => {}),
-				get plugins() {
-					return [];
-				},
-				get browserBuildPlugins() {
-					return [];
-				},
-				get browserRuntimeManifest() {
-					return routerManifest;
-				},
-			},
-		],
-	} as any);
+		integrations: [integrationFor('react', reactManifest), integrationFor('router', routerManifest)],
+	} as any;
 
-	assert.deepEqual(Array.from(contributions.browserRuntimeManifest.bySpecifier.keys()), [
+	const manifest = sealAppBuildManifest(appConfig);
+
+	assert.deepEqual(Array.from(manifest.browserRuntimeManifest.bySpecifier.keys()), [
 		'react',
 		'@ecopages/react-router/browser',
 	]);
 });
 
-test('getAppBrowserBuildPlugins adds the app-level browser runtime rewrite plugin when the manifest is populated', () => {
-	const appConfig = {
-		loaders: new Map(),
-		runtime: {},
-	} as any;
-
-	setAppBuildManifest(
-		appConfig,
-		createAppBuildManifest({
-			browserRuntimeManifest: createBrowserRuntimeManifest([
-				{
-					specifier: 'react',
-					owner: '@ecopages/react',
-					importPath: 'react',
-					publicPath: '/assets/vendors/react.js',
-				},
-			]),
-		}),
-	);
-
-	assert.ok(getAppBrowserBuildPlugins(appConfig).some((plugin) => plugin.name === 'browser-runtime-plugin'));
-});
-
-test('getAppBrowserBuildPlugins excludes plugins that are registered as source transforms', () => {
-	const metaTransform = {
-		name: 'eco-component-meta-plugin',
-		filter: /\.tsx$/,
-		transform: () => undefined,
-	};
-	const loaderPlugin = { name: 'eco-component-meta-plugin', setup() {} };
-	const browserPlugin = { name: 'browser-plugin', setup() {} };
-	const appConfig = {
-		loaders: new Map([[loaderPlugin.name, loaderPlugin]]),
-		sourceTransforms: new Map([[metaTransform.name, metaTransform]]),
-		runtime: {},
-	} as any;
-
-	setAppBuildManifest(
-		appConfig,
-		createAppBuildManifest({
-			loaderPlugins: [loaderPlugin],
-			browserBundlePlugins: [browserPlugin],
-		}),
-	);
-
-	assert.deepEqual(
-		getAppBrowserBuildPlugins(appConfig).map((plugin) => plugin.name),
-		['browser-plugin'],
-	);
-});
-
 test('setupAppRuntimePlugins runs runtime setup without recomposing manifest contributions', async () => {
 	const contributionOrder: string[] = [];
+	const watchPaths: string[] = [];
+	const buildInputIndex = new BuildInputDependencyIndex();
 	const loaderPlugin = { name: 'loader-plugin', setup() {} };
 	const processorRuntimePlugin = { name: 'processor-runtime-plugin', setup() {} };
 	const integrationRuntimePlugin = { name: 'integration-runtime-plugin', setup() {} };
 	const processor = {
 		plugins: [processorRuntimePlugin],
+		setContext: vi.fn(),
+		getWatchConfig: () => ({ paths: watchPaths }),
 		setup: vi.fn(async () => {
 			contributionOrder.push('processor-setup');
+			watchPaths.push('/app/src/content');
 		}),
 	};
 	const integration = {
 		plugins: [integrationRuntimePlugin],
-		setConfig: vi.fn(() => contributionOrder.push('integration-config')),
-		setRuntimeOrigin: vi.fn(() => contributionOrder.push('integration-origin')),
-		setHmrManager: vi.fn(() => contributionOrder.push('integration-hmr')),
 		setup: vi.fn(async () => {
 			contributionOrder.push('integration-setup');
 		}),
 	};
-	const observedRuntimePlugins: string[] = [];
 
 	await setupAppRuntimePlugins({
 		appConfig: {
 			loaders: new Map([['loader-plugin', loaderPlugin]]),
 			processors: new Map([['processor', processor]]),
 			integrations: [integration],
+			appRuntime: { buildInputIndex },
 		} as any,
-		runtimeOrigin: 'http://localhost:3000',
-		onRuntimePlugin: (plugin) => observedRuntimePlugins.push(plugin.name),
 	});
 
 	assert.deepEqual(contributionOrder, ['processor-setup']);
-	assert.deepEqual(observedRuntimePlugins, ['loader-plugin', 'processor-runtime-plugin']);
+	assert.deepEqual(buildInputIndex.recordedWatchPaths(), ['/app/src/content']);
 });
 
 test('setupAppRuntimePlugins skips processor and integration setup when runtime assets are already prepared', async () => {
 	const processor = {
 		plugins: [{ name: 'processor-runtime-plugin', setup() {} }],
+		setContext: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
 	const integration = {
 		plugins: [{ name: 'integration-runtime-plugin', setup() {} }],
-		setConfig: vi.fn(),
-		setRuntimeOrigin: vi.fn(),
-		setHmrManager: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
-	const observedRuntimePlugins: string[] = [];
 
 	await setupAppRuntimePlugins({
 		appConfig: {
 			loaders: new Map(),
 			processors: new Map([['processor', processor]]),
 			integrations: [integration],
-			runtime: { runtimeAssetsPrepared: true },
+			appRuntime: {
+				runtimeAssetsPrepared: true,
+				integrationActivations: new Map(),
+			},
 		} as any,
-		runtimeOrigin: 'http://localhost:3000',
-		onRuntimePlugin: (plugin) => observedRuntimePlugins.push(plugin.name),
 	});
 
 	assert.equal(processor.setup.mock.calls.length, 0);
 	assert.equal(integration.setup.mock.calls.length, 0);
-	assert.equal(integration.setConfig.mock.calls.length, 0);
-	assert.deepEqual(observedRuntimePlugins, ['processor-runtime-plugin', 'integration-runtime-plugin']);
 });
 
 test('ensureIntegrationRuntimeReady activates one integration exactly once', async () => {
@@ -451,29 +276,28 @@ test('ensureIntegrationRuntimeReady activates one integration exactly once', asy
 	const integration = {
 		name: 'react',
 		plugins: [integrationRuntimePlugin],
-		setConfig: vi.fn(),
-		setRuntimeOrigin: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
 
 	const appConfig = {
 		integrations: [integration],
+		appRuntime: {
+			integrationActivations: new Map(),
+		},
 	} as any;
 
 	await ensureIntegrationRuntimeReady({
 		appConfig,
 		integrationName: 'react',
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	await ensureIntegrationRuntimeReady({
 		appConfig,
 		integrationName: 'react',
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.equal(integration.setup.mock.calls.length, 1);
-	assert.ok(appConfig.runtime?.integrationActivations?.has('react'));
+	assert.ok(appConfig.appRuntime.integrationActivations.has('react'));
 });
 
 test('ensureIntegrationRuntimeReady coalesces concurrent callers to one setup', async () => {
@@ -484,8 +308,6 @@ test('ensureIntegrationRuntimeReady coalesces concurrent callers to one setup', 
 	const integration = {
 		name: 'react',
 		plugins: [],
-		setConfig: vi.fn(),
-		setRuntimeOrigin: vi.fn(),
 		setup: vi.fn(async () => {
 			await setupGate;
 		}),
@@ -493,17 +315,18 @@ test('ensureIntegrationRuntimeReady coalesces concurrent callers to one setup', 
 
 	const appConfig = {
 		integrations: [integration],
+		appRuntime: {
+			integrationActivations: new Map(),
+		},
 	} as any;
 
 	const first = ensureIntegrationRuntimeReady({
 		appConfig,
 		integrationName: 'react',
-		runtimeOrigin: 'http://localhost:3000',
 	});
 	const second = ensureIntegrationRuntimeReady({
 		appConfig,
 		integrationName: 'react',
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.equal(integration.setup.mock.calls.length, 1);
@@ -516,13 +339,14 @@ test('ensureIntegrationRuntimeReady evicts failed activation so a later caller c
 	const integration = {
 		name: 'react',
 		plugins: [],
-		setConfig: vi.fn(),
-		setRuntimeOrigin: vi.fn(),
 		setup: vi.fn().mockRejectedValueOnce(new Error('setup failed')).mockResolvedValueOnce(undefined),
 	};
 
 	const appConfig = {
 		integrations: [integration],
+		appRuntime: {
+			integrationActivations: new Map(),
+		},
 	} as any;
 
 	await assert.rejects(
@@ -530,60 +354,46 @@ test('ensureIntegrationRuntimeReady evicts failed activation so a later caller c
 			ensureIntegrationRuntimeReady({
 				appConfig,
 				integrationName: 'react',
-				runtimeOrigin: 'http://localhost:3000',
 			}),
 		/setup failed/,
 	);
 
-	assert.equal(appConfig.runtime?.integrationActivations?.has('react'), false);
+	assert.equal(appConfig.appRuntime.integrationActivations.has('react'), false);
 
 	await ensureIntegrationRuntimeReady({
 		appConfig,
 		integrationName: 'react',
-		runtimeOrigin: 'http://localhost:3000',
 	});
 
 	assert.equal(integration.setup.mock.calls.length, 2);
-	assert.ok(appConfig.runtime?.integrationActivations?.has('react'));
+	assert.ok(appConfig.appRuntime.integrationActivations.has('react'));
 });
 
 test('setupAppRuntimePlugins skips processor setup in Lit static-render worker threads', async () => {
-	const previousWorkerFlag = process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER;
-	process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER = 'true';
+	vi.stubEnv('ECOPAGES_LIT_STATIC_RENDER_WORKER', 'true');
 
 	const processor = {
 		plugins: [{ name: 'processor-runtime-plugin', setup() {} }],
+		setContext: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
 	const integration = {
 		plugins: [{ name: 'integration-runtime-plugin', setup() {} }],
-		setConfig: vi.fn(),
-		setRuntimeOrigin: vi.fn(),
-		setHmrManager: vi.fn(),
 		setup: vi.fn(async () => {}),
 	};
-	const observedRuntimePlugins: string[] = [];
 
-	try {
-		await setupAppRuntimePlugins({
-			appConfig: {
-				loaders: new Map(),
-				processors: new Map([['processor', processor]]),
-				integrations: [integration],
-			} as any,
-			runtimeOrigin: 'http://localhost:3000',
-			onRuntimePlugin: (plugin) => observedRuntimePlugins.push(plugin.name),
-		});
+	await setupAppRuntimePlugins({
+		appConfig: {
+			loaders: new Map(),
+			processors: new Map([['processor', processor]]),
+			integrations: [integration],
+			appRuntime: {
+				runtimeAssetsPrepared: false,
+				integrationActivations: new Map(),
+			},
+		} as any,
+	});
 
-		assert.equal(processor.setup.mock.calls.length, 0);
-		assert.equal(integration.setup.mock.calls.length, 0);
-		assert.equal(integration.setConfig.mock.calls.length, 0);
-		assert.deepEqual(observedRuntimePlugins, ['processor-runtime-plugin']);
-	} finally {
-		if (previousWorkerFlag === undefined) {
-			delete process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER;
-		} else {
-			process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER = previousWorkerFlag;
-		}
-	}
+	assert.equal(processor.setup.mock.calls.length, 0);
+	assert.equal(integration.setup.mock.calls.length, 0);
 });

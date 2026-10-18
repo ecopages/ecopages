@@ -1,16 +1,13 @@
-import path from 'node:path';
-import { finalizeEcoPagesConfig, loadEcoPagesConfig } from '../config/load-eco-config.ts';
-import { DEFAULT_ECO_CONFIG_FILENAME, resolveUserConfigRootDir } from '../config/resolve-eco-config-path.ts';
+import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
+import { loadEcoPagesConfig } from '../config/load-eco-config.ts';
 import type { EcoPagesUserConfig } from '../config/user-config-types.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import { AbstractApplicationAdapter } from './abstract/application-adapter.ts';
-import type { ApplicationAdapterOptions } from './abstract/application-adapter.ts';
-import { createApp as createBunApp } from './bun/create-app.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import { parseCliArgs } from '../utils/parse-cli-args.ts';
 import { createNodeApp } from './node/create-app.ts';
+import type { EcopagesApp } from './node/create-app.ts';
 
-export type { OnAppStartCallback, AppStartInfo } from './abstract/application-adapter.ts';
-
-export type EcopagesRuntimeAdapter = 'auto' | 'node' | 'bun';
+export { EcopagesApp } from './node/create-app.ts';
+export type { AppStartInfo, OnAppStartCallback } from './node/create-app.ts';
 
 type EcopagesAppConfigSource =
 	| {
@@ -29,25 +26,12 @@ type EcopagesAppConfigSource =
 			configFile?: string;
 	  };
 
-export type EcopagesAppOptions = Omit<ApplicationAdapterOptions, 'appConfig'> &
-	EcopagesAppConfigSource & {
-		/**
-		 * Selects the runtime adapter used by the universal `createApp()` entrypoint.
-		 *
-		 * @default 'auto'
-		 *
-		 * @remarks
-		 * Use `'auto'` to select Bun when the current process exposes `globalThis.Bun`
-		 * and Node otherwise.
-		 */
-		adapter?: EcopagesRuntimeAdapter;
-
-		/**
-		 * Low-level server options passed to the underlying HTTP engine
-		 * (e.g. Node `http.createServer` or Bun `Bun.serve`).
-		 */
-		serverOptions?: Record<string, unknown>;
-	};
+export type EcopagesAppOptions = EcopagesAppConfigSource & {
+	/**
+	 * Listen options for the Node HTTP host. Only `port` and `hostname` are read.
+	 */
+	serverOptions?: Record<string, unknown>;
+};
 
 async function resolveAppConfig(options: EcopagesAppOptions): Promise<EcoPagesAppConfig> {
 	if (options.appConfig) {
@@ -55,61 +39,26 @@ async function resolveAppConfig(options: EcopagesAppOptions): Promise<EcoPagesAp
 	}
 
 	if (options.userConfig) {
-		return await finalizeEcoPagesConfig({
-			config: options.userConfig,
-			configFilePath: path.join(
-				resolveUserConfigRootDir(options.userConfig.rootDir),
-				DEFAULT_ECO_CONFIG_FILENAME,
-			),
-		});
+		return await finalizeEcoPagesConfig(options.userConfig);
 	}
 
 	return await loadEcoPagesConfig({ configFile: options.configFile });
 }
 
-export type ResolvedEcopagesAppOptions = ApplicationAdapterOptions & {
-	adapter?: EcopagesRuntimeAdapter;
-};
-
-export type UniversalEcopagesApp = AbstractApplicationAdapter<ResolvedEcopagesAppOptions, unknown, Request>;
-
-async function createRuntimeApp<WebSocketData = undefined>(
-	options: EcopagesAppOptions,
-	appConfig: EcoPagesAppConfig,
-): Promise<UniversalEcopagesApp> {
-	const adapter = options.adapter ?? 'auto';
-	const bun = (globalThis as { Bun?: unknown }).Bun;
-	const { userConfig: _uc, configFile: _cf, ...baseOptions } = options;
-	const runtimeOptions: ResolvedEcopagesAppOptions = {
-		...baseOptions,
-		appConfig,
-	};
-
-	if (adapter === 'bun' || (adapter === 'auto' && bun)) {
-		return (await createBunApp<WebSocketData>(runtimeOptions)) as unknown as UniversalEcopagesApp;
-	}
-
-	return (await createNodeApp(runtimeOptions)) as unknown as UniversalEcopagesApp;
-}
-
 /**
- * Creates and initializes an EcoPages universal application instance.
+ * Creates and initializes an EcoPages application instance.
  *
  * @remarks
- * In standard applications, `createApp()` is called with zero arguments. It automatically
- * resolves and loads `eco.config.ts` from the project root (or via the `ECOPAGES_CONFIG_FILE`
- * environment variable or explicit `configFile` option).
- *
- * In tests or fixture harness environments, you may pass `userConfig` (an unfinalized
- * `EcoPagesUserConfig` object authored via `defineConfig()`) or `appConfig` (a pre-finalized
- * `EcoPagesAppConfig`) to bypass file loading.
+ * Command-line options are read once while creating the app and stay fixed for its lifetime.
+ * In standard applications, `createApp()` resolves `eco.config.ts` from the project root (or
+ * through `ECOPAGES_CONFIG_FILE` or the explicit `configFile` option).
  *
  * @example Default usage in `app.ts`
  * ```typescript
  * import { createApp } from '@ecopages/core/create-app';
  *
  * const app = await createApp();
- * app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+ * app.get('/api/health', (context) => context.response.json({ status: 'ok' }));
  * await app.start();
  * ```
  *
@@ -128,9 +77,8 @@ async function createRuntimeApp<WebSocketData = undefined>(
  * });
  * ```
  */
-export async function createApp<WebSocketData = undefined>(
-	options: EcopagesAppOptions = {},
-): Promise<UniversalEcopagesApp> {
+export async function createApp(options: EcopagesAppOptions = {}): Promise<EcopagesApp> {
 	const appConfig = await resolveAppConfig(options);
-	return createRuntimeApp<WebSocketData>(options, appConfig);
+	const cliArgs = parseCliArgs();
+	return createNodeApp({ appConfig, serverOptions: options.serverOptions, cliArgs });
 }

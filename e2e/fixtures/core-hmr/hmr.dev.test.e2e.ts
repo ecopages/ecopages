@@ -1,11 +1,8 @@
-import { test, expect, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const FIXTURE_DIR = path.dirname(fileURLToPath(import.meta.url));
-const TEST_CSS_FILE = path.join(FIXTURE_DIR, 'src/pages/index.css');
+import { test, expect } from '../../app-fixture';
 
 async function readMainTitleColor(page: Page) {
 	return page.evaluate(() => {
@@ -19,26 +16,9 @@ async function readMainTitleColor(page: Page) {
 }
 
 test.describe('HMR E2E', () => {
-	test('should load page with .main-title element', async ({ page }) => {
-		await page.goto('/', { waitUntil: 'networkidle' });
-		const title = page.locator('.main-title').first();
-		await expect(title).toBeVisible();
-	});
-
-	test('should connect to HMR WebSocket', async ({ page }) => {
-		const socketPromise = page.waitForEvent('websocket', {
-			predicate: (socket) => socket.url().endsWith('/_hmr'),
-			timeout: 10000,
-		});
-
-		await page.goto('/', { waitUntil: 'networkidle' });
-		const socket = await socketPromise;
-
-		expect(socket.url()).toMatch(/\/_hmr$/);
-	});
-
-	test('should fall back to a full page reload when raw CSS file changes', async ({ page }) => {
-		const originalCss = readFileSync(TEST_CSS_FILE, 'utf-8');
+	test('should fall back to a full page reload when raw CSS file changes', async ({ page, app }) => {
+		const testCssFile = path.join(app.dir, 'src/pages/index.css');
+		const originalCss = readFileSync(testCssFile, 'utf-8');
 		const title = page.locator('.main-title').first();
 
 		try {
@@ -55,7 +35,7 @@ test.describe('HMR E2E', () => {
 				timeout: 10000,
 			});
 
-			await writeFile(TEST_CSS_FILE, modifiedCss, { flush: true });
+			await writeFile(testCssFile, modifiedCss, { flush: true });
 
 			await reloadPromise;
 			await page.waitForLoadState('domcontentloaded');
@@ -63,7 +43,7 @@ test.describe('HMR E2E', () => {
 
 			await expect.poll(async () => readMainTitleColor(page), { timeout: 10000 }).toBe('rgb(255, 0, 0)');
 		} finally {
-			await writeFile(TEST_CSS_FILE, originalCss, { flush: true });
+			await writeFile(testCssFile, originalCss, { flush: true });
 		}
 	});
 });

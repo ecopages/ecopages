@@ -9,28 +9,26 @@
 
 import { createClientGraphBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
 import { getReactClientGraphAllowSpecifiers, getReactRuntimeExternalSpecifiers } from './runtime-alias-map.ts';
-import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
-import { getHostScopedJsxOwnershipPlugins } from '@ecopages/core/build/jsx-ownership-plugins';
-import type { EcoPagesAppConfig } from '@ecopages/core';
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
+import { createBrowserRuntimePlugin } from '@ecopages/core/build';
+import { getHostScopedJsxOwnershipPlugins } from '@ecopages/core/build';
+import type { EcoBuildPlugin, IntegrationRuntimeContext } from '@ecopages/core/integration';
+import type { AssetProcessingIntegration, AssetProcessingService } from '@ecopages/core/integration';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { RuntimeBundleService, type ReactRuntimeImports } from './runtime-bundle.ts';
 import type { ResolvedReactPluginRuntimeModule } from './runtime-modules.ts';
 import { isReactProductionRuntime } from './runtime-mode.ts';
-import type { ClientGraphBoundaryCache } from '../client-graph/boundary-cache.ts';
 
 /**
  * Configuration for the BundleService.
  */
 export interface BundleServiceConfig {
 	rootDir: string;
-	appConfig: EcoPagesAppConfig;
+	appConfig: IntegrationRuntimeContext['appConfig'];
+	assetProcessingIntegration?: AssetProcessingIntegration;
 	hostIntegrationName: string;
 	routerAdapter?: ReactRouterAdapter;
 	runtimeModules?: ResolvedReactPluginRuntimeModule[];
 	getMdxLoaderPlugin?: () => EcoBuildPlugin;
-	clientGraphBoundaryCache?: ClientGraphBoundaryCache;
 }
 
 /**
@@ -54,7 +52,10 @@ export interface ReactClientBundleOptions {
 export class BundleService {
 	private readonly runtimeBundleService: RuntimeBundleService;
 	private readonly config: BundleServiceConfig;
+	private readonly foreignJsxOverridePlugin: EcoBuildPlugin | undefined;
+	private readonly runtimeRewritePlugin: EcoBuildPlugin | null;
 	private pageLayoutNormalizationVendorPromise: Promise<void> | undefined;
+	private mdxLoaderPlugin: EcoBuildPlugin | null | undefined;
 
 	constructor(config: BundleServiceConfig) {
 		this.config = config;
@@ -62,6 +63,15 @@ export class BundleService {
 			rootDir: config.rootDir,
 			routerAdapter: config.routerAdapter,
 			runtimeModules: config.runtimeModules,
+		});
+		[this.foreignJsxOverridePlugin] = getHostScopedJsxOwnershipPlugins(
+			config.appConfig,
+			config.hostIntegrationName,
+			{ name: 'react-renderer-foreign-jsx-override' },
+		);
+		this.runtimeRewritePlugin = createBrowserRuntimePlugin({
+			name: 'react-renderer-runtime-import-rewrite',
+			manifest: this.runtimeBundleService.getRuntimeManifest(),
 		});
 	}
 
@@ -86,7 +96,7 @@ export class BundleService {
 			this.pageLayoutNormalizationVendorPromise = assetProcessingService
 				.processDependencies(
 					this.runtimeBundleService.getPageLayoutNormalizationDependencies(),
-					'react:page-layout-normalization',
+					this.config.assetProcessingIntegration,
 				)
 				.then(() => undefined)
 				.catch((error) => {
@@ -115,6 +125,9 @@ export class BundleService {
 		isMdx: boolean,
 		declaredModules: string[],
 		bundleOptions: ReactClientBundleOptions = {},
+		entrypointFile?: string,
+		groupedEntrypointFiles?: readonly string[],
+		groupedDeclaredModules?: readonly string[],
 	): Promise<Record<string, unknown>> {
 		const runtimeImports = this.getRuntimeImports();
 		const options: Record<string, unknown> = {
@@ -144,39 +157,56 @@ export class BundleService {
 			];
 		}
 
+		options.plugins = this.createClientBuildPlugins({
+			declaredModules,
+			entrypointFile,
+			groupedEntrypointFiles,
+			groupedDeclaredModules,
+			includeRuntime: bundleOptions.includeRuntime,
+			isMdx,
+		});
+
+		return options;
+	}
+
+	private createClientBuildPlugins(options: {
+		declaredModules: string[];
+		entrypointFile?: string;
+		groupedEntrypointFiles?: readonly string[];
+		groupedDeclaredModules?: readonly string[];
+		includeRuntime?: boolean;
+		isMdx: boolean;
+	}): EcoBuildPlugin[] {
 		const graphBoundaryPlugin = createClientGraphBoundaryPlugin({
 			projectRoot: this.config.appConfig?.absolutePaths?.projectDir ?? this.config.rootDir,
 			absWorkingDir: this.config.rootDir,
-			declaredModules,
+			entrypointFile: options.entrypointFile,
+			groupedEntrypointFiles: options.groupedEntrypointFiles,
+			groupedDeclaredModules: options.groupedDeclaredModules,
+			declaredModules: options.declaredModules,
 			alwaysAllowSpecifiers: getReactClientGraphAllowSpecifiers(
 				this.runtimeBundleService.getConfiguredRuntimeModuleSpecifiers(),
 				this.config.routerAdapter,
 			),
-			cache: this.config.clientGraphBoundaryCache,
 		});
 
-		const [foreignJsxOverridePlugin] = getHostScopedJsxOwnershipPlugins(
-			this.config.appConfig,
-			this.config.hostIntegrationName,
-			{ name: 'react-renderer-foreign-jsx-override' },
-		);
-		const runtimeManifest = this.runtimeBundleService.getRuntimeManifest();
-		const runtimeRewritePlugin = createBrowserRuntimePlugin({
-			name: 'react-renderer-runtime-import-rewrite',
-			manifest: runtimeManifest,
-		});
-		const runtimePlugins = bundleOptions.includeRuntime
+		const runtimePlugins = options.includeRuntime
 			? []
-			: [runtimeRewritePlugin].filter((plugin): plugin is NonNullable<typeof plugin> => plugin !== null);
+			: [this.runtimeRewritePlugin].filter((plugin): plugin is NonNullable<typeof plugin> => plugin !== null);
 
-		const mdxPlugin = isMdx ? this.config.getMdxLoaderPlugin?.() : undefined;
-		options.plugins = [
-			...(foreignJsxOverridePlugin ? [foreignJsxOverridePlugin] : []),
+		const mdxPlugin = options.isMdx ? this.getMdxLoaderPlugin() : undefined;
+		return [
+			...(this.foreignJsxOverridePlugin ? [this.foreignJsxOverridePlugin] : []),
 			graphBoundaryPlugin,
 			...runtimePlugins,
 			...(mdxPlugin ? [mdxPlugin] : []),
 		];
+	}
 
-		return options;
+	private getMdxLoaderPlugin(): EcoBuildPlugin | undefined {
+		if (this.mdxLoaderPlugin === undefined) {
+			this.mdxLoaderPlugin = this.config.getMdxLoaderPlugin?.() ?? null;
+		}
+		return this.mdxLoaderPlugin ?? undefined;
 	}
 }

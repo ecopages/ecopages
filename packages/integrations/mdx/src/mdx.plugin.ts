@@ -1,23 +1,21 @@
 import type { EcoPagesElement } from '@ecopages/core';
 import {
 	IntegrationPlugin,
+	isDevelopmentRuntime,
 	mergeIntegrationOptions,
 	type EcoBuildPlugin,
-} from '@ecopages/core/plugins/integration-plugin';
+	type IntegrationRuntimeContext,
+} from '@ecopages/core/integration';
 import { Logger } from '@ecopages/logger';
 import type { CompileOptions } from '@mdx-js/mdx';
 import { createMdxLoaderPlugin } from './mdx-loader-plugin.ts';
+import { requireAppRuntime } from '@ecopages/core/integration';
 import { MDX_PLUGIN_NAME } from './mdx.constants.ts';
 import { MDXRenderer } from './mdx-renderer.ts';
 import type { MDXPluginConfig } from './mdx.types.ts';
 import type { JsxImportSource } from './core/jsx-import-source.ts';
 
-export type {
-	MDXPluginConfig,
-	MDXRendererConfig,
-	MDXRendererOptions,
-	StandaloneMdxCompilerOptions,
-} from './mdx.types.ts';
+export type { MDXPluginConfig, StandaloneMdxCompilerOptions } from './mdx.types.ts';
 export type { JsxImportSource, KnownJsxImportSource, ThirdPartyJsxImportSource } from './core/jsx-import-source.ts';
 
 const appLogger = new Logger('[MDXPlugin]');
@@ -31,7 +29,7 @@ const defaultOptions: CompileOptions = {
 	format: 'detect',
 	outputFormat: 'program',
 	jsxRuntime: 'automatic',
-	development: process.env.NODE_ENV === 'development',
+	development: isDevelopmentRuntime(),
 };
 
 function assertStandaloneJsxImportSource(
@@ -39,19 +37,19 @@ function assertStandaloneJsxImportSource(
 ): asserts jsxImportSource is JsxImportSource {
 	if (!jsxImportSource) {
 		throw new Error(
-			'Standalone `mdxPlugin()` requires `compilerOptions.jsxImportSource` (for example `@kitajs/html`). React-backed MDX should use `reactPlugin({ mdx: { enabled: true } })`; Ecopages JSX MDX should use `ecopagesJsxPlugin({ mdx: { enabled: true } })`.',
+			'Standalone `mdxPlugin()` requires `compilerOptions.jsxImportSource` (for example `@kitajs/html`). React-backed MDX should use `reactPlugin({ mdx: {} })`; Ecopages JSX MDX should use `ecopagesJsxPlugin({ mdx: {} })`.',
 		);
 	}
 
 	if (jsxImportSource === 'react' || jsxImportSource.startsWith('react/')) {
 		throw new Error(
-			'Standalone `mdxPlugin()` does not support React JSX runtimes. Use `reactPlugin({ mdx: { enabled: true, compilerOptions: ... } })` instead.',
+			'Standalone `mdxPlugin()` does not support React JSX runtimes. Use `reactPlugin({ mdx: { compilerOptions: ... } })` instead.',
 		);
 	}
 
 	if (jsxImportSource === '@ecopages/jsx' || jsxImportSource.startsWith('@ecopages/jsx/')) {
 		throw new Error(
-			'Standalone `mdxPlugin()` does not support the Ecopages JSX runtime. Use `ecopagesJsxPlugin({ mdx: { enabled: true, compilerOptions: ... } })` instead.',
+			'Standalone `mdxPlugin()` does not support the Ecopages JSX runtime. Use `ecopagesJsxPlugin({ mdx: { compilerOptions: ... } })` instead.',
 		);
 	}
 }
@@ -88,13 +86,12 @@ function splitMarkdownExtensions(extensions: string[]): Pick<CompileOptions, 'md
  * Standalone `mdxPlugin()` is for third-party JSX runtimes. Set
  * `compilerOptions.jsxImportSource` explicitly (for example `@kitajs/html`).
  * React-backed MDX should be configured through
- * `reactPlugin({ mdx: { enabled: true, compilerOptions: ... } })`.
- * Ecopages JSX MDX should use `ecopagesJsxPlugin({ mdx: { enabled: true } })`.
+ * `reactPlugin({ mdx: { compilerOptions: ... } })`.
+ * Ecopages JSX MDX should use `ecopagesJsxPlugin({ mdx: {} })`.
  */
 export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 	renderer = MDXRenderer;
 	private readonly compilerOptions: CompileOptions;
-	private mdxLoaderPlugin: EcoBuildPlugin | undefined;
 
 	constructor({ compilerOptions, ...options }: MDXPluginConfig) {
 		super({
@@ -122,56 +119,14 @@ export class MDXPlugin extends IntegrationPlugin<EcoPagesElement> {
 		appLogger.debug(`MDX plugin configured with jsxImportSource: ${jsxImportSource}`);
 	}
 
-	override initializeRenderer(options?: { rendererModules?: unknown }): MDXRenderer {
-		const renderer = new this.renderer({
-			...this.createRendererOptions(options),
-			mdxConfig: {
+	override plugins(app: IntegrationRuntimeContext['appConfig']): EcoBuildPlugin[] {
+		return [
+			createMdxLoaderPlugin({
 				compilerOptions: this.compilerOptions,
-			},
-		});
-		return this.attachRendererRuntimeServices(renderer);
-	}
-
-	override get plugins(): EcoBuildPlugin[] {
-		if (this.mdxLoaderPlugin) {
-			return [this.mdxLoaderPlugin];
-		}
-
-		return [];
-	}
-
-	/**
-	 * Materializes the MDX loader once so config-time sealing and runtime setup
-	 * can share the same loader instance.
-	 */
-	private ensureLoaderPlugin(): void {
-		if (this.mdxLoaderPlugin) {
-			return;
-		}
-
-		if (!this.appConfig?.rootDir) {
-			throw new Error('[MDXPlugin] Cannot create MDX loader: appConfig.rootDir is required.');
-		}
-
-		this.mdxLoaderPlugin = createMdxLoaderPlugin({
-			compilerOptions: this.compilerOptions,
-			projectRoot: this.appConfig.rootDir,
-		});
-	}
-
-	/**
-	 * Prepares the MDX loader contribution before config build seals the manifest.
-	 */
-	override async prepareBuildContributions(): Promise<void> {
-		this.ensureLoaderPlugin();
-	}
-
-	/**
-	 * Runs runtime-only MDX setup after build contributions are already prepared.
-	 */
-	override async setup(): Promise<void> {
-		this.ensureLoaderPlugin();
-		await super.setup();
+				projectRoot: app.rootDir,
+				requestPipelineMetrics: requireAppRuntime(app).requestPipelineMetrics,
+			}),
+		];
 	}
 }
 

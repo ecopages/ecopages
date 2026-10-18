@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../../../e2e/app-fixture';
 import {
 	createHmrPhaseTimer,
 	startEcopagesHmrConnectionWatch,
@@ -12,30 +11,8 @@ import {
 	HMR_MUTATION_ASSERT_TIMEOUT_MS,
 } from './test-support';
 
-const SEO_INCLUDE_FILE = fileURLToPath(new URL('../src/includes/seo.kita.tsx', import.meta.url));
-const EXPLICIT_TEAM_VIEW_FILE = fileURLToPath(new URL('../src/views/explicit-team-view.kita.tsx', import.meta.url));
 const SEO_SUFFIX = '[include-hmr]';
 const EXPLICIT_TEAM_SUFFIX = '[explicit-route-hmr]';
-
-function getSeoIncludeFile(projectMetadata: Record<string, unknown> | undefined) {
-	const isolatedAppDir = typeof projectMetadata?.isolatedAppDir === 'string' ? projectMetadata.isolatedAppDir : null;
-
-	if (!isolatedAppDir) {
-		return SEO_INCLUDE_FILE;
-	}
-
-	return path.join(isolatedAppDir, 'src/includes/seo.kita.tsx');
-}
-
-function getExplicitTeamViewFile(projectMetadata: Record<string, unknown> | undefined) {
-	const isolatedAppDir = typeof projectMetadata?.isolatedAppDir === 'string' ? projectMetadata.isolatedAppDir : null;
-
-	if (!isolatedAppDir) {
-		return EXPLICIT_TEAM_VIEW_FILE;
-	}
-
-	return path.join(isolatedAppDir, 'src/views/explicit-team-view.kita.tsx');
-}
 
 function patchSeoTitle(content: string, suffix: string) {
 	return content.replace('<title safe>{title}</title>', `<title safe>{\`${'${title}'} ${suffix}\`}</title>`);
@@ -50,9 +27,9 @@ function patchExplicitRouteHeading(content: string, suffix: string) {
 
 test.describe('Source mutation HMR @hmr', () => {
 	let originalSeoInclude = '';
-	let seoIncludeFile = SEO_INCLUDE_FILE;
+	let seoIncludeFile = '';
 	let originalExplicitTeamView = '';
-	let explicitTeamViewFile = EXPLICIT_TEAM_VIEW_FILE;
+	let explicitTeamViewFile = '';
 
 	test.describe.configure({ mode: 'serial' });
 
@@ -61,12 +38,9 @@ test.describe('Source mutation HMR @hmr', () => {
 		fs.writeFileSync(explicitTeamViewFile, originalExplicitTeamView, 'utf-8');
 	}
 
-	// oxlint-disable-next-line no-empty-pattern
-	test.beforeAll(async ({}, testInfo) => {
-		seoIncludeFile = getSeoIncludeFile(testInfo.project.metadata as Record<string, unknown> | undefined);
-		explicitTeamViewFile = getExplicitTeamViewFile(
-			testInfo.project.metadata as Record<string, unknown> | undefined,
-		);
+	test.beforeAll(({ app }) => {
+		seoIncludeFile = path.join(app.dir, 'src/includes/seo.kita.tsx');
+		explicitTeamViewFile = path.join(app.dir, 'src/views/explicit-team-view.kita.tsx');
 		originalSeoInclude = fs.readFileSync(seoIncludeFile, 'utf-8');
 		originalExplicitTeamView = fs.readFileSync(explicitTeamViewFile, 'utf-8');
 	});

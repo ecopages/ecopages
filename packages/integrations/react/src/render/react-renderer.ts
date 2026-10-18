@@ -9,30 +9,44 @@
  * @module
  */
 
+/**
+ * React IntegrationRenderer orchestrator.
+ *
+ * @remarks
+ * Wires services and delegates SSR / layout composition / ownership details to
+ * focused modules under `render/`. Prefer changing those modules for
+ * implementation work; keep this file as the IntegrationRenderer seam.
+ *
+ * @module
+ */
+import type { EcoComponent, EcoComponentConfig, EcoPageFile } from '@ecopages/core';
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
-	EcoComponent,
-	EcoComponentConfig,
-	EcoPageFile,
 	IntegrationRendererRenderOptions,
-	PageMetadataProps,
-	RouteRendererBody,
-} from '@ecopages/core';
-import { getComponentIdentity } from '@ecopages/core';
+} from '@ecopages/core/integration';
+import { HttpError } from '@ecopages/core/errors';
+import { buildIslandHostAttributes, getComponentIdentity } from '@ecopages/core';
 import {
-	IntegrationRenderer,
+	createIntegrationRenderer,
+	type IntegrationRendererHookFactory,
+	type IntegrationRendererHooks,
+	type IntegrationRendererOptions,
 	type HtmlDocumentContribution,
 	type HtmlDocumentContributionContext,
 	type PageBrowserGraphContributionContext,
-	type RenderToResponseContext,
-} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import { resolveDocumentShellLayouts } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';
-import { RESOLVED_ASSETS_DIR } from '@ecopages/core/constants';
-import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
-import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
-import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
+	selectHydrationIslandEntries,
+	type PageClientBrowserAssets,
+	type PageClientBuildEntry,
+	type PageClientPlan,
+} from '@ecopages/core/integration';
+import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/integration';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
+import { resolveQueuedTokens } from '@ecopages/core/integration';
+import { ensurePageConfigLayouts } from '@ecopages/core/integration';
 import type { ReactNode } from 'react';
+import { hasSingleRootElement } from './html-boundary.ts';
+import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
 import { REACT_PLUGIN_NAME } from '../plugin/react.constants.ts';
 import type { ReactRendererConfig } from '../plugin/react.types.ts';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
@@ -43,103 +57,183 @@ import { PageModuleService } from '../page/page-module.ts';
 import { PagePayloadService } from '../hydration/page-payload.ts';
 import { HydrationAssetService } from '../hydration/hydration-asset.ts';
 import {
-	composeDocumentShell,
-	finalizeDocumentShellHtml,
-	renderPageDocumentShell,
 	type DocumentShellComposeChildrenContext,
 	type DocumentShellComposeChildrenResult,
 	type DocumentShellLayoutInput,
-} from '@ecopages/core/route-renderer/orchestration/document-shell/document-shell-render.service';
-import { mergePageBrowserGraph } from '@ecopages/core/route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils';
-import { asReactComponent, getComponentRequires, isReactManagedComponent } from './component-ownership.ts';
+} from '@ecopages/core/integration';
+import type { QueuedForeignSubtreeResolutionContext } from '@ecopages/core/integration';
+import { asNonReactShellComponent, getComponentRequires, isReactManagedComponent } from './component-ownership.ts';
 import {
-	renderForeignComponentWithSerializedHtml,
-	renderReactManagedComponent,
-	renderQueuedChildrenToHtml,
+	buildHydrationProps,
+	renderComponentHtml,
+	renderNonReactShellComponent,
+	restoreRuntimeChildHtml,
+	toReactNode,
+	type ReactComponentRenderContext,
 	type ReactForeignSubtreeResolutionContext,
 } from './component-ssr.ts';
 import { BundleError, ReactRenderError } from './errors.ts';
 import { resolveReactRuntimeModules, type ReactRuntimeModules } from './react-runtime.ts';
-import { composeReactLayoutPageChildren, resolveComposeChildren } from './unified-layout-composition.ts';
+import { composeReactLayoutPageTree, shouldUseUnifiedReactLayoutComposition } from './unified-layout-composition.ts';
+import { assertComposablePage, resolveLayoutContextFromShell } from './layout-compose.ts';
 
 export type { ReactRendererConfig } from '../plugin/react.types.ts';
 export { BundleError, ReactRenderError } from './errors.ts';
 
-export type ReactRendererOptions = ConstructorParameters<typeof IntegrationRenderer>[0] & {
+export type ReactRendererOptions = IntegrationRendererOptions & {
 	reactConfig?: ReactRendererConfig;
 };
 
-/**
- * Renderer for React components.
- * @extends IntegrationRenderer
- */
-export class ReactRenderer extends IntegrationRenderer<ReactNode> {
-	name = REACT_PLUGIN_NAME;
-	componentDirectory = RESOLVED_ASSETS_DIR;
-	private reactRuntimeModules?: ReactRuntimeModules;
-	private readonly routerAdapter?: ReactRouterAdapter;
-	private readonly mdxExtensions: string[];
-	private readonly hmrPageMetadataCache?: HmrPageMetadataCache;
-	/**
-	 * When true, always emit page browser graph / hydration assets for React pages.
-	 *
-	 * Mapped from the public `explicitGraph` plugin option. Does not disable the
-	 * client-graph AST boundary.
-	 */
-	private readonly forceBrowserGraph: boolean;
+type ReactRendererRuntimeState = {
+	routerAdapter?: ReactRouterAdapter;
+	mdxExtensions: string[];
+	hmrPageMetadataCache?: HmrPageMetadataCache;
+	forceBrowserGraph: boolean;
+	bundleService: BundleService;
+	pageModuleService: PageModuleService;
+	hydrationAssetService: HydrationAssetService;
+	pagePayloadService: PagePayloadService;
+	mdxConfigDependencyService: MdxConfigDependencyService;
+	applyPendingLazyTriggers: (
+		assets: ProcessedAsset[],
+		configs: PageClientPlan['lazyConfigs'],
+	) => PageClientBrowserAssets['lazyTriggers'];
+};
 
-	/** @internal */
-	readonly bundleService: BundleService;
-	/** @internal */
-	readonly pageModuleService: PageModuleService;
-	/** @internal */
-	readonly hydrationAssetService: HydrationAssetService;
-	/** @internal */
-	readonly pagePayloadService: PagePayloadService;
-	/** @internal */
-	readonly mdxConfigDependencyService: MdxConfigDependencyService;
+type ReactRendererRuntimeStateRef = {
+	current?: ReactRendererRuntimeState;
+};
+
+type ReactRendererHookTargets = Pick<
+	IntegrationRendererHooks,
+	| 'buildIslandClientAssets'
+	| 'collectAppBrowserClientBuildEntries'
+	| 'renderComponent'
+	| 'renderQueuedChildren'
+	| 'normalizePageModule'
+	| 'collectPageBrowserGraphContribution'
+	| 'composeChildren'
+	| 'documentContributions'
+	| 'documentAttributes'
+	| 'documentShellProps'
+>;
+
+const ReactIntegrationRenderer = createIntegrationRenderer<ReactNode>(REACT_PLUGIN_NAME);
+
+/** Renderer adapter that contributes React-specific behavior through core hooks. */
+export class ReactRenderer extends ReactIntegrationRenderer {
+	private reactRuntimeModules?: ReactRuntimeModules;
+	private readonly runtimeStateRef: ReactRendererRuntimeStateRef;
+	private readonly hookTargets: Partial<ReactRendererHookTargets>;
 
 	constructor(options: ReactRendererOptions) {
 		const { reactConfig, ...rendererOptions } = options;
-		super(rendererOptions);
+		const runtimeStateRef: ReactRendererRuntimeStateRef = {};
+		const hookTargets: Partial<ReactRendererHookTargets> = {};
+		const configuredHooks = createReactRendererHookFactory(reactConfig, runtimeStateRef, hookTargets);
+		const additionalHooks = rendererOptions.hooks;
+		const hooks: IntegrationRendererHookFactory = (factoryOptions) => {
+			const reactHooks = configuredHooks(factoryOptions);
+			const customHooks =
+				typeof additionalHooks === 'function'
+					? additionalHooks({ ...factoryOptions, hooks: reactHooks })
+					: additionalHooks;
+			return { ...reactHooks, ...customHooks };
+		};
 
-		this.routerAdapter = reactConfig?.routerAdapter;
-		this.mdxExtensions = reactConfig?.mdxExtensions ?? ['.mdx'];
-		this.hmrPageMetadataCache = reactConfig?.hmrPageMetadataCache;
-		this.forceBrowserGraph = reactConfig?.forceBrowserGraph ?? false;
+		super({ ...rendererOptions, hooks });
 
-		this.bundleService = new BundleService({
-			rootDir: this.appConfig.rootDir,
-			appConfig: this.appConfig,
-			hostIntegrationName: this.name,
-			routerAdapter: this.routerAdapter,
-			runtimeModules: reactConfig?.runtimeModules,
-			getMdxLoaderPlugin: reactConfig?.getMdxLoaderPlugin,
-			clientGraphBoundaryCache: reactConfig?.clientGraphBoundaryCache,
+		this.runtimeStateRef = runtimeStateRef;
+		this.hookTargets = hookTargets;
+		this.hookTargets.buildIslandClientAssets = (plan) => this.buildPageClientBrowserAssetsHook(plan);
+		this.hookTargets.collectAppBrowserClientBuildEntries = (plan) =>
+			this.collectAppBrowserClientBuildEntriesHook(plan);
+		this.hookTargets.renderComponent = (input) => this.renderComponentHook(input);
+		this.hookTargets.renderQueuedChildren = (children, runtimeContext, queuedResolutionsByToken, resolveToken) =>
+			this.renderQueuedChildrenHook(children, runtimeContext, queuedResolutionsByToken, resolveToken);
+		this.hookTargets.normalizePageModule = (file, module) => this.normalizeImportedPageFileHook(file, module);
+		this.hookTargets.collectPageBrowserGraphContribution = (context) =>
+			this.collectPageBrowserGraphContributionHook(context);
+		this.hookTargets.composeChildren = ({ page, layouts, foreignChildRoots }) =>
+			this.resolveComposeChildren({ page, shellLayouts: layouts, foreignChildRoots });
+		this.hookTargets.documentShellProps = (renderOptions) => this.buildDocumentShellProps(renderOptions);
+		this.hookTargets.documentContributions = (context) => this.getHtmlDocumentContributionsHook(context);
+		this.hookTargets.documentAttributes = (renderOptions) => this.getDocumentAttributesHook(renderOptions);
+	}
+
+	get routerAdapter(): ReactRouterAdapter | undefined {
+		return this.getRuntimeState().routerAdapter;
+	}
+
+	get mdxExtensions(): string[] {
+		return this.getRuntimeState().mdxExtensions;
+	}
+
+	get hmrPageMetadataCache(): HmrPageMetadataCache | undefined {
+		return this.getRuntimeState().hmrPageMetadataCache;
+	}
+
+	get forceBrowserGraph(): boolean {
+		return this.getRuntimeState().forceBrowserGraph;
+	}
+
+	get bundleService(): BundleService {
+		return this.getRuntimeState().bundleService;
+	}
+
+	get pageModuleService(): PageModuleService {
+		return this.getRuntimeState().pageModuleService;
+	}
+
+	get hydrationAssetService(): HydrationAssetService {
+		return this.getRuntimeState().hydrationAssetService;
+	}
+
+	get pagePayloadService(): PagePayloadService {
+		return this.getRuntimeState().pagePayloadService;
+	}
+
+	get mdxConfigDependencyService(): MdxConfigDependencyService {
+		return this.getRuntimeState().mdxConfigDependencyService;
+	}
+
+	private getRuntimeState(): ReactRendererRuntimeState {
+		if (!this.runtimeStateRef.current) {
+			throw new Error('React renderer services were used before hook initialization.');
+		}
+
+		return this.runtimeStateRef.current;
+	}
+
+	/**
+	 * Builds React island and lazy-entry modules in one grouped browser build.
+	 */
+	private async buildPageClientBrowserAssetsHook(plan: PageClientPlan): Promise<PageClientBrowserAssets> {
+		const result = await this.hydrationAssetService.buildPageClientRenderAssets({
+			islands: selectHydrationIslandEntries(plan, this.name).map((entry) => ({
+				file: entry.file,
+				config: entry.component.config,
+			})),
+			lazyEntries: plan.lazyClientEntries,
 		});
+		const lazyTriggers = this.getRuntimeState().applyPendingLazyTriggers(
+			result.processedAssets,
+			plan.lazyConfigs ?? [],
+		);
+		return {
+			processedAssets: result.processedAssets,
+			islandRenderAssetsByFile: result.assetsByFile,
+			lazyTriggers,
+		};
+	}
 
-		this.pageModuleService = new PageModuleService({
-			layoutsDir: this.appConfig.absolutePaths.layoutsDir,
-			componentsDir: this.appConfig.absolutePaths.componentsDir,
-			mdxExtensions: this.mdxExtensions,
-			integrationName: this.name,
-			hasRouterAdapter: Boolean(this.routerAdapter),
-		});
-
-		this.hydrationAssetService = new HydrationAssetService({
-			srcDir: this.appConfig.srcDir,
-			routerAdapter: this.routerAdapter,
-			assetProcessingService: this.assetProcessingService,
-			bundleService: this.bundleService,
-			hmrPageMetadataCache: this.hmrPageMetadataCache,
-		});
-
-		this.pagePayloadService = new PagePayloadService();
-		this.mdxConfigDependencyService = new MdxConfigDependencyService({
-			integrationName: this.name,
-			pageModuleService: this.pageModuleService,
-			assetProcessingService: this.assetProcessingService,
-		});
+	private async collectAppBrowserClientBuildEntriesHook(plan: PageClientPlan): Promise<PageClientBuildEntry[]> {
+		return this.hydrationAssetService.collectAppBrowserClientBuildEntries(
+			selectHydrationIslandEntries(plan, this.name).map((entry) => ({
+				file: entry.file,
+				config: entry.component.config,
+			})),
+		);
 	}
 
 	private getRouterDocumentAttributes(): Record<string, string> | undefined {
@@ -161,28 +255,6 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		return this.reactRuntimeModules;
 	}
 
-	/**
-	 * Appends route hydration assets for a concrete page/view file to the current
-	 * HTML transformer state.
-	 */
-	private async appendHydrationAssetsForFile(filePath?: string): Promise<void> {
-		if (!filePath) {
-			return;
-		}
-
-		const pageBrowserGraph = await this.resolvePageBrowserGraphForFile(filePath);
-		if (!pageBrowserGraph) {
-			return;
-		}
-
-		const { pagePackage } = mergePageBrowserGraph(
-			this.htmlTransformer.getPagePackage(),
-			this.htmlTransformer.getProcessedDependencies(),
-			pageBrowserGraph,
-		);
-		this.htmlTransformer.setPagePackage(pagePackage);
-	}
-
 	private resolveReactQueuedForeignSubtreeHtml(
 		html: string,
 		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
@@ -191,19 +263,60 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 			html,
 			runtimeContext,
 			async (children, currentRuntimeContext, queuedResolutionsByToken, resolveToken) => ({
-				html: await renderQueuedChildrenToHtml({
+				html: await this.renderQueuedChildrenToHtml({
 					children,
 					runtimeContext: currentRuntimeContext,
 					queuedResolutionsByToken,
 					resolveToken,
-					runtime: this.getReactRuntimeModules(),
-					integrationName: this.name,
-					normalizeUnresolvedMarkerArtifactHtml: (value) => this.normalizeUnresolvedMarkerArtifactHtml(value),
-					resolveQueuedTokens: (value, tokens, resolve) =>
-						this.foreignSubtreeExecutionService.resolveQueuedTokens(value, tokens, resolve),
 				}),
 			}),
 		);
+	}
+
+	private async renderQueuedChildrenToHtml(options: {
+		children: unknown;
+		runtimeContext: ReactForeignSubtreeResolutionContext;
+		queuedResolutionsByToken: Map<string, ReactForeignSubtreeResolutionContext['queuedResolutions'][number]>;
+		resolveToken: (token: string) => Promise<string>;
+	}): Promise<string | undefined> {
+		const { children, runtimeContext, queuedResolutionsByToken, resolveToken } = options;
+		if (children === undefined) {
+			return undefined;
+		}
+
+		const { react, reactDomServer } = this.getReactRuntimeModules();
+		let html = this.normalizeUnresolvedMarkerArtifactHtml(
+			reactDomServer.renderToString(react.createElement(react.Fragment, null, toReactNode(children, this.name))),
+		);
+		html = restoreRuntimeChildHtml(html, runtimeContext);
+
+		return await resolveQueuedTokens(html, queuedResolutionsByToken, resolveToken);
+	}
+
+	private buildPagePayload<C>(options: {
+		Page: IntegrationRendererRenderOptions<C>['Page'];
+		pageProps?: IntegrationRendererRenderOptions<C>['pageProps'];
+		params: IntegrationRendererRenderOptions<C>['params'];
+		query: IntegrationRendererRenderOptions<C>['query'];
+		locals: IntegrationRendererRenderOptions<C>['locals'];
+		pagePackage?: IntegrationRendererRenderOptions<C>['pagePackage'];
+	}): { pageModuleUrl: string | undefined; pageProps: Record<string, unknown> } {
+		const safeLocals = this.pagePayloadService.getSerializableLocals(
+			options.locals,
+			getComponentRequires(options.Page),
+		);
+
+		return {
+			pageModuleUrl: this.pagePayloadService.resolvePageModuleUrl(options.pagePackage, {
+				routerEnabled: Boolean(this.routerAdapter),
+			}),
+			pageProps: this.pagePayloadService.buildSerializedPageProps({
+				pageProps: options.pageProps,
+				params: options.params,
+				query: options.query,
+				safeLocals,
+			}),
+		};
 	}
 
 	/**
@@ -220,36 +333,110 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 	 * This preserves DOM shape for global CSS/layout selectors while keeping a
 	 * deterministic mount target per component instance.
 	 */
-	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		const runtimeContext = this.getQueuedForeignSubtreeContext<ReactForeignSubtreeResolutionContext>(input);
-
+	private async renderComponentHook(input: ComponentRenderInput): Promise<ComponentRenderResult> {
 		if (!isReactManagedComponent(input.component, this.name)) {
-			return renderForeignComponentWithSerializedHtml({
-				input,
-				runtimeContext,
-				integrationName: this.name,
-				canResolveAssets: typeof this.assetProcessingService?.processDependencies === 'function',
-				processComponentDependencies: (components) => this.processComponentDependencies(components),
-				dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-				getRootTagName: (html) => this.getRootTagName(html),
-				resolveQueuedForeignSubtreeHtml: (html, context) =>
-					this.resolveReactQueuedForeignSubtreeHtml(html, context),
-			});
+			return await this.renderForeignComponentWithSerializedHtml(input);
 		}
 
-		return renderReactManagedComponent({
-			input,
-			runtimeContext,
-			runtime: this.getReactRuntimeModules(),
+		const runtimeContext = this.getQueuedForeignSubtreeContext<ReactForeignSubtreeResolutionContext>(input);
+		return await this.renderReactManagedComponent(input, runtimeContext);
+	}
+
+	private async renderForeignComponentWithSerializedHtml(
+		input: ComponentRenderInput,
+	): Promise<ComponentRenderResult> {
+		let props = input.props;
+		if (input.children !== undefined) {
+			props = {
+				...input.props,
+				children: typeof input.children === 'string' ? input.children : String(input.children ?? ''),
+			};
+		}
+
+		const html = await renderNonReactShellComponent(
+			asNonReactShellComponent<Record<string, unknown>>(input.component),
+			props,
+			'Component',
+		);
+		const assets = input.component.config?.dependencies
+			? await this.processComponentDependencies([input.component])
+			: undefined;
+
+		return {
+			html,
+			canAttachAttributes: true,
 			integrationName: this.name,
-			normalizeUnresolvedMarkerArtifactHtml: (html) => this.normalizeUnresolvedMarkerArtifactHtml(html),
-			resolveQueuedForeignSubtreeHtml: (html, context) =>
-				this.resolveReactQueuedForeignSubtreeHtml(html, context),
-			getRootTagName: (html) => this.getRootTagName(html),
-			dedupeProcessedAssets: (assets) => this.htmlTransformer.dedupeProcessedAssets(assets),
-			hydrationAssetService: this.hydrationAssetService,
-			canBuildIslandAssets: Boolean(this.assetProcessingService),
+			assets,
+		};
+	}
+
+	/**
+	 * Emits a server island host only for eligible, single-root component renders.
+	 *
+	 * @remarks
+	 * Renderer-owned services stay on this class so SSR helpers do not receive
+	 * wrappers around the renderer's own methods.
+	 */
+	private async renderReactManagedComponent(
+		input: ComponentRenderInput,
+		runtimeContext: ReactForeignSubtreeResolutionContext | undefined,
+	): Promise<ComponentRenderResult> {
+		const componentConfig = input.component.config;
+		const context: ReactComponentRenderContext = {
+			componentInstanceId: input.integrationContext?.componentInstanceId,
+		};
+		const hasResolvedChildHtml = input.children !== undefined;
+		let html = this.normalizeUnresolvedMarkerArtifactHtml(
+			renderComponentHtml({ input, context, runtimeContext, runtime: this.getReactRuntimeModules() }),
+		);
+		const queuedResolution = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
+		html = queuedResolution.html;
+		const canAttachAttributes = hasSingleRootElement(html);
+		const componentFile = getComponentIdentity(componentConfig)?.file;
+
+		let rootAttributes: Record<string, string> | undefined;
+		let assets: ProcessedAsset[] | undefined;
+		if (canAttachAttributes && componentFile && context.componentInstanceId && !hasResolvedChildHtml) {
+			rootAttributes = buildIslandHostAttributes({
+				integrationName: this.name,
+				componentInstanceId: context.componentInstanceId,
+				componentKey: getIslandComponentKey(componentFile, componentConfig),
+				props: buildHydrationProps(input.props),
+			});
+			assets = this.getActiveIslandRenderAssets().get(componentFile);
+			html = `<eco-island style="display:contents">${html}</eco-island>`;
+		}
+		const mergedAssets = this.htmlTransformer.dedupeProcessedAssets([
+			...(assets ?? []),
+			...queuedResolution.assets,
+		]);
+
+		return {
+			html,
+			canAttachAttributes,
+			integrationName: this.name,
+			rootAttributes,
+			assets: mergedAssets.length > 0 ? mergedAssets : undefined,
+		};
+	}
+
+	private async renderQueuedChildrenHook(
+		children: unknown,
+		runtimeContext: QueuedForeignSubtreeResolutionContext,
+		queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolutionContext['queuedResolutions'][number]>,
+		resolveToken: (token: string) => Promise<string>,
+	): Promise<{ html?: string }> {
+		if (children === undefined) {
+			return {};
+		}
+
+		const html = await this.renderQueuedChildrenToHtml({
+			children,
+			runtimeContext: runtimeContext as ReactForeignSubtreeResolutionContext,
+			queuedResolutionsByToken,
+			resolveToken,
 		});
+		return html === undefined ? {} : { html };
 	}
 
 	/**
@@ -261,7 +448,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		return this.pageModuleService.isMdxFile(filePath);
 	}
 
-	protected override normalizeImportedPageFile<TPageModule extends EcoPageFile>(
+	private normalizeImportedPageFileHook<TPageModule extends EcoPageFile>(
 		file: string,
 		pageModule: TPageModule,
 	): TPageModule {
@@ -281,7 +468,7 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		} as TPageModule;
 	}
 
-	protected override async collectPageBrowserGraphContribution(
+	private async collectPageBrowserGraphContributionHook(
 		context: PageBrowserGraphContributionContext,
 	): Promise<{ dependencies?: AssetDefinition[]; assets?: ProcessedAsset[] }> {
 		try {
@@ -328,259 +515,233 @@ export class ReactRenderer extends IntegrationRenderer<ReactNode> {
 		page: { component: EcoComponent; props: Record<string, unknown> },
 		context: DocumentShellComposeChildrenContext,
 	): Promise<DocumentShellComposeChildrenResult> {
-		return composeReactLayoutPageChildren({
-			page,
-			context,
-			runtime: this.getReactRuntimeModules(),
-			integrationName: this.name,
-			normalizeUnresolvedMarkerArtifactHtml: (html) => this.normalizeUnresolvedMarkerArtifactHtml(html),
-			getRootTagName: (html) => this.getRootTagName(html),
-			getQueuedForeignSubtreeResolutionContext: (input) =>
-				this.getQueuedForeignSubtreeContext<ReactForeignSubtreeResolutionContext>(input),
-			resolveQueuedForeignSubtreeHtml: (html, runtimeContext) =>
-				this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext),
+		const pageComponent = assertComposablePage(page.component);
+		const shellEntries = context.layouts.map((layout) => ({
+			component: layout.component,
+			props: layout.props,
+		}));
+		const { react, reactDomServer } = this.getReactRuntimeModules();
+		const tree = composeReactLayoutPageTree(pageComponent, page.props, shellEntries, {
+			context: resolveLayoutContextFromShell(page.props, shellEntries),
+			react,
 		});
-	}
-
-	protected override async renderPageWithDocumentShell(input: {
-		page: {
-			component: EcoComponent;
-			props: Record<string, unknown>;
+		const runtimeInput: ComponentRenderInput = {
+			component: page.component,
+			props: page.props,
+			integrationContext: {
+				rendererCache: context.rendererCache as ReactForeignSubtreeResolutionContext['rendererCache'],
+			},
 		};
-		layout?: DocumentShellLayoutInput;
-		layouts?: DocumentShellLayoutInput[];
-		htmlTemplate: EcoComponent;
-		metadata: PageMetadataProps;
-		pageProps: Record<string, unknown>;
-		documentProps?: Record<string, unknown>;
-		transformDocumentHtml?: (html: string) => string;
+		const runtimeContext = this.getQueuedForeignSubtreeContext<ReactForeignSubtreeResolutionContext>(runtimeInput);
+		const html = this.normalizeUnresolvedMarkerArtifactHtml(reactDomServer.renderToString(tree));
+		const resolved = await this.resolveReactQueuedForeignSubtreeHtml(html, runtimeContext);
+		const primaryRender: ComponentRenderResult = {
+			html: resolved.html,
+			canAttachAttributes: hasSingleRootElement(resolved.html),
+			integrationName: this.name,
+			assets: resolved.assets.length > 0 ? resolved.assets : undefined,
+		};
+
+		return {
+			children: resolved.html,
+			layoutRenders: [],
+			primaryRender,
+		};
+	}
+
+	protected resolveComposeChildren(options: {
+		page: { component: EcoComponent; props: Record<string, unknown> };
+		shellLayouts: DocumentShellLayoutInput[];
 		foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
-	}): Promise<string> {
-		const shellLayouts = input.layouts ?? (input.layout ? [input.layout] : []);
-		const composeChildren = resolveComposeChildren({
-			page: input.page,
-			shellLayouts,
-			foreignChildRoots: input.foreignChildRoots,
-			reactIntegrationName: this.name,
-			hasForeignChildDescendants: (component, roots) => this.hasForeignChildDescendants(component, roots),
-			composeChildren: (page, context) => this.composeReactLayoutPageChildrenForShell(page, context),
-		});
-
-		return renderPageDocumentShell(
-			{
-				renderComponentWithForeignChildren: (renderInput) =>
-					this.renderComponentWithForeignChildren(renderInput),
-				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
-			},
-			{
-				...input,
-				composeChildren,
-			},
-			this.DOC_TYPE,
-		);
-	}
-
-	/**
-	 * Renders a full route response for the filesystem page pipeline.
-	 *
-	 * This path receives already-resolved route metadata, layout, locals, and HTML
-	 * template instances from the shared renderer orchestration. Its main job is to
-	 * serialize only the browser-safe page payload, compose the mixed React/non-
-	 * React shell tree, and hand the result back as a document body.
-	 */
-	async render({
-		params,
-		query,
-		props,
-		locals,
-		pageLocals,
-		metadata,
-		Page,
-		Layout,
-		layoutEntries,
-		HtmlTemplate,
-		pageProps,
-		pagePackage,
-		resolvedPageDependencyComponents,
-	}: IntegrationRendererRenderOptions<ReactNode>): Promise<RouteRendererBody> {
-		try {
-			const pageModuleUrl = this.pagePayloadService.resolvePageModuleUrl(pagePackage, {
-				routerEnabled: Boolean(this.routerAdapter),
-			});
-			const safeLocals = this.pagePayloadService.getSerializableLocals(locals, getComponentRequires(Page));
-			const allPageProps = this.pagePayloadService.buildSerializedPageProps({
-				pageProps,
-				params,
-				query,
-				safeLocals,
-			});
-
-			return await this.renderPageWithDocumentShell({
-				page: {
-					component: Page,
-					props: { params, query, ...props, locals: pageLocals },
-				},
-				layouts: resolveDocumentShellLayouts({
-					layout: Layout,
-					layoutEntries,
-					params,
-					query,
-					locals,
-				}),
-				htmlTemplate: HtmlTemplate,
-				metadata,
-				pageProps: allPageProps,
-				documentProps: pageModuleUrl ? { pageModuleUrl } : undefined,
-				foreignChildRoots: resolvedPageDependencyComponents,
-			});
-		} catch (error) {
-			throw this.createRenderError('Failed to render component', error);
-		}
-	}
-
-	protected override getHtmlDocumentContributions(
-		options: HtmlDocumentContributionContext<ReactNode>,
-	): HtmlDocumentContribution[] | undefined {
-		if (options.partial || !options.renderOptions) {
+	}): ((context: DocumentShellComposeChildrenContext) => Promise<DocumentShellComposeChildrenResult>) | undefined {
+		const { page, shellLayouts, foreignChildRoots } = options;
+		if (
+			!shouldUseUnifiedReactLayoutComposition({
+				page: page.component,
+				shellLayouts,
+				reactIntegrationName: this.name,
+			})
+		) {
 			return undefined;
 		}
 
-		const safeLocals = this.pagePayloadService.getSerializableLocals(
-			options.renderOptions.locals,
-			getComponentRequires(options.renderOptions.Page),
-		);
-		const pageModuleUrl = this.pagePayloadService.resolvePageModuleUrl(options.renderOptions.pagePackage, {
-			routerEnabled: Boolean(this.routerAdapter),
+		if (
+			this.hasForeignChildDescendants(page.component, foreignChildRoots) ||
+			shellLayouts.some((layout) => this.hasForeignChildDescendants(layout.component))
+		) {
+			return undefined;
+		}
+
+		return (context) => this.composeReactLayoutPageChildrenForShell(page, context);
+	}
+
+	private buildDocumentShellProps<C>(options: IntegrationRendererRenderOptions<C>): {
+		pageProps: Record<string, unknown>;
+		documentProps?: Record<string, unknown>;
+	} {
+		const pagePayload = this.buildPagePayload({
+			Page: options.Page,
+			pageProps: options.pageProps,
+			params: options.params,
+			query: options.query,
+			locals: options.locals,
+			pagePackage: options.pagePackage,
 		});
-		const allPageProps = this.pagePayloadService.buildSerializedPageProps({
-			pageProps: options.renderOptions.pageProps,
-			params: options.renderOptions.params,
-			query: options.renderOptions.query,
-			safeLocals,
+
+		return {
+			pageProps: pagePayload.pageProps,
+			documentProps: pagePayload.pageModuleUrl ? { pageModuleUrl: pagePayload.pageModuleUrl } : undefined,
+		};
+	}
+
+	private getHtmlDocumentContributionsHook<C>(
+		options: HtmlDocumentContributionContext<C>,
+	): HtmlDocumentContribution[] | undefined {
+		const renderOptions = options.renderOptions;
+		if (
+			options.partial ||
+			!renderOptions ||
+			!this.routerAdapter ||
+			isReactManagedComponent(renderOptions.HtmlTemplate, this.name)
+		) {
+			return undefined;
+		}
+
+		const pagePayload = this.buildPagePayload({
+			Page: renderOptions.Page,
+			pageProps: renderOptions.pageProps,
+			params: renderOptions.params,
+			query: renderOptions.query,
+			locals: renderOptions.locals,
+			pagePackage: renderOptions.pagePackage,
 		});
 
 		return this.pagePayloadService.buildNonReactDocumentContributions({
-			htmlTemplate: options.renderOptions.HtmlTemplate,
-			pageProps: allPageProps as Record<string, unknown>,
-			pageModuleUrl,
+			htmlTemplate: renderOptions.HtmlTemplate,
+			pageProps: pagePayload.pageProps,
+			pageModuleUrl: pagePayload.pageModuleUrl,
 			reactIntegrationName: this.name,
-			routerEnabled: Boolean(this.routerAdapter),
+			routerEnabled: true,
 		});
 	}
 
-	protected override getDocumentAttributes(): Record<string, string> | undefined {
+	private getDocumentAttributesHook<C>(
+		_renderOptions: IntegrationRendererRenderOptions<C>,
+	): Record<string, string> | undefined {
 		return this.getRouterDocumentAttributes();
 	}
+}
 
-	protected override async renderViewWithDocumentShell<P>(input: {
-		view: EcoComponent<P>;
-		props: P;
-		ctx: RenderToResponseContext;
-		layout?: EcoComponent;
-	}): Promise<Response> {
-		const normalizedProps = (input.props ?? {}) as Record<string, unknown>;
-
-		if (input.ctx.partial) {
-			const { react, reactDomServer } = this.getReactRuntimeModules();
-			const ViewComponent = asReactComponent(input.view);
-			return this.renderPartialViewResponse({
-				...input,
-				renderInline: async () =>
-					await reactDomServer.renderToReadableStream(react.createElement(ViewComponent, normalizedProps)),
-			});
-		}
-
-		await this.prepareViewDependencies(input.view, input.layout);
-		if (!input.ctx.partial) {
-			await this.appendHydrationAssetsForFile(getComponentIdentity(input.view)?.file);
-		}
-
-		const HtmlTemplate = await this.getHtmlTemplate();
-		const metadata = await this.resolveViewMetadata(input.view, input.props);
-		const pageModuleUrl = this.pagePayloadService.resolvePageModuleUrl(this.htmlTransformer.getPagePackage(), {
-			routerEnabled: Boolean(this.routerAdapter),
+function createReactRendererHookFactory(
+	reactConfig: ReactRendererConfig | undefined,
+	runtimeStateRef: ReactRendererRuntimeStateRef,
+	hookTargets: Partial<ReactRendererHookTargets>,
+): IntegrationRendererHookFactory {
+	return ({
+		appConfig,
+		assetProcessingIntegration,
+		assetProcessingService,
+		applyPendingLazyTriggers,
+	}: Parameters<IntegrationRendererHookFactory>[0]) => {
+		const routerAdapter = reactConfig?.routerAdapter;
+		const mdxExtensions = reactConfig?.mdxExtensions ?? ['.mdx'];
+		const hmrPageMetadataCache = reactConfig?.hmrPageMetadataCache;
+		const forceBrowserGraph = reactConfig?.forceBrowserGraph ?? false;
+		const bundleService = new BundleService({
+			rootDir: appConfig.rootDir,
+			appConfig,
+			assetProcessingIntegration,
+			hostIntegrationName: REACT_PLUGIN_NAME,
+			routerAdapter,
+			runtimeModules: reactConfig?.runtimeModules,
+			getMdxLoaderPlugin: reactConfig?.getMdxLoaderPlugin,
 		});
-		const serializedPageProps = this.pagePayloadService.buildSerializedPageProps({
-			pageProps: normalizedProps,
-			params: {},
-			query: {},
-			safeLocals: this.pagePayloadService.getSerializableLocals(undefined, getComponentRequires(input.view)),
+		const pageModuleService = new PageModuleService({
+			layoutsDir: appConfig.absolutePaths.layoutsDir,
+			componentsDir: appConfig.absolutePaths.componentsDir,
+			mdxExtensions,
+			integrationName: REACT_PLUGIN_NAME,
+			hasRouterAdapter: Boolean(routerAdapter),
 		});
-		const shellLayouts: DocumentShellLayoutInput[] = input.layout ? [{ component: input.layout, props: {} }] : [];
-		const composeChildren = resolveComposeChildren({
-			page: { component: input.view, props: normalizedProps },
-			shellLayouts,
-			reactIntegrationName: this.name,
-			hasForeignChildDescendants: (component, roots) => this.hasForeignChildDescendants(component, roots),
-			composeChildren: (page, context) => this.composeReactLayoutPageChildrenForShell(page, context),
+		const hydrationAssetService = new HydrationAssetService({
+			srcDir: appConfig.srcDir,
+			routerAdapter,
+			assetProcessingService,
+			assetProcessingIntegration,
+			bundleService,
+			hmrPageMetadataCache,
 		});
 
-		const { documentHtml } = await composeDocumentShell(
-			{
-				renderComponentWithForeignChildren: (renderInput) =>
-					this.renderComponentWithForeignChildren(renderInput),
-				appendProcessedDependencies: (...assetGroups) => this.appendProcessedDependencies(...assetGroups),
-			},
-			{
-				primaryComponent: input.view,
-				primaryProps: normalizedProps,
-				layout: input.layout
-					? {
-							component: input.layout,
-							props: {},
-						}
-					: undefined,
-				layouts: shellLayouts.length > 0 ? shellLayouts : undefined,
-				composeChildren,
-				htmlTemplate: HtmlTemplate,
-				documentProps: {
-					metadata,
-					pageProps: serializedPageProps,
-					...(pageModuleUrl && { pageModuleUrl }),
-				},
-			},
-		);
-
-		this.appendProcessedDependencies(this.getRendererBootstrapDependencies(false));
-		const html = await finalizeDocumentShellHtml(this.htmlTransformer, {
-			html: `${this.DOC_TYPE}${documentHtml}`,
-			partial: false,
-			documentAttributes: this.getRouterDocumentAttributes(),
-			htmlContributions: this.pagePayloadService.buildNonReactDocumentContributions({
-				htmlTemplate: HtmlTemplate,
-				pageProps: serializedPageProps as Record<string, unknown>,
-				pageModuleUrl,
-				reactIntegrationName: this.name,
-				routerEnabled: Boolean(this.routerAdapter),
+		runtimeStateRef.current = {
+			routerAdapter,
+			mdxExtensions,
+			hmrPageMetadataCache,
+			forceBrowserGraph,
+			bundleService,
+			pageModuleService,
+			hydrationAssetService,
+			pagePayloadService: new PagePayloadService(),
+			mdxConfigDependencyService: new MdxConfigDependencyService({
+				integrationName: REACT_PLUGIN_NAME,
+				pageModuleService,
+				assetProcessingService,
+				assetProcessingIntegration,
 			}),
-		});
+			applyPendingLazyTriggers,
+		};
 
-		return this.createHtmlResponse(html, input.ctx);
+		return {
+			buildIslandClientAssets: (plan) =>
+				requireReactRendererHookTarget(hookTargets, 'buildIslandClientAssets')(plan),
+			collectAppBrowserClientBuildEntries: (plan) =>
+				requireReactRendererHookTarget(hookTargets, 'collectAppBrowserClientBuildEntries')(plan),
+			renderComponent: (input) => requireReactRendererHookTarget(hookTargets, 'renderComponent')(input),
+			renderQueuedChildren: (children, runtimeContext, queuedResolutionsByToken, resolveToken) =>
+				requireReactRendererHookTarget(hookTargets, 'renderQueuedChildren')(
+					children,
+					runtimeContext,
+					queuedResolutionsByToken,
+					resolveToken,
+				),
+			normalizePageModule: (file, module) =>
+				requireReactRendererHookTarget(hookTargets, 'normalizePageModule')(file, module),
+			collectPageBrowserGraphContribution: (context) =>
+				requireReactRendererHookTarget(hookTargets, 'collectPageBrowserGraphContribution')(context),
+			composeChildren: (input) => requireReactRendererHookTarget(hookTargets, 'composeChildren')(input),
+			documentShellProps: <C>(options: IntegrationRendererRenderOptions<C>) =>
+				requireReactRendererHookTarget(hookTargets, 'documentShellProps')(options),
+			documentContributions: <C>(context: HtmlDocumentContributionContext<C>) =>
+				requireReactRendererHookTarget(hookTargets, 'documentContributions')(context),
+			documentAttributes: <C>(options: IntegrationRendererRenderOptions<C>) =>
+				requireReactRendererHookTarget(hookTargets, 'documentAttributes')(options),
+			renderRoute: async (_options, render) => {
+				try {
+					return await render();
+				} catch (error) {
+					throw createReactRenderError('Failed to render component', error);
+				}
+			},
+		} satisfies IntegrationRendererHooks;
+	};
+}
+
+function requireReactRendererHookTarget<K extends keyof ReactRendererHookTargets>(
+	hookTargets: Partial<ReactRendererHookTargets>,
+	name: K,
+): NonNullable<ReactRendererHookTargets[K]> {
+	const hookTarget = hookTargets[name];
+	if (!hookTarget) {
+		throw new Error(`React renderer hook "${name}" was called before the renderer was initialized.`);
 	}
 
-	/**
-	 * Renders an arbitrary React view through the application's HTML shell.
-	 *
-	 * Unlike route rendering, this path starts from a single component rather than a
-	 * page module discovered by the router. It still needs to resolve metadata,
-	 * layout dependencies, and hydration assets so direct `ctx.render()` calls match
-	 * normal page responses.
-	 */
-	async renderToResponse<P = Record<string, unknown>>(
-		view: EcoComponent<P>,
-		props: P,
-		ctx: RenderToResponseContext,
-	): Promise<Response> {
-		try {
-			const layouts = view.config?.layouts;
-			return await this.renderViewWithDocumentShell({
-				view,
-				props,
-				ctx,
-				layout: layouts?.[layouts.length - 1],
-			});
-		} catch (error) {
-			throw this.createRenderError('Failed to render view', error);
-		}
+	return hookTarget;
+}
+
+function createReactRenderError(message: string, cause?: unknown): HttpError {
+	if (HttpError.isHttpError(cause)) {
+		return cause;
 	}
+
+	const errorMessage = cause instanceof Error ? `${message}: ${cause.message}` : message;
+	return HttpError.InternalServerError(errorMessage);
 }

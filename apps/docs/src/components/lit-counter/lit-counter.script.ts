@@ -1,5 +1,6 @@
 import { html, LitElement, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import type { JsxCustomElementAttributes } from '@ecopages/jsx';
 import styles from './lit-counter.css';
 
 export type LitCounterProps = {
@@ -29,10 +30,8 @@ export class LitCounter extends LitElement {
 	}
 }
 
-declare global {
-	namespace JSX {
-		interface IntrinsicElements {
-			'lit-counter': HtmlTag & LitCounterProps;
-		}
+declare module '@ecopages/jsx' {
+	interface JsxCustomIntrinsicElements {
+		'lit-counter': JsxCustomElementAttributes<LitCounter, LitCounterProps>;
 	}
 }

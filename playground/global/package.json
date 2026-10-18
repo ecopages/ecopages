@@ -7,8 +7,7 @@
 		"dev": "ecopages dev",
 		"build": "ecopages build",
 		"preview": "ecopages preview",
-		"watch:dev": "ecopages dev:watch",
-		"hot:dev": "ecopages dev:hot"
+		"watch:dev": "ecopages dev:watch"
 	},
 	"devDependencies": {
 		"@ecopages/browser-router": "workspace:*",
@@ -18,7 +17,7 @@
 		"@ecopages/lit": "workspace:*",
 		"@ecopages/mdx": "workspace:*",
 		"@ecopages/postcss-processor": "workspace:*",
-		"@ecopages/radiant": "^0.3.0-rc.9",
+		"@ecopages/radiant": "^0.4.0",
 		"@ecopages/react": "workspace:*",
 		"@ecopages/scripts-injector": "^0.1.5",
 		"@faker-js/faker": "9.7.0",

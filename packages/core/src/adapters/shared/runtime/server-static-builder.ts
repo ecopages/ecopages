@@ -1,44 +1,35 @@
 import path from 'node:path';
+import { isEcopagesEnvEnabled } from '../../../env.ts';
 import { fileSystem } from '@ecopages/file-system';
-import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../../config/constants.ts';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT, RESOLVED_ASSETS_DIR } from '../../../constants.ts';
 import { appLogger } from '../../../global/app-logger.ts';
-import { build, setupAppRuntimePlugins } from '../../../build/build-adapter.ts';
+import { setupAppRuntimePlugins } from '../../../build/build-adapter.ts';
 import {
 	createServerBundleStagingDirectory,
 	publishServerBundleDirectory,
 	removeServerBundleStagingDirectory,
-	resolvePublishedServerBundlePaths,
 } from '../../../build/server-bundle-publication.ts';
 import { createServerBuildRequest } from '../../../build/runtime/build-request-policy.ts';
-import { requireBuildRuntime } from '../../../build/runtime/build-runtime.ts';
+import { buildOrThrow } from '../../../build/runtime/build-queue.ts';
 import { attachHmrToIntegrations } from './runtime-server-lifecycle.ts';
 import {
 	getServerBundleOutputPaths,
-	lookupServerEntryBuildCache,
-	recordServerEntryBuildCache,
-	SERVER_BUNDLE_MANIFEST_FILENAME,
 	writeServerBundleDeployManifest,
-} from '../../../build/cache/server-entry-build-cache.ts';
-import {
-	clearProductionBuildCaches,
-	shouldResetStaticExportDirectory,
-} from '../../../static-site-generator/static-build-invalidation.ts';
-import {
-	assertCanBundleServerConfig,
-	bundleEcoConfigModule,
-	EMITTED_ECO_CONFIG_FILENAME,
-} from '../../../config/server-config-bundle.ts';
+} from '../../../build/server-bundle-deploy-manifest.ts';
+import { bundleEcoConfigModule, EMITTED_ECO_CONFIG_FILENAME } from '../../../config/server-config-bundle.ts';
 import { resolveEntryFile, SERVER_BUNDLE_FILENAME } from '../../../utils/resolve-entry-file.ts';
-import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
-import type { EcoBuildPlugin } from '../../../build/contracts/build-types.ts';
-import type { ErrorPageLoaders, StaticRoute } from '../../../types/public-types.ts';
+import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { ErrorPageLoaders, StaticRoute } from '../../../types/contracts.ts';
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator.ts';
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
+import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
 
 export interface StaticBuildOptions {
 	baseUrl?: string;
 	force?: boolean;
+	keepGoing?: boolean;
 }
 
 export interface ServeOptions {
@@ -48,9 +39,9 @@ export interface ServeOptions {
 
 export interface ServerStaticBuilderParams {
 	appConfig: EcoPagesAppConfig;
+	runtime: AppRuntime;
 	staticSiteGenerator: StaticSiteGenerator;
 	serveOptions: ServeOptions;
-	runtimeOrigin: string;
 	/**
 	 * Whether the app requires a server entry bundle for production use.
 	 * When `true`, the build step bundles the server entry file for `ecopages start`.
@@ -59,8 +50,6 @@ export interface ServerStaticBuilderParams {
 	needsServerBundle?: boolean;
 	logger?: ServerStaticBuilderLogger;
 	entryFile?: string;
-	hmrManager?: IHmrManager;
-	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
 }
 
 /**
@@ -78,59 +67,49 @@ export interface ServerStaticBuilderLogger {
  */
 export class ServerStaticBuilder {
 	private readonly appConfig: EcoPagesAppConfig;
+	private readonly runtime: AppRuntime;
 	private readonly staticSiteGenerator: StaticSiteGenerator;
 	private serveOptions: ServeOptions;
-	private runtimeOrigin: string;
 	private readonly needsServerBundle: boolean;
 	private readonly logger: ServerStaticBuilderLogger;
 	private readonly entryFile: string;
-	private readonly hmrManager?: IHmrManager;
-	private readonly onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
+	private exportPrepared = false;
 
 	constructor({
 		appConfig,
+		runtime,
 		staticSiteGenerator,
 		serveOptions,
-		runtimeOrigin,
 		needsServerBundle,
 		logger,
 		entryFile,
-		hmrManager,
-		onRuntimePlugin,
 	}: ServerStaticBuilderParams) {
 		this.appConfig = appConfig;
+		this.runtime = runtime;
 		this.staticSiteGenerator = staticSiteGenerator;
 		this.serveOptions = serveOptions;
-		this.runtimeOrigin = runtimeOrigin;
 		this.needsServerBundle = needsServerBundle ?? false;
 		this.logger = logger ?? appLogger;
 		this.entryFile = resolveEntryFile({ entryFile });
-		this.hmrManager = hmrManager;
-		this.onRuntimePlugin = onRuntimePlugin;
 	}
 
 	/** Keeps build-time URLs aligned with the server's actual listening port. */
 	setRuntimeBinding(input: { port: number; runtimeOrigin: string }): void {
 		this.serveOptions = { ...this.serveOptions, port: input.port };
-		this.runtimeOrigin = input.runtimeOrigin;
 	}
 
-	private prepareExportDirectory(force: boolean): boolean {
-		if (force) {
-			clearProductionBuildCaches(this.appConfig);
-		}
-
+	/**
+	 * Empties `dist/` and copies the public directory into it.
+	 *
+	 * @remarks
+	 * Every build renders from source in a fresh process, so nothing in a previous `dist/` is reusable.
+	 */
+	private prepareExportDirectory(): void {
 		const exportDir =
 			this.appConfig.absolutePaths?.distDir ?? path.join(this.appConfig.rootDir, this.appConfig.distDir);
-		const shouldCleanDist = shouldResetStaticExportDirectory(this.appConfig, force);
-		fileSystem.ensureDir(exportDir, shouldCleanDist);
+		fileSystem.ensureDir(exportDir, true);
 
-		if (shouldCleanDist) {
-			this.appConfig.runtime = {
-				...(this.appConfig.runtime ?? {}),
-				runtimeAssetsPrepared: false,
-			};
-		}
+		this.runtime.runtimeAssetsPrepared = false;
 
 		const srcPublicDir = path.join(
 			this.appConfig.rootDir,
@@ -138,10 +117,23 @@ export class ServerStaticBuilder {
 			this.appConfig.publicDir ?? 'public',
 		);
 		if (fileSystem.exists(srcPublicDir)) {
-			fileSystem.copyDir(srcPublicDir, exportDir);
+			copyRuntimePublicDirIfChanged(srcPublicDir, exportDir);
 		}
+		fileSystem.ensureDir(path.join(exportDir, RESOLVED_ASSETS_DIR));
+	}
 
-		return !shouldCleanDist;
+	/**
+	 * Empties `dist/`, copies the public directory into it and sets the Processors and Integrations up.
+	 *
+	 * @remarks
+	 * Call it before the router reads any Page, so a Page module that resolves what a Processor generates in
+	 * `setup()` finds it. The next {@link build} then skips this work once; a build without a prior call prepares
+	 * the export itself.
+	 */
+	async prepareExport(): Promise<void> {
+		this.prepareExportDirectory();
+		await this.refreshRuntimeAssets();
+		this.exportPrepared = true;
 	}
 
 	private async refreshRuntimeAssets(): Promise<void> {
@@ -149,12 +141,10 @@ export class ServerStaticBuilder {
 		try {
 			await setupAppRuntimePlugins({
 				appConfig: this.appConfig,
-				runtimeOrigin: this.runtimeOrigin,
-				onRuntimePlugin: this.onRuntimePlugin,
 			});
 
-			if (this.hmrManager?.isEnabled()) {
-				attachHmrToIntegrations(this.appConfig, this.hmrManager);
+			if (this.runtime.hmr?.isEnabled()) {
+				attachHmrToIntegrations(this.appConfig);
 			}
 		} finally {
 			appLogger.debugTimeEnd('refreshRuntimeAssets');
@@ -167,21 +157,21 @@ export class ServerStaticBuilder {
 	 * @remarks
 	 * Only invoked when the app requires a runtime server (API handlers,
 	 * websocket handlers, etc.). Static-only apps skip this step entirely.
-	 * Incremental builds may skip Rolldown when the `.eco/.server-entry`
-	 * cache is still valid.
+	 * Every process bundles the entry from source.
 	 *
-	 * Package imports remain external so native addons and runtime-owned
-	 * dependencies continue to load through the app's installed
-	 * `node_modules` tree. Only the app entry graph is bundled.
+	 * Source code is bundled: the app entry graph, workspace packages and
+	 * TypeScript packages such as Core. Compiled packages from `node_modules`
+	 * stay external (bare when the app declares them, otherwise relative to
+	 * `dist/.server/`), so native bindings load from the installed tree. The
+	 * entry is written to a staging directory, so the request passes
+	 * `runtimeOutdir` and bundled `import.meta` reads resolve against the
+	 * sources from `dist/.server/`.
 	 *
-	 * Throws if the build adapter is unavailable, is owned by a host
-	 * runtime, or bundling fails.
+	 * Throws if the build adapter is unavailable or bundling fails.
 	 *
-	 * @throws If the build adapter is unavailable, is host-owned, or bundling fails.
+	 * @throws If the build adapter is unavailable or bundling fails.
 	 */
-	private async bundleServerEntry(options?: { force?: boolean }): Promise<void> {
-		assertCanBundleServerConfig(this.appConfig);
-
+	private async bundleServerEntry(): Promise<void> {
 		const entryPath = path.isAbsolute(this.entryFile)
 			? this.entryFile
 			: path.join(this.appConfig.rootDir, this.entryFile);
@@ -193,16 +183,6 @@ export class ServerStaticBuilder {
 		}
 
 		const { serverOutdir } = getServerBundleOutputPaths(this.appConfig);
-		const cached = lookupServerEntryBuildCache({
-			appConfig: this.appConfig,
-			entryPath,
-			force: options?.force,
-		});
-
-		if (cached) {
-			this.logger.info('Reusing cached server entry bundle');
-			return;
-		}
 
 		this.logger.info('Bundling server entry file...');
 		const stagingDir = createServerBundleStagingDirectory(serverOutdir);
@@ -213,44 +193,21 @@ export class ServerStaticBuilder {
 			});
 			const stagedServerEntryPath = path.join(stagingDir, SERVER_BUNDLE_FILENAME);
 			const buildOptions = createServerBuildRequest(this.appConfig, {
-				profile: 'server-entry',
+				reportPackagesOutsideRoot: true,
 				entrypoints: [entryPath],
 				outdir: stagingDir,
 				naming: SERVER_BUNDLE_FILENAME,
-				sourcemap: 'hidden',
+				sourcemap: 'linked',
+				runtimeOutdir: serverOutdir,
 			});
-			const result = await build(buildOptions, requireBuildRuntime(this.appConfig).getProfile('server-entry'));
-
-			if (!result.success) {
-				const errorMessages = result.logs.map((log) => log.message).join('\n');
-				throw new Error(`Failed to bundle server entry file:\n${errorMessages}`);
-			}
+			await buildOrThrow(this.appConfig, buildOptions, 'Failed to bundle server entry file');
 
 			writeServerBundleDeployManifest(this.appConfig, stagedServerEntryPath, {
-				sourceConfigPath: this.appConfig.absolutePaths.config,
 				emittedConfigModule: configBundle ? EMITTED_ECO_CONFIG_FILENAME : undefined,
 				outputDir: stagingDir,
 			});
 
-			const stagedOutputPaths = [
-				...(result.outputs.length > 0
-					? result.outputs.map((output) => output.path)
-					: fileSystem.exists(stagedServerEntryPath)
-						? [stagedServerEntryPath]
-						: []),
-				...(configBundle ? [configBundle.emittedConfigPath] : []),
-				path.join(stagingDir, SERVER_BUNDLE_MANIFEST_FILENAME),
-			];
-			const outputPaths = resolvePublishedServerBundlePaths(stagedOutputPaths, stagingDir, serverOutdir);
-
 			publishServerBundleDirectory(stagingDir, serverOutdir);
-			recordServerEntryBuildCache({
-				appConfig: this.appConfig,
-				entryPath,
-				buildResult: result,
-				configBuildResult: configBundle?.buildResult,
-				outputPaths,
-			});
 		} finally {
 			removeServerBundleStagingDirectory(stagingDir);
 		}
@@ -279,11 +236,13 @@ export class ServerStaticBuilder {
 			explicitBaseUrl ??
 			`http://${this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME}:${this.serveOptions.port || DEFAULT_ECOPAGES_PORT}`;
 
-		const preserveExportDirectory = this.prepareExportDirectory(force);
-		await this.refreshRuntimeAssets();
+		if (!this.exportPrepared) {
+			await this.prepareExport();
+		}
+		this.exportPrepared = false;
 
 		if (this.needsServerBundle) {
-			await this.bundleServerEntry({ force });
+			await this.bundleServerEntry();
 		}
 
 		await this.staticSiteGenerator.run({
@@ -293,10 +252,10 @@ export class ServerStaticBuilder {
 			staticRoutes: dependencies.staticRoutes,
 			errorPageLoaders: dependencies.errorPageLoaders,
 			force,
-			preserveExportDirectory,
+			keepGoing: options?.keepGoing,
 		});
 
-		if (process.env.ECOPAGES_BENCH === '1' && process.env.ECOPAGES_BENCH_VERBOSE !== '1') {
+		if (isEcopagesEnvEnabled('ECOPAGES_BENCH') && !isEcopagesEnvEnabled('ECOPAGES_BENCH_VERBOSE')) {
 			this.logger.debug('Build completed');
 		} else {
 			this.logger.info('Build completed');

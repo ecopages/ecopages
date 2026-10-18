@@ -1,16 +1,26 @@
+import type { JsxCustomElementAttributes } from '@ecopages/jsx';
+
 const TAG = 'demo-counter';
 
-class DemoCounterElement extends HTMLElement {
+export class DemoCounterElement extends HTMLElement {
 	private count = 0;
 	private countText: HTMLElement | null = null;
+	private listeners: AbortController | null = null;
 
 	connectedCallback() {
 		this.count = Number(this.getAttribute('count')) || 0;
 		this.countText = this.querySelector('[data-ref="count"]');
+		this.listeners = new AbortController();
+		const { signal } = this.listeners;
 
-		this.querySelector('[data-ref="decrement"]')?.addEventListener('click', () => this.update(-1));
-		this.querySelector('[data-ref="increment"]')?.addEventListener('click', () => this.update(1));
+		this.querySelector('[data-ref="decrement"]')?.addEventListener('click', () => this.update(-1), { signal });
+		this.querySelector('[data-ref="increment"]')?.addEventListener('click', () => this.update(1), { signal });
 		this.render();
+	}
+
+	disconnectedCallback() {
+		this.listeners?.abort();
+		this.listeners = null;
 	}
 
 	private update(delta: number) {
@@ -28,4 +38,10 @@ class DemoCounterElement extends HTMLElement {
 
 if (!customElements.get(TAG)) {
 	customElements.define(TAG, DemoCounterElement);
+}
+
+declare module '@ecopages/jsx' {
+	interface JsxCustomIntrinsicElements {
+		'demo-counter': JsxCustomElementAttributes<DemoCounterElement, { count?: number }>;
+	}
 }

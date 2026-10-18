@@ -1,0 +1,29 @@
+<head>
+	<title>About</title>
+	<meta name="description" content="An HTML Page with its own head tags." />
+</head>
+<div class="prose">
+	<h1>About</h1>
+	<p>
+		This page is a plain HTML file, <code>src/pages/about.html</code>. Its <code>&lt;title&gt;</code> and
+		description replace the ones in the shell, and its markup renders where the shell writes
+		<code>&lt;!-- eco:children --&gt;</code>.
+	</p>
+
+	<h2>What you can write</h2>
+	<ul>
+		<li>A body fragment: markup with no <code>&lt;head&gt;</code>.</li>
+		<li>A <code>&lt;head&gt;</code> followed by body markup, like this file.</li>
+		<li>A complete document with a doctype, <code>&lt;html&gt;</code>, and <code>&lt;body&gt;</code>.</li>
+	</ul>
+
+	<p>
+		Local stylesheets and scripts resolve against the file that references them. Put images and fonts in
+		<code>src/public</code> and reference them with root-relative URLs.
+	</p>
+
+	<p>
+		Learn more about <a href="https://ecopages.app/docs/core/pages#html-pages">HTML Pages</a> or go back to the
+		<a href="/">Home Page</a>.
+	</p>
+</div>

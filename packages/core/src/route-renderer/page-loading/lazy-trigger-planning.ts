@@ -3,9 +3,9 @@ import type {
 	EcoComponent,
 	LazyTriggerRule,
 	ResolvedLazyTrigger,
-} from '../../types/public-types.ts';
+} from '../../types/contracts.ts';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
-import { rapidhash } from '../../utils/hash.ts';
+import { contentHash } from '../../utils/content-hash.ts';
 
 /**
  * Lazy scripts already normalized onto one trigger and concrete script URL set.
@@ -52,7 +52,7 @@ export function buildResolvedLazyTriggers(
 		.flatMap((group) => group.scripts)
 		.sort()
 		.join(',');
-	const triggerId = `eco-trigger-${rapidhash(`${componentFile}:${sortedUrls}`).toString(16)}`;
+	const triggerId = `eco-trigger-${contentHash(`${componentFile}:${sortedUrls}`, 16)}`;
 
 	const rules: LazyTriggerRule[] = groups.map((group) => {
 		const { scripts, lazy } = group;

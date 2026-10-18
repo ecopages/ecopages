@@ -1,10 +1,11 @@
 import { EventEmitter } from 'node:events';
 import type { Server as NodeHttpServer } from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
+import type { EcopagesWebSocketHandler } from '../../../types/contracts.ts';
 import { attachNodeHttpWebSocketUpgrades } from './node-http-websocket-upgrades.ts';
 
 function emitUpgrade(server: EventEmitter, url: string) {
-	const socket = { destroy: vi.fn() };
+	const socket = { destroy: vi.fn(), end: vi.fn() };
 	server.emit('upgrade', { url, headers: {} }, socket, Buffer.alloc(0));
 	return socket;
 }
@@ -12,28 +13,30 @@ function emitUpgrade(server: EventEmitter, url: string) {
 describe('attachNodeHttpWebSocketUpgrades', () => {
 	const hmrPreflight = (req: { url?: string }) => req.url === '/_hmr';
 
-	function attach(passthroughUnmatched: boolean) {
+	function attach(websocketHandlers = new Map<string, EcopagesWebSocketHandler>()) {
 		const server = new EventEmitter();
 		attachNodeHttpWebSocketUpgrades(server as unknown as NodeHttpServer, {
 			runtimeOrigin: 'http://localhost:3000',
-			websocketHandlers: new Map(),
+			websocketHandlers,
 			preflight: hmrPreflight,
-			passthroughUnmatched,
 		});
 		return server;
 	}
 
-	it('leaves unmatched upgrades for other listeners when passthrough is set', () => {
-		const server = attach(true);
+	it('destroys unmatched upgrades and leaves the HMR path to the preflight', () => {
+		const server = attach();
 
-		expect(emitUpgrade(server, '/vite-hmr').destroy).not.toHaveBeenCalled();
+		expect(emitUpgrade(server, '/other').destroy).toHaveBeenCalledOnce();
 		expect(emitUpgrade(server, '/_hmr').destroy).not.toHaveBeenCalled();
 	});
 
-	it('destroys unmatched upgrades on a server it owns', () => {
-		const server = attach(false);
+	it('answers a malformed encoded path with HTTP 400', () => {
+		const server = attach(new Map([['/ws/:room', { onConnect: () => {} }]]));
+		const socket = emitUpgrade(server, '/ws/%E0%A4%A');
 
-		expect(emitUpgrade(server, '/vite-hmr').destroy).toHaveBeenCalledOnce();
-		expect(emitUpgrade(server, '/_hmr').destroy).not.toHaveBeenCalled();
+		expect(socket.end).toHaveBeenCalledWith(
+			'HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n',
+		);
+		expect(socket.destroy).not.toHaveBeenCalled();
 	});
 });

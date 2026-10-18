@@ -15,15 +15,10 @@ bun add @ecopages/ecopages-jsx @ecopages/jsx @ecopages/radiant
 Register the `ecopagesJsxPlugin` in your `eco.config.ts`.
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-const config = await new ConfigBuilder()
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-	.setIntegrations([ecopagesJsxPlugin()])
-	.build();
-
-export default config;
+export default defineConfig({ integrations: [ecopagesJsxPlugin()] });
 ```
 
 ## What This Integration Owns
@@ -41,6 +36,10 @@ ecopagesJsxPlugin({
 	extensions: ['.page.tsx'],
 });
 ```
+
+## Development HMR
+
+In development, editing a registered Ecopages JSX page refreshes the current page through the navigation runtime. The shared Layout stays mounted where the router can preserve it; elements marked with `data-eco-persist` retain their DOM state. Declared client scripts continue to use script HMR.
 
 ## Radiant Support
 
@@ -82,7 +81,7 @@ The integration loads Radiant host serialization through the public `@ecopages/r
 
 ### Registered Radiant scripts (`ssr: true`)
 
-Declare custom-element registration once in `dependencies.scripts`. Ecopages JSX preloads entries marked `ssr: true` on the server before render so hosts can SSR without a redundant `import './my-element.script.ts'` in the component file.
+Declare custom-element registration once in `dependencies.scripts`. Ecopages JSX preloads entries marked `ssr: true` on the server before render so hosts can SSR without a redundant `import './my-element.script.ts'` in the component file. Preload deduplication and invalidation state belongs to the app's `AppRuntime`, so separate apps keep separate preload history.
 
 ```ts
 export const ThemeToggle = eco.component({
@@ -97,24 +96,21 @@ Keep `import type` when you only need props from the script module. Do not add `
 
 ## MDX Support
 
-Enable MDX to treat `.mdx` files as JSX routes compiled against the `@ecopages/jsx` runtime.
+Add an `mdx` object to treat `.mdx` files as JSX routes compiled against the `@ecopages/jsx` runtime. Omit the property to disable MDX. Put `remarkPlugins`, `rehypePlugins`, and `recmaPlugins` next to `compilerOptions`, not inside it.
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-const config = await new ConfigBuilder()
-	.setIntegrations([
+export default defineConfig({
+	integrations: [
 		ecopagesJsxPlugin({
 			mdx: {
-				enabled: true,
 				extensions: ['.mdx', '.md'],
 			},
 		}),
-	])
-	.build();
-
-export default config;
+	],
+});
 ```
 
 ## Mixed Rendering
@@ -128,3 +124,4 @@ Important:
 - Ecopages validates mixed-renderer ownership from declared dependencies during render preparation. It does not treat rendered HTML alone as the source of truth.
 - Route-level dependency resolvers can supply Components at request time; Ecopages JSX includes those resolved roots when deciding whether a Foreign Subtree needs handoff.
 - Ecopages JSX keeps raw-markup preservation and asset collection inside the JSX renderer.
+- JSX renderers use the required core `AssetProcessingService` to process declared component dependencies.

@@ -1,5 +1,5 @@
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import type { EcopagesRouteInfo, StaticRoute } from '../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import type { EcopagesRouteInfo, StaticRoute } from '../types/contracts.ts';
 import type { StaticGenerationRendererResolver } from '../route-renderer/route-renderer.ts';
 import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 
@@ -8,7 +8,12 @@ type StaticGenerationRouteSource = {
 };
 
 /**
- * Context passed to integration plugins during static export lifecycle hooks.
+ * Releases what an Integration's `staticExport()` started. Core awaits it once the export ends.
+ */
+export type StaticExportRelease = () => Promise<void>;
+
+/**
+ * Context passed to `IntegrationPlugin.staticExport()`.
  */
 export interface StaticExportContext {
 	appConfig: EcoPagesAppConfig;
@@ -17,7 +22,6 @@ export interface StaticExportContext {
 	routeRendererFactory?: StaticGenerationRendererResolver;
 	staticRoutes?: StaticRoute[];
 	force: boolean;
-	preserveExportDirectory: boolean;
 	/**
 	 * Unfiltered static-generation routes (exact + expanded dynamic).
 	 *

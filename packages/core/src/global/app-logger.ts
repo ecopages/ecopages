@@ -1,4 +1,5 @@
 import { Logger } from '@ecopages/logger';
+import { isEcopagesEnvEnabled } from '../env.ts';
 
-const debug = process.env.ECOPAGES_LOGGER_DEBUG === 'true';
+const debug = isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG');
 export const appLogger = new Logger('[@ecopages/core]', { debug });

@@ -1,9 +1,10 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoPagesAppConfig } from '@ecopages/core';
-import type { HtmlTemplateProps, IntegrationRendererRenderOptions } from '@ecopages/core';
-import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
+import type { HtmlTemplateProps } from '@ecopages/core';
+import type { IntegrationRendererRenderOptions } from '@ecopages/core/integration';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import type { AssetProcessingService } from '@ecopages/core/integration';
 import type { ReactNode } from 'react';
 import { composeLayoutPageTree, assertComposablePage } from '../render/layout-compose.ts';
 import { ReactRenderer } from '../render/react-renderer.ts';
@@ -29,15 +30,12 @@ function extractLayoutMarkerOrder(html: string): string[] {
 }
 
 const integrationRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const appConfig = await finalizeEcoPagesConfig({
+	rootDir: integrationRoot,
+	defaultMetadata: { title: 'Test', description: 'Test' },
+});
 
 describe('React SSR and hydration layout parity', () => {
-	const appConfig = {
-		rootDir: integrationRoot,
-		defaultMetadata: { title: 'Test', description: 'Test' },
-		absolutePaths: { htmlTemplatePath: '/tmp/template.tsx', pagesDir: '/tmp/pages' },
-		srcDir: '/tmp/src',
-	} as unknown as EcoPagesAppConfig;
-
 	const assetService = {
 		processDependencies: vi.fn(() => Promise.resolve([])),
 		getHmrManager: vi.fn(() => undefined),
@@ -47,7 +45,6 @@ describe('React SSR and hydration layout parity', () => {
 		const renderer = new TestReactRenderer({
 			appConfig,
 			assetProcessingService: assetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 		const { react, reactDomServer } = renderer.getRuntime();
 

@@ -9,16 +9,16 @@
 
 import path from 'node:path';
 
-import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
-import { isRegisteredScriptEntrypoint } from '@ecopages/core/hmr/hmr-entrypoint-output';
-import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/dev/transform-server';
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
-import type { BrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
+import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/integration';
+import { isRegisteredScriptEntrypoint } from '@ecopages/core/integration';
+import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/integration';
+import { isPathInside } from '@ecopages/core/build';
+import type { EcoBuildPlugin } from '@ecopages/core/integration';
+import { createBrowserRuntimePlugin } from '@ecopages/core/build';
+import type { BrowserRuntimeManifest } from '@ecopages/core/build';
 import { Logger } from '@ecopages/logger';
-import type { DefaultHmrContext } from '@ecopages/core';
+import type { DefaultHmrContext } from '@ecopages/core/integration';
 import { createClientGraphBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
-import { ClientGraphBoundaryCache } from '../client-graph/boundary-cache.ts';
 import { someInConfigTree } from '../client-graph/component-config-traversal.ts';
 import { getReactClientGraphAllowSpecifiers } from '../bundling/runtime-alias-map.ts';
 import type { HmrPageMetadataCache } from './page-metadata-cache.ts';
@@ -47,13 +47,6 @@ export interface ReactHmrStrategyOptions {
 	getMdxLoaderPlugin?: () => EcoBuildPlugin;
 	ownedTemplateExtensions?: string[];
 	allTemplateExtensions?: string[];
-	/**
-	 * Per-app cache for client-graph-boundary transform results. Owned by
-	 * the React plugin for the app's lifetime. When omitted, the strategy
-	 * uses a fresh in-memory cache that does not persist across HMR
-	 * rebuilds.
-	 */
-	clientGraphBoundaryCache?: ClientGraphBoundaryCache;
 }
 
 type ImportedReactPageModule = {
@@ -73,7 +66,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 	private readonly context: DefaultHmrContext;
 	private readonly pageMetadataCache: HmrPageMetadataCache;
 	private readonly runtimeManifest: BrowserRuntimeManifest;
-	private readonly clientGraphBoundaryCache: ClientGraphBoundaryCache;
 
 	private async importNodePageModule(entrypointPath: string): Promise<ImportedReactPageModule> {
 		return await this.context.importServerModule(entrypointPath);
@@ -94,7 +86,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 		this.projectRoot = options.projectRoot ?? path.dirname(this.context.getSrcDir());
 		this.pageMetadataCache = options.pageMetadataCache;
 		this.runtimeManifest = options.runtimeManifest;
-		this.clientGraphBoundaryCache = options.clientGraphBoundaryCache ?? new ClientGraphBoundaryCache();
 		this.getMdxLoaderPlugin = options.getMdxLoaderPlugin;
 		this.ownedTemplateExtensions = new Set(options.ownedTemplateExtensions ?? ['.tsx']);
 		this.allTemplateExtensions = [...(options.allTemplateExtensions ?? ['.tsx'])].sort(
@@ -117,7 +108,6 @@ export class ReactHmrStrategy extends HmrStrategy {
 				absWorkingDir: this.projectRoot,
 				alwaysAllowSpecifiers: allowSpecifiers,
 				declaredModules,
-				cache: this.clientGraphBoundaryCache,
 			}),
 			...(runtimeRewritePlugin ? [runtimeRewritePlugin] : []),
 		];
@@ -155,7 +145,9 @@ export class ReactHmrStrategy extends HmrStrategy {
 	 * claimed by React HMR strategy.
 	 */
 	private isRouteTemplate(filePath: string): boolean {
-		return filePath.startsWith(this.context.getPagesDir()) || filePath.startsWith(this.context.getLayoutsDir());
+		return (
+			isPathInside(filePath, this.context.getPagesDir()) || isPathInside(filePath, this.context.getLayoutsDir())
+		);
 	}
 
 	private resolveTemplateExtension(filePath: string): string | undefined {
@@ -259,9 +251,7 @@ export class ReactHmrStrategy extends HmrStrategy {
 			return false;
 		}
 
-		const normalized = path.resolve(sourcePath);
-		const srcDir = path.resolve(this.context.getSrcDir());
-		return normalized === srcDir || normalized.startsWith(`${srcDir}${path.sep}`);
+		return isPathInside(sourcePath, this.context.getSrcDir());
 	}
 
 	getRuntimeManifest(): BrowserRuntimeManifest {
@@ -286,11 +276,11 @@ export class ReactHmrStrategy extends HmrStrategy {
 	}
 
 	private isLayoutFile(filePath: string): boolean {
-		return filePath.startsWith(this.context.getLayoutsDir());
+		return isPathInside(filePath, this.context.getLayoutsDir());
 	}
 
 	private isPageEntrypoint(filePath: string): boolean {
-		return filePath.startsWith(this.context.getPagesDir()) && this.isReactEntrypoint(filePath);
+		return isPathInside(filePath, this.context.getPagesDir()) && this.isReactEntrypoint(filePath);
 	}
 
 	private resolveEntrypointOutputUrl(entrypointPath: string): string | undefined {

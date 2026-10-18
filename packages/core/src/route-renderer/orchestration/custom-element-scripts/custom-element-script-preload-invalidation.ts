@@ -1,13 +1,14 @@
-type ScopePreloadState = {
+export type CustomElementScriptPreloadScopeState = {
 	activeRegistry?: CustomElementRegistry;
 	preloadedScripts: Set<string>;
 	preloadFailedScripts: Set<string>;
 	inFlightImports: Map<string, Promise<void>>;
 };
 
-const scopeStates = new Map<string, ScopePreloadState>();
-
-export function getCustomElementScriptPreloadScopeState(cacheScope: string): ScopePreloadState {
+export function getCustomElementScriptPreloadScopeState(
+	scopeStates: Map<string, CustomElementScriptPreloadScopeState>,
+	cacheScope: string,
+): CustomElementScriptPreloadScopeState {
 	let state = scopeStates.get(cacheScope);
 	if (!state) {
 		state = {
@@ -20,17 +21,11 @@ export function getCustomElementScriptPreloadScopeState(cacheScope: string): Sco
 	return state;
 }
 
-/**
- * Clears all preload state for one integration scope.
- *
- * @remarks
- * Intended for tests; production invalidation should use {@link invalidateCustomElementScriptPreload}.
- */
-export function resetCustomElementScriptPreloadScope(cacheScope: string): void {
-	scopeStates.delete(cacheScope);
-}
-
-export function invalidateCustomElementScriptPreload(scriptPath: string, cacheScope?: string): void {
+export function invalidateCustomElementScriptPreload(
+	scopeStates: Map<string, CustomElementScriptPreloadScopeState>,
+	scriptPath: string,
+	cacheScope?: string,
+): void {
 	const scopes = cacheScope ? [cacheScope] : [...scopeStates.keys()];
 	for (const scope of scopes) {
 		const state = scopeStates.get(scope);

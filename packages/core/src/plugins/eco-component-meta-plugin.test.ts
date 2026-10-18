@@ -1,11 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { originalPositionFor, TraceMap, type SourceMapInput } from '@jridgewell/trace-mapping';
 import {
+	attributeComponentIdentity,
+	attributeMdxComponentIdentity,
 	createEcoComponentMetaPlugin,
-	createEcoComponentMetaTransform,
-	createEcoComponentMetaVitePlugin,
 } from './eco-component-meta-plugin';
-import type { EcoPagesAppConfig } from '../types/internal-types';
-import { fileSystem } from '@ecopages/file-system';
+import { getPluginTransform } from '../__fixtures__/build/transform-plugin';
+import type { EcoPagesAppConfig } from '../config/internal-types';
 
 /**
  * Creates a regex pattern to match identity attribution with any id hash.
@@ -39,48 +40,38 @@ describe('eco-component-meta-plugin', () => {
 	} as EcoPagesAppConfig;
 
 	const plugin = createEcoComponentMetaPlugin({ config: Config });
-	const transform = createEcoComponentMetaTransform({ config: Config });
+	const transform = getPluginTransform(plugin);
 
 	async function runPluginOnContent(content: string, filePath: string) {
 		let regexFilter: RegExp | undefined;
-		let onLoadCallback: any;
+		let transformCallback: ((code: string, id: string) => unknown) | undefined;
 
 		const buildMock = {
-			onLoad: (options: { filter: RegExp }, callback: any) => {
+			transform: (options: { filter: RegExp }, callback: (code: string, id: string) => unknown) => {
 				regexFilter = options.filter;
-				onLoadCallback = callback;
+				transformCallback = callback;
 			},
 		};
 
-		plugin.setup(buildMock as any);
+		plugin.setup(buildMock as never);
 
-		if (!onLoadCallback || !regexFilter) {
-			throw new Error('Plugin did not register onLoad handler');
+		if (!transformCallback || !regexFilter) {
+			throw new Error('Plugin did not register transform handler');
 		}
 
 		if (!regexFilter.test(filePath)) {
 			throw new Error(`File path ${filePath} does not match plugin filter ${regexFilter}`);
 		}
 
-		const fileSpy = vi.spyOn(fileSystem, 'readFileSync').mockImplementation(() => content);
-
-		try {
-			return await onLoadCallback({ path: filePath });
-		} finally {
-			fileSpy.mockRestore();
-		}
+		const transformed = await transformCallback(content, filePath);
+		const code =
+			typeof transformed === 'string'
+				? transformed
+				: transformed && typeof transformed === 'object' && 'code' in transformed
+					? String(transformed.code)
+					: content;
+		return { contents: code };
 	}
-
-	it('creates a bundler-neutral transform that strips query suffixes through the Vite adapter', () => {
-		const vitePlugin = createEcoComponentMetaVitePlugin({ config: Config });
-		const result = vitePlugin.transform(
-			"import { eco } from '@ecopages/core';\nexport default eco.page({ render: () => '<main />' });",
-			'/path/to/pages/index.tsx?import',
-		);
-
-		expect(typeof result).toBe('object');
-		expect((result as { code: string }).code).toMatch(ecoMetaPattern('/path/to/pages/index.tsx', 'react'));
-	});
 
 	it('creates a shared transform primitive that can run without the loader wrapper', () => {
 		const result = transform.transform(
@@ -90,6 +81,70 @@ describe('eco-component-meta-plugin', () => {
 
 		expect(typeof result).toBe('object');
 		expect((result as { code: string }).code).toMatch(ecoMetaPattern('/path/to/pages/index.tsx', 'react'));
+	});
+
+	it('attributes the file an id with a query suffix names', () => {
+		const result = transform.transform(
+			"import { eco } from '@ecopages/core';\nexport default eco.page({ render: () => '<main />' });",
+			'/path/to/pages/index.tsx?import',
+		);
+
+		expect((result as { code: string }).code).toMatch(ecoMetaPattern('/path/to/pages/index.tsx', 'react'));
+	});
+
+	it('maps attributed component code back to its source lines', () => {
+		const filePath = '/path/to/pages/index.tsx';
+		const source = [
+			"import { eco } from '@ecopages/core';",
+			'',
+			'export default eco.page({',
+			"\trender: () => '<main />',",
+			'});',
+		].join('\n');
+		const result = transform.transform(source, filePath) as { code: string; map?: SourceMapInput };
+
+		expect(result.map).toBeDefined();
+		const mappedLine = result.code.split('\n').findIndex((line) => line.includes('render:'));
+		expect(mappedLine).toBeGreaterThanOrEqual(0);
+
+		const original = originalPositionFor(new TraceMap(result.map as SourceMapInput), {
+			line: mappedLine + 1,
+			column: result.code.split('\n')[mappedLine]!.indexOf('render:'),
+		});
+
+		expect(original).toMatchObject({ line: 4, source: expect.stringContaining('index.tsx') });
+	});
+
+	it('composes MDX identity edits with the compiler source map', () => {
+		const filePath = '/path/to/pages/post.mdx';
+		const compiled = [
+			'// generated header',
+			'// generated header',
+			'export const config = { components: {} }; export default function MDXContent() { return <h1>Hello</h1>; }',
+		].join('\n');
+		const result = attributeMdxComponentIdentity(compiled, filePath, 'mdx', '/path/to', {
+			version: 3,
+			sources: [filePath],
+			sourcesContent: ['# Hello\n\nWorld\n\nBody'],
+			names: [],
+			mappings: ';;AAAA',
+		});
+		const mappedColumn = result.code.indexOf('MDXContent');
+		const codeBeforePosition = result.code.slice(0, mappedColumn);
+		const original = originalPositionFor(new TraceMap(result.map as SourceMapInput), {
+			line: codeBeforePosition.split('\n').length,
+			column: mappedColumn - codeBeforePosition.lastIndexOf('\n') - 1,
+		});
+
+		expect(original).toMatchObject({ line: 1, source: expect.stringContaining('post.mdx') });
+	});
+
+	it('keeps the identity map when the MDX compiler map is empty', () => {
+		const filePath = '/path/to/pages/post.mdx';
+		const compiled = 'export const config = {}; export default function MDXContent() { return null; }';
+		const result = attributeMdxComponentIdentity(compiled, filePath, 'mdx', '/path/to', { mappings: '' });
+
+		expect(result.map).toBeDefined();
 	});
 
 	it('does not attribute direct component config assignments', async () => {
@@ -316,6 +371,12 @@ export const Simple = eco.component(bindComponentIdentity(
 		const result = await runPluginOnContent(content, '/path/to/simple.tsx');
 
 		expect(result.contents.match(/bindComponentIdentity/g)).toHaveLength(2);
+	});
+
+	it('leaves text mentions of Eco factories unchanged', () => {
+		const content = `// eco.page({ render: () => null });\nconst example = 'eco.component({ render: () => null })';`;
+
+		expect(attributeComponentIdentity(content, '/path/to/example.ts', 'test-string').code).toBe(content);
 	});
 
 	it('should not inject into non-eco call expressions', async () => {

@@ -1,6 +1,6 @@
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import path from 'node:path';
-import { getAppModuleLoader } from '../../../services/module-loading/app-server-module-transpiler.service.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { resolveInternalExecutionDir } from '../../../utils/resolve-work-dir.ts';
 
 /**
@@ -12,16 +12,9 @@ import { resolveInternalExecutionDir } from '../../../utils/resolve-work-dir.ts'
  */
 export function createCustomElementServerModuleImporter(appConfig: EcoPagesAppConfig, outdirSegment: string) {
 	return async (filePath: string, registryKey: string): Promise<unknown> => {
-		const loader = appConfig.runtime?.appModuleLoader;
-		if (!loader) {
-			throw new Error('Custom element SSR script preload requires the app server module loader');
-		}
-
-		return loader.importModule({
+		return requireAppRuntime(appConfig).moduleLoader.importModule({
 			filePath,
-			rootDir: appConfig.rootDir,
 			outdir: path.join(appConfig.absolutePaths.workDir, outdirSegment, registryKey),
-			forceBuild: true,
 		});
 	};
 }
@@ -29,15 +22,14 @@ export function createCustomElementServerModuleImporter(appConfig: EcoPagesAppCo
 /**
  * Imports an `ssr: true` script through the same server-module graph as pages.
  *
- * @remarks A per-registry outdir with `forceBuild` compiles a second copy of
+ * @remarks A separate outdir per registry compiles a second copy of
  * Radiant and breaks host SSR. This outdir matches page imports and keeps
  * package specifiers external.
  */
 export function createSharedServerModuleImporter(appConfig: EcoPagesAppConfig) {
 	return async (filePath: string): Promise<unknown> => {
-		return getAppModuleLoader(appConfig).importModule({
+		return requireAppRuntime(appConfig).moduleLoader.importModule({
 			filePath,
-			rootDir: appConfig.rootDir,
 			outdir: `${resolveInternalExecutionDir(appConfig)}/.server-modules`,
 			externalPackages: true,
 		});

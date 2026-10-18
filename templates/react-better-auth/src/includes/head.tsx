@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import '../styles/router.css';
 import '../styles/app.css';
 
-export const Head = eco.component<PageHeadProps, ReactNode>({
+export const Head = eco.component<PageHeadProps<ReactNode>, ReactNode>({
 	render: ({ metadata, children }) => {
 		return (
 			<head>

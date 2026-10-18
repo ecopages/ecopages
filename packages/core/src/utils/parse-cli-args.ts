@@ -1,21 +1,6 @@
 import { parseArgs } from 'node:util';
+import { isEcopagesEnvEnabled, setRuntimeModeForCliCommand } from '../env.ts';
 import { getRuntimeArgv } from './runtime.ts';
-
-function getEmbeddedRuntimeCommandOptions(): ReturnParseCliArgs {
-	const isDevelopment = process.env.NODE_ENV === 'development';
-
-	return {
-		preview: false,
-		build: false,
-		start: !isDevelopment,
-		dev: isDevelopment,
-		force: false,
-		serveOnly: false,
-		port: undefined,
-		hostname: undefined,
-		reactFastRefresh: undefined,
-	};
-}
 
 /**
  * Parsed command line arguments for the Ecopages server.
@@ -25,27 +10,21 @@ function getEmbeddedRuntimeCommandOptions(): ReturnParseCliArgs {
  * @property dev - Whether to run in development mode
  * @property port - Optional port number
  * @property hostname - Optional hostname
- * @property reactFastRefresh - Whether React Fast Refresh is enabled
  */
 export type ReturnParseCliArgs = {
 	preview: boolean;
 	build: boolean;
 	start: boolean;
 	dev: boolean;
-	force: boolean;
 	serveOnly: boolean;
+	keepGoing: boolean;
 	port?: number;
 	hostname?: string;
-	reactFastRefresh?: boolean;
 };
 
 const ECOPAGES_BIN_FILES = ['ecopages.ts', 'ecopages.js', 'cli.js'];
 
 const ECOPAGES_AVAILABLE_COMMANDS = ['dev', 'build', 'start', 'preview'];
-
-export type ParseCliArgsOptions = {
-	embeddedRuntime?: boolean;
-};
 
 function resolveEcopagesSubcommand(runtimeArgv: string[]): string {
 	const ecopagesIndex = runtimeArgv.findIndex((arg) => ECOPAGES_BIN_FILES.some((filename) => arg.endsWith(filename)));
@@ -74,30 +53,18 @@ function deriveCliCommandFlags(
 	isBuildCommand: boolean;
 	isPreviewCommand: boolean;
 } {
-	const isStartCommand = command === 'start' || (!values.dev && !values.build && !values.preview);
+	const isStartCommand = command === 'start' || (command === '' && !values.dev && !values.build && !values.preview);
 	const isDevCommand = command === 'dev' || !!values.dev;
 	const isBuildCommand = command === 'build' || !!values.build;
 	const isPreviewCommand = command === 'preview' || !!values.preview;
 	return { isStartCommand, isDevCommand, isBuildCommand, isPreviewCommand };
 }
 
-function applyNodeEnvForCliCommand(isDevCommand: boolean): void {
-	if (isDevCommand) {
-		process.env.NODE_ENV ??= 'development';
-	} else {
-		process.env.NODE_ENV = 'production';
-	}
-}
-
 /**
  * Parses command line arguments for the server.
  * It returns {@link ReturnParseCliArgs}
  */
-export function parseCliArgs(options: ParseCliArgsOptions = {}): ReturnParseCliArgs {
-	if (options.embeddedRuntime || process.env.ECOPAGES_INTERNAL_EMBEDDED_RUNTIME === 'true') {
-		return getEmbeddedRuntimeCommandOptions();
-	}
-
+export function parseCliArgs(): ReturnParseCliArgs {
 	const runtimeArgv = getRuntimeArgv();
 
 	const { values } = parseArgs({
@@ -106,11 +73,10 @@ export function parseCliArgs(options: ParseCliArgsOptions = {}): ReturnParseCliA
 			dev: { type: 'boolean' },
 			preview: { type: 'boolean' },
 			build: { type: 'boolean' },
-			force: { type: 'boolean' },
 			'serve-only': { type: 'boolean' },
+			'keep-going': { type: 'boolean' },
 			port: { type: 'string' },
 			hostname: { type: 'string' },
-			'react-fast-refresh': { type: 'boolean' },
 		},
 		allowPositionals: true,
 	});
@@ -123,14 +89,13 @@ export function parseCliArgs(options: ParseCliArgsOptions = {}): ReturnParseCliA
 		build: isBuildCommand,
 		start: isStartCommand,
 		dev: isDevCommand,
-		force: !!values.force,
-		serveOnly: !!values['serve-only'] || process.env.ECOPAGES_PREVIEW_SERVE_ONLY === 'true',
+		serveOnly: !!values['serve-only'] || isEcopagesEnvEnabled('ECOPAGES_PREVIEW_SERVE_ONLY'),
+		keepGoing: !!values['keep-going'],
 		port: values.port ? Number(values.port) : undefined,
 		hostname: values.hostname,
-		reactFastRefresh: values['react-fast-refresh'],
 	};
 
-	applyNodeEnvForCliCommand(isDevCommand);
+	setRuntimeModeForCliCommand(isDevCommand);
 
 	return parsedCommandOptions;
 }

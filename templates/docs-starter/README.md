@@ -53,11 +53,11 @@ This template publishes an agent index; it is not a hosted API.
 
 `pnpm run generate:llms` runs before `dev` and `build`. `ContentScanner` reads `src/content/docs`; the script writes `src/public/llms.txt` and **replaces** `src/public/docs-llm/`. Deleted pages and `llms: false` entries are omitted from the index and removed from that tree.
 
-Absolute links in `llms.txt` use `configuredSiteOrigin()` in `src/lib/docs/site-meta.ts` — the same helper `eco.config.ts` passes to `setBaseUrl()`. Set `ECOPAGES_BASE_URL` or change that helper. Do not hardcode a different origin only on `setBaseUrl()`.
+Absolute links in `llms.txt` use `configuredSiteOrigin()` in `src/lib/docs/site-meta.ts` — the same helper `eco.config.ts` sets as `baseUrl`. Set `ECOPAGES_BASE_URL` or change that helper. Do not hardcode a different origin only in `baseUrl`.
 
 HTML alternate tags and Copy for LLM do **not** read `llms`. After generate, an excluded page can still point at a markdown URL that is gone. Treat generator output as the fetch contract.
 
-`setSitemap({ enabled: true, extraUrls: ['/llms.txt'] })` writes `sitemap.xml` during `ecopages build` / `preview` only. `ecopages dev` does not serve it.
+`sitemap: { enabled: true, extraUrls: ['/llms.txt'] }` writes `sitemap.xml` during `ecopages build` / `preview` only. `ecopages dev` does not serve it.
 
 ## Commands
 

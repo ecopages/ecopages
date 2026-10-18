@@ -1,4 +1,5 @@
-import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../../config/constants.ts';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../../constants.ts';
+import { getEcopagesEnv } from '../../../env.ts';
 import type { ReturnParseCliArgs } from '../../../utils/parse-cli-args.ts';
 
 export type RuntimeBinding = {
@@ -30,11 +31,12 @@ export function resolveRuntimeBinding(options: {
 	env?: NodeJS.ProcessEnv;
 }): RuntimeBinding {
 	const env = options.env ?? process.env;
+	const envPort = getEcopagesEnv('ECOPAGES_PORT', env);
+	const envHostname = getEcopagesEnv('ECOPAGES_HOSTNAME', env);
 	const portExplicitlyConfigured =
-		options.cliArgs.port !== undefined || Boolean(env.ECOPAGES_PORT) || options.serverOptions?.port !== undefined;
-	const preferredPort =
-		options.cliArgs.port ?? (env.ECOPAGES_PORT ? Number(env.ECOPAGES_PORT) : undefined) ?? DEFAULT_ECOPAGES_PORT;
-	const preferredHostname = options.cliArgs.hostname ?? env.ECOPAGES_HOSTNAME ?? DEFAULT_ECOPAGES_HOSTNAME;
+		options.cliArgs.port !== undefined || Boolean(envPort) || options.serverOptions?.port !== undefined;
+	const preferredPort = options.cliArgs.port ?? (envPort ? Number(envPort) : undefined) ?? DEFAULT_ECOPAGES_PORT;
+	const preferredHostname = options.cliArgs.hostname ?? envHostname ?? DEFAULT_ECOPAGES_HOSTNAME;
 
 	return {
 		allowPortFallback: !portExplicitlyConfigured,

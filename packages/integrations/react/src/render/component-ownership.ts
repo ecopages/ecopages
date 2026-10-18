@@ -3,6 +3,7 @@
  */
 
 import type { EcoComponent, EcoComponentConfig, EcoPagesElement } from '@ecopages/core';
+import { getComponentOwner } from '@ecopages/core';
 import type { FunctionComponent } from 'react';
 
 export type SerializableProps = Record<string, unknown>;
@@ -24,7 +25,7 @@ export type RequiresAwareComponent = {
  * `getComponentIdentity(component)?.integration` attribution.
  */
 export function getComponentIntegration(component?: { config?: EcoComponentConfig } | null): string | undefined {
-	return component?.config?.integration ?? component?.config?.identity?.integration;
+	return getComponentOwner(component?.config);
 }
 
 /**

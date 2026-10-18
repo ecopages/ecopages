@@ -73,8 +73,8 @@ export default eco.page({
 							) : demo === 'image' ? (
 								<div class="image-demo">
 									<img
-										{...images.kitaKamakuraPng.attributes}
-										alt="Kita-kamakura"
+										{...images.logoOnGhDarkPng.attributes}
+										alt="Logo on GitHub dark"
 										width={120}
 										class="rounded"
 									/>

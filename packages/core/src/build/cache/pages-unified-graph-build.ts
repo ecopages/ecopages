@@ -2,48 +2,35 @@
  * Unified pages Rolldown graph (Phase A build + Phase C import).
  *
  * Enabled by default in production builds. Opt out with
- * `ECOPAGES_UNIFIED_PAGES_GRAPH=0`. Covers all static page template extensions
+ * `ECOPAGES_UNIFIED_PAGES_GRAPH=false` or `0`. Covers all static page template extensions
  * registered on the app config.
  */
 
 import path from 'node:path';
+import { isEcopagesEnvDisabled } from '../../env.ts';
+import { isProductionRuntime } from '../../utils/runtime.ts';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
+import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import { build } from '../build-adapter.ts';
-import { requireBuildRuntime } from '../runtime/build-runtime.ts';
-import { createServerBuildRequest, resolveServerAppBuildPlugins } from '../runtime/build-request-policy.ts';
-import { createBuildInputsFingerprint, hashAppConfigFile } from './build-input-fingerprint.ts';
-import {
-	isProductionCacheManifestCurrent,
-	matchesProductionCacheBuildKey,
-	matchesProductionCacheFingerprint,
-	readProductionCacheManifest,
-	writeProductionCacheManifest,
-} from './production-build-cache.ts';
-import { getCorePackageVersion } from './cache-keys.ts';
-import { collectReachableLocalImports } from './output-imports.ts';
-import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import type { BuildResult } from '../build-adapter.ts';
+import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
+import { buildOrThrow } from '../runtime/build-queue.ts';
+import { createServerBuildRequest, resolveAppBuildPlugins } from '../runtime/build-request-policy.ts';
+import { hashAppConfigFile } from './app-config-hash.ts';
+import { collectBuildOutputImports, getBuildEntryOutput } from '../build-graph.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import {
 	getServerModuleBuildCacheOutdir,
 	getSharedRouteModuleBuildCache,
-} from '../../services/module-loading/route-module-build-cache-registry.ts';
+} from '../server/route-module-build-cache-registry.ts';
 import {
 	RouteModuleDependencyHasher,
 	resolveRouteModuleDependencyPaths,
 	type RouteModuleDependencyHashes,
-} from '../../services/module-loading/route-module-dependency-hasher.ts';
-
-export const PAGES_UNIFIED_GRAPH_CACHE_DIR = '.server-pages-graph';
-export const PAGES_UNIFIED_GRAPH_CACHE_FILENAME = '.build-cache.json';
+} from '../server/route-module-dependency-hasher.ts';
 
 export interface PagesUnifiedGraphCacheManifest {
-	corePackageVersion: string;
-	buildInputsFingerprint: string;
 	buildKey: string;
-	builtAt: number;
 	outputs: Record<string, string>;
 	/**
 	 * Local files reachable from the outputs through local imports, including
@@ -58,40 +45,35 @@ export interface PagesUnifiedGraphCacheManifest {
 	 * requires these hashes so a source edit or deletion rebuilds the graph.
 	 */
 	dependencyHashes: RouteModuleDependencyHashes;
+	/**
+	 * Memoized result of {@link isGraphManifestCurrent} for page imports.
+	 */
+	importable?: boolean;
 }
 
-export function isPagesUnifiedGraphEnabled(): boolean {
-	if (process.env.ECOPAGES_UNIFIED_PAGES_GRAPH === '0') {
-		return false;
-	}
-
-	if (process.env.ECOPAGES_UNIFIED_PAGES_GRAPH === '1') {
-		return true;
-	}
-
-	return process.env.NODE_ENV === 'production';
-}
-
-/** True when the unified graph should build or serve prebuilt page modules. */
+/**
+ * True when the unified graph should build or serve prebuilt page modules.
+ *
+ * @remarks
+ * Enabled by default in production builds. `ECOPAGES_UNIFIED_PAGES_GRAPH=false` or `0` opts out, which the
+ * bench parity suite uses as its per-page build oracle.
+ */
 export function shouldBuildPagesUnifiedGraph(): boolean {
-	return isPagesUnifiedGraphEnabled() && process.env.NODE_ENV === 'production';
+	return !isEcopagesEnvDisabled('ECOPAGES_UNIFIED_PAGES_GRAPH') && isProductionRuntime();
 }
 
+/**
+ * @remarks
+ * Pages of an Integration that compiles its own modules (`compilePageModule`), such as
+ * HTML Pages, are not bundled, so they stay out of the graph.
+ */
 export function isPagesUnifiedGraphPage(filePath: string, appConfig: EcoPagesAppConfig): boolean {
-	const normalizedPath = path.normalize(filePath);
-	return appConfig.templatesExt.some((extension) => normalizedPath.endsWith(extension));
-}
-
-function getPagesUnifiedGraphCachePath(appConfig: EcoPagesAppConfig): string {
-	return path.join(
-		resolveInternalExecutionDir(appConfig),
-		PAGES_UNIFIED_GRAPH_CACHE_DIR,
-		PAGES_UNIFIED_GRAPH_CACHE_FILENAME,
-	);
+	const owner = findIntegrationForFile(appConfig.integrations, path.normalize(filePath));
+	return owner !== undefined && !owner.compilePageModule;
 }
 
 function createPagesUnifiedGraphBuildKey(appConfig: EcoPagesAppConfig, outdir: string): string {
-	const pluginNames = resolveServerAppBuildPlugins(appConfig)
+	const pluginNames = resolveAppBuildPlugins(appConfig, 'server')
 		.map((plugin) => plugin.name)
 		.sort()
 		.join('|');
@@ -101,30 +83,14 @@ function createPagesUnifiedGraphBuildKey(appConfig: EcoPagesAppConfig, outdir: s
 		hashAppConfigFile(appConfig),
 		templateExtensions,
 		pluginNames,
-		'es2022',
+		'node',
 		'esm',
 		'external-packages',
 	].join('::');
 }
 
-/**
- * @remarks
- * Manifests without `outputImports` or `dependencyHashes` predate those
- * checks, so they cannot prove their chunks and sources are still current.
- */
 function readPagesUnifiedGraphManifest(appConfig: EcoPagesAppConfig): PagesUnifiedGraphCacheManifest | undefined {
-	const manifest = readProductionCacheManifest<PagesUnifiedGraphCacheManifest>(
-		getPagesUnifiedGraphCachePath(appConfig),
-	);
-	if (
-		!manifest?.outputs ||
-		!Array.isArray(manifest.outputImports) ||
-		!manifest.dependencyHashes ||
-		Object.keys(manifest.dependencyHashes).length === 0
-	) {
-		return undefined;
-	}
-	return manifest;
+	return requireAppRuntime(appConfig).pagesUnifiedGraphManifest ?? undefined;
 }
 
 function sourceDependenciesAreCurrent(manifest: PagesUnifiedGraphCacheManifest): boolean {
@@ -132,7 +98,7 @@ function sourceDependenciesAreCurrent(manifest: PagesUnifiedGraphCacheManifest):
 }
 
 function writePagesUnifiedGraphManifest(appConfig: EcoPagesAppConfig, manifest: PagesUnifiedGraphCacheManifest): void {
-	writeProductionCacheManifest(getPagesUnifiedGraphCachePath(appConfig), manifest);
+	requireAppRuntime(appConfig).pagesUnifiedGraphManifest = manifest;
 }
 
 function createSafeGraphEntryKey(entryPath: string, rootDir: string): string {
@@ -142,35 +108,8 @@ function createSafeGraphEntryKey(entryPath: string, rootDir: string): string {
 }
 
 /**
- * @remarks
- * Uses {@link BuildResult.entryOutputs} when present so resolution follows the
- * bundler's `facadeModuleId` instead of guessing from sanitized entry keys.
- * Basename prefix matching remains only as a fallback for backends that omit
- * `entryOutputs`; it can mis-associate keys such as `pages-blog` and
- * `pages-blog-index`.
- */
-function resolveOutputForEntrypoint(entryPath: string, entryKey: string, buildResult: BuildResult): string | undefined {
-	const exactOutput = buildResult.entryOutputs?.[path.resolve(entryPath)];
-	if (exactOutput) {
-		return exactOutput;
-	}
-
-	for (const { path: outputPath } of buildResult.outputs) {
-		const outputBaseName = path.basename(outputPath);
-		if (outputBaseName.startsWith(`${entryKey}-`) && /\.(?:m?js)$/u.test(outputBaseName)) {
-			return outputPath;
-		}
-		if (outputBaseName === `${entryKey}.js` || outputBaseName === `${entryKey}.mjs`) {
-			return outputPath;
-		}
-	}
-
-	return undefined;
-}
-
-/**
- * Whether `manifest` was written by the current core version, build inputs and graph
- * setup, every file its outputs import still exists, and source hashes still match.
+ * Whether `manifest` was built for this graph setup, every file its outputs import
+ * still exists, and source hashes still match.
  */
 function isGraphManifestCurrent(
 	manifest: PagesUnifiedGraphCacheManifest,
@@ -178,9 +117,7 @@ function isGraphManifestCurrent(
 	outdir: string,
 ): boolean {
 	return (
-		isProductionCacheManifestCurrent(manifest, getCorePackageVersion()) &&
-		matchesProductionCacheFingerprint(manifest, createBuildInputsFingerprint(appConfig)) &&
-		matchesProductionCacheBuildKey(manifest, createPagesUnifiedGraphBuildKey(appConfig, outdir)) &&
+		manifest.buildKey === createPagesUnifiedGraphBuildKey(appConfig, outdir) &&
 		manifest.outputImports.every((filePath) => fileSystem.exists(filePath)) &&
 		sourceDependenciesAreCurrent(manifest)
 	);
@@ -208,27 +145,25 @@ function isManifestValidForEntries(
 	);
 }
 
-const importableGraphs = new WeakMap<EcoPagesAppConfig, { builtAt: number; current: boolean }>();
-
 /**
- * {@link isGraphManifestCurrent} for page imports, memoized per manifest write.
+ * {@link isGraphManifestCurrent} for page imports, memoized per manifest.
  *
  * @remarks
  * Page modules can be imported before the static site generator calls
  * {@link ensurePagesUnifiedGraphBuilt} (for example while collecting static
- * paths), so the import path must not trust a manifest left by an older build.
+ * paths), so the import path must not trust a graph this process has already
+ * invalidated.
  */
 function isGraphImportable(manifest: PagesUnifiedGraphCacheManifest, appConfig: EcoPagesAppConfig): boolean {
-	const known = importableGraphs.get(appConfig);
-	if (known?.builtAt === manifest.builtAt) return known.current;
+	if (manifest.importable !== undefined) return manifest.importable;
 
 	const current = isGraphManifestCurrent(manifest, appConfig, getServerModuleBuildCacheOutdir(appConfig));
-	importableGraphs.set(appConfig, { builtAt: manifest.builtAt, current });
+	manifest.importable = current;
 	return current;
 }
 
 /**
- * Builds eligible static pages in one Rolldown invocation and seeds route-module disk cache.
+ * Builds eligible static pages in one Rolldown invocation and records outputs for this process.
  */
 export async function ensurePagesUnifiedGraphBuilt(options: {
 	appConfig: EcoPagesAppConfig;
@@ -236,6 +171,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 	outdir: string;
 	force?: boolean;
 }): Promise<PagesUnifiedGraphCacheManifest | undefined> {
+	requireAppRuntime(options.appConfig);
 	if (!shouldBuildPagesUnifiedGraph()) {
 		return undefined;
 	}
@@ -258,53 +194,44 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 		existingManifest &&
 		isManifestValidForEntries(existingManifest, options.appConfig, outdir, eligibleEntryPaths)
 	) {
-		appLogger.debug('Reusing pages unified graph cache');
+		appLogger.debug('Reusing pages unified graph built in this process');
 		return existingManifest;
 	}
 
 	const routeModuleBuildCache = getSharedRouteModuleBuildCache(outdir, options.appConfig);
 	const entryRecord: Record<string, string> = {};
-	const entryKeysByPath = new Map<string, string>();
 
 	for (const entryPath of eligibleEntryPaths) {
 		const entryKey = createSafeGraphEntryKey(entryPath, options.appConfig.rootDir);
 		entryRecord[entryKey] = entryPath;
-		entryKeysByPath.set(entryPath, entryKey);
 	}
 
 	appLogger.debugTime('pagesUnifiedGraphBuild');
 	const buildOptions = createServerBuildRequest(options.appConfig, {
-		profile: 'route-module',
 		entrypoints: entryRecord,
 		outdir,
 		splitting: true,
 		naming: '[name]-[hash].[ext]',
 	});
 	const plugins = buildOptions.plugins ?? [];
-	const buildResult = await build(buildOptions, requireBuildRuntime(options.appConfig).getProfile('route-module'));
-	appLogger.debugTimeEnd('pagesUnifiedGraphBuild');
-
-	if (!buildResult.success) {
-		const details = buildResult.logs.map((log) => log.message).join(' | ');
-		throw new Error(`Pages unified graph build failed: ${details}`);
-	}
+	const buildResult = await buildOrThrow(options.appConfig, buildOptions, 'Pages unified graph build failed').finally(
+		() => appLogger.debugTimeEnd('pagesUnifiedGraphBuild'),
+	);
 
 	const outputs: Record<string, string> = {};
 	const outputImports = new Set<string>();
-	const directImportsCache = new Map<string, string[]>();
 	const dependencyHasher = new RouteModuleDependencyHasher();
 	const dependencyHashes: RouteModuleDependencyHashes = {};
 
 	for (const entryPath of eligibleEntryPaths) {
 		const fileHash = fileSystem.hash(entryPath);
-		const entryKey = entryKeysByPath.get(entryPath);
-		const compiledOutput = entryKey ? resolveOutputForEntrypoint(entryPath, entryKey, buildResult) : undefined;
+		const compiledOutput = getBuildEntryOutput(buildResult, entryPath, options.appConfig.rootDir);
 		if (!compiledOutput) {
 			throw new Error(`Pages unified graph build produced no output for ${entryPath}`);
 		}
 
 		outputs[entryPath] = compiledOutput;
-		const compiledOutputImports = collectReachableLocalImports(compiledOutput, { directImportsCache });
+		const compiledOutputImports = collectBuildOutputImports(buildResult, compiledOutput);
 		for (const importPath of compiledOutputImports) outputImports.add(importPath);
 
 		const dependencyModulePaths = resolveRouteModuleDependencyPaths(
@@ -319,6 +246,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 			filePath: entryPath,
 			rootDir: options.appConfig.rootDir,
 			outdir,
+			buildOptions,
 			fileHash,
 			outputPath: compiledOutput,
 			dependencyModulePaths,
@@ -329,10 +257,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 	}
 
 	const manifest: PagesUnifiedGraphCacheManifest = {
-		corePackageVersion: getCorePackageVersion(),
-		buildInputsFingerprint: createBuildInputsFingerprint(options.appConfig),
 		buildKey: createPagesUnifiedGraphBuildKey(options.appConfig, outdir),
-		builtAt: Date.now(),
 		outputs,
 		outputImports: [...outputImports],
 		dependencyHashes,

@@ -1,10 +1,12 @@
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
+import type { EcoBuildPlugin } from '@ecopages/core/integration';
 import type { CompileOptions } from '@mdx-js/mdx';
+import type { RequestPipelineMetricsState } from '@ecopages/core/build';
 import { createMdxLoaderPlugin as createMdxLoaderPluginCore } from './core/mdx-loader-plugin.ts';
 
 export type MdxLoaderPluginOptions = {
 	compilerOptions?: CompileOptions;
 	projectRoot: string;
+	requestPipelineMetrics: RequestPipelineMetricsState;
 	defaultMdExtensions?: string[];
 	extensions?: string[];
 	includeSourceMap?: boolean;
@@ -18,6 +20,7 @@ export function createMdxLoaderPlugin(options: MdxLoaderPluginOptions): EcoBuild
 		compilerOptions: options.compilerOptions,
 		defaultMdExtensions: options.defaultMdExtensions ?? ['.md'],
 		projectRoot: options.projectRoot,
+		requestPipelineMetrics: options.requestPipelineMetrics,
 		extensions: options.extensions,
 		includeSourceMap: options.includeSourceMap,
 		loader: options.loader,

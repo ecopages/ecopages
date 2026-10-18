@@ -1,81 +1,45 @@
-# E2E testing
+# End-to-end testing
 
-Playwright config: root `playwright.config.ts`. Fixtures self-describe in `e2e/fixtures/*/fixture.e2e.ts`.
+Run the main Playwright suite with one command:
 
-## Policy
-
-1. **Three tiers.** Pre-commit runs `test:pre-commit` (vitest + lint + typecheck, no Playwright). PRs run `test:ci` (vitest + `test:e2e:pr`). `main` runs `test:ci:e2e` (vitest + full e2e). Playwright coverage is listed in root `package.json` (`test:e2e:static`, `test:e2e:dev`, `test:e2e:kitchen-sink`).
-2. **Cross-integration certifies host/runtime parity without a full matrix.** One canonical dev project (ecopages + **node**) runs the full behavioral suite. Each other cell (ecopages+bun, vite+node, vite+bun) runs only the `@parity` document-navigation spec at `workers: 1`. Preview runs on bun and node static builds.
-3. **Rapid-navigation stays stressful.** Use `fireRapidLinkClicks` (overlapping navigations). Pacing every hop with full document waits stops testing SSR under load.
-4. **Three Playwright runs for the full suite.** `test:e2e:static` (one subprocess, parallel static/preview), `test:e2e:dev` (fixture dev servers), `test:e2e:kitchen-sink` (one subprocess per kitchen-sink cell — dev servers must not boot together). Kitchen-sink `dist/` is built once in shell before Playwright (`build:e2e:kitchen-sink`).
-5. **Preview vs dev is capability-based.** Tests move to preview only when static output can serve them. API handlers, middleware locals, WebSockets, and HMR stay on dev/HMR projects.
-6. **Native Playwright.** Use `playwright test --project`, `--grep`, and `package.json` scripts. No custom test runner wrapper.
-
-Pre-commit: `pnpm test:pre-commit`. PR CI (`.github/workflows/ci.yml`): `pnpm test:ci`. `main` e2e (`.github/workflows/ci.yml`): `pnpm test:ci:e2e`.
-
-Playwright projects (17 total) are defined in `playwright.config.ts`.
-
-## Three runs (full suite)
-
-| Script                        | What                                                                         |
-| ----------------------------- | ---------------------------------------------------------------------------- |
-| `pnpm build:e2e:kitchen-sink` | Build kitchen-sink `dist/` (~10s). Required before preview tests.            |
-| `pnpm test:e2e:static`        | One `playwright test` — fixture static/preview projects (parallel).          |
-| `pnpm test:e2e:dev`           | One `playwright test` — fixture dev servers (core-hmr, react, react-router). |
-| `pnpm test:e2e:kitchen-sink`  | One Playwright run per cell (in-repo dev/parity), then isolated HMR          |
-| `pnpm test:e2e`               | Build + all three runs above.                                                |
-
-PR CI uses `test:e2e:pr` (drops node preview + HMR; greps canonical dev).
-
-## Single project
-
-```bash
-pnpm run build:e2e:kitchen-sink   # before preview projects
-ECOPAGES_PLAYWRIGHT_PROJECTS=cross-integration-dev-e2e playwright test --project cross-integration-dev-e2e
+```sh
+pnpm test:e2e
 ```
 
-Without `ECOPAGES_PLAYWRIGHT_PROJECTS`, `playwright.config.ts` boots **every** webServer in the matrix. Batch scripts set it automatically.
+The projects are listed directly in the root `playwright.config.ts`. Node runs the behavioral, preview, and HMR suites. Bun runs the runtime-parity project and the dependency-discovery specs against a Bun production build. The React Router preview project also checks persisted sidebar scroll through client navigation and browser history. Preview projects build their app in the configured `webServer` command before the preview server starts. Playwright starts those web servers before project setup tests, so a setup project cannot build an artifact that a web server needs.
 
-Or `pnpm test:e2e:ui` for the Playwright UI.
+The config starts only web servers used by the selected projects. With `--shard`, it asks Playwright's JSON list reporter which projects contain tests in that shard, then starts only their web servers. `--list` does not start any web server.
 
-## Adding a fixture
+## Pull requests and docs
 
-1. Add `e2e/fixtures/<block>/fixture.e2e.ts`
-2. Register in `e2e/playwright/capability-fixture-registry.ts`
-3. Add the project name to the right `package.json` script (`test:e2e:static`, `test:e2e:dev`, or `run-each-project.mjs` list)
+CI runs the full Playwright suite on every pull request and on pushes to `develop` and `main`. Four shard jobs run in parallel; a final `e2e` check fails if any shard fails. Vitest runs in the `fast` job and does not run again in the E2E shards.
 
-## Test tiers
+Each E2E shard uploads its `test-results/` directory as a GitHub Actions artifact named `playwright-traces-shard-<shard>` for seven days. Download the artifact for the failed shard from the workflow run to inspect its Playwright traces and other test results.
 
-| Tier       | Command                | Runs                                               |
-| ---------- | ---------------------- | -------------------------------------------------- |
-| Pre-commit | `pnpm test:pre-commit` | vitest + lint + typecheck (no Playwright)          |
-| PR         | `pnpm test:ci`         | vitest + `test:e2e:pr`                             |
-| Full       | `pnpm test:all`        | vitest + `test:e2e`                                |
-| Gate       | `pnpm test:gate`       | vitest + stress smoke (`@stress` on canonical dev) |
+For a smaller local run, `pnpm test:e2e:pr` selects the fixture, preview and HMR projects and filters the canonical kitchen-sink and Bun parity projects to `@content`, `@stress`, and `@parity` tests.
 
-## Test filename suffixes
+Docs e2e runs separately:
 
-| Pattern                     | Runs on                                |
-| --------------------------- | -------------------------------------- |
-| `*.dev.test.e2e.ts`         | dev only                               |
-| `*.static.test.e2e.ts`      | static only                            |
-| `*.postcss.dev.test.e2e.ts` | PostCSS dev only                       |
-| `*.test.e2e.ts`             | per project `testMatch` / `testIgnore` |
+```sh
+pnpm test:e2e:docs
+```
 
-## Kitchen-sink cross-integration
+It builds `apps/docs` and serves that output from its dedicated `playwright.docs.config.ts`. CI runs the `docs` job when a pull request or push changes the docs app, its workspace dependencies, the docs specs, or the docs Playwright config. Template-only changes do not select that job.
 
-- **Preview** — in-repo `dist/`, built before e2e; `webServer` only serves (`start-kitchen-sink-preview-server.mjs`).
-- **Canonical dev** — `cross-integration-dev-e2e` (ecopages + node), full suite.
-- **Parity** — bun, vite+node, vite+bun run only `parity.test.e2e.ts` (`@parity`), isolated `.e2e-tmp` workspace each.
-- **HMR** — `includes-hmr.test.e2e.ts`, own workspace.
+## Worker app fixture
 
-Browsers stay headless for `pnpm test:all` / `pnpm test:vitest` / `pnpm test:e2e` (`playwright.config.ts` `use.headless`, Vitest `browser.headless`, `--browser.headless`). Inherited `PWDEBUG` is stripped before Playwright launches so the inspector cannot force headed Chromium (one visible tab per parallel worker). Use `pnpm test:e2e:ui` or `playwright test --headed` when you want a visible window. `--debug` still enables the inspector.
+`e2e/app-fixture.ts` exports a `test` fixture for projects that need a private dev app. Set `use.appOptions` with the app source and optional runtime, environment, config file, or readiness timeout. The first test on a worker that needs a page, request, or `app` copies the source into `.e2e-tmp/<project>-w<workerIndex>`, links `node_modules`, starts `ecopages dev` on an OS-selected port, and points `baseURL` at that server. Projects that do not use `appOptions` start no worker app.
 
-## Environment variables
+Source-mutating specs edit `app.dir`, their worker's private copy. The fixture removes that copy when the worker ends. A copy left behind by an interrupted process is replaced when that worker starts again. The server runs in its own process group so teardown also stops runtime processes started by the CLI.
 
-| Variable                                   | Effect                                               |
-| ------------------------------------------ | ---------------------------------------------------- |
-| `ECOPAGES_REUSE_TEST_SERVERS=true`         | Reuse running web servers                            |
-| `ECOPAGES_KEEP_E2E_TMP=true`               | Keep `.e2e-tmp/` after isolated runs                 |
-| `ECOPAGES_PLAYWRIGHT_PROJECTS`             | Comma-separated project filter for `playwright test` |
-| `ECOPAGES_MANAGE_ISOLATED_WORKSPACES=true` | Set by `run-each-project.mjs` for kitchen-sink cells |
+Kitchen-sink HMR uses one app copy per worker, so source-mutating tests can run in parallel without sharing edits. Shared-server projects do not edit their sources.
+
+## Add coverage
+
+Add the spec beside its fixture and add the project to the explicit array in `playwright.config.ts`. Put docs site browser checks in the docs config. Use `e2e/app-fixture.ts` when a dev test mutates source files or needs a private dev server; use `webServer` for shared static and preview servers.
+
+Vitest covers unit and browser-level behavior through `pnpm test:vitest`. Playwright covers behavior that needs the wired app and a real browser. On pull requests, repository CI runs `test:ci:fast` alongside the four-shard `test:e2e` suite. Pushes to `develop` and `main` run the sharded E2E suite. Docs e2e runs separately when a pull request or push changes its selected paths.
+
+`pnpm test:e2e:ui` opens Playwright's UI. Tests run headless by default; use `playwright test --headed` or `--debug` for local inspection. Inherited `PWDEBUG` is stripped unless `--debug` is present.
+
+Set `ECOPAGES_KEEP_E2E_TMP=true` to keep per-worker app copies after a run for debugging.

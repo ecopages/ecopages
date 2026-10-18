@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
-import { attachProcessOutput, stopChildProcess, waitForHttpReady } from './startup-bench-process.mjs';
+import { attachProcessOutput, stopChildProcess, waitForHttpReady } from '../lib/startup-bench-process.mjs';
 import { summarize } from './startup-bench-stats.mjs';
 
 export function buildStartupSample(trace, metrics) {

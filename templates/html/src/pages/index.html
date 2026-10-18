@@ -1,0 +1,107 @@
+<head>
+	<title>Ecopages HTML</title>
+	<meta name="description" content="Build an HTML-first application with plain HTML Pages." />
+	<link rel="stylesheet" href="./index.css" />
+	<link rel="stylesheet" href="../components/counter.css" />
+</head>
+<div class="showcase">
+	<div class="welcome-alert" role="alert">
+		<p class="welcome-alert__title">Welcome to Ecopages</p>
+		<p class="welcome-alert__desc">Write plain HTML Pages and add islands of interactivity where you need them.</p>
+	</div>
+
+	<div class="showcase-grid" role="feed" aria-label="Ecopages features">
+		<article class="showcase-card" role="article" aria-posinset="1" aria-setsize="4" tabindex="0">
+			<div class="card-body">
+				<h2 class="section-title">Plain HTML Pages</h2>
+				<p class="section-desc">
+					Every <code>.html</code> file in <code>src/pages</code> is a route, rendered inside the shell in
+					<code>src/includes/html.html</code>.
+				</p>
+			</div>
+			<div class="card-actions">
+				<a href="https://ecopages.app/docs/core/pages#html-pages" class="card-link">Read about HTML Pages</a>
+			</div>
+		</article>
+
+		<article class="showcase-card" role="article" aria-posinset="2" aria-setsize="4" tabindex="0">
+			<div class="card-body">
+				<h2 class="section-title">Islands as custom elements</h2>
+				<p class="section-desc">
+					Reference a TypeScript module from the page. It is bundled for the browser and upgrades the markup
+					in place.
+				</p>
+				<div class="card-demo">
+					<demo-counter count="0">
+						<button type="button" data-ref="decrement" aria-label="Decrement">
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								class="pointer-events-none"
+							>
+								<path d="M5 12h14" />
+							</svg>
+						</button>
+						<span data-ref="count">0</span>
+						<button type="button" data-ref="increment" aria-label="Increment">
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								class="pointer-events-none"
+							>
+								<path d="M5 12h14" />
+								<path d="M12 5v14" />
+							</svg>
+						</button>
+					</demo-counter>
+				</div>
+			</div>
+			<div class="card-actions">
+				<a href="https://ecopages.app/docs/core/pages#stylesheets-scripts-and-other-assets" class="card-link">
+					See how assets are processed
+				</a>
+			</div>
+		</article>
+
+		<article class="showcase-card" role="article" aria-posinset="3" aria-setsize="4" tabindex="0">
+			<div class="card-body">
+				<h2 class="section-title">Head tags by identity</h2>
+				<p class="section-desc">
+					A page's title, description, and canonical link replace the shell's in place. Its other head tags
+					are added before the closing head tag.
+				</p>
+			</div>
+			<div class="card-actions">
+				<a href="/about" class="card-link">Open the about page</a>
+			</div>
+		</article>
+
+		<article class="showcase-card" role="article" aria-posinset="4" aria-setsize="4" tabindex="0">
+			<div class="card-body">
+				<h2 class="section-title">Enhanced navigation</h2>
+				<p class="section-desc">
+					Page loads become smooth client navigations with view transitions, and the scripts a page adds still
+					run.
+				</p>
+			</div>
+			<div class="card-actions">
+				<a href="https://ecopages.app/docs/ecosystem/browser-router" class="card-link">Read about the router</a>
+			</div>
+		</article>
+	</div>
+</div>
+<script type="module" src="../components/counter.ts"></script>

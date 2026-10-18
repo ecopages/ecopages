@@ -1,16 +1,18 @@
-import type { HtmlDocumentContribution } from '../../../services/html/html-transformer.service.ts';
-import type { IntegrationRendererRenderOptions } from '../../../types/public-types.ts';
+import type { HtmlDocumentContribution } from '../../../html/html-transformer.service.ts';
+import type {
+	IntegrationRendererRenderOptions,
+	InternalIntegrationRendererRenderOptions,
+} from '../../../types/contracts.ts';
 import type { RouteHtmlFinalization } from './route-render-orchestrator.ts';
 import { buildRobotsMetaContribution } from './robots-meta.contribution.ts';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import { DevToolbarHost } from '../../../dev-toolbar/dev-toolbar-host.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import { buildDevToolbarManifestContribution } from '../../../dev-toolbar/dev-toolbar-manifest.ts';
 
 export type RouteHtmlFinalizationContext<C> = {
 	appConfig: EcoPagesAppConfig;
 	watch: boolean;
-	hostOwnsDevClient?: boolean;
 	integrationName: string;
-	renderOptions: IntegrationRendererRenderOptions<C>;
+	renderOptions: InternalIntegrationRendererRenderOptions<C>;
 	getDocumentAttributes: (renderOptions: IntegrationRendererRenderOptions<C>) => Record<string, string> | undefined;
 	getHtmlDocumentContributions: (options: {
 		renderOptions: IntegrationRendererRenderOptions<C>;
@@ -24,14 +26,16 @@ export type RouteHtmlFinalizationContext<C> = {
  *
  * @remarks
  * Merges core robots meta contributions with integration-owned document
- * contributions so page-level `metadata.robots` works across templates.
+ * contributions so page-level `metadata.robots` works across templates. The
+ * development toolbar manifest still comes from the higher Development layer;
+ * #556 tracks moving its render contribution behind Rendering.
  */
 export function buildRouteHtmlFinalization<C>(context: RouteHtmlFinalizationContext<C>): RouteHtmlFinalization {
 	const { renderOptions } = context;
 	const documentAttributes = context.getDocumentAttributes(renderOptions);
 	const integrationContributions = context.getHtmlDocumentContributions({ renderOptions, partial: false }) ?? [];
 	const robotsContribution = buildRobotsMetaContribution(renderOptions.metadata ?? {});
-	const devToolbarContribution = buildDevToolbarManifestContribution(context);
+	const devToolbarContribution = buildRouteDevToolbarManifestContribution(context);
 	const htmlContributions = [
 		...(robotsContribution ? [robotsContribution] : []),
 		...(devToolbarContribution ? [devToolbarContribution] : []),
@@ -55,15 +59,16 @@ export function buildRouteHtmlFinalization<C>(context: RouteHtmlFinalizationCont
 	};
 }
 
-function buildDevToolbarManifestContribution<C>(
+function buildRouteDevToolbarManifestContribution<C>(
 	context: RouteHtmlFinalizationContext<C>,
 ): HtmlDocumentContribution | undefined {
-	return DevToolbarHost.forApp(context.appConfig, {
-		watch: context.watch,
-		hostOwnsDevClient: context.hostOwnsDevClient,
-	}).buildRouteManifestContribution({
-		routeFile: context.renderOptions.file,
-		integrationName: context.integrationName,
-		pagePackage: context.renderOptions.pagePackage,
-	});
+	return buildDevToolbarManifestContribution(
+		context.appConfig,
+		{ watch: context.watch },
+		{
+			routeFile: context.renderOptions.file,
+			integrationName: context.integrationName,
+			pagePackage: context.renderOptions.pagePackage,
+		},
+	);
 }

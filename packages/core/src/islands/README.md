@@ -1,18 +1,29 @@
 # Island host contract
 
+**Layer:** Foundation.
+
 Hydratable component instances stamp a small, integration-agnostic attribute set on their SSR root so devtools (and future runtime features) can discover islands without integration-specific selectors.
 
 ## Attributes
 
-| Attribute                     | Purpose                                              |
-| ----------------------------- | ---------------------------------------------------- |
-| `data-eco-island`             | Marks the element as an interactive island host      |
-| `data-eco-island-integration` | Owning integration (`react`, `lit`, `kitajs`, …)     |
-| `data-eco-component-id`       | Stable instance id from the render pipeline          |
-| `data-eco-component-key`      | Optional module key used by client hydration (React) |
-| `data-eco-props`              | Optional base64 JSON props snapshot for hydration    |
+| Attribute                     | Purpose                                                     |
+| ----------------------------- | ----------------------------------------------------------- |
+| `data-eco-island`             | Marks the element as an interactive island host             |
+| `data-eco-island-integration` | Owning integration (`react`, `lit`, `kitajs`, …)            |
+| `data-eco-component-id`       | Stable instance id from the render pipeline                 |
+| `data-eco-component-key`      | Optional module key used by client hydration (React)        |
+| `data-eco-props`              | Optional props snapshot for hydration: base64 of UTF-8 JSON |
 
-React integrations may emit `<eco-island>` as the SSR host. The host uses
+`data-eco-island` is a presence marker with an empty value, rendered as
+`data-eco-island=""`. Select hosts with `[data-eco-island]`.
+
+React integrations may emit `<eco-island>` as the SSR host. Island and lazy-entry
+client modules are built together from the page client plan, in one grouped
+browser build, during route preparation. Island entries are components whose Integration differs from their parent's, excluding the Html shell; a component also reached by a parent of another Integration is an island whatever the order the parents were visited in, and is listed once. Hydrating integrations take Foreign Children of another page owner (`selectHydrationIslandEntries`),
+not the page owner's Page, Layout, or nested includes. The page owner collects that
+build from every island-hydrating integration on the plan, so a React island on a
+Kita or Lit route still gets a hydration script. Island grouped entries re-export the
+component module; hydration scripts import those recorded output URLs. SSR stamps those assets onto the host. The host uses
 `display: contents` so it does not introduce a layout box, while the host and
 its children remain in place as the client calls `hydrateRoot()` on that host.
 React island integrations may add `data-eco-hydrated` after the initial client
@@ -20,10 +31,14 @@ commit for development diagnostics.
 
 ## Where stamping happens
 
-`finalizeIslandComponentRender()` in `island-host.ts` is called from integration renderers when:
+`IntegrationRenderer` calls `finalizeIslandComponentRender()` in `island-host.ts` after the component's foreign children are resolved when:
 
 1. `integrationContext.componentInstanceId` is present
 2. The render result can attach attributes to a single root element
-3. The render emits at least one client `script` asset
+3. The component's own assets include at least one client `script`
+
+Own assets are the scripts and stylesheets the component declares, plus those of nested components of the same Integration, excluding Foreign Children (declared in `dependencies.components` or rendered as Foreign Subtrees) and their descendants. They are passed separately from the render result: `result.assets` keeps the merged list for the Page. `IntegrationRenderer` collects them from the component's dependency declarations, so a component without scripts that wraps another Integration's island is not stamped.
+
+Integrations write `data-eco-props` through `buildIslandHostAttributes()`, which encodes the JSON as UTF-8 before base64; plain `btoa` handles Latin-1 only and throws on text such as `€`, CJK or emoji. Browser code that cannot import core (the React hydration lifecycle and the dev toolbar) keeps its own decoder; their tests and core's test use the same encoded fixture, so a format change fails them.
 
 Integrations with custom island metadata (for example React's component key) should build on `buildIslandHostAttributes()` rather than inventing per-demo selectors.

@@ -2,7 +2,6 @@ import { describe, expect, test } from 'vitest';
 import {
 	createPageDependencyInstanceKey,
 	createRouteGraphLookupKey,
-	parsePageDependencyInstanceKey,
 	serializeGroupedGraphCacheKey,
 } from './route-instance-key.ts';
 
@@ -21,13 +20,13 @@ describe('page dependency instance key', () => {
 		).toBe(JSON.stringify({ params: [['slug', ['docs', 'intro']]], query: [['mode', 'preview']] }));
 	});
 
-	test('round-trips delimiters and preserves scalar versus array values', () => {
-		const input = {
-			params: { scalar: 'docs/a&b=c', segments: ['docs', 'a/b', 'c=d'] },
-			query: { filter: ['draft', 'a&b=c'], mode: 'preview' },
-		};
+	test('keeps scalar and array values and delimiter-laden inputs distinct', () => {
+		const scalar = createPageDependencyInstanceKey({ params: { slug: 'a/b' } });
+		const segments = createPageDependencyInstanceKey({ params: { slug: ['a', 'b'] } });
+		const delimited = createPageDependencyInstanceKey({ params: { slug: 'a&b=c' } });
+		const split = createPageDependencyInstanceKey({ params: { slug: ['a', 'b=c'] } });
 
-		expect(parsePageDependencyInstanceKey(createPageDependencyInstanceKey(input))).toEqual(input);
+		expect(new Set([scalar, segments, delimited, split]).size).toBe(4);
 	});
 
 	test('createRouteGraphLookupKey scopes grouped graph maps', () => {

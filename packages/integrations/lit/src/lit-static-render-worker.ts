@@ -1,47 +1,57 @@
 import { parentPort } from 'node:worker_threads';
 import { loadEcoPagesConfig } from '@ecopages/core/config';
-import { setupAppRuntimePlugins } from '@ecopages/core/build/build-adapter';
-import { installBuildRuntime } from '@ecopages/core/build/build-runtime';
-import { RouteRendererFactory } from '@ecopages/core/route-renderer/route-renderer';
-import type { EcoPagesAppConfig, PageParams, PageQuery } from '@ecopages/core';
+import {
+	setupAppRuntimeIntegrations,
+	setupAppRuntimePlugins,
+	teardownAppRuntimeIntegrations,
+} from '@ecopages/core/build';
+import { installBuildQueue } from '@ecopages/core/build';
+import { requireAppRuntime } from '@ecopages/core/integration';
+import { RouteRendererFactory } from '@ecopages/core/integration';
+import type { PageParams, PageQuery } from '@ecopages/core';
 import type {
-	LitStaticRenderCacheStrategy,
+	LitStaticRenderResult,
 	LitStaticRenderWorkerRequestMessage,
 	LitStaticRenderWorkerResponseMessage,
 } from './lit-static-render-protocol.ts';
+import { toLitStaticRenderResult } from './lit-static-render-result.ts';
 import './dom-shim.ts';
 
-let appConfig: EcoPagesAppConfig | null = null;
+type LoadedAppConfig = Awaited<ReturnType<typeof loadEcoPagesConfig>>;
+
+let appConfig: LoadedAppConfig | null = null;
 let routeRendererFactory: RouteRendererFactory | null = null;
+let activeRenders = 0;
+let shutdownRequested = false;
+let resolveRendersIdle: (() => void) | undefined;
 
 /**
  * Loads app config in the worker isolate and bootstraps rendering.
  *
  * @remarks
- * Processor `.setup()` is skipped here — the main thread already prepared disk artifacts
- * before the Lit worker started (`ECOPAGES_LIT_STATIC_RENDER_WORKER`).
+ * Processor `.setup()` is skipped here because the main thread already prepared disk artifacts
+ * before the Lit worker started (`ECOPAGES_LIT_STATIC_RENDER_WORKER`). Integrations still need
+ * setup in this isolate before route renderers are created.
  */
 async function initializeWorker(configModulePath: string, runtimeOrigin: string): Promise<void> {
 	appConfig = await loadEcoPagesConfig({ configFile: configModulePath });
+	const runtime = requireAppRuntime(appConfig);
+	runtime.origin = runtimeOrigin;
 
 	await setupAppRuntimePlugins({
 		appConfig,
-		runtimeOrigin,
 	});
+	await setupAppRuntimeIntegrations({ appConfig });
 
-	installBuildRuntime(appConfig);
+	installBuildQueue(appConfig);
 
 	routeRendererFactory = new RouteRendererFactory({
 		appConfig,
-		runtimeOrigin,
+		runtime,
 	});
 }
 
-async function renderPage(
-	filePath: string,
-	params: PageParams,
-	query?: PageQuery,
-): Promise<{ html: string; cacheStrategy?: LitStaticRenderCacheStrategy }> {
+async function renderPage(filePath: string, params: PageParams, query?: PageQuery): Promise<LitStaticRenderResult> {
 	if (!routeRendererFactory) {
 		throw new Error('Lit static render worker is not initialized');
 	}
@@ -52,20 +62,28 @@ async function renderPage(
 		query,
 	});
 
-	const body = result.body;
-	if (typeof body === 'string') {
-		return { html: body, cacheStrategy: result.cacheStrategy };
+	return toLitStaticRenderResult(result);
+}
+
+async function shutdownWorker(): Promise<void> {
+	shutdownRequested = true;
+	if (activeRenders > 0) {
+		await new Promise<void>((resolve) => {
+			resolveRendersIdle = resolve;
+		});
 	}
 
-	if (Buffer.isBuffer(body)) {
-		return { html: body.toString('utf8'), cacheStrategy: result.cacheStrategy };
+	try {
+		if (appConfig) {
+			await teardownAppRuntimeIntegrations({ appConfig });
+		}
+		postMessage({ type: 'shutdown-complete' });
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		postMessage({ type: 'error', message: errorMessage });
+	} finally {
+		parentPort?.close();
 	}
-
-	if (body instanceof ReadableStream) {
-		return { html: await new Response(body).text(), cacheStrategy: result.cacheStrategy };
-	}
-
-	throw new TypeError(`Unsupported Lit static render body type: ${typeof body}`);
 }
 
 function postMessage(message: LitStaticRenderWorkerResponseMessage): void {
@@ -85,13 +103,26 @@ parentPort.on('message', async (message: LitStaticRenderWorkerRequestMessage) =>
 		}
 
 		if (message.type === 'shutdown') {
-			process.exit(0);
+			await shutdownWorker();
 			return;
 		}
 
 		if (message.type === 'render') {
-			const result = await renderPage(message.filePath, message.params, message.query);
-			postMessage({ type: 'result', id: message.id, ...result });
+			if (shutdownRequested) {
+				throw new Error('Lit static render worker is shutting down');
+			}
+
+			activeRenders += 1;
+			try {
+				const result = await renderPage(message.filePath, message.params, message.query);
+				postMessage({ type: 'result', id: message.id, ...result });
+			} finally {
+				activeRenders -= 1;
+				if (activeRenders === 0) {
+					resolveRendersIdle?.();
+					resolveRendersIdle = undefined;
+				}
+			}
 		}
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);

@@ -1,15 +1,7 @@
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 
 export function createJsxImportSourcePragma(jsxImportSource: string): string {
 	return `/** @jsxImportSource ${jsxImportSource} */\n`;
-}
-
-export function prependJsxImportSourceIfMissing(code: string, jsxImportSource: string | undefined): string {
-	if (!jsxImportSource || code.includes('@jsxImportSource')) {
-		return code;
-	}
-
-	return createJsxImportSourcePragma(jsxImportSource) + code;
 }
 
 export function isJsxSourceExtension(extension: string): boolean {

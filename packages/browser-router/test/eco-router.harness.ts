@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, vi } from 'vitest';
-import userEvent from '@testing-library/user-event';
-import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import { userEvent } from 'vitest/browser';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
 import type { EcoRouter } from '../src/client/eco-router';
 
 export type BrowserRouterTestWindow = Window &
@@ -41,8 +41,16 @@ export function resetBrowserRuntimeState(): void {
 	window.history.replaceState({}, '', initialUrl);
 }
 
+/**
+ * Stubs `fetch` to answer every request with a fresh HTML response.
+ *
+ * @remarks
+ * A `Response` body reads once. A prefetch and a click on the same link both fetch, so a shared
+ * response made the second read fail and the router fell back to a real document load that
+ * detached the test iframe.
+ */
 export function mockFetch(htmlContent: string) {
-	return vi.spyOn(globalThis, 'fetch').mockResolvedValue(htmlFetchResponse(htmlContent));
+	return vi.spyOn(globalThis, 'fetch').mockImplementation(async () => htmlFetchResponse(htmlContent));
 }
 
 export function htmlFetchResponse(body: string): Response {
@@ -97,39 +105,65 @@ export function createDeferred(): { promise: Promise<void>; resolve: () => void 
 	return { promise, resolve };
 }
 
-export function preventDefaultOnClick(link: HTMLAnchorElement): void {
-	link.addEventListener('click', (e) => e.preventDefault());
-}
-
 export function spyPushState() {
 	return vi.spyOn(window.history, 'pushState');
 }
 
-export function clickWithoutNavigation(link: HTMLAnchorElement, options: Partial<MouseEventInit> = {}): void {
+/**
+ * Clicks a link and asserts the router left the click alone.
+ *
+ * @remarks
+ * Real clicks cover plain and modifier clicks. Middle and right buttons stay synthetic
+ * because a real one fires `auxclick`, not `click`, and so does Ctrl+click on macOS,
+ * which the platform turns into a context-menu gesture. The router decides in a capture
+ * listener on `document`, so a bubble listener on `window` sees `defaultPrevented`
+ * after the router and then cancels the default action to keep the page in place.
+ * A click the router stopped from propagating never reaches it and fails the assertion.
+ */
+export async function clickWithoutNavigation(link: HTMLElement, options: Partial<MouseEventInit> = {}): Promise<void> {
 	const pushStateSpy = spyPushState();
-	preventDefaultOnClick(link);
-	simulateClick(link, options);
+	let defaultPreventedByRouter: boolean | null = null;
+	const recordAndCancel = (event: MouseEvent) => {
+		defaultPreventedByRouter = event.defaultPrevented;
+		event.preventDefault();
+	};
+	window.addEventListener('click', recordAndCancel);
+	try {
+		if (options.button || options.ctrlKey) {
+			simulateClick(link, options);
+		} else {
+			await userEvent.click(link, { modifiers: getModifiers(options) });
+		}
+	} finally {
+		window.removeEventListener('click', recordAndCancel);
+	}
+	expect(defaultPreventedByRouter).toBe(false);
 	expect(pushStateSpy).not.toHaveBeenCalled();
 }
 
-export async function clickWithNavigation(link: HTMLElement, options: Partial<MouseEventInit> = {}): Promise<void> {
+function getModifiers(options: Partial<MouseEventInit>): Array<'Alt' | 'Meta' | 'Shift'> {
+	const modifiers: Array<'Alt' | 'Meta' | 'Shift'> = [];
+	if (options.altKey) modifiers.push('Alt');
+	if (options.metaKey) modifiers.push('Meta');
+	if (options.shiftKey) modifiers.push('Shift');
+	return modifiers;
+}
+
+export async function clickWithNavigation(link: HTMLElement): Promise<void> {
 	const pushStateSpy = spyPushState();
-	simulateClick(link, options);
-	await waitForNavigation();
+	await Promise.all([waitForNavigation(), userEvent.click(link)]);
 	expect(pushStateSpy).toHaveBeenCalled();
 }
 
 export interface EcoRouterTestFixtures {
 	router: EcoRouter | null;
 	fetchSpy: ReturnType<typeof vi.spyOn> | null;
-	user: ReturnType<typeof userEvent.setup>;
 }
 
 export function installEcoRouterTestHooks(fixtures: EcoRouterTestFixtures): void {
 	beforeEach(() => {
 		resetBrowserRuntimeState();
 		fixtures.fetchSpy = mockFetch(mockHtml);
-		fixtures.user = userEvent.setup();
 	});
 
 	afterEach(() => {

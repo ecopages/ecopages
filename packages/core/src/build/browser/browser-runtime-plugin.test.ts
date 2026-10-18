@@ -1,18 +1,19 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { test } from 'vitest';
+import { afterEach, test } from 'vitest';
 import { createBrowserRuntimeManifest } from './browser-runtime-manifest.ts';
 import {
 	BROWSER_RUNTIME_MANIFEST,
 	DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME,
 	createBrowserRuntimePlugin,
-	getBrowserRuntimeImportRewriteMap,
 	getBrowserRuntimeManifestFromPlugin,
 } from './browser-runtime-plugin.ts';
 import type { EcoBuildOnLoadResult, EcoBuildOnResolveResult } from '../contracts/build-types.ts';
+import { RolldownBuildAdapter } from '../rolldown/rolldown-build-adapter.ts';
+import { assertBuildSucceeded } from '../build-log.ts';
 
 const manifest = createBrowserRuntimeManifest([
 	{
@@ -61,6 +62,7 @@ function setupPlugin(
 			callbacks.loadCallbacks.push(callback as LoadCallback);
 		},
 		module() {},
+		transform() {},
 	});
 }
 
@@ -80,51 +82,27 @@ test('createBrowserRuntimePlugin honors a custom name', () => {
 	assert.equal(plugin.name, 'custom-runtime-plugin');
 });
 
-test('createBrowserRuntimePlugin exposes the manifest and derived specifier map', () => {
+test('createBrowserRuntimePlugin exposes the manifest', () => {
 	const plugin = createBrowserRuntimePlugin({ manifest });
 	assert.ok(plugin);
-	const map = getBrowserRuntimeImportRewriteMap(plugin);
-	assert.ok(map);
-	assert.deepEqual(Array.from(map.entries()), [
-		['react', '/assets/vendors/react.js'],
-		['react-dom/client', '/assets/vendors/react-dom.js'],
-	]);
 	assert.equal(getBrowserRuntimeManifestFromPlugin(plugin), manifest);
 	assert.equal((plugin as Record<symbol, unknown>)[BROWSER_RUNTIME_MANIFEST], manifest);
 });
 
-test('createBrowserRuntimePlugin in full mode registers alias, publicPath, and onLoad hooks', () => {
+test('createBrowserRuntimePlugin registers alias and publicPath resolves and no load hook', () => {
 	const callbacks = captureCallbacks();
 	const plugin = createBrowserRuntimePlugin({ manifest });
 	setupPlugin(plugin, callbacks);
 	assert.equal(callbacks.resolveCallbacks.length, 2, 'alias + publicPath');
-	assert.equal(callbacks.loadCallbacks.length, 1, 'source rewrite');
-});
-
-test('createBrowserRuntimePlugin in alias-only mode skips rewrite and publicPath hooks', () => {
-	const callbacks = captureCallbacks();
-	const plugin = createBrowserRuntimePlugin({
-		manifest,
-		name: 'alias-only',
-		rewriteImports: false,
-		matchPublicPaths: false,
-	});
-	setupPlugin(plugin, callbacks);
-	assert.equal(callbacks.resolveCallbacks.length, 1, 'alias only');
 	assert.equal(callbacks.loadCallbacks.length, 0, 'no source rewrite');
 });
 
-test('createBrowserRuntimePlugin in rewrite-only mode registers alias and onLoad but skips publicPath', () => {
+test('createBrowserRuntimePlugin without matchPublicPaths registers the alias resolve only', () => {
 	const callbacks = captureCallbacks();
-	const plugin = createBrowserRuntimePlugin({
-		manifest,
-		name: 'rewrite-only',
-		external: false,
-		matchPublicPaths: false,
-	});
+	const plugin = createBrowserRuntimePlugin({ manifest, name: 'alias-only', matchPublicPaths: false });
 	setupPlugin(plugin, callbacks);
 	assert.equal(callbacks.resolveCallbacks.length, 1, 'alias only');
-	assert.equal(callbacks.loadCallbacks.length, 1, 'source rewrite still on');
+	assert.equal(callbacks.loadCallbacks.length, 0);
 });
 
 test('createBrowserRuntimePlugin alias resolve honors custom external flag', async () => {
@@ -213,51 +191,53 @@ test('createBrowserRuntimePlugin with matchPublicPaths: false skips /-prefixed r
 	assert.equal(await resolve('/assets/vendors/react.js'), undefined, 'no publicPath hook registered');
 });
 
-test('createBrowserRuntimePlugin onLoad rewrites JS/TS sources that import manifest specifiers', async () => {
-	const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-unified-rewrite-'));
-	const filePath = path.join(tempDir, 'entry.tsx');
-	writeFileSync(filePath, "import React from 'react';\n", 'utf-8');
-
-	try {
-		const callbacks = captureCallbacks();
-		const plugin = createBrowserRuntimePlugin({ manifest });
-		setupPlugin(plugin, callbacks);
-		assert.equal(callbacks.loadCallbacks.length, 1);
-		assert.deepEqual(await callbacks.loadCallbacks[0]?.({ path: filePath }), {
-			contents: "import React from '/assets/vendors/react.js';\n",
-			loader: 'tsx',
-			resolveDir: tempDir,
-		});
-	} finally {
-		rmSync(tempDir, { recursive: true, force: true });
-	}
+const workDirs: string[] = [];
+afterEach(() => {
+	for (const dir of workDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-test('createBrowserRuntimePlugin onLoad short-circuits when the source has no manifest specifier', async () => {
-	const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-unified-rewrite-'));
-	const filePath = path.join(tempDir, 'entry.tsx');
-	writeFileSync(filePath, "import { foo } from 'local-package';\n", 'utf-8');
+async function buildBrowserEntry(source: string, runtimeManifest = manifest) {
+	const dir = mkdtempSync(path.join(tmpdir(), 'ecopages-runtime-plugin-'));
+	workDirs.push(dir);
+	const entry = path.join(dir, 'entry.ts');
+	writeFileSync(entry, source, 'utf-8');
+	const plugin = createBrowserRuntimePlugin({ manifest: runtimeManifest });
+	assert.ok(plugin);
+	const result = await new RolldownBuildAdapter().build({
+		environment: 'browser',
+		entrypoints: [entry],
+		outdir: path.join(dir, 'dist'),
+		root: dir,
+		target: 'browser',
+		format: 'esm',
+		splitting: false,
+		plugins: [plugin],
+	});
+	return { result, code: result.success ? readFileSync(result.outputs[0]!.path, 'utf-8') : '' };
+}
 
-	try {
-		const callbacks = captureCallbacks();
-		const plugin = createBrowserRuntimePlugin({ manifest });
-		setupPlugin(plugin, callbacks);
-		assert.equal(callbacks.loadCallbacks.length, 1);
-		assert.equal(await callbacks.loadCallbacks[0]?.({ path: filePath }), undefined);
-	} finally {
-		rmSync(tempDir, { recursive: true, force: true });
-	}
-});
+test.each([
+	['a static import', "import React from 'react';\nexport const value = React;\n", '/assets/vendors/react.js'],
+	['a side-effect import', "import 'react-dom/client';\n", '/assets/vendors/react-dom.js'],
+	['a named re-export', "export { createRoot } from 'react-dom/client';\n", '/assets/vendors/react-dom.js'],
+	['a star re-export', "export * from 'react';\n", '/assets/vendors/react.js'],
+	['a dynamic import', "export const load = () => import('react');\n", '/assets/vendors/react.js'],
+])(
+	'createBrowserRuntimePlugin leaves %s of a manifest specifier as its public URL',
+	async (_form, source, publicPath) => {
+		const { result, code } = await buildBrowserEntry(source);
 
-test('createBrowserRuntimePlugin onLoad returns undefined for non-absolute paths', async () => {
-	const callbacks = captureCallbacks();
-	const plugin = createBrowserRuntimePlugin({ manifest });
-	setupPlugin(plugin, callbacks);
-	assert.equal(callbacks.loadCallbacks.length, 1);
-	assert.equal(await callbacks.loadCallbacks[0]?.({ path: 'virtual:entry' }), undefined);
-});
+		assertBuildSucceeded(result, 'Build failed');
+		assert.match(
+			code,
+			new RegExp(
+				`from ['"]${publicPath.replaceAll('/', '\\/')}['"]|import\\(['"]${publicPath.replaceAll('/', '\\/')}['"]\\)|import ['"]${publicPath.replaceAll('/', '\\/')}['"]`,
+			),
+		);
+	},
+);
 
-test('createBrowserRuntimePlugin leaves unconfigured package subpaths unchanged', async () => {
+test('createBrowserRuntimePlugin does not map a package subpath the manifest does not list', async () => {
 	const scopedManifest = createBrowserRuntimeManifest([
 		{
 			specifier: '@acme/ui',
@@ -266,16 +246,41 @@ test('createBrowserRuntimePlugin leaves unconfigured package subpaths unchanged'
 			publicPath: '/assets/vendors/acme-ui.js',
 		},
 	]);
-	const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-subpath-rewrite-'));
-	const filePath = path.join(tempDir, 'entry.tsx');
-	writeFileSync(filePath, "import { Button } from '@acme/ui/button';\n", 'utf-8');
 
-	try {
-		const callbacks = captureCallbacks();
-		const plugin = createBrowserRuntimePlugin({ manifest: scopedManifest });
-		setupPlugin(plugin, callbacks);
-		assert.equal(await callbacks.loadCallbacks[0]?.({ path: filePath }), undefined);
-	} finally {
-		rmSync(tempDir, { recursive: true, force: true });
-	}
+	const { result, code } = await buildBrowserEntry(
+		"import { Button } from '@acme/ui/button';\nexport { Button };\n",
+		scopedManifest,
+	);
+
+	assertBuildSucceeded(result, 'Build failed');
+	assert.match(code, /@acme\/ui\/button/);
+	assert.doesNotMatch(code, /acme-ui\.js/);
+});
+
+test('createBrowserRuntimePlugin keys its identity on the manifest and the resolve options', () => {
+	const otherManifest = createBrowserRuntimeManifest([
+		{
+			specifier: 'react',
+			owner: '@ecopages/react',
+			importPath: 'react',
+			publicPath: '/assets/vendors/react-dev.js',
+		},
+	]);
+
+	assert.equal(
+		createBrowserRuntimePlugin({ manifest })?.cacheKey,
+		createBrowserRuntimePlugin({ manifest })?.cacheKey,
+	);
+	assert.notEqual(
+		createBrowserRuntimePlugin({ manifest })?.cacheKey,
+		createBrowserRuntimePlugin({ manifest: otherManifest })?.cacheKey,
+	);
+	assert.notEqual(
+		createBrowserRuntimePlugin({ manifest })?.cacheKey,
+		createBrowserRuntimePlugin({ manifest, external: false })?.cacheKey,
+	);
+	assert.notEqual(
+		createBrowserRuntimePlugin({ manifest })?.cacheKey,
+		createBrowserRuntimePlugin({ manifest, matchPublicPaths: false })?.cacheKey,
+	);
 });

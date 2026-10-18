@@ -1,17 +1,13 @@
 import { expect } from '@playwright/test';
 import type { APIRequestContext, ConsoleMessage, Page } from 'playwright-core';
+export { assertNoForbiddenHmrDiagnostics, trackRuntimeErrors } from '../../../e2e/utils/runtime-error-tracker.ts';
 
 const NAVIGATION_TIMEOUT = 45_000;
 const HMR_CLIENT_CONNECT_TIMEOUT_MS = 60_000;
 /** Post-mutation assert window for isolated kitchen-sink HMR cells on slower hosts. */
 export const HMR_MUTATION_ASSERT_TIMEOUT_MS = 25_000;
-const RETRIABLE_REQUEST_ERROR_FRAGMENTS = ['ECONNRESET', 'ECONNREFUSED', 'socket hang up', 'fetch failed'];
-
-function isRetriableRequestError(error: unknown): error is Error {
-	return (
-		error instanceof Error && RETRIABLE_REQUEST_ERROR_FRAGMENTS.some((fragment) => error.message.includes(fragment))
-	);
-}
+/** Post-mutation window for fallback updates that need a full document reload. */
+export const HMR_FULL_RELOAD_ASSERT_TIMEOUT_MS = 45_000;
 
 type EcoNavigationWindow = Window & {
 	__ECO_PAGES__?: {
@@ -21,18 +17,6 @@ type EcoNavigationWindow = Window & {
 		};
 	};
 };
-
-const RUNTIME_ERROR_PATTERNS = [
-	/is not defined/i,
-	/Invalid hook call/i,
-	/Cannot read properties of null \(reading 'useState'\)/i,
-	/Cannot read properties of undefined/i,
-	/Cannot set properties of null/i,
-	/Missing props reference/i,
-	/Failed to execute 'appendChild'/i,
-	/Hydration failed/i,
-	/Failed to resolve module specifier/i,
-] as const;
 
 /** Cancel an in-flight browser-router / react-router morph so Playwright can navigate again. */
 export async function cancelPendingNavigation(page: Page) {
@@ -102,14 +86,6 @@ export async function clickByTestId(page: Page, testId: string) {
 	await page.getByTestId(testId).click();
 }
 
-const FORBIDDEN_HMR_DIAGNOSTIC_PATTERNS = [
-	/HMR script registration failed/i,
-	/Timed out registering entrypoint/i,
-	/stale-output skips/i,
-	/unhandled rejection/i,
-	/missing runtime output/i,
-] as const;
-
 /**
  * Asserts declared layout/page scripts are served from the HMR dist path on cold start.
  */
@@ -119,110 +95,14 @@ export async function assertRegisteredHmrScript(page: Page, scriptPathFragment: 
 	return script;
 }
 
-export function assertNoForbiddenHmrDiagnostics(messages: string[]) {
-	const combined = messages.join('\n');
-	for (const pattern of FORBIDDEN_HMR_DIAGNOSTIC_PATTERNS) {
-		expect(pattern.test(combined), `forbidden HMR diagnostic matched ${pattern}`).toBe(false);
-	}
-}
-
-/**
- * Captures page and console errors so E2E specs can assert that rapid navigation stays clean.
- */
-export function trackRuntimeErrors(page: Page) {
-	const pageErrors: string[] = [];
-	const consoleErrors: string[] = [];
-	const consoleMessages: string[] = [];
-
-	page.on('pageerror', (error: Error) => {
-		pageErrors.push(error.message);
-	});
-
-	page.on('console', (msg: ConsoleMessage) => {
-		const text = msg.text();
-		consoleMessages.push(text);
-		if (msg.type() === 'error') {
-			consoleErrors.push(text);
-		}
-	});
-
-	return {
-		pageErrors,
-		consoleErrors,
-		consoleMessages,
-		assertClean() {
-			const combinedErrors = `${pageErrors.join('\n')}\n${consoleErrors.join('\n')}`;
-			for (const pattern of RUNTIME_ERROR_PATTERNS) {
-				expect(pattern.test(combinedErrors), `runtime errors should not match ${pattern}`).toBe(false);
-			}
-			assertNoForbiddenHmrDiagnostics(consoleMessages);
-		},
-	};
-}
-
+/** Makes one GET request and throws with the status and response excerpt for non-2xx results. */
 export async function requestGetAndWait(request: APIRequestContext, href: string, timeout = 30000) {
-	let lastResponse: Awaited<ReturnType<typeof request.get>> | undefined;
+	const response = await request.get(href, { timeout });
+	if (response.ok()) return response;
 
-	await expect
-		.poll(
-			async () => {
-				try {
-					lastResponse = await request.get(href);
-					return lastResponse.ok() ? lastResponse.status() : 0;
-				} catch (error) {
-					if (!isRetriableRequestError(error)) {
-						throw error;
-					}
-
-					lastResponse = undefined;
-					return 0;
-				}
-			},
-			{
-				intervals: [100, 200, 350, 500],
-				timeout,
-			},
-		)
-		.toBe(200);
-
-	expect(
-		lastResponse?.ok(),
-		`${href} should respond with a successful status after retrying transient request failures`,
-	).toBe(true);
-
-	return lastResponse!;
-}
-
-function isViteConnectedMessage(text: string): boolean {
-	return text.includes('[vite] connected');
-}
-
-/** Wait until Vite's browser HMR client has finished its websocket handshake. */
-export async function waitForViteClientConnection(page: Page, timeout = HMR_CLIENT_CONNECT_TIMEOUT_MS) {
-	const viteConsoleMessages: string[] = [];
-	const recordViteConsole = (message: ConsoleMessage) => {
-		const text = message.text();
-		if (text.includes('[vite]')) {
-			viteConsoleMessages.push(text);
-		}
-	};
-
-	page.on('console', recordViteConsole);
-
-	try {
-		await page.waitForFunction(() => document.querySelector('script[src*="/@vite/client"]') !== null, null, {
-			timeout,
-		});
-
-		await expect
-			.poll(() => viteConsoleMessages.some(isViteConnectedMessage), {
-				timeout,
-				intervals: [50, 100, 200, 500],
-			})
-			.toBe(true);
-	} finally {
-		page.off('console', recordViteConsole);
-	}
+	const bodyExcerpt = (await response.text()).trim().slice(0, 300);
+	const details = bodyExcerpt ? `: ${bodyExcerpt}` : '';
+	throw new Error(`GET ${href} returned HTTP ${response.status()}${details}`);
 }
 
 /** Begin waiting for the ecopages HMR websocket before the page navigates. */
@@ -306,7 +186,11 @@ export async function installFullDocumentReloadWatcher(page: Page) {
 			}
 
 			const entries = performance.getEntriesByType('navigation');
-			if (entries.slice(initialNavigationCount).some((entry) => entry.type === 'reload')) {
+			if (
+				entries
+					.slice(initialNavigationCount)
+					.some((entry) => entry.entryType === 'navigation' && 'type' in entry && entry.type === 'reload')
+			) {
 				state.detected = true;
 				state.done = true;
 				return;

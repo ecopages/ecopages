@@ -1,24 +1,23 @@
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import { prependJsxImportSourceIfMissing } from './jsx-import-source.utils.ts';
-import type { EcoSourceTransform, EcoViteCompatiblePlugin } from './source-transform.ts';
-import { createEcoBuildPluginFromSourceTransform, createVitePluginFromSourceTransform } from './source-transform.ts';
-import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
+import MagicString from 'magic-string';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import { createJsxImportSourcePragma } from './jsx-import-source.utils.ts';
+import type { EcoBuildOnTransformResult, EcoBuildPlugin } from '../build/contracts/build-types.ts';
+import { composeSourceMaps, isUsableSourceMap } from '../build/source-maps.ts';
+import { createCoreTransformPlugin, createMappedSourceTransformResult } from '../build/mapped-source-transform.ts';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
-import { rapidhash } from '../utils/hash.ts';
+import { contentHash } from '../utils/content-hash.ts';
 import { discoverComponentImports, type DiscoveredImports } from './component-import-discovery.ts';
+import { findIntegrationForFile } from './find-integration-for-file.ts';
 
-type IntegrationOwnership = { name: string; jsxImportSource?: string };
-
+/**
+ * Options for the plugin that attributes Eco Component identities.
+ *
+ * @remarks
+ * The plugin currently uses Build-layer transform, source-map, and parse-cache helpers; #556 tracks
+ * moving the reusable plugin transforms behind the Build layer.
+ */
 export interface EcoComponentDirPluginOptions {
 	config: EcoPagesAppConfig;
-}
-
-function integrationForFile(filePath: string, config: EcoPagesAppConfig): IntegrationOwnership | undefined {
-	const candidates = config.integrations
-		.flatMap((integration) => integration.extensions.map((extension) => [extension, integration] as const))
-		.sort(([left], [right]) => right.length - left.length);
-	const match = candidates.find(([extension]) => filePath.endsWith(extension));
-	return match ? { name: match[1].name, jsxImportSource: match[1].jsxImportSource } : undefined;
 }
 
 type AstNode = {
@@ -28,7 +27,47 @@ type AstNode = {
 	[key: string]: unknown;
 };
 
-type SourceEdit = { start: number; end: number; replacement: string };
+type SourceEdit =
+	| { start: number; end: number; replacement: string }
+	| { start: number; end: number; prefix: string; suffix: string };
+
+type SourceEditOptions = {
+	prepend?: string;
+	append?: string;
+};
+
+function applySourceEdits(
+	contents: string,
+	edits: SourceEdit[],
+	filePath: string,
+	options: SourceEditOptions = {},
+): EcoBuildOnTransformResult {
+	if (edits.length === 0 && !options.prepend && !options.append) {
+		return { code: contents };
+	}
+
+	const editSource = (source: MagicString): void => {
+		for (const edit of edits.sort((left, right) => right.start - left.start)) {
+			if ('prefix' in edit) {
+				source.appendLeft(edit.start, edit.prefix);
+				source.appendRight(edit.end, edit.suffix);
+				continue;
+			}
+
+			if (edit.start === edit.end) {
+				source.appendLeft(edit.start, edit.replacement);
+			} else if (edit.replacement === '') {
+				source.remove(edit.start, edit.end);
+			} else {
+				source.overwrite(edit.start, edit.end, edit.replacement);
+			}
+		}
+
+		if (options.prepend) source.prepend(options.prepend);
+		if (options.append) source.append(options.append);
+	};
+	return createMappedSourceTransformResult(contents, filePath, editSource);
+}
 
 function isAstNode(value: unknown): value is AstNode {
 	return typeof value === 'object' && value !== null;
@@ -66,12 +105,11 @@ function walkAst(node: unknown, visit: (node: AstNode) => void): void {
 	for (const value of Object.values(node)) walkAst(value, visit);
 }
 
-function addNamedImport(
-	contents: string,
+function createNamedImportEdit(
 	program: AstNode,
 	sourceModule: string,
 	importedName: string | readonly string[],
-): string {
+): SourceEdit | undefined {
 	const importedNames = typeof importedName === 'string' ? [importedName] : [...importedName];
 	const imports = (program.body as unknown[]).filter(
 		(node): node is AstNode =>
@@ -81,7 +119,9 @@ function addNamedImport(
 			node.source.value === sourceModule,
 	);
 	const valueImport = imports.find((node) => node.importKind !== 'type');
-	if (!valueImport) return `import { ${importedNames.join(', ')} } from '${sourceModule}';\n${contents}`;
+	if (!valueImport) {
+		return { start: 0, end: 0, replacement: `import { ${importedNames.join(', ')} } from '${sourceModule}';\n` };
+	}
 
 	const specifiers = Array.isArray(valueImport.specifiers) ? valueImport.specifiers.filter(isAstNode) : [];
 	const existingNames = new Set(
@@ -92,30 +132,34 @@ function addNamedImport(
 		}),
 	);
 	const missing = importedNames.filter((name) => !existingNames.has(name));
-	if (missing.length === 0) {
-		return contents;
-	}
+	if (missing.length === 0) return undefined;
 
 	const namedSpecifiers = specifiers.filter((specifier) => specifier.type === 'ImportSpecifier');
 	if (namedSpecifiers.length > 0) {
 		const lastSpecifier = namedSpecifiers[namedSpecifiers.length - 1]!;
-		return `${contents.slice(0, lastSpecifier.end)}, ${missing.join(', ')}${contents.slice(lastSpecifier.end)}`;
+		if (typeof lastSpecifier.end === 'number') {
+			return {
+				start: lastSpecifier.end,
+				end: lastSpecifier.end,
+				replacement: `, ${missing.join(', ')}`,
+			};
+		}
 	}
 
 	if (specifiers.some((specifier) => specifier.type === 'ImportNamespaceSpecifier')) {
-		return `import { ${missing.join(', ')} } from '${sourceModule}';\n${contents}`;
+		return { start: 0, end: 0, replacement: `import { ${missing.join(', ')} } from '${sourceModule}';\n` };
 	}
 
 	const defaultSpecifier = specifiers.find((specifier) => specifier.type === 'ImportDefaultSpecifier');
-	if (defaultSpecifier) {
-		return `${contents.slice(0, defaultSpecifier.end)}, { ${missing.join(', ')} }${contents.slice(defaultSpecifier.end)}`;
+	if (defaultSpecifier && typeof defaultSpecifier.end === 'number') {
+		return {
+			start: defaultSpecifier.end,
+			end: defaultSpecifier.end,
+			replacement: `, { ${missing.join(', ')} }`,
+		};
 	}
 
-	return `import { ${missing.join(', ')} } from '${sourceModule}';\n${contents}`;
-}
-
-function addIdentityBindingImport(contents: string, program: AstNode): string {
-	return addNamedImport(contents, program, '@ecopages/core', 'bindComponentIdentity');
+	return { start: 0, end: 0, replacement: `import { ${missing.join(', ')} } from '${sourceModule}';\n` };
 }
 
 function serializeDiscoveryArgument(discovered: DiscoveredImports | undefined): string {
@@ -126,52 +170,87 @@ function serializeDiscoveryArgument(discovered: DiscoveredImports | undefined): 
 	return `, { components: () => [${discovered.components.join(', ')}], stylesheets: ${JSON.stringify(discovered.stylesheets)}${watchFiles} }`;
 }
 
+function hasEcoFactoryCall(program: AstNode): boolean {
+	let found = false;
+	walkAst(program, (node) => {
+		if (isEcoFactoryCall(node)) found = true;
+	});
+	return found;
+}
+
+/**
+ * Whether the component meta transform moves the side-effect stylesheet imports of `filePath`
+ * into its Component Dependencies, removing them from the module.
+ */
+export function stripsSideEffectStylesheetImports(
+	config: EcoPagesAppConfig,
+	filePath: string,
+	contents: string,
+): boolean {
+	if (!contents.includes('eco.') || !createComponentMetaFilter(config).test(filePath)) return false;
+	if (!findIntegrationForFile(config.integrations, filePath)) return false;
+	try {
+		return hasEcoFactoryCall(
+			parseModuleSource(filePath, contents, { sourceType: 'module' }).program as unknown as AstNode,
+		);
+	} catch {
+		return false;
+	}
+}
+
 /** Attributes real `eco.*()` factory calls with canonical component identity. */
 export function attributeComponentIdentity(
 	contents: string,
 	filePath: string,
 	integration: string,
 	projectRoot?: string,
-): string {
-	if (!contents.includes('eco.')) return contents;
+	jsxImportSource?: string,
+): EcoBuildOnTransformResult {
+	const pragma =
+		jsxImportSource && !contents.includes('@jsxImportSource')
+			? createJsxImportSourcePragma(jsxImportSource)
+			: undefined;
+	if (!contents.includes('eco.')) {
+		return applySourceEdits(contents, [], filePath, { prepend: pragma });
+	}
 
 	let program: AstNode;
 	try {
 		program = parseModuleSource(filePath, contents, { sourceType: 'module' }).program as unknown as AstNode;
 	} catch {
-		return contents;
+		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
 
-	const identityLiteral = `{ id: ${JSON.stringify(rapidhash(filePath).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
-	const edits: SourceEdit[] = [];
-	let hasFactory = false;
-	walkAst(program, (node) => {
-		if (isEcoFactoryCall(node)) hasFactory = true;
-	});
-	const discovered = hasFactory && projectRoot ? discoverComponentImports(program, filePath, projectRoot) : undefined;
-	const discoveryArgument = serializeDiscoveryArgument(discovered);
+	const identityLiteral = `{ id: ${JSON.stringify(BigInt(`0x${contentHash(filePath, 16)}`).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
+	if (!hasEcoFactoryCall(program)) {
+		return applySourceEdits(contents, [], filePath, { prepend: pragma });
+	}
+
+	const factoryArguments: Array<{ start: number; end: number }> = [];
 	walkAst(program, (node) => {
 		if (!isEcoFactoryCall(node) || !Array.isArray(node.arguments)) return;
 		const firstArgument = node.arguments[0];
 		if (!isAstNode(firstArgument) || isIdentityBinding(firstArgument)) return;
 		if (typeof firstArgument.start !== 'number' || typeof firstArgument.end !== 'number') return;
-		edits.push({
-			start: firstArgument.start,
-			end: firstArgument.end,
-			replacement: `bindComponentIdentity(${identityLiteral}, ${contents.slice(firstArgument.start, firstArgument.end)}${discoveryArgument})`,
-		});
+		factoryArguments.push({ start: firstArgument.start, end: firstArgument.end });
 	});
-	if (edits.length === 0) return contents;
-	edits.push(...(discovered?.removals ?? []));
 
-	let transformed = contents;
-	for (const edit of edits.sort((left, right) => right.start - left.start)) {
-		transformed = `${transformed.slice(0, edit.start)}${edit.replacement}${transformed.slice(edit.end)}`;
+	if (factoryArguments.length === 0) {
+		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
-	return addIdentityBindingImport(
-		transformed,
-		parseModuleSource(filePath, transformed, { sourceType: 'module' }).program as unknown as AstNode,
-	);
+
+	const discovered = projectRoot ? discoverComponentImports(program, filePath, projectRoot) : undefined;
+	const discoveryArgument = serializeDiscoveryArgument(discovered);
+	const edits: SourceEdit[] = factoryArguments.map((firstArgument) => ({
+		start: firstArgument.start,
+		end: firstArgument.end,
+		prefix: `bindComponentIdentity(${identityLiteral}, `,
+		suffix: `${discoveryArgument})`,
+	}));
+	edits.push(...(discovered?.removals ?? []));
+	const importEdit = createNamedImportEdit(program, '@ecopages/core', 'bindComponentIdentity');
+	if (importEdit) edits.push(importEdit);
+	return applySourceEdits(contents, edits, filePath, { prepend: pragma });
 }
 
 function findMdxConfigDeclarator(program: AstNode): AstNode | undefined {
@@ -212,7 +291,8 @@ function buildMdxConfigIdentityEdits(options: {
 	edits.push({
 		start: init.start,
 		end: init.end,
-		replacement: `bindComponentIdentity(${options.identityLiteral}, ${options.contents.slice(init.start, init.end)}${options.discoveryArgument})`,
+		prefix: `bindComponentIdentity(${options.identityLiteral}, `,
+		suffix: `${options.discoveryArgument})`,
 	});
 
 	return edits;
@@ -231,13 +311,20 @@ function buildMdxIdentityAppend(options: {
 	return appended;
 }
 
-/** Attributes compiled MDX module with canonical component identity and discovered dependencies. */
+/**
+ * Attributes a compiled MDX module with canonical component identity and discovered dependencies.
+ *
+ * @remarks
+ * Pass the MDX compiler's map as `previousMap` so the returned map traces back to the `.mdx` file; without
+ * it the map is relative to the compiled module.
+ */
 export function attributeMdxComponentIdentity(
 	contents: string,
 	filePath: string,
 	integration: string,
 	projectRoot: string,
-): string {
+	previousMap?: unknown,
+): EcoBuildOnTransformResult {
 	if (!projectRoot) {
 		throw new Error(`[ecopages] Cannot process MDX dependencies for "${filePath}": projectRoot is required.`);
 	}
@@ -247,17 +334,17 @@ export function attributeMdxComponentIdentity(
 		program = parseModuleSource(filePath, contents, { lang: 'jsx', sourceType: 'module' })
 			.program as unknown as AstNode;
 	} catch {
-		return contents;
+		return { code: contents, map: previousMap };
 	}
 
 	const configDeclarator = findMdxConfigDeclarator(program);
 
 	if (configDeclarator && isIdentityBinding(configDeclarator.init)) {
-		return contents;
+		return { code: contents, map: previousMap };
 	}
 
 	const discovered = discoverComponentImports(program, filePath, projectRoot);
-	const identityLiteral = `{ id: ${JSON.stringify(rapidhash(filePath).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
+	const identityLiteral = `{ id: ${JSON.stringify(BigInt(`0x${contentHash(filePath, 16)}`).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
 	const discoveryArgument = serializeDiscoveryArgument(discovered);
 
 	const edits = buildMdxConfigIdentityEdits({
@@ -269,51 +356,57 @@ export function attributeMdxComponentIdentity(
 	});
 	const appended = buildMdxIdentityAppend({ configDeclarator, identityLiteral, discoveryArgument });
 
-	let transformed = contents;
-	for (const edit of edits.sort((left, right) => right.start - left.start)) {
-		transformed = `${transformed.slice(0, edit.start)}${edit.replacement}${transformed.slice(edit.end)}`;
-	}
-	transformed = `${transformed}\n${appended}`;
+	const importEdit = createNamedImportEdit(program, '@ecopages/core', [
+		'bindComponentIdentity',
+		'attachDiscoveredDependencies',
+	]);
+	if (importEdit) edits.push(importEdit);
 
-	return addNamedImport(
-		transformed,
-		parseModuleSource(filePath, transformed, { lang: 'jsx', sourceType: 'module' }).program as unknown as AstNode,
-		'@ecopages/core',
-		['bindComponentIdentity', 'attachDiscoveredDependencies'],
-	);
-}
-
-export function createEcoComponentMetaTransform(options: EcoComponentDirPluginOptions): EcoSourceTransform {
-	const extensions = options.config.integrations
-		.flatMap((integration) => integration.extensions)
-		.filter((extension) => ['.ts', '.tsx', '.js', '.jsx'].some((suffix) => extension.endsWith(suffix)))
-		.map((extension) => extension.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-	const filter = new RegExp(`(${extensions.join('|')})(\\?.*)?$`);
+	const transformed = applySourceEdits(contents, edits, filePath, {
+		append: `\n${appended}`,
+	});
 	return {
-		name: 'eco-component-identity-attribution',
-		enforce: 'pre',
-		filter,
-		transform(code, id) {
-			const integration = integrationForFile(id, options.config);
-			if (!integration) {
-				return { code };
-			}
-			return {
-				code: prependJsxImportSourceIfMissing(
-					attributeComponentIdentity(code, id, integration.name, options.config.rootDir),
-					integration.jsxImportSource,
-				),
-			};
-		},
+		...transformed,
+		map:
+			isUsableSourceMap(previousMap) && isUsableSourceMap(transformed.map)
+				? composeSourceMaps(transformed.map, previousMap)
+				: transformed.map,
 	};
 }
 
-export function createEcoComponentMetaVitePlugin(options: EcoComponentDirPluginOptions): EcoViteCompatiblePlugin {
-	return createVitePluginFromSourceTransform(createEcoComponentMetaTransform(options));
+function createComponentMetaFilter(config: EcoPagesAppConfig): RegExp {
+	const extensions = config.integrations
+		.flatMap((integration) => integration.extensions)
+		.filter((extension) => ['.ts', '.tsx', '.js', '.jsx'].some((suffix) => extension.endsWith(suffix)))
+		.map((extension) => extension.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+	return new RegExp(`(${extensions.join('|')})(\\?.*)?$`);
 }
 
+/**
+ * Creates the build plugin that attributes component identity in every Integration's script files.
+ *
+ * @remarks
+ * Core adds it to every build request after the app's plugins and before its `import.meta` transform, so no
+ * contributed plugin sees the attribution of another.
+ */
 export function createEcoComponentMetaPlugin(options: EcoComponentDirPluginOptions): EcoBuildPlugin {
-	return createEcoBuildPluginFromSourceTransform(createEcoComponentMetaTransform(options));
+	return createCoreTransformPlugin({
+		name: 'eco-component-identity-attribution',
+		filter: createComponentMetaFilter(options.config),
+		transform(code, id) {
+			const integration = findIntegrationForFile(options.config.integrations, id);
+			if (!integration) {
+				return { code };
+			}
+			return attributeComponentIdentity(
+				code,
+				id,
+				integration.name,
+				options.config.rootDir,
+				integration.jsxImportSource,
+			);
+		},
+	});
 }
 
-export default createEcoComponentMetaTransform;
+export default createEcoComponentMetaPlugin;

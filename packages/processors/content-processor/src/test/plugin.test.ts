@@ -2,14 +2,34 @@ import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
-import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
-import { installBuildRuntime } from '@ecopages/core/build/build-runtime';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import type { IClientBridge } from '@ecopages/core/integration';
+import { GENERATED_BASE_PATHS } from '@ecopages/core/build';
+import type { BuildAdapter } from '@ecopages/core/build';
+import { installBuildQueue } from '@ecopages/core/build';
+import type { EcoBuildPluginBuilder, ProcessorWatchChanges, ProcessorWatchConfig } from '@ecopages/core/processor';
 import { fileSystem } from '@ecopages/file-system';
 import { contentProcessorPlugin, ContentProcessorPlugin } from '../plugin.ts';
 import { testContentSchema } from './test-schema.ts';
 
 const tempRoots: string[] = [];
+const watchBridge = {} as unknown as IClientBridge;
+
+async function applyWatchChanges(
+	watchConfig: ProcessorWatchConfig | undefined,
+	changes: Partial<Omit<ProcessorWatchChanges, 'bridge'>>,
+): Promise<void> {
+	if (!watchConfig?.onChanges) {
+		throw new Error('Expected content processor batched watch handler');
+	}
+
+	await watchConfig.onChanges({
+		created: changes.created ?? [],
+		changed: changes.changed ?? [],
+		deleted: changes.deleted ?? [],
+		bridge: watchBridge,
+	});
+}
 
 function createTempRoot(prefix: string): string {
 	const rootDir = path.join(os.tmpdir(), `${prefix}${randomUUID()}`);
@@ -32,6 +52,14 @@ function createContentProcessorPlugin(
 	});
 }
 
+async function setupContentProcessor(
+	plugin: ContentProcessorPlugin,
+	appConfig: Awaited<ReturnType<typeof finalizeEcoPagesConfig>>,
+): Promise<void> {
+	plugin.setContext(appConfig);
+	await plugin.setup();
+}
+
 afterEach(() => {
 	for (const root of tempRoots.splice(0)) {
 		if (fileSystem.exists(root)) {
@@ -41,7 +69,7 @@ afterEach(() => {
 });
 
 describe('ContentProcessorPlugin', () => {
-	test('prepareBuildContributions generates virtual modules and types', async () => {
+	test('setup generates virtual modules and types, and finalization generates none', async () => {
 		const rootDir = createTempRoot('ecopages-content-processor-');
 		tempRoots.push(rootDir);
 
@@ -62,15 +90,20 @@ order: 1
 			docs: { contentDir: 'content/docs' },
 		});
 
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
 
 		const workDir = appConfig.absolutePaths.workDir;
 		const cacheFile = path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.ts');
 		const typesFile = path.join(rootDir, GENERATED_BASE_PATHS.types, plugin.name, 'virtual-module.d.ts');
+
+		expect(fileSystem.exists(cacheFile)).toBe(false);
+		expect(fileSystem.exists(typesFile)).toBe(false);
+
+		await setupContentProcessor(plugin, appConfig);
 
 		expect(fileSystem.exists(cacheFile)).toBe(true);
 		expect(fileSystem.readFileSync(cacheFile)).toContain('export const entries = [');
@@ -115,11 +148,12 @@ order: 1
 			docs: { contentDir: 'content/docs' },
 		});
 
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		await setupContentProcessor(plugin, appConfig);
 
 		const cacheFile = path.join(
 			appConfig.absolutePaths.workDir,
@@ -142,10 +176,7 @@ order: 1
 		fileSystem.write(helperPath, 'export const surveyId = "updated";\n');
 
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
-			throw new Error('Expected content processor watch onChange handler');
-		}
-		await watchConfig.onChange({ path: helperPath } as never);
+		await applyWatchChanges(watchConfig, { changed: [helperPath] });
 
 		expect(fileSystem.readFileSync(cacheFile)).toBe(entriesBefore);
 		expect(fileSystem.readFileSync(serverCacheFile)).toBe(serverBefore);
@@ -175,11 +206,12 @@ order: 1
 			docs: { contentDir: 'content/docs' },
 		});
 
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		await setupContentProcessor(plugin, appConfig);
 
 		const cacheFile = path.join(
 			appConfig.absolutePaths.workDir,
@@ -211,10 +243,7 @@ order: 1
 		);
 
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
-			throw new Error('Expected content processor watch onChange handler');
-		}
-		await watchConfig.onChange({ path: introPath } as never);
+		await applyWatchChanges(watchConfig, { changed: [introPath] });
 
 		expect(fileSystem.readFileSync(cacheFile)).toBe(entriesBefore);
 		expect(fileSystem.readFileSync(serverCacheFile)).toBe(serverBefore);
@@ -233,14 +262,14 @@ order: 1
 		);
 
 		const plugin = createContentProcessorPlugin({ docs: { contentDir: 'content/docs' } });
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
 
-		installBuildRuntime(appConfig);
-		await plugin.setup();
+		installBuildQueue(appConfig);
+		await setupContentProcessor(plugin, appConfig);
 
 		expect(plugin.collectionServerCompiledModules.docs).toBeUndefined();
 	});
@@ -267,11 +296,12 @@ order: 1
 			docs: { contentDir: 'content/docs' },
 		});
 
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		await setupContentProcessor(plugin, appConfig);
 
 		const cacheFile = path.join(
 			appConfig.absolutePaths.workDir,
@@ -300,10 +330,7 @@ order: 1
 		);
 
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onChange) {
-			throw new Error('Expected content processor watch onChange handler');
-		}
-		await watchConfig.onChange({ path: introPath } as never);
+		await applyWatchChanges(watchConfig, { changed: [introPath] });
 
 		expect(fileSystem.readFileSync(cacheFile)).not.toBe(entriesBefore);
 		expect(fileSystem.readFileSync(cacheFile)).toContain('Intro Updated');
@@ -333,11 +360,12 @@ order: 1
 		const plugin = createContentProcessorPlugin({
 			docs: { contentDir: 'content/docs' },
 		});
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		await setupContentProcessor(plugin, appConfig);
 		const cacheFile = path.join(
 			appConfig.absolutePaths.workDir,
 			GENERATED_BASE_PATHS.cache,
@@ -345,8 +373,8 @@ order: 1
 			'docs.ts',
 		);
 		const watchConfig = plugin.getWatchConfig();
-		if (!watchConfig?.onCreate || !watchConfig.onDelete) {
-			throw new Error('Expected content processor create and delete watch handlers');
+		if (!watchConfig?.onChanges) {
+			throw new Error('Expected content processor batched watch handler');
 		}
 
 		fileSystem.write(
@@ -359,23 +387,133 @@ order: 2
 # Guide
 `,
 		);
-		await watchConfig.onCreate({ path: guidePath } as never);
+		await applyWatchChanges(watchConfig, { created: [guidePath] });
 		expect(fileSystem.readFileSync(cacheFile)).toContain('"slug":"guide"');
 
 		fileSystem.ensureDir(path.dirname(renamedGuidePath));
 		fileSystem.write(renamedGuidePath, fileSystem.readFileSync(guidePath));
 		fileSystem.remove(guidePath);
-		await watchConfig.onDelete({ path: guidePath } as never);
-		await watchConfig.onCreate({ path: renamedGuidePath } as never);
+		await applyWatchChanges(watchConfig, { created: [renamedGuidePath], deleted: [guidePath] });
 		expect(fileSystem.readFileSync(cacheFile)).toContain('"slug":"getting-started/guide"');
 		expect(fileSystem.readFileSync(cacheFile)).not.toContain('"slug":"guide"');
 
 		fileSystem.remove(introPath);
-		await watchConfig.onDelete({ path: introPath } as never);
+		await applyWatchChanges(watchConfig, { deleted: [introPath] });
 		expect(fileSystem.readFileSync(cacheFile)).not.toContain('"slug":"intro"');
 	});
 
-	test('collectDevPrewarmPlan honors collection pathnames and readiness', async () => {
+	test('resolving a collection before setup waits for the generated modules', async () => {
+		const rootDir = createTempRoot('ecopages-content-resolve-before-setup-');
+		tempRoots.push(rootDir);
+
+		const contentDir = path.join(rootDir, 'src', 'content', 'docs');
+		fileSystem.ensureDir(contentDir);
+		fileSystem.write(
+			path.join(contentDir, 'intro.mdx'),
+			'---\ntitle: Intro\ndescription: Test\norder: 1\n---\n# Intro\n',
+		);
+
+		const plugin = createContentProcessorPlugin({ docs: { contentDir: 'content/docs' } });
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		plugin.setContext(appConfig);
+		const resolvers: Array<{ filter: RegExp; callback: (args: { path: string }) => unknown }> = [];
+		await plugin
+			.plugins()
+			.find((candidate) => candidate.environments?.includes('server'))
+			?.setup({
+				onResolve(options, callback) {
+					resolvers.push({
+						filter: options.filter,
+						callback: callback as (args: { path: string }) => unknown,
+					});
+				},
+				onLoad() {},
+				module() {},
+				transform() {},
+			} as EcoBuildPluginBuilder);
+
+		const resolver = resolvers.find(({ filter }) => filter.test('ecopages:content/docs'));
+		const resolved = await resolver?.callback({ path: 'ecopages:content/docs' });
+
+		expect(resolved).toEqual({
+			path: path.join(appConfig.absolutePaths.workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.ts'),
+		});
+	});
+
+	test('rebuilds the compiled collection once server source changes, without an invalidation hook', async () => {
+		const rootDir = createTempRoot('ecopages-content-server-generation-');
+		tempRoots.push(rootDir);
+
+		const contentDir = path.join(rootDir, 'src', 'content', 'docs');
+		fileSystem.ensureDir(contentDir);
+		fileSystem.write(
+			path.join(contentDir, 'intro.mdx'),
+			'---\ntitle: Intro\ndescription: Test\norder: 1\n---\n# Intro\n',
+		);
+
+		const plugin = createContentProcessorPlugin({ docs: { contentDir: 'content/docs' } });
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		const compiledOutputs: string[] = [];
+		const adapter: BuildAdapter = {
+			async build(options) {
+				const entry = Object.values(options.entrypoints)[0] as string;
+				const output = path.join(rootDir, `compiled-${compiledOutputs.length}.mjs`);
+				compiledOutputs.push(output);
+				return {
+					success: true,
+					outputs: [{ path: output }],
+					warnings: [],
+					loadedInputs: [],
+					loadedInputsByModule: {},
+					dependencyGraph: { entrypoints: {} },
+					entryOutputs: { [entry]: output },
+					outputGraph: {},
+				};
+			},
+			resolve: (specifier) => specifier,
+		};
+		appConfig.appRuntime!.buildAdapter = adapter;
+		installBuildQueue(appConfig);
+		await setupContentProcessor(plugin, appConfig);
+		const resolvers: Array<{ filter: RegExp; callback: (args: { path: string }) => unknown }> = [];
+		await plugin
+			.plugins()
+			.find((candidate) => candidate.environments?.includes('server'))
+			?.setup({
+				onResolve(options, callback) {
+					resolvers.push({
+						filter: options.filter,
+						callback: callback as (args: { path: string }) => unknown,
+					});
+				},
+				onLoad() {},
+				module() {},
+				transform() {},
+			} as EcoBuildPluginBuilder);
+		const resolveServerModule = () =>
+			resolvers
+				.find(({ filter }) => filter.test('ecopages:content/docs/server'))
+				?.callback({ path: 'ecopages:content/docs/server' });
+
+		expect(await resolveServerModule()).toEqual({ path: compiledOutputs[0], external: true });
+		expect(await resolveServerModule()).toEqual({ path: compiledOutputs[0], external: true });
+		expect(compiledOutputs).toHaveLength(1);
+
+		appConfig.appRuntime!.moduleLoader.invalidateDevelopmentGraph();
+
+		expect(await resolveServerModule()).toEqual({ path: compiledOutputs[1], external: true });
+		expect(compiledOutputs).toHaveLength(2);
+	});
+
+	test('setup adds collection pathnames to the app devPrewarmPaths', async () => {
 		const rootDir = createTempRoot('ecopages-content-prewarm-');
 		tempRoots.push(rootDir);
 
@@ -400,22 +538,31 @@ order: 1
 						schema: testContentSchema,
 						routePrefix: '/docs',
 						devPrewarm: 'first',
-						devPrewarmReadiness: 'beforeReady',
+					},
+					unprefixed: {
+						contentDir: 'content/docs',
+						schema: testContentSchema,
+						devPrewarm: 'all',
 					},
 				},
 			},
 		});
+		const userPaths = ['/'];
 
-		await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
-
-		expect(await plugin.collectDevPrewarmPlan()).toEqual({
-			pathnames: ['/docs/intro'],
-			readiness: 'beforeReady',
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+			devPrewarmPaths: userPaths,
 		});
+
+		expect(appConfig.devPrewarmPaths).toEqual(['/']);
+
+		await setupContentProcessor(plugin, appConfig);
+		await setupContentProcessor(plugin, appConfig);
+
+		expect(appConfig.devPrewarmPaths).toEqual(['/', '/docs/intro']);
+		expect(userPaths).toEqual(['/']);
 	});
 
 	test('generates separate client and server collection modules', async () => {
@@ -441,11 +588,12 @@ order: ${index}
 			docs: { contentDir: 'content/docs' },
 		});
 
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		await setupContentProcessor(plugin, appConfig);
 
 		const workDir = appConfig.absolutePaths.workDir;
 		const clientCacheFile = path.join(workDir, GENERATED_BASE_PATHS.cache, plugin.name, 'docs.ts');

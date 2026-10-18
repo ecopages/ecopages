@@ -1,9 +1,8 @@
 import { readFile } from 'node:fs/promises';
-import path from 'node:path';
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
+import type { EcoBuildPlugin } from '@ecopages/core/integration';
 import { attributeMdxComponentIdentity } from '@ecopages/core';
 import { type CompileOptions, compile } from '@mdx-js/mdx';
-import { recordMdxTransform } from '@ecopages/core/diagnostics/request-pipeline-metrics';
+import { recordMdxTransform, type RequestPipelineMetricsState } from '@ecopages/core/build';
 import sourceMap from 'source-map';
 import { VFile } from 'vfile';
 import { createMdxExtensionFilter, resolveCompileFormat, resolveLoaderExtensions } from './mdx-utils.ts';
@@ -11,6 +10,7 @@ import { createMdxExtensionFilter, resolveCompileFormat, resolveLoaderExtensions
 export interface CreateMdxLoaderPluginOptions {
 	name: string;
 	projectRoot: string;
+	requestPipelineMetrics: RequestPipelineMetricsState;
 	integrationName?: string;
 	compilerOptions?: CompileOptions;
 	extensions?: string[];
@@ -24,6 +24,29 @@ type MdxCompileCacheEntry = {
 	contents: string;
 	map?: unknown;
 };
+
+/**
+ * Fingerprint of the options that change what a loader emits.
+ *
+ * @remarks
+ * Compiler options hold remark and rehype plugins, which are functions; they enter by
+ * name, so two loaders that differ only in an anonymous plugin's closure share a key.
+ * Regular expressions enter by source, since `JSON.stringify` would drop them.
+ */
+function createLoaderCacheKey(options: {
+	projectRoot: string;
+	compilerOptions: CompileOptions | undefined;
+	extensions: string[];
+	includeSourceMap: boolean;
+	loader: 'js' | 'jsx';
+}): string {
+	return JSON.stringify(options, (_key, value: unknown) => {
+		if (typeof value === 'function') {
+			return `[function ${value.name || 'anonymous'}]`;
+		}
+		return value instanceof RegExp ? String(value) : value;
+	});
+}
 
 /**
  * Creates an MDX loader that compiles each file once per source revision.
@@ -60,6 +83,7 @@ export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): Ec
 
 	return {
 		name,
+		cacheKey: createLoaderCacheKey({ projectRoot, compilerOptions, extensions, includeSourceMap, loader }),
 		setup(build) {
 			build.onLoad({ filter }, async (args) => {
 				const filePath = args.path.includes('?') ? args.path.split('?')[0] : args.path;
@@ -71,27 +95,27 @@ export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): Ec
 						format: resolveCompileFormat(filePath, compilerOptions),
 						SourceMapGenerator: sourceMap.SourceMapGenerator,
 					});
-					cached = { source, contents: String(compiled.value), map: compiled.map };
+					cached = {
+						source,
+						contents: String(compiled.value),
+						map: compiled.map ? { ...compiled.map, sourcesContent: [source] } : undefined,
+					};
 					compileCache.set(filePath, cached);
 				}
-				recordMdxTransform();
+				recordMdxTransform(options.requestPipelineMetrics);
 
 				const transformed = attributeMdxComponentIdentity(
 					cached.contents,
 					filePath,
 					integrationName,
 					projectRoot,
+					includeSourceMap ? cached.map : undefined,
 				);
 
-				const inlineSourceMap =
-					includeSourceMap && cached.map
-						? `\n//# sourceMappingURL=data:application/json;base64,${Buffer.from(JSON.stringify(cached.map)).toString('base64')}\n`
-						: '';
-
 				return {
-					contents: `${transformed}${inlineSourceMap}`,
+					contents: transformed.code,
 					loader,
-					resolveDir: path.dirname(args.path),
+					map: includeSourceMap ? transformed.map : undefined,
 				};
 			});
 		},

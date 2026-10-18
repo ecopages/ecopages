@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import type { EcoPageComponent, StaticRoute, ViewLoader } from '../../../types/public-types.ts';
+import type { EcoPageComponent, StaticRoute, ViewLoader } from '../../../types/contracts.ts';
 import { ExplicitStaticRouteMatcher } from './explicit-static-route-matcher.ts';
 import { HttpError } from '../../../errors/http-error.ts';
 import { appLogger } from '../../../global/app-logger.ts';
@@ -25,9 +25,16 @@ function createMockRoute(path: string, view?: EcoPageComponent<any>): StaticRout
 	};
 }
 
+function createMockAppConfig() {
+	return {
+		baseUrl: 'http://localhost:3000',
+		appRuntime: { origin: 'http://localhost:3000' },
+	} as any;
+}
+
 function createMatcher(staticRoutes: StaticRoute[]) {
 	return new ExplicitStaticRouteMatcher({
-		appConfig: { baseUrl: 'http://localhost:3000' } as any,
+		appConfig: createMockAppConfig(),
 		routeRendererFactory: {} as any,
 		staticRoutes,
 	});
@@ -35,134 +42,68 @@ function createMatcher(staticRoutes: StaticRoute[]) {
 
 describe('ExplicitStaticRouteMatcher', () => {
 	describe('match', () => {
-		test('should match exact static path', () => {
-			const matcher = createMatcher([createMockRoute('/about')]);
+		test.each([
+			{ pattern: '/about', url: '/about', params: {} },
+			{ pattern: '/', url: '/', params: {} },
+			{ pattern: '/docs/getting-started', url: '/docs/getting-started', params: {} },
+			{ pattern: '/blog/:slug', url: '/blog/hello-world', params: { slug: 'hello-world' } },
+			{
+				pattern: '/blog/:year/:month/:slug',
+				url: '/blog/2024/01/hello-world',
+				params: { year: '2024', month: '01', slug: 'hello-world' },
+			},
+			{ pattern: '/users/:id/posts', url: '/users/123/posts', params: { id: '123' } },
+			{ pattern: '/blog/[slug]', url: '/blog/hello-world', params: { slug: 'hello-world' } },
+			{
+				pattern: '/products/[category]/[id]',
+				url: '/products/electronics/12345',
+				params: { category: 'electronics', id: '12345' },
+			},
+			{
+				pattern: '/docs/[...path]',
+				url: '/docs/api/reference/components',
+				params: { path: 'api/reference/components' },
+			},
+			{
+				pattern: '/files/:...path',
+				url: '/files/images/2024/photo.jpg',
+				params: { path: 'images/2024/photo.jpg' },
+			},
+			{ pattern: '/docs/[...path]', url: '/docs/intro', params: { path: 'intro' } },
+			{ pattern: '/search', url: '/search?q=test&page=1', params: {} },
+			{ pattern: '/docs/intro', url: '/docs/intro#section-1', params: {} },
+			{ pattern: '/about', url: '/about/', params: {} },
+		])('matches $pattern against $url', ({ pattern, url, params }) => {
+			const matcher = createMatcher([createMockRoute(pattern)]);
 
-			const result = matcher.match('http://localhost:3000/about');
+			const result = matcher.match(`http://localhost:3000${url}`);
 
-			expect(result).not.toBeNull();
-			expect(result?.route.path).toBe('/about');
-			expect(result?.params).toEqual({});
+			expect(result?.route.path).toBe(pattern);
+			expect(result?.params).toEqual(params);
 		});
 
-		test('should match root path', () => {
-			const matcher = createMatcher([createMockRoute('/')]);
-
-			const result = matcher.match('http://localhost:3000/');
-
-			expect(result).not.toBeNull();
-			expect(result?.route.path).toBe('/');
-			expect(result?.params).toEqual({});
-		});
-
-		test('should match nested static path', () => {
-			const matcher = createMatcher([createMockRoute('/docs/getting-started')]);
-
-			const result = matcher.match('http://localhost:3000/docs/getting-started');
-
-			expect(result).not.toBeNull();
-			expect(result?.route.path).toBe('/docs/getting-started');
-		});
-
-		test('should return null for non-matching path', () => {
-			const matcher = createMatcher([createMockRoute('/about')]);
-
-			const result = matcher.match('http://localhost:3000/contact');
-
-			expect(result).toBeNull();
-		});
-
-		test('should return null for partial match', () => {
-			const matcher = createMatcher([createMockRoute('/about')]);
-
-			const result = matcher.match('http://localhost:3000/about/team');
-
-			expect(result).toBeNull();
-		});
-	});
-
-	describe('match with :param syntax', () => {
-		test('should match dynamic segment with colon syntax', () => {
+		test('decodes dynamic route params', () => {
 			const matcher = createMatcher([createMockRoute('/blog/:slug')]);
 
-			const result = matcher.match('http://localhost:3000/blog/hello-world');
-
-			expect(result).not.toBeNull();
-			expect(result?.params).toEqual({ slug: 'hello-world' });
+			expect(matcher.match('http://localhost:3000/blog/caf%C3%A9')?.params).toEqual({ slug: 'café' });
 		});
 
-		test('should match multiple dynamic segments', () => {
-			const matcher = createMatcher([createMockRoute('/blog/:year/:month/:slug')]);
+		test('rejects malformed path escapes with HTTP 400', () => {
+			const matcher = createMatcher([createMockRoute('/blog/:slug')]);
 
-			const result = matcher.match('http://localhost:3000/blog/2024/01/hello-world');
-
-			expect(result).not.toBeNull();
-			expect(result?.params).toEqual({
-				year: '2024',
-				month: '01',
-				slug: 'hello-world',
-			});
+			expect(() => matcher.match('http://localhost:3000/blog/%E0%A4%A')).toThrow(
+				expect.objectContaining({ status: 400 }),
+			);
 		});
 
-		test('should match mixed static and dynamic segments', () => {
-			const matcher = createMatcher([createMockRoute('/users/:id/posts')]);
+		test.each([
+			{ name: 'a different path', routes: ['/about'], url: '/contact' },
+			{ name: 'a longer path than the route', routes: ['/about'], url: '/about/team' },
+			{ name: 'an empty route list', routes: [], url: '/anything' },
+		])('returns null for $name', ({ routes, url }) => {
+			const matcher = createMatcher(routes.map((route) => createMockRoute(route)));
 
-			const result = matcher.match('http://localhost:3000/users/123/posts');
-
-			expect(result).not.toBeNull();
-			expect(result?.params).toEqual({ id: '123' });
-		});
-	});
-
-	describe('match with [param] syntax', () => {
-		test('should match dynamic segment with bracket syntax', () => {
-			const matcher = createMatcher([createMockRoute('/blog/[slug]')]);
-
-			const result = matcher.match('http://localhost:3000/blog/hello-world');
-
-			expect(result).not.toBeNull();
-			expect(result?.params).toEqual({ slug: 'hello-world' });
-		});
-
-		test('should match multiple bracket parameters', () => {
-			const matcher = createMatcher([createMockRoute('/products/[category]/[id]')]);
-
-			const result = matcher.match('http://localhost:3000/products/electronics/12345');
-
-			expect(result).not.toBeNull();
-			expect(result?.params).toEqual({
-				category: 'electronics',
-				id: '12345',
-			});
-		});
-	});
-
-	describe('match with catch-all routes', () => {
-		test('should match catch-all with bracket syntax', () => {
-			const matcher = createMatcher([createMockRoute('/docs/[...path]')]);
-
-			const result = matcher.match('http://localhost:3000/docs/api/reference/components');
-
-			expect(result).not.toBeNull();
-			expect(result?.params).toEqual({ path: 'api/reference/components' });
-		});
-
-		test('should match catch-all with colon syntax', () => {
-			const matcher = createMatcher([createMockRoute('/files/:...path')]);
-
-			const result = matcher.match('http://localhost:3000/files/images/2024/photo.jpg');
-
-			expect(result).not.toBeNull();
-			expect(result?.params).toEqual({ path: 'images/2024/photo.jpg' });
-		});
-
-		test('should match catch-all with single segment', () => {
-			const matcher = createMatcher([createMockRoute('/docs/[...path]')]);
-
-			const result = matcher.match('http://localhost:3000/docs/intro');
-
-			expect(result).not.toBeNull();
-			expect(result?.params).toEqual({ path: 'intro' });
+			expect(matcher.match(`http://localhost:3000${url}`)).toBeNull();
 		});
 	});
 
@@ -182,56 +123,28 @@ describe('ExplicitStaticRouteMatcher', () => {
 			expect(result?.route.path).toBe('/about');
 		});
 
-		test('should match exact route before dynamic route', () => {
-			const exactView = createMockView();
-			const dynamicView = createMockView();
-
+		test('should match an exact route registered before a dynamic route', () => {
 			const matcher = createMatcher([
-				createMockRoute('/blog/featured', exactView),
-				createMockRoute('/blog/:slug', dynamicView),
+				createMockRoute('/blog/featured', createMockView()),
+				createMockRoute('/blog/:slug', createMockView()),
 			]);
 
 			const result = matcher.match('http://localhost:3000/blog/featured');
 
-			expect(result).not.toBeNull();
 			expect(result?.route.path).toBe('/blog/featured');
-		});
-	});
-
-	describe('edge cases', () => {
-		test('should handle URL with query parameters', () => {
-			const matcher = createMatcher([createMockRoute('/search')]);
-
-			const result = matcher.match('http://localhost:3000/search?q=test&page=1');
-
-			expect(result).not.toBeNull();
-			expect(result?.route.path).toBe('/search');
+			expect(result?.params).toEqual({});
 		});
 
-		test('should handle URL with hash', () => {
-			const matcher = createMatcher([createMockRoute('/docs/intro')]);
+		test('should match a dynamic route registered before a more specific exact route', () => {
+			const matcher = createMatcher([
+				createMockRoute('/blog/:slug', createMockView()),
+				createMockRoute('/blog/featured', createMockView()),
+			]);
 
-			const result = matcher.match('http://localhost:3000/docs/intro#section-1');
+			const result = matcher.match('http://localhost:3000/blog/featured');
 
-			expect(result).not.toBeNull();
-			expect(result?.route.path).toBe('/docs/intro');
-		});
-
-		test('should handle trailing slash', () => {
-			const matcher = createMatcher([createMockRoute('/about')]);
-
-			const result = matcher.match('http://localhost:3000/about/');
-
-			expect(result).not.toBeNull();
-			expect(result?.route.path).toBe('/about');
-		});
-
-		test('should return null for empty routes array', () => {
-			const matcher = createMatcher([]);
-
-			const result = matcher.match('http://localhost:3000/anything');
-
-			expect(result).toBeNull();
+			expect(result?.route.path).toBe('/blog/:slug');
+			expect(result?.params).toEqual({ slug: 'featured' });
 		});
 	});
 
@@ -244,12 +157,12 @@ describe('ExplicitStaticRouteMatcher', () => {
 			};
 
 			const mockResponse = new Response('<html>Test</html>');
-			const renderToResponse = vi.fn(() => mockResponse);
+			const renderExplicitView = vi.fn(() => mockResponse);
 			const matcher = new ExplicitStaticRouteMatcher({
-				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				appConfig: createMockAppConfig(),
 				routeRendererFactory: {
 					getExplicitViewRenderer: vi.fn(() => ({
-						renderToResponse,
+						renderExplicitView,
 					})),
 				} as any,
 				staticRoutes: [createMockRoute('/about', view)],
@@ -259,7 +172,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const response = await matcher.handleMatch(match!);
 
 			expect(response).toBe(mockResponse);
-			expect(renderToResponse).toHaveBeenCalledWith(view, {}, {});
+			expect(renderExplicitView).toHaveBeenCalledWith(view, {}, { params: {} });
 		});
 
 		test('should throw error when view is missing __eco.integration', async () => {
@@ -269,7 +182,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			};
 
 			const matcher = new ExplicitStaticRouteMatcher({
-				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				appConfig: createMockAppConfig(),
 				routeRendererFactory: {
 					getExplicitViewRenderer: vi.fn(() => null),
 				} as any,
@@ -288,7 +201,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 			};
 
 			const matcher = new ExplicitStaticRouteMatcher({
-				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				appConfig: createMockAppConfig(),
 				routeRendererFactory: RendererFactory as any,
 				staticRoutes: [createMockRoute('/about', view)],
 			});
@@ -304,10 +217,10 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const view = createMockView('string');
 			const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
 			const matcher = new ExplicitStaticRouteMatcher({
-				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				appConfig: createMockAppConfig(),
 				routeRendererFactory: {
 					getExplicitViewRenderer: vi.fn(() => ({
-						renderToResponse: vi.fn(() => {
+						renderExplicitView: vi.fn(() => {
 							throw HttpError.Forbidden('Admin only');
 						}),
 					})),
@@ -328,10 +241,10 @@ describe('ExplicitStaticRouteMatcher', () => {
 		test('should rethrow when rendering the view fails', async () => {
 			const view = createMockView('string');
 			const matcher = new ExplicitStaticRouteMatcher({
-				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				appConfig: createMockAppConfig(),
 				routeRendererFactory: {
 					getExplicitViewRenderer: vi.fn(() => ({
-						renderToResponse: vi.fn(() => {
+						renderExplicitView: vi.fn(() => {
 							throw new Error('Intentional server error');
 						}),
 					})),
@@ -344,18 +257,18 @@ describe('ExplicitStaticRouteMatcher', () => {
 			await expect(matcher.handleMatch(match!)).rejects.toThrow('Intentional server error');
 		});
 
-		test('should call renderer.renderToResponse with correct arguments', async () => {
+		test('should call renderer.renderExplicitView with correct arguments', async () => {
 			const view = createMockView('string');
 			const mockResponse = new Response('<html>Test</html>');
 			const RenderToResponse = vi.fn(() => mockResponse);
 			const RendererFactory = {
 				getExplicitViewRenderer: vi.fn(() => ({
-					renderToResponse: RenderToResponse,
+					renderExplicitView: RenderToResponse,
 				})),
 			};
 
 			const matcher = new ExplicitStaticRouteMatcher({
-				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				appConfig: createMockAppConfig(),
 				routeRendererFactory: RendererFactory as any,
 				staticRoutes: [createMockRoute('/about', view)],
 			});
@@ -365,7 +278,7 @@ describe('ExplicitStaticRouteMatcher', () => {
 
 			expect(response).toBe(mockResponse);
 			expect(RenderToResponse).toHaveBeenCalledTimes(1);
-			expect(RenderToResponse).toHaveBeenCalledWith(view, {}, {});
+			expect(RenderToResponse).toHaveBeenCalledWith(view, {}, { params: {} });
 		});
 
 		test('should resolve staticProps and pass to renderer', async () => {
@@ -378,12 +291,12 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const RenderToResponse = vi.fn(() => mockResponse);
 			const RendererFactory = {
 				getExplicitViewRenderer: vi.fn(() => ({
-					renderToResponse: RenderToResponse,
+					renderExplicitView: RenderToResponse,
 				})),
 			};
 
 			const matcher = new ExplicitStaticRouteMatcher({
-				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				appConfig: createMockAppConfig(),
 				routeRendererFactory: RendererFactory as any,
 				staticRoutes: [createMockRoute('/about', view)],
 			});
@@ -392,7 +305,13 @@ describe('ExplicitStaticRouteMatcher', () => {
 			await matcher.handleMatch(match!);
 
 			expect(view.staticProps).toHaveBeenCalledTimes(1);
-			expect(RenderToResponse).toHaveBeenCalledWith(view, { title: 'About Page', content: 'Hello' }, {});
+			expect(RenderToResponse).toHaveBeenCalledWith(
+				view,
+				{ title: 'About Page', content: 'Hello' },
+				{
+					params: {},
+				},
+			);
 		});
 
 		test('should pass params to staticProps', async () => {
@@ -404,12 +323,12 @@ describe('ExplicitStaticRouteMatcher', () => {
 			const mockResponse = new Response('<html>Test</html>');
 			const RendererFactory = {
 				getExplicitViewRenderer: vi.fn(() => ({
-					renderToResponse: vi.fn(() => mockResponse),
+					renderExplicitView: vi.fn(() => mockResponse),
 				})),
 			};
 
 			const matcher = new ExplicitStaticRouteMatcher({
-				appConfig: { baseUrl: 'http://localhost:3000' } as any,
+				appConfig: createMockAppConfig(),
 				routeRendererFactory: RendererFactory as any,
 				staticRoutes: [createMockRoute('/blog/:slug', view)],
 			});

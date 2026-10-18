@@ -1,11 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { restoreBenchEnv, snapshotBenchEnv, withBenchEnv } from './bench-env';
 
 describe('bench-env', () => {
 	it('restores bench env flags after withBenchEnv', async () => {
 		const snapshot = snapshotBenchEnv();
-		delete process.env.ECOPAGES_UNIFIED_PAGES_GRAPH;
-		delete process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS;
+		vi.stubEnv('ECOPAGES_UNIFIED_PAGES_GRAPH', undefined);
+		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', undefined);
 
 		await withBenchEnv(
 			{ nodeEnv: 'production', unifiedPagesGraph: 'off', rolldownBuildMetrics: true },

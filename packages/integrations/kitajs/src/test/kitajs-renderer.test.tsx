@@ -1,22 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
 import { jsx as kitajsx, jsxs as kitajsxs } from '@kitajs/html/jsx-runtime';
-import {
-	eco,
-	type ForeignSubtreeRenderPayload,
-	type ComponentRenderInput,
-	type ComponentRenderResult,
-	type EcoComponent,
-	type EcoPagesElement,
-	type HtmlTemplateProps,
-} from '@ecopages/core';
-import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import {
-	IntegrationRenderer,
-	type RenderToResponseContext,
-} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
-import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
+import { eco, type EcoComponent, type EcoPagesElement, type HtmlTemplateProps } from '@ecopages/core';
+import type { ComponentRenderInput, ComponentRenderResult } from '@ecopages/core/integration';
+import { IntegrationPlugin } from '@ecopages/core/integration';
+import { AssetProcessingService } from '@ecopages/core/integration';
+import { IntegrationRenderer } from '@ecopages/core/integration';
+import { createTestAppConfig } from '@ecopages/testing';
+import { createStringMarkupContractFactories, describeRendererContract } from '@ecopages/testing/renderer-contract';
 import { KitaRenderer } from '../kitajs-renderer.ts';
 
 type MarkupNodeLike = {
@@ -26,14 +17,24 @@ type MarkupNodeLike = {
 
 const Config = await createTestAppConfig();
 
+function createTestAssetProcessingService(appConfig: typeof Config): AssetProcessingService {
+	const service = new AssetProcessingService(appConfig);
+	vi.spyOn(service, 'processDependencies').mockResolvedValue([]);
+	return service;
+}
+
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
 	return `<html><body>${children}</body></html>`;
+};
+HtmlTemplate.config = {
+	integration: 'kitajs',
+	identity: { id: 'html', file: '/app/includes/html.kita.tsx', integration: 'kitajs' },
 };
 
 class EcopagesJsxForeignRenderer extends IntegrationRenderer<MarkupNodeLike> {
 	name = 'ecopages-jsx';
 
-	async render(): Promise<string> {
+	override async render(): Promise<string> {
 		return '';
 	}
 
@@ -44,17 +45,8 @@ class EcopagesJsxForeignRenderer extends IntegrationRenderer<MarkupNodeLike> {
 		return {
 			html: rendered.outerHTML,
 			canAttachAttributes: true,
-			rootTag: 'strong',
 			integrationName: this.name,
 		};
-	}
-
-	async renderToResponse<P = Record<string, unknown>>(
-		_view: EcoComponent<P>,
-		_props: P,
-		_ctx: RenderToResponseContext,
-	) {
-		return new Response('');
 	}
 }
 
@@ -71,9 +63,10 @@ class EcopagesJsxForeignPlugin extends IntegrationPlugin<MarkupNodeLike> {
 
 class TestKitaRenderer extends KitaRenderer {
 	PageModules = new Map<string, { default: EcoComponent<any> }>();
+	htmlTemplate: EcoComponent<HtmlTemplateProps> = HtmlTemplate;
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
-		return HtmlTemplate;
+		return this.htmlTemplate;
 	}
 
 	protected override async resolveDependencies(): Promise<[]> {
@@ -91,199 +84,33 @@ function createTestComponent<P>(fn: (props: P) => Promise<string> | string): Eco
 
 const renderer = new TestKitaRenderer({
 	appConfig: Config,
-	assetProcessingService: {} as any,
-	runtimeOrigin: 'http://localhost:3000',
+	assetProcessingService: createTestAssetProcessingService(Config),
 	resolvedIntegrationDependencies: [],
 });
 
-const createRendererWithAssets = () => {
-	const assetProcessingService = {
-		processDependencies: vi.fn(async () => [
-			{
-				kind: 'script',
-				srcUrl: '/assets/kita-island.js',
-				position: 'head',
-			},
-		]),
-	};
-
-	return {
-		renderer: new TestKitaRenderer({
-			appConfig: Config,
-			assetProcessingService: assetProcessingService as any,
-			runtimeOrigin: 'http://localhost:3000',
-			resolvedIntegrationDependencies: [],
-		}),
-		assetProcessingService,
-	};
+const headedTemplate = (async ({ children, metadata }) =>
+	`<html><head><title>${metadata.title}</title></head><body>${children}</body></html>`) as EcoComponent<HtmlTemplateProps>;
+headedTemplate.config = {
+	integration: 'kitajs',
+	identity: { id: 'html', file: '/app/includes/html.kita.tsx', integration: 'kitajs' },
 };
 
-describe('KitaRenderer', () => {
-	it('should render a single component with renderComponent', async () => {
-		const Component = createTestComponent<{ title: string }>(async (props) => `<h2>${props.title}</h2>`);
-
-		const result = await renderer.renderComponent({
-			component: Component,
-			props: { title: 'Kita Component' },
-		});
-
-		expect(result.integrationName).toBe('kitajs');
-		expect(result.canAttachAttributes).toBe(true);
-		expect(result.rootTag).toBe('h2');
-		expect(result.html).toContain('<h2>Kita Component</h2>');
-	});
-
-	it('should include component assets when dependencies are declared', async () => {
-		const { renderer, assetProcessingService } = createRendererWithAssets();
-		const Component = createTestComponent<{ title: string }>(async (props) => `<h2>${props.title}</h2>`);
-		Component.config = {
-			identity: {
-				id: 'kita-comp',
-				file: '/project/src/components/kita-comp.kita.tsx',
-				integration: 'kitajs',
-			},
-			dependencies: {
-				scripts: ['./kita-comp.script.ts'],
-			},
-		};
-
-		const result = await renderer.renderComponent({
-			component: Component,
-			props: { title: 'Kita Assets' },
-		});
-
-		expect(assetProcessingService.processDependencies).toHaveBeenCalled();
-		expect(result.assets).toBeDefined();
-		expect(result.assets?.[0]?.srcUrl).toBe('/assets/kita-island.js');
-	});
-
-	it('should stamp island host attributes when the instance has client scripts', async () => {
-		const { renderer } = createRendererWithAssets();
-		const Component = createTestComponent<{ title: string }>(async (props) => `<h2>${props.title}</h2>`);
-		Component.config = {
-			identity: {
-				id: 'kita-island',
-				file: '/project/src/components/kita-island.kita.tsx',
-				integration: 'kitajs',
-			},
-			dependencies: {
-				scripts: ['./kita-island.script.ts'],
-			},
-		};
-
-		const result = await renderer.renderComponent({
-			component: Component,
-			props: { title: 'Kita Island' },
-			integrationContext: { componentInstanceId: 'kita-island-1' },
-		});
-
-		expect(result.rootAttributes?.['data-eco-island']).toBe('');
-		expect(result.rootAttributes?.['data-eco-island-integration']).toBe('kitajs');
-		expect(result.rootAttributes?.['data-eco-component-id']).toBe('kita-island-1');
-	});
-
-	it('should expose the compatibility foreign-subtree payload contract', async () => {
-		const Component = createTestComponent(async () => '<section>Kita Foreign Subtree</section>');
-
-		const result = toForeignSubtreeRenderPayload(
-			await renderer.renderComponentWithForeignChildren({
-				component: Component,
-				props: {},
-			}),
-		);
-
-		expect(result).toEqual<ForeignSubtreeRenderPayload>({
-			html: '<section>Kita Foreign Subtree</section>',
-			assets: [],
-			rootTag: 'section',
-			rootAttributes: undefined,
-			attachmentPolicy: { kind: 'first-element' },
-			integrationName: 'kitajs',
-		});
-	});
-
-	it('should resolve foreign boundaries inside the Kita renderer and bubble nested assets', async () => {
-		const deferredRenderComponent = vi.fn(async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
-			html: '<button data-testid="deferred-widget">Deferred widget</button>',
-			canAttachAttributes: true,
-			rootTag: 'button',
-			integrationName: 'deferred',
-			rootAttributes: {
-				'data-eco-component-id':
-					(input.integrationContext as { componentInstanceId?: string } | undefined)?.componentInstanceId ??
-					'missing',
-			},
-			assets: [
-				{
-					kind: 'script' as const,
-					inline: true,
-					content: 'console.log("deferred-kita")',
-					position: 'body' as const,
-				},
-			],
-		}));
-
-		const deferredPlugin = createDeferredIntegrationPlugin({
-			renderComponent: deferredRenderComponent,
-		});
-		const config = await createTestAppConfig({
-			integrations: [deferredPlugin],
-		});
-
-		deferredPlugin.setConfig(config);
-		deferredPlugin.setRuntimeOrigin('http://localhost:3000');
-
+describeRendererContract({
+	name: 'kitajs',
+	errorPrefix: 'Error rendering page',
+	...createStringMarkupContractFactories('kitajs'),
+	async createRenderer({ integrations, processDependencies }) {
 		const testRenderer = new TestKitaRenderer({
-			appConfig: config,
-			assetProcessingService: {
-				processDependencies: vi.fn(async () => []),
-			} as never,
-			runtimeOrigin: 'http://localhost:3000',
+			appConfig: await createTestAppConfig({ integrations }),
+			assetProcessingService: { processDependencies } as never,
 			resolvedIntegrationDependencies: [],
 		});
+		testRenderer.htmlTemplate = headedTemplate;
+		return testRenderer;
+	},
+});
 
-		const DeferredWidget = eco.component({
-			identity: {
-				id: 'deferred-widget',
-				file: '/app/components/deferred-widget.deferred.tsx',
-				integration: 'deferred',
-			},
-			integration: 'deferred',
-			render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
-		});
-
-		const Shell = eco.component<{ children?: string }, string>({
-			integration: 'kitajs',
-			dependencies: {
-				components: [DeferredWidget],
-			},
-			render: ({ children }) => `<main>${children ?? ''}${DeferredWidget({})}</main>`,
-		});
-
-		const result = await testRenderer.renderComponentWithForeignChildren({
-			component: Shell,
-			props: {},
-			children: '<section>Host child</section>',
-			integrationContext: {
-				componentInstanceId: 'host',
-			},
-		});
-
-		expect(result.html).toContain('<section>Host child</section>');
-		expect(result.html).toContain(
-			'<button data-testid="deferred-widget" data-eco-component-id="host_n_1">Deferred widget</button>',
-		);
-		expect(result.html).not.toContain('<eco-marker');
-		expect(result.assets).toEqual([
-			expect.objectContaining({
-				kind: 'script',
-				inline: true,
-				position: 'body',
-			}),
-		]);
-		expect(deferredRenderComponent).toHaveBeenCalledTimes(1);
-	});
-
+describe('KitaRenderer', () => {
 	it('should render the page', async () => {
 		const body = await renderer.render({
 			params: {},
@@ -300,139 +127,6 @@ describe('KitaRenderer', () => {
 		});
 
 		expect(body).toBe('<!DOCTYPE html><html><body>Hello World</body></html>');
-	});
-
-	it('should throw an error if the page fails to render', async () => {
-		await expect(
-			renderer.render({
-				params: {},
-				query: {},
-				props: {},
-				file: 'file',
-				resolvedDependencies: [],
-				metadata: {
-					title: 'Hello World',
-					description: 'Hello World',
-				},
-				Page: createTestComponent(async () => {
-					throw new Error('Page failed to render');
-				}),
-				HtmlTemplate,
-			}),
-		).rejects.toThrow('Error rendering page');
-	});
-
-	it('should resolve deferred cross-integration layout components in render', async () => {
-		const deferredPlugin = createDeferredIntegrationPlugin();
-		const config = await createTestAppConfig({
-			integrations: [deferredPlugin],
-		});
-
-		deferredPlugin.setConfig(config);
-		deferredPlugin.setRuntimeOrigin('http://localhost:3000');
-
-		const DeferredWidget = eco.component({
-			identity: {
-				id: 'deferred-widget',
-				file: '/app/components/deferred-widget.deferred.tsx',
-				integration: 'deferred',
-			},
-			integration: 'deferred',
-			render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
-		});
-
-		const Layout = eco.layout<string>({
-			dependencies: {
-				components: [DeferredWidget],
-			},
-			render: ({ children }) => `<main>${children}${DeferredWidget({})}</main>`,
-		});
-
-		const Page = eco.page({
-			integration: 'kitajs',
-			layout: Layout,
-			render: () => '<section>Route page</section>',
-		});
-
-		const testRenderer = new TestKitaRenderer({
-			appConfig: config,
-			assetProcessingService: {} as any,
-			runtimeOrigin: 'http://localhost:3000',
-			resolvedIntegrationDependencies: [],
-		});
-
-		const body = await testRenderer.render({
-			params: {},
-			query: {},
-			props: {},
-			file: '/app/pages/index.tsx',
-			resolvedDependencies: [],
-			metadata: {
-				title: 'Route page',
-				description: 'Route page',
-			},
-			Page: Page as unknown as EcoComponent<Record<string, unknown>>,
-			Layout: Layout as unknown as EcoComponent<Record<string, unknown>>,
-			HtmlTemplate,
-		});
-
-		expect(body).toContain('<section>Route page</section>');
-		expect(body).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
-		expect(body).not.toContain('<eco-marker');
-	});
-
-	it('should resolve deferred cross-integration layout components in renderToResponse', async () => {
-		const deferredPlugin = createDeferredIntegrationPlugin();
-		const config = await createTestAppConfig({
-			integrations: [deferredPlugin],
-		});
-
-		deferredPlugin.setConfig(config);
-		deferredPlugin.setRuntimeOrigin('http://localhost:3000');
-
-		const DeferredWidget = eco.component({
-			identity: {
-				id: 'deferred-widget',
-				file: '/app/components/deferred-widget.deferred.tsx',
-				integration: 'deferred',
-			},
-			integration: 'deferred',
-			render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
-		});
-
-		const Layout = eco.layout({
-			dependencies: {
-				components: [DeferredWidget],
-			},
-			render: ({ children }) => {
-				return (
-					<main>
-						{children}
-						<DeferredWidget />
-					</main>
-				);
-			},
-		});
-
-		const View = eco.page({
-			integration: 'kitajs',
-			layout: Layout,
-			render: () => '<section>Explicit page</section>',
-		});
-
-		const testRenderer = new TestKitaRenderer({
-			appConfig: config,
-			assetProcessingService: {} as any,
-			runtimeOrigin: 'http://localhost:3000',
-			resolvedIntegrationDependencies: [],
-		});
-
-		const response = await testRenderer.renderToResponse(View, {}, {});
-		const body = await response.text();
-
-		expect(body).toContain('<section>Explicit page</section>');
-		expect(body).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
-		expect(body).not.toContain('<eco-marker');
 	});
 
 	it('renders an Ecopages JSX child through the real Kita JSX runtime', async () => {
@@ -458,7 +152,6 @@ describe('KitaRenderer', () => {
 			assetProcessingService: {
 				processDependencies: vi.fn(async () => []),
 			} as never,
-			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 		});
 

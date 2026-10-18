@@ -1,7 +1,7 @@
 import type { CompileOptions } from '@mdx-js/mdx';
 import type { EcoComponent, EcoComponentConfig, EcoFunctionComponent, EcoPageFile, GetMetadata } from '@ecopages/core';
-import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
+import { ensurePageConfigLayouts } from '@ecopages/core/integration';
+import type { EcoBuildPlugin } from '@ecopages/core/integration';
 import {
 	appendMdxExtensions,
 	createMdxExtensionFilter,
@@ -10,18 +10,23 @@ import {
 } from '@ecopages/mdx/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
-import type { EcopagesJsxMdxCompileOptions, EcopagesJsxMdxOptions } from './ecopages-jsx.types.ts';
+import type { EcopagesJsxMdxOptions } from './ecopages-jsx.types.ts';
+import type { RequestPipelineMetricsState } from '@ecopages/core/build';
 
-export type ResolvedMdxCompileOptions = EcopagesJsxMdxCompileOptions &
-	Pick<CompileOptions, 'jsxImportSource' | 'jsxRuntime'>;
+export type ResolvedMdxCompileOptions = CompileOptions & { jsxImportSource: '@ecopages/jsx' };
 
 export type AsyncEcoComponent<P = Record<string, unknown>, R = JsxRenderable> = EcoFunctionComponent<P, R | Promise<R>>;
 
-export type EcopagesJsxMdxPageModule = EcoPageFile<{
-	config?: EcoComponentConfig;
-	layout?: EcoComponent;
-	getMetadata?: GetMetadata;
-}>;
+type AsyncEcoPageComponent = AsyncEcoComponent<Record<string, unknown>> & { metadata?: GetMetadata };
+
+export type EcopagesJsxMdxPageModule = Omit<
+	EcoPageFile<{
+		config?: EcoComponentConfig;
+		layout?: EcoComponent;
+		getMetadata?: GetMetadata;
+	}>,
+	'default'
+> & { default: AsyncEcoPageComponent };
 
 export { appendMdxExtensions, createMdxExtensionFilter };
 
@@ -38,6 +43,7 @@ export interface CreateEcopagesJsxMdxLoaderPluginOptions {
 	compilerOptions: ResolvedMdxCompileOptions;
 	extensions: string[];
 	projectRoot: string;
+	requestPipelineMetrics: RequestPipelineMetricsState;
 }
 
 export const createMdxLoaderPlugin = (options: CreateEcopagesJsxMdxLoaderPluginOptions): EcoBuildPlugin =>
@@ -49,6 +55,7 @@ export const createMdxLoaderPlugin = (options: CreateEcopagesJsxMdxLoaderPluginO
 		includeSourceMap: false,
 		loader: 'js',
 		projectRoot: options.projectRoot,
+		requestPipelineMetrics: options.requestPipelineMetrics,
 	});
 
 export const isMdxFile = (filePath: string, extensions: string[]): boolean => {
@@ -73,8 +80,7 @@ export const normalizeMdxPageModule = (file: string, module: EcopagesJsxMdxPageM
 	}
 
 	ensurePageConfigLayouts(attributedConfig);
-	const wrappedPage: AsyncEcoComponent<Record<string, unknown>> = async (props: Record<string, unknown>) =>
-		await Page(props);
+	const wrappedPage: AsyncEcoPageComponent = async (props: Record<string, unknown>) => await Page(props);
 
 	wrappedPage.config = attributedConfig;
 

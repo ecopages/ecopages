@@ -1,4 +1,10 @@
 export const DEV_TOOLBAR_CONTENT_STYLES = `
+.eco-dev-toolbar__build-error {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	font: 0.75rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 .eco-dev-toolbar__panel {
 	padding: 0.95rem 1rem 1.05rem;
 	display: grid;

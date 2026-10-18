@@ -85,7 +85,8 @@ await app.start();
 		"dev": "ecopages dev",
 		"build": "NODE_ENV=production ecopages build",
 		"preview": "NODE_ENV=production ecopages preview",
-		"start": "NODE_ENV=production ecopages start"
+		"start": "NODE_ENV=production ecopages start",
+		"typecheck": "ecopages types && tsc --noEmit"
 	}
 }
 ```

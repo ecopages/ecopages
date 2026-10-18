@@ -2,12 +2,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
-import { ConfigBuilder } from '../../config/config-builder.ts';
+import { installBuildQueue } from '../../build/runtime/build-queue.ts';
+import { requireAppRuntime } from '../../utils/app-runtime.ts';
+import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
 import { HMR_RUNTIME_WORK_DIR_SEGMENT } from '../../hmr/hmr-runtime-paths.ts';
-import { HmrManager as BunHmrManager } from '../../adapters/bun/hmr-manager.ts';
-import type { ClientBridgeEvent } from '../../types/public-types.ts';
+import { HmrManager } from '../../adapters/shared/hmr/hmr-manager.ts';
+import type { ClientBridgeEvent } from '../../types/contracts.ts';
 import { resolveInternalWorkDir } from '../../utils/resolve-work-dir.ts';
 
 const tempRoots: string[] = [];
@@ -24,8 +25,8 @@ afterEach(() => {
 	}
 });
 
-async function readDevTransformModule(manager: BunHmrManager, entrypointPath: string): Promise<string | undefined> {
-	const outputUrl = manager.getOutputUrl(entrypointPath);
+async function readDevTransformModule(manager: HmrManager, entrypointPath: string): Promise<string | undefined> {
+	const outputUrl = manager.getRegisteredEntrypoints().get(path.resolve(entrypointPath))?.outputUrl;
 	if (!outputUrl) {
 		return undefined;
 	}
@@ -55,11 +56,11 @@ describe('JsHmrStrategy integration', () => {
 
 		writeMarker('BASELINE');
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		config.templatesExt = ['.eco.tsx'];
 
 		const broadcasts: ClientBridgeEvent[] = [];
-		using manager = new BunHmrManager({
+		using manager = new HmrManager({
 			appConfig: config,
 			bridge: {
 				subscriberCount: 1,
@@ -70,12 +71,12 @@ describe('JsHmrStrategy integration', () => {
 		});
 
 		manager.setEnabled(true);
-		installBuildRuntime(config);
+		installBuildQueue(config);
 
 		await manager.registerScriptEntrypoint(entrypointPath);
 
 		expect(manager.getWatchedFiles().has(path.resolve(entrypointPath))).toBe(true);
-		expect(manager.getOutputUrl(entrypointPath)).toBe(
+		expect(manager.getRegisteredEntrypoints().get(path.resolve(entrypointPath))?.outputUrl).toBe(
 			`${DEV_TRANSFORM_URL_PREFIX}/components/script-hmr/widget.script.eco.js`,
 		);
 
@@ -116,19 +117,19 @@ describe('JsHmrStrategy integration', () => {
 
 		writeMarker('BASELINE');
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const broadcasts: ClientBridgeEvent[] = [];
 		let importCalls = 0;
-		config.runtime ??= {};
-		config.runtime.appModuleLoader = {
+		requireAppRuntime(config).moduleLoader = {
 			importModule: async () => {
 				importCalls += 1;
 				throw new Error('browser-only registered scripts must not be server-imported');
 			},
 			invalidateDevelopmentGraph: () => undefined,
+			getDevelopmentGeneration: () => 0,
 		} as never;
 
-		using manager = new BunHmrManager({
+		using manager = new HmrManager({
 			appConfig: config,
 			bridge: {
 				subscriberCount: 1,
@@ -139,11 +140,11 @@ describe('JsHmrStrategy integration', () => {
 		});
 
 		manager.setEnabled(true);
-		installBuildRuntime(config);
+		installBuildQueue(config);
 
 		await manager.registerScriptEntrypoint(entrypointPath);
 
-		expect(manager.getOutputUrl(entrypointPath)).toBe(
+		expect(manager.getRegisteredEntrypoints().get(path.resolve(entrypointPath))?.outputUrl).toBe(
 			`${DEV_TRANSFORM_URL_PREFIX}/layouts/base-layout/base-layout.script.js`,
 		);
 
@@ -177,11 +178,9 @@ describe('JsHmrStrategy integration', () => {
 		const entrypointPath = path.join(componentsDir, 'widget.script.tsx');
 		fs.writeFileSync(entrypointPath, `export const marker = "BASELINE";\nconsole.log("BASELINE");\n`, 'utf8');
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const broadcasts: ClientBridgeEvent[] = [];
-		config.runtime ??= {};
-		config.runtime.registeredScriptEntrypointChangeHandlers = [() => true];
-		using manager = new BunHmrManager({
+		using manager = new HmrManager({
 			appConfig: config,
 			bridge: {
 				subscriberCount: 1,
@@ -190,9 +189,10 @@ describe('JsHmrStrategy integration', () => {
 				},
 			} as never,
 		});
+		manager.onScriptEntrypointChanged(() => true);
 
 		manager.setEnabled(true);
-		installBuildRuntime(config);
+		installBuildQueue(config);
 
 		await manager.registerScriptEntrypoint(entrypointPath);
 		broadcasts.length = 0;

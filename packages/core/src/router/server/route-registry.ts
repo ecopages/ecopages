@@ -2,11 +2,17 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcoPagesAppConfig, RouteKind } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
+import type { PageParams, PageQuery } from '../../types/contracts.ts';
 import { invariant } from '../../utils/invariant.ts';
+import { normalizePathname } from '../../utils/path-pattern.ts';
+import { parseSearchParams } from './parse-search-params.ts';
+import { findIntegrationForFile, findLongestExtension } from '../../plugins/find-integration-for-file.ts';
+import { matchParsedSegmentPath, parseSegmentPath, type ParsedSegmentPath } from './segment-path-matcher.ts';
 
-export type RouteParams = Record<string, string | string[]>;
-export type RouteQuery = Record<string, string>;
+export type RouteKind = 'exact' | 'catch-all' | 'dynamic';
+export type RouteParams = PageParams;
+export type RouteQuery = PageQuery;
 
 export type TemplateRoute = {
 	readonly pathname: string;
@@ -17,7 +23,8 @@ export type TemplateRoute = {
 
 export type RouteMatch = {
 	readonly requestedPathname: string;
-	readonly templateRoute: TemplateRoute;
+	readonly templateRoute: Pick<TemplateRoute, 'pathname' | 'kind' | 'filePath'> &
+		Partial<Pick<TemplateRoute, 'paramNames'>>;
 	readonly params: RouteParams;
 	readonly query: RouteQuery;
 };
@@ -67,7 +74,7 @@ const ROUTE_PRIORITY: Record<RouteKind, number> = {
 };
 
 export class RouteRegistry {
-	readonly origin: string;
+	private readonly fallbackOrigin: string;
 	readonly appConfig: EcoPagesAppConfig;
 	readonly pagesDir: string;
 	readonly templatesExt: readonly string[];
@@ -77,12 +84,16 @@ export class RouteRegistry {
 	private readonly reloadListeners = new Set<() => void>();
 
 	constructor(options: RouteRegistryOptions) {
-		this.origin = options.origin;
+		this.fallbackOrigin = options.origin;
 		this.appConfig = options.appConfig;
 		this.pagesDir = options.pagesDir;
 		this.templatesExt = options.templatesExt;
 		this.buildMode = options.buildMode;
 		this.pageModuleAdapter = options.pageModuleAdapter;
+	}
+
+	get origin(): string {
+		return this.appConfig.appRuntime?.origin ?? this.fallbackOrigin;
 	}
 
 	get templateRoutes(): readonly TemplateRoute[] {
@@ -109,25 +120,14 @@ export class RouteRegistry {
 		};
 	}
 
-	matchRequest(requestUrl: string): RouteMatch | null {
+	matchRequest(requestUrl: string, parsedPathSegments?: ParsedSegmentPath): RouteMatch | null {
 		const url = new URL(requestUrl);
 		const requestedPathname = normalizePathname(url.pathname);
+		const pathSegments = parsedPathSegments ?? parseSegmentPath(requestedPathname);
 		const query = this.getSearchParams(url);
 
 		for (const route of this.templateRouteList) {
-			if (route.kind === 'exact') {
-				if (requestedPathname === route.pathname || requestedPathname === `${route.pathname}/`) {
-					return {
-						requestedPathname,
-						templateRoute: route,
-						params: {},
-						query,
-					};
-				}
-				continue;
-			}
-
-			const params = this.tryExtractParams(route, requestedPathname);
+			const params = matchParsedSegmentPath(route.pathname, pathSegments, 'filesystem');
 			if (params) {
 				return {
 					requestedPathname,
@@ -252,6 +252,7 @@ export class RouteRegistry {
 		);
 
 		const templateRoutes: TemplateRoute[] = [];
+		const routeFiles = new Map<string, string>();
 
 		for await (const file of scannedFiles) {
 			if (file.includes('.ecopages-node.')) {
@@ -260,7 +261,22 @@ export class RouteRegistry {
 
 			const routePathname = this.getRoutePath(file);
 			const filePath = path.join(this.pagesDir, file);
-			const kind = this.classifyRouteKind(filePath);
+			const kind = this.classifyRouteKind(file);
+
+			const duplicateFile = routeFiles.get(routePathname);
+			if (duplicateFile === filePath) {
+				continue;
+			}
+			invariant(
+				duplicateFile === undefined,
+				`${duplicateFile} and ${filePath} both define the route "${routePathname}". Keep one of them.`,
+			);
+			routeFiles.set(routePathname, filePath);
+			const owner = kind === 'exact' ? undefined : findIntegrationForFile(this.appConfig.integrations, filePath);
+			invariant(
+				owner?.acceptsParams !== false,
+				`${filePath}: ${findLongestExtension(owner?.extensions ?? [], filePath)} Pages cannot receive Params, so they cannot use dynamic route segments. Rename the file, or use an eco.page() Page from an Integration that supports staticPaths.`,
+			);
 
 			templateRoutes.push({
 				pathname: routePathname,
@@ -292,20 +308,28 @@ export class RouteRegistry {
 		});
 	}
 
+	/**
+	 * @remarks
+	 * Strips the longest template extension the file ends with, so `about.kita.tsx` keeps no
+	 * `.kita` part when `.tsx` is also registered, and `my.html-tips.html` keeps its name.
+	 */
 	private getRoutePath(file: string): string {
-		const cleanedRoute = this.templatesExt
-			.reduce((route, ext) => route.replace(ext, ''), file)
-			.replace(/\/?index$/, '');
+		const extension = findLongestExtension(this.templatesExt, file) ?? '';
+		const cleanedRoute = file.slice(0, file.length - extension.length).replace(/\/?index$/, '');
 
 		return normalizePathname(`/${cleanedRoute}`);
 	}
 
-	private classifyRouteKind(filePath: string): RouteKind {
-		if (filePath.includes('[...')) {
+	/**
+	 * @param file - Path relative to the pages directory, so brackets in the project path do not
+	 * make every route dynamic.
+	 */
+	private classifyRouteKind(file: string): RouteKind {
+		if (file.includes('[...')) {
 			return 'catch-all';
 		}
 
-		if (filePath.includes('[') && filePath.includes(']')) {
+		if (file.includes('[') && file.includes(']')) {
 			return 'dynamic';
 		}
 
@@ -317,60 +341,8 @@ export class RouteRegistry {
 		return matches ? matches.map((match) => match.replace(/^\[(?:\.\.\.)?/, '').replace(/\]$/, '')) : [];
 	}
 
-	private tryExtractParams(route: TemplateRoute, requestedPathname: string): RouteParams | null {
-		const routeParts = route.pathname.split('/');
-		const pathnameParts = requestedPathname.split('/');
-
-		if (route.kind === 'dynamic' && routeParts.length !== pathnameParts.length) {
-			return null;
-		}
-
-		const params: RouteParams = {};
-
-		for (let i = 0; i < routeParts.length; i++) {
-			const routePart = routeParts[i];
-			const pathnamePart = pathnameParts[i];
-
-			if (!routePart) {
-				continue;
-			}
-
-			if (routePart.startsWith('[...') && routePart.endsWith(']')) {
-				const paramName = routePart.slice(4, -1);
-				params[paramName] = pathnameParts.slice(i).filter(Boolean);
-				return params;
-			}
-
-			if (routePart.startsWith('[') && routePart.endsWith(']')) {
-				if (pathnamePart === undefined) {
-					return null;
-				}
-
-				params[routePart.slice(1, -1)] = pathnamePart;
-				continue;
-			}
-
-			if (routePart !== pathnamePart) {
-				return null;
-			}
-		}
-
-		if (route.kind === 'catch-all') {
-			const cleanPathname = route.pathname.replace(/\[.*?\]/g, '');
-			return requestedPathname.includes(cleanPathname) ? params : null;
-		}
-
-		return params;
-	}
-
 	private getSearchParams(url: URL): RouteQuery {
-		const query: RouteQuery = {};
-
-		for (const [key, value] of url.searchParams) {
-			query[key] = value;
-		}
-
-		return query;
+		return parseSearchParams(url.searchParams);
 	}
 
 	private resolveTemplatePath(pathname: string, params: RouteParams): string {
@@ -384,13 +356,4 @@ export class RouteRegistry {
 
 		return normalizePathname(resolvedPath);
 	}
-}
-
-function normalizePathname(pathname: string): string {
-	if (!pathname || pathname === '/') {
-		return '/';
-	}
-
-	const normalized = pathname.startsWith('/') ? pathname : `/${pathname}`;
-	return normalized.endsWith('/') ? normalized.slice(0, -1) : normalized;
 }

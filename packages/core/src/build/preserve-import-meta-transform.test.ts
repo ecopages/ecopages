@@ -1,0 +1,101 @@
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { originalPositionFor, TraceMap, type SourceMapInput } from '@jridgewell/trace-mapping';
+import { getPluginTransform } from '../__fixtures__/build/transform-plugin.ts';
+import { createPreserveImportMetaPlugin } from './preserve-import-meta-transform.ts';
+
+function transformConfigSource(
+	code: string,
+	id = '/project/eco.config.ts',
+	runtimeDir = '/project/dist/.server',
+): string {
+	const transform = getPluginTransform(createPreserveImportMetaPlugin(runtimeDir));
+	const result = transform.transform(code, id);
+	if (!result || typeof result === 'string') return result ?? code;
+	return result.code;
+}
+
+describe('createPreserveImportMetaPlugin', () => {
+	it('rewrites syntax nodes without changing strings, comments, or legacy bindings', () => {
+		const transformed = transformConfigSource(`
+			const label = 'import.meta.dirname';
+			const __dirname = 'custom';
+			// import.meta.url remains documentation here
+			export default { rootDir: import.meta.dirname, label, __dirname };
+		`);
+
+		expect(transformed).toContain("const label = 'import.meta.dirname'");
+		expect(transformed).toContain("const __dirname = 'custom'");
+		expect(transformed).toContain('// import.meta.url remains documentation here');
+		expect(transformed).toContain('__ecoServerPath.resolve(import.meta.dirname, "../..")');
+	});
+
+	it('serializes quoted paths safely', () => {
+		const transformed = transformConfigSource(
+			'export default { rootDir: import.meta.dirname };',
+			"/project/o'hare/eco.config.ts",
+		);
+
+		expect(transformed).toContain('"../../o\'hare"');
+	});
+
+	it('preserves source import.meta.url and avoids identifier collisions', () => {
+		const transformed = transformConfigSource(`
+			const __ecoServerPath = 'reserved';
+			export default { rootDir: import.meta.dir, sourceUrl: import.meta.url };
+		`);
+
+		expect(transformed).toContain("import * as ___ecoServerPath from 'node:path'");
+		expect(transformed).toContain('new URL("../../eco.config.ts", import.meta.url).href');
+	});
+
+	it('maps rewritten import.meta expressions back to their source line', () => {
+		const filePath = '/project/eco.config.ts';
+		const source = '\nexport const root = import.meta.dirname;\n';
+		const result = getPluginTransform(createPreserveImportMetaPlugin('/project/dist/.server')).transform(
+			source,
+			filePath,
+		) as {
+			code: string;
+			map?: SourceMapInput;
+		};
+		const mappedLine = result.code.split('\n').findIndex((line) => line.includes('root ='));
+		const original = originalPositionFor(new TraceMap(result.map as SourceMapInput), {
+			line: mappedLine + 1,
+			column: result.code.split('\n')[mappedLine]!.indexOf('root ='),
+		});
+
+		expect(original).toMatchObject({ line: 2, source: expect.stringContaining('eco.config.ts') });
+	});
+
+	it('points import.meta.filename and Bun file properties at the source file', () => {
+		const transformed = transformConfigSource(
+			'export const files = [import.meta.filename, import.meta.path, import.meta.file];',
+			'/project/src/pages/page.ts',
+		);
+
+		expect(
+			transformed.match(/__ecoServerPath\.resolve\(import\.meta\.dirname, "\.\.\/\.\.\/src\/pages\/page\.ts"\)/g),
+		).toHaveLength(2);
+		expect(transformed).toContain('"page.ts"]');
+	});
+
+	it('computes paths from the real path of a symlinked runtime directory', () => {
+		const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'eco-import-meta-')));
+		try {
+			mkdirSync(path.join(root, 'real/dist'), { recursive: true });
+			symlinkSync(path.join(root, 'real'), path.join(root, 'link'), 'dir');
+			const transformed = transformConfigSource(
+				'export const url = import.meta.url;',
+				path.join(root, 'real/src/page.ts'),
+				path.join(root, 'link/dist'),
+			);
+
+			expect(transformed).toContain('new URL("../src/page.ts", import.meta.url).href');
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+});

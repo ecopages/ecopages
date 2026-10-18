@@ -14,8 +14,6 @@ export type { RouterContextValue } from './context.ts';
 
 export type { EcoRouterOptions } from './types.ts';
 
-export { morphHead } from './head-morpher.ts';
-
 export type { PageState } from './navigation.ts';
 
 export { ecoRouter } from './adapter.ts';

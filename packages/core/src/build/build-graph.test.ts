@@ -1,0 +1,230 @@
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { fileSystem } from '@ecopages/file-system';
+import type { BuildOptions } from './build-adapter.ts';
+import { collectBuildEntryInputPaths, collectBuildOutputImports, getBuildEntryOutput } from './build-graph.ts';
+import { RolldownBuildAdapter } from './rolldown/rolldown-build-adapter.ts';
+import { RouteModuleBuildCache } from './server/route-module-build-cache.store.ts';
+import { resolveRouteModuleDependencyPaths } from './server/route-module-dependency-hasher.ts';
+import { assertBuildSucceeded } from './build-log.ts';
+
+let root: string;
+beforeEach(() => {
+	root = realpathSync(mkdtempSync(path.join(tmpdir(), 'ecopages-build-graph-')));
+	vi.stubEnv('NODE_ENV', 'production');
+});
+afterEach(() => {
+	rmSync(root, { recursive: true, force: true });
+	vi.unstubAllEnvs();
+});
+
+test('collects only local source paths for one entry and its plugin inputs', () => {
+	const entry = path.join(root, 'pages/about.tsx');
+	const helper = path.join(root, 'src/lib/posts.ts');
+	const pluginInput = path.join(root, 'data/posts.json');
+	const paths = collectBuildEntryInputPaths(
+		{
+			dependencyGraph: {
+				entrypoints: {
+					[entry]: [entry, helper, 'node:fs', path.join(root, 'node_modules/react/index.js')],
+				},
+			},
+			loadedInputsByModule: { [entry]: [pluginInput] },
+		},
+		entry,
+		root,
+	);
+
+	expect(paths).toEqual([entry, helper, pluginInput]);
+});
+
+test('attributes plugin inputs to their entry closure when inputs overlap another entry module', () => {
+	const firstEntry = path.join(root, 'pages/first.tsx');
+	const firstHelper = path.join(root, 'src/lib/first-helper.tsx');
+	const secondEntry = path.join(root, 'pages/second.tsx');
+	const secondHelper = path.join(root, 'src/lib/second-helper.tsx');
+	const pluginOnlyInput = path.join(root, 'data/generated-routes.json');
+	const result = {
+		dependencyGraph: {
+			entrypoints: {
+				[firstEntry]: [firstEntry, firstHelper],
+				[secondEntry]: [secondEntry, secondHelper],
+			},
+		},
+		loadedInputs: [firstHelper, secondHelper, pluginOnlyInput],
+		loadedInputsByModule: {
+			[firstEntry]: [firstHelper],
+			[secondEntry]: [firstHelper, pluginOnlyInput],
+		},
+	};
+
+	expect(collectBuildEntryInputPaths(result, firstEntry, root)).toEqual([firstEntry, firstHelper]);
+	expect(collectBuildEntryInputPaths(result, secondEntry, root)).toEqual([
+		secondEntry,
+		secondHelper,
+		firstHelper,
+		pluginOnlyInput,
+	]);
+});
+
+test('both cached entries miss after their shared inlined source changes', async () => {
+	const shared = path.join(root, 'shared.js');
+	writeFileSync(shared, "export const value = 'before';");
+	const entries = ['blog', 'blog-post'].map((name) => {
+		const entry = path.join(root, `${name}.js`);
+		writeFileSync(entry, "import { value } from './shared.js'; export const read = () => value;");
+		return entry;
+	});
+	const outdir = path.join(root, 'dist');
+	const buildOptions = {
+		environment: 'server' as const,
+		entrypoints: entries,
+		root,
+		outdir,
+		target: 'node',
+		splitting: true,
+	} satisfies BuildOptions;
+	const result = await new RolldownBuildAdapter().build(buildOptions);
+	assertBuildSucceeded(result, 'Build failed');
+	const cache = new RouteModuleBuildCache();
+	for (const entry of entries) {
+		const output = getBuildEntryOutput(result, entry, root);
+		if (!output) throw new Error(`Missing output for ${entry}`);
+		const options = { filePath: entry, rootDir: root, outdir, buildOptions, fileHash: fileSystem.hash(entry) };
+		cache.recordBuild({
+			...options,
+			outputPath: output,
+			dependencyModulePaths: resolveRouteModuleDependencyPaths(result, entry, root),
+			outputImports: collectBuildOutputImports(result, output),
+		});
+		expect(cache.lookup(options)?.outputPath).toBe(output);
+	}
+	writeFileSync(shared, "export const value = 'after';");
+	for (const entry of entries)
+		expect(
+			cache.lookup({ filePath: entry, rootDir: root, outdir, buildOptions, fileHash: fileSystem.hash(entry) }),
+		).toBeUndefined();
+});
+
+test('a missing local external generated module invalidates a cached build', async () => {
+	const generated = path.join(root, 'generated.mjs');
+	writeFileSync(generated, "export const value = 'generated';");
+	const entry = path.join(root, 'entry.js');
+	writeFileSync(
+		entry,
+		`import { value } from ${JSON.stringify(pathToFileURL(generated).href)}; export const read = () => value;`,
+	);
+	const outdir = path.join(root, 'dist');
+	const buildOptions = {
+		environment: 'server' as const,
+		entrypoints: [entry],
+		root,
+		outdir,
+		target: 'node',
+		external: [pathToFileURL(generated).href],
+	} satisfies BuildOptions;
+	const result = await new RolldownBuildAdapter().build(buildOptions);
+	assertBuildSucceeded(result, 'Build failed');
+	const output = getBuildEntryOutput(result, entry, root);
+	if (!output) throw new Error('Missing entry output');
+	const imports = collectBuildOutputImports(result, output);
+	expect(imports).toContain(generated);
+	const options = { filePath: entry, rootDir: root, outdir, buildOptions, fileHash: fileSystem.hash(entry) };
+	const cache = new RouteModuleBuildCache();
+	cache.recordBuild({
+		...options,
+		outputPath: output,
+		dependencyModulePaths: resolveRouteModuleDependencyPaths(result, entry, root),
+		outputImports: imports,
+	});
+	expect(cache.lookup(options)?.outputPath).toBe(output);
+	rmSync(generated);
+	expect(cache.lookup(options)).toBeUndefined();
+});
+
+test('walks static and dynamic chunk edges through cycles and retains missing leaves', () => {
+	const output = path.join(root, 'entry.js');
+	const shared = path.join(root, 'shared.js');
+	const lazy = path.join(root, 'lazy.js');
+	const missing = path.join(root, 'missing.mjs');
+	const chunk = (fileName: string, imports: string[], dynamicImports: string[]) => ({
+		fileName,
+		imports,
+		dynamicImports,
+		isEntry: fileName === output,
+		facadeModuleId: null,
+	});
+	const graph = {
+		outputGraph: {
+			[output]: chunk(output, [shared, 'react'], [lazy]),
+			[shared]: chunk(shared, [output, pathToFileURL(missing).href], []),
+			[lazy]: chunk(lazy, [shared], []),
+		},
+	};
+	expect(collectBuildOutputImports(graph, output).sort()).toEqual([shared, lazy, missing].sort());
+});
+
+test('finds the entry output through a symlink root and by the name the caller passed', async () => {
+	const parent = mkdtempSync(path.join(tmpdir(), 'ecopages-build-graph-link-'));
+	try {
+		const realRoot = path.join(parent, 'real');
+		const linkRoot = path.join(parent, 'link');
+		mkdirSync(realRoot);
+		writeFileSync(path.join(realRoot, 'entry.js'), 'export const value = 1;');
+		symlinkSync(realRoot, linkRoot);
+		const entry = path.join(linkRoot, 'entry.js');
+		const outdir = path.join(linkRoot, 'dist');
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
+			entrypoints: { pages__blog: entry },
+			root: linkRoot,
+			outdir,
+			target: 'node',
+		});
+		assertBuildSucceeded(result, 'Build failed');
+		const byPath = getBuildEntryOutput(result, entry, linkRoot);
+		const byName = getBuildEntryOutput(result, 'pages__blog', linkRoot);
+		expect(byPath).toBeDefined();
+		expect(byName).toBe(byPath);
+		expect(byPath).toContain(path.sep);
+	} finally {
+		rmSync(parent, { recursive: true, force: true });
+	}
+});
+
+test('collects the layouts of an entry reached through a symlink root', async () => {
+	const parent = mkdtempSync(path.join(tmpdir(), 'ecopages-build-graph-closure-'));
+	try {
+		const realRoot = path.join(parent, 'real');
+		const linkRoot = path.join(parent, 'link');
+		mkdirSync(realRoot);
+		writeFileSync(path.join(realRoot, 'layout.js'), 'export const layout = 1;');
+		writeFileSync(
+			path.join(realRoot, 'page.js'),
+			"import fs from 'node:fs';\nimport { layout } from './layout.js';\nexport const page = [layout, fs];",
+		);
+		symlinkSync(realRoot, linkRoot);
+		const entry = path.join(linkRoot, 'page.js');
+		const result = await new RolldownBuildAdapter().build({
+			environment: 'server' as const,
+			entrypoints: [entry],
+			root: linkRoot,
+			outdir: path.join(linkRoot, 'dist'),
+			target: 'node',
+		});
+		assertBuildSucceeded(result, 'Build failed');
+
+		const inputs = collectBuildEntryInputPaths(result, entry, linkRoot);
+
+		expect(inputs).toEqual([
+			realpathSync(path.join(realRoot, 'page.js')),
+			realpathSync(path.join(realRoot, 'layout.js')),
+		]);
+		expect(Object.values(result.dependencyGraph?.entrypoints ?? {}).flat()).toContain('node:fs');
+	} finally {
+		rmSync(parent, { recursive: true, force: true });
+	}
+});

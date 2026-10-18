@@ -29,7 +29,7 @@ export function utility() { return 1; }`,
 				path.join(root, 'page.ts'),
 				'lit',
 				root,
-			),
+			).code,
 	};
 }
 afterEach(() => {
@@ -51,7 +51,18 @@ describe('component import discovery', () => {
 		expect(result).not.toContain(`import '@/style.css'`);
 		expect(result).toContain(`stylesheets: ${JSON.stringify([stylePath, stylePath])}`);
 		expect(result).toContain('import { eco, bindComponentIdentity }');
-		expect(attributeComponentIdentity(result, path.join(root, 'page.ts'), 'lit', root)).toBe(result);
+		expect(attributeComponentIdentity(result, path.join(root, 'page.ts'), 'lit', root).code).toBe(result);
+	});
+	it('keeps side-effect CSS when every Eco factory argument already has an identity', () => {
+		const { transform } = fixture();
+		const result = transform(
+			`import './style.css';\nimport { bindComponentIdentity } from '@ecopages/core';`,
+			`export default eco.page(bindComponentIdentity({ id: 'page', file: '/page.ts', integration: 'lit' }, {}));`,
+		);
+
+		expect(result).toContain(`import './style.css';`);
+		expect(result).toContain('eco.page(bindComponentIdentity(');
+		expect(result).not.toContain('stylesheets:');
 	});
 	it('shares imports among multiple declarations without reading them eagerly', () => {
 		const { transform } = fixture();
@@ -73,12 +84,20 @@ describe('component import discovery', () => {
 		writeFileSync(path.join(root, 'index.ts'), `export * from './child';`);
 		expect(transform(`import { Child } from './index';`)).not.toContain('components: ()');
 	});
+	it('records the imported factory module as a watch file', () => {
+		const { root, transform } = fixture();
+		const childPath = realpathSync(path.join(root, 'child.ts'));
+		expect(transform(`import { Child } from './child';`)).toContain(`watchFiles: ${JSON.stringify([childPath])}`);
+	});
 	it('discovers named barrel re-exports of the imported binding only', () => {
 		const { root, transform } = fixture();
 		writeFileSync(path.join(root, 'index.ts'), `export { Child, Renamed as Alias } from './child';`);
 		expect(transform(`import { Child, Alias } from './index';`)).toContain('components: () => [Child, Alias]');
 		expect(transform(`import { Child } from './index';`)).toContain('components: () => [Child]');
 		expect(transform(`import { Child } from './index';`)).not.toContain('Alias');
+		const barrel = transform(`import { Child } from './index';`);
+		expect(barrel).toContain(realpathSync(path.join(root, 'index.ts')));
+		expect(barrel).toContain(realpathSync(path.join(root, 'child.ts')));
 	});
 	it('follows nested named barrel re-exports', () => {
 		const { root, transform } = fixture();
@@ -157,7 +176,7 @@ export const Button = eco.component({ render: () => '' });`,
 				'export default function MDXContent(props = {}) { return _createMdxContent(props); }',
 			].join('\n');
 
-			const result = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root);
+			const result = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root).code;
 			expect(result).not.toContain("import './style.css';");
 			expect(result).toContain("import { Child } from './child';");
 			expect(result).toContain(
@@ -180,7 +199,7 @@ export const Button = eco.component({ render: () => '' });`,
 				'export default function MDXContent() { return _jsx("div", {}); }',
 			].join('\n');
 
-			const result = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root);
+			const result = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root).code;
 			expect(result).not.toContain("import '@/style.css';");
 			expect(result).toContain('layout: "custom-layout"');
 			expect(result).toContain(`components: () => [Child], stylesheets: ${JSON.stringify([stylePath])}`);
@@ -212,7 +231,7 @@ export const Button = eco.component({ render: () => '' });`,
 				'export default function MDXContent() { return _createMdxContent(); }',
 			].join('\n');
 
-			const result = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root);
+			const result = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root).code;
 			// Real top-level bare CSS import was stripped
 			expect(result).not.toContain("import './style.css';");
 			// Fake CSS import inside the code block is completely preserved
@@ -232,8 +251,8 @@ export const Button = eco.component({ render: () => '' });`,
 				'export default function MDXContent() { return _jsx("h1", {}); }',
 			].join('\n');
 
-			const first = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root);
-			const second = attributeMdxComponentIdentity(first, path.join(root, 'post.mdx'), 'mdx', root);
+			const first = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root).code;
+			const second = attributeMdxComponentIdentity(first, path.join(root, 'post.mdx'), 'mdx', root).code;
 			expect(second).toBe(first);
 		});
 
@@ -251,7 +270,7 @@ export const Button = eco.component({ render: () => '' });`,
 				'export default function MDXContent() { return _jsx("h1", {}); }',
 			].join('\n');
 
-			const result = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root);
+			const result = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root).code;
 			expect(result).toContain('export const config = bindComponentIdentity(');
 			expect(result).toContain('attachDiscoveredDependencies(config);');
 			expect(result).toContain("if (typeof MDXContent === 'function') MDXContent.config = config;");
@@ -266,7 +285,7 @@ export const Button = eco.component({ render: () => '' });`,
 				'export default function MDXContent() { return null; }',
 			].join('\n');
 
-			const result = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root);
+			const result = attributeMdxComponentIdentity(mdxJs, path.join(root, 'post.mdx'), 'mdx', root).code;
 			expect(result).toBe(mdxJs);
 		});
 	});

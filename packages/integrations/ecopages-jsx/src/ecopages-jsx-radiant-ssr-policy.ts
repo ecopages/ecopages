@@ -25,6 +25,11 @@ type RadiantServerRuntimeModules = {
 				renderHostToString: (options?: unknown) => string;
 		  }
 		| undefined;
+	createRadiantElementSsrService: (instance: object) => {
+		applyLightDom: (apply: () => void) => void;
+		getHostAttributes: () => Record<string, string>;
+		renderHostToString: (options?: unknown, attributes?: Record<string, string>) => string;
+	};
 	withServerRadiantElementSsrRuntime: <T>(render: () => T) => T;
 };
 
@@ -87,19 +92,26 @@ export class EcopagesJsxRadiantSsrPolicy {
 	 * @remarks
 	 * The returned node-like wrapper lets the JSX server renderer preserve the
 	 * generated host HTML without escaping it back into plain text.
+	 *
+	 * The render hook owns the host's JSX children, so `applyChildren` runs inside the host's context providers.
+	 * A consumer passed as a child of a provider host then resolves that provider in the server HTML instead of
+	 * rendering its fallback state.
 	 */
-	renderIntrinsicElementMarkup(instance: unknown): ReturnType<typeof createMarkupNodeLike> | undefined {
-		const renderBridge = this.runtimeModules?.resolveRadiantElementRenderBridge(instance);
-		if (!renderBridge) {
+	renderIntrinsicElementMarkup(
+		instance: unknown,
+		applyChildren?: () => void,
+	): ReturnType<typeof createMarkupNodeLike> | undefined {
+		const runtime = this.runtimeModules;
+		if (!runtime?.resolveRadiantElementRenderBridge(instance)) {
 			return undefined;
 		}
 
 		return createMarkupNodeLike(
-			withServerHydrationBindingState(createServerHydrationBindingState(), () =>
-				renderBridge.renderHostToString({
-					mode: 'hydrate',
-				}),
-			),
+			withServerHydrationBindingState(createServerHydrationBindingState(), () => {
+				const service = runtime.createRadiantElementSsrService(instance as object);
+				service.applyLightDom(() => applyChildren?.());
+				return service.renderHostToString({ mode: 'hydrate' }, service.getHostAttributes());
+			}),
 		);
 	}
 
@@ -110,20 +122,24 @@ export class EcopagesJsxRadiantSsrPolicy {
 				.resolve('@ecopages/radiant/server/radiant-element-ssr');
 
 			this.runtimeModulesPromise = (async () => {
-				const lightDomShimModule = await import(radiantLightDomShimEntry);
+				const lightDomShimModule = await import(/* @vite-ignore */ radiantLightDomShimEntry);
 				ensureRadiantLightDomGlobals(lightDomShimModule.ensureLightDomShim);
 
-				const radiantElementSsrRuntimeModule = (await import(radiantElementSsrRuntimeModuleUrl)) as {
+				const radiantElementSsrRuntimeModule = (await import(
+					/* @vite-ignore */ radiantElementSsrRuntimeModuleUrl
+				)) as {
 					resolveRadiantElementRenderBridge: (instance: unknown) =>
 						| {
 								renderHost: () => { nodeType: 1; outerHTML: string };
 								renderHostToString: (options?: unknown) => string;
 						  }
 						| undefined;
+					createRadiantElementSsrService: RadiantServerRuntimeModules['createRadiantElementSsrService'];
 					withServerRadiantElementSsrRuntime: <T>(render: () => T) => T;
 				};
 
 				const modules = {
+					createRadiantElementSsrService: radiantElementSsrRuntimeModule.createRadiantElementSsrService,
 					ensureLightDomShim: lightDomShimModule.ensureLightDomShim,
 					resolveRadiantElementRenderBridge: radiantElementSsrRuntimeModule.resolveRadiantElementRenderBridge,
 					withServerRadiantElementSsrRuntime:

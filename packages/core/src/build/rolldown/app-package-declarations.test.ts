@@ -1,0 +1,44 @@
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { onTestFinished, test } from 'vitest';
+import { isDeclaredAppPackageImport, isWorkspacePackageImport } from './app-package-declarations.ts';
+
+test('isWorkspacePackageImport detects workspace protocol dependencies', () => {
+	const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-workspace-'));
+	onTestFinished(() => rmSync(rootDir, { recursive: true, force: true }));
+	writeFileSync(
+		path.join(rootDir, 'package.json'),
+		JSON.stringify({
+			dependencies: {
+				'@ecopages/core': 'workspace:*',
+			},
+		}),
+		'utf-8',
+	);
+
+	assert.equal(isWorkspacePackageImport('@ecopages/core', rootDir), true);
+	assert.equal(isWorkspacePackageImport('@ecopages/core/build', rootDir), true);
+	assert.equal(isWorkspacePackageImport('react', rootDir), false);
+});
+
+test('isDeclaredAppPackageImport detects app-declared dependencies', () => {
+	const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-declared-'));
+	onTestFinished(() => rmSync(rootDir, { recursive: true, force: true }));
+	writeFileSync(
+		path.join(rootDir, 'package.json'),
+		JSON.stringify({
+			dependencies: {
+				react: '^18.0.0',
+				'@acme/ui': '^1.0.0',
+			},
+		}),
+		'utf-8',
+	);
+
+	assert.equal(isDeclaredAppPackageImport('react', rootDir), true);
+	assert.equal(isDeclaredAppPackageImport('react/jsx-runtime', rootDir), true);
+	assert.equal(isDeclaredAppPackageImport('@acme/ui/button', rootDir), true);
+	assert.equal(isDeclaredAppPackageImport('left-pad', rootDir), false);
+});

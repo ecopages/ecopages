@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { fileSystem } from '@ecopages/file-system';
 import { hasKnownStaticExtension } from './static-file-extensions.ts';
 
 const ContentTypeMap = new Map<string, string>([
@@ -59,9 +61,24 @@ export const getContentType = (file: string): string => {
 export { hasKnownStaticExtension } from './static-file-extensions.ts';
 
 /**
+ * Returns the file a static server sends for `basePath`: the file itself, else `<basePath>.html`,
+ * else `<basePath>/index.html`.
+ *
+ * @remarks
+ * A dot in the path does not make it a file request, so `/v1.2` still finds the exported
+ * `v1.2.html` or `v1.2/index.html`.
+ */
+export function resolveStaticFilePath(basePath: string): string | undefined {
+	return [basePath, `${basePath}.html`, path.join(basePath, 'index.html')].find(
+		(candidate) => fileSystem.exists(candidate) && !fileSystem.isDirectory(candidate),
+	);
+}
+
+/**
  * A module for server utilities.
  */
 export const ServerUtils = {
 	getContentType,
 	hasKnownStaticExtension,
+	resolveStaticFilePath,
 };

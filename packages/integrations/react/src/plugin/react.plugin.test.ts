@@ -1,18 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import type { EcoPagesAppConfig } from '@ecopages/core';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import type { IntegrationRuntimeContext } from '@ecopages/core/integration';
 import { ReactPlugin, reactPlugin } from './react.plugin.ts';
 
-async function getMdxLoaderFilter(plugin: ReactPlugin): Promise<RegExp | undefined> {
-	plugin.setConfig({ rootDir: '/tmp/project' } as EcoPagesAppConfig);
-	await plugin.prepareBuildContributions();
+async function createConfig(rootDir: string): Promise<IntegrationRuntimeContext['appConfig']> {
+	return await finalizeEcoPagesConfig({ rootDir });
+}
 
+async function getMdxLoaderFilter(
+	plugin: ReactPlugin,
+	appConfig: IntegrationRuntimeContext['appConfig'],
+): Promise<RegExp | undefined> {
 	let filter: RegExp | undefined;
-	await plugin.plugins[0]?.setup({
+	await plugin.plugins(appConfig)[0]?.setup({
 		onResolve() {},
 		onLoad(options) {
 			filter = options.filter;
 		},
 		module() {},
+		transform() {},
 	});
 	return filter;
 }
@@ -22,13 +28,13 @@ describe('ReactPlugin', () => {
 		const plugin = reactPlugin();
 
 		expect(plugin.extensions).toEqual(['.tsx']);
+		expect(plugin.bundlesPageDependencies).toBe(true);
 	});
 
 	it('supports direct construction with MDX public options', () => {
 		const plugin = new ReactPlugin({
 			extensions: ['.react.tsx'],
 			mdx: {
-				enabled: true,
 				extensions: ['.docs.mdx'],
 			},
 		});
@@ -37,16 +43,27 @@ describe('ReactPlugin', () => {
 		expect((plugin as any).mdxExtensions).toEqual(['.docs.mdx']);
 	});
 
+	it('gives each app runtime its own MDX loader at the same root', async () => {
+		const plugin = new ReactPlugin({ mdx: {} });
+		const firstConfig = await createConfig('/tmp/shared-project');
+		const secondConfig = await createConfig('/tmp/shared-project');
+
+		const first = plugin.plugins(firstConfig)[0];
+		const second = plugin.plugins(secondConfig)[0];
+
+		expect(first).not.toBe(second);
+		expect(plugin.plugins(firstConfig)[0]).not.toBe(first);
+	});
+
 	it('derives the MDX loader filter from declared MDX extensions only', async () => {
 		const plugin = new ReactPlugin({
 			extensions: ['.react.tsx'],
 			mdx: {
-				enabled: true,
 				extensions: ['.react.mdx'],
 			},
 		});
 
-		const filter = await getMdxLoaderFilter(plugin);
+		const filter = await getMdxLoaderFilter(plugin, await createConfig('/tmp/project'));
 
 		expect(filter?.test('/tmp/project/src/pages/docs.react.mdx')).toBe(true);
 		expect(filter?.test('/tmp/project/src/pages/docs.mdx')).toBe(false);
@@ -56,7 +73,6 @@ describe('ReactPlugin', () => {
 		const plugin = new ReactPlugin({
 			extensions: ['.react.tsx'],
 			mdx: {
-				enabled: true,
 				extensions: ['.react.mdx'],
 				compilerOptions: {
 					mdxExtensions: ['.mdx'],
@@ -64,7 +80,7 @@ describe('ReactPlugin', () => {
 			},
 		});
 
-		const filter = await getMdxLoaderFilter(plugin);
+		const filter = await getMdxLoaderFilter(plugin, await createConfig('/tmp/project'));
 
 		expect(filter?.test('/tmp/project/src/pages/docs.react.mdx')).toBe(true);
 		expect(filter?.test('/tmp/project/src/pages/docs.mdx')).toBe(false);

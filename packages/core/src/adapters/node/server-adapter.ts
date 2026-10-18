@@ -1,86 +1,76 @@
-import { type Server as NodeHttpServer, type IncomingMessage } from 'node:http';
+import { type Server as NodeHttpServer } from 'node:http';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { setupAppRuntimePlugins } from '../../build/build-adapter.ts';
-import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
+import { setupAppRuntimeIntegrations, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
+import { installBuildQueue } from '../../build/runtime/build-queue.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import { entryWatcherOwnsConfig } from '../../dev/development-restart.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { NodeClientBridge } from './node-client-bridge.ts';
-import { NodeHmrManager } from './node-hmr-manager.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type {
 	ApiHandler,
 	ErrorHandler,
 	StaticRoute,
 	ErrorPageLoaders,
 	EcopagesWebSocketHandler,
-} from '../../types/public-types.ts';
-import { ProjectWatcher } from '../../watchers/project-watcher.ts';
-import {
-	attachNodeHttpWebSocketUpgrades,
-	type WebSocketUpgradeOptions,
-} from '../shared/ws/node-http-websocket-upgrades.ts';
+} from '../../types/contracts.ts';
+import { attachNodeHttpWebSocketUpgrades } from '../shared/ws/node-http-websocket-upgrades.ts';
 
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
-import { SharedServerAdapter } from '../shared/runtime/server-adapter.ts';
-import type { ServerAdapterResult } from '../abstract/server-adapter.ts';
+import { ServerRequestPipeline, type ServerRequestContext } from '../shared/runtime/server-request-pipeline.ts';
 import { ServerStaticBuilder } from '../shared/runtime/server-static-builder.ts';
-import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../config/constants.ts';
-import {
-	attachHmrToIntegrations,
-	disposeDevResources,
-	prepareRuntimePublicDir,
-	startDevWarmup,
-} from '../shared/runtime/runtime-server-lifecycle.ts';
+import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
+import { disposeDevResources, prepareRuntimePublicDir } from '../shared/runtime/runtime-server-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
+import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
+import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
 import { isNodeClientAbortError } from './http-request-bridge.ts';
-import { NodeStaticPreviewHost } from './static-preview-host.ts';
-import type { StaticPreviewHost } from '../shared/runtime/static-preview-host.ts';
-import { createNodeServerDevRuntime } from './server-adapter-dependencies.ts';
+import type { NodeRuntimeServeOptions } from './runtime-host.ts';
+import { serveDistFile } from '../shared/http/dist-file-handler.ts';
+import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
+import { DevSession } from './dev-session.ts';
+import { prebuildProductionPageBrowserGraphsFromManifest } from '../../static-site-generator/production-page-browser-graph-prebuild.ts';
 
 export type NodeServerInstance = NodeHttpServer;
 export type NodeServeAdapterServerOptions = {
 	port?: number;
 	hostname?: string;
-	[key: string]: unknown;
 };
 
 export interface NodeServerAdapterParams {
 	appConfig: EcoPagesAppConfig;
-	runtimeOrigin: string;
+	runtime: AppRuntime;
 	serveOptions: NodeServeAdapterServerOptions;
 	apiHandlers?: ApiHandler[];
 	staticRoutes?: StaticRoute[];
 	errorPageLoaders?: ErrorPageLoaders;
 	errorHandler?: ErrorHandler;
-	websocketHandlers?: Map<string, EcopagesWebSocketHandler<any, any>>;
-	hostOwnsDevClient?: boolean;
+	websocketHandlers?: Map<string, EcopagesWebSocketHandler<unknown, Record<string, string>>>;
 	options?: {
 		watch?: boolean;
 	};
-	deferRuntimeAssetSetup?: boolean;
+	/**
+	 * When Processors and Integrations set up.
+	 *
+	 * @remarks
+	 * `start` sets Processors up before routes are read and activates Integrations before a network server handles
+	 * requests. Request-only `app.fetch()` activates only the Integrations used by that request. `export` empties
+	 * `dist/` first and prepares the export runtime; `none` leaves runtime assets alone for a preview that serves an
+	 * earlier export.
+	 */
+	runtimeAssetSetup?: 'start' | 'export' | 'none';
 	allowPortFallback?: boolean;
 	onDevelopmentRestart?: (changedFile: string) => Promise<void>;
-	previewHost?: StaticPreviewHost;
 }
 
-export interface NodeServerAdapterResult extends ServerAdapterResult {
-	completeInitialization: (server: NodeServerInstance, options?: WebSocketUpgradeOptions) => Promise<void>;
-	handleRequest: (request: Request) => Promise<Response>;
-	attachUserWebSocketUpgrades: (server: NodeServerInstance, options?: WebSocketUpgradeOptions) => void;
-	dispose: () => Promise<void>;
-}
+type ServerAdapterPhase = 'idle' | 'starting' | 'ready' | 'stopping' | 'stopped';
 
 /**
  * Node.js HTTP server adapter for the Ecopages runtime.
  *
- * `NodeServerAdapter` bridges the Node.js `http` module and the Ecopages
- * `SharedServerAdapter` abstraction, translating between Node's
- * `IncomingMessage`/`ServerResponse` API and the platform-agnostic Web
- * `Request`/`Response` model.
+ * It owns Node's HTTP listener, WebSocket upgrades, and development resources.
+ * Request routing and rendering run through one composed `ServerRequestPipeline`.
  *
  * Lifecycle:
- * 1. `createAdapter()` — calls `initialize()` and returns the public adapter result.
+ * 1. `initialize()` — prepares runtime assets and route handling.
  * 2. `completeInitialization(server)` — called once the HTTP server is listening.
  *    Conditionally wires HMR, WebSocket upgrades, and the file watcher when
  *    `options.watch` is `true`.
@@ -89,74 +79,74 @@ export interface NodeServerAdapterResult extends ServerAdapterResult {
  *    other escaped error through the shared `app.onError` boundary.
  * 4. `buildStatic()` — generates static pages in-process through the shared
  *    static builder (no runtime server), then optionally starts the preview server.
- *
- * @see SharedServerAdapter for routing, caching and response handler logic.
  */
-export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterParams, NodeServerAdapterResult> {
-	private serverInstance: NodeServerInstance | null = null;
-	private initialized = false;
+
+export class NodeServerAdapter {
+	private readonly appConfig: EcoPagesAppConfig;
+	private readonly runtime: AppRuntime;
+	private readonly options: { watch?: boolean };
+	private serveOptions: NodeServeAdapterServerOptions;
+	private readonly requestPipeline: ServerRequestPipeline;
+	private serverInstance: NodeServerInstance | undefined;
+	private phase: ServerAdapterPhase = 'idle';
+	private ready: Promise<void> | undefined;
 	private apiHandlers: ApiHandler[];
 	private staticRoutes: StaticRoute[];
 	private errorPageLoaders: ErrorPageLoaders;
 	private errorHandler?: ErrorHandler;
-	private bridge: NodeClientBridge | null = null;
-	private hmrManager: NodeHmrManager | null = null;
-	private projectWatcher: ProjectWatcher | null = null;
-	private adapterDisposed = false;
-	private readonly deferRuntimeAssetSetup: boolean;
+	private staticSiteGenerator!: StaticSiteGenerator;
+	private staticBuilder!: ServerStaticBuilder;
+	private devSession: DevSession | undefined;
+	private readonly runtimeAssetSetup: 'start' | 'export' | 'none';
 	private readonly allowPortFallback: boolean;
 	private readonly onDevelopmentRestart?: (changedFile: string) => Promise<void>;
-	private readonly previewHost: StaticPreviewHost;
+	private readonly runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions>;
+	private previewServer: NodeHttpServer | undefined;
+	private previewLifecycleTail: Promise<void> = Promise.resolve();
+	private disposal: Promise<void> | undefined;
+	/** Network requests wait until startup Integration setup and watch initialization are complete. */
+	private requestReadiness: Promise<void>;
+	private resolveRequestReadiness: () => void = () => {};
+	private rejectRequestReadiness: (error: unknown) => void = () => {};
 	/**
 	 * Reference to the application-level WebSocket handlers map.
 	 *
 	 * @remarks
-	 * This is a reference to the map owned by `AbstractApplicationAdapter`,
+	 * This is a reference to the map owned by `EcopagesApp`,
 	 * passed in via the constructor. The Node adapter reads from it to wire
 	 * WebSocket upgrades for user-registered patterns.
 	 */
-	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<any, any>> = new Map();
+	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<unknown, Record<string, string>>> = new Map();
 
-	/**
-	 * Wires user WebSocket routes onto a foreign Node HTTP server.
-	 *
-	 * Host integrations such as the Vite plugin call this so `app.websocket()`
-	 * handlers work while HTTP is still served by the host dev server.
-	 */
-	public attachUserWebSocketUpgrades(server: NodeServerInstance, options?: WebSocketUpgradeOptions): void {
-		attachNodeHttpWebSocketUpgrades(server, {
-			runtimeOrigin: this.runtimeOrigin,
-			websocketHandlers: this.websocketHandlers,
-			passthroughUnmatched: options?.passthroughUnmatched,
-		});
-	}
-
-	/**
-	 * @remarks
-	 * `previewHost` is optional on the public {@link NodeServerAdapterParams} so
-	 * factory callers can omit it, but it is mandatory by the time the concrete
-	 * adapter is constructed — {@link createNodeServerAdapter} fills in the Node
-	 * default first. The constructor signature makes that invariant explicit
-	 * instead of relying on non-null assertions.
-	 */
 	constructor(
-		options: NodeServerAdapterParams & {
-			previewHost: StaticPreviewHost;
-		},
+		options: NodeServerAdapterParams & { runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> },
 	) {
-		super(options);
-		this.deferRuntimeAssetSetup = options.deferRuntimeAssetSetup === true;
+		this.appConfig = options.appConfig;
+		this.runtime = options.runtime;
+		this.options = options.options ?? {};
+		this.requestReadiness = new Promise<void>((resolve, reject) => {
+			this.resolveRequestReadiness = resolve;
+			this.rejectRequestReadiness = reject;
+		});
+		void this.requestReadiness.catch(() => {});
+		this.serveOptions = options.serveOptions ?? {};
+		this.requestPipeline = new ServerRequestPipeline({
+			appConfig: this.appConfig,
+			runtime: this.runtime,
+			watch: this.options.watch,
+			isClientAbortError: isNodeClientAbortError,
+		});
+		this.runtimeAssetSetup = options.runtimeAssetSetup ?? 'start';
 		this.allowPortFallback = options.allowPortFallback !== false;
 		this.onDevelopmentRestart = options.onDevelopmentRestart;
 		this.apiHandlers = options.apiHandlers || [];
 		this.staticRoutes = options.staticRoutes || [];
 		this.errorPageLoaders = options.errorPageLoaders ?? {};
 		this.errorHandler = options.errorHandler;
-		this.previewHost = options.previewHost;
+		this.runtimeHost = options.runtimeHost;
 		if (options.websocketHandlers) {
 			this.websocketHandlers = options.websocketHandlers;
 		}
-		this.hostOwnsDevClient = options.hostOwnsDevClient === true;
 	}
 
 	/**
@@ -167,36 +157,60 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 *    reference loader-provided file types in their own plugins.
 	 * 2. **Public dir** is copied before any build so static assets are in `distDir`
 	 *    before the first request arrives.
-	 * 3. **Plugins** (processors, then integrations) are set up after the public dir
-	 *    is in place so they can safely reference dist-relative paths.
+	 * 3. **Processors** are set up after the public dir is in place so they can
+	 *    safely reference dist-relative paths. An export (`build`, `preview`)
+	 *    empties `dist/` first. Integrations activate at the runtime boundary that
+	 *    uses them.
 	 * 4. **Router** is initialised last because it may depend on files written by
-	 *    processors during their `setup()` calls.
+	 *    processors during their `setup()` calls, and in build mode it imports Pages.
 	 */
-	public async initialize(): Promise<void> {
-		installBuildRuntime(this.appConfig);
+	public initialize(): Promise<void> {
+		if (this.phase === 'stopping' || this.phase === 'stopped') {
+			return Promise.reject(new Error(`Cannot initialize a server adapter while it is ${this.phase}.`));
+		}
+		if (this.ready) return this.ready;
+		if (this.phase !== 'idle') {
+			return Promise.reject(new Error(`Cannot initialize a server adapter while it is ${this.phase}.`));
+		}
 
-		prepareRuntimePublicDir(this.appConfig);
-		if (!this.deferRuntimeAssetSetup) {
+		this.phase = 'starting';
+		this.ready = this.initializeResources()
+			.then(() => {
+				if (this.phase === 'starting') this.phase = 'ready';
+			})
+			.catch((error: unknown) => {
+				this.ready = undefined;
+				if (this.phase === 'starting') this.phase = 'idle';
+				throw error;
+			});
+		return this.ready;
+	}
+
+	private async initializeResources(): Promise<void> {
+		installBuildQueue(this.appConfig);
+
+		if (this.runtimeAssetSetup !== 'export') {
+			prepareRuntimePublicDir(this.appConfig);
+		}
+		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
+		this.staticBuilder = new ServerStaticBuilder({
+			appConfig: this.appConfig,
+			runtime: this.runtime,
+			staticSiteGenerator: this.staticSiteGenerator,
+			serveOptions: this.serveOptions,
+			needsServerBundle: this.apiHandlers.length > 0 || this.websocketHandlers.size > 0,
+		});
+		if (this.runtimeAssetSetup === 'export') {
+			await this.staticBuilder.prepareExport();
+		} else if (this.runtimeAssetSetup === 'start') {
 			await setupAppRuntimePlugins({
 				appConfig: this.appConfig,
-				runtimeOrigin: this.runtimeOrigin,
 			});
 		}
 		await this.initializeSharedRouteHandling({
 			staticRoutes: this.staticRoutes,
 			errorPageLoaders: this.errorPageLoaders,
-			hmrManager: this.hmrManager ?? undefined,
 		});
-		this.staticSiteGenerator = new StaticSiteGenerator({ appConfig: this.appConfig });
-		this.staticBuilder = new ServerStaticBuilder({
-			appConfig: this.appConfig,
-			staticSiteGenerator: this.staticSiteGenerator,
-			serveOptions: this.serveOptions,
-			runtimeOrigin: this.runtimeOrigin,
-			needsServerBundle: this.apiHandlers.length > 0 || this.websocketHandlers.size > 0,
-			hmrManager: this.hmrManager ?? undefined,
-		});
-		this.initialized = true;
 	}
 
 	public getServerOptions(): NodeServeAdapterServerOptions {
@@ -205,17 +219,30 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		};
 	}
 
-	public async buildStatic(options?: { preview?: boolean; force?: boolean }): Promise<string | undefined> {
-		if (!this.initialized) {
-			await this.initialize();
-		}
+	public applyBoundPort(input: { port: number; runtimeOrigin: string }): void {
+		this.runtime.origin = input.runtimeOrigin;
+		this.serveOptions = { ...this.serveOptions, port: input.port };
+		this.staticBuilder?.setRuntimeBinding(input);
+	}
+
+	public async listStaticGenerationRoutes(input: { runtimeOrigin: string }) {
+		return await this.requestPipeline.listStaticGenerationRoutes(input);
+	}
+
+	public async buildStatic(options?: {
+		preview?: boolean;
+		force?: boolean;
+		keepGoing?: boolean;
+	}): Promise<string | undefined> {
+		await this.initialize();
 
 		const baseUrl = resolveServeRuntimeOrigin(this.serveOptions);
+		const { router, routeRendererFactory } = this.requestPipeline.getStaticBuildContext();
 		await this.staticBuilder.build(
-			{ baseUrl, force: options?.force },
+			{ baseUrl, force: options?.force, keepGoing: options?.keepGoing },
 			{
-				router: this.router,
-				routeRendererFactory: this.routeRendererFactory,
+				router,
+				routeRendererFactory,
 				staticRoutes: this.staticRoutes,
 				errorPageLoaders: this.errorPageLoaders,
 			},
@@ -233,9 +260,7 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 * launchers after a shared prewarm build.
 	 */
 	public async servePreviewOnly(): Promise<string | undefined> {
-		if (!this.initialized) {
-			await this.initialize();
-		}
+		await this.initialize();
 
 		const distPath = path.join(this.appConfig.rootDir, this.appConfig.distDir);
 		if (!fileSystem.exists(distPath)) {
@@ -247,98 +272,184 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 		return this.startPreviewServer();
 	}
 
-	private async startPreviewServer(): Promise<string | undefined> {
-		const activePreviewPort = await this.previewHost.start({
-			appConfig: this.appConfig,
-			hostname: String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME),
-			port: Number(this.serveOptions.port || DEFAULT_ECOPAGES_PORT),
-			allowPortFallback: this.allowPortFallback,
+	private startPreviewServer(): Promise<string | undefined> {
+		return this.runPreviewLifecycle(async () => {
+			this.ensurePreviewCanStart();
+			await this.stopPreviewServerNow();
+			this.ensurePreviewCanStart();
+
+			const binding = await bindRuntimeServer(this.runtimeHost, {
+				startOptions: {
+					serveOptions: {
+						hostname: String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME),
+						port: Number(this.serveOptions.port ?? DEFAULT_ECOPAGES_PORT),
+						handleRequest: (request) =>
+							serveDistFile(request, {
+								distDir: this.appConfig.absolutePaths.distDir,
+								watchMode: false,
+								resolveExportedPages: true,
+							}),
+					},
+				},
+				allowPortFallback: this.allowPortFallback,
+				usePortManager: true,
+			});
+			this.previewServer = binding.server;
+			if (this.phase === 'stopping' || this.phase === 'stopped') {
+				await this.stopPreviewServerNow();
+				this.ensurePreviewCanStart();
+			}
+
+			return binding.runtimeOrigin;
 		});
-
-		if (!activePreviewPort) {
-			return undefined;
-		}
-
-		const previewHostname = this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME;
-		return `http://${previewHostname}:${activePreviewPort}`;
-	}
-
-	public async createAdapter(): Promise<NodeServerAdapterResult> {
-		await this.initialize();
-
-		return {
-			getServerOptions: this.getServerOptions.bind(this),
-			buildStatic: this.buildStatic.bind(this),
-			servePreviewOnly: this.servePreviewOnly.bind(this),
-			completeInitialization: this.completeInitialization.bind(this),
-			handleRequest: this.handleRequest.bind(this),
-			attachUserWebSocketUpgrades: this.attachUserWebSocketUpgrades.bind(this),
-			applyBoundPort: this.applyBoundPort.bind(this),
-			listStaticGenerationRoutes: (input) => this.router.listStaticGenerationRoutes(input),
-			dispose: this.dispose.bind(this),
-		};
 	}
 
 	/**
-	 * Releases dev-time resources owned by the adapter.
-	 *
-	 * @remarks
-	 * Safe to call multiple times. Does not stop the bound HTTP server — callers
-	 * should shut down transport through the runtime host before disposing.
+	 * @remarks Preview changes run in order so overlapping starts cannot orphan listeners, and disposal can prevent a queued or in-flight start.
 	 */
-	public async dispose(): Promise<void> {
-		if (this.adapterDisposed) {
-			return;
+	private runPreviewLifecycle<T>(operation: () => Promise<T>): Promise<T> {
+		const result = this.previewLifecycleTail.then(operation, operation);
+		this.previewLifecycleTail = result.then(
+			() => undefined,
+			() => undefined,
+		);
+		return result;
+	}
+
+	private stopPreviewServer(): Promise<void> {
+		return this.runPreviewLifecycle(() => this.stopPreviewServerNow());
+	}
+
+	private async stopPreviewServerNow(): Promise<void> {
+		const activeServer = this.previewServer;
+		if (!activeServer) return;
+
+		await this.runtimeHost.stop(activeServer);
+		if (this.previewServer === activeServer) this.previewServer = undefined;
+	}
+
+	private ensurePreviewCanStart(): void {
+		if (this.phase === 'stopping' || this.phase === 'stopped') {
+			throw new Error('Cannot start a preview after adapter disposal has begun.');
 		}
+	}
 
-		this.adapterDisposed = true;
+	public dispose(): Promise<void> {
+		if (this.disposal) return this.disposal;
+		if (this.phase === 'stopped') return Promise.resolve();
 
-		await disposeDevResources({
-			projectWatcher: this.projectWatcher,
-			appConfig: this.appConfig,
-			hmrManager: this.hmrManager,
-			bridge: this.bridge,
-			previewHost: this.previewHost,
-		});
+		this.phase = 'stopping';
+		const ready = this.ready;
+		this.disposal = Promise.resolve()
+			.then(async () => {
+				await ready?.catch(() => {});
+				await this.disposeResources();
+			})
+			.finally(() => {
+				this.phase = 'stopped';
+			});
+		return this.disposal;
+	}
 
-		this.projectWatcher = null;
-		this.hmrManager = null;
-		this.bridge = null;
+	private async disposeResources(): Promise<void> {
+		this.rejectRequestReadiness(new Error('Server adapter was disposed before request handling became ready.'));
+		await this.disposeRuntimeResources();
+	}
+
+	private async disposeRuntimeResources(): Promise<void> {
+		const session = this.devSession;
+		this.devSession = undefined;
+		const errors: unknown[] = [];
+		try {
+			if (session) {
+				await session.dispose();
+			} else {
+				await disposeDevResources({
+					projectWatcher: undefined,
+					appConfig: this.appConfig,
+					bridge: undefined,
+					stopPreviewServer: async () => {},
+				});
+			}
+		} catch (error) {
+			errors.push(error);
+		}
+		try {
+			await this.stopPreviewServer();
+		} catch (error) {
+			errors.push(error);
+		}
+		this.serverInstance = undefined;
+		if (errors.length === 1) throw errors[0];
+		if (errors.length > 1) throw new AggregateError(errors, 'Failed to release server adapter resources');
+	}
+
+	protected configureSharedResponseHandlers(options: {
+		staticRoutes: StaticRoute[];
+		errorPageLoaders?: ErrorPageLoaders;
+	}): void {
+		this.requestPipeline.configureResponseHandlers(options);
+	}
+
+	protected initializeSharedRouteHandling(options: {
+		staticRoutes: StaticRoute[];
+		errorPageLoaders?: ErrorPageLoaders;
+	}): Promise<void> {
+		return this.requestPipeline.initializeRouteHandling(options);
+	}
+
+	protected createSharedWatchRefreshCallback(options: {
+		staticRoutes: StaticRoute[];
+		errorPageLoaders?: ErrorPageLoaders;
+		onRoutesReady?: () => Promise<void> | void;
+		onError?: (error: Error) => Promise<void> | void;
+	}): () => Promise<void> {
+		return this.requestPipeline.createWatchRefreshCallback(options);
+	}
+
+	public async handleSharedRequest(request: Request, context: ServerRequestContext): Promise<Response> {
+		return await this.requestPipeline.handleSharedRequest(request, context);
 	}
 
 	/**
-	 * Handles a single incoming Web `Request` and returns a Web `Response`.
+	 * Handles a Web `Request` directly through the shared pipeline and returns a Web `Response`.
 	 *
 	 * Delegates to `handleSharedRequest` for all routing, caching, and response
 	 * handler logic. Escaped errors go through the shared `app.onError`
-	 * boundary, which answers client aborts (see {@link isClientAbortError}) with 499.
+	 * boundary, which answers client aborts (see {@link isClientAbortError}) with 499. This path supports
+	 * request-only `app.fetch()` use without a bound listener.
 	 */
 	public async handleRequest(request: Request): Promise<Response> {
-		if (!this.initialized) {
-			throw new Error('Node server adapter is not initialized. Call createAdapter() first.');
-		}
+		return await this.handleRequestInternal(request, false);
+	}
+
+	/**
+	 * Handles an HTTP request after watch-mode startup has completed.
+	 *
+	 * @remarks
+	 * The Node transport uses this entry point so the first network request waits for Integration warmup.
+	 */
+	public async handleServerRequest(request: Request): Promise<Response> {
+		return await this.handleRequestInternal(request, true);
+	}
+
+	private async handleRequestInternal(request: Request, waitForReadiness: boolean): Promise<Response> {
+		await this.initialize();
 
 		const context = {
 			apiHandlers: this.apiHandlers,
 			errorHandler: this.errorHandler,
 			serverInstance: this.serverInstance,
-			hmrManager: this.hmrManager ?? undefined,
 		};
 
 		try {
+			if (waitForReadiness) {
+				await this.requestReadiness;
+			}
 			return await this.handleSharedRequest(request, context);
 		} catch (error) {
-			return await this.handleUnexpectedRequestError(error, request, context);
+			return await this.requestPipeline.handleUnexpectedRequestError(error, request, context);
 		}
-	}
-
-	/**
-	 * @remarks
-	 * The request body stream raises `NodeClientAbortError` when the socket closes
-	 * early (closed tab, network drop, programmatic abort).
-	 */
-	protected override isClientAbortError(error: unknown): boolean {
-		return isNodeClientAbortError(error);
 	}
 
 	/**
@@ -349,111 +460,71 @@ export class NodeServerAdapter extends SharedServerAdapter<NodeServerAdapterPara
 	 *   `upgrade` event (no separate port needed).
 	 * - `NodeClientBridge` tracks active WebSocket connections and handles
 	 *   broadcast + heartbeat cleanup.
-	 * - `NodeHmrManager` watches the filesystem and triggers incremental
+	 * - The watch-only `DevSession` owns HMR, watches the filesystem and triggers incremental
 	 *   rebuilds, notifying connected clients via the bridge.
 	 * - Shared watcher bootstrapping listens for route-level file changes and
 	 *   refreshes the router and response handlers when pages are added or removed.
 	 *
 	 * WebSocket upgrade requests that do not match a known path are rejected with an
-	 * immediate socket destroy to prevent unhandled upgrade leaks, unless
-	 * `passthroughUnmatched` is set because a host (for example Vite) shares the
-	 * server and owns other upgrade paths.
+	 * immediate socket destroy to prevent unhandled upgrade leaks.
 	 */
-	public async completeInitialization(server: NodeServerInstance, options?: WebSocketUpgradeOptions): Promise<void> {
+	public async completeInitialization(server: NodeServerInstance): Promise<void> {
 		this.serverInstance = server;
 
-		const passthroughUnmatched = options?.passthroughUnmatched;
-
-		if (this.options?.watch) {
-			const devRuntime = createNodeServerDevRuntime(this.appConfig);
-			const wss = devRuntime.websocketServer;
-			this.bridge = devRuntime.bridge;
-			this.hmrManager = devRuntime.hmrManager;
-			this.hmrManager.setEnabled(true);
-
-			await this.hmrManager.ensureRuntimeReady();
-
-			const hmrPreflight = (
-				req: IncomingMessage,
-				socket: import('node:stream').Duplex,
-				head: Buffer,
-			): boolean => {
-				const url = new URL(req.url ?? '/', this.runtimeOrigin);
-				if (url.pathname !== '/_hmr') return false;
-				wss.handleUpgrade(req, socket, head, (ws) => {
-					this.bridge!.subscribe(ws);
-					ws.on('close', () => this.bridge!.unsubscribe(ws));
-					ws.on('error', (err) => appLogger.error('[HMR] WebSocket error:', err));
+		try {
+			if (this.options?.watch) {
+				this.devSession = new DevSession({
+					appConfig: this.appConfig,
+					runtime: this.runtime,
+					server,
+					requestPipeline: this.requestPipeline,
+					websocketHandlers: this.websocketHandlers,
+					onDevelopmentRestart: this.onDevelopmentRestart,
+					configureResponseHandlers: () =>
+						this.configureSharedResponseHandlers({
+							staticRoutes: this.staticRoutes,
+							errorPageLoaders: this.errorPageLoaders,
+						}),
+					createWatchRefreshCallback: () =>
+						this.createSharedWatchRefreshCallback({
+							staticRoutes: this.staticRoutes,
+							errorPageLoaders: this.errorPageLoaders,
+						}),
 				});
-				return true;
-			};
-
-			attachNodeHttpWebSocketUpgrades(server, {
-				runtimeOrigin: this.runtimeOrigin,
-				websocketHandlers: this.websocketHandlers,
-				passthroughUnmatched,
-				preflight: hmrPreflight,
-			});
-
-			attachHmrToIntegrations(this.appConfig, this.hmrManager);
-			startDevWarmup({
-				appConfig: this.appConfig,
-				runtimeOrigin: this.runtimeOrigin,
-			});
-
-			this.configureSharedResponseHandlers({
-				staticRoutes: this.staticRoutes,
-				hmrManager: this.hmrManager,
-				errorPageLoaders: this.errorPageLoaders,
-			});
-
-			await this.startDevStaticRoutePrewarmWhenReady();
-
-			const watcher = new ProjectWatcher({
-				config: this.appConfig,
-				refreshRouterRoutesCallback: this.createSharedWatchRefreshCallback({
-					staticRoutes: this.staticRoutes,
-					errorPageLoaders: this.errorPageLoaders,
-					hmrManager: this.hmrManager ?? undefined,
-				}),
-				hmrManager: this.hmrManager ?? undefined,
-				bridge: this.bridge,
-				hostOwnsDevClient: this.hostOwnsDevClient,
-				onRestartRequest: this.onDevelopmentRestart,
-				entryWatcherOwnsConfig: entryWatcherOwnsConfig(),
-			});
-
-			this.projectWatcher = watcher;
-			await watcher.createWatcherSubscription();
-		} else {
-			this.attachUserWebSocketUpgrades(server, { passthroughUnmatched });
+				await this.devSession.start();
+			} else {
+				if (this.runtimeAssetSetup === 'start') {
+					await setupAppRuntimeIntegrations({ appConfig: this.appConfig });
+					const { routeRendererFactory } = this.requestPipeline.getStaticBuildContext();
+					await prebuildProductionPageBrowserGraphsFromManifest(this.appConfig, routeRendererFactory);
+				}
+				attachNodeHttpWebSocketUpgrades(server, {
+					runtimeOrigin: this.runtime.origin,
+					websocketHandlers: this.websocketHandlers,
+				});
+			}
+			this.resolveRequestReadiness();
+		} catch (error) {
+			this.rejectRequestReadiness(error);
+			throw error;
 		}
 
 		appLogger.debug('Node server adapter initialization completed', {
 			apiHandlers: this.apiHandlers.length,
 			staticRoutes: this.staticRoutes.length,
 			hasErrorHandler: !!this.errorHandler,
-			hmrEnabled: !!this.hmrManager?.isEnabled(),
+			hmrEnabled: this.devSession !== undefined && this.runtime.hmr?.isEnabled() === true,
 		});
 	}
 }
 
-/**
- * Factory function that creates and fully initialises a `NodeServerAdapter`.
- *
- * `runtimeOrigin` is derived from `serveOptions` when not explicitly provided,
- * so callers only need to set it when the server is behind a reverse proxy that
- * changes the effective host or port.
- */
-export async function createNodeServerAdapter(params: NodeServerAdapterParams): Promise<NodeServerAdapterResult> {
-	const runtimeOrigin = params.runtimeOrigin ?? resolveServeRuntimeOrigin(params.serveOptions);
-	const previewHost = params.previewHost ?? new NodeStaticPreviewHost();
-
-	const adapter = new NodeServerAdapter({
+/** Creates the concrete Node server owned by `EcopagesApp`. */
+export function createNodeServerAdapter(
+	params: NodeServerAdapterParams,
+	runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions>,
+): NodeServerAdapter {
+	return new NodeServerAdapter({
 		...params,
-		runtimeOrigin,
-		previewHost,
+		runtimeHost,
 	});
-
-	return adapter.createAdapter();
 }

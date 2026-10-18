@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoComponent } from '../../../types/public-types.ts';
+import type { EcoComponent } from '../../../types/contracts.ts';
 import { eco } from '../../../eco/eco.ts';
 import {
 	composeDocumentShell,
@@ -29,7 +29,6 @@ describe('document-shell-render.service', () => {
 					html: input.children ? `<${id}>${String(input.children)}</${id}>` : `<${id} />`,
 					assets: [],
 					canAttachAttributes: true,
-					rootTag: id,
 					integrationName: 'test',
 				};
 			},
@@ -54,6 +53,7 @@ describe('document-shell-render.service', () => {
 				appendProcessedDependencies: () => [],
 			},
 			{
+				inheritedOwner: 'kitajs',
 				primaryComponent: Page,
 				primaryProps: { title: 'Hello' },
 				layout: { component: Layout, props: { section: 'docs' } },
@@ -75,7 +75,6 @@ describe('document-shell-render.service', () => {
 					html: `<${id}>${input.children ?? ''}</${id}>`,
 					assets: [],
 					canAttachAttributes: true,
-					rootTag: 'div',
 					integrationName: 'test',
 				};
 			},
@@ -91,6 +90,7 @@ describe('document-shell-render.service', () => {
 				appendProcessedDependencies: () => [],
 			},
 			{
+				inheritedOwner: 'test',
 				primaryComponent: Page,
 				primaryProps: {},
 				layouts: [{ component: Outer }, { component: Inner }],
@@ -103,9 +103,9 @@ describe('document-shell-render.service', () => {
 	});
 
 	it('should delegate child composition to composeChildren hook', async () => {
-		const composeChildren = vi.fn(async (context: DocumentShellComposeChildrenContext) => {
-			expect(context.layouts).toHaveLength(1);
-			expect(context.primaryComponent).toBeDefined();
+		const Layout = stubComponent('layout');
+		const Page = stubComponent('page');
+		const composeChildren = vi.fn(async (_context: DocumentShellComposeChildrenContext) => {
 			return {
 				children: '<hooked />',
 				layoutRenders: [],
@@ -113,7 +113,6 @@ describe('document-shell-render.service', () => {
 					html: '<hooked />',
 					assets: [],
 					canAttachAttributes: true,
-					rootTag: 'main',
 					integrationName: 'test',
 				},
 			};
@@ -122,7 +121,6 @@ describe('document-shell-render.service', () => {
 			html: '<page />',
 			assets: [],
 			canAttachAttributes: true,
-			rootTag: 'main',
 			integrationName: 'test',
 		}));
 
@@ -132,9 +130,10 @@ describe('document-shell-render.service', () => {
 				appendProcessedDependencies: () => [],
 			},
 			{
-				primaryComponent: stubComponent('page'),
+				inheritedOwner: 'test',
+				primaryComponent: Page,
 				primaryProps: {},
-				layout: { component: stubComponent('layout') },
+				layout: { component: Layout },
 				composeChildren,
 				htmlTemplate: stubComponent('html'),
 				documentProps: {},
@@ -142,6 +141,12 @@ describe('document-shell-render.service', () => {
 		);
 
 		expect(composeChildren).toHaveBeenCalledOnce();
+		expect(composeChildren).toHaveBeenCalledWith(
+			expect.objectContaining({
+				primaryComponent: Page,
+				layouts: [expect.objectContaining({ component: Layout })],
+			}),
+		);
 		expect(renderComponentWithForeignChildren).toHaveBeenCalledOnce();
 		expect(renderComponentWithForeignChildren).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -156,14 +161,12 @@ describe('document-shell-render.service', () => {
 			html: '<page />',
 			assets: [],
 			canAttachAttributes: true,
-			rootTag: 'main',
 			integrationName: 'test',
 		};
 		const layoutRender = {
 			html: '<layout><page /></layout>',
 			assets: [],
 			canAttachAttributes: true,
-			rootTag: 'div',
 			integrationName: 'test',
 		};
 		const renderComponentWithForeignChildren = vi.fn(async () => layoutRender);

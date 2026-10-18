@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-export const Burger = eco.component<{ class?: string }>({
+export const Burger = eco.component<{ class?: string }, JsxRenderable>({
 	dependencies: {
 		stylesheets: ['./burger.css'],
 		scripts: [{ src: './burger.script.ts', ssr: true }],

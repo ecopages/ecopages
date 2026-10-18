@@ -1,86 +1,21 @@
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import type { EcoComponent, ResolvedLazyTrigger } from '../../../types/public-types.ts';
-import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
-import { walkComponentGraph, type ComponentGraphRoot } from './component-graph.ts';
-import { getComponentIdentity } from '../../../eco/component-identity.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
+import path from 'node:path';
+import { getDiscoveredWatchFiles, getInferredStylesheets } from '../../../eco/discovered-dependencies.ts';
+import type { PreparedComponentGraphNode } from './component-graph.ts';
 
-function toGraphRoots(components: (EcoComponent | Partial<EcoComponent>)[]): ComponentGraphRoot[] {
-	return components.filter(Boolean).map((component) => ({ component }));
-}
-
-export function collectIntegrationNamesFromGraph(
-	components: (EcoComponent | Partial<EcoComponent>)[],
-	currentIntegrationName: string,
-): Set<string> {
-	const integrationNames = new Set<string>();
-
-	walkComponentGraph({
-		roots: toGraphRoots(components),
-		currentIntegrationName,
-		onComponent: ({ component }) => {
-			const integrationName = getComponentIdentity(component)?.integration ?? component.config?.integration;
-			if (integrationName) {
-				integrationNames.add(integrationName);
-			}
-		},
-	});
-
-	return integrationNames;
-}
-
-export function collectResolvedLazyTriggersFromGraph(
-	components: (EcoComponent | Partial<EcoComponent>)[],
-	currentIntegrationName: string,
-): ResolvedLazyTrigger[] {
-	const triggers: ResolvedLazyTrigger[] = [];
-
-	walkComponentGraph({
-		roots: toGraphRoots(components),
-		currentIntegrationName,
-		onComponent: ({ component }) => {
-			const ownTriggers = component.config?._resolvedLazyTriggers;
-			if (ownTriggers?.length) {
-				triggers.push(...ownTriggers);
-			}
-		},
-	});
-
-	return triggers;
-}
-
-export function hasForeignChildDescendantsInGraph(
-	component: EcoComponent,
-	currentIntegrationName: string,
-	foreignChildRoots?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>,
-): boolean {
-	let foundForeign = false;
-
-	walkComponentGraph({
-		roots: toGraphRoots([component, ...(foreignChildRoots ?? [])]),
-		currentIntegrationName,
-		onComponent: ({ component: currentComponent }) => {
-			if (foundForeign) {
-				return false;
-			}
-
-			const integrationName =
-				getComponentIdentity(currentComponent)?.integration ?? currentComponent.config?.integration;
-			if (integrationName && integrationName !== currentIntegrationName) {
-				foundForeign = true;
-				return false;
-			}
-		},
-	});
-
-	return foundForeign;
-}
-
-export function collectUsedIntegrationDependenciesFromGraph(
+/**
+ * Resolved runtime dependencies for integrations named on a page client plan.
+ *
+ * @remarks
+ * The plan already lists those names. Callers pass the names instead of walking
+ * the component graph a second time.
+ */
+export function collectUsedIntegrationDependenciesFromNames(
 	appConfig: EcoPagesAppConfig,
-	components: (EcoComponent | Partial<EcoComponent>)[],
+	integrationNames: Iterable<string>,
 	currentIntegrationName: string,
 ): ProcessedAsset[] {
-	const integrationNames = collectIntegrationNamesFromGraph(components, currentIntegrationName);
 	const dependencies: ProcessedAsset[] = [];
 
 	for (const integrationName of integrationNames) {
@@ -97,4 +32,36 @@ export function collectUsedIntegrationDependenciesFromGraph(
 	}
 
 	return dependencies;
+}
+
+/**
+ * Collects file dependencies from prepared nodes without traversing component configs again.
+ */
+export function collectComponentGraphWatchPaths(
+	nodes: ReadonlyArray<PreparedComponentGraphNode>,
+	additionalPaths: ReadonlyArray<string> = [],
+): string[] {
+	const paths = new Set(additionalPaths.map((file) => path.resolve(file)));
+	for (const node of nodes) {
+		if (!node.componentFile || !node.component.config) {
+			continue;
+		}
+
+		const componentFile = path.resolve(node.componentFile);
+		paths.add(componentFile);
+		for (const style of node.ownAssets.stylesheets ?? []) {
+			const src = typeof style === 'string' ? style : style.src;
+			if (src) {
+				paths.add(path.resolve(path.dirname(componentFile), src));
+			}
+		}
+		for (const src of getInferredStylesheets(node.component.config)) {
+			paths.add(path.resolve(path.dirname(componentFile), src));
+		}
+		for (const watchFile of getDiscoveredWatchFiles(node.component.config)) {
+			paths.add(path.resolve(watchFile));
+		}
+	}
+
+	return [...paths];
 }

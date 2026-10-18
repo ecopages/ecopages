@@ -3,16 +3,21 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { DEPENDENCY_ERRORS, DependencyResolverService } from './dependency-resolver.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type {
 	AssetDefinition,
 	AssetProcessingService,
 	ProcessedAsset,
 	ContentScriptAsset,
 	InlineContentScriptAsset,
-} from '../../services/assets/asset-processing-service/index.ts';
-import type { EcoComponent } from '../../types/public-types.ts';
+} from '../../assets/asset-processing-service/index.ts';
+import { APP_BROWSER_CLIENT_BUNDLE_ID, AssetFactory } from '../../assets/asset-processing-service/index.ts';
+import type { EcoComponent } from '../../types/contracts.ts';
+import { getPendingLazyClientAssets, getResolvedLazyTriggers } from '../../eco/component-internal-state.ts';
+import { collectPageClientPlan } from '../orchestration/ownership-graph/page-client-plan.ts';
 import { UndeclaredComponentDependencyError } from '../../errors/undeclared-component-dependency-error.ts';
+import { packagePageDependencies } from './page-dependency-bundling.ts';
+import { deduplicateAssetDependencies } from '../../assets/asset-processing-service/asset-dependency-keys.ts';
 
 describe('DependencyResolverService', () => {
 	const appConfig = {
@@ -31,6 +36,126 @@ describe('DependencyResolverService', () => {
 		expect(service.resolveLazyScripts('/app/components/card', ['./client.ts', './widget.tsx'])).toBe(
 			'/assets/components/card/client.js,/assets/components/card/widget.js',
 		);
+	});
+
+	it('processes prepared graph nodes without recursively revisiting nested components', async () => {
+		let capturedDeps: AssetDefinition[] = [];
+		const assetProcessingService = {
+			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
+				capturedDeps = deps;
+				return [] as ProcessedAsset[];
+			}),
+		} as unknown as AssetProcessingService;
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const child = (() => '<child />') as EcoComponent;
+		child.config = {
+			identity: { id: 'child', file: '/app/child.tsx', integration: 'react' },
+			dependencies: { scripts: ['./child.js'] },
+		};
+		const parent = (() => '<parent />') as EcoComponent;
+		parent.config = {
+			identity: { id: 'parent', file: '/app/parent.tsx', integration: 'react' },
+			dependencies: { scripts: ['./parent.js'], components: [child] },
+		};
+
+		vi.stubEnv('NODE_ENV', 'production');
+		try {
+			await service.processPreparedComponentDependencies([parent], 'react');
+			expect(capturedDeps).toEqual([expect.objectContaining({ filepath: '/app/parent.js' })]);
+
+			await service.processComponentDependencies([parent], 'react');
+
+			expect(capturedDeps).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ filepath: '/app/parent.js' }),
+					expect.objectContaining({ filepath: '/app/child.js' }),
+				]),
+			);
+			expect(assetProcessingService.processDependencies).toHaveBeenCalledTimes(2);
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
+	it('prepares lazy assets for foreign graph nodes without processing eager dependencies', () => {
+		const processDependencies = vi.fn(async () => [] as ProcessedAsset[]);
+		const assetProcessingService = { processDependencies } as unknown as AssetProcessingService;
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const component = (() => '<div />') as EcoComponent;
+		component.config = {
+			identity: { id: 'foreign-lazy', file: '/app/foreign-lazy.tsx', integration: 'lit' },
+			dependencies: {
+				scripts: [{ src: './lazy.ts', lazy: { 'on:idle': true } }, './eager.ts'],
+			},
+		};
+
+		const entries = service.prepareLazyClientDependencies([component], 'lit');
+		const plan = collectPageClientPlan([{ component }], 'kita');
+
+		expect(entries).toHaveLength(1);
+		expect(entries[0]).toEqual(expect.objectContaining({ content: 'import "/app/lazy.ts";' }));
+		expect(getPendingLazyClientAssets(component.config)).toEqual(entries);
+		expect(plan.lazyClientEntries).toEqual(entries);
+		expect(processDependencies).not.toHaveBeenCalled();
+	});
+
+	it('evicts a rejected production dependency result so the next render can retry', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const failure = new Error('temporary asset processing failure');
+		const processDependencies = vi
+			.fn()
+			.mockRejectedValueOnce(failure)
+			.mockResolvedValueOnce([] as ProcessedAsset[]);
+		const assetProcessingService = { processDependencies } as unknown as AssetProcessingService;
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const component = (() => '<div />') as EcoComponent;
+		component.config = {
+			identity: { id: 'retry-dependency', file: '/app/retry.tsx', integration: 'react' },
+			dependencies: { scripts: ['./client.ts'] },
+		};
+
+		try {
+			await expect(service.processComponentDependencies([component], 'react')).rejects.toBe(failure);
+			await expect(service.processComponentDependencies([component], 'react')).resolves.toEqual([]);
+
+			expect(processDependencies).toHaveBeenCalledTimes(2);
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
+	it('lets overlapping renders that share a lazy component each plan its lazy entries', async () => {
+		const assetProcessingService = {
+			processDependencies: vi.fn(async () => [] as ProcessedAsset[]),
+		} as unknown as AssetProcessingService;
+		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const component = ((_) => '<table></table>') as EcoComponent<Record<string, unknown>>;
+		component.config = {
+			identity: { id: 'table', integration: 'react', file: '/app/components/table/table.tsx' },
+			dependencies: {
+				scripts: [{ src: './table.client.ts', lazy: { 'on:interaction': 'click' } }],
+			},
+		};
+		const finishRender = (plan: ReturnType<typeof collectPageClientPlan>) =>
+			service.applyPendingLazyTriggers(
+				plan.lazyClientEntries.map((entry) => ({
+					kind: 'script',
+					srcUrl: '/assets/components/table/table.client.js',
+					attributes: entry.kind === 'script' ? entry.attributes : undefined,
+				})) as ProcessedAsset[],
+				plan.lazyConfigs,
+			);
+
+		await service.processComponentDependencies([component], 'react');
+		await service.processComponentDependencies([component], 'react');
+		const firstPlan = collectPageClientPlan([{ component }], 'react');
+		finishRender(firstPlan);
+		const secondPlan = collectPageClientPlan([{ component }], 'react');
+
+		expect(firstPlan.lazyClientEntries).toHaveLength(1);
+		expect(secondPlan.lazyClientEntries).toHaveLength(1);
+		expect(secondPlan.lazyConfigs).toEqual([component.config]);
+		expect(finishRender(secondPlan)).toEqual(finishRender(firstPlan));
 	});
 
 	it('should emit module dependencies as content scripts and resolve lazy triggers by default', async () => {
@@ -84,9 +209,39 @@ describe('DependencyResolverService', () => {
 		);
 		expect(hasInjector).toBe(false);
 
-		expect(component.config._resolvedLazyScripts).toBeUndefined();
-		expect(component.config._resolvedLazyTriggers).toHaveLength(1);
-		expect(component.config._resolvedLazyTriggers?.[0]?.rules).toEqual([
+		expect(getResolvedLazyTriggers(component.config)).toBeUndefined();
+		expect(getPendingLazyClientAssets(component.config)).toHaveLength(1);
+		const pendingLazy = getPendingLazyClientAssets(component.config)?.[0];
+		expect(pendingLazy).toEqual(
+			expect.objectContaining({
+				groupedBundle: expect.objectContaining({ id: APP_BROWSER_CLIENT_BUNDLE_ID }),
+			}),
+		);
+
+		service.applyPendingLazyTriggers(
+			[
+				{
+					kind: 'script',
+					srcUrl: '/assets/components/table/table.client.js',
+					attributes: pendingLazy?.kind === 'script' ? pendingLazy.attributes : undefined,
+				},
+			],
+			[component.config],
+		);
+
+		expect(getResolvedLazyTriggers(component.config)).toHaveLength(1);
+		expect(getResolvedLazyTriggers(component.config)?.[0]?.rules).toEqual([
+			{
+				'on:interaction': {
+					value: 'click',
+					scripts: ['/assets/components/table/table.client.js'],
+				},
+			},
+		]);
+
+		await service.processComponentDependencies([component], 'kitajs');
+		expect(getResolvedLazyTriggers(component.config)).toHaveLength(1);
+		expect(getResolvedLazyTriggers(component.config)?.[0]?.rules).toEqual([
 			{
 				'on:interaction': {
 					value: 'click',
@@ -151,7 +306,6 @@ describe('DependencyResolverService', () => {
 				return [] as ProcessedAsset[];
 			}),
 		} as unknown as AssetProcessingService;
-
 		const service = new DependencyResolverService(appConfig, assetProcessingService);
 		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
 		component.config = {
@@ -175,7 +329,7 @@ describe('DependencyResolverService', () => {
 		}
 	});
 
-	it('should keep ecopages-jsx page and lazy dependency bundles separate', async () => {
+	it('holds lazy client entries for the page client build instead of processing them with eager scripts', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-jsx-script-dedupe-'));
 		const componentFile = join(tempDir, 'component.tsx');
 		const widgetScript = join(tempDir, 'widget.script.ts');
@@ -233,21 +387,17 @@ describe('DependencyResolverService', () => {
 				}),
 			]);
 
-			expect(contentScripts).toHaveLength(1);
+			expect(contentScripts).toHaveLength(0);
 
-			const lazyEntry = contentScripts.find((dep) => dep.excludeFromHtml === true);
+			const lazyEntry = getPendingLazyClientAssets(component.config)?.[0];
 
 			expect(lazyEntry).toEqual(
 				expect.objectContaining({
 					content: `import ${JSON.stringify(lazyScript)};`,
 					excludeFromHtml: true,
-					bundleOptions: {
-						splitting: false,
-					},
+					groupedBundle: expect.objectContaining({ id: APP_BROWSER_CLIENT_BUNDLE_ID }),
 				}),
 			);
-
-			expect(lazyEntry?.groupedBundle).toBeUndefined();
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -272,8 +422,11 @@ describe('DependencyResolverService', () => {
 				return [] as ProcessedAsset[];
 			}),
 		} as unknown as AssetProcessingService;
-
-		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const assetProcessingIntegration = { name: 'ecopages-jsx' };
+		const service = new DependencyResolverService(
+			{ ...appConfig, integrations: [assetProcessingIntegration] } as EcoPagesAppConfig,
+			assetProcessingService,
+		);
 		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
 		component.config = {
 			identity: {
@@ -289,19 +442,16 @@ describe('DependencyResolverService', () => {
 		try {
 			await service.processComponentDependencies([component], 'ecopages-jsx');
 
-			const contentScripts = capturedDeps.filter(
-				(dep): dep is Extract<AssetDefinition, { kind: 'script'; source: 'content' }> =>
-					dep.kind === 'script' && dep.source === 'content',
-			);
-
-			expect(contentScripts).toHaveLength(1);
-			expect(contentScripts[0]).toEqual(
+			expect(assetProcessingService.processDependencies).toHaveBeenCalledWith([], assetProcessingIntegration);
+			expect(capturedDeps).toEqual([]);
+			expect(getPendingLazyClientAssets(component.config)).toHaveLength(1);
+			expect(getPendingLazyClientAssets(component.config)?.[0]).toEqual(
 				expect.objectContaining({
 					content: `import ${JSON.stringify(lazyScript)};`,
 					excludeFromHtml: true,
 				}),
 			);
-			expect(contentScripts[0]?.packageRole).toBeUndefined();
+			expect(getPendingLazyClientAssets(component.config)?.[0]?.packageRole).toBeUndefined();
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -434,8 +584,7 @@ describe('DependencyResolverService', () => {
 	});
 
 	it('should collapse bundleable page stylesheets and scripts into page-owned assets', async () => {
-		const previousNodeEnv = process.env.NODE_ENV;
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-bundle-'));
 		const componentFile = join(tempDir, 'component.tsx');
 		const stylesheetA = join(tempDir, 'first.css');
@@ -459,6 +608,12 @@ describe('DependencyResolverService', () => {
 
 		const bundleAppConfig = {
 			...appConfig,
+			integrations: [
+				{
+					name: 'react',
+					bundlesPageDependencies: true,
+				} as unknown as EcoPagesAppConfig['integrations'][number],
+			],
 			rootDir: tempDir,
 			absolutePaths: {
 				srcDir: tempDir,
@@ -500,14 +655,128 @@ describe('DependencyResolverService', () => {
 				}),
 			]);
 		} finally {
-			process.env.NODE_ENV = previousNodeEnv;
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('keeps bundleable assets in order around stylesheets with custom attributes', () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-order-'));
+		const paths = ['first.css', 'screen.css', 'last.css'].map((file) => join(tempDir, file));
+
+		try {
+			for (const [index, filepath] of paths.entries()) {
+				writeFileSync(filepath, `.example { order: ${index}; }`, 'utf-8');
+			}
+
+			const dependencies = [
+				AssetFactory.createFileStylesheet({ filepath: paths[0]!, attributes: { rel: 'stylesheet' } }),
+				AssetFactory.createFileStylesheet({
+					filepath: paths[1]!,
+					attributes: { rel: 'stylesheet', media: 'screen' },
+				}),
+				AssetFactory.createFileStylesheet({ filepath: paths[2]!, attributes: { rel: 'stylesheet' } }),
+			];
+			const packaged = packagePageDependencies(dependencies, 'react', true);
+			const packagedPaths = packaged.flatMap((dependency) =>
+				dependency.bundledSourceFilepaths?.length
+					? dependency.bundledSourceFilepaths
+					: dependency.source === 'file'
+						? [dependency.filepath]
+						: [],
+			);
+
+			expect(packagedPaths).toEqual(paths);
+		} finally {
+			vi.unstubAllEnvs();
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('keeps bundleable module scripts in order around a script with custom attributes', () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-script-order-'));
+		const paths = ['first.ts', 'integrity.ts', 'last.ts'].map((file) => join(tempDir, file));
+
+		try {
+			for (const [index, filepath] of paths.entries()) {
+				writeFileSync(filepath, `export const order${index} = ${index};`, 'utf-8');
+			}
+
+			const dependencies = [
+				AssetFactory.createFileScript({
+					filepath: paths[0]!,
+					position: 'head',
+					attributes: { type: 'module', defer: '' },
+				}),
+				AssetFactory.createFileScript({
+					filepath: paths[1]!,
+					position: 'head',
+					attributes: { type: 'module', defer: '', integrity: 'sha256-integrity' },
+				}),
+				AssetFactory.createFileScript({
+					filepath: paths[2]!,
+					position: 'head',
+					attributes: { type: 'module', defer: '' },
+				}),
+			];
+			const packaged = packagePageDependencies(dependencies, 'react', true);
+			const packagedPaths = packaged.flatMap((dependency) =>
+				dependency.bundledSourceFilepaths?.length
+					? dependency.bundledSourceFilepaths
+					: dependency.source === 'file'
+						? [dependency.filepath]
+						: [],
+			);
+
+			expect(packagedPaths).toEqual(paths);
+		} finally {
+			vi.unstubAllEnvs();
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('retains identical stylesheet bundles on either side of an ordered stylesheet', () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-order-repeat-'));
+		const paths = ['first.css', 'second.css', 'screen.css', 'fourth.css', 'fifth.css'].map((file) =>
+			join(tempDir, file),
+		);
+		const content = [
+			'.example { color: orange; }',
+			'.example { color: red; }',
+			'.example { color: blue; }',
+			'.example { color: orange; }',
+			'.example { color: red; }',
+		];
+
+		try {
+			for (const [index, filepath] of paths.entries()) writeFileSync(filepath, content[index]!, 'utf-8');
+
+			const dependencies = [
+				AssetFactory.createFileStylesheet({ filepath: paths[0]!, attributes: { rel: 'stylesheet' } }),
+				AssetFactory.createFileStylesheet({ filepath: paths[1]!, attributes: { rel: 'stylesheet' } }),
+				AssetFactory.createFileStylesheet({
+					filepath: paths[2]!,
+					attributes: { rel: 'stylesheet', media: 'screen' },
+				}),
+				AssetFactory.createFileStylesheet({ filepath: paths[3]!, attributes: { rel: 'stylesheet' } }),
+				AssetFactory.createFileStylesheet({ filepath: paths[4]!, attributes: { rel: 'stylesheet' } }),
+			];
+			const packaged = packagePageDependencies(dependencies, 'react', true);
+			const deduplicated = deduplicateAssetDependencies(packaged);
+
+			expect(deduplicated).toHaveLength(3);
+			expect(deduplicated[0]?.bundledSourceFilepaths).toEqual([paths[0], paths[1]]);
+			expect(deduplicated[2]?.bundledSourceFilepaths).toEqual([paths[3], paths[4]]);
+		} finally {
+			vi.unstubAllEnvs();
 			rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
 
 	it('should keep bundleable page stylesheets and scripts as file assets during development', async () => {
-		const previousNodeEnv = process.env.NODE_ENV;
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		const tempDir = mkdtempSync(join(tmpdir(), 'ecopages-page-style-dev-'));
 		const componentFile = join(tempDir, 'component.tsx');
 		const stylesheetA = join(tempDir, 'first.css');
@@ -531,6 +800,12 @@ describe('DependencyResolverService', () => {
 
 		const bundleAppConfig = {
 			...appConfig,
+			integrations: [
+				{
+					name: 'react',
+					bundlesPageDependencies: true,
+				} as unknown as EcoPagesAppConfig['integrations'][number],
+			],
 			rootDir: tempDir,
 			absolutePaths: {
 				srcDir: tempDir,
@@ -578,7 +853,6 @@ describe('DependencyResolverService', () => {
 				}),
 			]);
 		} finally {
-			process.env.NODE_ENV = previousNodeEnv;
 			rmSync(tempDir, { recursive: true, force: true });
 		}
 	});
@@ -615,7 +889,7 @@ describe('DependencyResolverService', () => {
 			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
 				return deps.map((dep, index) => {
 					const lazyKey = dep.attributes?.['data-eco-lazy-key'];
-					const hasContent = dep.source === 'content' && typeof (dep as any).content === 'string';
+					const hasContent = dep.source === 'content' && typeof dep.content === 'string';
 					const isLazyScript = dep.kind === 'script' && Boolean(lazyKey);
 					const srcUrl = isLazyScript
 						? hasContent
@@ -624,8 +898,8 @@ describe('DependencyResolverService', () => {
 						: undefined;
 
 					return {
-						kind: dep.kind ?? 'script',
-						filepath: (dep as Record<string, any>).filepath,
+						kind: dep.kind,
+						filepath: dep.source === 'file' ? dep.filepath : undefined,
 						attributes: dep.attributes,
 						srcUrl,
 					} as ProcessedAsset;
@@ -651,10 +925,25 @@ describe('DependencyResolverService', () => {
 
 		await service.processComponentDependencies([component], 'lit');
 
-		expect(component.config._resolvedLazyScripts).toBeUndefined();
-		expect(component.config._resolvedLazyTriggers).toHaveLength(1);
+		expect(getPendingLazyClientAssets(component.config)).toHaveLength(2);
+		service.applyPendingLazyTriggers(
+			(getPendingLazyClientAssets(component.config) ?? []).map((dep, index) => {
+				const hasContent =
+					dep.kind === 'script' && dep.source === 'content' && 'content' in dep && Boolean(dep.content);
+				return {
+					kind: 'script' as const,
+					attributes: dep.kind === 'script' ? dep.attributes : undefined,
+					srcUrl:
+						hasContent && typeof dep.content === 'string' && !dep.content.startsWith('import ')
+							? `/assets/lazy/content-${index}.js`
+							: `/assets/lazy/file-${index}.js`,
+				};
+			}),
+			[component.config],
+		);
+		expect(getResolvedLazyTriggers(component.config)).toHaveLength(1);
 
-		const rules = component.config._resolvedLazyTriggers?.[0]?.rules ?? [];
+		const rules = getResolvedLazyTriggers(component.config)?.[0]?.rules ?? [];
 		const idleRule = rules.find((rule) => 'on:idle' in rule);
 		const visibleRule = rules.find((rule) => 'on:visible' in rule);
 

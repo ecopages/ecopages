@@ -49,11 +49,16 @@ Start here for package-level architecture:
 - `packages/core/README.md`: overall core architecture and ownership model
 - `packages/core/src/config/README.md`: config build and finalized app-owned runtime state
 - `packages/core/src/plugins/README.md`: integration and processor contracts
-- `packages/core/src/build/README.md`: build adapter, executor, and dev-build coordination
-- `packages/core/src/services/README.md`: shared runtime services, dev graph, invalidation, and browser/server seams
-- `packages/core/src/adapters/README.md`: Bun and Node adapter boundaries
-- `packages/core/src/dev/README.md`: dev transform server and on-demand client delivery
-- `packages/core/src/hmr/README.md`: HMR strategy layer
+- `packages/core/src/build/README.md`: build adapter, app-scoped server module loading, executor, and dev-build coordination
+- `packages/core/src/page-cache/README.md`: HTML cache strategies, ISR, and source-aware invalidation
+- `packages/core/src/assets/README.md`: shared asset processing and browser build coordination
+- `packages/core/src/validation/README.md`: request validation with Standard Schema
+- `packages/core/src/html/README.md`: streaming HTML rewriting and source parsing
+- `packages/core/src/adapters/README.md`: HTTP host. The process can be Node or Bun.
+- `packages/core/src/dev/README.md`: development invalidation, dev transform server, and on-demand client delivery
+- `packages/core/src/hmr/README.md`: HMR strategy layer and build error presentation
+- `packages/core/src/dev-toolbar/README.md`: custom toolbar clients and build error event contract
+- `packages/dev-toolbar/README.md`: reference Dev Toolbar apps, including build errors
 - `packages/core/src/router/README.md`: route matching and browser navigation coordination
 - `packages/core/src/route-renderer/README.md`: route rendering orchestration
 - `packages/core/src/static-site-generator/README.md`: static generation flow
@@ -61,7 +66,7 @@ Start here for package-level architecture:
 
 Domain vocabulary lives in `CONTEXT.md`, implementation details in localized READMEs, and agent rules in `AGENTS.md`. User-facing guides are on the [docs site](https://ecopages.app/docs/core/architecture).
 
-The current direction is explicit: Bun is the primary core-owned runtime path, `createApp()` still supports direct Node fallback execution, Vite and Nitro own host-side build and dev behavior, and esbuild is no longer a strategic core dependency.
+The current direction is explicit: Ecopages runs on Node or Bun through Node APIs, the CLI picks the runtime that launched it, and esbuild is no longer a strategic core dependency.
 
 ### Static Site Generation
 
@@ -154,7 +159,7 @@ For repository-local architecture notes and subsystem maps, start with the files
 Verify your site's functionality:
 `pnpm run test:all`
 
-CI runs the fast gate on pull requests and the e2e gate on `main`.
+CI runs `test:ci:fast` (lint, format check, typecheck and every Vitest project, including `apps/docs`, the templates and the static-build parity oracle) and the four-shard `test:e2e` suite on every pull request. It also runs `test:e2e:docs` when the docs app or its build dependencies change. Pushes to `develop` and `main` run the same sharded `test:e2e` suite.
 
 ### Releases
 

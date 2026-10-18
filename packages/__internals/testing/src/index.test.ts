@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import type { EcoComponent, EcoPagesElement } from '@ecopages/core';
-import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import {
-	IntegrationRenderer,
-	type RenderToResponseContext,
-} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import { createStringMarkupIntegration, createTestAppConfig } from './index.ts';
+import type { EcoPagesElement } from '@ecopages/core';
+import { requireAppRuntime } from '@ecopages/core/integration';
+import { IntegrationPlugin } from '@ecopages/core/integration';
+import { IntegrationRenderer } from '@ecopages/core/integration';
+import { createStringMarkupIntegration, createTestAppConfig, setupTestIntegration } from './index.ts';
 
 class TestRenderer extends IntegrationRenderer<EcoPagesElement> {
 	name = 'test';
 
-	async render(): Promise<string> {
+	getRuntimeOrigin(): string {
+		return requireAppRuntime(this.appConfig).origin;
+	}
+
+	override async render(): Promise<string> {
 		return '';
 	}
 
@@ -18,17 +20,8 @@ class TestRenderer extends IntegrationRenderer<EcoPagesElement> {
 		return {
 			html: '<div>test</div>',
 			canAttachAttributes: true,
-			rootTag: 'div',
 			integrationName: this.name,
 		};
-	}
-
-	async renderToResponse<P = Record<string, unknown>>(
-		_view: EcoComponent<P>,
-		_props: P,
-		_ctx: RenderToResponseContext,
-	) {
-		return new Response('');
 	}
 }
 
@@ -47,15 +40,15 @@ describe('createTestAppConfig', () => {
 	it('installs the test-only string Integration by default', async () => {
 		const config = await createTestAppConfig();
 
-		expect(config.integrations.map((integration) => integration.name)).toEqual(['string']);
-		expect(config.templatesExt).toEqual(['.string.ts']);
+		expect(config.integrations.map((integration) => integration.name)).toEqual(['string', 'html-pages']);
+		expect(config.templatesExt).toEqual(['.string.ts', '.html']);
 	});
 
-	it('allows an integration-free config when requested explicitly', async () => {
+	it('keeps only the core HTML Pages Integration when integrations are cleared', async () => {
 		const config = await createTestAppConfig({ integrations: [] });
 
-		expect(config.integrations).toEqual([]);
-		expect(config.templatesExt).toEqual([]);
+		expect(config.integrations.map((integration) => integration.name)).toEqual(['html-pages']);
+		expect(config.templatesExt).toEqual(['.html']);
 	});
 
 	it('allows user config overrides through configure', async () => {
@@ -70,13 +63,17 @@ describe('createTestAppConfig', () => {
 	it('allows integrations to use a runtime origin different from baseUrl', async () => {
 		const plugin = new TestPlugin();
 
-		await createTestAppConfig({
+		const config = await createTestAppConfig({
 			baseUrl: 'http://localhost:3100',
 			runtimeOrigin: 'http://127.0.0.1:4100',
 			integrations: [plugin],
 		});
+		await setupTestIntegration(plugin, config);
 
-		expect(plugin.runtimeOrigin).toBe('http://127.0.0.1:4100');
+		const renderer = plugin.getRenderer() as TestRenderer;
+		expect(renderer).toBeInstanceOf(TestRenderer);
+		expect(renderer.getRuntimeOrigin()).toBe('http://127.0.0.1:4100');
+		expect(requireAppRuntime(config).origin).toBe('http://127.0.0.1:4100');
 	});
 });
 

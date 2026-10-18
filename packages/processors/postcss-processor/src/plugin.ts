@@ -4,9 +4,16 @@
  */
 
 import path from 'node:path';
-import type { IClientBridge } from '@ecopages/core';
+import { isEcopagesEnvEnabled, isProductionRuntime } from '@ecopages/core/processor';
+import type { IClientBridge } from '@ecopages/core/integration';
+import { writeHashedBrowserAsset } from '@ecopages/core/processor';
 import { fileSystem } from '@ecopages/file-system';
-import { Processor, type EcoBuildPlugin, type ProcessorConfig } from '@ecopages/core/plugins/processor';
+import {
+	Processor,
+	type EcoBuildPlugin,
+	type ProcessorConfig,
+	type ProcessorWatchChanges,
+} from '@ecopages/core/processor';
 import { Logger } from '@ecopages/logger';
 import type postcss from 'postcss';
 import {
@@ -19,7 +26,7 @@ import { createCssLoaderPlugin } from './runtime/css-loader-plugin.ts';
 import type { CssTransformInput } from './runtime/css-runtime-contract.ts';
 
 const logger = new Logger('[@ecopages/postcss-processor]', {
-	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
+	debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG'),
 });
 
 /**
@@ -91,13 +98,14 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		filter: /\.css$/,
 	};
 
-	private buildContributionsPrepared = false;
+	private postcssPluginsLoading?: Promise<void>;
 	private postcssPlugins: postcss.AcceptedPlugin[] = [];
 	private pluginFactories?: PluginFactoryRecord;
 	private readonly runtimeCssCache = new Map<string, string>();
 	private readonly trackedCssFiles = new Set<string>();
 	private watchQueue: Promise<void> = Promise.resolve();
 
+	private readonly hashedCssOutputBySource = new Map<string, string>();
 	/**
 	 * Maps an imported CSS file path → set of tracked CSS entry files that import it.
 	 * Used to resolve which parent entry files need re-processing when a dependency changes.
@@ -105,24 +113,33 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	private readonly cssDependencyMap = new Map<string, Set<string>>();
 
 	private getCssFilter(): RegExp {
-		return this.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter;
+		return (
+			this.getAssetCapabilities().find((capability) => capability.kind === 'stylesheet')?.filter ??
+			this.options?.filter ??
+			PostCssProcessorPlugin.DEFAULT_OPTIONS.filter
+		);
 	}
 
-	private resolveProcessedCssPath(filePath: string): string | null {
+	private matchesCssFilter(filePath: string): boolean {
+		return this.canProcessAsset('stylesheet', filePath);
+	}
+
+	private isCssInsideSrc(filePath: string): boolean {
 		if (!this.context) {
-			return null;
+			return false;
 		}
 
 		const relativePath = path.relative(this.context.srcDir, filePath);
-		if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-			return null;
-		}
-
-		return path.join(this.context.distDir, 'assets', relativePath);
+		return !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
 	}
 
 	private readProcessedCssFromDist(filePath: string): string | null {
-		const outputPath = this.resolveProcessedCssPath(filePath);
+		const hashedOutputPath = this.hashedCssOutputBySource.get(filePath);
+		const outputPath =
+			hashedOutputPath ??
+			(this.context && this.isCssInsideSrc(filePath)
+				? path.join(this.context.distDir, 'assets', path.relative(this.context.srcDir, filePath))
+				: null);
 		if (!outputPath || !fileSystem.exists(outputPath)) {
 			return null;
 		}
@@ -131,11 +148,21 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	}
 
 	private async persistProcessedCss(filePath: string, css: string): Promise<void> {
-		const outputPath = this.resolveProcessedCssPath(filePath);
-		if (!outputPath) {
+		if (!this.context || !this.isCssInsideSrc(filePath)) {
 			return;
 		}
 
+		if (isProductionRuntime()) {
+			const outputPath = writeHashedBrowserAsset({
+				bytes: css,
+				directory: path.join(this.context.distDir, 'assets'),
+				extension: '.css',
+			});
+			this.hashedCssOutputBySource.set(filePath, outputPath);
+			return;
+		}
+
+		const outputPath = path.join(this.context.distDir, 'assets', path.relative(this.context.srcDir, filePath));
 		fileSystem.ensureDir(path.dirname(outputPath));
 		if (fileSystem.exists(outputPath) && fileSystem.readFileSync(outputPath) === css) {
 			return;
@@ -155,7 +182,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 		for (const relativePath of sourceFiles) {
 			const filePath = path.join(this.context.srcDir, relativePath);
-			if (!this.matchesFileFilter(filePath)) {
+			if (!this.matchesCssFilter(filePath)) {
 				continue;
 			}
 
@@ -163,7 +190,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 			const rawContents = await fileSystem.readFile(filePath);
 
-			const processed = await this.process(rawContents, filePath);
+			const processed = await this.transformStylesheet(rawContents, filePath);
 			this.runtimeCssCache.set(filePath, processed);
 			await this.persistProcessedCss(filePath, processed);
 		}
@@ -268,15 +295,10 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		const { contents, filePath } = input;
 		const transformed: string = typeof contents === 'string' ? contents : contents.toString('utf-8');
 
-		const processed = await this.process(transformed, filePath);
+		const processed = await this.transformStylesheet(transformed, filePath);
 		this.runtimeCssCache.set(filePath, processed);
 		await this.persistProcessedCss(filePath, processed);
 		return processed;
-	}
-
-	override matchesFileFilter(filepath: string): boolean {
-		const filter = this.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter;
-		return filter.test(filepath);
 	}
 
 	private materializePluginFactories(pluginFactories: PluginFactoryRecord): postcss.AcceptedPlugin[] {
@@ -299,7 +321,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 	private getTrackedCssFiles(): string[] {
 		return Array.from(this.trackedCssFiles).filter(
-			(filePath) => this.matchesFileFilter(filePath) && fileSystem.exists(filePath),
+			(filePath) => this.matchesCssFilter(filePath) && fileSystem.exists(filePath),
 		);
 	}
 
@@ -316,16 +338,16 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		}
 
 		return configuredEntryPaths.filter(
-			(filePath) => this.matchesFileFilter(filePath) && fileSystem.exists(filePath),
+			(filePath) => this.matchesCssFilter(filePath) && fileSystem.exists(filePath),
 		);
 	}
 
-	private async handleDependencyChange(bridge: IClientBridge): Promise<void> {
+	private async rebuildCssEntryFiles(filePaths: Iterable<string>, bridge: IClientBridge): Promise<void> {
 		if (!this.context) {
 			return;
 		}
 
-		const cssFiles = this.getDependencyEntryFiles();
+		const cssFiles = [...new Set(filePaths)].filter((filePath) => this.matchesCssFilter(filePath));
 		if (cssFiles.length === 0) {
 			return;
 		}
@@ -333,25 +355,27 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		this.refreshConfiguredPlugins();
 
 		for (const cssFilePath of cssFiles) {
-			await this.handleCssChange(cssFilePath, bridge, false);
+			await this.processAndBroadcast(cssFilePath, bridge, false);
 		}
 	}
 
 	constructor(
-		config: Omit<ProcessorConfig<PostCssProcessorPluginConfig>, 'name' | 'description'> = {
+		config: Omit<ProcessorConfig<PostCssProcessorPluginConfig>, 'name'> = {
 			options: PostCssProcessorPlugin.DEFAULT_OPTIONS,
 		},
 	) {
 		super({
 			name: 'ecopages-postcss-processor',
-			description: 'A Processor for transforming CSS files using PostCSS.',
+			...config,
 			capabilities: [
+				...(config.capabilities ?? []).filter((capability) => capability.kind !== 'stylesheet'),
 				{
 					kind: 'stylesheet',
 					extensions: ['*.{css,scss,sass,less}'],
+					filter: config.options?.filter ?? PostCssProcessorPlugin.DEFAULT_OPTIONS.filter,
 				},
 			],
-			watch: {
+			watch: config.watch ?? {
 				paths: [],
 				extensions: [
 					'.css',
@@ -367,70 +391,60 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 					'.svelte',
 					'.vue',
 				],
-				onChange: async ({ path, bridge }) => {
-					await this.enqueueWatchTask(async () => {
-						if (this.matchesFileFilter(path)) {
-							await this.handleCssChange(path, bridge);
-							return;
-						}
-
-						await this.handleDependencyChange(bridge);
-					});
-				},
-				onCreate: async ({ path, bridge }) => {
-					await this.enqueueWatchTask(async () => {
-						if (this.matchesFileFilter(path)) {
-							this.trackedCssFiles.add(path);
-							this.buildCssDependencyMap();
-							await this.handleCssChange(path, bridge);
-							return;
-						}
-
-						await this.handleDependencyChange(bridge);
-					});
-				},
-				onDelete: async ({ path, bridge }) => {
-					await this.enqueueWatchTask(async () => {
-						if (this.matchesFileFilter(path)) {
-							this.runtimeCssCache.delete(path);
-							this.trackedCssFiles.delete(path);
-							this.cssDependencyMap.delete(path);
-							this.buildCssDependencyMap();
-							return;
-						}
-
-						await this.handleDependencyChange(bridge);
-					});
-				},
+				onChanges: async (changes) => this.handleWatchChanges(changes),
 			},
-			...config,
 		});
 	}
 
-	/**
-	 * Handles CSS file changes during development.
-	 * If the file is an @import dependency, re-processes the parent entry file(s) instead.
-	 * Broadcasts a css-update event for hot reloading.
-	 */
-	private async handleCssChange(filePath: string, bridge: IClientBridge, refreshPlugins = true): Promise<void> {
-		if (!this.context) return;
-		if (!fileSystem.exists(filePath)) return;
+	private async handleWatchChanges({ created, changed, deleted, bridge }: ProcessorWatchChanges): Promise<void> {
+		await this.enqueueWatchTask(async () => {
+			const createdCss = created.filter((filePath) => this.matchesCssFilter(filePath));
+			const changedCss = changed.filter((filePath) => this.matchesCssFilter(filePath));
+			const deletedCss = deleted.filter((filePath) => this.matchesCssFilter(filePath));
 
-		// Check if this file is imported by parent entry files
-		const entryFiles = this.resolveEntryFiles(filePath);
-		if (entryFiles.length > 0) {
-			logger.debug(`CSS dependency changed: ${filePath}, re-processing ${entryFiles.length} parent(s)`);
-			for (const entryFile of entryFiles) {
-				// Invalidate the parent's cache so the broadcast is not skipped.
-				// Even when postcss-import inlines different content for the parent,
-				// defensive invalidation guarantees the css-update event fires.
-				this.runtimeCssCache.delete(entryFile);
-				await this.processAndBroadcast(entryFile, bridge, refreshPlugins);
+			for (const filePath of createdCss) {
+				this.trackedCssFiles.add(filePath);
 			}
-			return;
-		}
 
-		await this.processAndBroadcast(filePath, bridge, refreshPlugins);
+			for (const filePath of deletedCss) {
+				this.runtimeCssCache.delete(filePath);
+				this.trackedCssFiles.delete(filePath);
+				this.cssDependencyMap.delete(filePath);
+				this.hashedCssOutputBySource.delete(filePath);
+			}
+
+			if (createdCss.length > 0 || changedCss.length > 0 || deletedCss.length > 0) {
+				this.buildCssDependencyMap();
+			}
+
+			const dependencyChanged = [...created, ...changed, ...deleted].some(
+				(filePath) => !this.matchesCssFilter(filePath),
+			);
+			const affectedCssEntryFiles = new Set<string>();
+			for (const filePath of [...createdCss, ...changedCss]) {
+				const parentEntryFiles = this.resolveEntryFiles(filePath);
+				if (parentEntryFiles.length > 0) {
+					for (const entryFile of parentEntryFiles) {
+						affectedCssEntryFiles.add(entryFile);
+						this.runtimeCssCache.delete(entryFile);
+					}
+				} else if (fileSystem.exists(filePath)) {
+					affectedCssEntryFiles.add(filePath);
+				}
+			}
+
+			const cssEntryFiles = new Set(affectedCssEntryFiles);
+			if (dependencyChanged || deletedCss.length > 0) {
+				for (const filePath of this.getDependencyEntryFiles()) {
+					cssEntryFiles.add(filePath);
+					if (deletedCss.length > 0) {
+						this.runtimeCssCache.delete(filePath);
+					}
+				}
+			}
+
+			await this.rebuildCssEntryFiles(cssEntryFiles, bridge);
+		});
 	}
 
 	/**
@@ -450,7 +464,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 
 			const content = await fileSystem.readFile(filePath);
 
-			const processed = await this.process(content, filePath);
+			const processed = await this.transformStylesheet(content, filePath);
 
 			const cached = this.runtimeCssCache.get(filePath);
 			if (cached === processed) {
@@ -470,47 +484,28 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		}
 	}
 
-	get buildPlugins(): EcoBuildPlugin[] {
-		return [
-			createCssLoaderPlugin({
-				name: 'postcss-processor-build-loader',
-				filter: this.getCssFilter(),
-				transform: this.transformCssAsync.bind(this),
-			}),
-		];
-	}
-
-	get plugins(): EcoBuildPlugin[] {
+	override plugins(): EcoBuildPlugin[] {
 		return [
 			createCssLoaderPlugin({
 				name: 'postcss-processor-runtime-loader',
 				filter: this.getCssFilter(),
 				transform: this.transformCssSync.bind(this),
 			}),
+			{
+				...createCssLoaderPlugin({
+					name: 'postcss-processor-build-loader',
+					filter: this.getCssFilter(),
+					transform: this.transformCssAsync.bind(this),
+				}),
+				environments: ['browser'],
+			},
 		];
 	}
 
 	/**
-	 * Resolves the configured PostCSS plugin list before config build seals the
-	 * app manifest.
-	 *
-	 * @remarks
-	 * Runtime setup reuses this prepared list and only performs cache prewarming.
-	 */
-	override async prepareBuildContributions(): Promise<void> {
-		if (this.buildContributionsPrepared) {
-			return;
-		}
-
-		await this.collectPostcssPlugins();
-		this.buildContributionsPrepared = true;
-	}
-
-	/**
-	 * Prepares build contributions if not already done and prewarms the runtime CSS cache.
+	 * Prewarms the runtime CSS cache, which loads the configured PostCSS plugins on the first stylesheet.
 	 */
 	async setup(): Promise<void> {
-		await this.prepareBuildContributions();
 		await this.prewarmRuntimeCssCache();
 	}
 
@@ -555,6 +550,21 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 		this.postcssPlugins = [];
 	}
 
+	/**
+	 * Loads the PostCSS plugin list once, on the first stylesheet that needs it.
+	 *
+	 * @remarks
+	 * Config finalization does not load the plugins, so a build that starts before `setup()` and a `setup()` of an
+	 * app without stylesheets both work. A failed load is dropped so the next stylesheet retries.
+	 */
+	private ensurePostcssPlugins(): Promise<void> {
+		this.postcssPluginsLoading ??= this.collectPostcssPlugins().catch((error) => {
+			this.postcssPluginsLoading = undefined;
+			throw error;
+		});
+		return this.postcssPluginsLoading;
+	}
+
 	private async collectPostcssPlugins(): Promise<void> {
 		if (!this.context) {
 			throw new Error('Context must be set');
@@ -574,46 +584,24 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 	}
 
 	/**
-	 * Process CSS content
+	 * Runs the configured PostCSS plugins over one stylesheet.
+	 *
 	 * @param fileAsString CSS content as string
-	 * @param filePath Optional file path for resolving relative imports
+	 * @param filePath File path for resolving relative imports
 	 * @returns Processed CSS
 	 */
-	async process(fileAsString: string, filePath?: string): Promise<string> {
-		const input =
-			this.options?.transformInput && filePath
-				? await this.options.transformInput(fileAsString, filePath)
-				: fileAsString;
+	override async transformStylesheet(fileAsString: string, filePath: string): Promise<string> {
+		await this.ensurePostcssPlugins();
+
+		const input = this.options?.transformInput
+			? await this.options.transformInput(fileAsString, filePath)
+			: fileAsString;
 
 		return await PostCssProcessor.processStringOrBuffer(input, {
 			filePath,
 			plugins: this.postcssPlugins,
 			transformOutput: this.options?.transformOutput,
 		});
-	}
-
-	processSync(fileAsString: string, filePath?: string): string {
-		const input =
-			this.options?.transformInput && filePath
-				? this.options.transformInput(fileAsString, filePath)
-				: fileAsString;
-
-		if (input instanceof Promise) {
-			throw new Error('transformInput must be synchronous when used with processSync');
-		}
-
-		return PostCssProcessor.processStringOrBufferSync(input, {
-			filePath,
-			plugins: this.postcssPlugins,
-			transformOutput: this.options?.transformOutput,
-		});
-	}
-
-	/**
-	 * Teardown the PostCSS processor.
-	 */
-	override async teardown(): Promise<void> {
-		logger.debug('Tearing down PostCSS processor');
 	}
 }
 

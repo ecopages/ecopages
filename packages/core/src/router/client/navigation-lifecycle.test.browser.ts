@@ -1,10 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
 	completeNavigationLifecycle,
-	dispatchAfterSwap,
 	dispatchBeforeSwap,
 	ECO_NAVIGATION_LIFECYCLE_EVENTS,
-	schedulePageLoad,
 } from './navigation-lifecycle.ts';
 
 describe('navigation lifecycle dispatch', () => {
@@ -58,7 +56,7 @@ describe('navigation lifecycle dispatch', () => {
 
 		try {
 			const url = new URL('https://example.test/after');
-			dispatchAfterSwap(document, { url, direction: 'replace' });
+			completeNavigationLifecycle(document, { url, direction: 'replace' }, { schedule: () => 1 });
 
 			expect(afterSwapSpy).toHaveBeenCalledTimes(1);
 			const detail = (afterSwapSpy.mock.calls[0]![0] as CustomEvent).detail;
@@ -66,29 +64,6 @@ describe('navigation lifecycle dispatch', () => {
 			expect(detail.direction).toBe('replace');
 		} finally {
 			document.removeEventListener(ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP, afterSwapSpy);
-		}
-	});
-
-	it('completes navigation lifecycle with after-swap and page-load', () => {
-		const afterSwapSpy = vi.fn();
-		const pageLoadSpy = vi.fn();
-		const scheduleSpy = vi.fn((callback: FrameRequestCallback) => {
-			callback(0);
-			return 1;
-		});
-		document.addEventListener(ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP, afterSwapSpy);
-		document.addEventListener(ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD, pageLoadSpy);
-
-		try {
-			const url = new URL('https://example.test/complete');
-			completeNavigationLifecycle(document, { url, direction: 'forward' }, { schedule: scheduleSpy });
-
-			expect(afterSwapSpy).toHaveBeenCalledTimes(1);
-			expect(pageLoadSpy).toHaveBeenCalledTimes(1);
-			expect(scheduleSpy).toHaveBeenCalledTimes(1);
-		} finally {
-			document.removeEventListener(ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP, afterSwapSpy);
-			document.removeEventListener(ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD, pageLoadSpy);
 		}
 	});
 
@@ -102,7 +77,7 @@ describe('navigation lifecycle dispatch', () => {
 
 		try {
 			const url = new URL('https://example.test/page-load');
-			schedulePageLoad(document, { url, direction: 'forward' }, { schedule: scheduleSpy });
+			completeNavigationLifecycle(document, { url, direction: 'forward' }, { schedule: scheduleSpy });
 
 			expect(scheduleSpy).toHaveBeenCalledTimes(1);
 			expect(pageLoadSpy).toHaveBeenCalledTimes(1);
@@ -120,7 +95,7 @@ describe('navigation lifecycle dispatch', () => {
 		document.addEventListener(ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD, pageLoadSpy);
 
 		try {
-			schedulePageLoad(
+			completeNavigationLifecycle(
 				document,
 				{ url: new URL('https://example.test/stale'), direction: 'forward' },
 				{

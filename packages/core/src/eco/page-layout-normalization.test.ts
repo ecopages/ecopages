@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EcoComponentConfig, LayoutPropsContext } from '../types/public-types.ts';
+import type { EcoComponentConfig, LayoutPropsContext } from '../types/contracts.ts';
 import { eco } from './eco.ts';
 import {
 	applyPageLayoutConfig,

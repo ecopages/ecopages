@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { EcoBuildOnResolveArgs, EcoBuildPluginBuilder } from '@ecopages/core/plugins/processor';
+import type { EcoBuildOnResolveArgs, EcoBuildPluginBuilder } from '@ecopages/core/processor';
 import { createContentServerBoundaryPlugin } from '../content-server-boundary-plugin.ts';
 
 describe('createContentServerBoundaryPlugin', () => {
@@ -11,11 +11,11 @@ describe('createContentServerBoundaryPlugin', () => {
 			},
 			onLoad() {},
 			module() {},
+			transform() {},
 		};
 
 		createContentServerBoundaryPlugin().setup(build);
 
-		expect(resolve).toBeDefined();
 		expect(() =>
 			resolve?.({
 				path: 'ecopages:content/posts/server',

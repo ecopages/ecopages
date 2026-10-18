@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import * as appBuildManifestRuntime from '../../../build/app-build-manifest-runtime.ts';
 import { resolveOwningIntegrationRenderer } from './owning-renderer-resolution.ts';
 
@@ -10,7 +10,6 @@ describe('resolveOwningIntegrationRenderer', () => {
 
 		const result = await resolveOwningIntegrationRenderer({
 			appConfig: { integrations: [] } as unknown as EcoPagesAppConfig,
-			runtimeOrigin: 'test',
 			currentIntegrationName: 'kitajs',
 			currentRenderer: { name: 'kitajs' } as never,
 			integrationName: 'react',
@@ -26,7 +25,6 @@ describe('resolveOwningIntegrationRenderer', () => {
 
 		const result = await resolveOwningIntegrationRenderer({
 			appConfig: { integrations: [] } as unknown as EcoPagesAppConfig,
-			runtimeOrigin: 'test',
 			currentIntegrationName: 'kitajs',
 			currentRenderer: current,
 			integrationName: 'kitajs',
@@ -37,9 +35,9 @@ describe('resolveOwningIntegrationRenderer', () => {
 		expect(cache.get('kitajs')).toBe(current);
 	});
 
-	it('activates runtime and initializes a foreign plugin renderer', async () => {
+	it("activates runtime and reuses the Integration's renderer", async () => {
 		const foreignRenderer = { name: 'react' };
-		const initializeRenderer = vi.fn(() => foreignRenderer);
+		const getRenderer = vi.fn(() => foreignRenderer);
 		const cache = new Map<string, never>();
 		const ensureReady = vi
 			.spyOn(appBuildManifestRuntime, 'ensureIntegrationRuntimeReady')
@@ -47,10 +45,8 @@ describe('resolveOwningIntegrationRenderer', () => {
 
 		const result = await resolveOwningIntegrationRenderer({
 			appConfig: {
-				integrations: [{ name: 'react', initializeRenderer }],
-				runtime: { rendererModuleContext: { marker: true } },
+				integrations: [{ name: 'react', getRenderer }],
 			} as unknown as EcoPagesAppConfig,
-			runtimeOrigin: 'test-origin',
 			currentIntegrationName: 'kitajs',
 			currentRenderer: { name: 'kitajs' } as never,
 			integrationName: 'react',
@@ -62,11 +58,8 @@ describe('resolveOwningIntegrationRenderer', () => {
 				integrations: expect.any(Array),
 			}),
 			integrationName: 'react',
-			runtimeOrigin: 'test-origin',
 		});
-		expect(initializeRenderer).toHaveBeenCalledWith({
-			rendererModules: { marker: true },
-		});
+		expect(getRenderer).toHaveBeenCalledWith();
 		expect(result).toBe(foreignRenderer);
 		expect(cache.get('react')).toBe(foreignRenderer);
 

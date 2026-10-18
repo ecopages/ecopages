@@ -60,7 +60,3 @@ export function stripInheritedPlaywrightInspectorEnv(env) {
 
 	return env;
 }
-
-export function createPlaywrightSubprocessEnv(overrides = {}) {
-	return configurePlaywrightColorEnv(stripInheritedPlaywrightInspectorEnv({ ...process.env, ...overrides }));
-}

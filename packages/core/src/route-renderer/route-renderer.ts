@@ -1,7 +1,8 @@
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { AppRuntime } from '../config/assembly/app-runtime.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { invariant } from '../utils/invariant.ts';
-import { PathUtils } from '../utils/path-utils.module.ts';
+import { findIntegrationForFile } from '../plugins/find-integration-for-file.ts';
 import type { IntegrationRenderer } from './orchestration/integration-renderer.ts';
 
 /**
@@ -12,16 +13,18 @@ import type { IntegrationRenderer } from './orchestration/integration-renderer.t
  * loading. Returning this narrowed shape avoids a dedicated wrapper class while
  * still keeping callers off the full integration renderer surface.
  */
-export type PageRouteRenderer = Pick<IntegrationRenderer<unknown>, 'execute' | 'loadPageModule'>;
+export type PageRouteRenderer = Pick<IntegrationRenderer<unknown>, 'execute' | 'loadPageModule'> &
+	Partial<Pick<IntegrationRenderer<unknown>, 'clearPrebuiltRoutePreparation'>>;
 
 /**
  * Narrow explicit-view render contract exposed to static route handling.
  *
  * @remarks
- * Explicit static routes only need `renderToResponse()`, so the factory can
- * hide the broader integration renderer surface there as well.
+ * Explicit views render through `renderExplicitView()`, which returns a response, or
+ * `executeExplicitView()`, which returns the route result with its metadata. A full
+ * document goes through `execute`; a partial render stays on the component path.
  */
-export type ExplicitViewRenderer = Pick<IntegrationRenderer<unknown>, 'renderToResponse'>;
+export type ExplicitViewRenderer = Pick<IntegrationRenderer<unknown>, 'renderExplicitView' | 'executeExplicitView'>;
 
 export interface PageRendererResolver {
 	getPageRenderer(filePath: string): PageRouteRenderer;
@@ -37,54 +40,23 @@ export interface ExplicitViewRendererResolver {
 export type StaticGenerationRendererResolver = PageRendererResolver & ExplicitViewRendererResolver;
 
 /**
- * Selects and caches integration renderers for route files and explicit views.
+ * Selects Integration-owned renderers for route files and explicit views.
  *
  * @remarks
- * The factory owns the policy that maps a route file or explicit integration
- * name to one initialized integration renderer. Renderer instances are cached by
- * integration name so repeated requests do not rebuild renderer state.
+ * The factory maps a route file or explicit integration name to its Integration's
+ * shared renderer. The Integration owns the instance so route rendering,
+ * explicit views, and foreign-child handoffs use the same renderer.
  */
 export class RouteRendererFactory {
 	private appConfig: EcoPagesAppConfig;
-	runtimeOrigin: string;
-	private rendererModules?: unknown;
-	private rendererCache = new Map<string, IntegrationRenderer<unknown>>();
+	private readonly runtime: AppRuntime;
 
 	/**
 	 * Creates the route-renderer factory for one app/runtime instance.
 	 */
-	constructor({
-		appConfig,
-		rendererModules,
-		runtimeOrigin,
-	}: {
-		appConfig: EcoPagesAppConfig;
-		rendererModules?: unknown;
-		runtimeOrigin: string;
-	}) {
+	constructor({ appConfig, runtime }: { appConfig: EcoPagesAppConfig; runtime: AppRuntime }) {
 		this.appConfig = appConfig;
-		this.rendererModules = rendererModules;
-		this.runtimeOrigin = runtimeOrigin;
-	}
-
-	/**
-	 * Rebinds renderer creation to the actual listening origin.
-	 *
-	 * @remarks
-	 * A development server may select a fallback port after this factory is
-	 * constructed. Cached renderers retain their original page-module loader, so
-	 * they must be discarded when the origin changes.
-	 */
-	setRuntimeOrigin(runtimeOrigin: string): void {
-		if (this.runtimeOrigin === runtimeOrigin) {
-			return;
-		}
-
-		this.runtimeOrigin = runtimeOrigin;
-		this.rendererCache.clear();
-		for (const integration of this.appConfig.integrations) {
-			integration.setRuntimeOrigin?.(runtimeOrigin);
-		}
+		this.runtime = runtime;
 	}
 
 	/**
@@ -105,49 +77,26 @@ export class RouteRendererFactory {
 			return null;
 		}
 
-		const cached = this.rendererCache.get(integrationName);
-		if (cached) {
-			return cached;
-		}
-
-		const renderer = integrationPlugin.initializeRenderer({
-			rendererModules: this.rendererModules,
-		});
-		this.rendererCache.set(integrationName, renderer);
-		return renderer;
+		return integrationPlugin.getRenderer();
 	}
 
 	/**
 	 * Resolves the integration plugin that owns a given route file.
 	 */
 	getIntegrationPlugin(filePath: string): AnyIntegrationPlugin {
-		const templateExtension = PathUtils.getEcoTemplateExtension(filePath);
-		const isIntegrationPlugin = (plugin: AnyIntegrationPlugin): boolean => {
-			return plugin.extensions.some((extension) => templateExtension === extension);
-		};
-		const integrationPlugin = this.appConfig.integrations.find(isIntegrationPlugin);
+		const integrationPlugin = findIntegrationForFile(this.appConfig.integrations, filePath);
 		invariant(
 			!!integrationPlugin,
-			`No integration plugin found for template extension: ${templateExtension}, file: ${filePath}`,
+			`No registered Integration owns ${filePath}. Register an Integration for its extension in eco.config.ts.`,
 		);
 		return integrationPlugin;
 	}
 
 	/**
-	 * Returns the cached renderer engine for the file's owning integration,
-	 * creating it on first use.
+	 * Returns the renderer engine for the file's owning Integration.
 	 */
 	private getRouteRendererEngine(filePath: string): IntegrationRenderer<unknown> {
 		const integrationPlugin = this.getIntegrationPlugin(filePath);
-		const cached = this.rendererCache.get(integrationPlugin.name);
-		if (cached) {
-			return cached;
-		}
-
-		const renderer = integrationPlugin.initializeRenderer({
-			rendererModules: this.rendererModules,
-		});
-		this.rendererCache.set(integrationPlugin.name, renderer);
-		return renderer;
+		return integrationPlugin.getRenderer();
 	}
 }

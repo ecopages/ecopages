@@ -1,36 +1,24 @@
 /**
- * This module contains the Lit renderer
+ * This module contains the Lit renderer hooks.
  * @module
  */
 
-import type {
-	ComponentRenderInput,
-	ComponentRenderResult,
-	EcoComponent,
-	EcoFunctionComponent,
-	EcoPagesElement,
-	IntegrationRendererRenderOptions,
-	PageParams,
-	RouteRenderResult,
-	RouteRendererBody,
-	RouteRendererOptions,
-} from '@ecopages/core';
-import {
-	IntegrationRenderer,
-	type RenderToResponseContext,
-} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import { resolveDocumentShellLayouts } from '@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service';
-import type {
-	QueuedForeignSubtreeChildRenderResult,
-	QueuedForeignSubtreeResolutionContext,
-} from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
-import { ensureLitDomShim } from './dom-shim.ts';
+/**
+ * This module contains the Lit renderer hooks.
+ * @module
+ */
+import type { EcoComponent, EcoFunctionComponent, EcoPagesElement, PageParams } from '@ecopages/core';
+import type { RouteRenderResult, RouteRendererOptions } from '@ecopages/core/integration';
+import { createIntegrationRenderer, type IntegrationRendererHookFactoryOptions } from '@ecopages/core/integration';
+import { resolveQueuedTokens } from '@ecopages/core/integration';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	CustomElementScriptPreloader,
 	type CustomElementSsrPreloadComponent,
-} from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
-import { createCustomElementServerModuleImporter } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer';
+} from '@ecopages/core/integration';
+import { requireAppRuntime } from '@ecopages/core/integration';
+import { createCustomElementServerModuleImporter } from '@ecopages/core/integration';
+import { ensureLitDomShim } from './dom-shim.ts';
 import type { LitStaticRenderSession } from './lit-static-render-session.ts';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import {
@@ -40,275 +28,140 @@ import {
 	renderLitValueToString,
 } from './utils/lit-html-rendering.ts';
 
-export type LitRendererOptions = ConstructorParameters<typeof IntegrationRenderer>[0] & {
-	/**
-	 * Lazy session lookup owned by {@link LitPlugin}.
-	 *
-	 * @remarks
-	 * Must not snapshot the session at construction time. Plugin `setup()` may
-	 * assign the session after the renderer is created; `execute` activates the
-	 * integration runtime then reads this accessor so worker dispatch still works.
-	 */
-	getRenderSession?: () => LitStaticRenderSession | undefined;
-};
+export type LitRenderer = InstanceType<ReturnType<typeof createLitRenderer>>;
+export type LitRendererOptions = ConstructorParameters<ReturnType<typeof createLitRenderer>>[0];
 
 /**
- * A renderer for the Lit integration.
+ * Creates the Lit renderer class with a lazy worker-session lookup.
+ *
+ * @remarks
+ * The plugin may create its renderer before `setup()` assigns the static render session, so hooks read the
+ * session when they run instead of capturing its construction-time value.
  */
-export class LitRenderer extends IntegrationRenderer<EcoPagesElement> {
-	override name = LIT_PLUGIN_NAME;
-	private readonly getRenderSession?: () => LitStaticRenderSession | undefined;
-	private readonly ssrScriptPreloader: CustomElementScriptPreloader;
-
-	constructor(options: LitRendererOptions) {
-		const { getRenderSession, ...rendererOptions } = options;
-		super(rendererOptions);
-		this.getRenderSession = getRenderSession;
-		this.ssrScriptPreloader = new CustomElementScriptPreloader({
-			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
-			logLabel: 'lit',
-			requireLazyScriptEntry: true,
-			resolveDependencyPath: this.resolveDependencyPath.bind(this),
-			importServerModule: createCustomElementServerModuleImporter(this.appConfig, '.lit-ssr'),
-		});
-	}
-
-	/**
-	 * Renders a Lit page route, preferring the plugin worker when available.
-	 *
-	 * @remarks
-	 * Activates the integration runtime before reading {@link getRenderSession}
-	 * so a renderer constructed before plugin setup still sees the session.
-	 * When `options.locals` is present, rendering stays in-process: request locals
-	 * are not structured-cloned across the worker boundary.
-	 */
-	public override async execute(options: RouteRendererOptions): Promise<RouteRenderResult> {
-		await this.ensureIntegrationRuntimeActivated();
-		const renderSession = this.getRenderSession?.();
-
-		if (renderSession && options.locals === undefined) {
-			const params: PageParams = options.params ?? {};
-			const result = await renderSession.renderPageInWorker({
-				filePath: options.file,
-				params,
-				query: options.query,
+export function createLitRenderer(
+	getRenderSession: () => LitStaticRenderSession | undefined = () => undefined,
+): ReturnType<typeof createIntegrationRenderer<EcoPagesElement>> {
+	return createIntegrationRenderer<EcoPagesElement>(
+		LIT_PLUGIN_NAME,
+		({ appConfig, resolveComponentDependencies, resolveDependencyPath }: IntegrationRendererHookFactoryOptions) => {
+			const ssrScriptPreloader = new CustomElementScriptPreloader({
+				cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
+				preloadScopes: requireAppRuntime(appConfig).customElementSsrPreloadScopes,
+				logLabel: 'lit',
+				requireLazyScriptEntry: true,
+				resolveDependencyPath,
+				importServerModule: createCustomElementServerModuleImporter(appConfig, '.lit-ssr'),
 			});
+
+			const preloadSsrScripts = async (
+				components: Array<CustomElementSsrPreloadComponent | undefined>,
+			): Promise<void> => {
+				ensureLitDomShim();
+				const renderSession = getRenderSession();
+				if (renderSession) {
+					await renderSession.preloadSsrScripts(components);
+					return;
+				}
+
+				await ssrScriptPreloader.preloadSsrScripts(components);
+			};
 
 			return {
-				body: result.html,
-				cacheStrategy: result.cacheStrategy,
-			};
-		}
+				beforeRender: async (renderOptions) =>
+					preloadSsrScripts([
+						renderOptions.Page,
+						renderOptions.Layout,
+						...(renderOptions.pageDependencyComponents ?? []),
+					]),
+				transformDocumentHtml: normalizeLitHtml,
+				renderRemote: (routeOptions) => renderLitPageInWorker(routeOptions, getRenderSession),
+				renderComponent: async (input) => {
+					await preloadSsrScripts([input.component]);
 
-		return super.execute(options);
-	}
+					if (!isFunctionComponent(input.component)) {
+						throw new TypeError('Lit renderer expected a callable component.');
+					}
 
-	private isFunctionComponent(
-		component: EcoComponent,
-	): component is EcoFunctionComponent<Record<string, unknown>, Promise<EcoPagesElement> | EcoPagesElement> {
-		return typeof component === 'function';
-	}
+					const component = input.component;
+					let renderedChildren: string | undefined;
+					if (input.children !== undefined) {
+						renderedChildren =
+							typeof input.children === 'string'
+								? input.children
+								: await renderLitValueToString(input.children);
+					}
 
-	private async resolveQueuedForeignSubtreeChildren(
-		children: unknown,
-		queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolutionContext['queuedResolutions'][number]>,
-		resolveToken: (token: string) => Promise<string>,
-	): Promise<string | unknown | undefined> {
-		if (children === undefined) {
-			return undefined;
-		}
+					const props =
+						renderedChildren === undefined
+							? input.props
+							: {
+									...input.props,
+									children: LIT_COMPONENT_CHILDREN_SLOT_MARKER,
+								};
+					const content = await component(props);
+					const renderedHtml = await renderLitValueToString(content);
+					const html =
+						renderedChildren === undefined
+							? renderedHtml
+							: injectLitRenderedChildren(renderedHtml, renderedChildren);
+					const assets = input.component.config?.dependencies
+						? await resolveComponentDependencies([input.component])
+						: undefined;
 
-		if (typeof children !== 'string') {
-			return children;
-		}
-
-		let renderedChildren = children;
-		renderedChildren = await this.foreignSubtreeExecutionService.resolveQueuedTokens(
-			renderedChildren,
-			queuedResolutionsByToken,
-			resolveToken,
-		);
-
-		return renderedChildren;
-	}
-
-	private async renderLitQueuedForeignSubtreeChildren(
-		children: unknown,
-		queuedResolutionsByToken: Map<string, QueuedForeignSubtreeResolutionContext['queuedResolutions'][number]>,
-		resolveToken: (token: string) => Promise<string>,
-	): Promise<QueuedForeignSubtreeChildRenderResult> {
-		const renderedChildren = await this.resolveQueuedForeignSubtreeChildren(
-			children,
-			queuedResolutionsByToken,
-			resolveToken,
-		);
-
-		return typeof renderedChildren === 'string' ? { html: renderedChildren } : { children: renderedChildren };
-	}
-
-	/**
-	 * Renders a Lit component for component-level orchestration.
-	 *
-	 * SSR-eligible scripts are preloaded first so custom elements registered
-	 * by the component can render their server markup even when the Lit renderer is
-	 * entered through cross-integration foreign-child handoff.
-	 *
-	 * Includes component-scoped dependency assets when declared.
-	 */
-	override async renderComponent(input: ComponentRenderInput): Promise<ComponentRenderResult> {
-		await this.preloadSsrScripts([input.component]);
-
-		if (!this.isFunctionComponent(input.component)) {
-			throw new TypeError('Lit renderer expected a callable component.');
-		}
-
-		const component = input.component;
-		let renderedChildren: string | undefined;
-		if (input.children !== undefined) {
-			renderedChildren =
-				typeof input.children === 'string' ? input.children : await renderLitValueToString(input.children);
-		}
-
-		let props = input.props;
-		if (renderedChildren !== undefined) {
-			props = {
-				...input.props,
-				children: LIT_COMPONENT_CHILDREN_SLOT_MARKER,
-			};
-		}
-		const content = await component(props);
-		const renderedHtml = await renderLitValueToString(content);
-		const html =
-			renderedChildren === undefined ? renderedHtml : injectLitRenderedChildren(renderedHtml, renderedChildren);
-		const queuedForeignSubtreeResolution = await this.resolveQueuedForeignSubtrees(
-			html,
-			this.getQueuedForeignSubtreeContext(input),
-			(children, _runtimeContext, queuedResolutionsByToken, resolveToken) =>
-				this.renderLitQueuedForeignSubtreeChildren(children, queuedResolutionsByToken, resolveToken),
-		);
-		const hasDependencies = Boolean(input.component.config?.dependencies);
-		const canResolveAssets = typeof this.assetProcessingService?.processDependencies === 'function';
-		const assets =
-			hasDependencies && canResolveAssets
-				? await this.processComponentDependencies([input.component])
-				: undefined;
-
-		return this.finalizeIslandComponentRender(input, {
-			html: queuedForeignSubtreeResolution.html,
-			canAttachAttributes: true,
-			rootTag: this.getRootTagName(queuedForeignSubtreeResolution.html),
-			integrationName: this.name,
-			assets: this.htmlTransformer.dedupeProcessedAssets([
-				...(assets ?? []),
-				...queuedForeignSubtreeResolution.assets,
-			]),
-		});
-	}
-
-	/**
-	 * Detects preload failures that are expected for browser-only modules.
-	 *
-	 * These errors are treated as non-fatal during SSR preload because some
-	 * lazy client scripts intentionally depend on browser globals.
-	 */
-	protected isExpectedSsrPreloadError(error: unknown): boolean {
-		return this.ssrScriptPreloader.isExpectedSsrPreloadError(error);
-	}
-
-	/**
-	 * Collects script file paths eligible for SSR preloading.
-	 *
-	 * Per-entry script dependencies with `ssr: true` are collected (eager or lazy).
-	 * File-backed entries are required (`src` must be present);
-	 * inline content lazy entries are intentionally skipped.
-	 */
-	protected collectSsrPreloadScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): string[] {
-		return this.ssrScriptPreloader.collectSsrPreloadScripts(components);
-	}
-
-	/**
-	 * Preloads SSR-eligible scripts to register custom elements before render.
-	 *
-	 * @remarks
-	 * When a render session exists (main thread), preload uses the session so
-	 * Bun source imports and the Node asset pipeline stay on that isolate.
-	 * With no session (static-render worker), preload uses this renderer's
-	 * app-module importer. A native source import in the worker leaves custom
-	 * elements undefined for `@lit-labs/ssr`.
-	 */
-	protected async preloadSsrScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): Promise<void> {
-		ensureLitDomShim();
-		const renderSession = this.getRenderSession?.();
-		if (renderSession) {
-			await renderSession.preloadSsrScripts(components);
-			return;
-		}
-
-		await this.ssrScriptPreloader.preloadSsrScripts(components);
-	}
-
-	async render({
-		params,
-		query,
-		props,
-		locals,
-		metadata,
-		Page,
-		Layout,
-		layoutEntries,
-		HtmlTemplate,
-		resolvedPageDependencyComponents,
-	}: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
-		try {
-			await this.preloadSsrScripts([Page, Layout, ...(resolvedPageDependencyComponents ?? [])]);
-
-			return await this.renderPageWithDocumentShell({
-				page: {
-					component: Page,
-					props: {
-						params,
-						query,
-						...props,
-						locals,
-					},
+					return {
+						html,
+						canAttachAttributes: true,
+						integrationName: LIT_PLUGIN_NAME,
+						assets,
+					};
 				},
-				layouts: resolveDocumentShellLayouts({
-					layout: Layout,
-					layoutEntries,
-					params,
-					query,
-					locals,
-				}),
-				htmlTemplate: HtmlTemplate,
-				metadata,
-				pageProps: props || {},
-				foreignChildRoots: resolvedPageDependencyComponents,
-				transformDocumentHtml: normalizeLitHtml,
-			});
-		} catch (error) {
-			throw this.createRenderError('Error rendering page', error);
-		}
+				renderQueuedChildren: async (children, _runtimeContext, queuedResolutionsByToken, resolveToken) => {
+					if (children === undefined) {
+						return {};
+					}
+
+					if (typeof children !== 'string') {
+						return { children };
+					}
+
+					return { html: await resolveQueuedTokens(children, queuedResolutionsByToken, resolveToken) };
+				},
+			};
+		},
+	);
+}
+
+export const LitRenderer = createLitRenderer();
+
+function isFunctionComponent(
+	component: EcoComponent,
+): component is EcoFunctionComponent<Record<string, unknown>, Promise<EcoPagesElement> | EcoPagesElement> {
+	return typeof component === 'function';
+}
+
+/**
+ * Renders a Lit page route in its build-scoped worker when request data can cross the worker boundary.
+ *
+ * @remarks
+ * Locals and explicit props stay in-process: locals are request objects, and the worker re-imports the route module.
+ */
+async function renderLitPageInWorker(
+	options: RouteRendererOptions,
+	getRenderSession: () => LitStaticRenderSession | undefined,
+): Promise<RouteRenderResult | undefined> {
+	const renderSession = getRenderSession();
+
+	if (!renderSession || options.locals !== undefined || options.props !== undefined) {
+		return undefined;
 	}
 
-	async renderToResponse<P = Record<string, unknown>>(
-		view: EcoComponent<P>,
-		props: P,
-		ctx: RenderToResponseContext,
-	): Promise<Response> {
-		try {
-			const layouts = view.config?.layouts;
-			const Layout = layouts?.[layouts.length - 1];
-			await this.preloadSsrScripts([view, Layout]);
+	const params: PageParams = options.params ?? {};
+	const result = await renderSession.renderPageInWorker({
+		filePath: options.file,
+		params,
+		query: options.query,
+	});
 
-			return await this.renderViewWithDocumentShell({
-				view,
-				props,
-				ctx,
-				layout: Layout,
-				transformDocumentHtml: normalizeLitHtml,
-			});
-		} catch (error) {
-			throw this.createRenderError('Error rendering view', error);
-		}
-	}
+	const { html, ...metadata } = result;
+	return { body: html, ...metadata };
 }

@@ -1,9 +1,10 @@
 import path from 'node:path';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import { getNodeEnvironment } from '../env.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { getDevEnvFileNames } from './development-restart.ts';
 
 /** Returns whether `filePath` is a supported project-level dotenv file. */
-export function isDevEnvFilePath(filePath: string, rootDir?: string, nodeEnv = process.env.NODE_ENV): boolean {
+export function isDevEnvFilePath(filePath: string, rootDir?: string, nodeEnv = getNodeEnvironment()): boolean {
 	if (!rootDir) {
 		return false;
 	}
@@ -23,7 +24,7 @@ export function isDevEnvFilePath(filePath: string, rootDir?: string, nodeEnv = p
  * The paths need not exist yet. Watching every supported name allows creating
  * or removing a dotenv file to restart the development process too.
  */
-export function resolveDevEnvFilePaths(rootDir?: string, nodeEnv = process.env.NODE_ENV): string[] {
+export function resolveDevEnvFilePaths(rootDir?: string, nodeEnv = getNodeEnvironment()): string[] {
 	if (!rootDir) {
 		return [];
 	}
@@ -33,15 +34,20 @@ export function resolveDevEnvFilePaths(rootDir?: string, nodeEnv = process.env.N
 
 /** Absolute paths that should restart the development server when changed. */
 export function resolveRuntimeRestartWatchPaths(appConfig: EcoPagesAppConfig): string[] {
-	const paths: string[] = [];
+	const paths = new Set<string>();
+	const configModuleFiles = appConfig.absolutePaths?.configModuleFiles;
 
-	if (appConfig.absolutePaths?.config) {
-		paths.push(appConfig.absolutePaths.config);
+	if (configModuleFiles?.length) {
+		for (const file of configModuleFiles) {
+			paths.add(path.resolve(file));
+		}
+	} else if (appConfig.absolutePaths?.config) {
+		paths.add(path.resolve(appConfig.absolutePaths.config));
 	}
 
 	for (const envPath of resolveDevEnvFilePaths(appConfig.rootDir)) {
-		paths.push(envPath);
+		paths.add(envPath);
 	}
 
-	return paths;
+	return [...paths];
 }

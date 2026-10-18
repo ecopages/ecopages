@@ -1,28 +1,42 @@
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
+import { createAppRuntime, requireAppRuntime } from '../../../config/assembly/app-runtime.ts';
 import { appLogger } from '../../../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import type {
 	AssetDefinition,
 	AssetProcessingService,
 	ProcessedAsset,
-} from '../../../services/assets/asset-processing-service/index.ts';
+} from '../../../assets/asset-processing-service/index.ts';
 import {
 	collectPageBrowserGraphDependencyPaths,
 	createPageBrowserGraphEntryFingerprint,
-	getAppPageBrowserGraphSession,
 	SessionPageBrowserGraphCache,
 } from './page-browser-graph-session.ts';
 import { PageBrowserGraphService } from './page-browser-graph.service.ts';
 import { createGroupedGraphBuildPlanKey } from './grouped-graph-build-plan.ts';
 import { createPageDependencyInstanceKey } from './route-instance-key.ts';
 
-const appConfig = {
-	integrations: [{ name: 'react', extensions: ['.tsx'] }],
-	absolutePaths: {
-		pagesDir: '/app/pages',
-	},
-} as unknown as EcoPagesAppConfig;
+let appConfig: EcoPagesAppConfig;
+
+beforeEach(() => {
+	appConfig = {
+		loaders: new Map(),
+		processors: new Map(),
+		integrations: [
+			{
+				name: 'react',
+				extensions: ['.tsx'],
+				plugins: () => [],
+				browserRuntimeManifest: { runtimeGlobals: [], hmrRequirements: [] },
+			},
+		],
+		absolutePaths: {
+			pagesDir: '/app/pages',
+		},
+	} as unknown as EcoPagesAppConfig;
+	createAppRuntime(appConfig);
+});
 
 function createGroupedDependency(): AssetDefinition {
 	return {
@@ -45,7 +59,6 @@ function isGroupedContentScriptDependency(asset: AssetDefinition): asset is Extr
 
 afterEach(() => {
 	vi.restoreAllMocks();
-	getAppPageBrowserGraphSession(appConfig).resetForTests();
 });
 
 describe('SessionPageBrowserGraphCache', () => {
@@ -121,6 +134,51 @@ describe('SessionPageBrowserGraphCache', () => {
 
 		expect(first).toEqual(second);
 		expect(builds).toBe(1);
+	});
+
+	test('builds a non-cacheable graph independently of an in-flight cached build', async () => {
+		const session = new SessionPageBrowserGraphCache();
+		let releaseCachedBuild: (() => void) | undefined;
+		const cachedBuildGate = new Promise<void>((resolve) => {
+			releaseCachedBuild = resolve;
+		});
+		const key = {
+			integrationName: 'react',
+			routeFile: '/app/pages/index.tsx',
+			dependencyInstanceKey: '',
+			entryFingerprint: 'file:/app/pages/index.tsx',
+			policy: 'production' as const,
+		};
+
+		const cachedBuild = session.resolveGraph(key, new Set(['/app/pages/index.tsx']), async () => {
+			await cachedBuildGate;
+			return {
+				result: {
+					entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/cached.js' }],
+					chunkAssets: [],
+				},
+				dependencyPaths: new Set(['/app/pages/index.tsx']),
+			};
+		});
+		const nonCacheableBuild = session.resolveGraph(
+			key,
+			new Set(['/app/pages/index.tsx']),
+			async () => ({
+				result: {
+					entryAssets: [{ kind: 'script', inline: false, filepath: '/assets/fresh.js' }],
+					chunkAssets: [],
+				},
+				dependencyPaths: new Set(['/app/pages/index.tsx']),
+				cacheable: false,
+			}),
+			{ reuseCachedResult: false },
+		);
+
+		releaseCachedBuild?.();
+		const [cached, nonCacheable] = await Promise.all([cachedBuild, nonCacheableBuild]);
+
+		expect(cached?.entryAssets[0]?.filepath).toBe('/assets/cached.js');
+		expect(nonCacheable?.entryAssets[0]?.filepath).toBe('/assets/fresh.js');
 	});
 
 	test('preserves the last valid record when a rebuild fails', async () => {
@@ -399,6 +457,106 @@ test('PageBrowserGraphService warns when grouped assets lose groupedBundle metad
 	);
 });
 
+test('PageBrowserGraphService reuses a dynamic route template when grouped dependencies match', async () => {
+	const prebuiltAsset = {
+		filepath: '/app/dist/assets/template.js',
+		srcUrl: '/assets/template.js',
+		kind: 'script' as const,
+	};
+	const dependency = createGroupedDependency();
+	const processDependencies = vi.fn(async (): Promise<ProcessedAsset[]> => []);
+	const service = new PageBrowserGraphService(appConfig, {
+		processDependencies,
+		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+	} as unknown as AssetProcessingService);
+	const plan = {
+		integrationName: 'react',
+		planKey: createGroupedGraphBuildPlanKey('react', [
+			{
+				routeFile: '/app/pages/products/[slug].tsx',
+				dependencyInstanceKey: '',
+				skipStaticProps: true,
+				isRouteTemplate: true,
+			},
+		]),
+		instances: [
+			{
+				routeFile: '/app/pages/products/[slug].tsx',
+				dependencyInstanceKey: '',
+				skipStaticProps: true,
+				isRouteTemplate: true,
+				contribution: { dependencies: [dependency] },
+				prebuiltGroupedAssets: [prebuiltAsset],
+			},
+		],
+	};
+
+	const result = await service.resolvePageBrowserGraph({
+		routeFile: '/app/pages/products/[slug].tsx',
+		dependencyInstanceKey: createPageDependencyInstanceKey({ params: { slug: 'new-product' } }),
+		integrationName: 'react',
+		groupedBuildPlan: plan,
+		collectContribution: async () => ({ dependencies: [dependency] }),
+	});
+
+	expect(result?.entryAssets).toEqual([prebuiltAsset]);
+	expect(processDependencies).not.toHaveBeenCalled();
+});
+
+test('PageBrowserGraphService keeps the request-time build when a dynamic route adds grouped dependencies', async () => {
+	const prebuiltAsset = {
+		filepath: '/app/dist/assets/template.js',
+		srcUrl: '/assets/template.js',
+		kind: 'script' as const,
+	};
+	const templateDependency = createGroupedDependency();
+	const requestDependency = { ...createGroupedDependency(), content: 'console.log("new product island")' };
+	const runtimeAsset = {
+		filepath: '/app/.eco/assets/runtime.js',
+		srcUrl: '/assets/runtime.js',
+		kind: 'script' as const,
+		groupedBundle: { id: 'react-router-pages', entryName: 'index' },
+	};
+	const processDependencies = vi.fn(async (): Promise<ProcessedAsset[]> => [runtimeAsset]);
+	const service = new PageBrowserGraphService(appConfig, {
+		processDependencies,
+		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+	} as unknown as AssetProcessingService);
+	const plan = {
+		integrationName: 'react',
+		planKey: createGroupedGraphBuildPlanKey('react', [
+			{
+				routeFile: '/app/pages/products/[slug].tsx',
+				dependencyInstanceKey: '',
+				skipStaticProps: true,
+				isRouteTemplate: true,
+			},
+		]),
+		instances: [
+			{
+				routeFile: '/app/pages/products/[slug].tsx',
+				dependencyInstanceKey: '',
+				skipStaticProps: true,
+				isRouteTemplate: true,
+				contribution: { dependencies: [templateDependency] },
+				prebuiltGroupedAssets: [prebuiltAsset],
+			},
+		],
+	};
+
+	const result = await service.resolvePageBrowserGraph({
+		routeFile: '/app/pages/products/[slug].tsx',
+		dependencyInstanceKey: createPageDependencyInstanceKey({ params: { slug: 'new-product' } }),
+		integrationName: 'react',
+		groupedBuildPlan: plan,
+		collectContribution: async () => ({ dependencies: [requestDependency] }),
+	});
+
+	expect(result?.entryAssets).not.toContain(prebuiltAsset);
+	expect(result?.entryAssets).toContainEqual(runtimeAsset);
+	expect(processDependencies).toHaveBeenCalledOnce();
+});
+
 test('PageBrowserGraphService reuses HMR graph records for unchanged requests', async () => {
 	const processDependencies = vi.fn(async (): Promise<ProcessedAsset[]> => [
 		{
@@ -432,6 +590,39 @@ test('PageBrowserGraphService reuses HMR graph records for unchanged requests', 
 	await service.resolvePageBrowserGraph(input);
 
 	expect(processDependencies).toHaveBeenCalledTimes(1);
+});
+
+test('rebuilds an existing graph when one render disables graph caching', async () => {
+	const processDependencies = vi
+		.fn()
+		.mockResolvedValueOnce([
+			{ filepath: '/assets/stale.js', kind: 'script', inline: false } satisfies ProcessedAsset,
+		])
+		.mockResolvedValueOnce([
+			{ filepath: '/assets/fresh.js', kind: 'script', inline: false } satisfies ProcessedAsset,
+		]);
+	const assetProcessingService = {
+		processDependencies,
+		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+	} as unknown as AssetProcessingService;
+	const service = new PageBrowserGraphService(appConfig, assetProcessingService);
+	const input = {
+		routeFile: '/app/pages/index.tsx',
+		integrationName: 'react',
+		collectContribution: async () => ({
+			dependencies: [
+				{ kind: 'script', source: 'file', filepath: '/app/pages/index.tsx' } satisfies AssetDefinition,
+			],
+		}),
+	};
+
+	await service.resolvePageBrowserGraph(input);
+	const freshGraph = await service.resolvePageBrowserGraph({ ...input, cacheable: false });
+
+	expect(freshGraph?.entryAssets.map((asset) => asset.filepath)).toEqual(['/assets/fresh.js']);
+	const cachedGraph = await service.resolvePageBrowserGraph(input);
+	expect(cachedGraph?.entryAssets.map((asset) => asset.filepath)).toEqual(['/assets/stale.js']);
+	expect(processDependencies).toHaveBeenCalledTimes(2);
 });
 
 test('createPageBrowserGraphEntryFingerprint includes direct contribution assets', () => {
@@ -588,7 +779,7 @@ test('does not commit an in-flight graph after one of its watch paths changes', 
 
 	const staleBuild = service.resolvePageBrowserGraph(input);
 	await firstBuildStarted;
-	getAppPageBrowserGraphSession(appConfig).invalidateByFilePath(contentFile);
+	requireAppRuntime(appConfig).pageBrowserGraphSession.invalidateByFilePath(contentFile);
 	releaseFirstBuild?.();
 	await staleBuild;
 
@@ -651,9 +842,9 @@ test('preserves processed grouped-asset order for a route', async () => {
 	expect(result?.entryAssets.map((asset) => asset.filepath)).toEqual(['/assets/second.js', '/assets/first.js']);
 });
 
-test('processes grouped assets once for a large set of static dependency instances', async () => {
+test('processes grouped assets once for all static dependency instances of a grouped plan', async () => {
 	const routeFile = '/app/pages/docs/[...slug]/index.tsx';
-	const instances = Array.from({ length: 1_000 }, (_, index) => {
+	const instances = Array.from({ length: 3 }, (_, index) => {
 		const slug = `entry-${index}`;
 		const dependencyInstanceKey = createPageDependencyInstanceKey({ params: { slug: ['docs', slug] } });
 		const groupedDependency: AssetDefinition = {
@@ -708,7 +899,100 @@ test('processes grouped assets once for a large set of static dependency instanc
 	}
 
 	expect(processDependencies).toHaveBeenCalledOnce();
-	expect(processDependencies.mock.calls[0]?.[0]).toHaveLength(1_000);
+	expect(processDependencies.mock.calls[0]?.[0]).toHaveLength(3);
+});
+
+test('uses app-prebuilt grouped assets without invoking the per-render asset processor', async () => {
+	const routeFile = '/app/pages/docs/index.tsx';
+	const dependencyInstanceKey = '';
+	const groupedDependency = createGroupedDependency();
+	const processedAsset: ProcessedAsset = {
+		kind: 'script',
+		inline: false,
+		filepath: '/app/dist/assets/client.js',
+		srcUrl: '/assets/client.js',
+		groupedBundle: { id: 'ecopages-app-browser-client', entryName: 'client-entry' },
+	};
+	const contribution = { dependencies: [groupedDependency] };
+	const processDependencies = vi.fn(async (): Promise<ProcessedAsset[]> => []);
+	const assetProcessingService = {
+		processDependencies,
+		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+	} as unknown as AssetProcessingService;
+	const service = new PageBrowserGraphService(appConfig, assetProcessingService);
+	const groupedBuildPlan = {
+		integrationName: 'react',
+		planKey: 'app-wide-build',
+		instances: [
+			{
+				routeFile,
+				dependencyInstanceKey,
+				contribution,
+				prebuiltGroupedAssets: [processedAsset],
+			},
+		],
+	};
+
+	const result = await service.resolvePageBrowserGraph({
+		routeFile,
+		dependencyInstanceKey,
+		integrationName: 'react',
+		collectContribution: async () => contribution,
+		groupedBuildPlan,
+	});
+
+	expect(result?.entryAssets).toEqual([processedAsset]);
+	expect(processDependencies).not.toHaveBeenCalled();
+});
+
+test('builds explicit route overrides from their current grouped dependencies', async () => {
+	const routeFile = '/app/pages/docs/index.tsx';
+	const dependencyInstanceKey = '';
+	const prebuiltDependency = createGroupedDependency();
+	const overrideDependency = { ...createGroupedDependency(), content: 'console.log("override")' };
+	const prebuiltAsset: ProcessedAsset = {
+		kind: 'script',
+		inline: false,
+		filepath: '/app/dist/assets/prebuilt.js',
+		srcUrl: '/assets/prebuilt.js',
+		groupedBundle: { id: 'ecopages-app-browser-client', entryName: 'prebuilt-entry' },
+	};
+	const overrideAsset: ProcessedAsset = {
+		kind: 'script',
+		inline: false,
+		filepath: '/app/.eco/assets/override.js',
+		srcUrl: '/assets/override.js',
+		groupedBundle: { id: 'react-router-pages', entryName: 'index' },
+	};
+	const processDependencies = vi.fn(async (): Promise<ProcessedAsset[]> => [overrideAsset]);
+	const service = new PageBrowserGraphService(appConfig, {
+		processDependencies,
+		getHmrManager: vi.fn(() => ({ isEnabled: () => false })),
+	} as unknown as AssetProcessingService);
+	const groupedBuildPlan = {
+		integrationName: 'react',
+		planKey: 'app-wide-build',
+		instances: [
+			{
+				routeFile,
+				dependencyInstanceKey,
+				contribution: { dependencies: [prebuiltDependency] },
+				prebuiltGroupedAssets: [prebuiltAsset],
+			},
+		],
+	};
+
+	const result = await service.resolvePageBrowserGraph({
+		routeFile,
+		dependencyInstanceKey,
+		integrationName: 'react',
+		cacheable: false,
+		groupedBuildPlan,
+		collectContribution: async () => ({ dependencies: [overrideDependency] }),
+	});
+
+	expect(result?.entryAssets).toEqual([overrideAsset]);
+	expect(processDependencies).toHaveBeenCalledWith([overrideDependency], appConfig.integrations?.[0]);
 });
 
 test('PageBrowserGraphService does not commit route graphs built without a grouped plan', async () => {

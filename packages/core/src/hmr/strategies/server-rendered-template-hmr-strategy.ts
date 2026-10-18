@@ -10,7 +10,7 @@ import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy.ts
 
 /** Outranks integration-owned strategies that may also match shared dependencies. */
 const SERVER_RENDERED_TEMPLATE_PRIORITY_OFFSET = 50;
-import type { DevelopmentInvalidationService } from '../../services/invalidation/development-invalidation.service.ts';
+import type { DevelopmentInvalidationService } from '../../dev/invalidation/development-invalidation.service.ts';
 
 export class ServerRenderedTemplateHmrStrategy extends HmrStrategy {
 	override readonly type = HmrStrategyType.INTEGRATION;

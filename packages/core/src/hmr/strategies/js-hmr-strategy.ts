@@ -14,7 +14,6 @@ import { appLogger } from '../../global/app-logger.ts';
 import { isRegisteredDevTransformEntrypoint, isRegisteredScriptEntrypoint } from '../hmr-entrypoint-output.ts';
 import { isDevTransformModuleUrl } from '../hmr-asset-paths.ts';
 import type { HmrRegisteredEntrypointsContext } from '../hmr-registered-entrypoints-context.ts';
-import type { EntrypointDependencyGraph } from '../../services/runtime-state/entrypoint-dependency-graph.service.ts';
 
 /**
  * Context interface providing access to HmrManager state.
@@ -23,7 +22,9 @@ import type { EntrypointDependencyGraph } from '../../services/runtime-state/ent
 export interface JsHmrContext extends HmrRegisteredEntrypointsContext {
 	getWatchedFiles(): Map<string, string>;
 
-	getEntrypointDependencyGraph(): EntrypointDependencyGraph;
+	getEntrypointDependencyGraph(): {
+		getDependencyEntrypoints(filePath: string): Set<string>;
+	};
 
 	getSrcDir(): string;
 
@@ -58,6 +59,13 @@ export class JsHmrStrategy extends HmrStrategy {
 		this.context = context;
 	}
 
+	/**
+	 * @remarks
+	 * With a selective dependency graph, a file the dev transform has not served and no served module
+	 * imports is left to the fallback reload: hot-updating the watched entrypoints would not apply it.
+	 * That covers server-only modules and HTML Page classic scripts, which are compiled outside the dev
+	 * transform.
+	 */
 	matches(filePath: string): boolean {
 		const watchedFiles = this.context.getWatchedFiles();
 		const resolvedPath = path.resolve(filePath);
@@ -84,7 +92,7 @@ export class JsHmrStrategy extends HmrStrategy {
 			return false;
 		}
 
-		return true;
+		return this.context.getEntrypointDependencyGraph().getDependencyEntrypoints(resolvedPath).size > 0;
 	}
 
 	private resolveImpactedEntrypoints(
@@ -92,19 +100,12 @@ export class JsHmrStrategy extends HmrStrategy {
 		watchedFiles: Map<string, string>,
 		resolvedChanged: string,
 		isRegisteredEntrypointEdit: boolean,
-	): { buildableEntrypoints: string[]; hasDependencyHit: boolean } {
+	): string[] {
 		const dependencyHits = this.context.getEntrypointDependencyGraph().getDependencyEntrypoints(filePath);
-		const hasDependencyHit = dependencyHits.size > 0;
 		const impactedEntrypoints = isRegisteredEntrypointEdit
 			? [resolvedChanged]
-			: hasDependencyHit
-				? Array.from(dependencyHits).filter((entrypoint) => watchedFiles.has(path.resolve(entrypoint)))
-				: Array.from(watchedFiles.keys());
-		const buildableEntrypoints = impactedEntrypoints.filter(
-			(entrypoint) => this.context.shouldProcessEntrypoint?.(entrypoint) ?? true,
-		);
-
-		return { buildableEntrypoints, hasDependencyHit };
+			: Array.from(dependencyHits).filter((entrypoint) => watchedFiles.has(path.resolve(entrypoint)));
+		return impactedEntrypoints.filter((entrypoint) => this.context.shouldProcessEntrypoint?.(entrypoint) ?? true);
 	}
 
 	private collectDevTransformHmrOutcome(
@@ -153,16 +154,12 @@ export class JsHmrStrategy extends HmrStrategy {
 			return { type: 'none' };
 		}
 
-		const { buildableEntrypoints, hasDependencyHit } = this.resolveImpactedEntrypoints(
+		const buildableEntrypoints = this.resolveImpactedEntrypoints(
 			filePath,
 			watchedFiles,
 			resolvedChanged,
 			isRegisteredEntrypointEdit,
 		);
-
-		if (!hasDependencyHit && !isRegisteredEntrypointEdit) {
-			appLogger.debug('[JsHmrStrategy] Dependency graph miss, rebuilding all watched entrypoints');
-		}
 
 		if (buildableEntrypoints.length === 0) {
 			return { type: 'none' };

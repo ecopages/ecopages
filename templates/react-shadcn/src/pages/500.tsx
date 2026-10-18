@@ -1,10 +1,10 @@
-import { eco } from '@ecopages/core';
-import type { Error500TemplateProps } from '@ecopages/core';
+import { eco, isDevelopmentRuntime } from '@ecopages/core';
+import type { ErrorPageTemplateProps } from '@ecopages/core';
 import { useState, type ReactNode } from 'react';
 import { BaseLayout } from '@/layouts/base-layout';
 import './500.css';
 
-export default eco.page<Error500TemplateProps, ReactNode>({
+export default eco.page<ErrorPageTemplateProps, ReactNode>({
 	layout: BaseLayout,
 
 	render: ({ message, stack }) => {
@@ -13,7 +13,7 @@ export default eco.page<Error500TemplateProps, ReactNode>({
 				<p className="error500__status">ERROR 500</p>
 				<h1>Something went wrong</h1>
 				<p>Our server hit an unexpected error. Please try again in a moment.</p>
-				{process.env.NODE_ENV === 'development' && (message || stack) ? (
+				{isDevelopmentRuntime() && (message || stack) ? (
 					<ErrorDiagnostics message={message} stack={stack} />
 				) : null}
 			</div>
@@ -21,7 +21,7 @@ export default eco.page<Error500TemplateProps, ReactNode>({
 	},
 });
 
-function ErrorDiagnostics({ message, stack }: Pick<Error500TemplateProps, 'message' | 'stack'>) {
+function ErrorDiagnostics({ message, stack }: Pick<ErrorPageTemplateProps, 'message' | 'stack'>) {
 	const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
 	const details = [message ? `Message: ${message}` : '', stack ? `Stack:\n${stack}` : '']
 		.filter(Boolean)

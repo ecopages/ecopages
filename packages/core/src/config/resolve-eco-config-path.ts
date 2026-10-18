@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { getEcopagesEnv } from '../env.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { SERVER_BUNDLE_DIR } from '../utils/resolve-entry-file.ts';
 import { EMITTED_ECO_CONFIG_FILENAME } from './server-config-bundle.ts';
@@ -25,24 +26,46 @@ export type ResolveEcoConfigPathOptions = {
 	required?: boolean;
 	/** Prefer the emitted production config over the source config when both exist. */
 	preferEmitted?: boolean;
+	/**
+	 * The build output directory, relative to `cwd`, whose emitted config may be used.
+	 * Without it only a config beside the running server bundle counts as emitted.
+	 */
+	distDir?: string;
 };
 
-/** Resolves the emitted production config without consulting source overrides. */
-export function resolveEmittedEcoConfigPath(cwd = process.cwd()): string | undefined {
-	const candidates = [
-		path.resolve(cwd, 'dist', SERVER_BUNDLE_DIR, EMITTED_ECO_CONFIG_FILENAME),
-		path.resolve(cwd, SERVER_BUNDLE_DIR, EMITTED_ECO_CONFIG_FILENAME),
-	];
-	return candidates.find((candidate) => fileSystem.exists(candidate));
+/** Resolves the emitted production config of one build output directory without consulting source overrides. */
+export function resolveEmittedEcoConfigPath(cwd: string, distDir: string): string | undefined {
+	const candidate = path.resolve(cwd, distDir, SERVER_BUNDLE_DIR, EMITTED_ECO_CONFIG_FILENAME);
+	return fileSystem.exists(candidate) ? candidate : undefined;
+}
+
+/**
+ * Returns the emitted config next to the running entry when that entry is a
+ * server bundle, such as `node dist/.server/app.mjs` or `bun dist/.server/app.mjs`.
+ *
+ * @remarks
+ * Reads `process.argv[1]` rather than `import.meta`, because server builds
+ * rewrite bundled `import.meta` to the source location. The source config
+ * would make Node import TypeScript from `node_modules`, which it does not
+ * strip. `ecopages dev` runs the source entry, so it keeps `eco.config.ts`.
+ */
+function resolveRunningServerBundleConfigPath(): string | undefined {
+	const entry = process.argv[1];
+	if (!entry) return undefined;
+	const entryDir = path.dirname(path.resolve(entry));
+	if (path.basename(entryDir) !== SERVER_BUNDLE_DIR) return undefined;
+	const candidate = path.join(entryDir, EMITTED_ECO_CONFIG_FILENAME);
+	return fileSystem.exists(candidate) ? candidate : undefined;
 }
 
 /**
  * Resolves the canonical absolute path to the Ecopages config module.
  *
  * @remarks
- * Precedence: explicit `configFile`, then `ECOPAGES_CONFIG_FILE`, then
- * `<cwd>/eco.config.ts`, then the emitted production config. When `preferEmitted`
- * is enabled, the emitted config precedes the source config.
+ * Precedence: explicit `configFile`, then `ECOPAGES_CONFIG_FILE`, then the
+ * emitted config next to a running server bundle, then `<cwd>/eco.config.ts`,
+ * then the emitted production config. When `preferEmitted` is enabled, the
+ * emitted config precedes the source config.
  */
 export function resolveEcoConfigPath(options: ResolveEcoConfigPathOptions & { required: false }): string | undefined;
 export function resolveEcoConfigPath(options?: ResolveEcoConfigPathOptions): string;
@@ -50,27 +73,20 @@ export function resolveEcoConfigPath(options: ResolveEcoConfigPathOptions = {}):
 	const cwd = options.cwd ?? process.cwd();
 	const required = options.required ?? true;
 
-	if (options.configFile) {
-		const resolved = path.isAbsolute(options.configFile)
-			? options.configFile
-			: path.resolve(cwd, options.configFile);
+	const explicitPath = options.configFile || getEcopagesEnv(ECOPAGES_CONFIG_FILE_ENV);
+	if (explicitPath) {
+		const resolved = path.resolve(cwd, explicitPath);
 		if (!fileSystem.exists(resolved)) {
 			throw new Error(`Ecopages config file not found: ${resolved}`);
 		}
 		return resolved;
 	}
 
-	const envPath = process.env[ECOPAGES_CONFIG_FILE_ENV];
-	if (envPath) {
-		const resolved = path.isAbsolute(envPath) ? envPath : path.resolve(cwd, envPath);
-		if (!fileSystem.exists(resolved)) {
-			throw new Error(`Ecopages config file not found: ${resolved}`);
-		}
-		return resolved;
-	}
+	const serverBundleConfigPath = resolveRunningServerBundleConfigPath();
+	if (serverBundleConfigPath) return serverBundleConfigPath;
 
 	const defaultPath = path.resolve(cwd, DEFAULT_ECO_CONFIG_FILENAME);
-	const emittedConfigPath = resolveEmittedEcoConfigPath(cwd);
+	const emittedConfigPath = options.distDir ? resolveEmittedEcoConfigPath(cwd, options.distDir) : undefined;
 	if (options.preferEmitted && emittedConfigPath) return emittedConfigPath;
 	if (fileSystem.exists(defaultPath)) return defaultPath;
 	if (emittedConfigPath) return emittedConfigPath;

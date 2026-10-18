@@ -1,71 +1,49 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, test, vi } from 'vitest';
-import { installBuildRuntime } from '../../../build/runtime/build-runtime.ts';
+import { inspect } from 'node:util';
+import { describe, test, vi } from 'vitest';
+import { installBuildQueue } from '../../../build/runtime/build-queue.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
-import { ConfigBuilder } from '../../../config/config-builder.ts';
-import { NodeHmrManager } from '../../node/node-hmr-manager.ts';
-import { HmrManager as BunHmrManager } from '../../bun/hmr-manager.ts';
-import type { SharedHmrManager } from './shared-hmr-manager.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
+import { finalizeEcoPagesConfig } from '../../../config/assembly/finalize-config.ts';
+import { resolveInternalExecutionDir } from '../../../utils/resolve-work-dir.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { ClientBridgeEvent } from '../../../types/contracts.ts';
+import { createTempRoot, startHmrManager, writeSourceFile } from './hmr-manager.test-helpers.ts';
+import type { HmrManager } from './hmr-manager.ts';
+import { createBuildSuccess } from '../../../__fixtures__/build/build-result.ts';
 
-const tempRoots: string[] = [];
+const PAGE_SOURCE = 'export default function Page() { return null; }';
 
-function createTempRoot(prefix: string): string {
-	const root = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
-	tempRoots.push(root);
-	return root;
-}
-
-afterEach(() => {
-	for (const root of tempRoots.splice(0)) {
-		fs.rmSync(root, { recursive: true, force: true });
-	}
-	vi.restoreAllMocks();
-});
-
+/**
+ * Every runtime's manager runs this suite.
+ *
+ * @remarks
+ * What only one runtime does lives beside its manager, as `node-hmr-manager.test.ts` does for the Node
+ * overrides. `create` gets an app config so a test can arrange it first.
+ */
 const runtimes = [
 	{
 		name: 'node',
-		async create(rootDir: string): Promise<SharedHmrManager> {
-			const config = await new ConfigBuilder().setRootDir(rootDir).build();
-			return new NodeHmrManager({
-				appConfig: config,
-				bridge: {
-					subscriberCount: 0,
-					broadcast: () => {},
-				} as any,
-			});
-		},
-	},
-	{
-		name: 'bun',
-		async create(rootDir: string): Promise<SharedHmrManager> {
-			const config = await new ConfigBuilder().setRootDir(rootDir).build();
-			return new BunHmrManager({
-				appConfig: config,
-				bridge: {
-					subscriberCount: 0,
-					broadcast: () => {},
-					subscribe: () => {},
-					unsubscribe: () => {},
-				} as any,
-			});
+		async create(
+			config: EcoPagesAppConfig,
+			subscriberCount = 0,
+		): Promise<{ manager: HmrManager; broadcasts: ClientBridgeEvent[] }> {
+			return startHmrManager(config, subscriberCount);
 		},
 	},
 ] as const;
 
 describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
+	async function createAt(rootDir: string, subscriberCount = 0) {
+		return create(await finalizeEcoPagesConfig({ rootDir }), subscriberCount);
+	}
+
 	test('shares one transform URL across concurrent page registrations', async () => {
 		const rootDir = createTempRoot('ecopages-hmr-contract-register');
-		const pagesDir = path.join(rootDir, 'src', 'pages');
-		fs.mkdirSync(pagesDir, { recursive: true });
-
-		const entrypointPath = path.join(pagesDir, 'react-lab.tsx');
-		fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
-
-		using manager = await create(rootDir);
+		const entrypointPath = writeSourceFile(rootDir, 'src/pages/react-lab.tsx', PAGE_SOURCE);
+		const { manager } = await createAt(rootDir);
 
 		const [firstUrl, secondUrl] = await Promise.all([
 			manager.registerEntrypoint(entrypointPath),
@@ -78,13 +56,8 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 
 	test('registers unowned page entrypoints with dev transform URLs', async () => {
 		const rootDir = createTempRoot('ecopages-hmr-contract-transform-url');
-		const pagesDir = path.join(rootDir, 'src', 'pages');
-		fs.mkdirSync(pagesDir, { recursive: true });
-
-		const entrypointPath = path.join(pagesDir, 'react-content.mdx');
-		fs.writeFileSync(entrypointPath, '# Hello', 'utf8');
-
-		using manager = await create(rootDir);
+		const entrypointPath = writeSourceFile(rootDir, 'src/pages/react-content.mdx', '# Hello');
+		const { manager } = await createAt(rootDir);
 
 		const outputUrl = await manager.registerEntrypoint(entrypointPath);
 
@@ -92,24 +65,44 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		assert.equal(manager.getWatchedFiles().has(path.resolve(entrypointPath)), true);
 	});
 
+	test('registers a second page after the first page is already watched', async () => {
+		const rootDir = createTempRoot('ecopages-hmr-contract-second-page');
+		const firstEntrypoint = writeSourceFile(rootDir, 'src/pages/about.tsx', PAGE_SOURCE);
+		const secondEntrypoint = writeSourceFile(rootDir, 'src/pages/index.tsx', PAGE_SOURCE);
+		const { manager } = await createAt(rootDir);
+
+		const firstUrl = await manager.registerEntrypoint(firstEntrypoint);
+		const secondUrl = await manager.registerEntrypoint(secondEntrypoint);
+
+		assert.equal(firstUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/about.js`);
+		assert.equal(secondUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/index.js`);
+		assert.equal(manager.getWatchedFiles().size, 2);
+	});
+
+	test('registering a page returns its URL without dispatching a file change or broadcasting', async () => {
+		const rootDir = createTempRoot('ecopages-hmr-contract-silent-register');
+		const entrypointPath = writeSourceFile(rootDir, 'src/pages/index.tsx', PAGE_SOURCE);
+		const { manager, broadcasts } = await createAt(rootDir, 1);
+		const handleFileChange = vi.spyOn(manager, 'handleFileChange');
+		const handleFileChanges = vi.spyOn(manager, 'handleFileChanges');
+
+		const outputUrl = await manager.registerEntrypoint(entrypointPath);
+
+		assert.equal(outputUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/index.js`);
+		assert.equal(handleFileChange.mock.calls.length, 0);
+		assert.equal(handleFileChanges.mock.calls.length, 0);
+		assert.deepEqual(broadcasts, []);
+	});
+
 	test('registers explicit script entrypoints with dev transform URLs without blocking builds', async () => {
 		const rootDir = createTempRoot('ecopages-hmr-contract-script-register');
-		const srcDir = path.join(rootDir, 'src');
-		fs.mkdirSync(srcDir, { recursive: true });
-
-		const entrypointPath = path.join(srcDir, 'script.ts');
-		fs.writeFileSync(entrypointPath, 'console.log("hello");', 'utf8');
-
-		using manager = await create(rootDir);
-		installBuildRuntime(manager.appConfig);
+		const entrypointPath = writeSourceFile(rootDir, 'src/script.ts', 'console.log("hello");');
+		const { manager } = await createAt(rootDir);
+		const buildQueue = installBuildQueue(manager.appConfig);
 		const buildCalls: string[] = [];
-		manager.appConfig.runtime!.buildRuntime!.getProfile('browser-hmr').build = vi.fn(async (options) => {
+		buildQueue.build = vi.fn(async (options) => {
 			buildCalls.push(options.entrypoints[0] as string);
-			return {
-				success: true,
-				logs: [],
-				outputs: [{ path: '/tmp/unused.js' }],
-			};
+			return createBuildSuccess({ outputs: [{ path: '/tmp/unused.js' }] });
 		});
 
 		const resolved = await manager.registerScriptEntrypoint(entrypointPath);
@@ -121,48 +114,209 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 
 	test('registering one script entrypoint does not rebuild previously watched script entrypoints', async () => {
 		const rootDir = createTempRoot('ecopages-hmr-contract-script-targeted-register');
-		const srcDir = path.join(rootDir, 'src');
-		fs.mkdirSync(srcDir, { recursive: true });
-
-		const firstEntrypoint = path.join(srcDir, 'first.script.ts');
-		const secondEntrypoint = path.join(srcDir, 'second.script.ts');
-		fs.writeFileSync(firstEntrypoint, 'console.log("first");', 'utf8');
-		fs.writeFileSync(secondEntrypoint, 'console.log("second");', 'utf8');
-
-		using manager = await create(rootDir);
-		installBuildRuntime(manager.appConfig);
+		const firstEntrypoint = writeSourceFile(rootDir, 'src/first.script.ts', 'console.log("first");');
+		const secondEntrypoint = writeSourceFile(rootDir, 'src/second.script.ts', 'console.log("second");');
+		const { manager } = await createAt(rootDir);
+		const buildQueue = installBuildQueue(manager.appConfig);
 		const buildCalls: string[][] = [];
-		manager.appConfig.runtime!.buildRuntime!.getProfile('browser-hmr').build = vi.fn(async (options) => {
+		buildQueue.build = vi.fn(async (options) => {
 			buildCalls.push((options.entrypoints as string[]).map(String));
-			return {
-				success: true,
-				logs: [],
-				outputs: [],
-			};
+			return createBuildSuccess();
 		});
 
 		await manager.registerScriptEntrypoint(firstEntrypoint);
 		await manager.registerScriptEntrypoint(secondEntrypoint);
 
 		assert.deepEqual(buildCalls, []);
-		assert.equal(manager.getOutputUrl(firstEntrypoint), `${DEV_TRANSFORM_URL_PREFIX}/first.script.js`);
-		assert.equal(manager.getOutputUrl(secondEntrypoint), `${DEV_TRANSFORM_URL_PREFIX}/second.script.js`);
+		assert.equal(
+			manager.getRegisteredEntrypoints().get(firstEntrypoint)?.outputUrl,
+			`${DEV_TRANSFORM_URL_PREFIX}/first.script.js`,
+		);
+		assert.equal(
+			manager.getRegisteredEntrypoints().get(secondEntrypoint)?.outputUrl,
+			`${DEV_TRANSFORM_URL_PREFIX}/second.script.js`,
+		);
 	});
 
 	test('stop clears retained registration state', async () => {
 		const rootDir = createTempRoot('ecopages-hmr-contract-stop');
-		const pagesDir = path.join(rootDir, 'src', 'pages');
-		fs.mkdirSync(pagesDir, { recursive: true });
-
-		const entrypointPath = path.join(pagesDir, 'react-content.tsx');
-		fs.writeFileSync(entrypointPath, 'export default function Page() { return null; }', 'utf8');
-
-		using manager = await create(rootDir);
-
+		const entrypointPath = writeSourceFile(rootDir, 'src/pages/react-content.tsx', PAGE_SOURCE);
+		const dependencyPath = writeSourceFile(rootDir, 'src/lib/shared.ts', 'export const shared = 1;');
+		const config = await finalizeEcoPagesConfig({ rootDir });
+		const runtime = requireAppRuntime(config);
+		const { manager } = await create(config);
 		await manager.registerEntrypoint(entrypointPath);
+		const dependencyGraph = manager.getDefaultContext().getEntrypointDependencyGraph();
+		runtime.buildInputIndex.register({ consumer: 'entrypoint', key: path.resolve(entrypointPath) }, [
+			entrypointPath,
+			dependencyPath,
+		]);
+		assert.equal(dependencyGraph.getDependencyEntrypoints(dependencyPath).size, 1);
 
 		manager.stop();
 
 		assert.equal(manager.getWatchedFiles().size, 0);
+		assert.equal(dependencyGraph.getDependencyEntrypoints(dependencyPath).size, 0);
+	});
+
+	test('records entrypoint dependencies in the app build input index', async () => {
+		const rootDir = createTempRoot('ecopages-hmr-contract-dependency-graph');
+		const entrypointPath = writeSourceFile(rootDir, 'src/pages/react-content.tsx', PAGE_SOURCE);
+		const dependencyPath = writeSourceFile(rootDir, 'src/lib/shared.ts', 'export const shared = 1;');
+		const config = await finalizeEcoPagesConfig({ rootDir });
+		const runtime = requireAppRuntime(config);
+
+		const { manager } = await create(config);
+		const graph = manager.getDefaultContext().getEntrypointDependencyGraph();
+		runtime.buildInputIndex.register({ consumer: 'entrypoint', key: path.resolve(entrypointPath) }, [
+			entrypointPath,
+			dependencyPath,
+		]);
+
+		assert.deepEqual(graph.getDependencyEntrypoints(dependencyPath), new Set([path.resolve(entrypointPath)]));
+		assert.deepEqual(runtime.buildInputIndex.resolveKeys('entrypoint', dependencyPath), [
+			path.resolve(entrypointPath),
+		]);
+	});
+
+	test('records HMR dependencies in the app build input index', async () => {
+		const rootDir = createTempRoot('ecopages-hmr-contract-shared-build-index');
+		const entrypointPath = writeSourceFile(
+			rootDir,
+			'src/pages/index.tsx',
+			"import { data } from '../shared/page-data.ts';\nexport default function Page() { return data; }\n",
+		);
+		const dependencyPath = writeSourceFile(rootDir, 'src/shared/page-data.ts', 'export const data = 1;\n');
+		const { manager } = await createAt(rootDir);
+		const outputUrl = await manager.registerEntrypoint(entrypointPath);
+		const response = await manager.tryHandleDevClientRequest(new Request(`http://localhost${outputUrl}`));
+
+		assert.equal(response?.status, 200);
+		assert.deepEqual(
+			requireAppRuntime(manager.appConfig).buildInputIndex.resolveKeys('entrypoint', dependencyPath),
+			[path.resolve(entrypointPath)],
+		);
+	});
+
+	test('broadcasts the dev transform URL as an update when a registered page source changes', async () => {
+		const rootDir = createTempRoot('ecopages-hmr-contract-page-update');
+		const entrypointPath = writeSourceFile(rootDir, 'src/pages/about.tsx', PAGE_SOURCE);
+		const { manager, broadcasts } = await createAt(rootDir, 1);
+
+		await manager.registerEntrypoint(entrypointPath);
+		await manager.handleFileChange(entrypointPath);
+
+		assert.equal(broadcasts.length, 1);
+		assert.equal(broadcasts[0]?.type, 'update');
+		assert.equal(broadcasts[0]?.path, `${DEV_TRANSFORM_URL_PREFIX}/pages/about.js`);
+	});
+
+	test('leaves server modules of a registered entrypoint edit to the watcher batch', async () => {
+		const rootDir = createTempRoot('ecopages-hmr-contract-no-second-invalidation');
+		const entrypointPath = writeSourceFile(rootDir, 'src/pages/react-content.tsx', PAGE_SOURCE);
+		const config = await finalizeEcoPagesConfig({ rootDir });
+		const appModuleLoader = {
+			importModule: vi.fn(async () => ({})),
+			invalidateDevelopmentGraph: vi.fn(),
+			getDevelopmentGeneration: () => 0,
+		};
+		requireAppRuntime(config).moduleLoader = appModuleLoader as never;
+		const { manager } = await create(config, 1);
+		manager.setEnabled(true);
+
+		await manager.registerEntrypoint(entrypointPath);
+		await manager.handleFileChange(entrypointPath);
+
+		assert.equal(appModuleLoader.invalidateDevelopmentGraph.mock.calls.length, 0);
+		assert.equal(appModuleLoader.importModule.mock.calls.length, 0);
+	});
+
+	test('keeps internal browser and server-module outputs out of distDir', async () => {
+		const rootDir = createTempRoot('ecopages-hmr-contract-internal-paths');
+		const config = await finalizeEcoPagesConfig({ rootDir });
+		const importModule = vi
+			.spyOn(requireAppRuntime(config).moduleLoader, 'importModule')
+			.mockImplementation(async () => ({}) as never);
+		const { manager } = await create(config);
+
+		await manager
+			.getDefaultContext()
+			.importServerModule(path.join(config.absolutePaths.srcDir, 'pages', 'index.tsx'));
+
+		assert.equal(
+			importModule.mock.calls[0]?.[0]?.outdir,
+			path.join(resolveInternalExecutionDir(config), '.server-modules'),
+		);
+	});
+
+	test('registers script-change handlers on the session and clears runtime.hmr on stop', async () => {
+		const rootDir = createTempRoot('ecopages-hmr-contract-script-handler-session');
+		const scriptPath = path.join(rootDir, 'src', 'counter.script.ts');
+		fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
+		fs.writeFileSync(scriptPath, 'export const count = 1;\n', 'utf8');
+		const config = await finalizeEcoPagesConfig({ rootDir });
+		installBuildQueue(config);
+		const handler = vi.fn();
+
+		const { manager: firstManager } = await create(config);
+		assert.equal(requireAppRuntime(config).hmr, firstManager);
+		firstManager.onScriptEntrypointChanged(handler);
+		await firstManager.registerScriptEntrypoint(scriptPath);
+
+		firstManager.stop();
+		assert.equal(requireAppRuntime(config).hmr, null);
+
+		const { manager: secondManager } = await create(config);
+		assert.equal(requireAppRuntime(config).hmr, secondManager);
+		secondManager.onScriptEntrypointChanged(handler);
+		await secondManager.registerScriptEntrypoint(scriptPath);
+
+		fs.writeFileSync(scriptPath, 'export const count = 2;\n', 'utf8');
+		await secondManager.handleFileChange(scriptPath);
+
+		assert.equal(handler.mock.calls.length, 1);
+		assert.deepEqual(handler.mock.calls[0], [scriptPath]);
+	});
+
+	describe('when the Dev Toolbar runtime fails', () => {
+		test('keeps HMR on and logs when the Dev Toolbar package is not installed', async () => {
+			const rootDir = createTempRoot('ecopages-hmr-contract-toolbar-missing');
+			const config = await finalizeEcoPagesConfig({
+				rootDir,
+				devToolbar: { package: '@ecopages/missing-dev-toolbar' },
+			});
+			installBuildQueue(config);
+			const { manager } = await create(config);
+			manager.setEnabled(true);
+			const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+			await assert.doesNotReject(() => manager.ensureRuntimeReady());
+
+			assert.equal(manager.isEnabled(), true);
+			assert.match(errorSpy.mock.calls.flat().join(' '), /Could not bundle the Dev Toolbar/);
+		});
+
+		test('keeps HMR on and logs when the Dev Toolbar package fails to bundle', async () => {
+			const rootDir = createTempRoot('ecopages-hmr-contract-toolbar-bundle-failure');
+			const packageDir = path.join(rootDir, 'node_modules', 'broken-dev-toolbar');
+			fs.mkdirSync(path.join(packageDir, 'src'), { recursive: true });
+			fs.writeFileSync(
+				path.join(packageDir, 'package.json'),
+				'{"name":"broken-dev-toolbar","type":"module","exports":"./src/bootstrap.js"}',
+				'utf8',
+			);
+			fs.writeFileSync(path.join(packageDir, 'src', 'bootstrap.js'), "import './does-not-exist.js';", 'utf8');
+			const config = await finalizeEcoPagesConfig({ rootDir, devToolbar: { package: 'broken-dev-toolbar' } });
+			installBuildQueue(config);
+			const { manager } = await create(config);
+			manager.setEnabled(true);
+			const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+			await assert.doesNotReject(() => manager.ensureRuntimeReady());
+
+			assert.equal(manager.isEnabled(), true);
+			assert.match(errorSpy.mock.calls.flat().join(' '), /Could not bundle the Dev Toolbar/);
+			assert.match(inspect(errorSpy.mock.calls.flat(), { depth: 5 }), /does-not-exist/);
+		});
 	});
 });

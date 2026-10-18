@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
-import { GENERATED_BASE_PATHS } from '@ecopages/core/constants';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import { GENERATED_BASE_PATHS } from '@ecopages/core/build';
 import { ImageProcessor } from '../image-processor';
 import { imageProcessorPlugin } from '../plugin';
 
@@ -49,7 +49,34 @@ afterEach(() => {
 });
 
 describe('ImageProcessorPlugin', () => {
-	test('prepareBuildContributions does not process images', async () => {
+	test('routes a watch batch through one processing call and each deleted source', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-watch-batch-'));
+		tempRoots.push(rootDir);
+		const plugin = createImageProcessorPlugin({
+			sourceDir: path.join(rootDir, 'src', 'images'),
+			outputDir: path.join(rootDir, 'dist', 'images'),
+		});
+		const processSpy = vi.spyOn(plugin, 'process').mockResolvedValue();
+		const deleteSpy = vi.spyOn(plugin, 'deleteProcessedImagesbyPath').mockResolvedValue();
+		const watchConfig = plugin.getWatchConfig();
+		if (!watchConfig?.onChanges) {
+			throw new Error('Expected image processor batched watch handler');
+		}
+
+		await watchConfig.onChanges({
+			created: ['/images/created.png'],
+			changed: ['/images/changed.png'],
+			deleted: ['/images/deleted.png'],
+			bridge: {} as never,
+		});
+
+		expect(processSpy).toHaveBeenCalledTimes(1);
+		expect(processSpy).toHaveBeenCalledWith(['/images/created.png', '/images/changed.png']);
+		expect(deleteSpy).toHaveBeenCalledTimes(1);
+		expect(deleteSpy).toHaveBeenCalledWith('/images/deleted.png');
+	});
+
+	test('finalization leaves images and generated types alone until setup', async () => {
 		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-prepare-'));
 		tempRoots.push(rootDir);
 
@@ -58,32 +85,33 @@ describe('ImageProcessorPlugin', () => {
 		fs.mkdirSync(sourceDir, { recursive: true });
 		await createTestImage(path.join(sourceDir, 'hero.png'));
 
-		const processDirectorySpy = vi.spyOn(ImageProcessor.prototype, 'processDirectory');
 		const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-		await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		plugin.setContext(appConfig);
 
 		const typesDir = path.join(rootDir, GENERATED_BASE_PATHS.types, plugin.name);
 		const typesFile = path.join(typesDir, 'virtual-module.d.ts');
 
-		expect(processDirectorySpy).not.toHaveBeenCalled();
-		expect(fs.existsSync(typesFile)).toBe(true);
+		expect(fs.existsSync(typesFile)).toBe(false);
+		expect(fs.existsSync(outputDir)).toBe(false);
+
+		await plugin.setup();
+
 		expect(fs.readFileSync(typesFile, 'utf8')).toContain('declare module "ecopages:images"');
 		expect(fs.readFileSync(typesFile, 'utf8')).toContain('export const heroPng: ImageSpecifications;');
 		expect(JSON.parse(fs.readFileSync(path.join(typesDir, 'package.json'), 'utf8'))).toMatchObject({
 			name: '@types/ecopages-image-processor',
 			types: './index.d.ts',
 		});
-		expect(
-			fs.existsSync(outputDir) ? fs.readdirSync(outputDir).some((file) => file.endsWith('.webp')) : false,
-		).toBe(false);
+		expect(fs.readdirSync(outputDir).some((file) => file.endsWith('.webp'))).toBe(true);
 	});
 
-	test('config build followed by setup processes images exactly once', async () => {
+	test('finalization followed by setup processes images exactly once', async () => {
 		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-once-'));
 		tempRoots.push(rootDir);
 
@@ -95,11 +123,12 @@ describe('ImageProcessorPlugin', () => {
 		const processDirectorySpy = vi.spyOn(ImageProcessor.prototype, 'processDirectory');
 		const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-		await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		plugin.setContext(appConfig);
 
 		expect(processDirectorySpy).not.toHaveBeenCalled();
 
@@ -122,11 +151,12 @@ describe('ImageProcessorPlugin', () => {
 		const processDirectorySpy = vi.spyOn(ImageProcessor.prototype, 'processDirectory');
 		const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-		await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		plugin.setContext(appConfig);
 
 		expect(processDirectorySpy).not.toHaveBeenCalled();
 		expect(
@@ -167,11 +197,12 @@ describe('ImageProcessorPlugin', () => {
 
 		const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-		await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		plugin.setContext(appConfig);
 
 		await plugin.setup();
 
@@ -196,11 +227,12 @@ describe('ImageProcessorPlugin', () => {
 		const processDirectorySpy = vi.spyOn(ImageProcessor.prototype, 'processDirectory');
 		const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
 
-		await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setBaseUrl('http://localhost:3000')
-			.setProcessors([plugin])
-			.build();
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		plugin.setContext(appConfig);
 
 		await plugin.setup();
 		expect(processDirectorySpy).toHaveBeenCalledTimes(1);
@@ -215,38 +247,5 @@ describe('ImageProcessorPlugin', () => {
 
 		expect(processDirectorySpy).toHaveBeenCalledTimes(2);
 		expect(fs.readdirSync(outputDir).some((file) => file.endsWith('.webp'))).toBe(true);
-	});
-
-	test('skips image processing in Lit static render worker threads', async () => {
-		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-worker-'));
-		tempRoots.push(rootDir);
-
-		const sourceDir = path.join(rootDir, 'src', 'images');
-		const outputDir = path.join(rootDir, 'dist', 'images');
-		fs.mkdirSync(sourceDir, { recursive: true });
-		await createTestImage(path.join(sourceDir, 'hero.png'));
-
-		const previousWorkerFlag = process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER;
-		process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER = 'true';
-
-		try {
-			const plugin = createImageProcessorPlugin({ sourceDir, outputDir });
-
-			await new ConfigBuilder()
-				.setRootDir(rootDir)
-				.setBaseUrl('http://localhost:3000')
-				.setProcessors([plugin])
-				.build();
-
-			expect(fs.existsSync(outputDir)).toBe(false);
-			await plugin.setup();
-			expect(fs.existsSync(outputDir)).toBe(false);
-		} finally {
-			if (previousWorkerFlag === undefined) {
-				delete process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER;
-			} else {
-				process.env.ECOPAGES_LIT_STATIC_RENDER_WORKER = previousWorkerFlag;
-			}
-		}
 	});
 });

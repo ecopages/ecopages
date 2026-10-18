@@ -1,14 +1,15 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
-import { RESOLVED_ASSETS_DIR } from '../../../config/constants.ts';
-import { disposeAppBuildRuntime } from '../../../build/runtime/build-runtime.ts';
-import { ensureIntegrationRuntimeReady } from '../../../build/app-build-manifest-runtime.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
+import type { EcoPagesAppConfig, IHmrManager } from '../../../config/internal-types.ts';
+import { RESOLVED_ASSETS_DIR } from '../../../constants.ts';
+import {
+	ensureIntegrationRuntimeReady,
+	teardownAppRuntimeIntegrations,
+} from '../../../build/app-build-manifest-runtime.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import type { ProjectWatcher } from '../../../watchers/project-watcher.ts';
 import { copyRuntimePublicDirIfChanged } from './copy-runtime-public-dir.ts';
-import { clearAppDevClientBridge } from '../../../dev/client-bridge-registry.ts';
-import { clearAppHmrManager } from '../../../dev/hmr-manager-registry.ts';
 
 /**
  * Copies source `public/` into dist and ensures the resolved assets directory exists.
@@ -23,51 +24,54 @@ export function prepareRuntimePublicDir(appConfig: EcoPagesAppConfig): void {
 	fileSystem.ensureDir(path.join(appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR));
 }
 
-const attachedHmrApps = new WeakSet<EcoPagesAppConfig>();
-
 /**
- * Attaches the shared HMR manager to every integration exactly once per app config.
+ * Registers each Integration's development behavior once per app runtime.
  *
  * @remarks
- * Runtime plugin setup must not call `integration.setHmrManager()` directly. Adapters invoke
- * this after the manager is enabled so late plugin init cannot double-bind integrations.
+ * Adapters invoke this after the HMR manager is installed on `AppRuntime`.
  */
-export function attachHmrToIntegrations(appConfig: EcoPagesAppConfig, hmrManager: IHmrManager): void {
-	if (attachedHmrApps.has(appConfig)) {
+export function attachHmrToIntegrations(appConfig: EcoPagesAppConfig): void {
+	const runtime = requireAppRuntime(appConfig);
+	if (runtime.hmrAttachedToIntegrations) {
 		return;
 	}
 
-	attachedHmrApps.add(appConfig);
+	runtime.hmrAttachedToIntegrations = true;
 
 	for (const integration of appConfig.integrations) {
-		integration.setHmrManager(hmrManager);
+		integration.hmr({ appConfig, runtime });
 	}
 }
 
 /**
- * Starts background activation of every configured integration after watch-mode HMR is ready.
+ * Activates every configured integration after watch-mode HMR is ready.
  *
  * @remarks
- * Fire-and-forget: overlaps with watcher setup so first-page render can join the same
- * coalesced {@link ensureIntegrationRuntimeReady} promise instead of paying a cold vendor build.
- * Failures are logged and do not crash the server.
+ * Awaited before network request readiness is released, so requests do not
+ * compete with cold Integration `setup()`. The listener may already be bound.
+ * Failures are logged after all setup attempts settle and do not crash the
+ * server. Concurrent first-page renders still join the same coalesced
+ * {@link ensureIntegrationRuntimeReady} promise.
  */
-export function startDevWarmup(options: { appConfig: EcoPagesAppConfig; runtimeOrigin: string }): void {
-	const { appConfig, runtimeOrigin } = options;
-
-	void Promise.all(
+export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
+	const { appConfig } = options;
+	const results = await Promise.allSettled(
 		appConfig.integrations.map((integration) =>
 			ensureIntegrationRuntimeReady({
 				appConfig,
 				integrationName: integration.name,
-				runtimeOrigin,
 			}),
 		),
-	).catch((error) => {
-		appLogger.error(
-			`Failed to prewarm integration runtimes: ${error instanceof Error ? error.message : String(error)}`,
-		);
-	});
+	);
+
+	for (const [index, result] of results.entries()) {
+		if (result.status === 'rejected') {
+			const integrationName = appConfig.integrations[index]?.name ?? 'unknown';
+			const errorDetails =
+				result.reason instanceof Error ? (result.reason.stack ?? result.reason.message) : String(result.reason);
+			appLogger.error(`Failed to prewarm Integration "${integrationName}": ${errorDetails}`);
+		}
+	}
 }
 
 /**
@@ -76,20 +80,36 @@ export function startDevWarmup(options: { appConfig: EcoPagesAppConfig; runtimeO
  * @remarks
  * Bun calls `ensureRuntimeReady()` during `initialize()` when watch is enabled; Node defers
  * runtime creation to `completeInitialization()`. Transport-specific setup stays in
- * each adapter — only shared teardown lives here.
+ * each adapter — only shared teardown lives here. Integration `setup()` calls still in flight
+ * settle before any `teardown()`, so a late setup cannot recreate released resources. A failed
+ * integration `teardown()` still clears activation state, so the next startup runs `setup()` again.
  */
 export async function disposeDevResources(options: {
 	projectWatcher: ProjectWatcher | null | undefined;
 	appConfig: EcoPagesAppConfig;
-	hmrManager: IHmrManager | null | undefined;
+	hmrManager?: IHmrManager | null | undefined;
 	bridge: { destroy(): void } | null | undefined;
-	previewHost: { stop(): Promise<void> };
+	stopPreviewServer: () => Promise<void>;
 }): Promise<void> {
-	await options.projectWatcher?.close();
-	await disposeAppBuildRuntime(options.appConfig);
-	options.hmrManager?.stop();
-	options.bridge?.destroy();
-	clearAppDevClientBridge(options.appConfig);
-	clearAppHmrManager(options.appConfig);
-	await options.previewHost.stop();
+	const runtime = requireAppRuntime(options.appConfig);
+	const hmrManager = options.hmrManager ?? runtime.hmr;
+	const cleanup = [
+		() => options.projectWatcher?.close(),
+		() => hmrManager?.stop(),
+		() => options.bridge?.destroy(),
+		options.stopPreviewServer,
+		() => teardownAppRuntimeIntegrations({ appConfig: options.appConfig }),
+	];
+	const errors: unknown[] = [];
+	for (const release of cleanup) {
+		try {
+			await release();
+		} catch (error) {
+			errors.push(error);
+		}
+	}
+	runtime.hmr = null;
+	runtime.hmrAttachedToIntegrations = false;
+	if (errors.length === 1) throw errors[0];
+	if (errors.length > 1) throw new AggregateError(errors, 'Failed to release dev resources');
 }

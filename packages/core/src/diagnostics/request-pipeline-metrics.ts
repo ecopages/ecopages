@@ -7,6 +7,9 @@
  * {@link getRequestPipelineMetricsSnapshot}.
  */
 
+import { getProcessRuntime } from '../utils/runtime.ts';
+import { isEcopagesEnvEnabled } from '../env.ts';
+
 export type PageModuleLoadOutcome =
 	'import-cache-hit' | 'disk-cache-hit' | 'cold-build' | 'host-loader' | 'unified-graph';
 
@@ -37,23 +40,39 @@ export type RequestPipelineMetricsSnapshot = {
 	routeRenderPhases: Partial<Record<RouteRenderPhase, RouteRenderPhaseRecord>>;
 };
 
+export type RequestPipelineMetricsState = {
+	pageModuleLoads: number;
+	pageModuleBuilds: number;
+	pageModuleCacheHits: number;
+	hostLoaderLoads: number;
+	diskCacheHits: number;
+	routeModuleArtifacts: number;
+	mdxTransforms: number;
+	collectionBuilds: number;
+	routeRenderPhases: Map<RouteRenderPhase, RouteRenderPhaseRecord>;
+};
+
 const METRICS_HEADER = 'x-ecopages-pipeline-metrics';
 
-let pageModuleLoads = 0;
-let pageModuleBuilds = 0;
-let pageModuleCacheHits = 0;
-let hostLoaderLoads = 0;
-let diskCacheHits = 0;
-let routeModuleArtifacts = 0;
-let mdxTransforms = 0;
-let collectionBuilds = 0;
-const routeRenderPhases = new Map<RouteRenderPhase, RouteRenderPhaseRecord>();
+export function createRequestPipelineMetricsState(): RequestPipelineMetricsState {
+	return {
+		pageModuleLoads: 0,
+		pageModuleBuilds: 0,
+		pageModuleCacheHits: 0,
+		hostLoaderLoads: 0,
+		diskCacheHits: 0,
+		routeModuleArtifacts: 0,
+		mdxTransforms: 0,
+		collectionBuilds: 0,
+		routeRenderPhases: new Map(),
+	};
+}
 
 export function isRequestPipelineMetricsEnabled(): boolean {
 	return (
-		process.env.ECOPAGES_REQUEST_PIPELINE_METRICS === '1' ||
-		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS === '1' ||
-		process.env.ECOPAGES_LOGGER_DEBUG === 'true'
+		isEcopagesEnvEnabled('ECOPAGES_REQUEST_PIPELINE_METRICS') ||
+		isEcopagesEnvEnabled('ECOPAGES_ROLLDOWN_BUILD_METRICS') ||
+		isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG')
 	);
 }
 
@@ -61,58 +80,62 @@ export function getRequestPipelineMetricsHeaderName(): string {
 	return METRICS_HEADER;
 }
 
-export function resolveRequestPipelineRuntime(): 'node' | 'bun' {
-	return typeof Bun !== 'undefined' ? 'bun' : 'node';
-}
-
-export function recordPageModuleLoad(outcome: PageModuleLoadOutcome, artifactCount = 0): void {
+export function recordPageModuleLoad(
+	state: RequestPipelineMetricsState,
+	outcome: PageModuleLoadOutcome,
+	artifactCount = 0,
+): void {
 	if (!isRequestPipelineMetricsEnabled()) {
 		return;
 	}
 
-	pageModuleLoads += 1;
+	state.pageModuleLoads += 1;
 
 	switch (outcome) {
 		case 'import-cache-hit':
-			pageModuleCacheHits += 1;
+			state.pageModuleCacheHits += 1;
 			break;
 		case 'disk-cache-hit':
-			diskCacheHits += 1;
+			state.diskCacheHits += 1;
 			break;
 		case 'cold-build':
-			pageModuleBuilds += 1;
-			routeModuleArtifacts += artifactCount;
+			state.pageModuleBuilds += 1;
+			state.routeModuleArtifacts += artifactCount;
 			break;
 		case 'host-loader':
-			hostLoaderLoads += 1;
+			state.hostLoaderLoads += 1;
 			break;
 		case 'unified-graph':
 			break;
 	}
 }
 
-export function recordMdxTransform(): void {
+export function recordMdxTransform(state: RequestPipelineMetricsState): void {
 	if (!isRequestPipelineMetricsEnabled()) {
 		return;
 	}
 
-	mdxTransforms += 1;
+	state.mdxTransforms += 1;
 }
 
-export function recordCollectionBuild(): void {
+export function recordCollectionBuild(state: RequestPipelineMetricsState): void {
 	if (!isRequestPipelineMetricsEnabled()) {
 		return;
 	}
 
-	collectionBuilds += 1;
+	state.collectionBuilds += 1;
 }
 
-export function recordRouteRenderPhase(phase: RouteRenderPhase, durationMs: number): void {
+export function recordRouteRenderPhase(
+	state: RequestPipelineMetricsState,
+	phase: RouteRenderPhase,
+	durationMs: number,
+): void {
 	if (!isRequestPipelineMetricsEnabled()) {
 		return;
 	}
 
-	const existing = routeRenderPhases.get(phase);
+	const existing = state.routeRenderPhases.get(phase);
 	if (existing) {
 		existing.count += 1;
 		existing.totalDurationMs += durationMs;
@@ -120,14 +143,18 @@ export function recordRouteRenderPhase(phase: RouteRenderPhase, durationMs: numb
 		return;
 	}
 
-	routeRenderPhases.set(phase, {
+	state.routeRenderPhases.set(phase, {
 		count: 1,
 		totalDurationMs: durationMs,
 		lastDurationMs: durationMs,
 	});
 }
 
-export async function measureRouteRenderPhase<T>(phase: RouteRenderPhase, fn: () => Promise<T>): Promise<T> {
+export async function measureRouteRenderPhase<T>(
+	state: RequestPipelineMetricsState,
+	phase: RouteRenderPhase,
+	fn: () => Promise<T>,
+): Promise<T> {
 	if (!isRequestPipelineMetricsEnabled()) {
 		return fn();
 	}
@@ -136,37 +163,25 @@ export async function measureRouteRenderPhase<T>(phase: RouteRenderPhase, fn: ()
 	try {
 		return await fn();
 	} finally {
-		recordRouteRenderPhase(phase, performance.now() - startedAt);
+		recordRouteRenderPhase(state, phase, performance.now() - startedAt);
 	}
 }
 
-export function getRequestPipelineMetricsSnapshot(): RequestPipelineMetricsSnapshot {
+export function getRequestPipelineMetricsSnapshot(state: RequestPipelineMetricsState): RequestPipelineMetricsSnapshot {
 	return {
-		runtime: resolveRequestPipelineRuntime(),
-		pageModuleLoads,
-		pageModuleBuilds,
-		pageModuleCacheHits,
-		hostLoaderLoads,
-		diskCacheHits,
-		routeModuleArtifacts,
-		mdxTransforms,
-		collectionBuilds,
-		routeRenderPhases: Object.fromEntries(routeRenderPhases),
+		runtime: getProcessRuntime().name,
+		pageModuleLoads: state.pageModuleLoads,
+		pageModuleBuilds: state.pageModuleBuilds,
+		pageModuleCacheHits: state.pageModuleCacheHits,
+		hostLoaderLoads: state.hostLoaderLoads,
+		diskCacheHits: state.diskCacheHits,
+		routeModuleArtifacts: state.routeModuleArtifacts,
+		mdxTransforms: state.mdxTransforms,
+		collectionBuilds: state.collectionBuilds,
+		routeRenderPhases: Object.fromEntries(state.routeRenderPhases),
 	};
 }
 
-export function serializeRequestPipelineMetricsHeader(): string {
-	return JSON.stringify(getRequestPipelineMetricsSnapshot());
-}
-
-export function resetRequestPipelineMetrics(): void {
-	pageModuleLoads = 0;
-	pageModuleBuilds = 0;
-	pageModuleCacheHits = 0;
-	hostLoaderLoads = 0;
-	diskCacheHits = 0;
-	routeModuleArtifacts = 0;
-	mdxTransforms = 0;
-	collectionBuilds = 0;
-	routeRenderPhases.clear();
+export function serializeRequestPipelineMetricsHeader(state: RequestPipelineMetricsState): string {
+	return JSON.stringify(getRequestPipelineMetricsSnapshot(state));
 }

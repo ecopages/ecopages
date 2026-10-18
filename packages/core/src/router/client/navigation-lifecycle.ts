@@ -65,7 +65,7 @@ export function dispatchBeforeSwap(doc: Document, input: Omit<EcoBeforeSwapEvent
 }
 
 /** Dispatches `eco:after-swap`. */
-export function dispatchAfterSwap(doc: Document, detail: EcoAfterSwapEvent): void {
+function dispatchAfterSwap(doc: Document, detail: EcoAfterSwapEvent): void {
 	doc.dispatchEvent(new CustomEvent(ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP, { detail }));
 }
 
@@ -84,11 +84,7 @@ export function completeNavigationLifecycle(
 /**
  * Schedules `eco:page-load` on the next animation frame unless navigation is stale.
  */
-export function schedulePageLoad(
-	doc: Document,
-	detail: EcoNavigationEvent,
-	options: SchedulePageLoadOptions = {},
-): void {
+function schedulePageLoad(doc: Document, detail: EcoNavigationEvent, options: SchedulePageLoadOptions = {}): void {
 	const schedule = options.schedule ?? ((callback: FrameRequestCallback) => requestAnimationFrame(callback));
 
 	schedule(() => {

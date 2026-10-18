@@ -1,12 +1,12 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import type { ResolvedLazyTrigger } from '../../../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { ResolvedLazyTrigger } from '../../../types/contracts.ts';
 import {
 	AssetFactory,
 	type AssetProcessingService,
 	type ProcessedAsset,
-} from '../../../services/assets/asset-processing-service/index.ts';
+} from '../../../assets/asset-processing-service/index.ts';
 import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } from '../../../eco/global-injector-map.ts';
 
 /**
@@ -40,5 +40,6 @@ export async function buildGlobalInjectorAssets(
 		bundle: true,
 	});
 
-	return assetProcessingService.processDependencies([mapScript, bootstrapInlineScript], currentIntegrationName);
+	const integration = appConfig.integrations?.find((entry) => entry.name === currentIntegrationName);
+	return assetProcessingService.processDependencies([mapScript, bootstrapInlineScript], integration);
 }

@@ -1,11 +1,10 @@
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import { ensureIntegrationRuntimeReady } from '../../../build/app-build-manifest-runtime.ts';
 import { invariant } from '../../../utils/invariant.ts';
 import type { ForeignSubtreeExecutionOwningRenderer } from './foreign-subtree-execution.service.ts';
 
 export type OwningRendererResolutionInput = {
 	appConfig: EcoPagesAppConfig;
-	runtimeOrigin: string;
 	currentIntegrationName: string;
 	currentRenderer: ForeignSubtreeExecutionOwningRenderer;
 	integrationName: string;
@@ -24,7 +23,7 @@ export function getForeignSubtreeResolutionContextKey(integrationName: string): 
  * Resolves an owning integration renderer for a foreign-child handoff.
  *
  * Reuses the execution-scoped cache, activates the target runtime when needed,
- * and initializes the plugin renderer once per integration name.
+ * and retrieves the Integration's app-owned renderer.
  */
 export async function resolveOwningIntegrationRenderer(
 	input: OwningRendererResolutionInput,
@@ -43,14 +42,11 @@ export async function resolveOwningIntegrationRenderer(
 	await ensureIntegrationRuntimeReady({
 		appConfig: input.appConfig,
 		integrationName,
-		runtimeOrigin: input.runtimeOrigin,
 	});
 
 	const integrationPlugin = input.appConfig.integrations.find((integration) => integration.name === integrationName);
 	invariant(!!integrationPlugin, `[ecopages] Integration not found for foreign owner: ${integrationName}`);
-	const renderer = integrationPlugin.initializeRenderer({
-		rendererModules: input.appConfig.runtime?.rendererModuleContext,
-	});
+	const renderer = integrationPlugin.getRenderer();
 	cache.set(integrationName, renderer);
 	return renderer;
 }

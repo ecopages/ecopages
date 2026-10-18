@@ -1,4 +1,5 @@
 import { eco } from '@ecopages/core';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { DocsLayoutSidebarLink } from './docs-layout-sidebar-link';
 
@@ -23,6 +24,8 @@ const sidebarItems = [
 	{ href: '/docs/examples', label: 'Examples' },
 ];
 
+const queryClient = new QueryClient();
+
 export const DocsLayout = eco.layout<DocsLayoutProps, ReactNode>({
 	dependencies: {
 		stylesheets: ['./docs.css'],
@@ -30,20 +33,22 @@ export const DocsLayout = eco.layout<DocsLayoutProps, ReactNode>({
 	},
 	render: ({ children }) => {
 		return (
-			<div className="docs-layout" data-testid="docs-layout">
-				<aside className="docs-sidebar" data-testid="docs-sidebar" data-eco-persist="scroll">
-					<nav>
-						<ul>
-							{sidebarItems.map((item) => (
-								<li key={item.href}>
-									<DocsLayoutSidebarLink href={item.href}>{item.label}</DocsLayoutSidebarLink>
-								</li>
-							))}
-						</ul>
-					</nav>
-				</aside>
-				<main className="docs-content">{children}</main>
-			</div>
+			<QueryClientProvider client={queryClient}>
+				<div className="docs-layout" data-testid="docs-layout">
+					<aside className="docs-sidebar" data-testid="docs-sidebar" data-eco-persist="scroll">
+						<nav>
+							<ul>
+								{sidebarItems.map((item) => (
+									<li key={item.href}>
+										<DocsLayoutSidebarLink href={item.href}>{item.label}</DocsLayoutSidebarLink>
+									</li>
+								))}
+							</ul>
+						</nav>
+					</aside>
+					<main className="docs-content">{children}</main>
+				</div>
+			</QueryClientProvider>
 		);
 	},
 });

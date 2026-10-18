@@ -1,5 +1,7 @@
 # HMR Layer
 
+**Layer:** Development and HMR.
+
 This directory contains the framework-owned hot-update strategy contracts used by runtime adapters and integrations.
 
 ## Purpose
@@ -19,6 +21,10 @@ It is responsible for:
 3. The active HMR manager selects a strategy.
 4. The strategy coordinates browser rebuilds, metadata reloads, and client broadcasts.
 
+Public-directory and `additionalWatchPaths` changes skip the HMR manager: the Project Watcher sends `reload` through the client bridge itself.
+
+A `source` module recorded in both a server route's and a browser entrypoint's import closures also reloads the browser. This refreshes server-rendered markup when an edited module is shared with an island; an island-only `update` would leave the server-rendered copy stale.
+
 ## Design Rule
 
 Generic invalidation policy belongs in core services.
@@ -27,21 +33,32 @@ Runtime-specific WebSocket or event-stream transport belongs in adapters.
 
 ## Registered entrypoints and dev transform
 
-`SharedHmrManager` in `adapters/shared/hmr/` centralizes file-change handling via `handleFileChange()`. Server invalidation, integration hooks, rebuild, and client broadcast run in one sequence.
+`HmrManager` in `adapters/shared/hmr/` centralizes file-change handling via `handleFileChange()` and `handleFileChanges()`. A Project Watcher batch sends all HMR-eligible paths through `handleFileChanges()` once. The manager skips missing-file events and clears their entrypoint registration. It dispatches each path to its selected strategy and coalesces the results: a `reload` from any file replaces the rest, several layout updates become one soft refresh, and every other distinct update is kept, so an edit shared by two islands hot-updates both. A file whose strategy throws is reported as an `error` event and does not drop the others. Server modules are marked dirty once, by the watcher batch, before the manager runs; the manager only runs integration hooks for a registered entrypoint, rebuilds its dev-transform module, and broadcasts. A registered entrypoint's server module is imported again on the next request, not on the file event.
 
 Dev client modules are served on demand through `DevTransformServer` (`src/dev/`). `DevTransformEntrypointRegistry` tracks registered entrypoints for HMR invalidation. Registration returns a stable dev-transform URL immediately; the first request (or cache miss) runs Rolldown on demand.
 
-`BrowserBundleService` is the sole browser-plugin resolver for HMR builds. HMR managers route `hmr-runtime` and `hmr-entrypoint` rebuilds through the `browser-hmr` executor profile.
+Each module the dev transform serves records its local imports in the per-app dependency graph owned by `HmrManager`; its reverse lookup shares the app's build-input index. `JsHmrStrategy` only claims a JavaScript or TypeScript change to a watched entrypoint, a served module, or a file a served module imports. Any other file, such as a server-only module, an HTML Page classic script, or a module that has not been served yet, is left to the other strategies; when none matches, `DefaultHmrStrategy` reloads the page. A claimed file whose importers are not watched entrypoints also ends in a reload.
 
-Hosts call `prepareHmrFileChange()` before HMR dispatch (`hmr/hmr-file-change-prep.ts`) so page browser graph sessions invalidate consistently with file changes.
+The HMR client and the Dev Toolbar client are two `DevClientRuntime` entries (`dev-client-runtime.ts`: URL, entry, work directory, failure policy) that `HmrManager` bundles once per `DevSession`, serves at their URLs and loads from every HTML response through `injectDevClientRuntimes()`. Only runtimes whose bundle was built are served and injected. A failed HMR bundle disables HMR, which also stops the Dev Toolbar from loading and adding its page manifest because both are gated on the manager being enabled. A failed Dev Toolbar bundle is logged and leaves HMR on. The request pipeline injects clients only while `IHmrManager.isEnabled()` is true.
+
+`BrowserBundleService` is the sole browser-plugin resolver for HMR builds. HMR managers route `hmr-runtime` and `hmr-entrypoint` rebuilds through the `hmr` lane of the app's build queue.
+
+`HmrManager` calls `prepareHmrFileChange()` for each dispatched path (`hmr/hmr-file-change-prep.ts`) so page browser graph sessions invalidate consistently with file changes. The Project Watcher sends the file paths from the batch and does not prepare the graph itself.
 
 ## Client events
 
-| Event           | Client behavior                                                                                                                                                                                            |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `update`        | Cache-bust and re-import the changed module URL (or reload the active page module)                                                                                                                         |
-| `css-update`    | Refresh matching stylesheet `link` hrefs                                                                                                                                                                   |
-| `layout-update` | Soft current-page reload with layout cache cleared (`persistLayouts` remounts the updated layout without a full document reload). Falls back to `location.reload()` only if no navigation owner handles it |
-| `reload`        | Full `location.reload()`                                                                                                                                                                                   |
+Before displaying an error fallback, the client dispatches the cancelable `ecopages:build-error` window event with `{ message: string }`. A toolbar client claims presentation by calling `preventDefault()` synchronously. Any non-error HMR event clears active messages and dispatches `ecopages:build-error-clear`. Clients mounting late dispatch `ecopages:build-error-request` to replay active messages and replace the fallback. Event names and the payload type are public at `@ecopages/core/client`; see [the toolbar contract](../dev-toolbar/README.md#build-error-presentation).
+
+| Event           | Client behavior                                                                                                                                                                                                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `update`        | Cache-bust and re-import the changed module URL (or reload the active page module)                                                                                                                                                                                                 |
+| `css-update`    | Refresh matching stylesheet `link` hrefs                                                                                                                                                                                                                                           |
+| `layout-update` | Soft current-page reload with layout cache cleared (`persistLayouts` remounts the updated layout without a full document reload). Falls back to `location.reload()` only if no navigation owner handles it                                                                         |
+| `reload`        | Full `location.reload()`                                                                                                                                                                                                                                                           |
+| `error`         | Logs to the console and offers the message to toolbar clients. Unclaimed messages appear once in a fixed element appended to `<html>` (`client/build-error-overlay.ts`). Any other event clears errors; Escape, Dismiss, and a click outside a text selection dismiss the fallback |
+
+`error` events also report watcher and route errors. `HmrManager` broadcasts one when the dev transform server fails to build a requested module, and sends pending ones to a socket that connects later; see [dev/README.md](../dev/README.md#build-errors-of-served-modules).
+
+Other HMR events are not queued. While no browser is connected, `HmrManager` drops a file change's events and logs that it did so at debug level. A tab opened later loads its page after the change, so its HTML and versioned module URLs are already current. A tab whose socket was reconnecting at the time keeps its old page until the next change; replaying a `reload` to cover it would also reload every freshly opened tab, because the server cannot tell the two apart.
 
 Dev-transform local imports are rewritten with a content-hash query (`?v=…`) so transitive layout/component modules get a new ESM module-map key after invalidation. Soft `layout-update` then picks up the new layout while shared outer layout persistence still applies across normal SPA navigations.

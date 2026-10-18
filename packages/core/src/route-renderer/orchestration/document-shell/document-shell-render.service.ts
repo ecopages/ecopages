@@ -3,13 +3,13 @@ import type {
 	ComponentRenderResult,
 	EcoComponent,
 	PageMetadataProps,
-} from '../../../types/public-types.ts';
-import type { InternalComponentRenderInput } from '../../../types/internal-types.ts';
-import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
-import {
-	HtmlTransformerService,
-	type HtmlDocumentContribution,
-} from '../../../services/html/html-transformer.service.ts';
+} from '../../../types/contracts.ts';
+import type { InternalComponentRenderInput } from '../../../config/internal-types.ts';
+import type { ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
+import { getComponentOwner } from '../../../eco/component-identity.ts';
+import { HtmlTransformerService, type HtmlDocumentContribution } from '../../../html/html-transformer.service.ts';
+import { getComponentRenderContext } from '../../../eco/component-render-context.ts';
+import type { RouteRenderContextState } from '../foreign-child/render-session.ts';
 
 export type DocumentShellLayoutInput = {
 	component: EcoComponent;
@@ -50,6 +50,7 @@ export type DocumentShellComposeChildrenHook = (
 ) => Promise<DocumentShellComposeChildrenResult>;
 
 export type DocumentShellComposeInput = {
+	inheritedOwner: string;
 	primaryComponent: EcoComponent;
 	primaryProps: Record<string, unknown>;
 	/** Components whose ownership graphs must join the foreign-child decision. */
@@ -62,6 +63,7 @@ export type DocumentShellComposeInput = {
 };
 
 export type DocumentShellPageRenderInput = {
+	inheritedOwner: string;
 	page: {
 		component: EcoComponent;
 		props: Record<string, unknown>;
@@ -98,8 +100,8 @@ function resolveDocumentShellLayouts(
 	return input.layout ? [input.layout] : [];
 }
 
-function resolveComponentIntegrationName(component: EcoComponent): string {
-	return component.config?.integration ?? component.config?.identity?.integration ?? 'ecopages';
+function resolveComponentIntegrationName(component: EcoComponent, inheritedOwner: string): string {
+	return getComponentOwner(component, inheritedOwner);
 }
 
 /**
@@ -142,7 +144,8 @@ export async function composeDocumentShell(
 	dependencies: DocumentShellRenderDependencies,
 	input: DocumentShellComposeInput,
 ): Promise<{ documentHtml: string }> {
-	const rendererCache = new Map<string, unknown>() as BaseIntegrationContext['rendererCache'];
+	const rendererCache = (getComponentRenderContext<RouteRenderContextState>()?.renderState?.session?.rendererCache ??
+		new Map<string, unknown>()) as BaseIntegrationContext['rendererCache'];
 	const layouts = resolveDocumentShellLayouts(input);
 	const composeChildren = input.composeChildren ?? composeSequentialLayoutChildren;
 	const usesCustomComposeChildren = input.composeChildren !== undefined;
@@ -165,8 +168,7 @@ export async function composeDocumentShell(
 			html: typeof composed.children === 'string' ? composed.children : '',
 			assets: [],
 			canAttachAttributes: true,
-			rootTag: 'main',
-			integrationName: resolveComponentIntegrationName(input.primaryComponent),
+			integrationName: resolveComponentIntegrationName(input.primaryComponent, input.inheritedOwner),
 		};
 	} else {
 		primaryRender = await dependencies.renderComponentWithForeignChildren({
@@ -238,6 +240,7 @@ export async function renderPageDocumentShell(
 	docType: string,
 ): Promise<string> {
 	const { documentHtml: composedDocumentHtml } = await composeDocumentShell(dependencies, {
+		inheritedOwner: input.inheritedOwner,
 		primaryComponent: input.page.component,
 		primaryProps: input.page.props,
 		foreignChildRoots: input.foreignChildRoots,
@@ -297,5 +300,9 @@ export async function finalizeDocumentShellHtml(
 		return html;
 	}
 
-	return htmlTransformer.transformHtml(html, options.htmlContributions);
+	const context = getComponentRenderContext<RouteRenderContextState>()?.renderState;
+	return htmlTransformer.injectPageAssets(html, {
+		contributions: options.htmlContributions,
+		pagePackage: context?.session?.pagePackage ?? context?.pagePackage,
+	});
 }

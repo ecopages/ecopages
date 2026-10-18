@@ -1,0 +1,44 @@
+import type { Page } from '@playwright/test';
+import { expect, test } from '../../app-fixture';
+
+function collectErrors(page: Page): string[] {
+	const errors: string[] = [];
+	page.on('pageerror', (error) => errors.push(error.message));
+	page.on('console', (message) => {
+		if (message.type() === 'error') errors.push(message.text());
+	});
+	return errors;
+}
+
+async function loadedBy(page: Page): Promise<string | undefined> {
+	try {
+		return await page.evaluate(() => (window as Window & { loadedBy?: string[] }).loadedBy?.join(' + '));
+	} catch (error) {
+		if (error instanceof Error && /Execution context was destroyed|frame was detached/i.test(error.message)) {
+			return undefined;
+		}
+		throw error;
+	}
+}
+
+test('loads two module scripts of a Page that share a module once', async ({ page }) => {
+	const errors = collectErrors(page);
+
+	await page.goto('/buttons');
+
+	await expect.poll(() => loadedBy(page)).toBe('header + footer');
+	await expect(page.locator('x-btn').first()).toHaveText('x-btn');
+	expect(errors).toEqual([]);
+});
+
+test('keeps a shared module loaded once after browser-router navigation to another Page', async ({ page }) => {
+	const errors = collectErrors(page);
+
+	await page.goto('/buttons');
+	await expect.poll(() => loadedBy(page)).toBe('header + footer');
+	await page.getByTestId('to-more-buttons').click();
+	await expect(page.getByTestId('more-buttons')).toBeVisible();
+
+	await expect.poll(() => loadedBy(page)).toBe('header + footer + badge');
+	expect(errors).toEqual([]);
+});

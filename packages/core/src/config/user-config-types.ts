@@ -1,11 +1,9 @@
-import type { BuildOwnership } from '../build/build-adapter.ts';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { AnyProcessor } from '../plugins/processor.ts';
-import type { EcoSourceTransform } from '../plugins/source-transform.ts';
-import type { CacheConfig } from '../services/cache/cache.types.ts';
-import type { EcoPagesAppConfig, RobotsPreference } from '../types/internal-types.ts';
-import type { PageMetadataProps, SitemapConfig } from '../types/public-types.ts';
+import type { CacheConfig } from '../page-cache/cache.types.ts';
+import type { EcoPagesAppConfig, RobotsPreference } from '../config/internal-types.ts';
+import type { PageMetadataProps, SitemapConfig } from '../types/contracts.ts';
 
 /**
  * Author-owned Ecopages configuration declared in `eco.config.ts`.
@@ -13,7 +11,7 @@ import type { PageMetadataProps, SitemapConfig } from '../types/public-types.ts'
  * @remarks
  * Author this object using `defineConfig({ ... })` in `eco.config.ts`.
  * This type excludes resolved absolute paths, derived integration extensions, and runtime
- * services attached during {@link ConfigBuilder.build}.
+ * services attached when `createApp()` finalizes the config.
  *
  * @example
  * ```typescript
@@ -119,11 +117,6 @@ export type EcoPagesUserConfig = {
 	devPrewarmPaths?: string[];
 
 	/**
-	 * URL route paths that must complete prewarming before the dev server reports ready.
-	 */
-	devPrewarmBeforeReadyPaths?: string[];
-
-	/**
 	 * Default fallback HTML `<head>` metadata (title, description, OpenGraph tags) applied across all pages.
 	 */
 	defaultMetadata?: PageMetadataProps;
@@ -139,14 +132,9 @@ export type EcoPagesUserConfig = {
 	processors?: AnyProcessor[];
 
 	/**
-	 * Custom Rolldown/Vite build loaders and asset transforms.
+	 * Custom Rolldown build loaders and asset transforms.
 	 */
 	loaders?: EcoBuildPlugin[];
-
-	/**
-	 * AST transforms applied to source files before compilation (e.g. island script extraction).
-	 */
-	sourceTransforms?: EcoSourceTransform[];
 
 	/**
 	 * Cache policy configuration for page and asset build outputs.
@@ -162,18 +150,10 @@ export type EcoPagesUserConfig = {
 	 * Experimental runtime or compiler feature flags.
 	 */
 	experimental?: EcoPagesAppConfig['experimental'];
-
-	/**
-	 * Build pipeline ownership mode.
-	 *
-	 * @default 'rolldown'
-	 *
-	 * @remarks
-	 * Set to `'vite-host'` when running inside Vite (`@ecopages/vite-plugin`), where Vite
-	 * owns client and server module transforms.
-	 */
-	buildOwnership?: BuildOwnership;
 };
+
+/** Produces fresh plugin instances when one config module creates multiple apps in a process. */
+export type EcoPagesUserConfigFactory = () => EcoPagesUserConfig;
 
 export type LoadedEcoPagesUserConfig = {
 	config: EcoPagesUserConfig;
@@ -181,7 +161,12 @@ export type LoadedEcoPagesUserConfig = {
 };
 
 export type FinalizeEcoPagesConfigOptions = {
-	buildOwnership?: BuildOwnership;
+	/**
+	 * Path of the config module, stored as `absolutePaths.config`.
+	 *
+	 * @default `<rootDir>/eco.config.ts`
+	 */
+	configFilePath?: string;
 	/**
 	 * Working directory used when `rootDir` is omitted.
 	 *
@@ -193,5 +178,4 @@ export type FinalizeEcoPagesConfigOptions = {
 export type LoadEcoPagesConfigOptions = {
 	configFile?: string;
 	cwd?: string;
-	buildOwnership?: BuildOwnership;
 };

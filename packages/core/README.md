@@ -4,10 +4,10 @@ The foundational engine for the Ecopages framework. It provides the core build p
 
 ## Overview
 
-Ecopages is an extensible static site generator (SSG) built around a Bun-first core with Node fallback support and Vite-hosted compatibility for advanced dev and build orchestration. It embraces a strictly MPA (Multi-Page Application) architecture by default, rendering HTML at build-time or request-time, and hydrating interactive islands only where necessary.
+Ecopages is an extensible static site generator (SSG) that runs on Node. It embraces a strictly MPA (Multi-Page Application) architecture by default, rendering HTML at build-time or request-time, and hydrating interactive islands only where necessary.
 
-- **Runtime Boundary**: `createApp()` prefers Bun when available and falls back to Node otherwise. Vite and Nitro still own host-side dev and build orchestration.
-- **Build Ownership**: Bun-native execution keeps a core-owned build path. Vite and Nitro own host-side transforms, module graph behavior, and deployment-oriented builds.
+- **Runtime Boundary**: `createApp()` uses the Node HTTP host.
+- **Build Ownership**: Rolldown builds the app.
 - **Framework agnostic**: First-class support for KitaJS, Lit, React, and MDX via official integration plugins.
 - **Extensible**: Hook into the build process with custom processors or rendering integrations.
 
@@ -19,29 +19,44 @@ The current core package is organized around app-owned runtime state and explici
 
 The important ownership rules are:
 
-- `ConfigBuilder.build()` finalizes app-owned build and runtime services.
-- Component identity attribution is one shared source transform for server, browser, and HMR compilation paths: after a lexical `eco.` gate, it uses Oxc to wrap supported factory options with `bindComponentIdentity()`, which factories retain as `config.identity`.
-- Direct local Eco Component imports (including named `export { X } from` barrels) and relative side-effect CSS imports supply Dependencies by default through the shared transform and existing collector; explicit asset declarations override inference, and inferred styles stay keyed by identity until collection. See [eco](src/eco/README.md) and [Plugin Contracts](src/plugins/README.md).
+- Core runtime mode and `ECOPAGES_*` settings are read through `src/env.ts`. Its typed accessors define the supported variable names, parse `true` and `1` as enabled and `false` and `0` as disabled, and provide the runtime-mode helpers used by core, integrations and Processors. The user-facing settings are documented in the [CLI reference](../ecopages/README.md#environment--runtime-options).
+
+- Every `loadEcoPagesConfig()` call imports the config module through the module cache, then finalizes a distinct app config and `AppRuntime`. Build state, HTML Page warnings, custom-element preload scopes, and request-pipeline metrics stay with that runtime; pure memo caches remain shared. Server startup refreshes the app's build queue via `installBuildQueue(appConfig)`.
+- Build requests declare server or browser environment independently of scheduling. Integrations and Processors contribute one environment-selected plugin list; config rejects duplicate names within an environment. Core's own transforms preserve source locations and the bridge composes chained maps. See [Build Layer](src/build/README.md) and [Plugin Contracts](src/plugins/README.md) for migration.
+- Component identity attribution is one build plugin, shared by server, browser, and HMR compilation paths: after a lexical `eco.` gate, it uses Oxc to wrap supported factory options with `bindComponentIdentity()`, which factories retain as `config.identity`.
+- Component ownership follows `config.integration`, then `config.identity.integration`, then the inherited owner through the exported `getComponentOwner()` helper. Integration plugins opt into page-owned asset bundling with `bundlesPageDependencies`; React and Ecopages JSX enable it. Bundling only combines consecutive eligible assets so custom-attribute files keep their declared order.
+- Direct local Eco Component imports (including named `export { X } from` barrels) and relative side-effect CSS imports supply Dependencies by default through the shared transform and existing collector; explicit asset declarations override inference, and inferred styles stay keyed by identity until collection. Eco owns the component render context used by its factories. See [eco](src/eco/README.md) and [Plugin Contracts](src/plugins/README.md).
+- Every Integration shares one renderer and the app-owned `AssetProcessingService` across route renders, explicit views, and foreign-child handoffs. Integration-owned asset processing calls pass their owning Integration so its optional dependency-preparation hook can run; one service cache covers grouped and ungrouped processor results. Route preparation records one component graph for ownership validation, dependencies, client assets, and dev cache paths. Dependency collection uses the service to turn declared assets into runtime-ready output instead of treating a missing service as an empty asset set. Route renders keep assets and foreign-renderer caches in per-render sessions, with async context storage isolating concurrent renders. See [Route Renderer](src/route-renderer/README.md).
+- Custom Integrations can create a renderer with `createIntegrationRenderer()` and opt into component, page-graph, document-shell props and composition, foreign-child, route lifecycle, grouped island assets, and finalization hooks without rebuilding the route pipeline. Hook factories receive app-owned renderer options plus helpers for Integration-wide dependencies, component-owned dependencies, dependency paths, and pending lazy triggers. Core handles queued-child resolution and island-host finalization around component hooks. See [Custom Integration](../../apps/docs/src/content/docs/plugins/custom-integration.mdx).
 - Browser bundling and server module loading are separate paths. SSR-enabled lazy scripts execute on the server before rendering and in the browser only on their configured trigger.
-- runtime hosts stay thin and delegate framework work into core services.
-- HMR and invalidation use shared graph-aware services instead of runtime-specific ad hoc wiring.
+- The Project Watcher batches file and directory events, sends matching Processors one `onChanges` notification for each non-restart file batch, and dispatches every HMR-eligible path once per debounce window. Directory-only Pages batches refresh routes without Processor or HMR notifications. Sustained edits are scheduled no later than one second after the first; processing is serialized and startup fails if the filesystem subscription is not ready within 30 seconds. See [Project Watcher](src/watchers/README.md).
+- Development Page prewarm renders run in the background without delaying server readiness. App configuration declares `devPrewarmPaths`; Processors append the pathnames they own to that list from `setup()`, which finishes before the server reports that it is listening. A path that fails to render is skipped and logged at debug level. See [Runtime Adapters](src/adapters/README.md) and [Plugin Contracts](src/plugins/README.md).
+- Watch-mode resources belong to one `DevSession`, including the watcher, HMR manager, client bridge, Page prewarm, and Dev Toolbar. `EcopagesApp` shares one readiness promise across concurrent startup and request-only calls; after `stop()`, `start()` and `fetch()` initialize a fresh server adapter.
+- App shutdown tears down Integration runtime resources, including Lit workers. See [Runtime Adapters](src/adapters/README.md).
+- HMR and invalidation use shared graph-aware services instead of runtime-specific ad hoc wiring. One Development Invalidation service belongs to each `AppRuntime` and is shared by its Project Watcher and HMR manager. Editing a `source` module used by both a server route and a browser entrypoint reloads the browser so server-rendered markup and the island refresh together.
+- Browser and React navigation use one core-owned document commit pipeline; each router supplies its page swap and scroll handling while core coordinates fetch/cache/parse, head reconciliation, script activation, view transitions, and lifecycle events. A later navigation supersedes cleanup from earlier transitions, including when it skips animation; a failed or uncommitted page swap clears transition names. Browser-router always morphs the incoming body, keeping nodes with matching persistence keys attached when their ancestor structure remains compatible; during rerun refresh, custom-element descendants on that path also stay in place when their markup remains structurally compatible. Superseded stylesheet waits settle when a later page removes their staged links. For rerun scripts matched by relative `src` (without an explicit script id or HTML `id`), core keeps identity stable across pages with different `<base>` URLs while loading external modules from the incoming page's resolved URL. See [Router Layer](src/router/README.md).
+- `serveDistFile()` handles both runtime static fallbacks and preview through the app's `RuntimeHost`, with safe path resolution, HEAD and 405 responses, gzip negotiation, ETags, conditional 304s, and the shared cache policy. `immutable` applies only to outputs the build recorded as content-hashed; HTML stays revalidated. See [Runtime Adapters](src/adapters/README.md).
+- The build adapter returns each build's plugin-recorded inputs by module alongside source-module closures, and passes an explicit recorder to Rolldown plugin hooks. Cache owners bind only the paths read by their entry closure, so development invalidates affected Page Browser Graphs, HTML entries, route modules, and browser entrypoints. Grouped browser scripts merge external modules, compatible plugin instances, and non-conflicting define values within their build group, disable splitting when any entry opts out, resolve by the path or name the caller passed (and the bundler's facade when that spelling differs), and cache only complete groups with matching dependency sets. Static production export combines grouped Page entries and HTML module scripts in compatible app-wide browser build groups, saves their route associations in the server manifest, and lets `ecopages start` restore listed route assets before SSR requests. Non-exact route templates also get a parameter-free plan without running route data hooks; later params reuse its output when grouped browser dependencies and page-client entries match, while a new dependency graph keeps the request-time build fallback. Entry-specific plugins with a `bundleGroupKey` retain their own configuration inside the shared build, while entries with different bundle options keep separate requests. In-process Page caches also track reachable generated artifacts. On-demand page-cache path invalidation removes query and development runtime variants of the pathname and releases their build-input bindings. See [Build Layer](src/build/README.md), [Page Cache](src/page-cache/README.md), and [Asset Processing](src/assets/README.md).
 
 ### Bootstrap And Runtime Ownership
 
 ```mermaid
 flowchart TD
 	A[eco.config.ts] --> B[defineConfig / loadEcoPagesConfig]
-	B --> C[ConfigBuilder.build]
+	B --> C[Config finalization]
 	C --> D[App build adapter]
 	C --> E[App build manifest]
-	C --> F[Build executor]
-	C --> G[Dev graph service]
-	C --> H[Host module loader boundary]
-	H --> I[PageModuleImportService]
-	F --> I
+	C --> F[App build queue]
+	C --> G[AppRuntime]
+	D --> F
+	F --> I[PageModuleImportService]
 	F --> J[BrowserBundleService]
-	I --> K[Runtime app adapter]
-	K --> L[Bun adapter or Node adapter]
+	I --> K[EcopagesApp]
+	K --> L[NodeServerAdapter]
+	L --> M[Node HTTP host]
+	L --> N[ServerRequestPipeline]
+	L --> O[DevSession in watch mode]
+	O --> P[Project Watcher and HmrManager]
 	E --> J
 ```
 
@@ -49,24 +64,24 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-	A[File change] --> B[ProjectWatcher]
-	B --> C[DevelopmentInvalidationService]
-	C --> D{Change kind}
-	D -->|Route or server source| E[Invalidate server modules]
+	A[File changes] --> B[ProjectWatcher debounce window]
+	B --> C[applyDevFileChanges]
+	C --> D{Change kinds}
+	D -->|Route, recorded input, or server source| E[Mark server modules dirty]
 	D -->|Additional watch| E
-	D -->|Config or dotenv| R[Restart dev process]
+	D -->|Config, dotenv or linked package| R[Restart dev process]
 	E --> N[Notify processors]
-	N --> F[Reload browser]
+	N --> F[One browser update]
 	D -->|Public asset| F
 	D -->|Processor-owned asset| G[Notify processor only]
-	D -->|HMR-eligible source| H[Core HMR manager]
+	D -->|HMR-eligible file batch| H[Core HMR manager]
 	H --> I[Strategy selection]
 	I --> J[Core JsHmrStrategy]
 	I --> K[Integration strategy e.g. ReactHmrStrategy]
 	J --> L[BrowserBundleService]
 	K --> L
 	K --> M[importServerModule]
-	M --> N[ServerModuleTranspiler]
+	M --> N[AppModuleLoader]
 	L --> O[Updated browser bundle]
 	O --> P[Client bridge broadcast]
 ```
@@ -75,45 +90,71 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 
 ### Practical Summary
 
-- `ConfigBuilder` seeds one app-owned build ownership path, adapter, manifest, executor, dev graph, and runtime registry.
-- `BrowserBundleService` is the shared browser build seam used by HMR and asset-oriented browser output paths.
-- `ServerModuleTranspiler` is the shared server-side source loading seam used by runtime bootstrap and HMR metadata loading.
-- `RouteRegistry` gives exact and dynamic Pages priority over catch-alls, then selects the most specific matching catch-all prefix.
+- Config finalization seeds one app-owned `AppRuntime` (build adapter, build manifest, build queue, build-input index, and module caches); the HMR manager owns the concrete per-app dependency graph. Server startup refreshes the build queue.
+- `BrowserBundleService` is the shared browser build seam used by HMR and asset-oriented browser output paths; callers choose the `build` or `hmr` scheduling lane explicitly.
+- `AppModuleLoader` is created once per app runtime and supplies the app root and shared build queue for server-side source loading, including HMR metadata imports.
+- `RouteRegistry` gives exact and dynamic Pages priority over catch-alls, selects the most specific matching catch-all prefix, and shares segment matching and one-time URL decoding with API, explicit, and WebSocket routes.
 - Browser runtime package entries resolve from the application root with ESM import conditions, so framework-local packages cannot shadow app dependencies.
-- `createApp()` stays the universal runtime entrypoint, while Vite and Nitro hosts own their advanced dev and build workflows.
-- One bundled adapter is the default bundler. Vite-based apps route through the `ViteHostBuildAdapter` boundary marker instead.
+- `createApp()` resolves config and CLI mode once, then returns the concrete `EcopagesApp`, which owns route registration and the Node HTTP server lifecycle.
+- One bundled adapter builds the app with Rolldown.
+
+## Source Layering
+
+Core source moves from shared foundations through app assembly. A lower layer may import within its own layer or from an earlier layer; it must not import a later layer.
+
+| Layer                | Folders and files                                                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Foundation           | `types/`, `constants.ts`, `env.ts`, `browser-env.ts`, `errors/`, `global/`, `utils/`, `html/`, `client/`, `islands/`, `validation/` |
+| Contracts            | `plugins/`, `eco/`                                                                                                                  |
+| Build                | `build/`, `assets/`, `cache/`, `diagnostics/`                                                                                       |
+| Rendering            | `router/`, `route-renderer/`, `html-pages/`, `page-cache/`, `static-site-generator/`                                                |
+| Development and HMR  | `dev/`, `watchers/`, `dev-toolbar/`, `hmr/`                                                                                         |
+| Application assembly | `adapters/`, `config/`, `index.ts`, `index.browser.ts`, `integration.ts`, `processor.ts`, `build.ts`, `client.ts`                   |
+
+The guard in `scripts/check-portability.ts` checks runtime module references inside `packages/core/src`, including `import()`, `require()`, and resolver calls. Inline `type` modifiers count when TypeScript preserves their side-effect imports under `verbatimModuleSyntax`; explicit `import type` and `export type` declarations are erased and excluded. Test files and fixtures are excluded too. Existing upward references are listed in `scripts/core-layering-allowlist.json` with the issue that removes each edge. The allowlist only shrinks: the check fails for an unlisted upward reference and for an entry whose reference has gone away.
 
 ## Documentation Map
 
 Use this package README as the top-level map, then drill into the focused subsystem READMEs:
 
-- `src/config/README.md`: config finalization and app-owned runtime/build state
+- `src/config/README.md`: config loading, assembly, and app-owned runtime/build state
+- `src/types/README.md`: public, internal, and per-app runtime contracts
+- `src/errors/README.md`, `src/global/README.md`, `src/utils/README.md`, and `src/client/README.md`: shared Foundation modules, including path containment, markup escaping, entity decoding, regex escaping, and SHA-256 content hashes (`contentHash` from `@ecopages/core/build`)
+- `src/cache/README.md`: Build-layer module parse cache
+- `src/diagnostics/README.md`: per-app request-pipeline metrics and the startup trace
 - `src/plugins/README.md`: integration and processor authoring contracts
-- `src/build/README.md`: build adapter, executor, development build coordination, and standalone Node server packaging
-- `src/services/README.md`: cross-cutting runtime services and orchestration helpers
-- `src/adapters/README.md`: Bun, Node, and shared adapter boundaries
-- `src/dev/README.md`: dev transform server, on-demand client delivery, and invalidation during compilation
-- `src/hmr/README.md`: HMR strategy and update-layer ownership
-- `src/router/README.md`: route discovery, matching, and browser navigation coordination
-- `src/route-renderer/README.md`: rendering orchestration and dependency resolution
-- `src/static-site-generator/README.md`: static build execution path
-- `src/eco/README.md`: `eco` authoring APIs for pages, layouts, and components
+- `src/build/README.md`: build adapter, app-scoped server module loading, shared `.server` browser import guard, development build coordination, standalone Node server packaging and its deploy layout
+- `src/page-cache/README.md`: HTML cache strategies, ISR, and source-aware invalidation
+- `src/assets/README.md`: shared asset processing and browser build coordination
+- `src/validation/README.md`: request validation with Standard Schema
+- `src/html/README.md`: streaming HTML rewriting, per-render document contributions, source parsing, and escaped asset tags
+- `src/adapters/README.md`: Node HTTP host and shared adapter boundaries
+- `src/dev/README.md`: development invalidation, dev transform server, in-memory on-demand vendor bundles, and client delivery (including workspace-package `@fs` URLs)
+- `src/watchers/README.md`: recursive source subscriptions with bounded readiness and scheduled debounce batches, external build-input and linked-package watching, batched `applyDevFileChanges`, and restart invalidation
+- `src/dev/invalidation/README.md`: file-change classification and dirty-marking for bounded watcher batches
+- `src/hmr/README.md`: HMR strategy, update-layer ownership, and build error presentation
+- `src/dev-toolbar/README.md`: toolbar enablement, custom clients, and build error event contract
+- `src/router/README.md`: route discovery, matching, browser navigation coordination, persistence-aware body morphing, and the shared client navigation pipeline
+- `src/route-renderer/README.md`: rendering orchestration, semantic error pages, dependency resolution, and HTML cache source paths
+- `src/static-site-generator/README.md`: static build execution, collected Page render failures, and sitemap eligibility from successful route-render metadata
+- `src/eco/README.md`: `eco` authoring APIs for pages, layouts, and components, including the `LayoutOptions` type contract
+- `src/html-pages/README.md`: built-in `.html` Filesystem Routes, Html shell, and head reconciliation
 
 The intended reading order is:
 
 1. this file for the big-picture architecture
 2. `src/config/README.md` for config and lifecycle ownership
 3. `src/plugins/README.md` and `src/build/README.md` for contribution contracts
-4. `src/services/README.md` and `src/adapters/README.md` for runtime execution
+4. `src/page-cache/README.md`, `src/assets/README.md`, `src/validation/README.md`, `src/html/README.md`, and `src/adapters/README.md` for runtime execution
 5. `src/router/README.md` and `src/route-renderer/README.md` for request-time flow
 
 ## Installation
 
 ```bash
-bun add @ecopages/core
+pnpm add @ecopages/core
 ```
 
-_(You can also use `npm`, `yarn`, or `pnpm`)_
+You can also use `npm` or `yarn`.
 
 ## Basic Usage
 
@@ -140,7 +181,7 @@ export default defineConfig({
 
 ### 2. Application Entry (`app.ts`)
 
-Start the application using `createApp`. It automatically resolves and loads `eco.config.ts` from the project root and selects the appropriate runtime adapter (Bun when available, Node otherwise):
+Start the application using `createApp`. It automatically resolves and loads `eco.config.ts` from the project root and serves through the Node HTTP host:
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
@@ -170,6 +211,8 @@ export default eco.page({
 	),
 });
 ```
+
+Plain `.html` files in `src/pages/` are HTML Pages and need no Integration: `src/pages/about.html` becomes `/about`, rendered inside `src/includes/html.*` or a built-in HTML template. See [HTML Pages](https://ecopages.app/docs/core/pages#html-pages).
 
 ### 4. Reusable Components
 
@@ -247,7 +290,7 @@ app.notFound('./src/views/not-found.kita');
 app.serverError('./src/views/server-error.kita');
 ```
 
-String and URL view paths passed to `app.static()`, `app.notFound()`, and `app.serverError()` load through the server-module transpiler. Raw dynamic `import()` skips component-identity transforms.
+String and URL view paths passed to `app.static()`, `app.notFound()`, and `app.serverError()` load through the server-module transpiler. Raw dynamic `import()` skips component-identity transforms. A full explicit view renders through the same route pipeline as a filesystem Page, including its layouts, default metadata, robots meta, and page client plan. Props passed to the render are available to the view's `metadata`.
 
 When no custom page is configured, built-in HTML defaults are served instead.
 
@@ -288,36 +331,29 @@ Use these entrypoints when building an Ecopages app:
 
 - `@ecopages/core`
 - `@ecopages/core/create-app`
-- `@ecopages/core/config-builder`
+- `@ecopages/core/config`
 - `@ecopages/core/errors`
-- `@ecopages/core/hash`
-- `@ecopages/core/declarations`
-- `@ecopages/core/env`
+- `@ecopages/core/declarations` (types only)
+- `@ecopages/core/env` (types only)
 
-### Browser Navigation
+### Integration Authoring
 
-Use these entrypoints when a browser runtime needs to coordinate document ownership and link intent:
+Use `@ecopages/core/integration` for Integration contracts, render hooks, and shared Integration runtime helpers.
 
-- `@ecopages/core/router/navigation-coordinator`
-- `@ecopages/core/router/link-intent`
+### Processor Authoring
 
-### Extension Authoring
+Use `@ecopages/core/processor` for Processor contracts and generated-asset helpers.
 
-Use these entrypoints when implementing integrations, processors, or source transforms:
+### Build Extensions
 
-- `@ecopages/core/plugins/integration-plugin`
-- `@ecopages/core/plugins/processor`
-- `@ecopages/core/plugins/source-transform`
-- `@ecopages/core/route-renderer/orchestration/integration-renderer`
-- `@ecopages/core/route-renderer/orchestration/document-shell/layout-shell-props.service`
-- `@ecopages/core/services/asset-processing-service`
-- `@ecopages/core/hmr/hmr-strategy`
+Use `@ecopages/core/build` for build adapters and build plugins. Use `@ecopages/core/build/contracts` for stable build contracts that also need to be safe in browser build graphs.
 
-### Host And Runtime Composition
+### Browser Runtime Extensions
 
-Use these entrypoints only when implementing host adapters or framework-owned bundling seams:
+Use `@ecopages/core/client` for browser navigation and client runtime helpers.
 
-- `@ecopages/core/dev/host-runtime`
-- `@ecopages/core/build/build-adapter`
+### Runtime-Loaded Entries
 
-These host-facing entrypoints are narrower compatibility seams. App code and most extensions should prefer the app-authoring or extension-authoring surfaces.
+`@ecopages/core/config/write-types` and `@ecopages/core/hmr/client/hmr-runtime` remain exported because Ecopages loads them by path at runtime. They are implementation entries, not general authoring surfaces.
+
+`@ecopages/core/errors` remains an alias for the root error exports.

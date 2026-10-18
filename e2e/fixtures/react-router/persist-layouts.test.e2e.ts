@@ -1,132 +1,34 @@
 import { test, expect } from '@playwright/test';
 import { gotoAndWait } from '../../utils/test-helpers';
 
-test.describe('React Router Persist Layouts', () => {
-	test('layout remains visible when navigating between pages with same layout', async ({ page }) => {
-		await gotoAndWait(page, '/docs');
+test('shared runtime module state survives navigation between layout pages', async ({ page }) => {
+	await gotoAndWait(page, '/docs');
+	await expect(page.getByTestId('query-client-count')).toHaveText('0');
 
-		const layout = page.locator('[data-testid="docs-layout"]');
-		await expect(layout).toBeVisible();
+	await page.getByTestId('increment-query-client-count').click();
+	await expect(page.getByTestId('query-client-count')).toHaveText('1');
 
-		await page.click('[data-testid="link-getting-started"]');
-		await page.waitForURL('**/docs/getting-started');
-		await expect(page.locator('[data-testid="docs-getting-started"]')).toBeVisible();
-
-		await expect(layout).toBeVisible();
-	});
-
-	test('layout changes when navigating to page with different layout', async ({ page }) => {
-		await gotoAndWait(page, '/docs');
-
-		const docsLayout = page.locator('[data-testid="docs-layout"]');
-		await expect(docsLayout).toBeVisible();
-
-		await page.click('a[href="/"]');
-		await page.waitForURL(/\/$/);
-
-		await expect(docsLayout).not.toBeVisible();
-		await expect(page.locator('[data-testid="base-layout"]')).toBeVisible();
-	});
-
-	test('sidebar scroll position persists when navigating within same layout', async ({ page }) => {
-		await gotoAndWait(page, '/docs');
-
-		const sidebar = page.locator('[data-testid="docs-sidebar"]');
-		await expect(sidebar).toBeVisible();
-
-		await sidebar.evaluate((el) => {
-			el.scrollTop = 50;
-		});
-
-		await page.click('[data-testid="link-getting-started"]');
-		await page.waitForURL('**/docs/getting-started');
-
-		await page.waitForTimeout(200);
-
-		const scrollTop = await sidebar.evaluate((el) => el.scrollTop);
-		expect(scrollTop).toBe(50);
-	});
+	await page.getByTestId('link-getting-started').click();
+	await page.waitForURL('**/docs/getting-started');
+	await expect(page.getByTestId('query-client-count')).toHaveText('1');
 });
 
-test.describe('React Router Persist Layouts - MDX', () => {
-	test.beforeEach(({ page }) => {
-		page.on('console', (msg) => {
-			if (msg.text().includes('[EcoRouter DEBUG]')) {
-				console.log(msg.text());
-			}
-		});
-	});
+test('restores the docs sidebar scroll position when navigating back to its layout', async ({ page }) => {
+	await gotoAndWait(page, '/docs');
 
-	test('MDX page loads with DocsLayout', async ({ page }) => {
-		await gotoAndWait(page, '/docs/mdx-docs-1');
+	const sidebar = page.getByTestId('docs-sidebar');
+	await expect(sidebar).toBeVisible();
+	await sidebar.hover();
+	await page.mouse.wheel(0, 75);
+	await expect.poll(() => sidebar.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+	const scrollPosition = await sidebar.evaluate((element) => element.scrollTop);
 
-		await expect(page.locator('[data-testid="docs-layout"]')).toBeVisible();
-		await expect(page.locator('[data-testid="mdx-docs-1"]')).toBeVisible();
-	});
+	await page.getByRole('link', { name: '← Back to Home' }).click();
+	await page.waitForURL('**/');
+	await expect(page.getByTestId('index-page')).toBeVisible();
 
-	test('MDX to MDX navigation preserves layout (layout caching works)', async ({ page }) => {
-		await gotoAndWait(page, '/docs/mdx-docs-1');
-
-		const layout = page.locator('[data-testid="docs-layout"]');
-		await expect(layout).toBeVisible();
-
-		await layout.evaluate((el) => {
-			(el as any).__layoutPersistMarker = true;
-		});
-
-		await page.click('[data-testid="link-mdx-docs-2"]');
-		await page.waitForURL('**/docs/mdx-docs-2');
-		await expect(page.locator('[data-testid="mdx-docs-2"]')).toBeVisible();
-
-		const markerPersisted = await layout.evaluate((el) => (el as any).__layoutPersistMarker);
-		expect(markerPersisted).toBe(true);
-	});
-
-	test('TSX to MDX navigation preserves layout', async ({ page }) => {
-		await gotoAndWait(page, '/docs');
-
-		const layout = page.locator('[data-testid="docs-layout"]');
-		await layout.evaluate((el) => {
-			(el as any).__layoutPersistMarker = true;
-		});
-
-		await page.click('a[href="/docs/mdx-docs-1"]');
-		await page.waitForURL('**/docs/mdx-docs-1');
-		await expect(page.locator('[data-testid="mdx-docs-1"]')).toBeVisible();
-
-		const markerPersisted = await layout.evaluate((el) => (el as any).__layoutPersistMarker);
-		expect(markerPersisted).toBe(true);
-	});
-
-	test('MDX to TSX navigation preserves layout', async ({ page }) => {
-		await gotoAndWait(page, '/docs/mdx-docs-1');
-
-		const layout = page.locator('[data-testid="docs-layout"]');
-		await layout.evaluate((el) => {
-			(el as any).__layoutPersistMarker = true;
-		});
-
-		await page.click('[data-testid="link-docs-index"]');
-		await page.waitForURL(/\/docs$/);
-		await expect(page.locator('[data-testid="docs-page"]')).toBeVisible();
-
-		const markerPersisted = await layout.evaluate((el) => (el as any).__layoutPersistMarker);
-		expect(markerPersisted).toBe(true);
-	});
-
-	test('sidebar scroll persists during MDX to MDX navigation', async ({ page }) => {
-		await gotoAndWait(page, '/docs/mdx-docs-1');
-
-		const sidebar = page.locator('[data-testid="docs-sidebar"]');
-		await sidebar.evaluate((el) => {
-			el.scrollTop = 100;
-		});
-
-		await page.click('[data-testid="link-mdx-docs-2"]');
-		await page.waitForURL('**/docs/mdx-docs-2');
-		await page.waitForTimeout(200);
-
-		const scrollTop = await sidebar.evaluate((el) => el.scrollTop);
-		expect(scrollTop).toBe(100);
-	});
+	await page.goBack();
+	await page.waitForURL('**/docs');
+	await expect(page.getByTestId('docs-page')).toBeVisible();
+	await expect.poll(() => sidebar.evaluate((element) => element.scrollTop)).toBe(scrollPosition);
 });

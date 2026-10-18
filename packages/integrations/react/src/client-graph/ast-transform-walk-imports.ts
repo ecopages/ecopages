@@ -14,6 +14,7 @@ export type WalkImportsContext = {
 	reachability: ReachabilityResult;
 	edits: SourceEdit[];
 	allowedMap: Map<string, Set<string> | '*'>;
+	preserveUnreachableSideEffectImports: boolean;
 };
 
 function processSpecifier(specifier: string, allowedMap: Map<string, Set<string> | '*'>): ProcessSpecifierResult {
@@ -59,7 +60,11 @@ function handleImportDeclaration(node: any, ctx: WalkImportsContext): boolean {
 		return true;
 	}
 
-	if (!reachableRules && (!node.specifiers || node.specifiers.length === 0)) {
+	if (
+		!ctx.preserveUnreachableSideEffectImports &&
+		!reachableRules &&
+		(!node.specifiers || node.specifiers.length === 0)
+	) {
 		ctx.edits.push({ start: node.start, end: node.end, replacement: '' });
 	}
 

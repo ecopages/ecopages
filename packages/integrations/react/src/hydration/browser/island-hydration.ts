@@ -191,11 +191,17 @@ function IslandLifecycle({ target, runtime, Component, props }: IslandLifecycleP
  * Decodes the serialized props stamped on an Island Host by the server.
  * Malformed or non-object payloads become an empty props object so a broken
  * diagnostic attribute cannot prevent the rest of the page from hydrating.
+ *
+ * @remarks
+ * Decodes the format core's `encodeIslandProps` writes in `islands/island-host.ts` (base64 of UTF-8 JSON). It is
+ * inlined because this module compiles into a self-contained browser script that cannot import core.
  */
 function readProps(target: HTMLElement): Record<string, unknown> {
 	try {
 		const encoded = target.getAttribute('data-eco-props') ?? 'e30=';
-		const parsed: unknown = JSON.parse(atob(encoded));
+		const parsed: unknown = JSON.parse(
+			new TextDecoder().decode(Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0))),
+		);
 		return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
 			? (parsed as Record<string, unknown>)
 			: {};

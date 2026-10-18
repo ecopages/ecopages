@@ -1,15 +1,14 @@
-import { createHash } from 'node:crypto';
+import { contentHash } from '../../utils/content-hash.ts';
 import path from 'node:path';
 
-import { fileSystem } from '@ecopages/file-system';
-import { RESOLVED_ASSETS_VENDORS_DIR } from '../../config/constants.ts';
-import { getAppBrowserBuildPlugins } from '../../build/build-adapter.ts';
+import { RESOLVED_ASSETS_VENDORS_DIR } from '../../constants.ts';
+import { resolveAppBuildPlugins } from '../../build/runtime/build-request-policy.ts';
 import type { EcoBuildPlugin } from '../../build/contracts/build-types.ts';
 import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-resolver.ts';
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
-import { resolveRuntimeSpecifierPublicPath } from '../../build/browser/browser-runtime-manifest.ts';
-import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
+import { assertBuildSucceeded } from '../../build/build-log.ts';
 
 const BROWSER_FIRST_VENDOR_CONDITIONS = ['browser', 'module', 'import', 'default'] as const;
 const MODULE_FIRST_VENDOR_CONDITIONS = ['module', 'import', 'default'] as const;
@@ -17,7 +16,7 @@ const BROWSER_NODE_BUILTIN_GUARD_MARKER = '[browser-build] Node builtin';
 
 type VendorEntry = {
 	url: string;
-	filePath: string;
+	content: string;
 };
 
 function getVendorBundleConditions(specifier: string): readonly string[] {
@@ -28,41 +27,26 @@ function getVendorBundleConditions(specifier: string): readonly string[] {
 
 export type DevTransformVendorRegistryOptions = {
 	appConfig: EcoPagesAppConfig;
-	getRuntimeSpecifierMap: () => ReadonlyMap<string, string>;
 	resolveVendorBundlePlugins?: () => Promise<readonly EcoBuildPlugin[]>;
 };
 
 /**
- * Lazily prebundles bare npm imports into cacheable `/assets/vendors/*` chunks.
+ * Lazily prebundles bare npm imports into process-local `/assets/vendors/*` chunks.
  */
 export class DevTransformVendorRegistry {
 	private readonly appConfig: EcoPagesAppConfig;
 	private readonly browserBundleService: BrowserBundleService;
-	private readonly getRuntimeSpecifierMap: () => ReadonlyMap<string, string>;
 	private readonly resolveVendorBundlePlugins?: () => Promise<readonly EcoBuildPlugin[]>;
-	private readonly vendorsDir: string;
 	private readonly cache = new Map<string, VendorEntry>();
 	private readonly inFlight = new Map<string, Promise<VendorEntry>>();
 
 	constructor(options: DevTransformVendorRegistryOptions) {
 		this.appConfig = options.appConfig;
 		this.browserBundleService = new BrowserBundleService(options.appConfig);
-		this.getRuntimeSpecifierMap = options.getRuntimeSpecifierMap;
 		this.resolveVendorBundlePlugins = options.resolveVendorBundlePlugins;
-		const distDir = options.appConfig.absolutePaths?.distDir ?? path.join(options.appConfig.rootDir, '.eco');
-		this.vendorsDir = path.join(distDir, RESOLVED_ASSETS_VENDORS_DIR);
-	}
-
-	resolveKnownVendorUrl(specifier: string): string | undefined {
-		return resolveRuntimeSpecifierPublicPath(specifier, this.getRuntimeSpecifierMap());
 	}
 
 	async resolveVendorUrl(specifier: string): Promise<string> {
-		const known = this.resolveKnownVendorUrl(specifier);
-		if (known && this.resolveExistingVendorPath(known)) {
-			return known;
-		}
-
 		const cached = this.cache.get(specifier);
 		if (cached) {
 			return cached.url;
@@ -73,14 +57,28 @@ export class DevTransformVendorRegistry {
 			return (await pending).url;
 		}
 
-		const promise = this.prebundleSpecifier(specifier).finally(() => {
-			this.inFlight.delete(specifier);
-		});
+		const promise: Promise<VendorEntry> = this.prebundleSpecifier(specifier)
+			.then((entry) => {
+				if (this.inFlight.get(specifier) === promise) {
+					this.cache.set(specifier, entry);
+				}
+				return entry;
+			})
+			.finally(() => {
+				if (this.inFlight.get(specifier) === promise) {
+					this.inFlight.delete(specifier);
+				}
+			});
 		this.inFlight.set(specifier, promise);
 		return (await promise).url;
 	}
 
-	tryHandleVendorRequest(pathname: string): Response | null {
+	/**
+	 * @remarks
+	 * Responses carry `no-cache` and a content `ETag`, so browsers revalidate each
+	 * load and get `304` while `ifNoneMatch` still matches the in-memory bundle.
+	 */
+	tryHandleVendorRequest(pathname: string, ifNoneMatch?: string | null): Response | null {
 		const prefix = `/${RESOLVED_ASSETS_VENDORS_DIR}/`;
 		if (!pathname.startsWith(prefix)) {
 			return null;
@@ -91,17 +89,8 @@ export class DevTransformVendorRegistry {
 			return null;
 		}
 
-		const filePath = path.join(this.vendorsDir, fileName);
-		if (!fileSystem.exists(filePath)) {
-			for (const entry of this.cache.values()) {
-				if (entry.url === pathname && fileSystem.exists(entry.filePath)) {
-					return this.createVendorResponse(entry.filePath);
-				}
-			}
-			return null;
-		}
-
-		return this.createVendorResponse(filePath);
+		const entry = [...this.cache.values()].find((cachedEntry) => cachedEntry.url === pathname);
+		return entry ? this.createVendorResponse(entry, ifNoneMatch) : null;
 	}
 
 	invalidateAll(): void {
@@ -109,78 +98,56 @@ export class DevTransformVendorRegistry {
 		this.inFlight.clear();
 	}
 
-	private createVendorResponse(filePath: string): Response {
-		return new Response(fileSystem.readFileSync(filePath), {
-			headers: {
-				'Content-Type': 'application/javascript',
-				'Cache-Control': 'public, max-age=31536000, immutable',
-			},
+	private createVendorResponse(entry: VendorEntry, ifNoneMatch?: string | null): Response {
+		const etag = `"${contentHash(entry.content, 16)}"`;
+
+		const headers = { 'Cache-Control': 'no-cache', ETag: etag };
+		if (matchesIfNoneMatch(ifNoneMatch, etag)) {
+			return new Response(null, { status: 304, headers });
+		}
+
+		return new Response(entry.content, {
+			headers: { ...headers, 'Content-Type': 'application/javascript' },
 		});
-	}
-
-	private resolveExistingVendorPath(url: string): string | undefined {
-		const prefix = `/${RESOLVED_ASSETS_VENDORS_DIR}/`;
-		const pathname = new URL(url, 'http://ecopages.local').pathname;
-		if (!pathname.startsWith(prefix)) {
-			return undefined;
-		}
-
-		const fileName = pathname.slice(prefix.length);
-		if (!fileName || fileName.includes('..')) {
-			return undefined;
-		}
-
-		const filePath = path.join(this.vendorsDir, fileName);
-		return fileSystem.exists(filePath) ? filePath : undefined;
 	}
 
 	private async prebundleSpecifier(specifier: string): Promise<VendorEntry> {
 		const resolvedEntry = this.resolvePackageEntry(specifier);
-		fileSystem.ensureDir(this.vendorsDir);
-
-		const fileName = `${sanitizeSpecifierForFileName(specifier)}.${hashVendorEntry(specifier, resolvedEntry)}.js`;
-		const outPath = path.join(this.vendorsDir, fileName);
+		const fileName = `${sanitizeSpecifierForFileName(specifier)}.${hashVendorSpecifier(specifier)}.js`;
 		const url = `/${RESOLVED_ASSETS_VENDORS_DIR}/${fileName}`;
-
-		if (fileSystem.exists(outPath)) {
-			const entry = { url, filePath: outPath };
-			this.cache.set(specifier, entry);
-			return entry;
-		}
 
 		const vendorPlugins = this.resolveVendorBundlePlugins ? await this.resolveVendorBundlePlugins() : [];
 		const result = await this.browserBundleService.bundle({
-			profile: 'browser-script',
-			entrypoints: [resolvedEntry],
-			outdir: this.vendorsDir,
+			lane: 'build',
+			entrypoints: [resolvedEntry.path],
+			outdir: path.join(this.appConfig.absolutePaths.workDir, 'vendor-memory'),
 			naming: fileName,
+			writeToDisk: false,
 			minify: false,
 			externalPackages: false,
 			treeshaking: true,
 			splitting: false,
 			conditions: [...getVendorBundleConditions(specifier)],
-			excludeAppBuildPlugins: getAppBrowserBuildPlugins(this.appConfig).map((plugin) => plugin.name),
+			excludeAppBuildPlugins: resolveAppBuildPlugins(this.appConfig, 'browser').map((plugin) => plugin.name),
 			plugins: [...vendorPlugins],
 		});
 
-		if (!result.success) {
-			const details = result.logs.map((log) => log.message).join('\n');
-			throw new Error(formatVendorPrebundleError(specifier, details));
-		}
+		assertBuildSucceeded(result, (details) => formatVendorPrebundleError(specifier, details));
 
-		const outputPath = result.outputs[0]?.path ?? outPath;
-		const entry = { url, filePath: outputPath };
-		this.cache.set(specifier, entry);
-		return entry;
+		const output = result.outputs.find((candidate) => typeof candidate.content === 'string');
+		if (!output || typeof output.content !== 'string') {
+			throw new Error(`[dev-transform] Vendor prebundle produced no in-memory JavaScript for ${specifier}`);
+		}
+		return { url, content: output.content };
 	}
 
-	private resolvePackageEntry(specifier: string): string {
+	private resolvePackageEntry(specifier: string): { path: string } {
 		const resolved = resolveBarePackageBrowserEntry(this.appConfig.rootDir, specifier);
 		if (!resolved) {
 			throw new Error(`[dev-transform] Unable to resolve bare import "${specifier}" for vendor prebundle`);
 		}
 
-		return resolved;
+		return { path: resolved.path };
 	}
 }
 
@@ -202,11 +169,21 @@ function sanitizeSpecifierForFileName(specifier: string): string {
 	return specifier.replaceAll(/^@/gu, '').replaceAll(/[/:@]/gu, '-');
 }
 
-function hashVendorEntry(specifier: string, entryPath: string): string {
-	return createHash('sha256')
-		.update(specifier)
-		.update('\0')
-		.update(fileSystem.readFileSync(entryPath))
-		.digest('hex')
-		.slice(0, 8);
+function hashVendorSpecifier(specifier: string): string {
+	return contentHash(specifier, 8);
+}
+
+/**
+ * Whether an `If-None-Match` header matches `etag` under the weak comparison of
+ * RFC 9110: any listed tag equal to it once `W/` is stripped, or `*`.
+ */
+function matchesIfNoneMatch(ifNoneMatch: string | null | undefined, etag: string): boolean {
+	if (!ifNoneMatch) {
+		return false;
+	}
+
+	return ifNoneMatch.split(',').some((tag) => {
+		const trimmed = tag.trim();
+		return trimmed === '*' || trimmed.replace(/^W\//u, '') === etag;
+	});
 }

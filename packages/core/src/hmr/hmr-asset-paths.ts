@@ -1,4 +1,4 @@
-import { RESOLVED_ASSETS_DIR } from '../config/constants.ts';
+import { RESOLVED_ASSETS_DIR } from '../constants.ts';
 
 export const DEV_TRANSFORM_URL_PREFIX = `/${RESOLVED_ASSETS_DIR}/__eco_dev__`;
 

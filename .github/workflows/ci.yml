@@ -24,9 +24,6 @@ jobs:
             - name: Setup pnpm
               uses: pnpm/action-setup@v6
 
-            - name: Setup Bun
-              uses: oven-sh/setup-bun@v2
-
             - name: Setup Node
               uses: actions/setup-node@v6
               with:
@@ -71,8 +68,11 @@ jobs:
             - name: Fast gate
               run: pnpm run test:ci:fast
 
-    e2e:
-        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    e2e-shard:
+        strategy:
+            fail-fast: false
+            matrix:
+                shard: [1, 2, 3, 4]
         runs-on: ubuntu-latest
         permissions:
             contents: read
@@ -121,14 +121,117 @@ jobs:
 
             - name: Install Playwright Browsers
               if: steps.playwright-cache.outputs.cache-hit != 'true'
-              run: pnpm exec playwright install --with-deps
+              run: pnpm exec playwright install chromium --with-deps
 
             - name: Install Playwright OS deps
               if: steps.playwright-cache.outputs.cache-hit == 'true'
-              run: pnpm exec playwright install-deps
+              run: pnpm exec playwright install-deps chromium
 
-            - name: E2E (develop gate)
-              run: pnpm run test:ci:e2e
+            - name: E2E shard
+              run: pnpm test:e2e --shard=${{ matrix.shard }}/4
               env:
                   ECOPAGES_LOGGER_DEBUG: false
                   ECOPAGES_E2E_TIMING: true
+
+            - name: Upload Playwright traces
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: playwright-traces-shard-${{ matrix.shard }}
+                  path: test-results/
+                  if-no-files-found: ignore
+                  retention-days: 7
+
+    e2e:
+        if: always()
+        needs: e2e-shard
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        steps:
+            - name: Fail if an E2E shard failed
+              if: needs.e2e-shard.result != 'success'
+              run: exit 1
+
+    docs-changes:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        outputs:
+            docs: ${{ steps.filter.outputs.docs }}
+        steps:
+            - name: Checkout Repo
+              uses: actions/checkout@v6
+              with:
+                  fetch-depth: 0
+
+            - name: Detect docs inputs
+              id: filter
+              env:
+                  BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+                  HEAD_SHA: ${{ github.sha }}
+              shell: bash
+              run: |
+                  changed_files="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+                  if printf '%s\n' "$changed_files" | grep -Eq '^(apps/docs/|packages/(core|ecopages|file-system|browser-router)/|packages/integrations/(ecopages-jsx|mdx)/|packages/processors/(content|image|postcss)-processor/|pnpm-lock.yaml$|package.json$|playwright.docs.config.ts$|e2e/fixtures/docs/|e2e/utils/|e2e/playwright/|.github/workflows/ci.yml$)'; then
+                      echo "docs=true" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "docs=false" >> "$GITHUB_OUTPUT"
+                  fi
+
+    docs:
+        needs: docs-changes
+        if: needs.docs-changes.outputs.docs == 'true'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        steps:
+            - name: Checkout Repo
+              uses: actions/checkout@v6
+
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v6
+
+            - name: Setup Node
+              uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: pnpm
+
+            - name: Get pnpm store directory
+              id: pnpm-cache
+              shell: bash
+              run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+            - name: Setup pnpm cache
+              uses: actions/cache@v6
+              with:
+                  path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+                  key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+                  restore-keys: |
+                      ${{ runner.os }}-pnpm-store-
+
+            - name: Install Dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Get Playwright version
+              id: playwright-version
+              run: echo "VERSION=$(node -p "require('./package.json').devDependencies['@playwright/test']")" >> "$GITHUB_OUTPUT"
+
+            - name: Cache Playwright browsers
+              uses: actions/cache@v6
+              id: playwright-cache
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.VERSION }}
+
+            - name: Install Playwright Browsers
+              if: steps.playwright-cache.outputs.cache-hit != 'true'
+              run: pnpm exec playwright install chromium --with-deps
+
+            - name: Install Playwright OS deps
+              if: steps.playwright-cache.outputs.cache-hit == 'true'
+              run: pnpm exec playwright install-deps chromium
+
+            - name: Docs e2e
+              run: pnpm run test:e2e:docs

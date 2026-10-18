@@ -1,10 +1,10 @@
 import path from 'node:path';
-import type { DependencyLazyTrigger, EcoComponent, EcoComponentDependencies } from '../../types/public-types.ts';
+import type { DependencyLazyTrigger, EcoComponent, EcoComponentDependencies } from '../../types/contracts.ts';
 import { assertEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
-import { getComponentIdentity } from '../../eco/component-identity.ts';
+import { getComponentIdentity, getComponentOwner } from '../../eco/component-identity.ts';
 import { getInferredStylesheets } from '../../eco/discovered-dependencies.ts';
-import type { AssetDefinition } from '../../services/assets/asset-processing-service/index.ts';
-import { AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
+import type { AssetDefinition } from '../../assets/asset-processing-service/index.ts';
+import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
 import { extractEcopagesVirtualImports } from './ecopages-virtual-imports.ts';
 import { collectDeclaredAssetEntries } from './declared-asset-collection.ts';
 import { getLazyTriggerKey } from './lazy-trigger-planning.ts';
@@ -64,9 +64,18 @@ export type CollectedComponentDependencies = {
 type CollectComponentDependenciesOptions = {
 	components: Array<EcoComponent | Partial<EcoComponent> | undefined | null>;
 	integrationName: string;
+	/**
+	 * Skips nested components owned by another Integration, and their descendants.
+	 *
+	 * @remarks Those are Foreign Children: their owning Integration renders them and emits their assets.
+	 */
+	excludeForeignChildren?: boolean;
+	/**
+	 * Treats each supplied component as an already flattened graph node.
+	 */
+	skipNestedComponents?: boolean;
 	resolveLazyScripts: (componentDir: string, scripts: string[]) => string;
 	createEcopagesJsxLazyEntryName: (integrationName: string, key: string) => string;
-	isEcopagesJsxIntegration: (integrationName: string) => boolean;
 	errors: {
 		invalidStylesheetEntry: string;
 		invalidScriptEntry: string;
@@ -76,9 +85,10 @@ type CollectComponentDependenciesOptions = {
 
 type ComponentDependencyCollectionContext = {
 	integrationName: string;
+	excludeForeignChildren: boolean;
+	skipNestedComponents: boolean;
 	resolveLazyScripts: CollectComponentDependenciesOptions['resolveLazyScripts'];
 	createEcopagesJsxLazyEntryName: CollectComponentDependenciesOptions['createEcopagesJsxLazyEntryName'];
-	isEcopagesJsxIntegration: CollectComponentDependenciesOptions['isEcopagesJsxIntegration'];
 	errors: CollectComponentDependenciesOptions['errors'];
 	dependencies: AssetDefinition[];
 	lazyScriptsByConfig: Map<NonNullable<EcoComponent['config']>, Map<string, LazyGroup>>;
@@ -130,6 +140,13 @@ function recordExplicitAndInferredStyles(
 }
 
 /**
+ * @remarks A nested component without an Integration inherits its parent's, so it is not a Foreign Child.
+ */
+function isForeignChild(component: EcoComponent, integrationName: string): boolean {
+	return getComponentOwner(component, integrationName) !== integrationName;
+}
+
+/**
  * Recursively visits one component config and its declared child dependencies.
  */
 function collectComponentConfigDependencies(
@@ -176,15 +193,28 @@ function collectComponentConfigDependencies(
 		createEcopagesJsxLazyEntryName: context.createEcopagesJsxLazyEntryName,
 		pushUniqueDependency,
 		getLazyScriptMissingSrcMessage: () => context.errors.lazyScriptMissingSrc,
-		isEcopagesJsxIntegration: context.isEcopagesJsxIntegration,
 	});
 
-	for (const nestedComponent of dependenciesConfig?.components ?? []) {
+	collectNestedComponentDependencies(dependenciesConfig?.components ?? [], file, context);
+}
+
+function collectNestedComponentDependencies(
+	nestedComponents: NonNullable<EcoComponentDependencies['components']>,
+	parentComponentFile: string,
+	context: ComponentDependencyCollectionContext,
+): void {
+	for (const nestedComponent of nestedComponents) {
 		if (!nestedComponent) {
 			continue;
 		}
 
-		assertEcoDeclaredComponent(nestedComponent, { parentComponentFile: file });
+		assertEcoDeclaredComponent(nestedComponent, { parentComponentFile });
+		if (context.skipNestedComponents) {
+			continue;
+		}
+		if (context.excludeForeignChildren && isForeignChild(nestedComponent, context.integrationName)) {
+			continue;
+		}
 		collectComponentConfigDependencies(nestedComponent.config, context);
 	}
 }
@@ -206,9 +236,10 @@ export function collectComponentDependencies(
 	const {
 		components,
 		integrationName,
+		excludeForeignChildren = false,
+		skipNestedComponents = false,
 		resolveLazyScripts,
 		createEcopagesJsxLazyEntryName,
-		isEcopagesJsxIntegration,
 		errors,
 	} = options;
 	const dependencies: AssetDefinition[] = [];
@@ -217,6 +248,9 @@ export function collectComponentDependencies(
 	const visited = new Set<NonNullable<EcoComponent['config']>>();
 	const inferredStyles: Array<{ dir: string; src: string }> = [];
 	const explicitStylePaths = new Set<string>();
+	const modulesMap = new Map<string, Set<string> | null>();
+	const preparedStylesheetDependencyKeys = skipNestedComponents ? new Set<string>() : undefined;
+	const preparedScriptDependencyKeys = skipNestedComponents ? new Set<string>() : undefined;
 
 	for (const component of components) {
 		if (!component) continue;
@@ -226,9 +260,10 @@ export function collectComponentDependencies(
 
 		const collectionContext: ComponentDependencyCollectionContext = {
 			integrationName,
+			excludeForeignChildren,
+			skipNestedComponents,
 			resolveLazyScripts,
 			createEcopagesJsxLazyEntryName,
-			isEcopagesJsxIntegration,
 			errors,
 			dependencies,
 			lazyScriptsByConfig,
@@ -236,30 +271,14 @@ export function collectComponentDependencies(
 			visited,
 			inferredStyles,
 			explicitStylePaths,
-			stylesheetDependencyKeys: new Set<string>(),
-			scriptDependencyKeys: new Set<string>(),
-			modulesMap: new Map<string, Set<string> | null>(),
+			stylesheetDependencyKeys: preparedStylesheetDependencyKeys ?? new Set<string>(),
+			scriptDependencyKeys: preparedScriptDependencyKeys ?? new Set<string>(),
+			modulesMap,
 		};
 
 		collectComponentConfigDependencies(component.config, collectionContext);
-
-		const { modulesMap } = collectionContext;
-
-		dependencies.push(
-			...Array.from(modulesMap.entries()).map(([from, importsSet]) => {
-				const imports = importsSet ? Array.from(importsSet) : undefined;
-				return AssetFactory.createContentScript({
-					position: 'head',
-					name: createModuleScriptName(from, imports),
-					content:
-						imports && imports.length > 0
-							? createNamedImportModuleSource(from, imports)
-							: createNamespaceImportModuleSource(from),
-					attributes: createModuleScriptAttributes(),
-				});
-			}),
-		);
 	}
+	dependencies.push(...createModuleDependencies(modulesMap));
 
 	for (const { dir, src } of inferredStyles) {
 		const filepath = resolveDependencyPath(dir, src);
@@ -273,4 +292,19 @@ export function collectComponentDependencies(
 		dependencies,
 		lazyScriptsByConfig,
 	};
+}
+
+function createModuleDependencies(modulesMap: Map<string, Set<string> | null>): AssetDefinition[] {
+	return Array.from(modulesMap.entries()).map(([from, importsSet]) => {
+		const imports = importsSet ? Array.from(importsSet) : undefined;
+		return AssetFactory.createContentScript({
+			position: 'head',
+			name: createModuleScriptName(from, imports),
+			content:
+				imports && imports.length > 0
+					? createNamedImportModuleSource(from, imports)
+					: createNamespaceImportModuleSource(from),
+			attributes: createModuleScriptAttributes(),
+		});
+	});
 }

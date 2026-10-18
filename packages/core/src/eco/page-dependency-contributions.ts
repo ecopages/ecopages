@@ -2,7 +2,7 @@ import type {
 	EcoComponentDependencies,
 	FileOwnedDependencyContribution,
 	PageDependenciesResult,
-} from '../types/public-types.ts';
+} from '../types/contracts.ts';
 
 function hasCollectableDependencyFields(dependencies: EcoComponentDependencies): boolean {
 	return Boolean(

@@ -1,10 +1,15 @@
 import { appLogger } from '../../../global/app-logger.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { shouldLogPageFailure } from '../../../errors/http-error-page-contract.ts';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import type { StaticRoute } from '../../../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { StaticRoute } from '../../../types/contracts.ts';
 import type { ExplicitViewRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import { prepareExplicitStaticRender } from '../../../route-renderer/explicit-view-render-preparation.ts';
-import { matchExplicitStaticPathPattern } from '../../abstract/segment-path-matcher.ts';
+import {
+	matchParsedSegmentPath,
+	parseSegmentPath,
+	type ParsedSegmentPath,
+} from '../../../router/server/segment-path-matcher.ts';
 
 export const EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS = {
 	missingIntegration: (routePath: string) =>
@@ -41,11 +46,11 @@ export class ExplicitStaticRouteMatcher {
 	 * Match a request URL against explicit static routes.
 	 * Returns the matched route and extracted params, or null if no match.
 	 */
-	match(url: string): ExplicitRouteMatch | null {
-		const pathname = new URL(url).pathname;
+	match(url: string, parsedPathSegments?: ParsedSegmentPath): ExplicitRouteMatch | null {
+		const pathSegments = parsedPathSegments ?? parseSegmentPath(new URL(url).pathname);
 
 		for (const route of this.staticRoutes) {
-			const params = matchExplicitStaticPathPattern(route.path, pathname);
+			const params = matchParsedSegmentPath(route.path, pathSegments, 'explicit');
 			if (params !== null) {
 				return { route, params };
 			}
@@ -73,12 +78,12 @@ export class ExplicitStaticRouteMatcher {
 				view,
 				params,
 				appConfig: this.appConfig,
-				runtimeOrigin: this.appConfig.baseUrl,
+				runtimeOrigin: requireAppRuntime(this.appConfig).origin,
 				routeRendererFactory: this.routeRendererFactory,
 				errors: EXPLICIT_STATIC_ROUTE_MATCHER_ERRORS,
 			});
 
-			return renderer.renderToResponse(renderableView, props, {});
+			return renderer.renderExplicitView(renderableView, props, { params });
 		} catch (error) {
 			if (shouldLogPageFailure(error)) {
 				appLogger.error(

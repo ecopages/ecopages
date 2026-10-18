@@ -11,7 +11,7 @@ export const RERUN_SRC_ATTR = 'data-eco-rerun-src';
 /**
  * Returns a registered in-memory rerun callback for the given script id.
  */
-export function getRegisteredRerunScript(scriptId: string | null): RerunScriptCallback | null {
+function getRegisteredRerunScript(scriptId: string | null): RerunScriptCallback | null {
 	if (!scriptId) {
 		return null;
 	}
@@ -25,3 +25,5 @@ export function getRegisteredRerunScript(scriptId: string | null): RerunScriptCa
 
 	return runtimeWindow.__ECO_PAGES__?.rerunScripts?.[scriptId] ?? null;
 }
+
+export { getRegisteredRerunScript };

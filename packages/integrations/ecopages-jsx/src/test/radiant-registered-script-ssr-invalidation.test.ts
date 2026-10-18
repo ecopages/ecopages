@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { CustomElementScriptPreloadScopeState } from '@ecopages/core/integration';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -79,7 +80,12 @@ describe('invalidateRadiantRegisteredScriptSsrRegistration', () => {
 		});
 
 		try {
-			expect(invalidateRadiantRegisteredScriptSsrRegistration(scriptPath)).toBe(true);
+			expect(
+				invalidateRadiantRegisteredScriptSsrRegistration(
+					new Map<string, CustomElementScriptPreloadScopeState>(),
+					scriptPath,
+				),
+			).toBe(true);
 			expect(definitions.has('widget')).toBe(false);
 		} finally {
 			(globalThis as { customElements?: unknown }).customElements = previousRegistry;

@@ -12,6 +12,4 @@ export type { RouterContextValue } from './src/context.ts';
 export { EcoPropsScript } from './src/props-script.ts';
 export type { EcoPropsScriptProps } from './src/props-script.ts';
 
-export { morphHead } from './src/head-morpher.ts';
-
 export type { PageState } from './src/navigation.ts';

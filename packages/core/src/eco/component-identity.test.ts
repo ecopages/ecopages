@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bindComponentIdentity, getComponentIdentity } from './component-identity.ts';
+import { bindComponentIdentity, getComponentIdentity, getComponentOwner } from './component-identity.ts';
 
 describe('component identity', () => {
 	it('merges canonical attribution into factory options', () => {
@@ -21,5 +21,22 @@ describe('component identity', () => {
 				identity: { id: 'page', file: '/app/page.tsx', integration: 'react' },
 			}),
 		).toEqual({ id: 'page', file: '/app/page.tsx', integration: 'react' });
+	});
+
+	it('resolves ownership by override, identity, then inherited owner', () => {
+		expect(
+			getComponentOwner(
+				{
+					integration: 'lit',
+					identity: { id: 'page', file: '/app/page.tsx', integration: 'react' },
+				},
+				'kitajs',
+			),
+		).toBe('lit');
+		expect(
+			getComponentOwner({ identity: { id: 'page', file: '/app/page.tsx', integration: 'react' } }, 'kitajs'),
+		).toBe('react');
+		expect(getComponentOwner({}, 'kitajs')).toBe('kitajs');
+		expect(getComponentOwner({})).toBeUndefined();
 	});
 });

@@ -10,6 +10,8 @@ Client-side navigation and view transitions for Ecopages. It intercepts same-ori
 - **View Transitions**: Optional integration with the View Transition API.
 - **Lifecycle events**: Hook into navigation with `eco:before-swap`, `eco:after-swap`, `eco:page-load`.
 
+The core navigation pipeline shares document fetching, parsing, prefetch cache, head reconciliation, stylesheet staging, script activation, named view transitions, and lifecycle events with `@ecopages/react-router`. Browser-router always morphs the incoming body, preserving persisted elements across navigation regardless of view-transition settings or rerun scripts. View transitions only wrap the morph; scroll restoration uses the shared post-swap hook.
+
 ## Compatibility
 
 This package is designed for MPA-style rendering where the server returns full HTML pages (e.g., KitaJS, Lit, vanilla JS, or component-level React islands).
@@ -96,19 +98,26 @@ Call `router.stop()` before replacing the router script in long-lived sessions (
 | `scrollBehavior`                  | `'top' \| 'preserve' \| 'auto'` | `'top'`                                      | Scroll behavior after navigation                                                            |
 | `viewTransitions`                 | `boolean`                       | `true`                                       | View Transition API; disables UA root crossfade by default. `false` disables.               |
 | `smoothScroll`                    | `boolean`                       | `false`                                      | Use smooth scrolling during navigation                                                      |
+| `reloadDocument`                  | `(href: string) => void`        | `(href) => window.location.assign(href)`     | Loads a URL as a full document when the router hands a navigation back to the browser       |
 
 ## Persistence
 
-Mark elements to preserve across navigations. These elements are never recreated during navigation; morphdom skips them entirely.
+Mark elements with the same persistence key on each page to preserve them across navigations. When the incoming page keeps the element under a compatible ancestor structure, it stays connected and is never recreated; morphdom skips it entirely. This holds when view transitions are disabled and when the incoming page has `data-eco-rerun` scripts. Changing the element's ancestor tags can require replacing its containing path, so keep that structure stable when connection continuity matters.
+
+When an incoming page has a `data-eco-rerun` script, browser-router refreshes matching non-persisted elements before running it, except for the body, persisted elements, their ancestor path, and descendants of custom elements on that path. Those custom-element descendants stay in place because the connected host may have attached handlers to them. Keep handler-bound child markup structurally compatible across pages, or have the component rebind when its child markup changes; replacing a child does not reconnect the host. Event handlers installed on refreshed elements attach to new nodes instead of stacking on nodes retained by the morph. A rerun script that installs handlers on any retained node must make that registration idempotent, because those nodes remain attached across navigations.
 
 ```html
 <!-- This counter keeps its internal state across all navigations -->
 <radiant-counter data-eco-persist="counter"></radiant-counter>
 ```
 
+## Scripts on navigation
+
+After the swap, a head script runs only if the previous page's head did not have it, and body scripts run on every navigation, as in Turbo: the body is new content even when the previous page had the same script. That covers inline scripts and external classic scripts; an external module script runs only once per URL in a tab, because the browser evaluates each module URL once. A classic script's top-level `const`, `let` and `class` declarations live in the page's global scope, so when a classic body script runs again they are declared twice and throw `SyntaxError: Identifier '…' has already been declared`. Write such a script without them (use `var` or functions, or wrap the code in a block or an IIFE), or make it a module script, which runs once per URL, and listen for `eco:page-load` for code that must run on each visit. A script inside an element marked `data-eco-persist` is kept as it was and does not run again. Scripts run in one sequence: new head scripts, then `data-eco-rerun` scripts, then body scripts, each group in document order. Each waits until earlier blocking scripts (external classic scripts without `async`, `defer`, or `nomodule`) have loaded, as during page parsing, so an inline script that uses a library the page loads runs after it. External `defer` and module scripts keep that insertion order too; only scripts the page marks `async` run as soon as they load. If the next navigation swaps the page while a script is still loading, the rest of the previous sequence does not run.
+
 ## Script Re-execution
 
-To force a script to re-execute on every navigation (e.g., analytics), add `data-eco-rerun`:
+To force a head script to re-execute on every navigation (e.g., analytics), add `data-eco-rerun`:
 
 ```html
 <script data-eco-rerun="true">
@@ -117,7 +126,7 @@ To force a script to re-execute on every navigation (e.g., analytics), add `data
 ```
 
 > [!NOTE]
-> `data-eco-script-id` is optional. Use it when you want an explicit stable identity for a rerun script. Otherwise the router falls back to matching by original `src` and inline content.
+> `data-eco-script-id` is optional. Use it when you want an explicit stable identity for a rerun script. Without it, an HTML `id` takes precedence; otherwise the router matches by original `src` or inline content. When matching by a relative `src`, the identity stays the same across different `<base>` URLs, while an external module reruns from the incoming page's resolved URL.
 
 ## Force Full Reload
 
@@ -129,7 +138,7 @@ Use `data-eco-reload` on an anchor tag to bypass the router and force a full pag
 
 ## Events
 
-Listen to navigation lifecycle events on the `document`. Event detail types live in `@ecopages/core/router/navigation-lifecycle`.
+Listen to navigation lifecycle events on the `document`. Event detail types live in `@ecopages/core/client`.
 
 ```ts
 document.addEventListener('eco:before-swap', (e) => {

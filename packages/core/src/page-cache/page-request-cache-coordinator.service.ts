@@ -1,0 +1,184 @@
+import { getCacheControlHeader, type PageCacheService } from './page-cache-service.ts';
+import type { CacheStrategy, RenderResult } from './cache.types.ts';
+import {
+	getRequestPipelineMetricsHeaderName,
+	isRequestPipelineMetricsEnabled,
+	serializeRequestPipelineMetricsHeader,
+} from '../diagnostics/request-pipeline-metrics.ts';
+import { contentHash } from '../utils/content-hash.ts';
+import type { RequestPipelineMetricsState } from '../diagnostics/request-pipeline-metrics.ts';
+import type { PageQuery } from '../types/contracts.ts';
+
+type CacheStatus = 'hit' | 'miss' | 'stale' | 'expired' | 'disabled';
+
+/**
+ * Coordinates request-time page caching concerns around one render invocation.
+ *
+ * This service keeps `FileSystemResponseMatcher` from owning low-level cache
+ * policy mechanics such as cache key construction, `dynamic` bypass behavior,
+ * body normalization for cache storage, and final cache header generation.
+ */
+export class PageRequestCacheCoordinator {
+	private cacheService: PageCacheService | null;
+	private defaultCacheStrategy: CacheStrategy;
+	private readonly requestPipelineMetrics: RequestPipelineMetricsState;
+
+	constructor(
+		cacheService: PageCacheService | null,
+		defaultCacheStrategy: CacheStrategy,
+		requestPipelineMetrics: RequestPipelineMetricsState,
+	) {
+		this.cacheService = cacheService;
+		this.defaultCacheStrategy = defaultCacheStrategy;
+		this.requestPipelineMetrics = requestPipelineMetrics;
+	}
+
+	/**
+	 * Builds the cache key used for page lookups.
+	 *
+	 * Query parameters are part of the key so two requests that hit the same
+	 * pathname but differ by search params do not share the same rendered entry.
+	 *
+	 * @param input Pathname plus optional query record.
+	 * @returns Stable cache key for the request.
+	 */
+	buildCacheKey(input: { pathname: string; query?: PageQuery }): string {
+		let key = input.pathname;
+		if (input.query && Object.keys(input.query).length > 0) {
+			const searchParams = new URLSearchParams();
+			for (const [name, value] of Object.entries(input.query)) {
+				for (const entry of Array.isArray(value) ? value : [value]) {
+					searchParams.append(name, entry);
+				}
+			}
+			const queryString = searchParams.toString();
+			key += `?${queryString}`;
+		}
+
+		return key;
+	}
+
+	/**
+	 * Resolves a render request through the configured cache policy.
+	 *
+	 * Pages using `dynamic` rendering, or applications without a cache service,
+	 * bypass cache lookup entirely and still receive the same response header
+	 * contract as cached pages.
+	 *
+	 * @param options Cache coordination inputs for one page request.
+	 * @returns HTTP response with cache headers applied.
+	 */
+	async render(options: {
+		cacheKey: string;
+		pageCacheStrategy: CacheStrategy;
+		renderFn: () => Promise<RenderResult>;
+		ifNoneMatch?: string | null;
+	}): Promise<Response> {
+		if (!this.cacheService || options.pageCacheStrategy === 'dynamic') {
+			const { html, strategy } = await options.renderFn();
+			return this.createCachedResponse(html, strategy, 'disabled', options.ifNoneMatch);
+		}
+
+		const result = await this.cacheService.getOrCreate(
+			options.cacheKey,
+			options.pageCacheStrategy,
+			options.renderFn,
+		);
+
+		return this.createCachedResponse(result.html, result.strategy, result.status, options.ifNoneMatch);
+	}
+
+	/**
+	 * Exposes the underlying cache service for invalidation and adapter plumbing.
+	 *
+	 * @returns Configured cache service or `null` when caching is disabled.
+	 */
+	getCacheService(): PageCacheService | null {
+		return this.cacheService;
+	}
+
+	/**
+	 * Returns the default render strategy used when a page does not declare one.
+	 *
+	 * @returns Application-level fallback cache strategy.
+	 */
+	getDefaultCacheStrategy(): CacheStrategy {
+		return this.defaultCacheStrategy;
+	}
+
+	/**
+	 * Normalizes various route render body shapes into a cacheable string.
+	 *
+	 * Page rendering may produce strings, buffers, byte arrays, or streams. The
+	 * matcher needs a single representation before passing HTML through the cache
+	 * layer, so this method centralizes the conversion rules.
+	 *
+	 * @param body Render output body in any supported form.
+	 * @returns HTML string representation.
+	 */
+	async bodyToString(body: unknown): Promise<string> {
+		if (typeof body === 'string') {
+			return body;
+		}
+		if (Buffer.isBuffer(body)) {
+			return body.toString('utf-8');
+		}
+		if (body instanceof ReadableStream) {
+			return new Response(body).text();
+		}
+		if (body instanceof Uint8Array) {
+			return new TextDecoder().decode(body);
+		}
+		return String(body);
+	}
+
+	/**
+	 * Creates the final HTML response with the current cache semantics encoded in
+	 * response headers.
+	 *
+	 * @param html Rendered page HTML.
+	 * @param strategy Effective cache strategy for the response.
+	 * @param cacheStatus Status used for `X-Cache` and `Cache-Control` generation.
+	 * @param ifNoneMatch Incoming `If-None-Match` value for static HTML revalidation.
+	 * @returns HTTP response ready to send to the client.
+	 */
+	private createCachedResponse(
+		html: string,
+		strategy: CacheStrategy,
+		cacheStatus: CacheStatus,
+		ifNoneMatch?: string | null,
+	): Response {
+		const headers: Record<string, string> = {
+			'Content-Type': 'text/html',
+			'Cache-Control': getCacheControlHeader(cacheStatus === 'disabled' ? 'disabled' : strategy),
+			'X-Cache': cacheStatus.toUpperCase(),
+		};
+
+		if (isRequestPipelineMetricsEnabled()) {
+			headers[getRequestPipelineMetricsHeaderName()] = serializeRequestPipelineMetricsHeader(
+				this.requestPipelineMetrics,
+			);
+		}
+
+		if (strategy === 'static' && cacheStatus !== 'disabled') {
+			const etag = `"${contentHash(html, 16)}"`;
+			headers.ETag = etag;
+			if (ifNoneMatchSatisfied(ifNoneMatch, etag)) {
+				return new Response(null, { status: 304, headers });
+			}
+		}
+
+		return new Response(html, { headers });
+	}
+}
+
+function ifNoneMatchSatisfied(ifNoneMatch: string | null | undefined, etag: string): boolean {
+	if (!ifNoneMatch) {
+		return false;
+	}
+
+	return ifNoneMatch.split(',').some((value) => {
+		const candidate = value.trim();
+		return candidate === etag || candidate === `W/${etag}`;
+	});
+}

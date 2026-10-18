@@ -1,6 +1,10 @@
-import type { PageParams, PageQuery, RouteRenderResult } from '@ecopages/core';
+import type { PageParams, PageQuery } from '@ecopages/core';
+import type { RouteRenderResult } from '@ecopages/core/integration';
 
-export type LitStaticRenderCacheStrategy = RouteRenderResult['cacheStrategy'];
+/** A rendered page, its resolved metadata, and what the main thread needs to cache it. */
+export type LitStaticRenderResult = Pick<RouteRenderResult, 'cacheStrategy' | 'sourceDependencyPaths' | 'metadata'> & {
+	html: string;
+};
 
 export type LitStaticRenderWorkerInitMessage = {
 	type: 'init';
@@ -32,9 +36,7 @@ export type LitStaticRenderWorkerReadyMessage = {
 export type LitStaticRenderWorkerResultMessage = {
 	type: 'result';
 	id: string;
-	html: string;
-	cacheStrategy?: LitStaticRenderCacheStrategy;
-};
+} & LitStaticRenderResult;
 
 export type LitStaticRenderWorkerErrorMessage = {
 	type: 'error';
@@ -42,5 +44,12 @@ export type LitStaticRenderWorkerErrorMessage = {
 	message: string;
 };
 
+export type LitStaticRenderWorkerShutdownCompleteMessage = {
+	type: 'shutdown-complete';
+};
+
 export type LitStaticRenderWorkerResponseMessage =
-	LitStaticRenderWorkerReadyMessage | LitStaticRenderWorkerResultMessage | LitStaticRenderWorkerErrorMessage;
+	| LitStaticRenderWorkerReadyMessage
+	| LitStaticRenderWorkerResultMessage
+	| LitStaticRenderWorkerErrorMessage
+	| LitStaticRenderWorkerShutdownCompleteMessage;

@@ -2,16 +2,21 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { Logger } from '@ecopages/logger';
-import { createLaunchPlan } from './launch-plan.js';
+import { createLaunchPlan, resolveEcoConfigFilePath } from './launch-plan.js';
 import {
 	ECOPAGES_DEV_RESTART_EXIT_CODE,
 	ECOPAGES_DEV_RESTART_REASON_ENV,
-} from '@ecopages/core/dev/development-restart';
+	isEcopagesEnvEnabled,
+	resolveDevelopmentRecoveryWatch,
+} from '@ecopages/core/build';
+import { fileSystem } from '@ecopages/file-system';
 import { withBrandBanner } from './brand.js';
 
-const logger = new Logger('[ecopages:cli]', { debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true' });
+const logger = new Logger('[ecopages:cli]', { debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG') });
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
 
@@ -31,10 +36,6 @@ const sharedServerOptionDefinitions = {
 	debug: {
 		type: 'boolean',
 		short: 'd',
-	},
-	'react-fast-refresh': {
-		type: 'boolean',
-		short: 'r',
 	},
 	runtime: {
 		type: 'string',
@@ -61,10 +62,10 @@ function getMainHelpText() {
 		'  init [dir]              Initialize a new project from a template',
 		'  dev                     Start the development server',
 		'  dev:watch               Start the development server with watch mode',
-		'  dev:hot                 Start the development server with hot reload',
 		'  build                   Build the project for production',
 		'  start                   Start the production server',
 		'  preview                 Preview the production build',
+		'  types                   Write virtual-module types for tsc, then exit',
 		'',
 		'Global options:',
 		'  -e, --entry-file <file> Entry file (default: app.ts)',
@@ -74,7 +75,7 @@ function getMainHelpText() {
 	].join('\n');
 }
 
-function getServerCommandHelpText(commandName, description) {
+function getServerCommandHelpText(commandName, description, extraOptionLines = []) {
 	return [
 		`Usage: ecopages ${commandName} [options]`,
 		'',
@@ -85,29 +86,10 @@ function getServerCommandHelpText(commandName, description) {
 		'  -n, --hostname <hostname>               Override ECOPAGES_HOSTNAME',
 		'  -b, --base-url <baseUrl>                Override ECOPAGES_BASE_URL',
 		'  -d, --debug                             Enable debug logging',
-		'  -r, --react-fast-refresh                Enable React Fast Refresh for Bun HMR',
 		'      --runtime <runtime>                 Force bun or node',
 		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
 		'  -c, --config <file>                     Ecopages config file (default: eco.config.ts)',
-		'  -h, --help                              Show help',
-	].join('\n');
-}
-
-function getBuildCommandHelpText() {
-	return [
-		'Usage: ecopages build [options]',
-		'',
-		'Build the project for production.',
-		'',
-		'Options:',
-		'  -p, --port <port>                       Override ECOPAGES_PORT',
-		'  -n, --hostname <hostname>               Override ECOPAGES_HOSTNAME',
-		'  -b, --base-url <baseUrl>                Override ECOPAGES_BASE_URL',
-		'  -d, --debug                             Enable debug logging',
-		'  -r, --react-fast-refresh                Enable React Fast Refresh for Bun HMR',
-		'      --runtime <runtime>                 Force bun or node',
-		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
-		'  -c, --config <file>                     Ecopages config file (default: eco.config.ts)',
+		...extraOptionLines,
 		'  -h, --help                              Show help',
 	].join('\n');
 }
@@ -121,11 +103,23 @@ function parseCommandArguments(rawArgs, options) {
 	});
 }
 
-function parseServerCommandArgs(rawArgs, commandName, description, mode = 'server') {
-	const { values, positionals } = parseCommandArguments(rawArgs, sharedServerOptionDefinitions);
+function parseServerCommandArgs(rawArgs, definition) {
+	const commandName = definition.name;
+	const valueOptions = definition.valueOptions ?? {};
+	const booleanOptions = definition.booleanOptions ?? {};
+	const { values, positionals } = parseCommandArguments(rawArgs, {
+		...sharedServerOptionDefinitions,
+		...Object.fromEntries(Object.keys(valueOptions).map((option) => [option, { type: 'string' }])),
+		...booleanOptions,
+	});
 
 	if (values.help) {
-		console.log(mode === 'build' ? getBuildCommandHelpText() : getServerCommandHelpText(commandName, description));
+		console.log(
+			getServerCommandHelpText(commandName, definition.description, [
+				...Object.values(valueOptions),
+				...(definition.optionHelpLines ?? []),
+			]),
+		);
 		return { help: true };
 	}
 
@@ -139,17 +133,27 @@ function parseServerCommandArgs(rawArgs, commandName, description, mode = 'serve
 
 	return {
 		entry,
+		keepGoing: Boolean(values['keep-going']),
 		options: {
 			port: values.port,
 			hostname: values.hostname,
 			baseUrl: values['base-url'],
 			debug: values.debug,
-			reactFastRefresh: values['react-fast-refresh'],
 			runtime: values.runtime,
 			configFile: values.config,
+			distDir: values['dist-dir'],
 		},
 	};
 }
+
+/**
+ * Signals the supervisor forwards to the child it runs.
+ *
+ * @remarks
+ * Without a handler, a signal ends the supervisor and leaves the child running as an orphan that keeps its
+ * port. Forwarding lets the child shut down first, and the supervisor exits from the child's `exit` event.
+ */
+const FORWARDED_SIGNALS = ['SIGTERM', 'SIGINT'];
 
 function runLaunchPlan(launchPlan, options = {}) {
 	if (Object.keys(launchPlan.envOverrides).length > 0) {
@@ -164,12 +168,19 @@ function runLaunchPlan(launchPlan, options = {}) {
 		env: launchPlan.env,
 	});
 
+	const forwardSignal = (signal) => {
+		child.kill(signal);
+	};
+	for (const signal of FORWARDED_SIGNALS) {
+		process.on(signal, forwardSignal);
+	}
+
 	child.on('error', (error) => {
 		if (error && error.code === 'ENOENT') {
 			const hint =
 				launchPlan.runtime === 'bun'
 					? 'Install Bun from https://bun.sh to continue.'
-					: 'Reinstall Node.js or run with --runtime bun if this app requires Bun.';
+					: 'Reinstall Node.js or run with --runtime bun if this app needs the Bun runtime.';
 			logger.error(`Command not found: ${launchPlan.command}. ${hint}`);
 			process.exit(1);
 		}
@@ -179,8 +190,18 @@ function runLaunchPlan(launchPlan, options = {}) {
 	});
 
 	child.on('exit', (code) => {
+		for (const signal of FORWARDED_SIGNALS) {
+			process.off(signal, forwardSignal);
+		}
+
 		if (options.superviseDevRestarts && code === ECOPAGES_DEV_RESTART_EXIT_CODE) {
 			options.onDevRestart?.();
+			return;
+		}
+
+		if (code && options.onRestartFailure) {
+			logger.error(`The restarted development server exited with code ${code}.`);
+			options.onRestartFailure();
 			return;
 		}
 
@@ -189,10 +210,57 @@ function runLaunchPlan(launchPlan, options = {}) {
 }
 
 /**
- * Launch the entry file via the detected or forced runtime.
- * Node uses native Node semantics; Bun uses Bun runtime flags.
+ * Watches the project from before a restarted dev child launches until that child exits.
+ *
+ * @remarks
+ * A restarted child that exits with an error keeps the supervisor alive until the next change in the
+ * project or a linked workspace package, so an error in the config or a file it imports does not end
+ * the dev session. The watch starts before the child, so a fix saved while it was loading relaunches
+ * at once.
+ * @param {string} rootDir - Project root, the directory of the resolved config
+ */
+async function watchProjectForRestart(rootDir) {
+	const { paths, ignored } = resolveDevelopmentRecoveryWatch(rootDir);
+	let changed = false;
+	let onNextChange;
+	const watcher = fileSystem.watch(paths, {
+		ignored,
+		onChange: () => {
+			changed = true;
+			onNextChange?.();
+		},
+		onError: (error) => {
+			logger.error('Cannot watch the project for the next restart', error);
+			process.exit(1);
+		},
+	});
+	await watcher.ready;
+
+	return {
+		close: () => watcher.close(),
+		/** Calls `relaunch` once: now if the project changed since the watch started, otherwise on the next change. */
+		relaunchOnChange(relaunch) {
+			const run = () => {
+				onNextChange = undefined;
+				void watcher.close();
+				relaunch();
+			};
+			if (changed) {
+				logger.info('The project changed since the restart. Restarting...');
+				run();
+				return;
+			}
+			logger.info('Waiting for a change in the project to restart.');
+			onNextChange = run;
+		},
+	};
+}
+
+/**
+ * Launch the entry file via the detected or forced runtime. Node and Bun get the same
+ * entry file and arguments.
  * @param {string[]} args - Arguments to pass to the entry file
- * @param {object} options - CLI options (watch, hot, port, hostname, etc.)
+ * @param {object} options - CLI options (watch, runtime, port, hostname, etc.)
  * @param {string} entryFile - Entry file to run
  */
 async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchMode = 'start') {
@@ -204,13 +272,22 @@ async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchM
 		process.exit(1);
 	}
 
+	const projectRoot = path.dirname(resolveEcoConfigFilePath(options) ?? path.resolve('eco.config.ts'));
+	const devRestartReason = 'configuration or environment change';
+
 	const launchChild = async (restartReason) => {
+		const restartWatch = restartReason ? await watchProjectForRestart(projectRoot) : undefined;
+		const relaunchOnChange = () => restartWatch.relaunchOnChange(() => void launchChild(devRestartReason));
 		let launchPlan;
 		try {
 			launchPlan = await createLaunchPlan(args, options, entryFile, launchMode);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			logger.error(message);
+			if (restartWatch) {
+				relaunchOnChange();
+				return;
+			}
 			process.exit(1);
 		}
 
@@ -222,8 +299,10 @@ async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchM
 		runLaunchPlan(launchPlan, {
 			superviseDevRestarts,
 			onDevRestart: () => {
-				void launchChild('configuration or environment change');
+				void restartWatch?.close();
+				void launchChild(devRestartReason);
 			},
+			onRestartFailure: restartWatch ? relaunchOnChange : undefined,
 		});
 	};
 
@@ -231,19 +310,70 @@ async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchM
 }
 
 async function runServerCommand(rawArgs, definition) {
-	const parsed = parseServerCommandArgs(rawArgs, definition.name, definition.description, definition.mode);
+	const parsed = parseServerCommandArgs(rawArgs, definition);
 
 	if (parsed.help) {
 		return;
 	}
 
+	const entry = definition.resolveEntry?.() ?? parsed.entry;
+	const entryArgs = [...definition.entryArgs];
+	if (parsed.keepGoing) entryArgs.push('--keep-going');
 	await runEntryCommand(
-		definition.entryArgs,
-		{ ...parsed.options, ...definition.optionOverrides, entryFile: parsed.entry },
-		parsed.entry,
+		entryArgs,
+		{ ...parsed.options, ...definition.optionOverrides, entryFile: entry },
+		entry,
 		definition.launchMode ?? definition.name,
 	);
 }
+
+/**
+ * Commands that run an entry file, keyed by name. `launchMode` defaults to the name,
+ * and `resolveEntry` replaces the app entry (`app.ts`) with another script.
+ */
+const SERVER_COMMANDS = {
+	dev: {
+		description: 'Start the development server.',
+		entryArgs: ['--dev'],
+		launchMode: 'dev',
+		optionOverrides: { nodeEnv: 'development' },
+	},
+	'dev:watch': {
+		description: 'Start the development server with watch mode.',
+		entryArgs: ['--dev'],
+		launchMode: 'dev',
+		optionOverrides: { watch: true, nodeEnv: 'development' },
+	},
+	build: {
+		description:
+			'Build the project for production: pre-render the Pages in src/pages, optimize assets and images, and write the result to dist.',
+		entryArgs: ['--build'],
+		booleanOptions: { 'keep-going': { type: 'boolean' } },
+		optionHelpLines: ['      --keep-going                       Continue the build after a Page fails to render'],
+		optionOverrides: { nodeEnv: 'production' },
+	},
+	start: {
+		description: 'Start the production server.',
+		entryArgs: [],
+		optionOverrides: { nodeEnv: 'production' },
+		valueOptions: {
+			'dist-dir':
+				'      --dist-dir <dir>                    Build output directory to start (default: the only one)',
+		},
+	},
+	types: {
+		description:
+			'Load eco.config.ts so processors write the types for virtual modules such as ecopages:images, then exit. The app entry does not run. Run it before tsc.',
+		entryArgs: [],
+		resolveEntry: () => fileURLToPath(import.meta.resolve('@ecopages/core/config/write-types')),
+		optionOverrides: { nodeEnv: 'production' },
+	},
+	preview: {
+		description: 'Build the project for production, then serve dist locally to preview it.',
+		entryArgs: ['--preview'],
+		optionOverrides: { nodeEnv: 'production' },
+	},
+};
 
 export async function runCli(rawArgs = process.argv.slice(2)) {
 	const [commandName, ...commandArgs] = rawArgs;
@@ -259,67 +389,18 @@ export async function runCli(rawArgs = process.argv.slice(2)) {
 	}
 
 	try {
+		const serverCommand = Object.hasOwn(SERVER_COMMANDS, commandName) ? SERVER_COMMANDS[commandName] : undefined;
+		if (serverCommand) {
+			await runServerCommand(commandArgs, { name: commandName, ...serverCommand });
+			return;
+		}
+
 		switch (commandName) {
 			case 'init': {
 				const { runInitCommand } = await import('./init.js');
 				await runInitCommand(commandArgs, logger);
 				return;
 			}
-			case 'dev':
-				await runServerCommand(commandArgs, {
-					name: 'dev',
-					description: 'Start the development server.',
-					entryArgs: ['--dev'],
-					launchMode: 'dev',
-					optionOverrides: { nodeEnv: 'development' },
-				});
-				return;
-			case 'dev:watch':
-				await runServerCommand(commandArgs, {
-					name: 'dev:watch',
-					description: 'Start the development server with watch mode.',
-					entryArgs: ['--dev'],
-					launchMode: 'dev',
-					optionOverrides: { watch: true, nodeEnv: 'development' },
-				});
-				return;
-			case 'dev:hot':
-				await runServerCommand(commandArgs, {
-					name: 'dev:hot',
-					description: 'Start the development server with hot reload.',
-					entryArgs: ['--dev'],
-					launchMode: 'dev',
-					optionOverrides: { hot: true, nodeEnv: 'development' },
-				});
-				return;
-			case 'build':
-				await runServerCommand(commandArgs, {
-					name: 'build',
-					description: 'Build the project for production.',
-					entryArgs: ['--build'],
-					launchMode: 'build',
-					optionOverrides: { nodeEnv: 'production' },
-					mode: 'build',
-				});
-				return;
-			case 'start':
-				await runServerCommand(commandArgs, {
-					name: 'start',
-					description: 'Start the production server.',
-					entryArgs: [],
-					launchMode: 'start',
-					optionOverrides: { nodeEnv: 'production' },
-				});
-				return;
-			case 'preview':
-				await runServerCommand(commandArgs, {
-					name: 'preview',
-					description: 'Preview the production build.',
-					entryArgs: ['--preview'],
-					launchMode: 'preview',
-					optionOverrides: { nodeEnv: 'production' },
-				});
-				return;
 			default:
 				throw new Error(`Unknown command \`${commandName}\`.`);
 		}

@@ -37,7 +37,7 @@ describe('integration build contract', () => {
 
 		for (const filePath of collectIntegrationSourceFiles(integrationsRoot)) {
 			const source = readFileSync(filePath, 'utf8');
-			if (/\bbuild\s*\(/u.test(source) && source.includes('@ecopages/core/build/build-adapter')) {
+			if (/\bbuild\s*\(/u.test(source) && source.includes('@ecopages/core/build')) {
 				offenders.push(path.relative(integrationsRoot, filePath));
 			}
 		}

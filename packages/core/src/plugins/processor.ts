@@ -1,13 +1,11 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
-import type { EcoPagesAppConfig, IClientBridge } from '../types/internal-types.ts';
-import { DEFAULT_ECOPAGES_WORK_DIR } from '../config/constants.ts';
-import { GENERATED_BASE_PATHS } from '../config/constants.ts';
+import type { EcoPagesAppConfig, IClientBridge } from '../config/internal-types.ts';
+import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
+import { GENERATED_BASE_PATHS } from '../constants.ts';
 import { deepMerge } from '../utils/deep-merge.ts';
-import type { RuntimeCapabilityDeclaration } from './runtime-capability.ts';
 
-export type { RuntimeCapabilityDeclaration, RuntimeCapabilityTag } from './runtime-capability.ts';
 export type {
 	EcoBuildLoader,
 	EcoBuildOnLoadArgs,
@@ -70,15 +68,24 @@ export function writeGeneratedTypesPackage(options: {
 	options.writeFile(packageManifestPath, serializeGeneratedTypesPackage(options.packageName));
 }
 
-export interface ProcessorWatchContext {
-	path: string;
+/**
+ * One debounce window of file changes, passed to {@link ProcessorWatchConfig.onChanges}.
+ *
+ * @remarks
+ * Paths are absolute and already filtered by the Processor's watch `extensions`. A path appears in one
+ * array only, by its last event in the window.
+ */
+export interface ProcessorWatchChanges {
+	created: string[];
+	changed: string[];
+	deleted: string[];
 	bridge: IClientBridge;
 }
 
 export interface ProcessorWatchConfig {
 	paths: string[];
 	/**
-	 * File extensions that trigger watch callbacks (`onCreate`, `onChange`, `onDelete`).
+	 * File extensions that select paths passed to `onChanges`.
 	 *
 	 * @remarks
 	 * Watch extensions drive notifications only. They do not declare asset ownership.
@@ -86,9 +93,14 @@ export interface ProcessorWatchConfig {
 	 * invalidation skips server modules and HMR for processor-handled assets.
 	 */
 	extensions?: string[];
-	onCreate?: (ctx: ProcessorWatchContext) => Promise<void>;
-	onChange?: (ctx: ProcessorWatchContext) => Promise<void>;
-	onDelete?: (ctx: ProcessorWatchContext) => Promise<void>;
+	/**
+	 * Called once per debounce window, after core has invalidated what the changes affect.
+	 *
+	 * @remarks
+	 * Never called when no path matches `extensions`. A rejection is logged with its stack; the other
+	 * Processors and the browser update for the window still run.
+	 */
+	onChanges?: (changes: ProcessorWatchChanges) => Promise<void>;
 	onError?: (error: Error) => void;
 }
 
@@ -97,6 +109,8 @@ export type ProcessorExtensionPattern = string;
 
 export interface ProcessorAssetCapability {
 	kind: ProcessorAssetKind;
+	/** Optional filename filter applied in addition to the declared extension patterns. */
+	filter?: RegExp;
 	/**
 	 * Supported patterns:
 	 * - `*` (all extensions)
@@ -112,11 +126,9 @@ export interface ProcessorAssetCapability {
 
 export interface ProcessorConfig<TOptions = unknown> {
 	name: string;
-	description?: string;
 	options?: TOptions;
 	watch?: ProcessorWatchConfig;
 	capabilities?: ProcessorAssetCapability[];
-	runtimeCapability?: RuntimeCapabilityDeclaration;
 }
 export interface ProcessorContext {
 	config: EcoPagesAppConfig;
@@ -135,49 +147,41 @@ export type AnyProcessor = Processor<unknown>;
  * Base class for content and asset processors that contribute build plugins.
  *
  * @remarks
- * Processors declare plugins through two getters that map to
- * {@link AppBuildManifest} buckets (names differ from integrations):
- *
- * - `plugins` → `runtimePlugins` (server **and** browser builds)
- * - `buildPlugins` → `browserBundlePlugins` (browser bundles only)
- *
- * Virtual modules that must resolve during route-module transpile belong in
- * `plugins`. Browser-only bundler hooks belong in `buildPlugins`.
+ * Processors and Integrations declare build plugins through `plugins(app)`.
+ * Each plugin selects its environments; omitting them applies to both.
  */
-
 export abstract class Processor<TOptions = unknown> {
 	readonly name: string;
 	protected context?: ProcessorContext;
 	protected options?: TOptions;
 	protected watchConfig?: ProcessorWatchConfig;
 	protected capabilities: ProcessorAssetCapability[] = [];
-	readonly runtimeCapability?: RuntimeCapabilityDeclaration;
 
 	/**
-	 * Browser-bundle-only plugins.
+	 * Declares the build plugins this Processor contributes.
 	 *
 	 * @remarks
-	 * Maps to {@link AppBuildManifest.browserBundlePlugins}. Integrations name the
-	 * same bucket `browserBuildPlugins`.
-	 */
-	abstract buildPlugins?: EcoBuildPlugin[];
-
-	/**
-	 * Shared build plugins for server-oriented and browser-oriented work.
+	 * Core reads it once, during config finalization, and it is the only plugin method finalization calls. It must
+	 * not do I/O or start work: generation, config loading and cache restoring belong in {@link setup}, or in the
+	 * plugin's own callbacks when a build can run before it. Browser-only plugins declare
+	 * `environments: ['browser']`.
 	 *
-	 * @remarks
-	 * Maps to {@link AppBuildManifest.runtimePlugins}. Despite the name, these are
-	 * bundler plugins—not dev-server file processors. Runtime-only setup stays in
-	 * {@link setup}.
+	 * @param app - The app config being finalized.
 	 */
-	abstract plugins?: EcoBuildPlugin[];
+	plugins(_app: EcoPagesAppConfig): EcoBuildPlugin[] {
+		return [];
+	}
 
 	constructor(config: ProcessorConfig<TOptions>) {
 		this.name = config.name;
 		this.options = config.options;
 		this.watchConfig = config.watch;
-		this.capabilities = config.capabilities ?? [];
-		this.runtimeCapability = config.runtimeCapability;
+		this.capabilities = (config.capabilities ?? []).map((capability) => ({
+			...capability,
+			...(capability.filter
+				? { filter: new RegExp(capability.filter.source, capability.filter.flags.replace(/[gy]/gu, '')) }
+				: {}),
+		}));
 	}
 
 	setContext(appConfig: EcoPagesAppConfig): void {
@@ -200,56 +204,21 @@ export abstract class Processor<TOptions = unknown> {
 		};
 	}
 
-	/**
-	 * Prepares build-facing processor contributions before config finalization.
-	 *
-	 * @remarks
-	 * Override this when a processor must compute runtime/build plugins or other
-	 * manifest-owned state before startup. Runtime-only work such as cache
-	 * warming or watcher registration should stay in `setup()`.
-	 */
-	async prepareBuildContributions(): Promise<void> {}
-
-	/**
-	 * Declares watch-mode SSR prewarm pathnames and readiness for core.
-	 *
-	 * @remarks
-	 * Processors return paths and readiness only; core owns parallel rendering and page cache population.
-	 */
-	collectDevPrewarmPlan(): Promise<{ pathnames: readonly string[]; readiness: 'background' | 'beforeReady' }> {
-		return Promise.resolve({ pathnames: [], readiness: 'background' });
-	}
-
-	/**
-	 * Reports whether this processor's build inputs changed since the last
-	 * incremental static build.
-	 *
-	 * @remarks
-	 * No shipped processor overrides this today. Integrations and processors can
-	 * opt in when they own build inputs that should invalidate incremental static
-	 * exports without a full rebuild.
-	 */
-	didChange(): boolean {
-		return false;
-	}
-
 	abstract setup(): Promise<void>;
-	abstract process(input: unknown, filePath?: string): Promise<unknown>;
 
 	/**
-	 * Discards cached server build artifacts when server modules are invalidated.
-	 */
-	invalidateServerArtifacts(): void {}
-
-	/**
-	 * Releases runtime resources owned by the processor.
+	 * Transforms one stylesheet before core writes or inlines it.
 	 *
 	 * @remarks
-	 * Core does not call this hook today. Override only when a processor owns
-	 * watchers, compiler handles, or other resources that outlive individual
-	 * requests.
+	 * Core calls it for every `.css`, `.scss`, `.sass` and `.less` asset, from file and content dependencies alike,
+	 * when the Processor declares a `stylesheet` capability matching the file. Processors run in registration order,
+	 * each receiving the previous result. A Processor without this method
+	 * takes no part in stylesheet processing.
+	 *
+	 * @param css - Stylesheet source, or the previous Processor's output.
+	 * @param file - Absolute path of the stylesheet, or the `processingOrigin` of a content dependency.
 	 */
-	async teardown(): Promise<void> {}
+	transformStylesheet?(css: string, file: string): Promise<string>;
 
 	protected getCachePath(key: string): string {
 		return `${this.context?.cache}/${key}`;
@@ -286,10 +255,6 @@ export abstract class Processor<TOptions = unknown> {
 		return this.capabilities;
 	}
 
-	matchesFileFilter(_filepath: string): boolean {
-		return true;
-	}
-
 	canProcessAsset(kind: ProcessorAssetKind, filepath?: string): boolean {
 		const capabilities = this.getAssetCapabilities();
 		if (capabilities.length === 0) {
@@ -305,7 +270,11 @@ export abstract class Processor<TOptions = unknown> {
 			return true;
 		}
 
-		return matchingKind.some((capability) => this.matchesCapabilityExtensions(filepath, capability.extensions));
+		return matchingKind.some(
+			(capability) =>
+				(!capability.filter || capability.filter.test(filepath)) &&
+				this.matchesCapabilityExtensions(filepath, capability.extensions),
+		);
 	}
 
 	private matchesCapabilityExtensions(filepath: string, extensions?: ProcessorExtensionPattern[]): boolean {

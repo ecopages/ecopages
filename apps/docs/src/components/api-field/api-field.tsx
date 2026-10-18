@@ -1,17 +1,20 @@
 import { eco } from '@ecopages/core';
+import type { JsxRenderable } from '@ecopages/jsx';
 
-export const ApiField = eco.component<{
-	name: string;
-	type: string;
-	defaultValue: string;
-	mandatory: boolean;
-	setter: string;
-	children: string;
-}>({
+export const ApiField = eco.component<
+	{
+		name: string;
+		type: string;
+		defaultValue: string;
+		mandatory: boolean;
+		children: string;
+	},
+	JsxRenderable
+>({
 	dependencies: {
 		stylesheets: ['./api-field.css'],
 	},
-	render: ({ name, defaultValue, setter, mandatory, type, children }) => {
+	render: ({ name, defaultValue, mandatory, type, children }) => {
 		return (
 			<div class="api-field">
 				<div class="api-field__top-line">
@@ -23,9 +26,6 @@ export const ApiField = eco.component<{
 							{type}
 						</span>
 					</div>
-					<span class="api-field__setter" safe>
-						{setter}
-					</span>
 					{defaultValue ? (
 						<span class="api-field__default-value">@default: {defaultValue as 'safe'}</span>
 					) : null}

@@ -1,6 +1,5 @@
 import path from 'node:path';
-import { fileSystem } from '@ecopages/file-system';
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/processor';
+import type { EcoBuildPlugin } from '@ecopages/core/processor';
 import {
 	CONTENT_BROWSER_VIRTUAL_MODULE_PATTERN,
 	CONTENT_SERVER_VIRTUAL_MODULE_PATTERN,
@@ -13,6 +12,9 @@ export type { ParsedCollectionSpecifier };
 export { parseCollectionSpecifier } from './constants.ts';
 
 export type EnsureCollectionServerArtifact = (collectionName: string) => Promise<void>;
+
+/** Resolves once the generated collection modules exist. */
+export type EnsureCollectionsGenerated = () => Promise<void>;
 
 export function parseCollectionName(specifier: string): string | null {
 	const parsed = parseCollectionSpecifier(specifier);
@@ -52,6 +54,7 @@ function createContentResolvePlugin(
 	collectionServerCompiledModules: Record<string, string> | undefined,
 	collectionBrowserModules: Record<string, string>,
 	ensureCollectionServerArtifact: EnsureCollectionServerArtifact | undefined,
+	ensureCollectionsGenerated: EnsureCollectionsGenerated | undefined,
 	options: { namespace?: string; includeServerModules?: boolean; externalizeCompiledServerModules?: boolean },
 ): EcoBuildPlugin {
 	return {
@@ -66,7 +69,8 @@ function createContentResolvePlugin(
 					collectionBrowserModules,
 				);
 
-			build.onResolve({ filter: CONTENT_VIRTUAL_MODULE_PATTERN }, (args) => {
+			build.onResolve({ filter: CONTENT_VIRTUAL_MODULE_PATTERN }, async (args) => {
+				await ensureCollectionsGenerated?.();
 				const modulePath = resolveCollection(args.path);
 				if (!modulePath) {
 					return undefined;
@@ -84,8 +88,9 @@ function createContentResolvePlugin(
 
 			if (options.includeServerModules !== false) {
 				build.onResolve({ filter: CONTENT_SERVER_VIRTUAL_MODULE_PATTERN }, async (args) => {
+					await ensureCollectionsGenerated?.();
 					const parsed = parseCollectionSpecifier(args.path);
-					if (parsed?.variant === 'server' && !collectionServerCompiledModules?.[parsed.collectionName]) {
+					if (parsed?.variant === 'server') {
 						await ensureCollectionServerArtifact?.(parsed.collectionName);
 					}
 
@@ -113,7 +118,8 @@ function createContentResolvePlugin(
 				});
 			}
 
-			build.onResolve({ filter: CONTENT_BROWSER_VIRTUAL_MODULE_PATTERN }, (args) => {
+			build.onResolve({ filter: CONTENT_BROWSER_VIRTUAL_MODULE_PATTERN }, async (args) => {
+				await ensureCollectionsGenerated?.();
 				const modulePath = resolveCollection(args.path);
 				if (!modulePath) {
 					return undefined;
@@ -134,7 +140,8 @@ function createContentResolvePlugin(
  *
  * @remarks
  * Compiled `/server` modules are externalized so Node can load the collection
- * artifact directly. The Page Browser Graph uses `createContentPluginBundler`,
+ * artifact directly. Every resolve waits for `ensureCollectionsGenerated`, so a build that runs before the
+ * Processor's `setup()` still finds the generated modules. The Page Browser Graph uses `createContentPluginBundler`,
  * where the content boundary rejects `/server` and resolves `/browser` to
  * browser-safe source.
  */
@@ -144,6 +151,7 @@ export function createContentPlugin(
 	collectionServerCompiledModules?: Record<string, string>,
 	collectionBrowserModules: Record<string, string> = {},
 	ensureCollectionServerArtifact?: EnsureCollectionServerArtifact,
+	ensureCollectionsGenerated?: EnsureCollectionsGenerated,
 ): EcoBuildPlugin {
 	return createContentResolvePlugin(
 		collectionModules,
@@ -151,6 +159,7 @@ export function createContentPlugin(
 		collectionServerCompiledModules,
 		collectionBrowserModules,
 		ensureCollectionServerArtifact,
+		ensureCollectionsGenerated,
 		{ includeServerModules: true, externalizeCompiledServerModules: true },
 	);
 }
@@ -159,39 +168,31 @@ export function createContentPlugin(
  * Creates the Page Browser Graph resolver for collection virtual modules.
  *
  * @remarks
- * It resolves entries and `/browser` modules into browser source. `/server`
- * resolution is deliberately omitted so the content server-boundary plugin can
- * reject any server artifact that remains browser-reachable.
+ * It resolves entries and `/browser` modules to generated files on disk so
+ * relative MDX imports inside those files resolve as filesystem paths. A
+ * virtual namespace would keep those imports inside `ecopages-content:` and
+ * Rolldown would report them as missing. `/server` resolution is omitted so
+ * the content server-boundary plugin can reject any server artifact that
+ * remains browser-reachable.
  */
 export function createContentPluginBundler(
 	collectionModules: Record<string, string>,
 	collectionServerModules: Record<string, string>,
 	collectionServerCompiledModules?: Record<string, string>,
 	collectionBrowserModules: Record<string, string> = {},
+	ensureCollectionsGenerated?: EnsureCollectionsGenerated,
 ): EcoBuildPlugin {
-	const plugin = createContentResolvePlugin(
+	return createContentResolvePlugin(
 		collectionModules,
 		collectionServerModules,
 		collectionServerCompiledModules,
 		collectionBrowserModules,
 		undefined,
+		ensureCollectionsGenerated,
 		{
-			namespace: 'ecopages-content',
 			includeServerModules: false,
 		},
 	);
-
-	return {
-		name: plugin.name,
-		setup(build) {
-			plugin.setup?.(build);
-
-			build.onLoad({ filter: /.*/, namespace: 'ecopages-content' }, async (args) => {
-				const contents = await fileSystem.readFile(args.path);
-				return { contents, loader: 'ts' };
-			});
-		},
-	};
 }
 
 export function getCollectionCachePath(cacheDir: string, collectionName: string): string {

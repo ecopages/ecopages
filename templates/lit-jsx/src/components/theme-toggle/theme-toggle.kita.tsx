@@ -31,3 +31,11 @@ export const ThemeToggle = eco.component<{}, EcoPagesElement>({
 		</theme-toggle>
 	),
 });
+
+declare global {
+	namespace JSX {
+		interface IntrinsicElements {
+			'theme-toggle': HtmlTag & { 'data-value'?: string };
+		}
+	}
+}

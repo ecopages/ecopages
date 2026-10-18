@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { transformModuleImports } from './ast-transform.ts';
-import type { RequestedExportRules } from './boundary-cache.ts';
+import type { RequestedExportRules } from './specifier-classification.ts';
 
 function transform(
 	source: string,

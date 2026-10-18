@@ -1,5 +1,7 @@
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import type { EcoFunctionComponent, EcoPageComponent } from '../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import { getComponentOwner } from '../eco/component-identity.ts';
+import { ensureIntegrationRuntimeReady } from '../build/app-build-manifest-runtime.ts';
+import type { EcoFunctionComponent, EcoPageComponent } from '../types/contracts.ts';
 import type { ExplicitViewRenderer, ExplicitViewRendererResolver } from './route-renderer.ts';
 
 type ExplicitStaticRenderPreparationResult = {
@@ -8,10 +10,36 @@ type ExplicitStaticRenderPreparationResult = {
 	view: EcoFunctionComponent<Record<string, unknown>, any>;
 };
 
-function getViewIntegrationName(view: {
-	config?: { integration?: string; identity?: { integration?: string } };
-}): string | undefined {
-	return view.config?.integration ?? view.config?.identity?.integration;
+/**
+ * Resolves the renderer for one explicit view without reading its static props.
+ *
+ * @remarks
+ * Static export planning calls this so a dynamic route whose `staticProps`
+ * reads params is not invoked before a slug exists.
+ */
+export function resolveExplicitViewRenderer(input: {
+	routePath: string;
+	view: EcoPageComponent<any>;
+	routeRendererFactory: ExplicitViewRendererResolver;
+	errors: {
+		missingIntegration(routePath: string): string;
+		noRendererForIntegration(integrationName: string): string;
+	};
+}): { renderer: ExplicitViewRenderer; view: EcoFunctionComponent<Record<string, unknown>, any> } {
+	const integrationName = getComponentOwner(input.view);
+	if (!integrationName) {
+		throw new Error(input.errors.missingIntegration(input.routePath));
+	}
+
+	const renderer = input.routeRendererFactory.getExplicitViewRenderer(integrationName);
+	if (!renderer) {
+		throw new Error(input.errors.noRendererForIntegration(integrationName));
+	}
+
+	return {
+		renderer,
+		view: input.view as EcoFunctionComponent<Record<string, unknown>, any>,
+	};
 }
 
 /**
@@ -30,15 +58,14 @@ export async function prepareExplicitStaticRender(input: {
 		noRendererForIntegration(integrationName: string): string;
 	};
 }): Promise<ExplicitStaticRenderPreparationResult> {
-	const integrationName = getViewIntegrationName(input.view);
-	if (!integrationName) {
-		throw new Error(input.errors.missingIntegration(input.routePath));
+	const integrationName = getComponentOwner(input.view);
+	if (integrationName && input.appConfig.appRuntime?.integrationActivations) {
+		await ensureIntegrationRuntimeReady({
+			appConfig: input.appConfig,
+			integrationName,
+		});
 	}
-
-	const renderer = input.routeRendererFactory.getExplicitViewRenderer(integrationName);
-	if (!renderer) {
-		throw new Error(input.errors.noRendererForIntegration(integrationName));
-	}
+	const { renderer, view } = resolveExplicitViewRenderer(input);
 
 	const props = input.view.staticProps
 		? (
@@ -53,6 +80,6 @@ export async function prepareExplicitStaticRender(input: {
 	return {
 		renderer,
 		props,
-		view: input.view as EcoFunctionComponent<Record<string, unknown>, any>,
+		view,
 	};
 }

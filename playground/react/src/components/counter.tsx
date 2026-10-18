@@ -1,5 +1,5 @@
 import { eco } from '@ecopages/core';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 type CounterProps = {
 	defaultValue: number;
@@ -12,11 +12,15 @@ export const Counter = eco.component<CounterProps, ReactNode>({
 
 	render: ({ defaultValue = 5 }) => {
 		const [count, setCount] = useState<number>(defaultValue);
+		const counterRef = useRef<HTMLDivElement>(null);
+		useEffect(() => {
+			counterRef.current?.setAttribute('data-react-hydrated', 'true');
+		}, []);
 		const handleIncrement = () => setCount(count + 1);
 		const handleDecrement = () => setCount(count - 1);
 
 		return (
-			<div className="counter">
+			<div ref={counterRef} className="counter">
 				<button onClick={handleDecrement} aria-label="Decrement" type="button" className="decrement">
 					-
 				</button>

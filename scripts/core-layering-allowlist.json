@@ -1,0 +1,72 @@
+[
+	{
+		"from": "packages/core/src/assets/browser-runtime-asset-page-cache.ts",
+		"to": "packages/core/src/page-cache/page-cache-service.ts",
+		"issue": "#556"
+	},
+	{
+		"from": "packages/core/src/assets/app-browser-client-build.ts",
+		"to": "packages/core/src/html-pages/html-page-module-scripts.ts",
+		"issue": "#556"
+	},
+	{
+		"from": "packages/core/src/assets/app-browser-client-build.ts",
+		"to": "packages/core/src/route-renderer/orchestration/page-browser-graph/route-instance-key.ts",
+		"issue": "#556"
+	},
+	{
+		"from": "packages/core/src/assets/app-browser-client-manifest.ts",
+		"to": "packages/core/src/html-pages/html-page-module-scripts.ts",
+		"issue": "#556"
+	},
+	{
+		"from": "packages/core/src/assets/app-browser-client-manifest.ts",
+		"to": "packages/core/src/route-renderer/orchestration/page-browser-graph/route-instance-key.ts",
+		"issue": "#556"
+	},
+	{
+		"from": "packages/core/src/html/html-transformer.service.ts",
+		"to": "packages/core/src/assets/processed-asset-dedupe.ts",
+		"issue": "#556"
+	},
+	{
+		"from": "packages/core/src/plugins/component-import-discovery.ts",
+		"to": "packages/core/src/cache/module-parse-cache.ts",
+		"issue": "#556"
+	},
+	{
+		"from": "packages/core/src/plugins/eco-component-meta-plugin.ts",
+		"to": "packages/core/src/build/mapped-source-transform.ts",
+		"issue": "#556"
+	},
+	{
+		"from": "packages/core/src/plugins/eco-component-meta-plugin.ts",
+		"to": "packages/core/src/build/source-maps.ts",
+		"issue": "#556"
+	},
+	{
+		"from": "packages/core/src/plugins/eco-component-meta-plugin.ts",
+		"to": "packages/core/src/cache/module-parse-cache.ts",
+		"issue": "#556"
+	},
+	{
+		"from": "packages/core/src/plugins/integration-plugin.ts",
+		"to": "packages/core/src/assets/asset-processing-service/asset-processing.service.ts",
+		"issue": "#556"
+	},
+	{
+		"from": "packages/core/src/plugins/integration-plugin.ts",
+		"to": "packages/core/src/build/browser/browser-runtime-manifest.ts",
+		"issue": "#556"
+	},
+	{
+		"from": "packages/core/src/route-renderer/orchestration/route-pipeline/route-html-finalization.service.ts",
+		"to": "packages/core/src/dev-toolbar/dev-toolbar-manifest.ts",
+		"issue": "#556"
+	},
+	{
+		"from": "packages/core/src/watchers/project-watcher.ts",
+		"to": "packages/core/src/adapters/shared/runtime/copy-runtime-public-dir.ts",
+		"issue": "#556"
+	}
+]

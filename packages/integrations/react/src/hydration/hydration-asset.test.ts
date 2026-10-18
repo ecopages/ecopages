@@ -1,8 +1,19 @@
-import { rapidhash } from '@ecopages/core/hash';
-import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/dev/transform-server';
+import { contentHash } from '@ecopages/core/build';
+import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/integration';
 import { describe, expect, it, vi } from 'vitest';
 import { assertNoBareEcopagesImports } from './assert-no-bare-ecopages-imports.ts';
+import { APP_BROWSER_CLIENT_BUNDLE_ID } from '@ecopages/core/integration';
 import { getIslandComponentKey, HydrationAssetService } from './hydration-asset.ts';
+
+type HydrationAssetServiceOptions = ConstructorParameters<typeof HydrationAssetService>[0];
+
+/**
+ * Casts a partial collaborator double to the constructor option type.
+ *
+ * @remarks
+ * Each test supplies only the methods the code under test calls, so a missing method surfaces as a runtime error in that test.
+ */
+const fake = <T>(partial: object): T => partial as T;
 
 const devTransformPageUrl = (relativePath: string): string => `${DEV_TRANSFORM_URL_PREFIX}/${relativePath}`;
 
@@ -13,7 +24,7 @@ const productionRuntimeImports = {
 	reactJsxDevRuntime: 'react',
 	reactDom: 'react-dom',
 	useSyncExternalStoreWithSelector: 'use-sync-external-store/shim/with-selector',
-	pageLayoutNormalization: '@ecopages/core/eco/page-layout-normalization',
+	pageLayoutNormalization: '@ecopages/core/integration',
 	layoutCompose: '@ecopages/react/layout-compose',
 	router: undefined as string | undefined,
 };
@@ -34,12 +45,12 @@ describe('HydrationAssetService', () => {
 	it('creates one page-owned route entry asset', async () => {
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => undefined,
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				getRuntimeImports: () => productionRuntimeImports,
-			} as any,
+			}),
 		});
 
 		const dependencies = await service.createPageDependencies({
@@ -86,12 +97,12 @@ describe('HydrationAssetService', () => {
 				},
 				getRouterProps: () => '{}',
 			},
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => undefined,
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				getRuntimeImports: () => browserRuntimeImports,
-			} as any,
+			}),
 		});
 
 		const dependencies = await service.createPageDependencies({
@@ -108,13 +119,66 @@ describe('HydrationAssetService', () => {
 		expect(dependencies[0]).toMatchObject({
 			bundle: true,
 			groupedBundle: {
-				id: 'ecopages-react-router-pages',
+				id: APP_BROWSER_CLIENT_BUNDLE_ID,
 				entryName: 'pages__dashboard___project_',
 			},
 			attributes: {
 				'data-eco-page-bootstrap': 'react-router',
 			},
 		});
+	});
+
+	it('collects island hydration entries that import their source into the app-wide build', async () => {
+		const createBundleOptions = vi.fn(async () => ({ plugins: [] }));
+		const service = new HydrationAssetService({
+			srcDir: '/app/src',
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
+				getHmrManager: () => undefined,
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
+				createBundleOptions,
+				getRuntimeImports: () => productionRuntimeImports,
+			}),
+		});
+		const islandA = '/app/src/components/island-a.tsx';
+		const islandB = '/app/src/components/island-b.tsx';
+
+		const entries = await service.collectAppBrowserClientBuildEntries([
+			{ file: islandA, config: { dependencies: { modules: ['node:path'] } } },
+			{ file: islandB, config: { dependencies: { modules: ['node:fs'] } } },
+		]);
+
+		expect(entries).toHaveLength(2);
+		expect(entries[0]).toMatchObject({
+			islandFile: islandA,
+			dependency: {
+				kind: 'script',
+				bundle: true,
+				groupedBundle: { id: APP_BROWSER_CLIENT_BUNDLE_ID },
+			},
+		});
+		expect(entries[0]?.dependency).toHaveProperty('content', expect.stringContaining(islandA));
+		expect(entries[1]?.dependency).toHaveProperty('content', expect.stringContaining(islandB));
+		expect(createBundleOptions).toHaveBeenNthCalledWith(
+			1,
+			`ecopages-react-island-${BigInt(`0x${contentHash(islandA, 16)}`).toString()}`,
+			false,
+			['node:path'],
+			{},
+			islandA,
+			[islandA, islandB],
+			['node:path', 'node:fs'],
+		);
+		expect(createBundleOptions).toHaveBeenNthCalledWith(
+			2,
+			`ecopages-react-island-${BigInt(`0x${contentHash(islandB, 16)}`).toString()}`,
+			false,
+			['node:fs'],
+			{},
+			islandB,
+			[islandA, islandB],
+			['node:path', 'node:fs'],
+		);
 	});
 
 	it('keeps router-managed page bootstraps unbundled in development with vendor helper imports', async () => {
@@ -133,12 +197,12 @@ describe('HydrationAssetService', () => {
 				},
 				getRouterProps: () => '{}',
 			},
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => ({ isEnabled: () => true }),
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				getRuntimeImports: () => browserRuntimeImports,
-			} as any,
+			}),
 		});
 
 		const dependencies = await service.createPageDependencies({
@@ -185,12 +249,12 @@ describe('HydrationAssetService', () => {
 				},
 				getRouterProps: () => '{}',
 			},
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => ({ isEnabled: () => true }),
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				getRuntimeImports: () => browserRuntimeImports,
-			} as any,
+			}),
 		});
 
 		const dependencies = await service.createPageDependencies({
@@ -214,42 +278,37 @@ describe('HydrationAssetService', () => {
 	});
 
 	it('bundles the React runtime into production page browser graph entries', async () => {
-		const originalNodeEnv = process.env.NODE_ENV;
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const createBundleOptions = vi.fn(async () => ({}));
 		const processDependencies = vi.fn(async () => []);
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => undefined,
 				processDependencies,
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				createBundleOptions,
 				getRuntimeImports: () => ({ ...productionRuntimeImports, router: undefined }),
-			} as any,
+			}),
 		});
 
-		try {
-			await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
+		await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
 
-			expect(createBundleOptions).toHaveBeenCalledWith(
-				`ecopages-react-${rapidhash('/app/src/pages/index.tsx')}`,
-				false,
-				[],
-				{
-					includeRuntime: true,
-					splitting: false,
-				},
-			);
-		} finally {
-			process.env.NODE_ENV = originalNodeEnv;
-		}
+		expect(createBundleOptions).toHaveBeenCalledWith(
+			`ecopages-react-${BigInt(`0x${contentHash('/app/src/pages/index.tsx', 16)}`).toString()}`,
+			false,
+			[],
+			{
+				includeRuntime: true,
+				splitting: false,
+			},
+			'/app/src/pages/index.tsx',
+		);
 	});
 
 	it('uses shared runtime imports for router-managed production page browser graph entries', async () => {
-		const originalNodeEnv = process.env.NODE_ENV;
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const createBundleOptions = vi.fn(async () => ({}));
 		const processDependencies = vi.fn(async () => []);
 		const service = new HydrationAssetService({
@@ -267,76 +326,65 @@ describe('HydrationAssetService', () => {
 				},
 				getRouterProps: () => '{}',
 			},
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => undefined,
 				processDependencies,
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				createBundleOptions,
 				getRuntimeImports: () => browserRuntimeImports,
-			} as any,
+			}),
 		});
 
-		try {
-			await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
+		await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
 
-			expect(createBundleOptions).toHaveBeenCalledWith(
-				`ecopages-react-${rapidhash('/app/src/pages/index.tsx')}`,
-				false,
-				[],
-				{
-					includeRuntime: false,
-					splitting: true,
-				},
-			);
-		} finally {
-			process.env.NODE_ENV = originalNodeEnv;
-		}
+		expect(createBundleOptions).toHaveBeenCalledWith(
+			`ecopages-react-${BigInt(`0x${contentHash('/app/src/pages/index.tsx', 16)}`).toString()}`,
+			false,
+			[],
+			{
+				includeRuntime: false,
+				splitting: true,
+			},
+			'/app/src/pages/index.tsx',
+		);
 	});
 
 	it('uses shared runtime imports and readable non-HMR scripts in hosted development', async () => {
-		const originalNodeEnv = process.env.NODE_ENV;
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		const createBundleOptions = vi.fn(async () => ({}));
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => undefined,
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				createBundleOptions,
 				getRuntimeImports: () => ({ ...browserRuntimeImports, router: undefined }),
-			} as any,
+			}),
 		});
 
-		try {
-			const dependencies = await service.createPageBrowserGraphDependencies(
-				'/app/src/pages/index.tsx',
-				false,
-				[],
-			);
+		const dependencies = await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
 
-			expect(createBundleOptions).toHaveBeenCalledWith(
-				`ecopages-react-${rapidhash('/app/src/pages/index.tsx')}`,
-				false,
-				[],
-				{
-					includeRuntime: false,
-					splitting: false,
-				},
-			);
-			expect(dependencies[0]).toMatchObject({
-				bundle: true,
-				content: expect.stringContaining('import { hydrateRoot } from "/assets/vendors/react-dom.js";'),
-			});
-			expect(String((dependencies[0] as { content?: string }).content ?? '')).not.toContain('hmr: {');
-			expect(String((dependencies[0] as { content?: string }).content ?? '')).toContain(
-				'from "/assets/vendors/layout-compose.js"',
-			);
-			assertNoBareEcopagesImports(String((dependencies[0] as { content?: string }).content ?? ''));
-		} finally {
-			process.env.NODE_ENV = originalNodeEnv;
-		}
+		expect(createBundleOptions).toHaveBeenCalledWith(
+			`ecopages-react-${BigInt(`0x${contentHash('/app/src/pages/index.tsx', 16)}`).toString()}`,
+			false,
+			[],
+			{
+				includeRuntime: false,
+				splitting: false,
+			},
+			'/app/src/pages/index.tsx',
+		);
+		expect(dependencies[0]).toMatchObject({
+			bundle: true,
+			content: expect.stringContaining('import { hydrateRoot } from "/assets/vendors/react-dom.js";'),
+		});
+		expect(String((dependencies[0] as { content?: string }).content ?? '')).not.toContain('hmr: {');
+		expect(String((dependencies[0] as { content?: string }).content ?? '')).toContain(
+			'from "/assets/vendors/layout-compose.js"',
+		);
+		assertNoBareEcopagesImports(String((dependencies[0] as { content?: string }).content ?? ''));
 	});
 
 	it('uses the React-owned HMR entrypoint path for hydration assets in development', async () => {
@@ -345,16 +393,16 @@ describe('HydrationAssetService', () => {
 		const registerEntrypoint = vi.fn(async () => pageModuleUrl);
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => ({
 					isEnabled: () => true,
 					registerScriptEntrypoint,
 					registerEntrypoint,
 				}),
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				getRuntimeImports: () => ({ ...productionRuntimeImports, router: undefined }),
-			} as any,
+			}),
 		});
 
 		const importPath = await service.resolveAssetImportPath('/app/src/pages/index.tsx', 'ecopages-react-index');
@@ -367,17 +415,17 @@ describe('HydrationAssetService', () => {
 	it('records the HMR entrypoint as the active page module in development', async () => {
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
-			assetProcessingService: {
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => ({
 					isEnabled: () => true,
 					registerEntrypoint: async () => devTransformPageUrl('pages/index.js'),
 					registerScriptEntrypoint: async () => '/assets/scripts/index.js',
 				}),
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				createBundleOptions: async () => ({}),
 				getRuntimeImports: () => ({ ...browserRuntimeImports, router: undefined }),
-			} as any,
+			}),
 		});
 
 		const dependencies = await service.createPageBrowserGraphDependencies('/app/src/pages/index.tsx', false, []);
@@ -393,27 +441,36 @@ describe('HydrationAssetService', () => {
 		const registerScriptEntrypoint = vi.fn();
 		const registerEntrypoint = vi.fn(async () => '/assets/__eco_dev__/components/counter.js');
 		const processDependencies = vi.fn(async () => []);
+		const assetProcessingIntegration = { name: 'react' };
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
-			assetProcessingService: {
+			assetProcessingIntegration,
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => ({
 					isEnabled: () => true,
 					registerEntrypoint,
 					registerScriptEntrypoint,
 				}),
 				processDependencies,
-			} as any,
-			bundleService: {
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
 				createBundleOptions: vi.fn(),
 				getRuntimeImports: () => ({ ...browserRuntimeImports, router: undefined }),
-			} as any,
-			hmrPageMetadataCache: {
+			}),
+			hmrPageMetadataCache: fake<HydrationAssetServiceOptions['hmrPageMetadataCache']>({
 				markOwnedEntrypoint: vi.fn(),
-			} as any,
+			}),
 		});
 
-		await service.buildComponentRenderAssets('/app/src/components/counter.tsx', {
-			identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+		await service.buildPageClientRenderAssets({
+			islands: [
+				{
+					file: '/app/src/components/counter.tsx',
+					config: {
+						identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+					},
+				},
+			],
 		});
 
 		expect(registerEntrypoint).toHaveBeenCalledWith('/app/src/components/counter.tsx');
@@ -425,12 +482,116 @@ describe('HydrationAssetService', () => {
 					content: expect.stringContaining('registerIslandHmr'),
 				}),
 			],
-			expect.any(String),
+			assetProcessingIntegration,
 		);
 	});
 
-	it('reuses the same bundled island asset for different component instances', async () => {
-		const processDependencies = vi.fn(async () => []);
+	it('builds two islands in one grouped client build and hydrates from recorded output URLs', async () => {
+		const islandA = '/app/src/components/counter.tsx';
+		const islandB = '/app/src/components/cart.tsx';
+		const assetProcessingIntegration = { name: 'react' };
+		const processDependencies = vi.fn(
+			async (
+				deps: Array<{ groupedBundle?: { entryName: string }; name?: string }>,
+				_integration?: { name: string },
+			) =>
+				deps.map((dep) => ({
+					kind: 'script' as const,
+					srcUrl: dep.groupedBundle ? `/assets/${dep.groupedBundle.entryName}.js` : `/${dep.name}.js`,
+					groupedBundle: dep.groupedBundle,
+					attributes:
+						'attributes' in dep ? (dep as { attributes?: Record<string, string> }).attributes : undefined,
+				})),
+		);
+		const createBundleOptions = vi.fn(async () => ({}));
+		const service = new HydrationAssetService({
+			srcDir: '/app/src',
+			assetProcessingIntegration,
+			assetProcessingService: {
+				getHmrManager: () => undefined,
+				processDependencies,
+			} as unknown as ConstructorParameters<typeof HydrationAssetService>[0]['assetProcessingService'],
+			bundleService: {
+				createBundleOptions,
+				getRuntimeImports: () => ({ ...productionRuntimeImports, router: undefined }),
+			} as unknown as ConstructorParameters<typeof HydrationAssetService>[0]['bundleService'],
+		});
+
+		const { assetsByFile } = await service.buildPageClientRenderAssets({
+			islands: [
+				{
+					file: islandA,
+					config: {
+						identity: { id: 'Counter', file: islandA, integration: 'react' },
+						dependencies: { modules: ['node:path'] },
+					},
+				},
+				{
+					file: islandB,
+					config: {
+						identity: { id: 'Cart', file: islandB, integration: 'react' },
+						dependencies: { modules: ['node:fs'] },
+					},
+				},
+			],
+		});
+
+		expect(processDependencies).toHaveBeenCalledTimes(2);
+		const [clientEntries, processingIntegration] = processDependencies.mock.calls[0] as unknown as [
+			Array<{ groupedBundle?: { id: string; entryName: string }; content?: string }>,
+			{ name: string } | undefined,
+		];
+		expect(processingIntegration).toBe(assetProcessingIntegration);
+		expect(clientEntries).toHaveLength(2);
+		expect(clientEntries.map((entry) => entry.groupedBundle?.id)).toEqual([
+			APP_BROWSER_CLIENT_BUNDLE_ID,
+			APP_BROWSER_CLIENT_BUNDLE_ID,
+		]);
+		expect(clientEntries[0]?.content).toContain(`export * from ${JSON.stringify(islandA)}`);
+		expect(clientEntries[1]?.content).toContain(`export * from ${JSON.stringify(islandB)}`);
+		expect(createBundleOptions).toHaveBeenNthCalledWith(
+			1,
+			`ecopages-react-island-${BigInt(`0x${contentHash(islandA, 16)}`).toString()}`,
+			false,
+			['node:path'],
+			{},
+			islandA,
+			[islandA, islandB],
+			['node:path', 'node:fs'],
+		);
+		expect(createBundleOptions).toHaveBeenNthCalledWith(
+			2,
+			`ecopages-react-island-${BigInt(`0x${contentHash(islandB, 16)}`).toString()}`,
+			false,
+			['node:fs'],
+			{},
+			islandB,
+			[islandA, islandB],
+			['node:path', 'node:fs'],
+		);
+
+		const hydrationCall = processDependencies.mock.calls[1]?.[0] as Array<{ content?: string }>;
+		expect(hydrationCall?.[0]?.content).toContain(
+			`/assets/ecopages-react-island-${BigInt(`0x${contentHash(islandA, 16)}`).toString()}.js`,
+		);
+		expect(hydrationCall?.[1]?.content).toContain(
+			`/assets/ecopages-react-island-${BigInt(`0x${contentHash(islandB, 16)}`).toString()}.js`,
+		);
+		expect(assetsByFile.get(islandA)?.length).toBeGreaterThan(0);
+		expect(assetsByFile.get(islandB)?.length).toBeGreaterThan(0);
+	});
+
+	it('reuses the same grouped island entry name for different component instances', async () => {
+		const processDependencies = vi.fn(
+			async (deps: Array<{ groupedBundle?: { entryName: string }; name?: string }>) =>
+				deps.map((dep) => ({
+					kind: 'script' as const,
+					srcUrl: dep.groupedBundle ? `/assets/${dep.groupedBundle.entryName}.js` : `/${dep.name}.js`,
+					groupedBundle: dep.groupedBundle,
+					attributes:
+						'attributes' in dep ? (dep as { attributes?: Record<string, string> }).attributes : undefined,
+				})),
+		);
 		const createBundleOptions = vi.fn(async () => ({}));
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
@@ -444,52 +605,68 @@ describe('HydrationAssetService', () => {
 			} as unknown as ConstructorParameters<typeof HydrationAssetService>[0]['bundleService'],
 		});
 
-		await service.buildComponentRenderAssets('/app/src/components/counter.tsx', {
-			identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+		await service.buildPageClientRenderAssets({
+			islands: [
+				{
+					file: '/app/src/components/counter.tsx',
+					config: {
+						identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+					},
+				},
+			],
 		});
-		await service.buildComponentRenderAssets('/app/src/components/counter.tsx', {
-			identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+		await service.buildPageClientRenderAssets({
+			islands: [
+				{
+					file: '/app/src/components/counter.tsx',
+					config: {
+						identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
+					},
+				},
+			],
 		});
 
+		const islandName = `ecopages-react-island-${BigInt(`0x${contentHash('/app/src/components/counter.tsx', 16)}`).toString()}`;
 		expect(createBundleOptions).toHaveBeenNthCalledWith(
 			1,
-			`ecopages-react-island-${rapidhash('/app/src/components/counter.tsx')}`,
+			islandName,
 			false,
+			[],
+			{},
+			'/app/src/components/counter.tsx',
+			['/app/src/components/counter.tsx'],
 			[],
 		);
 		expect(createBundleOptions).toHaveBeenNthCalledWith(
 			2,
-			`ecopages-react-island-${rapidhash('/app/src/components/counter.tsx')}`,
+			islandName,
 			false,
+			[],
+			{},
+			'/app/src/components/counter.tsx',
+			['/app/src/components/counter.tsx'],
 			[],
 		);
 
-		const [firstDependencies, firstKey] = processDependencies.mock.calls[0] as unknown as [
-			Array<{ name: string; content?: string; attributes?: Record<string, string> }>,
-			string,
-		];
-		const [secondDependencies, secondKey] = processDependencies.mock.calls[1] as unknown as [
-			Array<{ name: string; content?: string; attributes?: Record<string, string> }>,
-			string,
-		];
+		const firstIslandEntries = processDependencies.mock.calls[0]?.[0] as Array<{
+			groupedBundle?: { entryName: string };
+		}>;
+		const secondIslandEntries = processDependencies.mock.calls[2]?.[0] as Array<{
+			groupedBundle?: { entryName: string };
+		}>;
+		expect(firstIslandEntries[0]?.groupedBundle?.entryName).toBe(islandName);
+		expect(secondIslandEntries[0]?.groupedBundle?.entryName).toBe(islandName);
 
-		const [firstBundle, firstHydration] = firstDependencies;
-		const [secondBundle, secondHydration] = secondDependencies;
+		const firstHydration = processDependencies.mock.calls[1]?.[0] as Array<{
+			content?: string;
+			name?: string;
+			attributes?: Record<string, string>;
+		}>;
 		const componentKey = getIslandComponentKey('/app/src/components/counter.tsx', {
 			identity: { id: 'Counter', file: '/app/src/components/counter.tsx', integration: 'react' },
 		});
-
-		expect(firstKey).toBe(`ecopages-react-island-${rapidhash('/app/src/components/counter.tsx')}`);
-		expect(secondKey).toBe(`ecopages-react-island-${rapidhash('/app/src/components/counter.tsx')}`);
-		expect(secondBundle.name).toBe(firstBundle.name);
-		expect(secondHydration.name).toBe(firstHydration.name);
-		expect(firstHydration.attributes?.['data-eco-script-id']).toBe(firstHydration.name);
-		expect(secondHydration.attributes?.['data-eco-script-id']).toBe(secondHydration.name);
-		expect(firstHydration.content).toContain('ecopages-react-island-');
-		expect(firstHydration.content).toContain(componentKey);
-		expect(secondHydration.content).toContain(componentKey);
-		expect(firstHydration.content).toContain('querySelectorAll');
-		expect(firstHydration.content).toContain(firstBundle.name);
-		expect(secondHydration.content).toContain(secondBundle.name);
+		expect(firstHydration[0]?.content).toContain(`/assets/${islandName}.js`);
+		expect(firstHydration[0]?.content).toContain(componentKey);
+		expect(firstHydration[0]?.attributes?.['data-eco-script-id']).toBe(firstHydration[0]?.name);
 	});
 });

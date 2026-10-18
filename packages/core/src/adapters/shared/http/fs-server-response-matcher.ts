@@ -1,22 +1,24 @@
-import path from 'node:path';
 import { appLogger } from '../../../global/app-logger.ts';
-import type { EcoPagesAppConfig, MatchResult } from '../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { RouteMatch } from '../../../router/server/route-registry.ts';
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
-import type { PageCacheService } from '../../../services/cache/page-cache-service.ts';
-import type { CacheStrategy, RenderResult } from '../../../services/cache/cache.types.ts';
-import type { EcoPageComponent } from '../../../eco/eco.types.ts';
-import type { EcoPageFile } from '../../../types/public-types.ts';
-import { PageRequestCacheCoordinator } from '../../../services/cache/page-request-cache-coordinator.service.ts';
-import { getBrowserRuntimeAssetGeneration } from '../../../services/assets/browser-runtime-asset-generation.ts';
-import { ServerUtils } from '../../../utils/server-utils.module.ts';
-import type { FileRouteMiddleware, RequestLocals } from '../../../types/public-types.ts';
+import type { PageCacheService } from '../../../page-cache/page-cache-service.ts';
+import type { CacheStrategy, RenderResult } from '../../../page-cache/cache.types.ts';
+import type { EcoPageComponent } from '../../../types/eco-api-types.ts';
+import type { EcoPageFile } from '../../../types/contracts.ts';
+import { PageRequestCacheCoordinator } from '../../../page-cache/page-request-cache-coordinator.service.ts';
+import type { FileRouteMiddleware, RequestLocals } from '../../../types/contracts.ts';
 import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
 import { classifyPageFailure, type PageFailureClassification } from '../../../errors/http-error-page-contract.ts';
 import { isDevelopmentRuntime } from '../../../utils/runtime.ts';
 import type { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
-import type { ErrorPageLoaders } from '../../../types/public-types.ts';
-import { ErrorPageRenderer, logErrorPageFailure } from '../../../services/error-pages/error-page-renderer.ts';
+import type { ErrorPageLoaders } from '../../../types/contracts.ts';
+import { ErrorPageRenderer, logErrorPageFailure } from '../../../route-renderer/error-pages/error-page-renderer.ts';
+import { serveDistFile } from './dist-file-handler.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
+import { ensureIntegrationRuntimeReady } from '../../../build/app-build-manifest-runtime.ts';
+import { findIntegrationForFile } from '../../../plugins/find-integration-for-file.ts';
 
 type FileRouteExecutionPlan = {
 	cacheKey: string;
@@ -36,6 +38,7 @@ export interface FileSystemResponseMatcherOptions {
 	routeRendererFactory: StaticGenerationRendererResolver;
 	errorPageLoaders?: ErrorPageLoaders;
 	fileSystemResponseFactory: FileSystemServerResponseFactory;
+	watchMode?: boolean;
 	/** Optional cache service. When null, caching is disabled. */
 	cacheService?: PageCacheService | null;
 	/** Default cache strategy when caching is enabled. @default 'static' */
@@ -56,6 +59,7 @@ export class FileSystemResponseMatcher {
 	private routeRendererFactory: StaticGenerationRendererResolver;
 	private errorPageRenderer: ErrorPageRenderer;
 	private fileSystemResponseFactory: FileSystemServerResponseFactory;
+	private watchMode: boolean;
 	private pageRequestCacheCoordinator: PageRequestCacheCoordinator;
 	private fileRouteMiddlewarePipeline: FileRouteMiddlewarePipeline;
 
@@ -66,6 +70,7 @@ export class FileSystemResponseMatcher {
 		routeRendererFactory,
 		errorPageLoaders = {},
 		fileSystemResponseFactory,
+		watchMode = false,
 		cacheService = null,
 		defaultCacheStrategy = 'static',
 	}: FileSystemResponseMatcherOptions) {
@@ -79,8 +84,11 @@ export class FileSystemResponseMatcher {
 			errorPageLoaders,
 		});
 		this.fileSystemResponseFactory = fileSystemResponseFactory;
-		this.pageRequestCacheCoordinator = new PageRequestCacheCoordinator(cacheService, defaultCacheStrategy, () =>
-			getBrowserRuntimeAssetGeneration(this.appConfig),
+		this.watchMode = watchMode;
+		this.pageRequestCacheCoordinator = new PageRequestCacheCoordinator(
+			cacheService,
+			defaultCacheStrategy,
+			requireAppRuntime(appConfig).requestPipelineMetrics,
 		);
 		this.fileRouteMiddlewarePipeline = new FileRouteMiddlewarePipeline(cacheService);
 	}
@@ -91,30 +99,19 @@ export class FileSystemResponseMatcher {
 	 * @param requestUrl Incoming pathname.
 	 * @returns Static file response or rendered 404 response.
 	 */
-	async handleNoMatch(requestUrl: string): Promise<Response> {
-		const isStaticFileRequest = ServerUtils.hasKnownStaticExtension(requestUrl);
-
-		if (!isStaticFileRequest) {
-			return this.renderClientErrorResponseOrServerError(
-				requestUrl,
-				{ status: 404, kind: 'notFound', logAsServerError: false },
-				undefined,
-			);
-		}
-
-		const relativeUrl = requestUrl.startsWith('/') ? requestUrl.slice(1) : requestUrl;
-		const filePath = path.join(this.assetPrefix, relativeUrl);
-		const contentType = ServerUtils.getContentType(filePath);
-
-		const response = await this.fileSystemResponseFactory.createFileResponse(filePath, contentType);
-		return (
-			response ??
-			this.renderClientErrorResponseOrServerError(
-				requestUrl,
-				{ status: 404, kind: 'notFound', logAsServerError: false },
-				undefined,
-			)
-		);
+	async handleNoMatch(requestUrl: string, request?: Request): Promise<Response> {
+		const distRequest = request ?? new Request(new URL(requestUrl, this.appConfig.baseUrl));
+		return await serveDistFile(distRequest, {
+			distDir: this.assetPrefix,
+			watchMode: this.watchMode,
+			staticFilesOnly: true,
+			notFound: () =>
+				this.renderClientErrorResponseOrServerError(
+					requestUrl,
+					{ status: 404, kind: 'notFound', logAsServerError: false },
+					undefined,
+				),
+		});
 	}
 
 	/**
@@ -128,7 +125,7 @@ export class FileSystemResponseMatcher {
 	 * @param request Optional incoming request. A synthetic GET request is created when omitted.
 	 * @returns Final response for the matched route.
 	 */
-	async handleMatch(match: MatchResult, request?: Request): Promise<Response> {
+	async handleMatch(match: RouteMatch, request?: Request): Promise<Response> {
 		try {
 			const executionPlan = await this.createExecutionPlan(match, request);
 
@@ -166,6 +163,7 @@ export class FileSystemResponseMatcher {
 					cacheKey: executionPlan.cacheKey,
 					pageCacheStrategy: executionPlan.pageCacheStrategy,
 					renderFn,
+					ifNoneMatch: executionPlan.request.headers.get('If-None-Match'),
 				});
 			};
 
@@ -267,7 +265,7 @@ export class FileSystemResponseMatcher {
 		}
 	}
 
-	private async createExecutionPlan(match: MatchResult, request?: Request): Promise<FileRouteExecutionPlan> {
+	private async createExecutionPlan(match: RouteMatch, request?: Request): Promise<FileRouteExecutionPlan> {
 		const cacheKey = this.pageRequestCacheCoordinator.buildCacheKey({
 			pathname: match.requestedPathname,
 			query: match.query,
@@ -309,6 +307,13 @@ export class FileSystemResponseMatcher {
 	 * @returns Imported page module.
 	 */
 	private async importPageModule(filePath: string): Promise<EcoPageFile> {
+		const integration = findIntegrationForFile(this.appConfig.integrations, filePath);
+		if (integration) {
+			await ensureIntegrationRuntimeReady({
+				appConfig: this.appConfig,
+				integrationName: integration.name,
+			});
+		}
 		const routeRenderer = this.routeRendererFactory.getPageRenderer(filePath);
 		return routeRenderer.loadPageModule(filePath);
 	}

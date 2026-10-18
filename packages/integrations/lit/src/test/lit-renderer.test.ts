@@ -1,96 +1,80 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-	eco,
-	type ForeignSubtreeRenderPayload,
-	type ComponentRenderInput,
-	type ComponentRenderResult,
-	type EcoComponent,
-	type HtmlTemplateProps,
-} from '@ecopages/core';
+import { buildIslandHostAttributes, eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
+import type { ComponentRenderInput, ComponentRenderResult } from '@ecopages/core/integration';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
-import { toForeignSubtreeRenderPayload } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
-import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { createStringMarkupContractFactories, describeRendererContract } from '@ecopages/testing/renderer-contract';
+import { AssetProcessingService } from '@ecopages/core/integration';
+import { IntegrationRenderer } from '@ecopages/core/integration';
 import { LitElement, html as litHtml } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { html as staticHtml } from 'lit/static-html.js';
-import { LitRenderer } from '../lit-renderer.ts';
+import { createLitRenderer, LitRenderer } from '../lit-renderer.ts';
 import type { LitStaticRenderSession } from '../lit-static-render-session.ts';
 
 let customElementIndex = 0;
 
 const Config = await createTestAppConfig();
 
+function createTestAssetProcessingService(appConfig: typeof Config): AssetProcessingService {
+	const service = new AssetProcessingService(appConfig);
+	vi.spyOn(service, 'processDependencies').mockResolvedValue([]);
+	return service;
+}
+
 const HtmlTemplate: EcoComponent<HtmlTemplateProps> = async ({ children }) => {
 	return `<html><body>${children}</body></html>`;
 };
 
+/**
+ * Renderer for tests that define their custom elements in the test body.
+ *
+ * @remarks
+ * The real preload installs a fresh global custom element registry on every
+ * call, so elements defined by a test before rendering would be dropped.
+ * Preload is therefore skipped here; `lit-ssr-lazy-preload.test.ts` covers it
+ * with real scripts.
+ */
 class TestLitRenderer extends LitRenderer {
 	htmlTemplate: EcoComponent<HtmlTemplateProps> = HtmlTemplate;
-	preloadedComponentBatches: Array<Array<EcoComponent | undefined>> = [];
 
 	protected override async getHtmlTemplate(): Promise<EcoComponent<HtmlTemplateProps>> {
 		return this.htmlTemplate;
-	}
-
-	protected override async preloadSsrScripts(components: Array<EcoComponent | undefined>): Promise<void> {
-		this.preloadedComponentBatches.push(components);
 	}
 }
 
 const createRenderer = () => {
 	return new TestLitRenderer({
 		appConfig: Config,
-		assetProcessingService: {} as any,
-		runtimeOrigin: 'http://localhost:3000',
+		assetProcessingService: createTestAssetProcessingService(Config),
 		resolvedIntegrationDependencies: [],
 	});
-};
-
-const createRendererWithAssets = () => {
-	const assetProcessingService = {
-		processDependencies: vi.fn(async () => [
-			{
-				kind: 'script',
-				srcUrl: '/assets/island.js',
-				position: 'head',
-			},
-		]),
-	};
-
-	const renderer = new TestLitRenderer({
-		appConfig: Config,
-		assetProcessingService: assetProcessingService as any,
-		runtimeOrigin: 'http://localhost:3000',
-		resolvedIntegrationDependencies: [],
-	});
-	return { renderer, assetProcessingService };
 };
 
 const renderer = new LitRenderer({
 	appConfig: Config,
-	assetProcessingService: {} as any,
-	runtimeOrigin: 'http://localhost:3000',
+	assetProcessingService: createTestAssetProcessingService(Config),
 	resolvedIntegrationDependencies: [],
+});
+
+describeRendererContract({
+	name: 'lit',
+	errorPrefix: 'Error rendering page',
+	viewFile: '/app/pages/contract.lit.ts',
+	...createStringMarkupContractFactories('lit'),
+	async createRenderer({ integrations, processDependencies }) {
+		const testRenderer = new TestLitRenderer({
+			appConfig: await createTestAppConfig({ integrations }),
+			assetProcessingService: { processDependencies } as never,
+			resolvedIntegrationDependencies: [],
+		});
+		testRenderer.htmlTemplate = (async ({ children, metadata }) =>
+			`<html><head><title>${metadata.title}</title></head><body>${children}</body></html>`) as EcoComponent<HtmlTemplateProps>;
+		return testRenderer;
+	},
 });
 
 describe('LitRenderer', () => {
 	describe('renderComponent', () => {
-		it('should render a single component with structured output', async () => {
-			const testRenderer = createRenderer();
-			const Component = (async (props: { label: string }) =>
-				`<section>${props.label}</section>`) as unknown as EcoComponent<{ label: string }>;
-
-			const result = await testRenderer.renderComponent({
-				component: Component,
-				props: { label: 'Lit Component' },
-			});
-
-			expect(result.integrationName).toBe('lit');
-			expect(result.canAttachAttributes).toBe(true);
-			expect(result.rootTag).toBe('section');
-			expect(result.html).toContain('<section>Lit Component</section>');
-		});
-
 		it('should SSR registered custom elements from string markup', async () => {
 			const testRenderer = createRenderer();
 			const tagName = `lit-ssr-test-${++customElementIndex}`;
@@ -270,269 +254,84 @@ describe('LitRenderer', () => {
 			expect(result.html).not.toContain('&lt;!--eco-lit-component-children--&gt;');
 		});
 
-		it('should preload SSR lazy scripts before component-level renders', async () => {
-			const testRenderer = createRenderer();
-			const Component = (() => '<lit-counter count="0"></lit-counter>') as unknown as EcoComponent<object>;
-			Component.config = {
-				identity: {
-					id: 'lit-counter',
-					file: '/project/src/components/lit-counter.lit.tsx',
-					integration: 'lit',
-				},
-				dependencies: {
-					scripts: [
-						{
-							src: './lit-counter.script.ts',
-							lazy: { 'on:interaction': 'click' },
-							ssr: true,
-						},
-					],
-				},
-			};
-
-			await testRenderer.renderComponent({
-				component: Component,
-				props: {},
-			});
-
-			expect(testRenderer.preloadedComponentBatches).toEqual([[Component]]);
-		});
-
-		it('should include component assets when dependencies are declared', async () => {
-			const { renderer, assetProcessingService } = createRendererWithAssets();
-			const Component = (async (props: { label: string }) =>
-				`<section>${props.label}</section>`) as unknown as EcoComponent<{ label: string }>;
-			Component.config = {
-				identity: {
-					id: 'lit-comp',
-					file: '/project/src/components/lit-comp.lit.ts',
-					integration: 'lit',
-				},
-				dependencies: {
-					scripts: ['./lit-comp.script.ts'],
-				},
-			};
-
-			const result = await renderer.renderComponent({
-				component: Component,
-				props: { label: 'Lit Assets' },
-			});
-
-			expect(assetProcessingService.processDependencies).toHaveBeenCalled();
-			expect(result.assets).toBeDefined();
-			expect(result.assets?.[0]?.srcUrl).toBe('/assets/island.js');
-		});
-
-		it('should stamp island host attributes when the instance has client scripts', async () => {
-			const { renderer } = createRendererWithAssets();
-			const Component = (async (props: { label: string }) =>
-				`<section>${props.label}</section>`) as unknown as EcoComponent<{ label: string }>;
-			Component.config = {
-				identity: {
-					id: 'lit-island',
-					file: '/project/src/components/lit-island.lit.ts',
-					integration: 'lit',
-				},
-				dependencies: {
-					scripts: ['./lit-island.script.ts'],
-				},
-			};
-
-			const result = await renderer.renderComponent({
-				component: Component,
-				props: { label: 'Lit Island' },
-				integrationContext: { componentInstanceId: 'lit-island-1' },
-			});
-
-			expect(result.rootAttributes?.['data-eco-island']).toBe('');
-			expect(result.rootAttributes?.['data-eco-island-integration']).toBe('lit');
-			expect(result.rootAttributes?.['data-eco-component-id']).toBe('lit-island-1');
-		});
-
-		it('should expose the compatibility foreign-subtree payload contract', async () => {
-			const testRenderer = createRenderer();
-			const Component = (async () => '<section>Lit Foreign Subtree</section>') as unknown as EcoComponent<object>;
-
-			const result = toForeignSubtreeRenderPayload(
-				await testRenderer.renderComponentWithForeignChildren({
-					component: Component,
-					props: {},
-				}),
-			);
-
-			expect(result).toEqual<ForeignSubtreeRenderPayload>({
-				html: expect.stringContaining('<section>Lit Foreign Subtree</section>') as unknown as string,
-				assets: [],
-				rootTag: 'section',
-				rootAttributes: undefined,
-				attachmentPolicy: { kind: 'first-element' },
-				integrationName: 'lit',
-			});
-			expect(result.html).toContain('<section>Lit Foreign Subtree</section>');
-		});
-
-		it('should resolve foreign boundaries inside the lit renderer and bubble nested assets', async () => {
-			const deferredRenderComponent = vi.fn(
-				async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
-					html: '<button data-testid="deferred-widget">Deferred widget</button>',
+		it('should not stamp a script-less lit component as an island host when it wraps a foreign island with its own script', async () => {
+			const deferredPlugin = createDeferredIntegrationPlugin({
+				extensions: ['.deferred.ts'],
+				renderComponent: async (input: ComponentRenderInput): Promise<ComponentRenderResult> => ({
+					html: '<button data-testid="deferred-island">Deferred island</button>',
 					canAttachAttributes: true,
-					rootTag: 'button',
 					integrationName: 'deferred',
-					rootAttributes: {
-						'data-eco-component-id':
+					rootAttributes: buildIslandHostAttributes({
+						integrationName: 'deferred',
+						componentInstanceId:
 							(input.integrationContext as { componentInstanceId?: string } | undefined)
 								?.componentInstanceId ?? 'missing',
-					},
+					}),
 					assets: [
 						{
 							kind: 'script' as const,
 							inline: true,
-							content: 'console.log("deferred")',
+							content: 'console.log("deferred island")',
 							position: 'body' as const,
 						},
 					],
 				}),
-			);
-
-			const deferredPlugin = createDeferredIntegrationPlugin({
-				extensions: ['.deferred.ts'],
-				renderComponent: deferredRenderComponent,
 			});
+			const config = await createTestAppConfig({ integrations: [deferredPlugin] });
 
-			const config = await createTestAppConfig({
-				integrations: [deferredPlugin],
-			});
-
-			deferredPlugin.setConfig(config);
-			deferredPlugin.setRuntimeOrigin('http://localhost:3000');
-
+			const processDependencies = vi.fn(async (dependencies: Array<{ kind: string }>) => dependencies);
 			const testRenderer = new TestLitRenderer({
 				appConfig: config,
-				assetProcessingService: {} as any,
-				runtimeOrigin: 'http://localhost:3000',
+				assetProcessingService: { processDependencies } as never,
 				resolvedIntegrationDependencies: [],
 			});
 
-			const DeferredWidget = eco.component({
+			const DeferredIsland = eco.component({
 				identity: {
-					id: 'deferred-widget',
-					file: '/app/components/deferred-widget.deferred.ts',
+					id: 'deferred-island',
+					file: '/app/components/deferred-island.deferred.ts',
 					integration: 'deferred',
 				},
 				integration: 'deferred',
-				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
+				dependencies: {
+					scripts: ['./deferred-island.script.ts'],
+				},
+				render: () => '<button data-testid="deferred-island">Deferred island</button>',
 			});
 
-			const Shell = eco.component<{ children?: unknown }, string>({
+			const Wrapper = eco.component<object, string>({
+				identity: {
+					id: 'lit-wrapper',
+					file: '/app/components/lit-wrapper.lit.ts',
+					integration: 'lit',
+				},
 				integration: 'lit',
 				dependencies: {
-					components: [DeferredWidget],
+					components: [DeferredIsland],
 				},
-				render: ({ children }) =>
-					litHtml`<main>${children ? unsafeHTML(String(children)) : ''}${unsafeHTML(String(DeferredWidget({})))}</main>` as unknown as string,
+				render: () => litHtml`<main>${unsafeHTML(String(DeferredIsland({})))}</main>` as unknown as string,
 			});
 
 			const result = await testRenderer.renderComponentWithForeignChildren({
-				component: Shell,
+				component: Wrapper,
 				props: {},
-				children: '<section>Host child</section>',
-				integrationContext: {
-					componentInstanceId: 'host',
-				},
+				integrationContext: { componentInstanceId: 'wrapper' },
 			});
 
-			expect(result.html).toContain('<section>Host child</section>');
-			expect(result.html).toContain(
-				'<button data-testid="deferred-widget" data-eco-component-id="host_n_1">Deferred widget</button>',
+			expect(processDependencies).toHaveBeenCalled();
+			expect(result.assets).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ kind: 'script', content: 'console.log("deferred island")' }),
+					expect.objectContaining({
+						kind: 'script',
+						filepath: expect.stringContaining('deferred-island.script.ts'),
+					}),
+				]),
 			);
-			expect(result.html).not.toContain('<eco-marker');
-			expect(result.assets).toEqual([
-				expect.objectContaining({
-					kind: 'script',
-					inline: true,
-					position: 'body',
-				}),
-			]);
-			expect(deferredRenderComponent).toHaveBeenCalledTimes(1);
-		});
-	});
-
-	describe('ssr lazy preload', () => {
-		it('should collect nested lazy script entries for SSR preload when ssr is true', () => {
-			const testRenderer = createRenderer();
-			const nested = (() => '<div>Nested</div>') as unknown as EcoComponent<object>;
-			nested.config = {
-				identity: {
-					id: 'nested',
-					file: '/project/src/components/nested.lit.tsx',
-					integration: 'lit',
-				},
-				dependencies: {
-					scripts: [{ src: './nested.script.ts', lazy: { 'on:interaction': 'click' }, ssr: true }],
-				},
-			};
-
-			const view = (() => '<div>View</div>') as unknown as EcoComponent<object>;
-			view.config = {
-				identity: {
-					id: 'view',
-					file: '/project/src/pages/index.lit.tsx',
-					integration: 'lit',
-				},
-				dependencies: {
-					components: [nested],
-					scripts: [{ src: './view.script.ts', lazy: { 'on:idle': true }, ssr: true }],
-				},
-			};
-
-			const scripts = (testRenderer as any).collectSsrPreloadScripts([view]);
-
-			expect(scripts).toContain('/project/src/pages/view.script.ts');
-			expect(scripts).toContain('/project/src/components/nested.script.ts');
-		});
-
-		it('should skip lazy scripts from SSR preload when ssr is not true', () => {
-			const testRenderer = createRenderer();
-			const view = (() => '<div>View</div>') as unknown as EcoComponent<object>;
-			view.config = {
-				identity: {
-					id: 'view',
-					file: '/project/src/pages/index.lit.tsx',
-					integration: 'lit',
-				},
-				dependencies: {
-					scripts: [{ src: './view.script.ts', lazy: { 'on:idle': true }, ssr: false }],
-				},
-			};
-
-			const scripts = (testRenderer as any).collectSsrPreloadScripts([view]);
-
-			expect(scripts).toEqual([]);
-		});
-
-		it('should collect object-entry lazy scripts when ssr is true', () => {
-			const testRenderer = createRenderer();
-			const view = (() => '<div>View</div>') as unknown as EcoComponent<object>;
-			view.config = {
-				identity: {
-					id: 'view',
-					file: '/project/src/pages/index.lit.tsx',
-					integration: 'lit',
-				},
-				dependencies: {
-					scripts: [
-						{
-							src: './view.script.ts',
-							lazy: { 'on:interaction': 'click' },
-							ssr: true,
-						},
-					],
-				},
-			};
-
-			const scripts = (testRenderer as any).collectSsrPreloadScripts([view]);
-
-			expect(scripts).toEqual(['/project/src/pages/view.script.ts']);
+			expect(result.rootAttributes?.['data-eco-island']).toBeUndefined();
+			expect(result.rootAttributes?.['data-eco-island-integration']).toBeUndefined();
+			expect(result.html).toMatch(/<button[^>]*\sdata-eco-island-integration="deferred"/);
+			expect(result.html).not.toContain('data-eco-island-integration="lit"');
 		});
 	});
 
@@ -557,52 +356,43 @@ describe('LitRenderer', () => {
 			expect(text).toContain('<div>Hello World</div>');
 		});
 
-		it('passes route-resolved dependency roots into the document shell', async () => {
+		it('passes the static locals guard through the route pipeline', async () => {
 			const testRenderer = createRenderer();
-			const resolvedContent = (() => '<article>Resolved content</article>') as unknown as EcoComponent;
-			const resolvedDependencyMetadata: Partial<EcoComponent> = {
-				config: {
-					identity: {
-						id: 'resolved-dependency-metadata',
-						file: '/project/src/content/entry.mdx',
-						integration: 'lit',
-					},
-					dependencies: {
-						scripts: [{ src: './entry.ts', lazy: { 'on:idle': true }, ssr: true }],
-					},
-				},
-			};
-			const renderPageShell = vi
-				.spyOn(
-					testRenderer as unknown as {
-						renderPageWithDocumentShell(input: unknown): Promise<string>;
-					},
-					'renderPageWithDocumentShell',
-				)
-				.mockResolvedValue('<html><body></body></html>');
+			const Page = ((props: Record<string, unknown>) => {
+				return `<p>${String((props.locals as { user: string }).user)}</p>`;
+			}) as EcoComponent<Record<string, unknown>>;
 
-			await testRenderer.render({
+			await expect(
+				testRenderer.execute({
+					file: '/app/pages/index.lit.tsx',
+					params: {},
+					query: {},
+					pageModule: { default: Page },
+				}),
+			).rejects.toThrow(/Request locals are only available during request-time rendering/);
+		});
+
+		it('forwards resolved page props to the document shell', async () => {
+			const Shell = (async ({ children, pageProps }) =>
+				`<html><body><h1>${String(pageProps.title)}</h1>${children}</body></html>`) as EcoComponent<HtmlTemplateProps>;
+
+			const body = await renderer.render({
 				params: {},
 				query: {},
-				props: {},
+				props: { title: 'Handler' },
+				pageProps: { title: 'Resolved' },
 				file: 'file',
 				resolvedDependencies: [],
-				resolvedPageDependencyComponents: [resolvedContent, resolvedDependencyMetadata],
 				metadata: {
 					title: 'Hello World',
 					description: 'Hello World',
 				},
 				Page: async () => '<div>Hello World</div>',
-				HtmlTemplate,
+				HtmlTemplate: Shell,
 			});
 
-			expect(renderPageShell).toHaveBeenCalledWith(
-				expect.objectContaining({
-					foreignChildRoots: [resolvedContent, resolvedDependencyMetadata],
-				}),
-			);
-			expect(testRenderer.preloadedComponentBatches[0]).toContain(resolvedContent);
-			expect(testRenderer.preloadedComponentBatches[0]).toContain(resolvedDependencyMetadata);
+			const text = await new Response(body as BodyInit).text();
+			expect(text).toContain('<h1>Resolved</h1>');
 		});
 
 		it('should render the page with layout', async () => {
@@ -782,170 +572,14 @@ describe('LitRenderer', () => {
 			expect(text).not.toContain('eco-lit-component-children');
 			expect(text).not.toContain('<--content-->');
 		});
-
-		it('should throw an error if the page fails to render', async () => {
-			await expect(
-				renderer.render({
-					params: {},
-					query: {},
-					props: {},
-					file: 'file',
-					resolvedDependencies: [],
-					metadata: {
-						title: 'Hello World',
-						description: 'Hello World',
-					},
-					Page: async () => {
-						throw new Error('Page failed to render');
-					},
-					HtmlTemplate,
-				}),
-			).rejects.toThrow('Error rendering page: Page failed to render');
-		});
-
-		it('should resolve deferred cross-integration layout components without leaving markers behind', async () => {
-			const deferredPlugin = createDeferredIntegrationPlugin({
-				extensions: ['.deferred.ts'],
-			});
-			const config = await createTestAppConfig({
-				integrations: [deferredPlugin],
-			});
-
-			deferredPlugin.setConfig(config);
-			deferredPlugin.setRuntimeOrigin('http://localhost:3000');
-
-			const testRenderer = new LitRenderer({
-				appConfig: config,
-				assetProcessingService: {} as any,
-				runtimeOrigin: 'http://localhost:3000',
-				resolvedIntegrationDependencies: [],
-			});
-
-			const DeferredWidget = eco.component({
-				identity: {
-					id: 'deferred-widget',
-					file: '/app/components/deferred-widget.deferred.ts',
-					integration: 'deferred',
-				},
-				integration: 'deferred',
-				render: () => '<button data-testid="deferred-widget">Deferred widget</button>',
-			});
-
-			const Layout = eco.layout<string>({
-				integration: 'lit',
-				dependencies: {
-					components: [DeferredWidget],
-				},
-				render: ({ children }) =>
-					litHtml`<main>${children ? unsafeHTML(children) : ''}${unsafeHTML(String(DeferredWidget({})))}</main>` as unknown as string,
-			});
-
-			const Page = eco.page({
-				integration: 'lit',
-				layout: Layout,
-				render: () => '<section>Route page</section>',
-			});
-
-			const body = await testRenderer.render({
-				params: {},
-				query: {},
-				props: {},
-				file: '/app/pages/index.lit.ts',
-				resolvedDependencies: [],
-				metadata: {
-					title: 'Route page',
-					description: 'Route page',
-				},
-				Page: Page as unknown as EcoComponent<Record<string, unknown>>,
-				Layout: Layout as unknown as EcoComponent<Record<string, unknown>>,
-				HtmlTemplate,
-				pageProps: {},
-			});
-
-			const text = await new Response(body as BodyInit).text();
-			expect(text).toContain('<section>Route page</section>');
-			expect(text).toContain('<button data-testid="deferred-widget">Deferred widget</button>');
-			expect(text).not.toContain('<eco-marker');
-		});
 	});
 
-	describe('renderToResponse', () => {
-		it('should render a view with default status 200', async () => {
-			const testRenderer = createRenderer();
-			const View = (async (props: { title: string }) => `<h1>${props.title}</h1>`) as unknown as EcoComponent<{
-				title: string;
-			}>;
-
-			const response = await testRenderer.renderToResponse(View, { title: 'Hello' }, {});
-
-			expect(response.status).toBe(200);
-			expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
-			const body = await response.text();
-			expect(body).toContain('<h1>Hello</h1>');
-		});
-
-		it('should render a partial view without layout', async () => {
-			const testRenderer = createRenderer();
-			const View = (async (props: { content: string }) =>
-				`<div>${props.content}</div>`) as unknown as EcoComponent<{ content: string }>;
-
-			const response = await testRenderer.renderToResponse(View, { content: 'Partial' }, { partial: true });
-
-			const body = await response.text();
-			expect(body).toContain('<div>Partial</div>');
-			expect(body).not.toContain('<!DOCTYPE html>');
-		});
-
-		it('should apply custom status code', async () => {
-			const testRenderer = createRenderer();
-			const View = (async () => '<p>Not Found</p>') as unknown as EcoComponent<object>;
-
-			const response = await testRenderer.renderToResponse(View, {}, { status: 404 });
-
-			expect(response.status).toBe(404);
-		});
-
-		it('should apply custom headers', async () => {
-			const testRenderer = createRenderer();
-			const View = (async () => '<p>Cached</p>') as unknown as EcoComponent<object>;
-
-			const response = await testRenderer.renderToResponse(
-				View,
-				{},
-				{
-					headers: {
-						'Cache-Control': 'max-age=3600',
-						'X-Custom-Header': 'test-value',
-					},
-				},
-			);
-
-			expect(response.headers.get('Cache-Control')).toBe('max-age=3600');
-			expect(response.headers.get('X-Custom-Header')).toBe('test-value');
-		});
-
-		it('should render with layout when not partial', async () => {
-			const testRenderer = createRenderer();
-			const Layout = ((props: { children: string }) =>
-				`<main class="layout">${props.children}</main>`) as EcoComponent<{ children: string }>;
-
-			const View = (async (props: { message: string }) => `<p>${props.message}</p>`) as unknown as EcoComponent<{
-				message: string;
-			}>;
-			View.config = { layouts: [Layout] };
-
-			const response = await testRenderer.renderToResponse(View, { message: 'With Layout' }, {});
-
-			const body = await response.text();
-			expect(body).toContain('<main class="layout">');
-			expect(body).toContain('<p>With Layout</p>');
-		});
-
+	describe('renderExplicitView', () => {
 		it('should not route full view rendering through capture-plus-finalize', async () => {
 			const testRenderer = createRenderer();
 			const View = (async () => '<p>Explicit</p>') as unknown as EcoComponent<object>;
 
-			const response = await testRenderer.renderToResponse(View, {}, {});
+			const response = await testRenderer.renderExplicitView(View, {}, {});
 			const body = await response.text();
 
 			expect(body).toContain('<p>Explicit</p>');
@@ -960,7 +594,7 @@ describe('LitRenderer', () => {
 
 			testRenderer.htmlTemplate = LitHtmlTemplate;
 
-			const response = await testRenderer.renderToResponse(View, {}, {});
+			const response = await testRenderer.renderExplicitView(View, {}, {});
 			const body = await response.text();
 
 			expect(body).toContain('<body class="shell">');
@@ -977,7 +611,7 @@ describe('LitRenderer', () => {
 				staticHtml`<section data-testid="lit-view">Lit view</section>`) as unknown as EcoComponent<object>;
 			View.config = { layouts: [Layout] };
 
-			const response = await testRenderer.renderToResponse(View, {}, {});
+			const response = await testRenderer.renderExplicitView(View, {}, {});
 			const body = await response.text();
 
 			expect(body).toContain('<main class="layout">');
@@ -994,7 +628,7 @@ describe('LitRenderer', () => {
 
 			testRenderer.htmlTemplate = NonLitHtmlTemplate;
 
-			const response = await testRenderer.renderToResponse(View, {}, {});
+			const response = await testRenderer.renderExplicitView(View, {}, {});
 			const body = await response.text();
 
 			expect(body).toContain('<main class="shell">');
@@ -1018,22 +652,11 @@ describe('LitRenderer', () => {
 
 			testRenderer.htmlTemplate = NonLitHtmlTemplate;
 
-			const response = await testRenderer.renderToResponse(View, {}, {});
+			const response = await testRenderer.renderExplicitView(View, {}, {});
 			const body = await response.text();
 
 			expect(body).toContain('<p>Fallback</p>');
 			expect(body).not.toContain('<--content-->');
-		});
-
-		it('should throw an error if the view fails to render', async () => {
-			const testRenderer = createRenderer();
-			const View = (async () => {
-				throw new Error('View failed to render');
-			}) as unknown as EcoComponent<object>;
-
-			await expect(testRenderer.renderToResponse(View, {}, {})).rejects.toThrow(
-				'Error rendering view: View failed to render',
-			);
 		});
 	});
 
@@ -1043,47 +666,35 @@ describe('LitRenderer', () => {
 			const renderPageInWorker = vi.fn(async () => ({
 				html: '<html>lazy-worker</html>',
 				cacheStrategy: { revalidate: 15 },
+				sourceDependencyPaths: ['/app/pages/index.lit.tsx'],
 			}));
 
-			const renderer = new LitRenderer({
+			const Renderer = createLitRenderer(() => sessionHolder.current as LitStaticRenderSession | undefined);
+			const renderer = new Renderer({
 				appConfig: Config,
-				assetProcessingService: {} as never,
-				runtimeOrigin: 'http://localhost:3000',
+				assetProcessingService: createTestAssetProcessingService(Config),
 				resolvedIntegrationDependencies: [],
-				getRenderSession: () => sessionHolder.current as LitStaticRenderSession | undefined,
 			});
 
-			const inProcessSpy = vi.spyOn(IntegrationRenderer.prototype, 'execute').mockResolvedValue({
-				body: '<html>in-process</html>',
+			const options = {
+				file: '/app/pages/index.lit.tsx',
+				params: { slug: ['a', 'b'] },
+				query: { tag: ['x', 'y'] },
+			};
+
+			sessionHolder.current = { renderPageInWorker };
+			const result = await renderer.execute(options);
+
+			expect(renderPageInWorker).toHaveBeenCalledWith({
+				filePath: '/app/pages/index.lit.tsx',
+				params: { slug: ['a', 'b'] },
+				query: { tag: ['x', 'y'] },
 			});
-
-			try {
-				await renderer.execute({ file: '/app/pages/index.lit.tsx', params: {} });
-				expect(renderPageInWorker).not.toHaveBeenCalled();
-				expect(inProcessSpy).toHaveBeenCalledTimes(1);
-
-				sessionHolder.current = { renderPageInWorker };
-				inProcessSpy.mockClear();
-
-				const result = await renderer.execute({
-					file: '/app/pages/index.lit.tsx',
-					params: { slug: ['a', 'b'] },
-					query: { tag: ['x', 'y'] },
-				});
-
-				expect(inProcessSpy).not.toHaveBeenCalled();
-				expect(renderPageInWorker).toHaveBeenCalledWith({
-					filePath: '/app/pages/index.lit.tsx',
-					params: { slug: ['a', 'b'] },
-					query: { tag: ['x', 'y'] },
-				});
-				expect(result).toEqual({
-					body: '<html>lazy-worker</html>',
-					cacheStrategy: { revalidate: 15 },
-				});
-			} finally {
-				inProcessSpy.mockRestore();
-			}
+			expect(result).toEqual({
+				body: '<html>lazy-worker</html>',
+				cacheStrategy: { revalidate: 15 },
+				sourceDependencyPaths: ['/app/pages/index.lit.tsx'],
+			});
 		});
 
 		it('forces in-process execute when locals are present', async () => {
@@ -1091,15 +702,16 @@ describe('LitRenderer', () => {
 				html: '<html>worker</html>',
 			}));
 
-			const renderer = new LitRenderer({
-				appConfig: Config,
-				assetProcessingService: {} as never,
-				runtimeOrigin: 'http://localhost:3000',
-				resolvedIntegrationDependencies: [],
-				getRenderSession: () =>
+			const Renderer = createLitRenderer(
+				() =>
 					({
 						renderPageInWorker,
 					}) as Pick<LitStaticRenderSession, 'renderPageInWorker'> as LitStaticRenderSession,
+			);
+			const renderer = new Renderer({
+				appConfig: Config,
+				assetProcessingService: createTestAssetProcessingService(Config),
+				resolvedIntegrationDependencies: [],
 			});
 
 			const inProcessSpy = vi.spyOn(IntegrationRenderer.prototype, 'execute').mockResolvedValue({
@@ -1124,9 +736,54 @@ describe('LitRenderer', () => {
 				inProcessSpy.mockRestore();
 			}
 		});
+
+		it('forces in-process execute when explicit view props are present', async () => {
+			const renderPageInWorker = vi.fn(async () => ({
+				html: '<html>worker</html>',
+			}));
+			const Renderer = createLitRenderer(
+				() =>
+					({
+						renderPageInWorker,
+					}) as Pick<LitStaticRenderSession, 'renderPageInWorker'> as LitStaticRenderSession,
+			);
+			const renderer = new Renderer({
+				appConfig: Config,
+				assetProcessingService: {} as never,
+				resolvedIntegrationDependencies: [],
+			});
+			const inProcessSpy = vi.spyOn(IntegrationRenderer.prototype, 'execute').mockResolvedValue({
+				body: '<html>props-in-process</html>',
+			});
+
+			try {
+				const result = await renderer.execute({
+					file: 'explicit:lit:view',
+					params: {},
+					props: { label: 'Ready' },
+					pageModule: { default: (() => '<p>Ready</p>') as EcoComponent },
+				});
+
+				expect(renderPageInWorker).not.toHaveBeenCalled();
+				expect(result).toEqual({ body: '<html>props-in-process</html>' });
+				expect(inProcessSpy).toHaveBeenCalled();
+			} finally {
+				inProcessSpy.mockRestore();
+			}
+		});
 	});
 
 	describe('ensureLitDomShim', () => {
+		it('keeps the existing global custom element registry', async () => {
+			const { ensureLitDomShim } = await import('../dom-shim.ts');
+			const registry = globalThis.customElements;
+
+			ensureLitDomShim();
+			ensureLitDomShim();
+
+			expect(globalThis.customElements).toBe(registry);
+		});
+
 		it('repairs Element and HTMLElement when foreign shim lacks attributes and attachShadow', async () => {
 			const { ensureLitDomShim } = await import('../dom-shim.ts');
 			const originalAttributes = Object.getOwnPropertyDescriptor(globalThis.Element.prototype, 'attributes');

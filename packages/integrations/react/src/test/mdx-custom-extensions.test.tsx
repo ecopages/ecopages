@@ -1,49 +1,43 @@
-import { afterAll, afterEach, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
+import { rmSync } from 'node:fs';
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
-import { fileSystem } from '@ecopages/file-system';
-import { Logger } from '@ecopages/logger';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { ReactRenderer } from '../render/react-renderer.ts';
 import { reactPlugin } from '../plugin/react.plugin.ts';
+import { requireAppRuntime } from '@ecopages/core/integration';
+import { AssetProcessingService } from '@ecopages/core/integration';
+import { copyFixtureApp } from '../../../../core/__fixtures__/app/copy-fixture-app.ts';
 
 const MockPage = ({ children }: any) => <div>{children}</div>;
 MockPage.config = {};
 
-const fixtureAppRoot = path.resolve(__dirname, '../../../../core/__fixtures__/app');
-const testDir = path.join(__dirname, 'fixture/.eco-mdx');
+const fixtureAppRoot = copyFixtureApp();
+const testDir = path.join(fixtureAppRoot, '.eco-mdx');
 
-const Config = await new ConfigBuilder()
-	.setRootDir(fixtureAppRoot)
-	.setDistDir(testDir)
-	.setIntegrations([])
-	.setBaseUrl('http://localhost:3000')
-	.build();
+const Config = await finalizeEcoPagesConfig({
+	rootDir: fixtureAppRoot,
+	distDir: testDir,
+	integrations: [],
+	baseUrl: 'http://localhost:3000',
+});
 
 /** Helper to access private/protected properties for testing */
 const getExtensions = (plugin: ReturnType<typeof reactPlugin>) => (plugin as any).extensions;
 const getMdxExtensions = (plugin: ReturnType<typeof reactPlugin>) => (plugin as any).mdxExtensions;
 
 describe('ReactPlugin & ReactRenderer Extensions', () => {
-	const originalNodeEnv = process.env.NODE_ENV;
-
-	afterEach(() => {
-		process.env.NODE_ENV = originalNodeEnv;
-	});
-
 	afterAll(() => {
-		if (fileSystem.exists(testDir)) {
-			fileSystem.remove(testDir);
-		}
+		rmSync(fixtureAppRoot, { recursive: true, force: true });
 	});
 
-	it('should have default extensions when MDX is disabled', () => {
-		const plugin = reactPlugin({ mdx: { enabled: false } });
+	it('should leave MDX disabled when its options are omitted', () => {
+		const plugin = reactPlugin();
 		expect(getExtensions(plugin)).toEqual(['.tsx']);
 		expect(getMdxExtensions(plugin)).toEqual(['.mdx']);
 	});
 
-	it('should include .mdx by default when MDX is enabled', () => {
-		const plugin = reactPlugin({ mdx: { enabled: true } });
+	it('should include .mdx by default when MDX options are configured', () => {
+		const plugin = reactPlugin({ mdx: {} });
 		expect(getExtensions(plugin)).toEqual(['.tsx', '.mdx']);
 		expect(getMdxExtensions(plugin)).toEqual(['.mdx']);
 	});
@@ -52,7 +46,6 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 		const customExtensions = ['.md', '.custom'];
 		const plugin = reactPlugin({
 			mdx: {
-				enabled: true,
 				extensions: customExtensions,
 			},
 		});
@@ -65,7 +58,6 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 		const plugin = reactPlugin({
 			extensions: ['.react.tsx'],
 			mdx: {
-				enabled: true,
 				extensions: ['.mdx'],
 			},
 		});
@@ -74,35 +66,10 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 		expect(getMdxExtensions(plugin)).toEqual(['.mdx']);
 	});
 
-	it('should warn when extensions are provided but MDX is disabled', () => {
-		const originalWarn = Logger.prototype.warn;
-		const warnings: string[] = [];
-		Logger.prototype.warn = function warn(message: string) {
-			warnings.push(message);
-			return this;
-		};
-
-		try {
-			reactPlugin({
-				mdx: {
-					enabled: false,
-					extensions: ['.md'],
-				},
-			});
-
-			expect(warnings).toContain(
-				'MDX extensions provided but MDX is disabled. MDX files will not be processed. Set mdx.enabled to true to enable MDX support.',
-			);
-		} finally {
-			Logger.prototype.warn = originalWarn;
-		}
-	});
-
 	it('should correctly identify MDX files in Renderer', () => {
 		/** Setup renderer with custom extensions */
 		reactPlugin({
 			mdx: {
-				enabled: true,
 				extensions: ['.md', '.story.mdx'],
 			},
 		});
@@ -113,7 +80,6 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 				getHmrManager: () => null,
 				processDependencies: async (deps: any) => deps,
 			} as any,
-			runtimeOrigin: 'http://localhost:3000',
 			resolvedIntegrationDependencies: [],
 			reactConfig: {
 				mdxExtensions: ['.md', '.story.mdx'],
@@ -126,16 +92,21 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 		expect(renderer.isMdxFile('file.mdx')).toBe(false);
 	});
 
-	it('should seal runtime vendor dependencies for the active NODE_ENV during setup preparation', async () => {
-		process.env.NODE_ENV = 'production';
+	it('should add runtime vendor dependencies for the active NODE_ENV during setup', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
 		const plugin = reactPlugin({});
-		plugin.setConfig(Config);
+		const processDependencies = vi
+			.spyOn(AssetProcessingService.prototype, 'processDependencies')
+			.mockResolvedValue([]);
 
 		expect((plugin as any).integrationDependencies).toEqual([]);
+		expect(plugin.browserRuntimeManifest.bySpecifier.has('react')).toBe(true);
+		expect((plugin as any).integrationDependencies).toEqual([]);
 
-		await plugin.prepareBuildContributions();
+		await plugin.setup({ appConfig: Config, runtime: requireAppRuntime(Config) });
 
-		expect((plugin as any).integrationDependencies).toEqual(
+		const dependencies = processDependencies.mock.calls[0]?.[0] as Array<{ bundleOptions?: { naming?: string } }>;
+		expect(dependencies).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
 					name: 'react',
@@ -148,9 +119,7 @@ describe('ReactPlugin & ReactRenderer Extensions', () => {
 			]),
 		);
 		expect(
-			(plugin as any).integrationDependencies.some((dependency: { bundleOptions?: { naming?: string } }) =>
-				String(dependency.bundleOptions?.naming).includes('.development.'),
-			),
+			dependencies.some((dependency) => String(dependency.bundleOptions?.naming).includes('.development.')),
 		).toBe(false);
 	});
 });

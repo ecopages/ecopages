@@ -3,89 +3,73 @@
  * @module
  */
 
-import type { EcoComponent, EcoComponentConfig, EcoPageFile } from '@ecopages/core';
-import {
-	type PageBrowserGraphContribution,
-	type PageBrowserGraphContributionContext,
-} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import { StringMarkupRenderer } from '@ecopages/core/route-renderer/orchestration/string-markup-renderer';
-import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
-import type { CompileOptions } from '@mdx-js/mdx';
+import type { EcoComponent, EcoComponentConfig, EcoPageFile, EcoPagesElement } from '@ecopages/core';
+import { createIntegrationRenderer, type PageBrowserGraphContributionContext } from '@ecopages/core/integration';
+import { attachEcoFileMetadataToConfig } from '@ecopages/core/integration';
+import { ensurePageConfigLayouts } from '@ecopages/core/integration';
 import { MDX_PLUGIN_NAME } from './mdx.constants.ts';
-import { rapidhash } from '@ecopages/core/hash';
-import type { MDXRendererOptions } from './mdx.types.ts';
 
-export type { MDXFile, MDXRendererConfig, MDXRendererOptions } from './mdx.types.ts';
+export type { MDXFile } from './mdx.types.ts';
 
-/**
- * A renderer for the MDX integration.
- */
-export class MDXRenderer extends StringMarkupRenderer {
-	name = MDX_PLUGIN_NAME;
-	readonly compilerOptions: CompileOptions;
+function normalizeImportedMdxPage<TPageModule extends EcoPageFile>(
+	_file: string,
+	pageModule: TPageModule,
+): TPageModule {
+	try {
+		const mdxModule = pageModule as TPageModule & { config?: EcoComponentConfig };
+		const { default: Page, config, getMetadata } = mdxModule;
 
-	constructor({ mdxConfig, ...options }: MDXRendererOptions) {
-		super(options);
-		this.compilerOptions = mdxConfig?.compilerOptions ?? {};
-	}
-
-	protected override async collectPageBrowserGraphContribution(
-		context: PageBrowserGraphContributionContext,
-	): Promise<PageBrowserGraphContribution> {
-		const { file: pagePath, pageModule } = context;
-		const { default: pageComponent } = pageModule;
-		const config = pageComponent.config;
-		const components: Partial<EcoComponent>[] = [];
-
-		for (const layout of config?.layouts ?? []) {
-			if (layout?.config?.dependencies) {
-				components.push({ config: layout.config });
-			}
+		if (typeof Page !== 'function') {
+			throw new Error('MDX file must export a default function');
 		}
 
-		if (config?.dependencies) {
-			components.push({
-				config: {
-					...config,
-					identity: {
-						id: rapidhash(pagePath).toString(36),
-						file: pagePath,
-						integration: this.name,
-					},
-				},
-			});
-		}
+		ensurePageConfigLayouts(config);
 
-		return { assets: await this.resolveDependencies(components) };
-	}
+		const layouts = config?.layouts;
+		const resolvedLayout = layouts?.[layouts.length - 1];
 
-	protected override normalizeImportedPageFile<TPageModule extends EcoPageFile>(
-		_file: string,
-		pageModule: TPageModule,
-	): TPageModule {
-		try {
-			const mdxModule = pageModule as TPageModule & { config?: EcoComponentConfig };
-			const { default: Page, config, getMetadata } = mdxModule;
+		if (config) Page.config = config;
 
-			if (typeof Page !== 'function') {
-				throw new Error('MDX file must export a default function');
-			}
-
-			ensurePageConfigLayouts(config);
-
-			const layouts = config?.layouts;
-			const resolvedLayout = layouts?.[layouts.length - 1];
-
-			if (config) Page.config = config;
-
-			return {
-				...pageModule,
-				default: Page,
-				layout: resolvedLayout,
-				getMetadata,
-			} as TPageModule;
-		} catch (error) {
-			throw new Error(`[ecopages] Error importing MDX file: ${error}`);
-		}
+		return {
+			...pageModule,
+			default: Page,
+			layout: resolvedLayout,
+			getMetadata,
+		} as TPageModule;
+	} catch (error) {
+		throw new Error(`[ecopages] Error importing MDX file: ${error}`);
 	}
 }
+
+function collectMdxPageComponents(
+	context: PageBrowserGraphContributionContext,
+): Array<EcoComponent | Partial<EcoComponent>> {
+	const { file: pagePath, pageModule } = context;
+	const { default: pageComponent } = pageModule;
+	const config = pageComponent.config;
+	const components: Array<EcoComponent | Partial<EcoComponent>> = [];
+
+	for (const layout of config?.layouts ?? []) {
+		if (layout?.config?.dependencies) {
+			components.push({ config: layout.config });
+		}
+	}
+
+	if (config?.dependencies) {
+		components.push({
+			config: attachEcoFileMetadataToConfig(config, pagePath, MDX_PLUGIN_NAME),
+		});
+	}
+
+	return components;
+}
+
+/**
+ * MDX routes use the shared renderer pipeline with page-module and dependency hooks.
+ */
+export const MDXRenderer = createIntegrationRenderer<EcoPagesElement>(MDX_PLUGIN_NAME, ({ resolveDependencies }) => ({
+	collectPageBrowserGraphContribution: async (context) => ({
+		assets: await resolveDependencies(collectMdxPageComponents(context)),
+	}),
+	normalizePageModule: normalizeImportedMdxPage,
+}));

@@ -1,9 +1,9 @@
 import { eco } from '@ecopages/core';
-import type { Error404TemplateProps } from '@ecopages/core';
+import type { ErrorPageTemplateProps } from '@ecopages/core';
 import { BaseLayout } from '@/layouts/base-layout';
 import './404.css';
 
-export default eco.page<Error404TemplateProps>({
+export default eco.page<ErrorPageTemplateProps>({
 	layout: BaseLayout,
 
 	render: () => {

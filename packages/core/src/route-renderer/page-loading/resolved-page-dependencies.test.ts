@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoPageComponent, EcoPageFile } from '../../types/public-types.ts';
+import type { EcoPageComponent, EcoPageFile } from '../../types/contracts.ts';
 import { resolvePageDependenciesFromContext } from './resolved-page-dependencies.ts';
 
 describe('resolvePageDependenciesFromContext', () => {

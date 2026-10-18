@@ -1,20 +1,22 @@
 import path from 'node:path';
-import type { EcoComponent, EcoPagesAppConfig, PageParams, PageQuery } from '@ecopages/core';
-import type { StaticExportContext } from '@ecopages/core/plugins/integration-plugin';
+import type { EcoComponent, PageParams, PageQuery } from '@ecopages/core';
+import type { AnyIntegrationPlugin, StaticExportContext } from '@ecopages/core/integration';
 import { ensureLitDomShim } from './dom-shim.ts';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	CustomElementScriptPreloader,
-	type CustomElementScriptPreloaderOptions,
 	type CustomElementSsrPreloadComponent,
-} from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
+} from '@ecopages/core/integration';
+import type { CustomElementScriptPreloadScopeState } from '@ecopages/core/integration';
 import { LIT_PLUGIN_NAME } from './lit.constants.ts';
-import { createLitSsrPreloadEntrypointResolver } from './lit-ssr-preload-entrypoint.ts';
+import { createCustomElementSsrPipelineImporter } from '@ecopages/core/integration';
 import { LitStaticRenderWorkerClient } from './lit-static-render-worker-client.ts';
-import type { LitStaticRenderCacheStrategy } from './lit-static-render-protocol.ts';
-import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
+import type { LitStaticRenderResult } from './lit-static-render-protocol.ts';
+import type { AssetDefinition, AssetProcessingIntegration, ProcessedAsset } from '@ecopages/core/integration';
 
 type LitStaticRenderWorkerClientContract = Pick<LitStaticRenderWorkerClient, 'start' | 'renderPage' | 'dispose'>;
+
+type LitAppConfig = { integrations: Pick<AnyIntegrationPlugin, 'name' | 'extensions'>[] };
 
 type LitStaticRenderWorkerIdentity = {
 	configModulePath: string;
@@ -22,10 +24,13 @@ type LitStaticRenderWorkerIdentity = {
 };
 
 type LitStaticRenderSessionOptions = {
+	preloadScopes: Map<string, CustomElementScriptPreloadScopeState>;
+	integration?: AssetProcessingIntegration;
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
-	preferSourceImports?: boolean;
-	processDependencies?: (dependencies: AssetDefinition[], integrationName: string) => Promise<ProcessedAsset[]>;
-	importServerModule?: CustomElementScriptPreloaderOptions['importServerModule'];
+	processDependencies: (
+		dependencies: AssetDefinition[],
+		integration?: AssetProcessingIntegration,
+	) => Promise<ProcessedAsset[]>;
 	getInvalidationVersion?: () => number;
 	createWorkerClient?: (input: {
 		configModulePath: string;
@@ -56,18 +61,16 @@ export class LitStaticRenderSession {
 
 	constructor(options: LitStaticRenderSessionOptions) {
 		this.getInvalidationVersion = options.getInvalidationVersion ?? (() => 0);
-		const preferSourceImports = options.preferSourceImports ?? typeof Bun !== 'undefined';
 		this.preloader = new CustomElementScriptPreloader({
 			cacheScope: CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES.lit,
+			preloadScopes: options.preloadScopes,
 			logLabel: 'lit',
 			requireLazyScriptEntry: true,
 			resolveDependencyPath: options.resolveDependencyPath,
-			preferSourceImports,
-			resolvePreloadEntrypoint: createLitSsrPreloadEntrypointResolver({
-				preferSourceImports,
+			importServerModule: createCustomElementSsrPipelineImporter({
+				integration: options.integration,
 				processDependencies: options.processDependencies,
 			}),
-			importServerModule: options.importServerModule,
 		});
 		this.createWorkerClient =
 			options.createWorkerClient ??
@@ -128,7 +131,7 @@ export class LitStaticRenderSession {
 		filePath: string;
 		params: PageParams;
 		query?: PageQuery;
-	}): Promise<{ html: string; cacheStrategy?: LitStaticRenderCacheStrategy }> {
+	}): Promise<LitStaticRenderResult> {
 		if (!this.workerClient) {
 			throw new Error('Lit static render worker is not active');
 		}
@@ -191,7 +194,7 @@ export class LitStaticRenderSession {
 		await this.preloadSsrScripts(components);
 	}
 
-	private isLitRoute(filePath: string, appConfig: EcoPagesAppConfig): boolean {
+	private isLitRoute(filePath: string, appConfig: LitAppConfig): boolean {
 		const litIntegration = appConfig.integrations.find((plugin) => plugin.name === LIT_PLUGIN_NAME);
 		if (!litIntegration) {
 			return false;

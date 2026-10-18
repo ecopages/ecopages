@@ -7,7 +7,7 @@ import {
 	collectFileScopedDependencyComponents,
 	collectPageDependencyComponents,
 } from '../route-renderer/page-loading/file-scoped-dependency-components.ts';
-import type { EcoComponent, EcoDeclaredComponent } from '../types/public-types.ts';
+import type { EcoComponent } from '../types/contracts.ts';
 import { mergePageDependencies } from './page-dependency-contributions.ts';
 
 function collect(components: EcoComponent[]) {
@@ -16,7 +16,6 @@ function collect(components: EcoComponent[]) {
 		integrationName: 'lit',
 		resolveLazyScripts: (_dir, scripts) => scripts.join(','),
 		createEcopagesJsxLazyEntryName: (_, key) => key,
-		isEcopagesJsxIntegration: () => false,
 		errors: { invalidStylesheetEntry: 'style', invalidScriptEntry: 'script', lazyScriptMissingSrc: 'lazy' },
 	});
 }
@@ -24,14 +23,14 @@ const identity = (file: string) => ({ id: file, file: `/app/${file}`, integratio
 
 describe('discovered dependency graph', () => {
 	it('defers circular bindings and keeps separate components from one module', () => {
-		const first: EcoDeclaredComponent = eco.component(
+		const first: EcoComponent = eco.component(
 			bindComponentIdentity(
 				identity('shared.ts'),
 				{ render: () => '', dependencies: { stylesheets: ['./first.css'] } },
 				{ components: () => [second], stylesheets: [] },
 			),
 		);
-		const second: EcoDeclaredComponent = eco.component(
+		const second: EcoComponent = eco.component(
 			bindComponentIdentity(
 				identity('shared.ts'),
 				{ render: () => '', dependencies: { stylesheets: ['./second.css'] } },
@@ -109,7 +108,7 @@ describe('discovered dependency graph', () => {
 		expect(result.dependencies[0]).toMatchObject({ excludeFromHtml: true });
 	});
 	it('updates collected assets when a live barrel binding is retargeted', () => {
-		let button: EcoDeclaredComponent = eco.component(
+		let button: EcoComponent = eco.component(
 			bindComponentIdentity(
 				identity('button-a.ts'),
 				{ render: () => '' },
@@ -145,9 +144,7 @@ describe('discovered dependency graph', () => {
 		]);
 	});
 	it('allows dependency replacement while preserving live discovered references', () => {
-		let child: EcoDeclaredComponent = eco.component(
-			bindComponentIdentity(identity('old.ts'), { render: () => '' }),
-		);
+		let child: EcoComponent = eco.component(bindComponentIdentity(identity('old.ts'), { render: () => '' }));
 		const owner = eco.component(
 			bindComponentIdentity(
 				identity('owner.ts'),

@@ -19,7 +19,6 @@ export default defineConfig({
 		reactPlugin({
 			router: ecoRouter(),
 			mdx: {
-				enabled: true,
 				remarkPlugins: [remarkGfm],
 				rehypePlugins: [
 					[

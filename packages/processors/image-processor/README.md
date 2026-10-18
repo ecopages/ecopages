@@ -6,7 +6,9 @@ It provides automatic image processing (e.g. converting and compressing to WebP)
 
 ## Features
 
-- **Automatic Image Optimization**: Converts and compresses images to modern formats at build time.
+Build contributions use one `plugins(app)` method with server and browser environment declarations. Image processing, type generation and the cache restore run in `setup()`; `ecopages types` runs it. The virtual image module resolves through the implementation for the requested environment.
+
+- **Automatic Image Optimization**: Converts and compresses images to modern formats at build time. Each variant is named from a hash of its encoded bytes, so a quality or format change gets a new URL.
 - **Responsive Image Generation**: Creates multiple variants for different screen sizes.
 - **Virtual Module Integration**: Type-safe imports through `ecopages:images`.
 - **Ecopages Components**: Ready-to-use HTML, Ecopages JSX, and React (`EcoImage`) components.
@@ -24,7 +26,7 @@ Import and register the processor in your `eco.config.ts`:
 
 ```typescript
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { ImageProcessorPlugin } from '@ecopages/image-processor';
 
 const imageProcessor = new ImageProcessorPlugin({
@@ -46,11 +48,7 @@ const imageProcessor = new ImageProcessorPlugin({
 	},
 });
 
-export default await new ConfigBuilder()
-	.setRootDir(import.meta.dirname)
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-	.setProcessors([imageProcessor])
-	.build();
+export default defineConfig({ processors: [imageProcessor] });
 ```
 
 ## Usage

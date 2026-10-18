@@ -5,16 +5,9 @@ import { adminGroup } from './src/handlers/admin';
 import { releaseNotes } from './src/data/demo-data';
 import { chatRoomWebsocketHandler } from './src/handlers/ws-chat-room';
 
-const isViteHosted = process.env.ECOPAGES_CROSS_INTEGRATION_HOST === 'vite';
 const isE2ERun = process.env.ECOPAGES_CROSS_INTEGRATION_E2E === 'true';
 
 export const app = await createApp({
-	runtime: isViteHosted
-		? {
-				embedded: true,
-				devClientOwner: 'host',
-			}
-		: undefined,
 	serverOptions: isE2ERun ? { idleTimeout: 255 } : undefined,
 });
 
@@ -35,6 +28,9 @@ app.websocket('/ws/chat/:roomId', chatRoomWebsocketHandler);
 app.get('/explicit/team', async (ctx) => {
 	return await ctx.renderServerModule(new URL('./src/views/explicit-team-view.kita.tsx', import.meta.url));
 })
+	.get('/explicit/react-island', async (ctx) => {
+		return await ctx.renderServerModule(new URL('./src/views/explicit-react-island.kita.tsx', import.meta.url));
+	})
 	.get('/latest', async (ctx) => {
 		const latestRelease = releaseNotes[releaseNotes.length - 1]!;
 		return await ctx.renderServerModule(new URL('./src/views/latest-release-view.kita.tsx', import.meta.url), {

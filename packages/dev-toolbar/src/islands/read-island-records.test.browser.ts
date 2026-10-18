@@ -19,6 +19,15 @@ describe('readIslandRecords', () => {
 		expect(records[2].componentKey).toBe('standalone-2');
 	});
 
+	it('previews props that contain non-Latin-1 text', () => {
+		/** Props as core's `encodeIslandProps` writes them. */
+		document.body.innerHTML = `<eco-island data-eco-island data-eco-component-key="unicode" data-eco-props="eyJsYWJlbCI6IjEwIOKCrCIsImNpdHkiOiLmnbHkuqwiLCJpY29uIjoi8J+ZgiJ9"></eco-island>`;
+
+		expect(readIslandRecords(document)[0].propsPreview).toBe(
+			JSON.stringify({ label: '10 €', city: '東京', icon: '🙂' }),
+		);
+	});
+
 	it('respects integration metadata over componentKey for island kind', () => {
 		document.body.innerHTML = `
 			<my-lit-island data-eco-island data-eco-island-integration="lit" data-eco-component-key="lit-counter"></my-lit-island>

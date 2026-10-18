@@ -1,20 +1,21 @@
-import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const FIXTURE_DIR = path.dirname(fileURLToPath(import.meta.url));
-const TEST_CSS_FILE = path.join(FIXTURE_DIR, 'src/pages/postcss-hmr.css');
+import { test, expect } from '../../app-fixture';
+import { gotoAndWait } from '../../utils/test-helpers';
 
 test.describe('HMR E2E PostCSS', () => {
-	test('should hot-update processor-owned CSS without a full page reload', async ({ page }) => {
-		const originalCss = readFileSync(TEST_CSS_FILE, 'utf-8');
+	test('should hot-update processor-owned CSS without a full page reload', async ({ page, app }) => {
+		const testCssFile = path.join(app.dir, 'src/pages/postcss-hmr.css');
+		const originalCss = readFileSync(testCssFile, 'utf-8');
 		const title = page.locator('.postcss-title').first();
 
 		try {
-			await page.goto('/postcss-hmr', { waitUntil: 'networkidle' });
+			await gotoAndWait(page, '/postcss-hmr');
 			await expect(title).toBeVisible();
+			await page.waitForFunction(
+				() => (window as Window & { __ECO_HMR_CONNECTED__?: boolean }).__ECO_HMR_CONNECTED__ === true,
+			);
 
 			const initialColor = await title.evaluate((el) => getComputedStyle(el).color);
 			expect(initialColor).toBeTruthy();
@@ -24,7 +25,7 @@ test.describe('HMR E2E PostCSS', () => {
 
 			const modifiedCss = originalCss.replace('.postcss-title {', '.postcss-title {\n\tcolor: rgb(255, 0, 0);');
 
-			await writeFile(TEST_CSS_FILE, modifiedCss, { flush: true });
+			await writeFile(testCssFile, modifiedCss, { flush: true });
 
 			await expect
 				.poll(async () => title.evaluate((el) => getComputedStyle(el).color), { timeout: 10000 })
@@ -36,7 +37,7 @@ test.describe('HMR E2E PostCSS', () => {
 				),
 			).resolves.toBe('before-change');
 		} finally {
-			await writeFile(TEST_CSS_FILE, originalCss, { flush: true });
+			await writeFile(testCssFile, originalCss, { flush: true });
 		}
 	});
 });

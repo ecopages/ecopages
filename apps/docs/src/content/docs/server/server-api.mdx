@@ -28,17 +28,17 @@ await app.start();
 
 Call `app.start()` after you register routes. It boots the server for the current CLI mode (`dev`, `preview`, `build`, or `start`).
 
-Pass an optional callback to run logic once the server can accept traffic. The callback receives `{ origin }` — the resolved base URL with no trailing slash.
+Pass an optional callback to run logic once the server can accept traffic. It receives `{ origin, routes }`; `origin` is the resolved base URL with no trailing slash.
 
 ```typescript
-await app.start(({ origin }) => {
+await app.start(({ origin, routes }) => {
 	// readiness hook
 });
 ```
 
-The `OnAppStartCallback` type is exported from `@ecopages/core/create-app`.
+The `OnAppStartCallback` type is exported from `@ecopages/core/create-app`. The callback receives `{ origin, routes }`; `app.start()` binds the port, prepares watch-mode resources when enabled, then runs the callback once the server can accept traffic.
 
-> **Note:** In embedded mode (for example the [Vite plugin](/docs/ecosystem/vite-plugin)), `app.start()` registers the callback but does not bind a port — the host owns the listen socket and runs your callback when the app is ready. Pass `runtime: { embedded: true, devClientOwner: 'host' }` to `createApp()`. See [Build and Host](/docs/core/build-and-host#boot-vs-embed).
+Concurrent `start()` and `fetch()` calls share app initialization. `app.fetch()` does not bind a network server. After `app.stop()`, a later `start()` or `fetch()` initializes a fresh server adapter.
 
 ## HTTP Methods
 
@@ -114,19 +114,25 @@ Using defineApiHandler offers several advantages:
 
 ## Handler Context: Accessing the Server Instance
 
-The handler context now includes a `server` property, which exposes the underlying server instance (such as Bun's server object). This allows you to access advanced utilities, such as retrieving the request IP address or triggering a server reload.
+For requests received through `app.start()`, the handler context's `server` property is the bound Node HTTP server. Its generic handler type is `unknown`, and it is `undefined` for `app.fetch()`, so narrow it before using Node APIs.
 
 ```typescript
-app.get('/api/hello', async ({ response, request, server }) => {
+import { Server } from 'node:http';
+
+app.get('/api/server', async ({ response, server }) => {
+	if (!(server instanceof Server)) {
+		return response.json({ listening: false, address: null });
+	}
+
 	return response.json({
-		message: 'Hello world!',
-		requestIp: server.requestIP(request),
+		listening: server.listening,
+		address: server.address(),
 	});
 });
 ```
 
 
-You can use `server` for advanced debugging, runtime methods, or accessing server-specific utilities.
+Use `server` when a handler needs Node HTTP server state. A request sent through `app.fetch()` has no network server instance.
 
 ## Static Site Generation
 
@@ -181,13 +187,13 @@ app.get('/api/error', async () => {
 
 ## WebSocket Support
 
-Ecopages provides a runtime-agnostic WebSocket API with dynamic segment support, per-connection context, and automatic HTTP-to-WebSocket upgrades. Works on both Bun and Node.
+Ecopages provides a WebSocket API with dynamic segment support, per-connection context, and automatic HTTP-to-WebSocket upgrades on the Node HTTP host.
 
 See [WebSockets](/docs/server/websockets) for the full guide.
 
 ## Testing API Endpoints
 
-Use `app.fetch()` to exercise handlers without a bound network server. This is the same request surface embedded hosts use.
+Use `app.fetch()` to exercise handlers without a bound network server.
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';

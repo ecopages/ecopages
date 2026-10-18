@@ -1,0 +1,233 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+import type { EcoComponent, ForeignChildRuntime as ForeignChildRuntimeContract } from '../types/contracts.ts';
+import { getResolvedLazyTriggers } from './component-internal-state.ts';
+import { addTriggerAttribute, isThenable } from './component-render-output.ts';
+
+export type ForeignChildInterceptionResult = Awaited<
+	ReturnType<NonNullable<ForeignChildRuntimeContract['interceptForeignChild']>>
+>;
+export type ForeignChildInterceptionInput = Parameters<
+	NonNullable<ForeignChildRuntimeContract['interceptForeignChild']>
+>[0];
+export type { ForeignChildRuntime } from '../types/contracts.ts';
+
+type ForeignChildRenderInput = {
+	component: EcoComponent;
+	props: Record<string, unknown>;
+	targetIntegration?: string;
+};
+
+/**
+ * Shared output finalization behavior used both inside and outside active render contexts.
+ *
+ * This stage is responsible only for lazy trigger attribute injection. Foreign-child
+ * interception stays in `ContextualComponentRenderRuntime`.
+ */
+class ComponentRenderOutputRuntime {
+	finalizeComponentRender<T>(component: EcoComponent, content: T): T {
+		const lazyTriggers = getResolvedLazyTriggers(component.config);
+		if (lazyTriggers && lazyTriggers.length > 0) {
+			return this.addTriggerToContent(content, lazyTriggers[0].triggerId) as T;
+		}
+
+		return content;
+	}
+
+	private addTriggerToContent(content: unknown, triggerId: string): unknown {
+		if (isThenable(content)) {
+			return content.then((resolvedContent) => addTriggerAttribute(resolvedContent, triggerId));
+		}
+
+		return addTriggerAttribute(content, triggerId);
+	}
+}
+
+/**
+ * Render-context-aware runtime that delegates foreign-child interception.
+ */
+class ContextualComponentRenderRuntime extends ComponentRenderOutputRuntime {
+	private readonly context: ComponentRenderContext;
+
+	constructor(context: ComponentRenderContext) {
+		super();
+		this.context = context;
+	}
+
+	private applyForeignChildInterceptionResult(
+		result: Exclude<ForeignChildInterceptionResult, undefined>,
+	): ForeignChildInterceptionResult {
+		if (result.kind === 'resolved') {
+			return result;
+		}
+
+		return result.props ? result : undefined;
+	}
+
+	/**
+	 * Resolves one foreign-child interception through the active runtime.
+	 *
+	 * The runtime may choose inline rendering or immediate resolved output.
+	 */
+	interceptForeignChild(
+		input: ForeignChildRenderInput,
+	): Promise<ForeignChildInterceptionResult> | ForeignChildInterceptionResult {
+		const foreignChildRuntimeInput = {
+			currentIntegration: this.context.currentIntegration,
+			targetIntegration: input.targetIntegration,
+			component: input.component,
+			props: input.props,
+		} satisfies ForeignChildInterceptionInput;
+
+		const asyncInterception = this.context.foreignChildRuntime?.interceptForeignChild?.(foreignChildRuntimeInput);
+		if (asyncInterception !== undefined) {
+			if (isThenable<ForeignChildInterceptionResult>(asyncInterception)) {
+				return Promise.resolve(asyncInterception).then((result) =>
+					result === undefined ? undefined : this.applyForeignChildInterceptionResult(result),
+				);
+			}
+
+			return this.applyForeignChildInterceptionResult(asyncInterception);
+		}
+
+		const syncInterception =
+			this.context.foreignChildRuntime?.interceptForeignChildSync?.(foreignChildRuntimeInput);
+		if (syncInterception === undefined) {
+			return undefined;
+		}
+
+		return this.applyForeignChildInterceptionResult(syncInterception);
+	}
+}
+
+/**
+ * Per-render mutable state used while applying foreign-child interception and lazy
+ * trigger attributes.
+ */
+export type ComponentRenderContext<TState extends object = object> = {
+	currentIntegration: string;
+	foreignChildRuntime?: ForeignChildRuntimeContract;
+	/**
+	 * State owned by the layer that opened this render.
+	 *
+	 * @remarks
+	 * Keeping this generic lets Eco scope renders without importing route-renderer types.
+	 */
+	renderState?: TState;
+	interceptForeignChild(
+		input: ForeignChildRenderInput,
+	): Promise<ForeignChildInterceptionResult> | ForeignChildInterceptionResult;
+	finalizeComponentRender<T>(component: EcoComponent, content: T): T;
+};
+
+/**
+ * Process-wide state for component render contexts.
+ *
+ * Duplicate module instances can exist in development or mixed-runtime flows, so
+ * the storage is attached to a shared global scope instead of module-local state.
+ */
+type ComponentRenderContextState = {
+	storage: AsyncLocalStorage<ComponentRenderContext<object>>;
+};
+
+const GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY = '__ECOPAGES_COMPONENT_RENDER_CONTEXT_STATE__';
+
+/**
+ * Chooses the widest shared global scope available for process-wide state.
+ *
+ * `process` is preferred when present so duplicate bundles or module instances in
+ * the same runtime still converge on one shared context registry.
+ */
+function getSharedContextScope(): Record<string, unknown> {
+	const globalProcess = globalThis.process as (NodeJS.Process & Record<string, unknown>) | undefined;
+	if (globalProcess && typeof globalProcess === 'object') {
+		return globalProcess;
+	}
+
+	return globalThis as Record<string, unknown>;
+}
+
+/**
+ * Returns the singleton mutable state used by component render contexts.
+ */
+function getComponentRenderContextState(): ComponentRenderContextState {
+	const sharedScope = getSharedContextScope() as typeof globalThis & {
+		__ECOPAGES_COMPONENT_RENDER_CONTEXT_STATE__?: ComponentRenderContextState;
+	};
+
+	sharedScope[GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY] ??= { storage: new AsyncLocalStorage() };
+
+	return sharedScope[GLOBAL_COMPONENT_RENDER_CONTEXT_STATE_KEY];
+}
+
+/**
+ * Returns the current component render context, if one is active.
+ *
+ * @returns Active render context or `undefined` outside render execution.
+ */
+export function getComponentRenderContext<TState extends object = object>():
+	ComponentRenderContext<TState> | undefined {
+	return getComponentRenderContextState().storage.getStore() as ComponentRenderContext<TState> | undefined;
+}
+
+const componentRenderOutputRuntime = new ComponentRenderOutputRuntime();
+
+/**
+ * Runs foreign-child interception for one component render step.
+ *
+ * The active runtime may resolve the foreign child immediately or keep it inline.
+ */
+export function interceptForeignChild(
+	input: ForeignChildRenderInput,
+): Promise<ForeignChildInterceptionResult> | ForeignChildInterceptionResult {
+	return getComponentRenderContext()?.interceptForeignChild(input);
+}
+
+/**
+ * Applies the lazy trigger attribute to completed component output.
+ *
+ * This helper works both inside render-context execution and in fallback flows
+ * where no active context exists.
+ */
+export function finalizeComponentRender<T>(component: EcoComponent, content: T): T {
+	const renderContext = getComponentRenderContext();
+	return (renderContext?.finalizeComponentRender(component, content) ??
+		componentRenderOutputRuntime.finalizeComponentRender(component, content)) as T;
+}
+
+/**
+ * Runs render work under a fresh component render context and returns the
+ * resulting value.
+ *
+ * @param input Execution metadata for current integration and foreign-child policy.
+ * @param render Async render function to execute inside the context.
+ * @returns Render result value.
+ */
+export async function runWithComponentRenderContext<T, TState extends object = object>(
+	input: {
+		currentIntegration: string;
+		foreignChildRuntime?: ForeignChildRuntimeContract;
+		renderState?: Partial<TState>;
+	},
+	render: () => Promise<T>,
+): Promise<{ value: T }> {
+	const storage = getComponentRenderContextState().storage;
+	const parent = storage.getStore();
+	const renderState =
+		input.renderState === undefined ? parent?.renderState : { ...parent?.renderState, ...input.renderState };
+	const context = {
+		currentIntegration: input.currentIntegration,
+		foreignChildRuntime: input.foreignChildRuntime,
+		renderState,
+	} as ComponentRenderContext<object>;
+	const runtime = new ContextualComponentRenderRuntime(context);
+	context.interceptForeignChild = (deferredInput: ForeignChildRenderInput) =>
+		runtime.interceptForeignChild(deferredInput);
+	context.finalizeComponentRender = <TContent>(component: EcoComponent, content: TContent) =>
+		runtime.finalizeComponentRender(component, content);
+
+	const value = await storage.run(context, render);
+
+	return {
+		value,
+	};
+}

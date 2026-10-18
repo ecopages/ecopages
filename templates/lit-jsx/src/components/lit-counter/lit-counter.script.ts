@@ -8,7 +8,7 @@ export type LitCounterProps = {
 
 @customElement('lit-counter')
 export class LitCounter extends LitElement {
-	static styles = [unsafeCSS(styles)];
+	static override styles = [unsafeCSS(styles)];
 
 	@property({ type: Number }) declare count: number;
 

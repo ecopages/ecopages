@@ -23,10 +23,11 @@ fixture. All benches read from the real `src/` tree and use
 - `BrowserBundleService.bundle()` cost for the four HMR scenarios that the
   watcher actually triggers
 - Production build cost (single page and all pages, minify + treeshake)
-- **Route-module disk cache** warm import cost (`build-speed-bench.ts`)
+- **Route-module in-process cache** warm import cost (`build-speed-bench.ts`)
 - **Static production build segments** (`static-build-bench.ts`):
-  server-entry Rolldown cold/warm, route-module Rolldown cold vs warm,
-  `StaticSiteGenerator.run`, and full `buildStatic` cold/warm
+  server-entry Rolldown cold, route-module Rolldown cold vs warm import,
+  `StaticSiteGenerator.run`, and full `buildStatic` cold
+- **Node end-to-end HMR** (`hmr-e2e-bench.mts`): page edit-to-DOM and CSS-discovery edit-to-DOM latency through a real development server
 - Heavy-library scenario (page that pulls in `react-dom`, `lit`, `kitajs`,
   `mdx` and the ecopages core)
 - Cross-integration cost: a representative page per integration
@@ -34,13 +35,9 @@ fixture. All benches read from the real `src/` tree and use
   KitaJS dynamic route, Lit, Ecopages-JSX)
 - Heap stability across 100 rebuilds
 
-**Out of scope (deferred):**
+**Out of scope:**
 
-- End-to-end HMR (file touch → chokidar → strategy → bundle → WS broadcast).
-  The previous implementation kept failing the subprocess spawn under
-  vitest's worker isolation. The user's "2s HMR" claim is now localized
-  through the heavy-library bench (heavy page 67-190 ms p99 vs single page
-  4-12 ms p99) — the bottleneck is library import graph, not bundling.
+- Bun HMR numbers. This benchmark exercises the Node runtime and does not collect Bun results.
 - Per-plugin micro-benchmarks. Sub-millisecond cost doesn't justify a
   bench harness.
 
@@ -58,6 +55,9 @@ pnpm test:bench:compare
 # The runner binds the dev server to 127.0.0.1 so browser probes match the Node default hostname behavior on macOS.
 ECOPAGES_BENCH=1 pnpm test:bench:startup
 pnpm test:bench:startup:compare
+
+# End-to-end HMR edit-to-DOM benchmark (Node dev server + Playwright Chromium)
+pnpm test:bench:hmr
 ```
 
 Without the gate, `run.mts` exits immediately. The bench never runs in default CI.
@@ -74,6 +74,7 @@ workers or plugin handles cannot keep the terminal command alive.
 | File                          | Purpose                                                                                                                                                           |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `results/mitata-bench.json`   | Raw mitata report from the latest run. Gitignored (regenerate freely).                                                                                            |
+| `results/hmr-e2e-bench.json`  | Node HMR edit-to-DOM samples and median/p95 summaries. Gitignored (regenerate freely).                                                                            |
 | `results/bench-baseline.json` | **Versioned** committed baseline. The source of truth for "where the bundle path was before optimization". Regenerate with `pnpm test:bench:baseline` and commit. |
 
 The consolidated baseline diff (`pnpm test:bench:compare`) reads
@@ -129,7 +130,7 @@ Lit (lit-entry)                                    |        9.52 |   15.59  |  1
 Ecopages-JSX (eco-entry)                           |       10.25 |   16.47  |   98
 ```
 
-**Phase 1 wins (PR-1.1 ModuleParseCache + PR-1.2 ClientGraphBoundaryCache):**
+**Historical Phase 1 results (2026-06-06; the codebase included the later-removed client-graph cache, but these scenarios did not measure it):**
 
 | Scenario                  | Phase 0   | Phase 1  | Speedup   |
 | ------------------------- | --------- | -------- | --------- |
@@ -142,41 +143,29 @@ Ecopages-JSX (eco-entry)                           |       10.25 |   16.47  |   
 | Concurrent rebuilds (5×)  | 16.46     | 6.26     | 2.6×      |
 | no-op rebuild             | 7.26      | 2.77     | 2.6×      |
 
-**Note on PR-1.2 (ClientGraphBoundaryCache):** the in-process bench
-bypasses the HMR strategy, so the cache is not exercised in
-`hmr-bench` or `integration-bench` (those paths go through
-`BrowserBundleService.bundle()` which doesn't include the plugin).
-The cache is real, unit-tested, and used in real HMR rebuilds (where
-the strategy rebuilds a dep-graph's worth of files). A plugin-level
-micro-bench was removed as low-value during the Phase 0 cut;
-re-introduce it if the cache is suspected of regressing.
+The in-process bench bypasses the HMR strategy, so these scenarios do not
+exercise the client-graph cache or the current uncached transform path.
+Those browser-bundle scenarios go through `BrowserBundleService.bundle()`
+without the client-graph boundary plugin. Treat this table as a historical
+measurement, not as current kitchen-sink dev-rebuild performance.
 
-**Note on PR-1.5 (drop post-build re-parse pass):** deferred. The
-post-build `rewriteBrowserRuntimeImportsInOutputs` is a safety net
-that re-reads each emitted `.js`, re-parses it, and rewrites any
-runtime specifiers esbuild missed (e.g., when esbuild hoists or
-inlines an import through a different path). Removing it risks
-bundles shipping with raw `react`/`react-dom` imports that the
-browser can't resolve. The win is also marginal: the no-op rebuild
-is 2.77 ms total; the post-build pass is sub-ms. Re-evaluate after
-Rolldown (Phase 3) since Rolldown's tree-shaking and import
-preservation are different from esbuild's.
+**Note on dropping the post-build re-parse pass:** browser runtime
+specifiers resolve to their public URL in `resolveId`, with an
+`onLoad` AST rewrite for sources the resolver does not see. Hashed
+outputs are not rewritten after `bundle.write()`.
 
 ## Static production build baseline (kitchen-sink, 2026-06-24)
 
 Measured via `static-build-bench.ts` on Node after Build Performance Plan
-work (probe dedupe, server-entry cache, parallel SSG, setup dedupe).
+work (probe dedupe, parallel SSG, setup dedupe).
 
 ```
 Scenario                                          | median (ms) | p99 (ms) |   hz
 --------------------------------------------------|-------------|----------|------
 server entry bundle cold (app.ts)                  |       399   |    540   |     3
-server entry bundle warm (.eco cache hit)          |         8   |     18   |   129
 route-module rolldown cold (fresh loader)          |        24   |     62   |    42
 route-module warm import cache hit                 |      0.06   |   0.13   | 16801
 route-module warm import (3 pages)                 |      0.12   |   0.22   |  8697
-StaticSiteGenerator.run warm (full SSG)            |       141   |    299   |     7
-buildStatic warm (unchanged sources)               |       148   |    261   |     7
 buildStatic cold (force, scoped bench dist)        |      4453   |   5474   |  0.22
 ```
 
@@ -184,13 +173,10 @@ buildStatic cold (force, scoped bench dist)        |      4453   |   5474   |  0
 
 - **Rolldown cold route-module** (~24 ms/page) vs **warm cache hit** (~0.06 ms)
   shows why removing the `static-page-probe` double-bundle mattered.
-- **Server-entry warm** (~8 ms lookup) vs **cold** (~400 ms Rolldown) validates
-  the `.eco/.server-entry` cache path.
-- **`buildStatic` warm** (~148 ms) runs in an isolated bench dist with warm
-  caches; full kitchen-sink `dist/` clean build is ~12 s E2E (includes Lit fetch
-  server, image processor, all pages).
-- **`StaticSiteGenerator.run`** (~141 ms warm) isolates SSG from server-entry
-  bundling and duplicate processor setup.
+- A full kitchen-sink `dist/` clean build is ~12 s E2E (includes Lit fetch
+  server, image processor, all pages). Every build renders from source; the
+  warm `buildStatic` and `StaticSiteGenerator.run` scenarios that measured
+  reuse of an unchanged `dist/` were removed with the incremental build cache.
 
 ### Unified pages graph baseline (kitchen-sink, 2026-06-25)
 
@@ -206,6 +192,17 @@ StaticSiteGenerator.run cold unified graph        | Asserts 0 per-page route-mod
 
 Parity suite compares normalized HTML for all static routes with graph on vs `ECOPAGES_UNIFIED_PAGES_GRAPH=0`.
 Primary success metric: `getPageModuleRolldownBuildInvocations() === 0` during SSG after one graph build.
+
+### End-to-end HMR baseline (Node, kitchen-sink, 2026-10-17)
+
+Measured on Node 24.15.0 / macOS arm64 with one warm-up and five samples. Each sample starts at the source write and ends when the browser observes the updated page text or CSS value. The dev server uses the default 150 ms watcher debounce, and runs in a private fixture copy.
+
+| Scenario                  |   Median |      p95 |
+| ------------------------- | -------: | -------: |
+| Page edit to DOM          |   795 ms |   797 ms |
+| CSS discovery edit to DOM | 1,112 ms | 1,124 ms |
+
+The earlier audit report measured a different checkout and host; use this runnable benchmark for follow-up comparisons. This benchmark exercises the Node runtime and does not collect Bun HMR results.
 
 ## Layout
 
@@ -224,12 +221,14 @@ bench/
 - `run.mts` — mitata entry point; registers all bench groups, prints console report, writes `mitata-bench.json`.
 - `lib/mitata-report.ts` — mitata stats → baseline schema, shared quantile helpers.
 - `lib/kitchen-sink-fixture.ts` — builds the kitchen-sink `EcoPagesAppConfig`
-  via the public `ConfigBuilder` API.
+  the same way `createApp()` finalizes `eco.config.ts`.
 - `lib/static-build-fixture.ts` — bootstrap for static-build benches.
 - `lib/bench-env.ts` — temporary env overrides for graph on/off scenarios.
+- `lib/startup-bench-process.mjs` — spawns, waits for and stops the dev child of the startup benchmark. A child that dies of a signal counts as exited, so stopping it never waits for the timeout.
 - `scripts/consolidate-baseline.ts` — reads `mitata-bench.json`, writes `bench-baseline.json`.
 - `scripts/compare-baseline.ts` — diffs `mitata-bench.json` against `bench-baseline.json`.
 - `startup/run.mjs` — process-level dev startup + first-page interactive timing.
+- `hmr-e2e-bench.mts` — isolated Node dev server that measures page and CSS-discovery edits through the browser.
 - `startup/consolidate-baseline.ts` — writes `startup-baseline.json`.
 - `startup/compare-baseline.ts` — diffs `startup-bench.json` against `startup-baseline.json`.
 - `build-bench.ts` — production bundle scenarios.
@@ -237,7 +236,7 @@ bench/
 - `heavy-bench.ts` — heavy-library scenario.
 - `integration-bench.ts` — one representative page per integration.
 - `memory-snap-bench.ts` — repeated rebuild stability.
-- `build-speed-bench.ts` — route-module disk cache warm hits.
+- `build-speed-bench.ts` — route-module in-process cache warm hits.
 - `static-build-bench.ts` — static production build segments (server entry,
   route-module Rolldown, SSG, full `buildStatic`, unified graph on/off). Uses isolated
   `dist/__bench-static-build__` / `.eco/__bench-static-build__` dirs.

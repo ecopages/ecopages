@@ -38,7 +38,7 @@ export const ThemeToggle = eco.component<ThemeToggleProps, JsxRenderable>({
 				<span class="theme-toggle-button__icon" aria-hidden="true">
 					<ThemeIcon preference={value} />
 				</span>
-				<span class="theme-toggle-button__label">{ThemeLabel(value)}</span>
+				<span class="theme-toggle-button__label">{ThemeLabel({ preference: value })}</span>
 			</button>
 		</theme-toggle>
 	),

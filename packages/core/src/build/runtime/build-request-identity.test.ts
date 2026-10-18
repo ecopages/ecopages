@@ -3,9 +3,11 @@ import { test } from 'vitest';
 import type { BuildOptions } from '../contracts/build-contracts.ts';
 import { createBuildRequestIdentity } from './build-request-identity.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
-import type { EcoSourceTransform } from '../../plugins/source-transform.ts';
+import { createForeignJsxOverridePlugin } from '../../plugins/foreign-jsx-override-plugin.ts';
+import { createPreserveImportMetaPlugin } from '../preserve-import-meta-transform.ts';
 
 const baseOptions: BuildOptions = {
+	environment: 'browser' as const,
 	entrypoints: ['/in/a.ts'],
 	root: '/in',
 	outdir: '/out',
@@ -25,28 +27,6 @@ test('createBuildRequestIdentity treats entrypoint order as equivalent', () => {
 	});
 
 	assert.equal(keyA, keyB);
-});
-
-test('createBuildRequestIdentity distinguishes output-affecting fields', () => {
-	const cases: Array<{ field: keyof BuildOptions; left: unknown; right: unknown }> = [
-		{ field: 'conditions', left: ['browser'], right: ['node'] },
-		{
-			field: 'define',
-			left: { 'process.env.NODE_ENV': '"production"' },
-			right: { 'process.env.NODE_ENV': '"development"' },
-		},
-		{ field: 'external', left: ['react'], right: ['react-dom'] },
-		{ field: 'jsx', left: { importSource: 'react' }, right: { importSource: 'preact' } },
-		{ field: 'minify', left: true, right: false },
-		{ field: 'treeshaking', left: true, right: false },
-		{ field: 'naming', left: '[name].js', right: '[name]-[hash].js' },
-	];
-
-	for (const { field, left, right } of cases) {
-		const leftKey = createBuildRequestIdentity({ ...baseOptions, [field]: left });
-		const rightKey = createBuildRequestIdentity({ ...baseOptions, [field]: right });
-		assert.notEqual(leftKey, rightKey, `expected different keys for ${String(field)}`);
-	}
 });
 
 test('createBuildRequestIdentity preserves plugin order', () => {
@@ -85,41 +65,75 @@ test('createBuildRequestIdentity treats external membership as unordered', () =>
 	assert.equal(keyA, keyB);
 });
 
-test('createBuildRequestIdentity fingerprints plugin setup and source transforms', () => {
-	const transformA: EcoSourceTransform = {
-		name: 'transform-a',
-		filter: /\.tsx$/u,
-		transform(code) {
-			return code;
-		},
-	};
-	const transformB: EcoSourceTransform = {
-		name: 'transform-b',
-		filter: /\.tsx$/u,
-		transform(code) {
-			return `${code}//changed`;
-		},
-	};
+test('createBuildRequestIdentity distinguishes every BuildOptions field', () => {
+	const fields = {
+		environment: ['server', 'browser'],
+		entrypoints: [['/in/a.ts'], { a: '/in/a.ts' }],
+		outdir: ['/out', '/other'],
+		naming: ['[name].js', '[name]-[hash].js'],
+		conditions: [['browser'], ['node']],
+		define: [{ A: '1' }, { A: '2' }],
+		minify: [true, false],
+		treeshaking: [true, false],
+		target: ['browser', 'node'],
+		format: ['esm', 'cjs'],
+		sourcemap: ['none', 'linked'],
+		splitting: [true, false],
+		root: ['/in', '/other'],
+		externalPackages: [true, false],
+		reportPackagesOutsideRoot: [true, false],
+		runtimeOutdir: ['/runtime-a', '/runtime-b'],
+		writeToDisk: [true, false],
+		external: [['react'], ['react-dom']],
+		jsx: [{ importSource: 'react' }, { importSource: 'preact' }],
+	} satisfies Record<Exclude<keyof BuildOptions, 'plugins'>, [unknown, unknown]>;
+
+	for (const [field, [left, right]] of Object.entries(fields)) {
+		assert.notEqual(
+			createBuildRequestIdentity({ ...baseOptions, [field]: left }),
+			createBuildRequestIdentity({ ...baseOptions, [field]: right }),
+			`expected different identities for ${field}`,
+		);
+	}
+});
+
+test('createBuildRequestIdentity treats unset and empty collections alike', () => {
+	assert.equal(
+		createBuildRequestIdentity({ ...baseOptions, conditions: [], define: {}, external: [], plugins: [] }),
+		createBuildRequestIdentity(baseOptions),
+	);
+});
+
+test('createBuildRequestIdentity tells apart plugins of one name by cacheKey', () => {
+	const make = (cacheKey?: string): EcoBuildPlugin => ({ name: 'factory-plugin', cacheKey, setup() {} });
 
 	assert.notEqual(
+		createBuildRequestIdentity({ ...baseOptions, plugins: [make('a')] }),
+		createBuildRequestIdentity({ ...baseOptions, plugins: [make('b')] }),
+	);
+	assert.equal(
+		createBuildRequestIdentity({ ...baseOptions, plugins: [make('a')] }),
+		createBuildRequestIdentity({ ...baseOptions, plugins: [make('a')] }),
+	);
+});
+
+test('createBuildRequestIdentity tells apart import.meta transforms of different runtime directories', () => {
+	const identityFor = (runtimeDir: string) =>
 		createBuildRequestIdentity({
 			...baseOptions,
-			plugins: [{ name: 'same-name', setup() {} }],
-		}),
+			plugins: [createPreserveImportMetaPlugin(runtimeDir)],
+		});
+
+	assert.notEqual(identityFor('/out/a'), identityFor('/out/b'));
+	assert.equal(identityFor('/out/a'), identityFor('/out/a'));
+});
+
+test('createBuildRequestIdentity tells apart foreign JSX overrides built from different options', () => {
+	const identityFor = (hostJsxImportSource: string) =>
 		createBuildRequestIdentity({
 			...baseOptions,
-			plugins: [
-				{
-					name: 'same-name',
-					setup(build) {
-						build.onLoad({ filter: /\.ts$/u }, () => undefined);
-					},
-				},
-			],
-		}),
-	);
-	assert.notEqual(
-		createBuildRequestIdentity({ ...baseOptions, sourceTransforms: [transformA] }),
-		createBuildRequestIdentity({ ...baseOptions, sourceTransforms: [transformB] }),
-	);
+			plugins: [createForeignJsxOverridePlugin({ hostJsxImportSource, foreignExtensions: ['.kita.tsx'] })],
+		});
+
+	assert.notEqual(identityFor('react'), identityFor('preact'));
 });

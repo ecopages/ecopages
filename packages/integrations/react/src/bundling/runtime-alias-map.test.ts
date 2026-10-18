@@ -143,7 +143,7 @@ describe('buildReactRuntimeManifest', () => {
 	it('includes configured runtime modules and the router import path', () => {
 		const manifest = buildReactRuntimeManifest(
 			{ ...reactRuntimeImports, router: '/assets/vendors/router.js' },
-			[{ specifier: 'mobx', outputName: 'mobx', externals: [] }],
+			[{ specifier: 'mobx', outputName: 'mobx' }],
 			(outputName) => `/assets/vendors/${outputName}.js`,
 			{ routerImportPath: '/router.ts' },
 		);

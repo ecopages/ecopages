@@ -4,14 +4,14 @@
 	"type": "module",
 	"scripts": {
 		"start": "pnpm run build && ecopages start",
-		"dev": "ecopages dev -r",
+		"dev": "ecopages dev",
 		"build": "ecopages build",
 		"preview": "ecopages preview",
-		"dev:watch": "ecopages dev:watch -r",
-		"dev:hot": "ecopages dev:hot -r",
+		"dev:watch": "ecopages dev:watch",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
-		"db:push": "drizzle-kit push"
+		"db:push": "drizzle-kit push",
+		"typecheck": "ecopages types && tsc --noEmit"
 	},
 	"devDependencies": {
 		"@ecopages/browser-router": "workspace:*",

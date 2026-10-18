@@ -1,12 +1,8 @@
-import type { EcoComponent, EcoComponentConfig } from '../types/public-types.ts';
+import type { EcoComponent, EcoComponentConfig } from '../types/contracts.ts';
+import type { ComponentIdentity } from '../types/component-identity.ts';
 import { registerDiscoveredDependencies, type DiscoveredDependencies } from './discovered-dependencies.ts';
 
-/** Stable attribution for a Component created by an Integration-owned module. */
-export type ComponentIdentity = {
-	id: string;
-	file: string;
-	integration: string;
-};
+export type { ComponentIdentity } from '../types/component-identity.ts';
 
 function asConfig(value: EcoComponent | EcoComponentConfig | undefined): EcoComponentConfig | undefined {
 	if (!value) return undefined;
@@ -21,6 +17,24 @@ export function getComponentIdentity(
 ): ComponentIdentity | undefined {
 	const config = asConfig(value);
 	return config?.identity;
+}
+
+/**
+ * Resolves the Integration that owns a component.
+ *
+ * @remarks An explicit component override takes precedence over build-time identity, then the inherited owner.
+ */
+export function getComponentOwner(value: EcoComponent | EcoComponentConfig | undefined, inheritedOwner: string): string;
+export function getComponentOwner(
+	value: EcoComponent | EcoComponentConfig | undefined,
+	inheritedOwner?: string,
+): string | undefined;
+export function getComponentOwner(
+	value: EcoComponent | EcoComponentConfig | undefined,
+	inheritedOwner?: string,
+): string | undefined {
+	const config = asConfig(value);
+	return config?.integration ?? config?.identity?.integration ?? inheritedOwner;
 }
 
 /** Merges attribution into factory options. Optional discovered stylesheets stay keyed by identity. */

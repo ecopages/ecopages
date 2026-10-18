@@ -13,11 +13,12 @@ Current responsibilities:
 - `createTestAppConfig()` for the common Ecopages app-config test baseline.
 - `createStringMarkupIntegration()` for plain TypeScript fixture templates that return trusted HTML strings.
 - `createDeferredIntegrationPlugin()` for shared foreign-renderer contract fixtures.
+- `describeRendererContract()` (from `@ecopages/testing/renderer-contract`) for the behaviour every Integration renderer owes core.
 - Shared kitchen-sink shell components that are portable across package boundaries.
 
 ## Migration Rules
 
-Use `createTestAppConfig()` when a test needs the normal Ecopages app-config baseline and only varies a small number of builder settings.
+Use `createTestAppConfig()` when a test needs the normal Ecopages app-config baseline and only varies a few config fields.
 
 Prefer the helper for:
 
@@ -26,13 +27,7 @@ Prefer the helper for:
 - shared fixture apps and playground routes
 - tests that would otherwise repeat the same `robotsTxt`, metadata, base URL, and integration initialization sequence
 
-Prefer raw `ConfigBuilder` when the test is validating config-builder behavior itself or intentionally exercises low-level config finalization details.
-
-Keep raw `ConfigBuilder` in:
-
-- `packages/core` tests that assert config semantics directly
-- tests where the order of builder calls is itself under test
-- cases where a helper would hide the behavior being verified
+Call `finalizeEcoPagesConfig()` from `@ecopages/core/config` directly when the test validates finalization itself, or when the helper's defaults would hide the behavior under test. Most `packages/core` tests that assert config semantics do this.
 
 ## Helper Shape
 
@@ -43,15 +38,15 @@ Default behavior:
 - base URL: `http://localhost:3000`
 - default metadata title/description: `Ecopages`
 - robots preferences: empty allow/disallow baseline
-- integrations: a test-only `string` Integration that owns `.string.ts` templates, configured on the final app config and initialized with a runtime origin
+- integrations: a test-only `string` Integration that owns `.string.ts` templates, configured on the final app config
 
 Supported overrides:
 
 - `baseUrl`: changes the final app config URL
-- `runtimeOrigin`: changes the runtime origin used to initialize integrations when it should differ from `baseUrl`
+- `runtimeOrigin`: sets `requireAppRuntime(config).origin` when the active runtime origin should differ from `baseUrl`
 - `distDir`: sets a custom dist dir for tests that need isolated outputs
 - `title` and `description`: override default metadata
-- `integrations`: replaces the default Integration list and initializes the supplied plugins; pass `[]` for an intentionally integration-free config
+- `integrations`: replaces the default Integration list and initializes the supplied plugins; pass `[]` to register none of your own (core still appends its HTML Pages Integration)
 - `rootDir` / `workDir`: project paths on the user config (same fields as `defineConfig`); omitted `rootDir` resolves from the current working directory
 - `configure(userConfig)`: narrow escape hatch to adjust the user config before finalization
 
@@ -66,10 +61,6 @@ const config = await createTestAppConfig({
 	workDir: '.eco-parallel',
 	integrations: [plugin],
 });
-
-// Or boot the full app adapter (same config path as createApp()):
-const app = await createTestApp({ workDir: '.eco-parallel', integrations: [plugin] });
-await app.start();
 ```
 
 ## String markup fixtures
@@ -85,6 +76,24 @@ const config = await createTestAppConfig({
 ```
 
 This is test infrastructure, not an application rendering default. Production applications must register an Integration that owns their route file extensions.
+
+## Renderer contract
+
+`describeRendererContract(harness)` registers the rows every Integration renderer must pass. Call it once from each Integration's renderer test file. It lives behind its own entry point because it imports `vitest`; the package root stays safe to import from config files.
+
+Rows:
+
+- a component renders as structured output with the Integration's name and root tag
+- the foreign subtree payload of a plain component (empty assets, no root attributes, `first-element` attachment)
+- the assets a component declares are returned
+- island host attributes are stamped when the instance has client scripts
+- a foreign boundary resolves, bubbles its assets and leaves the script-less shell unstamped
+- a deferred foreign layout leaves no `<eco-marker` behind, and the explicit view equals the filesystem page, head included
+- a view that throws fails with the Integration's error prefix and the cause
+
+The harness supplies `name`, `errorPrefix`, `createRenderer({ integrations, processDependencies })`, `makeComponent(spec)` and `makeView(spec)`. The renderer's document shell must print `metadata.title` in `<head>`. Optional `viewFile` sets the file key and `renderIsland()` wraps island renders for an Integration that receives island assets through the render context (React). `createStringMarkupContractFactories(name)` builds `makeComponent` and `makeView` for Integrations whose components return HTML strings (kitajs, mdx, lit).
+
+Core owns status, headers, partial views and the shared island and foreign-subtree plumbing against a test renderer (`integration-renderer.test.ts`). Keep framework-specific cases in the Integration's own tests; do not repeat a contract row there.
 
 ## Design Constraints
 

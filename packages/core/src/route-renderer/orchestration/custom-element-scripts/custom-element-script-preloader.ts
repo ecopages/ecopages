@@ -1,14 +1,16 @@
-import { getComponentIdentity } from '../../../eco/component-identity.ts';
-import type { EcoComponent, EcoComponentConfig } from '../../../types/public-types.ts';
+import { getComponentIdentity, getComponentOwner } from '../../../eco/component-identity.ts';
+import type { EcoComponent, EcoComponentConfig } from '../../../types/contracts.ts';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { isEcopagesEnvEnabled } from '../../../env.ts';
 import {
 	getCustomElementScriptPreloadScopeState,
 	invalidateCustomElementScriptPreload,
+	type CustomElementScriptPreloadScopeState,
 } from './custom-element-script-preload-invalidation.ts';
 
 export { invalidateCustomElementScriptPreload };
+export type { CustomElementScriptPreloadScopeState } from './custom-element-script-preload-invalidation.ts';
 
 const registryKeys = new WeakMap<CustomElementRegistry, string>();
 
@@ -88,7 +90,7 @@ export function collectCustomElementSsrPreloadScripts(
 		visitedConfigs.add(config);
 
 		const identity = getComponentIdentity(config);
-		const integration = config.integration ?? identity?.integration;
+		const integration = getComponentOwner(config);
 		const ownsScripts = !collectForIntegration || integration === collectForIntegration;
 		const componentFile = ownsScripts ? identity?.file : undefined;
 		if (ownsScripts) {
@@ -119,6 +121,7 @@ export function collectCustomElementSsrPreloadScripts(
 
 export interface CustomElementScriptPreloaderOptions {
 	cacheScope: string;
+	preloadScopes: Map<string, CustomElementScriptPreloadScopeState>;
 	enabled?: boolean;
 	/**
 	 * When true, only lazy script entries with `ssr: true` are preloaded.
@@ -129,23 +132,21 @@ export interface CustomElementScriptPreloaderOptions {
 	 */
 	requireLazyScriptEntry?: boolean;
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
-	preferSourceImports?: boolean;
 	/**
-	 * Resolves a script path to the module entry the SSR renderer should import.
+	 * Evaluates one script for the custom-element registry named by `registryKey`.
 	 *
 	 * @remarks
-	 * When this is set, {@link importServerModule} is skipped. Callers that need
-	 * the app module loader (Lit's static-render worker) must omit the resolver.
+	 * Every runtime goes through this importer, so the script's CSS, MDX and
+	 * asset imports are loaded by the same server loaders as page modules.
 	 */
-	resolvePreloadEntrypoint?: (scriptPath: string) => Promise<string>;
-	importServerModule?: (scriptPath: string, registryKey: string) => Promise<unknown>;
+	importServerModule: (scriptPath: string, registryKey: string) => Promise<unknown>;
 	/**
 	 * Limits script collection to components owned by one integration.
 	 *
 	 * @remarks
 	 * Dependency trees may include foreign integrations whose `ssr: true` scripts
 	 * are preloaded by their own renderer. Ownership uses
-	 * `config.integration ?? identity.integration`, matching render routing.
+	 * `getComponentOwner`, matching render routing.
 	 * Ecopages JSX still walks nested components so it can find owned Radiant
 	 * hosts deeper in the graph.
 	 */
@@ -163,39 +164,36 @@ export interface CustomElementScriptPreloaderOptions {
  */
 export class CustomElementScriptPreloader {
 	private readonly cacheScope: string;
+	private readonly preloadScopes: Map<string, CustomElementScriptPreloadScopeState>;
 	private readonly enabled: boolean;
 	private readonly requireLazyScriptEntry: boolean;
 	private readonly resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
-	private readonly preferSourceImports: boolean;
-	private readonly resolvePreloadEntrypoint?: CustomElementScriptPreloaderOptions['resolvePreloadEntrypoint'];
-	private readonly importServerModule?: CustomElementScriptPreloaderOptions['importServerModule'];
+	private readonly importServerModule: CustomElementScriptPreloaderOptions['importServerModule'];
 	private readonly collectForIntegration?: string;
 	private readonly logLabel: string;
 
 	constructor({
 		cacheScope,
+		preloadScopes,
 		enabled = true,
 		requireLazyScriptEntry = false,
 		resolveDependencyPath,
-		preferSourceImports,
-		resolvePreloadEntrypoint,
 		importServerModule,
 		collectForIntegration,
 		logLabel = 'ecopages',
 	}: CustomElementScriptPreloaderOptions) {
 		this.cacheScope = cacheScope;
+		this.preloadScopes = preloadScopes;
 		this.enabled = enabled;
 		this.requireLazyScriptEntry = requireLazyScriptEntry;
 		this.resolveDependencyPath = resolveDependencyPath;
-		this.preferSourceImports = preferSourceImports ?? typeof Bun !== 'undefined';
-		this.resolvePreloadEntrypoint = resolvePreloadEntrypoint;
 		this.importServerModule = importServerModule;
 		this.collectForIntegration = collectForIntegration;
 		this.logLabel = logLabel;
 	}
 
 	invalidateScript(scriptPath: string): void {
-		invalidateCustomElementScriptPreload(scriptPath, this.cacheScope);
+		invalidateCustomElementScriptPreload(this.preloadScopes, scriptPath, this.cacheScope);
 	}
 
 	isExpectedSsrPreloadError(error: unknown): boolean {
@@ -219,7 +217,7 @@ export class CustomElementScriptPreloader {
 			return;
 		}
 
-		const scopeState = getCustomElementScriptPreloadScopeState(this.cacheScope);
+		const scopeState = getCustomElementScriptPreloadScopeState(this.preloadScopes, this.cacheScope);
 		const registry = globalThis.customElements;
 		if (scopeState.activeRegistry !== registry) {
 			scopeState.preloadedScripts.clear();
@@ -238,7 +236,7 @@ export class CustomElementScriptPreloader {
 
 	private async preloadOneScript(
 		scriptPath: string,
-		scopeState: ReturnType<typeof getCustomElementScriptPreloadScopeState>,
+		scopeState: CustomElementScriptPreloadScopeState,
 		registry: CustomElementRegistry | undefined,
 	): Promise<void> {
 		if (scopeState.preloadedScripts.has(scriptPath) || scopeState.preloadFailedScripts.has(scriptPath)) {
@@ -253,13 +251,13 @@ export class CustomElementScriptPreloader {
 
 		inFlight = (async () => {
 			try {
-				await this.importScriptForPreload(scriptPath, registry);
+				await this.importServerModule(scriptPath, registry ? getRegistryKey(registry) : 'default');
 				scopeState.preloadedScripts.add(scriptPath);
 			} catch (error) {
 				scopeState.preloadFailedScripts.add(scriptPath);
 
 				if (this.isExpectedSsrPreloadError(error)) {
-					if (process.env.ECOPAGES_DEBUG === 'true') {
+					if (isEcopagesEnvEnabled('ECOPAGES_DEBUG')) {
 						console.warn(
 							`[ecopages][${this.logLabel}] Skipping SSR preload for browser-only script: ${scriptPath}`,
 						);
@@ -275,39 +273,5 @@ export class CustomElementScriptPreloader {
 
 		scopeState.inFlightImports.set(scriptPath, inFlight);
 		await inFlight;
-	}
-
-	private async importScriptForPreload(
-		scriptPath: string,
-		registry: CustomElementRegistry | undefined,
-	): Promise<void> {
-		const registryKey = registry ? getRegistryKey(registry) : 'default';
-
-		if (this.resolvePreloadEntrypoint) {
-			const preloadEntrypoint = await this.resolvePreloadEntrypoint(scriptPath);
-			const importUrl = pathToFileURL(preloadEntrypoint);
-			if (registry && typeof Bun === 'undefined') {
-				importUrl.searchParams.set('eco-ssr-registry', registryKey);
-			}
-			await import(/* @vite-ignore */ importUrl.href);
-			return;
-		}
-
-		if (this.importServerModule) {
-			await this.importServerModule(scriptPath, registryKey);
-			return;
-		}
-
-		if (!this.preferSourceImports) {
-			throw new Error(
-				`Cannot preload SSR script ${scriptPath}: configure appConfig.runtime.appModuleLoader or enable source imports (Bun)`,
-			);
-		}
-
-		const importUrl = pathToFileURL(scriptPath);
-		if (registry && typeof Bun === 'undefined') {
-			importUrl.searchParams.set('eco-ssr-registry', registryKey);
-		}
-		await import(/* @vite-ignore */ importUrl.href);
 	}
 }

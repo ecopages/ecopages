@@ -1,4 +1,5 @@
 import { parseArgs } from 'node:util';
+import { getEcopagesEnv } from '../env.ts';
 import { getRuntimeArgv } from './runtime.ts';
 
 /**
@@ -66,7 +67,7 @@ export function resolveEntryFile({
 }: ResolveEntryFileOptions = {}): string {
 	if (entryFile && entryFile.length > 0) return entryFile;
 
-	const fromEnv = env[ENTRY_FILE_ENV];
+	const fromEnv = getEcopagesEnv(ENTRY_FILE_ENV, env);
 	if (fromEnv && fromEnv.length > 0) return fromEnv;
 
 	const fromFlag = readEntryFileFlag(argv);

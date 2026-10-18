@@ -2,23 +2,29 @@ import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import type { PageParams, PageQuery } from '@ecopages/core';
 import type {
-	LitStaticRenderCacheStrategy,
+	LitStaticRenderResult,
 	LitStaticRenderWorkerRequestMessage,
 	LitStaticRenderWorkerResponseMessage,
 } from './lit-static-render-protocol.ts';
 
 type PendingRender = {
-	resolve: (result: { html: string; cacheStrategy?: LitStaticRenderCacheStrategy }) => void;
+	resolve: (result: LitStaticRenderResult) => void;
 	reject: (error: Error) => void;
 };
+
+const workerShutdownTimeoutMs = 30_000;
+const workerExitTimeoutMs = 1_000;
 
 export class LitStaticRenderWorkerClient {
 	private readonly configModulePath: string;
 	private readonly runtimeOrigin: string;
 	private worker: Worker | null = null;
+	private workerExitPromise: Promise<number> | null = null;
+	private workerExitCode: number | null = null;
 	private readyPromise: Promise<void> | null = null;
 	private pending = new Map<string, PendingRender>();
 	private nextRenderId = 0;
+	private shutdownHandler: { resolve: () => void; reject: (error: Error) => void } | null = null;
 
 	constructor({ configModulePath, runtimeOrigin }: { configModulePath: string; runtimeOrigin: string }) {
 		this.configModulePath = configModulePath;
@@ -46,10 +52,20 @@ export class LitStaticRenderWorkerClient {
 				},
 			});
 			this.worker = worker;
+			this.workerExitCode = null;
+			this.workerExitPromise = new Promise<number>((resolveExit) => {
+				worker.once('exit', resolveExit);
+			});
 
 			worker.on('message', (message: LitStaticRenderWorkerResponseMessage) => {
 				if (message.type === 'ready') {
 					resolveReady();
+					return;
+				}
+
+				if (message.type === 'shutdown-complete') {
+					this.shutdownHandler?.resolve();
+					this.shutdownHandler = null;
 					return;
 				}
 
@@ -61,7 +77,10 @@ export class LitStaticRenderWorkerClient {
 						return;
 					}
 
-					rejectReady(new Error(message.message));
+					const error = new Error(message.message);
+					this.shutdownHandler?.reject(error);
+					this.shutdownHandler = null;
+					rejectReady(error);
 					return;
 				}
 
@@ -72,7 +91,12 @@ export class LitStaticRenderWorkerClient {
 					}
 
 					this.pending.delete(message.id);
-					pending.resolve({ html: message.html, cacheStrategy: message.cacheStrategy });
+					pending.resolve({
+						html: message.html,
+						cacheStrategy: message.cacheStrategy,
+						sourceDependencyPaths: message.sourceDependencyPaths,
+						metadata: message.metadata,
+					});
 				}
 			});
 
@@ -81,12 +105,15 @@ export class LitStaticRenderWorkerClient {
 			});
 
 			worker.on('exit', (code) => {
+				this.workerExitCode = code;
 				const exitError = new Error(
 					code === 0
 						? 'Lit static render worker exited'
 						: `Lit static render worker exited with code ${code}`,
 				);
 				this.rejectPending(exitError);
+				this.shutdownHandler?.reject(exitError);
+				this.shutdownHandler = null;
 				if (code !== 0) {
 					rejectReady(exitError);
 				}
@@ -107,7 +134,7 @@ export class LitStaticRenderWorkerClient {
 		filePath: string;
 		params: PageParams;
 		query?: PageQuery;
-	}): Promise<{ html: string; cacheStrategy?: LitStaticRenderCacheStrategy }> {
+	}): Promise<LitStaticRenderResult> {
 		await this.start();
 
 		const worker = this.worker;
@@ -117,7 +144,7 @@ export class LitStaticRenderWorkerClient {
 
 		const id = String(++this.nextRenderId);
 
-		return new Promise<{ html: string; cacheStrategy?: LitStaticRenderCacheStrategy }>((resolve, reject) => {
+		return new Promise<LitStaticRenderResult>((resolve, reject) => {
 			this.pending.set(id, { resolve, reject });
 
 			const renderMessage: LitStaticRenderWorkerRequestMessage = {
@@ -139,11 +166,56 @@ export class LitStaticRenderWorkerClient {
 		this.rejectPending(new Error('Lit static render worker was disposed'));
 
 		const worker = this.worker;
+		const workerExit = this.workerExitPromise ?? Promise.resolve(this.workerExitCode ?? 0);
 		this.worker = null;
+		this.workerExitPromise = null;
 		this.readyPromise = null;
+		if (this.workerExitCode !== null) {
+			if (this.workerExitCode !== 0) {
+				throw new Error(`Lit static render worker exited with code ${this.workerExitCode}`);
+			}
+			return;
+		}
+		let shutdownTimeout: ReturnType<typeof setTimeout> | undefined;
+		const shutdownComplete = new Promise<void>((resolve, reject) => {
+			shutdownTimeout = setTimeout(
+				() => reject(new Error('Lit static render worker shutdown timed out')),
+				workerShutdownTimeoutMs,
+			);
+			this.shutdownHandler = {
+				resolve: () => {
+					if (shutdownTimeout) clearTimeout(shutdownTimeout);
+					resolve();
+				},
+				reject: (error) => {
+					if (shutdownTimeout) clearTimeout(shutdownTimeout);
+					reject(error);
+				},
+			};
+		});
 
 		worker.postMessage({ type: 'shutdown' } satisfies LitStaticRenderWorkerRequestMessage);
-		await worker.terminate();
+		let shutdownError: Error | undefined;
+		try {
+			await shutdownComplete;
+		} catch (error) {
+			shutdownError = error instanceof Error ? error : new Error(String(error));
+		}
+		if (shutdownTimeout) clearTimeout(shutdownTimeout);
+
+		const exitResult = await new Promise<{ code: number } | { timedOut: true }>((resolve) => {
+			const exitTimeout = setTimeout(() => resolve({ timedOut: true }), workerExitTimeoutMs);
+			void workerExit.then((code) => {
+				clearTimeout(exitTimeout);
+				resolve({ code });
+			});
+		});
+		if ('timedOut' in exitResult) {
+			await worker.terminate();
+		} else if (exitResult.code !== 0) {
+			shutdownError ??= new Error(`Lit static render worker exited with code ${exitResult.code}`);
+		}
+		if (shutdownError) throw shutdownError;
 	}
 }
 

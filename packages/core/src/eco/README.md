@@ -1,5 +1,7 @@
 # `eco` Namespace
 
+**Layer:** Contracts.
+
 A unified API for defining components, pages, and page data in EcoPages.
 
 ## Overview
@@ -71,7 +73,13 @@ For Lit and Ecopages JSX (Radiant hosts), `ssr: true` imports the script on the 
 
 Scripts listening to client navigation events (`eco:after-swap`, `eco:page-load`) should be registered as client scripts (e.g., using `scripts: ['./component.script.ts']`) or guarded by `isServer` from `@ecopages/radiant/is-server` when used in Radiant projects where `document` is defined during SSR.
 
-Named barrel re-exports (`export { Counter } from './counter'`) are followed for the imported binding only. Successful named re-export hops are watch paths, so retargeting a barrel updates page assets without editing the importing Page. Discovery does not follow `export * from './components'`, dynamic imports, namespace imports (`import * as`), package Components/CSS, CSS Modules, or custom import attributes. `export *` would pull an entire kit into the page asset graph; keep that explicit with `dependencies.components`. Plain-function modules retain their existing behavior. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
+Named barrel re-exports (`export { Counter } from './counter'`) are followed for the imported binding only. The imported module, the factory file, and successful named re-export hops are watch paths, so editing a child Component or retargeting a barrel updates page assets without editing the importing Page. Discovery does not follow `export * from './components'`, dynamic imports, namespace imports (`import * as`), package Components/CSS, CSS Modules, or custom import attributes. `export *` would pull an entire kit into the page asset graph; keep that explicit with `dependencies.components`. Plain-function modules retain their existing behavior. Ordinary utility imports do not become browser script entries. Missing supported imports report the owner file and import specifier.
+
+## Component ownership
+
+The effective Integration owner follows one precedence rule everywhere: `config.integration`, then the build-time `config.identity.integration`, then the containing component's owner. A component-level override therefore controls both server rendering and its Page Client Plan even when the file belongs to another Integration. Components without either declaration inherit their parent's owner.
+
+Component factories read their active render context from `eco/`. The route renderer opens that context for each render and supplies the foreign-child runtime used to hand off components owned by another Integration. Nested and overlapping renders keep their own context across asynchronous work.
 
 ## Component Patterns
 
@@ -400,8 +408,9 @@ scripts: [{ src: './component.script.ts', lazy: { 'on:visible': true } }]; // or
 
 Each entry can define its own trigger, so mixed strategies in one component are supported.
 
-At render time, lazy script groups are emitted into a single [`scripts-injector`](https://github.com/ecopages/scripts-injector)
-wrapper using an internal `<script type="ecopages/injector-map">` payload.
+At render time, the component's root element receives a `data-eco-trigger` attribute, and the page carries one
+global injector map that tells the [`scripts-injector`](https://github.com/ecopages/scripts-injector) runtime which
+scripts to load for each trigger.
 
 ### `eco.page()`
 
@@ -574,20 +583,12 @@ export const Counter = eco.component({
 **HTML Output:**
 
 ```html
-<scripts-injector>
-	<script type="ecopages/injector-map">
-		{
-			"on:interaction": {
-				"value": "mouseenter,focusin",
-				"scripts": ["/_assets/components/counter/counter.script.js"]
-			}
-		}
-	</script>
-	<my-counter count="5">
-		<!-- SSR content -->
-	</my-counter>
-</scripts-injector>
+<my-counter count="5" data-eco-trigger="eco-trigger-1a2b3c">
+	<!-- SSR content -->
+</my-counter>
 ```
+
+The page also carries one `<script type="ecopages/global-injector-map">` that maps each `data-eco-trigger` id to its trigger and script URLs.
 
 ### Page with Lazy Component
 
@@ -631,8 +632,8 @@ interface EcoComponentDependencies {
 	scripts?: Array<string | DependencyEntry>;
 	stylesheets?: Array<string | DependencyEntry>;
 	modules?: string[];
-	/** Declared eco components only — see `EcoDeclaredComponent`. */
-	components?: EcoDeclaredComponent[];
+	/** Declared eco components only — see `EcoComponent`. */
+	components?: EcoComponent[];
 }
 
 type FileOwnedDependencyContribution = EcoComponentDependencies & {
@@ -645,8 +646,8 @@ type PageDependenciesResult = FileOwnedDependencyContribution & {
 
 type GetPageDependencies<T> = (context: {
 	props: PagePropsFor<T>;
-	params?: Record<string, string>;
-	query?: Record<string, string>;
+	params?: PageParams;
+	query?: PageQuery;
 }) => PageDependenciesResult | undefined | Promise<PageDependenciesResult | undefined>;
 
 // Shared base option shape used by component(), html(), and layout()
@@ -659,7 +660,7 @@ interface ComponentOptions<P, E = EcoPagesElement> {
 // html() and layout() accept the same options as component() but return
 // narrower types to signal intent (EcoHtmlComponent / EcoLayoutComponent).
 type HtmlOptions<E = EcoPagesElement> = ComponentOptions<Record<string, unknown>, E>;
-type LayoutOptions<E = EcoPagesElement> = ComponentOptions<{ children: E }, E>;
+type LayoutOptions<E = EcoPagesElement> = ComponentOptions<LayoutProps<E>, E>;
 
 interface PageOptions<T, E = EcoPagesElement> {
 	componentDir?: string;
@@ -679,8 +680,8 @@ type EcoPageComponent<T> = EcoComponent<PagePropsFor<T>> & {
 
 type PagePropsFor<T> =
 	T extends GetStaticProps<infer P>
-		? P & { params?: Record<string, string>; query?: Record<string, string> }
-		: T & { params?: Record<string, string>; query?: Record<string, string> };
+		? P & { params?: PageParams; query?: PageQuery }
+		: T & { params?: PageParams; query?: PageQuery };
 ```
 
 ## Benefits

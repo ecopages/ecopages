@@ -1,4 +1,4 @@
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
+import type { EcoBuildPlugin } from '@ecopages/core/integration';
 import type { EcoComponentConfig } from '@ecopages/core';
 import { collectPageDeclaredModules, collectPageDeclaredModulesFromModule } from '../client-graph/declared-modules.ts';
 import type { HmrPageMetadataCache } from './page-metadata-cache.ts';

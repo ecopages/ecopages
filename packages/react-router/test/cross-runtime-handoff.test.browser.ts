@@ -1,12 +1,8 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
-import userEvent from '@testing-library/user-event';
+import { userEvent } from 'vitest/browser';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import {
-	ECO_DOCUMENT_OWNER_ATTRIBUTE,
-	getEcoDocumentOwner,
-	getEcoNavigationRuntime,
-} from '@ecopages/core/router/navigation-coordinator';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE, getEcoDocumentOwner, getEcoNavigationRuntime } from '@ecopages/core/client';
 import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
 
 /**
@@ -44,12 +40,10 @@ function createLinkPage(name: string, href: string, label: string) {
 describe('React ↔ browser-router cross-runtime handoff', () => {
 	let container: HTMLDivElement;
 	let root: ReturnType<typeof createRoot>;
-	let user: ReturnType<typeof userEvent.setup>;
 
 	beforeEach(() => {
 		container = document.createElement('div');
 		document.body.appendChild(container);
-		user = userEvent.setup();
 	});
 
 	afterEach(() => {
@@ -90,7 +84,7 @@ describe('React ↔ browser-router cross-runtime handoff', () => {
 
 			const link = container.querySelector('[data-testid="LeaveReact-link"]') as HTMLAnchorElement | null;
 			expect(link).not.toBeNull();
-			await user.click(link as HTMLAnchorElement);
+			await userEvent.click(link as HTMLAnchorElement);
 
 			await vi.waitFor(() => {
 				expect(handoffSpy).toHaveBeenCalledTimes(1);

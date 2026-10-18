@@ -11,17 +11,16 @@
 
 ## Plugin lifecycle
 
-Core owns ordering. During `ConfigBuilder.build()`:
+Core owns ordering. During config finalization (when `createApp()` loads `eco.config.ts`):
 
-1. Processors run `prepareBuildContributions()`
-2. Processor `plugins` → runtime contributions; `buildPlugins` → browser bundle contributions
-3. Integrations run `prepareBuildContributions()`
-4. Integration `plugins` and `browserBuildPlugins` are collected
-5. App build manifest is sealed
+1. Core reads each Processor's, then each Integration's, `plugins(app)` once. It is a pure read with no I/O, and plugins declare `environments` (`['browser']` for browser-only; omitted means both)
+2. App build manifest is sealed
 
-At startup: processors `setup()` first, then integrations `setup()`.
+Nothing else of a Processor or Integration runs during finalization. At runtime, core gives each Processor its app config and calls `setup()`, then activates Integrations before creating their renderers. The Lit render worker and Node's `preview --serve-only` mode skip Processor setup. For development, core calls Integration `hmr(ctx)` with `{ appConfig, runtime }`; Integration `setup(ctx)` receives that same context. Network watch startup attempts warmup for every configured Integration before releasing requests; setup failures are logged after all attempts settle and do not prevent startup. Request-only `app.fetch()` activates the Integrations used by the requested render, including foreign-child owners, and leaves unrelated Integrations inactive.
 
-`teardown()` exists on processors and integrations but core does not call it today.
+Core calls `teardown()` for activated Integrations after static-export releases and when the app stops or the development server restarts. It waits for in-flight `setup()` calls and active prewarm renders first. Processors have no `teardown()` hook.
+
+Static export calls optional Integration `staticExport(ctx)` hooks before generating pages. A hook may return a release function; core awaits releases in reverse order after export, including when generation fails, then calls `teardown()` for activated Integrations.
 
 ## Shipped processors
 
@@ -61,15 +60,13 @@ Name and image `capabilities` are fixed inside the factory. Pass options only un
 
 ## Custom processors
 
-Extend `Processor` from `@ecopages/core/plugins/processor`:
+Extend `Processor` from `@ecopages/core/processor`:
 
 ```typescript
-import { Processor, type EcoBuildPlugin, type ProcessorConfig } from '@ecopages/core/plugins/processor';
+import type { EcoPagesAppConfig } from '@ecopages/core';
+import { Processor, type EcoBuildPlugin, type ProcessorConfig } from '@ecopages/core/processor';
 
 class CustomProcessor extends Processor {
-	buildPlugins: EcoBuildPlugin[] = [];
-	plugins: EcoBuildPlugin[] = [];
-
 	constructor(config: Omit<ProcessorConfig, 'name'>) {
 		super({
 			name: 'custom-processor',
@@ -78,29 +75,31 @@ class CustomProcessor extends Processor {
 		});
 	}
 
-	override async prepareBuildContributions(): Promise<void> {
-		// Materialize plugins before manifest seal
+	override plugins(app: EcoPagesAppConfig): EcoBuildPlugin[] {
+		return [];
 	}
 
-	override async setup(): Promise<void> {}
+	override async setup(): Promise<void> {
+		// Generation, config loading and cache warming
+	}
 
-	override async process(input: unknown, filePath?: string): Promise<unknown> {
-		return input;
+	override async transformStylesheet(css: string, file: string): Promise<string> {
+		return css;
 	}
 }
 
 export const customProcessorPlugin = (config?: Omit<ProcessorConfig, 'name'>) => new CustomProcessor(config ?? {});
 ```
 
-Use `capabilities` to participate in the asset pipeline. Declare capabilities for file types the processor owns as build assets (for example stylesheets or images). Use `watch.extensions` for dependency notifications that should not block server invalidation or HMR (for example Tailwind class scanning in TSX). Use `IClientBridge` in watch callbacks for dev HMR (`bridge.cssUpdate(path)`).
+Use `capabilities` to participate in the asset pipeline. Each capability can declare `filter: RegExp` in addition to `extensions`. Stylesheet processing also needs `transformStylesheet(css, file)`; a processor without it is skipped. Declare capabilities for file types the processor owns as build assets (for example stylesheets or images). Use `watch.extensions` for dependency notifications that should not block server invalidation or HMR (for example Tailwind class scanning in TSX). Use `IClientBridge` in watch callbacks for dev HMR (`bridge.cssUpdate(path)`).
 
 ## Custom integrations
 
 Minimal integrations:
 
 ```typescript
-import { defineIntegration } from '@ecopages/core/plugins/define-integration';
-import { StringMarkupRenderer } from '@ecopages/core/route-renderer/orchestration/string-markup-renderer';
+import { defineIntegration } from '@ecopages/core/integration';
+import { StringMarkupRenderer } from '@ecopages/core/integration';
 
 class CustomRenderer extends StringMarkupRenderer {
 	name = 'custom-integration';
@@ -113,37 +112,37 @@ export const customPlugin = defineIntegration({
 });
 ```
 
-Class-based integrations extend `IntegrationPlugin`, provide a renderer, and split build work (`prepareBuildContributions`) from runtime work (`setup`).
+Class-based integrations extend `IntegrationPlugin`, provide a renderer, and split build declarations (`plugins(app)`, no I/O) from runtime work (`setup`).
+
+Override `createRenderer(base)` to add framework-specific renderer options, `hmr(ctx)` to register development strategies, and `staticExport(ctx)` when build-time work needs a release function. Set browser runtime rewrites with the constructor's `browserRuntimeManifest` data.
 
 ## Source transforms
 
-For filter-based module rewrites during browser/HMR builds:
+A build plugin rewrites module source with its `transform` hook. Register it in `loaders`, or return it from a processor's or integration's `plugins(app)`:
 
 ```typescript
 import { defineConfig } from '@ecopages/core/config';
 
 export default defineConfig({
 	rootDir: import.meta.dirname,
-	sourceTransforms: [
+	loaders: [
 		{
 			name: 'banner-transform',
-			filter: /entry\.tsx$/,
-			transform(code) {
-				return { code: `/* banner */\n${code}` };
+			setup(build) {
+				build.transform({ filter: /entry\.tsx$/ }, (code) => ({ code: `/* banner */\n${code}` }));
 			},
 		},
 	],
 });
 ```
 
-Prefer source transforms over competing `onLoad` plugins when the change is a pure source rewrite.
+Plugins transform in plugin order: loaders, processors, then integrations. Core's own transforms (component identity, then `import.meta` in server builds) run after them. Prefer `transform` over a competing `onLoad` when the change is a pure source rewrite.
 
 ## Extension point comparison
 
-| Mechanism                         | Use when                                          |
-| --------------------------------- | ------------------------------------------------- |
-| `EcoSourceTransform`              | Filter-based source rewrites                      |
-| `EcoBuildPlugin`                  | Virtual modules, custom loaders, resolve behavior |
-| Processor `plugins`               | Runtime file processing                           |
-| Processor `buildPlugins`          | Browser-only bundling                             |
-| Integration `browserBuildPlugins` | Framework browser transforms / import aliasing    |
+| Mechanism                                       | Use when                                                        |
+| ----------------------------------------------- | --------------------------------------------------------------- |
+| `EcoBuildPlugin` (`transform`)                  | Source rewrites, with an optional source map                    |
+| `EcoBuildPlugin` (`onLoad` / `onResolve`)       | Virtual modules, custom loaders, resolve behavior               |
+| Processor `plugins(app)`                        | File processing in server and browser builds                    |
+| `plugins(app)` with `environments: ['browser']` | Browser-only bundling, framework transforms and import aliasing |

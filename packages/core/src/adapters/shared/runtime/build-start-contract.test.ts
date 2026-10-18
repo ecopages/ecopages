@@ -3,15 +3,15 @@ import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from '
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { afterEach, describe, it } from 'vitest';
+import { afterEach, describe, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import { ConfigBuilder } from '../../../config/config-builder.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
+import { finalizeEcoPagesConfig } from '../../../config/assembly/finalize-config.ts';
 import {
 	assertProductionConfigIdentity,
 	getServerBundleOutputPaths,
-	lookupServerEntryBuildCache,
 	resolveProductionServerEntry,
-} from '../../../build/cache/server-entry-build-cache.ts';
+} from '../../../build/server-bundle-deploy-manifest.ts';
 import { resolveEcoConfigPath } from '../../../config/resolve-eco-config-path.ts';
 import { EMITTED_ECO_CONFIG_FILENAME } from '../../../config/server-config-bundle.ts';
 import { loadEcoPagesConfig } from '../../../config/load-eco-config.ts';
@@ -21,13 +21,23 @@ import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator.ts';
 
+/**
+ * Imports `filePath` through its real path.
+ *
+ * @remarks
+ * Node gives a module the `import.meta` of its real path, while the Vitest
+ * module runner keeps a symlinked one (macOS temp folders), which would hide a
+ * path computed against the wrong one.
+ */
+async function importByRealPath<T>(filePath: string): Promise<T> {
+	return (await import(pathToFileURL(realpathSync(filePath)).href)) as T;
+}
+
 describe('build → start contract', () => {
 	const tempDirs: string[] = [];
-	const originalNodeEnv = process.env.NODE_ENV;
 	const originalCwd = process.cwd();
 
 	afterEach(() => {
-		process.env.NODE_ENV = originalNodeEnv;
 		process.chdir(originalCwd);
 		for (const tempDir of tempDirs.splice(0)) {
 			fileSystem.remove(tempDir);
@@ -35,7 +45,7 @@ describe('build → start contract', () => {
 	});
 
 	it('emits a runnable server bundle and manifest when needsServerBundle is true', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-start-contract-'));
 		tempDirs.push(rootDir);
 		process.chdir(rootDir);
@@ -47,7 +57,7 @@ describe('build → start contract', () => {
 			'utf8',
 		);
 
-		const appConfig = await new ConfigBuilder().setRootDir(rootDir).setDistDir('dist').setWorkDir('.eco').build();
+		const appConfig = await finalizeEcoPagesConfig({ rootDir, distDir: 'dist', workDir: '.eco' });
 
 		const staticSiteGenerator = {
 			run: async () => {},
@@ -55,9 +65,9 @@ describe('build → start contract', () => {
 
 		const builder = new ServerStaticBuilder({
 			appConfig,
+			runtime: requireAppRuntime(appConfig),
 			staticSiteGenerator,
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
-			runtimeOrigin: 'http://127.0.0.1:3000',
 			entryFile: 'app.ts',
 			needsServerBundle: true,
 		});
@@ -72,19 +82,20 @@ describe('build → start contract', () => {
 		assert.equal(fileSystem.exists(serverEntryPath), true, 'expected dist/.server/app.mjs');
 		assert.equal(fileSystem.exists(manifestPath), true, 'expected dist/.server/manifest.json');
 
-		const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
-			serverEntry: string;
-			distDir: string;
-		};
+		const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, string>;
 		assert.equal(manifest.serverEntry, SERVER_BUNDLE_FILENAME);
-		assert.equal(path.resolve(manifest.distDir), path.resolve(appConfig.absolutePaths.distDir));
+		assert.deepEqual(
+			Object.entries(manifest).filter(([, value]) => path.isAbsolute(value)),
+			[],
+			'the deploy manifest holds no absolute path',
+		);
 
-		const resolvedEntry = resolveProductionServerEntry(rootDir);
+		const resolvedEntry = resolveProductionServerEntry(rootDir, 'dist');
 		assert.equal(resolvedEntry, serverEntryPath);
 	});
 
 	it('defaults omitted rootDir to the project cwd after emitting the config', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-start-default-root-'));
 		tempDirs.push(rootDir);
 		process.chdir(rootDir);
@@ -93,19 +104,17 @@ describe('build → start contract', () => {
 		const configPath = path.join(rootDir, 'eco.config.ts');
 		writeFileSync(configPath, 'export default {};\n', 'utf8');
 
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setConfigModulePath(configPath)
-			.setDistDir('dist')
-			.setWorkDir('.eco')
-			.build();
+		const appConfig = await finalizeEcoPagesConfig(
+			{ rootDir, distDir: 'dist', workDir: '.eco' },
+			{ configFilePath: configPath },
+		);
 
 		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
 		const builder = new ServerStaticBuilder({
 			appConfig,
+			runtime: requireAppRuntime(appConfig),
 			staticSiteGenerator,
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
-			runtimeOrigin: 'http://127.0.0.1:3000',
 			entryFile: 'app.ts',
 			needsServerBundle: true,
 		});
@@ -121,15 +130,58 @@ describe('build → start contract', () => {
 		assert.equal(loadedConfig.rootDir, rootDir);
 	});
 
+	it('writes the server bundle into the configured distDir and finds it there', async () => {
+		vi.stubEnv('NODE_ENV', 'production');
+		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-start-dist-dir-'));
+		tempDirs.push(rootDir);
+		process.chdir(rootDir);
+
+		writeFileSync(path.join(rootDir, 'app.ts'), 'export const ready = true;\n', 'utf8');
+		const configPath = path.join(rootDir, 'eco.config.ts');
+		writeFileSync(configPath, 'export default {};\n', 'utf8');
+
+		const appConfig = await finalizeEcoPagesConfig(
+			{ rootDir, distDir: 'build', workDir: '.eco' },
+			{ configFilePath: configPath },
+		);
+		const builder = new ServerStaticBuilder({
+			appConfig,
+			runtime: requireAppRuntime(appConfig),
+			staticSiteGenerator: { run: async () => {} } as unknown as StaticSiteGenerator,
+			serveOptions: { hostname: '127.0.0.1', port: 3000 },
+			entryFile: 'app.ts',
+			needsServerBundle: true,
+		});
+
+		await builder.build(undefined, {
+			router: {} as RouteRegistry,
+			routeRendererFactory: {} as StaticGenerationRendererResolver,
+		});
+
+		const { serverEntryPath, serverOutdir } = getServerBundleOutputPaths(appConfig);
+		assert.equal(serverOutdir, path.join(rootDir, 'build', '.server'));
+		assert.equal(resolveProductionServerEntry(rootDir, 'build'), serverEntryPath);
+		assert.equal(resolveProductionServerEntry(rootDir, 'dist'), undefined);
+		assert.equal(
+			resolveEcoConfigPath({ cwd: rootDir, preferEmitted: true, distDir: 'build' }),
+			path.join(serverOutdir, EMITTED_ECO_CONFIG_FILENAME),
+		);
+		assert.doesNotThrow(() =>
+			assertProductionConfigIdentity(rootDir, path.join(serverOutdir, EMITTED_ECO_CONFIG_FILENAME), {
+				distDir: 'build',
+			}),
+		);
+	});
+
 	it('does not emit a server bundle for static-only apps', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-start-contract-'));
 		tempDirs.push(rootDir);
 		process.chdir(rootDir);
 
 		writeFileSync(path.join(rootDir, 'app.ts'), 'export const ready = true;\n', 'utf8');
 
-		const appConfig = await new ConfigBuilder().setRootDir(rootDir).setDistDir('dist').setWorkDir('.eco').build();
+		const appConfig = await finalizeEcoPagesConfig({ rootDir, distDir: 'dist', workDir: '.eco' });
 
 		const staticSiteGenerator = {
 			run: async () => {},
@@ -137,9 +189,9 @@ describe('build → start contract', () => {
 
 		const builder = new ServerStaticBuilder({
 			appConfig,
+			runtime: requireAppRuntime(appConfig),
 			staticSiteGenerator,
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
-			runtimeOrigin: 'http://127.0.0.1:3000',
 			entryFile: 'app.ts',
 		});
 
@@ -153,53 +205,12 @@ describe('build → start contract', () => {
 		assert.equal(fileSystem.exists(serverEntryPath), false, 'should not produce dist/.server/app.mjs');
 		assert.equal(fileSystem.exists(manifestPath), false, 'should not produce dist/.server/manifest.json');
 
-		const resolvedEntry = resolveProductionServerEntry(rootDir);
+		const resolvedEntry = resolveProductionServerEntry(rootDir, 'dist');
 		assert.equal(resolvedEntry, undefined);
 	});
 
-	it('invalidates server entry cache when eco.config.ts content changes', async () => {
-		process.env.NODE_ENV = 'production';
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-start-contract-'));
-		tempDirs.push(rootDir);
-		process.chdir(rootDir);
-
-		const entryPath = path.join(rootDir, 'app.ts');
-		const configPath = path.join(rootDir, 'eco.config.ts');
-		writeFileSync(entryPath, 'export const ready = true;\n', 'utf8');
-		writeFileSync(configPath, `export default { rootDir: ${JSON.stringify(rootDir)} };\n`, 'utf8');
-
-		const appConfig = await new ConfigBuilder().setRootDir(rootDir).setDistDir('dist').setWorkDir('.eco').build();
-
-		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
-		const builder = new ServerStaticBuilder({
-			appConfig,
-			staticSiteGenerator,
-			serveOptions: { hostname: '127.0.0.1', port: 3000 },
-			runtimeOrigin: 'http://127.0.0.1:3000',
-			entryFile: 'app.ts',
-			needsServerBundle: true,
-		});
-
-		await builder.build(undefined, {
-			router: {} as RouteRegistry,
-			routeRendererFactory: {} as StaticGenerationRendererResolver,
-		});
-
-		const cacheLookup1 = lookupServerEntryBuildCache({ appConfig, entryPath });
-		assert.ok(cacheLookup1, 'expected initial cache hit');
-
-		writeFileSync(
-			configPath,
-			`export default { rootDir: ${JSON.stringify(rootDir)}, baseUrl: 'http://updated.com' };\n`,
-			'utf8',
-		);
-
-		const cacheLookup2 = lookupServerEntryBuildCache({ appConfig, entryPath });
-		assert.equal(cacheLookup2, undefined, 'expected cache miss after config change');
-	});
-
 	it('preserves import.meta.dirname semantics in emitted dist/.server/eco.config.mjs', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-build-import-meta-'));
 		tempDirs.push(rootDir);
 		process.chdir(rootDir);
@@ -213,19 +224,17 @@ describe('build → start contract', () => {
 			'utf8',
 		);
 
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setConfigModulePath(configPath)
-			.setDistDir('dist')
-			.setWorkDir('.eco')
-			.build();
+		const appConfig = await finalizeEcoPagesConfig(
+			{ rootDir, distDir: 'dist', workDir: '.eco' },
+			{ configFilePath: configPath },
+		);
 
 		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
 		const builder = new ServerStaticBuilder({
 			appConfig,
+			runtime: requireAppRuntime(appConfig),
 			staticSiteGenerator,
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
-			runtimeOrigin: 'http://127.0.0.1:3000',
 			entryFile: 'app.ts',
 			needsServerBundle: true,
 		});
@@ -239,8 +248,8 @@ describe('build → start contract', () => {
 		const emittedConfigPath = path.join(serverOutdir, EMITTED_ECO_CONFIG_FILENAME);
 		assert.equal(fileSystem.exists(emittedConfigPath), true, 'emitted eco.config.mjs should exist');
 
-		const importedModule = await import(pathToFileURL(emittedConfigPath).href);
-		const configObj = importedModule.default ?? importedModule;
+		const importedModule = await importByRealPath<{ default: { rootDir: string } }>(emittedConfigPath);
+		const configObj = importedModule.default;
 		assert.equal(
 			configObj.rootDir,
 			realpathSync(rootDir),
@@ -249,7 +258,7 @@ describe('build → start contract', () => {
 	});
 
 	it('supports dist-only deployment and validates config identity', async () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-dist-only-'));
 		tempDirs.push(rootDir);
 		process.chdir(rootDir);
@@ -260,19 +269,17 @@ describe('build → start contract', () => {
 		writeFileSync(entryPath, 'export const ready = true;\n', 'utf8');
 		writeFileSync(configPath, configSource, 'utf8');
 
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setConfigModulePath(configPath)
-			.setDistDir('dist')
-			.setWorkDir('.eco')
-			.build();
+		const appConfig = await finalizeEcoPagesConfig(
+			{ rootDir, distDir: 'dist', workDir: '.eco' },
+			{ configFilePath: configPath },
+		);
 
 		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
 		const builder = new ServerStaticBuilder({
 			appConfig,
+			runtime: requireAppRuntime(appConfig),
 			staticSiteGenerator,
 			serveOptions: { hostname: '127.0.0.1', port: 3000 },
-			runtimeOrigin: 'http://127.0.0.1:3000',
 			entryFile: 'app.ts',
 			needsServerBundle: true,
 		});
@@ -287,13 +294,13 @@ describe('build → start contract', () => {
 
 		writeFileSync(configPath, `${configSource}\nexport const changedAfterBuild = true;\n`, 'utf8');
 		assert.throws(() => {
-			assertProductionConfigIdentity(rootDir, configPath, { isExplicitOverride: true });
+			assertProductionConfigIdentity(rootDir, configPath, { distDir: 'dist', isExplicitOverride: true });
 		}, /Ecopages config mismatch/);
 		writeFileSync(configPath, configSource, 'utf8');
 
 		writeFileSync(expectedEmittedConfig, `${emittedConfigSource}\nexport const tampered = true;\n`, 'utf8');
 		assert.throws(() => {
-			assertProductionConfigIdentity(rootDir, expectedEmittedConfig);
+			assertProductionConfigIdentity(rootDir, expectedEmittedConfig, { distDir: 'dist' });
 		}, /Ecopages config mismatch/);
 		writeFileSync(expectedEmittedConfig, emittedConfigSource, 'utf8');
 
@@ -301,113 +308,20 @@ describe('build → start contract', () => {
 		rmSync(configPath);
 		rmSync(entryPath);
 
-		const resolvedConfigPath = resolveEcoConfigPath({ cwd: rootDir });
+		const resolvedConfigPath = resolveEcoConfigPath({ cwd: rootDir, preferEmitted: true, distDir: 'dist' });
 		assert.equal(resolvedConfigPath, expectedEmittedConfig);
 
 		// Must not throw for standard bundled config deployment
 		assert.doesNotThrow(() => {
-			assertProductionConfigIdentity(rootDir, resolvedConfigPath);
+			assertProductionConfigIdentity(rootDir, resolvedConfigPath, { distDir: 'dist' });
 		});
 
 		// Explicit mismatch with a non-existent or different config should throw
 		assert.throws(() => {
 			assertProductionConfigIdentity(rootDir, path.join(rootDir, 'other.config.ts'), {
+				distDir: 'dist',
 				isExplicitOverride: true,
 			});
 		}, /Ecopages config mismatch/);
-	});
-
-	it('invalidates server entry cache when imported dependency of eco.config.ts changes', async () => {
-		process.env.NODE_ENV = 'production';
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-dep-cache-'));
-		tempDirs.push(rootDir);
-		process.chdir(rootDir);
-
-		const entryPath = path.join(rootDir, 'app.ts');
-		const helperPath = path.join(rootDir, 'helper.ts');
-		const configPath = path.join(rootDir, 'eco.config.ts');
-		writeFileSync(entryPath, 'export const ready = true;\n', 'utf8');
-		writeFileSync(helperPath, 'export const siteName = "Ecopages V1";\n', 'utf8');
-		writeFileSync(
-			configPath,
-			`import { siteName } from './helper.ts';\nexport default { rootDir: ${JSON.stringify(rootDir)}, baseUrl: siteName };\n`,
-			'utf8',
-		);
-
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setConfigModulePath(configPath)
-			.setDistDir('dist')
-			.setWorkDir('.eco')
-			.build();
-
-		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
-		const builder = new ServerStaticBuilder({
-			appConfig,
-			staticSiteGenerator,
-			serveOptions: { hostname: '127.0.0.1', port: 3000 },
-			runtimeOrigin: 'http://127.0.0.1:3000',
-			entryFile: 'app.ts',
-			needsServerBundle: true,
-		});
-
-		await builder.build(undefined, {
-			router: {} as RouteRegistry,
-			routeRendererFactory: {} as StaticGenerationRendererResolver,
-		});
-
-		const cacheLookup1 = lookupServerEntryBuildCache({ appConfig, entryPath });
-		assert.ok(cacheLookup1, 'expected initial cache hit');
-
-		// Modify the helper imported by eco.config.ts
-		writeFileSync(helperPath, 'export const siteName = "Ecopages V2";\n', 'utf8');
-
-		const cacheLookup2 = lookupServerEntryBuildCache({ appConfig, entryPath });
-		assert.equal(cacheLookup2, undefined, 'expected cache miss after imported config dependency change');
-	});
-
-	it('invalidates server entry cache when emitted eco.config.mjs is deleted', async () => {
-		process.env.NODE_ENV = 'production';
-		const rootDir = mkdtempSync(path.join(tmpdir(), 'eco-missing-output-'));
-		tempDirs.push(rootDir);
-		process.chdir(rootDir);
-
-		const entryPath = path.join(rootDir, 'app.ts');
-		const configPath = path.join(rootDir, 'eco.config.ts');
-		writeFileSync(entryPath, 'export const ready = true;\n', 'utf8');
-		writeFileSync(configPath, `export default { rootDir: ${JSON.stringify(rootDir)} };\n`, 'utf8');
-
-		const appConfig = await new ConfigBuilder()
-			.setRootDir(rootDir)
-			.setConfigModulePath(configPath)
-			.setDistDir('dist')
-			.setWorkDir('.eco')
-			.build();
-
-		const staticSiteGenerator = { run: async () => {} } as unknown as StaticSiteGenerator;
-		const builder = new ServerStaticBuilder({
-			appConfig,
-			staticSiteGenerator,
-			serveOptions: { hostname: '127.0.0.1', port: 3000 },
-			runtimeOrigin: 'http://127.0.0.1:3000',
-			entryFile: 'app.ts',
-			needsServerBundle: true,
-		});
-
-		await builder.build(undefined, {
-			router: {} as RouteRegistry,
-			routeRendererFactory: {} as StaticGenerationRendererResolver,
-		});
-
-		const cacheLookup1 = lookupServerEntryBuildCache({ appConfig, entryPath });
-		assert.ok(cacheLookup1, 'expected initial cache hit');
-
-		// Delete the emitted config bundle
-		const { serverOutdir } = getServerBundleOutputPaths(appConfig);
-		const emittedConfigPath = path.join(serverOutdir, EMITTED_ECO_CONFIG_FILENAME);
-		rmSync(emittedConfigPath);
-
-		const cacheLookup2 = lookupServerEntryBuildCache({ appConfig, entryPath });
-		assert.equal(cacheLookup2, undefined, 'expected cache miss when one of the outputs is missing');
 	});
 });

@@ -1,10 +1,7 @@
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
+import { escapeRegExp } from '../utils/regex-escaping.ts';
 import { AliasResolverCache } from './alias-resolver-cache.ts';
 import { loadTsconfigPathPrefixes, resolveProjectImportPath } from './tsconfig-import-resolver.ts';
-
-function escapeRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 function buildPathPrefixFilter(prefix: string): RegExp {
 	if (prefix.endsWith('/')) {
@@ -14,15 +11,13 @@ function buildPathPrefixFilter(prefix: string): RegExp {
 	return new RegExp(`^${escapeRegExp(prefix)}(?:/|$)`);
 }
 
-export function createAliasResolverPlugin(
-	projectRoot: string,
-	options?: { cache?: AliasResolverCache },
-): EcoBuildPlugin {
-	const cache = options?.cache ?? new AliasResolverCache();
+export function createAliasResolverPlugin(projectRoot: string): EcoBuildPlugin {
+	const cache = new AliasResolverCache();
 	const pathPrefixes = loadTsconfigPathPrefixes(projectRoot);
 
 	return {
 		name: 'ecopages-alias-resolver',
+		cacheKey: JSON.stringify([projectRoot, pathPrefixes]),
 		setup(build) {
 			if (pathPrefixes.length === 0) {
 				return;

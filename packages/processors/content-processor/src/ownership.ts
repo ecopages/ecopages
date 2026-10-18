@@ -1,7 +1,4 @@
-import {
-	getComponentRenderContext,
-	type ForeignChildInterceptionResult,
-} from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
+import { getComponentRenderContext, type ForeignChildInterceptionResult } from '@ecopages/core/integration';
 import type { EcoComponent } from '@ecopages/core';
 
 /**

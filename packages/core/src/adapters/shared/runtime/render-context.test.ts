@@ -2,36 +2,32 @@ import { describe, it, expect, vi } from 'vitest';
 import { createRenderContext } from './render-context.ts';
 import type { IntegrationPlugin } from '../../../plugins/integration-plugin.ts';
 import type { IntegrationRenderer } from '../../../route-renderer/orchestration/integration-renderer.ts';
-import type { EcoFunctionComponent } from '../../../types/public-types.ts';
+import type { EcoFunctionComponent } from '../../../types/contracts.ts';
 
 describe('createRenderContext', () => {
 	const RenderToResponse = vi.fn(() => Promise.resolve(new Response('rendered')));
-	const rendererModules = {
-		integrationManifestModuleId: 'virtual:ecopages/integration-manifest.ts',
-	};
-
 	const Renderer = {
 		name: '-renderer',
-		renderToResponse: RenderToResponse,
+		renderExplicitView: RenderToResponse,
 	} as unknown as IntegrationRenderer;
 
 	const ExplicitRenderer = {
 		name: 'explicit-renderer',
-		renderToResponse: RenderToResponse,
+		renderExplicitView: RenderToResponse,
 	} as unknown as IntegrationRenderer;
 
-	const InitializeRenderer = vi.fn(() => Renderer);
+	const GetRenderer = vi.fn(() => Renderer);
 
 	const Plugin = {
 		name: '-integration',
-		initializeRenderer: InitializeRenderer,
+		getRenderer: GetRenderer,
 	} as unknown as IntegrationPlugin;
 
-	const ExplicitInitializeRenderer = vi.fn(() => ExplicitRenderer);
+	const ExplicitGetRenderer = vi.fn(() => ExplicitRenderer);
 
 	const ExplicitPlugin = {
 		name: 'explicit-renderer',
-		initializeRenderer: ExplicitInitializeRenderer,
+		getRenderer: ExplicitGetRenderer,
 	} as unknown as IntegrationPlugin;
 
 	const ViewFn = ((props: { foo: string }) => `<div>${props.foo}</div>`) as EcoFunctionComponent<
@@ -48,23 +44,33 @@ describe('createRenderContext', () => {
 
 	const renderContext = createRenderContext({
 		integrations: [Plugin, ExplicitPlugin],
-		rendererModules,
 	});
 
-	it('should create a render context with methods', () => {
-		expect(renderContext.importServerModule).toBeDefined();
-		expect(renderContext.renderServerModule).toBeDefined();
-		expect(renderContext.render).toBeDefined();
-		expect(renderContext.renderPartial).toBeDefined();
-		expect(renderContext.json).toBeDefined();
-		expect(renderContext.html).toBeDefined();
+	it('activates a view owner before acquiring its renderer', async () => {
+		const events: string[] = [];
+		const integration = {
+			...Plugin,
+			getRenderer: vi.fn(() => {
+				events.push('renderer');
+				return Renderer;
+			}),
+		} as unknown as IntegrationPlugin;
+		const context = createRenderContext({
+			integrations: [integration],
+			ensureIntegrationReady: async (integrationName) => {
+				events.push(`setup ${integrationName}`);
+			},
+		});
+
+		await context.render(ViewFn, { foo: 'ready' });
+
+		expect(events).toEqual(['setup -integration', 'renderer']);
 	});
 
 	it('should delegate importServerModule to the active render-context loader', async () => {
 		const ImportServerModule = vi.fn(async (filePath: string) => ({ filePath }));
 		const delegatedContext = createRenderContext({
 			integrations: [Plugin, ExplicitPlugin],
-			rendererModules,
 			importServerModule: ImportServerModule,
 		});
 
@@ -78,7 +84,6 @@ describe('createRenderContext', () => {
 		const ImportServerModule = vi.fn(async (filePath: string) => ({ filePath }));
 		const delegatedContext = createRenderContext({
 			integrations: [Plugin, ExplicitPlugin],
-			rendererModules,
 			importServerModule: ImportServerModule,
 		});
 
@@ -102,7 +107,6 @@ describe('createRenderContext', () => {
 		const ImportServerModule = vi.fn(async (_filePath: string) => ({ default: importedView }));
 		const delegatedContext = createRenderContext({
 			integrations: [Plugin, ExplicitPlugin],
-			rendererModules,
 			importServerModule: ImportServerModule,
 		});
 
@@ -134,7 +138,6 @@ describe('createRenderContext', () => {
 		const ImportServerModule = vi.fn(async (_filePath: string) => ({ default: importedView }));
 		const delegatedContext = createRenderContext({
 			integrations: [Plugin, ExplicitPlugin],
-			rendererModules,
 			importServerModule: ImportServerModule,
 		});
 
@@ -155,14 +158,14 @@ describe('createRenderContext', () => {
 	describe('render', () => {
 		it('should call renderer.renderToResponse with partial: false', async () => {
 			RenderToResponse.mockClear();
-			InitializeRenderer.mockClear();
-			ExplicitInitializeRenderer.mockClear();
+			GetRenderer.mockClear();
+			ExplicitGetRenderer.mockClear();
 			const props = { foo: 'bar' };
 			const options = { status: 201, headers: { 'X-Custom': '1' } };
 
 			const response = await renderContext.render(ViewFn, props, options);
 
-			expect(InitializeRenderer).toHaveBeenCalledWith({ rendererModules });
+			expect(GetRenderer).toHaveBeenCalledWith();
 			expect(RenderToResponse).toHaveBeenCalledWith(ViewFn, props, {
 				partial: false,
 				status: 201,
@@ -185,8 +188,8 @@ describe('createRenderContext', () => {
 
 		it('should prefer explicit config.integration over injected metadata', async () => {
 			RenderToResponse.mockClear();
-			InitializeRenderer.mockClear();
-			ExplicitInitializeRenderer.mockClear();
+			GetRenderer.mockClear();
+			ExplicitGetRenderer.mockClear();
 
 			const explicitViewFn = (() => '<div></div>') as EcoFunctionComponent<{}, string>;
 			explicitViewFn.config = {
@@ -196,8 +199,8 @@ describe('createRenderContext', () => {
 
 			await renderContext.render(explicitViewFn, {});
 
-			expect(ExplicitInitializeRenderer).toHaveBeenCalled();
-			expect(InitializeRenderer).not.toHaveBeenCalled();
+			expect(ExplicitGetRenderer).toHaveBeenCalled();
+			expect(GetRenderer).not.toHaveBeenCalled();
 		});
 	});
 
@@ -209,7 +212,7 @@ describe('createRenderContext', () => {
 
 			await renderContext.renderPartial(ViewFn, props, options);
 
-			expect(InitializeRenderer).toHaveBeenCalled();
+			expect(GetRenderer).toHaveBeenCalled();
 			expect(RenderToResponse).toHaveBeenCalledWith(ViewFn, props, {
 				partial: true,
 				status: 200,

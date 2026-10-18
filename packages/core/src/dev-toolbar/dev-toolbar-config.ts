@@ -1,4 +1,5 @@
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import { isEcopagesEnvDisabled } from '../env.ts';
 import { getDevToolbarPackageSpec } from './dev-toolbar-package.ts';
 
 export type DevToolbarConfig = {
@@ -24,17 +25,13 @@ export type DevToolbarConfig = {
  */
 export function isDevToolbarEnabled(
 	appConfig: Pick<EcoPagesAppConfig, 'devToolbar'>,
-	options: { watch: boolean; hostOwnsDevClient?: boolean },
+	options: { watch: boolean },
 ): boolean {
-	if (options.hostOwnsDevClient) {
-		return false;
-	}
-
 	if (!options.watch) {
 		return false;
 	}
 
-	if (process.env.ECOPAGES_DEV_TOOLBAR === 'false') {
+	if (isEcopagesEnvDisabled('ECOPAGES_DEV_TOOLBAR')) {
 		return false;
 	}
 

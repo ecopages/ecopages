@@ -5,7 +5,6 @@
 
 import type {
 	EcoComponent,
-	EcoDeclaredComponent,
 	EcoHtmlComponent,
 	EcoLayoutComponent,
 	EcoPagesElement,
@@ -16,8 +15,8 @@ import type {
 	GetStaticProps,
 	RequestLocals,
 	RequestPageContext,
-} from '../types/public-types.ts';
-import type { CacheStrategy } from '../services/cache/cache.types.ts';
+} from '../types/contracts.ts';
+import type { CacheStrategy } from '../page-cache/cache.types.ts';
 import type {
 	ComponentOptions,
 	Eco,
@@ -28,15 +27,15 @@ import type {
 	PagePropsFor,
 	PagePropsForWithLocals,
 	PageRequires,
-} from './eco.types.ts';
+} from '../types/eco-api-types.ts';
 import {
 	finalizeComponentRender,
 	getComponentRenderContext,
 	interceptForeignChild,
-} from '../route-renderer/orchestration/foreign-child/component-render-context.ts';
-import { isThenable } from '../route-renderer/orchestration/foreign-child/foreign-child-output.utils.ts';
+} from './component-render-context.ts';
+import { isThenable } from './component-render-output.ts';
 import { applyPageLayoutConfig, mergeLayoutDependencies, normalizePageLayouts } from './page-layout-normalization.ts';
-import { getComponentIdentity } from './component-identity.ts';
+import { getComponentIdentity, getComponentOwner } from './component-identity.ts';
 import { attachDiscoveredDependencies } from './discovered-dependencies.ts';
 
 /**
@@ -53,9 +52,9 @@ import { attachDiscoveredDependencies } from './discovered-dependencies.ts';
  * @param options Component options for rendering and dependency declaration.
  * @returns Configured eco component.
  */
-function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoDeclaredComponent<P, E> {
-	const integrationName = options.integration ?? options.identity?.integration;
-	const comp: EcoDeclaredComponent<P, E> = ((props: P) => {
+function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
+	const integrationName = getComponentOwner(options);
+	const comp: EcoComponent<P, E> = ((props: P) => {
 		const componentProps = (props ?? {}) as Record<string, unknown>;
 		const renderInline = (nextProps: P = props) => finalizeComponentRender(comp, options.render(nextProps)) as E;
 		const activeRenderContext = getComponentRenderContext();
@@ -95,7 +94,7 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoDecla
 		}
 
 		return renderInline();
-	}) as EcoDeclaredComponent<P, E>;
+	}) as EcoComponent<P, E>;
 
 	comp.config = {
 		identity: options.identity,
@@ -113,7 +112,7 @@ function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoDecla
  * @param options Component definition options.
  * @returns Eco component function.
  */
-function component<P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>): EcoDeclaredComponent<P, E> {
+function component<P = {}, E = EcoPagesElement>(options: ComponentOptions<P, E>): EcoComponent<P, E> {
 	return createComponentFactory(options);
 }
 
@@ -141,7 +140,7 @@ function embed<P extends Record<string, unknown>, R>(
 ): R {
 	const activeRenderContext = getComponentRenderContext();
 	const ecoComponent = component as unknown as EcoComponent<P, R>;
-	const targetIntegration = ecoComponent.config?.integration ?? getComponentIdentity(ecoComponent)?.integration;
+	const targetIntegration = getComponentOwner(ecoComponent);
 	const componentFile = getComponentIdentity(ecoComponent)?.file ?? 'unknown component';
 	const nextProps = (children === undefined ? props : { ...props, children }) as P;
 

@@ -64,22 +64,30 @@ function getLinkIneligibilityReason(
 }
 
 /**
- * Returns whether an href only adds a hash fragment on the current page.
+ * Returns whether an href targets the current origin, pathname, and query.
+ *
+ * @remarks
+ * Fragments are ignored because they scroll within the current page and do not
+ * require fetching another document.
  */
-export function isSamePageHashNavigationHref(href: string): boolean {
+export function isSamePageHref(href: string, currentHref: string = window.location.href): boolean {
 	if (!href) {
 		return false;
 	}
 
-	const currentUrl = new URL(window.location.href);
+	const currentUrl = new URL(currentHref, typeof window === 'undefined' ? 'http://localhost/' : window.location.href);
 	const targetUrl = new URL(href, currentUrl);
 
 	return (
 		targetUrl.origin === currentUrl.origin &&
-		targetUrl.hash.length > 0 &&
 		targetUrl.pathname === currentUrl.pathname &&
 		targetUrl.search === currentUrl.search
 	);
+}
+
+/** Returns whether an href adds a fragment to the current page. */
+export function isSamePageHashNavigationHref(href: string): boolean {
+	return new URL(href, window.location.href).hash.length > 0 && isSamePageHref(href);
 }
 
 /**
@@ -136,14 +144,7 @@ export function shouldPrefetchLink(link: HTMLAnchorElement, options: LinkNavigat
 	}
 
 	const href = link.getAttribute('href')!;
-	try {
-		const url = new URL(href, window.location.origin);
-		const currentPath = window.location.pathname + window.location.search;
-		const targetPath = url.pathname + url.search;
-		return currentPath !== targetPath;
-	} catch {
-		return false;
-	}
+	return !isSamePageHref(href);
 }
 
 /**
@@ -159,27 +160,4 @@ export function isHtmlPageResponse(response: Response): boolean {
 
 	const normalized = contentType.split(';')[0]?.trim().toLowerCase() ?? '';
 	return normalized === 'text/html' || normalized === 'application/xhtml+xml';
-}
-
-/**
- * @remarks
- * Servers should send `text/html`. When the type is missing or the runtime
- * defaults to `text/plain` (common in tests), a document-shaped body is accepted.
- */
-export async function assertHtmlPageResponse(response: Response): Promise<void> {
-	if (isHtmlPageResponse(response)) {
-		return;
-	}
-
-	const contentType = response.headers.get('Content-Type');
-	const normalized = contentType?.split(';')[0]?.trim().toLowerCase() ?? '';
-
-	if (normalized === 'text/plain' || normalized === '') {
-		const sample = (await response.clone().text()).trimStart();
-		if (sample.startsWith('<')) {
-			return;
-		}
-	}
-
-	throw new Error(`Expected HTML page response, received ${contentType ?? 'unknown content type'}`);
 }

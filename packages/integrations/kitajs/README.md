@@ -15,15 +15,10 @@ bun add @ecopages/kitajs @kitajs/html @kitajs/ts-html-plugin
 Import and register the `kitajsPlugin` in your `eco.config.ts`.
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { kitajsPlugin } from '@ecopages/kitajs';
 
-const config = await new ConfigBuilder()
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-	.setIntegrations([kitajsPlugin()])
-	.build();
-
-export default config;
+export default defineConfig({ integrations: [kitajsPlugin()] });
 ```
 
 ## What This Integration Owns
@@ -31,6 +26,8 @@ export default config;
 - `.kita.tsx` route files.
 - Page, layout, and document shells rendered by `@kitajs/html`.
 - HTML-first outer shells that host nested foreign subtrees from other integrations.
+
+The default renderer uses core's `createIntegrationRenderer()` factory. Core owns the common route and document-shell pipeline; add hooks for Kita-specific behavior, and subclass only when the hook API cannot express a needed capability.
 
 ## Mixed Rendering
 

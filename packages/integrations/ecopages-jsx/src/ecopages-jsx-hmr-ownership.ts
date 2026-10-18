@@ -18,8 +18,8 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { rapidhash } from '@ecopages/core/hash';
-import { collectComponentConfigFilePaths } from '@ecopages/core/route-renderer/page-loading/file-scoped-dependency-components';
+import { contentHash } from '@ecopages/core/build';
+import { collectComponentConfigFilePaths } from '@ecopages/core/integration';
 import type { EcoComponent } from '@ecopages/core';
 
 export type EjsxHmrOwnershipState = {
@@ -41,21 +41,6 @@ const pendingFileOwners = new AsyncLocalStorage<Set<string>>();
  */
 export function getEjsxHmrOwnership(): EjsxHmrOwnershipState {
 	return currentState;
-}
-
-/**
- * Updates the active render tree from one or more root components.
- *
- * @remarks
- * Walks each root through `getComponentIdentity`, `config.dependencies.components[*].config`,
- * and `config.layouts[*].config` recursively, collecting every file path. The
- * state is replaced only when the resulting file set has a different hash, so
- * the renderer's per-render hook is free in the steady state.
- */
-export function updateEjsxHmrOwnership(
-	components: ReadonlyArray<EcoComponent | Partial<EcoComponent> | undefined>,
-): void {
-	publishEjsxHmrOwnership(collectFileOwners(components));
 }
 
 /**
@@ -98,13 +83,6 @@ export function recordEjsxHmrOwnership(components: ReadonlyArray<EcoComponent | 
 	}
 }
 
-/**
- * Resets the state to empty. Used by tests and by HMR manager teardown.
- */
-export function resetEjsxHmrOwnership(): void {
-	currentState = EMPTY_STATE;
-}
-
 function publishEjsxHmrOwnership(files: ReadonlySet<string>): void {
 	const hash = hashFileSet(files);
 
@@ -129,5 +107,5 @@ function hashFileSet(files: ReadonlySet<string>): string {
 
 	const sorted = Array.from(files).sort();
 	const joined = sorted.join('\n');
-	return rapidhash(joined).toString(36);
+	return BigInt(`0x${contentHash(joined, 16)}`).toString(36);
 }

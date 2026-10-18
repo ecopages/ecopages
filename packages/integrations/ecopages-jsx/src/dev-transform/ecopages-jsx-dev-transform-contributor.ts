@@ -1,5 +1,5 @@
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import type { DevTransformBundleContributor } from '@ecopages/core/dev/transform-server';
+import type { EcoBuildPlugin } from '@ecopages/core/integration';
+import type { DevTransformBundleContributor } from '@ecopages/core/integration';
 import type { EcopagesJsxHmrStrategy } from '../ecopages-jsx-hmr-strategy.ts';
 
 export type EcopagesJsxDevTransformContributorOptions = {

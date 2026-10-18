@@ -4,10 +4,12 @@ PostCSS processing pipeline for Ecopages. It provides a processor plugin that se
 
 ## Features
 
-- **Ecopages Processor Plugin**: Hook right into the build pipeline.
+Build contributions use one `plugins(app)` method. The PostCSS plugin list loads on the first stylesheet transform. Browser-specific CSS hooks declare `environments: ['browser']`; runtime CSS hooks remain available to both environments.
+
+- **Ecopages Processor Plugin**: Hook right into the build pipeline. In production, processed CSS is persisted under a name derived from a hash of the output bytes.
 - **Tailwind Presets**: Pre-configured pipelines for Tailwind CSS v3 and v4.
 - **Automatic Configuration**: Detects existing `postcss.config.{js,ts,etc}`.
-- **Bun Loader**: Registers a Bun loader for importing CSS in TS/JS files.
+- **CSS imports**: A server build plugin turns CSS imported from TS/JS files into the processed CSS string.
 
 ## Installation
 
@@ -26,21 +28,19 @@ Requires `@tailwindcss/postcss` and `tailwindcss` to be installed.
 ```typescript
 // eco.config.ts
 import path from 'node:path';
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
 
-const config = await new ConfigBuilder()
-	.setProcessors([
+export default defineConfig({
+	processors: [
 		postcssProcessorPlugin(
 			tailwindV4Preset({
 				referencePath: path.resolve(import.meta.dirname, 'src/styles/app.css'),
 			}),
 		),
-	])
-	.build();
-
-export default config;
+	],
+});
 ```
 
 ### Tailwind v3 Preset
@@ -49,13 +49,11 @@ Requires `tailwindcss@3`, `autoprefixer`, `postcss-import`, and `cssnano` to be 
 
 ```typescript
 // eco.config.ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import { tailwindV3Preset } from '@ecopages/postcss-processor/presets/tailwind-v3';
 
-const config = await new ConfigBuilder().setProcessors([postcssProcessorPlugin(tailwindV3Preset())]).build();
-
-export default config;
+export default defineConfig({ processors: [postcssProcessorPlugin(tailwindV3Preset())] });
 ```
 
 ## Custom Configuration
@@ -65,12 +63,12 @@ To use your own `postcss.config.js`, simply call `postcssProcessorPlugin()` with
 You can also pass raw plugins or transformation hooks manually:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
 import myPlugin from 'postcss-my-plugin';
 
-const config = await new ConfigBuilder()
-	.setProcessors([
+export default defineConfig({
+	processors: [
 		postcssProcessorPlugin({
 			filter: /\.css$/,
 			plugins: {
@@ -79,10 +77,8 @@ const config = await new ConfigBuilder()
 			transformInput: async (css) => `/* Header */\n${css}`,
 			transformOutput: async (css) => css.replace('blue', 'red'),
 		}),
-	])
-	.build();
-
-export default config;
+	],
+});
 ```
 
 ## Standalone Processing

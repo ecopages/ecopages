@@ -3,18 +3,26 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { compile } from '@mdx-js/mdx';
-import type {
-	EcoBuildOnLoadArgs,
-	EcoBuildOnLoadResult,
-	EcoBuildPluginBuilder,
-} from '@ecopages/core/plugins/integration-plugin';
-import { createMdxLoaderPlugin } from '../mdx-loader-plugin.ts';
-import { resolveMdxCompilerOptions } from '../core/mdx-utils.ts';
+import sourceMap from 'source-map';
+import { createRequestPipelineMetricsState } from '@ecopages/core/build';
+import type { EcoBuildOnLoadArgs, EcoBuildOnLoadResult, EcoBuildPluginBuilder } from '@ecopages/core/integration';
+import {
+	createMdxLoaderPlugin as createMdxLoaderPluginWithMetrics,
+	type MdxLoaderPluginOptions,
+} from '../mdx-loader-plugin.ts';
+import { resolveMdxCompilerOptions, type MdxCompilerOptionsInput } from '../core/mdx-utils.ts';
 
 vi.mock('@mdx-js/mdx', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('@mdx-js/mdx')>();
 	return { ...actual, compile: vi.fn(actual.compile) };
 });
+
+function createMdxLoaderPlugin(options: Omit<MdxLoaderPluginOptions, 'requestPipelineMetrics'>) {
+	return createMdxLoaderPluginWithMetrics({
+		...options,
+		requestPipelineMetrics: createRequestPipelineMetricsState(),
+	});
+}
 
 function createBuilderHarness() {
 	let onLoadCallback:
@@ -29,6 +37,7 @@ function createBuilderHarness() {
 			onLoadCallback = callback;
 		},
 		module() {},
+		transform() {},
 	};
 
 	return {
@@ -250,6 +259,44 @@ describe('createMdxLoaderPlugin', () => {
 		expect(compile).toHaveBeenCalledTimes(2);
 	});
 
+	it('applies one shared top-level remark plugin once in both React and JSX pipelines', async () => {
+		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-plugin-options-'));
+		tempDirs.push(tempDir);
+
+		const filePath = path.join(tempDir, 'page.mdx');
+		writeFileSync(filePath, '# Hello\n');
+
+		let pluginRuns = 0;
+		const mdxOptions = {
+			remarkPlugins: [
+				function countRemarkRuns() {
+					return () => {
+						pluginRuns += 1;
+					};
+				},
+			],
+		} satisfies MdxCompilerOptionsInput;
+		for (const jsxImportSource of ['react', '@ecopages/jsx'] as const) {
+			const compilerOptions = resolveMdxCompilerOptions(mdxOptions, { jsxImportSource });
+			const { builder, getOnLoadCallback } = createBuilderHarness();
+			createMdxLoaderPlugin({ projectRoot: tempDir, compilerOptions }).setup(builder);
+			await getOnLoadCallback()({ path: filePath });
+		}
+
+		expect(pluginRuns).toBe(2);
+		expect(compile).toHaveBeenCalledTimes(2);
+	});
+
+	it('rejects plugin lists inside a shared compilerOptions variable', () => {
+		const compilerOptionsWithPlugins = { remarkPlugins: [] };
+		const mdxOptions = {
+			// @ts-expect-error Shared options allow plugin lists only at the top level.
+			compilerOptions: compilerOptionsWithPlugins,
+		} satisfies MdxCompilerOptionsInput;
+
+		expect(mdxOptions.compilerOptions).toBe(compilerOptionsWithPlugins);
+	});
+
 	it('discovers component and CSS imports and strips bare CSS in compiled MDX', async () => {
 		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-deps-'));
 		tempDirs.push(tempDir);
@@ -295,6 +342,34 @@ describe('createMdxLoaderPlugin', () => {
 		expect(result?.contents).toContain('post.css');
 		expect(result?.contents).not.toContain('ignored.css"]');
 		expect(result?.contents).toContain("import './ignored.css';");
+		expect(result?.contents).not.toContain('sourceMappingURL=');
+		const code = result?.contents as string;
+		const contentColumn = code.indexOf('Post Title');
+		const codeBeforePosition = code.slice(0, contentColumn);
+		const serializedMap = JSON.stringify(result?.map);
+		expect(serializedMap).toBeDefined();
+		const original = await sourceMap.SourceMapConsumer.with(serializedMap!, null, (consumer) =>
+			consumer.originalPositionFor({
+				line: codeBeforePosition.split('\n').length,
+				column: contentColumn - codeBeforePosition.lastIndexOf('\n') - 1,
+			}),
+		);
+		expect(original).toMatchObject({ line: 4, source: expect.stringContaining('post.mdx') });
+		expect(result?.map).toMatchObject({ sourcesContent: [expect.stringContaining('Post Title')] });
+	});
+
+	it('omits maps when includeSourceMap is disabled', async () => {
+		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-no-map-'));
+		tempDirs.push(tempDir);
+
+		const filePath = path.join(tempDir, 'page.mdx');
+		writeFileSync(filePath, '# Hello\n');
+		const { builder, getOnLoadCallback } = createBuilderHarness();
+		createMdxLoaderPlugin({ projectRoot: tempDir, includeSourceMap: false }).setup(builder);
+
+		const result = await getOnLoadCallback()({ path: filePath });
+
+		expect(result?.map).toBeUndefined();
 	});
 
 	it('re-runs discovery and reflects imported child changes even when MDX compile is cache-hit', async () => {
@@ -331,9 +406,33 @@ describe('createMdxLoaderPlugin', () => {
 		expect(secondResult?.contents).toContain('components: () => [Child]');
 	});
 
+	it('keys the loader identity on the options that change its output', () => {
+		const tempDir = mkdtempSync(path.join(os.tmpdir(), 'ecopages-mdx-loader-'));
+		tempDirs.push(tempDir);
+		function remarkNamed() {}
+		const withPlugin = { projectRoot: tempDir, compilerOptions: { remarkPlugins: [remarkNamed] } };
+
+		expect(createMdxLoaderPlugin(withPlugin).cacheKey).toBe(createMdxLoaderPlugin(withPlugin).cacheKey);
+		expect(createMdxLoaderPlugin({ projectRoot: tempDir }).cacheKey).not.toBe(
+			createMdxLoaderPlugin(withPlugin).cacheKey,
+		);
+		expect(createMdxLoaderPlugin({ projectRoot: tempDir }).cacheKey).not.toBe(
+			createMdxLoaderPlugin({ projectRoot: tempDir, includeSourceMap: false }).cacheKey,
+		);
+		expect(createMdxLoaderPlugin({ projectRoot: tempDir }).cacheKey).not.toBe(
+			createMdxLoaderPlugin({ projectRoot: tempDir, compilerOptions: { jsxImportSource: 'react' } }).cacheKey,
+		);
+	});
+
 	it('throws if projectRoot is missing when creating the loader plugin', async () => {
 		const { createMdxLoaderPlugin: createCore } = await import('../core/mdx-loader-plugin.ts');
-		expect(() => createCore({ name: 'mdx-loader', projectRoot: '' })).toThrow(/projectRoot is required/);
+		expect(() =>
+			createCore({
+				name: 'mdx-loader',
+				projectRoot: '',
+				requestPipelineMetrics: createRequestPipelineMetricsState(),
+			}),
+		).toThrow(/projectRoot is required/);
 		expect(() => createMdxLoaderPlugin({ projectRoot: '' })).toThrow(/projectRoot is required/);
 	});
 });

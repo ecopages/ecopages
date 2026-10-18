@@ -5,13 +5,14 @@ import {
 	type EcoComponent,
 	type EcoComponentConfig,
 } from '@ecopages/core';
-import { attachEcoFileMetadataToConfig } from '@ecopages/core/route-renderer/page-loading/file-scoped-dependency-components';
+import { attachEcoFileMetadataToConfig } from '@ecopages/core/integration';
 import {
 	AssetFactory,
+	type AssetProcessingIntegration,
 	type AssetDefinition,
 	type AssetProcessingService,
 	type ProcessedAsset,
-} from '@ecopages/core/services/asset-processing-service';
+} from '@ecopages/core/integration';
 import { collectFromConfigForest, getComponentConfigs } from '../client-graph/component-config-traversal.ts';
 import type { PageModuleService } from '../page/page-module.ts';
 
@@ -20,7 +21,8 @@ type MdxConfigDependencyProcessor = (components: Partial<EcoComponent>[]) => Pro
 export interface MdxConfigDependencyServiceConfig {
 	integrationName: string;
 	pageModuleService: Pick<PageModuleService, 'ensureConfigFileMetadata'>;
-	assetProcessingService?: Pick<AssetProcessingService, 'processDependencies'>;
+	assetProcessingService: Pick<AssetProcessingService, 'processDependencies'>;
+	assetProcessingIntegration?: AssetProcessingIntegration;
 }
 
 /**
@@ -52,7 +54,7 @@ export class MdxConfigDependencyService {
 		}
 
 		const processedDependencies = await options.processComponentDependencies(components);
-		const eagerSsrLazyDependencies = await this.processDeclaredSsrLazyDependencies(components, options.pagePath);
+		const eagerSsrLazyDependencies = await this.processDeclaredSsrLazyDependencies(components);
 
 		return [...processedDependencies, ...eagerSsrLazyDependencies];
 	}
@@ -79,14 +81,7 @@ export class MdxConfigDependencyService {
 		return components;
 	}
 
-	private async processDeclaredSsrLazyDependencies(
-		components: Partial<EcoComponent>[],
-		pagePath: string,
-	): Promise<ProcessedAsset[]> {
-		if (!this.config.assetProcessingService?.processDependencies) {
-			return [];
-		}
-
+	private async processDeclaredSsrLazyDependencies(components: Partial<EcoComponent>[]): Promise<ProcessedAsset[]> {
 		const dependencies = this.collectDeclaredSsrLazyDependencies(components);
 		if (dependencies.length === 0) {
 			return [];
@@ -94,7 +89,7 @@ export class MdxConfigDependencyService {
 
 		return this.config.assetProcessingService.processDependencies(
 			dependencies,
-			`${this.config.integrationName}-mdx-ssr-lazy:${pagePath}`,
+			this.config.assetProcessingIntegration,
 		);
 	}
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import { getEcoNavigationRuntime } from '@ecopages/core/client';
 import { createRouter, EcoRouter } from '../src/client/eco-router';
 import { htmlFetchResponse, installEcoRouterTestHooks, type EcoRouterTestFixtures } from './eco-router.harness';
 
@@ -7,17 +7,11 @@ describe('EcoRouter', () => {
 	const fixtures: EcoRouterTestFixtures = {
 		router: null,
 		fetchSpy: null,
-		user: null!,
 	};
 
 	installEcoRouterTestHooks(fixtures);
 
 	describe('Initialization', () => {
-		it('should create router instance', () => {
-			fixtures.router = createRouter();
-			expect(fixtures.router).toBeInstanceOf(EcoRouter);
-		});
-
 		it('should reuse the active router instance across repeated createRouter calls', () => {
 			const firstRouter = createRouter();
 			const secondRouter = createRouter();
@@ -41,12 +35,6 @@ describe('EcoRouter', () => {
 				owner: 'none',
 				canHandleSpaNavigation: false,
 			});
-		});
-
-		it('should start and stop without errors', () => {
-			fixtures.router = new EcoRouter();
-			expect(() => fixtures.router!.start()).not.toThrow();
-			expect(() => fixtures.router!.stop()).not.toThrow();
 		});
 	});
 

@@ -2,11 +2,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import type {
-	EcoBuildOnLoadArgs,
-	EcoBuildOnLoadResult,
-	EcoBuildPluginBuilder,
-} from '@ecopages/core/plugins/integration-plugin';
+import { createRequestPipelineMetricsState } from '@ecopages/core/build';
+import type { EcoBuildOnLoadArgs, EcoBuildOnLoadResult, EcoBuildPluginBuilder } from '@ecopages/core/integration';
 import { createMdxLoaderPlugin, normalizeMdxPageModule, resolveMdxCompilerOptions } from '../ecopages-jsx-mdx.ts';
 
 function createBuilderHarness() {
@@ -20,6 +17,7 @@ function createBuilderHarness() {
 			onLoadCallback = callback;
 		},
 		module() {},
+		transform() {},
 	};
 
 	return {
@@ -58,11 +56,12 @@ describe('ecopages-jsx-mdx', () => {
 			["import { Child } from './child';", "import './style.css';", '', '# JSX MDX'].join('\n'),
 		);
 
-		const compilerOptions = resolveMdxCompilerOptions({ enabled: true });
+		const compilerOptions = resolveMdxCompilerOptions({});
 		const plugin = createMdxLoaderPlugin({
 			compilerOptions,
 			extensions: ['.mdx'],
 			projectRoot: tempDir,
+			requestPipelineMetrics: createRequestPipelineMetricsState(),
 		});
 
 		const { builder, getOnLoadCallback } = createBuilderHarness();

@@ -8,7 +8,7 @@ import type {
 	EcoBuildOnResolveArgs,
 	EcoBuildOnResolveResult,
 	EcoBuildPluginBuilder,
-} from '@ecopages/core/plugins/integration-plugin';
+} from '@ecopages/core/integration';
 import { createReactDomRuntimeInteropPlugin } from './runtime-interop-plugin.ts';
 
 type OnLoadRegistration = {
@@ -36,6 +36,7 @@ function createPluginHarness() {
 			onLoadRegistrations.push({ options, callback });
 		},
 		module: (_specifier, _callback) => {},
+		transform: () => {},
 	};
 
 	const plugin = createReactDomRuntimeInteropPlugin();
@@ -64,10 +65,7 @@ describe('createReactDomRuntimeInteropPlugin', () => {
 			const result = await reactDomLoader.callback({ path: filePath });
 
 			expect(result).toBeDefined();
-			expect(result).toMatchObject({
-				loader: 'js',
-				resolveDir: path.dirname(filePath),
-			});
+			expect(result).toMatchObject({ loader: 'js' });
 			expect(result?.contents).toContain("import * as __ecopages_react_runtime from 'react';");
 			expect(result?.contents).toContain('var React = __ecopages_react_runtime;');
 		} finally {
@@ -108,6 +106,7 @@ describe('createReactDomRuntimeInteropPlugin', () => {
 					onLoadRegistrations.push({ options, callback });
 				},
 				module: (_specifier, _callback) => {},
+				transform: () => {},
 			});
 
 			const loader = onLoadRegistrations.find(({ options }) => options.filter.test('/tmp/react-dom/index.js'));

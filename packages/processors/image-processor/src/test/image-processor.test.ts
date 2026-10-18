@@ -1,5 +1,6 @@
-import { afterAll, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import sharp from 'sharp';
@@ -17,10 +18,19 @@ async function createTestImage(width: number, height: number, filepath: string):
 	}).toFile(filepath);
 }
 
-const testDir = path.join(__dirname, '__fixtures__');
-const testImage = path.join(testDir, 'images/test.jpg');
+let testDir: string;
+let testImage: string;
 
-function createProcessor(config: Partial<ImageProcessorConfig> = {}): ImageProcessor {
+function createProcessor(
+	config: Partial<ImageProcessorConfig> = {},
+	cacheManager: {
+		readCache: <T>(key: string) => Promise<T | null>;
+		writeCache: <T>(key: string, data: T) => Promise<void>;
+	} = {
+		readCache: async () => null,
+		writeCache: async () => {},
+	},
+): ImageProcessor {
 	const defaultConfig: ImageProcessorConfig = {
 		sourceDir: path.join(testDir, 'images'),
 		outputDir: path.join(testDir, 'optimized'),
@@ -34,26 +44,18 @@ function createProcessor(config: Partial<ImageProcessorConfig> = {}): ImageProce
 		{
 			...defaultConfig,
 			...config,
-			cacheManager: {
-				readCache: async () => null,
-				writeCache: async () => {},
-			},
+			cacheManager,
 		} as ImageProcessorConfig,
-		{
-			readCache: async () => null,
-			writeCache: async () => {},
-		},
+		cacheManager,
 	);
 }
 
 describe('ImageProcessor', () => {
 	beforeEach(async () => {
+		testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'image-processor-test-'));
+		testImage = path.join(testDir, 'images/test.jpg');
 		const imagesDir = path.join(testDir, 'images');
 		const optimizedDir = path.join(testDir, 'optimized');
-
-		if (fs.existsSync(testDir)) {
-			fs.rmSync(testDir, { recursive: true, force: true });
-		}
 
 		fs.mkdirSync(imagesDir, { recursive: true });
 		fs.mkdirSync(optimizedDir, { recursive: true });
@@ -61,10 +63,8 @@ describe('ImageProcessor', () => {
 		await createTestImage(1920, 1080, testImage);
 	});
 
-	afterAll(() => {
-		if (fs.existsSync(testDir)) {
-			fs.rmSync(testDir, { recursive: true, force: true });
-		}
+	afterEach(() => {
+		fs.rmSync(testDir, { recursive: true, force: true });
 	});
 
 	test('processes single image with default configuration', async () => {
@@ -131,9 +131,7 @@ describe('ImageProcessor', () => {
 		const processor = createProcessor();
 		const imageMap = await processor.processDirectory();
 
-		expect(Object.keys(imageMap)).toHaveLength(2);
-		expect(imageMap['test.jpg']).toBeDefined();
-		expect(imageMap['test2.jpg']).toBeDefined();
+		expect(Object.keys(imageMap).sort()).toEqual(['test.jpg', 'test2.jpg']);
 	});
 
 	test('handles empty sizes configuration', async () => {
@@ -152,5 +150,28 @@ describe('ImageProcessor', () => {
 		const result = await processor.processImage(invalidImage);
 
 		expect(result).toBeNull();
+	});
+
+	test('quality 50 then 90 in the same output directory writes different names and bytes', async () => {
+		const cache = new Map<string, unknown>();
+		const cacheManager = {
+			readCache: async <T>(key: string) => (cache.has(key) ? (cache.get(key) as T) : null),
+			writeCache: async <T>(key: string, data: T) => {
+				cache.set(key, data);
+			},
+		};
+		const outputDir = path.join(testDir, 'optimized');
+		const first = await createProcessor({ quality: 50, cacheEnabled: true }, cacheManager).processImage(testImage);
+		const second = await createProcessor({ quality: 90, cacheEnabled: true }, cacheManager).processImage(testImage);
+
+		expect(first).not.toBeNull();
+		expect(second).not.toBeNull();
+		expect(second?.attributes.src).not.toBe(first?.attributes.src);
+		expect(path.basename(first!.attributes.src)).toMatch(/^[a-f0-9]{16}\.webp$/);
+		expect(path.basename(second!.attributes.src)).toMatch(/^[a-f0-9]{16}\.webp$/);
+
+		const firstBytes = fs.readFileSync(path.join(outputDir, path.basename(first!.attributes.src)));
+		const secondBytes = fs.readFileSync(path.join(outputDir, path.basename(second!.attributes.src)));
+		expect(firstBytes.equals(secondBytes)).toBe(false);
 	});
 });

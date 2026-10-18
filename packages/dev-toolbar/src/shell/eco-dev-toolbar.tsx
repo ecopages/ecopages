@@ -1,6 +1,14 @@
 /** @jsxImportSource @ecopages/jsx */
 import '@ecopages/radiant/client/install-hydrator';
+import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/client';
+import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/client';
 import { RadiantElement } from '@ecopages/radiant';
+import {
+	BUILD_ERROR_EVENT,
+	BUILD_ERROR_CLEAR_EVENT,
+	BUILD_ERROR_REQUEST_EVENT,
+	type BuildErrorDetail,
+} from '../api/build-error-contract.ts';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { onUpdated } from '@ecopages/radiant/decorators/on-updated';
 import { query } from '@ecopages/radiant/decorators/query';
@@ -28,6 +36,7 @@ import type { EcoDevToolbarNavigation } from '../apps/navigation-panel.tsx';
 import { subscribeToNavigationEvents } from '../runtime/navigation-events.ts';
 
 const BUILT_IN_APPS = [
+	{ id: 'build-errors', label: 'Build errors' },
 	{ id: 'navigation', label: 'Navigation' },
 	{ id: 'deps', label: 'Deps' },
 	{ id: 'islands', label: 'Islands' },
@@ -48,6 +57,7 @@ export class EcoDevToolbar extends RadiantElement {
 	@state badges: Record<string, DevToolbarBadge | undefined> = {};
 	@state loadingApps: Record<string, boolean> = {};
 	@state mountedAppIds: string[] = [];
+	@state buildErrors: string[] = [];
 	/** Optional dock apps from the reference-toolbar internal registry (`window.__ECO_DEV_TOOLBAR_APPS__`). */
 	@state extensionApps: Array<{ id: string; label: string }> = [];
 
@@ -96,7 +106,7 @@ export class EcoDevToolbar extends RadiantElement {
 		let host = document.querySelector<EcoDevToolbar>(DEV_TOOLBAR_ELEMENT_NAME);
 		if (!host) {
 			host = document.createElement(DEV_TOOLBAR_ELEMENT_NAME) as EcoDevToolbar;
-			host.setAttribute('data-eco-persist', DEV_TOOLBAR_PERSIST_KEY);
+			host.setAttribute(ECO_PERSIST_ATTRIBUTE, DEV_TOOLBAR_PERSIST_KEY);
 			document.documentElement.append(host);
 		}
 
@@ -117,9 +127,15 @@ export class EcoDevToolbar extends RadiantElement {
 		if (this.stealthEnabled) {
 			this.stealthController.setPhase('hidden');
 		}
+		this.handleBuildErrorClear();
+		window.addEventListener(BUILD_ERROR_EVENT, this.handleBuildError);
+		window.addEventListener(BUILD_ERROR_CLEAR_EVENT, this.handleBuildErrorClear);
+		window.dispatchEvent(new Event(BUILD_ERROR_REQUEST_EVENT));
 	}
 
 	override disconnectedCallback(): void {
+		window.removeEventListener(BUILD_ERROR_EVENT, this.handleBuildError);
+		window.removeEventListener(BUILD_ERROR_CLEAR_EVENT, this.handleBuildErrorClear);
 		this.unwireDocumentListeners();
 		this.stealthController.clearTimers();
 		this.navigationLoading.clear();
@@ -235,17 +251,17 @@ export class EcoDevToolbar extends RadiantElement {
 		document.addEventListener('click', this.handleOutsideClick, true);
 		this.unsubscribeNavigationEvents = subscribeToNavigationEvents(
 			document,
-			['eco:before-swap'],
+			[ECO_NAVIGATION_LIFECYCLE_EVENTS.BEFORE_SWAP],
 			this.handleNavigationStart,
 		);
 		const unsubscribeNavigationEnd = subscribeToNavigationEvents(
 			document,
-			['eco:after-swap', 'eco:page-load'],
+			[ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP, ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD],
 			this.handleNavigationEnd,
 		);
 		const unsubscribeRouteChange = subscribeToNavigationEvents(
 			document,
-			['eco:after-swap', 'eco:page-load'],
+			[ECO_NAVIGATION_LIFECYCLE_EVENTS.AFTER_SWAP, ECO_NAVIGATION_LIFECYCLE_EVENTS.PAGE_LOAD],
 			this.handleRouteChange,
 		);
 		const unsubscribeExisting = this.unsubscribeNavigationEvents;
@@ -267,6 +283,21 @@ export class EcoDevToolbar extends RadiantElement {
 		this.unsubscribeNavigationEvents = undefined;
 		this.documentListenersWired = false;
 	}
+
+	private readonly handleBuildError = (event: Event) => {
+		const { message } = (event as CustomEvent<BuildErrorDetail>).detail;
+		if (typeof message !== 'string') return;
+		event.preventDefault();
+		if (!this.buildErrors.includes(message)) this.buildErrors = [...this.buildErrors, message];
+		this.setAppBadge('build-errors', { count: this.buildErrors.length, severity: 'error' });
+		this.openApp('build-errors');
+	};
+
+	private readonly handleBuildErrorClear = () => {
+		this.buildErrors = [];
+		this.setAppBadge('build-errors', undefined);
+		if (this.activeAppId === 'build-errors') this.closePanel();
+	};
 
 	private readonly handleOutsideClick = (event: MouseEvent) => {
 		if (!this.panelOpen || event.composedPath().includes(this)) {
@@ -323,6 +354,12 @@ export class EcoDevToolbar extends RadiantElement {
 	private renderAppIcon(appId: string) {
 		const loading = this.loadingApps[appId] === true;
 		switch (appId) {
+			case 'build-errors':
+				return (
+					<span class="eco-dev-toolbar__icon-text" aria-hidden="true">
+						!
+					</span>
+				);
 			case 'navigation':
 				return <NavigationIcon loading={loading} />;
 			case 'deps':
@@ -369,6 +406,24 @@ export class EcoDevToolbar extends RadiantElement {
 		const visible = this.panelOpen && this.activeAppId === appId;
 
 		switch (appId) {
+			case 'build-errors':
+				return (
+					<div key={appId} class="eco-dev-toolbar__panel-slot" hidden={!visible}>
+						<section class="eco-dev-toolbar__panel" aria-label="Build errors">
+							<h2>Build errors</h2>
+							<div role="alert">
+								{this.buildErrors.map((message) => (
+									<pre key={message} class="eco-dev-toolbar__build-error">
+										{message}
+									</pre>
+								))}
+							</div>
+							{this.buildErrors.length === 0 ? (
+								<p class="eco-dev-toolbar__muted">No build errors.</p>
+							) : null}
+						</section>
+					</div>
+				);
 			case 'navigation':
 				return (
 					<div key={appId} class="eco-dev-toolbar__panel-slot" hidden={!visible}>

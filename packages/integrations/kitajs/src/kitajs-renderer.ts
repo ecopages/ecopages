@@ -3,13 +3,10 @@
  * @module
  */
 
-import { StringMarkupRenderer } from '@ecopages/core/route-renderer/orchestration/string-markup-renderer';
+import { createIntegrationRenderer } from '@ecopages/core/integration';
 import { KITAJS_PLUGIN_NAME } from './kitajs.constants.ts';
 
 /**
- * A renderer for the Kita.js integration.
- * It renders a page using the HtmlTemplate and Page components.
+ * A renderer for the Kita.js integration, backed by core's shared route pipeline.
  */
-export class KitaRenderer extends StringMarkupRenderer {
-	name = KITAJS_PLUGIN_NAME;
-}
+export const KitaRenderer = createIntegrationRenderer(KITAJS_PLUGIN_NAME);

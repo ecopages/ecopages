@@ -1,6 +1,6 @@
-import { createPagePackage, type ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
-import type { PageBrowserGraphResult, PagePackageResult } from '../../../types/public-types.ts';
-import { buildProcessedAssetDedupeKey, dedupeProcessedAssets } from './processed-asset-dedupe.ts';
+import { createPagePackage, type ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
+import type { PageBrowserGraphResult, PagePackageResult } from '../../../types/contracts.ts';
+import { buildProcessedAssetDedupeKey, dedupeProcessedAssets } from '../../../assets/processed-asset-dedupe.ts';
 
 /**
  * Merges a page browser graph into an existing page package (or processed dependencies).

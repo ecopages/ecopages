@@ -1,19 +1,18 @@
-import { describe, expect, test, afterEach } from 'vitest';
+import { beforeEach, describe, expect, test } from 'vitest';
 import { prepareHmrFileChange } from './hmr-file-change-prep.ts';
-import { getAppPageBrowserGraphSession } from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import { requireAppRuntime } from '../utils/app-runtime.ts';
+import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 
-const appConfig = {
-	runtime: {},
-} as unknown as EcoPagesAppConfig;
+let appConfig: EcoPagesAppConfig;
 
-afterEach(() => {
-	getAppPageBrowserGraphSession(appConfig).resetForTests();
+beforeEach(async () => {
+	appConfig = await finalizeEcoPagesConfig({ rootDir: '/app' });
 });
 
 describe('prepareHmrFileChange', () => {
 	test('reports affected graph identities and invalidates dependent records', async () => {
-		const session = getAppPageBrowserGraphSession(appConfig);
+		const session = requireAppRuntime(appConfig).pageBrowserGraphSession;
 		const sharedLayout = '/app/src/layouts/root.tsx';
 
 		await session.resolveGraph(

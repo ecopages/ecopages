@@ -2,19 +2,29 @@ import { createRequire } from '../../../utils/locals-utils.ts';
 import { HttpError } from '../../../errors/http-error.ts';
 import { ApiResponseBuilder } from './api-response.ts';
 import { runMiddlewareChain } from './run-middleware-chain.ts';
-import { matchApiPathPattern, scoreApiPathPattern } from '../../abstract/segment-path-matcher.ts';
+import {
+	matchParsedSegmentPath,
+	parseSegmentPath,
+	scoreSegmentPathPattern,
+	type ParsedSegmentPath,
+} from '../../../router/server/segment-path-matcher.ts';
 import { appLogger } from '../../../global/app-logger.ts';
-import type { SchemaValidationService } from '../../../services/validation/schema-validation-service.ts';
+import { validateRequest } from '../../../validation/validate-request.ts';
+import { parseSearchParams } from '../../../router/server/parse-search-params.ts';
 import type {
 	ApiHandler,
 	ApiHandlerContext,
 	CacheInvalidator,
 	ErrorHandler,
+	PageParams,
+	PageQuery,
 	RenderContext,
-} from '../../../types/public-types.ts';
+} from '../../../types/contracts.ts';
+import type { ApiResponseBuilder as ApiResponseBuilderContract } from '../../../types/api-response.ts';
+
+type ParsedRequestBody = { value: unknown } | { response: Response };
 
 export type ApiRequestPipelineOptions = {
-	schemaValidator: SchemaValidationService;
 	getRenderContext: () => RenderContext;
 	getCacheService: () => CacheInvalidator | null;
 	/**
@@ -29,13 +39,11 @@ export type ApiRequestPipelineOptions = {
 };
 
 export class ApiRequestPipeline<TRequest extends Request = Request, TServer = unknown> {
-	private readonly schemaValidator: SchemaValidationService;
 	private readonly getRenderContext: () => RenderContext;
 	private readonly getCacheService: () => CacheInvalidator | null;
 	private readonly isClientAbort: (error: unknown) => boolean;
 
 	constructor(options: ApiRequestPipelineOptions) {
-		this.schemaValidator = options.schemaValidator;
 		this.getRenderContext = options.getRenderContext;
 		this.getCacheService = options.getCacheService;
 		this.isClientAbort = options.isClientAbort ?? (() => false);
@@ -44,12 +52,14 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 	match(
 		request: TRequest,
 		apiHandlers: ApiHandler<string, TRequest, TServer>[],
-	): { routeConfig: ApiHandler<string, TRequest, TServer>; params: Record<string, string | string[]> } | null {
+		parsedPathSegments?: ParsedSegmentPath,
+	): { routeConfig: ApiHandler<string, TRequest, TServer>; params: PageParams } | null {
 		const pathname = new URL(request.url).pathname;
+		const pathSegments = parsedPathSegments ?? parseSegmentPath(pathname);
 		const method = request.method.toUpperCase();
 
 		const sortedHandlers = [...apiHandlers].sort((a, b) => {
-			return scoreApiPathPattern(b.path) - scoreApiPathPattern(a.path);
+			return scoreSegmentPathPattern(b.path, 'api') - scoreSegmentPathPattern(a.path, 'api');
 		});
 
 		for (const routeConfig of sortedHandlers) {
@@ -58,7 +68,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 				continue;
 			}
 
-			const params = matchApiPathPattern(routeConfig.path, pathname);
+			const params = matchParsedSegmentPath(routeConfig.path, pathSegments, 'api');
 			if (params) {
 				return { routeConfig, params };
 			}
@@ -72,8 +82,17 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 		apiHandlers: ApiHandler<string, TRequest, TServer>[],
 		serverInstance: TServer | undefined,
 		errorHandler?: ErrorHandler<TRequest, TServer>,
+		parsedPathSegments?: ParsedSegmentPath,
 	): Promise<Response | null> {
-		const apiMatch = this.match(request, apiHandlers);
+		let apiMatch: {
+			routeConfig: ApiHandler<string, TRequest, TServer>;
+			params: PageParams;
+		} | null;
+		try {
+			apiMatch = this.match(request, apiHandlers, parsedPathSegments);
+		} catch (error) {
+			return await this.handleError(error, { request, serverInstance, errorHandler });
+		}
 		if (!apiMatch) {
 			return null;
 		}
@@ -83,7 +102,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 
 	async execute(
 		request: TRequest,
-		params: Record<string, string | string[]>,
+		params: PageParams,
 		routeConfig: ApiHandler<string, TRequest, TServer>,
 		serverInstance: TServer | undefined,
 		errorHandler?: ErrorHandler<TRequest, TServer>,
@@ -116,7 +135,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 		error: unknown,
 		options: {
 			request: TRequest;
-			params?: Record<string, string | string[]>;
+			params?: PageParams;
 			serverInstance: TServer | undefined;
 			errorHandler?: ErrorHandler<TRequest, TServer>;
 			context?: ApiHandlerContext<TRequest, TServer>;
@@ -143,15 +162,14 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 
 	private createContext(
 		request: TRequest,
-		params: Record<string, string | string[]>,
+		params: PageParams,
 		serverInstance: TServer | undefined,
 	): ApiHandlerContext<TRequest, TServer> {
 		const locals: Record<string, unknown> = {};
-		const normalizedParams = this.normalizeParams(params);
-
 		return {
 			request,
-			params: normalizedParams,
+			params,
+			query: parseSearchParams(new URL(request.url).searchParams),
 			response: new ApiResponseBuilder(),
 			server: serverInstance as TServer,
 			locals,
@@ -163,12 +181,6 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 		};
 	}
 
-	private normalizeParams(params: Record<string, string | string[]>): Record<string, string> {
-		return Object.fromEntries(
-			Object.entries(params).map(([key, value]) => [key, Array.isArray(value) ? value.join('/') : value]),
-		);
-	}
-
 	private async applyRequestSchema(
 		context: ApiHandlerContext<TRequest, TServer>,
 		schema: ApiHandler<string, TRequest, TServer>['schema'],
@@ -178,21 +190,17 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 		}
 
 		const url = new URL(context.request.url);
-		const queryParams = Object.fromEntries(url.searchParams);
+		const queryParams: PageQuery = parseSearchParams(url.searchParams);
 		const headers = Object.fromEntries(context.request.headers);
 
 		let body: unknown;
 		if (schema.body) {
-			try {
-				const contentType = context.request.headers.get('Content-Type') || '';
-				if (contentType.includes('application/json')) body = await context.request.clone().json();
-				else if (contentType.includes('text/plain')) body = await context.request.clone().text();
-			} catch {
-				return context.response.status(400).json({ error: 'Invalid request body' });
-			}
+			const parsedBody = await this.parseSchemaBody(context.request, context.response);
+			if ('response' in parsedBody) return parsedBody.response;
+			body = parsedBody.value;
 		}
 
-		const validationResult = await this.schemaValidator.validateRequest(
+		const validationResult = await validateRequest(
 			{ body, query: queryParams, headers, params: context.params },
 			schema,
 		);
@@ -208,8 +216,70 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 		if (validated.body !== undefined) context.body = validated.body;
 		if (validated.query !== undefined) context.query = validated.query;
 		if (validated.headers !== undefined) context.headers = validated.headers;
-		if (validated.params !== undefined) context.params = validated.params as Record<string, string>;
+		if (validated.params !== undefined) context.params = validated.params as PageParams;
 		return undefined;
+	}
+
+	private async parseSchemaBody(
+		request: TRequest,
+		responseBuilder: ApiResponseBuilderContract,
+	): Promise<ParsedRequestBody> {
+		const contentType = request.headers.get('Content-Type')?.split(';', 1)[0]?.trim().toLowerCase() || '';
+		if (!contentType) return this.parseUntypedSchemaBody(request, responseBuilder);
+		if (contentType !== 'application/json' && contentType !== 'text/plain') {
+			return this.rejectUnsupportedMediaType(request, responseBuilder);
+		}
+		if (request.body === null) return { value: undefined };
+
+		try {
+			const text = await request.clone().text();
+			if (text.length === 0) return { value: undefined };
+			const value = contentType === 'application/json' ? JSON.parse(text) : text;
+			return { value };
+		} catch (error) {
+			if (this.isClientAbort(error)) throw error;
+			return { response: responseBuilder.status(400).json({ error: 'Invalid request body' }) };
+		}
+	}
+
+	private async parseUntypedSchemaBody(
+		request: TRequest,
+		responseBuilder: ApiResponseBuilderContract,
+	): Promise<ParsedRequestBody> {
+		try {
+			const hasBody = await this.hasBodyContent(request);
+			return hasBody
+				? { response: responseBuilder.status(415).json({ error: 'Unsupported Media Type' }) }
+				: { value: undefined };
+		} catch (error) {
+			if (this.isClientAbort(error)) throw error;
+			return { response: responseBuilder.status(400).json({ error: 'Invalid request body' }) };
+		}
+	}
+
+	private async rejectUnsupportedMediaType(
+		request: TRequest,
+		responseBuilder: ApiResponseBuilderContract,
+	): Promise<ParsedRequestBody> {
+		await request.body?.cancel();
+		return { response: responseBuilder.status(415).json({ error: 'Unsupported Media Type' }) };
+	}
+
+	private async hasBodyContent(request: TRequest): Promise<boolean> {
+		const body = request.clone().body;
+		if (!body) return false;
+		const reader = body.getReader();
+		try {
+			while (true) {
+				const { done, value } = await reader.read();
+				if (done) return false;
+				if (value.byteLength === 0) continue;
+				await Promise.all([reader.cancel(), request.body?.cancel()]);
+				return true;
+			}
+		} finally {
+			reader.releaseLock();
+		}
 	}
 
 	private async runMiddlewareChain(

@@ -15,4 +15,3 @@ export {
 } from './client/index.ts';
 
 export { DomSwapper } from './client/dom/dom-swapper.ts';
-export { ViewTransitionManager } from './client/services/view-transition-manager.ts';

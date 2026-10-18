@@ -72,9 +72,8 @@ Hydratable components across integrations share the [Island Hosts](/docs/core/is
 	<RuiAlertDescription>
 		<p>
 			Choose the MDX path that matches the owning runtime. Standalone <code>mdxPlugin()</code> targets third-party
-			JSX runtimes with an explicit <code>compilerOptions.jsxImportSource</code>. React-backed MDX should be
-			enabled through <code>reactPlugin({`{ mdx: { enabled: true } }`})</code>. Ecopages JSX MDX should use{' '}
-			<code>ecopagesJsxPlugin({`{ mdx: { enabled: true } }`})</code>.
+			JSX runtimes with an explicit <code>compilerOptions.jsxImportSource</code>. Configure React-backed MDX with
+			<code>reactPlugin({`{ mdx: {} }`})</code>. Ecopages JSX MDX uses <code>ecopagesJsxPlugin({`{ mdx: {} }`})</code>.
 		</p>
 	</RuiAlertDescription>
 </RuiAlert>

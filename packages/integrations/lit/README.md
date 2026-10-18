@@ -15,33 +15,27 @@ bun add @ecopages/lit lit @lit-labs/ssr @lit-labs/ssr-client
 Register `litPlugin()` in your `eco.config.ts`.
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { litPlugin } from '@ecopages/lit';
 
-const config = await new ConfigBuilder()
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-	.setIntegrations([litPlugin()])
-	.build();
-
-export default config;
+export default defineConfig({ integrations: [litPlugin()] });
 ```
 
 Lit also works well alongside an HTML-first renderer such as `@ecopages/kitajs` when you want Lit to own only the nested custom elements:
 
 ```ts
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { kitajsPlugin } from '@ecopages/kitajs';
 import { litPlugin } from '@ecopages/lit';
 
-const config = await new ConfigBuilder()
-	.setBaseUrl(import.meta.env.ECOPAGES_BASE_URL)
-	.setIntegrations([kitajsPlugin(), litPlugin()])
-	.build();
-
-export default config;
+export default defineConfig({ integrations: [kitajsPlugin(), litPlugin()] });
 ```
 
 This setup lets Kita own the page shell while Lit owns the nested Lit component boundaries.
+
+## Page props and request locals
+
+Lit page components receive the resolved page props and request locals prepared by the route pipeline. To use request locals, declare `cache: 'dynamic'` on the page and provide the locals from middleware or a handler. Reading `locals` on a static page fails with the request-locals message instead of a `TypeError` from `undefined`. The document shell receives the resolved page props, while layouts continue to receive route locals.
 
 ## What This Integration Owns
 
@@ -67,9 +61,10 @@ Important:
 - Ecopages validates ownership from declared dependencies during render preparation instead of relying on post-render HTML discovery.
 - Route-level dependency resolvers can supply Components at request time; Lit includes those resolved roots when deciding whether a Foreign Subtree needs handoff.
 - Lit keeps slot transport, shadow-root handling, and SSR preload behavior inside the Lit renderer.
+- Lit renderers use the required core `AssetProcessingService` to process declared component dependencies.
 
 ## Discovered assets and lazy custom elements
 
 A Lit Component can import a relative stylesheet with `import './counter.css'`; core extracts it into the shared asset pipeline. Direct local imports of that Component make its Dependencies available to the Lit SSR preloader, including through Foreign Child rendering.
 
-Keep custom-element registration explicit with `scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:visible': true } }]`. Entries with `ssr: true` execute on the server before rendering (eager or lazy) and load in the browser according to `lazy`. `ssr: true` does not emit an additional eager browser script. Omit `lazy` when eager browser loading is intended. SSR preload artifacts are excluded from HTML, and hydration support must be available before the browser registers the element. Lit-owned page routes preload those scripts in the static-render worker through the app module loader so `@lit-labs/ssr` sees the registered custom element.
+Keep custom-element registration explicit with `scripts: [{ src: './counter.script.ts', ssr: true, lazy: { 'on:visible': true } }]`. Entries with `ssr: true` execute on the server before rendering (eager or lazy) and load in the browser according to `lazy`. `ssr: true` does not emit an additional eager browser script. Omit `lazy` when eager browser loading is intended. SSR preload artifacts are excluded from HTML, and hydration support must be available before the browser registers the element. Lit-owned page routes preload those scripts in the static-render worker through the app module loader so `@lit-labs/ssr` sees the registered custom element. Preload deduplication and invalidation state belongs to the app's `AppRuntime`, so separate apps keep separate preload history. Elements registered by a page, layout or route-resolved dependency root stay registered for the rest of that render, so every one of them renders with its shadow DOM.

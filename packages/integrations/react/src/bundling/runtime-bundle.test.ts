@@ -1,19 +1,19 @@
-import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
-import { getBrowserRuntimeManifestFromPlugin } from '@ecopages/core/build/browser-runtime-plugin';
+import { rmSync } from 'node:fs';
+import { afterAll, describe, expect, it, vi } from 'vitest';
+import { getBrowserRuntimeManifestFromPlugin } from '@ecopages/core/build';
+import { copyFixtureApp } from '../../../../core/__fixtures__/app/copy-fixture-app.ts';
 import { RuntimeBundleService } from './runtime-bundle.ts';
-import { resolveReactPluginRuntimeModules, UnmappedReactRuntimeModuleExternalError } from './runtime-modules.ts';
+import { resolveReactPluginRuntimeModules } from './runtime-modules.ts';
 
-const originalNodeEnv = process.env.NODE_ENV;
-const fixtureAppRoot = path.resolve(import.meta.dirname, '../../../../core/__fixtures__/app');
+const fixtureAppRoot = copyFixtureApp();
 
-afterEach(() => {
-	process.env.NODE_ENV = originalNodeEnv;
+afterAll(() => {
+	rmSync(fixtureAppRoot, { recursive: true, force: true });
 });
 
 describe('RuntimeBundleService', () => {
 	it('uses production vendor asset names outside development mode', () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const service = new RuntimeBundleService({ rootDir: fixtureAppRoot });
 
 		expect(service.getRuntimeImports()).toEqual({
@@ -55,7 +55,7 @@ describe('RuntimeBundleService', () => {
 	});
 
 	it('uses development vendor asset names in development mode', () => {
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		const service = new RuntimeBundleService({
 			rootDir: fixtureAppRoot,
 			routerAdapter: {
@@ -125,7 +125,7 @@ describe('RuntimeBundleService', () => {
 		expect(service.getPageLayoutNormalizationDependencies()).toEqual([
 			expect.objectContaining({
 				name: 'page-layout-normalization',
-				importPath: '@ecopages/core/eco/page-layout-normalization',
+				importPath: '@ecopages/core/client',
 				bundleOptions: expect.objectContaining({
 					naming: 'page-layout-normalization.development.js',
 				}),
@@ -145,19 +145,19 @@ describe('RuntimeBundleService', () => {
 	});
 
 	it('re-evaluates vendor asset names when the runtime mode changes after construction', () => {
-		process.env.NODE_ENV = 'production';
+		vi.stubEnv('NODE_ENV', 'production');
 		const service = new RuntimeBundleService({ rootDir: fixtureAppRoot });
 
 		expect(service.getRuntimeImports().react).toBe('/assets/vendors/react.js');
 
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 
 		expect(service.getRuntimeImports().react).toBe('/assets/vendors/react.development.js');
 		expect(service.getRuntimeImports().reactDomClient).toBe('/assets/vendors/react-dom.development.js');
 	});
 
 	it('registers configured runtime modules as shared browser vendors', () => {
-		process.env.NODE_ENV = 'development';
+		vi.stubEnv('NODE_ENV', 'development');
 		const service = new RuntimeBundleService({
 			rootDir: fixtureAppRoot,
 			runtimeModules: resolveReactPluginRuntimeModules(['@mdx-js/mdx']),
@@ -180,7 +180,6 @@ describe('RuntimeBundleService', () => {
 				name: 'mdx-js-mdx',
 				bundleOptions: expect.objectContaining({
 					naming: 'mdx-js-mdx.development.js',
-					external: expect.any(Array),
 					plugins: expect.any(Array),
 				}),
 			}),
@@ -194,16 +193,16 @@ describe('RuntimeBundleService', () => {
 		const mdxManifest = getBrowserRuntimeManifestFromPlugin(mdxPlugin!);
 		expect(mdxManifest?.bySpecifier.has('@mdx-js/mdx')).toBe(false);
 		expect(mdxManifest?.bySpecifier.has('react')).toBe(true);
-		expect(mdxAsset.bundleOptions?.external).not.toContain('react');
+		expect(mdxAsset.bundleOptions?.external).toBeUndefined();
 	});
 
-	it('rewrites sibling runtime modules when a library vendor lists them as externals', () => {
-		process.env.NODE_ENV = 'development';
+	it('rewrites sibling runtime modules to their shared vendor URLs', () => {
+		vi.stubEnv('NODE_ENV', 'development');
 		const service = new RuntimeBundleService({
 			rootDir: fixtureAppRoot,
 			runtimeModules: resolveReactPluginRuntimeModules([
 				{ specifier: 'mobx', outputName: 'mobx' },
-				{ specifier: '@acme/ui', outputName: 'acme-ui', externals: ['mobx'] },
+				{ specifier: '@acme/ui', outputName: 'acme-ui' },
 			]),
 		});
 
@@ -220,18 +219,5 @@ describe('RuntimeBundleService', () => {
 		);
 		expect(mobxManifest?.bySpecifier.has('mobx')).toBe(false);
 		expect(mobxManifest?.bySpecifier.get('@acme/ui')?.publicPath).toBe('/assets/vendors/acme-ui.development.js');
-	});
-
-	it('throws when a runtime module external is not a shared vendor', () => {
-		process.env.NODE_ENV = 'development';
-		const service = new RuntimeBundleService({
-			rootDir: fixtureAppRoot,
-			runtimeModules: resolveReactPluginRuntimeModules([
-				{ specifier: '@acme/ui', outputName: 'acme-ui', externals: ['webmidi'] },
-			]),
-		});
-
-		expect(() => service.getDependencies()).toThrow(UnmappedReactRuntimeModuleExternalError);
-		expect(() => service.getDependencies()).toThrow(/webmidi/);
 	});
 });

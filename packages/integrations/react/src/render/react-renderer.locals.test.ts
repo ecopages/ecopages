@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { EcoPagesAppConfig } from '@ecopages/core';
-import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
-import type { HtmlTemplateProps, IntegrationRendererRenderOptions } from '@ecopages/core';
+import type { AssetProcessingService } from '@ecopages/core/integration';
+import type { HtmlTemplateProps } from '@ecopages/core';
+import type { IntegrationRendererRenderOptions } from '@ecopages/core/integration';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import type { ReactNode } from 'react';
 import { ReactRenderer } from './react-renderer.ts';
 
@@ -15,19 +16,15 @@ class TestReactRenderer extends ReactRenderer {
 	}
 }
 
-describe('ReactRenderer locals split', () => {
-	const appConfig = {
-		defaultMetadata: {
-			title: 'Test',
-			description: 'Test',
-		},
-		absolutePaths: {
-			htmlTemplatePath: '/tmp/template.tsx',
-			pagesDir: '/tmp/pages',
-		},
-		srcDir: '/tmp/src',
-	} as unknown as EcoPagesAppConfig;
+const appConfig = await finalizeEcoPagesConfig({
+	rootDir: process.cwd(),
+	defaultMetadata: {
+		title: 'Test',
+		description: 'Test',
+	},
+});
 
+describe('ReactRenderer locals split', () => {
 	const assetService = {
 		processDependencies: vi.fn(() => Promise.resolve([])),
 		getHmrManager: vi.fn(() => undefined),
@@ -37,7 +34,6 @@ describe('ReactRenderer locals split', () => {
 		const renderer = new TestReactRenderer({
 			appConfig,
 			assetProcessingService: assetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const pageRenderMock = vi.fn((_props: { locals?: unknown }) => {
@@ -83,7 +79,6 @@ describe('ReactRenderer locals split', () => {
 		const renderer = new TestReactRenderer({
 			appConfig,
 			assetProcessingService: assetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const Page = Object.assign(
@@ -124,7 +119,6 @@ describe('ReactRenderer locals split', () => {
 		const renderer = new TestReactRenderer({
 			appConfig,
 			assetProcessingService: assetService,
-			runtimeOrigin: 'http://localhost:3000',
 		});
 
 		const Page = vi.fn(

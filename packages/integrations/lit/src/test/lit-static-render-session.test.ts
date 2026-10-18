@@ -1,14 +1,21 @@
-import { describe, expect, it, vi } from 'vitest';
-import type { EcoComponent } from '@ecopages/core';
-import type { StaticExportContext } from '@ecopages/core/plugins/integration-plugin';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { eco, type EcoComponent } from '@ecopages/core';
+import type { AssetDefinition, ProcessedAsset, StaticExportContext } from '@ecopages/core/integration';
 import { LitStaticRenderSession } from '../lit-static-render-session.ts';
 
 const workerStart = vi.fn(async () => {});
 const workerRenderPage = vi.fn(async () => ({
 	html: '<html>Lit worker</html>',
 	cacheStrategy: { revalidate: 60 },
+	metadata: { title: 'Page', description: 'Page description' },
 }));
 const workerDispose = vi.fn(async () => {});
+
+const processDependencies = vi.fn(async () => []);
 
 const createWorkerClient = () => ({
 	start: workerStart,
@@ -16,24 +23,27 @@ const createWorkerClient = () => ({
 	dispose: workerDispose,
 });
 
-describe('LitStaticRenderSession', () => {
-	it('preloads SSR scripts and always starts the render worker', async () => {
-		const lazyScriptComponent = {
-			config: {
-				identity: { file: '/app/src/components/lit-counter.lit.tsx' },
-				dependencies: {
-					scripts: [{ lazy: true, ssr: true, src: './lit-counter.script.ts' }],
-				},
-			},
-		} as unknown as EcoComponent;
+function createLazyComponent(integration: 'lit' | 'react', id: string, file: string, script: string): EcoComponent {
+	return eco.component<object, string>({
+		integration,
+		identity: { id, file, integration },
+		dependencies: { scripts: [{ src: script, ssr: true, lazy: { 'on:interaction': 'click' } }] },
+		render: () => '',
+	});
+}
 
+describe('LitStaticRenderSession', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it('starts the render worker and forwards page data', async () => {
 		const session = new LitStaticRenderSession({
+			preloadScopes: new Map(),
 			resolveDependencyPath: (_componentDir, sourcePath) => sourcePath,
-			preferSourceImports: true,
+			processDependencies,
 			createWorkerClient,
 		});
-
-		const preloadSpy = vi.spyOn(session, 'preloadSsrScripts').mockResolvedValue(undefined);
 
 		await session.ensureWorker({
 			configModulePath: '/app/eco.config.ts',
@@ -41,37 +51,6 @@ describe('LitStaticRenderSession', () => {
 		});
 
 		expect(workerStart).toHaveBeenCalledTimes(1);
-
-		const context = {
-			appConfig: {
-				absolutePaths: { config: '/app/eco.config.ts' },
-				integrations: [{ name: 'lit', extensions: ['.lit.tsx'] }],
-			},
-			baseUrl: 'http://127.0.0.1:3000',
-			force: false,
-			preserveExportDirectory: false,
-			router: {
-				listStaticGenerationRoutes: vi.fn(async () => [
-					{
-						pathname: '/integration-matrix/lit-entry',
-						requestUrl: '/integration-matrix/lit-entry',
-						templateRoute: { filePath: '/app/src/pages/integration-matrix/lit-entry.lit.tsx' },
-						params: {},
-					},
-				]),
-			},
-			routeRendererFactory: {
-				getPageRenderer: vi.fn(() => ({
-					loadPageModule: vi.fn(async () => ({
-						default: lazyScriptComponent,
-					})),
-				})),
-			},
-		} as unknown as StaticExportContext;
-
-		await session.preloadStaticRoutes(context);
-
-		expect(preloadSpy).toHaveBeenCalledWith([lazyScriptComponent]);
 
 		const result = await session.renderPageInWorker({
 			filePath: '/app/src/pages/integration-matrix/lit-entry.lit.tsx',
@@ -86,6 +65,7 @@ describe('LitStaticRenderSession', () => {
 		expect(result).toEqual({
 			html: '<html>Lit worker</html>',
 			cacheStrategy: { revalidate: 60 },
+			metadata: { title: 'Page', description: 'Page description' },
 		});
 
 		await session.dispose();
@@ -98,7 +78,9 @@ describe('LitStaticRenderSession', () => {
 
 		const createClient = vi.fn(() => createWorkerClient());
 		const session = new LitStaticRenderSession({
+			preloadScopes: new Map(),
 			resolveDependencyPath: (_componentDir, sourcePath) => sourcePath,
+			processDependencies,
 			createWorkerClient: createClient,
 		});
 
@@ -134,7 +116,9 @@ describe('LitStaticRenderSession', () => {
 		workerRenderPage.mockClear();
 
 		const session = new LitStaticRenderSession({
+			preloadScopes: new Map(),
 			resolveDependencyPath: (_componentDir, sourcePath) => sourcePath,
+			processDependencies,
 			createWorkerClient,
 		});
 
@@ -158,59 +142,90 @@ describe('LitStaticRenderSession', () => {
 		await session.dispose();
 	});
 
-	it('preloads SSR scripts only for Lit template routes', async () => {
-		const litComponent = {
-			config: {
-				identity: { file: '/app/src/pages/lit.lit.tsx' },
-			},
-		} as unknown as EcoComponent;
+	it('registers lazy SSR elements for Lit routes only', async () => {
+		const workDir = await mkdtemp(path.join(tmpdir(), 'lit-static-route-preload-'));
+		const litTag = `lit-static-route-${randomUUID()}`;
+		const reactTag = `react-static-route-${randomUUID()}`;
+		const litComponent = createLazyComponent(
+			'lit',
+			'lit-page',
+			'/app/src/pages/lit.lit.tsx',
+			'./lit-counter.script.ts',
+		);
+		const reactComponent = createLazyComponent(
+			'react',
+			'react-page',
+			'/app/src/pages/react.page.react.tsx',
+			'./react-counter.script.ts',
+		);
+		const routeProcessDependencies = vi.fn(async (dependencies: AssetDefinition[]) => {
+			const source = dependencies[0];
+			if (!source || source.source !== 'file') {
+				throw new Error('Expected the Lit preloader to build a file script.');
+			}
 
-		const session = new LitStaticRenderSession({
-			resolveDependencyPath: (_componentDir, sourcePath) => sourcePath,
+			const tag = source.filepath.includes('lit-counter') ? litTag : reactTag;
+			const entrypoint = path.join(workDir, path.basename(source.filepath).replace(/\.ts$/, '.mjs'));
+			await writeFile(entrypoint, `customElements.define('${tag}', class extends HTMLElement {});`);
+			return [{ kind: 'script', filepath: entrypoint } satisfies ProcessedAsset];
 		});
-		const preloadSpy = vi.spyOn(session, 'preloadSsrScripts').mockResolvedValue(undefined);
+		const session = new LitStaticRenderSession({
+			preloadScopes: new Map(),
+			resolveDependencyPath: (componentDir, sourcePath) => path.resolve(componentDir, sourcePath),
+			processDependencies: routeProcessDependencies,
+		});
 
-		await session.preloadStaticRoutes({
-			appConfig: {
-				integrations: [{ name: 'lit', extensions: ['.lit.tsx'] }],
-			},
-			baseUrl: 'http://127.0.0.1:3000',
-			force: false,
-			preserveExportDirectory: false,
-			router: {
-				listStaticGenerationRoutes: vi.fn(async () => [
-					{
-						pathname: '/react',
-						requestUrl: '/react',
-						templateRoute: { filePath: '/app/src/pages/react.page.react.tsx' },
-						params: {},
-					},
-					{
-						pathname: '/lit',
-						requestUrl: '/lit',
-						templateRoute: { filePath: '/app/src/pages/lit.lit.tsx' },
-						params: {},
-					},
-				]),
-			},
-			routeRendererFactory: {
-				getPageRenderer: vi.fn(() => ({
-					loadPageModule: vi.fn(async () => ({
-						default: litComponent,
+		try {
+			await session.preloadStaticRoutes({
+				appConfig: {
+					integrations: [{ name: 'lit', extensions: ['.lit.tsx'] }],
+				},
+				baseUrl: 'http://127.0.0.1:3000',
+				force: false,
+				router: {
+					listStaticGenerationRoutes: vi.fn(async () => [
+						{
+							pathname: '/react',
+							requestUrl: '/react',
+							templateRoute: { filePath: '/app/src/pages/react.page.react.tsx' },
+							params: {},
+						},
+						{
+							pathname: '/lit',
+							requestUrl: '/lit',
+							templateRoute: { filePath: '/app/src/pages/lit.lit.tsx' },
+							params: {},
+						},
+					]),
+				},
+				routeRendererFactory: {
+					getPageRenderer: vi.fn((filePath: string) => ({
+						loadPageModule: vi.fn(async () => ({
+							default: filePath.endsWith('.lit.tsx') ? litComponent : reactComponent,
+						})),
 					})),
-				})),
-			},
-		} as unknown as StaticExportContext);
+				},
+			} as unknown as StaticExportContext);
 
-		expect(preloadSpy).toHaveBeenCalledWith([litComponent]);
+			expect(customElements.get(litTag)).toBeDefined();
+			expect(customElements.get(reactTag)).toBeUndefined();
+		} finally {
+			await session.dispose();
+			await rm(workDir, { recursive: true, force: true });
+		}
 	});
 	it('restarts once after source invalidation and serializes concurrent renders', async () => {
 		let version = 0;
 		const dispose = vi.fn(async () => {});
-		const renderPage = vi.fn(async () => ({ html: '<main />' }));
+		const renderPage = vi.fn(async () => ({
+			html: '<main />',
+			metadata: { title: 'Page', description: 'Page description' },
+		}));
 		const createClient = vi.fn(() => ({ start: async () => {}, dispose, renderPage }));
 		const session = new LitStaticRenderSession({
+			preloadScopes: new Map(),
 			resolveDependencyPath: (_dir, src) => src,
+			processDependencies,
 			createWorkerClient: createClient,
 			getInvalidationVersion: () => version,
 		});

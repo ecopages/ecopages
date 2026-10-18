@@ -1,0 +1,307 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+import path from 'node:path';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
+
+const activeIndex = new AsyncLocalStorage<BuildInputDependencyIndex>();
+
+export type BuildInputRecordingContext = {
+	index: BuildInputDependencyIndex | undefined;
+};
+
+/**
+ * Cached result kinds that share one reverse index from recorded build inputs.
+ */
+export type BuildInputConsumer = 'page-browser-graph' | 'html-cache' | 'entrypoint' | 'server-route-module';
+
+/**
+ * One cached result bound to the files it read.
+ */
+export type BuildInputBinding = {
+	consumer: BuildInputConsumer;
+	key: string;
+};
+
+function bindingId(binding: BuildInputBinding): string {
+	return `${binding.consumer}:${binding.key}`;
+}
+
+function normalizeSourcePath(filePath: string): string {
+	return path.resolve(filePath);
+}
+
+/**
+ * Reverse index from recorded filesystem inputs to Page Browser Graphs, HTML
+ * cache entries, browser entrypoints, and server route modules.
+ *
+ * @remarks
+ * `register` unbinds the previous set for that result before binding the next,
+ * so the index stays bounded. `recordWatchPath` grows the watch set for the
+ * process even when no result has been committed yet.
+ */
+export class BuildInputDependencyIndex {
+	private readonly sourceToBindingIds = new Map<string, Set<string>>();
+	private readonly bindingToSources = new Map<string, Set<string>>();
+	private readonly bindings = new Map<string, BuildInputBinding>();
+	private readonly watchPaths = new Set<string>();
+	private readonly watchListeners = new Set<(filePath: string) => void>();
+	private readonly changeListeners = new Set<(filePaths: readonly string[]) => void>();
+
+	/** Tells every change listener that `filePaths` changed. */
+	recordChanges(filePaths: readonly string[]): void {
+		const changed = filePaths.map(normalizeSourcePath);
+		for (const listener of this.changeListeners) {
+			listener(changed);
+		}
+	}
+
+	/**
+	 * Calls `listener` with each batch of changed files.
+	 *
+	 * @remarks
+	 * Caches that keep results across requests subscribe here and evict what a change made stale,
+	 * so a lookup never re-reads its inputs.
+	 */
+	subscribeToChanges(listener: (filePaths: readonly string[]) => void): () => void {
+		this.changeListeners.add(listener);
+		return () => this.changeListeners.delete(listener);
+	}
+
+	/**
+	 * Records a path the build read so the Project Watcher can subscribe to it.
+	 */
+	recordWatchPath(filePath: string): void {
+		const normalized = normalizeSourcePath(filePath);
+		if (this.watchPaths.has(normalized)) {
+			return;
+		}
+
+		this.watchPaths.add(normalized);
+		for (const listener of this.watchListeners) {
+			listener(normalized);
+		}
+	}
+
+	/**
+	 * Replaces the source paths for one cached result.
+	 */
+	register(binding: BuildInputBinding, sourcePaths: readonly string[]): void {
+		this.unregister(binding);
+
+		if (sourcePaths.length === 0) {
+			return;
+		}
+
+		this.add(binding, sourcePaths);
+	}
+
+	/**
+	 * Adds source paths for one cached result without dropping the previous set.
+	 */
+	add(binding: BuildInputBinding, sourcePaths: readonly string[]): void {
+		if (sourcePaths.length === 0) {
+			return;
+		}
+
+		const id = bindingId(binding);
+		this.bindings.set(id, binding);
+		const existing = this.bindingToSources.get(id) ?? new Set<string>();
+
+		for (const sourcePath of sourcePaths) {
+			const normalized = normalizeSourcePath(sourcePath);
+			existing.add(normalized);
+			this.recordWatchPath(normalized);
+			const bindingIds = this.sourceToBindingIds.get(normalized) ?? new Set<string>();
+			bindingIds.add(id);
+			this.sourceToBindingIds.set(normalized, bindingIds);
+		}
+
+		this.bindingToSources.set(id, existing);
+	}
+
+	/**
+	 * Removes specific source paths from one cached result.
+	 */
+	remove(binding: BuildInputBinding, sourcePaths: readonly string[]): void {
+		const id = bindingId(binding);
+		const existing = this.bindingToSources.get(id);
+		if (!existing) {
+			return;
+		}
+
+		for (const sourcePath of sourcePaths) {
+			const normalized = normalizeSourcePath(sourcePath);
+			existing.delete(normalized);
+			this.removeBindingFromSource(normalized, id);
+		}
+
+		if (existing.size === 0) {
+			this.bindingToSources.delete(id);
+			this.bindings.delete(id);
+		}
+	}
+
+	/**
+	 * Drops every source path for one cached result.
+	 */
+	unregister(binding: BuildInputBinding): void {
+		const id = bindingId(binding);
+		const sources = this.bindingToSources.get(id);
+		if (!sources) {
+			return;
+		}
+
+		for (const source of sources) {
+			this.removeBindingFromSource(source, id);
+		}
+
+		this.bindingToSources.delete(id);
+		this.bindings.delete(id);
+	}
+
+	/**
+	 * Returns every cached result that recorded `filePath`.
+	 */
+	resolve(filePath: string): BuildInputBinding[] {
+		const bindingIds = this.sourceToBindingIds.get(normalizeSourcePath(filePath));
+		if (!bindingIds) {
+			return [];
+		}
+
+		const resolved: BuildInputBinding[] = [];
+		for (const id of bindingIds) {
+			const binding = this.bindings.get(id);
+			if (binding) {
+				resolved.push(binding);
+			}
+		}
+		return resolved;
+	}
+
+	/**
+	 * Returns result keys for one consumer that recorded `filePath`.
+	 */
+	resolveKeys(consumer: BuildInputConsumer, filePath: string): string[] {
+		return this.resolve(filePath)
+			.filter((binding) => binding.consumer === consumer)
+			.map((binding) => binding.key);
+	}
+
+	/** Returns source paths bound to one cached result. */
+	sourcePaths(binding: BuildInputBinding): string[] {
+		return [...(this.bindingToSources.get(bindingId(binding)) ?? [])];
+	}
+
+	/**
+	 * Returns whether any cached result recorded `filePath`.
+	 */
+	hasSourcePath(filePath: string): boolean {
+		return this.sourceToBindingIds.has(normalizeSourcePath(filePath));
+	}
+
+	/**
+	 * Paths the watcher should subscribe to, including processor watch roots.
+	 */
+	recordedWatchPaths(): string[] {
+		return [...this.watchPaths];
+	}
+
+	/**
+	 * Notifies `listener` of every path already recorded, then of each new path.
+	 *
+	 * @remarks
+	 * Inputs may be recorded before the Project Watcher subscribes.
+	 * Replaying the current set makes those files watched too.
+	 */
+	subscribeToWatchPaths(listener: (filePath: string) => void): () => void {
+		this.watchListeners.add(listener);
+		for (const filePath of this.watchPaths) {
+			listener(filePath);
+		}
+		return () => {
+			this.watchListeners.delete(listener);
+		};
+	}
+
+	/**
+	 * Drops every binding for one consumer. Watch paths stay recorded.
+	 */
+	clearConsumer(consumer: BuildInputConsumer): void {
+		for (const binding of [...this.bindings.values()]) {
+			if (binding.consumer === consumer) {
+				this.unregister(binding);
+			}
+		}
+	}
+
+	clear(): void {
+		this.sourceToBindingIds.clear();
+		this.bindingToSources.clear();
+		this.bindings.clear();
+	}
+
+	private removeBindingFromSource(source: string, id: string): void {
+		const bindingIds = this.sourceToBindingIds.get(source);
+		if (!bindingIds) {
+			return;
+		}
+
+		bindingIds.delete(id);
+		if (bindingIds.size === 0) {
+			this.sourceToBindingIds.delete(source);
+		}
+	}
+}
+
+/**
+ * Captures the current build-input targets before handing plugin hooks to a bundler.
+ */
+export function getBuildInputRecordingContext(): BuildInputRecordingContext {
+	return {
+		index: activeIndex.getStore(),
+	};
+}
+
+/**
+ * Creates a recorder whose writes stay attached to a captured build context.
+ *
+ * @remarks
+ * Rolldown plugin hooks may run outside the caller's AsyncLocalStorage context,
+ * so the recorder closes over the targets captured before the build starts.
+ */
+export function createBuildInputRecorder(
+	context: BuildInputRecordingContext,
+	loadedInputs: Set<string>,
+	loadedInputsByModule: Map<string, Set<string>>,
+): (moduleId: string, filePath: string) => void {
+	return (moduleId, filePath) => {
+		const normalized = path.resolve(filePath);
+		loadedInputs.add(normalized);
+		const moduleInputs = loadedInputsByModule.get(moduleId) ?? new Set<string>();
+		moduleInputs.add(normalized);
+		loadedInputsByModule.set(moduleId, moduleInputs);
+		context.index?.recordWatchPath(normalized);
+	};
+}
+
+/**
+ * Runs `fn` with `index` receiving every loaded path.
+ */
+export function runWithBuildInputIndex<T>(index: BuildInputDependencyIndex, fn: () => T): T {
+	return activeIndex.run(index, fn);
+}
+
+/**
+ * Seeds Processor watch directories into the recorded watch set.
+ *
+ * @remarks
+ * Those directories are declared reads (content collections, scanned CSS). They
+ * are not bound to a Page until a build records the files inside them.
+ */
+export function seedProcessorWatchPaths(appConfig: EcoPagesAppConfig, index: BuildInputDependencyIndex): void {
+	for (const processor of appConfig.processors?.values() ?? []) {
+		const watchConfig = processor.getWatchConfig?.();
+		for (const watchPath of watchConfig?.paths ?? []) {
+			index.recordWatchPath(watchPath);
+		}
+	}
+}

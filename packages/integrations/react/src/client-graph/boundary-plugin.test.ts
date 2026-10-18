@@ -1,6 +1,7 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type {
 	EcoBuildOnLoadArgs,
@@ -8,9 +9,11 @@ import type {
 	EcoBuildOnResolveArgs,
 	EcoBuildOnResolveResult,
 	EcoBuildPluginBuilder,
-} from '@ecopages/core/plugins/integration-plugin';
+} from '@ecopages/core/integration';
 import { createClientGraphBoundaryPlugin } from './boundary-plugin.ts';
-import { ClientGraphBoundaryCache } from './boundary-cache.ts';
+import { RolldownBuildAdapter } from '../../../../core/src/build/rolldown/rolldown-build-adapter.ts';
+import { getBuildEntryOutput } from '../../../../core/src/build/build-graph.ts';
+import { assertBuildSucceeded } from '../../../../core/src/build/build-log.ts';
 
 type OnLoadRegistration = {
 	options: { filter: RegExp; namespace?: string };
@@ -19,14 +22,19 @@ type OnLoadRegistration = {
 	) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>;
 };
 
-function createPluginTestHarness(pluginOptions?: Parameters<typeof createClientGraphBoundaryPlugin>[0]) {
+function createPluginTestHarness(
+	pluginOptions?: Parameters<typeof createClientGraphBoundaryPlugin>[0],
+	entrypoints?: Readonly<Record<string, string>>,
+) {
 	const onLoadRegistrations: OnLoadRegistration[] = [];
 	const builder: EcoBuildPluginBuilder = {
+		...(entrypoints ? { entrypoints } : {}),
 		onResolve: (_options, _callback: (args: EcoBuildOnResolveArgs) => EcoBuildOnResolveResult | undefined) => {},
 		onLoad: (options, callback) => {
 			onLoadRegistrations.push({ options, callback });
 		},
 		module: (_specifier, _callback) => {},
+		transform: () => {},
 	};
 
 	const plugin = createClientGraphBoundaryPlugin(pluginOptions);
@@ -49,6 +57,327 @@ function createPluginTestHarness(pluginOptions?: Parameters<typeof createClientG
 }
 
 describe('createClientGraphBoundaryPlugin', () => {
+	it('keeps the standalone boundary for builds with an entrypoint map', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const entrypoint = join(tempDir, 'entry.tsx');
+		writeFileSync(entrypoint, "import fs from 'node:fs';\nexport default () => 'ok';", 'utf-8');
+
+		try {
+			const harness = createPluginTestHarness(undefined, { entry: entrypoint });
+			const transformed = await harness.transformFile(entrypoint);
+
+			expect(transformed).toBeDefined();
+			expect(transformed).not.toContain("import fs from 'node:fs';");
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('preserves side-effect imports in helpers shared with non-React entries', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const htmlEntrypoint = join(tempDir, 'html-entry.ts');
+		const reactEntrypoint = join(tempDir, 'react-entry.tsx');
+		const sharedHelper = join(tempDir, 'helper.ts');
+		const registration = join(tempDir, 'register.ts');
+		writeFileSync(htmlEntrypoint, "import { register } from './helper.ts';\nregister();", 'utf-8');
+		writeFileSync(reactEntrypoint, "import { register } from './helper.ts';\nexport default register;", 'utf-8');
+		writeFileSync(sharedHelper, "import './register.ts';\nexport function register() {}", 'utf-8');
+		writeFileSync(registration, 'globalThis.registered = true;', 'utf-8');
+
+		try {
+			const harness = createPluginTestHarness(
+				{
+					absWorkingDir: tempDir,
+					projectRoot: tempDir,
+					entrypointFile: reactEntrypoint,
+					groupedEntrypointFiles: [reactEntrypoint],
+				},
+				{ html: htmlEntrypoint, react: reactEntrypoint },
+			);
+			const transformed = await harness.transformFile(sharedHelper);
+
+			expect(transformed).toBeUndefined();
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('scopes declared modules to their grouped entry', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const islandA = join(tempDir, 'island-a.tsx');
+		const islandB = join(tempDir, 'island-b.tsx');
+		const sharedHelper = join(tempDir, 'shared-helper.ts');
+		const source =
+			"import fs from 'node:fs';\nimport path from 'node:path';\nimport crypto from 'node:crypto';\nexport default String(!!fs && !!path && !!crypto);\n";
+		writeFileSync(islandA, source, 'utf-8');
+		writeFileSync(islandB, source, 'utf-8');
+		writeFileSync(sharedHelper, source, 'utf-8');
+
+		const registrations: OnLoadRegistration[] = [];
+		const groupedEntrypointFiles = [islandA, islandB];
+		const builder: EcoBuildPluginBuilder = {
+			onResolve: () => {},
+			onLoad: (options, callback) => registrations.push({ options, callback }),
+			module: () => {},
+			transform: () => {},
+		};
+
+		try {
+			for (const plugin of [
+				createClientGraphBoundaryPlugin({
+					entrypointFile: islandA,
+					groupedEntrypointFiles,
+					groupedDeclaredModules: ['node:fs', 'node:path'],
+					declaredModules: ['node:path'],
+				}),
+				createClientGraphBoundaryPlugin({
+					entrypointFile: islandB,
+					groupedEntrypointFiles,
+					groupedDeclaredModules: ['node:fs', 'node:path'],
+					declaredModules: ['node:fs'],
+				}),
+			]) {
+				await plugin.setup(builder);
+			}
+
+			const transformEntry = async (filePath: string): Promise<string> => {
+				for (const registration of registrations) {
+					if (!registration.options.filter.test(filePath)) continue;
+					const result = await registration.callback({ path: filePath });
+					if (typeof result?.contents === 'string') return result.contents;
+				}
+				return readFileSync(filePath, 'utf-8');
+			};
+
+			expect(await transformEntry(islandA)).not.toContain("from 'node:fs'");
+			expect(await transformEntry(islandA)).toContain("from 'node:path'");
+			expect(await transformEntry(islandA)).not.toContain("from 'node:crypto'");
+			expect(await transformEntry(islandB)).toContain("from 'node:fs'");
+			expect(await transformEntry(islandB)).not.toContain("from 'node:path'");
+			expect(await transformEntry(islandB)).not.toContain("from 'node:crypto'");
+			const transformedHelper = await transformEntry(sharedHelper);
+			expect(transformedHelper).toContain("from 'node:fs'");
+			expect(transformedHelper).toContain("from 'node:path'");
+			expect(transformedHelper).not.toContain("from 'node:crypto'");
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('shares reachability rules across grouped entry boundary plugins', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const islandA = join(tempDir, 'island-a.tsx');
+		const islandB = join(tempDir, 'island-b.tsx');
+		const sharedHelper = join(tempDir, 'shared-helper.ts');
+		writeFileSync(islandA, 'export default 1;\n', 'utf-8');
+		writeFileSync(
+			islandB,
+			[
+				"import { read } from './shared-helper';",
+				'export default eco.page({',
+				'\trender: () => read()',
+				'});',
+			].join('\n'),
+			'utf-8',
+		);
+		writeFileSync(
+			sharedHelper,
+			[
+				"import { readFileSync } from 'node:fs';",
+				'export function read() {',
+				"\treturn readFileSync('/secret', 'utf8');",
+				'}',
+			].join('\n'),
+			'utf-8',
+		);
+
+		const registrations: OnLoadRegistration[] = [];
+		const groupedEntrypointFiles = [islandA, islandB];
+		const builder: EcoBuildPluginBuilder = {
+			onResolve: () => {},
+			onLoad: (options, callback) => registrations.push({ options, callback }),
+			module: () => {},
+			transform: () => {},
+		};
+
+		try {
+			for (const plugin of [
+				createClientGraphBoundaryPlugin({ entrypointFile: islandA, groupedEntrypointFiles }),
+				createClientGraphBoundaryPlugin({ entrypointFile: islandB, groupedEntrypointFiles }),
+			]) {
+				await plugin.setup(builder);
+			}
+
+			const transformEntry = async (filePath: string): Promise<string | undefined> => {
+				for (const registration of registrations) {
+					if (!registration.options.filter.test(filePath)) continue;
+					const result = await registration.callback({ path: filePath });
+					if (typeof result?.contents === 'string') return result.contents;
+				}
+				return undefined;
+			};
+
+			await transformEntry(islandB);
+			await expect(transformEntry(sharedHelper)).rejects.toThrow("Forbidden client import 'node:fs'");
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('keeps per-entry declarations in an app-wide browser build', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const islandA = join(tempDir, 'island-a.tsx');
+		const islandB = join(tempDir, 'island-b.tsx');
+		const htmlEntry = join(tempDir, 'shell.ts');
+		writeFileSync(
+			islandA,
+			"import { readFileSync, writeFileSync } from 'node:fs';\nexport default String(!!readFileSync) + String(!!writeFileSync);",
+			'utf-8',
+		);
+		writeFileSync(
+			islandB,
+			"import { readFileSync, writeFileSync } from 'node:fs';\nexport default String(!!readFileSync) + String(!!writeFileSync);",
+			'utf-8',
+		);
+		writeFileSync(htmlEntry, "import fs from 'node:fs';\nexport default String(!!fs);", 'utf-8');
+
+		const registrations: OnLoadRegistration[] = [];
+		const entrypoints = { islandA, islandB, htmlEntry };
+		const builder: EcoBuildPluginBuilder = {
+			entrypoints,
+			onResolve: () => {},
+			onLoad: (options, callback) => registrations.push({ options, callback }),
+			module: () => {},
+			transform: () => {},
+		};
+
+		try {
+			for (const plugin of [
+				createClientGraphBoundaryPlugin({
+					absWorkingDir: tempDir,
+					projectRoot: tempDir,
+					entrypointFile: islandA,
+					groupedEntrypointFiles: [islandA, islandB],
+					groupedDeclaredModules: ['node:fs{readFileSync}', 'node:fs{writeFileSync}'],
+					declaredModules: ['node:fs{readFileSync}'],
+				}),
+				createClientGraphBoundaryPlugin({
+					absWorkingDir: tempDir,
+					projectRoot: tempDir,
+					entrypointFile: islandB,
+					groupedEntrypointFiles: [islandA, islandB],
+					groupedDeclaredModules: ['node:fs{readFileSync}', 'node:fs{writeFileSync}'],
+					declaredModules: ['node:fs{writeFileSync}'],
+				}),
+			]) {
+				await plugin.setup(builder);
+			}
+
+			const transformEntry = async (filePath: string): Promise<string | undefined> => {
+				for (const registration of registrations) {
+					if (!registration.options.filter.test(filePath)) continue;
+					const result = await registration.callback({ path: filePath });
+					if (typeof result?.contents === 'string') return result.contents;
+				}
+				return undefined;
+			};
+
+			const transformedIslandA = await transformEntry(islandA);
+			const transformedIslandB = await transformEntry(islandB);
+			expect(transformedIslandA).toContain("import { readFileSync } from 'node:fs';");
+			expect(transformedIslandA).not.toContain("writeFileSync } from 'node:fs';");
+			expect(transformedIslandB).toContain("import { writeFileSync } from 'node:fs';");
+			expect(transformedIslandB).not.toContain("readFileSync, writeFileSync } from 'node:fs';");
+			expect(await transformEntry(htmlEntry)).toBeUndefined();
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('evaluates a shared island module once across app-wide hydration entries', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const store = join(tempDir, 'cart-store.js');
+		const hydrationA = join(tempDir, 'hydration-a.js');
+		const hydrationB = join(tempDir, 'hydration-b.js');
+		const globalKey = `__ecopages_cart_store_${Math.random().toString(36).slice(2)}`;
+		const globalState = globalThis as Record<string, unknown>;
+		writeFileSync(join(tempDir, 'package.json'), '{"type":"module"}');
+		writeFileSync(
+			store,
+			`globalThis[${JSON.stringify(globalKey)}] = (globalThis[${JSON.stringify(globalKey)}] ?? 0) + 1; export const cart = {};`,
+		);
+		writeFileSync(hydrationA, "import { cart } from './cart-store.js'; export { cart };");
+		writeFileSync(hydrationB, "import { cart } from './cart-store.js'; export { cart };");
+
+		try {
+			const result = await new RolldownBuildAdapter().build({
+				environment: 'browser',
+				entrypoints: { hydrationA, hydrationB },
+				outdir: join(tempDir, 'dist'),
+				root: tempDir,
+				target: 'browser',
+				format: 'esm',
+				splitting: true,
+			});
+			assertBuildSucceeded(result, 'Build failed');
+			const hydrationAOutput = getBuildEntryOutput(result, 'hydrationA', tempDir);
+			const hydrationBOutput = getBuildEntryOutput(result, 'hydrationB', tempDir);
+			expect(hydrationAOutput).toBeDefined();
+			expect(hydrationBOutput).toBeDefined();
+
+			await import(pathToFileURL(hydrationAOutput!).href);
+			await import(pathToFileURL(hydrationBOutput!).href);
+
+			expect(globalState[globalKey]).toBe(1);
+		} finally {
+			delete globalState[globalKey];
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('builds a browser Page after pruning server-only middleware before resolution', async () => {
+		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
+		const pagesDir = join(tempDir, 'pages');
+		mkdirSync(pagesDir);
+		const entrypoint = join(pagesDir, 'entry.ts');
+		writeFileSync(join(pagesDir, 'auth.server.ts'), 'export const authMiddleware = "server-secret";');
+		writeFileSync(join(pagesDir, 'eco.ts'), 'export const eco = { page: (options) => options };');
+		writeFileSync(
+			entrypoint,
+			[
+				"import { eco } from './eco';",
+				"import { authMiddleware } from './auth.server.ts';",
+				'export default eco.page({',
+				'middleware: [authMiddleware],',
+				"cache: 'dynamic',",
+				"requires: ['session'],",
+				'render: () => "Dashboard",',
+				'});',
+			].join('\n'),
+		);
+
+		try {
+			const result = await new RolldownBuildAdapter().build({
+				environment: 'browser' as const,
+				entrypoints: [entrypoint],
+				outdir: join(tempDir, 'dist'),
+				root: tempDir,
+				target: 'browser',
+				format: 'esm',
+				plugins: [createClientGraphBoundaryPlugin()],
+			});
+			assertBuildSucceeded(result, 'Build failed');
+			const output = readFileSync(result.outputs[0]!.path, 'utf8');
+			expect(output).toContain('Dashboard');
+			expect(output).not.toContain('server-secret');
+			expect(output).not.toContain('authMiddleware');
+			expect(output).not.toContain('middleware');
+			expect(output).not.toContain('requires');
+		} finally {
+			rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it('strips undeclared node and bare imports while keeping declared modules', async () => {
 		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
 		const filePath = join(tempDir, 'component.tsx');
@@ -157,96 +486,6 @@ describe('createClientGraphBoundaryPlugin', () => {
 			const transformed = await harness.transformFile(filePath);
 
 			expect(transformed).toBeUndefined();
-		} finally {
-			rmSync(tempDir, { recursive: true, force: true });
-		}
-	});
-
-	it('cache hit produces the same transform output as cache miss (regression for replay semantics)', async () => {
-		// Two entrypoints that both reach the same local module. The
-		// cache stores the after-state of each transform's contribution
-		// to the requestedExports registry. A second plugin instance
-		// sharing the cache must replay the same final registry.
-		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
-		const entryA = join(tempDir, 'entry-a.tsx');
-		const entryB = join(tempDir, 'entry-b.tsx');
-		writeFileSync(
-			entryA,
-			"import { createColumnHelper } from '@tanstack/react-table';\n" +
-				"import leftPad from 'left-pad';\n" +
-				'export default leftPad(createColumnHelper().name) + createColumnHelper().fn;\n',
-			'utf-8',
-		);
-		writeFileSync(
-			entryB,
-			"import { createColumnHelper } from '@tanstack/react-table';\n" +
-				"import { fn as tableFn } from 'left-pad';\n" +
-				'export default tableFn() + createColumnHelper().accessorKey;\n',
-			'utf-8',
-		);
-
-		try {
-			const cache = new ClientGraphBoundaryCache();
-			// First pass: populate the cache via the live transform.
-			const harnessA = createPluginTestHarness({ cache });
-			const resultA1 = await harnessA.transformFile(entryA);
-			const resultB1 = await harnessA.transformFile(entryB);
-
-			// Snapshot cache stats so we can verify the second pass hits.
-			const hitsAfterFirstPass = cache.stats().hits;
-			const missesAfterFirstPass = cache.stats().misses;
-			expect(missesAfterFirstPass).toBeGreaterThanOrEqual(2);
-
-			// Second pass: a fresh plugin instance with the same cache.
-			// The two transforms should hit the cache and produce the
-			// same output as the live transform.
-			const harnessB = createPluginTestHarness({ cache });
-			const resultA2 = await harnessB.transformFile(entryA);
-			const resultB2 = await harnessB.transformFile(entryB);
-
-			expect(resultA2).toBe(resultA1);
-			expect(resultB2).toBe(resultB1);
-
-			// Two cache hits recorded.
-			const finalStats = cache.stats();
-			expect(finalStats.hits).toBe(hitsAfterFirstPass + 2);
-		} finally {
-			rmSync(tempDir, { recursive: true, force: true });
-		}
-	});
-
-	it('cache replay preserves namespace promotion for an existing local-module key', async () => {
-		const tempDir = mkdtempSync(join(tmpdir(), 'eco-client-graph-'));
-		const sharedPath = join(tempDir, 'shared.ts');
-		const entryNamedPath = join(tempDir, 'entry-named.tsx');
-		const entryNamespacePath = join(tempDir, 'entry-namespace.tsx');
-
-		writeFileSync(
-			sharedPath,
-			["import fs from 'node:fs';", 'export const safe = 1;', 'export const unsafe = fs.readFileSync;'].join(
-				'\n',
-			),
-			'utf-8',
-		);
-		writeFileSync(entryNamedPath, ["import { safe } from './shared';", 'export default safe;'].join('\n'), 'utf-8');
-		writeFileSync(
-			entryNamespacePath,
-			["import * as shared from './shared';", 'export default shared.safe;'].join('\n'),
-			'utf-8',
-		);
-
-		try {
-			const cache = new ClientGraphBoundaryCache();
-
-			const firstHarness = createPluginTestHarness({ cache });
-			await firstHarness.transformFile(entryNamedPath);
-			await firstHarness.transformFile(entryNamespacePath);
-			await expect(firstHarness.transformFile(sharedPath)).rejects.toThrow();
-
-			const secondHarness = createPluginTestHarness({ cache });
-			await secondHarness.transformFile(entryNamedPath);
-			await secondHarness.transformFile(entryNamespacePath);
-			await expect(secondHarness.transformFile(sharedPath)).rejects.toThrow();
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}

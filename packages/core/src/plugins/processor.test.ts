@@ -1,8 +1,8 @@
-import { afterAll, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types';
+import type { EcoPagesAppConfig } from '../config/internal-types';
 import {
 	Processor,
 	type ProcessorConfig,
@@ -11,20 +11,14 @@ import {
 } from './processor.ts';
 
 class TestProcessor extends Processor {
-	override buildPlugins?: EcoBuildPlugin[] = [];
-	override plugins?: EcoBuildPlugin[] = [];
-
 	override async setup(): Promise<void> {}
-
-	override async process(input: unknown, _filePath?: string): Promise<unknown> {
-		return input;
-	}
 }
 
 describe('Processor', () => {
 	let processor: TestProcessor;
 	let config: ProcessorConfig;
 	let appConfig: EcoPagesAppConfig;
+	const testRoots: string[] = [];
 
 	beforeEach(() => {
 		config = {
@@ -35,11 +29,8 @@ describe('Processor', () => {
 			},
 		};
 
-		const testRoot = path.join(process.cwd(), '.test-tmp', 'processor-test');
-
-		if (fs.existsSync(testRoot)) {
-			fs.rmSync(testRoot, { recursive: true, force: true });
-		}
+		const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'processor-test-'));
+		testRoots.push(testRoot);
 
 		appConfig = {
 			rootDir: testRoot,
@@ -53,27 +44,14 @@ describe('Processor', () => {
 		processor.setContext(appConfig);
 	});
 
-	afterAll(() => {
-		fs.rmSync(path.join(process.cwd(), '.test-tmp'), { recursive: true, force: true });
+	afterEach(() => {
+		for (const testRoot of testRoots.splice(0)) {
+			fs.rmSync(testRoot, { recursive: true, force: true });
+		}
 	});
 
 	test('should initialize with correct name', () => {
 		expect(processor.getName()).toBe('test-processor');
-	});
-
-	test('should retain runtime capability declarations', () => {
-		const runtimeProcessor = new TestProcessor({
-			name: 'runtime-processor',
-			runtimeCapability: {
-				tags: ['requires-node-builtins'],
-				minRuntimeVersion: '18.0.0',
-			},
-		});
-
-		expect(runtimeProcessor.runtimeCapability).toEqual({
-			tags: ['requires-node-builtins'],
-			minRuntimeVersion: '18.0.0',
-		});
 	});
 
 	test('should return watch config', () => {
@@ -147,6 +125,17 @@ describe('Processor capability matching', () => {
 
 		expect(processor.canProcessAsset('stylesheet', '/src/styles/app.css')).toBe(false);
 		expect(processor.canProcessAsset('image', '/src/assets/logo.png')).toBe(true);
+	});
+
+	test('applies a capability filename filter without retaining stateful regex flags', () => {
+		const processor = new TestProcessor({
+			name: 'capability-filter',
+			capabilities: [{ kind: 'stylesheet', extensions: ['*.css'], filter: /\/src\/theme\.css$/gu }],
+		});
+
+		expect(processor.canProcessAsset('stylesheet', '/src/theme.css')).toBe(true);
+		expect(processor.canProcessAsset('stylesheet', '/src/theme.css')).toBe(true);
+		expect(processor.canProcessAsset('stylesheet', '/src/other.css')).toBe(false);
 	});
 });
 

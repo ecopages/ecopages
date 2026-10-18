@@ -44,7 +44,7 @@ A page that opts into dynamic caching (`cache: 'dynamic'`) or uses middleware. I
 _Avoid_: Runtime page, server page
 
 **Cache Strategy**:
-How long a rendered page is cached and when it can be revalidated. Three strategies exist: `'static'` (cache forever), `'dynamic'` (cache nothing), and `{ revalidate: number, tags?: string[] }` (time-based + tag-based revalidation, also called _revalidating cache_ or _ISR_).
+How long a rendered page is cached and when it can be revalidated. Three strategies exist: `'static'` (reuse HTML until the next deploy; browsers revalidate with ETag), `'dynamic'` (cache nothing), and `{ revalidate: number, tags?: string[] }` (time-based + tag-based revalidation, also called _revalidating cache_ or _ISR_). `immutable` belongs only on content-hashed asset URLs.
 _Avoid_: Cache mode, caching behavior
 
 **Static-First Rendering**:
@@ -58,6 +58,10 @@ _Avoid_: Pre-rendering, static generation
 **Request-Time Rendering**:
 Rendering that happens when a request arrives at the server. The output depends on the request and is not pre-computed.
 _Avoid_: Server-side rendering (use "dynamic page" for the cached variant), runtime rendering
+
+**HTML Page**:
+A Page authored as a plain `.html` file under `src/pages/`, rendered inside the Html shell with the app's default Cache Strategy. It has no props, data hooks, Layout, or hydration contract.
+_Avoid_: Static HTML file, HTML template
 
 **Filesystem Route**:
 A route automatically discovered by scanning the pages directory. Files follow conventions (e.g., `pages/about.tsx` becomes `/about`, `pages/blog/[slug].tsx` becomes `/blog/[slug]`).
@@ -97,11 +101,12 @@ _Avoid_: Requirements, imports
 
 **Foreign Child**:
 A child Component encountered during render whose owning Integration differs from the current Integration. A Foreign Child cannot be rendered inline by the current Integration and must be handed off for resolution by the owning Integration.
+Its owner is resolved from `config.integration`, then the Component's build-time identity, then the inherited owner.
 _Avoid_: Boundary, cross-integration child
 
 **Foreign Subtree**:
 The rendered result of a Foreign Child and any of its descendants that must be resolved by the owning Integration before control returns to the current Integration.
-_Avoid_: Boundary payload, deferred boundary
+_Avoid_: Cross-integration boundary
 
 **Page Browser Graph**:
 The browser-reachable module graph derived from one Page and its lazy browser entries. It determines which browser code, chunks, and shared runtime code are emitted for that Page.
@@ -126,7 +131,8 @@ _Avoid_: URL list, crawl map
 ## Relationships
 
 - A **Page** is composed from a **Component** tree, optionally wrapped by a **Layout**, all rendered within an **Html** shell
-- Each **Page** declares one optional **Layout**
+- Each **Page** declares one optional **Layout**; an **HTML Page** declares none
+- An **HTML Page** needs no **Integration** in app config: core appends a built-in **Integration** for `.html` unless a user **Integration** claims the extension. Its **Html** shell is the app's one `html` template (`src/includes/html.html` or another Integration's `html.*`), or a built-in shell when there is none
 - Pages are discovered as **Filesystem Routes** or registered as page-owned **Explicit Routes**
 - **Explicit Routes** may also register non-page handlers such as `app.get()` endpoints
 - **Filesystem Routes** are classified as exact, dynamic, or catch-all based on file naming conventions

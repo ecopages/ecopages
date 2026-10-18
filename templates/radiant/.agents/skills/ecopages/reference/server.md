@@ -46,6 +46,8 @@ export const createPostAlt = defineApiHandler({
 
 `definePost` above is equivalent to `defineApiHandler` with `method: 'POST'`.
 
+When a route declares `schema.body`, core parses `application/json` and `text/plain` bodies before validation. Malformed JSON returns HTTP 400. A request with no body and no `Content-Type`, or an empty body with either supported type, is validated as `undefined`: required schemas return HTTP 400, and optional schemas can accept it. Unsupported content types and nonempty bodies without a `Content-Type` return HTTP 415.
+
 Method helpers: `defineGet`, `definePost`, `definePut`, `defineDelete`, `definePatch`, `defineOptions`, `defineHead`.
 
 ## defineGroupHandler
@@ -124,6 +126,9 @@ When rendering from handlers with `ctx.render()`:
 - Component must be `eco.page()` (not a plain framework component)
 - File lives in `src/views/`, not `src/pages/`
 - Import dynamically: `await import('@/views/dashboard')`
+- A full render uses the same route pipeline as a filesystem Page: every layout, default metadata, robots meta, and that view's page client plan. Props passed to the render are available to the view's `metadata`
+- `ctx.renderPartial()` stays a component fragment
+- The Html shell is not an island, even when its Integration differs from the page owner
 
 ## Client-side routing (React)
 

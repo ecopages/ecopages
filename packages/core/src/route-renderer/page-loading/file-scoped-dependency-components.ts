@@ -1,8 +1,8 @@
-import type { EcoComponent, EcoComponentConfig, EcoComponentDependencies } from '../../types/public-types.ts';
-import type { PageDependenciesResult } from '../../eco/eco.types.ts';
+import type { EcoComponent, EcoComponentConfig, EcoComponentDependencies } from '../../types/contracts.ts';
+import type { PageDependenciesResult } from '../../types/contracts.ts';
 import path from 'node:path';
-import { rapidhash } from '../../utils/hash.ts';
-import { bindComponentIdentity, getComponentIdentity } from '../../eco/component-identity.ts';
+import { contentHash } from '../../utils/content-hash.ts';
+import { bindComponentIdentity, getComponentIdentity, getComponentOwner } from '../../eco/component-identity.ts';
 import { getDiscoveredWatchFiles, getInferredStylesheets } from '../../eco/discovered-dependencies.ts';
 import { listFileOwnedDependencyContributions } from '../../eco/page-dependency-contributions.ts';
 
@@ -16,9 +16,9 @@ export function attachEcoFileMetadataToConfig(
 ): EcoComponentConfig {
 	return bindComponentIdentity(
 		{
-			id: getComponentIdentity(config)?.id ?? rapidhash(ownerFile).toString(36),
+			id: getComponentIdentity(config)?.id ?? BigInt(`0x${contentHash(ownerFile, 16)}`).toString(36),
 			file: ownerFile,
-			integration: getComponentIdentity(config)?.integration ?? integrationName,
+			integration: getComponentOwner(config, integrationName),
 		},
 		config,
 	);
@@ -197,20 +197,4 @@ export function collectDependencyWatchPaths(
 	return Array.from(
 		collectComponentConfigFilePaths(components, { additionalPaths: [ownerFile], includeStylesheets: true }),
 	);
-}
-
-/**
- * Separates optional owner metadata from a resolved page dependency bag.
- */
-export function splitPageDependenciesResult(result: PageDependenciesResult): {
-	dependencies: EcoComponentDependencies;
-	ownerFile?: string;
-	contributions?: PageDependenciesResult['contributions'];
-} {
-	const { ownerFile, contributions, ...dependencies } = result;
-	return {
-		dependencies,
-		ownerFile,
-		...(contributions ? { contributions } : {}),
-	};
 }

@@ -1,3 +1,9 @@
+import path from 'node:path';
+import { getNodeEnvironment, isEcopagesEnvEnabled } from '../env.ts';
+import { DEFAULT_ECOPAGES_DIST_DIR, DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
+import { createProjectWatcherIgnorePredicate } from '../watchers/project-watcher-ignore.ts';
+import { resolveWorkspacePackageWatchRoots } from '../watchers/workspace-package-watch-roots.ts';
+
 /** Process exit code the CLI supervisor treats as a development restart request. */
 export const ECOPAGES_DEV_RESTART_EXIT_CODE = 100;
 
@@ -12,11 +18,11 @@ export const ECOPAGES_ENTRY_WATCH_ENV = 'ECOPAGES_ENTRY_WATCH';
 
 /** Returns whether the runtime's entry watcher owns config-module restarts. */
 export function entryWatcherOwnsConfig(env: NodeJS.ProcessEnv = process.env): boolean {
-	return env[ECOPAGES_ENTRY_WATCH_ENV] === '1';
+	return isEcopagesEnvEnabled(ECOPAGES_ENTRY_WATCH_ENV, env);
 }
 
 /** Relative dotenv filenames loaded by the CLI, in precedence order. */
-export function getDevEnvFileNames(nodeEnv = process.env.NODE_ENV): string[] {
+export function getDevEnvFileNames(nodeEnv = getNodeEnvironment()): string[] {
 	const envFiles = ['.env', '.env.local'];
 
 	if (nodeEnv) {
@@ -24,4 +30,30 @@ export function getDevEnvFileNames(nodeEnv = process.env.NODE_ENV): string[] {
 	}
 
 	return envFiles;
+}
+
+/**
+ * What the CLI supervisor watches while a restarted development server starts or stays broken.
+ *
+ * @remarks
+ * A broken config cannot say which files it imports, so the supervisor watches the whole project and
+ * every linked workspace package. Dependencies, VCS metadata and the default work and build
+ * directories are skipped, the same way the Project Watcher skips them.
+ */
+export function resolveDevelopmentRecoveryWatch(rootDir: string): {
+	paths: string[];
+	ignored: (watchedPath: string) => boolean;
+} {
+	const root = path.resolve(rootDir);
+	const workspacePackageRoots = resolveWorkspacePackageWatchRoots(root);
+	return {
+		paths: [root, ...workspacePackageRoots],
+		ignored: createProjectWatcherIgnorePredicate(
+			{
+				workDir: path.join(root, DEFAULT_ECOPAGES_WORK_DIR),
+				distDir: path.join(root, DEFAULT_ECOPAGES_DIST_DIR),
+			},
+			workspacePackageRoots,
+		),
+	};
 }

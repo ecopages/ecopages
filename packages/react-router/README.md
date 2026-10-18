@@ -11,6 +11,8 @@ Client-side SPA router for Ecopages React applications. Features single-page app
 - **Head sync**: Automatically updates document metadata `<head>` during navigation.
 - **View Transitions**: Built-in support for the browser View Transitions API.
 
+The core navigation pipeline shares document fetching, parsing, caching, head reconciliation, script activation, named view transitions, and lifecycle events with `@ecopages/browser-router`. React-router supplies the page swap by rendering the next React page into the existing root and handles scroll restoration through the shared post-swap hook.
+
 ## Cross-Runtime Handoff
 
 `@ecopages/react-router` only performs SPA updates for React-managed documents. When a navigation resolves to a non-React document, it will:
@@ -31,16 +33,11 @@ bun add @ecopages/react-router
 Pass the router adapter to the React plugin in your `eco.config.ts`:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { reactPlugin } from '@ecopages/react';
 import { ecoRouter } from '@ecopages/react-router';
 
-const config = await new ConfigBuilder()
-	.setRootDir(import.meta.dirname)
-	.setIntegrations([reactPlugin({ router: ecoRouter() })])
-	.build();
-
-export default config;
+export default defineConfig({ integrations: [reactPlugin({ router: ecoRouter() })] });
 ```
 
 SPA navigation is now enabled for all React pages in your project.
@@ -108,6 +105,8 @@ export default eco.page({
 ### Links
 
 Standard relative links are intercepted natively. To bypass the router and force a hard reload, use the `data-eco-reload` attribute.
+
+If the router's HTML request gets a non-2xx response, it falls back to a full document navigation so the browser receives the server's error status. Redirects that finish with a 2xx response remain eligible for client-side navigation.
 
 ```tsx
 // SPA navigation (intercepted)
@@ -205,8 +204,10 @@ The router relies on **HTML-First** navigation to sync perfectly with SSR:
 1. **SSR**: Initial page arrives completely rendered.
 2. **Hydration**: Client hydrates and the router attaches.
 3. **Navigation**: On click, `resolveReactNavigation` returns an explicit outcome:
-    - `spa`: fetch HTML → read `#__ECO_PAGE_DATA__` → dynamic-import `moduleUrl` → morph `<head>`, update history, commit React state (optional `startViewTransition`).
+    - `spa`: core fetches and parses HTML → read `#__ECO_PAGE_DATA__` → dynamic-import `moduleUrl` → the shared pipeline reconciles `<head>` and runs the React page swap inside a named view transition when enabled.
     - `handoff`: fetched document has no React page module → coordinator hands off to browser-router (hard `assign` if handoff fails).
     - `hard-navigation`: static-asset URL or failed fetch → `location.assign` / `location.href`.
     - `stale`: a newer navigation superseded this attempt.
     - `isNavigating` clears on every non-stale terminal (including handoff and hard fallback); stale attempts leave it for the newer owner.
+
+Coordinator-driven reloads fetch the current HTML instead of reusing prefetched navigation content, and keep the active URL fragment. A reload with `clearCache` also removes the current document and redirect target from the shared navigation cache before refreshing persisted layouts.

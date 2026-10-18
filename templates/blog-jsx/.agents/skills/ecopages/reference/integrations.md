@@ -22,8 +22,8 @@ Pick the MDX path that matches the owning runtime:
 
 | Runtime                   | Plugin                                                                |
 | ------------------------- | --------------------------------------------------------------------- |
-| React                     | `reactPlugin({ mdx: { enabled: true } })`                             |
-| Ecopages JSX              | `ecopagesJsxPlugin({ mdx: { enabled: true } })`                       |
+| React                     | `reactPlugin({ mdx: {} })`                                            |
+| Ecopages JSX              | `ecopagesJsxPlugin({ mdx: {} })`                                      |
 | Third-party (e.g. KitaJS) | `mdxPlugin({ compilerOptions: { jsxImportSource: '@kitajs/html' } })` |
 
 Standalone `mdxPlugin()` requires `compilerOptions.jsxImportSource`. Passing `react` or `@ecopages/jsx` redirects to the owning integration plugin.
@@ -36,7 +36,7 @@ import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 ecopagesJsxPlugin({
 	extensions: ['.tsx'],
 	radiant: true,
-	mdx: { enabled: true, extensions: ['.mdx'] },
+	mdx: { extensions: ['.mdx'] },
 });
 ```
 
@@ -51,7 +51,7 @@ Queue boundary: plain opaque objects (values that would stringify to `[object Ob
 ```typescript
 import { reactPlugin } from '@ecopages/react';
 
-reactPlugin({ mdx: { enabled: true } });
+reactPlugin({ mdx: {} });
 ```
 
 Use React only when the user requests it or a dependency requires the React ecosystem.

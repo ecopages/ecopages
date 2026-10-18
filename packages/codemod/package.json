@@ -8,6 +8,7 @@
 	"scripts": {
 		"transform:pages": "jscodeshift -t src/transforms/migrate-to-eco-page.ts --parser tsx",
 		"transform:components": "jscodeshift -t src/transforms/migrate-to-eco-component.ts --parser tsx",
+		"transform:core-entrypoints": "jscodeshift -t src/transforms/migrate-core-entrypoints.ts --parser tsx",
 		"test": "vitest run"
 	},
 	"devDependencies": {

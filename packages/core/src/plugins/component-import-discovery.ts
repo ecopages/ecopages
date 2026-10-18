@@ -163,6 +163,7 @@ function isFactoryExport(
 		const { factories, namedReexports } = indexModuleExports(file, state.moduleIndex);
 		if (factories.has(exportName)) {
 			result = true;
+			state.watchFiles.add(file);
 		} else {
 			const reexport = namedReexports.get(exportName);
 			if (
@@ -187,6 +188,13 @@ function isFactoryExport(
 	return result;
 }
 
+/**
+ * Component dependencies discovered from a source module.
+ *
+ * @remarks
+ * Parsing currently uses the shared Build-layer module cache; #556 tracks moving the parser contract
+ * into the plugin contracts layer.
+ */
 export type DiscoveredImports = {
 	components: string[];
 	stylesheets: string[];
@@ -194,7 +202,7 @@ export type DiscoveredImports = {
 	removals: Array<{ start: number; end: number; replacement: string }>;
 };
 
-function isCssImport(source: string): boolean {
+export function isCssImport(source: string): boolean {
 	return source.endsWith('.css') && !source.endsWith('.module.css');
 }
 
@@ -281,6 +289,7 @@ function collectFactoryComponentsFromImport(
 			})
 		) {
 			result.components.push(local);
+			factoryState.watchFiles.add(resolved);
 		}
 	}
 }
@@ -290,7 +299,8 @@ function collectFactoryComponentsFromImport(
  *
  * @remarks
  * Named `export { X } from` barrels are followed for the imported binding only.
- * Successful re-export hops are recorded in `watchFiles` so barrel edits invalidate caches.
+ * The imported module, the factory file, and successful re-export hops are recorded in
+ * `watchFiles` so component and barrel edits invalidate caches.
  * `export *`, dynamic imports, namespace imports, packages, and `.server` modules are not.
  */
 export function discoverComponentImports(program: unknown, ownerFile: string, projectRoot: string): DiscoveredImports {

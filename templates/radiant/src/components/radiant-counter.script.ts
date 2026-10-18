@@ -1,3 +1,5 @@
+import type { JsxCustomElementAttributes } from '@ecopages/jsx';
+
 export type RadiantCounterProps = {
 	count?: number;
 };
@@ -44,4 +46,10 @@ export class RadiantCounterElement extends HTMLElement {
 
 if (!customElements.get('radiant-counter')) {
 	customElements.define('radiant-counter', RadiantCounterElement);
+}
+
+declare module '@ecopages/jsx' {
+	interface JsxCustomIntrinsicElements {
+		'radiant-counter': JsxCustomElementAttributes<RadiantCounterElement, RadiantCounterProps>;
+	}
 }

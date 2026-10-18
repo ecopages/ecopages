@@ -100,7 +100,7 @@ export interface GenerateAttributesResultJsx {
 	sizes?: string;
 	width?: number;
 	height?: number;
-	style?: React.CSSProperties;
+	style?: Record<string, string>;
 }
 
 /**

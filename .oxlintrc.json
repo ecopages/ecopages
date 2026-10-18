@@ -6,6 +6,13 @@
 		"no-param-reassign": "error",
 		"default-param-last": "error",
 		"no-else-return": "error",
+		"no-restricted-properties": [
+			"error",
+			{
+				"property": "NODE_ENV",
+				"message": "Use the centralized runtime mode helpers from @ecopages/core."
+			}
+		],
 		"no-explicit-any": "off",
 		"no-empty-interface": "off",
 		"no-inferrable-types": "off",
@@ -19,5 +26,19 @@
 				"caughtErrorsIgnorePattern": "^_"
 			}
 		]
-	}
+	},
+	"overrides": [
+		{
+			"files": ["packages/core/src/env.ts", "packages/core/src/browser-env.ts"],
+			"rules": {
+				"no-restricted-properties": "off"
+			}
+		},
+		{
+			"files": ["playground/kitchen-sink/bench/**"],
+			"rules": {
+				"no-restricted-properties": "off"
+			}
+		}
+	]
 }

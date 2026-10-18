@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { installBuildRuntime } from '../../build/runtime/build-runtime.ts';
-import { ConfigBuilder } from '../../config/config-builder.ts';
+import { installBuildQueue } from '../../build/runtime/build-queue.ts';
+import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from './dev-transform-url.ts';
 import { DevTransformBundler } from './dev-transform-bundler.ts';
 import { DevTransformServer } from './dev-transform-server.ts';
@@ -31,7 +31,7 @@ describe('DevTransformServer', () => {
 			const sourcePath = path.join(rootDir, 'src', 'index.ts');
 			fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
 			fs.writeFileSync(sourcePath, 'export const value = "before";');
-			const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 			const server = new DevTransformServer({ appConfig: config });
 			const outputUrl = server.registerModule(sourcePath);
 			const started = Promise.withResolvers<void>();
@@ -60,6 +60,45 @@ describe('DevTransformServer', () => {
 		},
 	);
 
+	it.each([true, false])(
+		'does not report a failure of a source fixed during compilation (watcher notified: %s)',
+		async (notifyWatcher) => {
+			const rootDir = createTempRoot('dev-transform-stale-failure');
+			const sourcePath = path.join(rootDir, 'src', 'index.ts');
+			fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+			fs.writeFileSync(sourcePath, 'export const value = ;');
+			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+			const onTransformError = vi.fn();
+			const server = new DevTransformServer({ appConfig: config, onTransformError });
+			const outputUrl = server.registerModule(sourcePath);
+			const started = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			vi.spyOn(DevTransformBundler.prototype, 'transpileModule').mockImplementation(async () => {
+				const code = fs.readFileSync(sourcePath, 'utf8');
+				if (code.includes('= ;')) {
+					started.resolve();
+					await release.promise;
+					throw new Error('broken build');
+				}
+				return { code };
+			});
+
+			const response = server.tryHandleRequest(new Request(`http://localhost${outputUrl}`));
+			await started.promise;
+			fs.writeFileSync(sourcePath, 'export const value = "fixed";');
+			if (notifyWatcher) {
+				server.invalidateSource(sourcePath);
+			}
+			release.resolve();
+
+			const settled = await response;
+			expect(settled?.status).toBe(200);
+			expect(await settled?.text()).toContain('"fixed"');
+			expect(onTransformError).not.toHaveBeenCalled();
+			expect(server.getFailureMessages()).toEqual([]);
+		},
+	);
+
 	it.each(['source', 'all'] as const)(
 		'serializes concurrent requests across %s invalidation with unchanged bytes',
 		async (scope) => {
@@ -67,7 +106,7 @@ describe('DevTransformServer', () => {
 			const sourcePath = path.join(rootDir, 'src', 'index.ts');
 			fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
 			fs.writeFileSync(sourcePath, 'export const value = true;');
-			const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+			const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 			const server = new DevTransformServer({ appConfig: config });
 			const outputUrl = server.registerModule(sourcePath);
 			const started = Promise.withResolvers<void>();
@@ -114,9 +153,45 @@ describe('DevTransformServer', () => {
 		},
 	);
 
+	it('answers a vendor request with 304 when If-None-Match carries its ETag', async () => {
+		const rootDir = createTempRoot('dev-transform-vendor-etag');
+		fs.writeFileSync(
+			path.join(rootDir, 'package.json'),
+			JSON.stringify({ name: 'vendor-etag-app', type: 'module' }),
+		);
+		const packageDir = path.join(rootDir, 'node_modules', 'fixture-lib');
+		fs.mkdirSync(packageDir, { recursive: true });
+		fs.writeFileSync(
+			path.join(packageDir, 'package.json'),
+			JSON.stringify({ name: 'fixture-lib', version: '1.0.0', type: 'module', module: 'index.js' }),
+		);
+		fs.writeFileSync(path.join(packageDir, 'index.js'), 'export const release = 1;');
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		installBuildQueue(config);
+		const server = new DevTransformServer({ appConfig: config });
+		const sourcePath = path.join(config.absolutePaths.srcDir, 'vendor-consumer.ts');
+		fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+		fs.writeFileSync(sourcePath, "import { release } from 'fixture-lib';\nexport { release };\n");
+		const moduleUrl = server.registerModule(sourcePath);
+		const consumer = await server.tryHandleRequest(new Request(`http://localhost${moduleUrl}`));
+		const consumerCode = await consumer?.text();
+		const vendorUrl = consumerCode?.match(/['"](\/assets\/vendors\/[^'"]+)['"]/u)?.[1];
+		expect(vendorUrl).toBeTruthy();
+
+		const first = await server.tryHandleRequest(new Request(`http://localhost${vendorUrl}`));
+		const etag = first?.headers.get('ETag');
+		expect(etag).toBeTruthy();
+		expect(fs.existsSync(path.join(config.absolutePaths.distDir, vendorUrl!.slice('/'.length)))).toBe(false);
+
+		const revalidated = await server.tryHandleRequest(
+			new Request(`http://localhost${vendorUrl}`, { headers: { 'If-None-Match': `${etag}` } }),
+		);
+		expect(revalidated?.status).toBe(304);
+	});
+
 	it('registerModule returns a stable dev-transform URL', async () => {
 		const rootDir = createTempRoot('dev-transform-server-register');
-		const config = await new ConfigBuilder().setRootDir(rootDir).build();
+		const config = await finalizeEcoPagesConfig({ rootDir });
 		const server = new DevTransformServer({ appConfig: config });
 		const sourcePath = path.join(config.absolutePaths.srcDir, 'pages', 'index.tsx');
 
@@ -130,7 +205,7 @@ describe('DevTransformServer', () => {
 
 	it('reset clears registered modules', async () => {
 		const rootDir = createTempRoot('dev-transform-server-reset');
-		const config = await new ConfigBuilder().setRootDir(rootDir).build();
+		const config = await finalizeEcoPagesConfig({ rootDir });
 		const server = new DevTransformServer({ appConfig: config });
 		const sourcePath = path.join(config.absolutePaths.srcDir, 'pages', 'about.tsx');
 		const outputUrl = server.registerModule(sourcePath);
@@ -143,7 +218,7 @@ describe('DevTransformServer', () => {
 
 	it('tryHandleRequest returns null for unknown module URLs', async () => {
 		const rootDir = createTempRoot('dev-transform-server-unknown');
-		const config = await new ConfigBuilder().setRootDir(rootDir).build();
+		const config = await finalizeEcoPagesConfig({ rootDir });
 		const server = new DevTransformServer({ appConfig: config });
 
 		const response = await server.tryHandleRequest(
@@ -160,8 +235,8 @@ describe('DevTransformServer', () => {
 		const entrypointPath = path.join(srcDir, 'index.tsx');
 		fs.writeFileSync(entrypointPath, 'export const page = true;\n', 'utf8');
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
-		installBuildRuntime(config);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		installBuildQueue(config);
 		const server = new DevTransformServer({ appConfig: config });
 
 		const outputUrl = server.registerModule(entrypointPath);
@@ -178,8 +253,8 @@ describe('DevTransformServer', () => {
 		const entrypointPath = path.join(srcDir, 'index.tsx');
 		fs.writeFileSync(entrypointPath, 'export const home = true;\n', 'utf8');
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
-		installBuildRuntime(config);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		installBuildQueue(config);
 		const server = new DevTransformServer({ appConfig: config });
 
 		const response = await server.tryHandleRequest(
@@ -187,6 +262,7 @@ describe('DevTransformServer', () => {
 		);
 
 		expect(response?.status).toBe(200);
+		expect(response?.headers.get('Content-Type')).toContain('javascript');
 		expect(await response!.text()).toContain('home');
 		expect(server.getRegisteredSourcePath(`${DEV_TRANSFORM_URL_PREFIX}/pages/index.js`)).toBe(
 			path.resolve(entrypointPath),
@@ -205,16 +281,15 @@ describe('DevTransformServer', () => {
 			'utf8',
 		);
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
-		installBuildRuntime(config);
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		installBuildQueue(config);
 		const server = new DevTransformServer({ appConfig: config });
 		const outputUrl = server.registerModule(entrypointPath);
 		const entryResponse = await server.tryHandleRequest(new Request(`http://localhost${outputUrl}`));
 
 		expect(entryResponse?.ok).toBe(true);
 		const entryCode = await entryResponse!.text();
-		const chunkUrlMatch = entryCode.match(new RegExp(`${DEV_TRANSFORM_URL_PREFIX}/pages/lazy-part\\.js`));
-		expect(chunkUrlMatch).not.toBeNull();
+		expect(entryCode).toMatch(new RegExp(`${DEV_TRANSFORM_URL_PREFIX}/pages/lazy-part\\.js\\?v=[0-9a-f]+`));
 
 		const chunkResponse = await server.tryHandleRequest(
 			new Request(`http://localhost${DEV_TRANSFORM_URL_PREFIX}/pages/lazy-part.js`),
@@ -230,7 +305,7 @@ describe('DevTransformServer', () => {
 		const cssPath = path.join(componentsDir, 'widget.css');
 		fs.writeFileSync(cssPath, ':host { color: tomato; }\n', 'utf8');
 
-		const config = await new ConfigBuilder().setRootDir(rootDir).setIntegrations([]).build();
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
 		const server = new DevTransformServer({ appConfig: config });
 
 		const response = await server.tryHandleRequest(

@@ -1,30 +1,61 @@
+**Layer:** Development and HMR.
+
 Development-only browser tooling is opt-in per application.
+
+## Development invalidation
+
+The [invalidation service](invalidation/README.md) classifies file changes and marks affected development results dirty. Each `AppRuntime` owns one instance shared by the Project Watcher and HMR manager.
 
 ## Dev toolbar
 
 - `/_dev_toolbar.js` — browser bundle built by core from `devToolbar.package` (for example `@ecopages/dev-toolbar`)
 - `#__ECO_DEV_MANIFEST__` — per-page dependency graph payload for the Deps panel
+- Build errors — the reference toolbar claims HMR error presentation; custom clients use the [build error event contract](../dev-toolbar/README.md#build-error-presentation), with an in-page fallback for unclaimed errors
 
 Public docs: [Dev toolbar](/docs/core/dev-toolbar) (built-in apps, manifest fields).
 
 Configure in `eco.config.ts`:
 
 ```ts
+import { defineConfig } from '@ecopages/core/config';
 import { devToolbar } from '@ecopages/dev-toolbar/config';
 
-.setDevToolbar(devToolbar())
+export default defineConfig({ devToolbar: devToolbar() });
 ```
 
-For a custom client package, use `defineDevTool` from `@ecopages/core/dev-toolbar/define-dev-tool`.
+For a custom client package, use `defineDevTool` from `@ecopages/core/client`.
 
 Install the client package in the app project. Core resolves it from the application root and bundles it during watch mode.
 
-Disable per project with `devToolbar: { enabled: false }`, or per process with `ECOPAGES_DEV_TOOLBAR=false`.
+Disable per project with `devToolbar: { enabled: false }`, or per process with `ECOPAGES_DEV_TOOLBAR=false` or `0`.
 
-Server wiring: [dev-toolbar/README.md](../dev-toolbar/README.md) (`DevToolbarHost`, manifest, runtime bundling, HTML injection). Bring-your-own toolbars export `src/bootstrap.ts` and use the same `devToolbar.package` config key.
+Server wiring: [dev-toolbar/README.md](../dev-toolbar/README.md) (manifest and the toolbar runtime entry that the HMR manager bundles, serves and injects). Bring-your-own toolbars export `src/bootstrap.ts` and use the same `devToolbar.package` config key.
 
-Dev transform requests retry when their source changes or is invalidated during compilation. Concurrent requests share one in-flight compile per source, including across source and global invalidation; stale attempts release their slot before retrying. Only results for the current source snapshot enter the module cache, so rapid edits cannot label stale browser code with a newer source hash.
+### Dev transform
+
+Entrypoints may be files under `srcDir` or files in workspace-linked packages. Workspace files are served at `/assets/__eco_dev__/@fs/...` so a React island from a linked package can hydrate on another Integration's page. Module URLs encode filesystem characters such as spaces, percent signs, and query or fragment delimiters and decode them before resolving the source path.
+
+Dev transform requests retry when their source changes or is invalidated during compilation. Concurrent requests share one in-flight compile per source, including across source and global invalidation; stale attempts release their slot before retrying. Only results for the current source snapshot enter the module cache, so rapid edits cannot label stale browser code with a newer source hash. A failed compile of a snapshot that changed in the meantime is retried the same way, so it is neither returned nor reported.
+
+### Build errors of served modules
+
+When a module fails to compile, `DevTransformServer` answers 500 with the error text, records the message under the module, and calls `onTransformError` with it. `HmrManager` broadcasts that message as an HMR `error` event, which the HMR client shows in the page ([hmr/README.md](../hmr/README.md#client-events)).
+
+- The failure is recorded under the requested module, but its cause can be another file and the module can be removed, so `HmrManager.handleFileChange()` clears every recorded failure. A module that still fails records its error again on its next request. A successful request also removes its module's failure.
+- The module request of a fresh page load can arrive before the page's HMR socket connects, and the broadcast then reaches no one. The Node HTTP host therefore calls `sendPendingBuildErrors()` right after subscribing a socket, which sends one `error` event per recorded failure.
+
+Bare browser imports are prebundled to `/assets/vendors/<name>.<specifier-hash>.js` on the first request of each dev process. The bundle contents stay in that process's memory; Core does not write them under `dist` or reuse them from disk. A process restart rebuilds them from the installed package graph, so a change to a transitive dependency takes effect even when the importing package's version and entry file stay the same. Every vendor file, including integration runtimes with unhashed names that are written under `dist`, is served with `Cache-Control: no-cache` and a content `ETag`; browsers revalidate on each load and receive `304` while the content is unchanged.
+
+## Additional watch paths
+
+The Project Watcher resolves each `additionalWatchPaths` entry against the root directory. A plain path is watched as given and matches itself and everything inside it. An entry containing `*` is a glob: chokidar takes only literal paths, so the pattern is split at its first segment with a glob character. The static prefix, resolved against the root directory, is the base the watcher subscribes to (`content` for `content/**/*.md`, the root directory for `**/*.config.ts`), and the rest is matched with `path.matchesGlob` against paths relative to that base, so glob characters in the root directory path never reach the matcher. A path segment starting with `.` matches only a pattern segment starting with `.`. The watcher ignores files and dot-directories reached only through a glob base unless the glob can match them, and warns when a glob's base is the filesystem root. On Windows a pattern may separate segments with `\\` or `/`.
+
+The watcher never descends into `node_modules`, `.git`, the work directory or `distDir`. chokidar reports paths with `/` on every platform, so they are normalised before the check, which keeps these folders ignored on Windows.
+
+The Project Watcher waits up to 30 seconds for its filesystem subscription to become ready. A timeout or an error before readiness closes the subscription and rejects watcher startup. Its maximum-wait timer schedules sustained change batches within one second of the first event; serialized processing can begin later when earlier work is queued.
 
 ## Process restarts
 
-The Project Watcher classifies the resolved `eco.config` module and supported project dotenv paths separately from HMR. Under the CLI, those changes request a graceful runtime stop and a supervised child-process restart so config modules and environment values are loaded from scratch. Embedded hosts are warned without core terminating their process. Runtime entry watchers own config-module changes when `dev:watch` is active, while the Project Watcher continues to own dotenv changes.
+The Project Watcher classifies the resolved `eco.config` module, the project files it imports (`absolutePaths.configModuleFiles`), and supported project dotenv paths separately from HMR. Under the CLI, those changes request a graceful runtime stop and a supervised child-process restart so config modules and environment values are loaded from scratch. When the restarted child exits with an error, the CLI supervisor waits for the next change in the project or a linked workspace package and launches again instead of exiting. It watches from before the restarted child launches, skipping dependencies, VCS metadata and the default work and build directories (`resolveDevelopmentRecoveryWatch`), so a fix saved while the child was loading relaunches at once. A Project Watcher with no restart callback warns and returns. Runtime entry watchers own changes to `eco.config.ts` itself when `dev:watch` is active; the Project Watcher still owns dotenv files and files the config imports. Watcher errors retain their stacks in the log.
+
+During `ecopages dev`, linked package roots resolved from the application's declared dependencies are also watched. Adding, editing, or deleting a file requests a supervised restart, reloading server imports and rebuilding browser vendors. Their `node_modules` and dot entries are skipped. Vendor bundles live only in the running process, so the restarted process builds them from the current package files. See [Project Watcher](../watchers/README.md) for discovery and restart behavior.

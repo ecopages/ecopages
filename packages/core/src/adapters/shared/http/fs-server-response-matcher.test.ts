@@ -1,24 +1,32 @@
-import { describe, expect, it, vi } from 'vitest';
-import { fileSystem } from '@ecopages/file-system';
+import { afterAll, describe, expect, it, vi } from 'vitest';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { APP_TEST_ROUTES, INDEX_TEMPLATE_FILE } from '../../../../__fixtures__/constants.ts';
+import { APP_TEST_ROUTES } from '../../../../__fixtures__/constants.ts';
+import { copyFixtureApp } from '../../../../__fixtures__/app/copy-fixture-app.ts';
 import { createFixtureAppConfig } from '../../../../__fixtures__/app/test-app-config.ts';
 import type { HttpErrorPageStatus } from '../../../errors/http-error-page-contract.ts';
-import type { EcoPagesAppConfig, MatchResult } from '../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { RouteMatch } from '../../../router/server/route-registry.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { RouteRendererFactory, type StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import { RouteRegistry } from '../../../router/server/route-registry.ts';
-import { MemoryCacheStore } from '../../../services/cache/memory-cache-store.ts';
-import { PageCacheService } from '../../../services/cache/page-cache-service.ts';
+import { MemoryCacheStore } from '../../../page-cache/memory-cache-store.ts';
+import { PageCacheService } from '../../../page-cache/page-cache-service.ts';
 import { HttpError } from '../../../errors/http-error.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 import { FileSystemResponseMatcher } from './fs-server-response-matcher.ts';
 
-const appConfig = await createFixtureAppConfig();
+const appDir = copyFixtureApp();
+afterAll(() => {
+	rmSync(appDir, { recursive: true, force: true });
+});
+
+const appConfig = await createFixtureAppConfig({ rootDir: appDir });
+const INDEX_TEMPLATE_FILE = path.join(appDir, 'src/pages/index.ts');
 
 for (const integration of appConfig.integrations) {
-	integration.setConfig(appConfig);
-	integration.setRuntimeOrigin(appConfig.baseUrl);
+	await integration.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
 }
 
 const router = new RouteRegistry({
@@ -36,7 +44,7 @@ await router.init();
 
 const routeRendererFactory = new RouteRendererFactory({
 	appConfig,
-	runtimeOrigin: appConfig.baseUrl,
+	runtime: requireAppRuntime(appConfig),
 });
 
 function createRouteRendererFactoryWithStub404(
@@ -50,6 +58,7 @@ function createRouteRendererFactoryWithStub404(
 			})
 		: vi.fn(async () => ({
 				body: '<h1>404 - Page Not Found</h1>',
+				metadata: { title: 'Page', description: 'Page description' },
 			}));
 
 	const stub404Renderer = {
@@ -85,6 +94,7 @@ function createRouteRendererFactoryWithStub500(
 			})
 		: vi.fn(async () => ({
 				body: '<h1>500 - Internal Server Error</h1>',
+				metadata: { title: 'Page', description: 'Page description' },
 			}));
 
 	const stub500Renderer = {
@@ -195,11 +205,7 @@ const { factory: routeRendererFactoryForNoMatchTests } = createRouteRendererFact
 	appConfig.absolutePaths.error404TemplatePath,
 );
 
-const fileSystemResponseFactory = new FileSystemServerResponseFactory({
-	options: {
-		watchMode: false,
-	},
-});
+const fileSystemResponseFactory = new FileSystemServerResponseFactory();
 
 describe('FileSystemResponseMatcher', () => {
 	describe('without cache service', () => {
@@ -219,7 +225,7 @@ describe('FileSystemResponseMatcher', () => {
 		});
 
 		it('should handle match with disabled cache headers', async () => {
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -233,10 +239,6 @@ describe('FileSystemResponseMatcher', () => {
 			expect(response.headers.get('Content-Type')).toBe('text/html');
 			expect(response.headers.get('X-Cache')).toBe('DISABLED');
 			expect(response.headers.get('Cache-Control')).toBe('no-store, must-revalidate');
-		});
-
-		it('should return null for getCacheService when not configured', () => {
-			expect(matcherWithoutCache.getCacheService()).toBeNull();
 		});
 	});
 
@@ -256,12 +258,8 @@ describe('FileSystemResponseMatcher', () => {
 			defaultCacheStrategy: 'static',
 		});
 
-		it('should return cache service via getCacheService', () => {
-			expect(matcherWithCache.getCacheService()).toBe(cacheService);
-		});
-
 		it('should return X-Cache header on first request (MISS)', async () => {
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: '/cache-test-miss',
 				templateRoute: {
 					kind: 'exact',
@@ -273,12 +271,13 @@ describe('FileSystemResponseMatcher', () => {
 			};
 			const response = await matcherWithCache.handleMatch(match);
 			expect(response.headers.get('X-Cache')).toBe('MISS');
-			expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
+			expect(response.headers.get('Cache-Control')).toBe('public, max-age=0, must-revalidate');
+			expect(response.headers.get('ETag')).toMatch(/^"[a-f0-9]{16}"$/);
 		});
 
 		it('should return X-Cache HIT on second request to same path', async () => {
 			const uniquePath = `/cache-test-hit-${Date.now()}`;
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: uniquePath,
 				templateRoute: {
 					kind: 'exact',
@@ -296,8 +295,34 @@ describe('FileSystemResponseMatcher', () => {
 			expect(response2.headers.get('X-Cache')).toBe('HIT');
 		});
 
+		it('returns 304 when If-None-Match matches the static HTML ETag', async () => {
+			const uniquePath = `/cache-test-etag-${Date.now()}`;
+			const match: RouteMatch = {
+				requestedPathname: uniquePath,
+				templateRoute: {
+					kind: 'exact',
+					pathname: uniquePath,
+					filePath: INDEX_TEMPLATE_FILE,
+				},
+				params: {},
+				query: {},
+			};
+
+			const first = await matcherWithCache.handleMatch(match);
+			const etag = first.headers.get('ETag');
+			expect(etag).toMatch(/^"[a-f0-9]{16}"$/);
+
+			const notModified = await matcherWithCache.handleMatch(
+				match,
+				new Request(`http://localhost${uniquePath}`, { headers: { 'If-None-Match': etag ?? '' } }),
+			);
+
+			expect(notModified.status).toBe(304);
+			expect(await notModified.text()).toBe('');
+		});
+
 		it('should cache different paths separately', async () => {
-			const match1: MatchResult = {
+			const match1: RouteMatch = {
 				requestedPathname: '/path-a',
 				templateRoute: {
 					kind: 'exact',
@@ -307,7 +332,7 @@ describe('FileSystemResponseMatcher', () => {
 				params: {},
 				query: {},
 			};
-			const match2: MatchResult = {
+			const match2: RouteMatch = {
 				requestedPathname: '/path-b',
 				templateRoute: {
 					kind: 'exact',
@@ -327,7 +352,7 @@ describe('FileSystemResponseMatcher', () => {
 
 		it('should include query params in cache key', async () => {
 			const basePath = `/search-${Date.now()}`;
-			const matchWithQuery: MatchResult = {
+			const matchWithQuery: RouteMatch = {
 				requestedPathname: basePath,
 				templateRoute: {
 					kind: 'exact',
@@ -337,7 +362,7 @@ describe('FileSystemResponseMatcher', () => {
 				params: {},
 				query: { q: 'test' },
 			};
-			const matchWithDifferentQuery: MatchResult = {
+			const matchWithDifferentQuery: RouteMatch = {
 				requestedPathname: basePath,
 				templateRoute: {
 					kind: 'exact',
@@ -375,7 +400,7 @@ describe('FileSystemResponseMatcher', () => {
 		});
 
 		it('should bypass cache entirely for dynamic strategy', async () => {
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: '/dynamic-page',
 				templateRoute: {
 					kind: 'exact',
@@ -429,10 +454,11 @@ describe('FileSystemResponseMatcher', () => {
 		});
 
 		it('should serve text/plain files from disk', async () => {
-			const readFileAsBuffer = vi.spyOn(fileSystem, 'readFileAsBuffer').mockReturnValue(Buffer.from('robots'));
+			mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
+			writeFileSync(path.join(appConfig.absolutePaths.distDir, 'robots.txt'), 'robots');
 			const response = await matcher.handleNoMatch('/robots.txt');
-			readFileAsBuffer.mockRestore();
 			expect(response.headers.get('Content-Type')).toBe('text/plain');
+			expect(await response.text()).toBe('robots');
 		});
 
 		it('should return custom 404 page for non-existent static files', async () => {
@@ -460,7 +486,7 @@ describe('FileSystemResponseMatcher', () => {
 				routeRendererFactory: factoryWithStub404,
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -504,7 +530,7 @@ describe('FileSystemResponseMatcher', () => {
 				routeRendererFactory: factoryWithStub404,
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -672,7 +698,7 @@ describe('FileSystemResponseMatcher', () => {
 				routeRendererFactory: throwingFactory,
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -710,7 +736,7 @@ describe('FileSystemResponseMatcher', () => {
 				routeRendererFactory: factoryWithStub500,
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -747,7 +773,7 @@ describe('FileSystemResponseMatcher', () => {
 				routeRendererFactory: factoryWithStub500,
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -768,99 +794,89 @@ describe('FileSystemResponseMatcher', () => {
 		});
 
 		it('should pass message and stack to the custom 500 page in development', async () => {
-			const previousNodeEnv = process.env.NODE_ENV;
-			process.env.NODE_ENV = 'development';
+			vi.stubEnv('NODE_ENV', 'development');
 
-			try {
-				const renderError = new Error('page render failed');
-				const throwingFactory = createRouteRendererFactoryWithThrowingPage(
-					routeRendererFactory,
-					INDEX_TEMPLATE_FILE,
-					renderError,
-				);
-				const { factory: factoryWithStub500, execute } = createRouteRendererFactoryWithStub500(
-					throwingFactory,
-					appConfig.absolutePaths.error500TemplatePath,
-				);
-				const matcher = new FileSystemResponseMatcher({
-					appConfig,
-					assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
-					router,
-					routeRendererFactory: factoryWithStub500,
-					fileSystemResponseFactory,
-				});
-				const match: MatchResult = {
-					requestedPathname: APP_TEST_ROUTES.index,
-					templateRoute: {
-						kind: 'exact',
-						pathname: APP_TEST_ROUTES.index,
-						filePath: INDEX_TEMPLATE_FILE,
-					},
-					params: {},
-					query: {},
-				};
+			const renderError = new Error('page render failed');
+			const throwingFactory = createRouteRendererFactoryWithThrowingPage(
+				routeRendererFactory,
+				INDEX_TEMPLATE_FILE,
+				renderError,
+			);
+			const { factory: factoryWithStub500, execute } = createRouteRendererFactoryWithStub500(
+				throwingFactory,
+				appConfig.absolutePaths.error500TemplatePath,
+			);
+			const matcher = new FileSystemResponseMatcher({
+				appConfig,
+				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				router,
+				routeRendererFactory: factoryWithStub500,
+				fileSystemResponseFactory,
+			});
+			const match: RouteMatch = {
+				requestedPathname: APP_TEST_ROUTES.index,
+				templateRoute: {
+					kind: 'exact',
+					pathname: APP_TEST_ROUTES.index,
+					filePath: INDEX_TEMPLATE_FILE,
+				},
+				params: {},
+				query: {},
+			};
 
-				await matcher.handleMatch(match);
+			await matcher.handleMatch(match);
 
-				expect(execute).toHaveBeenCalledWith({
-					file: appConfig.absolutePaths.error500TemplatePath,
-					props: {
-						status: 500,
-						message: 'page render failed',
-						stack: renderError.stack,
-					},
-					locals: {},
-				});
-			} finally {
-				process.env.NODE_ENV = previousNodeEnv;
-			}
+			expect(execute).toHaveBeenCalledWith({
+				file: appConfig.absolutePaths.error500TemplatePath,
+				props: {
+					status: 500,
+					message: 'page render failed',
+					stack: renderError.stack,
+				},
+				locals: {},
+			});
 		});
 
 		it('should omit error details from the custom 500 page in production', async () => {
-			const previousNodeEnv = process.env.NODE_ENV;
-			process.env.NODE_ENV = 'production';
+			vi.stubEnv('NODE_ENV', 'production');
 
-			try {
-				const renderError = new Error('page render failed');
-				const throwingFactory = createRouteRendererFactoryWithThrowingPage(
-					routeRendererFactory,
-					INDEX_TEMPLATE_FILE,
-					renderError,
-				);
-				const { factory: factoryWithStub500, execute } = createRouteRendererFactoryWithStub500(
-					throwingFactory,
-					appConfig.absolutePaths.error500TemplatePath,
-				);
-				const matcher = new FileSystemResponseMatcher({
-					appConfig,
-					assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
-					router,
-					routeRendererFactory: factoryWithStub500,
-					fileSystemResponseFactory,
-				});
-				const match: MatchResult = {
-					requestedPathname: APP_TEST_ROUTES.index,
-					templateRoute: {
-						kind: 'exact',
-						pathname: APP_TEST_ROUTES.index,
-						filePath: INDEX_TEMPLATE_FILE,
-					},
-					params: {},
-					query: {},
-				};
+			const renderError = new Error('page render failed');
+			const throwingFactory = createRouteRendererFactoryWithThrowingPage(
+				routeRendererFactory,
+				INDEX_TEMPLATE_FILE,
+				renderError,
+			);
+			const { factory: factoryWithStub500, execute } = createRouteRendererFactoryWithStub500(
+				throwingFactory,
+				appConfig.absolutePaths.error500TemplatePath,
+			);
+			const matcher = new FileSystemResponseMatcher({
+				appConfig,
+				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				router,
+				routeRendererFactory: factoryWithStub500,
+				fileSystemResponseFactory,
+			});
+			const match: RouteMatch = {
+				requestedPathname: APP_TEST_ROUTES.index,
+				templateRoute: {
+					kind: 'exact',
+					pathname: APP_TEST_ROUTES.index,
+					filePath: INDEX_TEMPLATE_FILE,
+				},
+				params: {},
+				query: {},
+			};
 
-				await matcher.handleMatch(match);
+			await matcher.handleMatch(match);
 
-				expect(execute).toHaveBeenCalledWith({
-					file: appConfig.absolutePaths.error500TemplatePath,
-					props: {
-						status: 500,
-					},
-					locals: {},
-				});
-			} finally {
-				process.env.NODE_ENV = previousNodeEnv;
-			}
+			expect(execute).toHaveBeenCalledWith({
+				file: appConfig.absolutePaths.error500TemplatePath,
+				props: {
+					status: 500,
+				},
+				locals: {},
+			});
 		});
 
 		it('should return the built-in HTML 500 when a matched route throws and the custom 500 template is missing', async () => {
@@ -881,7 +897,7 @@ describe('FileSystemResponseMatcher', () => {
 				routeRendererFactory: factoryWithout500,
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -919,7 +935,7 @@ describe('FileSystemResponseMatcher', () => {
 				routeRendererFactory: factoryWithThrowing500,
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',
@@ -977,7 +993,10 @@ describe('FileSystemResponseMatcher', () => {
 			});
 			const routeRendererFactory = {
 				getPageRenderer: vi.fn(),
-				getExplicitViewRenderer: vi.fn(() => ({ renderToResponse })),
+				getExplicitViewRenderer: vi.fn(() => ({
+					renderExplicitView: renderToResponse,
+					executeExplicitView: vi.fn(),
+				})),
 			};
 			const matcher = new FileSystemResponseMatcher({
 				appConfig: appConfigWithoutErrorPages,
@@ -1013,7 +1032,7 @@ describe('FileSystemResponseMatcher', () => {
 				},
 				fileSystemResponseFactory,
 			});
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: { kind: 'exact', pathname: APP_TEST_ROUTES.index, filePath: INDEX_TEMPLATE_FILE },
 				params: {},
@@ -1083,7 +1102,11 @@ describe('FileSystemResponseMatcher', () => {
 			const loadPageModule = vi.fn(async () => pageModule);
 			const execute = vi.fn(async (options: { pageModule?: unknown }) => {
 				expect(options.pageModule).toBe(pageModule);
-				return { body: '<html></html>', cacheStrategy: 'static' as const };
+				return {
+					body: '<html></html>',
+					metadata: { title: 'Page', description: 'Page description' },
+					cacheStrategy: 'static' as const,
+				};
 			});
 			(matcher as any).routeRendererFactory = {
 				getPageRenderer: vi.fn(() => ({
@@ -1092,7 +1115,7 @@ describe('FileSystemResponseMatcher', () => {
 				})),
 			};
 
-			const match: MatchResult = {
+			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
 					kind: 'exact',

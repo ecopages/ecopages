@@ -1,105 +1,53 @@
-import type { EcoBuildPlugin } from './contracts/build-types.ts';
 import { mergeBrowserRuntimeManifests } from './browser/browser-runtime-manifest.ts';
-import type { AppBuildManifest } from './contracts/build-manifest.ts';
+import { seedProcessorWatchPaths } from './cache/build-input-dependency-index.ts';
+import {
+	createAppBuildManifest,
+	type AppBuildManifest,
+	type BuildPluginRegistration,
+} from './contracts/build-manifest.ts';
+import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { appLogger } from '../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { startupTrace } from '../diagnostics/startup-trace.ts';
 import { isLitStaticRenderWorkerThread } from './browser/lit-static-render-worker-context.ts';
 
-function patchAppRuntime(
-	appConfig: EcoPagesAppConfig,
-	patch: Partial<NonNullable<EcoPagesAppConfig['runtime']>>,
-): void {
-	appConfig.runtime = {
-		...(appConfig.runtime ?? {}),
-		...patch,
-	};
-}
-
-function registerRuntimePlugins(
-	appConfig: EcoPagesAppConfig,
-	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void,
-): void {
-	for (const loader of appConfig.loaders.values()) {
-		onRuntimePlugin?.(loader);
-	}
-
-	for (const processor of appConfig.processors.values()) {
-		if (processor.plugins) {
-			for (const plugin of processor.plugins) {
-				onRuntimePlugin?.(plugin);
-			}
-		}
-	}
-
-	for (const integration of appConfig.integrations) {
-		for (const plugin of integration.plugins) {
-			onRuntimePlugin?.(plugin);
-		}
-	}
-}
-
 /**
- * Collects integration and processor contributions before the app build manifest is sealed.
+ * Seals the app's build manifest from its loaders, processors and integrations.
  *
  * @remarks
- * Called from {@link ConfigBuilder.build} via {@link updateAppBuildManifest}. Walks
- * processors first, then integrations, invoking {@link Processor.prepareBuildContributions}
- * and {@link IntegrationPlugin.prepareBuildContributions} so dynamic plugin lists can be
- * materialized before sealing.
- *
- * Maps contributor getters to manifest buckets:
- * - `processor.plugins` / `integration.plugins` → `runtimePlugins`
- * - `processor.buildPlugins` / `integration.browserBuildPlugins` → `browserBundlePlugins`
- * - `integration.browserRuntimeManifest` → merged `browserRuntimeManifest`
- *
- * Loaders are not collected here; {@link createConfiguredAppBuildManifest} always takes
- * them from `appConfig.loaders`.
+ * Called during runtime assembly. Loaders come first, then processors, then integrations. Each one's
+ * `plugins(app)` is read once; every registration is validated once, by {@link createAppBuildManifest}. Browser
+ * runtime manifests are data, not lifecycle hooks. Runtime setup happens after finalization.
  */
-export async function collectConfiguredAppBuildManifestContributions(
-	appConfig: EcoPagesAppConfig,
-): Promise<Pick<AppBuildManifest, 'runtimePlugins' | 'browserBundlePlugins' | 'browserRuntimeManifest'>> {
-	const runtimePlugins: EcoBuildPlugin[] = [];
-	const browserBundlePlugins: EcoBuildPlugin[] = [];
+export function sealAppBuildManifest(appConfig: EcoPagesAppConfig): AppBuildManifest {
+	const registrations: BuildPluginRegistration[] = [...appConfig.loaders.values()].map((plugin) => ({
+		plugin,
+		source: `Loader "${plugin.name}"`,
+	}));
 	const browserRuntimeManifests = [];
 
 	for (const processor of appConfig.processors.values()) {
-		await processor.prepareBuildContributions();
-
-		if (processor.plugins) {
-			runtimePlugins.push(...processor.plugins);
-		}
-
-		if (processor.buildPlugins) {
-			browserBundlePlugins.push(...processor.buildPlugins);
+		for (const plugin of processor.plugins(appConfig)) {
+			registrations.push({ plugin, source: `Processor "${processor.name}"` });
 		}
 	}
 
 	for (const integration of appConfig.integrations) {
-		integration.setConfig(appConfig);
-		await integration.prepareBuildContributions();
-		runtimePlugins.push(...(integration.plugins ?? []));
-		browserBundlePlugins.push(...(integration.browserBuildPlugins ?? []));
+		for (const plugin of integration.plugins(appConfig)) {
+			registrations.push({ plugin, source: `Integration "${integration.name}"` });
+		}
 		browserRuntimeManifests.push(integration.browserRuntimeManifest);
 	}
 
-	return {
-		runtimePlugins,
-		browserBundlePlugins,
-		browserRuntimeManifest: mergeBrowserRuntimeManifests(...browserRuntimeManifests),
-	};
+	return createAppBuildManifest(registrations, mergeBrowserRuntimeManifests(...browserRuntimeManifests));
 }
 
-export async function setupAppRuntimePlugins(options: {
-	appConfig: EcoPagesAppConfig;
-	runtimeOrigin: string;
-	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
-}): Promise<void> {
+export async function setupAppRuntimePlugins(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
 	startupTrace.markPhaseStart('setupAppRuntimePlugins');
 
-	if (options.appConfig.runtime?.runtimeAssetsPrepared) {
+	const runtime = requireAppRuntime(options.appConfig);
+	if (runtime.runtimeAssetsPrepared) {
 		appLogger.debug('Skipped setupAppRuntimePlugins: runtime assets already prepared');
-		registerRuntimePlugins(options.appConfig, options.onRuntimePlugin);
 		startupTrace.markPhaseEnd('setupAppRuntimePlugins');
 		return;
 	}
@@ -111,29 +59,17 @@ export async function setupAppRuntimePlugins(options: {
 	appLogger.debugTime('setupAppRuntimePlugins');
 
 	try {
-		if (options.onRuntimePlugin) {
-			patchAppRuntime(options.appConfig, { onRuntimePlugin: options.onRuntimePlugin });
-		}
-
-		for (const loader of options.appConfig.loaders.values()) {
-			options.onRuntimePlugin?.(loader);
-		}
-
 		const skipProcessorSetup = isLitStaticRenderWorkerThread();
 
 		for (const processor of options.appConfig.processors.values()) {
+			processor.setContext(options.appConfig);
 			if (!skipProcessorSetup) {
 				await processor.setup();
 			}
-
-			if (processor.plugins) {
-				for (const plugin of processor.plugins) {
-					options.onRuntimePlugin?.(plugin);
-				}
-			}
 		}
 
-		patchAppRuntime(options.appConfig, { runtimeAssetsPrepared: true });
+		seedProcessorWatchPaths(options.appConfig, runtime.buildInputIndex);
+		runtime.runtimeAssetsPrepared = true;
 	} finally {
 		appLogger.debugTimeEnd('setupAppRuntimePlugins');
 		startupTrace.markPhaseEnd('setupAppRuntimePlugins');
@@ -150,12 +86,8 @@ export async function setupAppRuntimePlugins(options: {
 export async function ensureIntegrationRuntimeReady(options: {
 	appConfig: EcoPagesAppConfig;
 	integrationName: string;
-	runtimeOrigin: string;
-	onRuntimePlugin?: (plugin: EcoBuildPlugin) => void;
 }): Promise<void> {
-	const runtime = options.appConfig.runtime ?? {};
-	options.appConfig.runtime = runtime;
-	runtime.integrationActivations ??= new Map<string, Promise<void>>();
+	const runtime = requireAppRuntime(options.appConfig);
 
 	const existing = runtime.integrationActivations.get(options.integrationName);
 	if (existing) {
@@ -169,14 +101,7 @@ export async function ensureIntegrationRuntimeReady(options: {
 	}
 
 	const activation = (async () => {
-		integration.setConfig(options.appConfig);
-		integration.setRuntimeOrigin(options.runtimeOrigin);
-		await integration.setup();
-
-		const onRuntimePlugin = options.onRuntimePlugin ?? options.appConfig.runtime?.onRuntimePlugin;
-		for (const plugin of integration.plugins ?? []) {
-			onRuntimePlugin?.(plugin);
-		}
+		await integration.setup({ appConfig: options.appConfig, runtime });
 	})();
 
 	runtime.integrationActivations.set(options.integrationName, activation);
@@ -187,4 +112,43 @@ export async function ensureIntegrationRuntimeReady(options: {
 		runtime.integrationActivations.delete(options.integrationName);
 		throw error;
 	}
+}
+
+export async function setupAppRuntimeIntegrations(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
+	await Promise.all(
+		options.appConfig.integrations.map((integration) =>
+			ensureIntegrationRuntimeReady({
+				appConfig: options.appConfig,
+				integrationName: integration.name,
+			}),
+		),
+	);
+}
+
+/**
+ * Releases runtime resources owned by the app's Integrations.
+ *
+ * @remarks
+ * Waits for in-flight setup calls before teardown and clears activation state after each activated Integration
+ * has had a chance to release its resources.
+ */
+export async function teardownAppRuntimeIntegrations(options: { appConfig: EcoPagesAppConfig }): Promise<void> {
+	const runtime = requireAppRuntime(options.appConfig);
+	const activeIntegrations = new Set(runtime.integrationActivations.keys());
+	await Promise.allSettled(runtime.integrationActivations.values());
+
+	const errors: unknown[] = [];
+	for (const integration of options.appConfig.integrations) {
+		if (!activeIntegrations.has(integration.name)) continue;
+
+		try {
+			await integration.teardown();
+		} catch (error) {
+			errors.push(error);
+		}
+	}
+	runtime.integrationActivations.clear();
+
+	if (errors.length === 1) throw errors[0];
+	if (errors.length > 1) throw new AggregateError(errors, 'Failed to release Integration runtime resources');
 }

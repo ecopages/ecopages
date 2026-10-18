@@ -1,48 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { IntegrationPlugin, type IntegrationPluginConfig } from './integration-plugin.ts';
-import type { IHmrManager } from '../types/public-types.ts';
-import type { AssetDefinition } from '../services/assets/asset-processing-service';
-import type { IntegrationRendererRenderOptions, RouteRendererBody } from '../types/public-types.ts';
 import {
-	IntegrationRenderer,
-	type RenderToResponseContext,
-} from '../route-renderer/orchestration/integration-renderer.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+	IntegrationPlugin,
+	type IntegrationPluginConfig,
+	type IntegrationRuntimeContext,
+} from './integration-plugin.ts';
+import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
+import { AssetProcessingService } from '../assets/asset-processing-service/asset-processing.service.ts';
+import type { IHmrManager } from '../types/contracts.ts';
+import type { AssetDefinition } from '../assets/asset-processing-service';
+import type { IntegrationRendererRenderOptions, RouteRendererBody } from '../types/contracts.ts';
+import { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
+import { requireAppRuntime } from '../utils/app-runtime.ts';
 
 class NamelessRenderer extends IntegrationRenderer {
 	declare name: string;
 
-	async render(_options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
+	override async render(_options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		return '<div>ok</div>';
-	}
-
-	async renderToResponse(_view: never, _props: never, _ctx: RenderToResponseContext): Promise<Response> {
-		return new Response('<div>ok</div>');
 	}
 }
 
 class TestIntegrationPlugin extends IntegrationPlugin {
-	renderer = vi.fn() as any;
-	override setup(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	override teardown(): Promise<void> {
-		return Promise.resolve();
-	}
-}
-
-class OverrideInitializeRendererPlugin extends TestIntegrationPlugin {
-	override initializeRenderer() {
-		const renderer = new NamelessRenderer({
-			appConfig: this.appConfig as EcoPagesAppConfig,
-			assetProcessingService: {} as never,
-			resolvedIntegrationDependencies: [],
-			runtimeOrigin: this.runtimeOrigin,
-		});
-
-		return this.attachRendererRuntimeServices(renderer);
-	}
+	renderer = NamelessRenderer;
 }
 
 describe('IntegrationPlugin', () => {
@@ -60,26 +39,10 @@ describe('IntegrationPlugin', () => {
 	it('should initialize with correct config values', () => {
 		expect(plugin.name).toBe(config.name);
 		expect(plugin.extensions).toEqual(config.extensions);
-		expect(plugin.runtimeCapability).toBeUndefined();
+		expect(plugin.bundlesPageDependencies).toBe(false);
 		expect(plugin.getResolvedIntegrationDependencies()).toEqual(
 			config.integrationDependencies as AssetDefinition[],
 		);
-	});
-
-	it('should retain runtime capability declarations', () => {
-		const pluginWithRuntimeCapability = new TestIntegrationPlugin({
-			name: 'runtime-capable',
-			extensions: ['.test'],
-			runtimeCapability: {
-				tags: ['bun-only'],
-				minRuntimeVersion: '1.0.0',
-			},
-		});
-
-		expect(pluginWithRuntimeCapability.runtimeCapability).toEqual({
-			tags: ['bun-only'],
-			minRuntimeVersion: '1.0.0',
-		});
 	});
 
 	it('should initialize with empty dependencies if not provided', () => {
@@ -91,11 +54,13 @@ describe('IntegrationPlugin', () => {
 	});
 
 	it('should implement setup and teardown methods', async () => {
-		await expect(plugin.setup()).resolves.toBeUndefined();
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', integrations: [plugin] });
+		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
+		await expect(plugin.setup({ appConfig, runtime: requireAppRuntime(appConfig) })).resolves.toBeUndefined();
 		await expect(plugin.teardown()).resolves.toBeUndefined();
 	});
 
-	it('should register HMR strategies through the base HMR setup', () => {
+	it('allows integrations to register their HMR strategy from the runtime context', async () => {
 		const registerStrategy = vi.fn();
 		const hmrManager = {
 			registerStrategy,
@@ -106,49 +71,81 @@ describe('IntegrationPlugin', () => {
 			stop: vi.fn(),
 			isEnabled: vi.fn(() => true),
 			broadcast: vi.fn(),
-			getOutputUrl: vi.fn(),
 			getWatchedFiles: vi.fn(() => new Map()),
 			getRegisteredEntrypoints: vi.fn(() => new Map()),
-			getRuntimeWorkDir: vi.fn(() => ''),
-			getRuntimePath: vi.fn(() => ''),
+			tryHandleDevClientRequest: vi.fn(async () => null),
 			tryHandleAssetRequest: vi.fn(() => null),
+			injectDevClientRuntimes: vi.fn(async (response: Response) => response),
 			getDefaultContext: vi.fn(),
 			handleFileChange: vi.fn(),
+			handleFileChanges: vi.fn(),
 		} satisfies IHmrManager;
-
 		const strategy = { matches: vi.fn(() => false), process: vi.fn(), priority: 10, type: 'integration' } as any;
 		const pluginWithStrategy = new (class extends TestIntegrationPlugin {
-			override getHmrStrategy() {
-				return strategy;
+			override hmr({ runtime }: IntegrationRuntimeContext): void {
+				runtime.hmr?.registerStrategy(strategy);
 			}
 		})(config);
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', integrations: [pluginWithStrategy] });
+		const runtime = requireAppRuntime(appConfig);
+		runtime.hmr = hmrManager;
 
-		pluginWithStrategy.setHmrManager(hmrManager);
+		pluginWithStrategy.hmr({ appConfig, runtime });
 
 		expect(registerStrategy).toHaveBeenCalledWith(strategy);
 	});
 
-	it('should stamp the plugin integration name onto initialized renderers', () => {
+	it('stamps the integration name onto the renderer created from its runtime base', async () => {
 		const pluginWithRenderer = new (class extends TestIntegrationPlugin {
-			override renderer = NamelessRenderer as TestIntegrationPlugin['renderer'];
+			override renderer = NamelessRenderer;
 		})(config);
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', integrations: [pluginWithRenderer] });
+		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
+		await pluginWithRenderer.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
 
-		(pluginWithRenderer as TestIntegrationPlugin & { appConfig?: object; runtimeOrigin: string }).appConfig =
-			{} as EcoPagesAppConfig;
-		pluginWithRenderer.runtimeOrigin = 'http://localhost:3000';
-
-		const renderer = pluginWithRenderer.initializeRenderer();
+		const renderer = pluginWithRenderer.getRenderer();
 		expect(renderer.name).toBe('test-plugin');
 	});
 
-	it('should stamp the plugin integration name when overrides use shared renderer runtime services', () => {
-		const pluginWithOverride = new OverrideInitializeRendererPlugin(config);
+	it('shares one app renderer across repeated lookups and forwards HMR attachment', async () => {
+		const pluginWithRenderer = new (class extends TestIntegrationPlugin {
+			override renderer = NamelessRenderer;
+		})(config);
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', integrations: [pluginWithRenderer] });
+		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
+		await pluginWithRenderer.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
+		const createRenderer = vi.spyOn(pluginWithRenderer, 'createRenderer');
 
-		(pluginWithOverride as TestIntegrationPlugin & { appConfig?: object; runtimeOrigin: string }).appConfig =
-			{} as EcoPagesAppConfig;
-		pluginWithOverride.runtimeOrigin = 'http://localhost:3000';
+		const first = pluginWithRenderer.getRenderer();
+		const second = pluginWithRenderer.getRenderer();
 
-		const renderer = pluginWithOverride.initializeRenderer();
-		expect(renderer.name).toBe('test-plugin');
+		expect(second).toBe(first);
+		expect(createRenderer).toHaveBeenCalledTimes(1);
+		await pluginWithRenderer.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
+		const rendererAfterSetup = pluginWithRenderer.getRenderer();
+		const setRendererHmrManager = vi.spyOn(rendererAfterSetup, 'setHmrManager');
+		expect(rendererAfterSetup).not.toBe(first);
+		expect(createRenderer).toHaveBeenCalledTimes(2);
+
+		const hmrManager = {} as IHmrManager;
+		const runtime = requireAppRuntime(appConfig);
+		runtime.hmr = hmrManager;
+		pluginWithRenderer.hmr({ appConfig, runtime });
+
+		expect(pluginWithRenderer.getRenderer()).toBe(rendererAfterSetup);
+		expect(setRendererHmrManager).toHaveBeenCalledWith(hmrManager);
+	});
+
+	it('allows integrations to add renderer options through createRenderer', async () => {
+		const pluginWithOverride = new (class extends TestIntegrationPlugin {
+			override createRenderer(base: Parameters<IntegrationPlugin['createRenderer']>[0]) {
+				return new NamelessRenderer(base);
+			}
+		})(config);
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/app', integrations: [pluginWithOverride] });
+		vi.spyOn(AssetProcessingService.prototype, 'processDependencies').mockResolvedValue([]);
+		await pluginWithOverride.setup({ appConfig, runtime: requireAppRuntime(appConfig) });
+
+		expect(pluginWithOverride.getRenderer().name).toBe('test-plugin');
 	});
 });

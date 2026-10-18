@@ -122,6 +122,7 @@ test('createAliasResolverPlugin resolves tsconfig path aliases to concrete barre
 			},
 			onLoad() {},
 			module() {},
+			transform() {},
 		});
 
 		assert.ok(registrations.length > 0);
@@ -129,5 +130,23 @@ test('createAliasResolverPlugin resolves tsconfig path aliases to concrete barre
 		assert.equal(realpathSync(resolved?.path ?? ''), realpathSync(path.join(layoutDir, 'base-layout.kita.tsx')));
 	} finally {
 		fs.rmSync(projectRoot, { recursive: true, force: true });
+	}
+});
+
+test('createAliasResolverPlugin keys its identity on the project root and its path prefixes', () => {
+	const projectA = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-alias-resolver-'));
+	const projectB = fs.mkdtempSync(path.join(tmpdir(), 'ecopages-alias-resolver-'));
+	writeTsconfig(projectA, { '@/*': ['./src/*'] });
+	writeTsconfig(projectB, { '~/*': ['./src/*'] });
+
+	try {
+		assert.equal(createAliasResolverPlugin(projectA).cacheKey, createAliasResolverPlugin(projectA).cacheKey);
+		assert.notEqual(createAliasResolverPlugin(projectA).cacheKey, createAliasResolverPlugin(projectB).cacheKey);
+
+		writeTsconfig(projectB, { '@/*': ['./src/*'] });
+		assert.notEqual(createAliasResolverPlugin(projectA).cacheKey, createAliasResolverPlugin(projectB).cacheKey);
+	} finally {
+		fs.rmSync(projectA, { recursive: true, force: true });
+		fs.rmSync(projectB, { recursive: true, force: true });
 	}
 });

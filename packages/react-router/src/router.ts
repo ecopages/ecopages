@@ -9,6 +9,7 @@
 
 /* oxlint-disable react/refs, react-hooks/exhaustive-deps */
 
+import { isProductionRuntime } from '@ecopages/core';
 import {
 	useEffect,
 	useEffectEvent,
@@ -27,17 +28,18 @@ import {
 } from 'react';
 import { type EcoRouterOptions, DEFAULT_OPTIONS } from './types.ts';
 import { RouterContext } from './context.ts';
-import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/router/link-navigation-policy';
+import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/client';
+import { invalidateNavigationHtml } from '@ecopages/core/client';
 import { type PageState } from './navigation.ts';
 import { runRouterNavigate, type RouterNavigateOptions } from './router-navigate-runner.ts';
-import { applyViewTransitionNames, ensureRootViewTransitionStyles } from '@ecopages/core/client/view-transitions';
-import { manageWindowScroll } from '@ecopages/core/client/scroll';
+import { applyViewTransitionNames, ensureRootViewTransitionStyles } from '@ecopages/core/client';
+import { manageWindowScroll } from '@ecopages/core/client';
 import {
 	getEcoNavigationRuntime,
 	type EcoNavigationRequest,
 	type EcoNavigationTransaction,
 	type EcoReloadRequest,
-} from '@ecopages/core/router/navigation-coordinator';
+} from '@ecopages/core/client';
 import { clearLayoutCache, resolvePersistedLayoutStack, type LayoutComponent } from './layout-cache.ts';
 import {
 	composeLayoutPageTree,
@@ -50,7 +52,7 @@ import {
 	getAnchorFromNavigationEvent,
 	recoverPendingNavigationHref,
 	type EcoPendingNavigationIntent,
-} from '@ecopages/core/router/link-intent';
+} from '@ecopages/core/client';
 
 /**
  * Router-owned page state.
@@ -121,7 +123,7 @@ export const PageContent: FC = () => {
 	const persistLayouts = useContext(PersistLayoutsContext);
 
 	if (!pageContext) {
-		if (import.meta.env.NODE_ENV !== 'production') {
+		if (!isProductionRuntime()) {
 			console.warn('[EcoRouter] PageContent used outside of EcoRouter');
 		}
 		return null;
@@ -193,11 +195,12 @@ function useNavigationCoordinator(
 			return false;
 		}
 
+		const currentUrl = window.location.href;
 		if (request?.clearCache) {
 			clearLayoutCache();
+			invalidateNavigationHtml(currentUrl);
 		}
 
-		const currentUrl = window.location.pathname + window.location.search;
 		await navigate(currentUrl, {
 			moduleUrlOverride: request?.moduleUrl,
 			skipViewTransition: true,
@@ -282,7 +285,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	const pendingPointerNavigationRef = useRef<EcoPendingNavigationIntent | null>(null);
 	const queuedNavigationHrefRef = useRef<string | null>(null);
 	const committedPathRef = useRef<string>(
-		typeof window !== 'undefined' ? window.location.pathname + window.location.search : '',
+		typeof window !== 'undefined' ? window.location.pathname + window.location.search + window.location.hash : '',
 	);
 	const previousUrlRef = useRef<string>(typeof window !== 'undefined' ? window.location.href : '');
 
@@ -313,7 +316,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 	}, [options.viewTransitions]);
 
 	useEffect(() => {
-		committedPathRef.current = window.location.pathname + window.location.search;
+		committedPathRef.current = window.location.pathname + window.location.search + window.location.hash;
 		applyViewTransitionNames();
 
 		const pendingRender = pendingRenderRef.current;
@@ -443,7 +446,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			event.preventDefault();
 			queuedNavigationHrefRef.current = null;
 			const recoveredUrl = new URL(recoveredHref, window.location.href);
-			navigate(recoveredUrl.pathname + recoveredUrl.search, { pushHistory: true });
+			navigate(recoveredUrl.pathname + recoveredUrl.search + recoveredUrl.hash, { pushHistory: true });
 			return;
 		}
 
@@ -468,7 +471,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			console.debug('[EcoRouter] Intercepting navigation:', url.pathname + url.search);
 		}
 
-		navigate(url.pathname + url.search, { pushHistory: true });
+		navigate(url.pathname + url.search + url.hash, { pushHistory: true });
 	});
 
 	const handlePopState = useEffectEvent(() => {
@@ -476,7 +479,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			return;
 		}
 
-		navigate(window.location.pathname + window.location.search, { isPopState: true });
+		navigate(window.location.pathname + window.location.search + window.location.hash, { isPopState: true });
 	});
 
 	useEffect(() => {

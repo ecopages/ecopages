@@ -4,11 +4,13 @@
  * Gated behind {@link isRolldownBuildMetricsEnabled} so production paths stay quiet.
  */
 
+import { isEcopagesEnvEnabled } from '../../env.ts';
+
 const invocationCounts = new Map<string, number>();
 let pageModuleBuildInvocations = 0;
 
 export function isRolldownBuildMetricsEnabled(): boolean {
-	return process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS === '1' || process.env.ECOPAGES_LOGGER_DEBUG === 'true';
+	return isEcopagesEnvEnabled('ECOPAGES_ROLLDOWN_BUILD_METRICS') || isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG');
 }
 
 export function recordRolldownBuildInvocation(adapter: 'rolldown' = 'rolldown'): void {

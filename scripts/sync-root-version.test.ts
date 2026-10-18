@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { test } from 'vitest';
+import { onTestFinished, test } from 'vitest';
 import cliJson from '../packages/ecopages/package.json' with { type: 'json' };
 import rootJson from '../package.json' with { type: 'json' };
 import { syncRootVersionFromCli, withPackageVersion } from './sync-root-version.ts';
@@ -17,6 +17,7 @@ test('withPackageVersion replaces only the version field and keeps tabs', () => 
 
 test('syncRootVersionFromCli copies the CLI version onto the root manifest', () => {
 	const dir = mkdtempSync(path.join(tmpdir(), 'sync-root-version-'));
+	onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
 	const rootPath = path.join(dir, 'package.json');
 	const cliPath = path.join(dir, 'cli.json');
 	writeFileSync(rootPath, '{\n\t"name": "root",\n\t"version": "0.2.0-rc.4"\n}\n');

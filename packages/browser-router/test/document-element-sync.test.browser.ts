@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
 import { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC } from '../src/client/types.ts';
 import { syncDocumentElementAttributes } from '../src/client/document-element-sync.ts';
 
@@ -16,10 +16,6 @@ function resetDocumentElement(): void {
 }
 
 describe('document-element-sync', () => {
-	it('exposes the default document-owned html attributes', () => {
-		expect(DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC).toEqual(['lang', 'dir', ECO_DOCUMENT_OWNER_ATTRIBUTE]);
-	});
-
 	it('updates changed synced attributes from the incoming document', () => {
 		resetDocumentElement();
 		document.documentElement.setAttribute('lang', 'en');

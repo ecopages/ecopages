@@ -2,7 +2,6 @@ type ProfileRecord = {
 	category: string;
 	phase: string;
 	ms: number;
-	cacheHit?: boolean;
 };
 
 export function recordModuleTransformProfile(record: ProfileRecord): void {

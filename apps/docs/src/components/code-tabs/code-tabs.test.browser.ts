@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import userEvent from '@testing-library/user-event';
+import { userEvent } from 'vitest/browser';
 import { RadiantCodeTabs } from './code-tabs.script';
 
 function resetDom(): void {
@@ -53,7 +53,7 @@ describe('RadiantCodeTabs', () => {
 		}
 
 		selectedTab.focus();
-		selectedTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+		await userEvent.keyboard('{ArrowRight}');
 
 		await vi.waitFor(() => {
 			expect(codeTabs.selectedKey).toBe('bash');
@@ -72,12 +72,7 @@ describe('RadiantCodeTabs', () => {
 	});
 
 	it('copies the active tab code and exposes transient status feedback', async () => {
-		const user = userEvent.setup();
-		const writeText = vi.fn().mockResolvedValue(undefined);
-		Object.defineProperty(navigator, 'clipboard', {
-			configurable: true,
-			value: { writeText },
-		});
+		const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
 		const codeTabs = createCodeTabs();
 		codeTabs.selectedKey = 'js';
 		document.body.appendChild(codeTabs);
@@ -89,7 +84,7 @@ describe('RadiantCodeTabs', () => {
 		});
 		expect(copyButton).not.toBeNull();
 
-		await user.click(copyButton!);
+		await userEvent.click(copyButton!);
 
 		await vi.waitFor(() => {
 			expect(writeText).toHaveBeenCalledWith('console.log("js")');
@@ -100,19 +95,26 @@ describe('RadiantCodeTabs', () => {
 	});
 
 	it('renders Shiki markup as HTML and copies its plain-text content', async () => {
+		const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
 		const codeTabs = document.createElement('radiant-code-tabs') as RadiantCodeTabs;
 		codeTabs.tabs = [
 			{
 				id: 'typescript',
 				label: 'example.ts',
 				html: '<pre><code><span class="shiki-token">const answer = 42;</span></code></pre>',
-				content: 'const answer = 42;',
+				content: 'plain clipboard text',
 			},
 		];
 		document.body.appendChild(codeTabs);
 
 		await vi.waitFor(() => {
 			expect(codeTabs.querySelector('.shiki-token')?.textContent).toBe('const answer = 42;');
+		});
+
+		await userEvent.click(codeTabs.querySelector<HTMLButtonElement>('.code-tabs__copy')!);
+
+		await vi.waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith('plain clipboard text');
 		});
 	});
 

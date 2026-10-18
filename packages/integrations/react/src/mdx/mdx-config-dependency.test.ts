@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { EcoComponentConfig } from '@ecopages/core';
-import type { AssetDefinition } from '@ecopages/core/services/asset-processing-service';
+import type { AssetDefinition } from '@ecopages/core/integration';
 import { MdxConfigDependencyService } from './mdx-config-dependency.ts';
 
 describe('MdxConfigDependencyService', () => {
@@ -20,6 +20,7 @@ describe('MdxConfigDependencyService', () => {
 				filepath: '/tmp/owned-config.js',
 			},
 		]);
+		const assetProcessingIntegration = { name: 'react' };
 		const service = new MdxConfigDependencyService({
 			integrationName: 'react',
 			pageModuleService: {
@@ -28,6 +29,7 @@ describe('MdxConfigDependencyService', () => {
 			assetProcessingService: {
 				processDependencies,
 			},
+			assetProcessingIntegration,
 		});
 
 		const declaredLitComponentConfig: EcoComponentConfig = {
@@ -73,7 +75,7 @@ describe('MdxConfigDependencyService', () => {
 					},
 				}),
 			],
-			`react-mdx-ssr-lazy:${path.resolve(__dirname, '../test/fixture/react-content.mdx')}`,
+			assetProcessingIntegration,
 		);
 		expect(assets).toEqual(
 			expect.arrayContaining([

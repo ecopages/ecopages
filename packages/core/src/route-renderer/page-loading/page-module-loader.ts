@@ -7,10 +7,9 @@ import type {
 	PageMetadataProps,
 	RouteRendererOptions,
 	EcoPageComponent,
-} from '../../types/public-types.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import { getAppModuleLoader } from '../../services/module-loading/app-server-module-transpiler.service.ts';
-import type { AppModuleLoader } from '../../services/module-loading/app-module-loader.service.ts';
+} from '../../types/contracts.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
+import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
 import { HttpError } from '../../errors/http-error.ts';
 
@@ -24,34 +23,27 @@ import { HttpError } from '../../errors/http-error.ts';
  * page props and metadata into one renderer-facing shape.
  */
 export class PageModuleLoaderService {
-	private appModuleLoader: AppModuleLoader;
 	private appConfig: EcoPagesAppConfig;
-	private runtimeOrigin: string;
 
 	/**
 	 * Creates the page-module loader for one app/runtime instance.
 	 *
 	 * @param appConfig Finalized app config that owns build and invalidation state.
-	 * @param runtimeOrigin Runtime origin exposed to page data hooks.
 	 */
-	constructor(appConfig: EcoPagesAppConfig, runtimeOrigin: string) {
+	constructor(appConfig: EcoPagesAppConfig) {
 		this.appConfig = appConfig;
-		this.runtimeOrigin = runtimeOrigin;
-		this.appModuleLoader = getAppModuleLoader(appConfig);
 	}
 
 	/**
 	 * Imports one page module through the shared server-side module loading path.
 	 *
 	 * @remarks
-	 * The underlying transpiler keeps Bun and Node aligned on one framework-owned
-	 * loading contract even though the runtime-specific execution transport differs.
+	 * The app-owned module loader keeps every request on the same build and cache path.
 	 */
 	async importPageFile(file: string, options?: { bypassCache?: boolean }): Promise<EcoPageFile> {
 		try {
-			return await this.appModuleLoader.importModule<EcoPageFile>({
+			return await requireAppRuntime(this.appConfig).moduleLoader.importModule<EcoPageFile>({
 				filePath: file,
-				rootDir: this.appConfig.rootDir,
 				outdir: `${resolveInternalExecutionDir(this.appConfig)}/.server-modules`,
 				bypassCache: options?.bypassCache,
 				transpileErrorMessage: (details) => `Error transpiling page file: ${details}`,
@@ -81,7 +73,7 @@ export class PageModuleLoaderService {
 			? await getStaticProps({
 					pathname: { params: params ?? {} },
 					appConfig: this.appConfig,
-					runtimeOrigin: this.runtimeOrigin,
+					runtimeOrigin: requireAppRuntime(this.appConfig).origin,
 				})
 					.then((data) => data)
 					.catch((err) => {
@@ -146,12 +138,13 @@ export class PageModuleLoaderService {
 			getMetadata: moduleGetMetadata,
 			...integrationSpecificProps
 		} = module;
+		const pageComponent = Page as EcoPageComponent<any>;
 
 		return {
 			module,
 			Page,
-			getStaticProps: Page.staticProps ?? moduleGetStaticProps,
-			getMetadata: Page.metadata ?? moduleGetMetadata,
+			getStaticProps: pageComponent.staticProps ?? moduleGetStaticProps,
+			getMetadata: pageComponent.metadata ?? moduleGetMetadata,
 			integrationSpecificProps,
 		};
 	}
@@ -162,7 +155,8 @@ export class PageModuleLoaderService {
 	 * @remarks
 	 * Static props are resolved first because page metadata may depend on those
 	 * props. This preserves the same ordering whether data hooks are declared as
-	 * component statics or module exports.
+	 * component statics or module exports. Props passed with the render win over
+	 * static props and are visible to metadata; `skipStaticProps` drops the hook.
 	 */
 	async resolvePageData(options: {
 		pageModule: {
@@ -170,23 +164,31 @@ export class PageModuleLoaderService {
 			getMetadata?: GetMetadata;
 		};
 		routeOptions: RouteRendererOptions;
+		skipMetadata?: boolean;
 	}): Promise<{
 		props: Record<string, unknown>;
 		metadata: PageMetadataProps;
 	}> {
-		const { props } = await this.getStaticPropsForPage({
-			getStaticProps: options.pageModule.getStaticProps,
-			params: options.routeOptions.params,
-		});
+		const staticProps = options.routeOptions.skipStaticProps
+			? {}
+			: (
+					await this.getStaticPropsForPage({
+						getStaticProps: options.pageModule.getStaticProps,
+						params: options.routeOptions.params,
+					})
+				).props;
+		const props = { ...staticProps, ...(options.routeOptions.props ?? {}) };
 
-		const metadata = await this.getMetadataPropsForPage({
-			getMetadata: options.pageModule.getMetadata,
-			context: {
-				props,
-				params: options.routeOptions.params ?? {},
-				query: options.routeOptions.query ?? {},
-			} as GetMetadataContext,
-		});
+		const metadata = options.skipMetadata
+			? this.appConfig.defaultMetadata
+			: await this.getMetadataPropsForPage({
+					getMetadata: options.pageModule.getMetadata,
+					context: {
+						props,
+						params: options.routeOptions.params ?? {},
+						query: options.routeOptions.query ?? {},
+					} as GetMetadataContext,
+				});
 
 		return { props, metadata };
 	}

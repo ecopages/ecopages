@@ -4,7 +4,9 @@
 	"private": true,
 	"exports": {
 		".": "./src/index.ts",
+		"./renderer-contract": "./src/renderer-contract.ts",
 		"./kitchen-sink/ecopages-jsx-shell": "./src/kitchen-sink/ecopages-jsx-shell.eco.tsx",
+		"./kitchen-sink/integration-shell-group": "./src/kitchen-sink/integration-shell-group.kita.tsx",
 		"./kitchen-sink/kita-shell": "./src/kitchen-sink/kita-shell.kita.tsx",
 		"./kitchen-sink/lit-shell": "./src/kitchen-sink/lit-shell.lit.tsx",
 		"./kitchen-sink/react-shell": "./src/kitchen-sink/react-shell.react.tsx"
@@ -25,6 +27,6 @@
 		"@types/react": "^19.2.14"
 	},
 	"peerDependencies": {
-		"@ecopages/jsx": "^0.3.0-rc.9"
+		"@ecopages/jsx": "^0.4.0"
 	}
 }

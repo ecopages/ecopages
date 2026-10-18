@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { PageModuleLoaderService } from './page-module-loader.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import type { EcoPageFile } from '../../types/public-types.ts';
-import type { EcoPageComponent } from '../../eco/eco.types.ts';
-import type { AppModuleLoader } from '../../services/module-loading/app-module-loader.service.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
+import type { EcoPageFile, GetMetadata } from '../../types/contracts.ts';
+import type { EcoPageComponent } from '../../types/eco-api-types.ts';
 import { HttpError } from '../../errors/http-error.ts';
+import type { AppModuleLoaderContract } from '../../build/server/app-module-loader.service.ts';
 
 describe('PageModuleLoaderService', () => {
 	const appConfig = {
@@ -13,11 +13,13 @@ describe('PageModuleLoaderService', () => {
 			title: 'Default title',
 			description: 'Default description',
 		},
-		runtime: {},
-	} as EcoPagesAppConfig;
+		appRuntime: {
+			origin: 'http://localhost:3000',
+		},
+	} as unknown as EcoPagesAppConfig;
 
 	it('should resolve static props via getStaticPropsForPage', async () => {
-		const service = new PageModuleLoaderService(appConfig, 'http://localhost:3000');
+		const service = new PageModuleLoaderService(appConfig);
 		const result = await service.getStaticPropsForPage({
 			getStaticProps: async () => ({
 				props: { title: 'Page title' },
@@ -29,7 +31,7 @@ describe('PageModuleLoaderService', () => {
 	});
 
 	it('should preserve HttpError from getStaticProps', async () => {
-		const service = new PageModuleLoaderService(appConfig, 'http://localhost:3000');
+		const service = new PageModuleLoaderService(appConfig);
 		const notFound = HttpError.NotFound('Unknown docs entry');
 
 		await expect(
@@ -42,7 +44,7 @@ describe('PageModuleLoaderService', () => {
 	});
 
 	it('should preserve duck-typed HttpError from page bundles', async () => {
-		const service = new PageModuleLoaderService(appConfig, 'http://localhost:3000');
+		const service = new PageModuleLoaderService(appConfig);
 		const foreignNotFound = Object.assign(new Error('Unknown docs entry'), {
 			name: 'HttpError',
 			status: 404,
@@ -58,7 +60,7 @@ describe('PageModuleLoaderService', () => {
 	});
 
 	it('should wrap unexpected getStaticProps failures', async () => {
-		const service = new PageModuleLoaderService(appConfig, 'http://localhost:3000');
+		const service = new PageModuleLoaderService(appConfig);
 
 		await expect(
 			service.getStaticPropsForPage({
@@ -70,7 +72,10 @@ describe('PageModuleLoaderService', () => {
 	});
 
 	it('should merge default and dynamic metadata', async () => {
-		const service = new PageModuleLoaderService(appConfig, 'http://localhost:3000');
+		const service = new PageModuleLoaderService({
+			...appConfig,
+			defaultMetadata: { ...appConfig.defaultMetadata, image: '/default.png' },
+		});
 		const metadata = await service.getMetadataPropsForPage({
 			getMetadata: async ({ props }) => ({
 				title: String(props.title),
@@ -87,11 +92,12 @@ describe('PageModuleLoaderService', () => {
 		expect(metadata).toEqual({
 			title: 'Dynamic title',
 			description: 'Dynamic description',
+			image: '/default.png',
 		});
 	});
 
 	it('should resolve page module using provided importer and prefer component static exports', async () => {
-		const service = new PageModuleLoaderService(appConfig, 'http://localhost:3000');
+		const service = new PageModuleLoaderService(appConfig);
 		const Page = (() => 'ok') as EcoPageComponent<any>;
 		Page.staticProps = async () => ({ props: { from: 'component-static' } });
 		Page.metadata = async () => ({
@@ -121,7 +127,7 @@ describe('PageModuleLoaderService', () => {
 	});
 
 	it('should resolve page data end-to-end', async () => {
-		const service = new PageModuleLoaderService(appConfig, 'http://localhost:3000');
+		const service = new PageModuleLoaderService(appConfig);
 		const result = await service.resolvePageData({
 			pageModule: {
 				getStaticProps: async () => ({ props: { title: 'From props' } }),
@@ -143,28 +149,91 @@ describe('PageModuleLoaderService', () => {
 		});
 	});
 
+	it('should give metadata the props passed with the render over static props', async () => {
+		const service = new PageModuleLoaderService(appConfig);
+		const result = await service.resolvePageData({
+			pageModule: {
+				getStaticProps: async () => ({ props: { title: 'Static', kept: 'static' } }),
+				getMetadata: async ({ props }) => ({ title: String(props.title), description: String(props.kept) }),
+			},
+			routeOptions: {
+				file: '/app/views/latest.kita.tsx',
+				params: {},
+				query: {},
+				props: { title: 'Explicit' },
+			},
+		});
+
+		expect(result).toEqual({
+			props: { title: 'Explicit', kept: 'static' },
+			metadata: { title: 'Explicit', description: 'static' },
+		});
+	});
+
+	it('should pass explicit render props to metadata', async () => {
+		const service = new PageModuleLoaderService(appConfig);
+		const result = await service.resolvePageData({
+			pageModule: {
+				getMetadata: async ({ props }) => ({
+					title: String((props.release as { title: string }).title),
+					description: 'Release',
+				}),
+			},
+			routeOptions: {
+				file: '/app/views/latest.kita.tsx',
+				params: {},
+				query: {},
+				props: { release: { title: '1.2.0' } },
+			},
+		});
+
+		expect(result.metadata.title).toBe('1.2.0');
+		expect(result.metadata.description).toBe('Release');
+	});
+
+	it('keeps metadata active when static props are skipped', async () => {
+		const service = new PageModuleLoaderService(appConfig);
+		const getMetadata = async ({ params }: Parameters<GetMetadata>[0]) => ({
+			title: String(params.slug),
+			description: 'Route metadata',
+		});
+		const result = await service.resolvePageData({
+			pageModule: { getMetadata },
+			routeOptions: {
+				file: '/app/pages/products/[slug].tsx',
+				params: { slug: 'new-product' },
+				query: {},
+				skipStaticProps: true,
+			},
+		});
+
+		expect(result).toEqual({
+			props: {},
+			metadata: { title: 'new-product', description: 'Route metadata' },
+		});
+	});
+
 	it('should import page files through the app-owned module loader', async () => {
 		const calls: Array<unknown> = [];
 		const expectedModule = {
 			default: (() => 'ok') as EcoPageComponent<any>,
 		} as EcoPageFile;
-		const service = new PageModuleLoaderService(
-			{
-				...appConfig,
-				runtime: {
-					appModuleLoader: {
-						async importModule<T = unknown>(options: unknown): Promise<T> {
-							calls.push(options);
-							return expectedModule as T;
-						},
-						invalidateDevelopmentGraph(): void {
-							return;
-						},
-					} satisfies AppModuleLoader,
-				},
-			} as EcoPagesAppConfig,
-			'http://localhost:3000',
-		);
+		const service = new PageModuleLoaderService({
+			...appConfig,
+			appRuntime: {
+				origin: 'http://localhost:3000',
+				moduleLoader: {
+					async importModule<T = unknown>(options: unknown): Promise<T> {
+						calls.push(options);
+						return expectedModule as T;
+					},
+					invalidateDevelopmentGraph(): void {
+						return;
+					},
+					getDevelopmentGeneration: () => 0,
+				} satisfies AppModuleLoaderContract,
+			},
+		} as unknown as EcoPagesAppConfig);
 
 		const result = await service.importPageFile('/app/src/pages/index.tsx');
 
@@ -172,7 +241,6 @@ describe('PageModuleLoaderService', () => {
 		expect(calls).toEqual([
 			{
 				filePath: '/app/src/pages/index.tsx',
-				rootDir: '/app',
 				outdir: '/app/.eco/.server-modules',
 				bypassCache: undefined,
 				transpileErrorMessage: expect.any(Function),
@@ -186,23 +254,22 @@ describe('PageModuleLoaderService', () => {
 		const expectedModule = {
 			default: (() => 'ok') as EcoPageComponent<any>,
 		} as EcoPageFile;
-		const service = new PageModuleLoaderService(
-			{
-				...appConfig,
-				runtime: {
-					appModuleLoader: {
-						async importModule<T = unknown>(options: unknown): Promise<T> {
-							calls.push(options);
-							return expectedModule as T;
-						},
-						invalidateDevelopmentGraph(): void {
-							return;
-						},
-					} satisfies AppModuleLoader,
-				},
-			} as EcoPagesAppConfig,
-			'http://localhost:3000',
-		);
+		const service = new PageModuleLoaderService({
+			...appConfig,
+			appRuntime: {
+				origin: 'http://localhost:3000',
+				moduleLoader: {
+					async importModule<T = unknown>(options: unknown): Promise<T> {
+						calls.push(options);
+						return expectedModule as T;
+					},
+					invalidateDevelopmentGraph(): void {
+						return;
+					},
+					getDevelopmentGeneration: () => 0,
+				} satisfies AppModuleLoaderContract,
+			},
+		} as unknown as EcoPagesAppConfig);
 
 		const resolved = await service.resolvePageModule({
 			file: '/app/src/pages/index.tsx',

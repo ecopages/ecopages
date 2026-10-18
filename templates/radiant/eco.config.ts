@@ -11,9 +11,7 @@ export default defineConfig({
 	integrations: [
 		ecopagesJsxPlugin({
 			radiant: true,
-			mdx: {
-				enabled: true,
-			},
+			mdx: {},
 		}),
 	],
 	processors: [

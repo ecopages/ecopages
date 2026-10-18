@@ -8,7 +8,7 @@ description: >-
 
 # Building with Ecopages
 
-Ecopages is a TypeScript-first static site generator with Bun and Node adapters. It is explicit, integration-agnostic, and static by default.
+Ecopages is a TypeScript-first static site generator. It runs on Node or Bun through Node APIs. It is explicit, integration-agnostic, and static by default.
 
 ## When to use this skill
 
@@ -23,15 +23,16 @@ For the page index, use [/llms.txt](/llms.txt). Follow its links to `/docs-llm/<
 
 ## Stack choice
 
-Default to **Ecopages JSX** (`ecopagesJsxPlugin()`, `.tsx`). Use **KitaJS** (`kitajsPlugin()`, `.kita.tsx`) when Pages should compile with `@kitajs/html`.
+Default to **Ecopages JSX** (`ecopagesJsxPlugin()`, `.tsx`). Use **KitaJS** (`kitajsPlugin()`, `.kita.tsx`) when Pages should compile with `@kitajs/html`. Plain `.html` Pages are built into core: an app made only of HTML Pages registers no Integration.
 
 | Integration        | Owns                    | Notes                                                                                |
 | ------------------ | ----------------------- | ------------------------------------------------------------------------------------ |
-| **Ecopages JSX**   | `.tsx` Pages (default)  | Optional Radiant; optional MDX via `ecopagesJsxPlugin({ mdx: { enabled: true } })`   |
-| **React**          | React Pages and islands | Use `reactPlugin({ mdx: { enabled: true } })` for React MDX                          |
+| **Ecopages JSX**   | `.tsx` Pages (default)  | Optional Radiant; optional MDX via `ecopagesJsxPlugin({ mdx: {} })`                  |
+| **React**          | React Pages and islands | Use `reactPlugin({ mdx: {} })` for React MDX                                         |
 | **Lit**            | Web components, SSR     | Foreign-child ownership in the renderer                                              |
 | **Standalone MDX** | Third-party JSX runtime | `mdxPlugin({ compilerOptions: { jsxImportSource } })` — not React or `@ecopages/jsx` |
 | **KitaJS**         | `.kita.tsx` Pages       | `@kitajs/html`                                                                       |
+| **HTML Pages**     | `.html` Pages           | Built into core; no plugin, props, or Layout. See `reference/core.md`                |
 
 Do not treat Ecopages as a React-only framework.
 
@@ -58,6 +59,7 @@ Read only the modules relevant to the task. Each file is one level deep from thi
 5. Processor build plugins use `EcoBuildPlugin`, not Bun-specific plugin types.
 6. Core owns plugin lifecycle ordering — see `reference/processors-and-plugins.md` before authoring custom plugins.
 7. In mixed-integration apps, compose cross-integration shells with integration-owned `EcoEmbed` (`@ecopages/<integration>/eco-embed`), which wraps `eco.embed()`. Plain opaque objects fail fast at core foreign-subtree queue boundaries — pass already-serialized HTML or use `EcoEmbed` instead of ad-hoc object children.
+8. Type-check with `ecopages types && tsc --noEmit`. Bare `tsc` on a fresh checkout has no types for `ecopages:images` or `ecopages:content/*`.
 
 ## Resources
 

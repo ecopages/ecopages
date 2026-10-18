@@ -1,14 +1,16 @@
 import path from 'node:path';
-import { mergeProcessorOptions } from '@ecopages/core/plugins/processor';
+import { writeHashedBrowserAsset } from '@ecopages/core/processor';
+import { mergeProcessorOptions } from '@ecopages/core/processor';
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
+import { isEcopagesEnvEnabled } from '@ecopages/core/processor';
 import sharp, { type Metadata } from 'sharp';
 import { ImageUtils } from './image-utils.ts';
 import type { ImageMap, ImageProcessorConfig } from './plugin.ts';
 import type { ImageAttributes, ImageSpecifications, ImageVariant } from './types.ts';
 
 const appLogger = new Logger('[@ecopages/image-processor]', {
-	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
+	debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG'),
 });
 
 /**
@@ -44,18 +46,28 @@ export class ImageProcessor {
 		return { width, height };
 	}
 
-	private getOutputPath(imagePath: string, width: number) {
-		const hash = fileSystem.hash(imagePath);
-		const ext = path.extname(imagePath);
-		const base = path.basename(imagePath, ext);
-		const filename = `${base}-${hash}-${width}.${this.config.format}`;
-		return path.join(this.config.outputDir, filename);
+	/**
+	 * @remarks
+	 * Includes encoding options so a quality or format change cannot reuse a previous
+	 * variant. File names come from a hash of the encoded bytes, not this key.
+	 */
+	private encodingCacheKey(imagePath: string, fileHash: string): string {
+		const sizesKey = this.config.sizes.map((size) => `${size.width}:${size.label}`).join(',');
+		return `${path.basename(imagePath)}:${fileHash}:q${this.config.quality}:${this.config.format}:${sizesKey}`;
+	}
+
+	private writeEncodedVariant(bytes: Buffer): string {
+		return writeHashedBrowserAsset({
+			bytes,
+			directory: this.config.outputDir,
+			extension: `.${this.config.format}`,
+		});
 	}
 
 	async processImage(imagePath: string): Promise<ImageSpecifications | null> {
 		try {
 			const fileHash = fileSystem.hash(imagePath);
-			const cacheKey = `${path.basename(imagePath)}:${fileHash}`;
+			const cacheKey = this.encodingCacheKey(imagePath, fileHash);
 
 			if (this.config.cacheEnabled) {
 				const cached = await this.cacheManager.readCache<ImageSpecifications>(cacheKey);
@@ -82,16 +94,10 @@ export class ImageProcessor {
 			const originalHeight = metadata.height || 0;
 
 			if (this.config.sizes.length === 0) {
-				const outputPath = this.getOutputPath(imagePath, originalWidth);
-
-				if (fileSystem.exists(outputPath)) {
-					appLogger.debug(`Using existing file for ${imagePath}`);
-				} else {
-					await sharp(imagePath)
-						.toFormat(this.config.format, { quality: this.config.quality })
-						.toFile(outputPath);
-				}
-
+				const encoded = await sharp(imagePath)
+					.toFormat(this.config.format, { quality: this.config.quality })
+					.toBuffer();
+				const outputPath = this.writeEncodedVariant(encoded);
 				const src = path.join(this.config.publicPath, path.basename(outputPath));
 
 				const imageSpecifications: ImageSpecifications = {
@@ -123,17 +129,11 @@ export class ImageProcessor {
 			const variants: ImageVariant[] = await Promise.all(
 				applicableSizes.map(async ({ width: targetWidth, label }) => {
 					const { width, height } = await this.calculateDimensions(metadata, targetWidth);
-					const outputPath = this.getOutputPath(imagePath, width);
-
-					if (fileSystem.exists(outputPath)) {
-						appLogger.debug(`Variant ${width}px already exists for ${imagePath}`);
-					} else {
-						await sharp(imagePath)
-							.resize(width, height)
-							.toFormat(this.config.format, { quality: this.config.quality })
-							.toFile(outputPath);
-					}
-
+					const encoded = await sharp(imagePath)
+						.resize(width, height)
+						.toFormat(this.config.format, { quality: this.config.quality })
+						.toBuffer();
+					const outputPath = this.writeEncodedVariant(encoded);
 					const src = path.join(this.config.publicPath, path.basename(outputPath));
 
 					return {
@@ -189,7 +189,7 @@ export class ImageProcessor {
 		).filter(Boolean) as [string, ImageSpecifications][];
 
 		appLogger.debugTimeEnd('Processing images');
-		if (process.env.ECOPAGES_BENCH === '1' && process.env.ECOPAGES_BENCH_VERBOSE !== '1') {
+		if (isEcopagesEnvEnabled('ECOPAGES_BENCH') && !isEcopagesEnvEnabled('ECOPAGES_BENCH_VERBOSE')) {
 			appLogger.debug(`Processed ${results.length} images`);
 		} else {
 			appLogger.info(`Processed ${results.length} images`);

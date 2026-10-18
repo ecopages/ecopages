@@ -30,10 +30,6 @@
 	@apply max-w-3xl;
 }
 
-.home-header__heading .rui-heading__title {
-	text-wrap: balance;
-}
-
 .home-header__actions {
 	@apply mt-8 flex flex-wrap items-center gap-3;
 }

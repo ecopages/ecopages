@@ -23,18 +23,20 @@ bun dev
 
 ## Commands
 
-| Command               | Description                                             | Equivalent (Bun)                                             |
-| :-------------------- | :------------------------------------------------------ | :----------------------------------------------------------- |
-| `ecopages init [dir]` | Scaffolds a new project (interactive without `dir`)     | N/A                                                          |
-| `ecopages dev`        | Starts the dev server (supervises config/.env restarts) | `bun run [entry] --dev`                                      |
-| `ecopages dev:watch`  | Dev server + hard restarts on file changes              | Bun: `bun --watch run [entry] --dev`; Node: `node --watch …` |
-| `ecopages dev:hot`    | Dev server + HMR (no hard restarts)                     | `bun --hot run [entry] --dev`                                |
-| `ecopages build`      | Creates a production build                              | `bun run [entry] --build`                                    |
-| `ecopages start`      | Starts the production server                            | `bun run [entry]`                                            |
-| `ecopages preview`    | Previews the production build locally                   | `bun run [entry] --preview`                                  |
+| Command               | Description                                             | Equivalent (Bun)                                                     |
+| :-------------------- | :------------------------------------------------------ | :------------------------------------------------------------------- |
+| `ecopages init [dir]` | Scaffolds a new project (interactive without `dir`)     | N/A                                                                  |
+| `ecopages dev`        | Starts the dev server (supervises config/.env restarts) | `bun run [entry] --dev`                                              |
+| `ecopages dev:watch`  | Dev server + hard restarts on file changes              | Bun: `bun --watch run [entry] --dev`; Node: `node --watch …`         |
+| `ecopages build`      | Creates a production build                              | `bun run [entry] --build`                                            |
+| `ecopages start`      | Starts the production server from the built output      | Runs the emitted server bundle                                       |
+| `ecopages preview`    | Previews the production build locally                   | `bun run [entry] --preview`                                          |
+| `ecopages types`      | Writes virtual-module types for `tsc`, then exits       | Loads `eco.config.ts` and sets processors up; the entry does not run |
 
 > [!NOTE]
 > The entry file defaults to `app.ts`. Override it with `--entry-file`.
+
+`ecopages start` does not load `eco.config.ts`, so it finds the build output by looking for `.server/manifest.json` one level below the app root (dot-prefixed directories included). It uses the only match, fails with the matches listed when there are several, and fails with "run `ecopages build`" when there is none. Pass `--dist-dir <dir>` to select a directory, which is required for nested (`out/web`) and symlinked outputs and whenever the app builds several outputs, such as `dist-<scope>` per build target.
 
 ### Templates
 
@@ -45,20 +47,36 @@ ecopages init my-site --template jsx
 ecopages init my-site --from github:acme/my-template#v1.0.0
 ```
 
-The official template IDs are `jsx`, `react`, `react-shadcn`, `lit-jsx`, `radiant`, `blog-jsx`, `blog-react`, `docs-starter`, `react-better-auth`, and `llm-wiki`.
+The official template IDs are `jsx`, `html`, `react`, `react-shadcn`, `lit-jsx`, `radiant`, `blog-jsx`, `blog-react`, `docs-starter`, `react-better-auth`, and `llm-wiki`.
 
 ## Environment & Runtime Options
 
-Server and build commands accept the following options. They automatically map to the equivalent environment variables for the underlying process:
+Server and build commands accept the following shared options. They automatically map to the equivalent environment variables for the underlying process. `--keep-going` is specific to `ecopages build`:
 
-| Option                     | Env Var                 | Description                                               |
-| :------------------------- | :---------------------- | :-------------------------------------------------------- |
-| `-p, --port <port>`        | `ECOPAGES_PORT`         | Server port (default 3000)                                |
-| `-n, --hostname <host>`    | `ECOPAGES_HOSTNAME`     | Server hostname                                           |
-| `-b, --base-url <url>`     | `ECOPAGES_BASE_URL`     | Base URL string                                           |
-| `-d, --debug`              | `ECOPAGES_LOGGER_DEBUG` | Enables debug logging and startup phase trace (see below) |
-| `-r, --react-fast-refresh` |                         | Enables React Fast Refresh                                |
-| `--runtime <runtime>`      |                         | Force execution via `bun` or `node`                       |
+| Option                  | Env Var                 | Description                                               |
+| :---------------------- | :---------------------- | :-------------------------------------------------------- |
+| `-p, --port <port>`     | `ECOPAGES_PORT`         | Server port (default 3000)                                |
+| `-n, --hostname <host>` | `ECOPAGES_HOSTNAME`     | Server hostname                                           |
+| `-b, --base-url <url>`  | `ECOPAGES_BASE_URL`     | Base URL string                                           |
+| `-d, --debug`           | `ECOPAGES_LOGGER_DEBUG` | Enables debug logging and startup phase trace (see below) |
+| `--keep-going`          |                         | Continue exporting pages after a Page render fails        |
+| `--runtime <runtime>`   |                         | Force execution via `bun` or `node`                       |
+
+Boolean environment settings accept `true` or `1` to enable, and `false` or `0` to disable.
+
+| Environment variable                               | Description                                                            |
+| :------------------------------------------------- | :--------------------------------------------------------------------- |
+| `ECOPAGES_CONFIG_FILE`                             | Config path, equivalent to `--config`.                                 |
+| `ECOPAGES_PREVIEW_SERVE_ONLY`                      | For `ecopages preview`, serve existing output without rebuilding.      |
+| `ECOPAGES_DEV_TOOLBAR=false`                       | Disable the configured development toolbar for this process.           |
+| `ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS=<milliseconds>` | Set the quiet period used to batch development file changes.           |
+| `ECOPAGES_DEV_PREWARM_STATIC_ROUTES_PARALLELISM`   | Limit concurrent development prewarm renders to this positive integer. |
+| `ECOPAGES_UNIFIED_PAGES_GRAPH=0`                   | Opt out of the shared production static-page browser build.            |
+| `ECOPAGES_REQUEST_PIPELINE_METRICS=1`              | Add request-pipeline measurements to development responses.            |
+| `ECOPAGES_ROLLDOWN_BUILD_METRICS=1`                | Log Rolldown build invocation counts.                                  |
+| `ECOPAGES_PROFILE_BUILD=1`                         | Include build profiling data in debug output.                          |
+| `ECOPAGES_STARTUP_TRACE_JSON=<path>`               | Write the startup trace report to this JSON file.                      |
+| `ECOPAGES_DEBUG=1`                                 | Log when SSR skips a browser-only custom-element script preload.       |
 
 ### Runtime Detection
 
@@ -75,21 +93,20 @@ ecopages build --runtime bun
 ```bash
 # Debug dev server on custom port
 ecopages dev --port 8080 --debug
-
-# Dev server with React Fast Refresh enabled
-ecopages dev -r
 ```
 
-During `ecopages dev`, adding, changing, or removing `eco.config.ts` (or `--config`) and supported project `.env` files restarts the dev server automatically. The CLI supervises that restart and reloads dotenv files. When the preferred port is busy, development startup uses the same fallback flow as preview: TTY sessions show a Clack confirmation, while non-interactive sessions scan automatically only when the port was not pinned with `--port` or `ECOPAGES_PORT`.
+During `ecopages dev`, adding, changing, or removing `eco.config.ts` (or `--config`) and supported project `.env` files restarts the dev server automatically. The CLI supervises that restart and reloads dotenv files. If the restarted dev server exits with an error, for example because of an invalid config, `ecopages dev` logs the exit code and waits for the next change in the project or a linked workspace package, then starts again. When the preferred port is busy, development startup uses the same fallback flow as preview: TTY sessions show a Clack confirmation, while non-interactive sessions scan automatically only when the port was not pinned with `--port` or `ECOPAGES_PORT`.
+
+`SIGTERM` and `SIGINT` sent to `ecopages` are forwarded to the server it started, and `ecopages` exits once that server has.
 
 ### Debug logging and startup trace
 
 Set these in `.env` or on the command line when diagnosing slow dev startup or first page load.
 
-| Env var                       | CLI                    | What you get                                                                                   |
-| :---------------------------- | :--------------------- | :--------------------------------------------------------------------------------------------- |
-| `ECOPAGES_LOGGER_DEBUG=true`  | `ecopages dev --debug` | Verbose `[@ecopages/core]` logs across the stack, plus **startup phase trace** lines on stderr |
-| `ECOPAGES_STARTUP_TRACE=true` | —                      | **Only** the phase trace (no extra debug noise). Useful when measuring first-open latency      |
+| Env var                              | CLI                    | What you get                                                                                   |
+| :----------------------------------- | :--------------------- | :--------------------------------------------------------------------------------------------- |
+| `ECOPAGES_LOGGER_DEBUG=true` or `1`  | `ecopages dev --debug` | Verbose `[@ecopages/core]` logs across the stack, plus **startup phase trace** lines on stderr |
+| `ECOPAGES_STARTUP_TRACE=true` or `1` | —                      | **Only** the phase trace (no extra debug noise). Useful when measuring first-open latency      |
 
 Trace lines are prefixed with `[ecopages:startup-trace]` and look like:
 
@@ -119,20 +136,20 @@ Ecopages relies on a modular architecture. Core logic and framework integrations
 
 ### Official Packages
 
-| Package                       | Description                                |
-| :---------------------------- | :----------------------------------------- |
-| `@ecopages/browser-router`    | Client-side navigation & view transitions. |
-| `@ecopages/codemod`           | AST migrations for codebase upgrades.      |
-| `@ecopages/core`              | The foundational SSG engine.               |
-| `@ecopages/ecopages-jsx`      | Ecopages-owned JSX routes and hydration.   |
-| `@ecopages/file-system`       | Runtime-agnostic file system utilities.    |
-| `@ecopages/image-processor`   | Asset pipeline for responsive images.      |
-| `@ecopages/kitajs`            | Integration for KitaJS.                    |
-| `@ecopages/lit`               | Integration for Lit SSR/Islands.           |
-| `@ecopages/mdx`               | Integration for standalone MDX routes.     |
-| `@ecopages/postcss-processor` | CSS processing pipeline using PostCSS.     |
-| `@ecopages/react`             | Integration for React 19 SSR/Islands.      |
-| `@ecopages/react-router`      | SPA routing for React.                     |
+| Package                       | Description                                  |
+| :---------------------------- | :------------------------------------------- |
+| `@ecopages/browser-router`    | Client-side navigation & view transitions.   |
+| `@ecopages/codemod`           | AST migrations for codebase upgrades.        |
+| `@ecopages/core`              | The foundational SSG engine.                 |
+| `@ecopages/ecopages-jsx`      | Ecopages-owned JSX routes and hydration.     |
+| `@ecopages/file-system`       | Runtime-agnostic file system utilities.      |
+| `@ecopages/image-processor`   | Asset pipeline for responsive images.        |
+| `@ecopages/kitajs`            | Integration for KitaJS.                      |
+| `@ecopages/lit`               | Integration for Lit SSR/Islands.             |
+| `@ecopages/mdx`               | Integration for standalone MDX routes.       |
+| `@ecopages/postcss-processor` | CSS processing pipeline using PostCSS.       |
+| `@ecopages/react`             | Integration for React 19 SSR/Islands.        |
+| `@ecopages/react-router`      | React SPA routing falls back on HTTP errors. |
 
 Explore all packages at [npmjs.com/org/ecopages](https://www.npmjs.com/org/ecopages).
 

@@ -182,13 +182,8 @@ test.describe('Kitchen Sink Integration Matrix @preview', () => {
 		expect(styleSnapshot.bodyBackgroundColor).not.toBe('rgba(0, 0, 0, 0)');
 		expect(styleSnapshot.bodyColor).not.toBe('rgb(0, 0, 0)');
 		expect(
-			styleSnapshot.stylesheetHrefs.some(
-				(href: string) =>
-					href.includes('/assets/pages/integration-matrix/integration-matrix.css') ||
-					/assets\/styles\/style-[^/]+\.css(?:$|\?)/.test(href),
-			),
+			styleSnapshot.stylesheetHrefs.some((href: string) => /\/assets\/[a-f0-9]{16}\.css(?:$|\?)/.test(href)),
 		).toBe(true);
-		expect(styleSnapshot.stylesheetHrefs).toContainEqual(expect.stringContaining('/assets/styles/tailwind.css'));
 
 		runtime.assertClean();
 	});

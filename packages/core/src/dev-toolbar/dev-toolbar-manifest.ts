@@ -1,5 +1,8 @@
-import type { PagePackageResult } from '../types/public-types.ts';
-import type { ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
+import type { HtmlDocumentContribution } from '../html/html-transformer.service.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import type { PagePackageResult } from '../types/contracts.ts';
+import { isDevToolbarEnabled } from './dev-toolbar-config.ts';
+import type { ProcessedAsset } from '../assets/asset-processing-service/assets.types.ts';
 import { DEV_TRANSFORM_URL_PREFIX, VENDOR_URL_PREFIX } from '../hmr/hmr-asset-paths.ts';
 import {
 	DEV_MANIFEST_ELEMENT_ID,
@@ -70,4 +73,22 @@ export function buildDevToolbarManifestPayload(input: {
  */
 export function serializeDevToolbarManifestScript(payload: EcoDevManifest): string {
 	return `<script type="application/json" id="${DEV_MANIFEST_ELEMENT_ID}">${JSON.stringify(payload)}</script>`;
+}
+
+/**
+ * Returns the manifest snippet appended to a page body, or `undefined` when the Dev Toolbar is off.
+ */
+export function buildDevToolbarManifestContribution(
+	appConfig: Pick<EcoPagesAppConfig, 'devToolbar'>,
+	options: { watch: boolean },
+	input: { routeFile: string; integrationName: string; pagePackage?: PagePackageResult },
+): HtmlDocumentContribution | undefined {
+	if (!isDevToolbarEnabled(appConfig, options)) {
+		return undefined;
+	}
+
+	return {
+		placement: 'body-append',
+		html: serializeDevToolbarManifestScript(buildDevToolbarManifestPayload(input)),
+	};
 }

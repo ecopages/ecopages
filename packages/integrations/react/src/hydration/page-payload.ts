@@ -4,14 +4,10 @@ import {
 	serializePageDataScript,
 	type EcoPageDataProps,
 } from './serialize-page-data-script.ts';
-import type {
-	EcoComponentConfig,
-	HtmlTemplateProps,
-	IntegrationRendererRenderOptions,
-	RequestLocals,
-} from '@ecopages/core';
-import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
-import type { HtmlDocumentContribution } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import type { EcoComponentConfig, HtmlTemplateProps, RequestLocals } from '@ecopages/core';
+import type { IntegrationRendererRenderOptions } from '@ecopages/core/integration';
+import type { ProcessedAsset } from '@ecopages/core/integration';
+import type { HtmlDocumentContribution } from '@ecopages/core/integration';
 import type { ReactNode } from 'react';
 import { isReactManagedComponent } from '../render/component-ownership.ts';
 

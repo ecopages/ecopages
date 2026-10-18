@@ -1,4 +1,5 @@
-import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
+import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/client';
 
 /**
  * Shared types for the EcoPages transitions package
@@ -86,6 +87,16 @@ export interface EcoRouterOptions {
 	 * @default { strategy: 'intent', delay: 65, noPrefetchAttribute: 'data-eco-no-prefetch', respectDataSaver: true }
 	 */
 	prefetch?: PrefetchConfig | false;
+	/**
+	 * Loads a URL as a full document, replacing the current page.
+	 *
+	 * @remarks
+	 * Runs for every navigation the router hands back to the browser: cross-origin and
+	 * static asset targets of `navigate()`, a `before-swap` listener calling `reload()`,
+	 * a document owned by a runtime that cannot take over, and a failed fetch or swap.
+	 * @default (href) => window.location.assign(href)
+	 */
+	reloadDocument?: (href: string) => void;
 }
 
 export type BrowserRouterNavigateOptions = {
@@ -107,11 +118,12 @@ export const DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC = ['lang', 'dir', ECO_D
 export const DEFAULT_OPTIONS: Required<EcoRouterOptions> = {
 	linkSelector: 'a[href]',
 	documentElementAttributesToSync: DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC,
-	persistAttribute: 'data-eco-persist',
+	persistAttribute: ECO_PERSIST_ATTRIBUTE,
 	reloadAttribute: 'data-eco-reload',
 	updateHistory: true,
 	scrollBehavior: 'top',
 	viewTransitions: true,
 	smoothScroll: false,
 	prefetch: DEFAULT_PREFETCH_CONFIG,
+	reloadDocument: (href) => window.location.assign(href),
 };

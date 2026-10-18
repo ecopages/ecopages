@@ -1,21 +1,11 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
-import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/router/link-navigation-policy';
-import {
-	extractProps,
-	extractComponentUrl,
-	fetchPageDocument,
-	loadPageModule,
-	loadPageModuleFromDocument,
-} from '../src/navigation';
-import { DEFAULT_OPTIONS } from '../src/types';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
+import { clearNavigationHtmlCache } from '../../core/src/router/client/navigation-document.ts';
+import { extractProps, extractComponentUrl, loadPageModule, loadPageModuleFromDocument } from '../src/navigation';
+import { resolveReactNavigation } from '../src/navigation-orchestrator.ts';
 
-/** Mirrors `DEV_TRANSFORM_URL_PREFIX` from `@ecopages/core/dev/transform-server`. */
+/** Mirrors `DEV_TRANSFORM_URL_PREFIX` from `@ecopages/core/integration`. */
 const DEV_TRANSFORM_URL_PREFIX = '/assets/__eco_dev__';
-
-function linkNavigationPolicyOptions(options: typeof DEFAULT_OPTIONS) {
-	return { reloadAttribute: options.reloadAttribute };
-}
 
 function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
 	return new Response(body, {
@@ -30,25 +20,6 @@ function htmlPageResponse(body: string, init: ResponseInit = {}): Response {
 
 function createMockDocument(html: string): Document {
 	return new DOMParser().parseFromString(html, 'text/html');
-}
-
-function createLink(href: string, attributes: Record<string, string> = {}): HTMLAnchorElement {
-	const link = document.createElement('a');
-	link.href = href;
-	for (const [key, value] of Object.entries(attributes)) {
-		link.setAttribute(key, value);
-	}
-	document.body.appendChild(link);
-	return link;
-}
-
-function createMouseEvent(overrides: Partial<MouseEventInit> = {}): MouseEvent {
-	return new MouseEvent('click', {
-		button: 0,
-		bubbles: true,
-		cancelable: true,
-		...overrides,
-	});
 }
 
 describe('extractProps', () => {
@@ -318,6 +289,7 @@ describe('loadPageModule', () => {
 	let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
 	beforeEach(() => {
+		clearNavigationHtmlCache();
 		fetchSpy = vi.spyOn(globalThis, 'fetch');
 		consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 		if (typeof window !== 'undefined') {
@@ -366,34 +338,6 @@ describe('loadPageModule', () => {
 
 		expect(result).toBeNull();
 		expect(consoleErrorSpy).not.toHaveBeenCalled();
-	});
-
-	it('should fetch and parse a navigation document without loading a module', async () => {
-		const mockHtml = '<html><body><main>Outside React</main></body></html>';
-		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
-
-		const result = await fetchPageDocument('/docs');
-
-		expect(result).toEqual({
-			doc: expect.any(Document),
-			finalPath: '/docs',
-			html: mockHtml,
-		});
-		expect(result?.doc.body.innerHTML).toContain('Outside React');
-	});
-
-	it('should request navigation documents as HTML', async () => {
-		const mockHtml = '<html><body><main>Docs</main></body></html>';
-		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
-
-		await fetchPageDocument('/docs');
-
-		expect(fetchSpy).toHaveBeenCalledWith('/docs', {
-			signal: undefined,
-			headers: {
-				Accept: 'text/html',
-			},
-		});
 	});
 
 	it('should load a react page module from an already-fetched document', async () => {
@@ -463,12 +407,16 @@ describe('loadPageModule', () => {
 		expect(state.completed).toBe(false);
 		expect(state.props).toEqual({ slug: 'hello-world' });
 
-		const settledEarly = await Promise.race([
-			loadPromise.then(() => true),
-			new Promise<false>((resolve) => {
-				setTimeout(() => resolve(false), 20);
-			}),
-		]);
+		let settledEarly = false;
+		void loadPromise.then(() => {
+			settledEarly = true;
+		});
+		vi.useFakeTimers();
+		try {
+			await vi.advanceTimersByTimeAsync(20);
+		} finally {
+			vi.useRealTimers();
+		}
 		expect(settledEarly).toBe(false);
 
 		state.release?.();
@@ -480,161 +428,40 @@ describe('loadPageModule', () => {
 	});
 });
 
-describe('getLinkNavigationDecision', () => {
-	const options = DEFAULT_OPTIONS;
-	let links: HTMLAnchorElement[] = [];
-
-	beforeEach(() => {
-		links = [];
-	});
-
+describe('resolveReactNavigation', () => {
 	afterEach(() => {
-		links.forEach((link) => link.remove());
-		links = [];
+		vi.restoreAllMocks();
 	});
 
-	it('should intercept normal same-origin clicks', () => {
-		const link = createLink('/about');
-		links.push(link);
-		const event = createMouseEvent();
+	it.each([404, 500])('uses a full navigation for an HTML %s response', async (status) => {
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(htmlPageResponse('<h1>Request failed</h1>', { status }));
 
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
+		const outcome = await resolveReactNavigation({
+			url: '/removed',
+			signal: new AbortController().signal,
+			isStale: () => false,
+			isPopState: false,
+			pushHistory: true,
+		});
 
-		expect(result).toBe(true);
+		expect(outcome).toEqual({ kind: 'hard-navigation', href: '/removed', mode: 'location' });
 	});
 
-	it('should not intercept clicks with modifier keys (ctrl)', () => {
-		const link = createLink('/about');
-		links.push(link);
+	it('fetches the page on every visit instead of reusing the shared HTML cache', async () => {
+		const fetchMock = vi
+			.spyOn(globalThis, 'fetch')
+			.mockImplementation(async () => htmlPageResponse('<html><body>page</body></html>'));
+		const input = {
+			url: '/repeat',
+			signal: new AbortController().signal,
+			isStale: () => false,
+			isPopState: false,
+			pushHistory: true,
+		};
 
-		const result = getLinkNavigationDecision(
-			createMouseEvent({ ctrlKey: true }),
-			link,
-			linkNavigationPolicyOptions(options),
-		).shouldIntercept;
-		expect(result).toBe(false);
-	});
+		await resolveReactNavigation(input);
+		await resolveReactNavigation(input);
 
-	it('should not intercept clicks with modifier keys (meta)', () => {
-		const link = createLink('/about');
-		links.push(link);
-
-		const result = getLinkNavigationDecision(
-			createMouseEvent({ metaKey: true }),
-			link,
-			linkNavigationPolicyOptions(options),
-		).shouldIntercept;
-		expect(result).toBe(false);
-	});
-
-	it('should not intercept non-left clicks', () => {
-		const link = createLink('/about');
-		links.push(link);
-		const event = createMouseEvent({ button: 1 });
-
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
-
-		expect(result).toBe(false);
-	});
-
-	it('should not intercept external links', () => {
-		const link = createLink('https://external.com/page');
-		links.push(link);
-		const event = createMouseEvent();
-
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
-
-		expect(result).toBe(false);
-	});
-
-	it('should not intercept links with target attribute', () => {
-		const link = createLink('/about', { target: '_blank' });
-		links.push(link);
-		const event = createMouseEvent();
-
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
-
-		expect(result).toBe(false);
-	});
-
-	it('should not intercept links with download attribute', () => {
-		const link = createLink('/file.pdf', { download: 'file.pdf' });
-		links.push(link);
-		const event = createMouseEvent();
-
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
-
-		expect(result).toBe(false);
-	});
-
-	it('should not intercept links to static asset files', () => {
-		for (const href of ['/skill.txt', '/skill/reference/full-stack.md']) {
-			const link = createLink(href);
-			links.push(link);
-			const event = createMouseEvent();
-
-			expect(getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept).toBe(
-				false,
-			);
-			expect(getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options))).toEqual({
-				shouldIntercept: false,
-				reason: 'static-asset',
-			});
-		}
-	});
-
-	it('should not intercept links with reload attribute', () => {
-		const link = createLink('/about', { 'data-eco-reload': 'true' });
-		links.push(link);
-		const event = createMouseEvent();
-
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
-
-		expect(result).toBe(false);
-	});
-
-	it('should not intercept hash-only links', () => {
-		const link = createLink('#section');
-		links.push(link);
-		const event = createMouseEvent();
-
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
-
-		expect(result).toBe(false);
-	});
-
-	it('should not intercept same-page links that only add a hash fragment', () => {
-		window.history.replaceState({}, '', `${window.location.origin}/docs/ecosystem/browser-router`);
-		const link = createLink('/docs/ecosystem/browser-router#setup');
-		links.push(link);
-
-		const result = getLinkNavigationDecision(
-			createMouseEvent(),
-			link,
-			linkNavigationPolicyOptions(options),
-		).shouldIntercept;
-
-		expect(result).toBe(false);
-		expect(isSamePageHashNavigationHref('/docs/ecosystem/browser-router#setup')).toBe(true);
-	});
-
-	it('should not intercept mailto links', () => {
-		const link = createLink('mailto:test@example.com');
-		links.push(link);
-		const event = createMouseEvent();
-
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
-
-		expect(result).toBe(false);
-	});
-
-	it('should not intercept tel links', () => {
-		const link = createLink('tel:+1234567890');
-		links.push(link);
-		const event = createMouseEvent();
-
-		const result = getLinkNavigationDecision(event, link, linkNavigationPolicyOptions(options)).shouldIntercept;
-
-		expect(result).toBe(false);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
 	});
 });

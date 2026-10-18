@@ -1,7 +1,9 @@
 import { mkdirSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { availableParallelism } from 'node:os';
 import { fileSystem } from '@ecopages/file-system';
+import { resolveBuildParallelism } from '../build/build-parallelism.ts';
+import { getProcessRuntime } from '../utils/runtime.ts';
+import { getEcopagesEnv, isEcopagesEnvEnabled } from '../env.ts';
 
 export type StartupTracePhase =
 	| 'config-ready'
@@ -48,20 +50,11 @@ export type StartupTraceReport = {
 const LOG_PREFIX = '[ecopages:startup-trace]';
 
 function isStartupTraceEnabled(): boolean {
-	return process.env.ECOPAGES_STARTUP_TRACE === 'true' || process.env.ECOPAGES_LOGGER_DEBUG === 'true';
+	return isEcopagesEnvEnabled('ECOPAGES_STARTUP_TRACE') || isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG');
 }
 
 function wallMsSinceProcessStart(): number {
 	return Math.round(process.uptime() * 1000);
-}
-
-function resolveTraceBuildParallelism(): string {
-	const fromEnv = process.env.ECOPAGES_DEV_BUILD_PARALLELISM ?? process.env.ECOPAGES_DEV_HMR_PARALLELISM;
-	if (fromEnv) {
-		return fromEnv;
-	}
-
-	return String(Math.max(1, availableParallelism()));
 }
 
 function writeTraceLine(message: string): void {
@@ -69,7 +62,7 @@ function writeTraceLine(message: string): void {
 }
 
 function resolveStartupTraceJsonPath(): string | undefined {
-	const configured = process.env.ECOPAGES_STARTUP_TRACE_JSON?.trim();
+	const configured = getEcopagesEnv('ECOPAGES_STARTUP_TRACE_JSON')?.trim();
 	return configured && configured.length > 0 ? configured : undefined;
 }
 
@@ -144,7 +137,7 @@ class StartupTrace {
 			wallMs: wallMsSinceProcessStart(),
 		};
 		this.phases.set('config-ready', record);
-		writeTraceLine(`phase=config-ready wallMs=${record.wallMs} buildParallelism=${resolveTraceBuildParallelism()}`);
+		writeTraceLine(`phase=config-ready wallMs=${record.wallMs} buildParallelism=${resolveBuildParallelism()}`);
 		this.writeJsonReport();
 	}
 
@@ -315,9 +308,10 @@ class StartupTrace {
 			phases[phase] = record;
 		}
 
+		const runtime = getProcessRuntime();
 		return {
 			generatedAt: new Date().toISOString(),
-			runtime: typeof Bun !== 'undefined' ? `bun ${Bun.version}` : `node ${process.version}`,
+			runtime: `${runtime.name} ${runtime.version}`,
 			platform: process.platform,
 			phases,
 			firstRequest: this.firstRequestPath
@@ -339,38 +333,6 @@ class StartupTrace {
 						}
 					: undefined,
 		};
-	}
-
-	/** Resets mutable trace state for unit tests. */
-	resetForTests(): void {
-		this.phaseNesting.clear();
-		this.phases.clear();
-		this.firstRequestPending = true;
-		this.firstRequestPath = undefined;
-		this.firstRequestBundleCount = 0;
-		this.firstRequestClientBytes = 0;
-		this.firstRequestGraphBuildCount = 0;
-		this.firstRequestCompletedWallMs = undefined;
-		this.summaryEmitted = false;
-		this.firstPageBrowserGraphEmitted = false;
-		this.devClientTransformEmitted = false;
-		this.clientRequestCount = 0;
-		this.clientTransferredBytes = 0;
-		this.hmrConnected = false;
-		this.hydrationReadyMs = null;
-	}
-
-	/**
-	 * Resets only the first-request bundle counters.
-	 *
-	 * @remarks
-	 * Used by tests that need to re-measure first-request browser bundle work
-	 * without clearing earlier startup phase records.
-	 */
-	resetFirstRequestCounters(): void {
-		this.firstRequestBundleCount = 0;
-		this.firstRequestClientBytes = 0;
-		this.firstRequestGraphBuildCount = 0;
 	}
 }
 

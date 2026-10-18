@@ -1,5 +1,5 @@
-import { Processor } from '@ecopages/core/plugins/processor';
-import type { EcoBuildPlugin, ProcessorWatchConfig, ProcessorWatchContext } from '@ecopages/core/plugins/processor';
+import { Processor } from '@ecopages/core/processor';
+import type { ProcessorWatchChanges, ProcessorWatchConfig } from '@ecopages/core/processor';
 import { join } from 'node:path';
 import { writeWikiSearchIndex } from '@/lib/search/wiki';
 import { ingestVault, resolveSourcesDir, resolveVaultDir } from '@/lib/wiki/ingest';
@@ -16,9 +16,6 @@ import { ingestVault, resolveSourcesDir, resolveVaultDir } from '@/lib/wiki/inge
  * reloads browsers.
  */
 export class ObsidianIngestProcessor extends Processor {
-	plugins: EcoBuildPlugin[] = [];
-	buildPlugins: EcoBuildPlugin[] = [];
-
 	constructor() {
 		const watch: ProcessorWatchConfig = {
 			paths: [resolveVaultDir(process.cwd()), resolveSourcesDir(process.cwd())],
@@ -27,14 +24,10 @@ export class ObsidianIngestProcessor extends Processor {
 
 		super({
 			name: 'obsidian-ingest',
-			description: 'Mirrors wiki/*.md into the wiki content collection and sources/*.md into public/sources/.',
 			watch,
 		});
 
-		const handle = (ctx: ProcessorWatchContext) => this.handleVaultEvent(ctx);
-		watch.onCreate = handle;
-		watch.onChange = handle;
-		watch.onDelete = handle;
+		watch.onChanges = (changes) => this.handleVaultEvent(changes);
 	}
 
 	private getAppRoot(): string {
@@ -53,23 +46,19 @@ export class ObsidianIngestProcessor extends Processor {
 	}
 
 	/**
-	 * Runs before the content collection scan, so generated pages exist before
-	 * configuration finalization rather than only after processor setup.
+	 * Runs before the content processor's `setup()` scans the collections, because processors set up in the order
+	 * they are registered and `eco.config.ts` lists this one first. Core sets Processors up before it reads any
+	 * Page in `dev`, `build` and `preview`.
+	 *
+	 * @remarks
+	 * It also runs for `ecopages types`, which needs the generated pages but not the search index. Once the
+	 * setup context carries the run mode (`types`, `dev` or `build`), the index can be written for `dev` and
+	 * `build` only.
 	 */
-	override async prepareBuildContributions(): Promise<void> {
+	async setup(): Promise<void> {
 		this.bindWatchPaths();
 		await ingestVault({ appRoot: this.getAppRoot() });
-	}
-
-	async setup(): Promise<void> {
-		await ingestVault({ appRoot: this.getAppRoot() });
 		await this.writeSearchIndex();
-	}
-
-	async process(): Promise<unknown> {
-		await ingestVault({ appRoot: this.getAppRoot() });
-		await this.writeSearchIndex();
-		return undefined;
 	}
 
 	private async writeSearchIndex(): Promise<void> {
@@ -82,10 +71,10 @@ export class ObsidianIngestProcessor extends Processor {
 		await writeWikiSearchIndex(directories, { contentRoot });
 	}
 
-	private async handleVaultEvent(ctx: ProcessorWatchContext): Promise<void> {
+	private async handleVaultEvent({ bridge }: ProcessorWatchChanges): Promise<void> {
 		await ingestVault({ appRoot: this.getAppRoot() });
 		await this.writeSearchIndex();
-		ctx.bridge.reload();
+		bridge.reload();
 	}
 }
 

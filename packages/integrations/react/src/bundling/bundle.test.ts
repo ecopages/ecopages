@@ -1,26 +1,20 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoPagesAppConfig } from '@ecopages/core';
-import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
-import type { EcoBuildOnLoadResult } from '@ecopages/core/plugins/integration-plugin';
+import type {
+	AssetProcessingService,
+	EcoBuildOnResolveResult,
+	EcoBuildPlugin,
+	IntegrationRuntimeContext,
+} from '@ecopages/core/integration';
 import { BundleService } from './bundle.ts';
 import { resolveReactPluginRuntimeModules } from './runtime-modules.ts';
 
 const withNodeEnv = async <T>(nodeEnv: string | undefined, run: () => Promise<T>): Promise<T> => {
-	const originalNodeEnv = process.env.NODE_ENV;
 	if (nodeEnv === undefined) {
-		delete process.env.NODE_ENV;
+		vi.stubEnv('NODE_ENV', undefined);
 	} else {
-		process.env.NODE_ENV = nodeEnv;
+		vi.stubEnv('NODE_ENV', nodeEnv);
 	}
-	try {
-		return await run();
-	} finally {
-		process.env.NODE_ENV = originalNodeEnv;
-	}
+	return await run();
 };
 
 const testAppConfig = {
@@ -40,7 +34,7 @@ const testAppConfig = {
 			extensions: ['.kita.tsx'],
 		},
 	],
-} as unknown as EcoPagesAppConfig;
+} as unknown as IntegrationRuntimeContext['appConfig'];
 
 describe('BundleService', () => {
 	it('does not include the Eco core browser shim in client bundle options', async () => {
@@ -142,123 +136,78 @@ describe('BundleService', () => {
 		expect(pluginNames).not.toContain('react-runtime-import-alias');
 	});
 
-	it('rewrites React runtime imports to concrete runtime asset URLs during module loading', async () => {
+	async function resolveRuntimeSpecifiers(
+		service: BundleService,
+		specifiers: string[],
+	): Promise<Record<string, EcoBuildOnResolveResult | undefined>> {
+		const options = await service.createBundleOptions('ecopages-react-page', false, []);
+		const runtimeRewritePlugin = (options.plugins as EcoBuildPlugin[]).find(
+			(plugin) => plugin.name === 'react-renderer-runtime-import-rewrite',
+		);
+		expect(runtimeRewritePlugin).toBeDefined();
+		const resolveCallbacks: Array<(args: { path: string }) => EcoBuildOnResolveResult | undefined> = [];
+		await runtimeRewritePlugin!.setup({
+			onResolve(_options, callback) {
+				resolveCallbacks.push(callback as (args: { path: string }) => EcoBuildOnResolveResult | undefined);
+			},
+			onLoad() {},
+			module() {},
+			transform() {},
+		});
+
+		return Object.fromEntries(
+			specifiers.map((specifier) => [
+				specifier,
+				resolveCallbacks.map((cb) => cb({ path: specifier })).find(Boolean),
+			]),
+		);
+	}
+
+	it('resolves React runtime imports to concrete runtime asset URLs', async () => {
 		const service = new BundleService({
 			rootDir: '/app',
 			appConfig: testAppConfig,
 			hostIntegrationName: 'react',
 		});
-		const options = await service.createBundleOptions('ecopages-react-page', false, []);
-		const runtimeRewritePlugin = (options.plugins as Array<{ name: string }>).find(
-			(plugin) => plugin.name === 'react-renderer-runtime-import-rewrite',
-		);
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-react-runtime-rewrite-'));
-		const filePath = path.join(tempDir, 'entry.tsx');
-		writeFileSync(
-			filePath,
-			[
-				'import React from "react";',
-				'import { jsx } from "react/jsx-runtime";',
-				'import { jsxDEV } from "react/jsx-dev-runtime";',
-				'import { hydrateRoot } from "react-dom/client";',
-				'import ReactDOM from "react-dom";',
-			].join('\n'),
-			'utf-8',
-		);
 
-		try {
-			const loadCallbacks: Array<
-				(args: { path: string }) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>
-			> = [];
+		const resolved = await resolveRuntimeSpecifiers(service, [
+			'react',
+			'react/jsx-runtime',
+			'react/jsx-dev-runtime',
+			'react-dom/client',
+			'react-dom',
+		]);
 
-			expect(runtimeRewritePlugin).toBeDefined();
-			(
-				runtimeRewritePlugin as NonNullable<typeof runtimeRewritePlugin> & {
-					setup(build: {
-						onResolve(): void;
-						onLoad(
-							_options: unknown,
-							callback: (args: {
-								path: string;
-							}) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>,
-						): void;
-						module(): void;
-					}): void;
-				}
-			).setup({
-				onResolve() {},
-				onLoad(_options, callback) {
-					loadCallbacks.push(callback);
-				},
-				module() {},
-			});
-
-			const result = await loadCallbacks[0]?.({ path: filePath });
-
-			expect(result?.contents).toContain('from "/assets/vendors/react.js"');
-			expect(result?.contents).toContain('from "/assets/vendors/react-dom.js"');
-			expect(result?.contents).not.toContain('from "react"');
-			expect(result?.contents).not.toContain('from "react-dom"');
-		} finally {
-			rmSync(tempDir, { recursive: true, force: true });
+		expect(resolved['react']).toEqual({ path: '/assets/vendors/react.js', external: true });
+		expect(resolved['react-dom']).toEqual({ path: '/assets/vendors/react-dom.js', external: true });
+		for (const specifier of ['react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client']) {
+			expect(resolved[specifier]?.external, specifier).toBe(true);
+			expect(resolved[specifier]?.path, specifier).toMatch(/^\/assets\/vendors\/.+\.js$/);
 		}
 	});
 
-	it('rewrites configured runtime module imports to shared vendor URLs during module loading', async () => {
+	it('resolves configured runtime module imports to shared vendor URLs', async () => {
 		const service = new BundleService({
 			rootDir: '/app',
 			appConfig: testAppConfig,
 			hostIntegrationName: 'react',
 			runtimeModules: resolveReactPluginRuntimeModules(['@tanstack/react-query']),
 		});
-		const options = await service.createBundleOptions('ecopages-react-page', false, []);
-		const runtimeRewritePlugin = (options.plugins as Array<{ name: string }>).find(
-			(plugin) => plugin.name === 'react-renderer-runtime-import-rewrite',
-		);
-		const tempDir = mkdtempSync(path.join(tmpdir(), 'ecopages-react-runtime-module-rewrite-'));
-		const filePath = path.join(tempDir, 'entry.tsx');
-		writeFileSync(filePath, 'import { QueryClient } from "@tanstack/react-query";', 'utf-8');
 
-		try {
-			const loadCallbacks: Array<
-				(args: { path: string }) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>
-			> = [];
+		const resolved = await resolveRuntimeSpecifiers(service, ['@tanstack/react-query']);
 
-			expect(runtimeRewritePlugin).toBeDefined();
-			(
-				runtimeRewritePlugin as NonNullable<typeof runtimeRewritePlugin> & {
-					setup(build: {
-						onResolve(): void;
-						onLoad(
-							_options: unknown,
-							callback: (args: {
-								path: string;
-							}) => EcoBuildOnLoadResult | undefined | Promise<EcoBuildOnLoadResult | undefined>,
-						): void;
-						module(): void;
-					}): void;
-				}
-			).setup({
-				onResolve() {},
-				onLoad(_options, callback) {
-					loadCallbacks.push(callback);
-				},
-				module() {},
-			});
-
-			const result = await loadCallbacks[0]?.({ path: filePath });
-
-			expect(result?.contents).toContain('from "/assets/vendors/tanstack-react-query.js"');
-			expect(result?.contents).not.toContain('from "@tanstack/react-query"');
-		} finally {
-			rmSync(tempDir, { recursive: true, force: true });
-		}
+		expect(resolved['@tanstack/react-query']).toEqual({
+			path: '/assets/vendors/tanstack-react-query.js',
+			external: true,
+		});
 	});
 
 	it('processes page-layout-normalization vendor once for concurrent MDX callers', async () => {
+		const assetProcessingIntegration = { name: 'react' };
 		const service = new BundleService({
 			rootDir: '/app',
 			appConfig: testAppConfig,
+			assetProcessingIntegration,
 			hostIntegrationName: 'react',
 		});
 		let resolveProcess!: () => void;
@@ -283,7 +232,7 @@ describe('BundleService', () => {
 					name: 'page-layout-normalization',
 				}),
 			]),
-			'react:page-layout-normalization',
+			assetProcessingIntegration,
 		);
 
 		resolveProcess();

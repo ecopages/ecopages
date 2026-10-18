@@ -2,8 +2,7 @@
  * AST transforms for the client graph boundary plugin.
  */
 
-import { parseModuleSource } from '@ecopages/core/cache';
-import type { RequestedExportRules } from './boundary-cache.ts';
+import { parseModuleSource } from '@ecopages/core/build';
 import { analyzeReachability } from './reachability-analyzer.ts';
 import { stripServerOnlyEcoPageOptions } from './ast-transform-eco-page.ts';
 import { collectImportTransformEdits } from './ast-transform-walk-imports.ts';
@@ -15,6 +14,7 @@ import {
 	normalizeRequestedExportsKey,
 	parseDeclaredModules,
 	resolveRequestedExportsKey,
+	type RequestedExportRules,
 } from './specifier-classification.ts';
 
 function collectLocalDeclaredModules(program: any): string[] {
@@ -76,6 +76,7 @@ export function transformModuleImports(
 	globallyAllowed: Map<string, Set<string> | '*'>,
 	requestedExports: Map<string, RequestedExportRules>,
 	stripServerOnlyPageOptions = false,
+	preserveUnreachableSideEffectImports = false,
 ): { transformed: string; modified: boolean } {
 	let result;
 	try {
@@ -97,6 +98,7 @@ export function transformModuleImports(
 		filename,
 		reachability,
 		allowedMap,
+		preserveUnreachableSideEffectImports,
 	});
 
 	if (edits.length === 0) {

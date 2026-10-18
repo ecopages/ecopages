@@ -4,6 +4,8 @@ Build-time content collections for Ecopages. Scans MDX (or other configured exte
 
 ## Mental model
 
+Build contributions use one `plugins(app)` method. Collection modules and types are generated in `setup()`, and a build that resolves a collection first waits for the same generation. The server resolver and browser resolver declare separate environments, so browser compilation cannot select the server implementation by registration order.
+
 1. **Declare collections** in `eco.config.ts` — content directory, frontmatter schema, and sort order.
 2. **Scan at build time** — the processor validates frontmatter and writes generated modules under `.eco/cache/`.
 3. **Import the virtual module** — pages and layouts use `ecopages:content/<collection>` for `entries`, metadata, and MDX components.
@@ -31,6 +33,8 @@ The processor gives you a typed manifest and MDX components at build time. Wire 
 
 During development, edits to an entry's MDX body invalidate its compiled server collection bundle even when its frontmatter and generated manifest are unchanged. The next request rebuilds that bundle and renders the new body.
 
+The content processor owns the compiled collection artifacts and their invalidation generation. Core provides the shared server-module build path; collection identity, source tracking, and cache lifetime stay with the content processor.
+
 Co-located non-entry files inside a collection directory (for example `survey-form.config.ts`, helper modules, or JSON data) also invalidate the compiled server collection without rewriting the generated entries manifest.
 
 ## Installation
@@ -46,14 +50,14 @@ Peer dependency: `@ecopages/core`.
 Register the processor in `eco.config.ts`:
 
 ```typescript
-import { ConfigBuilder } from '@ecopages/core/config-builder';
+import { defineConfig } from '@ecopages/core/config';
 import { contentProcessorPlugin } from '@ecopages/content-processor/plugin';
 import { compareEntriesByField } from '@ecopages/content-processor';
+import { blogFrontmatterSchema } from './src/content/blog-schema';
 import { docsFrontmatterSchema } from './src/content/docs-schema';
 
-export default await new ConfigBuilder()
-	.setRootDir(import.meta.dir)
-	.setProcessors([
+export default defineConfig({
+	processors: [
 		contentProcessorPlugin({
 			options: {
 				collections: {
@@ -73,22 +77,21 @@ export default await new ConfigBuilder()
 				},
 			},
 		}),
-	])
-	.build();
+	],
+});
 ```
 
 ### Collection options
 
-| Option                | Required | Description                                                                                                                                                                                    |
-| :-------------------- | :------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `contentDir`          |   yes    | Directory relative to app `srcDir`, e.g. `content/docs`.                                                                                                                                       |
-| `schema`              |   yes    | Standard Schema validator for frontmatter.                                                                                                                                                     |
-| `entryType`           |    no    | Frontmatter type for generated virtual-module types. Format: `./path/to/schema#TypeName`. The processor wraps it as `ContentEntry<YourFrontmatter>`.                                           |
-| `orderBy`             |    no    | Comparator function for manifest sort. Default: {@link compareEntriesBySlug}. Use {@link compareEntriesByField} for frontmatter fields.                                                        |
-| `extensions`          |    no    | File extensions to scan. Default: `['.mdx']`. Multi-dot extensions (`.radiant.mdx`, `.react.mdx`) are matched longest-first; declaration order does not matter.                                |
-| `routePrefix`         |    no    | Public URL prefix for entries, e.g. `/docs`. Used with `devPrewarm`.                                                                                                                           |
-| `devPrewarm`          |    no    | Dev prewarm: `'first'`, `'all'`, `{ slugs }`, or `{ limit }`. Core SSR-prewarms after the HMR-ready pipeline exists; prewarm schedules renders only and does not control HTML cache admission. |
-| `devPrewarmReadiness` |    no    | `'background'` (default) or `'beforeReady'` to block the framework ready signal until prewarm finishes (listen port may already be open).                                                      |
+| Option        | Required | Description                                                                                                                                                                                    |
+| :------------ | :------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contentDir`  |   yes    | Directory relative to app `srcDir`, e.g. `content/docs`.                                                                                                                                       |
+| `schema`      |   yes    | Standard Schema validator for frontmatter.                                                                                                                                                     |
+| `entryType`   |    no    | Frontmatter type for generated virtual-module types. Format: `./path/to/schema#TypeName`. The processor wraps it as `ContentEntry<YourFrontmatter>`.                                           |
+| `orderBy`     |    no    | Comparator function for manifest sort. Default: {@link compareEntriesBySlug}. Use {@link compareEntriesByField} for frontmatter fields.                                                        |
+| `extensions`  |    no    | File extensions to scan. Default: `['.mdx']`. Multi-dot extensions (`.radiant.mdx`, `.react.mdx`) are matched longest-first; declaration order does not matter.                                |
+| `routePrefix` |    no    | Public URL prefix for entries, e.g. `/docs`. Used with `devPrewarm`.                                                                                                                           |
+| `devPrewarm`  |    no    | Dev prewarm: `'first'`, `'all'`, `{ slugs }`, or `{ limit }`. Core SSR-prewarms after the HMR-ready pipeline exists; prewarm schedules renders only and does not control HTML cache admission. |
 
 Collection keys must be kebab-case (`docs`, `api-reference`). Each key becomes `ecopages:content/<key>`.
 
@@ -305,11 +308,12 @@ const raw = await scanner.getRawContent('getting-started/intro');
 
 ## Generated artifacts
 
-| Path                                                                 | Purpose                                                |
-| :------------------------------------------------------------------- | :----------------------------------------------------- |
-| `.eco/cache/ecopages-content-processor/<collection>.ts`              | Generated collection module (manifest + MDX imports).  |
-| `.eco/.server-collections/<collection>/<collection>-<identity>.mjs`  | Lazy-built server artifact for one collection.         |
-| `node_modules/@types/ecopages-content-processor/virtual-module.d.ts` | Generated TypeScript declarations for virtual modules. |
+| Path                                                                 | Purpose                                                                    |
+| :------------------------------------------------------------------- | :------------------------------------------------------------------------- |
+| `.eco/cache/ecopages-content-processor/<collection>.ts`              | Generated collection module (manifest + MDX imports).                      |
+| `.eco/cache/ecopages-content-processor/<collection>.browser.ts`      | Browser-safe MDX loaders. Relative imports resolve from this file on disk. |
+| `.eco/.server-collections/<collection>/<collection>-<identity>.mjs`  | Lazy-built server artifact for one collection.                             |
+| `node_modules/@types/ecopages-content-processor/virtual-module.d.ts` | Generated TypeScript declarations for virtual modules.                     |
 
 Do not edit generated files manually.
 

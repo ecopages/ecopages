@@ -14,21 +14,22 @@ This document maps the rendering logic in core using the ownership, foreign-chil
 
 ```mermaid
 flowchart TD
-  A[HTTP request] --> B[SharedServerAdapter handleSharedRequest]
-  B --> C{API route?}
-  C -- Yes --> D[executeApiHandler]
-  C -- No --> E[ServerRouteHandler handleResponse]
+  A[HTTP request] --> B[NodeServerAdapter handleRequest]
+  B --> C[ServerRequestPipeline handleSharedRequest]
+  C --> D{API route?}
+  D -- Yes --> E[executeApiHandler]
+  D -- No --> F[ServerRouteHandler handleResponse]
 
-  E --> F{Explicit static route match?}
-  F -- Yes --> G[ExplicitStaticRouteMatcher handleMatch]
-  F -- No --> H{FS route match without file extension?}
-  H -- Yes --> I[FileSystemResponseMatcher handleMatch]
-  H -- No --> J[FileSystemResponseMatcher handleNoMatch]
+  F --> G{Explicit static route match?}
+  G -- Yes --> H[ExplicitStaticRouteMatcher handleMatch]
+  G -- No --> I{FS route match without file extension?}
+  I -- Yes --> J[FileSystemResponseMatcher handleMatch]
+  I -- No --> K[FileSystemResponseMatcher handleNoMatch]
 
-  I --> K[RouteRendererFactory createRenderer]
-  K --> L[RouteRenderer createRoute]
-  L --> M[IntegrationRenderer execute]
-  M --> N[response body and cache strategy]
+  J --> L[RouteRendererFactory createRenderer]
+  L --> M[RouteRenderer createRoute]
+  M --> N[IntegrationRenderer execute]
+  N --> O[response body and cache strategy]
 ```
 
 ## 2) Route Render Flow
@@ -37,13 +38,13 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  A[IntegrationRenderer.execute] --> B[RouteRenderOrchestrator.prepareRenderOptions]
-  B --> C[resolvePageModule]
-  C --> D[ownershipValidationService.validate]
-  D --> E[resolvePageData]
-  E --> F[ownershipValidationService.validate + throwIfOwnershipInvalid]
-  F --> G[resolveDependencies + buildPageBrowserGraph]
-  G --> H[collect lazy injector assets]
+  A[IntegrationRenderer.execute] --> B[ensure Integration runtime]
+  B --> C[optional renderRemote hook]
+  C --> D{remote result?}
+  D -- Yes --> E[remote route result]
+  D -- No --> F[create per-render session]
+  F --> G[RouteRenderOrchestrator.prepareRenderOptions]
+  G --> H[resolve page, data, ownership, dependencies, and browser graph]
   H --> I[build pagePackage and prepared render options]
   I --> J[IntegrationRenderer.render via document shell]
   J --> K[capture rendered body as html]
@@ -71,8 +72,8 @@ flowchart TD
   D -- Yes --> E[render inline]
   D -- No --> F[delegate to owning renderer]
   F --> G[owning renderer renderComponentWithForeignChildren]
-  G --> H[owning renderer renderComponentWithForeignChildren mapped via toForeignSubtreeRenderPayload]
-  H --> I[resolved html plus assets and attachment policy]
+  G --> H[owning renderer returns ComponentRenderResult]
+  H --> I[resolved html plus assets and optional root attributes]
 ```
 
 ## 4) Queued Foreign-Subtree Resolution
@@ -85,7 +86,7 @@ flowchart TD
   B -- Yes --> C[return resolved renderer-owned output]
   B -- No --> D[queue foreign-subtree token]
   D --> E[finish current render pass]
-  E --> F[ForeignSubtreeExecutionService resolveQueuedHtml]
+  E --> F[resolveQueuedHtml function]
   F --> G[resolve nested queued tokens first]
   G --> H[dispatch foreign subtree to owning renderer]
   H --> I[merge emitted assets and root attributes]
@@ -100,13 +101,15 @@ These paths bypass most filesystem routing, but they still converge on the same 
 flowchart TD
   A[ExplicitStaticRouteMatcher handleMatch] --> B[route loader returns view]
   B --> C[get renderer by integration]
-  C --> D[renderer renderToResponse]
+  C --> D[renderExplicitView then execute]
 
-  E[render context render or renderPartial] --> F[get renderer from integrations list]
-  F --> G[renderer renderToResponse]
+  E[render context render] --> F[get renderer from integrations list]
+  F --> G[renderExplicitView then execute]
+  P[render context renderPartial] --> F2[get renderer from integrations list]
+  F2 --> G2[renderExplicitView on the component path]
 
-  H[StaticSiteGenerator explicit routes] --> I[get renderer by integration]
-  I --> J[renderer renderToResponse]
+  H[StaticSiteGenerator explicit routes] --> I[resolve renderer without staticProps]
+  I --> J[renderExplicitView then execute]
   J --> K[write html to dist]
 ```
 
@@ -119,11 +122,11 @@ The most useful reading order is:
 3. `orchestration/integration-renderer.ts`
 4. `orchestration/ownership-graph/ownership-validation.service.ts`
 5. `orchestration/ownership-graph/component-graph.ts`
-6. `orchestration/foreign-child/component-render-context.ts`
+6. `../eco/component-render-context.ts`
 7. `orchestration/foreign-child/foreign-subtree-execution.service.ts`
 8. `page-loading/page-module-loader.ts`
 9. `page-loading/dependency-resolver.ts`
-10. `eco/eco.ts`
+10. `../eco/eco.ts`
 
 ## 7) Key Files
 
@@ -132,7 +135,7 @@ The most useful reading order is:
 - `packages/core/src/route-renderer/orchestration/integration-renderer.ts`
 - `packages/core/src/route-renderer/orchestration/ownership-graph/ownership-validation.service.ts`
 - `packages/core/src/route-renderer/orchestration/ownership-graph/component-graph.ts`
-- `packages/core/src/route-renderer/orchestration/foreign-child/component-render-context.ts`
+- `packages/core/src/eco/component-render-context.ts`
 - `packages/core/src/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service.ts`
 - `packages/core/src/route-renderer/page-loading/page-module-loader.ts`
 - `packages/core/src/route-renderer/page-loading/dependency-resolver.ts`

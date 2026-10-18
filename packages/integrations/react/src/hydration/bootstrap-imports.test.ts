@@ -42,7 +42,7 @@ describe('resolveHydrationBootstrapImports', () => {
 			reactDomClientImportPath: 'react-dom/client',
 			routerImportPath: '@ecopages/react-router/browser',
 			layoutComposeImportPath: '@ecopages/react/layout-compose',
-			pageLayoutNormalizationImportPath: '@ecopages/core/eco/page-layout-normalization',
+			pageLayoutNormalizationImportPath: '@ecopages/core/client',
 		});
 	});
 });

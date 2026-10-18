@@ -5,9 +5,9 @@
  */
 
 import path from 'node:path';
-import { requireAppRuntime } from '../types/app-runtime.ts';
+import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { appLogger } from '../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { CacheEntry, CacheResult, CacheStore, CacheStrategy, RenderResult } from './cache.types.ts';
 import { MemoryCacheStore } from './memory-cache-store.ts';
 import { BuildInputDependencyIndex, type BuildInputBinding } from '../build/cache/build-input-dependency-index.ts';

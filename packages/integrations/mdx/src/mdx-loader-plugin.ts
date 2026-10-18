@@ -1,6 +1,6 @@
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
+import type { EcoBuildPlugin } from '@ecopages/core/integration';
 import type { CompileOptions } from '@mdx-js/mdx';
-import type { RequestPipelineMetricsState } from '@ecopages/core/diagnostics/request-pipeline-metrics';
+import type { RequestPipelineMetricsState } from '@ecopages/core/build';
 import { createMdxLoaderPlugin as createMdxLoaderPluginCore } from './core/mdx-loader-plugin.ts';
 
 export type MdxLoaderPluginOptions = {

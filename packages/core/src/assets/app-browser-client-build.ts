@@ -16,7 +16,7 @@ import {
 	collectHtmlPageModuleScriptBuildInputs,
 	setPrebuiltHtmlPageModuleScriptUrls,
 } from '../html-pages/html-page-module-scripts.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { BrowserBundleService, type BrowserBundleGroupedEntry } from './browser-bundle.service.ts';
 import { APP_BROWSER_CLIENT_BUNDLE_ID } from './asset-processing-service/app-browser-client-bundle.ts';
 import { deduplicateAssetDependencies } from './asset-processing-service/asset-dependency-keys.ts';

@@ -4,14 +4,14 @@ import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimeIntegrations, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
 import { installBuildQueue } from '../../build/runtime/build-queue.ts';
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type {
 	ApiHandler,
 	ErrorHandler,
 	StaticRoute,
 	ErrorPageLoaders,
 	EcopagesWebSocketHandler,
-} from '../../types/public-types.ts';
+} from '../../types/contracts.ts';
 import { attachNodeHttpWebSocketUpgrades } from '../shared/ws/node-http-websocket-upgrades.ts';
 
 import { StaticSiteGenerator } from '../../static-site-generator/static-site-generator.ts';
@@ -25,7 +25,7 @@ import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
 import { isNodeClientAbortError } from './http-request-bridge.ts';
 import type { NodeRuntimeServeOptions } from './runtime-host.ts';
 import { serveDistFile } from '../shared/http/dist-file-handler.ts';
-import type { AppRuntime } from '../../types/app-runtime.ts';
+import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
 import { DevSession } from './dev-session.ts';
 import { prebuildProductionPageBrowserGraphsFromManifest } from '../../static-site-generator/production-page-browser-graph-prebuild.ts';
 

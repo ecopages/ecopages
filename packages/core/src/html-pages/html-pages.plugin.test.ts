@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { getCompiledHtmlTemplate } from './html-page-module.ts';
 import { HtmlPagesPlugin } from './html-pages.plugin.ts';

@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import type { ResolvedLazyTrigger } from '../../../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { ResolvedLazyTrigger } from '../../../types/contracts.ts';
 import {
 	AssetFactory,
 	type AssetProcessingService,

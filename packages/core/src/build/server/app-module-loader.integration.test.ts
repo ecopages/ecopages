@@ -8,8 +8,10 @@ import { BuildInputDependencyIndex } from '../../build/cache/build-input-depende
 import { BuildQueue, installBuildQueue } from '../../build/runtime/build-queue.ts';
 import { createAppBuildManifest, type AppBuildManifest } from '../../build/contracts/build-manifest.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
-import { requireAppRuntime, ServerInvalidationState } from '../../config/assembly/app-runtime.ts';
-import type { EcoPagesElement } from '../../types/public-types.ts';
+import { requireAppRuntime } from '../../utils/app-runtime.ts';
+import { ServerInvalidationState } from '../../config/assembly/app-runtime.ts';
+import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
+import type { EcoPagesElement } from '../../types/contracts.ts';
 import { createRequestPipelineMetricsState } from '../../diagnostics/request-pipeline-metrics.ts';
 import { AppModuleLoader } from './app-module-loader.service.ts';
 import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
@@ -100,7 +102,7 @@ describe('app server module transpiler runtime state', () => {
 		} as any;
 		attachTestAppRuntime(appConfig);
 
-		const moduleLoader = requireAppRuntime(appConfig).moduleLoader;
+		const moduleLoader = requireAppRuntime<AppRuntime>(appConfig).moduleLoader;
 
 		try {
 			const imported = await moduleLoader.importModule<{
@@ -154,7 +156,7 @@ describe('app server module transpiler runtime state', () => {
 		attachTestAppRuntime(appConfig);
 
 		try {
-			const imported = await requireAppRuntime(appConfig).moduleLoader.importModule<{
+			const imported = await requireAppRuntime<AppRuntime>(appConfig).moduleLoader.importModule<{
 				default: { ok: boolean };
 				value: number;
 			}>({
@@ -221,10 +223,10 @@ describe('app server module transpiler runtime state', () => {
 			appConfig,
 			createAppBuildManifest([{ plugin: { name: 'react-mdx-loader', setup() {} }, source: 'test' }]),
 		);
-		requireAppRuntime(appConfig).buildQueue = buildExecutor as BuildQueue;
+		requireAppRuntime<AppRuntime>(appConfig).buildQueue = buildExecutor as BuildQueue;
 
 		try {
-			await requireAppRuntime(appConfig).moduleLoader.importModule({
+			await requireAppRuntime<AppRuntime>(appConfig).moduleLoader.importModule({
 				filePath: pageFilePath,
 				outdir: path.join(rootDir, '.eco', '.server-modules'),
 			});
@@ -266,7 +268,7 @@ describe('app server module transpiler runtime state', () => {
 
 		attachTestAppRuntime(appConfig);
 		installBuildQueue(appConfig);
-		const routeModuleExecutor = requireAppRuntime(appConfig).buildQueue;
+		const routeModuleExecutor = requireAppRuntime<AppRuntime>(appConfig).buildQueue;
 		const originalBuild = routeModuleExecutor.build.bind(routeModuleExecutor);
 		routeModuleExecutor.build = async (options: Parameters<BuildExecutor['build']>[0]) => {
 			observedExecutors.push(routeModuleExecutor);
@@ -274,7 +276,7 @@ describe('app server module transpiler runtime state', () => {
 		};
 
 		try {
-			await requireAppRuntime(appConfig).moduleLoader.importModule({
+			await requireAppRuntime<AppRuntime>(appConfig).moduleLoader.importModule({
 				filePath: pageFilePath,
 				outdir: path.join(rootDir, '.eco', '.server-modules'),
 			});

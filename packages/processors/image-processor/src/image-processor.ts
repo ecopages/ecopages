@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { writeHashedBrowserAsset } from '@ecopages/core/assets/hashed-browser-asset';
-import { mergeProcessorOptions } from '@ecopages/core/plugins/processor';
+import { writeHashedBrowserAsset } from '@ecopages/core/processor';
+import { mergeProcessorOptions } from '@ecopages/core/processor';
 import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import sharp, { type Metadata } from 'sharp';

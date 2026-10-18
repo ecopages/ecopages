@@ -9,14 +9,10 @@
 
 import { createClientGraphBoundaryPlugin } from '../client-graph/boundary-plugin.ts';
 import { getReactClientGraphAllowSpecifiers, getReactRuntimeExternalSpecifiers } from './runtime-alias-map.ts';
-import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
-import { getHostScopedJsxOwnershipPlugins } from '@ecopages/core/build/jsx-ownership-plugins';
-import type { EcoPagesAppConfig } from '@ecopages/core';
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import type {
-	AssetProcessingIntegration,
-	AssetProcessingService,
-} from '@ecopages/core/services/asset-processing-service';
+import { createBrowserRuntimePlugin } from '@ecopages/core/build';
+import { getHostScopedJsxOwnershipPlugins } from '@ecopages/core/build';
+import type { EcoBuildPlugin, IntegrationRuntimeContext } from '@ecopages/core/integration';
+import type { AssetProcessingIntegration, AssetProcessingService } from '@ecopages/core/integration';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { RuntimeBundleService, type ReactRuntimeImports } from './runtime-bundle.ts';
 import type { ResolvedReactPluginRuntimeModule } from './runtime-modules.ts';
@@ -27,7 +23,7 @@ import { isReactProductionRuntime } from './runtime-mode.ts';
  */
 export interface BundleServiceConfig {
 	rootDir: string;
-	appConfig: EcoPagesAppConfig;
+	appConfig: IntegrationRuntimeContext['appConfig'];
 	assetProcessingIntegration?: AssetProcessingIntegration;
 	hostIntegrationName: string;
 	routerAdapter?: ReactRouterAdapter;

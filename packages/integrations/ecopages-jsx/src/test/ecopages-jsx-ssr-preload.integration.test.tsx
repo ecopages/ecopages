@@ -8,11 +8,11 @@ import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import { createMarkupNodeLike, type JsxCustomElementAttributes, type JsxRenderable } from '@ecopages/jsx';
 import { installLightDomShim } from '@ecopages/radiant/server/light-dom-shim';
 import { createTestAppConfig } from '@ecopages/testing';
-import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
+import { requireAppRuntime } from '@ecopages/core/integration';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	invalidateCustomElementScriptPreload,
-} from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
+} from '@ecopages/core/integration';
 import { createEcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 
 declare module '@ecopages/jsx' {

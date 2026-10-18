@@ -1,5 +1,5 @@
-import { fetchNavigationPage } from '@ecopages/core/router/navigation-pipeline';
-import type { EcoNavigationEvent } from '@ecopages/core/router/navigation-lifecycle';
+import { fetchNavigationPage } from '@ecopages/core/client';
+import type { EcoNavigationEvent } from '@ecopages/core/client';
 import type { NavigationCommit } from './navigation-commit.ts';
 
 export type PerformNavigationAttemptInput = {

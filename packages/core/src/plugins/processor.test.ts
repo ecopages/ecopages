@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { EcoPagesAppConfig } from '../types/internal-types';
+import type { EcoPagesAppConfig } from '../config/internal-types';
 import {
 	Processor,
 	type ProcessorConfig,

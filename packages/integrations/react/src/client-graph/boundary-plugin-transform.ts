@@ -1,6 +1,6 @@
 import { extname } from 'node:path';
-import type { EcoBuildOnLoadResult } from '@ecopages/core/plugins/integration-plugin';
-import { recordModuleTransformProfile } from '@ecopages/core/cache';
+import type { EcoBuildOnLoadResult } from '@ecopages/core/integration';
+import { recordModuleTransformProfile } from '@ecopages/core/build';
 import { inlineReadFileSyncCalls } from './boundary-plugin-read-file-inline.ts';
 import { transformModuleImports } from './ast-transform.ts';
 import { isPageOrLayoutEntry } from './module-classification.ts';

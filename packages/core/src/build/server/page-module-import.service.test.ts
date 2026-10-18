@@ -4,10 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BuildResult, BuildSuccess } from '../../build/build-adapter.js';
-import { requireAppRuntime } from '../../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
 import { fileSystem } from '@ecopages/file-system';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { PageModuleImportService, type PageModuleImportDependencies } from './page-module-import.service.ts';
 import { createBuildFailure, createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 

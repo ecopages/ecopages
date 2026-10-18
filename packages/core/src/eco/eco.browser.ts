@@ -9,9 +9,16 @@ import type {
 	GetStaticPaths,
 	GetStaticProps,
 	RequestPageContext,
-} from '../types/public-types.ts';
+} from '../types/contracts.ts';
 import type { CacheStrategy } from '../page-cache/cache.types.ts';
-import type { ComponentOptions, Eco, HtmlOptions, LayoutOptions, PageOptionsBase, PagePropsFor } from './eco.types.ts';
+import type {
+	ComponentOptions,
+	Eco,
+	HtmlOptions,
+	LayoutOptions,
+	PageOptionsBase,
+	PagePropsFor,
+} from '../types/eco-api-types.ts';
 import { applyPageLayoutConfig, mergeLayoutDependencies, normalizePageLayouts } from './page-layout-normalization.ts';
 
 function createComponentFactory<P, E>(options: ComponentOptions<P, E>): EcoComponent<P, E> {

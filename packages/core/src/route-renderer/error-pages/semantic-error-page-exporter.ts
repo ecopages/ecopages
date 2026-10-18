@@ -1,4 +1,4 @@
-import type { RouteRendererBody } from '../../types/public-types.ts';
+import type { RouteRendererBody } from '../../types/contracts.ts';
 import {
 	ERROR_PAGE_KIND_BY_STATUS,
 	HTTP_ERROR_PAGE_STATUSES,

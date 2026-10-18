@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ReactHmrStrategy } from './hmr-strategy.ts';
 import { HmrPageMetadataCache } from './page-metadata-cache.ts';
-import type { DefaultHmrContext } from '@ecopages/core';
-import { createBrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
+import type { DefaultHmrContext } from '@ecopages/core/integration';
+import { createBrowserRuntimeManifest } from '@ecopages/core/build';
 
 const defaultRuntimeManifest = createBrowserRuntimeManifest([
 	{

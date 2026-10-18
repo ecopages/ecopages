@@ -1,11 +1,11 @@
 import type {
 	EcoComponentConfig,
 	EcoComponentDependencies,
-	EcoDeclaredComponent,
+	EcoComponent,
 	EcoPageLayoutEntry,
 	EcoPageLayoutSpec,
 	EcoPageLayouts,
-} from '../types/public-types.ts';
+} from '../types/contracts.ts';
 
 function isLayoutSpecObject<E>(spec: EcoPageLayoutSpec<E>): spec is EcoPageLayoutEntry<E> {
 	return typeof spec === 'object' && spec !== null && 'component' in spec;
@@ -30,7 +30,7 @@ export function normalizePageLayouts<E>(layout?: EcoPageLayouts<E>): EcoPageLayo
 		}
 
 		return {
-			component: spec as EcoDeclaredComponent<any, E>,
+			component: spec as EcoComponent<any, E>,
 		};
 	});
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import { getEcoNavigationRuntime } from '@ecopages/core/client';
 import { createRouter, EcoRouter } from '../src/client/eco-router';
 import { htmlFetchResponse, installEcoRouterTestHooks, type EcoRouterTestFixtures } from './eco-router.harness';
 

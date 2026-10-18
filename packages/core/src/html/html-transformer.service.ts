@@ -1,5 +1,5 @@
 import type { AssetPosition, ProcessedAsset, ScriptAsset } from '../assets/asset-processing-service/assets.types.ts';
-import type { PagePackageResult } from '../types/public-types.ts';
+import type { PagePackageResult } from '../types/contracts.ts';
 import { escapeHtmlAttribute } from '../utils/html-escaping.ts';
 import { HtmlRewriter, rewriteFirstElement, type HtmlRewriterAttributeTarget } from './html-rewriter.ts';
 import { buildProcessedAssetDedupeKey, dedupeProcessedAssets } from '../assets/processed-asset-dedupe.ts';

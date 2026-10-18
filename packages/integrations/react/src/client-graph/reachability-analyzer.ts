@@ -6,7 +6,7 @@
  * dependencies (imports, variables, functions, and classes) that begin from explicit client roots.
  */
 
-import { parseModuleSource } from '@ecopages/core/cache';
+import { parseModuleSource } from '@ecopages/core/build';
 import type { ParseResult } from 'oxc-parser';
 import { finalizeClientRoots } from './reachability-client-roots.ts';
 import { resolveFallbackClientRoots } from './reachability-fallback-roots.ts';

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import * as appBuildManifestRuntime from '../../../build/app-build-manifest-runtime.ts';
 import { resolveOwningIntegrationRenderer } from './owning-renderer-resolution.ts';
 

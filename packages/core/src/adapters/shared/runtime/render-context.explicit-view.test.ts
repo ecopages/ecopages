@@ -4,16 +4,16 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestAppConfig } from '@ecopages/testing';
 import { IntegrationPlugin } from '../../../plugins/integration-plugin.ts';
-import { requireAppRuntime } from '../../../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { StringMarkupRenderer } from '../../../route-renderer/orchestration/string-markup-renderer.ts';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import type { AssetProcessingService } from '../../../assets/asset-processing-service/index.ts';
 import type {
 	EcoComponent,
 	EcoFunctionComponent,
 	EcoPageComponent,
 	HtmlTemplateProps,
-} from '../../../types/public-types.ts';
+} from '../../../types/contracts.ts';
 import { ExplicitStaticRouteMatcher } from '../http/explicit-static-route-matcher.ts';
 import { createRenderContext } from './render-context.ts';
 

@@ -1,11 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import type {
-	EcoComponent,
-	EcoPageComponent,
-	RenderContext,
-	RenderOptions,
-	ResponseOptions,
-} from '../../../types/public-types.ts';
+import type { EcoComponent, EcoPageComponent, RenderContext, RenderOptions } from '../../../types/contracts.ts';
 import { getComponentOwner } from '../../../eco/component-identity.ts';
 import type {
 	ExplicitViewRenderContext,
@@ -153,14 +147,14 @@ export function createRenderContext(options: CreateRenderContextOptions): Render
 			return renderer.renderExplicitView(view, mergedProps, createExplicitViewContext(this, renderOptions, true));
 		},
 
-		json(data: unknown, responseOptions?: ResponseOptions): Response {
+		json(data: unknown, responseOptions?: RenderOptions): Response {
 			return createBodyResponse('json', data, {
 				status: responseOptions?.status,
 				headers: responseOptions?.headers,
 			});
 		},
 
-		html(content: string, responseOptions?: ResponseOptions): Response {
+		html(content: string, responseOptions?: RenderOptions): Response {
 			return createBodyResponse('html', content, {
 				status: responseOptions?.status,
 				headers: responseOptions?.headers,

@@ -1,4 +1,4 @@
-import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
+import { ensurePageConfigLayouts } from '@ecopages/core/client';
 import type { EcoComponentConfig } from '@ecopages/core';
 import { createElement, type ComponentType } from 'react';
 

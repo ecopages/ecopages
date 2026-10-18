@@ -3,7 +3,7 @@ import { RadiantElement } from '@ecopages/radiant';
 import { customElement } from '@ecopages/radiant/decorators/custom-element';
 import { state } from '@ecopages/radiant/decorators/state';
 import type { JsxCustomElementAttributes } from '@ecopages/jsx';
-import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/router/navigation-lifecycle';
+import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/client';
 import { DEV_TOOLBAR_DEPS_REFRESH_DEBOUNCE_MS } from '../runtime/constants.ts';
 import { isPanelSlotVisible, observePanelSlotVisibility } from '../shell/panel-slot-visibility.ts';
 import { loadDepsInsights, type AssetInsight, type DepsInsightsSnapshot } from './deps/load-deps-insights.ts';

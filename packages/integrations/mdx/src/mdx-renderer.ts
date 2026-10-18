@@ -4,12 +4,9 @@
  */
 
 import type { EcoComponent, EcoComponentConfig, EcoPageFile, EcoPagesElement } from '@ecopages/core';
-import {
-	createIntegrationRenderer,
-	type PageBrowserGraphContributionContext,
-} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import { attachEcoFileMetadataToConfig } from '@ecopages/core/route-renderer/page-loading/file-scoped-dependency-components';
-import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
+import { createIntegrationRenderer, type PageBrowserGraphContributionContext } from '@ecopages/core/integration';
+import { attachEcoFileMetadataToConfig } from '@ecopages/core/integration';
+import { ensurePageConfigLayouts } from '@ecopages/core/integration';
 import { MDX_PLUGIN_NAME } from './mdx.constants.ts';
 
 export type { MDXFile } from './mdx.types.ts';

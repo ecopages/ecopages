@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { isDevToolbarEnabled } from './dev-toolbar-config.ts';
 
 const referenceDevToolbarPackage = '@ecopages/dev-toolbar';

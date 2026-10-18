@@ -1,8 +1,8 @@
-import { rapidhash } from '@ecopages/core/hash';
-import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/dev/transform-server';
+import { rapidhash } from '@ecopages/core/build';
+import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/integration';
 import { describe, expect, it, vi } from 'vitest';
 import { assertNoBareEcopagesImports } from './assert-no-bare-ecopages-imports.ts';
-import { APP_BROWSER_CLIENT_BUNDLE_ID } from '@ecopages/core/services/asset-processing-service';
+import { APP_BROWSER_CLIENT_BUNDLE_ID } from '@ecopages/core/integration';
 import { getIslandComponentKey, HydrationAssetService } from './hydration-asset.ts';
 
 type HydrationAssetServiceOptions = ConstructorParameters<typeof HydrationAssetService>[0];
@@ -24,7 +24,7 @@ const productionRuntimeImports = {
 	reactJsxDevRuntime: 'react',
 	reactDom: 'react-dom',
 	useSyncExternalStoreWithSelector: 'use-sync-external-store/shim/with-selector',
-	pageLayoutNormalization: '@ecopages/core/eco/page-layout-normalization',
+	pageLayoutNormalization: '@ecopages/core/integration',
 	layoutCompose: '@ecopages/react/layout-compose',
 	router: undefined as string | undefined,
 };

@@ -1,6 +1,6 @@
 import type { DevClientRuntime } from '../hmr/dev-client-runtime.ts';
 import { appLogger } from '../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { resolveInternalWorkDir } from '../utils/resolve-work-dir.ts';
 import { resolveConfiguredDevToolbarClient } from './dev-toolbar-package.ts';
 import { DEV_TOOLBAR_RUNTIME_SCRIPT_URL, resolveDevToolbarRuntimeWorkDir } from './dev-toolbar-runtime-paths.ts';

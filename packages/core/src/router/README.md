@@ -79,18 +79,20 @@ The shared segment matcher uses `normalizePathname`, which adds a leading slash 
 
 Supported dynamic route syntax and captured values:
 
-| Route kind | Named parameters    | Catch-all or wildcard     | Handler-facing value                                                                                       |
-| ---------- | ------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Filesystem | `[name]`            | `[...name]`               | Named parameter is a string; catch-all is a string array.                                                  |
-| API        | `:name` or `[name]` | `[...name]` or `*`        | Named parameters and catch-alls are strings; catch-all arrays are joined with `/`. `*` has no named value. |
-| Explicit   | `:name` or `[name]` | `:...name` or `[...name]` | Named parameters and catch-alls are strings; catch-all segments are joined with `/`.                       |
-| WebSocket  | `:name`             | None                      | Named parameters are strings.                                                                              |
+| Route kind | Named parameters    | Catch-all or wildcard     | Handler-facing value                                                                                   |
+| ---------- | ------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Filesystem | `[name]`            | `[...name]`               | Named parameter is a string; catch-all is a string array.                                              |
+| API        | `:name` or `[name]` | `[...name]` or `*`        | Named parameters are strings; catch-all params are arrays of decoded segments. `*` has no named value. |
+| Explicit   | `:name` or `[name]` | `:...name` or `[...name]` | Named parameters and catch-alls are strings; catch-all segments are joined with `/`.                   |
+| WebSocket  | `:name`             | None                      | Named parameters are strings.                                                                          |
+
+Repeated query keys retain all values in order: `?tag=docs&tag=api` becomes `{ tag: ['docs', 'api'] }`. A query key with one value remains a string. Pages, API handlers, route matching, and static route info share `PageParams` and `PageQuery` value shapes.
 
 API and WebSocket matching still prioritize more specific routes. Filesystem routes keep their existing exact, dynamic, and catch-all ordering; explicit routes keep declaration order.
 
 ## `client/`
 
-### View transitions (`@ecopages/core/client/view-transitions`)
+### View transitions (`@ecopages/core/client`)
 
 Shared helpers used by `@ecopages/browser-router` and `@ecopages/react-router`:
 
@@ -98,7 +100,7 @@ Shared helpers used by `@ecopages/browser-router` and `@ecopages/react-router`:
 - `ensureRootViewTransitionStyles` — persisted CSS (`eco-vt-root-styles`, `data-eco-persist`) with `html { view-transition-name: none }` when VT is enabled.
 - `navigationHasNamedViewTransitions` — detects named `data-view-transition` markup on either page.
 
-### Client navigation pipeline (`@ecopages/core/router/navigation-pipeline`)
+### Client navigation pipeline (`@ecopages/core/client`)
 
 `commitNavigationPage()` owns shared document work: it dispatches lifecycle hooks, waits for new stylesheets, reconciles the head, wraps the adapter's swap in a named view transition, activates scripts, and invokes the router's scroll callback after the swap. Browser-router always morphs the incoming body. Persisted nodes remain attached when the incoming page keeps their ancestor structure compatible, whether view transitions are enabled or the page has rerun scripts. With rerun scripts, matching non-persisted elements refresh before activation except for the body, persisted elements, their ancestor path, and descendants of custom elements on that path; those descendants stay in place so the connected host's handlers remain active. Handler-bound child markup must remain structurally compatible, or the custom element must rebind when its child markup changes, because replacing a child does not reconnect the host. Handlers installed on any retained nodes must be registered idempotently. React-router supplies a React render and its scroll callback. Both use the same fetch, parse, cache, script identity, persist attribute, and queued-click policy. Head reconciliation removes head elements the incoming page lacks unless they carry the persist attribute. Browser-router prefetches into the shared HTML cache and reads it on click; React-router always fetches fresh HTML and only writes to the cache. A later commit that removes a staged stylesheet also settles its load wait so the superseded navigation can finish promptly. Rerun scripts match by `data-eco-script-id`, HTML `id`, original `src`, or inline contents. When matching by relative `src`, identity stays stable across different page base URLs, while external modules execute from the incoming page's resolved URL.
 
@@ -111,7 +113,7 @@ A singleton browser-side runtime stored on `window.__ECO_PAGES__.navigation`.
 Access it with:
 
 ```ts
-import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import { getEcoNavigationRuntime } from '@ecopages/core/client';
 const runtime = getEcoNavigationRuntime();
 ```
 
@@ -130,11 +132,7 @@ Shared document lifecycle events emitted by browser runtimes after a client navi
 Access it with:
 
 ```ts
-import {
-	completeNavigationLifecycle,
-	dispatchBeforeSwap,
-	type EcoNavigationEvent,
-} from '@ecopages/core/router/navigation-lifecycle';
+import { completeNavigationLifecycle, dispatchBeforeSwap, type EcoNavigationEvent } from '@ecopages/core/client';
 ```
 
 The shared navigation pipeline emits these events around the router-specific swap. Use `completeNavigationLifecycle` when implementing a custom runtime. Listeners use the DOM contract:

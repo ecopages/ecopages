@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import type { EcoPagesAppConfig } from '@ecopages/core';
-import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import type { IntegrationRuntimeContext } from '@ecopages/core/integration';
 import { ReactPlugin, reactPlugin } from './react.plugin.ts';
 
-async function createConfig(rootDir: string): Promise<EcoPagesAppConfig> {
+async function createConfig(rootDir: string): Promise<IntegrationRuntimeContext['appConfig']> {
 	return await finalizeEcoPagesConfig({ rootDir });
 }
 
-async function getMdxLoaderFilter(plugin: ReactPlugin, appConfig: EcoPagesAppConfig): Promise<RegExp | undefined> {
+async function getMdxLoaderFilter(
+	plugin: ReactPlugin,
+	appConfig: IntegrationRuntimeContext['appConfig'],
+): Promise<RegExp | undefined> {
 	let filter: RegExp | undefined;
 	await plugin.plugins(appConfig)[0]?.setup({
 		onResolve() {},

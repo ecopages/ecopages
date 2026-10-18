@@ -3,13 +3,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { compile } from '@mdx-js/mdx';
-import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
-import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
-import type {
-	EcoBuildOnLoadArgs,
-	EcoBuildOnLoadResult,
-	EcoBuildPluginBuilder,
-} from '@ecopages/core/plugins/integration-plugin';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import { requireAppRuntime } from '@ecopages/core/integration';
+import type { EcoBuildOnLoadArgs, EcoBuildOnLoadResult, EcoBuildPluginBuilder } from '@ecopages/core/integration';
 import { mdxPlugin } from '../mdx.plugin.ts';
 import type { StandaloneMdxCompilerOptions } from '../mdx.types.ts';
 

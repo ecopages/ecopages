@@ -1,4 +1,4 @@
-import type { EcoComponent, EcoComponentDependencies, OwnershipPlanNodeSource } from '../../../types/public-types.ts';
+import type { EcoComponent, EcoComponentDependencies, OwnershipPlanNodeSource } from '../../../types/contracts.ts';
 import { getComponentIdentity, getComponentOwner } from '../../../eco/component-identity.ts';
 
 export type DeclaredOwnershipRoot = {

@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileSystem } from '@ecopages/file-system';
-import type { PageParams } from '../types/public-types.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { PageParams } from '../types/contracts.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import {
 	collectHtmlPageModuleScriptBuildInputs,
 	getPrebuiltHtmlPageModuleScriptUrls,

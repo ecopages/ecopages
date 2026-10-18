@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 
 const SOURCE_CLIENT_FILE = 'src/bootstrap.ts';
 const COMPILED_CLIENT_FILE = 'src/bootstrap.js';

@@ -1,16 +1,16 @@
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import type {
 	EcoComponent,
 	EcoPageComponent,
 	EcoPageFile,
 	HtmlTemplateProps,
-	IntegrationRendererRenderOptions,
+	InternalIntegrationRendererRenderOptions,
 	PageBrowserGraphResult,
 	PageMetadataProps,
 	EcoPageLayoutEntry,
 	PageProps,
 	RouteRendererOptions,
-} from '../../../types/public-types.ts';
+} from '../../../types/contracts.ts';
 import { createPagePackage, type ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
 import { dedupeProcessedAssets } from '../../../assets/processed-asset-dedupe.ts';
 import { createPageLocalsProxy } from './route-prepared-options.utils.ts';
@@ -32,16 +32,16 @@ type PreparedRenderInputs = {
 export function buildPreparedRenderOptions<C = unknown>(input: {
 	routeOptions: RouteRendererOptions;
 	resolvedInputs: PreparedRenderInputs;
-	resolvedPageDependencyComponents?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
+	pageDependencyComponents?: ReadonlyArray<EcoComponent | Partial<EcoComponent>>;
 	resolvedDependencies: ProcessedAsset[];
 	allDependencies: ProcessedAsset[];
 	pageBrowserGraph?: PageBrowserGraphResult;
 	appConfig: EcoPagesAppConfig;
-}): IntegrationRendererRenderOptions<C> {
+}): InternalIntegrationRendererRenderOptions<C> {
 	const {
 		routeOptions,
 		resolvedInputs,
-		resolvedPageDependencyComponents,
+		pageDependencyComponents,
 		resolvedDependencies,
 		allDependencies,
 		pageBrowserGraph,
@@ -61,9 +61,9 @@ export function buildPreparedRenderOptions<C = unknown>(input: {
 	const pageLocals =
 		routeOptions.locals ?? (createPageLocalsProxy(routeOptions.file) as RouteRendererOptions['locals']);
 	const locals = routeOptions.locals;
-	const preparedOptions: IntegrationRendererRenderOptions<C> = {
+	const preparedOptions: InternalIntegrationRendererRenderOptions<C> = {
 		...routeOptions,
-		resolvedPageDependencyComponents,
+		pageDependencyComponents,
 		resolvedDependencies,
 		pagePackage,
 		HtmlTemplate: HtmlTemplate as EcoComponent<HtmlTemplateProps, C>,

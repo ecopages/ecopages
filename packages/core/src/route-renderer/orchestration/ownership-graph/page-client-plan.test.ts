@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import type { EcoComponent, ResolvedLazyTrigger } from '../../../types/public-types.ts';
+import type { EcoComponent, ResolvedLazyTrigger } from '../../../types/contracts.ts';
+import { setPendingLazyClientAssets, setResolvedLazyTriggers } from '../../../eco/component-internal-state.ts';
 import {
 	collectPageClientPlan,
 	planCoversComponents,
@@ -14,18 +15,21 @@ function createComponent(input: {
 	triggers?: ResolvedLazyTrigger[];
 	children?: EcoComponent[];
 }): EcoComponent {
-	return {
+	const component = {
 		config: {
 			integration: input.integration,
 			identity: input.file
 				? { id: input.file, file: input.file, integration: input.integration ?? 'react' }
 				: undefined,
-			_resolvedLazyTriggers: input.triggers,
 			dependencies: {
 				components: input.children ?? [],
 			},
 		},
 	} as EcoComponent;
+	if (input.triggers) {
+		setResolvedLazyTriggers(component.config!, input.triggers);
+	}
+	return component as EcoComponent;
 }
 
 test('collectPageClientPlan keeps only foreign-to-parent entries', () => {
@@ -110,7 +114,7 @@ test('collectPageClientPlan collects pending lazy client entries from the declar
 		attributes: { 'data-eco-lazy-key': 'lazy:1' },
 	};
 	const island = createComponent({ integration: 'react', file: '/app/island.tsx' });
-	island.config!._pendingLazyClientAssets = [lazyAsset];
+	setPendingLazyClientAssets(island.config!, [lazyAsset]);
 	const root = createComponent({
 		integration: 'react',
 		file: '/app/page.tsx',

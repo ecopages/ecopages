@@ -1,4 +1,4 @@
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import { ensureIntegrationRuntimeReady } from '../../../build/app-build-manifest-runtime.ts';
 import { invariant } from '../../../utils/invariant.ts';
 import type { ForeignSubtreeExecutionOwningRenderer } from './foreign-subtree-execution.service.ts';

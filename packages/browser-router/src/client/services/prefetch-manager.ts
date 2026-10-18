@@ -9,8 +9,8 @@ import {
 	fetchNavigationPage,
 	getCachedNavigationHtml,
 	invalidateNavigationHtml,
-} from '@ecopages/core/router/navigation-pipeline';
-import { isSamePageHref, shouldPrefetchLink } from '@ecopages/core/router/link-navigation-policy';
+} from '@ecopages/core/client';
+import { isSamePageHref, shouldPrefetchLink } from '@ecopages/core/client';
 import { discoverNewStylesheetLinks, getCurrentStylesheetHrefs } from '../dom/stylesheet-discovery.ts';
 
 export type PrefetchStrategy = 'viewport' | 'hover' | 'intent';

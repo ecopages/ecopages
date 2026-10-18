@@ -5,7 +5,7 @@ import { appLogger } from '../../global/app-logger.ts';
 import { HTML_PAGES_INTEGRATION_NAME } from '../../html-pages/html-page-module.ts';
 import { HtmlPagesPlugin } from '../../html-pages/html-pages.plugin.ts';
 import type { AnyIntegrationPlugin } from '../../plugins/integration-plugin.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { invariant } from '../../utils/invariant.ts';
 import {
 	DEFAULT_ECOPAGES_DIST_DIR,
@@ -236,7 +236,7 @@ function createAbsolutePaths(
  * Every call returns a new config; nothing is cached.
  *
  * App code never calls this: it exports `defineConfig(...)` and `createApp()` finalizes it.
- * Workspace packages and tests import it from `@ecopages/core/internal/finalize-config`, a
+ * Workspace packages and tests import it from `@ecopages/core/config`, a
  * subpath the npm build drops from the published package, so keep it out of user-facing docs.
  *
  * @throws When `userConfig` is an already finalized config; when Integration names or

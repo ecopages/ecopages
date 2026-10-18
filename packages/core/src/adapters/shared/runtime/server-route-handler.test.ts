@@ -3,7 +3,7 @@ import { ServerRouteHandler } from './server-route-handler';
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { ExplicitStaticRouteMatcher } from '../http/explicit-static-route-matcher.ts';
 import type { FileSystemResponseMatcher } from '../http/fs-server-response-matcher.ts';
-import type { IHmrManager } from '../../../types/public-types.ts';
+import type { IHmrManager } from '../../../types/contracts.ts';
 import { HttpError } from '../../../errors/http-error.ts';
 
 function createMockDependencies() {

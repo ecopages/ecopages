@@ -1,5 +1,5 @@
-import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
-import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/router/navigation-pipeline';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
+import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/client';
 
 /**
  * Shared types for the EcoPages transitions package

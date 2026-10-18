@@ -9,7 +9,7 @@
  */
 
 import type { EcoComponent } from '@ecopages/core';
-import type { DocumentShellLayoutInput } from '@ecopages/core/route-renderer/orchestration/document-shell/document-shell-render.service';
+import type { DocumentShellLayoutInput } from '@ecopages/core/integration';
 import type { ReactElement } from 'react';
 import { isReactManagedComponent } from './component-ownership.ts';
 import {

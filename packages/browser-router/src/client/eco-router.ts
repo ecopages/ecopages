@@ -3,16 +3,16 @@
  * @module eco-router
  */
 
-import type { EcoNavigationEvent } from '@ecopages/core/router/navigation-lifecycle';
-import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import type { EcoNavigationEvent } from '@ecopages/core/client';
+import { getEcoNavigationRuntime } from '@ecopages/core/client';
 import {
 	getAnchorFromNavigationEvent,
 	isStaticAssetHref,
 	recoverPendingNavigationHref,
 	type EcoPendingNavigationIntent,
-} from '@ecopages/core/router/link-intent';
-import { getNavigableHrefFromClick } from '@ecopages/core/router/link-navigation-policy';
-import { decideQueuedNavigationReplay } from '@ecopages/core/router/navigation-pipeline';
+} from '@ecopages/core/client';
+import { getNavigableHrefFromClick } from '@ecopages/core/client';
+import { decideQueuedNavigationReplay } from '@ecopages/core/client';
 import { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC, DEFAULT_OPTIONS, type EcoRouterOptions } from './types.ts';
 import { DomSwapper } from './dom/dom-swapper.ts';
 import { PrefetchManager } from './services/prefetch-manager.ts';

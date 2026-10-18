@@ -1,6 +1,6 @@
 import { createApp, type EcopagesAppOptions } from '@ecopages/core/create-app';
 import { loadEcoPagesConfig } from '@ecopages/core/config';
-import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { createCoreHmrUserConfig } from './fixture-user-config.ts';
 
 const fixtureRootDir = import.meta.dirname;

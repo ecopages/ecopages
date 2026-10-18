@@ -5,22 +5,21 @@ import path from 'node:path';
 import {
 	eco,
 	getComponentIdentity,
-	type ComponentRenderInput,
-	type ComponentRenderResult,
 	type EcoComponent,
 	type EcoComponentConfig,
 	type EcoPageFile,
 	type HtmlTemplateProps,
-	type IntegrationRendererRenderOptions,
-	type PageBrowserGraphResult,
 } from '@ecopages/core';
-import {
-	type PageClientPlan,
-	type RouteModuleLoadOptions,
-} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import { runWithComponentRenderContext } from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
-import type { ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
-import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import type {
+	ComponentRenderInput,
+	ComponentRenderResult,
+	IntegrationRendererRenderOptions,
+	PageBrowserGraphResult,
+} from '@ecopages/core/integration';
+import { type PageClientPlan, type RouteModuleLoadOptions } from '@ecopages/core/integration';
+import { runWithComponentRenderContext } from '@ecopages/core/integration';
+import type { ProcessedAsset } from '@ecopages/core/integration';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { describeRendererContract } from '@ecopages/testing/renderer-contract';
 import React, { type JSX, type ReactNode } from 'react';
@@ -471,8 +470,10 @@ describe('ReactRenderer', () => {
 			)?.srcUrl;
 
 			expect(lazyOutputUrl).toBeDefined();
-			expect(renderOptions?.pageClientPlan?.lazyTriggers).toHaveLength(1);
-			expect(renderOptions?.pageClientPlan?.lazyTriggers[0]?.rules).toEqual([
+			const pageClientPlan = (renderOptions as unknown as { pageClientPlan?: PageClientPlan } | undefined)
+				?.pageClientPlan;
+			expect(pageClientPlan?.lazyTriggers).toHaveLength(1);
+			expect(pageClientPlan?.lazyTriggers[0]?.rules).toEqual([
 				{ 'on:interaction': { value: 'click', scripts: [lazyOutputUrl] } },
 			]);
 		});
@@ -835,7 +836,7 @@ describe('ReactRenderer', () => {
 			query: {},
 			props: {},
 			resolvedDependencies: [],
-			resolvedPageDependencyComponents: [resolvedContent],
+			pageDependencyComponents: [resolvedContent],
 			file: pageFilePath,
 			metadata: { title: 'Test Page', description: 'Test Description' },
 			Page,

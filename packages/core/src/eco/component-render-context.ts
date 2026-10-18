@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { EcoComponent, ForeignChildRuntime as ForeignChildRuntimeContract } from '../types/public-types.ts';
+import type { EcoComponent, ForeignChildRuntime as ForeignChildRuntimeContract } from '../types/contracts.ts';
+import { getResolvedLazyTriggers } from './component-internal-state.ts';
 import { addTriggerAttribute, isThenable } from './component-render-output.ts';
 
 export type ForeignChildInterceptionResult = Awaited<
@@ -8,7 +9,7 @@ export type ForeignChildInterceptionResult = Awaited<
 export type ForeignChildInterceptionInput = Parameters<
 	NonNullable<ForeignChildRuntimeContract['interceptForeignChild']>
 >[0];
-export type { ForeignChildRuntime } from '../types/public-types.ts';
+export type { ForeignChildRuntime } from '../types/contracts.ts';
 
 type ForeignChildRenderInput = {
 	component: EcoComponent;
@@ -24,7 +25,7 @@ type ForeignChildRenderInput = {
  */
 class ComponentRenderOutputRuntime {
 	finalizeComponentRender<T>(component: EcoComponent, content: T): T {
-		const lazyTriggers = component.config?._resolvedLazyTriggers;
+		const lazyTriggers = getResolvedLazyTriggers(component.config);
 		if (lazyTriggers && lazyTriggers.length > 0) {
 			return this.addTriggerToContent(content, lazyTriggers[0].triggerId) as T;
 		}

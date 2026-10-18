@@ -2,7 +2,7 @@
  * AST transforms for the client graph boundary plugin.
  */
 
-import { parseModuleSource } from '@ecopages/core/cache';
+import { parseModuleSource } from '@ecopages/core/build';
 import { analyzeReachability } from './reachability-analyzer.ts';
 import { stripServerOnlyEcoPageOptions } from './ast-transform-eco-page.ts';
 import { collectImportTransformEdits } from './ast-transform-walk-imports.ts';

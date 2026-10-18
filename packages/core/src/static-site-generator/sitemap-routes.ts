@@ -1,4 +1,4 @@
-import type { SitemapConfig } from '../types/public-types.ts';
+import type { SitemapConfig } from '../types/contracts.ts';
 import { matchesAnyPathPattern, normalizePathname } from '../utils/path-pattern.ts';
 import { buildSitemapLocation } from './sitemap.ts';
 

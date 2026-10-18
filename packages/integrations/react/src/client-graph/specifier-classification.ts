@@ -2,10 +2,10 @@
  * Specifier classification and requested-export registry helpers for the client graph boundary.
  */
 
-import { loadTsconfigPathPrefixes, matchesTsconfigPathPrefix } from '@ecopages/core/plugins/tsconfig-import-resolver';
-import { toPackageRootSpecifier } from '@ecopages/core/plugins/package-specifier';
-import { isContentServerVirtualModule } from '@ecopages/core/build/contracts/content-virtual-modules';
-import { isServerOnlyModuleSpecifier } from '@ecopages/core/build/contracts/server-only-specifier';
+import { loadTsconfigPathPrefixes, matchesTsconfigPathPrefix } from '@ecopages/core/build';
+import { toPackageRootSpecifier } from '@ecopages/core/build';
+import { isContentServerVirtualModule } from '@ecopages/core/build';
+import { isServerOnlyModuleSpecifier } from '@ecopages/core/build/contracts';
 import { dirname, resolve } from 'node:path';
 
 export type RequestedExportRules = Set<string> | '*';

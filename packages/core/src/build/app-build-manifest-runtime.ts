@@ -5,9 +5,9 @@ import {
 	type AppBuildManifest,
 	type BuildPluginRegistration,
 } from './contracts/build-manifest.ts';
-import { requireAppRuntime } from '../types/app-runtime.ts';
+import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { appLogger } from '../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { startupTrace } from '../diagnostics/startup-trace.ts';
 import { isLitStaticRenderWorkerThread } from './browser/lit-static-render-worker-context.ts';
 

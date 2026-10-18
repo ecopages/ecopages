@@ -7,7 +7,7 @@ import { beforeEach, afterEach, test, vi } from 'vitest';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { BuildSuccess } from '../build/build-adapter.ts';
 import type { GroupedGraphBuildPlan } from '../route-renderer/orchestration/page-browser-graph/grouped-graph-build-plan.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { AssetDefinition } from './asset-processing-service/assets.types.ts';
 
 const { bundleGroupedEntries, setPrebuiltUrls, htmlScriptPath } = vi.hoisted(() => ({

@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { AssetProcessingService } from '../../../assets/asset-processing-service/index.ts';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import type { EcoComponent, IntegrationRendererRenderOptions, RouteRendererBody } from '../../../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { EcoComponent, IntegrationRendererRenderOptions, RouteRendererBody } from '../../../types/contracts.ts';
 import { createUnresolvedMarkerArtifact } from '../integration-renderer.test-fixtures.ts';
 import { buildRouteHtmlFinalization } from './route-html-finalization.service.ts';
 import { RouteRenderOrchestrator } from './route-render-orchestrator.ts';
 import { createFlowRenderer, createRouteOptions } from './route-render-orchestrator.test-fixtures.ts';
 import { BuildInputDependencyIndex } from '../../../build/cache/build-input-dependency-index.ts';
-import { requireAppRuntime, type AppRuntime } from '../../../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
+import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import { SessionPageBrowserGraphCache } from '../page-browser-graph/page-browser-graph-session.ts';
 
 function createHtmlStream(html: string): BodyInit {

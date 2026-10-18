@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createBrowserRuntimeManifest } from '@ecopages/core/build/browser-runtime-manifest';
-import type { DefaultHmrContext } from '@ecopages/core';
+import { createBrowserRuntimeManifest } from '@ecopages/core/build';
+import type { DefaultHmrContext } from '@ecopages/core/integration';
 import { ReactDevTransformContributor } from './react-dev-transform-contributor.ts';
 import { HmrPageMetadataCache } from '../hmr/page-metadata-cache.ts';
 import { ReactHmrStrategy } from '../hmr/hmr-strategy.ts';

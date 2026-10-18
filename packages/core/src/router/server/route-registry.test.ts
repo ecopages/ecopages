@@ -6,7 +6,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
 import { ServerRouteHandler } from '../../adapters/shared/runtime/server-route-handler.ts';
 import type { FileSystemResponseMatcher } from '../../adapters/shared/http/fs-server-response-matcher.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.js';
+import type { EcoPagesAppConfig } from '../../config/internal-types.js';
 import { RouteRegistry, type RouteRegistryPageModuleAdapter, type TemplateRoute } from './route-registry.ts';
 
 const {
@@ -121,6 +121,9 @@ describe('RouteRegistry', () => {
 		const result = registry.matchRequest('http://localhost:3000/page?sort=asc&page=2');
 
 		expect(result?.query).toEqual({ sort: 'asc', page: '2' });
+		expect(registry.matchRequest('http://localhost:3000/page?tag=first&tag=second')?.query).toEqual({
+			tag: ['first', 'second'],
+		});
 	});
 
 	test('prefers exact routes over dynamic routes', async () => {

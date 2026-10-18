@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AppRuntime } from '../config/assembly/app-runtime.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { RouteRendererFactory } from './route-renderer.ts';
 
 function testRuntime(origin: string): AppRuntime {

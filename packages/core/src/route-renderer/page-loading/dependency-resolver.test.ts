@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { DEPENDENCY_ERRORS, DependencyResolverService } from './dependency-resolver.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type {
 	AssetDefinition,
 	AssetProcessingService,
@@ -12,7 +12,8 @@ import type {
 	InlineContentScriptAsset,
 } from '../../assets/asset-processing-service/index.ts';
 import { APP_BROWSER_CLIENT_BUNDLE_ID, AssetFactory } from '../../assets/asset-processing-service/index.ts';
-import type { EcoComponent } from '../../types/public-types.ts';
+import type { EcoComponent } from '../../types/contracts.ts';
+import { getPendingLazyClientAssets, getResolvedLazyTriggers } from '../../eco/component-internal-state.ts';
 import { collectPageClientPlan } from '../orchestration/ownership-graph/page-client-plan.ts';
 import { UndeclaredComponentDependencyError } from '../../errors/undeclared-component-dependency-error.ts';
 import { packagePageDependencies } from './page-dependency-bundling.ts';
@@ -93,7 +94,7 @@ describe('DependencyResolverService', () => {
 
 		expect(entries).toHaveLength(1);
 		expect(entries[0]).toEqual(expect.objectContaining({ content: 'import "/app/lazy.ts";' }));
-		expect(component.config._pendingLazyClientAssets).toEqual(entries);
+		expect(getPendingLazyClientAssets(component.config)).toEqual(entries);
 		expect(plan.lazyClientEntries).toEqual(entries);
 		expect(processDependencies).not.toHaveBeenCalled();
 	});
@@ -208,9 +209,9 @@ describe('DependencyResolverService', () => {
 		);
 		expect(hasInjector).toBe(false);
 
-		expect(component.config._resolvedLazyTriggers).toBeUndefined();
-		expect(component.config._pendingLazyClientAssets).toHaveLength(1);
-		const pendingLazy = component.config._pendingLazyClientAssets?.[0];
+		expect(getResolvedLazyTriggers(component.config)).toBeUndefined();
+		expect(getPendingLazyClientAssets(component.config)).toHaveLength(1);
+		const pendingLazy = getPendingLazyClientAssets(component.config)?.[0];
 		expect(pendingLazy).toEqual(
 			expect.objectContaining({
 				groupedBundle: expect.objectContaining({ id: APP_BROWSER_CLIENT_BUNDLE_ID }),
@@ -228,8 +229,8 @@ describe('DependencyResolverService', () => {
 			[component.config],
 		);
 
-		expect(component.config._resolvedLazyTriggers).toHaveLength(1);
-		expect(component.config._resolvedLazyTriggers?.[0]?.rules).toEqual([
+		expect(getResolvedLazyTriggers(component.config)).toHaveLength(1);
+		expect(getResolvedLazyTriggers(component.config)?.[0]?.rules).toEqual([
 			{
 				'on:interaction': {
 					value: 'click',
@@ -239,8 +240,8 @@ describe('DependencyResolverService', () => {
 		]);
 
 		await service.processComponentDependencies([component], 'kitajs');
-		expect(component.config._resolvedLazyTriggers).toHaveLength(1);
-		expect(component.config._resolvedLazyTriggers?.[0]?.rules).toEqual([
+		expect(getResolvedLazyTriggers(component.config)).toHaveLength(1);
+		expect(getResolvedLazyTriggers(component.config)?.[0]?.rules).toEqual([
 			{
 				'on:interaction': {
 					value: 'click',
@@ -388,7 +389,7 @@ describe('DependencyResolverService', () => {
 
 			expect(contentScripts).toHaveLength(0);
 
-			const lazyEntry = component.config._pendingLazyClientAssets?.[0];
+			const lazyEntry = getPendingLazyClientAssets(component.config)?.[0];
 
 			expect(lazyEntry).toEqual(
 				expect.objectContaining({
@@ -443,14 +444,14 @@ describe('DependencyResolverService', () => {
 
 			expect(assetProcessingService.processDependencies).toHaveBeenCalledWith([], assetProcessingIntegration);
 			expect(capturedDeps).toEqual([]);
-			expect(component.config._pendingLazyClientAssets).toHaveLength(1);
-			expect(component.config._pendingLazyClientAssets?.[0]).toEqual(
+			expect(getPendingLazyClientAssets(component.config)).toHaveLength(1);
+			expect(getPendingLazyClientAssets(component.config)?.[0]).toEqual(
 				expect.objectContaining({
 					content: `import ${JSON.stringify(lazyScript)};`,
 					excludeFromHtml: true,
 				}),
 			);
-			expect(component.config._pendingLazyClientAssets?.[0]?.packageRole).toBeUndefined();
+			expect(getPendingLazyClientAssets(component.config)?.[0]?.packageRole).toBeUndefined();
 		} finally {
 			rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -924,9 +925,9 @@ describe('DependencyResolverService', () => {
 
 		await service.processComponentDependencies([component], 'lit');
 
-		expect(component.config._pendingLazyClientAssets).toHaveLength(2);
+		expect(getPendingLazyClientAssets(component.config)).toHaveLength(2);
 		service.applyPendingLazyTriggers(
-			(component.config._pendingLazyClientAssets ?? []).map((dep, index) => {
+			(getPendingLazyClientAssets(component.config) ?? []).map((dep, index) => {
 				const hasContent =
 					dep.kind === 'script' && dep.source === 'content' && 'content' in dep && Boolean(dep.content);
 				return {
@@ -940,9 +941,9 @@ describe('DependencyResolverService', () => {
 			}),
 			[component.config],
 		);
-		expect(component.config._resolvedLazyTriggers).toHaveLength(1);
+		expect(getResolvedLazyTriggers(component.config)).toHaveLength(1);
 
-		const rules = component.config._resolvedLazyTriggers?.[0]?.rules ?? [];
+		const rules = getResolvedLazyTriggers(component.config)?.[0]?.rules ?? [];
 		const idleRule = rules.find((rule) => 'on:idle' in rule);
 		const visibleRule = rules.find((rule) => 'on:visible' in rule);
 

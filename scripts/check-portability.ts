@@ -100,6 +100,10 @@ const coreRootFileLayers = new Map<string, string>([
 	['declarations.d.ts', 'foundation'],
 	['css-imports.d.ts', 'foundation'],
 	['env.d.ts', 'foundation'],
+	['integration.ts', 'assembly'],
+	['processor.ts', 'assembly'],
+	['build.ts', 'assembly'],
+	['client.ts', 'assembly'],
 	['index.ts', 'assembly'],
 	['index.browser.ts', 'assembly'],
 ]);
@@ -418,6 +422,69 @@ export async function checkCoreLayering(repositoryRoot = rootDir): Promise<Viola
 	return violations;
 }
 
+function getModuleSpecifier(node: ts.Node): string | undefined {
+	if (
+		(ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+		node.moduleSpecifier &&
+		ts.isStringLiteral(node.moduleSpecifier)
+	) {
+		return node.moduleSpecifier.text;
+	}
+	if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal)) {
+		return node.argument.literal.text;
+	}
+	return undefined;
+}
+
+/**
+ * Verifies that core's shared type contracts import only sibling type modules or packages.
+ */
+export async function checkCoreTypesLeaf(repositoryRoot = rootDir): Promise<Violation[]> {
+	const violations: Violation[] = [];
+	const typeRoot = path.resolve(repositoryRoot, coreSourceRoot, 'types');
+	const files = await listFiles(typeRoot);
+	for (const filePath of files) {
+		const content = await readFile(filePath, 'utf8');
+		const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true);
+		const visit = (node: ts.Node): void => {
+			const specifier = getModuleSpecifier(node);
+			if (specifier) {
+				const resolved = ts.resolveModuleName(
+					specifier,
+					filePath,
+					{
+						allowImportingTsExtensions: true,
+						module: ts.ModuleKind.ESNext,
+						moduleResolution: ts.ModuleResolutionKind.Bundler,
+					},
+					ts.sys,
+				).resolvedModule?.resolvedFileName;
+				if (
+					resolved &&
+					path.resolve(resolved).startsWith(`${path.resolve(repositoryRoot, coreSourceRoot)}${path.sep}`)
+				) {
+					const relativeToTypes = path.relative(typeRoot, path.resolve(resolved));
+					if (relativeToTypes.startsWith('..') || path.isAbsolute(relativeToTypes)) {
+						const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+						violations.push({
+							checkId: 'core-types-leaf',
+							message: 'Core type contracts may import other type contracts, not implementation modules.',
+							relativePath: path.relative(repositoryRoot, filePath).replaceAll(path.sep, '/'),
+							line: line + 1,
+							text: content.split('\n')[line]?.trim() ?? '',
+						});
+					}
+				}
+			}
+
+			ts.forEachChild(node, visit);
+		};
+		visit(sourceFile);
+	}
+
+	return violations;
+}
+
 /**
  * Portability checks that enforce the current runtime-neutral authoring policy.
  */
@@ -483,6 +550,7 @@ async function main(): Promise<void> {
 		}
 	}
 	violations.push(...(await checkCoreLayering()));
+	violations.push(...(await checkCoreTypesLeaf()));
 
 	if (violations.length === 0) {
 		console.log('Portability checks passed');

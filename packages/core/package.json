@@ -71,90 +71,30 @@
 			"types": "./src/adapters/create-app.ts",
 			"default": "./src/adapters/create-app.ts"
 		},
-		"./route-renderer/orchestration/integration-renderer": {
-			"types": "./src/route-renderer/orchestration/integration-renderer.ts",
-			"default": "./src/route-renderer/orchestration/integration-renderer.ts"
+		"./integration": {
+			"import": "./src/integration.ts",
+			"types": "./src/integration.ts",
+			"default": "./src/integration.ts"
 		},
-		"./route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader": {
-			"types": "./src/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader.ts",
-			"default": "./src/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader.ts"
+		"./processor": {
+			"import": "./src/processor.ts",
+			"types": "./src/processor.ts",
+			"default": "./src/processor.ts"
 		},
-		"./route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer": {
-			"types": "./src/route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer.ts",
-			"default": "./src/route-renderer/orchestration/custom-element-scripts/custom-element-server-module-importer.ts"
+		"./build": {
+			"import": "./src/build.ts",
+			"types": "./src/build.ts",
+			"default": "./src/build.ts"
 		},
-		"./route-renderer/orchestration/custom-element-scripts/custom-element-ssr-preload-entrypoint": {
-			"types": "./src/route-renderer/orchestration/custom-element-scripts/custom-element-ssr-preload-entrypoint.ts",
-			"default": "./src/route-renderer/orchestration/custom-element-scripts/custom-element-ssr-preload-entrypoint.ts"
+		"./build/contracts": {
+			"import": "./src/build/contracts.ts",
+			"types": "./src/build/contracts.ts",
+			"default": "./src/build/contracts.ts"
 		},
-		"./route-renderer/orchestration/string-markup-renderer": {
-			"types": "./src/route-renderer/orchestration/string-markup-renderer.ts",
-			"default": "./src/route-renderer/orchestration/string-markup-renderer.ts"
-		},
-		"./route-renderer/route-renderer": {
-			"types": "./src/route-renderer/route-renderer.ts",
-			"default": "./src/route-renderer/route-renderer.ts"
-		},
-		"./route-renderer/orchestration/foreign-child/component-render-context": {
-			"import": "./src/eco/component-render-context.ts",
-			"types": "./src/eco/component-render-context.ts",
-			"default": "./src/eco/component-render-context.ts"
-		},
-		"./route-renderer/orchestration/foreign-child/foreign-subtree-execution.service": {
-			"types": "./src/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service.ts",
-			"default": "./src/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service.ts"
-		},
-		"./route-renderer/orchestration/document-shell/document-shell-render.service": {
-			"types": "./src/route-renderer/orchestration/document-shell/document-shell-render.service.ts",
-			"default": "./src/route-renderer/orchestration/document-shell/document-shell-render.service.ts"
-		},
-		"./route-renderer/orchestration/document-shell/layout-shell-props.service": {
-			"types": "./src/route-renderer/orchestration/document-shell/layout-shell-props.service.ts",
-			"default": "./src/route-renderer/orchestration/document-shell/layout-shell-props.service.ts"
-		},
-		"./route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils": {
-			"types": "./src/route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils.ts",
-			"default": "./src/route-renderer/orchestration/page-browser-graph/page-browser-graph-merge.utils.ts"
-		},
-		"./route-renderer/page-loading/file-scoped-dependency-components": {
-			"types": "./src/route-renderer/page-loading/file-scoped-dependency-components.ts",
-			"default": "./src/route-renderer/page-loading/file-scoped-dependency-components.ts"
-		},
-		"./router/navigation-coordinator": {
-			"types": "./src/router/client/navigation-coordinator.ts",
-			"default": "./src/router/client/navigation-coordinator.ts"
-		},
-		"./router/navigation-pipeline": {
-			"types": "./src/router/client/navigation-pipeline.ts",
-			"default": "./src/router/client/navigation-pipeline.ts"
-		},
-		"./router/navigation-lifecycle": {
-			"types": "./src/router/client/navigation-lifecycle.ts",
-			"default": "./src/router/client/navigation-lifecycle.ts"
-		},
-		"./router/link-intent": {
-			"types": "./src/router/client/link-intent.ts",
-			"default": "./src/router/client/link-intent.ts"
-		},
-		"./router/link-navigation-policy": {
-			"types": "./src/router/client/link-navigation-policy.ts",
-			"default": "./src/router/client/link-navigation-policy.ts"
-		},
-		"./client/scroll": {
-			"types": "./src/client/scroll.ts",
-			"default": "./src/client/scroll.ts"
-		},
-		"./client/view-transitions": {
-			"types": "./src/client/view-transitions.ts",
-			"default": "./src/client/view-transitions.ts"
-		},
-		"./client/navigation-scripts": {
-			"types": "./src/client/navigation-scripts/index.ts",
-			"default": "./src/client/navigation-scripts/index.ts"
-		},
-		"./eco/page-layout-normalization": {
-			"types": "./src/eco/page-layout-normalization.ts",
-			"default": "./src/eco/page-layout-normalization.ts"
+		"./client": {
+			"import": "./src/client.ts",
+			"types": "./src/client.ts",
+			"default": "./src/client.ts"
 		},
 		"./declarations": {
 			"types": "./src/declarations.d.ts"
@@ -166,151 +106,17 @@
 			"types": "./src/config/index.ts",
 			"default": "./src/config/index.ts"
 		},
-		"./internal/finalize-config": {
-			"types": "./src/config/assembly/finalize-config.ts",
-			"default": "./src/config/assembly/finalize-config.ts"
-		},
 		"./config/write-types": {
 			"types": "./src/config/write-types.ts",
 			"default": "./src/config/write-types.ts"
-		},
-		"./config/app-runtime": {
-			"types": "./src/config/assembly/app-runtime.ts",
-			"default": "./src/config/assembly/app-runtime.ts"
-		},
-		"./constants": {
-			"types": "./src/config/constants.ts",
-			"default": "./src/config/constants.ts"
-		},
-		"./diagnostics/request-pipeline-metrics": {
-			"types": "./src/diagnostics/request-pipeline-metrics.ts",
-			"default": "./src/diagnostics/request-pipeline-metrics.ts"
-		},
-		"./hmr/hmr-strategy": {
-			"types": "./src/hmr/hmr-strategy.ts",
-			"default": "./src/hmr/hmr-strategy.ts"
-		},
-		"./hmr/hmr-entrypoint-output": {
-			"types": "./src/hmr/hmr-entrypoint-output.ts",
-			"default": "./src/hmr/hmr-entrypoint-output.ts"
-		},
-		"./hmr/hmr-registered-entrypoints-context": {
-			"types": "./src/hmr/hmr-registered-entrypoints-context.ts",
-			"default": "./src/hmr/hmr-registered-entrypoints-context.ts"
 		},
 		"./hmr/client/hmr-runtime": {
 			"types": "./src/hmr/client/hmr-runtime.ts",
 			"default": "./src/hmr/client/hmr-runtime.ts"
 		},
-		"./dev/development-restart": {
-			"import": "./src/dev/development-restart.ts",
-			"types": "./src/dev/development-restart.ts",
-			"default": "./src/dev/development-restart.ts"
-		},
-		"./services/asset-processing-service": {
-			"types": "./src/assets/asset-processing-service/index.ts",
-			"default": "./src/assets/asset-processing-service/index.ts"
-		},
-		"./assets/hashed-browser-asset": {
-			"types": "./src/assets/hashed-browser-asset.ts",
-			"default": "./src/assets/hashed-browser-asset.ts"
-		},
-		"./plugins/processor": {
-			"types": "./src/plugins/processor.ts",
-			"default": "./src/plugins/processor.ts"
-		},
-		"./plugins/integration-plugin": {
-			"types": "./src/plugins/integration-plugin.ts",
-			"default": "./src/plugins/integration-plugin.ts"
-		},
-		"./plugins/define-integration": {
-			"types": "./src/plugins/define-integration.ts",
-			"default": "./src/plugins/define-integration.ts"
-		},
-		"./build/build-adapter": {
-			"types": "./src/build/build-adapter.ts",
-			"default": "./src/build/build-adapter.ts"
-		},
-		"./build/build-queue": {
-			"types": "./src/build/runtime/build-queue.ts",
-			"default": "./src/build/runtime/build-queue.ts"
-		},
-		"./build/server-module": {
-			"types": "./src/build/server-module.ts",
-			"default": "./src/build/server-module.ts"
-		},
-		"./build/contracts/content-virtual-modules": {
-			"types": "./src/build/contracts/content-virtual-modules.ts",
-			"default": "./src/build/contracts/content-virtual-modules.ts"
-		},
-		"./build/contracts/server-only-specifier": {
-			"types": "./src/build/contracts/server-only-specifier.ts",
-			"default": "./src/build/contracts/server-only-specifier.ts"
-		},
-		"./build/browser-runtime-manifest": {
-			"types": "./src/build/browser/browser-runtime-manifest.ts",
-			"default": "./src/build/browser/browser-runtime-manifest.ts"
-		},
-		"./build/browser-runtime-plugin": {
-			"types": "./src/build/browser/browser-runtime-plugin.ts",
-			"default": "./src/build/browser/browser-runtime-plugin.ts"
-		},
-		"./build/jsx-ownership-plugins": {
-			"types": "./src/build/browser/jsx-ownership-plugins.ts",
-			"default": "./src/build/browser/jsx-ownership-plugins.ts"
-		},
-		"./build/lit-static-render-worker-context": {
-			"types": "./src/build/browser/lit-static-render-worker-context.ts",
-			"default": "./src/build/browser/lit-static-render-worker-context.ts"
-		},
-		"./cache": {
-			"types": "./src/cache/index.ts",
-			"default": "./src/cache/index.ts"
-		},
-		"./plugins/tsconfig-import-resolver": {
-			"types": "./src/plugins/tsconfig-import-resolver.ts",
-			"default": "./src/plugins/tsconfig-import-resolver.ts"
-		},
-		"./plugins/package-specifier": {
-			"types": "./src/plugins/package-specifier.ts",
-			"default": "./src/plugins/package-specifier.ts"
-		},
-		"./plugins/jsx-import-source.utils": {
-			"types": "./src/plugins/jsx-import-source.utils.ts",
-			"default": "./src/plugins/jsx-import-source.utils.ts"
-		},
-		"./hash": {
-			"import": "./src/utils/hash.ts",
-			"require": "./src/utils/hash.ts"
-		},
-		"./utils/resolve-entry-file": {
-			"import": "./src/utils/resolve-entry-file.ts",
-			"types": "./src/utils/resolve-entry-file.ts",
-			"default": "./src/utils/resolve-entry-file.ts"
-		},
-		"./utils/path-containment": {
-			"types": "./src/utils/path-containment.ts",
-			"default": "./src/utils/path-containment.ts"
-		},
 		"./errors": {
 			"types": "./src/errors/index.ts",
 			"default": "./src/errors/index.ts"
-		},
-		"./dev/transform-server": {
-			"types": "./src/dev/transform-server/index.ts",
-			"default": "./src/dev/transform-server/index.ts"
-		},
-		"./dev-toolbar/build-error-contract": {
-			"types": "./src/dev-toolbar/build-error-contract.ts",
-			"default": "./src/dev-toolbar/build-error-contract.ts"
-		},
-		"./dev-toolbar/define-dev-tool": {
-			"types": "./src/dev-toolbar/define-dev-tool.ts",
-			"default": "./src/dev-toolbar/define-dev-tool.ts"
-		},
-		"./dev-toolbar/dev-toolbar-manifest-contract": {
-			"types": "./src/dev-toolbar/dev-toolbar-manifest-contract.ts",
-			"default": "./src/dev-toolbar/dev-toolbar-manifest-contract.ts"
 		}
 	}
 }

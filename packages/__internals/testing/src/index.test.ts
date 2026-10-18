@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { EcoPagesElement } from '@ecopages/core';
-import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
-import { IntegrationPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { IntegrationRenderer } from '@ecopages/core/route-renderer/orchestration/integration-renderer';
+import { requireAppRuntime } from '@ecopages/core/integration';
+import { IntegrationPlugin } from '@ecopages/core/integration';
+import { IntegrationRenderer } from '@ecopages/core/integration';
 import { createStringMarkupIntegration, createTestAppConfig, setupTestIntegration } from './index.ts';
 
 class TestRenderer extends IntegrationRenderer<EcoPagesElement> {

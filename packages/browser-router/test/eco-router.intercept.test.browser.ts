@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
-import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
+import { getEcoNavigationRuntime } from '@ecopages/core/client';
 import { createRouter } from '../src/client/eco-router';
 import type { EcoRouterOptions } from '../src/client/types';
 import {

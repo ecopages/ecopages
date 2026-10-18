@@ -3,18 +3,19 @@ import { createBrowserRuntimeManifest } from '../../build/browser/browser-runtim
 import { createAppRuntime } from '../../config/assembly/app-runtime.ts';
 import { IntegrationRenderer, type HtmlDocumentContribution } from './integration-renderer.ts';
 import { getComponentRenderContext, type ForeignChildRuntime } from '../../eco/component-render-context.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { AssetProcessingService, ProcessedAsset } from '../../assets/asset-processing-service/index.ts';
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
 	EcoPagesElement,
 	IntegrationRendererRenderOptions,
+	InternalIntegrationRendererRenderOptions,
 	EcoPageFile,
 	RouteRendererBody,
 	EcoComponent,
 	HtmlTemplateProps,
-} from '../../types/public-types.ts';
+} from '../../types/contracts.ts';
 
 export function createUnresolvedMarkerArtifact(nodeId: string, componentRef: string, propsRef: string): string {
 	return `<eco-marker data-eco-node-id="${nodeId}" data-eco-component-ref="${componentRef}" data-eco-props-ref="${propsRef}"></eco-marker>`;
@@ -72,7 +73,7 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 	PageModule: EcoPageFile | null = null;
 	HtmlTemplate: EcoComponent<HtmlTemplateProps> | null = null;
 	UseDocumentShellRender = false;
-	CapturedRenderOptions: IntegrationRendererRenderOptions<EcoPagesElement> | null = null;
+	CapturedRenderOptions: InternalIntegrationRendererRenderOptions<EcoPagesElement> | null = null;
 	RenderedBody: RouteRendererBody = '<html><body>Test Page</body></html>';
 	RenderBodyFactory:
 		| ((context: ReturnType<typeof getComponentRenderContext>) => RouteRendererBody | Promise<RouteRendererBody>)
@@ -82,7 +83,7 @@ export class TestIntegrationRenderer extends IntegrationRenderer<EcoPagesElement
 	HtmlContributions: HtmlDocumentContribution[] = [];
 
 	override async render(options: IntegrationRendererRenderOptions<EcoPagesElement>): Promise<RouteRendererBody> {
-		this.CapturedRenderOptions = options;
+		this.CapturedRenderOptions = options as InternalIntegrationRendererRenderOptions<EcoPagesElement>;
 		if (this.UseDocumentShellRender) {
 			return super.render(options);
 		}

@@ -1,4 +1,4 @@
-import type { EcoComponent, EcoPageLayoutEntry, LayoutPropsContext } from '../../../types/public-types.ts';
+import type { EcoComponent, EcoPageLayoutEntry, LayoutPropsContext } from '../../../types/contracts.ts';
 import type { DocumentShellLayoutInput } from './document-shell-render.service.ts';
 
 export type LayoutShellPropsContext = LayoutPropsContext & {

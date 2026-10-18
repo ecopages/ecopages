@@ -1,10 +1,7 @@
 import path from 'node:path';
-import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/hmr/hmr-strategy';
-import {
-	isRegisteredDevTransformEntrypoint,
-	isRegisteredScriptEntrypoint,
-} from '@ecopages/core/hmr/hmr-entrypoint-output';
-import type { HmrRegisteredEntrypointsContext } from '@ecopages/core/hmr/hmr-registered-entrypoints-context';
+import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/integration';
+import { isRegisteredDevTransformEntrypoint, isRegisteredScriptEntrypoint } from '@ecopages/core/integration';
+import type { HmrRegisteredEntrypointsContext } from '@ecopages/core/integration';
 import { getEjsxHmrOwnership } from './ecopages-jsx-hmr-ownership.ts';
 
 export type EcopagesJsxHmrStrategyContext = HmrRegisteredEntrypointsContext & {

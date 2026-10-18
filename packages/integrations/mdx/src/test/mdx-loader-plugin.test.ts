@@ -4,12 +4,8 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { compile } from '@mdx-js/mdx';
 import sourceMap from 'source-map';
-import { createRequestPipelineMetricsState } from '@ecopages/core/diagnostics/request-pipeline-metrics';
-import type {
-	EcoBuildOnLoadArgs,
-	EcoBuildOnLoadResult,
-	EcoBuildPluginBuilder,
-} from '@ecopages/core/plugins/integration-plugin';
+import { createRequestPipelineMetricsState } from '@ecopages/core/build';
+import type { EcoBuildOnLoadArgs, EcoBuildOnLoadResult, EcoBuildPluginBuilder } from '@ecopages/core/integration';
 import {
 	createMdxLoaderPlugin as createMdxLoaderPluginWithMetrics,
 	type MdxLoaderPluginOptions,

@@ -4,10 +4,9 @@ import {
 	type IntegrationRuntimeContext,
 	type EcoBuildPlugin,
 	type IntegrationPluginConfig,
-} from '@ecopages/core/plugins/integration-plugin';
-import { type AssetDefinition, AssetFactory } from '@ecopages/core/services/asset-processing-service';
-import type { EcoPagesAppConfig } from '@ecopages/core';
-import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
+} from '@ecopages/core/integration';
+import { type AssetDefinition, AssetFactory } from '@ecopages/core/integration';
+import { requireAppRuntime } from '@ecopages/core/integration';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { ECOPAGES_JSX_PLUGIN_NAME } from './ecopages-jsx.constants.ts';
 import { RADIANT_INSTALL_HYDRATOR_FILEPATH } from './resolve-radiant-install-hydrator.ts';
@@ -88,7 +87,7 @@ export class EcopagesJsxPlugin extends IntegrationPlugin<JsxRenderable> {
 	 * Returns a new loader declaration without registering or initializing it. The build manifest owns the
 	 * resulting instance for the app runtime.
 	 */
-	override plugins(app: EcoPagesAppConfig): EcoBuildPlugin[] {
+	override plugins(app: IntegrationRuntimeContext['appConfig']): EcoBuildPlugin[] {
 		if (!this.mdxCompilerOptions) {
 			return [];
 		}

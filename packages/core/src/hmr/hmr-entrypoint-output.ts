@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
-import type { ResolvedHmrEntrypoint } from '../types/public-types.ts';
+import type { ResolvedHmrEntrypoint } from '../types/contracts.ts';
 
 function resolveRegisteredEntrypoint(
 	registered: ReadonlyMap<string, ResolvedHmrEntrypoint>,

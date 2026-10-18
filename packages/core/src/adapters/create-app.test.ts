@@ -3,7 +3,7 @@ import type { Server as NodeHttpServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { requireAppRuntime } from '../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { eco } from '../eco/eco.ts';
 import { defineIntegration } from '../plugins/define-integration.ts';

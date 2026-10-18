@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { compile } from '@mdx-js/mdx';
 import { test, vi } from 'vitest';
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
+import type { EcoBuildPlugin } from '@ecopages/core/integration';
 import remarkGfm from 'remark-gfm';
 import { VFile, type Compatible as VFileCompatible } from 'vfile';
 import { EcopagesJsxPlugin, ecopagesJsxPlugin } from '../ecopages-jsx.plugin.ts';
@@ -9,12 +9,13 @@ import { EcopagesJsxRenderer } from '../ecopages-jsx-renderer.ts';
 import { resolveMdxCompilerOptions } from '../ecopages-jsx-mdx.ts';
 import { RADIANT_INSTALL_HYDRATOR_FILEPATH } from '../resolve-radiant-install-hydrator.ts';
 import { invalidateRadiantRegisteredScriptSsrRegistration } from '../radiant-registered-script-ssr-invalidation.ts';
-import type { EcoComponent, EcoPageFile, EcoPagesAppConfig, IHmrManager } from '@ecopages/core';
-import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
+import type { EcoComponent, EcoPageFile } from '@ecopages/core';
+import type { IHmrManager, IntegrationRuntimeContext } from '@ecopages/core/integration';
+import { requireAppRuntime } from '@ecopages/core/integration';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	type CustomElementScriptPreloadScopeState,
-} from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
+} from '@ecopages/core/integration';
 import { createTestAppConfig, setupTestIntegration } from '@ecopages/testing';
 
 const lightDomGlobalKeys = [
@@ -294,5 +295,5 @@ test('EcopagesJsxPlugin passes resolved JSX options to custom EcopagesJsxRendere
 test('EcopagesJsxPlugin declares no build plugin without MDX', () => {
 	const plugin = ecopagesJsxPlugin({ radiant: false });
 
-	assert.deepEqual(plugin.plugins({ rootDir: '/tmp/project' } as EcoPagesAppConfig), []);
+	assert.deepEqual(plugin.plugins({ rootDir: '/tmp/project' } as IntegrationRuntimeContext['appConfig']), []);
 });

@@ -1,6 +1,6 @@
 import { rmSync } from 'node:fs';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { getBrowserRuntimeManifestFromPlugin } from '@ecopages/core/build/browser-runtime-plugin';
+import { getBrowserRuntimeManifestFromPlugin } from '@ecopages/core/build';
 import { copyFixtureApp } from '../../../../core/__fixtures__/app/copy-fixture-app.ts';
 import { RuntimeBundleService } from './runtime-bundle.ts';
 import { resolveReactPluginRuntimeModules } from './runtime-modules.ts';
@@ -125,7 +125,7 @@ describe('RuntimeBundleService', () => {
 		expect(service.getPageLayoutNormalizationDependencies()).toEqual([
 			expect.objectContaining({
 				name: 'page-layout-normalization',
-				importPath: '@ecopages/core/eco/page-layout-normalization',
+				importPath: '@ecopages/core/client',
 				bundleOptions: expect.objectContaining({
 					naming: 'page-layout-normalization.development.js',
 				}),

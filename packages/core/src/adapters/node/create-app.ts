@@ -1,5 +1,5 @@
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 
 import type {
 	ApiHandler,
@@ -15,7 +15,7 @@ import type {
 	ErrorPageTemplateProps,
 	EcopagesRouteInfo,
 	EcopagesWebSocketHandler,
-} from '../../types/public-types.ts';
+} from '../../types/contracts.ts';
 import { ERROR_PAGE_KIND_BY_STATUS, type HttpErrorPageStatus } from '../../errors/http-error-page-contract.ts';
 import {
 	formatRuntimeServerStartedMessage,
@@ -33,7 +33,7 @@ import { NodeRuntimeHost, type NodeRuntimeServeOptions } from './runtime-host.ts
 import { createNodeServerAdapter, type NodeServerAdapter, type NodeServerAdapterParams } from './server-adapter.ts';
 import type { NodeServerInstance } from './server-adapter.ts';
 import { resolveAppStartRoutes } from '../../utils/ecopages-route-info.ts';
-import { requireAppRuntime } from '../../types/app-runtime.ts';
+import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { createViewModuleLoader } from '../../build/server/view-module-loader.ts';
 import { invariant } from '../../utils/invariant.ts';
 

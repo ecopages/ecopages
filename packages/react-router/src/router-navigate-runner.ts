@@ -1,6 +1,6 @@
-import { getEcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
-import type { EcoNavigationTransaction } from '@ecopages/core/router/navigation-coordinator';
-import { decideQueuedNavigationReplay } from '@ecopages/core/router/navigation-pipeline';
+import { getEcoNavigationRuntime } from '@ecopages/core/client';
+import type { EcoNavigationTransaction } from '@ecopages/core/client';
+import { decideQueuedNavigationReplay } from '@ecopages/core/client';
 import type { Dispatch, MutableRefObject, SetStateAction, TransitionStartFunction } from 'react';
 import type { PageState } from './navigation.ts';
 import {

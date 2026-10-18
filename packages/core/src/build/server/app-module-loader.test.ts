@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import type { BuildQueue } from '../../build/runtime/build-queue.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { AppModuleLoader } from './app-module-loader.service.ts';
 import type { PageModuleBuildImportOptions } from './page-module-import.service.ts';
 

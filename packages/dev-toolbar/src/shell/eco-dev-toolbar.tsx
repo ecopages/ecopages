@@ -1,7 +1,7 @@
 /** @jsxImportSource @ecopages/jsx */
 import '@ecopages/radiant/client/install-hydrator';
-import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/router/navigation-lifecycle';
-import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/router/navigation-pipeline';
+import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/client';
+import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/client';
 import { RadiantElement } from '@ecopages/radiant';
 import {
 	BUILD_ERROR_EVENT,

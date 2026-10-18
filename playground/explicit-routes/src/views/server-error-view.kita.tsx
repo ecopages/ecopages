@@ -1,12 +1,12 @@
 import { eco } from '@ecopages/core';
-import type { Error500TemplateProps } from '@ecopages/core';
+import type { ErrorPageTemplateProps } from '@ecopages/core';
 import { MainLayout } from '@/layouts/main-layout.kita';
 
 function buildCopyPayload(message: string | undefined, stack: string | undefined): string {
 	return [message ? `Message: ${message}` : '', stack ? `Stack:\n${stack}` : ''].filter(Boolean).join('\n\n');
 }
 
-export const ServerErrorView = eco.page<Error500TemplateProps>({
+export const ServerErrorView = eco.page<ErrorPageTemplateProps>({
 	layout: MainLayout,
 	metadata: () => ({
 		title: 'Server Error | Explicit Routes',

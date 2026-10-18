@@ -1,15 +1,18 @@
 import type { HtmlDocumentContribution } from '../../../html/html-transformer.service.ts';
-import type { IntegrationRendererRenderOptions } from '../../../types/public-types.ts';
+import type {
+	IntegrationRendererRenderOptions,
+	InternalIntegrationRendererRenderOptions,
+} from '../../../types/contracts.ts';
 import type { RouteHtmlFinalization } from './route-render-orchestrator.ts';
 import { buildRobotsMetaContribution } from './robots-meta.contribution.ts';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import { buildDevToolbarManifestContribution } from '../../../dev-toolbar/dev-toolbar-manifest.ts';
 
 export type RouteHtmlFinalizationContext<C> = {
 	appConfig: EcoPagesAppConfig;
 	watch: boolean;
 	integrationName: string;
-	renderOptions: IntegrationRendererRenderOptions<C>;
+	renderOptions: InternalIntegrationRendererRenderOptions<C>;
 	getDocumentAttributes: (renderOptions: IntegrationRendererRenderOptions<C>) => Record<string, string> | undefined;
 	getHtmlDocumentContributions: (options: {
 		renderOptions: IntegrationRendererRenderOptions<C>;

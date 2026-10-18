@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import type { EcoPageComponent, StaticRoute, ViewLoader } from '../../../types/public-types.ts';
+import type { EcoPageComponent, StaticRoute, ViewLoader } from '../../../types/contracts.ts';
 import { ExplicitStaticRouteMatcher } from './explicit-static-route-matcher.ts';
 import { HttpError } from '../../../errors/http-error.ts';
 import { appLogger } from '../../../global/app-logger.ts';

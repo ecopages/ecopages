@@ -2,15 +2,15 @@ import path from 'node:path';
 import type { GroupedGraphScope } from './route-instance-key.ts';
 import { serializeGroupedGraphCacheKey } from './route-instance-key.ts';
 import { createHash } from 'node:crypto';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import type { PageBrowserGraphContribution, PageBrowserGraphResult } from '../../../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { PageBrowserGraphContribution, PageBrowserGraphResult } from '../../../types/contracts.ts';
 import type { AssetDefinition, ProcessedAsset } from '../../../assets/asset-processing-service/assets.types.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import {
 	BuildInputDependencyIndex,
 	type BuildInputBinding,
 } from '../../../build/cache/build-input-dependency-index.ts';
-import { requireAppRuntime } from '../../../types/app-runtime.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 
 function graphBinding(key: string): BuildInputBinding {
 	return { consumer: 'page-browser-graph', key };

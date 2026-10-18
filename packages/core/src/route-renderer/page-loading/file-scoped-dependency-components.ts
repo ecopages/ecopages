@@ -1,5 +1,5 @@
-import type { EcoComponent, EcoComponentConfig, EcoComponentDependencies } from '../../types/public-types.ts';
-import type { PageDependenciesResult } from '../../eco/eco.types.ts';
+import type { EcoComponent, EcoComponentConfig, EcoComponentDependencies } from '../../types/contracts.ts';
+import type { PageDependenciesResult } from '../../types/contracts.ts';
 import path from 'node:path';
 import { rapidhash } from '../../utils/hash.ts';
 import { bindComponentIdentity, getComponentIdentity, getComponentOwner } from '../../eco/component-identity.ts';

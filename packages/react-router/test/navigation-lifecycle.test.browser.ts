@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/router/navigation-lifecycle';
+import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/client';
 import { EcoRouter, PageContent, clearLayoutCache } from '../src/router.ts';
 import { flushTasks } from './react-router.harness.ts';
 

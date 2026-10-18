@@ -1,17 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import type {
 	EcoComponent,
 	EcoPageComponent,
 	HtmlTemplateProps,
 	PageBrowserGraphContribution,
 	PageBrowserGraphContributionContext,
-} from '../../../types/public-types.ts';
+} from '../../../types/contracts.ts';
 import { registerDiscoveredDependencies } from '../../../eco/discovered-dependencies.ts';
+import { setResolvedLazyTriggers } from '../../../eco/component-internal-state.ts';
 import { BuildInputDependencyIndex } from '../../../build/cache/build-input-dependency-index.ts';
-import { requireAppRuntime, type AppRuntime } from '../../../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
+import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import { SessionPageBrowserGraphCache } from '../page-browser-graph/page-browser-graph-session.ts';
 import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
 import type {
@@ -24,7 +26,7 @@ import type { OwnershipValidationService } from '../ownership-graph/ownership-va
 import { RouteRenderOrchestrator } from './route-render-orchestrator.ts';
 import { createFlowRenderer, createRouteOptions } from './route-render-orchestrator.test-fixtures.ts';
 
-declare module '../../../types/public-types.ts' {
+declare module '../../../types/contracts.ts' {
 	interface RequestLocals {
 		user?: string;
 		guarded?: boolean;
@@ -337,7 +339,7 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 			}),
 		);
 
-		expect(result.resolvedPageDependencyComponents).toEqual([resolvedContent]);
+		expect(result.pageDependencyComponents).toEqual([resolvedContent]);
 		expect(result.pagePackage).toEqual(
 			expect.objectContaining({ assets: expect.arrayContaining([integrationDependency, pageDependency]) }),
 		);
@@ -359,14 +361,13 @@ describe('RouteRenderOrchestrator prepareRenderOptions', () => {
 					packageRole: dependency.packageRole,
 				})) as ProcessedAsset[],
 		});
-		const Page = createPage({
-			_resolvedLazyTriggers: [
-				{
-					triggerId: 'eco-trigger-theme-toggle',
-					rules: [{ 'on:interaction': { value: 'click', scripts: ['/assets/lazy-theme-toggle.js'] } }],
-				},
-			],
-		});
+		const Page = createPage({});
+		setResolvedLazyTriggers(Page.config!, [
+			{
+				triggerId: 'eco-trigger-theme-toggle',
+				rules: [{ 'on:interaction': { value: 'click', scripts: ['/assets/lazy-theme-toggle.js'] } }],
+			},
+		]);
 
 		await flow.prepareRenderOptions(createRouteOptions('/app/pages/index.tsx'), createFlowRenderer({ Page }));
 

@@ -16,7 +16,7 @@ import {
 	type EcoComponentConfig,
 	type EcoPageFile,
 } from '@ecopages/core';
-import { rapidhash } from '@ecopages/core/hash';
+import { rapidhash } from '@ecopages/core/build';
 import { fileSystem } from '@ecopages/file-system';
 import { someInConfigTree } from '../client-graph/component-config-traversal.ts';
 import { collectPageDeclaredModulesFromModule } from '../client-graph/declared-modules.ts';

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { EcoComponent } from '@ecopages/core';
-import { runWithComponentRenderContext } from '@ecopages/core/route-renderer/orchestration/foreign-child/component-render-context';
+import { runWithComponentRenderContext } from '@ecopages/core/integration';
 import { assertContentEntryOwnerLane, invokeContentEntry } from '../ownership.ts';
 
 type TestContentEntryComponent = EcoComponent & ((props: Record<string, unknown>) => unknown);

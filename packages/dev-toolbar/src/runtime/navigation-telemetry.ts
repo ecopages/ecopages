@@ -1,6 +1,6 @@
-import type { EcoNavigationRuntime } from '@ecopages/core/router/navigation-coordinator';
-import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/router/navigation-lifecycle';
-import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/router/navigation-pipeline';
+import type { EcoNavigationRuntime } from '@ecopages/core/client';
+import { ECO_NAVIGATION_LIFECYCLE_EVENTS } from '@ecopages/core/client';
+import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/client';
 import { DEV_TOOLBAR_NAV_TELEMETRY_PERSIST_KEY } from './constants.ts';
 import { subscribeToNavigationEvents } from './navigation-events.ts';
 

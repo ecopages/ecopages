@@ -14,7 +14,7 @@ import {
 	type ProcessorConfig,
 	type ProcessorWatchChanges,
 	type ProcessorWatchConfig,
-} from '@ecopages/core/plugins/processor';
+} from '@ecopages/core/processor';
 import { Logger } from '@ecopages/logger';
 import { createImagePlugin, createImagePluginBundler } from './image-plugins.ts';
 import { ImageProcessor } from './image-processor.ts';

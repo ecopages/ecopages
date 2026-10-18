@@ -3,6 +3,8 @@ import HtmlTemplate from '../../../__fixtures__/app/src/includes/html.ts';
 import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
 import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.ts';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '../../index.ts';
+import type { InternalIntegrationRendererRenderOptions } from '../../types/contracts.ts';
+import type { EcoPageComponent } from '../../types/contracts.ts';
 import { HttpError } from '../../errors/http-error.ts';
 import { StringMarkupRenderer } from './string-markup-renderer.ts';
 import { testAssetService } from './integration-renderer.test-fixtures.ts';
@@ -84,9 +86,9 @@ describe('StringMarkupRenderer', () => {
 			metadata,
 			Page: async () => pageBody,
 			resolvedDependencies: [],
-			resolvedPageDependencyComponents: [resolvedContent],
+			pageDependencyComponents: [resolvedContent],
 			HtmlTemplate,
-		});
+		} as InternalIntegrationRendererRenderOptions);
 
 		expect(renderPageShell).toHaveBeenCalledWith(expect.objectContaining({ foreignChildRoots: [resolvedContent] }));
 	});
@@ -248,11 +250,11 @@ describe('StringMarkupRenderer', () => {
 				children: string;
 				label: string;
 			}>;
-			const View = (async () => `<p>About</p>`) as EcoComponent<object>;
+			const View = (async () => `<p>About</p>`) as EcoPageComponent<object>;
 			View.metadata = (async () => ({
 				title: 'About title',
 				robots: { index: false },
-			})) as unknown as EcoComponent['metadata'];
+			})) as unknown as NonNullable<EcoPageComponent<object>['metadata']>;
 			View.config = {
 				layouts: [Outer, Inner],
 				layoutEntries: [{ component: Outer }, { component: Inner, props: () => ({ label: 'from-factory' }) }],

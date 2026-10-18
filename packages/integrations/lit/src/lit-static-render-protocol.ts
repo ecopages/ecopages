@@ -1,4 +1,5 @@
-import type { PageParams, PageQuery, RouteRenderResult } from '@ecopages/core';
+import type { PageParams, PageQuery } from '@ecopages/core';
+import type { RouteRenderResult } from '@ecopages/core/integration';
 
 /** A rendered page, its resolved metadata, and what the main thread needs to cache it. */
 export type LitStaticRenderResult = Pick<RouteRenderResult, 'cacheStrategy' | 'sourceDependencyPaths' | 'metadata'> & {

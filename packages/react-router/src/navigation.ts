@@ -5,8 +5,8 @@
 
 /// <reference types="@ecopages/core/declarations" />
 
-import { getEcoDocumentOwner } from '@ecopages/core/router/navigation-coordinator';
-import { fetchNavigationPage } from '@ecopages/core/router/navigation-pipeline';
+import { getEcoDocumentOwner } from '@ecopages/core/client';
+import { fetchNavigationPage } from '@ecopages/core/client';
 import type { EcoComponentConfig } from '@ecopages/core';
 import { resolveEcoPageDataModuleUrl, resolveEcoPageDataProps } from '@ecopages/react/serialize-page-data-script';
 import type { ComponentType } from 'react';

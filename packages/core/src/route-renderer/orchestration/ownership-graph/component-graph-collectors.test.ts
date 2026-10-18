@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import type { EcoComponent } from '../../../types/public-types.ts';
+import type { EcoComponent } from '../../../types/contracts.ts';
 import { createPreparedComponentGraphBuilder } from './component-graph.ts';
 
 function createComponent(input: { integration?: string; children?: EcoComponent[] }): EcoComponent {

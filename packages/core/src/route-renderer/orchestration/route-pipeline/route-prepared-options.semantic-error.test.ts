@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { LocalsAccessError } from '../../../errors/locals-access-error.ts';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import type {
 	EcoComponent,
 	EcoPageComponent,
 	HtmlTemplateProps,
 	RouteRendererOptions,
-} from '../../../types/public-types.ts';
+} from '../../../types/contracts.ts';
 import { buildPreparedRenderOptions } from './route-prepared-options.builder.ts';
 
 describe('buildPreparedRenderOptions semantic error templates', () => {

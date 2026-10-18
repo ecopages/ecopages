@@ -11,6 +11,7 @@ import type {
 	EcoLayoutComponent,
 	EcoPageLayouts,
 	EcoPagesElement,
+	EcoPageComponent,
 	FileRouteMiddleware,
 	GetMetadata,
 	GetStaticPaths,
@@ -19,11 +20,25 @@ import type {
 	LayoutProps,
 	RequestLocals,
 	RequestPageContext,
-	PageParams,
-	PageQuery,
-} from '../types/public-types.ts';
-import type { CacheStrategy } from '../page-cache/cache.types.ts';
+	PagePropsFor,
+	PageRequires,
+	PageDependenciesInput,
+} from './contracts.ts';
+import type { CacheStrategy } from './cache-types.ts';
 import type { ComponentIdentity } from './component-identity.ts';
+
+export type {
+	EcoPageComponent,
+	FileOwnedDependencyContribution,
+	GetPageDependencies,
+	GetPageDependenciesContext,
+	PageDependenciesInput,
+	PageDependenciesResult,
+	PagePropsFor,
+	PageRequires,
+} from './contracts.ts';
+
+type RequiresKeys = keyof RequestLocals;
 
 /**
  * Extracts the props type from one eco component.
@@ -85,55 +100,6 @@ export type EcoEmbedProps<TComponent extends EcoComponent> = {
 type WithRequiredLocals<K extends keyof RequestLocals> = Omit<RequestLocals, K> & {
 	[P in K]-?: Exclude<RequestLocals[P], null | undefined>;
 };
-
-type RequiresKeys = keyof RequestLocals;
-
-export type PageRequires<K extends RequiresKeys = RequiresKeys> = K | readonly K[];
-
-/**
- * Context passed to a page `dependencies` resolver for one concrete route render.
- */
-export type GetPageDependenciesContext<T = Record<string, unknown>> = {
-	props: PagePropsFor<T>;
-	params?: PageParams;
-	query?: PageQuery;
-};
-
-/**
- * Explicit dependency declarations owned by one file.
- *
- * @remarks
- * Relative `scripts`, `stylesheets`, and `modules` resolve against `ownerFile`
- * when present. Component entries keep their own identity files. Inferred
- * stylesheets are not stored here; the collector reads them from identity.
- */
-export type FileOwnedDependencyContribution = EcoComponentDependencies & {
-	ownerFile?: string;
-};
-
-/**
- * Page dependency bag made of one or more file-owned contributions.
- *
- * @remarks
- * A single bag with `ownerFile` is one contribution. `contributions` keeps
- * assets from different files separate until collection, so merging a Page and
- * a content entry cannot re-home relative paths.
- */
-export type PageDependenciesResult = FileOwnedDependencyContribution & {
-	contributions?: FileOwnedDependencyContribution[];
-};
-
-/**
- * Resolves request-specific page dependencies for one route render.
- */
-export type GetPageDependencies<T = Record<string, unknown>> = (
-	context: GetPageDependenciesContext<T>,
-) => PageDependenciesResult | undefined | Promise<PageDependenciesResult | undefined>;
-
-/**
- * Static page dependencies or a per-render resolver.
- */
-export type PageDependenciesInput<T = Record<string, unknown>> = EcoComponentDependencies | GetPageDependencies<T>;
 
 /**
  * Lazy trigger options map directly to scripts-injector attributes.
@@ -245,36 +211,12 @@ interface PageOptionsWithMiddleware<T, E = EcoPagesElement> extends PageOptionsB
  */
 export type PageOptions<T, E = EcoPagesElement> = PageOptionsWithoutMiddleware<T, E> | PageOptionsWithMiddleware<T, E>;
 
-export type PagePropsForWithLocals<T, K extends RequiresKeys | never = never> = PagePropsFor<T> &
+export type PagePropsForWithLocals<T, K extends keyof RequestLocals | never = never> = PagePropsFor<T> &
 	(K extends never
 		? Partial<RequestPageContext>
 		: Omit<Partial<RequestPageContext>, 'locals'> & {
 				locals: WithRequiredLocals<Extract<K, keyof RequestLocals>>;
 			});
-
-/**
- * Extracts props type from getStaticProps return type, or uses T directly if it's a props object.
- * Always includes params and query for page context.
- */
-export type PagePropsFor<T> =
-	T extends GetStaticProps<infer P>
-		? P & { params?: Record<string, string>; query?: Record<string, string> }
-		: T & { params?: Record<string, string>; query?: Record<string, string> };
-
-/**
- * A page component with optional attached static functions.
- * Used by the consolidated eco.page() API where staticPaths, staticProps,
- * and metadata are defined inline and attached to the component.
- */
-export type EcoPageComponent<T> = EcoComponent<PagePropsFor<T> & Partial<RequestPageContext>> & {
-	staticPaths?: GetStaticPaths;
-	staticProps?: GetStaticProps<T>;
-	metadata?: GetMetadata<T>;
-	resolveDependencies?: GetPageDependencies<T>;
-	cache?: CacheStrategy;
-	requires?: PageRequires;
-	middleware?: FileRouteMiddleware[];
-};
 
 /**
  * The eco namespace interface

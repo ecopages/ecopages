@@ -5,8 +5,9 @@ import { resolveEntryFile, DEFAULT_ENTRY_FILE, ENTRY_FILE_ENV } from '../../../u
 import type { BuildAdapter, BuildOptions, BuildResult } from '../../../build/build-adapter';
 import { createAppBuildManifest } from '../../../build/contracts/build-manifest.ts';
 import { BuildQueue } from '../../../build/runtime/build-queue.ts';
-import { requireAppRuntime, type AppRuntime } from '../../../config/assembly/app-runtime.ts';
-import type { EcoPagesAppConfig } from '../../../types/internal-types';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
+import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types';
 import type { StaticSiteGenerator } from '../../../static-site-generator/static-site-generator';
 import type { RouteRegistry } from '../../../router/server/route-registry';
 import type { StaticGenerationRendererResolver } from '../../../route-renderer/route-renderer';

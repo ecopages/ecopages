@@ -9,14 +9,22 @@
  * @module
  */
 
+/**
+ * React IntegrationRenderer orchestrator.
+ *
+ * @remarks
+ * Wires services and delegates SSR / layout composition / ownership details to
+ * focused modules under `render/`. Prefer changing those modules for
+ * implementation work; keep this file as the IntegrationRenderer seam.
+ *
+ * @module
+ */
+import type { EcoComponent, EcoComponentConfig, EcoPageFile } from '@ecopages/core';
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,
-	EcoComponent,
-	EcoComponentConfig,
-	EcoPageFile,
 	IntegrationRendererRenderOptions,
-} from '@ecopages/core';
+} from '@ecopages/core/integration';
 import { HttpError } from '@ecopages/core/errors';
 import { buildIslandHostAttributes, getComponentIdentity } from '@ecopages/core';
 import {
@@ -31,11 +39,11 @@ import {
 	type PageClientBrowserAssets,
 	type PageClientBuildEntry,
 	type PageClientPlan,
-} from '@ecopages/core/route-renderer/orchestration/integration-renderer';
-import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
-import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
-import { resolveQueuedTokens } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
-import { ensurePageConfigLayouts } from '@ecopages/core/eco/page-layout-normalization';
+} from '@ecopages/core/integration';
+import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/integration';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
+import { resolveQueuedTokens } from '@ecopages/core/integration';
+import { ensurePageConfigLayouts } from '@ecopages/core/integration';
 import type { ReactNode } from 'react';
 import { hasSingleRootElement } from './html-boundary.ts';
 import { getIslandComponentKey } from '../hydration/hydration-asset.ts';
@@ -52,8 +60,8 @@ import {
 	type DocumentShellComposeChildrenContext,
 	type DocumentShellComposeChildrenResult,
 	type DocumentShellLayoutInput,
-} from '@ecopages/core/route-renderer/orchestration/document-shell/document-shell-render.service';
-import type { QueuedForeignSubtreeResolutionContext } from '@ecopages/core/route-renderer/orchestration/foreign-child/foreign-subtree-execution.service';
+} from '@ecopages/core/integration';
+import type { QueuedForeignSubtreeResolutionContext } from '@ecopages/core/integration';
 import { asNonReactShellComponent, getComponentRequires, isReactManagedComponent } from './component-ownership.ts';
 import {
 	buildHydrationProps,

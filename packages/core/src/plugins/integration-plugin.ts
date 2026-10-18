@@ -3,9 +3,9 @@ import {
 	createBrowserRuntimeManifest,
 	type BrowserRuntimeManifest,
 } from '../build/browser/browser-runtime-manifest.ts';
-import type { AppRuntime } from '../types/app-runtime.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import type { EcoPageFile, EcoPagesElement } from '../types/public-types.ts';
+import type { AppRuntime } from '../config/assembly/app-runtime.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import type { EcoPageFile, EcoPagesElement } from '../types/contracts.ts';
 import type {
 	IntegrationRenderer,
 	IntegrationRendererOptions,
@@ -24,7 +24,7 @@ export type {
 	EcoBuildPlugin,
 	EcoBuildPluginBuilder,
 } from '../build/contracts/build-types.ts';
-export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext } from '../types/public-types.ts';
+export type { PageBrowserGraphContribution, PageBrowserGraphContributionContext } from '../types/contracts.ts';
 export type { StaticExportContext, StaticExportRelease } from '../static-site-generator/static-export-context.ts';
 
 export type {

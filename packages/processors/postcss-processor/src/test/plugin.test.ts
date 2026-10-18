@@ -5,8 +5,8 @@ import fs from 'node:fs';
 import postcss from 'postcss';
 import postcssNested from 'postcss-nested';
 import { PostCssProcessorPlugin } from '../plugin';
-import type { IClientBridge } from '@ecopages/core';
-import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
+import type { IClientBridge } from '@ecopages/core/integration';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 
 let tmpDir: string;
 let srcDir: string;

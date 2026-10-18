@@ -1,5 +1,5 @@
 import { getComponentIdentity, getComponentOwner } from '../../../eco/component-identity.ts';
-import type { EcoComponent, EcoComponentConfig } from '../../../types/public-types.ts';
+import type { EcoComponent, EcoComponentConfig } from '../../../types/contracts.ts';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {

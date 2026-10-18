@@ -1,6 +1,6 @@
 import path from 'node:path';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import type { PageBrowserGraphContribution, PageBrowserGraphResult } from '../../../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { PageBrowserGraphContribution, PageBrowserGraphResult } from '../../../types/contracts.ts';
 import {
 	type AssetDefinition,
 	type AssetProcessingService,
@@ -9,7 +9,7 @@ import {
 import type { AssetProcessingIntegration } from '../../../assets/asset-processing-service/asset-processing-integration.ts';
 import { resolveAssetProcessingIntegration } from '../../../assets/asset-processing-service/asset-processing-integration.ts';
 import { appLogger } from '../../../global/app-logger.ts';
-import { requireAppRuntime } from '../../../types/app-runtime.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
 import { createAppBrowserClientEntryKey } from '../../../assets/app-browser-client-build.ts';
 import {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoComponent } from '../../../types/public-types.ts';
+import type { EcoComponent } from '../../../types/contracts.ts';
 import type { ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
 import { buildPageClientBrowserAssets } from './page-client-browser-assets.ts';
 import type { PageClientPlan } from './page-client-plan.ts';

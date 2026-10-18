@@ -3,16 +3,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { createApp } from '@ecopages/core/create-app';
-import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
-import type { AppRuntime } from '@ecopages/core/config/app-runtime';
-import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
-import type { StaticExportContext } from '@ecopages/core/plugins/integration-plugin';
+import { requireAppRuntime } from '@ecopages/core/integration';
+import type { AppRuntime } from '@ecopages/core/integration';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
+import type { StaticExportContext } from '@ecopages/core/integration';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	CustomElementScriptPreloader,
 	type CustomElementScriptPreloadScopeState,
-} from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
-import { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
+} from '@ecopages/core/integration';
+import { AssetProcessingService } from '@ecopages/core/integration';
 import { ensureLitDomShim } from '../dom-shim.ts';
 import { LitPlugin } from '../lit.plugin.ts';
 import { LitRenderer } from '../lit-renderer.ts';
@@ -20,26 +20,20 @@ import { LitStaticRenderSession } from '../lit-static-render-session.ts';
 
 const preloadInvalidationSpy = vi.hoisted(() => vi.fn());
 
-vi.mock(
-	'@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader',
-	async (importOriginal) => {
-		const actual =
-			await importOriginal<
-				typeof import('@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader')
-			>();
-		return {
-			...actual,
-			invalidateCustomElementScriptPreload: (
-				preloadScopes: Map<string, CustomElementScriptPreloadScopeState>,
-				scriptPath: string,
-				cacheScope?: string,
-			) => {
-				preloadInvalidationSpy(preloadScopes, scriptPath, cacheScope);
-				return actual.invalidateCustomElementScriptPreload(preloadScopes, scriptPath, cacheScope);
-			},
-		};
-	},
-);
+vi.mock('@ecopages/core/integration', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('@ecopages/core/integration')>();
+	return {
+		...actual,
+		invalidateCustomElementScriptPreload: (
+			preloadScopes: Map<string, CustomElementScriptPreloadScopeState>,
+			scriptPath: string,
+			cacheScope?: string,
+		) => {
+			preloadInvalidationSpy(preloadScopes, scriptPath, cacheScope);
+			return actual.invalidateCustomElementScriptPreload(preloadScopes, scriptPath, cacheScope);
+		},
+	};
+});
 
 describe('LitPlugin', () => {
 	it('keeps the global hydrate-support bootstrap stable across browser-router swaps', () => {

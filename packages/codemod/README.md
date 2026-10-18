@@ -5,7 +5,7 @@ Automated code transformations for upgrading older Ecopages project structures t
 ## Installation
 
 ```bash
-bun install
+pnpm install
 ```
 
 ## Complete Migration Script
@@ -45,6 +45,19 @@ Transforms components from the legacy `.config` assignment to the consolidated A
 ```bash
 npx jscodeshift -t codemod/src/transforms/migrate-to-eco-component.ts --parser tsx path/to/components/
 ```
+
+### Migrate Core Entry Points
+
+When upgrading to the role-based `@ecopages/core` exports, rewrite imports, re-exports, dynamic imports, `require()` calls, and `import.meta.resolve()` calls:
+
+```bash
+npx jscodeshift \
+  -t node_modules/@ecopages/codemod/src/transforms/migrate-core-entrypoints.ts \
+  --parser tsx \
+  ./src
+```
+
+The transform leaves `@ecopages/core/config/write-types` and `@ecopages/core/hmr/client/hmr-runtime` unchanged because core loads those entries by path.
 
 ## Options
 

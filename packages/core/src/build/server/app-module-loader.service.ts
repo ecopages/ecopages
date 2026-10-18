@@ -1,6 +1,6 @@
 import type { PageModuleBuildImportOptions } from './page-module-import.service.ts';
 import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { PageModuleImportService } from './page-module-import.service.ts';
 
 export type AppModuleImportOptions = Omit<PageModuleBuildImportOptions, 'buildExecutor' | 'rootDir'>;

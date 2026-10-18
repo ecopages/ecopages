@@ -1,11 +1,11 @@
 import path from 'node:path';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import type {
 	EcoComponent,
 	EcoPageComponent,
 	EcoPageFile,
 	HtmlTemplateProps,
-	IntegrationRendererRenderOptions,
+	InternalIntegrationRendererRenderOptions,
 	PageBrowserGraphContribution,
 	PageBrowserGraphContributionContext,
 	PageBrowserGraphResult,
@@ -14,7 +14,7 @@ import type {
 	RouteRendererOptions,
 	RouteRenderResult,
 	EcoPageLayoutEntry,
-} from '../../../types/public-types.ts';
+} from '../../../types/contracts.ts';
 import type {
 	AssetProcessingService,
 	AssetProcessingIntegration,
@@ -22,7 +22,7 @@ import type {
 } from '../../../assets/asset-processing-service/index.ts';
 import { isProductionRuntime } from '../../../utils/runtime.ts';
 import { collectHtmlCacheSourceDependencyPaths } from '../../../page-cache/html-page-cache-dependency-index.ts';
-import { requireAppRuntime } from '../../../types/app-runtime.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import type { HtmlDocumentContribution } from '../../../html/html-transformer.service.ts';
 import { inspectUnresolvedMarkerArtifactHtml } from './marker-artifact.utils.ts';
 import {
@@ -312,7 +312,7 @@ export class RouteRenderOrchestrator {
 	async prepareRenderOptions<C = unknown>(
 		routeOptions: RouteRendererOptions,
 		renderer: RouteRenderHost<C>,
-	): Promise<IntegrationRendererRenderOptions<C>> {
+	): Promise<InternalIntegrationRendererRenderOptions<C>> {
 		const resolvedInputs = await measureRouteRenderPhase(this.requestPipelineMetrics, 'resolve-route-inputs', () =>
 			renderer.resolveRouteRenderInputs(routeOptions),
 		);
@@ -364,7 +364,7 @@ export class RouteRenderOrchestrator {
 			routeFile: routeOptions.file,
 			dependencyInstanceKey,
 		});
-		const resolvedPageDependencyComponents = resolvedPageDependencies?.components ?? [];
+		const pageDependencyComponents = resolvedPageDependencies?.components ?? [];
 		const clientPlan = collectPageClientPlanFromGraph(preparedGraph);
 		const clientBrowserAssets = await renderer.buildPageClientBrowserAssets(clientPlan, routeOptions);
 		if (clientBrowserAssets.lazyTriggers.length > 0) {
@@ -397,7 +397,7 @@ export class RouteRenderOrchestrator {
 			...buildPreparedRenderOptions<C>({
 				routeOptions,
 				resolvedInputs: finalResolvedInputs,
-				resolvedPageDependencyComponents,
+				pageDependencyComponents,
 				resolvedDependencies,
 				allDependencies,
 				pageBrowserGraph,
@@ -447,7 +447,7 @@ export class RouteRenderOrchestrator {
 	 * Executes the route-render finalization path for already prepared render options.
 	 */
 	async executePrepared<C = unknown>(
-		renderOptions: IntegrationRendererRenderOptions<C>,
+		renderOptions: InternalIntegrationRendererRenderOptions<C>,
 		renderer: RouteRenderHost<C>,
 	): Promise<RouteRenderResult> {
 		const renderExecution = await measureRouteRenderPhase(this.requestPipelineMetrics, 'render-body', () =>

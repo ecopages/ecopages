@@ -1,5 +1,5 @@
 import morphdom from 'morphdom';
-import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/router/navigation-pipeline';
+import { ECO_PERSIST_ATTRIBUTE } from '@ecopages/core/client';
 
 function isPersisted(element: Element, persistAttribute: string): boolean {
 	return element.hasAttribute(persistAttribute) || element.hasAttribute(ECO_PERSIST_ATTRIBUTE);

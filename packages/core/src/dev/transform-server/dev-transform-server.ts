@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 import { fileSystem } from '@ecopages/file-system';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { DevTransformBundler } from './dev-transform-bundler.ts';

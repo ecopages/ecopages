@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import type { Server as NodeHttpServer } from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
-import type { EcopagesWebSocketHandler } from '../../../types/public-types.ts';
+import type { EcopagesWebSocketHandler } from '../../../types/contracts.ts';
 import { attachNodeHttpWebSocketUpgrades } from './node-http-websocket-upgrades.ts';
 
 function emitUpgrade(server: EventEmitter, url: string) {

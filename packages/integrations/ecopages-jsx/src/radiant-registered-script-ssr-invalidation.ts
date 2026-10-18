@@ -2,8 +2,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	invalidateCustomElementScriptPreload,
-} from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
-import type { CustomElementScriptPreloadScopeState } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-script-preloader';
+} from '@ecopages/core/integration';
+import type { CustomElementScriptPreloadScopeState } from '@ecopages/core/integration';
 
 const CUSTOM_ELEMENT_TAG_PATTERN = /@customElement\s*\(\s*['"`]([^'"`]+)['"`]/u;
 

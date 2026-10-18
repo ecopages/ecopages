@@ -1,4 +1,4 @@
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 
 export function createJsxImportSourcePragma(jsxImportSource: string): string {
 	return `/** @jsxImportSource ${jsxImportSource} */\n`;

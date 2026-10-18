@@ -1,8 +1,8 @@
 import { appLogger } from '../../../global/app-logger.ts';
-import { requireAppRuntime } from '../../../types/app-runtime.ts';
+import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 import { shouldLogPageFailure } from '../../../errors/http-error-page-contract.ts';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import type { StaticRoute } from '../../../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { StaticRoute } from '../../../types/contracts.ts';
 import type { ExplicitViewRendererResolver } from '../../../route-renderer/route-renderer.ts';
 import { prepareExplicitStaticRender } from '../../../route-renderer/explicit-view-render-preparation.ts';
 import {

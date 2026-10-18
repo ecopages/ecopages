@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { EcoComponent } from '../../types/public-types.ts';
+import type { EcoComponent } from '../../types/contracts.ts';
 import {
 	attachEcoFileMetadataToConfig,
 	collectComponentConfigFilePaths,

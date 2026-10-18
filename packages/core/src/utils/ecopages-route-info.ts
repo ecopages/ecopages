@@ -1,4 +1,4 @@
-import type { EcopagesRouteInfo } from '../types/public-types.ts';
+import type { EcopagesRouteInfo } from '../types/contracts.ts';
 import { normalizePathname } from './path-pattern.ts';
 
 /**
@@ -6,28 +6,17 @@ import { normalizePathname } from './path-pattern.ts';
  */
 export function toEcopagesRouteInfo(route: {
 	pathname: string;
-	params: Record<string, string | string[]>;
+	params: EcopagesRouteInfo['params'];
 }): EcopagesRouteInfo {
 	return {
 		pathname: normalizePathname(route.pathname),
-		params: normalizeRouteParams(route.params),
+		params: route.params,
 	};
-}
-
-/**
- * Flattens string | string[] route params into string values for public APIs.
- */
-export function normalizeRouteParams(params: Record<string, string | string[]>): Record<string, string> {
-	const normalized: Record<string, string> = {};
-	for (const [key, value] of Object.entries(params)) {
-		normalized[key] = Array.isArray(value) ? value.join('/') : value;
-	}
-	return normalized;
 }
 
 type StaticGenerationRouteLister = (input: {
 	runtimeOrigin: string;
-}) => Promise<readonly { pathname: string; params: Record<string, string | string[]> }[]>;
+}) => Promise<readonly { pathname: string; params: EcopagesRouteInfo['params'] }[]>;
 
 /**
  * Resolves {@link EcopagesRouteInfo} entries for app-start and similar consumers.

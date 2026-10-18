@@ -2,10 +2,10 @@ import type {
 	ApiHandler,
 	ApiHandlerContext,
 	Middleware,
-	ResponseOptions,
+	RenderOptions,
 	RouteSchema,
 	TypedGroupHandlerContext,
-} from '../../../types/public-types.ts';
+} from '../../../types/contracts.ts';
 import { createBodyResponse } from './create-body-response.ts';
 
 type UniversalContext = ApiHandlerContext<Request, unknown>;
@@ -56,14 +56,14 @@ export const definePatch: ReturnType<typeof defineApiMethod<'PATCH'>> = defineAp
 export const defineOptions: ReturnType<typeof defineApiMethod<'OPTIONS'>> = defineApiMethod('OPTIONS');
 export const defineHead: ReturnType<typeof defineApiMethod<'HEAD'>> = defineApiMethod('HEAD');
 
-export function json(data: unknown, options?: ResponseOptions): Response {
+export function json(data: unknown, options?: RenderOptions): Response {
 	return createBodyResponse('json', data, {
 		status: options?.status,
 		headers: options?.headers,
 	});
 }
 
-export function html(content: string, options?: ResponseOptions): Response {
+export function html(content: string, options?: RenderOptions): Response {
 	return createBodyResponse('html', content, {
 		status: options?.status,
 		headers: options?.headers,

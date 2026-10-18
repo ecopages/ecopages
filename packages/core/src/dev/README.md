@@ -23,7 +23,7 @@ import { devToolbar } from '@ecopages/dev-toolbar/config';
 export default defineConfig({ devToolbar: devToolbar() });
 ```
 
-For a custom client package, use `defineDevTool` from `@ecopages/core/dev-toolbar/define-dev-tool`.
+For a custom client package, use `defineDevTool` from `@ecopages/core/client`.
 
 Install the client package in the app project. Core resolves it from the application root and bundles it during watch mode.
 

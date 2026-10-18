@@ -1,6 +1,6 @@
 import './css-imports.d.ts';
 
-import type { EcoPagesAppConfig } from './types/internal-types';
+import type { EcoPagesAppConfig } from './config/internal-types';
 import type { EcoNavigationRuntime } from './router/client/navigation-coordinator';
 
 type HMRHandler = (url: string) => Promise<void>;

@@ -3,7 +3,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { hashBrowserAssetBytes } from '../../../hashed-browser-asset.ts';
 import { FileScriptProcessor } from './file-script.processor';
 import { BrowserBundleService } from '../../../browser-bundle.service.ts';
-import type { EcoPagesAppConfig, IHmrManager } from '../../../../types/internal-types';
+import type { EcoPagesAppConfig, IHmrManager } from '../../../../config/internal-types';
 import type { FileScriptAsset } from '../../assets.types';
 import { createBuildFailure, createBuildSuccess } from '../../../../__fixtures__/build/build-result.ts';
 

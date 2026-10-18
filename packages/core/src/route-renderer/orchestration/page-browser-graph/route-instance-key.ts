@@ -1,4 +1,4 @@
-import type { PageParams, PageQuery } from '../../../types/public-types.ts';
+import type { PageParams, PageQuery } from '../../../types/contracts.ts';
 
 type PageDependencyInstance = {
 	params?: PageParams;

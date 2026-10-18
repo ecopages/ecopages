@@ -1,10 +1,10 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/router/navigation-coordinator';
+import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
 import { clearNavigationHtmlCache } from '../../core/src/router/client/navigation-document.ts';
 import { extractProps, extractComponentUrl, loadPageModule, loadPageModuleFromDocument } from '../src/navigation';
 import { resolveReactNavigation } from '../src/navigation-orchestrator.ts';
 
-/** Mirrors `DEV_TRANSFORM_URL_PREFIX` from `@ecopages/core/dev/transform-server`. */
+/** Mirrors `DEV_TRANSFORM_URL_PREFIX` from `@ecopages/core/integration`. */
 const DEV_TRANSFORM_URL_PREFIX = '/assets/__eco_dev__';
 
 function htmlPageResponse(body: string, init: ResponseInit = {}): Response {

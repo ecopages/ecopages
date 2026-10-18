@@ -1,5 +1,5 @@
 import type { BuildEnvironment, BuildOptions, BuildTranspileOptions } from '../contracts/build-contracts.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 
 export function resolveTranspileOptions(environment: BuildEnvironment): BuildTranspileOptions {
 	return {

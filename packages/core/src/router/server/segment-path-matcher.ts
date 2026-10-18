@@ -1,8 +1,9 @@
 import { HttpError } from '../../errors/http-error.ts';
 import { normalizePathname } from '../../utils/path-pattern.ts';
+import type { PageParams } from '../../types/contracts.ts';
 
 export type SegmentPathSyntax = 'filesystem' | 'api' | 'explicit' | 'websocket';
-export type SegmentPathParams = Record<string, string | string[]>;
+export type SegmentPathParams = PageParams;
 export type ParsedSegmentPath = readonly string[];
 
 type PatternSegment =

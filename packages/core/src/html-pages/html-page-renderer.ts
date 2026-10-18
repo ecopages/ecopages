@@ -7,8 +7,9 @@ import type {
 	EcoComponent,
 	HtmlTemplateProps,
 	IntegrationRendererRenderOptions,
+	InternalIntegrationRendererRenderOptions,
 	RouteRendererBody,
-} from '../types/public-types.ts';
+} from '../types/contracts.ts';
 import { AssetFactory } from '../assets/asset-processing-service/asset.factory.ts';
 import type { AssetDefinition } from '../assets/asset-processing-service/assets.types.ts';
 import { StringMarkupRenderer } from '../route-renderer/orchestration/string-markup-renderer.ts';
@@ -138,14 +139,14 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 	 * A direct call reconciles here, so the Page head is never dropped.
 	 */
 	override async render(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
-		const { html, head } = await this.renderHtmlPage(options);
+		const { html, head } = await this.renderHtmlPage(options as InternalIntegrationRendererRenderOptions);
 		return reconcileHtmlPageDocument(html, head);
 	}
 
 	/**
 	 * Renders the Page body and retains its head until core document contributions have been applied.
 	 */
-	override async renderRouteBody(options: IntegrationRendererRenderOptions): Promise<RouteRendererBody> {
+	override async renderRouteBody(options: InternalIntegrationRendererRenderOptions): Promise<RouteRendererBody> {
 		const rendered = await this.renderHtmlPage(options);
 		this.renderedHeads.set(options, rendered.head);
 		return rendered.html;
@@ -163,7 +164,7 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 	}
 
 	private async renderHtmlPage(
-		options: IntegrationRendererRenderOptions,
+		options: InternalIntegrationRendererRenderOptions,
 	): Promise<{ html: string; head: RenderedHtmlPageHead }> {
 		const page = getCompiledHtmlTemplate(options.Page);
 		invariant(page?.kind === 'page', `${this.name} renderer expected an HTML Page for ${options.file}.`);
@@ -185,7 +186,7 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 			htmlTemplate: options.HtmlTemplate,
 			metadata: options.metadata,
 			pageProps: options.pageProps ?? {},
-			foreignChildRoots: options.resolvedPageDependencyComponents,
+			foreignChildRoots: options.pageDependencyComponents,
 		});
 		const hasBody = findElements(parseHtml(html), (element) => element.tagName === 'body').length > 0;
 

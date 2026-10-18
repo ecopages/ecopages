@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
-import type { HtmlTemplateProps, IntegrationRendererRenderOptions } from '@ecopages/core';
-import { finalizeEcoPagesConfig } from '@ecopages/core/internal/finalize-config';
+import type { AssetProcessingService } from '@ecopages/core/integration';
+import type { HtmlTemplateProps } from '@ecopages/core';
+import type { IntegrationRendererRenderOptions } from '@ecopages/core/integration';
+import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import type { ReactNode } from 'react';
 import { ReactRenderer } from './react-renderer.ts';
 

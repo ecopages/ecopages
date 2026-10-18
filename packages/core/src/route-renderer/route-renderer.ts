@@ -1,5 +1,5 @@
-import type { AppRuntime } from '../types/app-runtime.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { AppRuntime } from '../config/assembly/app-runtime.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { invariant } from '../utils/invariant.ts';
 import { findIntegrationForFile } from '../plugins/find-integration-for-file.ts';

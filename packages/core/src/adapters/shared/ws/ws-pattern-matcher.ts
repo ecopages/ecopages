@@ -1,4 +1,4 @@
-import type { EcopagesWebSocketHandler } from '../../../types/public-types.ts';
+import type { EcopagesWebSocketHandler } from '../../../types/contracts.ts';
 import {
 	matchParsedSegmentPath,
 	parseSegmentPath,

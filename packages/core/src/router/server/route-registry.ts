@@ -2,19 +2,17 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
-import type { EcoPagesAppConfig, RouteKind } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
+import type { PageParams, PageQuery } from '../../types/contracts.ts';
 import { invariant } from '../../utils/invariant.ts';
 import { normalizePathname } from '../../utils/path-pattern.ts';
+import { parseSearchParams } from './parse-search-params.ts';
 import { findIntegrationForFile, findLongestExtension } from '../../plugins/find-integration-for-file.ts';
-import {
-	matchParsedSegmentPath,
-	parseSegmentPath,
-	type ParsedSegmentPath,
-	type SegmentPathParams,
-} from './segment-path-matcher.ts';
+import { matchParsedSegmentPath, parseSegmentPath, type ParsedSegmentPath } from './segment-path-matcher.ts';
 
-export type RouteParams = SegmentPathParams;
-export type RouteQuery = Record<string, string>;
+export type RouteKind = 'exact' | 'catch-all' | 'dynamic';
+export type RouteParams = PageParams;
+export type RouteQuery = PageQuery;
 
 export type TemplateRoute = {
 	readonly pathname: string;
@@ -25,7 +23,8 @@ export type TemplateRoute = {
 
 export type RouteMatch = {
 	readonly requestedPathname: string;
-	readonly templateRoute: TemplateRoute;
+	readonly templateRoute: Pick<TemplateRoute, 'pathname' | 'kind' | 'filePath'> &
+		Partial<Pick<TemplateRoute, 'paramNames'>>;
 	readonly params: RouteParams;
 	readonly query: RouteQuery;
 };
@@ -343,13 +342,7 @@ export class RouteRegistry {
 	}
 
 	private getSearchParams(url: URL): RouteQuery {
-		const query: RouteQuery = {};
-
-		for (const [key, value] of url.searchParams) {
-			query[key] = value;
-		}
-
-		return query;
+		return parseSearchParams(url.searchParams);
 	}
 
 	private resolveTemplatePath(pathname: string, params: RouteParams): string {

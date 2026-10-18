@@ -3,7 +3,7 @@ import type {
 	EcoComponent,
 	LazyTriggerRule,
 	ResolvedLazyTrigger,
-} from '../../types/public-types.ts';
+} from '../../types/contracts.ts';
 import { getComponentIdentity } from '../../eco/component-identity.ts';
 import { rapidhash } from '../../utils/hash.ts';
 

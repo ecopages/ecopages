@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installBuildQueue } from '../build/runtime/build-queue.ts';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { FileScriptProcessor } from '../assets/asset-processing-service/processors/script/file-script.processor.ts';
-import type { IHmrManager } from '../types/internal-types.ts';
+import type { IHmrManager } from '../config/internal-types.ts';
 import { resolveClassicScriptOptions } from './html-page-classic-script.ts';
 
 describe('resolveClassicScriptOptions', () => {

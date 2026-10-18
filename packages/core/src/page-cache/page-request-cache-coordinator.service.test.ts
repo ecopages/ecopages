@@ -10,6 +10,9 @@ describe('PageRequestCacheCoordinator', () => {
 		const service = new PageRequestCacheCoordinator(null, 'static', createRequestPipelineMetricsState());
 		expect(service.buildCacheKey({ pathname: '/blog' })).toBe('/blog');
 		expect(service.buildCacheKey({ pathname: '/blog', query: { page: '2' } })).toBe('/blog?page=2');
+		expect(service.buildCacheKey({ pathname: '/search', query: { tag: ['first', 'second'] } })).toBe(
+			'/search?tag=first&tag=second',
+		);
 	});
 
 	it('should bypass the cache service for dynamic pages', async () => {

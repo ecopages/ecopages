@@ -9,14 +9,14 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
-import { requireAppRuntime } from '../../types/app-runtime.ts';
+import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { findIntegrationForFile } from '../../plugins/find-integration-for-file.ts';
 import { buildOrThrow } from '../runtime/build-queue.ts';
 import { createServerBuildRequest, resolveAppBuildPlugins } from '../runtime/build-request-policy.ts';
 import { hashAppConfigFile } from './app-config-hash.ts';
 import { collectBuildOutputImports, getBuildEntryOutput } from '../build-graph.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import {
 	getServerModuleBuildCacheOutdir,
 	getSharedRouteModuleBuildCache,

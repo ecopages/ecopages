@@ -65,7 +65,7 @@ describe('Lit SSR preload of route-resolved dependency roots', () => {
 			props: {},
 			file: '/app/pages/index.lit.ts',
 			resolvedDependencies: [],
-			resolvedPageDependencyComponents: [dependencyRoot],
+			pageDependencyComponents: [dependencyRoot],
 			metadata: { title: 'Page', description: 'Page' },
 			Page,
 			HtmlTemplate,

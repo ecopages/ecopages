@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { appLogger } from '../global/app-logger.ts';
 import { resolveBuildParallelism } from '../build/build-parallelism.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type {
 	EcoPageComponent,
 	EcoPageFile,
@@ -10,7 +10,7 @@ import type {
 	SitemapConfig,
 	StaticRoute,
 	ErrorPageLoaders,
-} from '../types/public-types.ts';
+} from '../types/contracts.ts';
 import type {
 	ExplicitViewRenderer,
 	ExplicitViewRendererResolver,

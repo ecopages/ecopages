@@ -7,6 +7,7 @@ import {
 } from '../diagnostics/request-pipeline-metrics.ts';
 import { sha256Hex } from '../utils/sha256.ts';
 import type { RequestPipelineMetricsState } from '../diagnostics/request-pipeline-metrics.ts';
+import type { PageQuery } from '../types/contracts.ts';
 
 type CacheStatus = 'hit' | 'miss' | 'stale' | 'expired' | 'disabled';
 
@@ -41,10 +42,16 @@ export class PageRequestCacheCoordinator {
 	 * @param input Pathname plus optional query record.
 	 * @returns Stable cache key for the request.
 	 */
-	buildCacheKey(input: { pathname: string; query?: Record<string, string> }): string {
+	buildCacheKey(input: { pathname: string; query?: PageQuery }): string {
 		let key = input.pathname;
 		if (input.query && Object.keys(input.query).length > 0) {
-			const queryString = new URLSearchParams(input.query).toString();
+			const searchParams = new URLSearchParams();
+			for (const [name, value] of Object.entries(input.query)) {
+				for (const entry of Array.isArray(value) ? value : [value]) {
+					searchParams.append(name, entry);
+				}
+			}
+			const queryString = searchParams.toString();
 			key += `?${queryString}`;
 		}
 

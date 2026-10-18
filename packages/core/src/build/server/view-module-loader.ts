@@ -1,10 +1,10 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import type { EcoPageComponent, ViewLoader } from '../../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
+import type { EcoPageComponent, ViewLoader } from '../../types/contracts.ts';
 import { resolveInternalExecutionDir } from '../../utils/resolve-work-dir.ts';
-import { requireAppRuntime } from '../../types/app-runtime.ts';
+import { requireAppRuntime } from '../../utils/app-runtime.ts';
 
 function resolveViewModuleOnDisk(filePath: string, templatesExt: readonly string[]): string {
 	if (fileSystem.exists(filePath)) {

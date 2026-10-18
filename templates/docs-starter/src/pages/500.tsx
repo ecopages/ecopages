@@ -1,11 +1,11 @@
 import { eco } from '@ecopages/core';
 import { RuiButton } from '@ecopages/radiant-ui/button';
-import type { Error500TemplateProps } from '@ecopages/core';
+import type { ErrorPageTemplateProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { DocsLayout } from '@/layouts/docs-layout';
 import './500.css';
 
-export default eco.page<Error500TemplateProps, JsxRenderable>({
+export default eco.page<ErrorPageTemplateProps, JsxRenderable>({
 	layout: DocsLayout,
 
 	render: ({ message, stack }) => {

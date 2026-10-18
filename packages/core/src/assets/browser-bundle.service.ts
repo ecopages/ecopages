@@ -1,7 +1,7 @@
 import type { BuildResult } from '../build/build-adapter.ts';
 import { createBrowserBuildRequest, type BrowserBuildRequestInput } from '../build/runtime/build-request-policy.ts';
 import { requireBuildQueue, type BuildLane } from '../build/runtime/build-queue.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { startupTrace } from '../diagnostics/startup-trace.ts';
 import { forgetHashedBrowserAsset, recordHashedBrowserAsset } from './hashed-browser-asset.ts';
 

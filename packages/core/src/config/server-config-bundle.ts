@@ -3,7 +3,7 @@ import { fileSystem } from '@ecopages/file-system';
 import type { BuildSuccess } from '../build/contracts/build-contracts.ts';
 import { createServerBuildRequest } from '../build/runtime/build-request-policy.ts';
 import { buildOrThrow } from '../build/runtime/build-queue.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { getServerBundleOutputPaths } from '../build/server-bundle-deploy-manifest.ts';
 
 export const EMITTED_ECO_CONFIG_FILENAME = 'eco.config.mjs';

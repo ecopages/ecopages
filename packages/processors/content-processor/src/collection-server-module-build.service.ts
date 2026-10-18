@@ -2,10 +2,10 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
-import { buildServerModule } from '@ecopages/core/build/server-module';
-import { requireAppRuntime } from '@ecopages/core/config/app-runtime';
-import { recordCollectionBuild } from '@ecopages/core/diagnostics/request-pipeline-metrics';
-import type { ProcessorContext } from '@ecopages/core/plugins/processor';
+import { buildServerModule } from '@ecopages/core/build';
+import { requireAppRuntime } from '@ecopages/core/integration';
+import { recordCollectionBuild } from '@ecopages/core/build';
+import type { ProcessorContext } from '@ecopages/core/processor';
 
 export type CollectionServerBuildArtifact = {
 	collectionName: string;

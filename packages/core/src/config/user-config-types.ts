@@ -2,8 +2,8 @@ import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import type { AnyProcessor } from '../plugins/processor.ts';
 import type { CacheConfig } from '../page-cache/cache.types.ts';
-import type { EcoPagesAppConfig, RobotsPreference } from '../types/internal-types.ts';
-import type { PageMetadataProps, SitemapConfig } from '../types/public-types.ts';
+import type { EcoPagesAppConfig, RobotsPreference } from '../config/internal-types.ts';
+import type { PageMetadataProps, SitemapConfig } from '../types/contracts.ts';
 
 /**
  * Author-owned Ecopages configuration declared in `eco.config.ts`.

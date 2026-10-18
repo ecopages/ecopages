@@ -8,8 +8,8 @@ import { injectDevClientRuntimes } from '../../../hmr/dev-client-runtime.ts';
 import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import { createAppRuntime } from '../../../config/assembly/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../../config/assembly/finalize-config.ts';
-import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
-import type { ApiHandler, ErrorHandler, IHmrManager } from '../../../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
+import type { ApiHandler, ErrorHandler, IHmrManager } from '../../../types/contracts.ts';
 import { ServerRequestPipeline } from './server-request-pipeline.ts';
 
 const tempRoots: string[] = [];

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { appLogger } from '../global/app-logger.ts';
 import { StaticSiteGenerator } from './static-site-generator.ts';
 import { createMockConfig } from './static-site-generator.test-utils.ts';

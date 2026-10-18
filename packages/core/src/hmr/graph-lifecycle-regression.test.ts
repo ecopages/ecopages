@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
-import { requireAppRuntime } from '../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { prepareHmrFileChange } from '../hmr/hmr-file-change-prep.ts';
 

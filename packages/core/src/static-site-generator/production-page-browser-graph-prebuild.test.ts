@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { requireAppRuntime } from '../config/assembly/app-runtime.ts';
+import { requireAppRuntime } from '../utils/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import type { GroupedGraphBuildPlan } from '../route-renderer/orchestration/page-browser-graph/grouped-graph-build-plan.ts';
 import { createPageDependencyInstanceKey } from '../route-renderer/orchestration/page-browser-graph/route-instance-key.ts';
@@ -18,7 +18,7 @@ import {
 	getPrebuiltHtmlPageModuleScriptUrls,
 	setPrebuiltHtmlPageModuleScriptUrls,
 } from '../html-pages/html-page-module-scripts.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import {
 	clearProductionPageBrowserGraphSession,
 	prebuildProductionPageBrowserGraphs,

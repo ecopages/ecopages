@@ -1,4 +1,4 @@
-import type { ApiHandlerContext } from '../types/public-types.ts';
+import type { ApiHandlerContext } from '../types/contracts.ts';
 
 /**
  * Creates a require function for validating and retrieving request locals.

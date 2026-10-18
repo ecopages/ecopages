@@ -1,8 +1,8 @@
 import { eco } from '@ecopages/core';
-import type { Error403TemplateProps } from '@ecopages/core';
+import type { ErrorPageTemplateProps } from '@ecopages/core';
 import { MainLayout } from '@/layouts/main-layout.kita';
 
-export const ForbiddenView = eco.page<Error403TemplateProps>({
+export const ForbiddenView = eco.page<ErrorPageTemplateProps>({
 	layout: MainLayout,
 	metadata: () => ({
 		title: 'Forbidden | Explicit Routes',

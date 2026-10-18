@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { EcoPagesAppConfig } from '@ecopages/core';
-import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
-import type { EcoBuildOnResolveResult, EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
+import type {
+	AssetProcessingService,
+	EcoBuildOnResolveResult,
+	EcoBuildPlugin,
+	IntegrationRuntimeContext,
+} from '@ecopages/core/integration';
 import { BundleService } from './bundle.ts';
 import { resolveReactPluginRuntimeModules } from './runtime-modules.ts';
 
@@ -31,7 +34,7 @@ const testAppConfig = {
 			extensions: ['.kita.tsx'],
 		},
 	],
-} as unknown as EcoPagesAppConfig;
+} as unknown as IntegrationRuntimeContext['appConfig'];
 
 describe('BundleService', () => {
 	it('does not include the Eco core browser shim in client bundle options', async () => {

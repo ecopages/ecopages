@@ -9,7 +9,7 @@ import type {
 	Middleware,
 	RouteSchema,
 	ViewLoader,
-} from '../../types/public-types.ts';
+} from '../../types/contracts.ts';
 import type { ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 import { EcopagesApp } from './create-app.ts';
 import type { NodeRuntimeServeOptions } from './runtime-host.ts';

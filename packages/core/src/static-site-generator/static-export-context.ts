@@ -1,5 +1,5 @@
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import type { EcopagesRouteInfo, StaticRoute } from '../types/public-types.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import type { EcopagesRouteInfo, StaticRoute } from '../types/contracts.ts';
 import type { StaticGenerationRendererResolver } from '../route-renderer/route-renderer.ts';
 import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 

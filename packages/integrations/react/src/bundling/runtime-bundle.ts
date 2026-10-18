@@ -7,15 +7,15 @@
  * @module
  */
 
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime-plugin';
-import { DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME } from '@ecopages/core/build/browser-runtime-plugin';
+import type { EcoBuildPlugin } from '@ecopages/core/integration';
+import { createBrowserRuntimePlugin } from '@ecopages/core/build';
+import { DEFAULT_BROWSER_RUNTIME_PLUGIN_NAME } from '@ecopages/core/build';
 import {
 	buildBrowserRuntimeAssetUrl,
 	createBrowserRuntimeModuleAsset,
 	createBrowserRuntimeScriptAsset,
 	type AssetDefinition,
-} from '@ecopages/core/services/asset-processing-service';
+} from '@ecopages/core/integration';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { createReactDomRuntimeInteropPlugin } from './runtime-interop-plugin.ts';
 import { buildReactRuntimeManifest } from './runtime-alias-map.ts';
@@ -24,7 +24,7 @@ import {
 	createBrowserRuntimeManifest,
 	getBrowserRuntimeSpecifierMap,
 	type BrowserRuntimeManifest,
-} from '@ecopages/core/build/browser-runtime-manifest';
+} from '@ecopages/core/build';
 import { LAYOUT_COMPOSE_PACKAGE, PAGE_LAYOUT_NORMALIZATION_PACKAGE } from './bootstrap-package-paths.ts';
 
 export type ReactRuntimeImports = {

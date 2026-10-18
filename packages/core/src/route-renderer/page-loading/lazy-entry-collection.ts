@@ -1,4 +1,4 @@
-import type { DependencyLazyTrigger, EcoComponentScriptEntry } from '../../types/public-types.ts';
+import type { DependencyLazyTrigger, EcoComponentScriptEntry } from '../../types/contracts.ts';
 import type { AssetDefinition } from '../../assets/asset-processing-service/index.ts';
 import {
 	APP_BROWSER_CLIENT_BUNDLE_ID,

@@ -79,7 +79,7 @@ Import the manifest types and element id from core when building a custom toolba
 import {
   DEV_MANIFEST_ELEMENT_ID,
   type EcoDevManifest,
-} from '@ecopages/core/dev-toolbar/dev-toolbar-manifest-contract';
+} from '@ecopages/core/client';
 ```
 
 Machine-readable navigation history is written to `#__ECO_DEV_NAV_TELEMETRY__` in `document.head` (with `data-eco-persist` so SPA re-renders do not drop it) and exposed on `window.__ECO_DEV_NAV_TELEMETRY__.getSnapshot()` for agents and debugging.
@@ -96,7 +96,7 @@ Integrations do not register dock apps. Fork [`@ecopages/dev-toolbar`](https://g
 
 ```typescript
 import { defineConfig } from '@ecopages/core/config';
-import { defineDevTool } from '@ecopages/core/dev-toolbar/define-dev-tool';
+import { defineDevTool } from '@ecopages/core/client';
 
 export default defineConfig({ devToolbar: defineDevTool('@acme/my-dev-toolbar') });
 ```
@@ -109,7 +109,7 @@ import {
   BUILD_ERROR_CLEAR_EVENT,
   BUILD_ERROR_REQUEST_EVENT,
   type BuildErrorDetail,
-} from '@ecopages/core/dev-toolbar/build-error-contract';
+} from '@ecopages/core/client';
 
 export function mountBuildErrors(container: HTMLElement): () => void {
   const messages = new Set<string>();

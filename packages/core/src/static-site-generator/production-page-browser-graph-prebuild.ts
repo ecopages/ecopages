@@ -1,7 +1,7 @@
 import path from 'node:path';
-import { requireAppRuntime } from '../types/app-runtime.ts';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import type { PageParams } from '../types/public-types.ts';
+import { requireAppRuntime } from '../utils/app-runtime.ts';
+import type { EcoPagesAppConfig } from '../config/internal-types.ts';
+import type { PageParams } from '../types/contracts.ts';
 import type { PageRendererResolver } from '../route-renderer/route-renderer.ts';
 import type { IntegrationRenderer } from '../route-renderer/orchestration/integration-renderer.ts';
 import type { GroupedGraphBuildPlan } from '../route-renderer/orchestration/page-browser-graph/grouped-graph-build-plan.ts';

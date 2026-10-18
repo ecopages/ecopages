@@ -3,7 +3,7 @@
  * @module @ecopages/image-processor/image-plugins
  */
 
-import type { EcoBuildOnLoadResult, EcoBuildPlugin } from '@ecopages/core/plugins/processor';
+import type { EcoBuildOnLoadResult, EcoBuildPlugin } from '@ecopages/core/processor';
 import type { ImageMap } from './plugin.ts';
 import { anyCaseToCamelCase } from './utils.ts';
 

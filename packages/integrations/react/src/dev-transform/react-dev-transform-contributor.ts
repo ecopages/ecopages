@@ -1,6 +1,6 @@
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import { getBrowserRuntimeSpecifierMap } from '@ecopages/core/build/browser-runtime-manifest';
-import type { DevTransformBundleContributor } from '@ecopages/core/dev/transform-server';
+import type { EcoBuildPlugin } from '@ecopages/core/integration';
+import { getBrowserRuntimeSpecifierMap } from '@ecopages/core/build';
+import type { DevTransformBundleContributor } from '@ecopages/core/integration';
 import type { ReactHmrStrategy } from '../hmr/hmr-strategy.ts';
 
 export type ReactDevTransformContributorOptions = {

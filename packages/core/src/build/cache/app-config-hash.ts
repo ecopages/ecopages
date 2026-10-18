@@ -1,6 +1,6 @@
 import { fileSystem } from '@ecopages/file-system';
 import { rapidhash } from '../../utils/hash.ts';
-import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 
 /**
  * Hashes the config module and the project files it imports (`absolutePaths.configModuleFiles`).

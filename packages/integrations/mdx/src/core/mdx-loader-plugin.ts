@@ -1,11 +1,8 @@
 import { readFile } from 'node:fs/promises';
-import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
+import type { EcoBuildPlugin } from '@ecopages/core/integration';
 import { attributeMdxComponentIdentity } from '@ecopages/core';
 import { type CompileOptions, compile } from '@mdx-js/mdx';
-import {
-	recordMdxTransform,
-	type RequestPipelineMetricsState,
-} from '@ecopages/core/diagnostics/request-pipeline-metrics';
+import { recordMdxTransform, type RequestPipelineMetricsState } from '@ecopages/core/build';
 import sourceMap from 'source-map';
 import { VFile } from 'vfile';
 import { createMdxExtensionFilter, resolveCompileFormat, resolveLoaderExtensions } from './mdx-utils.ts';

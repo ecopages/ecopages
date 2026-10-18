@@ -33,6 +33,7 @@ test('resolves hoisted linked dependencies with subpath-only exports and dedupli
 	);
 	expect(resolveWorkspacePackageWatchRoots(app)).toEqual([linked]);
 	expect(isWorkspacePackageFile(path.join(linked, 'src/button.ts'), [linked])).toBe(true);
+	expect(isWorkspacePackageFile(linked, [linked])).toBe(false);
 	expect(isWorkspacePackageFile(path.join(root, 'linked-other/button.ts'), [linked])).toBe(false);
 	const ignored = createProjectWatcherIgnorePredicate(
 		{ workDir: path.join(app, '.eco'), distDir: path.join(app, 'dist') },

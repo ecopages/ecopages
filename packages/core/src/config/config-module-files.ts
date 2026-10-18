@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { rolldown } from 'rolldown';
 import { appLogger } from '../global/app-logger.ts';
+import { isPathStrictlyInside } from '../utils/path-containment.ts';
 
 const SCRIPT_MODULE_PATTERN = /\.(?:[cm]?[jt]sx?|json)$/;
 
@@ -11,7 +12,7 @@ function toProjectPath(id: string, realRoot: string, root: string): string | und
 		return undefined;
 	}
 	const relativePath = path.relative(realRoot, id);
-	if (relativePath === '' || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+	if (!isPathStrictlyInside(id, realRoot)) {
 		return undefined;
 	}
 	return path.join(root, relativePath);

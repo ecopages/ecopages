@@ -12,4 +12,4 @@ Core's HTML utilities rewrite rendered documents and parse source markup for HTM
 
 ## Source parsing
 
-`html-tokenizer.ts` holds the lexical rules shared by `HtmlRewriter` and `html-source-parser.ts`. The positional parser exposes source offsets for callers that splice existing markup, including [HTML Pages](../html-pages/README.md).
+`html-tokenizer.ts` holds the lexical rules shared by `HtmlRewriter` and `html-source-parser.ts`. The positional parser exposes source offsets for callers that splice existing markup, including [HTML Pages](../html-pages/README.md). Entity decoding is shared with other core features through Foundation utilities; the parser keeps its one-pass decoding behavior.

@@ -1,14 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import {
-	decodeHtmlEntities,
-	inspectUnresolvedMarkerArtifactHtml,
-	normalizeUnresolvedMarkerArtifactHtml,
-} from './marker-artifact.utils.ts';
+import { decodeHtmlEntitiesUntilStable } from '../../../utils/html-entities.ts';
+import { inspectUnresolvedMarkerArtifactHtml, normalizeUnresolvedMarkerArtifactHtml } from './marker-artifact.utils.ts';
 
 describe('marker-artifact.utils', () => {
 	it('decodes nested HTML entities until stable', () => {
-		expect(decodeHtmlEntities('&amp;lt;eco-marker&amp;gt;')).toBe('<eco-marker>');
-		expect(decodeHtmlEntities('&quot;x&#39;y&#x27;z&quot;')).toBe('"x\'y\'z"');
+		expect(decodeHtmlEntitiesUntilStable('&amp;lt;eco-marker&amp;gt;')).toBe('<eco-marker>');
+		expect(decodeHtmlEntitiesUntilStable('&quot;x&#39;y&#x27;z&quot;')).toBe('"x\'y\'z"');
 	});
 
 	it('normalizes entity-encoded eco-marker artifacts to raw tags', () => {

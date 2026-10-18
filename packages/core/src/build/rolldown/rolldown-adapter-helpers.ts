@@ -26,7 +26,8 @@ import type {
 	RolldownPlugin,
 } from 'rolldown';
 import { id as idFilter, include } from 'rolldown/filter';
-import { escapeRegExp } from '../browser/browser-runtime-plugin-helpers.ts';
+import { escapeRegExp } from '../../utils/regex-escaping.ts';
+import { isPathInside } from '../../utils/path-containment.ts';
 import { isBarePackageImportSpecifier } from '../../plugins/tsconfig-import-resolver.ts';
 import { isServerOnlyModuleSpecifier } from '../contracts/server-only-specifier.ts';
 import { createServerSideCssShimPlugin } from './server-side-css-shim-plugin.ts';
@@ -273,7 +274,7 @@ export function createInstalledPackageExternalPlugin(
 					return null;
 				}
 				realContextRoot ??= realpathOfDirectory(contextRoot);
-				if (reportDir && path.relative(realContextRoot, resolved.id).startsWith('..')) {
+				if (reportDir && !isPathInside(resolved.id, realContextRoot)) {
 					outsideRootPackages.add(packageName);
 				}
 				const externalId = relativePath.startsWith('../') ? relativePath : `./${relativePath}`;

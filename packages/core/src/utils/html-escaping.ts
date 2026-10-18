@@ -1,3 +1,30 @@
+function escapeMarkupContent(value: string, apostropheReference?: string): string {
+	return value.replace(/[&<>"']/g, (character) => {
+		switch (character) {
+			case '&':
+				return '&amp;';
+			case '<':
+				return '&lt;';
+			case '>':
+				return '&gt;';
+			case '"':
+				return '&quot;';
+			default:
+				return apostropheReference ?? character;
+		}
+	});
+}
+
+/**
+ * Escapes a string for HTML text while retaining the numeric apostrophe reference.
+ *
+ * @param value Raw HTML text.
+ * @returns Escaped HTML content.
+ */
+export function escapeHtml(value: string): string {
+	return escapeMarkupContent(value, '&#39;');
+}
+
 /**
  * Escapes a string for safe use inside a double-quoted HTML attribute value.
  *
@@ -5,7 +32,7 @@
  * @returns Escaped attribute-safe string.
  */
 export function escapeHtmlAttribute(value: string): string {
-	return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+	return escapeMarkupContent(value);
 }
 
 /**
@@ -15,10 +42,5 @@ export function escapeHtmlAttribute(value: string): string {
  * @returns Escaped XML-safe string.
  */
 export function escapeXmlText(value: string): string {
-	return value
-		.replaceAll('&', '&amp;')
-		.replaceAll('<', '&lt;')
-		.replaceAll('>', '&gt;')
-		.replaceAll('"', '&quot;')
-		.replaceAll("'", '&apos;');
+	return escapeMarkupContent(value, '&apos;');
 }

@@ -35,8 +35,8 @@ export function resolveDevTransformModuleUrl(
 ): string {
 	const resolvedSrcDir = path.resolve(srcDir);
 	const normalizedEntrypoint = path.resolve(entrypointPath);
-	const relativePath = path.relative(resolvedSrcDir, normalizedEntrypoint);
-	if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
+	if (isPathInside(normalizedEntrypoint, resolvedSrcDir)) {
+		const relativePath = path.relative(resolvedSrcDir, normalizedEntrypoint);
 		return `${DEV_TRANSFORM_URL_PREFIX}/${toDevTransformUrlPath(relativePath)}`;
 	}
 

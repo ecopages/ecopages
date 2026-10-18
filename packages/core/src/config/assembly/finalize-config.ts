@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { isPathInside } from '../../utils/path-containment.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { createAppRuntime } from './app-runtime.ts';
 import { appLogger } from '../../global/app-logger.ts';
@@ -175,8 +176,7 @@ async function resolveConfigModuleFiles(
 	rootDir: string,
 	distDir: string,
 ): Promise<string[]> {
-	const relativeToDist = path.relative(path.resolve(rootDir, distDir), path.resolve(configFilePath));
-	const isEmittedConfig = !relativeToDist.startsWith('..') && !path.isAbsolute(relativeToDist);
+	const isEmittedConfig = isPathInside(path.resolve(configFilePath), path.resolve(rootDir, distDir));
 	if (!loadedFromFile || isEmittedConfig || !fileSystem.exists(configFilePath)) {
 		return [configFilePath];
 	}

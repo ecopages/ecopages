@@ -2,23 +2,12 @@
  * Shared helpers for the browser-runtime plugin.
  *
  * @remarks
- * `createBrowserRuntimePlugin` needs to:
- *
- * 1. Escape each specifier for inclusion in a regex filter.
- * 2. Build a `RegExp` whose alternation matches registered specifiers.
- *
- * These utilities are extracted here so the plugin does not duplicate
- * the same code path.
+ * `createBrowserRuntimePlugin` needs a filter whose alternation matches its
+ * registered specifiers. This module builds the filter with the shared
+ * regular-expression escaper.
  */
 
-/**
- * Escapes a literal specifier for inclusion in a regular expression.
- *
- * Only the regex metacharacters are escaped: `. * + ? ^ $ { } ( ) | [ ] \`
- */
-export function escapeRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+import { escapeRegExp } from '../../utils/regex-escaping.ts';
 
 /**
  * Builds a `RegExp` that matches registered specifiers exactly.

@@ -112,11 +112,8 @@ describe('NodeModuleScriptProcessor', () => {
 		});
 
 		test('should find module in parent directories', async () => {
-			let callCount = 0;
-			existsMock = vi.fn((_path: string) => {
-				callCount++;
-				return callCount >= 3;
-			});
+			const parentModulePath = '/test/node_modules/parent-package/index.js';
+			existsMock = vi.fn((candidatePath: string) => candidatePath === parentModulePath);
 			fileSystem.exists = existsMock;
 
 			const processor = new NodeModuleScriptProcessor({ appConfig: createMockConfig() });
@@ -130,15 +127,12 @@ describe('NodeModuleScriptProcessor', () => {
 
 			const result = await processor.process(dep);
 
-			expect(result).toBeDefined();
-			expect(callCount).toBeGreaterThanOrEqual(3);
+			expect(result.sourceFilepath).toBe(parentModulePath);
 		});
 
 		test('should probe file extensions for installed package subpaths', async () => {
-			existsMock = vi.fn(
-				(candidatePath: string) =>
-					candidatePath === '/test/project/node_modules/@ecopages/radiant/client/install-hydrator.js',
-			);
+			const modulePath = '/test/project/node_modules/@ecopages/radiant/client/install-hydrator.js';
+			existsMock = vi.fn((candidatePath: string) => candidatePath === modulePath);
 			fileSystem.exists = existsMock;
 
 			const processor = new NodeModuleScriptProcessor({ appConfig: createMockConfig() });
@@ -152,10 +146,7 @@ describe('NodeModuleScriptProcessor', () => {
 
 			const result = await processor.process(dep);
 
-			expect(result).toBeDefined();
-			expect(existsMock).toHaveBeenCalledWith(
-				'/test/project/node_modules/@ecopages/radiant/client/install-hydrator.js',
-			);
+			expect(result.sourceFilepath).toBe(modulePath);
 		});
 	});
 

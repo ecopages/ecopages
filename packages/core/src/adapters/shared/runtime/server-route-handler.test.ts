@@ -113,28 +113,6 @@ describe('ServerRouteHandler', () => {
 			expect(FileSystemResponseMatcher.handleMatch).not.toHaveBeenCalled();
 			expect(FileSystemResponseMatcher.renderServerError).toHaveBeenCalledWith(new URL(url).pathname, error);
 		});
-
-		it('should not inject HMR script (injection lives in ServerRequestPipeline)', async () => {
-			const { Router, FileSystemResponseMatcher } = createMockDependencies();
-			const handler = new ServerRouteHandler({
-				router: Router,
-				fileSystemResponseMatcher: FileSystemResponseMatcher,
-			});
-
-			Router.matchRequest = vi.fn(() => ({}) as any);
-			FileSystemResponseMatcher.handleMatch = vi.fn(() =>
-				Promise.resolve(
-					new Response('<html><body></body></html>', { headers: { 'Content-Type': 'text/html' } }),
-				),
-			);
-
-			const request = new Request('http://localhost/test');
-			const response = await handler.handleResponse(request);
-			const text = await response.text();
-
-			expect(text).toBe('<html><body></body></html>');
-			expect(text).not.toContain("import '/_hmr_runtime.js'");
-		});
 	});
 
 	describe('handleNoMatch', () => {

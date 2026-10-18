@@ -888,7 +888,7 @@ describe('DependencyResolverService', () => {
 			processDependencies: vi.fn(async (deps: AssetDefinition[]) => {
 				return deps.map((dep, index) => {
 					const lazyKey = dep.attributes?.['data-eco-lazy-key'];
-					const hasContent = dep.source === 'content' && typeof (dep as any).content === 'string';
+					const hasContent = dep.source === 'content' && typeof dep.content === 'string';
 					const isLazyScript = dep.kind === 'script' && Boolean(lazyKey);
 					const srcUrl = isLazyScript
 						? hasContent
@@ -897,8 +897,8 @@ describe('DependencyResolverService', () => {
 						: undefined;
 
 					return {
-						kind: dep.kind ?? 'script',
-						filepath: (dep as Record<string, any>).filepath,
+						kind: dep.kind,
+						filepath: dep.source === 'file' ? dep.filepath : undefined,
 						attributes: dep.attributes,
 						srcUrl,
 					} as ProcessedAsset;

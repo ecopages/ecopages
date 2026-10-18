@@ -5,7 +5,7 @@ import type { EcoPageComponent } from '../eco/eco.types.ts';
 import type { EcoComponent, GetMetadata, GetStaticProps, HtmlTemplateProps } from '../types/public-types.ts';
 import type { StaticGenerationRoute } from '../router/server/route-registry.ts';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../constants.ts';
-import { createAppRuntime } from '../config/app-runtime.ts';
+import { createAppRuntime } from '../config/assembly/app-runtime.ts';
 import { StaticSiteGenerator } from './static-site-generator.ts';
 import {
 	TestIntegrationRenderer,

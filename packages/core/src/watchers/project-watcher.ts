@@ -25,7 +25,7 @@ import {
 } from '../utils/additional-watch-paths.ts';
 import { resolveWorkspacePackageWatchRoots, isWorkspacePackageFile } from './workspace-package-watch-roots.ts';
 import { seedProcessorWatchPaths } from '../build/cache/build-input-dependency-index.ts';
-import { requireAppRuntime } from '../config/app-runtime.ts';
+import { requireAppRuntime } from '../config/assembly/app-runtime.ts';
 import { copyRuntimePublicFile } from '../adapters/shared/runtime/copy-runtime-public-dir.ts';
 
 /**

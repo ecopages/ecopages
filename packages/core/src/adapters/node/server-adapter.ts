@@ -25,7 +25,7 @@ import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
 import { isNodeClientAbortError } from './http-request-bridge.ts';
 import type { NodeRuntimeServeOptions } from './runtime-host.ts';
 import { serveDistFile } from '../shared/http/dist-file-handler.ts';
-import type { AppRuntime } from '../../config/app-runtime.ts';
+import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
 import { DevSession } from './dev-session.ts';
 import { prebuildProductionPageBrowserGraphsFromManifest } from '../../static-site-generator/production-page-browser-graph-prebuild.ts';
 

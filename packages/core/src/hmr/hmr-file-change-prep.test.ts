@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'vitest';
 import { prepareHmrFileChange } from './hmr-file-change-prep.ts';
-import { requireAppRuntime } from '../config/app-runtime.ts';
-import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
+import { requireAppRuntime } from '../config/assembly/app-runtime.ts';
+import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 
 let appConfig: EcoPagesAppConfig;

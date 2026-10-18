@@ -7,7 +7,7 @@ import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { GetMetadataContext } from '../types/public-types.ts';
 import { HTML_PAGES_INTEGRATION_NAME, loadHtmlPageModule } from './html-page-module.ts';
-import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
+import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 
 describe('html-page-module', () => {
 	let rootDir: string;

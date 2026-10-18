@@ -2,8 +2,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
-import { requireAppRuntime } from '../../config/app-runtime.ts';
+import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
+import { requireAppRuntime } from '../../config/assembly/app-runtime.ts';
 import { Processor } from '../../plugins/processor.js';
 import {
 	DevelopmentInvalidationService,

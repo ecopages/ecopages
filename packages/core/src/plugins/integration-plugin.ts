@@ -3,7 +3,7 @@ import {
 	createBrowserRuntimeManifest,
 	type BrowserRuntimeManifest,
 } from '../build/browser/browser-runtime-manifest.ts';
-import type { AppRuntime } from '../config/app-runtime.ts';
+import type { AppRuntime } from '../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { EcoPageFile, EcoPagesElement } from '../types/public-types.ts';
 import type {

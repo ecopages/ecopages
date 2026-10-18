@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
+import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { resolveRuntimeRestartWatchPaths } from './development-restart-watch-paths.ts';
 
 describe('resolveRuntimeRestartWatchPaths', () => {

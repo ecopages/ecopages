@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
-import { requireAppRuntime } from '../../../config/app-runtime.ts';
+import { requireAppRuntime } from '../../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../types/internal-types.ts';
 import { RESOLVED_ASSETS_DIR } from '../../../constants.ts';
 import {

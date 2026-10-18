@@ -15,7 +15,7 @@ import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
 import { RolldownBuildAdapter } from '../rolldown/rolldown-build-adapter.ts';
 import { assertBuildSucceeded } from '../build-log.ts';
-import { requireAppRuntime } from '../../config/app-runtime.ts';
+import { requireAppRuntime } from '../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 

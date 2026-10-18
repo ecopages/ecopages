@@ -1,5 +1,5 @@
 import { appLogger } from '../../../global/app-logger.ts';
-import { requireAppRuntime } from '../../../config/app-runtime.ts';
+import { requireAppRuntime } from '../../../config/assembly/app-runtime.ts';
 import { shouldLogPageFailure } from '../../../errors/http-error-page-contract.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { StaticRoute } from '../../../types/public-types.ts';

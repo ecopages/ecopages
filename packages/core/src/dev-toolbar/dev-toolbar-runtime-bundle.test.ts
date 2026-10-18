@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { installBuildQueue } from '../build/runtime/build-queue.ts';
-import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
+import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import { bundleDevClientRuntime } from '../hmr/dev-client-runtime.ts';
 import { BrowserBundleService } from '../assets/browser-bundle.service.ts';
 import { createDevToolbarClientRuntime } from './dev-toolbar-runtime.ts';

@@ -10,7 +10,7 @@ import {
 	BuildInputDependencyIndex,
 	type BuildInputBinding,
 } from '../../../build/cache/build-input-dependency-index.ts';
-import { requireAppRuntime } from '../../../config/app-runtime.ts';
+import { requireAppRuntime } from '../../../config/assembly/app-runtime.ts';
 
 function graphBinding(key: string): BuildInputBinding {
 	return { consumer: 'page-browser-graph', key };

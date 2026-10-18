@@ -2,24 +2,27 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { EcoPagesAppConfig } from '../types/internal-types.ts';
-import { attachHmrToIntegrations, disposeDevResources } from '../adapters/shared/runtime/runtime-server-lifecycle.ts';
-import { ensureIntegrationRuntimeReady, setupAppRuntimePlugins } from '../build/app-build-manifest-runtime.ts';
-import { installBuildQueue, requireBuildQueue } from '../build/runtime/build-queue.ts';
-import { createBrowserBuildRequest, resolveAppBuildPlugins } from '../build/runtime/build-request-policy.ts';
-import { ensurePagesUnifiedGraphBuilt } from '../build/cache/pages-unified-graph-build.ts';
-import { getHtmlPageModuleScriptUrls, scanModuleScript } from '../html-pages/html-page-module-scripts.ts';
+import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
+import {
+	attachHmrToIntegrations,
+	disposeDevResources,
+} from '../../adapters/shared/runtime/runtime-server-lifecycle.ts';
+import { ensureIntegrationRuntimeReady, setupAppRuntimePlugins } from '../../build/app-build-manifest-runtime.ts';
+import { installBuildQueue, requireBuildQueue } from '../../build/runtime/build-queue.ts';
+import { createBrowserBuildRequest, resolveAppBuildPlugins } from '../../build/runtime/build-request-policy.ts';
+import { ensurePagesUnifiedGraphBuilt } from '../../build/cache/pages-unified-graph-build.ts';
+import { getHtmlPageModuleScriptUrls, scanModuleScript } from '../../html-pages/html-page-module-scripts.ts';
 import {
 	getAffectedPageBrowserGraphIdentities,
 	invalidatePageBrowserGraphSession,
-} from '../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
-import { AssetProcessingService } from '../assets/asset-processing-service/asset-processing.service.ts';
-import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../page-cache/page-cache-service.ts';
-import { AppModuleLoader } from '../build/server/app-module-loader.service.ts';
+} from '../../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
+import { AssetProcessingService } from '../../assets/asset-processing-service/asset-processing.service.ts';
+import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../../page-cache/page-cache-service.ts';
+import { AppModuleLoader } from '../../build/server/app-module-loader.service.ts';
 import {
 	clearAppDevelopmentRouteModuleBuildCaches,
 	getSharedRouteModuleBuildCache,
-} from '../build/server/route-module-build-cache-registry.ts';
+} from '../../build/server/route-module-build-cache-registry.ts';
 import { createAppRuntime, requireAppRuntime } from './app-runtime.ts';
 import { finalizeEcoPagesConfig } from './finalize-config.ts';
 

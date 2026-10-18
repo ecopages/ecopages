@@ -5,7 +5,7 @@ import os from 'node:os';
 import { ProjectWatcher } from './project-watcher';
 import type { EcoPagesAppConfig } from '../types/internal-types';
 import type { ProcessorWatchConfig } from '../plugins/processor.ts';
-import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
+import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 import {
 	createMockHmrManager,
 	createMockBridge,

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HmrManager } from '../adapters/shared/hmr/hmr-manager.ts';
 import { installBuildQueue } from '../build/runtime/build-queue.ts';
-import { finalizeEcoPagesConfig } from '../config/finalize-config.ts';
+import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 
 const toolbarPackageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../dev-toolbar');
 const HMR_RUNTIME_IMPORT = "import '/_hmr_runtime.js'";

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { AppRuntime } from '../../../config/app-runtime.ts';
+import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import { RouteRendererFactory } from '../../../route-renderer/route-renderer.ts';
 import { RouteRegistry } from '../../../router/server/route-registry.ts';
@@ -7,7 +7,7 @@ import type { StaticGenerationRoute } from '../../../router/server/route-registr
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
 import { requireBuildQueue } from '../../../build/runtime/build-queue.ts';
 import { runWithBuildInputIndex } from '../../../build/cache/build-input-dependency-index.ts';
-import { requireAppRuntime } from '../../../config/app-runtime.ts';
+import { requireAppRuntime } from '../../../config/assembly/app-runtime.ts';
 import { MemoryCacheStore } from '../../../page-cache/memory-cache-store.ts';
 import { PageCacheService } from '../../../page-cache/page-cache-service.ts';
 import { ExplicitStaticRouteMatcher } from '../http/explicit-static-route-matcher.ts';

@@ -2,7 +2,7 @@ import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { WebSocketServer } from 'ws';
 import { appLogger } from '../../global/app-logger.ts';
-import type { AppRuntime } from '../../config/app-runtime.ts';
+import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type { EcopagesWebSocketHandler } from '../../types/public-types.ts';
 import {

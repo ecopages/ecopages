@@ -5,7 +5,7 @@ import {
 	type AppBuildManifest,
 	type BuildPluginRegistration,
 } from './contracts/build-manifest.ts';
-import { requireAppRuntime } from '../config/app-runtime.ts';
+import { requireAppRuntime } from '../config/assembly/app-runtime.ts';
 import { appLogger } from '../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import { startupTrace } from '../diagnostics/startup-trace.ts';

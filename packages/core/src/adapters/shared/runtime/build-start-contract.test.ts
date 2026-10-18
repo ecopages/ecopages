@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, it, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
-import { requireAppRuntime } from '../../../config/app-runtime.ts';
-import { finalizeEcoPagesConfig } from '../../../config/finalize-config.ts';
+import { requireAppRuntime } from '../../../config/assembly/app-runtime.ts';
+import { finalizeEcoPagesConfig } from '../../../config/assembly/finalize-config.ts';
 import {
 	assertProductionConfigIdentity,
 	getServerBundleOutputPaths,

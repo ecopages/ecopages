@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { createApp, type EcopagesAppOptions } from '../../src/adapters/create-app.ts';
-import { finalizeEcoPagesConfig } from '../../src/config/finalize-config.ts';
+import { finalizeEcoPagesConfig } from '../../src/config/assembly/finalize-config.ts';
 import { loadEcoPagesConfig } from '../../src/config/load-eco-config.ts';
 import { createFixtureUserConfig, fixtureRootDir } from './fixture-user-config.ts';
 

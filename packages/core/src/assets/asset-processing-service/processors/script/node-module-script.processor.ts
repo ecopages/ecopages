@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
-import { requireAppRuntime } from '../../../../config/app-runtime.ts';
+import { requireAppRuntime } from '../../../../config/assembly/app-runtime.ts';
 import type { NodeModuleScriptAsset } from '../../assets.types.ts';
 import { BaseScriptProcessor } from '../base/base-script-processor.ts';
 

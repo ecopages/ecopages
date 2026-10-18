@@ -100,7 +100,7 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 
 Use this package README as the top-level map, then drill into the focused subsystem READMEs:
 
-- `src/config/README.md`: config finalization and app-owned runtime/build state
+- `src/config/README.md`: config loading, assembly, and app-owned runtime/build state
 - `src/diagnostics/README.md`: per-app request-pipeline metrics and the startup trace
 - `src/plugins/README.md`: integration and processor authoring contracts
 - `src/build/README.md`: build adapter, app-scoped server module loading, shared `.server` browser import guard, development build coordination, standalone Node server packaging and its deploy layout

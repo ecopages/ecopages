@@ -167,16 +167,16 @@
 			"default": "./src/config/index.ts"
 		},
 		"./internal/finalize-config": {
-			"types": "./src/config/finalize-config.ts",
-			"default": "./src/config/finalize-config.ts"
+			"types": "./src/config/assembly/finalize-config.ts",
+			"default": "./src/config/assembly/finalize-config.ts"
 		},
 		"./config/write-types": {
 			"types": "./src/config/write-types.ts",
 			"default": "./src/config/write-types.ts"
 		},
 		"./config/app-runtime": {
-			"types": "./src/config/app-runtime.ts",
-			"default": "./src/config/app-runtime.ts"
+			"types": "./src/config/assembly/app-runtime.ts",
+			"default": "./src/config/assembly/app-runtime.ts"
 		},
 		"./constants": {
 			"types": "./src/config/constants.ts",

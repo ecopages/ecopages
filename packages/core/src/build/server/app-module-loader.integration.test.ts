@@ -8,7 +8,7 @@ import { BuildInputDependencyIndex } from '../../build/cache/build-input-depende
 import { BuildQueue, installBuildQueue } from '../../build/runtime/build-queue.ts';
 import { createAppBuildManifest, type AppBuildManifest } from '../../build/contracts/build-manifest.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
-import { requireAppRuntime, ServerInvalidationState } from '../../config/app-runtime.ts';
+import { requireAppRuntime, ServerInvalidationState } from '../../config/assembly/app-runtime.ts';
 import type { EcoPagesElement } from '../../types/public-types.ts';
 import { createRequestPipelineMetricsState } from '../../diagnostics/request-pipeline-metrics.ts';
 import { AppModuleLoader } from './app-module-loader.service.ts';

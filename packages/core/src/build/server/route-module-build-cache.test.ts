@@ -10,7 +10,7 @@ import {
 } from './route-module-build-manifest.ts';
 import { RouteModuleBuildCache } from './route-module-build-cache.store.ts';
 import { getSharedRouteModuleBuildCache } from './route-module-build-cache-registry.ts';
-import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
+import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
 import { createPluginCacheKey } from '../../build/cache/cache-keys.ts';
 import type { BuildOptions } from '../../build/build-adapter.ts';
 import { RouteModuleDependencyHasher } from './route-module-dependency-hasher.ts';

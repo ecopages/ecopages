@@ -112,11 +112,8 @@ describe('NodeModuleScriptProcessor', () => {
 		});
 
 		test('should find module in parent directories', async () => {
-			let callCount = 0;
-			existsMock = vi.fn((_path: string) => {
-				callCount++;
-				return callCount >= 3;
-			});
+			const parentModulePath = '/test/node_modules/parent-package/index.js';
+			existsMock = vi.fn((candidatePath: string) => candidatePath === parentModulePath);
 			fileSystem.exists = existsMock;
 
 			const processor = new NodeModuleScriptProcessor({ appConfig: createMockConfig() });
@@ -130,15 +127,12 @@ describe('NodeModuleScriptProcessor', () => {
 
 			const result = await processor.process(dep);
 
-			expect(result).toBeDefined();
-			expect(callCount).toBeGreaterThanOrEqual(3);
+			expect(result.sourceFilepath).toBe(parentModulePath);
 		});
 
 		test('should probe file extensions for installed package subpaths', async () => {
-			existsMock = vi.fn(
-				(candidatePath: string) =>
-					candidatePath === '/test/project/node_modules/@ecopages/radiant/client/install-hydrator.js',
-			);
+			const modulePath = '/test/project/node_modules/@ecopages/radiant/client/install-hydrator.js';
+			existsMock = vi.fn((candidatePath: string) => candidatePath === modulePath);
 			fileSystem.exists = existsMock;
 
 			const processor = new NodeModuleScriptProcessor({ appConfig: createMockConfig() });
@@ -152,15 +146,13 @@ describe('NodeModuleScriptProcessor', () => {
 
 			const result = await processor.process(dep);
 
-			expect(result).toBeDefined();
-			expect(existsMock).toHaveBeenCalledWith(
-				'/test/project/node_modules/@ecopages/radiant/client/install-hydrator.js',
-			);
+			expect(result.sourceFilepath).toBe(modulePath);
 		});
 	});
 
 	describe('process - custom name', () => {
 		test('should use custom name when provided', async () => {
+			vi.spyOn(fileSystem, 'ensureDir').mockImplementation(() => undefined);
 			const processor = new NodeModuleScriptProcessor({ appConfig: createMockConfig() });
 
 			const dep: NodeModuleScriptAsset = {
@@ -168,13 +160,13 @@ describe('NodeModuleScriptProcessor', () => {
 				source: 'node-module',
 				importPath: 'some-package/dist/index.js',
 				name: 'custom-vendor',
-				inline: true,
+				inline: false,
+				bundle: false,
 			};
 
 			const result = await processor.process(dep);
 
-			expect(result).toBeDefined();
-			expect(result.inline).toBe(true);
+			expect(result.filepath).toBe('/test/project/.eco/public/assets/vendors/custom-vendor');
 		});
 
 		test('should preserve explicit bundle naming when provided', async () => {

@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { contentHash } from '../../utils/content-hash.ts';
 import path from 'node:path';
 
 import { RESOLVED_ASSETS_VENDORS_DIR } from '../../constants.ts';
@@ -99,7 +99,7 @@ export class DevTransformVendorRegistry {
 	}
 
 	private createVendorResponse(entry: VendorEntry, ifNoneMatch?: string | null): Response {
-		const etag = `"${createHash('sha256').update(entry.content).digest('hex').slice(0, 16)}"`;
+		const etag = `"${contentHash(entry.content, 16)}"`;
 
 		const headers = { 'Cache-Control': 'no-cache', ETag: etag };
 		if (matchesIfNoneMatch(ifNoneMatch, etag)) {
@@ -170,7 +170,7 @@ function sanitizeSpecifierForFileName(specifier: string): string {
 }
 
 function hashVendorSpecifier(specifier: string): string {
-	return createHash('sha256').update(specifier).digest('hex').slice(0, 8);
+	return contentHash(specifier, 8);
 }
 
 /**

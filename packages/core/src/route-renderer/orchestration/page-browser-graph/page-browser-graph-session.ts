@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { GroupedGraphScope } from './route-instance-key.ts';
 import { serializeGroupedGraphCacheKey } from './route-instance-key.ts';
-import { createHash } from 'node:crypto';
+import { contentHash } from '../../../utils/content-hash.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import type { PageBrowserGraphContribution, PageBrowserGraphResult } from '../../../types/contracts.ts';
 import type { AssetDefinition, ProcessedAsset } from '../../../assets/asset-processing-service/assets.types.ts';
@@ -640,7 +640,7 @@ function describeProcessedAsset(asset: ProcessedAsset): string {
 	const sourceFilepath = asset.sourceFilepath ?? '';
 	const srcUrl = asset.srcUrl ?? '';
 	const content = typeof asset.content === 'string' ? asset.content : '';
-	const contentDigest = content ? createHash('sha1').update(content).digest('hex') : '';
+	const contentDigest = content ? contentHash(content) : '';
 	const attributes = Object.entries(asset.attributes ?? {}).sort(([left], [right]) => left.localeCompare(right));
 	const groupedBundle = asset.groupedBundle ? [asset.groupedBundle.id, asset.groupedBundle.entryName] : undefined;
 	const bundledSourceFilepaths = [...(asset.bundledSourceFilepaths ?? [])].sort((left, right) =>
@@ -671,7 +671,7 @@ function describeAssetDependency(dependency: AssetDefinition): string {
 			return `module:${dependency.importPath}`;
 		case 'content': {
 			const content = typeof dependency.content === 'string' ? dependency.content : '';
-			const contentDigest = createHash('sha1').update(content).digest('hex').slice(0, 12);
+			const contentDigest = contentHash(content, 12);
 			const name = 'name' in dependency && typeof dependency.name === 'string' ? dependency.name : '';
 			return `content:${dependency.kind}:${name}:${contentDigest}`;
 		}

@@ -3,7 +3,7 @@ import {
 	type AssetDefinition,
 	type ContentScriptAsset,
 } from '@ecopages/core/integration';
-import { rapidhash } from '@ecopages/core/build';
+import { contentHash } from '@ecopages/core/build';
 
 /** Returns the app-wide grouped-build id used for page-owned content scripts. */
 export function createPageOwnedContentScriptBundleId(_integrationName?: string): string {
@@ -27,7 +27,7 @@ function isPageOwnedGroupableContentScript(dep: AssetDefinition): dep is Content
 }
 
 function createPageOwnedGroupedEntryName(dep: ContentScriptAsset, usedEntryNames: Set<string>): string {
-	const baseName = dep.name ?? `script-${rapidhash(dep.content).toString(16)}`;
+	const baseName = dep.name ?? `script-${contentHash(dep.content, 16)}`;
 	if (!usedEntryNames.has(baseName)) {
 		usedEntryNames.add(baseName);
 		return baseName;

@@ -18,7 +18,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { rapidhash } from '@ecopages/core/build';
+import { contentHash } from '@ecopages/core/build';
 import { collectComponentConfigFilePaths } from '@ecopages/core/integration';
 import type { EcoComponent } from '@ecopages/core';
 
@@ -107,5 +107,5 @@ function hashFileSet(files: ReadonlySet<string>): string {
 
 	const sorted = Array.from(files).sort();
 	const joined = sorted.join('\n');
-	return rapidhash(joined).toString(36);
+	return BigInt(`0x${contentHash(joined, 16)}`).toString(36);
 }

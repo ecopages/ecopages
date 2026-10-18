@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 export type ProcessRuntime = {
 	name: 'bun' | 'node';
 	version: string;
@@ -27,16 +25,4 @@ export function isDevelopmentRuntime(): boolean {
 
 export function isProductionRuntime(): boolean {
 	return process.env.NODE_ENV === 'production';
-}
-
-/**
- * Hashes content with the Node SHA-256 prefix.
- *
- * @remarks
- * The first 16 hex characters of SHA-256 are one algorithm on every runtime.
- * Bun used to hash with its native hash, which made component ids differ for the same path.
- */
-export function runtimeHash(content: string | Buffer<ArrayBufferLike>): bigint {
-	const hex = createHash('sha256').update(content).digest('hex').slice(0, 16);
-	return BigInt(`0x${hex}`);
 }

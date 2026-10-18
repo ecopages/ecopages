@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { contentHash } from '../utils/content-hash.ts';
 import { readdirSync, realpathSync } from 'node:fs';
 import { getBuildEntryOutput } from '../build/build-graph.ts';
 import { assertBuildSucceeded } from '../build/build-log.ts';
@@ -281,7 +281,7 @@ function fingerprint(files: string[], rootDir: string): string {
 		.map((file) => {
 			const relativePath = path.relative(rootDir, file).split(path.sep).join('/');
 			if (!fileSystem.exists(file)) return `${relativePath}:missing`;
-			return `${relativePath}:${createHash('sha256').update(fileSystem.readFileSync(file)).digest('hex')}`;
+			return `${relativePath}:${contentHash(fileSystem.readFileSync(file))}`;
 		})
 		.join('\n');
 }

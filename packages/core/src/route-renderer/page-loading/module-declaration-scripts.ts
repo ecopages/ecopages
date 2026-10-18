@@ -1,8 +1,8 @@
-import { rapidhash } from '../../utils/hash.ts';
+import { contentHash } from '../../utils/content-hash.ts';
 
 export function createModuleScriptName(from: string, imports: string[] | undefined): string {
 	const normalizedImports = imports ? [...imports].sort().join(',') : '*';
-	const hash = rapidhash(`${from}|${normalizedImports}`).toString(16);
+	const hash = contentHash(`${from}|${normalizedImports}`, 16);
 	return `module-${hash}`;
 }
 

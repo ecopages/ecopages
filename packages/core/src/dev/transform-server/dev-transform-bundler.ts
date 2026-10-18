@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { contentHash } from '../../utils/content-hash.ts';
 import path from 'node:path';
 
 import { fileSystem } from '@ecopages/file-system';
@@ -64,7 +64,7 @@ export class DevTransformBundler {
 		 * Entry key is a path hash so concurrent transpiles of different modules that
 		 * share a basename (e.g. multiple `index.tsx`) never collide on disk output.
 		 */
-		const entryKey = createHash('sha256').update(normalized).digest('hex').slice(0, 16);
+		const entryKey = contentHash(normalized, 16);
 		const result = await this.browserBundleService.bundle({
 			lane: 'hmr',
 			entrypoints: { [entryKey]: normalized },

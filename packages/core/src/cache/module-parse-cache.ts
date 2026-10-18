@@ -16,7 +16,7 @@
 
 import { extname } from 'node:path';
 import { parseSync, type ParseResult, type ParserOptions } from 'oxc-parser';
-import { rapidhash } from '../utils/hash.ts';
+import { contentHash } from '../utils/content-hash.ts';
 
 const DEFAULT_MAX_ENTRIES = 10_000;
 
@@ -48,7 +48,7 @@ export function parseModuleSource(filePath: string, source: string, options: Mod
 type CacheKey = string;
 
 type CacheEntry = {
-	hash: number | bigint;
+	hash: string;
 	result: ParseResult;
 };
 
@@ -76,7 +76,7 @@ export class ModuleParseCache {
 	 */
 	getOrParse(filePath: string, source: string, options: ModuleParseOptions = {}): ParseResult {
 		const normalizedOptions = normalizeModuleParseOptions(filePath, options);
-		const hash = rapidhash(source);
+		const hash = contentHash(source, 16);
 		const key = makeKey(filePath, hash, normalizedOptions);
 
 		const existing = this.entries.get(key);
@@ -117,10 +117,10 @@ function normalizeModuleParseOptions(filePath: string, options: ModuleParseOptio
 	};
 }
 
-function makeKey(filePath: string, sourceHash: number | bigint, options: ModuleParseOptions): CacheKey {
+function makeKey(filePath: string, sourceHash: string, options: ModuleParseOptions): CacheKey {
 	// Stringify only the option keys we actually use; `parseSync` does
 	// not deeply equal-check options so any extra keys would be noise.
 	const lang = options.lang ?? '';
 	const sourceType = options.sourceType ?? '';
-	return `${filePath} ${sourceHash.toString(36)} ${lang} ${sourceType}`;
+	return `${filePath} ${sourceHash} ${lang} ${sourceType}`;
 }

@@ -16,7 +16,7 @@ import {
 	type EcoComponentConfig,
 	type EcoPageFile,
 } from '@ecopages/core';
-import { rapidhash } from '@ecopages/core/build';
+import { contentHash } from '@ecopages/core/build';
 import { fileSystem } from '@ecopages/file-system';
 import { someInConfigTree } from '../client-graph/component-config-traversal.ts';
 import { collectPageDeclaredModulesFromModule } from '../client-graph/declared-modules.ts';
@@ -59,7 +59,7 @@ export class PageModuleService {
 		}
 
 		const buildIdentity = (file: string) => ({
-			id: identity?.id ?? rapidhash(file).toString(36),
+			id: identity?.id ?? BigInt(`0x${contentHash(file, 16)}`).toString(36),
 			integration: getComponentOwner(config, this.config.integrationName),
 			file,
 		});

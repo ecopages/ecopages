@@ -5,7 +5,7 @@ import type {
 	FileStylesheetAsset,
 } from '../../assets/asset-processing-service/index.ts';
 import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
-import { rapidhash } from '../../utils/hash.ts';
+import { contentHash } from '../../utils/content-hash.ts';
 
 /**
  * Returns `true` when the asset attributes match the exact shape required for
@@ -166,7 +166,7 @@ function createPageDependencyPackagingPlan(
 	for (const run of collectContiguousEligibleRuns(dependencies, isEligibleScript)) {
 		const pageScriptImports = [...new Set(run.assets.map((dependency) => dependency.filepath))];
 		const bundledScript = AssetFactory.createContentScript({
-			name: `${integrationName}-page-${rapidhash(pageScriptImports.join('|')).toString(16)}`,
+			name: `${integrationName}-page-${contentHash(pageScriptImports.join('|'), 16)}`,
 			content: pageScriptImports.map((filepath) => `import ${JSON.stringify(filepath)};`).join('\n'),
 			position: 'head',
 			attributes: { type: 'module', defer: '' },

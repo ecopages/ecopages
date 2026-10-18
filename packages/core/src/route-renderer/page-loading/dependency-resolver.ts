@@ -8,7 +8,7 @@ import type {
 	ProcessedAsset,
 } from '../../assets/asset-processing-service/index.ts';
 import { resolveAssetProcessingIntegration } from '../../assets/asset-processing-service/asset-processing-integration.ts';
-import { rapidhash } from '../../utils/hash.ts';
+import { contentHash } from '../../utils/content-hash.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
 import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
 import { buildResolvedLazyTriggers, type ResolvedLazyGroup } from './lazy-trigger-planning.ts';
@@ -71,7 +71,7 @@ function isLazyClientScript(dep: AssetDefinition): boolean {
 }
 
 function createEcopagesJsxLazyEntryName(integrationName: string, key: string): string {
-	return `ecopages-${integrationName}-lazy-${rapidhash(key).toString(16)}`;
+	return `ecopages-${integrationName}-lazy-${contentHash(key, 16)}`;
 }
 
 export class DependencyResolverService {

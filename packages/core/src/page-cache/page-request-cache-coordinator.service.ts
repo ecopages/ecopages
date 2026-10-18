@@ -5,7 +5,7 @@ import {
 	isRequestPipelineMetricsEnabled,
 	serializeRequestPipelineMetricsHeader,
 } from '../diagnostics/request-pipeline-metrics.ts';
-import { sha256Hex } from '../utils/sha256.ts';
+import { contentHash } from '../utils/content-hash.ts';
 import type { RequestPipelineMetricsState } from '../diagnostics/request-pipeline-metrics.ts';
 import type { PageQuery } from '../types/contracts.ts';
 
@@ -161,7 +161,7 @@ export class PageRequestCacheCoordinator {
 		}
 
 		if (strategy === 'static' && cacheStatus !== 'disabled') {
-			const etag = `"${sha256Hex(html, 16)}"`;
+			const etag = `"${contentHash(html, 16)}"`;
 			headers.ETag = etag;
 			if (ifNoneMatchSatisfied(ifNoneMatch, etag)) {
 				return new Response(null, { status: 304, headers });

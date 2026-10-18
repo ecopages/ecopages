@@ -9,7 +9,7 @@
 
 import path from 'node:path';
 import type { EcoComponentConfig } from '@ecopages/core';
-import { rapidhash } from '@ecopages/core/build';
+import { contentHash } from '@ecopages/core/build';
 import { RESOLVED_ASSETS_DIR } from '@ecopages/core/build';
 import type { PageClientBuildEntry } from '@ecopages/core/integration';
 import { isReactProductionRuntime } from '../bundling/runtime-mode.ts';
@@ -68,7 +68,7 @@ type PageDependencyOptions = {
  * @returns Stable key used in selectors and asset names.
  */
 export function getIslandComponentKey(componentFile: string, config?: EcoComponentConfig): string {
-	return rapidhash(`${componentFile}:${config?.identity?.id ?? ''}`).toString();
+	return BigInt(`0x${contentHash(`${componentFile}:${config?.identity?.id ?? ''}`, 16)}`).toString(10);
 }
 
 /**
@@ -85,7 +85,7 @@ export class HydrationAssetService {
 	}
 
 	private getIslandBundleName(componentFile: string): string {
-		return `ecopages-react-island-${rapidhash(componentFile)}`;
+		return `ecopages-react-island-${BigInt(`0x${contentHash(componentFile, 16)}`).toString()}`;
 	}
 
 	private getIslandHydrationName(bundleName: string, componentKey: string): string {
@@ -501,7 +501,7 @@ export class HydrationAssetService {
 		isMdx: boolean,
 		declaredModules: string[],
 	): Promise<AssetDefinition[]> {
-		const componentName = `ecopages-react-${rapidhash(pagePath)}`;
+		const componentName = `ecopages-react-${BigInt(`0x${contentHash(pagePath, 16)}`).toString()}`;
 		const hmrManager = this.config.assetProcessingService?.getHmrManager();
 		const hmrEnabled = hmrManager?.isEnabled() ?? false;
 		const productionRuntime = isReactProductionRuntime();

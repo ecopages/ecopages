@@ -12,7 +12,11 @@ import { LIT_PLUGIN_NAME } from './lit.constants.ts';
 import { createCustomElementSsrPipelineImporter } from '@ecopages/core/route-renderer/orchestration/custom-element-scripts/custom-element-ssr-preload-entrypoint';
 import { LitStaticRenderWorkerClient } from './lit-static-render-worker-client.ts';
 import type { LitStaticRenderResult } from './lit-static-render-protocol.ts';
-import type { AssetDefinition, ProcessedAsset } from '@ecopages/core/services/asset-processing-service';
+import type {
+	AssetDefinition,
+	AssetProcessingIntegration,
+	ProcessedAsset,
+} from '@ecopages/core/services/asset-processing-service';
 
 type LitStaticRenderWorkerClientContract = Pick<LitStaticRenderWorkerClient, 'start' | 'renderPage' | 'dispose'>;
 
@@ -23,8 +27,12 @@ type LitStaticRenderWorkerIdentity = {
 
 type LitStaticRenderSessionOptions = {
 	preloadScopes: Map<string, CustomElementScriptPreloadScopeState>;
+	integration?: AssetProcessingIntegration;
 	resolveDependencyPath: (componentDir: string, sourcePath: string) => string;
-	processDependencies: (dependencies: AssetDefinition[], integrationName: string) => Promise<ProcessedAsset[]>;
+	processDependencies: (
+		dependencies: AssetDefinition[],
+		integration?: AssetProcessingIntegration,
+	) => Promise<ProcessedAsset[]>;
 	getInvalidationVersion?: () => number;
 	createWorkerClient?: (input: {
 		configModulePath: string;
@@ -62,6 +70,7 @@ export class LitStaticRenderSession {
 			requireLazyScriptEntry: true,
 			resolveDependencyPath: options.resolveDependencyPath,
 			importServerModule: createCustomElementSsrPipelineImporter({
+				integration: options.integration,
 				processDependencies: options.processDependencies,
 			}),
 		});

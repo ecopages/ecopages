@@ -13,7 +13,10 @@ import { createBrowserRuntimePlugin } from '@ecopages/core/build/browser-runtime
 import { getHostScopedJsxOwnershipPlugins } from '@ecopages/core/build/jsx-ownership-plugins';
 import type { EcoPagesAppConfig } from '@ecopages/core';
 import type { EcoBuildPlugin } from '@ecopages/core/plugins/integration-plugin';
-import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
+import type {
+	AssetProcessingIntegration,
+	AssetProcessingService,
+} from '@ecopages/core/services/asset-processing-service';
 import type { ReactRouterAdapter } from '../contracts/router-adapter.ts';
 import { RuntimeBundleService, type ReactRuntimeImports } from './runtime-bundle.ts';
 import type { ResolvedReactPluginRuntimeModule } from './runtime-modules.ts';
@@ -25,6 +28,7 @@ import { isReactProductionRuntime } from './runtime-mode.ts';
 export interface BundleServiceConfig {
 	rootDir: string;
 	appConfig: EcoPagesAppConfig;
+	assetProcessingIntegration?: AssetProcessingIntegration;
 	hostIntegrationName: string;
 	routerAdapter?: ReactRouterAdapter;
 	runtimeModules?: ResolvedReactPluginRuntimeModule[];
@@ -96,7 +100,7 @@ export class BundleService {
 			this.pageLayoutNormalizationVendorPromise = assetProcessingService
 				.processDependencies(
 					this.runtimeBundleService.getPageLayoutNormalizationDependencies(),
-					'react:page-layout-normalization',
+					this.config.assetProcessingIntegration,
 				)
 				.then(() => undefined)
 				.catch((error) => {

@@ -3,9 +3,11 @@ import type { EcoComponent, EcoComponentConfig, ResolvedLazyTrigger } from '../.
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import type {
 	AssetDefinition,
+	AssetProcessingIntegration,
 	AssetProcessingService,
 	ProcessedAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
+import { resolveAssetProcessingIntegration } from '../../services/assets/asset-processing-service/asset-processing-integration.ts';
 import { rapidhash } from '../../utils/hash.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
 import { AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
@@ -70,10 +72,15 @@ function createEcopagesJsxLazyEntryName(integrationName: string, key: string): s
 export class DependencyResolverService {
 	private appConfig: EcoPagesAppConfig;
 	private assetProcessingService: AssetProcessingService;
+	private readonly assetProcessingIntegration?: AssetProcessingIntegration;
 	private readonly shouldCacheProcessedDependencies: () => boolean;
 	private readonly processedDependenciesCache = new Map<string, Promise<ProcessedAsset[]>>();
 	private readonly componentCacheIds = new WeakMap<object, number>();
 	private nextComponentCacheId = 0;
+
+	private getAssetProcessingIntegration(name: string): AssetProcessingIntegration | undefined {
+		return resolveAssetProcessingIntegration(name, this.assetProcessingIntegration, this.appConfig.integrations);
+	}
 
 	/**
 	 * Creates the dependency resolver used by route and component rendering.
@@ -87,10 +94,12 @@ export class DependencyResolverService {
 		appConfig: EcoPagesAppConfig,
 		assetProcessingService: AssetProcessingService,
 		shouldCacheProcessedDependencies: () => boolean = isProductionRuntime,
+		assetProcessingIntegration?: AssetProcessingIntegration,
 	) {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
 		this.shouldCacheProcessedDependencies = shouldCacheProcessedDependencies;
+		this.assetProcessingIntegration = assetProcessingIntegration;
 	}
 
 	/**
@@ -172,7 +181,10 @@ export class DependencyResolverService {
 		this.storePendingLazyClientDependencies(lazyScriptsByConfig, lazyDeps);
 
 		if (!this.shouldCacheProcessedDependencies()) {
-			return this.assetProcessingService.processDependencies(eagerDeps, integrationName);
+			return this.assetProcessingService.processDependencies(
+				eagerDeps,
+				this.getAssetProcessingIntegration(integrationName),
+			);
 		}
 
 		const cacheKey = this.getProcessedDependenciesCacheKey(
@@ -182,7 +194,10 @@ export class DependencyResolverService {
 			bundlesPageDependencies,
 		);
 		if (!cacheKey) {
-			return this.assetProcessingService.processDependencies(eagerDeps, integrationName);
+			return this.assetProcessingService.processDependencies(
+				eagerDeps,
+				this.getAssetProcessingIntegration(integrationName),
+			);
 		}
 
 		let pending = this.processedDependenciesCache.get(cacheKey);
@@ -190,7 +205,10 @@ export class DependencyResolverService {
 			this.processedDependenciesCache.delete(cacheKey);
 			this.processedDependenciesCache.set(cacheKey, pending);
 		} else {
-			pending = this.assetProcessingService.processDependencies(eagerDeps, integrationName);
+			pending = this.assetProcessingService.processDependencies(
+				eagerDeps,
+				this.getAssetProcessingIntegration(integrationName),
+			);
 			this.processedDependenciesCache.set(cacheKey, pending);
 			if (this.processedDependenciesCache.size > MAX_PROCESSED_DEPENDENCY_CACHE_ENTRIES) {
 				const oldestKey = this.processedDependenciesCache.keys().next().value;

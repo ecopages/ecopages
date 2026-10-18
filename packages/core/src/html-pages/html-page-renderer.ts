@@ -404,7 +404,10 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 	}
 
 	private async processAsset(definition: AssetDefinition) {
-		const [processed] = await this.assetProcessingService.processDependencies([definition], this.name);
+		const [processed] = await this.assetProcessingService.processDependencies(
+			[definition],
+			this.getAssetProcessingIntegration(),
+		);
 		return processed;
 	}
 }

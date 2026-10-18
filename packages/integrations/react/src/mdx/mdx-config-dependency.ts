@@ -8,6 +8,7 @@ import {
 import { attachEcoFileMetadataToConfig } from '@ecopages/core/route-renderer/page-loading/file-scoped-dependency-components';
 import {
 	AssetFactory,
+	type AssetProcessingIntegration,
 	type AssetDefinition,
 	type AssetProcessingService,
 	type ProcessedAsset,
@@ -21,6 +22,7 @@ export interface MdxConfigDependencyServiceConfig {
 	integrationName: string;
 	pageModuleService: Pick<PageModuleService, 'ensureConfigFileMetadata'>;
 	assetProcessingService: Pick<AssetProcessingService, 'processDependencies'>;
+	assetProcessingIntegration?: AssetProcessingIntegration;
 }
 
 /**
@@ -52,7 +54,7 @@ export class MdxConfigDependencyService {
 		}
 
 		const processedDependencies = await options.processComponentDependencies(components);
-		const eagerSsrLazyDependencies = await this.processDeclaredSsrLazyDependencies(components, options.pagePath);
+		const eagerSsrLazyDependencies = await this.processDeclaredSsrLazyDependencies(components);
 
 		return [...processedDependencies, ...eagerSsrLazyDependencies];
 	}
@@ -79,10 +81,7 @@ export class MdxConfigDependencyService {
 		return components;
 	}
 
-	private async processDeclaredSsrLazyDependencies(
-		components: Partial<EcoComponent>[],
-		pagePath: string,
-	): Promise<ProcessedAsset[]> {
+	private async processDeclaredSsrLazyDependencies(components: Partial<EcoComponent>[]): Promise<ProcessedAsset[]> {
 		const dependencies = this.collectDeclaredSsrLazyDependencies(components);
 		if (dependencies.length === 0) {
 			return [];
@@ -90,7 +89,7 @@ export class MdxConfigDependencyService {
 
 		return this.config.assetProcessingService.processDependencies(
 			dependencies,
-			`${this.config.integrationName}-mdx-ssr-lazy:${pagePath}`,
+			this.config.assetProcessingIntegration,
 		);
 	}
 

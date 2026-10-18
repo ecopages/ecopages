@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { fileSystem } from '@ecopages/file-system';
 import { AssetProcessingService } from './asset-processing.service';
-import type { AssetDefinition } from './assets.types';
+import type { AssetDefinition, ContentScriptAsset, ProcessedAsset } from './assets.types';
 import { PageCacheService } from '../../cache/page-cache-service.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import { BuildInputDependencyIndex } from '../../../build/cache/build-input-dependency-index.ts';
@@ -24,7 +24,7 @@ const Config = createTestConfig() as any;
 const Processor = {
 	process: async () => ({
 		filepath: '/test/dist/assets/test.js',
-		kind: 'script',
+		kind: 'script' as const,
 		inline: false,
 	}),
 };
@@ -71,8 +71,8 @@ test('AssetProcessingService - registerProcessor', async () => {
 	service.registerProcessor('script', 'file', { process });
 
 	const results = await service.processDependencies(
-		[{ kind: 'script', source: 'file', filepath: 'path/to/registered.js' }],
-		'register-key',
+		[{ kind: 'script' as const, source: 'file', filepath: 'path/to/registered.js' }],
+		undefined,
 	);
 
 	expect(results.map((asset) => asset.filepath)).toEqual(['/test/dist/assets/test.js']);
@@ -84,13 +84,13 @@ test('AssetProcessingService - processDependencies', async () => {
 	const results = await service.processDependencies(
 		[
 			{
-				kind: 'script',
+				kind: 'script' as const,
 				source: 'content',
 				content: 'console.log("test")',
 				bundle: false,
 			} as AssetDefinition,
 		],
-		'test-key',
+		undefined,
 	);
 
 	expect(results.length).toBe(1);
@@ -109,14 +109,14 @@ test('AssetProcessingService - processDependencies - success', async () => {
 	const Processor1 = {
 		process: vi.fn(async () => ({
 			filepath: '/test/dist/assets/script.js',
-			kind: 'script',
+			kind: 'script' as const,
 			inline: false,
 		})),
 	};
 	const Processor2 = {
 		process: vi.fn(async () => ({
 			filepath: '/test/dist/assets/style.css',
-			kind: 'stylesheet',
+			kind: 'stylesheet' as const,
 			inline: false,
 		})),
 	};
@@ -124,12 +124,10 @@ test('AssetProcessingService - processDependencies - success', async () => {
 	service.registerProcessor('stylesheet', 'file', Processor2);
 
 	const dependencies: AssetDefinition[] = [
-		{ kind: 'script', source: 'file', filepath: 'path/to/script.js' },
-		{ kind: 'stylesheet', source: 'file', filepath: 'path/to/style.css' },
+		{ kind: 'script' as const, source: 'file', filepath: 'path/to/script.js' },
+		{ kind: 'stylesheet' as const, source: 'file', filepath: 'path/to/style.css' },
 	];
-	const key = 'test-page';
-
-	const results = await service.processDependencies(dependencies, key);
+	const results = await service.processDependencies(dependencies, undefined);
 
 	expect(ensureDirMock).toHaveBeenCalledWith('/test/dist/assets');
 	expect(Processor1.process).toHaveBeenCalledTimes(1);
@@ -139,7 +137,7 @@ test('AssetProcessingService - processDependencies - success', async () => {
 	expect(results[0]).toEqual(
 		expect.objectContaining({
 			filepath: '/test/dist/assets/script.js',
-			kind: 'script',
+			kind: 'script' as const,
 			inline: false,
 			srcUrl: '/assets/script.js',
 		}),
@@ -147,7 +145,7 @@ test('AssetProcessingService - processDependencies - success', async () => {
 	expect(results[1]).toEqual(
 		expect.objectContaining({
 			filepath: '/test/dist/assets/style.css',
-			kind: 'stylesheet',
+			kind: 'stylesheet' as const,
 			inline: false,
 			srcUrl: '/assets/style.css',
 		}),
@@ -165,10 +163,8 @@ test('AssetProcessingService - processDependencies - processor not found', async
 
 	const service = new AssetProcessingService(Config);
 
-	const dependencies: AssetDefinition[] = [{ kind: 'script', source: 'content', content: 'alert(1)' }];
-	const key = 'test-key-missing';
-
-	const results = await service.processDependencies(dependencies, key);
+	const dependencies: AssetDefinition[] = [{ kind: 'script' as const, source: 'content', content: 'alert(1)' }];
+	const results = await service.processDependencies(dependencies, undefined);
 
 	expect(ensureDirMock).toHaveBeenCalledWith('/test/dist/assets');
 	expect(results.length).toBe(0);
@@ -191,13 +187,11 @@ test('AssetProcessingService - processDependencies - error during processing', a
 	service.registerProcessor('script', 'file', erroringProcessor);
 
 	const dependency: AssetDefinition = {
-		kind: 'script',
+		kind: 'script' as const,
 		source: 'file',
 		filepath: 'path/to/failing.js',
 	};
-	const key = 'test-key-error';
-
-	const results = await service.processDependencies([dependency], key);
+	const results = await service.processDependencies([dependency], undefined);
 
 	expect(ensureDirMock).toHaveBeenCalledWith('/test/dist/assets');
 	expect(erroringProcessor.process).toHaveBeenCalledTimes(1);
@@ -214,7 +208,7 @@ test('AssetProcessingService - processDependencies - handles undefined filepath 
 	const service = new AssetProcessingService(Config);
 	const ProcessorInline = {
 		process: vi.fn(async () => ({
-			kind: 'script',
+			kind: 'script' as const,
 			inline: true,
 			content: 'console.log("inline");',
 		})),
@@ -222,11 +216,9 @@ test('AssetProcessingService - processDependencies - handles undefined filepath 
 	service.registerProcessor('script', 'content', ProcessorInline);
 
 	const dependencies: AssetDefinition[] = [
-		{ kind: 'script', source: 'content', content: 'console.log("inline");', inline: true },
+		{ kind: 'script' as const, source: 'content', content: 'console.log("inline");', inline: true },
 	];
-	const key = 'test-inline';
-
-	const results = await service.processDependencies(dependencies, key);
+	const results = await service.processDependencies(dependencies, undefined);
 
 	expect(ensureDirMock).toHaveBeenCalledWith('/test/dist/assets');
 	expect(ProcessorInline.process).toHaveBeenCalledTimes(1);
@@ -234,7 +226,7 @@ test('AssetProcessingService - processDependencies - handles undefined filepath 
 
 	expect(results[0]).toEqual(
 		expect.objectContaining({
-			kind: 'script',
+			kind: 'script' as const,
 			inline: true,
 			content: 'console.log("inline");',
 		}),
@@ -252,15 +244,15 @@ test('AssetProcessingService - processDependencies - normalizes absolute srcUrl 
 	const processor = {
 		process: vi.fn(async () => ({
 			srcUrl: '/test/dist/assets/scripts/module--tanstack-react-table.js',
-			kind: 'script',
+			kind: 'script' as const,
 			inline: false,
 		})),
 	};
 	service.registerProcessor('script', 'file', processor);
 
-	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: 'path/to/module.js' };
+	const dependency: AssetDefinition = { kind: 'script' as const, source: 'file', filepath: 'path/to/module.js' };
 
-	const results = await service.processDependencies([dependency], 'normalize-src-url-key');
+	const results = await service.processDependencies([dependency], undefined);
 
 	expect(processor.process).toHaveBeenCalledTimes(1);
 	expect(results.length).toBe(1);
@@ -274,12 +266,12 @@ test('AssetProcessingService - processDependencies - does not map a path beside 
 
 	const service = new AssetProcessingService(Config);
 	service.registerProcessor('script', 'file', {
-		process: vi.fn(async () => ({ srcUrl: '/test/dist-old/x.js', kind: 'script', inline: false })),
+		process: vi.fn(async () => ({ srcUrl: '/test/dist-old/x.js', kind: 'script' as const, inline: false })),
 	});
 
 	const results = await service.processDependencies(
-		[{ kind: 'script', source: 'file', filepath: 'path/to/x.js' }],
-		'sibling-of-dist-key',
+		[{ kind: 'script' as const, source: 'file', filepath: 'path/to/x.js' }],
+		undefined,
 	);
 
 	expect(results[0].srcUrl).not.toBe('/-old/x.js');
@@ -293,15 +285,15 @@ test('AssetProcessingService - caching returns cached asset without reprocessing
 	const service = new AssetProcessingService(Config);
 	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/cached.js',
-		kind: 'script',
+		kind: 'script' as const,
 		inline: false,
 	}));
 	service.registerProcessor('script', 'file', { process: processMock });
 
-	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: 'path/to/cached.js' };
+	const dependency: AssetDefinition = { kind: 'script' as const, source: 'file', filepath: 'path/to/cached.js' };
 
-	const results1 = await service.processDependencies([dependency], 'key1');
-	const results2 = await service.processDependencies([dependency], 'key2');
+	const results1 = await service.processDependencies([dependency], undefined);
+	const results2 = await service.processDependencies([dependency], undefined);
 
 	expect(processMock).toHaveBeenCalledTimes(1);
 	expect(results1.length).toBe(1);
@@ -310,30 +302,69 @@ test('AssetProcessingService - caching returns cached asset without reprocessing
 	expect(results2[0].srcUrl).toBe('/assets/cached.js');
 });
 
+test('AssetProcessingService - owns the cache for node module assets', async () => {
+	fileSystem.exists = vi.fn(() => true);
+	const readFileAsBuffer = vi.spyOn(fileSystem, 'readFileAsBuffer').mockReturnValue(Buffer.from('module code'));
+	const service = AssetProcessingService.createWithDefaultProcessors(Config);
+	const dependency: AssetDefinition = {
+		kind: 'script',
+		source: 'node-module',
+		importPath: '/test/project/node_modules/cached-package/index.js',
+		inline: true,
+	};
+
+	const first = await service.processDependencies([dependency], undefined);
+	const second = await service.processDependencies([dependency], undefined);
+
+	expect(readFileAsBuffer).toHaveBeenCalledTimes(1);
+	expect(first).toEqual(second);
+});
+
+test('AssetProcessingService - invalidates a cached node module when its source changes', async () => {
+	fileSystem.exists = vi.fn(() => true);
+	let moduleContent = 'module version one';
+	const readFileAsBuffer = vi
+		.spyOn(fileSystem, 'readFileAsBuffer')
+		.mockImplementation(() => Buffer.from(moduleContent));
+	const appConfig = createTestConfig();
+	const service = AssetProcessingService.createWithDefaultProcessors(appConfig);
+	const modulePath = '/test/project/node_modules/changed-package/index.js';
+	const dependency: AssetDefinition = {
+		kind: 'script',
+		source: 'node-module',
+		importPath: modulePath,
+		inline: true,
+	};
+
+	const [first] = await service.processDependencies([dependency], undefined);
+	moduleContent = 'module version two';
+	requireAppRuntime(appConfig).buildInputIndex.recordChanges([modulePath]);
+	const [second] = await service.processDependencies([dependency], undefined);
+
+	expect(readFileAsBuffer).toHaveBeenCalledTimes(2);
+	expect(first?.content).toBe('module version one');
+	expect(second?.content).toBe('module version two');
+});
+
 test('AssetProcessingService - rebuilds a cached bundle when one of its bundled inputs changes', async () => {
 	fileSystem.exists = vi.fn(() => true);
 	fileSystem.hash = vi.fn(() => 'entry-v1');
 	const appConfig = createTestConfig();
 	const service = new AssetProcessingService(appConfig);
-	const invalidateProcessorCache = vi.fn();
 	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/entry.js',
 		kind: 'script' as const,
 		inline: false,
 		bundledSourceFilepaths: ['/test/src/helper.ts'],
 	}));
-	service.registerProcessor('script', 'file', {
-		process: processMock,
-		invalidateCacheForFile: invalidateProcessorCache,
-	});
-	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/entry.ts' };
+	service.registerProcessor('script', 'file', { process: processMock });
+	const dependency: AssetDefinition = { kind: 'script' as const, source: 'file', filepath: '/test/src/entry.ts' };
 
-	await service.processDependencies([dependency], 'bundle-cache-1');
+	await service.processDependencies([dependency], undefined);
 	requireAppRuntime(appConfig).buildInputIndex.recordChanges(['/test/src/helper.ts']);
-	await service.processDependencies([dependency], 'bundle-cache-2');
+	await service.processDependencies([dependency], undefined);
 
 	expect(processMock).toHaveBeenCalledTimes(2);
-	expect(invalidateProcessorCache).toHaveBeenCalledWith('/test/src/helper.ts');
 });
 
 test('AssetProcessingService - keeps a cached bundle without re-reading its inputs when an unrelated file changes', async () => {
@@ -348,11 +379,11 @@ test('AssetProcessingService - keeps a cached bundle without re-reading its inpu
 		bundledSourceFilepaths: ['/test/src/helper.ts'],
 	}));
 	service.registerProcessor('script', 'file', { process: processMock });
-	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/entry.ts' };
+	const dependency: AssetDefinition = { kind: 'script' as const, source: 'file', filepath: '/test/src/entry.ts' };
 
-	await service.processDependencies([dependency], 'bundle-cache-1');
+	await service.processDependencies([dependency], undefined);
 	requireAppRuntime(appConfig).buildInputIndex.recordChanges(['/test/src/other.ts']);
-	await service.processDependencies([dependency], 'bundle-cache-2');
+	await service.processDependencies([dependency], undefined);
 
 	expect(processMock).toHaveBeenCalledTimes(1);
 	expect(fileSystem.hash).not.toHaveBeenCalledWith('/test/src/helper.ts');
@@ -374,15 +405,15 @@ test('AssetProcessingService - reuses file stylesheets until their source change
 	service.registerProcessor('stylesheet', 'file', { process: processMock });
 
 	const dependency: AssetDefinition = {
-		kind: 'stylesheet',
+		kind: 'stylesheet' as const,
 		source: 'file',
 		filepath: 'path/to/docs.css',
 	};
 
-	await service.processDependencies([dependency], 'styles-1');
-	await service.processDependencies([dependency], 'styles-2');
+	await service.processDependencies([dependency], undefined);
+	await service.processDependencies([dependency], undefined);
 	sourceHash = 'style-v2';
-	await service.processDependencies([dependency], 'styles-3');
+	await service.processDependencies([dependency], undefined);
 
 	expect(processMock).toHaveBeenCalledTimes(2);
 });
@@ -402,16 +433,16 @@ test('AssetProcessingService - stale cached emitted files are rebuilt when outpu
 	const service = new AssetProcessingService(Config);
 	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/stale.js',
-		kind: 'script',
+		kind: 'script' as const,
 		inline: false,
 	}));
 	service.registerProcessor('script', 'file', { process: processMock });
 
-	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: 'path/to/stale.js' };
+	const dependency: AssetDefinition = { kind: 'script' as const, source: 'file', filepath: 'path/to/stale.js' };
 
-	await service.processDependencies([dependency], 'key1');
+	await service.processDependencies([dependency], undefined);
 	emittedFileExists = false;
-	await service.processDependencies([dependency], 'key2');
+	await service.processDependencies([dependency], undefined);
 
 	expect(processMock).toHaveBeenCalledTimes(2);
 });
@@ -424,15 +455,15 @@ test('AssetProcessingService - deduplication processes duplicate deps only once'
 	const service = new AssetProcessingService(Config);
 	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/dedup.js',
-		kind: 'script',
+		kind: 'script' as const,
 		inline: false,
 	}));
 	service.registerProcessor('script', 'file', { process: processMock });
 
-	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: 'path/to/dedup.js' };
+	const dependency: AssetDefinition = { kind: 'script' as const, source: 'file', filepath: 'path/to/dedup.js' };
 	const duplicateDeps = [dependency, dependency, dependency];
 
-	const results = await service.processDependencies(duplicateDeps, 'dedup-key');
+	const results = await service.processDependencies(duplicateDeps, undefined);
 
 	expect(processMock).toHaveBeenCalledTimes(1);
 	expect(results.length).toBe(1);
@@ -453,17 +484,17 @@ test('AssetProcessingService - deduplication preserves package role distinctions
 	service.registerProcessor('script', 'file', { process: processMock });
 
 	const pageDependency: AssetDefinition = {
-		kind: 'script',
+		kind: 'script' as const,
 		source: 'file',
 		filepath: 'path/to/dedup-role.js',
-		packageRole: 'page-script',
+		packageRole: 'page-script' as const,
 	};
 	const runtimeDependency: AssetDefinition = {
 		...pageDependency,
-		packageRole: 'runtime',
+		packageRole: 'runtime' as const,
 	};
 
-	const results = await service.processDependencies([pageDependency, runtimeDependency], 'dedup-role-key');
+	const results = await service.processDependencies([pageDependency, runtimeDependency], undefined);
 
 	expect(processMock).toHaveBeenCalledTimes(2);
 	expect(results).toHaveLength(2);
@@ -488,10 +519,8 @@ test('AssetProcessingService - integration prepareAssetDependencies runs before 
 		return dependencies;
 	});
 
-	const service = new AssetProcessingService({
-		...Config,
-		integrations: [{ name: 'ecopages-jsx', prepareAssetDependencies }],
-	});
+	const integration = { name: 'ecopages-jsx', prepareAssetDependencies };
+	const service = new AssetProcessingService({ ...Config, integrations: [integration] });
 	const processGroupedMock = vi.fn(
 		async (
 			deps: {
@@ -502,7 +531,7 @@ test('AssetProcessingService - integration prepareAssetDependencies runs before 
 		) =>
 			deps.map((dep) => ({
 				filepath: `/test/dist/assets/${dep.name ?? 'grouped'}.js`,
-				kind: 'script',
+				kind: 'script' as const,
 				inline: false,
 				groupedBundle: dep.groupedBundle,
 				...(dep.excludeFromHtml ? { excludeFromHtml: true } : {}),
@@ -510,7 +539,7 @@ test('AssetProcessingService - integration prepareAssetDependencies runs before 
 	);
 	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/standalone.js',
-		kind: 'script',
+		kind: 'script' as const,
 		inline: false,
 	}));
 
@@ -523,13 +552,13 @@ test('AssetProcessingService - integration prepareAssetDependencies runs before 
 	const results = await service.processDependencies(
 		[
 			{
-				kind: 'script',
+				kind: 'script' as const,
 				source: 'content',
 				content: 'import "ecopages:images";',
 				name: 'module-images',
 			},
 			{
-				kind: 'script',
+				kind: 'script' as const,
 				source: 'content',
 				content: 'import "/lazy.ts";',
 				name: 'lazy-entry',
@@ -537,13 +566,13 @@ test('AssetProcessingService - integration prepareAssetDependencies runs before 
 				bundleOptions: { splitting: false },
 			},
 			{
-				kind: 'script',
+				kind: 'script' as const,
 				source: 'file',
 				filepath: '/theme-toggle.script.ts',
-				packageRole: 'dynamic-chunk',
+				packageRole: 'dynamic-chunk' as const,
 			},
 		],
-		'ecopages-jsx',
+		integration,
 	);
 
 	expect(prepareAssetDependencies).toHaveBeenCalledTimes(1);
@@ -564,12 +593,12 @@ test('AssetProcessingService - grouped content scripts use processGrouped once p
 			deps: {
 				groupedBundle?: { id: string; entryName: string };
 				excludeFromHtml?: boolean;
-				packageRole?: string;
+				packageRole?: ProcessedAsset['packageRole'];
 			}[],
 		) =>
 			deps.map((dep) => ({
 				filepath: `/test/dist/assets/${dep.groupedBundle?.entryName ?? 'entry'}.js`,
-				kind: 'script',
+				kind: 'script' as const,
 				inline: false,
 				groupedBundle: dep.groupedBundle,
 				...(dep.packageRole ? { packageRole: dep.packageRole } : {}),
@@ -578,7 +607,7 @@ test('AssetProcessingService - grouped content scripts use processGrouped once p
 	);
 	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/standalone.js',
-		kind: 'script',
+		kind: 'script' as const,
 		inline: false,
 	}));
 
@@ -590,26 +619,111 @@ test('AssetProcessingService - grouped content scripts use processGrouped once p
 	const results = await service.processDependencies(
 		[
 			{
-				kind: 'script',
+				kind: 'script' as const,
 				source: 'content',
 				content: 'import "/page.js";',
 				groupedBundle: { id: 'bundle-1', entryName: 'page-entry' },
-				packageRole: 'page-script',
+				packageRole: 'page-script' as const,
 			},
 			{
-				kind: 'script',
+				kind: 'script' as const,
 				source: 'content',
 				content: 'import "/lazy.js";',
 				groupedBundle: { id: 'bundle-1', entryName: 'lazy-entry' },
 				excludeFromHtml: true,
 			},
 		],
-		'grouped-content-key',
+		undefined,
 	);
 
 	expect(processGroupedMock).toHaveBeenCalledTimes(1);
 	expect(processMock).not.toHaveBeenCalled();
 	expect(results.map((result) => result.srcUrl)).toEqual(['/assets/page-entry.js', '/assets/lazy-entry.js']);
+});
+
+test('AssetProcessingService - matches grouped processor outputs by entry name', async () => {
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => true);
+
+	const service = new AssetProcessingService(Config);
+	const processGroupedMock = vi.fn(async (dependencies: ContentScriptAsset[]): Promise<ProcessedAsset[]> =>
+		dependencies
+			.slice()
+			.reverse()
+			.map((dependency) => ({
+				filepath: `/test/dist/assets/${dependency.groupedBundle?.entryName}.js`,
+				kind: 'script',
+				inline: false,
+				groupedBundle: dependency.groupedBundle,
+			})),
+	);
+	service.registerProcessor('script', 'content', {
+		process: vi.fn(async (): Promise<ProcessedAsset> => ({ kind: 'script', inline: false })),
+		processGrouped: processGroupedMock,
+	});
+
+	const results = await service.processDependencies(
+		[
+			{
+				kind: 'script',
+				source: 'content',
+				content: 'import "/page.js";',
+				groupedBundle: { id: 'bundle-1', entryName: 'page-entry' },
+			},
+			{
+				kind: 'script',
+				source: 'content',
+				content: 'import "/lazy.js";',
+				groupedBundle: { id: 'bundle-1', entryName: 'lazy-entry' },
+			},
+		],
+		undefined,
+	);
+
+	expect(results.map((asset) => asset.filepath)).toEqual([
+		'/test/dist/assets/page-entry.js',
+		'/test/dist/assets/lazy-entry.js',
+	]);
+});
+
+test('AssetProcessingService - does not cache an incomplete grouped processor result', async () => {
+	fileSystem.ensureDir = vi.fn(() => {});
+	fileSystem.gzipDir = vi.fn(() => {});
+	fileSystem.exists = vi.fn(() => true);
+
+	const service = new AssetProcessingService(Config);
+	const processGroupedMock = vi.fn(async (): Promise<ProcessedAsset[]> => [
+		{
+			filepath: '/test/dist/assets/page-entry.js',
+			kind: 'script',
+			inline: false,
+			groupedBundle: { id: 'bundle-1', entryName: 'page-entry' },
+		},
+	]);
+	service.registerProcessor('script', 'content', {
+		process: vi.fn(async (): Promise<ProcessedAsset> => ({ kind: 'script', inline: false })),
+		processGrouped: processGroupedMock,
+	});
+	const dependencies: ContentScriptAsset[] = [
+		{
+			kind: 'script',
+			source: 'content',
+			content: 'import "/page.js";',
+			groupedBundle: { id: 'bundle-1', entryName: 'page-entry' },
+		},
+		{
+			kind: 'script',
+			source: 'content',
+			content: 'import "/lazy.js";',
+			groupedBundle: { id: 'bundle-1', entryName: 'lazy-entry' },
+		},
+	];
+
+	await service.processDependencies(dependencies, undefined);
+	await service.processDependencies(dependencies, undefined);
+
+	expect(processGroupedMock).toHaveBeenCalledTimes(2);
 });
 
 test('AssetProcessingService - reuses service cache for content scripts across processDependencies calls', async () => {
@@ -620,23 +734,23 @@ test('AssetProcessingService - reuses service cache for content scripts across p
 	const service = new AssetProcessingService(Config);
 	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/scripts/cached-content.js',
-		kind: 'script',
+		kind: 'script' as const,
 		inline: false,
-		packageRole: 'page-script',
+		packageRole: 'page-script' as const,
 		attributes: { type: 'module' },
 		bundledSourceFilepaths: ['/test/src/helper.ts'],
 	}));
 	service.registerProcessor('script', 'content', { process: processMock });
 
 	const dependency: AssetDefinition = {
-		kind: 'script',
+		kind: 'script' as const,
 		source: 'content',
 		content: 'console.log("cached")',
 		bundle: false,
 	};
 
-	await service.processDependencies([dependency], 'content-cache-key-1');
-	const [secondResult] = await service.processDependencies([dependency], 'content-cache-key-2');
+	await service.processDependencies([dependency], undefined);
+	const [secondResult] = await service.processDependencies([dependency], undefined);
 
 	expect(processMock).toHaveBeenCalledTimes(1);
 	expect(secondResult?.bundledSourceFilepaths).toEqual(['/test/src/helper.ts']);
@@ -651,7 +765,7 @@ test('AssetProcessingService - materializes inline bundled cache hits from bundl
 	const service = new AssetProcessingService(Config);
 	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/scripts/bootstrap.js',
-		kind: 'script',
+		kind: 'script' as const,
 		inline: true,
 		content: 'console.log("bundled")',
 		attributes: { type: 'module' },
@@ -659,7 +773,7 @@ test('AssetProcessingService - materializes inline bundled cache hits from bundl
 	service.registerProcessor('script', 'content', { process: processMock });
 
 	const dependency: AssetDefinition = {
-		kind: 'script',
+		kind: 'script' as const,
 		source: 'content',
 		content: 'import "/absolute/broken.js";',
 		inline: true,
@@ -667,10 +781,10 @@ test('AssetProcessingService - materializes inline bundled cache hits from bundl
 		attributes: { type: 'module' },
 	};
 
-	const [firstResult] = await service.processDependencies([dependency], 'inline-bundled-cache-key-1');
+	const [firstResult] = await service.processDependencies([dependency], undefined);
 	expect(firstResult?.content).toBe('console.log("bundled")');
 
-	const [secondResult] = await service.processDependencies([dependency], 'inline-bundled-cache-key-2');
+	const [secondResult] = await service.processDependencies([dependency], undefined);
 	expect(secondResult?.content).toBe('console.log("bundled")');
 	expect(secondResult?.content).not.toContain('absolute/broken');
 	expect(processMock).toHaveBeenCalledTimes(1);
@@ -685,30 +799,26 @@ test('AssetProcessingService - a change to a produced file evicts its cached ass
 	const service = new AssetProcessingService(appConfig);
 	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/invalidate.js',
-		kind: 'script',
+		kind: 'script' as const,
 		inline: false,
 	}));
 	service.registerProcessor('script', 'file', { process: processMock });
 
-	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: 'path/to/invalidate.js' };
+	const dependency: AssetDefinition = { kind: 'script' as const, source: 'file', filepath: 'path/to/invalidate.js' };
 
-	await service.processDependencies([dependency], 'key1');
+	await service.processDependencies([dependency], undefined);
 	expect(processMock).toHaveBeenCalledTimes(1);
 
 	requireAppRuntime(appConfig).buildInputIndex.recordChanges(['/test/dist/assets/invalidate.js']);
 
-	await service.processDependencies([dependency], 'key2');
+	await service.processDependencies([dependency], undefined);
 	expect(processMock).toHaveBeenCalledTimes(2);
 });
 
 test('AssetProcessingService clears the page cache when the source of a runtime asset changes', async () => {
 	vi.stubEnv('NODE_ENV', 'development');
 	fileSystem.exists = vi.fn(() => true);
-	fileSystem.hash = vi
-		.fn()
-		.mockReturnValueOnce('source-v1')
-		.mockReturnValueOnce('source-v1')
-		.mockReturnValue('source-v2');
+	fileSystem.hash = vi.fn().mockReturnValueOnce('source-v1').mockReturnValue('source-v2');
 
 	const config = createTestConfig();
 	const pageCache = new PageCacheService();
@@ -719,29 +829,29 @@ test('AssetProcessingService clears the page cache when the source of a runtime 
 		.fn()
 		.mockResolvedValueOnce({
 			filepath: '/test/dist/assets/vendors/runtime-v1.js',
-			kind: 'script',
+			kind: 'script' as const,
 			inline: false,
-			packageRole: 'runtime',
+			packageRole: 'runtime' as const,
 		})
 		.mockResolvedValueOnce({
 			filepath: '/test/dist/assets/vendors/runtime-v2.js',
-			kind: 'script',
+			kind: 'script' as const,
 			inline: false,
-			packageRole: 'runtime',
+			packageRole: 'runtime' as const,
 		});
 	service.registerProcessor('script', 'file', { process: processMock });
 
 	const dependency: AssetDefinition = {
-		kind: 'script',
+		kind: 'script' as const,
 		source: 'file',
 		filepath: '/test/src/runtime.ts',
-		packageRole: 'runtime',
+		packageRole: 'runtime' as const,
 	};
 
-	await service.processDependencies([dependency], 'runtime-generation');
+	await service.processDependencies([dependency], undefined);
 	expect(clearPageCache).not.toHaveBeenCalled();
 
-	await service.processDependencies([dependency], 'runtime-generation');
+	await service.processDependencies([dependency], undefined);
 	expect(clearPageCache).toHaveBeenCalledTimes(1);
 	expect(processMock).toHaveBeenCalledTimes(2);
 });
@@ -768,25 +878,25 @@ test('AssetProcessingService clears the page cache when a page script keeps its 
 	service.registerProcessor('script', 'file', { process: vi.fn(), processGrouped: processGroupedMock });
 
 	const page: AssetDefinition = {
-		kind: 'script',
+		kind: 'script' as const,
 		source: 'file',
 		filepath: '/test/src/page.ts',
-		packageRole: 'page-script',
+		packageRole: 'page-script' as const,
 		groupedBundle: { id: 'bundle-1', entryName: 'page-entry' },
 	};
 	const sibling: AssetDefinition = {
-		kind: 'script',
+		kind: 'script' as const,
 		source: 'file',
 		filepath: '/test/src/sibling.ts',
-		packageRole: 'page-script',
+		packageRole: 'page-script' as const,
 		groupedBundle: { id: 'bundle-1', entryName: 'sibling-entry' },
 	};
 
-	await service.processDependencies([page], 'page-script-path');
+	await service.processDependencies([page], undefined);
 	expect(clearPageCache).not.toHaveBeenCalled();
 
 	bundleVersion = 'v2';
-	await service.processDependencies([page, sibling], 'page-script-path');
+	await service.processDependencies([page, sibling], undefined);
 
 	expect(processGroupedMock).toHaveBeenCalledTimes(2);
 	expect(clearPageCache).toHaveBeenCalledTimes(1);
@@ -800,14 +910,14 @@ test('AssetProcessingService - skips missing file dependencies', async () => {
 	const service = new AssetProcessingService(Config);
 	const processMock = vi.fn(async () => ({
 		filepath: '/test/dist/assets/missing.js',
-		kind: 'script',
+		kind: 'script' as const,
 		inline: false,
 	}));
 	service.registerProcessor('script', 'file', { process: processMock });
 
-	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: 'path/to/missing.js' };
+	const dependency: AssetDefinition = { kind: 'script' as const, source: 'file', filepath: 'path/to/missing.js' };
 
-	const results = await service.processDependencies([dependency], 'missing-key');
+	const results = await service.processDependencies([dependency], undefined);
 
 	expect(processMock).not.toHaveBeenCalled();
 	expect(results.length).toBe(0);
@@ -822,7 +932,7 @@ test('AssetProcessingService - restores grouped content-script metadata from in-
 	const processGroupedMock = vi.fn(async () => [
 		{
 			filepath: '/test/dist/assets/scripts/ecopages-react.js',
-			kind: 'script',
+			kind: 'script' as const,
 			inline: false,
 			groupedBundle: { id: 'ecopages-react-router-pages', entryName: 'pages__index' },
 		},
@@ -833,18 +943,18 @@ test('AssetProcessingService - restores grouped content-script metadata from in-
 	});
 
 	const dependency: AssetDefinition = {
-		kind: 'script',
+		kind: 'script' as const,
 		source: 'content',
 		content: 'console.log("hydrate")',
 		name: 'ecopages-react-123',
 		bundle: false,
-		packageRole: 'page-script',
+		packageRole: 'page-script' as const,
 		groupedBundle: { id: 'ecopages-react-router-pages', entryName: 'pages__index' },
 		attributes: { type: 'module', 'data-eco-page-bootstrap': 'react-router' },
 	};
 
-	await service.processDependencies([dependency], 'react:grouped-page-browser-graph');
-	const results = await service.processDependencies([dependency], 'react:grouped-page-browser-graph');
+	await service.processDependencies([dependency], undefined);
+	const results = await service.processDependencies([dependency], undefined);
 
 	expect(processGroupedMock).toHaveBeenCalledTimes(1);
 	expect(results[0]?.groupedBundle).toEqual({
@@ -869,10 +979,10 @@ test('AssetProcessingService - shares one processor run between concurrent reque
 		return { filepath: '/test/dist/assets/shared.js', kind: 'script' as const, inline: false };
 	});
 	service.registerProcessor('script', 'file', { process: processMock });
-	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/shared.ts' };
+	const dependency: AssetDefinition = { kind: 'script' as const, source: 'file', filepath: '/test/src/shared.ts' };
 
-	const first = service.processDependencies([dependency], 'shared-1');
-	const second = service.processDependencies([dependency], 'shared-2');
+	const first = service.processDependencies([dependency], undefined);
+	const second = service.processDependencies([dependency], undefined);
 	await vi.waitFor(() => expect(processMock).toHaveBeenCalled());
 	finishProcessing();
 	const [firstAssets, secondAssets] = await Promise.all([first, second]);
@@ -902,12 +1012,12 @@ test('AssetProcessingService - starts a new processor run for a request made aft
 			inline: false,
 		}));
 	service.registerProcessor('script', 'file', { process: processMock });
-	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/fresh.ts' };
+	const dependency: AssetDefinition = { kind: 'script' as const, source: 'file', filepath: '/test/src/fresh.ts' };
 
-	const stale = service.processDependencies([dependency], 'fresh-1');
+	const stale = service.processDependencies([dependency], undefined);
 	await vi.waitFor(() => expect(processMock).toHaveBeenCalledTimes(1));
 	requireAppRuntime(appConfig).buildInputIndex.recordChanges(['/test/src/fresh.ts']);
-	const fresh = service.processDependencies([dependency], 'fresh-2');
+	const fresh = service.processDependencies([dependency], undefined);
 	finishFirst();
 	await Promise.all([stale, fresh]);
 
@@ -927,15 +1037,15 @@ test('AssetProcessingService - gzips a production asset once, not on every reque
 			sourceFilepath: '/test/src/gzip-once.ts',
 		})),
 	});
-	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/gzip-once.ts' };
+	const dependency: AssetDefinition = { kind: 'script' as const, source: 'file', filepath: '/test/src/gzip-once.ts' };
 
-	await service.processDependencies([dependency], 'gzip-1');
-	await service.processDependencies([dependency], 'gzip-2');
-	await service.processDependencies([dependency], 'gzip-3');
+	await service.processDependencies([dependency], undefined);
+	await service.processDependencies([dependency], undefined);
+	await service.processDependencies([dependency], undefined);
 	expect(fileSystem.gzipFile).toHaveBeenCalledTimes(1);
 
 	requireAppRuntime(appConfig).buildInputIndex.recordChanges(['/test/src/gzip-once.ts']);
-	await service.processDependencies([dependency], 'gzip-4');
+	await service.processDependencies([dependency], undefined);
 	expect(fileSystem.gzipFile).toHaveBeenCalledTimes(2);
 });
 
@@ -951,12 +1061,12 @@ test('AssetProcessingService - reuses a cached asset in production without re-re
 		inline: false,
 	}));
 	service.registerProcessor('script', 'file', { process: processMock });
-	const dependency: AssetDefinition = { kind: 'script', source: 'file', filepath: '/test/src/reuse.ts' };
+	const dependency: AssetDefinition = { kind: 'script' as const, source: 'file', filepath: '/test/src/reuse.ts' };
 
-	await service.processDependencies([dependency], 'reuse-1');
+	await service.processDependencies([dependency], undefined);
 	const hashesAfterFirstRun = hash.mock.calls.length;
 	hash.mockReturnValue('v2');
-	await service.processDependencies([dependency], 'reuse-2');
+	await service.processDependencies([dependency], undefined);
 
 	expect(processMock).toHaveBeenCalledTimes(1);
 	expect(hash.mock.calls.length).toBe(hashesAfterFirstRun);

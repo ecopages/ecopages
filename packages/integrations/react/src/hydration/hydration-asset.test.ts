@@ -441,8 +441,10 @@ describe('HydrationAssetService', () => {
 		const registerScriptEntrypoint = vi.fn();
 		const registerEntrypoint = vi.fn(async () => '/assets/__eco_dev__/components/counter.js');
 		const processDependencies = vi.fn(async () => []);
+		const assetProcessingIntegration = { name: 'react' };
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
+			assetProcessingIntegration,
 			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
 				getHmrManager: () => ({
 					isEnabled: () => true,
@@ -480,15 +482,19 @@ describe('HydrationAssetService', () => {
 					content: expect.stringContaining('registerIslandHmr'),
 				}),
 			],
-			expect.any(String),
+			assetProcessingIntegration,
 		);
 	});
 
 	it('builds two islands in one grouped client build and hydrates from recorded output URLs', async () => {
 		const islandA = '/app/src/components/counter.tsx';
 		const islandB = '/app/src/components/cart.tsx';
+		const assetProcessingIntegration = { name: 'react' };
 		const processDependencies = vi.fn(
-			async (deps: Array<{ groupedBundle?: { entryName: string }; name?: string }>) =>
+			async (
+				deps: Array<{ groupedBundle?: { entryName: string }; name?: string }>,
+				_integration?: { name: string },
+			) =>
 				deps.map((dep) => ({
 					kind: 'script' as const,
 					srcUrl: dep.groupedBundle ? `/assets/${dep.groupedBundle.entryName}.js` : `/${dep.name}.js`,
@@ -500,6 +506,7 @@ describe('HydrationAssetService', () => {
 		const createBundleOptions = vi.fn(async () => ({}));
 		const service = new HydrationAssetService({
 			srcDir: '/app/src',
+			assetProcessingIntegration,
 			assetProcessingService: {
 				getHmrManager: () => undefined,
 				processDependencies,
@@ -530,11 +537,11 @@ describe('HydrationAssetService', () => {
 		});
 
 		expect(processDependencies).toHaveBeenCalledTimes(2);
-		const [clientEntries, clientKey] = processDependencies.mock.calls[0] as unknown as [
+		const [clientEntries, processingIntegration] = processDependencies.mock.calls[0] as unknown as [
 			Array<{ groupedBundle?: { id: string; entryName: string }; content?: string }>,
-			string,
+			{ name: string } | undefined,
 		];
-		expect(clientKey).toBe(APP_BROWSER_CLIENT_BUNDLE_ID);
+		expect(processingIntegration).toBe(assetProcessingIntegration);
 		expect(clientEntries).toHaveLength(2);
 		expect(clientEntries.map((entry) => entry.groupedBundle?.id)).toEqual([
 			APP_BROWSER_CLIENT_BUNDLE_ID,

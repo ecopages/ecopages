@@ -14,38 +14,33 @@ export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> 
 		const buffer = this.getStyleContent(dep.filepath);
 		const rawContent = buffer.toString();
 		const processedContent = await applyStylesheetProcessors(this.appConfig, rawContent, dep.filepath);
-		const hash = this.generateHash(processedContent);
-		const cachekey = this.buildCacheKey(dep.filepath, hash, dep);
+		let filepath: string | undefined;
 
-		return this.getOrProcess(cachekey, () => {
-			let filepath: string | undefined;
+		if (!dep.inline) {
+			filepath = this.isProduction
+				? writeHashedBrowserAsset({
+						bytes: processedContent,
+						directory: this.getAssetsDir(),
+						extension: '.css',
+					})
+				: path.join(this.getAssetsDir(), path.relative(this.appConfig.absolutePaths.srcDir, dep.filepath));
 
-			if (!dep.inline) {
-				filepath = this.isProduction
-					? writeHashedBrowserAsset({
-							bytes: processedContent,
-							directory: this.getAssetsDir(),
-							extension: '.css',
-						})
-					: path.join(this.getAssetsDir(), path.relative(this.appConfig.absolutePaths.srcDir, dep.filepath));
-
-				if (!this.isProduction) {
-					fileSystem.ensureDir(path.dirname(filepath));
-					fileSystem.write(filepath, processedContent);
-				}
+			if (!this.isProduction) {
+				fileSystem.ensureDir(path.dirname(filepath));
+				fileSystem.write(filepath, processedContent);
 			}
+		}
 
-			return {
-				filepath,
-				sourceFilepath: dep.filepath,
-				content: dep.inline ? processedContent : undefined,
-				kind: 'stylesheet',
-				position: dep.position,
-				attributes: dep.attributes,
-				inline: dep.inline,
-				packageRole: dep.packageRole,
-				bundledSourceFilepaths: dep.bundledSourceFilepaths,
-			};
-		});
+		return {
+			filepath,
+			sourceFilepath: dep.filepath,
+			content: dep.inline ? processedContent : undefined,
+			kind: 'stylesheet',
+			position: dep.position,
+			attributes: dep.attributes,
+			inline: dep.inline,
+			packageRole: dep.packageRole,
+			bundledSourceFilepaths: dep.bundledSourceFilepaths,
+		};
 	}
 }

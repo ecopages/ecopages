@@ -56,10 +56,10 @@ test('AssetProcessingService caches grouped outputs as a complete dependency set
 	const islandTwo = entry('island-two');
 	const islandThree = entry('island-three');
 
-	await service.processDependencies([islandOne, islandTwo], 'page-a');
-	await service.processDependencies([islandOne, islandThree], 'page-b');
-	const pageAResults = await service.processDependencies([islandOne, islandTwo], 'page-a-again');
-	const cachedPageAResults = await service.processDependencies([islandOne, islandTwo], 'page-a-cache-hit');
+	await service.processDependencies([islandOne, islandTwo], undefined);
+	await service.processDependencies([islandOne, islandThree], undefined);
+	const pageAResults = await service.processDependencies([islandOne, islandTwo], undefined);
+	const cachedPageAResults = await service.processDependencies([islandOne, islandTwo], undefined);
 
 	expect(processGroupedMock).toHaveBeenCalledTimes(3);
 	expect(pageAResults.map((asset) => asset.filepath)).toEqual([
@@ -100,9 +100,9 @@ test('AssetProcessingService invalidates a grouped cache when a bundled input ch
 		},
 	];
 
-	await service.processDependencies(dependencies, 'page-before-change');
+	await service.processDependencies(dependencies, undefined);
 	requireAppRuntime(appConfig).buildInputIndex.recordChanges(['/test/src/shared-store.ts']);
-	const results = await service.processDependencies(dependencies, 'page-after-change');
+	const results = await service.processDependencies(dependencies, undefined);
 
 	expect(processGroupedMock).toHaveBeenCalledTimes(2);
 	expect(results.map((asset) => asset.filepath)).toEqual([

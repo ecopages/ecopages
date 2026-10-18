@@ -305,7 +305,6 @@ describe('DependencyResolverService', () => {
 				return [] as ProcessedAsset[];
 			}),
 		} as unknown as AssetProcessingService;
-
 		const service = new DependencyResolverService(appConfig, assetProcessingService);
 		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
 		component.config = {
@@ -422,8 +421,11 @@ describe('DependencyResolverService', () => {
 				return [] as ProcessedAsset[];
 			}),
 		} as unknown as AssetProcessingService;
-
-		const service = new DependencyResolverService(appConfig, assetProcessingService);
+		const assetProcessingIntegration = { name: 'ecopages-jsx' };
+		const service = new DependencyResolverService(
+			{ ...appConfig, integrations: [assetProcessingIntegration] } as EcoPagesAppConfig,
+			assetProcessingService,
+		);
 		const component = ((_) => '<div></div>') as EcoComponent<Record<string, unknown>>;
 		component.config = {
 			identity: {
@@ -439,7 +441,7 @@ describe('DependencyResolverService', () => {
 		try {
 			await service.processComponentDependencies([component], 'ecopages-jsx');
 
-			expect(assetProcessingService.processDependencies).toHaveBeenCalledWith([], 'ecopages-jsx');
+			expect(assetProcessingService.processDependencies).toHaveBeenCalledWith([], assetProcessingIntegration);
 			expect(capturedDeps).toEqual([]);
 			expect(component.config._pendingLazyClientAssets).toHaveLength(1);
 			expect(component.config._pendingLazyClientAssets?.[0]).toEqual(

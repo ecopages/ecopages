@@ -21,7 +21,10 @@ import {
 	type ContentScriptAsset,
 	type ProcessedAsset,
 } from '@ecopages/core/services/asset-processing-service';
-import type { AssetProcessingService } from '@ecopages/core/services/asset-processing-service';
+import type {
+	AssetProcessingIntegration,
+	AssetProcessingService,
+} from '@ecopages/core/services/asset-processing-service';
 import { IslandHydrationScriptCompiler, PageHydrationScriptCompiler } from './hydration-script-compiler.ts';
 import { resolveHydrationBootstrapImports } from './bootstrap-imports.ts';
 import { collectDeclaredModulesInConfig } from '../client-graph/declared-modules.ts';
@@ -38,6 +41,7 @@ export interface HydrationAssetServiceConfig {
 	srcDir: string;
 	routerAdapter?: ReactRouterAdapter;
 	assetProcessingService: AssetProcessingService;
+	assetProcessingIntegration?: AssetProcessingIntegration;
 	bundleService: BundleService;
 	hmrPageMetadataCache?: HmrPageMetadataCache;
 }
@@ -299,7 +303,7 @@ export class HydrationAssetService {
 			processedAssets.push(
 				...(await this.config.assetProcessingService.processDependencies(
 					lazyEntries,
-					APP_BROWSER_CLIENT_BUNDLE_ID,
+					this.config.assetProcessingIntegration,
 				)),
 			);
 		}
@@ -316,7 +320,7 @@ export class HydrationAssetService {
 			clientEntries.length > 0
 				? await this.config.assetProcessingService.processDependencies(
 						clientEntries,
-						APP_BROWSER_CLIENT_BUNDLE_ID,
+						this.config.assetProcessingIntegration,
 					)
 				: [];
 		const srcUrlByEntryName = this.indexSrcUrlsByEntryName(processedClientEntries);
@@ -325,7 +329,7 @@ export class HydrationAssetService {
 			hydrationScripts.length > 0
 				? await this.config.assetProcessingService.processDependencies(
 						hydrationScripts,
-						APP_BROWSER_CLIENT_BUNDLE_ID,
+						this.config.assetProcessingIntegration,
 					)
 				: [];
 
@@ -440,7 +444,7 @@ export class HydrationAssetService {
 		const hydrationScript = await this.createIslandHydrationScript(componentFile, config, importPath, true);
 		return this.config.assetProcessingService.processDependencies(
 			[hydrationScript],
-			this.getIslandBundleName(componentFile),
+			this.config.assetProcessingIntegration,
 		);
 	}
 

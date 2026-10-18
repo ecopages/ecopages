@@ -216,6 +216,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		return {
 			appConfig: this.appConfig,
 			assetProcessingService: this.assetProcessingService,
+			assetProcessingIntegration: this,
 			resolvedIntegrationDependencies: this.resolvedIntegrationDependencies,
 		};
 	}
@@ -268,7 +269,7 @@ export abstract class IntegrationPlugin<C = EcoPagesElement> {
 		}
 		this.resolvedIntegrationDependencies = await this.assetProcessingService.processDependencies(
 			this.integrationDependencies,
-			this.name,
+			this,
 		);
 	}
 

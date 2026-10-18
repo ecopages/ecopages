@@ -3,12 +3,17 @@ import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import {
 	AssetFactory,
+	type AssetProcessingIntegration,
 	type AssetDefinition,
 	type ProcessedAsset,
 } from '../../../services/assets/asset-processing-service/index.ts';
 
 export type CustomElementSsrPipelineImporterOptions = {
-	processDependencies: (dependencies: AssetDefinition[], integrationName: string) => Promise<ProcessedAsset[]>;
+	integration?: AssetProcessingIntegration;
+	processDependencies: (
+		dependencies: AssetDefinition[],
+		integration?: AssetProcessingIntegration,
+	) => Promise<ProcessedAsset[]>;
 };
 
 /**
@@ -21,6 +26,7 @@ export type CustomElementSsrPipelineImporterOptions = {
  * loaders for CSS, MDX and assets.
  */
 export function createCustomElementSsrPipelineImporter({
+	integration,
 	processDependencies,
 }: CustomElementSsrPipelineImporterOptions): (scriptPath: string, registryKey: string) => Promise<void> {
 	const entrypointCache = new Map<string, string>();
@@ -39,7 +45,7 @@ export function createCustomElementSsrPipelineImporter({
 					},
 				}),
 			],
-			`custom-element-ssr-preload:${scriptPath}`,
+			integration,
 		);
 
 		const entrypoint = processed[0]?.filepath;

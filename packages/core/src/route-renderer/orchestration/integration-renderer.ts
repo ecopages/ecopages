@@ -28,6 +28,8 @@ import {
 	createPagePackage,
 	type ProcessedAsset,
 } from '../../services/assets/asset-processing-service/index.ts';
+import type { AssetProcessingIntegration } from '../../services/assets/asset-processing-service/asset-processing-integration.ts';
+import { resolveAssetProcessingIntegration } from '../../services/assets/asset-processing-service/asset-processing-integration.ts';
 import { createAppBrowserClientEntryKey } from '../../services/assets/app-browser-client-build.ts';
 import { HtmlTransformerService } from '../../services/html/html-transformer.service.ts';
 import type { HtmlDocumentContribution } from '../../services/html/html-transformer.service.ts';
@@ -220,6 +222,7 @@ export type IntegrationRendererHooks = {
 export type IntegrationRendererOptions = {
 	appConfig: EcoPagesAppConfig;
 	assetProcessingService: AssetProcessingService;
+	assetProcessingIntegration?: AssetProcessingIntegration;
 	resolvedIntegrationDependencies?: ProcessedAsset[];
 	/** Supplies Integration hooks that override or compose with renderer class defaults. */
 	hooks?: IntegrationRendererHooks | IntegrationRendererHookFactory;
@@ -272,6 +275,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	abstract name: string;
 	protected appConfig: EcoPagesAppConfig;
 	protected assetProcessingService: AssetProcessingService;
+	protected assetProcessingIntegration?: AssetProcessingIntegration;
 	protected htmlTransformer: HtmlTransformerService;
 	protected hmrManager?: IHmrManager;
 	protected resolvedIntegrationDependencies: ProcessedAsset[] = [];
@@ -288,6 +292,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 	protected getActiveHmrManager(): IHmrManager | undefined {
 		return this.appConfig.appRuntime?.hmr ?? this.hmrManager;
+	}
+
+	protected getAssetProcessingIntegration(name: string = this.name): AssetProcessingIntegration | undefined {
+		return resolveAssetProcessingIntegration(name, this.assetProcessingIntegration, this.appConfig.integrations);
 	}
 
 	/**
@@ -804,27 +812,32 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	constructor({
 		appConfig,
 		assetProcessingService,
+		assetProcessingIntegration,
 		resolvedIntegrationDependencies,
 		hooks,
 	}: IntegrationRendererConstructionOptions) {
 		this.appConfig = appConfig;
 		this.assetProcessingService = assetProcessingService;
+		this.assetProcessingIntegration = assetProcessingIntegration;
 		this.htmlTransformer = new HtmlTransformerService();
 		this.resolvedIntegrationDependencies = resolvedIntegrationDependencies || [];
 		this.dependencyResolverService = new DependencyResolverService(
 			appConfig,
 			assetProcessingService,
 			() => isProductionRuntime() && this.getActiveHmrManager()?.isEnabled() !== true,
+			assetProcessingIntegration,
 		);
 		this.pageModuleLoaderService = new PageModuleLoaderService(appConfig);
 		this.routeRenderOrchestrator = new RouteRenderOrchestrator(appConfig, assetProcessingService, {
 			ownershipValidationService: new OwnershipValidationService(appConfig),
+			assetProcessingIntegration,
 		});
 		this.integrationHooks =
 			typeof hooks === 'function'
 				? hooks({
 						appConfig,
 						assetProcessingService,
+						assetProcessingIntegration,
 						resolvedIntegrationDependencies,
 						hooks: {},
 						resolveDependencies: (components, options) => this.resolveDependencies(components, options),
@@ -1536,7 +1549,10 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			const fallbackAssets = (
 				await Promise.all(
 					[...fallbackGroups].map(([integrationName, dependencies]) =>
-						this.assetProcessingService.processDependencies(dependencies, integrationName),
+						this.assetProcessingService.processDependencies(
+							dependencies,
+							this.getAssetProcessingIntegration(integrationName),
+						),
 					),
 				)
 			).flat();
@@ -1575,7 +1591,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 						}
 					: undefined;
 			},
-			processLazyEntries: (entries) => this.assetProcessingService.processDependencies(entries, this.name),
+			processLazyEntries: (entries) =>
+				this.assetProcessingService.processDependencies(entries, this.getAssetProcessingIntegration()),
 			applyPendingLazyTriggers: (assets, configs) =>
 				this.dependencyResolverService.applyPendingLazyTriggers(assets, configs),
 		});

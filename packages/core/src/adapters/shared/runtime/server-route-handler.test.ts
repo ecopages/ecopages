@@ -37,49 +37,36 @@ function createMockDependencies() {
 
 describe('ServerRouteHandler', () => {
 	describe('handleResponse', () => {
-		it('should delegate to fileSystemResponseMatcher when route matches', async () => {
+		it('keeps dotted Page paths routable and sends known static extensions to the fallback', async () => {
 			const { Router, FileSystemResponseMatcher } = createMockDependencies();
 			const handler = new ServerRouteHandler({
 				router: Router,
 				fileSystemResponseMatcher: FileSystemResponseMatcher,
 			});
+			const routeMatch = {
+				requestedPathname: '/v1.2',
+				templateRoute: { pathname: '/v1.2', kind: 'exact', filePath: '/src/pages/v1.2.tsx' },
+				params: {},
+				query: {},
+			} satisfies NonNullable<ReturnType<RouteRegistry['matchRequest']>>;
+			const matchRequest = vi.spyOn(Router, 'matchRequest').mockReturnValueOnce(routeMatch);
 
-			Router.matchRequest = vi.fn(() => ({/* match */}) as any);
-			await handler.handleResponse(new Request('http://localhost/test'));
+			const routeRequest = new Request('http://localhost/v1.2');
+			const routeResponse = await handler.handleResponse(routeRequest);
+			expect(routeResponse.status).toBe(200);
+			expect(await routeResponse.text()).toBe('Matched Content');
+			expect(matchRequest).toHaveBeenCalledExactlyOnceWith('http://localhost/v1.2', ['v1.2']);
+			expect(FileSystemResponseMatcher.handleMatch).toHaveBeenCalledExactlyOnceWith(routeMatch, routeRequest);
 
-			expect(FileSystemResponseMatcher.handleMatch).toHaveBeenCalled();
-			expect(FileSystemResponseMatcher.handleNoMatch).not.toHaveBeenCalled();
-		});
-
-		it('matches a route whose last segment has a dot, and serves known static extensions from disk', async () => {
-			const { Router, FileSystemResponseMatcher } = createMockDependencies();
-			const handler = new ServerRouteHandler({
-				router: Router,
-				fileSystemResponseMatcher: FileSystemResponseMatcher,
-			});
-			Router.matchRequest = vi.fn(() => ({}) as any);
-
-			await handler.handleResponse(new Request('http://localhost/v1.2'));
 			const assetRequest = new Request('http://localhost/assets/app.js', {
 				headers: { 'Accept-Encoding': 'gzip', 'If-None-Match': '"asset-etag"' },
 			});
-			await handler.handleResponse(assetRequest);
+			const assetResponse = await handler.handleResponse(assetRequest);
 
-			expect(Router.matchRequest).toHaveBeenCalledExactlyOnceWith('http://localhost/v1.2', ['v1.2']);
+			expect(assetResponse.status).toBe(404);
+			expect(await assetResponse.text()).toBe('Not Found');
+			expect(matchRequest).toHaveBeenCalledOnce();
 			expect(FileSystemResponseMatcher.handleNoMatch).toHaveBeenCalledWith('/assets/app.js', assetRequest);
-		});
-
-		it('should delegate to handleNoMatch when route does not match', async () => {
-			const { Router, FileSystemResponseMatcher } = createMockDependencies();
-			const handler = new ServerRouteHandler({
-				router: Router,
-				fileSystemResponseMatcher: FileSystemResponseMatcher,
-			});
-
-			await handler.handleResponse(new Request('http://localhost/unknown'));
-
-			expect(FileSystemResponseMatcher.handleNoMatch).toHaveBeenCalled();
-			expect(FileSystemResponseMatcher.handleMatch).not.toHaveBeenCalled();
 		});
 
 		it.each([

@@ -52,3 +52,12 @@ export { loadTsconfigPathPrefixes, matchesTsconfigPathPrefix } from './plugins/t
 export { contentHash } from './utils/content-hash.ts';
 export { isPathInside } from './utils/path-containment.ts';
 export { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from './utils/resolve-entry-file.ts';
+export {
+	getEcopagesEnv,
+	isDevelopmentRuntime,
+	isEcopagesEnvDisabled,
+	isEcopagesEnvEnabled,
+	isProductionRuntime,
+	type EcopagesBooleanEnvironmentVariable,
+	type EcopagesEnvironmentVariable,
+} from './env.ts';

@@ -1,4 +1,4 @@
-import { eco } from '@ecopages/core';
+import { eco, isDevelopmentRuntime } from '@ecopages/core';
 import type { ErrorPageTemplateProps } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
 import { BaseLayout } from '@/layouts/base-layout';
@@ -11,7 +11,7 @@ export default eco.page<ErrorPageTemplateProps, JsxRenderable>({
 	},
 
 	render: ({ message, stack }) => {
-		const showDiagnostics = process.env.NODE_ENV === 'development' && Boolean(message || stack);
+		const showDiagnostics = isDevelopmentRuntime() && Boolean(message || stack);
 		return (
 			<div class="error500">
 				<p class="error500__status">ERROR 500</p>

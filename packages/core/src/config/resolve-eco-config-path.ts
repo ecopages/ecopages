@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { getEcopagesEnv } from '../env.ts';
 import { fileSystem } from '@ecopages/file-system';
 import { SERVER_BUNDLE_DIR } from '../utils/resolve-entry-file.ts';
 import { EMITTED_ECO_CONFIG_FILENAME } from './server-config-bundle.ts';
@@ -72,7 +73,7 @@ export function resolveEcoConfigPath(options: ResolveEcoConfigPathOptions = {}):
 	const cwd = options.cwd ?? process.cwd();
 	const required = options.required ?? true;
 
-	const explicitPath = options.configFile || process.env[ECOPAGES_CONFIG_FILE_ENV];
+	const explicitPath = options.configFile || getEcopagesEnv(ECOPAGES_CONFIG_FILE_ENV);
 	if (explicitPath) {
 		const resolved = path.resolve(cwd, explicitPath);
 		if (!fileSystem.exists(resolved)) {

@@ -8,6 +8,7 @@
  */
 
 import { getProcessRuntime } from '../utils/runtime.ts';
+import { isEcopagesEnvEnabled } from '../env.ts';
 
 export type PageModuleLoadOutcome =
 	'import-cache-hit' | 'disk-cache-hit' | 'cold-build' | 'host-loader' | 'unified-graph';
@@ -69,9 +70,9 @@ export function createRequestPipelineMetricsState(): RequestPipelineMetricsState
 
 export function isRequestPipelineMetricsEnabled(): boolean {
 	return (
-		process.env.ECOPAGES_REQUEST_PIPELINE_METRICS === '1' ||
-		process.env.ECOPAGES_ROLLDOWN_BUILD_METRICS === '1' ||
-		process.env.ECOPAGES_LOGGER_DEBUG === 'true'
+		isEcopagesEnvEnabled('ECOPAGES_REQUEST_PIPELINE_METRICS') ||
+		isEcopagesEnvEnabled('ECOPAGES_ROLLDOWN_BUILD_METRICS') ||
+		isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG')
 	);
 }
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import { createAppBuildManifest } from '../contracts/build-manifest.ts';
 import {
 	createBrowserBuildRequest,
@@ -300,6 +300,30 @@ test('createBrowserBuildRequest drops runtime manifest specifiers from external 
 	});
 
 	assert.deepEqual(request.external, ['left-pad']);
+});
+
+test('browser builds inline the runtime mode used by browser environment helpers', async () => {
+	const appConfig = createOrderedAppConfig();
+	const dir = mkdtempSync(path.join(tmpdir(), 'ecopages-browser-runtime-mode-'));
+	vi.stubEnv('NODE_ENV', 'production');
+	try {
+		const request = createBrowserBuildRequest(appConfig, {
+			entrypoints: [path.resolve('packages/core/src/browser-env.ts')],
+			outdir: path.join(dir, 'dist'),
+			root: process.cwd(),
+			plugins: [],
+		});
+		assert.equal(request.define?.['import.meta.env.NODE_ENV'], '"production"');
+
+		const result = await new RolldownBuildAdapter().build(request);
+		assertBuildSucceeded(result, 'Build failed');
+		const code = readFileSync(result.outputs[0]!.path, 'utf-8');
+		assert.match(code, /"production"/u);
+		assert.doesNotMatch(code, /import\.meta\.env/u);
+	} finally {
+		vi.unstubAllEnvs();
+		rmSync(dir, { recursive: true, force: true });
+	}
 });
 
 test('a browser build maps an entry that lists a manifest specifier as external to its public URL', async () => {

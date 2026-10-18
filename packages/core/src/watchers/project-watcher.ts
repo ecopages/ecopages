@@ -3,6 +3,7 @@ import path from 'node:path';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../global/app-logger.ts';
+import { getEcopagesEnv } from '../env.ts';
 import { isPathInside } from '../utils/path-containment.ts';
 import type { EcoPagesAppConfig, IHmrManager, IClientBridge } from '../config/internal-types.ts';
 import type { ProcessorWatchChanges } from '../plugins/processor.ts';
@@ -106,7 +107,7 @@ export class ProjectWatcher {
 		this.refreshRouterRoutesCallback = refreshRouterRoutesCallback;
 		this.hmrManager = hmrManager;
 		this.bridge = bridge;
-		const envDebounceMs = process.env.ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS;
+		const envDebounceMs = getEcopagesEnv('ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS');
 		this.changeDebounceMs =
 			changeDebounceMs ??
 			(envDebounceMs !== undefined && envDebounceMs !== '' ? Number(envDebounceMs) : undefined) ??

@@ -1,5 +1,6 @@
 import type { BuildEnvironment, BuildOptions, BuildTranspileOptions } from '../contracts/build-contracts.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
+import { getNodeEnvironment } from '../../env.ts';
 
 export function resolveTranspileOptions(environment: BuildEnvironment): BuildTranspileOptions {
 	return {
@@ -18,6 +19,9 @@ export function resolveBuildEnvironmentOptions(
 		root: appConfig.rootDir,
 		...resolveTranspileOptions(environment),
 		minify: false,
+		...(environment === 'browser'
+			? { define: { 'import.meta.env.NODE_ENV': JSON.stringify(getNodeEnvironment() ?? 'development') } }
+			: {}),
 		...(environment === 'server' ? { externalPackages: true } : {}),
 	};
 }

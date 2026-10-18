@@ -145,17 +145,19 @@ export function createServerBuildRequest(appConfig: EcoPagesAppConfig, input: Se
  * browser runtime plugin maps while resolving.
  */
 export function createBrowserBuildRequest(appConfig: EcoPagesAppConfig, input: BrowserBuildRequestInput): BuildOptions {
-	const { excludeAppBuildPlugins, plugins: callerPlugins, ...overrides } = input;
+	const { excludeAppBuildPlugins, plugins: callerPlugins, define: callerDefines, ...overrides } = input;
 	const plugins = resolveBuildPluginOrder(appConfig, 'browser', {
 		callerPlugins,
 		excludeAppBuildPlugins,
 	});
 
 	const { bySpecifier } = requireAppRuntime(appConfig).buildManifest.browserRuntimeManifest;
+	const environmentOptions = resolveBuildEnvironmentOptions('browser', appConfig);
 
 	return {
-		...resolveBuildEnvironmentOptions('browser', appConfig),
+		...environmentOptions,
 		...overrides,
+		define: { ...environmentOptions.define, ...callerDefines },
 		...(overrides.external
 			? { external: overrides.external.filter((specifier) => !bySpecifier.has(specifier)) }
 			: {}),

@@ -114,7 +114,7 @@ Runtime code calls `requireBuildQueue(appConfig).build(options, lane)` with a co
 
 The exported `defaultBuildAdapter` is a non-app-aware escape hatch. Runtime code uses `requireAppRuntime(appConfig).buildAdapter`, `requireBuildQueue()`, `createServerBuildRequest()` and `createBrowserBuildRequest()`.
 
-Every `BuildOptions` request requires `environment: 'server' | 'browser'`. Environment selects the platform, default target/format, and plugin participation. An explicit numeric `target` changes language transpilation without changing the environment. `resolveBuildEnvironmentOptions()` holds those defaults, one table per environment; a request names only what differs, as the server entry and the emitted config do with `reportPackagesOutsideRoot`. The lane (`build` | `hmr`) selects scheduling only. `BrowserBundleService` takes an explicit lane; regular browser bundles use `build`, and development HMR rebuilds use `hmr`. Every request retains browser defaults on either lane.
+Every `BuildOptions` request requires `environment: 'server' | 'browser'`. Environment selects the platform, default target/format, and plugin participation. Browser requests also define `import.meta.env.NODE_ENV` from the Ecopages process mode so browser runtime helpers receive the same mode. An explicit numeric `target` changes language transpilation without changing the environment. `resolveBuildEnvironmentOptions()` holds those defaults, one table per environment; a request names only what differs, as the server entry and the emitted config do with `reportPackagesOutsideRoot`. The lane (`build` | `hmr`) selects scheduling only. `BrowserBundleService` takes an explicit lane; regular browser bundles use `build`, and development HMR rebuilds use `hmr`. Every request retains browser defaults on either lane.
 
 Migration: move Integration `browserBuildPlugins` and Processor `buildPlugins` into `plugins` with `environments: ['browser']`. Keep server-only hooks in `plugins` with `environments: ['server']`. Replace the old transpile profile arguments with `'browser'` or `'server'`.
 
@@ -213,7 +213,7 @@ Only installs whose package paths contain a `node_modules` folder are kept exter
 
 ## Unified pages graph
 
-Production static exports compile all template pages in one Rolldown invocation when `shouldBuildPagesUnifiedGraph()` is true (default in production; opt out with `ECOPAGES_UNIFIED_PAGES_GRAPH=0`). Pages of an Integration that implements `compilePageModule()`, such as [HTML Pages](../html-pages/README.md), are compiled in-process and stay out of the graph.
+Production static exports compile all template pages in one Rolldown invocation when `shouldBuildPagesUnifiedGraph()` is true (default in production; opt out with `ECOPAGES_UNIFIED_PAGES_GRAPH=false` or `0`). Pages of an Integration that implements `compilePageModule()`, such as [HTML Pages](../html-pages/README.md), are compiled in-process and stay out of the graph.
 
 | Artifact      | Location                                              |
 | ------------- | ----------------------------------------------------- |

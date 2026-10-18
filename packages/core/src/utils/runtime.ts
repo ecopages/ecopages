@@ -3,6 +3,8 @@ export type ProcessRuntime = {
 	version: string;
 };
 
+export { getNodeEnvironment, isDevelopmentRuntime, isProductionRuntime } from '../env.ts';
+
 /**
  * Names the JavaScript runtime running this process and its version.
  *
@@ -17,12 +19,4 @@ export function getProcessRuntime(): ProcessRuntime {
 
 export function getRuntimeArgv(): string[] {
 	return process.argv;
-}
-
-export function isDevelopmentRuntime(): boolean {
-	return process.env.NODE_ENV === 'development';
-}
-
-export function isProductionRuntime(): boolean {
-	return process.env.NODE_ENV === 'production';
 }

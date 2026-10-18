@@ -8,7 +8,7 @@ import {
 	resolveProductionDistDir,
 	assertProductionConfigIdentity,
 } from '@ecopages/core/config';
-import { ECOPAGES_ENTRY_WATCH_ENV, getDevEnvFileNames } from '@ecopages/core/build';
+import { ECOPAGES_ENTRY_WATCH_ENV, getDevEnvFileNames, getEcopagesEnv } from '@ecopages/core/build';
 
 const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
 const tsxLoader = import.meta.resolve('tsx/esm');
@@ -18,12 +18,11 @@ function getEnvFilePaths(nodeEnv) {
 }
 
 export function buildEnvOverrides(options) {
-	const env = {};
+	const env = options.nodeEnv ? { NODE_ENV: options.nodeEnv } : {};
 	if (options.port) env.ECOPAGES_PORT = String(options.port);
 	if (options.hostname) env.ECOPAGES_HOSTNAME = options.hostname;
 	if (options.baseUrl) env.ECOPAGES_BASE_URL = options.baseUrl;
 	if (options.debug) env.ECOPAGES_LOGGER_DEBUG = 'true';
-	if (options.nodeEnv) env.NODE_ENV = options.nodeEnv;
 	if (options.entryFile) env.ECOPAGES_ENTRY_FILE = options.entryFile;
 	if (options.configFile) {
 		env.ECOPAGES_CONFIG_FILE = path.isAbsolute(options.configFile)
@@ -136,7 +135,7 @@ export async function createLaunchPlan(args, options, entryFile, launchMode) {
 	const distDir = shouldUseBundle
 		? await resolveProductionDistDir({ cwd: process.cwd(), distDir: resolvedOptions.distDir })
 		: undefined;
-	const isExplicitConfig = Boolean(resolvedOptions.configFile || process.env.ECOPAGES_CONFIG_FILE);
+	const isExplicitConfig = Boolean(resolvedOptions.configFile || getEcopagesEnv('ECOPAGES_CONFIG_FILE'));
 	const resolvedConfigFile = resolveEcoConfigFilePath(resolvedOptions, process.cwd(), {
 		preferEmitted: shouldUseBundle && !isExplicitConfig,
 		distDir,

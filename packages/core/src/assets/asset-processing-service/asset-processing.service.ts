@@ -463,7 +463,7 @@ export class AssetProcessingService {
 	 * again only after its processor ran and wrote it anew.
 	 */
 	private async optimizeDependencies(processedAssets: ProcessedAsset[]): Promise<void> {
-		if (process.env.NODE_ENV !== 'production') {
+		if (!isProductionRuntime()) {
 			return;
 		}
 

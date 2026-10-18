@@ -9,6 +9,7 @@
 
 /* oxlint-disable react/refs, react-hooks/exhaustive-deps */
 
+import { isProductionRuntime } from '@ecopages/core';
 import {
 	useEffect,
 	useEffectEvent,
@@ -122,7 +123,7 @@ export const PageContent: FC = () => {
 	const persistLayouts = useContext(PersistLayoutsContext);
 
 	if (!pageContext) {
-		if (process.env.NODE_ENV !== 'production') {
+		if (!isProductionRuntime()) {
 			console.warn('[EcoRouter] PageContent used outside of EcoRouter');
 		}
 		return null;

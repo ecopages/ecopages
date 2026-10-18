@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
+import { isEcopagesEnvEnabled } from '../../env.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { startupTrace } from '../../diagnostics/startup-trace.ts';
 import { DevTransformBundler } from './dev-transform-bundler.ts';
@@ -182,7 +183,7 @@ export class DevTransformServer {
 		try {
 			const entry = await this.materialize(sourcePath);
 			this.failedSources.delete(path.resolve(sourcePath));
-			if (process.env.ECOPAGES_STARTUP_TRACE === 'true') {
+			if (isEcopagesEnvEnabled('ECOPAGES_STARTUP_TRACE')) {
 				appLogger.debug(
 					`[dev-transform] materialize path=${url.pathname} bytes=${entry.code.length} durationMs=${Math.round(performance.now() - startedAt)}`,
 				);

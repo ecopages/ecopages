@@ -5,6 +5,7 @@
 
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
+import { isEcopagesEnvEnabled } from '@ecopages/core/processor';
 import { requireAppRuntime } from '@ecopages/core/integration';
 import {
 	mergeProcessorOptions,
@@ -48,7 +49,7 @@ type ContentCollectionWatchChanges = {
 };
 
 const logger = new Logger('[@ecopages/content-processor]', {
-	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
+	debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG'),
 });
 
 function assertValidCollectionName(collectionName: string): void {

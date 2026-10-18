@@ -62,6 +62,22 @@ Server and build commands accept the following shared options. They automaticall
 | `--keep-going`          |                         | Continue exporting pages after a Page render fails        |
 | `--runtime <runtime>`   |                         | Force execution via `bun` or `node`                       |
 
+Boolean environment settings accept `true` or `1` to enable, and `false` or `0` to disable.
+
+| Environment variable                               | Description                                                            |
+| :------------------------------------------------- | :--------------------------------------------------------------------- |
+| `ECOPAGES_CONFIG_FILE`                             | Config path, equivalent to `--config`.                                 |
+| `ECOPAGES_PREVIEW_SERVE_ONLY`                      | For `ecopages preview`, serve existing output without rebuilding.      |
+| `ECOPAGES_DEV_TOOLBAR=false`                       | Disable the configured development toolbar for this process.           |
+| `ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS=<milliseconds>` | Set the quiet period used to batch development file changes.           |
+| `ECOPAGES_DEV_PREWARM_STATIC_ROUTES_PARALLELISM`   | Limit concurrent development prewarm renders to this positive integer. |
+| `ECOPAGES_UNIFIED_PAGES_GRAPH=0`                   | Opt out of the shared production static-page browser build.            |
+| `ECOPAGES_REQUEST_PIPELINE_METRICS=1`              | Add request-pipeline measurements to development responses.            |
+| `ECOPAGES_ROLLDOWN_BUILD_METRICS=1`                | Log Rolldown build invocation counts.                                  |
+| `ECOPAGES_PROFILE_BUILD=1`                         | Include build profiling data in debug output.                          |
+| `ECOPAGES_STARTUP_TRACE_JSON=<path>`               | Write the startup trace report to this JSON file.                      |
+| `ECOPAGES_DEBUG=1`                                 | Log when SSR skips a browser-only custom-element script preload.       |
+
 ### Runtime Detection
 
 The CLI runs your app on Bun when you launch the command through Bun (`bun dev`, `bun run dev`, `bunx ecopages …`) or pass `--runtime bun`. Any other launcher (`pnpm`, `npm`, `npx`, `node`) runs it on Node.
@@ -87,10 +103,10 @@ During `ecopages dev`, adding, changing, or removing `eco.config.ts` (or `--conf
 
 Set these in `.env` or on the command line when diagnosing slow dev startup or first page load.
 
-| Env var                       | CLI                    | What you get                                                                                   |
-| :---------------------------- | :--------------------- | :--------------------------------------------------------------------------------------------- |
-| `ECOPAGES_LOGGER_DEBUG=true`  | `ecopages dev --debug` | Verbose `[@ecopages/core]` logs across the stack, plus **startup phase trace** lines on stderr |
-| `ECOPAGES_STARTUP_TRACE=true` | —                      | **Only** the phase trace (no extra debug noise). Useful when measuring first-open latency      |
+| Env var                              | CLI                    | What you get                                                                                   |
+| :----------------------------------- | :--------------------- | :--------------------------------------------------------------------------------------------- |
+| `ECOPAGES_LOGGER_DEBUG=true` or `1`  | `ecopages dev --debug` | Verbose `[@ecopages/core]` logs across the stack, plus **startup phase trace** lines on stderr |
+| `ECOPAGES_STARTUP_TRACE=true` or `1` | —                      | **Only** the phase trace (no extra debug noise). Useful when measuring first-open latency      |
 
 Trace lines are prefixed with `[ecopages:startup-trace]` and look like:
 

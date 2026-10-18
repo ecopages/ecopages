@@ -4,6 +4,7 @@
  */
 
 import path from 'node:path';
+import { isEcopagesEnvEnabled, isProductionRuntime } from '@ecopages/core/processor';
 import type { IClientBridge } from '@ecopages/core/integration';
 import { writeHashedBrowserAsset } from '@ecopages/core/processor';
 import { fileSystem } from '@ecopages/file-system';
@@ -25,7 +26,7 @@ import { createCssLoaderPlugin } from './runtime/css-loader-plugin.ts';
 import type { CssTransformInput } from './runtime/css-runtime-contract.ts';
 
 const logger = new Logger('[@ecopages/postcss-processor]', {
-	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
+	debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG'),
 });
 
 /**
@@ -151,7 +152,7 @@ export class PostCssProcessorPlugin extends Processor<PostCssProcessorPluginConf
 			return;
 		}
 
-		if (process.env.NODE_ENV === 'production') {
+		if (isProductionRuntime()) {
 			const outputPath = writeHashedBrowserAsset({
 				bytes: css,
 				directory: path.join(this.context.distDir, 'assets'),

@@ -101,3 +101,12 @@ export {
 } from './route-renderer/page-loading/file-scoped-dependency-components.ts';
 export { RouteRendererFactory } from './route-renderer/route-renderer.ts';
 export type * from './types/integration-types.ts';
+export {
+	getEcopagesEnv,
+	isDevelopmentRuntime,
+	isEcopagesEnvDisabled,
+	isEcopagesEnvEnabled,
+	isProductionRuntime,
+	type EcopagesBooleanEnvironmentVariable,
+	type EcopagesEnvironmentVariable,
+} from './env.ts';

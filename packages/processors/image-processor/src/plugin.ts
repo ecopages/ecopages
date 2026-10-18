@@ -16,6 +16,7 @@ import {
 	type ProcessorWatchConfig,
 } from '@ecopages/core/processor';
 import { Logger } from '@ecopages/logger';
+import { isEcopagesEnvEnabled } from '@ecopages/core/processor';
 import { createImagePlugin, createImagePluginBundler } from './image-plugins.ts';
 import { ImageProcessor } from './image-processor.ts';
 import { getSourceImagePaths, loadProcessedImagesFromDisk, type ImageMap } from './image-runtime-state.ts';
@@ -23,7 +24,7 @@ import type { ImageSize, ImageSpecifications } from './types.ts';
 import { anyCaseToCamelCase } from './utils.ts';
 
 const logger = new Logger('[@ecopages/image-processor]', {
-	debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true',
+	debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG'),
 });
 
 const IMAGE_VIRTUAL_MODULE_TYPES = `/**

@@ -90,8 +90,10 @@ describe('pages-unified-graph-build', () => {
 		vi.stubEnv('ECOPAGES_UNIFIED_PAGES_GRAPH', undefined);
 		assert.equal(shouldBuildPagesUnifiedGraph(), true);
 
-		vi.stubEnv('ECOPAGES_UNIFIED_PAGES_GRAPH', '0');
-		assert.equal(shouldBuildPagesUnifiedGraph(), false);
+		for (const disabledValue of ['0', 'false']) {
+			vi.stubEnv('ECOPAGES_UNIFIED_PAGES_GRAPH', disabledValue);
+			assert.equal(shouldBuildPagesUnifiedGraph(), false);
+		}
 
 		vi.stubEnv('ECOPAGES_UNIFIED_PAGES_GRAPH', '1');
 		vi.stubEnv('NODE_ENV', 'development');

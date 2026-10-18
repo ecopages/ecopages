@@ -2,6 +2,7 @@ import { getComponentIdentity, getComponentOwner } from '../../../eco/component-
 import type { EcoComponent, EcoComponentConfig } from '../../../types/contracts.ts';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { isEcopagesEnvEnabled } from '../../../env.ts';
 import {
 	getCustomElementScriptPreloadScopeState,
 	invalidateCustomElementScriptPreload,
@@ -256,7 +257,7 @@ export class CustomElementScriptPreloader {
 				scopeState.preloadFailedScripts.add(scriptPath);
 
 				if (this.isExpectedSsrPreloadError(error)) {
-					if (process.env.ECOPAGES_DEBUG === 'true') {
+					if (isEcopagesEnvEnabled('ECOPAGES_DEBUG')) {
 						console.warn(
 							`[ecopages][${this.logLabel}] Skipping SSR preload for browser-only script: ${scriptPath}`,
 						);

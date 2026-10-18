@@ -10,12 +10,13 @@ import { createLaunchPlan, resolveEcoConfigFilePath } from './launch-plan.js';
 import {
 	ECOPAGES_DEV_RESTART_EXIT_CODE,
 	ECOPAGES_DEV_RESTART_REASON_ENV,
+	isEcopagesEnvEnabled,
 	resolveDevelopmentRecoveryWatch,
 } from '@ecopages/core/build';
 import { fileSystem } from '@ecopages/file-system';
 import { withBrandBanner } from './brand.js';
 
-const logger = new Logger('[ecopages:cli]', { debug: process.env.ECOPAGES_LOGGER_DEBUG === 'true' });
+const logger = new Logger('[ecopages:cli]', { debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG') });
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
 

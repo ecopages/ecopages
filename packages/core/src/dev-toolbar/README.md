@@ -61,6 +61,6 @@ import { defineDevTool } from '@ecopages/core/client';
 export default defineConfig({ devToolbar: defineDevTool('@acme/my-dev-toolbar') });
 ```
 
-Disable per project with `devToolbar: { enabled: false }`, or per process with `ECOPAGES_DEV_TOOLBAR=false`.
+Disable per project with `devToolbar: { enabled: false }`, or per process with `ECOPAGES_DEV_TOOLBAR=false` or `0`.
 
 Parent index: [dev/README.md](../dev/README.md).

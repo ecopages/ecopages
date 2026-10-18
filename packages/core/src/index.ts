@@ -26,3 +26,12 @@ export { attachDiscoveredDependencies } from './eco/discovered-dependencies.ts';
 export { mergePageDependencies } from './eco/page-dependency-contributions.ts';
 export { SchemaError, validateStandardSchema } from './validation/validate-standard-schema.ts';
 export { buildIslandHostAttributes, finalizeIslandComponentRender } from './islands/island-host.ts';
+export {
+	getEcopagesEnv,
+	isDevelopmentRuntime,
+	isEcopagesEnvDisabled,
+	isEcopagesEnvEnabled,
+	isProductionRuntime,
+	type EcopagesBooleanEnvironmentVariable,
+	type EcopagesEnvironmentVariable,
+} from './env.ts';

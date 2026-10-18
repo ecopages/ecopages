@@ -6,6 +6,7 @@ import type {
 } from '../../assets/asset-processing-service/index.ts';
 import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
 import { contentHash } from '../../utils/content-hash.ts';
+import { isProductionRuntime } from '../../utils/runtime.ts';
 
 /**
  * Returns `true` when the asset attributes match the exact shape required for
@@ -90,7 +91,7 @@ function createPageDependencyPackagingPlan(
 	dependencies: AssetDefinition[],
 	integrationName: string,
 ): PageDependencyPackagingPlan | undefined {
-	const shouldBundleDependencies = process.env.NODE_ENV === 'production';
+	const shouldBundleDependencies = isProductionRuntime();
 
 	const bundleableStyles = dependencies
 		.filter((dependency) => {

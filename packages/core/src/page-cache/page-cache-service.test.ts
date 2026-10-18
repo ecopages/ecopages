@@ -76,11 +76,20 @@ describe('PageCacheService', () => {
 		});
 
 		test('should deduplicate concurrent regeneration requests', async () => {
-			let callCount = 0;
+			let releaseRender: () => void = () => undefined;
+			const renderGate = new Promise<void>((resolve) => {
+				releaseRender = resolve;
+			});
+			let startedRenderCount = 0;
+			let completedCacheWrites = 0;
+			let signalAllCacheWrites: () => void = () => undefined;
+			const allCacheWrites = new Promise<void>((resolve) => {
+				signalAllCacheWrites = resolve;
+			});
 			const renderFn = vi.fn().mockImplementation(async () => {
-				callCount++;
-				await new Promise((resolve) => setTimeout(resolve, 10));
-				return { html: `<html>v${callCount}</html>`, strategy: { revalidate: 60 } };
+				startedRenderCount += 1;
+				await renderGate;
+				return { html: '<html>v1</html>', strategy: { revalidate: 60 } };
 			});
 
 			const staleEntry = {
@@ -91,21 +100,29 @@ describe('PageCacheService', () => {
 				strategy: { revalidate: 60 },
 			};
 			await store.set('/dedup-page', staleEntry);
+			const originalSet = store.set.bind(store);
+			vi.spyOn(store, 'set').mockImplementation(async (key, entry) => {
+				const evictedKeys = await originalSet(key, entry);
+				completedCacheWrites += 1;
+				if (completedCacheWrites === startedRenderCount) signalAllCacheWrites();
+				return evictedKeys;
+			});
 
+			const firstResult = await service.getOrCreate('/dedup-page', { revalidate: 60 }, renderFn);
 			const results = await Promise.all([
-				service.getOrCreate('/dedup-page', { revalidate: 60 }, renderFn),
 				service.getOrCreate('/dedup-page', { revalidate: 60 }, renderFn),
 				service.getOrCreate('/dedup-page', { revalidate: 60 }, renderFn),
 			]);
 
-			for (const result of results) {
+			for (const result of [firstResult, ...results]) {
 				expect(result.status).toBe('stale');
 				expect(result.html).toBe('<html>stale</html>');
 			}
 
-			await new Promise((resolve) => setTimeout(resolve, 50));
-
-			expect(renderFn).toHaveBeenCalledTimes(1);
+			releaseRender();
+			if (startedRenderCount > 0) await allCacheWrites;
+			expect(startedRenderCount).toBe(1);
+			expect(await store.get('/dedup-page')).toMatchObject({ html: '<html>v1</html>' });
 		});
 	});
 

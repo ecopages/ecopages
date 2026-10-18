@@ -1,4 +1,4 @@
-import type { HtmlDocumentContribution } from '../services/html/html-transformer.service.ts';
+import type { HtmlDocumentContribution } from '../html/html-transformer.service.ts';
 import type { EcoPagesAppConfig } from '../types/internal-types.ts';
 import type { PagePackageResult } from '../types/public-types.ts';
 import { isDevToolbarEnabled } from './dev-toolbar-config.ts';

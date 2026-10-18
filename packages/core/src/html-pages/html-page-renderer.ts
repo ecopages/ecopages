@@ -13,7 +13,7 @@ import { AssetFactory } from '../services/assets/asset-processing-service/asset.
 import type { AssetDefinition } from '../services/assets/asset-processing-service/assets.types.ts';
 import { StringMarkupRenderer } from '../route-renderer/orchestration/string-markup-renderer.ts';
 import type { IntegrationRendererOptions } from '../route-renderer/orchestration/integration-renderer.ts';
-import { findElements, parseHtml } from '../services/html/html-source-parser.ts';
+import { findElements, parseHtml } from '../html/html-source-parser.ts';
 import { escapeHtmlAttribute } from '../utils/html-escaping.ts';
 import { invariant } from '../utils/invariant.ts';
 import { resolveClassicScriptOptions } from './html-page-classic-script.ts';

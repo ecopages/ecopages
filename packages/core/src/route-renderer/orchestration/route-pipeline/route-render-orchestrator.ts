@@ -23,7 +23,7 @@ import type {
 import { isProductionRuntime } from '../../../utils/runtime.ts';
 import { collectHtmlCacheSourceDependencyPaths } from '../../../page-cache/html-page-cache-dependency-index.ts';
 import { requireAppRuntime } from '../../../config/app-runtime.ts';
-import type { HtmlDocumentContribution } from '../../../services/html/html-transformer.service.ts';
+import type { HtmlDocumentContribution } from '../../../html/html-transformer.service.ts';
 import { inspectUnresolvedMarkerArtifactHtml } from './marker-artifact.utils.ts';
 import {
 	createPreparedComponentGraphBuilder,

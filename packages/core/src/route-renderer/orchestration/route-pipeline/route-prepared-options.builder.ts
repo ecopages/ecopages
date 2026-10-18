@@ -12,7 +12,7 @@ import type {
 	RouteRendererOptions,
 } from '../../../types/public-types.ts';
 import { createPagePackage, type ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
-import { dedupeProcessedAssets } from '../page-browser-graph/processed-asset-dedupe.ts';
+import { dedupeProcessedAssets } from '../../../services/assets/processed-asset-dedupe.ts';
 import { createPageLocalsProxy } from './route-prepared-options.utils.ts';
 
 type PreparedRenderInputs = {

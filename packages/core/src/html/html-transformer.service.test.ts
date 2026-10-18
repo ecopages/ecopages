@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createPagePackage, type ProcessedAsset } from '../assets/asset-processing-service/index.js';
-import { buildIslandHostAttributes } from '../../islands/island-host.ts';
+import { createPagePackage, type ProcessedAsset } from '../services/assets/asset-processing-service/index.js';
+import { buildIslandHostAttributes } from '../islands/island-host.ts';
 import { applyAttributesToFirstElement, HtmlTransformerService } from './html-transformer.service.ts';
 
 type InjectionScenario = {

@@ -1,4 +1,4 @@
-import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import type { ProcessedAsset } from './asset-processing-service/index.ts';
 
 export function buildProcessedAssetDedupeKey(asset: ProcessedAsset): string {
 	return [

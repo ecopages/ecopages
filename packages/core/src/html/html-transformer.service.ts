@@ -1,11 +1,12 @@
-import type { AssetPosition, ProcessedAsset, ScriptAsset } from '../assets/asset-processing-service/assets.types.ts';
-import type { PagePackageResult } from '../../types/public-types.ts';
-import { escapeHtmlAttribute } from '../../utils/html-escaping.ts';
+import type {
+	AssetPosition,
+	ProcessedAsset,
+	ScriptAsset,
+} from '../services/assets/asset-processing-service/assets.types.ts';
+import type { PagePackageResult } from '../types/public-types.ts';
+import { escapeHtmlAttribute } from '../utils/html-escaping.ts';
 import { HtmlRewriter, rewriteFirstElement, type HtmlRewriterAttributeTarget } from './html-rewriter.ts';
-import {
-	buildProcessedAssetDedupeKey,
-	dedupeProcessedAssets,
-} from '../../route-renderer/orchestration/page-browser-graph/processed-asset-dedupe.ts';
+import { buildProcessedAssetDedupeKey, dedupeProcessedAssets } from '../services/assets/processed-asset-dedupe.ts';
 
 export type HtmlDocumentContributionPlacement = 'head-prepend' | 'head-append' | 'body-prepend' | 'body-append';
 

@@ -1,5 +1,5 @@
-import { rewriteFirstElement } from '../services/html/html-rewriter.ts';
-import { findElements, getAttribute, parseHtml, type HtmlElementNode } from '../services/html/html-source-parser.ts';
+import { rewriteFirstElement } from '../html/html-rewriter.ts';
+import { findElements, getAttribute, parseHtml, type HtmlElementNode } from '../html/html-source-parser.ts';
 import { getHeadTagKey } from './html-page-template.ts';
 
 /**

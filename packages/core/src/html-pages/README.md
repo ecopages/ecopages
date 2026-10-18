@@ -16,7 +16,7 @@ This directory owns `.html` Filesystem Routes: plain HTML files under `src/pages
 | `html-page-module-scripts.ts` | Collects every HTML Page's and the shell's module scripts, then maps each script to its URL                           |
 | `html-page-classic-script.ts` | Validates a classic `<script src>` and marks it `classic`: module-only code, JSX and compile helpers are rejected     |
 
-Parsing uses `services/html/html-source-parser.ts`, a positional parser built on the same tokenizer as `HtmlRewriter` (`services/html/html-tokenizer.ts`).
+Parsing uses `html/html-source-parser.ts`, a positional parser built on the same tokenizer as `HtmlRewriter` (`html/html-tokenizer.ts`).
 
 ## Module loading
 
@@ -97,6 +97,6 @@ Reconciliation runs only for HTML Pages; other routes keep their head output.
 - `html-pages.plugin.test.ts`: which files `compilePageModule()` compiles or rejects
 - `html-page-renderer.test.ts`: built-in shell, JSX shells without `<body>`, delegated shells, asset dedupe, preload hints (Page and shell stylesheets, shared-build and HMR module script URLs, kind mismatches, `integrity`, unmatched warnings for a Page and the shell), relative `url()` in processed `<style>`, warned again after an edit, missing assets, head on a direct `render()`, the shared module-script build (one chunk per shared module, stable URLs, no other Page's code, rebuild after an edit, a fix, or a new script, a broken Page left out, entries that differ only by extension)
 - `html-page-classic-script.test.ts`: the classic script rule, including a real build of a TypeScript classic script run as a classic script
-- `services/html/html-source-parser.test.ts`: source offsets, raw text, implicit head close
+- `html/html-source-parser.test.ts`: source offsets, raw text, implicit head close
 - `router/server/route-registry.test.ts`: duplicate routes and dynamic `.html` filenames
 - `e2e/fixtures/html-pages`: static export, Sitemap, `404.html`, browser-router navigation, and a custom element shared by several Pages' scripts defined once

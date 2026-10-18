@@ -1,4 +1,4 @@
-import type { HtmlDocumentContribution } from '../../../services/html/html-transformer.service.ts';
+import type { HtmlDocumentContribution } from '../../../html/html-transformer.service.ts';
 import type { PageMetadataProps, PageRobotsMetadata } from '../../../types/public-types.ts';
 import { escapeHtmlAttribute } from '../../../utils/html-escaping.ts';
 

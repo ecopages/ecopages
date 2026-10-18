@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 import { fileSystem } from '@ecopages/file-system';
-import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
+import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
 import { createDevTransformExternalizeImportsPlugin } from './dev-transform-externalize-plugin.ts';
 import { rewriteModuleImports } from './dev-transform-import-rewriter.ts';

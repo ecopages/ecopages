@@ -11,8 +11,8 @@ import type {
 	PageProps,
 	RouteRendererOptions,
 } from '../../../types/public-types.ts';
-import { createPagePackage, type ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
-import { dedupeProcessedAssets } from '../../../services/assets/processed-asset-dedupe.ts';
+import { createPagePackage, type ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
+import { dedupeProcessedAssets } from '../../../assets/processed-asset-dedupe.ts';
 import { createPageLocalsProxy } from './route-prepared-options.utils.ts';
 
 type PreparedRenderInputs = {

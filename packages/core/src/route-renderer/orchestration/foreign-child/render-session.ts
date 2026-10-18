@@ -1,4 +1,4 @@
-import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/assets.types.ts';
+import type { ProcessedAsset } from '../../../assets/asset-processing-service/assets.types.ts';
 import type { PagePackageResult } from '../../../types/public-types.ts';
 
 /**

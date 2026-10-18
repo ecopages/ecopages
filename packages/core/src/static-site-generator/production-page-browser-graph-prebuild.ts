@@ -10,7 +10,7 @@ import {
 	collectHtmlPageModuleScriptBuildInputs,
 	setPrebuiltHtmlPageModuleScriptUrls,
 } from '../html-pages/html-page-module-scripts.ts';
-import { buildAppBrowserClient } from '../services/assets/app-browser-client-build.ts';
+import { buildAppBrowserClient } from '../assets/app-browser-client-build.ts';
 import {
 	assertAppBrowserClientOutputsExist,
 	assertAppBrowserClientManifestHtmlOutputsExist,
@@ -21,8 +21,8 @@ import {
 	restoreAppBrowserClientAssets,
 	resolveAppBrowserClientManifestPath,
 	writeAppBrowserClientManifest,
-} from '../services/assets/app-browser-client-manifest.ts';
-import type { AppBrowserClientManifestEntry } from '../services/assets/app-browser-client-manifest.ts';
+} from '../assets/app-browser-client-manifest.ts';
+import type { AppBrowserClientManifestEntry } from '../assets/app-browser-client-manifest.ts';
 
 export type ProductionPageBrowserGraphRouteInstance = {
 	routeFile: string;

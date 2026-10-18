@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { eco } from '../../../eco/eco.ts';
-import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import type { ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
 import type {
 	BaseIntegrationContext,
 	ComponentRenderInput,

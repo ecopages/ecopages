@@ -3,8 +3,8 @@ import type { DependencyLazyTrigger, EcoComponent, EcoComponentDependencies } fr
 import { assertEcoDeclaredComponent } from '../../eco/eco-declared-component.ts';
 import { getComponentIdentity, getComponentOwner } from '../../eco/component-identity.ts';
 import { getInferredStylesheets } from '../../eco/discovered-dependencies.ts';
-import type { AssetDefinition } from '../../services/assets/asset-processing-service/index.ts';
-import { AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
+import type { AssetDefinition } from '../../assets/asset-processing-service/index.ts';
+import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
 import { extractEcopagesVirtualImports } from './ecopages-virtual-imports.ts';
 import { collectDeclaredAssetEntries } from './declared-asset-collection.ts';
 import { getLazyTriggerKey } from './lazy-trigger-planning.ts';

@@ -1,4 +1,4 @@
-import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import type { ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
 import { applyAttributesToFirstElement } from '../../../html/html-transformer.service.ts';
 import type {
 	BaseIntegrationContext,
@@ -14,7 +14,7 @@ import {
 	type ForeignChildRuntime,
 } from './component-render-context.ts';
 import { assertForeignChildrenNotOpaque, isMarkupNodeLike } from './foreign-child-output.utils.ts';
-import { dedupeProcessedAssets } from '../../../services/assets/processed-asset-dedupe.ts';
+import { dedupeProcessedAssets } from '../../../assets/processed-asset-dedupe.ts';
 
 export type QueuedForeignChildDecisionInput = {
 	currentIntegration: string;

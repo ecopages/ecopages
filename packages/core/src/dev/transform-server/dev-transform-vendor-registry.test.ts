@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { installBuildQueue } from '../../build/runtime/build-queue.ts';
 import { finalizeEcoPagesConfig } from '../../config/finalize-config.ts';
 import { resolveBarePackageBrowserEntry } from '../../plugins/tsconfig-import-resolver.ts';
-import { BrowserBundleService } from '../../services/assets/browser-bundle.service.ts';
+import { BrowserBundleService } from '../../assets/browser-bundle.service.ts';
 import { DevTransformVendorRegistry } from './dev-transform-vendor-registry.ts';
 
 const tempRoots: string[] = [];

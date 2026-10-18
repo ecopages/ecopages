@@ -1,5 +1,5 @@
 import type { EcoComponentConfig, ResolvedLazyTrigger } from '../../../types/public-types.ts';
-import type { AssetDefinition, ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import type { AssetDefinition, ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
 import { uniqueIslandIntegrationNames, type PageClientBrowserAssets, type PageClientPlan } from './page-client-plan.ts';
 
 /**

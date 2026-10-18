@@ -5,7 +5,7 @@ import type {
 	PageMetadataProps,
 } from '../../../types/public-types.ts';
 import type { InternalComponentRenderInput } from '../../../types/internal-types.ts';
-import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import type { ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
 import { getComponentOwner } from '../../../eco/component-identity.ts';
 import { HtmlTransformerService, type HtmlDocumentContribution } from '../../../html/html-transformer.service.ts';
 import { getComponentRenderContext } from '../foreign-child/component-render-context.ts';

@@ -10,13 +10,13 @@ import type {
 	ProcessedAsset,
 	ContentScriptAsset,
 	InlineContentScriptAsset,
-} from '../../services/assets/asset-processing-service/index.ts';
-import { APP_BROWSER_CLIENT_BUNDLE_ID, AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
+} from '../../assets/asset-processing-service/index.ts';
+import { APP_BROWSER_CLIENT_BUNDLE_ID, AssetFactory } from '../../assets/asset-processing-service/index.ts';
 import type { EcoComponent } from '../../types/public-types.ts';
 import { collectPageClientPlan } from '../orchestration/ownership-graph/page-client-plan.ts';
 import { UndeclaredComponentDependencyError } from '../../errors/undeclared-component-dependency-error.ts';
 import { packagePageDependencies } from './page-dependency-bundling.ts';
-import { deduplicateAssetDependencies } from '../../services/assets/asset-processing-service/asset-dependency-keys.ts';
+import { deduplicateAssetDependencies } from '../../assets/asset-processing-service/asset-dependency-keys.ts';
 
 describe('DependencyResolverService', () => {
 	const appConfig = {

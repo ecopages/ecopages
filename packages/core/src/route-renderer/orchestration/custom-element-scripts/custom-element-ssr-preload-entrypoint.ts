@@ -6,7 +6,7 @@ import {
 	type AssetProcessingIntegration,
 	type AssetDefinition,
 	type ProcessedAsset,
-} from '../../../services/assets/asset-processing-service/index.ts';
+} from '../../../assets/asset-processing-service/index.ts';
 
 export type CustomElementSsrPipelineImporterOptions = {
 	integration?: AssetProcessingIntegration;

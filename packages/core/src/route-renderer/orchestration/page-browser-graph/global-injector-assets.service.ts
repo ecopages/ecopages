@@ -6,7 +6,7 @@ import {
 	AssetFactory,
 	type AssetProcessingService,
 	type ProcessedAsset,
-} from '../../../services/assets/asset-processing-service/index.ts';
+} from '../../../assets/asset-processing-service/index.ts';
 import { buildGlobalInjectorBootstrapContent, buildGlobalInjectorMapScript } from '../../../eco/global-injector-map.ts';
 
 /**

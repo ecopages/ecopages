@@ -1,5 +1,5 @@
 import type { EcoComponent, EcoComponentConfig, ResolvedLazyTrigger } from '../../../types/public-types.ts';
-import type { AssetDefinition, ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import type { AssetDefinition, ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
 import { getComponentIdentity } from '../../../eco/component-identity.ts';
 import {
 	type ComponentGraphRoot,

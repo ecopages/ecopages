@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AssetProcessingService } from '../../../services/assets/asset-processing-service/index.ts';
+import type { AssetProcessingService } from '../../../assets/asset-processing-service/index.ts';
 import type { EcoPagesAppConfig } from '../../../types/internal-types.ts';
 import type { EcoComponent, IntegrationRendererRenderOptions, RouteRendererBody } from '../../../types/public-types.ts';
 import { createUnresolvedMarkerArtifact } from '../integration-renderer.test-fixtures.ts';

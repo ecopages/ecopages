@@ -5,13 +5,13 @@ import {
 	type AssetDefinition,
 	type AssetProcessingService,
 	type ProcessedAsset,
-} from '../../../services/assets/asset-processing-service/index.ts';
-import type { AssetProcessingIntegration } from '../../../services/assets/asset-processing-service/asset-processing-integration.ts';
-import { resolveAssetProcessingIntegration } from '../../../services/assets/asset-processing-service/asset-processing-integration.ts';
+} from '../../../assets/asset-processing-service/index.ts';
+import type { AssetProcessingIntegration } from '../../../assets/asset-processing-service/asset-processing-integration.ts';
+import { resolveAssetProcessingIntegration } from '../../../assets/asset-processing-service/asset-processing-integration.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { startupTrace } from '../../../diagnostics/startup-trace.ts';
-import { createAppBrowserClientEntryKey } from '../../../services/assets/app-browser-client-build.ts';
+import { createAppBrowserClientEntryKey } from '../../../assets/app-browser-client-build.ts';
 import {
 	collectPageBrowserGraphDependencyPaths,
 	createPageBrowserGraphEntryFingerprint,

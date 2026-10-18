@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { afterEach, describe, expect, it } from 'vitest';
-import { recordHashedBrowserAsset } from '../../../services/assets/hashed-browser-asset.ts';
+import { recordHashedBrowserAsset } from '../../../assets/hashed-browser-asset.ts';
 import { serveDistFile } from './dist-file-handler.ts';
 
 const tempRoots: string[] = [];

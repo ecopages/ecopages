@@ -10,8 +10,8 @@ import type {
 	IntegrationRenderer,
 	IntegrationRendererOptions,
 } from '../route-renderer/orchestration/integration-renderer.ts';
-import { AssetProcessingService } from '../services/assets/asset-processing-service/asset-processing.service.ts';
-import type { AssetDefinition, ProcessedAsset } from '../services/assets/asset-processing-service/assets.types.ts';
+import { AssetProcessingService } from '../assets/asset-processing-service/asset-processing.service.ts';
+import type { AssetDefinition, ProcessedAsset } from '../assets/asset-processing-service/assets.types.ts';
 import { deepMerge } from '../utils/deep-merge.ts';
 import type { StaticExportContext, StaticExportRelease } from '../static-site-generator/static-export-context.ts';
 

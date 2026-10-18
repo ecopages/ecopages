@@ -15,7 +15,7 @@ import type {
 	AssetDefinition,
 	AssetProcessingService,
 	ProcessedAsset,
-} from '../../services/assets/asset-processing-service/index.ts';
+} from '../../assets/asset-processing-service/index.ts';
 import type {
 	ComponentRenderInput,
 	EcoPagesElement,

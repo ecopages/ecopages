@@ -6,11 +6,11 @@ import type {
 	AssetProcessingIntegration,
 	AssetProcessingService,
 	ProcessedAsset,
-} from '../../services/assets/asset-processing-service/index.ts';
-import { resolveAssetProcessingIntegration } from '../../services/assets/asset-processing-service/asset-processing-integration.ts';
+} from '../../assets/asset-processing-service/index.ts';
+import { resolveAssetProcessingIntegration } from '../../assets/asset-processing-service/asset-processing-integration.ts';
 import { rapidhash } from '../../utils/hash.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
-import { AssetFactory } from '../../services/assets/asset-processing-service/index.ts';
+import { AssetFactory } from '../../assets/asset-processing-service/index.ts';
 import { buildResolvedLazyTriggers, type ResolvedLazyGroup } from './lazy-trigger-planning.ts';
 import { collectComponentDependencies } from './component-dependency-collection.ts';
 import { packagePageDependencies } from './page-dependency-bundling.ts';

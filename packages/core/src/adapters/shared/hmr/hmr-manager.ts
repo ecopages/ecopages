@@ -34,7 +34,7 @@ import type {
 	ResolvedHmrEntrypoint,
 } from '../../../types/public-types.ts';
 import { DevTransformEntrypointRegistry } from './dev-transform-entrypoint-registry.ts';
-import { BrowserBundleService } from '../../../services/assets/browser-bundle.service.ts';
+import { BrowserBundleService } from '../../../assets/browser-bundle.service.ts';
 import { requireAppRuntime } from '../../../config/app-runtime.ts';
 import { InMemoryEntrypointDependencyGraph } from '../../../hmr/entrypoint-dependency-graph.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';

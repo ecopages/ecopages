@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { EcoComponent, PagePackageResult } from '../../../types/public-types.ts';
-import type { ProcessedAsset } from '../../../services/assets/asset-processing-service/assets.types.ts';
+import type { ProcessedAsset } from '../../../assets/asset-processing-service/assets.types.ts';
 import type { PageClientPlan } from '../ownership-graph/page-client-plan.ts';
 import type { RenderSession } from './render-session.ts';
 import { addTriggerAttribute, isThenable } from './foreign-child-output.utils.ts';

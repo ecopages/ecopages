@@ -1,10 +1,10 @@
 import type { DependencyLazyTrigger, EcoComponentScriptEntry } from '../../types/public-types.ts';
-import type { AssetDefinition } from '../../services/assets/asset-processing-service/index.ts';
+import type { AssetDefinition } from '../../assets/asset-processing-service/index.ts';
 import {
 	APP_BROWSER_CLIENT_BUNDLE_ID,
 	AssetFactory,
 	createAppBrowserClientEntry,
-} from '../../services/assets/asset-processing-service/index.ts';
+} from '../../assets/asset-processing-service/index.ts';
 import { rapidhash } from '../../utils/hash.ts';
 import { getLazyTriggerKey } from './lazy-trigger-planning.ts';
 

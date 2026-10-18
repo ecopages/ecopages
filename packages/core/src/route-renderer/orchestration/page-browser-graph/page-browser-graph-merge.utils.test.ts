@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createPagePackage, type ProcessedAsset } from '../../../services/assets/asset-processing-service/index.ts';
+import { createPagePackage, type ProcessedAsset } from '../../../assets/asset-processing-service/index.ts';
 import { mergePageBrowserGraph } from './page-browser-graph-merge.utils.ts';
 
 function scriptAsset(filepath: string): ProcessedAsset {

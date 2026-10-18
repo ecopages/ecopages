@@ -4,7 +4,7 @@ import { createAppRuntime } from '../../config/app-runtime.ts';
 import { IntegrationRenderer, type HtmlDocumentContribution } from './integration-renderer.ts';
 import { getComponentRenderContext, type ForeignChildRuntime } from './foreign-child/component-render-context.ts';
 import type { EcoPagesAppConfig } from '../../types/internal-types.ts';
-import type { AssetProcessingService, ProcessedAsset } from '../../services/assets/asset-processing-service/index.ts';
+import type { AssetProcessingService, ProcessedAsset } from '../../assets/asset-processing-service/index.ts';
 import type {
 	ComponentRenderInput,
 	ComponentRenderResult,

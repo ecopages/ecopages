@@ -1,5 +1,10 @@
 import { appLogger } from '../../../global/app-logger.ts';
-import type { EcopagesSocket, OutgoingWebSocketMessage, WebSocketCloseInfo } from '../../../types/contracts.ts';
+import type {
+	EcopagesSocket,
+	OutgoingWebSocketMessage,
+	PageQuery,
+	WebSocketCloseInfo,
+} from '../../../types/contracts.ts';
 
 /**
  * @remarks
@@ -33,7 +38,7 @@ function sendOutgoingMessage(transport: WebSocketSendTransport, message: Outgoin
  */
 export function createEcopagesSocket<TContext, TParams extends Record<string, string>>(
 	transport: WebSocketSendTransport,
-	meta: { kind: string; params: TParams; search: Record<string, string>; context: TContext },
+	meta: { kind: string; params: TParams; search: PageQuery; context: TContext },
 ): EcopagesSocket<TContext, TParams> {
 	return {
 		kind: meta.kind,

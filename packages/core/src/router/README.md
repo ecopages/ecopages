@@ -86,7 +86,7 @@ Supported dynamic route syntax and captured values:
 | Explicit   | `:name` or `[name]` | `:...name` or `[...name]` | Named parameters and catch-alls are strings; catch-all segments are joined with `/`.                   |
 | WebSocket  | `:name`             | None                      | Named parameters are strings.                                                                          |
 
-Repeated query keys retain all values in order: `?tag=docs&tag=api` becomes `{ tag: ['docs', 'api'] }`. A query key with one value remains a string. Pages, API handlers, route matching, and static route info share `PageParams` and `PageQuery` value shapes.
+Repeated query keys retain all values in order: `?tag=docs&tag=api` becomes `{ tag: ['docs', 'api'] }`. A query key with one value remains a string. Pages, API handlers, WebSocket upgrade handlers (`search`), route matching, and static route info share `PageParams` and `PageQuery` value shapes, parsed by one function. A schema that expects a plain string answers HTTP 400 for a repeated key.
 
 API and WebSocket matching still prioritize more specific routes. Filesystem routes keep their existing exact, dynamic, and catch-all ordering; explicit routes keep declaration order.
 

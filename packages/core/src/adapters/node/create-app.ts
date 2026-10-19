@@ -416,7 +416,7 @@ export class EcopagesApp implements AsyncDisposable {
 	 * and routes lifecycle events to `handler`.
 	 *
 	 * Supports dynamic segments via `:param` syntax. The handler receives
-	 * typed `params` and `search` fields, and a typed `context` produced by
+	 * typed `params` and `search` fields (a query key repeated in the URL is an array in `search`), and a typed `context` produced by
 	 * the optional `context()` factory.
 	 *
 	 * One pattern registration matches infinite path variations. For example,
@@ -429,7 +429,8 @@ export class EcopagesApp implements AsyncDisposable {
 	 * ```typescript
 	 * app.websocket<ChatContext, { roomId: string }>('/ws/chat/:roomId', {
 	 *   async context({ params, search }) {
-	 *     return { username: search.username ?? 'anonymous', roomId: params.roomId };
+	 *     const username = Array.isArray(search.username) ? search.username[0] : search.username;
+	 *     return { username: username ?? 'anonymous', roomId: params.roomId };
 	 *   },
 	 *   onConnect(socket) {
 	 *     socket.send(`Welcome to room ${socket.context.roomId}`);

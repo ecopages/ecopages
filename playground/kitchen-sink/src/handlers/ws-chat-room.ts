@@ -91,8 +91,9 @@ function appendToHistory(roomId: string, message: ChatRoomMessage): void {
 
 export const chatRoomWebsocketHandler: EcopagesWebSocketHandler<ChatRoomData, { roomId: string }> = {
 	async context({ params, search }) {
+		const username = Array.isArray(search.username) ? search.username[0] : search.username;
 		return {
-			username: search.username ?? 'anonymous',
+			username: username ?? 'anonymous',
 			roomId: params.roomId,
 		};
 	},

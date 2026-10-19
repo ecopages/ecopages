@@ -130,6 +130,8 @@ export const createPost = definePost({
 });
 ```
 
+Repeated query keys (`?draft=true&draft=false`) reach the schema as arrays, so `z.string()` answers HTTP 400 for them. Use `z.union([z.string(), z.array(z.string())])` to accept both shapes.
+
 When a route declares `schema.body`, core parses `application/json` and `text/plain` bodies and validates the parsed value. Malformed JSON returns HTTP 400. A request with no body and no `Content-Type`, or an empty body with either supported type, passes `undefined` to the body schema: required schemas return HTTP 400, while optional schemas such as `z.object({ title: z.string() }).optional()` accept it. Unsupported content types and nonempty bodies without a `Content-Type` return HTTP 415.
 
 ### With Middleware

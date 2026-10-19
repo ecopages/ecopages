@@ -208,7 +208,7 @@ The router relies on **HTML-First** navigation to sync perfectly with SSR:
 3. **Navigation**: On click, `resolveReactNavigation` returns an explicit outcome:
     - `spa`: core fetches and parses HTML → read `#__ECO_PAGE_DATA__` → dynamic-import `moduleUrl` → the shared pipeline reconciles `<head>` and runs the React page swap inside a named view transition when enabled.
     - `handoff`: fetched document has no React page module → coordinator hands off to browser-router (hard `assign` if handoff fails).
-    - `hard-navigation`: static-asset URL or failed fetch → `location.assign` / `location.href`.
+    - `hard-navigation`: static-asset URL, failed fetch, or a page module that fails to load, evaluate or preload (the error is logged) → `location.assign` / `location.href`.
     - `stale`: a newer navigation superseded this attempt.
     - `isNavigating` clears on every non-stale terminal (including handoff and hard fallback); stale attempts leave it for the newer owner.
 

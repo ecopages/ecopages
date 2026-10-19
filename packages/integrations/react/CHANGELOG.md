@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.2
+
+### Patch Changes
+
+- [#824](https://github.com/ecopages/ecopages/pull/824) [`c9e99d6`](https://github.com/ecopages/ecopages/commit/c9e99d6dd7caf30bc39549b3b037fbb247041c93) Thanks [@andeeplus](https://github.com/andeeplus)! - Fix four development and lifecycle edge cases:
+
+    - Calling `stop()`, then `start()`, then `stop()` again before the first stop finishes now leaves nothing running. Before, the queued `start()` brought the server back after the last `stop()` had resolved.
+    - In preview mode, the `start()` callback no longer runs, and the server-running notice is no longer logged, when `stop()` is called while the static build is still running.
+    - Editing a file that declares several React islands now hot-updates all of them, not only the last one. When an edit renames an island's declaration so the updated module no longer exports it, the page reloads instead of rendering another export of the file in its place.
+    - A build error from a script change now stays visible when the same save reloads the page: the browser shows it again after the reload, and on every later page load until the file is fixed. The error is sent once instead of twice.
+
+    Correction to 0.3.1: that release removed `IHmrManager.handleFileChange` and the `graphIdentities` fields from the integration contract, although it shipped as a patch. Integrations that implement or call them must adapt: call `handleFileChanges()` with a one-item list, and stop reading or setting `graphIdentities`.
+
+- Updated dependencies [[`4026351`](https://github.com/ecopages/ecopages/commit/40263519401705b54e90efc8ce93c2bf70cdb9e5), [`a7e4217`](https://github.com/ecopages/ecopages/commit/a7e42178e12300d0bdb19fe1ac89b67c6c197a76), [`3db914f`](https://github.com/ecopages/ecopages/commit/3db914f33894366b48a011c78b326d59d1f668a9), [`c9e99d6`](https://github.com/ecopages/ecopages/commit/c9e99d6dd7caf30bc39549b3b037fbb247041c93), [`e8985f1`](https://github.com/ecopages/ecopages/commit/e8985f10b5434c191e8308368fb119390aa53c1c)]:
+    - @ecopages/file-system@0.3.2
+    - @ecopages/core@0.3.2
+    - @ecopages/mdx@0.3.2
+
 ## 0.3.1
 
 ### Patch Changes

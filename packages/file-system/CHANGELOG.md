@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2
+
+### Patch Changes
+
+- [#823](https://github.com/ecopages/ecopages/pull/823) [`4026351`](https://github.com/ecopages/ecopages/commit/40263519401705b54e90efc8ce93c2bf70cdb9e5) Thanks [@andeeplus](https://github.com/andeeplus)! - Add `stat`, `lstat`, `readdir`, `readlink`, `mkdtemp` and `rename`. `stat`, `lstat` and `readdir` report whether a path is a file, a directory or a symbolic link (and its size for stats); `readdir` can list subdirectories too. A missing path throws an error whose `code` is `ENOENT`. When `write` or `writeAsync` fails, the thrown error keeps the original error as its `cause`, so its `code` stays reachable.
+
 ## 0.3.1
 
 ### Patch Changes

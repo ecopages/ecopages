@@ -447,6 +447,52 @@ describe('resolveReactNavigation', () => {
 		expect(outcome).toEqual({ kind: 'hard-navigation', href: '/removed', mode: 'location' });
 	});
 
+	describe('when the page module fails', () => {
+		const createPageHtml = (moduleUrl: string) =>
+			`<html><body><script id="__ECO_PAGE_DATA__" type="application/json">${JSON.stringify({
+				schemaVersion: 1,
+				navigationOwner: 'react-router',
+				moduleUrl,
+				props: {},
+			})}</script></body></html>`;
+
+		it.each([
+			['is missing', new URL('./fixtures/missing-page-module.ts', import.meta.url).toString()],
+			['throws while evaluating', new URL('./fixtures/throwing-page-module.ts', import.meta.url).toString()],
+			['throws in preload', new URL('./fixtures/throwing-preload-page-module.ts', import.meta.url).toString()],
+		])('uses a full navigation and logs the error when the module %s', async (_name, moduleUrl) => {
+			vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(htmlPageResponse(createPageHtml(moduleUrl)));
+			const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+			const outcome = await resolveReactNavigation({
+				url: '/broken',
+				signal: new AbortController().signal,
+				isStale: () => false,
+				isPopState: false,
+				pushHistory: true,
+			});
+
+			expect(outcome).toEqual({ kind: 'hard-navigation', href: '/broken', mode: 'location' });
+			expect(errorSpy).toHaveBeenCalledWith('[EcoRouter] Failed to load the page module:', expect.any(Error));
+		});
+
+		it('does not fall back when the navigation was superseded while the module failed', async () => {
+			const moduleUrl = new URL('./fixtures/throwing-page-module.ts', import.meta.url).toString();
+			vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(htmlPageResponse(createPageHtml(moduleUrl)));
+			vi.spyOn(console, 'error').mockImplementation(() => {});
+
+			const outcome = await resolveReactNavigation({
+				url: '/superseded',
+				signal: new AbortController().signal,
+				isStale: vi.fn().mockReturnValueOnce(false).mockReturnValue(true),
+				isPopState: false,
+				pushHistory: true,
+			});
+
+			expect(outcome).toEqual({ kind: 'stale' });
+		});
+	});
+
 	it('fetches the page on every visit instead of reusing the shared HTML cache', async () => {
 		const fetchMock = vi
 			.spyOn(globalThis, 'fetch')

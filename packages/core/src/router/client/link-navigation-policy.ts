@@ -52,15 +52,28 @@ function getLinkIneligibilityReason(
 		return 'invalid-href';
 	}
 
-	const url = new URL(href, window.location.origin);
+	const url = new URL(link.href);
 	if (url.origin !== window.location.origin) {
 		return 'cross-origin';
 	}
-	if (isStaticAssetHref(href)) {
+	if (isStaticAssetHref(link.href)) {
 		return 'static-asset';
 	}
 
 	return null;
+}
+
+/**
+ * Returns the same-origin path, query, and hash an anchor navigates to.
+ *
+ * @remarks
+ * Resolves through the anchor's own `href` property, so relative links (`?page=2`,
+ * `next`, `../x`) and `<base href>` resolve exactly as a full page load would instead
+ * of against the origin. Call only after the link passed the same-origin checks.
+ */
+function getLinkNavigationHref(link: HTMLAnchorElement): string {
+	const url = new URL(link.href);
+	return `${url.pathname}${url.search}${url.hash}`;
 }
 
 /**
@@ -92,6 +105,9 @@ export function isSamePageHashNavigationHref(href: string): boolean {
 
 /**
  * Decides whether a pointer or click on an anchor should be handled as SPA navigation.
+ *
+ * @remarks
+ * An intercepted decision carries the resolved same-origin path, query, and hash, never the raw attribute.
  */
 export function getLinkNavigationDecision(
 	event: MouseEvent | PointerEvent,
@@ -115,7 +131,7 @@ export function getLinkNavigationDecision(
 		return { shouldIntercept: false, reason: ineligibility };
 	}
 
-	const href = link.getAttribute('href')!;
+	const href = getLinkNavigationHref(link);
 	if (isSamePageHashNavigationHref(href)) {
 		return { shouldIntercept: false, reason: 'same-page-hash' };
 	}
@@ -124,7 +140,7 @@ export function getLinkNavigationDecision(
 }
 
 /**
- * Returns the href when SPA navigation should intercept the click, otherwise `null`.
+ * Returns the resolved same-origin href when SPA navigation should intercept the click, otherwise `null`.
  */
 export function getNavigableHrefFromClick(
 	event: MouseEvent | PointerEvent,
@@ -143,8 +159,7 @@ export function shouldPrefetchLink(link: HTMLAnchorElement, options: LinkNavigat
 		return false;
 	}
 
-	const href = link.getAttribute('href')!;
-	return !isSamePageHref(href);
+	return !isSamePageHref(getLinkNavigationHref(link));
 }
 
 /**

@@ -139,6 +139,15 @@ export class EcopagesApp implements AsyncDisposable {
 	/** @remarks Initialized by the first `fetch()` or `start()` call and exposed for host-level request middleware. */
 	public serverAdapter: NodeServerAdapter | undefined;
 	private lifecycle: AppLifecycle = { phase: 'idle' };
+	/**
+	 * Counts `stop()` calls.
+	 *
+	 * @remarks
+	 * A `start()` or `fetch()` that waits for a running stop compares it after the
+	 * wait, so a later `stop()` cancels it instead of sharing the first stop's promise
+	 * and letting it start a new session afterwards.
+	 */
+	private stopCount = 0;
 
 	constructor(options: EcopagesAppRuntimeOptions, dependencies: EcopagesAppDependencies) {
 		this.runtimeLabel = resolveProcessRuntimeLabel();
@@ -555,7 +564,9 @@ export class EcopagesApp implements AsyncDisposable {
 	 *
 	 * @remarks
 	 * Resolves without a server when `stop()` is called before startup finishes;
-	 * that startup does not continue.
+	 * that startup does not continue. It still rejects when the step in flight
+	 * fails, such as a bind failure. A call made while `stop()` runs waits for it,
+	 * and resolves without a server when another `stop()` arrives in that wait.
 	 */
 	public async start(onAppStart?: OnAppStartCallback): Promise<NodeServerInstance | void> {
 		if (onAppStart) {
@@ -609,7 +620,9 @@ export class EcopagesApp implements AsyncDisposable {
 			return this.isActive(session) ? session : undefined;
 		}
 		if (current.phase === 'stopping') {
+			const stopCount = this.stopCount;
 			await current.stopped;
+			if (this.stopCount !== stopCount) return undefined;
 			return await this.getReadySession();
 		}
 
@@ -632,7 +645,7 @@ export class EcopagesApp implements AsyncDisposable {
 		const { build, preview, serveOnly, keepGoing } = this.cliArgs;
 		if (preview && serveOnly) {
 			const previewOrigin = await session.adapter.servePreviewOnly();
-			if (previewOrigin) await this.notifyListening(previewOrigin);
+			if (previewOrigin && this.isActive(session)) await this.notifyListening(previewOrigin);
 			return;
 		}
 
@@ -640,7 +653,7 @@ export class EcopagesApp implements AsyncDisposable {
 			appLogger.debugTime('Building static pages');
 			const previewOrigin = await session.adapter.buildStatic({ preview, keepGoing });
 			appLogger.debugTimeEnd('Building static pages');
-			if (preview && previewOrigin) await this.notifyListening(previewOrigin);
+			if (preview && previewOrigin && this.isActive(session)) await this.notifyListening(previewOrigin);
 			return;
 		}
 
@@ -747,6 +760,7 @@ export class EcopagesApp implements AsyncDisposable {
 	 * releases whatever that step created.
 	 */
 	public stop(force = true): Promise<void> {
+		this.stopCount += 1;
 		const current = this.lifecycle;
 		if (current.phase === 'idle' || current.phase === 'stopped') return Promise.resolve();
 		if (current.phase === 'stopping') return current.stopped;

@@ -1,6 +1,25 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { createDistManifest } from './build-npm-packages.ts';
+import { createDistManifest, findUnresolvedRelativeImports } from './build-npm-packages.ts';
+
+test('findUnresolvedRelativeImports reports relative targets missing from the tarball', () => {
+	const packed = new Set(['src/a.js', 'src/lib/b.js', 'src/lib/c.js', 'src/data.json']);
+	const source = [
+		`import { b } from './lib/b.js';`,
+		`export * from './lib/dist-missing.js';`,
+		`import './data.json';`,
+		`const lazy = () => import('../src/lib/c.js');`,
+		`const gone = () => import("./gone.js");`,
+		`import { x } from '@ecopages/core';`,
+		`/** Example: import './in-comment.css' */`,
+		`write('import "./generated.d.js";');`,
+	].join('\n');
+
+	assert.deepEqual(findUnresolvedRelativeImports('src/a.js', source, packed), [
+		'src/lib/dist-missing.js',
+		'src/gone.js',
+	]);
+});
 
 test('createDistManifest strips development-only manifest fields', () => {
 	const distManifest = createDistManifest(

@@ -8,6 +8,10 @@ Public packages are versioned with Changesets. `pnpm changeset` records a change
 
 Official templates ship agent skill packs under `.agents/skills`. After changing `apps/docs/src/public/skill` or `scripts/agent-skills`, run `pnpm sync:template-skills`. `pnpm check:templates` fails if those copies drift.
 
+`check-ignored-files.ts` (`pnpm check:ignored`) lists tracked files that an ignore rule matches, with the rule, since those are missing from the tarballs. `build-npm-packages.ts` also fails when a packed file imports a file the tarball does not contain. `pnpm smoke:templates` builds the `html`, `jsx` and `lit-jsx` templates from the workspace. These three run on every pull request.
+
+`smoke-packed-templates.ts` (`pnpm smoke:packed`) is the slow release check: it installs the official templates from the `pnpm pack` tarballs of every public package, with `overrides` in the project's `pnpm-workspace.yaml` so sibling packages cannot resolve from the registry, then builds them and serves `html` with `preview`. Run it locally before a release; CI runs it only for the `changeset-release/main` pull request and on manual dispatch.
+
 ## Test guardrails
 
 `check-portability.ts` (run by `pnpm typecheck`) rejects Bun filesystem calls in packages, runtime subpath imports in apps, and direct `process.env` writes in `*.test.*` files. Both Vitest projects set `unstubEnvs`, `unstubGlobals` and `restoreMocks`, so a test changes the environment with `vi.stubEnv('NAME', value)` (`undefined` unsets it) and Vitest puts it back after the test, even when the test fails. A test that writes files uses a `mkdtemp` directory under `os.tmpdir()` and removes it in `afterEach`.

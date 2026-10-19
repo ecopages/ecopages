@@ -68,6 +68,9 @@ jobs:
             - name: Fast gate
               run: pnpm run test:ci:fast
 
+            - name: Build static templates
+              run: pnpm run smoke:templates
+
     e2e-shard:
         strategy:
             fail-fast: false

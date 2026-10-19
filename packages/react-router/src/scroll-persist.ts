@@ -40,13 +40,18 @@ function captureScrollPositions(): ScrollMap {
  * Saves positions to both:
  * - URL-keyed store (for back navigation restoration)
  * - Current snapshot (for forward navigation preservation)
+ *
+ * @param leavingUrl - Path, search and hash of the page being left
+ * @remarks
+ * The key is passed in because `window.location` already points at the destination during a
+ * back/forward navigation. Reading it here would store the leaving page's scroll under the
+ * destination's key and then restore it.
  */
-export function saveScrollPositions(): void {
-	const url = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+export function saveScrollPositions(leavingUrl: string): void {
 	const positions = captureScrollPositions();
 
 	if (positions.size > 0) {
-		urlScrollStore.set(url, positions);
+		urlScrollStore.set(leavingUrl, positions);
 	}
 	currentScrollSnapshot = positions;
 }
@@ -93,19 +98,4 @@ export function restoreScrollPositions(targetUrl: string, isPopState: boolean): 
 	};
 
 	restore(20);
-}
-
-/**
- * Returns stored scroll positions for a URL without applying them.
- */
-export function getScrollPositions(url: string): ScrollMap | undefined {
-	return urlScrollStore.get(url);
-}
-
-/**
- * Clears all stored scroll positions.
- */
-export function clearScrollPositions(): void {
-	urlScrollStore.clear();
-	currentScrollSnapshot = null;
 }

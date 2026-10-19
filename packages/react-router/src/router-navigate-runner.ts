@@ -99,7 +99,7 @@ async function applyRouterNavigationOutcome(
 					window.location.assign(href);
 				},
 				viewTransitionsEnabled: Boolean(input.deps.options.viewTransitions),
-				saveScrollPositions,
+				saveScrollPositions: () => saveScrollPositions(input.deps.committedPathRef.current),
 				restoreScrollPositions,
 				updateHistory: (finalPath, requestedUrl, direction) => {
 					if (direction === 'forward') {

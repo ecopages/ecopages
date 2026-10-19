@@ -32,3 +32,27 @@ test('restores the docs sidebar scroll position when navigating back to its layo
 	await expect(page.getByTestId('docs-page')).toBeVisible();
 	await expect.poll(() => sidebar.evaluate((element) => element.scrollTop)).toBe(scrollPosition);
 });
+
+test('back navigation restores the sidebar scroll of the page it returns to, not the page it left', async ({
+	page,
+}) => {
+	await gotoAndWait(page, '/docs');
+
+	const sidebar = page.getByTestId('docs-sidebar');
+	await expect(sidebar).toBeVisible();
+	await sidebar.hover();
+	await page.mouse.wheel(0, 30);
+	await expect.poll(() => sidebar.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+	const firstPagePosition = await sidebar.evaluate((element) => element.scrollTop);
+
+	await page.getByTestId('link-getting-started').click();
+	await page.waitForURL('**/docs/getting-started');
+	await expect(sidebar).toBeVisible();
+	await sidebar.hover();
+	await page.mouse.wheel(0, 75);
+	await expect.poll(() => sidebar.evaluate((element) => element.scrollTop)).toBeGreaterThan(firstPagePosition);
+
+	await page.goBack();
+	await page.waitForURL('**/docs');
+	await expect.poll(() => sidebar.evaluate((element) => element.scrollTop)).toBe(firstPagePosition);
+});

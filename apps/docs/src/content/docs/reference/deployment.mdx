@@ -25,13 +25,13 @@ This command will:
 3. Generate static HTML for all files in `src/pages`.
 4. Write `robots.txt` (and optional `sitemap.xml` when enabled — see [Sitemap](/docs/core/sitemap)).
 5. Process images and CSS.
-6. Collect all necessary server-side files.
+6. Bundle the server into `dist/.server/` when the app registers API or WebSocket handlers. A static-only app has no server bundle.
 
 ---
 
 ## Static Hosting
 
-If your site **does not** use API routes or programmatic server logic, you can host the contents of the `dist` directory on any static provider.
+If your site **does not** use API routes or programmatic server logic, you can host the contents of the `dist` directory on any static provider. `ecopages start` cannot run a static-only build because it has no server bundle; use `ecopages preview` to serve it locally.
 
 - **Vercel / Netlify**: Connect your repository and set the build command to `pnpm run build`. Set the output directory to `dist`.
 - **GitHub Pages**: Use a GitHub Action to run `pnpm run build` and deploy the output directory.
@@ -52,7 +52,7 @@ If your application uses **API routes** or **dynamic server logic**, you need a 
 
 ### 1. Using `pnpm run start`
 
-After building, you can start the production server:
+After building, you can start the production server. This needs a server bundle, so it works only for apps that register API or WebSocket handlers:
 
 ```bash
 pnpm run start

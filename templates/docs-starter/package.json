@@ -3,7 +3,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"start": "pnpm run build && ecopages start",
+		"start": "pnpm run generate:llms && ecopages preview",
 		"generate:llms": "tsx scripts/generate-llm-docs.ts",
 		"dev": "pnpm run generate:llms && ecopages dev",
 		"build": "pnpm run generate:llms && ecopages build",

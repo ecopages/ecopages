@@ -5,6 +5,7 @@ import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { SERVER_BUNDLE_DIR, SERVER_BUNDLE_FILENAME } from '../utils/resolve-entry-file.ts';
 
 const SERVER_BUNDLE_MANIFEST_FILENAME = 'manifest.json';
+const DEFAULT_DIST_DIR = 'dist';
 
 /**
  * Describes the server bundle in `<distDir>/.server/manifest.json`.
@@ -112,6 +113,11 @@ function readServerBundleDeployManifest(serverDir: string): ServerBundleDeployMa
  * not, and need `--dist-dir`. Guessing between several would run a stale bundle from an earlier build
  * that used another `distDir`.
  *
+ * Static-only apps (no API or WebSocket handlers) build no server bundle. When the selected output, or `dist`
+ * when none is named, holds built HTML but no bundle, the error says so and points to `ecopages preview`
+ * instead of asking for another build. A static-only build in a custom `distDir` needs `--dist-dir` to be
+ * recognised.
+ *
  * @param options.cwd - Project root.
  * @param options.distDir - Directory named with `--dist-dir`, relative to `cwd`.
  * @returns The absolute path of the build output directory.
@@ -120,12 +126,20 @@ export async function resolveProductionDistDir(options: { cwd?: string; distDir?
 	const cwd = path.resolve(options.cwd ?? process.cwd());
 	const describe = (distDir: string) => path.relative(cwd, distDir) || '.';
 
+	const staticOnlyError = (distDir: string) =>
+		new Error(
+			`${describe(distDir)}/ holds a static-only build: it has no server bundle, so \`ecopages start\` cannot run it. Serve it with \`ecopages preview\` or deploy ${describe(distDir)}/ to a static host.`,
+		);
+	const holdsBuiltHtml = (distDir: string) => fileSystem.exists(path.join(distDir, 'index.html'));
+
 	if (options.distDir !== undefined) {
 		const distDir = path.resolve(cwd, options.distDir);
 		if (!fileSystem.exists(path.join(resolveServerBundleDir(cwd, distDir), SERVER_BUNDLE_MANIFEST_FILENAME))) {
-			throw new Error(
-				`No production bundle found in ${describe(distDir)}/${SERVER_BUNDLE_DIR}. Run \`ecopages build\` first.`,
-			);
+			throw holdsBuiltHtml(distDir)
+				? staticOnlyError(distDir)
+				: new Error(
+						`No production bundle found in ${describe(distDir)}/${SERVER_BUNDLE_DIR}. Run \`ecopages build\` first.`,
+					);
 		}
 		return distDir;
 	}
@@ -140,6 +154,10 @@ export async function resolveProductionDistDir(options: { cwd?: string; distDir?
 		);
 	}
 	if (distDirs.length === 0) {
+		const defaultDistDir = path.join(cwd, DEFAULT_DIST_DIR);
+		if (holdsBuiltHtml(defaultDistDir)) {
+			throw staticOnlyError(defaultDistDir);
+		}
 		throw new Error(
 			'No production bundle found. Run `ecopages build` before starting in production mode, or pass --dist-dir <dir> for an output that is not a direct subdirectory.',
 		);

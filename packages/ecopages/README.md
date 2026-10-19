@@ -39,7 +39,7 @@ The commands above run on Node. Bun is optional: launch them through Bun (`bunx 
 > [!NOTE]
 > The entry file defaults to `app.ts`. Override it with `--entry-file`.
 
-`ecopages start` does not load `eco.config.ts`, so it finds the build output by looking for `.server/manifest.json` one level below the app root (dot-prefixed directories included). It uses the only match, fails with the matches listed when there are several, and fails with "run `ecopages build`" when there is none. Pass `--dist-dir <dir>` to select a directory, which is required for nested (`out/web`) and symlinked outputs and whenever the app builds several outputs, such as `dist-<scope>` per build target.
+`ecopages start` does not load `eco.config.ts`, so it finds the build output by looking for `.server/manifest.json` one level below the app root (dot-prefixed directories included). It uses the only match, fails with the matches listed when there are several, and fails with "run `ecopages build`" when there is none. Only apps that register API or WebSocket handlers build a server bundle. For a static-only app, `start` instead reports that the build has no server bundle when `dist` (or the `--dist-dir` directory) holds built HTML; serve that output with `ecopages preview` or deploy `dist/` to a static host. Pass `--dist-dir <dir>` to select a directory, which is required for nested (`out/web`) and symlinked outputs and whenever the app builds several outputs, such as `dist-<scope>` per build target.
 
 ### Templates
 

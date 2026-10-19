@@ -77,7 +77,7 @@ Builds your project and starts a local production server for testing.
 
 ### `start`
 
-Starts the production server using the existing build. `start` does not read `distDir` from `eco.config.ts`. It runs the only `<dir>/.server/manifest.json` that exists one level below the app root, including dot-prefixed directories such as `.output`. With none it asks you to run `ecopages build`, and with several it fails and lists them. Pass `--dist-dir <dir>` to choose one, which is also needed for a nested output such as `out/web` or a symlinked directory. An app that builds several outputs, such as `dist-<scope>` per build target, therefore needs `--dist-dir` for a plain `start`.
+Starts the production server using the existing build. It needs a server bundle, and only apps that register API or WebSocket handlers build one. A static-only app has no server bundle, so `start` stops and says so when `dist` (or the `--dist-dir` directory) holds built HTML; serve it with `preview`, or deploy `dist/` to a static host. `start` does not read `distDir` from `eco.config.ts`. It runs the only `<dir>/.server/manifest.json` that exists one level below the app root, including dot-prefixed directories such as `.output`. With none it asks you to run `ecopages build`, and with several it fails and lists them. Pass `--dist-dir <dir>` to choose one, which is also needed for a nested output such as `out/web` or a symlinked directory. An app that builds several outputs, such as `dist-<scope>` per build target, therefore needs `--dist-dir` for a plain `start`.
 
 - Does not watch files for changes.
 - optimized for performance.

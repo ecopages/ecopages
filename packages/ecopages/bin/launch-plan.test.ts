@@ -407,6 +407,32 @@ describe('launch-plan', () => {
 			}
 		});
 
+		it('explains a static-only build in dist instead of asking for another build', async () => {
+			const tempDir = setupBundleFixture();
+			try {
+				fs.mkdirSync(path.join(tempDir, 'dist'), { recursive: true });
+				fs.writeFileSync(path.join(tempDir, 'dist', 'index.html'), '<html></html>', 'utf8');
+
+				await expect(startPlan()).rejects.toThrow(/static-only build.*ecopages preview/);
+			} finally {
+				fs.rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it('explains a static-only build in the directory --dist-dir names', async () => {
+			const tempDir = setupBundleFixture();
+			try {
+				fs.mkdirSync(path.join(tempDir, 'build'), { recursive: true });
+				fs.writeFileSync(path.join(tempDir, 'build', 'index.html'), '<html></html>', 'utf8');
+
+				await expect(startPlan({ distDir: 'build' })).rejects.toThrow(
+					/build\/ holds a static-only build.*ecopages preview/,
+				);
+			} finally {
+				fs.rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
 		it('runs the emitted config of the selected output directory', async () => {
 			const tempDir = setupBundleFixture();
 			const realTempDir = fs.realpathSync(tempDir);

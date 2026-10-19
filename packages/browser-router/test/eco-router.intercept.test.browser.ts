@@ -120,7 +120,25 @@ describe('EcoRouter', () => {
 
 			it.each([
 				{ name: 'root-relative path', href: '/test-link', expectedUrl: '/test-link' },
-				{ name: 'path relative to the origin', href: 'relative/path', expectedUrl: '/relative/path' },
+				{
+					name: 'path relative to the current page',
+					href: 'next',
+					pathname: '/docs/intro',
+					expectedUrl: '/docs/next',
+				},
+				{ name: 'query-only link', href: '?page=2', pathname: '/blog', expectedUrl: '/blog?page=2' },
+				{
+					name: 'hash on another relative page',
+					href: 'other#part',
+					pathname: '/docs/intro',
+					expectedUrl: '/docs/other#part',
+				},
+				{
+					name: 'parent-relative path',
+					href: '../x',
+					pathname: '/docs/guide/intro',
+					expectedUrl: '/docs/x',
+				},
 				{
 					name: 'same-origin absolute URL',
 					href: `${window.location.origin}/absolute-path`,
@@ -131,13 +149,27 @@ describe('EcoRouter', () => {
 					href: '/page?foo=bar&baz=qux',
 					expectedUrl: '/page?foo=bar&baz=qux',
 				},
-			])('should intercept a click on a $name', async ({ href, expectedUrl }) => {
+			])('should intercept a click on a $name', async ({ href, pathname, expectedUrl }) => {
+				if (pathname) window.history.replaceState({}, '', pathname);
 				fixtures.router = createRouter();
 				const pushStateSpy = spyPushState();
 
 				await clickWithNavigation(createLink({ href, id: 'internal-link' }));
 
-				expect(pushStateSpy).toHaveBeenCalledWith({}, '', expect.stringContaining(expectedUrl));
+				expect(pushStateSpy).toHaveBeenCalledWith({}, '', `${window.location.origin}${expectedUrl}`);
+			});
+
+			it('should resolve a relative link against the base element like a full page load', async () => {
+				window.history.replaceState({}, '', '/blog');
+				const base = document.createElement('base');
+				base.href = `${window.location.origin}/docs/`;
+				document.head.append(base);
+				fixtures.router = createRouter();
+				const pushStateSpy = spyPushState();
+
+				await clickWithNavigation(createLink({ href: 'intro', id: 'internal-link' }));
+
+				expect(pushStateSpy).toHaveBeenCalledWith({}, '', `${window.location.origin}/docs/intro`);
 			});
 
 			it.each([

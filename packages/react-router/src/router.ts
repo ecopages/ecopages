@@ -420,7 +420,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 			: null;
 
 		if (decision.shouldIntercept && (activeNavigationRef.current || isNavigatingRef.current)) {
-			queuedNavigationHrefRef.current = link.getAttribute('href')!;
+			queuedNavigationHrefRef.current = decision.href;
 		}
 	});
 
@@ -464,8 +464,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 		pendingPointerNavigationRef.current = null;
 		event.preventDefault();
 		queuedNavigationHrefRef.current = null;
-		const href = link.getAttribute('href')!;
-		const url = new URL(href, window.location.origin);
+		const url = new URL(decision.href, window.location.origin);
 
 		if (options.debug) {
 			console.debug('[EcoRouter] Intercepting navigation:', url.pathname + url.search);

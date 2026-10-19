@@ -60,11 +60,34 @@ const ignored = (
  */
 const decisionRows: DecisionRow[] = [
 	{ name: 'same-origin page link', href: '/page', expected: intercepted('/page') },
-	{ name: 'relative path link', href: 'relative/path', expected: intercepted('relative/path') },
+	{
+		name: 'relative path link on a nested page',
+		href: 'next',
+		pathname: '/docs/intro',
+		expected: intercepted('/docs/next'),
+	},
+	{
+		name: 'query-only link',
+		href: '?page=2',
+		pathname: '/blog',
+		expected: intercepted('/blog?page=2'),
+	},
+	{
+		name: 'parent-relative link',
+		href: '../x',
+		pathname: '/docs/guide/intro',
+		expected: intercepted('/docs/x'),
+	},
+	{
+		name: 'hash on another page resolved against the current page',
+		href: 'other#part',
+		pathname: '/docs/intro',
+		expected: intercepted('/docs/other#part'),
+	},
 	{
 		name: 'same-origin absolute URL',
 		href: `${window.location.origin}/absolute-path`,
-		expected: intercepted(`${window.location.origin}/absolute-path`),
+		expected: intercepted('/absolute-path'),
 	},
 	{ name: 'link with a query string', href: '/page?foo=bar&baz=qux', expected: intercepted('/page?foo=bar&baz=qux') },
 	{ name: 'target _self', href: '/page', attributes: { target: '_self' }, expected: intercepted('/page') },
@@ -138,6 +161,23 @@ describe('getLinkNavigationDecision', () => {
 	});
 });
 
+describe('getLinkNavigationDecision with a base element', () => {
+	afterEach(() => {
+		document.head.querySelector('base')?.remove();
+	});
+
+	it('resolves relative links against the base href like a full page load', () => {
+		history.replaceState({}, '', '/blog');
+		const base = document.createElement('base');
+		base.href = `${window.location.origin}/docs/`;
+		document.head.append(base);
+
+		expect(getLinkNavigationDecision(createMouseEvent(), createLink('intro'), policy)).toEqual(
+			intercepted('/docs/intro'),
+		);
+	});
+});
+
 describe('getNavigableHrefFromClick', () => {
 	it('returns the href of an intercepted click and null for an ignored one', () => {
 		expect(getNavigableHrefFromClick(createMouseEvent(), createLink('/page'), policy)).toBe('/page');
@@ -154,7 +194,13 @@ describe('isSamePageHashNavigationHref', () => {
 	});
 });
 
-type PrefetchRow = { name: string; href: string; attributes?: Record<string, string>; expected: boolean };
+type PrefetchRow = {
+	name: string;
+	href: string;
+	attributes?: Record<string, string>;
+	pathname?: string;
+	expected: boolean;
+};
 
 describe('shouldPrefetchLink', () => {
 	const rows: PrefetchRow[] = [
@@ -165,9 +211,17 @@ describe('shouldPrefetchLink', () => {
 		{ name: 'cross-origin link', href: 'https://example.com/page', expected: false },
 		{ name: 'download', href: '/export', attributes: { download: '' }, expected: false },
 		{ name: 'current page', href: '/', expected: false },
+		{
+			name: 'query-only link to another query of the current page',
+			href: '?page=2',
+			pathname: '/blog',
+			expected: true,
+		},
+		{ name: 'relative link to the current page', href: 'intro', pathname: '/docs/intro', expected: false },
 	];
 
-	it.each(rows)('$name', ({ href, attributes, expected }) => {
+	it.each(rows)('$name', ({ href, attributes, pathname, expected }) => {
+		if (pathname) history.replaceState({}, '', pathname);
 		expect(shouldPrefetchLink(createLink(href, attributes), policy)).toBe(expected);
 	});
 });

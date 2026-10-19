@@ -344,4 +344,36 @@ describe('EcoRouter link navigation', () => {
 		await waitUntil(() => expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'next' }));
 		await expect.element(page.getByTestId('is-navigating')).toHaveTextContent('no');
 	});
+
+	it.each([
+		{ name: 'a query-only link', href: '?page=2', pathname: '/blog', expectedPath: '/blog?page=2' },
+		{ name: 'a relative path', href: 'next', pathname: '/docs/intro', expectedPath: '/docs/next' },
+		{ name: 'a parent-relative path', href: '../x', pathname: '/docs/guide/intro', expectedPath: '/docs/x' },
+	])('resolves $name against the current URL like a full page load', async ({ href, pathname, expectedPath }) => {
+		window.history.replaceState(null, '', pathname);
+		const Page = createMultiLinkPage('RelativeLink', [{ href, label: 'link' }]);
+		const moduleUrl = new URL('./fixtures/page-from-props.tsx', import.meta.url).toString();
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+			htmlPageResponse(createNavigablePageHtml(moduleUrl, { label: 'relative' }), { status: 200 }),
+		);
+
+		ctx.root = createRoot(ctx.container);
+		ctx.root.render(
+			createElement(EcoRouter, {
+				page: Page,
+				pageProps: {},
+				options: { viewTransitions: false },
+				// oxlint-disable-next-line no-children-prop
+				children: createElement(PageContent),
+			}),
+		);
+
+		await ctx.ready();
+		const link = ctx.container.querySelector('[data-testid="RelativeLink-link"]') as HTMLAnchorElement | null;
+		expect(link).not.toBeNull();
+		await userEvent.click(link as HTMLAnchorElement);
+
+		await waitUntil(() => expect(window.__ECO_PAGES__?.page?.props).toEqual({ label: 'relative' }));
+		expect(`${window.location.pathname}${window.location.search}`).toBe(expectedPath);
+	});
 });

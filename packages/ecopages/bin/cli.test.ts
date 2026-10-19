@@ -535,6 +535,40 @@ describe('CLI Commands', () => {
 		},
 	);
 
+	it.each([
+		['SIGKILL', 137],
+		['SIGTERM', 143],
+	] as const)('exits non-zero when the child is terminated by %s', async (signal, expectedCode) => {
+		const exitSpy = mockProcessExit();
+		const exitHandlers: Array<(code: number | null, signal: NodeJS.Signals | null) => void> = [];
+		vi.mocked(childProcess.spawn).mockReturnValueOnce({
+			on: vi.fn((event: string, handler: (code: number | null, signal: NodeJS.Signals | null) => void) => {
+				if (event === 'exit') exitHandlers.push(handler);
+			}),
+		} as never);
+
+		await runCli(['build']);
+
+		expect(() => exitHandlers[0]?.(null, signal)).toThrow(`process.exit:${expectedCode}`);
+
+		exitSpy.mockRestore();
+	});
+
+	it('lists only the options the types command honours in its help', async () => {
+		const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+		await runCli(['types', '--help']);
+
+		const help = String(log.mock.calls.at(-1)?.[0]);
+		for (const ignored of ['--port', '--hostname', '--base-url', '--entry-file']) {
+			expect(help).not.toContain(ignored);
+		}
+		for (const honoured of ['--config', '--debug', '--runtime']) {
+			expect(help).toContain(honoured);
+		}
+		log.mockRestore();
+	});
+
 	it('runs the types command on the core config entry, never the app entry', async () => {
 		vi.mocked(fs.existsSync).mockImplementation((filePath) => String(filePath).endsWith('write-types.ts'));
 		await runCli(['types', '--config', 'eco.staging.ts']);

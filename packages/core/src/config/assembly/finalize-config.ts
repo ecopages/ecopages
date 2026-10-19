@@ -233,14 +233,14 @@ function createAbsolutePaths(
  * 1. applies defaults (`baseUrl` falls back to `ECOPAGES_BASE_URL`, then `http://localhost:3000`),
  * 2. appends the HTML Pages Integration and rejects duplicate Integration names and extensions,
  * 3. resolves absolute paths, including the semantic `html.*` and error-page templates,
- * 4. installs the app-owned build adapter, build manifest, and entrypoint graph, then assembles one
- *    app runtime on the config.
+ * 4. assembles one app runtime on the config, with the app-owned build adapter, build manifest, and
+ *    build queue.
  *
  * Every call returns a new config; nothing is cached.
  *
  * App code never calls this: it exports `defineConfig(...)` and `createApp()` finalizes it.
- * Workspace packages and tests import it from `@ecopages/core/config`, a
- * subpath the npm build drops from the published package, so keep it out of user-facing docs.
+ * Workspace packages and tests import it from `@ecopages/core/config`. That subpath is published, but
+ * keep this function out of user-facing docs.
  *
  * @throws When `userConfig` is an already finalized config; when Integration names or
  * extensions, or Processor or loader names, repeat; when a semantic

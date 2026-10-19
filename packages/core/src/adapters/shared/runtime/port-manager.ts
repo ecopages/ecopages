@@ -1,3 +1,4 @@
+import { lookup } from 'node:dns/promises';
 import { createServer as createNetServer, type Server as NetServer } from 'node:net';
 import { createClackDefaultPrompt } from './port-manager-default-prompt.ts';
 
@@ -17,11 +18,24 @@ function sleep(ms: number): Promise<void> {
  * short-lived Node `net.Server`.
  *
  * @remarks
+ * `hostname` is resolved to a single address first and the probe binds that
+ * address, mirroring what the server bind does. Passing the hostname straight
+ * to `listen()` makes some runtimes (Bun) try every resolved address, so a
+ * taken port can be reported as free. A hostname that does not resolve reports
+ * the port as unavailable.
+ *
  * A successful probe only guarantees the port was free at probe time; callers
  * must still handle EADDRINUSE when they actually bind, since release races
  * can flip the answer between probe and bind.
  */
-export function isPortAvailable(port: number, hostname = '127.0.0.1'): Promise<boolean> {
+export async function isPortAvailable(port: number, hostname = '127.0.0.1'): Promise<boolean> {
+	let address: string;
+	try {
+		({ address } = await lookup(hostname));
+	} catch {
+		return false;
+	}
+
 	return new Promise((resolve) => {
 		const tester: NetServer = createNetServer();
 
@@ -30,7 +44,7 @@ export function isPortAvailable(port: number, hostname = '127.0.0.1'): Promise<b
 			tester.close(() => resolve(true));
 		});
 
-		tester.listen(port, hostname);
+		tester.listen(port, address);
 	});
 }
 

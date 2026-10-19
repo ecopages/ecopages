@@ -2,6 +2,20 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Server as NodeHttpServer } from 'node:http';
 import type { RuntimeHost } from '../../node/runtime-host.ts';
 import { bindRuntimeServer } from './bind-runtime-server.ts';
+import { isPortAvailable } from './port-manager.ts';
+
+vi.mock('./port-manager.ts', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('./port-manager.ts')>();
+	return {
+		...actual,
+		isPortAvailable: vi.fn(async () => true),
+		PortManager: class extends actual.PortManager {
+			constructor(options: ConstructorParameters<typeof actual.PortManager>[0]) {
+				super({ ...options, interactive: true, prompt: async () => true });
+			}
+		},
+	};
+});
 
 type TestServer = NodeHttpServer & { port: number };
 
@@ -75,5 +89,30 @@ describe('bindRuntimeServer', () => {
 			runtimeOrigin: 'http://localhost:3001',
 		});
 		expect(runtimeHost.start).toHaveBeenCalledTimes(3);
+	});
+
+	it.each([
+		['the configured hostname', '::1', '::1'],
+		['the default hostname when none is configured', undefined, 'localhost'],
+	])('probes the next free port on %s', async (_label, hostname, probedHostname) => {
+		const collision = Object.assign(new Error('listen EADDRINUSE'), { code: 'EADDRINUSE' });
+		const runtimeHost: RuntimeHost = {
+			start: vi
+				.fn()
+				.mockRejectedValueOnce(collision)
+				.mockRejectedValueOnce(collision)
+				.mockResolvedValueOnce({ port: 3001 }),
+			stop: vi.fn(async () => {}),
+			getOrigin: vi.fn((server: TestServer) => `http://localhost:${server.port}`),
+		};
+		vi.mocked(isPortAvailable).mockClear();
+
+		await bindRuntimeServer(runtimeHost, {
+			serveOptions: { hostname, port: 3000, handleRequest },
+			allowPortFallback: true,
+			usePortManager: true,
+		});
+
+		expect(isPortAvailable).toHaveBeenCalledWith(3001, probedHostname);
 	});
 });

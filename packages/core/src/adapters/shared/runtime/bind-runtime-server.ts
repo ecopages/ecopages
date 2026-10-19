@@ -1,6 +1,7 @@
 import type { Server as NodeHttpServer } from 'node:http';
 import type { NodeRuntimeServeOptions, RuntimeHost } from '../../node/runtime-host.ts';
-import { PortManager } from './port-manager.ts';
+import { DEFAULT_ECOPAGES_HOSTNAME } from '../../../constants.ts';
+import { isPortAvailable, PortManager } from './port-manager.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 
 /**
@@ -39,6 +40,7 @@ export async function bindRuntimeServer(
 			activeRuntimeOrigin = runtimeOrigin;
 			return boundPort;
 		},
+		probePort: (port) => isPortAvailable(port, options.serveOptions.hostname ?? DEFAULT_ECOPAGES_HOSTNAME),
 		warn: (message) => appLogger.warn(message),
 	});
 

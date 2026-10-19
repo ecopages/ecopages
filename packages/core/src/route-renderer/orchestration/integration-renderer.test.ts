@@ -436,6 +436,58 @@ describe('IntegrationRenderer', () => {
 		expect(renderer.resolvedGroupedPlans).toEqual([groupedBuildPlan, undefined]);
 	});
 
+	it('keeps prebuilt page client assets for every render of an exact route', async () => {
+		const lazyComponent = (() => '<button>lazy</button>') as EcoComponent;
+		lazyComponent.config = {
+			identity: { id: 'repeat-lazy-component', file: '/app/components/repeat-lazy.tsx', integration: 'lit' },
+		};
+		const dependency: AssetDefinition = {
+			kind: 'script',
+			source: 'content',
+			content: 'window.repeatLazy = true;',
+			name: 'repeat-lazy',
+		};
+		const Page = (() => 'page') as EcoPageComponent<Record<string, unknown>>;
+		Page.resolveDependencies = async () => ({ components: [lazyComponent] });
+		const routeFile = '/app/pages/repeat.tsx';
+		const renderedPageEntryAssets: ProcessedAsset[][] = [];
+		const renderer = new (class extends TestIntegrationRenderer {
+			override async render(options: IntegrationRendererRenderOptions<EcoPagesElement>) {
+				renderedPageEntryAssets.push(options.pagePackage?.assets ?? []);
+				return await super.render(options);
+			}
+		})({
+			appConfig: {
+				...testAppConfig,
+				integrations: [createMockIntegrationPlugin({ name: 'lit', getRenderer: () => ({}) })],
+			} as EcoPagesAppConfig,
+			assetProcessingService: testAssetService,
+			hooks: {
+				collectAppBrowserClientBuildEntries: async (plan) =>
+					plan.sourceComponents.includes(lazyComponent) ? [{ dependency }] : [],
+			},
+		});
+		renderer.PageModule = { default: Page };
+		renderer.HtmlTemplate = (() => '<html></html>') as EcoComponent<HtmlTemplateProps>;
+		const groupedBuildPlan = await renderer.buildGroupedGraphBuildPlan([{ routeFile }]);
+		const instance = groupedBuildPlan.instances[0];
+		if (!instance) throw new Error('Expected a production route instance');
+		instance.prebuiltPageClientBrowserAssets = {
+			processedAssets: [{ kind: 'script', srcUrl: '/assets/repeat-entry-hash.js' } as ProcessedAsset],
+			islandRenderAssetsByFile: new Map(),
+			fallbackDependencies: [],
+		};
+		await renderer.prebuildProductionPageBrowserGraph(routeFile, { groupedBuildPlan });
+
+		await renderer.execute({ file: routeFile });
+		await renderer.execute({ file: routeFile });
+
+		expect(renderedPageEntryAssets).toHaveLength(2);
+		for (const assets of renderedPageEntryAssets) {
+			expect(assets).toContainEqual(expect.objectContaining({ srcUrl: '/assets/repeat-entry-hash.js' }));
+		}
+	});
+
 	it('reuses dynamic route template client assets when the page client entries match', async () => {
 		const renderedPageEntryAssets: ProcessedAsset[][] = [];
 		const lazyComponent = (() => '<button>lazy</button>') as EcoComponent;

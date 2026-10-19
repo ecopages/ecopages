@@ -56,7 +56,7 @@ app.get('/api/example/:id', async ({ request, response, params }) => {
 
 A named segment such as `:id` gives a string. A catch-all keeps each decoded path segment in an array, so `/api/files/docs/a` matches `/api/files/[...path]` with `params.path` equal to `['docs', 'a']`.
 
-Repeated query keys are arrays too. For example, `?tag=docs&tag=api` gives `query.tag` as `['docs', 'api']`. A single query value remains a string. When a schema is configured, validation receives those same values.
+Repeated query keys are arrays too. For example, `?tag=docs&tag=api` gives `query.tag` as `['docs', 'api']`. A single query value remains a string. When a schema is configured, validation receives those same values, so a schema written for a plain string, such as `z.string()`, answers HTTP 400 when the key is repeated. Accept both shapes with `z.union([z.string(), z.array(z.string())])`, or declare the key as an array with `z.array(z.string())` when it is always a list. WebSocket handlers receive the same shape in `search`.
 
 ### Validating Route Params with `schema`
 

@@ -3,7 +3,13 @@ import type { Server as NodeHttpServer, IncomingMessage } from 'node:http';
 import { WebSocketServer, type WebSocket as WsWebSocket } from 'ws';
 import { HttpError } from '../../../errors/http-error.ts';
 import { appLogger } from '../../../global/app-logger.ts';
-import type { EcopagesSocket, EcopagesWebSocketHandler, IncomingWebSocketMessage } from '../../../types/contracts.ts';
+import { parseSearchParams } from '../../../router/server/parse-search-params.ts';
+import type {
+	EcopagesSocket,
+	EcopagesWebSocketHandler,
+	IncomingWebSocketMessage,
+	PageQuery,
+} from '../../../types/contracts.ts';
 import { findWebSocketRoute, type WebSocketRouteMatch } from './ws-pattern-matcher.ts';
 import { createEcopagesSocket, invokeWebSocketHandlerHook, toWebSocketCloseInfo } from './websocket-lifecycle.ts';
 
@@ -21,7 +27,7 @@ function adaptNodeWebSocket<TContext, TParams extends Record<string, string>>(
 	ws: WsWebSocket,
 	kind: string,
 	params: TParams,
-	search: Record<string, string>,
+	search: PageQuery,
 	context: TContext,
 ): EcopagesSocket<TContext, TParams> {
 	return createEcopagesSocket(
@@ -46,7 +52,7 @@ async function resolveNodeContext<TContext, TParams extends Record<string, strin
 	handler: EcopagesWebSocketHandler<TContext, TParams>,
 	kind: string,
 	params: TParams,
-	search: Record<string, string>,
+	search: PageQuery,
 ): Promise<TContext> {
 	if (!handler.context) {
 		return undefined as unknown as TContext;
@@ -65,7 +71,7 @@ async function setupNodeWebSocketConnection(
 	wsMatch: WebSocketRouteMatch,
 	req: IncomingMessage,
 	runtimeOrigin: string,
-	search: Record<string, string>,
+	search: PageQuery,
 ): Promise<void> {
 	const handler = wsMatch.handler as EcopagesWebSocketHandler<unknown, Record<string, string>>;
 	const baseRequest = toUpgradeRequest(runtimeOrigin, req);
@@ -165,7 +171,7 @@ export function attachNodeHttpWebSocketUpgrades(
 		}
 
 		userWss.handleUpgrade(req, socket, head, (ws) => {
-			const search = Object.fromEntries(url.searchParams.entries());
+			const search = parseSearchParams(url.searchParams);
 			void setupNodeWebSocketConnection(ws, wsMatch, req, options.runtimeOrigin, search).catch((error) => {
 				appLogger.error(`[WS:${wsMatch.kind}] unexpected error:`, error as Error);
 				ws.close(1011, 'internal error');

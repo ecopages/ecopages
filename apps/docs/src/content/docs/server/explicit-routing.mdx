@@ -277,7 +277,7 @@ app.group('/api', (r) => {
 
 ### Query Validation
 
-Query parameters are strings by default, but schemas can coerce and validate them:
+Query parameters are strings by default, and a key repeated in the URL (`?tag=a&tag=b`) is an array of its values. Schemas can coerce and validate them:
 
 ```typescript
 app.get('/api/posts', async (ctx) => {
@@ -295,6 +295,8 @@ app.get('/api/posts', async (ctx) => {
 	}
 });
 ```
+
+A schema written for a single value, such as `z.string()` or `z.coerce.number()`, answers HTTP 400 when the client repeats that key, because the handler receives an array. Use `z.union([z.string(), z.array(z.string())])` to accept both shapes, or `z.array(z.string())` for a key that is always a list.
 
 ### Header Validation
 

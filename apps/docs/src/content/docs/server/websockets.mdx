@@ -41,7 +41,8 @@ Use `:param` syntax to capture URL segments. The handler receives typed `params`
 ```typescript
 app.websocket<{ username: string }, { roomId: string }>('/ws/chat/:roomId', {
 	async context({ params, search }) {
-		return { username: search.username ?? 'anonymous' };
+		const username = Array.isArray(search.username) ? search.username[0] : search.username;
+		return { username: username ?? 'anonymous' };
 	},
 	onConnect(socket) {
 		console.log(`${socket.context.username} joined room ${socket.params.roomId}`);
@@ -104,7 +105,7 @@ Read-only properties:
 |----------|------|-------------|
 | `kind` | `string` | The registered route pattern (e.g. `/ws/chat/:roomId`). |
 | `params` | `TParams` | Dynamic segments captured at match time. |
-| `search` | `Record<string, string>` | Query string parameters. |
+| `search` | `PageQuery` | Query string parameters. A key repeated in the URL (`?tag=a&tag=b`) is an array of its values, the same shape as `query` in page and API handlers. |
 | `context` | `TContext` | Per-connection state from `context()`. |
 
 ### Message Types
@@ -180,8 +181,9 @@ const history = new Map<string, { id: string; username: string; text: string; ts
 
 export const chatHandler: EcopagesWebSocketHandler<ChatData, { roomId: string }> = {
 	async context({ params, search }) {
+		const username = Array.isArray(search.username) ? search.username[0] : search.username;
 		return {
-			username: search.username ?? 'anonymous',
+			username: username ?? 'anonymous',
 			roomId: params.roomId,
 		};
 	},

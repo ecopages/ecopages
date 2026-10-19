@@ -97,7 +97,7 @@ interface WebSocketContextFactoryInput<TParams extends Record<string, string> = 
 	readonly request: Request;
 	readonly kind: string;
 	readonly params: TParams;
-	readonly search: Readonly<Record<string, string>>;
+	readonly search: Readonly<PageQuery>;
 	readonly locals?: RequestLocals;
 }
 
@@ -107,7 +107,7 @@ interface WebSocketContextFactoryInput<TParams extends Record<string, string> = 
  * Framework-owned fields:
  * - `kind`: the registered route pattern (e.g. '/ws/chat/:roomId')
  * - `params`: dynamic segments captured at match time
- * - `search`: query string, always string-typed
+ * - `search`: query string parameters, shaped like {@link PageQuery}: a repeated key is an array
  *
  * App-owned field:
  * - `context`: returned by the handler's `context()` factory
@@ -115,7 +115,7 @@ interface WebSocketContextFactoryInput<TParams extends Record<string, string> = 
 export interface EcopagesSocket<TContext = unknown, TParams extends Record<string, string> = Record<string, string>> {
 	readonly kind: string;
 	readonly params: TParams;
-	readonly search: Readonly<Record<string, string>>;
+	readonly search: Readonly<PageQuery>;
 	readonly context: TContext;
 	send(message: OutgoingWebSocketMessage): void;
 	sendStream(stream: ReadableStream<Uint8Array>): Promise<void>;
@@ -790,8 +790,15 @@ export interface ErrorPageTemplateProps extends Omit<HtmlTemplateProps, 'childre
 export type PageParams = Record<string, string | string[]>;
 
 /**
- * Represents a query object for a page.
- * The keys are strings and the values can be either a string or an array of strings.
+ * Query parameters parsed from the URL.
+ *
+ * @remarks
+ * A key that appears once is a string. A key repeated in the URL (`?tag=a&tag=b`)
+ * is an array of its values in URL order, never just its last value. Page props,
+ * API handlers (`ctx.query` and the value a query schema validates) and WebSocket
+ * `search` all share this shape, so a schema that expects a plain string rejects
+ * a repeated key with HTTP 400. Accept both with
+ * `z.union([z.string(), z.array(z.string())])`.
  */
 export type PageQuery = Record<string, string | string[]>;
 

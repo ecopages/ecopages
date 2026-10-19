@@ -1,6 +1,9 @@
+import { once } from 'node:events';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { WebSocket } from 'ws';
 import { appLogger } from '../../global/app-logger.ts';
-import { NodeClientAbortError } from './http-request-bridge.ts';
+import { attachNodeHttpWebSocketUpgrades } from '../shared/ws/node-http-websocket-upgrades.ts';
+import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
 import { NodeRuntimeHost } from './runtime-host.ts';
 
 describe('NodeRuntimeHost', () => {
@@ -19,6 +22,7 @@ describe('NodeRuntimeHost', () => {
 		const serverFactory = vi.fn().mockImplementation((handler) => {
 			requestHandler = handler;
 			return {
+				on: vi.fn(),
 				once: vi.fn(),
 				off: vi.fn(),
 				listen: (_port: number, _hostname: string, callback: () => void) => callback(),
@@ -66,6 +70,7 @@ describe('NodeRuntimeHost', () => {
 		};
 		const serverFactory = vi.fn().mockImplementation(() => {
 			return {
+				on: vi.fn(),
 				once: vi.fn().mockImplementation((event: string, handler: (error: Error) => void) => {
 					if (event === 'error') {
 						handler(Object.assign(new Error('listen EADDRINUSE'), { code: 'EADDRINUSE' }));
@@ -86,4 +91,26 @@ describe('NodeRuntimeHost', () => {
 			}),
 		).rejects.toMatchObject({ code: 'EADDRINUSE' });
 	});
+
+	it('stops while a WebSocket client is still connected', async () => {
+		const host = new NodeRuntimeHost(new NodeHttpRequestBridge());
+		const server = await host.start({
+			serveOptions: { hostname: '127.0.0.1', port: 0, handleRequest: async () => new Response('ok') },
+		});
+		const origin = host.getOrigin(server, { hostname: '127.0.0.1' });
+		const onClose = vi.fn();
+		attachNodeHttpWebSocketUpgrades(server, {
+			runtimeOrigin: origin,
+			websocketHandlers: new Map([['/ws', { onClose }]]),
+		});
+		const client = new WebSocket(`${origin.replace('http', 'ws')}/ws`);
+		await once(client, 'open');
+		const clientClosed = once(client, 'close');
+
+		await host.stop(server);
+		await clientClosed;
+
+		expect(server.listening).toBe(false);
+		await vi.waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+	}, 2000);
 });

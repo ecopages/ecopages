@@ -497,7 +497,11 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	}
 
 	/**
-	 * Drops a production prebuild result when static export skips that route.
+	 * Drops every production prebuild result for a route, including its grouped plan and page-client assets.
+	 *
+	 * @remarks
+	 * Static export calls this when it skips a dynamic route. A render only consumes the one-shot route preparation,
+	 * so the grouped plan and page-client assets keep serving later renders of the same route in production start.
 	 */
 	clearPrebuiltRoutePreparation(input: Pick<RouteRendererOptions, 'file' | 'params' | 'query'>): void {
 		const routeKey = createPrebuiltRoutePreparationKey(input);
@@ -1195,7 +1199,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			return value;
 		} finally {
 			if (preparation) {
-				this.clearPrebuiltRoutePreparation(options);
+				this.prebuiltRoutePreparations.delete(createPrebuiltRoutePreparationKey(options));
 			}
 		}
 	}

@@ -71,13 +71,21 @@ function collectManifestPaths(value: unknown, output: Set<string>): void {
 	}
 }
 
+/**
+ * Matches test-only paths that must never reach `dist`.
+ *
+ * @remarks
+ * A file is test-only when `test` or `spec` is a dot-separated name segment, optionally with a
+ * `-suffix`, such as `.test.ts`, `.test.browser.ts`, `.test-helpers.ts` or `.test-fixtures.ts`. These
+ * files import `vitest`, which is not a dependency of any published package.
+ */
 function isTestLike(relativePath: string): boolean {
 	return (
 		relativePath.includes('/__fixtures__/') ||
 		relativePath.includes('/__screenshots__/') ||
 		relativePath.includes('/test/') ||
 		relativePath.includes('/__tests__/') ||
-		/\.(test|spec)\.[^.]+$/i.test(relativePath)
+		/\.(test|spec)(-[^./]+)?\.[^/]+$/i.test(relativePath)
 	);
 }
 
@@ -533,6 +541,29 @@ function validatePackedFiles(distDir: string): void {
 	}
 }
 
+/**
+ * Fails the build when a packed runtime file imports `vitest`.
+ *
+ * @remarks
+ * `vitest` is a repository dev dependency, so a published file that imports it throws on load for
+ * every consumer. This catches test helpers whose names slip past the test-file naming rules.
+ */
+function validateNoTestRunnerImports(distDir: string): void {
+	const offenders = readdirSync(distDir, { recursive: true, encoding: 'utf8' })
+		.map(toPosix)
+		.filter((entry) => /\.[cm]?js$/.test(entry))
+		.filter((entry) =>
+			/(?:from|import)\s*\(?\s*["']vitest(?:\/[^"']*)?["']/.test(
+				readFileSync(path.join(distDir, entry), 'utf-8'),
+			),
+		);
+	if (offenders.length > 0) {
+		throw new Error(
+			`${toPosix(path.relative(repoRoot, distDir))} would publish ${offenders.length} file(s) that import vitest: ${offenders.join(', ')}.`,
+		);
+	}
+}
+
 function ensureDir(filePath: string): void {
 	mkdirSync(path.dirname(filePath), { recursive: true });
 }
@@ -861,6 +892,7 @@ async function buildPackage(packageDir: string): Promise<void> {
 	validateDistManifest(distManifest, distDir);
 	writeTextFile(path.join(distDir, 'package.json'), `${JSON.stringify(distManifest, null, 2)}\n`);
 	validatePackedFiles(distDir);
+	validateNoTestRunnerImports(distDir);
 
 	console.log(`Built ${manifest.name} -> ${toPosix(path.relative(repoRoot, distDir))}`);
 }

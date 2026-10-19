@@ -1,7 +1,7 @@
 import { contentHash } from '@ecopages/core/build';
 import { DEV_TRANSFORM_URL_PREFIX } from '@ecopages/core/integration';
 import { describe, expect, it, vi } from 'vitest';
-import { assertNoBareEcopagesImports } from './assert-no-bare-ecopages-imports.ts';
+import { assertNoBareEcopagesImports } from './assert-no-bare-ecopages-imports.test-helpers.ts';
 import { APP_BROWSER_CLIENT_BUNDLE_ID } from '@ecopages/core/integration';
 import { getIslandComponentKey, HydrationAssetService } from './hydration-asset.ts';
 

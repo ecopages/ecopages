@@ -9,6 +9,7 @@ import {
 	type ParsedSegmentPath,
 } from '../../../router/server/segment-path-matcher.ts';
 import { appLogger } from '../../../global/app-logger.ts';
+import { isNodeClientAbortError } from '../../node/http-request-bridge.ts';
 import { validateRequest } from '../../../validation/validate-request.ts';
 import { parseSearchParams } from '../../../router/server/parse-search-params.ts';
 import type {
@@ -27,26 +28,15 @@ type ParsedRequestBody = { value: unknown } | { response: Response };
 export type ApiRequestPipelineOptions = {
 	getRenderContext: () => RenderContext;
 	getCacheService: () => CacheInvalidator | null;
-	/**
-	 * Recognises a client that disconnected mid-request.
-	 *
-	 * @remarks
-	 * Such errors are a normal browser behaviour, not a server fault, so
-	 * {@link ApiRequestPipeline.handleError} answers them with 499 without logging or
-	 * calling `app.onError`. Only the Node adapter supplies it.
-	 */
-	isClientAbort?: (error: unknown) => boolean;
 };
 
 export class ApiRequestPipeline<TRequest extends Request = Request, TServer = unknown> {
 	private readonly getRenderContext: () => RenderContext;
 	private readonly getCacheService: () => CacheInvalidator | null;
-	private readonly isClientAbort: (error: unknown) => boolean;
 
 	constructor(options: ApiRequestPipelineOptions) {
 		this.getRenderContext = options.getRenderContext;
 		this.getCacheService = options.getCacheService;
-		this.isClientAbort = options.isClientAbort ?? (() => false);
 	}
 
 	match(
@@ -128,7 +118,8 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 	 * @remarks
 	 * Precedence is a thrown `Response`, then a client abort (499), then the app
 	 * `onError` handler, then `HttpError.toResponse()`, then a logged plain 500.
-	 * Runtime adapters reuse this for errors that escape the whole request
+	 * A client abort is a browser leaving mid-request, not a server fault, so it
+	 * is neither logged nor passed to `onError`. Runtime adapters reuse this for errors that escape the whole request
 	 * pipeline so `app.onError` also covers them.
 	 */
 	async handleError(
@@ -142,7 +133,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 		},
 	): Promise<Response> {
 		if (error instanceof Response) return error;
-		if (this.isClientAbort(error)) return new Response(null, { status: 499 });
+		if (isNodeClientAbortError(error)) return new Response(null, { status: 499 });
 
 		if (options.errorHandler) {
 			try {
@@ -237,7 +228,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 			const value = contentType === 'application/json' ? JSON.parse(text) : text;
 			return { value };
 		} catch (error) {
-			if (this.isClientAbort(error)) throw error;
+			if (isNodeClientAbortError(error)) throw error;
 			return { response: responseBuilder.status(400).json({ error: 'Invalid request body' }) };
 		}
 	}
@@ -252,7 +243,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 				? { response: responseBuilder.status(415).json({ error: 'Unsupported Media Type' }) }
 				: { value: undefined };
 		} catch (error) {
-			if (this.isClientAbort(error)) throw error;
+			if (isNodeClientAbortError(error)) throw error;
 			return { response: responseBuilder.status(400).json({ error: 'Invalid request body' }) };
 		}
 	}

@@ -9,7 +9,9 @@
 
 import path from 'node:path';
 import { setupAppRuntimePlugins } from '../../../../packages/core/src/build/build-adapter';
-import { createNodeServerAdapter } from '../../../../packages/core/src/adapters/node/server-adapter';
+import { NodeServerAdapter } from '../../../../packages/core/src/adapters/node/server-adapter';
+import { NodeRuntimeHost } from '../../../../packages/core/src/adapters/node/runtime-host';
+import { NodeHttpRequestBridge } from '../../../../packages/core/src/adapters/node/http-request-bridge';
 import { RouteRegistry } from '../../../../packages/core/src/router/server/route-registry';
 import { requireAppRuntime } from '../../../../packages/core/src/config/assembly/app-runtime';
 import { RouteRendererFactory } from '../../../../packages/core/src/route-renderer/route-renderer';
@@ -27,7 +29,7 @@ const BENCH_WORK_DIR = path.join('.eco', STATIC_BUILD_BENCH_SCOPE);
 let cachedBenchAdapter:
 	| {
 			configKey: string;
-			adapter: Awaited<ReturnType<typeof createNodeServerAdapter>>;
+			adapter: NodeServerAdapter;
 	  }
 	| undefined;
 let cachedGenerationStack:
@@ -161,18 +163,16 @@ export async function runStaticSiteGeneration(
 	});
 }
 
-export async function getStaticBuildBenchAdapter(
-	appConfig: EcoPagesAppConfig,
-): Promise<Awaited<ReturnType<typeof createNodeServerAdapter>>> {
+export async function getStaticBuildBenchAdapter(appConfig: EcoPagesAppConfig): Promise<NodeServerAdapter> {
 	const configKey = getBenchConfigKey(appConfig);
 	if (cachedBenchAdapter?.configKey === configKey) {
 		return cachedBenchAdapter.adapter;
 	}
 
-	const adapter = await createNodeServerAdapter({
+	const adapter = new NodeServerAdapter({
 		appConfig,
 		runtime: requireAppRuntime(appConfig),
-		runtimeOrigin: 'http://127.0.0.1:3000',
+		runtimeHost: new NodeRuntimeHost(new NodeHttpRequestBridge()),
 		serveOptions: { hostname: '127.0.0.1', port: 0 },
 		options: { watch: false },
 	});

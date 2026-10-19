@@ -1,4 +1,5 @@
-import type { RuntimeHost, RuntimeHostStartOptions } from './runtime-host.ts';
+import type { Server as NodeHttpServer } from 'node:http';
+import type { NodeRuntimeServeOptions, RuntimeHost } from '../../node/runtime-host.ts';
 import { PortManager } from './port-manager.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 
@@ -6,18 +7,18 @@ import { appLogger } from '../../../global/app-logger.ts';
  * Starts a runtime server, optionally negotiating a fallback port via
  * {@link PortManager}.
  */
-export async function bindRuntimeServer<TServer, TServeOptions extends { port?: number | string; hostname?: string }>(
-	runtimeHost: RuntimeHost<TServer, TServeOptions>,
+export async function bindRuntimeServer(
+	runtimeHost: RuntimeHost,
 	options: {
-		startOptions: RuntimeHostStartOptions<TServeOptions>;
+		serveOptions: NodeRuntimeServeOptions;
 		allowPortFallback: boolean;
 		usePortManager: boolean;
 	},
-): Promise<{ server: TServer; port: number; runtimeOrigin: string }> {
-	const preferredPort = Number(options.startOptions.serveOptions.port);
+): Promise<{ server: NodeHttpServer; port: number; runtimeOrigin: string }> {
+	const preferredPort = Number(options.serveOptions.port);
 	if (!options.usePortManager) {
-		const server = await runtimeHost.start(options.startOptions);
-		const runtimeOrigin = runtimeHost.getOrigin(server, options.startOptions.serveOptions);
+		const server = await runtimeHost.start(options.serveOptions);
+		const runtimeOrigin = runtimeHost.getOrigin(server, options.serveOptions);
 		return {
 			server,
 			port: Number(new URL(runtimeOrigin).port || preferredPort),
@@ -25,19 +26,13 @@ export async function bindRuntimeServer<TServer, TServeOptions extends { port?: 
 		};
 	}
 
-	let activeServer: TServer | undefined;
+	let activeServer: NodeHttpServer | undefined;
 	let activeRuntimeOrigin: string | undefined;
 
 	const portManager = new PortManager({
 		startOnPort: async (port) => {
-			const serveOptions = {
-				...options.startOptions.serveOptions,
-				port,
-			};
-			const server = await runtimeHost.start({
-				...options.startOptions,
-				serveOptions,
-			});
+			const serveOptions = { ...options.serveOptions, port };
+			const server = await runtimeHost.start(serveOptions);
 			const runtimeOrigin = runtimeHost.getOrigin(server, serveOptions);
 			const boundPort = Number(new URL(runtimeOrigin).port || port);
 			activeServer = server;

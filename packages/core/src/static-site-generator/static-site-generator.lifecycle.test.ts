@@ -130,10 +130,6 @@ describe('StaticSiteGenerator Integration lifecycle', () => {
 		});
 		await disposeDevResources({
 			appConfig,
-			projectWatcher: undefined,
-			hmrManager: undefined,
-			bridge: undefined,
-			stopPreviewServer: async () => {},
 		});
 
 		expect(events).toEqual(['setup', 'routes', 'release', 'teardown']);

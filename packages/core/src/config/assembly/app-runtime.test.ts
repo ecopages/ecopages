@@ -61,11 +61,7 @@ describe('AppRuntime', () => {
 		expect(() => attachHmrToIntegrations(unfinalized)).toThrow(missingRuntime);
 		await expect(
 			disposeDevResources({
-				projectWatcher: null,
 				appConfig: unfinalized,
-				hmrManager: null,
-				bridge: null,
-				stopPreviewServer: async () => {},
 			}),
 		).rejects.toThrow(missingRuntime);
 		await expect(setupAppRuntimePlugins({ appConfig: unfinalized })).rejects.toThrow(missingRuntime);

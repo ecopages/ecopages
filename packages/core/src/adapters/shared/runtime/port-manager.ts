@@ -2,40 +2,10 @@ import { createServer as createNetServer, type Server as NetServer } from 'node:
 import { createClackDefaultPrompt } from './port-manager-default-prompt.ts';
 
 /**
- * Detects whether a thrown error indicates the requested port is already in
- * use.
- *
- * @remarks
- * Matches Node's `code: 'EADDRINUSE'` and Bun's surface, where the error
- * carries the same `code` plus a human-readable message such as
- * `"Failed to start server. Is port 3000 in use?"`. Older Bun builds that do
- * not set `.code` are covered by a fallback match on `syscall === 'listen'`
- * plus the message shape.
+ * Detects the error Node raises when `listen()` targets a port that is already in use.
  */
 export function isPortInUseError(error: unknown): boolean {
-	if (!(error instanceof Error) && (typeof error !== 'object' || error === null)) {
-		return false;
-	}
-
-	const maybeErr = error as { code?: unknown; syscall?: unknown; message?: string };
-	const code =
-		typeof maybeErr.code === 'string' || typeof maybeErr.code === 'number' ? String(maybeErr.code) : undefined;
-	const syscall = typeof maybeErr.syscall === 'string' ? maybeErr.syscall : undefined;
-	const message = error instanceof Error ? error.message : String((maybeErr as { message?: string }).message ?? '');
-
-	if (code === 'EADDRINUSE') {
-		return true;
-	}
-
-	if (message.includes('EADDRINUSE')) {
-		return true;
-	}
-
-	if (syscall === 'listen' && /is port \d+ in use\??/i.test(message)) {
-		return true;
-	}
-
-	return false;
+	return typeof error === 'object' && error !== null && 'code' in error && error.code === 'EADDRINUSE';
 }
 
 function sleep(ms: number): Promise<void> {

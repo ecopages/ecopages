@@ -11,8 +11,7 @@ import { StringMarkupRenderer } from '../route-renderer/orchestration/string-mar
 import { ProjectWatcher } from '../watchers/project-watcher.ts';
 import { createApp } from './create-app.ts';
 import { EcopagesApp } from './node/create-app.ts';
-import type { NodeRuntimeServeOptions } from './node/runtime-host.ts';
-import type { RuntimeHost } from './shared/runtime/runtime-host.ts';
+import type { RuntimeHost } from './node/runtime-host.ts';
 import { parseCliArgs } from '../utils/parse-cli-args.ts';
 
 describe('createApp', () => {
@@ -77,8 +76,8 @@ describe('createApp', () => {
 		const collision = Object.assign(new Error('listen EADDRINUSE: address already in use :::3000'), {
 			code: 'EADDRINUSE',
 		});
-		const runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> = {
-			start: vi.fn(async ({ serveOptions }) => {
+		const runtimeHost: RuntimeHost = {
+			start: vi.fn(async (serveOptions) => {
 				if (Number(serveOptions.port) === 3000) {
 					throw collision;
 				}

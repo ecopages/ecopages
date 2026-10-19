@@ -28,11 +28,9 @@ import { ECOPAGES_DEV_RESTART_EXIT_CODE, ECOPAGES_DEV_RESTART_REASON_ENV } from 
 import { getEcopagesEnv } from '../../env.ts';
 import { resolveRuntimeBinding } from '../shared/runtime/runtime-app-bootstrap.ts';
 import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
-import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
 import { NodeHttpRequestBridge } from './http-request-bridge.ts';
-import { NodeRuntimeHost, type NodeRuntimeServeOptions } from './runtime-host.ts';
-import { createNodeServerAdapter, type NodeServerAdapter, type NodeServerAdapterParams } from './server-adapter.ts';
-import type { NodeServerInstance } from './server-adapter.ts';
+import { NodeRuntimeHost, type RuntimeHost } from './runtime-host.ts';
+import { NodeServerAdapter, type NodeServerAdapterParams, type NodeServerInstance } from './server-adapter.ts';
 import { resolveAppStartRoutes } from '../../utils/ecopages-route-info.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { createViewModuleLoader } from '../../build/server/view-module-loader.ts';
@@ -59,9 +57,13 @@ export type EcopagesAppRuntimeOptions = {
 	cliArgs: ReturnParseCliArgs;
 };
 
+/**
+ * @remarks
+ * Tests pass a fake runtime host and server adapter to drive the app lifecycle in isolation.
+ */
 export type EcopagesAppDependencies = {
-	runtimeHost: RuntimeHost<NodeServerInstance, NodeRuntimeServeOptions>;
-	createServerAdapter?: (params: NodeServerAdapterParams) => NodeServerAdapter | Promise<NodeServerAdapter>;
+	runtimeHost: RuntimeHost;
+	createServerAdapter?: (params: NodeServerAdapterParams) => Promise<NodeServerAdapter>;
 };
 
 /**
@@ -86,6 +88,7 @@ export type RouteGroupDefinition<
 type AppSession = {
 	adapter: NodeServerAdapter;
 	server: NodeServerInstance | undefined;
+	allowPortFallback: boolean;
 };
 
 type AppLifecycle =
@@ -131,8 +134,8 @@ export class EcopagesApp implements AsyncDisposable {
 		new Map();
 	private onAppStartCallback?: OnAppStartCallback;
 	private readonly runtimeLabel: EcopagesRuntimeLabel;
-	private readonly runtimeHost: RuntimeHost<NodeServerInstance, NodeRuntimeServeOptions>;
-	private readonly serverAdapterFactory: NonNullable<EcopagesAppDependencies['createServerAdapter']>;
+	private readonly runtimeHost: RuntimeHost;
+	private readonly createServerAdapter: NonNullable<EcopagesAppDependencies['createServerAdapter']>;
 	/** @remarks Initialized by the first `fetch()` or `start()` call and exposed for host-level request middleware. */
 	public serverAdapter: NodeServerAdapter | undefined;
 	private lifecycle: AppLifecycle = { phase: 'idle' };
@@ -143,8 +146,8 @@ export class EcopagesApp implements AsyncDisposable {
 		this.serverOptions = options.serverOptions || {};
 		this.cliArgs = options.cliArgs;
 		this.runtimeHost = dependencies.runtimeHost;
-		this.serverAdapterFactory =
-			dependencies.createServerAdapter ?? ((params) => createNodeServerAdapter(params, this.runtimeHost));
+		this.createServerAdapter =
+			dependencies.createServerAdapter ?? (async (params) => new NodeServerAdapter(params));
 
 		startupTrace.markConfigReady();
 	}
@@ -503,10 +506,6 @@ export class EcopagesApp implements AsyncDisposable {
 		return this;
 	}
 
-	private createServerAdapter(params: NodeServerAdapterParams): Promise<NodeServerAdapter> {
-		return Promise.resolve(this.serverAdapterFactory(params));
-	}
-
 	private resolveRuntimeAssetSetup(): 'start' | 'export' | 'none' {
 		const { build, preview, serveOnly } = this.cliArgs;
 		if (preview && serveOnly) {
@@ -515,7 +514,7 @@ export class EcopagesApp implements AsyncDisposable {
 		return build || preview ? 'export' : 'start';
 	}
 
-	private async initializeServerAdapter(): Promise<NodeServerAdapter> {
+	private async initializeSession(): Promise<AppSession> {
 		const binding = resolveRuntimeBinding({
 			cliArgs: this.cliArgs,
 			serverOptions: this.serverOptions,
@@ -525,6 +524,7 @@ export class EcopagesApp implements AsyncDisposable {
 
 		const serverAdapter = await this.createServerAdapter({
 			runtime,
+			runtimeHost: this.runtimeHost,
 			appConfig: this.appConfig,
 			apiHandlers: this.apiHandlers,
 			staticRoutes: this.staticRoutes,
@@ -547,7 +547,7 @@ export class EcopagesApp implements AsyncDisposable {
 			}
 			throw error;
 		}
-		return serverAdapter;
+		return { adapter: serverAdapter, server: undefined, allowPortFallback: binding.allowPortFallback };
 	}
 
 	/**
@@ -613,7 +613,7 @@ export class EcopagesApp implements AsyncDisposable {
 			return await this.getReadySession();
 		}
 
-		const ready = this.initializeServerAdapter().then((adapter) => ({ adapter, server: undefined }));
+		const ready = this.initializeSession();
 		const starting: AppLifecycle = { phase: 'starting', ready };
 		this.lifecycle = starting;
 		try {
@@ -644,20 +644,13 @@ export class EcopagesApp implements AsyncDisposable {
 			return;
 		}
 
-		const serveOptions = session.adapter.getServerOptions();
-		const binding = resolveRuntimeBinding({
-			cliArgs: this.cliArgs,
-			serverOptions: this.serverOptions,
-		});
 		startupTrace.beginServerListen();
 		const bindingResult = await bindRuntimeServer(this.runtimeHost, {
-			startOptions: {
-				serveOptions: {
-					...serveOptions,
-					handleRequest: async (request: Request) => await session.adapter.handleServerRequest(request),
-				},
+			serveOptions: {
+				...session.adapter.getServerOptions(),
+				handleRequest: async (request: Request) => await session.adapter.handleServerRequest(request),
 			},
-			allowPortFallback: binding.allowPortFallback,
+			allowPortFallback: session.allowPortFallback,
 			usePortManager: this.cliArgs.dev,
 		});
 		session.server = bindingResult.server;

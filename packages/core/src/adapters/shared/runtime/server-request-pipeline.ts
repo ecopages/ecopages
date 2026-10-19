@@ -47,14 +47,12 @@ export type ServerRequestPipelineOptions = {
 	appConfig: EcoPagesAppConfig;
 	runtime: AppRuntime;
 	watch?: boolean;
-	isClientAbortError?: (error: unknown) => boolean;
 };
 
 export class ServerRequestPipeline {
 	protected readonly appConfig: EcoPagesAppConfig;
 	protected readonly runtime: AppRuntime;
 	private readonly watchMode: boolean;
-	private clientAbortDetector: (error: unknown) => boolean = () => false;
 	protected router!: RouteRegistry;
 	protected fileSystemResponseMatcher!: FileSystemResponseMatcher;
 	protected routeRendererFactory!: RouteRendererFactory;
@@ -62,7 +60,6 @@ export class ServerRequestPipeline {
 	protected readonly apiRequestPipeline = new ApiRequestPipeline<Request, unknown>({
 		getRenderContext: () => this.getRenderContext(),
 		getCacheService: () => this.getCacheService(),
-		isClientAbort: (error) => this.clientAbortDetector(error),
 	});
 	private sharedPageCacheService: PageCacheService | null | undefined;
 
@@ -70,7 +67,6 @@ export class ServerRequestPipeline {
 		this.appConfig = options.appConfig;
 		this.runtime = options.runtime;
 		this.watchMode = options.watch ?? false;
-		this.clientAbortDetector = options.isClientAbortError ?? (() => false);
 	}
 
 	/** Renders one declared path inside the request build scope for a DevSession prewarm. */

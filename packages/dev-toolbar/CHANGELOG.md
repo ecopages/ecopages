@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1
+
+### Patch Changes
+
+- [#814](https://github.com/ecopages/ecopages/pull/814) [`0857ed4`](https://github.com/ecopages/ecopages/commit/0857ed44eb12f0cba2e47c257a56491ba3448021) Thanks [@andeeplus](https://github.com/andeeplus)! - Smaller packages. The published tarballs no longer include browser test files, test helpers and test fixtures, which imported a test runner that is not installed with the package, nor the architecture READMEs that live beside the source (the package README stays and links to them in the repository). `@ecopages/react`, `@ecopages/dev-toolbar` and `@ecopages/image-processor` also stop installing dependencies they never used.
+
 ## 0.3.0
 
 ### Minor Changes

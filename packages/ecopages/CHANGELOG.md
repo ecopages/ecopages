@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.1
+
+### Patch Changes
+
+- [#785](https://github.com/ecopages/ecopages/pull/785) [`705fd29`](https://github.com/ecopages/ecopages/commit/705fd296a3e41a39d1970c163d263b4faeab80ec) Thanks [@andeeplus](https://github.com/andeeplus)! - The CLI now exits with a non-zero status when the process it runs is terminated by a signal, so a build killed for running out of memory no longer reports success. `ecopages types --help` lists only the options the command uses.
+
+- [#819](https://github.com/ecopages/ecopages/pull/819) [`ad66534`](https://github.com/ecopages/ecopages/commit/ad665347bffcef339e8eb4a405f136b249e7c58e) Thanks [@andeeplus](https://github.com/andeeplus)! - `ecopages start` now explains a static-only build. An app with no API or WebSocket handlers builds no server bundle, so `start` cannot run it; when `dist` (or the `--dist-dir` directory) holds built HTML, the command says so and points to `ecopages preview` or a static host instead of asking for another build. The static templates now start with `ecopages preview`, so `pnpm start` works in them.
+- Updated dependencies [[`8ebf1bf`](https://github.com/ecopages/ecopages/commit/8ebf1bf200754867a666b8cfc4bcbb32d55c0381), [`6d58f32`](https://github.com/ecopages/ecopages/commit/6d58f32800199fb5e6dbc15cbdc2309bbdd5ea34), [`db6ec28`](https://github.com/ecopages/ecopages/commit/db6ec28fbb674ff716f70b2f441b13f4f3101772), [`d7a5bee`](https://github.com/ecopages/ecopages/commit/d7a5bee78fc670398b50b5da215c5d91cdccddbd), [`c2cd071`](https://github.com/ecopages/ecopages/commit/c2cd071b724888f5d0af6fe7c52bb33914f9e539), [`b0e4a80`](https://github.com/ecopages/ecopages/commit/b0e4a801a32257a39d9d12acc3221706b7cfcf84), [`46b4a4a`](https://github.com/ecopages/ecopages/commit/46b4a4abf11c7d7109acc35184b26a887058d31f), [`0857ed4`](https://github.com/ecopages/ecopages/commit/0857ed44eb12f0cba2e47c257a56491ba3448021), [`040c48d`](https://github.com/ecopages/ecopages/commit/040c48d2e24d50f943c098a29ff74a3512cfddf4), [`15c4275`](https://github.com/ecopages/ecopages/commit/15c4275e5c757e3e66b28ad77797293829362dd4), [`3d2c2ae`](https://github.com/ecopages/ecopages/commit/3d2c2ae819af1f97af68c38a14a576d157a8d65a), [`7d1280e`](https://github.com/ecopages/ecopages/commit/7d1280ef02b176e304ed70c6e70e0bb4db1e1d46), [`a2817ae`](https://github.com/ecopages/ecopages/commit/a2817aeea7d817a2c1ca26494f4e98e8ae97db36), [`093a31d`](https://github.com/ecopages/ecopages/commit/093a31d8ef94966682c0075b029b71806116a189), [`559d4ae`](https://github.com/ecopages/ecopages/commit/559d4aecde62fb90762394124755b8603807652b), [`ad66534`](https://github.com/ecopages/ecopages/commit/ad665347bffcef339e8eb4a405f136b249e7c58e), [`08485ba`](https://github.com/ecopages/ecopages/commit/08485ba56bbf8d4c245b4cae4dc1329a7d214e21), [`87c0399`](https://github.com/ecopages/ecopages/commit/87c039971a4474e197eed65425a9b5477644efbe), [`f2d71bc`](https://github.com/ecopages/ecopages/commit/f2d71bce7f02ba8103bb33700f336882dceb59e3)]:
+    - @ecopages/core@0.3.1
+    - @ecopages/file-system@0.3.1
+
 ## 0.3.0
 
 ### Minor Changes

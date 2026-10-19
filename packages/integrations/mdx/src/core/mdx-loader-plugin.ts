@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { fileSystem } from '@ecopages/file-system';
 import type { EcoBuildPlugin } from '@ecopages/core/integration';
 import { attributeMdxComponentIdentity } from '@ecopages/core';
 import { type CompileOptions, compile } from '@mdx-js/mdx';
@@ -87,7 +87,7 @@ export function createMdxLoaderPlugin(options: CreateMdxLoaderPluginOptions): Ec
 		setup(build) {
 			build.onLoad({ filter }, async (args) => {
 				const filePath = args.path.includes('?') ? args.path.split('?')[0] : args.path;
-				const source = await readFile(filePath, 'utf-8');
+				const source = await fileSystem.readFile(filePath);
 				let cached = compileCache.get(filePath);
 				if (cached?.source !== source) {
 					const compiled = await compile(new VFile({ path: filePath, value: source }), {

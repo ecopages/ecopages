@@ -3,7 +3,7 @@
  * @module
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { fileSystem } from '@ecopages/file-system';
 import { Logger } from '@ecopages/logger';
 import postcss from 'postcss';
 
@@ -44,10 +44,10 @@ const appLogger = new Logger('[@ecopages/postcss-processor]');
 
 export function getFileAsBuffer(path: string): Buffer {
 	try {
-		if (!existsSync(path)) {
+		if (!fileSystem.exists(path)) {
 			throw new Error(`File: ${path} not found`);
 		}
-		return readFileSync(path);
+		return fileSystem.readFileAsBuffer(path);
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
 		throw new Error(`[ecopages] Error reading file: ${path}, ${errorMessage}`);

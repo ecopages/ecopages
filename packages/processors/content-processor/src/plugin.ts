@@ -69,7 +69,6 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	private readonly scanners = new Map<string, ContentScanner>();
 	private readonly collectionBuildPromises = new Map<string, Promise<void>>();
 	private readonly collectionGenerations = new Map<string, number>();
-	private readonly collectionServerBuiltAt = new Map<string, number>();
 	private readonly collectionServerArtifacts = new Map<string, CollectionServerBuildArtifact>();
 
 	/**
@@ -473,7 +472,9 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 			return;
 		}
 
-		if (this.collectionServerBuiltAt.get(collectionName) !== this.getServerSourceGeneration()) {
+		if (
+			this.collectionServerArtifacts.get(collectionName)?.invalidationVersion !== this.getServerSourceGeneration()
+		) {
 			delete this.collectionServerCompiledModules[collectionName];
 		}
 
@@ -506,9 +507,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 					serverSourceGeneration !== this.getServerSourceGeneration();
 				if (changedDuringBuild) {
 					delete this.collectionServerCompiledModules[collectionName];
-					return;
 				}
-				this.collectionServerBuiltAt.set(collectionName, serverSourceGeneration);
 			})
 			.finally(() => this.collectionBuildPromises.delete(collectionName));
 		this.collectionBuildPromises.set(collectionName, buildPromise);

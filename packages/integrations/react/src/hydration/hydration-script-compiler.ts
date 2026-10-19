@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { fileSystem } from '@ecopages/file-system';
 import { rolldown, type LoadResult, type Plugin } from 'rolldown';
 
 const ISLAND_BOOTSTRAP_ID = '\0ecopages-react-island-bootstrap';
@@ -74,7 +75,7 @@ function createBootstrapPlugin(): Plugin {
 		if (!candidates) throw new Error(`Unknown hydration bootstrap module: ${id}`);
 		for (const relativePath of candidates) {
 			try {
-				return readFileSync(new URL(`./browser/${relativePath}`, import.meta.url), 'utf8');
+				return fileSystem.readFileSync(fileURLToPath(new URL(`./browser/${relativePath}`, import.meta.url)));
 			} catch {
 				continue;
 			}
@@ -102,7 +103,7 @@ function createBootstrapPlugin(): Plugin {
 		load(id: string): LoadResult | undefined {
 			if (id === PAGE_DATA_MANIFEST_ID) {
 				return {
-					code: readFileSync(new URL('./page-data-manifest.ts', import.meta.url), 'utf8'),
+					code: fileSystem.readFileSync(fileURLToPath(new URL('./page-data-manifest.ts', import.meta.url))),
 					moduleType: 'ts',
 				};
 			}

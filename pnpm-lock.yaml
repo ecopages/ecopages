@@ -462,6 +462,9 @@ importers:
 
   packages/integrations/ecopages-jsx:
     dependencies:
+      '@ecopages/file-system':
+        specifier: workspace:*
+        version: link:../../file-system
       '@ecopages/jsx':
         specifier: ^0.4.0
         version: 0.4.0(@ecopages/signals@0.4.0)
@@ -534,6 +537,9 @@ importers:
 
   packages/integrations/mdx:
     dependencies:
+      '@ecopages/file-system':
+        specifier: workspace:*
+        version: link:../../file-system
       '@ecopages/logger':
         specifier: ^0.2.3
         version: 0.2.3(typescript@5.9.3)

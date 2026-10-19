@@ -2,8 +2,6 @@ import assert from 'node:assert/strict';
 import { test, vi } from 'vitest';
 import {
 	createBuildAdapter,
-	defaultBuildAdapter,
-	getBuildAdapterOwnership,
 	sealAppBuildManifest,
 	setupAppRuntimePlugins,
 	ensureIntegrationRuntimeReady,
@@ -14,20 +12,8 @@ import { BuildInputDependencyIndex } from './cache/build-input-dependency-index.
 import { createAppBuildManifest } from './contracts/build-manifest.ts';
 import type { EcoBuildPlugin } from './contracts/build-types.ts';
 
-test('defaultBuildAdapter is the RolldownBuildAdapter', () => {
-	assert.ok(defaultBuildAdapter instanceof RolldownBuildAdapter);
-	assert.equal(defaultBuildAdapter.ownership, 'rolldown');
-});
-
 test('createBuildAdapter returns the RolldownBuildAdapter', () => {
-	const rolldownAdapter = createBuildAdapter();
-	assert.ok(rolldownAdapter instanceof RolldownBuildAdapter);
-	assert.equal(rolldownAdapter.ownership, 'rolldown');
-});
-
-test('getBuildAdapterOwnership defaults to rolldown when no adapter is provided', () => {
-	assert.equal(getBuildAdapterOwnership(undefined), 'rolldown');
-	assert.equal(getBuildAdapterOwnership(new RolldownBuildAdapter()), 'rolldown');
+	assert.ok(createBuildAdapter() instanceof RolldownBuildAdapter);
 });
 
 const registrations = (...plugins: EcoBuildPlugin[]) => plugins.map((plugin) => ({ plugin, source: plugin.name }));

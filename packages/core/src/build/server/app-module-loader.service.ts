@@ -1,9 +1,8 @@
 import type { PageModuleBuildImportOptions } from './page-module-import.service.ts';
-import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { PageModuleImportService } from './page-module-import.service.ts';
 
-export type AppModuleImportOptions = Omit<PageModuleBuildImportOptions, 'buildExecutor' | 'rootDir'>;
+export type AppModuleImportOptions = Omit<PageModuleBuildImportOptions, 'rootDir'>;
 
 export interface AppModuleLoaderContract {
 	importModule<T = unknown>(options: AppModuleImportOptions): Promise<T>;
@@ -40,7 +39,6 @@ export class AppModuleLoader implements AppModuleLoaderContract {
 		return await this.pageModuleImportService.importModule<T>({
 			...options,
 			rootDir: this.appConfig.rootDir,
-			buildExecutor: requireBuildQueue(this.appConfig),
 		});
 	}
 

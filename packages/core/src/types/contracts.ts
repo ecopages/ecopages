@@ -887,9 +887,6 @@ export type EcoPagesAppConfig = {
 		enabled?: boolean;
 		package?: string;
 	};
-	experimental?: {
-		unsafe?: Record<string, unknown>;
-	};
 };
 
 export type PagePropsFor<T> =

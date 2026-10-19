@@ -6,7 +6,6 @@ import { fileSystem } from '@ecopages/file-system';
 import { FIXTURE_APP_PROJECT_DIR } from '../../../__fixtures__/constants.ts';
 import { copyFixtureApp } from '../../../__fixtures__/app/copy-fixture-app.ts';
 import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
-import { installBuildQueue } from '../runtime/build-queue.ts';
 import { AppModuleLoader } from '../server/app-module-loader.service.ts';
 import { PageModuleImportService } from '../server/page-module-import.service.ts';
 import {
@@ -105,7 +104,6 @@ describe('pages-unified-graph-build', () => {
 		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', '1');
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
-		installBuildQueue(appConfig);
 
 		const entryPaths = [
 			path.join(appDir, 'src/pages/index.ts'),
@@ -142,7 +140,6 @@ describe('pages-unified-graph-build', () => {
 		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', '1');
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
-		installBuildQueue(appConfig);
 
 		const entryPaths = [
 			path.join(appDir, 'src/pages/index.ts'),
@@ -189,14 +186,12 @@ describe('pages-unified-graph-build', () => {
 		vi.stubEnv('NODE_ENV', 'production');
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
-		installBuildQueue(appConfig);
 		const entryPath = path.join(appDir, 'src/pages/index.ts');
 		const outdir = getServerModuleBuildCacheOutdir(appConfig);
 		await ensurePagesUnifiedGraphBuilt({ appConfig, entryPaths: [entryPath], outdir, force: true });
 		assert.ok(await importPagesUnifiedGraphModule(appConfig, entryPath));
 
 		const otherProcess = await createFixtureAppConfig({ rootDir: appDir });
-		installBuildQueue(otherProcess);
 		assert.equal(await importPagesUnifiedGraphModule(otherProcess, entryPath), undefined);
 	});
 
@@ -204,7 +199,6 @@ describe('pages-unified-graph-build', () => {
 		vi.stubEnv('NODE_ENV', 'production');
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
-		installBuildQueue(appConfig);
 		const entryPaths = [
 			path.join(appDir, 'src/pages/index.ts'),
 			path.join(appDir, 'src/pages/404.ts'),
@@ -232,7 +226,6 @@ describe('pages-unified-graph-build', () => {
 		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', '1');
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
-		installBuildQueue(appConfig);
 		const configPath = path.join(appDir, 'eco.config.ts');
 		const optionsPath = path.join(appDir, 'src/lib/mdx-plugin-options.ts');
 		fileSystem.write(optionsPath, 'export const mdxPluginOptions = { remarkPlugins: [] };\n');
@@ -258,7 +251,6 @@ describe('pages-unified-graph-build', () => {
 		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', '1');
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
-		installBuildQueue(appConfig);
 
 		const entryPaths = [path.join(appDir, 'src/pages/index.ts')];
 		const outdir = getServerModuleBuildCacheOutdir(appConfig);
@@ -292,7 +284,6 @@ describe('pages-unified-graph-build', () => {
 		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', '1');
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
-		installBuildQueue(appConfig);
 
 		const entryPaths = pages.map((page) => path.join(appDir, 'src/pages', page));
 		const outdir = getServerModuleBuildCacheOutdir(appConfig);
@@ -328,7 +319,6 @@ describe('pages-unified-graph-build', () => {
 		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', '1');
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
-		installBuildQueue(appConfig);
 
 		const entryPaths = [path.join(appDir, 'src/pages/index.ts')];
 		const outdir = getServerModuleBuildCacheOutdir(appConfig);
@@ -385,7 +375,6 @@ describe('pages-unified-graph-build', () => {
 		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', '1');
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
-		installBuildQueue(appConfig);
 
 		const indexEntry = path.join(appDir, 'src/pages/index.ts');
 		const notFoundEntry = path.join(appDir, 'src/pages/404.ts');
@@ -436,7 +425,6 @@ describe('pages-unified-graph-build', () => {
 		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', '1');
 
 		const appConfig = await createFixtureAppConfig({ rootDir: appDir });
-		installBuildQueue(appConfig);
 
 		const indexEntry = path.join(appDir, 'src/pages/index.ts');
 		const outdir = getServerModuleBuildCacheOutdir(appConfig);

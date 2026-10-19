@@ -5,7 +5,7 @@ import path from 'node:path';
 import { describe, it } from 'vitest';
 import type { BuildExecutor } from '../../build/build-adapter.ts';
 import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
-import { BuildQueue, installBuildQueue } from '../../build/runtime/build-queue.ts';
+import { BuildQueue } from '../../build/runtime/build-queue.ts';
 import { createAppBuildManifest, type AppBuildManifest } from '../../build/contracts/build-manifest.ts';
 import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
@@ -267,7 +267,6 @@ describe('app server module transpiler runtime state', () => {
 		} as any;
 
 		attachTestAppRuntime(appConfig);
-		installBuildQueue(appConfig);
 		const routeModuleExecutor = requireAppRuntime<AppRuntime>(appConfig).buildQueue;
 		const originalBuild = routeModuleExecutor.build.bind(routeModuleExecutor);
 		routeModuleExecutor.build = async (options: Parameters<BuildExecutor['build']>[0]) => {

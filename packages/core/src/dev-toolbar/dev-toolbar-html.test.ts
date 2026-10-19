@@ -4,7 +4,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HmrManager } from '../adapters/shared/hmr/hmr-manager.ts';
-import { installBuildQueue } from '../build/runtime/build-queue.ts';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
 
 const toolbarPackageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../dev-toolbar');
@@ -34,7 +33,6 @@ async function createManager(options: { toolbarPackage: string; installToolbar: 
 	}
 
 	const appConfig = await finalizeEcoPagesConfig({ rootDir, devToolbar: { package: options.toolbarPackage } });
-	installBuildQueue(appConfig);
 	const manager = new HmrManager({
 		appConfig,
 		bridge: { subscriberCount: 0, broadcast: () => {} } as never,

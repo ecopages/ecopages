@@ -145,11 +145,6 @@ export type EcoPagesUserConfig = {
 	 * Development toolbar configuration and toggle options.
 	 */
 	devToolbar?: EcoPagesAppConfig['devToolbar'];
-
-	/**
-	 * Experimental runtime or compiler feature flags.
-	 */
-	experimental?: EcoPagesAppConfig['experimental'];
 };
 
 /** Produces fresh plugin instances when one config module creates multiple apps in a process. */

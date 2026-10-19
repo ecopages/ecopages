@@ -8,7 +8,7 @@ import {
 	disposeDevResources,
 } from '../../adapters/shared/runtime/runtime-server-lifecycle.ts';
 import { ensureIntegrationRuntimeReady, setupAppRuntimePlugins } from '../../build/app-build-manifest-runtime.ts';
-import { installBuildQueue, requireBuildQueue } from '../../build/runtime/build-queue.ts';
+import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
 import { createBrowserBuildRequest, resolveAppBuildPlugins } from '../../build/runtime/build-request-policy.ts';
 import { ensurePagesUnifiedGraphBuilt } from '../../build/cache/pages-unified-graph-build.ts';
 import { getHtmlPageModuleScriptUrls, scanModuleScript } from '../../html-pages/html-page-module-scripts.ts';
@@ -48,7 +48,6 @@ describe('AppRuntime', () => {
 		expect(() => requireAppRuntime(unfinalized)).toThrow(missingRuntime);
 		expect(() => createAppRuntime({} as EcoPagesAppConfig)).toThrow(missingRuntime);
 		expect(() => requireBuildQueue(unfinalized)).toThrow(missingRuntime);
-		expect(() => installBuildQueue(unfinalized)).toThrow(missingRuntime);
 		expect(() => resolveAppBuildPlugins(unfinalized, 'server')).toThrow(missingRuntime);
 		expect(() => createBrowserBuildRequest(unfinalized, { entrypoints: ['/in.ts'] })).toThrow(missingRuntime);
 		expect(() => getSharedRouteModuleBuildCache('/out', unfinalized)).toThrow(missingRuntime);
@@ -116,14 +115,6 @@ describe('AppRuntime', () => {
 		expect(firstRuntime.serverInvalidation.currentGeneration()).toBe(1);
 		expect(firstRuntime.moduleLoader.getDevelopmentGeneration()).toBe(1);
 		expect(secondRuntime.moduleLoader.getDevelopmentGeneration()).toBe(0);
-	});
-
-	it('follows a build queue installed after finalization', async () => {
-		const config = await finalizeEcoPagesConfig({ rootDir: tempRoot() });
-		const runtime = requireAppRuntime(config);
-		const nextQueue = installBuildQueue(config);
-
-		expect(runtime.buildQueue).toBe(nextQueue);
 	});
 
 	it('rolls back appConfig.appRuntime when manifest sealing throws', async () => {

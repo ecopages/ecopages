@@ -19,10 +19,7 @@ import { createServerBuildRequest, resolveAppBuildPlugins } from '../runtime/bui
 import { hashAppConfigFile } from './app-config-hash.ts';
 import { collectBuildOutputImports, getBuildEntryOutput } from '../build-graph.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
-import {
-	getServerModuleBuildCacheOutdir,
-	getSharedRouteModuleBuildCache,
-} from '../server/route-module-build-cache-registry.ts';
+import { getServerModuleBuildCacheOutdir } from '../server/route-module-build-cache-registry.ts';
 import {
 	RouteModuleDependencyHasher,
 	resolveRouteModuleDependencyPaths,
@@ -198,7 +195,6 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 		return existingManifest;
 	}
 
-	const routeModuleBuildCache = getSharedRouteModuleBuildCache(outdir, options.appConfig);
 	const entryRecord: Record<string, string> = {};
 
 	for (const entryPath of eligibleEntryPaths) {
@@ -213,7 +209,6 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 		splitting: true,
 		naming: '[name]-[hash].[ext]',
 	});
-	const plugins = buildOptions.plugins ?? [];
 	const buildResult = await buildOrThrow(options.appConfig, buildOptions, 'Pages unified graph build failed').finally(
 		() => appLogger.debugTimeEnd('pagesUnifiedGraphBuild'),
 	);
@@ -231,8 +226,7 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 		}
 
 		outputs[entryPath] = compiledOutput;
-		const compiledOutputImports = collectBuildOutputImports(buildResult, compiledOutput);
-		for (const importPath of compiledOutputImports) outputImports.add(importPath);
+		for (const importPath of collectBuildOutputImports(buildResult, compiledOutput)) outputImports.add(importPath);
 
 		const dependencyModulePaths = resolveRouteModuleDependencyPaths(
 			buildResult,
@@ -241,19 +235,6 @@ export async function ensurePagesUnifiedGraphBuilt(options: {
 		);
 		Object.assign(dependencyHashes, dependencyHasher.createDependencyHashes(dependencyModulePaths));
 		dependencyHashes[path.normalize(entryPath)] = fileHash;
-
-		routeModuleBuildCache.recordBuild({
-			filePath: entryPath,
-			rootDir: options.appConfig.rootDir,
-			outdir,
-			buildOptions,
-			fileHash,
-			outputPath: compiledOutput,
-			dependencyModulePaths,
-			externalPackages: true,
-			plugins,
-			outputImports: compiledOutputImports,
-		});
 	}
 
 	const manifest: PagesUnifiedGraphCacheManifest = {

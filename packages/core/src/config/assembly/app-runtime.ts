@@ -84,8 +84,8 @@ export interface AppRuntime {
  * @remarks
  * Finalization calls this once. A second call returns that same object. The module loader is
  * created before the runtime is stored: it reads the server-invalidation counter when a generation
- * is requested, not while it is constructed. Startup or the HMR manager may later replace
- * `buildQueue` on the returned runtime.
+ * is requested, not while it is constructed. The runtime keeps its one `buildQueue` for its lifetime,
+ * so identical builds share one in-flight result from config setup onwards.
  *
  * @throws When the config was not assembled by finalization.
  */

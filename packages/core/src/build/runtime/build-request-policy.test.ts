@@ -15,7 +15,6 @@ import { createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 import { createBrowserRuntimeManifest } from '../browser/browser-runtime-manifest.ts';
 import { RolldownBuildAdapter } from '../rolldown/rolldown-build-adapter.ts';
 import { assertBuildSucceeded } from '../build-log.ts';
-import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { EcoBuildPlugin } from '../contracts/build-types.ts';
 
@@ -177,9 +176,9 @@ test('browser compilation on the route-module executor keeps browser defaults an
 	assert.equal(request.target, 'browser');
 	assert.equal(request.format, 'esm');
 	assert.ok(request.plugins?.every((plugin) => plugin.name !== 'server-only'));
-	const { installBuildQueue, requireBuildQueue } = await import('./build-queue.ts');
+	const { BuildQueue } = await import('./build-queue.ts');
 	const observed: import('../contracts/build-contracts.ts').BuildOptions[] = [];
-	requireAppRuntime(appConfig).buildAdapter = {
+	const queue = new BuildQueue({
 		async build(options) {
 			observed.push(options);
 			return createBuildSuccess();
@@ -187,9 +186,8 @@ test('browser compilation on the route-module executor keeps browser defaults an
 		resolve(specifier) {
 			return specifier;
 		},
-	};
-	installBuildQueue(appConfig);
-	await requireBuildQueue(appConfig).build(request);
+	});
+	await queue.build(request);
 	assert.equal(observed[0]?.environment, 'browser');
 	assert.equal(observed[0]?.target, 'browser');
 });

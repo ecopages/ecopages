@@ -4,9 +4,8 @@ import path from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import type { IClientBridge } from '@ecopages/core/integration';
-import { GENERATED_BASE_PATHS } from '@ecopages/core/build';
+import { BuildQueue, GENERATED_BASE_PATHS } from '@ecopages/core/build';
 import type { BuildAdapter } from '@ecopages/core/build';
-import { installBuildQueue } from '@ecopages/core/build';
 import type { EcoBuildPluginBuilder, ProcessorWatchChanges, ProcessorWatchConfig } from '@ecopages/core/processor';
 import { fileSystem } from '@ecopages/file-system';
 import { contentProcessorPlugin, ContentProcessorPlugin } from '../plugin.ts';
@@ -268,7 +267,6 @@ order: 1
 			processors: [plugin],
 		});
 
-		installBuildQueue(appConfig);
 		await setupContentProcessor(plugin, appConfig);
 
 		expect(plugin.collectionServerCompiledModules.docs).toBeUndefined();
@@ -481,7 +479,7 @@ order: 2
 			resolve: (specifier) => specifier,
 		};
 		appConfig.appRuntime!.buildAdapter = adapter;
-		installBuildQueue(appConfig);
+		appConfig.appRuntime!.buildQueue = new BuildQueue(adapter);
 		await setupContentProcessor(plugin, appConfig);
 		const resolvers: Array<{ filter: RegExp; callback: (args: { path: string }) => unknown }> = [];
 		await plugin

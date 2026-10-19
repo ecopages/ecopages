@@ -9,7 +9,6 @@
 
 import path from 'node:path';
 import { setupAppRuntimePlugins } from '../../../../packages/core/src/build/build-adapter';
-import { installBuildQueue } from '../../../../packages/core/src/build/runtime/build-queue';
 import { createNodeServerAdapter } from '../../../../packages/core/src/adapters/node/server-adapter';
 import { RouteRegistry } from '../../../../packages/core/src/router/server/route-registry';
 import { requireAppRuntime } from '../../../../packages/core/src/config/assembly/app-runtime';
@@ -75,7 +74,6 @@ export function nextDiskColdOutdir(appConfig: EcoPagesAppConfig): string {
 }
 
 export async function importRouteModuleDiskCold(appConfig: EcoPagesAppConfig, filePath: string): Promise<void> {
-	installBuildQueue(appConfig);
 	const loader = requireAppRuntime(appConfig).moduleLoader;
 
 	await loader.importModule({
@@ -98,7 +96,6 @@ export async function bootstrapStaticGenerationStack(appConfig: EcoPagesAppConfi
 
 	const runtimeOrigin = 'http://127.0.0.1:3000';
 
-	installBuildQueue(appConfig);
 	await setupAppRuntimePlugins({
 		appConfig,
 		runtimeOrigin,

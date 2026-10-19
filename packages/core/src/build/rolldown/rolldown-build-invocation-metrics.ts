@@ -6,27 +6,23 @@
 
 import { isEcopagesEnvEnabled } from '../../env.ts';
 
-const invocationCounts = new Map<string, number>();
+let buildInvocations = 0;
 let pageModuleBuildInvocations = 0;
 
 export function isRolldownBuildMetricsEnabled(): boolean {
 	return isEcopagesEnvEnabled('ECOPAGES_ROLLDOWN_BUILD_METRICS') || isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG');
 }
 
-export function recordRolldownBuildInvocation(adapter: 'rolldown' = 'rolldown'): void {
+export function recordRolldownBuildInvocation(): void {
 	if (!isRolldownBuildMetricsEnabled()) {
 		return;
 	}
 
-	invocationCounts.set(adapter, (invocationCounts.get(adapter) ?? 0) + 1);
-}
-
-export function getRolldownBuildInvocationCounts(): Readonly<Record<string, number>> {
-	return Object.fromEntries(invocationCounts);
+	buildInvocations += 1;
 }
 
 export function resetRolldownBuildInvocationCounts(): void {
-	invocationCounts.clear();
+	buildInvocations = 0;
 	pageModuleBuildInvocations = 0;
 }
 
@@ -43,9 +39,5 @@ export function getPageModuleRolldownBuildInvocations(): number {
 }
 
 export function getTotalRolldownBuildInvocations(): number {
-	let total = 0;
-	for (const count of invocationCounts.values()) {
-		total += count;
-	}
-	return total;
+	return buildInvocations;
 }

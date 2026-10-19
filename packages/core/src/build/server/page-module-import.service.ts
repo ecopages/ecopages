@@ -3,12 +3,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileSystem } from '@ecopages/file-system';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
-import {
-	type BuildExecutor,
-	type BuildOptions,
-	type BuildResult,
-	type BuildSuccess,
-} from '../../build/build-adapter.ts';
+import { type BuildOptions, type BuildResult, type BuildSuccess } from '../../build/build-adapter.ts';
 import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
 import { createServerBuildRequest } from '../../build/runtime/build-request-policy.ts';
 import {
@@ -42,7 +37,6 @@ interface PageModuleImportBaseOptions {
 export interface PageModuleBuildImportOptions extends PageModuleImportBaseOptions {
 	rootDir: string;
 	outdir: string;
-	buildExecutor?: BuildExecutor;
 	splitting?: boolean;
 	externalPackages?: boolean;
 	jsx?: {
@@ -67,7 +61,7 @@ export interface PageModuleBuildImportOptions extends PageModuleImportBaseOption
  */
 export interface PageModuleImportDependencies {
 	hashFile(filePath: string): string;
-	buildModule(options: BuildOptions, buildExecutor?: BuildExecutor): Promise<BuildResult>;
+	buildModule(options: BuildOptions): Promise<BuildResult>;
 }
 
 interface ImportCacheEntry {
@@ -108,9 +102,7 @@ export class PageModuleImportService {
 		this.appConfig = appConfig;
 		this.dependencies = {
 			hashFile: dependencies?.hashFile ?? ((filePath) => fileSystem.hash(filePath)),
-			buildModule:
-				dependencies?.buildModule ??
-				((options, buildExecutor) => (buildExecutor ?? requireBuildQueue(this.appConfig)).build(options)),
+			buildModule: dependencies?.buildModule ?? ((options) => requireBuildQueue(this.appConfig).build(options)),
 		};
 	}
 
@@ -290,7 +282,7 @@ export class PageModuleImportService {
 			Object.keys(cachedBuild.entry.dependencyHashes ?? {}),
 		);
 		const loadedModule = (await import(/* @vite-ignore */ pathToFileURL(cachedBuild.outputPath).href)) as T;
-		this.recordPipelineLoad('disk-cache-hit');
+		this.recordPipelineLoad('route-module-cache-hit');
 		return loadedModule;
 	}
 
@@ -379,7 +371,7 @@ export class PageModuleImportService {
 		}
 
 		recordPageModuleBuildInvocation();
-		const buildResult = await this.dependencies.buildModule(buildOptions, options.buildExecutor);
+		const buildResult = await this.dependencies.buildModule(buildOptions);
 		assertBuildSucceeded(buildResult, transpileErrorMessage);
 		this.recordPipelineLoad('cold-build', buildResult.outputs.length);
 

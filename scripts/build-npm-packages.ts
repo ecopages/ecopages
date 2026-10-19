@@ -89,6 +89,18 @@ function isTestLike(relativePath: string): boolean {
 	);
 }
 
+/**
+ * Reports whether a file is architecture documentation that lives beside the source.
+ *
+ * @remarks
+ * The package README is copied separately and stays. Folder READMEs and diagrams under `src`
+ * describe the repository for contributors; the package README links to them through
+ * `repository.directory`, so npm resolves those links to the repository instead.
+ */
+function isSourceDoc(relativePath: string): boolean {
+	return relativePath.startsWith('src/') && relativePath.endsWith('.md');
+}
+
 function shouldSkipDirectory(name: string): boolean {
 	return (
 		name === 'node_modules' ||
@@ -165,7 +177,7 @@ function scanPackageFiles(
 		}
 
 		const relativePath = toPosix(path.relative(packageDir, absolutePath));
-		if (isTestLike(relativePath)) {
+		if (isTestLike(relativePath) || isSourceDoc(relativePath)) {
 			return;
 		}
 

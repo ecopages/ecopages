@@ -16,8 +16,8 @@ export class HttpError extends Error {
 	readonly status: number;
 	readonly details?: HttpErrorDetails;
 
-	constructor(status: number, message: string, details?: HttpErrorDetails) {
-		super(message);
+	constructor(status: number, message: string, details?: HttpErrorDetails, options?: ErrorOptions) {
+		super(message, options);
 		this.name = 'HttpError';
 		this.status = status;
 		this.details = details;
@@ -86,7 +86,7 @@ export class HttpError extends Error {
 		return new HttpError(409, message, details);
 	}
 
-	static InternalServerError(message = 'Internal Server Error'): HttpError {
-		return new HttpError(500, message);
+	static InternalServerError(message = 'Internal Server Error', options?: ErrorOptions): HttpError {
+		return new HttpError(500, message, undefined, options);
 	}
 }

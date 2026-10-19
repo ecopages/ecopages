@@ -557,7 +557,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * Create an HttpError for unexpected render failures.
 	 * @param message - Error message
 	 * @param cause - Original error if available
-	 * @returns The original HttpError when the cause is already one, otherwise a 500 HttpError
+	 * @returns The original HttpError when the cause is already one, otherwise a 500 HttpError that keeps the
+	 * original failure as `cause`
 	 * @remarks HttpError from pages (for example NotFound from content lookup) must keep its
 	 * status so the request matcher can serve a 404 instead of a 500.
 	 */
@@ -566,7 +567,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			return cause;
 		}
 		const errorMessage = cause instanceof Error ? `${message}: ${cause.message}` : message;
-		return HttpError.InternalServerError(errorMessage);
+		return HttpError.InternalServerError(errorMessage, { cause });
 	}
 
 	protected async resolvePageBrowserGraphForFile(filePath: string): Promise<PageBrowserGraphResult | undefined> {
@@ -864,7 +865,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			const { default: HtmlTemplate } = await this.importPageFile(htmlTemplatePath);
 			return HtmlTemplate as EcoComponent<HtmlTemplateProps>;
 		} catch (error) {
-			invariant(false, `Error importing HtmlTemplate: ${error}`);
+			invariant(false, `Error importing HtmlTemplate: ${error}`, { cause: error });
 		}
 	}
 

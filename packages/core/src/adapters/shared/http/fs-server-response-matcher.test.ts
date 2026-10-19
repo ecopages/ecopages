@@ -754,6 +754,49 @@ describe('FileSystemResponseMatcher', () => {
 			expect(await response.text()).toContain('<h1>500 - Internal Server Error</h1>');
 		});
 
+		it('should log the stack of the original error wrapped by a render failure', async () => {
+			const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+			const original = new Error('page render failed');
+			const renderError = HttpError.InternalServerError('Error rendering page: page render failed', {
+				cause: original,
+			});
+			const throwingFactory = createRouteRendererFactoryWithThrowingPage(
+				routeRendererFactory,
+				INDEX_TEMPLATE_FILE,
+				renderError,
+			);
+			const { factory: factoryWithStub500 } = createRouteRendererFactoryWithStub500(
+				throwingFactory,
+				appConfig.absolutePaths.error500TemplatePath,
+			);
+			const matcher = new FileSystemResponseMatcher({
+				appConfig,
+				assetPrefix: path.join(appConfig.rootDir, appConfig.distDir),
+				router,
+				routeRendererFactory: factoryWithStub500,
+				fileSystemResponseFactory,
+			});
+
+			try {
+				await matcher.handleMatch({
+					requestedPathname: APP_TEST_ROUTES.index,
+					templateRoute: {
+						kind: 'exact',
+						pathname: APP_TEST_ROUTES.index,
+						filePath: INDEX_TEMPLATE_FILE,
+					},
+					params: {},
+					query: {},
+				});
+				expect(errorSpy).toHaveBeenCalledWith(
+					expect.any(String),
+					expect.stringContaining(`Caused by: ${original.stack}`),
+				);
+			} finally {
+				errorSpy.mockRestore();
+			}
+		});
+
 		it('should log a server error when a matched route render throws', async () => {
 			const errorSpy = vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
 			const renderError = new Error('page render failed');

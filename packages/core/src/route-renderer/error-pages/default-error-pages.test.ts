@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildDefaultErrorHtml, DEFAULT_ERROR_PAGE_CLASS_NAMES } from './default-error-pages.ts';
+import {
+	buildDefaultErrorHtml,
+	DEFAULT_ERROR_PAGE_CLASS_NAMES,
+	getDefaultServerErrorDetails,
+} from './default-error-pages.ts';
 
 describe('default error pages', () => {
 	it('builds a basic forbidden page', () => {
@@ -52,6 +56,20 @@ describe('default error pages', () => {
 		expect(html).toContain('Copied');
 		expect(html).toContain('render &lt;failed&gt;');
 		expect(html).toContain('Error: render &lt;failed&gt;');
+	});
+
+	it('includes the stack of the wrapped cause in development details', () => {
+		vi.stubEnv('NODE_ENV', 'development');
+		const cause = new Error('original failure');
+		const details = getDefaultServerErrorDetails(new Error('Error rendering page', { cause }));
+
+		expect(details?.stack).toContain(`Caused by: ${cause.stack}`);
+	});
+
+	it('omits error details from server errors in production', () => {
+		vi.stubEnv('NODE_ENV', 'production');
+
+		expect(getDefaultServerErrorDetails(new Error('wrapped', { cause: new Error('original') }))).toBeUndefined();
 	});
 
 	it('does not place error-controlled text inside executable script source', () => {

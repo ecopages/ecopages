@@ -12,6 +12,7 @@ import type { FileRouteMiddleware, RequestLocals } from '../../../types/contract
 import { FileRouteMiddlewarePipeline } from './file-route-middleware-pipeline.ts';
 import { classifyPageFailure, type PageFailureClassification } from '../../../errors/http-error-page-contract.ts';
 import { isDevelopmentRuntime } from '../../../utils/runtime.ts';
+import { formatErrorChain } from '../../../utils/format-error-chain.ts';
 import type { FileSystemServerResponseFactory } from './fs-server-response-factory.ts';
 import type { ErrorPageLoaders } from '../../../types/contracts.ts';
 import { ErrorPageRenderer, logErrorPageFailure } from '../../../route-renderer/error-pages/error-page-renderer.ts';
@@ -244,9 +245,9 @@ export class FileSystemResponseMatcher {
 	): Promise<Response> {
 		const message = error instanceof Error ? error.message : 'Internal Server Error';
 		if (isDevelopmentRuntime() || appLogger.isDebugEnabled()) {
-			appLogger.error(`[FileSystemResponseMatcher] ${message} at ${pathname}`, error);
+			appLogger.error(`[FileSystemResponseMatcher] ${message} at ${pathname}`, formatErrorChain(error));
 		} else {
-			appLogger.error(`[FileSystemResponseMatcher] Render error at ${pathname}`, error);
+			appLogger.error(`[FileSystemResponseMatcher] Render error at ${pathname}`, formatErrorChain(error));
 		}
 
 		try {

@@ -19,4 +19,15 @@ describe('invariant', () => {
 			invariant(false, 'Custom error message');
 		}).toThrowError('[ecopages] Custom error message');
 	});
+
+	test('should keep the provided cause on the thrown error', () => {
+		const cause = new Error('original');
+
+		expect.assertions(1);
+		try {
+			invariant(false, 'Wrapped', { cause });
+		} catch (error) {
+			expect((error as Error).cause).toBe(cause);
+		}
+	});
 });

@@ -5,6 +5,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { finalizeEcoPagesConfig } from '@ecopages/core/config';
 import { GENERATED_BASE_PATHS } from '@ecopages/core/build';
+import type { EcoBuildOnLoadResult, EcoBuildPluginBuilder } from '@ecopages/core/processor';
 import { ImageProcessor } from '../image-processor';
 import { imageProcessorPlugin } from '../plugin';
 
@@ -213,6 +214,40 @@ describe('ImageProcessorPlugin', () => {
 		expect(processDirectorySpy).not.toHaveBeenCalled();
 		expect(Object.keys(plugin.processedImages)).toContain('hero.png');
 		expect(fs.readdirSync(outputDir).some((file) => file.endsWith('.webp'))).toBe(true);
+	});
+
+	test('the server module exports images prepared by another process without setup', async () => {
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-worker-'));
+		tempRoots.push(rootDir);
+
+		const sourceDir = path.join(rootDir, 'src', 'images');
+		const outputDir = path.join(rootDir, 'dist', 'images');
+		fs.mkdirSync(sourceDir, { recursive: true });
+		await createTestImage(path.join(sourceDir, 'hero.png'));
+
+		const mainPlugin = createImageProcessorPlugin({ sourceDir, outputDir });
+		mainPlugin.setContext(
+			await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [mainPlugin] }),
+		);
+		await mainPlugin.setup();
+
+		const workerPlugin = createImageProcessorPlugin({ sourceDir, outputDir });
+		workerPlugin.setContext(
+			await finalizeEcoPagesConfig({ rootDir, baseUrl: 'http://localhost:3000', processors: [workerPlugin] }),
+		);
+		const processDirectorySpy = vi.spyOn(ImageProcessor.prototype, 'processDirectory');
+		let loadModule: (() => Promise<EcoBuildOnLoadResult> | EcoBuildOnLoadResult) | undefined;
+		const serverPlugin = workerPlugin.plugins().find((plugin) => plugin.environments?.includes('server'));
+		await serverPlugin?.setup({
+			module: (_specifier, callback) => {
+				loadModule = callback;
+			},
+		} as EcoBuildPluginBuilder);
+
+		const result = await loadModule?.();
+
+		expect(result?.contents).toContain('export const heroPng = ');
+		expect(processDirectorySpy).not.toHaveBeenCalled();
 	});
 
 	test('setup processes images when virtual module exists but outputs were removed', async () => {

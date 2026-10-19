@@ -7,6 +7,9 @@ import type { EcoBuildOnLoadResult, EcoBuildPlugin } from '@ecopages/core/proces
 import type { ImageMap } from './plugin.ts';
 import { anyCaseToCamelCase } from './utils.ts';
 
+/** Fills the image map before the module is loaded. */
+type EnsureImagesReady = () => Promise<void>;
+
 /**
  * This function creates the plugin result for the image specifications.
  */
@@ -22,11 +25,14 @@ function createPluginResult(exports: ImageMap): EcoBuildOnLoadResult {
 /**
  * Declares `ecopages:images` as a virtual module for server builds.
  */
-export function createImagePlugin(exports: ImageMap): EcoBuildPlugin {
+export function createImagePlugin(exports: ImageMap, ensureReady: EnsureImagesReady): EcoBuildPlugin {
 	return {
 		name: 'ecopages:images',
 		setup(build) {
-			build.module('ecopages:images', () => createPluginResult(exports));
+			build.module('ecopages:images', async () => {
+				await ensureReady();
+				return createPluginResult(exports);
+			});
 		},
 	};
 }
@@ -34,7 +40,7 @@ export function createImagePlugin(exports: ImageMap): EcoBuildPlugin {
 /**
  * Resolves `ecopages:images` with `onResolve` and `onLoad` for browser builds.
  */
-export function createImagePluginBundler(exports: ImageMap): EcoBuildPlugin {
+export function createImagePluginBundler(exports: ImageMap, ensureReady: EnsureImagesReady): EcoBuildPlugin {
 	return {
 		name: 'ecopages:images',
 		setup(build) {
@@ -45,7 +51,10 @@ export function createImagePluginBundler(exports: ImageMap): EcoBuildPlugin {
 				};
 			});
 
-			build.onLoad({ filter: /.*/, namespace: 'ecopages-images' }, () => createPluginResult(exports));
+			build.onLoad({ filter: /.*/, namespace: 'ecopages-images' }, async () => {
+				await ensureReady();
+				return createPluginResult(exports);
+			});
 		},
 	};
 }

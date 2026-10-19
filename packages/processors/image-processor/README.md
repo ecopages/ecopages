@@ -6,7 +6,7 @@ It provides automatic image processing (e.g. converting and compressing to WebP)
 
 ## Features
 
-Build contributions use one `plugins(app)` method with server and browser environment declarations. Image processing, type generation and the cache restore run in `setup()`; `ecopages types` runs it. The virtual image module resolves through the implementation for the requested environment.
+Build contributions use one `plugins(app)` method with server and browser environment declarations. Image processing, type generation and the cache restore run in `setup()`; `ecopages types` runs it. The virtual image module resolves through the implementation for the requested environment. In a process where `setup()` has not run, such as the Lit static render worker, the first load of `ecopages:images` restores the image map from the outputs already on disk.
 
 - **Automatic Image Optimization**: Converts and compresses images to modern formats at build time. Each variant is named from a hash of its encoded bytes, so a quality or format change gets a new URL.
 - **Responsive Image Generation**: Creates multiple variants for different screen sizes.

@@ -107,7 +107,7 @@ describe('handleFileChange dispatch', () => {
 		assert.deepEqual(broadcasts, [{ type: 'reload' }]);
 	});
 
-	test('a file that fails to process does not drop the rest of the batch', async () => {
+	test('a file that fails to process does not drop the rest of the batch, and its error is sent last', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-failing-file');
 		const srcDir = path.join(rootDir, 'src');
 		fs.mkdirSync(srcDir, { recursive: true });
@@ -136,8 +136,8 @@ describe('handleFileChange dispatch', () => {
 		await manager.handleFileChanges([firstFile, secondFile]);
 
 		assert.deepEqual(broadcasts, [
-			{ type: 'error', message: 'first failed' },
 			{ type: 'update', path: '/@eco/dev/second.tsx', timestamp: 1 },
+			{ type: 'error', message: 'first failed' },
 		]);
 	});
 

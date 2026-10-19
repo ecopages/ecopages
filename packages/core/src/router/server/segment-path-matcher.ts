@@ -213,6 +213,40 @@ export function matchSegmentPath(
 	return matchParsedSegmentPath(pattern, parseSegmentPath(pathname), syntax);
 }
 
+/**
+ * Builds a concrete pathname from a route pattern and its params.
+ *
+ * @remarks
+ * The inverse of {@link matchSegmentPath}: it reads the pattern with the same
+ * segment grammar, so `:id` never touches `:idx`, and a catch-all segment
+ * (`[...name]` or, for explicit routes, `:...name`) expands to every value of
+ * an array param or to a joined string. Values are inserted as given, without
+ * percent-encoding. A segment whose param is missing is kept verbatim, and a
+ * catch-all with no values disappears from the pathname.
+ */
+export function buildSegmentPath(pattern: string, params: SegmentPathParams, syntax: SegmentPathSyntax): string {
+	const options = syntaxOptions[syntax];
+	const segments = normalizePathname(pattern)
+		.split('/')
+		.filter(Boolean)
+		.flatMap((segment) => {
+			const patternSegment = parsePatternSegment(segment, options);
+			if (patternSegment.kind !== 'parameter' && patternSegment.kind !== 'catch-all') {
+				return [segment];
+			}
+
+			const value = params[patternSegment.name];
+			if (value === undefined) {
+				return [segment];
+			}
+
+			return Array.isArray(value) ? value : [value];
+		})
+		.filter((segment) => segment !== '');
+
+	return normalizePathname(segments.join('/'));
+}
+
 export function scoreSegmentPathPattern(pattern: string, syntax: 'api'): number;
 export function scoreSegmentPathPattern(pattern: string, syntax: 'websocket'): number;
 export function scoreSegmentPathPattern(pattern: string, syntax: 'api' | 'websocket'): number {

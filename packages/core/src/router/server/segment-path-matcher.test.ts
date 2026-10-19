@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HttpError } from '../../errors/http-error.ts';
-import { matchSegmentPath, scoreSegmentPathPattern } from './segment-path-matcher.ts';
+import { buildSegmentPath, matchSegmentPath, scoreSegmentPathPattern } from './segment-path-matcher.ts';
 
 describe('matchSegmentPath', () => {
 	it('matches filesystem routes and decodes each segment once', () => {
@@ -45,6 +45,24 @@ describe('matchSegmentPath', () => {
 			expect(HttpError.isHttpError(error)).toBe(true);
 			expect(error).toMatchObject({ status: 400 });
 		}
+	});
+
+	it('builds pathnames from every param and catch-all spelling', () => {
+		expect(buildSegmentPath('/blog/[slug]', { slug: 'hello' }, 'filesystem')).toBe('/blog/hello');
+		expect(buildSegmentPath('/docs/[...path]', { path: ['a', 'b'] }, 'filesystem')).toBe('/docs/a/b');
+		expect(buildSegmentPath('/files/:...path', { path: 'a/b' }, 'explicit')).toBe('/files/a/b');
+		expect(buildSegmentPath('/files/:...path', { path: ['a', 'b'] }, 'explicit')).toBe('/files/a/b');
+		expect(buildSegmentPath('/[lang]/:slug', { lang: 'en', slug: 'x' }, 'explicit')).toBe('/en/x');
+	});
+
+	it('builds pathnames segment by segment so one param name never rewrites another', () => {
+		expect(buildSegmentPath('/:idx/:id', { id: '2', idx: '1x' }, 'explicit')).toBe('/1x/2');
+		expect(buildSegmentPath('/[idx]/[id]', { id: '2', idx: '1x' }, 'filesystem')).toBe('/1x/2');
+	});
+
+	it('drops an empty catch-all and keeps segments without a param value', () => {
+		expect(buildSegmentPath('/docs/[...path]', { path: [] }, 'filesystem')).toBe('/docs');
+		expect(buildSegmentPath('/blog/[slug]', {}, 'filesystem')).toBe('/blog/[slug]');
 	});
 
 	it('ranks literal API and WebSocket routes ahead of parameter routes', () => {

@@ -556,7 +556,6 @@ describe('React Island Host lifecycle', () => {
 			targetSelector: '[data-eco-component-key="multi-component"]',
 			componentModule: { Helper, Target },
 			componentRef: 'Target',
-			componentFile: '/app/Counter.tsx',
 			scriptId: 'multi-island-script',
 			runtime: reactRuntime,
 			runtimeState: runtime,

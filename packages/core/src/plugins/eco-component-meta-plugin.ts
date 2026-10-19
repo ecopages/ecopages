@@ -105,6 +105,33 @@ function walkAst(node: unknown, visit: (node: AstNode) => void): void {
 	for (const value of Object.values(node)) walkAst(value, visit);
 }
 
+/**
+ * Visits each `eco.*()` call with the name of the declaration it belongs to.
+ *
+ * @remarks
+ * The name is the nearest enclosing variable or function binding, or `default` inside `export default`; a call
+ * bound to neither gets an empty name.
+ */
+function walkEcoFactoryCalls(node: unknown, binding: string, visit: (call: AstNode, binding: string) => void): void {
+	if (Array.isArray(node)) {
+		for (const child of node) walkEcoFactoryCalls(child, binding, visit);
+		return;
+	}
+	if (!isAstNode(node)) return;
+	if (isEcoFactoryCall(node)) visit(node, binding);
+	let scope = binding;
+	if (node.type === 'ExportDefaultDeclaration') scope = 'default';
+	if ((node.type === 'VariableDeclarator' || node.type === 'FunctionDeclaration') && isAstNode(node.id)) {
+		if (node.id.type === 'Identifier') scope = String(node.id.name);
+	}
+	for (const value of Object.values(node)) walkEcoFactoryCalls(value, scope, visit);
+}
+
+function createIdentityLiteral(identitySource: string, filePath: string, integration: string): string {
+	const id = BigInt(`0x${contentHash(identitySource, 16)}`).toString(36);
+	return `{ id: ${JSON.stringify(id)}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
+}
+
 function createNamedImportEdit(
 	program: AstNode,
 	sourceModule: string,
@@ -198,7 +225,16 @@ export function stripsSideEffectStylesheetImports(
 	}
 }
 
-/** Attributes real `eco.*()` factory calls with canonical component identity. */
+/**
+ * Attributes real `eco.*()` factory calls with canonical component identity.
+ *
+ * @remarks
+ * Each call gets its own `id`, hashed from the file, the declaration name, and how many earlier calls in the
+ * file share that name. Server and browser builds of one source derive the same id, and a named declaration
+ * keeps it while other code in the file changes. Calls bound to no name (an inline argument, a call inside an
+ * anonymous function) are numbered in source order, so adding or removing another unnamed call before them
+ * changes their id. `file` stays the module path for every call in the file.
+ */
 export function attributeComponentIdentity(
 	contents: string,
 	filePath: string,
@@ -221,18 +257,24 @@ export function attributeComponentIdentity(
 		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
 
-	const identityLiteral = `{ id: ${JSON.stringify(BigInt(`0x${contentHash(filePath, 16)}`).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
 	if (!hasEcoFactoryCall(program)) {
 		return applySourceEdits(contents, [], filePath, { prepend: pragma });
 	}
 
-	const factoryArguments: Array<{ start: number; end: number }> = [];
-	walkAst(program, (node) => {
-		if (!isEcoFactoryCall(node) || !Array.isArray(node.arguments)) return;
+	const factoryArguments: Array<{ start: number; end: number; identityLiteral: string }> = [];
+	const bindingOccurrences = new Map<string, number>();
+	walkEcoFactoryCalls(program, '', (node, binding) => {
+		const occurrence = bindingOccurrences.get(binding) ?? 0;
+		bindingOccurrences.set(binding, occurrence + 1);
+		if (!Array.isArray(node.arguments)) return;
 		const firstArgument = node.arguments[0];
 		if (!isAstNode(firstArgument) || isIdentityBinding(firstArgument)) return;
 		if (typeof firstArgument.start !== 'number' || typeof firstArgument.end !== 'number') return;
-		factoryArguments.push({ start: firstArgument.start, end: firstArgument.end });
+		factoryArguments.push({
+			start: firstArgument.start,
+			end: firstArgument.end,
+			identityLiteral: createIdentityLiteral(`${filePath}:${binding}:${occurrence}`, filePath, integration),
+		});
 	});
 
 	if (factoryArguments.length === 0) {
@@ -244,7 +286,7 @@ export function attributeComponentIdentity(
 	const edits: SourceEdit[] = factoryArguments.map((firstArgument) => ({
 		start: firstArgument.start,
 		end: firstArgument.end,
-		prefix: `bindComponentIdentity(${identityLiteral}, `,
+		prefix: `bindComponentIdentity(${firstArgument.identityLiteral}, `,
 		suffix: `${discoveryArgument})`,
 	}));
 	edits.push(...(discovered?.removals ?? []));
@@ -344,7 +386,7 @@ export function attributeMdxComponentIdentity(
 	}
 
 	const discovered = discoverComponentImports(program, filePath, projectRoot);
-	const identityLiteral = `{ id: ${JSON.stringify(BigInt(`0x${contentHash(filePath, 16)}`).toString(36))}, file: ${JSON.stringify(filePath)}, integration: ${JSON.stringify(integration)} }`;
+	const identityLiteral = createIdentityLiteral(filePath, filePath, integration);
 	const discoveryArgument = serializeDiscoveryArgument(discovered);
 
 	const edits = buildMdxConfigIdentityEdits({

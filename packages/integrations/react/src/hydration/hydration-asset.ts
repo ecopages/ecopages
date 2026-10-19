@@ -226,7 +226,7 @@ export class HydrationAssetService {
 		islands: Array<{ file: string; config?: EcoComponentConfig }>,
 	): Promise<PageClientBuildEntry[]> {
 		const uniqueIslands = this.uniqueIslands(islands);
-		const groupedEntrypointFiles = uniqueIslands.map(({ file }) => file);
+		const groupedEntrypointFiles = [...new Set(uniqueIslands.map(({ file }) => file))];
 		const groupedDeclaredModules = [
 			...new Set(uniqueIslands.flatMap(({ config }) => collectDeclaredModulesInConfig(config))),
 		];
@@ -269,16 +269,18 @@ export class HydrationAssetService {
 		return entries;
 	}
 
+	/** Keeps one entry per component; a file that declares several island components keeps each of them. */
 	private uniqueIslands(
 		islands: Array<{ file: string; config?: EcoComponentConfig }>,
 	): Array<{ file: string; config?: EcoComponentConfig }> {
 		const uniqueIslands: Array<{ file: string; config?: EcoComponentConfig }> = [];
-		const seenFiles = new Set<string>();
+		const seenKeys = new Set<string>();
 		for (const island of islands) {
-			if (seenFiles.has(island.file)) {
+			const key = getIslandComponentKey(island.file, island.config);
+			if (seenKeys.has(key)) {
 				continue;
 			}
-			seenFiles.add(island.file);
+			seenKeys.add(key);
 			uniqueIslands.push(island);
 		}
 		return uniqueIslands;
@@ -293,7 +295,7 @@ export class HydrationAssetService {
 		for (const island of uniqueIslands) {
 			this.config.hmrPageMetadataCache?.markOwnedEntrypoint(island.file);
 			const assets = await this.buildHmrIslandRenderAssets(island.file, island.config);
-			assetsByFile.set(island.file, assets);
+			assetsByFile.set(island.file, [...(assetsByFile.get(island.file) ?? []), ...assets]);
 			processedAssets.push(...assets);
 		}
 		if (lazyEntries?.length) {
@@ -340,25 +342,31 @@ export class HydrationAssetService {
 		uniqueIslands: Array<{ file: string; config?: EcoComponentConfig }>,
 	): Promise<AssetDefinition[]> {
 		const islandEntries: AssetDefinition[] = [];
-		const groupedEntrypointFiles = uniqueIslands.map(({ file }) => file);
+		const declaredModulesByFile = new Map<string, Set<string>>();
+		for (const { file, config } of uniqueIslands) {
+			const declaredModules = declaredModulesByFile.get(file) ?? new Set<string>();
+			for (const module of collectDeclaredModulesInConfig(config)) declaredModules.add(module);
+			declaredModulesByFile.set(file, declaredModules);
+		}
+		const groupedEntrypointFiles = [...declaredModulesByFile.keys()];
 		const groupedDeclaredModules = [
 			...new Set(uniqueIslands.flatMap(({ config }) => collectDeclaredModulesInConfig(config))),
 		];
-		for (const island of uniqueIslands) {
-			const componentName = this.getIslandBundleName(island.file);
+		for (const [file, declaredModules] of declaredModulesByFile) {
+			const componentName = this.getIslandBundleName(file);
 			const bundleOptions = await this.config.bundleService.createBundleOptions(
 				componentName,
 				false,
-				collectDeclaredModulesInConfig(island.config),
+				[...declaredModules],
 				{},
-				island.file,
+				file,
 				groupedEntrypointFiles,
 				groupedDeclaredModules,
 			);
 			islandEntries.push(
 				createAppBrowserClientEntry({
 					entryName: componentName,
-					importPath: island.file,
+					importPath: file,
 					reexport: true,
 					packageRole: 'dynamic-chunk',
 					bundleOptions,
@@ -425,8 +433,9 @@ export class HydrationAssetService {
 			const islandAsset = processedClientEntries.find(
 				(processed) => processed.groupedBundle?.entryName === componentName,
 			);
+			const fileAssets = assetsByFile.get(island.file);
 			assetsByFile.set(island.file, [
-				...(islandAsset ? [islandAsset] : []),
+				...(fileAssets ?? (islandAsset ? [islandAsset] : [])),
 				...(hydrationByName.get(hydrationName) ?? []),
 			]);
 		}
@@ -462,7 +471,6 @@ export class HydrationAssetService {
 			reactDomClientImportPath: runtimeImports.reactDomClient,
 			targetSelector: `[data-eco-component-key="${componentKey}"]`,
 			componentRef: config?.identity?.id,
-			componentFile,
 			minify: !hmrEnabled,
 			hmrEnabled,
 		});

@@ -55,7 +55,6 @@ export type IslandHydrationOptions = {
 	targetSelector: string;
 	componentModule: Record<string, unknown>;
 	componentRef?: string;
-	componentFile?: string;
 	scriptId: string;
 	runtime: IslandReactRuntime;
 	runtimeState: IslandHydrationRuntime;
@@ -115,15 +114,12 @@ export function registerIslandHmr(
  * Selects the component exported by a browser entry for the current Island Host.
  *
  * @remarks
- * Component identity is preferred when a file exports several components. The
+ * Component identity is preferred when a file exports several components; each
+ * declaration has its own id, so the file alone cannot tell them apart. The
  * default export and then the first function remain compatibility fallbacks for
  * entries without framework identity metadata.
  */
-function resolveComponent(
-	module: Record<string, unknown>,
-	componentRef: string,
-	componentFile: string,
-): IslandComponent | null {
+function resolveComponent(module: Record<string, unknown>, componentRef: string): IslandComponent | null {
 	const values = Object.values(module).filter((entry): entry is IslandComponent => typeof entry === 'function');
 
 	if (componentRef) {
@@ -131,14 +127,6 @@ function resolveComponent(
 			(entry) => (entry as { config?: { identity?: { id?: string } } }).config?.identity?.id === componentRef,
 		);
 		if (matchById) return matchById;
-	}
-
-	if (componentFile) {
-		const matchByFile = values.find(
-			(entry) =>
-				(entry as { config?: { identity?: { file?: string } } }).config?.identity?.file === componentFile,
-		);
-		if (matchByFile) return matchByFile;
 	}
 
 	if (typeof module.default === 'function') return module.default as IslandComponent;
@@ -286,11 +274,7 @@ function hydrateTarget(
  * @param options - Component, selector, React runtime, and shared state for the entry.
  */
 export function mountIslands(options: IslandHydrationOptions): void {
-	const resolvedComponent = resolveComponent(
-		options.componentModule,
-		options.componentRef ?? '',
-		options.componentFile ?? '',
-	);
+	const resolvedComponent = resolveComponent(options.componentModule, options.componentRef ?? '');
 	ensureObserver(options.runtimeState);
 	const pageRuntime = ((window as IslandWindow).__ECO_PAGES__ ??= {});
 	pageRuntime.rerunScripts ??= {};
@@ -317,7 +301,7 @@ export function mountIslands(options: IslandHydrationOptions): void {
  * @param newModule - Newly imported component module.
  */
 export function updateIslands(options: IslandHydrationOptions, newModule: Record<string, unknown>): void {
-	const component = resolveComponent(newModule, options.componentRef ?? '', options.componentFile ?? '');
+	const component = resolveComponent(newModule, options.componentRef ?? '');
 	if (!component) return;
 	options.componentModule = newModule;
 	const scriptId = options.scriptId;

@@ -46,7 +46,7 @@ function buildNormalizationImport(options: CompiledPageHydrationOptions): string
 function buildHmrOptions(options: CompiledPageHydrationOptions): string {
 	if (!options.hmrEnabled) return '';
 	const layoutStack = options.routerComponents
-		? 'getLayoutStack: (Page) => (Page.config?.layouts ?? []).map((layout) => layout?.config?.identity?.file ?? "").join("|"),'
+		? 'getLayoutStack: (Page) => (Page.config?.layouts ?? []).map((layout) => layout?.config?.identity?.id ?? "").join("|"),'
 		: '';
 	return `hmr: {
     importPath: ${JSON.stringify(options.importPath)},

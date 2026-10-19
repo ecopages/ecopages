@@ -581,6 +581,52 @@ describe('HydrationAssetService', () => {
 		expect(assetsByFile.get(islandB)?.length).toBeGreaterThan(0);
 	});
 
+	it('hydrates two islands declared in one file as themselves', async () => {
+		const file = '/app/src/components/widgets.tsx';
+		const processDependencies = vi.fn(
+			async (deps: Array<{ groupedBundle?: { entryName: string }; name?: string }>) =>
+				deps.map((dep) => ({
+					kind: 'script' as const,
+					srcUrl: dep.groupedBundle ? `/assets/${dep.groupedBundle.entryName}.js` : `/${dep.name}.js`,
+					groupedBundle: dep.groupedBundle,
+					content: 'content' in dep ? (dep as { content?: string }).content : undefined,
+					attributes:
+						'attributes' in dep ? (dep as { attributes?: Record<string, string> }).attributes : undefined,
+				})),
+		);
+		const service = new HydrationAssetService({
+			srcDir: '/app/src',
+			assetProcessingService: fake<HydrationAssetServiceOptions['assetProcessingService']>({
+				getHmrManager: () => undefined,
+				processDependencies,
+			}),
+			bundleService: fake<HydrationAssetServiceOptions['bundleService']>({
+				createBundleOptions: vi.fn(async () => ({})),
+				getRuntimeImports: () => ({ ...productionRuntimeImports, router: undefined }),
+			}),
+		});
+		const counter = { identity: { id: 'counter', file, integration: 'react' } };
+		const cart = { identity: { id: 'cart', file, integration: 'react' } };
+
+		const { assetsByFile } = await service.buildPageClientRenderAssets({
+			islands: [
+				{ file, config: counter },
+				{ file, config: cart },
+			],
+		});
+
+		const clientEntries = processDependencies.mock.calls[0]?.[0] as unknown[];
+		expect(clientEntries).toHaveLength(1);
+		const hydration = (assetsByFile.get(file) ?? [])
+			.map((asset) => (asset as { content?: string }).content ?? '')
+			.filter((content) => content.includes('data-eco-component-key'));
+		expect(hydration).toHaveLength(2);
+		expect(hydration[0]).toContain(getIslandComponentKey(file, counter));
+		expect(hydration[0]).toContain('componentRef:`counter`');
+		expect(hydration[1]).toContain(getIslandComponentKey(file, cart));
+		expect(hydration[1]).toContain('componentRef:`cart`');
+	});
+
 	it('reuses the same grouped island entry name for different component instances', async () => {
 		const processDependencies = vi.fn(
 			async (deps: Array<{ groupedBundle?: { entryName: string }; name?: string }>) =>

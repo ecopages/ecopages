@@ -6,9 +6,9 @@
  * instance for each stable layout key across navigations. Layout identity is
  * resolved in this order:
  *
- * 1. `getComponentIdentity(layout)?.file`
- * 2. `getComponentIdentity(layout)?.id`
- * 3. Plain React fallback: `displayName`/`name` plus wrapper source signature
+ * 1. `getComponentIdentity(layout)?.id`, which is distinct for each layout
+ *    declared in a file
+ * 2. Plain React fallback: `displayName`/`name` plus wrapper source signature
  *
  * Eco layouts are expected to carry injected component identity in client/HMR
  * bundles. The plain React fallback exists only for non-Eco layout components.
@@ -85,11 +85,10 @@ function getLayoutSourceSignature(Layout: LayoutComponent): string {
  */
 export function getLayoutCacheKey(Layout: LayoutComponent): string {
 	const layoutConfig = (Layout as LayoutComponentWithMeta).config;
-	const identity = getComponentIdentity(layoutConfig);
-	const layoutMetaKey = identity?.file || identity?.id;
+	const layoutId = getComponentIdentity(layoutConfig)?.id;
 
-	if (layoutMetaKey) {
-		return normalizeLayoutKey(layoutMetaKey);
+	if (layoutId) {
+		return layoutId;
 	}
 
 	const layoutNameKey = Layout.displayName || Layout.name || 'layout';

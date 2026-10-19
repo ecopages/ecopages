@@ -99,18 +99,15 @@ describe('PrefetchManager', () => {
 			vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 		});
 
-		it('refreshes the cache for the visited page in the background', async () => {
+		it('caches the visited page without fetching it again', () => {
 			const here = new URL(window.location.href);
 			const visited = new PrefetchManager({ strategy: 'hover' });
 
-			visited.cacheVisitedPage(here.href, '<html><body>stale</body></html>');
-			expect(getCachedNavigationHtml(here)).toBe('<html><body>stale</body></html>');
+			visited.cacheVisitedPage(here.href, '<html><body>visited</body></html>');
+			vi.advanceTimersByTime(5_000);
+
+			expect(getCachedNavigationHtml(here)).toBe('<html><body>visited</body></html>');
 			expect(fetchSpy).not.toHaveBeenCalled();
-
-			vi.advanceTimersByTime(100);
-
-			await vi.waitFor(() => expect(getCachedNavigationHtml(here)).toBe(HTML));
-			expect(fetchSpy).toHaveBeenCalledTimes(1);
 		});
 	});
 

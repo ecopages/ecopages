@@ -114,18 +114,14 @@ export class PrefetchManager {
 	}
 
 	/**
-	 * Caches HTML content for a visited page and triggers background revalidation.
-	 *
-	 * Implements stale-while-revalidate pattern:
-	 * - Immediately caches the provided HTML for instant revisits
-	 * - Fetches fresh content in background so the next visit renders current HTML
+	 * Caches the HTML of a visited page so a revisit renders it immediately.
 	 *
 	 * @remarks
-	 * Callers pass the page that is on screen, so the revalidation must not skip the current URL.
-	 * The HTML handed in is the live document or a response that may already be stale.
+	 * The cached copy is not refreshed in the background. The page on screen was just fetched or loaded, so
+	 * fetching it again would add a request to every page load and navigation without a stale copy to fix.
 	 *
 	 * @param href - The URL of the visited page
-	 * @param html - The HTML content to cache initially
+	 * @param html - The HTML content to cache
 	 */
 	cacheVisitedPage(href: string, html: string): void {
 		const url = new URL(href, window.location.origin);
@@ -133,10 +129,6 @@ export class PrefetchManager {
 
 		cacheNavigationHtml(url, html);
 		this.prefetched.add(url.href);
-
-		setTimeout(() => {
-			void fetchNavigationPage(url, { bypassCache: true, priority: 'low' }).catch(() => {});
-		}, 100);
 	}
 
 	/**

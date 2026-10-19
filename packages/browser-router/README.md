@@ -12,7 +12,7 @@ Client-side navigation and view transitions for Ecopages. It intercepts same-ori
 
 The core navigation pipeline shares document fetching, parsing, head reconciliation, stylesheet staging, script activation, named view transitions, and lifecycle events with `@ecopages/react-router`. Browser-router always morphs the incoming body, preserving persisted elements across navigation regardless of view-transition settings or rerun scripts. View transitions only wrap the morph; scroll restoration uses the shared post-swap hook.
 
-Browser-router keeps its own cache of prefetched and visited pages: a revisit renders the cached HTML immediately and refreshes it in the background. Set `prefetch: false` to turn the cache off, so every navigation fetches fresh HTML. `@ecopages/react-router` does not read this cache and always fetches fresh HTML.
+Browser-router keeps its own cache of prefetched and visited pages: a revisit renders the cached HTML immediately, and the cached copy is not refreshed in the background. Set `prefetch: false` to turn the cache off, so every navigation fetches fresh HTML. `@ecopages/react-router` does not read this cache and always fetches fresh HTML.
 
 ## Compatibility
 

@@ -62,7 +62,6 @@ function createHmrAssetManager(runtimePath: string, enabled = true): IHmrManager
 				},
 			]),
 		getDefaultContext: vi.fn(),
-		handleFileChange: vi.fn(),
 		handleFileChanges: vi.fn(),
 	};
 }

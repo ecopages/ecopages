@@ -41,7 +41,7 @@ The reference toolbar opens its Build errors app automatically, reveals stealth 
 2. The HMR manager bundles the configured client package to `/_dev_toolbar.js` during watch mode and serves it, next to the HMR client, through the same bundle, asset and injection routines (`adapters/shared/hmr/hmr-manager.ts`, `hmr/dev-client-runtime.ts`).
 3. The server adapter asks the manager to load its runtimes from each HTML response (`injectDevClientRuntimes`), which adds `import '/_dev_toolbar.js'` before `</html>` only after the toolbar bundle was built.
 
-A package that is not installed or fails to bundle is logged as `Could not bundle the Dev Toolbar runtime` and leaves HMR on; only a failed HMR runtime bundle disables HMR. The toolbar is gated on HMR being enabled: when the HMR runtime fails to bundle, the Node runtime disables HMR for the session and the page gets neither the toolbar script nor the `#__ECO_DEV_MANIFEST__` payload.
+A package that is not installed or fails to bundle is logged as `Could not bundle the Dev Toolbar runtime` and leaves HMR on; only a failed HMR runtime bundle disables HMR. The toolbar is gated on HMR being enabled: when the HMR runtime fails to bundle, the HMR manager disables HMR for the session and the page gets neither the toolbar script nor the `#__ECO_DEV_MANIFEST__` payload.
 
 ## Config
 

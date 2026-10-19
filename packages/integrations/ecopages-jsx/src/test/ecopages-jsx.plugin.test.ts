@@ -86,7 +86,6 @@ function createHmrManagerStub(): IHmrManager {
 			}),
 			importServerModule: vi.fn(async () => ({})),
 		})),
-		handleFileChange: vi.fn(),
 	} as unknown as IHmrManager;
 }
 

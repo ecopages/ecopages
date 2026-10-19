@@ -293,6 +293,33 @@ describe('DevelopmentInvalidationService', () => {
 		expect(announced).toEqual([['/test/project/src/lib/helper.ts', '/test/project/src/styles/old.css']]);
 	});
 
+	it('invalidates cached Page Browser Graphs that depend on a changed file', async () => {
+		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
+		const session = requireAppRuntime(appConfig).pageBrowserGraphSession;
+		const routeFile = '/test/project/src/pages/index.kita.tsx';
+		const helperFile = '/test/project/src/lib/helper.ts';
+		await session.resolveGraph(
+			{
+				integrationName: 'kita',
+				routeFile,
+				dependencyInstanceKey: '',
+				entryFingerprint: 'index',
+				policy: 'development',
+			},
+			new Set([routeFile, helperFile]),
+			async () => ({
+				result: { entryAssets: [], chunkAssets: [] },
+				dependencyPaths: new Set([routeFile, helperFile]),
+			}),
+		);
+		expect(session.getAffectedGraphIdentities(helperFile)).toHaveLength(1);
+		const service = new DevelopmentInvalidationService(appConfig);
+
+		await service.applyDevFileChanges({ changed: [helperFile], created: [], deleted: [] });
+
+		expect(session.getAffectedGraphIdentities(helperFile)).toEqual([]);
+	});
+
 	it('unregisters route-module inputs when a route is removed', async () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: '/test/project' });
 		const index = requireAppRuntime(appConfig).buildInputIndex;

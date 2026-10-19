@@ -39,7 +39,7 @@ test('HmrManager skips a change to a registered file that was removed', async ()
 	await manager.registerEntrypoint(entrypointPath);
 	fs.rmSync(entrypointPath);
 
-	await manager.handleFileChange(entrypointPath);
+	await manager.handleFileChanges([entrypointPath]);
 
 	assert.deepEqual(broadcasts, []);
 });

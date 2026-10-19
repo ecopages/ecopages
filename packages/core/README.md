@@ -90,7 +90,7 @@ The manager/orchestration layer is core-owned, but framework-specific strategies
 
 ### Practical Summary
 
-- Config finalization seeds one app-owned `AppRuntime` (build adapter, build manifest, build queue, build-input index, and module caches); the HMR manager owns the concrete per-app dependency graph. Server startup refreshes the build queue.
+- Config finalization seeds one app-owned `AppRuntime` (build adapter, build manifest, build queue, build-input index, and module caches); the HMR manager records the imports of each served browser module in that build-input index. Server startup refreshes the build queue.
 - `BrowserBundleService` is the shared browser build seam used by HMR and asset-oriented browser output paths; callers choose the `build` or `hmr` scheduling lane explicitly.
 - `AppModuleLoader` is created once per app runtime and supplies the app root and shared build queue for server-side source loading, including HMR metadata imports.
 - `RouteRegistry` gives exact and dynamic Pages priority over catch-alls, selects the most specific matching catch-all prefix, and shares segment matching and one-time URL decoding with API, explicit, and WebSocket routes.

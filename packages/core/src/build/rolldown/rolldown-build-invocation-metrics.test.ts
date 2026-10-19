@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { afterEach, describe, it, vi } from 'vitest';
 import {
 	getPageModuleRolldownBuildInvocations,
-	getRolldownBuildInvocationCounts,
 	getTotalRolldownBuildInvocations,
 	isRolldownBuildMetricsEnabled,
 	recordPageModuleBuildInvocation,
@@ -19,12 +18,9 @@ describe('rolldown-build-invocation-metrics', () => {
 		vi.stubEnv('ECOPAGES_ROLLDOWN_BUILD_METRICS', '1');
 		assert.equal(isRolldownBuildMetricsEnabled(), true);
 
-		recordRolldownBuildInvocation('rolldown');
-		recordRolldownBuildInvocation('rolldown');
+		recordRolldownBuildInvocation();
+		recordRolldownBuildInvocation();
 
-		assert.deepEqual(getRolldownBuildInvocationCounts(), {
-			rolldown: 2,
-		});
 		assert.equal(getTotalRolldownBuildInvocations(), 2);
 	});
 
@@ -41,7 +37,7 @@ describe('rolldown-build-invocation-metrics', () => {
 		Reflect.deleteProperty(process.env, 'ECOPAGES_ROLLDOWN_BUILD_METRICS');
 		Reflect.deleteProperty(process.env, 'ECOPAGES_LOGGER_DEBUG');
 
-		recordRolldownBuildInvocation('rolldown');
+		recordRolldownBuildInvocation();
 		assert.equal(getTotalRolldownBuildInvocations(), 0);
 	});
 });

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { defaultBuildAdapter, getBuildAdapterOwnership } from '../../build/build-adapter.ts';
+import { RolldownBuildAdapter } from '../../build/rolldown/rolldown-build-adapter.ts';
 import { createBrowserRuntimeManifest } from '../../build/browser/browser-runtime-manifest.ts';
 import { requireAppRuntime } from './app-runtime.ts';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
@@ -199,8 +199,7 @@ describe('finalizeEcoPagesConfig', () => {
 		const config = await finalize();
 		const runtime = requireAppRuntime(config);
 
-		expect(getBuildAdapterOwnership(runtime.buildAdapter)).toBe('rolldown');
-		expect(runtime.buildAdapter).not.toBe(defaultBuildAdapter);
+		expect(runtime.buildAdapter).toBeInstanceOf(RolldownBuildAdapter);
 		expect(runtime.buildManifest.server).toHaveLength(0);
 		expect(runtime.buildManifest.browser).toHaveLength(0);
 		expect(runtime).not.toHaveProperty('entrypointDependencyGraph');
@@ -463,7 +462,7 @@ describe('finalizeEcoPagesConfig', () => {
 		debugSpy.mockRestore();
 	});
 
-	test('carries watch, prewarm, robots, cache and experimental fields through unchanged', async () => {
+	test('carries watch, prewarm, robots and cache fields through unchanged', async () => {
 		const robotsTxt = { preferences: { '*': ['/private'], Googlebot: ['/public'] } };
 		const cache: EcoPagesUserConfig['cache'] = {
 			store: 'memory',
@@ -475,7 +474,6 @@ describe('finalizeEcoPagesConfig', () => {
 			devPrewarmPaths: ['/'],
 			robotsTxt,
 			cache,
-			experimental: { unsafe: { featureFlag: true } },
 		});
 
 		expect(config).toMatchObject({
@@ -483,7 +481,6 @@ describe('finalizeEcoPagesConfig', () => {
 			devPrewarmPaths: ['/'],
 			robotsTxt,
 			cache,
-			experimental: { unsafe: { featureFlag: true } },
 		});
 	});
 });

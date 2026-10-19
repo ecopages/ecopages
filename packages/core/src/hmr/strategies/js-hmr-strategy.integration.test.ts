@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { installBuildQueue } from '../../build/runtime/build-queue.ts';
 import { requireAppRuntime } from '../../utils/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
@@ -71,7 +70,6 @@ describe('JsHmrStrategy integration', () => {
 		});
 
 		manager.setEnabled(true);
-		installBuildQueue(config);
 
 		await manager.registerScriptEntrypoint(entrypointPath);
 
@@ -140,7 +138,6 @@ describe('JsHmrStrategy integration', () => {
 		});
 
 		manager.setEnabled(true);
-		installBuildQueue(config);
 
 		await manager.registerScriptEntrypoint(entrypointPath);
 
@@ -192,7 +189,6 @@ describe('JsHmrStrategy integration', () => {
 		manager.onScriptEntrypointChanged(() => true);
 
 		manager.setEnabled(true);
-		installBuildQueue(config);
 
 		await manager.registerScriptEntrypoint(entrypointPath);
 		broadcasts.length = 0;

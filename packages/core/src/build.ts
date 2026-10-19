@@ -30,10 +30,10 @@ export {
 	type ParsedCollectionSpecifier,
 } from './build/contracts/content-virtual-modules.ts';
 export { isServerOnlyModuleSpecifier } from './build/contracts/server-only-specifier.ts';
-export { BuildQueue, installBuildQueue } from './build/runtime/build-queue.ts';
+export { BuildQueue } from './build/runtime/build-queue.ts';
 export { buildServerModule } from './build/server-module.ts';
 export { parseModuleSource, recordModuleTransformProfile } from './cache/index.ts';
-export { GENERATED_BASE_PATHS, RESOLVED_ASSETS_DIR } from './config/constants.ts';
+export { GENERATED_BASE_PATHS, RESOLVED_ASSETS_DIR } from './constants.ts';
 export {
 	ECOPAGES_DEV_RESTART_EXIT_CODE,
 	ECOPAGES_DEV_RESTART_REASON_ENV,

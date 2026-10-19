@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { installBuildQueue } from '../../build/runtime/build-queue.ts';
 import { finalizeEcoPagesConfig } from '../../config/assembly/finalize-config.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from './dev-transform-url.ts';
 import { DevTransformBundler } from './dev-transform-bundler.ts';
@@ -167,7 +166,6 @@ describe('DevTransformServer', () => {
 		);
 		fs.writeFileSync(path.join(packageDir, 'index.js'), 'export const release = 1;');
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildQueue(config);
 		const server = new DevTransformServer({ appConfig: config });
 		const sourcePath = path.join(config.absolutePaths.srcDir, 'vendor-consumer.ts');
 		fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
@@ -236,7 +234,6 @@ describe('DevTransformServer', () => {
 		fs.writeFileSync(entrypointPath, 'export const page = true;\n', 'utf8');
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildQueue(config);
 		const server = new DevTransformServer({ appConfig: config });
 
 		const outputUrl = server.registerModule(entrypointPath);
@@ -254,7 +251,6 @@ describe('DevTransformServer', () => {
 		fs.writeFileSync(entrypointPath, 'export const home = true;\n', 'utf8');
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildQueue(config);
 		const server = new DevTransformServer({ appConfig: config });
 
 		const response = await server.tryHandleRequest(
@@ -282,7 +278,6 @@ describe('DevTransformServer', () => {
 		);
 
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildQueue(config);
 		const server = new DevTransformServer({ appConfig: config });
 		const outputUrl = server.registerModule(entrypointPath);
 		const entryResponse = await server.tryHandleRequest(new Request(`http://localhost${outputUrl}`));

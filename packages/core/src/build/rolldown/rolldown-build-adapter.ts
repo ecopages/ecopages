@@ -28,8 +28,6 @@ import { createBuildInputRecorder, getBuildInputRecordingContext } from '../cach
 const moduleRequire = createRequire(import.meta.url);
 
 export class RolldownBuildAdapter implements BuildAdapter {
-	readonly ownership = 'rolldown' as const;
-
 	/** Per-adapter require cache, keyed on resolved context root. */
 	private readonly appRootRequireCache = new Map<string, NodeJS.Require>();
 
@@ -44,7 +42,7 @@ export class RolldownBuildAdapter implements BuildAdapter {
 		if (options.environment !== 'server' && options.environment !== 'browser') {
 			throw new Error('Build requests require environment: "server" or "browser".');
 		}
-		recordRolldownBuildInvocation('rolldown');
+		recordRolldownBuildInvocation();
 		const contextRoot = options.root ? path.resolve(options.root) : process.cwd();
 		const outdir = path.resolve(options.outdir ?? 'dist/assets');
 		const recordingContext = getBuildInputRecordingContext();

@@ -5,7 +5,6 @@ import {
 	setupAppRuntimePlugins,
 	teardownAppRuntimeIntegrations,
 } from '@ecopages/core/build';
-import { installBuildQueue } from '@ecopages/core/build';
 import { requireAppRuntime } from '@ecopages/core/integration';
 import { RouteRendererFactory } from '@ecopages/core/integration';
 import type { PageParams, PageQuery } from '@ecopages/core';
@@ -43,8 +42,6 @@ async function initializeWorker(configModulePath: string, runtimeOrigin: string)
 		appConfig,
 	});
 	await setupAppRuntimeIntegrations({ appConfig });
-
-	installBuildQueue(appConfig);
 
 	routeRendererFactory = new RouteRendererFactory({
 		appConfig,

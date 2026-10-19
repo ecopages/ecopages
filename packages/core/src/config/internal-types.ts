@@ -185,13 +185,6 @@ export type EcoPagesAppConfig = {
 		 */
 		package?: string;
 	};
-	/**
-	 * Experimental features.
-	 */
-	experimental?: {
-		/** Escape hatch for short-lived private toggles. No validation or IntelliSense. */
-		unsafe?: Record<string, unknown>;
-	};
 };
 
 // Re-export HMR types from public-types for internal use

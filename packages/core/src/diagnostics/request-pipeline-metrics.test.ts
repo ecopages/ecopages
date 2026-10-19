@@ -29,14 +29,14 @@ describe('request-pipeline-metrics', () => {
 		const state = metrics.createRequestPipelineMetricsState();
 		metrics.recordPageModuleLoad(state, 'cold-build', 4);
 		metrics.recordPageModuleLoad(state, 'import-cache-hit');
-		metrics.recordPageModuleLoad(state, 'disk-cache-hit');
+		metrics.recordPageModuleLoad(state, 'route-module-cache-hit');
 		metrics.recordPageModuleLoad(state, 'host-loader');
 
 		const snapshot = metrics.getRequestPipelineMetricsSnapshot(state);
 		assert.equal(snapshot.pageModuleLoads, 4);
 		assert.equal(snapshot.pageModuleBuilds, 1);
 		assert.equal(snapshot.pageModuleCacheHits, 1);
-		assert.equal(snapshot.diskCacheHits, 1);
+		assert.equal(snapshot.routeModuleCacheHits, 1);
 		assert.equal(snapshot.hostLoaderLoads, 1);
 		assert.equal(snapshot.routeModuleArtifacts, 4);
 	});

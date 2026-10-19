@@ -282,7 +282,6 @@ export async function finalizeEcoPagesConfig(
 			devPrewarmPaths: userConfig.devPrewarmPaths ?? [],
 			cache: userConfig.cache,
 			devToolbar: userConfig.devToolbar,
-			experimental: userConfig.experimental,
 		};
 		const configFilePath = options.configFilePath ?? path.join(rootDir, DEFAULT_ECO_CONFIG_FILENAME);
 		const config: EcoPagesAppConfig = {

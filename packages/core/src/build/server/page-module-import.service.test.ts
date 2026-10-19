@@ -24,7 +24,6 @@ function createFakeDependencies(): {
 		hashFile: string[];
 		buildModule: Array<{
 			options: Parameters<PageModuleImportDependencies['buildModule']>[0];
-			buildExecutor: Parameters<PageModuleImportDependencies['buildModule']>[1];
 		}>;
 	};
 	setNextBuildResult(result: BuildResult): void;
@@ -33,7 +32,6 @@ function createFakeDependencies(): {
 		hashFile: [] as string[],
 		buildModule: [] as Array<{
 			options: Parameters<PageModuleImportDependencies['buildModule']>[0];
-			buildExecutor: Parameters<PageModuleImportDependencies['buildModule']>[1];
 		}>,
 	};
 	let nextBuildResult: BuildResult = createBuildResult();
@@ -44,8 +42,8 @@ function createFakeDependencies(): {
 				calls.hashFile.push(filePath);
 				return 'hash123';
 			},
-			async buildModule(options, buildExecutor): Promise<BuildResult> {
-				calls.buildModule.push({ options, buildExecutor });
+			async buildModule(options): Promise<BuildResult> {
+				calls.buildModule.push({ options });
 				return nextBuildResult;
 			},
 		},
@@ -447,8 +445,8 @@ describe('PageModuleImportService', () => {
 		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
 		service = new PageModuleImportService(appConfig, {
 			...fakeDependencies.dependencies,
-			async buildModule(options, buildExecutor) {
-				fakeDependencies.calls.buildModule.push({ options, buildExecutor });
+			async buildModule(options) {
+				fakeDependencies.calls.buildModule.push({ options });
 				return createBuildResult({ outputs: [{ path: compiledOutput }] });
 			},
 		});
@@ -473,8 +471,8 @@ describe('PageModuleImportService', () => {
 		writeFileSync(compiledOutput, 'export default { ok: true };', 'utf8');
 		service = new PageModuleImportService(appConfig, {
 			...fakeDependencies.dependencies,
-			async buildModule(options, buildExecutor) {
-				fakeDependencies.calls.buildModule.push({ options, buildExecutor });
+			async buildModule(options) {
+				fakeDependencies.calls.buildModule.push({ options });
 				return createBuildResult({ outputs: [{ path: compiledOutput }] });
 			},
 		});
@@ -499,8 +497,8 @@ describe('PageModuleImportService', () => {
 
 		service = new PageModuleImportService(appConfig, {
 			...fakeDependencies.dependencies,
-			async buildModule(options, buildExecutor) {
-				fakeDependencies.calls.buildModule.push({ options, buildExecutor });
+			async buildModule(options) {
+				fakeDependencies.calls.buildModule.push({ options });
 				return createBuildResult({
 					outputs: [
 						{
@@ -550,8 +548,8 @@ describe('PageModuleImportService', () => {
 
 		service = new PageModuleImportService(appConfig, {
 			...fakeDependencies.dependencies,
-			async buildModule(options, buildExecutor) {
-				fakeDependencies.calls.buildModule.push({ options, buildExecutor });
+			async buildModule(options) {
+				fakeDependencies.calls.buildModule.push({ options });
 				buildCount += 1;
 				const compiledOutput = join(tempDir, `page-hash123-build-${buildCount}.mjs`);
 				writeFileSync(
@@ -794,8 +792,8 @@ describe('PageModuleImportService', () => {
 
 		service = new PageModuleImportService(appConfig, {
 			...fakeDependencies.dependencies,
-			async buildModule(options, buildExecutor) {
-				fakeDependencies.calls.buildModule.push({ options, buildExecutor });
+			async buildModule(options) {
+				fakeDependencies.calls.buildModule.push({ options });
 				buildCount += 1;
 				const compiledOutput = join(tempDir, `page-hash123-build-${buildCount}.mjs`);
 				writeFileSync(

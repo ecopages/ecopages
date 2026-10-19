@@ -66,8 +66,7 @@ function createMockDependencies() {
 		} as EcoPagesAppConfig['absolutePaths'],
 	} as unknown as EcoPagesAppConfig;
 
-	const defaultBuildAdapter: BuildAdapter = {
-		ownership: 'rolldown',
+	const buildAdapter: BuildAdapter = {
 		async build(): Promise<BuildResult> {
 			return createBuildSuccess();
 		},
@@ -76,9 +75,9 @@ function createMockDependencies() {
 		},
 	};
 	AppConfig.appRuntime = {
-		buildAdapter: defaultBuildAdapter,
+		buildAdapter,
 		buildManifest: createAppBuildManifest([]),
-		buildQueue: new BuildQueue(defaultBuildAdapter),
+		buildQueue: new BuildQueue(buildAdapter),
 		origin: 'http://localhost:3000',
 		hmr: null,
 		runtimeAssetsPrepared: false,
@@ -510,7 +509,6 @@ describe('ServerStaticBuilder', () => {
 			function recordServerEntryBuilds(appConfig: EcoPagesAppConfig): BuildOptions[] {
 				const buildCalls: BuildOptions[] = [];
 				const buildAdapter: BuildAdapter = {
-					ownership: 'rolldown',
 					async build(options: BuildOptions): Promise<BuildResult> {
 						buildCalls.push(options);
 						return createBuildSuccess();

@@ -3,7 +3,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
 import { finalizeEcoPagesConfig } from '../config/assembly/finalize-config.ts';
-import { installBuildQueue } from '../build/runtime/build-queue.ts';
 import { DevTransformVendorRegistry } from '../dev/transform-server/dev-transform-vendor-registry.ts';
 import { ProjectWatcher } from './project-watcher.ts';
 import { resolveWorkspacePackageWatchRoots } from './workspace-package-watch-roots.ts';
@@ -56,7 +55,6 @@ test.each(['package', 'dependency', 'add', 'unlink'])(
 		if (edited === 'unlink') writeFileSync(extra, 'export const extra = 1;');
 		symlinkSync(packageDir, path.join(rootDir, 'node_modules/@acme/ui'), 'dir');
 		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
-		installBuildQueue(config);
 		const registry = () => new DevTransformVendorRegistry({ appConfig: config });
 		const running = registry();
 		const oldUrl = await running.resolveVendorUrl('@acme/ui');

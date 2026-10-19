@@ -78,7 +78,7 @@ build/
 
 ## Default Flow
 
-`finalizeEcoPagesConfig()` creates one app-owned adapter, manifest, and build queue on `AppRuntime`. When a server adapter initializes, it calls `installBuildQueue(appConfig)` to install a fresh queue on that runtime.
+`finalizeEcoPagesConfig()` creates one app-owned adapter, manifest, and build queue on `AppRuntime`. The runtime keeps that queue for its lifetime, so builds started during plugin and Integration setup share in-flight results with later ones.
 
 ## App build manifest
 
@@ -112,7 +112,7 @@ The queue uses one-shot Rolldown in both dev and production. A lane runs at most
 
 Runtime code calls `requireBuildQueue(appConfig).build(options, lane)` with a complete `BuildOptions` object from the request-policy helpers. The queue is scheduling-only: it does **not** inject app plugins.
 
-The exported `defaultBuildAdapter` is a non-app-aware escape hatch. Runtime code uses `requireAppRuntime(appConfig).buildAdapter`, `requireBuildQueue()`, `createServerBuildRequest()` and `createBrowserBuildRequest()`.
+Runtime code uses `requireAppRuntime(appConfig).buildAdapter`, `requireBuildQueue()`, `createServerBuildRequest()` and `createBrowserBuildRequest()`.
 
 Every `BuildOptions` request requires `environment: 'server' | 'browser'`. Environment selects the platform, default target/format, and plugin participation. Browser requests also define `import.meta.env.NODE_ENV` from the Ecopages process mode so browser runtime helpers receive the same mode. An explicit numeric `target` changes language transpilation without changing the environment. `resolveBuildEnvironmentOptions()` holds those defaults, one table per environment; a request names only what differs, as the server entry and the emitted config do with `reportPackagesOutsideRoot`. The lane (`build` | `hmr`) selects scheduling only. `BrowserBundleService` takes an explicit lane; regular browser bundles use `build`, and development HMR rebuilds use `hmr`. Every request retains browser defaults on either lane.
 
@@ -168,7 +168,7 @@ An Integration can prune server-only imports before resolution. React uses the s
 
 ## Dev / watch path
 
-`installBuildQueue` installs the app's `BuildQueue`. The development server's `hmr-entrypoint` and `hmr-runtime` rebuilds run on the `hmr` lane (limit three). A build that waits on another running build uses the `nested` lane; all other builds use the `build` lane.
+The development server's `hmr-entrypoint` and `hmr-runtime` rebuilds run on the `hmr` lane (limit three). A build that waits on another running build uses the `nested` lane; all other builds use the `build` lane.
 
 `ProjectWatcher` deduplicates watch roots, ignores `.eco/` and `dist/`, and coalesces duplicate chokidar events within 150ms.
 

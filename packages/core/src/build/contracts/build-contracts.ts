@@ -1,8 +1,5 @@
 import type { EcoBuildPlugin } from './build-types.ts';
 
-/** The bundler that owns the app's build pipeline. */
-export type BuildOwnership = 'rolldown';
-
 /** A single artifact emitted by the build backend. */
 export interface BuildOutput {
 	path: string;
@@ -171,7 +168,6 @@ export interface BuildTranspileOptions {
 
 /** Low-level build backend contract. */
 export interface BuildAdapter {
-	readonly ownership?: BuildOwnership;
 	build(options: BuildOptions): Promise<BuildResult>;
 	resolve(importPath: string, rootDir: string): string;
 }

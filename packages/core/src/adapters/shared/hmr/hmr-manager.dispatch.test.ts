@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, test, vi } from 'vitest';
-import { installBuildQueue } from '../../../build/runtime/build-queue.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../../dev/transform-server/dev-transform-url.ts';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../../../hmr/hmr-strategy.ts';
@@ -418,7 +417,6 @@ describe('handleFileChange dispatch', () => {
 		const srcDir = path.join(rootDir, 'src');
 		fs.mkdirSync(srcDir, { recursive: true });
 		const { manager, broadcasts } = await startHmrManagerAt(rootDir, 1);
-		installBuildQueue(manager.appConfig);
 
 		const scriptPath = path.join(srcDir, 'broken.script.ts');
 		fs.writeFileSync(scriptPath, 'export const broken = ;\n', 'utf8');
@@ -439,7 +437,6 @@ describe('handleFileChange dispatch', () => {
 		const srcDir = path.join(rootDir, 'src');
 		fs.mkdirSync(srcDir, { recursive: true });
 		const { manager } = await startHmrManagerAt(rootDir, 0);
-		installBuildQueue(manager.appConfig);
 
 		const scriptPath = path.join(srcDir, 'late.script.ts');
 		fs.writeFileSync(scriptPath, 'export const late = ;\n', 'utf8');
@@ -470,7 +467,6 @@ describe('handleFileChange dispatch', () => {
 		const srcDir = path.join(rootDir, 'src');
 		fs.mkdirSync(srcDir, { recursive: true });
 		const { manager } = await startHmrManagerAt(rootDir, 0);
-		installBuildQueue(manager.appConfig);
 
 		const dependencyPath = path.join(srcDir, 'dependency.ts');
 		fs.writeFileSync(dependencyPath, 'export const dependency = true;\n', 'utf8');

@@ -12,7 +12,6 @@ LitPlugin.setup()
        └─ LitStaticRenderWorkerClient.start()
             └─ postMessage(init) ──► setupAppRuntimePlugins()
                                      setupAppRuntimeIntegrations()
-                                     installBuildQueue()
                                      RouteRendererFactory
 
 LitPlugin.getRenderer()  (creates it through createRenderer(base) on first use after setup(ctx))

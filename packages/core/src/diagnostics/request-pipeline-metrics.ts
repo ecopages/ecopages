@@ -11,7 +11,7 @@ import { getProcessRuntime } from '../utils/runtime.ts';
 import { isEcopagesEnvEnabled } from '../env.ts';
 
 export type PageModuleLoadOutcome =
-	'import-cache-hit' | 'disk-cache-hit' | 'cold-build' | 'host-loader' | 'unified-graph';
+	'import-cache-hit' | 'route-module-cache-hit' | 'cold-build' | 'host-loader' | 'unified-graph';
 
 export type RouteRenderPhase =
 	| 'resolve-route-inputs'
@@ -33,7 +33,7 @@ export type RequestPipelineMetricsSnapshot = {
 	pageModuleBuilds: number;
 	pageModuleCacheHits: number;
 	hostLoaderLoads: number;
-	diskCacheHits: number;
+	routeModuleCacheHits: number;
 	routeModuleArtifacts: number;
 	mdxTransforms: number;
 	collectionBuilds: number;
@@ -45,7 +45,7 @@ export type RequestPipelineMetricsState = {
 	pageModuleBuilds: number;
 	pageModuleCacheHits: number;
 	hostLoaderLoads: number;
-	diskCacheHits: number;
+	routeModuleCacheHits: number;
 	routeModuleArtifacts: number;
 	mdxTransforms: number;
 	collectionBuilds: number;
@@ -60,7 +60,7 @@ export function createRequestPipelineMetricsState(): RequestPipelineMetricsState
 		pageModuleBuilds: 0,
 		pageModuleCacheHits: 0,
 		hostLoaderLoads: 0,
-		diskCacheHits: 0,
+		routeModuleCacheHits: 0,
 		routeModuleArtifacts: 0,
 		mdxTransforms: 0,
 		collectionBuilds: 0,
@@ -95,8 +95,8 @@ export function recordPageModuleLoad(
 		case 'import-cache-hit':
 			state.pageModuleCacheHits += 1;
 			break;
-		case 'disk-cache-hit':
-			state.diskCacheHits += 1;
+		case 'route-module-cache-hit':
+			state.routeModuleCacheHits += 1;
 			break;
 		case 'cold-build':
 			state.pageModuleBuilds += 1;
@@ -174,7 +174,7 @@ export function getRequestPipelineMetricsSnapshot(state: RequestPipelineMetricsS
 		pageModuleBuilds: state.pageModuleBuilds,
 		pageModuleCacheHits: state.pageModuleCacheHits,
 		hostLoaderLoads: state.hostLoaderLoads,
-		diskCacheHits: state.diskCacheHits,
+		routeModuleCacheHits: state.routeModuleCacheHits,
 		routeModuleArtifacts: state.routeModuleArtifacts,
 		mdxTransforms: state.mdxTransforms,
 		collectionBuilds: state.collectionBuilds,

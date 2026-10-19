@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { BuildAdapter, BuildOptions, BuildResult } from '../build-adapter.ts';
 import { resolveBuildParallelism } from '../build-parallelism.ts';
-import { BuildQueue, buildOrThrow, installBuildQueue, resolveBuildLaneLimits } from './build-queue.ts';
+import { BuildQueue, buildOrThrow, requireBuildQueue, resolveBuildLaneLimits } from './build-queue.ts';
 import { createBuildFailure, createBuildSuccess } from '../../__fixtures__/build/build-result.ts';
 
 const baseOptions: BuildOptions = {
@@ -298,7 +298,7 @@ describe('buildOrThrow', () => {
 		const appConfig = createAppConfig(
 			createBuildFailure([{ message: 'no loader', plugin: 'eco-loader', id: '/in/a.ts' }]),
 		);
-		const queue = installBuildQueue(appConfig);
+		const queue = requireBuildQueue(appConfig);
 		const queued = vi.spyOn(queue, 'build');
 
 		await expect(buildOrThrow(appConfig, baseOptions, 'Build failed', 'hmr')).rejects.toThrow(

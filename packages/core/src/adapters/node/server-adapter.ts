@@ -2,7 +2,6 @@ import { type Server as NodeHttpServer } from 'node:http';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { setupAppRuntimeIntegrations, setupAppRuntimePlugins } from '../../build/build-adapter.ts';
-import { installBuildQueue } from '../../build/runtime/build-queue.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type {
@@ -187,8 +186,6 @@ export class NodeServerAdapter {
 	}
 
 	private async initializeResources(): Promise<void> {
-		installBuildQueue(this.appConfig);
-
 		if (this.runtimeAssetSetup !== 'export') {
 			prepareRuntimePublicDir(this.appConfig);
 		}

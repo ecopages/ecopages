@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { installBuildQueue } from '../build/runtime/build-queue.ts';
+import { BuildQueue, requireBuildQueue } from '../build/runtime/build-queue.ts';
 import { createAppBuildManifest } from '../build/contracts/build-manifest.ts';
 import { isHashedBrowserAsset } from './hashed-browser-asset.ts';
 import { BrowserBundleService } from './browser-bundle.service.ts';
@@ -11,7 +11,7 @@ describe('BrowserBundleService', () => {
 			createBuildSuccess({ outputs: [{ path: '/tmp/out/entry.js', contentHashed: true }] }),
 		);
 		const appConfig = createAppConfig(build);
-		const queue = installBuildQueue(appConfig);
+		const queue = requireBuildQueue(appConfig);
 		const queueBuild = vi.spyOn(queue, 'build');
 
 		await new BrowserBundleService(appConfig).bundle({
@@ -30,7 +30,7 @@ describe('BrowserBundleService', () => {
 	it('queues HMR rebuilds on the hmr lane', async () => {
 		const build = vi.fn(async () => createBuildSuccess({ outputs: [{ path: '/tmp/out/entry.js' }] }));
 		const appConfig = createAppConfig(build);
-		const queue = installBuildQueue(appConfig);
+		const queue = requireBuildQueue(appConfig);
 		const queueBuild = vi.spyOn(queue, 'build');
 
 		await new BrowserBundleService(appConfig).bundle({
@@ -55,11 +55,9 @@ describe('BrowserBundleService', () => {
 		} as any;
 
 		setAppBuildAdapterForTest(appConfig, {
-			ownership: 'rolldown',
 			build,
 			resolve: () => '',
 		});
-		installBuildQueue(appConfig);
 
 		const service = new BrowserBundleService(appConfig);
 		await service.bundle({
@@ -87,11 +85,9 @@ describe('BrowserBundleService', () => {
 		} as any;
 
 		setAppBuildAdapterForTest(appConfig, {
-			ownership: 'rolldown',
 			build,
 			resolve: () => '',
 		});
-		installBuildQueue(appConfig);
 
 		const service = new BrowserBundleService(appConfig);
 		await service.bundleGroupedEntries(
@@ -122,6 +118,7 @@ function setAppBuildAdapterForTest(appConfig: any, adapter: any): void {
 	appConfig.appRuntime = {
 		...(appConfig.appRuntime ?? {}),
 		buildAdapter: adapter,
+		buildQueue: new BuildQueue(adapter),
 		buildManifest: appConfig.appRuntime?.buildManifest ?? createAppBuildManifest([]),
 	};
 }
@@ -129,7 +126,6 @@ function setAppBuildAdapterForTest(appConfig: any, adapter: any): void {
 function createAppConfig(build: ReturnType<typeof vi.fn>): any {
 	const appConfig = { loaders: new Map(), integrations: [] } as any;
 	setAppBuildAdapterForTest(appConfig, {
-		ownership: 'rolldown',
 		build,
 		resolve: () => '',
 	});

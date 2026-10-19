@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
-import type { BuildQueue } from '../../build/runtime/build-queue.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { AppModuleLoader } from './app-module-loader.service.ts';
 import type { PageModuleBuildImportOptions } from './page-module-import.service.ts';
@@ -29,12 +28,8 @@ function createFakeImportService(): {
 }
 
 describe('AppModuleLoader', () => {
-	it('uses its app root and build queue for each server-module import', async () => {
-		const buildQueue = { build: async () => ({}) } as unknown as BuildQueue;
-		const appConfig = {
-			rootDir: '/app',
-			appRuntime: { buildQueue },
-		} as unknown as EcoPagesAppConfig;
+	it('uses its app root for each server-module import', async () => {
+		const appConfig = { rootDir: '/app' } as EcoPagesAppConfig;
 		const fakeImportService = createFakeImportService();
 		const loader = new AppModuleLoader(appConfig, fakeImportService.dependency);
 
@@ -48,7 +43,6 @@ describe('AppModuleLoader', () => {
 				filePath: '/app/src/pages/index.tsx',
 				outdir: '/app/.eco/.server-modules',
 				rootDir: '/app',
-				buildExecutor: buildQueue,
 			},
 		]);
 	});

@@ -2,6 +2,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -75,20 +76,26 @@ function getMainHelpText() {
 	].join('\n');
 }
 
-function getServerCommandHelpText(commandName, description, extraOptionLines = []) {
+const SHARED_SERVER_OPTION_HELP = {
+	port: '  -p, --port <port>                       Override ECOPAGES_PORT',
+	hostname: '  -n, --hostname <hostname>               Override ECOPAGES_HOSTNAME',
+	'base-url': '  -b, --base-url <baseUrl>                Override ECOPAGES_BASE_URL',
+	debug: '  -d, --debug                             Enable debug logging',
+	runtime: '      --runtime <runtime>                 Force bun or node',
+	'entry-file': '  -e, --entry-file <file>                 Entry file (default: app.ts)',
+	config: '  -c, --config <file>                     Ecopages config file (default: eco.config.ts)',
+};
+
+function getServerCommandHelpText(commandName, description, extraOptionLines = [], ignoredOptions = []) {
 	return [
 		`Usage: ecopages ${commandName} [options]`,
 		'',
 		description,
 		'',
 		'Options:',
-		'  -p, --port <port>                       Override ECOPAGES_PORT',
-		'  -n, --hostname <hostname>               Override ECOPAGES_HOSTNAME',
-		'  -b, --base-url <baseUrl>                Override ECOPAGES_BASE_URL',
-		'  -d, --debug                             Enable debug logging',
-		'      --runtime <runtime>                 Force bun or node',
-		'  -e, --entry-file <file>                 Entry file (default: app.ts)',
-		'  -c, --config <file>                     Ecopages config file (default: eco.config.ts)',
+		...Object.entries(SHARED_SERVER_OPTION_HELP)
+			.filter(([option]) => !ignoredOptions.includes(option))
+			.map(([, line]) => line),
 		...extraOptionLines,
 		'  -h, --help                              Show help',
 	].join('\n');
@@ -115,10 +122,12 @@ function parseServerCommandArgs(rawArgs, definition) {
 
 	if (values.help) {
 		console.log(
-			getServerCommandHelpText(commandName, definition.description, [
-				...Object.values(valueOptions),
-				...(definition.optionHelpLines ?? []),
-			]),
+			getServerCommandHelpText(
+				commandName,
+				definition.description,
+				[...Object.values(valueOptions), ...(definition.optionHelpLines ?? [])],
+				definition.ignoredOptions,
+			),
 		);
 		return { help: true };
 	}
@@ -155,6 +164,18 @@ function parseServerCommandArgs(rawArgs, definition) {
  */
 const FORWARDED_SIGNALS = ['SIGTERM', 'SIGINT'];
 
+/**
+ * Exit code for a child that a signal terminated.
+ *
+ * @remarks
+ * Node reports such a child with a null exit code, which `process.exit(code || 0)` turned into success, so a
+ * build killed by the OOM killer (SIGKILL) looked like it had passed. Shells report the same case as 128 plus
+ * the signal number, and so does this.
+ */
+function getSignalExitCode(signal) {
+	return 128 + (os.constants.signals[signal] ?? 0);
+}
+
 function runLaunchPlan(launchPlan, options = {}) {
 	if (Object.keys(launchPlan.envOverrides).length > 0) {
 		logger.debug(`Environment overrides: ${JSON.stringify(launchPlan.envOverrides)}`);
@@ -189,7 +210,7 @@ function runLaunchPlan(launchPlan, options = {}) {
 		process.exit(1);
 	});
 
-	child.on('exit', (code) => {
+	child.on('exit', (code, signal) => {
 		for (const signal of FORWARDED_SIGNALS) {
 			process.off(signal, forwardSignal);
 		}
@@ -205,7 +226,7 @@ function runLaunchPlan(launchPlan, options = {}) {
 			return;
 		}
 
-		process.exit(code || 0);
+		process.exit(signal ? getSignalExitCode(signal) : code || 0);
 	});
 }
 
@@ -366,6 +387,7 @@ const SERVER_COMMANDS = {
 			'Load eco.config.ts so processors write the types for virtual modules such as ecopages:images, then exit. The app entry does not run. Run it before tsc.',
 		entryArgs: [],
 		resolveEntry: () => fileURLToPath(import.meta.resolve('@ecopages/core/config/write-types')),
+		ignoredOptions: ['port', 'hostname', 'base-url', 'entry-file'],
 		optionOverrides: { nodeEnv: 'production' },
 	},
 	preview: {

@@ -116,6 +116,7 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 	declare private processor: ImageProcessor;
 	private resolvedConfig?: ImageProcessorConfig;
 	public processedImages: Record<string, ImageSpecifications> = {};
+	private preparation?: Promise<void>;
 
 	constructor(config: Omit<ProcessorConfig<ImageProcessorConfig>, 'name'>) {
 		const acceptedFormats = config.options?.acceptedFormats ?? ['jpg', 'jpeg', 'png', 'webp'];
@@ -154,8 +155,11 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 
 	override plugins(): EcoBuildPlugin[] {
 		return [
-			{ ...createImagePlugin(this.processedImages), environments: ['server'] },
-			{ ...createImagePluginBundler(this.processedImages), environments: ['browser'] },
+			{ ...createImagePlugin(this.processedImages, () => this.ensurePrepared()), environments: ['server'] },
+			{
+				...createImagePluginBundler(this.processedImages, () => this.ensurePrepared()),
+				environments: ['browser'],
+			},
 		];
 	}
 
@@ -284,8 +288,25 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 	 * Ensures optimized image outputs and virtual-module state exist on disk.
 	 */
 	async setup(): Promise<void> {
+		this.preparation = this.prepare();
+		await this.preparation;
+	}
+
+	private async prepare(): Promise<void> {
 		this.initializeProcessor();
 		await this.ensureGeneratedOutputs();
+	}
+
+	/**
+	 * Prepares the image map on first load of `ecopages:images` when `setup()` has not run in this process.
+	 *
+	 * @remarks
+	 * The Lit static render worker skips Processor setup because the main thread already wrote the outputs, so
+	 * the worker's map starts empty and is restored from those outputs here.
+	 */
+	private ensurePrepared(): Promise<void> {
+		this.preparation ??= this.prepare();
+		return this.preparation;
 	}
 
 	/**

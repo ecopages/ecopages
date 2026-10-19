@@ -303,6 +303,6 @@ export async function finalizeDocumentShellHtml(
 	const context = getComponentRenderContext<RouteRenderContextState>()?.renderState;
 	return htmlTransformer.injectPageAssets(html, {
 		contributions: options.htmlContributions,
-		pagePackage: context?.session?.pagePackage ?? context?.pagePackage,
+		pagePackage: context?.session?.pagePackage,
 	});
 }

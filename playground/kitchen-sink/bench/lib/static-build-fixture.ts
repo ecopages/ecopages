@@ -135,8 +135,6 @@ export async function bootstrapStaticGenerationStack(appConfig: EcoPagesAppConfi
 
 	const routeRendererFactory = new RouteRendererFactory({
 		appConfig,
-		runtime: requireAppRuntime(appConfig),
-		runtimeOrigin,
 	});
 	const staticSiteGenerator = new StaticSiteGenerator({ appConfig });
 

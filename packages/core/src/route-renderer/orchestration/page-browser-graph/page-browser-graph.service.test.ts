@@ -288,9 +288,9 @@ describe('SessionPageBrowserGraphCache', () => {
 		await session.resolveGroupedGraph(scope, async () => {
 			groupedBuilds += 1;
 			return {
-				skipCache: true,
 				assetsByRoute: new Map(),
 				dependencyPaths: new Set(),
+				generation: 0,
 			};
 		});
 

@@ -48,7 +48,6 @@ async function initializeWorker(configModulePath: string, runtimeOrigin: string)
 
 	routeRendererFactory = new RouteRendererFactory({
 		appConfig,
-		runtime,
 	});
 }
 

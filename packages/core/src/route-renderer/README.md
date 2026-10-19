@@ -53,7 +53,7 @@ See [`../build/README.md`](../build/README.md) for the JSX ownership helper spli
 
 ### `route-renderer.ts`
 
-- `RouteRendererFactory` takes the assembled app runtime and chooses the owning Integration's shared renderer from route files; renderers and page loaders read `origin` and `hmr` from the app runtime
+- `RouteRendererFactory` takes the app config and chooses the owning Integration's shared renderer from a route file or an explicit view's Integration name
 - `RouteRenderer` delegates execution to the selected renderer
 
 ### `explicit-view-render-preparation.ts`

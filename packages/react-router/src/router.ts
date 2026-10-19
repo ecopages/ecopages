@@ -27,7 +27,7 @@ import {
 	type RefObject,
 } from 'react';
 import { type EcoRouterOptions, DEFAULT_OPTIONS } from './types.ts';
-import { RouterContext } from './context.ts';
+import { RouterContext, type RouterNavigateRequestOptions } from './context.ts';
 import { getLinkNavigationDecision, isSamePageHashNavigationHref } from '@ecopages/core/client';
 import { invalidateNavigationHtml } from '@ecopages/core/client';
 import { type PageState } from './navigation.ts';
@@ -379,6 +379,12 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 		navigateRef.current = navigate;
 	}, [navigate]);
 
+	const navigateWithHistory = useCallback(
+		(url: string, requestOptions: RouterNavigateRequestOptions = {}) =>
+			navigate(url, { pushHistory: !requestOptions.replace }),
+		[navigate],
+	);
+
 	const getLinkFromEvent = useEffectEvent((event: MouseEvent | PointerEvent) =>
 		getAnchorFromNavigationEvent(event, options.linkSelector),
 	);
@@ -510,7 +516,7 @@ export const EcoRouter: FC<EcoRouterProps> = ({ page, pageProps, options: userOp
 
 	return createElement(
 		RouterContext.Provider,
-		{ value: { navigate, isNavigating } },
+		{ value: { navigate: navigateWithHistory, isNavigating } },
 		createElement(
 			PersistLayoutsContext.Provider,
 			{ value: options.persistLayouts },

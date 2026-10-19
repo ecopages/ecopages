@@ -10,7 +10,7 @@ export { EcoPropsScript } from './props-script.ts';
 export type { EcoPropsScriptProps } from './props-script.ts';
 
 export { useRouter } from './context.ts';
-export type { RouterContextValue } from './context.ts';
+export type { RouterContextValue, RouterNavigateRequestOptions } from './context.ts';
 
 export type { EcoRouterOptions } from './types.ts';
 

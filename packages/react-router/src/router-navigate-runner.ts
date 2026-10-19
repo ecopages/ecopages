@@ -104,7 +104,7 @@ async function applyRouterNavigationOutcome(
 				updateHistory: (finalPath, requestedUrl, direction) => {
 					if (direction === 'forward') {
 						window.history.pushState(null, '', finalPath);
-					} else if (finalPath !== requestedUrl) {
+					} else if (direction === 'replace' || finalPath !== requestedUrl) {
 						window.history.replaceState(null, '', finalPath);
 					}
 				},

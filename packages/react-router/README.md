@@ -132,6 +132,8 @@ const MyComponent = () => {
 };
 ```
 
+`navigate(url)` pushes a history entry like following a link, so the address bar updates and back returns to the previous page. Pass `navigate(url, { replace: true })` to replace the current entry instead.
+
 ## View Transitions
 
 The router automatically integrates with the [View Transitions API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API).

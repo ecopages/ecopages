@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { fileSystem } from '@ecopages/file-system';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import type postcss from 'postcss';
@@ -24,7 +24,7 @@ export function resolveAppRootFromPath(filePath: string): string {
 	const filesystemRoot = path.parse(dir).root;
 
 	while (dir !== filesystemRoot) {
-		if (existsSync(path.join(dir, 'package.json'))) {
+		if (fileSystem.exists(path.join(dir, 'package.json'))) {
 			return dir;
 		}
 
@@ -87,7 +87,7 @@ function resolveExportTarget(pkg: PackageJson, packageDir: string, subpath: stri
 		}
 
 		const resolved = path.join(packageDir, target);
-		if (existsSync(resolved)) {
+		if (fileSystem.exists(resolved)) {
 			return resolved;
 		}
 	}
@@ -101,7 +101,7 @@ function findPackageDirFromNodeModules(packageName: string, appRoot: string): st
 
 	while (true) {
 		const candidate = path.join(dir, 'node_modules', packageName, 'package.json');
-		if (existsSync(candidate)) {
+		if (fileSystem.exists(candidate)) {
 			return path.dirname(candidate);
 		}
 
@@ -126,11 +126,11 @@ function resolveBarePackageImport(id: string, appRoot: string): string {
 		throw new Error(`Unable to locate package "${packageName}" from "${appRoot}"`);
 	}
 	const packageJsonPath = path.join(packageDir, 'package.json');
-	const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as PackageJson;
+	const pkg = JSON.parse(fileSystem.readFileSync(packageJsonPath)) as PackageJson;
 
 	if (subpath) {
 		const directPath = path.join(packageDir, subpath);
-		if (existsSync(directPath)) {
+		if (fileSystem.exists(directPath)) {
 			return directPath;
 		}
 
@@ -144,19 +144,19 @@ function resolveBarePackageImport(id: string, appRoot: string): string {
 
 	if (pkg.style) {
 		const stylePath = path.join(packageDir, pkg.style);
-		if (existsSync(stylePath)) {
+		if (fileSystem.exists(stylePath)) {
 			return stylePath;
 		}
 	}
 
 	const indexCssPath = path.join(packageDir, 'index.css');
-	if (existsSync(indexCssPath)) {
+	if (fileSystem.exists(indexCssPath)) {
 		return indexCssPath;
 	}
 
 	if (pkg.main && /\.css$/.test(pkg.main)) {
 		const mainPath = path.join(packageDir, pkg.main);
-		if (existsSync(mainPath)) {
+		if (fileSystem.exists(mainPath)) {
 			return mainPath;
 		}
 	}

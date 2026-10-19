@@ -4,7 +4,7 @@
  * Build plugin securing the Ecopages isomorphic compilation pipeline.
  */
 
-import { readFileSync } from 'node:fs';
+import { fileSystem } from '@ecopages/file-system';
 import path from 'node:path';
 import type { EcoBuildOnLoadArgs, EcoBuildOnLoadResult, EcoBuildPlugin } from '@ecopages/core/integration';
 import type { RequestedExportRules } from './specifier-classification.ts';
@@ -137,7 +137,7 @@ function loadClientGraphBoundaryModule(
 
 	let source: string;
 	try {
-		source = readFileSync(args.path, 'utf-8');
+		source = fileSystem.readFileSync(args.path);
 	} catch {
 		return undefined;
 	}
@@ -155,7 +155,7 @@ function loadClientGraphBoundaryModule(
 
 function resolveEntryImports(entrypointFiles: Set<string>, entrypoint: string): void {
 	try {
-		const source = readFileSync(entrypoint, 'utf-8');
+		const source = fileSystem.readFileSync(entrypoint);
 		const wrapper = /^\s*(?:export\s+\*\s+from|import)\s+(['"])([^'"\n]+)\1\s*;?\s*$/.exec(source);
 		const specifier = wrapper?.[2];
 		if (!specifier) return;

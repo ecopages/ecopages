@@ -47,9 +47,10 @@ import type { JsxImportSource, KnownJsxImportSource, StandaloneMdxCompilerOption
 
 `KnownJsxImportSource` is `'@kitajs/html' | 'react' | '@ecopages/jsx'`. `JsxImportSource` also accepts custom runtime strings.
 
-Shared MDX options are exported as `MdxCompilerOptionsInput` from `@ecopages/mdx/core`. Configure `remarkPlugins`,
-`rehypePlugins`, and `recmaPlugins` at the top level next to `compilerOptions`; the plugin lists are not accepted inside
-`compilerOptions`. The `ReactMdxOptions` and `EcopagesJsxMdxOptions` integration types use this shared shape.
+Where `remarkPlugins`, `rehypePlugins`, and `recmaPlugins` go depends on the plugin:
+
+- Standalone `mdxPlugin()` takes them inside `compilerOptions`, next to `jsxImportSource`. It has no top-level plugin lists.
+- `reactPlugin({ mdx })` and `ecopagesJsxPlugin({ mdx })` take them at the top level of `mdx`, next to `compilerOptions`, and do not accept them inside `compilerOptions`. Both use the shared `MdxCompilerOptionsInput` shape exported from `@ecopages/mdx/core`.
 
 ## React MDX
 

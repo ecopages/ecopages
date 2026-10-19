@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { fileSystem } from '@ecopages/file-system';
 import { dirname, resolve, sep } from 'node:path';
 
 const READ_FILE_SYNC_PATTERN =
@@ -20,7 +20,7 @@ function resolveReadFileCandidate(relPath: string, sourcePath: string, absWorkin
 		resolve(sourceDir, relPath),
 		...(inferredProjectRoot ? [resolve(inferredProjectRoot, relPath)] : []),
 	];
-	return candidates.find((candidate) => existsSync(candidate));
+	return candidates.find((candidate) => fileSystem.exists(candidate));
 }
 
 /**
@@ -41,7 +41,7 @@ export function inlineReadFileSyncCalls(
 		try {
 			const absolutePath = resolveReadFileCandidate(relPath, sourcePath, absWorkingDir);
 			if (!absolutePath) return '""';
-			return JSON.stringify(readFileSync(absolutePath, 'utf-8'));
+			return JSON.stringify(fileSystem.readFileSync(absolutePath));
 		} catch {
 			return '""';
 		}

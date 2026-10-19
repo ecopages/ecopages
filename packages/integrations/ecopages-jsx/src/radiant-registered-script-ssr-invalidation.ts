@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { fileSystem } from '@ecopages/file-system';
 import {
 	CUSTOM_ELEMENT_SSR_PRELOAD_CACHE_SCOPES,
 	invalidateCustomElementScriptPreload,
@@ -17,11 +17,11 @@ type CustomElementRegistryLike = {
  * Reads the custom-element tag name from a registered script module source file.
  */
 export function resolveRadiantCustomElementTag(scriptPath: string): string | undefined {
-	if (!existsSync(scriptPath)) {
+	if (!fileSystem.exists(scriptPath)) {
 		return undefined;
 	}
 
-	const content = readFileSync(scriptPath, 'utf8');
+	const content = fileSystem.readFileSync(scriptPath);
 	const match = content.match(CUSTOM_ELEMENT_TAG_PATTERN);
 
 	return match?.[1];

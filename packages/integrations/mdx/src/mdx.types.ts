@@ -10,6 +10,10 @@ export type { JsxImportSource, KnownJsxImportSource, ThirdPartyJsxImportSource }
  *
  * `jsxImportSource` must name a third-party JSX runtime. Ecopages-owned runtimes
  * (`react`, `@ecopages/jsx`) are configured through their owning integration plugins.
+ *
+ * @remarks
+ * `remarkPlugins`, `rehypePlugins` and `recmaPlugins` belong in this object. Unlike the React and Ecopages JSX
+ * MDX options, the standalone plugin has no top-level plugin lists.
  */
 export type StandaloneMdxCompilerOptions = Omit<CompileOptions, 'jsxImportSource' | 'jsxRuntime'> & {
 	jsxImportSource: ThirdPartyJsxImportSource;

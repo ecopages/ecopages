@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+import { fileSystem } from '@ecopages/file-system';
 import type { EcoBuildPlugin } from '@ecopages/core/integration';
 
 function escapeRegExp(value: string): string {
@@ -24,7 +24,7 @@ export function createReactDomRuntimeInteropPlugin(options?: {
 			}
 
 			build.onLoad({ filter: reactDomFileFilter }, (args) => {
-				const content = fs.readFileSync(args.path, 'utf-8');
+				const content = fileSystem.readFileSync(args.path);
 				if (!reactRequirePattern.test(content)) {
 					return undefined;
 				}

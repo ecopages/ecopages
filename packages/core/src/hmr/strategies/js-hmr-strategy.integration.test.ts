@@ -92,11 +92,44 @@ describe('JsHmrStrategy integration', () => {
 
 		writeMarker('UPDATED');
 		broadcasts.length = 0;
-		await manager.handleFileChange(entrypointPath);
+		await manager.handleFileChanges([entrypointPath]);
 
 		expect(broadcasts.length).toBeGreaterThan(0);
 		expect(await readDevTransformModule(manager, entrypointPath)).toContain('UPDATED');
 		expect(broadcasts.some((event) => event.type === 'reload' || event.type === 'update')).toBe(true);
+	});
+
+	it('rebuilds a registered script entrypoint when a module it imports changes', async () => {
+		const rootDir = createTempRoot('js-hmr-dependency');
+		const componentsDir = path.join(rootDir, 'src', 'components');
+		fs.mkdirSync(componentsDir, { recursive: true });
+		const entrypointPath = path.join(componentsDir, 'widget.script.ts');
+		const dependencyPath = path.join(componentsDir, 'shared.ts');
+		fs.writeFileSync(dependencyPath, 'export const marker = "BASELINE";\n', 'utf8');
+		fs.writeFileSync(entrypointPath, 'import { marker } from "./shared";\nconsole.log(marker);\n', 'utf8');
+
+		const config = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const broadcasts: ClientBridgeEvent[] = [];
+		using manager = new HmrManager({
+			appConfig: config,
+			bridge: { subscriberCount: 1, broadcast: (event: ClientBridgeEvent) => broadcasts.push(event) } as never,
+		});
+		manager.setEnabled(true);
+
+		await manager.registerScriptEntrypoint(entrypointPath);
+		const baseline = await readDevTransformModule(manager, entrypointPath);
+
+		fs.writeFileSync(dependencyPath, 'export const marker = "UPDATED";\n', 'utf8');
+		await manager.handleFileChanges([dependencyPath]);
+
+		expect(broadcasts).toEqual([
+			{
+				type: 'update',
+				path: `${DEV_TRANSFORM_URL_PREFIX}/components/widget.script.js`,
+				timestamp: expect.any(Number),
+			},
+		]);
+		expect(await readDevTransformModule(manager, entrypointPath)).not.toBe(baseline);
 	});
 
 	it('rebuilds a registered script entrypoint without server-importing it', async () => {
@@ -158,7 +191,7 @@ describe('JsHmrStrategy integration', () => {
 
 		writeMarker('UPDATED');
 		broadcasts.length = 0;
-		await manager.handleFileChange(entrypointPath);
+		await manager.handleFileChanges([entrypointPath]);
 
 		expect(importCalls).toBe(0);
 		expect(broadcasts.some((event) => event.type === 'update')).toBe(true);
@@ -194,7 +227,7 @@ describe('JsHmrStrategy integration', () => {
 		broadcasts.length = 0;
 
 		fs.writeFileSync(entrypointPath, `export const marker = "UPDATED";\nconsole.log("UPDATED");\n`, 'utf8');
-		await manager.handleFileChange(entrypointPath);
+		await manager.handleFileChanges([entrypointPath]);
 
 		expect(broadcasts).toEqual([{ type: 'reload' }]);
 	});

@@ -2,13 +2,22 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { JsHmrStrategy, type JsHmrContext } from './js-hmr-strategy';
 import { HmrStrategyType } from '../hmr-strategy';
 import { DEV_TRANSFORM_URL_PREFIX } from '../../dev/transform-server/dev-transform-url.ts';
-import { InMemoryEntrypointDependencyGraph } from '../entrypoint-dependency-graph.ts';
+import { BuildInputDependencyIndex } from '../../build/cache/build-input-dependency-index.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
 let tmpDir: string;
 let srcDir: string;
+
+function createDependencyGraph() {
+	const index = new BuildInputDependencyIndex();
+	return {
+		getDependencyEntrypoints: (filePath: string) => new Set(index.resolveKeys('entrypoint', filePath)),
+		setEntrypointDependencies: (entrypointPath: string, dependencies: string[]) =>
+			index.register({ consumer: 'entrypoint', key: entrypointPath }, [entrypointPath, ...dependencies]),
+	};
+}
 
 function devTransformUrl(relativeJsPath: string): string {
 	return `${DEV_TRANSFORM_URL_PREFIX}/${relativeJsPath}`;
@@ -18,7 +27,7 @@ function createMockContext(overrides: Partial<JsHmrContext> = {}): JsHmrContext 
 	return {
 		getWatchedFiles: () => new Map(),
 		getRegisteredEntrypoints: () => new Map(),
-		getEntrypointDependencyGraph: () => new InMemoryEntrypointDependencyGraph(),
+		getEntrypointDependencyGraph: () => createDependencyGraph(),
 		getSrcDir: () => srcDir,
 		getPagesDir: () => path.join(srcDir, 'pages'),
 		getLayoutsDir: () => path.join(srcDir, 'layouts'),
@@ -63,7 +72,7 @@ describe('JsHmrStrategy', () => {
 		});
 
 		it('returns false for .ts files no browser module imports when the graph is selective', () => {
-			const dependencyGraph = new InMemoryEntrypointDependencyGraph();
+			const dependencyGraph = createDependencyGraph();
 			dependencyGraph.setEntrypointDependencies(path.join(srcDir, 'entry.ts'), []);
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(srcDir, 'entry.ts'), devTransformUrl('entry.js')]]),
@@ -76,7 +85,7 @@ describe('JsHmrStrategy', () => {
 
 		it('returns true for dependency-connected .tsx files in src directory', () => {
 			const changedFile = path.join(srcDir, 'component.tsx');
-			const dependencyGraph = new InMemoryEntrypointDependencyGraph();
+			const dependencyGraph = createDependencyGraph();
 			dependencyGraph.setEntrypointDependencies(path.join(srcDir, 'entry.ts'), [changedFile]);
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(srcDir, 'entry.ts'), devTransformUrl('entry.js')]]),
@@ -89,7 +98,7 @@ describe('JsHmrStrategy', () => {
 
 		it('returns true for registered entrypoints even without dependency graph hits', () => {
 			const entrypoint = path.join(srcDir, 'entry.tsx');
-			const dependencyGraph = new InMemoryEntrypointDependencyGraph();
+			const dependencyGraph = createDependencyGraph();
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[entrypoint, devTransformUrl('entry.js')]]),
 				getEntrypointDependencyGraph: () => dependencyGraph,
@@ -101,7 +110,7 @@ describe('JsHmrStrategy', () => {
 
 		it('returns true for registered script entrypoints that share an integration template extension', () => {
 			const entrypoint = path.join(srcDir, 'components', 'widget.script.tsx');
-			const dependencyGraph = new InMemoryEntrypointDependencyGraph();
+			const dependencyGraph = createDependencyGraph();
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[entrypoint, devTransformUrl('components/widget.script.js')]]),
 				getEntrypointDependencyGraph: () => dependencyGraph,
@@ -114,7 +123,7 @@ describe('JsHmrStrategy', () => {
 
 		it('returns true for registered script entrypoints regardless of filename', () => {
 			const entrypoint = path.join(srcDir, 'components', 'radiant-counter.tsx');
-			const dependencyGraph = new InMemoryEntrypointDependencyGraph();
+			const dependencyGraph = createDependencyGraph();
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[entrypoint, devTransformUrl('components/radiant-counter.js')]]),
 				getEntrypointDependencyGraph: () => dependencyGraph,
@@ -138,7 +147,7 @@ describe('JsHmrStrategy', () => {
 
 		it('returns true for .js files in src directory', () => {
 			const changedFile = path.join(srcDir, 'utils.js');
-			const dependencyGraph = new InMemoryEntrypointDependencyGraph();
+			const dependencyGraph = createDependencyGraph();
 			dependencyGraph.setEntrypointDependencies(path.join(srcDir, 'entry.ts'), [changedFile]);
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(srcDir, 'entry.ts'), devTransformUrl('entry.js')]]),
@@ -151,7 +160,7 @@ describe('JsHmrStrategy', () => {
 
 		it('returns true for .jsx files in src directory', () => {
 			const changedFile = path.join(srcDir, 'component.jsx');
-			const dependencyGraph = new InMemoryEntrypointDependencyGraph();
+			const dependencyGraph = createDependencyGraph();
 			dependencyGraph.setEntrypointDependencies(path.join(srcDir, 'entry.ts'), [changedFile]);
 			const context = createMockContext({
 				getWatchedFiles: () => new Map([[path.join(srcDir, 'entry.ts'), devTransformUrl('entry.js')]]),
@@ -226,12 +235,11 @@ describe('JsHmrStrategy', () => {
 			expect(action.type).toBe('none');
 		});
 
-		it('invalidates only dependency-connected dev-transform entrypoints when graph hit exists', async () => {
+		it('updates only dependency-connected dev-transform entrypoints when graph hit exists', async () => {
 			const entryA = path.join(srcDir, 'entry-a.ts');
 			const entryB = path.join(srcDir, 'entry-b.ts');
 			const depA = path.join(srcDir, 'shared-a.ts');
-			const invalidated: string[] = [];
-			const dependencyGraph = new InMemoryEntrypointDependencyGraph();
+			const dependencyGraph = createDependencyGraph();
 			dependencyGraph.setEntrypointDependencies(entryA, [depA]);
 			dependencyGraph.setEntrypointDependencies(entryB, [entryB]);
 
@@ -242,15 +250,11 @@ describe('JsHmrStrategy', () => {
 						[entryB, devTransformUrl('entry-b.js')],
 					]),
 				getEntrypointDependencyGraph: () => dependencyGraph,
-				invalidateDevTransformSource: (sourcePath) => {
-					invalidated.push(sourcePath);
-				},
 			});
 
 			const strategy = new JsHmrStrategy(context);
 			const action = await strategy.process(depA);
 
-			expect(invalidated).toEqual([path.resolve(entryA)]);
 			expect(action).toEqual({
 				type: 'broadcast',
 				events: [
@@ -263,11 +267,10 @@ describe('JsHmrStrategy', () => {
 			});
 		});
 
-		it('does not invalidate watched dev-transform entrypoints when the graph has no hit', async () => {
+		it('does not update watched dev-transform entrypoints when the graph has no hit', async () => {
 			const entryA = path.join(srcDir, 'entry-a.ts');
 			const entryB = path.join(srcDir, 'entry-b.ts');
 			const changedFile = path.join(srcDir, 'new-shared.ts');
-			const invalidated: string[] = [];
 
 			const context = createMockContext({
 				getWatchedFiles: () =>
@@ -275,16 +278,12 @@ describe('JsHmrStrategy', () => {
 						[entryA, devTransformUrl('entry-a.js')],
 						[entryB, devTransformUrl('entry-b.js')],
 					]),
-				getEntrypointDependencyGraph: () => new InMemoryEntrypointDependencyGraph(),
-				invalidateDevTransformSource: (sourcePath) => {
-					invalidated.push(sourcePath);
-				},
+				getEntrypointDependencyGraph: () => createDependencyGraph(),
 			});
 
 			const strategy = new JsHmrStrategy(context);
 			const action = await strategy.process(changedFile);
 
-			expect(invalidated).toEqual([]);
 			expect(action).toEqual({ type: 'none' });
 		});
 
@@ -292,8 +291,7 @@ describe('JsHmrStrategy', () => {
 			const reactEntrypoint = path.join(srcDir, 'react-page.tsx');
 			const scriptEntrypoint = path.join(srcDir, 'widget.script.ts');
 			const changedFile = path.join(srcDir, 'shared.ts');
-			const invalidated: string[] = [];
-			const dependencyGraph = new InMemoryEntrypointDependencyGraph();
+			const dependencyGraph = createDependencyGraph();
 			dependencyGraph.setEntrypointDependencies(reactEntrypoint, [changedFile]);
 			dependencyGraph.setEntrypointDependencies(scriptEntrypoint, [changedFile]);
 
@@ -305,15 +303,11 @@ describe('JsHmrStrategy', () => {
 					]),
 				getEntrypointDependencyGraph: () => dependencyGraph,
 				shouldProcessEntrypoint: (entrypointPath: string) => entrypointPath !== reactEntrypoint,
-				invalidateDevTransformSource: (sourcePath) => {
-					invalidated.push(sourcePath);
-				},
 			});
 
 			const strategy = new JsHmrStrategy(context);
 			const action = await strategy.process(changedFile);
 
-			expect(invalidated).toEqual([path.resolve(scriptEntrypoint)]);
 			expect(action).toEqual({
 				type: 'broadcast',
 				events: [
@@ -324,24 +318,6 @@ describe('JsHmrStrategy', () => {
 					},
 				],
 			});
-		});
-
-		it('ignores non-dev-transform module URLs', async () => {
-			const entrypoint = path.join(srcDir, 'entry.ts');
-			const invalidated: string[] = [];
-
-			const context = createMockContext({
-				getWatchedFiles: () => new Map([[entrypoint, '/assets/built/entry.js']]),
-				invalidateDevTransformSource: (sourcePath) => {
-					invalidated.push(sourcePath);
-				},
-			});
-
-			const strategy = new JsHmrStrategy(context);
-			const action = await strategy.process(entrypoint);
-
-			expect(invalidated).toEqual([]);
-			expect(action).toEqual({ type: 'none' });
 		});
 	});
 });

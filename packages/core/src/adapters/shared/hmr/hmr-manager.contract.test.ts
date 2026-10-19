@@ -83,13 +83,11 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		const rootDir = createTempRoot('ecopages-hmr-contract-silent-register');
 		const entrypointPath = writeSourceFile(rootDir, 'src/pages/index.tsx', PAGE_SOURCE);
 		const { manager, broadcasts } = await createAt(rootDir, 1);
-		const handleFileChange = vi.spyOn(manager, 'handleFileChange');
 		const handleFileChanges = vi.spyOn(manager, 'handleFileChanges');
 
 		const outputUrl = await manager.registerEntrypoint(entrypointPath);
 
 		assert.equal(outputUrl, `${DEV_TRANSFORM_URL_PREFIX}/pages/index.js`);
-		assert.equal(handleFileChange.mock.calls.length, 0);
 		assert.equal(handleFileChanges.mock.calls.length, 0);
 		assert.deepEqual(broadcasts, []);
 	});
@@ -204,7 +202,7 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		const { manager, broadcasts } = await createAt(rootDir, 1);
 
 		await manager.registerEntrypoint(entrypointPath);
-		await manager.handleFileChange(entrypointPath);
+		await manager.handleFileChanges([entrypointPath]);
 
 		assert.equal(broadcasts.length, 1);
 		assert.equal(broadcasts[0]?.type, 'update');
@@ -225,7 +223,7 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		manager.setEnabled(true);
 
 		await manager.registerEntrypoint(entrypointPath);
-		await manager.handleFileChange(entrypointPath);
+		await manager.handleFileChanges([entrypointPath]);
 
 		assert.equal(appModuleLoader.invalidateDevelopmentGraph.mock.calls.length, 0);
 		assert.equal(appModuleLoader.importModule.mock.calls.length, 0);
@@ -271,7 +269,7 @@ describe.each(runtimes)('shared HMR manager contract: $name', ({ create }) => {
 		await secondManager.registerScriptEntrypoint(scriptPath);
 
 		fs.writeFileSync(scriptPath, 'export const count = 2;\n', 'utf8');
-		await secondManager.handleFileChange(scriptPath);
+		await secondManager.handleFileChanges([scriptPath]);
 
 		assert.equal(handler.mock.calls.length, 1);
 		assert.deepEqual(handler.mock.calls[0], [scriptPath]);

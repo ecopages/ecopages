@@ -2,8 +2,8 @@
  * JavaScript HMR Strategy
  *
  * Handles hot module replacement for JavaScript and TypeScript entrypoints.
- * Invalidates dev-transform modules and decides whether the browser can hot-accept
- * the change or must reload.
+ * Decides whether the browser can hot-accept the change or must reload; `HmrManager`
+ * has already invalidated the affected dev-transform modules.
  *
  * @module
  */
@@ -12,7 +12,6 @@ import path from 'node:path';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '../hmr-strategy.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { isRegisteredDevTransformEntrypoint, isRegisteredScriptEntrypoint } from '../hmr-entrypoint-output.ts';
-import { isDevTransformModuleUrl } from '../hmr-asset-paths.ts';
 import type { HmrRegisteredEntrypointsContext } from '../hmr-registered-entrypoints-context.ts';
 
 /**
@@ -41,8 +40,6 @@ export interface JsHmrContext extends HmrRegisteredEntrypointsContext {
 	 * dependency changes.
 	 */
 	shouldProcessEntrypoint?(entrypointPath: string): boolean;
-
-	invalidateDevTransformSource?(sourcePath: string): void;
 
 	consumeRegisteredScriptReloadRequired?(filePath: string): boolean;
 }
@@ -119,15 +116,10 @@ export class JsHmrStrategy extends HmrStrategy {
 		for (const entrypoint of buildableEntrypoints) {
 			const resolvedEntrypoint = path.resolve(entrypoint);
 			const outputUrl = watchedFiles.get(resolvedEntrypoint);
-
-			if (!outputUrl || !isDevTransformModuleUrl(outputUrl)) {
-				appLogger.debug(
-					`[JsHmrStrategy] Skipping non-dev-transform entrypoint ${resolvedEntrypoint}: ${outputUrl ?? 'unregistered'}`,
-				);
+			if (!outputUrl) {
 				continue;
 			}
 
-			this.context.invalidateDevTransformSource?.(resolvedEntrypoint);
 			if (isRegisteredScriptEntrypoint(registeredEntrypoints, resolvedEntrypoint)) {
 				if (this.context.consumeRegisteredScriptReloadRequired?.(resolvedEntrypoint)) {
 					devTransformReloadRequired = true;

@@ -260,7 +260,7 @@ describe('LitPlugin watch restart script-change invalidation', () => {
 
 			preloadInvalidationSpy.mockClear();
 			fs.writeFileSync(scriptPath, "console.log('counter v2');\n", 'utf8');
-			await secondHmr!.handleFileChange(scriptPath);
+			await secondHmr!.handleFileChanges([scriptPath]);
 
 			expect(preloadInvalidationSpy).toHaveBeenCalledTimes(1);
 			expect(preloadInvalidationSpy).toHaveBeenCalledWith(

@@ -9,7 +9,6 @@ import {
 } from '../../../hmr/dev-client-runtime.ts';
 import { isDevToolbarEnabled } from '../../../dev-toolbar/dev-toolbar-config.ts';
 import { createDevToolbarClientRuntime } from '../../../dev-toolbar/dev-toolbar-runtime.ts';
-import { isDevTransformModuleUrl } from '../../../hmr/hmr-asset-paths.ts';
 import { isRegisteredDevTransformEntrypoint } from '../../../hmr/hmr-entrypoint-output.ts';
 import type {
 	DefaultHmrContext,
@@ -36,13 +35,12 @@ import type {
 import { DevTransformEntrypointRegistry } from './dev-transform-entrypoint-registry.ts';
 import { BrowserBundleService } from '../../../assets/browser-bundle.service.ts';
 import { requireAppRuntime } from '../../../utils/app-runtime.ts';
-import { InMemoryEntrypointDependencyGraph } from '../../../hmr/entrypoint-dependency-graph.ts';
 import { resolveInternalExecutionDir, resolveInternalWorkDir } from '../../../utils/resolve-work-dir.ts';
 import { DevTransformServer } from '../../../dev/transform-server/dev-transform-server.ts';
 import type { DevTransformBundleContributor } from '../../../dev/transform-server/types.ts';
-import { prepareHmrFileChange } from '../../../hmr/hmr-file-change-prep.ts';
+import type { BuildInputDependencyIndex } from '../../../build/cache/build-input-dependency-index.ts';
 
-type HandleFileChangeOptions = HmrFileChangeOptions;
+type EntrypointDependencyGraph = ReturnType<DefaultHmrContext['getEntrypointDependencyGraph']>;
 
 type HmrManagerParams = {
 	appConfig: EcoPagesAppConfig;
@@ -55,12 +53,21 @@ export class HmrManager implements IHmrManager {
 	protected runtimeWorkDir: string;
 	protected enabled = false;
 	protected strategies: HmrStrategy[] = [];
+	/**
+	 * @remarks
+	 * Kept out of `strategies` because it matches every path: it reloads the page when no other strategy claims
+	 * the change.
+	 */
+	private readonly fallbackStrategy = new DefaultHmrStrategy();
 	private readonly scriptEntrypointChangeHandlers: RegisteredScriptEntrypointChangeHandler[] = [];
 	private readonly registeredScriptReloadRequired = new Set<string>();
 	protected readonly entrypointRegistry: DevTransformEntrypointRegistry;
 	protected readonly browserBundleService: BrowserBundleService;
 	protected readonly invalidationService: DevelopmentInvalidationService;
-	protected readonly entrypointDependencyGraph: InMemoryEntrypointDependencyGraph;
+	private readonly buildInputIndex: BuildInputDependencyIndex;
+	private readonly entrypointDependencyGraph: EntrypointDependencyGraph = {
+		getDependencyEntrypoints: (filePath) => new Set(this.buildInputIndex.resolveKeys('entrypoint', filePath)),
+	};
 	private readonly hmrRuntime: DevClientRuntime;
 	private readonly devToolbarRuntime: DevClientRuntime;
 	private readonly runtimeBuilds = new Map<DevClientRuntime, Promise<boolean>>();
@@ -84,11 +91,15 @@ export class HmrManager implements IHmrManager {
 		this.invalidationService = getDevelopmentInvalidationService(appConfig);
 		const runtime = requireAppRuntime(appConfig);
 		runtime.hmr = this;
-		this.entrypointDependencyGraph = new InMemoryEntrypointDependencyGraph(runtime.buildInputIndex);
+		this.buildInputIndex = runtime.buildInputIndex;
 		this.devTransformServer = new DevTransformServer({
 			appConfig: this.appConfig,
 			onModuleDependencies: (modulePath, dependencies) => {
-				this.entrypointDependencyGraph.setEntrypointDependencies(modulePath, dependencies);
+				const entrypointPath = path.resolve(modulePath);
+				this.buildInputIndex.register({ consumer: 'entrypoint', key: entrypointPath }, [
+					entrypointPath,
+					...dependencies,
+				]);
 			},
 			onTransformError: (message) => this.broadcast({ type: 'error', message }),
 		});
@@ -151,7 +162,6 @@ export class HmrManager implements IHmrManager {
 			getTemplateExtensions: () => this.appConfig.templatesExt,
 			getEntrypointDependencyGraph: () => this.entrypointDependencyGraph,
 			shouldProcessEntrypoint: (entrypointPath: string) => this.shouldJsStrategyProcessEntrypoint(entrypointPath),
-			invalidateDevTransformSource: (sourcePath: string) => this.devTransformServer.invalidateSource(sourcePath),
 			consumeRegisteredScriptReloadRequired: (sourcePath: string) =>
 				this.consumeRegisteredScriptReloadRequired(sourcePath),
 		};
@@ -159,7 +169,6 @@ export class HmrManager implements IHmrManager {
 		this.strategies = [
 			new JsHmrStrategy(jsContext),
 			new ServerRenderedTemplateHmrStrategy(this.invalidationService),
-			new DefaultHmrStrategy(),
 		];
 	}
 
@@ -232,11 +241,7 @@ export class HmrManager implements IHmrManager {
 		this.bridge.broadcast(event);
 	}
 
-	public async handleFileChange(filePath: string, options: HandleFileChangeOptions = {}): Promise<void> {
-		await this.handleFileChanges([filePath], options);
-	}
-
-	public async handleFileChanges(filePaths: string[], options: HandleFileChangeOptions = {}): Promise<void> {
+	public async handleFileChanges(filePaths: string[], options: HmrFileChangeOptions = {}): Promise<void> {
 		if (filePaths.length === 0) {
 			return;
 		}
@@ -246,12 +251,8 @@ export class HmrManager implements IHmrManager {
 		const uniqueFilePaths = [...new Set(filePaths.map((candidate) => path.resolve(candidate)))];
 
 		for (const filePath of uniqueFilePaths) {
-			const affectedGraphIdentities =
-				options.graphIdentities ??
-				(this.isEnabled() ? prepareHmrFileChange(this.appConfig, filePath).affectedGraphIdentities : undefined);
-			const graphIdentities = affectedGraphIdentities?.length ? affectedGraphIdentities : undefined;
 			try {
-				events.push(...(await this.processFileChange(filePath, graphIdentities)));
+				events.push(...(await this.processFileChange(filePath)));
 			} catch (error) {
 				appLogger.error(error instanceof Error ? error : new Error(String(error)));
 				events.push({ type: 'error', message: error instanceof Error ? error.message : String(error) });
@@ -261,10 +262,7 @@ export class HmrManager implements IHmrManager {
 		this.broadcastBatchEvents(events, options, uniqueFilePaths);
 	}
 
-	private async processFileChange(
-		filePath: string,
-		graphIdentities: ClientBridgeEvent['graphIdentities'],
-	): Promise<ClientBridgeEvent[]> {
+	private async processFileChange(filePath: string): Promise<ClientBridgeEvent[]> {
 		const resolvedFilePath = path.resolve(filePath);
 		const isRegisteredDevTransformEdit = isRegisteredDevTransformEntrypoint(
 			this.entrypointRegistry.getRegisteredEntrypoints(),
@@ -283,21 +281,12 @@ export class HmrManager implements IHmrManager {
 
 		if (isRegisteredDevTransformEdit) {
 			await this.runRegisteredEntrypointChangeHandlers(resolvedFilePath);
-
-			const registered = this.entrypointRegistry.getRegisteredEntrypoints().get(resolvedFilePath);
-			if (registered && isDevTransformModuleUrl(registered.outputUrl)) {
-				this.devTransformServer.invalidateSource(resolvedFilePath);
-			}
+			this.devTransformServer.invalidateSource(resolvedFilePath);
 		}
 
 		const strategy = this.selectChangeStrategy(filePath);
-		if (!strategy) {
-			appLogger.warn(`[HMR] No strategy found for ${filePath}`);
-			return buildStrategyEvents({ type: 'none' }, !isRegisteredDevTransformEdit, graphIdentities);
-		}
-
 		appLogger.debug(`[${this.constructor.name}] Selected strategy: ${strategy.constructor.name}`);
-		return buildStrategyEvents(await strategy.process(filePath), !isRegisteredDevTransformEdit, graphIdentities);
+		return buildStrategyEvents(await strategy.process(filePath), !isRegisteredDevTransformEdit);
 	}
 
 	/**
@@ -309,7 +298,7 @@ export class HmrManager implements IHmrManager {
 	 */
 	private broadcastBatchEvents(
 		events: ClientBridgeEvent[],
-		options: HandleFileChangeOptions,
+		options: HmrFileChangeOptions,
 		filePaths: string[],
 	): void {
 		const batchEvents = coalesceBatchEvents(events);
@@ -329,15 +318,9 @@ export class HmrManager implements IHmrManager {
 	}
 
 	private invalidateDevTransformDependents(changedFilePath: string): void {
-		const affectedEntrypoints = this.entrypointDependencyGraph.getDependencyEntrypoints(changedFilePath);
-		if (affectedEntrypoints.size > 0) {
-			for (const entrypointPath of affectedEntrypoints) {
-				this.devTransformServer.invalidateSource(entrypointPath);
-			}
-			this.devTransformServer.invalidateSource(changedFilePath);
-			return;
+		for (const entrypointPath of this.entrypointDependencyGraph.getDependencyEntrypoints(changedFilePath)) {
+			this.devTransformServer.invalidateSource(entrypointPath);
 		}
-
 		this.devTransformServer.invalidateSource(changedFilePath);
 	}
 
@@ -352,8 +335,8 @@ export class HmrManager implements IHmrManager {
 		return [...this.strategies].sort((left, right) => right.priority - left.priority);
 	}
 
-	private selectChangeStrategy(filePath: string): HmrStrategy | undefined {
-		return this.getStrategiesByPriority().find((candidate) => {
+	private selectChangeStrategy(filePath: string): HmrStrategy {
+		const strategy = this.getStrategiesByPriority().find((candidate) => {
 			try {
 				return candidate.matches(filePath);
 			} catch (error) {
@@ -361,6 +344,7 @@ export class HmrManager implements IHmrManager {
 				return false;
 			}
 		});
+		return strategy ?? this.fallbackStrategy;
 	}
 
 	/**
@@ -460,7 +444,7 @@ export class HmrManager implements IHmrManager {
 		this.registeredScriptReloadRequired.clear();
 		this.entrypointRegistry.clearAll();
 		this.devTransformServer.reset();
-		this.entrypointDependencyGraph.reset();
+		this.buildInputIndex.clearConsumer('entrypoint');
 		if (this.appConfig.appRuntime?.hmr === this) {
 			this.appConfig.appRuntime.hmr = null;
 		}
@@ -468,7 +452,7 @@ export class HmrManager implements IHmrManager {
 
 	protected clearFailedEntrypointRegistration(entrypointPath: string): void {
 		this.entrypointRegistry.clearRegistration(entrypointPath);
-		this.entrypointDependencyGraph.clearEntrypointDependencies(entrypointPath);
+		this.buildInputIndex.unregister({ consumer: 'entrypoint', key: path.resolve(entrypointPath) });
 	}
 
 	public async registerEntrypoint(entrypointPath: string): Promise<string> {
@@ -504,17 +488,11 @@ export class HmrManager implements IHmrManager {
 	}
 }
 
-function buildStrategyEvents(
-	action: HmrAction,
-	fallbackReload: boolean,
-	graphIdentities: ClientBridgeEvent['graphIdentities'],
-): ClientBridgeEvent[] {
-	const events: ClientBridgeEvent[] =
-		action.type === 'broadcast' && action.events ? action.events : fallbackReload ? [{ type: 'reload' }] : [];
-
-	return events.map((event) =>
-		event.graphIdentities === undefined && graphIdentities !== undefined ? { ...event, graphIdentities } : event,
-	);
+function buildStrategyEvents(action: HmrAction, fallbackReload: boolean): ClientBridgeEvent[] {
+	if (action.type === 'broadcast' && action.events) {
+		return action.events;
+	}
+	return fallbackReload ? [{ type: 'reload' }] : [];
 }
 
 /**
@@ -532,9 +510,8 @@ function coalesceBatchEvents(events: ClientBridgeEvent[]): ClientBridgeEvent[] {
 		return [...updates, ...errors];
 	}
 
-	const graphIdentities = mergeGraphIdentities(updates);
 	if (updates.some((event) => event.type === 'reload')) {
-		return [{ type: 'reload', ...(graphIdentities ? { graphIdentities } : {}) }, ...errors];
+		return [{ type: 'reload' }, ...errors];
 	}
 
 	const layoutUpdates = updates.filter((event) => event.type === 'layout-update');
@@ -548,7 +525,6 @@ function coalesceBatchEvents(events: ClientBridgeEvent[]): ClientBridgeEvent[] {
 		{
 			type: 'layout-update',
 			timestamp: Math.max(...layoutUpdates.map((event) => event.timestamp ?? 0)),
-			...(graphIdentities ? { graphIdentities } : {}),
 		},
 		...errors,
 	];
@@ -560,27 +536,15 @@ function deduplicateEvents(events: ClientBridgeEvent[]): ClientBridgeEvent[] {
 		const key = JSON.stringify([event.type, event.path, event.message]);
 		const existing = uniqueEvents.get(key);
 		if (existing) {
-			const graphIdentities = mergeGraphIdentities([existing, event]);
 			uniqueEvents.set(key, {
 				...existing,
 				...(existing.timestamp !== undefined || event.timestamp !== undefined
 					? { timestamp: Math.max(existing.timestamp ?? 0, event.timestamp ?? 0) }
 					: {}),
-				...(graphIdentities ? { graphIdentities } : {}),
 			});
 			continue;
 		}
 		uniqueEvents.set(key, event);
 	}
 	return [...uniqueEvents.values()];
-}
-
-function mergeGraphIdentities(events: ClientBridgeEvent[]): ClientBridgeEvent['graphIdentities'] {
-	const identities = events.flatMap((event) => event.graphIdentities ?? []);
-	if (identities.length === 0) {
-		return undefined;
-	}
-
-	const unique = new Map(identities.map((identity) => [JSON.stringify(identity), identity]));
-	return [...unique.values()];
 }

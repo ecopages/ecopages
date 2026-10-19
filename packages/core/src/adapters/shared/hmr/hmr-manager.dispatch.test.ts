@@ -46,7 +46,7 @@ function collectPendingBuildErrors(manager: HmrManager): ClientBridgeEvent[] {
 	return received;
 }
 
-describe('handleFileChange dispatch', () => {
+describe('handleFileChanges dispatch', () => {
 	test('dispatches every file in a batch and coalesces the browser update', async () => {
 		const rootDir = createTempRoot('ecopages-dispatch-batch');
 		const srcDir = path.join(rootDir, 'src');
@@ -173,7 +173,7 @@ describe('handleFileChange dispatch', () => {
 		const cssFile = path.join(rootDir, 'src', 'styles', 'main.css');
 		fs.mkdirSync(path.dirname(cssFile), { recursive: true });
 		fs.writeFileSync(cssFile, 'body {}\n', 'utf8');
-		await manager.handleFileChange(cssFile);
+		await manager.handleFileChanges([cssFile]);
 
 		assert.equal(broadcasts.length, 1);
 		assert.equal(broadcasts[0].type, 'reload');
@@ -188,7 +188,7 @@ describe('handleFileChange dispatch', () => {
 		const htmlFile = path.join(rootDir, 'src', 'pages', 'index.html');
 		fs.mkdirSync(path.dirname(htmlFile), { recursive: true });
 		fs.writeFileSync(htmlFile, '<div>Hello</div>\n', 'utf8');
-		await manager.handleFileChange(htmlFile);
+		await manager.handleFileChanges([htmlFile]);
 
 		assert.equal(broadcasts.length, 1);
 		assert.equal(broadcasts[0].type, 'reload');
@@ -203,7 +203,7 @@ describe('handleFileChange dispatch', () => {
 
 		const tsFile = path.join(srcDir, 'component.ts');
 		fs.writeFileSync(tsFile, 'export const component = true;\n', 'utf8');
-		await manager.handleFileChange(tsFile);
+		await manager.handleFileChanges([tsFile]);
 
 		assert.equal(broadcasts.length, 1);
 		assert.equal(broadcasts[0].type, 'reload');
@@ -223,7 +223,7 @@ describe('handleFileChange dispatch', () => {
 
 		const classicScript = path.join(pagesDir, 'classic', 'greeting.ts');
 		fs.writeFileSync(classicScript, 'function greet(name: string) {\n\treturn name;\n}\n', 'utf8');
-		await manager.handleFileChange(classicScript);
+		await manager.handleFileChanges([classicScript]);
 
 		assert.deepEqual(broadcasts, [{ type: 'reload', path: classicScript, message: 'fallback-strategy' }]);
 	});
@@ -245,12 +245,12 @@ describe('handleFileChange dispatch', () => {
 		assert.equal(response?.status, 200);
 
 		fs.writeFileSync(direct, "import { deep } from './deep.ts';\nexport const direct = deep + 1;\n", 'utf8');
-		await manager.handleFileChange(direct);
+		await manager.handleFileChanges([direct]);
 		assert.deepEqual(broadcasts, [{ type: 'update', path: outputUrl, timestamp: broadcasts[0]?.timestamp }]);
 
 		broadcasts.length = 0;
 		fs.writeFileSync(deep, 'export const deep = 2;\n', 'utf8');
-		await manager.handleFileChange(deep);
+		await manager.handleFileChanges([deep]);
 		assert.deepEqual(broadcasts, [{ type: 'reload', path: deep, message: 'fallback-strategy' }]);
 	});
 
@@ -261,7 +261,7 @@ describe('handleFileChange dispatch', () => {
 
 		const cssFile = path.join(rootDir, 'src', 'main.css');
 		fs.writeFileSync(cssFile, 'body {}\n', 'utf8');
-		await manager.handleFileChange(cssFile, { broadcast: false });
+		await manager.handleFileChanges([cssFile], { broadcast: false });
 
 		assert.equal(broadcasts.length, 0);
 	});
@@ -287,7 +287,7 @@ describe('handleFileChange dispatch', () => {
 			new FakeHmrStrategy(HmrStrategyType.INTEGRATION, (filePath) => filePath === changedFile, action),
 		);
 
-		await manager.handleFileChange(changedFile);
+		await manager.handleFileChanges([changedFile]);
 
 		assert.deepEqual(broadcasts, []);
 		assert.deepEqual(collectPendingBuildErrors(manager), []);
@@ -309,7 +309,7 @@ describe('handleFileChange dispatch', () => {
 			new FakeHmrStrategy(HmrStrategyType.INTEGRATION, (filePath) => filePath === changedFile, { type: 'none' }),
 		);
 
-		await manager.handleFileChange(changedFile);
+		await manager.handleFileChanges([changedFile]);
 
 		assert.deepEqual(broadcasts, [{ type: 'reload' }]);
 	});
@@ -338,7 +338,7 @@ describe('handleFileChange dispatch', () => {
 			}),
 		);
 
-		await manager.handleFileChange(scriptPath);
+		await manager.handleFileChanges([scriptPath]);
 
 		assert.equal(broadcasts.length, 1);
 		assert.deepEqual(broadcasts[0], integrationEvent);
@@ -364,7 +364,7 @@ describe('handleFileChange dispatch', () => {
 			}),
 		);
 
-		await manager.handleFileChange(customFile);
+		await manager.handleFileChanges([customFile]);
 
 		assert.equal(broadcasts.length, 1);
 		assert.deepEqual(broadcasts[0], integrationEvent);
@@ -383,7 +383,7 @@ describe('handleFileChange dispatch', () => {
 			new FakeHmrStrategy(HmrStrategyType.INTEGRATION, (filePath) => filePath === scriptPath, { type: 'none' }),
 		);
 
-		await manager.handleFileChange(scriptPath);
+		await manager.handleFileChanges([scriptPath]);
 
 		assert.equal(broadcasts.length, 0);
 	});
@@ -406,7 +406,7 @@ describe('handleFileChange dispatch', () => {
 			}),
 		);
 
-		await manager.handleFileChange(customFile);
+		await manager.handleFileChanges([customFile]);
 
 		assert.equal(broadcasts.length, 2);
 		assert.deepEqual(broadcasts, events);
@@ -485,7 +485,7 @@ describe('handleFileChange dispatch', () => {
 		await manager.tryHandleDevClientRequest(new Request(`http://localhost${outputUrl}`));
 		assert.equal(collectPendingBuildErrors(manager).length, 1);
 
-		await manager.handleFileChange(change(scriptPath), { broadcast: false });
+		await manager.handleFileChanges([change(scriptPath)], { broadcast: false });
 
 		assert.deepEqual(collectPendingBuildErrors(manager), []);
 	});

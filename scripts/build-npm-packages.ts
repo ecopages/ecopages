@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import {
@@ -508,6 +509,30 @@ function validateDistManifest(distManifest: PackageManifest, distDir: string): v
 	}
 }
 
+/**
+ * Fails the build when `pnpm pack` would leave out a file the build emitted.
+ *
+ * @remarks
+ * `pnpm pack` applies the repository's ignore rules to `dist`, so a source file whose name
+ * matches one, such as `dist-*`, builds and passes the manifest check but is missing from the
+ * published tarball. The release publishes with pnpm, so the check packs with pnpm.
+ */
+function validatePackedFiles(distDir: string): void {
+	const emitted = readdirSync(distDir, { recursive: true, encoding: 'utf8' })
+		.filter((entry) => statSync(path.join(distDir, entry)).isFile())
+		.map(toPosix);
+	const { files } = JSON.parse(
+		execFileSync('pnpm', ['pack', '--dry-run', '--json'], { cwd: distDir, encoding: 'utf8' }),
+	) as { files: { path: string }[] };
+	const packed = new Set(files.map((file) => file.path));
+	const missing = emitted.filter((file) => !packed.has(file));
+	if (missing.length > 0) {
+		throw new Error(
+			`pnpm pack would omit ${missing.length} emitted file(s) from ${toPosix(path.relative(repoRoot, distDir))}: ${missing.join(', ')}. Check the ignore rules in .gitignore.`,
+		);
+	}
+}
+
 function ensureDir(filePath: string): void {
 	mkdirSync(path.dirname(filePath), { recursive: true });
 }
@@ -835,6 +860,7 @@ async function buildPackage(packageDir: string): Promise<void> {
 	const distManifest = createDistManifest(manifest, manifest.version);
 	validateDistManifest(distManifest, distDir);
 	writeTextFile(path.join(distDir, 'package.json'), `${JSON.stringify(distManifest, null, 2)}\n`);
+	validatePackedFiles(distDir);
 
 	console.log(`Built ${manifest.name} -> ${toPosix(path.relative(repoRoot, distDir))}`);
 }

@@ -1,5 +1,3 @@
-import { mkdirSync, statSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { resolveBuildParallelism } from '../build/build-parallelism.ts';
 import { getProcessRuntime } from '../utils/runtime.ts';
@@ -204,7 +202,7 @@ class StartupTrace {
 		for (const output of outputs) {
 			try {
 				if (fileSystem.exists(output.path)) {
-					this.firstRequestClientBytes += statSync(output.path).size;
+					this.firstRequestClientBytes += fileSystem.stat(output.path).size;
 				}
 			} catch {
 				// ignore unreadable outputs
@@ -298,8 +296,7 @@ class StartupTrace {
 		}
 
 		const report = this.createReport();
-		mkdirSync(path.dirname(outputPath), { recursive: true });
-		writeFileSync(outputPath, JSON.stringify(report, null, 2), 'utf-8');
+		fileSystem.write(outputPath, JSON.stringify(report, null, 2));
 	}
 
 	createReport(): StartupTraceReport {

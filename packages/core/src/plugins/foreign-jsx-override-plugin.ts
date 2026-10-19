@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { fileSystem } from '@ecopages/file-system';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
 import { escapeRegExp } from '../utils/regex-escaping.ts';
 import { createJsxImportSourcePragma, filterJsxSourceExtensions } from './jsx-import-source.utils.ts';
@@ -58,7 +58,7 @@ export function createForeignJsxOverridePlugin(options: ForeignJsxOverrideOption
 					return undefined;
 				}
 
-				const source = readFileSync(args.path, 'utf-8');
+				const source = fileSystem.readFileSync(args.path);
 				const loader = args.path.endsWith('.jsx') ? 'jsx' : 'tsx';
 
 				if (source.includes('@jsxImportSource')) {

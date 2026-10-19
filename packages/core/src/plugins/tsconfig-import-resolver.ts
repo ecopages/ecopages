@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
+import { fileSystem } from '@ecopages/file-system';
 import { ResolverFactory, type ResolverFactory as ResolverFactoryType } from 'oxc-resolver';
 import { toPackageRootSpecifier } from './package-specifier.ts';
 
@@ -14,11 +14,11 @@ function stripJsonComments(source: string): string {
 
 function findTsconfigPath(projectRoot: string): string | undefined {
 	const candidate = path.join(projectRoot, 'tsconfig.json');
-	return existsSync(candidate) ? candidate : undefined;
+	return fileSystem.exists(candidate) ? candidate : undefined;
 }
 
 function readJsonFile(filePath: string): unknown {
-	const source = readFileSync(filePath, 'utf8');
+	const source = fileSystem.readFileSync(filePath);
 	try {
 		return JSON.parse(source);
 	} catch {
@@ -211,7 +211,7 @@ export function resolveBarePackageBrowserEntry(
 	}
 
 	try {
-		return { path: realpathSync(result.path), packageJsonPath: result.packageJsonPath };
+		return { path: fileSystem.realpath(result.path), packageJsonPath: result.packageJsonPath };
 	} catch {
 		return { path: result.path, packageJsonPath: result.packageJsonPath };
 	}
@@ -222,7 +222,7 @@ function resolveAliasedBarrelTarget(resolvedPath: string): string {
 		return resolvedPath;
 	}
 
-	const source = readFileSync(resolvedPath, 'utf8').trim();
+	const source = fileSystem.readFileSync(resolvedPath).trim();
 	const match = source.match(/^export\s+\*\s+from\s+['"]([^'"]+)['"]\s*;?$/);
 
 	if (!match?.[1]?.startsWith('.')) {
@@ -234,14 +234,14 @@ function resolveAliasedBarrelTarget(resolvedPath: string): string {
 
 	for (const extension of RESOLVABLE_EXTENSIONS) {
 		const candidate = `${targetBase}${extension}`;
-		if (existsSync(candidate)) {
+		if (fileSystem.exists(candidate)) {
 			return candidate;
 		}
 	}
 
 	for (const extension of RESOLVABLE_EXTENSIONS) {
 		const candidate = path.join(targetBase, `index${extension}`);
-		if (existsSync(candidate)) {
+		if (fileSystem.exists(candidate)) {
 			return candidate;
 		}
 	}
@@ -262,20 +262,20 @@ export function resolveRelativeModulePath(fromFile: string, specifier: string): 
 	}
 
 	const targetBase = path.resolve(path.dirname(fromFile), specifier);
-	if (existsSync(targetBase)) {
+	if (fileSystem.exists(targetBase)) {
 		return path.resolve(targetBase);
 	}
 
 	for (const candidateExtension of RESOLVABLE_EXTENSIONS) {
 		const candidate = `${targetBase}${candidateExtension}`;
-		if (existsSync(candidate)) {
+		if (fileSystem.exists(candidate)) {
 			return path.resolve(candidate);
 		}
 	}
 
 	for (const candidateExtension of RESOLVABLE_EXTENSIONS) {
 		const candidate = path.join(targetBase, `index${candidateExtension}`);
-		if (existsSync(candidate)) {
+		if (fileSystem.exists(candidate)) {
 			return path.resolve(candidate);
 		}
 	}
@@ -305,8 +305,8 @@ export function resolveProjectModulePath(
 		const result = resolver.sync(path.dirname(fromFile), specifier);
 		if (result.path) {
 			return options?.preserveBarrel
-				? realpathSync(result.path)
-				: resolveAliasedBarrelTarget(realpathSync(result.path));
+				? fileSystem.realpath(result.path)
+				: resolveAliasedBarrelTarget(fileSystem.realpath(result.path));
 		}
 	}
 

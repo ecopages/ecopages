@@ -1,4 +1,3 @@
-import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type {
@@ -352,7 +351,9 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 		if (asset.kind === 'module-script') {
 			const hmr = this.assetProcessingService.getHmrManager()?.isEnabled() === true;
 			if (!hmr) {
-				const url = (await getHtmlPageModuleScriptUrls(this.appConfig)).get(realpathSync(asset.filepath));
+				const url = (await getHtmlPageModuleScriptUrls(this.appConfig)).get(
+					fileSystem.realpath(asset.filepath),
+				);
 				if (url !== undefined) return url;
 			}
 			this.assertNoStylesheetImport(file, asset.reference, asset.filepath);
@@ -385,7 +386,7 @@ export class HtmlPageRenderer extends StringMarkupRenderer {
 	private assertNoStylesheetImport(file: string, reference: string, script: string): void {
 		const found = scanModuleScript(this.appConfig, script).stylesheetImport;
 		if (!found) return;
-		const real = (target: string) => (fileSystem.exists(target) ? realpathSync(target) : target);
+		const real = (target: string) => (fileSystem.exists(target) ? fileSystem.realpath(target) : target);
 		const rootDir = real(this.appConfig.rootDir);
 		const show = (target: string) =>
 			path.isAbsolute(target) ? path.relative(rootDir, real(target)).split(path.sep).join('/') : target;

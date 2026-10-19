@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { fileSystem } from '@ecopages/file-system';
 import type {
 	AssetDefinition,
 	FileScriptAsset,
@@ -111,11 +111,11 @@ function createPageDependencyPackagingPlan(
 				return isSafeBundledStylesheetContent(dependency.content);
 			}
 
-			if (!existsSync(dependency.filepath)) {
+			if (!fileSystem.exists(dependency.filepath)) {
 				return false;
 			}
 
-			return isSafeBundledStylesheetContent(readFileSync(dependency.filepath, 'utf8'));
+			return isSafeBundledStylesheetContent(fileSystem.readFileSync(dependency.filepath));
 		})
 		.filter(isBundleableFileStylesheetAsset);
 
@@ -134,7 +134,7 @@ function createPageDependencyPackagingPlan(
 				!dependency.packageRole &&
 				dependency.bundle !== false &&
 				hasOnlyExpectedAttributes(dependency.attributes, { type: 'module', defer: '' }) &&
-				existsSync(dependency.filepath)
+				fileSystem.exists(dependency.filepath)
 			);
 		})
 		.filter(isBundleableFileScriptAsset);
@@ -152,7 +152,7 @@ function createPageDependencyPackagingPlan(
 
 	for (const run of collectContiguousEligibleRuns(dependencies, isEligibleStyle)) {
 		const bundledStylesheet = AssetFactory.createContentStylesheet({
-			content: run.assets.map((dependency) => readFileSync(dependency.filepath, 'utf8')).join('\n'),
+			content: run.assets.map((dependency) => fileSystem.readFileSync(dependency.filepath)).join('\n'),
 			position: 'head',
 			attributes: { rel: 'stylesheet' },
 			packageRole: 'page-style',

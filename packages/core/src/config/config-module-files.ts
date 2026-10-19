@@ -1,4 +1,3 @@
-import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { rolldown } from 'rolldown';
@@ -30,9 +29,9 @@ function toProjectPath(id: string, realRoot: string, root: string): string | und
  */
 export async function collectConfigModuleFiles(configFilePath: string, rootDir: string): Promise<string[]> {
 	const root = path.resolve(rootDir);
-	const realRoot = fileSystem.exists(root) ? realpathSync(root) : root;
+	const realRoot = fileSystem.exists(root) ? fileSystem.realpath(root) : root;
 	const configFile = path.resolve(configFilePath);
-	const realConfigFile = fileSystem.exists(configFile) ? realpathSync(configFile) : configFile;
+	const realConfigFile = fileSystem.exists(configFile) ? fileSystem.realpath(configFile) : configFile;
 	const moduleFiles = new Set([configFile]);
 	try {
 		const bundle = await rolldown({

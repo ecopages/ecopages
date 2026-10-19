@@ -1,5 +1,5 @@
-import fs from 'node:fs';
 import path from 'node:path';
+import { fileSystem } from '@ecopages/file-system';
 import type { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { ResolverFactory } from 'oxc-resolver';
@@ -58,7 +58,7 @@ function resolveLegacyPackageModuleEntry(options: {
 
 	try {
 		const packageJsonPath = options.requireFromRoot.resolve(`${packageRoot}/package.json`);
-		const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
+		const packageJson = JSON.parse(fileSystem.readFileSync(packageJsonPath)) as {
 			exports?: unknown;
 			module?: unknown;
 		};
@@ -67,7 +67,7 @@ function resolveLegacyPackageModuleEntry(options: {
 		}
 
 		const modulePath = path.resolve(path.dirname(packageJsonPath), packageJson.module);
-		return fs.existsSync(modulePath) ? modulePath : undefined;
+		return fileSystem.exists(modulePath) ? modulePath : undefined;
 	} catch {
 		return undefined;
 	}
@@ -123,7 +123,7 @@ export function resolveBrowserRuntimeEntryPath(options: {
 				? `${resolvedPath.slice(0, -4)}.ts`
 				: undefined;
 
-		return esmSibling && fs.existsSync(esmSibling) ? esmSibling : resolvedPath;
+		return esmSibling && fileSystem.exists(esmSibling) ? esmSibling : resolvedPath;
 	} catch {
 		return undefined;
 	}
@@ -189,8 +189,8 @@ export function inferBrowserRuntimeDefaultExportPolicy(options: {
 }): BrowserRuntimeDefaultExportPolicy {
 	const { specifier, requireFromRoot, rootDir } = options;
 	const entryPath = resolveBrowserRuntimeEntryPath({ specifier, requireFromRoot, rootDir });
-	if (entryPath && fs.existsSync(entryPath)) {
-		const source = fs.readFileSync(entryPath, 'utf8');
+	if (entryPath && fileSystem.exists(entryPath)) {
+		const source = fileSystem.readFileSync(entryPath);
 		if (ESM_DEFAULT_EXPORT.test(source)) {
 			return 'emit-default';
 		}
@@ -221,11 +221,11 @@ export function inferBrowserRuntimeDefaultExportPolicy(options: {
  * files does not emit named ESM bindings such as `jsx`.
  */
 export function browserRuntimeEntryHasEsmExports(entryPath: string | undefined): boolean {
-	if (!entryPath || !fs.existsSync(entryPath)) {
+	if (!entryPath || !fileSystem.exists(entryPath)) {
 		return true;
 	}
 
-	const source = fs.readFileSync(entryPath, 'utf8');
+	const source = fileSystem.readFileSync(entryPath);
 	return ESM_DEFAULT_EXPORT.test(source) || ESM_NAMED_EXPORT.test(source);
 }
 

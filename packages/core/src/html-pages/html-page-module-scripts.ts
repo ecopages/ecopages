@@ -1,5 +1,4 @@
 import { contentHash } from '../utils/content-hash.ts';
-import { readdirSync, realpathSync } from 'node:fs';
 import { getBuildEntryOutput } from '../build/build-graph.ts';
 import { assertBuildSucceeded } from '../build/build-log.ts';
 import { createRequire } from 'node:module';
@@ -266,7 +265,9 @@ export function scanModuleScript(
 function listHtmlFiles(appConfig: EcoPagesAppConfig): string[] {
 	const { pagesDir, htmlTemplatePath } = appConfig.absolutePaths;
 	const pages = fileSystem.exists(pagesDir)
-		? readdirSync(pagesDir, { recursive: true, encoding: 'utf8' })
+		? fileSystem
+				.readdir(pagesDir, { recursive: true })
+				.map((entry) => entry.name)
 				.filter((name) => name.endsWith('.html'))
 				.map((name) => path.join(pagesDir, name))
 				.sort()
@@ -365,7 +366,8 @@ async function buildModuleScripts(
 	const urls = new Map<string, string>();
 	for (const script of scripts) {
 		const output = getBuildEntryOutput(result, script, appConfig.rootDir);
-		if (output) urls.set(realpathSync(script), `/${path.relative(distDir, output).split(path.sep).join('/')}`);
+		if (output)
+			urls.set(fileSystem.realpath(script), `/${path.relative(distDir, output).split(path.sep).join('/')}`);
 	}
 	return urls;
 }

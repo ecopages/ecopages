@@ -11,8 +11,8 @@
  */
 
 import { builtinModules, createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileSystem } from '@ecopages/file-system';
 import { fileURLToPath } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 import { recordBuildEntryOutput, resolveBuildEntryPath } from '../build-graph.ts';
@@ -68,11 +68,11 @@ function getCorePackageNames(): Set<string> {
 		return corePackageNames;
 	}
 
-	const packageJsonPath = new URL('../../../package.json', import.meta.url);
+	const packageJsonPath = fileURLToPath(new URL('../../../package.json', import.meta.url));
 	corePackageNames = new Set<string>();
 
 	try {
-		const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as Record<string, unknown>;
+		const packageJson = JSON.parse(fileSystem.readFileSync(packageJsonPath)) as Record<string, unknown>;
 		for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const) {
 			const entries = packageJson[field];
 			if (!entries || typeof entries !== 'object') {

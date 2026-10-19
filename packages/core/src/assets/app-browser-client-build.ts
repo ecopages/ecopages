@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { contentHash } from '../utils/content-hash.ts';
-import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import { getBuildEntryOutput, collectBuildEntryInputPaths } from '../build/build-graph.ts';
@@ -583,7 +582,7 @@ function collectHtmlScriptUrls(
 		const output = getBuildEntryOutput(result, entryName, appConfig.rootDir);
 		if (output) {
 			urls.set(
-				realpathSync(script),
+				fileSystem.realpath(script),
 				`/${path.relative(appConfig.absolutePaths.distDir, output).split(path.sep).join('/')}`,
 			);
 		}

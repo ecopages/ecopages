@@ -1,5 +1,5 @@
-import fs from 'node:fs';
 import path from 'node:path';
+import { fileSystem } from '@ecopages/file-system';
 import { createRequire } from 'node:module';
 import { DEFAULT_ECOPAGES_WORK_DIR } from '../../constants.ts';
 import {
@@ -46,7 +46,7 @@ export function createBrowserRuntimeEntryModule(options: {
 		'.browser-runtime-entries',
 		options.cacheDirName ?? 'ecopages-browser-runtime',
 	);
-	fs.mkdirSync(artifactsDir, { recursive: true });
+	fileSystem.ensureDir(artifactsDir);
 
 	const requireFromRoot = createRequire(path.join(rootDir, 'package.json'));
 	const seenExports = new Set<string>();
@@ -94,8 +94,8 @@ export function createBrowserRuntimeEntryModule(options: {
 	}
 
 	const content = statements.join('\n');
-	if (!fs.existsSync(filePath) || fs.readFileSync(filePath, 'utf-8') !== content) {
-		fs.writeFileSync(filePath, content, 'utf-8');
+	if (!fileSystem.exists(filePath) || fileSystem.readFileSync(filePath) !== content) {
+		fileSystem.write(filePath, content);
 	}
 	return filePath;
 }

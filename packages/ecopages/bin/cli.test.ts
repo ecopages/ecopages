@@ -30,18 +30,13 @@ vi.mock('@clack/prompts', () => ({
 	confirm: vi.fn(),
 }));
 
-vi.mock('node:fs', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('node:fs')>();
+vi.mock('@ecopages/file-system', async (importOriginal) => {
+	const { NodeFileSystem } = await importOriginal<typeof import('@ecopages/file-system')>();
+	const fileSystem = new NodeFileSystem();
 	return {
-		...actual,
-		existsSync: vi.fn((path) => actual.existsSync(path)),
-		writeFileSync: actual.writeFileSync,
+		fileSystem: Object.assign(fileSystem, { watch: vi.fn(), exists: vi.fn(fileSystem.exists.bind(fileSystem)) }),
 	};
 });
-
-vi.mock('@ecopages/file-system', () => ({
-	fileSystem: { watch: vi.fn() },
-}));
 
 vi.mock('@ecopages/core/build', async (importOriginal) => ({
 	...(await importOriginal<typeof import('@ecopages/core/build')>()),
@@ -84,7 +79,7 @@ describe('CLI Commands', () => {
 		process.chdir(tempCwd);
 		signalListenersBefore = new Map(forwardedSignals.map((signal) => [signal, new Set(process.listeners(signal))]));
 
-		vi.mocked(fs.existsSync).mockImplementation(
+		vi.mocked(fileSystem.exists).mockImplementation(
 			(filePath) =>
 				filePath === 'app.ts' || filePath === 'server.ts' || String(filePath).endsWith('package.json'),
 		);
@@ -570,7 +565,7 @@ describe('CLI Commands', () => {
 	});
 
 	it('runs the types command on the core config entry, never the app entry', async () => {
-		vi.mocked(fs.existsSync).mockImplementation((filePath) => String(filePath).endsWith('write-types.ts'));
+		vi.mocked(fileSystem.exists).mockImplementation((filePath) => String(filePath).endsWith('write-types.ts'));
 		await runCli(['types', '--config', 'eco.staging.ts']);
 		const [args, options, entry, launchMode] = vi.mocked(launchPlan.createLaunchPlan).mock.calls.at(-1)!;
 

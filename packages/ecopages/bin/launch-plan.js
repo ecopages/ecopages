@@ -1,6 +1,6 @@
-import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseEnv } from 'node:util';
+import { fileSystem } from '@ecopages/file-system';
 import {
 	resolveEcoConfigPath,
 	resolveEmittedEcoConfigPath,
@@ -14,7 +14,7 @@ const nodeRequirePreload = import.meta.resolve('./node-require-preload.js');
 const tsxLoader = import.meta.resolve('tsx/esm');
 
 function getEnvFilePaths(nodeEnv) {
-	return getDevEnvFileNames(nodeEnv).filter((envFile) => existsSync(envFile));
+	return getDevEnvFileNames(nodeEnv).filter((envFile) => fileSystem.exists(envFile));
 }
 
 export function buildEnvOverrides(options) {
@@ -48,7 +48,7 @@ export function resolveEcoConfigFilePath(options = {}, cwd = process.cwd(), reso
 export function buildLaunchEnv(options) {
 	const envOverrides = buildEnvOverrides(options);
 	const envFileValues = getEnvFilePaths(options.nodeEnv).reduce((env, envFile) => {
-		return { ...env, ...parseEnv(readFileSync(envFile, 'utf8')) };
+		return { ...env, ...parseEnv(fileSystem.readFileSync(envFile)) };
 	}, {});
 
 	return {

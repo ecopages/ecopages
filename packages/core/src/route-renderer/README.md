@@ -54,7 +54,6 @@ See [`../build/README.md`](../build/README.md) for the JSX ownership helper spli
 ### `route-renderer.ts`
 
 - `RouteRendererFactory` takes the app config and chooses the owning Integration's shared renderer from a route file or an explicit view's Integration name
-- `RouteRenderer` delegates execution to the selected renderer
 
 ### `explicit-view-render-preparation.ts`
 
@@ -102,7 +101,7 @@ The route-render contract is:
 3. `RouteRenderOrchestrator.prepareRenderOptions()` loads the page module and final props, prepares and validates the shell graph, resolves page-dependency roots, then adds and validates those roots in the prepared graph. Route assets, the page client plan, and development cache watch paths reuse its recorded nodes; production grouped prebuild retains that same graph through route preparation. The page browser graph cache identity includes route params and query; contribution collection receives those same final props. When rendering, route params and query take precedence over similarly named extra props.
 4. The integration renderer performs page, layout, and document-shell rendering. When it encounters a foreign child, it delegates that child back to the owning renderer.
 5. If a renderer needs queued handoff, it emits internal foreign-subtree tokens and resolves them before returning final HTML.
-6. `RouteRenderOrchestrator.executePrepared()` captures the final body, rejects unresolved `<eco-marker>` artifacts, stamps document attributes when needed, and runs the HTML transformer.
+6. `RouteRenderOrchestrator.executePrepared()` captures the final body, rejects unresolved `<eco-marker>` artifacts, stamps document attributes when needed, runs the HTML transformer, and then lets the Integration's `finalizeDocument` hook reconcile its own document markup.
 
 Important:
 

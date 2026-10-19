@@ -16,6 +16,7 @@ export type {
 	EcoPageLayouts,
 	EcoHtmlComponent,
 	EcoLayoutComponent,
+	EcoMiddleware,
 	ErrorHandler,
 	ErrorPageTemplateProps,
 	EcopagesRouteInfo,

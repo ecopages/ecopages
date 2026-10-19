@@ -222,7 +222,7 @@ import {
 	HmrStrategyType,
 	type HmrAction,
 } from '@ecopages/core/integration';
-import type { DefaultHmrContext } from '@ecopages/core';
+import type { DefaultHmrContext } from '@ecopages/core/integration';
 
 class CustomHmrStrategy extends HmrStrategy {
 	readonly type = HmrStrategyType.INTEGRATION;
@@ -360,7 +360,7 @@ import { IntegrationPlugin } from '@ecopages/core/integration';
 import { createIntegrationRenderer } from '@ecopages/core/integration';
 import { HmrStrategy, HmrStrategyType, type HmrAction } from '@ecopages/core/integration';
 import type { IntegrationRuntimeContext } from '@ecopages/core/integration';
-import type { DefaultHmrContext } from '@ecopages/core';
+import type { DefaultHmrContext } from '@ecopages/core/integration';
 
 const CustomRenderer = createIntegrationRenderer('custom-integration');
 

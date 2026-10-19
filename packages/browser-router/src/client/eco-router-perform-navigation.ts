@@ -12,6 +12,13 @@ export type PerformNavigationAttemptInput = {
 	signal: AbortSignal;
 };
 
+/**
+ * Fetches the target page and commits it.
+ *
+ * @remarks
+ * The shared navigation cache outlives the router, so a router without a prefetch manager must set
+ * `bypassPrefetchCache`. Otherwise the first fetched copy of a page is served for the rest of the session.
+ */
 export async function runPerformNavigationAttempt(input: PerformNavigationAttemptInput): Promise<boolean> {
 	const page = await fetchNavigationPage(input.url, {
 		signal: input.signal,

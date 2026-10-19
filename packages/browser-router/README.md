@@ -10,7 +10,9 @@ Client-side navigation and view transitions for Ecopages. It intercepts same-ori
 - **View Transitions**: Optional integration with the View Transition API.
 - **Lifecycle events**: Hook into navigation with `eco:before-swap`, `eco:after-swap`, `eco:page-load`.
 
-The core navigation pipeline shares document fetching, parsing, prefetch cache, head reconciliation, stylesheet staging, script activation, named view transitions, and lifecycle events with `@ecopages/react-router`. Browser-router always morphs the incoming body, preserving persisted elements across navigation regardless of view-transition settings or rerun scripts. View transitions only wrap the morph; scroll restoration uses the shared post-swap hook.
+The core navigation pipeline shares document fetching, parsing, head reconciliation, stylesheet staging, script activation, named view transitions, and lifecycle events with `@ecopages/react-router`. Browser-router always morphs the incoming body, preserving persisted elements across navigation regardless of view-transition settings or rerun scripts. View transitions only wrap the morph; scroll restoration uses the shared post-swap hook.
+
+Browser-router keeps its own cache of prefetched and visited pages: a revisit renders the cached HTML immediately and refreshes it in the background. Set `prefetch: false` to turn the cache off, so every navigation fetches fresh HTML. `@ecopages/react-router` does not read this cache and always fetches fresh HTML.
 
 ## Compatibility
 

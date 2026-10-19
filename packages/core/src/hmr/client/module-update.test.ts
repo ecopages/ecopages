@@ -29,6 +29,7 @@ describe('applyModuleUpdate', () => {
 		const handler = vi.fn(async () => undefined);
 		const reloadCurrentPage = vi.fn(async () => true);
 		const importModule = vi.fn(async () => ({}));
+		const reloadPage = vi.fn(async () => undefined);
 
 		await applyModuleUpdate(
 			`${DEV_TRANSFORM_URL_PREFIX}/pages/docs/index.js`,
@@ -39,6 +40,7 @@ describe('applyModuleUpdate', () => {
 				reloadCurrentPage,
 				importModule,
 				waitForSettled: async () => undefined,
+				reloadPage,
 			},
 			99,
 		);
@@ -46,11 +48,13 @@ describe('applyModuleUpdate', () => {
 		expect(handler).toHaveBeenCalledWith(`${DEV_TRANSFORM_URL_PREFIX}/pages/docs/index.js?t=99`);
 		expect(reloadCurrentPage).not.toHaveBeenCalled();
 		expect(importModule).not.toHaveBeenCalled();
+		expect(reloadPage).not.toHaveBeenCalled();
 	});
 
 	it('re-imports dev transform modules that are not the active page', async () => {
 		const reloadCurrentPage = vi.fn(async () => true);
 		const importModule = vi.fn(async () => ({}));
+		const reloadPage = vi.fn(async () => undefined);
 
 		await applyModuleUpdate(`${DEV_TRANSFORM_URL_PREFIX}/layouts/base-layout/base-layout.script.js`, {
 			getHandlers: () => ({}),
@@ -58,17 +62,20 @@ describe('applyModuleUpdate', () => {
 			reloadCurrentPage,
 			importModule,
 			waitForSettled: async () => undefined,
+			reloadPage,
 		});
 
 		expect(importModule).toHaveBeenCalledWith(
 			expect.stringContaining(`${DEV_TRANSFORM_URL_PREFIX}/layouts/base-layout/base-layout.script.js?t=`),
 		);
 		expect(reloadCurrentPage).not.toHaveBeenCalled();
+		expect(reloadPage).not.toHaveBeenCalled();
 	});
 
 	it('reloads through the navigation runtime when a dev transform handler is missing', async () => {
 		const reloadCurrentPage = vi.fn(async () => true);
 		const importModule = vi.fn(async () => ({}));
+		const reloadPage = vi.fn(async () => undefined);
 		const pageModule = `${DEV_TRANSFORM_URL_PREFIX}/pages/docs/index.js`;
 
 		await applyModuleUpdate(pageModule, {
@@ -77,6 +84,7 @@ describe('applyModuleUpdate', () => {
 			reloadCurrentPage,
 			importModule,
 			waitForSettled: async () => undefined,
+			reloadPage,
 		});
 
 		expect(importModule).not.toHaveBeenCalled();
@@ -86,9 +94,10 @@ describe('applyModuleUpdate', () => {
 		});
 	});
 
-	it('warns when a module update has no handler and is not dev-transform', async () => {
+	it('warns and reloads the page when a module update has no handler and is not dev-transform', async () => {
 		const reloadCurrentPage = vi.fn(async () => true);
 		const importModule = vi.fn(async () => ({}));
+		const reloadPage = vi.fn(async () => undefined);
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
 		await applyModuleUpdate('/assets/built/components/counter.js', {
@@ -96,12 +105,68 @@ describe('applyModuleUpdate', () => {
 			reloadCurrentPage,
 			importModule,
 			waitForSettled: async () => undefined,
+			reloadPage,
 		});
 
 		expect(importModule).not.toHaveBeenCalled();
 		expect(reloadCurrentPage).not.toHaveBeenCalled();
+		expect(reloadPage).toHaveBeenCalledTimes(1);
 		expect(warnSpy).toHaveBeenCalledWith(
 			'[ecopages] No HMR handler for module update: /assets/built/components/counter.js',
 		);
+	});
+
+	it('reloads the page and logs when a registered handler throws', async () => {
+		const pageModule = `${DEV_TRANSFORM_URL_PREFIX}/components/counter.js`;
+		const reloadPage = vi.fn(async () => undefined);
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+		await applyModuleUpdate(pageModule, {
+			getHandlers: () => ({
+				[pageModule]: async () => {
+					throw new Error('evaluation failed');
+				},
+			}),
+			reloadCurrentPage: async () => true,
+			importModule: async () => ({}),
+			waitForSettled: async () => undefined,
+			reloadPage,
+		});
+
+		expect(errorSpy).toHaveBeenCalled();
+		expect(reloadPage).toHaveBeenCalledTimes(1);
+	});
+
+	it('reloads the page when re-importing a dev transform module throws', async () => {
+		const reloadPage = vi.fn(async () => undefined);
+		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+		await applyModuleUpdate(`${DEV_TRANSFORM_URL_PREFIX}/components/counter.js`, {
+			getHandlers: () => ({}),
+			reloadCurrentPage: async () => true,
+			importModule: async () => {
+				throw new Error('evaluation failed');
+			},
+			waitForSettled: async () => undefined,
+			reloadPage,
+		});
+
+		expect(reloadPage).toHaveBeenCalledTimes(1);
+	});
+
+	it('reloads the page when no navigation owner reloads the active page module', async () => {
+		const pageModule = `${DEV_TRANSFORM_URL_PREFIX}/pages/docs/index.js`;
+		const reloadPage = vi.fn(async () => undefined);
+
+		await applyModuleUpdate(pageModule, {
+			getHandlers: () => ({}),
+			getActivePageModule: () => pageModule,
+			reloadCurrentPage: async () => false,
+			importModule: async () => ({}),
+			waitForSettled: async () => undefined,
+			reloadPage,
+		});
+
+		expect(reloadPage).toHaveBeenCalledTimes(1);
 	});
 });

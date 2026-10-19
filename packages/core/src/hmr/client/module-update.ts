@@ -8,6 +8,7 @@ export type ApplyModuleUpdateContext = {
 	reloadCurrentPage: (request: { clearCache: boolean; moduleUrl: string }) => Promise<boolean>;
 	importModule: (url: string) => Promise<unknown>;
 	waitForSettled: () => Promise<void>;
+	reloadPage: () => Promise<void>;
 };
 
 export function resolveActiveModuleUrl(handlers: HmrModuleHandlers, pageModule?: string): string | undefined {
@@ -29,6 +30,12 @@ export function resolveActiveModuleUrl(handlers: HmrModuleHandlers, pageModule?:
 	return handlerPaths[handlerPaths.length - 1];
 }
 
+/**
+ * @remarks
+ * A hot update that cannot be applied leaves the page running stale modules, so every failure path ends in
+ * `reloadPage`: a handler or import that throws, an active page module the navigation owner does not reload, and a
+ * module without a handler. Thrown errors are still logged.
+ */
 export async function applyModuleUpdate(
 	path: string,
 	context: ApplyModuleUpdateContext,
@@ -40,10 +47,27 @@ export async function applyModuleUpdate(
 
 	await context.waitForSettled();
 
+	try {
+		if (await applyHotUpdate(basePath, url, handlers, context)) {
+			return;
+		}
+	} catch (error) {
+		console.error(`[ecopages] HMR update failed for ${basePath}:`, error);
+	}
+
+	await context.reloadPage();
+}
+
+async function applyHotUpdate(
+	basePath: string,
+	url: string,
+	handlers: HmrModuleHandlers | undefined,
+	context: ApplyModuleUpdateContext,
+): Promise<boolean> {
 	const handler = handlers?.[basePath];
 	if (handler) {
 		await handler(url);
-		return;
+		return true;
 	}
 
 	if (isDevTransformModuleUrl(basePath)) {
@@ -51,13 +75,13 @@ export async function applyModuleUpdate(
 		const isActivePageModule = activePageModule !== undefined && stripModuleUrlQuery(activePageModule) === basePath;
 
 		if (isActivePageModule) {
-			await context.reloadCurrentPage({ clearCache: false, moduleUrl: url });
-			return;
+			return context.reloadCurrentPage({ clearCache: false, moduleUrl: url });
 		}
 
 		await context.importModule(url);
-		return;
+		return true;
 	}
 
 	console.warn(`[ecopages] No HMR handler for module update: ${basePath}`);
+	return false;
 }

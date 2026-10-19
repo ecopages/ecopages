@@ -65,15 +65,7 @@ interface HMRPayload {
 				break;
 			case 'layout-update': {
 				await waitForNavigationToSettle(navigationRuntime);
-				if (
-					await navigationRuntime.reloadCurrentPage({
-						clearCache: true,
-						moduleUrl: getActiveHmrModuleUrl(),
-					})
-				) {
-					break;
-				}
-				location.reload();
+				await reloadPage();
 				break;
 			}
 			case 'error':
@@ -104,9 +96,25 @@ interface HMRPayload {
 				reloadCurrentPage: async (request) => Boolean(await navigationRuntime.reloadCurrentPage(request)),
 				importModule: (url) => import(url),
 				waitForSettled: async () => waitForNavigationToSettle(navigationRuntime),
+				reloadPage,
 			},
 			timestamp,
 		);
+	}
+
+	/**
+	 * @remarks
+	 * Prefers a soft reload by the navigation owner and falls back to a full document reload when none handles it.
+	 */
+	async function reloadPage() {
+		const navigationRuntime = getEcoNavigationRuntime(window);
+		const handled = await navigationRuntime.reloadCurrentPage({
+			clearCache: true,
+			moduleUrl: getActiveHmrModuleUrl(),
+		});
+		if (!handled) {
+			location.reload();
+		}
 	}
 
 	function getActiveHmrModuleUrl(): string | undefined {

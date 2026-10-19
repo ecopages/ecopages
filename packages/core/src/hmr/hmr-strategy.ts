@@ -59,9 +59,6 @@ export const HmrStrategyType = {
 export type HmrStrategyType = (typeof HmrStrategyType)[keyof typeof HmrStrategyType];
 
 /**
- * Represents an action to be taken after processing a file change.
- */
-/**
  * Base class for HMR strategies.
  *
  * Each strategy handles a specific type of file change and determines how to process it.

@@ -521,33 +521,36 @@ function buildStrategyEvents(
  * @remarks
  * A `reload` makes every other update redundant. Otherwise each distinct update is kept, so edits that touch several
  * islands hot-update each of them, and several layout updates collapse into one soft refresh.
+ *
+ * Errors are placed after the updates. The client clears a shown build error whenever a non-error message arrives,
+ * so an error that precedes an update in the same batch would be wiped out by it.
  */
 function coalesceBatchEvents(events: ClientBridgeEvent[]): ClientBridgeEvent[] {
 	const errors = deduplicateEvents(events.filter((event) => event.type === 'error'));
 	const updates = deduplicateEvents(events.filter((event) => event.type !== 'error'));
 	if (updates.length <= 1) {
-		return [...errors, ...updates];
+		return [...updates, ...errors];
 	}
 
 	const graphIdentities = mergeGraphIdentities(updates);
 	if (updates.some((event) => event.type === 'reload')) {
-		return [...errors, { type: 'reload', ...(graphIdentities ? { graphIdentities } : {}) }];
+		return [{ type: 'reload', ...(graphIdentities ? { graphIdentities } : {}) }, ...errors];
 	}
 
 	const layoutUpdates = updates.filter((event) => event.type === 'layout-update');
 	const others = updates.filter((event) => event.type !== 'layout-update');
 	if (layoutUpdates.length <= 1) {
-		return [...errors, ...others, ...layoutUpdates];
+		return [...others, ...layoutUpdates, ...errors];
 	}
 
 	return [
-		...errors,
 		...others,
 		{
 			type: 'layout-update',
 			timestamp: Math.max(...layoutUpdates.map((event) => event.timestamp ?? 0)),
 			...(graphIdentities ? { graphIdentities } : {}),
 		},
+		...errors,
 	];
 }
 

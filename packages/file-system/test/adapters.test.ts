@@ -5,7 +5,7 @@
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import os from 'node:os';
 import path from 'node:path';
-import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync, rmSync } from 'node:fs';
 import { NodeFileSystem } from '../src/adapters/node';
 import type { FileSystem } from '../src/types';
 
@@ -124,6 +124,19 @@ for (const [name, fs] of adapters) {
 
 			test('returns false for file', () => {
 				expect(fs.isDirectory(path.join(testDir, 'test.txt'))).toBe(false);
+			});
+		});
+
+		describe('realpath', () => {
+			test('resolves a symbolic link to its target', () => {
+				const link = path.join(testDir, 'realpath-link');
+				symlinkSync(path.join(testDir, 'test.txt'), link);
+
+				expect(fs.realpath(link)).toBe(realpathSync(path.join(testDir, 'test.txt')));
+			});
+
+			test('throws for a missing path', () => {
+				expect(() => fs.realpath(path.join(testDir, 'missing'))).toThrow();
 			});
 		});
 

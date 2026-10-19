@@ -48,23 +48,24 @@ await watcher.close();
 
 ## API
 
-| Method                      | Description                       |
-| :-------------------------- | :-------------------------------- |
-| `glob(patterns, options)`   | Find files matching glob patterns |
-| `readFile(path)`            | Read file as string (async)       |
-| `readFileSync(path)`        | Read file as string (sync)        |
-| `readFileAsBuffer(path)`    | Read file as `Buffer`             |
-| `write(path, content)`      | Write content to file             |
-| `writeAsync(path, content)` | Write content to file (async)     |
-| `exists(path)`              | Check if path exists              |
-| `ensureDir(path)`           | Ensure directory exists           |
-| `copyDir(src, dest)`        | Copy directory recursively        |
-| `copyFile(src, dest)`       | Copy single file                  |
-| `remove(path)`              | Remove file or directory          |
-| `removeAsync(path)`         | Remove file or directory (async)  |
-| `hash(path)`                | Get hash of file contents         |
-| `gzipFile(path)`            | Gzip a single file                |
-| `gzipDir(path, extensions)` | Gzip files in directory           |
-| `isDirectory(path)`         | Check if path is directory        |
-| `verifyFileExists(path)`    | Throw if file doesn't exist       |
-| `watch(paths, options)`     | Watch files and directories       |
+| Method                      | Description                        |
+| :-------------------------- | :--------------------------------- |
+| `glob(patterns, options)`   | Find files matching glob patterns  |
+| `readFile(path)`            | Read file as string (async)        |
+| `readFileSync(path)`        | Read file as string (sync)         |
+| `readFileAsBuffer(path)`    | Read file as `Buffer`              |
+| `write(path, content)`      | Write content to file              |
+| `writeAsync(path, content)` | Write content to file (async)      |
+| `exists(path)`              | Check if path exists               |
+| `ensureDir(path)`           | Ensure directory exists            |
+| `copyDir(src, dest)`        | Copy directory recursively         |
+| `copyFile(src, dest)`       | Copy single file                   |
+| `remove(path)`              | Remove file or directory           |
+| `removeAsync(path)`         | Remove file or directory (async)   |
+| `hash(path)`                | Get hash of file contents          |
+| `gzipFile(path)`            | Gzip a single file                 |
+| `gzipDir(path, extensions)` | Gzip files in directory            |
+| `isDirectory(path)`         | Check if path is directory         |
+| `realpath(path)`            | Resolve symlinks to canonical path |
+| `verifyFileExists(path)`    | Throw if file doesn't exist        |
+| `watch(paths, options)`     | Watch files and directories        |

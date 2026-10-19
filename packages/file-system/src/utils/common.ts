@@ -3,7 +3,17 @@
  * @description Shared utilities used by both Bun and Node adapters.
  */
 
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from 'node:fs';
 import { cp as cpAsync, mkdir as mkdirAsync, readdir, rm as rmAsync, stat as statAsync } from 'node:fs/promises';
 import { dirname, extname, join as pathJoin } from 'node:path';
 import zlib from 'node:zlib';
@@ -152,6 +162,13 @@ export abstract class BaseFileSystem {
 	 */
 	isDirectory(filePath: string): boolean {
 		return existsSync(filePath) && statSync(filePath).isDirectory();
+	}
+
+	/**
+	 * Resolve a path to its canonical absolute form, following symbolic links.
+	 */
+	realpath(filePath: string): string {
+		return realpathSync(filePath);
 	}
 
 	/**

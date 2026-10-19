@@ -132,6 +132,13 @@ export interface FileSystem {
 	isDirectory(path: string): boolean;
 
 	/**
+	 * Resolve a path to its canonical absolute form, following symbolic links.
+	 * @param path - Path to resolve
+	 * @throws If the path does not exist
+	 */
+	realpath(path: string): string;
+
+	/**
 	 * Check if a path is a directory asynchronously.
 	 * @param path - Path to check
 	 */

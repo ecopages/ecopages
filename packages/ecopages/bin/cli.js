@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -19,7 +18,7 @@ import { withBrandBanner } from './brand.js';
 
 const logger = new Logger('[ecopages:cli]', { debug: isEcopagesEnvEnabled('ECOPAGES_LOGGER_DEBUG') });
 
-const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
+const pkg = JSON.parse(fileSystem.readFileSync(fileURLToPath(new URL('../package.json', import.meta.url))));
 
 const sharedServerOptionDefinitions = {
 	port: {
@@ -288,7 +287,7 @@ async function runEntryCommand(args, options = {}, entryFile = 'app.ts', launchM
 	const requiresBuiltBundle = launchMode === 'start';
 	const superviseDevRestarts = launchMode === 'dev';
 
-	if (!requiresBuiltBundle && !existsSync(entryFile)) {
+	if (!requiresBuiltBundle && !fileSystem.exists(entryFile)) {
 		logger.error(`Error: Entry file "${entryFile}" not found in the current directory.`);
 		process.exit(1);
 	}

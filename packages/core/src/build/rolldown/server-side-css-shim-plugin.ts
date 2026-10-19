@@ -21,8 +21,8 @@
  * — the shim is intentionally inert for those flows.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileSystem } from '@ecopages/file-system';
 import type { RolldownPlugin } from 'rolldown';
 import { id as idFilter, include } from 'rolldown/filter';
 
@@ -46,13 +46,13 @@ export function createServerSideCssShimPlugin(): RolldownPlugin {
 			filter: [include(idFilter(CSS_PATH))],
 			handler(source, importer) {
 				const resolved = importer ? path.resolve(path.dirname(importer), source) : path.resolve(source);
-				return existsSync(resolved) ? `${resolved}${CSS_QUERY}` : null;
+				return fileSystem.exists(resolved) ? `${resolved}${CSS_QUERY}` : null;
 			},
 		},
 		load: {
 			filter: [include(idFilter(CSS_SHIM_ID))],
 			handler(id) {
-				readFileSync(stripShimQuery(id), 'utf-8');
+				fileSystem.readFileSync(stripShimQuery(id));
 				return {
 					code: 'export default "";',
 					moduleType: 'js',

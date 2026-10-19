@@ -140,6 +140,132 @@ for (const [name, fs] of adapters) {
 			});
 		});
 
+		describe('stat', () => {
+			test('describes a file', () => {
+				expect(fs.stat(path.join(testDir, 'test.txt'))).toEqual({
+					isFile: true,
+					isDirectory: false,
+					isSymbolicLink: false,
+					size: 11,
+				});
+			});
+
+			test('follows a symbolic link', () => {
+				const link = path.join(testDir, 'stat-link');
+				symlinkSync(path.join(testDir, 'subdir'), link);
+
+				expect(fs.stat(link)).toMatchObject({ isDirectory: true, isSymbolicLink: false });
+			});
+
+			test('throws ENOENT for a missing path', () => {
+				expect(() => fs.stat(path.join(testDir, 'missing'))).toThrow(
+					expect.objectContaining({ code: 'ENOENT' }),
+				);
+			});
+		});
+
+		describe('lstat', () => {
+			test('describes a symbolic link itself', () => {
+				const link = path.join(testDir, 'lstat-link');
+				symlinkSync(path.join(testDir, 'test.txt'), link);
+
+				expect(fs.lstat(link)).toMatchObject({ isFile: false, isSymbolicLink: true });
+			});
+
+			test('describes a dangling symbolic link', () => {
+				const link = path.join(testDir, 'dangling-link');
+				symlinkSync(path.join(testDir, 'missing'), link);
+
+				expect(fs.lstat(link).isSymbolicLink).toBe(true);
+			});
+
+			test('throws ENOENT for a missing path', () => {
+				expect(() => fs.lstat(path.join(testDir, 'missing'))).toThrow(
+					expect.objectContaining({ code: 'ENOENT' }),
+				);
+			});
+		});
+
+		describe('readdir', () => {
+			test('lists direct entries with their kind', () => {
+				symlinkSync(path.join(testDir, 'test.txt'), path.join(testDir, 'readdir-link'));
+				const entries = fs.readdir(testDir).sort((a, b) => a.name.localeCompare(b.name));
+
+				expect(entries).toEqual([
+					{ name: 'readdir-link', isFile: false, isDirectory: false, isSymbolicLink: true },
+					{ name: 'subdir', isFile: false, isDirectory: true, isSymbolicLink: false },
+					{ name: 'test.ts', isFile: true, isDirectory: false, isSymbolicLink: false },
+					{ name: 'test.txt', isFile: true, isDirectory: false, isSymbolicLink: false },
+				]);
+			});
+
+			test('lists nested entries by their path relative to the directory', () => {
+				const names = fs
+					.readdir(testDir, { recursive: true })
+					.map((entry) => entry.name)
+					.sort();
+
+				expect(names).toEqual(['subdir', path.join('subdir', 'nested.ts'), 'test.ts', 'test.txt']);
+			});
+
+			test('throws ENOENT for a missing directory', () => {
+				expect(() => fs.readdir(path.join(testDir, 'missing'))).toThrow(
+					expect.objectContaining({ code: 'ENOENT' }),
+				);
+			});
+		});
+
+		describe('readlink', () => {
+			test('returns the stored target without resolving it', () => {
+				const link = path.join(testDir, 'readlink-link');
+				symlinkSync('test.txt', link);
+
+				expect(fs.readlink(link)).toBe('test.txt');
+			});
+
+			test('throws EINVAL for a path that is not a symbolic link', () => {
+				expect(() => fs.readlink(path.join(testDir, 'test.txt'))).toThrow(
+					expect.objectContaining({ code: 'EINVAL' }),
+				);
+			});
+		});
+
+		describe('mkdtemp', () => {
+			test('creates a new directory for each call', () => {
+				const prefix = path.join(testDir, 'tmp-');
+				const first = fs.mkdtemp(prefix);
+				const second = fs.mkdtemp(prefix);
+
+				expect(first).not.toBe(second);
+				expect(first.startsWith(prefix)).toBe(true);
+				expect(fs.isDirectory(first)).toBe(true);
+				expect(fs.isDirectory(second)).toBe(true);
+			});
+		});
+
+		describe('rename', () => {
+			test('moves a directory', () => {
+				const destination = path.join(testRoot, 'renamed');
+				fs.rename(testDir, destination);
+
+				expect(fs.exists(testDir)).toBe(false);
+				expect(fs.readFileSync(path.join(destination, 'subdir', 'nested.ts'))).toBe('export const y = 2;');
+			});
+
+			test('replaces an existing file', () => {
+				const destination = path.join(testDir, 'test.ts');
+				fs.rename(path.join(testDir, 'test.txt'), destination);
+
+				expect(fs.readFileSync(destination)).toBe('Hello World');
+			});
+
+			test('throws ENOENT for a missing source', () => {
+				expect(() => fs.rename(path.join(testDir, 'missing'), path.join(testDir, 'target'))).toThrow(
+					expect.objectContaining({ code: 'ENOENT' }),
+				);
+			});
+		});
+
 		describe('ensureDir', () => {
 			test('creates directory if not exists', () => {
 				const newDir = path.join(testDir, 'ensure-dir-test');

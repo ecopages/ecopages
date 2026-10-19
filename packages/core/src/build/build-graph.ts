@@ -1,11 +1,11 @@
-import { existsSync, realpathSync } from 'node:fs';
 import path from 'node:path';
+import { fileSystem } from '@ecopages/file-system';
 import { fileURLToPath } from 'node:url';
 import type { BuildOptions, BuildSuccess } from './build-adapter.ts';
 
 function tryRealpath(filePath: string): string | undefined {
 	try {
-		return existsSync(filePath) ? realpathSync(filePath) : undefined;
+		return fileSystem.exists(filePath) ? fileSystem.realpath(filePath) : undefined;
 	} catch {
 		return undefined;
 	}

@@ -1,4 +1,3 @@
-import type { Stats } from 'node:fs';
 import path from 'node:path';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { fileSystem } from '@ecopages/file-system';
@@ -510,7 +509,7 @@ export class ProjectWatcher {
 			this.appConfig.absolutePaths,
 			this.workspacePackageRoots,
 		);
-		const ignored = (watchedPath: string, stats?: Stats): boolean => {
+		const ignored = (watchedPath: string, stats?: { isDirectory(): boolean }): boolean => {
 			if (ignoreProjectPath(watchedPath)) return true;
 			if (
 				!stats ||

@@ -1,10 +1,9 @@
-import { lstatSync, readdirSync, readlinkSync } from 'node:fs';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 
 function tryLstat(filePath: string) {
 	try {
-		return lstatSync(filePath);
+		return fileSystem.lstat(filePath);
 	} catch (error) {
 		if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
 			return undefined;
@@ -19,7 +18,7 @@ export function copyRuntimePublicFileIfChanged(sourcePath: string, destinationPa
 	}
 
 	fileSystem.ensureDir(path.dirname(destinationPath));
-	const destinationIsSymbolicLink = tryLstat(destinationPath)?.isSymbolicLink() ?? false;
+	const destinationIsSymbolicLink = tryLstat(destinationPath)?.isSymbolicLink ?? false;
 	if (destinationIsSymbolicLink) {
 		fileSystem.remove(destinationPath);
 	}
@@ -51,20 +50,22 @@ export async function copyRuntimePublicFile(sourcePath: string, destinationPath:
 export function copyRuntimePublicDirIfChanged(sourceDir: string, destinationDir: string): void {
 	fileSystem.ensureDir(destinationDir);
 
-	for (const entry of readdirSync(sourceDir, { withFileTypes: true })) {
+	for (const entry of fileSystem.readdir(sourceDir)) {
 		const sourcePath = path.join(sourceDir, entry.name);
 		const destinationPath = path.join(destinationDir, entry.name);
 
-		if (entry.isDirectory()) {
+		if (entry.isDirectory) {
 			copyRuntimePublicDirIfChanged(sourcePath, destinationPath);
 			continue;
 		}
 
-		if (entry.isSymbolicLink()) {
-			const sourceTarget = readlinkSync(sourcePath);
+		if (entry.isSymbolicLink) {
+			const sourceTarget = fileSystem.readlink(sourcePath);
 			const destinationStats = tryLstat(destinationPath);
 			const destinationExists = destinationStats !== undefined;
-			const destinationTarget = destinationStats?.isSymbolicLink() ? readlinkSync(destinationPath) : undefined;
+			const destinationTarget = destinationStats?.isSymbolicLink
+				? fileSystem.readlink(destinationPath)
+				: undefined;
 			if (sourceTarget === destinationTarget) {
 				continue;
 			}
@@ -75,7 +76,7 @@ export function copyRuntimePublicDirIfChanged(sourceDir: string, destinationDir:
 			continue;
 		}
 
-		if (!entry.isFile()) {
+		if (!entry.isFile) {
 			continue;
 		}
 

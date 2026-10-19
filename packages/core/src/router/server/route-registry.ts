@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { existsSync } from 'node:fs';
 import { fileSystem } from '@ecopages/file-system';
 import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
@@ -245,7 +244,7 @@ export class RouteRegistry {
 	}
 
 	private async scanTemplateRoutes(): Promise<TemplateRoute[]> {
-		if (!existsSync(this.pagesDir)) {
+		if (!fileSystem.exists(this.pagesDir)) {
 			return [];
 		}
 

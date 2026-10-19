@@ -5,19 +5,49 @@
 
 import {
 	cpSync,
+	type Dirent,
 	existsSync,
+	lstatSync,
 	mkdirSync,
+	mkdtempSync,
 	readdirSync,
 	readFileSync,
+	readlinkSync,
 	realpathSync,
+	renameSync,
 	rmSync,
 	statSync,
+	type Stats,
 	writeFileSync,
 } from 'node:fs';
 import { cp as cpAsync, mkdir as mkdirAsync, readdir, rm as rmAsync, stat as statAsync } from 'node:fs/promises';
-import { dirname, extname, join as pathJoin } from 'node:path';
+import { dirname, extname, join as pathJoin, relative } from 'node:path';
 import zlib from 'node:zlib';
-import { FileNotFoundError, type GlobOptions } from '../types.ts';
+import {
+	type DirectoryEntry,
+	FileNotFoundError,
+	type FileStats,
+	type GlobOptions,
+	type ReaddirOptions,
+} from '../types.ts';
+
+function toFileStats(stats: Stats): FileStats {
+	return {
+		isFile: stats.isFile(),
+		isDirectory: stats.isDirectory(),
+		isSymbolicLink: stats.isSymbolicLink(),
+		size: stats.size,
+	};
+}
+
+function toDirectoryEntry(dirPath: string, entry: Dirent): DirectoryEntry {
+	return {
+		name: relative(dirPath, pathJoin(entry.parentPath, entry.name)),
+		isFile: entry.isFile(),
+		isDirectory: entry.isDirectory(),
+		isSymbolicLink: entry.isSymbolicLink(),
+	};
+}
 
 /**
  * Base implementation for file system operations.
@@ -73,7 +103,7 @@ export abstract class BaseFileSystem {
 			writeFileSync(filepath, contents);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			throw new Error(`Error writing file: ${filepath}. Cause: ${message}`);
+			throw new Error(`Error writing file: ${filepath}. Cause: ${message}`, { cause: error });
 		}
 	}
 
@@ -169,6 +199,32 @@ export abstract class BaseFileSystem {
 	 */
 	realpath(filePath: string): string {
 		return realpathSync(filePath);
+	}
+
+	stat(filePath: string): FileStats {
+		return toFileStats(statSync(filePath));
+	}
+
+	lstat(filePath: string): FileStats {
+		return toFileStats(lstatSync(filePath));
+	}
+
+	readdir(dirPath: string, options: ReaddirOptions = {}): DirectoryEntry[] {
+		return readdirSync(dirPath, { recursive: options.recursive, withFileTypes: true }).map((entry) =>
+			toDirectoryEntry(dirPath, entry),
+		);
+	}
+
+	readlink(filePath: string): string {
+		return readlinkSync(filePath);
+	}
+
+	mkdtemp(prefix: string): string {
+		return mkdtempSync(prefix);
+	}
+
+	rename(source: string, destination: string): void {
+		renameSync(source, destination);
 	}
 
 	/**

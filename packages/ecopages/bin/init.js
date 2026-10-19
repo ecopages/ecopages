@@ -1,14 +1,17 @@
 import { downloadTemplate } from 'giget';
 import * as prompts from '@clack/prompts';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { basename, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+import { fileSystem } from '@ecopages/file-system';
 import { printBrandBanner, withBrandBanner } from './brand.js';
 import { normalizeGitSource } from './git-template-source.js';
 
-const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
-const templateManifest = JSON.parse(readFileSync(new URL('../templates.json', import.meta.url), 'utf-8'));
+const pkg = JSON.parse(fileSystem.readFileSync(fileURLToPath(new URL('../package.json', import.meta.url))));
+const templateManifest = JSON.parse(
+	fileSystem.readFileSync(fileURLToPath(new URL('../templates.json', import.meta.url))),
+);
 const officialTemplates = [...templateManifest.templates].sort((left, right) => left.order - right.order);
 const defaultOfficialTemplate = officialTemplates.find((template) => template.default) ?? officialTemplates[0];
 
@@ -188,11 +191,11 @@ function rewriteWorkspaceDependencies(projectPkg) {
 
 function updateProjectManifest(targetDir, packageDirectory, isOfficial) {
 	const packagePath = join(targetDir, packageDirectory, 'package.json');
-	if (!existsSync(packagePath)) {
+	if (!fileSystem.exists(packagePath)) {
 		throw new Error(`Template package directory '${packageDirectory}' does not contain a package.json.`);
 	}
 
-	const projectPkg = JSON.parse(readFileSync(packagePath, 'utf-8'));
+	const projectPkg = JSON.parse(fileSystem.readFileSync(packagePath));
 	projectPkg.name = basename(targetDir);
 	if (isOfficial) rewriteWorkspaceDependencies(projectPkg);
 
@@ -208,7 +211,7 @@ function updateProjectManifest(targetDir, packageDirectory, isOfficial) {
 		}
 	}
 
-	writeFileSync(packagePath, `${JSON.stringify(projectPkg, null, 2)}\n`);
+	fileSystem.write(packagePath, `${JSON.stringify(projectPkg, null, 2)}\n`);
 	return packagePath;
 }
 
@@ -355,7 +358,7 @@ export async function runInitCommand(rawArgs, logger) {
 	if (!answers) return;
 
 	const { dir, templateId, source, packageManager, install, start } = answers;
-	if (existsSync(dir)) throw new Error(`Target directory already exists: ${dir}`);
+	if (fileSystem.exists(dir)) throw new Error(`Target directory already exists: ${dir}`);
 
 	const officialTemplate = source ? null : findOfficialTemplate(templateId);
 	const templateSource = getTemplateSource(templateId, source);
@@ -386,7 +389,7 @@ export async function runInitCommand(rawArgs, logger) {
 			`Project initialized. Run 'cd "${relativeCwd}" && ${packageManager} install && ${packageManager} run dev'.`,
 		);
 	} catch (error) {
-		if (targetCreated) rmSync(dir, { recursive: true, force: true });
+		if (targetCreated) fileSystem.remove(dir);
 		throw error;
 	}
 }

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import {
 	loadTsconfigPathPrefixes,
@@ -116,7 +116,7 @@ function indexModuleExports(file: string, cache: Map<string, ModuleExportIndex>)
 	const cached = cache.get(file);
 	if (cached) return cached;
 
-	const source = readFileSync(file, 'utf8');
+	const source = fileSystem.readFileSync(file);
 	const parsed = parseModuleSource(file, source, { sourceType: 'module' });
 	const body = nodes(parsed.program.body);
 	const { declared, factories } = collectDeclaredFactoryBindings(body);
@@ -219,7 +219,7 @@ function resolveStylesheetImportPath(
 	}
 	if (isRelative) {
 		const candidate = path.resolve(path.dirname(ownerFile), source);
-		return existsSync(candidate) ? realpathSync(candidate) : undefined;
+		return fileSystem.exists(candidate) ? fileSystem.realpath(candidate) : undefined;
 	}
 	return resolveProjectModulePath(projectRoot, ownerFile, source, { preserveBarrel: true });
 }
@@ -243,7 +243,7 @@ function tryRecordSideEffectStylesheetImport(
 		}
 		return false;
 	}
-	if (!existsSync(resolved)) {
+	if (!fileSystem.exists(resolved)) {
 		throw new Error(`[ecopages] Cannot resolve stylesheet import ${JSON.stringify(source)} from ${ownerFile}`);
 	}
 	result.stylesheets.push(resolved);

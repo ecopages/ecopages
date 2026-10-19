@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileSystem } from '@ecopages/file-system';
 import { toPackageRootSpecifier } from '../../plugins/package-specifier.ts';
 
 const appDeclaredPackageCache = new Map<string, Set<string>>();
@@ -16,7 +16,7 @@ function getDeclaredAppPackages(rootDir: string): Set<string> {
 	const declaredPackages = new Set<string>();
 
 	try {
-		const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as Record<string, unknown>;
+		const packageJson = JSON.parse(fileSystem.readFileSync(packageJsonPath)) as Record<string, unknown>;
 		for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const) {
 			const entries = packageJson[field];
 			if (!entries || typeof entries !== 'object') {
@@ -55,7 +55,7 @@ function getWorkspacePackages(rootDir: string): Set<string> {
 	const workspacePackages = new Set<string>();
 
 	try {
-		const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as Record<string, unknown>;
+		const packageJson = JSON.parse(fileSystem.readFileSync(packageJsonPath)) as Record<string, unknown>;
 		for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const) {
 			const entries = packageJson[field];
 			if (!entries || typeof entries !== 'object') {

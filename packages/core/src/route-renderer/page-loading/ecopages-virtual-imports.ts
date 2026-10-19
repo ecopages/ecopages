@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { fileSystem } from '@ecopages/file-system';
 import { isContentServerVirtualModule } from '../../build/contracts/content-virtual-modules.ts';
 import { parseModuleSource } from '../../cache/module-parse-cache.ts';
 import { isProductionRuntime } from '../../utils/runtime.ts';
@@ -93,7 +93,7 @@ const productionVirtualImportsByFile = new Map<string, EcopagesVirtualImport[]>(
 function readEcopagesVirtualImports(file: string): EcopagesVirtualImport[] {
 	let source: string;
 	try {
-		source = readFileSync(file, 'utf-8');
+		source = fileSystem.readFileSync(file);
 	} catch {
 		return [];
 	}

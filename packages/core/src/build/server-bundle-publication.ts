@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, renameSync } from 'node:fs';
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 
@@ -7,7 +6,7 @@ import { fileSystem } from '@ecopages/file-system';
 export function createServerBundleStagingDirectory(serverOutdir: string): string {
 	const parentDir = path.dirname(serverOutdir);
 	fileSystem.ensureDir(parentDir);
-	return mkdtempSync(path.join(parentDir, `.${path.basename(serverOutdir)}.staging-`));
+	return fileSystem.mkdtemp(path.join(parentDir, `.${path.basename(serverOutdir)}.staging-`));
 }
 
 /**
@@ -22,11 +21,11 @@ export function publishServerBundleDirectory(stagingDir: string, serverOutdir: s
 	const hadPublishedBundle = fileSystem.exists(serverOutdir);
 
 	try {
-		if (hadPublishedBundle) renameSync(serverOutdir, backupDir);
-		renameSync(stagingDir, serverOutdir);
+		if (hadPublishedBundle) fileSystem.rename(serverOutdir, backupDir);
+		fileSystem.rename(stagingDir, serverOutdir);
 	} catch (error) {
 		if (hadPublishedBundle && !fileSystem.exists(serverOutdir) && fileSystem.exists(backupDir)) {
-			renameSync(backupDir, serverOutdir);
+			fileSystem.rename(backupDir, serverOutdir);
 		}
 		throw error;
 	}

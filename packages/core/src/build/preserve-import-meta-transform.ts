@@ -1,5 +1,5 @@
-import { realpathSync } from 'node:fs';
 import path from 'node:path';
+import { fileSystem } from '@ecopages/file-system';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import type { EcoBuildPlugin } from './contracts/build-types.ts';
 import { createCoreTransformPlugin, createMappedSourceTransformResult } from './mapped-source-transform.ts';
@@ -29,7 +29,7 @@ type SourceEdit = {
  */
 export function realpathOfDirectory(dir: string): string {
 	try {
-		return realpathSync(dir);
+		return fileSystem.realpath(dir);
 	} catch {
 		const parent = path.dirname(dir);
 		return parent === dir ? dir : path.join(realpathOfDirectory(parent), path.basename(dir));

@@ -1,7 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { ECO_DOCUMENT_OWNER_ATTRIBUTE } from '@ecopages/core/client';
-import { clearNavigationHtmlCache } from '../../core/src/router/client/navigation-document.ts';
-import { extractProps, extractComponentUrl, loadPageModule, loadPageModuleFromDocument } from '../src/navigation';
+import { extractProps, extractComponentUrl, loadPageModuleFromDocument } from '../src/navigation';
 import { resolveReactNavigation } from '../src/navigation-orchestrator.ts';
 
 /** Mirrors `DEV_TRANSFORM_URL_PREFIX` from `@ecopages/core/integration`. */
@@ -284,13 +283,10 @@ describe('extractComponentUrl', () => {
 	});
 });
 
-describe('loadPageModule', () => {
-	let fetchSpy: ReturnType<typeof vi.spyOn>;
+describe('loadPageModuleFromDocument', () => {
 	let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
 	beforeEach(() => {
-		clearNavigationHtmlCache();
-		fetchSpy = vi.spyOn(globalThis, 'fetch');
 		consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 		if (typeof window !== 'undefined') {
 			delete window.__ECO_PAGES__;
@@ -302,42 +298,23 @@ describe('loadPageModule', () => {
 	});
 
 	it('should return null when component URL cannot be extracted', async () => {
-		const mockHtml = '<html><body>No scripts</body></html>';
-		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
+		const doc = createMockDocument('<html><body>No scripts</body></html>');
 
-		const result = await loadPageModule('/test');
+		const result = await loadPageModuleFromDocument(doc, '/test');
 
 		expect(result).toBeNull();
 		expect(consoleErrorSpy).not.toHaveBeenCalled();
 	});
 
 	it('should log when a marked react-router document is missing a component URL', async () => {
-		const mockHtml = `<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router"><body>No scripts</body></html>`;
-		fetchSpy.mockResolvedValueOnce(htmlPageResponse(mockHtml));
+		const doc = createMockDocument(
+			`<html ${ECO_DOCUMENT_OWNER_ATTRIBUTE}="react-router"><body>No scripts</body></html>`,
+		);
 
-		const result = await loadPageModule('/test');
+		const result = await loadPageModuleFromDocument(doc, '/test');
 
 		expect(result).toBeNull();
 		expect(consoleErrorSpy).toHaveBeenCalledWith('[EcoRouter] Could not find component URL');
-	});
-
-	it('should handle fetch errors gracefully', async () => {
-		fetchSpy.mockRejectedValueOnce(new Error('Network error'));
-
-		const result = await loadPageModule('/test');
-
-		expect(result).toBeNull();
-		expect(consoleErrorSpy).toHaveBeenCalledWith('[EcoRouter] Navigation failed:', expect.any(Error));
-	});
-
-	it('should return null without logging when the navigation fetch is aborted', async () => {
-		const abortController = new AbortController();
-		fetchSpy.mockRejectedValueOnce(new DOMException('The operation was aborted.', 'AbortError'));
-
-		const result = await loadPageModule('/test', { signal: abortController.signal });
-
-		expect(result).toBeNull();
-		expect(consoleErrorSpy).not.toHaveBeenCalled();
 	});
 
 	it('should load a react page module from an already-fetched document', async () => {

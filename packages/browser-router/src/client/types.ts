@@ -99,10 +99,6 @@ export interface EcoRouterOptions {
 	reloadDocument?: (href: string) => void;
 }
 
-export type BrowserRouterNavigateOptions = {
-	direction?: 'forward' | 'back' | 'replace';
-};
-
 /** Default prefetch configuration */
 const DEFAULT_PREFETCH_CONFIG: Required<PrefetchConfig> = {
 	strategy: 'intent',

@@ -67,5 +67,13 @@ await watcher.close();
 | `gzipDir(path, extensions)` | Gzip files in directory            |
 | `isDirectory(path)`         | Check if path is directory         |
 | `realpath(path)`            | Resolve symlinks to canonical path |
+| `stat(path)`                | Kind and size, following symlinks  |
+| `lstat(path)`               | Kind and size of the path itself   |
+| `readdir(path, options)`    | List entries with their kind       |
+| `readlink(path)`            | Read a symlink's stored target     |
+| `mkdtemp(prefix)`           | Create a uniquely named directory  |
+| `rename(src, dest)`         | Move a file or directory           |
 | `verifyFileExists(path)`    | Throw if file doesn't exist        |
 | `watch(paths, options)`     | Watch files and directories        |
+
+`stat`, `lstat` and `readdir` return plain objects (`isFile`, `isDirectory`, `isSymbolicLink`, plus `size` for stats). `readdir(path, { recursive: true })` also lists subdirectories, naming each entry by its path relative to `path`. `stat`, `lstat`, `readdir`, `readlink`, `mkdtemp` and `rename` throw Node's error unchanged, so a missing path can be detected by `error.code === 'ENOENT'`.

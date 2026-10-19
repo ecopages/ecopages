@@ -58,7 +58,7 @@ export class NodeFileSystem extends BaseFileSystem implements FileSystem {
 			await writeFileAsync(filepath, contents);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			throw new Error(`Error writing file: ${filepath}. Cause: ${message}`);
+			throw new Error(`Error writing file: ${filepath}. Cause: ${message}`, { cause: error });
 		}
 	}
 

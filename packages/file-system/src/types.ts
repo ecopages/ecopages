@@ -41,8 +41,35 @@ export interface FileWatcher {
 	close(): Promise<void>;
 }
 
+/** What kind of entry a path is, and its size in bytes. */
+export interface FileStats {
+	isFile: boolean;
+	isDirectory: boolean;
+	isSymbolicLink: boolean;
+	size: number;
+}
+
+/** An entry returned by {@link FileSystem.readdir}. */
+export interface DirectoryEntry {
+	/** Path relative to the directory that was read, so it can include subdirectories when read recursively. */
+	name: string;
+	isFile: boolean;
+	isDirectory: boolean;
+	isSymbolicLink: boolean;
+}
+
+/** Options for {@link FileSystem.readdir}. */
+export interface ReaddirOptions {
+	/** List the entries of every subdirectory too. Symbolic links to directories are not followed. */
+	recursive?: boolean;
+}
+
 /**
  * File system interface. `NodeFileSystem` implements it on every runtime.
+ *
+ * @remarks
+ * `stat`, `lstat`, `readdir`, `readlink`, `mkdtemp` and `rename` throw the Node error unchanged, so
+ * callers can branch on its `code` (for example `ENOENT`).
  */
 export interface FileSystem {
 	/**
@@ -137,6 +164,42 @@ export interface FileSystem {
 	 * @throws If the path does not exist
 	 */
 	realpath(path: string): string;
+
+	/**
+	 * Describe a path, following symbolic links.
+	 * @throws If the path does not exist
+	 */
+	stat(path: string): FileStats;
+
+	/**
+	 * Describe a path without following a symbolic link at the end of it.
+	 * @throws If the path does not exist
+	 */
+	lstat(path: string): FileStats;
+
+	/**
+	 * List the entries of a directory, in the order the operating system returns them.
+	 * @throws If the directory does not exist
+	 */
+	readdir(path: string, options?: ReaddirOptions): DirectoryEntry[];
+
+	/**
+	 * Read the target of a symbolic link as stored, without resolving it.
+	 * @throws If the path does not exist or is not a symbolic link
+	 */
+	readlink(path: string): string;
+
+	/**
+	 * Create a uniquely named directory and return its path.
+	 * @param prefix - Path prefix; six random characters are appended to it
+	 */
+	mkdtemp(prefix: string): string;
+
+	/**
+	 * Move a file or directory in one step, replacing an existing file at the destination.
+	 * @throws If the source does not exist
+	 */
+	rename(source: string, destination: string): void;
 
 	/**
 	 * Check if a path is a directory asynchronously.

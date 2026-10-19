@@ -52,7 +52,7 @@ export function registerHeavyBench(): void {
 		bench('heavy React page (react + react-dom + ecopages + lit + kitajs + mdx)', async () => {
 			const service = await setupBrowser();
 			await service.bundle({
-				profile: 'hmr-entrypoint',
+				lane: 'hmr',
 				entrypoints: [HEAVY_VIRTUAL_FILE],
 				outdir: DIST_TMP,
 				naming: `[name].[hash].heavy.tmp`,

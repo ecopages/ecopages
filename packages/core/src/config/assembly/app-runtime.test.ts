@@ -12,10 +12,6 @@ import { requireBuildQueue } from '../../build/runtime/build-queue.ts';
 import { createBrowserBuildRequest, resolveAppBuildPlugins } from '../../build/runtime/build-request-policy.ts';
 import { ensurePagesUnifiedGraphBuilt } from '../../build/cache/pages-unified-graph-build.ts';
 import { getHtmlPageModuleScriptUrls, scanModuleScript } from '../../html-pages/html-page-module-scripts.ts';
-import {
-	getAffectedPageBrowserGraphIdentities,
-	invalidatePageBrowserGraphSession,
-} from '../../route-renderer/orchestration/page-browser-graph/page-browser-graph-session.ts';
 import { AssetProcessingService } from '../../assets/asset-processing-service/asset-processing.service.ts';
 import { clearAppPageCache, invalidateAppPageCacheBySourcePaths } from '../../page-cache/page-cache-service.ts';
 import { AppModuleLoader } from '../../build/server/app-module-loader.service.ts';
@@ -55,8 +51,6 @@ describe('AppRuntime', () => {
 		expect(() => new AssetProcessingService(unfinalized)).toThrow(missingRuntime);
 		await expect(clearAppPageCache(unfinalized)).rejects.toThrow(missingRuntime);
 		await expect(invalidateAppPageCacheBySourcePaths(unfinalized, ['/in.ts'])).rejects.toThrow(missingRuntime);
-		expect(() => invalidatePageBrowserGraphSession(unfinalized, '/in.ts')).toThrow(missingRuntime);
-		expect(() => getAffectedPageBrowserGraphIdentities(unfinalized, '/in.ts')).toThrow(missingRuntime);
 		expect(() => new AppModuleLoader(unfinalized).getDevelopmentGeneration()).toThrow(missingRuntime);
 		expect(() => attachHmrToIntegrations(unfinalized)).toThrow(missingRuntime);
 		await expect(

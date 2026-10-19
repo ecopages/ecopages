@@ -259,6 +259,67 @@ describe('EcopagesApp disposal', () => {
 		expect(dispose).toHaveBeenCalledOnce();
 	});
 
+	it('leaves nothing running when stop() follows a start() queued behind a stop', async () => {
+		const firstServer = { id: 'first-node-server' } as unknown as NodeHttpServer;
+		const secondServer = { id: 'second-node-server' } as unknown as NodeHttpServer;
+		const runtimeHost: RuntimeHost = {
+			start: vi.fn().mockResolvedValueOnce(firstServer).mockResolvedValueOnce(secondServer),
+			stop: vi.fn().mockResolvedValue(undefined),
+			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
+		};
+		const createServerAdapter = vi.fn(async () => createMockServerAdapter());
+		const app = createTestApp(runtimeHost, createServerAdapter);
+
+		await app.start();
+		const firstStop = app.stop();
+		const restarted = app.start();
+		const secondStop = app.stop();
+
+		await Promise.all([firstStop, secondStop]);
+		await expect(restarted).resolves.toBeUndefined();
+
+		expect(runtimeHost.start).toHaveBeenCalledOnce();
+		expect(createServerAdapter).toHaveBeenCalledOnce();
+		expect(runtimeHost.stop).toHaveBeenCalledExactlyOnceWith(firstServer, { force: true });
+	});
+
+	it('does not run the start callback when stop() is called during the preview build', async () => {
+		const built = Promise.withResolvers<string>();
+		const runtimeHost: RuntimeHost = {
+			start: vi.fn(),
+			stop: vi.fn().mockResolvedValue(undefined),
+			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
+		};
+		const buildStatic = vi.fn(() => built.promise);
+		const dispose = vi.fn().mockResolvedValue(undefined);
+		const app = new EcopagesApp(
+			{
+				appConfig: disposalAppConfig(),
+				cliArgs: { ...defaultCliArgs, preview: true },
+			},
+			{
+				runtimeHost,
+				createServerAdapter: async () =>
+					({
+						...createMockServerAdapter(dispose),
+						buildStatic,
+					}) as unknown as NodeServerAdapter,
+			},
+		);
+		const onAppStart = vi.fn();
+
+		const started = app.start(onAppStart);
+		await vi.waitFor(() => expect(buildStatic).toHaveBeenCalledOnce());
+		const stopped = app.stop();
+		built.resolve('http://localhost:3000');
+
+		await expect(started).resolves.toBeUndefined();
+		await stopped;
+
+		expect(onAppStart).not.toHaveBeenCalled();
+		expect(dispose).toHaveBeenCalledOnce();
+	});
+
 	it('stops a bound server when watch-session startup fails', async () => {
 		const server = { id: 'node-server' } as unknown as NodeHttpServer;
 		const runtimeHost: RuntimeHost = {

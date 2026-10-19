@@ -20,7 +20,7 @@ const ENTRYPOINTS = {
 };
 
 const BUNDLE_OPTIONS_BASE = {
-	profile: 'hmr-entrypoint' as const,
+	lane: 'hmr' as const,
 	outdir: DIST_TMP,
 	naming: `[name].[hash].tmp`,
 	minify: false,

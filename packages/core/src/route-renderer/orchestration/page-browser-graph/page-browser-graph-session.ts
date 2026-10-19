@@ -2,7 +2,6 @@ import path from 'node:path';
 import type { GroupedGraphScope } from './route-instance-key.ts';
 import { serializeGroupedGraphCacheKey } from './route-instance-key.ts';
 import { contentHash } from '../../../utils/content-hash.ts';
-import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
 import type { PageBrowserGraphContribution, PageBrowserGraphResult } from '../../../types/contracts.ts';
 import type { AssetDefinition, ProcessedAsset } from '../../../assets/asset-processing-service/assets.types.ts';
 import { appLogger } from '../../../global/app-logger.ts';
@@ -10,7 +9,6 @@ import {
 	BuildInputDependencyIndex,
 	type BuildInputBinding,
 } from '../../../build/cache/build-input-dependency-index.ts';
-import { requireAppRuntime } from '../../../utils/app-runtime.ts';
 
 function graphBinding(key: string): BuildInputBinding {
 	return { consumer: 'page-browser-graph', key };
@@ -50,14 +48,6 @@ type GroupedGraphRecord = {
 	generation: number;
 };
 
-export type AffectedGraphIdentity = {
-	integrationName: string;
-	routeFile: string;
-	dependencyInstanceKey: string;
-	policy: GraphPolicy;
-	entryFingerprint: string;
-};
-
 function serializeGraphKey(key: GraphKey): string {
 	return JSON.stringify([
 		'graph',
@@ -73,7 +63,7 @@ function normalizeDependencyPath(filePath: string): string {
 	return path.resolve(filePath);
 }
 
-function parseSerializedGraphKey(serializedKey: string): AffectedGraphIdentity | undefined {
+function parseSerializedGraphKey(serializedKey: string): GraphKey | undefined {
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(serializedKey);
@@ -186,17 +176,6 @@ export class SessionPageBrowserGraphCache {
 		}
 
 		return undefined;
-	}
-
-	getAffectedGraphIdentities(filePath: string): AffectedGraphIdentity[] {
-		const identities: AffectedGraphIdentity[] = [];
-		for (const serializedKey of this.graphKeysFor(filePath)) {
-			const identity = parseSerializedGraphKey(serializedKey);
-			if (identity) {
-				identities.push(identity);
-			}
-		}
-		return identities;
 	}
 
 	resolveGraph(
@@ -553,23 +532,6 @@ export class SessionPageBrowserGraphCache {
 		this.unbindDependencyPaths(serializedKey, dependencyPaths);
 		this.inFlightDependencyPaths.delete(serializedKey);
 	}
-}
-
-/**
- * Invalidates graph records that depend on the changed file path.
- */
-export function invalidatePageBrowserGraphSession(appConfig: EcoPagesAppConfig, filePath: string): void {
-	requireAppRuntime(appConfig).pageBrowserGraphSession.invalidateByFilePath(filePath);
-}
-
-/**
- * Returns graph identities affected by a source file change.
- */
-export function getAffectedPageBrowserGraphIdentities(
-	appConfig: EcoPagesAppConfig,
-	filePath: string,
-): AffectedGraphIdentity[] {
-	return requireAppRuntime(appConfig).pageBrowserGraphSession.getAffectedGraphIdentities(filePath);
 }
 
 /**

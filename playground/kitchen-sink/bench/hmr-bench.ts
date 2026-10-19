@@ -12,7 +12,7 @@ const LAYOUT_FILE = path.join(KITCHEN_SINK_PATHS.layouts, 'base-layout', 'base-l
 const SHARED_COMPONENT = path.join(KITCHEN_SINK_PATHS.components, 'react-counter.react.tsx');
 
 const BUNDLE_OPTIONS_BASE = {
-	profile: 'hmr-entrypoint' as const,
+	lane: 'hmr' as const,
 	outdir: DIST_TMP,
 	naming: `[name].[hash].tmp`,
 	minify: false,

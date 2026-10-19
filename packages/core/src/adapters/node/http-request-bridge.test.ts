@@ -1,4 +1,5 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { PassThrough, Writable } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
@@ -187,5 +188,33 @@ describe('NodeHttpRequestBridge', () => {
 		await expect(bridge.sendNodeResponse(res as unknown as ServerResponse, response)).rejects.toBeInstanceOf(
 			NodeClientAbortError,
 		);
+	});
+
+	it('delivers every Set-Cookie header through a real HTTP round trip', async () => {
+		const bridge = new NodeHttpRequestBridge();
+		const server = createServer((_req, res) => {
+			const headers = new Headers({ 'content-type': 'text/plain' });
+			headers.append('set-cookie', 'session=abc; Path=/; HttpOnly');
+			headers.append('set-cookie', 'csrf=xyz; Path=/');
+			void bridge.sendNodeResponse(res, new Response('ok', { headers }));
+		});
+		await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+
+		try {
+			const { port } = server.address() as AddressInfo;
+			const received = await new Promise<IncomingMessage>((resolve, reject) => {
+				httpRequest({ host: '127.0.0.1', port }, (res) => {
+					res.resume();
+					res.on('end', () => resolve(res));
+				})
+					.on('error', reject)
+					.end();
+			});
+
+			expect(received.headers['content-type']).toBe('text/plain');
+			expect(received.headers['set-cookie']).toEqual(['session=abc; Path=/; HttpOnly', 'csrf=xyz; Path=/']);
+		} finally {
+			await new Promise((resolve) => server.close(resolve));
+		}
 	});
 });

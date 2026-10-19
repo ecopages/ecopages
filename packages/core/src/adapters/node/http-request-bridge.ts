@@ -189,13 +189,20 @@ export class NodeHttpRequestBridge {
 	 * as server-sent events. The bridge therefore forwards the `ReadableStream`
 	 * directly into the Node writable response instead of materializing an
 	 * intermediate `ArrayBuffer`.
+	 *
+	 * `Headers.forEach` yields every `Set-Cookie` value as a separate entry, so
+	 * writing them one by one would let each overwrite the previous. They are
+	 * collected with `getSetCookie()` and written as a single array value.
 	 */
 	public async sendNodeResponse(res: ServerResponse, response: Response): Promise<void> {
 		res.statusCode = response.status;
 
 		response.headers.forEach((value, key) => {
-			res.setHeader(key, value);
+			if (key !== 'set-cookie') res.setHeader(key, value);
 		});
+
+		const setCookies = response.headers.getSetCookie();
+		if (setCookies.length > 0) res.setHeader('set-cookie', setCookies);
 
 		if (!response.body) {
 			res.end();

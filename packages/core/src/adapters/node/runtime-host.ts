@@ -1,3 +1,4 @@
+import { lookup } from 'node:dns/promises';
 import { createServer, type Server as NodeServerInstance } from 'node:http';
 import type { Socket } from 'node:net';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
@@ -56,10 +57,16 @@ export class NodeRuntimeHost {
 	 * Client disconnects are treated as normal aborts and are not logged. Other
 	 * failures here (the response write, or an uninitialised adapter) are logged
 	 * with their stack and answered with 500.
+	 *
+	 * The hostname is resolved to its first address before `listen()`, which is
+	 * what Node does internally. Bun instead tries every address the name resolves
+	 * to, so when `localhost:<port>` is taken on `::1` it binds `127.0.0.1` and
+	 * never reports `EADDRINUSE`, leaving two servers behind one origin.
 	 */
 	public async start(serveOptions: NodeRuntimeServeOptions): Promise<NodeServerInstance> {
 		const hostname = String(serveOptions.hostname ?? DEFAULT_ECOPAGES_HOSTNAME);
 		const port = Number(serveOptions.port ?? DEFAULT_ECOPAGES_PORT);
+		const { address } = await lookup(hostname);
 
 		let server: NodeServerInstance;
 		server = this.serverFactory(async (req, res) => {
@@ -88,7 +95,7 @@ export class NodeRuntimeHost {
 
 		await new Promise<void>((resolve, reject) => {
 			server.once('error', reject);
-			server.listen(port, hostname, () => {
+			server.listen(port, address, () => {
 				server.off('error', reject);
 				resolve();
 			});

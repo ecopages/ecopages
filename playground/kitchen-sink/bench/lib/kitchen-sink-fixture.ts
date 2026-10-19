@@ -9,7 +9,7 @@
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { EcoPagesAppConfig } from '../../../../packages/core/src/types/internal-types';
+import type { EcoPagesAppConfig } from '../../../../packages/core/src/config/internal-types';
 import { createKitchenSinkConfig } from '../../kitchen-sink-config';
 
 const KITCHEN_SINK_DIR = fileURLToPath(new URL('../..', import.meta.url));

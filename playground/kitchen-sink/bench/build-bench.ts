@@ -25,7 +25,7 @@ export function registerBuildBench(): void {
 		bench('production single page (minify + treeshake)', async () => {
 			const service = await setupBrowser();
 			await service.bundle({
-				profile: 'hmr-entrypoint',
+				lane: 'hmr',
 				entrypoints: [REACT_PAGES[0]!],
 				outdir: DIST_TMP,
 				naming: `[name].[hash].prod.tmp`,
@@ -38,7 +38,7 @@ export function registerBuildBench(): void {
 		bench('production all pages (minify + treeshake + splitting)', async () => {
 			const service = await setupBrowser();
 			await service.bundle({
-				profile: 'hmr-entrypoint',
+				lane: 'hmr',
 				entrypoints: REACT_PAGES,
 				outdir: DIST_TMP,
 				naming: `[name].[hash].prod.tmp`,

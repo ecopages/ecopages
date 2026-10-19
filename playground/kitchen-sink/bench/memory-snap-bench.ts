@@ -21,7 +21,7 @@ export function registerMemorySnapBench(): void {
 		bench('repeated rebuild of a single React page', async () => {
 			const service = await setupBrowser();
 			await service.bundle({
-				profile: 'hmr-entrypoint',
+				lane: 'hmr',
 				entrypoints: [ENTRYPOINT],
 				outdir: DIST_TMP,
 				naming: `[name].[hash].tmp`,

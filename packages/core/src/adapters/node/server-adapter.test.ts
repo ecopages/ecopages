@@ -779,6 +779,48 @@ describe('NodeServerAdapter', () => {
 		expect(shutdownEvents).toEqual(['render finished', 'teardown']);
 	});
 
+	it('reports a failed preview stop and a failed dev-session dispose together and still tears down Integrations', async () => {
+		const teardown = vi.fn(async () => {});
+		class ResourceIntegration extends HtmlPagesPlugin {
+			override async setup(): Promise<void> {}
+			override async teardown(): Promise<void> {
+				await teardown();
+			}
+		}
+		const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-dispose-errors-'));
+		onTestFinished(() => fs.rmSync(rootDir, { recursive: true, force: true }));
+		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [new ResourceIntegration()] });
+		fs.mkdirSync(appConfig.absolutePaths.distDir, { recursive: true });
+		const runtimeHost = new NodeRuntimeHost(new NodeHttpRequestBridge());
+		const adapter = makeNodeServerAdapter(
+			{ appConfig, serveOptions: { hostname: '127.0.0.1', port: 0 }, options: { watch: true } },
+			runtimeHost,
+		);
+		const subscription = vi
+			.spyOn(ProjectWatcher.prototype, 'createWatcherSubscription')
+			.mockResolvedValue(undefined as never);
+		onTestFinished(() => subscription.mockRestore());
+		const destroyBridge = vi.spyOn(devRuntime.bridge, 'destroy').mockImplementationOnce(() => {
+			throw new Error('bridge destroy failed');
+		});
+		onTestFinished(() => destroyBridge.mockRestore());
+		const startServer = vi.spyOn(runtimeHost, 'start');
+		const stopServer = runtimeHost.stop.bind(runtimeHost);
+		vi.spyOn(runtimeHost, 'stop').mockRejectedValueOnce(new Error('preview close failed'));
+
+		await adapter.completeInitialization({} as import('node:http').Server);
+		expect(await adapter.servePreviewOnly()).toBeDefined();
+		const previewServer = await startServer.mock.results[0]!.value;
+		onTestFinished(() => stopServer(previewServer));
+
+		const disposal = adapter.dispose();
+
+		await expect(disposal).rejects.toBeInstanceOf(AggregateError);
+		const { errors } = (await disposal.catch((error: unknown) => error)) as AggregateError;
+		expect(errors.map((error: Error) => error.message)).toEqual(['bridge destroy failed', 'preview close failed']);
+		expect(teardown).toHaveBeenCalledOnce();
+	});
+
 	it('prewarms the paths a Processor added after finalization and records the build inputs the render reads', async () => {
 		const appConfig = await finalizeEcoPagesConfig({
 			rootDir: path.join(os.tmpdir(), 'ecopages-prewarm-build-inputs'),

@@ -15,7 +15,8 @@
 		"start:node": "pnpm run build:node && ecopages start --runtime node",
 		"dev:node": "ecopages dev --runtime node",
 		"build:node": "ecopages build --runtime node",
-		"preview:node": "ecopages preview --runtime node"
+		"preview:node": "ecopages preview --runtime node",
+		"typecheck": "tsc -p bench/tsconfig.json"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.60.0",

@@ -17,8 +17,8 @@ import { requireAppRuntime } from '../../../../packages/core/src/config/assembly
 import { RouteRendererFactory } from '../../../../packages/core/src/route-renderer/route-renderer';
 import { StaticSiteGenerator } from '../../../../packages/core/src/static-site-generator/static-site-generator';
 import { resolveInternalExecutionDir } from '../../../../packages/core/src/utils/resolve-work-dir';
-import type { EcoPagesAppConfig } from '../../../../packages/core/src/types/internal-types';
-import type { EcoPageFile } from '../../../../packages/core/src/types/public-types';
+import type { EcoPagesAppConfig } from '../../../../packages/core/src/config/internal-types';
+import type { EcoPageComponent, EcoPageFile } from '../../../../packages/core/src/types/public-types';
 import { loadKitchenSinkConfig } from './kitchen-sink-fixture';
 
 /** Isolated artifact dirs under kitchen-sink; sources remain the full app tree. */
@@ -98,10 +98,8 @@ export async function bootstrapStaticGenerationStack(appConfig: EcoPagesAppConfi
 
 	const runtimeOrigin = 'http://127.0.0.1:3000';
 
-	await setupAppRuntimePlugins({
-		appConfig,
-		runtimeOrigin,
-	});
+	requireAppRuntime(appConfig).origin = runtimeOrigin;
+	await setupAppRuntimePlugins({ appConfig });
 
 	const moduleLoader = requireAppRuntime(appConfig).moduleLoader;
 	const router = new RouteRegistry({
@@ -121,7 +119,7 @@ export async function bootstrapStaticGenerationStack(appConfig: EcoPagesAppConfi
 						`No transpiled output generated for route module: ${targetFilePath}`,
 				})) as EcoPageFile;
 
-				const page = module.default;
+				const page = module.default as EcoPageComponent<unknown> | undefined;
 
 				return {
 					staticPaths: page?.staticPaths ?? module.getStaticPaths,

@@ -60,7 +60,7 @@ pnpm test:bench:startup:compare
 pnpm test:bench:hmr
 ```
 
-Without the gate, `run.mts` exits immediately. The bench never runs in default CI.
+Without the gate, `run.mts` exits immediately. The bench never runs in default CI, but `pnpm run typecheck` type-checks the bench sources through `bench/tsconfig.json`, so they keep up with core API changes.
 
 By default, mitata prints its console report (boxplots/tables) and `run.mts` adds a compact
 median/p99 summary. Results are also written to `results/mitata-bench.json`. Set

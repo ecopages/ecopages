@@ -14,7 +14,6 @@ import {
 import { getNavigableHrefFromClick } from '@ecopages/core/client';
 import { decideQueuedNavigationReplay } from '@ecopages/core/client';
 import { DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC, DEFAULT_OPTIONS, type EcoRouterOptions } from './types.ts';
-import { DomSwapper } from './dom/dom-swapper.ts';
 import { PrefetchManager } from './services/prefetch-manager.ts';
 import { NavigationCommit } from './navigation-commit.ts';
 import { runPerformNavigationAttempt, shouldIgnorePerformNavigationError } from './eco-router-perform-navigation.ts';
@@ -31,7 +30,6 @@ export class EcoRouter {
 	private pendingPointerNavigation: EcoPendingNavigationIntent | null = null;
 	private queuedNavigationHref: string | null = null;
 
-	private domSwapper: DomSwapper;
 	private prefetchManager: PrefetchManager | null = null;
 	private readonly navigationCommit: NavigationCommit;
 
@@ -43,8 +41,6 @@ export class EcoRouter {
 				...(options.documentElementAttributesToSync ?? DEFAULT_DOCUMENT_ELEMENT_ATTRIBUTES_TO_SYNC),
 			],
 		};
-
-		this.domSwapper = new DomSwapper(this.options.persistAttribute);
 
 		if (this.options.prefetch !== false) {
 			this.prefetchManager = new PrefetchManager({
@@ -58,7 +54,7 @@ export class EcoRouter {
 		this.handlePointerDown = this.handlePointerDown.bind(this);
 		this.handlePopState = this.handlePopState.bind(this);
 
-		this.navigationCommit = new NavigationCommit(this.domSwapper, this.prefetchManager, this.options);
+		this.navigationCommit = new NavigationCommit(this.prefetchManager, this.options);
 	}
 
 	private getRecoveredPointerHref(): string | null {
@@ -399,13 +395,17 @@ type RouterWindow = Window &
 /**
  * Creates and starts a router instance.
  *
- * Stops the previously active router (if any) before creating a new one so
- * click listeners and coordinator registrations from earlier instances are
- * cleaned up on re-execution (e.g. when the layout script is re-run via
- * `data-eco-rerun` after a browser-router page commit).
+ * Returns the router already active on the window when there is one, so options passed
+ * on later calls are ignored. Call `stop()` on the active router first to replace it with
+ * one that has different options.
+ *
+ * @remarks
+ * Re-running the layout script (for example via `data-eco-rerun` after a browser-router
+ * page commit) therefore reuses the live router instead of registering a second set of
+ * click listeners and coordinator registrations.
  *
  * @param options - Configuration options for the router
- * @returns A started EcoRouter instance
+ * @returns The active EcoRouter instance, started
  */
 export function createRouter(options?: EcoRouterOptions): EcoRouter {
 	const win = window as RouterWindow;

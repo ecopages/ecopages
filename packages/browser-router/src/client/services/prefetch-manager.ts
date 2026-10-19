@@ -4,12 +4,7 @@
  * @module prefetch-manager
  */
 
-import {
-	cacheNavigationHtml,
-	fetchNavigationPage,
-	getCachedNavigationHtml,
-	invalidateNavigationHtml,
-} from '@ecopages/core/client';
+import { cacheNavigationHtml, fetchNavigationPage, invalidateNavigationHtml } from '@ecopages/core/client';
 import { isSamePageHref, shouldPrefetchLink } from '@ecopages/core/client';
 import { discoverNewStylesheetLinks, getCurrentStylesheetHrefs } from '../dom/stylesheet-discovery.ts';
 
@@ -112,20 +107,6 @@ export class PrefetchManager {
 		}
 	}
 
-	/**
-	 * Retrieves cached HTML for a URL.
-	 *
-	 * Returns cached content without consuming it, enabling stale-while-revalidate:
-	 * - Returns cached HTML immediately for instant navigation
-	 * - Use cacheVisitedPage() after navigation to update cache in background
-	 *
-	 * @param href - The URL to look up
-	 * @returns The cached HTML string, or null if not cached
-	 */
-	getCachedHtml(href: string): string | null {
-		return getCachedNavigationHtml(href);
-	}
-
 	invalidate(href: string): void {
 		const url = new URL(href, window.location.origin);
 		invalidateNavigationHtml(url);
@@ -133,14 +114,14 @@ export class PrefetchManager {
 	}
 
 	/**
-	 * Caches HTML content for a visited page and triggers background revalidation.
+	 * Caches the HTML of a visited page so a revisit renders it immediately.
 	 *
-	 * Implements stale-while-revalidate pattern:
-	 * - Immediately caches the provided HTML for instant revisits
-	 * - Fetches fresh content in background for next visit (unless it's the current page)
+	 * @remarks
+	 * The cached copy is not refreshed in the background. The page on screen was just fetched or loaded, so
+	 * fetching it again would add a request to every page load and navigation without a stale copy to fix.
 	 *
 	 * @param href - The URL of the visited page
-	 * @param html - The HTML content to cache initially
+	 * @param html - The HTML content to cache
 	 */
 	cacheVisitedPage(href: string, html: string): void {
 		const url = new URL(href, window.location.origin);
@@ -148,21 +129,6 @@ export class PrefetchManager {
 
 		cacheNavigationHtml(url, html);
 		this.prefetched.add(url.href);
-
-		if (isSamePageHref(url.href)) return;
-
-		setTimeout(() => {
-			void fetchNavigationPage(url, { bypassCache: true, priority: 'low' }).catch(() => {});
-		}, 100);
-	}
-
-	/**
-	 * Checks if a URL has already been prefetched.
-	 * @param href - The URL to check
-	 */
-	isPrefetched(href: string): boolean {
-		const url = new URL(href, window.location.origin);
-		return this.prefetched.has(url.href);
 	}
 
 	/**

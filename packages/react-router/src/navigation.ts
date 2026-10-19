@@ -7,7 +7,6 @@
 
 import { getEcoDocumentOwner } from '@ecopages/core/client';
 import { isProductionRuntime } from '@ecopages/core';
-import { fetchNavigationPage } from '@ecopages/core/client';
 import type { EcoComponentConfig } from '@ecopages/core';
 import { resolveEcoPageDataModuleUrl, resolveEcoPageDataProps } from '@ecopages/react/serialize-page-data-script';
 import type { ComponentType } from 'react';
@@ -47,10 +46,6 @@ export type FetchedPageDocument = {
 	doc: Document;
 	finalPath: string;
 	html: string;
-};
-
-type LoadPageModuleOptions = {
-	signal?: AbortSignal;
 };
 
 type LoadPageModuleFromDocumentOptions = {
@@ -147,34 +142,6 @@ export function extractComponentUrl(doc: Document): string | null {
 
 	const bootstrapScript = doc.querySelector<HTMLScriptElement>(PAGE_BOOTSTRAP_SELECTOR);
 	return bootstrapScript?.src || null;
-}
-
-/**
- * Fetches and parses a page, returning its component, props, and document.
- *
- * @remarks
- * Flow: fetch HTML → parse → extract props → extract module URL → import module.
- * The Page's optional preload completes before this returns. This function does
- * not update the DOM; the caller applies changes.
- */
-export async function loadPageModule(
-	url: string,
-	options: LoadPageModuleOptions = {},
-): Promise<LoadedPageModule | null> {
-	let fetchedPage;
-	try {
-		fetchedPage = await fetchNavigationPage(url, { signal: options.signal });
-	} catch (e) {
-		if (e instanceof DOMException && e.name === 'AbortError') {
-			return null;
-		}
-		console.error('[EcoRouter] Navigation failed:', e);
-		return null;
-	}
-	if (!fetchedPage) return null;
-
-	const finalPath = fetchedPage.finalUrl.pathname + fetchedPage.finalUrl.search + fetchedPage.finalUrl.hash;
-	return loadPageModuleFromDocument(fetchedPage.document, finalPath);
 }
 
 /**

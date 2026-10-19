@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { userEvent } from 'vitest/browser';
-import { clearNavigationHtmlCache, fetchNavigationPage } from '@ecopages/core/client';
+import { clearNavigationHtmlCache, fetchNavigationPage, getCachedNavigationHtml } from '@ecopages/core/client';
 import { PrefetchManager, type PrefetchOptions } from '../src/client/services/prefetch-manager.ts';
 
 const HTML = '<html><head></head><body></body></html>';
@@ -85,15 +85,29 @@ describe('PrefetchManager', () => {
 		});
 
 		it('keeps the prefetched page for the navigation that follows', async () => {
-			const prefetchManager = startManager(
-				`<a id="eager" href="${destination('eager')}" data-eco-prefetch="eager">Eager</a>`,
-			);
-			await vi.waitFor(() => expect(prefetchManager.getCachedHtml(destination('eager'))).toBe(HTML));
+			startManager(`<a id="eager" href="${destination('eager')}" data-eco-prefetch="eager">Eager</a>`);
+			await vi.waitFor(() => expect(getCachedNavigationHtml(destination('eager'))).toBe(HTML));
 
 			await fetchNavigationPage(destination('eager'));
 
 			expect(requestedTests()).toEqual(['eager']);
-			expect(prefetchManager.isPrefetched(destination('eager'))).toBe(true);
+		});
+	});
+
+	describe('visited pages', () => {
+		beforeEach(() => {
+			vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		});
+
+		it('caches the visited page without fetching it again', () => {
+			const here = new URL(window.location.href);
+			const visited = new PrefetchManager({ strategy: 'hover' });
+
+			visited.cacheVisitedPage(here.href, '<html><body>visited</body></html>');
+			vi.advanceTimersByTime(5_000);
+
+			expect(getCachedNavigationHtml(here)).toBe('<html><body>visited</body></html>');
+			expect(fetchSpy).not.toHaveBeenCalled();
 		});
 	});
 

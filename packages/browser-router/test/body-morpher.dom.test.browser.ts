@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DomSwapper } from '../src/client/dom/dom-swapper.ts';
+import { morphBody } from '../src/client/dom/body-morpher.ts';
 
 function parseDocument(html: string): Document {
 	return new DOMParser().parseFromString(html, 'text/html');
@@ -113,15 +113,14 @@ function renderLightDomCounterPage(counters: Array<{ id: string; count: number }
 		.join('');
 }
 
-describe('DomSwapper DOM behavior', () => {
+describe('morphBody DOM behavior', () => {
 	it('preserves multiple top-level body elements during a swap', () => {
 		resetDocument();
-		const swapper = new DomSwapper('data-eco-persist');
 		const newDocument = parseDocument(
 			'<html><body><nav>Nav</nav><main>Main</main><footer>Footer</footer></body></html>',
 		);
 
-		swapper.morphBody(newDocument);
+		morphBody(newDocument, 'data-eco-persist');
 
 		expect(document.body.innerHTML).toContain('<nav>Nav</nav>');
 		expect(document.body.innerHTML).toContain('<main>Main</main>');
@@ -131,7 +130,6 @@ describe('DomSwapper DOM behavior', () => {
 	it('replaces hydrated shadow-DOM custom elements so incoming state wins', () => {
 		resetDocument();
 		registerShadowCounter();
-		const swapper = new DomSwapper('data-eco-persist');
 		document.body.innerHTML = '<test-shadow-counter count="0"></test-shadow-counter>';
 		const currentCounter = document.querySelector('test-shadow-counter') as HTMLElement | null;
 		currentCounter?.setAttribute('count', '5');
@@ -140,7 +138,7 @@ describe('DomSwapper DOM behavior', () => {
 			'<html><body><test-shadow-counter count="0"></test-shadow-counter></body></html>',
 		);
 
-		swapper.morphBody(newDocument);
+		morphBody(newDocument, 'data-eco-persist');
 
 		const nextCounter = document.querySelector('test-shadow-counter') as HTMLElement | null;
 		expect(nextCounter).not.toBeNull();
@@ -151,14 +149,13 @@ describe('DomSwapper DOM behavior', () => {
 	it('replaces light-DOM custom elements and keeps them interactive after morphing', () => {
 		resetDocument();
 		registerLightDomCounter();
-		const swapper = new DomSwapper('data-eco-persist');
 		document.body.innerHTML = renderLightDomCounter();
 		const currentCounter = document.querySelector('test-light-dom-counter') as HTMLElement | null;
 		currentCounter?.setAttribute('count', '5');
 
 		const newDocument = parseDocument(`<html><body>${renderLightDomCounter()}</body></html>`);
 
-		swapper.morphBody(newDocument);
+		morphBody(newDocument, 'data-eco-persist');
 
 		const nextCounter = document.querySelector('test-light-dom-counter') as HTMLElement | null;
 		expect(nextCounter).not.toBeNull();
@@ -174,7 +171,6 @@ describe('DomSwapper DOM behavior', () => {
 	it('preserves incoming light-DOM custom element markup across repeated navigations', () => {
 		resetDocument();
 		registerLightDomCounter();
-		const swapper = new DomSwapper('data-eco-persist');
 		document.body.innerHTML = `<main>${renderLightDomCounterPage([
 			{ id: 'introduction-init', count: 5 },
 			{ id: 'introduction-next-steps', count: 7 },
@@ -183,7 +179,7 @@ describe('DomSwapper DOM behavior', () => {
 		const installationDocument = parseDocument(
 			`<html><body><main>${renderLightDomCounterPage([{ id: 'installation', count: 3 }])}</main></body></html>`,
 		);
-		swapper.morphBody(installationDocument);
+		morphBody(installationDocument, 'data-eco-persist');
 
 		const introductionDocument = parseDocument(
 			`<html><body><main>${renderLightDomCounterPage([
@@ -191,7 +187,7 @@ describe('DomSwapper DOM behavior', () => {
 				{ id: 'introduction-next-steps', count: 7 },
 			])}</main></body></html>`,
 		);
-		swapper.morphBody(introductionDocument);
+		morphBody(introductionDocument, 'data-eco-persist');
 
 		const counters = Array.from(document.querySelectorAll<HTMLElement>('test-light-dom-counter'));
 		expect(counters).toHaveLength(2);
@@ -211,7 +207,6 @@ describe('DomSwapper DOM behavior', () => {
 	it('preserves persisted light-DOM custom elements during a body morph', () => {
 		resetDocument();
 		registerLightDomCounter();
-		const swapper = new DomSwapper('data-eco-persist');
 		document.body.innerHTML = renderLightDomCounter('data-eco-persist="docs-sidebar" count="0"');
 		const currentCounter = document.querySelector('test-light-dom-counter') as
 			(HTMLElement & { marker?: string }) | null;
@@ -224,7 +219,7 @@ describe('DomSwapper DOM behavior', () => {
 			`<html><body>${renderLightDomCounter('data-eco-persist="docs-sidebar" count="0"')}</body></html>`,
 		);
 
-		swapper.morphBody(newDocument);
+		morphBody(newDocument, 'data-eco-persist');
 
 		const nextCounter = document.querySelector('test-light-dom-counter') as
 			(HTMLElement & { marker?: string }) | null;
@@ -241,7 +236,6 @@ describe('DomSwapper DOM behavior', () => {
 	it('keeps light-DOM custom element children active when rerun scripts accompany a persisted descendant', () => {
 		resetDocument();
 		registerLightDomCounter();
-		const swapper = new DomSwapper('data-eco-persist');
 		const counterMarkup = renderLightDomCounter().replace(
 			'</test-light-dom-counter>',
 			'<aside data-eco-persist="sidebar">Sidebar</aside></test-light-dom-counter>',
@@ -255,7 +249,7 @@ describe('DomSwapper DOM behavior', () => {
 			`<html><head><script data-eco-rerun="true"></script></head><body>${counterMarkup}</body></html>`,
 		);
 
-		swapper.morphBody(newDocument);
+		morphBody(newDocument, 'data-eco-persist');
 
 		const nextCounter = document.querySelector('test-light-dom-counter');
 		const nextIncrementButton = document.querySelector<HTMLButtonElement>('[data-ref="increment"]');
@@ -269,7 +263,6 @@ describe('DomSwapper DOM behavior', () => {
 
 	it('does not retain stale siblings when duplicate ids appear across navigations', () => {
 		resetDocument();
-		const swapper = new DomSwapper('data-eco-persist');
 		document.body.innerHTML = [
 			'<main>',
 			'<h1>Routing Patterns</h1>',
@@ -296,7 +289,7 @@ describe('DomSwapper DOM behavior', () => {
 			].join(''),
 		);
 
-		swapper.morphBody(nextDocument);
+		morphBody(nextDocument, 'data-eco-persist');
 
 		expect(document.body.textContent).toContain('Ecopages JSX Integration');
 		expect(document.body.textContent).not.toContain('Routing Patterns');
@@ -309,7 +302,6 @@ describe('DomSwapper DOM behavior', () => {
 	it('moves a persisted light-DOM custom element into a different parent tree without duplicating it', () => {
 		resetDocument();
 		registerLightDomCounter();
-		const swapper = new DomSwapper('data-eco-persist');
 		document.body.innerHTML = [
 			'<header>',
 			'<nav><ul><li>',
@@ -339,7 +331,7 @@ describe('DomSwapper DOM behavior', () => {
 			].join(''),
 		);
 
-		swapper.morphBody(nextDocument);
+		morphBody(nextDocument, 'data-eco-persist');
 
 		const toggles = document.querySelectorAll('#toggle-dark-mode');
 		expect(toggles).toHaveLength(1);
@@ -363,7 +355,6 @@ describe('DomSwapper DOM behavior', () => {
 			);
 		}
 
-		const swapper = new DomSwapper('data-eco-persist');
 		document.body.innerHTML = [
 			'<header class="header">',
 			'<nav class="navigation"><ul><li>',
@@ -393,7 +384,7 @@ describe('DomSwapper DOM behavior', () => {
 			].join(''),
 		);
 
-		swapper.morphBody(nextDocument);
+		morphBody(nextDocument, 'data-eco-persist');
 
 		expect(document.querySelectorAll('#toggle-dark-mode')).toHaveLength(1);
 		expect(document.querySelector('#toggle-dark-mode')).toBe(currentToggle);
@@ -407,7 +398,6 @@ describe('DomSwapper DOM behavior', () => {
 	it('does not duplicate a persisted toggle across layouts when replacing the body', () => {
 		resetDocument();
 		registerLightDomCounter();
-		const swapper = new DomSwapper('data-eco-persist');
 		document.body.innerHTML = [
 			'<header class="header">',
 			'<nav class="navigation"><ul><li>',
@@ -436,7 +426,7 @@ describe('DomSwapper DOM behavior', () => {
 			].join(''),
 		);
 
-		swapper.morphBody(nextDocument);
+		morphBody(nextDocument, 'data-eco-persist');
 
 		expect(document.querySelectorAll('#toggle-dark-mode')).toHaveLength(1);
 		expect(document.querySelector('#toggle-dark-mode')).toBe(currentToggle);

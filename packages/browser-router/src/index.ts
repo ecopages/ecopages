@@ -10,8 +10,5 @@ export {
 	DEFAULT_OPTIONS,
 	EcoRouter,
 	syncDocumentElementAttributes,
-	type BrowserRouterNavigateOptions,
 	type EcoRouterOptions,
 } from './client/index.ts';
-
-export { DomSwapper } from './client/dom/dom-swapper.ts';

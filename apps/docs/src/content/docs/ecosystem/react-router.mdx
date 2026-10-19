@@ -197,15 +197,15 @@ Hook for programmatic navigation.
 import { useRouter } from '@ecopages/react-router';
 
 const MyComponent = () => {
-	const { navigate, isPending } = useRouter();
+	const { navigate, isNavigating } = useRouter();
 
 	const handleClick = () => {
 		navigate('/about');
 	};
 
 	return (
-		<button onClick={handleClick} disabled={isPending}>
-			{isPending ? 'Loading...' : 'Go to About'}
+		<button onClick={handleClick} disabled={isNavigating}>
+			{isNavigating ? 'Loading...' : 'Go to About'}
 		</button>
 	);
 };

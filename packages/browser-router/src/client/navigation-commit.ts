@@ -3,7 +3,7 @@ import type { EcoNavigationEvent } from '@ecopages/core/client';
 import { commitNavigationPage } from '@ecopages/core/client';
 import { manageWindowScroll } from '@ecopages/core/client';
 import type { EcoNavigationOwner } from '@ecopages/core/client';
-import type { DomSwapper } from './dom/dom-swapper.ts';
+import { morphBody } from './dom/body-morpher.ts';
 import type { PrefetchManager } from './services/prefetch-manager.ts';
 import type { EcoRouterOptions } from './types.ts';
 import { resolveNavigationReloadDecision } from './navigation-commit-reload.ts';
@@ -39,12 +39,10 @@ function resolveCommitOwnerContext(
  * Commits a fetched document into the live page and dispatches navigation lifecycle events.
  */
 export class NavigationCommit {
-	private readonly domSwapper: DomSwapper;
 	private readonly prefetchManager: PrefetchManager | null;
 	private readonly options: Required<EcoRouterOptions>;
 
-	constructor(domSwapper: DomSwapper, prefetchManager: PrefetchManager | null, options: Required<EcoRouterOptions>) {
-		this.domSwapper = domSwapper;
+	constructor(prefetchManager: PrefetchManager | null, options: Required<EcoRouterOptions>) {
 		this.prefetchManager = prefetchManager;
 		this.options = options;
 	}
@@ -93,7 +91,7 @@ export class NavigationCommit {
 			},
 			swap: () => {
 				syncDocumentElementAttributes(document, newDocument, this.options.documentElementAttributesToSync);
-				this.domSwapper.morphBody(newDocument);
+				morphBody(newDocument, this.options.persistAttribute);
 			},
 			onSwapped: () => {
 				navigationRuntime.adoptDocumentOwner(newDocument, 'browser-router');

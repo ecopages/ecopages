@@ -3,7 +3,6 @@ import type { Socket } from 'node:net';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
-import type { RuntimeHost, RuntimeHostStartOptions } from '../shared/runtime/runtime-host.ts';
 import { isNodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
 
 type NodeServerFactory = typeof createServer;
@@ -15,6 +14,14 @@ export type NodeRuntimeServeOptions = {
 };
 
 /**
+ * The transport surface `EcopagesApp` and `NodeServerAdapter` use.
+ *
+ * @remarks
+ * Tests pass a fake with this shape to run the app lifecycle without binding a port.
+ */
+export type RuntimeHost = Pick<NodeRuntimeHost, 'start' | 'stop' | 'getOrigin'>;
+
+/**
  * Node runtime host that binds the shared Web-request pipeline onto a concrete
  * Node HTTP server.
  *
@@ -23,7 +30,7 @@ export type NodeRuntimeServeOptions = {
  * requests through `NodeHttpRequestBridge`, and handling socket-level failures.
  * Routing and rendering remain in the shared server adapter.
  */
-export class NodeRuntimeHost implements RuntimeHost<NodeServerInstance, NodeRuntimeServeOptions> {
+export class NodeRuntimeHost {
 	/**
 	 * Every open socket per started server, including upgraded WebSocket sockets.
 	 *
@@ -34,8 +41,7 @@ export class NodeRuntimeHost implements RuntimeHost<NodeServerInstance, NodeRunt
 	private readonly sockets = new WeakMap<NodeServerInstance, Set<Socket>>();
 
 	/**
-	 * Creates a Node runtime host with injectable request bridging and server
-	 * creation seams for tests and alternate hosts.
+	 * Creates a Node runtime host; tests inject the request bridge and server factory.
 	 */
 	constructor(
 		private readonly requestBridge: NodeHttpRequestBridge,
@@ -51,16 +57,16 @@ export class NodeRuntimeHost implements RuntimeHost<NodeServerInstance, NodeRunt
 	 * failures here (the response write, or an uninitialised adapter) are logged
 	 * with their stack and answered with 500.
 	 */
-	public async start(options: RuntimeHostStartOptions<NodeRuntimeServeOptions>): Promise<NodeServerInstance> {
-		const hostname = String(options.serveOptions.hostname ?? DEFAULT_ECOPAGES_HOSTNAME);
-		const port = Number(options.serveOptions.port ?? DEFAULT_ECOPAGES_PORT);
+	public async start(serveOptions: NodeRuntimeServeOptions): Promise<NodeServerInstance> {
+		const hostname = String(serveOptions.hostname ?? DEFAULT_ECOPAGES_HOSTNAME);
+		const port = Number(serveOptions.port ?? DEFAULT_ECOPAGES_PORT);
 
 		let server: NodeServerInstance;
 		server = this.serverFactory(async (req, res) => {
 			try {
-				const runtimeOrigin = this.getOrigin(server, options.serveOptions);
+				const runtimeOrigin = this.getOrigin(server, serveOptions);
 				const webRequest = this.requestBridge.createWebRequest(req, runtimeOrigin);
-				const response = await options.serveOptions.handleRequest(webRequest);
+				const response = await serveOptions.handleRequest(webRequest);
 				await this.requestBridge.sendNodeResponse(res, response);
 			} catch (error) {
 				if (isNodeClientAbortError(error)) {

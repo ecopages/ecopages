@@ -35,11 +35,9 @@ describe('NodeRuntimeHost', () => {
 		const host = new NodeRuntimeHost(requestBridge as never, serverFactory as never);
 
 		await host.start({
-			serveOptions: {
-				hostname: 'localhost',
-				port: 3000,
-				handleRequest: async () => new Response('ok'),
-			},
+			hostname: 'localhost',
+			port: 3000,
+			handleRequest: async () => new Response('ok'),
 		});
 
 		const res = { statusCode: 200, end: vi.fn() };
@@ -86,16 +84,16 @@ describe('NodeRuntimeHost', () => {
 		const host = new NodeRuntimeHost(requestBridge as never, serverFactory as never);
 
 		await expect(
-			host.start({
-				serveOptions: { hostname: 'localhost', port: 3000, handleRequest: async () => new Response('ok') },
-			}),
+			host.start({ hostname: 'localhost', port: 3000, handleRequest: async () => new Response('ok') }),
 		).rejects.toMatchObject({ code: 'EADDRINUSE' });
 	});
 
 	it('stops while a WebSocket client is still connected', async () => {
 		const host = new NodeRuntimeHost(new NodeHttpRequestBridge());
 		const server = await host.start({
-			serveOptions: { hostname: '127.0.0.1', port: 0, handleRequest: async () => new Response('ok') },
+			hostname: '127.0.0.1',
+			port: 0,
+			handleRequest: async () => new Response('ok'),
 		});
 		const origin = host.getOrigin(server, { hostname: '127.0.0.1' });
 		const onClose = vi.fn();

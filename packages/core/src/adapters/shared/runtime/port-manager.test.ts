@@ -3,43 +3,36 @@ import { createServer as createNetServer } from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
 import { isPortInUseError, isPortAvailable, PortManager } from './port-manager.ts';
 
-/**
- * Bun's real EADDRINUSE shape, captured from a live probe against `bun.serve`
- * against an occupied port: `code: 'EADDRINUSE'` is an own enumerable
- * property alongside `syscall: 'listen'` and `errno: 0`, with the message
- * "Failed to start server. Is port <N> in use?".
- *
- * Node's `http.Server` emits the same `code` with a different message.
- */
-function bunEaddrInUse(port: number): Error {
-	const error = new Error(`Failed to start server. Is port ${port} in use?`);
-	Object.assign(error, { code: 'EADDRINUSE', syscall: 'listen', errno: 0 });
+function eaddrInUse(port: number): Error {
+	const error = new Error(`listen EADDRINUSE: address already in use 127.0.0.1:${port}`);
+	Object.assign(error, { code: 'EADDRINUSE', syscall: 'listen', errno: -48 });
 	return error;
 }
 
-function nodeEaddrInUse(port: number): Error {
-	const error = new Error(`listen EADDRINUSE: address already in use :::${port}`);
-	Object.assign(error, { code: 'EADDRINUSE', syscall: 'listen', errno: -98 });
-	return error;
-}
-
-function bunFallbackShapeWithoutCode(port: number): Error {
-	const error = new Error(`Failed to start server. Is port ${port} in use?`);
-	Object.assign(error, { syscall: 'listen', errno: 0 });
-	return error;
+async function listenOnOccupiedPort(): Promise<unknown> {
+	const holder = createNetServer();
+	await new Promise<void>((resolve) => holder.listen(0, '127.0.0.1', resolve));
+	const occupiedPort = (holder.address() as { port: number }).port;
+	const contender = createNetServer();
+	try {
+		return await new Promise<unknown>((resolve) => {
+			contender.once('error', resolve);
+			contender.listen(occupiedPort, '127.0.0.1');
+		});
+	} finally {
+		await new Promise<void>((resolve) => holder.close(() => resolve()));
+	}
 }
 
 describe('isPortInUseError', () => {
-	it('matches Bun EADDRINUSE', () => {
-		expect(isPortInUseError(bunEaddrInUse(3000))).toBe(true);
+	it('matches the error Node raises when listening on an occupied port', async () => {
+		expect(isPortInUseError(await listenOnOccupiedPort())).toBe(true);
 	});
 
-	it('matches Node EADDRINUSE', () => {
-		expect(isPortInUseError(nodeEaddrInUse(3000))).toBe(true);
-	});
-
-	it('matches Bun message shape even without code for older runtimes', () => {
-		expect(isPortInUseError(bunFallbackShapeWithoutCode(3000))).toBe(true);
+	it('does not match a message that only mentions the port', () => {
+		const error = new Error('Failed to start server. Is port 3000 in use?');
+		Object.assign(error, { syscall: 'listen' });
+		expect(isPortInUseError(error)).toBe(false);
 	});
 
 	it('does not match unrelated errors', () => {
@@ -82,7 +75,7 @@ describe('PortManager', () => {
 	});
 
 	it('throws after retries when fallback is disabled and non-interactive (explicit port, CI)', async () => {
-		const startOnPort = vi.fn<(port: number) => Promise<number | null>>().mockRejectedValue(bunEaddrInUse(3000));
+		const startOnPort = vi.fn<(port: number) => Promise<number | null>>().mockRejectedValue(eaddrInUse(3000));
 
 		const manager = new PortManager({
 			startOnPort,
@@ -101,7 +94,7 @@ describe('PortManager', () => {
 	it('prompts the user even when fallback is enabled (default port, interactive)', async () => {
 		const startOnPort = vi.fn<(port: number) => Promise<number | null>>().mockImplementation(async (port) => {
 			if (port === 3000) {
-				throw bunEaddrInUse(3000);
+				throw eaddrInUse(3000);
 			}
 
 			return port;
@@ -135,7 +128,7 @@ describe('PortManager', () => {
 	it('prompts the user when port is pinned (explicit port, interactive)', async () => {
 		const startOnPort = vi.fn<(port: number) => Promise<number | null>>().mockImplementation(async (port) => {
 			if (port === 3000) {
-				throw bunEaddrInUse(3000);
+				throw eaddrInUse(3000);
 			}
 
 			return port;
@@ -159,7 +152,7 @@ describe('PortManager', () => {
 	});
 
 	it('rejects when the user declines the prompt (stays on preferred port)', async () => {
-		const startOnPort = vi.fn<(port: number) => Promise<number | null>>().mockRejectedValue(bunEaddrInUse(3000));
+		const startOnPort = vi.fn<(port: number) => Promise<number | null>>().mockRejectedValue(eaddrInUse(3000));
 
 		const prompt = vi.fn().mockResolvedValue(false);
 
@@ -177,7 +170,7 @@ describe('PortManager', () => {
 	});
 
 	it('declines also fail when the default port was used', async () => {
-		const startOnPort = vi.fn<(port: number) => Promise<number | null>>().mockRejectedValue(bunEaddrInUse(3000));
+		const startOnPort = vi.fn<(port: number) => Promise<number | null>>().mockRejectedValue(eaddrInUse(3000));
 
 		const prompt = vi.fn().mockResolvedValue(false);
 
@@ -197,7 +190,7 @@ describe('PortManager', () => {
 	it('silently falls back when non-interactive and fallback is allowed (default port, CI)', async () => {
 		const startOnPort = vi.fn<(port: number) => Promise<number | null>>().mockImplementation(async (port) => {
 			if (port === 3000) {
-				throw bunEaddrInUse(3000);
+				throw eaddrInUse(3000);
 			}
 
 			return port;
@@ -222,7 +215,7 @@ describe('PortManager', () => {
 	});
 
 	it('does not prompt or fall back when non-interactive and port is pinned (explicit port, CI)', async () => {
-		const startOnPort = vi.fn<(port: number) => Promise<number | null>>().mockRejectedValue(bunEaddrInUse(3000));
+		const startOnPort = vi.fn<(port: number) => Promise<number | null>>().mockRejectedValue(eaddrInUse(3000));
 
 		const prompt = vi.fn().mockResolvedValue(true);
 
@@ -262,7 +255,7 @@ describe('PortManager', () => {
 	});
 
 	it('returns null when every fallback port is taken', async () => {
-		const startOnPort = vi.fn<(port: number) => Promise<number | null>>().mockRejectedValue(bunEaddrInUse(0));
+		const startOnPort = vi.fn<(port: number) => Promise<number | null>>().mockRejectedValue(eaddrInUse(0));
 
 		const manager = new PortManager({
 			startOnPort,

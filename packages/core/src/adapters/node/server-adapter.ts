@@ -20,9 +20,7 @@ import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constant
 import { disposeDevResources, prepareRuntimePublicDir } from '../shared/runtime/runtime-server-lifecycle.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
 import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
-import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
-import { isNodeClientAbortError } from './http-request-bridge.ts';
-import type { NodeRuntimeServeOptions } from './runtime-host.ts';
+import type { RuntimeHost } from './runtime-host.ts';
 import { serveDistFile } from '../shared/http/dist-file-handler.ts';
 import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
 import { DevSession } from './dev-session.ts';
@@ -37,6 +35,7 @@ export type NodeServeAdapterServerOptions = {
 export interface NodeServerAdapterParams {
 	appConfig: EcoPagesAppConfig;
 	runtime: AppRuntime;
+	runtimeHost: RuntimeHost;
 	serveOptions: NodeServeAdapterServerOptions;
 	apiHandlers?: ApiHandler[];
 	staticRoutes?: StaticRoute[];
@@ -73,8 +72,8 @@ type ServerAdapterPhase = 'idle' | 'starting' | 'ready' | 'stopping' | 'stopped'
  * 2. `completeInitialization(server)` — called once the HTTP server is listening.
  *    Conditionally wires HMR, WebSocket upgrades, and the file watcher when
  *    `options.watch` is `true`.
- * 3. `handleRequest(request)` — delegates to `handleSharedRequest` for routing;
- *    intercepts `ClientAbortError` to return 499 instead of 500 and sends every
+ * 3. `handleRequest(request)` — delegates routing to `ServerRequestPipeline`;
+ *    answers a client disconnect with 499 instead of 500 and sends every
  *    other escaped error through the shared `app.onError` boundary.
  * 4. `buildStatic()` — generates static pages in-process through the shared
  *    static builder (no runtime server), then optionally starts the preview server.
@@ -99,7 +98,7 @@ export class NodeServerAdapter {
 	private readonly runtimeAssetSetup: 'start' | 'export' | 'none';
 	private readonly allowPortFallback: boolean;
 	private readonly onDevelopmentRestart?: (changedFile: string) => Promise<void>;
-	private readonly runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions>;
+	private readonly runtimeHost: RuntimeHost;
 	private previewServer: NodeHttpServer | undefined;
 	private previewLifecycleTail: Promise<void> = Promise.resolve();
 	private disposal: Promise<void> | undefined;
@@ -108,18 +107,12 @@ export class NodeServerAdapter {
 	private resolveRequestReadiness: () => void = () => {};
 	private rejectRequestReadiness: (error: unknown) => void = () => {};
 	/**
-	 * Reference to the application-level WebSocket handlers map.
-	 *
 	 * @remarks
-	 * This is a reference to the map owned by `EcopagesApp`,
-	 * passed in via the constructor. The Node adapter reads from it to wire
-	 * WebSocket upgrades for user-registered patterns.
+	 * The map owned by `EcopagesApp`, so WebSocket upgrades see every user-registered pattern.
 	 */
-	protected websocketHandlers: Map<string, EcopagesWebSocketHandler<unknown, Record<string, string>>> = new Map();
+	private readonly websocketHandlers: Map<string, EcopagesWebSocketHandler<unknown, Record<string, string>>>;
 
-	constructor(
-		options: NodeServerAdapterParams & { runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> },
-	) {
+	constructor(options: NodeServerAdapterParams) {
 		this.appConfig = options.appConfig;
 		this.runtime = options.runtime;
 		this.options = options.options ?? {};
@@ -133,7 +126,6 @@ export class NodeServerAdapter {
 			appConfig: this.appConfig,
 			runtime: this.runtime,
 			watch: this.options.watch,
-			isClientAbortError: isNodeClientAbortError,
 		});
 		this.runtimeAssetSetup = options.runtimeAssetSetup ?? 'start';
 		this.allowPortFallback = options.allowPortFallback !== false;
@@ -143,9 +135,7 @@ export class NodeServerAdapter {
 		this.errorPageLoaders = options.errorPageLoaders ?? {};
 		this.errorHandler = options.errorHandler;
 		this.runtimeHost = options.runtimeHost;
-		if (options.websocketHandlers) {
-			this.websocketHandlers = options.websocketHandlers;
-		}
+		this.websocketHandlers = options.websocketHandlers ?? new Map();
 	}
 
 	/**
@@ -204,7 +194,7 @@ export class NodeServerAdapter {
 				appConfig: this.appConfig,
 			});
 		}
-		await this.initializeSharedRouteHandling({
+		await this.requestPipeline.initializeRouteHandling({
 			staticRoutes: this.staticRoutes,
 			errorPageLoaders: this.errorPageLoaders,
 		});
@@ -276,17 +266,15 @@ export class NodeServerAdapter {
 			this.ensurePreviewCanStart();
 
 			const binding = await bindRuntimeServer(this.runtimeHost, {
-				startOptions: {
-					serveOptions: {
-						hostname: String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME),
-						port: Number(this.serveOptions.port ?? DEFAULT_ECOPAGES_PORT),
-						handleRequest: (request) =>
-							serveDistFile(request, {
-								distDir: this.appConfig.absolutePaths.distDir,
-								watchMode: false,
-								resolveExportedPages: true,
-							}),
-					},
+				serveOptions: {
+					hostname: String(this.serveOptions.hostname || DEFAULT_ECOPAGES_HOSTNAME),
+					port: Number(this.serveOptions.port ?? DEFAULT_ECOPAGES_PORT),
+					handleRequest: (request) =>
+						serveDistFile(request, {
+							distDir: this.appConfig.absolutePaths.distDir,
+							watchMode: false,
+							resolveExportedPages: true,
+						}),
 				},
 				allowPortFallback: this.allowPortFallback,
 				usePortManager: true,
@@ -361,12 +349,7 @@ export class NodeServerAdapter {
 			if (session) {
 				await session.dispose();
 			} else {
-				await disposeDevResources({
-					projectWatcher: undefined,
-					appConfig: this.appConfig,
-					bridge: undefined,
-					stopPreviewServer: async () => {},
-				});
+				await disposeDevResources({ appConfig: this.appConfig });
 			}
 		} catch (error) {
 			errors.push(error);
@@ -381,40 +364,12 @@ export class NodeServerAdapter {
 		if (errors.length > 1) throw new AggregateError(errors, 'Failed to release server adapter resources');
 	}
 
-	protected configureSharedResponseHandlers(options: {
-		staticRoutes: StaticRoute[];
-		errorPageLoaders?: ErrorPageLoaders;
-	}): void {
-		this.requestPipeline.configureResponseHandlers(options);
-	}
-
-	protected initializeSharedRouteHandling(options: {
-		staticRoutes: StaticRoute[];
-		errorPageLoaders?: ErrorPageLoaders;
-	}): Promise<void> {
-		return this.requestPipeline.initializeRouteHandling(options);
-	}
-
-	protected createSharedWatchRefreshCallback(options: {
-		staticRoutes: StaticRoute[];
-		errorPageLoaders?: ErrorPageLoaders;
-		onRoutesReady?: () => Promise<void> | void;
-		onError?: (error: Error) => Promise<void> | void;
-	}): () => Promise<void> {
-		return this.requestPipeline.createWatchRefreshCallback(options);
-	}
-
-	public async handleSharedRequest(request: Request, context: ServerRequestContext): Promise<Response> {
-		return await this.requestPipeline.handleSharedRequest(request, context);
-	}
-
 	/**
 	 * Handles a Web `Request` directly through the shared pipeline and returns a Web `Response`.
 	 *
-	 * Delegates to `handleSharedRequest` for all routing, caching, and response
-	 * handler logic. Escaped errors go through the shared `app.onError`
-	 * boundary, which answers client aborts (see {@link isClientAbortError}) with 499. This path supports
-	 * request-only `app.fetch()` use without a bound listener.
+	 * Delegates all routing, caching, and response handler logic to `ServerRequestPipeline`. Escaped
+	 * errors go through the shared `app.onError` boundary, which answers client aborts with 499. This
+	 * path supports request-only `app.fetch()` use without a bound listener.
 	 */
 	public async handleRequest(request: Request): Promise<Response> {
 		return await this.handleRequestInternal(request, false);
@@ -433,7 +388,7 @@ export class NodeServerAdapter {
 	private async handleRequestInternal(request: Request, waitForReadiness: boolean): Promise<Response> {
 		await this.initialize();
 
-		const context = {
+		const context: ServerRequestContext = {
 			apiHandlers: this.apiHandlers,
 			errorHandler: this.errorHandler,
 			serverInstance: this.serverInstance,
@@ -443,7 +398,7 @@ export class NodeServerAdapter {
 			if (waitForReadiness) {
 				await this.requestReadiness;
 			}
-			return await this.handleSharedRequest(request, context);
+			return await this.requestPipeline.handleSharedRequest(request, context);
 		} catch (error) {
 			return await this.requestPipeline.handleUnexpectedRequestError(error, request, context);
 		}
@@ -478,12 +433,12 @@ export class NodeServerAdapter {
 					websocketHandlers: this.websocketHandlers,
 					onDevelopmentRestart: this.onDevelopmentRestart,
 					configureResponseHandlers: () =>
-						this.configureSharedResponseHandlers({
+						this.requestPipeline.configureResponseHandlers({
 							staticRoutes: this.staticRoutes,
 							errorPageLoaders: this.errorPageLoaders,
 						}),
 					createWatchRefreshCallback: () =>
-						this.createSharedWatchRefreshCallback({
+						this.requestPipeline.createWatchRefreshCallback({
 							staticRoutes: this.staticRoutes,
 							errorPageLoaders: this.errorPageLoaders,
 						}),
@@ -513,15 +468,4 @@ export class NodeServerAdapter {
 			hmrEnabled: this.devSession !== undefined && this.runtime.hmr?.isEnabled() === true,
 		});
 	}
-}
-
-/** Creates the concrete Node server owned by `EcopagesApp`. */
-export function createNodeServerAdapter(
-	params: NodeServerAdapterParams,
-	runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions>,
-): NodeServerAdapter {
-	return new NodeServerAdapter({
-		...params,
-		runtimeHost,
-	});
 }

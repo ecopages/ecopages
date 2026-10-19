@@ -75,19 +75,18 @@ export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig }):
 }
 
 /**
- * Releases shared dev resources in a consistent order across server adapters.
+ * Closes the watch-mode resources, then tears the activated Integrations down.
  *
  * @remarks
- * Transport-specific setup stays in the adapter; only shared teardown lives here. Integration `setup()` calls still in flight
+ * A server that never ran a `DevSession` passes only `appConfig`. Integration `setup()` calls still in flight
  * settle before any `teardown()`, so a late setup cannot recreate released resources. A failed
  * integration `teardown()` still clears activation state, so the next startup runs `setup()` again.
  */
 export async function disposeDevResources(options: {
-	projectWatcher: ProjectWatcher | null | undefined;
 	appConfig: EcoPagesAppConfig;
-	hmrManager?: IHmrManager | null | undefined;
-	bridge: { destroy(): void } | null | undefined;
-	stopPreviewServer: () => Promise<void>;
+	projectWatcher?: ProjectWatcher;
+	hmrManager?: IHmrManager;
+	bridge?: { destroy(): void };
 }): Promise<void> {
 	const runtime = requireAppRuntime(options.appConfig);
 	const hmrManager = options.hmrManager ?? runtime.hmr;
@@ -95,7 +94,6 @@ export async function disposeDevResources(options: {
 		() => options.projectWatcher?.close(),
 		() => hmrManager?.stop(),
 		() => options.bridge?.destroy(),
-		options.stopPreviewServer,
 		() => teardownAppRuntimeIntegrations({ appConfig: options.appConfig }),
 	];
 	const errors: unknown[] = [];

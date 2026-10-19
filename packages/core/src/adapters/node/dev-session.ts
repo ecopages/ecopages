@@ -120,7 +120,6 @@ export class DevSession {
 				appConfig: this.options.appConfig,
 				hmrManager: this.hmrManager,
 				bridge: this.bridge,
-				stopPreviewServer: async () => {},
 			});
 		} catch (error) {
 			errors.push(error);

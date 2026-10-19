@@ -4,8 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createApp } from './create-app.ts';
 import { EcopagesApp } from './node/create-app.ts';
 import type { NodeServerAdapter } from './node/server-adapter.ts';
-import type { NodeRuntimeServeOptions } from './node/runtime-host.ts';
-import type { RuntimeHost } from './shared/runtime/runtime-host.ts';
+import type { RuntimeHost } from './node/runtime-host.ts';
 
 function disposalAppConfig() {
 	return { appRuntime: { origin: 'http://localhost:3000', hmr: null } } as never;
@@ -36,10 +35,7 @@ function createMockServerAdapter(dispose = vi.fn().mockResolvedValue(undefined))
 	} as unknown as NodeServerAdapter;
 }
 
-function createTestApp(
-	runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions>,
-	createServerAdapter: () => Promise<NodeServerAdapter>,
-): EcopagesApp {
+function createTestApp(runtimeHost: RuntimeHost, createServerAdapter: () => Promise<NodeServerAdapter>): EcopagesApp {
 	return new EcopagesApp(
 		{ appConfig: disposalAppConfig(), cliArgs: defaultCliArgs },
 		{ runtimeHost, createServerAdapter },
@@ -65,7 +61,7 @@ describe('EcopagesApp disposal', () => {
 	it('stops the runtime host once and disposes adapter resources', async () => {
 		const server = { id: 'node-server' } as unknown as NodeHttpServer;
 		const runtimeStop = vi.fn().mockResolvedValue(undefined);
-		const runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> = {
+		const runtimeHost: RuntimeHost = {
 			start: vi.fn().mockResolvedValue(server),
 			stop: runtimeStop,
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
@@ -85,7 +81,7 @@ describe('EcopagesApp disposal', () => {
 	it('cleans up with await using', async () => {
 		const server = { id: 'node-server' } as unknown as NodeHttpServer;
 		const runtimeStop = vi.fn().mockResolvedValue(undefined);
-		const runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> = {
+		const runtimeHost: RuntimeHost = {
 			start: vi.fn().mockResolvedValue(server),
 			stop: runtimeStop,
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
@@ -104,7 +100,7 @@ describe('EcopagesApp disposal', () => {
 	});
 
 	it('does not dispose the preview server immediately after preview build', async () => {
-		const runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> = {
+		const runtimeHost: RuntimeHost = {
 			start: vi.fn(),
 			stop: vi.fn().mockResolvedValue(undefined),
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
@@ -137,7 +133,7 @@ describe('EcopagesApp disposal', () => {
 		const firstServer = { id: 'first-node-server' } as unknown as NodeHttpServer;
 		const secondServer = { id: 'second-node-server' } as unknown as NodeHttpServer;
 		const runtimeStop = vi.fn().mockResolvedValue(undefined);
-		const runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> = {
+		const runtimeHost: RuntimeHost = {
 			start: vi.fn().mockResolvedValueOnce(firstServer).mockResolvedValueOnce(secondServer),
 			stop: runtimeStop,
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
@@ -160,7 +156,7 @@ describe('EcopagesApp disposal', () => {
 
 	it('reinitializes the request pipeline when fetch follows stop', async () => {
 		const server = { id: 'node-server' } as unknown as NodeHttpServer;
-		const runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> = {
+		const runtimeHost: RuntimeHost = {
 			start: vi.fn().mockResolvedValue(server),
 			stop: vi.fn().mockResolvedValue(undefined),
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
@@ -186,7 +182,7 @@ describe('EcopagesApp disposal', () => {
 
 	it('shares one startup when start is called concurrently', async () => {
 		const server = { id: 'node-server' } as unknown as NodeHttpServer;
-		const runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> = {
+		const runtimeHost: RuntimeHost = {
 			start: vi.fn().mockResolvedValue(server),
 			stop: vi.fn().mockResolvedValue(undefined),
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
@@ -203,7 +199,7 @@ describe('EcopagesApp disposal', () => {
 	it('stops a server that finishes binding after stop() was called', async () => {
 		const server = { id: 'node-server' } as unknown as NodeHttpServer;
 		const binding = Promise.withResolvers<NodeHttpServer>();
-		const runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> = {
+		const runtimeHost: RuntimeHost = {
 			start: vi.fn(() => binding.promise),
 			stop: vi.fn().mockResolvedValue(undefined),
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
@@ -235,7 +231,7 @@ describe('EcopagesApp disposal', () => {
 
 	it('does not restart when stop() is called while the adapter initializes', async () => {
 		const initialized = Promise.withResolvers<void>();
-		const runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> = {
+		const runtimeHost: RuntimeHost = {
 			start: vi.fn(),
 			stop: vi.fn().mockResolvedValue(undefined),
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
@@ -265,7 +261,7 @@ describe('EcopagesApp disposal', () => {
 
 	it('stops a bound server when watch-session startup fails', async () => {
 		const server = { id: 'node-server' } as unknown as NodeHttpServer;
-		const runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> = {
+		const runtimeHost: RuntimeHost = {
 			start: vi.fn().mockResolvedValue(server),
 			stop: vi.fn().mockResolvedValue(undefined),
 			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),

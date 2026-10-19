@@ -12,9 +12,8 @@ import type {
 } from '../../types/contracts.ts';
 import type { ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
 import { EcopagesApp } from './create-app.ts';
-import type { NodeRuntimeServeOptions } from './runtime-host.ts';
+import type { RuntimeHost } from './runtime-host.ts';
 import type { NodeServerAdapter, NodeServerAdapterParams } from './server-adapter.ts';
-import type { RuntimeHost } from '../shared/runtime/runtime-host.ts';
 
 const cliArgs: ReturnParseCliArgs = {
 	preview: false,
@@ -29,7 +28,7 @@ const cliArgs: ReturnParseCliArgs = {
 
 function createRuntimeHost(stop: () => Promise<void> = async () => {}) {
 	const server = { id: 'node-server' } as unknown as NodeHttpServer;
-	const runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> = {
+	const runtimeHost: RuntimeHost = {
 		start: vi.fn().mockResolvedValue(server),
 		stop,
 		getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),

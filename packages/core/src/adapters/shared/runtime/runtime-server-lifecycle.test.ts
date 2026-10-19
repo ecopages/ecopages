@@ -9,7 +9,7 @@ import type { IntegrationRuntimeContext } from '../../../plugins/integration-plu
 import { finalizeEcoPagesConfig } from '../../../config/assembly/finalize-config.ts';
 import { HtmlPagesPlugin } from '../../../html-pages/html-pages.plugin.ts';
 
-test('a failed preview shutdown still tears down Integrations and allows setup again', async () => {
+test('a failed cleanup step still tears down Integrations and allows setup again', async () => {
 	const events: string[] = [];
 	class ResourceIntegration extends HtmlPagesPlugin {
 		override async setup(): Promise<void> {
@@ -24,14 +24,13 @@ test('a failed preview shutdown still tears down Integrations and allows setup a
 	await assert.rejects(
 		disposeDevResources({
 			appConfig,
-			projectWatcher: undefined,
-			hmrManager: undefined,
-			bridge: undefined,
-			stopPreviewServer: async () => {
-				throw new Error('preview shutdown failed');
+			bridge: {
+				destroy() {
+					throw new Error('bridge destroy failed');
+				},
 			},
 		}),
-		/preview shutdown failed/,
+		/bridge destroy failed/,
 	);
 	await startDevWarmup({ appConfig });
 	assert.deepEqual(events, ['setup', 'teardown', 'setup']);
@@ -49,18 +48,17 @@ test('several failed cleanup steps reject with every error', async () => {
 	await assert.rejects(
 		disposeDevResources({
 			appConfig,
-			projectWatcher: undefined,
-			hmrManager: undefined,
-			bridge: undefined,
-			stopPreviewServer: async () => {
-				throw new Error('preview shutdown failed');
+			bridge: {
+				destroy() {
+					throw new Error('bridge destroy failed');
+				},
 			},
 		}),
 		(error: unknown) => {
 			assert.ok(error instanceof AggregateError);
 			assert.deepEqual(
 				error.errors.map((cause: Error) => cause.message),
-				['preview shutdown failed', 'teardown failed'],
+				['bridge destroy failed', 'teardown failed'],
 			);
 			return true;
 		},
@@ -83,10 +81,6 @@ test('the next start attaches the new HMR manager after shutdown', async () => {
 	attachHmrToIntegrations(appConfig);
 	await disposeDevResources({
 		appConfig,
-		projectWatcher: undefined,
-		hmrManager: undefined,
-		bridge: undefined,
-		stopPreviewServer: async () => {},
 	});
 	runtime.hmr = secondManager;
 	attachHmrToIntegrations(appConfig);
@@ -114,10 +108,6 @@ test('an Integration setup still in flight finishes before teardown', async () =
 	const warmup = startDevWarmup({ appConfig });
 	const disposal = disposeDevResources({
 		appConfig,
-		projectWatcher: undefined,
-		hmrManager: undefined,
-		bridge: undefined,
-		stopPreviewServer: async () => {},
 	});
 	await new Promise<void>((resolve) => setImmediate(resolve));
 	finishSetup();
@@ -141,10 +131,6 @@ test('a failed Integration teardown still lets the next startup run setup', asyn
 	await assert.rejects(
 		disposeDevResources({
 			appConfig,
-			projectWatcher: undefined,
-			hmrManager: undefined,
-			bridge: undefined,
-			stopPreviewServer: async () => {},
 		}),
 		/teardown failed/,
 	);

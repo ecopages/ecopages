@@ -123,12 +123,12 @@ export class ServerStaticBuilder {
 	}
 
 	/**
-	 * Empties `dist/`, copies the public directory into it and sets the Processors and Integrations up.
+	 * Empties `dist/`, copies the public directory into it and sets the Processors up.
 	 *
 	 * @remarks
 	 * Call it before the router reads any Page, so a Page module that resolves what a Processor generates in
-	 * `setup()` finds it. The next {@link build} then skips this work once; a build without a prior call prepares
-	 * the export itself.
+	 * `setup()` finds it. Integrations are set up later, when the static site generator starts rendering. The next
+	 * {@link build} then skips this work once; a build without a prior call prepares the export itself.
 	 */
 	async prepareExport(): Promise<void> {
 		this.prepareExportDirectory();

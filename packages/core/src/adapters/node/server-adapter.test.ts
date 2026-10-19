@@ -19,6 +19,7 @@ import { NodeRuntimeHost } from './runtime-host.ts';
 import { Processor } from '../../plugins/processor.ts';
 import { HtmlPagesPlugin } from '../../html-pages/html-pages.plugin.ts';
 import { ServerRouteHandler } from '../shared/runtime/server-route-handler.ts';
+import { ServerRequestPipeline } from '../shared/runtime/server-request-pipeline.ts';
 import { getBuildInputRecordingContext } from '../../build/cache/build-input-dependency-index.ts';
 
 const upgrades = vi.hoisted(() => ({ attach: vi.fn() }));
@@ -80,7 +81,6 @@ vi.mock('../shared/hmr/hmr-manager.ts', () => ({
 }));
 
 class TestNodeServerAdapter extends NodeServerAdapter {
-	public handleSharedRequestImpl?: () => Promise<Response>;
 	private skipInitializationForTest = false;
 
 	public setReadyForTest(): void {
@@ -89,28 +89,6 @@ class TestNodeServerAdapter extends NodeServerAdapter {
 
 	public override initialize(): Promise<void> {
 		return this.skipInitializationForTest ? Promise.resolve() : super.initialize();
-	}
-
-	private skipDevRouteSetup = false;
-	/** Skips route handler setup, which needs real pages, when completing watch-mode initialization. */
-	public skipDevRouteSetupForTest(): void {
-		this.skipDevRouteSetup = true;
-	}
-
-	protected override configureSharedResponseHandlers(options: never): void {
-		if (!this.skipDevRouteSetup) {
-			super.configureSharedResponseHandlers(options);
-		}
-	}
-
-	public override async handleSharedRequest(): Promise<Response> {
-		if (this.handleSharedRequestImpl) {
-			return await this.handleSharedRequestImpl();
-		}
-
-		return new Response('<html><body><h1>Explicit route</h1></body></html>', {
-			headers: { 'Content-Type': 'text/html' },
-		});
 	}
 }
 
@@ -167,9 +145,7 @@ describe('NodeServerAdapter', () => {
 	it('returns 499 for normalized client aborts', async () => {
 		const adapter = makeNodeServerAdapter({ options: { watch: false } });
 		adapter.setReadyForTest();
-		adapter.handleSharedRequestImpl = async () => {
-			throw new NodeClientAbortError();
-		};
+		vi.spyOn(ServerRequestPipeline.prototype, 'handleSharedRequest').mockRejectedValue(new NodeClientAbortError());
 
 		const response = await adapter.handleRequest(new Request('http://localhost:3000/upload'));
 
@@ -180,9 +156,7 @@ describe('NodeServerAdapter', () => {
 		const errorHandler = vi.fn(async () => new Response('handled', { status: 418 }));
 		const adapter = makeNodeServerAdapter({ options: { watch: false }, errorHandler });
 		adapter.setReadyForTest();
-		adapter.handleSharedRequestImpl = async () => {
-			throw new Error('boom');
-		};
+		vi.spyOn(ServerRequestPipeline.prototype, 'handleSharedRequest').mockRejectedValue(new Error('boom'));
 
 		const response = await adapter.handleRequest(new Request('http://localhost:3000/page'));
 
@@ -193,9 +167,7 @@ describe('NodeServerAdapter', () => {
 	it('answers escaped errors with 500 when no onError handler is registered', async () => {
 		const adapter = makeNodeServerAdapter({ options: { watch: false } });
 		adapter.setReadyForTest();
-		adapter.handleSharedRequestImpl = async () => {
-			throw new Error('boom');
-		};
+		vi.spyOn(ServerRequestPipeline.prototype, 'handleSharedRequest').mockRejectedValue(new Error('boom'));
 
 		const response = await adapter.handleRequest(new Request('http://localhost:3000/page'));
 
@@ -396,10 +368,7 @@ describe('NodeServerAdapter', () => {
 			fs.writeFileSync(path.join(rootDir, 'dist', 'stale.txt'), 'stale');
 			const adapter = makeNodeServerAdapter({ appConfig, options: { watch: false }, runtimeAssetSetup });
 			const copyFile = vi.spyOn(fileSystem, 'copyFile');
-			vi.spyOn(
-				adapter as unknown as { initializeSharedRouteHandling: () => Promise<void> },
-				'initializeSharedRouteHandling',
-			).mockImplementation(async () => {
+			vi.spyOn(ServerRequestPipeline.prototype, 'initializeRouteHandling').mockImplementation(async () => {
 				events.push('routes read');
 			});
 
@@ -436,10 +405,7 @@ describe('NodeServerAdapter', () => {
 			});
 			const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [integration] });
 			const adapter = makeNodeServerAdapter({ appConfig, options: { watch: false } });
-			vi.spyOn(
-				adapter as unknown as { initializeSharedRouteHandling: () => Promise<void> },
-				'initializeSharedRouteHandling',
-			).mockImplementation(async () => {
+			vi.spyOn(ServerRequestPipeline.prototype, 'initializeRouteHandling').mockImplementation(async () => {
 				events.push('routes read');
 			});
 
@@ -471,17 +437,16 @@ describe('NodeServerAdapter', () => {
 			});
 			const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [integration] });
 			const adapter = makeNodeServerAdapter({ appConfig, options: { watch: false } });
-			vi.spyOn(
-				adapter as unknown as { initializeSharedRouteHandling: () => Promise<void> },
-				'initializeSharedRouteHandling',
-			).mockImplementation(async () => {
+			vi.spyOn(ServerRequestPipeline.prototype, 'initializeRouteHandling').mockImplementation(async () => {
 				events.push('routes read');
 			});
 
 			await adapter.initialize();
 			const initialization = adapter.completeInitialization({} as import('node:http').Server);
 			await vi.waitFor(() => expect(events).toContain('browser manifest restore started'));
-			const handleSharedRequest = vi.spyOn(adapter, 'handleSharedRequest');
+			const handleSharedRequest = vi
+				.spyOn(ServerRequestPipeline.prototype, 'handleSharedRequest')
+				.mockResolvedValue(new Response('ok'));
 			const request = adapter.handleServerRequest(new Request('http://localhost:3000/page'));
 			await Promise.resolve();
 
@@ -573,9 +538,11 @@ describe('NodeServerAdapter', () => {
 			const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [integration] });
 			const adapter = makeNodeServerAdapter({ appConfig, options: { watch: true } });
 			adapter.setReadyForTest();
-			adapter.skipDevRouteSetupForTest();
+			vi.spyOn(ServerRequestPipeline.prototype, 'configureResponseHandlers').mockImplementation(() => {});
 			const expectedResponse = new Response('ready');
-			const handleSharedRequest = vi.spyOn(adapter, 'handleSharedRequest').mockResolvedValue(expectedResponse);
+			const handleSharedRequest = vi
+				.spyOn(ServerRequestPipeline.prototype, 'handleSharedRequest')
+				.mockResolvedValue(expectedResponse);
 			const initialization = adapter.completeInitialization(server);
 			const response = adapter.handleServerRequest(new Request('http://localhost:3000/page'));
 
@@ -627,7 +594,9 @@ describe('NodeServerAdapter', () => {
 			const adapter = makeNodeServerAdapter({ options: { watch: true } });
 			adapter.setReadyForTest();
 			const expectedResponse = new Response('ready');
-			const handleSharedRequest = vi.spyOn(adapter, 'handleSharedRequest').mockResolvedValue(expectedResponse);
+			const handleSharedRequest = vi
+				.spyOn(ServerRequestPipeline.prototype, 'handleSharedRequest')
+				.mockResolvedValue(expectedResponse);
 
 			await expect(adapter.handleRequest(new Request('http://localhost:3000/page'))).resolves.toBe(
 				expectedResponse,
@@ -736,7 +705,7 @@ describe('NodeServerAdapter', () => {
 		const appConfig = await finalizeEcoPagesConfig({ rootDir: path.join(os.tmpdir(), 'ecopages-host-reload') });
 		appConfig.integrations = [];
 		const adapter = makeNodeServerAdapter({ appConfig });
-		adapter.skipDevRouteSetupForTest();
+		vi.spyOn(ServerRequestPipeline.prototype, 'configureResponseHandlers').mockImplementation(() => {});
 		const fileEvents = Object.assign(new EventEmitter(), {
 			add: vi.fn(),
 			close: vi.fn(async () => {}),

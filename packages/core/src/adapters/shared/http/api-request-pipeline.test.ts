@@ -7,8 +7,6 @@ import { appLogger } from '../../../global/app-logger.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from '../../node/http-request-bridge.ts';
 import { ApiRequestPipeline } from './api-request-pipeline.ts';
 
-class ClientAbort extends Error {}
-
 class NodeRequestFixture extends PassThrough {
 	public url = '/api/posts';
 	public method = 'POST';
@@ -22,7 +20,6 @@ function createPipeline() {
 				render: vi.fn(),
 			}) as unknown as RenderContext,
 		getCacheService: () => null,
-		isClientAbort: (error) => error instanceof ClientAbort || error instanceof NodeClientAbortError,
 	});
 }
 
@@ -510,7 +507,7 @@ describe('ApiRequestPipeline', () => {
 
 		const response = await createPipeline().tryHandle(
 			new Request('http://localhost/api/fail', { method: 'POST' }),
-			throwingHandler(new ClientAbort()),
+			throwingHandler(new NodeClientAbortError()),
 			undefined,
 			errorHandler,
 		);

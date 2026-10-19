@@ -92,7 +92,7 @@ describe('content processor collection server module builds', () => {
 			},
 			resolve: (specifier) => specifier,
 		};
-		const queue = new BuildQueue(adapter, { build: 1, hmr: 1, nested: 1 });
+		const queue = new BuildQueue(adapter, { build: 1, hmr: 1 });
 		const queueBuild = queue.build.bind(queue);
 		queue.build = (options, lane) => {
 			lanes.push(`${lane ?? 'build'}:${String(Object.values(options.entrypoints)[0])}`);

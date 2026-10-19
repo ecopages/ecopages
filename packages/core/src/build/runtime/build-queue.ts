@@ -17,23 +17,26 @@ import { createBuildRequestIdentity } from './build-request-identity.ts';
  * `nested` is for a build that a running build waits for, such as the collection bundle a content plugin's
  * `onResolve` hook triggers. A running build holds its lane's slot until it ends, so a build it waits for in the
  * same lane could wait for a slot that its own parent holds, and with every slot taken that way none would ever free.
- * A `nested` build never waits on another `nested` build, so its lane cannot lock up.
+ * The `nested` lane has no limit: a `nested` build starts at once, even one that another `nested` build waits for.
+ * The limited lane of the build at the top of each chain bounds how many run.
  */
 export type BuildLane = 'build' | 'hmr' | 'nested';
 
+type LimitedLane = Exclude<BuildLane, 'nested'>;
+
 type LaneState = { limit: number; active: number; waiting: Array<() => void> };
 
-/** Concurrency each lane gets on this machine. */
-export function resolveBuildLaneLimits(): Record<BuildLane, number> {
+/** Concurrency each limited lane gets on this machine. */
+export function resolveBuildLaneLimits(): Record<LimitedLane, number> {
 	const build = resolveBuildParallelism();
-	return { build, hmr: Math.min(3, build), nested: build };
+	return { build, hmr: Math.min(3, build) };
 }
 
 /**
  * The one queue every build of an app goes through.
  *
  * @remarks
- * A lane runs at most its limit of builds at once and starts the rest in arrival order. A request identical to one
+ * The `build` and `hmr` lanes each run at most their limit of builds at once and start the rest in arrival order. A request identical to one
  * that is queued or running, by {@link createBuildRequestIdentity}, shares that build and its result whichever lane
  * it asks for. Inside {@link BuildQueue.withRequestScope}, a finished build is also shared with later identical
  * requests of the same scope, so one page request that asks for the same bundle twice builds it once. A build that
@@ -44,16 +47,15 @@ export function resolveBuildLaneLimits(): Record<BuildLane, number> {
  */
 export class BuildQueue implements BuildExecutor {
 	private readonly adapter: BuildAdapter;
-	private readonly lanes: Record<BuildLane, LaneState>;
+	private readonly lanes: Record<LimitedLane, LaneState>;
 	private readonly inFlight = new Map<string, Promise<BuildResult>>();
 	private readonly requestScope = new AsyncLocalStorage<Map<string, Promise<BuildResult>>>();
 
-	constructor(adapter: BuildAdapter, limits: Record<BuildLane, number> = resolveBuildLaneLimits()) {
+	constructor(adapter: BuildAdapter, limits: Record<LimitedLane, number> = resolveBuildLaneLimits()) {
 		this.adapter = adapter;
 		this.lanes = {
 			build: { limit: Math.max(1, limits.build), active: 0, waiting: [] },
 			hmr: { limit: Math.max(1, limits.hmr), active: 0, waiting: [] },
-			nested: { limit: Math.max(1, limits.nested), active: 0, waiting: [] },
 		};
 	}
 
@@ -88,6 +90,9 @@ export class BuildQueue implements BuildExecutor {
 	}
 
 	private async run(lane: BuildLane, options: BuildOptions): Promise<BuildResult> {
+		if (lane === 'nested') {
+			return this.adapter.build(options);
+		}
 		const state = this.lanes[lane];
 		if (state.active < state.limit) {
 			state.active += 1;

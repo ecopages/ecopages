@@ -6,6 +6,7 @@ import { composeSourceMaps, isUsableSourceMap } from '../build/source-maps.ts';
 import { createCoreTransformPlugin, createMappedSourceTransformResult } from '../build/mapped-source-transform.ts';
 import { parseModuleSource } from '../cache/module-parse-cache.ts';
 import { contentHash } from '../utils/content-hash.ts';
+import { escapeRegExp } from '../utils/regex-escaping.ts';
 import { discoverComponentImports, type DiscoveredImports } from './component-import-discovery.ts';
 import { findIntegrationForFile } from './find-integration-for-file.ts';
 
@@ -416,12 +417,21 @@ export function attributeMdxComponentIdentity(
 	};
 }
 
+/**
+ * Matches the ids of modules with a script extension that an Integration owns, before an optional query.
+ *
+ * @remarks
+ * With no such extension it matches no id, so the hook filter skips every module rather than an empty
+ * alternation matching all of them, `node_modules` included.
+ */
 function createComponentMetaFilter(config: EcoPagesAppConfig): RegExp {
 	const extensions = config.integrations
 		.flatMap((integration) => integration.extensions)
-		.filter((extension) => ['.ts', '.tsx', '.js', '.jsx'].some((suffix) => extension.endsWith(suffix)))
-		.map((extension) => extension.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-	return new RegExp(`(${extensions.join('|')})(\\?.*)?$`);
+		.filter((extension) => ['.ts', '.tsx', '.js', '.jsx'].some((suffix) => extension.endsWith(suffix)));
+	if (extensions.length === 0) {
+		return /(?!)/;
+	}
+	return new RegExp(`(${extensions.map(escapeRegExp).join('|')})(\\?.*)?$`);
 }
 
 /**

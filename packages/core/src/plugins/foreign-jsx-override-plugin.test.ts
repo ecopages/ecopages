@@ -11,6 +11,23 @@ describe('foreign-jsx-override-plugin', () => {
 		await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 	});
 
+	it('loads only files that end with every dot of a foreign extension', () => {
+		const plugin = createForeignJsxOverridePlugin({
+			hostJsxImportSource: 'react',
+			foreignExtensions: ['.kita.tsx'],
+		});
+		let filter: RegExp | undefined;
+
+		plugin.setup({
+			onLoad(options: { filter: RegExp }) {
+				filter = options.filter;
+			},
+		} as never);
+
+		expect(filter?.test('/src/a.kita.tsx')).toBe(true);
+		expect(filter?.test('/src/a.kitaXtsx')).toBe(false);
+	});
+
 	it('preserves jsx loader selection for jsx files', async () => {
 		const tempDir = await mkdtemp(path.join(tmpdir(), 'foreign-jsx-override-'));
 		tempDirs.push(tempDir);

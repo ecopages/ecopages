@@ -83,6 +83,23 @@ describe('eco-component-meta-plugin', () => {
 		expect((result as { code: string }).code).toMatch(ecoMetaPattern('/path/to/pages/index.tsx', 'react'));
 	});
 
+	it('filters on every dot of an extension', () => {
+		expect(transform.filter.test('/src/a.kita.tsx')).toBe(true);
+		expect(transform.filter.test('/src/a.kitaXtsx')).toBe(false);
+	});
+
+	it('matches no module when no Integration owns a script extension', () => {
+		const { filter } = getPluginTransform(
+			createEcoComponentMetaPlugin({
+				config: { integrations: [{ name: 'mdx', extensions: ['.mdx'] }] } as EcoPagesAppConfig,
+			}),
+		);
+
+		for (const id of ['/src/page.mdx', '/src/index.ts', '/node_modules/react/index.js', '']) {
+			expect(filter.test(id)).toBe(false);
+		}
+	});
+
 	it('attributes the file an id with a query suffix names', () => {
 		const result = transform.transform(
 			"import { eco } from '@ecopages/core';\nexport default eco.page({ render: () => '<main />' });",

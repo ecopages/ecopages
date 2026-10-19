@@ -35,6 +35,13 @@ export async function getSourceImagePaths(resolvedConfig: ImageProcessorDiskConf
 	return fileSystem.glob([`${resolvedConfig.sourceDir}/**/*.{${acceptedFormats.join(',')}}`]);
 }
 
+/**
+ * Lists the public paths of every file a specification points at.
+ */
+export function getOutputSources(spec: ImageSpecifications): string[] {
+	return [spec.attributes.src, ...spec.variants.map((variant) => variant.src)];
+}
+
 function getGeneratedOutputPath(outputDir: string, src: string): string {
 	return path.join(outputDir, path.basename(src));
 }
@@ -73,7 +80,7 @@ export async function loadProcessedImagesFromDisk(options: {
 			return null;
 		}
 
-		const outputPaths = [spec.attributes.src, ...spec.variants.map((variant) => variant.src)];
+		const outputPaths = getOutputSources(spec);
 		if (
 			!outputPaths.every((src) =>
 				fileSystem.exists(getGeneratedOutputPath(options.resolvedConfig.outputDir, src)),

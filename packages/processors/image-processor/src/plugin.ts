@@ -19,7 +19,12 @@ import { Logger } from '@ecopages/logger';
 import { isEcopagesEnvEnabled } from '@ecopages/core/processor';
 import { createImagePlugin, createImagePluginBundler } from './image-plugins.ts';
 import { ImageProcessor } from './image-processor.ts';
-import { getSourceImagePaths, loadProcessedImagesFromDisk, type ImageMap } from './image-runtime-state.ts';
+import {
+	getOutputSources,
+	getSourceImagePaths,
+	loadProcessedImagesFromDisk,
+	type ImageMap,
+} from './image-runtime-state.ts';
 import type { ImageSize, ImageSpecifications } from './types.ts';
 import { anyCaseToCamelCase } from './utils.ts';
 
@@ -220,14 +225,6 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 		});
 	}
 
-	private getGeneratedOutputPath(src: string): string {
-		if (!this.resolvedConfig) {
-			throw new Error('ImageProcessor not initialized');
-		}
-
-		return path.join(this.resolvedConfig.outputDir, path.basename(src));
-	}
-
 	/**
 	 * Restores in-memory image state from previously generated dist artifacts.
 	 *
@@ -306,7 +303,12 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 			try {
 				const result = await this.processor.processImage(image);
 				if (result) {
-					this.processedImages[path.basename(image)] = result;
+					const key = path.basename(image);
+					const previous = this.processedImages[key];
+					this.processedImages[key] = result;
+					if (previous) {
+						await this.removeSupersededOutputs(previous, result);
+					}
 				}
 			} catch (error) {
 				logger.error('Failed to process image', { image, error });
@@ -317,8 +319,11 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 	}
 
 	/**
-	 * Delete processed images using the original image path.
-	 * @param imagePath
+	 * Deletes the optimized files and cache entry recorded for a removed source image.
+	 *
+	 * @remarks
+	 * Variant files are named after a hash of their bytes, so the files to delete are
+	 * the ones the recorded specification points at, not a pattern on the source name.
 	 */
 	async deleteProcessedImagesbyPath(imagePath: string): Promise<void> {
 		if (!this.processor) {
@@ -327,42 +332,59 @@ export class ImageProcessorPlugin extends Processor<ImageProcessorConfig> {
 
 		logger.debug('Deleting processed images', { path: imagePath });
 
-		try {
-			const baseNameWithoutExt = path.basename(imagePath, path.extname(imagePath));
+		const key = path.basename(imagePath);
+		const previous = this.processedImages[key];
+		if (!previous) {
+			return;
+		}
 
-			if (!this.options) {
-				throw new Error('Options not set');
+		delete this.processedImages[key];
+		await this.removeSupersededOutputs(previous);
+
+		this.generateTypes();
+	}
+
+	/**
+	 * Removes the cache entry and the output files of `previous` that `next` no longer uses.
+	 *
+	 * @remarks
+	 * Identical encoded bytes share one hashed file across source images, so a file
+	 * is only removed once no remaining specification references it.
+	 */
+	private async removeSupersededOutputs(previous: ImageSpecifications, next?: ImageSpecifications): Promise<void> {
+		if (!this.resolvedConfig) {
+			throw new Error('ImageProcessor not initialized');
+		}
+
+		const referenced = new Set<string>();
+		for (const spec of [...Object.values(this.processedImages), ...(next ? [next] : [])]) {
+			for (const src of getOutputSources(spec)) {
+				referenced.add(path.basename(src));
 			}
+		}
 
-			const outputDir = this.options.outputDir;
+		const files = getOutputSources(previous)
+			.map((src) => path.basename(src))
+			.filter((name) => !referenced.has(name));
 
-			const files = await fileSystem.glob([`${outputDir}/${baseNameWithoutExt}-*`]);
-
-			await Promise.all(
-				files.map(async (file) => {
-					try {
-						await fileSystem.removeAsync(file);
-						logger.debug('Deleted processed image', { file });
-					} catch (error) {
-						logger.error('Failed to delete processed image', { file, error });
-					}
-				}),
-			);
-
+		for (const file of new Set(files)) {
+			const filePath = path.join(this.resolvedConfig.outputDir, file);
 			try {
-				const cacheKey = this.processedImages[path.basename(imagePath)].cacheKey;
-				const cachePath = this.getCachePath(cacheKey);
+				await fileSystem.removeAsync(filePath);
+				logger.debug('Deleted processed image', { file: filePath });
+			} catch (error) {
+				logger.error('Failed to delete processed image', { file: filePath, error });
+			}
+		}
+
+		if (previous.cacheKey !== next?.cacheKey) {
+			const cachePath = this.getCachePath(previous.cacheKey);
+			try {
 				await fileSystem.removeAsync(cachePath);
 				logger.debug('Deleted cache file for image', { cachePath });
 			} catch (error) {
-				logger.error('Failed to delete cache file for image', { imagePath, error });
+				logger.error('Failed to delete cache file for image', { cachePath, error });
 			}
-
-			delete this.processedImages[path.basename(imagePath)];
-
-			this.generateTypes();
-		} catch (error) {
-			logger.error('Failed to delete processed images', { path: imagePath, error });
 		}
 	}
 
@@ -434,14 +456,6 @@ declare module "ecopages:images" {
 			packageName: '@types/ecopages-image-processor',
 			writeFile: (filePath, content) => this.writeGeneratedFile(filePath, content),
 		});
-	}
-
-	/**
-	 * Get the image processor instance.
-	 * @returns The image processor instance.
-	 */
-	getProcessor(): ImageProcessor | undefined {
-		return this.processor;
 	}
 }
 

@@ -319,7 +319,7 @@ Do not edit generated files manually.
 
 ## Validation errors
 
-Invalid frontmatter throws `SchemaError` from `@standard-schema/utils` during scan/build. Fix the MDX frontmatter or relax the schema in your app.
+Invalid frontmatter throws `SchemaError` from `@standard-schema/utils` during scan/build. Fix the MDX frontmatter or relax the schema in your app. In development the error appears in the browser overlay, and saving the fixed file recovers the collection without restarting the server.
 
 ## Dev / HMR
 
@@ -329,7 +329,7 @@ Watch config drives manifest regeneration only. Asset ownership (which would ski
 
 ## MDX integration
 
-Content files are MDX components. Ensure your JSX or React integration is configured in `eco.config.ts` with MDX enabled so collection entries compile as components.
+Content files are MDX components. Ensure your JSX or React integration is configured in `eco.config.ts` with an `mdx` option so collection entries compile as components.
 
 Content collections with YAML frontmatter need `remark-frontmatter` in the **MDX compile pipeline**. The processor validates frontmatter at scan time (`vfile-matter`); MDX render time needs the remark plugin so `---` blocks are not emitted as content.
 
@@ -341,7 +341,6 @@ import remarkGfm from 'remark-gfm';
 
 ecopagesJsxPlugin({
 	mdx: {
-		enabled: true,
 		...withContentMdxPlugins({
 			remarkPlugins: [remarkGfm],
 			rehypePlugins: [/* app-specific rehype plugins */],
@@ -351,7 +350,6 @@ ecopagesJsxPlugin({
 
 reactPlugin({
 	mdx: {
-		enabled: true,
 		...withContentMdxPlugins(),
 	},
 });

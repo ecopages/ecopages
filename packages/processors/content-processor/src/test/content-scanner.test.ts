@@ -67,3 +67,33 @@ describe('ContentScanner slugFromRelativePath ordering', () => {
 		expect(manifest.map((entry) => entry.slug)).toEqual(['intro', 'tests/shared-demo', 'tests/shared-demo-react']);
 	});
 });
+
+describe('ContentScanner cache', () => {
+	it('retries the directory scan after a load failed on invalid frontmatter', async () => {
+		let body = '---\ntitle: 1\n---\n# Intro';
+		vi.spyOn(fileSystem, 'glob').mockResolvedValue(['intro.mdx']);
+		vi.spyOn(fileSystem, 'readFile').mockImplementation(async () => body);
+
+		const scanner = new ContentScanner({
+			contentRoot,
+			schema: {
+				'~standard': {
+					version: 1,
+					vendor: 'test',
+					validate: (value: unknown) => {
+						const { title } = value as { title: unknown };
+						return typeof title === 'string'
+							? { value: { title } }
+							: { issues: [{ message: 'title must be a string' }] };
+					},
+				},
+			},
+		});
+
+		await expect(scanner.getManifest()).rejects.toThrow();
+
+		body = '---\ntitle: Intro\n---\n# Intro';
+
+		await expect(scanner.getManifest()).resolves.toMatchObject([{ slug: 'intro', title: 'Intro' }]);
+	});
+});

@@ -1,6 +1,7 @@
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import type { PageParams, PageQuery } from '@ecopages/core';
+import { fromLitStaticRenderErrorMessage } from './lit-static-render-error.ts';
 import type {
 	LitStaticRenderResult,
 	LitStaticRenderWorkerRequestMessage,
@@ -73,7 +74,7 @@ export class LitStaticRenderWorkerClient {
 					if (message.id && this.pending.has(message.id)) {
 						const pending = this.pending.get(message.id)!;
 						this.pending.delete(message.id);
-						pending.reject(new Error(message.message));
+						pending.reject(fromLitStaticRenderErrorMessage(message));
 						return;
 					}
 

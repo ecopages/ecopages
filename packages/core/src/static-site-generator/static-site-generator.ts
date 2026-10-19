@@ -42,6 +42,7 @@ import {
 import { renderSitemap } from './sitemap.ts';
 import { resolveSitemapLocations } from './sitemap-routes.ts';
 import { toEcopagesRouteInfo } from '../utils/ecopages-route-info.ts';
+import { buildSegmentPath } from '../router/server/segment-path-matcher.ts';
 import { normalizePathname } from '../utils/path-pattern.ts';
 import { ErrorPageRenderer } from '../route-renderer/error-pages/error-page-renderer.ts';
 import {
@@ -780,26 +781,9 @@ export class StaticSiteGenerator {
 		});
 
 		return paths.map(({ params }) => ({
-			pathname: this.resolveRoutePath(routePath, params),
+			pathname: buildSegmentPath(routePath, params, 'explicit'),
 			params,
 		}));
-	}
-
-	/**
-	 * Resolve a route path template with actual params.
-	 * Supports both :param and [param] syntax.
-	 */
-	private resolveRoutePath(routePath: string, params: Record<string, string | string[]>): string {
-		let resolved = routePath;
-
-		for (const [key, value] of Object.entries(params)) {
-			const paramValue = Array.isArray(value) ? value.join('/') : value;
-			resolved = resolved.replace(`:${key}`, paramValue);
-			resolved = resolved.replace(`[${key}]`, paramValue);
-			resolved = resolved.replace(`[...${key}]`, paramValue);
-		}
-
-		return resolved;
 	}
 
 	/**

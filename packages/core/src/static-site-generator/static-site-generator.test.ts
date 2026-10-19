@@ -945,6 +945,68 @@ describe('StaticSiteGenerator', () => {
 			expect(writeMock).toHaveBeenCalledWith('/test/project/dist/blog/hello-world.html', '<html>Post</html>');
 		});
 
+		test.each([
+			{
+				name: 'a colon catch-all',
+				path: '/docs/:...path',
+				params: [{ path: ['guide', 'intro'] }, { path: ['api'] }],
+				files: ['/test/project/dist/docs/guide/intro.html', '/test/project/dist/docs/api.html'],
+			},
+			{
+				name: 'a bracket catch-all',
+				path: '/docs/[...path]',
+				params: [{ path: ['guide', 'intro'] }],
+				files: ['/test/project/dist/docs/guide/intro.html'],
+			},
+			{
+				name: 'params where one name prefixes another',
+				path: '/:idx/:id',
+				params: [{ id: '2', idx: '1x' }],
+				files: ['/test/project/dist/1x/2.html'],
+			},
+			{
+				name: 'bracket and colon params together',
+				path: '/blog/[slug]/:lang',
+				params: [{ slug: 'hello', lang: 'en' }],
+				files: ['/test/project/dist/blog/hello/en.html'],
+			},
+		])('should write one file per staticPaths entry for $name', async ({ path, params, files }) => {
+			const ssg = new StaticSiteGenerator({
+				appConfig: createMockConfig({ baseUrl: 'http://localhost:3000' } as any),
+			});
+
+			await ssg.run({
+				router: {
+					listStaticGenerationRoutes: vi.fn(async () => []),
+				} satisfies StaticGenerationRunnerInput['router'],
+				baseUrl: 'http://localhost:3000',
+				routeRendererFactory: {
+					getPageRenderer: vi.fn(),
+					getExplicitViewRenderer: vi.fn(() => ({
+						renderExplicitView: vi.fn(),
+						executeExplicitView: vi.fn(async () => ({ body: '<html>Page</html>' })),
+					})),
+				} satisfies StaticGenerationRendererFactory,
+				staticRoutes: [
+					{
+						path,
+						loader: async () => ({
+							default: Object.assign(() => null, {
+								config: { identity: testInjectedMeta },
+								staticPaths: async () => ({ paths: params.map((entry) => ({ params: entry })) }),
+								staticProps: async () => ({ props: {} }),
+							}),
+						}),
+					},
+				],
+			});
+
+			const written = (writeMock.mock.calls as [string, string][])
+				.map(([file]) => file)
+				.filter((file) => file.endsWith('.html'));
+			expect(written.filter((file) => files.includes(file)).sort()).toEqual([...files].sort());
+		});
+
 		test.each([false, true])(
 			'should continue exporting explicit staticPaths after one entry fails (keepGoing=%s)',
 			async (keepGoing) => {

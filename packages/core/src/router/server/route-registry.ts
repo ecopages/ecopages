@@ -8,7 +8,12 @@ import { invariant } from '../../utils/invariant.ts';
 import { normalizePathname } from '../../utils/path-pattern.ts';
 import { parseSearchParams } from './parse-search-params.ts';
 import { findIntegrationForFile, findLongestExtension } from '../../plugins/find-integration-for-file.ts';
-import { matchParsedSegmentPath, parseSegmentPath, type ParsedSegmentPath } from './segment-path-matcher.ts';
+import {
+	buildSegmentPath,
+	matchParsedSegmentPath,
+	parseSegmentPath,
+	type ParsedSegmentPath,
+} from './segment-path-matcher.ts';
 
 export type RouteKind = 'exact' | 'catch-all' | 'dynamic';
 export type RouteParams = PageParams;
@@ -208,7 +213,7 @@ export class RouteRegistry {
 
 			for (const { params } of result.paths) {
 				expansions.push({
-					pathname: this.resolveTemplatePath(route.pathname, params),
+					pathname: buildSegmentPath(route.pathname, params, 'filesystem'),
 					templateRoute: route,
 					params,
 				});
@@ -343,17 +348,5 @@ export class RouteRegistry {
 
 	private getSearchParams(url: URL): RouteQuery {
 		return parseSearchParams(url.searchParams);
-	}
-
-	private resolveTemplatePath(pathname: string, params: RouteParams): string {
-		let resolvedPath = pathname;
-
-		for (const [key, value] of Object.entries(params)) {
-			const serializedValue = Array.isArray(value) ? value.join('/') : value;
-			resolvedPath = resolvedPath.replace(`[...${key}]`, serializedValue);
-			resolvedPath = resolvedPath.replace(`[${key}]`, serializedValue);
-		}
-
-		return normalizePathname(resolvedPath);
 	}
 }

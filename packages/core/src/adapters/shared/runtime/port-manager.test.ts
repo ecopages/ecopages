@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { lookup } from 'node:dns/promises';
 import { createServer as createNetServer } from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
 import { isPortInUseError, isPortAvailable, PortManager } from './port-manager.ts';
@@ -60,6 +61,25 @@ describe('isPortAvailable', () => {
 
 		const freePort = 49152 + Math.floor(Math.random() * 1000);
 		expect(await isPortAvailable(freePort, '127.0.0.1')).toBe(true);
+	});
+
+	it('probes the address the hostname resolves to', async () => {
+		const { address } = await lookup('localhost');
+		const holder = createNetServer();
+		await new Promise<void>((resolve) => holder.listen(0, address, resolve));
+		const occupiedPort = (holder.address() as { port: number }).port;
+
+		try {
+			expect(await isPortAvailable(occupiedPort, 'localhost')).toBe(false);
+		} finally {
+			await new Promise<void>((resolve) => holder.close(() => resolve()));
+		}
+
+		expect(await isPortAvailable(occupiedPort, 'localhost')).toBe(true);
+	});
+
+	it('reports a hostname that does not resolve as unavailable', async () => {
+		expect(await isPortAvailable(49152, 'does-not-exist.invalid')).toBe(false);
 	});
 });
 

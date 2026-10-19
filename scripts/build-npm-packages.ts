@@ -551,6 +551,40 @@ function validatePackedFiles(distDir: string): void {
 			`pnpm pack would omit ${missing.length} emitted file(s) from ${toPosix(path.relative(repoRoot, distDir))}: ${missing.join(', ')}. Check the ignore rules in .gitignore.`,
 		);
 	}
+
+	const unresolved = [...packed]
+		.filter((file) => /\.[cm]?js$/.test(file))
+		.flatMap((file) =>
+			findUnresolvedRelativeImports(file, readFileSync(path.join(distDir, file), 'utf-8'), packed).map(
+				(target) => `${file} imports ${target}`,
+			),
+		);
+	if (unresolved.length > 0) {
+		throw new Error(
+			`${toPosix(path.relative(repoRoot, distDir))} would publish files that import a file missing from the tarball: ${unresolved.join('; ')}.`,
+		);
+	}
+}
+
+/**
+ * Lists the relative import targets of one packed JavaScript file that the tarball does not contain.
+ *
+ * @remarks
+ * Matches `from '...'`, side-effect `import '...'` and `import('...')` with a string literal, which
+ * also covers `export ... from`. Targets must match a packed path exactly because Node ESM does not
+ * guess extensions. Block comments and whole-line `//` comments are ignored because TSDoc examples
+ * quote imports. The scan is textual, so a string literal that contains `/*` can hide the code up to
+ * the next `*` and `/`, which can only miss a problem and never invent one. A keyword that directly
+ * follows a quote is skipped, so code generated inside a string, such as `'import "./x.d.ts";'`, is not read.
+ */
+export function findUnresolvedRelativeImports(file: string, source: string, packed: ReadonlySet<string>): string[] {
+	const unresolved = new Set<string>();
+	const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+	for (const [, specifier] of code.matchAll(/(?<![\w"'`$.])(?:from|import)\s*\(?\s*["'](\.{1,2}\/[^"'\n\r]+)["']/g)) {
+		const target = path.posix.join(path.posix.dirname(file), specifier);
+		if (!packed.has(target)) unresolved.add(target);
+	}
+	return [...unresolved];
 }
 
 /**

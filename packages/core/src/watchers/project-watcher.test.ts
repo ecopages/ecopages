@@ -544,7 +544,8 @@ describe('ProjectWatcher', () => {
 				broadcast: true,
 			});
 			expect(Bridge.reload).not.toHaveBeenCalled();
-			expect(errorLog).toHaveBeenCalledWith(expect.stringContaining('failing'), failure);
+			expect(errorLog).toHaveBeenCalledWith(expect.stringContaining('failing'));
+			expect(HmrManager.broadcast).toHaveBeenCalledWith({ type: 'error', message: failure.message });
 		});
 
 		test('should send every HMR-eligible edit in one batch to HMR strategies', async () => {

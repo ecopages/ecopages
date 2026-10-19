@@ -73,6 +73,17 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	private readonly collectionServerArtifacts = new Map<string, CollectionServerBuildArtifact>();
 
 	/**
+	 * Collections whose generated modules may not match the files on disk.
+	 *
+	 * @remarks
+	 * A collection joins this set when a regeneration starts and leaves it when that
+	 * regeneration completes. One that failed, for example on invalid frontmatter,
+	 * stays in it so the next file change regenerates instead of diffing against a
+	 * manifest that never reached the generated modules.
+	 */
+	private readonly staleCollections = new Set<string>();
+
+	/**
 	 * Absolute paths to generated collection entry modules, keyed by collection name.
 	 * Virtual-module plugins close over this object so mutations stay live.
 	 */
@@ -190,6 +201,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 			return;
 		}
 
+		this.staleCollections.add(collectionName);
 		const scanner = this.getOrCreateScanner(collectionName);
 		scanner.clearCache();
 
@@ -210,6 +222,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		this.collectionServerModules[collectionName] = serverOutputFile;
 		this.collectionBrowserModules[collectionName] = browserOutputFile;
 		this.invalidateCollectionServerArtifact(collectionName);
+		this.staleCollections.delete(collectionName);
 
 		logger.debug('Generated content collection module', {
 			collectionName,
@@ -342,7 +355,7 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 		collectionName: string,
 		changes: ContentCollectionWatchChanges,
 	): Promise<boolean> {
-		if (changes.regenerate) {
+		if (changes.regenerate || this.staleCollections.has(collectionName)) {
 			await this.regenerateCollectionModule(collectionName);
 			return true;
 		}
@@ -367,13 +380,12 @@ export class ContentProcessorPlugin extends Processor<ContentProcessorConfig> {
 	): Promise<'none' | 'entries' | 'collection'> {
 		let result: 'none' | 'entries' | 'collection' = 'none';
 		for (const filePath of changes.changedEntries) {
+			changes.invalidateServerArtifact = true;
 			const updateResult = await this.getOrCreateScanner(collectionName).updateEntryForPath(filePath, 'change');
-			if (updateResult === 'no-op') {
-				changes.invalidateServerArtifact = true;
+			if (updateResult === 'structure') {
+				result = 'collection';
 			} else if (updateResult === 'manifest' && result === 'none') {
 				result = 'entries';
-			} else if (updateResult !== 'manifest') {
-				result = 'collection';
 			}
 		}
 

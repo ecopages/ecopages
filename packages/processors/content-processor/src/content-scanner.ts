@@ -107,9 +107,21 @@ export class ContentScanner<T extends Record<string, unknown> = Record<string, u
 		};
 	}
 
+	/**
+	 * @remarks
+	 * A rejected load is dropped so the next call re-reads the directory. Keeping it
+	 * would replay the first schema error for every later edit, even after the
+	 * offending file was fixed.
+	 */
 	private async getCache(): Promise<ContentCache<T>> {
 		if (!this.cachePromise) {
-			this.cachePromise = this.loadCache();
+			const pending = this.loadCache();
+			this.cachePromise = pending;
+			pending.catch(() => {
+				if (this.cachePromise === pending) {
+					this.cachePromise = undefined;
+				}
+			});
 		}
 		return this.cachePromise;
 	}

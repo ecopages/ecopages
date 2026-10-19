@@ -605,4 +605,63 @@ order: ${index}
 		expect(fileSystem.readFileSync(serverCacheFile)).toContain('export async function getComponent');
 		expect(fileSystem.readFileSync(serverCacheFile).match(/import\(/g)?.length ?? 0).toBe(5);
 	});
+
+	test('saving a fixed entry recovers a collection whose create event failed validation', async () => {
+		const rootDir = createTempRoot('ecopages-content-processor-recover-');
+		tempRoots.push(rootDir);
+
+		const contentDir = path.join(rootDir, 'src', 'content', 'docs');
+		const introPath = path.join(contentDir, 'intro.mdx');
+		const draftPath = path.join(contentDir, 'draft.mdx');
+		fileSystem.ensureDir(contentDir);
+		fileSystem.write(introPath, '---\ntitle: Intro\ndescription: Welcome\norder: 1\n---\n# Intro\n');
+
+		const plugin = createContentProcessorPlugin({ docs: { contentDir: 'content/docs' } });
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		await setupContentProcessor(plugin, appConfig);
+
+		const cacheFile = path.join(
+			appConfig.absolutePaths.workDir,
+			GENERATED_BASE_PATHS.cache,
+			plugin.name,
+			'docs.ts',
+		);
+		const watchConfig = plugin.getWatchConfig();
+
+		fileSystem.write(draftPath, '---\ndescription: Missing title\n---\n# Draft\n');
+		await expect(applyWatchChanges(watchConfig, { created: [draftPath] })).rejects.toThrow();
+
+		fileSystem.write(draftPath, '---\ntitle: Draft\ndescription: Fixed\norder: 2\n---\n# Draft\n');
+		await applyWatchChanges(watchConfig, { changed: [draftPath] });
+
+		expect(fileSystem.readFileSync(cacheFile)).toContain('draft');
+	});
+
+	test('edits that change frontmatter and body invalidate the compiled collection', async () => {
+		const rootDir = createTempRoot('ecopages-content-processor-both-');
+		tempRoots.push(rootDir);
+
+		const contentDir = path.join(rootDir, 'src', 'content', 'docs');
+		const introPath = path.join(contentDir, 'intro.mdx');
+		fileSystem.ensureDir(contentDir);
+		fileSystem.write(introPath, '---\ntitle: Intro\ndescription: Welcome\norder: 1\n---\n# Intro\n');
+
+		const plugin = createContentProcessorPlugin({ docs: { contentDir: 'content/docs' } });
+		const appConfig = await finalizeEcoPagesConfig({
+			rootDir,
+			baseUrl: 'http://localhost:3000',
+			processors: [plugin],
+		});
+		await setupContentProcessor(plugin, appConfig);
+		plugin.collectionServerCompiledModules.docs = '/tmp/stale-docs-server-collection.mjs';
+
+		fileSystem.write(introPath, '---\ntitle: Intro Updated\ndescription: Welcome\norder: 1\n---\n# New body\n');
+		await applyWatchChanges(plugin.getWatchConfig(), { changed: [introPath] });
+
+		expect(plugin.collectionServerCompiledModules.docs).toBeUndefined();
+	});
 });

@@ -404,10 +404,7 @@ export class ProjectWatcher {
 				try {
 					await watchConfig.onChanges(changes);
 				} catch (error) {
-					appLogger.error(
-						`Processor ${processor.name} failed to handle file changes`,
-						error instanceof Error ? error : new Error(String(error)),
-					);
+					this.reportError(`Processor ${processor.name} failed to handle file changes`, error);
 				}
 			}
 		}
@@ -440,10 +437,17 @@ export class ProjectWatcher {
 	 * @param {unknown} error - The error to handle
 	 */
 	handleError(error: unknown) {
+		this.reportError('Watcher error', error);
+	}
+
+	/**
+	 * Logs an error and shows it in the browser error overlay.
+	 */
+	private reportError(context: string, error: unknown): void {
 		if (error instanceof Error) {
 			this.hmrManager.broadcast({ type: 'error', message: error.message });
 		}
-		appLogger.error(`Watcher error: ${formatErrorWithStack(error)}`);
+		appLogger.error(`${context}: ${formatErrorWithStack(error)}`);
 	}
 
 	/**

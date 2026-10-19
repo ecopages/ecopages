@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.1
+
+### Patch Changes
+
+- [#789](https://github.com/ecopages/ecopages/pull/789) [`8ebf1bf`](https://github.com/ecopages/ecopages/commit/8ebf1bf200754867a666b8cfc4bcbb32d55c0381) Thanks [@andeeplus](https://github.com/andeeplus)! - Fix relative links navigating to the wrong URL. A link such as `?page=2` on `/blog` or `next` on `/docs/intro` now resolves against the current page and any `<base href>`, as a full page load would, instead of against the site root.
+
+- [#797](https://github.com/ecopages/ecopages/pull/797) [`6d58f32`](https://github.com/ecopages/ecopages/commit/6d58f32800199fb5e6dbc15cbdc2309bbdd5ea34) Thanks [@andeeplus](https://github.com/andeeplus)! - Give each component, layout and page declared in one file its own identity. Before, every `eco.*` declaration in a file shared one `config.identity.id`, so a second React island from that file hydrated as the first, an SPA navigation between two layouts exported from one file kept the first layout, and a layout stack built from one file rendered its outer layout twice.
+
+    `config.identity.id` is now distinct for each declaration and stays the same while unrelated code in the file changes; `config.identity.file` is still the module path shared by every declaration in the file. Integrations that tell components apart by `identity.file` should use `identity.id` instead, and keep `file` for per-module work such as bundling and watching.
+
+- [#790](https://github.com/ecopages/ecopages/pull/790) [`3f0acf4`](https://github.com/ecopages/ecopages/commit/3f0acf4676a77dfe50e1ba5527bb8dc585aff1af) Thanks [@andeeplus](https://github.com/andeeplus)! - Fix `useRouter().navigate()` not updating the address bar. It now pushes a history entry like a link click, so reload and back behave correctly, and accepts `{ replace: true }` to replace the current entry instead.
+
+- [#793](https://github.com/ecopages/ecopages/pull/793) [`890c605`](https://github.com/ecopages/ecopages/commit/890c6053bbd844d7cd46d8b0412395e913ef5538) Thanks [@andeeplus](https://github.com/andeeplus)! - When a destination page fails to load, for example a chunk that no longer exists after a deploy, the router now performs a normal page load of that URL instead of leaving the link dead. The error is still logged to the console.
+
+- [#792](https://github.com/ecopages/ecopages/pull/792) [`73caab6`](https://github.com/ecopages/ecopages/commit/73caab637922a5e927d5b333d2d87fdc226d69d9) Thanks [@andeeplus](https://github.com/andeeplus)! - Back and forward navigation now restores the scroll positions of persisted elements to what they were on the page you return to, instead of the page you just left.
+- Updated dependencies [[`8ebf1bf`](https://github.com/ecopages/ecopages/commit/8ebf1bf200754867a666b8cfc4bcbb32d55c0381), [`6d58f32`](https://github.com/ecopages/ecopages/commit/6d58f32800199fb5e6dbc15cbdc2309bbdd5ea34), [`db6ec28`](https://github.com/ecopages/ecopages/commit/db6ec28fbb674ff716f70b2f441b13f4f3101772), [`d7a5bee`](https://github.com/ecopages/ecopages/commit/d7a5bee78fc670398b50b5da215c5d91cdccddbd), [`c2cd071`](https://github.com/ecopages/ecopages/commit/c2cd071b724888f5d0af6fe7c52bb33914f9e539), [`b0e4a80`](https://github.com/ecopages/ecopages/commit/b0e4a801a32257a39d9d12acc3221706b7cfcf84), [`46b4a4a`](https://github.com/ecopages/ecopages/commit/46b4a4abf11c7d7109acc35184b26a887058d31f), [`0857ed4`](https://github.com/ecopages/ecopages/commit/0857ed44eb12f0cba2e47c257a56491ba3448021), [`040c48d`](https://github.com/ecopages/ecopages/commit/040c48d2e24d50f943c098a29ff74a3512cfddf4), [`15c4275`](https://github.com/ecopages/ecopages/commit/15c4275e5c757e3e66b28ad77797293829362dd4), [`3d2c2ae`](https://github.com/ecopages/ecopages/commit/3d2c2ae819af1f97af68c38a14a576d157a8d65a), [`7d1280e`](https://github.com/ecopages/ecopages/commit/7d1280ef02b176e304ed70c6e70e0bb4db1e1d46), [`a2817ae`](https://github.com/ecopages/ecopages/commit/a2817aeea7d817a2c1ca26494f4e98e8ae97db36), [`093a31d`](https://github.com/ecopages/ecopages/commit/093a31d8ef94966682c0075b029b71806116a189), [`559d4ae`](https://github.com/ecopages/ecopages/commit/559d4aecde62fb90762394124755b8603807652b), [`ad66534`](https://github.com/ecopages/ecopages/commit/ad665347bffcef339e8eb4a405f136b249e7c58e), [`08485ba`](https://github.com/ecopages/ecopages/commit/08485ba56bbf8d4c245b4cae4dc1329a7d214e21), [`87c0399`](https://github.com/ecopages/ecopages/commit/87c039971a4474e197eed65425a9b5477644efbe), [`f2d71bc`](https://github.com/ecopages/ecopages/commit/f2d71bce7f02ba8103bb33700f336882dceb59e3)]:
+    - @ecopages/core@0.3.1
+    - @ecopages/react@0.3.1
+
 ## 0.3.0
 
 ### Minor Changes

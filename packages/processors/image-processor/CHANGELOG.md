@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.1
+
+### Patch Changes
+
+- [#794](https://github.com/ecopages/ecopages/pull/794) [`c8043fd`](https://github.com/ecopages/ecopages/commit/c8043fd8c69022503998b924a71bc28242c779d2) Thanks [@andeeplus](https://github.com/andeeplus)! - Deleting or editing an image during development now removes its stale optimized files instead of leaving them on disk and still served. A file shared by several images is kept until the last one using it is gone.
+
+- [#814](https://github.com/ecopages/ecopages/pull/814) [`0857ed4`](https://github.com/ecopages/ecopages/commit/0857ed44eb12f0cba2e47c257a56491ba3448021) Thanks [@andeeplus](https://github.com/andeeplus)! - Smaller packages. The published tarballs no longer include browser test files, test helpers and test fixtures, which imported a test runner that is not installed with the package, nor the architecture READMEs that live beside the source (the package README stays and links to them in the repository). `@ecopages/react`, `@ecopages/dev-toolbar` and `@ecopages/image-processor` also stop installing dependencies they never used.
+
+- [#818](https://github.com/ecopages/ecopages/pull/818) [`a58b768`](https://github.com/ecopages/ecopages/commit/a58b768c8740152360bdf8aac653ba912b6794a6) Thanks [@andeeplus](https://github.com/andeeplus)! - Fix `ecopages build` failing for Lit pages that import from `ecopages:images`: the Lit static render now sees the processed images, where the import was undefined and the page failed with `Cannot read properties of undefined (reading 'attributes')`.
+- Updated dependencies [[`8ebf1bf`](https://github.com/ecopages/ecopages/commit/8ebf1bf200754867a666b8cfc4bcbb32d55c0381), [`6d58f32`](https://github.com/ecopages/ecopages/commit/6d58f32800199fb5e6dbc15cbdc2309bbdd5ea34), [`db6ec28`](https://github.com/ecopages/ecopages/commit/db6ec28fbb674ff716f70b2f441b13f4f3101772), [`d7a5bee`](https://github.com/ecopages/ecopages/commit/d7a5bee78fc670398b50b5da215c5d91cdccddbd), [`c2cd071`](https://github.com/ecopages/ecopages/commit/c2cd071b724888f5d0af6fe7c52bb33914f9e539), [`b0e4a80`](https://github.com/ecopages/ecopages/commit/b0e4a801a32257a39d9d12acc3221706b7cfcf84), [`46b4a4a`](https://github.com/ecopages/ecopages/commit/46b4a4abf11c7d7109acc35184b26a887058d31f), [`0857ed4`](https://github.com/ecopages/ecopages/commit/0857ed44eb12f0cba2e47c257a56491ba3448021), [`040c48d`](https://github.com/ecopages/ecopages/commit/040c48d2e24d50f943c098a29ff74a3512cfddf4), [`15c4275`](https://github.com/ecopages/ecopages/commit/15c4275e5c757e3e66b28ad77797293829362dd4), [`3d2c2ae`](https://github.com/ecopages/ecopages/commit/3d2c2ae819af1f97af68c38a14a576d157a8d65a), [`7d1280e`](https://github.com/ecopages/ecopages/commit/7d1280ef02b176e304ed70c6e70e0bb4db1e1d46), [`a2817ae`](https://github.com/ecopages/ecopages/commit/a2817aeea7d817a2c1ca26494f4e98e8ae97db36), [`093a31d`](https://github.com/ecopages/ecopages/commit/093a31d8ef94966682c0075b029b71806116a189), [`559d4ae`](https://github.com/ecopages/ecopages/commit/559d4aecde62fb90762394124755b8603807652b), [`ad66534`](https://github.com/ecopages/ecopages/commit/ad665347bffcef339e8eb4a405f136b249e7c58e), [`08485ba`](https://github.com/ecopages/ecopages/commit/08485ba56bbf8d4c245b4cae4dc1329a7d214e21), [`87c0399`](https://github.com/ecopages/ecopages/commit/87c039971a4474e197eed65425a9b5477644efbe), [`f2d71bc`](https://github.com/ecopages/ecopages/commit/f2d71bce7f02ba8103bb33700f336882dceb59e3)]:
+    - @ecopages/core@0.3.1
+    - @ecopages/file-system@0.3.1
+
 ## 0.3.0
 
 ### Minor Changes

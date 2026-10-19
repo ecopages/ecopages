@@ -57,4 +57,4 @@ The wiki Page uses the existing `layout.props` factory to resolve DocsLayout dat
 
 Catalog generation preserves pages with duplicate titles. Wiki graph lint resolves inline and reference links while ignoring code examples and images. The Obsidian mirror uses explicit TypeScript import extensions so Node can run it directly.
 
-Run `pnpm build` or `pnpm dev` before `pnpm typecheck` to generate the collection declarations. The template declares TypeScript and Bun typings explicitly for checking workspace framework sources; `allowImportingTsExtensions` supports Node’s explicit `.ts` imports without emitting JavaScript.
+Run `pnpm build` or `pnpm dev` before `pnpm typecheck` to generate the collection declarations. The template declares TypeScript typings explicitly for checking workspace framework sources; `allowImportingTsExtensions` supports Node’s explicit `.ts` imports without emitting JavaScript.

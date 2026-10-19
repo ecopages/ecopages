@@ -1,11 +1,8 @@
 packages:
-    - npm/*
     - packages/*
     - packages/__internals/*
     - packages/core/__fixtures__/app
     - packages/integrations/*
-    - packages/loaders/*
-    - packages/plugins/*
     - packages/processors/*
     - playground/*
     - e2e/fixtures/*
@@ -17,7 +14,6 @@ packages:
 ignoreWorkspaceCycles: true
 
 allowBuilds:
-    bun: true
     esbuild: true
     sharp: true
 

@@ -639,15 +639,7 @@ function emitDeclarations(packageDir: string, codeFiles: string[], declarationFi
 		sourceMap: false,
 		incremental: false,
 		tsBuildInfoFile: undefined,
-		typeRoots: [path.join(packageDir, 'node_modules/@types'), path.join(repoRoot, 'node_modules/@types')],
 	};
-
-	/**
-	 * Shared npm tsconfig extends the repo-root config, which sets `types: ["node"]`.
-	 * `createProgram` also resolves `@types` from `cwd` (the repo root), so Bun types
-	 * installed on a package would be ignored without `typeRoots` above.
-	 */
-	delete compilerOptions.types;
 
 	const program = ts.createProgram({
 		rootNames: declarationRootNames,

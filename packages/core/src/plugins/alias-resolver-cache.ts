@@ -6,9 +6,10 @@
  * concrete file paths using the app's tsconfig `paths`. Each resolution goes
  * through oxc-resolver and may read barrel re-export targets.
  *
- * This cache memoizes the result keyed by `(projectRoot, specifier)`. It is
- * process-local and not currently invalidated by the file watcher —
- * project contents are assumed to be stable for the lifetime of the process.
+ * This cache memoizes the result keyed by `(projectRoot, specifier)`. Each
+ * plugin instance owns one, and the request policy creates the plugin for
+ * every build request, so a cached resolution lasts one build and needs no
+ * watcher invalidation.
  */
 
 const DEFAULT_MAX_ENTRIES = 2_000;

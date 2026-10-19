@@ -54,7 +54,7 @@ build/
   runtime/                        build queue, request policy/identity
   server-bundle-publication.ts   staged server/config artifact publication
   rolldown/                       bundler adapter, plugin bridge, package externalization
-  cache/                          fingerprints, build-input reverse index, leftover-manifest cleanup, unified pages graph
+  cache/                          fingerprints, build-input reverse index, unified pages graph
   browser/                        client runtime rewrites, JSX ownership, Lit worker guard
 ```
 
@@ -277,7 +277,7 @@ Within the handler, `onResolve` and `onLoad` registrations run in `EcoBuildPlugi
 
 ### Benchmarks
 
-Kitchen-sink benchmarks (`ECOPAGES_BENCH=1 pnpm vitest bench`) show Rolldown winning 15/18 scenarios versus esbuild, with a **1.21×** geometric mean speedup. Largest wins: React page rebuilds (1.56×), production single page (1.49×), Lit (1.52×), Ecopages-JSX (1.47×). Three scenarios regressed (KitaJS postcss, dynamic route, no-op rebuild); route-module disk cache and fingerprinted production caches reduce repeated work on warm paths.
+Kitchen-sink benchmarks (`ECOPAGES_BENCH=1 pnpm vitest bench`) show Rolldown winning 15/18 scenarios versus esbuild, with a **1.21×** geometric mean speedup. Largest wins: React page rebuilds (1.56×), production single page (1.49×), Lit (1.52×), Ecopages-JSX (1.47×). Three scenarios regressed (KitaJS postcss, dynamic route, no-op rebuild); the in-process route-module cache and unified pages graph reduce repeated work on warm paths within one process.
 
 ### Native MagicString and CSS shim
 

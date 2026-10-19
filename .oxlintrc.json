@@ -39,6 +39,36 @@
 			"rules": {
 				"no-restricted-properties": "off"
 			}
+		},
+		{
+			"files": ["packages/**"],
+			"rules": {
+				"no-restricted-imports": [
+					"error",
+					{
+						"paths": [
+							{ "name": "node:fs", "message": "Use fileSystem from @ecopages/file-system." },
+							{ "name": "node:fs/promises", "message": "Use fileSystem from @ecopages/file-system." },
+							{ "name": "fs", "message": "Use fileSystem from @ecopages/file-system." },
+							{ "name": "fs/promises", "message": "Use fileSystem from @ecopages/file-system." }
+						]
+					}
+				]
+			}
+		},
+		{
+			"files": [
+				"packages/file-system/**",
+				"packages/codemod/**",
+				"**/*.test.*",
+				"**/*.test-helpers.ts",
+				"**/test/**",
+				"**/__tests__/**",
+				"**/__fixtures__/**"
+			],
+			"rules": {
+				"no-restricted-imports": "off"
+			}
 		}
 	]
 }

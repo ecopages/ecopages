@@ -38,7 +38,7 @@ await app.start(({ origin, routes }) => {
 
 The `OnAppStartCallback` type is exported from `@ecopages/core/create-app`. The callback receives `{ origin, routes }`; `app.start()` binds the port, prepares watch-mode resources when enabled, then runs the callback once the server can accept traffic.
 
-Concurrent `start()` and `fetch()` calls share app initialization. `app.fetch()` does not bind a network server. After `app.stop()`, a later `start()` or `fetch()` initializes a fresh server adapter.
+Concurrent `start()` and `fetch()` calls share app initialization. `app.fetch()` does not bind a network server. `app.stop()` closes open connections, WebSocket clients included. Calling it while `start()` is still running stops the startup and leaves nothing listening; that `start()` resolves without a server. After `app.stop()`, a later `start()` or `fetch()` initializes a fresh server adapter.
 
 ## HTTP Methods
 

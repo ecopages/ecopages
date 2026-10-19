@@ -200,6 +200,69 @@ describe('EcopagesApp disposal', () => {
 		expect(runtimeHost.start).toHaveBeenCalledTimes(1);
 	});
 
+	it('stops a server that finishes binding after stop() was called', async () => {
+		const server = { id: 'node-server' } as unknown as NodeHttpServer;
+		const binding = Promise.withResolvers<NodeHttpServer>();
+		const runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> = {
+			start: vi.fn(() => binding.promise),
+			stop: vi.fn().mockResolvedValue(undefined),
+			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
+		};
+		const dispose = vi.fn().mockResolvedValue(undefined);
+		const completeInitialization = vi.fn().mockResolvedValue(undefined);
+		const app = createTestApp(
+			runtimeHost,
+			async () =>
+				({
+					...createMockServerAdapter(dispose),
+					completeInitialization,
+				}) as unknown as NodeServerAdapter,
+		);
+
+		const started = app.start();
+		await vi.waitFor(() => expect(runtimeHost.start).toHaveBeenCalledOnce());
+		const stopped = app.stop();
+		binding.resolve(server);
+
+		await expect(started).resolves.toBeUndefined();
+		await stopped;
+		await app.stop();
+
+		expect(completeInitialization).not.toHaveBeenCalled();
+		expect(runtimeHost.stop).toHaveBeenCalledExactlyOnceWith(server, { force: true });
+		expect(dispose).toHaveBeenCalledOnce();
+	});
+
+	it('does not restart when stop() is called while the adapter initializes', async () => {
+		const initialized = Promise.withResolvers<void>();
+		const runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> = {
+			start: vi.fn(),
+			stop: vi.fn().mockResolvedValue(undefined),
+			getOrigin: vi.fn().mockReturnValue('http://localhost:3000'),
+		};
+		const dispose = vi.fn().mockResolvedValue(undefined);
+		const createServerAdapter = vi.fn(
+			async () =>
+				({
+					...createMockServerAdapter(dispose),
+					initialize: () => initialized.promise,
+				}) as unknown as NodeServerAdapter,
+		);
+		const app = createTestApp(runtimeHost, createServerAdapter);
+
+		const started = app.start();
+		await vi.waitFor(() => expect(createServerAdapter).toHaveBeenCalledOnce());
+		const stopped = app.stop();
+		initialized.resolve();
+
+		await expect(started).resolves.toBeUndefined();
+		await stopped;
+
+		expect(createServerAdapter).toHaveBeenCalledOnce();
+		expect(runtimeHost.start).not.toHaveBeenCalled();
+		expect(dispose).toHaveBeenCalledOnce();
+	});
+
 	it('stops a bound server when watch-session startup fails', async () => {
 		const server = { id: 'node-server' } as unknown as NodeHttpServer;
 		const runtimeHost: RuntimeHost<NodeHttpServer, NodeRuntimeServeOptions> = {

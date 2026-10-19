@@ -6,7 +6,7 @@ This directory contains the runtime-host integration layer for Ecopages.
 
 ## Purpose
 
-`createApp()` resolves the config and command-line mode once, then returns the concrete `EcopagesApp`. The app owns route registration and moves through `idle`, `starting`, `ready`, `stopping`, and `stopped` phases. Concurrent `start()` and `fetch()` calls share the app's readiness promise. After `stop()`, a later `start()` or `fetch()` creates a fresh server adapter. The app owns one `NodeServerAdapter`, which binds the Node HTTP host and composes `ServerRequestPipeline` for route handling.
+`createApp()` resolves the config and command-line mode once, then returns the concrete `EcopagesApp`. The app owns route registration and moves through `idle`, `starting`, `ready`, `stopping`, and `stopped` phases. Concurrent `start()` and `fetch()` calls share the app's readiness promise. `stop()` during startup lets the step in flight finish, ends startup there, and releases what it created, including a server that finished binding; the interrupted `start()` resolves without a server and does not start the app again. After `stop()`, a later `start()` or `fetch()` creates a fresh server adapter. The app owns one `NodeServerAdapter`, which binds the Node HTTP host and composes `ServerRequestPipeline` for route handling.
 
 Watch mode creates a `DevSession` after the Node server binds. That session owns the Project Watcher, `HmrManager`, client bridge, background Page prewarm, and the Dev Toolbar runtime. Its single `dispose()` stops those resources before Integration teardown. Production and request-only use do not create a DevSession.
 
@@ -16,6 +16,8 @@ They are responsible for:
 - delegating startup into framework-owned loaders and services
 - bridging runtime-specific request/response or HMR transport details
 - keeping host/runtime transport details out of generic core orchestration
+
+A forced stop, the default, closes every open connection on the Node server, WebSocket connections included (HMR clients and `app.websocket` routes), so it completes while browsers stay connected. `stop(false)` waits for open connections to end on their own.
 
 Shutdown cancels queued Page prewarming, waits for active prewarm renders and for Integration `setup()` calls still in flight, then calls `teardown()` for activated Integrations and clears their activation state. Cleanup attempts each resource even when an earlier step fails, then reports the errors. This releases runtime resources such as Lit workers after background renders finish using them.
 

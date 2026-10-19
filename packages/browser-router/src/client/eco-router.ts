@@ -339,7 +339,7 @@ export class EcoRouter {
 			committed = await runPerformNavigationAttempt({
 				url,
 				direction,
-				bypassPrefetchCache: options.bypassPrefetchCache,
+				bypassPrefetchCache: options.bypassPrefetchCache || !this.prefetchManager,
 				allowFullDocumentFallback,
 				navigationCommit: this.navigationCommit,
 				isStaleNavigation,

@@ -551,6 +551,10 @@ export class EcopagesApp implements AsyncDisposable {
 
 	/**
 	 * Boot the server. When `onAppStart` is passed, it runs once the runtime can take traffic.
+	 *
+	 * @remarks
+	 * Resolves without a server when `stop()` is called before startup finishes;
+	 * that startup does not continue.
 	 */
 	public async start(onAppStart?: OnAppStartCallback): Promise<NodeServerInstance | void> {
 		if (onAppStart) {
@@ -562,11 +566,11 @@ export class EcopagesApp implements AsyncDisposable {
 
 	private async bootServer(): Promise<NodeServerInstance | void> {
 		const session = await this.getReadySession();
+		if (!session || !this.isActive(session)) return;
 		const current = this.lifecycle;
-		if (current.phase === 'starting') return (await current.ready).server;
-		if (current.phase === 'stopping') {
-			await current.stopped;
-			return await this.bootServer();
+		if (current.phase === 'starting') {
+			await current.ready;
+			return this.isActive(session) ? session.server : undefined;
 		}
 		if (session.server) return session.server;
 
@@ -580,13 +584,29 @@ export class EcopagesApp implements AsyncDisposable {
 			if (this.lifecycle === starting) this.lifecycle = { phase: 'ready', session };
 			throw error;
 		}
-		return session.server;
+		return this.isActive(session) ? session.server : undefined;
 	}
 
-	private async getReadySession(): Promise<AppSession> {
+	/**
+	 * Whether `stop()` has not yet claimed `session`.
+	 *
+	 * @remarks
+	 * `stop()` always replaces the lifecycle, so startup work re-checks this after
+	 * each await and abandons a session that is being stopped.
+	 */
+	private isActive(session: AppSession): boolean {
+		const current = this.lifecycle;
+		return (current.phase === 'ready' || current.phase === 'starting') && current.session === session;
+	}
+
+	/** Resolves `undefined` when `stop()` is called before the session is ready. */
+	private async getReadySession(): Promise<AppSession | undefined> {
 		const current = this.lifecycle;
 		if (current.phase === 'ready') return current.session;
-		if (current.phase === 'starting') return await current.ready;
+		if (current.phase === 'starting') {
+			const session = await current.ready;
+			return this.isActive(session) ? session : undefined;
+		}
 		if (current.phase === 'stopping') {
 			await current.stopped;
 			return await this.getReadySession();
@@ -597,7 +617,8 @@ export class EcopagesApp implements AsyncDisposable {
 		this.lifecycle = starting;
 		try {
 			const session = await ready;
-			if (this.lifecycle === starting) this.lifecycle = { phase: 'ready', session };
+			if (this.lifecycle !== starting) return undefined;
+			this.lifecycle = { phase: 'ready', session };
 			this.serverAdapter = session.adapter;
 			return session;
 		} catch (error) {
@@ -639,29 +660,35 @@ export class EcopagesApp implements AsyncDisposable {
 			usePortManager: this.cliArgs.dev,
 		});
 		session.server = bindingResult.server;
+		if (!this.isActive(session)) return;
 		session.adapter.applyBoundPort(bindingResult);
 		try {
 			await session.adapter.completeInitialization(session.server);
 		} catch (error) {
-			const errors: unknown[] = [error];
-			const failedServer = session.server;
-			session.server = undefined;
-			try {
-				await this.runtimeHost.stop(failedServer, { force: true });
-			} catch (stopError) {
-				errors.push(stopError);
-			}
-			try {
-				await session.adapter.dispose();
-			} catch (disposeError) {
-				errors.push(disposeError);
-			}
-			if (this.serverAdapter === session.adapter) this.serverAdapter = undefined;
-			if (this.lifecycle.phase === 'starting') this.lifecycle = { phase: 'stopped' };
-			if (errors.length > 1) throw new AggregateError(errors, 'Server startup and cleanup failed');
-			throw error;
+			await this.releaseFailedStartup(session, error);
 		}
+		if (!this.isActive(session)) return;
 		await this.notifyListening(requireAppRuntime(this.appConfig).origin);
+	}
+
+	private async releaseFailedStartup(session: AppSession, error: unknown): Promise<never> {
+		const errors: unknown[] = [error];
+		const failedServer = session.server;
+		session.server = undefined;
+		try {
+			if (failedServer) await this.runtimeHost.stop(failedServer, { force: true });
+		} catch (stopError) {
+			errors.push(stopError);
+		}
+		try {
+			await session.adapter.dispose();
+		} catch (disposeError) {
+			errors.push(disposeError);
+		}
+		if (this.serverAdapter === session.adapter) this.serverAdapter = undefined;
+		if (this.lifecycle.phase === 'starting') this.lifecycle = { phase: 'stopped' };
+		if (errors.length > 1) throw new AggregateError(errors, 'Server startup and cleanup failed');
+		throw error;
 	}
 
 	private logServerStarted(origin: string): void {
@@ -722,6 +749,8 @@ export class EcopagesApp implements AsyncDisposable {
 	 *
 	 * @remarks
 	 * Shutdown releases the bound HTTP server and adapter-owned runtime resources.
+	 * During startup it waits for the step in flight, which then stops, and
+	 * releases whatever that step created.
 	 */
 	public stop(force = true): Promise<void> {
 		const current = this.lifecycle;
@@ -738,17 +767,8 @@ export class EcopagesApp implements AsyncDisposable {
 		current: Extract<AppLifecycle, { phase: 'ready' | 'starting' }>,
 		force: boolean,
 	): Promise<void> {
-		let session = current.session;
-		if (current.phase === 'starting') {
-			try {
-				session ??= await current.ready;
-			} catch {
-				if (!session) {
-					this.lifecycle = { phase: 'stopped' };
-					return;
-				}
-			}
-		}
+		const session =
+			current.phase === 'starting' ? await current.ready.catch(() => current.session) : current.session;
 
 		const errors: unknown[] = [];
 		if (session?.server) {
@@ -784,6 +804,7 @@ export class EcopagesApp implements AsyncDisposable {
 	 */
 	public async fetch(request: Request): Promise<Response> {
 		const session = await this.getReadySession();
+		invariant(session !== undefined, 'The app was stopped before it could handle the request.');
 		return session.adapter.handleRequest(request);
 	}
 

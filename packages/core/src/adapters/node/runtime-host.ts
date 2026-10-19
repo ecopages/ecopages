@@ -1,4 +1,5 @@
 import { createServer, type Server as NodeServerInstance } from 'node:http';
+import type { Socket } from 'node:net';
 import { DEFAULT_ECOPAGES_HOSTNAME, DEFAULT_ECOPAGES_PORT } from '../../constants.ts';
 import { appLogger } from '../../global/app-logger.ts';
 import { resolveServeRuntimeOrigin } from '../shared/runtime/runtime-app-bootstrap.ts';
@@ -23,6 +24,15 @@ export type NodeRuntimeServeOptions = {
  * Routing and rendering remain in the shared server adapter.
  */
 export class NodeRuntimeHost implements RuntimeHost<NodeServerInstance, NodeRuntimeServeOptions> {
+	/**
+	 * Every open socket per started server, including upgraded WebSocket sockets.
+	 *
+	 * @remarks
+	 * `closeAllConnections()` stops tracking a socket once it is upgraded, yet
+	 * `server.close()` still waits for it, so a forced stop destroys these too.
+	 */
+	private readonly sockets = new WeakMap<NodeServerInstance, Set<Socket>>();
+
 	/**
 	 * Creates a Node runtime host with injectable request bridging and server
 	 * creation seams for tests and alternate hosts.
@@ -63,6 +73,13 @@ export class NodeRuntimeHost implements RuntimeHost<NodeServerInstance, NodeRunt
 			}
 		});
 
+		const sockets = new Set<Socket>();
+		this.sockets.set(server, sockets);
+		server.on('connection', (socket) => {
+			sockets.add(socket);
+			socket.once('close', () => sockets.delete(socket));
+		});
+
 		await new Promise<void>((resolve, reject) => {
 			server.once('error', reject);
 			server.listen(port, hostname, () => {
@@ -76,7 +93,11 @@ export class NodeRuntimeHost implements RuntimeHost<NodeServerInstance, NodeRunt
 
 	/**
 	 * Stops the Node HTTP server and, by default, force-closes any remaining open
-	 * connections.
+	 * connections, WebSocket connections included.
+	 *
+	 * @remarks
+	 * With `force: false` the returned promise waits until every connection ends
+	 * on its own, so an open WebSocket keeps it pending.
 	 */
 	public async stop(server: NodeServerInstance, options?: { force?: boolean }): Promise<void> {
 		await new Promise<void>((resolve, reject) => {
@@ -91,6 +112,7 @@ export class NodeRuntimeHost implements RuntimeHost<NodeServerInstance, NodeRunt
 
 			if (options?.force ?? true) {
 				server.closeAllConnections();
+				for (const socket of this.sockets.get(server) ?? []) socket.destroy();
 			}
 		});
 	}

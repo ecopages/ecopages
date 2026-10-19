@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { ComponentIdentity } from '@ecopages/core';
 import { createElement, type ReactNode } from 'react';
 import {
 	clearLayoutCache,
@@ -35,24 +34,26 @@ function createLayout(options?: {
 }
 
 describe('getLayoutCacheKey', () => {
-	it('uses identity.file when available', () => {
+	it('uses identity.id when available', () => {
 		const layout = createLayout({
 			identity: { file: '/app/src/layouts/base-layout.tsx', id: 'base', integration: 'react' },
 		});
 
-		expect(getLayoutCacheKey(layout)).toBe('/app/src/layouts/base-layout.tsx');
+		expect(getLayoutCacheKey(layout)).toBe('base');
 	});
 
-	it('uses identity.id when file is absent', () => {
-		const layout = createLayout();
-		layout.config = {
-			identity: { id: 'docs-layout', integration: 'react' } as ComponentIdentity,
-		};
+	it('does not collide for two layouts declared in one file', () => {
+		const baseLayout = createLayout({
+			identity: { file: '/app/src/layouts/layouts.tsx', id: 'base', integration: 'react' },
+		});
+		const docsLayout = createLayout({
+			identity: { file: '/app/src/layouts/layouts.tsx', id: 'docs', integration: 'react' },
+		});
 
-		expect(getLayoutCacheKey(layout)).toBe('docs-layout');
+		expect(getLayoutCacheKey(baseLayout)).not.toBe(getLayoutCacheKey(docsLayout));
 	});
 
-	it('does not collide for eco.component wrappers when identity.file distinguishes them', () => {
+	it('does not collide for eco.component wrappers when identity distinguishes them', () => {
 		const minimalLayout = createLayout({
 			identity: { file: '/app/src/layouts/minimal-layout.tsx', id: 'minimal', integration: 'react' },
 		});
@@ -163,8 +164,8 @@ describe('resolvePersistedLayoutStack', () => {
 			});
 			const secondStack = resolvePersistedLayoutStack([outerReplacement, inner], false);
 
-			expect(firstStack[0]?.key).toBe('/app/layouts/outer.tsx');
-			expect(firstStack[1]?.key).toBe('/app/layouts/inner.tsx');
+			expect(firstStack[0]?.key).toBe('outer');
+			expect(firstStack[1]?.key).toBe('inner');
 			expect(secondStack[0]?.layout).toBe(firstStack[0]?.layout);
 			expect(secondStack[1]?.layout).toBe(firstStack[1]?.layout);
 			expect(getLayoutCache().size).toBe(2);
@@ -195,7 +196,7 @@ describe('resolvePersistedLayoutStack', () => {
 			const docsStack = resolvePersistedLayoutStack([parentFirstImport, docsInner], false);
 			const settingsStack = resolvePersistedLayoutStack([parentSecondImport, settingsInner], false);
 
-			expect(docsStack[0]?.key).toBe('/app/layouts/app-shell.tsx');
+			expect(docsStack[0]?.key).toBe('app-shell');
 			expect(settingsStack[0]?.layout).toBe(docsStack[0]?.layout);
 			expect(settingsStack[1]?.layout).not.toBe(docsStack[1]?.layout);
 			expect(getLayoutCache().size).toBe(3);

@@ -16,7 +16,6 @@ export type CompiledIslandHydrationOptions = {
 	reactDomClientImportPath: string;
 	targetSelector: string;
 	componentRef?: string;
-	componentFile?: string;
 	minify: boolean;
 	hmrEnabled?: boolean;
 };
@@ -48,7 +47,6 @@ const configuration = {
   targetSelector: ${JSON.stringify(options.targetSelector)},
   componentModule: ComponentModule,
   componentRef: ${JSON.stringify(options.componentRef ?? '')},
-  componentFile: ${JSON.stringify(options.componentFile ?? '')},
   scriptId: ${JSON.stringify(options.scriptId)},
   runtime: { hydrateRoot, createElement, useEffect },
   runtimeState: getIslandHydrationRuntime()

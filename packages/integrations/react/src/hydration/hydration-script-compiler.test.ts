@@ -8,7 +8,6 @@ const options = {
 	reactDomClientImportPath: '/assets/react-dom-client.js',
 	targetSelector: '[data-eco-component-key="component"]',
 	componentRef: 'Component',
-	componentFile: '/app/Component.tsx',
 };
 
 describe('compileIslandHydrationScript', () => {

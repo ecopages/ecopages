@@ -345,6 +345,54 @@ export const Input = eco.component({
 		expect(matches).toHaveLength(2);
 	});
 
+	describe('declaration identity', () => {
+		const filePath = '/path/to/layouts.tsx';
+		const idsOf = (code: string): string[] =>
+			[...code.matchAll(/bindComponentIdentity\(\{ id: "([a-z0-9]+)"/g)].map((match) => match[1]!);
+		const attribute = (source: string): string[] =>
+			idsOf(attributeComponentIdentity(source, filePath, 'react').code);
+
+		it('gives each declaration in one file its own id', () => {
+			const ids = attribute(`
+import { eco } from '@ecopages/core';
+export const BaseLayout = eco.layout({ render: () => '<main />' });
+export const DocsLayout = eco.layout({ render: () => '<article />' });
+`);
+
+			expect(ids).toHaveLength(2);
+			expect(ids[0]).not.toBe(ids[1]);
+		});
+
+		it('keeps named ids stable when declarations are added or reordered', () => {
+			const [base, docs] = attribute(`
+import { eco } from '@ecopages/core';
+export const BaseLayout = eco.layout({ render: () => '<main />' });
+export const DocsLayout = eco.layout({ render: () => '<article />' });
+`);
+			const [, docsAfter, baseAfter] = attribute(`
+import { eco } from '@ecopages/core';
+const helper = 1;
+export const Extra = eco.component({ render: () => '<span />' });
+export const DocsLayout = eco.layout({ render: () => '<article>edited</article>' });
+export const BaseLayout = eco.layout({ render: () => '<main />' });
+`);
+
+			expect(docsAfter).toBe(docs);
+			expect(baseAfter).toBe(base);
+		});
+
+		it('gives a default export and unbound calls distinct ids', () => {
+			const ids = attribute(`
+import { eco } from '@ecopages/core';
+export default eco.page({ render: () => '<main />' });
+register(eco.component({ render: () => '<a />' }));
+register(eco.component({ render: () => '<b />' }));
+`);
+
+			expect(new Set(ids).size).toBe(3);
+		});
+	});
+
 	it('should handle eco.component with empty config object', async () => {
 		const content = `
 import { eco } from '@ecopages/core';

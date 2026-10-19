@@ -1,7 +1,12 @@
+import { spawnSync } from 'node:child_process';
 import { once } from 'node:events';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 import { appLogger } from '../../global/app-logger.ts';
+import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
 import { attachNodeHttpWebSocketUpgrades } from '../shared/ws/node-http-websocket-upgrades.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
 import { NodeRuntimeHost } from './runtime-host.ts';
@@ -111,4 +116,84 @@ describe('NodeRuntimeHost', () => {
 		expect(server.listening).toBe(false);
 		await vi.waitFor(() => expect(onClose).toHaveBeenCalledOnce());
 	}, 2000);
+
+	describe('on a port already taken on localhost', () => {
+		const handleRequest = async () => new Response('ok');
+		const isBunInstalled = spawnSync('bun', ['--version']).status === 0;
+		let taken: Server | undefined;
+
+		async function takeLocalhostPort(): Promise<number> {
+			taken = createServer();
+			await new Promise<void>((resolve) => taken?.listen(0, 'localhost', resolve));
+			return (taken.address() as AddressInfo).port;
+		}
+
+		afterEach(async () => {
+			const server = taken;
+			taken = undefined;
+			if (server) await new Promise((resolve) => server.close(resolve));
+		});
+
+		it('rejects with EADDRINUSE', async () => {
+			const port = await takeLocalhostPort();
+			const host = new NodeRuntimeHost(new NodeHttpRequestBridge());
+
+			await expect(host.start({ hostname: 'localhost', port, handleRequest })).rejects.toMatchObject({
+				code: 'EADDRINUSE',
+			});
+		});
+
+		it('falls back to another port when fallback is allowed', async () => {
+			const port = await takeLocalhostPort();
+			const host = new NodeRuntimeHost(new NodeHttpRequestBridge());
+
+			const binding = await bindRuntimeServer(host, {
+				serveOptions: { hostname: 'localhost', port, handleRequest },
+				allowPortFallback: true,
+				usePortManager: true,
+			});
+			await host.stop(binding.server);
+
+			expect(binding.port).not.toBe(port);
+		});
+
+		it('rejects with EADDRINUSE when the port is pinned', async () => {
+			const port = await takeLocalhostPort();
+			const host = new NodeRuntimeHost(new NodeHttpRequestBridge());
+
+			await expect(
+				bindRuntimeServer(host, {
+					serveOptions: { hostname: 'localhost', port, handleRequest },
+					allowPortFallback: false,
+					usePortManager: true,
+				}),
+			).rejects.toMatchObject({ code: 'EADDRINUSE' });
+		});
+
+		it.skipIf(!isBunInstalled)(
+			'rejects with EADDRINUSE under Bun',
+			() => {
+				const hostModule = fileURLToPath(new URL('./runtime-host.ts', import.meta.url));
+				const bridgeModule = fileURLToPath(new URL('./http-request-bridge.ts', import.meta.url));
+				const script = `
+				import { createServer } from 'node:http';
+				import { NodeRuntimeHost } from ${JSON.stringify(hostModule)};
+				import { NodeHttpRequestBridge } from ${JSON.stringify(bridgeModule)};
+				const taken = createServer();
+				await new Promise((resolve) => taken.listen(0, 'localhost', resolve));
+				const host = new NodeRuntimeHost(new NodeHttpRequestBridge());
+				const outcome = await host
+					.start({ hostname: 'localhost', port: taken.address().port, handleRequest: async () => new Response('ok') })
+					.then(() => 'bound', (error) => error.code);
+				console.log(outcome);
+				process.exit(0);
+			`;
+
+				const result = spawnSync('bun', ['--eval', script], { encoding: 'utf8', timeout: 10_000 });
+
+				expect(result.stdout.trim()).toBe('EADDRINUSE');
+			},
+			15_000,
+		);
+	});
 });

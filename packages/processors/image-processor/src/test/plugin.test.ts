@@ -10,13 +10,13 @@ import { imageProcessorPlugin } from '../plugin';
 
 const tempRoots: string[] = [];
 
-async function createTestImage(filePath: string): Promise<void> {
+async function createTestImage(filePath: string, background = '#ffffff'): Promise<void> {
 	await sharp({
 		create: {
 			width: 1200,
 			height: 800,
 			channels: 4,
-			background: '#ffffff',
+			background,
 		},
 	})
 		.png()
@@ -247,5 +247,112 @@ describe('ImageProcessorPlugin', () => {
 
 		expect(processDirectorySpy).toHaveBeenCalledTimes(2);
 		expect(fs.readdirSync(outputDir).some((file) => file.endsWith('.webp'))).toBe(true);
+	});
+
+	describe('watch deletions and edits', () => {
+		async function setupPlugin(rootDir: string, images: Record<string, string>) {
+			const sourceDir = path.join(rootDir, 'src', 'images');
+			fs.mkdirSync(sourceDir, { recursive: true });
+			for (const [name, background] of Object.entries(images)) {
+				await createTestImage(path.join(sourceDir, name), background);
+			}
+
+			const plugin = createImageProcessorPlugin({
+				sourceDir,
+				outputDir: path.join(rootDir, 'dist', 'images'),
+				sizes: [
+					{ width: 320, label: 'sm' },
+					{ width: 640, label: 'md' },
+				],
+			});
+			const appConfig = await finalizeEcoPagesConfig({
+				rootDir,
+				baseUrl: 'http://localhost:3000',
+				processors: [plugin],
+			});
+			plugin.setContext(appConfig);
+			await plugin.setup();
+
+			const outputDir = path.join(rootDir, 'dist', 'images');
+			const onChanges = plugin.getWatchConfig()?.onChanges;
+			if (!onChanges) {
+				throw new Error('Expected image processor batched watch handler');
+			}
+
+			return {
+				plugin,
+				sourceDir,
+				outputDir,
+				notify: (changes: { created?: string[]; changed?: string[]; deleted?: string[] }) =>
+					onChanges({ created: [], changed: [], deleted: [], ...changes, bridge: {} as never }),
+			};
+		}
+
+		test('deleting a source image removes its optimized files', async () => {
+			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-delete-'));
+			tempRoots.push(rootDir);
+			const { plugin, sourceDir, outputDir, notify } = await setupPlugin(rootDir, {
+				'hero.png': '#ff0000',
+				'other.png': '#0000ff',
+			});
+			const heroFiles = plugin.processedImages['hero.png'].variants.map((variant) => path.basename(variant.src));
+			const otherFiles = plugin.processedImages['other.png'].variants.map((variant) =>
+				path.basename(variant.src),
+			);
+			expect(heroFiles).toHaveLength(2);
+
+			fs.rmSync(path.join(sourceDir, 'hero.png'));
+			await notify({ deleted: [path.join(sourceDir, 'hero.png')] });
+
+			for (const file of heroFiles) {
+				expect(fs.existsSync(path.join(outputDir, file))).toBe(false);
+			}
+			for (const file of otherFiles) {
+				expect(fs.existsSync(path.join(outputDir, file))).toBe(true);
+			}
+			expect(plugin.processedImages['hero.png']).toBeUndefined();
+		});
+
+		test('editing a source image removes the files of its previous version', async () => {
+			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-edit-'));
+			tempRoots.push(rootDir);
+			const { plugin, sourceDir, outputDir, notify } = await setupPlugin(rootDir, { 'hero.png': '#ff0000' });
+			const before = plugin.processedImages['hero.png'].variants.map((variant) => path.basename(variant.src));
+
+			await createTestImage(path.join(sourceDir, 'hero.png'), '#00ff00');
+			await notify({ changed: [path.join(sourceDir, 'hero.png')] });
+
+			const after = plugin.processedImages['hero.png'].variants.map((variant) => path.basename(variant.src));
+			expect(after).not.toEqual(before);
+			for (const file of before) {
+				expect(fs.existsSync(path.join(outputDir, file))).toBe(false);
+			}
+			for (const file of after) {
+				expect(fs.existsSync(path.join(outputDir, file))).toBe(true);
+			}
+		});
+
+		test('keeps a shared optimized file until its last source image is gone', async () => {
+			const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecopages-image-processor-shared-'));
+			tempRoots.push(rootDir);
+			const { plugin, sourceDir, outputDir, notify } = await setupPlugin(rootDir, {
+				'a.png': '#ff00ff',
+				'b.png': '#ff00ff',
+			});
+			const files = plugin.processedImages['a.png'].variants.map((variant) => path.basename(variant.src));
+			expect(plugin.processedImages['b.png'].variants.map((variant) => path.basename(variant.src))).toEqual(
+				files,
+			);
+
+			await notify({ deleted: [path.join(sourceDir, 'a.png')] });
+			for (const file of files) {
+				expect(fs.existsSync(path.join(outputDir, file))).toBe(true);
+			}
+
+			await notify({ deleted: [path.join(sourceDir, 'b.png')] });
+			for (const file of files) {
+				expect(fs.existsSync(path.join(outputDir, file))).toBe(false);
+			}
+		});
 	});
 });

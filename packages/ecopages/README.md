@@ -2,35 +2,38 @@
 
 The official CLI for the Ecopages framework.
 
-It provides scaffolding and development commands to streamline your workflow. It runs your app on Bun when you launch it through Bun, on Node otherwise, and applies runtime-specific launch behavior for each engine.
+It provides scaffolding and development commands to streamline your workflow. It runs your app on Node by default and on Bun when you launch it through Bun or pass `--runtime bun`, and applies runtime-specific launch behavior for each engine.
 
 ## Quick Start
 
 Initialize a new project from the interactive template picker:
 
 ```bash
-bunx ecopages init
+npx ecopages init
+# or: pnpm dlx ecopages init
 ```
 
 For a deterministic invocation, select a template explicitly:
 
 ```bash
-bunx ecopages init my-app --template react
+npx ecopages init my-app --template react
 cd my-app
-bun install
-bun dev
+pnpm install
+pnpm dev
 ```
+
+The commands above run on Node. Bun is optional: launch them through Bun (`bunx ecopages init`, `bun dev`) or pass `--runtime bun` to run the app on Bun.
 
 ## Commands
 
-| Command               | Description                                             | Equivalent (Bun)                                                     |
+| Command               | Description                                             | What it runs                                                         |
 | :-------------------- | :------------------------------------------------------ | :------------------------------------------------------------------- |
 | `ecopages init [dir]` | Scaffolds a new project (interactive without `dir`)     | N/A                                                                  |
-| `ecopages dev`        | Starts the dev server (supervises config/.env restarts) | `bun run [entry] --dev`                                              |
-| `ecopages dev:watch`  | Dev server + hard restarts on file changes              | Bun: `bun --watch run [entry] --dev`; Node: `node --watch …`         |
-| `ecopages build`      | Creates a production build                              | `bun run [entry] --build`                                            |
+| `ecopages dev`        | Starts the dev server (supervises config/.env restarts) | `[entry] --dev` through tsx on Node, `bun run [entry] --dev` on Bun  |
+| `ecopages dev:watch`  | Dev server + hard restarts on file changes              | Node: `node --watch …`; Bun: `bun --watch run [entry] --dev`         |
+| `ecopages build`      | Creates a production build                              | `[entry] --build` through tsx on Node, `bun run [entry] --build`     |
 | `ecopages start`      | Starts the production server from the built output      | Runs the emitted server bundle                                       |
-| `ecopages preview`    | Previews the production build locally                   | `bun run [entry] --preview`                                          |
+| `ecopages preview`    | Previews the production build locally                   | `[entry] --preview` through tsx on Node, `bun run [entry] --preview` |
 | `ecopages types`      | Writes virtual-module types for `tsc`, then exits       | Loads `eco.config.ts` and sets processors up; the entry does not run |
 
 > [!NOTE]
@@ -139,8 +142,8 @@ Ecopages relies on a modular architecture. Core logic and framework integrations
 | Package                       | Description                                  |
 | :---------------------------- | :------------------------------------------- |
 | `@ecopages/browser-router`    | Client-side navigation & view transitions.   |
-| `@ecopages/codemod`           | AST migrations for codebase upgrades.        |
 | `@ecopages/core`              | The foundational SSG engine.                 |
+| `@ecopages/dev-toolbar`       | Development-only browser toolbar.            |
 | `@ecopages/ecopages-jsx`      | Ecopages-owned JSX routes and hydration.     |
 | `@ecopages/file-system`       | Runtime-agnostic file system utilities.      |
 | `@ecopages/image-processor`   | Asset pipeline for responsive images.        |

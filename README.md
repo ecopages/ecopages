@@ -12,7 +12,7 @@ The result is fast static pages, minimal dependencies, and code you can actually
 
 ## Built With
 
-Ecopages runs on [Bun](https://bun.sh/) and [Node.js](https://nodejs.org/). Start with the first-party Ecopages JSX integration, or register another Integration that owns the route file types you use.
+Ecopages runs on [Node.js](https://nodejs.org/) by default, and on [Bun](https://bun.sh/) when you choose it. Start with the first-party Ecopages JSX integration, or register another Integration that owns the route file types you use.
 
 Ecopages supports multiple rendering libraries via plug-and-play integrations. Because Ecopages is an SSG framework operating at build-time, you must explicitly install both the integration plugin and its underlying renderer as development dependencies.
 

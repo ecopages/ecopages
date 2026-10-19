@@ -5,8 +5,8 @@ An Ecopages JSX app with MDX Pages, Tailwind v4, and Radiant hosts for small int
 ## Getting started
 
 ```bash
-bun install
-bun dev
+pnpm install
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
@@ -40,6 +40,6 @@ Index: [`.agents/README.md`](.agents/README.md). Docs index: [ecopages.app/llms.
 ## Build
 
 ```bash
-bun run build
-bun preview
+pnpm build
+pnpm preview
 ```

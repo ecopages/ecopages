@@ -82,24 +82,7 @@ In a monorepo, the packages live in the workspace root `node_modules`, outside y
 
 ### 3. Docker Deployment
 
-You can containerize the app with the official Bun image. That process runs on Bun through Node APIs.
-
-```dockerfile
-FROM oven/bun:latest
-
-WORKDIR /app
-
-COPY package.json ./
-RUN bun install --production
-
-COPY . .
-RUN bun run build
-
-EXPOSE 3000
-CMD ["bun", "run", "start"]
-```
-
-To build in one stage and run in another, copy the entries listed above. Both stages use the same base image, so native bindings match. Add `node_modules` and `dist` to `.dockerignore`, or `COPY . .` overwrites the image's install with the one from your machine:
+You can containerize the app with the official Node image. To build in one stage and run in another, copy the entries listed above. Both stages use the same base image, so native bindings match. Add `node_modules` and `dist` to `.dockerignore`, or `COPY . .` overwrites the image's install with the one from your machine:
 
 ```dockerfile
 FROM node:24-slim AS build
@@ -120,6 +103,23 @@ COPY --from=build /build/src ./src
 
 EXPOSE 3000
 CMD ["node", "dist/.server/app.mjs"]
+```
+
+To run on Bun instead, use the official Bun image. That process runs on Bun through Node APIs.
+
+```dockerfile
+FROM oven/bun:latest
+
+WORKDIR /app
+
+COPY package.json ./
+RUN bun install --production
+
+COPY . .
+RUN bun run build
+
+EXPOSE 3000
+CMD ["bun", "run", "start"]
 ```
 
 ### 4. VPS / PaaS (Railway, Fly.io)

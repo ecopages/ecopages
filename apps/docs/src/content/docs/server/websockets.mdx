@@ -1,12 +1,12 @@
 ---
 title: "WebSockets"
-description: "Use Ecopages runtime-agnostic WebSockets on both Bun and Node."
+description: "Use Ecopages runtime-agnostic WebSockets on Node and Bun."
 order: 6
 ---
 
 # WebSockets
 
-Ecopages provides a runtime-agnostic WebSocket API that works identically on Bun and Node. Register WebSocket handlers with `app.websocket()` using the same dynamic segment syntax as HTTP routes.
+Ecopages provides a runtime-agnostic WebSocket API that works identically on Node and Bun. Register WebSocket handlers with `app.websocket()` using the same dynamic segment syntax as HTTP routes.
 
 ## Quick Start
 
@@ -296,10 +296,7 @@ A request to `/ws/admin` matches the literal pattern, not the dynamic one.
 
 ## Runtime Compatibility
 
-The WebSocket API is runtime-agnostic. The same handler code works on both Bun and Node without changes. Each runtime uses its native WebSocket implementation under the hood:
-
-- **Bun**: Uses Bun's built-in `WebSocket` server.
-- **Node**: Uses the `ws` package with HTTP upgrade handling.
+The WebSocket API is runtime-agnostic. The same handler code works on Node and Bun without changes. Both run on the Node HTTP server and use the `ws` package to handle HTTP upgrades, so behavior does not depend on the runtime.
 
 Import types from `@ecopages/core` (not from runtime-specific modules):
 

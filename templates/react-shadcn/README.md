@@ -5,13 +5,13 @@ A React Integration template for [Ecopages](https://ecopages.app) with [shadcn/u
 ## Getting started
 
 ```bash
-bun install
-# or npm install / pnpm install
+pnpm install
+# or npm install / bun install
 ```
 
 ```bash
-bun dev
-# or npm run dev / pnpm dev
+pnpm dev
+# or npm run dev / bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
@@ -58,6 +58,6 @@ Index: [`.agents/README.md`](.agents/README.md). Docs index: [ecopages.app/llms.
 ## Build
 
 ```bash
-bun run build
-# or npm run build
+pnpm build
+# or npm run build / bun run build
 ```

@@ -5,8 +5,8 @@ An Ecopages JSX app whose chrome and showcase use [Radiant UI](https://radiant-u
 ## Getting started
 
 ```bash
-bun install
-bun dev
+pnpm install
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
@@ -47,6 +47,6 @@ Index: [`.agents/README.md`](.agents/README.md). Docs indexes: [ecopages.app/llm
 ## Build
 
 ```bash
-bun run build
-bun preview
+pnpm build
+pnpm preview
 ```

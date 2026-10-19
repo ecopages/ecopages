@@ -177,7 +177,7 @@ export default eco.page<{}, JsxRenderable>({
 								{
 									id: 'pnpm',
 									label: 'pnpm',
-									code: 'pnpx ecopages init ecopages-app',
+									code: 'pnpm dlx ecopages init ecopages-app',
 								},
 								{
 									id: 'bun',

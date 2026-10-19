@@ -88,7 +88,7 @@ The `HandlerContext` contains:
 	- Methods like `json()`, `text()`, `formData()` to parse the request body.
 - `params`: Route parameters parsed from the path (e.g., `:id` in `/api/users/:id`).
 - `response`: An instance of `ApiResponseBuilder`, a utility for constructing `Response` objects fluently.
-- `server`: The underlying server instance (e.g., Bun's server object), which exposes advanced utilities such as `requestIP`, `reload`, and other debugging or runtime methods.
+- `server`: The underlying Node `http.Server`, on Node and on Bun alike, which exposes utilities such as `address()`.
 - `body`: The parsed and optionally validated request body. Automatically typed when using schemas.
 - `query`: Parsed and optionally validated query parameters. Automatically typed when using schemas.
 - `headers`: Parsed and optionally validated request headers. Automatically typed when using schemas.
@@ -96,13 +96,13 @@ The `HandlerContext` contains:
 
 ### Accessing the Server Instance
 
-You can use the `server` property in the handler context for advanced use cases. For example, to get the request IP address:
+You can use the `server` property in the handler context for advanced use cases. For example, to read the address the server is listening on:
 
 ```typescript
-app.get('/api/hello', async ({ response, request, server }) => {
+app.get('/api/hello', async ({ response, server }) => {
 	return response.json({
 		message: 'Hello world!',
-		requestIp: server.requestIP(request),
+		listeningOn: server.address(),
 	});
 });
 ```

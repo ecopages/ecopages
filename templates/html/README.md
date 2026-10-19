@@ -5,8 +5,8 @@ An Ecopages app built from plain HTML Pages, with Tailwind v4, client navigation
 ## Getting started
 
 ```bash
-bun install
-bun dev
+pnpm install
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
@@ -41,6 +41,6 @@ Index: [`.agents/README.md`](.agents/README.md). Docs index: [ecopages.app/llms.
 ## Build
 
 ```bash
-bun run build
-bun preview
+pnpm build
+pnpm preview
 ```

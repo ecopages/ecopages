@@ -50,20 +50,6 @@ type GroupedGraphRecord = {
 	generation: number;
 };
 
-export type GroupedGraphBuildOutcome =
-	| GroupedGraphRecord
-	| {
-			skipCache: true;
-			assetsByRoute: Map<string, ProcessedAsset[]>;
-			dependencyPaths: ReadonlySet<string>;
-	  };
-
-function isSkipCacheGroupedOutcome(
-	outcome: GroupedGraphBuildOutcome,
-): outcome is Extract<GroupedGraphBuildOutcome, { skipCache: true }> {
-	return 'skipCache' in outcome;
-}
-
 export type AffectedGraphIdentity = {
 	integrationName: string;
 	routeFile: string;
@@ -253,7 +239,7 @@ export class SessionPageBrowserGraphCache {
 
 	resolveGroupedGraph(
 		scope: GroupedGraphScope,
-		build: () => Promise<GroupedGraphBuildOutcome | undefined>,
+		build: () => Promise<GroupedGraphRecord | undefined>,
 	): Promise<Map<string, ProcessedAsset[]>> {
 		const cacheKey = serializeGroupedGraphCacheKey(scope);
 		const cached = this.groupedRecords.get(cacheKey);
@@ -494,17 +480,13 @@ export class SessionPageBrowserGraphCache {
 	private async runGroupedBuild(
 		cacheKey: string,
 		buildGeneration: number,
-		build: () => Promise<GroupedGraphBuildOutcome | undefined>,
+		build: () => Promise<GroupedGraphRecord | undefined>,
 	): Promise<Map<string, ProcessedAsset[]>> {
 		try {
 			this.buildCount += 1;
 			const buildResult = await build();
 			if (!buildResult) {
 				return new Map();
-			}
-
-			if (isSkipCacheGroupedOutcome(buildResult)) {
-				return buildResult.assetsByRoute;
 			}
 
 			if (!this.canCommitGroupedBuild(cacheKey, buildGeneration)) {

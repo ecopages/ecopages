@@ -1,4 +1,3 @@
-import type { AppRuntime } from '../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import type { AnyIntegrationPlugin } from '../plugins/integration-plugin.ts';
 import { invariant } from '../utils/invariant.ts';
@@ -49,14 +48,12 @@ export type StaticGenerationRendererResolver = PageRendererResolver & ExplicitVi
  */
 export class RouteRendererFactory {
 	private appConfig: EcoPagesAppConfig;
-	private readonly runtime: AppRuntime;
 
 	/**
-	 * Creates the route-renderer factory for one app/runtime instance.
+	 * Creates the route-renderer factory for one app config.
 	 */
-	constructor({ appConfig, runtime }: { appConfig: EcoPagesAppConfig; runtime: AppRuntime }) {
+	constructor({ appConfig }: { appConfig: EcoPagesAppConfig }) {
 		this.appConfig = appConfig;
-		this.runtime = runtime;
 	}
 
 	/**

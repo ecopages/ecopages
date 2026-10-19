@@ -155,7 +155,7 @@ function createPrebuiltRoutePreparationKey(
 /**
  * Response options for an explicit view render.
  */
-export interface RenderToResponseContext {
+export interface ExplicitViewResponseOptions {
 	partial?: boolean;
 	status?: number;
 	headers?: HeadersInit;
@@ -164,7 +164,7 @@ export interface RenderToResponseContext {
 /**
  * Request data an explicit view render forwards to the route pipeline.
  */
-export type ExplicitViewRenderContext = RenderToResponseContext &
+export type ExplicitViewRenderContext = ExplicitViewResponseOptions &
 	Partial<Pick<RouteRendererOptions, 'params' | 'query' | 'locals' | 'file'>>;
 
 export type HtmlDocumentContributionContext<C = EcoPagesElement> = {
@@ -550,7 +550,7 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 	 * @param ctx - Render context with status and headers
 	 * @returns Response object
 	 */
-	protected createHtmlResponse(body: BodyInit, ctx: RenderToResponseContext): Response {
+	protected createHtmlResponse(body: BodyInit, ctx: ExplicitViewResponseOptions): Response {
 		return new Response(body, {
 			status: ctx.status ?? 200,
 			headers: this.buildHeaders('text/html; charset=utf-8', ctx.headers),
@@ -637,9 +637,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 			return nextDependencies;
 		}
 
-		const renderState = getComponentRenderContext<RouteRenderContextState>()?.renderState;
-		const session = renderState?.session;
-		const existingPackage = session?.pagePackage ?? renderState?.pagePackage;
+		const session = getComponentRenderContext<RouteRenderContextState>()?.renderState?.session;
+		const existingPackage = session?.pagePackage;
 		const existingDependencies = existingPackage?.assets ?? [];
 		const mergedDependencies = this.htmlTransformer.dedupeProcessedAssets([
 			...existingDependencies,
@@ -651,9 +650,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 
 		if (session) {
 			session.pagePackage = pagePackage;
-		}
-		if (renderState) {
-			renderState.pagePackage = pagePackage;
 		}
 
 		return nextDependencies;
@@ -963,8 +959,8 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 		pagePackage: InternalIntegrationRendererRenderOptions<C>['pagePackage'],
 		renderOptions: InternalIntegrationRendererRenderOptions<C>,
 	): Promise<RouteRendererBody> {
-		const renderState = getComponentRenderContext<RouteRenderContextState>()?.renderState;
-		const resolvedPagePackage = renderState?.session?.pagePackage ?? renderState?.pagePackage ?? pagePackage;
+		const resolvedPagePackage =
+			getComponentRenderContext<RouteRenderContextState>()?.renderState?.session?.pagePackage ?? pagePackage;
 		const transformedResponse = this.htmlTransformer.transform(response, {
 			contributions: htmlContributions,
 			pagePackage: resolvedPagePackage,
@@ -1191,7 +1187,6 @@ export abstract class IntegrationRenderer<C = EcoPagesElement> {
 					if (renderState) {
 						renderState.pageClientPlan = renderOptions.pageClientPlan;
 						renderState.islandRenderAssetsByFile = renderOptions.islandRenderAssetsByFile;
-						renderState.pagePackage = renderOptions.pagePackage;
 					}
 					session.pagePackage = renderOptions.pagePackage;
 					return this.routeRenderOrchestrator.executePrepared(renderOptions, this);

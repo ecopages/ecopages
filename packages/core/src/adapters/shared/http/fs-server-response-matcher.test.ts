@@ -44,7 +44,6 @@ await router.init();
 
 const routeRendererFactory = new RouteRendererFactory({
 	appConfig,
-	runtime: requireAppRuntime(appConfig),
 });
 
 function createRouteRendererFactoryWithStub404(

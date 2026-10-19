@@ -1464,7 +1464,7 @@ type MiddlewareNext = () => Promise<Response>;
  *
  * @example Middleware with extended context (use EcoMiddleware helper)
  * ```typescript
- * type AuthContext = ApiHandlerContext<BunRequest<string>, Server> & { user: User };
+ * type AuthContext = ApiHandlerContext<Request, unknown> & { user: User };
  *
  * const authMiddleware: EcoMiddleware<AuthContext> = async (ctx, next) => {
  *   const user = await authenticate(ctx.request);
@@ -1497,7 +1497,7 @@ export type FileRouteMiddleware<
  *
  * @example
  * ```typescript
- * type AuthContext = ApiHandlerContext<BunRequest<string>, Server> & {
+ * type AuthContext = ApiHandlerContext<Request, unknown> & {
  *   session: { user: User };
  * };
  *

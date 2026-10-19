@@ -154,7 +154,6 @@ function indexGroupedAssetsByBundleKey(processedAssets: ProcessedAsset[]): Map<s
 type GroupedPageBrowserAssetsResult = {
 	assetsByRoute: Map<string, ProcessedAsset[]>;
 	dependencyPaths: ReadonlySet<string>;
-	hasCollectionFailures: boolean;
 	cacheable: boolean;
 };
 
@@ -348,7 +347,6 @@ export class PageBrowserGraphService {
 			return {
 				assetsByRoute: new Map([[routeLookupKey, [...plannedInstance.prebuiltGroupedAssets]]]),
 				dependencyPaths: new Set<string>(),
-				hasCollectionFailures: false,
 				cacheable: true,
 			};
 		}
@@ -384,18 +382,8 @@ export class PageBrowserGraphService {
 			integrationName: input.integrationName,
 			planKey: input.groupedBuildPlan.planKey,
 		};
-		let groupedCacheable = true;
 		const assetsByRoute = await session.resolveGroupedGraph(groupedScope, async () => {
 			const built = await this.buildGroupedPageBrowserAssets(input, currentContribution);
-			groupedCacheable = !built.hasCollectionFailures;
-			if (built.hasCollectionFailures) {
-				return {
-					skipCache: true,
-					assetsByRoute: built.assetsByRoute,
-					dependencyPaths: built.dependencyPaths,
-				};
-			}
-
 			return {
 				assetsByRoute: built.assetsByRoute,
 				dependencyPaths: built.dependencyPaths,
@@ -406,26 +394,18 @@ export class PageBrowserGraphService {
 		return {
 			assetsByRoute,
 			dependencyPaths: new Set(),
-			hasCollectionFailures: !groupedCacheable,
-			cacheable: groupedCacheable,
+			cacheable: true,
 		};
 	}
 
-	private collectGroupedBuildPlanContributions(input: PageBrowserGraphResolveInput): {
-		contributions: GroupedPageBrowserGraphContribution[];
-		hasCollectionFailures: boolean;
-	} {
-		if (!input.groupedBuildPlan) {
-			return { contributions: [], hasCollectionFailures: false };
-		}
-		return {
-			contributions: input.groupedBuildPlan.instances.map((instance) => ({
-				routeFile: instance.routeFile,
-				dependencyInstanceKey: instance.dependencyInstanceKey,
-				contribution: instance.contribution,
-			})),
-			hasCollectionFailures: false,
-		};
+	private collectGroupedBuildPlanContributions(
+		input: PageBrowserGraphResolveInput,
+	): GroupedPageBrowserGraphContribution[] {
+		return (input.groupedBuildPlan?.instances ?? []).map((instance) => ({
+			routeFile: instance.routeFile,
+			dependencyInstanceKey: instance.dependencyInstanceKey,
+			contribution: instance.contribution,
+		}));
 	}
 
 	private registerRouteGroupedDependencies(
@@ -453,13 +433,11 @@ export class PageBrowserGraphService {
 		input: PageBrowserGraphResolveInput,
 		currentContribution: PageBrowserGraphContribution,
 		groupedContributions: GroupedPageBrowserGraphContribution[],
-		hasCollectionFailures: boolean,
 	): {
 		groupedDependencies: AssetDefinition[];
 		groupedAssetKeysByRoute: Map<string, Set<string>>;
 		routeDisplayPaths: Map<string, string>;
 		dependencyPaths: Set<string>;
-		hasCollectionFailures: boolean;
 	} {
 		const dependencyInstanceKey = input.dependencyInstanceKey ?? '';
 		const currentRouteLookupKey = createRouteGraphLookupKey(input.routeFile, dependencyInstanceKey);
@@ -509,7 +487,6 @@ export class PageBrowserGraphService {
 			groupedAssetKeysByRoute,
 			routeDisplayPaths,
 			dependencyPaths,
-			hasCollectionFailures,
 		};
 	}
 
@@ -564,27 +541,18 @@ export class PageBrowserGraphService {
 		input: PageBrowserGraphResolveInput,
 		currentContribution: PageBrowserGraphContribution,
 	): Promise<GroupedPageBrowserAssetsResult> {
-		const groupedCollection = this.collectGroupedBuildPlanContributions(input);
-		const merged = this.mergePeerGroupedContributions(
-			input,
-			currentContribution,
-			groupedCollection.contributions,
-			groupedCollection.hasCollectionFailures,
-		);
-		const {
-			groupedDependencies,
-			groupedAssetKeysByRoute,
-			routeDisplayPaths,
-			dependencyPaths,
-			hasCollectionFailures,
-		} = merged;
+		const { groupedDependencies, groupedAssetKeysByRoute, routeDisplayPaths, dependencyPaths } =
+			this.mergePeerGroupedContributions(
+				input,
+				currentContribution,
+				this.collectGroupedBuildPlanContributions(input),
+			);
 
 		if (groupedDependencies.length === 0) {
 			return {
 				assetsByRoute: new Map(),
 				dependencyPaths,
-				hasCollectionFailures,
-				cacheable: Boolean(input.groupedBuildPlan) && !hasCollectionFailures,
+				cacheable: Boolean(input.groupedBuildPlan),
 			};
 		}
 
@@ -605,8 +573,7 @@ export class PageBrowserGraphService {
 		return {
 			assetsByRoute: groupedAssetsByRoute,
 			dependencyPaths,
-			hasCollectionFailures,
-			cacheable: Boolean(input.groupedBuildPlan) && !hasCollectionFailures,
+			cacheable: Boolean(input.groupedBuildPlan),
 		};
 	}
 

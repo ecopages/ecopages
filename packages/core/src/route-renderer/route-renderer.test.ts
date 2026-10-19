@@ -1,16 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AppRuntime } from '../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../config/internal-types.ts';
 import { RouteRendererFactory } from './route-renderer.ts';
 
-function testRuntime(origin: string): AppRuntime {
-	return { origin, hmr: null } as AppRuntime;
-}
-
-describe('RouteRendererFactory runtime binding', () => {
+describe('RouteRendererFactory', () => {
 	it('uses the Integration-owned renderer instead of keeping a second cache', () => {
-		const firstRenderer = { renderToResponse: vi.fn() };
-		const secondRenderer = { renderToResponse: vi.fn() };
+		const firstRenderer = { execute: vi.fn() };
+		const secondRenderer = { execute: vi.fn() };
 		const integration = {
 			name: 'test',
 			extensions: ['.test.ts'],
@@ -18,7 +13,6 @@ describe('RouteRendererFactory runtime binding', () => {
 		};
 		const factory = new RouteRendererFactory({
 			appConfig: { integrations: [integration] } as unknown as EcoPagesAppConfig,
-			runtime: testRuntime('http://localhost:3000'),
 		});
 
 		expect(factory.getPageRenderer('/app/src/pages/about.test.ts')).toBe(firstRenderer);
@@ -30,7 +24,6 @@ describe('RouteRendererFactory runtime binding', () => {
 		const html = { name: 'html', extensions: ['.html'] };
 		const factory = new RouteRendererFactory({
 			appConfig: { integrations: [html] } as unknown as EcoPagesAppConfig,
-			runtime: testRuntime('http://localhost:3000'),
 		});
 
 		expect(factory.getIntegrationPlugin('/app/src/pages/v1.2.html')).toBe(html);

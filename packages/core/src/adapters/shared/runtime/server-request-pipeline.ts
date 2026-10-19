@@ -101,7 +101,6 @@ export class ServerRequestPipeline {
 
 		this.routeRendererFactory = new RouteRendererFactory({
 			appConfig: this.appConfig,
-			runtime: this.runtime,
 		});
 	}
 

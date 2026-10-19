@@ -20,7 +20,6 @@ export type RenderSession = {
 export type RouteRenderContextState = {
 	pageClientPlan?: PageClientPlan;
 	islandRenderAssetsByFile?: ReadonlyMap<string, ProcessedAsset[]>;
-	pagePackage?: PagePackageResult;
 	session?: RenderSession;
 };
 

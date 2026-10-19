@@ -38,6 +38,8 @@ export type IslandHydrationRuntime = {
 	islandRoots: Record<string, IslandRoot>;
 	islandComponents: Record<string, IslandComponent>;
 	observer?: MutationObserver;
+	/** Island entries by HMR module path, then by script id. One file can declare several islands. */
+	hmrEntries?: Map<string, Map<string, IslandHydrationOptions>>;
 };
 
 type IslandWindowRuntime = {
@@ -87,10 +89,11 @@ export function getIslandHydrationRuntime(): IslandHydrationRuntime {
  * Registers the development HMR callback for one component module.
  *
  * @remarks
- * The callback imports the replacement module and delegates to
- * {@link updateIslands}, which updates every live host matching this entry.
- * The dynamic import function is supplied by the generated entry so HMR keeps
- * the browser's normal module-resolution behavior.
+ * The callback imports the replacement module once and delegates to
+ * {@link updateIslands} for every island entry registered under the same module
+ * path, since every island of one file shares that path. The dynamic import
+ * function is supplied by the generated entry so HMR keeps the browser's normal
+ * module-resolution behavior.
  *
  * @param options - Entry configuration whose hosts should receive updates.
  * @param importModule - Browser dynamic-import function for the replacement module.
@@ -102,12 +105,25 @@ export function registerIslandHmr(
 	importPath?: string,
 ): void {
 	if (!importPath) return;
+	options.runtimeState.hmrEntries ??= new Map();
+	const entries = options.runtimeState.hmrEntries.get(importPath) ?? new Map<string, IslandHydrationOptions>();
+	options.runtimeState.hmrEntries.set(importPath, entries);
+	entries.set(options.scriptId, options);
 	const pageWindow = window as IslandWindow;
 	const pageRuntime = (pageWindow.__ECO_PAGES__ ??= {});
 	pageRuntime.hmrHandlers ??= {};
 	pageRuntime.hmrHandlers[importPath] = async (url) => {
-		updateIslands(options, await importModule(url));
+		const newModule = await importModule(url);
+		for (const entry of entries.values()) updateIslands(entry, newModule);
 	};
+}
+
+function findComponentById(module: Record<string, unknown>, componentRef: string): IslandComponent | undefined {
+	return Object.values(module).find(
+		(entry): entry is IslandComponent =>
+			typeof entry === 'function' &&
+			(entry as { config?: { identity?: { id?: string } } }).config?.identity?.id === componentRef,
+	);
 }
 
 /**
@@ -120,17 +136,10 @@ export function registerIslandHmr(
  * entries without framework identity metadata.
  */
 function resolveComponent(module: Record<string, unknown>, componentRef: string): IslandComponent | null {
-	const values = Object.values(module).filter((entry): entry is IslandComponent => typeof entry === 'function');
-
-	if (componentRef) {
-		const matchById = values.find(
-			(entry) => (entry as { config?: { identity?: { id?: string } } }).config?.identity?.id === componentRef,
-		);
-		if (matchById) return matchById;
-	}
-
+	const matchById = componentRef ? findComponentById(module, componentRef) : undefined;
+	if (matchById) return matchById;
 	if (typeof module.default === 'function') return module.default as IslandComponent;
-	return values[0] ?? null;
+	return Object.values(module).find((entry): entry is IslandComponent => typeof entry === 'function') ?? null;
 }
 
 function getComponentId(target: HTMLElement): string | null {
@@ -297,12 +306,21 @@ export function mountIslands(options: IslandHydrationOptions): void {
  * Updates arriving before the initial commit are stored on each host and
  * rendered by {@link IslandLifecycle} after it marks that host hydrated.
  *
+ * An entry with a component id throws when the new module exports nothing with
+ * that id, for example after the declaration was renamed. Falling back to another
+ * export could render a sibling or a helper; the thrown error makes the HMR
+ * client reload the page instead.
+ *
  * @param options - The live entry configuration and runtime state.
  * @param newModule - Newly imported component module.
  */
 export function updateIslands(options: IslandHydrationOptions, newModule: Record<string, unknown>): void {
-	const component = resolveComponent(newModule, options.componentRef ?? '');
-	if (!component) return;
+	const componentRef = options.componentRef;
+	const component = componentRef ? findComponentById(newModule, componentRef) : resolveComponent(newModule, '');
+	if (!component) {
+		if (!componentRef) return;
+		throw new Error(`[ecopages] The updated module no longer exports island component "${componentRef}".`);
+	}
 	options.componentModule = newModule;
 	const scriptId = options.scriptId;
 	options.runtimeState.islandComponents[scriptId] = component;

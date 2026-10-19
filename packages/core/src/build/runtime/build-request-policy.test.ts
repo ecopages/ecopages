@@ -348,3 +348,42 @@ test('a browser build maps an entry that lists a manifest specifier as external 
 		rmSync(dir, { recursive: true, force: true });
 	}
 });
+
+test('server and browser builds of one file give each declaration the same component id', async () => {
+	const appConfig = createOrderedAppConfig();
+	const dir = mkdtempSync(path.join(tmpdir(), 'ecopages-identity-parity-'));
+	try {
+		const entry = path.join(dir, 'widgets.tsx');
+		writeFileSync(
+			entry,
+			[
+				"import { eco } from '@ecopages/core';",
+				"export const Counter = eco.component({ render: () => 'counter' });",
+				"export const Cart = eco.component({ render: () => 'cart' });",
+			].join('\n'),
+		);
+		const buildIds = async (environment: 'server' | 'browser'): Promise<string[]> => {
+			const input = {
+				entrypoints: [entry],
+				outdir: path.join(dir, environment),
+				root: dir,
+				external: ['@ecopages/core'],
+			};
+			const request =
+				environment === 'server'
+					? createServerBuildRequest(appConfig, input)
+					: createBrowserBuildRequest(appConfig, input);
+			const result = await new RolldownBuildAdapter().build(request);
+			assertBuildSucceeded(result, `${environment} build failed`);
+			const code = readFileSync(result.outputs[0]!.path, 'utf-8');
+			return [...code.matchAll(/bindComponentIdentity\(\{\s*id: "([a-z0-9]+)"/gu)].map((match) => match[1]!);
+		};
+
+		const serverIds = await buildIds('server');
+
+		assert.equal(new Set(serverIds).size, 2);
+		assert.deepEqual(await buildIds('browser'), serverIds);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});

@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement, useEffect, type ElementType, type ReactNode } from 'react';
 import { hydrateRoot } from 'react-dom/client';
-import { mountIslands, updateIslands, type IslandHydrationRuntime } from './browser/island-hydration.ts';
+import {
+	mountIslands,
+	registerIslandHmr,
+	updateIslands,
+	type IslandHydrationRuntime,
+} from './browser/island-hydration.ts';
 import { startPageHydration, type PageHydrationOptions } from './browser/page-hydration.ts';
 
 type TestHydrationRegistration = {
@@ -564,4 +569,107 @@ describe('React Island Host lifecycle', () => {
 		expect(hydratedComponent).toBe(Target);
 		runtime.observer?.disconnect();
 	});
+
+	it('updates every island of one file when its module is hot-updated', async () => {
+		const runtime: IslandHydrationRuntime = { islandRoots: {}, islandComponents: {} };
+		const { reactRuntime, renderedComponents } = createRecordingIslandRuntime();
+		const Counter = withIdentity(() => null, 'counter-id');
+		const Cart = withIdentity(() => null, 'cart-id');
+		const NextCounter = withIdentity(() => null, 'counter-id');
+		const NextCart = withIdentity(() => null, 'cart-id');
+		const counterHost = appendIslandHost('counter-key');
+		const cartHost = appendIslandHost('cart-key');
+		const importPath = '/assets/widgets.js';
+		const importModule = vi.fn(async () => ({ Counter: NextCounter, Cart: NextCart }));
+
+		for (const [key, ref] of [
+			['counter-key', 'counter-id'],
+			['cart-key', 'cart-id'],
+		]) {
+			const options = {
+				targetSelector: `[data-eco-component-key="${key}"]`,
+				componentModule: { Counter, Cart },
+				componentRef: ref,
+				scriptId: `${key}-script`,
+				runtime: reactRuntime,
+				runtimeState: runtime,
+			};
+			registerIslandHmr(options, importModule, importPath);
+			mountIslands(options);
+		}
+		await flushTasks();
+
+		await testWindow().__ECO_PAGES__!.hmrHandlers![importPath]!('/assets/widgets.js?t=1');
+
+		expect(importModule).toHaveBeenCalledOnce();
+		expect(renderedComponents.get(counterHost)).toBe(NextCounter);
+		expect(renderedComponents.get(cartHost)).toBe(NextCart);
+		runtime.observer?.disconnect();
+	});
+
+	it('rejects a hot update whose module no longer exports the island component, so the page reloads', async () => {
+		const runtime: IslandHydrationRuntime = { islandRoots: {}, islandComponents: {} };
+		const { reactRuntime, renderedComponents } = createRecordingIslandRuntime();
+		const Counter = withIdentity(() => null, 'counter-id');
+		const host = appendIslandHost('renamed-key');
+		const importPath = '/assets/renamed.js';
+		const options = {
+			targetSelector: '[data-eco-component-key="renamed-key"]',
+			componentModule: { Counter },
+			componentRef: 'counter-id',
+			scriptId: 'renamed-script',
+			runtime: reactRuntime,
+			runtimeState: runtime,
+		};
+		const helper = () => null;
+		registerIslandHmr(
+			options,
+			async () => ({ helper, RenamedCounter: withIdentity(() => null, 'renamed-counter-id') }),
+			importPath,
+		);
+		mountIslands(options);
+		await flushTasks();
+
+		await expect(testWindow().__ECO_PAGES__!.hmrHandlers![importPath]!('/assets/renamed.js?t=1')).rejects.toThrow(
+			'counter-id',
+		);
+		expect(renderedComponents.get(host)).toBe(Counter);
+		runtime.observer?.disconnect();
+	});
 });
+
+function testWindow(): TestWindow {
+	return window as TestWindow;
+}
+
+function withIdentity<T extends object>(component: T, id: string): T {
+	return Object.assign(component, { config: { identity: { id } } });
+}
+
+function appendIslandHost(componentKey: string): HTMLElement {
+	const host = document.createElement('eco-island');
+	host.setAttribute('data-eco-island', '');
+	host.setAttribute('data-eco-component-id', `${componentKey}-instance`);
+	host.setAttribute('data-eco-component-key', componentKey);
+	document.body.appendChild(host);
+	return host;
+}
+
+/** Records the component each Island Host last rendered, keyed by host. */
+function createRecordingIslandRuntime() {
+	const renderedComponents = new Map<HTMLElement, unknown>();
+	const readComponent = (tree: unknown) => (tree as { props: { Component: unknown } }).props.Component;
+	const reactRuntime = {
+		hydrateRoot: (target: HTMLElement, tree: unknown) => {
+			renderedComponents.set(target, readComponent(tree));
+			(tree as { type: (props: unknown) => unknown }).type((tree as { props: unknown }).props);
+			return {
+				render: (nextTree: unknown) => renderedComponents.set(target, readComponent(nextTree)),
+				unmount: () => {},
+			};
+		},
+		createElement: (type: unknown, props: Record<string, unknown>) => ({ type, props }),
+		useEffect: (effect: () => void) => queueMicrotask(effect),
+	};
+	return { reactRuntime, renderedComponents };
+}

@@ -94,6 +94,27 @@ export class ProjectWatcher {
 	private changeQueue: Promise<void> = Promise.resolve();
 	private closePromise: Promise<void> | undefined;
 
+	/**
+	 * Reads `ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS`.
+	 *
+	 * @remarks
+	 * A value that is not a non-negative number would otherwise become `NaN` or a negative delay, which timers
+	 * treat as about 1 ms and so silently turn debouncing off. It is ignored with a warning instead, so the
+	 * default window applies.
+	 */
+	private static resolveEnvDebounceMs(): number | undefined {
+		const raw = getEcopagesEnv('ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS');
+		if (raw === undefined || raw.trim() === '') return undefined;
+
+		const parsed = Number(raw);
+		if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+
+		appLogger.warn(
+			`Ignoring ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS="${raw}": expected a non-negative number of milliseconds. Using ${ProjectWatcher.duplicateChangeWindowMs} ms.`,
+		);
+		return undefined;
+	}
+
 	constructor({
 		config,
 		refreshRouterRoutesCallback,
@@ -107,11 +128,8 @@ export class ProjectWatcher {
 		this.refreshRouterRoutesCallback = refreshRouterRoutesCallback;
 		this.hmrManager = hmrManager;
 		this.bridge = bridge;
-		const envDebounceMs = getEcopagesEnv('ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS');
 		this.changeDebounceMs =
-			changeDebounceMs ??
-			(envDebounceMs !== undefined && envDebounceMs !== '' ? Number(envDebounceMs) : undefined) ??
-			ProjectWatcher.duplicateChangeWindowMs;
+			changeDebounceMs ?? ProjectWatcher.resolveEnvDebounceMs() ?? ProjectWatcher.duplicateChangeWindowMs;
 		this.onRestartRequest = onRestartRequest;
 		this.entryWatcherOwnsConfig = entryWatcherOwnsConfig === true;
 		this.invalidationService = getDevelopmentInvalidationService(config);
@@ -123,13 +141,23 @@ export class ProjectWatcher {
 		this.bridge.reload();
 	}
 
-	private async copyPublicDirFile(filePath: string): Promise<void> {
+	/**
+	 * Mirrors one public file change into dist.
+	 *
+	 * @remarks
+	 * A deleted source is removed from dist, otherwise the stale copy keeps being served by the dev server.
+	 */
+	private async syncPublicDirFile(filePath: string, kind: DevFileChangeKind): Promise<void> {
 		try {
 			const relativePath = path.relative(this.appConfig.absolutePaths.publicDir, filePath);
 			const destPath = path.join(this.appConfig.absolutePaths.distDir, relativePath);
+			if (kind === 'deleted') {
+				await fileSystem.removeAsync(destPath);
+				return;
+			}
 			await copyRuntimePublicFile(filePath, destPath);
 		} catch (error) {
-			appLogger.error(`Failed to copy public file: ${formatErrorWithStack(error)}`);
+			appLogger.error(`Failed to sync public file: ${formatErrorWithStack(error)}`);
 		}
 	}
 
@@ -345,7 +373,7 @@ export class ProjectWatcher {
 	private async copyPublicAssets(files: AppliedDevFileChange[]): Promise<void> {
 		for (const file of files) {
 			if (file.plan.category === 'public-asset') {
-				await this.copyPublicDirFile(file.filePath);
+				await this.syncPublicDirFile(file.filePath, file.kind);
 			}
 		}
 	}

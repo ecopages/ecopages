@@ -135,7 +135,7 @@ export class ServerRequestPipeline {
 	/**
 	 * Scans the filesystem and dynamically constructs the Route Registry.
 	 *
-	 * This process runs identically across both Bun and Node wrappers. It analyzes the configured pages
+	 * It analyzes the configured pages
 	 * directory, building a map of all available UI routes and API endpoints.
 	 * The resulting `RouteRegistry` instance becomes the central nervous system for mapping WinterCG incoming
 	 * Web Requests (`Request`) to their corresponding internal execution paths.

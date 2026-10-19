@@ -63,8 +63,8 @@ export type PageDependenciesInput<T = Record<string, unknown>> = EcoComponentDep
 /**
  * Runtime-agnostic incoming WebSocket frame.
  *
- * Both Bun and Node `ws` deliver text and binary frames; this discriminated
- * union lets handlers deal with both without runtime-specific casts.
+ * Node `ws` delivers text and binary frames; this discriminated
+ * union lets handlers deal with both without casts.
  */
 export type IncomingWebSocketMessage =
 	{ readonly kind: 'text'; readonly text: string } | { readonly kind: 'binary'; readonly data: Uint8Array };
@@ -296,7 +296,7 @@ export type RegisteredScriptEntrypointChangeHandler = (filePath: string) => void
 
 /**
  * Adapter-agnostic interface for broadcasting development events to connected clients.
- * Implemented by both the Bun and Node client bridges.
+ * Implemented by the Node client bridge.
  */
 export interface IClientBridge {
 	broadcast(event: ClientBridgeEvent): void;

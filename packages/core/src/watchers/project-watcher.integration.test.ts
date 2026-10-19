@@ -165,6 +165,30 @@ describe('ProjectWatcher - Integration Tests', () => {
 			expect(existsSync(path.join(config.absolutePaths.distDir, 'manifest.json'))).toBe(true);
 		});
 
+		test.each([
+			['nested', 'images/logo.png'],
+			['top-level', 'robots.txt'],
+		])(
+			'removes the dist copy and reloads the browser when a %s public file is deleted',
+			async (_name, relativePath) => {
+				const config = await createIntegrationConfig(`public-delete-${relativePath.replace(/\W/g, '-')}`);
+				const { emit, bridge } = await startWatcherWithFakeFileEvents(config);
+				const sourceFile = path.join(config.absolutePaths.publicDir, relativePath);
+				const destFile = path.join(config.absolutePaths.distDir, relativePath);
+
+				writeTestFile(sourceFile, 'data');
+				await emit('add', sourceFile);
+				await vi.waitFor(() => expect(existsSync(destFile)).toBe(true));
+				vi.mocked(bridge.reload).mockClear();
+
+				rmSync(sourceFile);
+				await emit('unlink', sourceFile);
+
+				await vi.waitFor(() => expect(bridge.reload).toHaveBeenCalledOnce());
+				expect(existsSync(destFile)).toBe(false);
+			},
+		);
+
 		test('copies nothing for a public file that no longer exists', async () => {
 			const config = await createIntegrationConfig('public-copy-missing');
 			const { emit, bridge } = await startWatcherWithFakeFileEvents(config);

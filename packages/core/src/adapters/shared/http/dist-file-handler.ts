@@ -34,21 +34,41 @@ export async function serveDistFile(request: Request, options: ServeDistFileOpti
 		});
 	}
 
+	const distDir = path.resolve(options.distDir);
+	const target = resolveRequestTarget(request, distDir);
+	if (!target) {
+		return createBadRequestResponse(method);
+	}
+
+	const candidate = findDistFile(target, options);
+	const response = candidate
+		? await createDistFileResponse(candidate, ServerUtils.getContentType(candidate), request, options.watchMode)
+		: null;
+	if (!response) {
+		return await createNotFoundResponse(request, options, distDir, method);
+	}
+
+	return method === 'HEAD' ? responseWithoutBody(response) : response;
+}
+
+type RequestTarget = { pathname: string; requestedPath: string };
+
+function resolveRequestTarget(request: Request, distDir: string): RequestTarget | undefined {
 	let pathname: string;
 	try {
 		pathname = decodeURIComponent(new URL(request.url).pathname);
 	} catch {
-		return createBadRequestResponse(method);
+		return undefined;
 	}
 
-	const distDir = path.resolve(options.distDir);
 	const relativePath = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
 	const requestedPath = path.resolve(distDir, relativePath);
-	if (!isPathInside(distDir, requestedPath)) {
-		return createBadRequestResponse(method);
-	}
+	return isPathInside(distDir, requestedPath) ? { pathname, requestedPath } : undefined;
+}
+
+function findDistFile({ pathname, requestedPath }: RequestTarget, options: ServeDistFileOptions): string | undefined {
 	if (options.staticFilesOnly && !ServerUtils.hasKnownStaticExtension(pathname)) {
-		return await createNotFoundResponse(request, options, distDir, method);
+		return undefined;
 	}
 
 	const candidate = options.resolveExportedPages
@@ -57,16 +77,7 @@ export async function serveDistFile(request: Request, options: ServeDistFileOpti
 			? requestedPath
 			: undefined;
 
-	if (!candidate || path.basename(candidate) === HASHED_BROWSER_ASSET_INDEX_FILENAME) {
-		return await createNotFoundResponse(request, options, distDir, method);
-	}
-
-	const response = await createDistFileResponse(candidate, ServerUtils.getContentType(candidate), request, options.watchMode);
-	if (!response) {
-		return await createNotFoundResponse(request, options, distDir, method);
-	}
-
-	return method === 'HEAD' ? responseWithoutBody(response) : response;
+	return candidate && path.basename(candidate) !== HASHED_BROWSER_ASSET_INDEX_FILENAME ? candidate : undefined;
 }
 
 async function createNotFoundResponse(
@@ -160,7 +171,11 @@ function responseWithoutBody(response: Response): Response {
 	return new Response(null, { status: response.status, statusText: response.statusText, headers: response.headers });
 }
 
-function fileCacheHeaders(filePath: string, file: Buffer, watchMode: boolean): Record<string, string> & { ETag: string } {
+function fileCacheHeaders(
+	filePath: string,
+	file: Buffer,
+	watchMode: boolean,
+): Record<string, string> & { ETag: string } {
 	const etag = `"${hashBrowserAssetBytes(file)}"`;
 	const extension = path.extname(filePath).toLowerCase();
 	if (extension === '.html') {

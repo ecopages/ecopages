@@ -195,10 +195,11 @@ describe('serveDistFile', () => {
 
 	it('lets the runtime route handler provide its rendered 404', async () => {
 		const distDir = createDist();
-		const notFound = async () => new Response('<h1>Rendered 404</h1>', {
-			status: 404,
-			headers: { 'Content-Type': 'text/html' },
-		});
+		const notFound = async () =>
+			new Response('<h1>Rendered 404</h1>', {
+				status: 404,
+				headers: { 'Content-Type': 'text/html' },
+			});
 		const response = await serveDistFile(new Request('http://localhost/missing'), {
 			distDir,
 			watchMode: true,

@@ -53,14 +53,14 @@ Route paths drop the longest registered extension the file ends with, so `about.
 
 Discovery rejects two Page files that produce the same template route (for example `about.html` with `about.tsx` or `about/index.html`) and dynamic filenames such as `[slug].html` whose owning Integration sets `acceptsParams` to `false` (HTML Pages do, because they have no `staticPaths` source).
 
-The registry stores canonical template routes only. It compiles request-time matching metadata during `init()` and `reload()`, but it does not execute `staticPaths()` during discovery.
+The registry stores canonical template routes only. `matchRequest()` parses each template route's pattern against the request pathname on every call; nothing is precompiled during `init()` or `reload()`. The registry does not execute `staticPaths()` during discovery.
 
 Build-time static expansion is a separate operation. The registry invokes `staticPaths()` lazily through an injected page-module adapter and returns concrete static path expansions for the static generator.
 
 The public interface is intentionally small:
 
 - `templateRoutes` — ordered readonly template routes
-- `init()` / `reload()` — rebuild discovery state and match metadata
+- `init()` / `reload()` — rebuild the template route list
 - `matchRequest(requestUrl)` — request-time matching result with requested pathname, matched template route, params, and query
 - `listStaticPathExpansions()` — build-time expansion for dynamic routes
 - `listStaticGenerationRoutes()` — build-time route planning for static generation across exact and expanded routes

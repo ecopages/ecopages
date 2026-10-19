@@ -26,9 +26,8 @@ flowchart TD
   I -- Yes --> J[FileSystemResponseMatcher handleMatch]
   I -- No --> K[FileSystemResponseMatcher handleNoMatch]
 
-  J --> L[RouteRendererFactory createRenderer]
-  L --> M[RouteRenderer createRoute]
-  M --> N[IntegrationRenderer execute]
+  J --> L[RouteRendererFactory getPageRenderer]
+  L --> N[IntegrationRenderer execute]
   N --> O[response body and cache strategy]
 ```
 
@@ -53,7 +52,8 @@ flowchart TD
   M -- Yes --> N[throw unresolved artifact error]
   M -- No --> O[stamp document attributes when needed]
   O --> P[htmlTransformer transform]
-  P --> Q[final body and cache strategy]
+  P --> R[IntegrationRenderer finalizeDocument]
+  R --> Q[final body and cache strategy]
 ```
 
 ## 3) Mixed-Integration Render Model
@@ -109,7 +109,7 @@ flowchart TD
   F2 --> G2[renderExplicitView on the component path]
 
   H[StaticSiteGenerator explicit routes] --> I[resolve renderer without staticProps]
-  I --> J[renderExplicitView then execute]
+  I --> J[executeExplicitView then execute]
   J --> K[write html to dist]
 ```
 

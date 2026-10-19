@@ -2,11 +2,6 @@
  * This module contains the Lit renderer hooks.
  * @module
  */
-
-/**
- * This module contains the Lit renderer hooks.
- * @module
- */
 import type { EcoComponent, EcoFunctionComponent, EcoPagesElement, PageParams } from '@ecopages/core';
 import type { RouteRenderResult, RouteRendererOptions } from '@ecopages/core/integration';
 import { createIntegrationRenderer, type IntegrationRendererHookFactoryOptions } from '@ecopages/core/integration';
@@ -29,7 +24,6 @@ import {
 } from './utils/lit-html-rendering.ts';
 
 export type LitRenderer = InstanceType<ReturnType<typeof createLitRenderer>>;
-export type LitRendererOptions = ConstructorParameters<ReturnType<typeof createLitRenderer>>[0];
 
 /**
  * Creates the Lit renderer class with a lazy worker-session lookup.

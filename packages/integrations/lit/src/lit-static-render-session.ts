@@ -123,10 +123,6 @@ export class LitStaticRenderSession {
 		await this.preloader.preloadSsrScripts(components);
 	}
 
-	collectSsrPreloadScripts(components: Array<CustomElementSsrPreloadComponent | undefined>): string[] {
-		return this.preloader.collectSsrPreloadScripts(components);
-	}
-
 	async renderPageInWorker(input: {
 		filePath: string;
 		params: PageParams;
@@ -151,10 +147,6 @@ export class LitStaticRenderSession {
 			() => undefined,
 		);
 		return render;
-	}
-
-	isExpectedSsrPreloadError(error: unknown): boolean {
-		return this.preloader.isExpectedSsrPreloadError(error);
 	}
 
 	async dispose(): Promise<void> {

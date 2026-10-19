@@ -14,6 +14,7 @@ import type {
 	LitStaticRenderWorkerRequestMessage,
 	LitStaticRenderWorkerResponseMessage,
 } from './lit-static-render-protocol.ts';
+import { toLitStaticRenderErrorMessage } from './lit-static-render-error.ts';
 import { toLitStaticRenderResult } from './lit-static-render-result.ts';
 import './dom-shim.ts';
 
@@ -125,12 +126,6 @@ parentPort.on('message', async (message: LitStaticRenderWorkerRequestMessage) =>
 			}
 		}
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error);
-		if (message.type === 'render') {
-			postMessage({ type: 'error', id: message.id, message: errorMessage });
-			return;
-		}
-
-		postMessage({ type: 'error', message: errorMessage });
+		postMessage(toLitStaticRenderErrorMessage(error, message.type === 'render' ? message.id : undefined));
 	}
 });

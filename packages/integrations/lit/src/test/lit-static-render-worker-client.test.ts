@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
+import { HttpError } from '@ecopages/core/errors';
 
 const createdWorkers: Array<
 	EventEmitter & { postMessage: ReturnType<typeof vi.fn>; terminate: ReturnType<typeof vi.fn> }
@@ -141,6 +142,40 @@ describe('LitStaticRenderWorkerClient', () => {
 			cacheStrategy: { revalidate: 60 },
 			sourceDependencyPaths: ['/app/src/pages/docs.lit.tsx'],
 			metadata: { title: 'Docs', description: 'Docs page' },
+		});
+		const disposal = client.dispose();
+		createdWorker.emit('message', { type: 'shutdown-complete' });
+		createdWorker.emit('exit', 0);
+		await disposal;
+	});
+
+	it('rejects a render with an HttpError of the status the worker reported', async () => {
+		createdWorkers.length = 0;
+		const { LitStaticRenderWorkerClient } = await loadWorkerClient();
+		const client = new LitStaticRenderWorkerClient({
+			configModulePath: '/app/eco.config.ts',
+			runtimeOrigin: 'http://127.0.0.1:3000',
+		});
+
+		const renderPromise = client.renderPage({ filePath: '/app/src/pages/missing.lit.tsx', params: {} });
+		const createdWorker = createdWorkers[0]!;
+		createdWorker.emit('message', { type: 'ready' });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		createdWorker.emit('message', {
+			type: 'error',
+			id: '1',
+			message: 'No such post',
+			name: 'HttpError',
+			stack: 'HttpError: No such post\n    at page',
+			status: 404,
+		});
+
+		const error = await renderPromise.catch((caught: unknown) => caught);
+		expect(HttpError.isHttpError(error)).toBe(true);
+		expect(error).toMatchObject({
+			status: 404,
+			message: 'No such post',
+			cause: { name: 'HttpError', stack: 'HttpError: No such post\n    at page' },
 		});
 		const disposal = client.dispose();
 		createdWorker.emit('message', { type: 'shutdown-complete' });

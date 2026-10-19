@@ -489,4 +489,89 @@ describe('handleFileChanges dispatch', () => {
 
 		assert.deepEqual(collectPendingBuildErrors(manager), []);
 	});
+
+	describe('when a script-change handler throws', () => {
+		async function startWithFailingHandler(prefix: string, subscriberCount: number) {
+			const rootDir = createTempRoot(prefix);
+			const srcDir = path.join(rootDir, 'src');
+			fs.mkdirSync(srcDir, { recursive: true });
+			const started = await startHmrManagerAt(rootDir, subscriberCount);
+			const scriptPath = path.join(srcDir, 'widget.script.ts');
+			fs.writeFileSync(scriptPath, 'export const widget = true;\n', 'utf8');
+			await started.manager.registerScriptEntrypoint(scriptPath);
+			const handler = vi.fn().mockRejectedValueOnce(new Error('widget failed'));
+			started.manager.onScriptEntrypointChanged(handler);
+			vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+			return { ...started, srcDir, scriptPath };
+		}
+
+		test('broadcasts its error once', async () => {
+			const { manager, broadcasts, scriptPath } = await startWithFailingHandler('ecopages-dispatch-handler', 1);
+
+			await manager.handleFileChanges([scriptPath]);
+
+			assert.deepEqual(
+				broadcasts.filter((event) => event.type === 'error'),
+				[{ type: 'error', message: 'widget failed' }],
+			);
+		});
+
+		test('does not broadcast its error when the batch asks not to', async () => {
+			const { manager, broadcasts, scriptPath } = await startWithFailingHandler(
+				'ecopages-dispatch-handler-silent',
+				1,
+			);
+
+			await manager.handleFileChanges([scriptPath], { broadcast: false });
+
+			assert.deepEqual(broadcasts, []);
+		});
+
+		test('keeps its error for the browser that reconnects after a reload in the same save', async () => {
+			const { manager, broadcasts, srcDir, scriptPath } = await startWithFailingHandler(
+				'ecopages-dispatch-handler-reload',
+				1,
+			);
+			const cssPath = path.join(srcDir, 'widget.css');
+			fs.writeFileSync(cssPath, 'body {}\n', 'utf8');
+
+			await manager.handleFileChanges([scriptPath, cssPath]);
+
+			assert.deepEqual(
+				broadcasts.map((event) => event.type),
+				['reload', 'error'],
+			);
+			assert.deepEqual(collectPendingBuildErrors(manager), [{ type: 'error', message: 'widget failed' }]);
+
+			await manager.handleFileChanges([scriptPath], { broadcast: false });
+
+			assert.deepEqual(collectPendingBuildErrors(manager), []);
+		});
+	});
+
+	test('keeps a strategy error for a browser that connects later, until the file processes again', async () => {
+		const rootDir = createTempRoot('ecopages-dispatch-strategy-error');
+		const srcDir = path.join(rootDir, 'src');
+		fs.mkdirSync(srcDir, { recursive: true });
+		const { manager } = await startHmrManagerAt(rootDir, 1);
+		const filePath = path.join(srcDir, 'broken.tsx');
+		fs.writeFileSync(filePath, 'export const broken = true;\n', 'utf8');
+		const fail = vi.fn().mockImplementationOnce(() => {
+			throw new Error('broken failed');
+		});
+		manager.registerStrategy(
+			new FakeHmrStrategy(
+				HmrStrategyType.INTEGRATION,
+				(candidate) => candidate === filePath,
+				() => fail() ?? { type: 'none' },
+			),
+		);
+		vi.spyOn(appLogger, 'error').mockReturnValue(appLogger);
+
+		await manager.handleFileChanges([filePath]);
+		assert.deepEqual(collectPendingBuildErrors(manager), [{ type: 'error', message: 'broken failed' }]);
+
+		await manager.handleFileChanges([filePath]);
+		assert.deepEqual(collectPendingBuildErrors(manager), []);
+	});
 });

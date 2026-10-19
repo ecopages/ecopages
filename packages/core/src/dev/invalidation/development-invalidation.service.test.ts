@@ -298,26 +298,32 @@ describe('DevelopmentInvalidationService', () => {
 		const session = requireAppRuntime(appConfig).pageBrowserGraphSession;
 		const routeFile = '/test/project/src/pages/index.kita.tsx';
 		const helperFile = '/test/project/src/lib/helper.ts';
-		await session.resolveGraph(
-			{
-				integrationName: 'kita',
-				routeFile,
-				dependencyInstanceKey: '',
-				entryFingerprint: 'index',
-				policy: 'development',
-			},
-			new Set([routeFile, helperFile]),
-			async () => ({
-				result: { entryAssets: [], chunkAssets: [] },
-				dependencyPaths: new Set([routeFile, helperFile]),
-			}),
-		);
-		expect(session.getAffectedGraphIdentities(helperFile)).toHaveLength(1);
+		const build = vi.fn(async () => ({
+			result: { entryAssets: [], chunkAssets: [] },
+			dependencyPaths: new Set([routeFile, helperFile]),
+		}));
+		const resolveGraph = () =>
+			session.resolveGraph(
+				{
+					integrationName: 'kita',
+					routeFile,
+					dependencyInstanceKey: '',
+					entryFingerprint: 'index',
+					policy: 'development',
+				},
+				new Set([routeFile, helperFile]),
+				build,
+			);
+		await resolveGraph();
+		await resolveGraph();
+		expect(build).toHaveBeenCalledOnce();
 		const service = new DevelopmentInvalidationService(appConfig);
 
 		await service.applyDevFileChanges({ changed: [helperFile], created: [], deleted: [] });
 
-		expect(session.getAffectedGraphIdentities(helperFile)).toEqual([]);
+		expect(session.getGraphByRoute('kita', routeFile, 'development')).toBeUndefined();
+		await resolveGraph();
+		expect(build).toHaveBeenCalledTimes(2);
 	});
 
 	it('unregisters route-module inputs when a route is removed', async () => {

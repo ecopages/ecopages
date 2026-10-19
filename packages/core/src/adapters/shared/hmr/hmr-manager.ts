@@ -61,6 +61,14 @@ export class HmrManager implements IHmrManager {
 	private readonly fallbackStrategy = new DefaultHmrStrategy();
 	private readonly scriptEntrypointChangeHandlers: RegisteredScriptEntrypointChangeHandler[] = [];
 	private readonly registeredScriptReloadRequired = new Set<string>();
+	/**
+	 * Error messages of changed files whose strategy or script-change handler threw, by file path.
+	 *
+	 * @remarks
+	 * An entry stays until that file processes without error, because nothing records it again on a later
+	 * request the way a dev-transform failure is.
+	 */
+	private readonly fileChangeErrors = new Map<string, string>();
 	protected readonly entrypointRegistry: DevTransformEntrypointRegistry;
 	protected readonly browserBundleService: BrowserBundleService;
 	protected readonly invalidationService: DevelopmentInvalidationService;
@@ -253,9 +261,12 @@ export class HmrManager implements IHmrManager {
 		for (const filePath of uniqueFilePaths) {
 			try {
 				events.push(...(await this.processFileChange(filePath)));
+				this.fileChangeErrors.delete(filePath);
 			} catch (error) {
 				appLogger.error(error instanceof Error ? error : new Error(String(error)));
-				events.push({ type: 'error', message: error instanceof Error ? error.message : String(error) });
+				const message = error instanceof Error ? error.message : String(error);
+				this.fileChangeErrors.set(filePath, message);
+				events.push({ type: 'error', message });
 			}
 		}
 
@@ -355,18 +366,8 @@ export class HmrManager implements IHmrManager {
 	 */
 	private async runRegisteredEntrypointChangeHandlers(filePath: string): Promise<void> {
 		for (const handler of this.scriptEntrypointChangeHandlers) {
-			try {
-				const result = await handler(filePath);
-				if (result === true) {
-					this.registeredScriptReloadRequired.add(path.resolve(filePath));
-				}
-			} catch (error) {
-				const message =
-					error instanceof Error
-						? error.message
-						: `Failed to handle registered script entrypoint change for ${filePath}: ${String(error)}`;
-				this.broadcast({ type: 'error', message });
-				throw error;
+			if ((await handler(filePath)) === true) {
+				this.registeredScriptReloadRequired.add(path.resolve(filePath));
 			}
 		}
 	}
@@ -398,14 +399,16 @@ export class HmrManager implements IHmrManager {
 	}
 
 	/**
-	 * Sends a browser that just connected the build errors of modules that still fail to transpile.
+	 * Sends a browser that just connected the build errors of modules that still fail to transpile, and of
+	 * changed files whose last processing failed.
 	 *
 	 * @remarks
 	 * A build error is broadcast while the failing module is served, which can happen before the page's HMR
-	 * socket connects. Without this replay that browser would never show the error.
+	 * socket connects. A change error can share its batch with a `reload`, which drops the error shown before
+	 * it. Without this replay that browser would never show the error.
 	 */
 	public sendPendingBuildErrors(client: { send(payload: string): void }): void {
-		for (const message of this.devTransformServer.getFailureMessages()) {
+		for (const message of [...this.devTransformServer.getFailureMessages(), ...this.fileChangeErrors.values()]) {
 			client.send(JSON.stringify({ type: 'error', message } satisfies ClientBridgeEvent));
 		}
 	}
@@ -442,6 +445,7 @@ export class HmrManager implements IHmrManager {
 		this.readyRuntimes.clear();
 		this.scriptEntrypointChangeHandlers.length = 0;
 		this.registeredScriptReloadRequired.clear();
+		this.fileChangeErrors.clear();
 		this.entrypointRegistry.clearAll();
 		this.devTransformServer.reset();
 		this.buildInputIndex.clearConsumer('entrypoint');

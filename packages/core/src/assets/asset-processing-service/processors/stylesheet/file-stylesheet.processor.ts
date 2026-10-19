@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileSystem } from '@ecopages/file-system';
 import type { FileStylesheetAsset, ProcessedAsset } from '../../assets.types.ts';
+import { assertBrowserOutputInsideDist, sourceRelativeBrowserAssetPath } from '../../../browser-asset-output.ts';
 import { writeHashedBrowserAsset } from '../../../hashed-browser-asset.ts';
 import { BaseProcessor } from '../base/base-processor.ts';
 import { applyStylesheetProcessors } from './stylesheet-processor-pipeline.ts';
@@ -17,15 +18,18 @@ export class FileStylesheetProcessor extends BaseProcessor<FileStylesheetAsset> 
 		let filepath: string | undefined;
 
 		if (!dep.inline) {
-			filepath = this.isProduction
-				? writeHashedBrowserAsset({
-						bytes: processedContent,
-						directory: this.getAssetsDir(),
-						extension: '.css',
-					})
-				: path.join(this.getAssetsDir(), path.relative(this.appConfig.absolutePaths.srcDir, dep.filepath));
+			const relativePath = sourceRelativeBrowserAssetPath(this.appConfig.absolutePaths.srcDir, dep.filepath);
+			const directory = this.getAssetsDir();
 
-			if (!this.isProduction) {
+			if (this.isProduction || !relativePath) {
+				filepath = writeHashedBrowserAsset({
+					bytes: processedContent,
+					directory,
+					extension: '.css',
+				});
+			} else {
+				filepath = path.join(directory, relativePath);
+				assertBrowserOutputInsideDist(this.appConfig.absolutePaths.distDir, filepath);
 				fileSystem.ensureDir(path.dirname(filepath));
 				fileSystem.write(filepath, processedContent);
 			}

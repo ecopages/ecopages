@@ -1,8 +1,8 @@
 import path from 'node:path';
-import { RESOLVED_ASSETS_DIR } from '../../../../constants.ts';
 import { fileSystem } from '@ecopages/file-system';
 import type { EcoPagesAppConfig, IHmrManager } from '../../../../config/internal-types.ts';
 import type { FileScriptAsset, ProcessedAsset } from '../../assets.types.ts';
+import { assertBrowserOutputInsideDist, sourceRelativeBrowserAssetPath } from '../../../browser-asset-output.ts';
 import { writeHashedBrowserAsset } from '../../../hashed-browser-asset.ts';
 import { BaseScriptProcessor } from '../base/base-script-processor.ts';
 import { classicScriptOutputName, compileClassicScript } from './classic-script-compiler.ts';
@@ -62,11 +62,14 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 
 	/**
 	 * @remarks
-	 * With HMR active, bundled scripts are built and watched by the HMR manager, which emits ES
-	 * modules. In production, `bundle: false` scripts are written under a hash of their bytes.
-	 * In development they are copied to their source-relative path so HMR can refresh them.
-	 * `classic` scripts are compiled on their own as classic scripts. Vendor runtimes keep their
-	 * stable names.
+	 * With HMR active, a bundled script is built and watched by the HMR manager, which emits an ES
+	 * module and serves the dev-transform URL. In production, a `bundle: false` script is written
+	 * under a hash of its bytes. In development, a non-classic `bundle: false` file inside `srcDir`
+	 * is copied to its source-relative path. A classic script inside `srcDir` is compiled and written
+	 * under that path with a `.js` name. A file outside `srcDir` has no such path that stays inside
+	 * `dist`: an unbundled or classic script is written under a content hash, and a bundled script
+	 * is emitted in `dist/assets` under the bundler's `[name]-[hash]` name. Vendor runtimes inside
+	 * `src` keep their stable names.
 	 */
 	async process(dep: FileScriptAsset): Promise<ProcessedAsset> {
 		const hmrManager = this.getActiveHmrManager();
@@ -100,14 +103,16 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	}
 
 	private processUnbundledScript(dep: FileScriptAsset, content: string): ProcessedAsset {
-		const outFilepath = path.relative(this.appConfig.absolutePaths.srcDir, dep.filepath);
+		const outFilepath = sourceRelativeBrowserAssetPath(this.appConfig.absolutePaths.srcDir, dep.filepath);
 		const output = dep.classic ? this.emitClassicScript(dep, outFilepath, content.toString()) : undefined;
 		let filepath = output?.filepath;
 
 		if (!dep.classic && !dep.inline) {
-			if (dep.packageRole === 'runtime' || !this.isProduction) {
-				filepath = path.join(this.getAssetsDir(), outFilepath);
-				fileSystem.copyFile(dep.filepath, filepath);
+			if (outFilepath && (dep.packageRole === 'runtime' || !this.isProduction)) {
+				const destination = path.join(this.getAssetsDir(), outFilepath);
+				assertBrowserOutputInsideDist(this.appConfig.absolutePaths.distDir, destination);
+				fileSystem.copyFile(dep.filepath, destination);
+				filepath = destination;
 			} else {
 				filepath = writeHashedBrowserAsset({
 					bytes: content,
@@ -132,13 +137,18 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 	}
 
 	private async processBundledScript(dep: FileScriptAsset): Promise<ProcessedAsset> {
-		const relativeFilepath = path.relative(this.appConfig.absolutePaths.srcDir, dep.filepath);
-		const outdirPath = path.join(this.appConfig.absolutePaths.distDir, RESOLVED_ASSETS_DIR, relativeFilepath);
+		const relativeFilepath = sourceRelativeBrowserAssetPath(this.appConfig.absolutePaths.srcDir, dep.filepath);
+		const outdir = relativeFilepath
+			? path.dirname(path.join(this.getAssetsDir(), relativeFilepath))
+			: this.getAssetsDir();
+		if (relativeFilepath) {
+			assertBrowserOutputInsideDist(this.appConfig.absolutePaths.distDir, outdir);
+		}
 		const bundlerOptions = this.getBundlerOptions(dep);
 
 		const bundledOutput = await this.bundleScript({
 			entrypoint: dep.filepath,
-			outdir: path.dirname(outdirPath),
+			outdir,
 			minify: this.isProduction,
 			...bundlerOptions,
 			plugins: bundlerOptions.plugins,
@@ -160,15 +170,16 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 
 	/**
 	 * @remarks
-	 * The output keeps the source path and name, with a TypeScript extension turned into `.js`, as a
-	 * copied classic `.js` does. A second source file for the same output is rejected while the first
-	 * still exists, so a last write cannot silently win.
+	 * The output keeps the source path and name when the file is inside `srcDir`, with a TypeScript
+	 * extension turned into `.js`, as a copied classic `.js` does. A file outside `srcDir` is written
+	 * under a content hash in `dist/assets`. A second source file for the same output is rejected while
+	 * the first still exists, so a last write cannot silently win.
 	 *
 	 * @throws When the file cannot be a classic script, or another existing file is emitted to its output.
 	 */
 	private emitClassicScript(
 		dep: FileScriptAsset,
-		outFilepath: string,
+		outFilepath: string | undefined,
 		source: string,
 	): { code: string; filepath?: string } {
 		const compiled = compileClassicScript(dep.filepath, source, { minify: this.isProduction });
@@ -179,7 +190,17 @@ export class FileScriptProcessor extends BaseScriptProcessor<FileScriptAsset> {
 			return { code: compiled.code };
 		}
 
+		if (!outFilepath) {
+			const filepath = writeHashedBrowserAsset({
+				bytes: compiled.code,
+				directory: this.getAssetsDir(),
+				extension: '.js',
+			});
+			return { code: compiled.code, filepath };
+		}
+
 		const filepath = path.join(this.getAssetsDir(), classicScriptOutputName(outFilepath));
+		assertBrowserOutputInsideDist(this.appConfig.absolutePaths.distDir, filepath);
 		const other = this.classicScriptSources.get(filepath);
 		if (other !== undefined && other !== dep.filepath && fileSystem.exists(other)) {
 			throw new Error(`${dep.filepath} and ${other} are both emitted as ${filepath}. Rename one of them.`);

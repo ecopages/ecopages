@@ -5,8 +5,20 @@
 
 import { createContext, useContext } from 'react';
 
+/** Options for programmatic navigation through `useRouter().navigate`. */
+export type RouterNavigateRequestOptions = {
+	/** Replaces the current history entry instead of pushing a new one. */
+	replace?: boolean;
+};
+
 export type RouterContextValue = {
-	navigate: (url: string) => Promise<void>;
+	/**
+	 * Navigates to a URL and pushes a history entry, like following a link.
+	 *
+	 * @remarks
+	 * Pass `{ replace: true }` to replace the current entry instead.
+	 */
+	navigate: (url: string, options?: RouterNavigateRequestOptions) => Promise<void>;
 	isNavigating: boolean;
 };
 

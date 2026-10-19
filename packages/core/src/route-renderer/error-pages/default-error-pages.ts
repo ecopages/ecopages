@@ -1,4 +1,5 @@
 import { isDevelopmentRuntime } from '../../utils/runtime.ts';
+import { formatErrorChain } from '../../utils/format-error-chain.ts';
 import { escapeHtml } from '../../utils/html-escaping.ts';
 import { ERROR_PAGE_COPY, isHttpErrorPageStatus, isHttpErrorStatus } from '../../errors/http-error-page-contract.ts';
 
@@ -212,7 +213,7 @@ export function getDefaultServerErrorDetails(error: unknown): DefaultErrorPageDe
 		return undefined;
 	}
 	if (error instanceof Error) {
-		return { message: error.message, stack: error.stack };
+		return { message: error.message, stack: formatErrorChain(error) };
 	}
 	return { message: String(error) };
 }

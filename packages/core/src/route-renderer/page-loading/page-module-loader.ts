@@ -50,7 +50,7 @@ export class PageModuleLoaderService {
 				noOutputMessage: (targetFilePath) => `No transpiled output generated for page: ${targetFilePath}`,
 			});
 		} catch (error) {
-			invariant(false, `Error importing page file: ${error}`);
+			invariant(false, `Error importing page file: ${error}`, { cause: error });
 		}
 	}
 

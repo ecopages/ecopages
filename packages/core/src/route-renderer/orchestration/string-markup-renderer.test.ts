@@ -112,6 +112,31 @@ describe('StringMarkupRenderer', () => {
 		).rejects.toThrow('Error rendering page: Page failed to render');
 	});
 
+	it('keeps the original page error as the cause of the render error', async () => {
+		const renderer = createRenderer();
+		const original = new Error('Page failed to render');
+
+		const failure = await renderer
+			.render({
+				params: {},
+				query: {},
+				props: {},
+				file: 'file',
+				resolvedDependencies: [],
+				metadata,
+				Page: async () => {
+					throw original;
+				},
+				HtmlTemplate,
+			})
+			.catch((error: unknown) => error);
+
+		expect(HttpError.isHttpError(failure)).toBe(true);
+		expect((failure as HttpError).status).toBe(500);
+		expect((failure as HttpError).cause).toBe(original);
+		expect(((failure as HttpError).cause as Error).stack).toContain('Page failed to render');
+	});
+
 	it('should preserve HttpError.NotFound thrown during page render', async () => {
 		const renderer = createRenderer();
 		const notFound = HttpError.NotFound('Unknown content entry');

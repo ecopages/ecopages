@@ -249,6 +249,31 @@ describe('PageModuleLoaderService', () => {
 		]);
 	});
 
+	it('keeps the original import failure as the cause of the import error', async () => {
+		const original = new Error('x');
+		const service = new PageModuleLoaderService({
+			...appConfig,
+			appRuntime: {
+				origin: 'http://localhost:3000',
+				moduleLoader: {
+					async importModule(): Promise<never> {
+						throw original;
+					},
+					invalidateDevelopmentGraph(): void {
+						return;
+					},
+					getDevelopmentGeneration: () => 0,
+				} satisfies AppModuleLoaderContract,
+			},
+		} as unknown as EcoPagesAppConfig);
+
+		const failure = await service.importPageFile('/app/src/pages/broken.tsx').catch((error: unknown) => error);
+
+		expect((failure as Error).message).toBe('[ecopages] Error importing page file: Error: x');
+		expect((failure as Error).cause).toBe(original);
+		expect(((failure as Error).cause as Error).stack).toContain('Error: x');
+	});
+
 	it('should reuse a preloaded page module without importing again', async () => {
 		const calls: Array<unknown> = [];
 		const expectedModule = {

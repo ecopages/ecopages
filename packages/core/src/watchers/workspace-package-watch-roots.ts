@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
+import { fileSystem } from '@ecopages/file-system';
 import { isPathStrictlyInside } from '../utils/path-containment.ts';
 
 /**
@@ -11,12 +11,12 @@ import { isPathStrictlyInside } from '../utils/path-containment.ts';
  */
 export function resolveWorkspacePackageWatchRoots(rootDir: string): string[] {
 	const manifestPath = path.join(rootDir, 'package.json');
-	if (!existsSync(manifestPath)) return [];
+	if (!fileSystem.exists(manifestPath)) return [];
 	const manifest: {
 		dependencies?: Record<string, unknown>;
 		devDependencies?: Record<string, unknown>;
 		optionalDependencies?: Record<string, unknown>;
-	} = JSON.parse(readFileSync(manifestPath, 'utf8'));
+	} = JSON.parse(fileSystem.readFileSync(manifestPath));
 	const names = new Set([
 		...Object.keys(manifest.dependencies ?? {}),
 		...Object.keys(manifest.devDependencies ?? {}),
@@ -28,8 +28,8 @@ export function resolveWorkspacePackageWatchRoots(rootDir: string): string[] {
 		let directory = path.resolve(rootDir);
 		while (true) {
 			const installed = path.join(directory, 'node_modules', name);
-			if (existsSync(path.join(installed, 'package.json'))) {
-				const realRoot = realpathSync(installed);
+			if (fileSystem.exists(path.join(installed, 'package.json'))) {
+				const realRoot = fileSystem.realpath(installed);
 				if (!realRoot.split(path.sep).includes('node_modules')) roots.add(realRoot);
 				break;
 			}

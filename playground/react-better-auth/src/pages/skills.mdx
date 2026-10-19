@@ -910,7 +910,7 @@ export const authHandler = async (ctx: ApiHandlerContext) => {
 In `app.ts`:
 
 ```typescript
-import { createApp } from "@ecopages/core";
+import { createApp } from "@ecopages/core/create-app";
 import * as auth from "./src/handlers/auth.server";
 
 const app = await createApp();

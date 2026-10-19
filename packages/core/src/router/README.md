@@ -134,10 +134,10 @@ Shared document lifecycle events emitted by browser runtimes after a client navi
 Access it with:
 
 ```ts
-import { completeNavigationLifecycle, dispatchBeforeSwap, type EcoNavigationEvent } from '@ecopages/core/client';
+import { ECO_NAVIGATION_LIFECYCLE_EVENTS, type EcoNavigationEvent } from '@ecopages/core/client';
 ```
 
-The shared navigation pipeline emits these events around the router-specific swap. Use `completeNavigationLifecycle` when implementing a custom runtime. Listeners use the DOM contract:
+The shared navigation pipeline emits these events around the router-specific swap. A custom runtime commits the new document with `commitNavigationPage` (also from `@ecopages/core/client`) and does not dispatch the events itself. Listeners use the DOM contract:
 
 - `eco:before-swap` — pre-commit hook with `newDocument` and `reload()`
 - `eco:after-swap` — post-commit signal after the runtime has applied the new page

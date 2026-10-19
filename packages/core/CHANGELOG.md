@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.2
+
+### Patch Changes
+
+- [#828](https://github.com/ecopages/ecopages/pull/828) [`a7e4217`](https://github.com/ecopages/ecopages/commit/a7e42178e12300d0bdb19fe1ac89b67c6c197a76) Thanks [@andeeplus](https://github.com/andeeplus)! - Keep a browser script or stylesheet inside `dist` when its source is outside `src`. A production build no longer writes that bundle, or its hashed-asset index, into another package.
+
+- [#826](https://github.com/ecopages/ecopages/pull/826) [`3db914f`](https://github.com/ecopages/ecopages/commit/3db914f33894366b48a011c78b326d59d1f668a9) Thanks [@andeeplus](https://github.com/andeeplus)! - The "next free" port suggested when the preferred port is in use now checks the address the app binds, instead of always checking `127.0.0.1`. The check resolves the configured hostname to a single address first, so a port taken on that address is no longer reported as free.
+
+- [#824](https://github.com/ecopages/ecopages/pull/824) [`c9e99d6`](https://github.com/ecopages/ecopages/commit/c9e99d6dd7caf30bc39549b3b037fbb247041c93) Thanks [@andeeplus](https://github.com/andeeplus)! - Fix four development and lifecycle edge cases:
+
+    - Calling `stop()`, then `start()`, then `stop()` again before the first stop finishes now leaves nothing running. Before, the queued `start()` brought the server back after the last `stop()` had resolved.
+    - In preview mode, the `start()` callback no longer runs, and the server-running notice is no longer logged, when `stop()` is called while the static build is still running.
+    - Editing a file that declares several React islands now hot-updates all of them, not only the last one. When an edit renames an island's declaration so the updated module no longer exports it, the page reloads instead of rendering another export of the file in its place.
+    - A build error from a script change now stays visible when the same save reloads the page: the browser shows it again after the reload, and on every later page load until the file is fixed. The error is sent once instead of twice.
+
+    Correction to 0.3.1: that release removed `IHmrManager.handleFileChange` and the `graphIdentities` fields from the integration contract, although it shipped as a patch. Integrations that implement or call them must adapt: call `handleFileChanges()` with a one-item list, and stop reading or setting `graphIdentities`.
+
+- [#825](https://github.com/ecopages/ecopages/pull/825) [`e8985f1`](https://github.com/ecopages/ecopages/commit/e8985f10b5434c191e8308368fb119390aa53c1c) Thanks [@andeeplus](https://github.com/andeeplus)! - Detect a taken port under Bun. When the dev or preview port was already in use on `localhost`, Bun bound the server to another address that `localhost` resolves to, so two servers listened on the same origin and requests were split between them. The server now binds the same single address on Bun and Node, so a taken port falls back to the next free port, or fails when the port is pinned with `--port` or `ECOPAGES_PORT`.
+- Updated dependencies [[`4026351`](https://github.com/ecopages/ecopages/commit/40263519401705b54e90efc8ce93c2bf70cdb9e5)]:
+    - @ecopages/file-system@0.3.2
+    - @ecopages/dev-toolbar@0.3.2
+
 ## 0.3.1
 
 ### Patch Changes

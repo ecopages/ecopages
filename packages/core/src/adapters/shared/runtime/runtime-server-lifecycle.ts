@@ -78,9 +78,7 @@ export async function startDevWarmup(options: { appConfig: EcoPagesAppConfig }):
  * Releases shared dev resources in a consistent order across server adapters.
  *
  * @remarks
- * Bun calls `ensureRuntimeReady()` during `initialize()` when watch is enabled; Node defers
- * runtime creation to `completeInitialization()`. Transport-specific setup stays in
- * each adapter — only shared teardown lives here. Integration `setup()` calls still in flight
+ * Transport-specific setup stays in the adapter; only shared teardown lives here. Integration `setup()` calls still in flight
  * settle before any `teardown()`, so a late setup cannot recreate released resources. A failed
  * integration `teardown()` still clears activation state, so the next startup runs `setup()` again.
  */

@@ -101,6 +101,46 @@ describe('ProjectWatcher', () => {
 		});
 	});
 
+	describe('ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS', () => {
+		afterEach(() => {
+			vi.unstubAllEnvs();
+		});
+
+		test.each(['abc', '-5', 'Infinity'])(
+			'falls back to the default window with a warning for %s',
+			async (value) => {
+				vi.useFakeTimers();
+				vi.stubEnv('ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS', value);
+				const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
+				const { emit } = await subscribe({ changeDebounceMs: undefined });
+				const pageFilePath = path.join(Config.absolutePaths.pagesDir, 'contact.tsx');
+
+				void emit('change', pageFilePath);
+				await vi.advanceTimersByTimeAsync(100);
+				expect(HmrManager.handleFileChanges).not.toHaveBeenCalled();
+
+				await vi.advanceTimersByTimeAsync(60);
+				expect(HmrManager.handleFileChanges).toHaveBeenCalledOnce();
+				expect(warn).toHaveBeenCalledWith(expect.stringContaining('ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS'));
+			},
+		);
+
+		test('uses a valid value from the environment', async () => {
+			vi.useFakeTimers();
+			vi.stubEnv('ECOPAGES_WATCH_CHANGE_DEBOUNCE_MS', '400');
+			const warn = vi.spyOn(appLogger, 'warn').mockImplementation(() => appLogger);
+			const { emit } = await subscribe({ changeDebounceMs: undefined });
+
+			void emit('change', path.join(Config.absolutePaths.pagesDir, 'contact.tsx'));
+			await vi.advanceTimersByTimeAsync(300);
+			expect(HmrManager.handleFileChanges).not.toHaveBeenCalled();
+
+			await vi.advanceTimersByTimeAsync(110);
+			expect(HmrManager.handleFileChanges).toHaveBeenCalledOnce();
+			expect(warn).not.toHaveBeenCalled();
+		});
+	});
+
 	describe('handleError', () => {
 		test('should broadcast error message and log', () => {
 			const watcher = new ProjectWatcher({

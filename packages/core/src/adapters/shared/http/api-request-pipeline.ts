@@ -129,7 +129,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 	 * Precedence is a thrown `Response`, then a client abort (499), then the app
 	 * `onError` handler, then `HttpError.toResponse()`, then a logged plain 500.
 	 * Runtime adapters reuse this for errors that escape the whole request
-	 * pipeline so `app.onError` behaves the same on Bun and Node.
+	 * pipeline so `app.onError` also covers them.
 	 */
 	async handleError(
 		error: unknown,

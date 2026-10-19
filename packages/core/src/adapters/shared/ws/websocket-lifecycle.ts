@@ -3,8 +3,8 @@ import type { EcopagesSocket, OutgoingWebSocketMessage, WebSocketCloseInfo } fro
 
 /**
  * @remarks
- * Bun and Node expose different raw socket types but share the same
- * {@link OutgoingWebSocketMessage} contract. Adapters supply only `send`/`close`;
+ * Adapters expose their raw socket through the
+ * {@link OutgoingWebSocketMessage} contract and supply only `send`/`close`;
  * {@link createEcopagesSocket} owns message normalization and stream forwarding.
  */
 export interface WebSocketSendTransport {
@@ -28,8 +28,7 @@ function sendOutgoingMessage(transport: WebSocketSendTransport, message: Outgoin
 
 /**
  * @remarks
- * Bun and Node adapters previously duplicated outgoing-message dispatch and
- * stream forwarding; this is the shared implementation both transports delegate to.
+ * Owns outgoing-message dispatch and stream forwarding for every transport.
  */
 export function createEcopagesSocket<TContext, TParams extends Record<string, string>>(
 	transport: WebSocketSendTransport,

@@ -44,8 +44,7 @@ function sleep(ms: number): Promise<void> {
 
 /**
  * Probes whether a TCP port is currently bindable from this process. Uses a
- * short-lived Node `net.Server` so both Node and Bun can run it via their
- * Node-compatible core.
+ * short-lived Node `net.Server`.
  *
  * @remarks
  * A successful probe only guarantees the port was free at probe time; callers

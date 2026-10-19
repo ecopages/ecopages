@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { EcoBuildPlugin } from '../build/contracts/build-types.ts';
+import { escapeRegExp } from '../utils/regex-escaping.ts';
 import { createJsxImportSourcePragma, filterJsxSourceExtensions } from './jsx-import-source.utils.ts';
 
 /**
@@ -46,7 +47,7 @@ export function createForeignJsxOverridePlugin(options: ForeignJsxOverrideOption
 	}
 
 	const pragma = createJsxImportSourcePragma(options.hostJsxImportSource);
-	const filter = new RegExp(`(${extensions.map((e) => e.replace('.', '\\.')).join('|')})$`);
+	const filter = new RegExp(`(${extensions.map(escapeRegExp).join('|')})$`);
 
 	return {
 		name: options.name ?? 'foreign-jsx-override',

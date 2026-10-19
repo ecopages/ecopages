@@ -4,6 +4,10 @@ Coding standards for agents. Domain vocabulary: [CONTEXT.md](./CONTEXT.md). Arch
 
 When behavior changes, update that folder's README and any parent index that lists it. Use CONTEXT.md terms consistently. User-facing public package changes also need a changeset (`pnpm changeset`); do not hand-edit package versions or `CHANGELOG.md` for release notes.
 
+## Board
+
+The GitHub project is [ecopages](https://github.com/orgs/ecopages/projects/2) (organization `ecopages`, number 2). Status field: in progress is `In progress`, in review is `In review`, done is `Done`.
+
 ## Comments
 
 - No inline `//` for non-obvious behavior — document on the declaration with TSDoc.

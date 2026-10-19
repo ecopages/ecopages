@@ -85,14 +85,16 @@ function normalizeExtension(extension: string): string {
 }
 
 /**
- * Writes a production browser asset under a name derived from a hash of its
- * final bytes, and returns that path.
+ * Writes a browser asset under a name derived from a hash of its final bytes,
+ * and returns that path.
  *
  * @remarks
- * The same bytes always produce the same name, so an unchanged stylesheet keeps
- * its URL and a quality or source change gets a new URL. Development keeps
- * source-relative names so CSS HMR can refresh the same href. Vendor runtimes
- * keep their own stable names and must not go through this helper.
+ * The same bytes always produce the same name, so an unchanged file keeps its URL
+ * and a content change gets a new URL. Callers use it for production assets, and
+ * for a source file outside `srcDir` in development, because a source-relative
+ * path would leave `dist`. A file inside `srcDir` keeps its source-relative name
+ * in development so CSS HMR can refresh the same href. A vendor runtime inside
+ * `src` keeps its stable name and does not use this helper.
  */
 export function writeHashedBrowserAsset(options: {
 	bytes: string | Buffer;

@@ -221,14 +221,14 @@ describe('EcopagesApp route registration', () => {
 		);
 	});
 
-	it('types a route whose middleware add different fields from explicit type arguments', () => {
+	it('types the handler with the context every one of its middleware adds', () => {
 		type SessionContext = ApiHandlerContext<Request, unknown> & { session: { userId: string } };
 		type LocaleContext = ApiHandlerContext<Request, unknown> & { locale: string };
 		const withSession: EcoMiddleware<SessionContext> = async (ctx, next) => next();
 		const withLocale: EcoMiddleware<LocaleContext> = async (ctx, next) => next();
 		const { app } = createTestApp();
 
-		app.get<RouteSchema, SessionContext & LocaleContext>(
+		app.get(
 			'/me',
 			(ctx) => {
 				expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
@@ -236,6 +236,78 @@ describe('EcopagesApp route registration', () => {
 				return ctx.json({});
 			},
 			{ middleware: [withSession, withLocale] },
+		);
+		app.route(
+			'/me',
+			'GET',
+			(ctx) => {
+				expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
+				expectTypeOf(ctx.locale).toEqualTypeOf<string>();
+				return ctx.json({});
+			},
+			{ middleware: [withSession, withLocale] },
+		);
+		app.group(
+			'/account',
+			(routes) =>
+				routes.post(
+					'/me',
+					(ctx) => {
+						expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
+						expectTypeOf(ctx.locale).toEqualTypeOf<string>();
+						expectTypeOf(ctx.body).toEqualTypeOf<{ name: string }>();
+						return ctx.json({});
+					},
+					{ schema: { body: z.object({ name: z.string() }) } },
+				),
+			{ middleware: [withSession, withLocale] },
+		);
+		app.get<RouteSchema, SessionContext & LocaleContext>(
+			'/explicit',
+			(ctx) => {
+				expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
+				expectTypeOf(ctx.locale).toEqualTypeOf<string>();
+				return ctx.json({});
+			},
+			{ middleware: [withSession, withLocale] },
+		);
+	});
+
+	it('types inline middleware functions with the base context', () => {
+		type SessionContext = ApiHandlerContext<Request, unknown> & { session: { userId: string } };
+		const withSession: EcoMiddleware<SessionContext> = async (ctx, next) => next();
+		const { app } = createTestApp();
+
+		app.get('/me', (ctx) => ctx.json({}), {
+			middleware: [
+				async (ctx, next) => {
+					expectTypeOf(ctx).toEqualTypeOf<ApiHandlerContext<Request, unknown>>();
+					return next();
+				},
+			],
+		});
+		const logRequest: Middleware<Request, unknown, ApiHandlerContext<Request, unknown>> = async (ctx, next) =>
+			next();
+		app.get(
+			'/me',
+			(ctx) => {
+				expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
+				return ctx.json({});
+			},
+			{ middleware: [withSession, logRequest] },
+		);
+		app.group(
+			'/account',
+			(routes) =>
+				routes.get('/me', (ctx) => ctx.json({}), {
+					middleware: [
+						async (ctx, next) => {
+							expectTypeOf(ctx).toEqualTypeOf<ApiHandlerContext<Request, unknown>>();
+							return next();
+						},
+					],
+				}),
+			{ middleware: [withSession] },
 		);
 	});
 

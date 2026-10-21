@@ -1588,16 +1588,47 @@ export type ErrorHandler<TRequest extends Request = Request, TServer = any> = (
 
 /**
  * Options for route handlers.
+ *
+ * @typeParam TMiddleware - The route's middleware; inferred as a tuple so the handler sees what each one adds
  */
 export interface RouteOptions<
 	TRequest extends Request = Request,
 	TServer = any,
-	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
 	TSchema extends RouteSchema = RouteSchema,
+	TMiddleware extends MiddlewareList<TRequest, TServer> = MiddlewareList<TRequest, TServer>,
 > {
-	middleware?: Middleware<TRequest, TServer, TContext>[];
+	middleware?: TMiddleware;
 	schema?: TSchema;
 }
+
+/**
+ * A middleware list, whatever context each middleware declares.
+ *
+ * @remarks
+ * Each element is a method signature, so its context parameter is checked bivariantly: a middleware typed with
+ * the wider context it adds, such as `EcoMiddleware<AuthContext>`, still fits. An inline middleware function in
+ * the list is typed with the base context, also inside a group; type it as `EcoMiddleware` to read what the
+ * group middleware adds. A list holding an unannotated inline function is context-sensitive, so TypeScript
+ * types the handler before it infers the list, and the handler then sees none of the list's contexts.
+ */
+export type MiddlewareList<TRequest extends Request = Request, TServer = any> = readonly {
+	middleware(context: ApiHandlerContext<TRequest, TServer>, next: MiddlewareNext): Promise<Response> | Response;
+}['middleware'][];
+
+/**
+ * The context a list of middleware adds: the intersection of the context each one declares.
+ *
+ * @remarks
+ * Inferring one parameter from the union of the middleware types, a contravariant position, yields the
+ * intersection of their contexts. An empty list adds nothing.
+ */
+export type MiddlewareContext<TMiddleware extends readonly unknown[]> = [TMiddleware[number]] extends [
+	(context: infer TAdded, next: never) => unknown,
+]
+	? [TAdded] extends [never]
+		? unknown
+		: TAdded
+	: unknown;
 
 export interface RouteSchema {
 	body?: StandardSchema;
@@ -1615,7 +1646,7 @@ export interface RouteSchema {
  * gives `params` as {@link PageParams}. `params` is typed only by `TSchema['params']`; the route's
  * path string never narrows it.
  */
-export type TypedGroupHandlerContext<TSchema extends RouteSchema, TContext extends ApiHandlerContext<any, any>> = Omit<
+export type RouteHandlerContext<TSchema extends RouteSchema, TContext extends ApiHandlerContext<any, any>> = Omit<
 	TContext,
 	RouteSchemaField
 > & {
@@ -1631,21 +1662,31 @@ export type TypedGroupHandlerContext<TSchema extends RouteSchema, TContext exten
 type RouteSchemaField = keyof RouteSchema;
 
 /**
- * Registers an inline route: the handler is typed from the route's `schema` and from the context its
- * `middleware` adds on top of `TContext`.
+ * Registers an inline route: the handler is typed from the route's `schema` and from the context every
+ * one of its `middleware` adds on top of `TContext`.
  *
  * @typeParam TReturn - What the call returns, for chaining
  * @typeParam TContext - The context the route starts from: the base context, or the group's
+ *
+ * @remarks
+ * `TRouteContext` has no inference site; passing it explicitly types a context that the route's
+ * middleware list does not declare.
  */
 export type RouteMethod<
 	TReturn,
 	TRequest extends Request = Request,
 	TServer = any,
 	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
-> = <TSchema extends RouteSchema = RouteSchema, TRouteContext extends TContext = TContext>(
+> = <
+	TSchema extends RouteSchema = RouteSchema,
+	TRouteContext extends TContext = TContext,
+	const TMiddleware extends MiddlewareList<TRequest, TServer> = MiddlewareList<TRequest, TServer>,
+>(
 	path: string,
-	handler: (context: TypedGroupHandlerContext<TSchema, TRouteContext>) => Promise<Response> | Response,
-	options?: RouteOptions<TRequest, TServer, TRouteContext, TSchema>,
+	handler: (
+		context: RouteHandlerContext<TSchema, TRouteContext & MiddlewareContext<TMiddleware>>,
+	) => Promise<Response> | Response,
+	options?: RouteOptions<TRequest, TServer, TSchema, TMiddleware>,
 ) => TReturn;
 
 /**

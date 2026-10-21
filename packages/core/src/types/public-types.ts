@@ -52,6 +52,7 @@ export type {
 	RenderContext,
 	RenderOptions,
 	RouteGroupBuilder,
+	RouteHandlerContext,
 	RouteMethod,
 	RouteOptions,
 	RouteSchema,
@@ -64,7 +65,6 @@ export type {
 	StandardSchemaV1,
 	StaticPageContext,
 	StaticPath,
-	TypedGroupHandlerContext,
 	WebSocketCloseInfo,
 	WithLocals,
 } from './contracts.ts';

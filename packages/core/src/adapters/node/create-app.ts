@@ -6,11 +6,13 @@ import type {
 	ApiHandlerContext,
 	ErrorHandler,
 	Middleware,
+	MiddlewareContext,
+	MiddlewareList,
 	RouteGroupBuilder,
 	RouteMethod,
 	RouteOptions,
 	RouteSchema,
-	TypedGroupHandlerContext,
+	RouteHandlerContext,
 	StaticRoute,
 	ViewLoader,
 	ErrorPageLoaders,
@@ -68,13 +70,9 @@ export type EcopagesAppDependencies = {
 	createServerAdapter?: (params: NodeServerAdapterParams) => Promise<NodeServerAdapter>;
 };
 
-export type RouteGroupDefinition<
-	TRequest extends Request = Request,
-	TServer = unknown,
-	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
-> = {
+export type RouteGroupDefinition<TRequest extends Request = Request, TServer = unknown> = {
 	prefix: string;
-	middleware?: readonly Middleware<TRequest, TServer, TContext>[];
+	middleware?: MiddlewareList<TRequest, TServer>;
 	routes: readonly ApiHandler<string, TRequest, TServer>[];
 };
 
@@ -171,12 +169,15 @@ export class EcopagesApp implements AsyncDisposable {
 
 	route<
 		TSchema extends RouteSchema = RouteSchema,
-		TContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>,
+		TRouteContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>,
+		const TMiddleware extends MiddlewareList<Request, unknown> = MiddlewareList<Request, unknown>,
 	>(
 		path: string,
 		method: ApiHandler['method'],
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
-		options?: RouteOptions<Request, unknown, TContext, TSchema>,
+		handler: (
+			context: RouteHandlerContext<TSchema, TRouteContext & MiddlewareContext<TMiddleware>>,
+		) => Promise<Response> | Response,
+		options?: RouteOptions<Request, unknown, TSchema, TMiddleware>,
 	): this {
 		return this.method(method)(path, handler, options);
 	}
@@ -221,10 +222,13 @@ export class EcopagesApp implements AsyncDisposable {
 		return this;
 	}
 
-	group<TContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>>(
-		prefixOrGroup: string | RouteGroupDefinition<Request, unknown, TContext>,
-		callback?: (builder: RouteGroupBuilder<Request, unknown, TContext>) => void,
-		options?: { middleware?: readonly Middleware<Request, unknown, TContext>[] },
+	group<
+		TContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>,
+		const TMiddleware extends MiddlewareList<Request, unknown> = MiddlewareList<Request, unknown>,
+	>(
+		prefixOrGroup: string | RouteGroupDefinition<Request, unknown>,
+		callback?: (builder: RouteGroupBuilder<Request, unknown, TContext & MiddlewareContext<TMiddleware>>) => void,
+		options?: { middleware?: TMiddleware },
 	): this {
 		if (typeof prefixOrGroup === 'object') {
 			return this.registerGroup(prefixOrGroup);
@@ -236,7 +240,12 @@ export class EcopagesApp implements AsyncDisposable {
 		const createHandler =
 			(
 				method: ApiHandler['method'],
-			): RouteMethod<RouteGroupBuilder<Request, unknown, TContext>, Request, unknown, TContext> =>
+			): RouteMethod<
+				RouteGroupBuilder<Request, unknown, TContext & MiddlewareContext<TMiddleware>>,
+				Request,
+				unknown,
+				TContext & MiddlewareContext<TMiddleware>
+			> =>
 			(path, handler, routeOptions) => {
 				const combinedMiddleware = [...groupMiddleware, ...(routeOptions?.middleware ?? [])];
 				const fullPath = path === '/' ? normalizedPrefix : `${normalizedPrefix}${path}`;
@@ -250,7 +259,7 @@ export class EcopagesApp implements AsyncDisposable {
 				return builder;
 			};
 
-		const builder: RouteGroupBuilder<Request, unknown, TContext> = {
+		const builder: RouteGroupBuilder<Request, unknown, TContext & MiddlewareContext<TMiddleware>> = {
 			get: createHandler('GET'),
 			post: createHandler('POST'),
 			put: createHandler('PUT'),
@@ -265,9 +274,7 @@ export class EcopagesApp implements AsyncDisposable {
 		return this;
 	}
 
-	private registerGroup<TContext extends ApiHandlerContext<Request, unknown>>(
-		group: RouteGroupDefinition<Request, unknown, TContext>,
-	): this {
+	private registerGroup(group: RouteGroupDefinition<Request, unknown>): this {
 		const normalizedPrefix = group.prefix.endsWith('/') ? group.prefix.slice(0, -1) : group.prefix;
 		const groupMiddleware = group.middleware ?? [];
 

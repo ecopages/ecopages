@@ -233,6 +233,57 @@ describe('defineGroupHandler', () => {
 	});
 });
 
+describe('middleware context', () => {
+	type SessionContext = ApiHandlerContext<Request, unknown> & { session: { userId: string } };
+	type LocaleContext = ApiHandlerContext<Request, unknown> & { locale: string };
+	const withSession: EcoMiddleware<SessionContext> = async (ctx, next) => next();
+	const withLocale: EcoMiddleware<LocaleContext> = async (ctx, next) => next();
+
+	it('types the handler with the context every one of its middleware adds', () => {
+		defineGet({
+			path: '/me',
+			middleware: [withSession, withLocale],
+			handler: (ctx) => {
+				expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
+				expectTypeOf(ctx.locale).toEqualTypeOf<string>();
+				return json({});
+			},
+		});
+	});
+
+	it('gives group routes the context of every group and route middleware', () => {
+		defineGroupHandler({
+			prefix: '/account',
+			middleware: [withSession, withLocale],
+			routes: (api) => [
+				api.get({
+					path: '/me',
+					handler: (ctx) => {
+						expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
+						expectTypeOf(ctx.locale).toEqualTypeOf<string>();
+						return json({});
+					},
+				}),
+			],
+		});
+		defineGroupHandler({
+			prefix: '/account',
+			middleware: [withSession],
+			routes: (api) => [
+				api.post({
+					path: '/me',
+					middleware: [withLocale],
+					handler: (ctx) => {
+						expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
+						expectTypeOf(ctx.locale).toEqualTypeOf<string>();
+						return json({});
+					},
+				}),
+			],
+		});
+	});
+});
+
 describe('json / html / redirect', () => {
 	it('emits JSON with application/json content type', async () => {
 		const response = json({ hello: 'world' }, { status: 201 });

@@ -11,6 +11,7 @@ import type {
 	ViewLoader,
 } from '../../types/contracts.ts';
 import type { ReturnParseCliArgs } from '../../utils/parse-cli-args.ts';
+import { defineGet } from '../shared/http/define-api-handler.ts';
 import { EcopagesApp } from './create-app.ts';
 import type { RuntimeHost } from './runtime-host.ts';
 import type { NodeServerAdapter, NodeServerAdapterParams } from './server-adapter.ts';
@@ -126,6 +127,22 @@ describe('EcopagesApp route registration', () => {
 			middleware: [groupMiddleware, routeMiddleware],
 			schema,
 		});
+	});
+
+	it('rejects a handler defined without a path', () => {
+		const { app } = createTestApp();
+
+		expect(() => app.add(defineGet({ handler: () => new Response('ok') }))).toThrow(
+			`Invalid route path for GET: "". Route paths must start with '/'.`,
+		);
+	});
+
+	it('rejects a group route defined without a path', () => {
+		const { app } = createTestApp();
+
+		expect(() =>
+			app.group({ prefix: '/admin', routes: [defineGet({ handler: () => new Response('ok') })] }),
+		).toThrow(`Invalid route path for GET in group "/admin": the path is empty. Use "/" for the group root.`);
 	});
 
 	it('registers semantic error page loaders', () => {

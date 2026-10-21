@@ -334,6 +334,10 @@ export class EcopagesApp implements AsyncDisposable {
 		const groupMiddleware = group.middleware ?? [];
 
 		for (const route of group.routes) {
+			invariant(
+				route.path !== '',
+				`Invalid route path for ${route.method} in group "${group.prefix}": the path is empty. Use "/" for the group root.`,
+			);
 			const normalizedPath = route.path.startsWith('/') ? route.path : `/${route.path}`;
 			const fullPath = route.path === '/' ? normalizedPrefix : `${normalizedPrefix}${normalizedPath}`;
 			const combinedMiddleware = [...groupMiddleware, ...(route.middleware ?? [])];

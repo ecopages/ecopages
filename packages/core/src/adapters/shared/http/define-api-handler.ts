@@ -37,16 +37,39 @@ export function defineApiHandler<
 	return handler as ApiHandler<TPath, Request, unknown>;
 }
 
-const defineApiMethod =
-	<M extends ApiHandler['method']>(method: M) =>
-	<
+function defineApiMethod<M extends ApiHandler['method']>(method: M) {
+	/** Defines an Explicit Route handler, registered with `app.add`. */
+	function define<
 		const TPath extends string,
 		TSchema extends RouteSchema | undefined = undefined,
 		TContext extends UniversalContext = UniversalContext,
-	>(
-		handler: DefineApiHandlerInput<TPath, TSchema, TContext> & { path: TPath },
-	): ApiHandler<TPath, Request, unknown> =>
-		defineApiHandler({ ...handler, method });
+	>(handler: DefineApiHandlerInput<TPath, TSchema, TContext>): ApiHandler<TPath, Request, unknown>;
+	/**
+	 * Defines the handler exported by an endpoint file, whose Template Route gives the URL.
+	 *
+	 * @remarks
+	 * The returned `path` is `''`, which `app.add` and `app.group` reject.
+	 */
+	function define<
+		TSchema extends RouteSchema | undefined = undefined,
+		TContext extends UniversalContext = UniversalContext,
+	>(handler: Omit<DefineApiHandlerInput<'', TSchema, TContext>, 'path'>): ApiHandler<'', Request, unknown>;
+	function define(
+		handler: Omit<ApiHandler<string, Request, unknown>, 'method' | 'path'> & { path?: string },
+	): ApiHandler<string, Request, unknown> {
+		return { ...handler, path: handler.path ?? '', method };
+	}
+	return define;
+}
+
+/** A method helper that requires `path`, for routes that are always Explicit Routes. */
+type ExplicitApiMethod = <
+	const TPath extends string,
+	TSchema extends RouteSchema | undefined = undefined,
+	TContext extends UniversalContext = UniversalContext,
+>(
+	handler: DefineApiHandlerInput<TPath, TSchema, TContext>,
+) => ApiHandler<TPath, Request, unknown>;
 
 export const defineGet: ReturnType<typeof defineApiMethod<'GET'>> = defineApiMethod('GET');
 export const definePost: ReturnType<typeof defineApiMethod<'POST'>> = defineApiMethod('POST');
@@ -90,13 +113,13 @@ type GroupDefineHandler<TContext extends UniversalContext> = {
 			method: ApiHandler<TPath, Request, unknown>['method'];
 		},
 	): ApiHandler<TPath, Request, unknown>;
-	get: ReturnType<typeof defineApiMethod<'GET'>>;
-	post: ReturnType<typeof defineApiMethod<'POST'>>;
-	put: ReturnType<typeof defineApiMethod<'PUT'>>;
-	delete: ReturnType<typeof defineApiMethod<'DELETE'>>;
-	patch: ReturnType<typeof defineApiMethod<'PATCH'>>;
-	options: ReturnType<typeof defineApiMethod<'OPTIONS'>>;
-	head: ReturnType<typeof defineApiMethod<'HEAD'>>;
+	get: ExplicitApiMethod;
+	post: ExplicitApiMethod;
+	put: ExplicitApiMethod;
+	delete: ExplicitApiMethod;
+	patch: ExplicitApiMethod;
+	options: ExplicitApiMethod;
+	head: ExplicitApiMethod;
 };
 
 function createGroupApi<TContext extends UniversalContext>(): GroupDefineHandler<TContext> {

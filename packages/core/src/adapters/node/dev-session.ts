@@ -4,7 +4,7 @@ import { WebSocketServer } from 'ws';
 import { appLogger } from '../../global/app-logger.ts';
 import type { AppRuntime } from '../../config/assembly/app-runtime.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
-import type { EcopagesWebSocketHandler } from '../../types/contracts.ts';
+import type { EcopagesWebSocketHandler, ErrorHandler } from '../../types/contracts.ts';
 import {
 	attachHmrToIntegrations,
 	disposeDevResources,
@@ -24,6 +24,8 @@ export type DevSessionOptions = {
 	runtime: AppRuntime;
 	server: NodeServerInstance;
 	requestPipeline: ServerRequestPipeline;
+	/** The `app.onError` handler a prewarmed endpoint's errors resolve with. */
+	errorHandler?: ErrorHandler;
 	websocketHandlers: Map<string, EcopagesWebSocketHandler<unknown, Record<string, string>>>;
 	onDevelopmentRestart?: (changedFile: string) => Promise<void>;
 	configureResponseHandlers: () => void;
@@ -92,7 +94,11 @@ export class DevSession {
 		this.prewarm = startDevStaticRoutePrewarm({
 			pathnames: [...new Set(appConfig.devPrewarmPaths)],
 			signal: this.prewarmAbort.signal,
-			renderPath: (pathname) => this.options.requestPipeline.renderDevPrewarmPath(pathname, runtime.origin),
+			renderPath: (pathname) =>
+				this.options.requestPipeline.renderDevPrewarmPath(pathname, runtime.origin, {
+					errorHandler: this.options.errorHandler,
+					serverInstance: this.options.server,
+				}),
 		});
 	}
 

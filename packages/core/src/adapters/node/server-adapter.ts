@@ -431,6 +431,7 @@ export class NodeServerAdapter {
 					runtime: this.runtime,
 					server,
 					requestPipeline: this.requestPipeline,
+					errorHandler: this.errorHandler,
 					websocketHandlers: this.websocketHandlers,
 					onDevelopmentRestart: this.onDevelopmentRestart,
 					configureResponseHandlers: () =>

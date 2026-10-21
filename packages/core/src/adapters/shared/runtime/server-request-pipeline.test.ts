@@ -9,7 +9,10 @@ import type { AppRuntime } from '../../../config/assembly/app-runtime.ts';
 import { createAppRuntime } from '../../../config/assembly/app-runtime.ts';
 import { finalizeEcoPagesConfig } from '../../../config/assembly/finalize-config.ts';
 import type { EcoPagesAppConfig } from '../../../config/internal-types.ts';
-import type { ApiHandler, ErrorHandler, IHmrManager } from '../../../types/contracts.ts';
+import type { ApiHandler, ErrorHandler, IHmrManager, StaticRoute } from '../../../types/contracts.ts';
+import { eco } from '../../../eco/eco.ts';
+import { defineIntegration } from '../../../plugins/define-integration.ts';
+import { StringMarkupRenderer } from '../../../route-renderer/orchestration/string-markup-renderer.ts';
 import { ServerRequestPipeline } from './server-request-pipeline.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 
@@ -287,9 +290,21 @@ describe('ServerRequestPipeline endpoint files', () => {
 		},
 	}`;
 
+	class StringRenderer extends StringMarkupRenderer {
+		name = 'string';
+		override async getHtmlTemplate() {
+			return ({ children }: { children?: unknown }) => `<html><body>${String(children ?? '')}</body></html>`;
+		}
+	}
+	const stringIntegration = defineIntegration({
+		name: 'string',
+		extensions: ['.string.ts'],
+		renderer: StringRenderer,
+	});
+
 	async function createEndpointApp(
 		files: Record<string, string>,
-		options: { apiHandlers?: ApiHandler[]; errorHandler?: ErrorHandler } = {},
+		options: { apiHandlers?: ApiHandler[]; errorHandler?: ErrorHandler; staticRoutes?: StaticRoute[] } = {},
 	) {
 		const rootDir = createTempRoot('ecopages-endpoint-files');
 		for (const [file, source] of Object.entries(files)) {
@@ -297,14 +312,17 @@ describe('ServerRequestPipeline endpoint files', () => {
 			fs.mkdirSync(path.dirname(filePath), { recursive: true });
 			fs.writeFileSync(filePath, source);
 		}
-		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [] });
+		const appConfig = await finalizeEcoPagesConfig({ rootDir, integrations: [stringIntegration()] });
 		const pipeline = new ServerRequestPipeline({ appConfig, runtime: appConfig.appRuntime!, watch: false });
 		const apiHandlers = options.apiHandlers ?? [];
-		const initialize = () => pipeline.initializeRouteHandling({ staticRoutes: [], apiHandlers });
+		const initialize = () =>
+			pipeline.initializeRouteHandling({ staticRoutes: options.staticRoutes ?? [], apiHandlers });
 		await initialize();
 
 		return {
 			rootDir,
+			appConfig,
+			pipeline,
 			initialize,
 			fetch: (url: string, init?: RequestInit) =>
 				pipeline.handleSharedRequest(new Request(`http://localhost${url}`, init), {
@@ -463,5 +481,54 @@ describe('ServerRequestPipeline endpoint files', () => {
 			warnings[0],
 		);
 		assert.ok(warnings[1]!.includes('GET /blog/:slug and the endpoint file'), warnings[1]);
+	});
+	test('serves the fixed module after a dev save repairs a syntax error', async () => {
+		const errorHandler = vi.fn<ErrorHandler>(() => new Response('load error', { status: 500 }));
+		const app = await createEndpointApp(
+			{ 'health.api.ts': `export const GET = defineGet({ handler: () => new Response('ok') ` },
+			{ errorHandler },
+		);
+
+		assert.equal((await app.fetch('/health')).status, 500);
+		assert.equal(errorHandler.mock.calls.length, 1);
+
+		fs.writeFileSync(
+			path.join(app.rootDir, 'src', 'pages', 'health.api.ts'),
+			`import { defineGet } from ${helpersPath};
+			export const GET = defineGet({ handler: () => new Response('fixed') });`,
+		);
+		app.appConfig.appRuntime!.moduleLoader.invalidateDevelopmentGraph();
+
+		const fixed = await app.fetch('/health');
+		assert.equal(fixed.status, 200);
+		assert.equal(await fixed.text(), 'fixed');
+	});
+
+	test('answers an app.static route before an endpoint file on the same pathname', async () => {
+		const staticPage = eco.page({ integration: 'string', render: () => '<p>static about</p>' });
+		const app = await createEndpointApp(
+			{
+				'about.api.ts': `import { defineGet } from ${helpersPath};
+					export const GET = defineGet({ handler: () => new Response('endpoint about') });`,
+			},
+			{ staticRoutes: [{ path: '/about', loader: async () => ({ default: staticPage }) }] },
+		);
+
+		const response = await app.fetch('/about');
+
+		assert.equal(response.status, 200);
+		assert.ok((await response.text()).includes('<p>static about</p>'));
+	});
+
+	test('sends an error from a prewarmed endpoint to app.onError', async () => {
+		const errorHandler = vi.fn<ErrorHandler>(() => new Response('handled', { status: 500 }));
+		const app = await createEndpointApp({
+			'health.api.ts': `import { defineGet } from ${helpersPath};
+				export const GET = defineGet({ handler: () => { throw new Error('prewarm failure'); } });`,
+		});
+
+		await app.pipeline.renderDevPrewarmPath('/health', 'http://localhost', { errorHandler });
+
+		assert.equal((errorHandler.mock.calls[0]?.[0] as Error | undefined)?.message, 'prewarm failure');
 	});
 });

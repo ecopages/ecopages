@@ -148,12 +148,6 @@ export class EndpointRouteHandler {
 			return new Response(null, { status: 405, headers: { Allow: [...handlers.keys()].join(', ') } });
 		}
 
-		return await this.apiRequestPipeline.execute(
-			request,
-			match.params,
-			{ ...handler, path: match.templateRoute.pathname },
-			serverInstance,
-			errorHandler,
-		);
+		return await this.apiRequestPipeline.execute(request, match.params, handler, serverInstance, errorHandler);
 	}
 }

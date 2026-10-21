@@ -16,7 +16,11 @@ import { FileSystemResponseMatcher } from '../http/fs-server-response-matcher.ts
 import { ServerRouteHandler } from './server-route-handler.ts';
 import { createRenderContext } from './render-context.ts';
 import { ApiRequestPipeline } from '../http/api-request-pipeline.ts';
-import { EndpointRouteHandler, findExplicitRoutesOnEndpoints } from '../http/endpoint-route-handler.ts';
+import {
+	EndpointRouteHandler,
+	findExplicitRoutesOnEndpoints,
+	type EndpointRequestContext,
+} from '../http/endpoint-route-handler.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { parseSegmentPath, type ParsedSegmentPath } from '../../../router/server/segment-path-matcher.ts';
 import { isHtmlResponse, withUncachedDevHtml } from '../hmr/hmr-html-response.ts';
@@ -77,13 +81,22 @@ export class ServerRequestPipeline {
 		this.watchMode = options.watch ?? false;
 	}
 
-	/** Renders one declared path inside the request build scope for a DevSession prewarm. */
-	public async renderDevPrewarmPath(pathname: string, runtimeOrigin: string): Promise<void> {
+	/**
+	 * Renders one declared path inside the request build scope for a DevSession prewarm.
+	 *
+	 * @param requestContext - The `app.onError` handler and server, so a prewarmed endpoint's errors
+	 * resolve as they would for a request
+	 */
+	public async renderDevPrewarmPath(
+		pathname: string,
+		runtimeOrigin: string,
+		requestContext: EndpointRequestContext,
+	): Promise<void> {
 		await requireBuildQueue(this.appConfig).withRequestScope(() =>
 			runWithBuildInputIndex(requireAppRuntime(this.appConfig).buildInputIndex, async () => {
 				const response = await this.routeHandler.handleResponse(
 					new Request(new URL(pathname, runtimeOrigin).toString(), { method: 'GET' }),
-					{},
+					requestContext,
 				);
 				await response.arrayBuffer();
 			}),

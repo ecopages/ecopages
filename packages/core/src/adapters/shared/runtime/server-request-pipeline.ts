@@ -20,6 +20,7 @@ import {
 	EndpointRouteHandler,
 	findExplicitRoutesOnEndpoints,
 	type EndpointRequestContext,
+	type EndpointRouteHandlerOptions,
 } from '../http/endpoint-route-handler.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { parseSegmentPath, type ParsedSegmentPath } from '../../../router/server/segment-path-matcher.ts';
@@ -68,9 +69,12 @@ export class ServerRequestPipeline {
 		getCacheService: () => this.getCacheService(),
 	});
 	private sharedPageCacheService: PageCacheService | null | undefined;
+	/** The one endpoint loader, shared by requests and the build, so both compile a file the same way. */
+	private readonly importEndpointModule: EndpointRouteHandlerOptions['importServerModule'] = (filePath) =>
+		this.importServerModule<Record<string, unknown>>(filePath);
 	private readonly endpointRouteHandler = new EndpointRouteHandler({
 		apiRequestPipeline: this.apiRequestPipeline,
-		importServerModule: (filePath) => this.importServerModule<Record<string, unknown>>(filePath),
+		importServerModule: this.importEndpointModule,
 	});
 	/** Warnings already logged, so a dev route refresh repeats none of them. */
 	private readonly loggedEndpointWarnings = new Set<string>();
@@ -371,8 +375,13 @@ export class ServerRequestPipeline {
 	public getStaticBuildContext(): {
 		router: RouteRegistry;
 		routeRendererFactory: RouteRendererFactory;
+		importServerModule: EndpointRouteHandlerOptions['importServerModule'];
 	} {
-		return { router: this.router, routeRendererFactory: this.routeRendererFactory };
+		return {
+			router: this.router,
+			routeRendererFactory: this.routeRendererFactory,
+			importServerModule: this.importEndpointModule,
+		};
 	}
 
 	public async listStaticGenerationRoutes(input: {

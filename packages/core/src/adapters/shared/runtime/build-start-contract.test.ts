@@ -73,8 +73,9 @@ describe('build → start contract', () => {
 		});
 
 		await builder.build(undefined, {
-			router: {} as RouteRegistry,
+			router: { templateRoutes: [] } as unknown as RouteRegistry,
 			routeRendererFactory: {} as StaticGenerationRendererResolver,
+			importServerModule: async () => ({}),
 		});
 
 		const { serverEntryPath, manifestPath } = getServerBundleOutputPaths(appConfig);
@@ -120,8 +121,9 @@ describe('build → start contract', () => {
 		});
 
 		await builder.build(undefined, {
-			router: {} as RouteRegistry,
+			router: { templateRoutes: [] } as unknown as RouteRegistry,
 			routeRendererFactory: {} as StaticGenerationRendererResolver,
+			importServerModule: async () => ({}),
 		});
 
 		const { serverOutdir } = getServerBundleOutputPaths(appConfig);
@@ -154,8 +156,9 @@ describe('build → start contract', () => {
 		});
 
 		await builder.build(undefined, {
-			router: {} as RouteRegistry,
+			router: { templateRoutes: [] } as unknown as RouteRegistry,
 			routeRendererFactory: {} as StaticGenerationRendererResolver,
+			importServerModule: async () => ({}),
 		});
 
 		const { serverEntryPath, serverOutdir } = getServerBundleOutputPaths(appConfig);
@@ -198,6 +201,7 @@ describe('build → start contract', () => {
 		await builder.build(undefined, {
 			router: { templateRoutes: [] } as unknown as RouteRegistry,
 			routeRendererFactory: {} as StaticGenerationRendererResolver,
+			importServerModule: async () => ({}),
 		});
 
 		const { serverEntryPath, manifestPath } = getServerBundleOutputPaths(appConfig);
@@ -240,8 +244,9 @@ describe('build → start contract', () => {
 		});
 
 		await builder.build(undefined, {
-			router: {} as RouteRegistry,
+			router: { templateRoutes: [] } as unknown as RouteRegistry,
 			routeRendererFactory: {} as StaticGenerationRendererResolver,
+			importServerModule: async () => ({}),
 		});
 
 		const { serverOutdir } = getServerBundleOutputPaths(appConfig);
@@ -285,8 +290,9 @@ describe('build → start contract', () => {
 		});
 
 		await builder.build(undefined, {
-			router: {} as RouteRegistry,
+			router: { templateRoutes: [] } as unknown as RouteRegistry,
 			routeRendererFactory: {} as StaticGenerationRendererResolver,
+			importServerModule: async () => ({}),
 		});
 
 		const expectedEmittedConfig = path.join(rootDir, 'dist', '.server', EMITTED_ECO_CONFIG_FILENAME);

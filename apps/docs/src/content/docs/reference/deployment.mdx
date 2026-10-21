@@ -25,7 +25,7 @@ This command will:
 3. Generate static HTML for all files in `src/pages`.
 4. Write `robots.txt` (and optional `sitemap.xml` when enabled — see [Sitemap](/docs/core/sitemap)).
 5. Process images and CSS.
-6. Bundle the server into `dist/.server/` when the app registers API or WebSocket handlers or has endpoint files (`*.api.ts`) in its pages directory. A static-only app has no server bundle.
+6. Bundle the server into `dist/.server/` when the app registers API or WebSocket handlers or has endpoint files (`*.api.ts`) in its pages directory. A static-only app has no server bundle. The build first checks each endpoint file's exports and fails, naming the file, on a broken one; see [Endpoint Files](/docs/core/routing#endpoint-files).
 
 ---
 

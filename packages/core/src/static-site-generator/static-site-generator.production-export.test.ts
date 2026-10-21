@@ -64,7 +64,7 @@ describe('StaticSiteGenerator production export', () => {
 		vi.restoreAllMocks();
 	});
 
-	test('runs staticProps once per expanded path and includes each path in the sitemap', async () => {
+	test('runs staticProps once per expanded path, includes each path in the sitemap, and prebuilds no browser graph for an endpoint route', async () => {
 		writes.length = 0;
 		fileSystem.ensureDir = () => {};
 		fileSystem.write = (filePath, contents) => writes.push({ filePath, contents });
@@ -108,6 +108,7 @@ describe('StaticSiteGenerator production export', () => {
 			templateRoute: {
 				pathname: '/blog/[slug]',
 				kind: 'dynamic' as const,
+				role: 'page' as const,
 				filePath: routeFile,
 				paramNames: ['slug'],
 			},
@@ -124,8 +125,16 @@ describe('StaticSiteGenerator production export', () => {
 						{
 							pathname: '/blog/[slug]',
 							kind: 'dynamic',
+							role: 'page',
 							filePath: routeFile,
 							paramNames: ['slug'],
+						},
+						{
+							pathname: '/api/users/[id]',
+							kind: 'dynamic',
+							role: 'endpoint',
+							filePath: '/src/pages/api/users/[id].api.ts',
+							paramNames: ['id'],
 						},
 					],
 				},

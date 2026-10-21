@@ -166,6 +166,7 @@ describe('EcopagesApp startup', () => {
 				templateRoute: {
 					pathname: '/posts/:slug',
 					kind: 'dynamic' as const,
+					role: 'page' as const,
 					filePath: '/project/src/pages/posts/[slug].tsx',
 					paramNames: ['slug'],
 				},

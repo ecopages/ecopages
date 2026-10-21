@@ -64,8 +64,12 @@ A Page authored as a plain `.html` file under `src/pages/`, rendered inside the 
 _Avoid_: Static HTML file, HTML template
 
 **Filesystem Route**:
-A route automatically discovered by scanning the pages directory. Files follow conventions (e.g., `pages/about.tsx` becomes `/about`, `pages/blog/[slug].tsx` becomes `/blog/[slug]`).
+A route automatically discovered by scanning the pages directory. Files follow conventions (e.g., `pages/about.tsx` becomes `/about`, `pages/blog/[slug].tsx` becomes `/blog/[slug]`). Its role is `page` for a Page file and `endpoint` for an Endpoint.
 _Avoid_: Automatic route, file-based route
+
+**Endpoint**:
+A Filesystem Route declared by a `*.api.ts` file under the pages directory, whose handler exports answer requests once the request pipeline runs them. It follows the Page pathname rules with `.api.ts` as the dropped marker (`pages/api/users.api.ts` becomes `/api/users`) and is never a Page: no Layout, no Cache Strategy, no Build-Time Rendering. An `app.get()` handler is an Explicit Route, not an Endpoint.
+_Avoid_: API route, API page, handler file
 
 **Explicit Route**:
 A route registered programmatically via the app API (e.g., `app.static(path, loader)` for page routes or `app.get(path, handler)` for handlers), bypassing filesystem discovery.
@@ -76,7 +80,7 @@ A router module that owns the canonical record of all Filesystem Routes in one a
 _Avoid_: Router service, route map
 
 **Template Route**:
-The canonical route pattern declared by a Page file, before any dynamic params are resolved. For example, `/blog/[slug]` is a Template Route.
+The canonical route pattern declared by a Page or endpoint file, before any dynamic params are resolved. For example, `/blog/[slug]` is a Template Route.
 _Avoid_: Route path, abstract route
 
 **Static Path Expansion**:
@@ -135,7 +139,8 @@ _Avoid_: URL list, crawl map
 - An **HTML Page** needs no **Integration** in app config: core appends a built-in **Integration** for `.html` unless a user **Integration** claims the extension. Its **Html** shell is the app's one `html` template (`src/includes/html.html` or another Integration's `html.*`), or a built-in shell when there is none
 - Pages are discovered as **Filesystem Routes** or registered as page-owned **Explicit Routes**
 - **Explicit Routes** may also register non-page handlers such as `app.get()` endpoints
-- **Filesystem Routes** are classified as exact, dynamic, or catch-all based on file naming conventions
+- **Filesystem Routes** are classified as exact, dynamic, or catch-all based on file naming conventions, and carry the role `page` or `endpoint`; one pathname belongs to one file, whatever the roles
+- Only `page` **Filesystem Routes** are rendered at **Build-Time Rendering**, produce **Static Path Expansions**, or appear in the **Sitemap**
 - A **Route Registry** owns the canonical set of **Filesystem Routes** for one application and supports reload during development
 - Each **Filesystem Route** is stored as one **Template Route**; dynamic routes may also produce **Static Path Expansions** for build-time rendering
 - Every **Page** has a **Cache Strategy** (default: `'static'`)

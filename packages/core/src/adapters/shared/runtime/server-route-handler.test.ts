@@ -37,6 +37,32 @@ function createMockDependencies() {
 
 describe('ServerRouteHandler', () => {
 	describe('handleResponse', () => {
+		it('answers a matched endpoint route as no match until the request pipeline runs endpoints', async () => {
+			const { Router, FileSystemResponseMatcher } = createMockDependencies();
+			const handler = new ServerRouteHandler({
+				router: Router,
+				fileSystemResponseMatcher: FileSystemResponseMatcher,
+			});
+			vi.spyOn(Router, 'matchRequest').mockReturnValueOnce({
+				requestedPathname: '/api/users',
+				templateRoute: {
+					pathname: '/api/users',
+					kind: 'exact',
+					role: 'endpoint',
+					filePath: '/src/pages/api/users.api.ts',
+				},
+				params: {},
+				query: {},
+			});
+			const request = new Request('http://localhost/api/users');
+
+			const response = await handler.handleResponse(request);
+
+			expect(response.status).toBe(404);
+			expect(FileSystemResponseMatcher.handleMatch).not.toHaveBeenCalled();
+			expect(FileSystemResponseMatcher.handleNoMatch).toHaveBeenCalledExactlyOnceWith('/api/users', request);
+		});
+
 		it('keeps dotted Page paths routable and sends known static extensions to the fallback', async () => {
 			const { Router, FileSystemResponseMatcher } = createMockDependencies();
 			const handler = new ServerRouteHandler({
@@ -45,7 +71,7 @@ describe('ServerRouteHandler', () => {
 			});
 			const routeMatch = {
 				requestedPathname: '/v1.2',
-				templateRoute: { pathname: '/v1.2', kind: 'exact', filePath: '/src/pages/v1.2.tsx' },
+				templateRoute: { pathname: '/v1.2', kind: 'exact', role: 'page', filePath: '/src/pages/v1.2.tsx' },
 				params: {},
 				query: {},
 			} satisfies NonNullable<ReturnType<RouteRegistry['matchRequest']>>;

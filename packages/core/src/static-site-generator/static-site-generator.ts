@@ -457,7 +457,7 @@ export class StaticSiteGenerator {
 	}): Promise<void> {
 		if (shouldPrebuildProductionPageBrowserGraphs() && input.routeRendererFactory) {
 			const dynamicRouteTemplates = (input.router.templateRoutes ?? [])
-				.filter((route) => route.kind !== 'exact')
+				.filter((route) => route.kind !== 'exact' && route.role === 'page')
 				.map((route) => ({ routeFile: route.filePath, skipStaticProps: true, isRouteTemplate: true }));
 			await prebuildProductionPageBrowserGraphs(
 				this.appConfig,

@@ -227,6 +227,7 @@ describe('FileSystemResponseMatcher', () => {
 			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: APP_TEST_ROUTES.index,
 					filePath: INDEX_TEMPLATE_FILE,
@@ -261,6 +262,7 @@ describe('FileSystemResponseMatcher', () => {
 			const match: RouteMatch = {
 				requestedPathname: '/cache-test-miss',
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: '/cache-test-miss',
 					filePath: INDEX_TEMPLATE_FILE,
@@ -279,6 +281,7 @@ describe('FileSystemResponseMatcher', () => {
 			const match: RouteMatch = {
 				requestedPathname: uniquePath,
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: uniquePath,
 					filePath: INDEX_TEMPLATE_FILE,
@@ -299,6 +302,7 @@ describe('FileSystemResponseMatcher', () => {
 			const match: RouteMatch = {
 				requestedPathname: uniquePath,
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: uniquePath,
 					filePath: INDEX_TEMPLATE_FILE,
@@ -324,6 +328,7 @@ describe('FileSystemResponseMatcher', () => {
 			const match1: RouteMatch = {
 				requestedPathname: '/path-a',
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: '/path-a',
 					filePath: INDEX_TEMPLATE_FILE,
@@ -334,6 +339,7 @@ describe('FileSystemResponseMatcher', () => {
 			const match2: RouteMatch = {
 				requestedPathname: '/path-b',
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: '/path-b',
 					filePath: INDEX_TEMPLATE_FILE,
@@ -354,6 +360,7 @@ describe('FileSystemResponseMatcher', () => {
 			const matchWithQuery: RouteMatch = {
 				requestedPathname: basePath,
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: basePath,
 					filePath: INDEX_TEMPLATE_FILE,
@@ -364,6 +371,7 @@ describe('FileSystemResponseMatcher', () => {
 			const matchWithDifferentQuery: RouteMatch = {
 				requestedPathname: basePath,
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: basePath,
 					filePath: INDEX_TEMPLATE_FILE,
@@ -402,6 +410,7 @@ describe('FileSystemResponseMatcher', () => {
 			const match: RouteMatch = {
 				requestedPathname: '/dynamic-page',
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: '/dynamic-page',
 					filePath: INDEX_TEMPLATE_FILE,
@@ -488,6 +497,7 @@ describe('FileSystemResponseMatcher', () => {
 			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: APP_TEST_ROUTES.index,
 					filePath: INDEX_TEMPLATE_FILE,
@@ -532,6 +542,7 @@ describe('FileSystemResponseMatcher', () => {
 			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: APP_TEST_ROUTES.index,
 					filePath: INDEX_TEMPLATE_FILE,
@@ -700,6 +711,7 @@ describe('FileSystemResponseMatcher', () => {
 			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: APP_TEST_ROUTES.index,
 					filePath: INDEX_TEMPLATE_FILE,
@@ -738,6 +750,7 @@ describe('FileSystemResponseMatcher', () => {
 			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: APP_TEST_ROUTES.index,
 					filePath: INDEX_TEMPLATE_FILE,
@@ -780,6 +793,7 @@ describe('FileSystemResponseMatcher', () => {
 				await matcher.handleMatch({
 					requestedPathname: APP_TEST_ROUTES.index,
 					templateRoute: {
+						role: 'page',
 						kind: 'exact',
 						pathname: APP_TEST_ROUTES.index,
 						filePath: INDEX_TEMPLATE_FILE,
@@ -818,6 +832,7 @@ describe('FileSystemResponseMatcher', () => {
 			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: APP_TEST_ROUTES.index,
 					filePath: INDEX_TEMPLATE_FILE,
@@ -858,6 +873,7 @@ describe('FileSystemResponseMatcher', () => {
 			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: APP_TEST_ROUTES.index,
 					filePath: INDEX_TEMPLATE_FILE,
@@ -902,6 +918,7 @@ describe('FileSystemResponseMatcher', () => {
 			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: APP_TEST_ROUTES.index,
 					filePath: INDEX_TEMPLATE_FILE,
@@ -942,6 +959,7 @@ describe('FileSystemResponseMatcher', () => {
 			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: APP_TEST_ROUTES.index,
 					filePath: INDEX_TEMPLATE_FILE,
@@ -980,6 +998,7 @@ describe('FileSystemResponseMatcher', () => {
 			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: APP_TEST_ROUTES.index,
 					filePath: INDEX_TEMPLATE_FILE,
@@ -1076,7 +1095,12 @@ describe('FileSystemResponseMatcher', () => {
 			});
 			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
-				templateRoute: { kind: 'exact', pathname: APP_TEST_ROUTES.index, filePath: INDEX_TEMPLATE_FILE },
+				templateRoute: {
+					kind: 'exact',
+					role: 'page',
+					pathname: APP_TEST_ROUTES.index,
+					filePath: INDEX_TEMPLATE_FILE,
+				},
 				params: {},
 				query: {},
 			};
@@ -1160,6 +1184,7 @@ describe('FileSystemResponseMatcher', () => {
 			const match: RouteMatch = {
 				requestedPathname: APP_TEST_ROUTES.index,
 				templateRoute: {
+					role: 'page',
 					kind: 'exact',
 					pathname: APP_TEST_ROUTES.index,
 					filePath: INDEX_TEMPLATE_FILE,

@@ -133,7 +133,7 @@ describe('EcopagesApp route registration', () => {
 		const { app } = createTestApp();
 
 		expect(() => app.add(defineGet({ handler: () => new Response('ok') }))).toThrow(
-			`Invalid route path for GET: "". Route paths must start with '/'.`,
+			'The GET handler has no path. Export it from a `*.api.ts` file under the pages directory, or give it a `path` to register it with app.add().',
 		);
 	});
 
@@ -142,7 +142,9 @@ describe('EcopagesApp route registration', () => {
 
 		expect(() =>
 			app.group({ prefix: '/admin', routes: [defineGet({ handler: () => new Response('ok') })] }),
-		).toThrow(`Invalid route path for GET in group "/admin": the path is empty. Use "/" for the group root.`);
+		).toThrow(
+			'The GET handler in group "/admin" has no path. Export it from a `*.api.ts` file under the pages directory, or give it a `path` ("/" for the group root) to register it with app.group().',
+		);
 	});
 
 	it('registers semantic error page loaders', () => {

@@ -1559,6 +1559,10 @@ export type EcoMiddleware<TContext extends ApiHandlerContext<any, any>> =
  * ```
  */
 export interface ApiHandler<TPath extends string = string, TRequest extends Request = Request, TServer = any> {
+	/**
+	 * The URL pattern. `''` for a handler built without `path`, which an endpoint file exports;
+	 * its Template Route gives the URL.
+	 */
 	path: TPath;
 	method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
 	handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response;

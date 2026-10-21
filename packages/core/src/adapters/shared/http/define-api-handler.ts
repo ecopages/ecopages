@@ -38,7 +38,6 @@ export function defineApiHandler<
 }
 
 function defineApiMethod<M extends ApiHandler['method']>(method: M) {
-	/** Defines an Explicit Route handler, registered with `app.add`. */
 	function define<
 		const TPath extends string,
 		TSchema extends RouteSchema | undefined = undefined,

@@ -34,7 +34,7 @@ The `defineApiHandler`, method helpers, and `defineGroupHandler` solve this by c
 
 ## Method helpers
 
-For common HTTP verbs, use `defineGet`, `definePost`, `definePut`, `defineDelete`, `definePatch`, `defineOptions`, or `defineHead`. Each one is equivalent to `defineApiHandler` with the matching `method` field.
+For common HTTP verbs, use `defineGet`, `definePost`, `definePut`, `defineDelete`, `definePatch`, `defineOptions`, or `defineHead`. Each one is `defineApiHandler` with the matching `method`; `path` may be left out only in an endpoint file.
 
 ```typescript
 import { defineGet, definePost } from '@ecopages/core';
@@ -425,4 +425,6 @@ interface GroupHandler<TPrefix> {
 }
 ```
 
-Both can be passed to `app.add()` for individual handlers or `app.group()` for grouped routes.
+A method helper called without `path` returns `path: ''`; that handler is an endpoint-file export, and `app.add()` and `app.group()` reject it.
+
+Pass an `ApiHandler` to `app.add()` and a `GroupHandler` to `app.group()`.

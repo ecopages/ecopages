@@ -378,6 +378,50 @@ describe('ServerRequestPipeline endpoint files', () => {
 		assert.equal((await invalid.json()).error, 'Validation failed');
 	});
 
+	test('answers a QUERY request with the exported QUERY handler and validates its body', async () => {
+		const app = await createEndpointApp({
+			'search.api.ts': `import { defineQuery } from ${helpersPath};
+				export const QUERY = defineQuery({
+					schema: { body: ${textBodySchema} },
+					handler: ({ body, response }) => response.json(body),
+				});`,
+		});
+		const query = (init: RequestInit) => app.fetch('/search', { method: 'QUERY', ...init });
+		const json = { 'Content-Type': 'application/json' };
+
+		const answered = await query({ headers: json, body: JSON.stringify({ text: 'hi' }) });
+		assert.equal(answered.status, 200);
+		assert.deepEqual(await answered.json(), { text: 'hi' });
+		assert.equal((await query({ headers: json, body: '{}' })).status, 400);
+		assert.equal((await query({ body: new Uint8Array([1]) })).status, 415);
+		assert.equal((await app.fetch('/search')).status, 405);
+	});
+
+	test('lists QUERY in the Allow header of a 405 for a file that exports it', async () => {
+		const app = await createEndpointApp({
+			'search.api.ts': `import { defineGet, defineQuery } from ${helpersPath};
+				export const QUERY = defineQuery({ handler: () => new Response('query') });
+				export const GET = defineGet({ handler: () => new Response('get') });`,
+		});
+
+		const deleted = await app.fetch('/search', { method: 'DELETE' });
+
+		assert.equal(deleted.status, 405);
+		assert.equal(deleted.headers.get('Allow'), 'GET, QUERY');
+	});
+
+	test('answers QUERY with 405 and no QUERY in Allow for a file that exports only GET', async () => {
+		const app = await createEndpointApp({
+			'search.api.ts': `import { defineGet } from ${helpersPath};
+				export const GET = defineGet({ handler: () => new Response('get') });`,
+		});
+
+		const queried = await app.fetch('/search', { method: 'QUERY', body: 'q' });
+
+		assert.equal(queried.status, 405);
+		assert.equal(queried.headers.get('Allow'), 'GET');
+	});
+
 	test('sends a thrown error to app.onError with the handler context', async () => {
 		const errorHandler = vi.fn<ErrorHandler>((error, context) =>
 			Response.json({ message: (error as Error).message, id: context.params.id }, { status: 418 }),

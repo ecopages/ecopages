@@ -95,6 +95,8 @@ _Avoid_: Path params, route params, URL segments
 Search parameters from the URL string (the part after `?`). For example, `/search?q=typescript&sort=date` produces `{ q: 'typescript', sort: 'date' }`.
 _Avoid_: Search params, query string
 
+The HTTP QUERY method (`defineQuery`, `app.query()`) is unrelated: it carries its query in the request body, while **Query** is always the URL's search parameters, available on every method as `ctx.query`.
+
 **Locals**:
 Request-scoped data injected by middleware or the request pipeline (e.g., authenticated user, session, context from an upstream service). Locals are not part of the URL.
 _Avoid_: Request context, server context

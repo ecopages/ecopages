@@ -54,7 +54,10 @@ app.patch('/api/resource', handler);
 app.delete('/api/resource', handler);
 app.options('/api/resource', handler);
 app.head('/api/resource', handler);
+app.query('/api/resource', handler);
 ```
+
+`app.query()` registers the HTTP QUERY method, whose request body carries the query. It is not the handler context's `query` field, which holds the URL's search parameters.
 
 
 ## Route Parameters

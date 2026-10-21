@@ -471,6 +471,70 @@ describe('ApiRequestPipeline', () => {
 		expect(response?.status).toBe(415);
 	});
 
+	describe('QUERY requests', () => {
+		const queryHandlers: ApiHandler[] = [
+			{
+				path: '/api/search',
+				method: 'QUERY',
+				schema: { body: z.object({ term: z.string() }) },
+				handler: ({ body }) => Response.json(body),
+			},
+		];
+		const queryRequest = (init: RequestInit) =>
+			new Request('http://localhost/api/search', { method: 'QUERY', body: '{"term":"ecopages"}', ...init });
+
+		it('answers QUERY and not GET', async () => {
+			const pipeline = createPipeline();
+
+			const queried = await pipeline.tryHandle(
+				queryRequest({ headers: { 'Content-Type': 'application/json' } }),
+				queryHandlers,
+				undefined,
+			);
+			const read = await pipeline.tryHandle(new Request('http://localhost/api/search'), queryHandlers, undefined);
+
+			expect(queried?.status).toBe(200);
+			expect(await queried?.json()).toEqual({ term: 'ecopages' });
+			expect(read).toBeNull();
+		});
+
+		it('answers HTTP 400 for a body that fails the schema', async () => {
+			const response = await createPipeline().tryHandle(
+				queryRequest({ headers: { 'Content-Type': 'application/json' }, body: '{"term":1}' }),
+				queryHandlers,
+				undefined,
+			);
+
+			expect(response?.status).toBe(400);
+		});
+
+		it('answers HTTP 415 for a body with no content type', async () => {
+			const response = await createPipeline().tryHandle(
+				queryRequest({ body: new Uint8Array([1]) }),
+				queryHandlers,
+				undefined,
+			);
+
+			expect(response?.status).toBe(415);
+		});
+
+		it('leaves the body to the handler when no body schema is declared', async () => {
+			const response = await createPipeline().tryHandle(
+				queryRequest({ headers: { 'Content-Type': 'application/json' } }),
+				[
+					{
+						path: '/api/search',
+						method: 'QUERY',
+						handler: async ({ request }) => new Response(await request.text()),
+					},
+				],
+				undefined,
+			);
+
+			expect(await response?.text()).toBe('{"term":"ecopages"}');
+		});
+	});
+
 	it('runs middleware before the handler', async () => {
 		const pipeline = createPipeline();
 		const order: string[] = [];

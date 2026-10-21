@@ -1,11 +1,15 @@
 import { spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { createServer, type Server } from 'node:http';
+import { createServer, request as httpRequest, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
+import { z } from 'zod';
 import { appLogger } from '../../global/app-logger.ts';
+import type { ApiHandler, RenderContext } from '../../types/contracts.ts';
+import { ApiRequestPipeline } from '../shared/http/api-request-pipeline.ts';
+import { defineQuery } from '../shared/http/define-api-handler.ts';
 import { bindRuntimeServer } from '../shared/runtime/bind-runtime-server.ts';
 import { attachNodeHttpWebSocketUpgrades } from '../shared/ws/node-http-websocket-upgrades.ts';
 import { NodeClientAbortError, NodeHttpRequestBridge } from './http-request-bridge.ts';
@@ -91,6 +95,58 @@ describe('NodeRuntimeHost', () => {
 		await expect(
 			host.start({ hostname: 'localhost', port: 3000, handleRequest: async () => new Response('ok') }),
 		).rejects.toMatchObject({ code: 'EADDRINUSE' });
+	});
+
+	it('delivers a QUERY request body to the handler through the bound server', async () => {
+		const host = new NodeRuntimeHost(new NodeHttpRequestBridge());
+		const pipeline = new ApiRequestPipeline({
+			getRenderContext: () => ({}) as RenderContext,
+			getCacheService: () => null,
+		});
+		const apiHandlers: ApiHandler[] = [
+			defineQuery({
+				path: '/search',
+				schema: { body: z.object({ term: z.string() }) },
+				handler: ({ body, request }) =>
+					Response.json({ method: request.method, term: (body as { term: string }).term }),
+			}),
+		];
+		const server = await host.start({
+			hostname: '127.0.0.1',
+			port: 0,
+			handleRequest: async (request) =>
+				(await pipeline.tryHandle(request, apiHandlers, undefined)) ?? new Response(null, { status: 404 }),
+		});
+
+		try {
+			const { port } = server.address() as AddressInfo;
+			const body = JSON.stringify({ term: 'ecopages' });
+			const received = await new Promise<{ status: number; text: string }>((resolve, reject) => {
+				httpRequest(
+					{
+						host: '127.0.0.1',
+						port,
+						path: '/search',
+						method: 'QUERY',
+						headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+					},
+					(res) => {
+						const chunks: Buffer[] = [];
+						res.on('data', (chunk: Buffer) => chunks.push(chunk));
+						res.on('end', () =>
+							resolve({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString() }),
+						);
+					},
+				)
+					.on('error', reject)
+					.end(body);
+			});
+
+			expect(received.status).toBe(200);
+			expect(JSON.parse(received.text)).toEqual({ method: 'QUERY', term: 'ecopages' });
+		} finally {
+			await host.stop(server);
+		}
 	});
 
 	it('stops while a WebSocket client is still connected', async () => {

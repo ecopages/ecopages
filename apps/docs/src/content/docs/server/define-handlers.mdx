@@ -34,7 +34,7 @@ The `defineApiHandler`, method helpers, and `defineGroupHandler` solve this by c
 
 ## Method helpers
 
-For common HTTP verbs, use `defineGet`, `definePost`, `definePut`, `defineDelete`, `definePatch`, `defineOptions`, or `defineHead`. Each one is `defineApiHandler` with the matching `method`; `path` may be left out only in an endpoint file.
+For common HTTP verbs, use `defineGet`, `definePost`, `definePut`, `defineDelete`, `definePatch`, `defineOptions`, `defineHead`, or `defineQuery`. Each one is `defineApiHandler` with the matching `method`; `path` may be left out only in an endpoint file.
 
 ```typescript
 import { defineGet, definePost } from '@ecopages/core';
@@ -56,6 +56,35 @@ export const create = definePost({
 ```
 
 Use `defineApiHandler` when you want an explicit `method` field or an uncommon registration shape.
+
+### The QUERY method
+
+`defineQuery` (and `app.query()`, and `api.query` in a group) handles the HTTP QUERY method: a safe, idempotent read whose request body carries the query, such as a JSON filter too large or too sensitive for the URL. It takes the same `schema` and `middleware` as `definePost`, and a `schema.body` is validated the same way, including the `400` and `415` answers.
+
+```typescript
+import { defineQuery } from '@ecopages/core';
+import { z } from 'zod';
+
+export const search = defineQuery({
+  path: '/api/posts/search',
+  schema: { body: z.object({ tag: z.string(), limit: z.number().max(50).default(10) }) },
+  handler: async ({ body, response }) =>
+    response.headers({ 'Accept-Query': 'application/json' }).json(await findPosts(body)),
+});
+```
+
+In an endpoint file, export it under its method name and leave out `path`, like the other helpers:
+
+```typescript
+// src/pages/api/posts/search.api.ts
+import { defineQuery } from '@ecopages/core';
+
+export const QUERY = defineQuery({
+  handler: async ({ request, response }) => response.json(await findPosts(await request.json())),
+});
+```
+
+QUERY here is the HTTP method. It is unrelated to the `query` field of the handler context, which holds the URL's search parameters and is available on every method. Ecopages does not cache QUERY responses and does not add `Accept-Query` or `Vary` for you; set them on the response when you want them.
 
 ## Endpoint files
 
@@ -448,7 +477,7 @@ For reference, here is the shape of objects produced by the define helpers:
 ```typescript
 interface ApiHandler<TPath, TRequest, TServer> {
   path: TPath;
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD' | 'QUERY';
   handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response;
   middleware?: Middleware[];
   schema?: RouteSchema;

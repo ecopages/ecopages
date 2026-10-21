@@ -1501,7 +1501,7 @@ export type EcoMiddleware<TContext extends ApiHandlerContext<any, any>> =
 /**
  * The request methods an `ApiHandler` answers, in the order an endpoint's `Allow` header lists them.
  */
-export const API_HANDLER_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'] as const;
+export const API_HANDLER_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD', 'QUERY'] as const;
 
 export type ApiHandlerMethod = (typeof API_HANDLER_METHODS)[number];
 
@@ -1683,6 +1683,13 @@ export interface RouteGroupBuilder<
 	): RouteGroupBuilder<TRequest, TServer, TContext>;
 
 	head<P extends string, TSchema extends RouteSchema = RouteSchema>(
+		path: P,
+		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
+		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
+	): RouteGroupBuilder<TRequest, TServer, TContext>;
+
+	/** Registers a handler for the QUERY method, not for `ctx.query`. */
+	query<P extends string, TSchema extends RouteSchema = RouteSchema>(
 		path: P,
 		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
 		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },

@@ -20,6 +20,40 @@ describe('defineGet / definePost', () => {
 	});
 });
 
+describe('params typing', () => {
+	it('keeps params as PageParams when no schema is given, whatever the path string', () => {
+		defineGet({
+			path: '/api/users/:id',
+			handler: ({ params }) => {
+				expectTypeOf(params).toEqualTypeOf<PageParams>();
+				return json({ id: params.id });
+			},
+		});
+	});
+
+	it('narrows params to the schema.params output', () => {
+		defineGet({
+			path: '/api/users/:id',
+			schema: { params: z.object({ id: z.string() }) },
+			handler: ({ params }) => {
+				expectTypeOf(params).toEqualTypeOf<{ id: string }>();
+				return json({ id: params.id });
+			},
+		});
+	});
+
+	it('types params as unknown when the schema has no params field', () => {
+		defineGet({
+			path: '/api/users/:id',
+			schema: { query: z.object({ q: z.string() }) },
+			handler: ({ params }) => {
+				expectTypeOf(params).toBeUnknown();
+				return json({});
+			},
+		});
+	});
+});
+
 describe('method helpers without path', () => {
 	it('returns a handler with an empty path for an endpoint file', () => {
 		const getHandler = defineGet({

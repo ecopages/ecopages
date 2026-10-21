@@ -73,24 +73,22 @@ app.get('/api/users/:id/posts/:postId', async ({ params }) => {
 
 ## Type Safety
 
-Ecopages leverages TypeScript to provide strong type safety for your API handlers, especially for route parameters.
+The `path` string selects the URL of an Explicit Route. It does not type `params`: without a schema, `params` is a record of strings with string arrays for catch-all segments, so `params.id` and a misspelled `params.ids` type the same way.
 
-Handlers can be defined directly, but keeping the `params` type aligned with the `path` string requires explicit manual typing. Use `defineApiHandler` to infer parameter types from the path literal and keep route definitions organized.
+To type and validate Params, give the handler a `schema.params`. Define the handler with `defineApiHandler` or a method helper such as `defineGet`, which types the handler context from that schema:
 
 ```typescript
-import { defineApiHandler } from '@ecopages/core';
+import { defineApiHandler, defineGet } from '@ecopages/core';
+import { z } from 'zod';
 
-const getUserHandler = defineApiHandler({
-	method: 'GET',
+const getUserHandler = defineGet({
 	path: '/api/users/:id',
-	handler: async ({ params }) => {
-		const { id } = params;
-		const user = { id: id, name: 'Example User' };
-
-		if (!user) {
-			return new Response('User not found', { status: 404 });
-		}
-		return new Response(JSON.stringify(user));
+	schema: {
+		params: z.object({ id: z.string() }),
+	},
+	handler: async ({ params, response }) => {
+		// params is { id: string }
+		return response.json({ id: params.id, name: 'Example User' });
 	},
 });
 
@@ -99,23 +97,24 @@ app.add(getUserHandler);
 const updateUserHandler = defineApiHandler({
 	method: 'PUT',
 	path: '/api/users/:id',
+	schema: {
+		params: z.object({ id: z.string() }),
+	},
 	handler: async ({ params }) => {
-		const { id } = params;
-		return new Response(JSON.stringify({ id, message: 'User updated' }));
+		return new Response(JSON.stringify({ id: params.id, message: 'User updated' }));
 	},
 });
 
 app.add(updateUserHandler);
 ```
 
+A request whose Params fail the schema gets a 400 response before the handler runs.
+
 ### Benefits of Using `defineApiHandler`
 
-Using defineApiHandler offers several advantages:
-
-- Automatic Parameter Typing: Eliminates the need to manually type params.
+- Typed context: `params`, `body`, `query` and `headers` take the types of the matching `schema` fields.
 - Improved Readability: Keeps the handler definition concise.
 - Enhanced Organization: Encourages defining handlers as separate, reusable constants before registering them.
-- Reduced Errors: Prevents type mismatches between the path string and the parameters used in the handler.
 
 ## Handler Context: Accessing the Server Instance
 

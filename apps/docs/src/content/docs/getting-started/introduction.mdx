@@ -50,7 +50,7 @@ The result? Fast static pages, minimal dependencies, and code you can actually u
 3. **Static by Default**: Generate HTML at build time. Host anywhere. No server costs for most sites.
 
 4. **Lightweight, Safe Backend**:
-    - **Typed Handlers**: Define API handlers with full type inference using `defineApiHandler`.
+    - **Typed Handlers**: Define API handlers with `defineApiHandler`, whose schema types and validates the request.
     - **Explicit Routing**: Use `app.get()`, `app.post()`, etc. for granular control over your API handlers. Or add a `*.api.ts` file under `src/pages`.
     - **Zero Overhead**: The server module is tree-shaken away when you only build static pages.
 
@@ -152,7 +152,7 @@ app.get('/api/hello', async (ctx) => {
 
 #### Organized & Type-Safe Handlers
 
-For larger apps, define handlers in separate files using `defineApiHandler`. This gives you automatic type inference for body, query, and path parameters based on your schema.
+For larger apps, define handlers in separate files using `defineApiHandler`. The `schema` types and validates the body, query, headers and Params the handler receives; the `path` string only selects the URL.
 
 ```typescript
 // handlers/greet.ts

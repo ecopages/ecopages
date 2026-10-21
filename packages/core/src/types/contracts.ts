@@ -1620,8 +1620,10 @@ type InferSchemaOutput<T> = T extends StandardSchema ? InferOutput<T> : unknown;
 
 /**
  * Context type that combines schema-typed fields with an extended base context.
- * Used by RouteGroupBuilder to merge schema validation types with middleware-extended context.
- * Note: Path parameter typing (e.g., :id -> params.id) comes from the TContext.request type.
+ *
+ * @remarks
+ * `params` is typed only by `TSchema['params']`; the route's path string never narrows it.
+ * A field the schema omits is typed `unknown`.
  */
 export type TypedGroupHandlerContext<TSchema extends RouteSchema, TContext extends ApiHandlerContext<any, any>> = Omit<
 	TContext,

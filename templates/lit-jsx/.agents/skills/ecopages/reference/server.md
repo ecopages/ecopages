@@ -122,7 +122,7 @@ await app.start();
 
 ## Endpoint files
 
-A `*.api.ts` file under `src/pages` is an endpoint file: its path gives the URL (`src/pages/api/users/[id].api.ts` answers `/api/users/[id]`), and it needs no `app.add()`. Export one handler per method, named exactly `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS` or `HEAD`, built with the matching method helper and no `path`:
+A `*.api.ts` file under `src/pages` is an endpoint file: its path gives the URL (`src/pages/api/users/[id].api.ts` answers `/api/users/[id]`), and it needs no `app.add()`. Export one handler per method, named exactly `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`, `HEAD` or `QUERY`, built with the matching method helper and no `path`:
 
 ```typescript
 import { defineGet } from '@ecopages/core';

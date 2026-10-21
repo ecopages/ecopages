@@ -52,6 +52,7 @@ export type {
 	RenderContext,
 	RenderOptions,
 	RouteGroupBuilder,
+	RouteMethod,
 	RouteOptions,
 	RouteSchema,
 	SitemapConfig,

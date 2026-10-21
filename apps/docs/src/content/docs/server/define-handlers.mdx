@@ -219,7 +219,6 @@ Use `defineGroupHandler` when you have multiple routes that share a URL prefix a
 // handlers/admin.ts
 import { defineGroupHandler } from '@ecopages/core';
 import { authMiddleware } from './middleware/auth';
-import type { AuthenticatedContext } from './middleware/auth';
 
 export const adminGroup = defineGroupHandler({
   prefix: '/admin',
@@ -248,6 +247,8 @@ export const adminGroup = defineGroupHandler({
   ],
 });
 ```
+
+Every route in the group, `api.get` and its siblings included, receives the context the group middleware adds, so `ctx.session` above is typed.
 
 The `routes` callback also accepts the callable form `api({ path, method, handler })` when you need an uncommon method shape. Prefer `api.get` and `api.post` for standard verbs.
 
@@ -352,7 +353,7 @@ defineApiHandler({
 });
 ```
 
-Params that fail the schema get a 400 response before the handler runs. A route whose `schema` has no `params` field types `params` as `unknown`, so add `schema.params` whenever the handler reads Params.
+Params that fail the schema get a 400 response before the handler runs. A field the `schema` omits keeps its untyped shape: with only `schema.body`, `params` is still `PageParams` and `query` is still a record of strings and string arrays.
 
 ### Middleware Context
 
@@ -360,9 +361,9 @@ Middleware can extend the handler context with additional properties:
 
 ```typescript
 // middleware/auth.ts
-import type { EcoMiddleware } from '@ecopages/core';
+import type { ApiHandlerContext, EcoMiddleware } from '@ecopages/core';
 
-export type AuthenticatedContext = {
+export type AuthenticatedContext = ApiHandlerContext & {
   session: { user: User; token: string };
 };
 
@@ -386,7 +387,7 @@ When used with `defineGroupHandler`, all routes receive the extended context aut
 ```typescript
 // handlers/blog.ts
 import { defineGet, defineGroupHandler } from '@ecopages/core';
-import { authMiddleware, type AuthenticatedContext } from '../middleware/auth';
+import { authMiddleware } from '../middleware/auth';
 import { z } from 'zod';
 
 const createPostSchema = {

@@ -1276,27 +1276,19 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
 	 */
 	services: ApiHandlerServices;
 	/**
-	 * Parsed and optionally validated request body.
+	 * Request body validated by `schema.body`.
 	 *
-	 * - Without schema: Contains the parsed JSON body as `unknown`
-	 * - With schema: Contains the validated and type-safe body data
+	 * - Without `schema.body`: `undefined`
+	 * - With `schema.body`: the validated body, typed from the schema
 	 *
 	 * For raw access to the request body stream, use `ctx.request.body`.
-	 *
-	 * @example Without validation
-	 * ```typescript
-	 * app.post('/posts', async (ctx) => {
-	 *   const data = ctx.body; // [unknown] - parsed JSON
-	 *   return ctx.json({ received: data });
-	 * });
-	 * ```
 	 *
 	 * @example With validation
 	 * ```typescript
 	 * import { z } from 'zod';
 	 *
 	 * app.post('/posts', async (ctx) => {
-	 *   const { title, author } = ctx.body; // [type-safe]
+	 *   const { title, author } = ctx.body; // { title: string; author: string }
 	 *   return ctx.json({ title, author });
 	 * }, {
 	 *   schema: {
@@ -1311,8 +1303,8 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
 	/**
 	 * Parsed and optionally validated query parameters.
 	 *
-	 * - Without schema: Contains query params as strings, or arrays when a key is repeated
-	 * - With schema: Contains the validated and type-safe query data
+	 * - Without `schema.query`: query params as strings, or arrays when a key is repeated
+	 * - With `schema.query`: the validated query, typed from the schema
 	 *
 	 * Repeated query keys are represented as arrays, matching `PageQuery` on page props.
 	 *
@@ -1350,12 +1342,12 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
 	 * });
 	 * ```
 	 */
-	query?: unknown;
+	query: PageQuery;
 	/**
-	 * Parsed and optionally validated request headers.
+	 * Request headers validated by `schema.headers`.
 	 *
-	 * - Without schema: Contains the parsed headers as a string record
-	 * - With schema: Contains the validated and type-safe header data
+	 * - Without `schema.headers`: `undefined`
+	 * - With `schema.headers`: the validated headers, typed from the schema
 	 *
 	 * For raw access to headers, use `ctx.request.headers`.
 	 *
@@ -1418,11 +1410,11 @@ export interface ApiHandlerContext<TRequest extends Request = Request, TServer =
  *
  * Page middleware can mutate locals, short-circuit the request, and use the
  * response helpers, but final document rendering stays owned by the page route
- * execution path.
+ * execution path. The query string is not parsed for page middleware; read it from `request.url`.
  */
 export interface FileRouteMiddlewareContext<TRequest extends Request = Request, TServer = any> extends Omit<
 	ApiHandlerContext<TRequest, TServer>,
-	'render' | 'renderPartial' | 'importServerModule' | 'renderServerModule'
+	'render' | 'renderPartial' | 'importServerModule' | 'renderServerModule' | 'query'
 > {}
 
 /**
@@ -1601,9 +1593,10 @@ export interface RouteOptions<
 	TRequest extends Request = Request,
 	TServer = any,
 	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+	TSchema extends RouteSchema = RouteSchema,
 > {
 	middleware?: Middleware<TRequest, TServer, TContext>[];
-	schema?: RouteSchema;
+	schema?: TSchema;
 }
 
 export interface RouteSchema {
@@ -1614,89 +1607,69 @@ export interface RouteSchema {
 }
 
 /**
- * Helper type to extract inferred types from a schema, with fallback to unknown.
- */
-type InferSchemaOutput<T> = T extends StandardSchema ? InferOutput<T> : unknown;
-
-/**
- * Context type that combines schema-typed fields with an extended base context.
+ * The context a handler receives: the base or middleware context, with each field the schema declares
+ * replaced by that schema's output.
  *
  * @remarks
- * `params` is typed only by `TSchema['params']`; the route's path string never narrows it.
- * A field the schema omits is typed `unknown`.
+ * A field the schema omits keeps the type it has on `TContext`, so a schema with only `body` still
+ * gives `params` as {@link PageParams}. `params` is typed only by `TSchema['params']`; the route's
+ * path string never narrows it.
  */
 export type TypedGroupHandlerContext<TSchema extends RouteSchema, TContext extends ApiHandlerContext<any, any>> = Omit<
 	TContext,
-	'body' | 'query' | 'headers' | 'params'
+	RouteSchemaField
 > & {
-	body: InferSchemaOutput<TSchema['body']>;
-	query: InferSchemaOutput<TSchema['query']>;
-	headers: InferSchemaOutput<TSchema['headers']>;
-	params: InferSchemaOutput<TSchema['params']>;
+	[K in RouteSchemaField]: TSchema[K] extends StandardSchema ? InferOutput<TSchema[K]> : TContext[K];
 };
 
 /**
- * Builder interface for defining routes within a group.
+ * @remarks
+ * Mapping over this alias instead of `keyof RouteSchema` keeps the mapped type from copying the optional
+ * modifiers of {@link RouteSchema}, so each field is required and an optional schema still types its
+ * output with `undefined`.
+ */
+type RouteSchemaField = keyof RouteSchema;
+
+/**
+ * Registers an inline route: the handler is typed from the route's `schema` and from the context its
+ * `middleware` adds on top of `TContext`.
+ *
+ * @typeParam TReturn - What the call returns, for chaining
+ * @typeParam TContext - The context the route starts from: the base context, or the group's
+ */
+export type RouteMethod<
+	TReturn,
+	TRequest extends Request = Request,
+	TServer = any,
+	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
+> = <TSchema extends RouteSchema = RouteSchema, TRouteContext extends TContext = TContext>(
+	path: string,
+	handler: (context: TypedGroupHandlerContext<TSchema, TRouteContext>) => Promise<Response> | Response,
+	options?: RouteOptions<TRequest, TServer, TRouteContext, TSchema>,
+) => TReturn;
+
+/**
+ * Builder for defining routes within a group, one method per HTTP method.
  * Provides chainable methods for registering routes with shared prefix and middleware.
  *
  * @typeParam TRequest - The request type
  * @typeParam TServer - The server type
  * @typeParam TContext - Extended context type from group middleware
+ *
+ * @remarks `query` registers the HTTP QUERY method, not a handler for `ctx.query`.
  */
-export interface RouteGroupBuilder<
+export type RouteGroupBuilder<
 	TRequest extends Request = Request,
 	TServer = any,
 	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
-> {
-	get<P extends string, TSchema extends RouteSchema = RouteSchema>(
-		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
-	): RouteGroupBuilder<TRequest, TServer, TContext>;
-
-	post<P extends string, TSchema extends RouteSchema = RouteSchema>(
-		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
-	): RouteGroupBuilder<TRequest, TServer, TContext>;
-
-	put<P extends string, TSchema extends RouteSchema = RouteSchema>(
-		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
-	): RouteGroupBuilder<TRequest, TServer, TContext>;
-
-	delete<P extends string, TSchema extends RouteSchema = RouteSchema>(
-		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
-	): RouteGroupBuilder<TRequest, TServer, TContext>;
-
-	patch<P extends string, TSchema extends RouteSchema = RouteSchema>(
-		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
-	): RouteGroupBuilder<TRequest, TServer, TContext>;
-
-	options<P extends string, TSchema extends RouteSchema = RouteSchema>(
-		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
-	): RouteGroupBuilder<TRequest, TServer, TContext>;
-
-	head<P extends string, TSchema extends RouteSchema = RouteSchema>(
-		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
-	): RouteGroupBuilder<TRequest, TServer, TContext>;
-
-	/** Registers a handler for the QUERY method, not for `ctx.query`. */
-	query<P extends string, TSchema extends RouteSchema = RouteSchema>(
-		path: P,
-		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
-		options?: RouteOptions<TRequest, TServer, TContext> & { schema?: TSchema },
-	): RouteGroupBuilder<TRequest, TServer, TContext>;
-}
+> = {
+	[M in ApiHandler['method'] as Lowercase<M>]: RouteMethod<
+		RouteGroupBuilder<TRequest, TServer, TContext>,
+		TRequest,
+		TServer,
+		TContext
+	>;
+};
 
 /**
  * A function that dynamically imports a view module.

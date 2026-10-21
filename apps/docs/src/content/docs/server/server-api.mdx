@@ -75,7 +75,7 @@ app.get('/api/users/:id/posts/:postId', async ({ params }) => {
 
 The `path` string selects the URL of an Explicit Route. It does not type `params`: without a schema, `params` is a record of strings with string arrays for catch-all segments, so `params.id` and a misspelled `params.ids` type the same way.
 
-To type and validate Params, give the handler a `schema.params`. Define the handler with `defineApiHandler` or a method helper such as `defineGet`, which types the handler context from that schema:
+To type and validate Params, give the route a `schema.params`, inline in `app.get()` and its siblings or through `defineApiHandler` or a method helper such as `defineGet`. Each types the handler context from that schema:
 
 ```typescript
 import { defineApiHandler, defineGet } from '@ecopages/core';

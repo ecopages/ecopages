@@ -7,8 +7,10 @@ import type {
 	ErrorHandler,
 	Middleware,
 	RouteGroupBuilder,
+	RouteMethod,
 	RouteOptions,
 	RouteSchema,
+	TypedGroupHandlerContext,
 	StaticRoute,
 	ViewLoader,
 	ErrorPageLoaders,
@@ -65,15 +67,6 @@ export type EcopagesAppDependencies = {
 	runtimeHost: RuntimeHost;
 	createServerAdapter?: (params: NodeServerAdapterParams) => Promise<NodeServerAdapter>;
 };
-
-/**
- * Handler function type for route handlers
- */
-export type RouteHandler<
-	TRequest extends Request = Request,
-	TServer = unknown,
-	TContext extends ApiHandlerContext<TRequest, TServer> = ApiHandlerContext<TRequest, TServer>,
-> = (context: TContext) => Promise<Response> | Response;
 
 export type RouteGroupDefinition<
 	TRequest extends Request = Request,
@@ -161,93 +154,31 @@ export class EcopagesApp implements AsyncDisposable {
 		startupTrace.markConfigReady();
 	}
 
-	private register<P extends string, TContext extends ApiHandlerContext<Request, unknown>>(
-		path: P,
-		method: ApiHandler['method'],
-		handler: RouteHandler<Request, unknown, TContext>,
-		options?: RouteOptions<Request, unknown, TContext>,
-	): this {
-		return this.addRouteHandler(path, method, handler, options?.middleware, options?.schema);
+	private method(method: ApiHandler['method']): RouteMethod<this, Request, unknown> {
+		return (path, handler, options) =>
+			this.addRouteHandler(path, method, handler, options?.middleware, options?.schema);
 	}
 
-	get<P extends string, TContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>>(
-		path: P,
-		handler: RouteHandler<Request, unknown, TContext>,
-		options?: RouteOptions<Request, unknown, TContext>,
-	): this {
-		return this.register(path, 'GET', handler, options);
-	}
-
-	post<P extends string, TContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>>(
-		path: P,
-		handler: RouteHandler<Request, unknown, TContext>,
-		options?: RouteOptions<Request, unknown, TContext>,
-	): this {
-		return this.register(path, 'POST', handler, options);
-	}
-
-	put<P extends string, TContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>>(
-		path: P,
-		handler: RouteHandler<Request, unknown, TContext>,
-		options?: RouteOptions<Request, unknown, TContext>,
-	): this {
-		return this.register(path, 'PUT', handler, options);
-	}
-
-	delete<
-		P extends string,
-		TContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>,
-	>(
-		path: P,
-		handler: RouteHandler<Request, unknown, TContext>,
-		options?: RouteOptions<Request, unknown, TContext>,
-	): this {
-		return this.register(path, 'DELETE', handler, options);
-	}
-
-	patch<P extends string, TContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>>(
-		path: P,
-		handler: RouteHandler<Request, unknown, TContext>,
-		options?: RouteOptions<Request, unknown, TContext>,
-	): this {
-		return this.register(path, 'PATCH', handler, options);
-	}
-
-	options<
-		P extends string,
-		TContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>,
-	>(
-		path: P,
-		handler: RouteHandler<Request, unknown, TContext>,
-		options?: RouteOptions<Request, unknown, TContext>,
-	): this {
-		return this.register(path, 'OPTIONS', handler, options);
-	}
-
-	head<P extends string, TContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>>(
-		path: P,
-		handler: RouteHandler<Request, unknown, TContext>,
-		options?: RouteOptions<Request, unknown, TContext>,
-	): this {
-		return this.register(path, 'HEAD', handler, options);
-	}
-
+	readonly get: RouteMethod<this, Request, unknown> = this.method('GET');
+	readonly post: RouteMethod<this, Request, unknown> = this.method('POST');
+	readonly put: RouteMethod<this, Request, unknown> = this.method('PUT');
+	readonly delete: RouteMethod<this, Request, unknown> = this.method('DELETE');
+	readonly patch: RouteMethod<this, Request, unknown> = this.method('PATCH');
+	readonly options: RouteMethod<this, Request, unknown> = this.method('OPTIONS');
+	readonly head: RouteMethod<this, Request, unknown> = this.method('HEAD');
 	/** Registers a handler for the QUERY method, not for `ctx.query`. */
-	query<P extends string, TContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>>(
-		path: P,
-		handler: RouteHandler<Request, unknown, TContext>,
-		options?: RouteOptions<Request, unknown, TContext>,
-	): this {
-		return this.register(path, 'QUERY', handler, options);
-	}
+	readonly query: RouteMethod<this, Request, unknown> = this.method('QUERY');
 
-	route<P extends string>(
-		path: P,
+	route<
+		TSchema extends RouteSchema = RouteSchema,
+		TContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>,
+	>(
+		path: string,
 		method: ApiHandler['method'],
-		handler: RouteHandler<Request, unknown>,
-		options?: RouteOptions<Request, unknown>,
+		handler: (context: TypedGroupHandlerContext<TSchema, TContext>) => Promise<Response> | Response,
+		options?: RouteOptions<Request, unknown, TContext, TSchema>,
 	): this {
-		return this.register(path, method, handler, options);
+		return this.method(method)(path, handler, options);
 	}
 
 	add(handler: ApiHandler<string, Request, unknown>): this {
@@ -259,13 +190,15 @@ export class EcopagesApp implements AsyncDisposable {
 	}
 
 	/**
-	 * Internal method to add route handlers to the API handlers array
+	 * @remarks
+	 * The typed handler and middleware signatures are erased here: the request pipeline builds one
+	 * context per request and fills its schema fields before the handler runs.
 	 */
-	private addRouteHandler<TContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>>(
+	private addRouteHandler(
 		path: string,
 		method: ApiHandler['method'],
-		handler: RouteHandler<Request, unknown, TContext>,
-		middleware?: Middleware<Request, unknown, TContext>[],
+		handler: (context: never) => Promise<Response> | Response,
+		middleware?: readonly Middleware<Request, unknown, never>[],
 		schema?: ApiHandler['schema'],
 	): this {
 		invariant(
@@ -298,33 +231,24 @@ export class EcopagesApp implements AsyncDisposable {
 		}
 
 		const normalizedPrefix = prefixOrGroup.endsWith('/') ? prefixOrGroup.slice(0, -1) : prefixOrGroup;
-		const groupMiddleware = (options?.middleware ?? []) as Middleware<Request, unknown, TContext>[];
+		const groupMiddleware = options?.middleware ?? [];
 
-		const createHandler = (
-			method: ApiHandler['method'],
-		): RouteGroupBuilder<Request, unknown, TContext>[Lowercase<typeof method>] => {
-			return ((
-				path: string,
-				handler: (context: TContext) => Promise<Response> | Response,
-				routeOptions?: RouteOptions<Request, unknown, TContext> & { schema?: RouteSchema },
-			) => {
-				const combinedMiddleware: Middleware<Request, unknown, TContext>[] = [
-					...groupMiddleware,
-					...(routeOptions?.middleware ?? []),
-				];
+		const createHandler =
+			(
+				method: ApiHandler['method'],
+			): RouteMethod<RouteGroupBuilder<Request, unknown, TContext>, Request, unknown, TContext> =>
+			(path, handler, routeOptions) => {
+				const combinedMiddleware = [...groupMiddleware, ...(routeOptions?.middleware ?? [])];
 				const fullPath = path === '/' ? normalizedPrefix : `${normalizedPrefix}${path}`;
 				this.addRouteHandler(
 					fullPath,
 					method,
-					handler as RouteHandler<Request, unknown, ApiHandlerContext<Request, unknown>>,
-					combinedMiddleware.length > 0
-						? (combinedMiddleware as Middleware<Request, unknown, ApiHandlerContext<Request, unknown>>[])
-						: undefined,
+					handler,
+					combinedMiddleware.length > 0 ? combinedMiddleware : undefined,
 					routeOptions?.schema,
 				);
 				return builder;
-			}) as RouteGroupBuilder<Request, unknown, TContext>[Lowercase<typeof method>];
-		};
+			};
 
 		const builder: RouteGroupBuilder<Request, unknown, TContext> = {
 			get: createHandler('GET'),

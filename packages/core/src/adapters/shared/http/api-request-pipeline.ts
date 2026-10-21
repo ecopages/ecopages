@@ -205,7 +205,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 
 		const validated = validationResult.data!;
 		if (validated.body !== undefined) context.body = validated.body;
-		if (validated.query !== undefined) context.query = validated.query;
+		if (validated.query !== undefined) context.query = validated.query as PageQuery;
 		if (validated.headers !== undefined) context.headers = validated.headers;
 		if (validated.params !== undefined) context.params = validated.params as PageParams;
 		return undefined;

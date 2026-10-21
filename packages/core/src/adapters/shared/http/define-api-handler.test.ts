@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { z } from 'zod';
-import type { ApiHandler, ApiHandlerContext, EcoMiddleware, PageParams } from '../../../types/contracts.ts';
+import type { ApiHandler, ApiHandlerContext, EcoMiddleware, PageParams, PageQuery } from '../../../types/contracts.ts';
 import { defineGet, definePost, defineGroupHandler, defineQuery, json, html, redirect } from './define-api-handler.ts';
 
 describe('defineGet / definePost', () => {
@@ -42,12 +42,25 @@ describe('params typing', () => {
 		});
 	});
 
-	it('types params as unknown when the schema has no params field', () => {
-		defineGet({
-			path: '/api/users/:id',
-			schema: { query: z.object({ q: z.string() }) },
-			handler: ({ params }) => {
-				expectTypeOf(params).toBeUnknown();
+	it('keeps the base context type for each field the schema omits', () => {
+		definePost({
+			path: '/api/posts/:slug',
+			schema: { body: z.object({ text: z.string() }) },
+			handler: ({ params, query, body }) => {
+				expectTypeOf(params).toEqualTypeOf<PageParams>();
+				expectTypeOf(query).toEqualTypeOf<PageQuery>();
+				expectTypeOf(body).toEqualTypeOf<{ text: string }>();
+				return json({});
+			},
+		});
+	});
+
+	it('keeps undefined in the type of an optional schema', () => {
+		definePost({
+			path: '/api/posts',
+			schema: { body: z.object({ text: z.string() }).optional() },
+			handler: ({ body }) => {
+				expectTypeOf(body).toEqualTypeOf<{ text: string } | undefined>();
 				return json({});
 			},
 		});
@@ -185,6 +198,38 @@ describe('defineGroupHandler', () => {
 		expect(group.routes[0].path).toBe('/');
 		expect(group.routes[1].method).toBe('POST');
 		expect(group.routes[1].path).toBe('/items');
+	});
+
+	it('gives the method helpers the context the group middleware adds', () => {
+		type SessionContext = ApiHandlerContext<Request, unknown> & { session: { userId: string } };
+		const withSession: EcoMiddleware<SessionContext> = async (ctx, next) => {
+			ctx.session = { userId: 'u1' };
+			return next();
+		};
+
+		defineGroupHandler({
+			prefix: '/account',
+			middleware: [withSession],
+			routes: (api) => [
+				api.get({
+					path: '/me',
+					handler: (ctx) => {
+						expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
+						return json(ctx.session);
+					},
+				}),
+				api.post({
+					path: '/:id',
+					schema: { body: z.object({ name: z.string() }) },
+					handler: (ctx) => {
+						expectTypeOf(ctx.session).toEqualTypeOf<{ userId: string }>();
+						expectTypeOf(ctx.body).toEqualTypeOf<{ name: string }>();
+						expectTypeOf(ctx.params).toEqualTypeOf<PageParams>();
+						return json({});
+					},
+				}),
+			],
+		});
 	});
 });
 

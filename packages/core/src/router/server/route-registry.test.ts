@@ -140,6 +140,54 @@ describe('RouteRegistry', () => {
 		expect(result?.templateRoute.kind).toBe('exact');
 	});
 
+	describe('dynamic route order', () => {
+		const discoverInBothOrders = async (files: string[], assert: (registry: RouteRegistry) => void) => {
+			const pagesDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-pages-'));
+			try {
+				for (const file of files) {
+					const filePath = path.join(pagesDir, file);
+					await fs.mkdir(path.dirname(filePath), { recursive: true });
+					await fs.writeFile(filePath, '');
+				}
+
+				const discoveredFiles = await fileSystem.glob(['**/*.ts'], { cwd: pagesDir });
+				for (const fileOrder of [discoveredFiles, [...discoveredFiles].reverse()]) {
+					const globSpy = vi.spyOn(fileSystem, 'glob').mockResolvedValue(fileOrder);
+					try {
+						const registry = createRegistry({ pagesDir, templatesExt: ['.ts'] });
+						await registry.init();
+						assert(registry);
+					} finally {
+						globSpy.mockRestore();
+					}
+				}
+			} finally {
+				await fs.rm(pagesDir, { recursive: true, force: true });
+			}
+		};
+
+		test('prefers a literal segment over a parameter segment', async () => {
+			await discoverInBothOrders(['api/[id].ts', '[section]/[slug].ts'], (registry) => {
+				const literal = registry.matchRequest('http://localhost:3000/api/5');
+				expect(literal?.templateRoute.pathname).toBe('/api/[id]');
+				expect(literal?.params).toEqual({ id: '5' });
+
+				const parameter = registry.matchRequest('http://localhost:3000/blog/5');
+				expect(parameter?.templateRoute.pathname).toBe('/[section]/[slug]');
+				expect(parameter?.params).toEqual({ section: 'blog', slug: '5' });
+			});
+		});
+
+		test('orders dynamic routes of the same shape by pathname', async () => {
+			await discoverInBothOrders(['[section]/[slug].ts', '[a]/[b].ts'], (registry) => {
+				expect(registry.templateRoutes.map((route) => route.pathname)).toEqual([
+					'/[a]/[b]',
+					'/[section]/[slug]',
+				]);
+			});
+		});
+	});
+
 	test('prefers the most specific catch-all when several match one request', async () => {
 		const pagesDir = await fs.mkdtemp(path.join(os.tmpdir(), 'eco-route-pages-'));
 		const files = [

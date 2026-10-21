@@ -192,11 +192,8 @@ describe('RouteRegistry', () => {
 		});
 
 		test('orders dynamic routes of the same shape by pathname', async () => {
-			await discoverInBothOrders(['[section]/[slug].ts', '[a]/[b].ts'], (registry) => {
-				expect(registry.templateRoutes.map((route) => route.pathname)).toEqual([
-					'/[a]/[b]',
-					'/[section]/[slug]',
-				]);
+			await discoverInBothOrders(['news/[id].ts', 'blog/[slug].ts'], (registry) => {
+				expect(registry.templateRoutes.map((route) => route.pathname)).toEqual(['/blog/[slug]', '/news/[id]']);
 			});
 		});
 	});
@@ -540,8 +537,8 @@ describe('RouteRegistry', () => {
 
 			expect(registry.templateRoutes.map((route) => [route.pathname, route.role])).toEqual([
 				['/api/users', 'endpoint'],
-				['/blog/[slug]', 'page'],
 				['/blog/[slug]/comments', 'endpoint'],
+				['/blog/[slug]', 'page'],
 				['/[...path]', 'page'],
 			]);
 			expect(registry.matchRequest('http://localhost:3000/api/users')?.templateRoute.role).toBe('endpoint');

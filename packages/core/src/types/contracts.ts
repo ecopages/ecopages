@@ -1421,7 +1421,7 @@ export interface FileRouteMiddlewareContext<TRequest extends Request = Request, 
  * Next function for middleware chain.
  * Call to continue to the next middleware or final handler.
  */
-type MiddlewareNext = () => Promise<Response>;
+export type MiddlewareNext = () => Promise<Response>;
 
 /**
  * Middleware function signature.
@@ -1608,8 +1608,9 @@ export interface RouteOptions<
  * Each element is a method signature, so its context parameter is checked bivariantly: a middleware typed with
  * the wider context it adds, such as `EcoMiddleware<AuthContext>`, still fits. An inline middleware function in
  * the list is typed with the base context, also inside a group; type it as `EcoMiddleware` to read what the
- * group middleware adds. A list holding an unannotated inline function is context-sensitive, so TypeScript
- * types the handler before it infers the list, and the handler then sees none of the list's contexts.
+ * group middleware adds. A list holding an unannotated inline function is inferred only after the arguments before it, so a handler
+ * written before the list (`app.get(path, handler, options)`, or `handler` before `middleware` in a define call)
+ * sees none of the list's contexts. Put `middleware` first, or declare the inline function as a `Middleware` constant.
  */
 export type MiddlewareList<TRequest extends Request = Request, TServer = any> = readonly {
 	middleware(context: ApiHandlerContext<TRequest, TServer>, next: MiddlewareNext): Promise<Response> | Response;

@@ -46,7 +46,7 @@ export const GET = defineGet({
 });
 ```
 
-The handler context below, schemas, middleware and `app.onError` work the same in both forms. See [Routing](/docs/core/routing#endpoint-files) for the file rules and [Define Handlers](/docs/server/define-handlers#endpoint-files) for a full example.
+An app with endpoint files and no `app.add()` call still builds a server bundle, so `ecopages start` runs it. The handler context below, schemas, middleware and `app.onError` work the same in both forms. See [Routing](/docs/core/routing#endpoint-files) for the file rules and [Define Handlers](/docs/server/define-handlers#endpoint-files) for a full example.
 
 Use an endpoint file when the URL should mirror the folder tree or the handler lives beside a Page; use `app.get()` / `app.add()` for groups with a shared prefix and shared middleware, or URLs that end in a static file extension.
 

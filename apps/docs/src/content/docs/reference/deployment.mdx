@@ -25,7 +25,7 @@ This command will:
 3. Generate static HTML for all files in `src/pages`.
 4. Write `robots.txt` (and optional `sitemap.xml` when enabled — see [Sitemap](/docs/core/sitemap)).
 5. Process images and CSS.
-6. Bundle the server into `dist/.server/` when the app registers API or WebSocket handlers. A static-only app has no server bundle.
+6. Bundle the server into `dist/.server/` when the app registers API or WebSocket handlers or has endpoint files (`*.api.ts`) in its pages directory. A static-only app has no server bundle.
 
 ---
 
@@ -52,7 +52,7 @@ If your application uses **API routes** or **dynamic server logic**, you need a 
 
 ### 1. Using `pnpm run start`
 
-After building, you can start the production server. This needs a server bundle, so it works only for apps that register API or WebSocket handlers:
+After building, you can start the production server. This needs a server bundle, so it works only for apps that register API or WebSocket handlers or have endpoint files:
 
 ```bash
 pnpm run start

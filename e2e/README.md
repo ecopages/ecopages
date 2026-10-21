@@ -6,7 +6,7 @@ Run the main Playwright suite with one command:
 pnpm test:e2e
 ```
 
-The projects are listed directly in the root `playwright.config.ts`. Node runs the behavioral, preview, and HMR suites. Bun runs the runtime-parity project and the dependency-discovery specs against a Bun production build. The React Router preview project also checks persisted sidebar scroll through client navigation and browser history. Preview projects build their app in the configured `webServer` command before the preview server starts. Playwright starts those web servers before project setup tests, so a setup project cannot build an artifact that a web server needs.
+The projects are listed directly in the root `playwright.config.ts`. Node runs the behavioral, preview, and HMR suites. Bun runs the runtime-parity project and the dependency-discovery specs against a Bun production build. The React Router preview project also checks persisted sidebar scroll through client navigation and browser history. The endpoints-only project builds an app whose only handler is an endpoint file and runs it with `ecopages start`. Preview projects build their app in the configured `webServer` command before the preview server starts. Playwright starts those web servers before project setup tests, so a setup project cannot build an artifact that a web server needs.
 
 The config starts only web servers used by the selected projects. With `--shard`, it asks Playwright's JSON list reporter which projects contain tests in that shard, then starts only their web servers. `--list` does not start any web server.
 

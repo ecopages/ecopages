@@ -46,6 +46,11 @@ export interface ServerStaticBuilderParams {
 	 * Whether the app requires a server entry bundle for production use.
 	 * When `true`, the build step bundles the server entry file for `ecopages start`.
 	 * Defaults to `false` (static-only build, no server needed).
+	 *
+	 * @remarks
+	 * Covers what the app registers: Explicit Routes and WebSocket handlers. An endpoint file under the pages
+	 * directory is known only once the Route Registry has scanned it, so {@link ServerStaticBuilder.build} adds
+	 * it to this decision.
 	 */
 	needsServerBundle?: boolean;
 	logger?: ServerStaticBuilderLogger;
@@ -156,7 +161,7 @@ export class ServerStaticBuilder {
 	 *
 	 * @remarks
 	 * Only invoked when the app requires a runtime server (API handlers,
-	 * websocket handlers, etc.). Static-only apps skip this step entirely.
+	 * websocket handlers or endpoint files). Static-only apps skip this step entirely.
 	 * Every process bundles the entry from source.
 	 *
 	 * Source code is bundled: the app entry graph, workspace packages and
@@ -241,7 +246,7 @@ export class ServerStaticBuilder {
 		}
 		this.exportPrepared = false;
 
-		if (this.needsServerBundle) {
+		if (this.needsServerBundle || dependencies.router.templateRoutes.some((route) => route.role === 'endpoint')) {
 			await this.bundleServerEntry();
 		}
 

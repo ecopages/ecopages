@@ -93,4 +93,4 @@ await app.start();
 }
 ```
 
-`ecopages start` runs the server bundle, which only apps with API or WebSocket handlers build. A static-only app has no server bundle: use `ecopages preview` for `start`, or deploy `dist/` to a static host.
+`ecopages start` runs the server bundle, which only apps with API handlers, WebSocket handlers or endpoint files build. A static-only app has no server bundle: use `ecopages preview` for `start`, or deploy `dist/` to a static host.

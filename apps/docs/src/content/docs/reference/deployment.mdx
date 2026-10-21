@@ -63,7 +63,7 @@ pnpm run start
 `ecopages build` writes the server into `dist/.server/`. The server code holds no absolute paths of the machine that built it: it loads packages from `node_modules` through bare imports or paths relative to `dist/.server/`. You can build in one place and run in another, such as a CI runner and a container image with a different root. Copy these entries of your project and keep their relative positions:
 
 - `dist/`: the server bundle, its config and the static export.
-- `src/`: the server reads your routes from `src/pages` at startup.
+- `src/`: the server reads your routes from `src/pages` at startup and compiles each endpoint file on its first request.
 - `node_modules/`: the install the build ran against.
 - `package.json`.
 

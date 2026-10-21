@@ -777,6 +777,8 @@ app.get('/posts/:slug', posts.show);
 await app.start();
 ```
 
+An `app.get()` on an endpoint file's URL answers GET and the file answers its other methods; startup warns. See [Routing](/docs/core/routing#route-priority).
+
 ## Best Practices
 
 ### Start Simple, Refactor Later

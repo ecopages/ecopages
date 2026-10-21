@@ -88,11 +88,10 @@ POST   /blog/hello/comments   -> 201, the POST handler (body validated, 400 if i
 DELETE /blog/hello/comments   -> 405, Allow: GET, POST
 ```
 
-- Each method takes the same `schema` and `middleware` as an `app.ts` route, set per method. Errors reach `app.onError`.
-- Exports other than `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS` and `HEAD` are ignored.
-- Setting `path`, exporting a handler under another method's name (`export const GET = definePost(...)`), exporting something other than a handler under a method name, or exporting no method fails when the file loads on request, so a URL never has two owners. The request answers `500`, or goes to `app.onError`, and the error names the file.
-- A handler without `path` cannot be passed to `app.add()` or `app.group()`; they throw.
-- An `app.ts` route on the same URL keeps the methods it registers, and startup warns.
+- Each method takes the same `schema` and `middleware` as an `app.ts` route, set per method.
+- Setting `path` fails when the file loads on request: the file's location is the endpoint's only path.
+
+See [Routing](/docs/core/routing#endpoint-files) for the rest: `405` and `Allow`, load errors, and `app.ts` routes on the same URL.
 
 ## defineApiHandler
 

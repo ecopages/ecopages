@@ -293,7 +293,7 @@ export const GET = defineGet({
 });
 ```
 
-The file exports one handler per method, named `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS` or `HEAD`; other exports are ignored. A method it does not export answers `405` with an `Allow` header of the methods it does, and `HEAD` and `OPTIONS` are not added for you. A file with no method export, or a method export that is not a handler, is built for another method, or sets `path`, fails to load when requested: the request answers `500`, or goes to `app.onError`, and the error names the file. Schemas, middleware and `app.onError` apply as for `app.add()`. An `app.ts` route on the same pathname (`:slug` and `[slug]` are the same slot) keeps the methods it registers, the file answers the rest, and startup logs a warning naming both; a Page on that pathname is a startup error. `app.static()` on the same pathname answers before the file. In `ecopages dev` a saved endpoint file serves its new handlers without a restart.
+The file's rules (405 and `Allow`, load errors, `app.ts` routes on the same URL) are in the [Routing docs](https://ecopages.app/docs/core/routing#endpoint-files); the contracts are in `src/router/README.md` and `src/adapters/README.md`.
 
 ### 6. Error pages
 

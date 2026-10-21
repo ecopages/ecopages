@@ -146,33 +146,33 @@ export class RouteRegistry {
 	}
 
 	/**
-	 * Orders overlapping catch-all routes by the specificity of their prefix.
+	 * Orders two dynamic or two catch-all routes by the specificity of their
+	 * pattern segments, the catch-all segment itself left out.
 	 *
 	 * @remarks
-	 * Prefix segments are compared from left to right because an earlier static
+	 * Segments are compared from left to right because an earlier literal
 	 * segment constrains a request more strongly than a later one. A longer
-	 * prefix wins only after the shared segment pattern ties. The pathname tie
-	 * breaker keeps equal patterns deterministic without depending on discovery
-	 * order.
+	 * pattern wins only after the shared segments tie. The pathname tie breaker
+	 * keeps equal patterns deterministic without depending on discovery order.
 	 */
-	private compareCatchAllSpecificity(left: TemplateRoute, right: TemplateRoute): number {
-		const leftPrefix = this.getCatchAllPrefix(left.pathname);
-		const rightPrefix = this.getCatchAllPrefix(right.pathname);
-		const sharedLength = Math.min(leftPrefix.length, rightPrefix.length);
+	private compareSpecificity(left: TemplateRoute, right: TemplateRoute): number {
+		const leftSegments = this.getSpecificitySegments(left.pathname);
+		const rightSegments = this.getSpecificitySegments(right.pathname);
+		const sharedLength = Math.min(leftSegments.length, rightSegments.length);
 
 		for (let index = 0; index < sharedLength; index += 1) {
-			const leftIsDynamic = this.isDynamicRouteSegment(leftPrefix[index]);
-			const rightIsDynamic = this.isDynamicRouteSegment(rightPrefix[index]);
+			const leftIsDynamic = this.isDynamicRouteSegment(leftSegments[index]);
+			const rightIsDynamic = this.isDynamicRouteSegment(rightSegments[index]);
 			if (leftIsDynamic !== rightIsDynamic) {
 				return leftIsDynamic ? 1 : -1;
 			}
 		}
 
-		const prefixLengthDifference = rightPrefix.length - leftPrefix.length;
-		return prefixLengthDifference !== 0 ? prefixLengthDifference : left.pathname.localeCompare(right.pathname);
+		const lengthDifference = rightSegments.length - leftSegments.length;
+		return lengthDifference !== 0 ? lengthDifference : left.pathname.localeCompare(right.pathname);
 	}
 
-	private getCatchAllPrefix(pathname: string): string[] {
+	private getSpecificitySegments(pathname: string): string[] {
 		const segments = pathname.split('/').filter(Boolean);
 		const catchAllIndex = segments.findIndex((segment) => segment.startsWith('[...') && segment.endsWith(']'));
 		return catchAllIndex === -1 ? segments : segments.slice(0, catchAllIndex);
@@ -296,8 +296,8 @@ export class RouteRegistry {
 				return priorityDifference;
 			}
 
-			if (left.kind === 'catch-all' && right.kind === 'catch-all') {
-				return this.compareCatchAllSpecificity(left, right);
+			if (left.kind !== 'exact') {
+				return this.compareSpecificity(left, right);
 			}
 
 			if (left.pathname === '/') {

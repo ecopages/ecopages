@@ -69,11 +69,9 @@ Match priority:
 
 1. `exact` — the normalized, decoded pathname segments must equal the route segments.
 2. `dynamic` — the route and pathname must have the same number of segments; literal segments must match exactly, and each parameter segment matches one segment.
-3. `catch-all` — the prefix segments must match the pathname. When multiple
-   catch-all routes match, shared prefix segments are compared from left to right
-   so an earlier static segment wins over a dynamic one; when those patterns tie,
-   the route with the longer prefix wins, then pathname order provides a
-   deterministic tie-breaker.
+3. `catch-all` — the prefix segments must match the pathname.
+
+When several dynamic routes, or several catch-all routes, match one request, their segments (a catch-all's prefix) are compared from left to right, so an earlier literal segment wins over a parameter: `/api/[id]` answers `/api/5` before `/[section]/[slug]`. When those patterns tie, the catch-all with the longer prefix wins, then pathname order provides a deterministic tie-breaker.
 
 The shared segment matcher uses `normalizePathname`, which adds a leading slash and removes trailing slashes except for `/`. It preserves repeated slashes inside a pathname; matching ignores the empty segments between them. The matcher splits paths on `/` before decoding each segment once, so an encoded slash stays inside its original segment. Malformed percent escapes raise an HTTP 400 error (subject to `app.onError` handling), even when no registered route matches.
 
@@ -90,7 +88,7 @@ The same segment grammar builds concrete pathnames: `staticPaths()` params for f
 
 Repeated query keys retain all values in order: `?tag=docs&tag=api` becomes `{ tag: ['docs', 'api'] }`. A query key with one value remains a string. Pages, API handlers, WebSocket upgrade handlers (`search`), route matching, and static route info share `PageParams` and `PageQuery` value shapes, parsed by one function. A schema that expects a plain string answers HTTP 400 for a repeated key.
 
-API and WebSocket matching still prioritize more specific routes. Filesystem routes keep their existing exact, dynamic, and catch-all ordering; explicit routes keep declaration order.
+API and WebSocket matching still prioritize more specific routes. Filesystem routes follow the match priority above; explicit routes keep declaration order.
 
 ## `client/`
 

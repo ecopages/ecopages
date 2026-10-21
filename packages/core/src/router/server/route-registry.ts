@@ -4,6 +4,7 @@ import { appLogger } from '../../global/app-logger.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { PageParams, PageQuery } from '../../types/contracts.ts';
 import { invariant } from '../../utils/invariant.ts';
+import { hasKnownStaticExtension } from '../../utils/static-file-extensions.ts';
 import { normalizePathname } from '../../utils/path-pattern.ts';
 import { parseSearchParams } from './parse-search-params.ts';
 import { findIntegrationForFile, findLongestExtension } from '../../plugins/find-integration-for-file.ts';
@@ -17,9 +18,8 @@ import {
 
 export type RouteKind = 'exact' | 'catch-all' | 'dynamic';
 /**
- * What a Template Route file declares: a Page rendered to HTML, or an endpoint file whose
- * method handler exports answer its requests. Only `page` routes
- * take part in static generation.
+ * What a Template Route file declares: a Page rendered to HTML, or an endpoint file whose method
+ * handler exports answer its requests. Only `page` routes take part in static generation.
  */
 export type RouteRole = 'page' | 'endpoint';
 export type RouteParams = PageParams;
@@ -299,6 +299,10 @@ export class RouteRegistry {
 				invariant(false, `${duplicate.filePath} and ${filePath} both define ${route}. Keep one of them.`);
 			}
 			routesByKey.set(routeKey, { pathname: routePathname, filePath });
+			invariant(
+				role === 'page' || !hasKnownStaticExtension(routePathname),
+				`${filePath}: the endpoint "${routePathname}" ends in a static file extension, so no request reaches it. Register that URL in app.ts instead.`,
+			);
 			const owner =
 				role === 'page' && kind !== 'exact'
 					? findIntegrationForFile(this.appConfig.integrations, filePath)

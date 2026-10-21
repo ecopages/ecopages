@@ -576,6 +576,22 @@ describe('RouteRegistry', () => {
 			}
 		});
 
+		test('rejects an endpoint file whose pathname ends in a known static file extension', async () => {
+			await writePages(['feed.xml.api.ts']);
+
+			await expect(createRegistry({ pagesDir, templatesExt: ['.tsx'] }).init()).rejects.toThrow(
+				`${path.join(pagesDir, 'feed.xml.api.ts')}: the endpoint "/feed.xml" ends in a static file extension, so no request reaches it. Register that URL in app.ts instead.`,
+			);
+		});
+
+		test('accepts a dynamic endpoint file whose requests may end in a static file extension', async () => {
+			await writePages(['files/[name].api.ts']);
+			const registry = createRegistry({ pagesDir, templatesExt: ['.tsx'] });
+			await registry.init();
+
+			expect(registry.templateRoutes.map((route) => route.pathname)).toEqual(['/files/[name]']);
+		});
+
 		test('lets a dynamic endpoint through an Integration that refuses Params', async () => {
 			await writePages(['api/[id].api.ts']);
 			const withoutParams = (templatesExt: string[]) =>

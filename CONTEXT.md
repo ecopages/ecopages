@@ -80,7 +80,7 @@ A router module that owns the canonical record of all Filesystem Routes in one a
 _Avoid_: Router service, route map
 
 **Template Route**:
-The canonical route pattern declared by a Page or endpoint file, before any dynamic params are resolved. For example, `/blog/[slug]` is a Template Route.
+The canonical route pattern declared by a Page or Endpoint file, before any dynamic params are resolved. For example, `/blog/[slug]` is a Template Route.
 _Avoid_: Route path, abstract route
 
 **Static Path Expansion**:
@@ -88,7 +88,7 @@ One concrete URL path derived from a dynamic Template Route via `staticPaths`. F
 _Avoid_: Concrete route, generated route
 
 **Params**:
-Dynamic segments captured from a page's URL path. For example, in `/blog/[slug]`, the `slug` param captures the actual value (e.g., `{ slug: 'my-post' }`).
+Dynamic segments captured from a route's URL path; a catch-all captures an array. For example, in `/blog/[slug]`, the `slug` param captures the actual value (e.g., `{ slug: 'my-post' }`), and `/docs/[...path]` captures `{ path: ['a', 'b'] }` for `/docs/a/b`.
 _Avoid_: Path params, route params, URL segments
 
 **Query**:
@@ -138,8 +138,8 @@ _Avoid_: URL list, crawl map
 - Each **Page** declares one optional **Layout**; an **HTML Page** declares none
 - An **HTML Page** needs no **Integration** in app config: core appends a built-in **Integration** for `.html` unless a user **Integration** claims the extension. Its **Html** shell is the app's one `html` template (`src/includes/html.html` or another Integration's `html.*`), or a built-in shell when there is none
 - Pages are discovered as **Filesystem Routes** or registered as page-owned **Explicit Routes**
-- **Explicit Routes** may also register non-page handlers such as `app.get()` endpoints
-- **Filesystem Routes** are classified as exact, dynamic, or catch-all based on file naming conventions, and carry the role `page` or `endpoint`; one pathname belongs to one file, whatever the roles
+- **Explicit Routes** may also register non-page handlers such as `app.get()` handlers
+- **Filesystem Routes** are classified as exact, dynamic, or catch-all based on file naming conventions, and carry the role `page` or `endpoint`; one route belongs to one file, whatever the roles and parameter names
 - Only `page` **Filesystem Routes** are rendered at **Build-Time Rendering**, produce **Static Path Expansions**, or appear in the **Sitemap**
 - A **Route Registry** owns the canonical set of **Filesystem Routes** for one application and supports reload during development
 - Each **Filesystem Route** is stored as one **Template Route**; dynamic routes may also produce **Static Path Expansions** for build-time rendering

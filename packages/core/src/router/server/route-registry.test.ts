@@ -549,11 +549,14 @@ describe('RouteRegistry', () => {
 		});
 
 		test.each([
-			['users.tsx', 'users.api.ts', '.tsx', '/users'],
-			['users.ts', 'users.api.ts', '.ts', '/users'],
-			['index.tsx', 'index.api.ts', '.tsx', '/'],
-			['users.api.ts', 'users/index.api.ts', '.tsx', '/users'],
-		])('rejects %p beside %p as one route', async (first, second, templateExtension, pathname) => {
+			['users.tsx', 'users.api.ts', '.tsx', ['/users']],
+			['users.ts', 'users.api.ts', '.ts', ['/users']],
+			['index.tsx', 'index.api.ts', '.tsx', ['/']],
+			['users.api.ts', 'users/index.api.ts', '.tsx', ['/users']],
+			['blog/[slug].tsx', 'blog/[id].api.ts', '.tsx', ['/blog/[slug]', '/blog/[id]']],
+			['x/[a].api.ts', 'x/[b].api.ts', '.tsx', ['/x/[a]', '/x/[b]']],
+			['[slug].tsx', '[id].tsx', '.tsx', ['/[slug]', '/[id]']],
+		])('rejects %p beside %p as one route', async (first, second, templateExtension, pathnames) => {
 			await writePages([first, second]);
 
 			const error = await createRegistry({ pagesDir, templatesExt: [templateExtension] })
@@ -561,9 +564,13 @@ describe('RouteRegistry', () => {
 				.catch((reason: Error) => reason);
 
 			expect(error).toBeInstanceOf(Error);
-			expect((error as Error).message).toContain(`both define the route "${pathname}". Keep one of them.`);
-			expect((error as Error).message).toContain(path.join(pagesDir, first));
-			expect((error as Error).message).toContain(path.join(pagesDir, second));
+			const { message } = error as Error;
+			expect(message).toContain(path.join(pagesDir, first));
+			expect(message).toContain(path.join(pagesDir, second));
+			expect(message).toContain('Keep one of them.');
+			for (const pathname of pathnames) {
+				expect(message).toContain(`"${pathname}"`);
+			}
 		});
 
 		test('lets a dynamic endpoint through an Integration that refuses Params', async () => {

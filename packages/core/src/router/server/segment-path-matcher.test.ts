@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { HttpError } from '../../errors/http-error.ts';
-import { buildSegmentPath, matchSegmentPath, scoreSegmentPathPattern } from './segment-path-matcher.ts';
+import {
+	buildSegmentPath,
+	matchSegmentPath,
+	scoreSegmentPathPattern,
+	segmentPathPatternKey,
+} from './segment-path-matcher.ts';
 
 describe('matchSegmentPath', () => {
 	it('matches filesystem routes and decodes each segment once', () => {
@@ -72,5 +77,23 @@ describe('matchSegmentPath', () => {
 		expect(scoreSegmentPathPattern('/ws/chat/lobby', 'websocket')).toBeGreaterThan(
 			scoreSegmentPathPattern('/ws/chat/:room', 'websocket'),
 		);
+	});
+});
+
+describe('segmentPathPatternKey', () => {
+	it.each([
+		['/blog/:slug/comments', 'api', '/blog/[slug]/comments', 'filesystem'],
+		['/docs/*', 'api', '/docs/[...path]', 'filesystem'],
+		['/a%20b/:id', 'api', '/a b/[id]', 'filesystem'],
+	] as const)('gives %s and %s the same key', (left, leftSyntax, right, rightSyntax) => {
+		expect(segmentPathPatternKey(left, leftSyntax)).toBe(segmentPathPatternKey(right, rightSyntax));
+	});
+
+	it.each([
+		['/blog/:slug', '/blog/[...slug]'],
+		['/blog/:slug', '/blog/slug'],
+		['/blog/:slug', '/blog/[slug]/comments'],
+	])('gives %s and %s different keys', (left, right) => {
+		expect(segmentPathPatternKey(left, 'api')).not.toBe(segmentPathPatternKey(right, 'filesystem'));
 	});
 });

@@ -247,6 +247,21 @@ export function buildSegmentPath(pattern: string, params: SegmentPathParams, syn
 	return normalizePathname(segments.join('/'));
 }
 
+/**
+ * Returns a key that two patterns share when they match the same pathnames.
+ *
+ * @remarks
+ * Parameter names and syntax are dropped, so `/blog/:slug` and `/blog/[id]` share a key, and a
+ * catch-all shares one with a wildcard, since both take every remaining segment.
+ */
+export function segmentPathPatternKey(pattern: string, syntax: SegmentPathSyntax): string {
+	const segments = parsePattern(pattern, syntax).map((segment) => {
+		if (segment.kind === 'literal') return encodeURIComponent(segment.value);
+		return segment.kind === 'parameter' ? '[]' : '[...]';
+	});
+	return `/${segments.join('/')}`;
+}
+
 export function scoreSegmentPathPattern(pattern: string, syntax: 'api'): number;
 export function scoreSegmentPathPattern(pattern: string, syntax: 'websocket'): number;
 export function scoreSegmentPathPattern(pattern: string, syntax: 'api' | 'websocket'): number {

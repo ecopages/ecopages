@@ -11,6 +11,7 @@ import {
 	buildSegmentPath,
 	matchParsedSegmentPath,
 	parseSegmentPath,
+	segmentPathPatternKey,
 	type ParsedSegmentPath,
 } from './segment-path-matcher.ts';
 
@@ -273,7 +274,7 @@ export class RouteRegistry {
 		);
 
 		const templateRoutes: TemplateRoute[] = [];
-		const routeFiles = new Map<string, string>();
+		const routesByKey = new Map<string, { pathname: string; filePath: string }>();
 
 		for await (const file of scannedFiles) {
 			if (file.includes('.ecopages-node.')) {
@@ -285,15 +286,19 @@ export class RouteRegistry {
 			const filePath = path.join(this.pagesDir, file);
 			const kind = this.classifyRouteKind(file);
 
-			const duplicateFile = routeFiles.get(routePathname);
-			if (duplicateFile === filePath) {
+			const routeKey = segmentPathPatternKey(routePathname, 'filesystem');
+			const duplicate = routesByKey.get(routeKey);
+			if (duplicate?.filePath === filePath) {
 				continue;
 			}
-			invariant(
-				duplicateFile === undefined,
-				`${duplicateFile} and ${filePath} both define the route "${routePathname}". Keep one of them.`,
-			);
-			routeFiles.set(routePathname, filePath);
+			if (duplicate) {
+				const route =
+					duplicate.pathname === routePathname
+						? `the route "${routePathname}"`
+						: `the same route, "${duplicate.pathname}" and "${routePathname}"`;
+				invariant(false, `${duplicate.filePath} and ${filePath} both define ${route}. Keep one of them.`);
+			}
+			routesByKey.set(routeKey, { pathname: routePathname, filePath });
 			const owner =
 				role === 'page' && kind !== 'exact'
 					? findIntegrationForFile(this.appConfig.integrations, filePath)

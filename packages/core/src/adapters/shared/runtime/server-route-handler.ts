@@ -1,6 +1,7 @@
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { ExplicitStaticRouteMatcher } from '../http/explicit-static-route-matcher.ts';
 import type { FileSystemResponseMatcher } from '../http/fs-server-response-matcher.ts';
+import type { EndpointRequestContext, EndpointRouteHandler } from '../http/endpoint-route-handler.ts';
 import { appLogger } from '../../../global/app-logger.ts';
 import { HttpError } from '../../../errors/http-error.ts';
 import { ServerUtils } from '../../../utils/server-utils.module.ts';
@@ -14,6 +15,8 @@ export interface ServerRouteHandlerParams {
 	router: RouteRegistry;
 	/** Matcher for handling file system route responses. */
 	fileSystemResponseMatcher: FileSystemResponseMatcher;
+	/** Answers file system routes whose role is `endpoint`. */
+	endpointRouteHandler: EndpointRouteHandler;
 	/** Optional matcher for explicit static routes like processed images or sitemaps. */
 	explicitStaticRouteMatcher?: ExplicitStaticRouteMatcher;
 }
@@ -30,6 +33,7 @@ export interface ServerRouteHandlerParams {
 export class ServerRouteHandler {
 	private readonly router: RouteRegistry;
 	private readonly fileSystemResponseMatcher: FileSystemResponseMatcher;
+	private readonly endpointRouteHandler: EndpointRouteHandler;
 	private readonly explicitStaticRouteMatcher?: ExplicitStaticRouteMatcher;
 
 	/**
@@ -37,9 +41,15 @@ export class ServerRouteHandler {
 	 *
 	 * @param params - Configuration parameters
 	 */
-	constructor({ router, fileSystemResponseMatcher, explicitStaticRouteMatcher }: ServerRouteHandlerParams) {
+	constructor({
+		router,
+		fileSystemResponseMatcher,
+		endpointRouteHandler,
+		explicitStaticRouteMatcher,
+	}: ServerRouteHandlerParams) {
 		this.router = router;
 		this.fileSystemResponseMatcher = fileSystemResponseMatcher;
+		this.endpointRouteHandler = endpointRouteHandler;
 		this.explicitStaticRouteMatcher = explicitStaticRouteMatcher;
 	}
 
@@ -49,17 +59,18 @@ export class ServerRouteHandler {
 	 * Priority-based routing flow:
 	 * 1. Check explicit static routes first (e.g., /sitemap.xml, /image.webp from plugins)
 	 * 2. Match file-based routes, unless the path ends in a known static file extension, so a
-	 *    dotted route such as `/v1.2` still matches its Page
+	 *    dotted route such as `/v1.2` still matches its Page or endpoint
 	 * 3. Fall back to static file serving from disk
 	 *
-	 * @remarks
-	 * A matched endpoint route counts as no match: the request pipeline does not run endpoint
-	 * handlers yet, and rendering the file as a Page would be wrong.
-	 *
 	 * @param request - The incoming HTTP request
+	 * @param requestContext - The `app.onError` handler and server an endpoint's errors resolve with
 	 * @returns HTTP response for the matched route
 	 */
-	async handleResponse(request: Request, parsedPathSegments?: ParsedSegmentPath): Promise<Response> {
+	async handleResponse(
+		request: Request,
+		requestContext: EndpointRequestContext,
+		parsedPathSegments?: ParsedSegmentPath,
+	): Promise<Response> {
 		const pathname = new URL(request.url).pathname;
 
 		try {
@@ -80,9 +91,13 @@ export class ServerRouteHandler {
 			const fsMatch =
 				!ServerUtils.hasKnownStaticExtension(pathname) && this.router.matchRequest(request.url, pathSegments);
 
-			return await (fsMatch && fsMatch.templateRoute.role === 'page'
-				? this.fileSystemResponseMatcher.handleMatch(fsMatch, request)
-				: this.handleNoMatch(request));
+			if (!fsMatch) {
+				return await this.handleNoMatch(request);
+			}
+
+			return await (fsMatch.templateRoute.role === 'endpoint'
+				? this.endpointRouteHandler.handleMatch(fsMatch, request, requestContext)
+				: this.fileSystemResponseMatcher.handleMatch(fsMatch, request));
 		} catch (error) {
 			if (error instanceof HttpError) {
 				return error.toResponse();

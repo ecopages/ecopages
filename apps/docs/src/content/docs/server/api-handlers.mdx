@@ -33,6 +33,21 @@ app.post('/api/submit', async ({ request, response }) => {
 await app.start();
 ```
 
+## Endpoint Files
+
+A handler can also live in its own file under `src/pages`, named `*.api.ts`. The file's path gives the URL, so `src/pages/api/greet.api.ts` answers `/api/greet`. It exports one handler per HTTP method, built with the method helpers and no `path`:
+
+```typescript
+// filepath: src/pages/api/greet.api.ts
+import { defineGet } from '@ecopages/core';
+
+export const GET = defineGet({
+	handler: async ({ response }) => response.text('Hello from the API!'),
+});
+```
+
+A method the file does not export answers `405` with an `Allow` header. The handler context below, schemas, middleware and `app.onError` work the same in both forms. See [Routing](/docs/core/routing#endpoint-files) for the file naming rules and [Define Handlers](/docs/server/define-handlers#endpoint-files) for a full example.
+
 ## Handler Context
 
 Every API handler function receives a `HandlerContext` object as its argument. This object provides access to essential information and utilities for handling the request and constructing the response.

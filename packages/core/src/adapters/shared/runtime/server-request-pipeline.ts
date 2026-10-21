@@ -16,6 +16,8 @@ import { FileSystemResponseMatcher } from '../http/fs-server-response-matcher.ts
 import { ServerRouteHandler } from './server-route-handler.ts';
 import { createRenderContext } from './render-context.ts';
 import { ApiRequestPipeline } from '../http/api-request-pipeline.ts';
+import { EndpointRouteHandler, findExplicitRoutesOnEndpoints } from '../http/endpoint-route-handler.ts';
+import { appLogger } from '../../../global/app-logger.ts';
 import { parseSegmentPath, type ParsedSegmentPath } from '../../../router/server/segment-path-matcher.ts';
 import { isHtmlResponse, withUncachedDevHtml } from '../hmr/hmr-html-response.ts';
 import type { EcoPageComponent, EcoPageFile } from '../../../types/contracts.ts';
@@ -62,6 +64,12 @@ export class ServerRequestPipeline {
 		getCacheService: () => this.getCacheService(),
 	});
 	private sharedPageCacheService: PageCacheService | null | undefined;
+	private readonly endpointRouteHandler = new EndpointRouteHandler({
+		apiRequestPipeline: this.apiRequestPipeline,
+		importServerModule: (filePath) => this.importServerModule<Record<string, unknown>>(filePath),
+	});
+	/** Warnings already logged, so a dev route refresh repeats none of them. */
+	private readonly loggedEndpointWarnings = new Set<string>();
 
 	public constructor(options: ServerRequestPipelineOptions) {
 		this.appConfig = options.appConfig;
@@ -75,6 +83,7 @@ export class ServerRequestPipeline {
 			runWithBuildInputIndex(requireAppRuntime(this.appConfig).buildInputIndex, async () => {
 				const response = await this.routeHandler.handleResponse(
 					new Request(new URL(pathname, runtimeOrigin).toString(), { method: 'GET' }),
+					{},
 				);
 				await response.arrayBuffer();
 			}),
@@ -84,10 +93,21 @@ export class ServerRequestPipeline {
 	public async initializeRouteHandling(options: {
 		staticRoutes: StaticRoute[];
 		errorPageLoaders?: ErrorPageLoaders;
+		apiHandlers: readonly ApiHandler[];
 	}): Promise<void> {
 		this.ensureRouteRendererFactory();
 		await this.initSharedRouter();
+		this.warnExplicitRoutesOnEndpoints(options.apiHandlers);
 		this.configureResponseHandlers(options);
+	}
+
+	private warnExplicitRoutesOnEndpoints(apiHandlers: readonly ApiHandler[]): void {
+		for (const warning of findExplicitRoutesOnEndpoints(apiHandlers, this.router.templateRoutes)) {
+			if (!this.loggedEndpointWarnings.has(warning)) {
+				this.loggedEndpointWarnings.add(warning);
+				appLogger.warn(warning);
+			}
+		}
 	}
 
 	private ensureRouteRendererFactory(): void {
@@ -103,6 +123,7 @@ export class ServerRequestPipeline {
 	public createWatchRefreshCallback(options: {
 		staticRoutes: StaticRoute[];
 		errorPageLoaders?: ErrorPageLoaders;
+		apiHandlers: readonly ApiHandler[];
 		onRoutesReady?: () => Promise<void> | void;
 		onError?: (error: Error) => Promise<void> | void;
 	}): () => Promise<void> {
@@ -111,6 +132,7 @@ export class ServerRequestPipeline {
 				await this.initializeRouteHandling({
 					staticRoutes: options.staticRoutes,
 					errorPageLoaders: options.errorPageLoaders,
+					apiHandlers: options.apiHandlers,
 				});
 
 				if (options.onRoutesReady) {
@@ -194,6 +216,7 @@ export class ServerRequestPipeline {
 		this.routeHandler = new ServerRouteHandler({
 			router: this.router,
 			fileSystemResponseMatcher: this.fileSystemResponseMatcher,
+			endpointRouteHandler: this.endpointRouteHandler,
 			explicitStaticRouteMatcher,
 		});
 	}
@@ -268,18 +291,19 @@ export class ServerRequestPipeline {
 	}
 
 	protected getRenderContext(): RenderContext {
-		const moduleLoader = requireAppRuntime(this.appConfig).moduleLoader;
-
 		return createRenderContext({
 			integrations: this.appConfig.integrations,
 			ensureIntegrationReady: (integrationName) =>
 				ensureIntegrationRuntimeReady({ appConfig: this.appConfig, integrationName }),
-			importServerModule: async <T = unknown>(filePath: string) =>
-				await moduleLoader.importModule<T>({
-					filePath,
-					outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules'),
-					externalPackages: true,
-				}),
+			importServerModule: (filePath) => this.importServerModule(filePath),
+		});
+	}
+
+	private async importServerModule<T = unknown>(filePath: string): Promise<T> {
+		return await requireAppRuntime(this.appConfig).moduleLoader.importModule<T>({
+			filePath,
+			outdir: path.join(resolveInternalExecutionDir(this.appConfig), '.server-modules'),
+			externalPackages: true,
 		});
 	}
 
@@ -350,7 +374,8 @@ export class ServerRequestPipeline {
 	 * 1. Resolves static Hot Module Replacement runtime blobs if development.
 	 * 2. Checks if the incoming request matches any parsed API route schemas.
 	 *   - Routes through `ApiRequestPipeline` which performs strict validation.
-	 * 3. Falls through to standard `ServerRouteHandler` for React/Lit filesystem pages.
+	 * 3. Falls through to standard `ServerRouteHandler` for explicit static routes, then filesystem
+	 *    Pages and endpoint files.
 	 *
 	 * The Node host maps its native HTTP request into a Web Request before calling this method.
 	 */
@@ -384,7 +409,7 @@ export class ServerRequestPipeline {
 						return await this.injectSharedHmrHtmlResponse(apiResponse);
 					}
 
-					const routeResponse = await this.routeHandler.handleResponse(request, parsedPathSegments);
+					const routeResponse = await this.routeHandler.handleResponse(request, context, parsedPathSegments);
 					return await this.injectSharedHmrHtmlResponse(routeResponse);
 				}),
 			),

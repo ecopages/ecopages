@@ -1499,6 +1499,13 @@ export type EcoMiddleware<TContext extends ApiHandlerContext<any, any>> =
 	TContext extends ApiHandlerContext<infer TRequest, infer TServer> ? Middleware<TRequest, TServer, TContext> : never;
 
 /**
+ * The request methods an `ApiHandler` answers, in the order an endpoint's `Allow` header lists them.
+ */
+export const API_HANDLER_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'] as const;
+
+export type ApiHandlerMethod = (typeof API_HANDLER_METHODS)[number];
+
+/**
  * Represents an API handler in EcoPages.
  * Defines the path, method, handler function, optional middleware, and validation schemas.
  *
@@ -1564,7 +1571,7 @@ export interface ApiHandler<TPath extends string = string, TRequest extends Requ
 	 * its Template Route gives the URL.
 	 */
 	path: TPath;
-	method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
+	method: ApiHandlerMethod;
 	handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response;
 	/** Optional middleware chain executed before the handler */
 	middleware?: Middleware<TRequest, TServer, any>[];

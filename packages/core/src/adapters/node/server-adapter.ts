@@ -197,6 +197,7 @@ export class NodeServerAdapter {
 		await this.requestPipeline.initializeRouteHandling({
 			staticRoutes: this.staticRoutes,
 			errorPageLoaders: this.errorPageLoaders,
+			apiHandlers: this.apiHandlers,
 		});
 	}
 
@@ -441,6 +442,7 @@ export class NodeServerAdapter {
 						this.requestPipeline.createWatchRefreshCallback({
 							staticRoutes: this.staticRoutes,
 							errorPageLoaders: this.errorPageLoaders,
+							apiHandlers: this.apiHandlers,
 						}),
 				});
 				await this.devSession.start();

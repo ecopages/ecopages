@@ -57,6 +57,43 @@ export const create = definePost({
 
 Use `defineApiHandler` when you want an explicit `method` field or an uncommon registration shape.
 
+## Endpoint files
+
+In a `*.api.ts` file under `src/pages`, export each method helper under its method name and leave out `path`: the file's location gives the URL. `src/pages/blog/[slug]/comments.api.ts` handles `/blog/[slug]/comments` for every post:
+
+```typescript
+import { defineGet, definePost } from '@ecopages/core';
+import { z } from 'zod';
+
+const params = z.object({ slug: z.string() });
+
+export const GET = defineGet({
+  schema: { params },
+  handler: async ({ params, response }) => response.json({ slug: params.slug, comments: [] }),
+});
+
+export const POST = definePost({
+  schema: {
+    params,
+    body: z.object({ text: z.string().min(1) }),
+  },
+  handler: async ({ params, body, response }) =>
+    response.status(201).json({ slug: params.slug, text: body.text }),
+});
+```
+
+```text
+GET    /blog/hello/comments   -> 200, the GET handler
+POST   /blog/hello/comments   -> 201, the POST handler (body validated, 400 if invalid)
+DELETE /blog/hello/comments   -> 405, Allow: GET, POST
+```
+
+- Each method takes the same `schema` and `middleware` as an `app.ts` route, set per method. Errors reach `app.onError`.
+- Exports other than `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS` and `HEAD` are ignored.
+- Setting `path`, exporting a handler under another method's name (`export const GET = definePost(...)`), exporting something other than a handler under a method name, or exporting no method fails when the file loads on request, so a URL never has two owners. The request answers `500`, or goes to `app.onError`, and the error names the file.
+- A handler without `path` cannot be passed to `app.add()` or `app.group()`; they throw.
+- An `app.ts` route on the same URL keeps the methods it registers, and startup warns.
+
 ## defineApiHandler
 
 Use `defineApiHandler` to create a self-contained handler with its path, method, and optional middleware or schema.

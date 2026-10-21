@@ -18,7 +18,7 @@ import {
 export type RouteKind = 'exact' | 'catch-all' | 'dynamic';
 /**
  * What a Template Route file declares: a Page rendered to HTML, or an endpoint file whose
- * handler exports answer the request once the request pipeline runs them. Only `page` routes
+ * method handler exports answer its requests. Only `page` routes
  * take part in static generation.
  */
 export type RouteRole = 'page' | 'endpoint';

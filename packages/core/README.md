@@ -283,6 +283,18 @@ Register a prebuilt handler with `app.add()`. Use `app.get(path, handler)` only 
 
 The method helpers also accept a handler without `path`, for an export of a `*.api.ts` endpoint file, whose path under the pages directory gives the URL. The `api.get` / `api.post` group helpers still require `path`, and `app.add()` and `app.group()` throw for a handler without one.
 
+The filesystem form of the same handler is an endpoint file. `src/pages/api/hello.api.ts` answers `/api/hello` with no `app.add()` call:
+
+```typescript
+import { defineGet } from '@ecopages/core';
+
+export const GET = defineGet({
+	handler: async ({ response }) => response.json({ message: 'Hello World' }),
+});
+```
+
+The file exports one handler per method, named `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS` or `HEAD`; other exports are ignored. A method it does not export answers `405` with an `Allow` header of the methods it does, and `HEAD` and `OPTIONS` are not added for you. A file with no method export, or a method export that is not a handler, is built for another method, or sets `path`, fails to load when requested: the request answers `500`, or goes to `app.onError`, and the error names the file. Schemas, middleware and `app.onError` apply as for `app.add()`. An `app.ts` route on the same pathname (`:slug` and `[slug]` are the same slot) keeps the methods it registers, the file answers the rest, and startup logs a warning naming both; a Page on that pathname is a startup error. `app.static()` on the same pathname answers before the file. In `ecopages dev` a saved endpoint file serves its new handlers without a restart.
+
 ### 6. Error pages
 
 Filesystem `src/pages/404.*` and `500.*` take precedence. For explicit-route apps, register views on the app:

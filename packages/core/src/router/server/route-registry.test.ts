@@ -6,6 +6,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
 import { ServerRouteHandler } from '../../adapters/shared/runtime/server-route-handler.ts';
 import type { FileSystemResponseMatcher } from '../../adapters/shared/http/fs-server-response-matcher.ts';
+import type { EndpointRouteHandler } from '../../adapters/shared/http/endpoint-route-handler.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.js';
 import { RouteRegistry, type RouteRegistryPageModuleAdapter, type TemplateRoute } from './route-registry.ts';
 
@@ -99,9 +100,14 @@ describe('RouteRegistry', () => {
 				handleNoMatch: vi.fn(async () => new Response('not found', { status: 404 })),
 				renderServerError: vi.fn(async () => new Response('server error', { status: 500 })),
 			} as unknown as FileSystemResponseMatcher;
-			const handler = new ServerRouteHandler({ router: registry, fileSystemResponseMatcher });
+			const endpointRouteHandler = { handleMatch: vi.fn() } as unknown as EndpointRouteHandler;
+			const handler = new ServerRouteHandler({
+				router: registry,
+				fileSystemResponseMatcher,
+				endpointRouteHandler,
+			});
 
-			const response = await handler.handleResponse(new Request('http://localhost:3000/blog/%E0%A4%A'));
+			const response = await handler.handleResponse(new Request('http://localhost:3000/blog/%E0%A4%A'), {});
 
 			expect(response.status).toBe(400);
 			expect(fileSystemResponseMatcher.handleMatch).not.toHaveBeenCalled();

@@ -1,12 +1,12 @@
 ---
 title: "Routing"
-description: "File-based routing for pages and programmatic routing for API endpoints."
+description: "File-based routing for pages and endpoint files, and programmatic routing in app.ts."
 order: 5
 ---
 
 # Routing
 
-Ecopages uses file-based routing for pages and programmatic routing for API endpoints.
+Ecopages uses file-based routing for pages and endpoint files, and programmatic routing for API routes in `app.ts`.
 
 ## File-Based Routing
 
@@ -58,6 +58,40 @@ For a Page request to `/docs/a/b`, `params.slug` is `['a', 'b']`. A single `[slu
 
 ---
 
+## Endpoint Files
+
+A file named `*.api.ts` under `src/pages` is an endpoint file, not a page. Its URL follows the same rules as a page: drop `.api.ts`, drop `index`, keep the brackets. `api/` has no special meaning; it is just a folder.
+
+```text
+src/pages/health.api.ts                ->  /health
+src/pages/api/users/index.api.ts       ->  /api/users
+src/pages/api/users/[id].api.ts        ->  /api/users/[id]
+src/pages/api/docs/[...slug].api.ts    ->  /api/docs/[...slug]
+src/pages/blog/[slug]/comments.api.ts  ->  /blog/[slug]/comments
+```
+
+The file exports one handler per HTTP method, named `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS` or `HEAD`, built with the matching method helper and no `path`:
+
+```typescript
+// src/pages/health.api.ts
+import { defineGet } from '@ecopages/core';
+
+export const GET = defineGet({
+	handler: async ({ response }) => response.json({ ok: true }),
+});
+```
+
+- A request whose method the file does not export answers `405` with an `Allow` header listing the methods it does export. `HEAD` and `OPTIONS` are not added for you.
+- A file with no method export, or a method export that is not a handler, is built for another method, or sets `path`, fails to load when requested: the request answers `500`, or goes to `app.onError`, and the error names the file.
+- Params, schemas, middleware and `app.onError` work as they do for `app.ts` routes. A catch-all param is an array.
+- A page and an endpoint file on the same URL, such as `users.tsx` and `users.api.ts`, fail at startup.
+- In `ecopages dev`, saving an endpoint file reloads it without a restart.
+- Like `app.ts` routes, endpoint files need a running server: they are never rendered to static HTML, never appear in the sitemap, and `ecopages preview` does not serve them. An endpoint whose URL ends in a known static extension, such as `report.json.api.ts`, is never reached, like a page.
+
+See [Define Handlers](/docs/server/define-handlers#endpoint-files) for schemas and middleware in endpoint files.
+
+---
+
 ## Programmatic API Routing
 
 API routes are defined on your app instance in `app.ts`:
@@ -85,8 +119,18 @@ An API catch-all keeps each decoded path segment in an array. A request to `/api
 ### Route Priority
 
 1. **API routes** in `app.ts`
-2. **File-based pages** in `src/pages`, unless the path ends in a known static extension
+2. **File-based pages and endpoint files** in `src/pages`, unless the path ends in a known static extension
 3. **Static files** from `public` and the build output
+
+An `app.ts` route registered on an endpoint file's URL keeps the methods it registers, and the file answers the rest. `:slug` and `[slug]` name the same URL.
+
+```typescript
+// app.ts
+app.get('/blog/:slug/comments', handler); // GET goes here
+// POST /blog/:slug/comments still goes to src/pages/blog/[slug]/comments.api.ts
+```
+
+Startup logs a warning naming the `app.ts` route and the endpoint file.
 
 ---
 
@@ -154,4 +198,5 @@ export default eco.page<ErrorPageTemplateProps>({
 | **Static pages** | `src/pages/*.{ext}` | Marketing, docs, blogs |
 | **Dynamic pages** | `src/pages/[slug].{ext}` | Posts, profiles |
 | **Error pages** | `src/pages/404.*`, `src/pages/500.*` | Not-found and server-error HTML |
-| **API endpoints** | `app.get('/api/...')` | Data, forms |
+| **Endpoint files** | `src/pages/**/*.api.ts` | Data, forms, webhooks |
+| **API routes** | `app.get('/api/...')` | Data, forms |

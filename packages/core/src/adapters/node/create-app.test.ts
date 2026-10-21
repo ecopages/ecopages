@@ -137,6 +137,14 @@ describe('EcopagesApp route registration', () => {
 		);
 	});
 
+	it('keeps the leading-slash error for an empty path passed to app.get', () => {
+		const { app } = createTestApp();
+
+		expect(() => app.get('', () => new Response('ok'))).toThrow(
+			`Invalid route path for GET: "". Route paths must start with '/'.`,
+		);
+	});
+
 	it('rejects a group route defined without a path', () => {
 		const { app } = createTestApp();
 

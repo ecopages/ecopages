@@ -242,6 +242,10 @@ export class EcopagesApp implements AsyncDisposable {
 	}
 
 	add(handler: ApiHandler<string, Request, unknown>): this {
+		invariant(
+			handler.path !== '',
+			`The ${handler.method} handler has no path. Export it from a \`*.api.ts\` file under the pages directory, or give it a \`path\` to register it with app.add().`,
+		);
 		return this.addRouteHandler(handler.path, handler.method, handler.handler, handler.middleware, handler.schema);
 	}
 
@@ -258,11 +262,6 @@ export class EcopagesApp implements AsyncDisposable {
 		invariant(
 			typeof path === 'string',
 			`Invalid route path for ${method}: expected a string path starting with "/" but received ${Object.prototype.toString.call(path)}. If you're passing a prebuilt ApiHandler, use app.add(handler).`,
-		);
-
-		invariant(
-			path !== '',
-			`The ${method} handler has no path. Export it from a \`*.api.ts\` file under the pages directory, or give it a \`path\` to register it with app.add().`,
 		);
 
 		invariant(

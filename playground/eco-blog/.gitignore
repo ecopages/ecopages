@@ -24,9 +24,12 @@ dist
 **/*.tar.gz
 **/*.tgz
 **/*.log
-**/*.bun
 
 # db
 *.db
 *.sqlite
 *.sqlite-journal
+
+# uploaded images
+src/images/*
+!src/images/.gitkeep

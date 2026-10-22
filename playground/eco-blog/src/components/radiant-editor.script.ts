@@ -124,7 +124,7 @@ export class RadiantEditor extends RadiantElement {
 				const formData = new FormData();
 				formData.append('file', file);
 				try {
-					const response = await fetch('/admin/upload', {
+					const response = await fetch('/api/upload', {
 						method: 'POST',
 						body: formData,
 					});

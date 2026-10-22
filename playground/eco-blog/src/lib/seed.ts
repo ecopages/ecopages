@@ -1,44 +1,25 @@
 import { faker } from '@faker-js/faker';
-import { db } from './shared-db';
+import { auth } from './auth.server';
+import { db } from './db.server';
 import { posts } from './schema';
-import { logger } from './logger';
-import { auth } from './auth';
 
-async function seed() {
-	logger.info('Seeding database...');
+const adminUser = await auth.api.signUpEmail({
+	body: {
+		email: 'admin@test.com',
+		password: 'password',
+		name: 'Admin User',
+	},
+});
 
-	try {
-		const adminUser = await auth.api.signUpEmail({
-			body: {
-				email: 'admin@test.com',
-				password: 'password',
-				name: 'Admin User',
-			},
-		});
+await db.insert(posts).values(
+	Array.from({ length: 10 }, () => ({
+		title: faker.lorem.sentence(),
+		slug: faker.lorem.slug(),
+		content: faker.lorem.paragraphs(3),
+		excerpt: faker.lorem.paragraph(),
+		published_at: faker.date.past(),
+		authorId: adminUser.user.id,
+	})),
+);
 
-		logger.info('Admin user created: admin@test.com / password');
-
-		const newPosts: (typeof posts.$inferInsert)[] = [];
-
-		for (let i = 0; i < 10; i++) {
-			newPosts.push({
-				title: faker.lorem.sentence(),
-				slug: faker.lorem.slug(),
-				content: faker.lorem.paragraphs(3),
-				excerpt: faker.lorem.paragraph(),
-				published_at: faker.date.past(),
-				authorId: adminUser.user.id,
-			});
-		}
-
-		await db.insert(posts).values(newPosts);
-
-		logger.info('Seeding completed successfully');
-	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error);
-		logger.error('Seeding failed:', errorMessage);
-		process.exit(1);
-	}
-}
-
-seed();
+console.log('Seeded 10 posts. Sign in as admin@test.com / password');

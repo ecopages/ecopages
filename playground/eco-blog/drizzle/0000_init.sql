@@ -21,7 +21,7 @@ CREATE TABLE `posts` (
 	`slug` text NOT NULL,
 	`content` text NOT NULL,
 	`excerpt` text,
-	`published_at` integer DEFAULT '"2026-01-27T21:07:41.317Z"',
+	`published_at` integer NOT NULL,
 	`authorId` text NOT NULL,
 	FOREIGN KEY (`authorId`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE no action
 );

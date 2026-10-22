@@ -43,9 +43,9 @@ const DOCTYPE = '<!DOCTYPE html>';
  * Renders a React tree to complete HTML, waiting for every Suspense boundary to resolve.
  *
  * @remarks
- * - The static prerender reports an error inside a Suspense boundary through `onError` and still
- *   resolves with that boundary's fallback, so the first reported error is rethrown: a
- *   failed render never returns fallback HTML.
+ * - No `onError` is passed, so React keeps its default: an error inside a Suspense boundary is
+ *   logged with `console.error` and that boundary's fallback is served for the browser to retry,
+ *   as `renderToString` did. An error outside every boundary rejects the render.
  * - An unbounded `progressiveChunkSize` keeps resolved boundaries inline. With the default,
  *   React moves a large boundary after its fallback and reveals it with an inline script.
  *   A boundary that renders a `precedence` stylesheet is still moved, whatever its size.
@@ -55,16 +55,9 @@ const DOCTYPE = '<!DOCTYPE html>';
  *   build from react-dom 19.2, while the peer range allows any React 19.
  */
 export async function renderReactHtml(runtime: ReactRuntimeModules, element: ReactNode): Promise<string> {
-	let renderError: { error: unknown } | undefined;
 	const { prelude } = await runtime.reactDomStatic.prerenderToNodeStream(element, {
 		progressiveChunkSize: Number.POSITIVE_INFINITY,
-		onError: (error) => {
-			renderError ??= { error };
-		},
 	});
-	if (renderError) {
-		throw renderError.error;
-	}
 
 	const html = await text(prelude);
 	return html.startsWith(DOCTYPE) ? html.slice(DOCTYPE.length) : html;

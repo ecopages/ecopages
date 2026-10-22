@@ -90,6 +90,25 @@ async function renderPage(renderer: ReactRenderer, Page: EcoComponent, Layout?: 
 	return await new Response(body as BodyInit).text();
 }
 
+/**
+ * Renders like `renderPage` and returns the messages of the errors React logged with `console.error`.
+ *
+ * @remarks
+ * Without an `onError`, React logs the error of a failing Suspense boundary itself and serves its fallback.
+ */
+async function renderPageLoggingErrors(renderer: ReactRenderer, Page: EcoComponent) {
+	const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+	try {
+		const html = await renderPage(renderer, Page);
+		const errors = consoleError.mock.calls
+			.flat()
+			.flatMap((logged) => (logged instanceof Error ? [logged.message] : []));
+		return { html, errors };
+	} finally {
+		consoleError.mockRestore();
+	}
+}
+
 const DeferredWidget = eco.component<{ label?: string; children?: ReactNode }, string>({
 	identity: {
 		id: 'deferred-widget',
@@ -305,22 +324,69 @@ describe('React server rendering waits for Suspense', () => {
 				throw new Error('component render failed');
 			},
 		},
-	])('fails the render when $cause', async ({ message, Failing }) => {
+	])(
+		'serves the boundary fallback, renders the rest of the Page and logs the error when $cause',
+		async ({ message, Failing }) => {
+			const Page = eco.page<Record<string, unknown>, JSX.Element>({
+				integration: 'react',
+				render: () => (
+					<main>
+						<p>rest of the page</p>
+						<Suspended>
+							<Failing />
+						</Suspended>
+					</main>
+				),
+			});
+
+			const { html, errors } = await renderPageLoggingErrors(
+				await createRenderer(),
+				Page as unknown as EcoComponent,
+			);
+
+			expect(html).toContain('<p>rest of the page</p>');
+			expect(html).toContain(FALLBACK);
+			expect(errors).toEqual([message]);
+		},
+	);
+
+	it('logs the error of every failing boundary', async () => {
+		const FirstFailing = lazyAfterTick(() => new Error('first boundary failed'));
+		const SecondFailing = () => {
+			throw new Error('second boundary failed');
+		};
 		const Page = eco.page<Record<string, unknown>, JSX.Element>({
 			integration: 'react',
 			render: () => (
 				<main>
 					<Suspended>
-						<Failing />
+						<FirstFailing />
+					</Suspended>
+					<Suspended>
+						<SecondFailing />
 					</Suspended>
 				</main>
 			),
 		});
 
-		const render = renderPage(await createRenderer(), Page as unknown as EcoComponent);
+		const { html, errors } = await renderPageLoggingErrors(await createRenderer(), Page as unknown as EcoComponent);
 
-		await expect(render).rejects.toThrow(message);
-		await expect(render).rejects.toHaveProperty('cause.message', message);
+		expect(html.split(FALLBACK)).toHaveLength(3);
+		expect(errors.sort()).toEqual(['first boundary failed', 'second boundary failed']);
+	});
+
+	it('fails the render with the original error when a component outside every boundary throws', async () => {
+		const Page = eco.page<Record<string, unknown>, JSX.Element>({
+			integration: 'react',
+			render: () => {
+				throw new Error('page failed');
+			},
+		});
+
+		const render = renderPageLoggingErrors(await createRenderer(), Page as unknown as EcoComponent);
+
+		await expect(render).rejects.toThrow('page failed');
+		await expect(render).rejects.toHaveProperty('cause.message', 'page failed');
 	});
 
 	it('keeps a large resolved boundary inline instead of revealing it with a script', async () => {

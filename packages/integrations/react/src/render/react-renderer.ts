@@ -735,5 +735,5 @@ function createReactRenderError(message: string, cause?: unknown): HttpError {
 	}
 
 	const errorMessage = cause instanceof Error ? `${message}: ${cause.message}` : message;
-	return HttpError.InternalServerError(errorMessage);
+	return HttpError.InternalServerError(errorMessage, { cause });
 }

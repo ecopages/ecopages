@@ -4,7 +4,11 @@ import path from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { eco, type EcoComponent, type HtmlTemplateProps } from '@ecopages/core';
 import type { AssetProcessingService, IntegrationRendererRenderOptions } from '@ecopages/core/integration';
-import type { ComponentRenderInput, ComponentRenderResult } from '@ecopages/core/integration';
+import {
+	runWithComponentRenderContext,
+	type ComponentRenderInput,
+	type ComponentRenderResult,
+} from '@ecopages/core/integration';
 import { createDeferredIntegrationPlugin, createTestAppConfig } from '@ecopages/testing';
 import { lazy, Suspense, type ComponentType, type JSX, type ReactNode } from 'react';
 import { ReactRenderer } from '../render/react-renderer.ts';
@@ -25,6 +29,10 @@ class TestReactRenderer extends ReactRenderer {
 
 const testDir = mkdtempSync(path.join(os.tmpdir(), 'react-ssr-suspense-'));
 const FALLBACK = '<i>loading</i>';
+
+function Suspended({ children }: { children?: ReactNode }) {
+	return <Suspense fallback={<i>loading</i>}>{children}</Suspense>;
+}
 
 afterAll(() => {
 	rmSync(testDir, { recursive: true, force: true });
@@ -100,9 +108,9 @@ describe('React server rendering waits for Suspense', () => {
 			integration: 'react',
 			render: () => (
 				<main>
-					<Suspense fallback={<i>loading</i>}>
+					<Suspended>
 						<LazyContent />
-					</Suspense>
+					</Suspended>
 				</main>
 			),
 		});
@@ -119,9 +127,9 @@ describe('React server rendering waits for Suspense', () => {
 			integration: 'react',
 			render: ({ children }) => (
 				<div data-layout="root">
-					<Suspense fallback={<i>loading</i>}>
+					<Suspended>
 						<LazyNav />
-					</Suspense>
+					</Suspended>
 					{children as ReactNode}
 				</div>
 			),
@@ -143,25 +151,27 @@ describe('React server rendering waits for Suspense', () => {
 		expect(html).not.toContain(FALLBACK);
 	});
 
-	it('renders a lazy component inside a React island on the server', async () => {
+	it('renders a lazy component inside a React island of a non-React Page on the server', async () => {
 		const LazyWidget = lazyAfterTick(() => () => <span>lazy island content</span>);
 		const Island = eco.component<Record<string, never>, JSX.Element>({
 			integration: 'react',
 			render: () => (
 				<section>
-					<Suspense fallback={<i>loading</i>}>
+					<Suspended>
 						<LazyWidget />
-					</Suspense>
+					</Suspended>
 				</section>
 			),
 		});
 
 		const renderer = await createRenderer();
-		const result = await renderer.renderComponentWithForeignChildren({
-			component: Island as unknown as EcoComponent,
-			props: {},
-			integrationContext: { componentInstanceId: 'island-lazy' },
-		});
+		const { value: result } = await runWithComponentRenderContext({ currentIntegration: 'kitajs' }, async () =>
+			renderer.renderComponent({
+				component: Island as unknown as EcoComponent,
+				props: {},
+				integrationContext: { componentInstanceId: 'island-lazy' },
+			}),
+		);
 
 		expect(result.html).toContain('<span>lazy island content</span>');
 		expect(result.html).not.toContain(FALLBACK);
@@ -178,9 +188,9 @@ describe('React server rendering waits for Suspense', () => {
 			dependencies: { components: [DeferredWidget] },
 			render: () => (
 				<main>
-					<Suspense fallback={<i>loading</i>}>
+					<Suspended>
 						<LazyHost />
-					</Suspense>
+					</Suspended>
 				</main>
 			),
 		});
@@ -206,9 +216,9 @@ describe('React server rendering waits for Suspense', () => {
 			render: () => (
 				<main>
 					<ForeignWidget>
-						<Suspense fallback={<i>loading</i>}>
+						<Suspended>
 							<LazyChild />
-						</Suspense>
+						</Suspended>
 					</ForeignWidget>
 				</main>
 			),
@@ -231,9 +241,9 @@ describe('React server rendering waits for Suspense', () => {
 			integration: 'react',
 			render: ({ children }) => (
 				<section>
-					<Suspense fallback={<i>loading</i>}>
+					<Suspended>
 						<LazyFrame>{children}</LazyFrame>
-					</Suspense>
+					</Suspended>
 				</section>
 			),
 		});
@@ -264,9 +274,9 @@ describe('React server rendering waits for Suspense', () => {
 				dependencies: { components: [DeferredWidget] },
 				render: () => (
 					<main>
-						<Suspense fallback={<i>loading</i>}>
+						<Suspended>
 							<SharedLazy label={label} />
-						</Suspense>
+						</Suspended>
 					</main>
 				),
 			}) as unknown as EcoComponent;
@@ -300,14 +310,17 @@ describe('React server rendering waits for Suspense', () => {
 			integration: 'react',
 			render: () => (
 				<main>
-					<Suspense fallback={<i>loading</i>}>
+					<Suspended>
 						<Failing />
-					</Suspense>
+					</Suspended>
 				</main>
 			),
 		});
 
-		await expect(renderPage(await createRenderer(), Page as unknown as EcoComponent)).rejects.toThrow(message);
+		const render = renderPage(await createRenderer(), Page as unknown as EcoComponent);
+
+		await expect(render).rejects.toThrow(message);
+		await expect(render).rejects.toHaveProperty('cause.message', message);
 	});
 
 	it('keeps a large resolved boundary inline instead of revealing it with a script', async () => {
@@ -317,9 +330,9 @@ describe('React server rendering waits for Suspense', () => {
 			integration: 'react',
 			render: () => (
 				<main>
-					<Suspense fallback={<i>loading</i>}>
+					<Suspended>
 						<LazyLarge />
-					</Suspense>
+					</Suspended>
 				</main>
 			),
 		});

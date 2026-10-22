@@ -324,7 +324,7 @@ Use the dev toolbar **Deps** panel to inspect vendor URLs loaded by the active P
 
 Server rendering waits for every `<Suspense>` boundary before it returns HTML, in Pages, Layouts and React Island Hosts alike. A `React.lazy()` component or any other suspending child renders its content into the HTML, not its fallback. Foreign Children inside a suspended subtree resolve as they do anywhere else. The response is still sent as one complete document; it is not streamed. There is no time limit: a suspending child that never settles keeps the render waiting.
 
-A render fails when anything inside a boundary throws, a rejected `React.lazy()` import included, instead of serving the fallback.
+A render fails when anything inside a boundary throws, a rejected `React.lazy()` import included, instead of serving the fallback. Throwing on the server to leave a subtree to the browser therefore fails the Page; wrap that subtree in `ClientOnly` instead.
 
 One case still ships a fallback: React moves a boundary that renders a `<link rel="stylesheet" precedence>` after its fallback, and an inline script swaps the content in. Without JavaScript, or under a CSP that blocks inline scripts, that boundary shows its fallback.
 

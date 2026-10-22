@@ -1,5 +1,5 @@
 /**
- * Resolves the React and react-dom/static modules used for SSR.
+ * Resolves the React and react-dom/static modules used for SSR, and renders React trees to HTML with them.
  *
  * @remarks
  * Prefers the app's own React install so SSR identity matches the app bundle.

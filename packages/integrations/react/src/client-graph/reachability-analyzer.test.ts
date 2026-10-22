@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analyzeReachability, hasPagePreloadExport } from './reachability-analyzer';
+import { analyzeReachability } from './reachability-analyzer';
 
 describe('analyzeReachability', () => {
 	it('identifies eco.page render dependencies correctly', () => {
@@ -57,51 +57,28 @@ describe('analyzeReachability', () => {
 		expect(result.reachableImports.get('./client-comp')).toBe('*');
 	});
 
-	it('keeps the Page preload export and its browser imports reachable', () => {
+	it('keeps a collection component loader reachable through a module-level helper that render reads', () => {
 		const source = `
+			import { createLazyCollectionComponents } from '@ecopages/react/lazy-collection-components';
 			import { loadComponent } from 'ecopages:content/posts/component';
+			import { getEntryDependencies } from 'ecopages:content/posts/server';
 
-			export async function preload({ entry }) {
-				await loadComponent(entry.slug);
-			}
+			const posts = createLazyCollectionComponents(loadComponent);
 
-			export default eco.page({ render: () => null });
+			export default eco.page({
+				dependencies: async ({ props }) => await getEntryDependencies(props.entry.slug),
+				render: ({ entry }) => {
+					const Content = posts.get(entry.slug);
+					return <Content />;
+				},
+			});
 		`;
 
 		const result = analyzeReachability(source, 'page.tsx');
 
 		expect(result.isFallbackRoots).toBe(false);
 		expect(result.reachableImports.get('ecopages:content/posts/component')).toEqual(new Set(['loadComponent']));
-	});
-
-	it('keeps a locally re-exported Page preload reachable', () => {
-		const source = `
-			import { loadComponent } from 'ecopages:content/posts/component';
-
-			async function loadPost({ entry }) {
-				await loadComponent(entry.slug);
-			}
-
-			export { loadPost as preload };
-			export default eco.page({ render: () => null });
-		`;
-
-		const result = analyzeReachability(source, 'page.tsx');
-
-		expect(result.isFallbackRoots).toBe(false);
-		expect(result.reachableImports.get('ecopages:content/posts/component')).toEqual(new Set(['loadComponent']));
-	});
-
-	it('keeps a re-exported Page preload module reachable', () => {
-		const source = `
-			export { preload } from './post-preload';
-			export default eco.page({ render: () => null });
-		`;
-
-		const result = analyzeReachability(source, 'page.tsx');
-
-		expect(result.isFallbackRoots).toBe(false);
-		expect(result.reachableImports.get('./post-preload')).toEqual(new Set(['preload']));
+		expect(result.reachableImports.has('ecopages:content/posts/server')).toBe(false);
 	});
 
 	it('gracefully handles files with no eco explicit roots by using fallback exports', () => {
@@ -333,29 +310,5 @@ describe('analyzeReachability', () => {
 		expect(result.reachableImports.get('./spinner')).toEqual(new Set(['spinner']));
 		expect(result.reachableImports.get('./boot')).toEqual(new Set(['boot']));
 		expect(result.reachableImports.has('./unused')).toBe(false);
-	});
-});
-
-describe('hasPagePreloadExport', () => {
-	it('detects a named preload function export', () => {
-		expect(
-			hasPagePreloadExport(
-				`
-				export async function preload({ entry }) {}
-				export default eco.page({ render: () => null });
-				`,
-				'page.tsx',
-			),
-		).toBe(true);
-	});
-
-	it('detects a re-exported preload binding', () => {
-		expect(
-			hasPagePreloadExport(`export { loadPost as preload };\nexport default function Page() {}`, 'page.tsx'),
-		).toBe(true);
-	});
-
-	it('returns false when the Page has no preload export', () => {
-		expect(hasPagePreloadExport(`export default eco.page({ render: () => null });`, 'page.tsx')).toBe(false);
 	});
 });

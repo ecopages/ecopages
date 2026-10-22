@@ -51,7 +51,6 @@ function wrapPageComponentWithConfig(
 export function adaptPageModule(moduleNamespace: unknown): {
 	Component: NavigablePageComponent;
 	config?: EcoComponentConfig;
-	preload?: (props: PageProps) => Promise<void>;
 } | null {
 	const module = asRecord(moduleNamespace);
 	if (!module) {
@@ -65,13 +64,10 @@ export function adaptPageModule(moduleNamespace: unknown): {
 
 	const defaultRecord = asRecord(module.default);
 	const config = resolvePageModuleConfig(module, imported, defaultRecord);
-	const preloadValue = module.preload;
-	const preload =
-		typeof preloadValue === 'function' ? (preloadValue as (props: PageProps) => Promise<void>) : undefined;
 
 	if (!config || imported.config === config) {
-		return { Component: imported, config: imported.config ?? config, preload };
+		return { Component: imported, config: imported.config ?? config };
 	}
 
-	return { Component: wrapPageComponentWithConfig(imported, config), config, preload };
+	return { Component: wrapPageComponentWithConfig(imported, config), config };
 }

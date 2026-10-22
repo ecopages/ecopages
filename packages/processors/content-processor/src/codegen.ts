@@ -229,7 +229,7 @@ export const loadComponent = getComponent;
  * in the Page Browser Graph.
  *
  * @remarks
- * Consumers own any synchronous-after-preload cache policy. This module only
+ * Consumers own any per-slug memoization, such as a `React.lazy` lookup. This module only
  * loads one browser-compiled MDX entry on demand and coalesces concurrent
  * requests; it is not a server renderer.
  */

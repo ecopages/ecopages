@@ -96,7 +96,7 @@ function resolveDirection(isPopState: boolean, pushHistory: boolean): Navigation
  * Resolves fetch + module discovery into an explicit navigation outcome.
  *
  * @remarks
- * A failed fetch, or a page module that fails to load, import or preload, resolves to a
+ * A failed fetch, or a page module that fails to load or import, resolves to a
  * full document navigation unless the attempt was superseded, so the link never goes dead.
  */
 export async function resolveReactNavigation(input: ResolveReactNavigationInput): Promise<ReactNavigationOutcome> {

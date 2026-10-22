@@ -15,7 +15,7 @@ On startup, `app.ts` writes an RSS feed to `src/public/rss.xml`; restart dev or 
 
 The content processor validates that frontmatter at scan time. `reactPlugin` also needs `withContentMdxPlugins()` so MDX compile strips the `---` block instead of rendering it as content. See `src/lib/mdx-plugin-options.ts`.
 
-The post Page renders the server MDX component during SSR, then preloads the browser MDX component before React hydrates or navigates to a post. Markdown, React components, and components from other configured Ecopages Integrations therefore work in a post exactly as they do in a normal React MDX Page; declare component dependencies in MDX as usual.
+The post Page renders each post's MDX component through a lazy React component: the server sends it in the HTML, hydration keeps that HTML, and client navigation keeps the current post on screen until the next one has loaded. Markdown, React components, and components from other configured Ecopages Integrations therefore work in a post exactly as they do in a normal React MDX Page; declare component dependencies in MDX as usual.
 
 To customize the site, start with `src/pages/index.tsx`, the dynamic post Page in `src/pages/posts/[slug].tsx`, and the shared styles under `src/pages` and `src/styles`. Skill packs live in `.agents/skills`.
 

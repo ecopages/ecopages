@@ -1,10 +1,5 @@
 import type { ParseResult } from 'oxc-parser';
-import {
-	checkPotentialClientRoot,
-	createClientRootScanState,
-	type ClientRootScanState,
-} from './reachability-client-roots.ts';
-import { isPreloadExportStatement } from './reachability-preload.ts';
+import { checkPotentialClientRoot } from './reachability-client-roots.ts';
 
 export type TopLevelImportEntry = {
 	node: unknown;
@@ -16,7 +11,7 @@ export type TopLevelImportEntry = {
 export type TopLevelIndex = {
 	topLevelImports: TopLevelImportEntry[];
 	topLevelDeclarations: Map<string, unknown>;
-	clientRootState: ClientRootScanState;
+	clientRoots: unknown[];
 };
 
 function indexImportDeclaration(statement: any, topLevelImports: TopLevelImportEntry[]): void {
@@ -48,9 +43,6 @@ function indexImportDeclaration(statement: any, topLevelImports: TopLevelImportE
 
 function indexExportNamedDeclaration(statement: any, index: TopLevelIndex): void {
 	const decl = statement.declaration;
-	if (isPreloadExportStatement(statement)) {
-		index.clientRootState.pagePreloadRoots.push(statement);
-	}
 	if (!decl) {
 		return;
 	}
@@ -66,7 +58,7 @@ function indexExportNamedDeclaration(statement: any, index: TopLevelIndex): void
 		for (const v of decl.declarations) {
 			if (v.id.type === 'Identifier') {
 				index.topLevelDeclarations.set(v.id.name, statement);
-				checkPotentialClientRoot(v.init, index.clientRootState);
+				checkPotentialClientRoot(v.init, index.clientRoots);
 			}
 		}
 	}
@@ -76,7 +68,7 @@ export function buildTopLevelIndex(program: ParseResult['program']): TopLevelInd
 	const index: TopLevelIndex = {
 		topLevelImports: [],
 		topLevelDeclarations: new Map(),
-		clientRootState: createClientRootScanState(),
+		clientRoots: [],
 	};
 
 	for (const statement of program.body) {
@@ -89,7 +81,7 @@ export function buildTopLevelIndex(program: ParseResult['program']): TopLevelInd
 			for (const decl of statement.declarations) {
 				if (decl.id.type === 'Identifier') {
 					index.topLevelDeclarations.set(decl.id.name, statement);
-					checkPotentialClientRoot(decl.init, index.clientRootState);
+					checkPotentialClientRoot(decl.init, index.clientRoots);
 				}
 			}
 			continue;
@@ -108,17 +100,17 @@ export function buildTopLevelIndex(program: ParseResult['program']): TopLevelInd
 		}
 
 		if (statement.type === 'ExportDefaultDeclaration') {
-			checkPotentialClientRoot(statement.declaration, index.clientRootState);
+			checkPotentialClientRoot(statement.declaration, index.clientRoots);
 			continue;
 		}
 
 		if (statement.type === 'ExpressionStatement') {
-			checkPotentialClientRoot(statement.expression, index.clientRootState);
+			checkPotentialClientRoot(statement.expression, index.clientRoots);
 			continue;
 		}
 
 		if (statement.type === 'ExportAllDeclaration' && statement.source) {
-			index.clientRootState.potentialClientRoots.push(statement);
+			index.clientRoots.push(statement);
 		}
 	}
 

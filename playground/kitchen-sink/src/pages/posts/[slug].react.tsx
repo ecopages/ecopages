@@ -1,10 +1,10 @@
 /** @jsxImportSource react */
 import { eco } from '@ecopages/core';
-import type { ReactNode } from 'react';
-import { createCollectionComponentCache } from '@ecopages/react/collection-component-cache';
+import { Suspense, type ReactNode } from 'react';
+import { createLazyCollectionComponents } from '@ecopages/react/lazy-collection-components';
 import { entries, getEntry } from 'ecopages:content/posts';
 import { loadComponent } from 'ecopages:content/posts/component';
-import { getComponent, getEntryDependencies } from 'ecopages:content/posts/server';
+import { getEntryDependencies } from 'ecopages:content/posts/server';
 import type { PostContentEntry } from '@/content/posts';
 import { ReactPlaygroundLayout } from '@/layouts/react-playground-layout.react';
 
@@ -12,7 +12,7 @@ type PostPageProps = {
 	entry: PostContentEntry;
 };
 
-const posts = createCollectionComponentCache(loadComponent);
+const posts = createLazyCollectionComponents(loadComponent);
 
 /**
  * @remarks Fallback `ecopages:content/*` types use untyped frontmatter until collection generate runs.
@@ -21,18 +21,12 @@ function asPostContentEntry(entry: (typeof entries)[number]): PostContentEntry {
 	return entry as PostContentEntry;
 }
 
-export async function preload({ entry }: PostPageProps): Promise<void> {
-	await posts.preload(entry.slug);
-}
-
 export default eco.page<PostPageProps, ReactNode>({
 	layout: ReactPlaygroundLayout,
 	staticPaths: async () => ({ paths: entries.map((entry) => ({ params: { slug: entry.slug } })) }),
 	staticProps: async ({ pathname }) => {
 		const slug = String(pathname.params.slug);
-		const entry = asPostContentEntry(getEntry(slug));
-		await posts.prime(entry.slug, getComponent(entry.slug));
-		return { props: { entry } };
+		return { props: { entry: asPostContentEntry(getEntry(slug)) } };
 	},
 	dependencies: async ({ props }) => getEntryDependencies(props.entry.slug),
 	metadata: ({ props: { entry } }) => ({
@@ -69,7 +63,9 @@ export default eco.page<PostPageProps, ReactNode>({
 					<p className="text-sm text-muted" data-testid="post-description">
 						{entry.description}
 					</p>
-					<Content />
+					<Suspense fallback={<p data-testid="post-loading">Loading post</p>}>
+						<Content />
+					</Suspense>
 				</article>
 			</div>
 		);

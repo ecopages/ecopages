@@ -8,9 +8,7 @@
 
 import { parseModuleSource } from '@ecopages/core/build';
 import type { ParseResult } from 'oxc-parser';
-import { finalizeClientRoots } from './reachability-client-roots.ts';
 import { resolveFallbackClientRoots } from './reachability-fallback-roots.ts';
-export { hasPagePreloadExport } from './reachability-preload.ts';
 import { buildTopLevelIndex } from './reachability-top-level-index.ts';
 import { runReachabilityTraversal } from './reachability-traverse.ts';
 import type { ExplicitlyRequestedExports } from './reachability-export-names.ts';
@@ -39,7 +37,7 @@ function emptyReachabilityResult(isFallbackRoots: boolean): ReachabilityResult {
 /**
  * Analyzes a module using Oxc AST and extracts a strict reachability graph
  * starting from client roots: `render`, `errorBoundary`, and `loadingFallback` of
- * `eco.page`, `eco.layout`, or `eco.component`, plus a Page's named `preload` export.
+ * `eco.page`, `eco.layout`, or `eco.component`.
  */
 export function analyzeReachability(
 	source: string,
@@ -60,7 +58,7 @@ export function analyzeReachability(
 	}
 
 	const index = buildTopLevelIndex(resolvedProgram);
-	const potentialClientRoots = finalizeClientRoots(index.clientRootState);
+	const potentialClientRoots = index.clientRoots;
 	const isFallbackRoots = resolveFallbackClientRoots(
 		resolvedProgram,
 		potentialClientRoots,

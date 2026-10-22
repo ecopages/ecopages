@@ -1,5 +1,5 @@
 import type { PageHydrationOptions } from './page-hydration.ts';
-import { resolvePageModule } from './page-hydration-module.ts';
+import { resolvePageComponent } from './page-hydration-module.ts';
 
 type PageWindowRuntime = {
 	navigation?: {
@@ -24,15 +24,14 @@ async function applyRouterHmrUpdate(
 	options: PageHydrationOptions,
 	newUrl: string,
 	currentPage: unknown,
-	nextPage: ReturnType<typeof resolvePageModule>,
-	_nextProps: Record<string, unknown>,
+	nextPage: unknown,
 ): Promise<boolean> {
 	if (!options.hasRouter || getRuntime().navigation?.getOwnerState?.().owner !== 'react-router') {
 		return false;
 	}
 
 	const currentLayoutStack = options.hmr!.getLayoutStack?.(currentPage) ?? '';
-	const nextLayoutStack = options.hmr!.getLayoutStack?.(nextPage.Page) ?? '';
+	const nextLayoutStack = options.hmr!.getLayoutStack?.(nextPage) ?? '';
 	await getRuntime().navigation?.reloadCurrentPage?.({
 		clearCache: currentLayoutStack !== nextLayoutStack,
 		moduleUrl: newUrl,
@@ -44,7 +43,7 @@ async function applyRouterHmrUpdate(
 
 function applyDirectHmrRender(
 	options: PageHydrationOptions,
-	nextPage: ReturnType<typeof resolvePageModule>,
+	nextPage: unknown,
 	nextProps: Record<string, unknown>,
 	readPageData: (options: PageHydrationOptions) => { moduleUrl?: string; props: Record<string, unknown> },
 	setPageState: (
@@ -56,7 +55,7 @@ function applyDirectHmrRender(
 	const activeRoot = getRuntime().react?.pageRoot ?? null;
 	if (!activeRoot || !isCurrentMountGeneration(generation)) return;
 	setPageState(options, readPageData(options));
-	activeRoot.render(options.createTree(nextPage.Page, nextProps));
+	activeRoot.render(options.createTree(nextPage, nextProps));
 	console.log(`[ecopages] ${options.isMdx ? 'MDX' : 'React'} component updated`);
 }
 
@@ -78,19 +77,22 @@ export async function handlePageHmr(
 	try {
 		const newModule = (await import(/* @vite-ignore */ newUrl)) as Record<string, unknown>;
 		if (!isCurrentMountGeneration(generation)) return;
-		const nextPage = resolvePageModule(newModule, options.isMdx, options.normalizePageConfig);
-		const nextProps = getPageDataFromDocument(options);
-		await nextPage.preload?.(nextProps);
-		if (!isCurrentMountGeneration(generation)) return;
+		const nextPage = resolvePageComponent(newModule, options.isMdx, options.normalizePageConfig);
 		const currentPage = options.Page;
-		options.Page = nextPage.Page;
-		options.preload = nextPage.preload;
+		options.Page = nextPage;
 
-		if (await applyRouterHmrUpdate(options, newUrl, currentPage, nextPage, nextProps)) {
+		if (await applyRouterHmrUpdate(options, newUrl, currentPage, nextPage)) {
 			return;
 		}
 
-		applyDirectHmrRender(options, nextPage, nextProps, readPageData, setPageState, generation);
+		applyDirectHmrRender(
+			options,
+			nextPage,
+			getPageDataFromDocument(options),
+			readPageData,
+			setPageState,
+			generation,
+		);
 	} catch (error) {
 		console.error(`[ecopages] Failed to hot-reload ${options.isMdx ? 'MDX' : 'React'} component:`, error);
 	}

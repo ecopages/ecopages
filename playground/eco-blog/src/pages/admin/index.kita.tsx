@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import { AdminLayout } from '@/layouts/admin-layout.kita';
-import type { Post } from '@/lib/db';
+import { postsService, type Post } from '@/lib/posts.server';
+import { requireSession } from '@/lib/require-session.server';
 
 export interface AdminPostListProps {
 	posts: Post[];
@@ -8,6 +9,10 @@ export interface AdminPostListProps {
 
 const AdminPostList = eco.page<AdminPostListProps>({
 	layout: AdminLayout,
+	cache: 'dynamic',
+	middleware: [requireSession],
+	requires: ['session'] as const,
+	staticProps: async () => ({ props: { posts: await postsService.list() } }),
 	metadata: () => ({
 		title: 'Posts | Admin',
 		description: 'Manage your blog posts',
@@ -55,7 +60,7 @@ const AdminPostList = eco.page<AdminPostListProps>({
 											</span>
 										</td>
 										<td class="px-6 py-4 text-sm text-slate-500">
-											{new Date(post.published_at!).toLocaleDateString()}
+											{post.published_at.toLocaleDateString()}
 										</td>
 										<td class="px-6 py-4 text-right space-x-3">
 											<a
@@ -64,11 +69,7 @@ const AdminPostList = eco.page<AdminPostListProps>({
 											>
 												Edit
 											</a>
-											<form
-												action={`/admin/posts/${post.id}/delete`}
-												method="POST"
-												class="inline"
-											>
+											<form action={`/api/posts/${post.id}/delete`} method="POST" class="inline">
 												<button
 													type="submit"
 													class="text-sm font-medium text-rose-600 hover:text-rose-900"

@@ -1,6 +1,7 @@
 import { eco } from '@ecopages/core';
 import { MainLayout } from '@/layouts/main-layout.kita';
-import type { Post } from '@/lib/db';
+import { HttpError } from '@ecopages/core/errors';
+import { postsService, type Post } from '@/lib/posts.server';
 import { evaluate } from '@mdx-js/mdx';
 import * as runtime from '@kitajs/html/jsx-runtime';
 import Html from '@kitajs/html';
@@ -12,6 +13,11 @@ export interface BlogDetailProps {
 const BlogDetail = eco.page<BlogDetailProps>({
 	layout: MainLayout,
 	cache: 'dynamic',
+	staticProps: async ({ pathname }) => {
+		const post = await postsService.findBySlug(String(pathname.params.slug));
+		if (!post) throw HttpError.NotFound('Post not found');
+		return { props: { post } };
+	},
 	metadata: ({ props }) => ({
 		title: `${props.post.title} | EcoBlog`,
 		description: props.post.excerpt || 'Read this interesting post on EcoBlog',
@@ -23,10 +29,10 @@ const BlogDetail = eco.page<BlogDetailProps>({
 				<header class="flex flex-col mb-12">
 					<time
 						class="order-first flex items-center text-base text-slate-400 mb-4"
-						datetime={post.published_at!}
+						datetime={post.published_at.toISOString()}
 					>
 						<span class="h-4 w-0.5 rounded-full bg-slate-200 mr-3"></span>
-						{new Date(post.published_at!).toLocaleDateString('en-US', {
+						{post.published_at.toLocaleDateString('en-US', {
 							day: 'numeric',
 							month: 'long',
 							year: 'numeric',

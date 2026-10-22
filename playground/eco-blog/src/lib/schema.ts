@@ -60,7 +60,9 @@ export const posts = sqliteTable('posts', {
 	slug: text('slug').notNull().unique(),
 	content: text('content').notNull(),
 	excerpt: text('excerpt'),
-	published_at: integer('published_at', { mode: 'timestamp' }).default(new Date()),
+	published_at: integer('published_at', { mode: 'timestamp' })
+		.notNull()
+		.$defaultFn(() => new Date()),
 	authorId: text('authorId')
 		.notNull()
 		.references(() => user.id),

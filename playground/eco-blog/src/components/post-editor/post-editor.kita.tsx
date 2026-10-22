@@ -1,19 +1,13 @@
 import { eco } from '@ecopages/core';
-import { AdminLayout } from '@/layouts/admin-layout.kita';
 import { RadiantEditor } from '@/components/radiant-editor.kita';
 import { RadiantInput } from '@/components/radiant-input.kita';
-import type { Post } from '@/lib/db';
+import type { Post } from '@/lib/posts.server';
 
 export interface PostEditorProps {
 	post?: Post;
 }
 
-const AdminPostEditor = eco.page<PostEditorProps>({
-	layout: AdminLayout,
-	metadata: ({ props }) => ({
-		title: props.post ? `Edit: ${props.post.title}` : 'New Post | Admin',
-		description: 'Admin area to write and edit blog posts',
-	}),
+export const PostEditor = eco.component<PostEditorProps>({
 	dependencies: {
 		components: [RadiantEditor, RadiantInput],
 		stylesheets: ['./post-editor.css'],
@@ -25,12 +19,12 @@ const AdminPostEditor = eco.page<PostEditorProps>({
 				<header class="flex justify-between items-center mb-8">
 					<h1 class="text-2xl font-bold text-slate-900">{post ? 'Edit Post' : 'Create New Post'}</h1>
 					<div class="flex gap-3">
-						<button
-							type="button"
+						<a
+							href="/admin"
 							class="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
 						>
 							Cancel
-						</button>
+						</a>
 						<button
 							type="submit"
 							form="post-form"
@@ -43,7 +37,7 @@ const AdminPostEditor = eco.page<PostEditorProps>({
 
 				<form
 					id="post-form"
-					action={post ? `/admin/posts/${post.id}` : '/admin/posts'}
+					action={post ? `/api/posts/${post.id}` : '/api/posts'}
 					method="POST"
 					class="space-y-8"
 				>
@@ -89,5 +83,3 @@ const AdminPostEditor = eco.page<PostEditorProps>({
 		);
 	},
 });
-
-export default AdminPostEditor;

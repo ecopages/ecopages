@@ -1,76 +1,54 @@
 # Eco Blog
 
-A modern, high-performance blog application built with **Ecopages**, **Bun**, and **Drizzle ORM**.
+A blog with an author area, built with Ecopages, KitaJS, Drizzle ORM on SQLite (libSQL) and Better Auth.
 
-## Tech Stack
-
-- **Runtime:** [Bun](https://bun.sh) - Fast JavaScript runtime & package manager.
-- **Framework:** [Ecopages](https://ecopages.app) - Lit + JSX (KitaJS) for optimal performance.
-- **Database:** SQLite - Simple, file-based database.
-- **ORM:** [Drizzle ORM](https://orm.drizzle.team) - Type-safe database access and migration management.
-- **Auth:** [Better Auth](https://www.better-auth.com) - Secure authentication.
-- **Styling:** Tailwind CSS - Utility-first CSS framework.
-
-## Quick Start
-
-1.  **Setup Project**
-    Run the setup command to install dependencies and initialize the database.
-
-    ```bash
-    bun setup
-    ```
-
-2.  **Start Development Server**
-    ```bash
-    bun dev
-    ```
-
-## Reset the Project [Fresh Start]
-
-If you want to completely reset your environment (clear database, remove dependencies, and reinstall):
+## Quick start
 
 ```bash
-bun reset
+pnpm install
+pnpm db:setup   # create the tables and seed 10 posts
+pnpm dev
 ```
 
-**Warning:** This will delete your local `sqlite.db` and all data in it!
+Open http://localhost:3000 and sign in at `/login` as `admin@test.com` / `password`.
 
-## Database & Migrations
+`pnpm db:reset` deletes the database, `dist/` and uploaded images, then migrates and seeds again.
 
-We use **Drizzle Kit** to manage schema changes.
+## How it is built
 
-- **Schema Definition:** `src/lib/schema.ts`
-- **Generate Migration:** Run this after modifying the schema:
-    ```bash
-    bun db:generate
-    ```
-- **Apply Migration:** Apply pending migrations to local DB:
-    ```bash
-    bun db:migrate
-    ```
-- **Seed Database:** Populate the database with dummy data (development only):
-    ```bash
-    bun db:seed
-    ```
-- **Studio:** View your database content in a GUI:
-    ```bash
-    bun db:studio
-    ```
+| URL                                                            | File                                          | Rendering                               |
+| -------------------------------------------------------------- | --------------------------------------------- | --------------------------------------- |
+| `/`                                                            | `src/pages/index.kita.tsx`                    | ISR (`revalidate: 60`, tag `posts`)     |
+| `/posts/[slug]`                                                | `src/pages/posts/[slug].kita.tsx`             | Dynamic Page, `404` for an unknown slug |
+| `/login`, `/signup`                                            | `src/pages/login.kita.tsx`, `signup.kita.tsx` | Static Pages                            |
+| `/admin`, `/admin/new`, `/admin/posts/[id]`                    | `src/pages/admin/**`                          | Dynamic Pages behind `requireSession`   |
+| `/api/auth/*`                                                  | `src/pages/api/auth/[...all].api.ts`          | Endpoint: Better Auth                   |
+| `POST /api/posts`, `/api/posts/[id]`, `/api/posts/[id]/delete` | `src/pages/api/posts/**`                      | Endpoints: create, update, delete       |
+| `POST /api/upload`                                             | `src/pages/api/upload.api.ts`                 | Endpoint: editor image upload           |
 
-## Project Structure
+- `requireSession` (`src/lib/require-session.server.ts`) puts the session on `locals.session` or redirects to `/login`. Admin Pages declare `requires: ['session']`; the endpoints use the same middleware.
+- Every write invalidates the `posts` cache tag, so the home page shows the change on the next request in production.
+- Modules that hold secrets or the database end in `.server.ts`, which keeps them out of browser bundles.
+- `app.ts` registers no routes: every URL comes from `src/pages`.
 
+## Database
+
+The schema is `src/lib/schema.ts`. `DATABASE_URL` selects the database (default `file:sqlite.db`).
+
+```bash
+pnpm db:generate   # write a migration after changing the schema
+pnpm db:migrate    # apply pending migrations
+pnpm db:seed       # add the admin user and 10 posts
 ```
-├── src/
-│   ├── components/     # Lit Web Components & UI
-│   ├── handlers/       # API Route Handlers
-│   ├── lib/
-│   │   ├── db.ts       # Database access layer
-│   │   ├── schema.ts   # Drizzle Schema definitions
-│   │   └── auth.ts     # Auth configuration
-│   ├── pages/          # Ecopages Route Components
-│   └── views/          # Server-side Templates (KitaJS)
-├── drizzle/            # SQL Migration files
-├── scripts/            # Utility scripts (reset.ts)
-├── ecopages.config.ts  # Ecopages configuration
-└── app.ts              # App entry point
+
+## Environment
+
+Copy `.env.example` to `.env`. Set `BETTER_AUTH_SECRET` (at least 32 characters) outside development, and `ECOPAGES_BASE_URL` to the public URL.
+
+## Tests
+
+```bash
+pnpm exec playwright test --project=eco-blog-e2e   # from the repository root
 ```
+
+The suite builds the app against its own `e2e.db`, starts it on port 4622, and covers the public pages, the redirect to `/login`, and creating, editing and deleting a post in the author area.

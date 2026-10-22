@@ -83,6 +83,12 @@ const projects: Project<PlaywrightTestOptions, PlaywrightWorkerOptions & { appOp
 		use: { ...chrome, baseURL: 'http://localhost:4008' },
 	},
 	{
+		name: 'eco-blog-e2e',
+		testMatch: 'playground/eco-blog/e2e/**/*.test.e2e.ts',
+		timeout: 60_000,
+		use: { ...chrome, baseURL: 'http://localhost:4622' },
+	},
+	{
 		name: 'endpoints-only-e2e',
 		testMatch: 'e2e/fixtures/endpoints-only/**/*.test.e2e.ts',
 		use: { ...chrome, baseURL: 'http://localhost:4621' },
@@ -188,6 +194,22 @@ const projectWebServers: ProjectWebServer[] = [
 			ECOPAGES_PORT: '4008',
 			ECOPAGES_PREVIEW_SERVE_ONLY: 'true',
 			ECOPAGES_CROSS_INTEGRATION_E2E: 'true',
+		},
+	},
+	{
+		projects: ['eco-blog-e2e'],
+		command:
+			"node -e \"require('node:fs').rmSync('e2e.db', { force: true })\" && pnpm run db:setup && node ../../packages/ecopages/bin/cli.js build --runtime node && node ../../packages/ecopages/bin/cli.js start --runtime node --port 4622",
+		cwd: 'playground/eco-blog',
+		url: 'http://localhost:4622/login',
+		timeout: 240_000,
+		reuseExistingServer: !process.env.CI,
+		env: {
+			NODE_ENV: 'production',
+			ECOPAGES_PORT: '4622',
+			ECOPAGES_BASE_URL: 'http://localhost:4622',
+			BETTER_AUTH_URL: 'http://localhost:4622',
+			DATABASE_URL: 'file:e2e.db',
 		},
 	},
 	{

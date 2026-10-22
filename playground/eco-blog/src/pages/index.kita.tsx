@@ -1,6 +1,6 @@
 import { eco } from '@ecopages/core';
 import { MainLayout } from '@/layouts/main-layout.kita';
-import type { Post } from '@/lib/db';
+import { postsService, type Post } from '@/lib/posts.server';
 
 export interface BlogListProps {
 	posts: Post[];
@@ -8,6 +8,8 @@ export interface BlogListProps {
 
 const BlogList = eco.page<BlogListProps>({
 	layout: MainLayout,
+	cache: { revalidate: 60, tags: ['posts'] },
+	staticProps: async () => ({ props: { posts: await postsService.list() } }),
 	metadata: () => ({
 		title: 'EcoBlog | Home',
 		description: 'A blog about sustainability and technology',
@@ -40,12 +42,12 @@ const BlogList = eco.page<BlogListProps>({
 								</h2>
 								<time
 									class="relative z-10 order-first mb-3 flex items-center text-sm text-slate-400 pl-3.5"
-									datetime={post.published_at ?? undefined}
+									datetime={post.published_at.toISOString()}
 								>
 									<span class="absolute inset-y-0 left-0 flex items-center" aria-hidden="true">
 										<span class="h-4 w-0.5 rounded-full bg-slate-200"></span>
 									</span>
-									{new Date(post.published_at!).toLocaleDateString('en-US', {
+									{post.published_at.toLocaleDateString('en-US', {
 										day: 'numeric',
 										month: 'long',
 										year: 'numeric',

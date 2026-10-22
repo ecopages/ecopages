@@ -192,8 +192,8 @@ export class EcopagesApp implements AsyncDisposable {
 
 	/**
 	 * @remarks
-	 * The typed handler and middleware signatures are erased here: the request pipeline builds one
-	 * context per request and fills its schema fields before the handler runs.
+	 * The typed handler signature is erased here: the request pipeline builds one context per request
+	 * and fills its schema fields before the handler runs.
 	 */
 	private addRouteHandler(
 		path: string,
@@ -216,7 +216,7 @@ export class EcopagesApp implements AsyncDisposable {
 			path,
 			method,
 			handler: handler as ApiHandler<string, Request, unknown>['handler'],
-			middleware: middleware as ApiHandler<string, Request, unknown>['middleware'],
+			middleware,
 			schema,
 		});
 		return this;

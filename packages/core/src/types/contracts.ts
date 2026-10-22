@@ -1566,7 +1566,7 @@ export interface ApiHandler<TPath extends string = string, TRequest extends Requ
 	method: ApiHandlerMethod;
 	handler: (context: ApiHandlerContext<TRequest, TServer>) => Promise<Response> | Response;
 	/** Optional middleware chain executed before the handler */
-	middleware?: Middleware<TRequest, TServer, any>[];
+	middleware?: MiddlewareList<TRequest, TServer>;
 	/** Optional validation schemas for request body, query parameters, and headers */
 	schema?: {
 		body?: StandardSchema;

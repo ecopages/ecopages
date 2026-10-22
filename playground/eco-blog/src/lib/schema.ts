@@ -60,9 +60,8 @@ export const posts = sqliteTable('posts', {
 	slug: text('slug').notNull().unique(),
 	content: text('content').notNull(),
 	excerpt: text('excerpt'),
-	published_at: integer('published_at', { mode: 'timestamp' })
-		.notNull()
-		.$defaultFn(() => new Date()),
+	/** When the post was published; `null` while it is a draft. */
+	published_at: integer('published_at', { mode: 'timestamp' }),
 	authorId: text('authorId')
 		.notNull()
 		.references(() => user.id),

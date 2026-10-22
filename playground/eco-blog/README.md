@@ -16,20 +16,23 @@ Open http://localhost:3000 and sign in at `/login` as `admin@test.com` / `passwo
 
 ## How it is built
 
-| URL                                                            | File                                 | Rendering                               |
-| -------------------------------------------------------------- | ------------------------------------ | --------------------------------------- |
-| `/`                                                            | `src/pages/index.tsx`                | ISR (`revalidate: 60`, tag `posts`)     |
-| `/posts/[slug]`                                                | `src/pages/posts/[slug].tsx`         | Dynamic Page, `404` for an unknown slug |
-| `/login`, `/signup`                                            | `src/pages/login.tsx`, `signup.tsx`  | Static Pages                            |
-| `/admin`, `/admin/new`, `/admin/posts/[id]`                    | `src/pages/admin/**`                 | Dynamic Pages behind `requireSession`   |
-| `/api/auth/*`                                                  | `src/pages/api/auth/[...all].api.ts` | Endpoint: Better Auth                   |
-| `POST /api/posts`, `/api/posts/[id]`, `/api/posts/[id]/delete` | `src/pages/api/posts/**`             | Endpoints: create, update, delete       |
-| `POST /api/upload`                                             | `src/pages/api/upload.api.ts`        | Endpoint: editor image upload           |
+| URL                                                            | File                                 | Rendering                                           |
+| -------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------- |
+| `/`                                                            | `src/pages/index.tsx`                | ISR (`revalidate: 60`, tag `posts`)                 |
+| `/page/[n]`                                                    | `src/pages/page/[n].tsx`             | Dynamic Page: older posts, nine per page            |
+| `/posts/[slug]`                                                | `src/pages/posts/[slug].tsx`         | Dynamic Page, `404` for an unknown slug             |
+| `/login`, `/signup`                                            | `src/pages/login.tsx`, `signup.tsx`  | Static Pages                                        |
+| `/admin`, `/admin/new`, `/admin/posts/[id]`                    | `src/pages/admin/**`                 | Dynamic Pages behind `requireSession`               |
+| `/api/auth/*`                                                  | `src/pages/api/auth/[...all].api.ts` | Endpoint: Better Auth                               |
+| `POST /api/posts`, `/api/posts/[id]`, `/api/posts/[id]/delete` | `src/pages/api/posts/**`             | Endpoints: create, update, delete                   |
+| `POST /api/upload`                                             | `src/pages/api/upload.api.ts`        | Endpoint: editor image upload                       |
+| `/feed.xml`                                                    | `app.ts`                             | Explicit Route: RSS 2.0 feed of the 20 latest posts |
 
 - `requireSession` (`src/lib/require-session.server.ts`) puts the session on `locals.session` or redirects to `/login`. Admin Pages declare `requires: ['session']`; the endpoints use the same middleware.
 - Every write invalidates the `posts` cache tag, so the home page shows the change on the next request in production.
 - Modules that hold secrets or the database end in `.server.ts`, which keeps them out of browser bundles.
-- `app.ts` registers no routes: every URL comes from `src/pages`.
+- `app.ts` registers one Explicit Route, `/feed.xml`: a URL that ends in a static file extension cannot be a file route. Every other URL comes from `src/pages`.
+- A post with no publish date is a draft. The editor's "Save draft" and "Publish" buttons send `intent`; drafts show only in the author area, and publishing a draft stamps the current date.
 - Post bodies are Markdown. `src/components/markdown.tsx` parses them with `mdast-util-from-markdown` (GFM on) and renders each node as an element, so a post never reaches the page as an HTML string: HTML written in a post shows as text, and links and images keep only `http(s)`, `mailto` and relative URLs.
 
 ## Styling

@@ -7,7 +7,12 @@ import { RadiantEditor } from '@/components/radiant-editor/radiant-editor';
 import type { Post } from '@/lib/posts.server';
 import './post-editor.css';
 
-/** Create or edit form; `post-editor.script.ts` fills the slug from the title until the slug is edited. */
+/**
+ * Create or edit form; `post-editor.script.ts` fills the slug from the title until the slug is edited.
+ *
+ * @remarks
+ * The two submit buttons send `intent`: `draft` keeps or turns the post into a draft, `publish` publishes it.
+ */
 export const PostEditor = eco.component<{ post?: Post }, JsxRenderable>({
 	dependencies: { scripts: ['./post-editor.script.ts'] },
 	render: ({ post }) => (
@@ -18,8 +23,11 @@ export const PostEditor = eco.component<{ post?: Post }, JsxRenderable>({
 					<RuiButton href="/admin" variant="outline">
 						Cancel
 					</RuiButton>
-					<RuiButton type="submit" variant="filled">
-						{post ? 'Update post' : 'Publish post'}
+					<RuiButton type="submit" variant="outline" attr:name="intent" attr:value="draft">
+						{post?.published_at ? 'Unpublish' : 'Save draft'}
+					</RuiButton>
+					<RuiButton type="submit" variant="filled" attr:name="intent" attr:value="publish">
+						{post?.published_at ? 'Update post' : 'Publish post'}
 					</RuiButton>
 				</div>
 			</header>

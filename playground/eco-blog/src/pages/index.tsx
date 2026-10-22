@@ -1,19 +1,24 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
+import { Pagination } from '@/components/pagination/pagination';
 import { PostCard } from '@/components/post-card/post-card';
 import { SiteLayout } from '@/layouts/site-layout/site-layout';
-import { postsService, type Post } from '@/lib/posts.server';
+import { postsService, type PublishedPost } from '@/lib/posts.server';
 import './index.css';
 
-export default eco.page<{ posts: Post[] }, JsxRenderable>({
+type HomeProps = { posts: PublishedPost[]; pageCount: number };
+
+export default eco.page<HomeProps, JsxRenderable>({
 	layout: SiteLayout,
 	cache: { revalidate: 60, tags: ['posts'] },
-	staticProps: async () => ({ props: { posts: await postsService.list() } }),
+	staticProps: async () => ({
+		props: { posts: await postsService.listPublished(1), pageCount: await postsService.countPublishedPages() },
+	}),
 	metadata: () => ({
 		title: 'EcoBlog',
 		description: 'Notes on building for the web with less JavaScript.',
 	}),
-	render: ({ posts }) => (
+	render: ({ posts, pageCount }) => (
 		<>
 			<header class="home-intro breakout">
 				<h1>Notes on building for the web</h1>
@@ -28,6 +33,7 @@ export default eco.page<{ posts: Post[] }, JsxRenderable>({
 					))}
 				</ul>
 			)}
+			<Pagination page={1} pageCount={pageCount} />
 		</>
 	),
 });

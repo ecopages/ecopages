@@ -4,14 +4,14 @@ import type { JsxRenderable } from '@ecopages/jsx';
 import { Markdown } from '@/components/markdown';
 import { SiteLayout } from '@/layouts/site-layout/site-layout';
 import { formatDate } from '@/lib/format';
-import { postsService, type Post } from '@/lib/posts.server';
+import { postsService, type PublishedPost } from '@/lib/posts.server';
 import './post.css';
 
-export default eco.page<{ post: Post }, JsxRenderable>({
+export default eco.page<{ post: PublishedPost }, JsxRenderable>({
 	layout: SiteLayout,
 	cache: 'dynamic',
 	staticProps: async ({ pathname }) => {
-		const post = await postsService.findBySlug(String(pathname.params.slug));
+		const post = await postsService.findPublishedBySlug(String(pathname.params.slug));
 		if (!post) throw HttpError.NotFound('Post not found');
 		return { props: { post } };
 	},

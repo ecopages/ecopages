@@ -1,5 +1,6 @@
 import { eco } from '@ecopages/core';
 import type { JsxRenderable } from '@ecopages/jsx';
+import { RuiBadge } from '@ecopages/radiant-ui/badge';
 import { RuiButton } from '@ecopages/radiant-ui/button';
 import { AdminShell } from '@/layouts/admin-shell/admin-shell';
 import { formatDate } from '@/lib/format';
@@ -12,7 +13,7 @@ export default eco.page<{ posts: Post[] }, JsxRenderable>({
 	middleware: [requireSession],
 	requires: ['session'] as const,
 	dependencies: { scripts: ['./admin-posts.script.ts'] },
-	staticProps: async () => ({ props: { posts: await postsService.list() } }),
+	staticProps: async () => ({ props: { posts: await postsService.listAll() } }),
 	metadata: () => ({ title: 'Posts | EcoBlog author', description: 'Manage blog posts.' }),
 	render: ({ posts, locals }) => (
 		<AdminShell current="posts" userName={locals.session.user.name}>
@@ -31,7 +32,7 @@ export default eco.page<{ posts: Post[] }, JsxRenderable>({
 							<thead>
 								<tr>
 									<th scope="col">Title</th>
-									<th scope="col">Published</th>
+									<th scope="col">Status</th>
 									<th scope="col">
 										<span class="visually-hidden">Actions</span>
 									</th>
@@ -47,9 +48,13 @@ export default eco.page<{ posts: Post[] }, JsxRenderable>({
 											<span class="admin-posts__slug">/posts/{post.slug}</span>
 										</td>
 										<td>
-											<time datetime={post.published_at.toISOString()}>
-												{formatDate(post.published_at)}
-											</time>
+											{post.published_at ? (
+												<time datetime={post.published_at.toISOString()}>
+													{formatDate(post.published_at)}
+												</time>
+											) : (
+												<RuiBadge variant="muted">Draft</RuiBadge>
+											)}
 										</td>
 										<td>
 											<div class="admin-posts__actions">

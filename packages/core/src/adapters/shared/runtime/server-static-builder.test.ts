@@ -542,7 +542,7 @@ describe('ServerStaticBuilder', () => {
 			});
 
 			it.each([['src/pages/health.api.ts'], ['src/pages/health.api.js']])(
-				'fails the build on the endpoint file %p without a method export, before the server bundle and static generation',
+				'fails the build on the endpoint file %p without a method export, naming it whatever its ending, before the server bundle and static generation',
 				async (filePath) => {
 					const { AppConfig, StaticSiteGenerator, ServeOptions, RouteRendererFactory, logger, calls } =
 						createMockDependencies();

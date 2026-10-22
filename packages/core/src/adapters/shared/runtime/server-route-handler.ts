@@ -99,8 +99,8 @@ export class ServerRouteHandler {
 				? this.endpointRouteHandler.handleMatch(fsMatch, request, requestContext)
 				: this.fileSystemResponseMatcher.handleMatch(fsMatch, request));
 		} catch (error) {
-			if (error instanceof HttpError) {
-				return error.toResponse();
+			if (HttpError.isHttpError(error)) {
+				return HttpError.responseFor(error);
 			}
 			throw error;
 		}
@@ -122,8 +122,8 @@ export class ServerRouteHandler {
 		try {
 			return await this.fileSystemResponseMatcher.handleNoMatch(pathname, request);
 		} catch (error) {
-			if (error instanceof HttpError) {
-				return error.toResponse();
+			if (HttpError.isHttpError(error)) {
+				return HttpError.responseFor(error);
 			}
 			if (error instanceof Error) {
 				this.router.appConfig?.appRuntime?.hmr?.broadcast({ type: 'error', message: error.message });

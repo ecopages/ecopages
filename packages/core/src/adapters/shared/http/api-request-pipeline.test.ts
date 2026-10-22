@@ -582,6 +582,28 @@ describe('ApiRequestPipeline', () => {
 		loggerSpy.mockRestore();
 	});
 
+	it('answers an HttpError thrown from another copy of the class with its status', async () => {
+		class BundledHttpError extends Error {
+			override readonly name = 'HttpError';
+			constructor(
+				readonly status: number,
+				message: string,
+				readonly details?: Record<string, unknown>,
+			) {
+				super(message);
+			}
+		}
+
+		const response = await createPipeline().tryHandle(
+			new Request('http://localhost/api/fail', { method: 'POST' }),
+			throwingHandler(new BundledHttpError(400, 'Invalid post', { field: 'slug' })),
+			undefined,
+		);
+
+		expect(response?.status).toBe(400);
+		expect(await response?.json()).toEqual({ error: 'Invalid post', status: 400, details: { field: 'slug' } });
+	});
+
 	it('logs unhandled errors with the Error object so the stack is kept', async () => {
 		const error = new Error('boom');
 		const loggerSpy = vi.spyOn(appLogger, 'error').mockImplementation(() => appLogger);

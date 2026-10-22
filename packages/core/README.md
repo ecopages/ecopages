@@ -257,6 +257,8 @@ export const helloWorldAlt = defineApiHandler({
 });
 ```
 
+`defineQuery`, `app.query()` and `api.query` handle the HTTP QUERY method (RFC 10008): a safe, idempotent read whose request body carries the query. It takes a `schema.body` like `definePost`, and Ecopages adds no caching, `Accept-Query` or `Vary`; set them on the response if you want them. QUERY here is the method, not the handler context's `query` field (the URL's search parameters).
+
 Group related routes with `defineGroupHandler`. Prefer `api.get` / `api.post` helpers inside the `routes` callback:
 
 ```typescript

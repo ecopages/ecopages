@@ -232,6 +232,15 @@ export class EcopagesApp implements AsyncDisposable {
 		return this.register(path, 'HEAD', handler, options);
 	}
 
+	/** Registers a handler for the QUERY method, not for `ctx.query`. */
+	query<P extends string, TContext extends ApiHandlerContext<Request, unknown> = ApiHandlerContext<Request, unknown>>(
+		path: P,
+		handler: RouteHandler<Request, unknown, TContext>,
+		options?: RouteOptions<Request, unknown, TContext>,
+	): this {
+		return this.register(path, 'QUERY', handler, options);
+	}
+
 	route<P extends string>(
 		path: P,
 		method: ApiHandler['method'],
@@ -325,6 +334,7 @@ export class EcopagesApp implements AsyncDisposable {
 			patch: createHandler('PATCH'),
 			options: createHandler('OPTIONS'),
 			head: createHandler('HEAD'),
+			query: createHandler('QUERY'),
 		};
 
 		callback?.(builder);

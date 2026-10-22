@@ -72,7 +72,7 @@ src/pages/blog/[slug]/comments.api.ts  ->  /blog/[slug]/comments
 
 Endpoint files use brackets (`[id]`, `[...slug]`); `:id` is for `app.ts` routes. A request to `/api/users/5` gives `params.id === '5'`, and a catch-all param is an array.
 
-The file exports one handler per HTTP method, named exactly `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS` or `HEAD`, built with the matching method helper and no `path`. Other exports are ignored.
+The file exports one handler per HTTP method, named exactly `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`, `HEAD` or `QUERY`, built with the matching method helper and no `path`. Other exports are ignored.
 
 ```typescript
 // src/pages/health.api.ts

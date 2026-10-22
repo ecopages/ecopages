@@ -95,10 +95,16 @@ describe('EcopagesApp route registration', () => {
 
 		app.get('/direct', handler, { middleware: [middleware], schema });
 		app.route('/explicit', 'PUT', handler, { schema });
+		app.query('/search', handler, { schema });
 		app.add({ path: '/prebuilt', method: 'GET', handler, middleware: [middleware], schema });
-		app.group('/v1/', (routes) => routes.post('/items', handler, { middleware: [routeMiddleware], schema }), {
-			middleware: [groupMiddleware],
-		});
+		app.group(
+			'/v1/',
+			(routes) =>
+				routes
+					.post('/items', handler, { middleware: [routeMiddleware], schema })
+					.query('/items/search', handler, { schema }),
+			{ middleware: [groupMiddleware] },
+		);
 		app.group({
 			prefix: '/v2/',
 			middleware: [groupMiddleware],
@@ -110,19 +116,23 @@ describe('EcopagesApp route registration', () => {
 		expect(receivedHandlers?.map(({ path, method }) => ({ path, method }))).toEqual([
 			{ path: '/direct', method: 'GET' },
 			{ path: '/explicit', method: 'PUT' },
+			{ path: '/search', method: 'QUERY' },
 			{ path: '/prebuilt', method: 'GET' },
 			{ path: '/v1/items', method: 'POST' },
+			{ path: '/v1/items/search', method: 'QUERY' },
 			{ path: '/v2/items', method: 'POST' },
 		]);
 		expect(receivedHandlers?.[0]).toMatchObject({ handler, middleware: [middleware], schema });
 		expect(receivedHandlers?.[1]).toMatchObject({ handler, schema });
-		expect(receivedHandlers?.[2]).toMatchObject({ handler, middleware: [middleware], schema });
-		expect(receivedHandlers?.[3]).toMatchObject({
+		expect(receivedHandlers?.[2]).toMatchObject({ handler, schema });
+		expect(receivedHandlers?.[3]).toMatchObject({ handler, middleware: [middleware], schema });
+		expect(receivedHandlers?.[4]).toMatchObject({
 			handler,
 			middleware: [groupMiddleware, routeMiddleware],
 			schema,
 		});
-		expect(receivedHandlers?.[4]).toMatchObject({
+		expect(receivedHandlers?.[5]).toMatchObject({ handler, middleware: [groupMiddleware], schema });
+		expect(receivedHandlers?.[6]).toMatchObject({
 			handler,
 			middleware: [groupMiddleware, routeMiddleware],
 			schema,

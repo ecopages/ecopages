@@ -2,7 +2,7 @@
 
 ## Contents
 
-- defineApiHandler / defineGet…defineHead
+- defineApiHandler / defineGet…defineQuery
 - defineGroupHandler
 - json / html / redirect
 - Registering handlers
@@ -49,7 +49,7 @@ export const createPostAlt = defineApiHandler({
 
 When a route declares `schema.body`, core parses `application/json` and `text/plain` bodies before validation. Malformed JSON returns HTTP 400. A request with no body and no `Content-Type`, or an empty body with either supported type, is validated as `undefined`: required schemas return HTTP 400, and optional schemas can accept it. Unsupported content types and nonempty bodies without a `Content-Type` return HTTP 415.
 
-Method helpers: `defineGet`, `definePost`, `definePut`, `defineDelete`, `definePatch`, `defineOptions`, `defineHead`.
+Method helpers: `defineGet`, `definePost`, `definePut`, `defineDelete`, `definePatch`, `defineOptions`, `defineHead`, `defineQuery`. `defineQuery`, `app.query()` and `api.query` handle the HTTP QUERY method, whose request body carries the query; it is not the context's `query` field (the URL's search parameters). Handlers may set `Accept-Query` themselves.
 
 ## defineGroupHandler
 
@@ -122,7 +122,7 @@ await app.start();
 
 ## Endpoint files
 
-A `*.api.ts` file under `src/pages` is an endpoint file: its path gives the URL (`src/pages/api/users/[id].api.ts` answers `/api/users/[id]`), and it needs no `app.add()`. Export one handler per method, named exactly `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS` or `HEAD`, built with the matching method helper and no `path`:
+A `*.api.ts` file under `src/pages` is an endpoint file: its path gives the URL (`src/pages/api/users/[id].api.ts` answers `/api/users/[id]`), and it needs no `app.add()`. Export one handler per method, named exactly `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`, `HEAD` or `QUERY`, built with the matching method helper and no `path`:
 
 ```typescript
 import { defineGet } from '@ecopages/core';

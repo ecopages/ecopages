@@ -77,6 +77,8 @@ export const defineDelete: ReturnType<typeof defineApiMethod<'DELETE'>> = define
 export const definePatch: ReturnType<typeof defineApiMethod<'PATCH'>> = defineApiMethod('PATCH');
 export const defineOptions: ReturnType<typeof defineApiMethod<'OPTIONS'>> = defineApiMethod('OPTIONS');
 export const defineHead: ReturnType<typeof defineApiMethod<'HEAD'>> = defineApiMethod('HEAD');
+/** Defines a handler for the QUERY method, a safe, idempotent read whose request body carries the query. */
+export const defineQuery: ReturnType<typeof defineApiMethod<'QUERY'>> = defineApiMethod('QUERY');
 
 export function json(data: unknown, options?: RenderOptions): Response {
 	return createBodyResponse('json', data, {
@@ -119,6 +121,7 @@ type GroupDefineHandler<TContext extends UniversalContext> = {
 	patch: ExplicitApiMethod;
 	options: ExplicitApiMethod;
 	head: ExplicitApiMethod;
+	query: ExplicitApiMethod;
 };
 
 function createGroupApi<TContext extends UniversalContext>(): GroupDefineHandler<TContext> {
@@ -131,6 +134,7 @@ function createGroupApi<TContext extends UniversalContext>(): GroupDefineHandler
 		patch: defineApiMethod('PATCH'),
 		options: defineApiMethod('OPTIONS'),
 		head: defineApiMethod('HEAD'),
+		query: defineApiMethod('QUERY'),
 	});
 }
 

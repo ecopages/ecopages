@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { z } from 'zod';
 import type { ApiHandler, ApiHandlerContext, EcoMiddleware, PageParams } from '../../../types/contracts.ts';
-import { defineGet, definePost, defineGroupHandler, json, html, redirect } from './define-api-handler.ts';
+import { defineGet, definePost, defineGroupHandler, defineQuery, json, html, redirect } from './define-api-handler.ts';
 
 describe('defineGet / definePost', () => {
 	it('sets method without requiring an explicit method field', () => {
@@ -85,6 +85,47 @@ describe('method helpers without path', () => {
 				}),
 			],
 		});
+	});
+});
+
+describe('defineQuery', () => {
+	it('defines a QUERY handler with an empty path for an endpoint file', () => {
+		const queryHandler = defineQuery({ handler: ({ response }) => response.json([]) });
+
+		expectTypeOf(queryHandler).toEqualTypeOf<ApiHandler<'', Request, unknown>>();
+		expect(queryHandler.method).toBe('QUERY');
+		expect(queryHandler.path).toBe('');
+	});
+
+	it('keeps the literal path type when a path is given', () => {
+		const queryHandler = defineQuery({ path: '/x', handler: ({ response }) => response.json([]) });
+
+		expectTypeOf(queryHandler).toEqualTypeOf<ApiHandler<'/x', Request, unknown>>();
+		expect(queryHandler.method).toBe('QUERY');
+		expect(queryHandler.path).toBe('/x');
+	});
+
+	it('types the handler body from schema.body', () => {
+		defineQuery({
+			schema: { body: z.object({ term: z.string() }) },
+			handler: ({ body, response }) => {
+				expectTypeOf(body).toEqualTypeOf<{ term: string }>();
+				return response.json(body);
+			},
+		});
+	});
+
+	it('is available on the group api and requires a path there', () => {
+		const group = defineGroupHandler({
+			prefix: '/admin',
+			routes: (api) => [
+				api.query({ path: '/search', handler: ({ response }) => response.json([]) }),
+				// @ts-expect-error a group route is an Explicit Route and needs its path
+				api.query({ handler: ({ response }) => response.json([]) }),
+			],
+		});
+
+		expect(group.routes[0]).toMatchObject({ method: 'QUERY', path: '/search' });
 	});
 });
 

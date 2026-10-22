@@ -10,6 +10,7 @@ export {
 	definePatch,
 	defineOptions,
 	defineHead,
+	defineQuery,
 	json,
 	html,
 	redirect,

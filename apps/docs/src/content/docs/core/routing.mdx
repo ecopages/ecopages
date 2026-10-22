@@ -60,15 +60,18 @@ For a Page request to `/docs/a/b`, `params.slug` is `['a', 'b']`. A single `[slu
 
 ## Endpoint Files
 
-A file named `*.api.ts` under `src/pages` is an endpoint file, not a page. Only `*.api.ts` files are endpoint files: `.api.js` and `.api.tsx` are not. Its URL follows the same rules as a page: drop `.api.ts`, drop `index`, keep the brackets. `api/` has no special meaning; it is just a folder.
+A file under `src/pages` whose name ends in `.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx` is an endpoint file, not a page. Its URL follows the same rules as a page: drop the whole `.api.*` ending, drop `index`, keep the brackets. `api/` has no special meaning; it is just a folder.
 
 ```text
 src/pages/health.api.ts                ->  /health
 src/pages/api/users/index.api.ts       ->  /api/users
 src/pages/api/users/[id].api.ts        ->  /api/users/[id]
 src/pages/api/docs/[...slug].api.ts    ->  /api/docs/[...slug]
-src/pages/blog/[slug]/comments.api.ts  ->  /blog/[slug]/comments
+src/pages/blog/[slug]/comments.api.js  ->  /blog/[slug]/comments
+src/pages/users.api.tsx                ->  /users
 ```
+
+The `.api.*` endings are reserved: an Integration cannot register one as a page extension, and the config fails with an error naming the Integration that does. Registering `.tsx` is fine; `users.api.tsx` is still an endpoint file, not a `.tsx` page.
 
 Endpoint files use brackets (`[id]`, `[...slug]`); `:id` is for `app.ts` routes. A request to `/api/users/5` gives `params.id === '5'`, and a catch-all param is an array.
 
@@ -88,7 +91,7 @@ export const GET = defineGet({
 - An unknown `[slug]` still reaches the handler; return `404` from it.
 - A file with no method export, or a method export that is not a handler, is built for another method, or sets `path`, fails `ecopages build` with an error naming the file: the build imports each endpoint file to check its exports, as it imports Pages, so the file's top-level code runs at build time. In `ecopages dev` the error shows on the file's first request: the request answers `500`, or goes to `app.onError`; the logged error, or the one passed to `app.onError`, names the file.
 - Schemas, middleware and `app.onError` work as they do for `app.ts` routes.
-- Two files on the same route fail at startup, whatever the parameter names: `users.tsx` beside `users.api.ts`, or `blog/[slug].tsx` beside `blog/[id].api.ts`.
+- Two files on the same route fail at startup, whatever the parameter names: `users.tsx` beside `users.api.ts`, `users.api.ts` beside `users.api.js`, or `blog/[slug].tsx` beside `blog/[id].api.ts`.
 - The server skips file routes for a URL that ends in a known static file extension (`.json`, `.xml`, `.csv`, `.txt`, ...), so no endpoint file answers it: `files/[name].api.ts` does not answer `/files/report.csv`, and an endpoint file named like `feed.xml.api.ts` fails discovery. Register such a URL in `app.ts`, which is matched first.
 - In `ecopages dev`, saving an endpoint file reloads it without a restart.
 - Like `app.ts` routes, endpoint files need a running server: they are never rendered to static HTML, never appear in the sitemap, and `ecopages preview` does not serve them.
@@ -205,5 +208,5 @@ export default eco.page<ErrorPageTemplateProps>({
 | **Static pages** | `src/pages/*.{ext}` | Marketing, docs, blogs |
 | **Dynamic pages** | `src/pages/[slug].{ext}` | Posts, profiles |
 | **Error pages** | `src/pages/404.*`, `src/pages/500.*` | Not-found and server-error HTML |
-| **Endpoint files** | `src/pages/**/*.api.ts` | Data, forms, webhooks |
+| **Endpoint files** | `src/pages/**/*.api.{ts,tsx,js,jsx}` | Data, forms, webhooks |
 | **`app.ts` routes** | `app.get('/api/...')` | Data, forms |

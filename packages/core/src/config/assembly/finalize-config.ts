@@ -9,6 +9,7 @@ import { HtmlPagesPlugin } from '../../html-pages/html-pages.plugin.ts';
 import type { AnyIntegrationPlugin } from '../../plugins/integration-plugin.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import { invariant } from '../../utils/invariant.ts';
+import { ENDPOINT_FILE_EXTENSIONS, findEndpointFileExtension } from '../../utils/endpoint-file-extensions.ts';
 import {
 	DEFAULT_ECOPAGES_DIST_DIR,
 	DEFAULT_ECOPAGES_HOSTNAME,
@@ -113,6 +114,14 @@ function collectTemplateExtensions(integrations: AnyIntegrationPlugin[]): string
 	if (names.has('kitajs') && names.has('react')) {
 		appLogger.debug(
 			'Both kitajs and react integrations are enabled. Use per-file JSX import source/pragma consistently (e.g. `/** @jsxImportSource react */` for React files and `/** @jsxImportSource @kitajs/html */` for Kita files).',
+		);
+	}
+
+	for (const integration of integrations) {
+		const reserved = integration.extensions.find((extension) => findEndpointFileExtension(extension));
+		invariant(
+			reserved === undefined,
+			`Integration "${integration.name}" registers "${reserved}", which is reserved for endpoint files: ${ENDPOINT_FILE_EXTENSIONS.join(', ')}.`,
 		);
 	}
 

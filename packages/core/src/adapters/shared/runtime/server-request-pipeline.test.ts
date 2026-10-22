@@ -345,6 +345,18 @@ describe('ServerRequestPipeline endpoint files', () => {
 		assert.deepEqual(await response.json(), { ok: true });
 	});
 
+	test('answers a request to a JavaScript endpoint file', async () => {
+		const app = await createEndpointApp({
+			'greet.api.js': `import { defineGet } from ${helpersPath};
+				export const GET = defineGet({ handler: ({ response }) => response.json({ hello: 'js' }) });`,
+		});
+
+		const response = await app.fetch('/greet');
+
+		assert.equal(response.status, 200);
+		assert.deepEqual(await response.json(), { hello: 'js' });
+	});
+
 	test('passes the Template Route params, with a catch-all as an array', async () => {
 		const echoParams = `import { defineGet } from ${helpersPath};
 			export const GET = defineGet({ handler: ({ params, response }) => response.json(params) });`;

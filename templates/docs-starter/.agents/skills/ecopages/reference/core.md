@@ -40,7 +40,7 @@ Ecopages does not auto-detect script files by name pattern.
 
 ## Pages and views
 
-**Pages (`src/pages/`)** — file-based static routes. A `*.api.ts` file under `src/pages` is an endpoint file instead; see [server.md](server.md#endpoint-files).
+**Pages (`src/pages/`)** — file-based static routes. A `*.api.ts` (or `.api.tsx`, `.api.js`, `.api.jsx`) file under `src/pages` is an endpoint file instead; see [server.md](server.md#endpoint-files).
 
 **Views (`src/views/`)** — rendered from handlers via `ctx.render()`. Must use `eco.page<Props>()` and dynamic `import()`.
 

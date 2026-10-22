@@ -79,7 +79,7 @@ QUERY here is the HTTP method. It is unrelated to the `query` field of the handl
 
 ## Endpoint files
 
-In a `*.api.ts` file under `src/pages`, export each method helper under its method name and leave out `path`: the file's location gives the URL. `src/pages/blog/[slug]/comments.api.ts` handles `/blog/[slug]/comments` for every post:
+In an endpoint file under `src/pages` (`*.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx`), export each method helper under its method name and leave out `path`: the file's location gives the URL. `src/pages/blog/[slug]/comments.api.ts` handles `/blog/[slug]/comments` for every post:
 
 ```typescript
 import { defineGet, definePost } from '@ecopages/core';

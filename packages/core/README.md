@@ -134,7 +134,7 @@ Use this package README as the top-level map, then drill into the focused subsys
 - `src/dev/invalidation/README.md`: file-change classification and dirty-marking for bounded watcher batches
 - `src/hmr/README.md`: HMR strategy, update-layer ownership, and build error presentation
 - `src/dev-toolbar/README.md`: toolbar enablement, custom clients, and build error event contract
-- `src/router/README.md`: route discovery (Pages and `*.api.ts` endpoint files), matching, browser navigation coordination, persistence-aware body morphing, and the shared client navigation pipeline
+- `src/router/README.md`: route discovery (Pages and `*.api.{ts,tsx,js,jsx}` endpoint files), matching, browser navigation coordination, persistence-aware body morphing, and the shared client navigation pipeline
 - `src/route-renderer/README.md`: rendering orchestration, semantic error pages, dependency resolution, and HTML cache source paths
 - `src/static-site-generator/README.md`: static build execution, collected Page render failures, and sitemap eligibility from successful route-render metadata
 - `src/eco/README.md`: `eco` authoring APIs for pages, layouts, and components, including the `LayoutOptions` type contract
@@ -283,7 +283,7 @@ Standalone response helpers (`json`, `html`, `redirect`) share the same body emi
 
 Register a prebuilt handler with `app.add()`. Use `app.get(path, handler)` only when defining the route inline in `app.ts`.
 
-The method helpers also accept a handler without `path`, for an export of a `*.api.ts` endpoint file, whose path under the pages directory gives the URL. The `api.get` / `api.post` group helpers still require `path`, and `app.add()` and `app.group()` throw for a handler without one.
+The method helpers also accept a handler without `path`, for an export of an endpoint file (`*.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx`), whose path under the pages directory gives the URL. The `api.get` / `api.post` group helpers still require `path`, and `app.add()` and `app.group()` throw for a handler without one.
 
 The filesystem form of the same handler is an endpoint file. `src/pages/api/hello.api.ts` answers `/api/hello` with no `app.add()` call:
 

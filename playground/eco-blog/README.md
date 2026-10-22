@@ -16,15 +16,15 @@ Open http://localhost:3000 and sign in at `/login` as `admin@test.com` / `passwo
 
 ## How it is built
 
-| URL                                                            | File                                          | Rendering                               |
-| -------------------------------------------------------------- | --------------------------------------------- | --------------------------------------- |
-| `/`                                                            | `src/pages/index.tsx`                    | ISR (`revalidate: 60`, tag `posts`)     |
-| `/posts/[slug]`                                                | `src/pages/posts/[slug].tsx`             | Dynamic Page, `404` for an unknown slug |
-| `/login`, `/signup`                                            | `src/pages/login.tsx`, `signup.tsx` | Static Pages                            |
-| `/admin`, `/admin/new`, `/admin/posts/[id]`                    | `src/pages/admin/**`                          | Dynamic Pages behind `requireSession`   |
-| `/api/auth/*`                                                  | `src/pages/api/auth/[...all].api.ts`          | Endpoint: Better Auth                   |
-| `POST /api/posts`, `/api/posts/[id]`, `/api/posts/[id]/delete` | `src/pages/api/posts/**`                      | Endpoints: create, update, delete       |
-| `POST /api/upload`                                             | `src/pages/api/upload.api.ts`                 | Endpoint: editor image upload           |
+| URL                                                            | File                                 | Rendering                               |
+| -------------------------------------------------------------- | ------------------------------------ | --------------------------------------- |
+| `/`                                                            | `src/pages/index.tsx`                | ISR (`revalidate: 60`, tag `posts`)     |
+| `/posts/[slug]`                                                | `src/pages/posts/[slug].tsx`         | Dynamic Page, `404` for an unknown slug |
+| `/login`, `/signup`                                            | `src/pages/login.tsx`, `signup.tsx`  | Static Pages                            |
+| `/admin`, `/admin/new`, `/admin/posts/[id]`                    | `src/pages/admin/**`                 | Dynamic Pages behind `requireSession`   |
+| `/api/auth/*`                                                  | `src/pages/api/auth/[...all].api.ts` | Endpoint: Better Auth                   |
+| `POST /api/posts`, `/api/posts/[id]`, `/api/posts/[id]/delete` | `src/pages/api/posts/**`             | Endpoints: create, update, delete       |
+| `POST /api/upload`                                             | `src/pages/api/upload.api.ts`        | Endpoint: editor image upload           |
 
 - `requireSession` (`src/lib/require-session.server.ts`) puts the session on `locals.session` or redirects to `/login`. Admin Pages declare `requires: ['session']`; the endpoints use the same middleware.
 - Every write invalidates the `posts` cache tag, so the home page shows the change on the next request in production.

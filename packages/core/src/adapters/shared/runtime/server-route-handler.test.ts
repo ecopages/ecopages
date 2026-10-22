@@ -3,6 +3,7 @@ import { ServerRouteHandler } from './server-route-handler';
 import type { RouteRegistry } from '../../../router/server/route-registry.ts';
 import type { ExplicitStaticRouteMatcher } from '../http/explicit-static-route-matcher.ts';
 import type { FileSystemResponseMatcher } from '../http/fs-server-response-matcher.ts';
+import type { EndpointRouteHandler } from '../http/endpoint-route-handler.ts';
 import type { IHmrManager } from '../../../types/contracts.ts';
 import { HttpError } from '../../../errors/http-error.ts';
 
@@ -28,46 +29,80 @@ function createMockDependencies() {
 		renderServerError: vi.fn(() => Promise.resolve(new Response('Internal Server Error', { status: 500 }))),
 	} as unknown as FileSystemResponseMatcher;
 
+	const EndpointRouteHandler = {
+		handleMatch: vi.fn(() => Promise.resolve(new Response('Endpoint Content'))),
+	} as unknown as EndpointRouteHandler;
+
 	return {
 		Router,
 		FileSystemResponseMatcher,
+		EndpointRouteHandler,
 		HmrManager,
 	};
 }
 
+const endpointMatch = {
+	requestedPathname: '/api/users',
+	templateRoute: {
+		pathname: '/api/users',
+		kind: 'exact',
+		role: 'endpoint',
+		filePath: '/src/pages/api/users.api.ts',
+	},
+	params: {},
+	query: {},
+} satisfies NonNullable<ReturnType<RouteRegistry['matchRequest']>>;
+
 describe('ServerRouteHandler', () => {
 	describe('handleResponse', () => {
-		it('answers a matched endpoint route as no match until the request pipeline runs endpoints', async () => {
-			const { Router, FileSystemResponseMatcher } = createMockDependencies();
+		it('hands a matched endpoint route to the endpoint handler with the request context', async () => {
+			const { Router, FileSystemResponseMatcher, EndpointRouteHandler } = createMockDependencies();
 			const handler = new ServerRouteHandler({
 				router: Router,
 				fileSystemResponseMatcher: FileSystemResponseMatcher,
+				endpointRouteHandler: EndpointRouteHandler,
 			});
-			vi.spyOn(Router, 'matchRequest').mockReturnValueOnce({
-				requestedPathname: '/api/users',
-				templateRoute: {
-					pathname: '/api/users',
-					kind: 'exact',
-					role: 'endpoint',
-					filePath: '/src/pages/api/users.api.ts',
-				},
-				params: {},
-				query: {},
-			});
+			vi.spyOn(Router, 'matchRequest').mockReturnValueOnce(endpointMatch);
 			const request = new Request('http://localhost/api/users');
+			const requestContext = { errorHandler: () => new Response('handled'), serverInstance: {} };
 
-			const response = await handler.handleResponse(request);
+			const response = await handler.handleResponse(request, requestContext);
 
-			expect(response.status).toBe(404);
+			expect(await response.text()).toBe('Endpoint Content');
+			expect(EndpointRouteHandler.handleMatch).toHaveBeenCalledExactlyOnceWith(
+				endpointMatch,
+				request,
+				requestContext,
+			);
 			expect(FileSystemResponseMatcher.handleMatch).not.toHaveBeenCalled();
-			expect(FileSystemResponseMatcher.handleNoMatch).toHaveBeenCalledExactlyOnceWith('/api/users', request);
+			expect(FileSystemResponseMatcher.handleNoMatch).not.toHaveBeenCalled();
+		});
+
+		it('lets an explicit static route win over an endpoint on the same pathname', async () => {
+			const { Router, FileSystemResponseMatcher, EndpointRouteHandler } = createMockDependencies();
+			const handler = new ServerRouteHandler({
+				router: Router,
+				fileSystemResponseMatcher: FileSystemResponseMatcher,
+				endpointRouteHandler: EndpointRouteHandler,
+				explicitStaticRouteMatcher: {
+					match: vi.fn(() => ({ route: { path: '/api/users', loader: vi.fn() }, params: {} })),
+					handleMatch: vi.fn(async () => new Response('Static Content')),
+				} as unknown as ExplicitStaticRouteMatcher,
+			});
+			vi.spyOn(Router, 'matchRequest').mockReturnValue(endpointMatch);
+
+			const response = await handler.handleResponse(new Request('http://localhost/api/users'), {});
+
+			expect(await response.text()).toBe('Static Content');
+			expect(EndpointRouteHandler.handleMatch).not.toHaveBeenCalled();
 		});
 
 		it('keeps dotted Page paths routable and sends known static extensions to the fallback', async () => {
-			const { Router, FileSystemResponseMatcher } = createMockDependencies();
+			const { Router, FileSystemResponseMatcher, EndpointRouteHandler } = createMockDependencies();
 			const handler = new ServerRouteHandler({
 				router: Router,
 				fileSystemResponseMatcher: FileSystemResponseMatcher,
+				endpointRouteHandler: EndpointRouteHandler,
 			});
 			const routeMatch = {
 				requestedPathname: '/v1.2',
@@ -78,7 +113,7 @@ describe('ServerRouteHandler', () => {
 			const matchRequest = vi.spyOn(Router, 'matchRequest').mockReturnValueOnce(routeMatch);
 
 			const routeRequest = new Request('http://localhost/v1.2');
-			const routeResponse = await handler.handleResponse(routeRequest);
+			const routeResponse = await handler.handleResponse(routeRequest, {});
 			expect(routeResponse.status).toBe(200);
 			expect(await routeResponse.text()).toBe('Matched Content');
 			expect(matchRequest).toHaveBeenCalledExactlyOnceWith('http://localhost/v1.2', ['v1.2']);
@@ -87,7 +122,7 @@ describe('ServerRouteHandler', () => {
 			const assetRequest = new Request('http://localhost/assets/app.js', {
 				headers: { 'Accept-Encoding': 'gzip', 'If-None-Match': '"asset-etag"' },
 			});
-			const assetResponse = await handler.handleResponse(assetRequest);
+			const assetResponse = await handler.handleResponse(assetRequest, {});
 
 			expect(assetResponse.status).toBe(404);
 			expect(await assetResponse.text()).toBe('Not Found');
@@ -109,10 +144,11 @@ describe('ServerRouteHandler', () => {
 				error: HttpError.NotFound('Post not found'),
 			},
 		])('renders a server error when an explicit static route throws $name', async ({ url, path, error }) => {
-			const { Router, FileSystemResponseMatcher } = createMockDependencies();
+			const { Router, FileSystemResponseMatcher, EndpointRouteHandler } = createMockDependencies();
 			const handler = new ServerRouteHandler({
 				router: Router,
 				fileSystemResponseMatcher: FileSystemResponseMatcher,
+				endpointRouteHandler: EndpointRouteHandler,
 				explicitStaticRouteMatcher: {
 					match: vi.fn(() => ({ route: { path, loader: vi.fn() }, params: {} })),
 					handleMatch: vi.fn(async () => {
@@ -121,7 +157,7 @@ describe('ServerRouteHandler', () => {
 				} as unknown as ExplicitStaticRouteMatcher,
 			});
 
-			await handler.handleResponse(new Request(url));
+			await handler.handleResponse(new Request(url), {});
 
 			expect(FileSystemResponseMatcher.handleMatch).not.toHaveBeenCalled();
 			expect(FileSystemResponseMatcher.renderServerError).toHaveBeenCalledWith(new URL(url).pathname, error);
@@ -130,10 +166,11 @@ describe('ServerRouteHandler', () => {
 
 	describe('handleNoMatch', () => {
 		it('should broadcast error if handleNoMatch throws', async () => {
-			const { Router, FileSystemResponseMatcher, HmrManager } = createMockDependencies();
+			const { Router, FileSystemResponseMatcher, EndpointRouteHandler, HmrManager } = createMockDependencies();
 			const handler = new ServerRouteHandler({
 				router: Router,
 				fileSystemResponseMatcher: FileSystemResponseMatcher,
+				endpointRouteHandler: EndpointRouteHandler,
 			});
 
 			FileSystemResponseMatcher.handleNoMatch = vi.fn(() => {

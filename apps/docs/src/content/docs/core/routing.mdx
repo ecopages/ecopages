@@ -1,12 +1,12 @@
 ---
 title: "Routing"
-description: "File-based routing for pages and programmatic routing for API endpoints."
+description: "File-based routing for pages and endpoint files, and programmatic routing in app.ts."
 order: 5
 ---
 
 # Routing
 
-Ecopages uses file-based routing for pages and programmatic routing for API endpoints.
+Ecopages uses file-based routing for pages and endpoint files, and Explicit Routes in `app.ts`.
 
 ## File-Based Routing
 
@@ -43,8 +43,8 @@ A dot in the last segment is part of the route. The server treats a path as a fi
 
 Use bracket syntax: `[param]`.
 
-- `src/pages/blog/[slug].tsx` → `/blog/:slug`
-- `src/pages/users/[id]/profile.tsx` → `/users/:id/profile`
+- `src/pages/blog/[slug].tsx` → `/blog/[slug]`
+- `src/pages/users/[id]/profile.tsx` → `/users/[id]/profile`
 
 Access params via `staticPaths` and `staticProps` on `eco.page` views, or at request time with `cache: 'dynamic'`.
 
@@ -58,9 +58,48 @@ For a Page request to `/docs/a/b`, `params.slug` is `['a', 'b']`. A single `[slu
 
 ---
 
-## Programmatic API Routing
+## Endpoint Files
 
-API routes are defined on your app instance in `app.ts`:
+A file named `*.api.ts` under `src/pages` is an endpoint file, not a page. Only `*.api.ts` files are endpoint files: `.api.js` and `.api.tsx` are not. Its URL follows the same rules as a page: drop `.api.ts`, drop `index`, keep the brackets. `api/` has no special meaning; it is just a folder.
+
+```text
+src/pages/health.api.ts                ->  /health
+src/pages/api/users/index.api.ts       ->  /api/users
+src/pages/api/users/[id].api.ts        ->  /api/users/[id]
+src/pages/api/docs/[...slug].api.ts    ->  /api/docs/[...slug]
+src/pages/blog/[slug]/comments.api.ts  ->  /blog/[slug]/comments
+```
+
+Endpoint files use brackets (`[id]`, `[...slug]`); `:id` is for `app.ts` routes. A request to `/api/users/5` gives `params.id === '5'`, and a catch-all param is an array.
+
+The file exports one handler per HTTP method, named exactly `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS` or `HEAD`, built with the matching method helper and no `path`. Other exports are ignored.
+
+```typescript
+// src/pages/health.api.ts
+import { defineGet } from '@ecopages/core';
+
+export const GET = defineGet({
+	handler: async ({ response }) => response.json({ ok: true }),
+});
+```
+
+- The app still needs its `app.ts` entry (`createApp()` and `app.start()`); it need not register any route.
+- A request whose method the file does not export answers `405` with an `Allow` header listing the methods it does export. `HEAD` and `OPTIONS` are not added for you. A cross-origin request sends an `OPTIONS` preflight; export `OPTIONS` to answer it, otherwise it gets `405`.
+- An unknown `[slug]` still reaches the handler; return `404` from it.
+- A file with no method export, or a method export that is not a handler, is built for another method, or sets `path`, fails to load when requested: the request answers `500`, or goes to `app.onError`; the logged error, or the one passed to `app.onError`, names the file.
+- Schemas, middleware and `app.onError` work as they do for `app.ts` routes.
+- Two files on the same route fail at startup, whatever the parameter names: `users.tsx` beside `users.api.ts`, or `blog/[slug].tsx` beside `blog/[id].api.ts`.
+- The server skips file routes for a URL that ends in a known static file extension (`.json`, `.xml`, `.csv`, `.txt`, ...), so no endpoint file answers it: `files/[name].api.ts` does not answer `/files/report.csv`, and an endpoint file named like `feed.xml.api.ts` fails discovery. Register such a URL in `app.ts`, which is matched first.
+- In `ecopages dev`, saving an endpoint file reloads it without a restart.
+- Like `app.ts` routes, endpoint files need a running server: they are never rendered to static HTML, never appear in the sitemap, and `ecopages preview` does not serve them.
+
+See [Define Handlers](/docs/server/define-handlers#endpoint-files) for schemas and middleware in endpoint files.
+
+---
+
+## Routes in `app.ts`
+
+`app.ts` routes are defined on your app instance:
 
 ```typescript
 import { createApp } from '@ecopages/core/create-app';
@@ -80,13 +119,25 @@ await app.start();
 
 Use `app.add(handler)` for handlers created with `defineApiHandler`. See [Define Handlers](/docs/server/define-handlers).
 
-An API catch-all keeps each decoded path segment in an array. A request to `/api/files/docs/a` gives `params.path === ['docs', 'a']`. A named segment such as `:id` remains a string. Repeated query keys also stay as arrays on `ctx.query`; schemas receive the same parsed values before validation.
+An `app.ts` catch-all keeps each decoded path segment in an array. A request to `/api/files/docs/a` gives `params.path === ['docs', 'a']`. A named segment such as `:id` remains a string. Repeated query keys also stay as arrays on `ctx.query`; schemas receive the same parsed values before validation.
 
 ### Route Priority
 
-1. **API routes** in `app.ts`
-2. **File-based pages** in `src/pages`, unless the path ends in a known static extension
+1. **`app.ts` routes**, then `app.static()` routes
+2. **File-based pages and endpoint files** in `src/pages`, unless the path ends in a known static extension
 3. **Static files** from `public` and the build output
+
+An `app.ts` route registered on an endpoint file's URL keeps the methods it registers, and the file answers the rest. `:slug` and `[slug]` name the same URL.
+
+```typescript
+// app.ts
+app.get('/blog/:slug/comments', handler); // GET goes here
+// POST /blog/:slug/comments still goes to src/pages/blog/[slug]/comments.api.ts
+```
+
+Startup logs a warning naming the `app.ts` route and the endpoint file.
+
+`app.ts` routes are matched before any file, so `app.get('/api/users/:id')` also answers `GET /api/users/me` when `api/users/me.api.ts` exists. Startup warns only when both name the same route.
 
 ---
 
@@ -154,4 +205,5 @@ export default eco.page<ErrorPageTemplateProps>({
 | **Static pages** | `src/pages/*.{ext}` | Marketing, docs, blogs |
 | **Dynamic pages** | `src/pages/[slug].{ext}` | Posts, profiles |
 | **Error pages** | `src/pages/404.*`, `src/pages/500.*` | Not-found and server-error HTML |
-| **API endpoints** | `app.get('/api/...')` | Data, forms |
+| **Endpoint files** | `src/pages/**/*.api.ts` | Data, forms, webhooks |
+| **`app.ts` routes** | `app.get('/api/...')` | Data, forms |

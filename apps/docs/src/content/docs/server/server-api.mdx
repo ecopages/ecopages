@@ -24,6 +24,8 @@ app.get('/api/hello', async () => {
 await app.start();
 ```
 
+A handler can instead live in a `*.api.ts` file under `src/pages`; see [Endpoint Files](/docs/server/api-handlers#endpoint-files).
+
 ## Starting the server
 
 Call `app.start()` after you register routes. It boots the server for the current CLI mode (`dev`, `preview`, `build`, or `start`).

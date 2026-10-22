@@ -6,6 +6,7 @@
 - defineGroupHandler
 - json / html / redirect
 - Registering handlers
+- Endpoint files
 - Pages vs views
 
 ## defineApiHandler
@@ -118,6 +119,23 @@ app.group(adminGroup);
 
 await app.start();
 ```
+
+## Endpoint files
+
+A `*.api.ts` file under `src/pages` is an endpoint file: its path gives the URL (`src/pages/api/users/[id].api.ts` answers `/api/users/[id]`), and it needs no `app.add()`. Export one handler per method, named exactly `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS` or `HEAD`, built with the matching method helper and no `path`:
+
+```typescript
+import { defineGet } from '@ecopages/core';
+
+export const GET = defineGet({
+	handler: async ({ params, response }) => response.json({ id: params.id }),
+});
+```
+
+- A method the file does not export answers `405` with an `Allow` header; export `OPTIONS` for a CORS preflight.
+- Two files on the same route fail at startup, whatever the parameter names.
+- A URL that ends in a static file extension (`feed.xml`, `report.json`) cannot be an endpoint file; register it in `app.ts`.
+- An `app.ts` route on the same URL answers its methods first, and startup warns.
 
 ## Pages vs views
 

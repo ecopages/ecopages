@@ -283,6 +283,18 @@ Register a prebuilt handler with `app.add()`. Use `app.get(path, handler)` only 
 
 The method helpers also accept a handler without `path`, for an export of a `*.api.ts` endpoint file, whose path under the pages directory gives the URL. The `api.get` / `api.post` group helpers still require `path`, and `app.add()` and `app.group()` throw for a handler without one.
 
+The filesystem form of the same handler is an endpoint file. `src/pages/api/hello.api.ts` answers `/api/hello` with no `app.add()` call:
+
+```typescript
+import { defineGet } from '@ecopages/core';
+
+export const GET = defineGet({
+	handler: async ({ response }) => response.json({ message: 'Hello World' }),
+});
+```
+
+The file's rules (405 and `Allow`, load errors, `app.ts` routes on the same URL) are in the [Routing docs](https://ecopages.app/docs/core/routing#endpoint-files); the contracts are in `src/router/README.md` and `src/adapters/README.md`.
+
 ### 6. Error pages
 
 Filesystem `src/pages/404.*` and `500.*` take precedence. For explicit-route apps, register views on the app:

@@ -6,6 +6,7 @@ import { fileSystem } from '@ecopages/file-system';
 import { createFixtureAppConfig } from '../../../__fixtures__/app/test-app-config.ts';
 import { ServerRouteHandler } from '../../adapters/shared/runtime/server-route-handler.ts';
 import type { FileSystemResponseMatcher } from '../../adapters/shared/http/fs-server-response-matcher.ts';
+import type { EndpointRouteHandler } from '../../adapters/shared/http/endpoint-route-handler.ts';
 import type { EcoPagesAppConfig } from '../../config/internal-types.js';
 import { RouteRegistry, type RouteRegistryPageModuleAdapter, type TemplateRoute } from './route-registry.ts';
 
@@ -99,9 +100,14 @@ describe('RouteRegistry', () => {
 				handleNoMatch: vi.fn(async () => new Response('not found', { status: 404 })),
 				renderServerError: vi.fn(async () => new Response('server error', { status: 500 })),
 			} as unknown as FileSystemResponseMatcher;
-			const handler = new ServerRouteHandler({ router: registry, fileSystemResponseMatcher });
+			const endpointRouteHandler = { handleMatch: vi.fn() } as unknown as EndpointRouteHandler;
+			const handler = new ServerRouteHandler({
+				router: registry,
+				fileSystemResponseMatcher,
+				endpointRouteHandler,
+			});
 
-			const response = await handler.handleResponse(new Request('http://localhost:3000/blog/%E0%A4%A'));
+			const response = await handler.handleResponse(new Request('http://localhost:3000/blog/%E0%A4%A'), {});
 
 			expect(response.status).toBe(400);
 			expect(fileSystemResponseMatcher.handleMatch).not.toHaveBeenCalled();
@@ -568,6 +574,22 @@ describe('RouteRegistry', () => {
 			for (const pathname of pathnames) {
 				expect(message).toContain(`"${pathname}"`);
 			}
+		});
+
+		test('rejects an endpoint file whose pathname ends in a known static file extension', async () => {
+			await writePages(['feed.xml.api.ts']);
+
+			await expect(createRegistry({ pagesDir, templatesExt: ['.tsx'] }).init()).rejects.toThrow(
+				`${path.join(pagesDir, 'feed.xml.api.ts')}: the endpoint "/feed.xml" ends in a static file extension, so no request reaches it. Register that URL in app.ts instead.`,
+			);
+		});
+
+		test('accepts a dynamic endpoint file whose requests may end in a static file extension', async () => {
+			await writePages(['files/[name].api.ts']);
+			const registry = createRegistry({ pagesDir, templatesExt: ['.tsx'] });
+			await registry.init();
+
+			expect(registry.templateRoutes.map((route) => route.pathname)).toEqual(['/files/[name]']);
 		});
 
 		test('lets a dynamic endpoint through an Integration that refuses Params', async () => {

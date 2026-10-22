@@ -1,16 +1,16 @@
 ---
 title: "API Handlers"
-description: "Define API endpoints with typed handlers inside your Ecopages application."
+description: "Define API handlers with typed request context inside your Ecopages application."
 order: 2
 ---
 
 # API Handlers
 
-Ecopages provides a straightforward way to define API endpoints within your application. This allows you to build server-side logic, fetch data, or perform actions directly from your Ecopages project.
+Ecopages provides a straightforward way to define API handlers within your application. This allows you to build server-side logic, fetch data, or perform actions directly from your Ecopages project.
 
 ## Defining Handlers
 
-You define API handlers using methods on your app instance, typically in your `app.ts` file. Each method corresponds to an HTTP verb (GET, POST, etc.).
+You define API handlers using methods on your app instance in `app.ts`, or in an endpoint file, below. Each method corresponds to an HTTP verb (GET, POST, etc.).
 
 ```typescript
 // filepath: app.ts
@@ -32,6 +32,23 @@ app.post('/api/submit', async ({ request, response }) => {
 
 await app.start();
 ```
+
+## Endpoint Files
+
+A handler can also live in its own file under `src/pages`, named `*.api.ts`. The file's path gives the URL, so `src/pages/api/greet.api.ts` answers `/api/greet`. It exports one handler per HTTP method, built with the method helpers and no `path`:
+
+```typescript
+// filepath: src/pages/api/greet.api.ts
+import { defineGet } from '@ecopages/core';
+
+export const GET = defineGet({
+	handler: async ({ response }) => response.text('Hello from the API!'),
+});
+```
+
+The handler context below, schemas, middleware and `app.onError` work the same in both forms. See [Routing](/docs/core/routing#endpoint-files) for the file rules and [Define Handlers](/docs/server/define-handlers#endpoint-files) for a full example.
+
+Use an endpoint file when the URL should mirror the folder tree or the handler lives beside a Page; use `app.get()` / `app.add()` for groups with a shared prefix and shared middleware, or URLs that end in a static file extension.
 
 ## Handler Context
 

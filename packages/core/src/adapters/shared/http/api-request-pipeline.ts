@@ -146,7 +146,7 @@ export class ApiRequestPipeline<TRequest extends Request = Request, TServer = un
 			}
 		}
 
-		if (error instanceof HttpError) return error.toResponse();
+		if (HttpError.isHttpError(error)) return HttpError.responseFor(error);
 		appLogger.error('[ecopages] Error handling request', error);
 		return new Response('Internal Server Error', { status: 500 });
 	}

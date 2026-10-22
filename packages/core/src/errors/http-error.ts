@@ -44,6 +44,18 @@ export class HttpError extends Error {
 	}
 
 	/**
+	 * Answers with an error's status and JSON body, whichever `HttpError` class threw it.
+	 *
+	 * @remarks
+	 * An error that passed {@link HttpError.isHttpError} may come from an app bundle's own copy of
+	 * this class, or be a duck-typed object without `toResponse()`, so the response is rebuilt from
+	 * its fields.
+	 */
+	static responseFor(error: HttpError): Response {
+		return new HttpError(error.status, error.message, error.details).toResponse();
+	}
+
+	/**
 	 * Serialize error to JSON for API responses.
 	 */
 	toJSON(): HttpErrorJson {

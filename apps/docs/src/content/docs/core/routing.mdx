@@ -73,30 +73,9 @@ src/pages/users.api.tsx                ->  /users
 
 The `.api.*` endings are reserved: an Integration cannot register one as a page extension, and the config fails with an error naming the Integration that does. Registering `.tsx` is fine; `users.api.tsx` is still an endpoint file, not a `.tsx` page.
 
-Endpoint files use brackets (`[id]`, `[...slug]`); `:id` is for `app.ts` routes. A request to `/api/users/5` gives `params.id === '5'`, and a catch-all param is an array.
+Endpoint files use brackets (`[id]`, `[...slug]`); `:id` is for `app.ts` routes. A request to `/api/users/5` gives `params.id === '5'`, and a catch-all param is an array. Two files on the same route fail at startup, whatever the parameter names: `users.tsx` beside `users.api.ts`, or `blog/[slug].tsx` beside `blog/[id].api.ts`.
 
-The file exports one handler per HTTP method, named exactly `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`, `HEAD` or `QUERY`, built with the matching method helper and no `path`. Other exports are ignored.
-
-```typescript
-// src/pages/health.api.ts
-import { defineGet } from '@ecopages/core';
-
-export const GET = defineGet({
-	handler: async ({ response }) => response.json({ ok: true }),
-});
-```
-
-- The app still needs its `app.ts` entry (`createApp()` and `app.start()`); it need not register any route.
-- A request whose method the file does not export answers `405` with an `Allow` header listing the methods it does export. `HEAD` and `OPTIONS` are not added for you. A cross-origin request sends an `OPTIONS` preflight; export `OPTIONS` to answer it, otherwise it gets `405`.
-- An unknown `[slug]` still reaches the handler; return `404` from it.
-- A file with no method export, a method export that is not a handler, one built for another method, or one that sets `path` fails `ecopages build` with an error naming the file. The build imports each endpoint file to check its exports, as it imports Pages, so the file's top-level code runs at build time. In `ecopages dev` the same error shows on the file's first request: the response is `500`, or whatever `app.onError` returns, and the error, logged or passed to `app.onError`, names the file.
-- Schemas, middleware and `app.onError` work as they do for `app.ts` routes.
-- Two files on the same route fail at startup, whatever the parameter names: `users.tsx` beside `users.api.ts`, `users.api.ts` beside `users.api.js`, or `blog/[slug].tsx` beside `blog/[id].api.ts`.
-- The server skips file routes for a URL that ends in a known static file extension (`.json`, `.xml`, `.csv`, `.txt`, ...), so no endpoint file answers it: `files/[name].api.ts` does not answer `/files/report.csv`, and an endpoint file named like `feed.xml.api.ts` fails discovery. Register such a URL in `app.ts`, which is matched first.
-- In `ecopages dev`, saving an endpoint file reloads it without a restart.
-- Like `app.ts` routes, endpoint files need a running server: they are never rendered to static HTML, never appear in the sitemap, and `ecopages preview` does not serve them.
-
-See [Define Handlers](/docs/server/define-handlers#endpoint-files) for schemas and middleware in endpoint files.
+See [Endpoint Files](/docs/server/endpoint-files) for method exports, `405` and `Allow`, schemas, middleware, and what dev and build do with the files.
 
 ---
 
@@ -167,9 +146,13 @@ Create `404.tsx` (or the extension of your integration, or `404.html`) under `sr
 
 Create `500.tsx` (or the extension of your integration, or `500.html`) under `src/pages`. When a **page** render fails in the file-route pipeline, Ecopages renders this template with status 500.
 
+### 400, 401, 403 and 409 Pages
+
+A Page that throws `HttpError.BadRequest()`, `HttpError.Unauthorized()`, `HttpError.Forbidden()` or `HttpError.Conflict()` (from `@ecopages/core/errors`) answers with that status and renders `src/pages/400.*`, `401.*`, `403.*` or `409.*`. Each follows the precedence below, with `app.badRequest()`, `app.unauthorized()`, `app.forbidden()` and `app.conflict()` as the app loaders; `app.errorPage(status, loader)` registers any of the six.
+
 ### Precedence
 
-1. **`src/pages/404.*` / `500.*`** — highest priority when the file exists.
+1. **`src/pages/<status>.*`** (`404.*`, `500.*`, ...) — highest priority when the file exists.
 2. **`app.notFound()` / `app.serverError()`** — lazy view loaders for explicit-route apps without a `pages/` error file.
 3. **Built-in HTML defaults** — basic pages shipped by the framework when neither of the above is configured. They include inline CSS and `eco-error-page*` class hooks; they do not load your app stylesheets.
 
@@ -207,6 +190,6 @@ export default eco.page<ErrorPageTemplateProps>({
 | :--- | :--- | :--- |
 | **Static pages** | `src/pages/*.{ext}` | Marketing, docs, blogs |
 | **Dynamic pages** | `src/pages/[slug].{ext}` | Posts, profiles |
-| **Error pages** | `src/pages/404.*`, `src/pages/500.*` | Not-found and server-error HTML |
+| **Error pages** | `src/pages/{400,401,403,404,409,500}.*` | Error HTML per status |
 | **Endpoint files** | `src/pages/**/*.api.{ts,tsx,js,jsx}` | Data, forms, webhooks |
 | **`app.ts` routes** | `app.get('/api/...')` | Data, forms |

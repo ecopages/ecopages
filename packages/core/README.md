@@ -295,7 +295,7 @@ export const GET = defineGet({
 });
 ```
 
-The file's rules (405 and `Allow`, load errors, `app.ts` routes on the same URL) are in the [Routing docs](https://ecopages.app/docs/core/routing#endpoint-files); the contracts are in `src/router/README.md` and `src/adapters/README.md`. A build of an app with an endpoint file checks each file's exports, then emits the server bundle (`dist/.server/`) even when nothing else registers a handler, so `ecopages start` serves it.
+The file's rules (405 and `Allow`, load errors, `app.ts` routes on the same URL) are in the [Endpoint Files docs](https://ecopages.app/docs/server/endpoint-files); the contracts are in `src/router/README.md` and `src/adapters/README.md`. A build of an app with an endpoint file checks each file's exports, then emits the server bundle (`dist/.server/`) even when nothing else registers a handler, so `ecopages start` serves it.
 
 ### 6. Error pages
 

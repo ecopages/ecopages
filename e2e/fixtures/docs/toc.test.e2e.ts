@@ -151,7 +151,14 @@ test.describe('Docs TOC', () => {
 				.map((link) => link.getAttribute('href')?.slice(1)),
 		);
 
-		expect(ids).toEqual(['when-to-use', 'when-to-use-2', 'when-to-use-3', 'when-to-use-4', 'when-to-use-5']);
+		expect(ids).toEqual([
+			'when-to-use',
+			'when-to-use-2',
+			'when-to-use-3',
+			'when-to-use-4',
+			'when-to-use-5',
+			'when-to-use-6',
+		]);
 	});
 
 	test('TOC is empty on a page with no headings', async ({ page }) => {

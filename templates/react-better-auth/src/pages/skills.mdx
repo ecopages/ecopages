@@ -237,9 +237,9 @@ You can use **markdown** syntax and JSX components together.
 - Best for: Homepage, blog posts, documentation, static content
 
 **Views (`src/views/`):**
-- Dynamic components rendered from API handlers using `ctx.render()`
+- Default-exported `eco.page()` views rendered from API handlers
 - Must be defined using `eco.page()` with props (e.g., `eco.page<Props>()`)
-- Imported dynamically in handlers: `await import("@/views/my-view")`
+- Loaded with `ctx.renderServerModule(new URL("../views/my-view.tsx", import.meta.url), props)`; a raw `import()` skips the compile step that tells core which Integration owns the view
 - Receive data as props from the handler context
 - Best for: Protected routes, server-side rendered pages with dynamic data, admin panels
 
@@ -274,23 +274,20 @@ export default eco.page<{ user: User }>({
 **Rendering a View from Handler:**
 
 ```typescript
-// src/handlers/dashboard.ts
-import { defineGroupHandler } from "@ecopages/core";
+// src/handlers/account.ts
+import { defineGet } from "@ecopages/core";
+import { auth } from "@/lib/auth.server";
 
-export const dashboardGroup = defineGroupHandler({
-  prefix: "/dashboard",
-  middleware: [authMiddleware],
-  routes: (define) => [
-    define({
-      path: "/",
-      method: "GET",
-      handler: async (ctx) => {
-        const { default: DashboardView } = await import("@/views/dashboard");
-        return ctx.render(DashboardView, { user: ctx.session.user });
-      },
-    }),
-  ],
+export const account = defineGet({
+  path: "/account",
+  handler: async (ctx) => {
+    const session = await auth.api.getSession({ headers: ctx.request.headers });
+    if (!session) return Response.redirect(new URL("/login", ctx.request.url));
+    return ctx.renderServerModule(new URL("../views/dashboard.tsx", import.meta.url), { user: session.user });
+  },
 });
+
+// app.ts: app.add(account)
 ```
 
 ## Creating Components

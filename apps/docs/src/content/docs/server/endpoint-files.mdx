@@ -1,0 +1,219 @@
+---
+title: "Endpoint Files"
+description: "Answer HTTP requests from *.api.ts files under src/pages, with the URL taken from the file path."
+order: 4
+---
+
+# Endpoint Files
+
+An endpoint file is a file under `src/pages` whose name ends in `.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx`. Its path gives its URL, as a Page's path does, but it renders no HTML: each export named after an HTTP method answers that method.
+
+Use an endpoint file when the URL should mirror the folder tree, or when the handler belongs beside the Pages it serves. Use [`app.ts` routes](/docs/server/explicit-routing) for routes that share a prefix and middleware, or for URLs that end in a static file extension.
+
+## Quick Start
+
+Create the file:
+
+```typescript
+// src/pages/api/health.api.ts
+import { defineGet } from '@ecopages/core';
+
+export const GET = defineGet({
+	handler: async ({ response }) => response.json({ ok: true }),
+});
+```
+
+The app still needs its `app.ts` entry, even when it registers no route:
+
+```typescript
+// app.ts
+import { createApp } from '@ecopages/core/create-app';
+
+const app = await createApp();
+
+await app.start();
+```
+
+Start the dev server and call the endpoint:
+
+```bash
+ecopages dev
+curl http://localhost:3000/api/health
+# {"ok":true}
+```
+
+## File Path to URL
+
+An endpoint file follows the Page rules: drop the whole `.api.*` ending, drop `index`, keep the brackets. A folder named `api/` has no special meaning.
+
+```text
+src/pages/health.api.ts                ->  /health
+src/pages/api/users/index.api.ts       ->  /api/users
+src/pages/api/users/[id].api.ts        ->  /api/users/[id]
+src/pages/api/docs/[...slug].api.ts    ->  /api/docs/[...slug]
+src/pages/blog/[slug]/comments.api.js  ->  /blog/[slug]/comments
+src/pages/users.api.tsx                ->  /users
+```
+
+- `[id]` captures one segment as a string, and `[...slug]` captures the rest of the path as an array. A request to `/api/users/5` gives `params.id === '5'`, and `/api/docs/a/b` gives `params.slug` equal to `['a', 'b']`. The `:id` syntax works only in `app.ts`.
+- Endpoint files and Pages share one route table, and the more specific route wins: `api/users/[id].api.ts` answers `/api/users/5` before a `[...slug].tsx` Page does.
+- Each route comes from one file, whatever its parameter names. `users.tsx` beside `users.api.ts`, `users.api.ts` beside `users.api.js`, or `blog/[slug].tsx` beside `blog/[id].api.ts` fails at startup.
+- The `.api.*` endings are reserved. An Integration cannot register one as a page extension; the config fails with an error naming the Integration. Registering `.tsx` is fine: `users.api.tsx` is still an endpoint file, not a `.tsx` Page.
+
+## Method Exports
+
+Export one handler per HTTP method, named exactly `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`, `HEAD` or `QUERY`. Build each with the matching method helper (`defineGet`, `definePost`, `definePut`, `defineDelete`, `definePatch`, `defineOptions`, `defineHead`, `defineQuery`) and leave out `path`: the file's location is the endpoint's only path. Other exports are ignored, so the file can also export a schema or a type.
+
+`src/pages/blog/[slug]/comments.api.ts` handles comments for every post:
+
+```typescript
+import { defineGet, definePost } from '@ecopages/core';
+import { z } from 'zod';
+
+const params = z.object({ slug: z.string() });
+
+export const GET = defineGet({
+	schema: { params },
+	handler: async ({ params, response }) => response.json({ slug: params.slug, comments: [] }),
+});
+
+export const POST = definePost({
+	schema: {
+		params,
+		body: z.object({ text: z.string().min(1) }),
+	},
+	handler: async ({ params, body, response }) => response.status(201).json({ slug: params.slug, text: body.text }),
+});
+```
+
+```text
+GET    /blog/hello/comments   -> 200, the GET handler
+POST   /blog/hello/comments   -> 201, the POST handler (400 if the body fails the schema)
+DELETE /blog/hello/comments   -> 405, Allow: GET, POST
+```
+
+### Unexported Methods
+
+A request whose method the file does not export answers `405` with an `Allow` header listing the methods the file exports. `HEAD` and `OPTIONS` are not added for you: a file that exports only `GET` answers `HEAD` with `405`. A cross-origin request that needs a preflight sends `OPTIONS` first, so export `OPTIONS` to answer it:
+
+```typescript
+// src/pages/api/feed.api.ts
+import { defineGet, defineOptions } from '@ecopages/core';
+
+const cors = { 'Access-Control-Allow-Origin': 'https://app.example.com' };
+
+export const GET = defineGet({
+	handler: async ({ response }) => response.headers(cors).json({ items: [] }),
+});
+
+export const OPTIONS = defineOptions({
+	handler: async ({ response }) =>
+		response
+			.status(204)
+			.headers({ ...cors, 'Access-Control-Allow-Methods': 'GET', 'Access-Control-Allow-Headers': 'Content-Type' })
+			.text(''),
+});
+```
+
+`QUERY` is the HTTP QUERY method, a read whose query travels in the request body. See [The QUERY method](/docs/server/define-handlers#the-query-method).
+
+## Schemas and Params
+
+Each method export takes its own `schema`, validated before the handler runs, exactly as for an `app.ts` route. `schema.params`, `schema.query`, `schema.headers` and `schema.body` type the matching handler context fields; a request that fails one gets `400`.
+
+The file name does not type `params`. Without `schema.params`, `params` is a record of strings and string arrays, so any key type-checks. Declare `schema.params` to get `params.slug` as a `string`.
+
+An unknown value still reaches the handler, since the route matches any `[slug]`. Answer `404` from the handler; a thrown `HttpError` becomes its response:
+
+```typescript
+// src/pages/api/posts/[slug].api.ts
+import { defineGet } from '@ecopages/core';
+import { HttpError } from '@ecopages/core/errors';
+import { z } from 'zod';
+import { findPost } from '../../../posts';
+
+export const GET = defineGet({
+	schema: { params: z.object({ slug: z.string() }) },
+	handler: async ({ params, response }) => {
+		const post = await findPost(params.slug);
+		if (!post) throw HttpError.NotFound('Post not found');
+		return response.json(post);
+	},
+});
+```
+
+See [Validating Route Params](/docs/server/api-handlers#validating-route-params-with-schema) for repeated query keys and body parsing rules.
+
+## Middleware
+
+Each method export takes its own `middleware` list. The handler receives the context every middleware in the list adds:
+
+```typescript
+// src/middleware/require-user.ts
+import type { ApiHandlerContext, EcoMiddleware } from '@ecopages/core';
+
+export type UserContext = ApiHandlerContext & { user: { id: string } };
+
+export const requireUser: EcoMiddleware<UserContext> = async (ctx, next) => {
+	const id = ctx.request.headers.get('x-user-id');
+	if (!id) return ctx.response.status(401).json({ error: 'Unauthorized' });
+	ctx.user = { id };
+	return next();
+};
+```
+
+```typescript
+// src/pages/api/me.api.ts
+import { defineGet } from '@ecopages/core';
+import { requireUser } from '../../middleware/require-user';
+
+export const GET = defineGet({
+	middleware: [requireUser],
+	handler: async ({ user, response }) => response.json(user),
+});
+```
+
+- List `middleware` before `handler`. A handler written before a list that holds an inline, unannotated middleware function sees none of the list's contexts. A list of `EcoMiddleware` constants works in either order.
+- There is no folder-level middleware file. To protect several endpoint files, import the same list in each method export.
+
+## Errors
+
+`app.onError` in `app.ts` handles errors thrown by endpoint handlers, as it does for `app.ts` routes.
+
+A file that is broken as an endpoint fails with an error naming the file. Broken means no method export, a method export that is not a handler, a handler built for another method (`export const POST = defineGet(...)`), or one that sets `path`.
+
+- `ecopages build` fails before it emits the server bundle or renders any Page.
+- In `ecopages dev`, the file's first request answers `500`, or whatever `app.onError` returns. The error, logged or passed to `app.onError`, names the file.
+
+## Routes in `app.ts` on the Same URL
+
+`app.ts` routes are matched before any file. An `app.ts` route on an endpoint file's URL keeps the methods it registers, and the file answers the rest. `:slug` and `[slug]` name the same URL:
+
+```typescript
+// app.ts
+app.get('/blog/:slug/comments', handler); // GET goes here
+// POST /blog/:slug/comments still goes to src/pages/blog/[slug]/comments.api.ts
+```
+
+Startup logs a warning naming the `app.ts` route and the endpoint file. A route that only overlaps, such as `app.get('/api/users/:id')` beside `api/users/me.api.ts`, still wins `GET /api/users/me` but logs no warning. See [Route Priority](/docs/core/routing#route-priority).
+
+## Development, Build and Deploy
+
+- **Dev.** `ecopages dev` compiles an endpoint file on its first request. Saving the file reloads it without a restart, and adding or removing one updates the routes.
+- **Build.** `ecopages build` imports each endpoint file to check its exports, as it imports Pages, so the file's top-level code runs at build time. Keep connections and other side effects inside the handler.
+- **Server bundle.** A build with at least one endpoint file emits the server bundle in `dist/.server/`, even when `app.ts` registers no route. `ecopages start` serves it.
+- **No static output.** Endpoint files need a running server. They are never rendered to static HTML, never appear in the sitemap, and `ecopages preview` does not serve them.
+
+See [Deployment](/docs/reference/deployment) for the build steps.
+
+## Limits
+
+- The server skips file routes for a URL that ends in a known static file extension (`.json`, `.xml`, `.csv`, `.txt`, ...). `files/[name].api.ts` does not answer `/files/report.csv`, and a file named like `feed.xml.api.ts` fails discovery. Register such a URL in `app.ts`.
+- `HEAD` does not fall back to `GET`, and `OPTIONS` is not answered for you. Export both when clients need them.
+- Middleware is set per method export, not per folder.
+
+## Related
+
+- [Routing](/docs/core/routing) — how file paths become URLs for Pages and endpoint files
+- [Define Handlers](/docs/server/define-handlers) — the method helpers, schemas and middleware typing
+- [Routing Patterns](/docs/server/routing-patterns#pattern-f-endpoint-files) — when to choose endpoint files over `app.ts` routes

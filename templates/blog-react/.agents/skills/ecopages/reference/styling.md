@@ -3,53 +3,40 @@
 ## Contents
 
 - Tailwind v4 setup
-- PostCSS processor
 - CSS imports
 - Layouts and includes
 
 ## Tailwind v4 setup
+
+Register the PostCSS Processor with `tailwindV4Preset({ referencePath })` in `eco.config.ts`, as in [getting-started.md](getting-started.md#configuration). `referencePath` points at the stylesheet below.
 
 `src/styles/app.css`:
 
 ```css
 @import 'tailwindcss';
 
+:root {
+	--background: oklch(0.98 0.004 85);
+	--foreground: oklch(0.18 0.02 265);
+}
+
 @theme inline {
 	--color-primary: oklch(0.55 0.18 35);
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
 	--font-sans: 'Inter', sans-serif;
 }
-
-:root {
-	--color-background: oklch(0.98 0.004 85);
-	--color-foreground: oklch(0.18 0.02 265);
-}
 ```
 
-Register PostCSS in `eco.config.ts`:
+Every `--color-*` in `@theme` becomes a utility (`bg-background`, `text-foreground`); a variable only in `:root` does not.
 
-```typescript
-import { postcssProcessorPlugin } from '@ecopages/postcss-processor';
-import { tailwindV4Preset } from '@ecopages/postcss-processor/presets/tailwind-v4';
-
-postcssProcessorPlugin(
-	tailwindV4Preset({
-		referencePath: path.resolve(appRoot, 'src/styles/app.css'),
-	}),
-);
-```
+Load the global stylesheet once, with `import '../styles/app.css'` in `src/includes/html.*` or `src/includes/head.*`.
 
 ## CSS imports
 
-In modules declaring `eco.component()`, `eco.layout()`, `eco.html()`, or `eco.page()`, side-effect CSS imports are auto-discovered:
+Side-effect CSS imports (`import './component.css'`, `import '@/styles/shared.css'`) in `eco.*` modules are discovered and served as `<link rel="stylesheet">`; see [core.md](core.md#components-and-dependency-discovery). Use explicit `dependencies.stylesheets` for custom attributes (such as `media="print"`) or a fixed order.
 
-```typescript
-import './component.css';
-import '@/styles/shared.css';
-```
-
-Ecopages automatically extracts these into the asset pipeline, removes the bare import statements from server and client modules, and serves them via `<link rel="stylesheet">`.
-
-For imported stylesheet strings with `postcssProcessorPlugin`:
+With `postcssProcessorPlugin`, a value import binds the processed CSS as a string, for example to style a shadow root:
 
 ```typescript
 import styles from './styles.css';
@@ -60,5 +47,3 @@ import styles from './styles.css';
 - `src/includes/html.*` — document shell (`HtmlTemplateProps` with `children`, `metadata`, `pageProps`)
 - `src/includes/head.*` — head assets and metadata wiring
 - `src/layouts/` — page wrappers via `eco.page({ layout: BaseLayout })`
-
-Relative and aliased CSS imports inside layout and component files are auto-discovered. Use explicit `dependencies.stylesheets` when custom attributes (such as `media="print"`) or manual ordering overrides are required. Combine Page-local CSS with a content entry through `mergePageDependencies()`, not object spread.

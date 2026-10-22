@@ -46,7 +46,7 @@ export const GET = defineGet({
 });
 ```
 
-The handler context below, schemas, middleware and `app.onError` work the same in both forms. See [Routing](/docs/core/routing#endpoint-files) for the file rules, including what the build and the server do with the files, and [Define Handlers](/docs/server/define-handlers#endpoint-files) for a full example.
+The handler context below, schemas, middleware and `app.onError` work the same in both forms. See [Endpoint Files](/docs/server/endpoint-files) for the file rules, examples, and what the build and the server do with the files.
 
 Use an endpoint file when the URL should mirror the folder tree or the handler lives beside a Page; use `app.get()` / `app.add()` for groups with a shared prefix and shared middleware, or URLs that end in a static file extension.
 

@@ -4,17 +4,21 @@
 
 - Stack comparison
 - MDX ownership rules
+- Ecopages JSX
+- React
 - Mixing integrations
+- Cross-integration rendering
 
 ## Stack comparison
 
-| Integration    | Technology                         | Primary use                                             |
-| -------------- | ---------------------------------- | ------------------------------------------------------- |
-| Ecopages JSX   | `@ecopages/jsx` + optional Radiant | Default: `.tsx` Pages, optional MDX                     |
-| KitaJS         | `@kitajs/html`                     | `.kita.tsx` Pages                                       |
-| React          | React 19                           | Dashboards, rich interactivity                          |
-| Lit            | Web Components                     | Portable UI, micro-frontends                            |
-| Standalone MDX | `@ecopages/mdx`                    | Third-party JSX runtime with explicit `jsxImportSource` |
+| Integration           | Technology                                | Default extension | Primary use                                             |
+| --------------------- | ----------------------------------------- | ----------------- | ------------------------------------------------------- |
+| Ecopages JSX          | `@ecopages/jsx` + Radiant (on by default) | `.tsx`            | Default: Pages, optional MDX                            |
+| KitaJS                | `@kitajs/html`                            | `.kita.tsx`       | String-rendered Pages                                   |
+| React                 | React 19                                  | `.tsx`            | Dashboards, rich interactivity                          |
+| Lit                   | Web Components                            | `.lit.tsx`        | Portable UI, micro-frontends                            |
+| Standalone MDX        | `@ecopages/mdx`                           | `.mdx`            | Third-party JSX runtime with explicit `jsxImportSource` |
+| HTML Pages (built in) | Plain HTML                                | `.html`           | Pages with no props or Layout; no plugin needed         |
 
 ## MDX ownership rules
 
@@ -26,25 +30,19 @@ Pick the MDX path that matches the owning runtime:
 | Ecopages JSX              | `ecopagesJsxPlugin({ mdx: {} })`                                      |
 | Third-party (e.g. KitaJS) | `mdxPlugin({ compilerOptions: { jsxImportSource: '@kitajs/html' } })` |
 
-Standalone `mdxPlugin()` requires `compilerOptions.jsxImportSource`. Passing `react` or `@ecopages/jsx` redirects to the owning integration plugin.
+Standalone `mdxPlugin()` requires `compilerOptions.jsxImportSource`. With `react` or `@ecopages/jsx` it throws; configure `reactPlugin({ mdx })` or `ecopagesJsxPlugin({ mdx })` instead.
 
 ## Ecopages JSX
 
 ```typescript
 import { ecopagesJsxPlugin } from '@ecopages/ecopages-jsx';
 
-ecopagesJsxPlugin({
-	extensions: ['.tsx'],
-	radiant: true,
-	mdx: { extensions: ['.mdx'] },
-});
+ecopagesJsxPlugin({ mdx: {} });
 ```
 
-Foreign-child ownership: Ecopages JSX uses renderer-owned foreign children for mixed rendering and Radiant hydration — not blanket client hydration for every component.
+Defaults: `extensions: ['.tsx']`, `radiant: true` (set `radiant: false` when Pages use no Radiant web components), and `.mdx` for MDX when `mdx` is set.
 
-Cross-integration shell stacks: use integration-owned `EcoEmbed` (`@ecopages/ecopages-jsx/eco-embed`, `@ecopages/react/eco-embed`, `@ecopages/kitajs/eco-embed`). It wraps `eco.embed()` so the active foreign-child runtime can queue subtrees in the owning renderer.
-
-Queue boundary: plain opaque objects (values that would stringify to `[object Object]`) throw at the foreign-subtree queue. Pass already-serialized HTML strings, or use `EcoEmbed`. Template results, markup nodes, arrays, and framework element markers (`$$typeof`) are accepted.
+Radiant hydration follows the Ecopages JSX SSR Policy, per Page or Component, not one global hydration bundle.
 
 ## React
 
@@ -58,17 +56,23 @@ Use React only when the user requests it or a dependency requires the React ecos
 
 ## Mixing integrations
 
-Multiple integrations can coexist in one `eco.config.ts`. Route ownership is determined by file extension. Each integration owns its extensions and renderer.
+Multiple Integrations can coexist in one `eco.config.ts`. A Page belongs to the Integration that registers its extension, and each extension belongs to exactly one Integration, or config fails. React and Ecopages JSX both default to `.tsx`: when you mix them, give one distinct `extensions` (for example `['.react.tsx']`).
+
+- Core adds the `.html` Integration unless one of yours registers `.html`.
+- No Integration may register `.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx`; they are reserved for Endpoints, and config fails naming the Integration.
 
 ## Cross-integration rendering
 
-Authoring rule: use integration-owned `EcoEmbed` when nesting shells across integrations or passing children across integration boundaries. Each integration exports `@ecopages/<name>/eco-embed`.
+Authoring rule: when a Component renders a Foreign Child (a Component owned by another Integration), wrap it in that Integration's `EcoEmbed`. `@ecopages/ecopages-jsx`, `@ecopages/react` and `@ecopages/kitajs` export `./eco-embed`; it wraps `eco.embed()` so the owning renderer renders the subtree.
 
-Runtime contract (for custom integrations):
+```tsx
+import { EcoEmbed } from '@ecopages/react/eco-embed';
 
-1. **Queue**: the base `createForeignChildRuntime()` replaces foreign children with tokens while the renderer runs.
-2. **Resolve**: after local HTML is produced, call `this.resolveQueuedForeignSubtrees(html, this.getQueuedForeignSubtreeContext(input), renderQueuedChildren)`. It hands each queued subtree to its owning renderer.
+<EcoEmbed component={Widget} props={{ title: 'Hi' }}>
+	{children}
+</EcoEmbed>;
+```
 
-String-markup integrations can extend `StringMarkupRenderer` to inherit the wired path.
+Plain opaque objects (values that would stringify to `[object Object]`) throw at the foreign-subtree queue. Pass already-serialized HTML strings, or use `EcoEmbed`. Template results, markup nodes, arrays, and framework element markers (`$$typeof`) are accepted.
 
-Before queueing, core calls `assertForeignChildrenNotOpaque()` — plain objects throw instead of becoming `[object Object]` in HTML. Acceptable children include HTML strings, template results, markup nodes, arrays, and framework element markers.
+Runtime contract (for custom Integrations): renderers built with `createIntegrationRenderer()` (or `StringMarkupRenderer`) already queue Foreign Children and resolve the queued subtrees in their owning renderers; supply the `renderQueuedChildren` hook if needed.

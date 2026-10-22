@@ -147,7 +147,7 @@ describe('EcopagesApp route registration', () => {
 		const { app } = createTestApp();
 
 		expect(() => app.add(defineGet({ handler: () => new Response('ok') }))).toThrow(
-			'The GET handler has no path. Export it from a `*.api.ts` file under the pages directory, or give it a `path` to register it with app.add().',
+			'The GET handler has no path. Export it from an endpoint file (`*.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx`) under the pages directory, or give it a `path` to register it with app.add().',
 		);
 	});
 
@@ -165,7 +165,7 @@ describe('EcopagesApp route registration', () => {
 		expect(() =>
 			app.group({ prefix: '/admin', routes: [defineGet({ handler: () => new Response('ok') })] }),
 		).toThrow(
-			'The GET handler in group "/admin" has no path. Export it from a `*.api.ts` file under the pages directory, or give it a `path` ("/" for the group root) to register it with app.group().',
+			'The GET handler in group "/admin" has no path. Export it from an endpoint file (`*.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx`) under the pages directory, or give it a `path` ("/" for the group root) to register it with app.group().',
 		);
 	});
 

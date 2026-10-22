@@ -541,44 +541,43 @@ describe('ServerStaticBuilder', () => {
 				assert.ok(fs.existsSync(path.join(distDir, '.server', 'manifest.json')));
 			});
 
-			it('fails the build on an endpoint file without a method export, before the server bundle and static generation', async () => {
-				const { AppConfig, StaticSiteGenerator, ServeOptions, RouteRendererFactory, logger, calls } =
-					createMockDependencies();
-				const distDir = setupBundleFixture('broken-endpoint-route');
-				fs.writeFileSync(path.join(tmpDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
-				const appConfig = {
-					...AppConfig,
-					rootDir: tmpDir,
-					absolutePaths: { ...AppConfig.absolutePaths, distDir },
-				} as EcoPagesAppConfig;
-				const buildCalls = recordServerEntryBuilds(appConfig);
-				const router = {
-					templateRoutes: [
-						{ pathname: '/health', kind: 'exact', role: 'endpoint', filePath: 'src/pages/health.api.ts' },
-					],
-				} as unknown as RouteRegistry;
+			it.each([['src/pages/health.api.ts'], ['src/pages/health.api.js']])(
+				'fails the build on the endpoint file %p without a method export, naming it whatever its ending, before the server bundle and static generation',
+				async (filePath) => {
+					const { AppConfig, StaticSiteGenerator, ServeOptions, RouteRendererFactory, logger, calls } =
+						createMockDependencies();
+					const distDir = setupBundleFixture('broken-endpoint-route');
+					fs.writeFileSync(path.join(tmpDir, 'app.ts'), 'await Promise.resolve();', 'utf8');
+					const appConfig = {
+						...AppConfig,
+						rootDir: tmpDir,
+						absolutePaths: { ...AppConfig.absolutePaths, distDir },
+					} as EcoPagesAppConfig;
+					const buildCalls = recordServerEntryBuilds(appConfig);
+					const router = {
+						templateRoutes: [{ pathname: '/health', kind: 'exact', role: 'endpoint', filePath }],
+					} as unknown as RouteRegistry;
 
-				const builder = new ServerStaticBuilder({
-					appConfig,
-					runtime: AppConfig.appRuntime!,
-					staticSiteGenerator: StaticSiteGenerator,
-					serveOptions: ServeOptions,
-					logger,
-				});
+					const builder = new ServerStaticBuilder({
+						appConfig,
+						runtime: AppConfig.appRuntime!,
+						staticSiteGenerator: StaticSiteGenerator,
+						serveOptions: ServeOptions,
+						logger,
+					});
 
-				await expect(
-					builder.build(undefined, {
-						router,
-						routeRendererFactory: RouteRendererFactory,
-						importServerModule: async () => ({ helper: () => 'not a handler' }),
-					}),
-				).rejects.toThrow(
-					'src/pages/health.api.ts defines the endpoint "/health" but exports no request handler.',
-				);
-				assert.equal(buildCalls.length, 0);
-				assert.equal(calls.staticSiteGeneratorRun.length, 0);
-				assert.equal(fs.existsSync(path.join(distDir, '.server', 'manifest.json')), false);
-			});
+					await expect(
+						builder.build(undefined, {
+							router,
+							routeRendererFactory: RouteRendererFactory,
+							importServerModule: async () => ({ helper: () => 'not a handler' }),
+						}),
+					).rejects.toThrow(`${filePath} defines the endpoint "/health" but exports no request handler.`);
+					assert.equal(buildCalls.length, 0);
+					assert.equal(calls.staticSiteGeneratorRun.length, 0);
+					assert.equal(fs.existsSync(path.join(distDir, '.server', 'manifest.json')), false);
+				},
+			);
 
 			it('skips the server entry when the registry holds only Pages', async () => {
 				const { AppConfig, StaticSiteGenerator, ServeOptions, RouteRendererFactory, logger } =

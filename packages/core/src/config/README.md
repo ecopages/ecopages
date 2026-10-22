@@ -12,7 +12,7 @@ How does one `eco.config.ts` become one stable, app-owned runtime/build configur
 
 It is responsible for:
 
-- validating integration, processor, and loader registration
+- validating integration, processor, and loader registration, including that no Integration registers an extension ending in an endpoint file marker (`utils/endpoint-file-extensions.ts`); the error names the Integration
 - rejecting overlapping build-plugin names per server/browser environment, with both contributor names in the error
 - appending the core [HTML Pages](../html-pages/README.md) Integration after user Integrations unless one of them declares `.html`, so `.html` routes work in every app
 - resolving semantic paths such as `html` and `404` templates from registered Integration extensions; more than one match for a basename (for example `html.tsx` and `html.html`) is an error

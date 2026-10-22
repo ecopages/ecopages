@@ -5,6 +5,7 @@ import type { EcoPagesAppConfig } from '../../config/internal-types.ts';
 import type { PageParams, PageQuery } from '../../types/contracts.ts';
 import { invariant } from '../../utils/invariant.ts';
 import { hasKnownStaticExtension } from '../../utils/static-file-extensions.ts';
+import { ENDPOINT_FILE_EXTENSIONS, findEndpointFileExtension } from '../../utils/endpoint-file-extensions.ts';
 import { normalizePathname } from '../../utils/path-pattern.ts';
 import { parseSearchParams } from './parse-search-params.ts';
 import { findIntegrationForFile, findLongestExtension } from '../../plugins/find-integration-for-file.ts';
@@ -78,12 +79,6 @@ export type RouteRegistryOptions = {
 	buildMode: boolean;
 	pageModuleAdapter: RouteRegistryPageModuleAdapter;
 };
-
-/**
- * Marks a file under the pages directory as an endpoint rather than a Page. It is never a
- * template extension: an endpoint has no Integration owner, Layout or Cache Strategy.
- */
-const ENDPOINT_EXTENSION = '.api.ts';
 
 const ROUTE_PRIORITY: Record<RouteKind, number> = {
 	exact: 0,
@@ -267,7 +262,7 @@ export class RouteRegistry {
 		}
 
 		const scannedFiles = await fileSystem.glob(
-			[...this.templatesExt, ENDPOINT_EXTENSION].map((ext) => `**/*${ext}`),
+			[...this.templatesExt, ...ENDPOINT_FILE_EXTENSIONS].map((ext) => `**/*${ext}`),
 			{
 				cwd: this.pagesDir,
 			},
@@ -281,8 +276,9 @@ export class RouteRegistry {
 				continue;
 			}
 
-			const role: RouteRole = file.endsWith(ENDPOINT_EXTENSION) ? 'endpoint' : 'page';
-			const routePathname = this.getRoutePath(file, role);
+			const endpointExtension = findEndpointFileExtension(file);
+			const role: RouteRole = endpointExtension ? 'endpoint' : 'page';
+			const routePathname = this.getRoutePath(file, endpointExtension);
 			const filePath = path.join(this.pagesDir, file);
 			const kind = this.classifyRouteKind(file);
 
@@ -347,12 +343,11 @@ export class RouteRegistry {
 	 * @remarks
 	 * Strips the longest template extension the file ends with, so `about.kita.tsx` keeps no
 	 * `.kita` part when `.tsx` is also registered, and `my.html-tips.html` keeps its name. An
-	 * endpoint strips its marker, so `users.api.ts` is `/users` even when `.ts` is a template
-	 * extension.
+	 * endpoint strips its whole marker, so `users.api.tsx` is `/users` even when `.tsx` is a
+	 * template extension.
 	 */
-	private getRoutePath(file: string, role: RouteRole): string {
-		const extension =
-			role === 'endpoint' ? ENDPOINT_EXTENSION : (findLongestExtension(this.templatesExt, file) ?? '');
+	private getRoutePath(file: string, endpointExtension: string | undefined): string {
+		const extension = endpointExtension ?? findLongestExtension(this.templatesExt, file) ?? '';
 		const cleanedRoute = file.slice(0, file.length - extension.length).replace(/\/?index$/, '');
 
 		return normalizePathname(`/${cleanedRoute}`);

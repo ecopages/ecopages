@@ -40,15 +40,15 @@ Do not treat Ecopages as a React-only framework.
 
 Read only the modules relevant to the task. Each file is one level deep from this entry.
 
-| Module                                                                     | Read when                                                                           |
-| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| [reference/getting-started.md](reference/getting-started.md)               | Init, install, `eco.config.ts`, `app.ts`, scripts                                   |
-| [reference/core.md](reference/core.md)                                     | `eco.page` / `eco.component`, project structure, dependencies, metadata, layouts    |
-| [reference/integrations.md](reference/integrations.md)                     | Picking or mixing integrations, MDX ownership rules                                 |
-| [reference/processors-and-plugins.md](reference/processors-and-plugins.md) | PostCSS, images, custom processors, source transforms, plugin lifecycle             |
-| [reference/server.md](reference/server.md)                                 | `defineApiHandler`, `defineGroupHandler`, `*.api.ts` endpoint files, pages vs views |
-| [reference/styling.md](reference/styling.md)                               | Tailwind v4, PostCSS processor, CSS imports                                         |
-| [reference/full-stack.md](reference/full-stack.md)                         | Better Auth, Drizzle, protected routes                                              |
+| Module                                                                     | Read when                                                                          |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [reference/getting-started.md](reference/getting-started.md)               | Init, install, `eco.config.ts`, `app.ts`, scripts                                  |
+| [reference/core.md](reference/core.md)                                     | `eco.page` / `eco.component`, project structure, dependencies, metadata, layouts   |
+| [reference/integrations.md](reference/integrations.md)                     | Picking or mixing integrations, MDX ownership rules                                |
+| [reference/processors-and-plugins.md](reference/processors-and-plugins.md) | PostCSS, images, custom processors, source transforms, plugin lifecycle            |
+| [reference/server.md](reference/server.md)                                 | `defineApiHandler`, `defineGroupHandler`, `*.api.*` endpoint files, pages vs views |
+| [reference/styling.md](reference/styling.md)                               | Tailwind v4, PostCSS processor, CSS imports                                        |
+| [reference/full-stack.md](reference/full-stack.md)                         | Better Auth, Drizzle, protected routes                                             |
 
 ## Critical rules
 

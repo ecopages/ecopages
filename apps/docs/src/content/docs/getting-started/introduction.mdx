@@ -51,7 +51,7 @@ The result? Fast static pages, minimal dependencies, and code you can actually u
 
 4. **Lightweight, Safe Backend**:
     - **Typed Handlers**: Define API handlers with `defineApiHandler`, whose schema types and validates the request.
-    - **Explicit Routing**: Use `app.get()`, `app.post()`, etc. for granular control over your API handlers. Or add a `*.api.ts` file under `src/pages`.
+    - **Explicit Routing**: Use `app.get()`, `app.post()`, etc. for granular control over your API handlers. Or add an endpoint file (`*.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx`) under `src/pages`.
     - **Zero Overhead**: The server module is tree-shaken away when you only build static pages.
 
 5. **Choose Your Templating**:

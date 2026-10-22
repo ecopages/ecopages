@@ -68,7 +68,7 @@ A route automatically discovered by scanning the pages directory. Files follow c
 _Avoid_: Automatic route, file-based route
 
 **Endpoint**:
-A Filesystem Route declared by a `*.api.ts` file under the pages directory, whose method handler exports (`GET`, `POST`, ...) answer its requests. It follows the Page pathname rules with `.api.ts` as the dropped marker (`pages/api/users.api.ts` becomes `/api/users`) and is never a Page: no Layout, no Cache Strategy, no Build-Time Rendering. An `app.get()` handler is an Explicit Route, not an Endpoint.
+A Filesystem Route declared by a file under the pages directory ending in `.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx`, whose method handler exports (`GET`, `POST`, ...) answer its requests. It follows the Page pathname rules with the whole `.api.*` ending as the dropped marker (`pages/api/users.api.ts` becomes `/api/users`) and is never a Page: no Layout, no Cache Strategy, no Build-Time Rendering. An `app.get()` handler is an Explicit Route, not an Endpoint.
 _Avoid_: API route, API page, handler file
 
 **Explicit Route**:

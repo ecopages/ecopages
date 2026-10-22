@@ -185,7 +185,7 @@ export class EcopagesApp implements AsyncDisposable {
 	add(handler: ApiHandler<string, Request, unknown>): this {
 		invariant(
 			handler.path !== '',
-			`The ${handler.method} handler has no path. Export it from a \`*.api.ts\` file under the pages directory, or give it a \`path\` to register it with app.add().`,
+			`The ${handler.method} handler has no path. Export it from an endpoint file (\`*.api.ts\`, \`.api.tsx\`, \`.api.js\` or \`.api.jsx\`) under the pages directory, or give it a \`path\` to register it with app.add().`,
 		);
 		return this.addRouteHandler(handler.path, handler.method, handler.handler, handler.middleware, handler.schema);
 	}
@@ -281,7 +281,7 @@ export class EcopagesApp implements AsyncDisposable {
 		for (const route of group.routes) {
 			invariant(
 				route.path !== '',
-				`The ${route.method} handler in group "${group.prefix}" has no path. Export it from a \`*.api.ts\` file under the pages directory, or give it a \`path\` ("/" for the group root) to register it with app.group().`,
+				`The ${route.method} handler in group "${group.prefix}" has no path. Export it from an endpoint file (\`*.api.ts\`, \`.api.tsx\`, \`.api.js\` or \`.api.jsx\`) under the pages directory, or give it a \`path\` ("/" for the group root) to register it with app.group().`,
 			);
 			const normalizedPath = route.path.startsWith('/') ? route.path : `/${route.path}`;
 			const fullPath = route.path === '/' ? normalizedPrefix : `${normalizedPrefix}${normalizedPath}`;

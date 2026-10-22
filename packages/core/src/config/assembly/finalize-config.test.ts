@@ -422,6 +422,21 @@ describe('finalizeEcoPagesConfig', () => {
 		);
 	});
 
+	test.each([['.api.ts'], ['.api.tsx']])(
+		'rejects an Integration that registers the endpoint marker %p',
+		async (extension) => {
+			await expect(finalize({ integrations: [createMockIntegration('mine', [extension])] })).rejects.toThrow(
+				`Integration "mine" registers "${extension}", which is reserved for endpoint files: .api.ts, .api.tsx, .api.js, .api.jsx.`,
+			);
+		},
+	);
+
+	test('accepts an Integration that registers .tsx, the ending of .api.tsx', async () => {
+		const config = await finalize({ integrations: [createMockIntegration('mine', ['.tsx'])] });
+
+		expect(config.templatesExt).toEqual(['.tsx', '.html']);
+	});
+
 	test('should reject an already finalized config and the old loaded-config argument', async () => {
 		const finalized = await finalize();
 

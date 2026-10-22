@@ -32,6 +32,8 @@ export const customPlugin = defineIntegration({
 });
 ```
 
+An extension ending in `.api.ts`, `.api.tsx`, `.api.js` or `.api.jsx` is reserved for [endpoint files](/docs/core/routing#endpoint-files) and cannot be registered; config finalization fails and names the Integration.
+
 `customPlugin()` returns a configured integration instance. `customPlugin.Plugin` exposes the generated class when you need an explicit constructor.
 
 For integrations with runtime services, HMR strategies, or build loaders, keep the plugin class below and use the same renderer factory unless custom renderer state requires a subclass.

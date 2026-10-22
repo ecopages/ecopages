@@ -509,6 +509,25 @@ describe('RouteRegistry', () => {
 			expect(registry.matchRequest('http://localhost:3000/api/users.api')).toBeNull();
 		});
 
+		test.each([['users.api.tsx'], ['users.api.js'], ['users.api.jsx']])(
+			'discovers %p as the endpoint /users when .tsx and .ts are Page extensions',
+			async (file) => {
+				await writePages([file]);
+				const registry = createRegistry({ pagesDir, templatesExt: ['.tsx', '.ts'] });
+				await registry.init();
+
+				expect(registry.templateRoutes).toEqual([
+					{
+						pathname: '/users',
+						kind: 'exact',
+						role: 'endpoint',
+						filePath: path.join(pagesDir, file),
+						paramNames: [],
+					},
+				]);
+			},
+		);
+
 		describe.each([['.html'], ['.ts']])('with templatesExt %p', (templateExtension) => {
 			test.each([
 				['api/users/index.api.ts', '/api/users', 'exact', [], '/api/users', {}],
@@ -556,6 +575,7 @@ describe('RouteRegistry', () => {
 			['users.ts', 'users.api.ts', '.ts', ['/users']],
 			['index.tsx', 'index.api.ts', '.tsx', ['/']],
 			['users.api.ts', 'users/index.api.ts', '.tsx', ['/users']],
+			['users.api.ts', 'users.api.js', '.tsx', ['/users']],
 			['blog/[slug].tsx', 'blog/[id].api.ts', '.tsx', ['/blog/[slug]', '/blog/[id]']],
 			['x/[a].api.ts', 'x/[b].api.ts', '.tsx', ['/x/[a]', '/x/[b]']],
 			['[slug].tsx', '[id].tsx', '.tsx', ['/[slug]', '/[id]']],
@@ -576,13 +596,16 @@ describe('RouteRegistry', () => {
 			}
 		});
 
-		test('rejects an endpoint file whose pathname ends in a known static file extension', async () => {
-			await writePages(['feed.xml.api.ts']);
+		test.each([['feed.xml.api.ts'], ['feed.xml.api.js']])(
+			'rejects the endpoint file %p whose pathname ends in a known static file extension',
+			async (file) => {
+				await writePages([file]);
 
-			await expect(createRegistry({ pagesDir, templatesExt: ['.tsx'] }).init()).rejects.toThrow(
-				`${path.join(pagesDir, 'feed.xml.api.ts')}: the endpoint "/feed.xml" ends in a static file extension, so no request reaches it. Register that URL in app.ts instead.`,
-			);
-		});
+				await expect(createRegistry({ pagesDir, templatesExt: ['.tsx'] }).init()).rejects.toThrow(
+					`${path.join(pagesDir, file)}: the endpoint "/feed.xml" ends in a static file extension, so no request reaches it. Register that URL in app.ts instead.`,
+				);
+			},
+		);
 
 		test('accepts a dynamic endpoint file whose requests may end in a static file extension', async () => {
 			await writePages(['files/[name].api.ts']);

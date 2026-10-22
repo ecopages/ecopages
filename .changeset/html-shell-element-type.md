@@ -1,5 +1,5 @@
 ---
-'@ecopages/core': minor
+'@ecopages/core': patch
 ---
 
 Type an `eco.html()` shell's `children` and `headContent` with the element type it is given. `eco.html<JsxRenderable>()` or `eco.html<ReactNode>()` now renders `{children}` and `{headContent}` without a cast; they were typed as the default element type before.

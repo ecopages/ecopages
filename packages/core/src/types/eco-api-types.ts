@@ -120,7 +120,7 @@ export interface ComponentOptions<P, E = EcoPagesElement> {
 	render: (props: P) => E | Promise<E>;
 }
 
-export type HtmlOptions<E = EcoPagesElement> = ComponentOptions<HtmlTemplateProps, E>;
+export type HtmlOptions<E = EcoPagesElement> = ComponentOptions<HtmlTemplateProps<E>, E>;
 
 export type LayoutOptions<E = EcoPagesElement> = ComponentOptions<LayoutProps<E>, E>;
 

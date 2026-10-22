@@ -3,6 +3,7 @@ import type {
 	ApiHandler,
 	ApiHandlerContext,
 	EcoMiddleware,
+	HtmlOptions,
 	Middleware,
 	MiddlewareList,
 	RouteOptions,
@@ -22,5 +23,13 @@ describe('@ecopages/core root public types', () => {
 		expectTypeOf<RouteOptions<Request, unknown>['middleware']>().toEqualTypeOf<
 			MiddlewareList<Request, unknown> | undefined
 		>();
+	});
+
+	it('types the children and headContent of an eco.html() shell with its element type', () => {
+		type ShellElement = { kind: 'shell-element' };
+		type ShellProps = Parameters<HtmlOptions<ShellElement>['render']>[0];
+
+		expectTypeOf<ShellProps['children']>().toEqualTypeOf<ShellElement>();
+		expectTypeOf<ShellProps['headContent']>().toEqualTypeOf<ShellElement | undefined>();
 	});
 });

@@ -4,7 +4,7 @@ import { Seo } from '@/includes/seo';
 import type { JsxRenderable } from '@ecopages/jsx';
 import '../styles/tailwind.css';
 
-export const Head = eco.component<PageHeadProps, JsxRenderable>({
+export const Head = eco.component<PageHeadProps<JsxRenderable>, JsxRenderable>({
 	render: ({ metadata, children }) => {
 		return (
 			<head>

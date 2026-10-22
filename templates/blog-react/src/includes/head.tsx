@@ -4,7 +4,7 @@ import { Seo } from '@/includes/seo';
 import type { ReactNode } from 'react';
 import '../styles/tailwind.css';
 
-export const Head = eco.component<PageHeadProps, ReactNode>({
+export const Head = eco.component<PageHeadProps<ReactNode>, ReactNode>({
 	render: ({ metadata, children }) => {
 		return (
 			<head>
